@@ -1,0 +1,59 @@
+name: Build iOS (.ipa sem assinatura)
+
+# Corre automaticamente em cada push ao main, ou manualmente
+# no separador Actions -> "Run workflow".
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+
+      # O .env não vai no repositório; vem do secret ENV_FILE
+      # (Settings -> Secrets and variables -> Actions)
+      - name: Criar .env a partir do secret
+        run: printf '%s' "$ENV_FILE" > .env
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+
+      - name: Gerar projeto nativo iOS (prebuild)
+        run: npx expo prebuild --platform ios --no-install
+        env:
+          CI: 1
+
+      - name: Instalar pods
+        run: cd ios && pod install
+
+      - name: Compilar Release (sem assinatura)
+        run: |
+          xcodebuild -workspace ios/Duotone.xcworkspace \
+            -scheme Duotone \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/Duotone.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Empacotar .ipa
+        run: |
+          mkdir Payload
+          cp -R build/Duotone.xcarchive/Products/Applications/Duotone.app Payload/
+          zip -qr Duotone.ipa Payload
+
+      - name: Publicar .ipa como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: Duotone-ipa
+          path: Duotone.ipa
+          retention-days: 30

@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "Duotone",
+    "slug": "duotone",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "duotone",
+    "backgroundColor": "#0A0A0F",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "backgroundColor": "#0A0A0F",
+      "resizeMode": "contain",
+      "image": "./assets/splash-icon.png"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.joao.duotone",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["spotify"],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.joao.duotone",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0A0A0F"
+      }
+    },
+    "plugins": ["expo-secure-store"]
+  }
+}
