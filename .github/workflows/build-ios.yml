@@ -13,6 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # O expo-video puxa uma dependência SPM que exige Swift 6.2. O Xcode 16.4
+      # (default no runner) só traz Swift 6.1, por isso escolhemos o mais recente
+      # instalado (Xcode 26+, Swift 6.2).
+      - name: Selecionar Xcode com Swift 6.2
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
