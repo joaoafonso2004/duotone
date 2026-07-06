@@ -5,63 +5,78 @@
  *
  * IMPORTANTE (regra do projeto): isto usa a API interna (InnerTube) do YouTube
  * e contorna o player oficial. Viola os Termos do YouTube — é aceitável APENAS
- * porque esta app é de uso pessoal e não vai à App Store. Se a extração falhar,
- * o player cai automaticamente no WebView oficial (ver YouTubePlayerView).
+ * porque esta app é de uso pessoal e não vai à App Store. Se a extração falhar
+ * (ex.: vídeo com idade/região, ou live), o player cai automaticamente no
+ * WebView oficial (ver YouTubePlayerView).
+ *
+ * Estratégia (validada contra o YouTube em jul/2026):
+ *  - Cliente IOS (versão da app real) devolve streams SEM cifra nem PoToken.
+ *  - Se houver `hlsManifestUrl` (m3u8), usa-se — adaptativo, ideal no AVPlayer.
+ *  - Senão, escolhe-se o melhor áudio `audio/mp4` (AAC) dos adaptiveFormats. O
+ *    URL responde 206 a GET+Range (que é como o AVPlayer pede), logo toca. O
+ *    HEAD dá 403, mas isso é irrelevante para a reprodução.
+ *
+ * NOTA: a versão do cliente iOS envelhece. Se um dia parar de resolver (HTTP
+ * 400 "Precondition check failed"), atualizar IOS_CLIENT.clientVersion para a
+ * versão atual da app do YouTube para iOS.
  */
 
-const INNERTUBE_URL =
-  'https://www.youtube.com/youtubei/v1/player?prettyPrint=false';
+// Chave InnerTube pública/conhecida (vai embutida na app iOS; não é segredo).
+const INNERTUBE_KEY = 'AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc';
+const PLAYER_URL = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_KEY}&prettyPrint=false`;
 
-// Cliente iOS do YouTube: costuma devolver hlsManifestUrl sem cifra nem PoToken.
-const IOS = {
+const IOS_CLIENT = {
   clientName: 'IOS',
-  clientVersion: '19.45.4',
+  clientNumber: '5',
+  clientVersion: '20.10.4',
+  deviceMake: 'Apple',
   deviceModel: 'iPhone16,2',
+  osName: 'iPhone',
   osVersion: '18.1.0.22B83',
   userAgent:
-    'com.google.ios.youtube/19.45.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X)',
+    'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X)',
 };
 
 export interface YtStream {
-  /** URL tocável no player nativo (HLS .m3u8 ou progressivo). */
+  /** URL tocável no AVPlayer (m3u8 HLS ou mp4 progressivo). */
   url: string;
-  /** true = manifesto HLS adaptativo; false = ficheiro progressivo único. */
   isHls: boolean;
-  /** quando o URL progressivo expira (epoch ms); HLS não expira desta forma. */
+  /** epoch ms em que o URL expira (HLS renova sozinho; mp4 ~6h). */
   expiresAt: number;
 }
 
-// Cache em memória (por sessão) — os URLs do YouTube expiram (~6h), por isso
-// não vale a pena persistir. Evita re-resolver ao voltar à mesma faixa.
+// Cache em memória (por sessão) — os URLs expiram, não vale a pena persistir.
 const memo = new Map<string, YtStream>();
 
-function pickAudioUrl(streamingData: any): string | null {
+/** Melhor áudio mp4/AAC com URL direto (o AVPlayer não toca webm/opus). */
+function pickMp4Audio(streamingData: any): string | null {
   const formats: any[] = [
     ...(streamingData?.adaptiveFormats ?? []),
     ...(streamingData?.formats ?? []),
   ];
-  // Melhor faixa só-de-áudio com URL direto (sem signatureCipher).
-  const audioOnly = formats
-    .filter((f) => f.url && String(f.mimeType ?? '').startsWith('audio/'))
+  const aac = formats
+    .filter((f) => f.url && String(f.mimeType ?? '').startsWith('audio/mp4'))
     .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
-  if (audioOnly[0]?.url) return audioOnly[0].url;
+  if (aac[0]?.url) return aac[0].url;
 
-  // Fallback: qualquer formato progressivo muxed com URL direto.
-  const muxed = (streamingData?.formats ?? []).find((f: any) => f.url);
-  return muxed?.url ?? null;
+  // último recurso: progressivo muxed mp4 com URL direto
+  const muxedMp4 = (streamingData?.formats ?? []).find(
+    (f: any) => f.url && String(f.mimeType ?? '').includes('mp4')
+  );
+  return muxedMp4?.url ?? null;
 }
 
 export async function resolveYouTubeStream(videoId: string): Promise<YtStream> {
   const cached = memo.get(videoId);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
 
-  const res = await fetch(INNERTUBE_URL, {
+  const res = await fetch(PLAYER_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'User-Agent': IOS.userAgent,
-      'X-YouTube-Client-Name': '5',
-      'X-YouTube-Client-Version': IOS.clientVersion,
+      'User-Agent': IOS_CLIENT.userAgent,
+      'X-YouTube-Client-Name': IOS_CLIENT.clientNumber,
+      'X-YouTube-Client-Version': IOS_CLIENT.clientVersion,
     },
     body: JSON.stringify({
       videoId,
@@ -69,11 +84,12 @@ export async function resolveYouTubeStream(videoId: string): Promise<YtStream> {
       racyCheckOk: true,
       context: {
         client: {
-          clientName: IOS.clientName,
-          clientVersion: IOS.clientVersion,
-          deviceModel: IOS.deviceModel,
-          osName: 'iOS',
-          osVersion: IOS.osVersion,
+          clientName: IOS_CLIENT.clientName,
+          clientVersion: IOS_CLIENT.clientVersion,
+          deviceMake: IOS_CLIENT.deviceMake,
+          deviceModel: IOS_CLIENT.deviceModel,
+          osName: IOS_CLIENT.osName,
+          osVersion: IOS_CLIENT.osVersion,
           hl: 'en',
           gl: 'US',
         },
@@ -81,20 +97,18 @@ export async function resolveYouTubeStream(videoId: string): Promise<YtStream> {
     }),
   });
 
-  if (!res.ok) throw new Error(`InnerTube ${res.status}`);
+  if (!res.ok) throw new Error(`InnerTube HTTP ${res.status}`);
   const data = await res.json();
 
   const status = data?.playabilityStatus?.status;
   if (status && status !== 'OK') {
-    throw new Error(
-      data?.playabilityStatus?.reason || `Video not playable (${status})`
-    );
+    throw new Error(data?.playabilityStatus?.reason || `Not playable (${status})`);
   }
 
   const sd = data?.streamingData;
-  if (!sd) throw new Error('No streamingData in response');
+  if (!sd) throw new Error('No streamingData');
 
-  // HLS é o ideal: adaptativo, sem cifra, ótimo no AVPlayer.
+  // 1) HLS quando disponível (adaptativo).
   if (sd.hlsManifestUrl) {
     const stream: YtStream = {
       url: sd.hlsManifestUrl,
@@ -105,8 +119,9 @@ export async function resolveYouTubeStream(videoId: string): Promise<YtStream> {
     return stream;
   }
 
-  const url = pickAudioUrl(sd);
-  if (!url) throw new Error('No direct stream URL (may require PoToken)');
+  // 2) Áudio mp4 direto (caso típico dos music videos / Vevo).
+  const url = pickMp4Audio(sd);
+  if (!url) throw new Error('No AVPlayer-compatible stream found');
 
   const expireSec = Number(sd.expiresInSeconds ?? 18000);
   const stream: YtStream = {
