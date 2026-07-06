@@ -21,8 +21,11 @@ import {
   renamePlaylist,
 } from '../api/playlists';
 import { ArtworkCollage } from '../components/ArtworkCollage';
+import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
+import { PromptSheet } from '../components/PromptSheet';
 import { Screen } from '../components/Screen';
+import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Playlist } from '../types';
@@ -35,6 +38,12 @@ export function PlaylistsScreen() {
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [optionsFor, setOptionsFor] = useState<Playlist | null>(null);
+  const [renameFor, setRenameFor] = useState<Playlist | null>(null);
+  const [deleteFor, setDeleteFor] = useState<Playlist | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -52,57 +61,49 @@ export function PlaylistsScreen() {
     }, [load])
   );
 
-  const promptCreate = () => {
-    Alert.prompt('New playlist', 'Give it a name.', async (name) => {
-      if (!name?.trim()) return;
-      try {
-        const pl = await createPlaylist(name.trim());
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        load();
-        navigation.navigate('PlaylistDetail', { id: pl.id, name: pl.name });
-      } catch (e: any) {
-        Alert.alert('Error', e?.message ?? 'Could not create the playlist.');
-      }
-    });
+  const doCreate = async (name: string) => {
+    setBusy(true);
+    try {
+      const pl = await createPlaylist(name);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCreateOpen(false);
+      load();
+      navigation.navigate('PlaylistDetail', { id: pl.id, name: pl.name });
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not create the playlist.');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const showOptions = (pl: Playlist) => {
-    Alert.alert(pl.name, undefined, [
-      {
-        text: 'Rename',
-        onPress: () =>
-          Alert.prompt('Rename playlist', undefined, async (name) => {
-            if (!name?.trim()) return;
-            try {
-              await renamePlaylist(pl.id, name.trim());
-              load();
-            } catch (e: any) {
-              Alert.alert('Error', e?.message ?? 'Could not rename.');
-            }
-          }),
-      },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () =>
-          Alert.alert('Delete playlist', `Delete "${pl.name}"? This cannot be undone.`, [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Delete',
-              style: 'destructive',
-              onPress: async () => {
-                try {
-                  await deletePlaylist(pl.id);
-                  load();
-                } catch (e: any) {
-                  Alert.alert('Error', e?.message ?? 'Could not delete.');
-                }
-              },
-            },
-          ]),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+  const doRename = async (name: string) => {
+    if (!renameFor) return;
+    setBusy(true);
+    try {
+      await renamePlaylist(renameFor.id, name);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setRenameFor(null);
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not rename the playlist.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doDelete = async () => {
+    if (!deleteFor) return;
+    setBusy(true);
+    try {
+      await deletePlaylist(deleteFor.id);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setDeleteFor(null);
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not delete the playlist.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const cardSize = (W - spacing.xl * 2 - spacing.lg) / 2;
@@ -113,7 +114,11 @@ export function PlaylistsScreen() {
       title="Playlists"
       subtitle={`${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
       right={
-        <Pressable hitSlop={10} onPress={promptCreate} style={{ marginBottom: 4 }}>
+        <Pressable
+          hitSlop={10}
+          onPress={() => setCreateOpen(true)}
+          style={{ marginBottom: 4 }}
+        >
           <Ionicons name="add-circle" size={30} color={colors.accent} />
         </Pressable>
       }
@@ -151,7 +156,11 @@ export function PlaylistsScreen() {
           keyExtractor={(p) => p.id}
           numColumns={2}
           columnWrapperStyle={{ gap: spacing.lg, paddingHorizontal: spacing.xl }}
-          contentContainerStyle={{ gap: spacing.lg, paddingBottom: bottomPad, paddingTop: spacing.sm }}
+          contentContainerStyle={{
+            gap: spacing.lg,
+            paddingBottom: bottomPad,
+            paddingTop: spacing.sm,
+          }}
           renderItem={({ item }) => (
             <Pressable
               onPress={() =>
@@ -162,14 +171,30 @@ export function PlaylistsScreen() {
               }
               onLongPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                showOptions(item);
+                setOptionsFor(item);
               }}
-              style={({ pressed }) => [{ width: cardSize }, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [
+                { width: cardSize },
+                pressed && { opacity: 0.8 },
+              ]}
             >
               <ArtworkCollage artworks={item.artworks} size={cardSize} />
-              <Text numberOfLines={1} style={[type.headline, { marginTop: 8 }]}>
-                {item.name}
-              </Text>
+              <View style={styles.cardTitleRow}>
+                <Text numberOfLines={1} style={[type.headline, { flex: 1 }]}>
+                  {item.name}
+                </Text>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => setOptionsFor(item)}
+                  style={{ padding: 2 }}
+                >
+                  <Ionicons
+                    name="ellipsis-horizontal"
+                    size={16}
+                    color={colors.textTertiary}
+                  />
+                </Pressable>
+              </View>
               <Text style={type.caption}>
                 {item.trackCount} {item.trackCount === 1 ? 'track' : 'tracks'}
               </Text>
@@ -177,6 +202,66 @@ export function PlaylistsScreen() {
           )}
         />
       )}
+
+      {/* opções da playlist (long-press ou •••) */}
+      <TrackActionsSheet
+        visible={!!optionsFor}
+        track={null}
+        onClose={() => setOptionsFor(null)}
+        actions={[
+          {
+            icon: 'pencil-outline',
+            label: 'Rename playlist',
+            onPress: () => {
+              const p = optionsFor;
+              setOptionsFor(null);
+              setRenameFor(p);
+            },
+          },
+          {
+            icon: 'trash-outline',
+            label: 'Delete playlist',
+            destructive: true,
+            onPress: () => {
+              const p = optionsFor;
+              setOptionsFor(null);
+              setDeleteFor(p);
+            },
+          },
+        ]}
+      />
+
+      <PromptSheet
+        visible={createOpen}
+        title="New playlist"
+        placeholder="Playlist name"
+        submitLabel="Create"
+        loading={busy}
+        onClose={() => setCreateOpen(false)}
+        onSubmit={doCreate}
+      />
+
+      <PromptSheet
+        visible={!!renameFor}
+        title="Rename playlist"
+        placeholder="Playlist name"
+        initialValue={renameFor?.name}
+        submitLabel="Rename"
+        loading={busy}
+        onClose={() => setRenameFor(null)}
+        onSubmit={doRename}
+      />
+
+      <ConfirmSheet
+        visible={!!deleteFor}
+        title="Delete playlist"
+        message={`"${deleteFor?.name ?? ''}" will be permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete playlist"
+        destructive
+        loading={busy}
+        onClose={() => setDeleteFor(null)}
+        onConfirm={doDelete}
+      />
     </Screen>
   );
 }
@@ -201,5 +286,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.youtubeSoft,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
   },
 });

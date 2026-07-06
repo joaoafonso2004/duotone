@@ -63,7 +63,7 @@ export function BottomSheet({ visible, onClose, children }: Props) {
 
 const styles = StyleSheet.create({
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: colors.overlay,
   },
   sheet: {

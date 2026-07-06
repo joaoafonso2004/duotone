@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Brightness from 'expo-brightness';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useKeepAwake } from 'expo-keep-awake';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
@@ -15,18 +16,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getPlaybackState } from '../api/spotify';
 import { usePlayer } from '../state/player';
+import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { ProgressBar } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
-import {
-  colors,
-  gradients,
-  MINI_PLAYER_HEIGHT,
-  radii,
-  spacing,
-  type,
-} from '../theme';
 
 const TAB_BAR_BASE = 49;
+const HEADER_H = 44;
 
 /** Mantém o ecrã acordado enquanto o YouTube toca (evita o lock que pausa o WKWebView). */
 function KeepAwakeWhilePlaying() {
@@ -62,16 +57,48 @@ export function PlayerRoot() {
 
   const anim = useRef(new Animated.Value(0)).current;
 
+  // Pocket mode: ecrã escurecido ao máximo, música continua (o dispositivo
+  // fica desbloqueado — é a alternativa legítima ao "tocar com ecrã fechado",
+  // que no YouTube é funcionalidade do Premium e não vamos contornar)
+  const [pocket, setPocket] = useState(false);
+  const prevBrightness = useRef<number | null>(null);
+
+  const enterPocket = async () => {
+    setPocket(true);
+    try {
+      prevBrightness.current = await Brightness.getBrightnessAsync();
+      await Brightness.setBrightnessAsync(0);
+    } catch {
+      // sem permissão/simulador — o overlay preto continua a funcionar
+    }
+  };
+
+  const exitPocket = async () => {
+    setPocket(false);
+    try {
+      await Brightness.setBrightnessAsync(prevBrightness.current ?? 0.5);
+    } catch {
+      // ignorar
+    }
+  };
+
+  useEffect(() => {
+    if (!current && pocket) {
+      exitPocket();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, pocket]);
+
   useEffect(() => {
     Animated.spring(anim, {
       toValue: expanded ? 1 : 0,
       useNativeDriver: false,
       speed: 14,
-      bounciness: 4,
+      bounciness: 3,
     }).start();
   }, [expanded, anim]);
 
-  // Sincronização Spotify (a música toca na app Spotify; fazemos poll do estado)
+  // Sincronização Spotify (a música toca na app Spotify; poll do estado)
   useEffect(() => {
     if (!current || current.source !== 'spotify') return;
     const id = setInterval(async () => {
@@ -83,7 +110,7 @@ export function PlayerRoot() {
           setIsPlaying(s.isPlaying);
         }
       } catch {
-        // offline / token expirado — ignorar silenciosamente no poll
+        // offline / token expirado — ignorar no poll
       }
     }, 3000);
     return () => clearInterval(id);
@@ -101,21 +128,33 @@ export function PlayerRoot() {
   const isYt = current.source === 'youtube';
   const TAB_H = TAB_BAR_BASE + insets.bottom;
   const miniBottom = TAB_H + 8;
+  const fraction = durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
 
-  // Retângulos do frame de vídeo YouTube (mini <-> expandido)
+  // Frame de vídeo: mini (48px, dentro do mini-player) <-> expandido (cartão com margens)
   const vidMini = {
     x: 10 + 8,
-    y: H - miniBottom - MINI_PLAYER_HEIGHT + (MINI_PLAYER_HEIGHT - 50) / 2,
-    w: 89,
-    h: 50,
+    y: H - miniBottom - MINI_PLAYER_HEIGHT + (MINI_PLAYER_HEIGHT - 48) / 2,
+    w: 85,
+    h: 48,
   };
-  const vidFull = { x: 0, y: insets.top + 96, w: W, h: (W * 9) / 16 };
+  const vidFull = {
+    x: 16,
+    y: insets.top + 6 + HEADER_H + 8,
+    w: W - 32,
+    h: ((W - 32) * 9) / 16,
+  };
 
+  const artSize = Math.min(W - 120, 320);
   const upNext = queue.slice(queueIndex + 1, queueIndex + 7);
+  const sourceColor = isYt ? colors.youtube : colors.spotify;
+  const tint = isYt ? 'rgba(255,78,69,0.10)' : 'rgba(29,185,84,0.08)';
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {isYt && isPlaying ? <KeepAwakeWhilePlaying /> : null}
+      {/* Com áudio nativo o som continua com o ecrã desligado, por isso já não
+          forçamos o keep-awake ao tocar YouTube — só no pocket mode (ecrã
+          ligado mas preto), que continua a ser uma opção. */}
+      {pocket ? <KeepAwakeWhilePlaying /> : null}
 
       {/* ===================== OVERLAY EXPANDIDO ===================== */}
       <Animated.View
@@ -134,62 +173,48 @@ export function PlayerRoot() {
           },
         ]}
       >
-        {/* fundo: artwork desfocada + véu escuro */}
-        {current.artworkUrl ? (
-          <Image
-            source={{ uri: current.artworkUrl }}
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            blurRadius={60}
-          />
-        ) : null}
-        <View style={styles.dim} />
+        {/* tinte subtil da fonte no topo — sem blur, limpo */}
         <LinearGradient
-          colors={gradients.fadeDown}
-          style={styles.bottomFade}
+          colors={[tint, 'rgba(10,10,15,0)']}
+          style={styles.topTint}
           pointerEvents="none"
         />
 
         {/* cabeçalho */}
-        <View style={[styles.fullHeader, { paddingTop: insets.top + 8 }]}>
-          <Pressable hitSlop={10} onPress={() => setExpanded(false)}>
-            <Ionicons name="chevron-down" size={26} color={colors.text} />
+        <View style={[styles.fullHeader, { marginTop: insets.top + 6 }]}>
+          <Pressable hitSlop={12} onPress={() => setExpanded(false)} style={styles.headerBtn}>
+            <Ionicons name="chevron-down" size={24} color={colors.text} />
           </Pressable>
-          <View style={{ alignItems: 'center', gap: 2 }}>
-            <Text style={type.micro}>Now playing</Text>
-            <Text
-              style={[
-                type.micro,
-                { color: isYt ? colors.youtube : colors.spotify },
-              ]}
-            >
-              {isYt ? 'YouTube' : 'Spotify'}
-            </Text>
+          <View style={styles.headerCenter}>
+            <View style={[styles.sourceDot, { backgroundColor: sourceColor }]} />
+            <Text style={type.micro}>{isYt ? 'YouTube' : 'Spotify'}</Text>
           </View>
-          <Pressable hitSlop={10} onPress={close}>
-            <Ionicons name="close" size={24} color={colors.textSecondary} />
+          <Pressable hitSlop={12} onPress={close} style={styles.headerBtn}>
+            <Ionicons name="close" size={22} color={colors.textSecondary} />
           </Pressable>
         </View>
 
         {/* área do vídeo (o WebView flutua por cima) ou artwork Spotify */}
         {isYt ? (
-          <View style={{ height: vidFull.h }} />
+          <View style={{ height: vidFull.h, marginTop: 8 }} />
         ) : (
           <View style={styles.artworkWrap}>
             {current.artworkUrl ? (
               <Image
                 source={{ uri: current.artworkUrl }}
-                style={styles.bigArtwork}
+                style={[styles.bigArtwork, { width: artSize, height: artSize }]}
                 contentFit="cover"
                 transition={200}
               />
             ) : (
-              <View style={[styles.bigArtwork, styles.artFallback]}>
-                <Ionicons
-                  name="musical-notes"
-                  size={64}
-                  color={colors.textTertiary}
-                />
+              <View
+                style={[
+                  styles.bigArtwork,
+                  styles.artFallback,
+                  { width: artSize, height: artSize },
+                ]}
+              >
+                <Ionicons name="musical-notes" size={56} color={colors.textTertiary} />
               </View>
             )}
           </View>
@@ -200,68 +225,42 @@ export function PlayerRoot() {
           contentContainerStyle={styles.fullBody}
           showsVerticalScrollIndicator={false}
         >
-          <Text numberOfLines={2} style={[type.title, { textAlign: 'center' }]}>
-            {current.title}
-          </Text>
-          {current.artist ? (
-            <Text
-              numberOfLines={1}
-              style={[type.caption, { textAlign: 'center', fontSize: 15 }]}
-            >
-              {current.artist}
-            </Text>
-          ) : null}
-
-          {isYt ? (
-            <View style={{ gap: 8, marginTop: spacing.md }}>
-              <View style={{ width: 200, alignSelf: 'center' }}>
-                {/* Toggle vista vídeo / vista foto — o WebView continua a
-                    tocar por trás da foto (áudio e anúncios continuam) */}
-                <View style={styles.toggleWrap}>
-                  {(['video', 'photo'] as const).map((mode) => (
-                    <Pressable
-                      key={mode}
-                      onPress={() => setYtViewMode(mode)}
-                      style={[
-                        styles.toggleBtn,
-                        ytViewMode === mode && styles.toggleBtnActive,
-                      ]}
-                    >
-                      <Ionicons
-                        name={mode === 'video' ? 'videocam' : 'image'}
-                        size={14}
-                        color={
-                          ytViewMode === mode
-                            ? colors.text
-                            : colors.textTertiary
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.toggleLabel,
-                          ytViewMode === mode && { color: colors.text },
-                        ]}
-                      >
-                        {mode === 'video' ? 'Video' : 'Photo'}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              </View>
-              <Text style={[type.caption, { textAlign: 'center', fontSize: 11 }]}>
-                Plays through the official YouTube player · screen stays awake
+          {/* título + toggle vídeo/foto */}
+          <View style={styles.titleRow}>
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={2} style={styles.trackTitle}>
+                {current.title}
+              </Text>
+              <Text numberOfLines={1} style={styles.trackArtist}>
+                {current.artist ?? (isYt ? 'YouTube' : 'Spotify')}
               </Text>
             </View>
-          ) : (
-            <Text
-              style={[
-                type.caption,
-                { textAlign: 'center', fontSize: 11, marginTop: spacing.md },
-              ]}
-            >
-              Playing via the Spotify app · Premium required
-            </Text>
-          )}
+
+            {isYt ? (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() =>
+                    setYtViewMode(ytViewMode === 'video' ? 'photo' : 'video')
+                  }
+                  style={styles.viewToggle}
+                >
+                  <Ionicons
+                    name={ytViewMode === 'video' ? 'image-outline' : 'videocam-outline'}
+                    size={18}
+                    color={colors.text}
+                  />
+                </Pressable>
+                <Pressable
+                  hitSlop={8}
+                  onPress={enterPocket}
+                  style={styles.viewToggle}
+                >
+                  <Ionicons name="moon-outline" size={17} color={colors.text} />
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
 
           <View style={{ marginTop: spacing.xl }}>
             <ProgressBar
@@ -274,50 +273,46 @@ export function PlayerRoot() {
           {/* controlos */}
           <View style={styles.controls}>
             <Pressable
-              hitSlop={12}
+              hitSlop={14}
               onPress={prev}
               disabled={queueIndex === 0}
-              style={queueIndex === 0 && { opacity: 0.3 }}
+              style={queueIndex === 0 && styles.dimmed}
             >
-              <Ionicons name="play-skip-back" size={30} color={colors.text} />
-            </Pressable>
-
-            <Pressable onPress={togglePlay}>
-              <LinearGradient
-                colors={gradients.aurora}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.playBtn}
-              >
-                <Ionicons
-                  name={isPlaying ? 'pause' : 'play'}
-                  size={34}
-                  color="#fff"
-                  style={!isPlaying && { marginLeft: 3 }}
-                />
-              </LinearGradient>
+              <Ionicons name="play-skip-back" size={28} color={colors.text} />
             </Pressable>
 
             <Pressable
-              hitSlop={12}
-              onPress={next}
-              disabled={queueIndex >= queue.length - 1}
-              style={queueIndex >= queue.length - 1 && { opacity: 0.3 }}
+              onPress={togglePlay}
+              style={({ pressed }) => [styles.playBtn, pressed && { opacity: 0.85 }]}
             >
               <Ionicons
-                name="play-skip-forward"
+                name={isPlaying ? 'pause' : 'play'}
                 size={30}
-                color={colors.text}
+                color={colors.bg}
+                style={!isPlaying && { marginLeft: 3 }}
               />
+            </Pressable>
+
+            <Pressable
+              hitSlop={14}
+              onPress={next}
+              disabled={queueIndex >= queue.length - 1}
+              style={queueIndex >= queue.length - 1 && styles.dimmed}
+            >
+              <Ionicons name="play-skip-forward" size={28} color={colors.text} />
             </Pressable>
           </View>
 
+          <Text style={styles.sourceNote}>
+            {isYt
+              ? 'Official YouTube player · screen stays awake'
+              : 'Playing via the Spotify app'}
+          </Text>
+
           {/* a seguir */}
           {upNext.length > 0 ? (
-            <View style={{ marginTop: spacing.xl, gap: 2 }}>
-              <Text style={[type.micro, { marginBottom: spacing.sm }]}>
-                Up next
-              </Text>
+            <View style={styles.upNextCard}>
+              <Text style={[type.micro, { marginBottom: spacing.sm }]}>Up next</Text>
               {upNext.map((t) => (
                 <Pressable
                   key={`${t.source}:${t.sourceId}`}
@@ -335,15 +330,11 @@ export function PlayerRoot() {
                     />
                   ) : (
                     <View style={[styles.upNextArt, styles.artFallback]}>
-                      <Ionicons
-                        name="musical-notes"
-                        size={12}
-                        color={colors.textTertiary}
-                      />
+                      <Ionicons name="musical-notes" size={12} color={colors.textTertiary} />
                     </View>
                   )}
                   <View style={{ flex: 1 }}>
-                    <Text numberOfLines={1} style={[type.body, { fontSize: 14 }]}>
+                    <Text numberOfLines={1} style={[type.body, { fontSize: 14, fontWeight: '600' }]}>
                       {t.title}
                     </Text>
                     <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
@@ -374,8 +365,8 @@ export function PlayerRoot() {
       >
         <Pressable style={styles.miniInner} onPress={() => setExpanded(true)}>
           {isYt ? (
-            // slot vazio — o WebView flutua exatamente por cima desta área
-            <View style={{ width: 89, height: 50 }} />
+            // slot — o WebView flutua exatamente por cima desta área
+            <View style={styles.miniVideoSlot} />
           ) : current.artworkUrl ? (
             <Image
               source={{ uri: current.artworkUrl }}
@@ -384,16 +375,15 @@ export function PlayerRoot() {
             />
           ) : (
             <View style={[styles.miniArt, styles.artFallback]}>
-              <Ionicons
-                name="musical-notes"
-                size={16}
-                color={colors.textTertiary}
-              />
+              <Ionicons name="musical-notes" size={16} color={colors.textTertiary} />
             </View>
           )}
 
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text numberOfLines={1} style={[type.body, { fontWeight: '600', fontSize: 14 }]}>
+          <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
+            <Text
+              numberOfLines={1}
+              style={[type.body, { fontWeight: '600', fontSize: 13.5 }]}
+            >
               {current.title}
             </Text>
             <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
@@ -401,22 +391,45 @@ export function PlayerRoot() {
             </Text>
           </View>
 
-          <Pressable hitSlop={10} onPress={togglePlay}>
+          {isYt ? (
+            <Pressable
+              hitSlop={8}
+              onPress={() =>
+                setYtViewMode(ytViewMode === 'video' ? 'photo' : 'video')
+              }
+              style={styles.miniBtn}
+            >
+              <Ionicons
+                name={ytViewMode === 'video' ? 'image-outline' : 'videocam-outline'}
+                size={19}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+          ) : null}
+
+          <Pressable hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
             <Ionicons
               name={isPlaying ? 'pause' : 'play'}
-              size={24}
+              size={22}
               color={colors.text}
             />
           </Pressable>
           <Pressable
-            hitSlop={10}
+            hitSlop={8}
             onPress={next}
             disabled={queueIndex >= queue.length - 1}
-            style={queueIndex >= queue.length - 1 && { opacity: 0.3 }}
+            style={[styles.miniBtn, queueIndex >= queue.length - 1 && styles.dimmed]}
           >
-            <Ionicons name="play-skip-forward" size={22} color={colors.text} />
+            <Ionicons name="play-skip-forward" size={20} color={colors.text} />
           </Pressable>
         </Pressable>
+
+        {/* linha de progresso fina */}
+        <View style={styles.miniTrack} pointerEvents="none">
+          <View
+            style={[styles.miniTrackFill, { width: `${fraction * 100}%` }]}
+          />
+        </View>
       </Animated.View>
 
       {/* ============ FRAME DE VÍDEO YOUTUBE (flutuante, nunca desmonta) ============ */}
@@ -442,16 +455,16 @@ export function PlayerRoot() {
             }),
             borderRadius: anim.interpolate({
               inputRange: [0, 1],
-              outputRange: [8, 0],
+              outputRange: [8, 14],
             }),
             overflow: 'hidden',
             backgroundColor: '#000',
           }}
         >
-          <YouTubePlayerView videoId={current.sourceId} />
+          <YouTubePlayerView track={current} />
 
           {/* Vista foto: artwork por cima — o WebView CONTINUA a tocar por trás */}
-          {expanded && ytViewMode === 'photo' && current.artworkUrl ? (
+          {ytViewMode === 'photo' && current.artworkUrl ? (
             <Image
               source={{ uri: current.artworkUrl }}
               style={StyleSheet.absoluteFill}
@@ -473,14 +486,19 @@ export function PlayerRoot() {
       {/* ===================== TOAST DE ERRO ===================== */}
       {error ? (
         <View
-          style={[
-            styles.toast,
-            { bottom: miniBottom + MINI_PLAYER_HEIGHT + 10 },
-          ]}
+          style={[styles.toast, { bottom: miniBottom + MINI_PLAYER_HEIGHT + 10 }]}
         >
           <Ionicons name="alert-circle" size={16} color={colors.danger} />
           <Text style={styles.toastText}>{error}</Text>
         </View>
+      ) : null}
+
+      {/* ===================== POCKET MODE ===================== */}
+      {pocket ? (
+        <Pressable style={styles.pocket} onPress={exitPocket}>
+          <Ionicons name="moon" size={20} color="rgba(255,255,255,0.20)" />
+          <Text style={styles.pocketText}>Music keeps playing · tap to wake</Text>
+        </Pressable>
       ) : null}
     </View>
   );
@@ -488,34 +506,44 @@ export function PlayerRoot() {
 
 const styles = StyleSheet.create({
   full: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: colors.bg,
   },
-  dim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10,10,15,0.72)',
-  },
-  bottomFade: {
+  topTint: {
     position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-    height: 220,
+    height: 320,
   },
   fullHeader: {
+    height: HEADER_H,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
-    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
+  },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sourceDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   artworkWrap: {
     alignItems: 'center',
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
   },
   bigArtwork: {
-    width: 300,
-    height: 300,
     borderRadius: radii.lg,
     backgroundColor: colors.surfaceHigh,
   },
@@ -526,45 +554,68 @@ const styles = StyleSheet.create({
   },
   fullBody: {
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: 48,
+    paddingTop: spacing.xl,
+    paddingBottom: 56,
   },
-  toggleWrap: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: radii.pill,
-    padding: 2,
-  },
-  toggleBtn: {
-    flex: 1,
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: spacing.md,
+  },
+  trackTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+    letterSpacing: 0.1,
+  },
+  trackArtist: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    marginTop: 3,
+  },
+  viewToggle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.surfaceHigh,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 7,
-    borderRadius: radii.pill,
-  },
-  toggleBtnActive: {
-    backgroundColor: 'rgba(255,255,255,0.16)',
-  },
-  toggleLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textTertiary,
   },
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 44,
-    marginTop: spacing.xl,
+    gap: 48,
+    marginTop: spacing.xl + 4,
   },
   playBtn: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  dimmed: {
+    opacity: 0.3,
+  },
+  sourceNote: {
+    ...type.caption,
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+    color: colors.textTertiary,
+  },
+  upNextCard: {
+    marginTop: spacing.xl,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.md,
   },
   upNextRow: {
     flexDirection: 'row',
@@ -572,7 +623,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: 6,
     paddingHorizontal: 6,
-    borderRadius: radii.md,
+    borderRadius: radii.sm,
   },
   upNextArt: {
     width: 36,
@@ -594,20 +645,46 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 12,
+    overflow: 'hidden',
   },
   miniInner: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: 8,
-    paddingRight: 14,
+    gap: 10,
+    paddingLeft: 8,
+    paddingRight: 6,
+  },
+  miniVideoSlot: {
+    width: 85,
+    height: 48,
+    borderRadius: 8,
   },
   miniArt: {
     width: 48,
     height: 48,
     borderRadius: radii.sm,
     backgroundColor: colors.surface,
+  },
+  miniBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniTrack: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 0,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  miniTrackFill: {
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: colors.accent,
   },
   toast: {
     position: 'absolute',
@@ -627,5 +704,17 @@ const styles = StyleSheet.create({
     ...type.caption,
     color: colors.text,
     flex: 1,
+  },
+  pocket: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  pocketText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.18)',
   },
 });

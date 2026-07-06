@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   StyleSheet,
   Text,
   View,
@@ -107,6 +108,7 @@ export function SearchScreen() {
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
+          onSubmitEditing={() => Keyboard.dismiss()}
         />
         <SegmentedControl
           options={['YouTube', 'Spotify']}
@@ -164,6 +166,7 @@ export function SearchScreen() {
           keyExtractor={(t) => `${t.source}:${t.sourceId}`}
           contentContainerStyle={{ paddingBottom: bottomPad }}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           renderItem={({ item }) => (
             <TrackRow
               track={item}
@@ -171,7 +174,10 @@ export function SearchScreen() {
                 current?.source === item.source &&
                 current?.sourceId === item.sourceId
               }
-              onPress={() => playTrack(item, results)}
+              onPress={() => {
+                Keyboard.dismiss();
+                playTrack(item, results);
+              }}
               onAction={() => setActionTrack(item)}
               actionIcon="add-circle-outline"
             />

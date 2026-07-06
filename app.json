@@ -18,7 +18,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.joao.duotone",
       "infoPlist": {
-        "LSApplicationQueriesSchemes": ["spotify"],
+        "LSApplicationQueriesSchemes": [
+          "spotify"
+        ],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -29,6 +31,15 @@
         "backgroundColor": "#0A0A0F"
       }
     },
-    "plugins": ["expo-secure-store"]
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": false
+        }
+      ]
+    ]
   }
 }

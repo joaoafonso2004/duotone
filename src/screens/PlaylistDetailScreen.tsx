@@ -20,9 +20,12 @@ import {
   renamePlaylist,
   setPlaylistOrder,
 } from '../api/playlists';
+import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PillButton } from '../components/PillButton';
+import { PromptSheet } from '../components/PromptSheet';
 import { Screen } from '../components/Screen';
+import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
@@ -42,6 +45,12 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [removeFor, setRemoveFor] = useState<PlaylistTrack | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -69,25 +78,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     Haptics.selectionAsync();
   };
 
-  const removeAt = (index: number) => {
-    const t = tracks[index];
-    Alert.alert('Remove track', `Remove "${t.title}" from this playlist?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await removeTrackFromPlaylist(id, t.id);
-            setTracks(tracks.filter((_, i) => i !== index));
-          } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'Could not remove the track.');
-          }
-        },
-      },
-    ]);
-  };
-
   const finishEdit = async () => {
     setEditMode(false);
     if (!dirty) return;
@@ -103,43 +93,45 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const showOptions = () => {
-    Alert.alert(name, undefined, [
-      {
-        text: 'Rename',
-        onPress: () =>
-          Alert.prompt('Rename playlist', undefined, async (newName) => {
-            if (!newName?.trim()) return;
-            try {
-              await renamePlaylist(id, newName.trim());
-              setName(newName.trim());
-            } catch (e: any) {
-              Alert.alert('Error', e?.message ?? 'Could not rename.');
-            }
-          }),
-      },
-      {
-        text: 'Delete playlist',
-        style: 'destructive',
-        onPress: () =>
-          Alert.alert('Delete playlist', 'This cannot be undone.', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Delete',
-              style: 'destructive',
-              onPress: async () => {
-                try {
-                  await deletePlaylist(id);
-                  navigation.goBack();
-                } catch (e: any) {
-                  Alert.alert('Error', e?.message ?? 'Could not delete.');
-                }
-              },
-            },
-          ]),
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+  const doRename = async (newName: string) => {
+    setBusy(true);
+    try {
+      await renamePlaylist(id, newName);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setName(newName);
+      setRenameOpen(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not rename.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doDelete = async () => {
+    setBusy(true);
+    try {
+      await deletePlaylist(id);
+      setDeleteOpen(false);
+      navigation.goBack();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not delete.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const doRemoveTrack = async () => {
+    if (!removeFor) return;
+    setBusy(true);
+    try {
+      await removeTrackFromPlaylist(id, removeFor.id);
+      setTracks(tracks.filter((t) => t.id !== removeFor.id));
+      setRemoveFor(null);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not remove the track.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
@@ -150,7 +142,11 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       subtitle={`${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'}`}
       onBack={() => navigation.goBack()}
       right={
-        <Pressable hitSlop={10} onPress={showOptions} style={{ marginBottom: 4 }}>
+        <Pressable
+          hitSlop={10}
+          onPress={() => setOptionsOpen(true)}
+          style={{ marginBottom: 4 }}
+        >
           <Ionicons
             name="ellipsis-horizontal-circle"
             size={26}
@@ -215,7 +211,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                 >
                   <Ionicons name="chevron-down" size={22} color={colors.text} />
                 </Pressable>
-                <Pressable hitSlop={8} onPress={() => removeAt(index)}>
+                <Pressable hitSlop={8} onPress={() => setRemoveFor(item)}>
                   <Ionicons name="trash-outline" size={20} color={colors.danger} />
                 </Pressable>
               </View>
@@ -232,6 +228,65 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           }
         />
       )}
+
+      {/* opções da playlist */}
+      <TrackActionsSheet
+        visible={optionsOpen}
+        track={null}
+        onClose={() => setOptionsOpen(false)}
+        actions={[
+          {
+            icon: 'pencil-outline',
+            label: 'Rename playlist',
+            onPress: () => {
+              setOptionsOpen(false);
+              setRenameOpen(true);
+            },
+          },
+          {
+            icon: 'trash-outline',
+            label: 'Delete playlist',
+            destructive: true,
+            onPress: () => {
+              setOptionsOpen(false);
+              setDeleteOpen(true);
+            },
+          },
+        ]}
+      />
+
+      <PromptSheet
+        visible={renameOpen}
+        title="Rename playlist"
+        placeholder="Playlist name"
+        initialValue={name}
+        submitLabel="Rename"
+        loading={busy}
+        onClose={() => setRenameOpen(false)}
+        onSubmit={doRename}
+      />
+
+      <ConfirmSheet
+        visible={deleteOpen}
+        title="Delete playlist"
+        message={`"${name}" will be permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete playlist"
+        destructive
+        loading={busy}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={doDelete}
+      />
+
+      <ConfirmSheet
+        visible={!!removeFor}
+        title="Remove track"
+        message={`Remove "${removeFor?.title ?? ''}" from this playlist?`}
+        confirmLabel="Remove"
+        destructive
+        loading={busy}
+        onClose={() => setRemoveFor(null)}
+        onConfirm={doRemoveTrack}
+      />
     </Screen>
   );
 }

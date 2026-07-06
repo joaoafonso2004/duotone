@@ -66,7 +66,8 @@ export function PillButton({
       }}
       disabled={disabled || loading}
       style={({ pressed }) => [
-        variant !== 'primary' && [styles.base, styles.ghost, small && styles.small],
+        variant === 'ghost' && [styles.base, styles.ghost, small && styles.small],
+        variant === 'danger' && [styles.base, styles.danger, small && styles.small],
         pressed && { opacity: 0.75 },
         (disabled || loading) && { opacity: 0.45 },
         style,
@@ -93,6 +94,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceHigh,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderStrong,
+  },
+  danger: {
+    backgroundColor: 'rgba(255,69,58,0.12)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,69,58,0.35)',
   },
   label: {
     color: '#fff',
