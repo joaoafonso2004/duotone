@@ -21,7 +21,8 @@ export function AuthScreen() {
   const signUp = useAuth((s) => s.signUp);
 
   const [mode, setMode] = useState(0); // 0 = sign in, 1 = sign up
-  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState(''); // login: email OU username
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -31,17 +32,22 @@ export function AuthScreen() {
   const submit = async () => {
     setError(null);
     setInfo(null);
-    if (!email.trim() || !password) {
-      setError('Fill in your email and password.');
+    if (mode === 0) {
+      if (!identifier.trim() || !password) {
+        setError('Fill in your email/username and password.');
+        return;
+      }
+    } else if (!email.trim() || !password || !username.trim()) {
+      setError('Fill in a username, email and password.');
       return;
     }
     setLoading(true);
     try {
       if (mode === 0) {
-        const err = await signIn(email, password);
+        const err = await signIn(identifier, password);
         if (err) setError(err);
       } else {
-        const err = await signUp(email, password, name);
+        const err = await signUp(email, password, username);
         if (err) setError(err);
         else
           setInfo(
@@ -100,25 +106,38 @@ export function AuthScreen() {
 
             <View style={{ gap: spacing.md, marginTop: spacing.lg }}>
               {mode === 1 ? (
+                <>
+                  <Input
+                    icon="at-outline"
+                    placeholder="Username"
+                    value={username}
+                    onChangeText={setUsername}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    textContentType="username"
+                  />
+                  <Input
+                    icon="mail-outline"
+                    placeholder="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    textContentType="emailAddress"
+                    autoComplete="email"
+                  />
+                </>
+              ) : (
                 <Input
                   icon="person-outline"
-                  placeholder="Name"
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                  textContentType="name"
+                  placeholder="Email or username"
+                  value={identifier}
+                  onChangeText={setIdentifier}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  textContentType="username"
                 />
-              ) : null}
-              <Input
-                icon="mail-outline"
-                placeholder="Email"
-                value={email}
-                onChangeText={setEmail}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                textContentType="emailAddress"
-                autoComplete="email"
-              />
+              )}
               <Input
                 icon="lock-closed-outline"
                 placeholder="Password"
