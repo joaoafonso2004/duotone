@@ -5,6 +5,7 @@ import {
   Alert,
   FlatList,
   Keyboard,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -22,8 +23,13 @@ import { SegmentedControl } from '../components/SegmentedControl';
 import { SettingsButton } from '../components/SettingsButton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
-import { hapticNotification } from '../lib/haptics';
-import { getDefaultSearchTab } from '../lib/prefs';
+import { hapticImpact, hapticNotification } from '../lib/haptics';
+import {
+  addSearchHistoryEntry,
+  clearSearchHistory,
+  getDefaultSearchTab,
+  getSearchHistory,
+} from '../lib/prefs';
 import { connectSpotify, isSpotifyConnected } from '../lib/spotifyAuth';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
@@ -44,12 +50,14 @@ export function SearchScreen() {
 
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
   const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
+  const [history, setHistory] = useState<string[]>([]);
 
   const requestId = useRef(0);
 
   useEffect(() => {
     isSpotifyConnected().then(setSpotifyOk);
     getDefaultSearchTab().then((v) => setTab(v === 'spotify' ? 1 : 0));
+    getSearchHistory().then(setHistory);
   }, []);
 
   // pesquisa com debounce
@@ -70,7 +78,12 @@ export function SearchScreen() {
       try {
         const found =
           tab === 0 ? await searchYouTube(q) : await searchSpotify(q);
-        if (requestId.current === id) setResults(found);
+        if (requestId.current === id) {
+          setResults(found);
+          if (found.length > 0) {
+            addSearchHistoryEntry(q).then(setHistory);
+          }
+        }
       } catch (e: any) {
         if (requestId.current === id) {
           setResults([]);
@@ -82,6 +95,12 @@ export function SearchScreen() {
     }, 550);
     return () => clearTimeout(timer);
   }, [query, tab, spotifyOk]);
+
+  const doClearHistory = () => {
+    setHistory([]);
+    hapticImpact();
+    clearSearchHistory();
+  };
 
   const doConnectSpotify = useCallback(async () => {
     setConnecting(true);
@@ -155,6 +174,32 @@ export function SearchScreen() {
           title="Something went wrong"
           subtitle={errorMsg}
         />
+      ) : query.trim().length < 2 && history.length > 0 ? (
+        <View style={{ paddingHorizontal: spacing.xl }}>
+          <View style={styles.historyHeader}>
+            <Text style={type.micro}>Recent searches</Text>
+            <Pressable hitSlop={8} onPress={doClearHistory}>
+              <Text style={[type.caption, { color: colors.accent, fontWeight: '700' }]}>
+                Clear
+              </Text>
+            </Pressable>
+          </View>
+          {history.map((q) => (
+            <Pressable
+              key={q}
+              onPress={() => setQuery(q)}
+              style={({ pressed }) => [
+                styles.historyRow,
+                pressed && { backgroundColor: colors.surface },
+              ]}
+            >
+              <Ionicons name="time-outline" size={16} color={colors.textTertiary} />
+              <Text numberOfLines={1} style={[type.body, { flex: 1 }]}>
+                {q}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       ) : results.length === 0 ? (
         <EmptyState
           icon={tab === 0 ? 'logo-youtube' : 'musical-notes-outline'}
@@ -238,6 +283,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     gap: spacing.md,
     marginBottom: spacing.md,
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+  },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: 10,
+    borderRadius: radii.sm,
   },
   connectCard: {
     marginHorizontal: spacing.xl,
