@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const KEY_DEFAULT_SEARCH_TAB = 'pref:defaultSearchTab';
 const KEY_DEFAULT_YT_VIEW = 'pref:defaultYtView';
 const KEY_REPEAT_QUEUE = 'pref:repeatQueue';
 const KEY_AUDIO_QUALITY = 'pref:audioQuality';
@@ -11,7 +10,6 @@ const KEY_SEARCH_HISTORY = 'pref:searchHistory';
 const MAX_SEARCH_HISTORY = 10;
 const KEY_POT_SERVER_URL = 'pref:potServerUrl';
 
-export type SearchSource = 'youtube' | 'spotify';
 export type YtViewMode = 'video' | 'photo';
 export type AudioQuality = 'high' | 'saver';
 
@@ -21,14 +19,6 @@ async function getBool(key: string, fallback: boolean): Promise<boolean> {
 }
 async function setBool(key: string, v: boolean): Promise<void> {
   await AsyncStorage.setItem(key, v ? '1' : '0');
-}
-
-export async function getDefaultSearchTab(): Promise<SearchSource> {
-  const v = await AsyncStorage.getItem(KEY_DEFAULT_SEARCH_TAB);
-  return v === 'spotify' ? 'spotify' : 'youtube';
-}
-export async function setDefaultSearchTab(v: SearchSource): Promise<void> {
-  await AsyncStorage.setItem(KEY_DEFAULT_SEARCH_TAB, v);
 }
 
 export async function getDefaultYtViewMode(): Promise<YtViewMode> {

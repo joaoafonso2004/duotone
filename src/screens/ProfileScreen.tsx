@@ -202,17 +202,6 @@ export function ProfileScreen() {
           />
         </View>
 
-        {/* ---- divisão de fontes ---- */}
-        {totalPlays > 0 ? (
-          <View>
-            <Text style={[type.micro, { marginBottom: spacing.sm }]}>WHERE YOU LISTEN</Text>
-            <SourceSplit
-              youtube={stats?.youtubePlays ?? 0}
-              spotify={stats?.spotifyPlays ?? 0}
-            />
-          </View>
-        ) : null}
-
         {/* ---- mais ouvidas ---- */}
         <Section title="MOST PLAYED" empty={mostPlayed.length === 0}>
           {mostPlayed.map((e, i) => (
@@ -255,38 +244,6 @@ function Stat({ label, value, small }: { label: string; value: string; small?: b
         {value}
       </Text>
       <Text style={styles.statLabel}>{label}</Text>
-    </View>
-  );
-}
-
-function SourceSplit({ youtube, spotify }: { youtube: number; spotify: number }) {
-  const total = youtube + spotify || 1;
-  const ytPct = Math.round((youtube / total) * 100);
-  return (
-    <View style={styles.card}>
-      <View style={{ padding: spacing.md, gap: spacing.sm }}>
-        <View style={styles.splitBar}>
-          {youtube > 0 ? (
-            <View style={{ flex: youtube, backgroundColor: colors.youtube }} />
-          ) : null}
-          {spotify > 0 ? (
-            <View style={{ flex: spotify, backgroundColor: colors.spotify }} />
-          ) : null}
-        </View>
-        <View style={styles.splitLegend}>
-          <Legend color={colors.youtube} label={`YouTube ${ytPct}%`} />
-          <Legend color={colors.spotify} label={`Spotify ${100 - ytPct}%`} />
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function Legend({ color, label }: { color: string; label: string }) {
-  return (
-    <View style={styles.legendItem}>
-      <View style={[styles.legendDot, { backgroundColor: color }]} />
-      <Text style={[type.caption, { fontSize: 12 }]}>{label}</Text>
     </View>
   );
 }
@@ -344,7 +301,7 @@ function TrackRow({
           {entry.title}
         </Text>
         <Text numberOfLines={1} style={styles.rowArtist}>
-          {entry.artist ?? (entry.source === 'youtube' ? 'YouTube' : 'Spotify')}
+          {entry.artist ?? 'YouTube'}
         </Text>
       </View>
       <View style={styles.countPill}>

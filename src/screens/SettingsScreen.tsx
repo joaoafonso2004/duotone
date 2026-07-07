@@ -14,12 +14,10 @@ import { SegmentedControl } from '../components/SegmentedControl';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import {
   getAudioQuality,
-  getDefaultSearchTab,
   getHapticsEnabled,
   getPoTokenServerUrl,
   getShowTrackDuration,
   setAudioQuality,
-  setDefaultSearchTab,
   setHapticsEnabled,
   setHapticsEnabledCache,
   setPoTokenServerUrl,
@@ -28,17 +26,11 @@ import {
   setShowTrackDuration as persistShowTrackDuration,
   setShowTrackDurationCache,
   type AudioQuality,
-  type SearchSource,
 } from '../lib/prefs';
 import { clearDownloadedAudioCache } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
-import {
-  connectSpotify,
-  disconnectSpotify,
-  isSpotifyConnected,
-} from '../lib/spotifyAuth';
 import { colors, radii, spacing, type } from '../theme';
 
 const APP_VERSION = '1.0.0';
@@ -71,9 +63,6 @@ export function SettingsScreen({ navigation }: Props) {
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const setShowRewindButton = usePlayer((s) => s.setShowRewindButton);
 
-  const [spotifyOk, setSpotifyOk] = useState<boolean | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [searchDefault, setSearchDefault] = useState<SearchSource>('youtube');
   const [audioQuality, setAudioQualityState] = useState<AudioQuality>('high');
   const [showDuration, setShowDuration] = useState(true);
   const [hapticsOn, setHapticsOn] = useState(true);
@@ -86,36 +75,11 @@ export function SettingsScreen({ navigation }: Props) {
   const [testingPotServer, setTestingPotServer] = useState(false);
 
   useEffect(() => {
-    isSpotifyConnected().then(setSpotifyOk);
-    getDefaultSearchTab().then(setSearchDefault);
     getAudioQuality().then(setAudioQualityState);
     getShowTrackDuration().then(setShowDuration);
     getHapticsEnabled().then(setHapticsOn);
     getPoTokenServerUrl().then(setPotServerUrlState);
   }, []);
-
-  const toggleSpotify = async () => {
-    if (spotifyOk) {
-      await disconnectSpotify();
-      setSpotifyOk(false);
-      return;
-    }
-    setConnecting(true);
-    try {
-      const ok = await connectSpotify();
-      setSpotifyOk(ok);
-      if (ok) hapticNotification();
-    } finally {
-      setConnecting(false);
-    }
-  };
-
-  const changeSearchDefault = async (i: number) => {
-    const v: SearchSource = i === 1 ? 'spotify' : 'youtube';
-    setSearchDefault(v);
-    hapticSelection();
-    await setDefaultSearchTab(v);
-  };
 
   const changeAudioQuality = async (i: number) => {
     const v: AudioQuality = i === 1 ? 'saver' : 'high';
@@ -224,31 +188,8 @@ export function SettingsScreen({ navigation }: Props) {
           </View>
         </Section>
 
-        <Section title="Spotify">
-          <Row
-            label="Connection"
-            value={spotifyOk === null ? '…' : spotifyOk ? 'Connected' : 'Not connected'}
-          />
-          <PillButton
-            label={spotifyOk ? 'Disconnect' : 'Connect Spotify'}
-            variant={spotifyOk ? 'ghost' : 'primary'}
-            small
-            loading={connecting}
-            onPress={toggleSpotify}
-            style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-          />
-        </Section>
-
         <Section title="Playback">
-          <Label>Default search tab</Label>
-          <SegmentedControl
-            options={['YouTube', 'Spotify']}
-            accents={[colors.youtube, colors.spotify]}
-            value={searchDefault === 'spotify' ? 1 : 0}
-            onChange={changeSearchDefault}
-          />
-
-          <Label style={{ marginTop: spacing.lg }}>Audio quality</Label>
+          <Label>Audio quality</Label>
           <SegmentedControl
             options={['High', 'Data saver']}
             value={audioQuality === 'saver' ? 1 : 0}
