@@ -9,12 +9,12 @@ import {
   Text,
   View,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
 import {
   addTrackToPlaylist,
   createPlaylist,
   listPlaylists,
 } from '../api/playlists';
+import { hapticNotification } from '../lib/haptics';
 import { colors, radii, spacing, type } from '../theme';
 import type { Playlist, Track } from '../types';
 import { ArtworkCollage } from './ArtworkCollage';
@@ -54,7 +54,7 @@ export function AddToPlaylistSheet({ visible, track, onClose, onDone }: Props) {
     if (!track) return;
     try {
       await addTrackToPlaylist(playlistId, track);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hapticNotification();
       onDone?.();
       onClose();
     } catch (e: any) {

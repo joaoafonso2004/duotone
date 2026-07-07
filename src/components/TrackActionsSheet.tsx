@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { hapticImpact } from '../lib/haptics';
 import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 import { BottomSheet } from './BottomSheet';
@@ -62,7 +62,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
         <Pressable
           key={a.label}
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            hapticImpact();
             a.onPress();
           }}
           style={({ pressed }) => [

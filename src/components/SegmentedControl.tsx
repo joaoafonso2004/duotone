@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { hapticSelection } from '../lib/haptics';
 import { colors, radii } from '../theme';
 
 interface Props {
@@ -61,7 +61,7 @@ export function SegmentedControl({ options, value, onChange, accents }: Props) {
           key={opt}
           style={styles.segment}
           onPress={() => {
-            Haptics.selectionAsync();
+            hapticSelection();
             onChange(i);
           }}
         >

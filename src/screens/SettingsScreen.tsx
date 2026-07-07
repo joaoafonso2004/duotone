@@ -1,24 +1,42 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import * as Haptics from 'expo-haptics';
 import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { clearLibrary } from '../api/library';
+import { clearStreamMemo } from '../api/ytstream';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
 import { SegmentedControl } from '../components/SegmentedControl';
+import { hapticNotification, hapticSelection } from '../lib/haptics';
+import {
+  getAudioQuality,
+  getDefaultSearchTab,
+  getDefaultYtViewMode,
+  getHapticsEnabled,
+  getShowTrackDuration,
+  setAudioQuality,
+  setDefaultSearchTab,
+  setDefaultYtViewMode,
+  setHapticsEnabled,
+  setHapticsEnabledCache,
+  setRepeatQueue as persistRepeatQueue,
+  setShowRewindButton as persistShowRewindButton,
+  setShowTrackDuration as persistShowTrackDuration,
+  setShowTrackDurationCache,
+  type AudioQuality,
+  type SearchSource,
+  type YtViewMode,
+} from '../lib/prefs';
+import { clearDownloadedAudioCache } from '../lib/youtubeCache';
+import type { RootStackParamList } from '../navigation/RootNavigator';
+import { useAuth } from '../state/auth';
+import { usePlayer } from '../state/player';
 import {
   connectSpotify,
   disconnectSpotify,
   isSpotifyConnected,
 } from '../lib/spotifyAuth';
-import {
-  getDefaultSearchTab,
-  setDefaultSearchTab,
-  type SearchSource,
-} from '../lib/prefs';
-import type { RootStackParamList } from '../navigation/RootNavigator';
-import { useAuth } from '../state/auth';
 import { colors, radii, spacing, type } from '../theme';
 
 const APP_VERSION = '1.0.0';
@@ -30,14 +48,30 @@ export function SettingsScreen({ navigation }: Props) {
   const session = useAuth((s) => s.session);
   const signOut = useAuth((s) => s.signOut);
 
+  const repeatQueue = usePlayer((s) => s.repeatQueue);
+  const setRepeatQueue = usePlayer((s) => s.setRepeatQueue);
+  const showRewindButton = usePlayer((s) => s.showRewindButton);
+  const setShowRewindButton = usePlayer((s) => s.setShowRewindButton);
+  const ytViewMode = usePlayer((s) => s.ytViewMode);
+  const setYtViewMode = usePlayer((s) => s.setYtViewMode);
+
   const [spotifyOk, setSpotifyOk] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [searchDefault, setSearchDefault] = useState<SearchSource>('youtube');
+  const [audioQuality, setAudioQualityState] = useState<AudioQuality>('high');
+  const [showDuration, setShowDuration] = useState(true);
+  const [hapticsOn, setHapticsOn] = useState(true);
+
   const [signOutOpen, setSignOutOpen] = useState(false);
+  const [clearLibraryOpen, setClearLibraryOpen] = useState(false);
+  const [clearingLibrary, setClearingLibrary] = useState(false);
 
   useEffect(() => {
     isSpotifyConnected().then(setSpotifyOk);
     getDefaultSearchTab().then(setSearchDefault);
+    getAudioQuality().then(setAudioQualityState);
+    getShowTrackDuration().then(setShowDuration);
+    getHapticsEnabled().then(setHapticsOn);
   }, []);
 
   const toggleSpotify = async () => {
@@ -50,7 +84,7 @@ export function SettingsScreen({ navigation }: Props) {
     try {
       const ok = await connectSpotify();
       setSpotifyOk(ok);
-      if (ok) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (ok) hapticNotification();
     } finally {
       setConnecting(false);
     }
@@ -59,8 +93,70 @@ export function SettingsScreen({ navigation }: Props) {
   const changeSearchDefault = async (i: number) => {
     const v: SearchSource = i === 1 ? 'spotify' : 'youtube';
     setSearchDefault(v);
-    Haptics.selectionAsync();
+    hapticSelection();
     await setDefaultSearchTab(v);
+  };
+
+  const changeYtView = async (i: number) => {
+    const v: YtViewMode = i === 1 ? 'photo' : 'video';
+    setYtViewMode(v);
+    hapticSelection();
+    await setDefaultYtViewMode(v);
+  };
+
+  const changeAudioQuality = async (i: number) => {
+    const v: AudioQuality = i === 1 ? 'saver' : 'high';
+    setAudioQualityState(v);
+    hapticSelection();
+    await setAudioQuality(v);
+  };
+
+  const toggleRepeatQueue = async (v: boolean) => {
+    setRepeatQueue(v);
+    hapticSelection();
+    await persistRepeatQueue(v);
+  };
+
+  const toggleShowRewind = async (v: boolean) => {
+    setShowRewindButton(v);
+    hapticSelection();
+    await persistShowRewindButton(v);
+  };
+
+  const toggleShowDuration = async (v: boolean) => {
+    setShowDuration(v);
+    setShowTrackDurationCache(v);
+    hapticSelection();
+    await persistShowTrackDuration(v);
+  };
+
+  const toggleHaptics = async (v: boolean) => {
+    // Ativa a háptica ANTES de desligar, para o próprio toggle ainda vibrar.
+    if (v) setHapticsEnabledCache(true);
+    hapticSelection();
+    setHapticsOn(v);
+    setHapticsEnabledCache(v);
+    await setHapticsEnabled(v);
+  };
+
+  const doClearCache = () => {
+    clearDownloadedAudioCache();
+    clearStreamMemo();
+    hapticNotification();
+    Alert.alert('Cache cleared', 'Downloaded YouTube audio and resolved streams were cleared.');
+  };
+
+  const doClearLibrary = async () => {
+    setClearingLibrary(true);
+    try {
+      await clearLibrary();
+      setClearLibraryOpen(false);
+      hapticNotification();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not clear the library.');
+    } finally {
+      setClearingLibrary(false);
+    }
   };
 
   return (
@@ -99,14 +195,75 @@ export function SettingsScreen({ navigation }: Props) {
         </Section>
 
         <Section title="Playback">
-          <Text style={[type.caption, { marginBottom: spacing.sm }]}>
-            Default search tab
-          </Text>
+          <Label>Default search tab</Label>
           <SegmentedControl
             options={['YouTube', 'Spotify']}
             accents={[colors.youtube, colors.spotify]}
             value={searchDefault === 'spotify' ? 1 : 0}
             onChange={changeSearchDefault}
+          />
+
+          <Label style={{ marginTop: spacing.lg }}>Default YouTube view</Label>
+          <SegmentedControl
+            options={['Video', 'Photo']}
+            value={ytViewMode === 'photo' ? 1 : 0}
+            onChange={changeYtView}
+          />
+
+          <Label style={{ marginTop: spacing.lg }}>Audio quality</Label>
+          <SegmentedControl
+            options={['High', 'Data saver']}
+            value={audioQuality === 'saver' ? 1 : 0}
+            onChange={changeAudioQuality}
+          />
+
+          <ToggleRow
+            label="Repeat queue when it ends"
+            value={repeatQueue}
+            onChange={toggleRepeatQueue}
+            style={{ marginTop: spacing.lg }}
+          />
+        </Section>
+
+        <Section title="Behavior">
+          <ToggleRow
+            label="Show track duration in lists"
+            value={showDuration}
+            onChange={toggleShowDuration}
+          />
+          <ToggleRow
+            label="Show rewind 15s button"
+            value={showRewindButton}
+            onChange={toggleShowRewind}
+            style={{ marginTop: spacing.md }}
+          />
+          <ToggleRow
+            label="Haptic feedback"
+            value={hapticsOn}
+            onChange={toggleHaptics}
+            style={{ marginTop: spacing.md }}
+          />
+        </Section>
+
+        <Section title="Data">
+          <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
+            YouTube audio is downloaded locally so it can keep playing with the
+            screen locked. Clearing the cache frees that space; songs
+            re-download next time you play them.
+          </Text>
+          <PillButton
+            label="Clear YouTube cache"
+            variant="ghost"
+            small
+            onPress={doClearCache}
+            style={{ alignSelf: 'flex-start' }}
+          />
+          <PillButton
+            label="Clear library"
+            variant="danger"
+            small
+            onPress={() => setClearLibraryOpen(true)}
+            style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
           />
         </Section>
 
@@ -127,6 +284,17 @@ export function SettingsScreen({ navigation }: Props) {
           signOut();
         }}
       />
+
+      <ConfirmSheet
+        visible={clearLibraryOpen}
+        title="Clear library"
+        message="All saved songs will be permanently removed from your library. Playlists are not affected. This cannot be undone."
+        confirmLabel="Clear library"
+        destructive
+        loading={clearingLibrary}
+        onClose={() => setClearLibraryOpen(false)}
+        onConfirm={doClearLibrary}
+      />
     </Screen>
   );
 }
@@ -145,6 +313,34 @@ function Row({ label, value }: { label: string; value: string }) {
     <View style={styles.row}>
       <Text style={type.body}>{label}</Text>
       <Text style={[type.caption, { color: colors.textSecondary }]}>{value}</Text>
+    </View>
+  );
+}
+
+function Label({ children, style }: { children: React.ReactNode; style?: object }) {
+  return <Text style={[type.caption, { marginBottom: spacing.sm }, style]}>{children}</Text>;
+}
+
+function ToggleRow({
+  label,
+  value,
+  onChange,
+  style,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  style?: object;
+}) {
+  return (
+    <View style={[styles.row, style]}>
+      <Text style={type.body}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: colors.surfacePressed, true: colors.accent }}
+        thumbColor="#fff"
+      />
     </View>
   );
 }

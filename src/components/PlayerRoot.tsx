@@ -39,6 +39,8 @@ export function PlayerRoot() {
   const isPlaying = usePlayer((s) => s.isPlaying);
   const expanded = usePlayer((s) => s.expanded);
   const ytViewMode = usePlayer((s) => s.ytViewMode);
+  const repeatQueue = usePlayer((s) => s.repeatQueue);
+  const showRewindButton = usePlayer((s) => s.showRewindButton);
   const positionMs = usePlayer((s) => s.positionMs);
   const durationMs = usePlayer((s) => s.durationMs);
   const error = usePlayer((s) => s.error);
@@ -275,11 +277,21 @@ export function PlayerRoot() {
             <Pressable
               hitSlop={14}
               onPress={prev}
-              disabled={queueIndex === 0}
-              style={queueIndex === 0 && styles.dimmed}
+              disabled={!repeatQueue && queueIndex === 0}
+              style={!repeatQueue && queueIndex === 0 && styles.dimmed}
             >
               <Ionicons name="play-skip-back" size={28} color={colors.text} />
             </Pressable>
+
+            {showRewindButton ? (
+              <Pressable
+                hitSlop={14}
+                onPress={() => seekTo(Math.max(0, positionMs - 15000))}
+                accessibilityLabel="Rewind 15 seconds"
+              >
+                <Ionicons name="play-back" size={22} color={colors.text} />
+              </Pressable>
+            ) : null}
 
             <Pressable
               onPress={togglePlay}
@@ -296,8 +308,8 @@ export function PlayerRoot() {
             <Pressable
               hitSlop={14}
               onPress={next}
-              disabled={queueIndex >= queue.length - 1}
-              style={queueIndex >= queue.length - 1 && styles.dimmed}
+              disabled={!repeatQueue && queueIndex >= queue.length - 1}
+              style={!repeatQueue && queueIndex >= queue.length - 1 && styles.dimmed}
             >
               <Ionicons name="play-skip-forward" size={28} color={colors.text} />
             </Pressable>
@@ -417,8 +429,11 @@ export function PlayerRoot() {
           <Pressable
             hitSlop={8}
             onPress={next}
-            disabled={queueIndex >= queue.length - 1}
-            style={[styles.miniBtn, queueIndex >= queue.length - 1 && styles.dimmed]}
+            disabled={!repeatQueue && queueIndex >= queue.length - 1}
+            style={[
+              styles.miniBtn,
+              !repeatQueue && queueIndex >= queue.length - 1 && styles.dimmed,
+            ]}
           >
             <Ionicons name="play-skip-forward" size={20} color={colors.text} />
           </Pressable>

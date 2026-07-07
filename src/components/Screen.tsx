@@ -8,16 +8,19 @@ interface Props {
   title?: string;
   subtitle?: string;
   right?: React.ReactNode;
+  /** Fila pequena acima do título (ex.: botão de Definições) — canto superior esquerdo. */
+  topLeft?: React.ReactNode;
   onBack?: () => void;
   children: React.ReactNode;
   style?: ViewStyle;
 }
 
 /** Wrapper de ecrã: fundo, safe area e cabeçalho com título grande. */
-export function Screen({ title, subtitle, right, onBack, children, style }: Props) {
+export function Screen({ title, subtitle, right, topLeft, onBack, children, style }: Props) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.root, { paddingTop: insets.top + spacing.sm }]}>
+      {topLeft ? <View style={styles.topLeftRow}>{topLeft}</View> : null}
       {title ? (
         <View style={styles.header}>
           {onBack ? (
@@ -43,6 +46,10 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
+  },
+  topLeftRow: {
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xs,
   },
   header: {
     flexDirection: 'row',

@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 import {
   deletePlaylist,
   getPlaylistTracks,
@@ -27,6 +26,7 @@ import { PromptSheet } from '../components/PromptSheet';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
+import { hapticNotification, hapticSelection } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
@@ -75,7 +75,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     [next[index], next[j]] = [next[j], next[index]];
     setTracks(next);
     setDirty(true);
-    Haptics.selectionAsync();
+    hapticSelection();
   };
 
   const finishEdit = async () => {
@@ -97,7 +97,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     setBusy(true);
     try {
       await renamePlaylist(id, newName);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hapticNotification();
       setName(newName);
       setRenameOpen(false);
     } catch (e: any) {

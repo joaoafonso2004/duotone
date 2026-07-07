@@ -58,9 +58,16 @@ export interface YtStream {
 // Cache em memória (por sessão) — os URLs expiram, não vale a pena persistir.
 const memo = new Map<string, YtStream>();
 
-/** Melhor áudio mp4/AAC com URL direto (o AVPlayer não toca webm/opus). */
+/** Limpa o cache de URLs resolvidos (usado pelo "Clear cache" das Definições). */
+export function clearStreamMemo(): void {
+  memo.clear();
+}
+
+/** Melhor áudio mp4/AAC com URL direto (o AVPlayer não toca webm/opus).
+ * `preferLowBitrate` poupa dados (modo "Data saver" das Definições). */
 function pickMp4Audio(
-  streamingData: any
+  streamingData: any,
+  preferLowBitrate: boolean
 ): { url: string; contentLength: number | null } | null {
   const formats: any[] = [
     ...(streamingData?.adaptiveFormats ?? []),
@@ -68,7 +75,9 @@ function pickMp4Audio(
   ];
   const aac = formats
     .filter((f) => f.url && String(f.mimeType ?? '').startsWith('audio/mp4'))
-    .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
+    .sort((a, b) =>
+      preferLowBitrate ? (a.bitrate ?? 0) - (b.bitrate ?? 0) : (b.bitrate ?? 0) - (a.bitrate ?? 0)
+    );
   if (aac[0]?.url) {
     return { url: aac[0].url, contentLength: Number(aac[0].contentLength) || null };
   }
@@ -84,8 +93,12 @@ function pickMp4Audio(
   };
 }
 
-export async function resolveYouTubeStream(videoId: string): Promise<YtStream> {
-  const cached = memo.get(videoId);
+export async function resolveYouTubeStream(
+  videoId: string,
+  quality: 'high' | 'saver' = 'high'
+): Promise<YtStream> {
+  const cacheKey = `${videoId}:${quality}`;
+  const cached = memo.get(cacheKey);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
 
   const res = await fetch(PLAYER_URL, {
@@ -133,12 +146,12 @@ export async function resolveYouTubeStream(videoId: string): Promise<YtStream> {
       expiresAt: Date.now() + 5 * 60 * 60 * 1000,
       contentLength: null,
     };
-    memo.set(videoId, stream);
+    memo.set(cacheKey, stream);
     return stream;
   }
 
   // 2) Áudio mp4 direto (caso típico dos music videos / Vevo).
-  const picked = pickMp4Audio(sd);
+  const picked = pickMp4Audio(sd, quality === 'saver');
   if (!picked) throw new Error('No AVPlayer-compatible stream found');
 
   const expireSec = Number(sd.expiresInSeconds ?? 18000);
@@ -148,6 +161,6 @@ export async function resolveYouTubeStream(videoId: string): Promise<YtStream> {
     expiresAt: Date.now() + expireSec * 1000,
     contentLength: picked.contentLength,
   };
-  memo.set(videoId, stream);
+  memo.set(cacheKey, stream);
   return stream;
 }

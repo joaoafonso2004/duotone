@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
+import { SettingsButton } from '../components/SettingsButton';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -80,6 +81,7 @@ export function AlbumsScreen() {
     <Screen
       title="Albums"
       subtitle={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'}`}
+      topLeft={<SettingsButton />}
     >
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} />

@@ -13,7 +13,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 import {
   createPlaylist,
   deletePlaylist,
@@ -25,7 +24,9 @@ import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PromptSheet } from '../components/PromptSheet';
 import { Screen } from '../components/Screen';
+import { SettingsButton } from '../components/SettingsButton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
+import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Playlist } from '../types';
@@ -65,7 +66,7 @@ export function PlaylistsScreen() {
     setBusy(true);
     try {
       const pl = await createPlaylist(name);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hapticNotification();
       setCreateOpen(false);
       load();
       navigation.navigate('PlaylistDetail', { id: pl.id, name: pl.name });
@@ -81,7 +82,7 @@ export function PlaylistsScreen() {
     setBusy(true);
     try {
       await renamePlaylist(renameFor.id, name);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hapticNotification();
       setRenameFor(null);
       load();
     } catch (e: any) {
@@ -96,7 +97,7 @@ export function PlaylistsScreen() {
     setBusy(true);
     try {
       await deletePlaylist(deleteFor.id);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hapticNotification();
       setDeleteFor(null);
       load();
     } catch (e: any) {
@@ -113,6 +114,7 @@ export function PlaylistsScreen() {
     <Screen
       title="Playlists"
       subtitle={`${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
+      topLeft={<SettingsButton />}
       right={
         <Pressable
           hitSlop={10}
@@ -170,7 +172,7 @@ export function PlaylistsScreen() {
                 })
               }
               onLongPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                hapticImpact(ImpactFeedbackStyle.Medium);
                 setOptionsFor(item);
               }}
               style={({ pressed }) => [

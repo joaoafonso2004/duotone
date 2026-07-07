@@ -7,7 +7,7 @@ import {
   Text,
   ViewStyle,
 } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { hapticImpact, ImpactFeedbackStyle } from '../lib/haptics';
 import { colors, gradients, radii } from '../theme';
 
 interface Props {
@@ -61,7 +61,7 @@ export function PillButton({
   return (
     <Pressable
       onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        hapticImpact(ImpactFeedbackStyle.Medium);
         onPress();
       }}
       disabled={disabled || loading}

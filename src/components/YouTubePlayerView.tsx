@@ -1,10 +1,11 @@
 import { useEventListener } from 'expo';
-import { File, Paths } from 'expo-file-system';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { resolveYouTubeStream } from '../api/ytstream';
+import { cachedAudioFile } from '../lib/youtubeCache';
+import { getAudioQuality } from '../lib/prefs';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 
@@ -46,12 +47,6 @@ const MAX_ATTEMPTS_PER_CHUNK = 4;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** Cache local do áudio (mp4 progressivo) por videoId — evita descarregar
- * outra vez ao voltar a tocar a mesma faixa. */
-function cachedAudioFile(videoId: string): File {
-  return new File(Paths.cache, `yt-audio-${videoId}.m4a`);
 }
 
 /** Descobre o tamanho total do ficheiro via Content-Range, quando a API não o deu. */
@@ -159,7 +154,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     setBackend('resolving');
     (async () => {
       try {
-        const { url, isHls, contentLength } = await resolveYouTubeStream(track.sourceId);
+        const quality = await getAudioQuality();
+        if (cancelled) return;
+        const { url, isHls, contentLength } = await resolveYouTubeStream(
+          track.sourceId,
+          quality
+        );
         if (cancelled) return;
 
         // HLS transmite-se bem em direto; o mp4 progressivo tem de ser

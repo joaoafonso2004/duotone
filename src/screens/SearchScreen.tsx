@@ -10,7 +10,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 import { saveToLibrary } from '../api/library';
 import { searchSpotify } from '../api/spotify';
 import { searchYouTube } from '../api/youtube';
@@ -20,10 +19,12 @@ import { Input } from '../components/Input';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
 import { SegmentedControl } from '../components/SegmentedControl';
+import { SettingsButton } from '../components/SettingsButton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
-import { connectSpotify, isSpotifyConnected } from '../lib/spotifyAuth';
+import { hapticNotification } from '../lib/haptics';
 import { getDefaultSearchTab } from '../lib/prefs';
+import { connectSpotify, isSpotifyConnected } from '../lib/spotifyAuth';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -87,7 +88,7 @@ export function SearchScreen() {
     try {
       const ok = await connectSpotify();
       setSpotifyOk(ok);
-      if (ok) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (ok) hapticNotification();
     } catch (e: any) {
       Alert.alert('Spotify', e?.message ?? 'Could not connect to Spotify.');
     } finally {
@@ -99,7 +100,11 @@ export function SearchScreen() {
   const showConnectCard = tab === 1 && spotifyOk === false;
 
   return (
-    <Screen title="Search" subtitle="Find tracks on YouTube and Spotify">
+    <Screen
+      title="Search"
+      subtitle="Find tracks on YouTube and Spotify"
+      topLeft={<SettingsButton />}
+    >
       <View style={styles.controls}>
         <Input
           icon="search"
@@ -201,9 +206,7 @@ export function SearchScreen() {
               if (!t) return;
               try {
                 await saveToLibrary(t);
-                Haptics.notificationAsync(
-                  Haptics.NotificationFeedbackType.Success
-                );
+                hapticNotification();
               } catch (e: any) {
                 Alert.alert('Error', e?.message ?? 'Could not save the track.');
               }
