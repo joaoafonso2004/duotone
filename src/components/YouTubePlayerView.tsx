@@ -185,6 +185,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     proceedRef.current(null, myRun);
   }, [track.sourceId]);
 
+  // Ao desmontar (ex.: fechar o player no X), parar mesmo o áudio nativo —
+  // com staysActiveInBackground ele podia continuar a tocar sozinho.
+  useEffect(() => {
+    return () => {
+      try {
+        player.pause();
+        player.replace(null);
+      } catch {
+        // player já libertado — ignorar
+      }
+    };
+  }, [player]);
+
   // Chamado pelo YtStreamHarvester (fase 1) com o que conseguiu capturar, ou
   // `null` se não capturou nada dentro do timeout.
   const proceedWithPlayerResponse = async (harvested: HarvestResult | null, runId: number) => {

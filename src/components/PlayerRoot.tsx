@@ -58,6 +58,7 @@ export function PlayerRoot() {
 
   const [actionsOpen, setActionsOpen] = useState(false);
   const [playlistOpen, setPlaylistOpen] = useState(false);
+  const [scrubbing, setScrubbing] = useState(false);
 
   useEffect(() => {
     Animated.spring(anim, {
@@ -137,7 +138,6 @@ export function PlayerRoot() {
 
   const artSize = Math.min(W - 120, 320);
   const upNext = queue.slice(queueIndex + 1, queueIndex + 7);
-  const tint = isYt ? 'rgba(255,78,69,0.10)' : 'rgba(29,185,84,0.08)';
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -159,10 +159,23 @@ export function PlayerRoot() {
           },
         ]}
       >
-        {/* tinte subtil da fonte no topo — sem blur, limpo */}
+        {/* Fundo = capa da música muito desfocada → o fundo "apanha" as cores
+            da foto. Crossfade suave ao trocar de faixa (transition). */}
+        {current.artworkUrl ? (
+          <Image
+            source={{ uri: current.artworkUrl }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            blurRadius={64}
+            transition={450}
+          />
+        ) : null}
+        {/* Escurece o fundo para o texto/controlos serem legíveis e funde para
+            o fundo sólido em baixo. */}
         <LinearGradient
-          colors={[tint, 'rgba(10,10,15,0)']}
-          style={styles.topTint}
+          colors={['rgba(10,10,15,0.30)', 'rgba(10,10,15,0.72)', colors.bg]}
+          locations={[0, 0.55, 1]}
+          style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
 
@@ -214,6 +227,7 @@ export function PlayerRoot() {
           style={{ flex: 1 }}
           contentContainerStyle={styles.fullBody}
           showsVerticalScrollIndicator={false}
+          scrollEnabled={!scrubbing}
         >
           {/* título + opções */}
           <View style={styles.titleRow}>
@@ -240,6 +254,7 @@ export function PlayerRoot() {
               positionMs={positionMs}
               durationMs={durationMs}
               onSeek={seekTo}
+              onScrubbingChange={setScrubbing}
             />
           </View>
 
