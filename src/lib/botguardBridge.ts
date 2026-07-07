@@ -19,6 +19,16 @@ let webviewRef: RefObject<WebView | null> | null = null;
 let ready = false;
 const pending = new Map<string, PendingRequest>();
 
+// Diagnóstico: última falha reportada pela WebView (ou motivo de nunca ter
+// sequer tentado), para aparecer na mensagem de erro do YouTubePlayerView em
+// vez de simplesmente "sem PO Token" — sem isto é impossível saber, à
+// distância, em que passo o mint falha num dispositivo real.
+let lastError: string | null = 'BotGuardMinter ainda não ficou pronta';
+
+export function getLastBotGuardError(): string | null {
+  return lastError;
+}
+
 export function registerBotGuardWebView(ref: RefObject<WebView | null>): void {
   webviewRef = ref;
 }
@@ -26,6 +36,7 @@ export function registerBotGuardWebView(ref: RefObject<WebView | null>): void {
 export function unregisterBotGuardWebView(): void {
   webviewRef = null;
   ready = false;
+  lastError = 'BotGuardMinter ainda não ficou pronta';
 }
 
 /** Chamado pelo onMessage do BotGuardMinter. */
@@ -39,6 +50,12 @@ export function handleBotGuardMessage(raw: string): void {
 
   if (msg?.id === '__ready__') {
     ready = true;
+    lastError = null;
+    return;
+  }
+
+  if (msg?.id === '__loaderror__') {
+    lastError = `WebView falhou a carregar: ${msg.error ?? 'desconhecido'}`;
     return;
   }
 
@@ -46,7 +63,14 @@ export function handleBotGuardMessage(raw: string): void {
   if (!req) return;
   pending.delete(msg.id);
   clearTimeout(req.timer);
-  req.resolve(typeof msg.poToken === 'string' ? msg.poToken : null);
+
+  if (typeof msg.poToken === 'string') {
+    lastError = null;
+    req.resolve(msg.poToken);
+  } else {
+    lastError = typeof msg.error === 'string' ? msg.error : 'erro desconhecido no mint';
+    req.resolve(null);
+  }
 }
 
 let nextId = 0;
@@ -61,12 +85,20 @@ export function mintPoTokenOnDevice(
   contentBinding: string,
   timeoutMs = 15000
 ): Promise<string | null> {
-  if (!webviewRef?.current || !ready) return Promise.resolve(null);
+  if (!webviewRef?.current) {
+    lastError = 'BotGuardMinter não está montada';
+    return Promise.resolve(null);
+  }
+  if (!ready) {
+    lastError = 'BotGuardMinter ainda não ficou pronta (a carregar/desafio inicial)';
+    return Promise.resolve(null);
+  }
 
   const id = `req${++nextId}`;
   return new Promise((resolve) => {
     const timer = setTimeout(() => {
       pending.delete(id);
+      lastError = `mint expirou ao fim de ${timeoutMs}ms`;
       resolve(null);
     }, timeoutMs);
 

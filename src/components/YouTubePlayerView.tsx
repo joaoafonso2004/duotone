@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
+import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
 import { cachedAudioFile } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
@@ -165,11 +166,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const proceedWithPlayerResponse = async (harvested: HarvestResult | null) => {
     if (cancelledRef.current) return;
     setBackend('resolving');
+    // Fora do try para ficar acessível no catch — permite diagnosticar se o
+    // stream chegou a ter PO Token antes de a descarga em pedaços falhar.
+    let stream: YtStream | undefined;
     try {
       const quality = await getAudioQuality();
       if (cancelledRef.current) return;
 
-      let stream: YtStream;
       if (harvested?.kind === 'playerResponse') {
         stream = streamFromPlayerResponse(harvested.data, quality);
       } else if (harvested?.kind === 'rawUrl') {
@@ -206,11 +209,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       setBackend('native');
     } catch (e: any) {
       if (!cancelledRef.current) {
-        // Diagnóstico visível — inclui a ORIGEM exata do stream para sabermos,
-        // sem ambiguidade, qual caminho falhou em vez de adivinhar.
+        // Diagnóstico visível — inclui a ORIGEM exata do stream e o estado do
+        // PO Token para sabermos, sem ambiguidade, qual caminho falhou e
+        // porquê, em vez de adivinhar (ver botguardBridge.ts).
         const source = harvested ? `harvested-${harvested.kind}` : 'own-resolver';
+        const potInfo = stream?.hasPoToken
+          ? 'pot=yes'
+          : `pot=no (${getLastBotGuardError() ?? 'sem erro registado'})`;
         setError(
-          `[build ${BUILD_ID}] YouTube [${source}]: native stream unavailable (${e?.message ?? 'unknown'}), using embed.`
+          `[build ${BUILD_ID}] YouTube [${source}] [${potInfo}]: native stream unavailable (${e?.message ?? 'unknown'}), using embed.`
         );
         setBackend('webview');
       }

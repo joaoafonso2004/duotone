@@ -207,6 +207,35 @@ export function BotGuardMinter() {
     handleBotGuardMessage(e.nativeEvent.data);
   };
 
+  // Diagnóstico: se a própria página falhar a carregar (rede em baixo, ou —
+  // caso plausível na UE — um redirecionamento para consent.youtube.com que
+  // muda a origem e parte os pedidos same-origin ao InnerTube), o script
+  // injetado nunca chega a correr. Sem isto, "não sei porque falhou" seria a
+  // única resposta possível à distância.
+  const onError = (e: any) => {
+    handleBotGuardMessage(
+      JSON.stringify({
+        id: '__loaderror__',
+        error: e?.nativeEvent?.description ?? e?.nativeEvent?.code ?? 'load error',
+      })
+    );
+  };
+  const onHttpError = (e: any) => {
+    handleBotGuardMessage(
+      JSON.stringify({
+        id: '__loaderror__',
+        error: `HTTP ${e?.nativeEvent?.statusCode} em ${e?.nativeEvent?.url}`,
+      })
+    );
+  };
+  const onNavigationStateChange = (nav: any) => {
+    if (typeof nav?.url === 'string' && !nav.url.includes('youtube.com/embed')) {
+      handleBotGuardMessage(
+        JSON.stringify({ id: '__loaderror__', error: `redirecionado para ${nav.url}` })
+      );
+    }
+  };
+
   return (
     <WebView
       ref={webRef}
@@ -214,6 +243,9 @@ export function BotGuardMinter() {
       style={styles.hidden}
       injectedJavaScriptBeforeContentLoaded={BOTGUARD_JS}
       onMessage={onMessage}
+      onError={onError}
+      onHttpError={onHttpError}
+      onNavigationStateChange={onNavigationStateChange}
       javaScriptEnabled
       pointerEvents="none"
     />

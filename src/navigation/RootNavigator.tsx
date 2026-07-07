@@ -9,6 +9,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { BotGuardMinter } from '../components/BotGuardMinter';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { AlbumsScreen } from '../screens/AlbumsScreen';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
@@ -172,6 +173,11 @@ export function RootNavigator() {
               <Stack.Screen name="Settings" component={SettingsScreen} />
             </Stack.Navigator>
             <PlayerRoot />
+            {/* Escondida — gera PO Tokens on-device (ver BotGuardMinter.tsx
+                / potProvider.ts). Só depois de autenticado, tal como o
+                PlayerRoot, para não interferir com o layout do ecrã de
+                login. */}
+            <BotGuardMinter />
           </>
         ) : (
           <AuthScreen />
