@@ -144,7 +144,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   const [backend, setBackend] = useState<Backend>('resolving');
   const webRef = useRef<WebView>(null);
-  const cancelledRef = useRef(false);
+  // Token por faixa. Cada troca de faixa incrementa-o; operações assíncronas
+  // de uma faixa antiga comparam o token que capturaram com o atual e abortam
+  // se já não bate certo. (Um booleano partilhado não servia: o novo efeito
+  // repunha-o e o áudio antigo continuava a tocar por cima — bug reportado.)
+  const runIdRef = useRef(0);
 
   const player = useVideoPlayer(null, (p) => {
     p.staysActiveInBackground = true;
@@ -155,31 +159,41 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
   // recente sem re-executar a cada render (a função é recriada em cada um).
-  const proceedRef = useRef<(h: HarvestResult | null) => void>(() => {});
+  const proceedRef = useRef<(h: HarvestResult | null, runId: number) => void>(() => {});
+
+  // Stream resolvido da faixa atual + se já se tentou a rede de segurança
+  // (descarregar o ficheiro), para o handler de erro do player os alcançar.
+  const streamRef = useRef<YtStream | undefined>(undefined);
+  const downloadTriedRef = useRef(false);
 
   useEffect(() => {
-    cancelledRef.current = false;
-    // Vai DIRETO ao resolver (ytstream.ts → ANDROID_VR, sem PO Token). Já não
-    // passamos pela fase de harvesting: com o ANDROID_VR a resolver
-    // diretamente, a WebView de captura só acrescentava até 10s de espera.
+    const myRun = ++runIdRef.current;
+    streamRef.current = undefined;
+    downloadTriedRef.current = false;
+    // Silenciar JÁ a faixa anterior enquanto a nova resolve (senão continuava
+    // a tocar de fundo durante a resolução da nova).
+    try {
+      player.pause();
+    } catch {
+      // player pode ainda não ter fonte — ignorar
+    }
     setBackend('resolving');
-    proceedRef.current(null);
-    return () => {
-      cancelledRef.current = true;
-    };
+    proceedRef.current(null, myRun);
   }, [track.sourceId]);
 
   // Chamado pelo YtStreamHarvester (fase 1) com o que conseguiu capturar, ou
   // `null` se não capturou nada dentro do timeout.
-  const proceedWithPlayerResponse = async (harvested: HarvestResult | null) => {
-    if (cancelledRef.current) return;
+  const proceedWithPlayerResponse = async (harvested: HarvestResult | null, runId: number) => {
+    // `true` enquanto esta for a faixa atual; passa a `false` mal o utilizador
+    // troque de faixa, cortando esta cadeia assíncrona em qualquer await.
+    const alive = () => runId === runIdRef.current;
+    if (!alive()) return;
     setBackend('resolving');
-    // Fora do try para ficar acessível no catch — permite diagnosticar se o
-    // stream chegou a ter PO Token antes de a descarga em pedaços falhar.
+    // Fora do try para ficar acessível no catch (diagnóstico do cliente/token).
     let stream: YtStream | undefined;
     try {
       const quality = await getAudioQuality();
-      if (cancelledRef.current) return;
+      if (!alive()) return;
 
       if (harvested?.kind === 'playerResponse') {
         stream = streamFromPlayerResponse(harvested.data, quality);
@@ -194,17 +208,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       } else {
         stream = await resolveYouTubeStream(track.sourceId, quality);
       }
-      if (cancelledRef.current) return;
+      if (!alive()) return;
+      streamRef.current = stream;
 
-      // HLS transmite-se bem em direto; o mp4 progressivo tem de ser
-      // descarregado primeiro (ver nota no topo sobre o 403 sem Range).
-      const playableUri = stream.isHls
-        ? stream.url
-        : await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength);
-      if (cancelledRef.current) return;
-
+      // Streaming DIRETO — o AVPlayer descarrega à medida que toca (com os
+      // seus próprios pedidos Range). Os clientes android já não têm o limite
+      // de 1MB, por isso não é preciso descarregar o ficheiro todo primeiro
+      // (era isso que causava os ~20s de espera antes de começar).
       await player.replaceAsync({
-        uri: playableUri,
+        uri: stream.url,
         contentType: stream.isHls ? 'hls' : 'progressive',
         metadata: {
           title: track.title,
@@ -212,11 +224,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           artwork: track.artworkUrl ?? undefined,
         },
       });
-      if (cancelledRef.current) return;
+      if (!alive()) return;
       player.play();
       setBackend('native');
     } catch (e: any) {
-      if (!cancelledRef.current) {
+      if (alive()) {
         // Diagnóstico visível: que cliente InnerTube deu o stream, porque
         // caiu para o IOS (se caiu), e o estado do PO Token on-device — é
         // isto que nos diz, sem ambiguidade, o que se passou no dispositivo.
@@ -247,11 +259,39 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (backend === 'native') onStateChange('ended');
   });
   useEventListener(player, 'statusChange', ({ status, error }) => {
-    // Se o stream nativo falhar em runtime, tentar o WebView oficial.
-    if (backend === 'native' && status === 'error') {
-      setError(`[build ${BUILD_ID}] YouTube: playback error (${error?.message ?? 'unknown'}), using embed.`);
-      setBackend('webview');
+    if (backend !== 'native' || status !== 'error') return;
+    const stream = streamRef.current;
+    // Rede de segurança: se o streaming direto falhar (ex.: o AVPlayer não
+    // gosta deste mp4 em direto), descarregar o ficheiro inteiro primeiro (o
+    // caminho antigo, mais lento mas robusto) antes de desistir para o embed.
+    if (stream && !stream.isHls && !downloadTriedRef.current) {
+      downloadTriedRef.current = true;
+      const myRun = runIdRef.current;
+      (async () => {
+        try {
+          const uri = await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength);
+          if (myRun !== runIdRef.current) return;
+          await player.replaceAsync({
+            uri,
+            contentType: 'progressive',
+            metadata: {
+              title: track.title,
+              artist: track.artist ?? 'YouTube',
+              artwork: track.artworkUrl ?? undefined,
+            },
+          });
+          if (myRun !== runIdRef.current) return;
+          player.play();
+        } catch (e: any) {
+          if (myRun !== runIdRef.current) return;
+          setError(`[build ${BUILD_ID}] YouTube: playback error (${e?.message ?? 'unknown'}), using embed.`);
+          setBackend('webview');
+        }
+      })();
+      return;
     }
+    setError(`[build ${BUILD_ID}] YouTube: playback error (${error?.message ?? 'unknown'}), using embed.`);
+    setBackend('webview');
   });
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
