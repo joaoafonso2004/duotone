@@ -49,6 +49,22 @@ export function SettingsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const session = useAuth((s) => s.session);
   const signOut = useAuth((s) => s.signOut);
+  const resetPassword = useAuth((s) => s.resetPassword);
+  const [resettingPw, setResettingPw] = useState(false);
+
+  const doResetPassword = async () => {
+    setResettingPw(true);
+    try {
+      const err = await resetPassword();
+      hapticNotification();
+      Alert.alert(
+        err ? 'Error' : 'Check your email',
+        err ?? 'We sent a password reset link to your email.'
+      );
+    } finally {
+      setResettingPw(false);
+    }
+  };
 
   const repeatQueue = usePlayer((s) => s.repeatQueue);
   const setRepeatQueue = usePlayer((s) => s.setRepeatQueue);
@@ -189,13 +205,23 @@ export function SettingsScreen({ navigation }: Props) {
       >
         <Section title="Account">
           <Row label="Email" value={session?.user?.email ?? '—'} />
-          <PillButton
-            label="Sign out"
-            variant="danger"
-            small
-            onPress={() => setSignOutOpen(true)}
-            style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-          />
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+            <PillButton
+              label="Reset password"
+              variant="ghost"
+              small
+              loading={resettingPw}
+              onPress={doResetPassword}
+              style={{ alignSelf: 'flex-start' }}
+            />
+            <PillButton
+              label="Sign out"
+              variant="danger"
+              small
+              onPress={() => setSignOutOpen(true)}
+              style={{ alignSelf: 'flex-start' }}
+            />
+          </View>
         </Section>
 
         <Section title="Spotify">

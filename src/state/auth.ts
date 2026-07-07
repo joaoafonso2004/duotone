@@ -16,6 +16,8 @@ interface AuthState {
   signOut: () => Promise<void>;
   /** Atualiza o nome/username (metadata da conta + tabela profiles). */
   updateName: (name: string) => Promise<string | null>;
+  /** Envia email de redefinição de palavra-passe para o email da conta. */
+  resetPassword: () => Promise<string | null>;
 }
 
 export const useAuth = create<AuthState>((set) => ({
@@ -107,5 +109,13 @@ export const useAuth = create<AuthState>((set) => ({
         .then(() => {});
     }
     return null;
+  },
+
+  resetPassword: async () => {
+    const { data } = await supabase.auth.getUser();
+    const mail = data.user?.email;
+    if (!mail) return 'No email on this account.';
+    const { error } = await supabase.auth.resetPasswordForEmail(mail);
+    return error ? error.message : null;
   },
 }));
