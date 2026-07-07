@@ -3,7 +3,9 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,9 +14,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { saveToLibrary } from '../api/library';
+import { hapticNotification } from '../lib/haptics';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
+import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ProgressBar } from './ProgressBar';
+import { TrackActionsSheet } from './TrackActionsSheet';
 import { YouTubePlayerView } from './YouTubePlayerView';
 
 const TAB_BAR_BASE = 49;
@@ -46,6 +52,12 @@ export function PlayerRoot() {
   const setError = usePlayer((s) => s.setError);
 
   const anim = useRef(new Animated.Value(0)).current;
+  // Deslocamento vertical do gesto de "arrastar para baixo para fechar" o
+  // now-playing. Soma-se ao translateY do overlay (e da frame de vídeo).
+  const dragY = useRef(new Animated.Value(0)).current;
+
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [playlistOpen, setPlaylistOpen] = useState(false);
 
   useEffect(() => {
     Animated.spring(anim, {
@@ -55,6 +67,45 @@ export function PlayerRoot() {
       bounciness: 3,
     }).start();
   }, [expanded, anim]);
+
+  // Gesto de arrastar para baixo (no cabeçalho) para fechar o now-playing.
+  const dismissPan = useRef(
+    PanResponder.create({
+      // Só assume o gesto se for claramente um arrasto vertical para baixo.
+      onMoveShouldSetPanResponder: (_e, g) =>
+        g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+      onPanResponderMove: (_e, g) => {
+        dragY.setValue(Math.max(0, g.dy));
+      },
+      onPanResponderRelease: (_e, g) => {
+        // Longe o suficiente (ou com impulso) → fecha; senão volta ao sítio.
+        if (g.dy > 120 || g.vy > 0.6) {
+          setExpanded(false);
+          Animated.timing(dragY, {
+            toValue: 0,
+            duration: 220,
+            useNativeDriver: false,
+          }).start();
+        } else {
+          Animated.spring(dragY, { toValue: 0, useNativeDriver: false }).start();
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(dragY, { toValue: 0, useNativeDriver: false }).start();
+      },
+    })
+  ).current;
+
+  const saveCurrentToLibrary = async () => {
+    setActionsOpen(false);
+    if (!current) return;
+    try {
+      await saveToLibrary(current);
+      hapticNotification();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not save the track.');
+    }
+  };
 
   // Auto-limpar erros
   useEffect(() => {
@@ -103,6 +154,7 @@ export function PlayerRoot() {
                   outputRange: [H, 0],
                 }),
               },
+              { translateY: dragY },
             ],
           },
         ]}
@@ -114,8 +166,11 @@ export function PlayerRoot() {
           pointerEvents="none"
         />
 
-        {/* cabeçalho */}
-        <View style={[styles.fullHeader, { marginTop: insets.top + 6 }]}>
+        {/* cabeçalho — arrastável para baixo para fechar */}
+        <View
+          style={[styles.fullHeader, { marginTop: insets.top + 6 }]}
+          {...dismissPan.panHandlers}
+        >
           <Pressable hitSlop={12} onPress={() => setExpanded(false)} style={styles.headerBtn}>
             <Ionicons name="chevron-down" size={24} color={colors.text} />
           </Pressable>
@@ -160,7 +215,7 @@ export function PlayerRoot() {
           contentContainerStyle={styles.fullBody}
           showsVerticalScrollIndicator={false}
         >
-          {/* título */}
+          {/* título + opções */}
           <View style={styles.titleRow}>
             <View style={{ flex: 1 }}>
               <Text numberOfLines={2} style={styles.trackTitle}>
@@ -170,6 +225,14 @@ export function PlayerRoot() {
                 {current.artist ?? 'YouTube'}
               </Text>
             </View>
+            <Pressable
+              hitSlop={8}
+              onPress={() => setActionsOpen(true)}
+              style={styles.actionsBtn}
+              accessibilityLabel="Track options"
+            >
+              <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
+            </Pressable>
           </View>
 
           <View style={{ marginTop: spacing.xl }}>
@@ -358,6 +421,7 @@ export function PlayerRoot() {
               inputRange: [0, 1],
               outputRange: [8, 14],
             }),
+            transform: [{ translateY: dragY }],
             overflow: 'hidden',
             backgroundColor: '#000',
           }}
@@ -395,6 +459,32 @@ export function PlayerRoot() {
         </View>
       ) : null}
 
+      {/* ===================== AÇÕES DA FAIXA ===================== */}
+      <TrackActionsSheet
+        visible={actionsOpen}
+        track={current}
+        onClose={() => setActionsOpen(false)}
+        actions={[
+          {
+            icon: 'heart-outline',
+            label: 'Save to Library',
+            onPress: saveCurrentToLibrary,
+          },
+          {
+            icon: 'list-outline',
+            label: 'Add to playlist…',
+            onPress: () => {
+              setActionsOpen(false);
+              setPlaylistOpen(true);
+            },
+          },
+        ]}
+      />
+      <AddToPlaylistSheet
+        visible={playlistOpen}
+        track={current}
+        onClose={() => setPlaylistOpen(false)}
+      />
     </View>
   );
 }
@@ -451,6 +541,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  actionsBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceHigh,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   trackTitle: {
     fontSize: 20,
