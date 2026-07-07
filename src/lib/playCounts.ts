@@ -15,6 +15,7 @@ export interface PlayCountEntry {
   title: string;
   artist: string | null;
   artworkUrl: string | null;
+  durationSeconds: number | null;
   count: number;
   lastPlayed: number; // epoch ms
 }
@@ -47,6 +48,7 @@ export async function incrementPlayCount(track: Track): Promise<void> {
     title: track.title,
     artist: track.artist ?? null,
     artworkUrl: track.artworkUrl ?? null,
+    durationSeconds: track.durationSeconds ?? prev?.durationSeconds ?? null,
     count: (prev?.count ?? 0) + 1,
     lastPlayed: Date.now(),
   };

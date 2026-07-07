@@ -46,7 +46,7 @@ function entryToTrack(e: PlayCountEntry): Track {
     artist: e.artist,
     album: null,
     artworkUrl: e.artworkUrl,
-    durationSeconds: null,
+    durationSeconds: e.durationSeconds ?? null,
   };
 }
 

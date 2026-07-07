@@ -165,11 +165,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // (descarregar o ficheiro), para o handler de erro do player os alcançar.
   const streamRef = useRef<YtStream | undefined>(undefined);
   const downloadTriedRef = useRef(false);
+  // Evita disparar "ended" mais do que uma vez por faixa (ver bug da duração
+  // a dobrar mais abaixo).
+  const endedRef = useRef(false);
 
   useEffect(() => {
     const myRun = ++runIdRef.current;
     streamRef.current = undefined;
     downloadTriedRef.current = false;
+    endedRef.current = false;
     // Silenciar JÁ a faixa anterior enquanto a nova resolve (senão continuava
     // a tocar de fundo durante a resolução da nova).
     try {
@@ -252,11 +256,29 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (backend === 'native') onStateChange(isPlaying ? 'playing' : 'paused');
   });
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
-    if (backend === 'native')
-      setProgress(currentTime * 1000, (player.duration || 0) * 1000);
+    if (backend !== 'native') return;
+    // A duração REAL vem da YouTube Data API (track.durationSeconds), que é
+    // fiável. Não usamos player.duration porque alguns streams m4a do YouTube
+    // reportam o DOBRO da duração (contentor com duração errada) — o áudio
+    // acaba a meio do "fim" do player. Só caímos no player.duration se a app
+    // não souber a duração real.
+    const knownMs = track.durationSeconds
+      ? track.durationSeconds * 1000
+      : (player.duration || 0) * 1000;
+    setProgress(currentTime * 1000, knownMs);
+
+    // Se conhecemos a duração real e já lá chegámos, avançamos — em vez de
+    // ficar a "tocar" silêncio até ao fim (dobrado) do player.
+    if (track.durationSeconds && currentTime >= track.durationSeconds - 1 && !endedRef.current) {
+      endedRef.current = true;
+      onStateChange('ended');
+    }
   });
   useEventListener(player, 'playToEnd', () => {
-    if (backend === 'native') onStateChange('ended');
+    if (backend === 'native' && !endedRef.current) {
+      endedRef.current = true;
+      onStateChange('ended');
+    }
   });
   useEventListener(player, 'statusChange', ({ status, error }) => {
     if (backend !== 'native' || status !== 'error') return;
