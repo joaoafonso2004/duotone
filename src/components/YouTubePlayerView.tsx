@@ -3,13 +3,13 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
-import { resolveYouTubeStream, streamFromPlayerResponse } from '../api/ytstream';
+import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
 import { getAudioQuality } from '../lib/prefs';
 import { cachedAudioFile } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
-import { YtStreamHarvester } from './YtStreamHarvester';
+import { YtStreamHarvester, type HarvestResult } from './YtStreamHarvester';
 
 /**
  * Player do YouTube com TRÊS fases, em cascata:
@@ -156,18 +156,29 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     };
   }, [track.sourceId]);
 
-  // Chamado pelo YtStreamHarvester (fase 1) com a resposta genuína
-  // intercetada, ou com `null` se não intercetou nada dentro do timeout.
-  const proceedWithPlayerResponse = async (harvested: any | null) => {
+  // Chamado pelo YtStreamHarvester (fase 1) com o que conseguiu capturar, ou
+  // `null` se não capturou nada dentro do timeout.
+  const proceedWithPlayerResponse = async (harvested: HarvestResult | null) => {
     if (cancelledRef.current) return;
     setBackend('resolving');
     try {
       const quality = await getAudioQuality();
       if (cancelledRef.current) return;
 
-      const stream = harvested
-        ? streamFromPlayerResponse(harvested, quality)
-        : await resolveYouTubeStream(track.sourceId, quality);
+      let stream: YtStream;
+      if (harvested?.kind === 'playerResponse') {
+        stream = streamFromPlayerResponse(harvested.data, quality);
+      } else if (harvested?.kind === 'rawUrl') {
+        const isHls = harvested.url.includes('.m3u8');
+        stream = {
+          url: harvested.url,
+          isHls,
+          expiresAt: Date.now() + 5 * 60 * 60 * 1000,
+          contentLength: null,
+        };
+      } else {
+        stream = await resolveYouTubeStream(track.sourceId, quality);
+      }
       if (cancelledRef.current) return;
 
       // HLS transmite-se bem em direto; o mp4 progressivo tem de ser
@@ -191,10 +202,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       setBackend('native');
     } catch (e: any) {
       if (!cancelledRef.current) {
-        // Diagnóstico visível — inclui a ORIGEM do stream (harvester vs.
-        // resolver próprio) para sabermos, sem ambiguidade, qual dos dois
-        // caminhos falhou, em vez de adivinhar a partir do erro sozinho.
-        const source = harvested ? 'harvested' : 'own-resolver';
+        // Diagnóstico visível — inclui a ORIGEM exata do stream para sabermos,
+        // sem ambiguidade, qual caminho falhou em vez de adivinhar.
+        const source = harvested ? `harvested-${harvested.kind}` : 'own-resolver';
         setError(
           `[build ${BUILD_ID}] YouTube [${source}]: native stream unavailable (${e?.message ?? 'unknown'}), using embed.`
         );

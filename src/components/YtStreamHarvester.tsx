@@ -6,26 +6,29 @@ import { WebView, WebViewMessageEvent } from 'react-native-webview';
  * WebView INVISÍVEL que carrega o embed real do YouTube e "escuta" a resposta
  * genuína que a própria página pede ao servidor de vídeo — em vez de tentarmos
  * replicar o token de origem (PO Token / BotGuard) que a Google exige. A
- * página oficial sabe gerar esse token sozinha; nós só precisamos de
- * intercetar a resposta antes do JS dela a consumir.
+ * página oficial sabe gerar esse token sozinha; nós só precisamos de capturar
+ * o resultado antes/depois do JS dela o consumir.
  *
- * Mecanismo: `injectedJavaScriptBeforeContentLoaded` corre ANTES de qualquer
- * script da página, por isso conseguimos substituir `fetch`/`XMLHttpRequest`
- * E `Worker` antes da página os usar. Sempre que um texto contém
- * `"streamingData"` (a resposta do endpoint /youtubei/v1/player, seja qual
- * for o transporte exato que a página usa), reenviamo-lo para o React Native.
+ * DUAS camadas de captura, porque não sabemos ao certo qual mecanismo interno
+ * o YouTube usa e queremos o máximo de hipóteses de apanhar alguma coisa:
  *
- * IMPORTANTE: confirmámos (inspecionando o bundle real do player embed) que
- * ele cria um `Worker` (`new Worker(...)`) — provavelmente é aí que o pedido
- * do stream acontece. Um `Worker` tem o seu PRÓPRIO scope global, isolado da
- * `window` principal — substituir `fetch`/`XMLHttpRequest` na window nunca
- * veria esse pedido. Por isso também envolvemos `window.Worker`: sempre que a
- * página cria um, escutamos TODAS as mensagens trocadas entre a thread
- * principal e o worker (`postMessage` nos dois sentidos), porque o resultado
- * do pedido tem de voltar à thread principal por essa via para o vídeo tocar.
+ * 1. Rede — `injectedJavaScriptBeforeContentLoaded` corre ANTES de qualquer
+ *    script da página, por isso conseguimos substituir `fetch`/
+ *    `XMLHttpRequest`/`Worker` antes da página os usar, e inspecionar
+ *    qualquer texto que contenha `"streamingData"` (a resposta do endpoint
+ *    /youtubei/v1/player). Confirmámos que o player embed cria um `Worker`
+ *    (scope isolado da window principal — só `fetch`/`XHR` não bastava).
  *
- * EXPERIMENTAL: isto depende de detalhes internos da página do YouTube que a
- * Google pode mudar sem aviso. Se não intercetar nada dentro do timeout,
+ * 2. Elemento `<video>` — mais robusto e universal: em vez de tentar prever
+ *    COMO a página obtém o URL, observamos diretamente o `<video>`/`<audio>`
+ *    real da página e capturamos o URL que ele acaba por carregar
+ *    (`currentSrc`). Se a página atribui o URL assinado diretamente ao
+ *    elemento (sem nunca passar por fetch/XHR que consigamos ver — ex. via
+ *    MediaSource ou HLS nativo do WebKit), esta camada ainda funciona,
+ *    porque o URL tem de lá estar para o vídeo tocar.
+ *
+ * EXPERIMENTAL: depende de detalhes internos da página do YouTube que a
+ * Google pode mudar sem aviso. Se não capturar nada dentro do timeout,
  * `onResult` recebe `null` e o YouTubePlayerView cai no resolver próprio
  * (ytstream.ts) e depois no embed visível, como acontecia antes.
  */
@@ -35,7 +38,7 @@ const INTERCEPT_JS = `
   if (window.__duotoneHarvest) { return; }
   window.__duotoneHarvest = true;
 
-  function report(raw) {
+  function reportPlayerResponse(raw) {
     try {
       var text = typeof raw === 'string' ? raw : JSON.stringify(raw);
       if (typeof text === 'string' && text.indexOf('"streamingData"') !== -1) {
@@ -44,13 +47,14 @@ const INTERCEPT_JS = `
     } catch (e) {}
   }
 
+  // --- Camada 1: fetch / XMLHttpRequest / Worker ---
   var origFetch = window.fetch;
   if (origFetch) {
     window.fetch = function () {
       var p = origFetch.apply(this, arguments);
       p.then(function (res) {
         try {
-          res.clone().text().then(report).catch(function () {});
+          res.clone().text().then(reportPlayerResponse).catch(function () {});
         } catch (e) {}
       }).catch(function () {});
       return p;
@@ -61,39 +65,51 @@ const INTERCEPT_JS = `
   function PatchedXHR() {
     var xhr = new OrigXHR();
     xhr.addEventListener('load', function () {
-      try { report(xhr.responseText); } catch (e) {}
+      try { reportPlayerResponse(xhr.responseText); } catch (e) {}
     });
     return xhr;
   }
   window.XMLHttpRequest = PatchedXHR;
 
-  // O player embed usa um Worker (confirmado no bundle) — provavelmente é
-  // aí que o pedido ao servidor acontece. Escutamos as mensagens trocadas
-  // nos dois sentidos entre a thread principal e o worker.
   var OrigWorker = window.Worker;
   if (OrigWorker) {
     window.Worker = function (scriptURL, options) {
       var w = new OrigWorker(scriptURL, options);
       var origPostMessage = w.postMessage.bind(w);
       w.postMessage = function (msg) {
-        report(msg);
+        reportPlayerResponse(msg);
         return origPostMessage.apply(w, arguments);
       };
       w.addEventListener('message', function (ev) {
-        report(ev && ev.data);
+        reportPlayerResponse(ev && ev.data);
       });
       return w;
     };
     window.Worker.prototype = OrigWorker.prototype;
   }
+
+  // --- Camada 2: observar o <video>/<audio> real e o URL que carrega ---
+  var reportedUrl = null;
+  function checkMediaSrc() {
+    var el = document.querySelector('video') || document.querySelector('audio');
+    if (!el) return;
+    var src = el.currentSrc || el.src;
+    if (src && src.indexOf('http') === 0 && src !== reportedUrl) {
+      reportedUrl = src;
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'rawUrl', url: src }));
+    }
+  }
+  setInterval(checkMediaSrc, 400);
 })();
 true;
 `;
 
+export type HarvestResult = { kind: 'playerResponse'; data: any } | { kind: 'rawUrl'; url: string };
+
 interface Props {
   videoId: string;
-  /** `null` quando expira o timeout sem intercetar nada. */
-  onResult: (playerResponse: any | null) => void;
+  /** `null` quando expira o timeout sem capturar nada. */
+  onResult: (result: HarvestResult | null) => void;
   timeoutMs?: number;
 }
 
@@ -117,14 +133,18 @@ export function YtStreamHarvester({ videoId, onResult, timeoutMs = 10000 }: Prop
     if (doneRef.current) return;
     try {
       const msg = JSON.parse(e.nativeEvent.data);
-      if (msg.type !== 'player') return;
-      const data = JSON.parse(msg.body);
-      if (data?.streamingData) {
+      if (msg.type === 'player') {
+        const data = JSON.parse(msg.body);
+        if (data?.streamingData) {
+          doneRef.current = true;
+          onResultRef.current({ kind: 'playerResponse', data });
+        }
+      } else if (msg.type === 'rawUrl' && typeof msg.url === 'string') {
         doneRef.current = true;
-        onResultRef.current(data);
+        onResultRef.current({ kind: 'rawUrl', url: msg.url });
       }
     } catch {
-      // ignorar mensagens que não sejam JSON válido do player
+      // ignorar mensagens que não sejam JSON válido
     }
   };
 
