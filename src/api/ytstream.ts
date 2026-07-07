@@ -44,17 +44,55 @@
  * (valida o cliente pelo corpo JSON + X-YouTube-Client-*), por isso não o
  * definimos aqui (seria ineficaz e só gerava confusão).
  *
- * NOTA: a versão do cliente iOS envelhece. Se um dia parar de resolver (HTTP
- * 400 "Precondition check failed"), atualizar IOS_CLIENT.clientVersion para a
- * versão atual da app do YouTube para iOS.
+ * ESTRATÉGIA DE CLIENTES (jul/2026): o cliente `IOS` EXIGE PO Token e por
+ * isso limita o mp4 a ~1MB. A solução que o yt-dlp e o NewPipe usam não é
+ * lutar contra o BotGuard, mas sim pedir os dados com um cliente que a Google
+ * NÃO obriga a PO Token. Tentamos em cascata (o "clientName" é só uma etiqueta
+ * no corpo do pedido — a app continua nativa iOS; ver conversa com o
+ * utilizador):
+ *   1. ANDROID_VR — o cliente da app de YouTube dos óculos Oculus Quest. NÃO
+ *      exige PO Token, devolve áudio mp4/m4a direto sem o limite de 1MB.
+ *      Limitação: vídeos "para crianças"/com restrição de idade indisponíveis.
+ *   2. WEB (Safari) — devolve HLS (m3u8) que também não exige PO Token e não
+ *      sofre do limite; bom para os casos que o ANDROID_VR recusa.
+ *   3. IOS + PO Token — só se os anteriores falharem, tenta o caminho antigo
+ *      (com PoToken on-device do BotGuardMinter, se disponível).
+ * Se tudo falhar, o YouTubePlayerView cai no embed visível como sempre.
+ *
+ * NOTA: as versões dos clientes envelhecem. Se um parar de resolver (HTTP 400
+ * "Precondition check failed"), atualizar o clientVersion respetivo.
  */
 
 import { fetchGvsPoToken } from './potProvider';
 
-// Chave InnerTube pública/conhecida (vai embutida na app iOS; não é segredo).
+// Chave InnerTube pública/conhecida (não é segredo; vai embutida nas apps).
 const INNERTUBE_KEY = 'AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc';
 const PLAYER_URL = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_KEY}&prettyPrint=false`;
 
+// Cliente principal: não exige PO Token (ver acima). Valores do yt-dlp.
+const ANDROID_VR_CLIENT = {
+  clientName: 'ANDROID_VR',
+  clientNumber: '28',
+  clientVersion: '1.65.10',
+  deviceMake: 'Oculus',
+  deviceModel: 'Quest 3',
+  osName: 'Android',
+  osVersion: '12L',
+  androidSdkVersion: 32,
+  userAgent:
+    'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
+};
+
+// Cliente secundário: dá HLS (m3u8), também sem PO Token.
+const WEB_SAFARI_CLIENT = {
+  clientName: 'WEB',
+  clientNumber: '1',
+  clientVersion: '2.20260114.08.00',
+  userAgent:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15,gzip(gfe)',
+};
+
+// Último recurso (caminho antigo): exige PO Token para o mp4 completo.
 const IOS_CLIENT = {
   clientName: 'IOS',
   clientNumber: '5',
@@ -152,6 +190,55 @@ export function streamFromPlayerResponse(
   };
 }
 
+type InnerTubeClient = {
+  clientName: string;
+  clientNumber: string;
+  clientVersion: string;
+  deviceMake?: string;
+  deviceModel?: string;
+  osName?: string;
+  osVersion?: string;
+  androidSdkVersion?: number;
+  userAgent?: string;
+};
+
+/** Faz um pedido /player com um cliente específico e devolve a resposta JSON
+ * (ou lança em erro HTTP). Isolado para a cascata em resolveYouTubeStream. */
+async function requestPlayer(videoId: string, client: InnerTubeClient): Promise<any> {
+  const clientContext: Record<string, any> = {
+    clientName: client.clientName,
+    clientVersion: client.clientVersion,
+    hl: 'en',
+    gl: 'US',
+  };
+  if (client.deviceMake) clientContext.deviceMake = client.deviceMake;
+  if (client.deviceModel) clientContext.deviceModel = client.deviceModel;
+  if (client.osName) clientContext.osName = client.osName;
+  if (client.osVersion) clientContext.osVersion = client.osVersion;
+  if (client.androidSdkVersion) clientContext.androidSdkVersion = client.androidSdkVersion;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-YouTube-Client-Name': client.clientNumber,
+    'X-YouTube-Client-Version': client.clientVersion,
+  };
+  if (client.userAgent) headers['User-Agent'] = client.userAgent;
+
+  const res = await fetch(PLAYER_URL, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      videoId,
+      contentCheckOk: true,
+      racyCheckOk: true,
+      context: { client: clientContext },
+    }),
+  });
+
+  if (!res.ok) throw new Error(`InnerTube HTTP ${res.status} (${client.clientName})`);
+  return res.json();
+}
+
 export async function resolveYouTubeStream(
   videoId: string,
   quality: 'high' | 'saver' = 'high'
@@ -160,39 +247,29 @@ export async function resolveYouTubeStream(
   const cached = memo.get(cacheKey);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
 
-  const res = await fetch(PLAYER_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-YouTube-Client-Name': IOS_CLIENT.clientNumber,
-      'X-YouTube-Client-Version': IOS_CLIENT.clientVersion,
-    },
-    body: JSON.stringify({
-      videoId,
-      contentCheckOk: true,
-      racyCheckOk: true,
-      context: {
-        client: {
-          clientName: IOS_CLIENT.clientName,
-          clientVersion: IOS_CLIENT.clientVersion,
-          deviceMake: IOS_CLIENT.deviceMake,
-          deviceModel: IOS_CLIENT.deviceModel,
-          osName: IOS_CLIENT.osName,
-          osVersion: IOS_CLIENT.osVersion,
-          hl: 'en',
-          gl: 'US',
-        },
-      },
-    }),
+  const errors: string[] = [];
+
+  // 1. ANDROID_VR — sem PO Token, áudio direto sem limite de 1MB.
+  // 2. WEB (Safari) — sem PO Token, dá HLS (m3u8) que também não tem limite.
+  for (const client of [ANDROID_VR_CLIENT, WEB_SAFARI_CLIENT]) {
+    try {
+      const data = await requestPlayer(videoId, client);
+      const stream = streamFromPlayerResponse(data, quality);
+      memo.set(cacheKey, stream);
+      return stream;
+    } catch (e: any) {
+      errors.push(e?.message ?? String(e));
+    }
+  }
+
+  // 3. Último recurso: IOS + PO Token (on-device, se disponível). Só chega
+  // aqui se os dois clientes acima falharem (ex.: vídeo com restrição de
+  // idade que o ANDROID_VR recusa).
+  const data = await requestPlayer(videoId, IOS_CLIENT).catch((e: any) => {
+    throw new Error(`todos os clientes falharam: ${errors.join(' | ')} | ${e?.message ?? e}`);
   });
-
-  if (!res.ok) throw new Error(`InnerTube HTTP ${res.status}`);
-  const data = await res.json();
-
   const stream = streamFromPlayerResponse(data, quality);
 
-  // mp4 progressivo sofre do limite de ~1MB sem PO Token; HLS não (ver nota
-  // no topo). Só vale a pena pedir o token para o caso que precisa dele.
   if (!stream.isHls) {
     const visitorData = data?.responseContext?.visitorData;
     if (visitorData) {

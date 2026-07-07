@@ -10,7 +10,7 @@ import { getAudioQuality } from '../lib/prefs';
 import { cachedAudioFile } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
-import { YtStreamHarvester, type HarvestResult } from './YtStreamHarvester';
+import { type HarvestResult } from './YtStreamHarvester';
 
 /**
  * Player do YouTube com TRÊS fases, em cascata:
@@ -134,7 +134,7 @@ const BRIDGE_JS = `
 true;
 `;
 
-type Backend = 'harvesting' | 'resolving' | 'native' | 'webview';
+type Backend = 'resolving' | 'native' | 'webview';
 
 export function YouTubePlayerView({ track }: { track: Track }) {
   const registerYtControls = usePlayer((s) => s.registerYtControls);
@@ -142,7 +142,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const setProgress = usePlayer((s) => s._setProgress);
   const setError = usePlayer((s) => s.setError);
 
-  const [backend, setBackend] = useState<Backend>('harvesting');
+  const [backend, setBackend] = useState<Backend>('resolving');
   const webRef = useRef<WebView>(null);
   const cancelledRef = useRef(false);
 
@@ -153,9 +153,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     p.loop = false;
   });
 
+  // Guardado num ref para o efeito de arranque poder chamar a versão mais
+  // recente sem re-executar a cada render (a função é recriada em cada um).
+  const proceedRef = useRef<(h: HarvestResult | null) => void>(() => {});
+
   useEffect(() => {
     cancelledRef.current = false;
-    setBackend('harvesting');
+    // Vai DIRETO ao resolver (ytstream.ts → ANDROID_VR, sem PO Token). Já não
+    // passamos pela fase de harvesting: com o ANDROID_VR a resolver
+    // diretamente, a WebView de captura só acrescentava até 10s de espera.
+    setBackend('resolving');
+    proceedRef.current(null);
     return () => {
       cancelledRef.current = true;
     };
@@ -223,6 +231,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
     }
   };
+  proceedRef.current = proceedWithPlayerResponse;
 
   // Eventos do player nativo -> store
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
@@ -245,7 +254,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
   useEffect(() => {
-    if (backend === 'harvesting' || backend === 'resolving') return;
+    if (backend === 'resolving') return;
     if (backend === 'native') {
       registerYtControls({
         play: () => player.play(),
@@ -309,20 +318,14 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     );
   }
 
-  // harvesting | resolving | native -> vídeo nativo (preto enquanto carrega),
-  // com o harvester invisível ativo só durante a fase 1.
+  // resolving | native -> vídeo nativo (preto enquanto o stream carrega).
   return (
-    <>
-      {backend === 'harvesting' ? (
-        <YtStreamHarvester videoId={track.sourceId} onResult={proceedWithPlayerResponse} />
-      ) : null}
-      <VideoView
-        player={player}
-        style={styles.fill}
-        nativeControls={false}
-        contentFit="cover"
-      />
-    </>
+    <VideoView
+      player={player}
+      style={styles.fill}
+      nativeControls={false}
+      contentFit="cover"
+    />
   );
 }
 
