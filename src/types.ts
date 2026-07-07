@@ -1,3 +1,5 @@
+// A app é só YouTube. 'spotify' permanece no union apenas por compatibilidade
+// com o constraint da BD e dados antigos — já não é usado em lado nenhum.
 export type Source = 'youtube' | 'spotify';
 
 export interface Track {
@@ -7,7 +9,7 @@ export interface Track {
   sourceId: string;
   title: string;
   artist: string | null;
-  /** nome do álbum (Spotify); null para faixas do YouTube */
+  /** nome do álbum (quando disponível); geralmente null no YouTube */
   album: string | null;
   artworkUrl: string | null;
   durationSeconds: number | null;

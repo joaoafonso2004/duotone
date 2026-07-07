@@ -18,15 +18,7 @@ import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing } from '../theme';
-import type { Source, Track } from '../types';
-
-type Filter = 'all' | Source;
-
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'youtube', label: 'YouTube' },
-  { key: 'spotify', label: 'Spotify' },
-];
+import type { Track } from '../types';
 
 export function SongsScreen() {
   const insets = useSafeAreaInsets();
@@ -35,7 +27,6 @@ export function SongsScreen() {
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>('all');
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
   const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
 
@@ -55,9 +46,6 @@ export function SongsScreen() {
     }, [load])
   );
 
-  const filtered =
-    filter === 'all' ? tracks : tracks.filter((t) => t.source === filter);
-
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
   return (
@@ -65,36 +53,17 @@ export function SongsScreen() {
       title="Songs"
       subtitle={`${tracks.length} saved ${tracks.length === 1 ? 'song' : 'songs'}`}
     >
-      <View style={styles.filters}>
-        {FILTERS.map((f) => (
-          <Pressable
-            key={f.key}
-            onPress={() => setFilter(f.key)}
-            style={[styles.chip, filter === f.key && styles.chipActive]}
-          >
-            <Text
-              style={[
-                styles.chipLabel,
-                filter === f.key && { color: colors.text },
-              ]}
-            >
-              {f.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} />
-      ) : filtered.length === 0 ? (
+      ) : tracks.length === 0 ? (
         <EmptyState
           icon="heart-outline"
-          title={filter === 'all' ? 'Your library is empty' : 'Nothing here yet'}
-          subtitle="Search for tracks and save the ones you love — from YouTube and Spotify, all in one place."
+          title="Your library is empty"
+          subtitle="Search for tracks and save the ones you love."
         />
       ) : (
         <FlatList
-          data={filtered}
+          data={tracks}
           keyExtractor={(t) => t.id ?? `${t.source}:${t.sourceId}`}
           contentContainerStyle={{ paddingBottom: bottomPad }}
           renderItem={({ item }) => (
@@ -104,7 +73,7 @@ export function SongsScreen() {
                 current?.source === item.source &&
                 current?.sourceId === item.sourceId
               }
-              onPress={() => playTrack(item, filtered)}
+              onPress={() => playTrack(item, tracks)}
               onAction={() => setActionTrack(item)}
             />
           )}

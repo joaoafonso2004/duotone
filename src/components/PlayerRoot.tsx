@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getPlaybackState } from '../api/spotify';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { ProgressBar } from './ProgressBar';
@@ -45,8 +44,6 @@ export function PlayerRoot() {
   const setExpanded = usePlayer((s) => s.setExpanded);
   const seekTo = usePlayer((s) => s.seekTo);
   const setError = usePlayer((s) => s.setError);
-  const setProgress = usePlayer((s) => s._setProgress);
-  const setIsPlaying = usePlayer((s) => s._setIsPlaying);
 
   const anim = useRef(new Animated.Value(0)).current;
 
@@ -58,24 +55,6 @@ export function PlayerRoot() {
       bounciness: 3,
     }).start();
   }, [expanded, anim]);
-
-  // Sincronização Spotify (a música toca na app Spotify; poll do estado)
-  useEffect(() => {
-    if (!current || current.source !== 'spotify') return;
-    const id = setInterval(async () => {
-      try {
-        const s = await getPlaybackState();
-        if (!s) return;
-        if (s.trackId === current.sourceId) {
-          setProgress(s.progressMs, s.durationMs);
-          setIsPlaying(s.isPlaying);
-        }
-      } catch {
-        // offline / token expirado — ignorar no poll
-      }
-    }, 3000);
-    return () => clearInterval(id);
-  }, [current, setProgress, setIsPlaying]);
 
   // Auto-limpar erros
   useEffect(() => {
@@ -188,7 +167,7 @@ export function PlayerRoot() {
                 {current.title}
               </Text>
               <Text numberOfLines={1} style={styles.trackArtist}>
-                {current.artist ?? (isYt ? 'YouTube' : 'Spotify')}
+                {current.artist ?? 'YouTube'}
               </Text>
             </View>
           </View>
@@ -244,10 +223,6 @@ export function PlayerRoot() {
             </Pressable>
           </View>
 
-          {!isYt ? (
-            <Text style={styles.sourceNote}>Playing via the Spotify app</Text>
-          ) : null}
-
           {/* a seguir */}
           {upNext.length > 0 ? (
             <View style={styles.upNextCard}>
@@ -277,7 +252,7 @@ export function PlayerRoot() {
                       {t.title}
                     </Text>
                     <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
-                      {t.artist ?? (t.source === 'youtube' ? 'YouTube' : 'Spotify')}
+                      {t.artist ?? 'YouTube'}
                     </Text>
                   </View>
                 </Pressable>
@@ -326,7 +301,7 @@ export function PlayerRoot() {
               {current.title}
             </Text>
             <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
-              {current.artist ?? (isYt ? 'YouTube' : 'Spotify')}
+              {current.artist ?? 'YouTube'}
             </Text>
           </View>
 

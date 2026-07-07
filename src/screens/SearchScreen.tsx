@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -12,24 +12,15 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary } from '../api/library';
-import { searchSpotify } from '../api/spotify';
 import { searchYouTube } from '../api/youtube';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
-import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
-import { SegmentedControl } from '../components/SegmentedControl';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { hapticImpact, hapticNotification } from '../lib/haptics';
-import {
-  addSearchHistoryEntry,
-  clearSearchHistory,
-  getDefaultSearchTab,
-  getSearchHistory,
-} from '../lib/prefs';
-import { connectSpotify, isSpotifyConnected } from '../lib/spotifyAuth';
+import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../lib/prefs';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -39,13 +30,10 @@ export function SearchScreen() {
   const playTrack = usePlayer((s) => s.playTrack);
   const current = usePlayer((s) => s.current);
 
-  const [tab, setTab] = useState(0); // 0 = YouTube, 1 = Spotify
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Track[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [spotifyOk, setSpotifyOk] = useState<boolean | null>(null);
-  const [connecting, setConnecting] = useState(false);
 
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
   const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
@@ -54,8 +42,6 @@ export function SearchScreen() {
   const requestId = useRef(0);
 
   useEffect(() => {
-    isSpotifyConnected().then(setSpotifyOk);
-    getDefaultSearchTab().then((v) => setTab(v === 'spotify' ? 1 : 0));
     getSearchHistory().then(setHistory);
   }, []);
 
@@ -68,15 +54,13 @@ export function SearchScreen() {
       setErrorMsg(null);
       return;
     }
-    if (tab === 1 && spotifyOk === false) return;
 
     const id = ++requestId.current;
     setLoading(true);
     setErrorMsg(null);
     const timer = setTimeout(async () => {
       try {
-        const found =
-          tab === 0 ? await searchYouTube(q) : await searchSpotify(q);
+        const found = await searchYouTube(q);
         if (requestId.current === id) {
           setResults(found);
           if (found.length > 0) {
@@ -93,7 +77,7 @@ export function SearchScreen() {
       }
     }, 550);
     return () => clearTimeout(timer);
-  }, [query, tab, spotifyOk]);
+  }, [query]);
 
   const doClearHistory = () => {
     setHistory([]);
@@ -101,31 +85,14 @@ export function SearchScreen() {
     clearSearchHistory();
   };
 
-  const doConnectSpotify = useCallback(async () => {
-    setConnecting(true);
-    try {
-      const ok = await connectSpotify();
-      setSpotifyOk(ok);
-      if (ok) hapticNotification();
-    } catch (e: any) {
-      Alert.alert('Spotify', e?.message ?? 'Could not connect to Spotify.');
-    } finally {
-      setConnecting(false);
-    }
-  }, []);
-
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
-  const showConnectCard = tab === 1 && spotifyOk === false;
 
   return (
-    <Screen
-      title="Search"
-      subtitle="Find tracks on YouTube and Spotify"
-    >
+    <Screen title="Search" subtitle="Find tracks on YouTube">
       <View style={styles.controls}>
         <Input
           icon="search"
-          placeholder={tab === 0 ? 'Search YouTube…' : 'Search Spotify…'}
+          placeholder="Search YouTube…"
           value={query}
           onChangeText={setQuery}
           onClear={() => setQuery('')}
@@ -134,37 +101,9 @@ export function SearchScreen() {
           returnKeyType="search"
           onSubmitEditing={() => Keyboard.dismiss()}
         />
-        <SegmentedControl
-          options={['YouTube', 'Spotify']}
-          accents={[colors.youtube, colors.spotify]}
-          value={tab}
-          onChange={(i) => {
-            setTab(i);
-            setResults([]);
-          }}
-        />
       </View>
 
-      {showConnectCard ? (
-        <View style={styles.connectCard}>
-          <View style={styles.spotifyIcon}>
-            <Ionicons name="musical-note" size={22} color={colors.spotify} />
-          </View>
-          <Text style={[type.headline, { textAlign: 'center' }]}>
-            Connect your Spotify account
-          </Text>
-          <Text style={[type.caption, { textAlign: 'center', lineHeight: 18 }]}>
-            Search Spotify's catalog and play full tracks through the Spotify
-            app. Requires Spotify installed and a Premium account.
-          </Text>
-          <PillButton
-            label="Connect Spotify"
-            onPress={doConnectSpotify}
-            loading={connecting}
-            style={{ marginTop: spacing.sm, alignSelf: 'center' }}
-          />
-        </View>
-      ) : loading ? (
+      {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} />
       ) : errorMsg ? (
         <EmptyState
@@ -200,14 +139,12 @@ export function SearchScreen() {
         </View>
       ) : results.length === 0 ? (
         <EmptyState
-          icon={tab === 0 ? 'logo-youtube' : 'musical-notes-outline'}
+          icon="logo-youtube"
           title={query.trim().length >= 2 ? 'No results' : 'Start typing to search'}
           subtitle={
             query.trim().length >= 2
               ? 'Try a different search term.'
-              : tab === 0
-              ? 'YouTube results play through the official YouTube player.'
-              : 'Spotify results play through the Spotify app.'
+              : 'Search YouTube and play tracks as native audio.'
           }
         />
       ) : (
@@ -294,25 +231,5 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: 10,
     borderRadius: radii.sm,
-  },
-  connectCard: {
-    marginHorizontal: spacing.xl,
-    marginTop: spacing.xl,
-    backgroundColor: colors.surface,
-    borderRadius: radii.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  spotifyIcon: {
-    alignSelf: 'center',
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.spotifySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xs,
   },
 });

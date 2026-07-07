@@ -23,8 +23,6 @@ interface ArtistGroup {
   name: string;
   artworkUrl: string | null;
   count: number;
-  hasYouTube: boolean;
-  hasSpotify: boolean;
 }
 
 export function ArtistsScreen() {
@@ -60,15 +58,11 @@ export function ArtistsScreen() {
         existing.count++;
         if (!existing.artworkUrl && t.artworkUrl)
           existing.artworkUrl = t.artworkUrl;
-        if (t.source === 'youtube') existing.hasYouTube = true;
-        else existing.hasSpotify = true;
       } else {
         map.set(name, {
           name,
           artworkUrl: t.artworkUrl,
           count: 1,
-          hasYouTube: t.source === 'youtube',
-          hasSpotify: t.source === 'spotify',
         });
       }
     }
@@ -124,17 +118,9 @@ export function ArtistsScreen() {
                 <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
                   {item.name}
                 </Text>
-                <View style={styles.dotsRow}>
-                  {item.hasYouTube ? (
-                    <View style={[styles.dot, { backgroundColor: colors.youtube }]} />
-                  ) : null}
-                  {item.hasSpotify ? (
-                    <View style={[styles.dot, { backgroundColor: colors.spotify }]} />
-                  ) : null}
-                  <Text style={type.caption}>
-                    {item.count} {item.count === 1 ? 'song' : 'songs'}
-                  </Text>
-                </View>
+                <Text style={type.caption}>
+                  {item.count} {item.count === 1 ? 'song' : 'songs'}
+                </Text>
               </View>
               <Ionicons
                 name="chevron-forward"

@@ -192,7 +192,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                     {item.title}
                   </Text>
                   <Text numberOfLines={1} style={type.caption}>
-                    {item.artist ?? (item.source === 'youtube' ? 'YouTube' : 'Spotify')}
+                    {item.artist ?? 'YouTube'}
                   </Text>
                 </View>
                 <Pressable

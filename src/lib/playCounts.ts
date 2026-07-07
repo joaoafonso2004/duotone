@@ -75,22 +75,16 @@ export interface PlayStats {
   totalPlays: number;
   uniqueTracks: number;
   topArtist: { name: string; plays: number } | null;
-  youtubePlays: number;
-  spotifyPlays: number;
 }
 
 /** Resumo agregado para o cabeçalho do perfil. */
 export async function getPlayStats(): Promise<PlayStats> {
   const entries = Object.values(await readAll());
   const byArtist = new Map<string, number>();
-  let youtubePlays = 0;
-  let spotifyPlays = 0;
   let totalPlays = 0;
 
   for (const e of entries) {
     totalPlays += e.count;
-    if (e.source === 'youtube') youtubePlays += e.count;
-    else spotifyPlays += e.count;
     const artist = (e.artist ?? '').trim();
     if (artist) byArtist.set(artist, (byArtist.get(artist) ?? 0) + e.count);
   }
@@ -104,8 +98,6 @@ export async function getPlayStats(): Promise<PlayStats> {
     totalPlays,
     uniqueTracks: entries.length,
     topArtist,
-    youtubePlays,
-    spotifyPlays,
   };
 }
 

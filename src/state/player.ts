@@ -1,11 +1,4 @@
 import { create } from 'zustand';
-import {
-  pauseSpotify,
-  playSpotifyTrack,
-  resumeSpotify,
-  seekSpotify,
-  SpotifyError,
-} from '../api/spotify';
 import { incrementPlayCount } from '../lib/playCounts';
 import type { Track } from '../types';
 
@@ -51,17 +44,6 @@ interface PlayerState {
   _setIsPlaying: (v: boolean) => void;
 }
 
-function errMessage(e: unknown): string {
-  if (e instanceof SpotifyError) {
-    if (e.status === 401) return 'Connect your Spotify account in Search.';
-    if (e.status === 404)
-      return 'No active Spotify device. Open the Spotify app.';
-    if (e.status === 403)
-      return 'Spotify playback requires a Premium account.';
-  }
-  return "Couldn't play this track.";
-}
-
 export const usePlayer = create<PlayerState>((set, get) => ({
   current: null,
   queue: [],
@@ -92,41 +74,17 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       error: null,
       positionMs: 0,
       durationMs: (track.durationSeconds ?? 0) * 1000,
-      // O WebView do YouTube autoplay-a ao montar; estado real chega via bridge.
+      // O player nativo autoplay-a ao montar; estado real chega via bridge.
       isPlaying: true,
     });
-
-    if (track.source === 'spotify') {
-      try {
-        await playSpotifyTrack(track);
-      } catch (e) {
-        set({ isPlaying: false, error: errMessage(e) });
-      }
-    }
   },
 
   togglePlay: async () => {
     const { current, isPlaying, _yt } = get();
     if (!current) return;
-
-    if (current.source === 'youtube') {
-      // O estado real volta via _onYtStateChange
-      if (isPlaying) _yt?.pause();
-      else _yt?.play();
-      return;
-    }
-
-    try {
-      if (isPlaying) {
-        await pauseSpotify();
-        set({ isPlaying: false });
-      } else {
-        await resumeSpotify();
-        set({ isPlaying: true });
-      }
-    } catch (e) {
-      set({ error: errMessage(e) });
-    }
+    // O estado real volta via _onYtStateChange
+    if (isPlaying) _yt?.pause();
+    else _yt?.play();
   },
 
   next: async () => {
@@ -150,14 +108,6 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   close: async () => {
-    const { current } = get();
-    if (current?.source === 'spotify') {
-      try {
-        await pauseSpotify();
-      } catch {
-        // ignorar
-      }
-    }
     set({
       current: null,
       queue: [],
@@ -175,15 +125,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     if (!current) return;
     const clamped = Math.max(0, Math.min(ms, durationMs));
     set({ positionMs: clamped });
-    if (current.source === 'youtube') {
-      _yt?.seek(clamped);
-    } else {
-      try {
-        await seekSpotify(clamped);
-      } catch (e) {
-        set({ error: errMessage(e) });
-      }
-    }
+    _yt?.seek(clamped);
   },
 
   setExpanded: (v) => set({ expanded: v }),

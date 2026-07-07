@@ -89,7 +89,7 @@ export function AuthScreen() {
             </View>
             <Text style={styles.wordmark}>Duotone</Text>
             <Text style={styles.tagline}>
-              YouTube + Spotify. One library, your playlists.
+              Your music. One library, your playlists.
             </Text>
           </View>
 
