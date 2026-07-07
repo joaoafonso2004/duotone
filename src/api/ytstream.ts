@@ -31,6 +31,13 @@
  *  - Senão, o áudio mp4 (AAC) só dá para os primeiros ~20-30s antes de
  *    começar a falhar — não usar como fonte fiável de faixa inteira.
  *
+ * PO TOKEN (potProvider.ts): se houver um servidor bgutil-ytdlp-pot-provider
+ * configurado nas Definições, pedimos-lhe um PO Token GVS ligado ao
+ * `visitorData` desta resposta e anexamo-lo ao URL mp4 como `?pot=...` —
+ * é isto que remove o limite de ~1MB (ver GUIA-POT-TOKEN.md). Sem servidor
+ * configurado, `fetchGvsPoToken` devolve `null` e o comportamento é
+ * exatamente o de antes.
+ *
  * NOTA sobre o header User-Agent: o iOS trata "User-Agent" como header
  * reservado pela URL Loading System e pode ignorá-lo/substituí-lo em pedidos
  * feitos por fetch() — confirmado que a API do InnerTube não precisa dele
@@ -41,6 +48,8 @@
  * 400 "Precondition check failed"), atualizar IOS_CLIENT.clientVersion para a
  * versão atual da app do YouTube para iOS.
  */
+
+import { fetchGvsPoToken } from './potProvider';
 
 // Chave InnerTube pública/conhecida (vai embutida na app iOS; não é segredo).
 const INNERTUBE_KEY = 'AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc';
@@ -179,6 +188,20 @@ export async function resolveYouTubeStream(
   const data = await res.json();
 
   const stream = streamFromPlayerResponse(data, quality);
+
+  // mp4 progressivo sofre do limite de ~1MB sem PO Token; HLS não (ver nota
+  // no topo). Só vale a pena pedir o token para o caso que precisa dele.
+  if (!stream.isHls) {
+    const visitorData = data?.responseContext?.visitorData;
+    if (visitorData) {
+      const poToken = await fetchGvsPoToken(visitorData);
+      if (poToken) {
+        const sep = stream.url.includes('?') ? '&' : '?';
+        stream.url = `${stream.url}${sep}pot=${encodeURIComponent(poToken)}`;
+      }
+    }
+  }
+
   memo.set(cacheKey, stream);
   return stream;
 }

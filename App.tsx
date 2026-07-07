@@ -2,6 +2,7 @@ import 'react-native-url-polyfill/auto';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { BotGuardMinter } from './src/components/BotGuardMinter';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
   getDefaultYtViewMode,
@@ -32,6 +33,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
+      {/* Escondida, montada uma única vez para a app inteira — gera PO
+          Tokens on-device (ver BotGuardMinter.tsx / potProvider.ts). */}
+      <BotGuardMinter />
       <RootNavigator />
     </SafeAreaProvider>
   );
