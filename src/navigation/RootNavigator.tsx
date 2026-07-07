@@ -18,15 +18,20 @@ import { LibraryGroupScreen } from '../screens/LibraryGroupScreen';
 import { PlaylistDetailScreen } from '../screens/PlaylistDetailScreen';
 import { PlaylistsScreen } from '../screens/PlaylistsScreen';
 import { SearchScreen } from '../screens/SearchScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { SongsScreen } from '../screens/SongsScreen';
 import { useAuth } from '../state/auth';
 import { colors } from '../theme';
 
 export type RootStackParamList = {
   Tabs: undefined;
+  Settings: undefined;
+  Playlists: undefined;
   PlaylistDetail: { id: string; name: string };
-  LibraryGroup: { type: 'album' | 'artist'; name: string };
   ImportYouTube: undefined;
+  Albums: undefined;
+  Artists: undefined;
+  LibraryGroup: { type: 'album' | 'artist'; name: string };
 };
 
 type TabsParamList = {
@@ -39,6 +44,40 @@ type TabsParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabsParamList>();
+const stackScreenOptions = { headerShown: false } as const;
+
+// Cada tab com navegação para ecrãs de detalhe recebe o seu próprio stack
+// aninhado. Assim, ao abrir um álbum/artista/playlist a tab bar de baixo
+// continua visível (o React Navigation mantém-na renderizada à volta de
+// qualquer stack aninhado) — antes, estes ecrãs eram irmãos da própria Tabs
+// no stack raiz, o que escondia a barra por completo.
+function PlaylistsStack() {
+  return (
+    <Stack.Navigator screenOptions={stackScreenOptions}>
+      <Stack.Screen name="Playlists" component={PlaylistsScreen} />
+      <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
+      <Stack.Screen name="ImportYouTube" component={ImportYouTubeScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function AlbumsStack() {
+  return (
+    <Stack.Navigator screenOptions={stackScreenOptions}>
+      <Stack.Screen name="Albums" component={AlbumsScreen} />
+      <Stack.Screen name="LibraryGroup" component={LibraryGroupScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function ArtistsStack() {
+  return (
+    <Stack.Navigator screenOptions={stackScreenOptions}>
+      <Stack.Screen name="Artists" component={ArtistsScreen} />
+      <Stack.Screen name="LibraryGroup" component={LibraryGroupScreen} />
+    </Stack.Navigator>
+  );
+}
 
 const navTheme: Theme = {
   ...DarkTheme,
@@ -98,9 +137,9 @@ function Tabs() {
     >
       <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen name="Songs" component={SongsScreen} />
-      <Tab.Screen name="Albums" component={AlbumsScreen} />
-      <Tab.Screen name="Artists" component={ArtistsScreen} />
-      <Tab.Screen name="Playlists" component={PlaylistsScreen} />
+      <Tab.Screen name="Albums" component={AlbumsStack} />
+      <Tab.Screen name="Artists" component={ArtistsStack} />
+      <Tab.Screen name="Playlists" component={PlaylistsStack} />
     </Tab.Navigator>
   );
 }
@@ -128,20 +167,9 @@ export function RootNavigator() {
       <View style={{ flex: 1 }}>
         {session ? (
           <>
-            <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Navigator screenOptions={stackScreenOptions}>
               <Stack.Screen name="Tabs" component={Tabs} />
-              <Stack.Screen
-                name="PlaylistDetail"
-                component={PlaylistDetailScreen}
-              />
-              <Stack.Screen
-                name="LibraryGroup"
-                component={LibraryGroupScreen}
-              />
-              <Stack.Screen
-                name="ImportYouTube"
-                component={ImportYouTubeScreen}
-              />
+              <Stack.Screen name="Settings" component={SettingsScreen} />
             </Stack.Navigator>
             <PlayerRoot />
           </>

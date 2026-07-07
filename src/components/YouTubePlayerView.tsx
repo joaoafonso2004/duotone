@@ -16,9 +16,8 @@ import type { Track } from '../types';
  *    (dev-client/EAS); não funciona no Expo Go.
  *
  * 2. WEBVIEW (fallback) — o embed oficial do YouTube. Usado automaticamente
- *    quando a extração falha (vídeo protegido, PoToken, região). Neste modo a
- *    música pára com o ecrã bloqueado (limitação do WKWebView), mas o vídeo
- *    toca sempre.
+ *    quando a extração falha (vídeo protegido, PoToken, região, live). Neste
+ *    modo a música pára com o ecrã bloqueado (limitação do WKWebView).
  */
 
 const BRIDGE_JS = `
@@ -54,6 +53,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const registerYtControls = usePlayer((s) => s.registerYtControls);
   const onStateChange = usePlayer((s) => s._onYtStateChange);
   const setProgress = usePlayer((s) => s._setProgress);
+  const setError = usePlayer((s) => s.setError);
 
   const [backend, setBackend] = useState<Backend>('resolving');
   const webRef = useRef<WebView>(null);
@@ -71,10 +71,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     setBackend('resolving');
     (async () => {
       try {
-        const { url } = await resolveYouTubeStream(track.sourceId);
+        const { url, isHls } = await resolveYouTubeStream(track.sourceId);
         if (cancelled) return;
         await player.replaceAsync({
           uri: url,
+          contentType: isHls ? 'hls' : 'progressive',
           metadata: {
             title: track.title,
             artist: track.artist ?? 'YouTube',
@@ -84,14 +85,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         if (cancelled) return;
         player.play();
         setBackend('native');
-      } catch {
-        if (!cancelled) setBackend('webview');
+      } catch (e: any) {
+        if (!cancelled) {
+          // Diagnóstico visível — para sabermos exatamente porque caiu no
+          // WebView, em vez de adivinhar a partir de um "erro 153" genérico.
+          setError(`YouTube: native stream unavailable (${e?.message ?? 'unknown'}), using embed.`);
+          setBackend('webview');
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [track.sourceId, track.title, track.artist, track.artworkUrl, player]);
+  }, [track.sourceId, track.title, track.artist, track.artworkUrl, player, setError]);
 
   // Eventos do player nativo -> store
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
@@ -104,9 +110,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   useEventListener(player, 'playToEnd', () => {
     if (backend === 'native') onStateChange('ended');
   });
-  useEventListener(player, 'statusChange', ({ status }) => {
+  useEventListener(player, 'statusChange', ({ status, error }) => {
     // Se o stream nativo falhar em runtime, tentar o WebView oficial.
-    if (backend === 'native' && status === 'error') setBackend('webview');
+    if (backend === 'native' && status === 'error') {
+      setError(`YouTube: playback error (${error?.message ?? 'unknown'}), using embed.`);
+      setBackend('webview');
+    }
   });
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
@@ -151,14 +160,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   };
 
   if (backend === 'webview') {
+    // origin=https://www.youtube.com + Referer evitam boa parte dos falsos
+    // "erro 153" (config error) que o embed mostra quando não reconhece de
+    // onde está a ser carregado.
     const uri =
       `https://www.youtube.com/embed/${track.sourceId}` +
-      '?playsinline=1&autoplay=1&rel=0&controls=1&fs=0';
+      '?playsinline=1&autoplay=1&rel=0&controls=1&fs=0&origin=https%3A%2F%2Fwww.youtube.com';
     return (
       <WebView
         ref={webRef}
         key={track.sourceId}
-        source={{ uri }}
+        source={{ uri, headers: { Referer: 'https://www.youtube.com/' } }}
         style={styles.fill}
         onMessage={onMessage}
         injectedJavaScript={BRIDGE_JS}
