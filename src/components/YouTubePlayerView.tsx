@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { resolveYouTubeStream, streamFromPlayerResponse } from '../api/ytstream';
+import { BUILD_ID } from '../lib/buildInfo';
 import { getAudioQuality } from '../lib/prefs';
 import { cachedAudioFile } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
@@ -195,7 +196,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // caminhos falhou, em vez de adivinhar a partir do erro sozinho.
         const source = harvested ? 'harvested' : 'own-resolver';
         setError(
-          `YouTube [${source}]: native stream unavailable (${e?.message ?? 'unknown'}), using embed.`
+          `[build ${BUILD_ID}] YouTube [${source}]: native stream unavailable (${e?.message ?? 'unknown'}), using embed.`
         );
         setBackend('webview');
       }
@@ -216,7 +217,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   useEventListener(player, 'statusChange', ({ status, error }) => {
     // Se o stream nativo falhar em runtime, tentar o WebView oficial.
     if (backend === 'native' && status === 'error') {
-      setError(`YouTube: playback error (${error?.message ?? 'unknown'}), using embed.`);
+      setError(`[build ${BUILD_ID}] YouTube: playback error (${error?.message ?? 'unknown'}), using embed.`);
       setBackend('webview');
     }
   });
