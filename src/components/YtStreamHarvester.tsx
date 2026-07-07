@@ -11,9 +11,18 @@ import { WebView, WebViewMessageEvent } from 'react-native-webview';
  *
  * Mecanismo: `injectedJavaScriptBeforeContentLoaded` corre ANTES de qualquer
  * script da página, por isso conseguimos substituir `fetch`/`XMLHttpRequest`
- * antes da página os usar. Sempre que uma resposta contém `"streamingData"`
- * (a resposta do endpoint /youtubei/v1/player, seja qual for o transporte
- * exato que a página usa), reenviamo-la para o React Native.
+ * E `Worker` antes da página os usar. Sempre que um texto contém
+ * `"streamingData"` (a resposta do endpoint /youtubei/v1/player, seja qual
+ * for o transporte exato que a página usa), reenviamo-lo para o React Native.
+ *
+ * IMPORTANTE: confirmámos (inspecionando o bundle real do player embed) que
+ * ele cria um `Worker` (`new Worker(...)`) — provavelmente é aí que o pedido
+ * do stream acontece. Um `Worker` tem o seu PRÓPRIO scope global, isolado da
+ * `window` principal — substituir `fetch`/`XMLHttpRequest` na window nunca
+ * veria esse pedido. Por isso também envolvemos `window.Worker`: sempre que a
+ * página cria um, escutamos TODAS as mensagens trocadas entre a thread
+ * principal e o worker (`postMessage` nos dois sentidos), porque o resultado
+ * do pedido tem de voltar à thread principal por essa via para o vídeo tocar.
  *
  * EXPERIMENTAL: isto depende de detalhes internos da página do YouTube que a
  * Google pode mudar sem aviso. Se não intercetar nada dentro do timeout,
@@ -26,10 +35,11 @@ const INTERCEPT_JS = `
   if (window.__duotoneHarvest) { return; }
   window.__duotoneHarvest = true;
 
-  function report(bodyText) {
+  function report(raw) {
     try {
-      if (typeof bodyText === 'string' && bodyText.indexOf('"streamingData"') !== -1) {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'player', body: bodyText }));
+      var text = typeof raw === 'string' ? raw : JSON.stringify(raw);
+      if (typeof text === 'string' && text.indexOf('"streamingData"') !== -1) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'player', body: text }));
       }
     } catch (e) {}
   }
@@ -56,6 +66,26 @@ const INTERCEPT_JS = `
     return xhr;
   }
   window.XMLHttpRequest = PatchedXHR;
+
+  // O player embed usa um Worker (confirmado no bundle) — provavelmente é
+  // aí que o pedido ao servidor acontece. Escutamos as mensagens trocadas
+  // nos dois sentidos entre a thread principal e o worker.
+  var OrigWorker = window.Worker;
+  if (OrigWorker) {
+    window.Worker = function (scriptURL, options) {
+      var w = new OrigWorker(scriptURL, options);
+      var origPostMessage = w.postMessage.bind(w);
+      w.postMessage = function (msg) {
+        report(msg);
+        return origPostMessage.apply(w, arguments);
+      };
+      w.addEventListener('message', function (ev) {
+        report(ev && ev.data);
+      });
+      return w;
+    };
+    window.Worker.prototype = OrigWorker.prototype;
+  }
 })();
 true;
 `;
@@ -67,7 +97,7 @@ interface Props {
   timeoutMs?: number;
 }
 
-export function YtStreamHarvester({ videoId, onResult, timeoutMs = 8000 }: Props) {
+export function YtStreamHarvester({ videoId, onResult, timeoutMs = 10000 }: Props) {
   const doneRef = useRef(false);
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
