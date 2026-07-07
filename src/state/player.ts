@@ -108,6 +108,9 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   close: async () => {
+    // Parar o áudio ANTES de desmontar o player (com staysActiveInBackground
+    // a media podia continuar a tocar mesmo depois de fechar o ecrã).
+    get()._yt?.pause();
     set({
       current: null,
       queue: [],

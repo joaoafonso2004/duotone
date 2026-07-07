@@ -6,6 +6,9 @@ interface Props {
   positionMs: number;
   durationMs: number;
   onSeek?: (ms: number) => void;
+  /** Avisa quando o utilizador começa/pára de arrastar (para desativar o
+   *  scroll da página por baixo, que ficava a competir com o gesto). */
+  onScrubbingChange?: (scrubbing: boolean) => void;
 }
 
 function fmt(ms: number): string {
@@ -15,8 +18,10 @@ function fmt(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function ProgressBar({ positionMs, durationMs, onSeek }: Props) {
+export function ProgressBar({ positionMs, durationMs, onSeek, onScrubbingChange }: Props) {
   const [width, setWidth] = useState(0);
+  const onScrubbingRef = useRef(onScrubbingChange);
+  onScrubbingRef.current = onScrubbingChange;
   // Enquanto o utilizador arrasta, mostramos a posição do DEDO (suave, a
   // seguir o toque) e só chamamos onSeek ao largar — a posição real do player
   // só chega em saltos de 1s, o que fazia a barra andar aos pulos.
@@ -36,6 +41,7 @@ export function ProgressBar({ positionMs, durationMs, onSeek }: Props) {
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderGrant: (e) => {
+        onScrubbingRef.current?.(true);
         setDragFraction(fractionFromX(e.nativeEvent.locationX));
       },
       onPanResponderMove: (e) => {
@@ -44,9 +50,13 @@ export function ProgressBar({ positionMs, durationMs, onSeek }: Props) {
       onPanResponderRelease: (e) => {
         const f = fractionFromX(e.nativeEvent.locationX);
         setDragFraction(null);
+        onScrubbingRef.current?.(false);
         if (durationRef.current > 0) onSeek?.(f * durationRef.current);
       },
-      onPanResponderTerminate: () => setDragFraction(null),
+      onPanResponderTerminate: () => {
+        setDragFraction(null);
+        onScrubbingRef.current?.(false);
+      },
     })
   ).current;
 
