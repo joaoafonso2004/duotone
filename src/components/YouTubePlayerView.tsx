@@ -5,6 +5,7 @@ import { StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
+import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
 import { cachedAudioFile } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
@@ -216,17 +217,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       setBackend('native');
     } catch (e: any) {
       if (!cancelledRef.current) {
-        // Diagnóstico visível — inclui a ORIGEM exata do stream e o estado do
-        // PO Token para sabermos, sem ambiguidade, qual caminho falhou e
-        // porquê, em vez de adivinhar (ver botguardBridge.ts).
-        // Que cliente InnerTube deu o stream (ANDROID_VR/WEB/IOS) e, se caiu
-        // para o IOS, porque falharam os clientes sem PO Token. É isto que
-        // nos diz, sem ambiguidade, o que se passou no dispositivo.
+        // Diagnóstico visível: que cliente InnerTube deu o stream, porque
+        // caiu para o IOS (se caiu), e o estado do PO Token on-device — é
+        // isto que nos diz, sem ambiguidade, o que se passou no dispositivo.
         const clientInfo = stream?.client
           ? `client=${stream.client}${stream.resolverNote ? ` (fell back: ${stream.resolverNote})` : ''}`
           : 'client=?';
+        const potInfo = stream?.hasPoToken
+          ? 'pot=yes'
+          : `pot=no (${getLastBotGuardError() ?? 'n/a'})`;
         setError(
-          `[build ${BUILD_ID}] YouTube [${clientInfo}]: ${e?.message ?? 'unknown'}, using embed.`
+          `[build ${BUILD_ID}] YouTube [${clientInfo}] [${potInfo}]: ${e?.message ?? 'unknown'}, using embed.`
         );
         setBackend('webview');
       }
