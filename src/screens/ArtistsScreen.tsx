@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
-import { SettingsButton } from '../components/SettingsButton';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -82,7 +81,6 @@ export function ArtistsScreen() {
     <Screen
       title="Artists"
       subtitle={`${artists.length} ${artists.length === 1 ? 'artist' : 'artists'}`}
-      topLeft={<SettingsButton />}
     >
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} />

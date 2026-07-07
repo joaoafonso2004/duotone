@@ -14,7 +14,6 @@ import { getLibrary, removeFromLibrary } from '../api/library';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
-import { SettingsButton } from '../components/SettingsButton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { usePlayer } from '../state/player';
@@ -65,7 +64,6 @@ export function SongsScreen() {
     <Screen
       title="Songs"
       subtitle={`${tracks.length} saved ${tracks.length === 1 ? 'song' : 'songs'}`}
-      topLeft={<SettingsButton />}
     >
       <View style={styles.filters}>
         {FILTERS.map((f) => (

@@ -10,13 +10,13 @@ import { BlurView } from 'expo-blur';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { PlayerRoot } from '../components/PlayerRoot';
-import { AlbumsScreen } from '../screens/AlbumsScreen';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { ImportYouTubeScreen } from '../screens/ImportYouTubeScreen';
 import { LibraryGroupScreen } from '../screens/LibraryGroupScreen';
 import { PlaylistDetailScreen } from '../screens/PlaylistDetailScreen';
 import { PlaylistsScreen } from '../screens/PlaylistsScreen';
+import { ProfileScreen } from '../screens/ProfileScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SongsScreen } from '../screens/SongsScreen';
@@ -29,7 +29,6 @@ export type RootStackParamList = {
   Playlists: undefined;
   PlaylistDetail: { id: string; name: string };
   ImportYouTube: undefined;
-  Albums: undefined;
   Artists: undefined;
   LibraryGroup: { type: 'album' | 'artist'; name: string };
 };
@@ -37,9 +36,9 @@ export type RootStackParamList = {
 type TabsParamList = {
   Search: undefined;
   Songs: undefined;
-  Albums: undefined;
   Artists: undefined;
   Playlists: undefined;
+  Profile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -57,15 +56,6 @@ function PlaylistsStack() {
       <Stack.Screen name="Playlists" component={PlaylistsScreen} />
       <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
       <Stack.Screen name="ImportYouTube" component={ImportYouTubeScreen} />
-    </Stack.Navigator>
-  );
-}
-
-function AlbumsStack() {
-  return (
-    <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="Albums" component={AlbumsScreen} />
-      <Stack.Screen name="LibraryGroup" component={LibraryGroupScreen} />
     </Stack.Navigator>
   );
 }
@@ -94,9 +84,9 @@ const navTheme: Theme = {
 const TAB_ICONS: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
   Search: 'search',
   Songs: 'musical-notes',
-  Albums: 'disc',
   Artists: 'people',
   Playlists: 'albums',
+  Profile: 'person',
 };
 
 function Tabs() {
@@ -137,9 +127,9 @@ function Tabs() {
     >
       <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen name="Songs" component={SongsScreen} />
-      <Tab.Screen name="Albums" component={AlbumsStack} />
       <Tab.Screen name="Artists" component={ArtistsStack} />
       <Tab.Screen name="Playlists" component={PlaylistsStack} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }

@@ -24,7 +24,6 @@ import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PromptSheet } from '../components/PromptSheet';
 import { Screen } from '../components/Screen';
-import { SettingsButton } from '../components/SettingsButton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -114,7 +113,6 @@ export function PlaylistsScreen() {
     <Screen
       title="Playlists"
       subtitle={`${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
-      topLeft={<SettingsButton />}
       right={
         <Pressable
           hitSlop={10}

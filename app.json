@@ -48,7 +48,13 @@
           }
         }
       ],
-      "expo-file-system"
+      "expo-file-system",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Duotone usa as tuas fotos para definires a foto de perfil."
+        }
+      ]
     ]
   }
 }
