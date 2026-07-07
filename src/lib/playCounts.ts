@@ -61,6 +61,52 @@ export async function getMostPlayed(limit = 50): Promise<PlayCountEntry[]> {
     .slice(0, limit);
 }
 
+/** Faixas ouvidas há menos tempo primeiro (histórico recente). */
+export async function getRecentlyPlayed(limit = 20): Promise<PlayCountEntry[]> {
+  const all = await readAll();
+  return Object.values(all)
+    .sort((a, b) => b.lastPlayed - a.lastPlayed)
+    .slice(0, limit);
+}
+
+export interface PlayStats {
+  totalPlays: number;
+  uniqueTracks: number;
+  topArtist: { name: string; plays: number } | null;
+  youtubePlays: number;
+  spotifyPlays: number;
+}
+
+/** Resumo agregado para o cabeçalho do perfil. */
+export async function getPlayStats(): Promise<PlayStats> {
+  const entries = Object.values(await readAll());
+  const byArtist = new Map<string, number>();
+  let youtubePlays = 0;
+  let spotifyPlays = 0;
+  let totalPlays = 0;
+
+  for (const e of entries) {
+    totalPlays += e.count;
+    if (e.source === 'youtube') youtubePlays += e.count;
+    else spotifyPlays += e.count;
+    const artist = (e.artist ?? '').trim();
+    if (artist) byArtist.set(artist, (byArtist.get(artist) ?? 0) + e.count);
+  }
+
+  let topArtist: PlayStats['topArtist'] = null;
+  for (const [name, plays] of byArtist) {
+    if (!topArtist || plays > topArtist.plays) topArtist = { name, plays };
+  }
+
+  return {
+    totalPlays,
+    uniqueTracks: entries.length,
+    topArtist,
+    youtubePlays,
+    spotifyPlays,
+  };
+}
+
 /** Total de reproduções somadas (para um resumo no perfil). */
 export async function getTotalPlays(): Promise<number> {
   const all = await readAll();

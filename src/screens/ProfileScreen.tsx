@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -16,14 +17,38 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '../components/Screen';
+import {
+  AVATAR_EMOJIS,
+  AVATAR_GRADIENTS,
+  getAvatarChoice,
+  setAvatarChoice,
+  type AvatarChoice,
+} from '../lib/avatarPrefs';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
-import { getMostPlayed, getTotalPlays, type PlayCountEntry } from '../lib/playCounts';
-import { getAvatarUri, setAvatarFromUri } from '../lib/profileImage';
+import {
+  getMostPlayed,
+  getPlayStats,
+  getRecentlyPlayed,
+  type PlayCountEntry,
+  type PlayStats,
+} from '../lib/playCounts';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 import { colors, radii, spacing, type } from '../theme';
+
+function entryToTrack(e: PlayCountEntry): Track {
+  return {
+    source: e.source,
+    sourceId: e.sourceId,
+    title: e.title,
+    artist: e.artist,
+    album: null,
+    artworkUrl: e.artworkUrl,
+    durationSeconds: null,
+  };
+}
 
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -40,45 +65,32 @@ export function ProfileScreen() {
     (session?.user?.user_metadata?.name as string | undefined) ??
     email.split('@')[0] ??
     'You';
+  const memberSince = formatMemberSince(session?.user?.created_at);
 
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const [avatar, setAvatar] = useState<AvatarChoice | null>(null);
+  const [avatarEditing, setAvatarEditing] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(currentName);
   const [savingName, setSavingName] = useState(false);
   const [mostPlayed, setMostPlayed] = useState<PlayCountEntry[]>([]);
-  const [totalPlays, setTotalPlays] = useState(0);
+  const [recent, setRecent] = useState<PlayCountEntry[]>([]);
+  const [stats, setStats] = useState<PlayStats | null>(null);
 
   const loadStats = useCallback(() => {
-    getMostPlayed(50).then(setMostPlayed);
-    getTotalPlays().then(setTotalPlays);
-    getAvatarUri().then(setAvatar);
+    getMostPlayed(20).then(setMostPlayed);
+    getRecentlyPlayed(12).then(setRecent);
+    getPlayStats().then(setStats);
+    getAvatarChoice().then(setAvatar);
   }, []);
 
-  // Recarrega sempre que o ecrã ganha foco (contagens mudam ao ouvir música).
   useEffect(() => {
     if (isFocused) loadStats();
   }, [isFocused, loadStats]);
 
-  const pickAvatar = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert('Permission needed', 'Allow photo access to set a profile picture.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-    if (result.canceled || !result.assets?.[0]?.uri) return;
-    try {
-      const uri = await setAvatarFromUri(result.assets[0].uri);
-      setAvatar(uri);
-      hapticNotification();
-    } catch {
-      Alert.alert('Error', 'Could not set the profile picture.');
-    }
+  const saveAvatar = async (choice: AvatarChoice) => {
+    setAvatar(choice);
+    hapticSelection();
+    await setAvatarChoice(choice);
   };
 
   const startEditName = () => {
@@ -101,19 +113,13 @@ export function ProfileScreen() {
     }
   };
 
-  const playEntry = (e: PlayCountEntry) => {
-    const track: Track = {
-      source: e.source,
-      sourceId: e.sourceId,
-      title: e.title,
-      artist: e.artist,
-      album: null,
-      artworkUrl: e.artworkUrl,
-      durationSeconds: null,
-    };
+  const play = (e: PlayCountEntry) => {
     hapticSelection();
-    playTrack(track);
+    playTrack(entryToTrack(e));
   };
+
+  const grad = AVATAR_GRADIENTS[avatar?.gradientIndex ?? 0];
+  const totalPlays = stats?.totalPlays ?? 0;
 
   return (
     <Screen
@@ -136,18 +142,19 @@ export function ProfileScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ---- cabeçalho do perfil ---- */}
+        {/* ---- cabeçalho ---- */}
         <View style={styles.head}>
-          <Pressable onPress={pickAvatar} style={styles.avatarWrap}>
-            {avatar ? (
-              <Image source={{ uri: avatar }} style={styles.avatar} contentFit="cover" />
-            ) : (
-              <View style={[styles.avatar, styles.avatarFallback]}>
-                <Ionicons name="person" size={40} color={colors.textTertiary} />
-              </View>
-            )}
+          <Pressable onPress={() => setAvatarEditing(true)} style={styles.avatarWrap}>
+            <LinearGradient
+              colors={grad}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.avatar}
+            >
+              <Text style={styles.avatarEmoji}>{avatar?.emoji ?? '🎧'}</Text>
+            </LinearGradient>
             <View style={styles.avatarEdit}>
-              <Ionicons name="camera" size={14} color="#fff" />
+              <Ionicons name="pencil" size={13} color="#fff" />
             </View>
           </Pressable>
 
@@ -158,6 +165,7 @@ export function ProfileScreen() {
                 onChangeText={setNameDraft}
                 autoFocus
                 autoCapitalize="none"
+                autoCorrect={false}
                 placeholder="Username"
                 placeholderTextColor={colors.textTertiary}
                 style={styles.nameInput}
@@ -178,95 +186,250 @@ export function ProfileScreen() {
             </Pressable>
           )}
           <Text style={styles.email}>{email}</Text>
-
-          <View style={styles.statsRow}>
-            <Stat label="Plays" value={String(totalPlays)} />
-            <Stat label="Tracks" value={String(mostPlayed.length)} />
-          </View>
+          {memberSince ? (
+            <Text style={styles.since}>Member since {memberSince}</Text>
+          ) : null}
         </View>
+
+        {/* ---- estatísticas ---- */}
+        <View style={styles.statsRow}>
+          <Stat label="Plays" value={String(totalPlays)} />
+          <Stat label="Tracks" value={String(stats?.uniqueTracks ?? 0)} />
+          <Stat
+            label="Top artist"
+            value={stats?.topArtist?.name ?? '—'}
+            small
+          />
+        </View>
+
+        {/* ---- divisão de fontes ---- */}
+        {totalPlays > 0 ? (
+          <View>
+            <Text style={[type.micro, { marginBottom: spacing.sm }]}>WHERE YOU LISTEN</Text>
+            <SourceSplit
+              youtube={stats?.youtubePlays ?? 0}
+              spotify={stats?.spotifyPlays ?? 0}
+            />
+          </View>
+        ) : null}
 
         {/* ---- mais ouvidas ---- */}
-        <View>
-          <Text style={[type.micro, { marginBottom: spacing.sm }]}>MOST PLAYED</Text>
-          {mostPlayed.length === 0 ? (
-            <View style={styles.emptyCard}>
-              <Ionicons name="musical-notes-outline" size={22} color={colors.textTertiary} />
-              <Text style={[type.caption, { textAlign: 'center' }]}>
-                Play some music and your most-played tracks show up here.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.card}>
-              {mostPlayed.map((e, i) => (
-                <Pressable
-                  key={`${e.source}:${e.sourceId}`}
-                  onPress={() => playEntry(e)}
-                  style={({ pressed }) => [
-                    styles.row,
-                    pressed && { backgroundColor: colors.surfacePressed },
-                  ]}
-                >
-                  <Text style={styles.rank}>{i + 1}</Text>
-                  {e.artworkUrl ? (
-                    <Image source={{ uri: e.artworkUrl }} style={styles.art} contentFit="cover" />
-                  ) : (
-                    <View style={[styles.art, styles.artFallback]}>
-                      <Ionicons name="musical-notes" size={13} color={colors.textTertiary} />
-                    </View>
-                  )}
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text numberOfLines={1} style={styles.rowTitle}>
-                      {e.title}
-                    </Text>
-                    <Text numberOfLines={1} style={styles.rowArtist}>
-                      {e.artist ?? (e.source === 'youtube' ? 'YouTube' : 'Spotify')}
-                    </Text>
-                  </View>
-                  <View style={styles.countPill}>
-                    <Ionicons name="play" size={10} color={colors.textSecondary} />
-                    <Text style={styles.countText}>{e.count}</Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </View>
+        <Section title="MOST PLAYED" empty={mostPlayed.length === 0}>
+          {mostPlayed.map((e, i) => (
+            <TrackRow key={`${e.source}:${e.sourceId}`} entry={e} rank={i + 1} onPress={() => play(e)} />
+          ))}
+        </Section>
+
+        {/* ---- ouvidas recentemente ---- */}
+        {recent.length > 0 ? (
+          <Section title="RECENTLY PLAYED" empty={false}>
+            {recent.map((e) => (
+              <TrackRow key={`r-${e.source}:${e.sourceId}`} entry={e} onPress={() => play(e)} />
+            ))}
+          </Section>
+        ) : null}
       </ScrollView>
+
+      {/* ---- editor de avatar ---- */}
+      <AvatarEditor
+        visible={avatarEditing}
+        value={avatar}
+        onClose={() => setAvatarEditing(false)}
+        onChange={saveAvatar}
+      />
     </Screen>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function formatMemberSince(iso?: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function Stat({ label, value, small }: { label: string; value: string; small?: boolean }) {
   return (
     <View style={styles.stat}>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text numberOfLines={1} style={[styles.statValue, small && { fontSize: 14 }]}>
+        {value}
+      </Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
+  );
+}
+
+function SourceSplit({ youtube, spotify }: { youtube: number; spotify: number }) {
+  const total = youtube + spotify || 1;
+  const ytPct = Math.round((youtube / total) * 100);
+  return (
+    <View style={styles.card}>
+      <View style={{ padding: spacing.md, gap: spacing.sm }}>
+        <View style={styles.splitBar}>
+          {youtube > 0 ? (
+            <View style={{ flex: youtube, backgroundColor: colors.youtube }} />
+          ) : null}
+          {spotify > 0 ? (
+            <View style={{ flex: spotify, backgroundColor: colors.spotify }} />
+          ) : null}
+        </View>
+        <View style={styles.splitLegend}>
+          <Legend color={colors.youtube} label={`YouTube ${ytPct}%`} />
+          <Legend color={colors.spotify} label={`Spotify ${100 - ytPct}%`} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function Legend({ color, label }: { color: string; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View style={[styles.legendDot, { backgroundColor: color }]} />
+      <Text style={[type.caption, { fontSize: 12 }]}>{label}</Text>
+    </View>
+  );
+}
+
+function Section({
+  title,
+  empty,
+  children,
+}: {
+  title: string;
+  empty: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <View>
+      <Text style={[type.micro, { marginBottom: spacing.sm }]}>{title}</Text>
+      {empty ? (
+        <View style={styles.emptyCard}>
+          <Ionicons name="musical-notes-outline" size={22} color={colors.textTertiary} />
+          <Text style={[type.caption, { textAlign: 'center' }]}>
+            Play some music and it shows up here.
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.card}>{children}</View>
+      )}
+    </View>
+  );
+}
+
+function TrackRow({
+  entry,
+  rank,
+  onPress,
+}: {
+  entry: PlayCountEntry;
+  rank?: number;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfacePressed }]}
+    >
+      {rank ? <Text style={styles.rank}>{rank}</Text> : null}
+      {entry.artworkUrl ? (
+        <Image source={{ uri: entry.artworkUrl }} style={styles.art} contentFit="cover" />
+      ) : (
+        <View style={[styles.art, styles.artFallback]}>
+          <Ionicons name="musical-notes" size={13} color={colors.textTertiary} />
+        </View>
+      )}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} style={styles.rowTitle}>
+          {entry.title}
+        </Text>
+        <Text numberOfLines={1} style={styles.rowArtist}>
+          {entry.artist ?? (entry.source === 'youtube' ? 'YouTube' : 'Spotify')}
+        </Text>
+      </View>
+      <View style={styles.countPill}>
+        <Ionicons name="play" size={10} color={colors.textSecondary} />
+        <Text style={styles.countText}>{entry.count}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+function AvatarEditor({
+  visible,
+  value,
+  onClose,
+  onChange,
+}: {
+  visible: boolean;
+  value: AvatarChoice | null;
+  onClose: () => void;
+  onChange: (c: AvatarChoice) => void;
+}) {
+  const emoji = value?.emoji ?? AVATAR_EMOJIS[0];
+  const gradientIndex = value?.gradientIndex ?? 0;
+  const grad = AVATAR_GRADIENTS[gradientIndex];
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+        <Pressable style={styles.sheet} onPress={() => {}}>
+          <View style={styles.sheetHandle} />
+          <Text style={[type.body, { fontWeight: '700', textAlign: 'center' }]}>Your avatar</Text>
+
+          <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preview}>
+            <Text style={{ fontSize: 42 }}>{emoji}</Text>
+          </LinearGradient>
+
+          <Text style={[type.micro, styles.sheetLabel]}>COLOR</Text>
+          <View style={styles.swatchRow}>
+            {AVATAR_GRADIENTS.map((g, i) => (
+              <Pressable key={i} onPress={() => onChange({ emoji, gradientIndex: i })}>
+                <LinearGradient
+                  colors={g}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.swatch, i === gradientIndex && styles.swatchActive]}
+                />
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={[type.micro, styles.sheetLabel]}>EMOJI</Text>
+          <View style={styles.emojiGrid}>
+            {AVATAR_EMOJIS.map((em) => (
+              <Pressable
+                key={em}
+                onPress={() => onChange({ emoji: em, gradientIndex })}
+                style={[styles.emojiCell, em === emoji && styles.emojiCellActive]}
+              >
+                <Text style={{ fontSize: 24 }}>{em}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable style={styles.doneBtn} onPress={onClose}>
+            <Text style={styles.doneText}>Done</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
 const AVATAR = 96;
 
 const styles = StyleSheet.create({
-  head: {
-    alignItems: 'center',
-    paddingTop: spacing.md,
-  },
-  avatarWrap: {
-    width: AVATAR,
-    height: AVATAR,
-    marginBottom: spacing.md,
-  },
+  head: { alignItems: 'center', paddingTop: spacing.md },
+  avatarWrap: { width: AVATAR, height: AVATAR, marginBottom: spacing.md },
   avatar: {
     width: AVATAR,
     height: AVATAR,
     borderRadius: AVATAR / 2,
-    backgroundColor: colors.surfaceHigh,
-  },
-  avatarFallback: {
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatarEmoji: { fontSize: 44 },
   avatarEdit: {
     position: 'absolute',
     right: 0,
@@ -274,27 +437,15 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.surfaceHigh,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: colors.bg,
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  name: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  nameEditRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  name: { fontSize: 22, fontWeight: '800', color: colors.text },
+  nameEditRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   nameInput: {
     fontSize: 20,
     fontWeight: '700',
@@ -305,27 +456,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 2,
   },
-  email: {
-    ...type.caption,
-    marginTop: 4,
-  },
+  email: { ...type.caption, marginTop: 4 },
+  since: { ...type.micro, marginTop: 4 },
   statsRow: {
     flexDirection: 'row',
-    gap: spacing.xl,
-    marginTop: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingVertical: spacing.md,
   },
-  stat: {
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  statLabel: {
-    ...type.micro,
-    marginTop: 2,
-  },
+  stat: { flex: 1, alignItems: 'center', paddingHorizontal: 4 },
+  statValue: { fontSize: 18, fontWeight: '800', color: colors.text },
+  statLabel: { ...type.micro, marginTop: 2 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
@@ -342,6 +485,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
+  splitBar: {
+    flexDirection: 'row',
+    height: 10,
+    borderRadius: 5,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceHigh,
+  },
+  splitLegend: { flexDirection: 'row', gap: spacing.lg },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -356,25 +509,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textTertiary,
   },
-  art: {
-    width: 40,
-    height: 40,
-    borderRadius: 6,
-    backgroundColor: colors.surfaceHigh,
-  },
-  artFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rowTitle: {
-    ...type.body,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  rowArtist: {
-    ...type.caption,
-    fontSize: 11,
-  },
+  art: { width: 40, height: 40, borderRadius: 6, backgroundColor: colors.surfaceHigh },
+  artFallback: { alignItems: 'center', justifyContent: 'center' },
+  rowTitle: { ...type.body, fontSize: 14, fontWeight: '600' },
+  rowArtist: { ...type.caption, fontSize: 11 },
   countPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -384,10 +522,59 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  countText: {
-    ...type.caption,
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
+  countText: { ...type.caption, fontSize: 12, fontWeight: '700', color: colors.text },
+  // ---- sheet do avatar ----
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
   },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.xl,
+    borderTopRightRadius: radii.xl,
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.borderStrong,
+    marginBottom: spacing.sm,
+  },
+  preview: {
+    alignSelf: 'center',
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: spacing.sm,
+  },
+  sheetLabel: { marginTop: spacing.sm },
+  swatchRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  swatch: { width: 40, height: 40, borderRadius: 20, borderWidth: 2, borderColor: 'transparent' },
+  swatchActive: { borderColor: colors.text },
+  emojiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  emojiCell: {
+    width: 46,
+    height: 46,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceHigh,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  emojiCellActive: { borderColor: colors.accent, backgroundColor: colors.surfacePressed },
+  doneBtn: {
+    marginTop: spacing.md,
+    backgroundColor: colors.surfaceHigh,
+    borderRadius: radii.pill,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  doneText: { ...type.body, fontWeight: '700' },
 });
