@@ -113,6 +113,10 @@ export interface YtStream {
   contentLength: number | null;
   /** Diagnóstico: `?pot=...` foi mesmo anexado ao URL (ver potProvider.ts). */
   hasPoToken?: boolean;
+  /** Diagnóstico: que cliente InnerTube produziu este stream (ANDROID_VR/WEB/IOS). */
+  client?: string;
+  /** Diagnóstico: se caiu para o IOS, porque falharam os clientes sem PO Token. */
+  resolverNote?: string;
 }
 
 // Cache em memória (por sessão) — os URLs expiram, não vale a pena persistir.
@@ -255,10 +259,11 @@ export async function resolveYouTubeStream(
     try {
       const data = await requestPlayer(videoId, client);
       const stream = streamFromPlayerResponse(data, quality);
+      stream.client = client.clientName;
       memo.set(cacheKey, stream);
       return stream;
     } catch (e: any) {
-      errors.push(e?.message ?? String(e));
+      errors.push(`${client.clientName}: ${e?.message ?? String(e)}`);
     }
   }
 
@@ -266,9 +271,11 @@ export async function resolveYouTubeStream(
   // aqui se os dois clientes acima falharem (ex.: vídeo com restrição de
   // idade que o ANDROID_VR recusa).
   const data = await requestPlayer(videoId, IOS_CLIENT).catch((e: any) => {
-    throw new Error(`todos os clientes falharam: ${errors.join(' | ')} | ${e?.message ?? e}`);
+    throw new Error(`todos os clientes falharam: ${errors.join(' | ')} | IOS: ${e?.message ?? e}`);
   });
   const stream = streamFromPlayerResponse(data, quality);
+  stream.client = 'IOS';
+  stream.resolverNote = errors.join(' | ');
 
   if (!stream.isHls) {
     const visitorData = data?.responseContext?.visitorData;
