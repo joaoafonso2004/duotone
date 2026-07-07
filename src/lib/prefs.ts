@@ -7,6 +7,8 @@ const KEY_AUDIO_QUALITY = 'pref:audioQuality';
 const KEY_SHOW_DURATION = 'pref:showTrackDuration';
 const KEY_SHOW_REWIND = 'pref:showRewindButton';
 const KEY_HAPTICS_ENABLED = 'pref:hapticsEnabled';
+const KEY_SEARCH_HISTORY = 'pref:searchHistory';
+const MAX_SEARCH_HISTORY = 10;
 
 export type SearchSource = 'youtube' | 'spotify';
 export type YtViewMode = 'video' | 'photo';
@@ -70,6 +72,34 @@ export async function getHapticsEnabled(): Promise<boolean> {
 }
 export async function setHapticsEnabled(v: boolean): Promise<void> {
   await setBool(KEY_HAPTICS_ENABLED, v);
+}
+
+/** Últimas pesquisas (mais recente primeiro, sem duplicados, máx. 10). */
+export async function getSearchHistory(): Promise<string[]> {
+  const raw = await AsyncStorage.getItem(KEY_SEARCH_HISTORY);
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function addSearchHistoryEntry(query: string): Promise<string[]> {
+  const q = query.trim();
+  if (!q) return getSearchHistory();
+  const current = await getSearchHistory();
+  const next = [q, ...current.filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(
+    0,
+    MAX_SEARCH_HISTORY
+  );
+  await AsyncStorage.setItem(KEY_SEARCH_HISTORY, JSON.stringify(next));
+  return next;
+}
+
+export async function clearSearchHistory(): Promise<void> {
+  await AsyncStorage.removeItem(KEY_SEARCH_HISTORY);
 }
 
 // ------------------------------------------------------------
