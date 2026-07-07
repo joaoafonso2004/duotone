@@ -36,6 +36,7 @@ export function ProfileScreen() {
 
   const email = session?.user?.email ?? '—';
   const currentName =
+    (session?.user?.user_metadata?.username as string | undefined) ??
     (session?.user?.user_metadata?.name as string | undefined) ??
     email.split('@')[0] ??
     'You';
