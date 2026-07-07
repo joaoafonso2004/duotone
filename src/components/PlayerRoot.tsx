@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as Brightness from 'expo-brightness';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useKeepAwake } from 'expo-keep-awake';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
@@ -22,12 +20,7 @@ import { YouTubePlayerView } from './YouTubePlayerView';
 
 const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
-
-/** Mantém o ecrã acordado enquanto o YouTube toca (evita o lock que pausa o WKWebView). */
-function KeepAwakeWhilePlaying() {
-  useKeepAwake();
-  return null;
-}
+const APP_NAME = 'Duotone';
 
 export function PlayerRoot() {
   const insets = useSafeAreaInsets();
@@ -38,7 +31,6 @@ export function PlayerRoot() {
   const queueIndex = usePlayer((s) => s.queueIndex);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const expanded = usePlayer((s) => s.expanded);
-  const ytViewMode = usePlayer((s) => s.ytViewMode);
   const repeatQueue = usePlayer((s) => s.repeatQueue);
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const positionMs = usePlayer((s) => s.positionMs);
@@ -51,45 +43,12 @@ export function PlayerRoot() {
   const prev = usePlayer((s) => s.prev);
   const close = usePlayer((s) => s.close);
   const setExpanded = usePlayer((s) => s.setExpanded);
-  const setYtViewMode = usePlayer((s) => s.setYtViewMode);
   const seekTo = usePlayer((s) => s.seekTo);
   const setError = usePlayer((s) => s.setError);
   const setProgress = usePlayer((s) => s._setProgress);
   const setIsPlaying = usePlayer((s) => s._setIsPlaying);
 
   const anim = useRef(new Animated.Value(0)).current;
-
-  // Pocket mode: ecrã escurecido ao máximo, música continua (o dispositivo
-  // fica desbloqueado — é a alternativa legítima ao "tocar com ecrã fechado",
-  // que no YouTube é funcionalidade do Premium e não vamos contornar)
-  const [pocket, setPocket] = useState(false);
-  const prevBrightness = useRef<number | null>(null);
-
-  const enterPocket = async () => {
-    setPocket(true);
-    try {
-      prevBrightness.current = await Brightness.getBrightnessAsync();
-      await Brightness.setBrightnessAsync(0);
-    } catch {
-      // sem permissão/simulador — o overlay preto continua a funcionar
-    }
-  };
-
-  const exitPocket = async () => {
-    setPocket(false);
-    try {
-      await Brightness.setBrightnessAsync(prevBrightness.current ?? 0.5);
-    } catch {
-      // ignorar
-    }
-  };
-
-  useEffect(() => {
-    if (!current && pocket) {
-      exitPocket();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, pocket]);
 
   useEffect(() => {
     Animated.spring(anim, {
@@ -148,16 +107,10 @@ export function PlayerRoot() {
 
   const artSize = Math.min(W - 120, 320);
   const upNext = queue.slice(queueIndex + 1, queueIndex + 7);
-  const sourceColor = isYt ? colors.youtube : colors.spotify;
   const tint = isYt ? 'rgba(255,78,69,0.10)' : 'rgba(29,185,84,0.08)';
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-      {/* Com áudio nativo o som continua com o ecrã desligado, por isso já não
-          forçamos o keep-awake ao tocar YouTube — só no pocket mode (ecrã
-          ligado mas preto), que continua a ser uma opção. */}
-      {pocket ? <KeepAwakeWhilePlaying /> : null}
-
       {/* ===================== OVERLAY EXPANDIDO ===================== */}
       <Animated.View
         pointerEvents={expanded ? 'auto' : 'none'}
@@ -188,8 +141,9 @@ export function PlayerRoot() {
             <Ionicons name="chevron-down" size={24} color={colors.text} />
           </Pressable>
           <View style={styles.headerCenter}>
-            <View style={[styles.sourceDot, { backgroundColor: sourceColor }]} />
-            <Text style={type.micro}>{isYt ? 'YouTube' : 'Spotify'}</Text>
+            <Text style={[type.micro, { letterSpacing: 1, fontWeight: '700' }]}>
+              {APP_NAME.toUpperCase()}
+            </Text>
           </View>
           <Pressable hitSlop={12} onPress={close} style={styles.headerBtn}>
             <Ionicons name="close" size={22} color={colors.textSecondary} />
@@ -227,7 +181,7 @@ export function PlayerRoot() {
           contentContainerStyle={styles.fullBody}
           showsVerticalScrollIndicator={false}
         >
-          {/* título + toggle vídeo/foto */}
+          {/* título */}
           <View style={styles.titleRow}>
             <View style={{ flex: 1 }}>
               <Text numberOfLines={2} style={styles.trackTitle}>
@@ -237,31 +191,6 @@ export function PlayerRoot() {
                 {current.artist ?? (isYt ? 'YouTube' : 'Spotify')}
               </Text>
             </View>
-
-            {isYt ? (
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Pressable
-                  hitSlop={8}
-                  onPress={() =>
-                    setYtViewMode(ytViewMode === 'video' ? 'photo' : 'video')
-                  }
-                  style={styles.viewToggle}
-                >
-                  <Ionicons
-                    name={ytViewMode === 'video' ? 'image-outline' : 'videocam-outline'}
-                    size={18}
-                    color={colors.text}
-                  />
-                </Pressable>
-                <Pressable
-                  hitSlop={8}
-                  onPress={enterPocket}
-                  style={styles.viewToggle}
-                >
-                  <Ionicons name="moon-outline" size={17} color={colors.text} />
-                </Pressable>
-              </View>
-            ) : null}
           </View>
 
           <View style={{ marginTop: spacing.xl }}>
@@ -315,11 +244,9 @@ export function PlayerRoot() {
             </Pressable>
           </View>
 
-          <Text style={styles.sourceNote}>
-            {isYt
-              ? 'Official YouTube player · screen stays awake'
-              : 'Playing via the Spotify app'}
-          </Text>
+          {!isYt ? (
+            <Text style={styles.sourceNote}>Playing via the Spotify app</Text>
+          ) : null}
 
           {/* a seguir */}
           {upNext.length > 0 ? (
@@ -403,22 +330,6 @@ export function PlayerRoot() {
             </Text>
           </View>
 
-          {isYt ? (
-            <Pressable
-              hitSlop={8}
-              onPress={() =>
-                setYtViewMode(ytViewMode === 'video' ? 'photo' : 'video')
-              }
-              style={styles.miniBtn}
-            >
-              <Ionicons
-                name={ytViewMode === 'video' ? 'image-outline' : 'videocam-outline'}
-                size={19}
-                color={colors.textSecondary}
-              />
-            </Pressable>
-          ) : null}
-
           <Pressable hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
             <Ionicons
               name={isPlaying ? 'pause' : 'play'}
@@ -478,8 +389,9 @@ export function PlayerRoot() {
         >
           <YouTubePlayerView track={current} />
 
-          {/* Vista foto: artwork por cima — o WebView CONTINUA a tocar por trás */}
-          {ytViewMode === 'photo' && current.artworkUrl ? (
+          {/* Mostramos SEMPRE a thumbnail por cima — o áudio nativo continua a
+              tocar por trás. (A app é só áudio; o vídeo é irrelevante.) */}
+          {current.artworkUrl ? (
             <Image
               source={{ uri: current.artworkUrl }}
               style={StyleSheet.absoluteFill}
@@ -508,13 +420,6 @@ export function PlayerRoot() {
         </View>
       ) : null}
 
-      {/* ===================== POCKET MODE ===================== */}
-      {pocket ? (
-        <Pressable style={styles.pocket} onPress={exitPocket}>
-          <Ionicons name="moon" size={20} color="rgba(255,255,255,0.20)" />
-          <Text style={styles.pocketText}>Music keeps playing · tap to wake</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
@@ -548,11 +453,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  sourceDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
   },
   artworkWrap: {
     alignItems: 'center',
@@ -588,16 +488,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.textSecondary,
     marginTop: 3,
-  },
-  viewToggle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: colors.surfaceHigh,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   controls: {
     flexDirection: 'row',
@@ -719,17 +609,5 @@ const styles = StyleSheet.create({
     ...type.caption,
     color: colors.text,
     flex: 1,
-  },
-  pocket: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: '#000',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  pocketText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.18)',
   },
 });
