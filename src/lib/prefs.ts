@@ -9,6 +9,7 @@ const KEY_SHOW_REWIND = 'pref:showRewindButton';
 const KEY_HAPTICS_ENABLED = 'pref:hapticsEnabled';
 const KEY_SEARCH_HISTORY = 'pref:searchHistory';
 const MAX_SEARCH_HISTORY = 10;
+const KEY_POT_SERVER_URL = 'pref:potServerUrl';
 
 export type SearchSource = 'youtube' | 'spotify';
 export type YtViewMode = 'video' | 'photo';
@@ -100,6 +101,16 @@ export async function addSearchHistoryEntry(query: string): Promise<string[]> {
 
 export async function clearSearchHistory(): Promise<void> {
   await AsyncStorage.removeItem(KEY_SEARCH_HISTORY);
+}
+
+/** URL do servidor bgutil-ytdlp-pot-provider (ex.: http://192.168.1.10:4416).
+ * Vazio = funcionalidade desligada, comportamento igual a antes. Ver
+ * src/api/potProvider.ts e GUIA-POT-TOKEN.md. */
+export async function getPoTokenServerUrl(): Promise<string> {
+  return (await AsyncStorage.getItem(KEY_POT_SERVER_URL)) ?? '';
+}
+export async function setPoTokenServerUrl(v: string): Promise<void> {
+  await AsyncStorage.setItem(KEY_POT_SERVER_URL, v.trim());
 }
 
 // ------------------------------------------------------------

@@ -3,9 +3,11 @@ import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { clearLibrary } from '../api/library';
+import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
 import { clearStreamMemo } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
 import { ConfirmSheet } from '../components/ConfirmSheet';
+import { Input } from '../components/Input';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
 import { SegmentedControl } from '../components/SegmentedControl';
@@ -15,12 +17,14 @@ import {
   getDefaultSearchTab,
   getDefaultYtViewMode,
   getHapticsEnabled,
+  getPoTokenServerUrl,
   getShowTrackDuration,
   setAudioQuality,
   setDefaultSearchTab,
   setDefaultYtViewMode,
   setHapticsEnabled,
   setHapticsEnabledCache,
+  setPoTokenServerUrl,
   setRepeatQueue as persistRepeatQueue,
   setShowRewindButton as persistShowRewindButton,
   setShowTrackDuration as persistShowTrackDuration,
@@ -67,12 +71,16 @@ export function SettingsScreen({ navigation }: Props) {
   const [clearLibraryOpen, setClearLibraryOpen] = useState(false);
   const [clearingLibrary, setClearingLibrary] = useState(false);
 
+  const [potServerUrl, setPotServerUrlState] = useState('');
+  const [testingPotServer, setTestingPotServer] = useState(false);
+
   useEffect(() => {
     isSpotifyConnected().then(setSpotifyOk);
     getDefaultSearchTab().then(setSearchDefault);
     getAudioQuality().then(setAudioQualityState);
     getShowTrackDuration().then(setShowDuration);
     getHapticsEnabled().then(setHapticsOn);
+    getPoTokenServerUrl().then(setPotServerUrlState);
   }, []);
 
   const toggleSpotify = async () => {
@@ -143,8 +151,30 @@ export function SettingsScreen({ navigation }: Props) {
   const doClearCache = () => {
     clearDownloadedAudioCache();
     clearStreamMemo();
+    clearPoTokenMemo();
     hapticNotification();
     Alert.alert('Cache cleared', 'Downloaded YouTube audio and resolved streams were cleared.');
+  };
+
+  const savePotServerUrl = async (v: string) => {
+    setPotServerUrlState(v);
+    await setPoTokenServerUrl(v);
+  };
+
+  const testPotServer = async () => {
+    setTestingPotServer(true);
+    try {
+      const ok = await pingPoTokenServer(potServerUrl);
+      hapticNotification();
+      Alert.alert(
+        ok ? 'Connected' : 'Not reachable',
+        ok
+          ? 'The PO Token server responded.'
+          : 'Could not reach the PO Token server at that URL. Check the address and that your phone is on the same network.'
+      );
+    } finally {
+      setTestingPotServer(false);
+    }
   };
 
   const doClearLibrary = async () => {
@@ -264,6 +294,34 @@ export function SettingsScreen({ navigation }: Props) {
             variant="danger"
             small
             onPress={() => setClearLibraryOpen(true)}
+            style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
+          />
+        </Section>
+
+        <Section title="Advanced">
+          <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
+            PO Tokens (needed for full YouTube tracks to play natively
+            instead of stopping after ~20-30s) are generated on-device
+            automatically — nothing to set up. This optional field only
+            applies if you want to use an external bgutil-ytdlp-pot-provider
+            server instead. See GUIA-POT-TOKEN.md.
+          </Text>
+          <Input
+            placeholder="http://192.168.1.10:4416"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            value={potServerUrl}
+            onChangeText={savePotServerUrl}
+            onClear={() => savePotServerUrl('')}
+          />
+          <PillButton
+            label="Test connection"
+            variant="ghost"
+            small
+            loading={testingPotServer}
+            disabled={!potServerUrl.trim()}
+            onPress={testPotServer}
             style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
           />
         </Section>

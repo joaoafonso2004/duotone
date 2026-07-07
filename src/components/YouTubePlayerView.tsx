@@ -19,10 +19,14 @@ import { YtStreamHarvester, type HarvestResult } from './YtStreamHarvester';
  *    que ela sabe gerar), e intercetamos a resposta. EXPERIMENTAL: só
  *    testável num dispositivo real; se não intercetar nada, avança para (2).
  *
- * 2. RESOLVER PRÓPRIO (ytstream.ts) — pedido nosso ao InnerTube, sem esse
- *    token. Confirmado por teste: só dá acesso a ~1MB cumulativo de áudio por
- *    vídeo/IP (~20-30s) antes do CDN começar a rejeitar tudo com 403 — não dá
- *    para uma música inteira, mas serve de rede de segurança e ainda
+ * 2. RESOLVER PRÓPRIO (ytstream.ts) — pedido nosso ao InnerTube. Sem PO
+ *    Token, confirmado por teste: só dá acesso a ~1MB cumulativo de áudio por
+ *    vídeo/IP (~20-30s) antes do CDN começar a rejeitar tudo com 403. Se
+ *    houver um servidor bgutil-ytdlp-pot-provider configurado nas
+ *    Definições (ver potProvider.ts / GUIA-POT-TOKEN.md), ytstream.ts anexa
+ *    um PO Token real ao URL e esse limite desaparece — a faixa completa
+ *    descarrega-se aos pedaços normalmente. Sem servidor configurado,
+ *    continua a servir de rede de segurança limitada a ~20-30s, e ainda
  *    resolve HLS (que não sofre deste limite) quando disponível.
  *
  * 3. WEBVIEW (fallback final) — o embed oficial do YouTube, visível. Sempre
