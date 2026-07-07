@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { hapticImpact } from '../lib/haptics';
+import { isShowTrackDurationSync } from '../lib/prefs';
 import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 import { SourceBadge } from './SourceBadge';
@@ -32,7 +33,7 @@ export function TrackRow({
   return (
     <Pressable
       onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        hapticImpact();
         onPress();
       }}
       style={({ pressed }) => [
@@ -77,12 +78,14 @@ export function TrackRow({
         </View>
       </View>
 
-      <Text style={styles.duration}>{formatDuration(track.durationSeconds)}</Text>
+      {isShowTrackDurationSync() ? (
+        <Text style={styles.duration}>{formatDuration(track.durationSeconds)}</Text>
+      ) : null}
 
       {onAction ? (
         <Pressable
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            hapticImpact();
             onAction();
           }}
           hitSlop={10}

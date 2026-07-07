@@ -64,6 +64,16 @@ export async function removeFromLibrary(trackId: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Remove TODAS as faixas guardadas do utilizador atual (ação destrutiva). */
+export async function clearLibrary(): Promise<void> {
+  const userId = await currentUserId();
+  const { error } = await supabase
+    .from('library_tracks')
+    .delete()
+    .match({ user_id: userId });
+  if (error) throw error;
+}
+
 export async function getLibrary(): Promise<Track[]> {
   const { data, error } = await supabase
     .from('library_tracks')

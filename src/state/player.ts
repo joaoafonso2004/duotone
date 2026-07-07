@@ -26,6 +26,10 @@ interface PlayerState {
   expanded: boolean;
   /** faixas YouTube: vista vídeo ou vista foto (artwork por cima) */
   ytViewMode: YtViewMode;
+  /** repetir a fila do início ao chegar ao fim (preferência das Definições) */
+  repeatQueue: boolean;
+  /** mostrar o botão de recuar 15s no player expandido (preferência das Definições) */
+  showRewindButton: boolean;
   positionMs: number;
   durationMs: number;
   error: string | null;
@@ -37,6 +41,8 @@ interface PlayerState {
   close: () => Promise<void>;
   setExpanded: (v: boolean) => void;
   setYtViewMode: (v: YtViewMode) => void;
+  setRepeatQueue: (v: boolean) => void;
+  setShowRewindButton: (v: boolean) => void;
   setError: (e: string | null) => void;
 
   seekTo: (ms: number) => Promise<void>;
@@ -67,6 +73,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   isPlaying: false,
   expanded: false,
   ytViewMode: 'video',
+  repeatQueue: false,
+  showRewindButton: false,
   positionMs: 0,
   durationMs: 0,
   error: null,
@@ -125,15 +133,23 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   next: async () => {
-    const { queue, queueIndex, playTrack } = get();
-    if (queueIndex + 1 >= queue.length) return;
-    await playTrack(queue[queueIndex + 1], queue);
+    const { queue, queueIndex, repeatQueue, playTrack } = get();
+    if (queueIndex + 1 < queue.length) {
+      await playTrack(queue[queueIndex + 1], queue);
+    } else if (repeatQueue && queue.length > 0) {
+      await playTrack(queue[0], queue);
+    } else {
+      set({ isPlaying: false });
+    }
   },
 
   prev: async () => {
-    const { queue, queueIndex, playTrack } = get();
-    if (queueIndex - 1 < 0) return;
-    await playTrack(queue[queueIndex - 1], queue);
+    const { queue, queueIndex, repeatQueue, playTrack } = get();
+    if (queueIndex - 1 >= 0) {
+      await playTrack(queue[queueIndex - 1], queue);
+    } else if (repeatQueue && queue.length > 0) {
+      await playTrack(queue[queue.length - 1], queue);
+    }
   },
 
   close: async () => {
@@ -175,18 +191,15 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   setExpanded: (v) => set({ expanded: v }),
   setYtViewMode: (v) => set({ ytViewMode: v }),
+  setRepeatQueue: (v) => set({ repeatQueue: v }),
+  setShowRewindButton: (v) => set({ showRewindButton: v }),
   setError: (e) => set({ error: e }),
 
   registerYtControls: (c) => set({ _yt: c }),
 
   _onYtStateChange: (s) => {
     if (s === 'ended') {
-      const { queue, queueIndex, next } = get();
-      if (queueIndex + 1 < queue.length) {
-        next();
-      } else {
-        set({ isPlaying: false });
-      }
+      get().next();
       return;
     }
     set({ isPlaying: s === 'playing' });

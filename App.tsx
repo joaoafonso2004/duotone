@@ -3,13 +3,30 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import {
+  getDefaultYtViewMode,
+  getRepeatQueue,
+  getShowRewindButton,
+  loadPrefsCache,
+} from './src/lib/prefs';
 import { useAuth } from './src/state/auth';
+import { usePlayer } from './src/state/player';
 
 export default function App() {
   const init = useAuth((s) => s.init);
 
   useEffect(() => {
     init();
+    // Hidrata preferências persistidas (Definições) no arranque da app.
+    loadPrefsCache();
+    Promise.all([getDefaultYtViewMode(), getRepeatQueue(), getShowRewindButton()]).then(
+      ([ytViewMode, repeatQueue, showRewindButton]) => {
+        const player = usePlayer.getState();
+        player.setYtViewMode(ytViewMode);
+        player.setRepeatQueue(repeatQueue);
+        player.setShowRewindButton(showRewindButton);
+      }
+    );
   }, [init]);
 
   return (

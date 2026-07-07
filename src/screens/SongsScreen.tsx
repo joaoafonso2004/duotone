@@ -1,6 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,9 +14,9 @@ import { getLibrary, removeFromLibrary } from '../api/library';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
+import { SettingsButton } from '../components/SettingsButton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
-import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing } from '../theme';
 import type { Source, Track } from '../types';
@@ -33,7 +31,6 @@ const FILTERS: { key: Filter; label: string }[] = [
 
 export function SongsScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const playTrack = usePlayer((s) => s.playTrack);
   const current = usePlayer((s) => s.current);
 
@@ -68,15 +65,7 @@ export function SongsScreen() {
     <Screen
       title="Songs"
       subtitle={`${tracks.length} saved ${tracks.length === 1 ? 'song' : 'songs'}`}
-      right={
-        <Pressable
-          hitSlop={10}
-          onPress={() => navigation.navigate('Settings')}
-          style={{ marginBottom: 6 }}
-        >
-          <Ionicons name="settings-outline" size={24} color={colors.textSecondary} />
-        </Pressable>
-      }
+      topLeft={<SettingsButton />}
     >
       <View style={styles.filters}>
         {FILTERS.map((f) => (

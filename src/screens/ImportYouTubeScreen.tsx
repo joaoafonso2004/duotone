@@ -12,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
 import {
   addTracksToPlaylist,
   createPlaylist,
@@ -25,6 +24,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
+import { hapticNotification } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, radii, spacing, type } from '../theme';
 import type { Playlist, Track } from '../types';
@@ -81,7 +81,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
     setImporting(true);
     try {
       await addTracksToPlaylist(playlistId, items);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hapticNotification();
       Alert.alert(
         'Imported',
         `${items.length} ${items.length === 1 ? 'track' : 'tracks'} added to "${playlistName}".`,
