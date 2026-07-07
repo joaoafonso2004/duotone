@@ -51,13 +51,20 @@
  * no corpo do pedido — a app continua nativa iOS; ver conversa com o
  * utilizador):
  *   1. ANDROID_VR — o cliente da app de YouTube dos óculos Oculus Quest. NÃO
- *      exige PO Token, devolve áudio mp4/m4a direto sem o limite de 1MB.
- *      Limitação: vídeos "para crianças"/com restrição de idade indisponíveis.
- *   2. WEB (Safari) — devolve HLS (m3u8) que também não exige PO Token e não
- *      sofre do limite; bom para os casos que o ANDROID_VR recusa.
+ *      exige PO Token, devolve áudio mp4/m4a direto (URL SEM cifra) sem o
+ *      limite de 1MB. Limitação: vídeos "para crianças" indisponíveis.
+ *   2. ANDROID (+playerParams "CgIQBg==") — outra via sem cifra; o playerParams
+ *      é o workaround anti-403 do NewPipe. Alternativa se o VR recusar.
  *   3. IOS + PO Token — só se os anteriores falharem, tenta o caminho antigo
  *      (com PoToken on-device do BotGuardMinter, se disponível).
  * Se tudo falhar, o YouTubePlayerView cai no embed visível como sempre.
+ *
+ * NOTA: valores dos clientes e detalhes do pedido (headers Origin/
+ * accept-language, key vazia no android_vr, playerParams) copiados do
+ * YouTubeKit (alexeichhorn/YouTubeKit), biblioteca iOS mantida em 2026 —
+ * ordem de clientes deles: [androidVR, webSafari, web]. Não usamos WEB porque
+ * devolve URLs CIFRADAS que exigiriam decifração de assinatura (que não
+ * temos); os clientes android dão URLs diretas.
  *
  * NOTA: as versões dos clientes envelhecem. Se um parar de resolver (HTTP 400
  * "Precondition check failed"), atualizar o clientVersion respetivo.
@@ -65,15 +72,18 @@
 
 import { fetchGvsPoToken } from './potProvider';
 
-// Chave InnerTube pública/conhecida (não é segredo; vai embutida nas apps).
-const INNERTUBE_KEY = 'AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc';
-const PLAYER_URL = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_KEY}&prettyPrint=false`;
+const PLAYER_ENDPOINT = 'https://www.youtube.com/youtubei/v1/player';
+const VISITOR_ENDPOINT = 'https://www.youtube.com/youtubei/v1/visitor_id';
+// Chave só para o cliente WEB (usada em getVisitorData). Android/iOS não a usam.
+const WEB_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 
-// Cliente principal: não exige PO Token (ver acima). Valores do yt-dlp.
+// Cliente principal: não exige PO Token, URL direta sem cifra. Valores do
+// YouTubeKit (key vazia — os clientes android não a precisam no URL).
 const ANDROID_VR_CLIENT = {
   clientName: 'ANDROID_VR',
   clientNumber: '28',
   clientVersion: '1.65.10',
+  apiKey: '',
   deviceMake: 'Oculus',
   deviceModel: 'Quest 3',
   osName: 'Android',
@@ -83,13 +93,17 @@ const ANDROID_VR_CLIENT = {
     'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip',
 };
 
-// Cliente secundário: dá HLS (m3u8), também sem PO Token.
-const WEB_SAFARI_CLIENT = {
-  clientName: 'WEB',
-  clientNumber: '1',
-  clientVersion: '2.20260114.08.00',
-  userAgent:
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Safari/605.1.15,gzip(gfe)',
+// Cliente secundário: ANDROID normal com o playerParams anti-403 do NewPipe.
+const ANDROID_CLIENT = {
+  clientName: 'ANDROID',
+  clientNumber: '3',
+  clientVersion: '20.10.38',
+  apiKey: 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w',
+  osName: 'Android',
+  osVersion: '11',
+  androidSdkVersion: 30,
+  playerParams: 'CgIQBg==',
+  userAgent: 'com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip',
 };
 
 // Último recurso (caminho antigo): exige PO Token para o mp4 completo.
@@ -97,10 +111,12 @@ const IOS_CLIENT = {
   clientName: 'IOS',
   clientNumber: '5',
   clientVersion: '20.10.4',
+  apiKey: '',
   deviceMake: 'Apple',
   deviceModel: 'iPhone16,2',
   osName: 'iPhone',
   osVersion: '18.1.0.22B83',
+  userAgent: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)',
 };
 
 export interface YtStream {
@@ -198,11 +214,13 @@ type InnerTubeClient = {
   clientName: string;
   clientNumber: string;
   clientVersion: string;
+  apiKey?: string;
   deviceMake?: string;
   deviceModel?: string;
   osName?: string;
   osVersion?: string;
   androidSdkVersion?: number;
+  playerParams?: string;
   userAgent?: string;
 };
 
@@ -214,18 +232,15 @@ let visitorDataCache: string | null = null;
 async function getVisitorData(): Promise<string | null> {
   if (visitorDataCache) return visitorDataCache;
   try {
-    const res = await fetch(
-      `https://www.youtube.com/youtubei/v1/visitor_id?key=${INNERTUBE_KEY}&prettyPrint=false`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          context: {
-            client: { clientName: 'WEB', clientVersion: WEB_SAFARI_CLIENT.clientVersion, hl: 'en', gl: 'US' },
-          },
-        }),
-      }
-    );
+    const res = await fetch(`${VISITOR_ENDPOINT}?key=${WEB_KEY}&prettyPrint=false`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'https://www.youtube.com' },
+      body: JSON.stringify({
+        context: {
+          client: { clientName: 'WEB', clientVersion: '2.20260114.08.00', hl: 'en', gl: 'US' },
+        },
+      }),
+    });
     if (!res.ok) return null;
     const data = await res.json();
     visitorDataCache = data?.responseContext?.visitorData ?? null;
@@ -236,7 +251,8 @@ async function getVisitorData(): Promise<string | null> {
 }
 
 /** Faz um pedido /player com um cliente específico e devolve a resposta JSON
- * (ou lança em erro HTTP). Isolado para a cascata em resolveYouTubeStream. */
+ * (ou lança em erro HTTP). Detalhes do pedido (headers, key vazia, params)
+ * copiados do YouTubeKit. Isolado para a cascata em resolveYouTubeStream. */
 async function requestPlayer(
   videoId: string,
   client: InnerTubeClient,
@@ -259,20 +275,27 @@ async function requestPlayer(
     'Content-Type': 'application/json',
     'X-YouTube-Client-Name': client.clientNumber,
     'X-YouTube-Client-Version': client.clientVersion,
+    Origin: 'https://www.youtube.com',
+    'accept-language': 'en-US,en',
   };
   if (client.userAgent) headers['User-Agent'] = client.userAgent;
   if (visitorData) headers['X-Goog-Visitor-Id'] = visitorData;
 
-  const res = await fetch(PLAYER_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      videoId,
-      contentCheckOk: true,
-      racyCheckOk: true,
-      context: { client: clientContext },
-    }),
-  });
+  const body: Record<string, any> = {
+    videoId,
+    contentCheckOk: true,
+    racyCheckOk: true,
+    context: { client: clientContext },
+  };
+  if (client.playerParams) body.params = client.playerParams;
+
+  // key vazia (android/ios) → não a metemos no URL (o cliente autentica-se
+  // pelo contexto). Só o WEB é que precisa dela.
+  const url = client.apiKey
+    ? `${PLAYER_ENDPOINT}?key=${client.apiKey}&prettyPrint=false`
+    : `${PLAYER_ENDPOINT}?prettyPrint=false`;
+
+  const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
 
   if (!res.ok) throw new Error(`InnerTube HTTP ${res.status} (${client.clientName})`);
   return res.json();
@@ -292,21 +315,23 @@ export async function resolveYouTubeStream(
   // apanha em IPs marcados (ex.: 4G partilhado). Obtido uma vez por sessão.
   const visitorData = await getVisitorData();
 
-  // ANDROID_VR — não exige PO Token e dá áudio mp4 direto sem o limite de 1MB.
-  // (O cliente WEB via /player devolve sempre "Video unavailable" sem o
-  // contexto completo da página, por isso não vale a pena tentá-lo aqui.)
-  try {
-    const data = await requestPlayer(videoId, ANDROID_VR_CLIENT, visitorData);
-    const stream = streamFromPlayerResponse(data, quality);
-    stream.client = ANDROID_VR_CLIENT.clientName + (visitorData ? '+vd' : '');
-    memo.set(cacheKey, stream);
-    return stream;
-  } catch (e: any) {
-    errors.push(`${ANDROID_VR_CLIENT.clientName}: ${e?.message ?? String(e)}`);
+  // ANDROID_VR e ANDROID dão áudio mp4 com URL DIRETA (sem cifra) e sem o
+  // limite de 1MB. O WEB dá URLs cifradas (exigiriam decifrar assinatura, que
+  // não fazemos), por isso não entra na cascata.
+  for (const client of [ANDROID_VR_CLIENT, ANDROID_CLIENT]) {
+    try {
+      const data = await requestPlayer(videoId, client, visitorData);
+      const stream = streamFromPlayerResponse(data, quality);
+      stream.client = client.clientName + (visitorData ? '+vd' : '');
+      memo.set(cacheKey, stream);
+      return stream;
+    } catch (e: any) {
+      errors.push(`${client.clientName}: ${e?.message ?? String(e)}`);
+    }
   }
 
   // Último recurso: IOS + PO Token (on-device, se disponível). Só chega aqui
-  // se o ANDROID_VR falhar (ex.: bloqueio de bot no IP, ou restrição de idade).
+  // se os clientes android falharem (ex.: bloqueio de bot no IP).
   const data = await requestPlayer(videoId, IOS_CLIENT, visitorData).catch((e: any) => {
     throw new Error(`todos os clientes falharam: ${errors.join(' | ')} | IOS: ${e?.message ?? e}`);
   });
