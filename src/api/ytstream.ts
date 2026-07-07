@@ -12,9 +12,13 @@
  * Estratégia (validada contra o YouTube em jul/2026):
  *  - Cliente IOS (versão da app real) devolve streams SEM cifra nem PoToken.
  *  - Se houver `hlsManifestUrl` (m3u8), usa-se — adaptativo, ideal no AVPlayer.
- *  - Senão, escolhe-se o melhor áudio `audio/mp4` (AAC) dos adaptiveFormats. O
- *    URL responde 206 a GET+Range (que é como o AVPlayer pede), logo toca. O
- *    HEAD dá 403, mas isso é irrelevante para a reprodução.
+ *  - Senão, escolhe-se o melhor áudio `audio/mp4` (AAC) dos adaptiveFormats.
+ *    IMPORTANTE: estes URLs `googlevideo.com` respondem 403 a um GET simples
+ *    E a um Range que cubra a maior parte do ficheiro (proteção anti-download
+ *    do CDN) — só aceitam Range pequenos (testado: ~1MB OK, ~2.2MB de um
+ *    ficheiro de 4.4MB já dá 403). Por isso expomos `contentLength`, para o
+ *    YouTubePlayerView poder descarregar aos pedaços (ver downloadProgressive
+ *    Audio nesse ficheiro) em vez de entregar o URL direto ao AVPlayer.
  *
  * NOTA sobre o header User-Agent: o iOS trata "User-Agent" como header
  * reservado pela URL Loading System e pode ignorá-lo/substituí-lo em pedidos
@@ -42,18 +46,22 @@ const IOS_CLIENT = {
 };
 
 export interface YtStream {
-  /** URL tocável no AVPlayer (m3u8 HLS ou mp4 progressivo). */
+  /** URL tocável no AVPlayer (m3u8 HLS) ou a descarregar aos pedaços (mp4). */
   url: string;
   isHls: boolean;
   /** epoch ms em que o URL expira (HLS renova sozinho; mp4 ~6h). */
   expiresAt: number;
+  /** Tamanho total em bytes do mp4 (null para HLS — não se aplica). */
+  contentLength: number | null;
 }
 
 // Cache em memória (por sessão) — os URLs expiram, não vale a pena persistir.
 const memo = new Map<string, YtStream>();
 
 /** Melhor áudio mp4/AAC com URL direto (o AVPlayer não toca webm/opus). */
-function pickMp4Audio(streamingData: any): string | null {
+function pickMp4Audio(
+  streamingData: any
+): { url: string; contentLength: number | null } | null {
   const formats: any[] = [
     ...(streamingData?.adaptiveFormats ?? []),
     ...(streamingData?.formats ?? []),
@@ -61,13 +69,19 @@ function pickMp4Audio(streamingData: any): string | null {
   const aac = formats
     .filter((f) => f.url && String(f.mimeType ?? '').startsWith('audio/mp4'))
     .sort((a, b) => (b.bitrate ?? 0) - (a.bitrate ?? 0));
-  if (aac[0]?.url) return aac[0].url;
+  if (aac[0]?.url) {
+    return { url: aac[0].url, contentLength: Number(aac[0].contentLength) || null };
+  }
 
   // último recurso: progressivo muxed mp4 com URL direto
   const muxedMp4 = (streamingData?.formats ?? []).find(
     (f: any) => f.url && String(f.mimeType ?? '').includes('mp4')
   );
-  return muxedMp4?.url ?? null;
+  if (!muxedMp4) return null;
+  return {
+    url: muxedMp4.url,
+    contentLength: Number(muxedMp4.contentLength) || null,
+  };
 }
 
 export async function resolveYouTubeStream(videoId: string): Promise<YtStream> {
@@ -117,20 +131,22 @@ export async function resolveYouTubeStream(videoId: string): Promise<YtStream> {
       url: sd.hlsManifestUrl,
       isHls: true,
       expiresAt: Date.now() + 5 * 60 * 60 * 1000,
+      contentLength: null,
     };
     memo.set(videoId, stream);
     return stream;
   }
 
   // 2) Áudio mp4 direto (caso típico dos music videos / Vevo).
-  const url = pickMp4Audio(sd);
-  if (!url) throw new Error('No AVPlayer-compatible stream found');
+  const picked = pickMp4Audio(sd);
+  if (!picked) throw new Error('No AVPlayer-compatible stream found');
 
   const expireSec = Number(sd.expiresInSeconds ?? 18000);
   const stream: YtStream = {
-    url,
+    url: picked.url,
     isHls: false,
     expiresAt: Date.now() + expireSec * 1000,
+    contentLength: picked.contentLength,
   };
   memo.set(videoId, stream);
   return stream;
