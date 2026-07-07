@@ -23,6 +23,7 @@ import { SegmentedControl } from '../components/SegmentedControl';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { connectSpotify, isSpotifyConnected } from '../lib/spotifyAuth';
+import { getDefaultSearchTab } from '../lib/prefs';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -47,6 +48,7 @@ export function SearchScreen() {
 
   useEffect(() => {
     isSpotifyConnected().then(setSpotifyOk);
+    getDefaultSearchTab().then((v) => setTab(v === 'spotify' ? 1 : 0));
   }, []);
 
   // pesquisa com debounce

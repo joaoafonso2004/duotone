@@ -16,6 +16,12 @@
  *    URL responde 206 a GET+Range (que é como o AVPlayer pede), logo toca. O
  *    HEAD dá 403, mas isso é irrelevante para a reprodução.
  *
+ * NOTA sobre o header User-Agent: o iOS trata "User-Agent" como header
+ * reservado pela URL Loading System e pode ignorá-lo/substituí-lo em pedidos
+ * feitos por fetch() — confirmado que a API do InnerTube não precisa dele
+ * (valida o cliente pelo corpo JSON + X-YouTube-Client-*), por isso não o
+ * definimos aqui (seria ineficaz e só gerava confusão).
+ *
  * NOTA: a versão do cliente iOS envelhece. Se um dia parar de resolver (HTTP
  * 400 "Precondition check failed"), atualizar IOS_CLIENT.clientVersion para a
  * versão atual da app do YouTube para iOS.
@@ -33,8 +39,6 @@ const IOS_CLIENT = {
   deviceModel: 'iPhone16,2',
   osName: 'iPhone',
   osVersion: '18.1.0.22B83',
-  userAgent:
-    'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_1_0 like Mac OS X)',
 };
 
 export interface YtStream {
@@ -74,7 +78,6 @@ export async function resolveYouTubeStream(videoId: string): Promise<YtStream> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'User-Agent': IOS_CLIENT.userAgent,
       'X-YouTube-Client-Name': IOS_CLIENT.clientNumber,
       'X-YouTube-Client-Version': IOS_CLIENT.clientVersion,
     },

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +18,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
-import { useAuth } from '../state/auth';
+import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing } from '../theme';
 import type { Source, Track } from '../types';
@@ -32,10 +33,9 @@ const FILTERS: { key: Filter; label: string }[] = [
 
 export function SongsScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const playTrack = usePlayer((s) => s.playTrack);
   const current = usePlayer((s) => s.current);
-  const signOut = useAuth((s) => s.signOut);
-  const session = useAuth((s) => s.session);
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,24 +64,17 @@ export function SongsScreen() {
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
-  const confirmSignOut = () => {
-    Alert.alert('Sign out', session?.user?.email ?? '', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign out', style: 'destructive', onPress: () => signOut() },
-    ]);
-  };
-
   return (
     <Screen
       title="Songs"
       subtitle={`${tracks.length} saved ${tracks.length === 1 ? 'song' : 'songs'}`}
       right={
-        <Pressable hitSlop={10} onPress={confirmSignOut} style={{ marginBottom: 6 }}>
-          <Ionicons
-            name="person-circle-outline"
-            size={28}
-            color={colors.textSecondary}
-          />
+        <Pressable
+          hitSlop={10}
+          onPress={() => navigation.navigate('Settings')}
+          style={{ marginBottom: 6 }}
+        >
+          <Ionicons name="settings-outline" size={24} color={colors.textSecondary} />
         </Pressable>
       }
     >
