@@ -73,6 +73,8 @@ export interface YtStream {
   expiresAt: number;
   /** Tamanho total em bytes do mp4 (null para HLS — não se aplica). */
   contentLength: number | null;
+  /** Diagnóstico: `?pot=...` foi mesmo anexado ao URL (ver potProvider.ts). */
+  hasPoToken?: boolean;
 }
 
 // Cache em memória (por sessão) — os URLs expiram, não vale a pena persistir.
@@ -198,6 +200,7 @@ export async function resolveYouTubeStream(
       if (poToken) {
         const sep = stream.url.includes('?') ? '&' : '?';
         stream.url = `${stream.url}${sep}pot=${encodeURIComponent(poToken)}`;
+        stream.hasPoToken = true;
       }
     }
   }
