@@ -1,4 +1,5 @@
 import { useEventListener } from 'expo';
+import { File, Paths } from 'expo-file-system';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
@@ -18,7 +19,94 @@ import type { Track } from '../types';
  * 2. WEBVIEW (fallback) — o embed oficial do YouTube. Usado automaticamente
  *    quando a extração falha (vídeo protegido, PoToken, região, live). Neste
  *    modo a música pára com o ecrã bloqueado (limitação do WKWebView).
+ *
+ * IMPORTANTE sobre o áudio progressivo (mp4 direto, sem HLS): confirmado por
+ * teste real que os URLs `googlevideo.com` do YouTube rejeitam com 403 um GET
+ * simples (sem header Range) — o AVPlayer faz esse pedido inicial sem garantir
+ * um Range, e falha com "failed to load player item: unknown error" mesmo com
+ * o URL certo. Confirmado também que o CDN aplica alguma proteção
+ * anti-rajada: pedidos Range sucessivos MUITO próximos no tempo à mesma faixa
+ * podem ser rejeitados (403), de forma nem sempre determinística — não é
+ * possível confirmar a regra exata sem um dispositivo real (o IP usado nos
+ * testes esgotou a sua margem a meio da investigação). A mitigação aqui é
+ * descarregar aos pedaços com espaçamento entre pedidos e nova tentativa com
+ * backoff em caso de 403, e entregar um ficheiro LOCAL ao AVPlayer — deixa de
+ * haver qualquer pedido de rede feito pelo AVPlayer em runtime. HLS não sofre
+ * disto (manifesto e segmentos aceitam GET simples), por isso mantém-se em
+ * streaming direto.
  */
+
+// Pedaços maiores => menos pedidos => menor probabilidade de acionar a
+// proteção anti-rajada do CDN.
+const CHUNK_BYTES = 1_800_000;
+// Espaço entre pedidos consecutivos — imita o ritmo natural de um player real
+// em vez de rajadas instantâneas.
+const CHUNK_PACING_MS = 400;
+const MAX_ATTEMPTS_PER_CHUNK = 4;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Cache local do áudio (mp4 progressivo) por videoId — evita descarregar
+ * outra vez ao voltar a tocar a mesma faixa. */
+function cachedAudioFile(videoId: string): File {
+  return new File(Paths.cache, `yt-audio-${videoId}.m4a`);
+}
+
+/** Descobre o tamanho total do ficheiro via Content-Range, quando a API não o deu. */
+async function discoverContentLength(url: string): Promise<number> {
+  const res = await fetch(url, { headers: { Range: 'bytes=0-1' } });
+  const range = res.headers.get('content-range'); // "bytes 0-1/4406875"
+  const total = range ? Number(range.split('/')[1]) : NaN;
+  if (!Number.isFinite(total)) throw new Error('Could not determine stream length');
+  return total;
+}
+
+async function fetchChunkWithRetry(url: string, start: number, end: number): Promise<Uint8Array> {
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_CHUNK; attempt++) {
+    if (attempt > 0) await sleep(800 * 2 ** (attempt - 1)); // 800ms, 1.6s, 3.2s
+    const res = await fetch(url, { headers: { Range: `bytes=${start}-${end}` } });
+    if (res.status === 206 || res.status === 200) {
+      return new Uint8Array(await res.arrayBuffer());
+    }
+    lastStatus = res.status;
+  }
+  throw new Error(`Chunk download failed (HTTP ${lastStatus}) at byte ${start}`);
+}
+
+async function downloadProgressiveAudio(
+  videoId: string,
+  url: string,
+  knownLength: number | null
+): Promise<string> {
+  const dest = cachedAudioFile(videoId);
+  if (dest.exists) return dest.uri;
+
+  const total = knownLength ?? (await discoverContentLength(url));
+  const parts: Uint8Array[] = [];
+  let offset = 0;
+  let first = true;
+  while (offset < total) {
+    if (!first) await sleep(CHUNK_PACING_MS);
+    first = false;
+    const end = Math.min(offset + CHUNK_BYTES, total) - 1;
+    parts.push(await fetchChunkWithRetry(url, offset, end));
+    offset = end + 1;
+  }
+
+  const combined = new Uint8Array(total);
+  let pos = 0;
+  for (const part of parts) {
+    combined.set(part, pos);
+    pos += part.length;
+  }
+
+  dest.create({ overwrite: true });
+  dest.write(combined);
+  return dest.uri;
+}
 
 const BRIDGE_JS = `
 (function () {
@@ -71,10 +159,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     setBackend('resolving');
     (async () => {
       try {
-        const { url, isHls } = await resolveYouTubeStream(track.sourceId);
+        const { url, isHls, contentLength } = await resolveYouTubeStream(track.sourceId);
         if (cancelled) return;
+
+        // HLS transmite-se bem em direto; o mp4 progressivo tem de ser
+        // descarregado primeiro (ver nota acima sobre o 403 sem Range).
+        const playableUri = isHls
+          ? url
+          : await downloadProgressiveAudio(track.sourceId, url, contentLength);
+        if (cancelled) return;
+
         await player.replaceAsync({
-          uri: url,
+          uri: playableUri,
           contentType: isHls ? 'hls' : 'progressive',
           metadata: {
             title: track.title,
