@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import {
   handleBotGuardMessage,
@@ -51,7 +51,11 @@ const BOTGUARD_JS = `
   window.__duotoneBotGuardReady = true;
 
   var REQUEST_KEY = 'O43z0dpjhgX20SCx4KAo';
-  var WAA_BASE = 'https://jnn-pa.googleapis.com';
+  // Dentro de um browser (esta WebView) NÃO se pode chamar
+  // jnn-pa.googleapis.com diretamente — é bloqueado por CORS. A própria
+  // página do YouTube usa um proxy same-origin em youtube.com/api/jnn/v1/*
+  // (é assim que o BgUtils funciona em modo browser, com useYouTubeAPI:true).
+  var WAA_BASE = 'https://www.youtube.com/api/jnn/v1';
   var WAA_API_KEY = 'AIzaSyDyT5W0Jh49F30Pqqtyfdf7pDLFKLJoAnw';
 
   function post(msg) {
@@ -160,7 +164,7 @@ const BOTGUARD_JS = `
     var webPoSignalOutput = [];
     var botguardResponse = await bgClient.snapshot({ webPoSignalOutput: webPoSignalOutput });
 
-    var itRes = await fetch(WAA_BASE + '/$rpc/google.internal.waa.v1.Waa/GenerateIT', {
+    var itRes = await fetch(WAA_BASE + '/GenerateIT', {
       method: 'POST',
       headers: waaHeaders(),
       body: JSON.stringify([REQUEST_KEY, botguardResponse])
@@ -236,29 +240,51 @@ export function BotGuardMinter() {
     }
   };
 
+  // CRÍTICO: a WebView vai DENTRO de um container absoluto de tamanho fixo. O
+  // react-native-webview embrulha-se num container que, por omissão, tem
+  // `flex: 1` — se fosse irmão direto do navegador numa coluna flex, ficava
+  // com metade do ecrã e partia o layout de toda a app. O container absoluto
+  // tira-o do fluxo e dá-lhe um frame concreto (o WKWebView do iOS precisa de
+  // um frame válido para carregar a página — sem ele dava "Load failed").
   return (
-    <WebView
-      ref={webRef}
-      source={{ uri: `https://www.youtube.com/embed/${ANCHOR_VIDEO_ID}?controls=0` }}
-      style={styles.hidden}
-      injectedJavaScriptBeforeContentLoaded={BOTGUARD_JS}
-      onMessage={onMessage}
-      onError={onError}
-      onHttpError={onHttpError}
-      onNavigationStateChange={onNavigationStateChange}
-      javaScriptEnabled
-      pointerEvents="none"
-    />
+    <View style={styles.hiddenContainer} pointerEvents="none">
+      <WebView
+        ref={webRef}
+        source={{
+          uri:
+            `https://www.youtube.com/embed/${ANCHOR_VIDEO_ID}` +
+            '?playsinline=1&controls=0&rel=0&origin=https%3A%2F%2Fwww.youtube.com',
+          headers: { Referer: 'https://www.youtube.com/' },
+        }}
+        style={styles.fill}
+        injectedJavaScriptBeforeContentLoaded={BOTGUARD_JS}
+        onMessage={onMessage}
+        onError={onError}
+        onHttpError={onHttpError}
+        onNavigationStateChange={onNavigationStateChange}
+        javaScriptEnabled
+        domStorageEnabled
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  hidden: {
+  // Fora do fluxo de layout, tamanho fixo e efetivamente invisível — mas com
+  // um frame real para o WKWebView carregar a página.
+  hiddenContainer: {
     position: 'absolute',
     top: -1000,
     left: 0,
-    width: 1,
-    height: 1,
+    width: 2,
+    height: 2,
     opacity: 0,
+    overflow: 'hidden',
+  },
+  fill: {
+    width: 2,
+    height: 2,
   },
 });
