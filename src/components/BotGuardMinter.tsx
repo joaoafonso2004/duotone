@@ -232,13 +232,6 @@ export function BotGuardMinter() {
       })
     );
   };
-  const onNavigationStateChange = (nav: any) => {
-    if (typeof nav?.url === 'string' && !nav.url.includes('youtube.com/embed')) {
-      handleBotGuardMessage(
-        JSON.stringify({ id: '__loaderror__', error: `redirecionado para ${nav.url}` })
-      );
-    }
-  };
 
   // CRÍTICO: a WebView vai DENTRO de um container absoluto de tamanho fixo. O
   // react-native-webview embrulha-se num container que, por omissão, tem
@@ -246,24 +239,23 @@ export function BotGuardMinter() {
   // com metade do ecrã e partia o layout de toda a app. O container absoluto
   // tira-o do fluxo e dá-lhe um frame concreto (o WKWebView do iOS precisa de
   // um frame válido para carregar a página — sem ele dava "Load failed").
+  // A config aqui é DELIBERADAMENTE igual à do YtStreamHarvester, que já se
+  // comprovou carregar a página embed no dispositivo (incl. em dados móveis):
+  // mesmo URL (sem header Referer nem parâmetro origin, que provocavam "Load
+  // failed"), mesmos props. Só o script injetado é diferente.
   return (
     <View style={styles.hiddenContainer} pointerEvents="none">
       <WebView
         ref={webRef}
         source={{
-          uri:
-            `https://www.youtube.com/embed/${ANCHOR_VIDEO_ID}` +
-            '?playsinline=1&controls=0&rel=0&origin=https%3A%2F%2Fwww.youtube.com',
-          headers: { Referer: 'https://www.youtube.com/' },
+          uri: `https://www.youtube.com/embed/${ANCHOR_VIDEO_ID}?playsinline=1&autoplay=1&rel=0&controls=0`,
         }}
         style={styles.fill}
         injectedJavaScriptBeforeContentLoaded={BOTGUARD_JS}
         onMessage={onMessage}
         onError={onError}
         onHttpError={onHttpError}
-        onNavigationStateChange={onNavigationStateChange}
         javaScriptEnabled
-        domStorageEnabled
         allowsInlineMediaPlayback
         mediaPlaybackRequiresUserAction={false}
       />
