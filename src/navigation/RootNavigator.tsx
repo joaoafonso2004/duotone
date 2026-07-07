@@ -9,7 +9,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { BotGuardMinter } from '../components/BotGuardMinter';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { AlbumsScreen } from '../screens/AlbumsScreen';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
@@ -173,11 +172,13 @@ export function RootNavigator() {
               <Stack.Screen name="Settings" component={SettingsScreen} />
             </Stack.Navigator>
             <PlayerRoot />
-            {/* Escondida — gera PO Tokens on-device (ver BotGuardMinter.tsx
-                / potProvider.ts). Só depois de autenticado, tal como o
-                PlayerRoot, para não interferir com o layout do ecrã de
-                login. */}
-            <BotGuardMinter />
+            {/* BotGuardMinter (PO Token on-device) DESLIGADO de propósito: o
+                cliente ANDROID_VR resolve o áudio sem PO Token, tornando-o
+                redundante, e a WebView escondida a correr a VM do BotGuard em
+                cada sessão era pesada e suspeita de causar restarts. O código
+                fica em BotGuardMinter.tsx para reativar SE um dia os clientes
+                android começarem a exigir PO Token — bastaria voltar a montar
+                <BotGuardMinter /> aqui. */}
           </>
         ) : (
           <AuthScreen />
