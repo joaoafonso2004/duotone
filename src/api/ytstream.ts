@@ -9,16 +9,27 @@
  * (ex.: vídeo com idade/região, ou live), o player cai automaticamente no
  * WebView oficial (ver YouTubePlayerView).
  *
- * Estratégia (validada contra o YouTube em jul/2026):
- *  - Cliente IOS (versão da app real) devolve streams SEM cifra nem PoToken.
- *  - Se houver `hlsManifestUrl` (m3u8), usa-se — adaptativo, ideal no AVPlayer.
- *  - Senão, escolhe-se o melhor áudio `audio/mp4` (AAC) dos adaptiveFormats.
- *    IMPORTANTE: estes URLs `googlevideo.com` respondem 403 a um GET simples
- *    E a um Range que cubra a maior parte do ficheiro (proteção anti-download
- *    do CDN) — só aceitam Range pequenos (testado: ~1MB OK, ~2.2MB de um
- *    ficheiro de 4.4MB já dá 403). Por isso expomos `contentLength`, para o
- *    YouTubePlayerView poder descarregar aos pedaços (ver downloadProgressive
- *    Audio nesse ficheiro) em vez de entregar o URL direto ao AVPlayer.
+ * LIMITAÇÃO CONHECIDA E CONFIRMADA (jul/2026): um pedido próprio ao InnerTube
+ * (feito aqui, sem PO Token — o "Proof of Origin" que a Google exige nos
+ * servidores de vídeo para desbloquear o stream completo) só dá acesso a
+ * ~1.000.000 bytes CUMULATIVOS por vídeo/IP — depois disso, TODO pedido
+ * seguinte falha com 403, seja qual for o tamanho do pedaço, o espaçamento
+ * entre pedidos, ou mesmo um URL assinado completamente novo. Confirmado por
+ * teste direto: não é contornável por código. 1MB ronda os 20-30s de áudio —
+ * insuficiente para uma música inteira.
+ *
+ * Por isso o YouTubePlayerView tenta PRIMEIRO o `YtStreamHarvester` (WebView
+ * invisível que deixa a página real do YouTube pedir os dados dela própria,
+ * com o token de origem genuíno que ela sabe gerar) e só usa o
+ * `resolveYouTubeStream` daqui como recurso secundário. Ver
+ * YtStreamHarvester.tsx para o porquê e o mecanismo.
+ *
+ * Estratégia deste ficheiro (quando usado como fallback):
+ *  - Cliente IOS (versão da app real) devolve streams SEM cifra.
+ *  - Se houver `hlsManifestUrl` (m3u8), usa-se — não sofre do limite de 1MB
+ *    (confirmado), mas raro em vídeos normais (mais comum em diretos).
+ *  - Senão, o áudio mp4 (AAC) só dá para os primeiros ~20-30s antes de
+ *    começar a falhar — não usar como fonte fiável de faixa inteira.
  *
  * NOTA sobre o header User-Agent: o iOS trata "User-Agent" como header
  * reservado pela URL Loading System e pode ignorá-lo/substituí-lo em pedidos
@@ -93,6 +104,43 @@ function pickMp4Audio(
   };
 }
 
+/** Constrói um YtStream a partir de uma resposta /youtubei/v1/player já obtida
+ * — reutilizado tanto pelo pedido próprio (abaixo) como pelo YtStreamHarvester
+ * (que captura a resposta GENUÍNA que a própria página do YouTube pede,
+ * assinada com o token de origem dela — ver YtStreamHarvester.tsx). */
+export function streamFromPlayerResponse(
+  data: any,
+  quality: 'high' | 'saver' = 'high'
+): YtStream {
+  const status = data?.playabilityStatus?.status;
+  if (status && status !== 'OK') {
+    throw new Error(data?.playabilityStatus?.reason || `Not playable (${status})`);
+  }
+
+  const sd = data?.streamingData;
+  if (!sd) throw new Error('No streamingData');
+
+  if (sd.hlsManifestUrl) {
+    return {
+      url: sd.hlsManifestUrl,
+      isHls: true,
+      expiresAt: Date.now() + 5 * 60 * 60 * 1000,
+      contentLength: null,
+    };
+  }
+
+  const picked = pickMp4Audio(sd, quality === 'saver');
+  if (!picked) throw new Error('No AVPlayer-compatible stream found');
+
+  const expireSec = Number(sd.expiresInSeconds ?? 18000);
+  return {
+    url: picked.url,
+    isHls: false,
+    expiresAt: Date.now() + expireSec * 1000,
+    contentLength: picked.contentLength,
+  };
+}
+
 export async function resolveYouTubeStream(
   videoId: string,
   quality: 'high' | 'saver' = 'high'
@@ -130,37 +178,7 @@ export async function resolveYouTubeStream(
   if (!res.ok) throw new Error(`InnerTube HTTP ${res.status}`);
   const data = await res.json();
 
-  const status = data?.playabilityStatus?.status;
-  if (status && status !== 'OK') {
-    throw new Error(data?.playabilityStatus?.reason || `Not playable (${status})`);
-  }
-
-  const sd = data?.streamingData;
-  if (!sd) throw new Error('No streamingData');
-
-  // 1) HLS quando disponível (adaptativo).
-  if (sd.hlsManifestUrl) {
-    const stream: YtStream = {
-      url: sd.hlsManifestUrl,
-      isHls: true,
-      expiresAt: Date.now() + 5 * 60 * 60 * 1000,
-      contentLength: null,
-    };
-    memo.set(cacheKey, stream);
-    return stream;
-  }
-
-  // 2) Áudio mp4 direto (caso típico dos music videos / Vevo).
-  const picked = pickMp4Audio(sd, quality === 'saver');
-  if (!picked) throw new Error('No AVPlayer-compatible stream found');
-
-  const expireSec = Number(sd.expiresInSeconds ?? 18000);
-  const stream: YtStream = {
-    url: picked.url,
-    isHls: false,
-    expiresAt: Date.now() + expireSec * 1000,
-    contentLength: picked.contentLength,
-  };
+  const stream = streamFromPlayerResponse(data, quality);
   memo.set(cacheKey, stream);
   return stream;
 }

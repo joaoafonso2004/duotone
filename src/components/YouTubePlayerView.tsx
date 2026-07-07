@@ -3,43 +3,41 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
-import { resolveYouTubeStream } from '../api/ytstream';
-import { cachedAudioFile } from '../lib/youtubeCache';
+import { resolveYouTubeStream, streamFromPlayerResponse } from '../api/ytstream';
 import { getAudioQuality } from '../lib/prefs';
+import { cachedAudioFile } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
+import { YtStreamHarvester } from './YtStreamHarvester';
 
 /**
- * Player do YouTube com DOIS backends:
+ * Player do YouTube com TRÊS fases, em cascata:
  *
- * 1. NATIVO (preferido) — extrai o stream via InnerTube e toca-o com expo-video
- *    (AVPlayer). Dá playback com ecrã bloqueado, controlos no lock screen /
- *    Control Center e AirPods — como o Demus. Requer uma build nativa
- *    (dev-client/EAS); não funciona no Expo Go.
+ * 1. HARVEST (YtStreamHarvester) — WebView invisível que deixa a página real
+ *    do YouTube pedir os dados dela própria (com o token de origem genuíno
+ *    que ela sabe gerar), e intercetamos a resposta. EXPERIMENTAL: só
+ *    testável num dispositivo real; se não intercetar nada, avança para (2).
  *
- * 2. WEBVIEW (fallback) — o embed oficial do YouTube. Usado automaticamente
- *    quando a extração falha (vídeo protegido, PoToken, região, live). Neste
- *    modo a música pára com o ecrã bloqueado (limitação do WKWebView).
+ * 2. RESOLVER PRÓPRIO (ytstream.ts) — pedido nosso ao InnerTube, sem esse
+ *    token. Confirmado por teste: só dá acesso a ~1MB cumulativo de áudio por
+ *    vídeo/IP (~20-30s) antes do CDN começar a rejeitar tudo com 403 — não dá
+ *    para uma música inteira, mas serve de rede de segurança e ainda
+ *    resolve HLS (que não sofre deste limite) quando disponível.
  *
- * IMPORTANTE sobre o áudio progressivo (mp4 direto, sem HLS): confirmado por
- * teste real que os URLs `googlevideo.com` do YouTube rejeitam com 403 um GET
- * simples (sem header Range) — o AVPlayer faz esse pedido inicial sem garantir
- * um Range, e falha com "failed to load player item: unknown error" mesmo com
- * o URL certo. Confirmado também que o CDN aplica alguma proteção
- * anti-rajada: pedidos Range sucessivos MUITO próximos no tempo à mesma faixa
- * podem ser rejeitados (403), de forma nem sempre determinística — não é
- * possível confirmar a regra exata sem um dispositivo real (o IP usado nos
- * testes esgotou a sua margem a meio da investigação). A mitigação aqui é
- * descarregar aos pedaços com espaçamento entre pedidos e nova tentativa com
- * backoff em caso de 403, e entregar um ficheiro LOCAL ao AVPlayer — deixa de
- * haver qualquer pedido de rede feito pelo AVPlayer em runtime. HLS não sofre
- * disto (manifesto e segmentos aceitam GET simples), por isso mantém-se em
- * streaming direto.
+ * 3. WEBVIEW (fallback final) — o embed oficial do YouTube, visível. Sempre
+ *    toca, mas a música pára com o ecrã bloqueado (limitação do WKWebView).
+ *
+ * Em qualquer dos casos em que o áudio é mp4 progressivo (não HLS), descarrega-
+ * se aos pedaços (dentro do limite conhecido) para um ficheiro LOCAL antes de
+ * entregar ao AVPlayer — evita que o próprio AVPlayer falhe com "failed to
+ * load player item" ao fazer um pedido sem Range (confirmado por teste).
  */
 
-// Pedaços maiores => menos pedidos => menor probabilidade de acionar a
-// proteção anti-rajada do CDN.
-const CHUNK_BYTES = 1_800_000;
+// Confirmado por teste direto: o CDN só autoriza ~1.000.000 bytes CUMULATIVOS
+// por vídeo/IP sem PO Token (ver nota no topo) — acima de 900_000 já falha de
+// forma consistente. Isto só chega para os primeiros ~20-30s de uma faixa; a
+// única forma de ir além é o stream vir do YtStreamHarvester (token genuíno).
+const CHUNK_BYTES = 900_000;
 // Espaço entre pedidos consecutivos — imita o ritmo natural de um player real
 // em vez de rajadas instantâneas.
 const CHUNK_PACING_MS = 400;
@@ -130,7 +128,7 @@ const BRIDGE_JS = `
 true;
 `;
 
-type Backend = 'resolving' | 'native' | 'webview';
+type Backend = 'harvesting' | 'resolving' | 'native' | 'webview';
 
 export function YouTubePlayerView({ track }: { track: Track }) {
   const registerYtControls = usePlayer((s) => s.registerYtControls);
@@ -138,8 +136,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const setProgress = usePlayer((s) => s._setProgress);
   const setError = usePlayer((s) => s.setError);
 
-  const [backend, setBackend] = useState<Backend>('resolving');
+  const [backend, setBackend] = useState<Backend>('harvesting');
   const webRef = useRef<WebView>(null);
+  const cancelledRef = useRef(false);
 
   const player = useVideoPlayer(null, (p) => {
     p.staysActiveInBackground = true;
@@ -148,52 +147,56 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     p.loop = false;
   });
 
-  // Resolver o stream e carregar no player nativo; cair no WebView se falhar.
   useEffect(() => {
-    let cancelled = false;
-    setBackend('resolving');
-    (async () => {
-      try {
-        const quality = await getAudioQuality();
-        if (cancelled) return;
-        const { url, isHls, contentLength } = await resolveYouTubeStream(
-          track.sourceId,
-          quality
-        );
-        if (cancelled) return;
-
-        // HLS transmite-se bem em direto; o mp4 progressivo tem de ser
-        // descarregado primeiro (ver nota acima sobre o 403 sem Range).
-        const playableUri = isHls
-          ? url
-          : await downloadProgressiveAudio(track.sourceId, url, contentLength);
-        if (cancelled) return;
-
-        await player.replaceAsync({
-          uri: playableUri,
-          contentType: isHls ? 'hls' : 'progressive',
-          metadata: {
-            title: track.title,
-            artist: track.artist ?? 'YouTube',
-            artwork: track.artworkUrl ?? undefined,
-          },
-        });
-        if (cancelled) return;
-        player.play();
-        setBackend('native');
-      } catch (e: any) {
-        if (!cancelled) {
-          // Diagnóstico visível — para sabermos exatamente porque caiu no
-          // WebView, em vez de adivinhar a partir de um "erro 153" genérico.
-          setError(`YouTube: native stream unavailable (${e?.message ?? 'unknown'}), using embed.`);
-          setBackend('webview');
-        }
-      }
-    })();
+    cancelledRef.current = false;
+    setBackend('harvesting');
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
     };
-  }, [track.sourceId, track.title, track.artist, track.artworkUrl, player, setError]);
+  }, [track.sourceId]);
+
+  // Chamado pelo YtStreamHarvester (fase 1) com a resposta genuína
+  // intercetada, ou com `null` se não intercetou nada dentro do timeout.
+  const proceedWithPlayerResponse = async (harvested: any | null) => {
+    if (cancelledRef.current) return;
+    setBackend('resolving');
+    try {
+      const quality = await getAudioQuality();
+      if (cancelledRef.current) return;
+
+      const stream = harvested
+        ? streamFromPlayerResponse(harvested, quality)
+        : await resolveYouTubeStream(track.sourceId, quality);
+      if (cancelledRef.current) return;
+
+      // HLS transmite-se bem em direto; o mp4 progressivo tem de ser
+      // descarregado primeiro (ver nota no topo sobre o 403 sem Range).
+      const playableUri = stream.isHls
+        ? stream.url
+        : await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength);
+      if (cancelledRef.current) return;
+
+      await player.replaceAsync({
+        uri: playableUri,
+        contentType: stream.isHls ? 'hls' : 'progressive',
+        metadata: {
+          title: track.title,
+          artist: track.artist ?? 'YouTube',
+          artwork: track.artworkUrl ?? undefined,
+        },
+      });
+      if (cancelledRef.current) return;
+      player.play();
+      setBackend('native');
+    } catch (e: any) {
+      if (!cancelledRef.current) {
+        // Diagnóstico visível — para sabermos exatamente porque caiu no
+        // WebView, em vez de adivinhar a partir de um "erro 153" genérico.
+        setError(`YouTube: native stream unavailable (${e?.message ?? 'unknown'}), using embed.`);
+        setBackend('webview');
+      }
+    }
+  };
 
   // Eventos do player nativo -> store
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
@@ -216,7 +219,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
   useEffect(() => {
-    if (backend === 'resolving') return;
+    if (backend === 'harvesting' || backend === 'resolving') return;
     if (backend === 'native') {
       registerYtControls({
         play: () => player.play(),
@@ -280,14 +283,20 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     );
   }
 
-  // resolving | native -> mostra a view de vídeo nativa (preto enquanto resolve).
+  // harvesting | resolving | native -> vídeo nativo (preto enquanto carrega),
+  // com o harvester invisível ativo só durante a fase 1.
   return (
-    <VideoView
-      player={player}
-      style={styles.fill}
-      nativeControls={false}
-      contentFit="cover"
-    />
+    <>
+      {backend === 'harvesting' ? (
+        <YtStreamHarvester videoId={track.sourceId} onResult={proceedWithPlayerResponse} />
+      ) : null}
+      <VideoView
+        player={player}
+        style={styles.fill}
+        nativeControls={false}
+        contentFit="cover"
+      />
+    </>
   );
 }
 
