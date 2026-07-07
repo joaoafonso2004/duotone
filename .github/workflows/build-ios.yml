@@ -13,6 +13,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Calcular SHA curto
+        id: vars
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Grava o commit exato desta build dentro do bundle JS, visível em
+      # Definições > About -- para nunca mais haver dúvida sobre qual build
+      # está de facto a correr no telemóvel (ficheiros .ipa com nomes iguais
+      # de builds diferentes já causaram confusão).
+      - name: Gravar identificador da build
+        run: |
+          cat > src/lib/buildInfo.ts <<EOF
+          // Gerado automaticamente pela CI (build-ios.yml) a cada build.
+          // Não editar à mão -- é sobrescrito no próximo push.
+          export const BUILD_ID = '${{ steps.vars.outputs.short_sha }}';
+          EOF
+
       # O expo-video puxa uma dependência SPM que exige Swift 6.2. O Xcode 16.4
       # (default no runner) só traz Swift 6.1, por isso escolhemos o mais recente
       # instalado (Xcode 26+, Swift 6.2).
@@ -57,11 +73,11 @@ jobs:
         run: |
           mkdir Payload
           cp -R build/Duotone.xcarchive/Products/Applications/Duotone.app Payload/
-          zip -qr Duotone.ipa Payload
+          zip -qr "Duotone-${{ steps.vars.outputs.short_sha }}.ipa" Payload
 
       - name: Publicar .ipa como artefacto
         uses: actions/upload-artifact@v4
         with:
-          name: Duotone-ipa
-          path: Duotone.ipa
+          name: Duotone-ipa-${{ steps.vars.outputs.short_sha }}
+          path: Duotone-${{ steps.vars.outputs.short_sha }}.ipa
           retention-days: 30

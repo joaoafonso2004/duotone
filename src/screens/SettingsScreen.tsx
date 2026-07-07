@@ -4,6 +4,7 @@ import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { clearLibrary } from '../api/library';
 import { clearStreamMemo } from '../api/ytstream';
+import { BUILD_ID } from '../lib/buildInfo';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
@@ -269,6 +270,7 @@ export function SettingsScreen({ navigation }: Props) {
 
         <Section title="About">
           <Row label="Version" value={APP_VERSION} />
+          <Row label="Build" value={BUILD_ID} />
         </Section>
       </ScrollView>
 
