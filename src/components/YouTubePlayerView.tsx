@@ -190,9 +190,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       setBackend('native');
     } catch (e: any) {
       if (!cancelledRef.current) {
-        // Diagnóstico visível — para sabermos exatamente porque caiu no
-        // WebView, em vez de adivinhar a partir de um "erro 153" genérico.
-        setError(`YouTube: native stream unavailable (${e?.message ?? 'unknown'}), using embed.`);
+        // Diagnóstico visível — inclui a ORIGEM do stream (harvester vs.
+        // resolver próprio) para sabermos, sem ambiguidade, qual dos dois
+        // caminhos falhou, em vez de adivinhar a partir do erro sozinho.
+        const source = harvested ? 'harvested' : 'own-resolver';
+        setError(
+          `YouTube [${source}]: native stream unavailable (${e?.message ?? 'unknown'}), using embed.`
+        );
         setBackend('webview');
       }
     }
