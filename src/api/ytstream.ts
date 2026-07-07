@@ -206,9 +206,42 @@ type InnerTubeClient = {
   userAgent?: string;
 };
 
+// visitorData: identificador de sessão que reduz a deteção de bots ("Sign in
+// to confirm you're not a bot") — mitigação documentada pelo NewPipe/yt-dlp
+// para o 403/LOGIN_REQUIRED dos clientes sem PO Token. Obtido uma vez por
+// sessão e reutilizado.
+let visitorDataCache: string | null = null;
+async function getVisitorData(): Promise<string | null> {
+  if (visitorDataCache) return visitorDataCache;
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/youtubei/v1/visitor_id?key=${INNERTUBE_KEY}&prettyPrint=false`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          context: {
+            client: { clientName: 'WEB', clientVersion: WEB_SAFARI_CLIENT.clientVersion, hl: 'en', gl: 'US' },
+          },
+        }),
+      }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    visitorDataCache = data?.responseContext?.visitorData ?? null;
+    return visitorDataCache;
+  } catch {
+    return null;
+  }
+}
+
 /** Faz um pedido /player com um cliente específico e devolve a resposta JSON
  * (ou lança em erro HTTP). Isolado para a cascata em resolveYouTubeStream. */
-async function requestPlayer(videoId: string, client: InnerTubeClient): Promise<any> {
+async function requestPlayer(
+  videoId: string,
+  client: InnerTubeClient,
+  visitorData?: string | null
+): Promise<any> {
   const clientContext: Record<string, any> = {
     clientName: client.clientName,
     clientVersion: client.clientVersion,
@@ -220,6 +253,7 @@ async function requestPlayer(videoId: string, client: InnerTubeClient): Promise<
   if (client.osName) clientContext.osName = client.osName;
   if (client.osVersion) clientContext.osVersion = client.osVersion;
   if (client.androidSdkVersion) clientContext.androidSdkVersion = client.androidSdkVersion;
+  if (visitorData) clientContext.visitorData = visitorData;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -227,6 +261,7 @@ async function requestPlayer(videoId: string, client: InnerTubeClient): Promise<
     'X-YouTube-Client-Version': client.clientVersion,
   };
   if (client.userAgent) headers['User-Agent'] = client.userAgent;
+  if (visitorData) headers['X-Goog-Visitor-Id'] = visitorData;
 
   const res = await fetch(PLAYER_URL, {
     method: 'POST',
@@ -253,24 +288,26 @@ export async function resolveYouTubeStream(
 
   const errors: string[] = [];
 
-  // 1. ANDROID_VR — sem PO Token, áudio direto sem limite de 1MB.
-  // 2. WEB (Safari) — sem PO Token, dá HLS (m3u8) que também não tem limite.
-  for (const client of [ANDROID_VR_CLIENT, WEB_SAFARI_CLIENT]) {
-    try {
-      const data = await requestPlayer(videoId, client);
-      const stream = streamFromPlayerResponse(data, quality);
-      stream.client = client.clientName;
-      memo.set(cacheKey, stream);
-      return stream;
-    } catch (e: any) {
-      errors.push(`${client.clientName}: ${e?.message ?? String(e)}`);
-    }
+  // visitorData reduz o "Sign in to confirm you're not a bot" que o ANDROID_VR
+  // apanha em IPs marcados (ex.: 4G partilhado). Obtido uma vez por sessão.
+  const visitorData = await getVisitorData();
+
+  // ANDROID_VR — não exige PO Token e dá áudio mp4 direto sem o limite de 1MB.
+  // (O cliente WEB via /player devolve sempre "Video unavailable" sem o
+  // contexto completo da página, por isso não vale a pena tentá-lo aqui.)
+  try {
+    const data = await requestPlayer(videoId, ANDROID_VR_CLIENT, visitorData);
+    const stream = streamFromPlayerResponse(data, quality);
+    stream.client = ANDROID_VR_CLIENT.clientName + (visitorData ? '+vd' : '');
+    memo.set(cacheKey, stream);
+    return stream;
+  } catch (e: any) {
+    errors.push(`${ANDROID_VR_CLIENT.clientName}: ${e?.message ?? String(e)}`);
   }
 
-  // 3. Último recurso: IOS + PO Token (on-device, se disponível). Só chega
-  // aqui se os dois clientes acima falharem (ex.: vídeo com restrição de
-  // idade que o ANDROID_VR recusa).
-  const data = await requestPlayer(videoId, IOS_CLIENT).catch((e: any) => {
+  // Último recurso: IOS + PO Token (on-device, se disponível). Só chega aqui
+  // se o ANDROID_VR falhar (ex.: bloqueio de bot no IP, ou restrição de idade).
+  const data = await requestPlayer(videoId, IOS_CLIENT, visitorData).catch((e: any) => {
     throw new Error(`todos os clientes falharam: ${errors.join(' | ')} | IOS: ${e?.message ?? e}`);
   });
   const stream = streamFromPlayerResponse(data, quality);
