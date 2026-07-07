@@ -20,7 +20,6 @@ import { Input } from '../components/Input';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
 import { SegmentedControl } from '../components/SegmentedControl';
-import { SettingsButton } from '../components/SettingsButton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { hapticImpact, hapticNotification } from '../lib/haptics';
@@ -122,7 +121,6 @@ export function SearchScreen() {
     <Screen
       title="Search"
       subtitle="Find tracks on YouTube and Spotify"
-      topLeft={<SettingsButton />}
     >
       <View style={styles.controls}>
         <Input

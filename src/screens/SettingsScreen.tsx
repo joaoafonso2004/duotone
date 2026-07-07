@@ -15,13 +15,11 @@ import { hapticNotification, hapticSelection } from '../lib/haptics';
 import {
   getAudioQuality,
   getDefaultSearchTab,
-  getDefaultYtViewMode,
   getHapticsEnabled,
   getPoTokenServerUrl,
   getShowTrackDuration,
   setAudioQuality,
   setDefaultSearchTab,
-  setDefaultYtViewMode,
   setHapticsEnabled,
   setHapticsEnabledCache,
   setPoTokenServerUrl,
@@ -31,7 +29,6 @@ import {
   setShowTrackDurationCache,
   type AudioQuality,
   type SearchSource,
-  type YtViewMode,
 } from '../lib/prefs';
 import { clearDownloadedAudioCache } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -57,8 +54,6 @@ export function SettingsScreen({ navigation }: Props) {
   const setRepeatQueue = usePlayer((s) => s.setRepeatQueue);
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const setShowRewindButton = usePlayer((s) => s.setShowRewindButton);
-  const ytViewMode = usePlayer((s) => s.ytViewMode);
-  const setYtViewMode = usePlayer((s) => s.setYtViewMode);
 
   const [spotifyOk, setSpotifyOk] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -104,13 +99,6 @@ export function SettingsScreen({ navigation }: Props) {
     setSearchDefault(v);
     hapticSelection();
     await setDefaultSearchTab(v);
-  };
-
-  const changeYtView = async (i: number) => {
-    const v: YtViewMode = i === 1 ? 'photo' : 'video';
-    setYtViewMode(v);
-    hapticSelection();
-    await setDefaultYtViewMode(v);
   };
 
   const changeAudioQuality = async (i: number) => {
@@ -232,13 +220,6 @@ export function SettingsScreen({ navigation }: Props) {
             accents={[colors.youtube, colors.spotify]}
             value={searchDefault === 'spotify' ? 1 : 0}
             onChange={changeSearchDefault}
-          />
-
-          <Label style={{ marginTop: spacing.lg }}>Default YouTube view</Label>
-          <SegmentedControl
-            options={['Video', 'Photo']}
-            value={ytViewMode === 'photo' ? 1 : 0}
-            onChange={changeYtView}
           />
 
           <Label style={{ marginTop: spacing.lg }}>Audio quality</Label>

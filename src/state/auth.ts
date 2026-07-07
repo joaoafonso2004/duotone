@@ -13,6 +13,8 @@ interface AuthState {
     name: string
   ) => Promise<string | null>;
   signOut: () => Promise<void>;
+  /** Atualiza o nome/username (metadata da conta + tabela profiles). */
+  updateName: (name: string) => Promise<string | null>;
 }
 
 export const useAuth = create<AuthState>((set) => ({
@@ -47,5 +49,23 @@ export const useAuth = create<AuthState>((set) => ({
 
   signOut: async () => {
     await supabase.auth.signOut();
+  },
+
+  updateName: async (name) => {
+    const trimmed = name.trim();
+    if (!trimmed) return 'Name cannot be empty.';
+    const { data, error } = await supabase.auth.updateUser({ data: { name: trimmed } });
+    if (error) return error.message;
+    // Refletir já na sessão local (a UI lê de session.user.user_metadata.name).
+    if (data.user) {
+      const { data: sess } = await supabase.auth.getSession();
+      set({ session: sess.session });
+    }
+    // Manter a tabela profiles em sincronia (best-effort; não bloqueia).
+    const uid = data.user?.id;
+    if (uid) {
+      supabase.from('profiles').update({ name: trimmed }).eq('id', uid).then(() => {});
+    }
+    return null;
   },
 }));

@@ -4,7 +4,6 @@ import React, { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
-  getDefaultYtViewMode,
   getRepeatQueue,
   getShowRewindButton,
   loadPrefsCache,
@@ -19,10 +18,9 @@ export default function App() {
     init();
     // Hidrata preferências persistidas (Definições) no arranque da app.
     loadPrefsCache();
-    Promise.all([getDefaultYtViewMode(), getRepeatQueue(), getShowRewindButton()]).then(
-      ([ytViewMode, repeatQueue, showRewindButton]) => {
+    Promise.all([getRepeatQueue(), getShowRewindButton()]).then(
+      ([repeatQueue, showRewindButton]) => {
         const player = usePlayer.getState();
-        player.setYtViewMode(ytViewMode);
         player.setRepeatQueue(repeatQueue);
         player.setShowRewindButton(showRewindButton);
       }
