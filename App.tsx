@@ -1,6 +1,7 @@
 import 'react-native-url-polyfill/auto';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
@@ -8,6 +9,7 @@ import {
   getShowRewindButton,
   loadPrefsCache,
 } from './src/lib/prefs';
+import { supabase } from './src/lib/supabase';
 import { useAuth } from './src/state/auth';
 import { usePlayer } from './src/state/player';
 
@@ -26,6 +28,22 @@ export default function App() {
       }
     );
   }, [init]);
+
+  // Renovação automática do token do Supabase ligada ao ciclo de vida da app.
+  // Sem isto, o token expira em background e as queries (com RLS) voltam
+  // vazias ao regressar — "perdia" biblioteca/artistas até reiniciar. Ao
+  // voltar a "active" força-se a renovação; em background pára-se o ticker.
+  useEffect(() => {
+    supabase.auth.startAutoRefresh();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        supabase.auth.startAutoRefresh();
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   return (
     <SafeAreaProvider>
