@@ -21,6 +21,7 @@ import {
   importSharedPlaylist,
 } from '../api/playlists';
 import { ArtworkCollage } from '../components/ArtworkCollage';
+import { BottomSheet } from '../components/BottomSheet';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PromptSheet } from '../components/PromptSheet';
@@ -48,6 +49,7 @@ export function PlaylistsScreen() {
   const [renameFor, setRenameFor] = useState<Playlist | null>(null);
   const [deleteFor, setDeleteFor] = useState<Playlist | null>(null);
   const [importSharedOpen, setImportSharedOpen] = useState(false);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
 
   const doImportShared = async (input: string) => {
     let id = input.trim();
@@ -144,51 +146,13 @@ export function PlaylistsScreen() {
       right={
         <Pressable
           hitSlop={10}
-          onPress={() => setCreateOpen(true)}
+          onPress={() => setAddMenuOpen(true)}
           style={{ marginBottom: 4 }}
         >
           <Ionicons name="add-circle" size={30} color={theme.color} />
         </Pressable>
       }
     >
-      <Pressable
-        onPress={() => navigation.navigate('ImportYouTube')}
-        style={({ pressed }) => [
-          styles.importRow,
-          pressed && { backgroundColor: colors.surfacePressed },
-        ]}
-      >
-        <View style={styles.importIcon}>
-          <Ionicons name="logo-youtube" size={16} color={colors.youtube} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[type.body, { fontWeight: '600' }]}>
-            Import a YouTube playlist
-          </Text>
-          <Text style={type.caption}>Paste a link, pick the tracks</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-      </Pressable>
-
-      <Pressable
-        onPress={() => setImportSharedOpen(true)}
-        style={({ pressed }) => [
-          styles.importRow,
-          { marginTop: -spacing.md },
-          pressed && { backgroundColor: colors.surfacePressed },
-        ]}
-      >
-        <View style={[styles.importIcon, { backgroundColor: colors.surfacePressed }]}>
-          <Ionicons name="share-social" size={16} color={theme.color} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[type.body, { fontWeight: '600' }]}>
-            Import a shared playlist
-          </Text>
-          <Text style={type.caption}>Enter a link or playlist ID</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-      </Pressable>
 
       {loading ? (
         <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
@@ -320,6 +284,54 @@ export function PlaylistsScreen() {
         onClose={() => setDeleteFor(null)}
         onConfirm={doDelete}
       />
+
+      <BottomSheet visible={addMenuOpen} onClose={() => setAddMenuOpen(false)}>
+        <Text style={[type.title, { marginBottom: spacing.md }]}>
+          Playlists
+        </Text>
+        
+        <Pressable
+          onPress={() => {
+            setAddMenuOpen(false);
+            setCreateOpen(true);
+          }}
+          style={({ pressed }) => [
+            styles.menuOption,
+            pressed && { backgroundColor: colors.surfacePressed }
+          ]}
+        >
+          <Ionicons name="add-circle-outline" size={20} color={colors.text} />
+          <Text style={[type.body, { fontWeight: '600', marginLeft: 8 }]}>Create new playlist</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            setAddMenuOpen(false);
+            navigation.navigate('ImportYouTube');
+          }}
+          style={({ pressed }) => [
+            styles.menuOption,
+            pressed && { backgroundColor: colors.surfacePressed }
+          ]}
+        >
+          <Ionicons name="logo-youtube" size={20} color={colors.youtube} />
+          <Text style={[type.body, { fontWeight: '600', marginLeft: 8 }]}>Import from YouTube</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            setAddMenuOpen(false);
+            setImportSharedOpen(true);
+          }}
+          style={({ pressed }) => [
+            styles.menuOption,
+            pressed && { backgroundColor: colors.surfacePressed }
+          ]}
+        >
+          <Ionicons name="share-social-outline" size={20} color={theme.color} />
+          <Text style={[type.body, { fontWeight: '600', marginLeft: 8 }]}>Import shared playlist</Text>
+        </Pressable>
+      </BottomSheet>
     </Screen>
   );
 }
@@ -350,5 +362,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     marginTop: 8,
+  },
+  menuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
+    marginVertical: 2,
   },
 });
