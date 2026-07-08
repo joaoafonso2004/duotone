@@ -51,3 +51,56 @@ export async function getFlowMix(limit = 20): Promise<Track[]> {
   if (error) throw error;
   return (data ?? []).map(rowToTrack);
 }
+
+export interface DbPlayStats {
+  totalPlays: number;
+  uniqueTracks: number;
+  topArtist: { name: string; plays: number } | null;
+}
+
+export async function getProfilePlayStats(): Promise<DbPlayStats> {
+  const { data, error } = await supabase.rpc('get_profile_play_stats');
+  if (error) throw error;
+  return data as DbPlayStats;
+}
+
+export interface ProfilePlayEntry {
+  id?: string;
+  source: 'youtube' | 'spotify';
+  sourceId: string;
+  title: string;
+  artist: string | null;
+  artworkUrl: string | null;
+  durationSeconds: number | null;
+  count: number;
+}
+
+export async function getProfileMostPlayed(limit = 20): Promise<ProfilePlayEntry[]> {
+  const { data, error } = await supabase.rpc('get_heavy_rotation', { limit_val: limit });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    source: row.source,
+    sourceId: row.source_id,
+    title: row.title,
+    artist: row.artist,
+    artworkUrl: row.artwork_url,
+    durationSeconds: row.duration_seconds,
+    count: parseInt(row.play_count || '1', 10),
+  }));
+}
+
+export async function getProfileRecentlyPlayed(limit = 10): Promise<ProfilePlayEntry[]> {
+  const { data, error } = await supabase.rpc('get_profile_recently_played', { limit_val: limit });
+  if (error) throw error;
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    source: row.source,
+    sourceId: row.source_id,
+    title: row.title,
+    artist: row.artist,
+    artworkUrl: row.artwork_url,
+    durationSeconds: row.duration_seconds,
+    count: 1,
+  }));
+}
