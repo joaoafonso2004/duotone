@@ -7,6 +7,7 @@ import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 import { BottomSheet } from './BottomSheet';
 import { SourceBadge } from './SourceBadge';
+import { ShareFriendSheet } from './ShareFriendSheet';
 
 export interface SheetAction {
   icon: keyof typeof Ionicons.glyphMap;
@@ -23,70 +24,107 @@ interface Props {
 }
 
 export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
+  const [shareFriendVisible, setShareFriendVisible] = React.useState(false);
+  const [localTrack, setLocalTrack] = React.useState<Track | null>(null);
+
+  React.useEffect(() => {
+    if (track) {
+      setLocalTrack(track);
+    }
+  }, [track]);
+
+  const handleShareFriend = () => {
+    setShareFriendVisible(true);
+    onClose();
+  };
+
+  const allActions = track
+    ? [
+        ...actions,
+        {
+          icon: 'people-outline' as keyof typeof Ionicons.glyphMap,
+          label: 'Partilhar com amigo…',
+          onPress: handleShareFriend,
+        },
+      ]
+    : actions;
+
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
-      {track ? (
-        <View style={styles.header}>
-          {track.artworkUrl ? (
-            <Image
-              source={{ uri: track.artworkUrl }}
-              style={styles.art}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={[styles.art, styles.artFallback]}>
-              <Ionicons
-                name="musical-notes"
-                size={16}
-                color={colors.textTertiary}
+    <>
+      <BottomSheet visible={visible} onClose={onClose}>
+        {track ? (
+          <View style={styles.header}>
+            {track.artworkUrl ? (
+              <Image
+                source={{ uri: track.artworkUrl }}
+                style={styles.art}
+                contentFit="cover"
               />
-            </View>
-          )}
-          <View style={{ flex: 1, gap: 3 }}>
-            <Text numberOfLines={1} style={[type.headline]}>
-              {track.title}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <SourceBadge source={track.source} />
-              {track.artist ? (
-                <Text numberOfLines={1} style={type.caption}>
-                  {track.artist}
-                </Text>
-              ) : null}
+            ) : (
+              <View style={[styles.art, styles.artFallback]}>
+                <Ionicons
+                  name="musical-notes"
+                  size={16}
+                  color={colors.textTertiary}
+                />
+              </View>
+            )}
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text numberOfLines={1} style={[type.headline]}>
+                {track.title}
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <SourceBadge source={track.source} />
+                {track.artist ? (
+                  <Text numberOfLines={1} style={type.caption}>
+                    {track.artist}
+                  </Text>
+                ) : null}
+              </View>
             </View>
           </View>
-        </View>
-      ) : null}
+        ) : null}
 
-      {actions.map((a) => (
-        <Pressable
-          key={a.label}
-          onPress={() => {
-            hapticImpact();
-            a.onPress();
-          }}
-          style={({ pressed }) => [
-            styles.action,
-            pressed && { backgroundColor: colors.surfacePressed },
-          ]}
-        >
-          <Ionicons
-            name={a.icon}
-            size={20}
-            color={a.destructive ? colors.danger : colors.text}
-          />
-          <Text
-            style={[
-              type.body,
-              { fontWeight: '600' },
-              a.destructive && { color: colors.danger },
+        {allActions.map((a) => (
+          <Pressable
+            key={a.label}
+            onPress={() => {
+              hapticImpact();
+              a.onPress();
+            }}
+            style={({ pressed }) => [
+              styles.action,
+              pressed && { backgroundColor: colors.surfacePressed },
             ]}
           >
-            {a.label}
-          </Text>
-        </Pressable>
-      ))}
-    </BottomSheet>
+            <Ionicons
+              name={a.icon}
+              size={20}
+              color={a.destructive ? colors.danger : colors.text}
+            />
+            <Text
+              style={[
+                type.body,
+                { fontWeight: '600' },
+                a.destructive && { color: colors.danger },
+              ]}
+            >
+              {a.label}
+            </Text>
+          </Pressable>
+        ))}
+      </BottomSheet>
+
+      <ShareFriendSheet
+        visible={shareFriendVisible}
+        itemType="track"
+        item={localTrack}
+        onClose={() => {
+          setShareFriendVisible(false);
+          setLocalTrack(null);
+        }}
+      />
+    </>
   );
 }
 
