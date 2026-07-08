@@ -553,6 +553,10 @@ export function PlayerRoot() {
         >
           <YouTubePlayerView track={current} />
 
+          {/* Fundo preto opaco para tapar quaisquer controlos, logos ou botões do YouTube (WebView)
+              de brilharem por trás quando a capa de álbum diminui de opacidade ao pulsar. */}
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} pointerEvents="none" />
+
           {/* Mostramos SEMPRE a thumbnail por cima — o áudio nativo continua a
               tocar por trás. (A app é só áudio; o vídeo é irrelevante.) A capa
               "respira" (opacidade a pulsar) enquanto a música carrega. */}

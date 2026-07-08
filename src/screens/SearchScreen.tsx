@@ -13,10 +13,11 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { saveToLibrary } from '../api/library';
-import { searchYouTube } from '../api/youtube';
+import { saveToLibrary, getLibrary } from '../api/library';
+import { searchYouTube, searchYouTubePlaylists, YtRecommendedPlaylist } from '../api/youtube';
 import { getFlowMix, getHeavyRotation, getForgottenFavorites } from '../api/plays';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
+import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
@@ -51,6 +52,10 @@ export function SearchScreen() {
   const [flowMix, setFlowMix] = useState<Track[]>([]);
   const [heavyRotation, setHeavyRotation] = useState<Track[]>([]);
   const [forgottenFavorites, setForgottenFavorites] = useState<Track[]>([]);
+  const [personalizedArtist, setPersonalizedArtist] = useState<string | null>(null);
+  const [newRecommendations, setNewRecommendations] = useState<Track[]>([]);
+  const [recommendedPlaylists, setRecommendedPlaylists] = useState<YtRecommendedPlaylist[]>([]);
+  const [selectedRecommendPlaylist, setSelectedRecommendPlaylist] = useState<YtRecommendedPlaylist | null>(null);
   const [loadingRecs, setLoadingRecs] = useState(false);
 
   const requestId = useRef(0);
@@ -62,14 +67,44 @@ export function SearchScreen() {
   const loadRecommendations = async () => {
     setLoadingRecs(true);
     try {
-      const [flow, heavy, forgotten] = await Promise.all([
+      const [flow, heavy, forgotten, libTracks] = await Promise.all([
         getFlowMix(12),
         getHeavyRotation(12),
         getForgottenFavorites(12),
+        getLibrary(),
       ]);
       setFlowMix(flow);
       setHeavyRotation(heavy);
       setForgottenFavorites(forgotten);
+
+      // Extract unique artists from library
+      const artists = Array.from(
+        new Set(libTracks.map((t) => t.artist).filter(Boolean))
+      ) as string[];
+
+      let chosen = '';
+      if (artists.length > 0) {
+        chosen = artists[Math.floor(Math.random() * artists.length)];
+      }
+
+      const queryForTracks = chosen ? `${chosen} popular` : 'Lofi chill beats study';
+      const queryForPlaylists = chosen ? `${chosen} playlist` : 'Chill music playlist';
+      
+      setPersonalizedArtist(chosen || null);
+
+      const [tracksRes, playlistsRes] = await Promise.all([
+        searchYouTube(queryForTracks),
+        searchYouTubePlaylists(queryForPlaylists, 6),
+      ]);
+
+      // Filter out songs already in library to ensure they are new recommendations
+      const savedIds = new Set(libTracks.map((t) => t.sourceId));
+      const filteredTracks = tracksRes
+        .filter((t) => !savedIds.has(t.sourceId))
+        .slice(0, 12);
+
+      setNewRecommendations(filteredTracks);
+      setRecommendedPlaylists(playlistsRes);
     } catch (e) {
       console.error('Failed to load recommendations:', e);
     } finally {
@@ -170,6 +205,57 @@ export function SearchScreen() {
     );
   };
 
+  const renderPlaylistRecommendationSection = (
+    title: string,
+    data: YtRecommendedPlaylist[],
+    icon: keyof typeof Ionicons.glyphMap
+  ) => {
+    if (data.length === 0) return null;
+    return (
+      <View style={styles.recsSection}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name={icon} size={18} color={colors.text} />
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalScroll}
+        >
+          {data.map((playlist) => (
+            <Pressable
+              key={playlist.id}
+              onPress={() => {
+                hapticImpact();
+                setSelectedRecommendPlaylist(playlist);
+              }}
+              style={({ pressed }) => [styles.recCard, pressed && { opacity: 0.8 }]}
+            >
+              {playlist.artworkUrl ? (
+                <Image
+                  source={{ uri: playlist.artworkUrl }}
+                  style={styles.cardArt}
+                  contentFit="cover"
+                  transition={200}
+                />
+              ) : (
+                <View style={[styles.cardArt, styles.artFallback]}>
+                  <Ionicons name="albums-outline" size={24} color={colors.textTertiary} />
+                </View>
+              )}
+              <Text numberOfLines={1} style={styles.cardTitle}>
+                {playlist.title}
+              </Text>
+              <Text numberOfLines={1} style={styles.cardArtist}>
+                {playlist.channelTitle ?? 'YouTube'}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
   return (
     <Screen title="Search" subtitle="Find tracks on YouTube">
       <View style={styles.controls}>
@@ -237,7 +323,21 @@ export function SearchScreen() {
               {renderRecommendationSection('Mais Tocadas Recentes', heavyRotation, 'flame-outline')}
               {renderRecommendationSection('Favoritos Esquecidos', forgottenFavorites, 'heart-dislike-outline')}
               
-              {flowMix.length === 0 && heavyRotation.length === 0 && forgottenFavorites.length === 0 && (
+              {/* New Recommendations (not heard yet) */}
+              {renderRecommendationSection(
+                personalizedArtist ? `Descobrir ${personalizedArtist}` : 'Descobrir Novidades',
+                newRecommendations,
+                'compass-outline'
+              )}
+
+              {/* YouTube Playlists Recommendations */}
+              {renderPlaylistRecommendationSection(
+                personalizedArtist ? `Playlists de ${personalizedArtist}` : 'Playlists Recomendadas',
+                recommendedPlaylists,
+                'albums-outline'
+              )}
+              
+              {flowMix.length === 0 && heavyRotation.length === 0 && forgottenFavorites.length === 0 && newRecommendations.length === 0 && (
                 <Text style={styles.emptyRecsText}>
                   No recommendations yet. Start playing songs and saving them to your library to generate your Flow!
                 </Text>
@@ -334,6 +434,14 @@ export function SearchScreen() {
         visible={!!playlistTrack}
         track={playlistTrack}
         onClose={() => setPlaylistTrack(null)}
+      />
+
+      <YtPlaylistRecommendationSheet
+        visible={!!selectedRecommendPlaylist}
+        playlistId={selectedRecommendPlaylist?.id ?? null}
+        playlistTitle={selectedRecommendPlaylist?.title ?? null}
+        playlistArtwork={selectedRecommendPlaylist?.artworkUrl ?? null}
+        onClose={() => setSelectedRecommendPlaylist(null)}
       />
     </Screen>
   );

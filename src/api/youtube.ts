@@ -187,3 +187,93 @@ export async function fetchYouTubePlaylist(
   await cacheSet(key, result);
   return result;
 }
+
+export interface YtRecommendedPlaylist {
+  id: string;
+  title: string;
+  artworkUrl: string | null;
+  channelTitle?: string;
+}
+
+export async function searchYouTubePlaylists(
+  query: string,
+  limit = 5
+): Promise<YtRecommendedPlaylist[]> {
+  const key = `playlists_search:v1:${query.trim().toLowerCase()}`;
+  const cached = await cacheGet<YtRecommendedPlaylist[]>(key, SEARCH_TTL);
+  if (cached) return cached;
+
+  try {
+    const search = await yfetch('/search', {
+      part: 'snippet',
+      type: 'playlist',
+      maxResults: String(limit),
+      q: query,
+    });
+
+    const results: YtRecommendedPlaylist[] = [];
+    for (const item of search.items ?? []) {
+      if (item?.id?.playlistId) {
+        results.push({
+          id: item.id.playlistId,
+          title: decodeEntities(item.snippet.title),
+          artworkUrl:
+            item.snippet.thumbnails?.high?.url ??
+            item.snippet.thumbnails?.medium?.url ??
+            null,
+          channelTitle: item.snippet.channelTitle,
+        });
+      }
+    }
+    await cacheSet(key, results);
+    return results;
+  } catch (error) {
+    console.error('Error searching YouTube playlists:', error);
+    return [];
+  }
+}
+
+export async function fetchYouTubePlaylistById(id: string): Promise<YtPlaylistImport> {
+  const key = `playlist:v1:${id}`;
+  const cached = await cacheGet<YtPlaylistImport>(key, PLAYLIST_TTL);
+  if (cached) return cached;
+
+  // Nome da playlist
+  const meta = await yfetch('/playlists', { part: 'snippet', id });
+  const title = decodeEntities(
+    meta.items?.[0]?.snippet?.title ?? 'YouTube playlist'
+  );
+
+  // Itens (paginado, máx. ~200 vídeos)
+  const items: YtPlaylistItem[] = [];
+  let pageToken: string | undefined;
+  for (let page = 0; page < 4; page++) {
+    const res = await yfetch('/playlistItems', {
+      part: 'snippet',
+      playlistId: id,
+      maxResults: '50',
+      ...(pageToken ? { pageToken } : {}),
+    });
+    for (const it of res.items ?? []) {
+      const sn = it.snippet;
+      const videoId = sn?.resourceId?.videoId;
+      const t = sn?.title ?? '';
+      if (!videoId || t === 'Private video' || t === 'Deleted video') continue;
+      items.push({
+        videoId,
+        title: decodeEntities(t),
+        channel: decodeEntities(
+          sn?.videoOwnerChannelTitle ?? sn?.channelTitle ?? ''
+        ),
+        thumbnail:
+          sn?.thumbnails?.high?.url ?? sn?.thumbnails?.medium?.url ?? null,
+      });
+    }
+    pageToken = res.nextPageToken;
+    if (!pageToken) break;
+  }
+
+  const result: YtPlaylistImport = { id, title, items };
+  await cacheSet(key, result);
+  return result;
+}
