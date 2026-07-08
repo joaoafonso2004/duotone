@@ -26,20 +26,21 @@ import {
 } from '../lib/avatarPrefs';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import {
-  getMostPlayed,
-  getPlayStats,
-  getRecentlyPlayed,
-  type PlayCountEntry,
-  type PlayStats,
-} from '../lib/playCounts';
+  getProfileMostPlayed,
+  getProfilePlayStats,
+  getProfileRecentlyPlayed,
+  type ProfilePlayEntry,
+  type DbPlayStats,
+} from '../api/plays';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 import { colors, radii, spacing, type } from '../theme';
 
-function entryToTrack(e: PlayCountEntry): Track {
+function entryToTrack(e: ProfilePlayEntry): Track {
   return {
+    id: e.id,
     source: e.source,
     sourceId: e.sourceId,
     title: e.title,
@@ -72,14 +73,14 @@ export function ProfileScreen() {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(currentName);
   const [savingName, setSavingName] = useState(false);
-  const [mostPlayed, setMostPlayed] = useState<PlayCountEntry[]>([]);
-  const [recent, setRecent] = useState<PlayCountEntry[]>([]);
-  const [stats, setStats] = useState<PlayStats | null>(null);
+  const [mostPlayed, setMostPlayed] = useState<ProfilePlayEntry[]>([]);
+  const [recent, setRecent] = useState<ProfilePlayEntry[]>([]);
+  const [stats, setStats] = useState<DbPlayStats | null>(null);
 
   const loadStats = useCallback(() => {
-    getMostPlayed(20).then(setMostPlayed);
-    getRecentlyPlayed(12).then(setRecent);
-    getPlayStats().then(setStats);
+    getProfileMostPlayed(20).then(setMostPlayed);
+    getProfileRecentlyPlayed(12).then(setRecent);
+    getProfilePlayStats().then(setStats);
     getAvatarChoice().then(setAvatar);
   }, []);
 
@@ -113,7 +114,7 @@ export function ProfileScreen() {
     }
   };
 
-  const play = (e: PlayCountEntry) => {
+  const play = (e: ProfilePlayEntry) => {
     hapticSelection();
     playTrack(entryToTrack(e));
   };
@@ -279,7 +280,7 @@ function TrackRow({
   rank,
   onPress,
 }: {
-  entry: PlayCountEntry;
+  entry: ProfilePlayEntry;
   rank?: number;
   onPress: () => void;
 }) {
