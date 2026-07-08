@@ -352,13 +352,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
     // Se conhecemos a duração real e já lá chegámos, avançamos — em vez de
     // ficar a "tocar" silêncio até ao fim (dobrado) do player.
-    if (track.durationSeconds && currentTime >= track.durationSeconds - 1 && !endedRef.current) {
+    if (repeatMode !== 'one' && track.durationSeconds && currentTime >= track.durationSeconds - 1 && !endedRef.current) {
       endedRef.current = true;
       onStateChange('ended');
     }
   });
   useEventListener(player, 'playToEnd', () => {
-    if (backend === 'native' && !endedRef.current) {
+    if (repeatMode !== 'one' && backend === 'native' && !endedRef.current) {
       endedRef.current = true;
       onStateChange('ended');
     }

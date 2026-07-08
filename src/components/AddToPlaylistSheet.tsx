@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import {
   addTrackToPlaylist,
+  addTracksToPlaylist,
   createPlaylist,
   listPlaylists,
 } from '../api/playlists';
@@ -24,12 +25,13 @@ import { PillButton } from './PillButton';
 
 interface Props {
   visible: boolean;
-  track: Track | null;
+  track?: Track | null;
+  tracks?: Track[] | null;
   onClose: () => void;
   onDone?: () => void;
 }
 
-export function AddToPlaylistSheet({ visible, track, onClose, onDone }: Props) {
+export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: Props) {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(false);
   const [newName, setNewName] = useState('');
@@ -51,19 +53,23 @@ export function AddToPlaylistSheet({ visible, track, onClose, onDone }: Props) {
   }, [visible, load]);
 
   const addTo = async (playlistId: string) => {
-    if (!track) return;
+    if (!track && (!tracks || tracks.length === 0)) return;
     try {
-      await addTrackToPlaylist(playlistId, track);
+      if (tracks && tracks.length > 0) {
+        await addTracksToPlaylist(playlistId, tracks);
+      } else if (track) {
+        await addTrackToPlaylist(playlistId, track);
+      }
       hapticNotification();
       onDone?.();
       onClose();
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not add the track.');
+      Alert.alert('Error', e?.message ?? 'Could not add to playlist.');
     }
   };
 
   const createAndAdd = async () => {
-    if (!newName.trim() || !track) return;
+    if (!newName.trim() || (!track && (!tracks || tracks.length === 0))) return;
     setCreating(true);
     try {
       const pl = await createPlaylist(newName.trim());

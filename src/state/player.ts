@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { recordPlayInSupabase } from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
 import type { Track } from '../types';
 
@@ -32,6 +33,8 @@ interface PlayerState {
   error: string | null;
 
   playTrack: (track: Track, queue?: Track[]) => Promise<void>;
+  playNext: (track: Track) => void;
+  addToQueue: (track: Track) => void;
   togglePlay: () => Promise<void>;
   next: () => Promise<void>;
   prev: () => Promise<void>;
@@ -73,6 +76,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   playTrack: async (track, queue) => {
     // Conta esta reprodução (local; alimenta "Most played" no Perfil).
     incrementPlayCount(track).catch(() => {});
+    // Conta esta reprodução no Supabase para recomendações.
+    recordPlayInSupabase(track).catch(() => {});
     const q = queue && queue.length > 0 ? queue : [track];
     const index = Math.max(
       0,
@@ -92,6 +97,42 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       // O player nativo autoplay-a ao montar; estado real chega via bridge.
       isPlaying: true,
     });
+  },
+
+  playNext: (track) => {
+    const { queue, queueIndex } = get();
+    if (queue.length === 0) {
+      set({
+        current: track,
+        queue: [track],
+        queueIndex: 0,
+        isPlaying: true,
+        buffering: true,
+        positionMs: 0,
+        durationMs: (track.durationSeconds ?? 0) * 1000,
+      });
+      return;
+    }
+    const newQueue = [...queue];
+    newQueue.splice(queueIndex + 1, 0, track);
+    set({ queue: newQueue });
+  },
+
+  addToQueue: (track) => {
+    const { queue } = get();
+    if (queue.length === 0) {
+      set({
+        current: track,
+        queue: [track],
+        queueIndex: 0,
+        isPlaying: true,
+        buffering: true,
+        positionMs: 0,
+        durationMs: (track.durationSeconds ?? 0) * 1000,
+      });
+      return;
+    }
+    set({ queue: [...queue, track] });
   },
 
   togglePlay: async () => {
@@ -171,6 +212,12 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   _onYtStateChange: (s) => {
     if (s === 'ended') {
+      const { repeatMode, _yt } = get();
+      if (repeatMode === 'one') {
+        _yt?.seek(0);
+        _yt?.play();
+        return;
+      }
       get().next();
       return;
     }

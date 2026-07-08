@@ -22,6 +22,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const { type, name } = route.params;
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
+  const playNext = usePlayer((s) => s.playNext);
+  const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
 
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -104,6 +106,24 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         track={actionTrack}
         onClose={() => setActionTrack(null)}
         actions={[
+          {
+            icon: 'play-outline',
+            label: 'Tocar a seguir',
+            onPress: () => {
+              const t = actionTrack;
+              setActionTrack(null);
+              if (t) playNext(t);
+            },
+          },
+          {
+            icon: 'add-circle-outline',
+            label: 'Adicionar à fila',
+            onPress: () => {
+              const t = actionTrack;
+              setActionTrack(null);
+              if (t) addToQueue(t);
+            },
+          },
           {
             icon: 'list-outline',
             label: 'Add to playlist…',

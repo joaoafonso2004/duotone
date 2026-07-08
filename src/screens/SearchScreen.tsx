@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -6,6 +7,7 @@ import {
   FlatList,
   Keyboard,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary } from '../api/library';
 import { searchYouTube } from '../api/youtube';
+import { getFlowMix, getHeavyRotation, getForgottenFavorites } from '../api/plays';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
@@ -28,6 +31,8 @@ import type { Track } from '../types';
 export function SearchScreen() {
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
+  const playNext = usePlayer((s) => s.playNext);
+  const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
 
   const [query, setQuery] = useState('');
@@ -38,12 +43,45 @@ export function SearchScreen() {
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
   const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
   const [history, setHistory] = useState<string[]>([]);
+  
+  // Search focus state
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Recommendations states
+  const [flowMix, setFlowMix] = useState<Track[]>([]);
+  const [heavyRotation, setHeavyRotation] = useState<Track[]>([]);
+  const [forgottenFavorites, setForgottenFavorites] = useState<Track[]>([]);
+  const [loadingRecs, setLoadingRecs] = useState(false);
 
   const requestId = useRef(0);
 
   useEffect(() => {
     getSearchHistory().then(setHistory);
   }, []);
+
+  const loadRecommendations = async () => {
+    setLoadingRecs(true);
+    try {
+      const [flow, heavy, forgotten] = await Promise.all([
+        getFlowMix(12),
+        getHeavyRotation(12),
+        getForgottenFavorites(12),
+      ]);
+      setFlowMix(flow);
+      setHeavyRotation(heavy);
+      setForgottenFavorites(forgotten);
+    } catch (e) {
+      console.error('Failed to load recommendations:', e);
+    } finally {
+      setLoadingRecs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (query.trim() === '') {
+      loadRecommendations();
+    }
+  }, [query]);
 
   // pesquisa com debounce
   useEffect(() => {
@@ -87,6 +125,51 @@ export function SearchScreen() {
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
+  // Render horizontal recommendation lists
+  const renderRecommendationSection = (title: string, data: Track[], icon: keyof typeof Ionicons.glyphMap) => {
+    if (data.length === 0) return null;
+    return (
+      <View style={styles.recsSection}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name={icon} size={18} color={colors.text} />
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalScroll}
+        >
+          {data.map((track) => (
+            <Pressable
+              key={`${track.source}:${track.sourceId}`}
+              onPress={() => playTrack(track, data)}
+              style={({ pressed }) => [styles.recCard, pressed && { opacity: 0.8 }]}
+            >
+              {track.artworkUrl ? (
+                <Image
+                  source={{ uri: track.artworkUrl }}
+                  style={styles.cardArt}
+                  contentFit="cover"
+                  transition={200}
+                />
+              ) : (
+                <View style={[styles.cardArt, styles.artFallback]}>
+                  <Ionicons name="musical-note" size={24} color={colors.textTertiary} />
+                </View>
+              )}
+              <Text numberOfLines={1} style={styles.cardTitle}>
+                {track.title}
+              </Text>
+              <Text numberOfLines={1} style={styles.cardArtist}>
+                {track.artist ?? 'YouTube'}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
   return (
     <Screen title="Search" subtitle="Find tracks on YouTube">
       <View style={styles.controls}>
@@ -96,6 +179,8 @@ export function SearchScreen() {
           value={query}
           onChangeText={setQuery}
           onClear={() => setQuery('')}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           autoCapitalize="none"
           autoCorrect={false}
           returnKeyType="search"
@@ -104,19 +189,20 @@ export function SearchScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} />
+        <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
       ) : errorMsg ? (
         <EmptyState
           icon="cloud-offline-outline"
           title="Something went wrong"
           subtitle={errorMsg}
         />
-      ) : query.trim().length < 2 && history.length > 0 ? (
+      ) : query.trim().length < 2 && isFocused && history.length > 0 ? (
+        /* Focused Search input - Show Search History */
         <View style={{ paddingHorizontal: spacing.xl }}>
           <View style={styles.historyHeader}>
             <Text style={type.micro}>Recent searches</Text>
             <Pressable hitSlop={8} onPress={doClearHistory}>
-              <Text style={[type.caption, { color: colors.accent, fontWeight: '700' }]}>
+              <Text style={[type.caption, { color: colors.text, fontWeight: '700' }]}>
                 Clear
               </Text>
             </Pressable>
@@ -124,19 +210,41 @@ export function SearchScreen() {
           {history.map((q) => (
             <Pressable
               key={q}
-              onPress={() => setQuery(q)}
+              onPress={() => {
+                setQuery(q);
+                Keyboard.dismiss();
+              }}
               style={({ pressed }) => [
                 styles.historyRow,
                 pressed && { backgroundColor: colors.surface },
               ]}
             >
-              <Ionicons name="time-outline" size={16} color={colors.textTertiary} />
+              <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
               <Text numberOfLines={1} style={[type.body, { flex: 1 }]}>
                 {q}
               </Text>
             </Pressable>
           ))}
         </View>
+      ) : query.trim().length < 2 && !isFocused ? (
+        /* Default state - Show Recommendations */
+        <ScrollView contentContainerStyle={{ paddingBottom: bottomPad }} showsVerticalScrollIndicator={false}>
+          {loadingRecs && flowMix.length === 0 ? (
+            <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
+          ) : (
+            <View>
+              {renderRecommendationSection('Flow do Dia', flowMix, 'sparkles-outline')}
+              {renderRecommendationSection('Mais Tocadas Recentes', heavyRotation, 'flame-outline')}
+              {renderRecommendationSection('Favoritos Esquecidos', forgottenFavorites, 'heart-dislike-outline')}
+              
+              {flowMix.length === 0 && heavyRotation.length === 0 && forgottenFavorites.length === 0 && (
+                <Text style={styles.emptyRecsText}>
+                  No recommendations yet. Start playing songs and saving them to your library to generate your Flow!
+                </Text>
+              )}
+            </View>
+          )}
+        </ScrollView>
       ) : results.length === 0 ? (
         <EmptyState
           icon="logo-youtube"
@@ -177,6 +285,24 @@ export function SearchScreen() {
         track={actionTrack}
         onClose={() => setActionTrack(null)}
         actions={[
+          {
+            icon: 'play-outline',
+            label: 'Tocar a seguir',
+            onPress: () => {
+              const t = actionTrack;
+              setActionTrack(null);
+              if (t) playNext(t);
+            },
+          },
+          {
+            icon: 'add-circle-outline',
+            label: 'Adicionar à fila',
+            onPress: () => {
+              const t = actionTrack;
+              setActionTrack(null);
+              if (t) addToQueue(t);
+            },
+          },
           {
             icon: 'heart-outline',
             label: 'Save to Library',
@@ -231,5 +357,54 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: 10,
     borderRadius: radii.sm,
+  },
+  recsSection: {
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  horizontalScroll: {
+    paddingHorizontal: spacing.xl,
+    gap: spacing.md,
+  },
+  recCard: {
+    width: 120,
+    gap: 4,
+  },
+  cardArt: {
+    width: 120,
+    height: 120,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+  },
+  artFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 4,
+  },
+  cardArtist: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  emptyRecsText: {
+    ...type.caption,
+    textAlign: 'center',
+    padding: spacing.xl,
+    marginTop: 24,
   },
 });

@@ -22,6 +22,7 @@ import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ProgressBar } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
+import { LyricsView } from './LyricsView';
 
 const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
@@ -128,6 +129,11 @@ export function PlayerRoot() {
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     setSaved(false);
+  }, [current?.sourceId]);
+
+  const [showLyrics, setShowLyrics] = useState(false);
+  useEffect(() => {
+    setShowLyrics(false);
   }, [current?.sourceId]);
 
   // Capa em ALTA resolução: a YouTube Data API devolve thumbnails pequenas, mas
@@ -551,13 +557,21 @@ export function PlayerRoot() {
             </Animated.View>
           ) : null}
 
-          {/* No modo mini, tocar no vídeo expande */}
+          {/* No modo mini, tocar no vídeo expande. No modo full, tocar ativa as letras. */}
           {!expanded ? (
             <Pressable
               style={StyleSheet.absoluteFill}
               onPress={() => setExpanded(true)}
             />
-          ) : null}
+          ) : (
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={() => {
+                hapticSelection();
+                setShowLyrics(true);
+              }}
+            />
+          )}
         </Animated.View>
       ) : null}
 
@@ -577,6 +591,14 @@ export function PlayerRoot() {
         track={current}
         onClose={() => setPlaylistOpen(false)}
       />
+
+      {expanded && showLyrics && current && (
+        <LyricsView
+          track={current}
+          positionMs={positionMs}
+          onClose={() => setShowLyrics(false)}
+        />
+      )}
     </View>
   );
 }
