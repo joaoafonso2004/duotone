@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary } from '../api/library';
-import { hapticNotification } from '../lib/haptics';
+import { hapticNotification, hapticSelection } from '../lib/haptics';
+import { setRepeatMode as persistRepeatMode, setShuffle as persistShuffle } from '../lib/prefs';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
@@ -35,7 +36,10 @@ export function PlayerRoot() {
   const queueIndex = usePlayer((s) => s.queueIndex);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const expanded = usePlayer((s) => s.expanded);
-  const repeatQueue = usePlayer((s) => s.repeatQueue);
+  const repeatMode = usePlayer((s) => s.repeatMode);
+  const shuffle = usePlayer((s) => s.shuffle);
+  const cycleRepeat = usePlayer((s) => s.cycleRepeat);
+  const toggleShuffle = usePlayer((s) => s.toggleShuffle);
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const positionMs = usePlayer((s) => s.positionMs);
   const durationMs = usePlayer((s) => s.durationMs);
@@ -125,6 +129,18 @@ export function PlayerRoot() {
   useEffect(() => {
     setSaved(false);
   }, [current?.sourceId]);
+
+  const onToggleShuffle = () => {
+    toggleShuffle();
+    hapticSelection();
+    persistShuffle(!shuffle);
+  };
+  const onCycleRepeat = () => {
+    const next = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+    cycleRepeat();
+    hapticSelection();
+    persistRepeatMode(next);
+  };
 
   const saveCurrentToLibrary = async () => {
     if (!current || saved) return;
@@ -280,26 +296,26 @@ export function PlayerRoot() {
             />
           </View>
 
-          {/* controlos */}
+          {/* controlos: shuffle · anterior · play · seguinte · repeat */}
           <View style={styles.controls}>
+            <Pressable hitSlop={12} onPress={onToggleShuffle} accessibilityLabel="Shuffle">
+              <Ionicons
+                name="shuffle"
+                size={22}
+                color={shuffle ? colors.accent : colors.textTertiary}
+              />
+            </Pressable>
+
             <Pressable
               hitSlop={14}
               onPress={prev}
-              disabled={!repeatQueue && queueIndex === 0}
-              style={!repeatQueue && queueIndex === 0 && styles.dimmed}
+              disabled={repeatMode === 'off' && !shuffle && queueIndex === 0}
+              style={
+                repeatMode === 'off' && !shuffle && queueIndex === 0 && styles.dimmed
+              }
             >
               <Ionicons name="play-skip-back" size={28} color={colors.text} />
             </Pressable>
-
-            {showRewindButton ? (
-              <Pressable
-                hitSlop={14}
-                onPress={() => seekTo(Math.max(0, positionMs - 15000))}
-                accessibilityLabel="Rewind 15 seconds"
-              >
-                <Ionicons name="play-back" size={22} color={colors.text} />
-              </Pressable>
-            ) : null}
 
             <Pressable
               onPress={togglePlay}
@@ -316,12 +332,43 @@ export function PlayerRoot() {
             <Pressable
               hitSlop={14}
               onPress={next}
-              disabled={!repeatQueue && queueIndex >= queue.length - 1}
-              style={!repeatQueue && queueIndex >= queue.length - 1 && styles.dimmed}
+              disabled={
+                repeatMode === 'off' && !shuffle && queueIndex >= queue.length - 1
+              }
+              style={
+                repeatMode === 'off' &&
+                !shuffle &&
+                queueIndex >= queue.length - 1 &&
+                styles.dimmed
+              }
             >
               <Ionicons name="play-skip-forward" size={28} color={colors.text} />
             </Pressable>
+
+            <Pressable hitSlop={12} onPress={onCycleRepeat} accessibilityLabel="Repeat">
+              <Ionicons
+                name={repeatMode === 'one' ? 'repeat' : 'repeat'}
+                size={22}
+                color={repeatMode === 'off' ? colors.textTertiary : colors.accent}
+              />
+              {repeatMode === 'one' ? (
+                <View style={styles.repeatOneBadge}>
+                  <Text style={styles.repeatOneText}>1</Text>
+                </View>
+              ) : null}
+            </Pressable>
           </View>
+
+          {showRewindButton ? (
+            <Pressable
+              hitSlop={14}
+              onPress={() => seekTo(Math.max(0, positionMs - 15000))}
+              accessibilityLabel="Rewind 15 seconds"
+              style={{ alignSelf: 'center', marginTop: spacing.md }}
+            >
+              <Ionicons name="play-back" size={20} color={colors.textSecondary} />
+            </Pressable>
+          ) : null}
 
           {/* a seguir */}
           {upNext.length > 0 ? (
@@ -415,10 +462,13 @@ export function PlayerRoot() {
           <Pressable
             hitSlop={8}
             onPress={next}
-            disabled={!repeatQueue && queueIndex >= queue.length - 1}
+            disabled={repeatMode === 'off' && !shuffle && queueIndex >= queue.length - 1}
             style={[
               styles.miniBtn,
-              !repeatQueue && queueIndex >= queue.length - 1 && styles.dimmed,
+              repeatMode === 'off' &&
+                !shuffle &&
+                queueIndex >= queue.length - 1 &&
+                styles.dimmed,
             ]}
           >
             <Ionicons name="play-skip-forward" size={20} color={colors.text} />
@@ -591,9 +641,26 @@ const styles = StyleSheet.create({
   controls: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 48,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
     marginTop: spacing.xl + 4,
+  },
+  repeatOneBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -7,
+    minWidth: 13,
+    height: 13,
+    borderRadius: 6.5,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  repeatOneText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: colors.bg,
   },
   playBtn: {
     width: 68,
