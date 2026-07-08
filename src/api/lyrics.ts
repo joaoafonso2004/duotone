@@ -12,15 +12,38 @@ export interface LyricsData {
   parsedLines: LyricLine[];
 }
 
+export function cleanTrackTitle(title: string): string {
+  if (!title) return '';
+  return title
+    .replace(/\s*[\(\[][^)\]]*(?:video|audio|lyrics|official|version|explicit|hq|hd|clip|screen|remaster|live|edit)[^)\]]*[\)\]]/gi, '')
+    .replace(/\s*-\s*Topic$/gi, '')
+    .replace(/\s*-\s*Official\s*.*$/gi, '')
+    .replace(/\s*\|\s*.*$/gi, '')
+    .trim();
+}
+
+export function cleanArtistName(artist: string): string {
+  if (!artist) return '';
+  return artist
+    .replace(/\s*-\s*Topic$/gi, '')
+    .replace(/\s*,\s*Feat\..*$/gi, '')
+    .replace(/\s*feat\..*$/gi, '')
+    .replace(/\s*ft\..*$/gi, '')
+    .trim();
+}
+
 export async function fetchLyrics(
   trackName: string,
   artistName: string,
   durationSeconds?: number
 ): Promise<LyricsData | null> {
   try {
+    const cleanedTitle = cleanTrackTitle(trackName);
+    const cleanedArtist = cleanArtistName(artistName);
+
     const url = new URL('https://lrclib.net/api/get');
-    url.searchParams.append('track_name', trackName);
-    url.searchParams.append('artist_name', artistName);
+    url.searchParams.append('track_name', cleanedTitle);
+    url.searchParams.append('artist_name', cleanedArtist);
     if (durationSeconds) {
       url.searchParams.append('duration', Math.round(durationSeconds).toString());
     }
@@ -28,9 +51,9 @@ export async function fetchLyrics(
     const response = await fetch(url.toString());
     
     if (response.status === 404) {
-      // Fallback: try search endpoint with full query
+      // Fallback: try search endpoint with cleaned title and artist
       const searchUrl = new URL('https://lrclib.net/api/search');
-      searchUrl.searchParams.append('q', `${trackName} ${artistName}`);
+      searchUrl.searchParams.append('q', `${cleanedTitle} ${cleanedArtist}`);
       const searchRes = await fetch(searchUrl.toString());
       if (searchRes.ok) {
         const results = await searchRes.json();
