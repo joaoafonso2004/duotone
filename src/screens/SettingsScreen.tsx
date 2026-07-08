@@ -244,35 +244,7 @@ export function SettingsScreen({ navigation }: Props) {
           gap: spacing.xl,
         }}
       >
-        <Section title="Account">
-          <Row label="Email" value={session?.user?.email ?? '—'} />
-          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' }}>
-            <PillButton
-              label="Reset password"
-              variant="ghost"
-              small
-              loading={resettingPw}
-              onPress={doResetPassword}
-              style={{ alignSelf: 'flex-start' }}
-            />
-            <PillButton
-              label="Sign out"
-              variant="danger"
-              small
-              onPress={() => setSignOutOpen(true)}
-              style={{ alignSelf: 'flex-start' }}
-            />
-            <PillButton
-              label="Delete account"
-              variant="danger"
-              small
-              onPress={() => setDeleteAccountOpen(true)}
-              style={{ alignSelf: 'flex-start' }}
-            />
-          </View>
-        </Section>
-
-        <Section title="Theme (Tema da Aplicação)">
+        <Section title="Theme">
           <Label>Cor de destaque</Label>
           <View style={styles.themesGrid}>
             {(['violet', 'blue', 'orange', 'green', 'pink', 'red', 'mono', 'steel'] as const).map((name) => {
@@ -323,19 +295,17 @@ export function SettingsScreen({ navigation }: Props) {
 
           <Label style={{ marginTop: spacing.md }}>Sound Preset (Efeito)</Label>
           <SegmentedControl
-            options={['Normal', 'Slowed', 'Nightcore', 'Fast']}
+            options={['Normal', 'Slowed', 'Fast']}
             value={
               soundPreset === 'normal'
                 ? 0
                 : soundPreset === 'slowed'
                 ? 1
-                : soundPreset === 'nightcore'
-                ? 2
-                : 3
+                : 2
             }
             onChange={(i) => {
               hapticSelection();
-              const presets = ['normal', 'slowed', 'nightcore', 'fast'] as const;
+              const presets = ['normal', 'slowed', 'fast'] as const;
               setSoundPreset(presets[i]);
             }}
           />
@@ -452,6 +422,34 @@ export function SettingsScreen({ navigation }: Props) {
         <Section title="About">
           <Row label="Version" value={APP_VERSION} />
           <Row label="Build" value={BUILD_ID} />
+        </Section>
+
+        <Section title="Account">
+          <Row label="Email" value={session?.user?.email ?? '—'} />
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' }}>
+            <PillButton
+              label="Reset password"
+              variant="ghost"
+              small
+              loading={resettingPw}
+              onPress={doResetPassword}
+              style={{ alignSelf: 'flex-start' }}
+            />
+            <PillButton
+              label="Sign out"
+              variant="danger"
+              small
+              onPress={() => setSignOutOpen(true)}
+              style={{ alignSelf: 'flex-start' }}
+            />
+            <PillButton
+              label="Delete account"
+              variant="danger"
+              small
+              onPress={() => setDeleteAccountOpen(true)}
+              style={{ alignSelf: 'flex-start' }}
+            />
+          </View>
         </Section>
       </ScrollView>
 

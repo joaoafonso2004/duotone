@@ -32,7 +32,7 @@ interface PlayerState {
   buffering: boolean;
   error: string | null;
   sleepTimerTimeLeft: number;
-  soundPreset: 'normal' | 'slowed' | 'nightcore' | 'fast';
+  soundPreset: 'normal' | 'slowed' | 'fast';
 
   playTrack: (track: Track, queue?: Track[]) => Promise<void>;
   playNext: (track: Track) => void;
@@ -47,7 +47,7 @@ interface PlayerState {
   setShuffle: (v: boolean) => void;
   setSleepTimer: (minutes: number) => void;
   tickSleepTimer: () => void;
-  setSoundPreset: (preset: 'normal' | 'slowed' | 'nightcore' | 'fast') => void;
+  setSoundPreset: (preset: 'normal' | 'slowed' | 'fast') => void;
   pausePlayback: () => void;
   toggleShuffle: () => void;
   setShowRewindButton: (v: boolean) => void;
