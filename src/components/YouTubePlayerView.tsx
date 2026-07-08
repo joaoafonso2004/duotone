@@ -140,6 +140,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const registerYtControls = usePlayer((s) => s.registerYtControls);
   const onStateChange = usePlayer((s) => s._onYtStateChange);
   const setProgress = usePlayer((s) => s._setProgress);
+  const setBuffering = usePlayer((s) => s._setBuffering);
   const setError = usePlayer((s) => s.setError);
 
   const [backend, setBackend] = useState<Backend>('resolving');
@@ -327,6 +328,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (currentTime !== lastProgressRef.current.time) {
       lastProgressRef.current = { time: currentTime, at: Date.now() };
     }
+    // O áudio começou mesmo → deixa de estar "a carregar" (pára o pulsar).
+    if (currentTime > 0) setBuffering(false);
 
     // A duração REAL vem da YouTube Data API (track.durationSeconds), que é
     // fiável. Não usamos player.duration porque alguns streams m4a do YouTube
@@ -360,6 +363,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
     });
   });
+
+  // No embed (webview) a reprodução é do próprio YouTube — deixa de fazer
+  // sentido o estado "a carregar" (pára o pulsar da capa).
+  useEffect(() => {
+    if (backend === 'webview') setBuffering(false);
+  }, [backend, setBuffering]);
 
   // Watchdog: se a app tenciona tocar mas a posição não avança há vários
   // segundos, o AVPlayer não conseguiu arrancar/continuar o stream progressivo

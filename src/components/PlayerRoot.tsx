@@ -40,6 +40,7 @@ export function PlayerRoot() {
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const positionMs = usePlayer((s) => s.positionMs);
   const durationMs = usePlayer((s) => s.durationMs);
+  const buffering = usePlayer((s) => s.buffering);
   const error = usePlayer((s) => s.error);
 
   const playTrack = usePlayer((s) => s.playTrack);
@@ -55,10 +56,27 @@ export function PlayerRoot() {
   // Deslocamento vertical do gesto de "arrastar para baixo para fechar" o
   // now-playing. Soma-se ao translateY do overlay (e da frame de vídeo).
   const dragY = useRef(new Animated.Value(0)).current;
+  // Opacidade da capa: "respira" (fade in/out) enquanto a música carrega.
+  const pulse = useRef(new Animated.Value(1)).current;
 
   const [actionsOpen, setActionsOpen] = useState(false);
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
+
+  // Pulsar suave da capa durante o carregamento; volta a opaco quando toca.
+  useEffect(() => {
+    if (buffering) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 0.4, duration: 750, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1, duration: 750, useNativeDriver: true }),
+        ])
+      );
+      loop.start();
+      return () => loop.stop();
+    }
+    Animated.timing(pulse, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+  }, [buffering, pulse]);
 
   useEffect(() => {
     Animated.spring(anim, {
@@ -444,14 +462,17 @@ export function PlayerRoot() {
           <YouTubePlayerView track={current} />
 
           {/* Mostramos SEMPRE a thumbnail por cima — o áudio nativo continua a
-              tocar por trás. (A app é só áudio; o vídeo é irrelevante.) */}
+              tocar por trás. (A app é só áudio; o vídeo é irrelevante.) A capa
+              "respira" (opacidade a pulsar) enquanto a música carrega. */}
           {current.artworkUrl ? (
-            <Image
-              source={{ uri: current.artworkUrl }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              transition={250}
-            />
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: pulse }]}>
+              <Image
+                source={{ uri: current.artworkUrl }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                transition={250}
+              />
+            </Animated.View>
           ) : null}
 
           {/* No modo mini, tocar no vídeo expande */}
