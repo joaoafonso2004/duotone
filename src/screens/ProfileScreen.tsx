@@ -20,6 +20,7 @@ import { Screen } from '../components/Screen';
 import {
   AVATAR_EMOJIS,
   AVATAR_GRADIENTS,
+  CURATED_AVATARS,
   getAvatarChoice,
   setAvatarChoice,
   type AvatarChoice,
@@ -227,14 +228,22 @@ export function ProfileScreen() {
         {/* ---- cabeçalho ---- */}
         <View style={styles.head}>
           <Pressable onPress={() => setAvatarEditing(true)} style={styles.avatarWrap}>
-            <LinearGradient
-              colors={grad}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.avatar}
-            >
-              <Text style={styles.avatarEmoji}>{avatar?.emoji ?? '🎧'}</Text>
-            </LinearGradient>
+            {avatar?.avatarUrl ? (
+              <Image
+                source={{ uri: avatar.avatarUrl }}
+                style={styles.avatar}
+                contentFit="cover"
+              />
+            ) : (
+              <LinearGradient
+                colors={grad as [string, string, ...string[]]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatar}
+              >
+                <Text style={styles.avatarEmoji}>{avatar?.emoji ?? '🎧'}</Text>
+              </LinearGradient>
+            )}
             <View style={styles.avatarEdit}>
               <Ionicons name="pencil" size={13} color="#fff" />
             </View>
@@ -427,48 +436,137 @@ function AvatarEditor({
   const emoji = value?.emoji ?? AVATAR_EMOJIS[0];
   const gradientIndex = value?.gradientIndex ?? 0;
   const grad = AVATAR_GRADIENTS[gradientIndex];
+  const avatarUrl = value?.avatarUrl;
+
+  const [inputUrl, setInputUrl] = useState(avatarUrl || '');
+
+  useEffect(() => {
+    setInputUrl(value?.avatarUrl || '');
+  }, [value?.avatarUrl, visible]);
+
+  const handleApplyUrl = () => {
+    onChange({ emoji, gradientIndex, avatarUrl: inputUrl.trim() || undefined });
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable style={[styles.sheet, { maxHeight: '90%' }]} onPress={() => {}}>
           <View style={styles.sheetHandle} />
-          <Text style={[type.body, { fontWeight: '700', textAlign: 'center' }]}>Your avatar</Text>
+          
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ gap: spacing.md, paddingBottom: 24 }}
+          >
+            <Text style={[type.body, { fontWeight: '700', textAlign: 'center' }]}>Foto de Perfil</Text>
 
-          <LinearGradient colors={grad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preview}>
-            <Text style={{ fontSize: 42 }}>{emoji}</Text>
-          </LinearGradient>
-
-          <Text style={[type.micro, styles.sheetLabel]}>COLOR</Text>
-          <View style={styles.swatchRow}>
-            {AVATAR_GRADIENTS.map((g, i) => (
-              <Pressable key={i} onPress={() => onChange({ emoji, gradientIndex: i })}>
-                <LinearGradient
-                  colors={g}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[styles.swatch, i === gradientIndex && styles.swatchActive]}
+            <View style={{ alignSelf: 'center', marginVertical: spacing.xs }}>
+              {avatarUrl ? (
+                <Image
+                  source={{ uri: avatarUrl }}
+                  style={styles.preview}
+                  contentFit="cover"
                 />
-              </Pressable>
-            ))}
-          </View>
+              ) : (
+                <LinearGradient colors={grad as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preview}>
+                  <Text style={{ fontSize: 42 }}>{emoji}</Text>
+                </LinearGradient>
+              )}
+            </View>
 
-          <Text style={[type.micro, styles.sheetLabel]}>EMOJI</Text>
-          <View style={styles.emojiGrid}>
-            {AVATAR_EMOJIS.map((em) => (
+            <Text style={[type.micro, styles.sheetLabel]}>LINK DE IMAGEM PERSONALIZADA (URL)</Text>
+            <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
+              <TextInput
+                value={inputUrl}
+                onChangeText={setInputUrl}
+                placeholder="https://exemplo.com/foto.jpg"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.urlInput}
+                onSubmitEditing={handleApplyUrl}
+              />
               <Pressable
-                key={em}
-                onPress={() => onChange({ emoji: em, gradientIndex })}
-                style={[styles.emojiCell, em === emoji && [styles.emojiCellActive, { borderColor: theme.color }]]}
+                onPress={handleApplyUrl}
+                style={({ pressed }) => [
+                  styles.applyBtn,
+                  { backgroundColor: theme.soft },
+                  pressed && { opacity: 0.8 },
+                ]}
               >
-                <Text style={{ fontSize: 24 }}>{em}</Text>
+                <Text style={{ color: theme.color, fontSize: 13, fontWeight: '700' }}>Aplicar</Text>
               </Pressable>
-            ))}
-          </View>
+            </View>
 
-          <Pressable style={styles.doneBtn} onPress={onClose}>
-            <Text style={styles.doneText}>Done</Text>
-          </Pressable>
+            <Text style={[type.micro, styles.sheetLabel]}>ILUSTRAÇÕES RECOMENDADAS</Text>
+            <View style={styles.illustrationGrid}>
+              {CURATED_AVATARS.map((url) => (
+                <Pressable
+                  key={url}
+                  onPress={() => {
+                    setInputUrl(url);
+                    onChange({ emoji, gradientIndex, avatarUrl: url });
+                  }}
+                  style={({ pressed }) => [
+                    styles.illustrationCell,
+                    avatarUrl === url && { borderColor: theme.color },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                >
+                  <Image source={{ uri: url }} style={styles.illustrationImage} contentFit="cover" />
+                </Pressable>
+              ))}
+            </View>
+
+            {avatarUrl ? (
+              <Pressable
+                onPress={() => {
+                  setInputUrl('');
+                  onChange({ emoji, gradientIndex, avatarUrl: undefined });
+                }}
+                style={[styles.removeUrlBtn, { borderColor: colors.borderStrong }]}
+              >
+                <Ionicons name="trash-outline" size={14} color={colors.textSecondary} />
+                <Text style={styles.removeUrlText}>Voltar para Emoji & Gradiente</Text>
+              </Pressable>
+            ) : null}
+
+            <View style={styles.divider} />
+
+            <View style={{ opacity: avatarUrl ? 0.35 : 1 }} pointerEvents={avatarUrl ? 'none' : 'auto'}>
+              <Text style={[type.micro, styles.sheetLabel]}>CORES DO GRADIENTE</Text>
+              <View style={styles.swatchRow}>
+                {AVATAR_GRADIENTS.map((g, i) => (
+                  <Pressable key={i} onPress={() => onChange({ emoji, gradientIndex: i })}>
+                    <LinearGradient
+                      colors={g}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[styles.swatch, i === gradientIndex && styles.swatchActive]}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={[type.micro, styles.sheetLabel, { marginTop: spacing.md }]}>EMOJIS</Text>
+              <View style={styles.emojiGrid}>
+                {AVATAR_EMOJIS.map((em) => (
+                  <Pressable
+                    key={em}
+                    onPress={() => onChange({ emoji: em, gradientIndex })}
+                    style={[styles.emojiCell, em === emoji && [styles.emojiCellActive, { borderColor: theme.color }]]}
+                  >
+                    <Text style={{ fontSize: 24 }}>{em}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            <Pressable style={styles.doneBtn} onPress={onClose}>
+              <Text style={styles.doneText}>Concluído</Text>
+            </Pressable>
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -635,6 +733,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   doneText: { ...type.body, fontWeight: '700' },
+  urlInput: {
+    flex: 1,
+    height: 40,
+    backgroundColor: colors.surfaceHigh,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.md,
+    color: colors.text,
+    fontSize: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
+  },
+  applyBtn: {
+    height: 40,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  illustrationGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginVertical: spacing.xs,
+  },
+  illustrationCell: {
+    width: '22%',
+    aspectRatio: 1,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  illustrationImage: {
+    width: '100%',
+    height: '100%',
+  },
+  removeUrlBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radii.pill,
+    marginTop: spacing.sm,
+  },
+  removeUrlText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
+  },
   dnaCard: {
     borderRadius: radii.lg,
     overflow: 'hidden',
