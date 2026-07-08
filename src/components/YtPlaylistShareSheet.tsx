@@ -35,15 +35,18 @@ export function YtPlaylistShareSheet({
 
   const handleShare = async () => {
     hapticSelection();
-    try {
-      await Share.share({
-        title: `Playlist: ${playlistName}`,
-        message: `Importa a minha playlist "${playlistName}" no Duotone:\n${shareLink}`,
-      });
-      hapticNotification();
-    } catch (err) {
-      console.warn('Erro ao partilhar:', err);
-    }
+    onClose();
+    setTimeout(async () => {
+      try {
+        await Share.share({
+          title: `Playlist: ${playlistName}`,
+          message: `Importa a minha playlist "${playlistName}" no Duotone:\n${shareLink}`,
+        });
+        hapticNotification();
+      } catch (err) {
+        console.warn('Erro ao partilhar:', err);
+      }
+    }, 350);
   };
 
   return (
