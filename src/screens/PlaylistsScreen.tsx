@@ -29,6 +29,7 @@ import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
+import { useTheme } from '../state/theme';
 import type { Playlist } from '../types';
 
 export function PlaylistsScreen() {
@@ -40,6 +41,7 @@ export function PlaylistsScreen() {
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const theme = useTheme((s) => s.theme);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<Playlist | null>(null);
@@ -145,7 +147,7 @@ export function PlaylistsScreen() {
           onPress={() => setCreateOpen(true)}
           style={{ marginBottom: 4 }}
         >
-          <Ionicons name="add-circle" size={30} color={colors.accent} />
+          <Ionicons name="add-circle" size={30} color={theme.color} />
         </Pressable>
       }
     >
@@ -177,7 +179,7 @@ export function PlaylistsScreen() {
         ]}
       >
         <View style={[styles.importIcon, { backgroundColor: colors.surfacePressed }]}>
-          <Ionicons name="share-social" size={16} color={colors.accent} />
+          <Ionicons name="share-social" size={16} color={theme.color} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={[type.body, { fontWeight: '600' }]}>
@@ -189,7 +191,7 @@ export function PlaylistsScreen() {
       </Pressable>
 
       {loading ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} />
+        <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
       ) : playlists.length === 0 ? (
         <EmptyState
           icon="albums-outline"

@@ -9,6 +9,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { colors, radii, spacing } from '../theme';
+import { useTheme } from '../state/theme';
 
 interface Props extends TextInputProps {
   icon?: keyof typeof Ionicons.glyphMap;
@@ -17,6 +18,7 @@ interface Props extends TextInputProps {
 }
 
 export function Input({ icon, onClear, containerStyle, ...rest }: Props) {
+  const theme = useTheme((s) => s.theme);
   return (
     <View style={[styles.wrap, containerStyle]}>
       {icon ? (
@@ -24,7 +26,7 @@ export function Input({ icon, onClear, containerStyle, ...rest }: Props) {
       ) : null}
       <TextInput
         placeholderTextColor={colors.textTertiary}
-        selectionColor={colors.accent}
+        selectionColor={theme.color}
         style={styles.input}
         {...rest}
       />

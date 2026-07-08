@@ -13,6 +13,7 @@ import { TrackRow } from '../components/TrackRow';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing } from '../theme';
+import { useTheme } from '../state/theme';
 import type { Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
@@ -28,6 +29,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
+  const theme = useTheme((s) => s.theme);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
   const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
 
@@ -75,7 +77,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       ) : null}
 
       {loading ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} />
+        <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
       ) : tracks.length === 0 ? (
         <EmptyState
           icon="musical-notes-outline"

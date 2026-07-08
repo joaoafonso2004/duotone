@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { hapticImpact } from '../lib/haptics';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { colors, radii, spacing, type } from '../theme';
+import { useTheme } from '../state/theme';
 import type { Track } from '../types';
 import { SourceBadge } from './SourceBadge';
 
@@ -34,6 +35,8 @@ export function TrackRow({
   selectMode = false,
   selected = false,
 }: Props) {
+  const theme = useTheme((s) => s.theme);
+
   return (
     <Pressable
       onPress={() => {
@@ -43,7 +46,7 @@ export function TrackRow({
       style={({ pressed }) => [
         styles.row,
         pressed && { backgroundColor: colors.surface },
-        active && styles.active,
+        active && { backgroundColor: theme.soft },
       ]}
     >
       {selectMode && (
@@ -77,7 +80,7 @@ export function TrackRow({
       <View style={styles.meta}>
         <Text
           numberOfLines={1}
-          style={[type.body, { fontWeight: '600' }, active && { color: colors.accent }]}
+          style={[type.body, { fontWeight: '600' }, active && { color: theme.color }]}
         >
           {track.title}
         </Text>

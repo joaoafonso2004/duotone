@@ -13,6 +13,7 @@ import {
 import { supabase } from './src/lib/supabase';
 import { useAuth } from './src/state/auth';
 import { usePlayer } from './src/state/player';
+import { useTheme } from './src/state/theme';
 
 export default function App() {
   const init = useAuth((s) => s.init);
@@ -21,6 +22,7 @@ export default function App() {
     init();
     // Hidrata preferências persistidas no arranque da app.
     loadPrefsCache();
+    useTheme.getState().loadTheme();
     Promise.all([getRepeatMode(), getShuffle(), getShowRewindButton()]).then(
       ([repeatMode, shuffle, showRewindButton]) => {
         const player = usePlayer.getState();
