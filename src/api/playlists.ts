@@ -161,3 +161,39 @@ export async function addTracksToPlaylist(
     .upsert(rows, { onConflict: 'playlist_id,track_id', ignoreDuplicates: true });
   if (error) throw error;
 }
+
+export async function importSharedPlaylist(sharedPlaylistId: string): Promise<string> {
+  const { data: plData, error: plError } = await supabase
+    .from('playlists')
+    .select('name')
+    .eq('id', sharedPlaylistId)
+    .single();
+  if (plError || !plData) throw new Error('Shared playlist not found');
+
+  const { data: tracksData, error: tracksError } = await supabase
+    .from('playlist_tracks')
+    .select('position, tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds)')
+    .eq('playlist_id', sharedPlaylistId)
+    .order('position', { ascending: true });
+  if (tracksError) throw tracksError;
+
+  const newPl = await createPlaylist(plData.name + ' (Shared)');
+
+  const tracksToInsert = (tracksData ?? [])
+    .map((row: any) => row.tracks)
+    .filter(Boolean)
+    .map((t: any) => ({
+      source: t.source,
+      sourceId: t.source_id,
+      title: t.title,
+      artist: t.artist,
+      album: t.album,
+      artworkUrl: t.artwork_url,
+      durationSeconds: t.duration_seconds,
+    }));
+
+  if (tracksToInsert.length > 0) {
+    await addTracksToPlaylist(newPl.id, tracksToInsert);
+  }
+  return newPl.id;
+}

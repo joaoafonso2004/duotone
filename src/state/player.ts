@@ -31,6 +31,8 @@ interface PlayerState {
   /** a resolver/descarregar a faixa (ainda não começou a tocar áudio) */
   buffering: boolean;
   error: string | null;
+  sleepTimerTimeLeft: number;
+  soundPreset: 'normal' | 'slowed' | 'nightcore' | 'fast';
 
   playTrack: (track: Track, queue?: Track[]) => Promise<void>;
   playNext: (track: Track) => void;
@@ -43,6 +45,10 @@ interface PlayerState {
   setRepeatMode: (m: RepeatMode) => void;
   cycleRepeat: () => void;
   setShuffle: (v: boolean) => void;
+  setSleepTimer: (minutes: number) => void;
+  tickSleepTimer: () => void;
+  setSoundPreset: (preset: 'normal' | 'slowed' | 'nightcore' | 'fast') => void;
+  pausePlayback: () => void;
   toggleShuffle: () => void;
   setShowRewindButton: (v: boolean) => void;
   setError: (e: string | null) => void;
@@ -71,6 +77,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   durationMs: 0,
   buffering: false,
   error: null,
+  sleepTimerTimeLeft: 0,
+  soundPreset: 'normal',
   _yt: null,
 
   playTrack: async (track, queue) => {
@@ -229,4 +237,30 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   _setIsPlaying: (v) => set({ isPlaying: v }),
 
   _setBuffering: (v) => set({ buffering: v }),
+
+  setSleepTimer: (minutes) => {
+    set({ sleepTimerTimeLeft: minutes * 60 });
+  },
+
+  tickSleepTimer: () => {
+    const { sleepTimerTimeLeft } = get();
+    if (sleepTimerTimeLeft <= 0) return;
+    const next = sleepTimerTimeLeft - 1;
+    set({ sleepTimerTimeLeft: next });
+    if (next === 0) {
+      get().pausePlayback();
+    }
+  },
+
+  setSoundPreset: (preset) => {
+    set({ soundPreset: preset });
+  },
+
+  pausePlayback: () => {
+    const { isPlaying, _yt } = get();
+    if (isPlaying) {
+      _yt?.pause();
+      set({ isPlaying: false });
+    }
+  },
 }));
