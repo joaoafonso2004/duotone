@@ -14,8 +14,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, getLibrary } from '../api/library';
-import { searchYouTube, searchYouTubePlaylists, YtRecommendedPlaylist } from '../api/youtube';
-import { getFlowMix, getHeavyRotation, getForgottenFavorites, getProfileRecentlyPlayed } from '../api/plays';
+import { searchYouTube, searchYouTubePlaylists, getTrendingMusic, YtRecommendedPlaylist } from '../api/youtube';
+import { getFlowMix, getHeavyRotation, getForgottenFavorites, getProfileRecentlyPlayed, getRecentTopArtist } from '../api/plays';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { EmptyState } from '../components/EmptyState';
@@ -24,7 +24,7 @@ import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
-import { hapticImpact, hapticNotification } from '../lib/haptics';
+import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptics';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -61,6 +61,8 @@ export function SearchScreen() {
   const [recommendedPlaylists, setRecommendedPlaylists] = useState<YtRecommendedPlaylist[]>([]);
   const [selectedRecommendPlaylist, setSelectedRecommendPlaylist] = useState<YtRecommendedPlaylist | null>(null);
   const [loadingRecs, setLoadingRecs] = useState(false);
+  const [becauseArtist, setBecauseArtist] = useState<string | null>(null);
+  const [becauseTracks, setBecauseTracks] = useState<Track[]>([]);
 
   const requestId = useRef(0);
 
@@ -71,21 +73,21 @@ export function SearchScreen() {
   const loadRecommendations = async () => {
     setLoadingRecs(true);
     try {
-      const [flow, heavy, forgotten, libTracks, dailyRes, newRes, chillRes, recentRes] = await Promise.all([
+      const [flow, heavy, forgotten, libTracks, trendingRes, chillRes, recentRes, recentArtist] = await Promise.all([
         getFlowMix(12),
         getHeavyRotation(12),
         getForgottenFavorites(12),
         getLibrary(),
-        searchYouTube('top daily hits charts global'),
-        searchYouTube('new music releases global charts 2026'),
+        getTrendingMusic(25),
         searchYouTube('lofi hip hop study focus chill beats'),
         getProfileRecentlyPlayed(12).catch(() => []),
+        getRecentTopArtist().catch(() => null),
       ]);
       setFlowMix(flow);
       setHeavyRotation(heavy);
       setForgottenFavorites(forgotten);
-      setDailyTop(dailyRes.slice(0, 12));
-      setNewReleases(newRes.slice(0, 12));
+      setDailyTop(trendingRes.slice(0, 12));
+      setNewReleases(trendingRes.slice(12, 25));
       setChillFocus(chillRes.slice(0, 12));
       
       const mappedRecent: Track[] = (recentRes ?? []).map((r: any) => ({
@@ -99,6 +101,15 @@ export function SearchScreen() {
         durationSeconds: r.durationSeconds,
       }));
       setListenAgain(mappedRecent);
+
+      // "Porque Ouviste..." — recomendações baseadas no artista mais ouvido recentemente
+      setBecauseArtist(recentArtist);
+      if (recentArtist) {
+        searchYouTube(`${recentArtist} music`).then((tracks) => {
+          const savedIds = new Set(libTracks.map((t) => t.sourceId));
+          setBecauseTracks(tracks.filter((t) => !savedIds.has(t.sourceId)).slice(0, 12));
+        }).catch(() => {});
+      }
 
       // Extract unique artists from library
       const artists = Array.from(
@@ -201,6 +212,11 @@ export function SearchScreen() {
             <Pressable
               key={`${track.source}:${track.sourceId}`}
               onPress={() => playTrack(track, data)}
+              onLongPress={() => {
+                hapticSelection();
+                setActionTrack(track);
+              }}
+              delayLongPress={350}
               style={({ pressed }) => [styles.recCard, pressed && { opacity: 0.8 }]}
             >
               {track.artworkUrl ? (
@@ -354,8 +370,9 @@ export function SearchScreen() {
           ) : (
             <View>
               {listenAgain.length > 0 && renderRecommendationSection('Ouvir Novamente', listenAgain, 'time-outline')}
-              {renderRecommendationSection('Topo Diário', dailyTop, 'trending-up-outline')}
-              {renderRecommendationSection('Novidades do Dia', newReleases, 'musical-notes-outline')}
+              {renderRecommendationSection('Em Alta 🔥', dailyTop, 'trending-up-outline')}
+              {newReleases.length > 0 && renderRecommendationSection('Também em Alta', newReleases, 'musical-notes-outline')}
+              {becauseArtist && becauseTracks.length > 0 && renderRecommendationSection(`Porque Ouviste ${becauseArtist}`, becauseTracks, 'heart-outline')}
               {renderRecommendationSection('Foco & Relaxar', chillFocus, 'cafe-outline')}
               {renderRecommendationSection('Flow do Dia', flowMix, 'sparkles-outline')}
               {renderRecommendationSection('Mais Tocadas Recentes', heavyRotation, 'flame-outline')}

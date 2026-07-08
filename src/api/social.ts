@@ -204,3 +204,18 @@ export async function deleteInboxItem(itemId: string): Promise<void> {
   const { error } = await supabase.from('shared_items').delete().eq('id', itemId);
   if (error) throw new Error('Não foi possível apagar a partilha.');
 }
+
+export async function getFriendCount(): Promise<number> {
+  try {
+    const uid = await currentUserId();
+    const { count, error } = await supabase
+      .from('friendships')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'accepted')
+      .or(`user_a.eq.${uid},user_b.eq.${uid}`);
+    if (error) return 0;
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}

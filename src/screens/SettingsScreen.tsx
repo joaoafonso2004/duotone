@@ -76,7 +76,7 @@ export function SettingsScreen({ navigation }: Props) {
 
   const [audioQuality, setAudioQualityState] = useState<AudioQuality>('high');
   const [showDuration, setShowDuration] = useState(true);
-  const [hapticsOn, setHapticsOn] = useState(true);
+  const [hapticsOn, setHapticsOn] = useState(false);
   const [keepAwakeOn, setKeepAwakeOn] = useState(false);
 
   const [signOutOpen, setSignOutOpen] = useState(false);
@@ -295,17 +295,17 @@ export function SettingsScreen({ navigation }: Props) {
 
           <Label style={{ marginTop: spacing.md }}>Sound Preset (Efeito)</Label>
           <SegmentedControl
-            options={['Normal', 'Slowed', 'Fast']}
+            options={['Slowed', 'Normal', 'Fast']}
             value={
-              soundPreset === 'normal'
+              soundPreset === 'slowed'
                 ? 0
-                : soundPreset === 'slowed'
+                : soundPreset === 'normal'
                 ? 1
                 : 2
             }
             onChange={(i) => {
               hapticSelection();
-              const presets = ['normal', 'slowed', 'fast'] as const;
+              const presets = ['slowed', 'normal', 'fast'] as const;
               setSoundPreset(presets[i]);
             }}
           />
@@ -462,6 +462,7 @@ export function SettingsScreen({ navigation }: Props) {
         onClose={() => setSignOutOpen(false)}
         onConfirm={() => {
           setSignOutOpen(false);
+          usePlayer.getState().close();
           signOut();
         }}
       />

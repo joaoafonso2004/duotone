@@ -124,6 +124,51 @@ export async function searchYouTube(query: string): Promise<Track[]> {
 }
 
 // ------------------------------------------------------------
+// Músicas Em Alta (Trending) — usa o endpoint oficial
+// videos.list?chart=mostPopular&videoCategoryId=10 (Música)
+// ------------------------------------------------------------
+
+const TRENDING_TTL = 4 * 60 * 60 * 1000; // 4 horas
+
+export async function getTrendingMusic(
+  limit = 25,
+  regionCode = 'PT'
+): Promise<Track[]> {
+  const key = `trending_music:v1:${regionCode}:${limit}`;
+  const cached = await cacheGet<Track[]>(key, TRENDING_TTL);
+  if (cached) return cached;
+
+  try {
+    const res = await yfetch('/videos', {
+      part: 'snippet,contentDetails',
+      chart: 'mostPopular',
+      videoCategoryId: '10', // Música
+      regionCode,
+      maxResults: String(limit),
+    });
+
+    const tracks: Track[] = (res.items ?? []).map((v: any) => ({
+      source: 'youtube' as const,
+      sourceId: v.id as string,
+      title: decodeEntities(v.snippet?.title ?? ''),
+      artist: decodeEntities(v.snippet?.channelTitle ?? '') || null,
+      album: null,
+      artworkUrl:
+        v.snippet?.thumbnails?.high?.url ??
+        v.snippet?.thumbnails?.medium?.url ??
+        null,
+      durationSeconds: parseIsoDuration(v?.contentDetails?.duration ?? ''),
+    }));
+
+    await cacheSet(key, tracks);
+    return tracks;
+  } catch (error) {
+    console.error('Error fetching trending music:', error);
+    return [];
+  }
+}
+
+// ------------------------------------------------------------
 // Importação de playlists (apenas metadados)
 // ------------------------------------------------------------
 

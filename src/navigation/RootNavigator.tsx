@@ -3,12 +3,15 @@ import {
   DarkTheme,
   NavigationContainer,
   Theme,
+  createNavigationContainerRef,
 } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
@@ -130,14 +133,24 @@ function Tabs() {
 function Splash() {
   return (
     <View style={styles.splash}>
-      <View style={styles.splashDots}>
-        <View style={[styles.dot, { backgroundColor: colors.youtube }]} />
-        <View style={[styles.dot, { backgroundColor: colors.spotify }]} />
+      <LinearGradient
+        colors={['#0F0F12', '#0A0A0C']}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.splashContent}>
+        <Image
+          source={require('../../assets/icon.png')}
+          style={styles.splashLogo}
+          contentFit="contain"
+        />
+        <Text style={styles.splashText}>Duotone</Text>
+        <ActivityIndicator size="small" color="#8E8E93" style={{ marginTop: 24 }} />
       </View>
-      <Text style={styles.splashText}>Duotone</Text>
     </View>
   );
 }
+
+export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 export function RootNavigator() {
   const session = useAuth((s) => s.session);
@@ -159,7 +172,7 @@ export function RootNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer theme={navTheme} ref={navigationRef}>
       <View style={{ flex: 1 }}>
         {session ? (
           <>
@@ -188,23 +201,23 @@ export function RootNavigator() {
 const styles = StyleSheet.create({
   splash: {
     flex: 1,
-    backgroundColor: colors.bg,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
   },
-  splashDots: {
-    flexDirection: 'row',
-    gap: 6,
+  splashContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  splashLogo: {
+    width: 130,
+    height: 130,
+    marginBottom: 16,
   },
   splashText: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.text,
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#8E8E93',
+    letterSpacing: -0.5,
+    textAlign: 'center',
   },
 });

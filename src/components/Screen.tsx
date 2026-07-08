@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, ViewStyle, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, spacing, type } from '../theme';
 
@@ -19,7 +19,10 @@ interface Props {
 export function Screen({ title, subtitle, right, topLeft, onBack, children, style }: Props) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.root, { paddingTop: insets.top + spacing.sm }]}>
+    <Pressable
+      onPress={() => Keyboard.dismiss()}
+      style={[styles.root, { paddingTop: insets.top + spacing.sm }]}
+    >
       {topLeft ? <View style={styles.topLeftRow}>{topLeft}</View> : null}
       {title ? (
         <View style={styles.header}>
@@ -38,7 +41,7 @@ export function Screen({ title, subtitle, right, topLeft, onBack, children, styl
         </View>
       ) : null}
       <View style={[{ flex: 1 }, style]}>{children}</View>
-    </View>
+    </Pressable>
   );
 }
 

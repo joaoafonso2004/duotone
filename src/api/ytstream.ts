@@ -155,9 +155,11 @@ function pickMp4Audio(
   ];
   const aac = formats
     .filter((f) => f.url && String(f.mimeType ?? '').startsWith('audio/mp4'))
-    .sort((a, b) =>
-      preferLowBitrate ? (a.bitrate ?? 0) - (b.bitrate ?? 0) : (b.bitrate ?? 0) - (a.bitrate ?? 0)
-    );
+    .sort((a, b) => {
+      const bitA = a.bitrate ?? a.averageBitrate ?? 0;
+      const bitB = b.bitrate ?? b.averageBitrate ?? 0;
+      return preferLowBitrate ? bitA - bitB : bitB - bitA;
+    });
   if (aac[0]?.url) {
     return { url: aac[0].url, contentLength: Number(aac[0].contentLength) || null };
   }
