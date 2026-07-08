@@ -20,7 +20,6 @@ import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ProgressBar } from './ProgressBar';
-import { TrackActionsSheet } from './TrackActionsSheet';
 import { YouTubePlayerView } from './YouTubePlayerView';
 
 const TAB_BAR_BASE = 49;
@@ -59,7 +58,6 @@ export function PlayerRoot() {
   // Opacidade da capa: "respira" (fade in/out) enquanto a música carrega.
   const pulse = useRef(new Animated.Value(1)).current;
 
-  const [actionsOpen, setActionsOpen] = useState(false);
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
 
@@ -122,13 +120,20 @@ export function PlayerRoot() {
     })
   ).current;
 
+  // Estado do botão "guardar" da faixa atual (reinicia a cada nova música).
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    setSaved(false);
+  }, [current?.sourceId]);
+
   const saveCurrentToLibrary = async () => {
-    setActionsOpen(false);
-    if (!current) return;
+    if (!current || saved) return;
+    setSaved(true); // otimista
     try {
       await saveToLibrary(current);
       hapticNotification();
     } catch (e: any) {
+      setSaved(false);
       Alert.alert('Error', e?.message ?? 'Could not save the track.');
     }
   };
@@ -147,21 +152,23 @@ export function PlayerRoot() {
   const miniBottom = TAB_H + 8;
   const fraction = durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
 
-  // Frame de vídeo: mini (48px, dentro do mini-player) <-> expandido (cartão com margens)
+  // Capa: mini (quadrado 48px, no mini-player) <-> expandido (quadrado GRANDE
+  // centrado). Antes era 16:9 (herança do vídeo) — agora que é só áudio, a
+  // capa é quadrada e grande, para um look limpo tipo app de música.
+  const ART_FULL = Math.min(W - 48, H * 0.46);
   const vidMini = {
     x: 10 + 8,
     y: H - miniBottom - MINI_PLAYER_HEIGHT + (MINI_PLAYER_HEIGHT - 48) / 2,
-    w: 85,
+    w: 48,
     h: 48,
   };
   const vidFull = {
-    x: 16,
-    y: insets.top + 6 + HEADER_H + 8,
-    w: W - 32,
-    h: ((W - 32) * 9) / 16,
+    x: (W - ART_FULL) / 2,
+    y: insets.top + 6 + HEADER_H + 20,
+    w: ART_FULL,
+    h: ART_FULL,
   };
 
-  const artSize = Math.min(W - 120, 320);
   const upNext = queue.slice(queueIndex + 1, queueIndex + 7);
 
   return (
@@ -222,31 +229,9 @@ export function PlayerRoot() {
           </Pressable>
         </View>
 
-        {/* área do vídeo (o WebView flutua por cima) ou artwork Spotify */}
-        {isYt ? (
-          <View style={{ height: vidFull.h, marginTop: 8 }} />
-        ) : (
-          <View style={styles.artworkWrap}>
-            {current.artworkUrl ? (
-              <Image
-                source={{ uri: current.artworkUrl }}
-                style={[styles.bigArtwork, { width: artSize, height: artSize }]}
-                contentFit="cover"
-                transition={200}
-              />
-            ) : (
-              <View
-                style={[
-                  styles.bigArtwork,
-                  styles.artFallback,
-                  { width: artSize, height: artSize },
-                ]}
-              >
-                <Ionicons name="musical-notes" size={56} color={colors.textTertiary} />
-              </View>
-            )}
-          </View>
-        )}
+        {/* Espaço reservado para a capa quadrada grande (a frame flutua por
+            cima nesta posição). */}
+        <View style={{ height: vidFull.h, marginTop: 20 }} />
 
         <ScrollView
           style={{ flex: 1 }}
@@ -254,9 +239,9 @@ export function PlayerRoot() {
           showsVerticalScrollIndicator={false}
           scrollEnabled={!scrubbing}
         >
-          {/* título + opções */}
+          {/* título + ações visíveis (guardar / adicionar a playlist) */}
           <View style={styles.titleRow}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={2} style={styles.trackTitle}>
                 {current.title}
               </Text>
@@ -266,11 +251,23 @@ export function PlayerRoot() {
             </View>
             <Pressable
               hitSlop={8}
-              onPress={() => setActionsOpen(true)}
-              style={styles.actionsBtn}
-              accessibilityLabel="Track options"
+              onPress={saveCurrentToLibrary}
+              style={[styles.actionsBtn, saved && styles.actionsBtnActive]}
+              accessibilityLabel={saved ? 'Saved to Library' : 'Save to Library'}
             >
-              <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
+              <Ionicons
+                name={saved ? 'heart' : 'heart-outline'}
+                size={20}
+                color={saved ? colors.accent : colors.text}
+              />
+            </Pressable>
+            <Pressable
+              hitSlop={8}
+              onPress={() => setPlaylistOpen(true)}
+              style={styles.actionsBtn}
+              accessibilityLabel="Add to playlist"
+            >
+              <Ionicons name="add" size={22} color={colors.text} />
             </Pressable>
           </View>
 
@@ -459,7 +456,7 @@ export function PlayerRoot() {
             }),
             borderRadius: anim.interpolate({
               inputRange: [0, 1],
-              outputRange: [8, 14],
+              outputRange: [8, 20],
             }),
             transform: [{ translateY: dragY }],
             overflow: 'hidden',
@@ -502,27 +499,7 @@ export function PlayerRoot() {
         </View>
       ) : null}
 
-      {/* ===================== AÇÕES DA FAIXA ===================== */}
-      <TrackActionsSheet
-        visible={actionsOpen}
-        track={current}
-        onClose={() => setActionsOpen(false)}
-        actions={[
-          {
-            icon: 'heart-outline',
-            label: 'Save to Library',
-            onPress: saveCurrentToLibrary,
-          },
-          {
-            icon: 'list-outline',
-            label: 'Add to playlist…',
-            onPress: () => {
-              setActionsOpen(false);
-              setPlaylistOpen(true);
-            },
-          },
-        ]}
-      />
+      {/* ===================== ADICIONAR A PLAYLIST ===================== */}
       <AddToPlaylistSheet
         visible={playlistOpen}
         track={current}
@@ -586,18 +563,22 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   actionsBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: colors.surfaceHigh,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  actionsBtnActive: {
+    backgroundColor: 'rgba(124,58,237,0.16)',
+    borderColor: colors.accent,
+  },
   trackTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 23,
+    fontWeight: '800',
     color: colors.text,
     letterSpacing: 0.1,
   },
@@ -605,7 +586,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     color: colors.textSecondary,
-    marginTop: 3,
+    marginTop: 4,
   },
   controls: {
     flexDirection: 'row',
@@ -679,7 +660,7 @@ const styles = StyleSheet.create({
     paddingRight: 6,
   },
   miniVideoSlot: {
-    width: 85,
+    width: 48,
     height: 48,
     borderRadius: 8,
   },
