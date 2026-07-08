@@ -12,6 +12,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, removeFromLibrary, checkIsSaved } from '../api/library';
@@ -69,6 +70,16 @@ export function PlayerRoot() {
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   const [queueVisible, setQueueVisible] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Pulsar suave da capa durante o carregamento; volta a opaco quando toca.
   useEffect(() => {
@@ -232,7 +243,9 @@ export function PlayerRoot() {
   const ART_FULL = Math.min(W - 64, H * 0.42);
   const vidMini = {
     x: 10 + 8,
-    y: H - miniBottom - MINI_PLAYER_HEIGHT + (MINI_PLAYER_HEIGHT - 48) / 2,
+    y: keyboardVisible && !expanded
+      ? H + 500
+      : H - miniBottom - MINI_PLAYER_HEIGHT + (MINI_PLAYER_HEIGHT - 48) / 2,
     w: 48,
     h: 48,
   };
@@ -450,78 +463,80 @@ export function PlayerRoot() {
       </Animated.View>
 
       {/* ===================== MINI-PLAYER ===================== */}
-      <Animated.View
-        pointerEvents={expanded ? 'none' : 'auto'}
-        style={[
-          styles.mini,
-          {
-            bottom: miniBottom,
-            opacity: anim.interpolate({
-              inputRange: [0, 0.35],
-              outputRange: [1, 0],
-              extrapolate: 'clamp',
-            }),
-          },
-        ]}
-      >
-        <Pressable style={styles.miniInner} onPress={() => setExpanded(true)}>
-          {isYt ? (
-            // slot — o WebView flutua exatamente por cima desta área
-            <View style={styles.miniVideoSlot} />
-          ) : current.artworkUrl ? (
-            <Image
-              source={{ uri: current.artworkUrl }}
-              style={styles.miniArt}
-              contentFit="cover"
-            />
-          ) : (
-            <View style={[styles.miniArt, styles.artFallback]}>
-              <Ionicons name="musical-notes" size={16} color={colors.textTertiary} />
+      {!(keyboardVisible && !expanded) && (
+        <Animated.View
+          pointerEvents={expanded ? 'none' : 'auto'}
+          style={[
+            styles.mini,
+            {
+              bottom: miniBottom,
+              opacity: anim.interpolate({
+                inputRange: [0, 0.35],
+                outputRange: [1, 0],
+                extrapolate: 'clamp',
+              }),
+            },
+          ]}
+        >
+          <Pressable style={styles.miniInner} onPress={() => setExpanded(true)}>
+            {isYt ? (
+              // slot — o WebView flutua exatamente por cima desta área
+              <View style={styles.miniVideoSlot} />
+            ) : current.artworkUrl ? (
+              <Image
+                source={{ uri: current.artworkUrl }}
+                style={styles.miniArt}
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[styles.miniArt, styles.artFallback]}>
+                <Ionicons name="musical-notes" size={16} color={colors.textTertiary} />
+              </View>
+            )}
+
+            <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
+              <Text
+                numberOfLines={1}
+                style={[type.body, { fontWeight: '600', fontSize: 13.5 }]}
+              >
+                {current.title}
+              </Text>
+              <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
+                {current.artist ?? 'YouTube'}
+              </Text>
             </View>
-          )}
 
-          <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
-            <Text
-              numberOfLines={1}
-              style={[type.body, { fontWeight: '600', fontSize: 13.5 }]}
+            <Pressable hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
+              <Ionicons
+                name={isPlaying ? 'pause' : 'play'}
+                size={22}
+                color={colors.text}
+              />
+            </Pressable>
+            <Pressable
+              hitSlop={8}
+              onPress={next}
+              disabled={repeatMode === 'off' && !shuffle && queueIndex >= queue.length - 1}
+              style={[
+                styles.miniBtn,
+                repeatMode === 'off' &&
+                  !shuffle &&
+                  queueIndex >= queue.length - 1 &&
+                  styles.dimmed,
+              ]}
             >
-              {current.title}
-            </Text>
-            <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
-              {current.artist ?? 'YouTube'}
-            </Text>
-          </View>
+              <Ionicons name="play-skip-forward" size={20} color={colors.text} />
+            </Pressable>
+          </Pressable>
 
-          <Pressable hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
-            <Ionicons
-              name={isPlaying ? 'pause' : 'play'}
-              size={22}
-              color={colors.text}
+          {/* linha de progresso fina */}
+          <View style={styles.miniTrack} pointerEvents="none">
+            <View
+              style={[styles.miniTrackFill, { width: `${fraction * 100}%` }]}
             />
-          </Pressable>
-          <Pressable
-            hitSlop={8}
-            onPress={next}
-            disabled={repeatMode === 'off' && !shuffle && queueIndex >= queue.length - 1}
-            style={[
-              styles.miniBtn,
-              repeatMode === 'off' &&
-                !shuffle &&
-                queueIndex >= queue.length - 1 &&
-                styles.dimmed,
-            ]}
-          >
-            <Ionicons name="play-skip-forward" size={20} color={colors.text} />
-          </Pressable>
-        </Pressable>
-
-        {/* linha de progresso fina */}
-        <View style={styles.miniTrack} pointerEvents="none">
-          <View
-            style={[styles.miniTrackFill, { width: `${fraction * 100}%` }]}
-          />
-        </View>
-      </Animated.View>
+          </View>
+        </Animated.View>
+      )}
 
       {/* ============ FRAME DE VÍDEO YOUTUBE (flutuante, nunca desmonta) ============ */}
       {isYt ? (
