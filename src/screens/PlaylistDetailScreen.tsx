@@ -1,26 +1,35 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useCallback, useState } from 'react';
+import { Image } from 'expo-image';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getLibrary } from '../api/library';
 import {
+  addTracksToPlaylist,
   deletePlaylist,
   getPlaylistTracks,
   removeTrackFromPlaylist,
   renamePlaylist,
   setPlaylistOrder,
 } from '../api/playlists';
+import { BottomSheet } from '../components/BottomSheet';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
+import { Input } from '../components/Input';
 import { PromptSheet } from '../components/PromptSheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Screen } from '../components/Screen';
@@ -32,7 +41,7 @@ import { useTheme } from '../state/theme';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type, gradients, radii } from '../theme';
-import type { PlaylistTrack } from '../types';
+import type { PlaylistTrack, Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
@@ -40,6 +49,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
+  const playNext = usePlayer((s) => s.playNext);
+  const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
 
   const [name, setName] = useState(route.params.name);
@@ -55,6 +66,160 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const [removeFor, setRemoveFor] = useState<PlaylistTrack | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const theme = useTheme((s) => s.theme);
+
+  // States for Add Tracks Modal
+  const [addTracksOpen, setAddTracksOpen] = useState(false);
+  const [libraryTracks, setLibraryTracks] = useState<Track[]>([]);
+  const [loadingLibrary, setLoadingLibrary] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [addSearchQuery, setAddSearchQuery] = useState('');
+
+  // States for Sorting
+  const [sortOpen, setSortOpen] = useState(false);
+  const [sortMode, setSortMode] = useState<'default' | 'title' | 'recent' | 'played_recent' | 'played_most' | 'duration'>('default');
+  const [playCounts, setPlayCounts] = useState<Record<string, { count: number; lastPlayed: number }>>({});
+
+  // State for specific track actions (...)
+  const [actionTrack, setActionTrack] = useState<Track | null>(null);
+
+  // Load play counts on mount for sorting
+  useEffect(() => {
+    AsyncStorage.getItem('playCounts:v1').then((raw: string | null) => {
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            setPlayCounts(parsed);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    });
+  }, []);
+
+  // Load library tracks when add modal opens
+  useEffect(() => {
+    if (addTracksOpen) {
+      setLoadingLibrary(true);
+      getLibrary()
+        .then((res) => {
+          setLibraryTracks(res);
+          const currentIds = new Set(tracks.map((t) => t.sourceId));
+          setSelectedIds(currentIds);
+        })
+        .catch(() => {})
+        .finally(() => setLoadingLibrary(false));
+    }
+  }, [addTracksOpen, tracks]);
+
+  const toggleSelectTrack = (sourceId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(sourceId)) {
+        next.delete(sourceId);
+      } else {
+        next.add(sourceId);
+      }
+      return next;
+    });
+    hapticSelection();
+  };
+
+  const saveSelectedTracks = async () => {
+    setBusy(true);
+    try {
+      const toAdd = libraryTracks.filter(
+        (t) => selectedIds.has(t.sourceId) && !tracks.some((pt) => pt.sourceId === t.sourceId)
+      );
+      const toRemove = tracks.filter((pt) => !selectedIds.has(pt.sourceId));
+
+      if (toAdd.length > 0) {
+        await addTracksToPlaylist(id, toAdd);
+      }
+      for (const pt of toRemove) {
+        await removeTrackFromPlaylist(id, pt.id);
+      }
+
+      hapticNotification();
+      load();
+      setAddTracksOpen(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not update playlist tracks.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const filteredLibrary = useMemo(() => {
+    if (!addSearchQuery.trim()) return libraryTracks;
+    const query = addSearchQuery.toLowerCase();
+    return libraryTracks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(query) ||
+        (t.artist ?? '').toLowerCase().includes(query)
+    );
+  }, [libraryTracks, addSearchQuery]);
+
+  const sortedTracks = useMemo(() => {
+    const getPlayKey = (t: Track) => `${t.source}:${t.sourceId}`;
+    switch (sortMode) {
+      case 'title':
+        return [...tracks].sort((a, b) => a.title.localeCompare(b.title));
+      case 'recent':
+        return [...tracks].sort((a, b) => b.position - a.position);
+      case 'played_recent':
+        return [...tracks].sort((a, b) => {
+          const aTime = playCounts[getPlayKey(a)]?.lastPlayed ?? 0;
+          const bTime = playCounts[getPlayKey(b)]?.lastPlayed ?? 0;
+          return bTime - aTime;
+        });
+      case 'played_most':
+        return [...tracks].sort((a, b) => {
+          const aCount = playCounts[getPlayKey(a)]?.count ?? 0;
+          const bCount = playCounts[getPlayKey(b)]?.count ?? 0;
+          return bCount - aCount;
+        });
+      case 'duration':
+        return [...tracks].sort((a, b) => (a.durationSeconds ?? 0) - (b.durationSeconds ?? 0));
+      default:
+        return [...tracks].sort((a, b) => a.position - b.position);
+    }
+  }, [tracks, sortMode, playCounts]);
+
+  const trackActions = useMemo(() => {
+    if (!actionTrack) return [];
+    return [
+      {
+        icon: 'play-outline' as const,
+        label: 'Tocar a seguir',
+        onPress: () => {
+          playNext(actionTrack);
+          setActionTrack(null);
+        },
+      },
+      {
+        icon: 'list-outline' as const,
+        label: 'Adicionar à fila',
+        onPress: () => {
+          addToQueue(actionTrack);
+          setActionTrack(null);
+        },
+      },
+      {
+        icon: 'trash-outline' as const,
+        label: 'Remover da playlist',
+        destructive: true,
+        onPress: () => {
+          setActionTrack(null);
+          const playlistTrack = tracks.find((t) => t.source === actionTrack.source && t.sourceId === actionTrack.sourceId);
+          if (playlistTrack) {
+            setRemoveFor(playlistTrack);
+          }
+        },
+      },
+    ];
+  }, [actionTrack, playNext, addToQueue, tracks]);
 
   const load = useCallback(async () => {
     try {
@@ -146,62 +311,96 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       subtitle={`${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'}`}
       onBack={() => navigation.goBack()}
       right={
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-          {tracks.length > 0 && (
-            <Pressable
-              hitSlop={10}
-              onPress={() => (editMode ? finishEdit() : setEditMode(true))}
-              style={{ padding: 4 }}
-            >
-              <Text style={[type.body, { fontWeight: '600', color: colors.text }]}>
-                {editMode ? 'Done' : 'Edit'}
-              </Text>
-            </Pressable>
-          )}
-          {!editMode && (
-            <Pressable
-              hitSlop={10}
-              onPress={() => setOptionsOpen(true)}
-              style={{ padding: 4 }}
-            >
-              <Ionicons
-                name="ellipsis-horizontal-circle"
-                size={24}
-                color={colors.textSecondary}
-              />
-            </Pressable>
-          )}
-        </View>
+        editMode ? (
+          <Pressable
+            hitSlop={10}
+            onPress={finishEdit}
+            style={{ padding: 4 }}
+          >
+            <Text style={[type.body, { fontWeight: '600', color: theme.color }]}>
+              Done
+            </Text>
+          </Pressable>
+        ) : undefined
       }
     >
       {tracks.length > 0 && !editMode ? (
-        <View style={styles.actionRow}>
-          <Pressable
-            style={styles.playButton}
-            onPress={() => playTrack(tracks[0], tracks)}
-          >
-            <LinearGradient
-              colors={theme.gradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.buttonGradient}
+        <>
+          <View style={styles.actionRow}>
+            <Pressable
+              style={styles.playButton}
+              onPress={() => playTrack(sortedTracks[0], sortedTracks)}
             >
-              <Ionicons name="play" size={18} color={theme.textColorOnGradient} />
-              <Text style={[styles.buttonTextPlay, { color: theme.textColorOnGradient }]}>Play</Text>
-            </LinearGradient>
-          </Pressable>
+              <LinearGradient
+                colors={theme.gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.buttonGradient}
+              >
+                <Ionicons name="play" size={18} color={theme.textColorOnGradient} />
+                <Text style={[styles.buttonTextPlay, { color: theme.textColorOnGradient }]}>Play</Text>
+              </LinearGradient>
+            </Pressable>
 
-          <Pressable
-            style={styles.shuffleButton}
-            onPress={() => {
-              const shuffled = [...tracks].sort(() => Math.random() - 0.5);
-              playTrack(shuffled[0], shuffled);
-            }}
-          >
-            <Ionicons name="shuffle" size={20} color={colors.text} />
-            <Text style={styles.buttonTextShuffle}>Shuffle</Text>
-          </Pressable>
-        </View>
+            <Pressable
+              style={styles.shuffleButton}
+              onPress={() => {
+                const shuffled = [...sortedTracks].sort(() => Math.random() - 0.5);
+                playTrack(shuffled[0], shuffled);
+              }}
+            >
+              <Ionicons name="shuffle" size={20} color={colors.text} />
+              <Text style={styles.buttonTextShuffle}>Shuffle</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.playlistToolbar}>
+            <Pressable
+              style={styles.toolbarItem}
+              onPress={() => {
+                hapticSelection();
+                setAddTracksOpen(true);
+              }}
+            >
+              <Ionicons name="add" size={22} color={theme.color} />
+              <Text style={[styles.toolbarLabel, { color: theme.color }]}>Add tracks</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.toolbarItem}
+              onPress={() => {
+                hapticSelection();
+                setSortOpen(true);
+              }}
+            >
+              <Ionicons name="swap-vertical" size={18} color={colors.text} />
+              <Text style={styles.toolbarLabel}>Sort</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.toolbarItem}
+              onPress={() => {
+                hapticSelection();
+                setSortMode('default');
+                setEditMode(true);
+              }}
+            >
+              <Ionicons name="pencil" size={16} color={colors.text} />
+              <Text style={styles.toolbarLabel}>Edit</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.toolbarItem}
+              onPress={() => {
+                hapticSelection();
+                setOptionsOpen(true);
+              }}
+            >
+              <Ionicons name="ellipsis-horizontal" size={18} color={colors.text} />
+              <Text style={styles.toolbarLabel}>More</Text>
+            </Pressable>
+          </View>
+        </>
       ) : null}
 
       {loading ? (
@@ -214,7 +413,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         />
       ) : (
         <FlatList
-          data={tracks}
+          data={editMode ? tracks : sortedTracks}
           keyExtractor={(t) => t.id}
           contentContainerStyle={{ paddingBottom: bottomPad }}
           renderItem={({ item, index }) =>
@@ -255,7 +454,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                   current?.source === item.source &&
                   current?.sourceId === item.sourceId
                 }
-                onPress={() => playTrack(item, tracks)}
+                onPress={() => playTrack(item, sortedTracks)}
+                onAction={() => setActionTrack(item)}
               />
             )
           }
@@ -335,6 +535,150 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         onClose={() => setRemoveFor(null)}
         onConfirm={doRemoveTrack}
       />
+
+      {/* Sort options bottom sheet */}
+      <BottomSheet visible={sortOpen} onClose={() => setSortOpen(false)}>
+        <Text style={[type.title, { marginBottom: spacing.md }]}>
+          Sort tracks
+        </Text>
+        {(
+          [
+            { label: 'Default order', value: 'default', icon: 'list-outline' },
+            { label: 'Title', value: 'title', icon: 'text-outline' },
+            { label: 'Recently added', value: 'recent', icon: 'time-outline' },
+            { label: 'Recently played', value: 'played_recent', icon: 'play-outline' },
+            { label: 'Most played', value: 'played_most', icon: 'stats-chart-outline' },
+            { label: 'Duration', value: 'duration', icon: 'hourglass-outline' },
+          ] as const
+        ).map((opt) => {
+          const isActive = sortMode === opt.value;
+          return (
+            <Pressable
+              key={opt.value}
+              onPress={() => {
+                hapticSelection();
+                setSortMode(opt.value);
+                setSortOpen(false);
+              }}
+              style={({ pressed }) => [
+                styles.menuOption,
+                pressed && { backgroundColor: colors.surfacePressed },
+                isActive && { backgroundColor: theme.soft },
+              ]}
+            >
+              <Ionicons
+                name={opt.icon}
+                size={20}
+                color={isActive ? theme.color : colors.text}
+              />
+              <Text
+                style={[
+                  type.body,
+                  { fontWeight: '600', marginLeft: 8, flex: 1 },
+                  isActive && { color: theme.color },
+                ]}
+              >
+                {opt.label}
+              </Text>
+              {isActive && (
+                <Ionicons name="checkmark" size={18} color={theme.color} />
+              )}
+            </Pressable>
+          );
+        })}
+      </BottomSheet>
+
+      {/* Track Actions sheet (...) */}
+      <TrackActionsSheet
+        visible={!!actionTrack}
+        track={actionTrack}
+        onClose={() => setActionTrack(null)}
+        actions={trackActions}
+      />
+
+      {/* Add Tracks modal */}
+      <Modal visible={addTracksOpen} animationType="slide">
+        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
+          <View style={styles.modalHeader}>
+            <Pressable onPress={() => setAddTracksOpen(false)} hitSlop={12}>
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </Pressable>
+            <Text style={styles.modalTitle} numberOfLines={1}>
+              Add to {name}
+            </Text>
+            <Pressable onPress={saveSelectedTracks} disabled={busy} hitSlop={12}>
+              {busy ? (
+                <ActivityIndicator size="small" color={theme.color} />
+              ) : (
+                <Text style={[styles.modalDoneText, { color: theme.color }]}>Done</Text>
+              )}
+            </Pressable>
+          </View>
+
+          <View style={styles.modalSearchBox}>
+            <Input
+              icon="search"
+              placeholder="Search library songs"
+              value={addSearchQuery}
+              onChangeText={setAddSearchQuery}
+              onClear={() => setAddSearchQuery('')}
+            />
+          </View>
+
+          {loadingLibrary ? (
+            <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
+          ) : filteredLibrary.length === 0 ? (
+            <EmptyState
+              icon="musical-notes-outline"
+              title="No songs found"
+              subtitle="Add songs to your Library first to add them here."
+            />
+          ) : (
+            <FlatList
+              data={filteredLibrary}
+              keyExtractor={(item) => item.sourceId}
+              contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+              renderItem={({ item }) => {
+                const isSelected = selectedIds.has(item.sourceId);
+                return (
+                  <Pressable
+                    onPress={() => toggleSelectTrack(item.sourceId)}
+                    style={({ pressed }) => [
+                      styles.modalItemRow,
+                      pressed && { backgroundColor: colors.surfacePressed },
+                    ]}
+                  >
+                    <Ionicons
+                      name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={22}
+                      color={isSelected ? theme.color : colors.textTertiary}
+                    />
+                    {item.artworkUrl ? (
+                      <Image
+                        source={{ uri: item.artworkUrl }}
+                        style={styles.modalItemArt}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <View style={[styles.modalItemArt, { alignItems: 'center', justifyContent: 'center' }]}>
+                        <Ionicons name="musical-notes" size={18} color={colors.textTertiary} />
+                      </View>
+                    )}
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
+                        {item.title}
+                      </Text>
+                      <Text numberOfLines={1} style={type.caption}>
+                        {item.artist || 'Unknown Artist'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              }}
+            />
+          )}
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -345,6 +689,83 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
     marginBottom: spacing.lg,
+  },
+  playlistToolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    marginHorizontal: spacing.xl,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  toolbarItem: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    flex: 1,
+  },
+  toolbarLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    letterSpacing: 0.3,
+  },
+  menuOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radii.md,
+    marginVertical: 2,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xl,
+    height: 52,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  modalCancelText: {
+    ...type.body,
+    color: colors.textSecondary,
+  },
+  modalTitle: {
+    ...type.headline,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: spacing.md,
+  },
+  modalDoneText: {
+    ...type.body,
+    fontWeight: '700',
+  },
+  modalSearchBox: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+  },
+  modalItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xl,
+  },
+  modalItemArt: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surfaceHigh,
   },
   playButton: {
     flex: 1,
