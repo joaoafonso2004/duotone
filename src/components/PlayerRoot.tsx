@@ -23,6 +23,7 @@ import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ProgressBar } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
 import { LyricsView } from './LyricsView';
+import { QueueSheet } from './QueueSheet';
 
 const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
@@ -65,6 +66,7 @@ export function PlayerRoot() {
 
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
+  const [queueVisible, setQueueVisible] = useState(false);
 
   // Pulsar suave da capa durante o carregamento; volta a opaco quando toca.
   useEffect(() => {
@@ -215,7 +217,7 @@ export function PlayerRoot() {
     h: ART_FULL,
   };
 
-  const upNext = queue.slice(queueIndex + 1, queueIndex + 7);
+  // upNext is now handled inside QueueSheet
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -276,12 +278,7 @@ export function PlayerRoot() {
             cima nesta posição). */}
         <View style={{ height: vidFull.h, marginTop: 20 }} />
 
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={styles.fullBody}
-          showsVerticalScrollIndicator={false}
-          scrollEnabled={!scrubbing}
-        >
+        <View style={styles.staticBody}>
           {/* título + ações visíveis (guardar / adicionar a playlist) */}
           <View style={styles.titleRow}>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -314,7 +311,7 @@ export function PlayerRoot() {
             </Pressable>
           </View>
 
-          <View style={{ marginTop: spacing.xl }}>
+          <View style={{ marginTop: spacing.md }}>
             <ProgressBar
               positionMs={positionMs}
               durationMs={durationMs}
@@ -391,49 +388,39 @@ export function PlayerRoot() {
               hitSlop={14}
               onPress={() => seekTo(Math.max(0, positionMs - 15000))}
               accessibilityLabel="Rewind 15 seconds"
-              style={{ alignSelf: 'center', marginTop: spacing.md }}
+              style={{ alignSelf: 'center', marginTop: -spacing.sm }}
             >
               <Ionicons name="play-back" size={20} color={colors.textSecondary} />
             </Pressable>
           ) : null}
 
-          {/* a seguir */}
-          {upNext.length > 0 ? (
-            <View style={styles.upNextCard}>
-              <Text style={[type.micro, { marginBottom: spacing.sm }]}>Up next</Text>
-              {upNext.map((t) => (
-                <Pressable
-                  key={`${t.source}:${t.sourceId}`}
-                  onPress={() => playTrack(t, queue)}
-                  style={({ pressed }) => [
-                    styles.upNextRow,
-                    pressed && { backgroundColor: colors.surfacePressed },
-                  ]}
-                >
-                  {t.artworkUrl ? (
-                    <Image
-                      source={{ uri: t.artworkUrl }}
-                      style={styles.upNextArt}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View style={[styles.upNextArt, styles.artFallback]}>
-                      <Ionicons name="musical-notes" size={12} color={colors.textTertiary} />
-                    </View>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text numberOfLines={1} style={[type.body, { fontSize: 14, fontWeight: '600' }]}>
-                      {t.title}
-                    </Text>
-                    <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
-                      {t.artist ?? 'YouTube'}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          ) : null}
-        </ScrollView>
+          {/* Botões Utilitários (Letras & Fila de Reprodução) */}
+          <View style={styles.utilityRow}>
+            <Pressable
+              hitSlop={12}
+              onPress={() => {
+                hapticSelection();
+                setShowLyrics(true);
+              }}
+              style={styles.utilityBtn}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textSecondary} />
+              <Text style={styles.utilityLabel}>Lyrics</Text>
+            </Pressable>
+
+            <Pressable
+              hitSlop={12}
+              onPress={() => {
+                hapticSelection();
+                setQueueVisible(true);
+              }}
+              style={styles.utilityBtn}
+            >
+              <Ionicons name="list-outline" size={18} color={colors.textSecondary} />
+              <Text style={styles.utilityLabel}>Queue</Text>
+            </Pressable>
+          </View>
+        </View>
       </Animated.View>
 
       {/* ===================== MINI-PLAYER ===================== */}
@@ -557,21 +544,13 @@ export function PlayerRoot() {
             </Animated.View>
           ) : null}
 
-          {/* No modo mini, tocar no vídeo expande. No modo full, tocar ativa as letras. */}
+          {/* No modo mini, tocar no vídeo expande */}
           {!expanded ? (
             <Pressable
               style={StyleSheet.absoluteFill}
               onPress={() => setExpanded(true)}
             />
-          ) : (
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              onPress={() => {
-                hapticSelection();
-                setShowLyrics(true);
-              }}
-            />
-          )}
+          ) : null}
         </Animated.View>
       ) : null}
 
@@ -599,11 +578,49 @@ export function PlayerRoot() {
           onClose={() => setShowLyrics(false)}
         />
       )}
+
+      {/* ===================== LISTA DA FILA (QUEUE) ===================== */}
+      <QueueSheet
+        visible={queueVisible}
+        onClose={() => setQueueVisible(false)}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  staticBody: {
+    flex: 1,
+    paddingHorizontal: spacing.xl,
+    justifyContent: 'space-between',
+    paddingBottom: spacing.lg,
+  },
+  utilityRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.xl,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  utilityBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
+  },
+  utilityLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
   full: {
     ...StyleSheet.absoluteFill,
     backgroundColor: colors.bg,
