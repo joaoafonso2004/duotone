@@ -174,7 +174,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (backend !== 'native') return;
     let rate = 1.0;
     if (soundPreset === 'slowed') rate = 0.85;
-    else if (soundPreset === 'nightcore') rate = 1.25;
     else if (soundPreset === 'fast') rate = 1.5;
 
     player.playbackRate = rate;
