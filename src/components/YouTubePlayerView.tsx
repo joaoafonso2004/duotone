@@ -144,6 +144,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const setError = usePlayer((s) => s.setError);
   const repeatMode = usePlayer((s) => s.repeatMode);
   const prev = usePlayer((s) => s.prev);
+  const queue = usePlayer((s) => s.queue);
+  const queueIndex = usePlayer((s) => s.queueIndex);
+  const soundPreset = usePlayer((s) => s.soundPreset);
 
   const [backend, setBackend] = useState<Backend>('resolving');
   const webRef = useRef<WebView>(null);
@@ -165,6 +168,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   useEffect(() => {
     player.loop = repeatMode === 'one';
   }, [player, repeatMode]);
+
+  // Aplica o Preset de Som reativamente na velocidade de reprodução nativa
+  useEffect(() => {
+    if (backend !== 'native') return;
+    let rate = 1.0;
+    if (soundPreset === 'slowed') rate = 0.85;
+    else if (soundPreset === 'nightcore') rate = 1.25;
+    else if (soundPreset === 'fast') rate = 1.5;
+
+    player.playbackRate = rate;
+  }, [backend, player, soundPreset]);
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
   // recente sem re-executar a cada render (a função é recriada em cada um).
@@ -224,6 +238,30 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const alive = () => runId === runIdRef.current;
     if (!alive()) return;
     setBackend('resolving');
+
+    // MODO OFFLINE / CACHE RÁPIDO: Se a música já estiver guardada localmente, toca-a imediatamente
+    const localFile = cachedAudioFile(track.sourceId);
+    if (localFile.exists) {
+      try {
+        await player.replaceAsync({
+          uri: localFile.uri,
+          contentType: 'progressive',
+          metadata: {
+            title: track.title,
+            artist: track.artist ?? 'YouTube',
+            artwork: track.artworkUrl ?? undefined,
+          },
+        });
+        if (!alive()) return;
+        wantsPlayRef.current = true;
+        player.play();
+        setBackend('native');
+        return;
+      } catch (err) {
+        console.warn('Erro a reproduzir ficheiro local em cache, tentando rede:', err);
+      }
+    }
+
     // Fora do try para ficar acessível no catch (diagnóstico do cliente/token).
     let stream: YtStream | undefined;
     try {
@@ -413,6 +451,35 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }, 2000);
     return () => clearInterval(id);
   }, [backend, track.durationSeconds]);
+
+  // Smart Cache: Pré-descarrega a próxima música da fila em segundo plano após 5 segundos
+  useEffect(() => {
+    if (backend !== 'native') return;
+
+    const timer = setTimeout(async () => {
+      const nextIndex = queueIndex + 1;
+      if (nextIndex >= queue.length) return;
+
+      const nextTrack = queue[nextIndex];
+      if (nextTrack.source !== 'youtube') return;
+
+      const file = cachedAudioFile(nextTrack.sourceId);
+      if (file.exists) return; // já descarregado
+
+      try {
+        const quality = await getAudioQuality();
+        const stream = await resolveYouTubeStream(nextTrack.sourceId, quality);
+        if (stream && !stream.isHls) {
+          // Descarregar localmente em segundo plano
+          await downloadProgressiveAudio(nextTrack.sourceId, stream.url, stream.contentLength);
+        }
+      } catch (err) {
+        console.warn('[Smart Cache] Falha ao pré-carregar música seguinte:', err);
+      }
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [track.sourceId, backend, queue, queueIndex]);
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
   useEffect(() => {

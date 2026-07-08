@@ -63,6 +63,10 @@ export function SettingsScreen({ navigation }: Props) {
 
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const setShowRewindButton = usePlayer((s) => s.setShowRewindButton);
+  const soundPreset = usePlayer((s) => s.soundPreset);
+  const setSoundPreset = usePlayer((s) => s.setSoundPreset);
+  const sleepTimerTimeLeft = usePlayer((s) => s.sleepTimerTimeLeft);
+  const setSleepTimer = usePlayer((s) => s.setSleepTimer);
 
   const [audioQuality, setAudioQualityState] = useState<AudioQuality>('high');
   const [showDuration, setShowDuration] = useState(true);
@@ -269,6 +273,49 @@ export function SettingsScreen({ navigation }: Props) {
             value={audioQuality === 'saver' ? 1 : 0}
             onChange={changeAudioQuality}
           />
+
+          <Label style={{ marginTop: spacing.md }}>Sound Preset (Efeito)</Label>
+          <SegmentedControl
+            options={['Normal', 'Slowed', 'Nightcore', 'Fast']}
+            value={
+              soundPreset === 'normal'
+                ? 0
+                : soundPreset === 'slowed'
+                ? 1
+                : soundPreset === 'nightcore'
+                ? 2
+                : 3
+            }
+            onChange={(i) => {
+              hapticSelection();
+              const presets = ['normal', 'slowed', 'nightcore', 'fast'] as const;
+              setSoundPreset(presets[i]);
+            }}
+          />
+
+          <Label style={{ marginTop: spacing.md }}>
+            Sleep Timer (Temporizador)
+            {sleepTimerTimeLeft > 0 && ` — ${formatTimeLeft(sleepTimerTimeLeft)}`}
+          </Label>
+          <SegmentedControl
+            options={['Off', '15m', '30m', '45m', '60m']}
+            value={
+              sleepTimerTimeLeft === 0
+                ? 0
+                : sleepTimerTimeLeft <= 15 * 60
+                ? 1
+                : sleepTimerTimeLeft <= 30 * 60
+                ? 2
+                : sleepTimerTimeLeft <= 45 * 60
+                ? 3
+                : 4
+            }
+            onChange={(i) => {
+              hapticSelection();
+              const mins = [0, 15, 30, 45, 60][i];
+              setSleepTimer(mins);
+            }}
+          />
         </Section>
 
         <Section title="Behavior">
@@ -461,3 +508,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
 });
+
+function formatTimeLeft(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}

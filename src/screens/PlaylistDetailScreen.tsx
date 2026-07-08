@@ -26,6 +26,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
+import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
@@ -51,6 +52,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removeFor, setRemoveFor] = useState<PlaylistTrack | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -265,6 +267,14 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         onClose={() => setOptionsOpen(false)}
         actions={[
           {
+            icon: 'share-social-outline',
+            label: 'Share playlist',
+            onPress: () => {
+              setOptionsOpen(false);
+              setShareOpen(true);
+            },
+          },
+          {
             icon: 'pencil-outline',
             label: 'Rename playlist',
             onPress: () => {
@@ -282,6 +292,13 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             },
           },
         ]}
+      />
+
+      <YtPlaylistShareSheet
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        playlistId={id}
+        playlistName={name}
       />
 
       <PromptSheet

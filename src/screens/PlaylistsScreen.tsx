@@ -18,6 +18,7 @@ import {
   deletePlaylist,
   listPlaylists,
   renamePlaylist,
+  importSharedPlaylist,
 } from '../api/playlists';
 import { ArtworkCollage } from '../components/ArtworkCollage';
 import { ConfirmSheet } from '../components/ConfirmSheet';
@@ -44,6 +45,31 @@ export function PlaylistsScreen() {
   const [optionsFor, setOptionsFor] = useState<Playlist | null>(null);
   const [renameFor, setRenameFor] = useState<Playlist | null>(null);
   const [deleteFor, setDeleteFor] = useState<Playlist | null>(null);
+  const [importSharedOpen, setImportSharedOpen] = useState(false);
+
+  const doImportShared = async (input: string) => {
+    let id = input.trim();
+    if (id.includes('id=')) {
+      const parts = id.split('id=');
+      id = parts[parts.length - 1];
+    }
+    if (!id) {
+      Alert.alert('Error', 'Please enter a valid playlist ID or shared link.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const newPlId = await importSharedPlaylist(id);
+      hapticNotification();
+      setImportSharedOpen(false);
+      load();
+      navigation.navigate('PlaylistDetail', { id: newPlId, name: 'Shared Playlist' });
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not import the shared playlist.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -138,6 +164,26 @@ export function PlaylistsScreen() {
             Import a YouTube playlist
           </Text>
           <Text style={type.caption}>Paste a link, pick the tracks</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+      </Pressable>
+
+      <Pressable
+        onPress={() => setImportSharedOpen(true)}
+        style={({ pressed }) => [
+          styles.importRow,
+          { marginTop: -spacing.md },
+          pressed && { backgroundColor: colors.surfacePressed },
+        ]}
+      >
+        <View style={[styles.importIcon, { backgroundColor: colors.surfacePressed }]}>
+          <Ionicons name="share-social" size={16} color={colors.accent} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[type.body, { fontWeight: '600' }]}>
+            Import a shared playlist
+          </Text>
+          <Text style={type.caption}>Enter a link or playlist ID</Text>
         </View>
         <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
       </Pressable>
@@ -239,6 +285,16 @@ export function PlaylistsScreen() {
         loading={busy}
         onClose={() => setCreateOpen(false)}
         onSubmit={doCreate}
+      />
+
+      <PromptSheet
+        visible={importSharedOpen}
+        title="Import Shared Playlist"
+        placeholder="Paste link or playlist ID"
+        submitLabel="Import"
+        loading={busy}
+        onClose={() => setImportSharedOpen(false)}
+        onSubmit={doImportShared}
       />
 
       <PromptSheet

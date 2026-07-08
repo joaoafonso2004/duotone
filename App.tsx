@@ -47,6 +47,14 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
+  // Temporizador (Sleep Timer) global ticking a cada 1 segundo
+  useEffect(() => {
+    const id = setInterval(() => {
+      usePlayer.getState().tickSleepTimer();
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
