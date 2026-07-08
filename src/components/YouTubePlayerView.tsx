@@ -1,5 +1,5 @@
 import { useEventListener } from 'expo';
-import { useVideoPlayer, VideoView } from 'expo-video';
+import { useVideoPlayer } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
@@ -539,15 +539,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     );
   }
 
-  // resolving | native -> vídeo nativo (preto enquanto o stream carrega).
-  return (
-    <VideoView
-      player={player}
-      style={styles.fill}
-      nativeControls={false}
-      contentFit="cover"
-    />
-  );
+  // resolving | native -> Para poupar bateria e evitar o aquecimento do telemóvel,
+  // não renderizamos o VideoView. Como a app é exclusivamente focada em áudio,
+  // escusamos de forçar o descodificador de vídeo nativo a desenhar frames no ecrã.
+  return null;
 }
 
 const styles = StyleSheet.create({
