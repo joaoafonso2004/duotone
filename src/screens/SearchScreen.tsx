@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, getLibrary } from '../api/library';
 import { searchYouTube, searchYouTubePlaylists, YtRecommendedPlaylist } from '../api/youtube';
-import { getFlowMix, getHeavyRotation, getForgottenFavorites } from '../api/plays';
+import { getFlowMix, getHeavyRotation, getForgottenFavorites, getProfileRecentlyPlayed } from '../api/plays';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { EmptyState } from '../components/EmptyState';
@@ -49,7 +49,10 @@ export function SearchScreen() {
   const [isFocused, setIsFocused] = useState(false);
 
   // Recommendations states
+  const [listenAgain, setListenAgain] = useState<Track[]>([]);
   const [dailyTop, setDailyTop] = useState<Track[]>([]);
+  const [newReleases, setNewReleases] = useState<Track[]>([]);
+  const [chillFocus, setChillFocus] = useState<Track[]>([]);
   const [flowMix, setFlowMix] = useState<Track[]>([]);
   const [heavyRotation, setHeavyRotation] = useState<Track[]>([]);
   const [forgottenFavorites, setForgottenFavorites] = useState<Track[]>([]);
@@ -68,17 +71,34 @@ export function SearchScreen() {
   const loadRecommendations = async () => {
     setLoadingRecs(true);
     try {
-      const [flow, heavy, forgotten, libTracks, dailyRes] = await Promise.all([
+      const [flow, heavy, forgotten, libTracks, dailyRes, newRes, chillRes, recentRes] = await Promise.all([
         getFlowMix(12),
         getHeavyRotation(12),
         getForgottenFavorites(12),
         getLibrary(),
         searchYouTube('top daily hits charts global'),
+        searchYouTube('new music releases global charts 2026'),
+        searchYouTube('lofi hip hop study focus chill beats'),
+        getProfileRecentlyPlayed(12).catch(() => []),
       ]);
       setFlowMix(flow);
       setHeavyRotation(heavy);
       setForgottenFavorites(forgotten);
       setDailyTop(dailyRes.slice(0, 12));
+      setNewReleases(newRes.slice(0, 12));
+      setChillFocus(chillRes.slice(0, 12));
+      
+      const mappedRecent: Track[] = (recentRes ?? []).map((r: any) => ({
+        id: r.id,
+        source: r.source,
+        sourceId: r.sourceId,
+        title: r.title,
+        artist: r.artist,
+        album: null,
+        artworkUrl: r.artworkUrl,
+        durationSeconds: r.durationSeconds,
+      }));
+      setListenAgain(mappedRecent);
 
       // Extract unique artists from library
       const artists = Array.from(
@@ -322,7 +342,10 @@ export function SearchScreen() {
             <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
           ) : (
             <View>
+              {listenAgain.length > 0 && renderRecommendationSection('Ouvir Novamente', listenAgain, 'time-outline')}
               {renderRecommendationSection('Topo Diário', dailyTop, 'trending-up-outline')}
+              {renderRecommendationSection('Novidades do Dia', newReleases, 'musical-notes-outline')}
+              {renderRecommendationSection('Foco & Relaxar', chillFocus, 'cafe-outline')}
               {renderRecommendationSection('Flow do Dia', flowMix, 'sparkles-outline')}
               {renderRecommendationSection('Mais Tocadas Recentes', heavyRotation, 'flame-outline')}
               {renderRecommendationSection('Favoritos Esquecidos', forgottenFavorites, 'heart-dislike-outline')}
