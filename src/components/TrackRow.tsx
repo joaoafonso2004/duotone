@@ -14,6 +14,8 @@ interface Props {
   onPress: () => void;
   onAction?: () => void;
   actionIcon?: keyof typeof Ionicons.glyphMap;
+  selectMode?: boolean;
+  selected?: boolean;
 }
 
 function formatDuration(s: number | null): string {
@@ -29,6 +31,8 @@ export function TrackRow({
   onPress,
   onAction,
   actionIcon = 'ellipsis-horizontal',
+  selectMode = false,
+  selected = false,
 }: Props) {
   return (
     <Pressable
@@ -42,6 +46,15 @@ export function TrackRow({
         active && styles.active,
       ]}
     >
+      {selectMode && (
+        <View style={styles.checkboxContainer}>
+          <Ionicons
+            name={selected ? 'checkbox' : 'square-outline'}
+            size={22}
+            color={selected ? colors.text : colors.textSecondary}
+          />
+        </View>
+      )}
       <View style={styles.artworkWrap}>
         {track.artworkUrl ? (
           <Image
@@ -82,7 +95,7 @@ export function TrackRow({
         <Text style={styles.duration}>{formatDuration(track.durationSeconds)}</Text>
       ) : null}
 
-      {onAction ? (
+      {!selectMode && onAction ? (
         <Pressable
           onPress={() => {
             hapticImpact();
@@ -108,6 +121,11 @@ const styles = StyleSheet.create({
   },
   active: {
     backgroundColor: colors.accentSoft,
+  },
+  checkboxContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 2,
   },
   artworkWrap: {
     borderRadius: radii.sm,

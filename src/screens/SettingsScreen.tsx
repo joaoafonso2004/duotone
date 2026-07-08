@@ -1,10 +1,14 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View, Share } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { clearLibrary } from '../api/library';
 import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
 import { clearStreamMemo } from '../api/ytstream';
+import { listPlaylists, getPlaylistTracks } from '../api/playlists';
+import { supabase } from '../lib/supabase';
 import { BUILD_ID } from '../lib/buildInfo';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { Input } from '../components/Input';
@@ -63,10 +67,14 @@ export function SettingsScreen({ navigation }: Props) {
   const [audioQuality, setAudioQualityState] = useState<AudioQuality>('high');
   const [showDuration, setShowDuration] = useState(true);
   const [hapticsOn, setHapticsOn] = useState(true);
+  const [keepAwakeOn, setKeepAwakeOn] = useState(false);
 
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [clearLibraryOpen, setClearLibraryOpen] = useState(false);
   const [clearingLibrary, setClearingLibrary] = useState(false);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [exportingPlaylists, setExportingPlaylists] = useState(false);
 
   const [potServerUrl, setPotServerUrlState] = useState('');
   const [testingPotServer, setTestingPotServer] = useState(false);
@@ -76,6 +84,13 @@ export function SettingsScreen({ navigation }: Props) {
     getShowTrackDuration().then(setShowDuration);
     getHapticsEnabled().then(setHapticsOn);
     getPoTokenServerUrl().then(setPotServerUrlState);
+
+    // Load Keep Awake setting
+    AsyncStorage.getItem('pref:keepAwake').then((v) => {
+      const active = v === '1';
+      setKeepAwakeOn(active);
+      if (active) activateKeepAwakeAsync();
+    });
   }, []);
 
   const changeAudioQuality = async (i: number) => {
@@ -99,12 +114,22 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   const toggleHaptics = async (v: boolean) => {
-    // Ativa a háptica ANTES de desligar, para o próprio toggle ainda vibrar.
     if (v) setHapticsEnabledCache(true);
     hapticSelection();
     setHapticsOn(v);
     setHapticsEnabledCache(v);
     await setHapticsEnabled(v);
+  };
+
+  const toggleKeepAwake = async (v: boolean) => {
+    setKeepAwakeOn(v);
+    hapticSelection();
+    await AsyncStorage.setItem('pref:keepAwake', v ? '1' : '0');
+    if (v) {
+      await activateKeepAwakeAsync();
+    } else {
+      deactivateKeepAwake();
+    }
   };
 
   const doClearCache = () => {
@@ -142,10 +167,61 @@ export function SettingsScreen({ navigation }: Props) {
       await clearLibrary();
       setClearLibraryOpen(false);
       hapticNotification();
+      Alert.alert('Cleared', 'Your library has been cleared.');
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Could not clear the library.');
     } finally {
       setClearingLibrary(false);
+    }
+  };
+
+  const doExportPlaylists = async () => {
+    setExportingPlaylists(true);
+    try {
+      const playlists = await listPlaylists();
+      const exportData = [];
+      for (const pl of playlists) {
+        const tracks = await getPlaylistTracks(pl.id);
+        exportData.push({
+          name: pl.name,
+          createdAt: pl.createdAt,
+          tracks: tracks.map((t) => ({
+            source: t.source,
+            sourceId: t.sourceId,
+            title: t.title,
+            artist: t.artist,
+            album: t.album,
+            artworkUrl: t.artworkUrl,
+            durationSeconds: t.durationSeconds,
+          })),
+        });
+      }
+      const json = JSON.stringify(exportData, null, 2);
+      hapticNotification();
+      await Share.share({
+        title: 'Duotone Playlists Export',
+        message: json,
+      });
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not export playlists.');
+    } finally {
+      setExportingPlaylists(false);
+    }
+  };
+
+  const doDeleteAccount = async () => {
+    setDeletingAccount(true);
+    try {
+      const { error } = await supabase.rpc('delete_user_account');
+      if (error) throw error;
+      setDeleteAccountOpen(false);
+      hapticNotification();
+      await signOut();
+      Alert.alert('Deleted', 'Your account has been deleted.');
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not delete your account.');
+    } finally {
+      setDeletingAccount(false);
     }
   };
 
@@ -160,7 +236,7 @@ export function SettingsScreen({ navigation }: Props) {
       >
         <Section title="Account">
           <Row label="Email" value={session?.user?.email ?? '—'} />
-          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' }}>
             <PillButton
               label="Reset password"
               variant="ghost"
@@ -174,6 +250,13 @@ export function SettingsScreen({ navigation }: Props) {
               variant="danger"
               small
               onPress={() => setSignOutOpen(true)}
+              style={{ alignSelf: 'flex-start' }}
+            />
+            <PillButton
+              label="Delete account"
+              variant="danger"
+              small
+              onPress={() => setDeleteAccountOpen(true)}
               style={{ alignSelf: 'flex-start' }}
             />
           </View>
@@ -206,6 +289,12 @@ export function SettingsScreen({ navigation }: Props) {
             onChange={toggleHaptics}
             style={{ marginTop: spacing.md }}
           />
+          <ToggleRow
+            label="Keep screen awake"
+            value={keepAwakeOn}
+            onChange={toggleKeepAwake}
+            style={{ marginTop: spacing.md }}
+          />
         </Section>
 
         <Section title="Data">
@@ -226,6 +315,14 @@ export function SettingsScreen({ navigation }: Props) {
             variant="danger"
             small
             onPress={() => setClearLibraryOpen(true)}
+            style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
+          />
+          <PillButton
+            label="Export playlists (JSON)"
+            variant="ghost"
+            small
+            loading={exportingPlaylists}
+            onPress={doExportPlaylists}
             style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
           />
         </Section>
@@ -287,6 +384,17 @@ export function SettingsScreen({ navigation }: Props) {
         onClose={() => setClearLibraryOpen(false)}
         onConfirm={doClearLibrary}
       />
+
+      <ConfirmSheet
+        visible={deleteAccountOpen}
+        title="Delete Account"
+        message="Your account and all your profile data will be permanently deleted. This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        loading={deletingAccount}
+        onClose={() => setDeleteAccountOpen(false)}
+        onConfirm={doDeleteAccount}
+      />
     </Screen>
   );
 }
@@ -330,7 +438,7 @@ function ToggleRow({
       <Switch
         value={value}
         onValueChange={onChange}
-        trackColor={{ false: colors.surfacePressed, true: colors.accent }}
+        trackColor={{ false: colors.surfacePressed, true: colors.text }}
         thumbColor="#fff"
       />
     </View>
