@@ -19,6 +19,7 @@ import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { setRepeatMode as persistRepeatMode, setShuffle as persistShuffle } from '../lib/prefs';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
+import { useTheme } from '../state/theme';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ProgressBar } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
@@ -32,6 +33,7 @@ const APP_NAME = 'Duotone';
 export function PlayerRoot() {
   const insets = useSafeAreaInsets();
   const { width: W, height: H } = useWindowDimensions();
+  const theme = useTheme((s) => s.theme);
 
   const current = usePlayer((s) => s.current);
   const queue = usePlayer((s) => s.queue);
@@ -227,7 +229,7 @@ export function PlayerRoot() {
   // Capa: mini (quadrado 48px, no mini-player) <-> expandido (quadrado GRANDE
   // centrado). Antes era 16:9 (herança do vídeo) — agora que é só áudio, a
   // capa é quadrada e grande, para um look limpo tipo app de música.
-  const ART_FULL = Math.min(W - 48, H * 0.46);
+  const ART_FULL = Math.min(W - 64, H * 0.42);
   const vidMini = {
     x: 10 + 8,
     y: H - miniBottom - MINI_PLAYER_HEIGHT + (MINI_PLAYER_HEIGHT - 48) / 2,
@@ -300,7 +302,7 @@ export function PlayerRoot() {
 
         {/* Espaço reservado para a capa quadrada grande (a frame flutua por
             cima nesta posição). */}
-        <View style={{ height: vidFull.h, marginTop: 20 }} />
+        <View style={{ height: vidFull.h, marginTop: 20, marginBottom: 12 }} />
 
         <View style={styles.staticBody}>
           {/* título + ações visíveis (guardar / adicionar a playlist) */}
@@ -426,10 +428,10 @@ export function PlayerRoot() {
                 hapticSelection();
                 setShowLyrics(true);
               }}
-              style={styles.utilityBtn}
+              style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
             >
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.utilityLabel}>Lyrics</Text>
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.color} />
+              <Text style={[styles.utilityIconLabel, { color: theme.color }]}>Lyrics</Text>
             </Pressable>
 
             <Pressable
@@ -438,10 +440,10 @@ export function PlayerRoot() {
                 hapticSelection();
                 setQueueVisible(true);
               }}
-              style={styles.utilityBtn}
+              style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
             >
-              <Ionicons name="list-outline" size={18} color={colors.textSecondary} />
-              <Text style={styles.utilityLabel}>Queue</Text>
+              <Ionicons name="list" size={18} color={theme.color} />
+              <Text style={[styles.utilityIconLabel, { color: theme.color }]}>Queue</Text>
             </Pressable>
           </View>
         </View>
@@ -622,32 +624,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     justifyContent: 'space-between',
     paddingBottom: spacing.lg,
+    paddingTop: spacing.sm,
   },
   utilityRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: spacing.xl,
+    gap: spacing.lg,
     marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
   },
-  utilityBtn: {
+  utilityIconBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     borderRadius: radii.pill,
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderStrong,
   },
-  utilityLabel: {
+  utilityIconLabel: {
     fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   full: {
     ...StyleSheet.absoluteFill,

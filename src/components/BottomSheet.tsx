@@ -6,6 +6,8 @@ import {
   StyleSheet,
   useWindowDimensions,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radii, spacing } from '../theme';
@@ -37,26 +39,33 @@ export function BottomSheet({ visible, onClose, children }: Props) {
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <Animated.View
-        style={[
-          styles.sheet,
-          {
-            paddingBottom: insets.bottom + spacing.lg,
-            transform: [
+      <View style={StyleSheet.absoluteFill}>
+        <Pressable style={styles.backdrop} onPress={onClose} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.keyboardContainer}
+        >
+          <Animated.View
+            style={[
+              styles.sheet,
               {
-                translateY: anim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [height * 0.4, 0],
-                }),
+                paddingBottom: insets.bottom + spacing.lg,
+                transform: [
+                  {
+                    translateY: anim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [height * 0.45, 0],
+                    }),
+                  },
+                ],
               },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.handle} />
-        {children}
-      </Animated.View>
+            ]}
+          >
+            <View style={styles.handle} />
+            {children}
+          </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -66,11 +75,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     backgroundColor: colors.overlay,
   },
+  keyboardContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
   sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     backgroundColor: colors.surfaceHigh,
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
