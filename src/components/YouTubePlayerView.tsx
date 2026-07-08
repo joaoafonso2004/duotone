@@ -39,14 +39,14 @@ import { type HarvestResult } from './YtStreamHarvester';
  * load player item" ao fazer um pedido sem Range (confirmado por teste).
  */
 
-// Confirmado por teste direto: o CDN só autoriza ~1.000.000 bytes CUMULATIVOS
-// por vídeo/IP sem PO Token (ver nota no topo) — acima de 900_000 já falha de
-// forma consistente. Isto só chega para os primeiros ~20-30s de uma faixa; a
-// única forma de ir além é o stream vir do YtStreamHarvester (token genuíno).
-const CHUNK_BYTES = 900_000;
-// Espaço entre pedidos consecutivos — imita o ritmo natural de um player real
-// em vez de rajadas instantâneas.
-const CHUNK_PACING_MS = 400;
+// Com o cliente ANDROID_VR já NÃO existe o antigo limite de ~1MB por vídeo
+// (confirmado por teste: o ficheiro inteiro descarrega em pedaços grandes sem
+// estancar). Por isso usamos pedaços grandes e sem pausas — é a diferença
+// entre uma música de 27 min carregar em segundos vs. em minutos.
+const CHUNK_BYTES = 4_000_000;
+// Sem pausa entre pedidos (o antigo ritmo lento existia só para o limite de
+// 1MB que já não se aplica).
+const CHUNK_PACING_MS = 0;
 const MAX_ATTEMPTS_PER_CHUNK = 4;
 
 function sleep(ms: number): Promise<void> {
@@ -168,11 +168,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // Evita disparar "ended" mais do que uma vez por faixa (ver bug da duração
   // a dobrar mais abaixo).
   const endedRef = useRef(false);
+  // Watchdog de "stream preso" (músicas longas no 4G): última posição vista +
+  // quando, e se o player tenciona estar a tocar. Ver mais abaixo.
+  const lastProgressRef = useRef({ time: 0, at: Date.now() });
+  const playingRef = useRef(false);
 
   useEffect(() => {
     const myRun = ++runIdRef.current;
     streamRef.current = undefined;
     downloadTriedRef.current = false;
+    lastProgressRef.current = { time: 0, at: Date.now() };
+    playingRef.current = false;
     endedRef.current = false;
     // Silenciar JÁ a faixa anterior enquanto a nova resolve (senão continuava
     // a tocar de fundo durante a resolução da nova).
@@ -264,12 +270,57 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   };
   proceedRef.current = proceedWithPlayerResponse;
 
+  // Rede de segurança: troca o streaming direto (que pode ESTANCAR em músicas
+  // longas no 4G) pelo download do ficheiro inteiro aos pedaços — que provei
+  // descarregar sem estancar. Retoma na posição atual (não recomeça). Devolve
+  // `true` se assumiu o caso (arrancou o download ou desistiu p/ embed).
+  const runDownloadFallback = async (): Promise<boolean> => {
+    const stream = streamRef.current;
+    if (!stream || stream.isHls || downloadTriedRef.current) return false;
+    downloadTriedRef.current = true;
+    const myRun = runIdRef.current;
+    const resumeAt = player.currentTime;
+    try {
+      const uri = await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength);
+      if (myRun !== runIdRef.current) return true;
+      await player.replaceAsync({
+        uri,
+        contentType: 'progressive',
+        metadata: {
+          title: track.title,
+          artist: track.artist ?? 'YouTube',
+          artwork: track.artworkUrl ?? undefined,
+        },
+      });
+      if (myRun !== runIdRef.current) return true;
+      try {
+        if (resumeAt > 1) player.currentTime = resumeAt;
+      } catch {
+        // ignorar — recomeça do início se o seek falhar
+      }
+      player.play();
+    } catch (e: any) {
+      if (myRun !== runIdRef.current) return true;
+      setError(`[build ${BUILD_ID}] YouTube: playback error (${e?.message ?? 'unknown'}), using embed.`);
+      setBackend('webview');
+    }
+    return true;
+  };
+  const fallbackRef = useRef(runDownloadFallback);
+  fallbackRef.current = runDownloadFallback;
+
   // Eventos do player nativo -> store
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    playingRef.current = isPlaying;
     if (backend === 'native') onStateChange(isPlaying ? 'playing' : 'paused');
   });
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     if (backend !== 'native') return;
+    // Regista avanço real da posição (para o watchdog de stream preso).
+    if (currentTime !== lastProgressRef.current.time) {
+      lastProgressRef.current = { time: currentTime, at: Date.now() };
+    }
+
     // A duração REAL vem da YouTube Data API (track.durationSeconds), que é
     // fiável. Não usamos player.duration porque alguns streams m4a do YouTube
     // reportam o DOBRO da duração (contentor com duração errada) — o áudio
@@ -295,39 +346,30 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   });
   useEventListener(player, 'statusChange', ({ status, error }) => {
     if (backend !== 'native' || status !== 'error') return;
-    const stream = streamRef.current;
-    // Rede de segurança: se o streaming direto falhar (ex.: o AVPlayer não
-    // gosta deste mp4 em direto), descarregar o ficheiro inteiro primeiro (o
-    // caminho antigo, mais lento mas robusto) antes de desistir para o embed.
-    if (stream && !stream.isHls && !downloadTriedRef.current) {
-      downloadTriedRef.current = true;
-      const myRun = runIdRef.current;
-      (async () => {
-        try {
-          const uri = await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength);
-          if (myRun !== runIdRef.current) return;
-          await player.replaceAsync({
-            uri,
-            contentType: 'progressive',
-            metadata: {
-              title: track.title,
-              artist: track.artist ?? 'YouTube',
-              artwork: track.artworkUrl ?? undefined,
-            },
-          });
-          if (myRun !== runIdRef.current) return;
-          player.play();
-        } catch (e: any) {
-          if (myRun !== runIdRef.current) return;
-          setError(`[build ${BUILD_ID}] YouTube: playback error (${e?.message ?? 'unknown'}), using embed.`);
-          setBackend('webview');
-        }
-      })();
-      return;
-    }
-    setError(`[build ${BUILD_ID}] YouTube: playback error (${error?.message ?? 'unknown'}), using embed.`);
-    setBackend('webview');
+    fallbackRef.current().then((handled) => {
+      if (!handled) {
+        setError(`[build ${BUILD_ID}] YouTube: playback error (${error?.message ?? 'unknown'}), using embed.`);
+        setBackend('webview');
+      }
+    });
   });
+
+  // Watchdog de "stream preso": se o player tenciona estar a tocar mas a
+  // posição não avança há vários segundos (típico do progressivo a estancar em
+  // músicas longas no 4G), muda automaticamente para o download do ficheiro.
+  useEffect(() => {
+    if (backend !== 'native') return;
+    const id = setInterval(() => {
+      if (downloadTriedRef.current || !playingRef.current) return;
+      const stuckMs = Date.now() - lastProgressRef.current.at;
+      const dur = track.durationSeconds ?? 0;
+      const nearEnd = dur > 0 && lastProgressRef.current.time >= dur - 2;
+      if (stuckMs > 7000 && !nearEnd) {
+        fallbackRef.current();
+      }
+    }, 3000);
+    return () => clearInterval(id);
+  }, [backend, track.durationSeconds]);
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
   useEffect(() => {
