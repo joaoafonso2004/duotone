@@ -300,14 +300,20 @@ export function SearchScreen() {
       {loading ? (
         <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
       ) : errorMsg ? (
-        <EmptyState
-          icon="cloud-offline-outline"
-          title="Something went wrong"
-          subtitle={errorMsg}
-        />
+        <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
+          <EmptyState
+            icon="cloud-offline-outline"
+            title="Something went wrong"
+            subtitle={errorMsg}
+          />
+        </Pressable>
       ) : query.trim().length < 2 && isFocused && history.length > 0 ? (
         /* Focused Search input - Show Search History */
-        <View style={{ paddingHorizontal: spacing.xl }}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: bottomPad }}
+        >
           <View style={styles.historyHeader}>
             <Text style={type.micro}>Recent searches</Text>
             <Pressable hitSlop={8} onPress={doClearHistory}>
@@ -334,10 +340,15 @@ export function SearchScreen() {
               </Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
       ) : query.trim().length < 2 && !isFocused ? (
         /* Default state - Show Recommendations */
-        <ScrollView contentContainerStyle={{ paddingBottom: bottomPad }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{ paddingBottom: bottomPad }}
+          showsVerticalScrollIndicator={false}
+        >
           {loadingRecs && flowMix.length === 0 ? (
             <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
           ) : (
@@ -373,15 +384,17 @@ export function SearchScreen() {
           )}
         </ScrollView>
       ) : results.length === 0 ? (
-        <EmptyState
-          icon="logo-youtube"
-          title={query.trim().length >= 2 ? 'No results' : 'Start typing to search'}
-          subtitle={
-            query.trim().length >= 2
-              ? 'Try a different search term.'
-              : 'Search YouTube and play tracks as native audio.'
-          }
-        />
+        <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
+          <EmptyState
+            icon="logo-youtube"
+            title={query.trim().length >= 2 ? 'No results' : 'Start typing to search'}
+            subtitle={
+              query.trim().length >= 2
+                ? 'Try a different search term.'
+                : 'Search YouTube and play tracks as native audio.'
+            }
+          />
+        </Pressable>
       ) : (
         <FlatList
           data={results}
