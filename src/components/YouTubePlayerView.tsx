@@ -245,12 +245,16 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (!alive()) return;
       streamRef.current = stream;
 
-      // Streaming DIRETO — o AVPlayer descarrega à medida que toca (com os
-      // seus próprios pedidos Range). Os clientes android já não têm o limite
-      // de 1MB, por isso não é preciso descarregar o ficheiro todo primeiro
-      // (era isso que causava os ~20s de espera antes de começar).
+      // Descarrega primeiro se for progressive (comportamento antigo e fiável).
+      let playableUri = stream.url;
+      if (!stream.isHls) {
+        downloadTriedRef.current = true;
+        playableUri = await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength);
+        if (!alive()) return;
+      }
+
       await player.replaceAsync({
-        uri: stream.url,
+        uri: playableUri,
         contentType: stream.isHls ? 'hls' : 'progressive',
         metadata: {
           title: track.title,
@@ -259,9 +263,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         },
       });
       if (!alive()) return;
-      // Cronómetro do watchdog começa AQUI (quando mandamos tocar). Se a
-      // posição não sair de ~0 nos próximos segundos, o AVPlayer não arrancou
-      // o progressivo (típico de músicas longas) → cai-se para o download.
+      // Cronómetro do watchdog começa AQUI (quando mandamos tocar).
       lastProgressRef.current = { time: 0, at: Date.now() };
       wantsPlayRef.current = true;
       player.play();
