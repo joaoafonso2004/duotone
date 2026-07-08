@@ -3,7 +3,7 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -78,6 +78,85 @@ export function ProfileScreen() {
   const [recent, setRecent] = useState<ProfilePlayEntry[]>([]);
   const [stats, setStats] = useState<DbPlayStats | null>(null);
   const theme = useTheme((s) => s.theme);
+
+  const musicDNA = useMemo(() => {
+    if (mostPlayed.length === 0) {
+      return {
+        vibe: 'Explorador Curioso',
+        description: 'Começa a ouvir músicas no Duotone para revelares o teu ADN musical!',
+        emoji: '🚶‍♂️',
+        gradient: ['#7c3aed', '#db2777'],
+      };
+    }
+
+    let chillCount = 0;
+    let energyCount = 0;
+    let electronicCount = 0;
+
+    mostPlayed.forEach((t) => {
+      const text = `${t.title} ${t.artist}`.toLowerCase();
+      if (
+        text.includes('lofi') ||
+        text.includes('chill') ||
+        text.includes('relax') ||
+        text.includes('sleep') ||
+        text.includes('ambient') ||
+        text.includes('study')
+      ) {
+        chillCount += 2;
+      }
+      if (
+        text.includes('electronic') ||
+        text.includes('dance') ||
+        text.includes('synth') ||
+        text.includes('techno') ||
+        text.includes('remix') ||
+        text.includes('beat')
+      ) {
+        electronicCount += 1;
+      }
+      if (
+        text.includes('rock') ||
+        text.includes('pop') ||
+        text.includes('energy') ||
+        text.includes('rap') ||
+        text.includes('hip hop') ||
+        text.includes('trap')
+      ) {
+        energyCount += 1;
+      }
+    });
+
+    if (chillCount > energyCount && chillCount > electronicCount) {
+      return {
+        vibe: 'Foco & Meditação',
+        description: 'Procuras a tranquilidade. O teu ADN é feito de batidas lofi e melodias calmas.',
+        emoji: '🧘‍♂️',
+        gradient: ['#06b6d4', '#3b82f6'],
+      };
+    } else if (electronicCount > chillCount && electronicCount > energyCount) {
+      return {
+        vibe: 'Sintetizadores & Dance',
+        description: 'Sentes o ritmo na pele. Preferes graves profundos e sintetizadores espaciais.',
+        emoji: '⚡',
+        gradient: ['#ec4899', '#8b5cf6'],
+      };
+    } else if (energyCount > chillCount) {
+      return {
+        vibe: 'Ritmo & Energia',
+        description: 'O teu som é dinâmico. Adoras melodias cativantes e batidas vibrantes.',
+        emoji: '🔥',
+        gradient: ['#f97316', '#ef4444'],
+      };
+    } else {
+      return {
+        vibe: 'Explorador Eclético',
+        description: 'A tua mente musical não tem fronteiras. Descobres e misturas todos os géneros.',
+        emoji: '🌌',
+        gradient: ['#a855f7', '#ec4899'],
+      };
+    }
+  }, [mostPlayed]);
 
   const loadStats = useCallback(() => {
     getProfileMostPlayed(20).then(setMostPlayed);
@@ -203,6 +282,24 @@ export function ProfileScreen() {
             value={stats?.topArtist?.name ?? '—'}
             small
           />
+        </View>
+
+        {/* ---- Vibe / ADN Musical ---- */}
+        <View style={styles.dnaCard}>
+          <LinearGradient
+            colors={musicDNA.gradient as [string, string, ...string[]]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.dnaGradient}
+          />
+          <View style={styles.dnaContent}>
+            <View style={styles.dnaHeaderRow}>
+              <Text style={styles.dnaTitle}>ADN MUSICAL</Text>
+              <Text style={styles.dnaEmoji}>{musicDNA.emoji}</Text>
+            </View>
+            <Text style={styles.dnaVibe}>{musicDNA.vibe}</Text>
+            <Text style={styles.dnaDesc}>{musicDNA.description}</Text>
+          </View>
         </View>
 
         {/* ---- mais ouvidas ---- */}
@@ -538,4 +635,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   doneText: { ...type.body, fontWeight: '700' },
+  dnaCard: {
+    borderRadius: radii.lg,
+    overflow: 'hidden',
+    position: 'relative',
+    minHeight: 100,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  dnaGradient: {
+    ...StyleSheet.absoluteFill,
+    opacity: 0.15,
+  },
+  dnaContent: {
+    padding: spacing.md,
+    gap: 4,
+  },
+  dnaHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dnaTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    color: colors.textSecondary,
+  },
+  dnaEmoji: {
+    fontSize: 22,
+  },
+  dnaVibe: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+    marginTop: 2,
+  },
+  dnaDesc: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 16,
+    marginTop: 4,
+  },
 });
