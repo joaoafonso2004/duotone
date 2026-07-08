@@ -79,13 +79,20 @@ export function PlayerRoot() {
   }, [buffering, pulse]);
 
   useEffect(() => {
+    // Repõe o gesto de arrasto e re-sincroniza a animação com `expanded`.
+    // Corre também a CADA nova faixa (current.sourceId) — sem isto, ao
+    // fechar (X) e abrir outra música o `anim` podia ficar dessincronizado
+    // (overlay visível mas com pointerEvents 'none'), deixando o utilizador
+    // "preso" a ver a página sem conseguir tocar em nada.
+    dragY.setValue(0);
     Animated.spring(anim, {
       toValue: expanded ? 1 : 0,
       useNativeDriver: false,
       speed: 14,
       bounciness: 3,
     }).start();
-  }, [expanded, anim]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, anim, dragY, current?.sourceId]);
 
   // Gesto de arrastar para baixo (no cabeçalho) para fechar o now-playing.
   const dismissPan = useRef(
