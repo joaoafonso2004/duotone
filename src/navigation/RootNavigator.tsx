@@ -139,7 +139,7 @@ function Splash() {
       />
       <View style={styles.splashContent}>
         <Image
-          source={require('../../assets/icon.png')}
+          source={require('../../assets/login_bg.png')}
           style={styles.splashLogo}
           contentFit="contain"
         />

@@ -23,7 +23,7 @@ import { colors, radii, spacing, type } from '../theme';
 
 export function AuthScreen() {
   const insets = useSafeAreaInsets();
-  const { width: W } = useWindowDimensions();
+  const { width: W, height: H } = useWindowDimensions();
   const signIn = useAuth((s) => s.signIn);
   const signUp = useAuth((s) => s.signUp);
 
@@ -113,28 +113,29 @@ export function AuthScreen() {
         style={StyleSheet.absoluteFill}
       />
 
+      {/* Background interlocking circles brand image (blended at the top 44% height) */}
+      <Image
+        source={require('../../assets/login_bg.png')}
+        style={styles.headerBg}
+        contentFit="cover"
+      />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
         <ScrollView
           contentContainerStyle={[
-            styles.body,
-            { paddingTop: insets.top, paddingBottom: insets.bottom + 20 },
+            styles.scrollContent,
+            { paddingTop: insets.top, paddingBottom: insets.bottom + 30 },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Logo / Círculos da Marca (Huge layout overlapping the top half) */}
-          <View style={[styles.logoContainer, { width: W }]}>
-            <Image
-              source={require('../../assets/icon.png')}
-              style={[styles.logo, { width: W * 0.9, height: W * 0.9 }]}
-              contentFit="contain"
-            />
-          </View>
+          {/* Spacer to push form below the header circles */}
+          <View style={{ height: H * 0.35 }} />
 
-          {/* Wordmark Duotone (Centered, small, subtle gray, no taglines) */}
+          {/* Wordmark Duotone (Centered, small, subtle gray) */}
           <View style={styles.brand}>
             <Text style={styles.wordmark}>Duotone</Text>
           </View>
@@ -287,21 +288,20 @@ export function AuthScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+    backgroundColor: '#0A0A0C',
   },
-  body: {
+  headerBg: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '42%',
+    opacity: 0.85,
+  },
+  scrollContent: {
     paddingHorizontal: spacing.xl,
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -40,
-    marginBottom: spacing.xs,
-  },
-  logo: {
-    maxHeight: 340,
+    justifyContent: 'flex-start',
   },
   brand: {
     alignItems: 'center',
