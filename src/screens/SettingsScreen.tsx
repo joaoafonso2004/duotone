@@ -21,7 +21,6 @@ import {
   setHapticsEnabled,
   setHapticsEnabledCache,
   setPoTokenServerUrl,
-  setRepeatQueue as persistRepeatQueue,
   setShowRewindButton as persistShowRewindButton,
   setShowTrackDuration as persistShowTrackDuration,
   setShowTrackDurationCache,
@@ -58,8 +57,6 @@ export function SettingsScreen({ navigation }: Props) {
     }
   };
 
-  const repeatQueue = usePlayer((s) => s.repeatQueue);
-  const setRepeatQueue = usePlayer((s) => s.setRepeatQueue);
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const setShowRewindButton = usePlayer((s) => s.setShowRewindButton);
 
@@ -86,12 +83,6 @@ export function SettingsScreen({ navigation }: Props) {
     setAudioQualityState(v);
     hapticSelection();
     await setAudioQuality(v);
-  };
-
-  const toggleRepeatQueue = async (v: boolean) => {
-    setRepeatQueue(v);
-    hapticSelection();
-    await persistRepeatQueue(v);
   };
 
   const toggleShowRewind = async (v: boolean) => {
@@ -194,13 +185,6 @@ export function SettingsScreen({ navigation }: Props) {
             options={['High', 'Data saver']}
             value={audioQuality === 'saver' ? 1 : 0}
             onChange={changeAudioQuality}
-          />
-
-          <ToggleRow
-            label="Repeat queue when it ends"
-            value={repeatQueue}
-            onChange={toggleRepeatQueue}
-            style={{ marginTop: spacing.lg }}
           />
         </Section>
 

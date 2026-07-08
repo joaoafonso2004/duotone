@@ -9,6 +9,9 @@ export interface YtControls {
   seek: (ms: number) => void;
 }
 
+/** off = pára no fim · all = repete a fila · one = repete a música atual. */
+export type RepeatMode = 'off' | 'all' | 'one';
+
 interface PlayerState {
   current: Track | null;
   queue: Track[];
@@ -16,8 +19,10 @@ interface PlayerState {
   isPlaying: boolean;
   /** overlay Now Playing expandido vs mini-player */
   expanded: boolean;
-  /** repetir a fila do início ao chegar ao fim (preferência das Definições) */
-  repeatQueue: boolean;
+  /** modo de repetição (botão no player) */
+  repeatMode: RepeatMode;
+  /** ordem aleatória ao avançar (botão no player) */
+  shuffle: boolean;
   /** mostrar o botão de recuar 15s no player expandido (preferência das Definições) */
   showRewindButton: boolean;
   positionMs: number;
@@ -32,7 +37,10 @@ interface PlayerState {
   prev: () => Promise<void>;
   close: () => Promise<void>;
   setExpanded: (v: boolean) => void;
-  setRepeatQueue: (v: boolean) => void;
+  setRepeatMode: (m: RepeatMode) => void;
+  cycleRepeat: () => void;
+  setShuffle: (v: boolean) => void;
+  toggleShuffle: () => void;
   setShowRewindButton: (v: boolean) => void;
   setError: (e: string | null) => void;
 
@@ -53,7 +61,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   queueIndex: 0,
   isPlaying: false,
   expanded: false,
-  repeatQueue: false,
+  repeatMode: 'off',
+  shuffle: false,
   showRewindButton: false,
   positionMs: 0,
   durationMs: 0,
@@ -94,10 +103,20 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   next: async () => {
-    const { queue, queueIndex, repeatQueue, playTrack } = get();
+    const { queue, queueIndex, repeatMode, shuffle, playTrack } = get();
+    if (queue.length === 0) return;
+
+    // Shuffle: salta para uma faixa aleatória diferente da atual.
+    if (shuffle && queue.length > 1) {
+      let r = queueIndex;
+      while (r === queueIndex) r = Math.floor(Math.random() * queue.length);
+      await playTrack(queue[r], queue);
+      return;
+    }
+
     if (queueIndex + 1 < queue.length) {
       await playTrack(queue[queueIndex + 1], queue);
-    } else if (repeatQueue && queue.length > 0) {
+    } else if (repeatMode === 'all') {
       await playTrack(queue[0], queue);
     } else {
       set({ isPlaying: false });
@@ -105,10 +124,10 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   prev: async () => {
-    const { queue, queueIndex, repeatQueue, playTrack } = get();
+    const { queue, queueIndex, repeatMode, playTrack } = get();
     if (queueIndex - 1 >= 0) {
       await playTrack(queue[queueIndex - 1], queue);
-    } else if (repeatQueue && queue.length > 0) {
+    } else if (repeatMode === 'all' && queue.length > 0) {
       await playTrack(queue[queue.length - 1], queue);
     }
   },
@@ -138,7 +157,13 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   setExpanded: (v) => set({ expanded: v }),
-  setRepeatQueue: (v) => set({ repeatQueue: v }),
+  setRepeatMode: (m) => set({ repeatMode: m }),
+  cycleRepeat: () =>
+    set((s) => ({
+      repeatMode: s.repeatMode === 'off' ? 'all' : s.repeatMode === 'all' ? 'one' : 'off',
+    })),
+  setShuffle: (v) => set({ shuffle: v }),
+  toggleShuffle: () => set((s) => ({ shuffle: !s.shuffle })),
   setShowRewindButton: (v) => set({ showRewindButton: v }),
   setError: (e) => set({ error: e }),
 

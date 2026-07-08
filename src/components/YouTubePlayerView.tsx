@@ -142,6 +142,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const setProgress = usePlayer((s) => s._setProgress);
   const setBuffering = usePlayer((s) => s._setBuffering);
   const setError = usePlayer((s) => s.setError);
+  const repeatMode = usePlayer((s) => s.repeatMode);
 
   const [backend, setBackend] = useState<Backend>('resolving');
   const webRef = useRef<WebView>(null);
@@ -157,6 +158,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     p.timeUpdateEventInterval = 1;
     p.loop = false;
   });
+
+  // Repeat "one": o player nativo repete a própria faixa (sem passar por
+  // 'ended'/next). Reativo ao modo de repetição escolhido no player.
+  useEffect(() => {
+    player.loop = repeatMode === 'one';
+  }, [player, repeatMode]);
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
   // recente sem re-executar a cada render (a função é recriada em cada um).

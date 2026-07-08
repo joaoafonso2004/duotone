@@ -5,8 +5,9 @@ import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
-  getRepeatQueue,
+  getRepeatMode,
   getShowRewindButton,
+  getShuffle,
   loadPrefsCache,
 } from './src/lib/prefs';
 import { supabase } from './src/lib/supabase';
@@ -18,12 +19,13 @@ export default function App() {
 
   useEffect(() => {
     init();
-    // Hidrata preferências persistidas (Definições) no arranque da app.
+    // Hidrata preferências persistidas no arranque da app.
     loadPrefsCache();
-    Promise.all([getRepeatQueue(), getShowRewindButton()]).then(
-      ([repeatQueue, showRewindButton]) => {
+    Promise.all([getRepeatMode(), getShuffle(), getShowRewindButton()]).then(
+      ([repeatMode, shuffle, showRewindButton]) => {
         const player = usePlayer.getState();
-        player.setRepeatQueue(repeatQueue);
+        player.setRepeatMode(repeatMode);
+        player.setShuffle(shuffle);
         player.setShowRewindButton(showRewindButton);
       }
     );

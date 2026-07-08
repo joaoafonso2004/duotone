@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEY_DEFAULT_YT_VIEW = 'pref:defaultYtView';
-const KEY_REPEAT_QUEUE = 'pref:repeatQueue';
+const KEY_REPEAT_MODE = 'pref:repeatMode';
+const KEY_SHUFFLE = 'pref:shuffle';
 const KEY_AUDIO_QUALITY = 'pref:audioQuality';
 const KEY_SHOW_DURATION = 'pref:showTrackDuration';
 const KEY_SHOW_REWIND = 'pref:showRewindButton';
@@ -29,11 +30,20 @@ export async function setDefaultYtViewMode(v: YtViewMode): Promise<void> {
   await AsyncStorage.setItem(KEY_DEFAULT_YT_VIEW, v);
 }
 
-export async function getRepeatQueue(): Promise<boolean> {
-  return getBool(KEY_REPEAT_QUEUE, false);
+export type RepeatMode = 'off' | 'all' | 'one';
+export async function getRepeatMode(): Promise<RepeatMode> {
+  const v = await AsyncStorage.getItem(KEY_REPEAT_MODE);
+  return v === 'all' || v === 'one' ? v : 'off';
 }
-export async function setRepeatQueue(v: boolean): Promise<void> {
-  await setBool(KEY_REPEAT_QUEUE, v);
+export async function setRepeatMode(v: RepeatMode): Promise<void> {
+  await AsyncStorage.setItem(KEY_REPEAT_MODE, v);
+}
+
+export async function getShuffle(): Promise<boolean> {
+  return getBool(KEY_SHUFFLE, false);
+}
+export async function setShuffle(v: boolean): Promise<void> {
+  await setBool(KEY_SHUFFLE, v);
 }
 
 export async function getAudioQuality(): Promise<AudioQuality> {
