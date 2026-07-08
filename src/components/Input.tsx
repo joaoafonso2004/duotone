@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
   Pressable,
+  StyleProp,
   StyleSheet,
   TextInput,
   TextInputProps,
@@ -14,10 +15,11 @@ import { useTheme } from '../state/theme';
 interface Props extends TextInputProps {
   icon?: keyof typeof Ionicons.glyphMap;
   onClear?: () => void;
-  containerStyle?: ViewStyle;
+  containerStyle?: StyleProp<ViewStyle>;
+  right?: React.ReactNode;
 }
 
-export function Input({ icon, onClear, containerStyle, ...rest }: Props) {
+export function Input({ icon, onClear, containerStyle, right, ...rest }: Props) {
   const theme = useTheme((s) => s.theme);
   return (
     <View style={[styles.wrap, containerStyle]}>
@@ -30,7 +32,7 @@ export function Input({ icon, onClear, containerStyle, ...rest }: Props) {
         style={styles.input}
         {...rest}
       />
-      {onClear && !!rest.value ? (
+      {onClear && rest.value ? (
         <Pressable onPress={onClear} hitSlop={8}>
           <Ionicons
             name="close-circle"
@@ -39,6 +41,7 @@ export function Input({ icon, onClear, containerStyle, ...rest }: Props) {
           />
         </Pressable>
       ) : null}
+      {right}
     </View>
   );
 }

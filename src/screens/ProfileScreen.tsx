@@ -3,10 +3,11 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Modal,
   Pressable,
   ScrollView,
@@ -30,14 +31,22 @@ import {
   getProfileMostPlayed,
   getProfilePlayStats,
   getProfileRecentlyPlayed,
+  getTopArtists,
   type ProfilePlayEntry,
   type DbPlayStats,
+  type TopArtist,
 } from '../api/plays';
+import { getFriendCount } from '../api/social';
+import { listPlaylists } from '../api/playlists';
+import { ArtworkCollage } from '../components/ArtworkCollage';
+import { TrackActionsSheet } from '../components/TrackActionsSheet';
+import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
+import { saveToLibrary } from '../api/library';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
-import type { Track } from '../types';
+import type { Track, Playlist } from '../types';
 import { colors, radii, spacing, type } from '../theme';
 
 function entryToTrack(e: ProfilePlayEntry): Track {
@@ -78,92 +87,45 @@ export function ProfileScreen() {
   const [mostPlayed, setMostPlayed] = useState<ProfilePlayEntry[]>([]);
   const [recent, setRecent] = useState<ProfilePlayEntry[]>([]);
   const [stats, setStats] = useState<DbPlayStats | null>(null);
+  const [topArtists, setTopArtists] = useState<TopArtist[]>([]);
+  const [friendCount, setFriendCount] = useState(0);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+
+  // Ações do TrackActionsSheet
+  const [actionTrack, setActionTrack] = useState<Track | null>(null);
+  const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
+  const playNext = usePlayer((s) => s.playNext);
+  const addToQueue = usePlayer((s) => s.addToQueue);
   const theme = useTheme((s) => s.theme);
 
-  const musicDNA = useMemo(() => {
-    if (mostPlayed.length === 0) {
-      return {
-        vibe: 'Explorador Curioso',
-        description: 'Começa a ouvir músicas no Duotone para revelares o teu ADN musical!',
-        emoji: '🚶‍♂️',
-        gradient: ['#7c3aed', '#db2777'],
-      };
-    }
+  const scrollY = React.useRef(new Animated.Value(0)).current;
 
-    let chillCount = 0;
-    let energyCount = 0;
-    let electronicCount = 0;
+  const avatarScale = scrollY.interpolate({
+    inputRange: [-100, 0, 150],
+    outputRange: [1.3, 1, 0.6],
+    extrapolate: 'clamp',
+  });
 
-    mostPlayed.forEach((t) => {
-      const text = `${t.title} ${t.artist}`.toLowerCase();
-      if (
-        text.includes('lofi') ||
-        text.includes('chill') ||
-        text.includes('relax') ||
-        text.includes('sleep') ||
-        text.includes('ambient') ||
-        text.includes('study')
-      ) {
-        chillCount += 2;
-      }
-      if (
-        text.includes('electronic') ||
-        text.includes('dance') ||
-        text.includes('synth') ||
-        text.includes('techno') ||
-        text.includes('remix') ||
-        text.includes('beat')
-      ) {
-        electronicCount += 1;
-      }
-      if (
-        text.includes('rock') ||
-        text.includes('pop') ||
-        text.includes('energy') ||
-        text.includes('rap') ||
-        text.includes('hip hop') ||
-        text.includes('trap')
-      ) {
-        energyCount += 1;
-      }
-    });
+  const avatarTranslateY = scrollY.interpolate({
+    inputRange: [-100, 0, 150],
+    outputRange: [30, 0, -10],
+    extrapolate: 'clamp',
+  });
 
-    if (chillCount > energyCount && chillCount > electronicCount) {
-      return {
-        vibe: 'Foco & Meditação',
-        description: 'Procuras a tranquilidade. O teu ADN é feito de batidas lofi e melodias calmas.',
-        emoji: '🧘‍♂️',
-        gradient: ['#06b6d4', '#3b82f6'],
-      };
-    } else if (electronicCount > chillCount && electronicCount > energyCount) {
-      return {
-        vibe: 'Sintetizadores & Dance',
-        description: 'Sentes o ritmo na pele. Preferes graves profundos e sintetizadores espaciais.',
-        emoji: '⚡',
-        gradient: ['#ec4899', '#8b5cf6'],
-      };
-    } else if (energyCount > chillCount) {
-      return {
-        vibe: 'Ritmo & Energia',
-        description: 'O teu som é dinâmico. Adoras melodias cativantes e batidas vibrantes.',
-        emoji: '🔥',
-        gradient: ['#f97316', '#ef4444'],
-      };
-    } else {
-      return {
-        vibe: 'Explorador Eclético',
-        description: 'A tua mente musical não tem fronteiras. Descobres e misturas todos os géneros.',
-        emoji: '🌌',
-        gradient: ['#a855f7', '#ec4899'],
-      };
-    }
-  }, [mostPlayed]);
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
 
   const loadStats = useCallback(() => {
     getProfileMostPlayed(20).then(setMostPlayed);
     getProfileRecentlyPlayed(12).then(setRecent);
     getProfilePlayStats().then(setStats);
     getAvatarChoice().then(setAvatar);
+    getTopArtists(8).then(setTopArtists);
+    getFriendCount().then(setFriendCount).catch(() => {});
+    listPlaylists().then(setPlaylists).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -226,75 +188,90 @@ export function ProfileScreen() {
         </View>
       }
     >
-      <ScrollView
+      <Animated.ScrollView
         contentContainerStyle={{
           paddingHorizontal: spacing.xl,
           paddingBottom: insets.bottom + 120,
           gap: spacing.xl,
         }}
         showsVerticalScrollIndicator={false}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: true }
+        )}
+        scrollEventThrottle={16}
       >
         {/* ---- cabeçalho ---- */}
         <View style={styles.head}>
-          <Pressable onPress={() => setAvatarEditing(true)} style={styles.avatarWrap}>
-            {avatar?.avatarUrl ? (
-              <Image
-                source={{ uri: avatar.avatarUrl }}
-                style={styles.avatar}
-                contentFit="cover"
-              />
-            ) : (
-              <LinearGradient
-                colors={grad as [string, string, ...string[]]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.avatar}
-              >
-                <Text style={styles.avatarEmoji}>{avatar?.emoji ?? '🎧'}</Text>
-              </LinearGradient>
-            )}
-            <View style={styles.avatarEdit}>
-              <Ionicons name="pencil" size={13} color="#fff" />
-            </View>
-          </Pressable>
-
-          {editingName ? (
-            <View style={styles.nameEditRow}>
-              <TextInput
-                value={nameDraft}
-                onChangeText={setNameDraft}
-                autoFocus
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder="Username"
-                placeholderTextColor={colors.textTertiary}
-                style={[styles.nameInput, { borderBottomColor: theme.color }]}
-                maxLength={24}
-              />
-              <Pressable onPress={saveName} disabled={savingName} hitSlop={8}>
-                {savingName ? (
-                  <ActivityIndicator color={theme.color} />
-                ) : (
-                  <Ionicons name="checkmark-circle" size={26} color={theme.color} />
-                )}
-              </Pressable>
-            </View>
-          ) : (
-            <Pressable onPress={startEditName} style={styles.nameRow} hitSlop={6}>
-              <Text style={styles.name}>{currentName}</Text>
-              <Ionicons name="pencil" size={15} color={colors.textTertiary} />
+          <Animated.View
+            style={{
+              transform: [{ scale: avatarScale }, { translateY: avatarTranslateY }],
+              alignItems: 'center',
+            }}
+          >
+            <Pressable onPress={() => setAvatarEditing(true)} style={styles.avatarWrap}>
+              {avatar?.avatarUrl ? (
+                <Image
+                  source={{ uri: avatar.avatarUrl }}
+                  style={styles.avatar}
+                  contentFit="cover"
+                />
+              ) : (
+                <LinearGradient
+                  colors={grad as [string, string, ...string[]]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.avatar}
+                >
+                  <Text style={styles.avatarEmoji}>{avatar?.emoji ?? '🎧'}</Text>
+                </LinearGradient>
+              )}
+              <View style={styles.avatarEdit}>
+                <Ionicons name="pencil" size={13} color="#fff" />
+              </View>
             </Pressable>
-          )}
-          <Text style={styles.email}>{email}</Text>
-          {memberSince ? (
-            <Text style={styles.since}>Member since {memberSince}</Text>
-          ) : null}
+          </Animated.View>
+
+          <Animated.View style={{ opacity: headerOpacity, alignItems: 'center', width: '100%', marginTop: spacing.xs }}>
+            {editingName ? (
+              <View style={styles.nameEditRow}>
+                <TextInput
+                  value={nameDraft}
+                  onChangeText={setNameDraft}
+                  autoFocus
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="Username"
+                  placeholderTextColor={colors.textTertiary}
+                  style={[styles.nameInput, { borderBottomColor: theme.color }]}
+                  maxLength={24}
+                />
+                <Pressable onPress={saveName} disabled={savingName} hitSlop={8}>
+                  {savingName ? (
+                    <ActivityIndicator color={theme.color} />
+                  ) : (
+                    <Ionicons name="checkmark-circle" size={26} color={theme.color} />
+                  )}
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable onPress={startEditName} style={styles.nameRow} hitSlop={6}>
+                <Text style={styles.name}>{currentName}</Text>
+                <Ionicons name="pencil" size={15} color={colors.textTertiary} />
+              </Pressable>
+            )}
+            <Text style={styles.email}>{email}</Text>
+            {memberSince ? (
+              <Text style={styles.since}>Member since {memberSince}</Text>
+            ) : null}
+          </Animated.View>
         </View>
 
         {/* ---- estatísticas ---- */}
         <View style={styles.statsRow}>
           <Stat label="Plays" value={String(totalPlays)} />
           <Stat label="Tracks" value={String(stats?.uniqueTracks ?? 0)} />
+          <Stat label="Friends" value={String(friendCount)} />
           <Stat
             label="Top artist"
             value={stats?.topArtist?.name ?? '—'}
@@ -302,28 +279,52 @@ export function ProfileScreen() {
           />
         </View>
 
-        {/* ---- Vibe / ADN Musical ---- */}
-        <View style={styles.dnaCard}>
-          <LinearGradient
-            colors={musicDNA.gradient as [string, string, ...string[]]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.dnaGradient}
-          />
-          <View style={styles.dnaContent}>
-            <View style={styles.dnaHeaderRow}>
-              <Text style={styles.dnaTitle}>ADN MUSICAL</Text>
-              <Text style={styles.dnaEmoji}>{musicDNA.emoji}</Text>
-            </View>
-            <Text style={styles.dnaVibe}>{musicDNA.vibe}</Text>
-            <Text style={styles.dnaDesc}>{musicDNA.description}</Text>
+        {/* ---- Top Artistas ---- */}
+        {topArtists.length > 0 && (
+          <View style={{ marginTop: spacing.lg }}>
+            <Text style={[type.micro, { marginHorizontal: spacing.md }]}>OS TEUS ARTISTAS</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: spacing.md, gap: 12, paddingTop: spacing.sm }}
+            >
+              {topArtists.map((artist) => (
+                <View key={artist.name} style={{ alignItems: 'center', width: 80 }}>
+                  {artist.artworkUrl ? (
+                    <Image
+                      source={{ uri: artist.artworkUrl }}
+                      style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.surface }}
+                    />
+                  ) : (
+                    <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="person" size={28} color={colors.textSecondary} />
+                    </View>
+                  )}
+                  <Text numberOfLines={1} style={{ color: colors.text, fontSize: 11, fontWeight: '600', marginTop: 6, textAlign: 'center' }}>
+                    {artist.name}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 10 }}>
+                    {artist.plays} plays
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
           </View>
-        </View>
+        )}
 
         {/* ---- mais ouvidas ---- */}
         <Section title="MOST PLAYED" empty={mostPlayed.length === 0}>
           {mostPlayed.map((e, i) => (
-            <TrackRow key={`${e.source}:${e.sourceId}`} entry={e} rank={i + 1} onPress={() => play(e)} />
+            <TrackRow
+              key={`${e.source}:${e.sourceId}`}
+              entry={e}
+              rank={i + 1}
+              onPress={() => play(e)}
+              onLongPress={() => {
+                hapticSelection();
+                setActionTrack(entryToTrack(e));
+              }}
+            />
           ))}
         </Section>
 
@@ -331,11 +332,101 @@ export function ProfileScreen() {
         {recent.length > 0 ? (
           <Section title="RECENTLY PLAYED" empty={false}>
             {recent.map((e) => (
-              <TrackRow key={`r-${e.source}:${e.sourceId}`} entry={e} onPress={() => play(e)} />
+              <TrackRow
+                key={`r-${e.source}:${e.sourceId}`}
+                entry={e}
+                onPress={() => play(e)}
+                onLongPress={() => {
+                  hapticSelection();
+                  setActionTrack(entryToTrack(e));
+                }}
+              />
             ))}
           </Section>
         ) : null}
-      </ScrollView>
+
+        {/* ---- as tuas playlists ---- */}
+        <Section title="PLAYLISTS" empty={playlists.length === 0}>
+          {playlists.map((playlist) => (
+            <Pressable
+              key={playlist.id}
+              onPress={() => navigation.navigate('PlaylistDetail', { id: playlist.id, name: playlist.name })}
+              style={({ pressed }) => [
+                styles.row,
+                { paddingVertical: spacing.xs },
+                pressed && { backgroundColor: colors.surfacePressed },
+              ]}
+            >
+              <ArtworkCollage artworks={playlist.artworks} size={48} />
+              <View style={{ flex: 1, minWidth: 0, marginLeft: spacing.md }}>
+                <Text numberOfLines={1} style={styles.rowTitle}>
+                  {playlist.name}
+                </Text>
+                <Text numberOfLines={1} style={styles.rowArtist}>
+                  {playlist.trackCount} {playlist.trackCount === 1 ? 'música' : 'músicas'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+            </Pressable>
+          ))}
+        </Section>
+      </Animated.ScrollView>
+
+      <TrackActionsSheet
+        visible={!!actionTrack}
+        track={actionTrack}
+        onClose={() => setActionTrack(null)}
+        actions={[
+          {
+            icon: 'play-outline',
+            label: 'Tocar a seguir',
+            onPress: () => {
+              const t = actionTrack;
+              setActionTrack(null);
+              if (t) playNext(t);
+            },
+          },
+          {
+            icon: 'add-circle-outline',
+            label: 'Adicionar à fila',
+            onPress: () => {
+              const t = actionTrack;
+              setActionTrack(null);
+              if (t) addToQueue(t);
+            },
+          },
+          {
+            icon: 'heart-outline',
+            label: 'Save to Library',
+            onPress: async () => {
+              const t = actionTrack;
+              setActionTrack(null);
+              if (!t) return;
+              try {
+                await saveToLibrary(t);
+                hapticNotification();
+              } catch (e: any) {
+                Alert.alert('Error', e?.message ?? 'Could not save the track.');
+              }
+            },
+          },
+          {
+            icon: 'list-outline',
+            label: 'Add to playlist…',
+            onPress: () => {
+              const t = actionTrack;
+              setActionTrack(null);
+              setPlaylistTrack(t);
+            },
+          },
+        ]}
+      />
+
+      <AddToPlaylistSheet
+        visible={!!playlistTrack}
+        track={playlistTrack}
+        onClose={() => setPlaylistTrack(null)}
+      />
 
       {/* ---- editor de avatar ---- */}
       <AvatarEditor
@@ -396,14 +487,18 @@ function TrackRow({
   entry,
   rank,
   onPress,
+  onLongPress,
 }: {
   entry: ProfilePlayEntry;
   rank?: number;
   onPress: () => void;
+  onLongPress?: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={350}
       style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfacePressed }]}
     >
       {rank ? <Text style={styles.rank}>{rank}</Text> : null}

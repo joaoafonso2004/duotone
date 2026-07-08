@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { hapticImpact } from '../lib/haptics';
+import { hapticImpact, hapticSelection } from '../lib/haptics';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { colors, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
@@ -43,6 +43,15 @@ export function TrackRow({
         hapticImpact();
         onPress();
       }}
+      onLongPress={
+        !selectMode && onAction
+          ? () => {
+              hapticSelection();
+              onAction();
+            }
+          : undefined
+      }
+      delayLongPress={350}
       style={({ pressed }) => [
         styles.row,
         pressed && { backgroundColor: colors.surface },

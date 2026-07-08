@@ -69,7 +69,7 @@ export async function setShowTrackDuration(v: boolean): Promise<void> {
 }
 
 export async function getHapticsEnabled(): Promise<boolean> {
-  return getBool(KEY_HAPTICS_ENABLED, true);
+  return getBool(KEY_HAPTICS_ENABLED, false);
 }
 export async function setHapticsEnabled(v: boolean): Promise<void> {
   await setBool(KEY_HAPTICS_ENABLED, v);
@@ -121,7 +121,7 @@ export async function setPoTokenServerUrl(v: string): Promise<void> {
 // a preferência nas Definições.
 // ------------------------------------------------------------
 
-let hapticsEnabledCache = true;
+let hapticsEnabledCache = false;
 let showTrackDurationCache = true;
 
 export function isHapticsEnabledSync(): boolean {

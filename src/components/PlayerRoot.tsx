@@ -26,6 +26,7 @@ import { ProgressBar } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
 import { LyricsView } from './LyricsView';
 import { QueueSheet } from './QueueSheet';
+import { navigationRef } from '../navigation/RootNavigator';
 
 const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
@@ -71,13 +72,45 @@ export function PlayerRoot() {
   const [scrubbing, setScrubbing] = useState(false);
   const [queueVisible, setQueueVisible] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [currentRoute, setCurrentRoute] = useState<string | null>(null);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+
+    // Listen to navigation changes to hide player bar on specific screens (e.g. Settings)
+    const onNavStateChange = () => {
+      if (navigationRef.isReady()) {
+        const route = navigationRef.getCurrentRoute();
+        setCurrentRoute(route?.name ?? null);
+      }
+    };
+
+    let unsub: (() => void) | undefined;
+    if (navigationRef.isReady()) {
+      unsub = navigationRef.addListener('state', onNavStateChange);
+      onNavStateChange();
+    } else {
+      // Check again after a short delay if navigation is not ready yet
+      const timer = setInterval(() => {
+        if (navigationRef.isReady()) {
+          unsub = navigationRef.addListener('state', onNavStateChange);
+          onNavStateChange();
+          clearInterval(timer);
+        }
+      }, 200);
+      return () => {
+        clearInterval(timer);
+        showSub.remove();
+        hideSub.remove();
+        if (unsub) unsub();
+      };
+    }
+
     return () => {
       showSub.remove();
       hideSub.remove();
+      if (unsub) unsub();
     };
   }, []);
 
@@ -462,7 +495,7 @@ export function PlayerRoot() {
       </Animated.View>
 
       {/* ===================== MINI-PLAYER ===================== */}
-      {!(keyboardVisible && !expanded) && (
+      {!(keyboardVisible && !expanded) && currentRoute !== 'Settings' && (
         <Animated.View
           pointerEvents={expanded ? 'none' : 'auto'}
           style={[

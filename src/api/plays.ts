@@ -104,3 +104,69 @@ export async function getProfileRecentlyPlayed(limit = 10): Promise<ProfilePlayE
     count: 1,
   }));
 }
+
+// ------------------------------------------------------------
+// Top Artists (para o Perfil estilo Spotify)
+// ------------------------------------------------------------
+
+export interface TopArtist {
+  name: string;
+  plays: number;
+  /** URL de uma thumbnail qualquer de uma faixa deste artista (para avatar). */
+  artworkUrl: string | null;
+}
+
+export async function getTopArtists(limit = 8): Promise<TopArtist[]> {
+  try {
+    const userId = await currentUserId();
+    const { data, error } = await supabase.rpc('get_top_artists', { limit_val: limit });
+    if (error) throw error;
+    return (data ?? []).map((row: any) => ({
+      name: row.artist as string,
+      plays: parseInt(row.play_count || '0', 10),
+      artworkUrl: (row.artwork_url as string) || null,
+    }));
+  } catch (err) {
+    console.error('Error fetching top artists:', err);
+    return [];
+  }
+}
+
+// ------------------------------------------------------------
+// "Porque Ouviste..." — retorna o artista mais ouvido recentemente
+// para gerar recomendações dinâmicas na Home
+// ------------------------------------------------------------
+
+export async function getRecentTopArtist(): Promise<string | null> {
+  try {
+    const userId = await currentUserId();
+    const { data, error } = await supabase
+      .from('plays')
+      .select('track_id, tracks!inner(artist)')
+      .eq('user_id', userId)
+      .order('played_at', { ascending: false })
+      .limit(30);
+    if (error || !data || data.length === 0) return null;
+
+    // Conta frequência de artistas nas últimas 30 reproduções
+    const freq = new Map<string, number>();
+    for (const row of data) {
+      const artist = (row as any).tracks?.artist;
+      if (artist && typeof artist === 'string') {
+        freq.set(artist, (freq.get(artist) ?? 0) + 1);
+      }
+    }
+    if (freq.size === 0) return null;
+
+    // Retorna o artista com mais ocorrências recentes
+    let top = '';
+    let max = 0;
+    for (const [a, c] of freq) {
+      if (c > max) { top = a; max = c; }
+    }
+    return top || null;
+  } catch {
+    return null;
+  }
+}
+

@@ -7,7 +7,7 @@ import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '.
 import { BUILD_ID } from '../lib/buildInfo';
 import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
-import { cachedAudioFile } from '../lib/youtubeCache';
+import { cachedAudioFile, downloadProgressiveAudio } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 import { type HarvestResult } from './YtStreamHarvester';
@@ -38,74 +38,6 @@ import { type HarvestResult } from './YtStreamHarvester';
  * entregar ao AVPlayer — evita que o próprio AVPlayer falhe com "failed to
  * load player item" ao fazer um pedido sem Range (confirmado por teste).
  */
-
-// Com o cliente ANDROID_VR já NÃO existe o antigo limite de ~1MB por vídeo
-// (confirmado por teste: o ficheiro inteiro descarrega em pedaços grandes sem
-// estancar). Por isso usamos pedaços grandes e sem pausas — é a diferença
-// entre uma música de 27 min carregar em segundos vs. em minutos.
-const CHUNK_BYTES = 4_000_000;
-// Sem pausa entre pedidos (o antigo ritmo lento existia só para o limite de
-// 1MB que já não se aplica).
-const CHUNK_PACING_MS = 0;
-const MAX_ATTEMPTS_PER_CHUNK = 4;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** Descobre o tamanho total do ficheiro via Content-Range, quando a API não o deu. */
-async function discoverContentLength(url: string): Promise<number> {
-  const res = await fetch(url, { headers: { Range: 'bytes=0-1' } });
-  const range = res.headers.get('content-range'); // "bytes 0-1/4406875"
-  const total = range ? Number(range.split('/')[1]) : NaN;
-  if (!Number.isFinite(total)) throw new Error('Could not determine stream length');
-  return total;
-}
-
-async function fetchChunkWithRetry(url: string, start: number, end: number): Promise<Uint8Array> {
-  let lastStatus = 0;
-  for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_CHUNK; attempt++) {
-    if (attempt > 0) await sleep(800 * 2 ** (attempt - 1)); // 800ms, 1.6s, 3.2s
-    const res = await fetch(url, { headers: { Range: `bytes=${start}-${end}` } });
-    if (res.status === 206 || res.status === 200) {
-      return new Uint8Array(await res.arrayBuffer());
-    }
-    lastStatus = res.status;
-  }
-  throw new Error(`Chunk download failed (HTTP ${lastStatus}) at byte ${start}`);
-}
-
-async function downloadProgressiveAudio(
-  videoId: string,
-  url: string,
-  knownLength: number | null
-): Promise<string> {
-  const dest = cachedAudioFile(videoId);
-  if (dest.exists) return dest.uri;
-
-  const total = knownLength ?? (await discoverContentLength(url));
-  const parts: Uint8Array[] = [];
-  let offset = 0;
-  let first = true;
-  while (offset < total) {
-    if (!first) await sleep(CHUNK_PACING_MS);
-    first = false;
-    const end = Math.min(offset + CHUNK_BYTES, total) - 1;
-    parts.push(await fetchChunkWithRetry(url, offset, end));
-    offset = end + 1;
-  }
-
-  const combined = new Uint8Array(total);
-  let pos = 0;
-  for (const part of parts) {
-    combined.set(part, pos);
-    pos += part.length;
-  }
-
-  dest.create({ overwrite: true });
-  dest.write(combined);
-  return dest.uri;
-}
 
 const BRIDGE_JS = `
 (function () {
@@ -198,6 +130,42 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const lastProgressRef = useRef({ time: 0, at: Date.now() });
   const wantsPlayRef = useRef(true);
 
+  // Fade transition refs
+  const fadeIntervalRef = useRef<any>(null);
+  const fadingOutRef = useRef(false);
+
+  const fadeIn = () => {
+    if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+    player.volume = 0.0;
+    let vol = 0.0;
+    fadeIntervalRef.current = setInterval(() => {
+      vol += 0.1; // 1s total fade-in
+      if (vol >= 1.0) {
+        vol = 1.0;
+        clearInterval(fadeIntervalRef.current!);
+        fadeIntervalRef.current = null;
+      }
+      player.volume = vol;
+    }, 100);
+  };
+
+  const fadeOut = (callback: () => void) => {
+    if (fadingOutRef.current) return;
+    fadingOutRef.current = true;
+    if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+    let vol = player.volume;
+    fadeIntervalRef.current = setInterval(() => {
+      vol -= 0.1; // 1s total fade-out
+      if (vol <= 0.0) {
+        vol = 0.0;
+        clearInterval(fadeIntervalRef.current!);
+        fadeIntervalRef.current = null;
+        callback();
+      }
+      player.volume = vol;
+    }, 100);
+  };
+
   useEffect(() => {
     const myRun = ++runIdRef.current;
     streamRef.current = undefined;
@@ -205,6 +173,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     lastProgressRef.current = { time: 0, at: Date.now() };
     wantsPlayRef.current = true;
     endedRef.current = false;
+    fadingOutRef.current = false; // Reset fade states
+    if (fadeIntervalRef.current) {
+      clearInterval(fadeIntervalRef.current);
+      fadeIntervalRef.current = null;
+    }
     // Silenciar JÁ a faixa anterior enquanto a nova resolve (senão continuava
     // a tocar de fundo durante a resolução da nova).
     try {
@@ -220,6 +193,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // com staysActiveInBackground ele podia continuar a tocar sozinho.
   useEffect(() => {
     return () => {
+      if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
       try {
         player.pause();
         player.replace(null);
@@ -254,6 +228,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         if (!alive()) return;
         wantsPlayRef.current = true;
         player.play();
+        fadeIn();
         setBackend('native');
         return;
       } catch (err) {
@@ -301,10 +276,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         },
       });
       if (!alive()) return;
-      // Cronómetro do watchdog começa AQUI (quando mandamos tocar).
+       // Cronómetro do watchdog começa AQUI (quando mandamos tocar).
       lastProgressRef.current = { time: 0, at: Date.now() };
       wantsPlayRef.current = true;
       player.play();
+      fadeIn();
       setBackend('native');
     } catch (e: any) {
       if (alive()) {
@@ -355,6 +331,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // ignorar — recomeça do início se o seek falhar
       }
       player.play();
+      fadeIn();
     } catch (e: any) {
       if (myRun !== runIdRef.current) return true;
       setError(`[build ${BUILD_ID}] YouTube: playback error (${e?.message ?? 'unknown'}), using embed.`);
@@ -389,13 +366,23 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     setProgress(currentTime * 1000, knownMs);
 
     // Se conhecemos a duração real e já lá chegámos, avançamos — ou repetimos.
-    if (track.durationSeconds && currentTime >= track.durationSeconds - 1) {
-      if (repeatMode === 'one') {
-        player.currentTime = 0;
-        player.play();
-      } else if (!endedRef.current) {
-        endedRef.current = true;
-        onStateChange('ended');
+    const duration = track.durationSeconds || player.duration;
+    if (duration) {
+      const remaining = duration - currentTime;
+      if (remaining <= 1.5) {
+        if (repeatMode === 'one') {
+          if (currentTime >= duration - 0.5) {
+            player.currentTime = 0;
+            player.play();
+          }
+        } else if (!endedRef.current && !fadingOutRef.current) {
+          fadeOut(() => {
+            if (!endedRef.current) {
+              endedRef.current = true;
+              onStateChange('ended');
+            }
+          });
+        }
       }
     }
   });
