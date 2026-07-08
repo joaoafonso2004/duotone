@@ -1,6 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useCallback, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +18,9 @@ import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
+import { Input } from '../components/Input';
 import { usePlayer } from '../state/player';
+import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 
@@ -39,6 +42,11 @@ export function SongsScreen() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [playlistMultipleOpen, setPlaylistMultipleOpen] = useState(false);
+
+  // Search & Theme states
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const theme = useTheme((s) => s.theme);
 
   // Sorting state
   const [sortBy, setSortBy] = useState<'recent' | 'az'>('recent');
@@ -110,12 +118,23 @@ export function SongsScreen() {
     });
   };
 
-  const sortedTracks = [...tracks].sort((a, b) => {
+  const filteredTracks = useMemo(() => {
+    if (!searchQuery.trim()) return tracks;
+    const query = searchQuery.toLowerCase();
+    return tracks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(query) ||
+        (t.artist ?? '').toLowerCase().includes(query)
+    );
+  }, [tracks, searchQuery]);
+
+  const sortedTracks = useMemo(() => {
+    const list = [...filteredTracks];
     if (sortBy === 'az') {
-      return a.title.localeCompare(b.title);
+      return list.sort((a, b) => a.title.localeCompare(b.title));
     }
-    return 0; // default order from database (added_at desc)
-  });
+    return list; // default order from database (added_at desc)
+  }, [filteredTracks, sortBy]);
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + (selectMode ? 80 : 32);
 
@@ -124,13 +143,18 @@ export function SongsScreen() {
       title="Songs"
       subtitle={`${tracks.length} saved ${tracks.length === 1 ? 'song' : 'songs'}`}
       right={
-        <Pressable
-          hitSlop={10}
-          onPress={() => navigation.navigate('Settings')}
-          style={{ padding: 4 }}
-        >
-          <Ionicons name="settings-outline" size={24} color={colors.text} />
-        </Pressable>
+        tracks.length > 0 ? (
+          <Pressable
+            hitSlop={10}
+            onPress={() => {
+              setSearchOpen(!searchOpen);
+              if (searchOpen) setSearchQuery('');
+            }}
+            style={{ padding: 4 }}
+          >
+            <Ionicons name={searchOpen ? "close" : "search-outline"} size={24} color={colors.text} />
+          </Pressable>
+        ) : undefined
       }
     >
       {loading ? (
@@ -143,6 +167,47 @@ export function SongsScreen() {
         />
       ) : (
         <View style={{ flex: 1 }}>
+          {searchOpen && (
+            <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
+              <Input
+                icon="search"
+                placeholder="Search saved songs"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onClear={() => setSearchQuery('')}
+              />
+            </View>
+          )}
+
+          {!selectMode && sortedTracks.length > 0 && (
+            <View style={styles.actionRow}>
+              <Pressable
+                style={styles.playButton}
+                onPress={() => playTrack(sortedTracks[0], sortedTracks)}
+              >
+                <LinearGradient
+                  colors={theme.gradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.buttonGradient}
+                >
+                  <Ionicons name="play" size={18} color={theme.textColorOnGradient} />
+                  <Text style={[styles.buttonTextPlay, { color: theme.textColorOnGradient }]}>Play</Text>
+                </LinearGradient>
+              </Pressable>
+
+              <Pressable
+                style={styles.shuffleButton}
+                onPress={() => {
+                  const shuffled = [...sortedTracks].sort(() => Math.random() - 0.5);
+                  playTrack(shuffled[0], shuffled);
+                }}
+              >
+                <Ionicons name="shuffle" size={20} color={colors.text} />
+                <Text style={styles.buttonTextShuffle}>Shuffle</Text>
+              </Pressable>
+            </View>
+          )}
           {/* Sorting & Edit Mode Filters */}
           <View style={styles.filtersRow}>
             <View style={styles.filters}>
@@ -382,6 +447,46 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 14,
     fontWeight: '600',
+    color: colors.text,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  playButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: radii.xl,
+    overflow: 'hidden',
+  },
+  buttonGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  buttonTextPlay: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  shuffleButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: radii.xl,
+    backgroundColor: colors.surfaceHigh,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  buttonTextShuffle: {
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.text,
   },
 });
