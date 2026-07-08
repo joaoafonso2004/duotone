@@ -350,17 +350,26 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       : (player.duration || 0) * 1000;
     setProgress(currentTime * 1000, knownMs);
 
-    // Se conhecemos a duração real e já lá chegámos, avançamos — em vez de
-    // ficar a "tocar" silêncio até ao fim (dobrado) do player.
-    if (repeatMode !== 'one' && track.durationSeconds && currentTime >= track.durationSeconds - 1 && !endedRef.current) {
-      endedRef.current = true;
-      onStateChange('ended');
+    // Se conhecemos a duração real e já lá chegámos, avançamos — ou repetimos.
+    if (track.durationSeconds && currentTime >= track.durationSeconds - 1) {
+      if (repeatMode === 'one') {
+        player.currentTime = 0;
+        player.play();
+      } else if (!endedRef.current) {
+        endedRef.current = true;
+        onStateChange('ended');
+      }
     }
   });
   useEventListener(player, 'playToEnd', () => {
-    if (repeatMode !== 'one' && backend === 'native' && !endedRef.current) {
-      endedRef.current = true;
-      onStateChange('ended');
+    if (backend === 'native') {
+      if (repeatMode === 'one') {
+        player.currentTime = 0;
+        player.play();
+      } else if (!endedRef.current) {
+        endedRef.current = true;
+        onStateChange('ended');
+      }
     }
   });
   useEventListener(player, 'statusChange', ({ status, error }) => {
