@@ -97,12 +97,11 @@ export function PlayerRoot() {
   }, [buffering, pulse]);
 
   useEffect(() => {
-    // Repõe o gesto de arrasto e re-sincroniza a animação com `expanded`.
-    // Corre também a CADA nova faixa (current.sourceId) — sem isto, ao
-    // fechar (X) e abrir outra música o `anim` podia ficar dessincronizado
-    // (overlay visível mas com pointerEvents 'none'), deixando o utilizador
-    // "preso" a ver a página sem conseguir tocar em nada.
-    dragY.setValue(0);
+    // Repõe o gesto de arrasto apenas ao abrir ou mudar de faixa, mantendo o valor
+    // durante a animação de encerramento por arrasto para evitar teletransporte.
+    if (expanded) {
+      dragY.setValue(0);
+    }
     Animated.spring(anim, {
       toValue: expanded ? 1 : 0,
       useNativeDriver: false,
