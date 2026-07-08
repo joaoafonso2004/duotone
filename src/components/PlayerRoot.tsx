@@ -130,6 +130,30 @@ export function PlayerRoot() {
     setSaved(false);
   }, [current?.sourceId]);
 
+  // Capa em ALTA resolução: a YouTube Data API devolve thumbnails pequenas, mas
+  // i.ytimg.com tem versões grandes por videoId. Começamos na maxresdefault
+  // (1280px) e, se não existir, caímos na hqdefault (existe sempre). Faz a
+  // capa ficar nítida como no Demus.
+  const [artUri, setArtUri] = useState<string | null>(null);
+  useEffect(() => {
+    const active = current;
+    if (!active) {
+      setArtUri(null);
+    } else if (active.source === 'youtube') {
+      setArtUri(`https://i.ytimg.com/vi/${active.sourceId}/maxresdefault.jpg`);
+    } else {
+      setArtUri(active.artworkUrl ?? null);
+    }
+  }, [current?.sourceId]);
+
+  const onArtError = () => {
+    const active = current;
+    if (active && active.source === 'youtube' && artUri?.includes('maxresdefault')) {
+      setArtUri(`https://i.ytimg.com/vi/${active.sourceId}/hqdefault.jpg`);
+    }
+  };
+  const artSource = artUri ?? current?.artworkUrl;
+
   const onToggleShuffle = () => {
     toggleShuffle();
     hapticSelection();
@@ -207,19 +231,16 @@ export function PlayerRoot() {
           },
         ]}
       >
-        {/* Fundo = capa da música muito desfocada → o fundo "apanha" as cores
-            da foto. Crossfade suave ao trocar de faixa (transition). */}
-        {current.artworkUrl ? (
+        {artSource ? (
           <Image
-            source={{ uri: current.artworkUrl }}
+            source={{ uri: artSource }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
             blurRadius={64}
             transition={450}
+            onError={onArtError}
           />
         ) : null}
-        {/* Escurece o fundo para o texto/controlos serem legíveis e funde para
-            o fundo sólido em baixo. */}
         <LinearGradient
           colors={['rgba(10,10,15,0.30)', 'rgba(10,10,15,0.72)', colors.bg]}
           locations={[0, 0.55, 1]}
@@ -274,7 +295,7 @@ export function PlayerRoot() {
               <Ionicons
                 name={saved ? 'heart' : 'heart-outline'}
                 size={20}
-                color={saved ? colors.accent : colors.text}
+                color={colors.text}
               />
             </Pressable>
             <Pressable
@@ -302,7 +323,7 @@ export function PlayerRoot() {
               <Ionicons
                 name="shuffle"
                 size={22}
-                color={shuffle ? colors.accent : colors.textTertiary}
+                color={shuffle ? colors.text : colors.textTertiary}
               />
             </Pressable>
 
@@ -349,7 +370,7 @@ export function PlayerRoot() {
               <Ionicons
                 name={repeatMode === 'one' ? 'repeat' : 'repeat'}
                 size={22}
-                color={repeatMode === 'off' ? colors.textTertiary : colors.accent}
+                color={repeatMode === 'off' ? colors.textTertiary : colors.text}
               />
               {repeatMode === 'one' ? (
                 <View style={styles.repeatOneBadge}>
@@ -518,13 +539,14 @@ export function PlayerRoot() {
           {/* Mostramos SEMPRE a thumbnail por cima — o áudio nativo continua a
               tocar por trás. (A app é só áudio; o vídeo é irrelevante.) A capa
               "respira" (opacidade a pulsar) enquanto a música carrega. */}
-          {current.artworkUrl ? (
+          {artSource ? (
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: pulse }]}>
               <Image
-                source={{ uri: current.artworkUrl }}
+                source={{ uri: artSource }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 transition={250}
+                onError={onArtError}
               />
             </Animated.View>
           ) : null}
@@ -623,8 +645,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actionsBtnActive: {
-    backgroundColor: 'rgba(124,58,237,0.16)',
-    borderColor: colors.accent,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderColor: 'rgba(255,255,255,0.25)',
   },
   trackTitle: {
     fontSize: 23,
@@ -652,7 +674,7 @@ const styles = StyleSheet.create({
     minWidth: 13,
     height: 13,
     borderRadius: 6.5,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 2,
@@ -755,7 +777,7 @@ const styles = StyleSheet.create({
   miniTrackFill: {
     height: 2,
     borderRadius: 1,
-    backgroundColor: colors.accent,
+    backgroundColor: colors.text,
   },
   toast: {
     position: 'absolute',
