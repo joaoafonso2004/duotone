@@ -113,10 +113,10 @@ export function AuthScreen() {
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Background interlocking circles brand image (blended at the top 44% height) */}
+      {/* Background interlocking circles brand image (full-screen layout) */}
       <Image
         source={require('../../assets/login_bg.png')}
-        style={styles.headerBg}
+        style={StyleSheet.absoluteFill}
         contentFit="cover"
       />
 
@@ -290,14 +290,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0A0A0C',
   },
-  headerBg: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '42%',
-    opacity: 0.85,
-  },
+
   scrollContent: {
     paddingHorizontal: spacing.xl,
     flexGrow: 1,
