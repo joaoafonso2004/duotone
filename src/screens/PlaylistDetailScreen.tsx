@@ -21,15 +21,15 @@ import {
 } from '../api/playlists';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
-import { PillButton } from '../components/PillButton';
 import { PromptSheet } from '../components/PromptSheet';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
-import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
+import { colors, MINI_PLAYER_HEIGHT, spacing, type, gradients, radii } from '../theme';
 import type { PlaylistTrack } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
@@ -142,32 +142,61 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       subtitle={`${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'}`}
       onBack={() => navigation.goBack()}
       right={
-        <Pressable
-          hitSlop={10}
-          onPress={() => setOptionsOpen(true)}
-          style={{ marginBottom: 4 }}
-        >
-          <Ionicons
-            name="ellipsis-horizontal-circle"
-            size={26}
-            color={colors.textSecondary}
-          />
-        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          {tracks.length > 0 && (
+            <Pressable
+              hitSlop={10}
+              onPress={() => (editMode ? finishEdit() : setEditMode(true))}
+              style={{ padding: 4 }}
+            >
+              <Text style={[type.body, { fontWeight: '600', color: colors.text }]}>
+                {editMode ? 'Done' : 'Edit'}
+              </Text>
+            </Pressable>
+          )}
+          {!editMode && (
+            <Pressable
+              hitSlop={10}
+              onPress={() => setOptionsOpen(true)}
+              style={{ padding: 4 }}
+            >
+              <Ionicons
+                name="ellipsis-horizontal-circle"
+                size={24}
+                color={colors.textSecondary}
+              />
+            </Pressable>
+          )}
+        </View>
       }
     >
-      {tracks.length > 0 ? (
-        <View style={styles.actions}>
-          <PillButton
-            label="Play all"
-            small
+      {tracks.length > 0 && !editMode ? (
+        <View style={styles.actionRow}>
+          <Pressable
+            style={styles.playButton}
             onPress={() => playTrack(tracks[0], tracks)}
-          />
-          <PillButton
-            label={editMode ? 'Done' : 'Edit'}
-            small
-            variant="ghost"
-            onPress={() => (editMode ? finishEdit() : setEditMode(true))}
-          />
+          >
+            <LinearGradient
+              colors={gradients.aurora}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.buttonGradient}
+            >
+              <Ionicons name="play" size={18} color={colors.bg} />
+              <Text style={styles.buttonTextPlay}>Play</Text>
+            </LinearGradient>
+          </Pressable>
+
+          <Pressable
+            style={styles.shuffleButton}
+            onPress={() => {
+              const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+              playTrack(shuffled[0], shuffled);
+            }}
+          >
+            <Ionicons name="shuffle" size={20} color={colors.text} />
+            <Text style={styles.buttonTextShuffle}>Shuffle</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -292,11 +321,46 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  actions: {
+  actionRow: {
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.md,
     paddingHorizontal: spacing.xl,
-    marginBottom: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  playButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: radii.md,
+    overflow: 'hidden',
+  },
+  buttonGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  shuffleButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  buttonTextPlay: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.bg,
+  },
+  buttonTextShuffle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
   },
   editRow: {
     flexDirection: 'row',
