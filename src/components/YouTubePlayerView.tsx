@@ -143,6 +143,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const setBuffering = usePlayer((s) => s._setBuffering);
   const setError = usePlayer((s) => s.setError);
   const repeatMode = usePlayer((s) => s.repeatMode);
+  const prev = usePlayer((s) => s.prev);
 
   const [backend, setBackend] = useState<Backend>('resolving');
   const webRef = useRef<WebView>(null);
@@ -370,6 +371,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         endedRef.current = true;
         onStateChange('ended');
       }
+    }
+  });
+  useEventListener(player, 'playbackRateChange', ({ playbackRate }) => {
+    if (backend === 'native' && playbackRate === 0.07) {
+      player.playbackRate = 1.0;
+      prev();
     }
   });
   useEventListener(player, 'statusChange', ({ status, error }) => {
