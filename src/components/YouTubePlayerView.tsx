@@ -168,17 +168,20 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // Evita disparar "ended" mais do que uma vez por faixa (ver bug da duração
   // a dobrar mais abaixo).
   const endedRef = useRef(false);
-  // Watchdog de "stream preso" (músicas longas no 4G): última posição vista +
-  // quando, e se o player tenciona estar a tocar. Ver mais abaixo.
+  // Watchdog de stream que não avança (músicas longas no 4G: o AVPlayer nem
+  // sequer ARRANCA o progressivo). `lastProgressRef` = última posição vista +
+  // quando; `wantsPlayRef` = a app tenciona estar a tocar (não foi pausada
+  // pelo utilizador). Usamos a INTENÇÃO, não o estado real, para apanhar
+  // também o caso em que nunca começa (o `playingChange` nunca dispara).
   const lastProgressRef = useRef({ time: 0, at: Date.now() });
-  const playingRef = useRef(false);
+  const wantsPlayRef = useRef(true);
 
   useEffect(() => {
     const myRun = ++runIdRef.current;
     streamRef.current = undefined;
     downloadTriedRef.current = false;
     lastProgressRef.current = { time: 0, at: Date.now() };
-    playingRef.current = false;
+    wantsPlayRef.current = true;
     endedRef.current = false;
     // Silenciar JÁ a faixa anterior enquanto a nova resolve (senão continuava
     // a tocar de fundo durante a resolução da nova).
@@ -248,6 +251,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         },
       });
       if (!alive()) return;
+      // Cronómetro do watchdog começa AQUI (quando mandamos tocar). Se a
+      // posição não sair de ~0 nos próximos segundos, o AVPlayer não arrancou
+      // o progressivo (típico de músicas longas) → cai-se para o download.
+      lastProgressRef.current = { time: 0, at: Date.now() };
+      wantsPlayRef.current = true;
       player.play();
       setBackend('native');
     } catch (e: any) {
@@ -311,7 +319,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   // Eventos do player nativo -> store
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
-    playingRef.current = isPlaying;
     if (backend === 'native') onStateChange(isPlaying ? 'playing' : 'paused');
   });
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
@@ -354,20 +361,22 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     });
   });
 
-  // Watchdog de "stream preso": se o player tenciona estar a tocar mas a
-  // posição não avança há vários segundos (típico do progressivo a estancar em
-  // músicas longas no 4G), muda automaticamente para o download do ficheiro.
+  // Watchdog: se a app tenciona tocar mas a posição não avança há vários
+  // segundos, o AVPlayer não conseguiu arrancar/continuar o stream progressivo
+  // (típico de músicas longas no 4G — nem começam). Muda para o download do
+  // ficheiro, que arranca de certeza. Usa a INTENÇÃO (wantsPlayRef), por isso
+  // apanha também o caso em que a música NUNCA começa (posição presa em ~0).
   useEffect(() => {
     if (backend !== 'native') return;
     const id = setInterval(() => {
-      if (downloadTriedRef.current || !playingRef.current) return;
+      if (downloadTriedRef.current || !wantsPlayRef.current) return;
       const stuckMs = Date.now() - lastProgressRef.current.at;
       const dur = track.durationSeconds ?? 0;
       const nearEnd = dur > 0 && lastProgressRef.current.time >= dur - 2;
-      if (stuckMs > 7000 && !nearEnd) {
+      if (stuckMs > 6000 && !nearEnd) {
         fallbackRef.current();
       }
-    }, 3000);
+    }, 2000);
     return () => clearInterval(id);
   }, [backend, track.durationSeconds]);
 
@@ -376,8 +385,14 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (backend === 'resolving') return;
     if (backend === 'native') {
       registerYtControls({
-        play: () => player.play(),
-        pause: () => player.pause(),
+        play: () => {
+          wantsPlayRef.current = true;
+          player.play();
+        },
+        pause: () => {
+          wantsPlayRef.current = false;
+          player.pause();
+        },
         seek: (ms) => {
           player.currentTime = ms / 1000;
         },
