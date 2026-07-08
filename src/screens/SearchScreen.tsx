@@ -49,6 +49,7 @@ export function SearchScreen() {
   const [isFocused, setIsFocused] = useState(false);
 
   // Recommendations states
+  const [dailyTop, setDailyTop] = useState<Track[]>([]);
   const [flowMix, setFlowMix] = useState<Track[]>([]);
   const [heavyRotation, setHeavyRotation] = useState<Track[]>([]);
   const [forgottenFavorites, setForgottenFavorites] = useState<Track[]>([]);
@@ -67,15 +68,17 @@ export function SearchScreen() {
   const loadRecommendations = async () => {
     setLoadingRecs(true);
     try {
-      const [flow, heavy, forgotten, libTracks] = await Promise.all([
+      const [flow, heavy, forgotten, libTracks, dailyRes] = await Promise.all([
         getFlowMix(12),
         getHeavyRotation(12),
         getForgottenFavorites(12),
         getLibrary(),
+        searchYouTube('top daily hits charts global'),
       ]);
       setFlowMix(flow);
       setHeavyRotation(heavy);
       setForgottenFavorites(forgotten);
+      setDailyTop(dailyRes.slice(0, 12));
 
       // Extract unique artists from library
       const artists = Array.from(
@@ -319,6 +322,7 @@ export function SearchScreen() {
             <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
           ) : (
             <View>
+              {renderRecommendationSection('Topo Diário', dailyTop, 'trending-up-outline')}
               {renderRecommendationSection('Flow do Dia', flowMix, 'sparkles-outline')}
               {renderRecommendationSection('Mais Tocadas Recentes', heavyRotation, 'flame-outline')}
               {renderRecommendationSection('Favoritos Esquecidos', forgottenFavorites, 'heart-dislike-outline')}
