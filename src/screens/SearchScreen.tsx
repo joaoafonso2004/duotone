@@ -111,17 +111,20 @@ export function SearchScreen() {
       }
 
       // Personalização do "Em Alta" e "Também em Alta":
-      // Procura faixas populares dos artistas favoritos do utilizador e mistura com as tendências gerais
+      // Procura mixes populares dos artistas favoritos do utilizador (que trazem músicas semelhantes e do mesmo género)
+      // e mistura com as tendências gerais
       let personalizedTracks: Track[] = [];
       if (userTopArtists && userTopArtists.length > 0) {
         try {
           const searches = await Promise.all(
-            userTopArtists.map(artist => searchYouTube(`${artist.name}`).catch(() => []))
+            userTopArtists.map(artist => searchYouTube(`${artist.name} mix`).catch(() => []))
           );
-          // Junta as pesquisas de todos os artistas top
+          // Junta as pesquisas de todos os artistas top e baralha
           const customTracks = searches.flat();
           const savedIds = new Set(libTracks.map((t) => t.sourceId));
-          personalizedTracks = customTracks.filter(t => !savedIds.has(t.sourceId));
+          personalizedTracks = customTracks
+            .filter(t => !savedIds.has(t.sourceId))
+            .sort(() => Math.random() - 0.5); // Baralha para dar variedade de géneros similares
         } catch (e) {
           console.warn('Error fetching personalized trending:', e);
         }
