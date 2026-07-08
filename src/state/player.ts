@@ -22,6 +22,8 @@ interface PlayerState {
   showRewindButton: boolean;
   positionMs: number;
   durationMs: number;
+  /** a resolver/descarregar a faixa (ainda não começou a tocar áudio) */
+  buffering: boolean;
   error: string | null;
 
   playTrack: (track: Track, queue?: Track[]) => Promise<void>;
@@ -42,6 +44,7 @@ interface PlayerState {
   _onYtStateChange: (s: 'playing' | 'paused' | 'ended') => void;
   _setProgress: (positionMs: number, durationMs: number) => void;
   _setIsPlaying: (v: boolean) => void;
+  _setBuffering: (v: boolean) => void;
 }
 
 export const usePlayer = create<PlayerState>((set, get) => ({
@@ -54,6 +57,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   showRewindButton: false,
   positionMs: 0,
   durationMs: 0,
+  buffering: false,
   error: null,
   _yt: null,
 
@@ -74,6 +78,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       error: null,
       positionMs: 0,
       durationMs: (track.durationSeconds ?? 0) * 1000,
+      // A resolver/carregar até o áudio começar mesmo (pulsa a capa).
+      buffering: true,
       // O player nativo autoplay-a ao montar; estado real chega via bridge.
       isPlaying: true,
     });
@@ -149,4 +155,6 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   _setProgress: (positionMs, durationMs) => set({ positionMs, durationMs }),
 
   _setIsPlaying: (v) => set({ isPlaying: v }),
+
+  _setBuffering: (v) => set({ buffering: v }),
 }));
