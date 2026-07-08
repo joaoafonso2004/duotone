@@ -15,7 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, getLibrary } from '../api/library';
 import { searchYouTube, searchYouTubePlaylists, getTrendingMusic, YtRecommendedPlaylist } from '../api/youtube';
-import { getFlowMix, getHeavyRotation, getForgottenFavorites, getProfileRecentlyPlayed, getRecentTopArtist } from '../api/plays';
+import { getFlowMix, getHeavyRotation, getForgottenFavorites, getProfileRecentlyPlayed, getRecentTopArtist, getTopArtists } from '../api/plays';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { EmptyState } from '../components/EmptyState';
@@ -73,21 +73,20 @@ export function SearchScreen() {
   const loadRecommendations = async () => {
     setLoadingRecs(true);
     try {
-      const [flow, heavy, forgotten, libTracks, trendingRes, chillRes, recentRes, recentArtist] = await Promise.all([
+      const [flow, heavy, forgotten, libTracks, trendingRes, chillRes, recentRes, recentArtist, userTopArtists] = await Promise.all([
         getFlowMix(12),
         getHeavyRotation(12),
         getForgottenFavorites(12),
         getLibrary(),
-        getTrendingMusic(25),
+        getTrendingMusic(40),
         searchYouTube('lofi hip hop study focus chill beats'),
         getProfileRecentlyPlayed(12).catch(() => []),
         getRecentTopArtist().catch(() => null),
+        getTopArtists(3).catch(() => []),
       ]);
       setFlowMix(flow);
       setHeavyRotation(heavy);
       setForgottenFavorites(forgotten);
-      setDailyTop(trendingRes.slice(0, 12));
-      setNewReleases(trendingRes.slice(12, 25));
       setChillFocus(chillRes.slice(0, 12));
       
       const mappedRecent: Track[] = (recentRes ?? []).map((r: any) => ({
@@ -110,6 +109,47 @@ export function SearchScreen() {
           setBecauseTracks(tracks.filter((t) => !savedIds.has(t.sourceId)).slice(0, 12));
         }).catch(() => {});
       }
+
+      // Personalização do "Em Alta" e "Também em Alta":
+      // Procura faixas populares dos artistas favoritos do utilizador e mistura com as tendências gerais
+      let personalizedTracks: Track[] = [];
+      if (userTopArtists && userTopArtists.length > 0) {
+        try {
+          const searches = await Promise.all(
+            userTopArtists.map(artist => searchYouTube(`${artist.name}`).catch(() => []))
+          );
+          // Junta as pesquisas de todos os artistas top
+          const customTracks = searches.flat();
+          const savedIds = new Set(libTracks.map((t) => t.sourceId));
+          personalizedTracks = customTracks.filter(t => !savedIds.has(t.sourceId));
+        } catch (e) {
+          console.warn('Error fetching personalized trending:', e);
+        }
+      }
+
+      const mixedTrending: Track[] = [];
+      let trendIdx = 0;
+      let persIdx = 0;
+
+      // Intercala faixas personalizadas com faixas em alta gerais
+      while (mixedTrending.length < 30 && (trendIdx < trendingRes.length || persIdx < personalizedTracks.length)) {
+        if (persIdx < personalizedTracks.length) {
+          const t = personalizedTracks[persIdx++];
+          if (!mixedTrending.some(x => x.sourceId === t.sourceId)) {
+            mixedTrending.push(t);
+          }
+        }
+        if (trendIdx < trendingRes.length && mixedTrending.length < 30) {
+          const t = trendingRes[trendIdx++];
+          if (!mixedTrending.some(x => x.sourceId === t.sourceId)) {
+            mixedTrending.push(t);
+          }
+        }
+      }
+
+      const finalTrending = mixedTrending.length >= 10 ? mixedTrending : trendingRes;
+      setDailyTop(finalTrending.slice(0, 12));
+      setNewReleases(finalTrending.slice(12, 25));
 
       // Extract unique artists from library
       const artists = Array.from(
