@@ -20,6 +20,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SongsScreen } from '../screens/SongsScreen';
+import { SocialScreen } from '../screens/SocialScreen';
 import { useAuth } from '../state/auth';
 import { colors } from '../theme';
 import { useTheme } from '../state/theme';
@@ -32,6 +33,7 @@ export type RootStackParamList = {
   ImportYouTube: undefined;
   Artists: undefined;
   LibraryGroup: { type: 'album' | 'artist'; name: string };
+  Social: undefined;
 };
 
 type TabsParamList = {
@@ -164,6 +166,7 @@ export function RootNavigator() {
             <Stack.Navigator screenOptions={stackScreenOptions}>
               <Stack.Screen name="Tabs" component={Tabs} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
+              <Stack.Screen name="Social" component={SocialScreen} />
             </Stack.Navigator>
             <PlayerRoot />
             {/* BotGuardMinter (PO Token on-device) DESLIGADO de propósito: o

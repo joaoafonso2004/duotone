@@ -208,13 +208,22 @@ export function ProfileScreen() {
     <Screen
       title="Profile"
       right={
-        <Pressable
-          hitSlop={10}
-          onPress={() => navigation.navigate('Settings')}
-          accessibilityLabel="Settings"
-        >
-          <Ionicons name="settings-outline" size={22} color={colors.textSecondary} />
-        </Pressable>
+        <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+          <Pressable
+            hitSlop={10}
+            onPress={() => navigation.navigate('Social')}
+            accessibilityLabel="Social"
+          >
+            <Ionicons name="people-outline" size={22} color={colors.textSecondary} />
+          </Pressable>
+          <Pressable
+            hitSlop={10}
+            onPress={() => navigation.navigate('Settings')}
+            accessibilityLabel="Settings"
+          >
+            <Ionicons name="settings-outline" size={22} color={colors.textSecondary} />
+          </Pressable>
+        </View>
       }
     >
       <ScrollView

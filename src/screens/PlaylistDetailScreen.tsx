@@ -36,6 +36,7 @@ import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
+import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { useTheme } from '../state/theme';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -65,6 +66,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removeFor, setRemoveFor] = useState<PlaylistTrack | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareFriendOpen, setShareFriendOpen] = useState(false);
   const theme = useTheme((s) => s.theme);
 
   // States for Add Tracks Modal
@@ -469,8 +471,16 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         onClose={() => setOptionsOpen(false)}
         actions={[
           {
+            icon: 'people-outline',
+            label: 'Partilhar com amigo…',
+            onPress: () => {
+              setOptionsOpen(false);
+              setShareFriendOpen(true);
+            },
+          },
+          {
             icon: 'share-social-outline',
-            label: 'Share playlist',
+            label: 'QR Code / Copy link',
             onPress: () => {
               setOptionsOpen(false);
               setShareOpen(true);
@@ -494,6 +504,13 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             },
           },
         ]}
+      />
+
+      <ShareFriendSheet
+        visible={shareFriendOpen}
+        itemType="playlist"
+        item={{ id }}
+        onClose={() => setShareFriendOpen(false)}
       />
 
       <YtPlaylistShareSheet
