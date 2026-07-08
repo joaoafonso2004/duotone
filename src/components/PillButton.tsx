@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { hapticImpact, ImpactFeedbackStyle } from '../lib/haptics';
 import { colors, gradients, radii } from '../theme';
+import { useTheme } from '../state/theme';
 
 interface Props {
   label: string;
@@ -29,11 +30,14 @@ export function PillButton({
   small,
   style,
 }: Props) {
+  const theme = useTheme((s) => s.theme);
+
   const inner = (
     <Text
       style={[
         styles.label,
         small && { fontSize: 13 },
+        variant === 'primary' && { color: theme.textColorOnGradient },
         variant === 'ghost' && { color: colors.text },
         variant === 'danger' && { color: colors.danger },
       ]}
@@ -45,12 +49,12 @@ export function PillButton({
   const body =
     variant === 'primary' ? (
       <LinearGradient
-        colors={gradients.aurora}
+        colors={theme.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={[styles.base, small && styles.small]}
       >
-        {loading ? <ActivityIndicator color="#fff" /> : inner}
+        {loading ? <ActivityIndicator color={theme.textColorOnGradient} /> : inner}
       </LinearGradient>
     ) : (
       <React.Fragment>

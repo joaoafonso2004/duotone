@@ -15,6 +15,7 @@ import { fetchYouTubePlaylistById, YtPlaylistImport } from '../api/youtube';
 import { createPlaylist, addTracksToPlaylist } from '../api/playlists';
 import { usePlayer } from '../state/player';
 import { colors, spacing, type, radii, gradients } from '../theme';
+import { useTheme } from '../state/theme';
 import { BottomSheet } from './BottomSheet';
 import { TrackRow } from './TrackRow';
 import { hapticNotification } from '../lib/haptics';
@@ -41,6 +42,7 @@ export function YtPlaylistRecommendationSheet({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const playTrack = usePlayer((s) => s.playTrack);
+  const theme = useTheme((s) => s.theme);
 
   useEffect(() => {
     if (visible && playlistId) {
@@ -129,13 +131,13 @@ export function YtPlaylistRecommendationSheet({
           <View style={styles.actions}>
             <Pressable style={styles.btnPlay} onPress={handlePlay}>
               <LinearGradient
-                colors={gradients.aurora}
+                colors={theme.gradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.btnGradient}
               >
-                <Ionicons name="play" size={18} color={colors.bg} />
-                <Text style={styles.btnTextPlay}>Play</Text>
+                <Ionicons name="play" size={18} color={theme.textColorOnGradient} />
+                <Text style={[styles.btnTextPlay, { color: theme.textColorOnGradient }]}>Play</Text>
               </LinearGradient>
             </Pressable>
 

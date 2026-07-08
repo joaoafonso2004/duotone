@@ -28,6 +28,7 @@ import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
+import { useTheme } from '../state/theme';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type, gradients, radii } from '../theme';
@@ -53,6 +54,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removeFor, setRemoveFor] = useState<PlaylistTrack | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
+  const theme = useTheme((s) => s.theme);
 
   const load = useCallback(async () => {
     try {
@@ -179,13 +181,13 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             onPress={() => playTrack(tracks[0], tracks)}
           >
             <LinearGradient
-              colors={gradients.aurora}
+              colors={theme.gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.buttonGradient}
             >
-              <Ionicons name="play" size={18} color={colors.bg} />
-              <Text style={styles.buttonTextPlay}>Play</Text>
+              <Ionicons name="play" size={18} color={theme.textColorOnGradient} />
+              <Text style={[styles.buttonTextPlay, { color: theme.textColorOnGradient }]}>Play</Text>
             </LinearGradient>
           </Pressable>
 
@@ -203,7 +205,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       ) : null}
 
       {loading ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} />
+        <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
       ) : tracks.length === 0 ? (
         <EmptyState
           icon="musical-notes-outline"

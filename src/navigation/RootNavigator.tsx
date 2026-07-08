@@ -22,6 +22,7 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { SongsScreen } from '../screens/SongsScreen';
 import { useAuth } from '../state/auth';
 import { colors } from '../theme';
+import { useTheme } from '../state/theme';
 
 export type RootStackParamList = {
   Tabs: undefined;
@@ -69,18 +70,6 @@ function ArtistsStack() {
   );
 }
 
-const navTheme: Theme = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    primary: colors.accent,
-    background: colors.bg,
-    card: colors.bg,
-    text: colors.text,
-    border: colors.border,
-  },
-};
-
 const TAB_ICONS: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
   Search: 'search',
   Songs: 'musical-notes',
@@ -90,12 +79,14 @@ const TAB_ICONS: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
 };
 
 function Tabs() {
+  const theme = useTheme((s) => s.theme);
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         lazy: false,
-        tabBarActiveTintColor: colors.text,
+        tabBarActiveTintColor: theme.color,
         tabBarInactiveTintColor: colors.textTertiary,
         tabBarStyle: {
           position: 'absolute',
@@ -149,8 +140,21 @@ function Splash() {
 export function RootNavigator() {
   const session = useAuth((s) => s.session);
   const initialized = useAuth((s) => s.initialized);
+  const theme = useTheme((s) => s.theme);
 
   if (!initialized) return <Splash />;
+
+  const navTheme: Theme = {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      primary: theme.color,
+      background: colors.bg,
+      card: colors.bg,
+      text: colors.text,
+      border: colors.border,
+    },
+  };
 
   return (
     <NavigationContainer theme={navTheme}>

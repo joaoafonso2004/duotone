@@ -27,12 +27,14 @@ import { Screen } from '../components/Screen';
 import { hapticNotification } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, radii, spacing, type } from '../theme';
+import { useTheme } from '../state/theme';
 import type { Playlist, Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ImportYouTube'>;
 
 export function ImportYouTubeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const theme = useTheme((s) => s.theme);
 
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -147,7 +149,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} />
+        <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
       ) : !data ? (
         <EmptyState
           icon="logo-youtube"
@@ -169,7 +171,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
                 )
               }
             >
-              <Text style={[type.caption, { color: colors.accent, fontWeight: '700' }]}>
+              <Text style={[type.caption, { color: theme.color, fontWeight: '700' }]}>
                 {count === data.items.length ? 'Deselect all' : 'Select all'}
               </Text>
             </Pressable>
@@ -192,7 +194,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
                   <Ionicons
                     name={on ? 'checkmark-circle' : 'ellipse-outline'}
                     size={22}
-                    color={on ? colors.accent : colors.textTertiary}
+                    color={on ? theme.color : colors.textTertiary}
                   />
                   {item.thumbnail ? (
                     <Image

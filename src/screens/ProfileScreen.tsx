@@ -35,6 +35,7 @@ import {
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
+import { useTheme } from '../state/theme';
 import type { Track } from '../types';
 import { colors, radii, spacing, type } from '../theme';
 
@@ -76,6 +77,7 @@ export function ProfileScreen() {
   const [mostPlayed, setMostPlayed] = useState<ProfilePlayEntry[]>([]);
   const [recent, setRecent] = useState<ProfilePlayEntry[]>([]);
   const [stats, setStats] = useState<DbPlayStats | null>(null);
+  const theme = useTheme((s) => s.theme);
 
   const loadStats = useCallback(() => {
     getProfileMostPlayed(20).then(setMostPlayed);
@@ -169,14 +171,14 @@ export function ProfileScreen() {
                 autoCorrect={false}
                 placeholder="Username"
                 placeholderTextColor={colors.textTertiary}
-                style={styles.nameInput}
+                style={[styles.nameInput, { borderBottomColor: theme.color }]}
                 maxLength={24}
               />
               <Pressable onPress={saveName} disabled={savingName} hitSlop={8}>
                 {savingName ? (
-                  <ActivityIndicator color={colors.accent} />
+                  <ActivityIndicator color={theme.color} />
                 ) : (
-                  <Ionicons name="checkmark-circle" size={26} color={colors.accent} />
+                  <Ionicons name="checkmark-circle" size={26} color={theme.color} />
                 )}
               </Pressable>
             </View>
@@ -324,6 +326,7 @@ function AvatarEditor({
   onClose: () => void;
   onChange: (c: AvatarChoice) => void;
 }) {
+  const theme = useTheme((s) => s.theme);
   const emoji = value?.emoji ?? AVATAR_EMOJIS[0];
   const gradientIndex = value?.gradientIndex ?? 0;
   const grad = AVATAR_GRADIENTS[gradientIndex];
@@ -359,7 +362,7 @@ function AvatarEditor({
               <Pressable
                 key={em}
                 onPress={() => onChange({ emoji: em, gradientIndex })}
-                style={[styles.emojiCell, em === emoji && styles.emojiCellActive]}
+                style={[styles.emojiCell, em === emoji && [styles.emojiCellActive, { borderColor: theme.color }]]}
               >
                 <Text style={{ fontSize: 24 }}>{em}</Text>
               </Pressable>

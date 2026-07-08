@@ -17,6 +17,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
+import { useTheme } from '../state/theme';
 import type { Track } from '../types';
 
 interface ArtistGroup {
@@ -32,6 +33,7 @@ export function ArtistsScreen() {
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
+  const theme = useTheme((s) => s.theme);
 
   const load = useCallback(async () => {
     try {
@@ -77,7 +79,7 @@ export function ArtistsScreen() {
       subtitle={`${artists.length} ${artists.length === 1 ? 'artist' : 'artists'}`}
     >
       {loading ? (
-        <ActivityIndicator color={colors.accent} style={{ marginTop: 48 }} />
+        <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
       ) : artists.length === 0 ? (
         <EmptyState
           icon="people-outline"

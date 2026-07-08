@@ -1,9 +1,12 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View, Share } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View, Share, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme, ACCENT_THEMES } from '../state/theme';
 import { clearLibrary } from '../api/library';
 import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
 import { clearStreamMemo } from '../api/ytstream';
@@ -67,6 +70,9 @@ export function SettingsScreen({ navigation }: Props) {
   const setSoundPreset = usePlayer((s) => s.setSoundPreset);
   const sleepTimerTimeLeft = usePlayer((s) => s.sleepTimerTimeLeft);
   const setSleepTimer = usePlayer((s) => s.setSleepTimer);
+  const themeName = useTheme((s) => s.themeName);
+  const setTheme = useTheme((s) => s.setTheme);
+  const activeTheme = useTheme((s) => s.theme);
 
   const [audioQuality, setAudioQualityState] = useState<AudioQuality>('high');
   const [showDuration, setShowDuration] = useState(true);
@@ -263,6 +269,47 @@ export function SettingsScreen({ navigation }: Props) {
               onPress={() => setDeleteAccountOpen(true)}
               style={{ alignSelf: 'flex-start' }}
             />
+          </View>
+        </Section>
+
+        <Section title="Theme (Tema da Aplicação)">
+          <Label>Cor de destaque</Label>
+          <View style={styles.themesGrid}>
+            {(['violet', 'blue', 'orange', 'green', 'pink', 'red', 'mono', 'steel'] as const).map((name) => {
+              const item = ACCENT_THEMES[name];
+              const isActive = themeName === name;
+              return (
+                <Pressable
+                  key={name}
+                  onPress={() => {
+                    hapticSelection();
+                    setTheme(name);
+                  }}
+                  style={styles.themeCircleWrap}
+                >
+                  <LinearGradient
+                    colors={item.gradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[
+                      styles.themeCircle,
+                      isActive && { borderWidth: 2, borderColor: '#fff' }
+                    ]}
+                  >
+                    {isActive && (
+                      <Ionicons
+                        name="checkmark"
+                        size={16}
+                        color={item.textColorOnGradient}
+                      />
+                    )}
+                  </LinearGradient>
+                  <Text style={styles.themeLabel}>
+                    {name === 'mono' ? 'Mono' : name === 'steel' ? 'Steel' : name.charAt(0).toUpperCase() + name.slice(1)}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
         </Section>
 
@@ -506,6 +553,37 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: 4,
+  },
+  themesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+    justifyContent: 'space-between',
+  },
+  themeCircleWrap: {
+    alignItems: 'center',
+    width: '22%',
+    marginBottom: spacing.sm,
+  },
+  themeCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  themeLabel: {
+    ...type.micro,
+    fontSize: 10,
+    marginTop: 6,
+    textAlign: 'center',
+    textTransform: 'none',
   },
 });
 
