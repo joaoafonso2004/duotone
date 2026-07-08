@@ -106,3 +106,26 @@ export async function getLibraryTrackIds(): Promise<Set<string>> {
   if (error) throw error;
   return new Set((data ?? []).map((r: any) => r.track_id as string));
 }
+
+export async function checkIsSaved(source: string, sourceId: string): Promise<{ saved: boolean; trackId: string | null }> {
+  try {
+    const { data: trackData, error: trackError } = await supabase
+      .from('tracks')
+      .select('id')
+      .match({ source, source_id: sourceId })
+      .maybeSingle();
+    if (trackError || !trackData) return { saved: false, trackId: null };
+
+    const userId = await currentUserId();
+    const { data: libData, error: libError } = await supabase
+      .from('library_tracks')
+      .select('track_id')
+      .match({ user_id: userId, track_id: trackData.id })
+      .maybeSingle();
+
+    if (libError || !libData) return { saved: false, trackId: trackData.id };
+    return { saved: true, trackId: trackData.id };
+  } catch {
+    return { saved: false, trackId: null };
+  }
+}

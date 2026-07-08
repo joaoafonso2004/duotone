@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { saveToLibrary } from '../api/library';
+import { saveToLibrary, removeFromLibrary, checkIsSaved } from '../api/library';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { setRepeatMode as persistRepeatMode, setShuffle as persistShuffle } from '../lib/prefs';
 import { usePlayer } from '../state/player';
@@ -129,8 +129,17 @@ export function PlayerRoot() {
 
   // Estado do botão "guardar" da faixa atual (reinicia a cada nova música).
   const [saved, setSaved] = useState(false);
+  const [dbTrackId, setDbTrackId] = useState<string | null>(null);
   useEffect(() => {
-    setSaved(false);
+    if (!current) {
+      setSaved(false);
+      setDbTrackId(null);
+      return;
+    }
+    checkIsSaved(current.source, current.sourceId).then((res) => {
+      setSaved(res.saved);
+      setDbTrackId(res.trackId);
+    });
   }, [current?.sourceId]);
 
   const [showLyrics, setShowLyrics] = useState(false);
@@ -175,14 +184,29 @@ export function PlayerRoot() {
   };
 
   const saveCurrentToLibrary = async () => {
-    if (!current || saved) return;
-    setSaved(true); // otimista
+    if (!current) return;
+    const wasSaved = saved;
+    setSaved(!wasSaved); // otimista
     try {
-      await saveToLibrary(current);
-      hapticNotification();
+      if (wasSaved) {
+        let idToRemove = dbTrackId;
+        if (!idToRemove) {
+          const res = await checkIsSaved(current.source, current.sourceId);
+          idToRemove = res.trackId;
+        }
+        if (idToRemove) {
+          await removeFromLibrary(idToRemove);
+        }
+        setSaved(false);
+      } else {
+        const newId = await saveToLibrary(current);
+        setDbTrackId(newId);
+        setSaved(true);
+        hapticNotification();
+      }
     } catch (e: any) {
-      setSaved(false);
-      Alert.alert('Error', e?.message ?? 'Could not save the track.');
+      setSaved(wasSaved);
+      Alert.alert('Error', e?.message ?? 'Could not update library.');
     }
   };
 
