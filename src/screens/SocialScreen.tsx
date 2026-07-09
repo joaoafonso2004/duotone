@@ -150,6 +150,13 @@ export function SocialScreen() {
     useCallback(() => {
       loadInbox();
       loadFriends();
+
+      // Poll friends list every 12 seconds for currently playing track updates
+      const interval = setInterval(() => {
+        loadFriends();
+      }, 12000);
+
+      return () => clearInterval(interval);
     }, [loadInbox, loadFriends])
   );
 
@@ -474,6 +481,35 @@ export function SocialScreen() {
                                  </>
                                )}
                              </View>
+                             {isOnline && friend.currentlyPlaying && friend.currentlyPlaying.isPlaying && (
+                                <Pressable
+                                  onPress={() => {
+                                    hapticSelection();
+                                    if (friend.currentlyPlaying) {
+                                      const trackToPlay: Track = {
+                                        id: friend.currentlyPlaying.id || undefined,
+                                        source: friend.currentlyPlaying.source as 'youtube',
+                                        sourceId: friend.currentlyPlaying.sourceId,
+                                        title: friend.currentlyPlaying.title,
+                                        artist: friend.currentlyPlaying.artist || null,
+                                        album: null,
+                                        artworkUrl: friend.currentlyPlaying.artworkUrl || null,
+                                        durationSeconds: friend.currentlyPlaying.durationSeconds || null,
+                                      };
+                                      playTrack(trackToPlay, [trackToPlay]);
+                                    }
+                                  }}
+                                  style={({ pressed }) => [
+                                    styles.listeningContainer,
+                                    pressed && { backgroundColor: 'rgba(48, 209, 88, 0.15)' }
+                                  ]}
+                                >
+                                  <Ionicons name="musical-note" size={11} color="#30D158" />
+                                  <Text numberOfLines={1} style={styles.listeningText}>
+                                    A ouvir: {friend.currentlyPlaying.title}
+                                  </Text>
+                                </Pressable>
+                              )}
                            </View>
                            <Pressable
                              onPress={() => handleRemoveFriend(friend.friendId, false)}
@@ -1110,5 +1146,24 @@ const styles = StyleSheet.create({
     ...typography.caption,
     textAlign: 'center',
     color: colors.textTertiary,
+  },
+  listeningContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(48, 209, 88, 0.08)',
+    borderColor: 'rgba(48, 209, 88, 0.2)',
+    borderWidth: 1,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    marginTop: spacing.xs,
+    alignSelf: 'flex-start',
+    maxWidth: '90%',
+    gap: 4,
+  },
+  listeningText: {
+    fontSize: 11,
+    color: '#30D158',
+    fontWeight: '600',
   },
 });
