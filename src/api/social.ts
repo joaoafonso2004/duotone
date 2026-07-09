@@ -316,3 +316,27 @@ export async function updateCurrentlyPlaying(track: any | null, isPlaying: boole
     // silently fail
   }
 }
+
+export interface FriendProfile {
+  id: string;
+  name: string;
+  username: string;
+  avatarUrl: string | null;
+  lastSeenAt: string | null;
+}
+
+export async function getFriendProfile(friendId: string): Promise<FriendProfile> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, name, username, avatar_url, last_seen_at')
+    .eq('id', friendId)
+    .single();
+  if (error || !data) throw new Error('Perfil não encontrado');
+  return {
+    id: data.id,
+    name: data.name || 'Unknown',
+    username: data.username || 'unknown',
+    avatarUrl: data.avatar_url,
+    lastSeenAt: data.last_seen_at,
+  };
+}

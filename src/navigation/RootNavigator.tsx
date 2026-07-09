@@ -27,7 +27,10 @@ import { SocialScreen } from '../screens/SocialScreen';
 import { useAuth } from '../state/auth';
 import { colors } from '../theme';
 import { useTheme } from '../state/theme';
-import { updateLastSeen } from '../api/social';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getInboxItems, updateLastSeen } from '../api/social';
+import { useNotifications } from '../state/notifications';
+import { FriendProfileScreen } from '../screens/FriendProfileScreen';
 
 export type RootStackParamList = {
   Tabs: undefined;
@@ -37,7 +40,8 @@ export type RootStackParamList = {
   ImportYouTube: undefined;
   Artists: undefined;
   LibraryGroup: { type: 'album' | 'artist'; name: string };
-  Social: undefined;
+  Social: { openChatWithFriendId?: string } | undefined;
+  FriendProfile: { friendId: string };
 };
 
 type TabsParamList = {
@@ -109,17 +113,35 @@ function Tabs() {
             ]}
           />
         ),
-        tabBarIcon: ({ color, size, focused }) => (
-          <Ionicons
-            name={
-              focused
-                ? TAB_ICONS[route.name]
-                : (`${TAB_ICONS[route.name]}-outline` as keyof typeof Ionicons.glyphMap)
-            }
-            size={size}
-            color={color}
-          />
-        ),
+        tabBarIcon: ({ color, size, focused }) => {
+          const hasNotification = useNotifications((s) => s.hasNotification);
+          return (
+            <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons
+                name={
+                  focused
+                    ? TAB_ICONS[route.name]
+                    : (`${TAB_ICONS[route.name]}-outline` as keyof typeof Ionicons.glyphMap)
+                }
+                size={size}
+                color={color}
+              />
+              {route.name === 'Profile' && hasNotification && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: -2,
+                    right: -2,
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: '#FF3B30',
+                  }}
+                />
+              )}
+            </View>
+          );
+        },
       })}
     >
       <Tab.Screen name="Search" component={SearchScreen} />
@@ -171,6 +193,30 @@ export function RootNavigator() {
     };
   }, [session]);
 
+  // Poll inbox items every 15 seconds to check for new messages
+  useEffect(() => {
+    if (!session) return;
+
+    const checkNewMessages = async () => {
+      try {
+        const items = await getInboxItems();
+        if (items.length > 0) {
+          const lastSeenId = await AsyncStorage.getItem('notifications:lastSeenId');
+          const latestItem = items[0]; // ordered by created_at desc
+          if (latestItem && latestItem.id !== lastSeenId) {
+            useNotifications.getState().setHasNotification(true);
+          }
+        }
+      } catch (err) {
+        // ignore
+      }
+    };
+
+    checkNewMessages();
+    const interval = setInterval(checkNewMessages, 15000);
+    return () => clearInterval(interval);
+  }, [session]);
+
   if (!initialized) return <Splash />;
 
   const navTheme: Theme = {
@@ -217,6 +263,7 @@ export function RootNavigator() {
               <Stack.Screen name="Tabs" component={Tabs} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Social" component={SocialScreen} />
+              <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
             </Stack.Navigator>
             <PlayerRoot />
             {/* BotGuardMinter (PO Token on-device) DESLIGADO de propósito: o
