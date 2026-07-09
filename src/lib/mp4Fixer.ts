@@ -110,6 +110,13 @@ function findAndFixBoxes(
       } else if (version === 0) {
         write32(buffer, boxContentStart + 4, newDuration);
       }
+    } else if (type === 'sidx' || type === 'ssix') {
+      // Desativar o indexador de segmentos (sidx/ssix) convertendo-o para um bloco livre (free).
+      // Isto força o AVPlayer a usar a duração do cabeçalho mvhd que nós corrigimos.
+      buffer[offset + 4] = 102; // 'f'
+      buffer[offset + 5] = 114; // 'r'
+      buffer[offset + 6] = 101; // 'e'
+      buffer[offset + 7] = 101; // 'e'
     }
 
     offset += boxSize;
