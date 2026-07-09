@@ -303,7 +303,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       let playableUri = stream.url;
       if (!stream.isHls) {
         downloadTriedRef.current = true;
-        playableUri = await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength);
+        playableUri = await downloadProgressiveAudio(
+          track.sourceId,
+          stream.url,
+          stream.contentLength,
+          track.durationSeconds
+        );
         if (!alive()) return;
       }
 
@@ -355,7 +360,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const myRun = runIdRef.current;
     const resumeAt = player.currentTime;
     try {
-      const uri = await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength);
+      const uri = await downloadProgressiveAudio(
+        track.sourceId,
+        stream.url,
+        stream.contentLength,
+        track.durationSeconds
+      );
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       await player.replaceAsync({
         uri,
@@ -502,7 +512,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         const stream = await resolveYouTubeStream(nextTrack.sourceId, quality);
         if (stream && !stream.isHls) {
           // Descarregar localmente em segundo plano
-          await downloadProgressiveAudio(nextTrack.sourceId, stream.url, stream.contentLength);
+          await downloadProgressiveAudio(
+            nextTrack.sourceId,
+            stream.url,
+            stream.contentLength,
+            nextTrack.durationSeconds
+          );
         }
       } catch (err) {
         console.warn('[Smart Cache] Falha ao pré-carregar música seguinte:', err);
