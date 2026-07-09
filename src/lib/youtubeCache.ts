@@ -60,43 +60,5 @@ export async function downloadProgressiveAudio(
   // Descarrega usando a API nativa do novo expo-file-system para máxima estabilidade
   await File.downloadFileAsync(url, dest, { idempotent: true });
 
-  // Limpa a cache de forma assíncrona para não atrasar o retorno imediato da reprodução
-  pruneAudioCacheIfNeeded();
-
   return dest.uri;
-}
-
-/**
- * Mantém o armazenamento limpo limitando a cache às 50 músicas mais recentes.
- * Apaga os ficheiros mais antigos baseando-se na data de modificação.
- */
-export function pruneAudioCacheIfNeeded(): void {
-  try {
-    const cacheDir = Paths.cache;
-    const entries = cacheDir.list();
-    const files = entries.filter(
-      (e) => e instanceof File && e.name.startsWith(PREFIX)
-    ) as File[];
-
-    // Mantém no máximo 50 músicas na cache (cerca de 200MB-250MB)
-    if (files.length <= 50) return;
-
-    // Ordena por data de modificação decrescente (mais recente primeiro)
-    const sorted = files.sort((a, b) => {
-      const aTime = a.lastModified ?? 0;
-      const bTime = b.lastModified ?? 0;
-      return bTime - aTime;
-    });
-
-    // Apaga as faixas mais antigas (além das 50 mais recentes)
-    for (let i = 50; i < sorted.length; i++) {
-      try {
-        sorted[i].delete();
-      } catch (err) {
-        console.warn(`[Smart Cache] Erro ao limpar faixa antiga ${sorted[i].name}:`, err);
-      }
-    }
-  } catch (err) {
-    console.warn('[Smart Cache] Erro ao gerir limite de cache:', err);
-  }
 }

@@ -57,6 +57,7 @@ export async function getAvatarChoice(): Promise<AvatarChoice> {
       const emoji = user.user_metadata.avatar_emoji;
       const gradientRaw = user.user_metadata.avatar_gradient;
       const avatarUrl = user.user_metadata.avatar_url;
+      const cleanUrl = avatarUrl && avatarUrl.startsWith('emoji:') ? undefined : avatarUrl || undefined;
       
       return {
         emoji: emoji || DEFAULT_EMOJI,
@@ -64,7 +65,7 @@ export async function getAvatarChoice(): Promise<AvatarChoice> {
           gradientRaw !== undefined && Number(gradientRaw) >= 0 && Number(gradientRaw) < AVATAR_GRADIENTS.length
             ? Number(gradientRaw)
             : DEFAULT_GRADIENT_INDEX,
-        avatarUrl: avatarUrl || undefined,
+        avatarUrl: cleanUrl,
       };
     }
   } catch (err) {
@@ -78,13 +79,15 @@ export async function getAvatarChoice(): Promise<AvatarChoice> {
     AsyncStorage.getItem(KEY_URL),
   ]);
   const gradientIndex = Number(gradientRaw);
+  const cleanUrl = avatarUrl && avatarUrl.startsWith('emoji:') ? undefined : avatarUrl ?? undefined;
+  
   return {
     emoji: emoji ?? DEFAULT_EMOJI,
     gradientIndex:
       Number.isInteger(gradientIndex) && gradientIndex >= 0 && gradientIndex < AVATAR_GRADIENTS.length
         ? gradientIndex
         : DEFAULT_GRADIENT_INDEX,
-    avatarUrl: avatarUrl ?? undefined,
+    avatarUrl: cleanUrl,
   };
 }
 
@@ -113,10 +116,12 @@ export async function setAvatarChoice(choice: AvatarChoice): Promise<void> {
     });
     if (error) throw error;
 
+    const dbAvatarUrl = choice.avatarUrl || `emoji:${choice.emoji || DEFAULT_EMOJI}:${choice.gradientIndex ?? DEFAULT_GRADIENT_INDEX}`;
+
     if (user?.id) {
       await supabase
         .from('profiles')
-        .update({ avatar_url: choice.avatarUrl || null })
+        .update({ avatar_url: dbAvatarUrl })
         .eq('id', user.id);
     }
   } catch (err) {

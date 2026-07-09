@@ -36,7 +36,9 @@ import {
   type DbPlayStats,
   type TopArtist,
 } from '../api/plays';
-import { getFriendCount } from '../api/social';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getFriendCount, getInboxItems } from '../api/social';
+import { useNotifications } from '../state/notifications';
 import { listPlaylists } from '../api/playlists';
 import { ArtworkCollage } from '../components/ArtworkCollage';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -129,7 +131,21 @@ export function ProfileScreen() {
   }, []);
 
   useEffect(() => {
-    if (isFocused) loadStats();
+    if (isFocused) {
+      loadStats();
+      
+      // Se há notificação pendente na barra de baixo, limpa-a e transfere-a para o botão de Social
+      if (useNotifications.getState().hasNotification) {
+        useNotifications.getState().setHasNotification(false);
+        useNotifications.getState().setHasSocialNotification(true);
+        
+        getInboxItems().then(async (items) => {
+          if (items && items.length > 0) {
+            await AsyncStorage.setItem('notifications:lastSeenId', items[0].id);
+          }
+        }).catch(() => {});
+      }
+    }
   }, [isFocused, loadStats]);
 
   const saveAvatar = async (choice: AvatarChoice) => {
@@ -165,21 +181,40 @@ export function ProfileScreen() {
 
   const grad = AVATAR_GRADIENTS[avatar?.gradientIndex ?? 0];
   const totalPlays = stats?.totalPlays ?? 0;
+  const hasSocialNotification = useNotifications((s) => s.hasSocialNotification);
 
   return (
     <Screen
       title="Profile"
       right={
-        <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', gap: 24, alignItems: 'center' }}>
           <Pressable
-            hitSlop={10}
-            onPress={() => navigation.navigate('Social')}
+            hitSlop={12}
+            onPress={() => {
+              useNotifications.getState().setHasSocialNotification(false);
+              navigation.navigate('Social');
+            }}
             accessibilityLabel="Social"
           >
-            <Ionicons name="people-outline" size={22} color={colors.textSecondary} />
+            <View style={{ position: 'relative' }}>
+              <Ionicons name="people-outline" size={22} color={colors.textSecondary} />
+              {hasSocialNotification && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    top: -2,
+                    right: -2,
+                    width: 7,
+                    height: 7,
+                    borderRadius: 3.5,
+                    backgroundColor: '#FF3B30',
+                  }}
+                />
+              )}
+            </View>
           </Pressable>
           <Pressable
-            hitSlop={10}
+            hitSlop={12}
             onPress={() => navigation.navigate('Settings')}
             accessibilityLabel="Settings"
           >

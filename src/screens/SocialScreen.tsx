@@ -1,9 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useState } from 'react';
+import { useNotifications } from '../state/notifications';
+import { AVATAR_GRADIENTS } from '../lib/avatarPrefs';
 import {
   ActivityIndicator,
   Alert,
@@ -48,11 +50,60 @@ import type { Track } from '../types';
 export function SocialScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'Social'>>();
+  const openChatWithFriendId = route.params?.openChatWithFriendId;
+
   const playTrack = usePlayer((s) => s.playTrack);
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
   const theme = useTheme((s) => s.theme);
+
+  const renderFriendAvatar = (avatarUrl: string | null, name: string, size = 36) => {
+    if (avatarUrl && avatarUrl.startsWith('emoji:')) {
+      const [, emoji, gradIdxStr] = avatarUrl.split(':');
+      const gradIdx = parseInt(gradIdxStr, 10);
+      const grad = AVATAR_GRADIENTS[gradIdx] || AVATAR_GRADIENTS[0];
+      return (
+        <LinearGradient
+          colors={grad}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Text style={{ fontSize: size * 0.48 }}>{emoji}</Text>
+        </LinearGradient>
+      );
+    }
+    if (avatarUrl) {
+      return (
+        <Image
+          source={{ uri: avatarUrl }}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+        />
+      );
+    }
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: colors.surfaceHigh,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Text style={{ fontSize: size * 0.38, fontWeight: '700', color: colors.textSecondary }}>
+          {name ? name.charAt(0).toUpperCase() : '?'}
+        </Text>
+      </View>
+    );
+  };
 
   const [activeTab, setActiveTab] = useState<'inbox' | 'friends' | 'add'>('inbox');
   const [inboxItems, setInboxItems] = useState<SharedItem[]>([]);
@@ -78,6 +129,23 @@ export function SocialScreen() {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+
+  useEffect(() => {
+    // Clear notifications when entering SocialScreen
+    useNotifications.getState().setHasSocialNotification(false);
+    useNotifications.getState().setHasNotification(false);
+  }, []);
+
+  useEffect(() => {
+    if (openChatWithFriendId && friendships.length > 0) {
+      const friendObj = friendships.find((f) => f.friendId === openChatWithFriendId);
+      if (friendObj) {
+        setActiveChatFriend(friendObj);
+        // Clear route params so it doesn't trigger again on subsequent renders
+        navigation.setParams({ openChatWithFriendId: undefined });
+      }
+    }
+  }, [openChatWithFriendId, friendships, navigation]);
 
   const loadInbox = useCallback(async () => {
     try {
@@ -291,75 +359,93 @@ export function SocialScreen() {
               data={inboxItems}
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: bottomPad }}
-              renderItem={({ item }) => (
-                <View style={styles.shareCard}>
-                  {/* Sender Details Header */}
-                  <View style={styles.shareHeader}>
-                    {item.sender.avatarUrl ? (
-                      <Image source={{ uri: item.sender.avatarUrl }} style={styles.senderAvatar} />
-                    ) : (
-                      <View style={[styles.senderAvatar, styles.avatarFallback]}>
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>
-                          {item.sender.name.charAt(0).toUpperCase()}
-                        </Text>
+              renderItem={({ item }) => {
+                const handleOpenChat = () => {
+                  hapticSelection();
+                  const friendObj: Friendship = {
+                    friendId: item.sender.id,
+                    username: item.sender.username,
+                    name: item.sender.name,
+                    avatarUrl: item.sender.avatarUrl,
+                    status: 'accepted',
+                    isSender: false,
+                    lastSeenAt: null,
+                  };
+                  setActiveChatFriend(friendObj);
+                };
+
+                return (
+                  <View style={styles.shareCard}>
+                    {/* Sender Details Header */}
+                    <View style={styles.shareHeader}>
+                      <Pressable
+                        onPress={handleOpenChat}
+                        style={({ pressed }) => [
+                          { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+                          pressed && { opacity: 0.7 }
+                        ]}
+                      >
+                        {renderFriendAvatar(item.sender.avatarUrl, item.sender.name, 36)}
+                        <View style={{ flex: 1 }}>
+                          <Text style={[typography.body, { fontWeight: '700' }]}>{item.sender.name}</Text>
+                          <Text style={[typography.caption, { fontSize: 11 }]}>@{item.sender.username}</Text>
+                        </View>
+                      </Pressable>
+                      <Pressable onPress={() => handleDeleteInboxItem(item.id)} hitSlop={8}>
+                        <Ionicons name="trash-outline" size={18} color={colors.textTertiary} />
+                      </Pressable>
+                    </View>
+
+                    {/* Caption Message if exists */}
+                    {item.message ? (
+                      <Pressable onPress={handleOpenChat}>
+                        <View style={styles.messageBubble}>
+                          <Text style={styles.messageText}>"{item.message}"</Text>
+                        </View>
+                      </Pressable>
+                    ) : null}
+
+                    {/* Shared Item Box */}
+                    {item.itemType === 'track' && item.trackData && (
+                      <View style={styles.innerTrackBox}>
+                        <TrackRow
+                          track={item.trackData}
+                          active={
+                            current?.source === item.trackData.source &&
+                            current?.sourceId === item.trackData.sourceId
+                          }
+                          onPress={() => playTrack(item.trackData!, [item.trackData!])}
+                          onAction={() => setActionTrack(item.trackData!)}
+                        />
                       </View>
                     )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={[typography.body, { fontWeight: '700' }]}>{item.sender.name}</Text>
-                      <Text style={[typography.caption, { fontSize: 11 }]}>@{item.sender.username}</Text>
-                    </View>
-                    <Pressable onPress={() => handleDeleteInboxItem(item.id)} hitSlop={8}>
-                      <Ionicons name="trash-outline" size={18} color={colors.textTertiary} />
-                    </Pressable>
+
+                    {item.itemType === 'playlist' && item.playlistId && (
+                      <Pressable
+                        onPress={() => {
+                          hapticSelection();
+                          setSelectedYtPlaylistId(item.playlistId);
+                        }}
+                        style={({ pressed }) => [
+                          styles.innerPlaylistBox,
+                          pressed && { backgroundColor: colors.surfacePressed },
+                        ]}
+                      >
+                        <View style={[styles.playlistIconBox, { backgroundColor: theme.soft }]}>
+                          <Ionicons name="albums-outline" size={24} color={theme.color} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[typography.body, { fontWeight: '600' }]} numberOfLines={1}>
+                            Playlist Partilhada
+                          </Text>
+                          <Text style={typography.caption}>Toca para abrir e importar</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+                      </Pressable>
+                    )}
                   </View>
-
-                  {/* Caption Message if exists */}
-                  {item.message ? (
-                    <View style={styles.messageBubble}>
-                      <Text style={styles.messageText}>"{item.message}"</Text>
-                    </View>
-                  ) : null}
-
-                  {/* Shared Item Box */}
-                  {item.itemType === 'track' && item.trackData && (
-                    <View style={styles.innerTrackBox}>
-                      <TrackRow
-                        track={item.trackData}
-                        active={
-                          current?.source === item.trackData.source &&
-                          current?.sourceId === item.trackData.sourceId
-                        }
-                        onPress={() => playTrack(item.trackData!, [item.trackData!])}
-                        onAction={() => setActionTrack(item.trackData!)}
-                      />
-                    </View>
-                  )}
-
-                  {item.itemType === 'playlist' && item.playlistId && (
-                    <Pressable
-                      onPress={() => {
-                        hapticSelection();
-                        setSelectedYtPlaylistId(item.playlistId);
-                      }}
-                      style={({ pressed }) => [
-                        styles.innerPlaylistBox,
-                        pressed && { backgroundColor: colors.surfacePressed },
-                      ]}
-                    >
-                      <View style={[styles.playlistIconBox, { backgroundColor: theme.soft }]}>
-                        <Ionicons name="albums-outline" size={24} color={theme.color} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[typography.body, { fontWeight: '600' }]} numberOfLines={1}>
-                          Playlist Partilhada
-                        </Text>
-                        <Text style={typography.caption}>Toca para abrir e importar</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-                    </Pressable>
-                  )}
-                </View>
-              )}
+                );
+              }}
             />
           )}
         </>
@@ -387,13 +473,7 @@ export function SocialScreen() {
                   <View style={styles.listCard}>
                     {pendingRequests.map((req) => (
                       <View key={req.friendId} style={styles.friendRow}>
-                        {req.avatarUrl ? (
-                          <Image source={{ uri: req.avatarUrl }} style={styles.friendAvatar} />
-                        ) : (
-                          <View style={[styles.friendAvatar, styles.avatarFallback]}>
-                            <Text style={{ fontSize: 13, color: colors.textSecondary }}>{req.name.charAt(0).toUpperCase()}</Text>
-                          </View>
-                        )}
+                        {renderFriendAvatar(req.avatarUrl, req.name, 36)}
                         <View style={{ flex: 1 }}>
                           <Text style={[typography.body, { fontWeight: '700' }]}>{req.name}</Text>
                           <Text style={typography.caption}>@{req.username}</Text>
@@ -450,17 +530,9 @@ export function SocialScreen() {
                            ]}
                          >
                            <View style={styles.avatarContainer}>
-                             {friend.avatarUrl ? (
-                               <Image source={{ uri: friend.avatarUrl }} style={styles.friendAvatar} />
-                             ) : (
-                               <View style={[styles.friendAvatar, styles.avatarFallback]}>
-                                 <Text style={{ fontSize: 13, color: colors.textSecondary }}>
-                                   {friend.name.charAt(0).toUpperCase()}
-                                 </Text>
-                               </View>
-                             )}
-                             {isOnline && <View style={styles.onlineBadge} />}
-                           </View>
+                              {renderFriendAvatar(friend.avatarUrl, friend.name, 36)}
+                              {isOnline && <View style={styles.onlineBadge} />}
+                            </View>
                            <View style={{ flex: 1 }}>
                               <Text style={[typography.body, { fontWeight: '700' }]}>{friend.name}</Text>
                               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -540,15 +612,7 @@ export function SocialScreen() {
                 return (
                   <View key={profile.id} style={styles.friendRow}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
-                      {profile.avatar_url ? (
-                        <Image source={{ uri: profile.avatar_url }} style={styles.friendAvatar} />
-                      ) : (
-                        <View style={[styles.friendAvatar, styles.avatarFallback, { backgroundColor: colors.surfaceHigh }]}>
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>
-                            {profile.name?.charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
+                      {renderFriendAvatar(profile.avatar_url, profile.name || '', 36)}
                       <View style={{ flex: 1 }}>
                         <Text style={[typography.body, { fontWeight: '700' }]} numberOfLines={1}>
                           {profile.name}
@@ -668,17 +732,21 @@ export function SocialScreen() {
             </Pressable>
 
             {activeChatFriend && (
-              <View style={styles.chatHeaderInfo}>
+              <Pressable
+                onPress={() => {
+                  hapticSelection();
+                  const fid = activeChatFriend.friendId;
+                  setActiveChatFriend(null);
+                  navigation.navigate('FriendProfile', { friendId: fid });
+                }}
+                style={({ pressed }) => [
+                  styles.chatHeaderInfo,
+                  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
+                  pressed && { opacity: 0.7 }
+                ]}
+              >
                 <View style={styles.avatarContainer}>
-                  {activeChatFriend.avatarUrl ? (
-                    <Image source={{ uri: activeChatFriend.avatarUrl }} style={styles.friendAvatar} />
-                  ) : (
-                    <View style={[styles.friendAvatar, styles.avatarFallback, { backgroundColor: colors.surfaceHigh }]}>
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>
-                        {activeChatFriend.name.charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
+                  {renderFriendAvatar(activeChatFriend.avatarUrl, activeChatFriend.name, 36)}
                   {((Date.now() - new Date(activeChatFriend.lastSeenAt || 0).getTime()) < 3 * 60 * 1000) && (
                     <View style={styles.onlineBadge} />
                   )}
@@ -691,7 +759,7 @@ export function SocialScreen() {
                     @{activeChatFriend.username}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             )}
           </View>
 
@@ -722,15 +790,7 @@ export function SocialScreen() {
                   <View style={[styles.msgContainer, isMe ? styles.msgMe : styles.msgFriend]}>
                     {!isMe && (
                       <View style={{ marginRight: spacing.xs }}>
-                        {activeChatFriend?.avatarUrl ? (
-                          <Image source={{ uri: activeChatFriend.avatarUrl }} style={styles.msgAvatar} />
-                        ) : (
-                          <View style={[styles.msgAvatar, styles.avatarFallback, { backgroundColor: colors.surfaceHigh }]}>
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary }}>
-                              {activeChatFriend?.name.charAt(0).toUpperCase()}
-                            </Text>
-                          </View>
-                        )}
+                        {renderFriendAvatar(activeChatFriend?.avatarUrl || null, activeChatFriend?.name || '', 24)}
                       </View>
                     )}
 
