@@ -1,6 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { BlurView } from 'expo-blur';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,29 +20,6 @@ export function Screen({ title, subtitle, right, topLeft, onBack, children, styl
   const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
-      {/* Imagem de fundo abstrata */}
-      <Image
-        source={require('../../assets/login_bg.png')}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-        transition={300}
-      />
-
-      {/* Camada de desfoque (blur) */}
-      <BlurView
-        intensity={20}
-        tint="dark"
-        style={StyleSheet.absoluteFill}
-      />
-
-      {/* Camada preta semi-transparente para alto contraste e legibilidade */}
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: 'rgba(10, 10, 15, 0.88)' }
-        ]}
-      />
-
       {/* Conteúdo do ecrã com margem segura notch */}
       <View style={{ flex: 1, paddingTop: insets.top + spacing.sm }}>
         {topLeft ? <View style={styles.topLeftRow}>{topLeft}</View> : null}
@@ -73,7 +48,7 @@ export function Screen({ title, subtitle, right, topLeft, onBack, children, styl
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: 'transparent',
   },
   topLeftRow: {
     paddingHorizontal: spacing.xl,

@@ -178,7 +178,7 @@ export function RootNavigator() {
     colors: {
       ...DarkTheme.colors,
       primary: theme.color,
-      background: colors.bg,
+      background: 'transparent',
       card: colors.bg,
       text: colors.text,
       border: colors.border,
@@ -187,9 +187,32 @@ export function RootNavigator() {
 
   return (
     <NavigationContainer theme={navTheme} ref={navigationRef}>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, backgroundColor: colors.bg }}>
         {session ? (
-          <>
+          <View style={{ flex: 1 }}>
+            {/* Imagem de fundo abstrata global (renderizada apenas uma vez na app inteira) */}
+            <Image
+              source={require('../../assets/login_bg.png')}
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              transition={300}
+            />
+
+            {/* Camada de desfoque (blur) */}
+            <BlurView
+              intensity={20}
+              tint="dark"
+              style={StyleSheet.absoluteFill}
+            />
+
+            {/* Camada preta semi-transparente para alto contraste e legibilidade */}
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                { backgroundColor: 'rgba(10, 10, 15, 0.88)' }
+              ]}
+            />
+
             <Stack.Navigator screenOptions={stackScreenOptions}>
               <Stack.Screen name="Tabs" component={Tabs} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
@@ -203,7 +226,7 @@ export function RootNavigator() {
                 fica em BotGuardMinter.tsx para reativar SE um dia os clientes
                 android começarem a exigir PO Token — bastaria voltar a montar
                 <BotGuardMinter /> aqui. */}
-          </>
+          </View>
         ) : (
           <AuthScreen />
         )}

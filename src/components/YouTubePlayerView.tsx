@@ -93,7 +93,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     p.showNowPlayingNotification = true;
     p.timeUpdateEventInterval = 1;
     p.loop = false;
-    p.audioMixingMode = 'doNotMix';
+    p.audioMixingMode = 'auto';
   });
 
   // Repeat "one": o player nativo repete a própria faixa (sem passar por
@@ -224,24 +224,32 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // MODO OFFLINE / CACHE RÁPIDO: Se a música já estiver guardada localmente, toca-a imediatamente
     const localFile = cachedAudioFile(track.sourceId);
     if (localFile.exists) {
-      try {
-        await player.replaceAsync({
-          uri: localFile.uri,
-          contentType: 'progressive',
-          metadata: {
-            title: track.title,
-            artist: track.artist ?? 'YouTube',
-            artwork: track.artworkUrl ?? undefined,
-          },
-        });
-        if (!alive()) return;
-        wantsPlayRef.current = true;
-        player.play();
-        fadeIn();
-        setBackend('native');
-        return;
-      } catch (err) {
-        console.warn('Erro a reproduzir ficheiro local em cache, tentando rede:', err);
+      if (localFile.size < 50000) {
+        try {
+          localFile.delete();
+        } catch (err) {
+          console.warn('Erro ao apagar cache corrompida:', err);
+        }
+      } else {
+        try {
+          await player.replaceAsync({
+            uri: localFile.uri,
+            contentType: 'progressive',
+            metadata: {
+              title: track.title,
+              artist: track.artist ?? 'YouTube',
+              artwork: track.artworkUrl ?? undefined,
+            },
+          });
+          if (!alive()) return;
+          wantsPlayRef.current = true;
+          player.play();
+          fadeIn();
+          setBackend('native');
+          return;
+        } catch (err) {
+          console.warn('Erro a reproduzir ficheiro local em cache, tentando rede:', err);
+        }
       }
     }
 
