@@ -30,7 +30,6 @@ import { useTheme } from '../state/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getInboxItems, updateLastSeen } from '../api/social';
 import { useNotifications } from '../state/notifications';
-import { FriendProfileScreen } from '../screens/FriendProfileScreen';
 
 export type RootStackParamList = {
   Tabs: undefined;
@@ -41,7 +40,6 @@ export type RootStackParamList = {
   Artists: undefined;
   LibraryGroup: { type: 'album' | 'artist'; name: string };
   Social: { openChatWithFriendId?: string } | undefined;
-  FriendProfile: { friendId: string };
 };
 
 type TabsParamList = {
@@ -263,7 +261,6 @@ export function RootNavigator() {
               <Stack.Screen name="Tabs" component={Tabs} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="Social" component={SocialScreen} />
-              <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
             </Stack.Navigator>
             <PlayerRoot />
             {/* BotGuardMinter (PO Token on-device) DESLIGADO de propósito: o

@@ -738,17 +738,10 @@ export function SocialScreen() {
             </Pressable>
 
             {activeChatFriend && (
-              <Pressable
-                onPress={() => {
-                  hapticSelection();
-                  const fid = activeChatFriend.friendId;
-                  setActiveChatFriend(null);
-                  navigation.navigate('FriendProfile', { friendId: fid });
-                }}
-                style={({ pressed }) => [
+              <View
+                style={[
                   styles.chatHeaderInfo,
-                  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
-                  pressed && { opacity: 0.7 }
+                  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }
                 ]}
               >
                 <View style={styles.avatarContainer}>
@@ -765,7 +758,7 @@ export function SocialScreen() {
                     @{activeChatFriend.username}
                   </Text>
                 </View>
-              </Pressable>
+              </View>
             )}
           </View>
 
@@ -804,7 +797,7 @@ export function SocialScreen() {
                       {/* Text Message Bubble (only if message is not empty) */}
                       {item.message ? (
                         <View style={[styles.msgBubble, isMe ? [styles.msgBubbleMe, { backgroundColor: theme.color }] : styles.msgBubbleFriend]}>
-                          <Text style={[typography.body, { color: '#fff' }]}>{item.message}</Text>
+                          <Text style={[typography.body, { color: isMe ? theme.textColorOnGradient : '#fff' }]}>{item.message}</Text>
                         </View>
                       ) : null}
 
