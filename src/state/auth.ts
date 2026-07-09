@@ -1,6 +1,23 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_TIME_MS = 60 * 1000; // 60 segundos de bloqueio
+
+async function handleFailedLoginAttempt(): Promise<void> {
+  try {
+    const attemptsStr = await AsyncStorage.getItem('auth:loginAttempts') || '0';
+    const attempts = parseInt(attemptsStr, 10) + 1;
+    await AsyncStorage.setItem('auth:loginAttempts', String(attempts));
+    
+    if (attempts >= MAX_ATTEMPTS) {
+      const lockoutTime = Date.now() + LOCKOUT_TIME_MS;
+      await AsyncStorage.setItem('auth:lockoutUntil', String(lockoutTime));
+    }
+  } catch {}
+}
 
 interface AuthState {
   session: Session | null;
@@ -34,6 +51,21 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   signIn: async (identifier, password) => {
+    // 1) Rate Limiting - Verificar se está sob bloqueio temporário
+    try {
+      const now = Date.now();
+      const lockoutStr = await AsyncStorage.getItem('auth:lockoutUntil');
+      if (lockoutStr) {
+        const lockoutTime = parseInt(lockoutStr, 10);
+        if (now < lockoutTime) {
+          const secondsLeft = Math.ceil((lockoutTime - now) / 1000);
+          return `Demasiadas tentativas falhadas. Tente novamente em ${secondsLeft} segundos.`;
+        }
+      }
+    } catch {
+      // ignorar erros de AsyncStorage
+    }
+
     let email = identifier.trim();
     // Sem "@" → tratamos como username: pedimos o email associado via RPC.
     // (Se o SQL de username ainda não foi aplicado, a RPC falha e explicamos.)
@@ -44,11 +76,28 @@ export const useAuth = create<AuthState>((set) => ({
       if (error) {
         return 'Username login is not set up on the server yet. Use your email, or run supabase/username-login.sql.';
       }
-      if (!data) return 'No account found for that username.';
+      if (!data) {
+        await handleFailedLoginAttempt();
+        return 'Credenciais inválidas. Por favor, verifique os seus dados.';
+      }
       email = data as string;
     }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? error.message : null;
+    
+    if (error) {
+      await handleFailedLoginAttempt();
+      // Oculta a mensagem de erro específica do Supabase por questões de segurança
+      return 'Credenciais inválidas. Por favor, verifique os seus dados.';
+    }
+
+    // Sucesso - Limpar tentativas falhadas
+    try {
+      await AsyncStorage.removeItem('auth:loginAttempts');
+      await AsyncStorage.removeItem('auth:lockoutUntil');
+    } catch {}
+
+    return null;
   },
 
   signUp: async (email, password, username) => {
