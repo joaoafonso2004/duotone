@@ -87,6 +87,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   }, [backend, _setActiveBackend]);
 
   const webRef = useRef<WebView>(null);
+  const nativeTrackIdRef = useRef<string | null>(null);
   // Token por faixa. Cada troca de faixa incrementa-o; operações assíncronas
   // de uma faixa antiga comparam o token que capturaram com o atual e abortam
   // se já não bate certo. (Um booleano partilhado não servia: o novo efeito
@@ -205,6 +206,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   useEffect(() => {
     const myRun = ++runIdRef.current;
+    nativeTrackIdRef.current = null;
     streamRef.current = undefined;
     downloadTriedRef.current = false;
     lastProgressRef.current = { time: 0, at: Date.now() };
@@ -231,6 +233,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   useEffect(() => {
     return () => {
       if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+      nativeTrackIdRef.current = null;
       try {
         player.pause();
         player.replace(null);
@@ -264,6 +267,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         });
         if (!alive()) return;
         wantsPlayRef.current = true;
+        nativeTrackIdRef.current = track.sourceId;
         player.play();
         fadeIn();
         setBackend('native');
@@ -316,6 +320,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
        // Cronómetro do watchdog começa AQUI (quando mandamos tocar).
       lastProgressRef.current = { time: 0, at: Date.now() };
       wantsPlayRef.current = true;
+      nativeTrackIdRef.current = track.sourceId;
       player.play();
       fadeIn();
       setBackend('native');
@@ -362,6 +367,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         },
       });
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
+      nativeTrackIdRef.current = track.sourceId;
       try {
         if (resumeAt > 1) player.currentTime = resumeAt;
       } catch {
@@ -381,10 +387,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   // Eventos do player nativo -> store
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
-    if (backend === 'native') onStateChange(isPlaying ? 'playing' : 'paused');
+    if (backend === 'native' && nativeTrackIdRef.current === track.sourceId) {
+      onStateChange(isPlaying ? 'playing' : 'paused');
+    }
   });
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
-    if (backend !== 'native') return;
+    if (backend !== 'native' || nativeTrackIdRef.current !== track.sourceId) return;
     // Regista avanço real da posição (para o watchdog de stream preso).
     if (currentTime !== lastProgressRef.current.time) {
       lastProgressRef.current = { time: currentTime, at: Date.now() };
@@ -424,7 +432,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
   });
   useEventListener(player, 'playToEnd', () => {
-    if (backend === 'native') {
+    if (backend === 'native' && nativeTrackIdRef.current === track.sourceId) {
       if (repeatMode === 'one') {
         player.currentTime = 0;
         player.play();
@@ -435,13 +443,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
   });
   useEventListener(player, 'playbackRateChange', ({ playbackRate }) => {
-    if (backend === 'native' && playbackRate === 0.07) {
+    if (backend === 'native' && nativeTrackIdRef.current === track.sourceId && playbackRate === 0.07) {
       player.playbackRate = 1.0;
       prev();
     }
   });
   useEventListener(player, 'statusChange', ({ status, error }) => {
-    if (backend !== 'native' || status !== 'error') return;
+    if (backend !== 'native' || status !== 'error' || nativeTrackIdRef.current !== track.sourceId) return;
     fallbackRef.current().then((handled) => {
       if (!handled) {
         setError(`[build ${BUILD_ID}] YouTube: playback error (${error?.message ?? 'unknown'}), using embed.`);
