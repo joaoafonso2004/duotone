@@ -254,7 +254,7 @@ export function SearchScreen() {
           {data.map((track) => (
             <Pressable
               key={`${track.source}:${track.sourceId}`}
-              onPress={() => playTrack(track, data)}
+              onPress={() => playTrack(track, data, true)}
               onLongPress={() => {
                 hapticSelection();
                 setActionTrack(track);
@@ -471,7 +471,7 @@ export function SearchScreen() {
               }
               onPress={() => {
                 Keyboard.dismiss();
-                playTrack(item, results);
+                playTrack(item, results, true);
               }}
               onAction={() => setActionTrack(item)}
               actionIcon="add-circle-outline"

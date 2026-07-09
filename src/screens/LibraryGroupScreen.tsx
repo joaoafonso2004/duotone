@@ -221,7 +221,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
                   <PillButton
                     label="Play all"
                     small
-                    onPress={() => playTrack(tracks[0], tracks)}
+                    onPress={() => playTrack(tracks[0], tracks, true)}
                   />
                 </View>
               ) : null}
@@ -244,7 +244,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
                         current?.source === item.source &&
                         current?.sourceId === item.sourceId
                       }
-                      onPress={() => playTrack(item, tracks)}
+                      onPress={() => playTrack(item, tracks, true)}
                       onAction={() => setActionTrack(item)}
                     />
                   )}
@@ -275,7 +275,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
                         current?.source === item.source &&
                         current?.sourceId === item.sourceId
                       }
-                      onPress={() => playTrack(item, ytTracks)}
+                      onPress={() => playTrack(item, ytTracks, true)}
                       onAction={() => setActionTrack(item)}
                     />
                   )}

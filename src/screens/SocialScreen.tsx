@@ -414,7 +414,7 @@ export function SocialScreen() {
                             current?.source === item.trackData.source &&
                             current?.sourceId === item.trackData.sourceId
                           }
-                          onPress={() => playTrack(item.trackData!, [item.trackData!])}
+                          onPress={() => playTrack(item.trackData!, [item.trackData!], true)}
                           onAction={() => setActionTrack(item.trackData!)}
                         />
                       </View>
@@ -811,7 +811,7 @@ export function SocialScreen() {
                               current?.source === item.trackData.source &&
                               current?.sourceId === item.trackData.sourceId
                             }
-                            onPress={() => playTrack(item.trackData!, [item.trackData!])}
+                            onPress={() => playTrack(item.trackData!, [item.trackData!], true)}
                             onAction={() => setActionTrack(item.trackData!)}
                           />
                         </View>
