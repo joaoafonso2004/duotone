@@ -88,6 +88,14 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // repunha-o e o áudio antigo continuava a tocar por cima — bug reportado.)
   const runIdRef = useRef(0);
 
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const player = useVideoPlayer(null, (p) => {
     p.staysActiveInBackground = true;
     p.showNowPlayingNotification = true;
@@ -208,7 +216,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const proceedWithPlayerResponse = async (harvested: HarvestResult | null, runId: number) => {
     // `true` enquanto esta for a faixa atual; passa a `false` mal o utilizador
     // troque de faixa, cortando esta cadeia assíncrona em qualquer await.
-    const alive = () => runId === runIdRef.current;
+    const alive = () => isMountedRef.current && runId === runIdRef.current;
     if (!alive()) return;
     setBackend('resolving');
 
@@ -314,7 +322,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const resumeAt = player.currentTime;
     try {
       const uri = await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength);
-      if (myRun !== runIdRef.current) return true;
+      if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       await player.replaceAsync({
         uri,
         contentType: 'progressive',
@@ -324,7 +332,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           artwork: track.artworkUrl ?? undefined,
         },
       });
-      if (myRun !== runIdRef.current) return true;
+      if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       try {
         if (resumeAt > 1) player.currentTime = resumeAt;
       } catch {
@@ -333,7 +341,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       player.play();
       fadeIn();
     } catch (e: any) {
-      if (myRun !== runIdRef.current) return true;
+      if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       setError(`[build ${BUILD_ID}] YouTube: playback error (${e?.message ?? 'unknown'}), using embed.`);
       setBackend('webview');
     }
