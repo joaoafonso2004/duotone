@@ -189,6 +189,7 @@ export function ProfileScreen() {
       }
     >
       <Animated.ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{
           paddingHorizontal: spacing.xl,
           paddingBottom: insets.bottom + 120,

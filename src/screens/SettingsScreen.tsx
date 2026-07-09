@@ -238,6 +238,7 @@ export function SettingsScreen({ navigation }: Props) {
   return (
     <Screen title="Settings" onBack={() => navigation.goBack()}>
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{
           paddingHorizontal: spacing.xl,
           paddingBottom: insets.bottom + 48,
