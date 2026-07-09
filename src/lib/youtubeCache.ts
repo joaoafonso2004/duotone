@@ -1,4 +1,5 @@
 import { File, Paths } from 'expo-file-system';
+import { fixMp4Duration } from './mp4Fixer';
 
 const PREFIX = 'yt-audio-';
 
@@ -48,11 +49,12 @@ export async function fetchChunkWithRetry(url: string, start: number, end: numbe
   throw new Error(`Chunk download failed (HTTP ${lastStatus}) at byte ${start}`);
 }
 
-/** Descarrega áudio progressivo por pedaços para armazenamento local. */
+/** Descarrega áudio progressivo por pedaços para armazenamento local e corrige os metadados de duração. */
 export async function downloadProgressiveAudio(
   videoId: string,
   url: string,
-  knownLength: number | null
+  knownLength: number | null,
+  durationSeconds: number | null
 ): Promise<string> {
   const dest = cachedAudioFile(videoId);
   if (dest.exists) return dest.uri;
@@ -74,6 +76,11 @@ export async function downloadProgressiveAudio(
   for (const part of parts) {
     combined.set(part, pos);
     pos += part.length;
+  }
+
+  // Corrige a duração no contentor MP4 (m4a) antes de gravar em disco
+  if (durationSeconds && durationSeconds > 0) {
+    fixMp4Duration(combined, durationSeconds);
   }
 
   dest.create({ overwrite: true });
