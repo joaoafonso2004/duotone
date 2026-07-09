@@ -9,6 +9,17 @@ export interface Friendship {
   status: 'pending' | 'accepted';
   isSender: boolean;
   lastSeenAt: string | null;
+  currentlyPlaying?: {
+    id: string | null;
+    source: string;
+    sourceId: string;
+    title: string;
+    artist: string | null;
+    artworkUrl: string | null;
+    durationSeconds: number | null;
+    isPlaying: boolean;
+    updatedAt: string;
+  } | null;
 }
 
 export interface SharedItem {
@@ -87,7 +98,7 @@ export async function getFriendships(): Promise<Friendship[]> {
 
   const { data: profiles, error: pError } = await supabase
     .from('profiles')
-    .select('id, name, username, avatar_url, last_seen_at')
+    .select('id, name, username, avatar_url, last_seen_at, currently_playing')
     .in('id', otherIds);
 
   if (pError || !profiles) return [];
@@ -105,6 +116,7 @@ export async function getFriendships(): Promise<Friendship[]> {
       status: r.status as 'pending' | 'accepted',
       isSender: r.requester_id === currentUid,
       lastSeenAt: profile?.last_seen_at || null,
+      currentlyPlaying: profile?.currently_playing || null,
     };
   });
 }
@@ -274,4 +286,33 @@ export async function getChatMessages(friendId: string): Promise<SharedItem[]> {
       createdAt: r.created_at,
     };
   });
+}
+
+export async function updateCurrentlyPlaying(track: any | null, isPlaying: boolean): Promise<void> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    let payload: any = null;
+    if (track) {
+      payload = {
+        id: track.id || null,
+        source: track.source,
+        sourceId: track.sourceId,
+        title: track.title,
+        artist: track.artist || null,
+        artworkUrl: track.artworkUrl || null,
+        durationSeconds: track.durationSeconds || null,
+        isPlaying,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    await supabase
+      .from('profiles')
+      .update({ currently_playing: payload })
+      .eq('id', user.id);
+  } catch {
+    // silently fail
+  }
 }

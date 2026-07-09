@@ -27,6 +27,7 @@ import { YouTubePlayerView } from './YouTubePlayerView';
 import { LyricsView } from './LyricsView';
 import { QueueSheet } from './QueueSheet';
 import { navigationRef } from '../navigation/RootNavigator';
+import { updateCurrentlyPlaying } from '../api/social';
 
 const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
@@ -84,6 +85,10 @@ export function PlayerRoot() {
       useNativeDriver: true,
     }).start();
   }, [shouldHide]);
+
+  useEffect(() => {
+    updateCurrentlyPlaying(current, isPlaying);
+  }, [current, isPlaying]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
