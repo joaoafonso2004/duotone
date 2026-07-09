@@ -93,7 +93,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     p.showNowPlayingNotification = true;
     p.timeUpdateEventInterval = 1;
     p.loop = false;
-    p.audioMixingMode = 'auto';
   });
 
   // Repeat "one": o player nativo repete a própria faixa (sem passar por
@@ -102,22 +101,14 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     player.loop = repeatMode === 'one';
   }, [player, repeatMode]);
 
-  // Aplica o Preset de Som reativamente na velocidade de reprodução nativa e correção de pitch
+  // Aplica o Preset de Som reativamente na velocidade de reprodução nativa
   useEffect(() => {
     if (backend !== 'native') return;
     let rate = 1.0;
-    let pitchCorrection = true;
-
-    if (soundPreset === 'slowed') {
-      rate = 0.80; // Velocidade slowed ideal (80%)
-      pitchCorrection = false; // Desativa a correção de pitch para dar voz grave e batidas profundas (estilo slowed reverb)
-    } else if (soundPreset === 'fast') {
-      rate = 1.35; // Velocidade acelerada ideal (135%)
-      pitchCorrection = true;
-    }
+    if (soundPreset === 'slowed') rate = 0.85;
+    else if (soundPreset === 'fast') rate = 1.5;
 
     player.playbackRate = rate;
-    player.preservesPitch = pitchCorrection;
   }, [backend, player, soundPreset]);
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
@@ -224,32 +215,24 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // MODO OFFLINE / CACHE RÁPIDO: Se a música já estiver guardada localmente, toca-a imediatamente
     const localFile = cachedAudioFile(track.sourceId);
     if (localFile.exists) {
-      if (localFile.size < 50000) {
-        try {
-          localFile.delete();
-        } catch (err) {
-          console.warn('Erro ao apagar cache corrompida:', err);
-        }
-      } else {
-        try {
-          await player.replaceAsync({
-            uri: localFile.uri,
-            contentType: 'progressive',
-            metadata: {
-              title: track.title,
-              artist: track.artist ?? 'YouTube',
-              artwork: track.artworkUrl ?? undefined,
-            },
-          });
-          if (!alive()) return;
-          wantsPlayRef.current = true;
-          player.play();
-          fadeIn();
-          setBackend('native');
-          return;
-        } catch (err) {
-          console.warn('Erro a reproduzir ficheiro local em cache, tentando rede:', err);
-        }
+      try {
+        await player.replaceAsync({
+          uri: localFile.uri,
+          contentType: 'progressive',
+          metadata: {
+            title: track.title,
+            artist: track.artist ?? 'YouTube',
+            artwork: track.artworkUrl ?? undefined,
+          },
+        });
+        if (!alive()) return;
+        wantsPlayRef.current = true;
+        player.play();
+        fadeIn();
+        setBackend('native');
+        return;
+      } catch (err) {
+        console.warn('Erro a reproduzir ficheiro local em cache, tentando rede:', err);
       }
     }
 
@@ -275,6 +258,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (!alive()) return;
       streamRef.current = stream;
 
+      // Descarrega primeiro se for progressive (comportamento antigo e fiável).
       let playableUri = stream.url;
       if (!stream.isHls) {
         downloadTriedRef.current = true;

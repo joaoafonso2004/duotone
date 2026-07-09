@@ -82,7 +82,7 @@ export function PlayerRoot() {
     Animated.timing(visibilityAnim, {
       toValue: shouldHide ? 0 : 1,
       duration: 250,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
   }, [shouldHide]);
 
