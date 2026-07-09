@@ -3,7 +3,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,7 +15,9 @@ import {
   TextInput,
   View,
   Keyboard,
+  Modal,
 } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   getFriendships,
@@ -24,6 +26,8 @@ import {
   declineOrRemoveFriendship,
   sendFriendRequest,
   deleteInboxItem,
+  shareItem,
+  getChatMessages,
   type Friendship,
   type SharedItem,
 } from '../api/social';
@@ -37,7 +41,7 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { colors, radii, spacing, type as typography } from '../theme';
-import { hapticNotification, hapticSelection } from '../lib/haptics';
+import { hapticNotification, hapticSelection, hapticImpact } from '../lib/haptics';
 import type { Track } from '../types';
 
 export function SocialScreen() {
@@ -66,6 +70,13 @@ export function SocialScreen() {
   // Shared playlist sheet preview state
   const [selectedYtPlaylistId, setSelectedYtPlaylistId] = useState<string | null>(null);
 
+  // Chat states
+  const [activeChatFriend, setActiveChatFriend] = useState<Friendship | null>(null);
+  const [chatMessages, setChatMessages] = useState<SharedItem[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+
   const loadInbox = useCallback(async () => {
     try {
       const items = await getInboxItems();
@@ -87,6 +98,51 @@ export function SocialScreen() {
       setLoadingFriends(false);
     }
   }, []);
+
+  const loadChat = useCallback(async () => {
+    if (!activeChatFriend) return;
+    setChatLoading(true);
+    try {
+      const messages = await getChatMessages(activeChatFriend.friendId);
+      setChatMessages(messages);
+    } catch {
+      // ignore
+    } finally {
+      setChatLoading(false);
+    }
+  }, [activeChatFriend]);
+
+  useEffect(() => {
+    if (activeChatFriend) {
+      loadChat();
+      
+      // Poll chat messages every 6 seconds for a live chat feel
+      const interval = setInterval(() => {
+        getChatMessages(activeChatFriend.friendId)
+          .then(setChatMessages)
+          .catch(() => {});
+      }, 6000);
+
+      return () => clearInterval(interval);
+    }
+  }, [activeChatFriend, loadChat]);
+
+  const handleSendMessage = async () => {
+    if (!activeChatFriend || !chatInput.trim()) return;
+    const msg = chatInput.trim();
+    setChatInput('');
+    setSendingMessage(false);
+    hapticImpact();
+    try {
+      // Send text-only messages as track items with null trackData
+      await shareItem(activeChatFriend.friendId, 'track', null, msg);
+      const messages = await getChatMessages(activeChatFriend.friendId);
+      setChatMessages(messages);
+      loadInbox();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not send message.');
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -356,40 +412,50 @@ export function SocialScreen() {
                         : false;
 
                       return (
-                        <View key={friend.friendId} style={styles.friendRow}>
-                          <View style={styles.avatarContainer}>
-                            {friend.avatarUrl ? (
-                              <Image source={{ uri: friend.avatarUrl }} style={styles.friendAvatar} />
-                            ) : (
-                              <View style={[styles.friendAvatar, styles.avatarFallback]}>
-                                <Text style={{ fontSize: 13, color: colors.textSecondary }}>
-                                  {friend.name.charAt(0).toUpperCase()}
-                                </Text>
-                              </View>
-                            )}
-                            {isOnline && <View style={styles.onlineBadge} />}
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[typography.body, { fontWeight: '700' }]}>{friend.name}</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                              <Text style={typography.caption}>@{friend.username}</Text>
-                              {isOnline && (
-                                <>
-                                  <Text style={[typography.caption, { color: colors.textTertiary }]}>·</Text>
-                                  <Text style={[typography.caption, { color: '#30D158', fontWeight: '600' }]}>
-                                    Online
-                                  </Text>
-                                </>
-                              )}
-                            </View>
-                          </View>
-                          <Pressable
-                            onPress={() => handleRemoveFriend(friend.friendId, false)}
-                            hitSlop={6}
-                          >
-                            <Ionicons name="person-remove-outline" size={18} color={colors.danger} />
-                          </Pressable>
-                        </View>
+                        <Pressable
+                           key={friend.friendId}
+                           onPress={() => {
+                             hapticSelection();
+                             setActiveChatFriend(friend);
+                           }}
+                           style={({ pressed }) => [
+                             styles.friendRow,
+                             pressed && { backgroundColor: colors.surfacePressed },
+                           ]}
+                         >
+                           <View style={styles.avatarContainer}>
+                             {friend.avatarUrl ? (
+                               <Image source={{ uri: friend.avatarUrl }} style={styles.friendAvatar} />
+                             ) : (
+                               <View style={[styles.friendAvatar, styles.avatarFallback]}>
+                                 <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+                                   {friend.name.charAt(0).toUpperCase()}
+                                 </Text>
+                               </View>
+                             )}
+                             {isOnline && <View style={styles.onlineBadge} />}
+                           </View>
+                           <View style={{ flex: 1 }}>
+                             <Text style={[typography.body, { fontWeight: '700' }]}>{friend.name}</Text>
+                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                               <Text style={typography.caption}>@{friend.username}</Text>
+                               {isOnline && (
+                                 <>
+                                   <Text style={[typography.caption, { color: colors.textTertiary }]}>·</Text>
+                                   <Text style={[typography.caption, { color: '#30D158', fontWeight: '600' }]}>
+                                     Online
+                                   </Text>
+                                 </>
+                               )}
+                             </View>
+                           </View>
+                           <Pressable
+                             onPress={() => handleRemoveFriend(friend.friendId, false)}
+                             hitSlop={6}
+                           >
+                             <Ionicons name="person-remove-outline" size={18} color={colors.danger} />
+                           </Pressable>
+                         </Pressable>
                       );
                     })}
                   </View>
@@ -504,6 +570,185 @@ export function SocialScreen() {
         playlistArtwork={null}
         onClose={() => setSelectedYtPlaylistId(null)}
       />
+
+      {/* Chat modal */}
+      <Modal
+        visible={!!activeChatFriend}
+        animationType="slide"
+        onRequestClose={() => setActiveChatFriend(null)}
+      >
+        <View style={styles.chatRoot}>
+          {/* Full Screen Blurred Background */}
+          <Image
+            source={require('../../assets/login_bg.png')}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+          />
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10, 10, 15, 0.90)' }]} />
+
+          {/* Header */}
+          <View style={[styles.chatHeader, { paddingTop: insets.top + spacing.sm }]}>
+            <Pressable
+              onPress={() => setActiveChatFriend(null)}
+              hitSlop={10}
+              style={styles.chatBackBtn}
+            >
+              <Ionicons name="chevron-back" size={28} color={colors.text} />
+            </Pressable>
+
+            {activeChatFriend && (
+              <View style={styles.chatHeaderInfo}>
+                <View style={styles.avatarContainer}>
+                  {activeChatFriend.avatarUrl ? (
+                    <Image source={{ uri: activeChatFriend.avatarUrl }} style={styles.friendAvatar} />
+                  ) : (
+                    <View style={[styles.friendAvatar, styles.avatarFallback, { backgroundColor: colors.surfaceHigh }]}>
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>
+                        {activeChatFriend.name.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  {((Date.now() - new Date(activeChatFriend.lastSeenAt || 0).getTime()) < 3 * 60 * 1000) && (
+                    <View style={styles.onlineBadge} />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} style={[typography.body, { fontWeight: '700' }]}>
+                    {activeChatFriend.name}
+                  </Text>
+                  <Text numberOfLines={1} style={typography.caption}>
+                    @{activeChatFriend.username}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Messages list */}
+          {chatLoading && chatMessages.length === 0 ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator color={theme.color} size="large" />
+            </View>
+          ) : chatMessages.length === 0 ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: spacing.xl }}>
+              <Ionicons name="chatbubbles-outline" size={48} color={colors.textTertiary} style={{ marginBottom: spacing.sm }} />
+              <Text style={[typography.body, { color: colors.textSecondary, textAlign: 'center', fontWeight: '600' }]}>
+                Sem mensagens ainda
+              </Text>
+              <Text style={[typography.caption, { textAlign: 'center', marginTop: 4, color: colors.textTertiary }]}>
+                Partilha uma música ou envia uma mensagem para começar a conversa!
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={chatMessages}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item }) => {
+                const isMe = item.sender.id !== activeChatFriend?.friendId;
+                return (
+                  <View style={[styles.msgContainer, isMe ? styles.msgMe : styles.msgFriend]}>
+                    {!isMe && (
+                      <View style={{ marginRight: spacing.xs }}>
+                        {activeChatFriend?.avatarUrl ? (
+                          <Image source={{ uri: activeChatFriend.avatarUrl }} style={styles.msgAvatar} />
+                        ) : (
+                          <View style={[styles.msgAvatar, styles.avatarFallback, { backgroundColor: colors.surfaceHigh }]}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary }}>
+                              {activeChatFriend?.name.charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    <View style={{ maxWidth: '80%', gap: 4 }}>
+                      {/* Text Message Bubble (only if message is not empty) */}
+                      {item.message ? (
+                        <View style={[styles.msgBubble, isMe ? [styles.msgBubbleMe, { backgroundColor: theme.color }] : styles.msgBubbleFriend]}>
+                          <Text style={[typography.body, { color: '#fff' }]}>{item.message}</Text>
+                        </View>
+                      ) : null}
+
+                      {/* Shared Track Card */}
+                      {item.itemType === 'track' && item.trackData && (
+                        <View style={[styles.chatTrackBox, isMe && { alignSelf: 'flex-end' }]}>
+                          <TrackRow
+                            track={item.trackData}
+                            active={
+                              current?.source === item.trackData.source &&
+                              current?.sourceId === item.trackData.sourceId
+                            }
+                            onPress={() => playTrack(item.trackData!, [item.trackData!])}
+                            onAction={() => setActionTrack(item.trackData!)}
+                          />
+                        </View>
+                      )}
+
+                      {/* Shared Playlist Card */}
+                      {item.itemType === 'playlist' && item.playlistId && (
+                        <Pressable
+                          onPress={() => {
+                            hapticSelection();
+                            setSelectedYtPlaylistId(item.playlistId);
+                          }}
+                          style={({ pressed }) => [
+                            styles.chatPlaylistCard,
+                            isMe && { alignSelf: 'flex-end' },
+                            pressed && { opacity: 0.8 },
+                          ]}
+                        >
+                          <View style={[styles.chatPlaylistIcon, { backgroundColor: theme.soft }]}>
+                            <Ionicons name="albums-outline" size={20} color={theme.color} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[typography.body, { fontWeight: '600', fontSize: 13 }]} numberOfLines={1}>
+                              Playlist Partilhada
+                            </Text>
+                            <Text style={[typography.caption, { fontSize: 10 }]}>Toca para importar</Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} />
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+                );
+              }}
+            />
+          )}
+
+          {/* Bottom input bar */}
+          <View style={[styles.chatInputBar, { paddingBottom: insets.bottom + spacing.md }]}>
+            <TextInput
+              value={chatInput}
+              onChangeText={setChatInput}
+              placeholder="Escreve uma mensagem..."
+              placeholderTextColor={colors.textTertiary}
+              style={styles.chatInput}
+              autoCorrect={false}
+              onSubmitEditing={handleSendMessage}
+            />
+            <Pressable
+              onPress={handleSendMessage}
+              disabled={sendingMessage || !chatInput.trim()}
+              style={({ pressed }) => [
+                styles.chatSendBtn,
+                { backgroundColor: theme.color },
+                (sendingMessage || !chatInput.trim()) && { opacity: 0.4 },
+                pressed && { opacity: 0.8 },
+              ]}
+            >
+              {sendingMessage ? (
+                <ActivityIndicator color={colors.bg} size="small" />
+              ) : (
+                <Ionicons name="send" size={16} color={colors.bg} />
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -678,5 +923,111 @@ const styles = StyleSheet.create({
     backgroundColor: '#30D158',
     borderWidth: 2,
     borderColor: colors.surface,
+  },
+  chatRoot: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  chatHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  chatBackBtn: {
+    padding: spacing.xs,
+    marginLeft: -4,
+  },
+  chatHeaderInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginLeft: spacing.xs,
+  },
+  msgContainer: {
+    flexDirection: 'row',
+    marginVertical: 6,
+    width: '100%',
+  },
+  msgMe: {
+    justifyContent: 'flex-end',
+  },
+  msgFriend: {
+    justifyContent: 'flex-start',
+  },
+  msgAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginTop: 4,
+  },
+  msgBubble: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+  },
+  msgBubbleMe: {
+    borderTopRightRadius: 4,
+  },
+  msgBubbleFriend: {
+    backgroundColor: colors.surfaceHigh,
+    borderTopLeftRadius: 4,
+  },
+  chatTrackBox: {
+    width: 260,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  chatPlaylistCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    width: 220,
+  },
+  chatPlaylistIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chatInputBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    backgroundColor: 'rgba(10, 10, 15, 0.95)',
+  },
+  chatInput: {
+    flex: 1,
+    height: 40,
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.lg,
+    color: colors.text,
+    fontSize: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
+  },
+  chatSendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

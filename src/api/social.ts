@@ -234,3 +234,42 @@ export async function updateLastSeen(): Promise<void> {
     // silently fail
   }
 }
+
+export async function getChatMessages(friendId: string): Promise<SharedItem[]> {
+  const currentUid = await currentUserId();
+
+  const { data, error } = await supabase
+    .from('shared_items')
+    .select('*')
+    .or(`and(sender_id.eq.${currentUid},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${currentUid})`)
+    .order('created_at', { ascending: true });
+
+  if (error || !data || data.length === 0) return [];
+
+  const senderIds = Array.from(new Set(data.map((r) => r.sender_id)));
+  const { data: profiles, error: pError } = await supabase
+    .from('profiles')
+    .select('id, name, username, avatar_url')
+    .in('id', senderIds);
+
+  if (pError || !profiles) return [];
+  const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+  return data.map((r) => {
+    const sender = profileMap.get(r.sender_id);
+    return {
+      id: r.id,
+      sender: {
+        id: r.sender_id,
+        username: sender?.username || 'unknown',
+        name: sender?.name || 'Unknown',
+        avatarUrl: sender?.avatar_url || null,
+      },
+      itemType: r.item_type as 'playlist' | 'track',
+      playlistId: r.playlist_id,
+      trackData: r.track_data,
+      message: r.message,
+      createdAt: r.created_at,
+    };
+  });
+}
