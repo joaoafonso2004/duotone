@@ -48,7 +48,7 @@ export async function fetchChunkWithRetry(url: string, start: number, end: numbe
   throw new Error(`Chunk download failed (HTTP ${lastStatus}) at byte ${start}`);
 }
 
-/** Descarrega áudio progressivo por pedaços para armazenamento local. */
+/** Descarrega áudio progressivo de forma estável usando download nativo para armazenamento local. */
 export async function downloadProgressiveAudio(
   videoId: string,
   url: string,
@@ -57,31 +57,12 @@ export async function downloadProgressiveAudio(
   const dest = cachedAudioFile(videoId);
   if (dest.exists) return dest.uri;
 
-  const total = knownLength ?? (await discoverContentLength(url));
-  const parts: Uint8Array[] = [];
-  let offset = 0;
-  let first = true;
-  while (offset < total) {
-    if (!first) await sleep(CHUNK_PACING_MS);
-    first = false;
-    const end = Math.min(offset + CHUNK_BYTES, total) - 1;
-    parts.push(await fetchChunkWithRetry(url, offset, end));
-    offset = end + 1;
-  }
+  // Descarrega usando a API nativa do novo expo-file-system para máxima estabilidade
+  await File.downloadFileAsync(url, dest, { idempotent: true });
 
-  const combined = new Uint8Array(total);
-  let pos = 0;
-  for (const part of parts) {
-    combined.set(part, pos);
-    pos += part.length;
-  }
-
-  dest.create({ overwrite: true });
-  dest.write(combined);
-  
   // Limpa a cache de forma assíncrona para não atrasar o retorno imediato da reprodução
   pruneAudioCacheIfNeeded();
-  
+
   return dest.uri;
 }
 
