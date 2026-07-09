@@ -331,7 +331,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           <View style={styles.actionRow}>
             <Pressable
               style={styles.playButton}
-              onPress={() => playTrack(sortedTracks[0], sortedTracks)}
+              onPress={() => playTrack(sortedTracks[0], sortedTracks, true)}
             >
               <LinearGradient
                 colors={theme.gradient}
@@ -348,7 +348,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               style={styles.shuffleButton}
               onPress={() => {
                 const shuffled = [...sortedTracks].sort(() => Math.random() - 0.5);
-                playTrack(shuffled[0], shuffled);
+                playTrack(shuffled[0], shuffled, true);
               }}
             >
               <Ionicons name="shuffle" size={20} color={colors.text} />
@@ -456,7 +456,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                   current?.source === item.source &&
                   current?.sourceId === item.sourceId
                 }
-                onPress={() => playTrack(item, sortedTracks)}
+                onPress={() => playTrack(item, sortedTracks, true)}
                 onAction={() => setActionTrack(item)}
               />
             )

@@ -74,7 +74,7 @@ export function YtPlaylistRecommendationSheet({
   const handlePlay = () => {
     const tracks = playlistTracks();
     if (tracks.length === 0) return;
-    playTrack(tracks[0], tracks);
+    playTrack(tracks[0], tracks, true);
     onClose();
   };
 
@@ -165,7 +165,7 @@ export function YtPlaylistRecommendationSheet({
             renderItem={({ item }) => (
               <TrackRow
                 track={item}
-                onPress={() => playTrack(item, playlistTracks())}
+                onPress={() => playTrack(item, playlistTracks(), true)}
               />
             )}
           />

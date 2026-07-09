@@ -34,7 +34,7 @@ interface PlayerState {
   sleepTimerTimeLeft: number;
   soundPreset: 'normal' | 'slowed' | 'fast';
 
-  playTrack: (track: Track, queue?: Track[]) => Promise<void>;
+  playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean) => Promise<void>;
   playNext: (track: Track) => void;
   addToQueue: (track: Track) => void;
   togglePlay: () => Promise<void>;
@@ -83,7 +83,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   soundPreset: 'normal',
   _yt: null,
 
-  playTrack: async (track, queue) => {
+  playTrack: async (track, queue, shouldExpand) => {
     // Conta esta reprodução (local; alimenta "Most played" no Perfil).
     incrementPlayCount(track).catch(() => {});
     // Conta esta reprodução no Supabase para recomendações.
@@ -106,6 +106,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       buffering: true,
       // O player nativo autoplay-a ao montar; estado real chega via bridge.
       isPlaying: true,
+      ...(shouldExpand ? { expanded: true } : {}),
     });
   },
 

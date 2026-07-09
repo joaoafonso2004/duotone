@@ -183,7 +183,7 @@ export function SongsScreen() {
             <View style={styles.actionRow}>
               <Pressable
                 style={styles.playButton}
-                onPress={() => playTrack(sortedTracks[0], sortedTracks)}
+                onPress={() => playTrack(sortedTracks[0], sortedTracks, true)}
               >
                 <LinearGradient
                   colors={theme.gradient}
@@ -200,7 +200,7 @@ export function SongsScreen() {
                 style={styles.shuffleButton}
                 onPress={() => {
                   const shuffled = [...sortedTracks].sort(() => Math.random() - 0.5);
-                  playTrack(shuffled[0], shuffled);
+                  playTrack(shuffled[0], shuffled, true);
                 }}
               >
                 <Ionicons name="shuffle" size={20} color={colors.text} />
@@ -262,7 +262,7 @@ export function SongsScreen() {
                     if (selectMode) {
                       toggleSelection(itemId);
                     } else {
-                      playTrack(item, sortedTracks);
+                      playTrack(item, sortedTracks, true);
                     }
                   }}
                   onAction={() => setActionTrack(item)}

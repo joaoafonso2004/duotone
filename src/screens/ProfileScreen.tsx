@@ -176,7 +176,7 @@ export function ProfileScreen() {
 
   const play = (e: ProfilePlayEntry) => {
     hapticSelection();
-    playTrack(entryToTrack(e));
+    playTrack(entryToTrack(e), undefined, true);
   };
 
   const grad = AVATAR_GRADIENTS[avatar?.gradientIndex ?? 0];
