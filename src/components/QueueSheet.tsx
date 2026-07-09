@@ -5,6 +5,7 @@ import { usePlayer } from '../state/player';
 import { colors, spacing, type, radii } from '../theme';
 import { BottomSheet } from './BottomSheet';
 import { TrackRow } from './TrackRow';
+import { hapticSelection } from '../lib/haptics';
 
 interface Props {
   visible: boolean;
@@ -16,6 +17,8 @@ export function QueueSheet({ visible, onClose }: Props) {
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
   const playTrack = usePlayer((s) => s.playTrack);
+  const moveQueueItem = usePlayer((s) => s.moveQueueItem);
+  const removeFromQueue = usePlayer((s) => s.removeFromQueue);
 
   // Tracks after the current track
   const upNext = queue.slice(queueIndex + 1);
@@ -52,15 +55,85 @@ export function QueueSheet({ visible, onClose }: Props) {
           keyExtractor={(item, index) => `${item.source}:${item.sourceId}-${index}`}
           style={styles.list}
           contentContainerStyle={{ paddingBottom: 40 }}
-          renderItem={({ item, index }) => (
-            <TrackRow
-              track={item}
-              onPress={() => {
-                playTrack(item, queue);
-                // The new queue index will be calculated inside playTrack
-              }}
-            />
-          )}
+          renderItem={({ item, index }) => {
+            const realIndex = queueIndex + 1 + index;
+
+            const handleMoveUp = () => {
+              hapticSelection();
+              if (index > 0) {
+                moveQueueItem(realIndex, realIndex - 1);
+              }
+            };
+
+            const handleMoveDown = () => {
+              hapticSelection();
+              if (index < upNext.length - 1) {
+                moveQueueItem(realIndex, realIndex + 1);
+              }
+            };
+
+            const handleRemove = () => {
+              hapticSelection();
+              removeFromQueue(realIndex);
+            };
+
+            return (
+              <View style={styles.queueItemRow}>
+                <View style={{ flex: 1 }}>
+                  <TrackRow
+                    track={item}
+                    onPress={() => {
+                      playTrack(item, queue);
+                    }}
+                  />
+                </View>
+                <View style={styles.actionButtons}>
+                  <Pressable
+                    onPress={handleMoveUp}
+                    disabled={index === 0}
+                    style={({ pressed }) => [
+                      styles.actionBtn,
+                      index === 0 && styles.disabledBtn,
+                      pressed && { opacity: 0.6 }
+                    ]}
+                    hitSlop={6}
+                  >
+                    <Ionicons
+                      name="arrow-up"
+                      size={14}
+                      color={index === 0 ? colors.textTertiary : colors.textSecondary}
+                    />
+                  </Pressable>
+                  <Pressable
+                    onPress={handleMoveDown}
+                    disabled={index === upNext.length - 1}
+                    style={({ pressed }) => [
+                      styles.actionBtn,
+                      index === upNext.length - 1 && styles.disabledBtn,
+                      pressed && { opacity: 0.6 }
+                    ]}
+                    hitSlop={6}
+                  >
+                    <Ionicons
+                      name="arrow-down"
+                      size={14}
+                      color={index === upNext.length - 1 ? colors.textTertiary : colors.textSecondary}
+                    />
+                  </Pressable>
+                  <Pressable
+                    onPress={handleRemove}
+                    style={({ pressed }) => [
+                      styles.actionBtn,
+                      pressed && { opacity: 0.6 }
+                    ]}
+                    hitSlop={6}
+                  >
+                    <Ionicons name="trash-outline" size={14} color={colors.danger} />
+                  </Pressable>
+                </View>
+              </View>
+            );
+          }}
         />
       ) : (
         <Text style={styles.emptyText}>Queue is empty</Text>
@@ -91,5 +164,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: spacing.md,
     color: colors.textTertiary,
+  },
+  queueItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingRight: spacing.sm,
+  },
+  actionBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.surfacePressed,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabledBtn: {
+    backgroundColor: 'transparent',
+    opacity: 0.4,
   },
 });
