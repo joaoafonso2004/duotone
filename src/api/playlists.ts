@@ -9,9 +9,11 @@ async function currentUserId(): Promise<string> {
 }
 
 export async function listPlaylists(): Promise<Playlist[]> {
+  const userId = await currentUserId();
   const { data, error } = await supabase
     .from('playlists')
     .select('id, name, created_at, playlist_tracks (position, tracks (artwork_url))')
+    .eq('owner_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
 
@@ -50,15 +52,22 @@ export async function createPlaylist(name: string): Promise<Playlist> {
 }
 
 export async function renamePlaylist(id: string, name: string): Promise<void> {
+  const userId = await currentUserId();
   const { error } = await supabase
     .from('playlists')
     .update({ name })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('owner_id', userId);
   if (error) throw error;
 }
 
 export async function deletePlaylist(id: string): Promise<void> {
-  const { error } = await supabase.from('playlists').delete().eq('id', id);
+  const userId = await currentUserId();
+  const { error } = await supabase
+    .from('playlists')
+    .delete()
+    .eq('id', id)
+    .eq('owner_id', userId);
   if (error) throw error;
 }
 

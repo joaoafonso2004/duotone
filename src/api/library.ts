@@ -135,9 +135,11 @@ export async function getLibrary(): Promise<Track[]> {
 
 /** Ids (da BD) das faixas guardadas — para mostrar o estado "guardada". */
 export async function getLibraryTrackIds(): Promise<Set<string>> {
+  const userId = await currentUserId();
   const { data, error } = await supabase
     .from('library_tracks')
-    .select('track_id');
+    .select('track_id')
+    .eq('user_id', userId);
   if (error) throw error;
   return new Set((data ?? []).map((r: any) => r.track_id as string));
 }
