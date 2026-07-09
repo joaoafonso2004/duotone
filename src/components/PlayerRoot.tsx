@@ -399,114 +399,116 @@ export function PlayerRoot() {
             </Pressable>
           </View>
 
-          <View style={{ marginTop: spacing.md }}>
-            <ProgressBar
-              positionMs={positionMs}
-              durationMs={durationMs}
-              onSeek={seekTo}
-              onScrubbingChange={setScrubbing}
-            />
-          </View>
-
-          {/* controlos: shuffle · anterior · play · seguinte · repeat */}
-          <View style={styles.controls}>
-            <Pressable hitSlop={12} onPress={onToggleShuffle} accessibilityLabel="Shuffle">
-              <Ionicons
-                name="shuffle"
-                size={22}
-                color={shuffle ? colors.text : colors.textTertiary}
+          <View style={styles.bottomControlsContainer}>
+            <View style={{ marginTop: spacing.xs }}>
+              <ProgressBar
+                positionMs={positionMs}
+                durationMs={durationMs}
+                onSeek={seekTo}
+                onScrubbingChange={setScrubbing}
               />
-            </Pressable>
+            </View>
 
-            <Pressable
-              hitSlop={14}
-              onPress={prev}
-              disabled={repeatMode === 'off' && !shuffle && queueIndex === 0}
-              style={
-                repeatMode === 'off' && !shuffle && queueIndex === 0 && styles.dimmed
-              }
-            >
-              <Ionicons name="play-skip-back" size={28} color={colors.text} />
-            </Pressable>
+            {/* controlos: shuffle · anterior · play · seguinte · repeat */}
+            <View style={styles.controls}>
+              <Pressable hitSlop={12} onPress={onToggleShuffle} accessibilityLabel="Shuffle">
+                <Ionicons
+                  name="shuffle"
+                  size={22}
+                  color={shuffle ? colors.text : colors.textTertiary}
+                />
+              </Pressable>
 
-            <Pressable
-              onPress={togglePlay}
-              style={({ pressed }) => [styles.playBtn, pressed && { opacity: 0.85 }]}
-            >
-              <Ionicons
-                name={isPlaying ? 'pause' : 'play'}
-                size={30}
-                color={colors.bg}
-                style={!isPlaying && { marginLeft: 3 }}
-              />
-            </Pressable>
+              <Pressable
+                hitSlop={14}
+                onPress={prev}
+                disabled={repeatMode === 'off' && !shuffle && queueIndex === 0}
+                style={
+                  repeatMode === 'off' && !shuffle && queueIndex === 0 && styles.dimmed
+                }
+              >
+                <Ionicons name="play-skip-back" size={28} color={colors.text} />
+              </Pressable>
 
-            <Pressable
-              hitSlop={14}
-              onPress={next}
-              disabled={
-                repeatMode === 'off' && !shuffle && queueIndex >= queue.length - 1
-              }
-              style={
-                repeatMode === 'off' &&
-                !shuffle &&
-                queueIndex >= queue.length - 1 &&
-                styles.dimmed
-              }
-            >
-              <Ionicons name="play-skip-forward" size={28} color={colors.text} />
-            </Pressable>
+              <Pressable
+                onPress={togglePlay}
+                style={({ pressed }) => [styles.playBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Ionicons
+                  name={isPlaying ? 'pause' : 'play'}
+                  size={30}
+                  color={colors.bg}
+                  style={!isPlaying && { marginLeft: 3 }}
+                />
+              </Pressable>
 
-            <Pressable hitSlop={12} onPress={onCycleRepeat} accessibilityLabel="Repeat">
-              <Ionicons
-                name={repeatMode === 'one' ? 'repeat' : 'repeat'}
-                size={22}
-                color={repeatMode === 'off' ? colors.textTertiary : colors.text}
-              />
-              {repeatMode === 'one' ? (
-                <View style={styles.repeatOneBadge}>
-                  <Text style={styles.repeatOneText}>1</Text>
-                </View>
-              ) : null}
-            </Pressable>
-          </View>
+              <Pressable
+                hitSlop={14}
+                onPress={next}
+                disabled={
+                  repeatMode === 'off' && !shuffle && queueIndex >= queue.length - 1
+                }
+                style={
+                  repeatMode === 'off' &&
+                  !shuffle &&
+                  queueIndex >= queue.length - 1 &&
+                  styles.dimmed
+                }
+              >
+                <Ionicons name="play-skip-forward" size={28} color={colors.text} />
+              </Pressable>
 
-          {showRewindButton ? (
-            <Pressable
-              hitSlop={14}
-              onPress={() => seekTo(Math.max(0, positionMs - 15000))}
-              accessibilityLabel="Rewind 15 seconds"
-              style={{ alignSelf: 'center', marginTop: -spacing.sm }}
-            >
-              <Ionicons name="play-back" size={20} color={colors.textSecondary} />
-            </Pressable>
-          ) : null}
+              <Pressable hitSlop={12} onPress={onCycleRepeat} accessibilityLabel="Repeat">
+                <Ionicons
+                  name={repeatMode === 'one' ? 'repeat' : 'repeat'}
+                  size={22}
+                  color={repeatMode === 'off' ? colors.textTertiary : colors.text}
+                />
+                {repeatMode === 'one' ? (
+                  <View style={styles.repeatOneBadge}>
+                    <Text style={styles.repeatOneText}>1</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            </View>
 
-          {/* Botões Utilitários (Letras & Fila de Reprodução) */}
-          <View style={styles.utilityRow}>
-            <Pressable
-              hitSlop={12}
-              onPress={() => {
-                hapticSelection();
-                setShowLyrics(true);
-              }}
-              style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
-            >
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.color} />
-              <Text style={[styles.utilityIconLabel, { color: theme.color }]}>Lyrics</Text>
-            </Pressable>
+            {showRewindButton ? (
+              <Pressable
+                hitSlop={14}
+                onPress={() => seekTo(Math.max(0, positionMs - 15000))}
+                accessibilityLabel="Rewind 15 seconds"
+                style={{ alignSelf: 'center', marginTop: -spacing.xs }}
+              >
+                <Ionicons name="play-back" size={20} color={colors.textSecondary} />
+              </Pressable>
+            ) : null}
 
-            <Pressable
-              hitSlop={12}
-              onPress={() => {
-                hapticSelection();
-                setQueueVisible(true);
-              }}
-              style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
-            >
-              <Ionicons name="list" size={18} color={theme.color} />
-              <Text style={[styles.utilityIconLabel, { color: theme.color }]}>Queue</Text>
-            </Pressable>
+            {/* Botões Utilitários (Letras & Fila de Reprodução) */}
+            <View style={styles.utilityRow}>
+              <Pressable
+                hitSlop={12}
+                onPress={() => {
+                  hapticSelection();
+                  setShowLyrics(true);
+                }}
+                style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.color} />
+                <Text style={[styles.utilityIconLabel, { color: theme.color }]}>Lyrics</Text>
+              </Pressable>
+
+              <Pressable
+                hitSlop={12}
+                onPress={() => {
+                  hapticSelection();
+                  setQueueVisible(true);
+                }}
+                style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
+              >
+                <Ionicons name="list" size={18} color={theme.color} />
+                <Text style={[styles.utilityIconLabel, { color: theme.color }]}>Queue</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Animated.View>
@@ -692,6 +694,10 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     paddingTop: spacing.sm,
   },
+  bottomControlsContainer: {
+    width: '100%',
+    gap: spacing.lg,
+  },
   utilityRow: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -795,7 +801,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
-    marginTop: spacing.xl + 4,
+    marginTop: 0,
   },
   repeatOneBadge: {
     position: 'absolute',
