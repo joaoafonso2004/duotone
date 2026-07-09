@@ -52,6 +52,8 @@ interface PlayerState {
   toggleShuffle: () => void;
   setShowRewindButton: (v: boolean) => void;
   setError: (e: string | null) => void;
+  moveQueueItem: (fromIndex: number, toIndex: number) => void;
+  removeFromQueue: (index: number) => void;
 
   seekTo: (ms: number) => Promise<void>;
 
@@ -254,6 +256,49 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 
   setSoundPreset: (preset) => {
     set({ soundPreset: preset });
+  },
+
+  moveQueueItem: (fromIndex, toIndex) => {
+    const { queue, queueIndex } = get();
+    if (fromIndex < 0 || fromIndex >= queue.length || toIndex < 0 || toIndex >= queue.length) return;
+
+    const newQueue = [...queue];
+    const [movedItem] = newQueue.splice(fromIndex, 1);
+    newQueue.splice(toIndex, 0, movedItem);
+
+    let newIndex = queueIndex;
+    if (fromIndex === queueIndex) {
+      newIndex = toIndex;
+    } else if (fromIndex < queueIndex && toIndex >= queueIndex) {
+      newIndex = queueIndex - 1;
+    } else if (fromIndex > queueIndex && toIndex <= queueIndex) {
+      newIndex = queueIndex + 1;
+    }
+
+    set({ queue: newQueue, queueIndex: newIndex });
+  },
+
+  removeFromQueue: (index) => {
+    const { queue, queueIndex } = get();
+    if (index < 0 || index >= queue.length) return;
+
+    const newQueue = [...queue];
+    newQueue.splice(index, 1);
+
+    let newIndex = queueIndex;
+    if (index === queueIndex) {
+      if (newQueue.length === 0) {
+        set({ current: null, queue: [], queueIndex: 0, isPlaying: false });
+        return;
+      }
+      newIndex = Math.min(queueIndex, newQueue.length - 1);
+      set({ queue: newQueue, queueIndex: newIndex, current: newQueue[newIndex] });
+      return;
+    } else if (index < queueIndex) {
+      newIndex = queueIndex - 1;
+    }
+
+    set({ queue: newQueue, queueIndex: newIndex });
   },
 
   pausePlayback: () => {
