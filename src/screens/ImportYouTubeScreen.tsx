@@ -29,8 +29,9 @@ import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
 import { hapticNotification } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
-import { colors, radii, spacing, type } from '../theme';
+import { colors, radii, spacing, type, MINI_PLAYER_HEIGHT } from '../theme';
 import { useTheme } from '../state/theme';
+import { usePlayer } from '../state/player';
 import type { Playlist, Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ImportYouTube'>;
@@ -38,6 +39,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ImportYouTube'>;
 export function ImportYouTubeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const theme = useTheme((s) => s.theme);
+  const current = usePlayer((s) => s.current);
+  const footerBottom = 49 + insets.bottom + (current ? MINI_PLAYER_HEIGHT : 0);
 
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -233,7 +236,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
             }}
           />
 
-          <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
+          <View style={[styles.footer, { bottom: footerBottom, paddingBottom: 16 }]}>
             <PillButton
               label={`Import ${count} to new playlist`}
               onPress={importToNew}
