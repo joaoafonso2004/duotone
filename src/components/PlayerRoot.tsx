@@ -413,46 +413,48 @@ export function PlayerRoot() {
         <View style={{ height: vidFull.h, marginTop: 20, marginBottom: 12 }} />
 
         <View style={styles.staticBody}>
-          {/* título + ações visíveis (guardar / adicionar a playlist) */}
-          <View style={styles.titleRow}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Pressable
-                onPress={toggleTitleExpansion}
-                onLongPress={handleTitleLongPress}
-                delayLongPress={500}
-                style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
-              >
-                <Text numberOfLines={titleExpanded ? undefined : 2} style={styles.trackTitle}>
-                  {current.title}
+          {/* Grupo Principal: Título + Ações, Barra de Progresso e Controlos de Reprodução */}
+          <View style={styles.mainControlsGroup}>
+            {/* título + ações visíveis (guardar / adicionar a playlist) */}
+            <View style={styles.titleRow}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Pressable
+                  onPress={toggleTitleExpansion}
+                  onLongPress={handleTitleLongPress}
+                  delayLongPress={500}
+                  style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
+                >
+                  <Text numberOfLines={titleExpanded ? undefined : 2} style={styles.trackTitle}>
+                    {current.title}
+                  </Text>
+                </Pressable>
+                <Text numberOfLines={1} style={styles.trackArtist}>
+                  {current.artist ?? 'YouTube'}
                 </Text>
+              </View>
+              <Pressable
+                hitSlop={8}
+                onPress={saveCurrentToLibrary}
+                style={[styles.actionsBtn, saved && styles.actionsBtnActive]}
+                accessibilityLabel={saved ? 'Saved to Library' : 'Save to Library'}
+              >
+                <Ionicons
+                  name={saved ? 'heart' : 'heart-outline'}
+                  size={20}
+                  color={colors.text}
+                />
               </Pressable>
-              <Text numberOfLines={1} style={styles.trackArtist}>
-                {current.artist ?? 'YouTube'}
-              </Text>
+              <Pressable
+                hitSlop={8}
+                onPress={() => setPlaylistOpen(true)}
+                style={styles.actionsBtn}
+                accessibilityLabel="Add to playlist"
+              >
+                <Ionicons name="add" size={22} color={colors.text} />
+              </Pressable>
             </View>
-            <Pressable
-              hitSlop={8}
-              onPress={saveCurrentToLibrary}
-              style={[styles.actionsBtn, saved && styles.actionsBtnActive]}
-              accessibilityLabel={saved ? 'Saved to Library' : 'Save to Library'}
-            >
-              <Ionicons
-                name={saved ? 'heart' : 'heart-outline'}
-                size={20}
-                color={colors.text}
-              />
-            </Pressable>
-            <Pressable
-              hitSlop={8}
-              onPress={() => setPlaylistOpen(true)}
-              style={styles.actionsBtn}
-              accessibilityLabel="Add to playlist"
-            >
-              <Ionicons name="add" size={22} color={colors.text} />
-            </Pressable>
-          </View>
 
-          <View style={styles.bottomControlsContainer}>
+            {/* Barra de Progresso */}
             <View style={{ marginTop: spacing.xs }}>
               <ProgressBar
                 positionMs={positionMs}
@@ -462,7 +464,7 @@ export function PlayerRoot() {
               />
             </View>
 
-            {/* controlos: shuffle · anterior · play · seguinte · repeat */}
+            {/* Controlos: shuffle · anterior · play · seguinte · repeat */}
             <View style={styles.controls}>
               <Pressable hitSlop={12} onPress={onToggleShuffle} accessibilityLabel="Shuffle">
                 <Ionicons
@@ -524,19 +526,21 @@ export function PlayerRoot() {
                 ) : null}
               </Pressable>
             </View>
+          </View>
 
+          {/* Grupo de Rodapé: Botão Recuar & Botões Utilitários (Letras & Fila) */}
+          <View style={styles.bottomGroup}>
             {showRewindButton ? (
               <Pressable
                 hitSlop={14}
                 onPress={() => seekTo(Math.max(0, positionMs - 15000))}
                 accessibilityLabel="Rewind 15 seconds"
-                style={{ alignSelf: 'center', marginTop: -spacing.xs }}
+                style={{ alignSelf: 'center', marginBottom: spacing.md }}
               >
                 <Ionicons name="play-back" size={20} color={colors.textSecondary} />
               </Pressable>
             ) : null}
 
-            {/* Botões Utilitários (Letras & Fila de Reprodução) */}
             <View style={styles.utilityRow}>
               <Pressable
                 hitSlop={12}
@@ -773,9 +777,13 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xxl + spacing.xl,
     paddingTop: spacing.sm,
   },
-  bottomControlsContainer: {
+  mainControlsGroup: {
     width: '100%',
-    gap: spacing.lg,
+    gap: spacing.xl,
+  },
+  bottomGroup: {
+    width: '100%',
+    alignItems: 'center',
   },
   utilityRow: {
     flexDirection: 'row',
