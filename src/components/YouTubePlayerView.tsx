@@ -307,7 +307,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           track.sourceId,
           stream.url,
           stream.contentLength,
-          track.durationSeconds
+          track.durationSeconds || stream.durationSeconds || null
         );
         if (!alive()) return;
       }
@@ -364,7 +364,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         track.sourceId,
         stream.url,
         stream.contentLength,
-        track.durationSeconds
+        track.durationSeconds || stream.durationSeconds || null
       );
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       await player.replaceAsync({
@@ -410,18 +410,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // O áudio começou mesmo → deixa de estar "a carregar" (pára o pulsar).
     if (currentTime > 0) setBuffering(false);
 
-    // A duração REAL vem da YouTube Data API (track.durationSeconds), que é
-    // fiável. Não usamos player.duration porque alguns streams m4a do YouTube
+    // A duração REAL vem da YouTube Data API (track.durationSeconds) ou do
+    // resolved stream (streamRef.current?.durationSeconds), que é fiável.
+    // Não usamos player.duration porque alguns streams m4a do YouTube
     // reportam o DOBRO da duração (contentor com duração errada) — o áudio
     // acaba a meio do "fim" do player. Só caímos no player.duration se a app
     // não souber a duração real.
-    const knownMs = track.durationSeconds
-      ? track.durationSeconds * 1000
-      : (player.duration || 0) * 1000;
+    const durationSec = track.durationSeconds || streamRef.current?.durationSeconds || player.duration || 0;
+    const knownMs = durationSec * 1000;
     setProgress(currentTime * 1000, knownMs);
 
     // Se conhecemos a duração real e já lá chegámos, avançamos — ou repetimos.
-    const duration = track.durationSeconds || player.duration;
+    const duration = track.durationSeconds || streamRef.current?.durationSeconds || player.duration;
     if (duration) {
       const remaining = duration - currentTime;
       if (remaining <= 1.5) {
@@ -516,7 +516,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             nextTrack.sourceId,
             stream.url,
             stream.contentLength,
-            nextTrack.durationSeconds
+            nextTrack.durationSeconds || stream.durationSeconds || null
           );
         }
       } catch (err) {
