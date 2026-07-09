@@ -124,16 +124,12 @@ export interface YtStream {
   /** URL tocável no AVPlayer (m3u8 HLS) ou a descarregar aos pedaços (mp4). */
   url: string;
   isHls: boolean;
-  /** epoch ms em que o URL expira (HLS renova sozinho; mp4 ~6h). */
   expiresAt: number;
-  /** Tamanho total em bytes do mp4 (null para HLS — não se aplica). */
   contentLength: number | null;
-  /** Diagnóstico: `?pot=...` foi mesmo anexado ao URL (ver potProvider.ts). */
   hasPoToken?: boolean;
-  /** Diagnóstico: que cliente InnerTube produziu este stream (ANDROID_VR/WEB/IOS). */
   client?: string;
-  /** Diagnóstico: se caiu para o IOS, porque falharam os clientes sem PO Token. */
   resolverNote?: string;
+  durationSeconds?: number | null;
 }
 
 // Cache em memória (por sessão) — os URLs expiram, não vale a pena persistir.
@@ -192,12 +188,15 @@ export function streamFromPlayerResponse(
   const sd = data?.streamingData;
   if (!sd) throw new Error('No streamingData');
 
+  const durationSeconds = Number(data?.videoDetails?.lengthSeconds) || null;
+
   if (sd.hlsManifestUrl) {
     return {
       url: sd.hlsManifestUrl,
       isHls: true,
       expiresAt: Date.now() + 5 * 60 * 60 * 1000,
       contentLength: null,
+      durationSeconds,
     };
   }
 
@@ -210,6 +209,7 @@ export function streamFromPlayerResponse(
     isHls: false,
     expiresAt: Date.now() + expireSec * 1000,
     contentLength: picked.contentLength,
+    durationSeconds,
   };
 }
 
