@@ -102,14 +102,22 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     player.loop = repeatMode === 'one';
   }, [player, repeatMode]);
 
-  // Aplica o Preset de Som reativamente na velocidade de reprodução nativa
+  // Aplica o Preset de Som reativamente na velocidade de reprodução nativa e correção de pitch
   useEffect(() => {
     if (backend !== 'native') return;
     let rate = 1.0;
-    if (soundPreset === 'slowed') rate = 0.85;
-    else if (soundPreset === 'fast') rate = 1.5;
+    let pitchCorrection = true;
+
+    if (soundPreset === 'slowed') {
+      rate = 0.80; // Velocidade slowed ideal (80%)
+      pitchCorrection = false; // Desativa a correção de pitch para dar voz grave e batidas profundas (estilo slowed reverb)
+    } else if (soundPreset === 'fast') {
+      rate = 1.35; // Velocidade acelerada ideal (135%)
+      pitchCorrection = true;
+    }
 
     player.playbackRate = rate;
+    player.preservesPitch = pitchCorrection;
   }, [backend, player, soundPreset]);
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
