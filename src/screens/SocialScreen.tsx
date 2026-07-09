@@ -350,27 +350,48 @@ export function SocialScreen() {
                 <View>
                   <Text style={[typography.micro, { marginBottom: spacing.sm }]}>OS MEUS AMIGOS</Text>
                   <View style={styles.listCard}>
-                    {activeFriends.map((friend) => (
-                      <View key={friend.friendId} style={styles.friendRow}>
-                        {friend.avatarUrl ? (
-                          <Image source={{ uri: friend.avatarUrl }} style={styles.friendAvatar} />
-                        ) : (
-                          <View style={[styles.friendAvatar, styles.avatarFallback]}>
-                            <Text style={{ fontSize: 13, color: colors.textSecondary }}>{friend.name.charAt(0).toUpperCase()}</Text>
+                    {activeFriends.map((friend) => {
+                      const isOnline = friend.lastSeenAt
+                        ? (Date.now() - new Date(friend.lastSeenAt).getTime()) < 3 * 60 * 1000
+                        : false;
+
+                      return (
+                        <View key={friend.friendId} style={styles.friendRow}>
+                          <View style={styles.avatarContainer}>
+                            {friend.avatarUrl ? (
+                              <Image source={{ uri: friend.avatarUrl }} style={styles.friendAvatar} />
+                            ) : (
+                              <View style={[styles.friendAvatar, styles.avatarFallback]}>
+                                <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+                                  {friend.name.charAt(0).toUpperCase()}
+                                </Text>
+                              </View>
+                            )}
+                            {isOnline && <View style={styles.onlineBadge} />}
                           </View>
-                        )}
-                        <View style={{ flex: 1 }}>
-                          <Text style={[typography.body, { fontWeight: '700' }]}>{friend.name}</Text>
-                          <Text style={typography.caption}>@{friend.username}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[typography.body, { fontWeight: '700' }]}>{friend.name}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                              <Text style={typography.caption}>@{friend.username}</Text>
+                              {isOnline && (
+                                <>
+                                  <Text style={[typography.caption, { color: colors.textTertiary }]}>·</Text>
+                                  <Text style={[typography.caption, { color: '#30D158', fontWeight: '600' }]}>
+                                    Online
+                                  </Text>
+                                </>
+                              )}
+                            </View>
+                          </View>
+                          <Pressable
+                            onPress={() => handleRemoveFriend(friend.friendId, false)}
+                            hitSlop={6}
+                          >
+                            <Ionicons name="person-remove-outline" size={18} color={colors.danger} />
+                          </Pressable>
                         </View>
-                        <Pressable
-                          onPress={() => handleRemoveFriend(friend.friendId, false)}
-                          hitSlop={6}
-                        >
-                          <Ionicons name="person-remove-outline" size={18} color={colors.danger} />
-                        </Pressable>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 </View>
               )}
@@ -641,5 +662,21 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     lineHeight: 16,
     marginTop: spacing.md,
+  },
+  avatarContainer: {
+    position: 'relative',
+    width: 36,
+    height: 36,
+  },
+  onlineBadge: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 11,
+    height: 11,
+    borderRadius: 5.5,
+    backgroundColor: '#30D158',
+    borderWidth: 2,
+    borderColor: colors.surface,
   },
 });
