@@ -28,6 +28,7 @@ import {
   deleteInboxItem,
   shareItem,
   getChatMessages,
+  searchProfiles,
   type Friendship,
   type SharedItem,
 } from '../api/social';
@@ -61,7 +62,8 @@ export function SocialScreen() {
 
   // Search & add states
   const [searchUsername, setSearchUsername] = useState('');
-  const [sendingRequest, setSendingRequest] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchingProfiles, setSearchingProfiles] = useState(false);
 
   // Track actions sheet states
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
@@ -151,21 +153,45 @@ export function SocialScreen() {
     }, [loadInbox, loadFriends])
   );
 
-  const handleSendRequest = async () => {
-    const uname = searchUsername.trim();
-    if (!uname) return;
-    setSendingRequest(true);
-    Keyboard.dismiss();
+  useEffect(() => {
+    const q = searchUsername.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchingProfiles(true);
+      try {
+        const res = await searchProfiles(q);
+        setSearchResults(res);
+      } catch {
+        // ignore
+      } finally {
+        setSearchingProfiles(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [searchUsername]);
+
+  const handleAddFriend = async (targetUserId: string, targetUsername: string) => {
+    hapticSelection();
     try {
-      await sendFriendRequest(uname);
+      await sendFriendRequest(targetUserId);
       hapticNotification();
-      Alert.alert('Sucesso', `Pedido de amizade enviado para @${uname}!`);
-      setSearchUsername('');
+      Alert.alert('Sucesso', `Pedido de amizade enviado para @${targetUsername}!`);
       loadFriends();
+      // Refrescar resultados da pesquisa localmente para marcar como pendente
+      setSearchResults((prev) =>
+        prev.map((p) =>
+          p.id === targetUserId
+            ? { ...p } // Forçar re-render, o friendships vai atualizar o estado visual
+            : p
+        )
+      );
     } catch (e: any) {
       Alert.alert('Erro', e?.message ?? 'Não foi possível enviar o pedido.');
-    } finally {
-      setSendingRequest(false);
     }
   };
 
@@ -475,49 +501,93 @@ export function SocialScreen() {
           contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={[typography.micro, { marginBottom: spacing.sm }]}>ADICIONAR POR USERNAME</Text>
-          <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
-            <View style={{ flex: 1, position: 'relative' }}>
-              <TextInput
-                value={searchUsername}
-                onChangeText={setSearchUsername}
-                placeholder="Username do amigo..."
-                placeholderTextColor={colors.textTertiary}
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={styles.searchInput}
-                onSubmitEditing={handleSendRequest}
-              />
-              {searchUsername.length > 0 && (
-                <Pressable
-                  onPress={() => setSearchUsername('')}
-                  style={styles.searchClearBtn}
-                  hitSlop={8}
-                >
-                  <Ionicons name="close-circle" size={16} color={colors.textTertiary} />
-                </Pressable>
-              )}
-            </View>
-            <Pressable
-              onPress={handleSendRequest}
-              disabled={sendingRequest || !searchUsername.trim()}
-              style={({ pressed }) => [
-                styles.sendRequestBtn,
-                { backgroundColor: theme.color },
-                (sendingRequest || !searchUsername.trim()) && { opacity: 0.4 },
-                pressed && { opacity: 0.8 },
-              ]}
-            >
-              {sendingRequest ? (
-                <ActivityIndicator color={colors.bg} size="small" />
-              ) : (
-                <Text style={[typography.body, { color: colors.bg, fontWeight: '700' }]}>Enviar</Text>
-              )}
-            </Pressable>
+          <Text style={[typography.micro, { marginBottom: spacing.sm }]}>PESQUISAR AMIGOS</Text>
+          <View style={{ position: 'relative', marginBottom: spacing.md }}>
+            <TextInput
+              value={searchUsername}
+              onChangeText={setSearchUsername}
+              placeholder="Escreve um nome ou username..."
+              placeholderTextColor={colors.textTertiary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={styles.searchInput}
+            />
+            {searchUsername.length > 0 && (
+              <Pressable
+                onPress={() => setSearchUsername('')}
+                style={styles.searchClearBtn}
+                hitSlop={8}
+              >
+                <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
+              </Pressable>
+            )}
           </View>
-          <Text style={styles.addFriendHint}>
-            Insere o nome de utilizador (username) do teu amigo para lhe enviares um pedido de amizade. Podem ver o vosso username nas Definições ou no topo do vosso Perfil.
-          </Text>
+
+          {searchingProfiles && searchResults.length === 0 ? (
+            <ActivityIndicator color={theme.color} style={{ marginVertical: 32 }} />
+          ) : searchUsername.trim().length >= 2 && searchResults.length === 0 && !searchingProfiles ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="search-outline" size={24} color={colors.textTertiary} />
+              <Text style={styles.emptyText}>Nenhum utilizador encontrado com "{searchUsername}".</Text>
+            </View>
+          ) : searchResults.length > 0 ? (
+            <View style={styles.listCard}>
+              {searchResults.map((profile) => {
+                const existingFriendship = friendships.find((f) => f.friendId === profile.id);
+                const isAccepted = existingFriendship?.status === 'accepted';
+                const isPending = existingFriendship?.status === 'pending';
+
+                return (
+                  <View key={profile.id} style={styles.friendRow}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
+                      {profile.avatar_url ? (
+                        <Image source={{ uri: profile.avatar_url }} style={styles.friendAvatar} />
+                      ) : (
+                        <View style={[styles.friendAvatar, styles.avatarFallback, { backgroundColor: colors.surfaceHigh }]}>
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>
+                            {profile.name?.charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[typography.body, { fontWeight: '700' }]} numberOfLines={1}>
+                          {profile.name}
+                        </Text>
+                        <Text style={[typography.caption, { fontSize: 11 }]} numberOfLines={1}>
+                          @{profile.username}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {isAccepted ? (
+                      <View style={[styles.actionBtnSmall, { backgroundColor: 'rgba(48, 209, 88, 0.15)' }]}>
+                        <Text style={[styles.actionBtnSmallText, { color: '#30D158' }]}>Amigos</Text>
+                      </View>
+                    ) : isPending ? (
+                      <View style={[styles.actionBtnSmall, { backgroundColor: 'rgba(255, 159, 10, 0.15)' }]}>
+                        <Text style={[styles.actionBtnSmallText, { color: '#FF9F0A' }]}>Pendente</Text>
+                      </View>
+                    ) : (
+                      <Pressable
+                        onPress={() => handleAddFriend(profile.id, profile.username)}
+                        style={({ pressed }) => [
+                          styles.actionBtnSmall,
+                          { backgroundColor: theme.color },
+                          pressed && { opacity: 0.8 },
+                        ]}
+                      >
+                        <Text style={[styles.actionBtnSmallText, { color: colors.bg }]}>Adicionar</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.addFriendHint}>
+              Digita pelo menos 2 letras do nome ou username da pessoa que pretendes adicionar para a pesquisar em tempo real.
+            </Text>
+          )}
         </ScrollView>
       )}
 
@@ -1029,5 +1099,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    gap: spacing.xs,
+  },
+  emptyText: {
+    ...typography.caption,
+    textAlign: 'center',
+    color: colors.textTertiary,
   },
 });
