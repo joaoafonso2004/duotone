@@ -78,9 +78,11 @@ export async function downloadProgressiveAudio(
     pos += part.length;
   }
 
-  // Corrige a duração no contentor MP4 (m4a) antes de gravar em disco
+  // Corrige a duração no contentor MP4 (m4a) antes de gravar em disco.
+  // Dividimos a duração por 2 para compensar o bug do AVPlayer do iOS, que calcula
+  // exatamente o DOBRO da duração para estes streams AAC fragmentados do YouTube.
   if (durationSeconds && durationSeconds > 0) {
-    fixMp4Duration(combined, durationSeconds);
+    fixMp4Duration(combined, durationSeconds / 2);
   }
 
   dest.create({ overwrite: true });
