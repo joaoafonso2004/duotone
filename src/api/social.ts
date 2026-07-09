@@ -32,30 +32,16 @@ async function currentUserId(): Promise<string> {
   return data.user.id;
 }
 
-export async function sendFriendRequest(username: string): Promise<void> {
-  const uname = username.trim();
-  if (!uname) throw new Error('Insira um nome de utilizador válido.');
-
+export async function sendFriendRequest(targetUserId: string): Promise<void> {
   const currentUid = await currentUserId();
 
-  // Procurar o utilizador alvo na tabela profiles (case-insensitive)
-  const { data: targetProfile, error: pError } = await supabase
-    .from('profiles')
-    .select('id, username')
-    .ilike('username', uname)
-    .single();
-
-  if (pError || !targetProfile) {
-    throw new Error('Utilizador não encontrado.');
-  }
-
-  if (targetProfile.id === currentUid) {
+  if (targetUserId === currentUid) {
     throw new Error('Não se pode adicionar a si próprio.');
   }
 
   // Garantir a ordem dos IDs na amizade (user_id_1 < user_id_2)
-  const user_id_1 = currentUid < targetProfile.id ? currentUid : targetProfile.id;
-  const user_id_2 = currentUid < targetProfile.id ? targetProfile.id : currentUid;
+  const user_id_1 = currentUid < targetUserId ? currentUid : targetUserId;
+  const user_id_2 = currentUid < targetUserId ? targetUserId : currentUid;
 
   const { error: insError } = await supabase
     .from('friendships')
@@ -69,6 +55,22 @@ export async function sendFriendRequest(username: string): Promise<void> {
   if (insError) {
     throw new Error('Já existe um pedido pendente ou ligação com este utilizador.');
   }
+}
+
+export async function searchProfiles(query: string): Promise<any[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const currentUid = await currentUserId();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, name, username, avatar_url')
+    .or(`username.ilike.%${q}%,name.ilike.%${q}%`)
+    .neq('id', currentUid)
+    .limit(15);
+
+  if (error || !data) return [];
+  return data;
 }
 
 export async function getFriendships(): Promise<Friendship[]> {
