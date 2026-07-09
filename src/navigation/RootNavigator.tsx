@@ -11,7 +11,7 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
@@ -131,22 +131,13 @@ function Tabs() {
 }
 
 function Splash() {
-  const { height: H } = useWindowDimensions();
   return (
     <View style={styles.splash}>
       <LinearGradient
         colors={['#0F0F12', '#0A0A0C']}
         style={StyleSheet.absoluteFill}
       />
-      <Image
-        source={require('../../assets/login_bg.png')}
-        style={StyleSheet.absoluteFill}
-        contentFit="cover"
-      />
-      <View style={[styles.splashContent, { marginTop: H * 0.35 }]}>
-        <Text style={styles.splashText}>Duotone</Text>
-        <ActivityIndicator size="small" color="#8E8E93" style={{ marginTop: 24 }} />
-      </View>
+      <ActivityIndicator size="large" color="#8E8E93" />
     </View>
   );
 }
