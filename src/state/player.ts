@@ -64,6 +64,8 @@ interface PlayerState {
   _setProgress: (positionMs: number, durationMs: number) => void;
   _setIsPlaying: (v: boolean) => void;
   _setBuffering: (v: boolean) => void;
+  activeBackend: 'resolving' | 'native' | 'webview';
+  _setActiveBackend: (backend: 'resolving' | 'native' | 'webview') => void;
 }
 
 export const usePlayer = create<PlayerState>((set, get) => ({
@@ -82,6 +84,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   sleepTimerTimeLeft: 0,
   soundPreset: 'normal',
   _yt: null,
+  activeBackend: 'resolving',
 
   playTrack: async (track, queue, shouldExpand) => {
     // Conta esta reprodução (local; alimenta "Most played" no Perfil).
@@ -106,6 +109,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       buffering: true,
       // O player nativo autoplay-a ao montar; estado real chega via bridge.
       isPlaying: true,
+      activeBackend: 'resolving',
       ...(shouldExpand ? { expanded: true } : {}),
     });
   },
@@ -197,6 +201,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       positionMs: 0,
       durationMs: 0,
       error: null,
+      activeBackend: 'resolving',
     });
   },
 
@@ -220,6 +225,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   setError: (e) => set({ error: e }),
 
   registerYtControls: (c) => set({ _yt: c }),
+
+  _setActiveBackend: (b) => set({ activeBackend: b }),
 
   _onYtStateChange: (s) => {
     if (s === 'ended') {

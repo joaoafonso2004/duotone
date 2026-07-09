@@ -1,7 +1,7 @@
 import { useEventListener } from 'expo';
 import { useVideoPlayer } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, AppState } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
@@ -81,6 +81,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const soundPreset = usePlayer((s) => s.soundPreset);
 
   const [backend, setBackend] = useState<Backend>('resolving');
+  const _setActiveBackend = usePlayer((s) => s._setActiveBackend);
+  useEffect(() => {
+    _setActiveBackend(backend);
+  }, [backend, _setActiveBackend]);
+
   const webRef = useRef<WebView>(null);
   // Token por faixa. Cada troca de faixa incrementa-o; operações assíncronas
   // de uma faixa antiga comparam o token que capturaram com o atual e abortam
@@ -158,6 +163,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   };
 
   const fadeOut = (callback: () => void) => {
+    // Se a app estiver em background/bloqueada, o setInterval do JS é suspenso
+    // pelo iOS. Chamamos o callback imediatamente para a fila não ficar presa.
+    if (AppState.currentState !== 'active') {
+      callback();
+      return;
+    }
+
     if (fadingOutRef.current) return;
     fadingOutRef.current = true;
     if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
@@ -173,6 +185,23 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       player.volume = vol;
     }, 100);
   };
+
+  // Se a app for minimizada ou o ecrã for bloqueado a meio do fadeOut,
+  // cancelamos o interval e avançamos imediatamente a música.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active' && fadingOutRef.current && !endedRef.current) {
+        if (fadeIntervalRef.current) {
+          clearInterval(fadeIntervalRef.current);
+          fadeIntervalRef.current = null;
+        }
+        fadingOutRef.current = false;
+        endedRef.current = true;
+        onStateChange('ended');
+      }
+    });
+    return () => sub.remove();
+  }, [onStateChange]);
 
   useEffect(() => {
     const myRun = ++runIdRef.current;
