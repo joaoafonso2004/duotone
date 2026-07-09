@@ -74,6 +74,17 @@ export function PlayerRoot() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [currentRoute, setCurrentRoute] = useState<string | null>(null);
 
+  const visibilityAnim = useRef(new Animated.Value(1)).current;
+  const shouldHide = (keyboardVisible && !expanded) || currentRoute === 'Settings';
+
+  useEffect(() => {
+    Animated.timing(visibilityAnim, {
+      toValue: shouldHide ? 0 : 1,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
+  }, [shouldHide]);
+
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
@@ -494,22 +505,23 @@ export function PlayerRoot() {
         </View>
       </Animated.View>
 
-      {/* ===================== MINI-PLAYER ===================== */}
-      {!(keyboardVisible && !expanded) && currentRoute !== 'Settings' && (
-        <Animated.View
-          pointerEvents={expanded ? 'none' : 'auto'}
-          style={[
-            styles.mini,
-            {
-              bottom: miniBottom,
-              opacity: anim.interpolate({
+      <Animated.View
+        pointerEvents={shouldHide || expanded ? 'none' : 'auto'}
+        style={[
+          styles.mini,
+          {
+            bottom: miniBottom,
+            opacity: Animated.multiply(
+              visibilityAnim,
+              anim.interpolate({
                 inputRange: [0, 0.35],
                 outputRange: [1, 0],
                 extrapolate: 'clamp',
-              }),
-            },
-          ]}
-        >
+              })
+            ),
+          },
+        ]}
+      >
           <Pressable style={styles.miniInner} onPress={() => setExpanded(true)}>
             {isYt ? (
               // slot — o WebView flutua exatamente por cima desta área
@@ -568,13 +580,14 @@ export function PlayerRoot() {
             />
           </View>
         </Animated.View>
-      )}
 
       {/* ============ FRAME DE VÍDEO YOUTUBE (flutuante, nunca desmonta) ============ */}
       {isYt ? (
         <Animated.View
+          pointerEvents={shouldHide ? 'none' : 'auto'}
           style={{
             position: 'absolute',
+            opacity: visibilityAnim,
             left: anim.interpolate({
               inputRange: [0, 1],
               outputRange: [vidMini.x, vidFull.x],
