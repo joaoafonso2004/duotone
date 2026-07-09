@@ -85,17 +85,52 @@ export async function clearLibrary(): Promise<void> {
 }
 
 export async function getLibrary(): Promise<Track[]> {
-  const { data, error } = await supabase
+  const userId = await currentUserId();
+
+  // 1. Fetch library tracks (ordered by added_at desc)
+  const { data: libData, error: libError } = await supabase
     .from('library_tracks')
-    .select(
-      'added_at, tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds)'
-    )
+    .select('added_at, tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds)')
+    .eq('user_id', userId)
     .order('added_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? [])
-    .map((row: any) => row.tracks)
-    .filter(Boolean)
-    .map(rowToTrack);
+
+  if (libError) throw libError;
+
+  // 2. Fetch tracks from all playlists created by this user
+  const { data: plTracksData, error: plTracksError } = await supabase
+    .from('playlist_tracks')
+    .select('tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds), playlists!inner (owner_id)')
+    .eq('playlists.owner_id', userId);
+
+  if (plTracksError) throw plTracksError;
+
+  const tracksMap = new Map<string, Track>();
+
+  // Add library tracks first to maintain order
+  if (libData) {
+    for (const row of libData) {
+      if (row.tracks) {
+        const track = rowToTrack(row.tracks);
+        const key = `${track.source}:${track.sourceId}`;
+        tracksMap.set(key, track);
+      }
+    }
+  }
+
+  // Add playlist tracks next (only if not already in map)
+  if (plTracksData) {
+    for (const row of plTracksData) {
+      if (row.tracks) {
+        const track = rowToTrack(row.tracks);
+        const key = `${track.source}:${track.sourceId}`;
+        if (!tracksMap.has(key)) {
+          tracksMap.set(key, track);
+        }
+      }
+    }
+  }
+
+  return Array.from(tracksMap.values());
 }
 
 /** Ids (da BD) das faixas guardadas — para mostrar o estado "guardada". */
