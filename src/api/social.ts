@@ -228,7 +228,7 @@ export async function getFriendCount(): Promise<number> {
       .from('friendships')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'accepted')
-      .or(`user_a.eq.${uid},user_b.eq.${uid}`);
+      .or(`user_id_1.eq.${uid},user_id_2.eq.${uid}`);
     if (error) return 0;
     return count ?? 0;
   } catch {

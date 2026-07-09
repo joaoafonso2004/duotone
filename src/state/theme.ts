@@ -78,10 +78,10 @@ interface ThemeState {
 }
 
 export const useTheme = create<ThemeState>((set) => ({
-  themeName: 'violet',
-  theme: ACCENT_THEMES.violet,
+  themeName: 'mono',
+  theme: ACCENT_THEMES.mono,
   setTheme: async (name) => {
-    const theme = ACCENT_THEMES[name] || ACCENT_THEMES.violet;
+    const theme = ACCENT_THEMES[name] || ACCENT_THEMES.mono;
     set({ themeName: name, theme });
     await AsyncStorage.setItem('pref:accentTheme', name);
   },
@@ -90,6 +90,8 @@ export const useTheme = create<ThemeState>((set) => ({
     if (saved && saved in ACCENT_THEMES) {
       const name = saved as AccentColorName;
       set({ themeName: name, theme: ACCENT_THEMES[name] });
+    } else {
+      set({ themeName: 'mono', theme: ACCENT_THEMES.mono });
     }
   },
 }));
