@@ -8,6 +8,7 @@ export interface Friendship {
   avatarUrl: string | null;
   status: 'pending' | 'accepted';
   isSender: boolean;
+  lastSeenAt: string | null;
 }
 
 export interface SharedItem {
@@ -84,7 +85,7 @@ export async function getFriendships(): Promise<Friendship[]> {
 
   const { data: profiles, error: pError } = await supabase
     .from('profiles')
-    .select('id, name, username, avatar_url')
+    .select('id, name, username, avatar_url, last_seen_at')
     .in('id', otherIds);
 
   if (pError || !profiles) return [];
@@ -101,6 +102,7 @@ export async function getFriendships(): Promise<Friendship[]> {
       avatarUrl: profile?.avatar_url || null,
       status: r.status as 'pending' | 'accepted',
       isSender: r.requester_id === currentUid,
+      lastSeenAt: profile?.last_seen_at || null,
     };
   });
 }
@@ -217,5 +219,18 @@ export async function getFriendCount(): Promise<number> {
     return count ?? 0;
   } catch {
     return 0;
+  }
+}
+
+export async function updateLastSeen(): Promise<void> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase
+      .from('profiles')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('id', user.id);
+  } catch {
+    // silently fail
   }
 }

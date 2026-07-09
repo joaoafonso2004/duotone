@@ -10,8 +10,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import React from 'react';
-import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import React, { useEffect } from 'react';
+import { StyleSheet, Text, View, ActivityIndicator, AppState } from 'react-native';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
@@ -27,6 +27,7 @@ import { SocialScreen } from '../screens/SocialScreen';
 import { useAuth } from '../state/auth';
 import { colors } from '../theme';
 import { useTheme } from '../state/theme';
+import { updateLastSeen } from '../api/social';
 
 export type RootStackParamList = {
   Tabs: undefined;
@@ -148,6 +149,27 @@ export function RootNavigator() {
   const session = useAuth((s) => s.session);
   const initialized = useAuth((s) => s.initialized);
   const theme = useTheme((s) => s.theme);
+
+  useEffect(() => {
+    if (!session) return;
+    updateLastSeen();
+    const interval = setInterval(() => {
+      if (AppState.currentState === 'active') {
+        updateLastSeen();
+      }
+    }, 45000);
+
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        updateLastSeen();
+      }
+    });
+
+    return () => {
+      clearInterval(interval);
+      sub.remove();
+    };
+  }, [session]);
 
   if (!initialized) return <Splash />;
 
