@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -711,6 +713,10 @@ export function SocialScreen() {
         animationType="slide"
         onRequestClose={() => setActiveChatFriend(null)}
       >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <View style={styles.chatRoot}>
           {/* Full Screen Blurred Background */}
           <Image
@@ -878,6 +884,7 @@ export function SocialScreen() {
             </Pressable>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </Screen>
   );

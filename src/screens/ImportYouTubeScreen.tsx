@@ -6,6 +6,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -47,6 +50,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
   const fetchList = async () => {
     setLoading(true);
     setData(null);
+    Keyboard.dismiss();
     try {
       const result = await fetchYouTubePlaylist(url);
       setData(result);
@@ -126,6 +130,11 @@ export function ImportYouTubeScreen({ navigation }: Props) {
       subtitle="Metadata only — playback stays on YouTube"
       onBack={() => navigation.goBack()}
     >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
       <View style={styles.inputRow}>
         <Input
           icon="link-outline"
@@ -268,6 +277,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
           ))
         )}
       </BottomSheet>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
