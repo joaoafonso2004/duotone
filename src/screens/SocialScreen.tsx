@@ -150,13 +150,6 @@ export function SocialScreen() {
     useCallback(() => {
       loadInbox();
       loadFriends();
-
-      // Poll friends list every 12 seconds for currently playing track updates
-      const interval = setInterval(() => {
-        loadFriends();
-      }, 12000);
-
-      return () => clearInterval(interval);
     }, [loadInbox, loadFriends])
   );
 
@@ -469,48 +462,19 @@ export function SocialScreen() {
                              {isOnline && <View style={styles.onlineBadge} />}
                            </View>
                            <View style={{ flex: 1 }}>
-                             <Text style={[typography.body, { fontWeight: '700' }]}>{friend.name}</Text>
-                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                               <Text style={typography.caption}>@{friend.username}</Text>
-                               {isOnline && (
-                                 <>
-                                   <Text style={[typography.caption, { color: colors.textTertiary }]}>·</Text>
-                                   <Text style={[typography.caption, { color: '#30D158', fontWeight: '600' }]}>
-                                     Online
-                                   </Text>
-                                 </>
-                               )}
-                             </View>
-                             {isOnline && friend.currentlyPlaying && friend.currentlyPlaying.isPlaying && (
-                                <Pressable
-                                  onPress={() => {
-                                    hapticSelection();
-                                    if (friend.currentlyPlaying) {
-                                      const trackToPlay: Track = {
-                                        id: friend.currentlyPlaying.id || undefined,
-                                        source: friend.currentlyPlaying.source as 'youtube',
-                                        sourceId: friend.currentlyPlaying.sourceId,
-                                        title: friend.currentlyPlaying.title,
-                                        artist: friend.currentlyPlaying.artist || null,
-                                        album: null,
-                                        artworkUrl: friend.currentlyPlaying.artworkUrl || null,
-                                        durationSeconds: friend.currentlyPlaying.durationSeconds || null,
-                                      };
-                                      playTrack(trackToPlay, [trackToPlay]);
-                                    }
-                                  }}
-                                  style={({ pressed }) => [
-                                    styles.listeningContainer,
-                                    pressed && { backgroundColor: 'rgba(48, 209, 88, 0.15)' }
-                                  ]}
-                                >
-                                  <Ionicons name="musical-note" size={11} color="#30D158" />
-                                  <Text numberOfLines={1} style={styles.listeningText}>
-                                    A ouvir: {friend.currentlyPlaying.title}
-                                  </Text>
-                                </Pressable>
-                              )}
-                           </View>
+                              <Text style={[typography.body, { fontWeight: '700' }]}>{friend.name}</Text>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <Text style={typography.caption}>@{friend.username}</Text>
+                                {isOnline && (
+                                  <>
+                                    <Text style={[typography.caption, { color: colors.textTertiary }]}>·</Text>
+                                    <Text style={[typography.caption, { color: '#30D158', fontWeight: '600' }]}>
+                                      Online
+                                    </Text>
+                                  </>
+                                )}
+                              </View>
+                            </View>
                            <Pressable
                              onPress={() => handleRemoveFriend(friend.friendId, false)}
                              hitSlop={6}
