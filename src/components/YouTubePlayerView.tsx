@@ -93,6 +93,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     p.showNowPlayingNotification = true;
     p.timeUpdateEventInterval = 1;
     p.loop = false;
+    p.audioMixingMode = 'doNotMix';
   });
 
   // Repeat "one": o player nativo repete a própria faixa (sem passar por

@@ -102,13 +102,13 @@ export function ProfileScreen() {
 
   const avatarScale = scrollY.interpolate({
     inputRange: [-100, 0, 150],
-    outputRange: [1.3, 1, 0.6],
+    outputRange: [1.15, 1, 0.6],
     extrapolate: 'clamp',
   });
 
   const avatarTranslateY = scrollY.interpolate({
     inputRange: [-100, 0, 150],
-    outputRange: [30, 0, -10],
+    outputRange: [0, 0, -15],
     extrapolate: 'clamp',
   });
 

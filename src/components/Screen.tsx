@@ -19,10 +19,7 @@ interface Props {
 export function Screen({ title, subtitle, right, topLeft, onBack, children, style }: Props) {
   const insets = useSafeAreaInsets();
   return (
-    <Pressable
-      onPress={() => Keyboard.dismiss()}
-      style={[styles.root, { paddingTop: insets.top + spacing.sm }]}
-    >
+    <View style={[styles.root, { paddingTop: insets.top + spacing.sm }]}>
       {topLeft ? <View style={styles.topLeftRow}>{topLeft}</View> : null}
       {title ? (
         <View style={styles.header}>
@@ -41,7 +38,7 @@ export function Screen({ title, subtitle, right, topLeft, onBack, children, styl
         </View>
       ) : null}
       <View style={[{ flex: 1 }, style]}>{children}</View>
-    </Pressable>
+    </View>
   );
 }
 
