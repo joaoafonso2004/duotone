@@ -86,9 +86,10 @@ export function PlayerRoot() {
     }).start();
   }, [shouldHide]);
 
-  useEffect(() => {
-    updateCurrentlyPlaying(current, isPlaying);
-  }, [current, isPlaying]);
+  // Desativado para otimizar desempenho e evitar lag/crashes durante a reprodução
+  // useEffect(() => {
+  //   updateCurrentlyPlaying(current, isPlaying);
+  // }, [current, isPlaying]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));

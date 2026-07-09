@@ -267,14 +267,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (!alive()) return;
       streamRef.current = stream;
 
-      // Toca diretamente da rede para começar a reproduzir instantaneamente.
-      // Em simultâneo, descarrega em segundo plano para a cache para as próximas vezes.
       let playableUri = stream.url;
       if (!stream.isHls) {
         downloadTriedRef.current = true;
-        downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength).catch((err) => {
-          console.warn('[Cache] Background download failed:', err);
-        });
+        playableUri = await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength);
+        if (!alive()) return;
       }
 
       await player.replaceAsync({
