@@ -691,7 +691,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.xl,
     justifyContent: 'space-between',
-    paddingBottom: spacing.lg,
+    paddingBottom: spacing.xxl + spacing.xl,
     paddingTop: spacing.sm,
   },
   bottomControlsContainer: {
