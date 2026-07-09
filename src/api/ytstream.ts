@@ -71,6 +71,7 @@
  */
 
 import { fetchGvsPoToken } from './potProvider';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PLAYER_ENDPOINT = 'https://www.youtube.com/youtubei/v1/player';
 const VISITOR_ENDPOINT = 'https://www.youtube.com/youtubei/v1/visitor_id';
@@ -229,10 +230,26 @@ type InnerTubeClient = {
 // visitorData: identificador de sessão que reduz a deteção de bots ("Sign in
 // to confirm you're not a bot") — mitigação documentada pelo NewPipe/yt-dlp
 // para o 403/LOGIN_REQUIRED dos clientes sem PO Token. Obtido uma vez por
-// sessão e reutilizado.
+// sessão e reutilizado. Persistido em AsyncStorage com TTL de 24h para evitar
+// o pedido de rede extra em cada arranque da app (crítico em redes lentas).
+const VD_KEY = 'yt_visitor_data';
+const VD_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
 let visitorDataCache: string | null = null;
 async function getVisitorData(): Promise<string | null> {
   if (visitorDataCache) return visitorDataCache;
+  // Tentar AsyncStorage primeiro (evita pedido de rede no primeiro arranque)
+  try {
+    const raw = await AsyncStorage.getItem(VD_KEY);
+    if (raw) {
+      const { value, expiresAt } = JSON.parse(raw);
+      if (typeof value === 'string' && Date.now() < expiresAt) {
+        visitorDataCache = value;
+        return visitorDataCache;
+      }
+    }
+  } catch {
+    // Se o AsyncStorage falhar, continua para o pedido de rede
+  }
   try {
     const res = await fetch(`${VISITOR_ENDPOINT}?key=${WEB_KEY}&prettyPrint=false`, {
       method: 'POST',
@@ -246,6 +263,12 @@ async function getVisitorData(): Promise<string | null> {
     if (!res.ok) return null;
     const data = await res.json();
     visitorDataCache = data?.responseContext?.visitorData ?? null;
+    if (visitorDataCache) {
+      AsyncStorage.setItem(
+        VD_KEY,
+        JSON.stringify({ value: visitorDataCache, expiresAt: Date.now() + VD_TTL_MS })
+      ).catch(() => {});
+    }
     return visitorDataCache;
   } catch {
     return null;

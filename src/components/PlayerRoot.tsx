@@ -13,7 +13,9 @@ import {
   useWindowDimensions,
   View,
   Keyboard,
+  LayoutAnimation,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, removeFromLibrary, checkIsSaved } from '../api/library';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
@@ -52,6 +54,7 @@ export function PlayerRoot() {
   const durationMs = usePlayer((s) => s.durationMs);
   const buffering = usePlayer((s) => s.buffering);
   const error = usePlayer((s) => s.error);
+  const activeBackend = usePlayer((s) => s.activeBackend);
 
   const playTrack = usePlayer((s) => s.playTrack);
   const togglePlay = usePlayer((s) => s.togglePlay);
@@ -74,6 +77,49 @@ export function PlayerRoot() {
   const [queueVisible, setQueueVisible] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [currentRoute, setCurrentRoute] = useState<string | null>(null);
+
+  const [titleExpanded, setTitleExpanded] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    setTitleExpanded(false);
+  }, [current?.id]);
+
+  const toggleTitleExpansion = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setTitleExpanded(!titleExpanded);
+  };
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    toastOpacity.setValue(0);
+    Animated.sequence([
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+      Animated.delay(1800),
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished) {
+        setToastMessage(null);
+      }
+    });
+  };
+
+  const handleTitleLongPress = async () => {
+    if (current?.title) {
+      await Clipboard.setStringAsync(current.title);
+      hapticSelection();
+      showToast('Copiado');
+    }
+  };
 
   const visibilityAnim = useRef(new Animated.Value(1)).current;
   const shouldHide = (keyboardVisible && !expanded) || currentRoute === 'Settings';
@@ -370,9 +416,16 @@ export function PlayerRoot() {
           {/* título + ações visíveis (guardar / adicionar a playlist) */}
           <View style={styles.titleRow}>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={2} style={styles.trackTitle}>
-                {current.title}
-              </Text>
+              <Pressable
+                onPress={toggleTitleExpansion}
+                onLongPress={handleTitleLongPress}
+                delayLongPress={500}
+                style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
+              >
+                <Text numberOfLines={titleExpanded ? undefined : 2} style={styles.trackTitle}>
+                  {current.title}
+                </Text>
+              </Pressable>
               <Text numberOfLines={1} style={styles.trackArtist}>
                 {current.artist ?? 'YouTube'}
               </Text>
@@ -625,12 +678,14 @@ export function PlayerRoot() {
 
           {/* Fundo preto opaco para tapar quaisquer controlos, logos ou botões do YouTube (WebView)
               de brilharem por trás quando a capa de álbum diminui de opacidade ao pulsar. */}
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} pointerEvents="none" />
+          {(!expanded || activeBackend !== 'webview') && (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} pointerEvents="none" />
+          )}
 
           {/* Mostramos SEMPRE a thumbnail por cima — o áudio nativo continua a
               tocar por trás. (A app é só áudio; o vídeo é irrelevante.) A capa
               "respira" (opacidade a pulsar) enquanto a música carrega. */}
-          {artSource ? (
+          {(!expanded || activeBackend !== 'webview') && artSource ? (
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: pulse }]}>
               <Image
                 source={{ uri: artSource }}
@@ -660,6 +715,30 @@ export function PlayerRoot() {
           <Ionicons name="alert-circle" size={16} color={colors.danger} />
           <Text style={styles.toastText}>{error}</Text>
         </View>
+      ) : null}
+
+      {/* ===================== TOAST CLEAN DE AVISO ===================== */}
+      {toastMessage ? (
+        <Animated.View
+          style={[
+            styles.toastClean,
+            {
+              bottom: expanded ? insets.bottom + 90 : miniBottom + MINI_PLAYER_HEIGHT + 10,
+              opacity: toastOpacity,
+              transform: [
+                {
+                  translateY: toastOpacity.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [12, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Ionicons name="checkmark-circle" size={16} color="#4ADE80" />
+          <Text style={styles.toastCleanText}>{toastMessage}</Text>
+        </Animated.View>
       ) : null}
 
       {/* ===================== ADICIONAR A PLAYLIST ===================== */}
@@ -933,5 +1012,28 @@ const styles = StyleSheet.create({
     ...type.caption,
     color: colors.text,
     flex: 1,
+  },
+  toastClean: {
+    position: 'absolute',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(29, 29, 40, 0.95)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.pill,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  toastCleanText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
   },
 });
