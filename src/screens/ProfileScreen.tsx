@@ -15,6 +15,8 @@ import {
   Text,
   TextInput,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '../components/Screen';
@@ -591,123 +593,128 @@ function AvatarEditor({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.sheetBackdrop} onPress={onClose}>
-        <Pressable style={[styles.sheet, { maxHeight: '90%' }]} onPress={() => {}}>
-          <View style={styles.sheetHandle} />
-          
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ gap: spacing.md, paddingBottom: 24 }}
-          >
-            <Text style={[type.body, { fontWeight: '700', textAlign: 'center' }]}>Foto de Perfil</Text>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ width: '100%', justifyContent: 'flex-end', alignItems: 'center' }}
+        >
+          <Pressable style={[styles.sheet, { maxHeight: '90%' }]} onPress={() => {}}>
+            <View style={styles.sheetHandle} />
+            
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ gap: spacing.md, paddingBottom: 24 }}
+            >
+              <Text style={[type.body, { fontWeight: '700', textAlign: 'center' }]}>Foto de Perfil</Text>
 
-            <View style={{ alignSelf: 'center', marginVertical: spacing.xs }}>
-              {avatarUrl ? (
-                <Image
-                  source={{ uri: avatarUrl }}
-                  style={styles.preview}
-                  contentFit="cover"
+              <View style={{ alignSelf: 'center', marginVertical: spacing.xs }}>
+                {avatarUrl ? (
+                  <Image
+                    source={{ uri: avatarUrl }}
+                    style={styles.preview}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <LinearGradient colors={grad as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preview}>
+                    <Text style={{ fontSize: 42 }}>{emoji}</Text>
+                  </LinearGradient>
+                )}
+              </View>
+
+              <Text style={[type.micro, styles.sheetLabel]}>LINK DE IMAGEM PERSONALIZADA (URL)</Text>
+              <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
+                <TextInput
+                  value={inputUrl}
+                  onChangeText={setInputUrl}
+                  placeholder="https://exemplo.com/foto.jpg"
+                  placeholderTextColor={colors.textTertiary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.urlInput}
+                  onSubmitEditing={handleApplyUrl}
                 />
-              ) : (
-                <LinearGradient colors={grad as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.preview}>
-                  <Text style={{ fontSize: 42 }}>{emoji}</Text>
-                </LinearGradient>
-              )}
-            </View>
-
-            <Text style={[type.micro, styles.sheetLabel]}>LINK DE IMAGEM PERSONALIZADA (URL)</Text>
-            <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
-              <TextInput
-                value={inputUrl}
-                onChangeText={setInputUrl}
-                placeholder="https://exemplo.com/foto.jpg"
-                placeholderTextColor={colors.textTertiary}
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={styles.urlInput}
-                onSubmitEditing={handleApplyUrl}
-              />
-              <Pressable
-                onPress={handleApplyUrl}
-                style={({ pressed }) => [
-                  styles.applyBtn,
-                  { backgroundColor: theme.soft },
-                  pressed && { opacity: 0.8 },
-                ]}
-              >
-                <Text style={{ color: theme.color, fontSize: 13, fontWeight: '700' }}>Aplicar</Text>
-              </Pressable>
-            </View>
-
-            <Text style={[type.micro, styles.sheetLabel]}>ILUSTRAÇÕES RECOMENDADAS</Text>
-            <View style={styles.illustrationGrid}>
-              {CURATED_AVATARS.map((url) => (
                 <Pressable
-                  key={url}
-                  onPress={() => {
-                    setInputUrl(url);
-                    onChange({ emoji, gradientIndex, avatarUrl: url });
-                  }}
+                  onPress={handleApplyUrl}
                   style={({ pressed }) => [
-                    styles.illustrationCell,
-                    avatarUrl === url && { borderColor: theme.color },
+                    styles.applyBtn,
+                    { backgroundColor: theme.soft },
                     pressed && { opacity: 0.8 },
                   ]}
                 >
-                  <Image source={{ uri: url }} style={styles.illustrationImage} contentFit="cover" />
+                  <Text style={{ color: theme.color, fontSize: 13, fontWeight: '700' }}>Aplicar</Text>
                 </Pressable>
-              ))}
-            </View>
-
-            {avatarUrl ? (
-              <Pressable
-                onPress={() => {
-                  setInputUrl('');
-                  onChange({ emoji, gradientIndex, avatarUrl: undefined });
-                }}
-                style={[styles.removeUrlBtn, { borderColor: colors.borderStrong }]}
-              >
-                <Ionicons name="trash-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.removeUrlText}>Voltar para Emoji & Gradiente</Text>
-              </Pressable>
-            ) : null}
-
-            <View style={styles.divider} />
-
-            <View style={{ opacity: avatarUrl ? 0.35 : 1 }} pointerEvents={avatarUrl ? 'none' : 'auto'}>
-              <Text style={[type.micro, styles.sheetLabel]}>CORES DO GRADIENTE</Text>
-              <View style={styles.swatchRow}>
-                {AVATAR_GRADIENTS.map((g, i) => (
-                  <Pressable key={i} onPress={() => onChange({ emoji, gradientIndex: i })}>
-                    <LinearGradient
-                      colors={g}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={[styles.swatch, i === gradientIndex && styles.swatchActive]}
-                    />
-                  </Pressable>
-                ))}
               </View>
 
-              <Text style={[type.micro, styles.sheetLabel, { marginTop: spacing.md }]}>EMOJIS</Text>
-              <View style={styles.emojiGrid}>
-                {AVATAR_EMOJIS.map((em) => (
+              <Text style={[type.micro, styles.sheetLabel]}>ILUSTRAÇÕES RECOMENDADAS</Text>
+              <View style={styles.illustrationGrid}>
+                {CURATED_AVATARS.map((url) => (
                   <Pressable
-                    key={em}
-                    onPress={() => onChange({ emoji: em, gradientIndex })}
-                    style={[styles.emojiCell, em === emoji && [styles.emojiCellActive, { borderColor: theme.color }]]}
+                    key={url}
+                    onPress={() => {
+                      setInputUrl(url);
+                      onChange({ emoji, gradientIndex, avatarUrl: url });
+                    }}
+                    style={({ pressed }) => [
+                      styles.illustrationCell,
+                      avatarUrl === url && { borderColor: theme.color },
+                      pressed && { opacity: 0.8 },
+                    ]}
                   >
-                    <Text style={{ fontSize: 24 }}>{em}</Text>
+                    <Image source={{ uri: url }} style={styles.illustrationImage} contentFit="cover" />
                   </Pressable>
                 ))}
               </View>
-            </View>
 
-            <Pressable style={styles.doneBtn} onPress={onClose}>
-              <Text style={styles.doneText}>Concluído</Text>
-            </Pressable>
-          </ScrollView>
-        </Pressable>
+              {avatarUrl ? (
+                <Pressable
+                  onPress={() => {
+                    setInputUrl('');
+                    onChange({ emoji, gradientIndex, avatarUrl: undefined });
+                  }}
+                  style={[styles.removeUrlBtn, { borderColor: colors.borderStrong }]}
+                >
+                  <Ionicons name="trash-outline" size={14} color={colors.textSecondary} />
+                  <Text style={styles.removeUrlText}>Voltar para Emoji & Gradiente</Text>
+                </Pressable>
+              ) : null}
+
+              <View style={styles.divider} />
+
+              <View style={{ opacity: avatarUrl ? 0.35 : 1 }} pointerEvents={avatarUrl ? 'none' : 'auto'}>
+                <Text style={[type.micro, styles.sheetLabel]}>CORES DO GRADIENTE</Text>
+                <View style={styles.swatchRow}>
+                  {AVATAR_GRADIENTS.map((g, i) => (
+                    <Pressable key={i} onPress={() => onChange({ emoji, gradientIndex: i })}>
+                      <LinearGradient
+                        colors={g}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[styles.swatch, i === gradientIndex && styles.swatchActive]}
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={[type.micro, styles.sheetLabel, { marginTop: spacing.md }]}>EMOJIS</Text>
+                <View style={styles.emojiGrid}>
+                  {AVATAR_EMOJIS.map((em) => (
+                    <Pressable
+                      key={em}
+                      onPress={() => onChange({ emoji: em, gradientIndex })}
+                      style={[styles.emojiCell, em === emoji && [styles.emojiCellActive, { borderColor: theme.color }]]}
+                    >
+                      <Text style={{ fontSize: 24 }}>{em}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+
+              <Pressable style={styles.doneBtn} onPress={onClose}>
+                <Text style={styles.doneText}>Concluído</Text>
+              </Pressable>
+            </ScrollView>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );
