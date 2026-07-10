@@ -11,6 +11,8 @@ import {
   StyleSheet,
   Text,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, getLibrary } from '../api/library';
@@ -340,145 +342,150 @@ export function SearchScreen() {
 
   return (
     <Screen title="Search" subtitle="Find tracks on YouTube">
-      <View style={styles.controls}>
-        <Input
-          icon="search"
-          placeholder="Search YouTube…"
-          value={query}
-          onChangeText={setQuery}
-          onClear={() => setQuery('')}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="search"
-          onSubmitEditing={() => Keyboard.dismiss()}
-        />
-      </View>
-
-      {loading ? (
-        <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
-      ) : errorMsg ? (
-        <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
-          <EmptyState
-            icon="cloud-offline-outline"
-            title="Something went wrong"
-            subtitle={errorMsg}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.controls}>
+          <Input
+            icon="search"
+            placeholder="Search YouTube…"
+            value={query}
+            onChangeText={setQuery}
+            onClear={() => setQuery('')}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => setIsFocused(false)}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            onSubmitEditing={() => Keyboard.dismiss()}
           />
-        </Pressable>
-      ) : query.trim().length < 2 && isFocused && history.length > 0 ? (
-        /* Focused Search input - Show Search History */
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: bottomPad }}
-        >
-          <View style={styles.historyHeader}>
-            <Text style={type.micro}>Recent searches</Text>
-            <Pressable hitSlop={8} onPress={doClearHistory}>
-              <Text style={[type.caption, { color: colors.text, fontWeight: '700' }]}>
-                Clear
-              </Text>
-            </Pressable>
-          </View>
-          {history.map((q) => (
-            <Pressable
-              key={q}
-              onPress={() => {
-                setQuery(q);
-                Keyboard.dismiss();
-              }}
-              style={({ pressed }) => [
-                styles.historyRow,
-                pressed && { backgroundColor: colors.surface },
-              ]}
-            >
-              <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-              <Text numberOfLines={1} style={[type.body, { flex: 1 }]}>
-                {q}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      ) : query.trim().length < 2 && !isFocused ? (
-        /* Default state - Show Recommendations */
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          contentContainerStyle={{ paddingBottom: bottomPad }}
-          showsVerticalScrollIndicator={false}
-        >
-          {loadingRecs && flowMix.length === 0 ? (
-            <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
-          ) : (
-            <View>
-              {listenAgain.length > 0 && renderRecommendationSection('Ouvir Novamente', listenAgain, 'time-outline')}
-              {renderRecommendationSection('Em Alta 🔥', dailyTop, 'trending-up-outline')}
-              {newReleases.length > 0 && renderRecommendationSection('Também em Alta', newReleases, 'musical-notes-outline')}
-              {becauseArtist && becauseTracks.length > 0 && renderRecommendationSection(`Porque Ouviste ${becauseArtist}`, becauseTracks, 'heart-outline')}
-              {renderRecommendationSection('Foco & Relaxar', chillFocus, 'cafe-outline')}
-              {renderRecommendationSection('Flow do Dia', flowMix, 'sparkles-outline')}
-              {renderRecommendationSection('Mais Tocadas Recentes', heavyRotation, 'flame-outline')}
-              {renderRecommendationSection('Favoritos Esquecidos', forgottenFavorites, 'heart-dislike-outline')}
-              
-              {/* New Recommendations (not heard yet) */}
-              {renderRecommendationSection(
-                personalizedArtist ? `Descobrir ${personalizedArtist}` : 'Descobrir Novidades',
-                newRecommendations,
-                'compass-outline'
-              )}
+        </View>
 
-              {/* YouTube Playlists Recommendations */}
-              {renderPlaylistRecommendationSection(
-                personalizedArtist ? `Playlists de ${personalizedArtist}` : 'Playlists Recomendadas',
-                recommendedPlaylists,
-                'albums-outline'
-              )}
-              
-              {flowMix.length === 0 && heavyRotation.length === 0 && forgottenFavorites.length === 0 && newRecommendations.length === 0 && (
-                <Text style={styles.emptyRecsText}>
-                  No recommendations yet. Start playing songs and saving them to your library to generate your Flow!
-                </Text>
-              )}
-            </View>
-          )}
-        </ScrollView>
-      ) : results.length === 0 ? (
-        <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
-          <EmptyState
-            icon="logo-youtube"
-            title={query.trim().length >= 2 ? 'No results' : 'Start typing to search'}
-            subtitle={
-              query.trim().length >= 2
-                ? 'Try a different search term.'
-                : 'Search YouTube and play tracks as native audio.'
-            }
-          />
-        </Pressable>
-      ) : (
-        <FlatList
-          data={results}
-          keyExtractor={(t) => `${t.source}:${t.sourceId}`}
-          contentContainerStyle={{ paddingBottom: bottomPad }}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          renderItem={({ item }) => (
-            <TrackRow
-              track={item}
-              active={
-                current?.source === item.source &&
-                current?.sourceId === item.sourceId
-              }
-              onPress={() => {
-                Keyboard.dismiss();
-                playTrack(item, results, true);
-              }}
-              onAction={() => setActionTrack(item)}
-              actionIcon="add-circle-outline"
+        {loading ? (
+          <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
+        ) : errorMsg ? (
+          <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
+            <EmptyState
+              icon="cloud-offline-outline"
+              title="Something went wrong"
+              subtitle={errorMsg}
             />
-          )}
-        />
-      )}
+          </Pressable>
+        ) : query.trim().length < 2 && isFocused && history.length > 0 ? (
+          /* Focused Search input - Show Search History */
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: bottomPad }}
+          >
+            <View style={styles.historyHeader}>
+              <Text style={type.micro}>Recent searches</Text>
+              <Pressable hitSlop={8} onPress={doClearHistory}>
+                <Text style={[type.caption, { color: colors.text, fontWeight: '700' }]}>
+                  Clear
+                </Text>
+              </Pressable>
+            </View>
+            {history.map((q) => (
+              <Pressable
+                key={q}
+                onPress={() => {
+                  setQuery(q);
+                  Keyboard.dismiss();
+                }}
+                style={({ pressed }) => [
+                  styles.historyRow,
+                  pressed && { backgroundColor: colors.surface },
+                ]}
+              >
+                <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+                <Text numberOfLines={1} style={[type.body, { flex: 1 }]}>
+                  {q}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        ) : query.trim().length < 2 && !isFocused ? (
+          /* Default state - Show Recommendations */
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={{ paddingBottom: bottomPad }}
+            showsVerticalScrollIndicator={false}
+          >
+            {loadingRecs && flowMix.length === 0 ? (
+              <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
+            ) : (
+              <View>
+                {listenAgain.length > 0 && renderRecommendationSection('Ouvir Novamente', listenAgain, 'time-outline')}
+                {renderRecommendationSection('Em Alta 🔥', dailyTop, 'trending-up-outline')}
+                {newReleases.length > 0 && renderRecommendationSection('Também em Alta', newReleases, 'musical-notes-outline')}
+                {becauseArtist && becauseTracks.length > 0 && renderRecommendationSection(`Porque Ouviste ${becauseArtist}`, becauseTracks, 'heart-outline')}
+                {renderRecommendationSection('Foco & Relaxar', chillFocus, 'cafe-outline')}
+                {renderRecommendationSection('Flow do Dia', flowMix, 'sparkles-outline')}
+                {renderRecommendationSection('Mais Tocadas Recentes', heavyRotation, 'flame-outline')}
+                {renderRecommendationSection('Favoritos Esquecidos', forgottenFavorites, 'heart-dislike-outline')}
+                
+                {/* New Recommendations (not heard yet) */}
+                {renderRecommendationSection(
+                  personalizedArtist ? `Descobrir ${personalizedArtist}` : 'Descobrir Novidades',
+                  newRecommendations,
+                  'compass-outline'
+                )}
+
+                {/* YouTube Playlists Recommendations */}
+                {renderPlaylistRecommendationSection(
+                  personalizedArtist ? `Playlists de ${personalizedArtist}` : 'Playlists Recomendadas',
+                  recommendedPlaylists,
+                  'albums-outline'
+                )}
+                
+                {flowMix.length === 0 && heavyRotation.length === 0 && forgottenFavorites.length === 0 && newRecommendations.length === 0 && (
+                  <Text style={styles.emptyRecsText}>
+                    No recommendations yet. Start playing songs and saving them to your library to generate your Flow!
+                  </Text>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        ) : results.length === 0 ? (
+          <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
+            <EmptyState
+              icon="logo-youtube"
+              title={query.trim().length >= 2 ? 'No results' : 'Start typing to search'}
+              subtitle={
+                query.trim().length >= 2
+                  ? 'Try a different search term.'
+                  : 'Search YouTube and play tracks as native audio.'
+              }
+            />
+          </Pressable>
+        ) : (
+          <FlatList
+            data={results}
+            keyExtractor={(t) => `${t.source}:${t.sourceId}`}
+            contentContainerStyle={{ paddingBottom: bottomPad }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            renderItem={({ item }) => (
+              <TrackRow
+                track={item}
+                active={
+                  current?.source === item.source &&
+                  current?.sourceId === item.sourceId
+                }
+                onPress={() => {
+                  Keyboard.dismiss();
+                  playTrack(item, results, true);
+                }}
+                onAction={() => setActionTrack(item)}
+                actionIcon="add-circle-outline"
+              />
+            )}
+          />
+        )}
+      </KeyboardAvoidingView>
 
       <TrackActionsSheet
         visible={!!actionTrack}

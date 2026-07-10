@@ -14,6 +14,8 @@ import {
   TextInput,
   useWindowDimensions,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -615,86 +617,91 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
       {/* Add Tracks modal */}
       <Modal visible={addTracksOpen} animationType="slide">
-        <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
-          <View style={styles.modalHeader}>
-            <Pressable onPress={() => setAddTracksOpen(false)} hitSlop={12}>
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </Pressable>
-            <Text style={styles.modalTitle} numberOfLines={1}>
-              Add to {name}
-            </Text>
-            <Pressable onPress={saveSelectedTracks} disabled={busy} hitSlop={12}>
-              {busy ? (
-                <ActivityIndicator size="small" color={theme.color} />
-              ) : (
-                <Text style={[styles.modalDoneText, { color: theme.color }]}>Done</Text>
-              )}
-            </Pressable>
-          </View>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1, backgroundColor: colors.bg }}
+        >
+          <View style={[styles.modalContainer, { paddingTop: insets.top }]}>
+            <View style={styles.modalHeader}>
+              <Pressable onPress={() => setAddTracksOpen(false)} hitSlop={12}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Text style={styles.modalTitle} numberOfLines={1}>
+                Add to {name}
+              </Text>
+              <Pressable onPress={saveSelectedTracks} disabled={busy} hitSlop={12}>
+                {busy ? (
+                  <ActivityIndicator size="small" color={theme.color} />
+                ) : (
+                  <Text style={[styles.modalDoneText, { color: theme.color }]}>Done</Text>
+                )}
+              </Pressable>
+            </View>
 
-          <View style={styles.modalSearchBox}>
-            <Input
-              icon="search"
-              placeholder="Search library songs"
-              value={addSearchQuery}
-              onChangeText={setAddSearchQuery}
-              onClear={() => setAddSearchQuery('')}
-            />
-          </View>
+            <View style={styles.modalSearchBox}>
+              <Input
+                icon="search"
+                placeholder="Search library songs"
+                value={addSearchQuery}
+                onChangeText={setAddSearchQuery}
+                onClear={() => setAddSearchQuery('')}
+              />
+            </View>
 
-          {loadingLibrary ? (
-            <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
-          ) : filteredLibrary.length === 0 ? (
-            <EmptyState
-              icon="musical-notes-outline"
-              title="No songs found"
-              subtitle="Add songs to your Library first to add them here."
-            />
-          ) : (
-            <FlatList
-              data={filteredLibrary}
-              keyExtractor={(item) => item.sourceId}
-              contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
-              renderItem={({ item }) => {
-                const isSelected = selectedIds.has(item.sourceId);
-                return (
-                  <Pressable
-                    onPress={() => toggleSelectTrack(item.sourceId)}
-                    style={({ pressed }) => [
-                      styles.modalItemRow,
-                      pressed && { backgroundColor: colors.surfacePressed },
-                    ]}
-                  >
-                    <Ionicons
-                      name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={22}
-                      color={isSelected ? theme.color : colors.textTertiary}
-                    />
-                    {item.artworkUrl ? (
-                      <Image
-                        source={{ uri: item.artworkUrl }}
-                        style={styles.modalItemArt}
-                        contentFit="cover"
+            {loadingLibrary ? (
+              <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
+            ) : filteredLibrary.length === 0 ? (
+              <EmptyState
+                icon="musical-notes-outline"
+                title="No songs found"
+                subtitle="Add songs to your Library first to add them here."
+              />
+            ) : (
+              <FlatList
+                data={filteredLibrary}
+                keyExtractor={(item) => item.sourceId}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+                renderItem={({ item }) => {
+                  const isSelected = selectedIds.has(item.sourceId);
+                  return (
+                    <Pressable
+                      onPress={() => toggleSelectTrack(item.sourceId)}
+                      style={({ pressed }) => [
+                        styles.modalItemRow,
+                        pressed && { backgroundColor: colors.surfacePressed },
+                      ]}
+                    >
+                      <Ionicons
+                        name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={22}
+                        color={isSelected ? theme.color : colors.textTertiary}
                       />
-                    ) : (
-                      <View style={[styles.modalItemArt, { alignItems: 'center', justifyContent: 'center' }]}>
-                        <Ionicons name="musical-notes" size={18} color={colors.textTertiary} />
+                      {item.artworkUrl ? (
+                        <Image
+                          source={{ uri: item.artworkUrl }}
+                          style={styles.modalItemArt}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={[styles.modalItemArt, { alignItems: 'center', justifyContent: 'center' }]}>
+                          <Ionicons name="musical-notes" size={18} color={colors.textTertiary} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
+                          {item.title}
+                        </Text>
+                        <Text numberOfLines={1} style={type.caption}>
+                          {item.artist || 'Unknown Artist'}
+                        </Text>
                       </View>
-                    )}
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
-                        {item.title}
-                      </Text>
-                      <Text numberOfLines={1} style={type.caption}>
-                        {item.artist || 'Unknown Artist'}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              }}
-            />
-          )}
-        </View>
+                    </Pressable>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </Screen>
   );

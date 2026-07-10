@@ -317,345 +317,350 @@ export function SocialScreen() {
 
   return (
     <Screen title="Social" onBack={() => navigation.goBack()}>
-      {/* Sub-Tabs Switch */}
-      <View style={styles.tabsContainer}>
-        <Pressable
-          style={[styles.tabChip, activeTab === 'inbox' && styles.tabChipActive]}
-          onPress={() => setActiveTab('inbox')}
-        >
-          <Text style={[styles.tabLabel, activeTab === 'inbox' && { color: colors.text }]}>
-            Caixa de Entrada
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tabChip, activeTab === 'friends' && styles.tabChipActive]}
-          onPress={() => setActiveTab('friends')}
-        >
-          <Text style={[styles.tabLabel, activeTab === 'friends' && { color: colors.text }]}>
-            Amigos {pendingRequests.length > 0 && `(${pendingRequests.length})`}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tabChip, activeTab === 'add' && styles.tabChipActive]}
-          onPress={() => setActiveTab('add')}
-        >
-          <Text style={[styles.tabLabel, activeTab === 'add' && { color: colors.text }]}>
-            Adicionar
-          </Text>
-        </Pressable>
-      </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        {/* Sub-Tabs Switch */}
+        <View style={styles.tabsContainer}>
+          <Pressable
+            style={[styles.tabChip, activeTab === 'inbox' && styles.tabChipActive]}
+            onPress={() => setActiveTab('inbox')}
+          >
+            <Text style={[styles.tabLabel, activeTab === 'inbox' && { color: colors.text }]}>
+              Caixa de Entrada
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tabChip, activeTab === 'friends' && styles.tabChipActive]}
+            onPress={() => setActiveTab('friends')}
+          >
+            <Text style={[styles.tabLabel, activeTab === 'friends' && { color: colors.text }]}>
+              Amigos {pendingRequests.length > 0 && `(${pendingRequests.length})`}
+            </Text>
+          </Pressable>
+          <Pressable
+            style={[styles.tabChip, activeTab === 'add' && styles.tabChipActive]}
+            onPress={() => setActiveTab('add')}
+          >
+            <Text style={[styles.tabLabel, activeTab === 'add' && { color: colors.text }]}>
+              Adicionar
+            </Text>
+          </Pressable>
+        </View>
 
-      {/* Tab Contents */}
-      {activeTab === 'inbox' && (
-        <>
-          {loadingInbox ? (
-            <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
-          ) : inboxItems.length === 0 ? (
-            <EmptyState
-              icon="mail-unread-outline"
-              title="Inbox Vazia"
-              subtitle="Quando os teus amigos partilharem músicas ou playlists, elas aparecem aqui!"
-            />
-          ) : (
-            <FlatList
-              data={inboxItems}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: bottomPad }}
-              renderItem={({ item }) => {
-                const handleOpenChat = () => {
-                  hapticSelection();
-                  const friendObj: Friendship = {
-                    friendId: item.sender.id,
-                    username: item.sender.username,
-                    name: item.sender.name,
-                    avatarUrl: item.sender.avatarUrl,
-                    status: 'accepted',
-                    isSender: false,
-                    lastSeenAt: null,
+        {/* Tab Contents */}
+        {activeTab === 'inbox' && (
+          <>
+            {loadingInbox ? (
+              <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
+            ) : inboxItems.length === 0 ? (
+              <EmptyState
+                icon="mail-unread-outline"
+                title="Inbox Vazia"
+                subtitle="Quando os teus amigos partilharem músicas ou playlists, elas aparecem aqui!"
+              />
+            ) : (
+              <FlatList
+                data={inboxItems}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: bottomPad }}
+                renderItem={({ item }) => {
+                  const handleOpenChat = () => {
+                    hapticSelection();
+                    const friendObj: Friendship = {
+                      friendId: item.sender.id,
+                      username: item.sender.username,
+                      name: item.sender.name,
+                      avatarUrl: item.sender.avatarUrl,
+                      status: 'accepted',
+                      isSender: false,
+                      lastSeenAt: null,
+                    };
+                    setActiveChatFriend(friendObj);
                   };
-                  setActiveChatFriend(friendObj);
-                };
 
-                return (
-                  <View style={styles.shareCard}>
-                    {/* Sender Details Header */}
-                    <View style={styles.shareHeader}>
-                      <Pressable
-                        onPress={handleOpenChat}
-                        style={({ pressed }) => [
-                          { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-                          pressed && { opacity: 0.7 }
-                        ]}
-                      >
-                        {renderFriendAvatar(item.sender.avatarUrl, item.sender.name, 36)}
-                        <View style={{ flex: 1 }}>
-                          <Text style={[typography.body, { fontWeight: '700' }]}>{item.sender.name}</Text>
-                          <Text style={[typography.caption, { fontSize: 11 }]}>@{item.sender.username}</Text>
-                        </View>
-                      </Pressable>
-                      <Pressable onPress={() => handleDeleteInboxItem(item.id)} hitSlop={8}>
-                        <Ionicons name="trash-outline" size={18} color={colors.textTertiary} />
-                      </Pressable>
-                    </View>
-
-                    {/* Caption Message if exists */}
-                    {item.message ? (
-                      <Pressable onPress={handleOpenChat}>
-                        <View style={styles.messageBubble}>
-                          <Text style={styles.messageText}>"{item.message}"</Text>
-                        </View>
-                      </Pressable>
-                    ) : null}
-
-                    {/* Shared Item Box */}
-                    {item.itemType === 'track' && item.trackData && (
-                      <View style={styles.innerTrackBox}>
-                        <TrackRow
-                          track={item.trackData}
-                          active={
-                            current?.source === item.trackData.source &&
-                            current?.sourceId === item.trackData.sourceId
-                          }
-                          onPress={() => playTrack(item.trackData!, [item.trackData!], true)}
-                          onAction={() => setActionTrack(item.trackData!)}
-                        />
+                  return (
+                    <View style={styles.shareCard}>
+                      {/* Sender Details Header */}
+                      <View style={styles.shareHeader}>
+                        <Pressable
+                          onPress={handleOpenChat}
+                          style={({ pressed }) => [
+                            { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+                            pressed && { opacity: 0.7 }
+                          ]}
+                        >
+                          {renderFriendAvatar(item.sender.avatarUrl, item.sender.name, 36)}
+                          <View style={{ flex: 1 }}>
+                            <Text style={[typography.body, { fontWeight: '700' }]}>{item.sender.name}</Text>
+                            <Text style={[typography.caption, { fontSize: 11 }]}>@{item.sender.username}</Text>
+                          </View>
+                        </Pressable>
+                        <Pressable onPress={() => handleDeleteInboxItem(item.id)} hitSlop={8}>
+                          <Ionicons name="trash-outline" size={18} color={colors.textTertiary} />
+                        </Pressable>
                       </View>
-                    )}
 
-                    {item.itemType === 'playlist' && item.playlistId && (
-                      <Pressable
-                        onPress={() => {
-                          hapticSelection();
-                          setSelectedYtPlaylistId(item.playlistId);
-                        }}
-                        style={({ pressed }) => [
-                          styles.innerPlaylistBox,
-                          pressed && { backgroundColor: colors.surfacePressed },
-                        ]}
-                      >
-                        <View style={[styles.playlistIconBox, { backgroundColor: theme.soft }]}>
-                          <Ionicons name="albums-outline" size={24} color={theme.color} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[typography.body, { fontWeight: '600' }]} numberOfLines={1}>
-                            Playlist Partilhada
-                          </Text>
-                          <Text style={typography.caption}>Toca para abrir e importar</Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
-                      </Pressable>
-                    )}
-                  </View>
-                );
-              }}
-            />
-          )}
-        </>
-      )}
+                      {/* Caption Message if exists */}
+                      {item.message ? (
+                        <Pressable onPress={handleOpenChat}>
+                          <View style={styles.messageBubble}>
+                            <Text style={styles.messageText}>"{item.message}"</Text>
+                          </View>
+                        </Pressable>
+                      ) : null}
 
-      {activeTab === 'friends' && (
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: bottomPad }}
-          showsVerticalScrollIndicator={false}
-        >
-          {loadingFriends ? (
-            <ActivityIndicator color={theme.color} style={{ marginTop: 24 }} />
-          ) : friendships.length === 0 ? (
-            <EmptyState
-              icon="people-outline"
-              title="Sem Amigos"
-              subtitle="Vai à aba 'Adicionar' e pesquisa o username de uma conta para adicionares amigos."
-            />
-          ) : (
-            <View style={{ gap: spacing.lg }}>
-              {/* Pending Requests */}
-              {pendingRequests.length > 0 && (
-                <View>
-                  <Text style={[typography.micro, { marginBottom: spacing.sm }]}>PEDIDOS PENDENTES</Text>
-                  <View style={styles.listCard}>
-                    {pendingRequests.map((req) => (
-                      <View key={req.friendId} style={styles.friendRow}>
-                        {renderFriendAvatar(req.avatarUrl, req.name, 36)}
-                        <View style={{ flex: 1 }}>
-                          <Text style={[typography.body, { fontWeight: '700' }]}>{req.name}</Text>
-                          <Text style={typography.caption}>@{req.username}</Text>
+                      {/* Shared Item Box */}
+                      {item.itemType === 'track' && item.trackData && (
+                        <View style={styles.innerTrackBox}>
+                          <TrackRow
+                            track={item.trackData}
+                            active={
+                              current?.source === item.trackData.source &&
+                              current?.sourceId === item.trackData.sourceId
+                            }
+                            onPress={() => playTrack(item.trackData!, [item.trackData!], true)}
+                            onAction={() => setActionTrack(item.trackData!)}
+                          />
                         </View>
-                        {req.isSender ? (
-                          <Pressable
-                            onPress={() => handleRemoveFriend(req.friendId, true)}
-                            style={styles.actionBtnSmall}
-                          >
-                            <Text style={styles.actionBtnSmallText}>Cancelar</Text>
-                          </Pressable>
-                        ) : (
-                          <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-                            <Pressable
-                              onPress={() => handleAcceptRequest(req.friendId)}
-                              style={[styles.actionBtnSmall, { backgroundColor: theme.color }]}
-                            >
-                              <Text style={[styles.actionBtnSmallText, { color: colors.bg }]}>Aceitar</Text>
-                            </Pressable>
+                      )}
+
+                      {item.itemType === 'playlist' && item.playlistId && (
+                        <Pressable
+                          onPress={() => {
+                            hapticSelection();
+                            setSelectedYtPlaylistId(item.playlistId);
+                          }}
+                          style={({ pressed }) => [
+                            styles.innerPlaylistBox,
+                            pressed && { backgroundColor: colors.surfacePressed },
+                          ]}
+                        >
+                          <View style={[styles.playlistIconBox, { backgroundColor: theme.soft }]}>
+                            <Ionicons name="albums-outline" size={24} color={theme.color} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[typography.body, { fontWeight: '600' }]} numberOfLines={1}>
+                              Playlist Partilhada
+                            </Text>
+                            <Text style={typography.caption}>Toca para abrir e importar</Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+                        </Pressable>
+                      )}
+                    </View>
+                  );
+                }}
+              />
+            )}
+          </>
+        )}
+
+        {activeTab === 'friends' && (
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: bottomPad }}
+            showsVerticalScrollIndicator={false}
+          >
+            {loadingFriends ? (
+              <ActivityIndicator color={theme.color} style={{ marginTop: 24 }} />
+            ) : friendships.length === 0 ? (
+              <EmptyState
+                icon="people-outline"
+                title="Sem Amigos"
+                subtitle="Vai à aba 'Adicionar' e pesquisa o username de uma conta para adicionares amigos."
+              />
+            ) : (
+              <View style={{ gap: spacing.lg }}>
+                {/* Pending Requests */}
+                {pendingRequests.length > 0 && (
+                  <View>
+                    <Text style={[typography.micro, { marginBottom: spacing.sm }]}>PEDIDOS PENDENTES</Text>
+                    <View style={styles.listCard}>
+                      {pendingRequests.map((req) => (
+                        <View key={req.friendId} style={styles.friendRow}>
+                          {renderFriendAvatar(req.avatarUrl, req.name, 36)}
+                          <View style={{ flex: 1 }}>
+                            <Text style={[typography.body, { fontWeight: '700' }]}>{req.name}</Text>
+                            <Text style={typography.caption}>@{req.username}</Text>
+                          </View>
+                          {req.isSender ? (
                             <Pressable
                               onPress={() => handleRemoveFriend(req.friendId, true)}
                               style={styles.actionBtnSmall}
                             >
-                              <Text style={styles.actionBtnSmallText}>Recusar</Text>
+                              <Text style={styles.actionBtnSmallText}>Cancelar</Text>
                             </Pressable>
-                          </View>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {/* Active Friends */}
-              {activeFriends.length > 0 && (
-                <View>
-                  <Text style={[typography.micro, { marginBottom: spacing.sm }]}>OS MEUS AMIGOS</Text>
-                  <View style={styles.listCard}>
-                    {activeFriends.map((friend) => {
-                      const isOnline = friend.lastSeenAt
-                        ? (Date.now() - new Date(friend.lastSeenAt).getTime()) < 3 * 60 * 1000
-                        : false;
-
-                      return (
-                        <Pressable
-                           key={friend.friendId}
-                           onPress={() => {
-                             hapticSelection();
-                             setActiveChatFriend(friend);
-                           }}
-                           style={({ pressed }) => [
-                             styles.friendRow,
-                             pressed && { backgroundColor: colors.surfacePressed },
-                           ]}
-                         >
-                           <View style={styles.avatarContainer}>
-                              {renderFriendAvatar(friend.avatarUrl, friend.name, 36)}
-                              {isOnline && <View style={styles.onlineBadge} />}
+                          ) : (
+                            <View style={{ flexDirection: 'row', gap: spacing.xs }}>
+                              <Pressable
+                                onPress={() => handleAcceptRequest(req.friendId)}
+                                style={[styles.actionBtnSmall, { backgroundColor: theme.color }]}
+                              >
+                                <Text style={[styles.actionBtnSmallText, { color: colors.bg }]}>Aceitar</Text>
+                              </Pressable>
+                              <Pressable
+                                onPress={() => handleRemoveFriend(req.friendId, true)}
+                                style={styles.actionBtnSmall}
+                              >
+                                <Text style={styles.actionBtnSmallText}>Recusar</Text>
+                              </Pressable>
                             </View>
-                           <View style={{ flex: 1 }}>
-                              <Text style={[typography.body, { fontWeight: '700' }]}>{friend.name}</Text>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                <Text style={typography.caption}>@{friend.username}</Text>
-                                {isOnline && (
-                                  <>
-                                    <Text style={[typography.caption, { color: colors.textTertiary }]}>·</Text>
-                                    <Text style={[typography.caption, { color: '#30D158', fontWeight: '600' }]}>
-                                      Online
-                                    </Text>
-                                  </>
-                                )}
-                              </View>
-                            </View>
-                           <Pressable
-                             onPress={() => handleRemoveFriend(friend.friendId, false)}
-                             hitSlop={6}
-                           >
-                             <Ionicons name="person-remove-outline" size={18} color={colors.danger} />
-                           </Pressable>
-                         </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              )}
-
-              {activeFriends.length === 0 && pendingRequests.length > 0 && (
-                <Text style={styles.hintText}>Começa a adicionar amigos para veres a tua lista completa!</Text>
-              )}
-            </View>
-          )}
-        </ScrollView>
-      )}
-
-      {activeTab === 'add' && (
-        <ScrollView
-          contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Text style={[typography.micro, { marginBottom: spacing.sm }]}>PESQUISAR AMIGOS</Text>
-          <View style={{ position: 'relative', marginBottom: spacing.md }}>
-            <TextInput
-              value={searchUsername}
-              onChangeText={setSearchUsername}
-              placeholder="Escreve um nome ou username..."
-              placeholderTextColor={colors.textTertiary}
-              autoCapitalize="none"
-              autoCorrect={false}
-              style={styles.searchInput}
-            />
-            {searchUsername.length > 0 && (
-              <Pressable
-                onPress={() => setSearchUsername('')}
-                style={styles.searchClearBtn}
-                hitSlop={8}
-              >
-                <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
-              </Pressable>
-            )}
-          </View>
-
-          {searchingProfiles && searchResults.length === 0 ? (
-            <ActivityIndicator color={theme.color} style={{ marginVertical: 32 }} />
-          ) : searchUsername.trim().length >= 2 && searchResults.length === 0 && !searchingProfiles ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="search-outline" size={24} color={colors.textTertiary} />
-              <Text style={styles.emptyText}>Nenhum utilizador encontrado com "{searchUsername}".</Text>
-            </View>
-          ) : searchResults.length > 0 ? (
-            <View style={styles.listCard}>
-              {searchResults.map((profile) => {
-                const existingFriendship = friendships.find((f) => f.friendId === profile.id);
-                const isAccepted = existingFriendship?.status === 'accepted';
-                const isPending = existingFriendship?.status === 'pending';
-
-                return (
-                  <View key={profile.id} style={styles.friendRow}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
-                      {renderFriendAvatar(profile.avatar_url, profile.name || '', 36)}
-                      <View style={{ flex: 1 }}>
-                        <Text style={[typography.body, { fontWeight: '700' }]} numberOfLines={1}>
-                          {profile.name}
-                        </Text>
-                        <Text style={[typography.caption, { fontSize: 11 }]} numberOfLines={1}>
-                          @{profile.username}
-                        </Text>
-                      </View>
+                          )}
+                        </View>
+                      ))}
                     </View>
-
-                    {isAccepted ? (
-                      <View style={[styles.actionBtnSmall, { backgroundColor: 'rgba(48, 209, 88, 0.15)' }]}>
-                        <Text style={[styles.actionBtnSmallText, { color: '#30D158' }]}>Amigos</Text>
-                      </View>
-                    ) : isPending ? (
-                      <View style={[styles.actionBtnSmall, { backgroundColor: 'rgba(255, 159, 10, 0.15)' }]}>
-                        <Text style={[styles.actionBtnSmallText, { color: '#FF9F0A' }]}>Pendente</Text>
-                      </View>
-                    ) : (
-                      <Pressable
-                        onPress={() => handleAddFriend(profile.id, profile.username)}
-                        style={({ pressed }) => [
-                          styles.actionBtnSmall,
-                          { backgroundColor: theme.color },
-                          pressed && { opacity: 0.8 },
-                        ]}
-                      >
-                        <Text style={[styles.actionBtnSmallText, { color: colors.bg }]}>Adicionar</Text>
-                      </Pressable>
-                    )}
                   </View>
-                );
-              })}
+                )}
+
+                {/* Active Friends */}
+                {activeFriends.length > 0 && (
+                  <View>
+                    <Text style={[typography.micro, { marginBottom: spacing.sm }]}>OS MEUS AMIGOS</Text>
+                    <View style={styles.listCard}>
+                      {activeFriends.map((friend) => {
+                        const isOnline = friend.lastSeenAt
+                          ? (Date.now() - new Date(friend.lastSeenAt).getTime()) < 3 * 60 * 1000
+                          : false;
+
+                        return (
+                          <Pressable
+                             key={friend.friendId}
+                             onPress={() => {
+                               hapticSelection();
+                               setActiveChatFriend(friend);
+                             }}
+                             style={({ pressed }) => [
+                               styles.friendRow,
+                               pressed && { backgroundColor: colors.surfacePressed },
+                             ]}
+                           >
+                             <View style={styles.avatarContainer}>
+                                {renderFriendAvatar(friend.avatarUrl, friend.name, 36)}
+                                {isOnline && <View style={styles.onlineBadge} />}
+                             </View>
+                             <View style={{ flex: 1 }}>
+                                <Text style={[typography.body, { fontWeight: '700' }]}>{friend.name}</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                  <Text style={typography.caption}>@{friend.username}</Text>
+                                  {isOnline && (
+                                    <>
+                                      <Text style={[typography.caption, { color: colors.textTertiary }]}>·</Text>
+                                      <Text style={[typography.caption, { color: '#30D158', fontWeight: '600' }]}>
+                                        Online
+                                      </Text>
+                                    </>
+                                  )}
+                                </View>
+                             </View>
+                             <Pressable
+                               onPress={() => handleRemoveFriend(friend.friendId, false)}
+                               hitSlop={6}
+                             >
+                               <Ionicons name="person-remove-outline" size={18} color={colors.danger} />
+                             </Pressable>
+                           </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {activeFriends.length === 0 && pendingRequests.length > 0 && (
+                  <Text style={styles.hintText}>Começa a adicionar amigos para veres a tua lista completa!</Text>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        )}
+
+        {activeTab === 'add' && (
+          <ScrollView
+            contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: spacing.md, paddingBottom: bottomPad }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={[typography.micro, { marginBottom: spacing.sm }]}>PESQUISAR AMIGOS</Text>
+            <View style={{ position: 'relative', marginBottom: spacing.md }}>
+              <TextInput
+                value={searchUsername}
+                onChangeText={setSearchUsername}
+                placeholder="Escreve um nome ou username..."
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.searchInput}
+              />
+              {searchUsername.length > 0 && (
+                <Pressable
+                  onPress={() => setSearchUsername('')}
+                  style={styles.searchClearBtn}
+                  hitSlop={8}
+                >
+                  <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
+                </Pressable>
+              )}
             </View>
-          ) : (
-            <Text style={styles.addFriendHint}>
-              Digita pelo menos 2 letras do nome ou username da pessoa que pretendes adicionar para a pesquisar em tempo real.
-            </Text>
-          )}
-        </ScrollView>
-      )}
+
+            {searchingProfiles && searchResults.length === 0 ? (
+              <ActivityIndicator color={theme.color} style={{ marginVertical: 32 }} />
+            ) : searchUsername.trim().length >= 2 && searchResults.length === 0 && !searchingProfiles ? (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="search-outline" size={24} color={colors.textTertiary} />
+                <Text style={styles.emptyText}>Nenhum utilizador encontrado com "{searchUsername}".</Text>
+              </View>
+            ) : searchResults.length > 0 ? (
+              <View style={styles.listCard}>
+                {searchResults.map((profile) => {
+                  const existingFriendship = friendships.find((f) => f.friendId === profile.id);
+                  const isAccepted = existingFriendship?.status === 'accepted';
+                  const isPending = existingFriendship?.status === 'pending';
+
+                  return (
+                    <View key={profile.id} style={styles.friendRow}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 }}>
+                        {renderFriendAvatar(profile.avatar_url, profile.name || '', 36)}
+                        <View style={{ flex: 1 }}>
+                          <Text style={[typography.body, { fontWeight: '700' }]} numberOfLines={1}>
+                            {profile.name}
+                          </Text>
+                          <Text style={[typography.caption, { fontSize: 11 }]} numberOfLines={1}>
+                            @{profile.username}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {isAccepted ? (
+                        <View style={[styles.actionBtnSmall, { backgroundColor: 'rgba(48, 209, 88, 0.15)' }]}>
+                          <Text style={[styles.actionBtnSmallText, { color: '#30D158' }]}>Amigos</Text>
+                        </View>
+                      ) : isPending ? (
+                        <View style={[styles.actionBtnSmall, { backgroundColor: 'rgba(255, 159, 10, 0.15)' }]}>
+                          <Text style={[styles.actionBtnSmallText, { color: '#FF9F0A' }]}>Pendente</Text>
+                        </View>
+                      ) : (
+                        <Pressable
+                          onPress={() => handleAddFriend(profile.id, profile.username)}
+                          style={({ pressed }) => [
+                            styles.actionBtnSmall,
+                            { backgroundColor: theme.color },
+                            pressed && { opacity: 0.8 },
+                          ]}
+                        >
+                          <Text style={[styles.actionBtnSmallText, { color: colors.bg }]}>Adicionar</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.addFriendHint}>
+                Digita pelo menos 2 letras do nome ou username da pessoa que pretendes adicionar para a pesquisar em tempo real.
+              </Text>
+            )}
+          </ScrollView>
+        )}
+      </KeyboardAvoidingView>
 
       {/* Sheets Integration */}
       <TrackActionsSheet

@@ -1,6 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View, Share, Pressable } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View, Share, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -237,222 +237,227 @@ export function SettingsScreen({ navigation }: Props) {
 
   return (
     <Screen title="Settings" onBack={() => navigation.goBack()}>
-      <ScrollView
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
-        contentContainerStyle={{
-          paddingHorizontal: spacing.xl,
-          paddingBottom: insets.bottom + 48,
-          gap: spacing.xl,
-        }}
       >
-        <Section title="Theme">
-          <Label>Cor de destaque</Label>
-          <View style={styles.themesGrid}>
-            {(['violet', 'blue', 'orange', 'green', 'pink', 'red', 'mono', 'steel'] as const).map((name) => {
-              const item = ACCENT_THEMES[name];
-              const isActive = themeName === name;
-              return (
-                <Pressable
-                  key={name}
-                  onPress={() => {
-                    hapticSelection();
-                    setTheme(name);
-                  }}
-                  style={styles.themeCircleWrap}
-                >
-                  <LinearGradient
-                    colors={item.gradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[
-                      styles.themeCircle,
-                      isActive && { borderWidth: 2, borderColor: '#fff' }
-                    ]}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            paddingHorizontal: spacing.xl,
+            paddingBottom: insets.bottom + 48,
+            gap: spacing.xl,
+          }}
+        >
+          <Section title="Theme">
+            <Label>Cor de destaque</Label>
+            <View style={styles.themesGrid}>
+              {(['violet', 'blue', 'orange', 'green', 'pink', 'red', 'mono', 'steel'] as const).map((name) => {
+                const item = ACCENT_THEMES[name];
+                const isActive = themeName === name;
+                return (
+                  <Pressable
+                    key={name}
+                    onPress={() => {
+                      hapticSelection();
+                      setTheme(name);
+                    }}
+                    style={styles.themeCircleWrap}
                   >
-                    {isActive && (
-                      <Ionicons
-                        name="checkmark"
-                        size={16}
-                        color={item.textColorOnGradient}
-                      />
-                    )}
-                  </LinearGradient>
-                  <Text style={styles.themeLabel}>
-                    {name === 'mono' ? 'Mono' : name === 'steel' ? 'Steel' : name.charAt(0).toUpperCase() + name.slice(1)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </Section>
+                    <LinearGradient
+                      colors={item.gradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.themeCircle,
+                        isActive && { borderWidth: 2, borderColor: '#fff' }
+                      ]}
+                    >
+                      {isActive && (
+                        <Ionicons
+                          name="checkmark"
+                          size={16}
+                          color={item.textColorOnGradient}
+                        />
+                      )}
+                    </LinearGradient>
+                    <Text style={styles.themeLabel}>
+                      {name === 'mono' ? 'Mono' : name === 'steel' ? 'Steel' : name.charAt(0).toUpperCase() + name.slice(1)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Section>
 
-        <Section title="Playback">
-          <Label>Audio quality</Label>
-          <SegmentedControl
-            options={['High', 'Data saver']}
-            value={audioQuality === 'saver' ? 1 : 0}
-            onChange={changeAudioQuality}
-          />
+          <Section title="Playback">
+            <Label>Audio quality</Label>
+            <SegmentedControl
+              options={['High', 'Data saver']}
+              value={audioQuality === 'saver' ? 1 : 0}
+              onChange={changeAudioQuality}
+            />
 
-          <Label style={{ marginTop: spacing.md }}>Sound Preset (Efeito)</Label>
-          <SegmentedControl
-            options={['Slowed', 'Normal', 'Fast']}
-            value={
-              soundPreset === 'slowed'
-                ? 0
-                : soundPreset === 'normal'
-                ? 1
-                : 2
-            }
-            onChange={(i) => {
-              hapticSelection();
-              const presets = ['slowed', 'normal', 'fast'] as const;
-              setSoundPreset(presets[i]);
-            }}
-          />
+            <Label style={{ marginTop: spacing.md }}>Sound Preset (Efeito)</Label>
+            <SegmentedControl
+              options={['Slowed', 'Normal', 'Fast']}
+              value={
+                soundPreset === 'slowed'
+                  ? 0
+                  : soundPreset === 'normal'
+                  ? 1
+                  : 2
+              }
+              onChange={(i) => {
+                hapticSelection();
+                const presets = ['slowed', 'normal', 'fast'] as const;
+                setSoundPreset(presets[i]);
+              }}
+            />
 
-          <Label style={{ marginTop: spacing.md }}>
-            Sleep Timer (Temporizador)
-            {sleepTimerTimeLeft > 0 && ` — ${formatTimeLeft(sleepTimerTimeLeft)}`}
-          </Label>
-          <SegmentedControl
-            options={['Off', '15m', '30m', '45m', '60m']}
-            value={
-              sleepTimerTimeLeft === 0
-                ? 0
-                : sleepTimerTimeLeft <= 15 * 60
-                ? 1
-                : sleepTimerTimeLeft <= 30 * 60
-                ? 2
-                : sleepTimerTimeLeft <= 45 * 60
-                ? 3
-                : 4
-            }
-            onChange={(i) => {
-              hapticSelection();
-              const mins = [0, 15, 30, 45, 60][i];
-              setSleepTimer(mins);
-            }}
-          />
-        </Section>
+            <Label style={{ marginTop: spacing.md }}>
+              Sleep Timer (Temporizador)
+              {sleepTimerTimeLeft > 0 && ` — ${formatTimeLeft(sleepTimerTimeLeft)}`}
+            </Label>
+            <SegmentedControl
+              options={['Off', '15m', '30m', '45m', '60m']}
+              value={
+                sleepTimerTimeLeft === 0
+                  ? 0
+                  : sleepTimerTimeLeft <= 15 * 60
+                  ? 1
+                  : sleepTimerTimeLeft <= 30 * 60
+                  ? 2
+                  : sleepTimerTimeLeft <= 45 * 60
+                  ? 3
+                  : 4
+              }
+              onChange={(i) => {
+                hapticSelection();
+                const mins = [0, 15, 30, 45, 60][i];
+                setSleepTimer(mins);
+              }}
+            />
+          </Section>
 
-        <Section title="Behavior">
-          <ToggleRow
-            label="Show track duration in lists"
-            value={showDuration}
-            onChange={toggleShowDuration}
-          />
-          <ToggleRow
-            label="Show rewind 15s button"
-            value={showRewindButton}
-            onChange={toggleShowRewind}
-            style={{ marginTop: spacing.md }}
-          />
-          <ToggleRow
-            label="Haptic feedback"
-            value={hapticsOn}
-            onChange={toggleHaptics}
-            style={{ marginTop: spacing.md }}
-          />
-          <ToggleRow
-            label="Keep screen awake"
-            value={keepAwakeOn}
-            onChange={toggleKeepAwake}
-            style={{ marginTop: spacing.md }}
-          />
-        </Section>
+          <Section title="Behavior">
+            <ToggleRow
+              label="Show track duration in lists"
+              value={showDuration}
+              onChange={toggleShowDuration}
+            />
+            <ToggleRow
+              label="Show rewind 15s button"
+              value={showRewindButton}
+              onChange={toggleShowRewind}
+              style={{ marginTop: spacing.md }}
+            />
+            <ToggleRow
+              label="Haptic feedback"
+              value={hapticsOn}
+              onChange={toggleHaptics}
+              style={{ marginTop: spacing.md }}
+            />
+            <ToggleRow
+              label="Keep screen awake"
+              value={keepAwakeOn}
+              onChange={toggleKeepAwake}
+              style={{ marginTop: spacing.md }}
+            />
+          </Section>
 
-        <Section title="Data">
-          <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
-            YouTube audio is downloaded locally so it can keep playing with the
-            screen locked. Clearing the cache frees that space; songs
-            re-download next time you play them.
-          </Text>
-          <PillButton
-            label="Clear YouTube cache"
-            variant="ghost"
-            small
-            onPress={doClearCache}
-            style={{ alignSelf: 'flex-start' }}
-          />
-          <PillButton
-            label="Clear library"
-            variant="danger"
-            small
-            onPress={() => setClearLibraryOpen(true)}
-            style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-          />
-          <PillButton
-            label="Export playlists (JSON)"
-            variant="ghost"
-            small
-            loading={exportingPlaylists}
-            onPress={doExportPlaylists}
-            style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-          />
-        </Section>
-
-        <Section title="Advanced">
-          <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
-            PO Tokens (needed for full YouTube tracks to play natively
-            instead of stopping after ~20-30s) are generated on-device
-            automatically — nothing to set up. This optional field only
-            applies if you want to use an external bgutil-ytdlp-pot-provider
-            server instead. See GUIA-POT-TOKEN.md.
-          </Text>
-          <Input
-            placeholder="http://192.168.1.10:4416"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            value={potServerUrl}
-            onChangeText={savePotServerUrl}
-            onClear={() => savePotServerUrl('')}
-          />
-          <PillButton
-            label="Test connection"
-            variant="ghost"
-            small
-            loading={testingPotServer}
-            disabled={!potServerUrl.trim()}
-            onPress={testPotServer}
-            style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-          />
-        </Section>
-
-        <Section title="About">
-          <Row label="Version" value={APP_VERSION} />
-          <Row label="Build" value={BUILD_ID} />
-        </Section>
-
-        <Section title="Account">
-          <Row label="Email" value={session?.user?.email ?? '—'} />
-          <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' }}>
+          <Section title="Data">
+            <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
+              YouTube audio is downloaded locally so it can keep playing with the
+              screen locked. Clearing the cache frees that space; songs
+              re-download next time you play them.
+            </Text>
             <PillButton
-              label="Reset password"
+              label="Clear YouTube cache"
               variant="ghost"
               small
-              loading={resettingPw}
-              onPress={doResetPassword}
+              onPress={doClearCache}
               style={{ alignSelf: 'flex-start' }}
             />
             <PillButton
-              label="Sign out"
+              label="Clear library"
               variant="danger"
               small
-              onPress={() => setSignOutOpen(true)}
-              style={{ alignSelf: 'flex-start' }}
+              onPress={() => setClearLibraryOpen(true)}
+              style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
             />
             <PillButton
-              label="Delete account"
-              variant="danger"
+              label="Export playlists (JSON)"
+              variant="ghost"
               small
-              onPress={() => setDeleteAccountOpen(true)}
-              style={{ alignSelf: 'flex-start' }}
+              loading={exportingPlaylists}
+              onPress={doExportPlaylists}
+              style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
             />
-          </View>
-        </Section>
-      </ScrollView>
+          </Section>
+
+          <Section title="Advanced">
+            <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
+              PO Tokens (needed for full YouTube tracks to play natively
+              instead of stopping after ~20-30s) are generated on-device
+              automatically — nothing to set up. This optional field only
+              applies if you want to use an external bgutil-ytdlp-pot-provider
+              server instead. See GUIA-POT-TOKEN.md.
+            </Text>
+            <Input
+              placeholder="http://192.168.1.10:4416"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              value={potServerUrl}
+              onChangeText={savePotServerUrl}
+              onClear={() => savePotServerUrl('')}
+            />
+            <PillButton
+              label="Test connection"
+              variant="ghost"
+              small
+              loading={testingPotServer}
+              disabled={!potServerUrl.trim()}
+              onPress={testPotServer}
+              style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
+            />
+          </Section>
+
+          <Section title="About">
+            <Row label="Version" value={APP_VERSION} />
+            <Row label="Build" value={BUILD_ID} />
+          </Section>
+
+          <Section title="Account">
+            <Row label="Email" value={session?.user?.email ?? '—'} />
+            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' }}>
+              <PillButton
+                label="Reset password"
+                variant="ghost"
+                small
+                loading={resettingPw}
+                onPress={doResetPassword}
+                style={{ alignSelf: 'flex-start' }}
+              />
+              <PillButton
+                label="Sign out"
+                variant="danger"
+                small
+                onPress={() => setSignOutOpen(true)}
+                style={{ alignSelf: 'flex-start' }}
+              />
+              <PillButton
+                label="Delete account"
+                variant="danger"
+                small
+                onPress={() => setDeleteAccountOpen(true)}
+                style={{ alignSelf: 'flex-start' }}
+              />
+            </View>
+          </Section>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <ConfirmSheet
         visible={signOutOpen}
