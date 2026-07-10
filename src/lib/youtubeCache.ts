@@ -5,8 +5,9 @@ import { fixMp4Duration } from './mp4Fixer';
 const PREFIX = 'yt-audio-';
 
 // Incrementar sempre que o mp4Fixer mudar de forma que invalide ficheiros em cache.
-// v2: correcção da duração — removido o /2 hack e adicionado neutralização de edts/elst.
-const CACHE_VERSION = 2;
+// v3: Com a neutralização do edts/elst, o AVPlayer calcula consistentemente o DOBRO da duração
+// dos cabeçalhos em fmp4. Assim, passar a duração real dividida por 2 resulta no tempo 1x exato.
+const CACHE_VERSION = 3;
 const CACHE_VERSION_KEY = 'yt_audio_cache_version';
 
 /** Chamado no arranque da app. Se a versão do cache mudou, apaga todos os
@@ -101,11 +102,11 @@ export async function downloadProgressiveAudio(
   }
 
   // Corrige a duração no contentor MP4 (m4a) antes de gravar em disco.
-  // O mp4Fixer corrige mvhd/tkhd/mdhd/mehd com a duração real e neutraliza
-  // edts/elst (edit lists) e sidx/ssix (segment index) — as fontes de
-  // duração inflacionada que o AVPlayer usa para calcular o tempo no lock screen.
+  // O mp4Fixer neutraliza edts/elst (edit lists) e sidx/ssix (segment index),
+  // e com esta neutralização o AVPlayer calcula a duração consistentemente como o
+  // DOBRO da duração definida nos cabeçalhos. Passar a metade resulta na duração exata.
   if (durationSeconds && durationSeconds > 0) {
-    fixMp4Duration(combined, durationSeconds);
+    fixMp4Duration(combined, durationSeconds / 2);
   }
 
   dest.create({ overwrite: true });
