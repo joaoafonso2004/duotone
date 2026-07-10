@@ -44,15 +44,35 @@ const BRIDGE_JS = `
   if (window.__duotoneHooked) { return; }
   window.__duotoneHooked = true;
   function post(m){ if(window.ReactNativeWebView){ window.ReactNativeWebView.postMessage(JSON.stringify(m)); } }
+  var attempts = 0;
   function hook(){
+    // Deteta erros do embed do YouTube (vídeo indisponível, removido, privado, etc.)
+    var errEl = document.querySelector('.ytp-error-content-wrap, .ytp-error, [class*="error"]');
+    var errText = document.querySelector('.ytp-error-content-wrap-reason');
+    if (errEl && errText && errText.textContent && errText.textContent.trim().length > 0) {
+      post({ type:'unavailable', reason: errText.textContent.trim() });
+      return;
+    }
     var v = document.querySelector('video');
-    if (!v) { setTimeout(hook, 400); return; }
+    if (!v) {
+      attempts++;
+      // Após ~8 segundos sem encontrar elemento <video>, o vídeo provavelmente não está disponível
+      if (attempts > 20) { post({ type:'unavailable', reason:'no video element found' }); return; }
+      setTimeout(hook, 400);
+      return;
+    }
     v.addEventListener('play', function(){ post({ type:'state', value:'playing' }); });
     v.addEventListener('pause', function(){ post({ type:'state', value:'paused' }); });
     v.addEventListener('ended', function(){ post({ type:'state', value:'ended' }); });
+    v.addEventListener('error', function(){ post({ type:'unavailable', reason:'video element error' }); });
     setInterval(function(){
       var vv = document.querySelector('video');
       if (vv && vv.duration) { post({ type:'progress', position:(vv.currentTime||0)*1000, duration: vv.duration*1000 }); }
+      // Verifica erros que aparecem depois do carregamento
+      var lateErr = document.querySelector('.ytp-error-content-wrap-reason');
+      if (lateErr && lateErr.textContent && lateErr.textContent.trim().length > 0) {
+        post({ type:'unavailable', reason: lateErr.textContent.trim() });
+      }
     }, 1000);
     window.__duotone = {
       play:  function(){ var vv=document.querySelector('video'); if(vv) vv.play(); },
@@ -213,6 +233,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     wantsPlayRef.current = true;
     endedRef.current = false;
     fadingOutRef.current = false; // Reset fade states
+    webviewSkippedRef.current = false; // Reset webview skip flag
     if (fadeIntervalRef.current) {
       clearInterval(fadeIntervalRef.current);
       fadeIntervalRef.current = null;
@@ -331,9 +352,21 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       setBackend('native');
     } catch (e: any) {
       if (alive()) {
-        // Diagnóstico visível: que cliente InnerTube deu o stream, porque
-        // caiu para o IOS (se caiu), e o estado do PO Token on-device — é
-        // isto que nos diz, sem ambiguidade, o que se passou no dispositivo.
+        const errMsg = e?.message ?? 'unknown';
+        // Se o vídeo não é reproduzível (removido, privado, região, etc.),
+        // avançar para a próxima faixa em vez de cair no embed (que também
+        // não vai conseguir tocar). Deteção: o InnerTube devolve um status
+        // explícito no playabilityStatus (ver ytstream.ts streamFromPlayerResponse).
+        const isNotPlayable = /not playable|unavailable|private|removed|age|sign in|copyright|deleted/i.test(errMsg);
+        if (isNotPlayable) {
+          console.warn(`[YouTubePlayer] Vídeo indisponível (${errMsg}), a saltar para a próxima.`);
+          if (!endedRef.current) {
+            endedRef.current = true;
+            onStateChange('ended');
+          }
+          return;
+        }
+        // Erro de rede/download — tentar o embed como fallback.
         const clientInfo = stream?.client
           ? `client=${stream.client}${stream.resolverNote ? ` (fell back: ${stream.resolverNote})` : ''}`
           : 'client=?';
@@ -341,7 +374,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           ? 'pot=yes'
           : `pot=no (${getLastBotGuardError() ?? 'n/a'})`;
         setError(
-          `[build ${BUILD_ID}] YouTube [${clientInfo}] [${potInfo}]: ${e?.message ?? 'unknown'}, using embed.`
+          `[build ${BUILD_ID}] YouTube [${clientInfo}] [${potInfo}]: ${errMsg}, using embed.`
         );
         setBackend('webview');
       }
@@ -563,12 +596,22 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     return () => registerYtControls(null);
   }, [backend, player, registerYtControls]);
 
+  const webviewSkippedRef = useRef(false);
   const onMessage = (event: WebViewMessageEvent) => {
     try {
       const msg = JSON.parse(event.nativeEvent.data);
       if (msg.type === 'state') onStateChange(msg.value);
       else if (msg.type === 'progress' && msg.duration > 0)
         setProgress(msg.position, msg.duration);
+      else if (msg.type === 'unavailable' && !webviewSkippedRef.current) {
+        // Vídeo indisponível no embed — saltar para a próxima faixa.
+        webviewSkippedRef.current = true;
+        console.warn(`[YouTubePlayer] Embed indisponível (${msg.reason}), a saltar.`);
+        if (!endedRef.current) {
+          endedRef.current = true;
+          onStateChange('ended');
+        }
+      }
     } catch {
       // ignorar
     }
