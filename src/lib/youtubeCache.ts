@@ -1,7 +1,29 @@
 import { File, Paths } from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixMp4Duration } from './mp4Fixer';
 
 const PREFIX = 'yt-audio-';
+
+// Incrementar sempre que o mp4Fixer mudar de forma que invalide ficheiros em cache.
+// v2: correcção da duração — removido o /2 hack e adicionado neutralização de edts/elst.
+const CACHE_VERSION = 2;
+const CACHE_VERSION_KEY = 'yt_audio_cache_version';
+
+/** Chamado no arranque da app. Se a versão do cache mudou, apaga todos os
+ * ficheiros de áudio em cache para que sejam re-descarregados com o novo
+ * mp4Fixer aplicado. */
+export async function invalidateStaleAudioCache(): Promise<void> {
+  try {
+    const stored = await AsyncStorage.getItem(CACHE_VERSION_KEY);
+    if (stored === String(CACHE_VERSION)) return; // já está atualizado
+    // Versão diferente (ou primeira execução) — limpar cache
+    clearDownloadedAudioCache();
+    await AsyncStorage.setItem(CACHE_VERSION_KEY, String(CACHE_VERSION));
+  } catch {
+    // Se falhar, não é crítico — o pior que acontece é tocar com duração errada
+    // até o utilizador limpar o cache manualmente.
+  }
+}
 
 // Downloader Constants
 const CHUNK_BYTES = 4_000_000;
@@ -79,10 +101,11 @@ export async function downloadProgressiveAudio(
   }
 
   // Corrige a duração no contentor MP4 (m4a) antes de gravar em disco.
-  // Dividimos a duração por 2 para compensar o bug do AVPlayer do iOS, que calcula
-  // exatamente o DOBRO da duração para estes streams AAC fragmentados do YouTube.
+  // O mp4Fixer corrige mvhd/tkhd/mdhd/mehd com a duração real e neutraliza
+  // edts/elst (edit lists) e sidx/ssix (segment index) — as fontes de
+  // duração inflacionada que o AVPlayer usa para calcular o tempo no lock screen.
   if (durationSeconds && durationSeconds > 0) {
-    fixMp4Duration(combined, durationSeconds / 2);
+    fixMp4Duration(combined, durationSeconds);
   }
 
   dest.create({ overwrite: true });

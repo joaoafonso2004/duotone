@@ -2,13 +2,17 @@
  * Utilitário para corrigir o cabeçalho de ficheiros MP4/M4A descarregados do YouTube.
  * 
  * ALVO: Os streams m4a (AAC) do YouTube contêm metadados de duração incorretos/duplicados.
- * Isto faz com que o AVPlayer do iOS calcule a duração errada (o dobro), mostrando o tempo errado
+ * Isto faz com que o AVPlayer do iOS calcule a duração errada, mostrando o tempo errado
  * no ecrã de bloqueio e tocando silêncio no final.
  * 
  * SOLUÇÃO: Procuramos recursivamente os átomos do contentor MP4 ('mvhd', 'tkhd', 'mdhd', 'mehd')
  * e reescrevemos o valor de duração com base no tempo real da música obtido da API do YouTube.
- * Adicionalmente, desativamos os blocos de índice de segmentos ('sidx', 'ssix') convertendo-os
- * em blocos vazios ('free'), forçando o AVPlayer a ler a duração real corrigida nos cabeçalhos.
+ * Adicionalmente:
+ *  - Desativamos os blocos de índice de segmentos ('sidx', 'ssix') convertendo-os em 'free'.
+ *  - Desativamos os blocos de edit list ('edts') convertendo-os em 'free', pois o AVPlayer
+ *    usa as entradas do 'elst' (edit list) COMO DURAÇÃO ADICIONAL — quando combinadas com
+ *    as durações dos cabeçalhos, resultam num valor inflacionado (ex.: 1.5x ou 2x).
+ *    Sem edit list, o AVPlayer usa diretamente a duração dos cabeçalhos que nós corrigimos.
  */
 
 function read32(buffer: Uint8Array, offset: number): number {
@@ -32,6 +36,17 @@ function write64(buffer: Uint8Array, offset: number, value: number) {
   const low = value % 0x100000000;
   write32(buffer, offset, high);
   write32(buffer, offset + 4, low);
+}
+
+/**
+ * Converte o tipo de um box MP4 para 'free' (bloco vazio), neutralizando-o
+ * sem alterar o tamanho do ficheiro.
+ */
+function neutralizeBox(buffer: Uint8Array, offset: number) {
+  buffer[offset + 4] = 102; // 'f'
+  buffer[offset + 5] = 114; // 'r'
+  buffer[offset + 6] = 101; // 'e'
+  buffer[offset + 7] = 101; // 'e'
 }
 
 /**
@@ -109,21 +124,26 @@ export function fixMp4Duration(buffer: Uint8Array, durationSeconds: number): voi
             write32(buffer, boxContentStart + 16, newDuration);
           }
         } else if (type === 'mehd') {
-          // Movie Extends Header
+          // Movie Extends Header — usa o movieTimescale (não um hardcoded 1000)
           const version = buffer[boxContentStart];
-          const newDuration = Math.round(durationSeconds * 1000);
+          const newDuration = Math.round(durationSeconds * movieTimescale);
           if (version === 1) {
             write64(buffer, boxContentStart + 4, newDuration);
           } else if (version === 0) {
             write32(buffer, boxContentStart + 4, newDuration);
           }
+        } else if (type === 'edts') {
+          // Edit List container — neutralizar completamente para impedir o AVPlayer
+          // de usar as entradas do elst como duração adicional/mapeamento de timeline.
+          // O elst pode conter entradas que fazem o AVPlayer calcular uma duração
+          // inflacionada (1.5x, 2x). Converter para 'free' é seguro: sem edit list
+          // o AVPlayer reproduz o media diretamente e usa a duração dos cabeçalhos
+          // (mvhd/mdhd/tkhd) que nós já corrigimos.
+          neutralizeBox(buffer, offset);
         } else if (type === 'sidx' || type === 'ssix') {
           // Desativar o indexador de segmentos (sidx/ssix) convertendo-o para um bloco livre (free).
           // Isto força o AVPlayer a usar a duração do cabeçalho mvhd que nós corrigimos.
-          buffer[offset + 4] = 102; // 'f'
-          buffer[offset + 5] = 114; // 'r'
-          buffer[offset + 6] = 101; // 'e'
-          buffer[offset + 7] = 101; // 'e'
+          neutralizeBox(buffer, offset);
         }
 
         offset += boxSize;

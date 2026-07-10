@@ -369,7 +369,7 @@ export function SearchScreen() {
       ) : query.trim().length < 2 && isFocused && history.length > 0 ? (
         /* Focused Search input - Show Search History */
         <ScrollView
-          keyboardShouldPersistTaps="always"
+          keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: bottomPad }}
         >
@@ -403,7 +403,7 @@ export function SearchScreen() {
       ) : query.trim().length < 2 && !isFocused ? (
         /* Default state - Show Recommendations */
         <ScrollView
-          keyboardShouldPersistTaps="always"
+          keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           contentContainerStyle={{ paddingBottom: bottomPad }}
           showsVerticalScrollIndicator={false}
@@ -460,7 +460,7 @@ export function SearchScreen() {
           data={results}
           keyExtractor={(t) => `${t.source}:${t.sourceId}`}
           contentContainerStyle={{ paddingBottom: bottomPad }}
-          keyboardShouldPersistTaps="always"
+          keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           renderItem={({ item }) => (
             <TrackRow

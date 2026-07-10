@@ -11,6 +11,7 @@ import {
   loadPrefsCache,
 } from './src/lib/prefs';
 import { supabase } from './src/lib/supabase';
+import { invalidateStaleAudioCache } from './src/lib/youtubeCache';
 import { useAuth } from './src/state/auth';
 import { usePlayer } from './src/state/player';
 import { useTheme } from './src/state/theme';
@@ -22,6 +23,7 @@ export default function App() {
     init();
     // Hidrata preferências persistidas no arranque da app.
     loadPrefsCache();
+    invalidateStaleAudioCache();
     useTheme.getState().loadTheme();
     Promise.all([getRepeatMode(), getShuffle(), getShowRewindButton()]).then(
       ([repeatMode, shuffle, showRewindButton]) => {
