@@ -171,6 +171,17 @@ export async function addTracksToPlaylist(
   if (error) throw error;
 }
 
+/** Nome de uma playlist partilhada (leitura permitida a quem participa na
+ * partilha — ver supabase/shared-playlists-read.sql). */
+export async function getPlaylistName(playlistId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('playlists')
+    .select('name')
+    .eq('id', playlistId)
+    .maybeSingle();
+  return data?.name ?? null;
+}
+
 export async function importSharedPlaylist(sharedPlaylistId: string): Promise<string> {
   const { data: plData, error: plError } = await supabase
     .from('playlists')
