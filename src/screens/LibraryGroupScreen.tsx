@@ -19,6 +19,7 @@ import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '../theme';
 import { useTheme } from '../state/theme';
 import { hapticNotification } from '../lib/haptics';
+import { displayArtist } from '../lib/artistName';
 import type { Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
@@ -57,7 +58,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         all.filter((t) =>
           type === 'album'
             ? t.album === name
-            : (t.artist ?? 'Unknown artist') === name
+            : // mesmo agrupamento da página de Artistas (artista extraído)
+              displayArtist(t) === name
         )
       );
     } catch {

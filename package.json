@@ -8,7 +8,7 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test-mp4fixer.mjs"
+    "test": "node scripts/test-mp4fixer.mjs && node scripts/test-artist-name.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
