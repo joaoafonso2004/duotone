@@ -19,6 +19,7 @@ import { useTheme } from '../state/theme';
 import { BottomSheet } from './BottomSheet';
 import { TrackRow } from './TrackRow';
 import { hapticNotification } from '../lib/haptics';
+import { extractArtist } from '../lib/artistName';
 import type { Track } from '../types';
 
 interface Props {
@@ -64,7 +65,7 @@ export function YtPlaylistRecommendationSheet({
       source: 'youtube' as const,
       sourceId: i.videoId,
       title: i.title,
-      artist: i.channel || null,
+      artist: extractArtist(i.title, i.channel || null),
       album: null,
       artworkUrl: i.thumbnail,
       durationSeconds: null,

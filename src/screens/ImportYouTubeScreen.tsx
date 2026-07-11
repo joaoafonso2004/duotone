@@ -21,6 +21,7 @@ import {
   listPlaylists,
 } from '../api/playlists';
 import { fetchYouTubePlaylist, YtPlaylistImport } from '../api/youtube';
+import { extractArtist } from '../lib/artistName';
 import { ArtworkCollage } from '../components/ArtworkCollage';
 import { BottomSheet } from '../components/BottomSheet';
 import { EmptyState } from '../components/EmptyState';
@@ -79,7 +80,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
         source: 'youtube' as const,
         sourceId: i.videoId,
         title: i.title,
-        artist: i.channel || null,
+        artist: extractArtist(i.title, i.channel || null),
         album: null,
         artworkUrl: i.thumbnail,
         durationSeconds: null,

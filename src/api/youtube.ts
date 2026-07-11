@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { ENV } from '../lib/env';
+import { extractArtist } from '../lib/artistName';
 import type { Track, YtPlaylistItem } from '../types';
 
 const BASE = 'https://www.googleapis.com/youtube/v3';
@@ -78,7 +79,7 @@ async function yfetch(path: string, params: Record<string, string>) {
 // ------------------------------------------------------------
 
 export async function searchYouTube(query: string): Promise<Track[]> {
-  const key = `search:v1:${query.trim().toLowerCase()}`;
+  const key = `search:v2:${query.trim().toLowerCase()}`;
   const cached = await cacheGet<Track[]>(key, SEARCH_TTL);
   if (cached) return cached;
 
@@ -110,7 +111,12 @@ export async function searchYouTube(query: string): Promise<Track[]> {
     source: 'youtube' as const,
     sourceId: it.id.videoId as string,
     title: decodeEntities(it.snippet?.title ?? ''),
-    artist: decodeEntities(it.snippet?.channelTitle ?? '') || null,
+    // Artista real extraído do título/canal (canal cru fragmentava a página
+    // de Artistas — um "artista" por canal que postou a música)
+    artist: extractArtist(
+      decodeEntities(it.snippet?.title ?? ''),
+      decodeEntities(it.snippet?.channelTitle ?? '') || null
+    ),
     album: null,
     artworkUrl:
       it.snippet?.thumbnails?.high?.url ??
@@ -134,7 +140,7 @@ export async function getTrendingMusic(
   limit = 25,
   regionCode = 'PT'
 ): Promise<Track[]> {
-  const key = `trending_music:v1:${regionCode}:${limit}`;
+  const key = `trending_music:v2:${regionCode}:${limit}`;
   const cached = await cacheGet<Track[]>(key, TRENDING_TTL);
   if (cached) return cached;
 
@@ -151,7 +157,10 @@ export async function getTrendingMusic(
       source: 'youtube' as const,
       sourceId: v.id as string,
       title: decodeEntities(v.snippet?.title ?? ''),
-      artist: decodeEntities(v.snippet?.channelTitle ?? '') || null,
+      artist: extractArtist(
+        decodeEntities(v.snippet?.title ?? ''),
+        decodeEntities(v.snippet?.channelTitle ?? '') || null
+      ),
       album: null,
       artworkUrl:
         v.snippet?.thumbnails?.high?.url ??
@@ -244,7 +253,7 @@ export async function searchYouTubePlaylists(
   query: string,
   limit = 5
 ): Promise<YtRecommendedPlaylist[]> {
-  const key = `playlists_search:v1:${query.trim().toLowerCase()}`;
+  const key = `playlists_search:v2:${query.trim().toLowerCase()}`;
   const cached = await cacheGet<YtRecommendedPlaylist[]>(key, SEARCH_TTL);
   if (cached) return cached;
 

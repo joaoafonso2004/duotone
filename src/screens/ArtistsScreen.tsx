@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
+import { displayArtist } from '../lib/artistName';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -54,7 +55,9 @@ export function ArtistsScreen() {
   const artists = useMemo<ArtistGroup[]>(() => {
     const map = new Map<string, ArtistGroup>();
     for (const t of tracks) {
-      const name = t.artist ?? 'Unknown artist';
+      // displayArtist extrai o artista real do título/canal — agrupa faixas
+      // antigas (guardadas com o nome do canal) e novas sob o mesmo artista.
+      const name = displayArtist(t);
       const existing = map.get(name);
       if (existing) {
         existing.count++;
