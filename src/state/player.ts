@@ -1,4 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { recordPlayInSupabase } from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
 import type { Track } from '../types';
@@ -32,7 +34,20 @@ interface PlayerState {
   buffering: boolean;
   error: string | null;
   sleepTimerTimeLeft: number;
+  /** Instante absoluto (Date.now) em que o sleep timer expira. É a fonte de
+   * verdade: um contador decrementado por setInterval congela em background
+   * (o iOS suspende timers JS), mas um deadline absoluto verificado também
+   * no timeUpdate do player nativo (que continua a disparar em background)
+   * pausa a música à hora certa mesmo com o ecrã bloqueado. */
+  sleepTimerEndsAt: number | null;
   soundPreset: 'normal' | 'slowed' | 'fast';
+  /** Progresso (0..1) do download da faixa atual, ou null se não está a descarregar. */
+  downloadProgress: number | null;
+  /** false quando a faixa vem do restauro da sessão anterior — o player
+   * prepara o áudio mas não começa a tocar até o utilizador carregar em play. */
+  autoplayOnLoad: boolean;
+  /** Posição (ms) a retomar após restauro da sessão; consumida uma vez. */
+  resumePositionMs: number | null;
 
   playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean) => Promise<void>;
   playNext: (track: Track) => void;
@@ -47,6 +62,10 @@ interface PlayerState {
   setShuffle: (v: boolean) => void;
   setSleepTimer: (minutes: number) => void;
   tickSleepTimer: () => void;
+  /** Verifica o deadline do sleep timer (chamado no tick de foreground E no
+   * timeUpdate do player nativo, para funcionar em background). */
+  checkSleepTimer: () => void;
+  _setDownloadProgress: (p: number | null) => void;
   setSoundPreset: (preset: 'normal' | 'slowed' | 'fast') => void;
   pausePlayback: () => void;
   toggleShuffle: () => void;
@@ -68,7 +87,32 @@ interface PlayerState {
   _setActiveBackend: (backend: 'resolving' | 'native' | 'webview') => void;
 }
 
-export const usePlayer = create<PlayerState>((set, get) => ({
+// Escritas no AsyncStorage com debounce: o positionMs muda a cada segundo e
+// serializar a fila inteira a esse ritmo seria desperdício — 3s de atraso na
+// persistência é irrelevante para "continuar a ouvir".
+function debouncedStorage() {
+  let pendingValue: string | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return {
+    getItem: (name: string) => AsyncStorage.getItem(name),
+    setItem: (name: string, value: string) => {
+      pendingValue = value;
+      if (!timer) {
+        timer = setTimeout(() => {
+          timer = null;
+          const v = pendingValue;
+          pendingValue = null;
+          if (v != null) AsyncStorage.setItem(name, v).catch(() => {});
+        }, 3000);
+      }
+    },
+    removeItem: (name: string) => AsyncStorage.removeItem(name),
+  };
+}
+
+export const usePlayer = create<PlayerState>()(
+  persist(
+    (set, get) => ({
   current: null,
   queue: [],
   queueIndex: 0,
@@ -82,7 +126,11 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   buffering: false,
   error: null,
   sleepTimerTimeLeft: 0,
+  sleepTimerEndsAt: null,
   soundPreset: 'normal',
+  downloadProgress: null,
+  autoplayOnLoad: true,
+  resumePositionMs: null,
   _yt: null,
   activeBackend: 'resolving',
 
@@ -110,6 +158,9 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       // O player nativo autoplay-a ao montar; estado real chega via bridge.
       isPlaying: true,
       activeBackend: 'resolving',
+      downloadProgress: null,
+      autoplayOnLoad: true,
+      resumePositionMs: null,
       ...(shouldExpand ? { expanded: true } : {}),
     });
   },
@@ -180,7 +231,13 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   prev: async () => {
-    const { queue, queueIndex, repeatMode, playTrack } = get();
+    const { queue, queueIndex, repeatMode, playTrack, positionMs, seekTo } = get();
+    // Comportamento standard (Spotify/Apple Music): com mais de 3s de
+    // reprodução, "anterior" recomeça a faixa atual em vez de recuar na fila.
+    if (positionMs > 3000) {
+      await seekTo(0);
+      return;
+    }
     if (queueIndex - 1 >= 0) {
       await playTrack(queue[queueIndex - 1], queue);
     } else if (repeatMode === 'all' && queue.length > 0) {
@@ -249,18 +306,30 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   _setBuffering: (v) => set({ buffering: v }),
 
   setSleepTimer: (minutes) => {
-    set({ sleepTimerTimeLeft: minutes * 60 });
+    if (minutes <= 0) {
+      set({ sleepTimerEndsAt: null, sleepTimerTimeLeft: 0 });
+      return;
+    }
+    set({
+      sleepTimerEndsAt: Date.now() + minutes * 60_000,
+      sleepTimerTimeLeft: minutes * 60,
+    });
   },
 
-  tickSleepTimer: () => {
-    const { sleepTimerTimeLeft } = get();
-    if (sleepTimerTimeLeft <= 0) return;
-    const next = sleepTimerTimeLeft - 1;
-    set({ sleepTimerTimeLeft: next });
-    if (next === 0) {
+  tickSleepTimer: () => get().checkSleepTimer(),
+
+  checkSleepTimer: () => {
+    const { sleepTimerEndsAt, sleepTimerTimeLeft } = get();
+    if (!sleepTimerEndsAt) return;
+    const left = Math.max(0, Math.ceil((sleepTimerEndsAt - Date.now()) / 1000));
+    if (left !== sleepTimerTimeLeft) set({ sleepTimerTimeLeft: left });
+    if (left <= 0) {
+      set({ sleepTimerEndsAt: null });
       get().pausePlayback();
     }
   },
+
+  _setDownloadProgress: (p) => set({ downloadProgress: p }),
 
   setSoundPreset: (preset) => {
     set({ soundPreset: preset });
@@ -316,4 +385,40 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       set({ isPlaying: false });
     }
   },
-}));
+    }),
+    {
+      name: 'player-session',
+      storage: createJSONStorage(debouncedStorage),
+      // Persistimos apenas o necessário para "continuar a ouvir" após a app
+      // ser morta: faixa atual, fila e posição. Repeat/shuffle já vivem nas
+      // prefs; o resto é estado transitório.
+      partialize: (s) => ({
+        current: s.current,
+        queue: s.queue,
+        queueIndex: s.queueIndex,
+        positionMs: s.positionMs,
+        durationMs: s.durationMs,
+      }),
+      // No restauro, a sessão volta PAUSADA: o player prepara o áudio
+      // (autoplayOnLoad=false) e retoma na posição guardada quando o
+      // utilizador carregar em play.
+      merge: (persisted: any, current) => {
+        if (!persisted?.current) return current;
+        return {
+          ...current,
+          ...persisted,
+          isPlaying: false,
+          buffering: false,
+          expanded: false,
+          error: null,
+          activeBackend: 'resolving' as const,
+          autoplayOnLoad: false,
+          resumePositionMs:
+            typeof persisted.positionMs === 'number' && persisted.positionMs > 1500
+              ? persisted.positionMs
+              : null,
+        };
+      },
+    }
+  )
+);

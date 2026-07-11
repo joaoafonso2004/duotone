@@ -1,18 +1,27 @@
 /**
  * Utilitário para corrigir o cabeçalho de ficheiros MP4/M4A descarregados do YouTube.
- * 
- * ALVO: Os streams m4a (AAC) do YouTube contêm metadados de duração incorretos/duplicados.
- * Isto faz com que o AVPlayer do iOS calcule a duração errada, mostrando o tempo errado
- * no ecrã de bloqueio e tocando silêncio no final.
- * 
- * SOLUÇÃO: Procuramos recursivamente os átomos do contentor MP4 ('mvhd', 'tkhd', 'mdhd', 'mehd')
- * e reescrevemos o valor de duração com base no tempo real da música obtido da API do YouTube.
+ *
+ * CAUSA RAIZ (verificada por dissecação dos átomos de um itag 140 real):
+ * o m4a do YouTube é um MP4 FRAGMENTADO (moov sem samples + N pares moof/mdat)
+ * mas, ao contrário de um fMP4/CMAF normal (onde mvhd/tkhd/mdhd = 0), o YouTube
+ * escreve a duração TOTAL da faixa também nos cabeçalhos do moov. O AVPlayer
+ * soma a duração declarada no moov com a duração dos fragmentos que vai
+ * encontrando — como ambas valem a duração real, o AVPlayerItem (e portanto o
+ * Lock Screen, que o expo-video alimenta com currentItem.duration) reporta
+ * EXATAMENTE O DOBRO. Os metadados do YouTube (videoDetails.lengthSeconds,
+ * sidx, soma dos trun) estão todos corretos — o problema é só a dupla
+ * declaração moov+fragmentos.
+ *
+ * SOLUÇÃO: escrever 0 em mvhd/tkhd/mdhd (a forma canónica de um fMP4/CMAF,
+ * que o AVPlayer trata corretamente todos os dias em DASH/HLS): a duração
+ * passa a vir apenas dos fragmentos, que somam o valor real. O 'mehd', se
+ * existir (não existe nos ficheiros atuais do YouTube), é o sítio correto
+ * para declarar a duração total dos fragmentos — aí escrevemos o valor real.
  * Adicionalmente:
  *  - Desativamos os blocos de índice de segmentos ('sidx', 'ssix') convertendo-os em 'free'.
- *  - Desativamos os blocos de edit list ('edts') convertendo-os em 'free', pois o AVPlayer
- *    usa as entradas do 'elst' (edit list) COMO DURAÇÃO ADICIONAL — quando combinadas com
- *    as durações dos cabeçalhos, resultam num valor inflacionado (ex.: 1.5x ou 2x).
- *    Sem edit list, o AVPlayer usa diretamente a duração dos cabeçalhos que nós corrigimos.
+ *  - Desativamos os blocos de edit list ('edts') convertendo-os em 'free'
+ *    (nos itag 140 atuais nem sequer existe edts; se aparecer, evita que o
+ *    elst re-mapeie a timeline por cima da nossa correção).
  */
 
 function read32(buffer: Uint8Array, offset: number): number {
@@ -51,9 +60,12 @@ function neutralizeBox(buffer: Uint8Array, offset: number) {
 
 /**
  * Corrige os cabeçalhos de duração do buffer M4A em-lugar.
+ *
+ * `durationSeconds` (duração real, se conhecida) só é usada para o 'mehd';
+ * os cabeçalhos do moov são sempre postos a 0 (ver comentário no topo), pelo
+ * que a correção funciona mesmo sem duração conhecida (passar null/0).
  */
-export function fixMp4Duration(buffer: Uint8Array, durationSeconds: number): void {
-  if (durationSeconds <= 0) return;
+export function fixMp4Duration(buffer: Uint8Array, durationSeconds: number | null): void {
   try {
     let movieTimescale = 1000; // Timescale padrão caso o mvhd não seja lido antes
 
@@ -89,48 +101,50 @@ export function fixMp4Duration(buffer: Uint8Array, durationSeconds: number): voi
           // Contentores - entrar para analisar filhos
           findAndFixBoxes(boxContentStart, boxContentEnd);
         } else if (type === 'mvhd') {
-          // Movie Header
+          // Movie Header — duração a 0 (fMP4 canónico; a duração real vem dos fragmentos)
           const version = buffer[boxContentStart];
           if (version === 1) {
             const timescale = read32(buffer, boxContentStart + 20);
             movieTimescale = timescale;
-            const newDuration = Math.round(durationSeconds * timescale);
-            write64(buffer, boxContentStart + 24, newDuration);
+            // [duration-debug] log temporário — remover depois de validar no dispositivo
+            console.log(`[duration-debug][mp4Fixer] mvhd v1: ${(read32(buffer, boxContentStart + 28) / timescale).toFixed(1)}s -> 0`);
+            write64(buffer, boxContentStart + 24, 0);
           } else if (version === 0) {
             const timescale = read32(buffer, boxContentStart + 12);
             movieTimescale = timescale;
-            const newDuration = Math.round(durationSeconds * timescale);
-            write32(buffer, boxContentStart + 16, newDuration);
+            console.log(`[duration-debug][mp4Fixer] mvhd v0: ${(read32(buffer, boxContentStart + 16) / timescale).toFixed(1)}s -> 0`);
+            write32(buffer, boxContentStart + 16, 0);
           }
         } else if (type === 'tkhd') {
-          // Track Header (usa o movieTimescale determinado pelo mvhd)
+          // Track Header — duração a 0
           const version = buffer[boxContentStart];
-          const newDuration = Math.round(durationSeconds * movieTimescale);
           if (version === 1) {
-            write64(buffer, boxContentStart + 28, newDuration);
+            write64(buffer, boxContentStart + 28, 0);
           } else if (version === 0) {
-            write32(buffer, boxContentStart + 20, newDuration);
+            write32(buffer, boxContentStart + 20, 0);
           }
         } else if (type === 'mdhd') {
-          // Media Header
+          // Media Header — duração a 0
           const version = buffer[boxContentStart];
           if (version === 1) {
-            const timescale = read32(buffer, boxContentStart + 20);
-            const newDuration = Math.round(durationSeconds * timescale);
-            write64(buffer, boxContentStart + 24, newDuration);
+            write64(buffer, boxContentStart + 24, 0);
           } else if (version === 0) {
-            const timescale = read32(buffer, boxContentStart + 12);
-            const newDuration = Math.round(durationSeconds * timescale);
-            write32(buffer, boxContentStart + 16, newDuration);
+            write32(buffer, boxContentStart + 16, 0);
           }
         } else if (type === 'mehd') {
-          // Movie Extends Header — usa o movieTimescale (não um hardcoded 1000)
-          const version = buffer[boxContentStart];
-          const newDuration = Math.round(durationSeconds * movieTimescale);
-          if (version === 1) {
-            write64(buffer, boxContentStart + 4, newDuration);
-          } else if (version === 0) {
-            write32(buffer, boxContentStart + 4, newDuration);
+          // Movie Extends Header — o sítio CERTO para a duração total dos
+          // fragmentos. Escreve a duração real se a soubermos; senão neutraliza
+          // o box para o AVPlayer a calcular dos fragmentos.
+          if (durationSeconds && durationSeconds > 0) {
+            const version = buffer[boxContentStart];
+            const newDuration = Math.round(durationSeconds * movieTimescale);
+            if (version === 1) {
+              write64(buffer, boxContentStart + 4, newDuration);
+            } else if (version === 0) {
+              write32(buffer, boxContentStart + 4, newDuration);
+            }
+          } else {
+            neutralizeBox(buffer, offset);
           }
         } else if (type === 'edts') {
           // Edit List container — neutralizar completamente para impedir o AVPlayer

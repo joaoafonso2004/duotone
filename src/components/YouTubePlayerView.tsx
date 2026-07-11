@@ -7,7 +7,7 @@ import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '.
 import { BUILD_ID } from '../lib/buildInfo';
 import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
-import { cachedAudioFile, downloadProgressiveAudio } from '../lib/youtubeCache';
+import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 import { type HarvestResult } from './YtStreamHarvester';
@@ -93,6 +93,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const onStateChange = usePlayer((s) => s._onYtStateChange);
   const setProgress = usePlayer((s) => s._setProgress);
   const setBuffering = usePlayer((s) => s._setBuffering);
+  const setDownloadProgress = usePlayer((s) => s._setDownloadProgress);
   const setError = usePlayer((s) => s.setError);
   const repeatMode = usePlayer((s) => s.repeatMode);
   const prev = usePlayer((s) => s.prev);
@@ -164,6 +165,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const lastProgressRef = useRef({ time: 0, at: Date.now() });
   const wantsPlayRef = useRef(true);
 
+  // [duration-debug] log único por faixa do player.duration (o valor que o
+  // expo-video envia para o Lock Screen) — remover depois de validar.
+  const durationLoggedRef = useRef(false);
+
   // Fade transition refs
   const fadeIntervalRef = useRef<any>(null);
   const fadingOutRef = useRef(false);
@@ -232,6 +237,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     lastProgressRef.current = { time: 0, at: Date.now() };
     wantsPlayRef.current = true;
     endedRef.current = false;
+    durationLoggedRef.current = false; // [duration-debug]
     fadingOutRef.current = false; // Reset fade states
     webviewSkippedRef.current = false; // Reset webview skip flag
     if (fadeIntervalRef.current) {
@@ -273,6 +279,36 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (!alive()) return;
     setBackend('resolving');
 
+    // Arranque comum aos dois caminhos (cache local e stream). Respeita o
+    // restauro de sessão: com autoplayOnLoad=false (app reaberta com fila
+    // restaurada) prepara o áudio, retoma a posição guardada e fica em pausa
+    // até o utilizador carregar em play.
+    const beginPlayback = () => {
+      const st = usePlayer.getState();
+      const resumeMs = st.resumePositionMs;
+      if (resumeMs && resumeMs > 1500) {
+        try {
+          player.currentTime = resumeMs / 1000;
+        } catch {
+          // seek falhou — recomeça do início
+        }
+      }
+      const autoplay = st.autoplayOnLoad;
+      usePlayer.setState({ resumePositionMs: null });
+      lastProgressRef.current = { time: 0, at: Date.now() };
+      nativeTrackIdRef.current = track.sourceId;
+      wantsPlayRef.current = autoplay;
+      if (autoplay) {
+        player.play();
+        fadeIn();
+      } else {
+        player.volume = 1.0;
+        st._setIsPlaying(false);
+        st._setBuffering(false);
+      }
+      setBackend('native');
+    };
+
     // MODO OFFLINE / CACHE RÁPIDO: Se a música já estiver guardada localmente, toca-a imediatamente
     const localFile = cachedAudioFile(track.sourceId);
     if (localFile.exists) {
@@ -287,11 +323,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           },
         });
         if (!alive()) return;
-        wantsPlayRef.current = true;
-        nativeTrackIdRef.current = track.sourceId;
-        player.play();
-        fadeIn();
-        setBackend('native');
+        beginPlayback();
         return;
       } catch (err) {
         console.warn('Erro a reproduzir ficheiro local em cache, tentando rede:', err);
@@ -328,9 +360,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           track.sourceId,
           stream.url,
           stream.contentLength,
-          track.durationSeconds || stream.durationSeconds || null
+          track.durationSeconds || stream.durationSeconds || null,
+          {
+            // Aborta entre chunks se o utilizador trocar de faixa — sem isto,
+            // saltar várias faixas deixava vários downloads completos a
+            // competir pela rede.
+            shouldAbort: () => !alive(),
+            onProgress: (f) => {
+              if (alive()) setDownloadProgress(f);
+            },
+          }
         );
         if (!alive()) return;
+        setDownloadProgress(null);
       }
 
       await player.replaceAsync({
@@ -343,16 +385,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         },
       });
       if (!alive()) return;
-       // Cronómetro do watchdog começa AQUI (quando mandamos tocar).
-      lastProgressRef.current = { time: 0, at: Date.now() };
-      wantsPlayRef.current = true;
-      nativeTrackIdRef.current = track.sourceId;
-      player.play();
-      fadeIn();
-      setBackend('native');
+      beginPlayback();
     } catch (e: any) {
       if (alive()) {
         const errMsg = e?.message ?? 'unknown';
+        setDownloadProgress(null);
+        if (errMsg === DOWNLOAD_ABORTED) return; // cancelamento silencioso, não é erro
         // Se o vídeo não é reproduzível (removido, privado, região, etc.),
         // avançar para a próxima faixa em vez de cair no embed (que também
         // não vai conseguir tocar). Deteção: o InnerTube devolve um status
@@ -397,8 +435,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         track.sourceId,
         stream.url,
         stream.contentLength,
-        track.durationSeconds || stream.durationSeconds || null
+        track.durationSeconds || stream.durationSeconds || null,
+        {
+          shouldAbort: () => !isMountedRef.current || myRun !== runIdRef.current,
+          onProgress: (f) => {
+            if (isMountedRef.current && myRun === runIdRef.current) setDownloadProgress(f);
+          },
+        }
       );
+      setDownloadProgress(null);
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       await player.replaceAsync({
         uri,
@@ -419,7 +464,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       player.play();
       fadeIn();
     } catch (e: any) {
+      setDownloadProgress(null);
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
+      if (e?.message === DOWNLOAD_ABORTED) return true;
       setError(`[build ${BUILD_ID}] YouTube: playback error (${e?.message ?? 'unknown'}), using embed.`);
       setBackend('webview');
     }
@@ -435,6 +482,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
   });
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    // Sleep timer verificado aqui porque este evento continua a disparar em
+    // background (sessão de áudio ativa) — ao contrário dos setInterval JS,
+    // que o iOS suspende com o ecrã bloqueado.
+    usePlayer.getState().checkSleepTimer();
     if (backend !== 'native' || nativeTrackIdRef.current !== track.sourceId) return;
     // Regista avanço real da posição (para o watchdog de stream preso).
     if (currentTime !== lastProgressRef.current.time) {
@@ -442,6 +493,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
     // O áudio começou mesmo → deixa de estar "a carregar" (pára o pulsar).
     if (currentTime > 0) setBuffering(false);
+
+    // [duration-debug] player.duration é exatamente o que o expo-video publica
+    // no Lock Screen (MPMediaItemPropertyPlaybackDuration = currentItem.duration).
+    // Esperado após a correção: player.duration ≈ track.durationSeconds (1x).
+    if (currentTime > 0 && !durationLoggedRef.current) {
+      durationLoggedRef.current = true;
+      console.log(
+        `[duration-debug][player] AVPlayerItem.duration=${player.duration}s ` +
+          `track.durationSeconds=${track.durationSeconds ?? 'null'} ` +
+          `stream.durationSeconds=${streamRef.current?.durationSeconds ?? 'null'} ` +
+          `isHls=${streamRef.current?.isHls ?? '?'}`
+      );
+    }
 
     // A duração REAL vem da YouTube Data API (track.durationSeconds) ou do
     // resolved stream (streamRef.current?.durationSeconds), que é fiável.
@@ -530,6 +594,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   useEffect(() => {
     if (backend !== 'native') return;
 
+    let cancelled = false;
     const timer = setTimeout(async () => {
       const nextIndex = queueIndex + 1;
       if (nextIndex >= queue.length) return;
@@ -543,21 +608,28 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       try {
         const quality = await getAudioQuality();
         const stream = await resolveYouTubeStream(nextTrack.sourceId, quality);
+        if (cancelled) return;
         if (stream && !stream.isHls) {
-          // Descarregar localmente em segundo plano
+          // Descarregar localmente em segundo plano; aborta se a faixa mudar
           await downloadProgressiveAudio(
             nextTrack.sourceId,
             stream.url,
             stream.contentLength,
-            nextTrack.durationSeconds || stream.durationSeconds || null
+            nextTrack.durationSeconds || stream.durationSeconds || null,
+            { shouldAbort: () => cancelled }
           );
         }
-      } catch (err) {
-        console.warn('[Smart Cache] Falha ao pré-carregar música seguinte:', err);
+      } catch (err: any) {
+        if (err?.message !== DOWNLOAD_ABORTED) {
+          console.warn('[Smart Cache] Falha ao pré-carregar música seguinte:', err);
+        }
       }
     }, 5000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [track.sourceId, backend, queue, queueIndex]);
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
@@ -567,6 +639,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       registerYtControls({
         play: () => {
           wantsPlayRef.current = true;
+          // Reinicia o cronómetro do watchdog — sem isto, retomar depois de
+          // uma pausa longa disparava o fallback de download por engano.
+          lastProgressRef.current = { time: lastProgressRef.current.time, at: Date.now() };
           player.play();
         },
         pause: () => {
