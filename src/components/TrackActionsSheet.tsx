@@ -3,6 +3,13 @@ import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { hapticImpact } from '../lib/haptics';
+import { getAudioQuality } from '../lib/prefs';
+import { resolveYouTubeStream } from '../api/ytstream';
+import {
+  downloadProgressiveAudio,
+  isAudioCached,
+  removeDownloadedAudio,
+} from '../lib/youtubeCache';
 import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 import { BottomSheet } from './BottomSheet';
@@ -38,9 +45,51 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
     onClose();
   };
 
+  // Download offline (só YouTube — a infraestrutura do cache local já toca
+  // ficheiros sem rede; isto só torna o download explícito e permanente).
+  const [cacheBump, setCacheBump] = React.useState(0);
+  const isYtTrack = track?.source === 'youtube';
+  const isDownloaded = isYtTrack && track ? isAudioCached(track.sourceId) : false;
+  void cacheBump; // força re-render do label após remover download
+
+  const handleDownloadToggle = async () => {
+    if (!track) return;
+    if (isDownloaded) {
+      removeDownloadedAudio(track.sourceId);
+      setCacheBump((v) => v + 1);
+      return;
+    }
+    onClose();
+    try {
+      const quality = await getAudioQuality();
+      const stream = await resolveYouTubeStream(track.sourceId, quality);
+      if (!stream.isHls) {
+        await downloadProgressiveAudio(
+          track.sourceId,
+          stream.url,
+          stream.contentLength,
+          track.durationSeconds || stream.durationSeconds || null
+        );
+      }
+    } catch (err) {
+      console.warn('[Download] Falha ao descarregar faixa:', err);
+    }
+  };
+
   const allActions = track
     ? [
         ...actions,
+        ...(isYtTrack
+          ? [
+              {
+                icon: (isDownloaded
+                  ? 'checkmark-circle'
+                  : 'arrow-down-circle-outline') as keyof typeof Ionicons.glyphMap,
+                label: isDownloaded ? 'Remover download' : 'Descarregar',
+                onPress: handleDownloadToggle,
+              },
+            ]
+          : []),
         {
           icon: 'people-outline' as keyof typeof Ionicons.glyphMap,
           label: 'Partilhar com amigo…',

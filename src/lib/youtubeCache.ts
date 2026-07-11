@@ -5,9 +5,11 @@ import { fixMp4Duration } from './mp4Fixer';
 const PREFIX = 'yt-audio-';
 
 // Incrementar sempre que o mp4Fixer mudar de forma que invalide ficheiros em cache.
-// v3: Com a neutralização do edts/elst, o AVPlayer calcula consistentemente o DOBRO da duração
-// dos cabeçalhos em fmp4. Assim, passar a duração real dividida por 2 resulta no tempo 1x exato.
-const CACHE_VERSION = 3;
+// v4: causa raiz encontrada — o m4a do YouTube é fMP4 com a duração total declarada
+// TAMBÉM no moov (mvhd/tkhd/mdhd); o AVPlayer soma moov + fragmentos e reporta o DOBRO.
+// O fixer agora escreve 0 no moov (fMP4 canónico) e a duração passa a vir só dos
+// fragmentos, que somam o valor real. Fim do hack /2.
+const CACHE_VERSION = 4;
 const CACHE_VERSION_KEY = 'yt_audio_cache_version';
 
 /** Chamado no arranque da app. Se a versão do cache mudou, apaga todos os
@@ -41,12 +43,89 @@ export function cachedAudioFile(videoId: string): File {
   return new File(Paths.cache, `${PREFIX}${videoId}.m4a`);
 }
 
+// ------------------------------------------------------------
+// Índice em memória dos videoIds descarregados — permite badges "disponível
+// offline" em listas (FlatList) sem tocar no sistema de ficheiros por linha.
+// Carregado uma vez no arranque e mantido em sincronia pelas funções abaixo.
+// ------------------------------------------------------------
+let cachedIdsIndex: Set<string> | null = null;
+
+export function loadCachedAudioIndex(): void {
+  try {
+    const ids = new Set<string>();
+    for (const entry of Paths.cache.list()) {
+      if (entry instanceof File && entry.name.startsWith(PREFIX)) {
+        ids.add(entry.name.slice(PREFIX.length).replace(/\.m4a$/, ''));
+      }
+    }
+    cachedIdsIndex = ids;
+  } catch {
+    cachedIdsIndex = null;
+  }
+}
+
+/** true se o áudio deste vídeo já está descarregado (síncrono; usa o índice
+ * em memória e só cai no filesystem se o índice ainda não foi carregado). */
+export function isAudioCached(videoId: string): boolean {
+  if (cachedIdsIndex) return cachedIdsIndex.has(videoId);
+  return cachedAudioFile(videoId).exists;
+}
+
+/** Apaga o áudio descarregado de UMA faixa ("Remover download"). */
+export function removeDownloadedAudio(videoId: string): void {
+  const f = cachedAudioFile(videoId);
+  if (f.exists) f.delete();
+  cachedIdsIndex?.delete(videoId);
+}
+
 /** Apaga todo o áudio de YouTube descarregado localmente (Definições > Clear cache). */
 export function clearDownloadedAudioCache(): void {
   for (const entry of Paths.cache.list()) {
     if (entry instanceof File && entry.name.startsWith(PREFIX)) {
       entry.delete();
     }
+  }
+  cachedIdsIndex = new Set();
+}
+
+// Limite do cache de áudio. Pruning LRU corre APENAS no arranque da app —
+// nunca durante a reprodução (o pruning em pleno playback já causou crashes
+// no passado; ver histórico do smart cache).
+const MAX_CACHE_BYTES = 500 * 1024 * 1024;
+
+/** Remove os ficheiros menos recentes até o cache caber em MAX_CACHE_BYTES.
+ * `protectedIds` (fila atual restaurada) nunca são apagados. */
+export function pruneAudioCacheLRU(protectedIds: string[] = []): void {
+  try {
+    const protectedSet = new Set(protectedIds);
+    const files: { file: File; id: string; size: number; mtime: number }[] = [];
+    let totalBytes = 0;
+    for (const entry of Paths.cache.list()) {
+      if (!(entry instanceof File) || !entry.name.startsWith(PREFIX)) continue;
+      const size = entry.size ?? 0;
+      totalBytes += size;
+      files.push({
+        file: entry,
+        id: entry.name.slice(PREFIX.length).replace(/\.m4a$/, ''),
+        size,
+        mtime: (entry as any).modificationTime ?? 0,
+      });
+    }
+    if (totalBytes <= MAX_CACHE_BYTES) return;
+    files.sort((a, b) => a.mtime - b.mtime); // mais antigos primeiro
+    for (const f of files) {
+      if (totalBytes <= MAX_CACHE_BYTES) break;
+      if (protectedSet.has(f.id)) continue;
+      try {
+        f.file.delete();
+        cachedIdsIndex?.delete(f.id);
+        totalBytes -= f.size;
+      } catch {
+        // ficheiro em uso ou já removido — segue para o próximo
+      }
+    }
+  } catch {
+    // pruning é oportunista; falhar aqui nunca pode impedir o arranque
   }
 }
 
@@ -72,44 +151,64 @@ export async function fetchChunkWithRetry(url: string, start: number, end: numbe
   throw new Error(`Chunk download failed (HTTP ${lastStatus}) at byte ${start}`);
 }
 
+export interface DownloadOptions {
+  /** Consultado entre chunks — devolve true para abortar (faixa trocada,
+   * componente desmontado). Sem isto, saltar 5 faixas deixava 5 downloads
+   * completos a competir pela rede em segundo plano. */
+  shouldAbort?: () => boolean;
+  /** Progresso 0..1 (por chunk descarregado). */
+  onProgress?: (fraction: number) => void;
+}
+
+/** Erro lançado quando um download é abortado via shouldAbort — os callers
+ * tratam-no como cancelamento silencioso, não como falha. */
+export const DOWNLOAD_ABORTED = 'download aborted';
+
 /** Descarrega áudio progressivo por pedaços para armazenamento local e corrige os metadados de duração. */
 export async function downloadProgressiveAudio(
   videoId: string,
   url: string,
   knownLength: number | null,
-  durationSeconds: number | null
+  durationSeconds: number | null,
+  opts: DownloadOptions = {}
 ): Promise<string> {
   const dest = cachedAudioFile(videoId);
   if (dest.exists) return dest.uri;
 
   const total = knownLength ?? (await discoverContentLength(url));
-  const parts: Uint8Array[] = [];
+  const combined = new Uint8Array(total);
   let offset = 0;
   let first = true;
   while (offset < total) {
+    if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
     if (!first) await sleep(CHUNK_PACING_MS);
     first = false;
     const end = Math.min(offset + CHUNK_BYTES, total) - 1;
-    parts.push(await fetchChunkWithRetry(url, offset, end));
+    const part = await fetchChunkWithRetry(url, offset, end);
+    const expected = end - offset + 1;
+    if (part.length !== expected) {
+      throw new Error(`Chunk incompleto (${part.length}/${expected} bytes) @${offset}`);
+    }
+    // Escreve diretamente no buffer final — sem parts[] intermédio, que
+    // duplicava o pico de RAM (2× o ficheiro; ~220MB num mix de 2h).
+    combined.set(part, offset);
     offset = end + 1;
+    opts.onProgress?.(Math.min(1, offset / total));
   }
+  if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
 
-  const combined = new Uint8Array(total);
-  let pos = 0;
-  for (const part of parts) {
-    combined.set(part, pos);
-    pos += part.length;
-  }
-
-  // Corrige a duração no contentor MP4 (m4a) antes de gravar em disco.
-  // O mp4Fixer neutraliza edts/elst (edit lists) e sidx/ssix (segment index),
-  // e com esta neutralização o AVPlayer calcula a duração consistentemente como o
-  // DOBRO da duração definida nos cabeçalhos. Passar a metade resulta na duração exata.
-  if (durationSeconds && durationSeconds > 0) {
-    fixMp4Duration(combined, durationSeconds / 2);
-  }
+  // Corrige a duração no contentor MP4 (m4a) antes de gravar em disco: zera
+  // os cabeçalhos do moov para o AVPlayer deixar de somar moov + fragmentos
+  // (ver mp4Fixer.ts). Não precisa da duração real para isso, por isso corre
+  // sempre — durationSeconds só é usada para o mehd, quando exista.
+  // [duration-debug] log temporário — remover depois de validar no dispositivo
+  console.log(
+    `[duration-debug][download] videoId=${videoId} durationSeconds=${durationSeconds ?? 'null'} bytes=${total}`
+  );
+  fixMp4Duration(combined, durationSeconds);
 
   dest.create({ overwrite: true });
   dest.write(combined);
+  cachedIdsIndex?.add(videoId);
   return dest.uri;
 }

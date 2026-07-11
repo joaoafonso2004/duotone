@@ -30,6 +30,10 @@ import { LyricsView } from './LyricsView';
 import { QueueSheet } from './QueueSheet';
 import { navigationRef } from '../navigation/RootNavigator';
 import { updateCurrentlyPlaying } from '../api/social';
+import {
+  addRemoteCommandListeners,
+  setRemoteCommandsEnabled,
+} from '../../modules/duotone-remote-commands';
 
 const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
@@ -55,6 +59,7 @@ export function PlayerRoot() {
   const buffering = usePlayer((s) => s.buffering);
   const error = usePlayer((s) => s.error);
   const activeBackend = usePlayer((s) => s.activeBackend);
+  const downloadProgress = usePlayer((s) => s.downloadProgress);
 
   const playTrack = usePlayer((s) => s.playTrack);
   const togglePlay = usePlayer((s) => s.togglePlay);
@@ -176,6 +181,27 @@ export function PlayerRoot() {
       if (unsub) unsub();
     };
   }, []);
+
+  // Botões de faixa seguinte/anterior no Lock Screen / Control Center /
+  // auscultadores. O expo-video só publica play/pause/seek; o módulo nativo
+  // local (modules/duotone-remote-commands) regista next/prev no
+  // MPRemoteCommandCenter e reencaminha para a fila do store.
+  useEffect(
+    () =>
+      addRemoteCommandListeners(
+        () => usePlayer.getState().next(),
+        () => usePlayer.getState().prev()
+      ),
+    []
+  );
+  useEffect(() => {
+    const hasTrack = !!current;
+    const hasNext =
+      hasTrack && (queue.length > 1 || repeatMode === 'all' || shuffle);
+    // "Anterior" fica sempre ativo com faixa carregada: com >3s de reprodução
+    // recomeça a faixa (comportamento standard), senão recua na fila.
+    setRemoteCommandsEnabled(hasNext, hasTrack);
+  }, [current, queue.length, repeatMode, shuffle]);
 
   // Pulsar suave da capa durante o carregamento; volta a opaco quando toca.
   useEffect(() => {
@@ -429,7 +455,9 @@ export function PlayerRoot() {
                   </Text>
                 </Pressable>
                 <Text numberOfLines={1} style={styles.trackArtist}>
-                  {current.artist ?? 'YouTube'}
+                  {downloadProgress != null
+                    ? `A descarregar… ${Math.round(downloadProgress * 100)}%`
+                    : current.artist ?? 'YouTube'}
                 </Text>
               </View>
               <Pressable
@@ -611,7 +639,9 @@ export function PlayerRoot() {
                 {current.title}
               </Text>
               <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
-                {current.artist ?? 'YouTube'}
+                {downloadProgress != null
+                  ? `A descarregar… ${Math.round(downloadProgress * 100)}%`
+                  : current.artist ?? 'YouTube'}
               </Text>
             </View>
 

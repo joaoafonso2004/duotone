@@ -4,6 +4,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { hapticImpact, hapticSelection } from '../lib/haptics';
 import { isShowTrackDurationSync } from '../lib/prefs';
+import { isAudioCached } from '../lib/youtubeCache';
 import { colors, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
 import type { Track } from '../types';
@@ -95,6 +96,10 @@ export function TrackRow({
         </Text>
         <View style={styles.metaRow}>
           <SourceBadge source={track.source} />
+          {track.source === 'youtube' && isAudioCached(track.sourceId) ? (
+            // Disponível offline (áudio já descarregado no cache local)
+            <Ionicons name="arrow-down-circle" size={12} color={colors.textSecondary} />
+          ) : null}
           {track.artist ? (
             <Text numberOfLines={1} style={[type.caption, { flexShrink: 1 }]}>
               {track.artist}
