@@ -177,11 +177,14 @@ export async function shareItem(
 export async function getInboxItems(): Promise<SharedItem[]> {
   const currentUid = await currentUserId();
 
-  // Carregar os itens em que o destinatário é o utilizador atual
+  // Carregar os itens em que o destinatário é o utilizador atual.
+  // Itens arquivados (removidos da inbox) ficam de fora — mas continuam
+  // a existir na conversa (getChatMessages não filtra por archived_at).
   const { data, error } = await supabase
     .from('shared_items')
     .select('*')
     .eq('recipient_id', currentUid)
+    .is('archived_at', null)
     .order('created_at', { ascending: false });
 
   if (error || !data || data.length === 0) return [];
@@ -216,9 +219,22 @@ export async function getInboxItems(): Promise<SharedItem[]> {
   });
 }
 
-export async function deleteInboxItem(itemId: string): Promise<void> {
-  const { error } = await supabase.from('shared_items').delete().eq('id', itemId);
-  if (error) throw new Error('Não foi possível apagar a partilha.');
+/** Remove um item da caixa de entrada SEM o apagar da conversa: marca
+ * archived_at em vez de DELETE (que apagava a mensagem dos dois lados —
+ * requer a migração supabase/inbox-archive.sql). */
+export async function archiveInboxItem(itemId: string): Promise<void> {
+  // .select() no fim: sem a política de UPDATE da migração, o Supabase
+  // "atualiza" 0 linhas sem erro — o select vazio denuncia isso.
+  const { data, error } = await supabase
+    .from('shared_items')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', itemId)
+    .select('id');
+  if (error || !data || data.length === 0) {
+    throw new Error(
+      'Não foi possível remover da caixa de entrada. (Já correste a migração supabase/inbox-archive.sql?)'
+    );
+  }
 }
 
 export async function getFriendCount(): Promise<number> {

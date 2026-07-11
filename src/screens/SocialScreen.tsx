@@ -3,7 +3,7 @@ import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNotifications } from '../state/notifications';
 import { AVATAR_GRADIENTS } from '../lib/avatarPrefs';
 import {
@@ -29,7 +29,7 @@ import {
   acceptFriendRequest,
   declineOrRemoveFriendship,
   sendFriendRequest,
-  deleteInboxItem,
+  archiveInboxItem,
   shareItem,
   getChatMessages,
   searchProfiles,
@@ -132,6 +132,15 @@ export function SocialScreen() {
   const [chatInput, setChatInput] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
 
+  // Lista invertida: o FlatList `inverted` renderiza do fundo para cima, por
+  // isso os dados vão do mais recente para o mais antigo. Assim a conversa
+  // abre já na última mensagem e fica presa ao fundo quando o teclado abre —
+  // antes abria no TOPO (mensagem mais antiga), o que dava um ar cru.
+  const chatDataInverted = useMemo(
+    () => [...chatMessages].reverse(),
+    [chatMessages]
+  );
+
   useEffect(() => {
     // Clear notifications when entering SocialScreen
     useNotifications.getState().setHasSocialNotification(false);
@@ -187,11 +196,23 @@ export function SocialScreen() {
   useEffect(() => {
     if (activeChatFriend) {
       loadChat();
-      
+
       // Poll chat messages every 6 seconds for a live chat feel
       const interval = setInterval(() => {
         getChatMessages(activeChatFriend.friendId)
-          .then(setChatMessages)
+          .then((fresh) => {
+            // Só atualiza se mudou mesmo — evita re-render da lista inteira
+            // a cada 6s (e não pisa mensagens otimistas pendentes).
+            setChatMessages((prev) => {
+              if (
+                fresh.length === prev.length &&
+                fresh[fresh.length - 1]?.id === prev[prev.length - 1]?.id
+              ) {
+                return prev;
+              }
+              return fresh;
+            });
+          })
           .catch(() => {});
       }, 6000);
 
@@ -200,19 +221,35 @@ export function SocialScreen() {
   }, [activeChatFriend, loadChat]);
 
   const handleSendMessage = async () => {
-    if (!activeChatFriend || !chatInput.trim()) return;
+    if (!activeChatFriend || !chatInput.trim() || sendingMessage) return;
     const msg = chatInput.trim();
     setChatInput('');
-    setSendingMessage(false);
+    setSendingMessage(true);
     hapticImpact();
+    // Otimista: a mensagem aparece já na conversa; o refetch substitui-a
+    // pela versão do servidor (id real) logo a seguir.
+    const optimistic: SharedItem = {
+      id: `optimistic-${Date.now()}`,
+      sender: { id: 'me-optimistic', username: '', name: '', avatarUrl: null },
+      itemType: 'track',
+      playlistId: null,
+      trackData: null,
+      message: msg,
+      createdAt: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, optimistic]);
     try {
       // Send text-only messages as track items with null trackData
       await shareItem(activeChatFriend.friendId, 'track', null, msg);
       const messages = await getChatMessages(activeChatFriend.friendId);
       setChatMessages(messages);
-      loadInbox();
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not send message.');
+      // Falhou: remove a otimista e devolve o texto ao campo para reenviar.
+      setChatMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
+      setChatInput(msg);
+      Alert.alert('Erro', e?.message ?? 'Não foi possível enviar a mensagem.');
+    } finally {
+      setSendingMessage(false);
     }
   };
 
@@ -302,11 +339,14 @@ export function SocialScreen() {
 
   const handleDeleteInboxItem = async (itemId: string) => {
     hapticSelection();
+    // Otimista: sai já da lista; volta se o servidor recusar.
+    const previous = inboxItems;
+    setInboxItems((prev) => prev.filter((i) => i.id !== itemId));
     try {
-      await deleteInboxItem(itemId);
-      loadInbox();
+      await archiveInboxItem(itemId);
     } catch (e: any) {
-      Alert.alert('Erro', e?.message ?? 'Falha ao apagar partilha.');
+      setInboxItems(previous);
+      Alert.alert('Erro', e?.message ?? 'Falha ao remover da caixa de entrada.');
     }
   };
 
@@ -784,10 +824,13 @@ export function SocialScreen() {
             </View>
           ) : (
             <FlatList
-              data={chatMessages}
+              data={chatDataInverted}
+              inverted
               keyExtractor={(item) => item.id}
               contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="interactive"
               renderItem={({ item }) => {
                 const isMe = item.sender.id !== activeChatFriend?.friendId;
                 return (
@@ -862,6 +905,8 @@ export function SocialScreen() {
               placeholderTextColor={colors.textTertiary}
               style={styles.chatInput}
               autoCorrect={false}
+              returnKeyType="send"
+              submitBehavior="submit"
               onSubmitEditing={handleSendMessage}
             />
             <Pressable
