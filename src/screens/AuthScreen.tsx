@@ -41,6 +41,20 @@ export function AuthScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
+  // O KeyboardAvoidingView encolhe a área de scroll mas não desloca o
+  // conteúdo — o botão de login ficava tapado pelo teclado. Ao abrir o
+  // teclado, fazemos scroll até ao fim para o formulário inteiro (botão
+  // incluído) ficar visível. 'keyboardWillShow' anima em sincronia com o
+  // teclado no iOS; noutras plataformas só existe o 'Did'.
+  const scrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    const evt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const sub = Keyboard.addListener(evt, () => {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 60);
+    });
+    return () => sub.remove();
+  }, []);
+
   useEffect(() => {
     // Fade-in animation for inputs
     Animated.timing(fadeAnim, {
@@ -125,6 +139,7 @@ export function AuthScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView
+          ref={scrollRef}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingTop: insets.top, paddingBottom: insets.bottom + 30 },
@@ -301,11 +316,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xl,
   },
   wordmark: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '600',
+    // Cinzento translúcido — presente mas discreto, integra-se no fundo
+    color: 'rgba(235, 235, 245, 0.32)',
     textAlign: 'center',
-    letterSpacing: -0.5,
+    textTransform: 'uppercase',
+    // Espaçamento largo tipo "etiqueta de marca"
+    letterSpacing: 7,
+    // O letterSpacing acrescenta espaço a seguir à última letra, o que
+    // descentrava o texto — compensa-se com padding igual à esquerda.
+    paddingLeft: 7,
   },
   formContainer: {
     width: '100%',
