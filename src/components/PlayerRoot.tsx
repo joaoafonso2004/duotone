@@ -200,8 +200,12 @@ export function PlayerRoot() {
       hasTrack && (queue.length > 1 || repeatMode === 'all' || shuffle);
     // "Anterior" fica sempre ativo com faixa carregada: com >3s de reprodução
     // recomeça a faixa (comportamento standard), senão recua na fila.
+    // `isPlaying` está nas deps de propósito: o expo-video reativa os skips
+    // ±10s ao registar o player (async, na montagem); re-afirmar quando o
+    // playback começa garante que a nossa configuração corre DEPOIS da dele
+    // e os botões de faixa ganham os slots do Lock Screen.
     setRemoteCommandsEnabled(hasNext, hasTrack);
-  }, [current, queue.length, repeatMode, shuffle]);
+  }, [current, queue.length, repeatMode, shuffle, isPlaying]);
 
   // Pulsar suave da capa durante o carregamento; volta a opaco quando toca.
   useEffect(() => {

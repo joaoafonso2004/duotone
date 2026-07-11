@@ -44,6 +44,16 @@ public class DuotoneRemoteCommandsModule: Module {
       prevTarget = nil
     }
 
+    // O expo-video ativa skipForward/skipBackward (+/-10s) ao registar o
+    // player, e o iOS dá-lhes os slots do Lock Screen por cima de
+    // next/previousTrack. Com os nossos comandos de faixa ativos, desativamos
+    // os skips para os botões de faixa aparecerem. O JS re-invoca isto quando
+    // o playback começa (isPlaying), garantindo que corremos DEPOIS do
+    // registo assíncrono do expo-video.
+    let takeover = next || previous
+    center.skipForwardCommand.isEnabled = !takeover
+    center.skipBackwardCommand.isEnabled = !takeover
+
     center.nextTrackCommand.isEnabled = next
     if next {
       nextTarget = center.nextTrackCommand.addTarget { [weak self] _ in
