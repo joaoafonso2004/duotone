@@ -11,8 +11,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { fetchYouTubePlaylistById, YtPlaylistImport } from '../api/youtube';
-import { createPlaylist, addTracksToPlaylist } from '../api/playlists';
+import { fetchYouTubePlaylistById } from '../api/youtube';
+import {
+  createPlaylist,
+  addTracksToPlaylist,
+  getPlaylistName,
+  getPlaylistTracks,
+  importSharedPlaylist,
+} from '../api/playlists';
 import { usePlayer } from '../state/player';
 import { colors, spacing, type, radii, gradients } from '../theme';
 import { useTheme } from '../state/theme';
@@ -39,61 +45,90 @@ export function YtPlaylistRecommendationSheet({
   onClose,
   onImportDone,
 }: Props) {
-  const [data, setData] = useState<YtPlaylistImport | null>(null);
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [loadedTitle, setLoadedTitle] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const playTrack = usePlayer((s) => s.playTrack);
   const theme = useTheme((s) => s.theme);
 
+  // shared_items.playlist_id tanto pode ser um ID de playlist do YOUTUBE
+  // (partilha via pesquisa) como o UUID de uma playlist INTERNA do Duotone
+  // (partilha das playlists próprias). Mandar um UUID à YouTube Data API dava
+  // "400 Invalid Value" — cada tipo tem o seu caminho de carregamento/import.
+  const isInternalPlaylist = !!playlistId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(playlistId);
+
   useEffect(() => {
-    if (visible && playlistId) {
-      setLoading(true);
-      setData(null);
-      fetchYouTubePlaylistById(playlistId)
-        .then((res) => setData(res))
-        .catch((err) => {
-          Alert.alert('Error', err?.message ?? 'Could not load playlist items.');
-          onClose();
-        })
-        .finally(() => setLoading(false));
-    }
+    if (!visible || !playlistId) return;
+    setLoading(true);
+    setTracks([]);
+    setLoadedTitle(null);
+
+    const load = async (): Promise<void> => {
+      if (isInternalPlaylist) {
+        // Playlist interna partilhada — lê do Supabase (exige as políticas
+        // de supabase/shared-playlists-read.sql para o destinatário).
+        const [name, pts] = await Promise.all([
+          getPlaylistName(playlistId),
+          getPlaylistTracks(playlistId),
+        ]);
+        if (pts.length === 0) {
+          throw new Error(
+            name
+              ? 'A playlist partilhada está vazia.'
+              : 'Sem acesso à playlist partilhada — corre a migração shared-playlists-read.sql no Supabase.'
+          );
+        }
+        setLoadedTitle(name);
+        setTracks(pts);
+        return;
+      }
+      const res = await fetchYouTubePlaylistById(playlistId);
+      setLoadedTitle(res.title);
+      setTracks(
+        res.items.map((i) => ({
+          source: 'youtube' as const,
+          sourceId: i.videoId,
+          title: i.title,
+          artist: extractArtist(i.title, i.channel || null),
+          album: null,
+          artworkUrl: i.thumbnail,
+          durationSeconds: null,
+        }))
+      );
+    };
+
+    load()
+      .catch((err) => {
+        Alert.alert('Error', err?.message ?? 'Could not load playlist items.');
+        onClose();
+      })
+      .finally(() => setLoading(false));
   }, [visible, playlistId]);
 
-  const playlistTracks = (): Track[] => {
-    if (!data) return [];
-    return data.items.map((i) => ({
-      source: 'youtube' as const,
-      sourceId: i.videoId,
-      title: i.title,
-      artist: extractArtist(i.title, i.channel || null),
-      album: null,
-      artworkUrl: i.thumbnail,
-      durationSeconds: null,
-    }));
-  };
-
   const handlePlay = () => {
-    const tracks = playlistTracks();
     if (tracks.length === 0) return;
     playTrack(tracks[0], tracks, true);
     onClose();
   };
 
   const handleSave = async () => {
-    if (!data || saving) return;
-    const tracks = playlistTracks();
-    if (tracks.length === 0) return;
-
+    if (saving || tracks.length === 0) return;
     setSaving(true);
     try {
-      // Create local playlist
-      const pl = await createPlaylist(data.title);
-      // Import tracks
-      await addTracksToPlaylist(pl.id, tracks);
+      const name = loadedTitle ?? playlistTitle ?? 'Playlist';
+      if (isInternalPlaylist && playlistId) {
+        // Copia a playlist partilhada (nome + faixas) para as do utilizador
+        await importSharedPlaylist(playlistId);
+      } else {
+        const pl = await createPlaylist(name);
+        await addTracksToPlaylist(pl.id, tracks);
+      }
       hapticNotification();
       Alert.alert(
         'Success',
-        `Playlist "${data.title}" saved locally with ${tracks.length} tracks!`
+        `Playlist "${name}" saved locally with ${tracks.length} tracks!`
       );
       onImportDone?.();
       onClose();
@@ -116,9 +151,11 @@ export function YtPlaylistRecommendationSheet({
         )}
         <View style={styles.meta}>
           <Text numberOfLines={2} style={type.title}>
-            {playlistTitle ?? 'YouTube Playlist'}
+            {loadedTitle ?? playlistTitle ?? 'Playlist'}
           </Text>
-          <Text style={type.caption}>YouTube Recommendation</Text>
+          <Text style={type.caption}>
+            {isInternalPlaylist ? 'Playlist partilhada' : 'YouTube Recommendation'}
+          </Text>
         </View>
       </View>
 
@@ -155,18 +192,18 @@ export function YtPlaylistRecommendationSheet({
           </View>
 
           <Text style={[type.micro, styles.previewTitle]}>
-            TRACKS PREVIEW ({data?.items.length ?? 0})
+            TRACKS PREVIEW ({tracks.length})
           </Text>
 
           <FlatList
-            data={playlistTracks()}
+            data={tracks}
             keyExtractor={(item, index) => `${item.sourceId}-${index}`}
             style={styles.list}
             contentContainerStyle={{ paddingBottom: 40 }}
             renderItem={({ item }) => (
               <TrackRow
                 track={item}
-                onPress={() => playTrack(item, playlistTracks(), true)}
+                onPress={() => playTrack(item, tracks, true)}
               />
             )}
           />
