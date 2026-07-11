@@ -4,7 +4,9 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -63,6 +65,12 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      {/* Sem isto o teclado tapava a lista de amigos e os botões "Partilhar"
+          quando o campo de mensagem estava focado. */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.sheet} onPress={() => {}}>
           <View style={styles.handle} />
@@ -160,6 +168,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
           </Pressable>
         </Pressable>
       </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
