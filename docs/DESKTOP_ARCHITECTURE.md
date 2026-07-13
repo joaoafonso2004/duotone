@@ -14,6 +14,7 @@ Mobile assumptions were present throughout the UI: bottom-tab navigation, safe-a
 - `electron/main.cjs` owns the BrowserWindow and OS lifecycle only.
 - `electron/preload.cjs` exposes a small, typed IPC capability surface. The renderer has no Node access.
 - Existing Supabase APIs, Zustand stores, domain types, and preferences remain shared.
+- Account profile preferences and play statistics use Supabase as their shared source of truth. AsyncStorage is an offline cache and pending-write queue, including a one-time migration of pre-sync mobile data.
 
 ## Desktop information architecture
 

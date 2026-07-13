@@ -85,5 +85,11 @@ eas build --profile development --platform ios   # ou prebuild num Mac
 npx expo start --dev-client
 ```
 
+Para um projeto Supabase que já existia antes da sincronização do Profile,
+executar também `supabase/cross-device-profile.sql`. Esta migration partilha
+avatar, histórico, contagens e estatísticas entre iOS e Windows. Na primeira
+abertura, cada instalação importa automaticamente os dados locais antigos e,
+depois disso, mantém uma fila offline até conseguir sincronizar.
+
 > Nota: esta app usa módulos nativos (WebView, SecureStore, …) — **não corre
 > no Expo Go**. É preciso um development build (EAS ou Xcode).
