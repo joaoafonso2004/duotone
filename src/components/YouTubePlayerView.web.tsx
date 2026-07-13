@@ -33,11 +33,23 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         },
         events: {
           onReady: (event: any) => {
+            try {
+              event.target.setVolume(state.volume);
+            } catch (err) {
+              console.warn('Failed to set initial volume on YT player', err);
+            }
             event.target.playVideo();
             state.registerYtControls({
               play: () => event.target.playVideo(),
               pause: () => event.target.pauseVideo(),
               seek: (ms) => event.target.seekTo(ms / 1000, true),
+              setVolume: (vol) => {
+                try {
+                  event.target.setVolume(vol);
+                } catch (err) {
+                  console.warn('Failed to set volume on YT player', err);
+                }
+              },
             });
             state._setBuffering(false);
             progress = setInterval(() => {

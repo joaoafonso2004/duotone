@@ -10,7 +10,25 @@ export interface YtControls {
   play: () => void;
   pause: () => void;
   seek: (ms: number) => void;
+  setVolume?: (vol: number) => void;
 }
+
+const getInitialVolume = () => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const stored = window.localStorage.getItem('duotone-volume');
+      if (stored !== null) {
+        const parsed = Number(stored);
+        if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 100) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to read volume from localStorage', e);
+    }
+  }
+  return 80;
+};
 
 /** off = pára no fim · all = repete a fila · one = repete a música atual. */
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -48,6 +66,8 @@ interface PlayerState {
   autoplayOnLoad: boolean;
   /** Posição (ms) a retomar após restauro da sessão; consumida uma vez. */
   resumePositionMs: number | null;
+  volume: number;
+  setVolume: (v: number) => void;
 
   playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean) => Promise<void>;
   playNext: (track: Track) => void;
@@ -131,6 +151,7 @@ export const usePlayer = create<PlayerState>()(
   downloadProgress: null,
   autoplayOnLoad: true,
   resumePositionMs: null,
+  volume: getInitialVolume(),
   _yt: null,
   activeBackend: 'resolving',
 
@@ -281,7 +302,25 @@ export const usePlayer = create<PlayerState>()(
   setShowRewindButton: (v) => set({ showRewindButton: v }),
   setError: (e) => set({ error: e }),
 
-  registerYtControls: (c) => set({ _yt: c }),
+  setVolume: (v) => {
+    const clamped = Math.max(0, Math.min(100, v));
+    set({ volume: clamped });
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.setItem('duotone-volume', String(clamped));
+      } catch (e) {
+        console.warn('Failed to save volume to localStorage', e);
+      }
+    }
+    get()._yt?.setVolume?.(clamped);
+  },
+
+  registerYtControls: (c) => {
+    set({ _yt: c });
+    if (c && c.setVolume) {
+      c.setVolume(get().volume);
+    }
+  },
 
   _setActiveBackend: (b) => set({ activeBackend: b }),
 
