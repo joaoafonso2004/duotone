@@ -1,9 +1,12 @@
 node_modules/
 .expo/
 dist/
+dist-web/
 web-build/
 /ios/
 /android/
+release/
+release-*/
 *.orig.*
 *.jks
 *.p8
