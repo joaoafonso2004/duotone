@@ -22,6 +22,10 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Sem o histórico completo não há tags anteriores nem commits para
+          # construir as notas da versão -- o checkout traz 1 commit por defeito.
+          fetch-depth: 0
 
       - name: Calcular SHA e versão
         id: vars
@@ -132,6 +136,47 @@ jobs:
           path: ${{ steps.pack.outputs.name }}
           retention-days: 30
 
+      # As notas saem dos commits, não do --generate-notes: sem pull requests
+      # esse só produz um link "Full Changelog" e nada mais.
+      #
+      # Para escrever as notas à mão, marca a tag com uma mensagem:
+      #   git tag -a ios-v1.1.0 -m "- Corrige X\n- Adiciona Y"
+      # A mensagem da tag ganha sempre à lista automática.
+      - name: Preparar notas da versão
+        if: steps.vars.outputs.release == 'true'
+        id: notes
+        run: |
+          TAG="${{ steps.vars.outputs.tag }}"
+          # Só uma tag ANOTADA tem mensagem própria. Numa tag simples o git
+          # devolve a mensagem do commit apontado, que não são notas de versão.
+          if [ "$(git cat-file -t "$TAG" 2>/dev/null)" = "tag" ]; then
+            BODY=$(git for-each-ref "refs/tags/$TAG" --format='%(contents)')
+          else
+            BODY=""
+          fi
+
+          if [ -z "$(echo "$BODY" | tr -d '[:space:]')" ]; then
+            PREV=$(git tag -l 'ios-v*' --sort=-v:refname | grep -vx "$TAG" | head -1)
+            if [ -n "$PREV" ]; then RANGE="$PREV..$TAG"; else RANGE="$TAG"; fi
+            BODY=$(git log --no-merges --pretty=format:'- %s' "$RANGE" | head -20)
+            # O link de comparação sozinho conta como conteúdo e escondia o
+            # caso de a lista vir vazia (tag anterior no mesmo commit).
+            [ -z "$(echo "$BODY" | tr -d '[:space:]')" ] && BODY="- Sem alterações de código desde $PREV."
+            if [ -n "$PREV" ]; then
+              LINK="https://github.com/${{ github.repository }}/compare/$PREV...$TAG"
+              BODY=$(printf '%s\n\nComparar com %s: %s' "$BODY" "$PREV" "$LINK")
+            fi
+          fi
+
+          [ -z "$(echo "$BODY" | tr -d '[:space:]')" ] && BODY="Sem alterações registadas."
+
+          {
+            echo "body<<NOTES_EOF"
+            echo "$BODY"
+            echo "NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "--- notas ---"; echo "$BODY"
+
       # Criar o release aqui (em vez de à mão) é o que fecha o ciclo: a tag
       # dispara a build, a build publica, e o release publicado avisa o
       # portfólio através do release.yml.
@@ -143,7 +188,7 @@ jobs:
           gh release create "${{ steps.vars.outputs.tag }}" \
             "${{ steps.pack.outputs.name }}" \
             --title "Duotone iOS ${{ steps.vars.outputs.version }}" \
-            --generate-notes \
+            --notes "${{ steps.notes.outputs.body }}" \
             --verify-tag
           echo "Publicado ${{ steps.vars.outputs.tag }}."
 
