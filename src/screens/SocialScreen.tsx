@@ -592,6 +592,17 @@ export function SocialScreen() {
                                     </>
                                   )}
                                 </View>
+                                {friend.currentlyPlaying && (
+                                  <View style={styles.listeningContainer}>
+                                    <Ionicons name="musical-notes" size={11} color="#30D158" />
+                                    <Text numberOfLines={1} style={styles.listeningText}>
+                                      {friend.currentlyPlaying.title}
+                                      {friend.currentlyPlaying.artist
+                                        ? ` — ${friend.currentlyPlaying.artist}`
+                                        : ''}
+                                    </Text>
+                                  </View>
+                                )}
                              </View>
                              <Pressable
                                onPress={() => handleRemoveFriend(friend.friendId, false)}

@@ -3,6 +3,7 @@ import React, { ReactNode, useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '../theme';
 import type { Track } from '../types';
+import { displayArtist } from '../lib/artistName';
 
 const P = Pressable as any;
 
@@ -15,7 +16,7 @@ export const desktop = {
 export function IconButton({ name, label, onPress, active = false, danger = false }: {
   name: keyof typeof Ionicons.glyphMap; label: string; onPress?: () => void; active?: boolean; danger?: boolean;
 }) {
-  return <P accessibilityLabel={label} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
+  return <P className="control-btn-animate" accessibilityLabel={label} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
   ]}><Ionicons name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} /></P>;
 }
@@ -23,16 +24,21 @@ export function IconButton({ name, label, onPress, active = false, danger = fals
 export function Button({ children, onPress, icon, secondary = false, danger = false, disabled = false }: {
   children: ReactNode; onPress?: () => void; icon?: keyof typeof Ionicons.glyphMap; secondary?: boolean; danger?: boolean; disabled?: boolean;
 }) {
-  return <P disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
+  return <P className="btn-animate" disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.button, secondary && ui.buttonSecondary, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
     pressed && ui.pressed, disabled && ui.disabled,
   ]}>{icon && <Ionicons name={icon} size={16} color={desktop.text} />}<Text style={ui.buttonText}>{children}</Text></P>;
 }
 
 export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput> & { icon?: keyof typeof Ionicons.glyphMap }>(function Field(props, ref) {
-  const { icon, style, ...rest } = props;
+  const { icon, style, onSubmitEditing, ...rest } = props;
+  const handleKeyDown = (e: any) => {
+    if (e.key === 'Enter' || e.keyCode === 13) {
+      onSubmitEditing?.(e);
+    }
+  };
   return <View style={ui.fieldWrap}>{icon && <Ionicons name={icon} size={18} color={desktop.dim} />}<TextInput
-    ref={ref} placeholderTextColor={desktop.dim} selectionColor={desktop.accent} {...rest} style={[ui.field, style]} /></View>;
+    ref={ref} placeholderTextColor={desktop.dim} selectionColor={desktop.accent} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyDown={handleKeyDown} style={[ui.field, style]} /></View>;
 });
 
 export function Page({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {
@@ -69,7 +75,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty }: {
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track); }) as any}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
       <Text style={[ui.trackIndex, { width: 44 }]}>{index + 1}</Text><View style={[ui.trackTitleCell, { flex: 3 }]}><Artwork track={track} /><View style={{ flex: 1 }}><Text numberOfLines={1} style={ui.trackTitle}>{track.title}</Text><Text style={ui.trackSource}>YouTube</Text></View></View>
-      <Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{track.artist || 'Unknown artist'}</Text><Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{track.album || '—'}</Text><Text style={[ui.trackMeta, { width: 72, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>
+      <Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{displayArtist(track)}</Text><Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{track.album || '—'}</Text><Text style={[ui.trackMeta, { width: 72, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>
       <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track)} /></P>)}
   </View>;
 }

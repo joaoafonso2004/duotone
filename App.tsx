@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { UpdateSheet } from './src/components/UpdateSheet';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
   getRepeatMode,
@@ -76,6 +77,7 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       <RootNavigator />
+      <UpdateSheet />
     </SafeAreaProvider>
   );
 }

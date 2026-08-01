@@ -1,6 +1,19 @@
-import { File, Paths } from 'expo-file-system';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixMp4Duration } from './mp4Fixer';
+
+let File: any;
+let Paths: any;
+
+if (Platform.OS !== 'web') {
+  try {
+    const FileSystem = require('expo-file-system');
+    File = FileSystem.File;
+    Paths = FileSystem.Paths;
+  } catch (e) {
+    console.warn('Failed to load expo-file-system on native', e);
+  }
+}
 
 const PREFIX = 'yt-audio-';
 
@@ -16,6 +29,7 @@ const CACHE_VERSION_KEY = 'yt_audio_cache_version';
  * ficheiros de áudio em cache para que sejam re-descarregados com o novo
  * mp4Fixer aplicado. */
 export async function invalidateStaleAudioCache(): Promise<void> {
+  if (Platform.OS === 'web') return;
   try {
     const stored = await AsyncStorage.getItem(CACHE_VERSION_KEY);
     if (stored === String(CACHE_VERSION)) return; // já está atualizado
@@ -39,7 +53,8 @@ function sleep(ms: number): Promise<void> {
 
 /** Cache local do áudio (mp4 progressivo) por videoId — evita descarregar
  * outra vez ao voltar a tocar a mesma faixa (ver YouTubePlayerView). */
-export function cachedAudioFile(videoId: string): File {
+export function cachedAudioFile(videoId: string): any {
+  if (Platform.OS === 'web') return null;
   return new File(Paths.cache, `${PREFIX}${videoId}.m4a`);
 }
 
@@ -51,6 +66,7 @@ export function cachedAudioFile(videoId: string): File {
 let cachedIdsIndex: Set<string> | null = null;
 
 export function loadCachedAudioIndex(): void {
+  if (Platform.OS === 'web') return;
   try {
     const ids = new Set<string>();
     for (const entry of Paths.cache.list()) {
@@ -67,19 +83,23 @@ export function loadCachedAudioIndex(): void {
 /** true se o áudio deste vídeo já está descarregado (síncrono; usa o índice
  * em memória e só cai no filesystem se o índice ainda não foi carregado). */
 export function isAudioCached(videoId: string): boolean {
+  if (Platform.OS === 'web') return false;
   if (cachedIdsIndex) return cachedIdsIndex.has(videoId);
-  return cachedAudioFile(videoId).exists;
+  const file = cachedAudioFile(videoId);
+  return file ? file.exists : false;
 }
 
 /** Apaga o áudio descarregado de UMA faixa ("Remover download"). */
 export function removeDownloadedAudio(videoId: string): void {
+  if (Platform.OS === 'web') return;
   const f = cachedAudioFile(videoId);
-  if (f.exists) f.delete();
+  if (f && f.exists) f.delete();
   cachedIdsIndex?.delete(videoId);
 }
 
 /** Apaga todo o áudio de YouTube descarregado localmente (Definições > Clear cache). */
 export function clearDownloadedAudioCache(): void {
+  if (Platform.OS === 'web') return;
   for (const entry of Paths.cache.list()) {
     if (entry instanceof File && entry.name.startsWith(PREFIX)) {
       entry.delete();
@@ -96,9 +116,10 @@ const MAX_CACHE_BYTES = 500 * 1024 * 1024;
 /** Remove os ficheiros menos recentes até o cache caber em MAX_CACHE_BYTES.
  * `protectedIds` (fila atual restaurada) nunca são apagados. */
 export function pruneAudioCacheLRU(protectedIds: string[] = []): void {
+  if (Platform.OS === 'web') return;
   try {
     const protectedSet = new Set(protectedIds);
-    const files: { file: File; id: string; size: number; mtime: number }[] = [];
+    const files: { file: any; id: string; size: number; mtime: number }[] = [];
     let totalBytes = 0;
     for (const entry of Paths.cache.list()) {
       if (!(entry instanceof File) || !entry.name.startsWith(PREFIX)) continue;
@@ -172,6 +193,7 @@ export async function downloadProgressiveAudio(
   durationSeconds: number | null,
   opts: DownloadOptions = {}
 ): Promise<string> {
+  if (Platform.OS === 'web') return '';
   const dest = cachedAudioFile(videoId);
   if (dest.exists) return dest.uri;
 

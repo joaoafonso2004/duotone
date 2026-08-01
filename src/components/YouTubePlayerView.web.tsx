@@ -1,5 +1,4 @@
 import React, { useEffect, useRef } from 'react';
-import { View } from 'react-native';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 
@@ -12,6 +11,7 @@ declare global {
 
 export function YouTubePlayerView({ track }: { track: Track }) {
   const hostId = useRef(`duotone-player-${Math.random().toString(36).slice(2)}`);
+  const playerRef = useRef<any>(null);
 
   useEffect(() => {
     let player: any;
@@ -33,12 +33,28 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         },
         events: {
           onReady: (event: any) => {
+            playerRef.current = event.target;
             try {
               event.target.setVolume(state.volume);
             } catch (err) {
               console.warn('Failed to set initial volume on YT player', err);
             }
-            event.target.playVideo();
+            let rate = 1.0;
+            const activePreset = usePlayer.getState().soundPreset;
+            if (activePreset === 'slowed') rate = 0.85;
+            else if (activePreset === 'fast') rate = 1.35;
+            try {
+              event.target.setPlaybackRate?.(rate);
+            } catch {}
+            const initialPos = usePlayer.getState().positionMs;
+            if (initialPos > 1500) {
+              event.target.seekTo(initialPos / 1000, true);
+            }
+            if (usePlayer.getState().isPlaying) {
+              event.target.playVideo();
+            } else {
+              event.target.pauseVideo();
+            }
             state.registerYtControls({
               play: () => event.target.playVideo(),
               pause: () => event.target.pauseVideo(),
@@ -56,6 +72,22 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               const duration = Number(event.target.getDuration?.() || 0) * 1000;
               const position = Number(event.target.getCurrentTime?.() || 0) * 1000;
               usePlayer.getState()._setProgress(position, duration);
+
+              try {
+                const iframe = document.getElementById(hostId.current) as HTMLIFrameElement | null;
+                const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
+                const videos = doc?.querySelectorAll('video');
+                videos?.forEach((video: any) => {
+                  if (video.preservesPitch !== false) {
+                    video.preservesPitch = false;
+                    video.mozPreservesPitch = false;
+                    video.webkitPreservesPitch = false;
+                    const currentRate = video.playbackRate;
+                    video.playbackRate = 1.0;
+                    video.playbackRate = currentRate;
+                  }
+                });
+              } catch {}
             }, 500);
           },
           onStateChange: (event: any) => {
@@ -68,14 +100,16 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           },
           onError: () => {
             state._setBuffering(false);
-            state.setError('YouTube could not play this track.');
+            state.setError('Playback error');
           },
         },
       });
+      playerRef.current = player;
     };
 
-    if (window.YT?.Player) mount();
-    else {
+    if (window.YT?.Player) {
+      mount();
+    } else {
       const previous = window.onYouTubeIframeAPIReady;
       window.onYouTubeIframeAPIReady = () => { previous?.(); mount(); };
       if (!document.querySelector('script[data-duotone-youtube]')) {
@@ -90,9 +124,38 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       disposed = true;
       if (progress) clearInterval(progress);
       usePlayer.getState().registerYtControls(null);
-      player?.destroy?.();
+      playerRef.current = null;
+      try { player?.pauseVideo?.(); } catch {}
+      try { player?.mute?.(); } catch {}
+      try { player?.destroy?.(); } catch {}
     };
   }, [track.sourceId]);
 
-  return <View nativeID={hostId.current} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} />;
+  const soundPreset = usePlayer((s) => s.soundPreset);
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!p) return;
+    let rate = 1.0;
+    if (soundPreset === 'slowed') rate = 0.85;
+    else if (soundPreset === 'fast') rate = 1.35;
+    try {
+      p.setPlaybackRate?.(rate);
+      setTimeout(() => {
+        try {
+          const iframe = document.getElementById(hostId.current) as HTMLIFrameElement | null;
+          const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
+          const videos = doc?.querySelectorAll('video');
+          videos?.forEach((video: any) => {
+            video.preservesPitch = false;
+            video.mozPreservesPitch = false;
+            video.webkitPreservesPitch = false;
+            video.playbackRate = 1.0;
+            video.playbackRate = rate;
+          });
+        } catch {}
+      }, 80);
+    } catch {}
+  }, [soundPreset]);
+
+  return <div id={hostId.current} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} />;
 }

@@ -7,6 +7,9 @@ web-build/
 /android/
 release/
 release-*/
+# Binários distribuíveis vivem nos Releases do GitHub, não no repositório.
+*.ipa
+*.exe
 *.orig.*
 *.jks
 *.p8
@@ -19,3 +22,6 @@ release-*/
 npm-debug.*
 yarn-debug.*
 yarn-error.*
+
+# Scripts de teste locais: tocam a base de dados com credenciais reais.
+test-*.mjs

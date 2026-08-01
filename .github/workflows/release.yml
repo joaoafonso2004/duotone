@@ -1,0 +1,81 @@
+name: Publicar release
+
+# Rede de segurança para releases criados À MÃO no separador Releases.
+#
+# O caminho normal é outro: `git push origin ios-v1.2.0` faz o build-ios.yml
+# (ou o build-windows.yml) compilar, publicar o release e avisar o portfólio
+# de uma só vez. Esses releases não passam por aqui — o GitHub não dispara
+# `release: published` para eventos criados com o GITHUB_TOKEN.
+#
+# Este workflow existe para quando arrastas um ficheiro para um release novo
+# pela interface web: renomeia o anexo para o nome canónico e avisa o site.
+#
+# Convenção de tags — é o que torna as plataformas independentes:
+#   ios-v1.2.0  → só notifica os iPhones
+#   win-v1.0.0  → só notifica os PCs
+on:
+  release:
+    types: [published, edited]
+
+permissions:
+  contents: write
+
+env:
+  # ⚠️ Confirma que corresponde ao repositório do portfólio.
+  PORTFOLIO_REPO: joaoafonso2004/Portfolio
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Identificar plataforma pela tag
+        id: plat
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          case "$TAG" in
+            ios-v*) echo "id=ios"     >> "$GITHUB_OUTPUT"; echo "asset=Duotone.ipa"       >> "$GITHUB_OUTPUT"; echo "ext=.ipa" >> "$GITHUB_OUTPUT" ;;
+            win-v*) echo "id=windows" >> "$GITHUB_OUTPUT"; echo "asset=Duotone-Setup.exe" >> "$GITHUB_OUTPUT"; echo "ext=.exe" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::error::Tag '$TAG' não segue a convenção. Usa ios-vX.Y.Z ou win-vX.Y.Z."
+              exit 1 ;;
+          esac
+
+      # O nome do ficheiro construído muda a cada build (traz o SHA, ou a
+      # versão com espaços). O portfólio precisa de um nome estável, por isso
+      # renomeia-se o asset em vez de obrigar a renomear à mão antes de anexar.
+      - name: Normalizar nome do ficheiro
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WANT: ${{ steps.plat.outputs.asset }}
+          EXT: ${{ steps.plat.outputs.ext }}
+          RELEASE_ID: ${{ github.event.release.id }}
+        run: |
+          set -euo pipefail
+          ASSETS=$(gh api "repos/${{ github.repository }}/releases/$RELEASE_ID/assets")
+
+          if echo "$ASSETS" | jq -e --arg w "$WANT" '.[] | select(.name == $w)' > /dev/null; then
+            echo "Já existe '$WANT' — nada a fazer."
+            exit 0
+          fi
+
+          ID=$(echo "$ASSETS" | jq -r --arg e "$EXT" 'map(select(.name | endswith($e))) | .[0].id // empty')
+          if [ -z "$ID" ]; then
+            echo "::error::Nenhum ficheiro $EXT anexado ao release ${{ github.event.release.tag_name }}."
+            exit 1
+          fi
+
+          OLD=$(echo "$ASSETS" | jq -r --argjson i "$ID" '.[] | select(.id == $i) | .name')
+          gh api -X PATCH "repos/${{ github.repository }}/releases/assets/$ID" -f name="$WANT" > /dev/null
+          echo "Renomeado '$OLD' → '$WANT'."
+
+      - name: Avisar o portfólio
+        env:
+          # PAT com permissão de escrita no repositório do portfólio.
+          # O GITHUB_TOKEN por defeito não consegue disparar noutro repositório.
+          GH_TOKEN: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}
+        run: |
+          gh api -X POST "repos/${{ env.PORTFOLIO_REPO }}/dispatches" \
+            -f event_type=release-published \
+            -F "client_payload[platform]=${{ steps.plat.outputs.id }}" \
+            -F "client_payload[tag]=${{ github.event.release.tag_name }}"
+          echo "Portfólio notificado (${{ steps.plat.outputs.id }})."

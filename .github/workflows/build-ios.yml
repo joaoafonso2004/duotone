@@ -1,11 +1,21 @@
 name: Build iOS (.ipa sem assinatura)
 
-# Corre automaticamente em cada push ao main, ou manualmente
-# no separador Actions -> "Run workflow".
+# Dois modos, o mesmo build:
+#
+#   push para main/Testing  -> .ipa como artefacto, para testar
+#   push de uma tag ios-v*  -> .ipa publicado como Release, e o portfólio
+#                              atualiza-se sozinho a seguir
+#
+# Lançar uma versão passa a ser:
+#   git tag ios-v1.2.0 && git push origin ios-v1.2.0
 on:
   workflow_dispatch:
   push:
     branches: [main, Testing]
+    tags: ['ios-v*']
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -13,9 +23,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Calcular SHA curto
+      - name: Calcular SHA e versão
         id: vars
-        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+          if [[ "$GITHUB_REF" == refs/tags/ios-v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            echo "release=true"        >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG"            >> "$GITHUB_OUTPUT"
+            echo "version=${TAG#ios-v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "version=$(node -p "require('./app.json').expo.version")" >> "$GITHUB_OUTPUT"
+          fi
+
+      # A versão da tag manda sobre a do app.json, para que o Info.plist, o
+      # bundle-version do manifest e o APP_VERSION que a app compara digam
+      # todos o mesmo. Divergirem faria a app avisar-se a si própria em ciclo.
+      - name: Alinhar a versão do app.json com a tag
+        if: steps.vars.outputs.release == 'true'
+        run: |
+          node -e "
+            const fs = require('fs');
+            const j = JSON.parse(fs.readFileSync('app.json'));
+            const was = j.expo.version;
+            j.expo.version = '${{ steps.vars.outputs.version }}';
+            fs.writeFileSync('app.json', JSON.stringify(j, null, 2) + '\n');
+            console.log('app.json: ' + was + ' -> ' + j.expo.version);
+          "
 
       # Grava o commit exato desta build dentro do bundle JS, visível em
       # Definições > About -- para nunca mais haver dúvida sobre qual build
@@ -27,7 +63,9 @@ jobs:
           // Gerado automaticamente pela CI (build-ios.yml) a cada build.
           // Não editar à mão -- é sobrescrito no próximo push.
           export const BUILD_ID = '${{ steps.vars.outputs.short_sha }}';
+          export const APP_VERSION = '${{ steps.vars.outputs.version }}';
           EOF
+          echo "Build ${{ steps.vars.outputs.short_sha }} da versão ${{ steps.vars.outputs.version }}"
 
       # O expo-video puxa uma dependência SPM que exige Swift 6.2. O Xcode 16.4
       # (default no runner) só traz Swift 6.1, por isso escolhemos o mais recente
@@ -69,15 +107,58 @@ jobs:
             archive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
 
+      # Nos releases o ficheiro chama-se sempre Duotone.ipa, porque é esse o
+      # nome que o portfólio procura. Nas builds de teste mantém-se o SHA no
+      # nome, para não haver dúvidas sobre qual build se instalou.
       - name: Empacotar .ipa
+        id: pack
         run: |
           mkdir Payload
           cp -R build/Duotone.xcarchive/Products/Applications/Duotone.app Payload/
-          zip -qr "Duotone-${{ steps.vars.outputs.short_sha }}.ipa" Payload
+          if [ "${{ steps.vars.outputs.release }}" = "true" ]; then
+            NAME="Duotone.ipa"
+          else
+            NAME="Duotone-${{ steps.vars.outputs.short_sha }}.ipa"
+          fi
+          zip -qr "$NAME" Payload
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          ls -lh "$NAME"
 
       - name: Publicar .ipa como artefacto
+        if: steps.vars.outputs.release != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Duotone-ipa-${{ steps.vars.outputs.short_sha }}
-          path: Duotone-${{ steps.vars.outputs.short_sha }}.ipa
+          path: ${{ steps.pack.outputs.name }}
           retention-days: 30
+
+      # Criar o release aqui (em vez de à mão) é o que fecha o ciclo: a tag
+      # dispara a build, a build publica, e o release publicado avisa o
+      # portfólio através do release.yml.
+      - name: Publicar Release
+        if: steps.vars.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.vars.outputs.tag }}" \
+            "${{ steps.pack.outputs.name }}" \
+            --title "Duotone iOS ${{ steps.vars.outputs.version }}" \
+            --generate-notes \
+            --verify-tag
+          echo "Publicado ${{ steps.vars.outputs.tag }}."
+
+      # Um release criado com o GITHUB_TOKEN não dispara o evento
+      # `release: published` -- é uma proteção do GitHub contra workflows
+      # recursivos. Por isso avisa-se o portfólio aqui, em vez de contar com
+      # o release.yml. Se falhar, o sync agendado apanha na mesma.
+      - name: Avisar o portfólio
+        if: steps.vars.outputs.release == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}
+          PORTFOLIO_REPO: joaoafonso2004/Portfolio
+        run: |
+          gh api -X POST "repos/$PORTFOLIO_REPO/dispatches" \
+            -f event_type=release-published \
+            -F "client_payload[platform]=ios" \
+            -F "client_payload[tag]=${{ steps.vars.outputs.tag }}"
