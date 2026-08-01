@@ -75,8 +75,16 @@ jobs:
           export const APP_VERSION = '${{ steps.vars.outputs.version }}';
           EOF
 
-      - name: Compilar bundle web e instalador
-        run: npm run desktop:build
+      # Não se usa `npm run desktop:build` aqui de propósito. Em CI e sobre uma
+      # tag, o electron-builder assume que também lhe compete publicar no
+      # GitHub Releases e aborta por não ter GH_TOKEN -- mesmo tendo gerado o
+      # instalador com sucesso. Quem publica é o passo `gh release create`
+      # mais abaixo, que garante o nome de ficheiro que o portfólio procura.
+      - name: Compilar bundle web
+        run: npm run web:build
+
+      - name: Empacotar instalador
+        run: npx electron-builder --win --publish never
 
       # O electron-builder gera "Duotone Setup 1.1.0.exe" (com espaços e a
       # versão no nome). O portfólio procura um nome fixo.
