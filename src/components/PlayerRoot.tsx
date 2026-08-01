@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
+  AppState,
   PanResponder,
   Pressable,
   ScrollView,
@@ -29,7 +30,7 @@ import { YouTubePlayerView } from './YouTubePlayerView';
 import { LyricsView } from './LyricsView';
 import { QueueSheet } from './QueueSheet';
 import { navigationRef } from '../navigation/RootNavigator';
-import { updateCurrentlyPlaying } from '../api/social';
+import { clearPresence, publishPresence } from '../api/social';
 import {
   addRemoteCommandListeners,
   setRemoteCommandsEnabled,
@@ -137,10 +138,31 @@ export function PlayerRoot() {
     }).start();
   }, [shouldHide]);
 
-  // Desativado para otimizar desempenho e evitar lag/crashes durante a reprodução
-  // useEffect(() => {
-  //   updateCurrentlyPlaying(current, isPlaying);
-  // }, [current, isPlaying]);
+  // Publicação do "a ouvir agora".
+  //
+  // Isto esteve desativado por causar lag: chamava a rede a cada mudança do
+  // leitor, e saltar faixas disparava um pedido por salto. O
+  // `publishPresence` agrupa as chamadas (2s), por isso uma rajada de saltos
+  // dá um pedido só, já depois de o utilizador ter parado de saltar.
+  useEffect(() => {
+    publishPresence(current, isPlaying);
+  }, [current, isPlaying]);
+
+  // Ir para segundo plano conta como deixar de ouvir: sem isto, fechar a app
+  // pelo gesto deixava a faixa gravada no perfil até expirar.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        publishPresence(usePlayer.getState().current, usePlayer.getState().isPlaying);
+      } else {
+        clearPresence();
+      }
+    });
+    return () => {
+      sub.remove();
+      clearPresence();
+    };
+  }, []);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));

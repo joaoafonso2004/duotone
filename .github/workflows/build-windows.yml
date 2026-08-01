@@ -1,0 +1,128 @@
+name: Build Windows (.exe)
+
+# Espelha o build-ios.yml, do lado do PC:
+#
+#   workflow_dispatch        -> .exe como artefacto, para testar
+#   push de uma tag win-v*   -> .exe publicado como Release
+#
+# Lançar uma versão de PC passa a ser:
+#   git tag win-v1.1.0 && git push origin win-v1.1.0
+#
+# Deixa de ser preciso compilar na tua máquina e arrastar o ficheiro.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['win-v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Calcular SHA e versão
+        id: vars
+        run: |
+          echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/win-v* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            echo "release=true"          >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG"              >> "$GITHUB_OUTPUT"
+            echo "version=${TAG#win-v}"  >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+
+      - name: Criar .env a partir do secret
+        run: printf '%s' "$ENV_FILE" > .env
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }}
+
+      # O electron-builder lê a versão do package.json — sem isto o instalador
+      # sairia com a versão antiga mesmo estando a lançar outra.
+      - name: Alinhar versões com a tag
+        if: steps.vars.outputs.release == 'true'
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = JSON.parse(fs.readFileSync('package.json'));
+            p.version = '${{ steps.vars.outputs.version }}';
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+            console.log('package.json -> ' + p.version);
+          "
+
+      - name: Gravar identificador da build
+        run: |
+          cat > src/lib/buildInfo.ts <<EOF
+          // Gerado automaticamente pela CI (build-windows.yml) a cada build.
+          // Não editar à mão -- é sobrescrito no próximo push.
+          export const BUILD_ID = '${{ steps.vars.outputs.short_sha }}';
+          export const APP_VERSION = '${{ steps.vars.outputs.version }}';
+          EOF
+
+      - name: Compilar bundle web e instalador
+        run: npm run desktop:build
+
+      # O electron-builder gera "Duotone Setup 1.1.0.exe" (com espaços e a
+      # versão no nome). O portfólio procura um nome fixo.
+      - name: Normalizar nome do instalador
+        id: pack
+        run: |
+          set -euo pipefail
+          SRC=$(find release -maxdepth 1 -name "*.exe" | head -1)
+          if [ -z "$SRC" ]; then
+            echo "::error::O electron-builder não produziu nenhum .exe."
+            ls -la release || true
+            exit 1
+          fi
+          mv "$SRC" "release/Duotone-Setup.exe"
+          ls -lh release/Duotone-Setup.exe
+
+      - name: Publicar .exe como artefacto
+        if: steps.vars.outputs.release != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Duotone-exe-${{ steps.vars.outputs.short_sha }}
+          path: release/Duotone-Setup.exe
+          retention-days: 30
+
+      - name: Publicar Release
+        if: steps.vars.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.vars.outputs.tag }}" \
+            "release/Duotone-Setup.exe" \
+            --title "Duotone para Windows ${{ steps.vars.outputs.version }}" \
+            --generate-notes \
+            --verify-tag
+          echo "Publicado ${{ steps.vars.outputs.tag }}."
+
+      # Ver a nota equivalente no build-ios.yml: releases criados com o
+      # GITHUB_TOKEN não disparam `release: published`.
+      - name: Avisar o portfólio
+        if: steps.vars.outputs.release == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.PORTFOLIO_DISPATCH_TOKEN }}
+          PORTFOLIO_REPO: joaoafonso2004/Portfolio
+        run: |
+          gh api -X POST "repos/$PORTFOLIO_REPO/dispatches" \
+            -f event_type=release-published \
+            -F "client_payload[platform]=windows" \
+            -F "client_payload[tag]=${{ steps.vars.outputs.tag }}"

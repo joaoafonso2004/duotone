@@ -27,6 +27,20 @@ function clean(s: string): string {
     .trim();
 }
 
+const KNOWN_ARTISTS = [
+  'Juice WRLD', 'The Weeknd', 'Drake', 'Eminem', 'Billie Eilish', 
+  'Travis Scott', 'Taylor Swift', 'Kanye West', 'Post Malone', 
+  'Kendrick Lamar', 'J. Cole', 'Lil Baby', 'Lil Peep', 'Mac Miller', 
+  'XXXTentacion', 'Justin Bieber', 'Ariana Grande', 'Ed Sheeran', 
+  'Rihanna', 'Dua Lipa', 'Coldplay', 'Imagine Dragons', 'Bruno Mars',
+  'Lil Uzi Vert', 'Gunna', 'Playboi Carti', 'Young Thug', 'Future',
+  '21 Savage', 'A$AP Rocky', 'Tyler, The Creator', 'Frank Ocean',
+  'Lana Del Rey', 'Olivia Rodrigo', 'Harry Styles', 'Shawn Mendes',
+  'Selena Gomez', 'Camila Cabello', 'Halsey', 'Khalid', 'SZA',
+  'Doja Cat', 'Cardi B', 'Megan Thee Stallion', 'Nicki Minaj',
+  'Lil Nas X', 'DaBaby', 'Roddy Ricch', 'Jack Harlow', 'Kid Cudi'
+];
+
 export function extractArtist(title: string | null, channel: string | null): string | null {
   // 1) Canal auto-gerado "Artista - Topic" — a fonte mais fiável
   if (channel && / - Topic$/.test(channel)) {
@@ -34,27 +48,51 @@ export function extractArtist(title: string | null, channel: string | null): str
     if (name) return name;
   }
 
-  // 2) Título "Artista - Título" (dash com espaços à volta, para não partir
-  //    palavras hifenizadas; aceita hífen, en dash e em dash)
+  // 2) Título "Artista - Título" (dash com espaços à volta)
   if (title) {
     const m = title.match(/^(.{2,60}?)\s+[-–—]\s+.+$/);
     if (m) {
       const candidate = clean(m[1]);
-      // rejeita candidatos que claramente não são nomes (só dígitos, vazio)
       if (candidate.length >= 2 && !/^\d+$/.test(candidate)) {
         return candidate;
       }
     }
   }
 
+  // 3) Canais VEVO: "TheWeekndVEVO" -> "The Weeknd"
   if (channel) {
-    // 3) Canais VEVO: "TheWeekndVEVO" -> "The Weeknd"
     const vevo = channel.match(/^(.+?)\s*VEVO$/i);
     if (vevo) {
       const name = clean(vevo[1].replace(/([a-z])([A-Z])/g, '$1 $2'));
       if (name) return name;
     }
-    // 4) Fallback: canal limpo de sufixos de marketing comuns
+  }
+
+  // 4) Título contém artista conhecido (ex: "juice wrld wishing well" sem hífen)
+  if (title) {
+    const titleWithoutFeat = title.replace(/\s+(?:feat\.?|ft\.?|featuring)\s+.*$/i, '');
+    for (const artist of KNOWN_ARTISTS) {
+      const escaped = artist.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp('\\b' + escaped + '\\b', 'i');
+      if (regex.test(titleWithoutFeat)) {
+        return artist;
+      }
+    }
+  }
+
+  // 5) Canal contém artista conhecido (ex: "Juice WRLD Fanpage")
+  if (channel) {
+    for (const artist of KNOWN_ARTISTS) {
+      const escaped = artist.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp('\\b' + escaped + '\\b', 'i');
+      if (regex.test(channel)) {
+        return artist;
+      }
+    }
+  }
+
+  // 6) Fallback: canal limpo de sufixos de marketing comuns
+  if (channel) {
     const name = clean(channel.replace(/\s*[-–—|]?\s*(?:official|oficial)\s*$/i, ''));
     if (name) return name;
   }

@@ -1,3 +1,4 @@
+import { livePresence, PRESENCE_DEBOUNCE_MS, PRESENCE_HEARTBEAT_MS } from '../lib/presence';
 import { supabase } from '../lib/supabase';
 import type { Track } from '../types';
 
@@ -116,7 +117,10 @@ export async function getFriendships(): Promise<Friendship[]> {
       status: r.status as 'pending' | 'accepted',
       isSender: r.requester_id === currentUid,
       lastSeenAt: profile?.last_seen_at || null,
-      currentlyPlaying: profile?.currently_playing || null,
+      // Filtrado à leitura: registos antigos (app fechada sem limpar) ou em
+      // pausa não contam como "a ouvir". Corrige também o que já está preso
+      // na base de dados, sem migração.
+      currentlyPlaying: livePresence(profile?.currently_playing),
     };
   });
 }
@@ -304,25 +308,34 @@ export async function getChatMessages(friendId: string): Promise<SharedItem[]> {
   });
 }
 
+/**
+ * Escreve (ou limpa) o "a ouvir agora" do utilizador atual.
+ *
+ * Chamar diretamente a cada mudança de estado do leitor era o que causava
+ * lag ao saltar faixas — cada salto disparava um pedido. Usa antes
+ * `publishPresence`, que agrupa as chamadas.
+ */
 export async function updateCurrentlyPlaying(track: any | null, isPlaying: boolean): Promise<void> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    let payload: any = null;
-    if (track) {
-      payload = {
-        id: track.id || null,
-        source: track.source,
-        sourceId: track.sourceId,
-        title: track.title,
-        artist: track.artist || null,
-        artworkUrl: track.artworkUrl || null,
-        durationSeconds: track.durationSeconds || null,
-        isPlaying,
-        updatedAt: new Date().toISOString(),
-      };
-    }
+    // Em pausa não se guarda a faixa: um registo pausado deixado para trás é
+    // exatamente o que fazia os amigos aparecerem a ouvir algo para sempre.
+    const payload =
+      track && isPlaying
+        ? {
+            id: track.id || null,
+            source: track.source,
+            sourceId: track.sourceId,
+            title: track.title,
+            artist: track.artist || null,
+            artworkUrl: track.artworkUrl || null,
+            durationSeconds: track.durationSeconds || null,
+            isPlaying: true,
+            updatedAt: new Date().toISOString(),
+          }
+        : null;
 
     await supabase
       .from('profiles')
@@ -331,6 +344,53 @@ export async function updateCurrentlyPlaying(track: any | null, isPlaying: boole
   } catch {
     // silently fail
   }
+}
+
+let presenceTimer: ReturnType<typeof setTimeout> | null = null;
+let presenceBeat: ReturnType<typeof setInterval> | null = null;
+let presenceLast: { track: any | null; isPlaying: boolean } = { track: null, isPlaying: false };
+
+/**
+ * Ponto de entrada usado pelas duas plataformas.
+ *
+ * Agrupa as escritas (saltar 5 faixas seguidas dá um pedido, não cinco) e
+ * mantém um batimento enquanto toca, para o registo não expirar a meio de um
+ * tema longo.
+ */
+export function publishPresence(track: any | null, isPlaying: boolean): void {
+  presenceLast = { track, isPlaying };
+
+  if (presenceTimer) clearTimeout(presenceTimer);
+  presenceTimer = setTimeout(() => {
+    void updateCurrentlyPlaying(presenceLast.track, presenceLast.isPlaying);
+  }, PRESENCE_DEBOUNCE_MS);
+
+  if (presenceBeat) {
+    clearInterval(presenceBeat);
+    presenceBeat = null;
+  }
+  if (track && isPlaying) {
+    presenceBeat = setInterval(() => {
+      void updateCurrentlyPlaying(presenceLast.track, presenceLast.isPlaying);
+    }, PRESENCE_HEARTBEAT_MS);
+  }
+}
+
+/**
+ * Limpeza imediata, sem passar pelo agrupamento: para sair da app, ir para
+ * segundo plano ou fechar a janela, onde não há tempo para esperar.
+ */
+export function clearPresence(): void {
+  if (presenceTimer) {
+    clearTimeout(presenceTimer);
+    presenceTimer = null;
+  }
+  if (presenceBeat) {
+    clearInterval(presenceBeat);
+    presenceBeat = null;
+  }
+  presenceLast = { track: null, isPlaying: false };
+  void updateCurrentlyPlaying(null, false);
 }
 
 export interface FriendProfile {

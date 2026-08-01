@@ -88,6 +88,9 @@ async function applyDeltas(entries: PlayCountEntry[]): Promise<boolean> {
       lastPlayed: entry.lastPlayed,
     })),
   });
+  if (error) {
+    console.error('applyDeltas error:', error.message, error.details);
+  }
   return !error;
 }
 
@@ -96,7 +99,10 @@ async function pullRemote(uid: string): Promise<PlayCounts | null> {
     .from('user_play_counts')
     .select('source, source_id, title, artist, artwork_url, duration_seconds, play_count, last_played')
     .eq('user_id', uid);
-  if (error) return null;
+  if (error) {
+    console.error('pullRemote error:', error.message, error.details, error.hint);
+    return null;
+  }
   return entriesToMap((data ?? []).map(rowToEntry));
 }
 

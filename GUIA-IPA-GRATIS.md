@@ -81,6 +81,26 @@ git push
 → novo build automático no GitHub → descarregar novo .ipa → Sideloadly
 por cima do antigo (dados mantêm-se).
 
+## Lançar uma versão (aparece no portfólio)
+
+Um push normal só produz um artefacto para testares. Para publicar uma
+versão que apareça no site e avise quem já tem a app, cria uma **tag**:
+
+```powershell
+git tag ios-v1.1.0
+git push origin ios-v1.1.0
+```
+
+O resto é automático: compila, cria o Release com o `Duotone.ipa` anexado,
+e avisa o portfólio. Para o PC é igual, com `win-v1.1.0` — e nesse caso nem
+sequer precisas de compilar na tua máquina.
+
+**As duas plataformas são independentes.** Uma tag `ios-v*` só faz aparecer
+o aviso de atualização nos iPhones; uma `win-v*` só nos PCs.
+
+A versão sai da tag, não do `app.json` — lançar `ios-v1.1.0` faz a app
+passar a reportar-se como 1.1.0 sozinha.
+
 ## Problemas comuns
 
 - **Build vermelho no GitHub** — abre o run, copia as últimas linhas do
