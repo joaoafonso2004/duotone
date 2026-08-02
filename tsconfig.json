@@ -2,5 +2,9 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true
-  }
+  },
+  // Os testes em scripts/ correm no Node, que exige a extensão .ts nos
+  // imports -- e o tsc rejeita-a sem allowImportingTsExtensions. Como não
+  // fazem parte do bundle da app, ficam fora da verificação de tipos.
+  "exclude": ["scripts", "node_modules", "dist-web", "release"]
 }

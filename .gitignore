@@ -25,3 +25,6 @@ yarn-error.*
 
 # Scripts de teste locais: tocam a base de dados com credenciais reais.
 test-*.mjs
+
+# Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
+.cache/

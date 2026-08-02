@@ -21,13 +21,16 @@ export function IconButton({ name, label, onPress, active = false, danger = fals
   ]}><Ionicons name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} /></P>;
 }
 
-export function Button({ children, onPress, icon, secondary = false, danger = false, disabled = false }: {
-  children: ReactNode; onPress?: () => void; icon?: keyof typeof Ionicons.glyphMap; secondary?: boolean; danger?: boolean; disabled?: boolean;
+export function Button({ children, onPress, icon, iconNode, secondary = false, danger = false, disabled = false }: {
+  children: ReactNode; onPress?: () => void; icon?: keyof typeof Ionicons.glyphMap;
+  /** Ícone à medida, para marcas que o Ionicons não tem — como o Spotify. */
+  iconNode?: ReactNode;
+  secondary?: boolean; danger?: boolean; disabled?: boolean;
 }) {
   return <P className="btn-animate" disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.button, secondary && ui.buttonSecondary, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
     pressed && ui.pressed, disabled && ui.disabled,
-  ]}>{icon && <Ionicons name={icon} size={16} color={desktop.text} />}<Text style={ui.buttonText}>{children}</Text></P>;
+  ]}>{iconNode ?? (icon && <Ionicons name={icon} size={16} color={desktop.text} />)}<Text style={ui.buttonText}>{children}</Text></P>;
 }
 
 export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput> & { icon?: keyof typeof Ionicons.glyphMap }>(function Field(props, ref) {

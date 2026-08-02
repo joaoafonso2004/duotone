@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { ENV } from '../lib/env';
 import { extractArtist } from '../lib/artistName';
+import { searchAttempts } from '../lib/searchQuery';
 import type { Track, YtPlaylistItem } from '../types';
 
 const BASE = 'https://www.googleapis.com/youtube/v3';
@@ -83,16 +84,20 @@ export async function searchYouTube(query: string): Promise<Track[]> {
   const cached = await cacheGet<Track[]>(key, SEARCH_TTL);
   if (cached) return cached;
 
-  const search = await yfetch('/search', {
-    part: 'snippet',
-    type: 'video',
-    maxResults: '25',
-    q: query,
-  });
-
-  const ids: string[] = (search.items ?? [])
-    .map((it: any) => it?.id?.videoId)
-    .filter(Boolean);
+  // A Data API suprime algumas queries curtas e devolve zero resultados sem
+  // erro. Tentar por ordem até haver resposta — ver `searchAttempts`.
+  let search: any = { items: [] };
+  let ids: string[] = [];
+  for (const attempt of searchAttempts(query)) {
+    search = await yfetch('/search', {
+      part: 'snippet',
+      type: 'video',
+      maxResults: '25',
+      q: attempt,
+    });
+    ids = (search.items ?? []).map((it: any) => it?.id?.videoId).filter(Boolean);
+    if (ids.length > 0) break;
+  }
   if (ids.length === 0) return [];
 
   // Durações (videos.list custa 1 unidade)
