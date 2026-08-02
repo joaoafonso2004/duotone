@@ -8,6 +8,7 @@ import { getLibrary, removeFromLibrary, saveToLibrary, checkIsSaved } from '../a
 import { fetchYouTubePlaylist, searchYouTube } from '../api/youtube';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, formatTime, IconButton, Loading, Page, Toast, TrackTable, ui } from '../desktop/ui.web';
+import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
 import {
   getAudioQuality, getDefaultYtViewMode, getShowRewindButton, getShowTrackDuration,
   setAudioQuality, setDefaultYtViewMode, setShowRewindButton, setShowTrackDuration, getPoTokenServerUrl, setPoTokenServerUrl
@@ -43,7 +44,8 @@ type Route =
   | { name: PrimaryRoute }
   | { name: 'artist'; value: string }
   | { name: 'playlist'; id: string; title: string }
-  | { name: 'import' };
+  | { name: 'import' }
+  | { name: 'spotify-import' };
 
 const PRIMARY: { id: PrimaryRoute; label: string; icon: keyof typeof Ionicons.glyphMap; shortcut?: string }[] = [
   { id: 'search', label: 'Search', icon: 'search-outline', shortcut: 'Ctrl+K' },
@@ -416,7 +418,7 @@ function PlaylistsPage({ navigate, notify }: { navigate: (route: Route) => void;
     return () => window.removeEventListener('duotone:refresh-playlists', refresh);
   }, [refresh]);
   const create = async () => { if (!name.trim()) return; try { const item = await createPlaylist(name.trim()); setCreateOpen(false); setName(''); navigate({ name: 'playlist', id: item.id, title: item.name }); } catch (e: any) { notify(e?.message || 'Could not create playlist.'); } };
-  return <><Page title="Playlists" subtitle="Build collections for any moment." action={<View style={{ flexDirection: 'row', gap: 10 }}><Button secondary icon="logo-youtube" onPress={() => navigate({ name: 'import' })}>Import</Button><Button icon="add" onPress={() => setCreateOpen(true)}>New playlist</Button></View>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : items.length ? <View style={styles.playlistGrid}>{items.map((item) => <Pressable key={item.id} onPress={() => navigate({ name: 'playlist', id: item.id, title: item.name })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.cardHover]}><View style={styles.playlistArt}>{item.artworks[0] ? <Image source={{ uri: item.artworks[0] }} style={StyleSheet.absoluteFill} /> : <Ionicons name="musical-notes" size={36} color={desktop.dim} />}</View><Text numberOfLines={1} style={styles.cardTitle}>{item.name}</Text><Text style={styles.cardMeta}>{item.trackCount} {item.trackCount === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : <Empty icon="albums-outline" title="Create your first playlist" body="Group tracks into focused collections, or import an existing YouTube playlist." action={<Button onPress={() => setCreateOpen(true)}>New playlist</Button>} />}</ContentScroll></Page><Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="New playlist"><Field autoFocus placeholder="Playlist name" value={name} onChangeText={setName} onSubmitEditing={create} /><View style={styles.dialogActions}><Button secondary onPress={() => setCreateOpen(false)}>Cancel</Button><Button onPress={create}>Create</Button></View></Dialog></>;
+  return <><Page title="Playlists" subtitle="Build collections for any moment." action={<View style={{ flexDirection: 'row', gap: 10 }}><Button secondary icon="logo-youtube" onPress={() => navigate({ name: 'import' })}>YouTube</Button><Button secondary iconNode={<Image source={require('../../assets/spotify.png')} style={{ width: 16, height: 16 }} />} onPress={() => navigate({ name: 'spotify-import' })}>Spotify</Button><Button icon="add" onPress={() => setCreateOpen(true)}>New playlist</Button></View>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : items.length ? <View style={styles.playlistGrid}>{items.map((item) => <Pressable key={item.id} onPress={() => navigate({ name: 'playlist', id: item.id, title: item.name })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.cardHover]}><View style={styles.playlistArt}>{item.artworks[0] ? <Image source={{ uri: item.artworks[0] }} style={StyleSheet.absoluteFill} /> : <Ionicons name="musical-notes" size={36} color={desktop.dim} />}</View><Text numberOfLines={1} style={styles.cardTitle}>{item.name}</Text><Text style={styles.cardMeta}>{item.trackCount} {item.trackCount === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : <Empty icon="albums-outline" title="Create your first playlist" body="Group tracks into focused collections, or import an existing YouTube playlist." action={<Button onPress={() => setCreateOpen(true)}>New playlist</Button>} />}</ContentScroll></Page><Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="New playlist"><Field autoFocus placeholder="Playlist name" value={name} onChangeText={setName} onSubmitEditing={create} /><View style={styles.dialogActions}><Button secondary onPress={() => setCreateOpen(false)}>Cancel</Button><Button onPress={create}>Create</Button></View></Dialog></>;
 }
 
 function PlaylistPage({ id, title, back, ...props }: { id: string; title: string; back: () => void } & CommonPageProps) {
@@ -1657,7 +1659,7 @@ function DesktopShell() {
   switch (route.name) {
     case 'search': page = <SearchPage {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} />; break;
     case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} back={back} {...common} />; break;
-    case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} />; break;
+    case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} />; break;
     case 'social': page = <SocialPage notify={notify} play={play} more={more} />; break;
     case 'now-playing': page = <NowPlayingPage play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} />; break;
   }

@@ -15,7 +15,7 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test-mp4fixer.mjs && node scripts/test-artist-name.mjs"
+    "test": "node scripts/test-mp4fixer.mjs && node scripts/test-artist-name.mjs && node --experimental-strip-types scripts/test-spotify-csv.ts && node --experimental-strip-types scripts/test-track-match.ts && node --experimental-strip-types scripts/test-search-query.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
