@@ -27,7 +27,8 @@ import {
   shareItem, publishPresence, clearPresence, sendFriendRequest, getChatMessages, type Friendship, type SharedItem
 } from '../api/social';
 import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
-import { clearStreamMemo } from '../api/ytstream';
+import { clearStreamMemo, clearVisitorData } from '../api/ytstream';
+import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
 import { clearDownloadedAudioCache } from '../lib/youtubeCache';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../state/auth';
@@ -699,6 +700,7 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
     clearDownloadedAudioCache();
     clearStreamMemo();
     clearPoTokenMemo();
+    clearVisitorData();
     notify('YouTube resolver caches cleared.');
   };
 
@@ -746,7 +748,10 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
 
           <SettingsCard icon="information-circle-outline" title="About">
             <SettingLine label="Application" value="Duotone for Windows" />
-            <SettingLine label="Version" value="1.0.0" />
+            {/* Vem do buildInfo.ts, que a CI reescreve a cada build (build-windows.yml).
+                Escrito à mão ficava preso no 1.0.0 mesmo em builds mais recentes. */}
+            <SettingLine label="Version" value={APP_VERSION} />
+            <SettingLine label="Build" value={BUILD_ID} />
             <SettingAction danger label="Delete account permanently" onPress={() => setDeleteConfirm(true)} />
           </SettingsCard>
         </View>

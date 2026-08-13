@@ -326,12 +326,39 @@ async function requestPlayer(
   return res.json();
 }
 
+/** Confirma que o CDN (googlevideo) aceita mesmo o URL, antes de o darmos
+ * como bom. Devolve o status HTTP (0 se a rede falhou). Pede só 2 bytes. */
+async function probeMediaUrl(url: string): Promise<number> {
+  try {
+    const res = await fetch(url, { headers: { Range: 'bytes=0-1' } });
+    return res.status;
+  } catch {
+    return 0;
+  }
+}
+
+/** Esquece o visitorData (memória + AsyncStorage). Se a Google marcar o
+ * visitorData, o TTL de 24h mantinha-o preso e a app ficava partida até lá. */
+export async function clearVisitorData(): Promise<void> {
+  visitorDataCache = null;
+  try {
+    await AsyncStorage.removeItem(VD_KEY);
+  } catch {
+    // sem problema — o TTL trata do resto
+  }
+}
+
 export async function resolveYouTubeStream(
   videoId: string,
-  quality: 'high' | 'saver' = 'high'
+  quality: 'high' | 'saver' = 'high',
+  /** Ignora o memo e resolve de novo. Usado quando o CDN rejeita o URL que
+   * está em cache (403): o memo guarda-o até 5h e sem isto a faixa ficava
+   * presa a um URL morto durante todo esse tempo. */
+  forceRefresh = false
 ): Promise<YtStream> {
   const cacheKey = `${videoId}:${quality}`;
-  const cached = memo.get(cacheKey);
+  if (forceRefresh) memo.delete(cacheKey);
+  const cached = forceRefresh ? undefined : memo.get(cacheKey);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
 
   const errors: string[] = [];
@@ -347,7 +374,19 @@ export async function resolveYouTubeStream(
     try {
       const data = await requestPlayer(videoId, client, visitorData);
       const stream = streamFromPlayerResponse(data, quality);
+      // O /player pode responder OK e o CDN rejeitar o URL na mesma com 403
+      // (acontece em IPs marcados pela Google, ex.: 4G partilhado). Sem esta
+      // sonda o cliente "ganhava" a cascata na mesma e o 403 só rebentava
+      // mais tarde, no download — já fora deste try, ou seja, os clientes
+      // seguintes nunca chegavam a ser tentados. Custa 2 bytes.
+      if (!stream.isHls) {
+        const status = await probeMediaUrl(stream.url);
+        if (status !== 200 && status !== 206) {
+          throw new Error(`CDN rejected the URL (HTTP ${status})`);
+        }
+      }
       stream.client = client.clientName + (visitorData ? '+vd' : '');
+      if (errors.length) stream.resolverNote = errors.join(' | ');
       memo.set(cacheKey, stream);
       return stream;
     } catch (e: any) {
@@ -357,6 +396,11 @@ export async function resolveYouTubeStream(
 
   // Último recurso: IOS + PO Token (on-device, se disponível). Só chega aqui
   // se os clientes android falharem (ex.: bloqueio de bot no IP).
+  // Os clientes android falharam todos. Se o visitorData ficou marcado, o TTL
+  // de 24h mantinha-o preso — deitá-lo fora faz com que a próxima tentativa
+  // comece com identidade nova em vez de repetir exatamente o mesmo 403.
+  await clearVisitorData();
+
   const data = await requestPlayer(videoId, IOS_CLIENT, visitorData).catch((e: any) => {
     throw new Error(`todos os clientes falharam: ${errors.join(' | ')} | IOS: ${e?.message ?? e}`);
   });

@@ -68,7 +68,11 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
           track.sourceId,
           stream.url,
           stream.contentLength,
-          track.durationSeconds || stream.durationSeconds || null
+          track.durationSeconds || stream.durationSeconds || null,
+          {
+            renewUrl: async () =>
+              (await resolveYouTubeStream(track.sourceId, quality, true)).url,
+          }
         );
       }
     } catch (err) {
