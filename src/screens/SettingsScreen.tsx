@@ -9,7 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, ACCENT_THEMES } from '../state/theme';
 import { clearLibrary } from '../api/library';
 import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
-import { clearStreamMemo } from '../api/ytstream';
+import { clearStreamMemo, clearVisitorData } from '../api/ytstream';
 import { listPlaylists, getPlaylistTracks } from '../api/playlists';
 import { supabase } from '../lib/supabase';
 import { BUILD_ID } from '../lib/buildInfo';
@@ -146,6 +146,9 @@ export function SettingsScreen({ navigation }: Props) {
     clearDownloadedAudioCache();
     clearStreamMemo();
     clearPoTokenMemo();
+    // O visitorData sobrevivia ao "Clear cache" (24h no AsyncStorage). Se a
+    // Google o marcasse, limpar a cache nao resolvia nada ate ele expirar.
+    clearVisitorData();
     hapticNotification();
     Alert.alert('Cache cleared', 'Downloaded YouTube audio and resolved streams were cleared.');
   };

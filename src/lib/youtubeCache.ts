@@ -159,15 +159,37 @@ export async function discoverContentLength(url: string): Promise<number> {
   return total;
 }
 
-export async function fetchChunkWithRetry(url: string, start: number, end: number): Promise<Uint8Array> {
+/** Estados em que o URL assinado do CDN morreu de vez: repetir o MESMO URL
+ * nunca recupera — só um URL novo (resolver outra vez) resolve. */
+function isDeadUrlStatus(status: number): boolean {
+  return status === 403 || status === 401 || status === 410;
+}
+
+export async function fetchChunkWithRetry(
+  url: string,
+  start: number,
+  end: number,
+  renewUrl?: () => Promise<string | null>
+): Promise<{ bytes: Uint8Array; url: string }> {
   let lastStatus = 0;
+  let current = url;
+  let renewed = false;
   for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_CHUNK; attempt++) {
     if (attempt > 0) await sleep(800 * 2 ** (attempt - 1)); // 800ms, 1.6s, 3.2s
-    const res = await fetch(url, { headers: { Range: `bytes=${start}-${end}` } });
+    const res = await fetch(current, { headers: { Range: `bytes=${start}-${end}` } });
     if (res.status === 206 || res.status === 200) {
-      return new Uint8Array(await res.arrayBuffer());
+      return { bytes: new Uint8Array(await res.arrayBuffer()), url: current };
     }
     lastStatus = res.status;
+    // O URL do googlevideo está ligado ao IP que o pediu e tem validade. Em
+    // 4G o IP muda (troca de célula, reconexão) e o URL que estava em cache
+    // morre — e o retry repetia-o ús 4 vezes, dando sempre 403. Pedimos um
+    // URL fresco uma vez; se vier, continuamos do mesmo offset com ele.
+    if (isDeadUrlStatus(lastStatus) && renewUrl && !renewed) {
+      renewed = true;
+      const fresh = await renewUrl().catch(() => null);
+      if (fresh) current = fresh;
+    }
   }
   throw new Error(`Chunk download failed (HTTP ${lastStatus}) at byte ${start}`);
 }
@@ -179,6 +201,10 @@ export interface DownloadOptions {
   shouldAbort?: () => boolean;
   /** Progresso 0..1 (por chunk descarregado). */
   onProgress?: (fraction: number) => void;
+  /** Pede um URL novo quando o CDN responde 403/401/410. Sem isto um URL
+   * expirado (ou preso a um IP antigo) é irrecuperável: os 4 retries
+   * repetem exatamente o mesmo URL morto. Devolve null se não der. */
+  renewUrl?: () => Promise<string | null>;
 }
 
 /** Erro lançado quando um download é abortado via shouldAbort — os callers
@@ -197,6 +223,7 @@ export async function downloadProgressiveAudio(
   const dest = cachedAudioFile(videoId);
   if (dest.exists) return dest.uri;
 
+  let currentUrl = url;
   const total = knownLength ?? (await discoverContentLength(url));
   const combined = new Uint8Array(total);
   let offset = 0;
@@ -206,7 +233,9 @@ export async function downloadProgressiveAudio(
     if (!first) await sleep(CHUNK_PACING_MS);
     first = false;
     const end = Math.min(offset + CHUNK_BYTES, total) - 1;
-    const part = await fetchChunkWithRetry(url, offset, end);
+    const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl);
+    const part = got.bytes;
+    currentUrl = got.url; // se foi renovado, os chunks seguintes usam o novo
     const expected = end - offset + 1;
     if (part.length !== expected) {
       throw new Error(`Chunk incompleto (${part.length}/${expected} bytes) @${offset}`);

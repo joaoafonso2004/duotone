@@ -379,6 +379,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             onProgress: (f) => {
               if (alive()) setDownloadProgress(f);
             },
+            // Se o CDN matar o URL a meio (403), pede um fresco em vez de
+            // repetir o morto — ver fetchChunkWithRetry.
+            renewUrl: async () =>
+              (await resolveYouTubeStream(track.sourceId, quality, true)).url,
           }
         );
         if (!alive()) return;
@@ -451,6 +455,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           onProgress: (f) => {
             if (isMountedRef.current && myRun === runIdRef.current) setDownloadProgress(f);
           },
+          renewUrl: async () =>
+            (await resolveYouTubeStream(track.sourceId, await getAudioQuality(), true)).url,
         }
       );
       setDownloadProgress(null);
@@ -626,7 +632,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             stream.url,
             stream.contentLength,
             nextTrack.durationSeconds || stream.durationSeconds || null,
-            { shouldAbort: () => cancelled }
+            {
+              shouldAbort: () => cancelled,
+              renewUrl: async () =>
+                (await resolveYouTubeStream(nextTrack.sourceId, quality, true)).url,
+            }
           );
         }
       } catch (err: any) {

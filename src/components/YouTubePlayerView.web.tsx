@@ -17,7 +17,24 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     let player: any;
     let progress: ReturnType<typeof setInterval> | undefined;
     let disposed = false;
+    let ready = false;
+    let started = false;
     const state = usePlayer.getState();
+
+    // Watchdog: a IFrame API não tem timeout nenhum. Se o script não carregar,
+    // ou o embed nunca ficar pronto (rede, IP marcado pela Google, embed
+    // bloqueado no vídeo), o onReady/onStateChange nunca dispara — e como são
+    // os ÚNICOS sítios que limpam o `buffering`, a UI ficava em ampulheta para
+    // sempre e sem erro nenhum. Aqui qualquer falha acaba num estado terminal.
+    const watchdog = setTimeout(() => {
+      if (disposed || started) return;
+      state._setBuffering(false);
+      state.setError(
+        ready
+          ? "YouTube didn't start playing (blocked embed or network)"
+          : "Couldn't load the YouTube player (network or blocked)"
+      );
+    }, 15000);
 
     const mount = () => {
       if (disposed || !window.YT?.Player) return;
@@ -33,6 +50,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         },
         events: {
           onReady: (event: any) => {
+            ready = true;
             playerRef.current = event.target;
             try {
               event.target.setVolume(state.volume);
@@ -92,15 +110,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           },
           onStateChange: (event: any) => {
             const s = event.data;
+            if (s === 1 || s === 2) started = true;
             if (s === 1) state._onYtStateChange('playing');
             else if (s === 2) state._onYtStateChange('paused');
             else if (s === 0) state._onYtStateChange('ended');
             if (s === 3) state._setBuffering(true);
             if (s === 1 || s === 2) state._setBuffering(false);
           },
-          onError: () => {
+          onError: (event: any) => {
+            // Códigos da IFrame API: 2 id inválido, 5 erro do player HTML5,
+            // 100 vídeo removido/privado, 101/150 embed proibido pelo dono.
+            started = true;
             state._setBuffering(false);
-            state.setError('Playback error');
+            state.setError(`Playback error (YouTube code ${event?.data ?? '?'})`);
           },
         },
       });
@@ -116,12 +138,20 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         const script = document.createElement('script');
         script.src = 'https://www.youtube.com/iframe_api';
         script.dataset.duotoneYoutube = 'true';
+        // Sem isto, um script bloqueado (rede/firewall) ficava em silêncio.
+        script.onerror = () => {
+          if (disposed) return;
+          started = true;
+          state._setBuffering(false);
+          state.setError("Couldn't reach YouTube (iframe_api failed to load)");
+        };
         document.head.appendChild(script);
       }
     }
 
     return () => {
       disposed = true;
+      clearTimeout(watchdog);
       if (progress) clearInterval(progress);
       usePlayer.getState().registerYtControls(null);
       playerRef.current = null;
