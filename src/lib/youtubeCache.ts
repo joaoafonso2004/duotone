@@ -56,11 +56,48 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Cache local do áudio (mp4 progressivo) por videoId — evita descarregar
- * outra vez ao voltar a tocar a mesma faixa (ver YouTubePlayerView). */
+/** Onde vive o áudio descarregado.
+ *
+ * Paths.document e NÃO Paths.cache. A documentação do expo-file-system é
+ * explícita: `cache` é "a place to store files that CAN BE DELETED BY THE
+ * SYSTEM when the device runs low on storage", `document` é "safe from being
+ * deleted by the system". Como estava, o iOS apagava as músicas descarregadas
+ * quando lhe apetecia — era por isso que desapareciam e a app ficava sem nada
+ * para tocar offline. Isto são downloads pedidos pelo utilizador, portanto
+ * pertencem a document.
+ */
+function audioDir(): any {
+  return Paths.document;
+}
+
+/** Áudio descarregado desta faixa (ver audioDir para o porquê da pasta). */
 export function cachedAudioFile(videoId: string): any {
   if (Platform.OS === 'web') return null;
-  return new File(Paths.cache, `${PREFIX}${videoId}.m4a`);
+  return new File(audioDir(), `${PREFIX}${videoId}.m4a`);
+}
+
+/** Move para document o que ficou na pasta cache de versões anteriores, para
+ * o utilizador não perder o que já tinha descarregado. Corre uma vez. */
+const MIGRATED_KEY = 'yt_audio_moved_to_documents';
+export async function migrateAudioCacheToDocuments(): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    if (await AsyncStorage.getItem(MIGRATED_KEY)) return;
+    for (const entry of Paths.cache.list()) {
+      if (!(entry instanceof File) || !entry.name.startsWith(PREFIX)) continue;
+      const dest = new File(Paths.document, entry.name);
+      try {
+        if (!dest.exists) entry.move(dest);
+        else entry.delete();
+      } catch {
+        // ficheiro em uso ou corrompido — fica para trás, será re-descarregado
+      }
+    }
+    await AsyncStorage.setItem(MIGRATED_KEY, '1');
+    loadCachedAudioIndex();
+  } catch {
+    // sem drama — o pior que acontece é re-descarregar
+  }
 }
 
 // ------------------------------------------------------------
@@ -74,7 +111,7 @@ export function loadCachedAudioIndex(): void {
   if (Platform.OS === 'web') return;
   try {
     const ids = new Set<string>();
-    for (const entry of Paths.cache.list()) {
+    for (const entry of audioDir().list()) {
       if (entry instanceof File && entry.name.startsWith(PREFIX)) {
         ids.add(entry.name.slice(PREFIX.length).replace(/\.m4a$/, ''));
       }
@@ -105,7 +142,7 @@ export function removeDownloadedAudio(videoId: string): void {
 /** Apaga todo o áudio de YouTube descarregado localmente (Definições > Clear cache). */
 export function clearDownloadedAudioCache(): void {
   if (Platform.OS === 'web') return;
-  for (const entry of Paths.cache.list()) {
+  for (const entry of audioDir().list()) {
     if (entry instanceof File && entry.name.startsWith(PREFIX)) {
       entry.delete();
     }
@@ -126,7 +163,7 @@ export function pruneAudioCacheLRU(protectedIds: string[] = []): void {
     const protectedSet = new Set(protectedIds);
     const files: { file: any; id: string; size: number; mtime: number }[] = [];
     let totalBytes = 0;
-    for (const entry of Paths.cache.list()) {
+    for (const entry of audioDir().list()) {
       if (!(entry instanceof File) || !entry.name.startsWith(PREFIX)) continue;
       const size = entry.size ?? 0;
       totalBytes += size;

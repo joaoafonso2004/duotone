@@ -1,0 +1,95 @@
+QUANDO O YOUTUBE PARTIR OUTRA VEZ - PROCEDIMENTO
+================================================
+(escrito a 25/ago/2026, depois de uma tarde inteira a descobrir isto)
+
+
+O SINTOMA
+---------
+As musicas que NAO estao descarregadas deixam de tocar. No iPhone aparece
+uma mensagem do genero:
+
+  [build XXXXXXX] YouTube [client=ANDROID_VR+vd] [pot=no (...)]:
+  Chunk download failed (HTTP 403) at byte 1000000, using embed.
+
+O numero do byte e a pista: se parar sempre por volta de 1 000 000, e a
+Google a cortar downloads sem "PO Token" no teu IP. Nao e bug do codigo.
+
+
+O PROCEDIMENTO (5 minutos)
+--------------------------
+Nao tentes adivinhar. O yt-dlp e mantido diariamente por muita gente e
+adapta-se a cada mudanca do YouTube. Deixa-os fazer o trabalho dificil e
+copia a resposta.
+
+1) Atualizar o yt-dlp:
+
+     pip install -U yt-dlp
+
+2) Ver que cliente ele usa AGORA:
+
+     yt-dlp -g -v "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+3) No URL longo que ele imprime, procurar o parametro  c=
+   Exemplos ja vistos:  c=ANDROID_VR  ...  c=VISIONOS
+   Esse e o cliente que esta a funcionar neste momento.
+
+4) Ir buscar a definicao exata desse cliente ao codigo do yt-dlp:
+
+     C:/Python314/Lib/site-packages/yt_dlp/extractor/youtube/_base.py
+
+   Procurar o nome em minusculas (ex.: 'visionos'). Copiar clientName,
+   clientVersion, deviceMake, deviceModel, osName, osVersion, userAgent e
+   INNERTUBE_CONTEXT_CLIENT_NAME (que e o clientNumber).
+
+   IMPORTANTE: confirmar que diz  REQUIRE_JS_PLAYER: False
+   Se disser True, esse cliente devolve URLs CIFRADOS e nao serve - a app
+   nao sabe decifrar assinaturas.
+
+5) Meter esse cliente em  src/api/ytstream.ts  e po-lo PRIMEIRO na cascata
+   (a linha  for (const client of [...]) ).
+
+6) ANTES de compilar, testar em Node com um script simples: pedir o
+   /youtubei/v1/player com esse cliente e descarregar o ficheiro INTEIRO em
+   chunks. Testar 5 ou 6 musicas diferentes. Se descarregar tudo sem 403,
+   esta bom. Testar TAMBEM sem o header User-Agent - o iOS ignora esse
+   header, por isso tem de funcionar sem ele.
+
+7) Compilar:  git tag ios-vX.Y.Z && git push origin ios-vX.Y.Z
+
+
+DUAS COISAS QUE POUPAM TEMPO
+----------------------------
+- E preciso visitorData. Sem ele os clientes dao LOGIN_REQUIRED. A app ja
+  o obtem (getVisitorData em ytstream.ts).
+
+- Se funcionar no PC e nao no telemovel, NAO ha contradicao: a Google faz
+  estas imposicoes por fases, IP a IP. Testar do PC nao prova nada sobre o
+  telemovel.
+
+
+CAMINHOS JA TESTADOS QUE NAO FUNCIONAM (nao repetir)
+----------------------------------------------------
+- PO Token gerado pelo BotGuard WEB em URLs android/iOS:
+  proibido. "A PO Token from one platform cannot be used on another."
+  Confirmado no dispositivo: com pot=yes o corte deu no mesmo byte.
+
+- Login numa conta normal: NAO isenta do token. So YouTube Premium isenta.
+
+- Cliente WEB: passou a SABR (serverAbrStreamingUrl, zero formatos com url)
+  e responde UNPLAYABLE fora de uma sessao de browser real.
+
+- Clientes tv/TVHTML5: LOGIN_REQUIRED.
+- Cliente MWEB: instavel, deu OK uma vez e UNPLAYABLE em todas as outras.
+- YtStreamHarvester: inutil desde o SABR, ja nao ha URL nenhum para captar.
+- Encolher os chunks: nao adianta, o teto e CUMULATIVO por video/IP.
+- HLS (cliente IOS): so existe em ~1 de 7 videos e nao se consegue forcar.
+
+
+HISTORICO
+---------
+2 ago 2026  - Google passa a exigir GVS PO Token ao ANDROID_VR
+              (yt-dlp issue #17348). Era o ultimo cliente sem essa
+              exigencia, e a app estava toda assente nele.
+19 ago 2026 - yt-dlp 2026.08.19 muda para o cliente VISIONOS.
+25 ago 2026 - Duotone muda para VISIONOS (ios-v1.0.7). Verificado: 6
+              musicas em 6 descarregadas por inteiro, zero 403.

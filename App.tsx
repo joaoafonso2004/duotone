@@ -15,6 +15,7 @@ import { supabase } from './src/lib/supabase';
 import {
   invalidateStaleAudioCache,
   loadCachedAudioIndex,
+  migrateAudioCacheToDocuments,
   pruneAudioCacheLRU,
 } from './src/lib/youtubeCache';
 import { useAuth } from './src/state/auth';
@@ -28,7 +29,12 @@ export default function App() {
     init();
     // Hidrata preferências persistidas no arranque da app.
     loadPrefsCache();
-    invalidateStaleAudioCache().then(() => {
+    invalidateStaleAudioCache()
+      // As músicas viviam na pasta Caches, que o iOS apaga sozinho quando
+      // precisa de espaço — era por isso que os downloads desapareciam.
+      // Passaram para Documents; isto muda de sítio o que já estava lá.
+      .then(() => migrateAudioCacheToDocuments())
+      .then(() => {
       // Índice em memória dos downloads (badges "offline" nas listas).
       loadCachedAudioIndex();
       // Pruning LRU do cache de áudio — só no arranque, nunca durante a
