@@ -12,7 +12,6 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, AppState } from 'react-native';
-import { BotGuardMinter } from '../components/BotGuardMinter';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
@@ -271,7 +270,14 @@ export function RootNavigator() {
                 mesmo com os pedidos a encolher até 128KB. Sem PO Token não há
                 música inteira. O custo (WebView escondida com a VM do
                 BotGuard) passou a valer a pena. */}
-            <BotGuardMinter />
+            {/* DESLIGADO outra vez (ago 2026), agora com prova: com
+                pot=yes o CDN cortou na mesma, no mesmo byte. O teto é de
+                reputação do IP/sessão, não falta de token — de um IP limpo o
+                ANDROID_VR descarrega tudo SEM token nenhum. Além disso o
+                token que sabemos gerar é do desafio WEB e os PO Token são
+                ligados ao cliente, por isso nunca autorizaria um URL pedido
+                pelo ANDROID_VR. Não vale a WebView a correr a VM em
+                permanencia. <BotGuardMinter /> para reativar. */}
           </View>
         ) : (
           <AuthScreen />

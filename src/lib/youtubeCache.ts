@@ -190,10 +190,19 @@ export async function fetchChunkWithRetry(
     // 4G o IP muda (troca de célula, reconexão) e o URL que estava em cache
     // morre — e o retry repetia-o ús 4 vezes, dando sempre 403. Pedimos um
     // URL fresco uma vez; se vier, continuamos do mesmo offset com ele.
-    if (isDeadUrlStatus(lastStatus) && renewUrl && !renewed) {
-      renewed = true;
-      const fresh = await renewUrl().catch(() => null);
-      if (fresh) current = fresh;
+    if (isDeadUrlStatus(lastStatus)) {
+      if (renewUrl && !renewed) {
+        renewed = true;
+        const fresh = await renewUrl().catch(() => null);
+        if (fresh) {
+          current = fresh;
+          continue;
+        }
+      }
+      // Um 403 não é transitório. Já tentámos URL novo; insistir mais 3 vezes
+      // com backoff só atrasa a música ~6s antes do mesmo fim. Sai já para o
+      // caller encolher o pedido ou cair para o embed.
+      break;
     }
   }
   throw new Error(`Chunk download failed (HTTP ${lastStatus}) at byte ${start}`);
