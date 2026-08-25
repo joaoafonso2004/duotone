@@ -218,18 +218,33 @@ export function streamFromPlayerResponse(
 
   const durationSeconds = Number(data?.videoDetails?.lengthSeconds) || null;
 
-  if (sd.hlsManifestUrl) {
-    return {
-      url: sd.hlsManifestUrl,
-      isHls: true,
-      expiresAt: Date.now() + 5 * 60 * 60 * 1000,
-      contentLength: null,
-      durationSeconds,
-    };
-  }
-
+  // ORDEM: mp4 progressivo PRIMEIRO, HLS só como recurso.
+  //
+  // O HLS é tentador (arranca quase instantâneo, sem esperar pelo ficheiro
+  // todo) e chegou a estar primeiro aqui. Mas o AVPlayer transmite-o e não
+  // deixa ficheiro nenhum em disco — e como o VISIONOS devolve hlsManifestUrl
+  // em TODOS os vídeos, o resultado foi a app deixar de guardar seja o que
+  // for para ouvir offline. Toda a funcionalidade de downloads desta app
+  // assenta em haver um .m4a local.
+  //
+  // Com progressivo a faixa demora mais uns segundos a começar (descarrega
+  // antes de tocar), mas fica guardada e toca sem rede daí em diante — e não
+  // gasta dados duas vezes, que num telemóvel em 4G também conta.
   const picked = pickMp4Audio(sd, quality === 'saver');
-  if (!picked) throw new Error('No AVPlayer-compatible stream found');
+
+  if (!picked) {
+    // Sem áudio progressívo, o HLS ainda salva a reprodução (mas sem offline).
+    if (sd.hlsManifestUrl) {
+      return {
+        url: sd.hlsManifestUrl,
+        isHls: true,
+        expiresAt: Date.now() + 5 * 60 * 60 * 1000,
+        contentLength: null,
+        durationSeconds,
+      };
+    }
+    throw new Error('No AVPlayer-compatible stream found');
+  }
 
   const expireSec = Number(sd.expiresInSeconds ?? 18000);
   return {
@@ -488,7 +503,16 @@ export async function resolveYouTubeStream(
   await clearVisitorData();
 
   const data = await requestPlayer(videoId, IOS_CLIENT, visitorData).catch((e: any) => {
-    throw new Error(`todos os clientes falharam: ${errors.join(' | ')} | IOS: ${e?.message ?? e}`);
+    const todos = [...errors, `IOS: ${e?.message ?? e}`];
+    // Sem rede, cada cliente falha com a mesma queixa e a mensagem virava uma
+    // parede de texto repetido que nao dizia nada ao utilizador. Se TODOS
+    // falharam por falta de ligacao, e so isso que ha para dizer.
+    const semRede = todos.every((m) => /offline|network|Load failed|fetch failed/i.test(m));
+    throw new Error(
+      semRede
+        ? 'Sem ligacao a internet (e esta faixa nao esta descarregada)'
+        : `todos os clientes falharam: ${todos.join(' | ')}`
+    );
   });
   const stream = streamFromPlayerResponse(data, quality);
   stream.client = 'IOS';
