@@ -88,6 +88,40 @@ const BOTGUARD_JS = `
     };
   }
 
+  // Carrega o interpretador da VM com uma tag <script>.
+  //
+  // TEM de ser <script> e NÃO fetch(): o interpretador vem de www.google.com,
+  // que NÃO manda Access-Control-Allow-Origin, por isso um fetch() a partir de
+  // youtube.com falha SEMPRE por CORS. No WebKit esse erro chama-se
+  // "Load failed" — era exatamente o que aparecia no iPhone. Uma tag <script>
+  // não está sujeita a CORS, e a CSP da página já autoriza www.google.com em
+  // script-src. Verificado ponta a ponta: com <script> gera-se PO Token.
+  var ttPolicy = null;
+  function loadScript(url) {
+    return new Promise(function (resolve, reject) {
+      var el = document.createElement('script');
+      el.async = false;
+      el.onload = function () { resolve(); };
+      el.onerror = function () { reject(new Error('interpreter script failed to load')); };
+      var src = url;
+      try {
+        // Trusted Types: exigido no Chromium quando a página pede
+        // require-trusted-types-for 'script'. O WKWebView não implementa
+        // Trusted Types, por isso este ramo nem corre no iPhone.
+        if (window.trustedTypes && window.trustedTypes.createPolicy) {
+          if (!ttPolicy) {
+            ttPolicy = window.trustedTypes.createPolicy('duotoneBg', {
+              createScriptURL: function (u) { return u; }
+            });
+          }
+          src = ttPolicy.createScriptURL(url);
+        }
+      } catch (e) {}
+      el.src = src;
+      document.head.appendChild(el);
+    });
+  }
+
   // --- BotGuardClient (adaptado de LuanRT/BgUtils src/core/botGuardClient.ts) ---
   function BotGuardClient(opts) {
     this.vm = opts.globalObj[opts.globalName];
@@ -150,10 +184,10 @@ const BOTGUARD_JS = `
     if (!challenge) throw new Error('no bgChallenge in response');
 
     var interpreterUrl = 'https:' + challenge.interpreterUrl.privateDoNotAccessOrElseTrustedResourceUrlWrappedValue;
-    var interpreterJs = await (await fetch(interpreterUrl)).text();
-    if (!interpreterJs) throw new Error('empty interpreter script');
-    // eslint-disable-next-line no-new-func
-    new Function(interpreterJs)();
+    await loadScript(interpreterUrl);
+    if (!window[challenge.globalName]) {
+      throw new Error('VM global ausente depois de carregar o interpretador');
+    }
 
     var bgClient = await BotGuardClient.create({
       program: challenge.program,
