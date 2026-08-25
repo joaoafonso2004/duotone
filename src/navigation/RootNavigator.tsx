@@ -28,8 +28,14 @@ import { useAuth } from '../state/auth';
 import { colors } from '../theme';
 import { useTheme } from '../state/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getInboxItems, updateLastSeen } from '../api/social';
+import * as Notifications from 'expo-notifications';
+import { getFriendships, getInboxItems, updateLastSeen } from '../api/social';
 import { useNotifications } from '../state/notifications';
+import {
+  ensureNotificationPermission,
+  notifyNewInboxItems,
+  notifyPendingFriendRequests,
+} from '../lib/localNotifications';
 
 export type RootStackParamList = {
   Tabs: undefined;
@@ -194,6 +200,7 @@ export function RootNavigator() {
   // Poll inbox items every 15 seconds to check for new messages
   useEffect(() => {
     if (!session) return;
+    ensureNotificationPermission();
 
     const checkNewMessages = async () => {
       try {
@@ -204,6 +211,23 @@ export function RootNavigator() {
           if (latestItem && latestItem.id !== lastSeenId) {
             useNotifications.getState().setHasNotification(true);
           }
+          // Com a app em primeiro plano a bolinha vermelha chega; notificar
+          // por cima disso seria ruído. Fora do primeiro plano (típico desta
+          // app: a tocar música com o ecrã bloqueado) é a única forma de o
+          // utilizador saber que recebeu alguma coisa.
+          if (AppState.currentState !== 'active') {
+            await notifyNewInboxItems(items);
+          }
+        }
+
+        // Pedidos de amizade: ficam noutra tabela, não na inbox.
+        const friendships = await getFriendships();
+        // Recebido = pendente em que EU nao sou o remetente (nao ha campo
+        // `direction`; a Friendship marca isso com `isSender`).
+        const pendentes = friendships.filter((f) => f.status === 'pending' && !f.isSender).length;
+        if (pendentes > 0) useNotifications.getState().setHasSocialNotification(true);
+        if (AppState.currentState !== 'active') {
+          await notifyPendingFriendRequests(pendentes);
         }
       } catch (err) {
         // ignore
@@ -214,6 +238,18 @@ export function RootNavigator() {
     const interval = setInterval(checkNewMessages, 15000);
     return () => clearInterval(interval);
   }, [session]);
+
+  // Tocar na notificação leva ao Social — sem isto abria a app na última
+  // página e o utilizador tinha de ir procurar a mensagem à mão.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((res) => {
+      const target = res.notification.request.content.data?.target;
+      if (target === 'social' && navigationRef.isReady()) {
+        navigationRef.navigate('Social');
+      }
+    });
+    return () => sub.remove();
+  }, []);
 
   if (!initialized) return <Splash />;
 
