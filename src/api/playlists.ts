@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { upsertTrack } from './library';
+import { trackKey, upsertTrack, upsertTracks } from './library';
 import type { Playlist, PlaylistTrack, Track } from '../types';
 
 async function currentUserId(): Promise<string> {
@@ -152,23 +152,63 @@ export async function setPlaylistOrder(
 }
 
 /** Importação em lote (ex.: playlist do YouTube). */
+/**
+ * Junta faixas a uma playlist.
+ *
+ * Reescrito depois de uma importacao de 2000 musicas do Spotify falhar e
+ * deixar uma playlist VAZIA: a versao anterior chamava upsertTrack faixa a
+ * faixa (2000 idas ao Supabase em serie, minutos de espera) e depois mandava
+ * as 2000 linhas de playlist_tracks num unico pedido. Bastava uma falhar
+ * para nao entrar faixa nenhuma — e como o chamador ja tinha criado a
+ * playlist antes, ficava o esqueleto vazio.
+ *
+ * Agora vai em lotes e reporta progresso. Uma playlist grande passa de ~2000
+ * pedidos para umas dezenas.
+ */
 export async function addTracksToPlaylist(
   playlistId: string,
-  tracks: Track[]
+  tracks: Track[],
+  onProgress?: (done: number, total: number) => void
 ): Promise<void> {
+  if (tracks.length === 0) return;
+
+  // 1) Garantir que as faixas existem no catalogo (em lote).
+  //    Esta fase e a mais demorada, por isso conta para a barra: se so
+  //    contassemos a insercao, a barra ficava em 0 quase ate ao fim.
+  //    Reparticao: catalogo = primeira metade, insercao = segunda.
+  const total = tracks.length;
+  const idsPorChave = await upsertTracks(tracks, 200, (done, subTotal) => {
+    onProgress?.(Math.round((done / Math.max(subTotal, 1)) * total * 0.5), total);
+  });
+
+  // 2) Construir as linhas, sem repetidos: a mesma faixa duas vezes na mesma
+  //    playlist nao faz sentido e partia o upsert.
   let position = await nextPosition(playlistId);
-  const rows: { playlist_id: string; track_id: string; position: number }[] =
-    [];
+  const vistos = new Set<string>();
+  const rows: { playlist_id: string; track_id: string; position: number }[] = [];
   for (const t of tracks) {
-    const trackId = await upsertTrack(t);
+    const trackId = idsPorChave.get(trackKey(t));
+    if (!trackId || vistos.has(trackId)) continue;
+    vistos.add(trackId);
     rows.push({ playlist_id: playlistId, track_id: trackId, position });
     position++;
   }
   if (rows.length === 0) return;
-  const { error } = await supabase
-    .from('playlist_tracks')
-    .upsert(rows, { onConflict: 'playlist_id,track_id', ignoreDuplicates: true });
-  if (error) throw error;
+
+  // 3) Inserir em lotes, avisando o chamador a cada um.
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const lote = rows.slice(i, i + CHUNK);
+    const { error } = await supabase
+      .from('playlist_tracks')
+      .upsert(lote, { onConflict: 'playlist_id,track_id', ignoreDuplicates: true });
+    if (error) throw error;
+    const feito = Math.min(i + lote.length, rows.length);
+    onProgress?.(
+      Math.round(total * 0.5 + (feito / Math.max(rows.length, 1)) * total * 0.5),
+      total
+    );
+  }
 }
 
 /** Nome de uma playlist partilhada (leitura permitida a quem participa na
