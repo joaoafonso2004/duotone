@@ -18,6 +18,8 @@ interface PendingRequest {
 let webviewRef: RefObject<WebView | null> | null = null;
 let ready = false;
 const pending = new Map<string, PendingRequest>();
+// Quem está à espera que a WebView fique pronta (ver waitForReady).
+let readyWaiters: Array<() => void> = [];
 
 // Diagnóstico: última falha reportada pela WebView (ou motivo de nunca ter
 // sequer tentado), para aparecer na mensagem de erro do YouTubePlayerView em
@@ -36,6 +38,7 @@ export function registerBotGuardWebView(ref: RefObject<WebView | null>): void {
 export function unregisterBotGuardWebView(): void {
   webviewRef = null;
   ready = false;
+  readyWaiters = [];
   lastError = 'BotGuardMinter ainda não ficou pronta';
 }
 
@@ -51,6 +54,9 @@ export function handleBotGuardMessage(raw: string): void {
   if (msg?.id === '__ready__') {
     ready = true;
     lastError = null;
+    const waiters = readyWaiters;
+    readyWaiters = [];
+    waiters.forEach((fn) => fn());
     return;
   }
 
@@ -81,17 +87,40 @@ let nextId = 0;
  * WebView ainda não estiver pronta, ou se o mint falhar/expirar — para que
  * o chamador (potProvider.ts) possa continuar sem PO Token como sempre.
  */
-export function mintPoTokenOnDevice(
+/** Espera, no máximo `timeoutMs`, que a WebView acabe de arrancar. */
+function waitForReady(timeoutMs: number): Promise<boolean> {
+  if (ready) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const onReady = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    const timer = setTimeout(() => {
+      readyWaiters = readyWaiters.filter((f) => f !== onReady);
+      resolve(false);
+    }, timeoutMs);
+    readyWaiters.push(onReady);
+  });
+}
+
+export async function mintPoTokenOnDevice(
   contentBinding: string,
-  timeoutMs = 15000
+  timeoutMs = 15000,
+  readyWaitMs = 12000
 ): Promise<string | null> {
   if (!webviewRef?.current) {
     lastError = 'BotGuardMinter não está montada';
-    return Promise.resolve(null);
+    return null;
   }
   if (!ready) {
-    lastError = 'BotGuardMinter ainda não ficou pronta (a carregar/desafio inicial)';
-    return Promise.resolve(null);
+    // A VM do BotGuard leva alguns segundos a arrancar. Devolver null já aqui
+    // fazia com que a PRIMEIRA música a seguir a abrir a app ficasse sempre
+    // sem token — e sem token não há música inteira.
+    const becameReady = await waitForReady(readyWaitMs);
+    if (!becameReady) {
+      lastError = `BotGuardMinter não ficou pronta em ${readyWaitMs}ms`;
+      return null;
+    }
   }
 
   const id = `req${++nextId}`;

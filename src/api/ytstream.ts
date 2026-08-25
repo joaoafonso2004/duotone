@@ -380,6 +380,21 @@ export async function resolveYouTubeStream(
       // mais tarde, no download — já fora deste try, ou seja, os clientes
       // seguintes nunca chegavam a ser tentados. Custa 2 bytes.
       if (!stream.isHls) {
+        // PO Token on-device (BotGuardMinter). Medido no 4G do João: sem ele o
+        // CDN corta em ~1MB CUMULATIVOS por vídeo/IP (parou aos 1 131 072
+        // bytes, mesmo com os pedidos a encolher até 128KB) — nenhum ajuste de
+        // chunks dá a volta a isso, só o token levanta o teto. Por isso tem de
+        // ser aplicado também aqui, aos clientes android, e não só no ramo IOS
+        // lá em baixo, como estava.
+        const binding = data?.responseContext?.visitorData ?? visitorData;
+        if (binding) {
+          const poToken = await fetchGvsPoToken(binding);
+          if (poToken) {
+            const sep = stream.url.includes('?') ? '&' : '?';
+            stream.url = `${stream.url}${sep}pot=${encodeURIComponent(poToken)}`;
+            stream.hasPoToken = true;
+          }
+        }
         const status = await probeMediaUrl(stream.url);
         if (status !== 200 && status !== 206) {
           throw new Error(`CDN rejected the URL (HTTP ${status})`);

@@ -12,6 +12,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, AppState } from 'react-native';
+import { BotGuardMinter } from '../components/BotGuardMinter';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
@@ -263,13 +264,14 @@ export function RootNavigator() {
               <Stack.Screen name="Social" component={SocialScreen} />
             </Stack.Navigator>
             <PlayerRoot />
-            {/* BotGuardMinter (PO Token on-device) DESLIGADO de propósito: o
-                cliente ANDROID_VR resolve o áudio sem PO Token, tornando-o
-                redundante, e a WebView escondida a correr a VM do BotGuard em
-                cada sessão era pesada e suspeita de causar restarts. O código
-                fica em BotGuardMinter.tsx para reativar SE um dia os clientes
-                android começarem a exigir PO Token — bastaria voltar a montar
-                <BotGuardMinter /> aqui. */}
+            {/* REATIVADO (ago 2026). A condição que este comentário previa
+                aconteceu: o ANDROID_VR já NÃO resolve áudio sem PO Token. O
+                CDN corta em ~1MB cumulativos por vídeo/IP — medido no 4G do
+                João, que descarregou 1 131 072 bytes e levou 403 a seguir,
+                mesmo com os pedidos a encolher até 128KB. Sem PO Token não há
+                música inteira. O custo (WebView escondida com a VM do
+                BotGuard) passou a valer a pena. */}
+            <BotGuardMinter />
           </View>
         ) : (
           <AuthScreen />
