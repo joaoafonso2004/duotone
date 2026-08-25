@@ -28,3 +28,6 @@ test-*.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/
+
+# Cache do MCP motion-dev (SQLite gerado localmente, nao e codigo do projeto)
+docs/motion-docs.db
