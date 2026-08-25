@@ -78,7 +78,35 @@ const VISITOR_ENDPOINT = 'https://www.youtube.com/youtubei/v1/visitor_id';
 // Chave só para o cliente WEB (usada em getVisitorData). Android/iOS não a usam.
 const WEB_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
 
-// Cliente principal: não exige PO Token, URL direta sem cifra. Valores do
+// CLIENTE PRINCIPAL (ago 2026): VISIONOS, o cliente do Apple Vision Pro.
+//
+// A 2 de agosto de 2026 a Google passou a exigir GVS PO Token ao ANDROID_VR
+// (yt-dlp issue #17348) — era o último cliente sem essa exigência, e esta app
+// estava toda assente nele. O yt-dlp 2026.08.19 mudou para VISIONOS, e é esse
+// o caminho que se sabe funcionar hoje. Parâmetros copiados da definição do
+// yt-dlp (`visionos` em extractor/youtube/_base.py), que marca
+// REQUIRE_JS_PLAYER: False — ou seja URL direto, sem assinatura a decifrar.
+//
+// Verificado aqui em 25/ago/2026, 6 músicas em 6: playabilityStatus OK, dois
+// formatos audio/mp4 com URL direto, e ficheiro COMPLETO descarregado
+// (4-5,5MB) sem um único 403 — com e sem o header User-Agent, o que importa
+// porque o iOS o ignora nos pedidos feitos por fetch().
+const VISIONOS_CLIENT = {
+  clientName: 'VISIONOS',
+  clientNumber: '101',
+  clientVersion: '1.02',
+  apiKey: '',
+  deviceMake: 'Apple',
+  deviceModel: 'RealityDevice17,1',
+  osName: 'visionOS',
+  osVersion: '26.5.23O471',
+  userAgent:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15',
+};
+
+// Cliente antigo (ficou preso ao PO Token em 2/ago/2026, mantido como recurso
+// caso a imposição seja revertida ou não se aplique a algum IP).
+// Valores do
 // YouTubeKit (key vazia — os clientes android não a precisam no URL).
 const ANDROID_VR_CLIENT = {
   clientName: 'ANDROID_VR',
@@ -409,7 +437,7 @@ export async function resolveYouTubeStream(
   // recurso para quando não houver HLS.
   // O WEB continua fora: dá URLs cifradas (exigiriam decifrar assinatura) e,
   // testado, responde UNPLAYABLE fora de uma sessão de browser real.
-  for (const client of [IOS_CLIENT, ANDROID_VR_CLIENT, ANDROID_CLIENT]) {
+  for (const client of [VISIONOS_CLIENT, IOS_CLIENT, ANDROID_VR_CLIENT, ANDROID_CLIENT]) {
     try {
       const data = await requestPlayer(videoId, client, visitorData);
       const stream = streamFromPlayerResponse(data, quality);
