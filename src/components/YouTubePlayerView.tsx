@@ -10,7 +10,7 @@ import { getAudioQuality } from '../lib/prefs';
 import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
-import { type HarvestResult } from './YtStreamHarvester';
+import { YtStreamHarvester, type HarvestResult } from './YtStreamHarvester';
 
 /**
  * Player do YouTube com TRÊS fases, em cascata:
@@ -88,6 +88,13 @@ true;
 
 type Backend = 'resolving' | 'native' | 'webview';
 
+// Circuit breaker da fase 1. Se o harvest não apanhar nada duas vezes
+// seguidas, desiste-se para o resto da sessão: não vale a pena atrasar
+// TODAS as faixas 5s por um mecanismo que claramente não está a captar
+// neste dispositivo/rede. Volta a zero assim que uma captura resulte.
+let harvestFailures = 0;
+const HARVEST_MAX_FAILURES = 2;
+
 export function YouTubePlayerView({ track }: { track: Track }) {
   const registerYtControls = usePlayer((s) => s.registerYtControls);
   const onStateChange = usePlayer((s) => s._onYtStateChange);
@@ -102,6 +109,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const soundPreset = usePlayer((s) => s.soundPreset);
 
   const [backend, setBackend] = useState<Backend>('resolving');
+  // Faixa a ser captada pela fase 1, com o runId da altura — sem o runId
+  // não dá para distinguir um resultado que chega tarde, já de outra música.
+  const [harvest, setHarvest] = useState<{ videoId: string; run: number } | null>(null);
   const _setActiveBackend = usePlayer((s) => s._setActiveBackend);
   useEffect(() => {
     _setActiveBackend(backend);
@@ -255,7 +265,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // player pode ainda não ter fonte — ignorar
     }
     setBackend('resolving');
-    proceedRef.current(null, myRun);
+    // FASE 1 (harvest). Estava por ligar: este `null` mandava sempre direito
+    // ao resolver próprio, que é exatamente o caminho que a Google bloqueia
+    // em IPs marcados. Deixar a página real do YouTube pedir o stream com o
+    // token de origem dela, e apanhar a resposta, é o caminho que se sabe
+    // funcionar no 4G (é o mesmo mecanismo do embed, que toca sempre).
+    // Com ficheiro local não vale a pena — o proceed trata disso sem rede.
+    if (cachedAudioFile(track.sourceId).exists || harvestFailures >= HARVEST_MAX_FAILURES) {
+      proceedRef.current(null, myRun);
+    } else {
+      setHarvest({ videoId: track.sourceId, run: myRun });
+    }
   }, [track.sourceId]);
 
   // Ao desmontar (ex.: fechar o player no X), parar mesmo o áudio nativo —
@@ -348,6 +368,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
       if (harvested?.kind === 'playerResponse') {
         stream = streamFromPlayerResponse(harvested.data, quality);
+        // Marcar a origem: sem isto a mensagem de erro dizia `client=?` e
+        // não se distinguia um harvest falhado de um resolve falhado.
+        stream.client = 'harvest/playerResponse';
       } else if (harvested?.kind === 'rawUrl') {
         const isHls = harvested.url.includes('.m3u8');
         stream = {
@@ -355,6 +378,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           isHls,
           expiresAt: Date.now() + 5 * 60 * 60 * 1000,
           contentLength: null,
+          client: 'harvest/rawUrl',
         };
       } else {
         stream = await resolveYouTubeStream(track.sourceId, quality);
@@ -745,7 +769,21 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // resolving | native -> Para poupar bateria e evitar o aquecimento do telemóvel,
   // não renderizamos o VideoView. Como a app é exclusivamente focada em áudio,
   // escusamos de forçar o descodificador de vídeo nativo a desenhar frames no ecrã.
-  return null;
+  // Única exceção: a fase 1 precisa da WebView invisível montada para captar.
+  return harvest ? (
+    <YtStreamHarvester
+      videoId={harvest.videoId}
+      timeoutMs={5000}
+      onResult={(r) => {
+        // Se a faixa mudou entretanto, este resultado é de outra música.
+        if (harvest.run !== runIdRef.current) return;
+        if (r) harvestFailures = 0;
+        else harvestFailures += 1;
+        setHarvest(null);
+        proceedRef.current(r, harvest.run);
+      }}
+    />
+  ) : null;
 }
 
 const styles = StyleSheet.create({

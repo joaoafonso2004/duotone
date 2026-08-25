@@ -43,7 +43,12 @@ export async function invalidateStaleAudioCache(): Promise<void> {
 }
 
 // Downloader Constants
-const CHUNK_BYTES = 4_000_000;
+// 4MB era demasiado ganancioso: sem PO Token o CDN rejeita pedidos grandes
+// (visto no 4G do João — a sonda de 2 bytes passava e o pedido de 4MB
+// levava 403 no MESMO URL). 1MB passa muito mais vezes; se mesmo assim
+// falhar, o ciclo encolhe sozinho até MIN_CHUNK_BYTES.
+const CHUNK_BYTES = 1_000_000;
+const MIN_CHUNK_BYTES = 131_072; // 128KB — abaixo disto não compensa
 const CHUNK_PACING_MS = 0;
 const MAX_ATTEMPTS_PER_CHUNK = 4;
 
@@ -224,6 +229,7 @@ export async function downloadProgressiveAudio(
   if (dest.exists) return dest.uri;
 
   let currentUrl = url;
+  let chunkSize = CHUNK_BYTES;
   const total = knownLength ?? (await discoverContentLength(url));
   const combined = new Uint8Array(total);
   let offset = 0;
@@ -232,10 +238,23 @@ export async function downloadProgressiveAudio(
     if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
     if (!first) await sleep(CHUNK_PACING_MS);
     first = false;
-    const end = Math.min(offset + CHUNK_BYTES, total) - 1;
-    const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl);
-    const part = got.bytes;
-    currentUrl = got.url; // se foi renovado, os chunks seguintes usam o novo
+    const end = Math.min(offset + chunkSize, total) - 1;
+    let part: Uint8Array;
+    try {
+      const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl);
+      part = got.bytes;
+      currentUrl = got.url; // se foi renovado, os chunks seguintes usam o novo
+    } catch (e) {
+      // Um 403 nem sempre quer dizer URL morto: sem PO Token o CDN também
+      // rejeita pedidos GRANDES de propósito. Já renovámos o URL sem
+      // sucesso, por isso a hipótese seguinte é o tamanho — encolher e
+      // repetir o MESMO offset, até ao mínimo, antes de desistir.
+      if (e instanceof Error && e.message !== DOWNLOAD_ABORTED && chunkSize > MIN_CHUNK_BYTES) {
+        chunkSize = Math.max(MIN_CHUNK_BYTES, Math.floor(chunkSize / 4));
+        continue;
+      }
+      throw e;
+    }
     const expected = end - offset + 1;
     if (part.length !== expected) {
       throw new Error(`Chunk incompleto (${part.length}/${expected} bytes) @${offset}`);
