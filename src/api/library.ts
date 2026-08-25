@@ -36,6 +36,58 @@ export async function upsertTrack(t: Track): Promise<string> {
   return data.id as string;
 }
 
+/** Chave estavel de uma faixa no catalogo global. */
+export function trackKey(t: Pick<Track, 'source' | 'sourceId'>): string {
+  return `${t.source}:${t.sourceId}`;
+}
+
+/**
+ * Versao em LOTE do upsertTrack. Devolve um mapa `source:sourceId` -> id na BD.
+ *
+ * Existe porque importar uma playlist grande chamava upsertTrack faixa a
+ * faixa: numa playlist de 2000 musicas eram 2000 idas ao Supabase em serie,
+ * o que demorava minutos e bastava uma falhar para deitar tudo abaixo. Aqui
+ * sao ~10 pedidos.
+ */
+export async function upsertTracks(
+  tracks: Track[],
+  chunkSize = 200,
+  onProgress?: (done: number, total: number) => void
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  // Duplicados dentro do mesmo lote fazem o Postgres queixar-se de afetar a
+  // mesma linha duas vezes — e listas do Spotify trazem repetidos com
+  // frequencia (e faixas diferentes podem casar com o mesmo video).
+  const unicas = new Map<string, Track>();
+  for (const t of tracks) if (!unicas.has(trackKey(t))) unicas.set(trackKey(t), t);
+  const lista = [...unicas.values()];
+
+  for (let i = 0; i < lista.length; i += chunkSize) {
+    const lote = lista.slice(i, i + chunkSize);
+    const { data, error } = await supabase
+      .from('tracks')
+      .upsert(
+        lote.map((t) => ({
+          source: t.source,
+          source_id: t.sourceId,
+          title: t.title,
+          artist: t.artist,
+          album: t.album,
+          artwork_url: t.artworkUrl,
+          duration_seconds: t.durationSeconds,
+        })),
+        { onConflict: 'source,source_id' }
+      )
+      .select('id, source, source_id');
+    if (error) throw error;
+    for (const row of data ?? []) {
+      out.set(`${row.source}:${row.source_id}`, row.id as string);
+    }
+    onProgress?.(Math.min(i + lote.length, lista.length), lista.length);
+  }
+  return out;
+}
+
 async function currentUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) throw new Error('Session expired');

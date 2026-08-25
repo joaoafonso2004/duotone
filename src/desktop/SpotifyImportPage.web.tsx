@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { addTracksToPlaylist, createPlaylist, listPlaylists } from '../api/playlists';
+import { addTracksToPlaylist, createPlaylist, deletePlaylist, listPlaylists } from '../api/playlists';
 import { searchYouTubeFreeWithChannel } from '../api/ytSearchFree';
 import { parseSpotifyCsv, type SpotifyCsvRow } from '../lib/spotifyCsv';
 import {
@@ -44,6 +44,9 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
   const [creatingNew, setCreatingNew] = useState(true);
   const [newName, setNewName] = useState('');
   const [saving, setSaving] = useState(false);
+  // Progresso da gravacao. Numa playlist de 2000 faixas isto demora, e sem
+  // sinal nenhum o utilizador fica a olhar para um botao a achar que travou.
+  const [saveProgress, setSaveProgress] = useState<{ done: number; total: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [reviewing, setReviewing] = useState(false);
 
@@ -201,15 +204,36 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
     }
 
     setSaving(true);
+    setSaveProgress({ done: 0, total: tracks.length });
+    // Guardado para poder desfazer: se a insercao falhar numa playlist que
+    // acabamos de criar, o utilizador ficava com um esqueleto vazio na
+    // biblioteca (foi exatamente o que aconteceu numa importacao de 2000).
+    let criadaAgora: string | null = null;
+    let inseridas = 0;
     try {
-      const id = creatingNew ? (await createPlaylist(newName.trim() || fileName)).id : target!;
-      await addTracksToPlaylist(id, tracks);
+      if (creatingNew) {
+        criadaAgora = (await createPlaylist(newName.trim() || fileName)).id;
+      }
+      const id = criadaAgora ?? target!;
+      await addTracksToPlaylist(id, tracks, (done, total) => {
+        inseridas = done;
+        setSaveProgress({ done, total });
+      });
       notify(`${tracks.length} ${tracks.length === 1 ? 'faixa adicionada' : 'faixas adicionadas'}.`);
       back();
     } catch (e: any) {
-      notify(e?.message ?? 'Não foi possível guardar.');
+      if (criadaAgora && inseridas === 0) {
+        // Nada entrou: apagar em vez de deixar lixo na biblioteca.
+        await deletePlaylist(criadaAgora).catch(() => {});
+        notify(e?.message ?? 'Não foi possível guardar. A playlist nao foi criada.');
+      } else if (criadaAgora) {
+        notify(`Guardadas ${inseridas} de ${tracks.length} faixas antes de falhar.`);
+      } else {
+        notify(e?.message ?? 'Não foi possível guardar.');
+      }
     } finally {
       setSaving(false);
+      setSaveProgress(null);
     }
   }
 
@@ -277,6 +301,31 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
           {phase === 'parsed' && (
             <View style={s.actions}>
               <Button onPress={run}>Procurar {rows.length} faixas no YouTube</Button>
+            </View>
+          )}
+
+          {/* Progresso da GRAVACAO (depois da revisao manual). Sem isto, numa
+              playlist grande ficava um botao desativado e mais nada — e o
+              utilizador nao sabia se estava a trabalhar ou preso. */}
+          {saving && saveProgress && (
+            <View style={s.block}>
+              <View style={s.track}>
+                <View
+                  style={[
+                    s.fill,
+                    {
+                      width: `${
+                        saveProgress.total
+                          ? Math.round((saveProgress.done / saveProgress.total) * 100)
+                          : 0
+                      }%`,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={s.meta}>
+                A guardar {saveProgress.done} de {saveProgress.total} faixas...
+              </Text>
             </View>
           )}
 
