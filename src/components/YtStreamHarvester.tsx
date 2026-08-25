@@ -152,19 +152,17 @@ export function YtStreamHarvester({ videoId, onResult, timeoutMs = 10000 }: Prop
   // silenciar, ouvia-se a música duas vezes (aqui e no player nativo)
   // durante a captura. Silenciada, a página carrega e pede o stream na
   // mesma — que é tudo o que precisamos dela.
-  // origin= + Referer: sem eles o embed responde
-  // `embedder.identity.missing.referrer` e NUNCA chega a pedir a resposta do
-  // player — confirmado por observação direta do beacon de stats. Sem isto
-  // não há nada para captar. O fallback visível já os usava; o harvester não.
-  const uri =
-    `https://www.youtube.com/embed/${videoId}` +
-    '?playsinline=1&autoplay=1&mute=1&rel=0&controls=0' +
-    '&origin=https%3A%2F%2Fwww.youtube.com';
+  // SEM header Referer e SEM parâmetro origin, de propósito: no dispositivo
+  // provocavam "Load failed" (ver BotGuardMinter.tsx). Num browser de
+  // secretária a falta deles dá `embedder.identity.missing.referrer`, mas o
+  // que vale é o comportamento no WKWebView, onde esta config já se
+  // comprovou carregar o embed — incl. em dados móveis.
+  const uri = `https://www.youtube.com/embed/${videoId}?playsinline=1&autoplay=1&mute=1&rel=0&controls=0`;
 
   return (
     <WebView
       key={videoId}
-      source={{ uri, headers: { Referer: 'https://www.youtube.com/' } }}
+      source={{ uri }}
       style={styles.hidden}
       injectedJavaScriptBeforeContentLoaded={INTERCEPT_JS}
       onMessage={onMessage}
