@@ -87,7 +87,9 @@ export async function migrateAudioCacheToDocuments(): Promise<void> {
       if (!(entry instanceof File) || !entry.name.startsWith(PREFIX)) continue;
       const dest = new File(Paths.document, entry.name);
       try {
-        if (!dest.exists) entry.move(dest);
+        // moveSync e não move: o `move` devolve Promise e, sem await, o
+        // erro escapava a este try/catch e o ciclo seguia sem esperar.
+        if (!dest.exists) entry.moveSync(dest);
         else entry.delete();
       } catch {
         // ficheiro em uso ou corrompido — fica para trás, será re-descarregado
