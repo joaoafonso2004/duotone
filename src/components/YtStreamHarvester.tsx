@@ -148,12 +148,23 @@ export function YtStreamHarvester({ videoId, onResult, timeoutMs = 10000 }: Prop
     }
   };
 
-  const uri = `https://www.youtube.com/embed/${videoId}?playsinline=1&autoplay=1&rel=0&controls=0`;
+  // mute=1 — esta WebView está escondida, mas o embed toca a sério. Sem
+  // silenciar, ouvia-se a música duas vezes (aqui e no player nativo)
+  // durante a captura. Silenciada, a página carrega e pede o stream na
+  // mesma — que é tudo o que precisamos dela.
+  // origin= + Referer: sem eles o embed responde
+  // `embedder.identity.missing.referrer` e NUNCA chega a pedir a resposta do
+  // player — confirmado por observação direta do beacon de stats. Sem isto
+  // não há nada para captar. O fallback visível já os usava; o harvester não.
+  const uri =
+    `https://www.youtube.com/embed/${videoId}` +
+    '?playsinline=1&autoplay=1&mute=1&rel=0&controls=0' +
+    '&origin=https%3A%2F%2Fwww.youtube.com';
 
   return (
     <WebView
       key={videoId}
-      source={{ uri }}
+      source={{ uri, headers: { Referer: 'https://www.youtube.com/' } }}
       style={styles.hidden}
       injectedJavaScriptBeforeContentLoaded={INTERCEPT_JS}
       onMessage={onMessage}
