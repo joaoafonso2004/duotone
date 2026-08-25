@@ -53,7 +53,8 @@
           }
         }
       ],
-      "expo-file-system"
+      "expo-file-system",
+      "expo-background-task"
     ]
   }
 }

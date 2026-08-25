@@ -18,6 +18,7 @@ import {
   migrateAudioCacheToDocuments,
   pruneAudioCacheLRU,
 } from './src/lib/youtubeCache';
+import { registerBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { useAuth } from './src/state/auth';
 import { usePlayer } from './src/state/player';
 import { useTheme } from './src/state/theme';
@@ -29,6 +30,8 @@ export default function App() {
     init();
     // Hidrata preferências persistidas no arranque da app.
     loadPrefsCache();
+    // Verificação da inbox com a app fechada (best-effort; ver backgroundInbox).
+    registerBackgroundInboxCheck();
     invalidateStaleAudioCache()
       // As músicas viviam na pasta Caches, que o iOS apaga sozinho quando
       // precisa de espaço — era por isso que os downloads desapareciam.
