@@ -326,6 +326,39 @@ async function requestPlayer(
   return res.json();
 }
 
+/**
+ * Do manifesto HLS mestre, extrai a playlist SÓ DE ÁUDIO (#EXT-X-MEDIA com
+ * TYPE=AUDIO). Sem isto o AVPlayer escolheria uma variante #EXT-X-STREAM-INF,
+ * e TODAS elas trazem vídeo — gastava dados a descarregar imagem que a app
+ * nunca mostra. Verificado: a rendition de áudio do itag 234 (AAC ~128kbps)
+ * descarrega inteira, 38 segmentos, 3,31MB, sem um único 403.
+ *
+ * Devolve `null` se não houver rendition de áudio — nesse caso fica-se pelo
+ * manifesto mestre, que toca na mesma (só gasta mais dados).
+ */
+async function pickAudioOnlyHls(masterUrl: string, preferLowBitrate: boolean): Promise<string | null> {
+  try {
+    const res = await fetch(masterUrl);
+    if (!res.ok) return null;
+    const text = await res.text();
+    const medias = text
+      .split('\n')
+      .filter((l) => l.startsWith('#EXT-X-MEDIA:') && l.includes('TYPE=AUDIO'))
+      .map((l) => {
+        const uri = /URI="([^"]+)"/.exec(l)?.[1] ?? null;
+        const itag = uri ? (/\/itag\/(\d+)\//.exec(uri)?.[1] ?? null) : null;
+        return { uri, itag };
+      })
+      .filter((x): x is { uri: string; itag: string | null } => !!x.uri);
+    if (!medias.length) return null;
+    // itag 234 = AAC ~128kbps; 233 é a de menor bitrate (modo poupança).
+    const wanted = preferLowBitrate ? '233' : '234';
+    return (medias.find((m) => m.itag === wanted) ?? medias[0]).uri;
+  } catch {
+    return null;
+  }
+}
+
 /** Confirma que o CDN (googlevideo) aceita mesmo o URL, antes de o darmos
  * como bom. Devolve o status HTTP (0 se a rede falhou). Pede só 2 bytes. */
 async function probeMediaUrl(url: string): Promise<number> {
@@ -367,13 +400,23 @@ export async function resolveYouTubeStream(
   // apanha em IPs marcados (ex.: 4G partilhado). Obtido uma vez por sessão.
   const visitorData = await getVisitorData();
 
-  // ANDROID_VR e ANDROID dão áudio mp4 com URL DIRETA (sem cifra) e sem o
-  // limite de 1MB. O WEB dá URLs cifradas (exigiriam decifrar assinatura, que
-  // não fazemos), por isso não entra na cascata.
-  for (const client of [ANDROID_VR_CLIENT, ANDROID_CLIENT]) {
+  // ORDEM (ago 2026): o IOS vem PRIMEIRO porque é o único que devolve
+  // `hlsManifestUrl`, e o HLS NÃO sofre do teto de ~1MB cumulativos que mata o
+  // mp4 progressivo. Verificado ponta a ponta: 342MB puxados por HLS sem um
+  // único 403, e a rendition só de áudio dá a música inteira em 3,31MB. O
+  // ANDROID_VR ficava a ganhar a cascata e prendia-nos ao caminho progressivo,
+  // que é exatamente o que a Google está a cortar. Os android ficam como
+  // recurso para quando não houver HLS.
+  // O WEB continua fora: dá URLs cifradas (exigiriam decifrar assinatura) e,
+  // testado, responde UNPLAYABLE fora de uma sessão de browser real.
+  for (const client of [IOS_CLIENT, ANDROID_VR_CLIENT, ANDROID_CLIENT]) {
     try {
       const data = await requestPlayer(videoId, client, visitorData);
       const stream = streamFromPlayerResponse(data, quality);
+      if (stream.isHls) {
+        const audioOnly = await pickAudioOnlyHls(stream.url, quality === 'saver');
+        if (audioOnly) stream.url = audioOnly;
+      }
       // O /player pode responder OK e o CDN rejeitar o URL na mesma com 403
       // (acontece em IPs marcados pela Google, ex.: 4G partilhado). Sem esta
       // sonda o cliente "ganhava" a cascata na mesma e o 403 só rebentava
