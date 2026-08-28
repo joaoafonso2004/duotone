@@ -118,7 +118,6 @@ export interface TopArtist {
 
 export async function getTopArtists(limit = 8): Promise<TopArtist[]> {
   try {
-    const userId = await currentUserId();
     const { data, error } = await supabase.rpc('get_top_artists', { limit_val: limit });
     if (error) throw error;
     return (data ?? []).map((row: any) => ({

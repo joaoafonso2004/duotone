@@ -348,10 +348,6 @@ export async function downloadProgressiveAudio(
   // os cabeçalhos do moov para o AVPlayer deixar de somar moov + fragmentos
   // (ver mp4Fixer.ts). Não precisa da duração real para isso, por isso corre
   // sempre — durationSeconds só é usada para o mehd, quando exista.
-  // [duration-debug] log temporário — remover depois de validar no dispositivo
-  console.log(
-    `[duration-debug][download] videoId=${videoId} durationSeconds=${durationSeconds ?? 'null'} bytes=${total}`
-  );
   fixMp4Duration(combined, durationSeconds);
 
   dest.create({ overwrite: true });

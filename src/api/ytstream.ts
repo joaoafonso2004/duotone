@@ -247,6 +247,7 @@ export function streamFromPlayerResponse(
         expiresAt: Date.now() + 5 * 60 * 60 * 1000,
         contentLength: null,
         durationSeconds,
+        loudnessDb,
       };
     }
     throw new Error('No AVPlayer-compatible stream found');
@@ -259,6 +260,7 @@ export function streamFromPlayerResponse(
     expiresAt: Date.now() + expireSec * 1000,
     contentLength: picked.contentLength,
     durationSeconds,
+    loudnessDb,
   };
 }
 
