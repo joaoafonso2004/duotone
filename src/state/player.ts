@@ -4,6 +4,8 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { recordPlayInSupabase } from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
+import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
+import { fetchRadioTracks } from '../api/radio';
 import type { Track } from '../types';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
@@ -50,6 +52,11 @@ interface PlayerState {
    * "anterior" volta pelo caminho por onde veio. Ver lib/shuffle.ts.
    * Não é persistido — regenera-se sozinho. */
   shuffleOrder: string[];
+  /** Rádio: quando a fila acaba, continuar com música parecida em vez de
+   * ficar em silêncio. Preferência do utilizador (Definições). */
+  autoplayRadio: boolean;
+  /** true enquanto a cauda da fila veio do rádio — só para a UI o dizer. */
+  radioActive: boolean;
   /** mostrar o botão de recuar 15s no player expandido (preferência das Definições) */
   showRewindButton: boolean;
   positionMs: number;
@@ -123,6 +130,13 @@ interface PlayerState {
    * não é `queue.slice(queueIndex + 1)` — a lista "Up next" mentia. */
   upcomingQueue: () => { track: Track; index: number }[];
 
+  setAutoplayRadio: (v: boolean) => void;
+  /** Acrescenta faixas do rádio à fila, se fizer sentido agora. Devolve se
+   * chegou mesmo a acrescentar. Chamado de dois sítios: em antecipação
+   * (useAutoplayRadio, para não haver silêncio) e no `next()` como rede de
+   * segurança. */
+  extendQueueWithRadio: () => Promise<boolean>;
+
   /** interno — devolve o percurso do shuffle alinhado com a fila atual,
    * gerando-o se ainda não existir. Sem isto, remover uma faixa da fila
    * deixava o percurso a apontar para uma chave que já lá não está e o
@@ -163,6 +177,9 @@ function debouncedStorage() {
   };
 }
 
+/** Guarda contra duas idas à rede do rádio em simultâneo. */
+let radioInFlight = false;
+
 export const usePlayer = create<PlayerState>()(
   persist(
     (set, get) => ({
@@ -174,6 +191,8 @@ export const usePlayer = create<PlayerState>()(
   repeatMode: 'off',
   shuffle: false,
   shuffleOrder: [],
+  autoplayRadio: true,
+  radioActive: false,
   showRewindButton: false,
   positionMs: 0,
   durationMs: 0,
@@ -221,6 +240,8 @@ export const usePlayer = create<PlayerState>()(
       // quando chega uma playlist nova, não sobra chave nenhuma e sai uma
       // ordem inteiramente nova. Um só caminho para os dois casos.
       shuffleOrder: get().shuffle ? reconcileOrder(get().shuffleOrder, q, index) : [],
+      // Escolher uma fila nova sai do rádio; continuar na mesma mantém-no.
+      radioActive: get().radioActive && q === get().queue,
       ...(shouldExpand ? { expanded: true } : {}),
     });
   },
@@ -297,6 +318,19 @@ export const usePlayer = create<PlayerState>()(
     const { queue, queueIndex, repeatMode, shuffle, playTrack } = get();
     if (queue.length === 0) return;
 
+    // Fim da fila: em vez de silêncio, o rádio. Normalmente já estendeu a
+    // fila em antecipação (useAutoplayRadio) e nem se chega aqui; isto é a
+    // rede de segurança para quando a rede foi lenta. Não recursa em ciclo:
+    // se estender, a fila cresceu e a chamada seguinte encontra faixa; se
+    // não estender, pára.
+    const stopOrRadio = async () => {
+      if (await get().extendQueueWithRadio()) {
+        await get().next();
+        return;
+      }
+      set({ isPlaying: false });
+    };
+
     // Shuffle: seguir o percurso materializado, não sortear.
     //
     // O que estava aqui antes sorteava um índice diferente do atual a cada
@@ -320,7 +354,7 @@ export const usePlayer = create<PlayerState>()(
           return;
         }
       }
-      set({ isPlaying: false });
+      await stopOrRadio();
       return;
     }
 
@@ -329,7 +363,7 @@ export const usePlayer = create<PlayerState>()(
     } else if (repeatMode === 'all') {
       await playTrack(queue[0], queue);
     } else {
-      set({ isPlaying: false });
+      await stopOrRadio();
     }
   },
 
@@ -379,6 +413,42 @@ export const usePlayer = create<PlayerState>()(
       error: null,
       activeBackend: 'resolving',
     });
+  },
+
+  setAutoplayRadio: (v) => set({ autoplayRadio: v }),
+
+  extendQueueWithRadio: async () => {
+    const { autoplayRadio, current, queue, queueIndex, repeatMode } = get();
+    if (
+      !shouldExtendWithRadio(autoplayRadio, !!current, get().upcomingQueue().length, repeatMode)
+    ) {
+      return false;
+    }
+    // Duas idas à rede em simultâneo (o efeito de antecipação e o `next()`
+    // disparam quase ao mesmo tempo) duplicavam as faixas na fila.
+    if (radioInFlight) return false;
+    radioInFlight = true;
+    try {
+      const tracks = await fetchRadioTracks(radioSeeds(queue, queueIndex), queue);
+      if (tracks.length === 0) return false;
+
+      // A fila pode ter mudado enquanto isto foi à rede — reler o estado,
+      // nunca usar o que foi capturado no início.
+      const live = get();
+      const merged = [...live.queue, ...tracks];
+      set({
+        queue: merged,
+        radioActive: true,
+        shuffleOrder: live.shuffle
+          ? reconcileOrder(live.shuffleOrder, merged, live.queueIndex)
+          : [],
+      });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      radioInFlight = false;
+    }
   },
 
   upcomingQueue: () => {

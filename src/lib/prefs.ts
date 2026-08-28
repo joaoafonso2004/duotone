@@ -10,6 +10,7 @@ const KEY_HAPTICS_ENABLED = 'pref:hapticsEnabled';
 const KEY_SEARCH_HISTORY = 'pref:searchHistory';
 const MAX_SEARCH_HISTORY = 10;
 const KEY_POT_SERVER_URL = 'pref:potServerUrl';
+const KEY_AUTOPLAY_RADIO = 'pref:autoplayRadio';
 
 export type YtViewMode = 'video' | 'photo';
 export type AudioQuality = 'high' | 'saver';
@@ -44,6 +45,15 @@ export async function getShuffle(): Promise<boolean> {
 }
 export async function setShuffle(v: boolean): Promise<void> {
   await setBool(KEY_SHUFFLE, v);
+}
+
+/** Rádio no fim da fila. Ligado por omissão — é o ponto da funcionalidade,
+ * e as duas primeiras fontes (biblioteca e histórico) não gastam quota. */
+export async function getAutoplayRadio(): Promise<boolean> {
+  return getBool(KEY_AUTOPLAY_RADIO, true);
+}
+export async function setAutoplayRadio(v: boolean): Promise<void> {
+  await setBool(KEY_AUTOPLAY_RADIO, v);
 }
 
 export async function getAudioQuality(): Promise<AudioQuality> {

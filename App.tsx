@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { UpdateSheet } from './src/components/UpdateSheet';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
+  getAutoplayRadio,
   getRepeatMode,
   getShowRewindButton,
   getShuffle,
@@ -48,14 +49,18 @@ export default function App() {
       else usePlayer.persist.onFinishHydration(prune);
     });
     useTheme.getState().loadTheme();
-    Promise.all([getRepeatMode(), getShuffle(), getShowRewindButton()]).then(
-      ([repeatMode, shuffle, showRewindButton]) => {
-        const player = usePlayer.getState();
-        player.setRepeatMode(repeatMode);
-        player.setShuffle(shuffle);
-        player.setShowRewindButton(showRewindButton);
-      }
-    );
+    Promise.all([
+      getRepeatMode(),
+      getShuffle(),
+      getShowRewindButton(),
+      getAutoplayRadio(),
+    ]).then(([repeatMode, shuffle, showRewindButton, autoplayRadio]) => {
+      const player = usePlayer.getState();
+      player.setRepeatMode(repeatMode);
+      player.setShuffle(shuffle);
+      player.setShowRewindButton(showRewindButton);
+      player.setAutoplayRadio(autoplayRadio);
+    });
   }, [init]);
 
   // Renovação automática do token do Supabase ligada ao ciclo de vida da app.

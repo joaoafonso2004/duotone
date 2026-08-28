@@ -32,6 +32,7 @@ import { QueueSheet } from './QueueSheet';
 import { navigationRef } from '../navigation/RootNavigator';
 import { clearPresence, publishPresence } from '../api/social';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
+import { useAutoplayRadio } from '../lib/radioSync';
 import {
   addRemoteCommandListeners,
   setRemoteCommandsEnabled,
@@ -71,6 +72,10 @@ export function PlayerRoot() {
   const setExpanded = usePlayer((s) => s.setExpanded);
   const seekTo = usePlayer((s) => s.seekTo);
   const setError = usePlayer((s) => s.setError);
+
+  // Rádio: mantém a fila abastecida antes de ela acabar, para não haver
+  // silêncio entre a última faixa e a primeira do rádio.
+  useAutoplayRadio();
 
   // Distingue "nunca houve faixa" de "o player foi fechado", para não
   // mandar um delete ao arrancar a app sem nada a tocar.
