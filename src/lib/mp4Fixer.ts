@@ -106,13 +106,10 @@ export function fixMp4Duration(buffer: Uint8Array, durationSeconds: number | nul
           if (version === 1) {
             const timescale = read32(buffer, boxContentStart + 20);
             movieTimescale = timescale;
-            // [duration-debug] log temporário — remover depois de validar no dispositivo
-            console.log(`[duration-debug][mp4Fixer] mvhd v1: ${(read32(buffer, boxContentStart + 28) / timescale).toFixed(1)}s -> 0`);
             write64(buffer, boxContentStart + 24, 0);
           } else if (version === 0) {
             const timescale = read32(buffer, boxContentStart + 12);
             movieTimescale = timescale;
-            console.log(`[duration-debug][mp4Fixer] mvhd v0: ${(read32(buffer, boxContentStart + 16) / timescale).toFixed(1)}s -> 0`);
             write32(buffer, boxContentStart + 16, 0);
           }
         } else if (type === 'tkhd') {

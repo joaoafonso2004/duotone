@@ -178,7 +178,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   // [duration-debug] log único por faixa do player.duration (o valor que o
   // expo-video envia para o Lock Screen) — remover depois de validar.
-  const durationLoggedRef = useRef(false);
 
   // Fade transition refs
   const fadeIntervalRef = useRef<any>(null);
@@ -266,7 +265,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     lastProgressRef.current = { time: 0, at: Date.now() };
     wantsPlayRef.current = true;
     endedRef.current = false;
-    durationLoggedRef.current = false; // [duration-debug]
     fadingOutRef.current = false; // Reset fade states
     webviewSkippedRef.current = false; // Reset webview skip flag
     if (fadeIntervalRef.current) {
@@ -552,16 +550,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // [duration-debug] player.duration é exatamente o que o expo-video publica
     // no Lock Screen (MPMediaItemPropertyPlaybackDuration = currentItem.duration).
     // Esperado após a correção: player.duration ≈ track.durationSeconds (1x).
-    if (currentTime > 0 && !durationLoggedRef.current) {
-      durationLoggedRef.current = true;
-      console.log(
-        `[duration-debug][player] AVPlayerItem.duration=${player.duration}s ` +
-          `track.durationSeconds=${track.durationSeconds ?? 'null'} ` +
-          `stream.durationSeconds=${streamRef.current?.durationSeconds ?? 'null'} ` +
-          `isHls=${streamRef.current?.isHls ?? '?'}`
-      );
-    }
-
     // A duração REAL vem da YouTube Data API (track.durationSeconds) ou do
     // resolved stream (streamRef.current?.durationSeconds), que é fiável.
     // Não usamos player.duration porque alguns streams m4a do YouTube
