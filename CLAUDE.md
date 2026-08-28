@@ -34,6 +34,33 @@ Fluxo: ecrãs → `usePlayer` (zustand, `src/state/player.ts`) → `PlayerRoot` 
 - **Sleep timer**: deadline absoluto (`sleepTimerEndsAt`) verificado no `timeUpdate` do player nativo — nunca reverter para contador com `setInterval` (o iOS suspende timers JS em background).
 - Duração/posição na UI: sempre `track.durationSeconds` (fiável), nunca `player.duration` exceto como último fallback.
 
+## Handoff entre dispositivos ("continuar aqui")
+
+Ouvir no telemóvel, abrir o PC e encontrar lá o tema. Peças: `lib/handoff.ts`
+(lógica pura, testada em `scripts/test-handoff.ts`) → `api/playerSessions.ts`
+(transporte) → `lib/sessionSync.ts` (debounce/batimento + hook de leitura) →
+`components/HandoffBanner.tsx` / `.web.tsx` (o resolver escolhe).
+
+- **Tabela própria `player_sessions`, uma linha por dispositivo — NÃO
+  reutilizar o `profiles.currently_playing`.** Duas razões, ambas com
+  história: (1) o `currently_playing` é lido em lote para a lista de amigos e
+  levava a fila de toda a gente atrás; (2) é APAGADO ao ir para segundo plano
+  (`clearPresence`), que é exatamente quando o handoff faz falta. A sessão, ao
+  contrário do presence, sobrevive ao segundo plano e a fechar a janela.
+- **A posição é extrapolada na leitura, não escrita ao segundo**: batimento de
+  45s e quem lê avança a posição pelo tempo decorrido desde o `updated_at`. Por
+  isso o `updated_at` é do relógio do CLIENTE e não `now()` — as duas pontas
+  têm de comparar tempos da mesma base.
+- **Não há controlo remoto** e não vale a pena tentar: o iOS suspende o JS em
+  segundo plano, um telemóvel bloqueado não responde a comandos. Assumir a
+  reprodução silencia o dispositivo de origem localmente (cooldown de 15 min) e
+  marca-lhe `is_playing=false`.
+- `adoptSession` na store preenche `resumePositionMs` **e** `positionMs`: o
+  motor nativo retoma pelo primeiro (beginPlayback), o do desktop pelo segundo
+  (onReady do IFrame). E não conta reprodução — já foi contada na origem.
+- A fila viaja recortada (`trimQueueForSync`, ~96 faixas à volta da atual): um
+  import de playlist grande não cabe numa coluna jsonb com juízo.
+
 ## Supabase
 
 - Migrações = ficheiros SQL em `supabase/`, corridos **manualmente** no SQL Editor (schema.sql base + incrementais: social-setup, inbox-archive, etc.). Não há tooling de migração — ao criar uma feature nova com SQL, adicionar um ficheiro incremental e avisar o utilizador para o correr.

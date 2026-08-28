@@ -12,6 +12,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, AppState } from 'react-native';
+import { HandoffBanner } from '../components/HandoffBanner';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
@@ -299,6 +300,8 @@ export function RootNavigator() {
               <Stack.Screen name="Social" component={SocialScreen} />
             </Stack.Navigator>
             <PlayerRoot />
+            {/* "A tocar no PC — continuar aqui". Fica por cima do mini-player. */}
+            <HandoffBanner />
             {/* REATIVADO (ago 2026). A condição que este comentário previa
                 aconteceu: o ANDROID_VR já NÃO resolve áudio sem PO Token. O
                 CDN corta em ~1MB cumulativos por vídeo/IP — medido no 4G do

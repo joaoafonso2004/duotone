@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { endSession } from '../lib/sessionSync';
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_TIME_MS = 60 * 1000; // 60 segundos de bloqueio
@@ -120,6 +121,9 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   signOut: async () => {
+    // Antes do signOut, enquanto ainda há JWT para a RLS deixar apagar: uma
+    // sessão órfã ficava a oferecer handoff no outro dispositivo até expirar.
+    await endSession();
     await supabase.auth.signOut();
   },
 
