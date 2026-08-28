@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, removeFromLibrary, checkIsSaved } from '../api/library';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { setRepeatMode as persistRepeatMode, setShuffle as persistShuffle } from '../lib/prefs';
+import { useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
@@ -54,6 +55,7 @@ export function PlayerRoot() {
   const expanded = usePlayer((s) => s.expanded);
   const repeatMode = usePlayer((s) => s.repeatMode);
   const shuffle = usePlayer((s) => s.shuffle);
+  const autoplayRadio = usePlayer((s) => s.autoplayRadio);
   const cycleRepeat = usePlayer((s) => s.cycleRepeat);
   const toggleShuffle = usePlayer((s) => s.toggleShuffle);
   const showRewindButton = usePlayer((s) => s.showRewindButton);
@@ -394,6 +396,9 @@ export function PlayerRoot() {
         setSaved(true);
         hapticNotification();
       }
+      // Manter o conjunto global em sincronia: é dele que vem a marca de
+      // "já guardada" nos resultados de pesquisa.
+      useSaved.getState().markSaved(current, !wasSaved);
     } catch (e: any) {
       setSaved(wasSaved);
       Alert.alert('Error', e?.message ?? 'Could not update library.');
@@ -410,6 +415,11 @@ export function PlayerRoot() {
   if (!current) return null;
 
   const isYt = current.source === 'youtube';
+  const atQueueEnd =
+    repeatMode === 'off' &&
+    !shuffle &&
+    !autoplayRadio &&
+    queueIndex >= queue.length - 1;
   const TAB_H = TAB_BAR_BASE + insets.bottom;
   const miniBottom = TAB_H + 8;
   const fraction = durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
@@ -701,6 +711,19 @@ export function PlayerRoot() {
               </Text>
             </View>
 
+            {/* Guardar sem ter de abrir o player todo. */}
+            <Pressable
+              hitSlop={8}
+              onPress={saveCurrentToLibrary}
+              accessibilityLabel={saved ? 'Remove from Library' : 'Save to Library'}
+              style={styles.miniBtn}
+            >
+              <Ionicons
+                name={saved ? 'heart' : 'heart-outline'}
+                size={19}
+                color={saved ? theme.color : colors.textSecondary}
+              />
+            </Pressable>
             <Pressable hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
               <Ionicons
                 name={isPlaying ? 'pause' : 'play'}
@@ -711,14 +734,9 @@ export function PlayerRoot() {
             <Pressable
               hitSlop={8}
               onPress={next}
-              disabled={repeatMode === 'off' && !shuffle && queueIndex >= queue.length - 1}
-              style={[
-                styles.miniBtn,
-                repeatMode === 'off' &&
-                  !shuffle &&
-                  queueIndex >= queue.length - 1 &&
-                  styles.dimmed,
-              ]}
+              // Com o rádio ligado a fila nunca é o fim: o `next()` estende-a.
+              disabled={atQueueEnd}
+              style={[styles.miniBtn, atQueueEnd && styles.dimmed]}
             >
               <Ionicons name="play-skip-forward" size={20} color={colors.text} />
             </Pressable>

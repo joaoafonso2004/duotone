@@ -6,6 +6,7 @@ import { hapticImpact, hapticSelection } from '../lib/haptics';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { isAudioCached } from '../lib/youtubeCache';
 import { colors, radii, spacing, type } from '../theme';
+import { useSaved } from '../state/saved';
 import { useTheme } from '../state/theme';
 import type { Track } from '../types';
 import { SourceBadge } from './SourceBadge';
@@ -18,6 +19,11 @@ interface Props {
   actionIcon?: keyof typeof Ionicons.glyphMap;
   selectMode?: boolean;
   selected?: boolean;
+  /** Marcar as faixas que já estão na biblioteca. Só faz sentido em listas
+   * que MISTURAM guardadas e não guardadas (pesquisa, faixas de um artista no
+   * YouTube). Nas listas da própria biblioteca seria um ícone em todas as
+   * linhas, ou seja, ruído. */
+  showSavedBadge?: boolean;
 }
 
 function formatDuration(s: number | null): string {
@@ -35,8 +41,15 @@ export function TrackRow({
   actionIcon = 'ellipsis-horizontal',
   selectMode = false,
   selected = false,
+  showSavedBadge = false,
 }: Props) {
   const theme = useTheme((s) => s.theme);
+  // Subscrito sempre (as regras dos hooks não deixam condicionar), mas o
+  // seletor devolve `false` quando a badge está desligada, por isso as listas
+  // da biblioteca não voltam a renderizar quando a biblioteca muda.
+  const saved = useSaved((s) =>
+    showSavedBadge ? s.keys.has(`${track.source}:${track.sourceId}`) : false
+  );
 
   return (
     <Pressable
@@ -99,6 +112,10 @@ export function TrackRow({
           {track.source === 'youtube' && isAudioCached(track.sourceId) ? (
             // Disponível offline (áudio já descarregado no cache local)
             <Ionicons name="arrow-down-circle" size={12} color={colors.textSecondary} />
+          ) : null}
+          {saved ? (
+            // Já está na biblioteca — evita guardar duas vezes a mesma faixa.
+            <Ionicons name="heart" size={11} color={theme.color} />
           ) : null}
           {track.artist ? (
             <Text numberOfLines={1} style={[type.caption, { flexShrink: 1 }]}>

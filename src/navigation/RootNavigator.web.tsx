@@ -8,6 +8,7 @@ import { getLibrary, removeFromLibrary, saveToLibrary, checkIsSaved } from '../a
 import { fetchYouTubePlaylist, searchYouTube } from '../api/youtube';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { FriendAvatar } from '../components/FriendAvatar';
+import { useSaved } from '../state/saved';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
@@ -372,11 +373,12 @@ function useLibraryData() {
 
 function SearchPage({ play, notify, more }: CommonPageProps) {
   const [query, setQuery] = useState(''); const [results, setResults] = useState<Track[]>([]); const [history, setHistory] = useState<string[]>([]); const [loading, setLoading] = useState(false); const input = useRef<any>(null);
-  useEffect(() => { getSearchHistory().then(setHistory); const focus = () => input.current?.focus(); window.addEventListener('duotone:focus-search', focus); return () => window.removeEventListener('duotone:focus-search', focus); }, []);
+  // Conjunto das faixas já guardadas, para marcar os resultados com um coração.
+  useEffect(() => { useSaved.getState().refresh(); getSearchHistory().then(setHistory); const focus = () => input.current?.focus(); window.addEventListener('duotone:focus-search', focus); return () => window.removeEventListener('duotone:focus-search', focus); }, []);
   const run = async (q = query) => { const clean = q.trim(); if (!clean) return; setQuery(clean); setLoading(true); try { const [items, next] = await Promise.all([searchYouTube(clean), addSearchHistoryEntry(clean)]); setResults(items); setHistory(next); } catch (e: any) { notify(e?.message || 'Search failed.'); } finally { setLoading(false); } };
   return <Page title="Search" subtitle="Search YouTube and add music to your Duotone library."><View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
     {!results.length && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
-    <ContentScroll>{loading ? <View style={{ height: 320 }}><Loading /></View> : <TrackTable tracks={results} onPlay={(t) => play(t, results)} onMore={more} empty={<Empty icon="search-outline" title="Find something to play" body="Search the complete YouTube catalogue. Results appear here in a desktop-friendly table." />} />}</ContentScroll></Page>;
+    <ContentScroll>{loading ? <View style={{ height: 320 }}><Loading /></View> : <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, results)} onMore={more} empty={<Empty icon="search-outline" title="Find something to play" body="Search the complete YouTube catalogue. Results appear here in a desktop-friendly table." />} />}</ContentScroll></Page>;
 }
 
 interface CommonPageProps { play: (track: Track, queue?: Track[]) => void; notify: (message: string) => void; more: (track: Track) => void; }
@@ -394,11 +396,13 @@ function SongsPage(props: CommonPageProps) {
     );
   }, [data.tracks, query]);
 
+  // O Shuffle liga o modo aleatório do player (Fisher-Yates) em vez de
+  // baralhar a lista com `sort(() => Math.random() - 0.5)`, que é enviesado e
+  // deixava o botão em desacordo com o interruptor do player.
   const playAll = (shuffle = false) => {
     if (!filteredTracks.length) return;
-    let list = [...filteredTracks];
-    if (shuffle) list.sort(() => Math.random() - 0.5);
-    props.play(list[0], list);
+    if (shuffle) usePlayer.getState().playShuffled(filteredTracks);
+    else props.play(filteredTracks[0], filteredTracks);
   };
 
   return <Page title="Songs" subtitle={`${data.tracks.length} saved ${data.tracks.length === 1 ? 'song' : 'songs'}`} action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={() => playAll(false)}>Play</Button><Button secondary icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button><Button secondary icon="refresh" onPress={data.refresh}>Refresh</Button></View>}><View style={styles.searchBar}><Field icon="search" placeholder="Search saved songs..." value={query} onChangeText={setQuery} /></View><ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No saved songs match "${query}"`} /> : <Empty icon="musical-notes-outline" title="Your library is quiet" body="Save tracks from Search and they will be organised here." />} />}</ContentScroll></Page>;
@@ -466,11 +470,13 @@ function PlaylistPage({ id, title, back, ...props }: { id: string; title: string
     );
   }, [tracks, query]);
 
+  // O Shuffle liga o modo aleatório do player (Fisher-Yates) em vez de
+  // baralhar a lista com `sort(() => Math.random() - 0.5)`, que é enviesado e
+  // deixava o botão em desacordo com o interruptor do player.
   const playAll = (shuffle = false) => {
     if (!filteredTracks.length) return;
-    let list = [...filteredTracks];
-    if (shuffle) list.sort(() => Math.random() - 0.5);
-    props.play(list[0], list);
+    if (shuffle) usePlayer.getState().playShuffled(filteredTracks);
+    else props.play(filteredTracks[0], filteredTracks);
   };
   return <><Page title={playlistTitle} subtitle={`${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'}`} action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={() => playAll(false)}>Play</Button><Button secondary icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button><Button secondary icon="arrow-back" onPress={back}>Playlists</Button><IconButton name="pencil-outline" label="Rename playlist" onPress={() => { setRenameVal(playlistTitle); setRenameOpen(true); }} /><IconButton name="trash-outline" label="Delete playlist" onPress={() => setConfirm(true)} /></View>}><View style={styles.searchBar}><Field icon="search" placeholder="Search tracks in playlist..." value={query} onChangeText={setQuery} /></View><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Songs to add music here." />} />}</ContentScroll></Page><Dialog open={confirm} title="Delete playlist?" onClose={() => setConfirm(false)}><Text style={styles.dialogBody}>“{playlistTitle}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setConfirm(false)}>Cancel</Button><Button danger onPress={remove}>Delete</Button></View></Dialog><Dialog open={renameOpen} title="Rename playlist" onClose={() => setRenameOpen(false)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={renameVal} onChangeText={setRenameVal} onSubmitEditing={doRename} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenameOpen(false)}>Cancel</Button><Button onPress={doRename} disabled={!renameVal.trim()}>Save</Button></View></Dialog></>;
 }
@@ -1470,10 +1476,12 @@ function DesktopShell() {
         const idToRemove = trackId || currentTrack.id;
         if (idToRemove) {
           await removeFromLibrary(idToRemove);
+          useSaved.getState().markSaved(currentTrack, false);
           notify('Removed from library.');
         }
       } else {
         await saveToLibrary(currentTrack);
+        useSaved.getState().markSaved(currentTrack, true);
         notify('Saved to library.');
       }
       window.dispatchEvent(new Event('duotone:refresh-library'));
@@ -1635,9 +1643,11 @@ function DesktopShell() {
     try {
       if (isSaved && idToRemove) {
         await removeFromLibrary(idToRemove);
+        useSaved.getState().markSaved(trackMenu, false);
         notify('Removed from library.');
       } else {
         await saveToLibrary(trackMenu);
+        useSaved.getState().markSaved(trackMenu, true);
         notify('Saved to library.');
       }
       window.dispatchEvent(new Event('duotone:refresh-library'));

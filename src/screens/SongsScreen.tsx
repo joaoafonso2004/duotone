@@ -19,6 +19,7 @@ import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { Input } from '../components/Input';
+import { useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
@@ -29,6 +30,7 @@ export function SongsScreen() {
   const navigation = useNavigation<any>();
   
   const playTrack = usePlayer((s) => s.playTrack);
+  const playShuffled = usePlayer((s) => s.playShuffled);
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
@@ -104,6 +106,10 @@ export function SongsScreen() {
       }
       setSelectMode(false);
       setSelectedIds(new Set());
+      // O conjunto de "já guardadas" alimenta a marca nos resultados de
+      // pesquisa; sem isto o coração ficava lá até reiniciar a app (os
+      // separadores ficam montados).
+      useSaved.getState().refresh();
       load();
       Alert.alert('Removed', 'Selected tracks removed from library.');
     } catch (e: any) {
@@ -198,10 +204,7 @@ export function SongsScreen() {
 
               <Pressable
                 style={styles.shuffleButton}
-                onPress={() => {
-                  const shuffled = [...sortedTracks].sort(() => Math.random() - 0.5);
-                  playTrack(shuffled[0], shuffled, true);
-                }}
+                onPress={() => playShuffled(sortedTracks)}
               >
                 <Ionicons name="shuffle" size={20} color={colors.text} />
                 <Text style={styles.buttonTextShuffle}>Shuffle</Text>
@@ -354,6 +357,7 @@ export function SongsScreen() {
               if (!t?.id) return;
               try {
                 await removeFromLibrary(t.id);
+                useSaved.getState().markSaved(t, false);
                 load();
               } catch (e: any) {
                 Alert.alert('Error', e?.message ?? 'Could not remove the track.');

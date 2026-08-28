@@ -18,6 +18,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, getLibrary } from '../api/library';
 import { searchYouTube, searchYouTubePlaylists, getTrendingMusic, YtRecommendedPlaylist } from '../api/youtube';
 import { getFlowMix, getHeavyRotation, getForgottenFavorites, getProfileRecentlyPlayed, getRecentTopArtist, getTopArtists } from '../api/plays';
+import { shuffleCandidates } from '../lib/radio';
+import { useSaved } from '../state/saved';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { EmptyState } from '../components/EmptyState';
@@ -37,6 +39,8 @@ export function SearchScreen() {
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
+  const refreshSaved = useSaved((s) => s.refresh);
+  const markSaved = useSaved((s) => s.markSaved);
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Track[]>([]);
@@ -70,7 +74,10 @@ export function SearchScreen() {
 
   useEffect(() => {
     getSearchHistory().then(setHistory);
-  }, []);
+    // Conjunto das faixas já guardadas, para marcar os resultados. Um pedido
+    // para a lista toda, em vez de um checkIsSaved por linha.
+    refreshSaved();
+  }, [refreshSaved]);
 
   const loadRecommendations = async () => {
     setLoadingRecs(true);
@@ -124,9 +131,12 @@ export function SearchScreen() {
           // Junta as pesquisas de todos os artistas top e baralha
           const customTracks = searches.flat();
           const savedIds = new Set(libTracks.map((t) => t.sourceId));
-          personalizedTracks = customTracks
-            .filter(t => !savedIds.has(t.sourceId))
-            .sort(() => Math.random() - 0.5); // Baralha para dar variedade de géneros similares
+          // Baralha para dar variedade de géneros similares. Fisher-Yates e
+          // não `sort(() => Math.random() - 0.5)`: esse é enviesado e deixava
+          // os mesmos artistas sempre no topo das recomendações.
+          personalizedTracks = shuffleCandidates(
+            customTracks.filter((t) => !savedIds.has(t.sourceId))
+          );
         } catch (e) {
           console.warn('Error fetching personalized trending:', e);
         }
@@ -471,6 +481,7 @@ export function SearchScreen() {
             renderItem={({ item }) => (
               <TrackRow
                 track={item}
+                showSavedBadge
                 active={
                   current?.source === item.source &&
                   current?.sourceId === item.sourceId
@@ -518,9 +529,12 @@ export function SearchScreen() {
               setActionTrack(null);
               if (!t) return;
               try {
+                // Otimista: o coração aparece no toque, não daqui a 300ms.
+                markSaved(t, true);
                 await saveToLibrary(t);
                 hapticNotification();
               } catch (e: any) {
+                markSaved(t, false);
                 Alert.alert('Error', e?.message ?? 'Could not save the track.');
               }
             },
