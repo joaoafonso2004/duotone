@@ -6,6 +6,7 @@ import { incrementPlayCount } from '../lib/playCounts';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
+import { setShuffle as persistShuffle } from '../lib/prefs';
 import type { Track } from '../types';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
@@ -97,6 +98,9 @@ interface PlayerState {
     queueIndex: number;
     positionMs: number;
   }) => void;
+  /** Toca uma lista inteira em modo aleatório (botões "Shuffle" da
+   * biblioteca e das playlists). */
+  playShuffled: (tracks: Track[]) => Promise<void>;
   playNext: (track: Track) => void;
   addToQueue: (track: Track) => void;
   togglePlay: () => Promise<void>;
@@ -274,6 +278,22 @@ export const usePlayer = create<PlayerState>()(
       // no segundo certo nas duas plataformas.
       resumePositionMs: positionMs > 1500 ? positionMs : null,
     });
+  },
+
+  playShuffled: async (tracks) => {
+    if (tracks.length === 0) return;
+    // O que estava nos botões era `sort(() => Math.random() - 0.5)`: um
+    // baralhamento enviesado (comparador inconsistente — o TimSort do V8
+    // deixa os elementos perto de onde estavam) que além disso NÃO ligava o
+    // modo aleatório do player. Resultado: o botão Shuffle e o interruptor
+    // do player discordavam, e a fila ficava fisicamente desordenada face à
+    // biblioteca. Agora liga-se o modo a sério e a ordem é Fisher-Yates.
+    const start = Math.floor(Math.random() * tracks.length);
+    // Percurso limpo: sem isto o reconcile aproveitaria a ordem da fila
+    // anterior e a primeira faixa podia cair no fim do percurso.
+    set({ shuffle: true, shuffleOrder: [] });
+    persistShuffle(true).catch(() => {});
+    await get().playTrack(tracks[start], tracks, true);
   },
 
   playNext: (track) => {

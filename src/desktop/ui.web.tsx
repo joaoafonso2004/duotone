@@ -4,8 +4,12 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, Text
 import { colors } from '../theme';
 import type { Track } from '../types';
 import { displayArtist } from '../lib/artistName';
+import { useSaved } from '../state/saved';
 
 const P = Pressable as any;
+
+/** Referência estável: um Set novo a cada render fazia a tabela redesenhar. */
+const EMPTY_KEYS: ReadonlySet<string> = new Set();
 
 export const desktop = {
   bg: '#09090D', panel: '#101016', raised: '#17171F', hover: '#20202A',
@@ -69,15 +73,22 @@ export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
     <View style={[ui.artFallback, { width: size, height: size }]}><Ionicons name="musical-note" size={Math.max(16, size * .35)} color={desktop.dim} /></View>;
 }
 
-export function TrackTable({ tracks, onPlay, onMore, empty }: {
+export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false }: {
   tracks: Track[]; onPlay: (track: Track) => void; onMore?: (track: Track) => void; empty?: ReactNode;
+  /** Marcar as que já estão na biblioteca. Só em listas que misturam
+   * guardadas e não guardadas (pesquisa) — na tabela de Songs seria um
+   * coração em todas as linhas. */
+  showSavedBadge?: boolean;
 }) {
+  // Subscrito sempre (regras dos hooks); sem a badge o seletor devolve um
+  // Set vazio estável, por isso a tabela não redesenha à toa.
+  const savedKeys = useSaved((s) => (showSavedBadge ? s.keys : EMPTY_KEYS));
   if (!tracks.length) return <>{empty}</>;
   return <View style={ui.table}><View style={ui.tableHeader}><Text style={[ui.colHead, { width: 44 }]}>#</Text><Text style={[ui.colHead, { flex: 3 }]}>TITLE</Text><Text style={[ui.colHead, { flex: 2 }]}>ARTIST</Text><Text style={[ui.colHead, { flex: 2 }]}>ALBUM</Text><Text style={[ui.colHead, { width: 72, textAlign: 'right' }]}>TIME</Text><View style={{ width: 42 }} /></View>
     {tracks.map((track, index) => <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track)}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track); }) as any}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
-      <Text style={[ui.trackIndex, { width: 44 }]}>{index + 1}</Text><View style={[ui.trackTitleCell, { flex: 3 }]}><Artwork track={track} /><View style={{ flex: 1 }}><Text numberOfLines={1} style={ui.trackTitle}>{track.title}</Text><Text style={ui.trackSource}>YouTube</Text></View></View>
+      <Text style={[ui.trackIndex, { width: 44 }]}>{index + 1}</Text><View style={[ui.trackTitleCell, { flex: 3 }]}><Artwork track={track} /><View style={{ flex: 1 }}><Text numberOfLines={1} style={ui.trackTitle}>{track.title}</Text><View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Text style={ui.trackSource}>YouTube</Text>{savedKeys.has(`${track.source}:${track.sourceId}`) && <Ionicons name="heart" size={10} color={desktop.accent} />}</View></View></View>
       <Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{displayArtist(track)}</Text><Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{track.album || '—'}</Text><Text style={[ui.trackMeta, { width: 72, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>
       <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track)} /></P>)}
   </View>;

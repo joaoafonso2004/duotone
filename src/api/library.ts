@@ -185,6 +185,29 @@ export async function getLibrary(): Promise<Track[]> {
   return Array.from(tracksMap.values());
 }
 
+/**
+ * Chaves `source:sourceId` das faixas guardadas.
+ *
+ * Distinta do `getLibraryTrackIds` abaixo, que devolve ids da BD: resultados
+ * de pesquisa vêm do YouTube e ainda não existem na tabela `tracks`, por isso
+ * não têm id nenhum por onde comparar. A chave da fonte é a única que serve
+ * para dizer "esta já a tens".
+ */
+export async function getLibraryKeys(): Promise<Set<string>> {
+  const userId = await currentUserId();
+  const { data, error } = await supabase
+    .from('library_tracks')
+    .select('tracks (source, source_id)')
+    .eq('user_id', userId);
+  if (error) throw error;
+  return new Set(
+    (data ?? [])
+      .map((r: any) => r.tracks)
+      .filter(Boolean)
+      .map((t: any) => `${t.source}:${t.source_id}`)
+  );
+}
+
 /** Ids (da BD) das faixas guardadas — para mostrar o estado "guardada". */
 export async function getLibraryTrackIds(): Promise<Set<string>> {
   const userId = await currentUserId();

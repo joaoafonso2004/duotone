@@ -15,6 +15,7 @@ import { TrackActionsSheet, SheetAction } from '../components/TrackActionsSheet'
 import { TrackRow } from '../components/TrackRow';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import type { RootStackParamList } from '../navigation/RootNavigator';
+import { useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '../theme';
 import { useTheme } from '../state/theme';
@@ -53,6 +54,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
 
   const load = useCallback(async () => {
     try {
+      // Marca as faixas do YouTube deste artista que já estão na biblioteca.
+      useSaved.getState().refresh();
       const all = await getLibrary();
       setTracks(
         all.filter((t) =>
@@ -160,6 +163,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         onPress: async () => {
           setActionTrack(null);
           try {
+            useSaved.getState().markSaved(actionTrack, true);
             await saveToLibrary(actionTrack);
             hapticNotification();
             load();
@@ -273,6 +277,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
                   renderItem={({ item }) => (
                     <TrackRow
                       track={item}
+                      showSavedBadge
                       active={
                         current?.source === item.source &&
                         current?.sourceId === item.sourceId

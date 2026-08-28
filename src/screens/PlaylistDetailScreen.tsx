@@ -52,6 +52,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
+  const playShuffled = usePlayer((s) => s.playShuffled);
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
@@ -348,10 +349,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
             <Pressable
               style={styles.shuffleButton}
-              onPress={() => {
-                const shuffled = [...sortedTracks].sort(() => Math.random() - 0.5);
-                playTrack(shuffled[0], shuffled, true);
-              }}
+              onPress={() => playShuffled(sortedTracks)}
             >
               <Ionicons name="shuffle" size={20} color={colors.text} />
               <Text style={styles.buttonTextShuffle}>Shuffle</Text>

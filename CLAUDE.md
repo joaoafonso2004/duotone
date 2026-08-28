@@ -51,6 +51,26 @@ Fluxo: ecrãs → `usePlayer` (zustand, `src/state/player.ts`) → `PlayerRoot` 
 - **Não existe no desktop**: lá o player é o IFrame oficial do YouTube, que já
   aplica a normalização dele. Um interruptor no desktop seria decorativo.
 
+## Biblioteca ("liked songs")
+
+Não há entidade "Liked Songs" separada: `library_tracks` **é** a lista de
+gostadas, e o separador *Songs* é a vista dela. Não criar uma segunda porta
+para a mesma coisa.
+
+- **`sort(() => Math.random() - 0.5)` está proibido.** Comparador
+  inconsistente = baralhamento enviesado (o TimSort do V8 deixa os elementos
+  perto de onde estavam). Os botões "Shuffle" da biblioteca e das playlists
+  usavam isto E não ligavam o modo aleatório do player, por isso o botão e o
+  interruptor discordavam. Usar `playShuffled()` da store (Fisher-Yates + modo
+  a sério), ou `shuffleCandidates` para listas que não são filas.
+- `state/saved.ts` guarda as chaves `source:sourceId` das faixas guardadas num
+  pedido só, para as listas marcarem "já a tens" sem um `checkIsSaved` por
+  linha. Quem guarda/remove tem de chamar `markSaved` — os separadores ficam
+  montados e sem isso o coração só se atualizava ao reiniciar a app.
+- A marca só aparece onde a lista MISTURA guardadas e não guardadas
+  (`showSavedBadge` na pesquisa e nas faixas YouTube de um artista). Na
+  biblioteca seria um coração em todas as linhas.
+
 ## Rádio (autoplay no fim da fila)
 
 - **Não são os mixes do YouTube (`RD<videoId>`)**: a Data API v3, que é a que
