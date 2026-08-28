@@ -51,6 +51,25 @@ Fluxo: ecrãs → `usePlayer` (zustand, `src/state/player.ts`) → `PlayerRoot` 
 - **Não existe no desktop**: lá o player é o IFrame oficial do YouTube, que já
   aplica a normalização dele. Um interruptor no desktop seria decorativo.
 
+## Estatísticas de escuta ("A tua escuta")
+
+- **A agregação vive em `lib/listeningStats.ts`, NÃO numa função SQL.** É
+  deliberado: a app já depende de seis funções que só existem na base de dados
+  e em ficheiro nenhum (ver a secção do Supabase); mais uma agravava o
+  problema. Assim o que define as estatísticas está em git e é testável em
+  Node puro. Sem imports de runtime, como o `lib/radio.ts`.
+- `supabase/listening-stats.sql` põe finalmente a tabela `plays` em version
+  control e acrescenta a **política de SELECT** que faltava: as funções de
+  recomendação são `security definer` e liam sem RLS, mas o ecrã consulta a
+  tabela diretamente e sem a política vinha vazia — sem erro, que é o modo de
+  falhar mais difícil de diagnosticar. Daí o `unavailable` no `StatsResult`
+  ser distinto de "ainda não ouviste nada".
+- **Os minutos são uma estimativa e a UI tem de o dizer** (`≈`): o `plays`
+  regista o ARRANQUE de cada faixa, não o fim, por isso quem salta a meio
+  conta o tema inteiro. Não apresentar como número exato.
+- O PostgREST corta em 1000 linhas por pedido; o histórico é lido às páginas
+  com um teto de 20 (`truncated` avisa a UI quando bate no teto).
+
 ## Biblioteca ("liked songs")
 
 Não há entidade "Liked Songs" separada: `library_tracks` **é** a lista de

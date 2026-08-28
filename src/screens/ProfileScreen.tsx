@@ -217,6 +217,13 @@ export function ProfileScreen() {
           </Pressable>
           <Pressable
             hitSlop={12}
+            onPress={() => navigation.navigate('ListeningStats')}
+            accessibilityLabel="A tua escuta"
+          >
+            <Ionicons name="stats-chart-outline" size={21} color={colors.textSecondary} />
+          </Pressable>
+          <Pressable
+            hitSlop={12}
             onPress={() => navigation.navigate('Settings')}
             accessibilityLabel="Settings"
           >
