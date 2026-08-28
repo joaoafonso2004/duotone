@@ -102,6 +102,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
   const soundPreset = usePlayer((s) => s.soundPreset);
+  // Só para as dependências do pré-carregamento: ligar/desligar o shuffle a
+  // meio de uma faixa muda qual é a faixa seguinte.
+  const shuffle = usePlayer((s) => s.shuffle);
 
   const [backend, setBackend] = useState<Backend>('resolving');
   const _setActiveBackend = usePlayer((s) => s._setActiveBackend);
@@ -617,16 +620,21 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   }, [backend, track.durationSeconds]);
 
   // Smart Cache: Pré-descarrega a próxima música da fila em segundo plano após 5 segundos
+  //
+  // A faixa vem do `peekNextTrack` da store, que é a MESMA decisão que o
+  // `next()` toma. Antes isto era `queueIndex + 1` fixo, e com shuffle ligado
+  // pré-carregava sistematicamente a faixa errada: gastava rede e a seguinte
+  // apanhava na mesma o buraco do download. Também ignorava a volta do
+  // repeat "all" (da última para a primeira).
   useEffect(() => {
     if (backend !== 'native') return;
 
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const nextIndex = queueIndex + 1;
-      if (nextIndex >= queue.length) return;
-
-      const nextTrack = queue[nextIndex];
-      if (nextTrack.source !== 'youtube') return;
+      const nextTrack = usePlayer.getState().peekNextTrack();
+      if (!nextTrack || nextTrack.source !== 'youtube') return;
+      // Fila de uma faixa só, ou repeat "one": não há nada para adiantar.
+      if (nextTrack.sourceId === track.sourceId) return;
 
       const file = cachedAudioFile(nextTrack.sourceId);
       if (file.exists) return; // já descarregado
@@ -660,7 +668,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [track.sourceId, backend, queue, queueIndex]);
+  }, [track.sourceId, backend, queue, queueIndex, shuffle, repeatMode]);
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
   useEffect(() => {

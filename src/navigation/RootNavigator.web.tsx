@@ -1159,6 +1159,12 @@ function FocusTimer({ themeColor }: { themeColor: string }) {
 function NowPlayingPage({ play, notify, more, currentIsSaved, toggleSaveCurrent }: CommonPageProps & { currentIsSaved: boolean; toggleSaveCurrent: () => void }) {
   const p = usePlayer();
   const theme = useTheme((s) => s.theme);
+  // Uma vez por render: este ecrã redesenha a cada segundo (posição) e a
+  // lista percorre a fila toda.
+  const upNext = useMemo(
+    () => p.upcomingQueue(),
+    [p.queue, p.queueIndex, p.shuffle, p.shuffleOrder]
+  );
 
   const [glowOpacity, setGlowOpacity] = useState(0.12);
   const [flowFocus, setFlowFocus] = useState(false);
@@ -1281,13 +1287,18 @@ function NowPlayingPage({ play, notify, more, currentIsSaved, toggleSaveCurrent 
                 <Ionicons name="list" size={16} color={desktop.dim} />
               </View>
               <View style={styles.nowPlayingQueueList}>
-                {p.queue.slice(p.queueIndex + 1, p.queueIndex + 6).map((item, idx) => {
-                  const originalIndex = p.queueIndex + 1 + idx;
+                {/* A ordem que vai MESMO tocar: com shuffle ligado não é a ordem
+                    natural da fila, e esta lista mentia. Arrastar para
+                    reordenar fica desligado nesse caso — mover uma lista
+                    baralhada não corresponde a nada. */}
+                {upNext.slice(0, 5).map((entry, idx) => {
+                  const item = entry.track;
+                  const originalIndex = entry.index;
                   return (
                     <div 
                       key={`${idx}:${item.sourceId}`} 
                       className="premium-card now-playing-queue-row-web"
-                      draggable={true}
+                      draggable={!p.shuffle}
                       onDragStart={(e: any) => {
                         e.dataTransfer.effectAllowed = 'move';
                         e.dataTransfer.setData('text/plain', String(originalIndex));
@@ -1310,7 +1321,7 @@ function NowPlayingPage({ play, notify, more, currentIsSaved, toggleSaveCurrent 
                       style={{ 
                         padding: '8px 10px', 
                         borderRadius: '8px', 
-                        cursor: 'grab', 
+                        cursor: p.shuffle ? 'pointer' : 'grab', 
                         display: 'flex', 
                         alignItems: 'center', 
                         gap: '10px',
@@ -1326,7 +1337,7 @@ function NowPlayingPage({ play, notify, more, currentIsSaved, toggleSaveCurrent 
                     </div>
                   );
                 })}
-                {p.queue.length <= p.queueIndex + 1 && (
+                {upNext.length === 0 && (
                   <Text style={{ color: desktop.dim, fontSize: 12, fontStyle: 'italic', marginTop: 12, textAlign: 'center' }}>Queue ends after this track.</Text>
                 )}
               </View>

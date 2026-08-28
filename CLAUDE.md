@@ -34,6 +34,28 @@ Fluxo: ecrãs → `usePlayer` (zustand, `src/state/player.ts`) → `PlayerRoot` 
 - **Sleep timer**: deadline absoluto (`sleepTimerEndsAt`) verificado no `timeUpdate` do player nativo — nunca reverter para contador com `setInterval` (o iOS suspende timers JS em background).
 - Duração/posição na UI: sempre `track.durationSeconds` (fiável), nunca `player.duration` exceto como último fallback.
 
+## Shuffle e pré-carregamento
+
+- **O shuffle é um percurso materializado, não um sorteio.** `lib/shuffle.ts`
+  gera uma ordem Fisher-Yates guardada em `shuffleOrder` (por CHAVE de faixa,
+  não por índice — assim mexer na fila não obriga a remapear nada). **Não
+  voltar a sortear em `next()`**: era o que estava lá e repetia faixas antes
+  de tocar a fila toda, além de tornar o "anterior" impossível.
+- `playTrack` chama `reconcileOrder`, que é a peça que faz isto funcionar: com
+  a MESMA fila não mexe em nada (o `next()` chama `playTrack`, a travessia
+  continua); com uma fila nova não sobra chave nenhuma e sai ordem nova. Um só
+  caminho para os dois casos — ver a simulação em `scripts/test-shuffle.ts`.
+- Fim do percurso com repeat `all`: baralha-se outra vez (como a Spotify), não
+  se repete a mesma ordem.
+- **O pré-carregamento usa `peekNextTrack()`, a MESMA decisão do `next()`.**
+  Era `queueIndex + 1` fixo: com shuffle ligado descarregava sempre a faixa
+  errada e a seguinte apanhava o buraco na mesma. Qualquer código novo que
+  precise de saber "o que vem a seguir" usa `peekNextTrack`, nunca aritmética
+  sobre o `queueIndex`.
+- Listas "Up next" usam `upcomingQueue()` (traz o índice real da fila para
+  remover), nunca `queue.slice(queueIndex + 1)` — isso mente com shuffle
+  ligado. Reordenar fica desligado enquanto o shuffle está ligado.
+
 ## Handoff entre dispositivos ("continuar aqui")
 
 Ouvir no telemóvel, abrir o PC e encontrar lá o tema. Peças: `lib/handoff.ts`
