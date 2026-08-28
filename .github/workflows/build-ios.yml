@@ -182,15 +182,26 @@ jobs:
       # portfólio através do release.yml.
       - name: Publicar Release
         if: steps.vars.outputs.release == 'true'
+        # As notas passam por env e NAO por interpolacao directa no script.
+        # O ${{ }} do Actions e substituido como TEXTO CRU antes de o shell
+        # analisar a linha, por isso uma aspa numa mensagem de commit fechava
+        # a string e partia o passo -- foi o que aconteceu na ios-v1.2.0, cujo
+        # assunto tinha 'ecra "A tua escuta"' e deu `no matches found for tua`.
+        # Por env, o runner define a variavel e o shell nunca lhe toca; fecha
+        # tambem a porta a injeccao de comandos por mensagem de commit.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.vars.outputs.tag }}
+          ASSET: ${{ steps.pack.outputs.name }}
+          VERSION: ${{ steps.vars.outputs.version }}
+          NOTES: ${{ steps.notes.outputs.body }}
         run: |
-          gh release create "${{ steps.vars.outputs.tag }}" \
-            "${{ steps.pack.outputs.name }}" \
-            --title "Duotone iOS ${{ steps.vars.outputs.version }}" \
-            --notes "${{ steps.notes.outputs.body }}" \
+          gh release create "$TAG" \
+            "$ASSET" \
+            --title "Duotone iOS $VERSION" \
+            --notes "$NOTES" \
             --verify-tag
-          echo "Publicado ${{ steps.vars.outputs.tag }}."
+          echo "Publicado $TAG."
 
       # Um release criado com o GITHUB_TOKEN não dispara o evento
       # `release: published` -- é uma proteção do GitHub contra workflows
