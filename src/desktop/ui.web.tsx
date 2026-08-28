@@ -5,6 +5,7 @@ import { colors } from '../theme';
 import type { Track } from '../types';
 import { displayArtist } from '../lib/artistName';
 import { useSaved } from '../state/saved';
+import { isShowTrackDurationSync } from '../lib/prefs';
 
 const P = Pressable as any;
 
@@ -83,13 +84,17 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   // Subscrito sempre (regras dos hooks); sem a badge o seletor devolve um
   // Set vazio estável, por isso a tabela não redesenha à toa.
   const savedKeys = useSaved((s) => (showSavedBadge ? s.keys : EMPTY_KEYS));
+  // A preferencia "Show track duration" das Definicoes so era respeitada no
+  // telemovel (TrackRow); aqui a coluna aparecia sempre. Cache sincrono, como
+  // no mobile: aplica-se na proxima renderizacao da tabela.
+  const showTime = isShowTrackDurationSync();
   if (!tracks.length) return <>{empty}</>;
-  return <View style={ui.table}><View style={ui.tableHeader}><Text style={[ui.colHead, { width: 44 }]}>#</Text><Text style={[ui.colHead, { flex: 3 }]}>TITLE</Text><Text style={[ui.colHead, { flex: 2 }]}>ARTIST</Text><Text style={[ui.colHead, { flex: 2 }]}>ALBUM</Text><Text style={[ui.colHead, { width: 72, textAlign: 'right' }]}>TIME</Text><View style={{ width: 42 }} /></View>
+  return <View style={ui.table}><View style={ui.tableHeader}><Text style={[ui.colHead, { width: 44 }]}>#</Text><Text style={[ui.colHead, { flex: 3 }]}>TITLE</Text><Text style={[ui.colHead, { flex: 2 }]}>ARTIST</Text><Text style={[ui.colHead, { flex: 2 }]}>ALBUM</Text>{showTime && <Text style={[ui.colHead, { width: 72, textAlign: 'right' }]}>TIME</Text>}<View style={{ width: 42 }} /></View>
     {tracks.map((track, index) => <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track)}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track); }) as any}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
       <Text style={[ui.trackIndex, { width: 44 }]}>{index + 1}</Text><View style={[ui.trackTitleCell, { flex: 3 }]}><Artwork track={track} /><View style={{ flex: 1 }}><Text numberOfLines={1} style={ui.trackTitle}>{track.title}</Text><View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Text style={ui.trackSource}>YouTube</Text>{savedKeys.has(`${track.source}:${track.sourceId}`) && <Ionicons name="heart" size={10} color={desktop.accent} />}</View></View></View>
-      <Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{displayArtist(track)}</Text><Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{track.album || '—'}</Text><Text style={[ui.trackMeta, { width: 72, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>
+      <Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{displayArtist(track)}</Text><Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{track.album || '—'}</Text>{showTime && <Text style={[ui.trackMeta, { width: 72, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
       <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track)} /></P>)}
   </View>;
 }

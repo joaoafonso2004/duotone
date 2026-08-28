@@ -17,8 +17,8 @@ import { useAutoplayRadio } from '../lib/radioSync';
 import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, formatTime, IconButton, Loading, Page, Toast, TrackTable, ui } from '../desktop/ui.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
 import {
-  getAudioQuality, getDefaultYtViewMode, getShowRewindButton, getShowTrackDuration,
-  setAudioQuality, setDefaultYtViewMode, setShowRewindButton, setShowTrackDuration, getPoTokenServerUrl, setPoTokenServerUrl,
+  getShowRewindButton, getShowTrackDuration,
+  setShowRewindButton, setShowTrackDuration, setShowTrackDurationCache,
   setAutoplayRadio as persistAutoplayRadio
 } from '../lib/prefs';
 import {
@@ -34,10 +34,7 @@ import {
   getFriendCount, getFriendships, getInboxItems, searchProfiles,
   shareItem, publishPresence, clearPresence, sendFriendRequest, getChatMessages, type Friendship, type SharedItem
 } from '../api/social';
-import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
-import { clearStreamMemo, clearVisitorData } from '../api/ytstream';
 import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
-import { clearDownloadedAudioCache } from '../lib/youtubeCache';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
@@ -727,15 +724,10 @@ function AvatarDialog({ open, value, onChange, onClose }: { open: boolean; value
 function SettingsPage({ notify }: { notify: (s: string) => void }) {
   const [duration, setDurationState] = useState(true);
   const [rewind, setRewindState] = useState(false);
-  const [quality, setQualityState] = useState<'high' | 'saver'>('high');
-  const [view, setViewState] = useState<'video' | 'photo'>('video');
    const [opacity, setOpacity] = useState('0.72');
-  const [potUrl, setPotUrl] = useState('');
-  const [testing, setTesting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   const [flowFocus, setFlowFocus] = useState(false);
-  const [vinylSpeed, setVinylSpeed] = useState('33');
   const [glowIntensity, setGlowIntensity] = useState('medium');
 
   const themeName = useTheme((s) => s.themeName);
@@ -745,27 +737,25 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
   // Vem já carregado da store (App.tsx lê a preferência no arranque nas duas
   // plataformas), por isso não precisa de entrar no Promise.all acima.
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
+  // A store e o ticker de 1s do App.tsx ja corriam no desktop; faltava so a UI.
+  const sleepLeft = usePlayer((s) => s.sleepTimerTimeLeft);
+  const sleepChoice = sleepLeft === 0 ? '0'
+    : sleepLeft <= 15 * 60 ? '15'
+    : sleepLeft <= 30 * 60 ? '30'
+    : sleepLeft <= 45 * 60 ? '45' : '60';
 
   useEffect(() => {
     Promise.all([
       getShowTrackDuration(),
       getShowRewindButton(),
-      getAudioQuality(),
-      getDefaultYtViewMode(),
       AsyncStorage.getItem('pref:panelOpacity'),
-      getPoTokenServerUrl(),
       AsyncStorage.getItem('pref:flowFocus'),
-      AsyncStorage.getItem('pref:vinylSpeed'),
       AsyncStorage.getItem('pref:glowIntensity')
-    ]).then(([a, b, c, d, e, f, focus, speed, glow]) => {
+    ]).then(([a, b, opacityVal, focus, glow]) => {
       setDurationState(a);
       setRewindState(b);
-      setQualityState(c);
-      setViewState(d);
-      if (e) setOpacity(e);
-      if (f) setPotUrl(f);
+      if (opacityVal) setOpacity(opacityVal);
       if (focus) setFlowFocus(focus === 'true');
-      if (speed) setVinylSpeed(speed);
       if (glow) setGlowIntensity(glow);
     });
   }, []);
@@ -782,41 +772,10 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
     window.dispatchEvent(new CustomEvent('duotone:flow-focus', { detail: val }));
   };
 
-  const changeVinylSpeed = async (val: string) => {
-    setVinylSpeed(val);
-    await AsyncStorage.setItem('pref:vinylSpeed', val);
-    window.dispatchEvent(new CustomEvent('duotone:vinyl-speed', { detail: val }));
-  };
-
   const changeGlowIntensity = async (val: string) => {
     setGlowIntensity(val);
     await AsyncStorage.setItem('pref:glowIntensity', val);
     window.dispatchEvent(new CustomEvent('duotone:glow-intensity', { detail: val }));
-  };
-
-  const savePotUrl = async (val: string) => {
-    setPotUrl(val);
-    await setPoTokenServerUrl(val);
-  };
-
-  const testPot = async () => {
-    setTesting(true);
-    try {
-      const ok = await pingPoTokenServer(potUrl);
-      notify(ok ? 'PO Token server is online!' : 'Could not reach server.');
-    } catch {
-      notify('Connection failed.');
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const doClearCache = () => {
-    clearDownloadedAudioCache();
-    clearStreamMemo();
-    clearPoTokenMemo();
-    clearVisitorData();
-    notify('YouTube resolver caches cleared.');
   };
 
   const runDeleteAccount = async () => {
@@ -836,30 +795,18 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
       <ContentScroll>
         <View style={styles.settingsGrid}>
           <SettingsCard icon="play-circle-outline" title="Playback">
-            <ToggleLine label="Show track duration" description="Display a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); }} />
+            <ToggleLine label="Show track duration" description="Display a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />
             <ToggleLine label="Autoplay radio" description="When the queue ends, keep playing similar music instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} />
             <ToggleLine label="15-second rewind" description="Show a rewind control in the desktop player." value={rewind} onChange={(v) => { setRewindState(v); setShowRewindButton(v); usePlayer.getState().setShowRewindButton(v); }} />
-            <ChoiceLine label="Audio quality" value={quality} choices={[['high', 'High'], ['saver', 'Data saver']]} onChange={(v) => { const next = v as 'high' | 'saver'; setQualityState(next); setAudioQuality(next); }} />
+            <ChoiceLine label="Sleep timer" value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} />
             <ChoiceLine label="Sound Presets" value={soundPreset} choices={[['normal', 'Standard'], ['slowed', 'Slowed & Reverb'], ['fast', 'Nightcore']]} onChange={(v) => setSoundPreset(v as any)} />
           </SettingsCard>
           
           <SettingsCard icon="desktop-outline" title="Appearance & Visuals">
             <ToggleLine label="Flow Focus Mode" description="Disables chats & queue skips, replacing the queue with a breathing timer." value={flowFocus} onChange={changeFlowFocus} />
             <ChoiceLine label="Ambient Aura Glow" value={glowIntensity} choices={[['none', 'None'], ['subtle', 'Subtle'], ['medium', 'Medium'], ['max', 'Max Glow']]} onChange={changeGlowIntensity} />
-            <ChoiceLine label="Now playing artwork" value={view} choices={[['video', 'Video'], ['photo', 'Artwork']]} onChange={(v) => { const next = v as 'video' | 'photo'; setViewState(next); setDefaultYtViewMode(next); }} />
             <ChoiceLine label="Accent Theme" value={themeName} choices={[['violet', 'Violet'], ['blue', 'Blue'], ['orange', 'Orange'], ['green', 'Green'], ['pink', 'Pink'], ['red', 'Red'], ['mono', 'White'], ['steel', 'Steel']]} onChange={(v) => setTheme(v as any)} />
             <ChoiceLine label="Glass Transparency" value={opacity} choices={[['0.95', 'Solid'], ['0.72', 'Default'], ['0.55', 'Translucent'], ['0.35', 'Neon blur']]} onChange={changeOpacity} />
-          </SettingsCard>
-
-          <SettingsCard icon="logo-youtube" title="YouTube Advanced">
-            <View style={{ paddingVertical: 8, paddingHorizontal: 17, gap: 8 }}>
-              <Text style={styles.settingLabel}>PO Token Server URL</Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <View style={{ flex: 1 }}><Field placeholder="https://..." value={potUrl} onChangeText={savePotUrl} /></View>
-                <Button onPress={testPot} disabled={testing}>{testing ? 'Testing…' : 'Test'}</Button>
-              </View>
-            </View>
-            <SettingAction label="Clear resolved YouTube caches" onPress={doClearCache} />
           </SettingsCard>
 
           <SettingsCard icon="information-circle-outline" title="About">
@@ -1519,7 +1466,7 @@ function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSaved: bool
     window.addEventListener('touchend', stop);
   };
 
-  return <V style={styles.player} className="glass-panel"><YouTubePlayerView track={p.current} /><View style={{ flexDirection: 'row', alignItems: 'center', width: '30%', minWidth: 210, maxWidth: 390, gap: 10 }}><Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, minWidth: 0 }} onPress={() => window.dispatchEvent(new CustomEvent('duotone:navigate', { detail: { name: 'now-playing' } }))}><Artwork track={p.current} size={52} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.playerTitle}>{p.current.title}</Text><Text numberOfLines={1} style={styles.playerArtist}>{displayArtist(p.current)}</Text></View></Pressable><IconButton name={currentIsSaved ? "heart" : "heart-outline"} label={currentIsSaved ? "Remove from Saved Songs" : "Save to Saved Songs"} onPress={toggleSaveCurrent} active={currentIsSaved} /></View><View style={styles.playerCenter}><View style={styles.playerControls}><IconButton name="shuffle" label="Shuffle" active={p.shuffle} onPress={p.toggleShuffle} /><IconButton name="play-skip-back" label="Previous" onPress={p.prev} /><Pressable accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={19} color="#111117" /></Pressable><IconButton name="play-skip-forward" label="Next" onPress={p.next} /><IconButton name={p.repeatMode === 'one' ? 'repeat' : 'repeat-outline'} label="Repeat" active={p.repeatMode !== 'off'} onPress={p.cycleRepeat} /></View><View style={styles.progressRow}><Text style={styles.timeText}>{formatTime(p.positionMs / 1000)}</Text><P onMouseDown={startDragProgress} onTouchStart={startDragProgress} style={styles.progressHit} className="slider-container"><V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${ratio * 100}%` }} /></P><Text style={styles.timeText}>{formatTime(p.durationMs / 1000)}</Text></View></View><View style={styles.playerRight}>{p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}<V style={styles.volumeRow} className="slider-container"><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={() => p.setVolume(p.volume === 0 ? 80 : 0)} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${p.volume}%` }} /></P></V><IconButton name="close" label="Close player" onPress={p.close} /></View></V>;
+  return <V style={styles.player} className="glass-panel"><YouTubePlayerView track={p.current} /><View style={{ flexDirection: 'row', alignItems: 'center', width: '30%', minWidth: 210, maxWidth: 390, gap: 10 }}><Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, minWidth: 0 }} onPress={() => window.dispatchEvent(new CustomEvent('duotone:navigate', { detail: { name: 'now-playing' } }))}><Artwork track={p.current} size={52} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.playerTitle}>{p.current.title}</Text><Text numberOfLines={1} style={styles.playerArtist}>{displayArtist(p.current)}</Text></View></Pressable><IconButton name={currentIsSaved ? "heart" : "heart-outline"} label={currentIsSaved ? "Remove from Saved Songs" : "Save to Saved Songs"} onPress={toggleSaveCurrent} active={currentIsSaved} /></View><View style={styles.playerCenter}><View style={styles.playerControls}><IconButton name="shuffle" label="Shuffle" active={p.shuffle} onPress={p.toggleShuffle} /><IconButton name="play-skip-back" label="Previous" onPress={p.prev} />{p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, p.positionMs - 15000))} />}<Pressable accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={19} color="#111117" /></Pressable><IconButton name="play-skip-forward" label="Next" onPress={p.next} /><IconButton name={p.repeatMode === 'one' ? 'repeat' : 'repeat-outline'} label="Repeat" active={p.repeatMode !== 'off'} onPress={p.cycleRepeat} /></View><View style={styles.progressRow}><Text style={styles.timeText}>{formatTime(p.positionMs / 1000)}</Text><P onMouseDown={startDragProgress} onTouchStart={startDragProgress} style={styles.progressHit} className="slider-container"><V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${ratio * 100}%` }} /></P><Text style={styles.timeText}>{formatTime(p.durationMs / 1000)}</Text></View></View><View style={styles.playerRight}>{p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}<V style={styles.volumeRow} className="slider-container"><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={() => p.setVolume(p.volume === 0 ? 80 : 0)} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${p.volume}%` }} /></P></V><IconButton name="close" label="Close player" onPress={p.close} /></View></V>;
 }
 
 function getContrastTextColor(hex: string): string {

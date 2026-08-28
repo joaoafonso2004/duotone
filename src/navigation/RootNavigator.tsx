@@ -30,6 +30,7 @@ import { useAuth } from '../state/auth';
 import { colors } from '../theme';
 import { useTheme } from '../state/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getNotificationsEnabled } from '../lib/prefs';
 import * as Notifications from 'expo-notifications';
 import { getFriendships, getInboxItems, updateLastSeen } from '../api/social';
 import { useNotifications } from '../state/notifications';
@@ -207,6 +208,9 @@ export function RootNavigator() {
 
     const checkNewMessages = async () => {
       try {
+        // A bolinha vermelha na app continua sempre; o que a preferência
+        // controla são as notificações do sistema, que é o que incomoda.
+        const notifyAllowed = await getNotificationsEnabled();
         const items = await getInboxItems();
         if (items.length > 0) {
           const lastSeenId = await AsyncStorage.getItem('notifications:lastSeenId');
@@ -218,7 +222,7 @@ export function RootNavigator() {
           // por cima disso seria ruído. Fora do primeiro plano (típico desta
           // app: a tocar música com o ecrã bloqueado) é a única forma de o
           // utilizador saber que recebeu alguma coisa.
-          if (AppState.currentState !== 'active') {
+          if (notifyAllowed && AppState.currentState !== 'active') {
             await notifyNewInboxItems(items);
           }
         }
@@ -229,7 +233,7 @@ export function RootNavigator() {
         // `direction`; a Friendship marca isso com `isSender`).
         const pendentes = friendships.filter((f) => f.status === 'pending' && !f.isSender).length;
         if (pendentes > 0) useNotifications.getState().setHasSocialNotification(true);
-        if (AppState.currentState !== 'active') {
+        if (notifyAllowed && AppState.currentState !== 'active') {
           await notifyPendingFriendRequests(pendentes);
         }
       } catch (err) {
