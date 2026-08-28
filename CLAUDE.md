@@ -34,6 +34,23 @@ Fluxo: ecrãs → `usePlayer` (zustand, `src/state/player.ts`) → `PlayerRoot` 
 - **Sleep timer**: deadline absoluto (`sleepTimerEndsAt`) verificado no `timeUpdate` do player nativo — nunca reverter para contador com `setInterval` (o iOS suspende timers JS em background).
 - Duração/posição na UI: sempre `track.durationSeconds` (fiável), nunca `player.duration` exceto como último fallback.
 
+## Normalização de volume (só iOS)
+
+- `playerConfig.audioConfig.loudnessDb` vem na MESMA resposta do player que os
+  formatos — não custa pedido nenhum. Lido em `ytstream.ts`, matemática em
+  `lib/loudness.ts` (`10^(-dB/20)`, a mesma conta do player oficial da web).
+- **Só atenua.** O AVPlayer não passa de `volume = 1.0`, por isso faixas mais
+  baixas do que a referência ficam onde estão. Chega: o que incomoda é a que
+  rebenta a seguir a uma calma.
+- `lib/loudnessCache.ts` existe por causa do cache de áudio: uma faixa já
+  descarregada toca do ficheiro local e **não volta a passar pelo resolver**.
+  Sem memória, a normalização morria justamente nas músicas mais ouvidas.
+  Faixas descarregadas antes disto não têm valor e tocam a 1.0.
+- O `fadeIn` sobe até `ceilingRef`, não até 1.0 — dez passos até ao teto seja
+  ele qual for, para o fade durar sempre 1s.
+- **Não existe no desktop**: lá o player é o IFrame oficial do YouTube, que já
+  aplica a normalização dele. Um interruptor no desktop seria decorativo.
+
 ## Rádio (autoplay no fim da fila)
 
 - **Não são os mixes do YouTube (`RD<videoId>`)**: a Data API v3, que é a que

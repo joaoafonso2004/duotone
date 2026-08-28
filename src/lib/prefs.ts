@@ -11,6 +11,7 @@ const KEY_SEARCH_HISTORY = 'pref:searchHistory';
 const MAX_SEARCH_HISTORY = 10;
 const KEY_POT_SERVER_URL = 'pref:potServerUrl';
 const KEY_AUTOPLAY_RADIO = 'pref:autoplayRadio';
+const KEY_VOLUME_NORMALIZATION = 'pref:volumeNormalization';
 
 export type YtViewMode = 'video' | 'photo';
 export type AudioQuality = 'high' | 'saver';
@@ -54,6 +55,15 @@ export async function getAutoplayRadio(): Promise<boolean> {
 }
 export async function setAutoplayRadio(v: boolean): Promise<void> {
   await setBool(KEY_AUTOPLAY_RADIO, v);
+}
+
+/** Normalização de volume entre faixas. Ligada por omissão — sem ela o salto
+ * de volume entre uploads do YouTube é constante. */
+export async function getVolumeNormalization(): Promise<boolean> {
+  return getBool(KEY_VOLUME_NORMALIZATION, true);
+}
+export async function setVolumeNormalization(v: boolean): Promise<void> {
+  await setBool(KEY_VOLUME_NORMALIZATION, v);
 }
 
 export async function getAudioQuality(): Promise<AudioQuality> {
