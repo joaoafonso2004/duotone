@@ -57,6 +57,10 @@ interface PlayerState {
   autoplayRadio: boolean;
   /** true enquanto a cauda da fila veio do rádio — só para a UI o dizer. */
   radioActive: boolean;
+  /** Normalizar o volume entre faixas (iOS). O YouTube não masteriza nada e
+   * o salto de volume entre uploads é o defeito mais audível da fonte.
+   * Ver lib/loudness.ts. */
+  volumeNormalization: boolean;
   /** mostrar o botão de recuar 15s no player expandido (preferência das Definições) */
   showRewindButton: boolean;
   positionMs: number;
@@ -131,6 +135,7 @@ interface PlayerState {
   upcomingQueue: () => { track: Track; index: number }[];
 
   setAutoplayRadio: (v: boolean) => void;
+  setVolumeNormalization: (v: boolean) => void;
   /** Acrescenta faixas do rádio à fila, se fizer sentido agora. Devolve se
    * chegou mesmo a acrescentar. Chamado de dois sítios: em antecipação
    * (useAutoplayRadio, para não haver silêncio) e no `next()` como rede de
@@ -193,6 +198,7 @@ export const usePlayer = create<PlayerState>()(
   shuffleOrder: [],
   autoplayRadio: true,
   radioActive: false,
+  volumeNormalization: true,
   showRewindButton: false,
   positionMs: 0,
   durationMs: 0,
@@ -416,6 +422,8 @@ export const usePlayer = create<PlayerState>()(
   },
 
   setAutoplayRadio: (v) => set({ autoplayRadio: v }),
+
+  setVolumeNormalization: (v) => set({ volumeNormalization: v }),
 
   extendQueueWithRadio: async () => {
     const { autoplayRadio, current, queue, queueIndex, repeatMode } = get();

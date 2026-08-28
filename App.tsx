@@ -10,8 +10,10 @@ import {
   getRepeatMode,
   getShowRewindButton,
   getShuffle,
+  getVolumeNormalization,
   loadPrefsCache,
 } from './src/lib/prefs';
+import { loadLoudnessCache } from './src/lib/loudnessCache';
 import { supabase } from './src/lib/supabase';
 import {
   invalidateStaleAudioCache,
@@ -49,17 +51,22 @@ export default function App() {
       else usePlayer.persist.onFinishHydration(prune);
     });
     useTheme.getState().loadTheme();
+    // Loudness conhecida por vídeo (normalização de volume) — tem de estar em
+    // memória antes de a primeira faixa arrancar.
+    loadLoudnessCache();
     Promise.all([
       getRepeatMode(),
       getShuffle(),
       getShowRewindButton(),
       getAutoplayRadio(),
-    ]).then(([repeatMode, shuffle, showRewindButton, autoplayRadio]) => {
+      getVolumeNormalization(),
+    ]).then(([repeatMode, shuffle, showRewindButton, autoplayRadio, volumeNormalization]) => {
       const player = usePlayer.getState();
       player.setRepeatMode(repeatMode);
       player.setShuffle(shuffle);
       player.setShowRewindButton(showRewindButton);
       player.setAutoplayRadio(autoplayRadio);
+      player.setVolumeNormalization(volumeNormalization);
     });
   }, [init]);
 

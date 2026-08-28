@@ -71,6 +71,7 @@
  */
 
 import { fetchGvsPoToken } from './potProvider';
+import { readLoudnessDb } from '../lib/loudness';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PLAYER_ENDPOINT = 'https://www.youtube.com/youtubei/v1/player';
@@ -158,6 +159,9 @@ export interface YtStream {
   client?: string;
   resolverNote?: string;
   durationSeconds?: number | null;
+  /** Diferença em dB entre a loudness deste áudio e a referência do YouTube.
+   * Alimenta a normalização de volume — ver lib/loudness.ts. */
+  loudnessDb?: number | null;
 }
 
 // Cache em memória (por sessão) — os URLs expiram, não vale a pena persistir.
@@ -217,6 +221,8 @@ export function streamFromPlayerResponse(
   if (!sd) throw new Error('No streamingData');
 
   const durationSeconds = Number(data?.videoDetails?.lengthSeconds) || null;
+  // Vem na mesma resposta que os formatos — não custa pedido nenhum extra.
+  const loudnessDb = readLoudnessDb(data);
 
   // ORDEM: mp4 progressivo PRIMEIRO, HLS só como recurso.
   //

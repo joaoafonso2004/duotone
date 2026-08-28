@@ -7,6 +7,8 @@ import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '.
 import { BUILD_ID } from '../lib/buildInfo';
 import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
+import { targetVolume } from '../lib/loudness';
+import { getLoudnessDb, rememberLoudnessDb } from '../lib/loudnessCache';
 import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
@@ -105,6 +107,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // Só para as dependências do pré-carregamento: ligar/desligar o shuffle a
   // meio de uma faixa muda qual é a faixa seguinte.
   const shuffle = usePlayer((s) => s.shuffle);
+  const volumeNormalization = usePlayer((s) => s.volumeNormalization);
 
   const [backend, setBackend] = useState<Backend>('resolving');
   const _setActiveBackend = usePlayer((s) => s._setActiveBackend);
@@ -181,14 +184,32 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const fadeIntervalRef = useRef<any>(null);
   const fadingOutRef = useRef(false);
 
+  // Teto de volume desta faixa: 1.0 normalmente, menos quando a normalização
+  // está ligada e a faixa é mais alta do que a referência do YouTube. Em ref
+  // (não em estado) porque o fade lê-o dentro de um setInterval.
+  const ceilingRef = useRef(1.0);
+
+  /** Recalcula o teto para a faixa atual. Chamado antes de cada arranque. */
+  const applyCeiling = () => {
+    ceilingRef.current = targetVolume(
+      getLoudnessDb(track.sourceId),
+      usePlayer.getState().volumeNormalization
+    );
+    return ceilingRef.current;
+  };
+
   const fadeIn = () => {
     if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+    const ceiling = ceilingRef.current;
     player.volume = 0.0;
     let vol = 0.0;
+    // Dez passos até ao teto, seja ele qual for — o fade dura 1s tanto numa
+    // faixa normalizada como numa que fica em 1.0.
+    const step = ceiling / 10;
     fadeIntervalRef.current = setInterval(() => {
-      vol += 0.1; // 1s total fade-in
-      if (vol >= 1.0) {
-        vol = 1.0;
+      vol += step;
+      if (vol >= ceiling) {
+        vol = ceiling;
         clearInterval(fadeIntervalRef.current!);
         fadeIntervalRef.current = null;
       }
@@ -306,6 +327,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         }
       }
       const autoplay = st.autoplayOnLoad;
+      applyCeiling();
       usePlayer.setState({ resumePositionMs: null });
       lastProgressRef.current = { time: 0, at: Date.now() };
       nativeTrackIdRef.current = track.sourceId;
@@ -321,7 +343,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         } catch {
           // player sem fonte — ignorar
         }
-        player.volume = 1.0;
+        player.volume = ceilingRef.current;
         st._setIsPlaying(false);
         st._setBuffering(false);
       }
@@ -374,6 +396,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
       if (!alive()) return;
       streamRef.current = stream;
+      // Guardar a loudness ANTES de aplicar o teto: da próxima vez a faixa
+      // toca do ficheiro local e já não passa por aqui.
+      rememberLoudnessDb(track.sourceId, stream.loudnessDb);
+      applyCeiling();
 
       // Descarrega primeiro se for progressive (comportamento antigo e fiável).
       let playableUri = stream.url;
@@ -619,6 +645,21 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     return () => clearInterval(id);
   }, [backend, track.durationSeconds]);
 
+  // Ligar/desligar a normalização nas Definições aplica-se já, sem esperar
+  // pela faixa seguinte.
+  useEffect(() => {
+    if (backend !== 'native') return;
+    const ceiling = applyCeiling();
+    // Não mexer a meio de um fade: ele acaba no teto novo à mesma.
+    if (!fadeIntervalRef.current) {
+      try {
+        player.volume = ceiling;
+      } catch {
+        // player sem fonte — ignorar
+      }
+    }
+  }, [volumeNormalization, backend, track.sourceId]);
+
   // Smart Cache: Pré-descarrega a próxima música da fila em segundo plano após 5 segundos
   //
   // A faixa vem do `peekNextTrack` da store, que é a MESMA decisão que o
@@ -643,6 +684,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         const quality = await getAudioQuality();
         const stream = await resolveYouTubeStream(nextTrack.sourceId, quality);
         if (cancelled) return;
+        // A faixa seguinte fica com a loudness conhecida antes de tocar, por
+        // isso a normalização já se aplica no primeiro segundo dela.
+        rememberLoudnessDb(nextTrack.sourceId, stream?.loudnessDb);
         if (stream && !stream.isHls) {
           // Descarregar localmente em segundo plano; aborta se a faixa mudar
           await downloadProgressiveAudio(

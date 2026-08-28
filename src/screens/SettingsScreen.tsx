@@ -26,6 +26,7 @@ import {
   getShowTrackDuration,
   setAudioQuality,
   setAutoplayRadio as persistAutoplayRadio,
+  setVolumeNormalization as persistVolumeNormalization,
   setHapticsEnabled,
   setHapticsEnabledCache,
   setPoTokenServerUrl,
@@ -68,6 +69,8 @@ export function SettingsScreen({ navigation }: Props) {
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
   const setAutoplayRadio = usePlayer((s) => s.setAutoplayRadio);
+  const volumeNormalization = usePlayer((s) => s.volumeNormalization);
+  const setVolumeNormalization = usePlayer((s) => s.setVolumeNormalization);
   const setShowRewindButton = usePlayer((s) => s.setShowRewindButton);
   const soundPreset = usePlayer((s) => s.soundPreset);
   const setSoundPreset = usePlayer((s) => s.setSoundPreset);
@@ -111,6 +114,12 @@ export function SettingsScreen({ navigation }: Props) {
     setAudioQualityState(v);
     hapticSelection();
     await setAudioQuality(v);
+  };
+
+  const toggleVolumeNormalization = async (v: boolean) => {
+    setVolumeNormalization(v);
+    hapticSelection();
+    await persistVolumeNormalization(v);
   };
 
   const toggleAutoplayRadio = async (v: boolean) => {
@@ -357,6 +366,12 @@ export function SettingsScreen({ navigation }: Props) {
               label="Show track duration in lists"
               value={showDuration}
               onChange={toggleShowDuration}
+            />
+            <ToggleRow
+              label="Normalize volume between tracks"
+              value={volumeNormalization}
+              onChange={toggleVolumeNormalization}
+              style={{ marginTop: spacing.md }}
             />
             <ToggleRow
               label="Autoplay radio at end of queue"
