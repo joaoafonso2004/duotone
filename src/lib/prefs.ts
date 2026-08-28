@@ -15,6 +15,7 @@ const KEY_VOLUME_NORMALIZATION = 'pref:volumeNormalization';
 const KEY_SOUND_PRESET = 'pref:soundPreset';
 // Chave antiga, escrita à mão pelo ecrã de Definições antes de haver getter.
 const KEY_KEEP_AWAKE = 'pref:keepAwake';
+const KEY_NOTIFICATIONS = 'pref:notifications';
 
 export type YtViewMode = 'video' | 'photo';
 export type AudioQuality = 'high' | 'saver';
@@ -67,6 +68,15 @@ export async function getVolumeNormalization(): Promise<boolean> {
 }
 export async function setVolumeNormalization(v: boolean): Promise<void> {
   await setBool(KEY_VOLUME_NORMALIZATION, v);
+}
+
+/** Notificações locais (inbox e pedidos de amizade). Ligadas por omissão —
+ * são o único aviso de que chegou alguma coisa com a app fechada. */
+export async function getNotificationsEnabled(): Promise<boolean> {
+  return getBool(KEY_NOTIFICATIONS, true);
+}
+export async function setNotificationsEnabled(v: boolean): Promise<void> {
+  await setBool(KEY_NOTIFICATIONS, v);
 }
 
 export type SoundPreset = 'normal' | 'slowed' | 'fast';

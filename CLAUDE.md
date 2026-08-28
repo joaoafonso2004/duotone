@@ -177,6 +177,25 @@ Ouvir no telemóvel, abrir o PC e encontrar lá o tema. Peças: `lib/handoff.ts`
 - RLS em tudo; qualquer tabela/coluna nova precisa das políticas certas (ver a de UPDATE em inbox-archive.sql como exemplo do que falha silenciosamente sem elas: update de 0 linhas sem erro).
 - Token refresh está ligado ao ciclo de vida da app em App.tsx — não mexer sem ler o comentário.
 
+## Definições
+
+- **Uma opção que não faz nada é pior do que não existir.** Antes de
+  acrescentar uma, verificar que ALGUÉM a lê fora do próprio ecrã. Já houve
+  seis mortas no desktop, todas pela mesma razão: o player do desktop é o
+  IFrame oficial do YouTube e **nunca toca no resolver nativo**, por isso
+  qualidade de áudio, PO Token e limpar caches não têm ali significado.
+- Preferências vivem em `lib/prefs.ts` — nunca `AsyncStorage` cru nos ecrãs.
+  O estado persistido do player (`player-session`) guarda a SESSÃO; as
+  preferências são outra coisa e ficam à parte.
+- Persistir DENTRO da ação da store (como `setSoundPreset`) e não nos ecrãs:
+  há dois ecrãs de definições e assim nenhum se esquece.
+- Preferências aplicadas no arranque pertencem ao `App.tsx`, não ao
+  `useEffect` do ecrã de Definições — o "manter o ecrã ligado" só ligava
+  depois de se visitar esse ecrã.
+- `${{ }}` nos workflows é substituído como TEXTO CRU antes de o shell
+  analisar a linha: passar mensagens de commit por lá parte com aspas e abre
+  a porta a injeção. Usar `env:`.
+
 ## Convenções e armadilhas
 
 - **`player.playbackRate = x` ARRANCA a reprodução** (no expo-video é `AVPlayer.rate = x`, e rate≠0 é play no AVFoundation) — qualquer código que toque no rate tem de verificar `wantsPlayRef` primeiro (bug histórico: restauro de sessão auto-tocava).

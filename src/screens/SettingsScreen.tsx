@@ -26,6 +26,8 @@ import {
   setAudioQuality,
   setAutoplayRadio as persistAutoplayRadio,
   getKeepAwake,
+  getNotificationsEnabled,
+  setNotificationsEnabled as persistNotifications,
   setKeepAwake as persistKeepAwake,
   setVolumeNormalization as persistVolumeNormalization,
   setHapticsEnabled,
@@ -36,7 +38,7 @@ import {
   setShowTrackDurationCache,
   type AudioQuality,
 } from '../lib/prefs';
-import { clearDownloadedAudioCache } from '../lib/youtubeCache';
+import { clearDownloadedAudioCache, formatCacheSize, getAudioCacheBytes } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
@@ -84,6 +86,8 @@ export function SettingsScreen({ navigation }: Props) {
   const [showDuration, setShowDuration] = useState(true);
   const [hapticsOn, setHapticsOn] = useState(false);
   const [keepAwakeOn, setKeepAwakeOn] = useState(false);
+  const [notificationsOn, setNotificationsOn] = useState(true);
+  const [cacheBytes, setCacheBytes] = useState(0);
 
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [clearLibraryOpen, setClearLibraryOpen] = useState(false);
@@ -103,6 +107,10 @@ export function SettingsScreen({ navigation }: Props) {
 
     // Só reflete o estado — quem o aplica no arranque é o App.tsx.
     getKeepAwake().then(setKeepAwakeOn);
+    getNotificationsEnabled().then(setNotificationsOn);
+    // Quanto espaco o "Clear YouTube cache" vai libertar. Le o filesystem;
+    // uma vez ao abrir o ecra e outra depois de limpar.
+    setCacheBytes(getAudioCacheBytes());
   }, []);
 
   const changeAudioQuality = async (i: number) => {
@@ -110,6 +118,12 @@ export function SettingsScreen({ navigation }: Props) {
     setAudioQualityState(v);
     hapticSelection();
     await setAudioQuality(v);
+  };
+
+  const toggleNotifications = async (v: boolean) => {
+    setNotificationsOn(v);
+    hapticSelection();
+    await persistNotifications(v);
   };
 
   const toggleVolumeNormalization = async (v: boolean) => {
@@ -163,6 +177,7 @@ export function SettingsScreen({ navigation }: Props) {
     // O visitorData sobrevivia ao "Clear cache" (24h no AsyncStorage). Se a
     // Google o marcasse, limpar a cache nao resolvia nada ate ele expirar.
     clearVisitorData();
+    setCacheBytes(getAudioCacheBytes());
     hapticNotification();
     Alert.alert('Cache cleared', 'Downloaded YouTube audio and resolved streams were cleared.');
   };
@@ -382,6 +397,12 @@ export function SettingsScreen({ navigation }: Props) {
               style={{ marginTop: spacing.md }}
             />
             <ToggleRow
+              label="Notifications"
+              value={notificationsOn}
+              onChange={toggleNotifications}
+              style={{ marginTop: spacing.md }}
+            />
+            <ToggleRow
               label="Haptic feedback"
               value={hapticsOn}
               onChange={toggleHaptics}
@@ -402,7 +423,7 @@ export function SettingsScreen({ navigation }: Props) {
               re-download next time you play them.
             </Text>
             <PillButton
-              label="Clear YouTube cache"
+              label={`Clear YouTube cache (${formatCacheSize(cacheBytes)})`}
               variant="ghost"
               small
               onPress={doClearCache}

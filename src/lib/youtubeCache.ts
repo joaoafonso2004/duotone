@@ -126,6 +126,35 @@ export function loadCachedAudioIndex(): void {
 
 /** true se o áudio deste vídeo já está descarregado (síncrono; usa o índice
  * em memória e só cai no filesystem se o índice ainda não foi carregado). */
+/**
+ * Espaço ocupado pelo áudio descarregado, em bytes.
+ *
+ * Lê o filesystem de cada vez (ao contrário do `cachedIdsIndex`, que é um
+ * índice em memória): é chamado uma vez ao abrir as Definições, não num hot
+ * path de listas.
+ */
+export function getAudioCacheBytes(): number {
+  if (Platform.OS === 'web') return 0;
+  try {
+    let total = 0;
+    for (const entry of audioDir().list()) {
+      if (entry instanceof File && entry.name.startsWith(PREFIX)) total += entry.size ?? 0;
+    }
+    return total;
+  } catch {
+    return 0;
+  }
+}
+
+/** "1,2 GB" / "340 MB" / "—" quando não há nada. */
+export function formatCacheSize(bytes: number): string {
+  if (!bytes) return '—';
+  const mb = bytes / (1024 * 1024);
+  if (mb < 1) return '<1 MB';
+  if (mb < 1024) return `${Math.round(mb)} MB`;
+  return `${(mb / 1024).toFixed(1).replace('.', ',')} GB`;
+}
+
 export function isAudioCached(videoId: string): boolean {
   if (Platform.OS === 'web') return false;
   if (cachedIdsIndex) return cachedIdsIndex.has(videoId);
