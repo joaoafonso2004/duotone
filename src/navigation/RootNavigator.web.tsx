@@ -9,6 +9,8 @@ import { fetchYouTubePlaylist, searchYouTube } from '../api/youtube';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { useSaved } from '../state/saved';
+import { fetchListeningStats, type StatsResult } from '../api/listeningStats';
+import { formatListeningTime, type StatsPeriod, type TimelineBucket } from '../lib/listeningStats';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
@@ -52,6 +54,7 @@ type Route =
   | { name: 'artist'; value: string }
   | { name: 'playlist'; id: string; title: string }
   | { name: 'import' }
+  | { name: 'stats' }
   | { name: 'spotify-import' };
 
 const PRIMARY: { id: PrimaryRoute; label: string; icon: keyof typeof Ionicons.glyphMap; shortcut?: string }[] = [
@@ -481,6 +484,104 @@ function PlaylistPage({ id, title, back, ...props }: { id: string; title: string
   return <><Page title={playlistTitle} subtitle={`${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'}`} action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={() => playAll(false)}>Play</Button><Button secondary icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button><Button secondary icon="arrow-back" onPress={back}>Playlists</Button><IconButton name="pencil-outline" label="Rename playlist" onPress={() => { setRenameVal(playlistTitle); setRenameOpen(true); }} /><IconButton name="trash-outline" label="Delete playlist" onPress={() => setConfirm(true)} /></View>}><View style={styles.searchBar}><Field icon="search" placeholder="Search tracks in playlist..." value={query} onChangeText={setQuery} /></View><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Songs to add music here." />} />}</ContentScroll></Page><Dialog open={confirm} title="Delete playlist?" onClose={() => setConfirm(false)}><Text style={styles.dialogBody}>“{playlistTitle}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setConfirm(false)}>Cancel</Button><Button danger onPress={remove}>Delete</Button></View></Dialog><Dialog open={renameOpen} title="Rename playlist" onClose={() => setRenameOpen(false)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={renameVal} onChangeText={setRenameVal} onSubmitEditing={doRename} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenameOpen(false)}>Cancel</Button><Button onPress={doRename} disabled={!renameVal.trim()}>Save</Button></View></Dialog></>;
 }
 
+const STATS_PERIODS: [StatsPeriod, string][] = [['30d', 'Last 30 days'], ['6m', 'Last 6 months'], ['all', 'All time']];
+
+function StatsPage({ back, play }: { back: () => void; play: (t: Track, q?: Track[]) => void }) {
+  const theme = useTheme((s) => s.theme);
+  const [period, setPeriod] = useState<StatsPeriod>('30d');
+  const [result, setResult] = useState<StatsResult | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetchListeningStats(period)
+      .then((r) => { if (alive) setResult(r); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [period]);
+
+  const stats = result?.stats;
+  const playTop = (t: { source: string; sourceId: string; title: string; artist: string | null; artworkUrl: string | null }) => {
+    const track: Track = { source: t.source as Track['source'], sourceId: t.sourceId, title: t.title, artist: t.artist, album: null, artworkUrl: t.artworkUrl, durationSeconds: null };
+    play(track, [track]);
+  };
+
+  const periodPicker = <View style={styles.smallSegment}>{STATS_PERIODS.map(([value, label]) => (
+    <P key={value} onPress={() => setPeriod(value)} style={({ hovered }: any) => [styles.smallSegmentItem, period === value && styles.smallSegmentActive, hovered && styles.settingHover]}>
+      <Text style={[styles.smallSegmentText, period === value && { color: desktop.text }]}>{label}</Text>
+    </P>))}</View>;
+
+  return <Page title="Your listening" subtitle="How much you played, and what." action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}<Button secondary icon="arrow-back" onPress={back}>Profile</Button></View>}>
+    <ContentScroll>
+      {loading ? <View style={{ height: 320 }}><Loading /></View>
+        : result?.unavailable ? <Empty icon="cloud-offline-outline" title="History unavailable" body="The database returned no history. Run supabase/listening-stats.sql in the SQL Editor." />
+        : !stats || stats.totalPlays === 0 ? <Empty icon="stats-chart-outline" title="Nothing to show yet" body="Play some music and your statistics will appear here." />
+        : <>
+          <V style={[styles.statsHero, { backgroundImage: `linear-gradient(135deg, ${theme.gradient[0]}, ${theme.gradient[1]})` } as any]}>
+            <Text style={styles.statsHeroLabel}>TIME LISTENED</Text>
+            <Text style={styles.statsHeroValue}>{'\u2248'} {formatListeningTime(stats.estimatedMinutes)}</Text>
+            {/* O historico regista o ARRANQUE de cada faixa, nao o fim - dai o simbolo de aproximacao. */}
+            <Text style={styles.statsHeroNote}>estimated from {stats.totalPlays} plays</Text>
+          </V>
+
+          <View style={styles.statsGrid}>
+            <StatCell label="Tracks" value={String(stats.uniqueTracks)} />
+            <StatCell label="Artists" value={String(stats.uniqueArtists)} />
+            <StatCell label="Day streak" value={stats.streakDays > 0 ? String(stats.streakDays) : '-'} />
+            <StatCell label="Best day" value={stats.busiestDay ? `${stats.busiestDay.plays} plays` : '-'} hint={stats.busiestDay?.key} />
+          </View>
+
+          {stats.timeline.length > 1 && <><Text style={styles.formLabel}>ACTIVITY</Text><StatsChart buckets={stats.timeline} color={theme.color} /></>}
+
+          <View style={{ flexDirection: 'row', gap: 18, flexWrap: 'wrap', marginTop: 26 }}>
+            {stats.topTracks.length > 0 && <View style={{ flex: 1, minWidth: 340 }}>
+              <Text style={styles.formLabel}>MOST PLAYED</Text>
+              {stats.topTracks.map((t, i) => (
+                <P key={t.key} onPress={() => playTop(t)} style={({ hovered }: any) => [styles.statsRow, hovered && styles.settingHover]}>
+                  <Text style={[styles.statsRank, { color: theme.color }]}>{i + 1}</Text>
+                  {t.artworkUrl ? <Image source={{ uri: t.artworkUrl }} style={{ width: 38, height: 38, borderRadius: 5 }} /> : <View style={{ width: 38, height: 38, borderRadius: 5, backgroundColor: desktop.raised }} />}
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 12, fontWeight: '600' }}>{t.title}</Text>
+                    <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 10, marginTop: 2 }}>{t.artist ?? 'Unknown artist'}</Text>
+                  </View>
+                  <Text style={{ color: desktop.muted, fontSize: 11, fontWeight: '700' }}>{t.plays}x</Text>
+                </P>))}
+            </View>}
+
+            {stats.topArtists.length > 0 && <View style={{ flex: 1, minWidth: 300 }}>
+              <Text style={styles.formLabel}>TOP ARTISTS</Text>
+              {stats.topArtists.map((a, i) => (
+                <View key={a.name} style={styles.statsRow}>
+                  <Text style={[styles.statsRank, { color: theme.color }]}>{i + 1}</Text>
+                  {a.artworkUrl ? <Image source={{ uri: a.artworkUrl }} style={{ width: 34, height: 34, borderRadius: 17 }} /> : <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: desktop.raised }} />}
+                  <Text numberOfLines={1} style={{ flex: 1, color: desktop.text, fontSize: 12, fontWeight: '600' }}>{a.name}</Text>
+                  <Text style={{ color: desktop.muted, fontSize: 11, fontWeight: '700' }}>{a.plays}x</Text>
+                </View>))}
+            </View>}
+          </View>
+
+          {result?.truncated && <Text style={{ color: desktop.dim, fontSize: 11, marginTop: 24, textAlign: 'center' }}>History is long - these numbers cover the most recent plays, not everything.</Text>}
+        </>}
+    </ContentScroll>
+  </Page>;
+}
+
+function StatCell({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return <View style={styles.statsCell}><Text numberOfLines={1} style={styles.statsCellValue}>{value}</Text><Text style={{ color: desktop.muted, fontSize: 11, marginTop: 3 }}>{label}</Text>{hint ? <Text style={{ color: desktop.dim, fontSize: 10, marginTop: 2 }}>{hint}</Text> : null}</View>;
+}
+
+/** Barras simples - Views com altura, sem biblioteca de graficos. */
+function StatsChart({ buckets, color }: { buckets: TimelineBucket[]; color: string }) {
+  const shown = buckets.slice(-40);
+  const max = Math.max(...shown.map((b) => b.plays), 1);
+  return <View style={styles.statsChart}>{shown.map((b, i) => (
+    <View key={b.key} style={{ flex: 1, alignItems: 'center', justifyContent: 'flex-end' }}>
+      <View style={{ width: '100%', minWidth: 3, borderRadius: 2, backgroundColor: color, height: Math.max(3, (b.plays / max) * 110) }} />
+      <Text style={{ color: desktop.dim, fontSize: 8, marginTop: 4 }}>{shown.length <= 10 || i % Math.ceil(shown.length / 8) === 0 ? b.label : ''}</Text>
+    </View>))}</View>;
+}
+
 function ImportPage({ back, notify }: { back: () => void; notify: (s: string) => void }) {
   const [url, setUrl] = useState(''); const [loading, setLoading] = useState(false); const [preview, setPreview] = useState<any>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]); const [target, setTarget] = useState<string>('');
   const [newPlName, setNewPlName] = useState(''); const [creatingNew, setCreatingNew] = useState(false);
@@ -601,7 +702,7 @@ function ProfilePage({ navigate, notify }: { navigate: (r: Route) => void; notif
     <View style={[styles.profileAvatar, { backgroundImage: `linear-gradient(135deg, ${AVATAR_GRADIENTS[avatar.gradientIndex ?? 0][0]}, ${AVATAR_GRADIENTS[avatar.gradientIndex ?? 0][1]})` } as any]}><Text style={styles.profileEmoji}>{avatar.emoji}</Text></View>
   );
 
-  return <Page title="Profile" subtitle="Your account and listening history." action={<Button secondary icon="settings-outline" onPress={() => navigate({ name: 'settings' })}>Settings</Button>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : <><View style={styles.profileHero}><Pressable onPress={() => setAvatarOpen(true)} style={({ hovered }) => [styles.profileAvatarWrap, hovered && styles.profileAvatarHover]}>{profileAvatarDisplay}<View style={styles.profileAvatarEdit}><Ionicons name="pencil" size={12} color={desktop.text} /></View></Pressable><View style={{ flex: 1 }}><View style={styles.profileNameRow}><Text style={styles.profileName}>{dbName}</Text><IconButton name="pencil-outline" label="Edit username" onPress={() => setEditing(true)} /></View><Text style={styles.profileEmail}>{session?.user.email}</Text><Text style={styles.profileSince}>{memberSince(session?.user.created_at)}</Text></View><View style={styles.profileActions}><Button secondary icon="key-outline" onPress={async () => { const e = await resetPassword(); notify(e || 'Password reset email sent.'); }}>Reset password</Button><Button secondary icon="log-out-outline" onPress={() => signOut()}>Sign out</Button></View></View>
+  return <Page title="Profile" subtitle="Your account and listening history." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button secondary icon="stats-chart-outline" onPress={() => navigate({ name: 'stats' })}>Your listening</Button><Button secondary icon="settings-outline" onPress={() => navigate({ name: 'settings' })}>Settings</Button></View>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : <><View style={styles.profileHero}><Pressable onPress={() => setAvatarOpen(true)} style={({ hovered }) => [styles.profileAvatarWrap, hovered && styles.profileAvatarHover]}>{profileAvatarDisplay}<View style={styles.profileAvatarEdit}><Ionicons name="pencil" size={12} color={desktop.text} /></View></Pressable><View style={{ flex: 1 }}><View style={styles.profileNameRow}><Text style={styles.profileName}>{dbName}</Text><IconButton name="pencil-outline" label="Edit username" onPress={() => setEditing(true)} /></View><Text style={styles.profileEmail}>{session?.user.email}</Text><Text style={styles.profileSince}>{memberSince(session?.user.created_at)}</Text></View><View style={styles.profileActions}><Button secondary icon="key-outline" onPress={async () => { const e = await resetPassword(); notify(e || 'Password reset email sent.'); }}>Reset password</Button><Button secondary icon="log-out-outline" onPress={() => signOut()}>Sign out</Button></View></View>
     <View style={styles.profileStats}><ProfileStat icon="play" label="TOTAL PLAYS" value={String(stats?.totalPlays || 0)} /><ProfileStat icon="musical-notes" label="UNIQUE TRACKS" value={String(stats?.uniqueTracks || 0)} /><ProfileStat icon="people" label="FRIENDS" value={String(friendCount)} /><ProfileStat icon="person" label="TOP ARTIST" value={stats?.topArtist?.name || '—'} wide /></View>
     <View style={styles.profileColumns}><View style={styles.profileSection}><View style={styles.profileSectionHead}><View><Text style={styles.profileSectionEyebrow}>LISTENING INSIGHTS</Text><Text style={styles.profileSectionTitle}>Most played</Text></View><Text style={styles.profileSectionMeta}>{mostPlayed.length} tracks</Text></View><ProfileHistory entries={mostPlayed} ranked onPlay={playHistory} empty="Play some music and your favourites will appear here." /></View><View style={styles.profileSection}><View style={styles.profileSectionHead}><View><Text style={styles.profileSectionEyebrow}>HISTORY</Text><Text style={styles.profileSectionTitle}>Recently played</Text></View></View><ProfileHistory entries={recent} onPlay={playHistory} empty="Your recent listening history will appear here." /></View></View></>}</ContentScroll>
     <Dialog open={editing} title="Edit profile" onClose={() => setEditing(false)}><Text style={styles.formLabel}>USERNAME</Text><Field autoFocus maxLength={24} value={name} onChangeText={setName} onSubmitEditing={save} /><View style={styles.dialogActions}><Button secondary onPress={() => setEditing(false)}>Cancel</Button><Button onPress={save}>Save changes</Button></View></Dialog>
@@ -1718,6 +1819,7 @@ function DesktopShell() {
   switch (route.name) {
     case 'search': page = <SearchPage {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} />; break;
     case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} back={back} {...common} />; break;
+    case 'stats': page = <StatsPage back={back} play={play} />; break;
     case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} />; break;
     case 'social': page = <SocialPage notify={notify} play={play} more={more} />; break;
     case 'now-playing': page = <NowPlayingPage play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} />; break;
@@ -1808,6 +1910,9 @@ const styles = StyleSheet.create({
   profileStats: { minHeight: 92, flexDirection: 'row', flexWrap: 'wrap', gap: 1, borderRadius: 11, borderWidth: 1, borderColor: desktop.border, overflow: 'hidden', backgroundColor: desktop.border, marginBottom: 20 }, profileStat: { flex: 1, minWidth: 180, paddingHorizontal: 20, paddingVertical: 17, backgroundColor: desktop.panel, flexDirection: 'row', alignItems: 'center', gap: 13 }, profileStatIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: desktop.accentSoft, alignItems: 'center', justifyContent: 'center' }, profileStatValue: { color: desktop.text, fontSize: 21, fontWeight: '750' as any }, profileStatLabel: { color: desktop.dim, fontSize: 9, fontWeight: '750' as any, letterSpacing: .9, marginTop: 3 },
   profileColumns: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 18 }, profileSection: { flex: 1, minWidth: 330, borderRadius: 11, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.panel, overflow: 'hidden' }, profileSectionHead: { minHeight: 70, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: desktop.border }, profileSectionEyebrow: { color: desktop.accent, fontSize: 8, fontWeight: '800', letterSpacing: 1.15, marginBottom: 4 }, profileSectionTitle: { color: desktop.text, fontSize: 15, fontWeight: '700' }, profileSectionMeta: { color: desktop.dim, fontSize: 10, marginLeft: 'auto' }, profileHistory: { backgroundColor: desktop.panel }, profileHistoryRow: { minHeight: 59, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: desktop.border }, profileHistoryHover: { backgroundColor: desktop.hover }, profileRank: { width: 20, textAlign: 'center', color: desktop.dim, fontSize: 11, fontWeight: '700' }, profileTrackTitle: { color: desktop.text, fontSize: 12, fontWeight: '600' }, profileTrackArtist: { color: desktop.dim, fontSize: 10, marginTop: 3 }, profileCount: { minWidth: 38, height: 24, paddingHorizontal: 8, borderRadius: 12, backgroundColor: desktop.raised, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }, profileCountText: { color: desktop.muted, fontSize: 10, fontWeight: '700' }, profileRecentTime: { color: desktop.dim, fontSize: 10, width: 28, textAlign: 'right' }, profileHistoryEmpty: { minHeight: 190, padding: 28, alignItems: 'center', justifyContent: 'center', gap: 10 }, profileHistoryEmptyText: { color: desktop.dim, fontSize: 11, textAlign: 'center', lineHeight: 17, maxWidth: 260 },
   avatarPreview: { width: 88, height: 88, borderRadius: 28, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', marginBottom: 22 }, avatarPreviewEmoji: { fontSize: 40 }, avatarSwatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 }, avatarSwatchOuter: { width: 43, height: 43, borderRadius: 14, padding: 3, borderWidth: 2, borderColor: 'transparent' }, avatarSwatchSelected: { borderColor: desktop.text }, avatarSwatch: { flex: 1, borderRadius: 10 }, avatarEmojiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, avatarEmojiCell: { width: 46, height: 46, borderRadius: 9, backgroundColor: desktop.raised, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' }, avatarEmojiSelected: { backgroundColor: desktop.accentSoft, borderColor: 'rgba(155,123,255,.55)' }, avatarEmojiText: { fontSize: 23 },
+  statsHero: { borderRadius: 12, padding: 22, marginBottom: 18 }, statsHeroLabel: { color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, opacity: .85 }, statsHeroValue: { color: '#FFF', fontSize: 38, fontWeight: '800', marginTop: 6, letterSpacing: -.5 }, statsHeroNote: { color: '#FFF', fontSize: 11, marginTop: 4, opacity: .8 },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 26 }, statsCell: { flexGrow: 1, flexBasis: 150, borderRadius: 10, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.panel, padding: 16 }, statsCellValue: { color: desktop.text, fontSize: 24, fontWeight: '800' },
+  statsChart: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 140, marginTop: 10 }, statsRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 7, cursor: 'pointer' } as any, statsRank: { width: 18, textAlign: 'center', fontSize: 12, fontWeight: '800' },
   settingsGrid: { flexDirection: 'row', alignItems: 'flex-start', flexWrap: 'wrap', gap: 18 }, settingsCard: { width: 430, maxWidth: '100%' as any, borderRadius: 10, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.panel, overflow: 'hidden' }, settingsCardTitle: { height: 53, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 9, borderBottomWidth: 1, borderBottomColor: desktop.border }, settingLine: { minHeight: 52, paddingHorizontal: 17, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: desktop.border, flexDirection: 'row', alignItems: 'center', gap: 12 }, settingHover: { backgroundColor: desktop.hover }, settingLabel: { color: desktop.text, fontSize: 12, fontWeight: '550' as any }, settingValue: { color: desktop.muted, fontSize: 12, textAlign: 'right', maxWidth: 230 }, settingDescription: { color: desktop.dim, fontSize: 10, marginTop: 4 }, smallSegment: { padding: 3, backgroundColor: desktop.bg, borderRadius: 7, flexDirection: 'row' }, smallSegmentItem: { minHeight: 30, paddingHorizontal: 10, borderRadius: 5, alignItems: 'center', justifyContent: 'center' }, smallSegmentActive: { backgroundColor: desktop.hover }, smallSegmentText: { color: desktop.dim, fontSize: 10 },
   player: { height: 76, backgroundColor: 'rgba(18,18,24,0.72)', borderRadius: 8, marginLeft: 8, marginRight: 8, marginTop: 4, marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, zIndex: 25 }, playerTrack: { width: '30%', minWidth: 210, maxWidth: 390, flexDirection: 'row', alignItems: 'center', gap: 11 }, playerTitle: { color: desktop.text, fontSize: 12, fontWeight: '650' as any }, playerArtist: { color: desktop.muted, fontSize: 10, marginTop: 4 }, playerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', maxWidth: 760 }, playerControls: { flexDirection: 'row', alignItems: 'center', gap: 6 }, playButton: { width: 35, height: 35, borderRadius: 18, backgroundColor: desktop.text, alignItems: 'center', justifyContent: 'center', marginHorizontal: 5 }, progressRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 3 }, timeText: { width: 35, color: desktop.dim, fontSize: 9, textAlign: 'center' }, progressHit: { flex: 1, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, progressTrack: { height: 3, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, progressFill: { height: 3, backgroundColor: desktop.text, borderRadius: 2 }, playerRight: { width: '30%', minWidth: 120, maxWidth: 390, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }, playerError: { color: desktop.danger, fontSize: 10, maxWidth: 220 },
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 16 }, volumeHit: { width: 90, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, volumeTrack: { height: 4, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, volumeFill: { height: 4, backgroundColor: '#A09DA9', borderRadius: 2 },

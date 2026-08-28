@@ -17,6 +17,7 @@ import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { ImportYouTubeScreen } from '../screens/ImportYouTubeScreen';
+import { ListeningStatsScreen } from '../screens/ListeningStatsScreen';
 import { LibraryGroupScreen } from '../screens/LibraryGroupScreen';
 import { PlaylistDetailScreen } from '../screens/PlaylistDetailScreen';
 import { PlaylistsScreen } from '../screens/PlaylistsScreen';
@@ -41,6 +42,7 @@ import {
 export type RootStackParamList = {
   Tabs: undefined;
   Settings: undefined;
+  ListeningStats: undefined;
   Playlists: undefined;
   PlaylistDetail: { id: string; name: string };
   ImportYouTube: undefined;
@@ -297,6 +299,7 @@ export function RootNavigator() {
             <Stack.Navigator screenOptions={stackScreenOptions}>
               <Stack.Screen name="Tabs" component={Tabs} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
+              <Stack.Screen name="ListeningStats" component={ListeningStatsScreen} />
               <Stack.Screen name="Social" component={SocialScreen} />
             </Stack.Navigator>
             <PlayerRoot />
