@@ -43,6 +43,7 @@ import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import type { RootStackParamList } from '../navigation/RootNavigator';
+import { FriendAvatar } from '../components/FriendAvatar';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { colors, radii, spacing, type as typography } from '../theme';
@@ -61,51 +62,12 @@ export function SocialScreen() {
   const current = usePlayer((s) => s.current);
   const theme = useTheme((s) => s.theme);
 
-  const renderFriendAvatar = (avatarUrl: string | null, name: string, size = 36) => {
-    if (avatarUrl && avatarUrl.startsWith('emoji:')) {
-      const [, emoji, gradIdxStr] = avatarUrl.split(':');
-      const gradIdx = parseInt(gradIdxStr, 10);
-      const grad = AVATAR_GRADIENTS[gradIdx] || AVATAR_GRADIENTS[0];
-      return (
-        <LinearGradient
-          colors={grad}
-          style={{
-            width: size,
-            height: size,
-            borderRadius: size / 2,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Text style={{ fontSize: size * 0.48 }}>{emoji}</Text>
-        </LinearGradient>
-      );
-    }
-    if (avatarUrl) {
-      return (
-        <Image
-          source={{ uri: avatarUrl }}
-          style={{ width: size, height: size, borderRadius: size / 2 }}
-        />
-      );
-    }
-    return (
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: colors.surfaceHigh,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text style={{ fontSize: size * 0.38, fontWeight: '700', color: colors.textSecondary }}>
-          {name ? name.charAt(0).toUpperCase() : '?'}
-        </Text>
-      </View>
-    );
-  };
+  // O desenho do avatar vive agora num componente partilhado com o desktop
+  // (FriendAvatar.tsx / .web.tsx), para as duas plataformas descodificarem o
+  // `profiles.avatar_url` da mesma maneira.
+  const renderFriendAvatar = (avatarUrl: string | null, name: string, size = 36) => (
+    <FriendAvatar avatarUrl={avatarUrl} name={name} size={size} />
+  );
 
   const [activeTab, setActiveTab] = useState<'inbox' | 'friends' | 'add'>('inbox');
   const [inboxItems, setInboxItems] = useState<SharedItem[]>([]);

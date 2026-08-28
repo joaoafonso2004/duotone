@@ -7,13 +7,16 @@ import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../
 import { getLibrary, removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
 import { fetchYouTubePlaylist, searchYouTube } from '../api/youtube';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
+import { FriendAvatar } from '../components/FriendAvatar';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
+import { useAutoplayRadio } from '../lib/radioSync';
 import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, formatTime, IconButton, Loading, Page, Toast, TrackTable, ui } from '../desktop/ui.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
 import {
   getAudioQuality, getDefaultYtViewMode, getShowRewindButton, getShowTrackDuration,
-  setAudioQuality, setDefaultYtViewMode, setShowRewindButton, setShowTrackDuration, getPoTokenServerUrl, setPoTokenServerUrl
+  setAudioQuality, setDefaultYtViewMode, setShowRewindButton, setShowTrackDuration, getPoTokenServerUrl, setPoTokenServerUrl,
+  setAutoplayRadio as persistAutoplayRadio
 } from '../lib/prefs';
 import {
   AVATAR_EMOJIS, AVATAR_GRADIENTS, getAvatarChoice, setAvatarChoice,
@@ -632,6 +635,9 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
   const setTheme = useTheme((s) => s.setTheme);
   const soundPreset = usePlayer((s) => s.soundPreset);
   const setSoundPreset = usePlayer((s) => s.setSoundPreset);
+  // Vem já carregado da store (App.tsx lê a preferência no arranque nas duas
+  // plataformas), por isso não precisa de entrar no Promise.all acima.
+  const autoplayRadio = usePlayer((s) => s.autoplayRadio);
 
   useEffect(() => {
     Promise.all([
@@ -724,6 +730,7 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
         <View style={styles.settingsGrid}>
           <SettingsCard icon="play-circle-outline" title="Playback">
             <ToggleLine label="Show track duration" description="Display a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); }} />
+            <ToggleLine label="Autoplay radio" description="When the queue ends, keep playing similar music instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} />
             <ToggleLine label="15-second rewind" description="Show a rewind control in the desktop player." value={rewind} onChange={(v) => { setRewindState(v); setShowRewindButton(v); usePlayer.getState().setShowRewindButton(v); }} />
             <ChoiceLine label="Audio quality" value={quality} choices={[['high', 'High'], ['saver', 'Data saver']]} onChange={(v) => { const next = v as 'high' | 'saver'; setQualityState(next); setAudioQuality(next); }} />
             <ChoiceLine label="Sound Presets" value={soundPreset} choices={[['normal', 'Standard'], ['slowed', 'Slowed & Reverb'], ['fast', 'Nightcore']]} onChange={(v) => setSoundPreset(v as any)} />
@@ -971,7 +978,8 @@ function SocialPage({ notify, play, more }: { notify: (s: string) => void; play:
                 <View style={{ gap: 6, marginTop: 8 }}>
                   {pendingRequests.map((req) => (
                     <View key={req.friendId} style={styles.friendRow}>
-                      <View style={{ flex: 1 }}>
+                      <FriendAvatar avatarUrl={req.avatarUrl} name={req.name} size={34} />
+                      <View style={{ flex: 1, marginLeft: 11 }}>
                         <Text style={{ color: desktop.text, fontSize: 13, fontWeight: '600' }}>{req.name}</Text>
                         <Text style={{ color: desktop.dim, fontSize: 11 }}>@{req.username}</Text>
                       </View>
@@ -992,7 +1000,8 @@ function SocialPage({ notify, play, more }: { notify: (s: string) => void; play:
             <Text style={styles.formLabel}>ALL FRIENDS</Text>
             {activeFriends.map((f) => (
               <View key={f.friendId} style={styles.friendRow}>
-                <View style={{ flex: 1, minWidth: 0 }}>
+                <FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={38} />
+                <View style={{ flex: 1, minWidth: 0, marginLeft: 11 }}>
                   <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 13, fontWeight: '600' }}>{f.name} (@{f.username})</Text>
                   {f.currentlyPlaying ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
@@ -1040,7 +1049,8 @@ function SocialPage({ notify, play, more }: { notify: (s: string) => void; play:
                 const friendship = friendships.find(f => f.friendId === p.id);
                 return (
                   <View key={p.id} style={styles.friendRow}>
-                    <View style={{ flex: 1 }}>
+                    <FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={34} />
+                    <View style={{ flex: 1, marginLeft: 11 }}>
                       <Text style={{ color: desktop.text, fontSize: 13, fontWeight: '600' }}>{p.name || 'No name'}</Text>
                       <Text style={{ color: desktop.dim, fontSize: 11 }}>@{p.username}</Text>
                     </View>
@@ -1081,9 +1091,12 @@ function SocialPage({ notify, play, more }: { notify: (s: string) => void; play:
                 const isDarkText = isMe && getContrastTextColor(theme.color) === '#0F0F14';
                 return (
                   <View key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '80%', gap: 4 }}>
-                    <Text style={{ color: desktop.dim, fontSize: 9, textAlign: isMe ? 'right' : 'left' }}>
-                      {isMe ? 'You' : msg.sender.name} • {relativeTime(new Date(msg.createdAt).getTime())}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: isMe ? 'flex-end' : 'flex-start' }}>
+                      {!isMe && <FriendAvatar avatarUrl={msg.sender.avatarUrl} name={msg.sender.name} size={18} />}
+                      <Text style={{ color: desktop.dim, fontSize: 9 }}>
+                        {isMe ? 'You' : msg.sender.name} • {relativeTime(new Date(msg.createdAt).getTime())}
+                      </Text>
+                    </View>
                     <View style={{ 
                       padding: 10, 
                       borderRadius: 12, 
@@ -1283,7 +1296,7 @@ function NowPlayingPage({ play, notify, more, currentIsSaved, toggleSaveCurrent 
           ) : (
             <V className="glass-panel" style={[styles.nowPlayingRight, { backgroundColor: 'rgba(20,20,30,0.4)', backdropFilter: 'blur(20px)', padding: 22, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 24 } as any]}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={[styles.nowPlayingQueueTitle, { marginBottom: 0 }]}>UP NEXT</Text>
+                <Text style={[styles.nowPlayingQueueTitle, { marginBottom: 0 }]}>{p.radioActive ? 'UP NEXT · RADIO' : 'UP NEXT'}</Text>
                 <Ionicons name="list" size={16} color={desktop.dim} />
               </View>
               <View style={styles.nowPlayingQueueList}>
@@ -1480,6 +1493,9 @@ function DesktopShell() {
   const isPlayingState = p.isPlaying;
   // Evita mandar um delete ao arrancar sem nada a tocar.
   const hadTrackRef = useRef(false);
+
+  // Rádio: abastece a fila antes de ela acabar (ver useAutoplayRadio).
+  useAutoplayRadio();
 
   useEffect(() => {
     AsyncStorage.getItem('pref:panelOpacity').then((val) => {

@@ -25,6 +25,7 @@ import {
   getPoTokenServerUrl,
   getShowTrackDuration,
   setAudioQuality,
+  setAutoplayRadio as persistAutoplayRadio,
   setHapticsEnabled,
   setHapticsEnabledCache,
   setPoTokenServerUrl,
@@ -65,6 +66,8 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   const showRewindButton = usePlayer((s) => s.showRewindButton);
+  const autoplayRadio = usePlayer((s) => s.autoplayRadio);
+  const setAutoplayRadio = usePlayer((s) => s.setAutoplayRadio);
   const setShowRewindButton = usePlayer((s) => s.setShowRewindButton);
   const soundPreset = usePlayer((s) => s.soundPreset);
   const setSoundPreset = usePlayer((s) => s.setSoundPreset);
@@ -108,6 +111,12 @@ export function SettingsScreen({ navigation }: Props) {
     setAudioQualityState(v);
     hapticSelection();
     await setAudioQuality(v);
+  };
+
+  const toggleAutoplayRadio = async (v: boolean) => {
+    setAutoplayRadio(v);
+    hapticSelection();
+    await persistAutoplayRadio(v);
   };
 
   const toggleShowRewind = async (v: boolean) => {
@@ -348,6 +357,12 @@ export function SettingsScreen({ navigation }: Props) {
               label="Show track duration in lists"
               value={showDuration}
               onChange={toggleShowDuration}
+            />
+            <ToggleRow
+              label="Autoplay radio at end of queue"
+              value={autoplayRadio}
+              onChange={toggleAutoplayRadio}
+              style={{ marginTop: spacing.md }}
             />
             <ToggleRow
               label="Show rewind 15s button"

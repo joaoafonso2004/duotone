@@ -43,6 +43,40 @@ export const CURATED_AVATARS: readonly string[] = [
 export const DEFAULT_EMOJI = AVATAR_EMOJIS[0];
 export const DEFAULT_GRADIENT_INDEX = 0;
 
+/**
+ * Como um avatar viaja entre utilizadores.
+ *
+ * `profiles.avatar_url` guarda OU um URL de imagem OU a codificação
+ * `emoji:<emoji>:<indiceDoGradiente>` — é essa string que os amigos leem.
+ * Este decodificador existe para as duas plataformas desenharem o mesmo:
+ * o telemóvel tinha a lógica embutida no SocialScreen e o desktop não tinha
+ * lógica nenhuma (não mostrava avatares de amigos de todo).
+ */
+export type DecodedAvatar =
+  | { kind: 'emoji'; emoji: string; gradient: readonly [string, string] }
+  | { kind: 'image'; url: string }
+  | { kind: 'initial'; letter: string };
+
+export function decodeAvatar(
+  avatarUrl: string | null | undefined,
+  name?: string | null
+): DecodedAvatar {
+  if (avatarUrl && avatarUrl.startsWith('emoji:')) {
+    const [, emoji, gradientRaw] = avatarUrl.split(':');
+    const index = Number(gradientRaw);
+    return {
+      kind: 'emoji',
+      emoji: emoji || DEFAULT_EMOJI,
+      gradient:
+        Number.isInteger(index) && index >= 0 && index < AVATAR_GRADIENTS.length
+          ? AVATAR_GRADIENTS[index]
+          : AVATAR_GRADIENTS[DEFAULT_GRADIENT_INDEX],
+    };
+  }
+  if (avatarUrl) return { kind: 'image', url: avatarUrl };
+  return { kind: 'initial', letter: (name?.trim()?.[0] || '?').toUpperCase() };
+}
+
 export interface AvatarChoice {
   emoji?: string;
   gradientIndex?: number;

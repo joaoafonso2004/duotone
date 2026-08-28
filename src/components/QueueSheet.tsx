@@ -35,6 +35,9 @@ export function QueueSheet({ visible, onClose }: Props) {
   // natural, que não é o que está à frente do utilizador. Só remover é que
   // continua a fazer sentido (mapeia para o índice real).
   const canReorder = !shuffle;
+  // Dizer de onde vêm as faixas: se a fila acabou e o rádio a estendeu, o
+  // utilizador tem de perceber porque é que continua a tocar.
+  const radioActive = usePlayer((s) => s.radioActive);
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -59,7 +62,7 @@ export function QueueSheet({ visible, onClose }: Props) {
       )}
 
       <Text style={[type.micro, styles.sectionTitle, { marginTop: spacing.lg }]}>
-        UP NEXT ({upNext.length})
+        UP NEXT ({upNext.length}){radioActive ? ' · RÁDIO' : ''}
       </Text>
 
       {upNext.length > 0 ? (

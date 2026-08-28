@@ -34,6 +34,37 @@ Fluxo: ecrãs → `usePlayer` (zustand, `src/state/player.ts`) → `PlayerRoot` 
 - **Sleep timer**: deadline absoluto (`sleepTimerEndsAt`) verificado no `timeUpdate` do player nativo — nunca reverter para contador com `setInterval` (o iOS suspende timers JS em background).
 - Duração/posição na UI: sempre `track.durationSeconds` (fiável), nunca `player.duration` exceto como último fallback.
 
+## Rádio (autoplay no fim da fila)
+
+- **Não são os mixes do YouTube (`RD<videoId>`)**: a Data API v3, que é a que
+  a app usa para playlists, não os resolve — não são playlists reais para a
+  API e vem 404. Fazê-lo por InnerTube era possível mas acrescentava mais uma
+  superfície frágil ao pipeline que já vive a partir.
+- As faixas saem dos dados do próprio utilizador, em cascata **por custo**
+  (`api/radio.ts`): biblioteca pelo mesmo artista → `get_flow_mix` no Supabase
+  → pesquisa no YouTube. Só a última gasta quota (100 das 10.000/dia), e só se
+  as anteriores não chegarem. Manter esta ordem.
+- `lib/radio.ts` não importa nada em runtime **de propósito** — os helpers
+  (`displayArtist`, `trackKey`) entram por parâmetro. É o que o mantém
+  testável em Node puro: o `--experimental-strip-types` não resolve imports
+  sem extensão e o `tsc` recusa-as sem `allowImportingTsExtensions`.
+- O rádio estende a fila **em antecipação** (`useAutoplayRadio`, montado nas
+  duas shells), não só no `next()`: caso contrário ficava um silêncio entre a
+  última faixa e a ida à rede. O `next()` mantém-no como rede de segurança.
+- `radioInFlight` (module-level) impede que o efeito e o `next()` disparem
+  duas idas à rede ao mesmo tempo e dupliquem faixas na fila.
+
+## Avatares entre amigos
+
+`profiles.avatar_url` guarda OU um URL OU `emoji:<emoji>:<gradiente>`; é essa
+string que os amigos leem. Descodificação partilhada em `decodeAvatar`
+(`lib/avatarPrefs.ts`), desenho em `components/FriendAvatar.tsx` / `.web.tsx`
+(gradiente por expo-linear-gradient no telemóvel, CSS no desktop). **Não
+duplicar a descodificação** — estava embutida no SocialScreen e o desktop não
+mostrava avatares nenhuns. Depende da política de SELECT em
+`supabase/friend-avatars.sql`: com o `profiles: ler o próprio` do schema base,
+a lista de amigos e a pesquisa de utilizadores devolvem zero linhas.
+
 ## Shuffle e pré-carregamento
 
 - **O shuffle é um percurso materializado, não um sorteio.** `lib/shuffle.ts`
