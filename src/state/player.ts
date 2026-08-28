@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { recordPlayInSupabase } from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
+import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import type { Track } from '../types';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
@@ -44,6 +45,11 @@ interface PlayerState {
   repeatMode: RepeatMode;
   /** ordem aleatória ao avançar (botão no player) */
   shuffle: boolean;
+  /** Percurso do shuffle, por chave de faixa. Materializado (Fisher-Yates)
+   * em vez de sorteado a cada `next()`: só assim cada faixa toca uma vez e o
+   * "anterior" volta pelo caminho por onde veio. Ver lib/shuffle.ts.
+   * Não é persistido — regenera-se sozinho. */
+  shuffleOrder: string[];
   /** mostrar o botão de recuar 15s no player expandido (preferência das Definições) */
   showRewindButton: boolean;
   positionMs: number;
@@ -106,6 +112,23 @@ interface PlayerState {
 
   seekTo: (ms: number) => Promise<void>;
 
+  /** Que faixa é que o `next()` tocaria a seguir, sem tocar nada.
+   * Existe para o pré-carregamento no YouTubePlayerView usar EXATAMENTE a
+   * mesma decisão que o `next()` — antes descarregava sempre `queueIndex+1`
+   * e com shuffle ligado pré-carregava sempre a faixa errada. */
+  peekNextTrack: () => Track | null;
+
+  /** As faixas que vêm a seguir, pela ordem em que vão MESMO tocar, com o
+   * índice real na fila (para remover/reordenar). Com shuffle ligado isto
+   * não é `queue.slice(queueIndex + 1)` — a lista "Up next" mentia. */
+  upcomingQueue: () => { track: Track; index: number }[];
+
+  /** interno — devolve o percurso do shuffle alinhado com a fila atual,
+   * gerando-o se ainda não existir. Sem isto, remover uma faixa da fila
+   * deixava o percurso a apontar para uma chave que já lá não está e o
+   * `next()` julgava a fila acabada. */
+  _ensureShuffleOrder: () => string[];
+
   /** interno — ponte com o WebView do YouTube */
   _yt: YtControls | null;
   registerYtControls: (c: YtControls | null) => void;
@@ -150,6 +173,7 @@ export const usePlayer = create<PlayerState>()(
   expanded: false,
   repeatMode: 'off',
   shuffle: false,
+  shuffleOrder: [],
   showRewindButton: false,
   positionMs: 0,
   durationMs: 0,
@@ -192,6 +216,11 @@ export const usePlayer = create<PlayerState>()(
       downloadProgress: null,
       autoplayOnLoad: true,
       resumePositionMs: null,
+      // Alinhar o percurso do shuffle com a fila. Quando o `next()` chama isto
+      // com a MESMA fila, o reconcile não mexe em nada e a travessia continua;
+      // quando chega uma playlist nova, não sobra chave nenhuma e sai uma
+      // ordem inteiramente nova. Um só caminho para os dois casos.
+      shuffleOrder: get().shuffle ? reconcileOrder(get().shuffleOrder, q, index) : [],
       ...(shouldExpand ? { expanded: true } : {}),
     });
   },
@@ -211,6 +240,7 @@ export const usePlayer = create<PlayerState>()(
       activeBackend: 'resolving',
       downloadProgress: null,
       autoplayOnLoad: true,
+      shuffleOrder: get().shuffle ? reconcileOrder(get().shuffleOrder, q, index) : [],
       // Os dois motores retomam por caminhos diferentes: o nativo consome o
       // `resumePositionMs` no beginPlayback, o do desktop lê o `positionMs`
       // no onReady do IFrame. Preencher os dois é o que faz o handoff cair
@@ -267,11 +297,30 @@ export const usePlayer = create<PlayerState>()(
     const { queue, queueIndex, repeatMode, shuffle, playTrack } = get();
     if (queue.length === 0) return;
 
-    // Shuffle: salta para uma faixa aleatória diferente da atual.
+    // Shuffle: seguir o percurso materializado, não sortear.
+    //
+    // O que estava aqui antes sorteava um índice diferente do atual a cada
+    // chamada. Isso repete faixas antes de tocar as outras todas — numa fila
+    // de 20, ouvir as 20 sem repetição era praticamente impossível.
     if (shuffle && queue.length > 1) {
-      let r = queueIndex;
-      while (r === queueIndex) r = Math.floor(Math.random() * queue.length);
-      await playTrack(queue[r], queue);
+      const order = get()._ensureShuffleOrder();
+      const target = stepIndex(order, queue, queueIndex, 1);
+      if (target !== null) {
+        await playTrack(queue[target], queue);
+        return;
+      }
+      // Percurso esgotado: com repeat "all" baralha-se outra vez (como a
+      // Spotify) em vez de repetir a mesma ordem.
+      if (repeatMode === 'all') {
+        const fresh = shuffleKeys(queue, queueIndex);
+        set({ shuffleOrder: fresh });
+        const first = stepIndex(fresh, queue, queueIndex, 1);
+        if (first !== null) {
+          await playTrack(queue[first], queue);
+          return;
+        }
+      }
+      set({ isPlaying: false });
       return;
     }
 
@@ -290,6 +339,22 @@ export const usePlayer = create<PlayerState>()(
     // reprodução, "anterior" recomeça a faixa atual em vez de recuar na fila.
     if (positionMs > 3000) {
       await seekTo(0);
+      return;
+    }
+    // Com shuffle, "anterior" volta pelo caminho por onde veio — impossível
+    // enquanto a ordem era sorteada a cada salto.
+    if (get().shuffle && queue.length > 1) {
+      const order = get()._ensureShuffleOrder();
+      const target = stepIndex(order, queue, queueIndex, -1);
+      if (target !== null) {
+        await playTrack(queue[target], queue);
+        return;
+      }
+      if (repeatMode === 'all') {
+        const lastKey = order[order.length - 1];
+        const last = queue.findIndex((t) => trackKey(t) === lastKey);
+        if (last >= 0) await playTrack(queue[last], queue);
+      }
       return;
     }
     if (queueIndex - 1 >= 0) {
@@ -316,6 +381,49 @@ export const usePlayer = create<PlayerState>()(
     });
   },
 
+  upcomingQueue: () => {
+    const { queue, queueIndex, shuffle, shuffleOrder } = get();
+    if (queue.length === 0) return [];
+    if (!shuffle || shuffleOrder.length === 0) {
+      return queue
+        .slice(queueIndex + 1)
+        .map((track, i) => ({ track, index: queueIndex + 1 + i }));
+    }
+    return upcomingIndexes(shuffleOrder, queue, queueIndex).map((index) => ({
+      track: queue[index],
+      index,
+    }));
+  },
+
+  _ensureShuffleOrder: () => {
+    const { queue, queueIndex, shuffleOrder } = get();
+    const order = reconcileOrder(shuffleOrder, queue, queueIndex);
+    set({ shuffleOrder: order });
+    return order;
+  },
+
+  peekNextTrack: () => {
+    const { queue, queueIndex, repeatMode, shuffle, shuffleOrder } = get();
+    if (queue.length === 0) return null;
+    // Repeat "one" volta à mesma faixa: já está em cache, nada a pré-carregar.
+    if (repeatMode === 'one') return null;
+
+    if (shuffle && queue.length > 1) {
+      // Sem percurso ainda (shuffle acabado de ligar sem nenhum salto), não
+      // se adivinha — gerar aqui daria uma ordem diferente da que o `next()`
+      // vai usar, e pré-carregava-se a faixa errada.
+      if (shuffleOrder.length === 0) return null;
+      const target = stepIndex(shuffleOrder, queue, queueIndex, 1);
+      // Fim do percurso com repeat "all": vai baralhar outra vez, é
+      // imprevisível por definição. Melhor não pré-carregar nada.
+      return target !== null ? queue[target] : null;
+    }
+
+    if (queueIndex + 1 < queue.length) return queue[queueIndex + 1];
+    if (repeatMode === 'all') return queue[0];
+    return null;
+  },
+
   seekTo: async (ms) => {
     const { current, _yt, durationMs } = get();
     if (!current) return;
@@ -330,8 +438,14 @@ export const usePlayer = create<PlayerState>()(
     set((s) => ({
       repeatMode: s.repeatMode === 'off' ? 'all' : s.repeatMode === 'all' ? 'one' : 'off',
     })),
-  setShuffle: (v) => set({ shuffle: v }),
-  toggleShuffle: () => set((s) => ({ shuffle: !s.shuffle })),
+  // Ligar o shuffle gera o percurso de raiz (com a faixa atual à cabeça);
+  // desligar deita-o fora, para a próxima vez começar limpo.
+  setShuffle: (v) =>
+    set((s) => ({
+      shuffle: v,
+      shuffleOrder: v ? shuffleKeys(s.queue, s.queueIndex) : [],
+    })),
+  toggleShuffle: () => get().setShuffle(!get().shuffle),
   setShowRewindButton: (v) => set({ showRewindButton: v }),
   setError: (e) => set({ error: e }),
 

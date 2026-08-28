@@ -19,9 +19,22 @@ export function QueueSheet({ visible, onClose }: Props) {
   const playTrack = usePlayer((s) => s.playTrack);
   const moveQueueItem = usePlayer((s) => s.moveQueueItem);
   const removeFromQueue = usePlayer((s) => s.removeFromQueue);
+  const shuffle = usePlayer((s) => s.shuffle);
+  // Re-avaliar quando o percurso do shuffle muda.
+  const shuffleOrder = usePlayer((s) => s.shuffleOrder);
 
-  // Tracks after the current track
-  const upNext = queue.slice(queueIndex + 1);
+  // A ordem em que as faixas vão MESMO tocar — com shuffle ligado não é a
+  // ordem natural da fila. Antes esta lista mostrava `slice(queueIndex + 1)`
+  // e mentia sempre que o shuffle estava ligado.
+  const upNext = React.useMemo(
+    () => usePlayer.getState().upcomingQueue(),
+    [queue, queueIndex, shuffle, shuffleOrder]
+  );
+
+  // Reordenar uma lista baralhada não quer dizer nada: as setas movem a fila
+  // natural, que não é o que está à frente do utilizador. Só remover é que
+  // continua a fazer sentido (mapeia para o índice real).
+  const canReorder = !shuffle;
 
   return (
     <BottomSheet visible={visible} onClose={onClose}>
@@ -52,11 +65,12 @@ export function QueueSheet({ visible, onClose }: Props) {
       {upNext.length > 0 ? (
         <FlatList
           data={upNext}
-          keyExtractor={(item, index) => `${item.source}:${item.sourceId}-${index}`}
+          keyExtractor={(entry, index) => `${entry.track.source}:${entry.track.sourceId}-${index}`}
           style={styles.list}
           contentContainerStyle={{ paddingBottom: 40 }}
-          renderItem={({ item, index }) => {
-            const realIndex = queueIndex + 1 + index;
+          renderItem={({ item: entry, index }) => {
+            const item = entry.track;
+            const realIndex = entry.index;
 
             const handleMoveUp = () => {
               hapticSelection();
@@ -88,6 +102,7 @@ export function QueueSheet({ visible, onClose }: Props) {
                   />
                 </View>
                 <View style={styles.actionButtons}>
+                  {canReorder && (<>
                   <Pressable
                     onPress={handleMoveUp}
                     disabled={index === 0}
@@ -120,6 +135,7 @@ export function QueueSheet({ visible, onClose }: Props) {
                       color={index === upNext.length - 1 ? colors.textTertiary : colors.textSecondary}
                     />
                   </Pressable>
+                  </>)}
                   <Pressable
                     onPress={handleRemove}
                     style={({ pressed }) => [
