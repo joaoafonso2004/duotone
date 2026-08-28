@@ -70,6 +70,16 @@ interface PlayerState {
   setVolume: (v: number) => void;
 
   playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean) => Promise<void>;
+  /** Assume uma sessão vinda de outro dispositivo (handoff), a partir de uma
+   * posição. Deliberadamente NÃO conta a reprodução: já foi contada no
+   * dispositivo de origem, e contá-la outra vez inflacionava o "Most played"
+   * sempre que se trocasse de dispositivo. */
+  adoptSession: (session: {
+    track: Track;
+    queue: Track[];
+    queueIndex: number;
+    positionMs: number;
+  }) => void;
   playNext: (track: Track) => void;
   addToQueue: (track: Track) => void;
   togglePlay: () => Promise<void>;
@@ -183,6 +193,29 @@ export const usePlayer = create<PlayerState>()(
       autoplayOnLoad: true,
       resumePositionMs: null,
       ...(shouldExpand ? { expanded: true } : {}),
+    });
+  },
+
+  adoptSession: ({ track, queue, queueIndex, positionMs }) => {
+    const q = queue.length > 0 ? queue : [track];
+    const index = Math.max(0, Math.min(queueIndex, q.length - 1));
+    set({
+      current: track,
+      queue: q,
+      queueIndex: index,
+      error: null,
+      positionMs,
+      durationMs: (track.durationSeconds ?? 0) * 1000,
+      buffering: true,
+      isPlaying: true,
+      activeBackend: 'resolving',
+      downloadProgress: null,
+      autoplayOnLoad: true,
+      // Os dois motores retomam por caminhos diferentes: o nativo consome o
+      // `resumePositionMs` no beginPlayback, o do desktop lê o `positionMs`
+      // no onReady do IFrame. Preencher os dois é o que faz o handoff cair
+      // no segundo certo nas duas plataformas.
+      resumePositionMs: positionMs > 1500 ? positionMs : null,
     });
   },
 

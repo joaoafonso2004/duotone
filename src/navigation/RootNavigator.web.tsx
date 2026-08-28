@@ -7,6 +7,8 @@ import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../
 import { getLibrary, removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
 import { fetchYouTubePlaylist, searchYouTube } from '../api/youtube';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
+import { HandoffBanner } from '../components/HandoffBanner';
+import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, formatTime, IconButton, Loading, Page, Toast, TrackTable, ui } from '../desktop/ui.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
 import {
@@ -1465,6 +1467,8 @@ function DesktopShell() {
   const play = useCallback((track: Track, queue?: Track[]) => { usePlayer.getState().playTrack(track, queue); }, []);
 
   const isPlayingState = p.isPlaying;
+  // Evita mandar um delete ao arrancar sem nada a tocar.
+  const hadTrackRef = useRef(false);
 
   useEffect(() => {
     AsyncStorage.getItem('pref:panelOpacity').then((val) => {
@@ -1502,13 +1506,26 @@ function DesktopShell() {
   // amigos viam "Listening to" indefinidamente. `pagehide` é o único que
   // dispara de forma fiável ao fechar no Electron e no Safari.
   useEffect(() => {
-    const bye = () => clearPresence();
+    const bye = () => {
+      clearPresence();
+      // A sessão do handoff sobrevive de propósito a fechar a janela: é o
+      // que permite pegar no telemóvel e continuar de onde o PC ficou.
+      if (usePlayer.getState().current) publishSessionNow();
+    };
     window.addEventListener('pagehide', bye);
     return () => {
       window.removeEventListener('pagehide', bye);
       clearPresence();
     };
   }, []);
+
+  // Sessão deste PC, para o telemóvel poder continuar. Mesma assimetria do
+  // telemóvel: o presence é apagado ao sair, a sessão fica.
+  useEffect(() => {
+    if (currentTrack) publishSession();
+    else if (hadTrackRef.current) void endSession();
+    hadTrackRef.current = !!currentTrack;
+  }, [currentTrack, isPlayingState, p.queueIndex]);
 
   // Media Session Keyboard API sync + Electron hardware keys integration
   useEffect(() => {
@@ -1671,7 +1688,7 @@ function DesktopShell() {
 
   const bgStyle = { backgroundColor: `rgba(18, 18, 24, ${panelOpacity})` };
 
-  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><TitleBar /><View style={styles.main}><V style={[styles.sidebar, bgStyle]} className="glass-panel"><Sidebar route={route} navigate={navigate} /></V><V style={[styles.content, bgStyle]} className="glass-panel">{page}</V></View><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><TitleBar /><View style={styles.main}><V style={[styles.sidebar, bgStyle]} className="glass-panel"><Sidebar route={route} navigate={navigate} /></V><V style={[styles.content, bgStyle]} className="glass-panel">{page}</V></View><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} /><HandoffBanner />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     
     {/* CUSTOM ACTIONS DIALOG */}
     <Dialog open={trackMenuOpen} title="Track Actions" onClose={() => setTrackMenuOpen(false)}>

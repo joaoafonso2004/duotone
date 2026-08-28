@@ -31,6 +31,7 @@ import { LyricsView } from './LyricsView';
 import { QueueSheet } from './QueueSheet';
 import { navigationRef } from '../navigation/RootNavigator';
 import { clearPresence, publishPresence } from '../api/social';
+import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import {
   addRemoteCommandListeners,
   setRemoteCommandsEnabled,
@@ -70,6 +71,10 @@ export function PlayerRoot() {
   const setExpanded = usePlayer((s) => s.setExpanded);
   const seekTo = usePlayer((s) => s.seekTo);
   const setError = usePlayer((s) => s.setError);
+
+  // Distingue "nunca houve faixa" de "o player foi fechado", para não
+  // mandar um delete ao arrancar a app sem nada a tocar.
+  const hadTrackRef = useRef(false);
 
   const anim = useRef(new Animated.Value(0)).current;
   // Deslocamento vertical do gesto de "arrastar para baixo para fechar" o
@@ -148,6 +153,23 @@ export function PlayerRoot() {
     publishPresence(current, isPlaying);
   }, [current, isPlaying]);
 
+  // Sessão deste dispositivo, para o "continuar aqui" no PC.
+  //
+  // Repara na diferença para o presence acima: o presence é APAGADO ao ir
+  // para segundo plano (os amigos não te devem ver a ouvir com a app
+  // fechada), a sessão é GUARDADA — é precisamente com o telemóvel no bolso
+  // que o PC precisa de a encontrar. Por isso são duas tabelas e não uma.
+  useEffect(() => {
+    if (current) {
+      hadTrackRef.current = true;
+      publishSession();
+    } else if (hadTrackRef.current) {
+      // O player foi fechado: já não há nada para continuar noutro lado.
+      hadTrackRef.current = false;
+      void endSession();
+    }
+  }, [current, isPlaying, queueIndex]);
+
   // Ir para segundo plano conta como deixar de ouvir: sem isto, fechar a app
   // pelo gesto deixava a faixa gravada no perfil até expirar.
   useEffect(() => {
@@ -157,6 +179,9 @@ export function PlayerRoot() {
       } else {
         clearPresence();
       }
+      // A sessão vai nos dois sentidos, e sem debounce: ao sair não há tempo
+      // de espera, e ao voltar queremos a posição certa já lá.
+      if (usePlayer.getState().current) publishSessionNow();
     });
     return () => {
       sub.remove();
