@@ -2,7 +2,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View, Share, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,7 +11,7 @@ import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
 import { clearStreamMemo, clearVisitorData } from '../api/ytstream';
 import { listPlaylists, getPlaylistTracks } from '../api/playlists';
 import { supabase } from '../lib/supabase';
-import { BUILD_ID } from '../lib/buildInfo';
+import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { Input } from '../components/Input';
 import { PillButton } from '../components/PillButton';
@@ -26,6 +25,8 @@ import {
   getShowTrackDuration,
   setAudioQuality,
   setAutoplayRadio as persistAutoplayRadio,
+  getKeepAwake,
+  setKeepAwake as persistKeepAwake,
   setVolumeNormalization as persistVolumeNormalization,
   setHapticsEnabled,
   setHapticsEnabledCache,
@@ -41,7 +42,6 @@ import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
 import { colors, radii, spacing, type } from '../theme';
 
-const APP_VERSION = '1.0.0';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
@@ -101,12 +101,8 @@ export function SettingsScreen({ navigation }: Props) {
     getHapticsEnabled().then(setHapticsOn);
     getPoTokenServerUrl().then(setPotServerUrlState);
 
-    // Load Keep Awake setting
-    AsyncStorage.getItem('pref:keepAwake').then((v) => {
-      const active = v === '1';
-      setKeepAwakeOn(active);
-      if (active) activateKeepAwakeAsync();
-    });
+    // Só reflete o estado — quem o aplica no arranque é o App.tsx.
+    getKeepAwake().then(setKeepAwakeOn);
   }, []);
 
   const changeAudioQuality = async (i: number) => {
@@ -152,7 +148,7 @@ export function SettingsScreen({ navigation }: Props) {
   const toggleKeepAwake = async (v: boolean) => {
     setKeepAwakeOn(v);
     hapticSelection();
-    await AsyncStorage.setItem('pref:keepAwake', v ? '1' : '0');
+    await persistKeepAwake(v);
     if (v) {
       await activateKeepAwakeAsync();
     } else {

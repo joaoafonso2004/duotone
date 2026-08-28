@@ -7,12 +7,15 @@ import { UpdateSheet } from './src/components/UpdateSheet';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
   getAutoplayRadio,
+  getKeepAwake,
   getRepeatMode,
   getShowRewindButton,
   getShuffle,
+  getSoundPreset,
   getVolumeNormalization,
   loadPrefsCache,
 } from './src/lib/prefs';
+import { activateKeepAwakeAsync } from 'expo-keep-awake';
 import { loadLoudnessCache } from './src/lib/loudnessCache';
 import { supabase } from './src/lib/supabase';
 import {
@@ -60,13 +63,24 @@ export default function App() {
       getShowRewindButton(),
       getAutoplayRadio(),
       getVolumeNormalization(),
-    ]).then(([repeatMode, shuffle, showRewindButton, autoplayRadio, volumeNormalization]) => {
+      getSoundPreset(),
+    ]).then(([repeatMode, shuffle, showRewindButton, autoplayRadio, volumeNormalization, soundPreset]) => {
       const player = usePlayer.getState();
       player.setRepeatMode(repeatMode);
       player.setShuffle(shuffle);
       player.setShowRewindButton(showRewindButton);
       player.setAutoplayRadio(autoplayRadio);
       player.setVolumeNormalization(volumeNormalization);
+      player.setSoundPreset(soundPreset);
+    });
+
+    // "Manter o ecrã ligado" só era aplicado pelo useEffect do ecrã de
+    // Definições. Depois de reiniciar a app o interruptor aparecia ligado
+    // mas o ecrã apagava na mesma, até se visitar esse ecrã.
+    getKeepAwake().then((on) => {
+      // No desktop isto assenta na Wake Lock API do browser, que pode
+      // recusar; falhar a manter o ecrã ligado não pode partir o arranque.
+      if (on) activateKeepAwakeAsync().catch(() => {});
     });
   }, [init]);
 

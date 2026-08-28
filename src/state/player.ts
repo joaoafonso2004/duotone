@@ -6,7 +6,7 @@ import { incrementPlayCount } from '../lib/playCounts';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
-import { setShuffle as persistShuffle } from '../lib/prefs';
+import { setShuffle as persistShuffle, setSoundPreset as persistSoundPreset } from '../lib/prefs';
 import type { Track } from '../types';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
@@ -617,6 +617,10 @@ export const usePlayer = create<PlayerState>()(
 
   setSoundPreset: (preset) => {
     set({ soundPreset: preset });
+    // Persistido aqui e não nos ecrãs de Definições: são dois (telemóvel e
+    // desktop) e assim nenhum se pode esquecer. Antes o preset voltava a
+    // "normal" a cada arranque, apesar de estar apresentado como definição.
+    persistSoundPreset(preset).catch(() => {});
   },
 
   moveQueueItem: (fromIndex, toIndex) => {
