@@ -12,6 +12,9 @@ const MAX_SEARCH_HISTORY = 10;
 const KEY_POT_SERVER_URL = 'pref:potServerUrl';
 const KEY_AUTOPLAY_RADIO = 'pref:autoplayRadio';
 const KEY_VOLUME_NORMALIZATION = 'pref:volumeNormalization';
+const KEY_SOUND_PRESET = 'pref:soundPreset';
+// Chave antiga, escrita à mão pelo ecrã de Definições antes de haver getter.
+const KEY_KEEP_AWAKE = 'pref:keepAwake';
 
 export type YtViewMode = 'video' | 'photo';
 export type AudioQuality = 'high' | 'saver';
@@ -64,6 +67,26 @@ export async function getVolumeNormalization(): Promise<boolean> {
 }
 export async function setVolumeNormalization(v: boolean): Promise<void> {
   await setBool(KEY_VOLUME_NORMALIZATION, v);
+}
+
+export type SoundPreset = 'normal' | 'slowed' | 'fast';
+
+/** Efeito de velocidade. Vive aqui e não no estado persistido do player: o
+ * `player-session` guarda a SESSÃO (faixa, fila, posição) e as preferências
+ * ficam separadas — mesma divisão do repeat e do shuffle. */
+export async function getSoundPreset(): Promise<SoundPreset> {
+  const v = await AsyncStorage.getItem(KEY_SOUND_PRESET);
+  return v === 'slowed' || v === 'fast' ? v : 'normal';
+}
+export async function setSoundPreset(v: SoundPreset): Promise<void> {
+  await AsyncStorage.setItem(KEY_SOUND_PRESET, v);
+}
+
+export async function getKeepAwake(): Promise<boolean> {
+  return getBool(KEY_KEEP_AWAKE, false);
+}
+export async function setKeepAwake(v: boolean): Promise<void> {
+  await setBool(KEY_KEEP_AWAKE, v);
 }
 
 export async function getAudioQuality(): Promise<AudioQuality> {
