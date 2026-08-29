@@ -15,6 +15,7 @@ import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
 import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, formatTime, IconButton, Loading, Page, Toast, TrackTable, ui } from '../desktop/ui.web';
+import { FONT, FONTES } from '../desktop/tokens.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
 import {
   getShowRewindButton, getShowTrackDuration,
@@ -64,11 +65,48 @@ const PRIMARY: { id: PrimaryRoute; label: string; icon: keyof typeof Ionicons.gl
 
 function injectDesktopDocumentStyles() {
   if (document.getElementById('duotone-desktop-css')) return;
+
+  // As fontes sao embutidas (assets/fonts) e registadas aqui. O `require` de
+  // um asset devolve formas diferentes conforme a plataforma e a versao do
+  // Metro — string, objeto com `uri`, ou modulo com `default` — por isso
+  // normaliza-se em vez de assumir.
+  const uri = (m: any): string =>
+    typeof m === 'string' ? m : m?.uri || m?.default?.uri || m?.default || '';
+
+  const face = (familia: string, mod: any, alcance: string) =>
+    `@font-face{font-family:'${familia}';font-style:normal;font-weight:100 900;` +
+    `font-display:swap;src:url(${uri(mod)}) format('woff2');unicode-range:${alcance};}`;
+
+  const LATIN = 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD';
+  const LATIN_EXT = 'U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF';
+
+  const fontes = document.createElement('style');
+  fontes.id = 'duotone-fonts';
+  fontes.textContent = [
+    face('Archivo', FONTES.archivo.latin, LATIN),
+    face('Archivo', FONTES.archivo.latinExt, LATIN_EXT),
+    face('Public Sans', FONTES.publicSans.latin, LATIN),
+    face('Public Sans', FONTES.publicSans.latinExt, LATIN_EXT),
+    face('JetBrains Mono', FONTES.jetbrainsMono.latin, LATIN),
+    face('JetBrains Mono', FONTES.jetbrainsMono.latinExt, LATIN_EXT),
+  ].join('');
+  document.head.appendChild(fontes);
+
   const style = document.createElement('style');
   style.id = 'duotone-desktop-css';
   style.textContent = `
     html,body,#root{width:100%;height:100%;margin:0;overflow:hidden;background:#060608}
-    *{box-sizing:border-box} body{font-family:Inter,"Segoe UI Variable Text","Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+    *{box-sizing:border-box}
+    /* Declarar no body NAO chega: o react-native-web poe a stack dele em cada
+       <Text>. Por isso os estilos usam FONT.* explicitamente (ver tokens).
+       Isto so trata do que nao passa por componentes RN. */
+    body{font-family:${FONT.body};-webkit-font-smoothing:antialiased}
+    input,textarea,button{font-family:${FONT.body}}
+    /* O react-native-web aplica a stack DELE a cada <Text>, atraves de uma
+       classe atomica de especificidade 1. Isto ganha com especificidade 2 —
+       e de proposito NAO leva !important, para os icones (que trazem a
+       familia em estilo inline) continuarem a ganhar a esta regra. */
+    #root div, #root span, #root p, #root a{font-family:${FONT.body}}
     ::selection{background:rgba(155,123,255,.32)} ::-webkit-scrollbar{width:11px;height:11px}
     ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:#30303b;border:3px solid transparent;border-radius:8px;background-clip:padding-box}
     ::-webkit-scrollbar-thumb:hover{background:#494857;border:3px solid transparent;background-clip:padding-box}

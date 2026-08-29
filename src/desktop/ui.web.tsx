@@ -5,6 +5,7 @@ import { colors } from '../theme';
 import type { Track } from '../types';
 import { displayArtist } from '../lib/artistName';
 import { useSaved } from '../state/saved';
+import { COR, FONT } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 
 const P = Pressable as any;
@@ -12,10 +13,20 @@ const P = Pressable as any;
 /** Referência estável: um Set novo a cada render fazia a tabela redesenhar. */
 const EMPTY_KEYS: ReadonlySet<string> = new Set();
 
+/**
+ * A paleta antiga, agora derivada dos tokens (tokens.web.ts).
+ *
+ * As chaves ficam iguais para nao partir os ecras todos de uma vez — o que
+ * muda sao os VALORES. Havia tres roxos diferentes a fazer de cor de marca e
+ * o simbolo da app nao tem roxo nenhum: e prata fria sobre quase-preto. O
+ * destaque passa a ser a luz.
+ *
+ * Ecras novos devem importar de `tokens.web.ts` diretamente; isto e a ponte.
+ */
 export const desktop = {
-  bg: '#09090D', panel: '#101016', raised: '#17171F', hover: '#20202A',
-  border: 'rgba(255,255,255,.085)', text: '#F4F3F7', muted: '#A09DA9', dim: '#6E6B76',
-  accent: '#9B7BFF', accentSoft: 'rgba(155,123,255,.14)', danger: '#FF5B61',
+  bg: COR.fundo, panel: COR.painel, raised: COR.elevado, hover: COR.hover,
+  border: COR.linha, text: COR.texto, muted: COR.textoMedio, dim: COR.textoFraco,
+  accent: COR.metalClaro, accentSoft: 'rgba(233,234,238,.12)', danger: COR.erro,
 };
 
 export function IconButton({ name, label, onPress, active = false, danger = false }: {
