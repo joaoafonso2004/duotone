@@ -1,7 +1,7 @@
 import { useEventListener } from 'expo';
 import { useVideoPlayer } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, AppState } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
@@ -99,6 +99,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const setBuffering = usePlayer((s) => s._setBuffering);
   const setDownloadProgress = usePlayer((s) => s._setDownloadProgress);
   const setError = usePlayer((s) => s.setError);
+  const skipUnavailableTrack = usePlayer((s) => s.skipUnavailableTrack);
   const repeatMode = usePlayer((s) => s.repeatMode);
   const prev = usePlayer((s) => s.prev);
   const queue = usePlayer((s) => s.queue);
@@ -179,9 +180,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // [duration-debug] log único por faixa do player.duration (o valor que o
   // expo-video envia para o Lock Screen) — remover depois de validar.
 
-  // Fade transition refs
+  // Intervalo do fade-in entre faixas.
   const fadeIntervalRef = useRef<any>(null);
-  const fadingOutRef = useRef(false);
 
   // Teto de volume desta faixa: 1.0 normalmente, menos quando a normalização
   // está ligada e a faixa é mais alta do que a referência do YouTube. Em ref
@@ -216,47 +216,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }, 100);
   };
 
-  const fadeOut = (callback: () => void) => {
-    // Se a app estiver em background/bloqueada, o setInterval do JS é suspenso
-    // pelo iOS. Chamamos o callback imediatamente para a fila não ficar presa.
-    if (AppState.currentState !== 'active') {
-      callback();
-      return;
-    }
-
-    if (fadingOutRef.current) return;
-    fadingOutRef.current = true;
-    if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
-    let vol = player.volume;
-    fadeIntervalRef.current = setInterval(() => {
-      vol -= 0.1; // 1s total fade-out
-      if (vol <= 0.0) {
-        vol = 0.0;
-        clearInterval(fadeIntervalRef.current!);
-        fadeIntervalRef.current = null;
-        callback();
-      }
-      player.volume = vol;
-    }, 100);
-  };
-
-  // Se a app for minimizada ou o ecrã for bloqueado a meio do fadeOut,
-  // cancelamos o interval e avançamos imediatamente a música.
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState !== 'active' && fadingOutRef.current && !endedRef.current) {
-        if (fadeIntervalRef.current) {
-          clearInterval(fadeIntervalRef.current);
-          fadeIntervalRef.current = null;
-        }
-        fadingOutRef.current = false;
-        endedRef.current = true;
-        onStateChange('ended');
-      }
-    });
-    return () => sub.remove();
-  }, [onStateChange]);
-
   useEffect(() => {
     const myRun = ++runIdRef.current;
     nativeTrackIdRef.current = null;
@@ -265,7 +224,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     lastProgressRef.current = { time: 0, at: Date.now() };
     wantsPlayRef.current = true;
     endedRef.current = false;
-    fadingOutRef.current = false; // Reset fade states
     webviewSkippedRef.current = false; // Reset webview skip flag
     if (fadeIntervalRef.current) {
       clearInterval(fadeIntervalRef.current);
@@ -448,10 +406,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // explícito no playabilityStatus (ver ytstream.ts streamFromPlayerResponse).
         const isNotPlayable = /not playable|unavailable|private|removed|age|sign in|copyright|deleted/i.test(errMsg);
         if (isNotPlayable) {
-          console.warn(`[YouTubePlayer] Vídeo indisponível (${errMsg}), a saltar para a próxima.`);
+          console.warn(`[YouTubePlayer] Vídeo indisponível (${errMsg}), a remover da sessão e saltar.`);
           if (!endedRef.current) {
             endedRef.current = true;
-            onStateChange('ended');
+            void skipUnavailableTrack(track.sourceId);
           }
           return;
         }
@@ -560,26 +518,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const knownMs = durationSec * 1000;
     setProgress(currentTime * 1000, knownMs);
 
-    // Se conhecemos a duração real e já lá chegámos, avançamos — ou repetimos.
-    const duration = track.durationSeconds || streamRef.current?.durationSeconds || player.duration;
-    if (duration) {
-      const remaining = duration - currentTime;
-      if (remaining <= 1.5) {
-        if (repeatMode === 'one') {
-          if (currentTime >= duration - 0.5) {
-            player.currentTime = 0;
-            player.play();
-          }
-        } else if (!endedRef.current && !fadingOutRef.current) {
-          fadeOut(() => {
-            if (!endedRef.current) {
-              endedRef.current = true;
-              onStateChange('ended');
-            }
-          });
-        }
-      }
-    }
+    // Nunca antecipar o fim com base numa duração arredondada. O código
+    // antigo começava um fade quando ainda faltavam 1,5 s e marcava a faixa
+    // como terminada no fim desse fade — daí a fila saltar visivelmente antes
+    // do tempo indicado. O `playToEnd` abaixo é emitido pelo media player no
+    // fim real do áudio e é a única autoridade para avançar/repetir.
   });
   useEventListener(player, 'playToEnd', () => {
     if (backend === 'native' && nativeTrackIdRef.current === track.sourceId) {
@@ -754,12 +697,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       else if (msg.type === 'progress' && msg.duration > 0)
         setProgress(msg.position, msg.duration);
       else if (msg.type === 'unavailable' && !webviewSkippedRef.current) {
-        // Vídeo indisponível no embed — saltar para a próxima faixa.
+        // Vídeo indisponível no embed — retirar da sessão e saltar já, sem
+        // ficar à espera do rádio automático no fim da fila.
         webviewSkippedRef.current = true;
         console.warn(`[YouTubePlayer] Embed indisponível (${msg.reason}), a saltar.`);
         if (!endedRef.current) {
           endedRef.current = true;
-          onStateChange('ended');
+          void skipUnavailableTrack(track.sourceId);
         }
       }
     } catch {

@@ -13,7 +13,7 @@
  *
  * DUAS CADEIAS A PARTIR DA MESMA FONTE, e nao se misturam:
  *
- *   visual   -> analyser com suavizacao. Da o "corpo" do efeito.
+ *   visual   -> analyser com suavizacao. Mede a forca grave de cada ataque.
  *   detecao  -> passa-banda 100-200 Hz -> analyser com smoothingTimeConstant=0
  *               -> RMS no dominio do tempo -> diferencas positivas -> limiar
  *               adaptativo.
@@ -34,18 +34,28 @@ export type EstadoCaptura =
   | 'indisponivel';
 
 export type Captura = {
-  /** Nivel 0..1 para o shader. Chamar uma vez por fotograma. */
+  /** Energia grave 0..1. Atualiza tambem o detetor; chamar por fotograma. */
   nivel(agoraMs: number): number;
+  /** Envelope 0..1 do ultimo ataque detetado. Le-se depois de `nivel()`. */
+  batida(): number;
+  /** Presenca 0..1 de pratos, hats e transientes altos. Nao dispara sozinho. */
+  agudos(): number;
+  /** Os 256 bins suavizados que desenham as linhas do equalizador. O array e
+   * sempre o mesmo: quem chama pode envia-lo para a GPU sem alocar. */
+  espetro(): Uint8Array;
   estado(): EstadoCaptura;
   parar(): void;
 };
 
 /** Quanto tempo o pico de uma batida demora a esmorecer. Curto de proposito:
  * o efeito e uma pancada, nao uma respiracao. */
-const DECAIMENTO_S = 0.13;
-/** Intervalo minimo entre batidas — 110 ms sao ~545 BPM, longe de qualquer
- * musica real, mas chega para nao contar a mesma pancada duas vezes. */
-const INTERVALO_MIN_MS = 110;
+const DECAIMENTO_S = 0.085;
+/** Janela normal que impede contar duas vezes a cauda do mesmo bombo. */
+const INTERVALO_NORMAL_MS = 145;
+/** Ritmos densos podem ter ataques separados por menos de 145 ms. Só se abre
+ * esta janela curta para um transiente claramente acima do limiar, para nao
+ * voltar a introduzir o tremor constante entre batidas. */
+const INTERVALO_RAPIDO_MS = 72;
 /** Uma janela de ~1 s de fluxo para o limiar adaptativo. */
 const JANELA = 60;
 
@@ -90,7 +100,10 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
   let visual: AnalyserNode | null = null;
   let detecao: AnalyserNode | null = null;
   let tempo: Float32Array | null = null;
-  let espetro: Uint8Array | null = null;
+  // O renderer recebe sempre 256 texels. O analisador usa uma FFT maior para
+  // separar os graves em mais bins; `getByteFrequencyData` preenche apenas os
+  // 256 valores deste buffer, sem alocar nada no caminho por fotograma.
+  const espetro = new Uint8Array(256);
 
   const fluxos = new Float32Array(JANELA);
   let escritos = 0;
@@ -98,6 +111,7 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
   let rmsAnterior = 0;
   let pico = 0;
   let energia = 0;
+  let energiaAguda = 0;
   let ultimaBatidaMs = 0;
   let ultimoQuadroMs = 0;
   let desarmarGesto: (() => void) | null = null;
@@ -114,8 +128,8 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
     const fonte = ctx.createMediaStreamSource(s);
 
     visual = ctx.createAnalyser();
-    visual.fftSize = 512;
-    visual.smoothingTimeConstant = 0.75;
+    visual.fftSize = 1024;
+    visual.smoothingTimeConstant = 0.68;
     fonte.connect(visual);
 
     // 100-200 Hz: bombo e a fundamental do baixo. Acima disto a voz e as
@@ -134,8 +148,6 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
     // NENHUM dos dois vai ao `ctx.destination`: o som ja sai pelas colunas
     // atraves do `enableLocalEcho`. Ligar aqui era ouvi-lo duas vezes.
     tempo = new Float32Array(detecao.fftSize);
-    espetro = new Uint8Array(visual.frequencyBinCount);
-
     // A pista morre se a captura for revogada por fora (fim do frame, o
     // utilizador a parar a partilha). Sem isto ficava a devolver zeros para
     // sempre e ninguem sabia porque.
@@ -187,9 +199,13 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
       const dt = ultimoQuadroMs ? Math.min(0.1, (agoraMs - ultimoQuadroMs) / 1000) : 0;
       ultimoQuadroMs = agoraMs;
       pico *= Math.exp(-dt / DECAIMENTO_S);
+      // A exponencial nunca chega matematicamente a zero. Sem este corte o
+      // shader continuava a receber um valor minusculo e parecia tremer entre
+      // batidas, precisamente quando devia estar completamente quieto.
+      if (pico < 0.055) pico = 0;
 
-      if (estado !== 'ativa' || !detecao || !visual || !tempo || !espetro) {
-        return Math.min(1, pico);
+      if (estado !== 'ativa' || !detecao || !visual || !tempo) {
+        return 0;
       }
 
       // --- cadeia de detecao: RMS no dominio do tempo ------------------------
@@ -202,13 +218,11 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
       const fluxo = Math.max(0, rms - rmsAnterior);
       rmsAnterior = rms;
 
-      fluxos[cursor] = fluxo;
-      cursor = (cursor + 1) % JANELA;
-      if (escritos < JANELA) escritos++;
-
-      // Limiar adaptativo: media + 1.6 desvios da propria janela. Um limiar
-      // fixo funcionava numa musica e falhava na seguinte — o que conta e o
-      // salto em relacao ao que esta faixa vinha a fazer.
+      // Limiar adaptativo: media + 1.6 desvios da janela ANTERIOR. Incluir o
+      // ataque atual no proprio limiar abafava precisamente sequencias
+      // rapidas e regulares: cada kick tornava o seguinte mais dificil de
+      // detetar. Um limiar fixo continuaria a funcionar numa musica e a
+      // falhar noutra, por isso preserva-se a adaptacao ao volume da faixa.
       let media = 0;
       for (let i = 0; i < escritos; i++) media += fluxos[i];
       media /= escritos || 1;
@@ -220,21 +234,70 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
       const desvio = Math.sqrt(variancia / (escritos || 1));
       const limiar = media + 1.6 * desvio + 2e-4;
 
-      if (escritos >= 12 && fluxo > limiar && agoraMs - ultimaBatidaMs > INTERVALO_MIN_MS) {
+      const desdeUltima = agoraMs - ultimaBatidaMs;
+      const passouJanelaNormal = desdeUltima > INTERVALO_NORMAL_MS;
+      // Dentro da janela curta exige-se um ataque 24% mais forte e que o
+      // envelope anterior ja tenha descido. Isto acompanha double-kicks e
+      // drops acelerados sem confundir a ressonancia do mesmo kick com outro.
+      const ataqueRapidoSeparado = desdeUltima > INTERVALO_RAPIDO_MS
+        && fluxo > limiar * 1.24
+        && pico < 0.55;
+
+      if (escritos >= 12 && rms > 0.008 && fluxo > limiar && (passouJanelaNormal || ataqueRapidoSeparado)) {
         ultimaBatidaMs = agoraMs;
         const excesso = Math.min(1, (fluxo - limiar) / (limiar + 1e-6));
-        pico = Math.max(pico, 0.62 + 0.38 * excesso);
+        // O detetor ja foi medido contra batidas reais; aqui nao se muda o
+        // limiar, apenas a amplitude VISUAL. Mesmo um ataque pouco acima do
+        // limiar tem de se ler inequivocamente na capa.
+        pico = Math.max(pico, 0.82 + 0.18 * excesso);
       }
+
+      // Só depois da decisão é que o quadro atual entra no histórico.
+      fluxos[cursor] = fluxo;
+      cursor = (cursor + 1) % JANELA;
+      if (escritos < JANELA) escritos++;
 
       // --- cadeia visual: energia suavizada ---------------------------------
       visual.getByteFrequencyData(espetro as any);
-      let total = 0;
-      const bins = Math.floor(espetro.length * 0.5);
-      for (let i = 0; i < bins; i++) total += espetro[i];
-      energia = total / (bins * 255);
+      // A energia que move continuamente o shader vem sobretudo dos graves.
+      // Com a FFT de 1024 conseguimos isolar 45-260 Hz (bombo + baixo) sem a
+      // voz e os pratos esconderem a relação entre imagem e música.
+      const hzPorBin = (ctx?.sampleRate ?? 48000) / visual.fftSize;
+      const graveInicio = Math.max(1, Math.floor(45 / hzPorBin));
+      const graveFim = Math.min(espetro.length, Math.ceil(260 / hzPorBin));
+      let totalGrave = 0;
+      for (let i = graveInicio; i < graveFim; i++) totalGrave += espetro[i];
+      const grave = totalGrave / (Math.max(1, graveFim - graveInicio) * 255);
 
-      return Math.min(1, 0.25 * energia + 0.9 * pico);
+      // Uma pequena parcela do corpo geral impede que o efeito morra em
+      // músicas sem subgrave, mas a leitura continua claramente bass-first.
+      let totalCorpo = 0;
+      const binsCorpo = Math.floor(espetro.length * 0.5);
+      for (let i = 0; i < binsCorpo; i++) totalCorpo += espetro[i];
+      const corpo = totalCorpo / (binsCorpo * 255);
+      energia = Math.min(1, grave * 0.82 + corpo * 0.18);
+
+      // 3,2-10 kHz: pratos, hi-hats e o ataque mais brilhante da percussao.
+      // Usa RMS espectral para um transiente estreito nao desaparecer numa
+      // media de muitos bins. Este valor nunca cria movimento por si proprio;
+      // apenas muda a textura visual quando o detetor grave abre uma batida.
+      const agudoInicio = Math.max(graveFim, Math.floor(3200 / hzPorBin));
+      const agudoFim = Math.min(espetro.length, Math.ceil(10000 / hzPorBin));
+      let quadradosAgudos = 0;
+      for (let i = agudoInicio; i < agudoFim; i++) {
+        quadradosAgudos += espetro[i] * espetro[i];
+      }
+      const rmsAgudo = Math.sqrt(quadradosAgudos / Math.max(1, agudoFim - agudoInicio)) / 255;
+      energiaAguda = Math.max(0, Math.min(1, (rmsAgudo - 0.045) / 0.32));
+
+      // No Pen e a media suavizada que comanda continuamente o efeito. A
+      // batida segue separada para o shader poder dar-lhe um ataque claro sem
+      // transformar a energia de fundo numa sucessao de picos indistintos.
+      return energia;
     },
+    batida: () => pico,
+    agudos: () => energiaAguda,
+    espetro: () => espetro,
     parar() {
       parado = true;
       desarmarGesto?.();

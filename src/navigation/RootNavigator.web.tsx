@@ -2,9 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
 import { displayArtist } from '../lib/artistName';
-import { addTracksToPlaylist, createPlaylist, deletePlaylist, getPlaylistTracks, listPlaylists, removeTrackFromPlaylist, renamePlaylist } from '../api/playlists';
+import { addTracksToPlaylist, createPlaylist, deletePlaylist, getPlaylistTracks, importSharedPlaylist, listPlaylists, removeTrackFromPlaylist, renamePlaylist } from '../api/playlists';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
-import { getLibrary, removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
+import { getLibrary, getLikedSongs, removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
 import { fetchYouTubePlaylist, searchYouTube } from '../api/youtube';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { FriendAvatar } from '../components/FriendAvatar';
@@ -19,7 +19,9 @@ import { COR, ESP, FONT, FONTES, LINHA_LISTA, RAIO, TIPO } from '../desktop/toke
 import { GlitchArtwork } from '../desktop/glitch/GlitchArtwork.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
 import {
-  getGlitchMode, setGlitchMode, type GlitchMode,
+  getArtworkEffect, getEffectIntensity, getGlitchMode,
+  setArtworkEffect, setEffectIntensity, setGlitchMode,
+  type ArtworkEffect, type EffectIntensity, type GlitchMode,
   getShowRewindButton, getShowTrackDuration,
   setShowRewindButton, setShowTrackDuration, setShowTrackDurationCache,
   setAutoplayRadio as persistAutoplayRadio
@@ -58,9 +60,13 @@ type Route =
   | { name: 'stats' }
   | { name: 'spotify-import' };
 
+type ShareTarget =
+  | { itemType: 'track'; item: Track; name: string }
+  | { itemType: 'playlist'; item: { id: string; name: string }; name: string };
+
 const PRIMARY: { id: PrimaryRoute; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'search', label: 'Search', icon: 'search-outline' },
-  { id: 'songs', label: 'Songs', icon: 'musical-notes-outline' },
+  { id: 'songs', label: 'Liked Songs', icon: 'heart-outline' },
   { id: 'artists', label: 'Artists', icon: 'mic-outline' },
   { id: 'playlists', label: 'Playlists', icon: 'albums-outline' },
   { id: 'social', label: 'Social', icon: 'people-outline' },
@@ -293,9 +299,9 @@ function AuthDesktop() {
     <View style={{ gap: 12 }}>{mode === 'signin' ? <Field icon="person-outline" placeholder="Email or username" value={identifier} onChangeText={setIdentifier} onSubmitEditing={submit} /> : <><Field icon="person-outline" placeholder="Username" value={username} onChangeText={setUsername} /><Field icon="mail-outline" placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" /></>}<Field icon="lock-closed-outline" placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry onSubmitEditing={submit} />{error && <Text style={styles.error}>{error}</Text>}<Button onPress={submit} disabled={busy}>{busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}</Button></View></View><Text style={styles.authFoot}>Duotone for Windows</Text></View>;
 }
 
-function useLibraryData() {
+function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
   const [tracks, setTracks] = useState<Track[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
-  const refresh = useCallback(async () => { setLoading(true); try { setTracks(await getLibrary()); setError(null); } catch (e: any) { setError(e?.message || 'Could not load your library.'); } finally { setLoading(false); } }, []);
+  const refresh = useCallback(async () => { setLoading(true); try { setTracks(await loader()); setError(null); } catch (e: any) { setError(e?.message || 'Could not load your library.'); } finally { setLoading(false); } }, [loader]);
   useEffect(() => {
     refresh();
     window.addEventListener('duotone:refresh-library', refresh);
@@ -338,23 +344,23 @@ function SearchPage({ play, notify, more }: CommonPageProps) {
     <ContentScroll>{loading ? <View style={{ height: 320 }}><Loading /></View>
       : results.length ? <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, results)} onMore={more} />
       : (ouvirDeNovo.length || flow.length || maisTocadas.length || esquecidas.length) ? <>
-          <Shelf titulo="Ouvir novamente" tracks={ouvirDeNovo} onPlay={play} onMore={more} />
-          <Shelf titulo="Flow do dia" nota="a partir do que tens ouvido" tracks={flow} onPlay={play} onMore={more} />
-          <Shelf titulo="Mais tocadas" tracks={maisTocadas} onPlay={play} onMore={more} />
-          <Shelf titulo="Favoritos esquecidos" nota="há algum tempo que não ouves" tracks={esquecidas} onPlay={play} onMore={more} />
+          <Shelf titulo="Listen again" tracks={ouvirDeNovo} onPlay={play} onMore={more} />
+          <Shelf titulo="Daily flow" nota="based on your listening" tracks={flow} onPlay={play} onMore={more} />
+          <Shelf titulo="Heavy rotation" tracks={maisTocadas} onPlay={play} onMore={more} />
+          <Shelf titulo="Forgotten favourites" nota="not played in a while" tracks={esquecidas} onPlay={play} onMore={more} />
         </>
       : <Empty icon={recsCarregadas ? 'search-outline' : 'sparkles-outline'}
-          title={recsCarregadas ? 'Ainda não há o que recomendar' : 'A preparar recomendações…'}
+          title={recsCarregadas ? 'Nothing to recommend yet' : 'Preparing recommendations…'}
           body={recsCarregadas
-            ? 'Ouve algumas músicas e esta página passa a mostrar o que costumas ouvir. Entretanto, procura no catálogo do YouTube acima.'
-            : 'Um instante.'} />}
+            ? 'Listen to a few tracks and this page will learn what you enjoy. Until then, search the YouTube catalogue above.'
+            : 'One moment.'} />}
     </ContentScroll></Page>;
 }
 
 interface CommonPageProps { play: (track: Track, queue?: Track[]) => void; notify: (message: string) => void; more: (track: Track) => void; }
 
 function SongsPage(props: CommonPageProps) {
-  const data = useLibraryData();
+  const data = useLibraryData(getLikedSongs);
   const [query, setQuery] = useState('');
 
   const filteredTracks = useMemo(() => {
@@ -375,7 +381,14 @@ function SongsPage(props: CommonPageProps) {
     else props.play(filteredTracks[0], filteredTracks);
   };
 
-  return <Page title="Songs" subtitle={`${data.tracks.length} saved ${data.tracks.length === 1 ? 'song' : 'songs'}`} action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={() => playAll(false)}>Play</Button><Button secondary icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button><Button secondary icon="refresh" onPress={data.refresh}>Refresh</Button></View>}><View style={styles.searchBar}><Field icon="search" placeholder="Search saved songs..." value={query} onChangeText={setQuery} /></View><ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No saved songs match "${query}"`} /> : <Empty icon="musical-notes-outline" title="Your library is quiet" body="Save tracks from Search and they will be organised here." />} />}</ContentScroll></Page>;
+  return <Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={() => playAll(false)}>Play all</Button><Button secondary icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button></View>}>
+    <View style={styles.songsToolbar}>
+      <View style={styles.songsSearch}><Field icon="search" placeholder="Search your library" value={query} onChangeText={setQuery} /></View>
+      <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>
+      <IconButton name="refresh" label="Refresh library" onPress={data.refresh} />
+    </View>
+    <ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable plain tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
+  </Page>;
 }
 
 function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) {
@@ -401,12 +414,53 @@ function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) {
       return a[0].localeCompare(b[0]);
     });
   }, [data.tracks, ranking]);
-  return <Page title="Artists" subtitle={`${artists.length} artists in your library`}><ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : artists.length ? <View style={styles.cardGrid}>{artists.map(([name, tracks]) => <Pressable key={name} onPress={() => navigate({ name: 'artist', value: name })} style={({ hovered, focused }) => [styles.mediaCard, (hovered || focused) && styles.cardHover]}><Artwork track={tracks[0]} size={164} /><Text numberOfLines={1} style={styles.cardTitle}>{name}</Text><Text style={styles.cardMeta}>{tracks.length} {tracks.length === 1 ? 'faixa' : 'faixas'}</Text></Pressable>)}</View> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll></Page>;
+  return <Page title="Artists" subtitle={`${artists.length} artists in your library`}><ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : artists.length ? <View style={styles.playlistGrid}>{artists.map(([name, tracks]) => <Pressable key={name} onPress={() => navigate({ name: 'artist', value: name })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.playlistCardHover]}><View style={styles.playlistArt}><Artwork track={tracks[0]} size={200} /></View><Text numberOfLines={1} style={styles.playlistTitle}>{name}</Text><Text style={styles.playlistMeta}>{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll></Page>;
 }
 
 function ArtistPage({ name, back, ...props }: { name: string; back: () => void } & CommonPageProps) {
-  const data = useLibraryData(); const tracks = data.tracks.filter((t) => displayArtist(t) === name);
-  return <Page title={name} subtitle={`${tracks.length} saved ${tracks.length === 1 ? 'song' : 'songs'}`} action={<Button secondary icon="arrow-back" onPress={back}>Back to artists</Button>}><ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable tracks={tracks} onPlay={(t) => props.play(t, tracks)} onMore={props.more} />}</ContentScroll></Page>;
+  const data = useLibraryData();
+  const tracks = data.tracks.filter((t) => displayArtist(t) === name);
+  const playAll = (shuffle = false) => {
+    if (!tracks.length) return;
+    if (shuffle) usePlayer.getState().playShuffled(tracks);
+    else props.play(tracks[0], tracks);
+  };
+  return <Page title="Artist" action={<Button secondary icon="arrow-back" onPress={back}>Back to artists</Button>}><ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <><View style={styles.detailHero}><View style={styles.detailHeroArt}><Artwork track={tracks[0]} size={176} /></View><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>ARTIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{name}</Text><Text style={styles.detailHeroMeta}>{tracks.length} saved {tracks.length === 1 ? 'track' : 'tracks'}</Text><View style={styles.detailHeroActions}><Button icon="play" onPress={() => playAll(false)}>Play</Button><Button secondary icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button></View></View></View><TrackTable plain tracks={tracks} onPlay={(t) => props.play(t, tracks)} onMore={props.more} /></>}</ContentScroll></Page>;
+}
+
+function PlaylistArtwork({ artworks, lado = 200 }: { artworks: string[]; lado?: number }) {
+  const capas = Array.from(new Set(artworks.filter(Boolean))).slice(0, 4);
+  const moldura = [styles.playlistArt, { width: lado, height: lado }];
+
+  if (!capas.length) {
+    return <View style={moldura}><Ionicons name="musical-notes" size={38} color={desktop.dim} /></View>;
+  }
+
+  if (capas.length === 1) {
+    return <View style={moldura}><Image source={{ uri: capas[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" /></View>;
+  }
+
+  if (capas.length === 2) {
+    return (
+      <View style={moldura}>
+        <View style={styles.playlistArtRow}>
+          {capas.map((capa) => <Image key={capa} source={{ uri: capa }} style={styles.playlistArtCell} resizeMode="cover" />)}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={moldura}>
+      <View style={styles.playlistArtRow}>
+        {capas.slice(0, 2).map((capa) => <Image key={capa} source={{ uri: capa }} style={styles.playlistArtCell} resizeMode="cover" />)}
+      </View>
+      <View style={styles.playlistArtRow}>
+        {capas.slice(2, 4).map((capa) => <Image key={capa} source={{ uri: capa }} style={styles.playlistArtCell} resizeMode="cover" />)}
+        {capas.length === 3 ? <View style={styles.playlistArtCell}><Ionicons name="musical-note" size={26} color={desktop.dim} /></View> : null}
+      </View>
+    </View>
+  );
 }
 
 function PlaylistsPage({ navigate, notify }: { navigate: (route: Route) => void; notify: (s: string) => void }) {
@@ -418,10 +472,10 @@ function PlaylistsPage({ navigate, notify }: { navigate: (route: Route) => void;
     return () => window.removeEventListener('duotone:refresh-playlists', refresh);
   }, [refresh]);
   const create = async () => { if (!name.trim()) return; try { const item = await createPlaylist(name.trim()); setCreateOpen(false); setName(''); navigate({ name: 'playlist', id: item.id, title: item.name }); } catch (e: any) { notify(e?.message || 'Could not create playlist.'); } };
-  return <><Page title="Playlists" subtitle="Build collections for any moment." action={<View style={{ flexDirection: 'row', gap: 10 }}><Button secondary icon="logo-youtube" onPress={() => navigate({ name: 'import' })}>YouTube</Button><Button secondary iconNode={<Image source={require('../../assets/spotify.png')} style={{ width: 16, height: 16 }} />} onPress={() => navigate({ name: 'spotify-import' })}>Spotify</Button><Button icon="add" onPress={() => setCreateOpen(true)}>New playlist</Button></View>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : items.length ? <View style={styles.playlistGrid}>{items.map((item) => <Pressable key={item.id} onPress={() => navigate({ name: 'playlist', id: item.id, title: item.name })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.cardHover]}><View style={styles.playlistArt}>{item.artworks[0] ? <Image source={{ uri: item.artworks[0] }} style={StyleSheet.absoluteFill} /> : <Ionicons name="musical-notes" size={36} color={desktop.dim} />}</View><Text numberOfLines={1} style={styles.cardTitle}>{item.name}</Text><Text style={styles.cardMeta}>{item.trackCount} {item.trackCount === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : <Empty icon="albums-outline" title="Create your first playlist" body="Group tracks into focused collections, or import an existing YouTube playlist." action={<Button onPress={() => setCreateOpen(true)}>New playlist</Button>} />}</ContentScroll></Page><Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="New playlist"><Field autoFocus placeholder="Playlist name" value={name} onChangeText={setName} onSubmitEditing={create} /><View style={styles.dialogActions}><Button secondary onPress={() => setCreateOpen(false)}>Cancel</Button><Button onPress={create}>Create</Button></View></Dialog></>;
+  return <><Page title="Playlists" subtitle="Build collections for any moment." action={<View style={{ flexDirection: 'row', gap: 10 }}><Button secondary icon="logo-youtube" onPress={() => navigate({ name: 'import' })}>YouTube</Button><Button secondary iconNode={<Image source={require('../../assets/spotify.png')} style={{ width: 16, height: 16 }} />} onPress={() => navigate({ name: 'spotify-import' })}>Spotify</Button><Button icon="add" onPress={() => setCreateOpen(true)}>New playlist</Button></View>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : items.length ? <View style={styles.playlistGrid}>{items.map((item) => <Pressable key={item.id} onPress={() => navigate({ name: 'playlist', id: item.id, title: item.name })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.playlistCardHover]}><PlaylistArtwork artworks={item.artworks} /><Text numberOfLines={1} style={styles.playlistTitle}>{item.name}</Text><Text style={styles.playlistMeta}>{item.trackCount} {item.trackCount === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : <Empty icon="albums-outline" title="Create your first playlist" body="Group tracks into focused collections, or import an existing YouTube playlist." action={<Button onPress={() => setCreateOpen(true)}>New playlist</Button>} />}</ContentScroll></Page><Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="New playlist"><Field autoFocus placeholder="Playlist name" value={name} onChangeText={setName} onSubmitEditing={create} /><View style={styles.dialogActions}><Button secondary onPress={() => setCreateOpen(false)}>Cancel</Button><Button onPress={create}>Create</Button></View></Dialog></>;
 }
 
-function PlaylistPage({ id, title, back, ...props }: { id: string; title: string; back: () => void } & CommonPageProps) {
+function PlaylistPage({ id, title, back, share, ...props }: { id: string; title: string; back: () => void; share: (target: ShareTarget) => void } & CommonPageProps) {
   const [tracks, setTracks] = useState<Track[]>([]); const [loading, setLoading] = useState(true); const [confirm, setConfirm] = useState(false);
   const [playlistTitle, setPlaylistTitle] = useState(title);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -468,7 +522,8 @@ function PlaylistPage({ id, title, back, ...props }: { id: string; title: string
     if (shuffle) usePlayer.getState().playShuffled(filteredTracks);
     else props.play(filteredTracks[0], filteredTracks);
   };
-  return <><Page title={playlistTitle} subtitle={`${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'}`} action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={() => playAll(false)}>Play</Button><Button secondary icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button><Button secondary icon="arrow-back" onPress={back}>Playlists</Button><IconButton name="pencil-outline" label="Rename playlist" onPress={() => { setRenameVal(playlistTitle); setRenameOpen(true); }} /><IconButton name="trash-outline" label="Delete playlist" onPress={() => setConfirm(true)} /></View>}><View style={styles.searchBar}><Field icon="search" placeholder="Search tracks in playlist..." value={query} onChangeText={setQuery} /></View><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Songs to add music here." />} />}</ContentScroll></Page><Dialog open={confirm} title="Delete playlist?" onClose={() => setConfirm(false)}><Text style={styles.dialogBody}>“{playlistTitle}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setConfirm(false)}>Cancel</Button><Button danger onPress={remove}>Delete</Button></View></Dialog><Dialog open={renameOpen} title="Rename playlist" onClose={() => setRenameOpen(false)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={renameVal} onChangeText={setRenameVal} onSubmitEditing={doRename} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenameOpen(false)}>Cancel</Button><Button onPress={doRename} disabled={!renameVal.trim()}>Save</Button></View></Dialog></>;
+  const artworks = tracks.map((track) => track.artworkUrl).filter((uri): uri is string => !!uri);
+  return <><Page title="Playlist" action={<Button secondary icon="arrow-back" onPress={back}>Back to playlists</Button>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : <><View style={styles.detailHero}><PlaylistArtwork artworks={artworks} lado={176} /><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>PLAYLIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{playlistTitle}</Text><Text style={styles.detailHeroMeta}>{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}</Text><View style={styles.detailHeroActions}><Button icon="play" onPress={() => playAll(false)}>Play</Button><Button secondary icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button><Button secondary icon="share-social-outline" onPress={() => share({ itemType: 'playlist', item: { id, name: playlistTitle }, name: playlistTitle })}>Share</Button><IconButton name="pencil-outline" label="Rename playlist" onPress={() => { setRenameVal(playlistTitle); setRenameOpen(true); }} /><IconButton name="trash-outline" label="Delete playlist" onPress={() => setConfirm(true)} /></View></View></View><View style={styles.detailSearch}><Field icon="search" placeholder="Search this playlist" value={query} onChangeText={setQuery} /></View><TrackTable plain tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} /></>}</ContentScroll></Page><Dialog open={confirm} title="Delete playlist?" onClose={() => setConfirm(false)}><Text style={styles.dialogBody}>“{playlistTitle}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setConfirm(false)}>Cancel</Button><Button danger onPress={remove}>Delete</Button></View></Dialog><Dialog open={renameOpen} title="Rename playlist" onClose={() => setRenameOpen(false)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={renameVal} onChangeText={setRenameVal} onSubmitEditing={doRename} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenameOpen(false)}>Cancel</Button><Button onPress={doRename} disabled={!renameVal.trim()}>Save</Button></View></Dialog></>;
 }
 
 const STATS_PERIODS: [StatsPeriod, string][] = [['30d', 'Last 30 days'], ['6m', 'Last 6 months'], ['all', 'All time']];
@@ -689,7 +744,7 @@ function ProfilePage({ navigate, notify }: { navigate: (r: Route) => void; notif
     <View style={[styles.profileAvatar, { backgroundImage: `linear-gradient(135deg, ${AVATAR_GRADIENTS[avatar.gradientIndex ?? 0][0]}, ${AVATAR_GRADIENTS[avatar.gradientIndex ?? 0][1]})` } as any]}><Text style={styles.profileEmoji}>{avatar.emoji}</Text></View>
   );
 
-  return <Page title="Profile" subtitle="Your account and listening history." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button secondary icon="stats-chart-outline" onPress={() => navigate({ name: 'stats' })}>Your listening</Button><Button secondary icon="settings-outline" onPress={() => navigate({ name: 'settings' })}>Settings</Button></View>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : <><View style={styles.profileHero}><Pressable onPress={() => setAvatarOpen(true)} style={({ hovered }) => [styles.profileAvatarWrap, hovered && styles.profileAvatarHover]}>{profileAvatarDisplay}<View style={styles.profileAvatarEdit}><Ionicons name="pencil" size={12} color={desktop.text} /></View></Pressable><View style={{ flex: 1 }}><View style={styles.profileNameRow}><Text style={styles.profileName}>{dbName}</Text><IconButton name="pencil-outline" label="Edit username" onPress={() => setEditing(true)} /></View><Text style={styles.profileEmail}>{session?.user.email}</Text><Text style={styles.profileSince}>{memberSince(session?.user.created_at)}</Text></View><View style={styles.profileActions}><Button secondary icon="key-outline" onPress={async () => { const e = await resetPassword(); notify(e || 'Password reset email sent.'); }}>Reset password</Button><Button secondary icon="log-out-outline" onPress={() => signOut()}>Sign out</Button></View></View>
+  return <Page title="Profile" subtitle="Your account and listening history." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button secondary icon="stats-chart-outline" onPress={() => navigate({ name: 'stats' })}>Your listening</Button><IconButton name="settings-outline" label="Settings" onPress={() => navigate({ name: 'settings' })} /></View>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : <><View style={styles.profileHero}><Pressable onPress={() => setAvatarOpen(true)} style={({ hovered }) => [styles.profileAvatarWrap, hovered && styles.profileAvatarHover]}>{profileAvatarDisplay}<View style={styles.profileAvatarEdit}><Ionicons name="pencil" size={12} color={desktop.text} /></View></Pressable><View style={{ flex: 1 }}><View style={styles.profileNameRow}><Text style={styles.profileName}>{dbName}</Text><IconButton name="pencil-outline" label="Edit username" onPress={() => setEditing(true)} /></View><Text style={styles.profileEmail}>{session?.user.email}</Text><Text style={styles.profileSince}>{memberSince(session?.user.created_at)}</Text></View><View style={styles.profileActions}><Button secondary icon="key-outline" onPress={async () => { const e = await resetPassword(); notify(e || 'Password reset email sent.'); }}>Reset password</Button><IconButton name="log-out-outline" label="Sign out" onPress={() => signOut()} /></View></View>
     <View style={styles.profileStats}><ProfileStat icon="play" label="TOTAL PLAYS" value={String(stats?.totalPlays || 0)} /><ProfileStat icon="musical-notes" label="UNIQUE TRACKS" value={String(stats?.uniqueTracks || 0)} /><ProfileStat icon="people" label="FRIENDS" value={String(friendCount)} /><ProfileStat icon="person" label="TOP ARTIST" value={stats?.topArtist?.name || '—'} wide /></View>
     <View style={styles.profileColumns}><View style={styles.profileSection}><View style={styles.profileSectionHead}><View><Text style={styles.profileSectionEyebrow}>LISTENING INSIGHTS</Text><Text style={styles.profileSectionTitle}>Most played</Text></View><Text style={styles.profileSectionMeta}>{mostPlayed.length} tracks</Text></View><ProfileHistory entries={mostPlayed} ranked onPlay={playHistory} empty="Play some music and your favourites will appear here." /></View><View style={styles.profileSection}><View style={styles.profileSectionHead}><View><Text style={styles.profileSectionEyebrow}>HISTORY</Text><Text style={styles.profileSectionTitle}>Recently played</Text></View></View><ProfileHistory entries={recent} onPlay={playHistory} empty="Your recent listening history will appear here." /></View></View></>}</ContentScroll>
     <Dialog open={editing} title="Edit profile" onClose={() => setEditing(false)}><Text style={styles.formLabel}>USERNAME</Text><Field autoFocus maxLength={24} value={name} onChangeText={setName} onSubmitEditing={save} /><View style={styles.dialogActions}><Button secondary onPress={() => setEditing(false)}>Cancel</Button><Button onPress={save}>Save changes</Button></View></Dialog>
@@ -697,14 +752,23 @@ function ProfilePage({ navigate, notify }: { navigate: (r: Route) => void; notif
   </Page>;
 }
 
-function ProfileStat({ icon, label, value, wide = false }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; wide?: boolean }) { return <View style={[styles.profileStat, wide && { flex: 1.5 }]}><View style={styles.profileStatIcon}><Ionicons name={icon} size={17} color={desktop.accent} /></View><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={[styles.profileStatValue, wide && { fontSize: 17 }]}>{value}</Text><Text style={styles.profileStatLabel}>{label}</Text></View></View>; }
+function ProfileStat({ icon, label, value, wide = false }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; wide?: boolean }) { return <View style={[styles.profileStat, wide && { flex: 1.5 }]}><Ionicons name={icon} size={16} color={desktop.dim} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={[styles.profileStatValue, wide && { fontSize: 17 }]}>{value}</Text><Text style={styles.profileStatLabel}>{label}</Text></View></View>; }
 
 function ProfileHistory({ entries, ranked = false, onPlay, empty }: { entries: ProfilePlayEntry[]; ranked?: boolean; onPlay: (entry: ProfilePlayEntry) => void; empty: string }) {
   if (!entries.length) return <View style={styles.profileHistoryEmpty}><Ionicons name="musical-notes-outline" size={24} color={desktop.dim} /><Text style={styles.profileHistoryEmptyText}>{empty}</Text></View>;
-  return <View style={styles.profileHistory}>{entries.map((entry, index) => <Pressable key={`${ranked ? 'm' : 'r'}:${entry.source}:${entry.sourceId}`} onPress={() => onPlay(entry)} style={({ hovered, focused }) => [styles.profileHistoryRow, (hovered || focused) && styles.profileHistoryHover]}>{ranked && <Text style={styles.profileRank}>{index + 1}</Text>}<Artwork track={playEntryToTrack(entry)} size={42} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.profileTrackTitle}>{entry.title}</Text><Text numberOfLines={1} style={styles.profileTrackArtist}>{entry.artist || 'YouTube'}</Text></View>{ranked ? <View style={styles.profileCount}><Ionicons name="play" size={9} color={desktop.muted} /><Text style={styles.profileCountText}>{entry.count}</Text></View> : null}</Pressable>)}</View>;
+  return <View style={styles.profileHistory}>{entries.map((entry, index) => <Pressable key={`${ranked ? 'm' : 'r'}:${entry.source}:${entry.sourceId}`} onPress={() => onPlay(entry)} style={({ hovered, focused }) => [styles.profileHistoryRow, (hovered || focused) && styles.profileHistoryHover]}>{ranked && <Text style={styles.profileRank}>{index + 1}</Text>}<Artwork track={playEntryToTrack(entry)} size={42} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.profileTrackTitle}>{entry.title}</Text><Text numberOfLines={1} style={styles.profileTrackArtist}>{entry.artist || 'YouTube'}</Text></View>{ranked ? <View style={styles.profileCount}><Ionicons name="play" size={9} color={desktop.muted} /><Text style={styles.profileCountText}>{entry.count}</Text></View> : entry.lastPlayed ? <Text style={styles.profileRecentTime}>{relativeTime(entry.lastPlayed)}</Text> : null}</Pressable>)}</View>;
 }
 
 function relativeTime(timestamp: number): string { const delta = Date.now() - timestamp; const mins = Math.floor(delta / 60000); if (mins < 1) return 'Now'; if (mins < 60) return `${mins}m`; const hours = Math.floor(mins / 60); if (hours < 24) return `${hours}h`; return `${Math.floor(hours / 24)}d`; }
+
+function newerVersion(candidate: string, current: string): boolean {
+  const parts = (value: string) => value.replace(/^v/i, '').split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const a = parts(candidate); const b = parts(current);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+  }
+  return false;
+}
 
 function AvatarDialog({ open, value, onChange, onClose }: { open: boolean; value: AvatarChoice; onChange: (value: AvatarChoice) => void; onClose: () => void }) {
   const gradient = AVATAR_GRADIENTS[value.gradientIndex ?? 0];
@@ -716,8 +780,12 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
   const [rewind, setRewindState] = useState(false);
    const [opacity, setOpacity] = useState('0.72');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [update, setUpdate] = useState<{ version: string; url: string } | null>(null);
 
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
+  const [artworkEffect, setArtworkEffectState] = useState<ArtworkEffect>('glitch');
+  const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
 
   const themeName = useTheme((s) => s.themeName);
   const setTheme = useTheme((s) => s.setTheme);
@@ -739,11 +807,15 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
       getShowRewindButton(),
       AsyncStorage.getItem('pref:panelOpacity'),
       getGlitchMode(),
-    ]).then(([a, b, opacityVal, modoGlitch]) => {
+      getArtworkEffect(),
+      getEffectIntensity(),
+    ]).then(([a, b, opacityVal, modoGlitch, efeitoCapa, intensidade]) => {
       setDurationState(a);
       setRewindState(b);
       if (opacityVal) setOpacity(opacityVal);
       setGlitch(modoGlitch);
+      setArtworkEffectState(efeitoCapa);
+      setEffectIntensityState(intensidade);
     });
   }, []);
 
@@ -760,6 +832,20 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
     window.dispatchEvent(new CustomEvent('duotone:glitch-mode', { detail: modo }));
   };
 
+  const changeArtworkEffect = async (val: string) => {
+    const efeito = val as ArtworkEffect;
+    setArtworkEffectState(efeito);
+    await setArtworkEffect(efeito);
+    window.dispatchEvent(new CustomEvent('duotone:artwork-effect', { detail: efeito }));
+  };
+
+  const changeEffectIntensity = async (val: string) => {
+    const intensidade = val as EffectIntensity;
+    setEffectIntensityState(intensidade);
+    await setEffectIntensity(intensidade);
+    window.dispatchEvent(new CustomEvent('duotone:effect-intensity', { detail: intensidade }));
+  };
+
   const runDeleteAccount = async () => {
     try {
       const { error } = await supabase.rpc('delete_user_account');
@@ -769,6 +855,44 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
       useAuth.getState().signOut();
     } catch (e: any) {
       notify(e?.message || 'Could not delete your account.');
+    }
+  };
+
+  const checkForUpdates = async () => {
+    if (update) {
+      window.open(update.url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    setCheckingUpdate(true);
+    try {
+      const response = await fetch('https://api.github.com/repos/joaoafonso2004/duotone/releases/latest', {
+        headers: { Accept: 'application/vnd.github+json' },
+      });
+      if (response.status === 404) {
+        notify('No published Windows update is available yet.');
+        return;
+      }
+      if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
+
+      const release = await response.json();
+      const version = String(release.tag_name || '').replace(/^v/i, '');
+      const asset = Array.isArray(release.assets)
+        ? release.assets.find((item: any) => /Duotone.*Setup.*\.exe$/i.test(String(item.name || '')))
+        : null;
+      const url = String(asset?.browser_download_url || release.html_url || '');
+      const trustedUrl = url.startsWith('https://github.com/joaoafonso2004/duotone/');
+
+      if (newerVersion(version, APP_VERSION) && trustedUrl) {
+        setUpdate({ version, url });
+        notify(`Duotone ${version} is available.`);
+      } else {
+        notify(`Duotone ${APP_VERSION} is up to date.`);
+      }
+    } catch {
+      notify('Could not check for updates. Check your connection and try again.');
+    } finally {
+      setCheckingUpdate(false);
     }
   };
 
@@ -787,7 +911,9 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
           <SettingsCard icon="desktop-outline" title="Appearance & Visuals">
             {/* A captura de audio e dita aqui, nao escondida: e o que permite
                 o efeito reagir ao som, e desligar a opcao desliga-a mesmo. */}
-            <ChoiceLine label="Album art glitch" description="Reactive breaks up the artwork on the beat (captures the YouTube player's audio). Static freezes the effect. Off shows the plain artwork." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
+            <ChoiceLine label="Visual style" description="Keep the original Glitch, or try radial Waves driven by the same bass and treble detector." value={artworkEffect} choices={[['glitch', 'Glitch'], ['waves', 'Waves']]} onChange={changeArtworkEffect} />
+            <ChoiceLine label="Effect intensity" description="Adjust the visual strength without changing beat detection." value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />
+            <ChoiceLine label="Effect mode" description="Reactive follows the music. Static freezes the selected style. Off shows the plain artwork and stops audio capture." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
             <ChoiceLine label="Accent Theme" value={themeName} choices={[['violet', 'Violet'], ['blue', 'Blue'], ['orange', 'Orange'], ['green', 'Green'], ['pink', 'Pink'], ['red', 'Red'], ['mono', 'White'], ['steel', 'Steel']]} onChange={(v) => setTheme(v as any)} />
             <ChoiceLine label="Glass Transparency" value={opacity} choices={[['0.95', 'Solid'], ['0.72', 'Default'], ['0.55', 'Translucent'], ['0.35', 'Neon blur']]} onChange={changeOpacity} />
           </SettingsCard>
@@ -798,6 +924,10 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
                 Escrito à mão ficava preso no 1.0.0 mesmo em builds mais recentes. */}
             <SettingLine label="Version" value={APP_VERSION} />
             <SettingLine label="Build" value={BUILD_ID} />
+            <SettingAction
+              label={update ? `Download Duotone ${update.version}` : checkingUpdate ? 'Checking for updates…' : 'Check for updates'}
+              onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
+            />
             <SettingAction danger label="Delete account permanently" onPress={() => setDeleteConfirm(true)} />
           </SettingsCard>
         </View>
@@ -826,6 +956,7 @@ function SocialPage({ notify, play, more }: { notify: (s: string) => void; play:
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [importingShared, setImportingShared] = useState<string | null>(null);
   const theme = useTheme((s) => s.theme);
 
   // Chat states
@@ -907,6 +1038,20 @@ function SocialPage({ notify, play, more }: { notify: (s: string) => void; play:
       loadSocialData();
     } catch (e: any) {
       notify(e?.message || 'Could not archive.');
+    }
+  };
+
+  const importPlaylist = async (playlistId: string) => {
+    if (importingShared) return;
+    setImportingShared(playlistId);
+    try {
+      await importSharedPlaylist(playlistId);
+      notify('Playlist added to your library.');
+      window.dispatchEvent(new Event('duotone:refresh-playlists'));
+    } catch (e: any) {
+      notify(e?.message || 'Could not import the shared playlist.');
+    } finally {
+      setImportingShared(null);
     }
   };
 
@@ -996,6 +1141,18 @@ function SocialPage({ notify, play, more }: { notify: (s: string) => void; play:
                     <Ionicons name="play-circle" size={24} color={theme.color} />
                   </Pressable>
                 )}
+                {item.itemType === 'playlist' && item.playlistId && (
+                  <Pressable onPress={() => void importPlaylist(item.playlistId!)} style={styles.inboxTrack}>
+                    <View style={{ width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: desktop.raised }}>
+                      <Ionicons name="albums-outline" size={21} color={theme.color} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 12, fontWeight: '600' }}>Shared playlist</Text>
+                      <Text numberOfLines={1} style={{ color: desktop.dim, fontSize: 10, marginTop: 2 }}>Add a copy to your playlists</Text>
+                    </View>
+                    <Ionicons name={importingShared === item.playlistId ? 'hourglass-outline' : 'download-outline'} size={20} color={theme.color} />
+                  </Pressable>
+                )}
                 {item.message && (
                   <View style={styles.inboxMessageBubble}>
                     <Text style={styles.inboxMessageText}>{item.message}</Text>
@@ -1003,7 +1160,7 @@ function SocialPage({ notify, play, more }: { notify: (s: string) => void; play:
                 )}
               </View>
             ))}
-            {!inbox.length && !loading && <Empty icon="mail-outline" title="Inbox is empty" body="Shared tracks and messages from your friends will appear here." />}
+            {!inbox.length && !loading && <Empty icon="mail-outline" title="Inbox is empty" body="Shared tracks, playlists, and messages from your friends will appear here." />}
           </View>
         )}
 
@@ -1219,58 +1376,86 @@ function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: CommonPageP
   // A preferencia e lida uma vez e depois vem por evento, como a opacidade dos
   // paineis: as Definicoes sao outro ecra e este fica montado.
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
+  const [artworkEffect, setArtworkEffectState] = useState<ArtworkEffect>('glitch');
+  const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
   useEffect(() => {
-    getGlitchMode().then(setGlitch);
-    const ouvir = (e: any) => setGlitch(e.detail as GlitchMode);
-    window.addEventListener('duotone:glitch-mode', ouvir);
-    return () => window.removeEventListener('duotone:glitch-mode', ouvir);
+    Promise.all([getGlitchMode(), getArtworkEffect(), getEffectIntensity()]).then(([modo, efeito, intensidade]) => {
+      setGlitch(modo);
+      setArtworkEffectState(efeito);
+      setEffectIntensityState(intensidade);
+    });
+    const ouvirModo = (e: any) => setGlitch(e.detail as GlitchMode);
+    const ouvirEfeito = (e: any) => setArtworkEffectState(e.detail as ArtworkEffect);
+    const ouvirIntensidade = (e: any) => setEffectIntensityState(e.detail as EffectIntensity);
+    window.addEventListener('duotone:glitch-mode', ouvirModo);
+    window.addEventListener('duotone:artwork-effect', ouvirEfeito);
+    window.addEventListener('duotone:effect-intensity', ouvirIntensidade);
+    return () => {
+      window.removeEventListener('duotone:glitch-mode', ouvirModo);
+      window.removeEventListener('duotone:artwork-effect', ouvirEfeito);
+      window.removeEventListener('duotone:effect-intensity', ouvirIntensidade);
+    };
   }, []);
+
+  const escolherEfeito = (efeito: ArtworkEffect) => {
+    setArtworkEffectState(efeito);
+    void setArtworkEffect(efeito);
+    window.dispatchEvent(new CustomEvent('duotone:artwork-effect', { detail: efeito }));
+  };
+  const escolherIntensidade = (intensidade: EffectIntensity) => {
+    setEffectIntensityState(intensidade);
+    void setEffectIntensity(intensidade);
+    window.dispatchEvent(new CustomEvent('duotone:effect-intensity', { detail: intensidade }));
+  };
 
   if (!p.current) {
     return <Page title="Now Playing" subtitle="Nothing is playing right now."><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
   }
   const track = p.current;
   const estreito = width < 1180;
-  const ladoCapa = estreito ? 300 : 384;
+  const ladoCapa = estreito ? 300 : width >= 1420 ? 420 : 384;
 
   return (
-    <Page title="Now Playing" subtitle="The track, the artwork, and what comes next.">
+    <Page title="Now Playing">
       <ContentScroll>
         <View style={[styles.npGrelha, estreito && { flexDirection: 'column' }]}>
           <View style={[styles.npLado, { width: ladoCapa }]}>
-            <GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} />
-            <Text style={[ui.eyebrow, { marginTop: ESP.xl, marginBottom: ESP.xs }]}>
-              {p.radioActive ? 'RADIO' : 'NOW PLAYING'}
-            </Text>
-            <Text numberOfLines={2} style={styles.npTitulo}>{track.title}</Text>
-            <Text numberOfLines={1} style={styles.npArtista}>{displayArtist(track)}</Text>
-            <View style={styles.npAcoes}>
+            <View style={styles.npArtworkFrame}>
+              <GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} efeito={artworkEffect} intensidade={effectIntensity} />
+            </View>
+            <View style={styles.npVisualControls}>
+              <View style={styles.npVisualGroup}>
+                {(['glitch', 'waves'] as ArtworkEffect[]).map((efeito) => <Pressable key={efeito} onPress={() => escolherEfeito(efeito)} style={[styles.npVisualOption, artworkEffect === efeito && styles.npVisualOptionActive]}><Text style={[styles.npVisualOptionText, artworkEffect === efeito && styles.npVisualOptionTextActive]}>{efeito === 'glitch' ? 'Glitch' : 'Waves'}</Text></Pressable>)}
+              </View>
+              <View style={styles.npVisualDivider} />
+              <View style={styles.npVisualGroup}>
+                {(['subtle', 'normal', 'strong'] as EffectIntensity[]).map((intensidade) => <Pressable key={intensidade} onPress={() => escolherIntensidade(intensidade)} style={[styles.npVisualOption, effectIntensity === intensidade && styles.npVisualOptionActive]}><Text style={[styles.npVisualOptionText, effectIntensity === intensidade && styles.npVisualOptionTextActive]}>{intensidade[0].toUpperCase() + intensidade.slice(1)}</Text></Pressable>)}
+              </View>
+            </View>
+            <View style={styles.npTitleRow}>
+              <Text numberOfLines={2} style={styles.npTitulo}>{track.title}</Text>
               <IconButton
                 name={currentIsSaved ? 'heart' : 'heart-outline'}
                 label={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'}
                 onPress={toggleSaveCurrent}
                 active={currentIsSaved}
               />
-              <View style={styles.npFonte}>
-                <Ionicons name={track.source === 'spotify' ? 'musical-notes' : 'logo-youtube'} size={12} color={COR.textoFraco} />
-                <Text style={styles.npFonteTexto}>{track.source}</Text>
-              </View>
-              {/* Duracao da FAIXA, nunca a do player — a do player mente
-                  enquanto o embed nao resolve. */}
-              <Text style={styles.npDuracao}>{formatTime(track.durationSeconds)}</Text>
             </View>
           </View>
 
           <View style={styles.npFila}>
             <View style={styles.npFilaCabeca}>
-              <Text style={ui.eyebrow}>{p.radioActive ? 'UP NEXT · RADIO' : 'UP NEXT'}</Text>
-              <Text style={styles.npFilaContagem}>{upNext.length}</Text>
+              <View>
+                <Text style={ui.eyebrow}>QUEUE</Text>
+                <Text style={styles.npFilaHeading}>Up next</Text>
+              </View>
+              <Text style={styles.npFilaContagem}>{upNext.length} tracks</Text>
             </View>
             {/* A ordem que vai MESMO tocar: com shuffle ligado não é a ordem
                 natural da fila, e esta lista mentia. Arrastar para
                 reordenar fica desligado nesse caso — mover uma lista
                 baralhada não corresponde a nada. */}
-            {upNext.slice(0, 8).map((entry) => {
+            {upNext.slice(0, 8).map((entry, visibleIndex) => {
               const item = entry.track;
               const originalIndex = entry.index;
               return (
@@ -1295,19 +1480,20 @@ function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: CommonPageP
                   onClick={() => p.playTrack(item, p.queue)}
                   onContextMenu={(e: any) => { e.preventDefault(); more(item); }}
                   style={{
-                    minHeight: LINHA_LISTA,
-                    padding: `0 ${ESP.md}px`,
+                    minHeight: 64,
+                    padding: `0 ${ESP.sm}px`,
                     display: 'flex',
                     alignItems: 'center',
                     gap: `${ESP.md}px`,
                     cursor: p.shuffle ? 'pointer' : 'grab',
                     userSelect: 'none',
+                    borderLeft: visibleIndex === 0 ? `2px solid ${COR.texto}` : '2px solid transparent',
+                    background: visibleIndex === 0 ? COR.metalSuave : 'transparent',
                   } as any}
                 >
-                  <Artwork track={item} size={40} />
+                  <Artwork track={item} size={44} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text numberOfLines={1} style={styles.npFilaTitulo}>{item.title}</Text>
-                    <Text numberOfLines={1} style={styles.npFilaArtista}>{displayArtist(item)}</Text>
                   </View>
                   {!p.shuffle && <Ionicons name="reorder-two-outline" size={16} color={COR.textoFraco} />}
                 </div>
@@ -1317,7 +1503,7 @@ function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: CommonPageP
               <Text style={styles.npFilaVazia}>Queue ends after this track.</Text>
             )}
             {upNext.length > 8 && (
-              <Text style={styles.npFilaVazia}>{`+${upNext.length - 8} more in the queue`}</Text>
+              <Text style={styles.npFilaVazia}>{`View ${upNext.length - 8} more tracks in the queue`}</Text>
             )}
           </View>
         </View>
@@ -1376,7 +1562,46 @@ function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSaved: bool
     window.addEventListener('touchend', stop);
   };
 
-  return <V style={styles.player} className="glass-panel"><YouTubePlayerView track={p.current} /><View style={{ flexDirection: 'row', alignItems: 'center', width: '30%', minWidth: 210, maxWidth: 390, gap: 10 }}><Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 11, minWidth: 0 }} onPress={() => window.dispatchEvent(new CustomEvent('duotone:navigate', { detail: { name: 'now-playing' } }))}><Artwork track={p.current} size={52} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.playerTitle}>{p.current.title}</Text><Text numberOfLines={1} style={styles.playerArtist}>{displayArtist(p.current)}</Text></View></Pressable><IconButton name={currentIsSaved ? "heart" : "heart-outline"} label={currentIsSaved ? "Remove from Saved Songs" : "Save to Saved Songs"} onPress={toggleSaveCurrent} active={currentIsSaved} /></View><View style={styles.playerCenter}><View style={styles.playerControls}><IconButton name="shuffle" label="Shuffle" active={p.shuffle} onPress={p.toggleShuffle} /><IconButton name="play-skip-back" label="Previous" onPress={p.prev} />{p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, p.positionMs - 15000))} />}<Pressable accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={19} color="#111117" /></Pressable><IconButton name="play-skip-forward" label="Next" onPress={p.next} /><IconButton name={p.repeatMode === 'one' ? 'repeat' : 'repeat-outline'} label="Repeat" active={p.repeatMode !== 'off'} onPress={p.cycleRepeat} /></View><View style={styles.progressRow}><Text style={styles.timeText}>{formatTime(p.positionMs / 1000)}</Text><P onMouseDown={startDragProgress} onTouchStart={startDragProgress} style={styles.progressHit} className="slider-container"><V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${ratio * 100}%` }} /></P><Text style={styles.timeText}>{formatTime(p.durationMs / 1000)}</Text></View></View><View style={styles.playerRight}>{p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}<V style={styles.volumeRow} className="slider-container"><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={() => p.setVolume(p.volume === 0 ? 80 : 0)} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${p.volume}%` }} /></P></V><IconButton name="close" label="Close player" onPress={p.close} /></View></V>;
+  return <V style={styles.player} className="glass-panel">
+    <YouTubePlayerView track={p.current} />
+    <View style={styles.playerTrack}>
+      <Pressable
+        style={styles.playerTrackLink}
+        onPress={() => window.dispatchEvent(new CustomEvent('duotone:navigate', { detail: { name: 'now-playing' } }))}
+      >
+        <Artwork track={p.current} size={52} />
+        <Text numberOfLines={1} style={styles.playerTitle}>{p.current.title}</Text>
+      </Pressable>
+      <View style={styles.playerSave}>
+        <IconButton
+          name={currentIsSaved ? 'heart' : 'heart-outline'}
+          label={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'}
+          onPress={toggleSaveCurrent}
+          active={currentIsSaved}
+        />
+      </View>
+    </View>
+    <View style={styles.playerCenter}>
+      <View style={styles.playerControls}>
+        <IconButton name="shuffle" label="Shuffle" active={p.shuffle} onPress={p.toggleShuffle} />
+        <IconButton name="play-skip-back" label="Previous" onPress={p.prev} />
+        {p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, p.positionMs - 15000))} />}
+        <Pressable accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={19} color="#111117" /></Pressable>
+        <IconButton name="play-skip-forward" label="Next" onPress={p.next} />
+        <IconButton name={p.repeatMode === 'one' ? 'repeat' : 'repeat-outline'} label="Repeat" active={p.repeatMode !== 'off'} onPress={p.cycleRepeat} />
+      </View>
+      <View style={styles.progressRow}>
+        <Text style={styles.timeText}>{formatTime(p.positionMs / 1000)}</Text>
+        <P onMouseDown={startDragProgress} onTouchStart={startDragProgress} style={styles.progressHit} className="slider-container"><V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${ratio * 100}%` }} /></P>
+        <Text style={styles.timeText}>{formatTime(p.durationMs / 1000)}</Text>
+      </View>
+    </View>
+    <View style={styles.playerRight}>
+      {p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}
+      <V style={styles.volumeRow} className="slider-container"><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={() => p.setVolume(p.volume === 0 ? 80 : 0)} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${p.volume}%` }} /></P></V>
+      <IconButton name="close" label="Close player" onPress={p.close} />
+    </View>
+  </V>;
 }
 
 function getContrastTextColor(hex: string): string {
@@ -1398,6 +1623,7 @@ function DesktopShell() {
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
   const [playlistDialog, setPlaylistDialog] = useState(false);
   const [shareDialog, setShareDialog] = useState(false);
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [selectedFriend, setSelectedFriend] = useState('');
   const [shareMessage, setShareMessage] = useState('');
@@ -1455,6 +1681,12 @@ function DesktopShell() {
   const back = useCallback(() => setRoute(history.current.pop() || { name: 'playlists' }), []);
   const notify = useCallback((s: string) => setToast(s), []);
   const play = useCallback((track: Track, queue?: Track[]) => { usePlayer.getState().playTrack(track, queue); }, []);
+
+  useEffect(() => {
+    const onPlaybackNotice = (event: any) => notify(String(event.detail || 'Playback changed.'));
+    window.addEventListener('duotone:playback-notice', onPlaybackNotice);
+    return () => window.removeEventListener('duotone:playback-notice', onPlaybackNotice);
+  }, [notify]);
 
   const isPlayingState = p.isPlaying;
   // Evita mandar um delete ao arrancar sem nada a tocar.
@@ -1642,7 +1874,10 @@ function DesktopShell() {
     }
   };
 
-  const openShareDialog = async () => {
+  const openShareDialog = async (target: ShareTarget) => {
+    setShareTarget(target);
+    setSelectedFriend('');
+    setShareMessage('');
     setShareDialog(true);
     setLoadingFriends(true);
     try {
@@ -1656,16 +1891,17 @@ function DesktopShell() {
   };
 
   const sendShare = async () => {
-    if (!trackMenu || !selectedFriend) return;
+    if (!shareTarget || !selectedFriend) return;
     setSharing(true);
     try {
-      await shareItem(selectedFriend, 'track', trackMenu, shareMessage);
+      await shareItem(selectedFriend, shareTarget.itemType, shareTarget.item, shareMessage);
       setShareDialog(false);
+      setShareTarget(null);
       setShareMessage('');
       setSelectedFriend('');
-      notify('Shared successfully!');
+      notify(`${shareTarget.itemType === 'playlist' ? 'Playlist' : 'Song'} shared successfully.`);
     } catch (e: any) {
-      notify(e?.message || 'Could not share track.');
+      notify(e?.message || `Could not share ${shareTarget.itemType}.`);
     } finally {
       setSharing(false);
     }
@@ -1675,7 +1911,7 @@ function DesktopShell() {
   let page: ReactNode;
   switch (route.name) {
     case 'search': page = <SearchPage {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} />; break;
-    case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} back={back} {...common} />; break;
+    case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} back={back} share={openShareDialog} {...common} />; break;
     case 'stats': page = <StatsPage back={back} play={play} />; break;
     case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} />; break;
     case 'social': page = <SocialPage notify={notify} play={play} more={more} />; break;
@@ -1703,7 +1939,7 @@ function DesktopShell() {
           <Pressable onPress={() => { usePlayer.getState().addToQueue(trackMenu); setTrackMenuOpen(false); notify('Added to queue.'); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="list-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Add to queue</Text></Pressable>
           <Pressable onPress={toggleSave} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name={isSaved ? "heart" : "heart-outline"} size={18} color={isSaved ? '#EF4444' : theme.color} /><Text style={styles.destinationText}>{isSaved ? 'Remove from library' : 'Save to library'}</Text></Pressable>
           <Pressable onPress={() => { setTrackMenuOpen(false); openPlaylistDialog(); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="albums-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Add to playlist…</Text></Pressable>
-          <Pressable onPress={() => { setTrackMenuOpen(false); openShareDialog(); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="share-social-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Share with a friend…</Text></Pressable>
+          <Pressable onPress={() => { setTrackMenuOpen(false); openShareDialog({ itemType: 'track', item: trackMenu, name: trackMenu.title }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="share-social-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Share with a friend…</Text></Pressable>
           {route.name === 'playlist' && (
             <Pressable onPress={removeFromCurrentPlaylist} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="trash-outline" size={18} color="#EF4444" /><Text style={[styles.destinationText, { color: '#EF4444' }]}>Remove from this playlist</Text></Pressable>
           )}
@@ -1717,9 +1953,10 @@ function DesktopShell() {
     </Dialog>
 
     {/* SHARE DIALOG */}
-    <Dialog open={shareDialog} title="Share with a friend" onClose={() => setShareDialog(false)}>
-      {trackMenu && (
+    <Dialog open={shareDialog} title={shareTarget?.itemType === 'playlist' ? 'Share playlist' : 'Share song'} onClose={() => setShareDialog(false)}>
+      {shareTarget && (
         <View style={{ gap: 12 }}>
+          <Text numberOfLines={1} style={styles.dialogBody}>Sharing “{shareTarget.name}”</Text>
           <Text style={styles.formLabel}>SELECT FRIEND</Text>
           {loadingFriends ? <Loading /> : friends.length ? (
             <View style={{ gap: 6, maxHeight: 180, overflow: 'auto' as any }}>
@@ -1732,10 +1969,10 @@ function DesktopShell() {
           {friends.length > 0 && (
             <>
               <Text style={styles.formLabel}>MESSAGE (OPTIONAL)</Text>
-              <Field placeholder="Add a note about this song…" value={shareMessage} onChangeText={setShareMessage} />
+              <Field placeholder={`Add a note about this ${shareTarget.itemType}…`} value={shareMessage} onChangeText={setShareMessage} />
               <View style={styles.dialogActions}>
                 <Button secondary onPress={() => setShareDialog(false)}>Cancel</Button>
-                <Button onPress={sendShare} disabled={!selectedFriend || sharing}>{sharing ? 'Sharing…' : 'Share Song'}</Button>
+                <Button onPress={sendShare} disabled={!selectedFriend || sharing}>{sharing ? 'Sharing…' : shareTarget.itemType === 'playlist' ? 'Share Playlist' : 'Share Song'}</Button>
               </View>
             </>
           )}
@@ -1749,21 +1986,18 @@ export function RootNavigator() {
   const initialized = useAuth((s) => s.initialized); const session = useAuth((s) => s.session);
   useEffect(injectDesktopDocumentStyles, []);
   if (!initialized) return <View style={[styles.root, { alignItems: 'center', justifyContent: 'center' }]}><Loading /></View>;
-  return <View style={styles.root}><Image source={require('../../assets/icon.png')} style={styles.backgroundImage} />{session ? <DesktopShell /> : <View style={{ flex: 1, backgroundColor: 'transparent' }}><TitleBar /><AuthDesktop /></View>}</View>;
+  return <View style={styles.root}><Image source={require('../../assets/wallpaper.png')} style={styles.backgroundImage} />{session ? <DesktopShell /> : <View style={{ flex: 1, backgroundColor: 'transparent' }}><TitleBar /><AuthDesktop /></View>}</View>;
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COR.fundo, color: COR.texto } as any,
-  // O simbolo como marca de agua: nitido, grande, ancorado em baixo a
-  // direita e a sangrar para fora da janela. Estava a `blur(8px)
-  // brightness(45%)` a cobrir o ecra todo — o melhor ativo da app reduzido a
-  // uma nodoa. Sai tambem o filtro, que o Chromium recompunha a cada repaint
-  // numa app que fica horas aberta.
+  // Fundo fotografico original da app, restaurado a pedido. Sangra alguns
+  // pixels para o blur nao criar uma moldura nas extremidades da janela.
   backgroundImage: {
-    position: 'absolute', zIndex: 0, pointerEvents: 'none',
-    right: '-14%' as any, bottom: '-26%' as any,
-    width: '78%' as any, height: '132%' as any,
-    resizeMode: 'contain', opacity: 0.07,
+    position: 'absolute', top: -20, left: -20, right: -20, bottom: -20,
+    width: 'calc(100% + 40px)' as any, height: 'calc(100% + 40px)' as any,
+    resizeMode: 'cover', zIndex: 0, pointerEvents: 'none',
+    filter: 'blur(8px) brightness(45%)',
   } as any,
   // Barra de titulo sem cor propria: e o fundo que se ve, e so uma linha a
   // separa da area de conteudo.
@@ -1771,21 +2005,38 @@ const styles = StyleSheet.create({
   titleBrand: { width: 224, flexDirection: 'row', alignItems: 'center', paddingLeft: 15, gap: 9 }, brandDots: { flexDirection: 'row', gap: 3 }, brandDot: { width: 8, height: 8, borderRadius: 4 }, titleText: { fontFamily: FONT.body, color: desktop.muted, fontSize: 12, fontWeight: '600' }, dragRegion: { flex: 1 }, windowButtons: { flexDirection: 'row', WebkitAppRegion: 'no-drag' } as any, windowButton: { width: 46, height: 37, alignItems: 'center', justifyContent: 'center' }, windowButtonHover: { backgroundColor: desktop.hover }, closeHover: { backgroundColor: '#C42B3B' },
   main: { flex: 1, flexDirection: 'row', minHeight: 0, backgroundColor: 'transparent' }, sidebar: { width: 232, borderRadius: RAIO.superficie, borderWidth: 1, borderColor: COR.linhaSuave, marginLeft: ESP.sm, marginRight: ESP.xs, marginTop: ESP.xs, marginBottom: ESP.xs, overflow: 'hidden' } as any, sidebarContent: { padding: ESP.md, paddingTop: ESP.xl }, navLabel: { ...TIPO.micro, color: COR.textoFraco, marginHorizontal: ESP.md, marginBottom: ESP.sm, marginTop: ESP.md }, navItem: { height: 40, paddingHorizontal: ESP.md, borderRadius: RAIO.cartao, flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: 2 }, navHover: { backgroundColor: desktop.hover }, navActive: { backgroundColor: desktop.accentSoft }, navText: { ...TIPO.corpo, color: COR.textoMedio, fontWeight: '500' as any, flex: 1 }, navTextActive: { color: desktop.text, fontWeight: '650' as any }, navDivider: { height: 1, backgroundColor: desktop.border, marginVertical: 14, marginHorizontal: 8 },
   account: { minHeight: 67, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.03)', flexDirection: 'row', alignItems: 'center', gap: 10 }, avatar: { width: 31, height: 31, borderRadius: 9, backgroundColor: '#3D315E', alignItems: 'center', justifyContent: 'center' }, avatarText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '800' }, accountName: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '650' as any }, accountEmail: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10, marginTop: 2 }, content: { flex: 1, minWidth: 0, borderRadius: RAIO.superficie, borderWidth: 1, borderColor: COR.linhaSuave, marginLeft: ESP.xs, marginRight: ESP.sm, marginTop: ESP.xs, marginBottom: ESP.xs, overflow: 'hidden' } as any,
-  auth: { flex: 1, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, authGlow: { position: 'absolute', width: 900, height: 900, borderRadius: 450, backgroundColor: 'rgba(233,234,238,.045)', top: -480 }, authCard: { width: 440, maxWidth: 'calc(100vw - 48px)' as any, padding: ESP.xxl, borderRadius: RAIO.superficie, backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha, boxShadow: '0 30px 100px rgba(0,0,0,.55)' } as any, authLogo: { flexDirection: 'row', gap: 5, marginBottom: 25 }, authTitle: { ...TIPO.titulo, fontSize: 28, fontWeight: '700' as any }, authBody: { ...TIPO.corpo, color: COR.textoMedio, lineHeight: 21, marginTop: ESP.sm, marginBottom: ESP.xl }, segment: { height: 38, padding: 3, borderRadius: 8, backgroundColor: desktop.bg, flexDirection: 'row', marginBottom: 18 }, segmentItem: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 6 }, segmentActive: { backgroundColor: desktop.raised }, segmentText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '600' }, error: { fontFamily: FONT.body, color: '#FF858A', fontSize: 12, lineHeight: 17 }, authFoot: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10, marginTop: 20 },
+  auth: { flex: 1, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, authGlow: { position: 'absolute', width: 900, height: 900, borderRadius: 450, backgroundColor: 'rgba(233,234,238,.045)', top: -480 }, authCard: { width: 440, maxWidth: 'calc(100vw - 48px)' as any, padding: ESP.xxl, borderRadius: RAIO.superficie, backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha, boxShadow: '0 30px 100px rgba(0,0,0,.55)' } as any, authLogo: { flexDirection: 'row', gap: 5, marginBottom: 25 }, authTitle: { ...TIPO.titulo, color: COR.texto, fontSize: 28, fontWeight: '700' as any }, authBody: { ...TIPO.corpo, color: COR.textoMedio, lineHeight: 21, marginTop: ESP.sm, marginBottom: ESP.xl }, segment: { height: 38, padding: 3, borderRadius: 8, backgroundColor: desktop.bg, flexDirection: 'row', marginBottom: 18 }, segmentItem: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 6 }, segmentActive: { backgroundColor: desktop.raised }, segmentText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '600' }, error: { fontFamily: FONT.body, color: '#FF858A', fontSize: 12, lineHeight: 17 }, authFoot: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10, marginTop: 20 },
   searchBar: { paddingHorizontal: 38, flexDirection: 'row', gap: 10, marginBottom: 22 }, history: { paddingHorizontal: 38, marginBottom: 20 }, sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 }, sectionTitle: { fontFamily: FONT.display, color: desktop.text, fontSize: 14, fontWeight: '700', flex: 1 }, textAction: { fontFamily: FONT.body, color: desktop.accent, fontSize: 12 }, chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 }, chip: { height: 31, borderRadius: 16, paddingHorizontal: 11, borderWidth: 1, borderColor: desktop.border, flexDirection: 'row', alignItems: 'center', gap: 6 }, chipHover: { backgroundColor: desktop.hover }, chipText: { fontFamily: FONT.body, color: desktop.muted, fontSize: 11 },
-  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: ESP.xl }, mediaCard: { width: 190, padding: ESP.md, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: 'transparent' }, cardHover: { backgroundColor: desktop.raised, borderColor: desktop.border, transform: [{ translateY: -2 }] }, cardTitle: { fontFamily: FONT.display, color: desktop.text, fontSize: 13, fontWeight: '650' as any, marginTop: 11 }, cardMeta: { fontFamily: FONT.body, color: desktop.dim, fontSize: 11, marginTop: 4 }, playlistGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 18 }, playlistCard: { width: 190, padding: 13, borderRadius: 10, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.panel }, playlistArt: { width: 162, height: 162, borderRadius: 8, backgroundColor: desktop.raised, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  songsToolbar: { paddingHorizontal: ESP.xxxl, paddingBottom: ESP.lg, flexDirection: 'row', alignItems: 'center', gap: ESP.md }, songsSearch: { width: 390, maxWidth: '55%' as any }, songsResultCount: { ...TIPO.numero, color: COR.textoFraco, marginLeft: 'auto' as any },
+  cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: ESP.xl }, mediaCard: { width: 190, padding: ESP.md, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: 'transparent' }, cardHover: { backgroundColor: desktop.raised, borderColor: desktop.border, transform: [{ translateY: -2 }] }, cardTitle: { fontFamily: FONT.display, color: desktop.text, fontSize: 13, fontWeight: '650' as any, marginTop: 11 }, cardMeta: { fontFamily: FONT.body, color: desktop.dim, fontSize: 11, marginTop: 4 },
+  playlistGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: ESP.xxl, rowGap: ESP.xxl },
+  playlistCard: { width: 200 },
+  playlistCardHover: { opacity: .88, transform: [{ translateY: -3 }] },
+  playlistArt: { width: 200, height: 200, borderRadius: 14, backgroundColor: desktop.raised, borderWidth: 1, borderColor: COR.linhaSuave, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', boxShadow: '0 15px 36px rgba(0,0,0,.22)' } as any,
+  playlistArtRow: { flex: 1, width: '100%', flexDirection: 'row' },
+  playlistArtCell: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: COR.elevado },
+  playlistTitle: { fontFamily: FONT.display, color: desktop.text, fontSize: 14, fontWeight: '650' as any, marginTop: ESP.md },
+  playlistMeta: { ...TIPO.numero, color: COR.textoFraco, marginTop: ESP.xs },
+  detailHero: { minHeight: 210, flexDirection: 'row', alignItems: 'center', gap: ESP.xxl, paddingBottom: ESP.xxl, marginBottom: ESP.xl, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
+  detailHeroArt: { width: 176, height: 176, borderRadius: 14, overflow: 'hidden', backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave, boxShadow: '0 18px 44px rgba(0,0,0,.28)' } as any,
+  detailHeroBody: { flex: 1, minWidth: 0 },
+  detailHeroEyebrow: { ...TIPO.micro, color: COR.textoFraco, marginBottom: ESP.sm },
+  detailHeroTitle: { fontFamily: FONT.display, color: COR.texto, fontSize: 34, lineHeight: 40, fontWeight: '720' as any, letterSpacing: -.55 },
+  detailHeroMeta: { ...TIPO.corpo, color: COR.textoMedio, marginTop: ESP.sm },
+  detailHeroActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: ESP.sm, marginTop: ESP.xl },
+  detailSearch: { width: 390, maxWidth: '60%' as any, marginBottom: ESP.xl },
   dialogActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9, marginTop: 20 }, dialogBody: { fontFamily: FONT.body, color: desktop.muted, fontSize: 13, lineHeight: 20 }, formLabel: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 9, fontWeight: '800', letterSpacing: 1.1, marginBottom: 8 }, importPanel: { maxWidth: 760, padding: 24, borderWidth: 1, borderColor: desktop.border, borderRadius: 11, backgroundColor: desktop.panel }, importSummary: { minHeight: 80, marginVertical: 22, borderTopWidth: 1, borderBottomWidth: 1, borderColor: desktop.border, justifyContent: 'center' }, destinationGrid: { gap: 6 }, destination: { minHeight: 43, paddingHorizontal: 12, borderRadius: 7, borderWidth: 1, borderColor: desktop.border, flexDirection: 'row', alignItems: 'center', gap: 10 }, destinationActive: { backgroundColor: desktop.accentSoft, borderColor: 'rgba(155,123,255,.38)' }, destinationText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, flex: 1 },
-  profileHero: { minHeight: 174, borderRadius: 12, padding: 26, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.panel, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 22, marginBottom: 16 },
+  profileHero: { minHeight: 148, paddingHorizontal: ESP.sm, paddingBottom: ESP.xxl, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: ESP.xl },
   profileAvatarWrap: { width: 96, height: 96 }, profileAvatarHover: { transform: [{ scale: 1.025 }] }, profileAvatar: { width: 96, height: 96, borderRadius: 30, alignItems: 'center', justifyContent: 'center', boxShadow: '0 14px 35px rgba(0,0,0,.3)' } as any, profileEmoji: { fontFamily: FONT.body, fontSize: 43 }, profileAvatarEdit: { position: 'absolute', right: -3, bottom: -3, width: 29, height: 29, borderRadius: 9, backgroundColor: desktop.hover, borderWidth: 2, borderColor: desktop.panel, alignItems: 'center', justifyContent: 'center' },
   profileNameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 }, profileName: { fontFamily: FONT.display, color: desktop.text, fontSize: 24, fontWeight: '750' as any }, profileEmail: { fontFamily: FONT.body, color: desktop.muted, fontSize: 13, marginTop: 5 }, profileSince: { fontFamily: FONT.body, color: desktop.dim, fontSize: 10, fontWeight: '650' as any, letterSpacing: .45, textTransform: 'uppercase', marginTop: 10 }, profileActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  profileStats: { minHeight: 92, flexDirection: 'row', flexWrap: 'wrap', gap: 1, borderRadius: 11, borderWidth: 1, borderColor: desktop.border, overflow: 'hidden', backgroundColor: desktop.border, marginBottom: 20 }, profileStat: { flex: 1, minWidth: 180, paddingHorizontal: 20, paddingVertical: 17, backgroundColor: desktop.panel, flexDirection: 'row', alignItems: 'center', gap: 13 }, profileStatIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: desktop.accentSoft, alignItems: 'center', justifyContent: 'center' }, profileStatValue: { fontFamily: FONT.display, color: desktop.text, fontSize: 21, fontWeight: '750' as any }, profileStatLabel: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 9, fontWeight: '750' as any, letterSpacing: .9, marginTop: 3 },
-  profileColumns: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 18 }, profileSection: { flex: 1, minWidth: 330, borderRadius: 11, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.panel, overflow: 'hidden' }, profileSectionHead: { minHeight: 70, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: desktop.border }, profileSectionEyebrow: { fontFamily: FONT.mono, color: desktop.accent, fontSize: 8, fontWeight: '800', letterSpacing: 1.15, marginBottom: 4 }, profileSectionTitle: { fontFamily: FONT.display, color: desktop.text, fontSize: 15, fontWeight: '700' }, profileSectionMeta: { fontFamily: FONT.body, color: desktop.dim, fontSize: 10, marginLeft: 'auto' }, profileHistory: { backgroundColor: desktop.panel }, profileHistoryRow: { minHeight: 59, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: desktop.border }, profileHistoryHover: { backgroundColor: desktop.hover }, profileRank: { fontFamily: FONT.mono, width: 20, textAlign: 'center', color: desktop.dim, fontSize: 11, fontWeight: '700' }, profileTrackTitle: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '600' }, profileTrackArtist: { fontFamily: FONT.body, color: desktop.dim, fontSize: 10, marginTop: 3 }, profileCount: { minWidth: 38, height: 24, paddingHorizontal: 8, borderRadius: 12, backgroundColor: desktop.raised, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }, profileCountText: { fontFamily: FONT.mono, color: desktop.muted, fontSize: 10, fontWeight: '700' }, profileRecentTime: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10, width: 28, textAlign: 'right' }, profileHistoryEmpty: { minHeight: 190, padding: 28, alignItems: 'center', justifyContent: 'center', gap: 10 }, profileHistoryEmptyText: { fontFamily: FONT.body, color: desktop.dim, fontSize: 11, textAlign: 'center', lineHeight: 17, maxWidth: 260 },
+  profileStats: { minHeight: 104, flexDirection: 'row', flexWrap: 'wrap', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, marginBottom: ESP.xxl }, profileStat: { flex: 1, minWidth: 180, paddingHorizontal: ESP.sm, paddingVertical: ESP.xl, flexDirection: 'row', alignItems: 'center', gap: ESP.md }, profileStatIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: desktop.accentSoft, alignItems: 'center', justifyContent: 'center' }, profileStatValue: { fontFamily: FONT.display, color: desktop.text, fontSize: 24, fontWeight: '700' as any }, profileStatLabel: { ...TIPO.micro, color: COR.textoFraco, marginTop: ESP.xs },
+  profileColumns: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: ESP.xxxl }, profileSection: { flex: 1, minWidth: 330, overflow: 'hidden' }, profileSectionHead: { minHeight: 58, paddingHorizontal: ESP.sm, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COR.linha }, profileSectionEyebrow: { ...TIPO.micro, color: COR.textoFraco, marginBottom: ESP.xs }, profileSectionTitle: { ...TIPO.seccao, color: COR.texto }, profileSectionMeta: { ...TIPO.legenda, color: COR.textoFraco, marginLeft: 'auto' as any }, profileHistory: { backgroundColor: 'transparent' }, profileHistoryRow: { minHeight: 64, paddingHorizontal: ESP.sm, flexDirection: 'row', alignItems: 'center', gap: ESP.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COR.linhaSuave }, profileHistoryHover: { backgroundColor: COR.hover }, profileRank: { ...TIPO.numero, width: 20, textAlign: 'center', color: COR.textoFraco }, profileTrackTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any }, profileTrackArtist: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 2 }, profileCount: { minWidth: 38, height: 24, paddingHorizontal: ESP.sm, borderRadius: RAIO.pilula, backgroundColor: COR.elevado, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: ESP.xs }, profileCountText: { ...TIPO.numero, color: COR.textoMedio, fontSize: 10 }, profileRecentTime: { ...TIPO.numero, color: COR.textoFraco, fontSize: 10, width: 34, textAlign: 'right' }, profileHistoryEmpty: { minHeight: 190, padding: ESP.xxl, alignItems: 'center', justifyContent: 'center', gap: ESP.sm, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave }, profileHistoryEmptyText: { ...TIPO.legenda, color: COR.textoFraco, textAlign: 'center', lineHeight: 18, maxWidth: 260 },
   avatarPreview: { width: 88, height: 88, borderRadius: 28, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', marginBottom: 22 }, avatarPreviewEmoji: { fontFamily: FONT.body, fontSize: 40 }, avatarSwatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 }, avatarSwatchOuter: { width: 43, height: 43, borderRadius: 14, padding: 3, borderWidth: 2, borderColor: 'transparent' }, avatarSwatchSelected: { borderColor: desktop.text }, avatarSwatch: { flex: 1, borderRadius: 10 }, avatarEmojiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, avatarEmojiCell: { width: 46, height: 46, borderRadius: 9, backgroundColor: desktop.raised, borderWidth: 1, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' }, avatarEmojiSelected: { backgroundColor: desktop.accentSoft, borderColor: 'rgba(155,123,255,.55)' }, avatarEmojiText: { fontFamily: FONT.body, fontSize: 23 },
   statsHero: { borderRadius: 12, padding: 22, marginBottom: 18 }, statsHeroLabel: { fontFamily: FONT.mono, color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, opacity: .85 }, statsHeroValue: { fontFamily: FONT.display, color: '#FFF', fontSize: 38, fontWeight: '800', marginTop: 6, letterSpacing: -.5 }, statsHeroNote: { fontFamily: FONT.body, color: '#FFF', fontSize: 11, marginTop: 4, opacity: .8 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 26 }, statsCell: { flexGrow: 1, flexBasis: 150, borderRadius: 10, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.panel, padding: 16 }, statsCellValue: { fontFamily: FONT.display, color: desktop.text, fontSize: 24, fontWeight: '800' },
   statsChart: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 140, marginTop: 10 }, statsRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 7, cursor: 'pointer' } as any, statsRank: { fontFamily: FONT.mono, width: 18, textAlign: 'center', fontSize: 12, fontWeight: '800' },
   settingsGrid: { flexDirection: 'column', alignItems: 'stretch', gap: ESP.lg, maxWidth: 720 }, settingsCard: { width: '100%' as any, maxWidth: 720, borderRadius: 10, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.panel, overflow: 'hidden' }, settingsCardTitle: { height: 53, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 9, borderBottomWidth: 1, borderBottomColor: desktop.border }, settingLine: { minHeight: 52, paddingHorizontal: 17, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: desktop.border, flexDirection: 'row', alignItems: 'center', gap: 12 }, settingHover: { backgroundColor: desktop.hover }, settingLabel: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '550' as any }, settingValue: { fontFamily: FONT.body, color: desktop.muted, fontSize: 12, textAlign: 'right', maxWidth: 230 }, settingDescription: { fontFamily: FONT.body, color: desktop.dim, fontSize: 10, marginTop: 4 }, smallSegment: { padding: 3, backgroundColor: desktop.bg, borderRadius: 7, flexDirection: 'row' }, smallSegmentItem: { minHeight: 30, paddingHorizontal: 10, borderRadius: 5, alignItems: 'center', justifyContent: 'center' }, smallSegmentActive: { backgroundColor: desktop.hover }, smallSegmentText: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10 },
-  player: { height: 80, backgroundColor: COR.painel, borderRadius: RAIO.superficie, borderWidth: 1, borderColor: COR.linhaSuave, marginLeft: ESP.sm, marginRight: ESP.sm, marginTop: ESP.xs, marginBottom: ESP.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, zIndex: 25 }, playerTrack: { width: '30%', minWidth: 210, maxWidth: 390, flexDirection: 'row', alignItems: 'center', gap: 11 }, playerTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' as any }, playerArtist: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 3 }, playerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', maxWidth: 760 }, playerControls: { flexDirection: 'row', alignItems: 'center', gap: 6 }, playButton: { width: 35, height: 35, borderRadius: 18, backgroundColor: desktop.text, alignItems: 'center', justifyContent: 'center', marginHorizontal: 5 }, progressRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 3 }, timeText: { ...TIPO.numero, width: 42, color: COR.textoFraco, fontSize: 11, textAlign: 'center' }, progressHit: { flex: 1, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, progressTrack: { height: 3, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, progressFill: { height: 3, backgroundColor: desktop.text, borderRadius: 2 }, playerRight: { width: '30%', minWidth: 120, maxWidth: 390, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }, playerError: { fontFamily: FONT.body, color: desktop.danger, fontSize: 10, maxWidth: 220 },
+  player: { height: 80, backgroundColor: COR.painel, borderRadius: RAIO.superficie, borderWidth: 1, borderColor: COR.linhaSuave, marginLeft: ESP.sm, marginRight: ESP.sm, marginTop: ESP.xs, marginBottom: ESP.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, zIndex: 25 }, playerTrack: { width: '30%', minWidth: 210, maxWidth: 390, flexDirection: 'row', alignItems: 'center', gap: ESP.xs }, playerTrackLink: { maxWidth: 'calc(100% - 42px)' as any, minWidth: 0, flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: ESP.md }, playerSave: { flexShrink: 0 }, playerTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' as any, minWidth: 0, flexShrink: 1 }, playerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', maxWidth: 760 }, playerControls: { flexDirection: 'row', alignItems: 'center', gap: 6 }, playButton: { width: 35, height: 35, borderRadius: 18, backgroundColor: desktop.text, alignItems: 'center', justifyContent: 'center', marginHorizontal: 5 }, progressRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 3 }, timeText: { ...TIPO.numero, width: 42, color: COR.textoFraco, fontSize: 11, textAlign: 'center' }, progressHit: { flex: 1, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, progressTrack: { height: 3, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, progressFill: { height: 3, backgroundColor: desktop.text, borderRadius: 2 }, playerRight: { width: '30%', minWidth: 120, maxWidth: 390, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }, playerError: { fontFamily: FONT.body, color: desktop.danger, fontSize: 10, maxWidth: 220 },
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 16 }, volumeHit: { width: 90, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, volumeTrack: { height: 4, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, volumeFill: { height: 4, backgroundColor: '#A09DA9', borderRadius: 2 },
 
   socialTabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: desktop.border, marginHorizontal: 38, marginBottom: 12 },
@@ -1802,21 +2053,24 @@ const styles = StyleSheet.create({
   // Tudo sai dos tokens. O que substitui: raios de 12, 18 e 20, superficies
   // marteladas fora da paleta (#101016, #14141d, rgba(255,255,255,.02)),
   // fontes de 9, 10, 12, 16 e 22 px e pesos 500/600/700/800.
-  npGrelha: { flexDirection: 'row', alignItems: 'flex-start', gap: ESP.xxxl, paddingTop: ESP.sm },
+  npGrelha: { flexDirection: 'row', alignItems: 'flex-start', gap: 64, paddingTop: ESP.sm, paddingBottom: ESP.xxl },
   npLado: { flexShrink: 0 },
-  npTitulo: { ...TIPO.titulo, color: COR.texto, lineHeight: 28 },
-  npArtista: { ...TIPO.corpo, color: COR.textoMedio, marginTop: ESP.xs },
-  npAcoes: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginTop: ESP.md },
-  npFonte: { flexDirection: 'row', alignItems: 'center', gap: ESP.xs, height: 24, paddingHorizontal: ESP.sm, borderRadius: RAIO.pilula, borderWidth: 1, borderColor: COR.linhaSuave },
-  npFonteTexto: { ...TIPO.micro, color: COR.textoFraco },
-  npDuracao: { ...TIPO.numero, color: COR.textoFraco, marginLeft: 'auto' as any },
-  // Painel OPACO: com o fundo ja calmo, a transparencia deixou de ser precisa
-  // — e um `backdrop-filter` a recompor a cada repaint custa GPU numa app que
-  // fica horas aberta.
-  npFila: { flex: 1, minWidth: 300, backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linhaSuave, borderRadius: RAIO.cartao, paddingVertical: ESP.sm },
-  npFilaCabeca: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: ESP.md, paddingVertical: ESP.md, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
+  npArtworkFrame: { borderRadius: RAIO.superficie, borderWidth: 1, borderColor: 'rgba(233,234,238,.14)', boxShadow: '0 26px 70px rgba(0,0,0,.46), 0 1px 0 rgba(255,255,255,.06)' } as any,
+  npVisualControls: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: ESP.sm, marginTop: ESP.md },
+  npVisualGroup: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  npVisualDivider: { width: 1, height: 18, backgroundColor: COR.linha, marginHorizontal: ESP.xs },
+  npVisualOption: { minHeight: 28, paddingHorizontal: ESP.sm, borderRadius: RAIO.pilula, alignItems: 'center', justifyContent: 'center' },
+  npVisualOptionActive: { backgroundColor: COR.metalSuave },
+  npVisualOptionText: { ...TIPO.micro, color: COR.textoFraco, textTransform: 'capitalize' },
+  npVisualOptionTextActive: { color: COR.texto },
+  npTitleRow: { flexDirection: 'row', alignItems: 'center', gap: ESP.lg, marginTop: ESP.xl, paddingHorizontal: ESP.xs },
+  npTitulo: { fontFamily: FONT.display, color: COR.texto, fontSize: 28, fontWeight: '700' as any, letterSpacing: -.45, lineHeight: 34, flex: 1 },
+  // A fila e uma coluna editorial aberta, nao outra caixa dentro da pagina.
+  // As linhas e o destaque da proxima faixa chegam para lhe dar estrutura.
+  npFila: { flex: 1, minWidth: 300 },
+  npFilaCabeca: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: ESP.sm, paddingBottom: ESP.md, borderBottomWidth: 1, borderBottomColor: COR.linha },
+  npFilaHeading: { ...TIPO.titulo, color: COR.texto, marginTop: 2 },
   npFilaContagem: { ...TIPO.numero, color: COR.textoFraco },
-  npFilaTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any },
-  npFilaArtista: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 2 },
-  npFilaVazia: { ...TIPO.legenda, color: COR.textoFraco, textAlign: 'center', paddingVertical: ESP.lg },
+  npFilaTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '550' as any },
+  npFilaVazia: { ...TIPO.legenda, color: COR.textoFraco, textAlign: 'center', paddingVertical: ESP.xl, borderTopWidth: 1, borderTopColor: COR.linhaSuave },
 });

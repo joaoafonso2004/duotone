@@ -73,6 +73,7 @@ export interface ProfilePlayEntry {
   artworkUrl: string | null;
   durationSeconds: number | null;
   count: number;
+  lastPlayed?: number;
 }
 
 export async function getProfileMostPlayed(limit = 20): Promise<ProfilePlayEntry[]> {
@@ -102,6 +103,7 @@ export async function getProfileRecentlyPlayed(limit = 10): Promise<ProfilePlayE
     artworkUrl: row.artwork_url,
     durationSeconds: row.duration_seconds,
     count: 1,
+    lastPlayed: row.last_played ? new Date(row.last_played).getTime() : undefined,
   }));
 }
 

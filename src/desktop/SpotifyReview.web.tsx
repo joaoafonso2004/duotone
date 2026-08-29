@@ -74,7 +74,7 @@ export function SpotifyReview({
             {current.row.artist} — {current.row.title}
           </Text>
           <Text style={s.meta}>
-            No Spotify: {formatTime((current.row.durationMs ?? 0) / 1000)}
+            On Spotify: {formatTime((current.row.durationMs ?? 0) / 1000)}
             {current.row.album ? ` · ${current.row.album}` : ''}
           </Text>
         </View>
@@ -88,7 +88,7 @@ export function SpotifyReview({
       </View>
 
       {/* Candidatos */}
-      <Text style={s.label}>QUAL É A CERTA?</Text>
+      <Text style={s.label}>WHICH ONE IS CORRECT?</Text>
       <View style={s.options}>
         {options.map(({ track, chosen }) => {
           const picked =
@@ -123,11 +123,11 @@ export function SpotifyReview({
                 </Text>
                 <Text numberOfLines={1} style={s.optionMeta}>
                   {track.artist ?? '—'} · {formatTime(track.durationSeconds)}
-                  {delta != null && delta <= 2 ? '  · duração igual' : ''}
-                  {delta != null && delta > 15 ? `  · ${Math.round(delta)}s de diferença` : ''}
+                  {delta != null && delta <= 2 ? '  · same duration' : ''}
+                  {delta != null && delta > 15 ? `  · ${Math.round(delta)}s difference` : ''}
                 </Text>
               </View>
-              {chosen && <Text style={s.badge}>sugerida</Text>}
+              {chosen && <Text style={s.badge}>suggested</Text>}
             </Pressable>
           );
         })}
@@ -136,7 +136,7 @@ export function SpotifyReview({
       {/* Ações */}
       <View style={s.actions}>
         <Button secondary icon="close" onPress={() => decide({ kind: 'skip' })}>
-          Nenhuma destas
+          None of these
         </Button>
         <View style={{ flex: 1 }} />
         <Button
@@ -145,7 +145,7 @@ export function SpotifyReview({
           onPress={() => setIndex(Math.max(0, index - 1))}
           disabled={index === 0}
         >
-          Anterior
+          Previous
         </Button>
         <Button
           secondary
@@ -153,23 +153,23 @@ export function SpotifyReview({
           onPress={() => setIndex(Math.min(items.length - 1, index + 1))}
           disabled={index === items.length - 1}
         >
-          Seguinte
+          Next
         </Button>
       </View>
 
       <View style={s.footer}>
         <Text style={s.meta}>
-          {accepted.length} de {items.length} vão ser adicionadas.
+          {accepted.length} of {items.length} will be added.
           {decided < items.length
-            ? ` As ${items.length - decided} que não revires entram com a sugestão.`
+            ? ` The ${items.length - decided} you do not review will use the suggestion.`
             : ''}
         </Text>
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <Button secondary onPress={onCancel}>
-            Voltar
+            Back
           </Button>
           <Button onPress={() => onDone(accepted)} disabled={!accepted.length}>
-            Adicionar {accepted.length}
+            Add {accepted.length}
           </Button>
         </View>
       </View>

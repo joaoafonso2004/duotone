@@ -136,10 +136,7 @@ export async function clearLibrary(): Promise<void> {
   if (error) throw error;
 }
 
-export async function getLibrary(): Promise<Track[]> {
-  const userId = await currentUserId();
-
-  // 1. Fetch library tracks (ordered by added_at desc)
+async function getLikedSongsForUser(userId: string): Promise<Track[]> {
   const { data: libData, error: libError } = await supabase
     .from('library_tracks')
     .select('added_at, tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds)')
@@ -148,7 +145,24 @@ export async function getLibrary(): Promise<Track[]> {
 
   if (libError) throw libError;
 
-  // 2. Fetch tracks from all playlists created by this user
+  return (libData ?? [])
+    .map((row: any) => row.tracks)
+    .filter(Boolean)
+    .map(rowToTrack);
+}
+
+/** Apenas as faixas que o utilizador guardou com o coracao. */
+export async function getLikedSongs(): Promise<Track[]> {
+  return getLikedSongsForUser(await currentUserId());
+}
+
+export async function getLibrary(): Promise<Track[]> {
+  const userId = await currentUserId();
+
+  // A biblioteca alargada alimenta artistas e radio: gostos + conteudo de
+  // playlists. A pagina Songs usa getLikedSongs para nao misturar os dois.
+  const likedTracks = await getLikedSongsForUser(userId);
+
   const { data: plTracksData, error: plTracksError } = await supabase
     .from('playlist_tracks')
     .select('tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds), playlists!inner (owner_id)')
@@ -158,15 +172,10 @@ export async function getLibrary(): Promise<Track[]> {
 
   const tracksMap = new Map<string, Track>();
 
-  // Add library tracks first to maintain order
-  if (libData) {
-    for (const row of libData) {
-      if (row.tracks) {
-        const track = rowToTrack(row.tracks);
-        const key = `${track.source}:${track.sourceId}`;
-        tracksMap.set(key, track);
-      }
-    }
+  // Os likes entram primeiro para preservar a ordem de adicao.
+  for (const track of likedTracks) {
+    const key = `${track.source}:${track.sourceId}`;
+    tracksMap.set(key, track);
   }
 
   // Add playlist tracks next (only if not already in map)
