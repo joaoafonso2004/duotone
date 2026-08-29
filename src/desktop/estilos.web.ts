@@ -64,16 +64,56 @@ export const styles = StyleSheet.create({
   player: { height: 80, backgroundColor: COR.painel, borderRadius: RAIO.superficie, borderWidth: 1, borderColor: COR.linhaSuave, marginLeft: ESP.sm, marginRight: ESP.sm, marginTop: ESP.xs, marginBottom: ESP.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, zIndex: 25 }, playerTrack: { width: '30%', minWidth: 210, maxWidth: 390, flexDirection: 'row', alignItems: 'center', gap: ESP.xs }, playerTrackLink: { maxWidth: 'calc(100% - 42px)' as any, minWidth: 0, flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: ESP.md }, playerSave: { flexShrink: 0 }, playerTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' as any, minWidth: 0, flexShrink: 1 }, playerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', maxWidth: 760 }, playerControls: { flexDirection: 'row', alignItems: 'center', gap: 6 }, playButton: { width: 35, height: 35, borderRadius: 18, backgroundColor: desktop.text, alignItems: 'center', justifyContent: 'center', marginHorizontal: 5 }, progressRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 3 }, timeText: { ...TIPO.numero, width: 42, color: COR.textoFraco, fontSize: 11, textAlign: 'center' }, progressHit: { flex: 1, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, progressTrack: { height: 3, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, progressFill: { height: 3, backgroundColor: desktop.text, borderRadius: 2 }, playerRight: { width: '30%', minWidth: 120, maxWidth: 390, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }, playerError: { fontFamily: FONT.body, color: desktop.danger, fontSize: 10, maxWidth: 220 },
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 16 }, volumeHit: { width: 90, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, volumeTrack: { height: 4, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, volumeFill: { height: 4, backgroundColor: '#A09DA9', borderRadius: 2 },
 
-  socialTabBar: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: desktop.border, marginHorizontal: 38, marginBottom: 12 },
-  socialTab: { paddingVertical: 10, paddingHorizontal: 16, borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  socialTabText: { fontFamily: FONT.body, color: desktop.muted, fontSize: 13, fontWeight: '600' },
-  inboxCard: { backgroundColor: desktop.panel, borderWidth: 1, borderColor: desktop.border, borderRadius: 10, padding: 14, marginHorizontal: 38 },
-  inboxCardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  inboxSender: { fontFamily: FONT.body, color: desktop.muted, fontSize: 11, fontWeight: '600' },
-  inboxTrack: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 8, backgroundColor: desktop.raised, borderRadius: 8 },
-  inboxMessageBubble: { marginTop: 8, padding: 10, backgroundColor: desktop.hover, borderRadius: 8 },
-  inboxMessageText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, lineHeight: 17 },
-  friendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 14, backgroundColor: desktop.panel, borderWidth: 1, borderColor: desktop.border, borderRadius: 9, marginHorizontal: 38 },
+  // ---------------------------------------------------------------- social --
+  // Estava fora do sistema: raios de 7, 8, 9 e 10 (a escala e 4/8/14/999),
+  // letras de 10 a 13 px com peso 600, `marginHorizontal: 38` a martelo
+  // enquanto o resto da app respira a 48, e o roxo do tema como destaque.
+  // Pior, caixas dentro de caixas: um cartao com uma superficie elevada la
+  // dentro e uma terceira para a mensagem.
+  //
+  // Passa a ser o que as outras paginas ja sao: listas abertas separadas por
+  // fios, alinhadas a mesma margem, com a luz como destaque em vez de cor.
+  socialTabBar: { flexDirection: 'row', gap: ESP.xl, paddingHorizontal: ESP.xxxl, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
+  socialTab: { paddingVertical: ESP.md, borderBottomWidth: 2, borderBottomColor: 'transparent', flexDirection: 'row', alignItems: 'center', gap: ESP.sm },
+  socialTabAtivo: { borderBottomColor: COR.texto },
+  socialTabText: { ...TIPO.corpo, color: COR.textoFraco, fontWeight: '550' as any },
+  socialTabTextAtivo: { color: COR.texto },
+  /** As contagens em mono, como todos os numeros da app. */
+  socialTabConta: { ...TIPO.numero, color: COR.textoFraco },
+
+  /** Uma so densidade para amigos, pedidos, perfis e itens da caixa. */
+  socialLinha: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingVertical: ESP.md, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
+  socialLinhaHover: { backgroundColor: COR.hover },
+  socialNome: { ...TIPO.corpo, color: COR.texto, fontWeight: '550' as any },
+  socialUtilizador: { ...TIPO.legenda, color: COR.textoFraco, marginTop: 1 },
+  socialEstado: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 3 },
+  socialAcoes: { flexDirection: 'row', alignItems: 'center', gap: ESP.xs },
+  /** Etiqueta discreta para estados sem accao ("Friend", "Requested"). */
+  socialEtiqueta: { ...TIPO.micro, color: COR.textoFraco },
+
+  // --- caixa de entrada ---
+  socialRemetente: { ...TIPO.micro, color: COR.textoFraco },
+  socialItem: { paddingVertical: ESP.lg, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
+  socialItemCabeca: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: ESP.md },
+  socialPartilha: { flexDirection: 'row', alignItems: 'center', gap: ESP.md },
+  socialPartilhaTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '550' as any },
+  socialPartilhaNota: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 2 },
+  /** A mensagem e uma citacao, nao mais uma caixa: um fio a esquerda chega. */
+  socialMensagem: { ...TIPO.legenda, color: COR.textoMedio, lineHeight: 19, borderLeftWidth: 2, borderLeftColor: COR.linha, paddingLeft: ESP.md, marginTop: ESP.md },
+  // --- conversa ---
+  // As bolhas eram roxas (o `theme.color`) e obrigavam a calcular se o texto
+  // por cima devia ser preto ou branco. Passam a falar a mesma lingua do botao
+  // primario: a minha e LUZ com texto escuro, a dele e uma superficie elevada.
+  // Some o calculo de contraste e some o roxo.
+  socialBolha: { padding: ESP.md, borderRadius: RAIO.cartao },
+  socialBolhaMinha: { backgroundColor: COR.metalClaro, borderBottomRightRadius: RAIO.ctrl },
+  socialBolhaDele: { backgroundColor: COR.elevado, borderBottomLeftRadius: RAIO.ctrl },
+  socialBolhaTexto: { ...TIPO.legenda, lineHeight: 18 },
+  socialBolhaMeta: { ...TIPO.micro, color: COR.textoFraco },
+  socialFaixaNaBolha: { flexDirection: 'row', alignItems: 'center', gap: ESP.sm, padding: ESP.xs, borderRadius: RAIO.ctrl },
+  socialSemMensagens: { ...TIPO.legenda, color: COR.textoFraco, textAlign: 'center', marginVertical: 60 },
+  socialIconeCaixa: { width: 44, height: 44, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado, alignItems: 'center', justifyContent: 'center' },
+
   // ------------------------------------------------------------ now playing --
   // Tudo sai dos tokens. O que substitui: raios de 12, 18 e 20, superficies
   // marteladas fora da paleta (#101016, #14141d, rgba(255,255,255,.02)),

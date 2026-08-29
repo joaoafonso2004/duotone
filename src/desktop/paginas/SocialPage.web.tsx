@@ -14,14 +14,16 @@ import {
 import { importSharedPlaylist } from '../../api/playlists';
 import { FriendAvatar } from '../../components/FriendAvatar';
 import { displayArtist } from '../../lib/artistName';
-import { useTheme } from '../../state/theme';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
-import { COR, RAIO, TIPO } from '../tokens.web';
+import { COR, ESP, RAIO, TIPO } from '../tokens.web';
 import {
   Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field,
-  IconButton, Loading, Page, } from '../ui.web';
-import { getContrastTextColor, relativeTime } from './comum.web';
+  IconButton, Loading, Page, ui,
+} from '../ui.web';
+import { relativeTime } from './comum.web';
+
+const P = Pressable as any;
 
 
 export function SocialPage({ notify, play, more }: { notify: (s: string) => void; play: (t: Track, q?: Track[]) => void; more: (t: Track) => void }) {
@@ -32,7 +34,6 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [importingShared, setImportingShared] = useState<string | null>(null);
-  const theme = useTheme((s) => s.theme);
 
   // Chat states
   const [activeChatFriend, setActiveChatFriend] = useState<Friendship | null>(null);
@@ -178,20 +179,20 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
 
   return (
     <Page title="Social" subtitle="Connect and share music with friends.">
+      {/* Os separadores alinham com a margem do resto da pagina (48) e o
+          activo marca-se com LUZ, nao com o roxo do tema — a identidade da app
+          e o metal, e a cor fica reservada a significado. */}
       <View style={styles.socialTabBar}>
-        <Pressable onPress={() => setActiveTab('inbox')} style={[styles.socialTab, activeTab === 'inbox' && { borderBottomColor: theme.color }]}>
-          <Text style={[styles.socialTabText, activeTab === 'inbox' && { color: desktop.text }]}>
-            Inbox {inbox.length > 0 && `(${inbox.length})`}
-          </Text>
-        </Pressable>
-        <Pressable onPress={() => setActiveTab('friends')} style={[styles.socialTab, activeTab === 'friends' && { borderBottomColor: theme.color }]}>
-          <Text style={[styles.socialTabText, activeTab === 'friends' && { color: desktop.text }]}>
-            Friends {activeFriends.length > 0 && `(${activeFriends.length})`}
-          </Text>
-        </Pressable>
-        <Pressable onPress={() => setActiveTab('add')} style={[styles.socialTab, activeTab === 'add' && { borderBottomColor: theme.color }]}>
-          <Text style={[styles.socialTabText, activeTab === 'add' && { color: desktop.text }]}>Find Profiles</Text>
-        </Pressable>
+        {([
+          ['inbox', 'Inbox', inbox.length],
+          ['friends', 'Friends', activeFriends.length],
+          ['add', 'Find profiles', 0],
+        ] as const).map(([id, rotulo, conta]) => (
+          <Pressable key={id} onPress={() => setActiveTab(id)} style={[styles.socialTab, activeTab === id && styles.socialTabAtivo]}>
+            <Text style={[styles.socialTabText, activeTab === id && styles.socialTabTextAtivo]}>{rotulo}</Text>
+            {conta > 0 && <Text style={styles.socialTabConta}>{conta}</Text>}
+          </Pressable>
+        ))}
       </View>
 
       <ContentScroll>
@@ -199,40 +200,40 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
         {loading && !inbox.length && !friendships.length && <Loading />}
 
         {activeTab === 'inbox' && (
-          <View style={{ gap: 12 }}>
+          <View>
             {inbox.map((item) => (
-              <View key={item.id} style={styles.inboxCard}>
-                <View style={styles.inboxCardHeader}>
-                  <Text style={styles.inboxSender}>{item.sender.name} (@{item.sender.username}) shared:</Text>
+              <View key={item.id} style={styles.socialItem}>
+                <View style={styles.socialItemCabeca}>
+                  <Text style={styles.socialRemetente}>{item.sender.name} · @{item.sender.username}</Text>
                   <IconButton name="archive-outline" label="Archive message" onPress={() => archiveItem(item.id)} />
                 </View>
                 {item.trackData && (
-                  <Pressable onPress={() => play(item.trackData!)} style={styles.inboxTrack}>
-                    <Artwork track={item.trackData} size={40} />
+                  <P onPress={() => play(item.trackData!)} style={({ hovered }: any) => [styles.socialPartilha, hovered && { opacity: .82 }]}>
+                    <Artwork track={item.trackData} size={44} />
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 12, fontWeight: '600' }}>{item.trackData.title}</Text>
-                      <Text numberOfLines={1} style={{ color: desktop.dim, fontSize: 10, marginTop: 2 }}>{item.trackData.artist || 'YouTube'}</Text>
+                      <Text numberOfLines={1} style={styles.socialPartilhaTitulo}>{item.trackData.title}</Text>
+                      <Text numberOfLines={1} style={styles.socialPartilhaNota}>{displayArtist(item.trackData)}</Text>
                     </View>
-                    <Ionicons name="play-circle" size={24} color={theme.color} />
-                  </Pressable>
+                    <IconButton name="play" label="Play" onPress={() => play(item.trackData!)} />
+                  </P>
                 )}
                 {item.itemType === 'playlist' && item.playlistId && (
-                  <Pressable onPress={() => void importPlaylist(item.playlistId!)} style={styles.inboxTrack}>
-                    <View style={{ width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: desktop.raised }}>
-                      <Ionicons name="albums-outline" size={21} color={theme.color} />
+                  <P onPress={() => void importPlaylist(item.playlistId!)} style={({ hovered }: any) => [styles.socialPartilha, hovered && { opacity: .82 }]}>
+                    <View style={styles.socialIconeCaixa}>
+                      <Ionicons name="albums-outline" size={20} color={COR.textoMedio} />
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 12, fontWeight: '600' }}>Shared playlist</Text>
-                      <Text numberOfLines={1} style={{ color: desktop.dim, fontSize: 10, marginTop: 2 }}>Add a copy to your playlists</Text>
+                      <Text numberOfLines={1} style={styles.socialPartilhaTitulo}>Shared playlist</Text>
+                      <Text numberOfLines={1} style={styles.socialPartilhaNota}>Add a copy to your playlists</Text>
                     </View>
-                    <Ionicons name={importingShared === item.playlistId ? 'hourglass-outline' : 'download-outline'} size={20} color={theme.color} />
-                  </Pressable>
+                    <IconButton
+                      name={importingShared === item.playlistId ? 'hourglass-outline' : 'download-outline'}
+                      label="Import playlist"
+                      onPress={() => void importPlaylist(item.playlistId!)}
+                    />
+                  </P>
                 )}
-                {item.message && (
-                  <View style={styles.inboxMessageBubble}>
-                    <Text style={styles.inboxMessageText}>{item.message}</Text>
-                  </View>
-                )}
+                {item.message && <Text style={styles.socialMensagem}>{item.message}</Text>}
               </View>
             ))}
             {!inbox.length && !loading && <Empty icon="mail-outline" title="Inbox is empty" body="Shared tracks, playlists, and messages from your friends will appear here." />}
@@ -240,65 +241,65 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
         )}
 
         {activeTab === 'friends' && (
-          <View style={{ gap: 12 }}>
+          <View>
             {pendingRequests.length > 0 && (
-              <View style={{ marginBottom: 12 }}>
-                <Text style={styles.formLabel}>PENDING REQUESTS</Text>
-                <View style={{ gap: 6, marginTop: 8 }}>
-                  {pendingRequests.map((req) => (
-                    <View key={req.friendId} style={styles.friendRow}>
-                      <FriendAvatar avatarUrl={req.avatarUrl} name={req.name} size={34} />
-                      <View style={{ flex: 1, marginLeft: 11 }}>
-                        <Text style={{ color: desktop.text, fontSize: 13, fontWeight: '600' }}>{req.name}</Text>
-                        <Text style={{ color: desktop.dim, fontSize: 11 }}>@{req.username}</Text>
-                      </View>
-                      {req.isSender ? (
-                        <Text style={{ color: desktop.dim, fontSize: 11 }}>Request Sent</Text>
-                      ) : (
-                        <View style={{ flexDirection: 'row', gap: 6 }}>
-                          <Button onPress={() => handleAcceptRequest(req.friendId)}>Accept</Button>
-                          <IconButton name="close" label="Decline request" onPress={() => handleRemoveFriend(req.friendId)} />
-                        </View>
-                      )}
+              <>
+                <Text style={[ui.eyebrow, { marginTop: ESP.lg, marginBottom: ESP.xs }]}>PENDING REQUESTS</Text>
+                {pendingRequests.map((req) => (
+                  <View key={req.friendId} style={styles.socialLinha}>
+                    <FriendAvatar avatarUrl={req.avatarUrl} name={req.name} size={40} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text numberOfLines={1} style={styles.socialNome}>{req.name}</Text>
+                      <Text numberOfLines={1} style={styles.socialUtilizador}>@{req.username}</Text>
                     </View>
-                  ))}
-                </View>
-              </View>
+                    {req.isSender ? (
+                      <Text style={styles.socialEtiqueta}>REQUEST SENT</Text>
+                    ) : (
+                      <View style={styles.socialAcoes}>
+                        <Button onPress={() => handleAcceptRequest(req.friendId)}>Accept</Button>
+                        <IconButton name="close" label="Decline request" onPress={() => handleRemoveFriend(req.friendId)} />
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </>
             )}
 
-            <Text style={styles.formLabel}>ALL FRIENDS</Text>
+            {activeFriends.length > 0 && (
+              <Text style={[ui.eyebrow, { marginTop: ESP.xl, marginBottom: ESP.xs }]}>ALL FRIENDS</Text>
+            )}
             {activeFriends.map((f) => (
-              <View key={f.friendId} style={styles.friendRow}>
-                <FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={38} />
-                <View style={{ flex: 1, minWidth: 0, marginLeft: 11 }}>
-                  <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 13, fontWeight: '600' }}>{f.name} (@{f.username})</Text>
+              <View key={f.friendId} style={styles.socialLinha}>
+                <FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={40} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={styles.socialNome}>{f.name}</Text>
                   {f.currentlyPlaying ? (
                     // A capa em miniatura diz mais depressa o que ele esta a
                     // ouvir do que o titulo escrito — e e a unica cor que a
                     // linha precisa de ter.
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm, marginTop: 3 }}>
                       {f.currentlyPlaying.artworkUrl
-                        ? <Image source={{ uri: f.currentlyPlaying.artworkUrl }} style={{ width: 22, height: 22, borderRadius: RAIO.ctrl }} />
-                        : <Ionicons name="musical-notes" size={12} color={COR.textoMedio} />}
+                        ? <Image source={{ uri: f.currentlyPlaying.artworkUrl }} style={{ width: 20, height: 20, borderRadius: RAIO.ctrl }} />
+                        : <Ionicons name="musical-notes" size={12} color={COR.textoFraco} />}
                       <Text numberOfLines={1} style={{ ...TIPO.legenda, color: COR.textoMedio, flex: 1 }}>
                         {f.currentlyPlaying.title}
                       </Text>
                     </View>
                   ) : (
-                    // "Sem tocar" e "offline" são coisas diferentes: com o
-                    // filtro de presença, quem está online mas em pausa
-                    // apareceria como offline se olhássemos só para a faixa.
-                    <Text style={{ color: desktop.dim, fontSize: 11, marginTop: 3 }}>
+                    // "Sem tocar" e "offline" sao coisas diferentes: com o
+                    // filtro de presenca, quem esta online mas em pausa
+                    // apareceria como offline se olhassemos so para a faixa.
+                    <Text style={styles.socialEstado}>
                       {f.lastSeenAt && Date.now() - new Date(f.lastSeenAt).getTime() < 3 * 60 * 1000
                         ? 'Online'
                         : 'Offline'}
                     </Text>
                   )}
                 </View>
-                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <View style={styles.socialAcoes}>
                   {f.currentlyPlaying && (
-                    <Button onPress={() => play({ source: f.currentlyPlaying!.source as any, sourceId: f.currentlyPlaying!.sourceId, title: f.currentlyPlaying!.title, artist: f.currentlyPlaying!.artist, album: null, artworkUrl: f.currentlyPlaying!.artworkUrl, durationSeconds: f.currentlyPlaying!.durationSeconds })}>
-                      Listen Along
+                    <Button secondary onPress={() => play({ source: f.currentlyPlaying!.source as any, sourceId: f.currentlyPlaying!.sourceId, title: f.currentlyPlaying!.title, artist: f.currentlyPlaying!.artist, album: null, artworkUrl: f.currentlyPlaying!.artworkUrl, durationSeconds: f.currentlyPlaying!.durationSeconds })}>
+                      Listen along
                     </Button>
                   )}
                   <IconButton name="chatbubble-ellipses-outline" label="Chat" onPress={() => setActiveChatFriend(f)} />
@@ -313,37 +314,41 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
         )}
 
         {activeTab === 'add' && (
-          <View style={{ gap: 12 }}>
-            <View style={styles.searchBar}>
-              <Field icon="search" placeholder="Type username or name…" value={searchQuery} onChangeText={setSearchQuery} onSubmitEditing={runSearch} />
+          <View>
+            <View style={{ flexDirection: 'row', gap: ESP.md, marginTop: ESP.lg, marginBottom: ESP.sm }}>
+              {/* O `Field` dimensiona-se ao conteudo; sem este invólucro com
+                  flex ficava uma caixa estreita ao lado de um botao grande. */}
+              <View style={{ flex: 1, maxWidth: 420 }}>
+                <Field icon="search" placeholder="Type username or name…" value={searchQuery} onChangeText={setSearchQuery} onSubmitEditing={runSearch} />
+              </View>
               <Button onPress={runSearch}>Search</Button>
             </View>
-            <View style={{ gap: 8 }}>
-              {searchResults.map((p) => {
-                const friendship = friendships.find(f => f.friendId === p.id);
-                return (
-                  <View key={p.id} style={styles.friendRow}>
-                    <FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={34} />
-                    <View style={{ flex: 1, marginLeft: 11 }}>
-                      <Text style={{ color: desktop.text, fontSize: 13, fontWeight: '600' }}>{p.name || 'No name'}</Text>
-                      <Text style={{ color: desktop.dim, fontSize: 11 }}>@{p.username}</Text>
-                    </View>
-                    {friendship ? (
-                      friendship.status === 'accepted' ? (
-                        <Text style={{ color: desktop.dim, fontSize: 12 }}>Friend</Text>
-                      ) : friendship.isSender ? (
-                        <Text style={{ color: desktop.dim, fontSize: 12 }}>Requested</Text>
-                      ) : (
-                        <Button onPress={() => handleAcceptRequest(p.id)}>Accept Request</Button>
-                      )
-                    ) : (
-                      <Button onPress={() => handleAddFriend(p.id)}>Add Friend</Button>
-                    )}
+            {searchResults.map((p) => {
+              const friendship = friendships.find((f) => f.friendId === p.id);
+              return (
+                <View key={p.id} style={styles.socialLinha}>
+                  <FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={40} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={styles.socialNome}>{p.name || 'No name'}</Text>
+                    <Text numberOfLines={1} style={styles.socialUtilizador}>@{p.username}</Text>
                   </View>
-                );
-              })}
-              {!searchResults.length && !loading && searchQuery && <Empty icon="search-outline" title="No profiles found" body="Try searching for another name or username." />}
-            </View>
+                  {friendship ? (
+                    friendship.status === 'accepted' ? (
+                      <Text style={styles.socialEtiqueta}>FRIEND</Text>
+                    ) : friendship.isSender ? (
+                      <Text style={styles.socialEtiqueta}>REQUESTED</Text>
+                    ) : (
+                      <Button onPress={() => handleAcceptRequest(p.id)}>Accept request</Button>
+                    )
+                  ) : (
+                    <Button secondary onPress={() => handleAddFriend(p.id)}>Add friend</Button>
+                  )}
+                </View>
+              );
+            })}
+            {!searchResults.length && !loading && searchQuery.trim() !== '' && (
+              <Empty icon="search-outline" title="No profiles found" body={`Nothing matches "${searchQuery}". Try the exact username.`} />
+            )}
           </View>
         )}
         </View>
@@ -361,43 +366,44 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
               {chatLoading && chatMessages.length === 0 ? (
                 <Loading />
               ) : chatMessages.map((msg) => {
-                const isMe = msg.sender.id !== activeChatFriend.friendId;
-                const isDarkText = isMe && getContrastTextColor(theme.color) === '#0F0F14';
+                const minha = msg.sender.id !== activeChatFriend.friendId;
+                const corTexto = minha ? COR.fundo : COR.texto;
                 return (
-                  <View key={msg.id} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '80%', gap: 4 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: isMe ? 'flex-end' : 'flex-start' }}>
-                      {!isMe && <FriendAvatar avatarUrl={msg.sender.avatarUrl} name={msg.sender.name} size={18} />}
-                      <Text style={{ color: desktop.dim, fontSize: 9 }}>
-                        {isMe ? 'You' : msg.sender.name} • {relativeTime(new Date(msg.createdAt).getTime())}
+                  <View key={msg.id} style={{ alignSelf: minha ? 'flex-end' : 'flex-start', maxWidth: '80%', gap: ESP.xs }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm, alignSelf: minha ? 'flex-end' : 'flex-start' }}>
+                      {!minha && <FriendAvatar avatarUrl={msg.sender.avatarUrl} name={msg.sender.name} size={18} />}
+                      <Text style={styles.socialBolhaMeta}>
+                        {minha ? 'YOU' : msg.sender.name} · {relativeTime(new Date(msg.createdAt).getTime())}
                       </Text>
                     </View>
-                    <View style={{ 
-                      padding: 10, 
-                      borderRadius: 12, 
-                      backgroundColor: isMe ? theme.color : desktop.raised,
-                      borderBottomRightRadius: isMe ? 2 : 12,
-                      borderBottomLeftRadius: isMe ? 12 : 2
-                    }}>
+                    <View style={[styles.socialBolha, minha ? styles.socialBolhaMinha : styles.socialBolhaDele]}>
                       {msg.trackData && (
-                        <Pressable onPress={() => play(msg.trackData!)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: msg.message ? 8 : 0, backgroundColor: isMe ? (isDarkText ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.12)') : 'rgba(255,255,255,0.06)', padding: 6, borderRadius: 6 }}>
+                        <P
+                          onPress={() => play(msg.trackData!)}
+                          style={({ hovered }: any) => [
+                            styles.socialFaixaNaBolha,
+                            { backgroundColor: minha ? 'rgba(6,6,8,.07)' : COR.hover, marginBottom: msg.message ? ESP.sm : 0 },
+                            hovered && { opacity: .82 },
+                          ]}
+                        >
                           <Artwork track={msg.trackData} size={28} />
                           <View style={{ flex: 1, minWidth: 0 }}>
-                            <Text numberOfLines={1} style={{ color: isMe ? (isDarkText ? '#0F0F14' : '#FFF') : '#FFF', fontSize: 11, fontWeight: '600' }}>{msg.trackData.title}</Text>
-                            <Text numberOfLines={1} style={{ color: isMe ? (isDarkText ? 'rgba(15,15,20,0.65)' : 'rgba(255,255,255,0.65)') : 'rgba(255,255,255,0.65)', fontSize: 9 }}>{displayArtist(msg.trackData)}</Text>
+                            <Text numberOfLines={1} style={{ ...TIPO.legenda, color: corTexto, fontWeight: '550' as any }}>{msg.trackData.title}</Text>
+                            <Text numberOfLines={1} style={{ ...TIPO.micro, color: corTexto, opacity: .7 }}>{displayArtist(msg.trackData)}</Text>
                           </View>
-                          <Ionicons name="play-circle" size={18} color={isMe ? (isDarkText ? '#0F0F14' : '#FFF') : '#FFF'} />
-                        </Pressable>
+                          <Ionicons name="play" size={15} color={corTexto} />
+                        </P>
                       )}
                       {msg.message && (
-                        <Text style={{ color: isMe ? (isDarkText ? '#0F0F14' : '#FFF') : desktop.text, fontSize: 12, lineHeight: 16 }}>{msg.message}</Text>
+                        <Text style={[styles.socialBolhaTexto, { color: corTexto }]}>{msg.message}</Text>
                       )}
                     </View>
                   </View>
                 );
               })}
               {!chatMessages.length && !chatLoading && (
-                <Text style={{ color: desktop.dim, fontSize: 12, textAlign: 'center', marginVertical: 60, fontStyle: 'italic' }}>
-                  No messages. Say hello to {activeChatFriend.name}!
+                <Text style={styles.socialSemMensagens}>
+                  No messages yet. Say hello to {activeChatFriend.name}.
                 </Text>
               )}
             </ScrollView>
