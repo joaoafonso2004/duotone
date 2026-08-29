@@ -16,6 +16,7 @@ const KEY_SOUND_PRESET = 'pref:soundPreset';
 // Chave antiga, escrita à mão pelo ecrã de Definições antes de haver getter.
 const KEY_KEEP_AWAKE = 'pref:keepAwake';
 const KEY_NOTIFICATIONS = 'pref:notifications';
+const KEY_GLITCH_MODE = 'pref:glitchMode';
 
 export type YtViewMode = 'video' | 'photo';
 export type AudioQuality = 'high' | 'saver';
@@ -77,6 +78,25 @@ export async function getNotificationsEnabled(): Promise<boolean> {
 }
 export async function setNotificationsEnabled(v: boolean): Promise<void> {
   await setBool(KEY_NOTIFICATIONS, v);
+}
+
+/**
+ * Glitch equalizer do Now Playing (so no desktop).
+ *
+ * Tres estados e nao um interruptor porque os custos sao mesmo diferentes:
+ * `reactive` liga a captura de audio do frame do YouTube, `static` desenha a
+ * capa uma vez e nao volta a tocar no assunto, `off` nao monta canvas nenhum.
+ *
+ * **`off` TEM de parar a captura.** Continuar a analisar som que ninguem ve
+ * gasta CPU e mantem aberta uma permissao de captura sem motivo nenhum.
+ */
+export type GlitchMode = 'reactive' | 'static' | 'off';
+export async function getGlitchMode(): Promise<GlitchMode> {
+  const v = await AsyncStorage.getItem(KEY_GLITCH_MODE);
+  return v === 'static' || v === 'off' ? v : 'reactive';
+}
+export async function setGlitchMode(v: GlitchMode): Promise<void> {
+  await AsyncStorage.setItem(KEY_GLITCH_MODE, v);
 }
 
 export type SoundPreset = 'normal' | 'slowed' | 'fast';

@@ -177,6 +177,45 @@ Ouvir no telemóvel, abrir o PC e encontrar lá o tema. Peças: `lib/handoff.ts`
 - RLS em tudo; qualquer tabela/coluna nova precisa das políticas certas (ver a de UPDATE em inbox-archive.sql como exemplo do que falha silenciosamente sem elas: update de 0 linhas sem erro).
 - Token refresh está ligado ao ciclo de vida da app em App.tsx — não mexer sem ler o comentário.
 
+## Glitch equalizer (Now Playing do desktop)
+
+A capa a desfazer-se ao ritmo: `src/desktop/glitch/`. Substituiu QUATRO ideias
+que competiam no mesmo ecrã (Flow Focus, aura ambiente, brilho desfocado, capa
+rodada em 3D e barras de equalizador em CSS a fingir que reagiam).
+
+- **Fragment shader, nunca `getImageData`.** A referência é um pen do Joshua van
+  Boxtel, mas o código dele lê a tela inteira da GPU por fotograma — e outra vez
+  num ciclo por metade das linhas. É por isso que o autor só desenha a cada 4.º
+  fotograma. Aqui a capa entra como textura UMA VEZ POR FAIXA e por fotograma só
+  há uma escrita de uniform e um `drawArrays`. Medido: p95 de 6,2 ms.
+- **O som vem do Electron, não de um `<audio>`.** O player do desktop é o IFrame
+  oficial do YouTube. `getDisplayMedia` no renderer cai no
+  `setDisplayMediaRequestHandler` do `main.cjs`, que devolve o WebFrameMain do
+  YouTube em `audio` com `enableLocalEcho: true`. Medido num Electron real: a
+  captura arranca sem gesto do utilizador, com `webSecurity` LIGADA e sem PO
+  Token, e o `webContents.isCurrentlyAudible()` continua `true` — o som não é
+  silenciado. Capturar o frame da app também apanha o do iframe, por isso não há
+  corrida com a montagem do player.
+- **Duas cadeias de análise, nunca uma.** Visual com suavização; deteção com
+  `smoothingTimeConstant = 0` + passa-banda 100-200 Hz + RMS no domínio do tempo
+  + diferenças positivas + limiar adaptativo. A suavização do analyser é uma
+  média entre fotogramas: é ela que faria o efeito chegar depois da batida.
+  Medido contra um bombo de 120 BPM: 28 batidas em 28, intervalos 485-515 ms, e
+  50,6 ms de atraso ponta-a-ponta — dos quais 42 ms são a latência da placa de
+  som. Estes números vêm de um banco de ensaio em Electron, fora do repositório;
+  mexer nos limiares sem o refazer é afinar às cegas.
+- **Três estados, três coisas diferentes** (`pref:glitchMode`): reativo (canvas +
+  captura), estático (canvas com o glitch congelado, sem captura e sem rAF),
+  desligado (sem canvas). `prefers-reduced-motion` força estático. Desligar TEM
+  de parar a captura — e sair do ecrã conta.
+- **O `<canvas>` leva `key`.** Um canvas só tem um contexto WebGL em toda a vida
+  e o `destruir()` perde-o de propósito. Reaproveitar o elemento dava duas
+  falhas silenciosas: o `webglcontextlost` do contexto velho chegava ao ouvinte
+  do novo e marcava falha, e o `getContext` seguinte vinha nulo. O sintoma era a
+  capa cair para imagem simples ao mudar de faixa ou de modo.
+- A capa é recortada como `object-fit: cover` por uniforms (`uEscala`,
+  `uDeslocamento`): as miniaturas do YouTube são 16:9 e a moldura é quadrada.
+
 ## Definições
 
 - **Uma opção que não faz nada é pior do que não existir.** Antes de

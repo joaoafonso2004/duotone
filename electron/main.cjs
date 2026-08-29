@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, net, protocol, shell, Tray, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, net, protocol, session, shell, Tray, globalShortcut } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -64,6 +64,57 @@ function startLocalServer() {
   localServer.listen(SERVER_PORT, '127.0.0.1', () => {
     console.log(`Local production server listening on http://127.0.0.1:${SERVER_PORT}`);
   });
+}
+
+/**
+ * Captura do audio do YouTube — o que alimenta o glitch equalizer do
+ * Now Playing (src/desktop/glitch/).
+ *
+ * O player do desktop e o IFrame oficial do YouTube: o som nasce dentro de um
+ * frame de outra origem e nao ha `<audio>` nosso para ligar a um analyser. A
+ * unica via e o Electron.
+ *
+ * Quando o renderer chama `getDisplayMedia`, este handler responde com o
+ * WebFrameMain do YouTube no campo `audio` — captura SO daquele frame, nao do
+ * ecra nem do sistema — e com `enableLocalEcho: true`, que e o que mantem o
+ * som a sair pelas colunas enquanto e capturado. Sem PO Token e sem desligar a
+ * webSecurity.
+ *
+ * Nao se devolve `video`: o efeito precisa do sinal, nao de pixeis, e capturar
+ * imagem era trabalho de GPU para deitar fora.
+ */
+function frameDoYouTube(raiz) {
+  if (!raiz) return raiz;
+  try {
+    for (const frame of raiz.framesInSubtree || []) {
+      let anfitriao = '';
+      try { anfitriao = new URL(frame.url).hostname; } catch { continue; }
+      if (/(^|\.)(youtube|youtube-nocookie)\.com$/.test(anfitriao)) return frame;
+    }
+  } catch {}
+  // Sem iframe do YouTube (ainda nao ha faixa) o frame da propria app serve:
+  // a captura fica viva e passa a ter sinal assim que o player montar.
+  return raiz;
+}
+
+function configurarCaptura(ses) {
+  ses.setDisplayMediaRequestHandler((request, callback) => {
+    callback({ audio: frameDoYouTube(request.frame), enableLocalEcho: true });
+  }, { useSystemPicker: false });
+
+  // A app AUTO-APROVA o pedido de captura. E dito ao utilizador nas Definicoes
+  // (opcao "Album art glitch"), nao escondido — e desligar a opcao para a
+  // captura do lado do renderer.
+  //
+  // O resto e negado de proposito: sem handler o Electron concede quase tudo,
+  // e um leitor de musica nao tem nada que ver com geolocalizacao, MIDI, USB
+  // ou serie.
+  const PERMITIDAS = new Set([
+    'media', 'display-capture', 'fullscreen', 'notifications',
+    'clipboard-read', 'clipboard-sanitized-write',
+  ]);
+  ses.setPermissionRequestHandler((_conteudos, permissao, callback) => callback(PERMITIDAS.has(permissao)));
+  ses.setPermissionCheckHandler((_conteudos, permissao) => PERMITIDAS.has(permissao));
 }
 
 function sendWindowState(win) {
@@ -192,6 +243,7 @@ app.on('will-quit', () => {
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   if (!isDev) startLocalServer();
+  configurarCaptura(session.defaultSession);
 
   createWindow();
   createTray();
