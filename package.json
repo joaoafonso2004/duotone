@@ -17,7 +17,7 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test-mp4fixer.mjs && node scripts/test-artist-name.mjs && node --experimental-strip-types scripts/test-spotify-csv.ts && node --experimental-strip-types scripts/test-track-match.ts && node --experimental-strip-types scripts/test-search-query.ts && node --experimental-strip-types scripts/test-handoff.ts && node --experimental-strip-types scripts/test-player-lifecycle.ts && node --experimental-strip-types scripts/test-shuffle.ts && node --experimental-strip-types scripts/test-radio.ts && node --experimental-strip-types scripts/test-loudness.ts && node --experimental-strip-types scripts/test-listening-stats.ts && node --experimental-strip-types scripts/test-playback-diagnostics.ts"
+    "test": "node scripts/test-mp4fixer.mjs && node scripts/test-artist-name.mjs && node --experimental-strip-types scripts/test-spotify-csv.ts && node --experimental-strip-types scripts/test-track-match.ts && node --experimental-strip-types scripts/test-search-query.ts && node --experimental-strip-types scripts/test-handoff.ts && node --experimental-strip-types scripts/test-player-lifecycle.ts && node --experimental-strip-types scripts/test-shuffle.ts && node --experimental-strip-types scripts/test-radio.ts && node --experimental-strip-types scripts/test-loudness.ts && node --experimental-strip-types scripts/test-listening-stats.ts && node --experimental-strip-types scripts/test-playback-diagnostics.ts && node --experimental-strip-types scripts/test-player-queue.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

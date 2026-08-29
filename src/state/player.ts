@@ -15,6 +15,10 @@ import {
   restoredPlaybackState,
   type PlaybackControls,
 } from '../lib/playerLifecycle';
+import {
+  prazoDoTemporizador, restanteDoTemporizador, saltoAposFalha,
+  sessaoParaGuardar, substituicaoDe,
+} from '../lib/playerQueue';
 import type { Track } from '../types';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
@@ -284,42 +288,16 @@ export const usePlayer = create<PlayerState>()(
   replaceUnavailableTrack: (failedSourceId, replacement) => {
     let replaced = false;
     set((state) => {
-      if (!state.current || state.current.sourceId !== failedSourceId) return {};
-
-      // A copia e apenas uma nova fonte de audio. Manter titulo, capa e
-      // artista evita que a biblioteca pareca mudar de faixa a meio.
-      const playableReplacement: Track = {
-        ...state.current,
-        sourceId: replacement.sourceId,
-        durationSeconds: replacement.durationSeconds ?? state.current.durationSeconds,
-      };
-
-      const queue = state.queue.slice();
-      if (queue[state.queueIndex]?.sourceId === failedSourceId) {
-        queue[state.queueIndex] = playableReplacement;
-      }
-
-      // O shuffle guarda chaves de faixa. Substituir a chave no mesmo lugar
-      // preserva o percurso que o utilizador já estava a ouvir.
-      const failedKey = trackKey(state.current);
-      const replacementKey = trackKey(playableReplacement);
-      const seen = new Set<string>();
-      const shuffleOrder = state.shuffleOrder
-        .map((key) => key === failedKey ? replacementKey : key)
-        .filter((key) => {
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-
+      // A decisao vive em `lib/playerQueue.ts` e tem teste em Node puro: o que
+      // sobra aqui e so escrever o resultado na store.
+      const troca = substituicaoDe(state, failedSourceId, replacement, trackKey);
+      if (!troca) return {};
       replaced = true;
       return {
-        current: playableReplacement,
-        queue,
-        shuffleOrder,
+        ...troca,
         error: null,
         positionMs: 0,
-        durationMs: (playableReplacement.durationSeconds ?? 0) * 1000,
+        durationMs: (troca.current.durationSeconds ?? 0) * 1000,
         buffering: true,
         isPlaying: true,
         activeBackend: 'resolving' as const,
@@ -335,37 +313,24 @@ export const usePlayer = create<PlayerState>()(
     const state = get();
     if (!state.current || state.current.sourceId !== failedSourceId) return;
 
-    let target: Track | null = null;
-    if (state.shuffle && state.queue.length > 1) {
-      let order = state._ensureShuffleOrder();
-      let targetIndex = stepIndex(order, state.queue, state.queueIndex, 1);
-      if (targetIndex === null && state.repeatMode === 'all') {
-        order = shuffleKeys(state.queue, state.queueIndex);
-        set({ shuffleOrder: order });
-        targetIndex = stepIndex(order, state.queue, state.queueIndex, 1);
-      }
-      if (targetIndex !== null) target = state.queue[targetIndex];
-    } else if (state.queueIndex + 1 < state.queue.length) {
-      target = state.queue[state.queueIndex + 1];
-    } else if (state.repeatMode === 'all' && state.queue.length > 1) {
-      target = state.queue[0];
-    }
+    const { alvo, fila, ordem } = saltoAposFalha(
+      { ...state, shuffleOrder: state.shuffle ? state._ensureShuffleOrder() : state.shuffleOrder },
+      { trackKey, stepIndex, shuffleKeys },
+    );
+    if (ordem !== state.shuffleOrder) set({ shuffleOrder: ordem });
 
-    // Não deixar o vídeo morto na fila desta sessão: com repeat all voltaria
-    // a bloquear mais tarde. A biblioteca/playlist guardada não é alterada.
-    const queue = state.queue.filter((_, index) => index !== state.queueIndex);
-    if (target) {
-      await get().playTrack(target, queue);
+    if (alvo) {
+      await get().playTrack(alvo, fila);
       return;
     }
 
-    // Era a última faixa reproduzível. Terminar já, sem a chamada de rede do
-    // rádio automático que deixava “Skipping…” visível indefinidamente.
+    // Era a ultima faixa reproduzivel. Terminar ja, sem a chamada de rede do
+    // radio automatico que deixava "Skipping..." visivel indefinidamente.
     set({
       current: null,
-      queue,
+      queue: fila,
       queueIndex: 0,
-      shuffleOrder: state.shuffleOrder.filter((key) => key !== trackKey(state.current!)),
+      shuffleOrder: ordem,
       isPlaying: false,
       buffering: false,
       error: null,
@@ -716,14 +681,8 @@ export const usePlayer = create<PlayerState>()(
   _setBuffering: (v) => set({ buffering: v }),
 
   setSleepTimer: (minutes) => {
-    if (minutes <= 0) {
-      set({ sleepTimerEndsAt: null, sleepTimerTimeLeft: 0 });
-      return;
-    }
-    set({
-      sleepTimerEndsAt: Date.now() + minutes * 60_000,
-      sleepTimerTimeLeft: minutes * 60,
-    });
+    const { fimEm, restanteS } = prazoDoTemporizador(minutes, Date.now());
+    set({ sleepTimerEndsAt: fimEm, sleepTimerTimeLeft: restanteS });
   },
 
   tickSleepTimer: () => get().checkSleepTimer(),
@@ -731,9 +690,9 @@ export const usePlayer = create<PlayerState>()(
   checkSleepTimer: () => {
     const { sleepTimerEndsAt, sleepTimerTimeLeft } = get();
     if (!sleepTimerEndsAt) return;
-    const left = Math.max(0, Math.ceil((sleepTimerEndsAt - Date.now()) / 1000));
-    if (left !== sleepTimerTimeLeft) set({ sleepTimerTimeLeft: left });
-    if (left <= 0) {
+    const { restanteS, terminou } = restanteDoTemporizador(sleepTimerEndsAt, Date.now());
+    if (restanteS !== sleepTimerTimeLeft) set({ sleepTimerTimeLeft: restanteS });
+    if (terminou) {
       set({ sleepTimerEndsAt: null });
       get().pausePlayback();
     }
@@ -806,13 +765,7 @@ export const usePlayer = create<PlayerState>()(
       // Persistimos apenas o necessário para "continuar a ouvir" após a app
       // ser morta: faixa atual, fila e posição. Repeat/shuffle já vivem nas
       // prefs; o resto é estado transitório.
-      partialize: (s) => ({
-        current: s.current,
-        queue: s.queue,
-        queueIndex: s.queueIndex,
-        positionMs: s.positionMs,
-        durationMs: s.durationMs,
-      }),
+      partialize: sessaoParaGuardar,
       // No restauro, a sessão volta PAUSADA: o player prepara o áudio
       // (autoplayOnLoad=false) e retoma na posição guardada quando o
       // utilizador carregar em play.
