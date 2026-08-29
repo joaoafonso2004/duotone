@@ -2,6 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { searchYouTube } from '../api/youtube';
 import { pickBest } from '../lib/trackMatch';
 import { rememberPlaybackAlternative } from '../lib/playbackAlternatives';
+import {
+  classificar, mensagem as mensagemDaFalha, recuperacao, registar, type TipoFalha,
+} from '../lib/playbackDiagnostics';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 
@@ -27,7 +30,7 @@ function playbackNotice(message: string) {
   window.dispatchEvent(new CustomEvent('duotone:playback-notice', { detail: message }));
 }
 
-async function recoverUnavailableVideo(track: Track, code: number) {
+async function recoverUnavailableVideo(track: Track, tipo: TipoFalha) {
   const state = usePlayer.getState();
   const run = recoveryByVideoId.get(track.sourceId) ?? {
     original: track,
@@ -49,7 +52,9 @@ async function recoverUnavailableVideo(track: Track, code: number) {
   }
 
   state.setError(null);
-  playbackNotice('This upload is unavailable. Looking for the same track…');
+  // A frase diz a razao VERDADEIRA — "removido" e "bloqueado no teu pais" nao
+  // sao a mesma coisa para quem esta a ouvir, e ate aqui eram a mesma frase.
+  playbackNotice(mensagemDaFalha(tipo));
   state._setBuffering(true);
 
   try {
@@ -117,12 +122,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const watchdog = setTimeout(() => {
       if (disposed || started) return;
       state._setBuffering(false);
-      state.setError('Playback could not start.');
-      playbackNotice(
-        ready
-          ? 'This track did not start. Try again or play the next track.'
-          : 'Could not reach YouTube. Check your connection and try again.'
-      );
+      // Nunca arrancou: se nem o embed ficou pronto, o mais provável é a rede.
+      const tipo: TipoFalha = ready ? 'tempo-esgotado' : 'sem-rede';
+      registar({
+        quando: Date.now(),
+        videoId: track.sourceId,
+        titulo: track.title,
+        fase: 'watchdog',
+        tipo,
+        detalhe: `sem arranque em 15s (embed ${ready ? 'pronto' : 'nunca ficou pronto'})`,
+      });
+      state.setError(mensagemDaFalha(tipo));
+      playbackNotice(mensagemDaFalha(tipo));
     }, 15000);
 
     const mount = () => {
@@ -209,14 +220,24 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           onError: (event: any) => {
             // Códigos da IFrame API: 2 id inválido, 5 erro do player HTML5,
             // 100 vídeo removido/privado, 101/150 embed proibido pelo dono.
+            // São números e não texto, por isso classificam-se sem adivinhar.
             started = true;
             state._setBuffering(false);
             const code = Number(event?.data);
-            if (code === 2 || code === 100 || code === 101 || code === 150) {
-              void recoverUnavailableVideo(track, code);
+            const tipo = classificar({ codigoEmbed: Number.isFinite(code) ? code : null });
+            registar({
+              quando: Date.now(),
+              videoId: track.sourceId,
+              titulo: track.title,
+              fase: 'embed',
+              tipo,
+              detalhe: `iframe code=${code}`,
+            });
+            if (recuperacao(tipo).alternativa) {
+              void recoverUnavailableVideo(track, tipo);
             } else {
-              state.setError('This track could not be played.');
-              playbackNotice('Playback failed. Try another track or check your connection.');
+              state.setError(mensagemDaFalha(tipo));
+              playbackNotice(mensagemDaFalha(tipo));
             }
           },
         },
@@ -238,8 +259,16 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           if (disposed) return;
           started = true;
           state._setBuffering(false);
-          state.setError('Playback could not start.');
-          playbackNotice('Could not reach YouTube. Check your connection and try again.');
+          registar({
+            quando: Date.now(),
+            videoId: track.sourceId,
+            titulo: track.title,
+            fase: 'iframe-api',
+            tipo: 'sem-rede',
+            detalhe: 'o script iframe_api nao carregou (rede ou firewall)',
+          });
+          state.setError(mensagemDaFalha('sem-rede'));
+          playbackNotice(mensagemDaFalha('sem-rede'));
         };
         document.head.appendChild(script);
       }

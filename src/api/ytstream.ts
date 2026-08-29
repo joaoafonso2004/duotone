@@ -73,6 +73,7 @@
 import { fetchGvsPoToken } from './potProvider';
 import { readLoudnessDb } from '../lib/loudness';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { classificar, consolidar, sinalDoErro, type TipoFalha } from '../lib/playbackDiagnostics';
 
 const PLAYER_ENDPOINT = 'https://www.youtube.com/youtubei/v1/player';
 const VISITOR_ENDPOINT = 'https://www.youtube.com/youtubei/v1/visitor_id';
@@ -214,7 +215,12 @@ export function streamFromPlayerResponse(
 ): YtStream {
   const status = data?.playabilityStatus?.status;
   if (status && status !== 'OK') {
-    throw new Error(data?.playabilityStatus?.reason || `Not playable (${status})`);
+    // O `reason` vem LOCALIZADO — com a app em portugues nenhuma regex em
+    // ingles o apanhava, e a falha acabava classificada como problema de rede.
+    // O `status` nao e traduzido: vai pendurado no erro e e ele que manda.
+    const erro: any = new Error(data?.playabilityStatus?.reason || `Not playable (${status})`);
+    erro.statusPlayability = status;
+    throw erro;
   }
 
   const sd = data?.streamingData;
@@ -373,7 +379,11 @@ async function requestPlayer(
 
   const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
 
-  if (!res.ok) throw new Error(`InnerTube HTTP ${res.status} (${client.clientName})`);
+  if (!res.ok) {
+    const erro: any = new Error(`InnerTube HTTP ${res.status} (${client.clientName})`);
+    erro.http = res.status;
+    throw erro;
+  }
   return res.json();
 }
 
@@ -446,6 +456,11 @@ export async function resolveYouTubeStream(
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
 
   const errors: string[] = [];
+  // O `catch` da cascata so guardava a MENSAGEM de cada cliente e toda a
+  // estrutura morria ai. Sem isto, quatro 403 e quatro UNPLAYABLE acabavam na
+  // mesma string, e a app nao sabia se havia de saltar a faixa ou cair no
+  // embed — sao caminhos opostos.
+  const tipos: TipoFalha[] = [];
 
   // visitorData reduz o "Sign in to confirm you're not a bot" que o ANDROID_VR
   // apanha em IPs marcados (ex.: 4G partilhado). Obtido uma vez por sessão.
@@ -491,7 +506,9 @@ export async function resolveYouTubeStream(
         }
         const status = await probeMediaUrl(stream.url);
         if (status !== 200 && status !== 206) {
-          throw new Error(`CDN rejected the URL (HTTP ${status})`);
+          const erro: any = new Error(`CDN rejected the URL (HTTP ${status})`);
+          erro.http = status;
+          throw erro;
         }
       }
       stream.client = client.clientName + (visitorData ? '+vd' : '');
@@ -500,6 +517,7 @@ export async function resolveYouTubeStream(
       return stream;
     } catch (e: any) {
       errors.push(`${client.clientName}: ${e?.message ?? String(e)}`);
+      tipos.push(classificar(sinalDoErro(e)));
     }
   }
 
@@ -516,11 +534,17 @@ export async function resolveYouTubeStream(
     // parede de texto repetido que nao dizia nada ao utilizador. Se TODOS
     // falharam por falta de ligacao, e so isso que ha para dizer.
     const semRede = todos.every((m) => /offline|network|Load failed|fetch failed/i.test(m));
-    throw new Error(
+    const erro: any = new Error(
       semRede
         ? 'Sem ligacao a internet (e esta faixa nao esta descarregada)'
         : `todos os clientes falharam: ${todos.join(' | ')}`
     );
+    // O veredito de TODA a cascata, ja decidido aqui: uma falha do VIDEO
+    // (removido, idade) ganha a uma de TRANSPORTE (403), porque nenhum outro
+    // caminho a resolve. Quem apanha o erro le isto em vez de reinterpretar a
+    // string.
+    erro.tipoConsolidado = consolidar([...tipos, classificar(sinalDoErro(e))]);
+    throw erro;
   });
   const stream = streamFromPlayerResponse(data, quality);
   stream.client = 'IOS';

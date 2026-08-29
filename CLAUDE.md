@@ -216,6 +216,39 @@ rodada em 3D e barras de equalizador em CSS a fingir que reagiam).
 - A capa é recortada como `object-fit: cover` por uniforms (`uEscala`,
   `uDeslocamento`): as miniaturas do YouTube são 16:9 e a moldura é quadrada.
 
+## Diagnóstico de reprodução
+
+`src/lib/playbackDiagnostics.ts` (lógica pura, testada em
+`scripts/test-playback-diagnostics.ts`). Três peças: classificar a falha,
+decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
+
+- **O tipo da falha NÃO se adivinha por regex sobre a mensagem.** Era o que
+  estava lá (`/not playable|unavailable|private|removed|age|sign in/i`) e é um
+  bug a sério: a mensagem vem quase sempre do `playabilityStatus.reason`, que
+  o YouTube devolve **localizado**. Com a app em português a regex não apanhava
+  nada, um vídeo removido era classificado como problema de rede e caía no
+  embed — que também não o ia tocar. Agora manda o SINAL ESTRUTURADO: código da
+  IFrame API (2/5/100/101/150), `playabilityStatus.status`, código HTTP. O
+  texto é o último recurso, e a lista reconhece PT e EN.
+- O `ytstream.ts` pendura `statusPlayability` e `http` nos `Error` que atira, e
+  o `resolveYtStream` guarda o tipo de CADA cliente da cascata: sem isso a
+  estrutura morria no `catch` e quatro 403 ficavam indistinguíveis de quatro
+  UNPLAYABLE — que são caminhos opostos (um vai ao embed, o outro salta).
+  `consolidar()` decide: uma falha do VÍDEO ganha a uma de TRANSPORTE, porque
+  nenhum outro caminho ressuscita um vídeo removido.
+- **`sem-rede` não salta nada.** Saltar percorria a fila toda em segundos e
+  deixava o utilizador sem música E sem fila. Também não vale a pena cair no
+  embed, que precisa de rede na mesma.
+- **A mensagem ao utilizador não leva jargão.** O `[build ...] YouTube
+  [client=ANDROID_VR (fell back: ...)] [pot=no (...)]` ia para o `player.error`,
+  que a barra do leitor mostra a 10 px em 220 px — chegava truncado e não
+  dizia nada. Esse detalhe vive agora no relatório. O teste falha se alguma
+  mensagem passar dos 64 caracteres ou trouxer build/cliente/PO Token.
+- O relatório é um anel de 60 eventos em memória, exportável em Definições →
+  *Playback diagnostics*. Existe porque o detalhe técnico ia todo para
+  `console.warn`, que num `.ipa` ou num `.exe` instalado não é lido por
+  ninguém. **Só há exportação no desktop** — no telemóvel ainda falta.
+
 ## Definições
 
 - **Uma opção que não faz nada é pior do que não existir.** Antes de

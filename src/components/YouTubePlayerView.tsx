@@ -10,6 +10,10 @@ import { getAudioQuality } from '../lib/prefs';
 import { targetVolume } from '../lib/loudness';
 import { getLoudnessDb, rememberLoudnessDb } from '../lib/loudnessCache';
 import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED } from '../lib/youtubeCache';
+import {
+  classificar, mensagem as mensagemDaFalha, recuperacao, registar,
+  sinalDoErro, type TipoFalha,
+} from '../lib/playbackDiagnostics';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 import { type HarvestResult } from './YtStreamHarvester';
@@ -400,30 +404,53 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         const errMsg = e?.message ?? 'unknown';
         setDownloadProgress(null);
         if (errMsg === DOWNLOAD_ABORTED) return; // cancelamento silencioso, não é erro
-        // Se o vídeo não é reproduzível (removido, privado, região, etc.),
-        // avançar para a próxima faixa em vez de cair no embed (que também
-        // não vai conseguir tocar). Deteção: o InnerTube devolve um status
-        // explícito no playabilityStatus (ver ytstream.ts streamFromPlayerResponse).
-        const isNotPlayable = /not playable|unavailable|private|removed|age|sign in|copyright|deleted/i.test(errMsg);
-        if (isNotPlayable) {
-          console.warn(`[YouTubePlayer] Vídeo indisponível (${errMsg}), a remover da sessão e saltar.`);
-          if (!endedRef.current) {
-            endedRef.current = true;
-            void skipUnavailableTrack(track.sourceId);
-          }
-          return;
-        }
-        // Erro de rede/download — tentar o embed como fallback.
+
+        // O tipo da falha deixou de ser adivinhado por regex sobre a mensagem.
+        // Isso era um bug a sério: a mensagem vinha muitas vezes do
+        // `playabilityStatus.reason`, que o YouTube devolve LOCALIZADO — com a
+        // app em português a regex em inglês não apanhava nada, e um vídeo
+        // removido acabava classificado como problema de rede e caía no embed,
+        // que também não o ia tocar. Agora manda o sinal estruturado, e quando
+        // a cascata inteira falhou o veredito já vem decidido do resolver.
+        const tipo: TipoFalha = e?.tipoConsolidado ?? classificar(sinalDoErro(e));
+
+        // O detalhe técnico vai para o relatório, não para o ecrã.
         const clientInfo = stream?.client
           ? `client=${stream.client}${stream.resolverNote ? ` (fell back: ${stream.resolverNote})` : ''}`
           : 'client=?';
         const potInfo = stream?.hasPoToken
           ? 'pot=yes'
           : `pot=no (${getLastBotGuardError() ?? 'n/a'})`;
-        setError(
-          `[build ${BUILD_ID}] YouTube [${clientInfo}] [${potInfo}]: ${errMsg}, using embed.`
-        );
-        setBackend('webview');
+        registar({
+          quando: Date.now(),
+          videoId: track.sourceId,
+          titulo: track.title,
+          fase: 'resolver',
+          tipo,
+          detalhe: `build=${BUILD_ID} ${clientInfo} ${potInfo} :: ${errMsg}`,
+        });
+
+        // Uma frase, sem build id, sem nome de cliente e sem estado do PO
+        // Token. A barra do leitor mostra isto em 220 px — o que lá estava
+        // antes só cabia truncado.
+        setError(mensagemDaFalha(tipo));
+
+        const plano = recuperacao(tipo);
+        if (plano.saltar) {
+          if (!endedRef.current) {
+            endedRef.current = true;
+            void skipUnavailableTrack(track.sourceId);
+          }
+          return;
+        }
+        if (plano.embed) {
+          setBackend('webview');
+          return;
+        }
+        // Sem rede: não saltar (percorria a fila toda em segundos) nem cair no
+        // embed (que também precisa de rede). Fica a mensagem, e o utilizador
+        // volta a tentar quando tiver ligação.
+        setBuffering(false);
       }
     }
   };
