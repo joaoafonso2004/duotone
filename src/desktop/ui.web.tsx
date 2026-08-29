@@ -85,6 +85,38 @@ export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
     <View style={[ui.artFallback, { width: size, height: size }]}><Ionicons name="musical-note" size={Math.max(16, size * .35)} color={desktop.dim} /></View>;
 }
 
+/**
+ * Prateleira horizontal de capas — a peca que faltava para o desktop ter as
+ * recomendacoes que o telemovel ja tinha.
+ *
+ * A capa e o elemento; o texto e legenda. Numa lista de descoberta ninguem le
+ * titulos em coluna, olha para as capas.
+ */
+export function Shelf({ titulo, nota, tracks, onPlay, onMore }: {
+  titulo: string; nota?: string; tracks: Track[];
+  onPlay: (track: Track, fila: Track[]) => void; onMore?: (track: Track) => void;
+}) {
+  if (!tracks.length) return null;
+  return <View style={{ marginBottom: ESP.xxl }}>
+    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: ESP.md, marginBottom: ESP.md }}>
+      <Text style={ui.shelfTitle}>{titulo}</Text>
+      {nota ? <Text style={ui.shelfNota}>{nota}</Text> : null}
+    </View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
+      {tracks.map((t) => (
+        <P key={`${t.source}:${t.sourceId}`}
+          onPress={() => onPlay(t, tracks)}
+          onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t); }) as any}
+          style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
+          <Artwork track={t} size={148} />
+          <Text numberOfLines={1} style={ui.shelfCardTitle}>{t.title}</Text>
+          <Text numberOfLines={1} style={ui.shelfCardArtista}>{displayArtist(t)}</Text>
+        </P>
+      ))}
+    </ScrollView>
+  </View>;
+}
+
 export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false }: {
   tracks: Track[]; onPlay: (track: Track) => void; onMore?: (track: Track) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
@@ -197,6 +229,13 @@ export const ui = StyleSheet.create({
   dialog: { padding: ESP.xl, borderRadius: RAIO.superficie, backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha, boxShadow: '0 28px 90px rgba(0,0,0,.7)' } as any,
   dialogHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: ESP.lg },
   dialogTitle: { flex: 1, ...TIPO.seccao, color: COR.texto },
+
+  shelfTitle: { ...TIPO.titulo, color: COR.texto },
+  shelfNota: { ...TIPO.legenda, color: COR.textoFraco },
+  shelfCard: { width: 148, borderRadius: RAIO.cartao, gap: 2 },
+  shelfCardHover: { opacity: .82 },
+  shelfCardTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any, marginTop: ESP.sm },
+  shelfCardArtista: { ...TIPO.legenda, color: COR.textoMedio },
 
   toast: { position: 'absolute', right: ESP.xl, bottom: 110, zIndex: 110, minHeight: 42, paddingHorizontal: ESP.lg, borderRadius: RAIO.cartao, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linha, flexDirection: 'row', alignItems: 'center', gap: ESP.sm, boxShadow: '0 12px 34px rgba(0,0,0,.5)' } as any,
   toastText: { ...TIPO.legenda, color: COR.texto },
