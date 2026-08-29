@@ -244,7 +244,9 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
           <View>
             {pendingRequests.length > 0 && (
               <>
-                <Text style={[ui.eyebrow, { marginTop: ESP.lg, marginBottom: ESP.xs }]}>PENDING REQUESTS</Text>
+                <Text style={[ui.eyebrow, { marginTop: ESP.lg, marginBottom: ESP.xs }]}>
+                  PENDING REQUESTS · {pendingRequests.length}
+                </Text>
                 {pendingRequests.map((req) => (
                   <View key={req.friendId} style={styles.socialLinha}>
                     <FriendAvatar avatarUrl={req.avatarUrl} name={req.name} size={40} />
@@ -255,9 +257,12 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
                     {req.isSender ? (
                       <Text style={styles.socialEtiqueta}>REQUEST SENT</Text>
                     ) : (
+                      // Acoes de linha sao ICONES em toda a app (ver a TrackTable).
+                      // Uma pastilha branca no meio de uma lista aberta le-se
+                      // como uma caixa colada por cima dela.
                       <View style={styles.socialAcoes}>
-                        <Button onPress={() => handleAcceptRequest(req.friendId)}>Accept</Button>
-                        <IconButton name="close" label="Decline request" onPress={() => handleRemoveFriend(req.friendId)} />
+                        <IconButton name="checkmark" label={`Accept request from ${req.name}`} onPress={() => handleAcceptRequest(req.friendId)} />
+                        <IconButton name="close" label={`Decline request from ${req.name}`} onPress={() => handleRemoveFriend(req.friendId)} />
                       </View>
                     )}
                   </View>
@@ -266,10 +271,21 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
             )}
 
             {activeFriends.length > 0 && (
-              <Text style={[ui.eyebrow, { marginTop: ESP.xl, marginBottom: ESP.xs }]}>ALL FRIENDS</Text>
+              <Text style={[ui.eyebrow, { marginTop: ESP.xl, marginBottom: ESP.xs }]}>
+                ALL FRIENDS · {activeFriends.length}
+              </Text>
             )}
-            {activeFriends.map((f) => (
-              <View key={f.friendId} style={styles.socialLinha}>
+            {activeFriends.map((f) => {
+              const online = !!f.lastSeenAt && Date.now() - new Date(f.lastSeenAt).getTime() < 3 * 60 * 1000;
+              return (
+              // A linha inteira abre a conversa, como em qualquer outra lista
+              // da app. Antes so o icone respondia, e nada dizia que a linha
+              // era clicavel.
+              <P
+                key={f.friendId}
+                onPress={() => setActiveChatFriend(f)}
+                style={({ hovered, focused }: any) => [styles.socialLinha, (hovered || focused) && styles.socialLinhaHover]}
+              >
                 <FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={40} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text numberOfLines={1} style={styles.socialNome}>{f.name}</Text>
@@ -289,24 +305,26 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
                     // "Sem tocar" e "offline" sao coisas diferentes: com o
                     // filtro de presenca, quem esta online mas em pausa
                     // apareceria como offline se olhassemos so para a faixa.
-                    <Text style={styles.socialEstado}>
-                      {f.lastSeenAt && Date.now() - new Date(f.lastSeenAt).getTime() < 3 * 60 * 1000
-                        ? 'Online'
-                        : 'Offline'}
-                    </Text>
+                    <View style={styles.socialLinhaEstado}>
+                      <View style={[styles.socialPonto, online ? styles.socialPontoOn : styles.socialPontoOff]} />
+                      <Text style={styles.socialEstado}>{online ? 'Online' : 'Offline'}</Text>
+                    </View>
                   )}
                 </View>
                 <View style={styles.socialAcoes}>
                   {f.currentlyPlaying && (
-                    <Button secondary onPress={() => play({ source: f.currentlyPlaying!.source as any, sourceId: f.currentlyPlaying!.sourceId, title: f.currentlyPlaying!.title, artist: f.currentlyPlaying!.artist, album: null, artworkUrl: f.currentlyPlaying!.artworkUrl, durationSeconds: f.currentlyPlaying!.durationSeconds })}>
-                      Listen along
-                    </Button>
+                    <IconButton
+                      name="headset-outline"
+                      label={`Listen along with ${f.name}`}
+                      onPress={() => play({ source: f.currentlyPlaying!.source as any, sourceId: f.currentlyPlaying!.sourceId, title: f.currentlyPlaying!.title, artist: f.currentlyPlaying!.artist, album: null, artworkUrl: f.currentlyPlaying!.artworkUrl, durationSeconds: f.currentlyPlaying!.durationSeconds })}
+                    />
                   )}
                   <IconButton name="chatbubble-ellipses-outline" label="Chat" onPress={() => setActiveChatFriend(f)} />
                   <IconButton name="trash-outline" label="Remove friend" onPress={() => handleRemoveFriend(f.friendId)} />
                 </View>
-              </View>
-            ))}
+              </P>
+              );
+            })}
             {!activeFriends.length && !pendingRequests.length && !loading && (
               <Empty icon="people-outline" title="No friends yet" body="Search for profiles to send a friend request." />
             )}
@@ -323,6 +341,11 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
               </View>
               <Button onPress={runSearch}>Search</Button>
             </View>
+            {searchResults.length > 0 && (
+              <Text style={[ui.eyebrow, { marginTop: ESP.md, marginBottom: ESP.xs }]}>
+                RESULTS · {searchResults.length}
+              </Text>
+            )}
             {searchResults.map((p) => {
               const friendship = friendships.find((f) => f.friendId === p.id);
               return (
@@ -338,16 +361,26 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
                     ) : friendship.isSender ? (
                       <Text style={styles.socialEtiqueta}>REQUESTED</Text>
                     ) : (
-                      <Button onPress={() => handleAcceptRequest(p.id)}>Accept request</Button>
+                      <IconButton name="checkmark" label={`Accept request from ${p.name || p.username}`} onPress={() => handleAcceptRequest(p.id)} />
                     )
                   ) : (
-                    <Button secondary onPress={() => handleAddFriend(p.id)}>Add friend</Button>
+                    <IconButton name="person-add-outline" label={`Add ${p.name || p.username}`} onPress={() => handleAddFriend(p.id)} />
                   )}
                 </View>
               );
             })}
             {!searchResults.length && !loading && searchQuery.trim() !== '' && (
               <Empty icon="search-outline" title="No profiles found" body={`Nothing matches "${searchQuery}". Try the exact username.`} />
+            )}
+            {/* Antes desta, a aba ficava em branco ate se escrever alguma
+                coisa — um campo sozinho no meio do nada, sem dizer o que
+                espera. */}
+            {!searchResults.length && !loading && searchQuery.trim() === '' && (
+              <Empty
+                icon="person-add-outline"
+                title="Find someone to share music with"
+                body="Search by username or name. Usernames are exact — @rita finds Rita, rita finds nothing."
+              />
             )}
           </View>
         )}

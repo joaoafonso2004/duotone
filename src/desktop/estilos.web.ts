@@ -84,6 +84,12 @@ export const styles = StyleSheet.create({
   /** Uma so densidade para amigos, pedidos, perfis e itens da caixa. */
   socialLinha: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingVertical: ESP.md, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
   socialLinhaHover: { backgroundColor: COR.hover },
+  /** Presenca como FORMA, nao so como palavra: um ponto cheio le-se de
+   * relance numa lista, "Online" escrito obriga a ler. */
+  socialPonto: { width: 7, height: 7, borderRadius: RAIO.pilula },
+  socialPontoOn: { backgroundColor: COR.texto },
+  socialPontoOff: { borderWidth: 1, borderColor: COR.textoFraco },
+  socialLinhaEstado: { flexDirection: 'row', alignItems: 'center', gap: ESP.sm, marginTop: 3 },
   socialNome: { ...TIPO.corpo, color: COR.texto, fontWeight: '550' as any },
   socialUtilizador: { ...TIPO.legenda, color: COR.textoFraco, marginTop: 1 },
   socialEstado: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 3 },
