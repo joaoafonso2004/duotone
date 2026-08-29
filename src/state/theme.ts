@@ -62,11 +62,14 @@ export const ACCENT_THEMES: Record<AccentColorName, AccentTheme> = {
     textColorOnGradient: '#0A0A0F', // Preto para contraste absoluto
   },
   steel: {
+    // Alinhado com a paleta do desktop (src/desktop/tokens.web.ts): e o metal
+    // do proprio simbolo da app. Quem escolher este tema fica com a
+    // identidade exata, sem cor nenhuma a competir com a capa do disco.
     name: 'steel',
-    color: '#A1A1AA',
-    soft: 'rgba(161,161,170,0.12)',
-    gradient: ['#71717A', '#3F3F46'] as const,
-    textColorOnGradient: '#FFFFFF', // Branco contrasta bem com cinzento escuro
+    color: '#E9EAEE',
+    soft: 'rgba(233,234,238,0.12)',
+    gradient: ['#E9EAEE', '#34363E'] as const,
+    textColorOnGradient: '#0B0B0E', // sobre prata claro, texto escuro
   },
 };
 
