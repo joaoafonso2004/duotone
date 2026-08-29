@@ -67,7 +67,7 @@ import { NowPlayingPage } from '../desktop/paginas/NowPlayingPage.web';
 import { injectDesktopDocumentStyles, PlayerBar, Sidebar, TitleBar } from '../desktop/casca.web';
 import { PRIMARY, type CommonPageProps, type Route, type ShareTarget } from '../desktop/rotas';
 import {
-  getContrastTextColor, memberSince, newerVersion, playEntryToTrack,
+  memberSince, newerVersion, playEntryToTrack,
   PlaylistArtwork, relativeTime, useLibraryData,
 } from '../desktop/paginas/comum.web';
 const P = Pressable as any;

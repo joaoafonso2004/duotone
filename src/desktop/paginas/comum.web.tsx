@@ -82,15 +82,3 @@ export function newerVersion(candidate: string, current: string): boolean {
   return false;
 }
 
-export function getContrastTextColor(hex: string): string {
-  if (!hex) return '#FFFFFF';
-  let cleanHex = hex.replace('#', '');
-  if (cleanHex.length === 3) {
-    cleanHex = cleanHex.split('').map(char => char + char).join('');
-  }
-  const r = parseInt(cleanHex.substring(0, 2), 16);
-  const g = parseInt(cleanHex.substring(2, 4), 16);
-  const b = parseInt(cleanHex.substring(4, 6), 16);
-  const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-  return luma > 170 ? '#0F0F14' : '#FFFFFF';
-}
