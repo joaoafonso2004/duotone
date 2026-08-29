@@ -81,7 +81,7 @@ export function formatTime(seconds: number | null) {
 }
 
 export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
-  return track.artworkUrl ? <Image source={{ uri: track.artworkUrl }} style={{ width: size, height: size, borderRadius: 6, backgroundColor: desktop.raised }} /> :
+  return track.artworkUrl ? <Image source={{ uri: track.artworkUrl }} style={{ width: size, height: size, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado }} /> :
     <View style={[ui.artFallback, { width: size, height: size }]}><Ionicons name="musical-note" size={Math.max(16, size * .35)} color={desktop.dim} /></View>;
 }
 
@@ -100,12 +100,22 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   // no mobile: aplica-se na proxima renderizacao da tabela.
   const showTime = isShowTrackDurationSync();
   if (!tracks.length) return <>{empty}</>;
-  return <View style={ui.table}><View style={ui.tableHeader}><Text style={[ui.colHead, { width: 44 }]}>#</Text><Text style={[ui.colHead, { flex: 3 }]}>TITLE</Text><Text style={[ui.colHead, { flex: 2 }]}>ARTIST</Text><Text style={[ui.colHead, { flex: 2 }]}>ALBUM</Text>{showTime && <Text style={[ui.colHead, { width: 72, textAlign: 'right' }]}>TIME</Text>}<View style={{ width: 42 }} /></View>
+  return <View style={ui.table}><View style={ui.tableHeader}><Text style={[ui.colHead, { width: 40 }]}>#</Text><Text style={[ui.colHead, { flex: 1 }]}>Faixa</Text>{showTime && <Text style={[ui.colHead, { width: 64, textAlign: 'right' }]}>Duração</Text>}<View style={{ width: 42 }} /></View>
     {tracks.map((track, index) => <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track)}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track); }) as any}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
-      <Text style={[ui.trackIndex, { width: 44 }]}>{index + 1}</Text><View style={[ui.trackTitleCell, { flex: 3 }]}><Artwork track={track} /><View style={{ flex: 1 }}><Text numberOfLines={1} style={ui.trackTitle}>{track.title}</Text><View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Text style={ui.trackSource}>YouTube</Text>{savedKeys.has(`${track.source}:${track.sourceId}`) && <Ionicons name="heart" size={10} color={desktop.accent} />}</View></View></View>
-      <Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{displayArtist(track)}</Text><Text numberOfLines={1} style={[ui.trackMeta, { flex: 2 }]}>{track.album || '—'}</Text>{showTime && <Text style={[ui.trackMeta, { width: 72, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
+      <Text style={[ui.trackIndex, { width: 40 }]}>{index + 1}</Text>
+      <View style={[ui.trackTitleCell, { flex: 1 }]}>
+        <Artwork track={track} size={40} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={ui.trackTitle}>{track.title}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
+            <Text numberOfLines={1} style={ui.trackSource}>{displayArtist(track)}</Text>
+            {savedKeys.has(`${track.source}:${track.sourceId}`) && <Ionicons name="heart" size={10} color={COR.texto} />}
+          </View>
+        </View>
+      </View>
+      {showTime && <Text style={[ui.trackMeta, { width: 64, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
       <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track)} /></P>)}
   </View>;
 }
@@ -179,7 +189,7 @@ export const ui = StyleSheet.create({
   trackIndex: { ...TIPO.numero, color: COR.textoFraco, textAlign: 'center' },
   trackTitleCell: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingHorizontal: ESP.sm, minWidth: 150 },
   trackTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any },
-  trackSource: { ...TIPO.legenda, color: COR.textoFraco, marginTop: 2 },
+  trackSource: { ...TIPO.legenda, color: COR.textoMedio },
   trackMeta: { ...TIPO.legenda, color: COR.textoMedio, paddingHorizontal: ESP.sm },
   artFallback: { borderRadius: RAIO.ctrl, backgroundColor: COR.elevado, alignItems: 'center', justifyContent: 'center' },
 
