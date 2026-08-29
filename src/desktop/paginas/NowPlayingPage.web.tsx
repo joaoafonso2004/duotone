@@ -11,10 +11,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import {
   getGlitchMode, type GlitchMode,
-  getArtworkEffect, setArtworkEffect, type ArtworkEffect,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
 } from '../../lib/prefs';
 import { usePlayer } from '../../state/player';
+import { FilaArrastavel } from '../FilaArrastavel.web';
 import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
@@ -50,32 +50,22 @@ export function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: Comm
   // A preferencia e lida uma vez e depois vem por evento, como a opacidade dos
   // paineis: as Definicoes sao outro ecra e este fica montado.
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
-  const [artworkEffect, setArtworkEffectState] = useState<ArtworkEffect>('glitch');
   const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
   useEffect(() => {
-    Promise.all([getGlitchMode(), getArtworkEffect(), getEffectIntensity()]).then(([modo, efeito, intensidade]) => {
+    Promise.all([getGlitchMode(), getEffectIntensity()]).then(([modo, intensidade]) => {
       setGlitch(modo);
-      setArtworkEffectState(efeito);
       setEffectIntensityState(intensidade);
     });
     const ouvirModo = (e: any) => setGlitch(e.detail as GlitchMode);
-    const ouvirEfeito = (e: any) => setArtworkEffectState(e.detail as ArtworkEffect);
     const ouvirIntensidade = (e: any) => setEffectIntensityState(e.detail as EffectIntensity);
     window.addEventListener('duotone:glitch-mode', ouvirModo);
-    window.addEventListener('duotone:artwork-effect', ouvirEfeito);
     window.addEventListener('duotone:effect-intensity', ouvirIntensidade);
     return () => {
       window.removeEventListener('duotone:glitch-mode', ouvirModo);
-      window.removeEventListener('duotone:artwork-effect', ouvirEfeito);
       window.removeEventListener('duotone:effect-intensity', ouvirIntensidade);
     };
   }, []);
 
-  const escolherEfeito = (efeito: ArtworkEffect) => {
-    setArtworkEffectState(efeito);
-    void setArtworkEffect(efeito);
-    window.dispatchEvent(new CustomEvent('duotone:artwork-effect', { detail: efeito }));
-  };
   const escolherIntensidade = (intensidade: EffectIntensity) => {
     setEffectIntensityState(intensidade);
     void setEffectIntensity(intensidade);
@@ -95,13 +85,9 @@ export function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: Comm
         <View style={[styles.npGrelha, estreito && { flexDirection: 'column' }]}>
           <View style={[styles.npLado, { width: ladoCapa }]}>
             <View style={styles.npArtworkFrame}>
-              <GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} efeito={artworkEffect} intensidade={effectIntensity} />
+              <GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />
             </View>
             <View style={styles.npVisualControls}>
-              <View style={styles.npVisualGroup}>
-                {(['glitch', 'waves'] as ArtworkEffect[]).map((efeito) => <Pressable key={efeito} onPress={() => escolherEfeito(efeito)} style={[styles.npVisualOption, artworkEffect === efeito && styles.npVisualOptionActive]}><Text style={[styles.npVisualOptionText, artworkEffect === efeito && styles.npVisualOptionTextActive]}>{efeito === 'glitch' ? 'Glitch' : 'Waves'}</Text></Pressable>)}
-              </View>
-              <View style={styles.npVisualDivider} />
               <View style={styles.npVisualGroup}>
                 {(['subtle', 'normal', 'strong'] as EffectIntensity[]).map((intensidade) => <Pressable key={intensidade} onPress={() => escolherIntensidade(intensidade)} style={[styles.npVisualOption, effectIntensity === intensidade && styles.npVisualOptionActive]}><Text style={[styles.npVisualOptionText, effectIntensity === intensidade && styles.npVisualOptionTextActive]}>{intensidade[0].toUpperCase() + intensidade.slice(1)}</Text></Pressable>)}
               </View>
@@ -129,50 +115,13 @@ export function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: Comm
                 natural da fila, e esta lista mentia. Arrastar para
                 reordenar fica desligado nesse caso — mover uma lista
                 baralhada não corresponde a nada. */}
-            {upNext.slice(0, 8).map((entry, visibleIndex) => {
-              const item = entry.track;
-              const originalIndex = entry.index;
-              return (
-                <div
-                  key={`${item.source}:${item.sourceId}:${originalIndex}`}
-                  className="np-fila-linha"
-                  draggable={!p.shuffle}
-                  onDragStart={(e: any) => {
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', String(originalIndex));
-                    e.currentTarget.style.opacity = '0.5';
-                  }}
-                  onDragEnd={(e: any) => { e.currentTarget.style.opacity = '1'; }}
-                  onDragOver={(e: any) => { e.preventDefault(); }}
-                  onDrop={(e: any) => {
-                    e.preventDefault();
-                    const fromIdx = Number(e.dataTransfer.getData('text/plain'));
-                    if (!isNaN(fromIdx) && fromIdx !== originalIndex) {
-                      p.moveQueueItem(fromIdx, originalIndex);
-                    }
-                  }}
-                  onClick={() => p.playTrack(item, p.queue)}
-                  onContextMenu={(e: any) => { e.preventDefault(); more(item); }}
-                  style={{
-                    minHeight: 64,
-                    padding: `0 ${ESP.sm}px`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: `${ESP.md}px`,
-                    cursor: p.shuffle ? 'pointer' : 'grab',
-                    userSelect: 'none',
-                    borderLeft: visibleIndex === 0 ? `2px solid ${COR.texto}` : '2px solid transparent',
-                    background: visibleIndex === 0 ? COR.metalSuave : 'transparent',
-                  } as any}
-                >
-                  <Artwork track={item} size={44} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text numberOfLines={1} style={styles.npFilaTitulo}>{item.title}</Text>
-                  </View>
-                  {!p.shuffle && <Ionicons name="reorder-two-outline" size={16} color={COR.textoFraco} />}
-                </div>
-              );
-            })}
+            <FilaArrastavel
+              entradas={upNext.slice(0, 8)}
+              podeArrastar={!p.shuffle}
+              aoTocar={(t) => p.playTrack(t, p.queue)}
+              aoMenu={more}
+              aoMover={(de, para) => p.moveQueueItem(de, para)}
+            />
             {upNext.length === 0 && (
               <Text style={styles.npFilaVazia}>Queue ends after this track.</Text>
             )}

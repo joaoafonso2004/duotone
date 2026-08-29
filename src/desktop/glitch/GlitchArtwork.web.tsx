@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Image, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COR, RAIO } from '../tokens.web';
-import type { ArtworkEffect, EffectIntensity, GlitchMode } from '../../lib/prefs';
+import type { EffectIntensity, GlitchMode } from '../../lib/prefs';
 import { criarRenderer } from './renderer.web';
 import { iniciarCaptura, type Captura } from './beat.web';
 
@@ -44,7 +44,7 @@ function preferePoucoMovimento(): boolean {
   }
 }
 
-export function GlitchArtwork({ uri, lado, modo, efeito, intensidade }: { uri: string | null; lado: number; modo: GlitchMode; efeito: ArtworkEffect; intensidade: EffectIntensity }) {
+export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | null; lado: number; modo: GlitchMode; intensidade: EffectIntensity }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [falhou, setFalhou] = useState(false);
   const [poucoMovimento, setPoucoMovimento] = useState(preferePoucoMovimento);
@@ -73,7 +73,6 @@ export function GlitchArtwork({ uri, lado, modo, efeito, intensidade }: { uri: s
     const r = criarRenderer(canvas, {
       preservarBuffer: !reativo,
       aoPerderContexto: () => setFalhou(true),
-      estilo: efeito,
       intensidade,
     });
     if (!r) {
@@ -98,10 +97,8 @@ export function GlitchArtwork({ uri, lado, modo, efeito, intensidade }: { uri: s
         return;
       }
       if (!reativo) {
-        // O glitch congelado le-se pela energia base; a onda, por definicao,
-        // precisa de um envelope aberto para ficar visivel num unico frame.
-        if (efeito === 'waves') r.desenhar(0.14, 0.72, 0.24, SEMENTE_ESTATICA, ESPETRO_ESTATICO);
-        else r.desenhar(NIVEL_ESTATICO, 0, 0, SEMENTE_ESTATICA, ESPETRO_ESTATICO);
+        // O glitch congelado le-se pela energia base, num so `drawArrays`.
+        r.desenhar(NIVEL_ESTATICO, 0, 0, SEMENTE_ESTATICA, ESPETRO_ESTATICO);
         return;
       }
       captura = iniciarCaptura();
@@ -138,7 +135,7 @@ export function GlitchArtwork({ uri, lado, modo, efeito, intensidade }: { uri: s
       imagem.onerror = null;
       r.destruir();
     };
-  }, [comCanvas, efetivo, efeito, intensidade, uri, lado]);
+  }, [comCanvas, efetivo, intensidade, uri, lado]);
 
   const moldura = {
     width: lado,
@@ -171,7 +168,7 @@ export function GlitchArtwork({ uri, lado, modo, efeito, intensidade }: { uri: s
           elemento vinha nulo. O sintoma era a capa passar a imagem simples ao
           mudar de faixa ou de modo. */}
       <canvas
-        key={`${efetivo}|${efeito}|${intensidade}|${uri}|${lado}`}
+        key={`${efetivo}|${intensidade}|${uri}|${lado}`}
         ref={canvasRef}
         style={{ width: lado, height: lado, display: 'block' }}
         aria-hidden="true"
