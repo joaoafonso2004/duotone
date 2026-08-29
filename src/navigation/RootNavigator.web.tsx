@@ -15,9 +15,11 @@ import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
 import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, formatTime, IconButton, Loading, Page, Shelf, Toast, TrackTable, ui } from '../desktop/ui.web';
-import { COR, ESP, FONT, FONTES, RAIO, TIPO } from '../desktop/tokens.web';
+import { COR, ESP, FONT, FONTES, LINHA_LISTA, RAIO, TIPO } from '../desktop/tokens.web';
+import { GlitchArtwork } from '../desktop/glitch/GlitchArtwork.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
 import {
+  getGlitchMode, setGlitchMode, type GlitchMode,
   getShowRewindButton, getShowTrackDuration,
   setShowRewindButton, setShowTrackDuration, setShowTrackDurationCache,
   setAutoplayRadio as persistAutoplayRadio
@@ -166,88 +168,17 @@ function injectDesktopDocumentStyles() {
     .nav-item-animate:active {
       transform: scale(0.97) translateX(2px);
     }
-    @keyframes ambient-pulse {
-      0% { transform: scale(1) translate(0px, 0px) rotate(0deg); opacity: 0.14; }
-      33% { transform: scale(1.18) translate(40px, -30px) rotate(120deg); opacity: 0.22; }
-      66% { transform: scale(0.88) translate(-30px, 45px) rotate(240deg); opacity: 0.10; }
-      100% { transform: scale(1) translate(0px, 0px) rotate(360deg); opacity: 0.14; }
-    }
-    .ambient-glow {
-      position: absolute;
-      width: 700px;
-      height: 700px;
-      border-radius: 350px;
-      filter: blur(120px);
-      mix-blend-mode: screen;
-      animation: ambient-pulse 25s ease-in-out infinite;
-      pointer-events: none;
-      z-index: 0;
-    }
-    @keyframes bounce-bar-1 {
-      0%, 100% { transform: scaleY(0.2); }
-      50% { transform: scaleY(0.85); }
-    }
-    @keyframes bounce-bar-2 {
-      0%, 100% { transform: scaleY(0.35); }
-      50% { transform: scaleY(0.98); }
-    }
-    @keyframes bounce-bar-3 {
-      0%, 100% { transform: scaleY(0.15); }
-      50% { transform: scaleY(0.7); }
-    }
-    @keyframes bounce-bar-4 {
-      0%, 100% { transform: scaleY(0.4); }
-      50% { transform: scaleY(0.9); }
-    }
-    .equalizer-bar {
-      width: 3px;
-      height: 100%;
-      background-color: var(--accent-color, #E9EAEE);
-      border-radius: 2px;
-      transform-origin: bottom;
-      transition: transform 0.15s ease;
-    }
-    .eq-bar-1 { animation: bounce-bar-1 1.2s ease-in-out infinite alternate; }
-    .eq-bar-2 { animation: bounce-bar-2 0.8s ease-in-out infinite alternate; }
-    .eq-bar-3 { animation: bounce-bar-3 1.4s ease-in-out infinite alternate; }
-    .eq-bar-4 { animation: bounce-bar-4 1.0s ease-in-out infinite alternate; }
-    .eq-paused { animation: none!important; transform: scaleY(0.15); }
     
-    /* 3D Visualizer Overhauls */
-    .visualizer-perspective {
-      perspective: 1200px;
-      transform-style: preserve-3d;
+    /* A fila do Now Playing e um <div> e nao um Pressable por causa do
+       arrastar-para-reordenar (a API de drag do DOM nao passa pelo RNW). O
+       hover fica em CSS pela mesma razao. */
+    .np-fila-linha {
+      border-bottom: 1px solid ${COR.linhaSuave};
+      transition: background-color .18s;
     }
-    .artwork-card {
-      transform: rotateY(-14deg) rotateX(6deg);
-      transform-style: preserve-3d;
-      transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.4s ease;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
-    }
-    .artwork-card:hover {
-      transform: rotateY(-3deg) rotateX(3deg) scale(1.04);
-      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
-    }
-    .premium-card {
-      transition: border-color 0.25s, background-color 0.25s, transform 0.25s;
-    }
-    .premium-card:hover {
-      border-color: rgba(255, 255, 255, 0.12)!important;
-      background-color: rgba(255, 255, 255, 0.04)!important;
-      transform: translateY(-2px);
-    }
-    .now-playing-queue-row-web {
-      border: 1px solid transparent;
-      transition: border-color 0.2s, background-color 0.2s, transform 0.2s;
-    }
-    .now-playing-queue-row-web:hover {
-      background-color: rgba(255, 255, 255, 0.06)!important;
-      border-color: rgba(255, 255, 255, 0.1)!important;
-      transform: translateY(-1px);
-    }
-    .now-playing-queue-row-web:active {
-      cursor: grabbing;
-    }
+    .np-fila-linha:last-child { border-bottom: 0; }
+    .np-fila-linha:hover { background-color: ${COR.hover}; }
+    .np-fila-linha:active { cursor: grabbing; }
   `;
   document.head.appendChild(style);
   document.title = 'Duotone';
@@ -786,8 +717,7 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
    const [opacity, setOpacity] = useState('0.72');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
-  const [flowFocus, setFlowFocus] = useState(false);
-  const [glowIntensity, setGlowIntensity] = useState('medium');
+  const [glitch, setGlitch] = useState<GlitchMode>('reactive');
 
   const themeName = useTheme((s) => s.themeName);
   const setTheme = useTheme((s) => s.setTheme);
@@ -808,14 +738,12 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
       getShowTrackDuration(),
       getShowRewindButton(),
       AsyncStorage.getItem('pref:panelOpacity'),
-      AsyncStorage.getItem('pref:flowFocus'),
-      AsyncStorage.getItem('pref:glowIntensity')
-    ]).then(([a, b, opacityVal, focus, glow]) => {
+      getGlitchMode(),
+    ]).then(([a, b, opacityVal, modoGlitch]) => {
       setDurationState(a);
       setRewindState(b);
       if (opacityVal) setOpacity(opacityVal);
-      if (focus) setFlowFocus(focus === 'true');
-      if (glow) setGlowIntensity(glow);
+      setGlitch(modoGlitch);
     });
   }, []);
 
@@ -825,16 +753,11 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
     window.dispatchEvent(new CustomEvent('duotone:panel-opacity', { detail: val }));
   };
 
-  const changeFlowFocus = async (val: boolean) => {
-    setFlowFocus(val);
-    await AsyncStorage.setItem('pref:flowFocus', String(val));
-    window.dispatchEvent(new CustomEvent('duotone:flow-focus', { detail: val }));
-  };
-
-  const changeGlowIntensity = async (val: string) => {
-    setGlowIntensity(val);
-    await AsyncStorage.setItem('pref:glowIntensity', val);
-    window.dispatchEvent(new CustomEvent('duotone:glow-intensity', { detail: val }));
+  const changeGlitch = async (val: string) => {
+    const modo = val as GlitchMode;
+    setGlitch(modo);
+    await setGlitchMode(modo);
+    window.dispatchEvent(new CustomEvent('duotone:glitch-mode', { detail: modo }));
   };
 
   const runDeleteAccount = async () => {
@@ -862,8 +785,9 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
           </SettingsCard>
           
           <SettingsCard icon="desktop-outline" title="Appearance & Visuals">
-            <ToggleLine label="Flow Focus Mode" description="Disables chats & queue skips, replacing the queue with a breathing timer." value={flowFocus} onChange={changeFlowFocus} />
-            <ChoiceLine label="Ambient Aura Glow" value={glowIntensity} choices={[['none', 'None'], ['subtle', 'Subtle'], ['medium', 'Medium'], ['max', 'Max Glow']]} onChange={changeGlowIntensity} />
+            {/* A captura de audio e dita aqui, nao escondida: e o que permite
+                o efeito reagir ao som, e desligar a opcao desliga-a mesmo. */}
+            <ChoiceLine label="Album art glitch" description="Reactive breaks up the artwork on the beat (captures the YouTube player's audio). Static freezes the effect. Off shows the plain artwork." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
             <ChoiceLine label="Accent Theme" value={themeName} choices={[['violet', 'Violet'], ['blue', 'Blue'], ['orange', 'Orange'], ['green', 'Green'], ['pink', 'Pink'], ['red', 'Red'], ['mono', 'White'], ['steel', 'Steel']]} onChange={(v) => setTheme(v as any)} />
             <ChoiceLine label="Glass Transparency" value={opacity} choices={[['0.95', 'Solid'], ['0.72', 'Default'], ['0.55', 'Translucent'], ['0.35', 'Neon blur']]} onChange={changeOpacity} />
           </SettingsCard>
@@ -893,7 +817,7 @@ function SettingsCard({ icon, title, children }: { icon: keyof typeof Ionicons.g
 function SettingLine({ label, value }: { label: string; value: string }) { return <View style={styles.settingLine}><Text style={styles.settingLabel}>{label}</Text><Text numberOfLines={1} style={styles.settingValue}>{value}</Text></View>; }
 function SettingAction({ label, onPress, danger = false }: { label: string; onPress: () => void; danger?: boolean }) { return <Pressable onPress={onPress} style={({ hovered }) => [styles.settingLine, hovered && styles.settingHover]}><Text style={[styles.settingLabel, danger && { color: desktop.danger }]}>{label}</Text><Ionicons name="chevron-forward" size={15} color={desktop.dim} /></Pressable>; }
 function ToggleLine({ label, description, value, onChange }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void }) { return <View style={styles.settingLine}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text></View><Switch value={value} onValueChange={onChange} trackColor={{ false: COR.elevado, true: COR.metalClaro }} thumbColor={COR.fundo} /></View>; }
-function ChoiceLine({ label, value, choices, onChange }: { label: string; value: string; choices: [string, string][]; onChange: (v: string) => void }) { return <View style={[styles.settingLine, { alignItems: 'flex-start' }]}><Text style={[styles.settingLabel, { flex: 1, marginTop: 8 }]}>{label}</Text><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: desktop.text }]}>{text}</Text></Pressable>)}</View></View>; }
+function ChoiceLine({ label, description, value, choices, onChange }: { label: string; description?: string; value: string; choices: [string, string][]; onChange: (v: string) => void }) { return <View style={[styles.settingLine, { alignItems: 'flex-start' }]}><View style={{ flex: 1, marginTop: 8, paddingRight: ESP.md }}><Text style={styles.settingLabel}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}</View><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: desktop.text }]}>{text}</Text></Pressable>)}</View></View>; }
 
 function SocialPage({ notify, play, more }: { notify: (s: string) => void; play: (t: Track, q?: Track[]) => void; more: (t: Track) => void }) {
   const [activeTab, setActiveTab] = useState<'inbox' | 'friends' | 'add'>('inbox');
@@ -1266,30 +1190,25 @@ function SocialPage({ notify, play, more }: { notify: (s: string) => void; play:
   );
 }
 
-function FocusTimer({ themeColor }: { themeColor: string }) {
-  const [seconds, setSeconds] = useState(0);
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSeconds((s) => s + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-  const format = (totalSecs: number) => {
-    const m = Math.floor(totalSecs / 60);
-    const s = totalSecs % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  };
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <Text style={{ color: themeColor, fontSize: 36, fontWeight: 'bold', fontFamily: 'monospace' }}>{format(seconds)}</Text>
-      <Text style={{ color: desktop.dim, fontSize: 10, marginTop: 6, letterSpacing: 1 }}>FOCUS TIME ELAPSED</Text>
-    </View>
-  );
-}
-
-function NowPlayingPage({ play, notify, more, currentIsSaved, toggleSaveCurrent }: CommonPageProps & { currentIsSaved: boolean; toggleSaveCurrent: () => void }) {
+/**
+ * Now Playing — UMA ideia visual, nao quatro.
+ *
+ * O que estava aqui a competir pelo mesmo ecra: o modo Flow Focus (com
+ * cronometro proprio a substituir a fila), a aura ambiente a pulsar por tras,
+ * o brilho da capa desfocado a 90 px por cima da pagina inteira, a capa rodada
+ * em 3D com `perspective` e quatro barras de equalizador em CSS a bater a um
+ * ritmo que nao era o da musica. Quatro ideias, nenhuma a ganhar — era isso
+ * que fazia o ecra parecer indeciso, e nao faltar-lhe nada.
+ *
+ * Fica uma so: a capa com o GLITCH EQUALIZER por cima, que reage ao som a
+ * serio (src/desktop/glitch/). O resto e tipografia e a fila.
+ *
+ * As barras de equalizador eram o caso mais claro: uma animacao CSS de duracao
+ * fixa, a fingir que reagia. O glitch ou reage mesmo ou nao esta la.
+ */
+function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: CommonPageProps & { currentIsSaved: boolean; toggleSaveCurrent: () => void }) {
   const p = usePlayer();
-  const theme = useTheme((s) => s.theme);
+  const { width } = useWindowDimensions();
   // Uma vez por render: este ecrã redesenha a cada segundo (posição) e a
   // lista percorre a fila toda.
   const upNext = useMemo(
@@ -1297,183 +1216,110 @@ function NowPlayingPage({ play, notify, more, currentIsSaved, toggleSaveCurrent 
     [p.queue, p.queueIndex, p.shuffle, p.shuffleOrder]
   );
 
-  const [glowOpacity, setGlowOpacity] = useState(0.12);
-  const [flowFocus, setFlowFocus] = useState(false);
-
+  // A preferencia e lida uma vez e depois vem por evento, como a opacidade dos
+  // paineis: as Definicoes sao outro ecra e este fica montado.
+  const [glitch, setGlitch] = useState<GlitchMode>('reactive');
   useEffect(() => {
-    AsyncStorage.getItem('pref:glowIntensity').then((val) => {
-      if (val === 'none') setGlowOpacity(0);
-      else if (val === 'subtle') setGlowOpacity(0.05);
-      else if (val === 'medium') setGlowOpacity(0.12);
-      else if (val === 'max') setGlowOpacity(0.25);
-    });
-    AsyncStorage.getItem('pref:flowFocus').then((val) => { if (val) setFlowFocus(val === 'true'); });
-
-    const handleGlow = (e: any) => {
-      const val = e.detail;
-      if (val === 'none') setGlowOpacity(0);
-      else if (val === 'subtle') setGlowOpacity(0.05);
-      else if (val === 'medium') setGlowOpacity(0.12);
-      else if (val === 'max') setGlowOpacity(0.25);
-    };
-    const handleFocus = (e: any) => setFlowFocus(e.detail === 'true' || e.detail === true);
-
-    window.addEventListener('duotone:glow-intensity', handleGlow);
-    window.addEventListener('duotone:flow-focus', handleFocus);
-    return () => {
-      window.removeEventListener('duotone:glow-intensity', handleGlow);
-      window.removeEventListener('duotone:flow-focus', handleFocus);
-    };
+    getGlitchMode().then(setGlitch);
+    const ouvir = (e: any) => setGlitch(e.detail as GlitchMode);
+    window.addEventListener('duotone:glitch-mode', ouvir);
+    return () => window.removeEventListener('duotone:glitch-mode', ouvir);
   }, []);
 
   if (!p.current) {
     return <Page title="Now Playing" subtitle="Nothing is playing right now."><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
   }
   const track = p.current;
+  const estreito = width < 1180;
+  const ladoCapa = estreito ? 300 : 384;
 
   return (
-    <Page title="Now Playing" subtitle="Immersive desktop music page.">
-      {/* Blurred background backdrop reflection */}
-      {track.artworkUrl && (
-        <Image 
-          source={{ uri: track.artworkUrl }} 
-          style={{
-            position: 'absolute',
-            top: 0, left: 0, right: 0, bottom: 0,
-            opacity: glowOpacity,
-            filter: 'blur(90px) saturate(160%)',
-            pointerEvents: 'none',
-            zIndex: 0,
-            transition: 'opacity 0.5s ease',
-          } as any} 
-        />
-      )}
-
+    <Page title="Now Playing" subtitle="The track, the artwork, and what comes next.">
       <ContentScroll>
-        <V className="ambient-glow" style={{ backgroundColor: theme.color, top: 80, left: 100 }} />
-        <View style={[styles.nowPlayingContainer, { zIndex: 1, minHeight: 500, alignItems: 'center' }]}>
-          <View style={styles.nowPlayingLeft}>
-            <V className="visualizer-perspective" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: 320, height: 320, position: 'relative', marginBottom: 12 }}>
-              {/* Primary Artwork Card */}
-              <V 
-                className="artwork-card"
-                style={[
-                  styles.nowPlayingArtworkWrap, 
-                  { 
-                    shadowColor: theme.color,
-                    width: 320,
-                    height: 320,
-                  }
-                ]}
-              >
-                {track.artworkUrl ? (
-                  <Image source={{ uri: track.artworkUrl }} style={styles.nowPlayingArtwork} />
-                ) : (
-                  <View style={styles.nowPlayingArtworkFallback}>
-                    <Ionicons name="musical-note" size={120} color={desktop.dim} />
-                  </View>
-                )}
-              </V>
-            </V>
-            
-            <View style={[styles.nowPlayingMeta, { marginTop: 16 }]}>
-              <Text numberOfLines={2} style={styles.nowPlayingTitle}>{track.title}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 12 }}>
-                <Text numberOfLines={1} style={[styles.nowPlayingArtist, { marginBottom: 0 }]}>{displayArtist(track)}</Text>
-                <IconButton 
-                  name={currentIsSaved ? "heart" : "heart-outline"} 
-                  label={currentIsSaved ? "Saved" : "Save"} 
-                  onPress={toggleSaveCurrent} 
-                  active={currentIsSaved}
-                />
+        <View style={[styles.npGrelha, estreito && { flexDirection: 'column' }]}>
+          <View style={[styles.npLado, { width: ladoCapa }]}>
+            <GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} />
+            <Text style={[ui.eyebrow, { marginTop: ESP.xl, marginBottom: ESP.xs }]}>
+              {p.radioActive ? 'RADIO' : 'NOW PLAYING'}
+            </Text>
+            <Text numberOfLines={2} style={styles.npTitulo}>{track.title}</Text>
+            <Text numberOfLines={1} style={styles.npArtista}>{displayArtist(track)}</Text>
+            <View style={styles.npAcoes}>
+              <IconButton
+                name={currentIsSaved ? 'heart' : 'heart-outline'}
+                label={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'}
+                onPress={toggleSaveCurrent}
+                active={currentIsSaved}
+              />
+              <View style={styles.npFonte}>
+                <Ionicons name={track.source === 'spotify' ? 'musical-notes' : 'logo-youtube'} size={12} color={COR.textoFraco} />
+                <Text style={styles.npFonteTexto}>{track.source}</Text>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4, justifyContent: 'center' }}>
-                <View style={styles.nowPlayingSourceTag}>
-                  <Ionicons name={track.source === 'spotify' ? 'logo-usd' : 'logo-youtube'} size={12} color={desktop.dim} />
-                  <Text style={styles.nowPlayingSourceText}>{track.source.toUpperCase()}</Text>
-                </View>
-                {/* Equalizer Visualizer */}
-                <V style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 16 }}>
-                  <V className={`equalizer-bar eq-bar-1 ${!p.isPlaying ? 'eq-paused' : ''}`} style={{ height: 14 }} />
-                  <V className={`equalizer-bar eq-bar-2 ${!p.isPlaying ? 'eq-paused' : ''}`} style={{ height: 16 }} />
-                  <V className={`equalizer-bar eq-bar-3 ${!p.isPlaying ? 'eq-paused' : ''}`} style={{ height: 12 }} />
-                  <V className={`equalizer-bar eq-bar-4 ${!p.isPlaying ? 'eq-paused' : ''}`} style={{ height: 15 }} />
-                </V>
-              </View>
+              {/* Duracao da FAIXA, nunca a do player — a do player mente
+                  enquanto o embed nao resolve. */}
+              <Text style={styles.npDuracao}>{formatTime(track.durationSeconds)}</Text>
             </View>
           </View>
 
-          {/* Frosted Glass Queue Card or Focus Mode card */}
-          {flowFocus ? (
-            <V className="glass-panel" style={[styles.nowPlayingRight, { backgroundColor: 'rgba(20,20,30,0.4)', backdropFilter: 'blur(20px)', padding: 30, alignItems: 'center', justifyContent: 'center', minHeight: 300 } as any]}>
-              <Ionicons name="leaf-outline" size={48} color={theme.color} style={{ marginBottom: 16 }} />
-              <Text style={{ color: '#FFF', fontSize: 18, fontWeight: '700', marginBottom: 8, textAlign: 'center' }}>Focus Flow Active</Text>
-              <Text style={{ color: desktop.muted, fontSize: 12, textAlign: 'center', lineHeight: 18, marginBottom: 24 }}>Stay in the zone. Social notifications and queue skipping are paused.</Text>
-              <FocusTimer themeColor={theme.color} />
-            </V>
-          ) : (
-            <V className="glass-panel" style={[styles.nowPlayingRight, { backgroundColor: 'rgba(20,20,30,0.4)', backdropFilter: 'blur(20px)', padding: 22, shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 24 } as any]}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <Text style={[styles.nowPlayingQueueTitle, { marginBottom: 0 }]}>{p.radioActive ? 'UP NEXT · RADIO' : 'UP NEXT'}</Text>
-                <Ionicons name="list" size={16} color={desktop.dim} />
-              </View>
-              <View style={styles.nowPlayingQueueList}>
-                {/* A ordem que vai MESMO tocar: com shuffle ligado não é a ordem
-                    natural da fila, e esta lista mentia. Arrastar para
-                    reordenar fica desligado nesse caso — mover uma lista
-                    baralhada não corresponde a nada. */}
-                {upNext.slice(0, 5).map((entry, idx) => {
-                  const item = entry.track;
-                  const originalIndex = entry.index;
-                  return (
-                    <div 
-                      key={`${idx}:${item.sourceId}`} 
-                      className="premium-card now-playing-queue-row-web"
-                      draggable={!p.shuffle}
-                      onDragStart={(e: any) => {
-                        e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData('text/plain', String(originalIndex));
-                        e.currentTarget.style.opacity = '0.5';
-                      }}
-                      onDragEnd={(e: any) => {
-                        e.currentTarget.style.opacity = '1';
-                      }}
-                      onDragOver={(e: any) => {
-                        e.preventDefault();
-                      }}
-                      onDrop={(e: any) => {
-                        e.preventDefault();
-                        const fromIdx = Number(e.dataTransfer.getData('text/plain'));
-                        if (!isNaN(fromIdx) && fromIdx !== originalIndex) {
-                          p.moveQueueItem(fromIdx, originalIndex);
-                        }
-                      }}
-                      onClick={() => p.playTrack(item, p.queue)}
-                      style={{ 
-                        padding: '8px 10px', 
-                        borderRadius: '8px', 
-                        cursor: p.shuffle ? 'pointer' : 'grab', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '10px',
-                        userSelect: 'none'
-                      } as any}
-                    >
-                      <Artwork track={item} size={36} />
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text numberOfLines={1} style={styles.nowPlayingQueueTrackTitle}>{item.title}</Text>
-                        <Text numberOfLines={1} style={styles.nowPlayingQueueTrackArtist}>{displayArtist(item)}</Text>
-                      </View>
-                      <Ionicons name="menu-outline" size={16} color={desktop.dim} style={{ opacity: 0.6 }} />
-                    </div>
-                  );
-                })}
-                {upNext.length === 0 && (
-                  <Text style={{ color: desktop.dim, fontSize: 12, fontStyle: 'italic', marginTop: 12, textAlign: 'center' }}>Queue ends after this track.</Text>
-                )}
-              </View>
-            </V>
-          )}
+          <View style={styles.npFila}>
+            <View style={styles.npFilaCabeca}>
+              <Text style={ui.eyebrow}>{p.radioActive ? 'UP NEXT · RADIO' : 'UP NEXT'}</Text>
+              <Text style={styles.npFilaContagem}>{upNext.length}</Text>
+            </View>
+            {/* A ordem que vai MESMO tocar: com shuffle ligado não é a ordem
+                natural da fila, e esta lista mentia. Arrastar para
+                reordenar fica desligado nesse caso — mover uma lista
+                baralhada não corresponde a nada. */}
+            {upNext.slice(0, 8).map((entry) => {
+              const item = entry.track;
+              const originalIndex = entry.index;
+              return (
+                <div
+                  key={`${item.source}:${item.sourceId}:${originalIndex}`}
+                  className="np-fila-linha"
+                  draggable={!p.shuffle}
+                  onDragStart={(e: any) => {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', String(originalIndex));
+                    e.currentTarget.style.opacity = '0.5';
+                  }}
+                  onDragEnd={(e: any) => { e.currentTarget.style.opacity = '1'; }}
+                  onDragOver={(e: any) => { e.preventDefault(); }}
+                  onDrop={(e: any) => {
+                    e.preventDefault();
+                    const fromIdx = Number(e.dataTransfer.getData('text/plain'));
+                    if (!isNaN(fromIdx) && fromIdx !== originalIndex) {
+                      p.moveQueueItem(fromIdx, originalIndex);
+                    }
+                  }}
+                  onClick={() => p.playTrack(item, p.queue)}
+                  onContextMenu={(e: any) => { e.preventDefault(); more(item); }}
+                  style={{
+                    minHeight: LINHA_LISTA,
+                    padding: `0 ${ESP.md}px`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: `${ESP.md}px`,
+                    cursor: p.shuffle ? 'pointer' : 'grab',
+                    userSelect: 'none',
+                  } as any}
+                >
+                  <Artwork track={item} size={40} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={styles.npFilaTitulo}>{item.title}</Text>
+                    <Text numberOfLines={1} style={styles.npFilaArtista}>{displayArtist(item)}</Text>
+                  </View>
+                  {!p.shuffle && <Ionicons name="reorder-two-outline" size={16} color={COR.textoFraco} />}
+                </div>
+              );
+            })}
+            {upNext.length === 0 && (
+              <Text style={styles.npFilaVazia}>Queue ends after this track.</Text>
+            )}
+            {upNext.length > 8 && (
+              <Text style={styles.npFilaVazia}>{`+${upNext.length - 8} more in the queue`}</Text>
+            )}
+          </View>
         </View>
       </ContentScroll>
     </Page>
@@ -1952,20 +1798,25 @@ const styles = StyleSheet.create({
   inboxMessageBubble: { marginTop: 8, padding: 10, backgroundColor: desktop.hover, borderRadius: 8 },
   inboxMessageText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, lineHeight: 17 },
   friendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, paddingHorizontal: 14, backgroundColor: desktop.panel, borderWidth: 1, borderColor: desktop.border, borderRadius: 9, marginHorizontal: 38 },
-  nowPlayingContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 40, paddingTop: 20, alignItems: 'flex-start', marginHorizontal: 38 },
-  nowPlayingLeft: { flex: 1.2, minWidth: 320, alignItems: 'center' },
-  nowPlayingRight: { flex: 1, minWidth: 300, backgroundColor: 'rgba(255,255,255,0.02)', padding: 20, borderRadius: 12, borderWidth: 1, borderColor: desktop.border },
-  nowPlayingArtworkWrap: { width: 320, height: 320, borderRadius: 18, overflow: 'hidden', backgroundColor: '#101016', shadowOffset: { width: 0, height: 24 }, shadowOpacity: 0.45, shadowRadius: 40, elevation: 12 },
-  nowPlayingArtwork: { width: '100%', height: '100%' },
-  nowPlayingArtworkFallback: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#14141d' },
-  nowPlayingMeta: { alignItems: 'center', marginTop: 24, textAlign: 'center', width: '100%', paddingHorizontal: 12 },
-  nowPlayingTitle: { fontFamily: FONT.display, color: desktop.text, fontSize: 22, fontWeight: '800', textAlign: 'center', marginBottom: 8 },
-  nowPlayingArtist: { fontFamily: FONT.body, color: desktop.muted, fontSize: 16, fontWeight: '500', marginBottom: 12 },
-  nowPlayingSourceTag: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: desktop.hover, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
-  nowPlayingSourceText: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 9, fontWeight: '700', letterSpacing: 0.5 },
-  nowPlayingQueueTitle: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginBottom: 16 },
-  nowPlayingQueueList: { gap: 10 },
-  nowPlayingQueueRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
-  nowPlayingQueueTrackTitle: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '600' },
-  nowPlayingQueueTrackArtist: { fontFamily: FONT.body, color: desktop.dim, fontSize: 10, marginTop: 2 },
+  // ------------------------------------------------------------ now playing --
+  // Tudo sai dos tokens. O que substitui: raios de 12, 18 e 20, superficies
+  // marteladas fora da paleta (#101016, #14141d, rgba(255,255,255,.02)),
+  // fontes de 9, 10, 12, 16 e 22 px e pesos 500/600/700/800.
+  npGrelha: { flexDirection: 'row', alignItems: 'flex-start', gap: ESP.xxxl, paddingTop: ESP.sm },
+  npLado: { flexShrink: 0 },
+  npTitulo: { ...TIPO.titulo, color: COR.texto, lineHeight: 28 },
+  npArtista: { ...TIPO.corpo, color: COR.textoMedio, marginTop: ESP.xs },
+  npAcoes: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginTop: ESP.md },
+  npFonte: { flexDirection: 'row', alignItems: 'center', gap: ESP.xs, height: 24, paddingHorizontal: ESP.sm, borderRadius: RAIO.pilula, borderWidth: 1, borderColor: COR.linhaSuave },
+  npFonteTexto: { ...TIPO.micro, color: COR.textoFraco },
+  npDuracao: { ...TIPO.numero, color: COR.textoFraco, marginLeft: 'auto' as any },
+  // Painel OPACO: com o fundo ja calmo, a transparencia deixou de ser precisa
+  // — e um `backdrop-filter` a recompor a cada repaint custa GPU numa app que
+  // fica horas aberta.
+  npFila: { flex: 1, minWidth: 300, backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linhaSuave, borderRadius: RAIO.cartao, paddingVertical: ESP.sm },
+  npFilaCabeca: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: ESP.md, paddingVertical: ESP.md, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
+  npFilaContagem: { ...TIPO.numero, color: COR.textoFraco },
+  npFilaTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any },
+  npFilaArtista: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 2 },
+  npFilaVazia: { ...TIPO.legenda, color: COR.textoFraco, textAlign: 'center', paddingVertical: ESP.lg },
 });
