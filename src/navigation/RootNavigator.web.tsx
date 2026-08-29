@@ -102,12 +102,12 @@ function injectDesktopDocumentStyles() {
        Isto so trata do que nao passa por componentes RN. */
     body{font-family:${FONT.body};-webkit-font-smoothing:antialiased}
     input,textarea,button{font-family:${FONT.body}}
-    /* O react-native-web aplica a stack DELE a cada <Text>, atraves de uma
-       classe atomica de especificidade 1. Isto ganha com especificidade 2 —
-       e de proposito NAO leva !important, para os icones (que trazem a
-       familia em estilo inline) continuarem a ganhar a esta regra. */
-    #root div, #root span, #root p, #root a{font-family:${FONT.body}}
-    ::selection{background:rgba(155,123,255,.32)} ::-webkit-scrollbar{width:11px;height:11px}
+    /* NAO por uma regra global aqui.
+       Uma regra como '#root div, #root span' tem especificidade 2 e ganha aos
+       proprios componentes — impedia os estilos de escolherem a sua fonte, e
+       a sobrancelha em mono saia em Public Sans. A familia vai EXPLICITA em
+       cada estilo de texto (ver TIPO em tokens.web.ts). */
+    ::selection{background:rgba(233,234,238,.24)} ::-webkit-scrollbar{width:11px;height:11px}
     ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:#30303b;border:3px solid transparent;border-radius:8px;background-clip:padding-box}
     ::-webkit-scrollbar-thumb:hover{background:#494857;border:3px solid transparent;background-clip:padding-box}
     [data-focusable="true"]:focus-visible{outline:2px solid var(--accent-color, #E9EAEE)!important;outline-offset:-2px}

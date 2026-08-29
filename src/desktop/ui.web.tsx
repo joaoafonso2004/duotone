@@ -5,7 +5,7 @@ import { colors } from '../theme';
 import type { Track } from '../types';
 import { displayArtist } from '../lib/artistName';
 import { useSaved } from '../state/saved';
-import { COR, FONT } from './tokens.web';
+import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 
 const P = Pressable as any;
@@ -46,7 +46,7 @@ export function Button({ children, onPress, icon, iconNode, secondary = false, d
   return <P className="btn-animate" disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.button, secondary && ui.buttonSecondary, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
     pressed && ui.pressed, disabled && ui.disabled,
-  ]}>{iconNode ?? (icon && <Ionicons name={icon} size={16} color={desktop.text} />)}<Text style={ui.buttonText}>{children}</Text></P>;
+  ]}>{iconNode ?? (icon && <Ionicons name={icon} size={16} color={danger ? COR.erro : secondary ? COR.texto : COR.fundo} />)}<Text style={[ui.buttonText, secondary && ui.buttonTextSec, danger && ui.buttonTextDanger]}>{children}</Text></P>;
 }
 
 export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput> & { icon?: keyof typeof Ionicons.glyphMap }>(function Field(props, ref) {
@@ -121,15 +121,73 @@ export function Toast({ message, onDone }: { message: string; onDone: () => void
   return <View style={ui.toast}><Ionicons name="checkmark-circle" size={18} color="#74D69B" /><Text style={ui.toastText}>{message}</Text></View>;
 }
 
+/**
+ * Estilos dos componentes partilhados — fase 3 do redesenho.
+ *
+ * Todos os valores saem de tokens.web.ts. O que isto substitui, contado no
+ * codigo antes de existir: seis raios diferentes so aqui, sete tamanhos de
+ * letra, quatro pesos, e tres superficies marteladas fora da paleta
+ * (#181820, #202029, rgba(16,16,22,.72)) mais um terceiro roxo (#7C5CE5).
+ *
+ * A familia da letra vai EXPLICITA em cada estilo de texto. Nao e por gosto:
+ * o react-native-web impoe a stack dele a cada <Text> e ganha a declaracao do
+ * body — foi por isso que a app passou a vida a renderizar em Segoe UI
+ * enquanto o CSS pedia outra coisa.
+ */
 export const ui = StyleSheet.create({
-  page: { flex: 1, minWidth: 0 }, pageHeader: { minHeight: 132, paddingHorizontal: 38, paddingTop: 34, paddingBottom: 24, flexDirection: 'row', alignItems: 'flex-end', gap: 20 },
-  eyebrow: { color: desktop.accent, fontSize: 10, fontWeight: '800', letterSpacing: 1.7, marginBottom: 7 }, title: { color: desktop.text, fontSize: 30, lineHeight: 36, fontWeight: '750' as any, letterSpacing: -.5 },
-  subtitle: { color: desktop.muted, fontSize: 14, marginTop: 6, lineHeight: 20 }, scrollContent: { paddingHorizontal: 38, paddingBottom: 48 },
-  iconButton: { width: 34, height: 34, borderRadius: 7, alignItems: 'center', justifyContent: 'center' }, iconButtonHover: { backgroundColor: desktop.hover }, active: { backgroundColor: desktop.accentSoft }, pressed: { opacity: .72, transform: [{ scale: .985 }] }, disabled: { opacity: .42 },
-  button: { minHeight: 38, paddingHorizontal: 16, borderRadius: 8, backgroundColor: '#7C5CE5', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,.08)' }, buttonSecondary: { backgroundColor: desktop.raised }, buttonDanger: { backgroundColor: '#8E3037' }, buttonHover: { borderColor: 'rgba(255,255,255,.22)' }, buttonText: { color: desktop.text, fontSize: 13, fontWeight: '650' as any },
-  fieldWrap: { height: 42, borderRadius: 8, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.raised, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13, gap: 9 }, field: { flex: 1, minWidth: 0, color: desktop.text, fontSize: 14, outlineStyle: 'none' } as any,
-  empty: { minHeight: 330, alignItems: 'center', justifyContent: 'center', padding: 32 }, emptyIcon: { width: 62, height: 62, borderRadius: 18, backgroundColor: desktop.accentSoft, alignItems: 'center', justifyContent: 'center', marginBottom: 18 }, emptyTitle: { color: desktop.text, fontSize: 17, fontWeight: '700', marginBottom: 7 }, emptyBody: { color: desktop.muted, fontSize: 13, lineHeight: 19, maxWidth: 420, textAlign: 'center', marginBottom: 20 }, loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 }, loadingText: { color: desktop.muted, fontSize: 13 },
-  table: { borderWidth: 1, borderColor: desktop.border, borderRadius: 10, overflow: 'hidden', backgroundColor: 'rgba(16,16,22,.72)' }, tableHeader: { height: 37, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: desktop.border }, colHead: { color: desktop.dim, fontSize: 10, fontWeight: '700', letterSpacing: .8, paddingHorizontal: 9 }, trackRow: { minHeight: 62, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: desktop.border }, trackHover: { backgroundColor: desktop.hover }, trackIndex: { color: desktop.dim, fontSize: 12, textAlign: 'center' }, trackTitleCell: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 9, minWidth: 150 }, trackTitle: { color: desktop.text, fontSize: 13, fontWeight: '600' }, trackSource: { color: desktop.dim, fontSize: 11, marginTop: 3 }, trackMeta: { color: desktop.muted, fontSize: 12, paddingHorizontal: 9 }, artFallback: { borderRadius: 6, backgroundColor: desktop.raised, alignItems: 'center', justifyContent: 'center' },
-  dialogLayer: { position: 'absolute', inset: 0, zIndex: 100, backgroundColor: 'rgba(0,0,0,.6)', alignItems: 'center', justifyContent: 'center' } as any, dialog: { padding: 20, borderRadius: 12, backgroundColor: '#181820', borderWidth: 1, borderColor: 'rgba(255,255,255,.12)', boxShadow: '0 24px 80px rgba(0,0,0,.6)' } as any, dialogHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 }, dialogTitle: { flex: 1, color: desktop.text, fontSize: 17, fontWeight: '700' },
-  toast: { position: 'absolute', right: 24, bottom: 106, zIndex: 110, minHeight: 42, paddingHorizontal: 14, borderRadius: 9, backgroundColor: '#202029', borderWidth: 1, borderColor: desktop.border, flexDirection: 'row', alignItems: 'center', gap: 9, boxShadow: '0 10px 30px rgba(0,0,0,.4)' } as any, toastText: { color: desktop.text, fontSize: 12 },
+  page: { flex: 1, minWidth: 0 },
+  pageHeader: { minHeight: 128, paddingHorizontal: ESP.xxxl, paddingTop: ESP.xxl, paddingBottom: ESP.xl, flexDirection: 'row', alignItems: 'flex-end', gap: ESP.xl },
+  // A sobrancelha usa a mono: e uma etiqueta, nao prosa.
+  eyebrow: { ...TIPO.micro, color: COR.textoFraco, marginBottom: ESP.sm },
+  title: { ...TIPO.display, color: COR.texto, lineHeight: 40 },
+  subtitle: { ...TIPO.corpo, color: COR.textoMedio, marginTop: ESP.sm, lineHeight: 21 },
+  scrollContent: { paddingHorizontal: ESP.xxxl, paddingBottom: ESP.xxxl },
+
+  iconButton: { width: 34, height: 34, borderRadius: RAIO.cartao, alignItems: 'center', justifyContent: 'center' },
+  iconButtonHover: { backgroundColor: COR.hover },
+  active: { backgroundColor: COR.metalSuave },
+  pressed: { opacity: .72, transform: [{ scale: .985 }] },
+  disabled: { opacity: .42 },
+
+  // O botao primario e LUZ, nao cor: e a tese da identidade aplicada ao
+  // controlo mais visivel da interface.
+  button: { minHeight: 38, paddingHorizontal: ESP.lg, borderRadius: RAIO.cartao, backgroundColor: COR.metalClaro, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: ESP.sm, borderWidth: 1, borderColor: 'transparent' },
+  buttonSecondary: { backgroundColor: 'transparent', borderColor: COR.linha },
+  buttonDanger: { backgroundColor: 'rgba(190,95,98,.14)', borderColor: 'rgba(190,95,98,.45)' },
+  buttonHover: { opacity: .88 },
+  buttonText: { ...TIPO.corpo, fontWeight: '600' as any, color: COR.fundo },
+  buttonTextSec: { color: COR.texto },
+  buttonTextDanger: { color: COR.erro },
+
+  fieldWrap: { height: 42, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: COR.linha, backgroundColor: COR.elevado, flexDirection: 'row', alignItems: 'center', paddingHorizontal: ESP.md, gap: ESP.sm },
+  field: { flex: 1, minWidth: 0, ...TIPO.corpo, color: COR.texto, outlineStyle: 'none' } as any,
+
+  empty: { minHeight: 330, alignItems: 'center', justifyContent: 'center', padding: ESP.xxl },
+  emptyIcon: { width: 60, height: 60, borderRadius: RAIO.superficie, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave, alignItems: 'center', justifyContent: 'center', marginBottom: ESP.lg },
+  emptyTitle: { ...TIPO.seccao, color: COR.texto, marginBottom: ESP.sm },
+  emptyBody: { ...TIPO.legenda, color: COR.textoMedio, lineHeight: 19, maxWidth: 420, textAlign: 'center', marginBottom: ESP.lg },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: ESP.md },
+  loadingText: { ...TIPO.legenda, color: COR.textoMedio },
+
+  table: { borderWidth: 1, borderColor: COR.linhaSuave, borderRadius: RAIO.cartao, overflow: 'hidden', backgroundColor: COR.painel },
+  tableHeader: { height: 38, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
+  colHead: { ...TIPO.micro, color: COR.textoFraco, paddingHorizontal: ESP.sm },
+  // Altura unica em toda a app. Havia 62, 52 e 38 conforme o ecra, o que se
+  // lia como tres aplicacoes diferentes.
+  trackRow: { minHeight: LINHA_LISTA, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COR.linhaSuave },
+  trackHover: { backgroundColor: COR.hover },
+  trackIndex: { ...TIPO.numero, color: COR.textoFraco, textAlign: 'center' },
+  trackTitleCell: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingHorizontal: ESP.sm, minWidth: 150 },
+  trackTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any },
+  trackSource: { ...TIPO.legenda, color: COR.textoFraco, marginTop: 2 },
+  trackMeta: { ...TIPO.legenda, color: COR.textoMedio, paddingHorizontal: ESP.sm },
+  artFallback: { borderRadius: RAIO.ctrl, backgroundColor: COR.elevado, alignItems: 'center', justifyContent: 'center' },
+
+  dialogLayer: { position: 'absolute', inset: 0, zIndex: 100, backgroundColor: 'rgba(3,3,4,.72)', alignItems: 'center', justifyContent: 'center' } as any,
+  dialog: { padding: ESP.xl, borderRadius: RAIO.superficie, backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha, boxShadow: '0 28px 90px rgba(0,0,0,.7)' } as any,
+  dialogHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: ESP.lg },
+  dialogTitle: { flex: 1, ...TIPO.seccao, color: COR.texto },
+
+  toast: { position: 'absolute', right: ESP.xl, bottom: 110, zIndex: 110, minHeight: 42, paddingHorizontal: ESP.lg, borderRadius: RAIO.cartao, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linha, flexDirection: 'row', alignItems: 'center', gap: ESP.sm, boxShadow: '0 12px 34px rgba(0,0,0,.5)' } as any,
+  toastText: { ...TIPO.legenda, color: COR.texto },
 });
