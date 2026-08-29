@@ -7,6 +7,7 @@ import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } fro
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
 import { setShuffle as persistShuffle, setSoundPreset as persistSoundPreset } from '../lib/prefs';
+import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
 import type { Track } from '../types';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
@@ -88,6 +89,11 @@ interface PlayerState {
   setVolume: (v: number) => void;
 
   playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean) => Promise<void>;
+  /** Troca apenas a fonte da faixa atual depois de um vídeo indisponível.
+   * Não conta uma segunda reprodução e mantém a posição da faixa na fila. */
+  replaceUnavailableTrack: (failedSourceId: string, replacement: Track) => boolean;
+  /** Remove da sessão uma fonte que não toca e avança sem esperar pelo rádio. */
+  skipUnavailableTrack: (failedSourceId: string) => Promise<void>;
   /** Assume uma sessão vinda de outro dispositivo (handoff), a partir de uma
    * posição. Deliberadamente NÃO conta a reprodução: já foi contada no
    * dispositivo de origem, e contá-la outra vez inflacionava o "Most played"
@@ -188,6 +194,8 @@ function debouncedStorage() {
 
 /** Guarda contra duas idas à rede do rádio em simultâneo. */
 let radioInFlight = false;
+/** Impede que uma resolucao lenta de uma faixa antiga substitua um clique mais recente. */
+let playRequestId = 0;
 
 export const usePlayer = create<PlayerState>()(
   persist(
@@ -219,24 +227,31 @@ export const usePlayer = create<PlayerState>()(
   activeBackend: 'resolving',
 
   playTrack: async (track, queue, shouldExpand) => {
+    const requestId = ++playRequestId;
     // Conta esta reprodução (local; alimenta "Most played" no Perfil).
     incrementPlayCount(track).catch(() => {});
     // Conta esta reprodução no Supabase para recomendações.
     recordPlayInSupabase(track).catch(() => {});
-    const q = queue && queue.length > 0 ? queue : [track];
+    const originalQueue = queue && queue.length > 0 ? queue : [track];
     const index = Math.max(
       0,
-      q.findIndex(
+      originalQueue.findIndex(
         (t) => t.source === track.source && t.sourceId === track.sourceId
       )
     );
+    // Se esta fonte já falhou antes e foi encontrada uma cópia segura, usar o
+    // ID aprendido sem alterar título, capa, histórico ou playlist guardada.
+    const playableTrack = await applyPlaybackAlternative(track).catch(() => track);
+    if (requestId !== playRequestId) return;
+    const q = originalQueue.slice();
+    if (q[index]) q[index] = playableTrack;
     set({
-      current: track,
+      current: playableTrack,
       queue: q,
       queueIndex: index,
       error: null,
       positionMs: 0,
-      durationMs: (track.durationSeconds ?? 0) * 1000,
+      durationMs: (playableTrack.durationSeconds ?? 0) * 1000,
       // A resolver/carregar até o áudio começar mesmo (pulsa a capa).
       buffering: true,
       // O player nativo autoplay-a ao montar; estado real chega via bridge.
@@ -253,6 +268,101 @@ export const usePlayer = create<PlayerState>()(
       // Escolher uma fila nova sai do rádio; continuar na mesma mantém-no.
       radioActive: get().radioActive && q === get().queue,
       ...(shouldExpand ? { expanded: true } : {}),
+    });
+  },
+
+  replaceUnavailableTrack: (failedSourceId, replacement) => {
+    let replaced = false;
+    set((state) => {
+      if (!state.current || state.current.sourceId !== failedSourceId) return {};
+
+      // A copia e apenas uma nova fonte de audio. Manter titulo, capa e
+      // artista evita que a biblioteca pareca mudar de faixa a meio.
+      const playableReplacement: Track = {
+        ...state.current,
+        sourceId: replacement.sourceId,
+        durationSeconds: replacement.durationSeconds ?? state.current.durationSeconds,
+      };
+
+      const queue = state.queue.slice();
+      if (queue[state.queueIndex]?.sourceId === failedSourceId) {
+        queue[state.queueIndex] = playableReplacement;
+      }
+
+      // O shuffle guarda chaves de faixa. Substituir a chave no mesmo lugar
+      // preserva o percurso que o utilizador já estava a ouvir.
+      const failedKey = trackKey(state.current);
+      const replacementKey = trackKey(playableReplacement);
+      const seen = new Set<string>();
+      const shuffleOrder = state.shuffleOrder
+        .map((key) => key === failedKey ? replacementKey : key)
+        .filter((key) => {
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+      replaced = true;
+      return {
+        current: playableReplacement,
+        queue,
+        shuffleOrder,
+        error: null,
+        positionMs: 0,
+        durationMs: (playableReplacement.durationSeconds ?? 0) * 1000,
+        buffering: true,
+        isPlaying: true,
+        activeBackend: 'resolving' as const,
+        downloadProgress: null,
+        autoplayOnLoad: true,
+        resumePositionMs: null,
+      };
+    });
+    return replaced;
+  },
+
+  skipUnavailableTrack: async (failedSourceId) => {
+    const state = get();
+    if (!state.current || state.current.sourceId !== failedSourceId) return;
+
+    let target: Track | null = null;
+    if (state.shuffle && state.queue.length > 1) {
+      let order = state._ensureShuffleOrder();
+      let targetIndex = stepIndex(order, state.queue, state.queueIndex, 1);
+      if (targetIndex === null && state.repeatMode === 'all') {
+        order = shuffleKeys(state.queue, state.queueIndex);
+        set({ shuffleOrder: order });
+        targetIndex = stepIndex(order, state.queue, state.queueIndex, 1);
+      }
+      if (targetIndex !== null) target = state.queue[targetIndex];
+    } else if (state.queueIndex + 1 < state.queue.length) {
+      target = state.queue[state.queueIndex + 1];
+    } else if (state.repeatMode === 'all' && state.queue.length > 1) {
+      target = state.queue[0];
+    }
+
+    // Não deixar o vídeo morto na fila desta sessão: com repeat all voltaria
+    // a bloquear mais tarde. A biblioteca/playlist guardada não é alterada.
+    const queue = state.queue.filter((_, index) => index !== state.queueIndex);
+    if (target) {
+      await get().playTrack(target, queue);
+      return;
+    }
+
+    // Era a última faixa reproduzível. Terminar já, sem a chamada de rede do
+    // rádio automático que deixava “Skipping…” visível indefinidamente.
+    set({
+      current: null,
+      queue,
+      queueIndex: 0,
+      shuffleOrder: state.shuffleOrder.filter((key) => key !== trackKey(state.current!)),
+      isPlaying: false,
+      buffering: false,
+      error: null,
+      positionMs: 0,
+      durationMs: 0,
+      activeBackend: 'resolving',
+      downloadProgress: null,
     });
   },
 

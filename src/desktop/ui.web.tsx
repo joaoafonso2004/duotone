@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '../theme';
 import type { Track } from '../types';
@@ -117,12 +117,14 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore }: {
   </View>;
 }
 
-export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false }: {
+export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false }: {
   tracks: Track[]; onPlay: (track: Track) => void; onMore?: (track: Track) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
    * guardadas e não guardadas (pesquisa) — na tabela de Songs seria um
    * coração em todas as linhas. */
   showSavedBadge?: boolean;
+  /** Lista aberta, sem o aspeto de uma caixa dentro da página. */
+  plain?: boolean;
 }) {
   // Subscrito sempre (regras dos hooks); sem a badge o seletor devolve um
   // Set vazio estável, por isso a tabela não redesenha à toa.
@@ -132,13 +134,14 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   // no mobile: aplica-se na proxima renderizacao da tabela.
   const showTime = isShowTrackDurationSync();
   if (!tracks.length) return <>{empty}</>;
-  return <View style={ui.table}><View style={ui.tableHeader}><Text style={[ui.colHead, { width: 40 }]}>#</Text><Text style={[ui.colHead, { flex: 1 }]}>Faixa</Text>{showTime && <Text style={[ui.colHead, { width: 64, textAlign: 'right' }]}>Duração</Text>}<View style={{ width: 42 }} /></View>
+  const artworkSize = plain ? 48 : 40;
+  return <View style={[ui.table, plain && ui.tablePlain]}><View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}><Text style={[ui.colHead, { width: 40 }]}>#</Text><Text style={[ui.colHead, { flex: 1 }]}>Track</Text>{showTime && <Text style={[ui.colHead, { width: 64, textAlign: 'right' }]}>Duration</Text>}<View style={{ width: 42 }} /></View>
     {tracks.map((track, index) => <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track)}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track); }) as any}
-      style={({ hovered, pressed, focused }: any) => [ui.trackRow, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
+      style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
       <Text style={[ui.trackIndex, { width: 40 }]}>{index + 1}</Text>
       <View style={[ui.trackTitleCell, { flex: 1 }]}>
-        <Artwork track={track} size={40} />
+        <Artwork track={track} size={artworkSize} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={ui.trackTitle}>{track.title}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
@@ -159,8 +162,18 @@ export function Dialog({ open, title, children, onClose, width = 460 }: { open: 
 }
 
 export function Toast({ message, onDone }: { message: string; onDone: () => void }) {
-  useEffect(() => { const id = setTimeout(onDone, 3200); return () => clearTimeout(id); }, [message, onDone]);
-  return <View style={ui.toast}><Ionicons name="checkmark-circle" size={18} color="#74D69B" /><Text style={ui.toastText}>{message}</Text></View>;
+  // O DesktopShell redesenha varias vezes por segundo enquanto a musica toca.
+  // `onDone` chega como funcao inline, portanto inclui-lo nas dependencias
+  // reiniciava o temporizador para sempre e o aviso nunca desaparecia.
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+  useEffect(() => { const id = setTimeout(() => onDoneRef.current(), 3200); return () => clearTimeout(id); }, [message]);
+  const lower = message.toLowerCase();
+  const warning = /failed|could not|not found|unavailable|skipping|deleted/.test(lower);
+  const information = /looking|checking|available/.test(lower);
+  const icon = warning ? 'alert-circle' : information ? 'information-circle' : 'checkmark-circle';
+  const colour = warning ? COR.aviso : information ? COR.metalClaro : COR.ok;
+  return <View style={ui.toast}><Ionicons name={icon} size={18} color={colour} /><Text style={ui.toastText}>{message}</Text></View>;
 }
 
 /**
@@ -212,11 +225,14 @@ export const ui = StyleSheet.create({
   loadingText: { ...TIPO.legenda, color: COR.textoMedio },
 
   table: { borderWidth: 1, borderColor: COR.linhaSuave, borderRadius: RAIO.cartao, overflow: 'hidden', backgroundColor: COR.painel },
+  tablePlain: { borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent', overflow: 'visible' },
   tableHeader: { height: 38, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
+  tableHeaderPlain: { paddingHorizontal: ESP.sm, borderTopWidth: 1, borderTopColor: COR.linhaSuave },
   colHead: { ...TIPO.micro, color: COR.textoFraco, paddingHorizontal: ESP.sm },
   // Altura unica em toda a app. Havia 62, 52 e 38 conforme o ecra, o que se
   // lia como tres aplicacoes diferentes.
   trackRow: { minHeight: LINHA_LISTA, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COR.linhaSuave },
+  trackRowPlain: { minHeight: 68, paddingHorizontal: ESP.sm },
   trackHover: { backgroundColor: COR.hover },
   trackIndex: { ...TIPO.numero, color: COR.textoFraco, textAlign: 'center' },
   trackTitleCell: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingHorizontal: ESP.sm, minWidth: 150 },

@@ -1,4 +1,7 @@
 import React, { useEffect, useRef } from 'react';
+import { searchYouTube } from '../api/youtube';
+import { pickBest } from '../lib/trackMatch';
+import { rememberPlaybackAlternative } from '../lib/playbackAlternatives';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 
@@ -6,6 +9,91 @@ declare global {
   interface Window {
     YT?: any;
     onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+type RecoveryRun = {
+  original: Track;
+  failedIds: Set<string>;
+  replacements: number;
+};
+
+// As alternativas pertencentes à mesma tentativa partilham esta informação.
+// Assim, se a primeira substituição também estiver bloqueada, não se entra
+// num ciclo a alternar eternamente entre dois vídeos indisponíveis.
+const recoveryByVideoId = new Map<string, RecoveryRun>();
+
+function playbackNotice(message: string) {
+  window.dispatchEvent(new CustomEvent('duotone:playback-notice', { detail: message }));
+}
+
+async function recoverUnavailableVideo(track: Track, code: number) {
+  const state = usePlayer.getState();
+  const run = recoveryByVideoId.get(track.sourceId) ?? {
+    original: track,
+    failedIds: new Set<string>(),
+    replacements: 0,
+  };
+  run.failedIds.add(track.sourceId);
+  recoveryByVideoId.set(track.sourceId, run);
+
+  // Uma substituição automática chega. Se essa cópia também estiver
+  // bloqueada, insistir noutras versões aumenta muito o risco de acabar num
+  // remix ou numa gravação errada; nesse caso avança-se imediatamente.
+  if (run.replacements >= 1) {
+    if (state.current?.sourceId === track.sourceId) {
+      playbackNotice('That replacement is also unavailable. Skipping this track.');
+      await state.skipUnavailableTrack(track.sourceId);
+    }
+    return;
+  }
+
+  state.setError(null);
+  playbackNotice('This upload is unavailable. Looking for the same track…');
+  state._setBuffering(true);
+
+  try {
+    // O título original é a consulta mais restrita possível. A escolha não é
+    // simplesmente o primeiro resultado: reutiliza a pontuação do importador,
+    // que penaliza live, remix, slowed, karaoke, instrumental, etc.
+    const candidates = (await searchYouTube(run.original.title))
+      .filter((candidate) => !run.failedIds.has(candidate.sourceId));
+    const match = pickBest(
+      candidates.map((candidate) => ({
+        id: candidate.sourceId,
+        title: candidate.title,
+        channel: candidate.artist ?? '',
+        durationSec: candidate.durationSeconds,
+      })),
+      {
+        title: run.original.title,
+        artist: run.original.artist ?? '',
+        durationSec: run.original.durationSeconds,
+      }
+    );
+    const alternative = match.best
+      ? candidates.find((candidate) => candidate.sourceId === match.best?.id)
+      : null;
+
+    if (match.confident && alternative) {
+      run.replacements += 1;
+      recoveryByVideoId.set(alternative.sourceId, run);
+      if (usePlayer.getState().replaceUnavailableTrack(track.sourceId, alternative)) {
+        void rememberPlaybackAlternative(track.sourceId, alternative.sourceId);
+        playbackNotice('Found a playable copy and saved it for next time.');
+        return;
+      }
+      // A faixa mudou enquanto a pesquisa decorria; não saltar a nova.
+      return;
+    }
+  } catch (error) {
+    console.warn('[YouTubePlayer] Automatic replacement search failed', error);
+  }
+
+  // Sem cópia segura: avançar é melhor do que deixar a reprodução bloqueada.
+  if (usePlayer.getState().current?.sourceId === track.sourceId) {
+    playbackNotice('No safe equivalent was found. Skipping this track.');
+    await usePlayer.getState().skipUnavailableTrack(track.sourceId);
   }
 }
 
@@ -29,10 +117,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const watchdog = setTimeout(() => {
       if (disposed || started) return;
       state._setBuffering(false);
-      state.setError(
+      state.setError('Playback could not start.');
+      playbackNotice(
         ready
-          ? "YouTube didn't start playing (blocked embed or network)"
-          : "Couldn't load the YouTube player (network or blocked)"
+          ? 'This track did not start. Try again or play the next track.'
+          : 'Could not reach YouTube. Check your connection and try again.'
       );
     }, 15000);
 
@@ -122,7 +211,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             // 100 vídeo removido/privado, 101/150 embed proibido pelo dono.
             started = true;
             state._setBuffering(false);
-            state.setError(`Playback error (YouTube code ${event?.data ?? '?'})`);
+            const code = Number(event?.data);
+            if (code === 2 || code === 100 || code === 101 || code === 150) {
+              void recoverUnavailableVideo(track, code);
+            } else {
+              state.setError('This track could not be played.');
+              playbackNotice('Playback failed. Try another track or check your connection.');
+            }
           },
         },
       });
@@ -143,7 +238,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           if (disposed) return;
           started = true;
           state._setBuffering(false);
-          state.setError("Couldn't reach YouTube (iframe_api failed to load)");
+          state.setError('Playback could not start.');
+          playbackNotice('Could not reach YouTube. Check your connection and try again.');
         };
         document.head.appendChild(script);
       }

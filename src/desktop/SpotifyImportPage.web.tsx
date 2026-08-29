@@ -63,25 +63,25 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
   /** Um só caminho para o ficheiro, venha do seletor ou de ser largado. */
   async function acceptFile(file: File) {
     if (!/\.csv$/i.test(file.name)) {
-      setError(`"${file.name}" não é um CSV. Exporta a playlist no Exportify.`);
+      setError(`"${file.name}" is not a CSV file. Export the playlist with Exportify.`);
       return;
     }
 
     const parsed = parseSpotifyCsv(await file.text());
 
     if (parsed.problem === 'empty') {
-      setError('O ficheiro está vazio.');
+      setError('The file is empty.');
       return;
     }
     if (parsed.problem === 'unrecognised-columns') {
       setError(
-        'Não reconheci as colunas. Confirma que é um CSV exportado do Exportify — ' +
-          `encontrei: ${parsed.headers.slice(0, 4).join(', ')}…`
+        'The columns were not recognised. Make sure this is an Exportify CSV — ' +
+          `found: ${parsed.headers.slice(0, 4).join(', ')}…`
       );
       return;
     }
     if (!parsed.rows.length) {
-      setError('O ficheiro não tem faixas.');
+      setError('The file contains no tracks.');
       return;
     }
 
@@ -199,7 +199,7 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
 
   async function save(tracks: Track[]) {
     if (!tracks.length) {
-      notify('Não há faixas para guardar.');
+      notify('There are no tracks to save.');
       return;
     }
 
@@ -219,17 +219,17 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
         inseridas = done;
         setSaveProgress({ done, total });
       });
-      notify(`${tracks.length} ${tracks.length === 1 ? 'faixa adicionada' : 'faixas adicionadas'}.`);
+      notify(`${tracks.length} ${tracks.length === 1 ? 'track added' : 'tracks added'}.`);
       back();
     } catch (e: any) {
       if (criadaAgora && inseridas === 0) {
         // Nada entrou: apagar em vez de deixar lixo na biblioteca.
         await deletePlaylist(criadaAgora).catch(() => {});
-        notify(e?.message ?? 'Não foi possível guardar. A playlist nao foi criada.');
+        notify(e?.message ?? 'Could not save. The playlist was not created.');
       } else if (criadaAgora) {
-        notify(`Guardadas ${inseridas} de ${tracks.length} faixas antes de falhar.`);
+        notify(`Saved ${inseridas} of ${tracks.length} tracks before the error.`);
       } else {
-        notify(e?.message ?? 'Não foi possível guardar.');
+        notify(e?.message ?? 'Could not save the tracks.');
       }
     } finally {
       setSaving(false);
@@ -245,8 +245,8 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
 
   return (
     <Page
-      title="Importar do Spotify"
-      subtitle="Exporta as tuas playlists no Exportify e traz a lista para o Duotone."
+      title="Import from Spotify"
+      subtitle="Export your playlists with Exportify and bring them into Duotone."
       action={
         <Button secondary icon="arrow-back" onPress={back}>
           Playlists
@@ -259,13 +259,13 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
           <View style={s.hint}>
             <Image source={require('../../assets/spotify.png')} style={s.brand} />
             <Text style={s.hintText}>
-              Abre <Text style={s.strong}>watsonbox.github.io/exportify</Text>, entra com a tua conta
-              Spotify e descarrega o CSV da playlist. O áudio vem do YouTube — o Spotify não o
-              disponibiliza —, por isso alguma faixa pode sair trocada.
+              Open <Text style={s.strong}>watsonbox.github.io/exportify</Text>, sign in with Spotify,
+              and download the playlist CSV. Audio comes from YouTube, so a track may occasionally
+              match the wrong upload.
             </Text>
           </View>
 
-          <Text style={s.label}>FICHEIRO CSV</Text>
+          <Text style={s.label}>CSV FILE</Text>
 
           {/* Zona de largar */}
           <View
@@ -279,18 +279,18 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
             />
             <Text style={s.dropText}>
               {dragging
-                ? 'Larga aqui'
+                ? 'Drop it here'
                 : fileName
                   ? fileName
-                  : 'Arrasta o CSV para aqui, ou escolhe o ficheiro'}
+                  : 'Drag the CSV here, or choose a file'}
             </Text>
             <View style={s.row}>
               <Button icon="folder-open-outline" onPress={pickFile} disabled={phase === 'running'}>
-                Escolher ficheiro…
+                Choose file…
               </Button>
               {phase !== 'idle' && !!rows.length && (
                 <Text style={s.meta}>
-                  {rows.length} {rows.length === 1 ? 'faixa' : 'faixas'}
+                  {rows.length} {rows.length === 1 ? 'track' : 'tracks'}
                 </Text>
               )}
             </View>
@@ -300,7 +300,7 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
 
           {phase === 'parsed' && (
             <View style={s.actions}>
-              <Button onPress={run}>Procurar {rows.length} faixas no YouTube</Button>
+              <Button onPress={run}>Search {rows.length} tracks on YouTube</Button>
             </View>
           )}
 
@@ -324,7 +324,7 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
                 />
               </View>
               <Text style={s.meta}>
-                A guardar {saveProgress.done} de {saveProgress.total} faixas...
+                Saving {saveProgress.done} of {saveProgress.total} tracks…
               </Text>
             </View>
           )}
@@ -336,15 +336,15 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
                 <View style={[s.fill, { width: `${Math.round(ratio * 100)}%` }]} />
               </View>
               <Text style={s.meta}>
-                {progress.done} de {progress.total} · {progress.confident} automáticas ·{' '}
-                {progress.uncertain} a confirmar · {progress.missing} sem resultado
+                {progress.done} of {progress.total} · {progress.confident} confident ·{' '}
+                {progress.uncertain} to review · {progress.missing} not found
               </Text>
               <Text numberOfLines={1} style={s.current}>
                 {progress.current}
               </Text>
               <View style={s.actions}>
                 <Button secondary onPress={() => abort.current?.abort()}>
-                  Parar
+                  Stop
                 </Button>
               </View>
             </View>
@@ -354,38 +354,38 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
           {phase === 'done' && (
             <View style={s.block}>
               <View style={s.summary}>
-                <Stat value={confidentTracks(results).length} label="prontas" tone={desktop.accent} />
-                <Stat value={uncertain.length} label="a confirmar" tone={desktop.muted} />
-                <Stat value={missing.length} label="sem resultado" tone={desktop.danger} />
+                <Stat value={confidentTracks(results).length} label="ready" tone={desktop.accent} />
+                <Stat value={uncertain.length} label="to review" tone={desktop.muted} />
+                <Stat value={missing.length} label="not found" tone={desktop.danger} />
               </View>
 
               {!!missing.length && (
                 <View style={s.list}>
-                  <Text style={s.label}>NÃO ENCONTRADAS</Text>
+                  <Text style={s.label}>NOT FOUND</Text>
                   {missing.slice(0, 8).map((m, i) => (
                     <Text key={i} numberOfLines={1} style={s.listItem}>
                       {m.row.artist} — {m.row.title}
                     </Text>
                   ))}
-                  {missing.length > 8 && <Text style={s.meta}>e mais {missing.length - 8}.</Text>}
+                  {missing.length > 8 && <Text style={s.meta}>and {missing.length - 8} more.</Text>}
                 </View>
               )}
 
-              <Text style={s.label}>DESTINO</Text>
+              <Text style={s.label}>DESTINATION</Text>
               <View style={s.dest}>
                 <Choice
                   selected={creatingNew}
-                  label="Criar uma playlist nova:"
+                  label="Create a new playlist:"
                   onPress={() => setCreatingNew(true)}
                 />
                 {creatingNew && (
                   <View style={s.indent}>
-                    <Field placeholder="Nome da playlist" value={newName} onChangeText={setNewName} />
+                    <Field placeholder="Playlist name" value={newName} onChangeText={setNewName} />
                   </View>
                 )}
                 <Choice
                   selected={!creatingNew}
-                  label="Adicionar a uma existente:"
+                  label="Add to an existing playlist:"
                   onPress={() => setCreatingNew(false)}
                 />
                 {!creatingNew &&
@@ -410,7 +410,7 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
                   onPress={() => save(confidentTracks(results))}
                   disabled={destinationMissing || saving}
                 >
-                  Adicionar {confidentTracks(results).length} prontas
+                  Add {confidentTracks(results).length} ready
                 </Button>
                 {!!uncertain.length && (
                   <>
@@ -420,23 +420,22 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
                       onPress={() => setReviewing(true)}
                       disabled={destinationMissing || saving}
                     >
-                      Rever {uncertain.length}
+                      Review {uncertain.length}
                     </Button>
                     <Button
                       secondary
                       onPress={() => save(results.filter((r) => r.track).map((r) => r.track!))}
                       disabled={destinationMissing || saving}
                     >
-                      Adicionar todas ({confidentTracks(results).length + uncertain.length})
+                      Add all ({confidentTracks(results).length + uncertain.length})
                     </Button>
                   </>
                 )}
               </View>
               {!!uncertain.length && (
                 <Text style={s.meta}>
-                  As {uncertain.length} a confirmar foram encontradas mas com menos certeza. Rever
-                  mostra as alternativas uma a uma; adicionar todas aceita as sugestões e deixa a
-                  correção para depois.
+                  The {uncertain.length} tracks to review were matched with lower confidence. Review
+                  shows the alternatives one by one; Add all accepts the suggestions as they are.
                 </Text>
               )}
 
