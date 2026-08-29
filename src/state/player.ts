@@ -8,15 +8,17 @@ import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
 import { setShuffle as persistShuffle, setSoundPreset as persistSoundPreset } from '../lib/prefs';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
+import {
+  replayMountedSource,
+  requestPause,
+  requestPlay,
+  restoredPlaybackState,
+  type PlaybackControls,
+} from '../lib/playerLifecycle';
 import type { Track } from '../types';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
-export interface YtControls {
-  play: () => void;
-  pause: () => void;
-  seek: (ms: number) => void;
-  setVolume?: (vol: number) => void;
-}
+export type YtControls = PlaybackControls;
 
 const getInitialVolume = () => {
   if (typeof window !== 'undefined' && window.localStorage) {
@@ -228,6 +230,9 @@ export const usePlayer = create<PlayerState>()(
 
   playTrack: async (track, queue, shouldExpand) => {
     const requestId = ++playRequestId;
+    // Fast path dentro do gesto do utilizador: importante para a faixa
+    // restaurada, cujo iframe ja existe e pode estar sujeito a autoplay.
+    const immediateControls = replayMountedSource(get().current, track, get()._yt);
     // Conta esta reprodução (local; alimenta "Most played" no Perfil).
     incrementPlayCount(track).catch(() => {});
     // Conta esta reprodução no Supabase para recomendações.
@@ -243,6 +248,11 @@ export const usePlayer = create<PlayerState>()(
     // ID aprendido sem alterar título, capa, histórico ou playlist guardada.
     const playableTrack = await applyPlaybackAlternative(track).catch(() => track);
     if (requestId !== playRequestId) return;
+    // Ao escolher de novo a faixa restaurada do arranque, o sourceId nao
+    // muda e o YouTubePlayerView nao remonta. Guardar os controlos existentes
+    // permite reiniciar esse mesmo player depois de atualizar o estado.
+    const reusedControls = immediateControls
+      ?? replayMountedSource(get().current, playableTrack, get()._yt);
     const q = originalQueue.slice();
     if (q[index]) q[index] = playableTrack;
     set({
@@ -253,10 +263,10 @@ export const usePlayer = create<PlayerState>()(
       positionMs: 0,
       durationMs: (playableTrack.durationSeconds ?? 0) * 1000,
       // A resolver/carregar até o áudio começar mesmo (pulsa a capa).
-      buffering: true,
+      buffering: !reusedControls,
       // O player nativo autoplay-a ao montar; estado real chega via bridge.
       isPlaying: true,
-      activeBackend: 'resolving',
+      activeBackend: reusedControls ? get().activeBackend : 'resolving',
       downloadProgress: null,
       autoplayOnLoad: true,
       resumePositionMs: null,
@@ -445,9 +455,15 @@ export const usePlayer = create<PlayerState>()(
   togglePlay: async () => {
     const { current, isPlaying, _yt } = get();
     if (!current) return;
-    // O estado real volta via _onYtStateChange
-    if (isPlaying) _yt?.pause();
-    else _yt?.play();
+    if (isPlaying) {
+      // Se o iframe ainda nao estiver pronto, a pausa tem de ficar registada
+      // para o onReady nao arrancar alguns milissegundos depois.
+      set(requestPause(_yt));
+    } else {
+      // No restauro `_yt` pode ainda ser null. Antes o clique perdia-se; agora
+      // fica como intencao pendente e o onReady do player chama playVideo().
+      set(requestPlay(_yt));
+    }
   },
 
   next: async () => {
@@ -805,16 +821,7 @@ export const usePlayer = create<PlayerState>()(
         return {
           ...current,
           ...persisted,
-          isPlaying: false,
-          buffering: false,
-          expanded: false,
-          error: null,
-          activeBackend: 'resolving' as const,
-          autoplayOnLoad: false,
-          resumePositionMs:
-            typeof persisted.positionMs === 'number' && persisted.positionMs > 1500
-              ? persisted.positionMs
-              : null,
+          ...restoredPlaybackState(persisted.positionMs),
         };
       },
     }

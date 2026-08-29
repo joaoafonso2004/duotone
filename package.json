@@ -1,13 +1,15 @@
 {
   "name": "duotone",
-  "version": "1.0.0",
+  "version": "1.4.1",
   "description": "A desktop-first music library and player for Windows.",
   "author": "Duotone",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
     "web": "expo start --web",
+    "preweb:build": "npm run sync:desktop-version",
     "web:build": "expo export --platform web --output-dir dist-web",
+    "sync:desktop-version": "node scripts/write-build-info.mjs",
     "desktop": "concurrently -k \"npm:web\" \"npm:desktop:host\"",
     "desktop:host": "wait-on http://localhost:8081 && electron electron/main.cjs",
     "desktop:build": "npm run web:build && electron-builder --win",
@@ -15,7 +17,7 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/test-mp4fixer.mjs && node scripts/test-artist-name.mjs && node --experimental-strip-types scripts/test-spotify-csv.ts && node --experimental-strip-types scripts/test-track-match.ts && node --experimental-strip-types scripts/test-search-query.ts && node --experimental-strip-types scripts/test-handoff.ts && node --experimental-strip-types scripts/test-shuffle.ts && node --experimental-strip-types scripts/test-radio.ts && node --experimental-strip-types scripts/test-loudness.ts && node --experimental-strip-types scripts/test-listening-stats.ts"
+    "test": "node scripts/test-mp4fixer.mjs && node scripts/test-artist-name.mjs && node --experimental-strip-types scripts/test-spotify-csv.ts && node --experimental-strip-types scripts/test-track-match.ts && node --experimental-strip-types scripts/test-search-query.ts && node --experimental-strip-types scripts/test-handoff.ts && node --experimental-strip-types scripts/test-player-lifecycle.ts && node --experimental-strip-types scripts/test-shuffle.ts && node --experimental-strip-types scripts/test-radio.ts && node --experimental-strip-types scripts/test-loudness.ts && node --experimental-strip-types scripts/test-listening-stats.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
