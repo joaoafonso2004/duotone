@@ -14,7 +14,7 @@ import { formatListeningTime, type StatsPeriod, type TimelineBucket } from '../l
 import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
-import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, formatTime, IconButton, Loading, Page, Toast, TrackTable, ui } from '../desktop/ui.web';
+import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, formatTime, IconButton, Loading, Page, Shelf, Toast, TrackTable, ui } from '../desktop/ui.web';
 import { COR, ESP, FONT, FONTES, RAIO, TIPO } from '../desktop/tokens.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
 import {
@@ -28,6 +28,7 @@ import {
 } from '../lib/avatarPrefs';
 import {
   getProfilePlayStats, getProfileMostPlayed, getProfileRecentlyPlayed, getTopArtists,
+  getFlowMix, getHeavyRotation, getForgottenFavorites,
   type ProfilePlayEntry, type DbPlayStats,
 } from '../api/plays';
 import {
@@ -134,16 +135,6 @@ function injectDesktopDocumentStyles() {
       50% { opacity: 1; }
       100% { opacity: 0.6; }
     }
-    @keyframes spin-vinyl {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    .vinyl-spin {
-      animation: spin-vinyl var(--vinyl-duration, 15s) linear infinite;
-    }
-    .vinyl-container {
-      transition: left 0.8s cubic-bezier(0.25, 1, 0.5, 1), transform 0.8s cubic-bezier(0.25, 1, 0.5, 1)!important;
-    }
     .control-btn-animate {
       transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), background-color 0.2s, opacity 0.2s!important;
       cursor: pointer;
@@ -174,9 +165,6 @@ function injectDesktopDocumentStyles() {
     }
     .nav-item-animate:active {
       transform: scale(0.97) translateX(2px);
-    }
-    .vinyl-paused {
-      animation-play-state: paused!important;
     }
     @keyframes ambient-pulse {
       0% { transform: scale(1) translate(0px, 0px) rotate(0deg); opacity: 0.14; }
@@ -239,30 +227,6 @@ function injectDesktopDocumentStyles() {
     .artwork-card:hover {
       transform: rotateY(-3deg) rotateX(3deg) scale(1.04);
       box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8);
-    }
-    .vinyl-grooves {
-      background: radial-gradient(circle, #222 10%, #111 11%, #15151b 20%, #111 21%, #181822 30%, #111 31%, #1a1a24 40%, #111 41%, #1e1e28 50%, #111 51%, #222 60%, #111 61%, #252530 70%, #111 71%, #2a2a38 80%, #111 81%, #2f2f3d 90%, #111 91%, #333 100%)!important;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(0,0,0,0.8);
-      transform: rotateY(-14deg) rotateX(6deg) translateZ(-10px);
-      transform-style: preserve-3d;
-    }
-    .vinyl-shine {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      border-radius: 50%;
-      background: conic-gradient(
-        from 0deg,
-        transparent 0deg,
-        rgba(255,255,255,0.06) 45deg,
-        transparent 90deg,
-        rgba(255,255,255,0.06) 135deg,
-        transparent 180deg,
-        rgba(255,255,255,0.06) 225deg,
-        transparent 270deg,
-        rgba(255,255,255,0.06) 315deg,
-        transparent 360deg
-      );
-      pointer-events: none;
     }
     .premium-card {
       transition: border-color 0.25s, background-color 0.25s, transform 0.25s;
@@ -411,12 +375,49 @@ function useLibraryData() {
 
 function SearchPage({ play, notify, more }: CommonPageProps) {
   const [query, setQuery] = useState(''); const [results, setResults] = useState<Track[]>([]); const [history, setHistory] = useState<string[]>([]); const [loading, setLoading] = useState(false); const input = useRef<any>(null);
+  // Recomendacoes, como no telemovel. Todas saem de RPCs do Supabase sobre o
+  // historico do proprio utilizador — nenhuma gasta quota da YouTube API.
+  const [ouvirDeNovo, setOuvirDeNovo] = useState<Track[]>([]);
+  const [flow, setFlow] = useState<Track[]>([]);
+  const [maisTocadas, setMaisTocadas] = useState<Track[]>([]);
+  const [esquecidas, setEsquecidas] = useState<Track[]>([]);
+  const [recsCarregadas, setRecsCarregadas] = useState(false);
+
+  useEffect(() => {
+    // Falham em silencio uma a uma: se uma RPC nao existir na base de dados,
+    // as outras prateleiras aparecem na mesma.
+    const semFalhar = <T,>(p: Promise<T[]>) => p.catch(() => [] as T[]);
+    Promise.all([
+      semFalhar(getProfileRecentlyPlayed(14)),
+      semFalhar(getFlowMix(14)),
+      semFalhar(getHeavyRotation(14)),
+      semFalhar(getForgottenFavorites(14)),
+    ]).then(([recentes, f, m, e]) => {
+      // getProfileRecentlyPlayed devolve ProfilePlayEntry, que nao tem `album`.
+      setOuvirDeNovo(recentes.map((r: any) => ({ ...r, album: null } as Track)));
+      setFlow(f); setMaisTocadas(m); setEsquecidas(e);
+      setRecsCarregadas(true);
+    });
+  }, []);
   // Conjunto das faixas já guardadas, para marcar os resultados com um coração.
   useEffect(() => { useSaved.getState().refresh(); getSearchHistory().then(setHistory); const focus = () => input.current?.focus(); window.addEventListener('duotone:focus-search', focus); return () => window.removeEventListener('duotone:focus-search', focus); }, []);
   const run = async (q = query) => { const clean = q.trim(); if (!clean) return; setQuery(clean); setLoading(true); try { const [items, next] = await Promise.all([searchYouTube(clean), addSearchHistoryEntry(clean)]); setResults(items); setHistory(next); } catch (e: any) { notify(e?.message || 'Search failed.'); } finally { setLoading(false); } };
   return <Page title="Search" subtitle="Search YouTube and add music to your Duotone library."><View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
     {!results.length && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
-    <ContentScroll>{loading ? <View style={{ height: 320 }}><Loading /></View> : <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, results)} onMore={more} empty={<Empty icon="search-outline" title="Find something to play" body="Search the complete YouTube catalogue. Results appear here in a desktop-friendly table." />} />}</ContentScroll></Page>;
+    <ContentScroll>{loading ? <View style={{ height: 320 }}><Loading /></View>
+      : results.length ? <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, results)} onMore={more} />
+      : (ouvirDeNovo.length || flow.length || maisTocadas.length || esquecidas.length) ? <>
+          <Shelf titulo="Ouvir novamente" tracks={ouvirDeNovo} onPlay={play} onMore={more} />
+          <Shelf titulo="Flow do dia" nota="a partir do que tens ouvido" tracks={flow} onPlay={play} onMore={more} />
+          <Shelf titulo="Mais tocadas" tracks={maisTocadas} onPlay={play} onMore={more} />
+          <Shelf titulo="Favoritos esquecidos" nota="há algum tempo que não ouves" tracks={esquecidas} onPlay={play} onMore={more} />
+        </>
+      : <Empty icon={recsCarregadas ? 'search-outline' : 'sparkles-outline'}
+          title={recsCarregadas ? 'Ainda não há o que recomendar' : 'A preparar recomendações…'}
+          body={recsCarregadas
+            ? 'Ouve algumas músicas e esta página passa a mostrar o que costumas ouvir. Entretanto, procura no catálogo do YouTube acima.'
+            : 'Um instante.'} />}
+    </ContentScroll></Page>;
 }
 
 interface CommonPageProps { play: (track: Track, queue?: Track[]) => void; notify: (message: string) => void; more: (track: Track) => void; }
