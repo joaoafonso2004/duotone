@@ -19,6 +19,10 @@ import {
   prazoDoTemporizador, restanteDoTemporizador, saltoAposFalha,
   sessaoParaGuardar, substituicaoDe,
 } from '../lib/playerQueue';
+import {
+  derivados, INICIAL as MAQUINA_INICIAL, transicao,
+  type EstadoDeReproducao, type Evento,
+} from '../lib/playbackMachine';
 import type { Track } from '../types';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
@@ -49,6 +53,8 @@ interface PlayerState {
   queue: Track[];
   queueIndex: number;
   isPlaying: boolean;
+  /** A verdade sobre a reproducao. `isPlaying`/`buffering` derivam daqui. */
+  maquina: EstadoDeReproducao;
   /** overlay Now Playing expandido vs mini-player */
   expanded: boolean;
   /** modo de repetição (botão no player) */
@@ -198,6 +204,16 @@ function debouncedStorage() {
   };
 }
 
+/**
+ * O `isPlaying` e o `buffering` deixaram de se escrever a mao: saem da maquina
+ * de estados (`lib/playbackMachine.ts`), que e onde as combinacoes sem sentido
+ * ficam impossiveis. Escrevia-os em 23 sitios diferentes; agora ha um evento.
+ */
+function passo(estado: EstadoDeReproducao, tipo: Evento['tipo']) {
+  const maquina = transicao(estado, { tipo } as Evento);
+  return { maquina, ...derivados(maquina) };
+}
+
 /** Guarda contra duas idas à rede do rádio em simultâneo. */
 let radioInFlight = false;
 /** Impede que uma resolucao lenta de uma faixa antiga substitua um clique mais recente. */
@@ -210,6 +226,7 @@ export const usePlayer = create<PlayerState>()(
   queue: [],
   queueIndex: 0,
   isPlaying: false,
+  maquina: MAQUINA_INICIAL,
   expanded: false,
   repeatMode: 'off',
   shuffle: false,
@@ -266,10 +283,12 @@ export const usePlayer = create<PlayerState>()(
       error: null,
       positionMs: 0,
       durationMs: (playableTrack.durationSeconds ?? 0) * 1000,
-      // A resolver/carregar até o áudio começar mesmo (pulsa a capa).
-      buffering: !reusedControls,
-      // O player nativo autoplay-a ao montar; estado real chega via bridge.
-      isPlaying: true,
+      // Faixa nova: volta a resolver, e leva a intencao atras — quem estava a
+      // ouvir e carregou em "seguinte" continua a querer ouvir. Se o motor foi
+      // reaproveitado nao ha nada a carregar, por isso ja fica pronto.
+      ...(reusedControls
+        ? passo(transicao(get().maquina, { tipo: 'faixa-escolhida' }), 'motor-pronto')
+        : passo(get().maquina, 'faixa-escolhida')),
       activeBackend: reusedControls ? get().activeBackend : 'resolving',
       downloadProgress: null,
       autoplayOnLoad: true,
@@ -298,8 +317,7 @@ export const usePlayer = create<PlayerState>()(
         error: null,
         positionMs: 0,
         durationMs: (troca.current.durationSeconds ?? 0) * 1000,
-        buffering: true,
-        isPlaying: true,
+        ...passo(state.maquina, 'faixa-escolhida'),
         activeBackend: 'resolving' as const,
         downloadProgress: null,
         autoplayOnLoad: true,
@@ -331,8 +349,7 @@ export const usePlayer = create<PlayerState>()(
       queue: fila,
       queueIndex: 0,
       shuffleOrder: ordem,
-      isPlaying: false,
-      buffering: false,
+      ...passo(state.maquina, 'parou-tudo'),
       error: null,
       positionMs: 0,
       durationMs: 0,
@@ -351,8 +368,7 @@ export const usePlayer = create<PlayerState>()(
       error: null,
       positionMs,
       durationMs: (track.durationSeconds ?? 0) * 1000,
-      buffering: true,
-      isPlaying: true,
+      ...passo(get().maquina, 'faixa-escolhida'),
       activeBackend: 'resolving',
       downloadProgress: null,
       autoplayOnLoad: true,
@@ -388,8 +404,7 @@ export const usePlayer = create<PlayerState>()(
         current: track,
         queue: [track],
         queueIndex: 0,
-        isPlaying: true,
-        buffering: true,
+        ...passo(get().maquina, 'faixa-escolhida'),
         positionMs: 0,
         durationMs: (track.durationSeconds ?? 0) * 1000,
       });
@@ -407,8 +422,7 @@ export const usePlayer = create<PlayerState>()(
         current: track,
         queue: [track],
         queueIndex: 0,
-        isPlaying: true,
-        buffering: true,
+        ...passo(get().maquina, 'faixa-escolhida'),
         positionMs: 0,
         durationMs: (track.durationSeconds ?? 0) * 1000,
       });
@@ -420,14 +434,19 @@ export const usePlayer = create<PlayerState>()(
   togglePlay: async () => {
     const { current, isPlaying, _yt } = get();
     if (!current) return;
+    // Os helpers do `playerLifecycle` fazem o efeito (play/pause no motor) e
+    // tratam do `error`/`autoplayOnLoad`, mas NAO podem mandar no `isPlaying`:
+    // quem manda nisso e a maquina, e o `passo` vem depois de proposito para
+    // ganhar ao que eles devolvem. Sem isto a pausa nao pegava — a confirmacao
+    // do motor chegava a seguir e repunha o estado anterior.
     if (isPlaying) {
       // Se o iframe ainda nao estiver pronto, a pausa tem de ficar registada
       // para o onReady nao arrancar alguns milissegundos depois.
-      set(requestPause(_yt));
+      set({ ...requestPause(_yt), ...passo(get().maquina, 'quer-parar') });
     } else {
       // No restauro `_yt` pode ainda ser null. Antes o clique perdia-se; agora
       // fica como intencao pendente e o onReady do player chama playVideo().
-      set(requestPlay(_yt));
+      set({ ...requestPlay(_yt), ...passo(get().maquina, 'quer-tocar') });
     }
   },
 
@@ -445,7 +464,7 @@ export const usePlayer = create<PlayerState>()(
         await get().next();
         return;
       }
-      set({ isPlaying: false });
+      set(passo(get().maquina, 'quer-parar'));
     };
 
     // Shuffle: seguir o percurso materializado, não sortear.
@@ -523,7 +542,7 @@ export const usePlayer = create<PlayerState>()(
       current: null,
       queue: [],
       queueIndex: 0,
-      isPlaying: false,
+      ...passo(get().maquina, 'parou-tudo'),
       expanded: false,
       positionMs: 0,
       durationMs: 0,
@@ -671,14 +690,16 @@ export const usePlayer = create<PlayerState>()(
       get().next();
       return;
     }
-    set({ isPlaying: s === 'playing' });
+    // Confirmacao DO MOTOR: mexe na fase, nunca na intencao. Uma confirmacao
+    // atrasada ressuscitava a reproducao depois de o utilizador pausar.
+    set(passo(get().maquina, s === 'playing' ? 'a-tocar' : 'em-pausa'));
   },
 
   _setProgress: (positionMs, durationMs) => set({ positionMs, durationMs }),
 
-  _setIsPlaying: (v) => set({ isPlaying: v }),
+  _setIsPlaying: (v) => set(passo(get().maquina, v ? 'quer-tocar' : 'quer-parar')),
 
-  _setBuffering: (v) => set({ buffering: v }),
+  _setBuffering: (v) => set(passo(get().maquina, v ? 'a-encher' : 'motor-pronto')),
 
   setSleepTimer: (minutes) => {
     const { fimEm, restanteS } = prazoDoTemporizador(minutes, Date.now());
@@ -738,7 +759,7 @@ export const usePlayer = create<PlayerState>()(
     let newIndex = queueIndex;
     if (index === queueIndex) {
       if (newQueue.length === 0) {
-        set({ current: null, queue: [], queueIndex: 0, isPlaying: false });
+        set({ current: null, queue: [], queueIndex: 0, ...passo(get().maquina, 'parou-tudo') });
         return;
       }
       newIndex = Math.min(queueIndex, newQueue.length - 1);
@@ -755,7 +776,7 @@ export const usePlayer = create<PlayerState>()(
     const { isPlaying, _yt } = get();
     if (isPlaying) {
       _yt?.pause();
-      set({ isPlaying: false });
+      set(passo(get().maquina, 'quer-parar'));
     }
   },
     }),
@@ -775,6 +796,11 @@ export const usePlayer = create<PlayerState>()(
           ...current,
           ...persisted,
           ...restoredPlaybackState(persisted.positionMs),
+          // A maquina TEM de acompanhar o restauro. Sem isto ficava em
+          // `sem-faixa` com uma faixa carregada, e como a maquina ignora
+          // ordens sem faixa, o botao de play deixava de responder ao abrir a
+          // app. Pausado e por resolver e exatamente o que o restauro e.
+          maquina: { intencao: 'parar', fase: 'a-resolver' } as const,
         };
       },
     }
