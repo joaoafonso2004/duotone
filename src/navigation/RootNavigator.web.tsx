@@ -41,6 +41,7 @@ import {
   shareItem, publishPresence, clearPresence, sendFriendRequest, getChatMessages, type Friendship, type SharedItem
 } from '../api/social';
 import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
+import { historico, limparHistorico, relatorio, resumo } from '../lib/playbackDiagnostics';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
@@ -780,6 +781,9 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
   const [rewind, setRewindState] = useState(false);
    const [opacity, setOpacity] = useState('0.72');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  // O historico de falhas vive num anel de modulo, fora do React. Este contador
+  // existe so para o ecra se redesenhar depois de o limpar.
+  const [, setLimpezas] = useState(0);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [update, setUpdate] = useState<{ version: string; url: string } | null>(null);
 
@@ -844,6 +848,31 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
     setEffectIntensityState(intensidade);
     await setEffectIntensity(intensidade);
     window.dispatchEvent(new CustomEvent('duotone:effect-intensity', { detail: intensidade }));
+  };
+
+  // Diagnostico de reproducao. O detalhe tecnico (cliente InnerTube, PO Token,
+  // codigo do embed, HTTP) deixou de ir para a barra do leitor e passou a
+  // viver aqui — que e onde serve para alguma coisa: um ficheiro que se abre,
+  // se le e se cola numa mensagem. Antes disto ia tudo para `console.warn`,
+  // que num executavel instalado nao e lido por ninguem.
+  const falhas = historico();
+  const exportarRelatorio = () => {
+    const texto = relatorio({
+      versao: APP_VERSION,
+      build: BUILD_ID,
+      plataforma: `windows (${navigator.userAgent.includes('Electron') ? 'app' : 'browser'})`,
+      gerado: new Date().toISOString(),
+    });
+    const url = URL.createObjectURL(new Blob([texto], { type: 'text/plain;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `duotone-reproducao-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Revogar so depois do clique: revogar antes cancela a propria transferencia.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    notify(falhas.length ? 'Playback report saved.' : 'No failures this session — empty report saved.');
   };
 
   const runDeleteAccount = async () => {
@@ -916,6 +945,19 @@ function SettingsPage({ notify }: { notify: (s: string) => void }) {
             <ChoiceLine label="Effect mode" description="Reactive follows the music. Static freezes the selected style. Off shows the plain artwork and stops audio capture." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
             <ChoiceLine label="Accent Theme" value={themeName} choices={[['violet', 'Violet'], ['blue', 'Blue'], ['orange', 'Orange'], ['green', 'Green'], ['pink', 'Pink'], ['red', 'Red'], ['mono', 'White'], ['steel', 'Steel']]} onChange={(v) => setTheme(v as any)} />
             <ChoiceLine label="Glass Transparency" value={opacity} choices={[['0.95', 'Solid'], ['0.72', 'Default'], ['0.55', 'Translucent'], ['0.35', 'Neon blur']]} onChange={changeOpacity} />
+          </SettingsCard>
+
+          <SettingsCard icon="pulse-outline" title="Playback diagnostics">
+            <SettingLine
+              label="Failures this session"
+              value={falhas.length
+                ? `${falhas.length} — ${Object.entries(resumo(falhas)).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${n}x ${t}`).join(', ')}`
+                : 'None'}
+            />
+            <SettingAction label="Export playback report" onPress={exportarRelatorio} />
+            {falhas.length > 0 && (
+              <SettingAction label="Clear recorded failures" onPress={() => { limparHistorico(); notify('Cleared.'); setLimpezas((n) => n + 1); }} />
+            )}
           </SettingsCard>
 
           <SettingsCard icon="information-circle-outline" title="About">
