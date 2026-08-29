@@ -13,7 +13,6 @@ import { APP_VERSION, BUILD_ID } from '../../lib/buildInfo';
 import { historico, limparHistorico, relatorio, resumo } from '../../lib/playbackDiagnostics';
 import {
   getGlitchMode, setGlitchMode, type GlitchMode,
-  getArtworkEffect, setArtworkEffect, type ArtworkEffect,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
   getShowRewindButton, getShowTrackDuration,
   setShowRewindButton, setShowTrackDuration, setShowTrackDurationCache,
@@ -40,7 +39,6 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
   const [update, setUpdate] = useState<{ version: string; url: string } | null>(null);
 
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
-  const [artworkEffect, setArtworkEffectState] = useState<ArtworkEffect>('glitch');
   const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
 
   const themeName = useTheme((s) => s.themeName);
@@ -63,14 +61,12 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
       getShowRewindButton(),
       AsyncStorage.getItem('pref:panelOpacity'),
       getGlitchMode(),
-      getArtworkEffect(),
       getEffectIntensity(),
-    ]).then(([a, b, opacityVal, modoGlitch, efeitoCapa, intensidade]) => {
+    ]).then(([a, b, opacityVal, modoGlitch, intensidade]) => {
       setDurationState(a);
       setRewindState(b);
       if (opacityVal) setOpacity(opacityVal);
       setGlitch(modoGlitch);
-      setArtworkEffectState(efeitoCapa);
       setEffectIntensityState(intensidade);
     });
   }, []);
@@ -86,13 +82,6 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
     setGlitch(modo);
     await setGlitchMode(modo);
     window.dispatchEvent(new CustomEvent('duotone:glitch-mode', { detail: modo }));
-  };
-
-  const changeArtworkEffect = async (val: string) => {
-    const efeito = val as ArtworkEffect;
-    setArtworkEffectState(efeito);
-    await setArtworkEffect(efeito);
-    window.dispatchEvent(new CustomEvent('duotone:artwork-effect', { detail: efeito }));
   };
 
   const changeEffectIntensity = async (val: string) => {
@@ -192,7 +181,6 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
           <SettingsCard icon="desktop-outline" title="Appearance & Visuals">
             {/* A captura de audio e dita aqui, nao escondida: e o que permite
                 o efeito reagir ao som, e desligar a opcao desliga-a mesmo. */}
-            <ChoiceLine label="Visual style" description="Keep the original Glitch, or try radial Waves driven by the same bass and treble detector." value={artworkEffect} choices={[['glitch', 'Glitch'], ['waves', 'Waves']]} onChange={changeArtworkEffect} />
             <ChoiceLine label="Effect intensity" description="Adjust the visual strength without changing beat detection." value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />
             <ChoiceLine label="Effect mode" description="Reactive follows the music. Static freezes the selected style. Off shows the plain artwork and stops audio capture." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
             <ChoiceLine label="Accent Theme" value={themeName} choices={[['violet', 'Violet'], ['blue', 'Blue'], ['orange', 'Orange'], ['green', 'Green'], ['pink', 'Pink'], ['red', 'Red'], ['mono', 'White'], ['steel', 'Steel']]} onChange={(v) => setTheme(v as any)} />

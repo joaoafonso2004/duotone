@@ -17,7 +17,6 @@ const KEY_SOUND_PRESET = 'pref:soundPreset';
 const KEY_KEEP_AWAKE = 'pref:keepAwake';
 const KEY_NOTIFICATIONS = 'pref:notifications';
 const KEY_GLITCH_MODE = 'pref:glitchMode';
-const KEY_ARTWORK_EFFECT = 'pref:artworkEffect';
 const KEY_EFFECT_INTENSITY = 'pref:effectIntensity';
 
 export type YtViewMode = 'video' | 'photo';
@@ -99,17 +98,6 @@ export async function getGlitchMode(): Promise<GlitchMode> {
 }
 export async function setGlitchMode(v: GlitchMode): Promise<void> {
   await AsyncStorage.setItem(KEY_GLITCH_MODE, v);
-}
-
-/** Identidade visual da capa reativa. `glitch` e o efeito original e continua
- * a ser o valor por omissao; acrescentar variantes nunca o substitui. */
-export type ArtworkEffect = 'glitch' | 'waves';
-export async function getArtworkEffect(): Promise<ArtworkEffect> {
-  const v = await AsyncStorage.getItem(KEY_ARTWORK_EFFECT);
-  return v === 'waves' ? 'waves' : 'glitch';
-}
-export async function setArtworkEffect(v: ArtworkEffect): Promise<void> {
-  await AsyncStorage.setItem(KEY_ARTWORK_EFFECT, v);
 }
 
 export type EffectIntensity = 'subtle' | 'normal' | 'strong';

@@ -20,9 +20,9 @@ import { styles } from '../desktop/estilos.web';
 import { GlitchArtwork } from '../desktop/glitch/GlitchArtwork.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
 import {
-  getArtworkEffect, getEffectIntensity, getGlitchMode,
-  setArtworkEffect, setEffectIntensity, setGlitchMode,
-  type ArtworkEffect, type EffectIntensity, type GlitchMode,
+  getEffectIntensity, getGlitchMode,
+  setEffectIntensity, setGlitchMode,
+  type EffectIntensity, type GlitchMode,
   getShowRewindButton, getShowTrackDuration,
   setShowRewindButton, setShowTrackDuration, setShowTrackDurationCache,
   setAutoplayRadio as persistAutoplayRadio

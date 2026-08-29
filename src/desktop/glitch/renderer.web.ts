@@ -44,7 +44,6 @@ uniform sampler2D uEspetro;
 // [1] = passo aleatorio a 15 Hz, lado CSS, envelope da batida, energia aguda
 uniform vec4 uQuadro[2];
 // 0 = glitch original; 1 = ondas radiais.
-uniform float uEstilo;
 uniform float uIntensidade;
 // Recorte "cover": a capa nem sempre e quadrada (as miniaturas do YouTube sao
 // 16:9) e a moldura e. Sem isto a imagem saia esticada — a Image do RN que
@@ -115,39 +114,6 @@ void main() {
     return;
   }
 
-  if (uEstilo > 0.5) {
-    // A frente da onda nasce no centro a cada kick e abre enquanto o envelope
-    // cai. Nao usa um relogio continuo: sem batida a via limpa acima devolve
-    // exatamente a capa, portanto nao ha movimento falso entre ataques.
-    vec2 centro = vUv - 0.5;
-    float distancia = length(centro);
-    vec2 direcao = centro / max(distancia, 0.001);
-    float progresso = 1.0 - batida;
-    float anel = sin(distancia * 72.0 - progresso * 18.0);
-    float mascara = 1.0 - smoothstep(0.04, 0.72, distancia);
-    float impacto = pow(batida, 1.35);
-    float forca = (0.006 + 0.018 * batida) * impacto * mascara * uIntensidade;
-
-    // A pancada levanta a imagem alguns pixeis e ela regressa com o envelope.
-    // O zoom deixa margem suficiente para o salto nao revelar as extremidades
-    // da textura; ambos param por completo entre batidas.
-    float salto = 0.012 * impacto * min(uIntensidade, 1.35);
-    float zoom = 0.026 * impacto * min(uIntensidade, 1.35);
-    vec2 uvOnda = (vUv - 0.5) * (1.0 - zoom) + 0.5 + vec2(0.0, salto);
-    uvOnda += direcao * anel * forca;
-    vec2 tuv = uvOnda * uEscala + uDeslocamento;
-
-    // Hats/pratos abrem um contorno cromatico na MESMA onda. Continuam sem
-    // conseguir criar movimento sozinhos porque agudos ja vem fechado pelo
-    // envelope grave.
-    float separacao = (0.0007 + 0.0022 * agudos) * batida * anel * uIntensidade;
-    vec2 desvioCor = direcao * separacao;
-    vec4 base = texture2D(uTex, tuv);
-    float r = texture2D(uTex, tuv + desvioCor).r;
-    float b = texture2D(uTex, tuv - desvioCor).b;
-    gl_FragColor = vec4(r, base.g, b, 1.0);
-    return;
-  }
 
   vec3 globalPx = uQuadro[0].yzw;
   float passo = uQuadro[1].x;
@@ -329,9 +295,9 @@ function compilar(gl: WebGLRenderingContext, tipo: number, fonte: string): WebGL
  */
 export function criarRenderer(
   canvas: HTMLCanvasElement,
-  opcoes: { preservarBuffer?: boolean; aoPerderContexto?: () => void; estilo?: 'glitch' | 'waves'; intensidade?: 'subtle' | 'normal' | 'strong' } = {},
+  opcoes: { preservarBuffer?: boolean; aoPerderContexto?: () => void; intensidade?: 'subtle' | 'normal' | 'strong' } = {},
 ): GlitchRenderer | null {
-  const { preservarBuffer = false, aoPerderContexto, estilo = 'glitch', intensidade = 'normal' } = opcoes;
+  const { preservarBuffer = false, aoPerderContexto, intensidade = 'normal' } = opcoes;
   const atributos: WebGLContextAttributes = {
     alpha: false,
     antialias: false,
@@ -372,11 +338,9 @@ export function criarRenderer(
   const uQuadro = gl.getUniformLocation(prog, 'uQuadro[0]');
   const uEscala = gl.getUniformLocation(prog, 'uEscala');
   const uDeslocamento = gl.getUniformLocation(prog, 'uDeslocamento');
-  const uEstilo = gl.getUniformLocation(prog, 'uEstilo');
   const uIntensidade = gl.getUniformLocation(prog, 'uIntensidade');
   gl.uniform2f(uEscala, 1, 1);
   gl.uniform2f(uDeslocamento, 0, 0);
-  gl.uniform1f(uEstilo, estilo === 'waves' ? 1 : 0);
   gl.uniform1f(uIntensidade, intensidade === 'subtle' ? 0.62 : intensidade === 'strong' ? 1.34 : 1);
 
   const tex = gl.createTexture();
