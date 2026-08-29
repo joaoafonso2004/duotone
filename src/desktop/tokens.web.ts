@@ -60,6 +60,8 @@ export const COR = {
   /** O "metal": o gradiente que substitui o roxo como destaque. */
   metalClaro: '#E9EAEE',
   metalEscuro: '#34363E',
+  /** Luz esbatida — estados ativos e realces sobre superfícies escuras. */
+  metalSuave: 'rgba(233,234,238,0.12)',
   /** Cor reservada a SIGNIFICADO, nunca a decoração. */
   aviso: '#C6A44E',
   erro: '#BE5F62',
