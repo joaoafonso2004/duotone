@@ -268,6 +268,40 @@ decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
   analisar a linha: passar mensagens de commit por lá parte com aspas e abre
   a porta a injeção. Usar `env:`.
 
+## Equalizador (só desktop)
+
+Dez bandas de 32 Hz a 16 kHz, ±12 dB, com perfis e memória por faixa.
+`lib/equalizer.ts` (puro, testado), o grafo em `electron/main.cjs`, o painel em
+`desktop/PainelEqualizador.web.tsx`.
+
+- **O grafo corre DENTRO do frame do YouTube.** A música toca num iframe de
+  outra origem e do renderer não se lhe toca. O que destrava é o
+  `WebFrameMain.executeJavaScript`, que corre código dentro de qualquer frame:
+  lá o `<video>` é local e o `createMediaElementSource` é legítimo. O `src` do
+  vídeo é um `blob:` de um MediaSource — da própria origem — por isso a WebAudio
+  não o silencia. Medido na app: +16 dB nos agudos, +20 dB nos graves.
+- **DOIS CAMINHOS QUE MORRERAM, não os repitas.** (1) Capturar o áudio do frame
+  e reemitir filtrado: o `enableLocalEcho: false` **não** cala o original —
+  confirmado de ouvido — e ouve-se em duplicado. (2) Calar o player e reemitir:
+  o mute (ou volume 0) apaga também a captura, RMS a zero. Não há maneira de
+  ter o som *e* silenciar o original por fora.
+- **`createMediaElementSource` só se chama uma vez por elemento.** O grafo fica
+  em `window.__duotoneEq` e a instalação é idempotente; se o YouTube trocar o
+  `<video>`, monta-se outro. A cada faixa o iframe recarrega e o grafo MORRE —
+  por isso o `playTrack` reaplica sempre, com atraso, mesmo que os ganhos não
+  tenham mudado.
+- Uma falha aqui **não estraga o som**: sem grafo o vídeo toca pelo caminho
+  normal. É por isso que o painel diz "waiting for playback" em vez de mostrar
+  deslizadores que não mexem em nada.
+- **Só se guarda o que foge ao padrão.** Faixa a 1× e plana não deixa registo, e
+  voltar tudo ao normal APAGA a entrada — é assim que se desfaz. Teto de 300
+  faixas (LRU): isto vive no AsyncStorage.
+- O ajuste de uma faixa **não pinga para a seguinte**: sem registo, volta ao
+  padrão. Senão ouvias tudo com o EQ que puseste numa música só.
+- Perfis para MÚSICA. A referência trazia coisas como "FPS Competition", que
+  não têm nada que fazer aqui. E nenhum perfil levanta todas as bandas — isso é
+  subir o volume, não equalizar (há um teste que o garante).
+
 ## Velocidade de reprodução
 
 Substituiu os três presets ("Slowed / Normal / Fast"), que além de serem só

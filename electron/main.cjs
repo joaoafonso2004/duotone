@@ -117,6 +117,102 @@ function configurarCaptura(ses) {
   ses.setPermissionCheckHandler((_conteudos, permissao) => PERMITIDAS.has(permissao));
 }
 
+/**
+ * Equalizador — o grafo corre DENTRO do frame do YouTube.
+ *
+ * O audio toca num iframe de outra origem, e do lado do renderer nao lhe
+ * tocamos. O que destrava isto e o `executeJavaScript` do WebFrameMain, que
+ * corre codigo dentro de qualquer frame: la dentro o `<video>` e local e o
+ * `createMediaElementSource` e legitimo. O `src` do video e um `blob:` de um
+ * MediaSource, ou seja da propria origem — por isso a WebAudio nao o silencia.
+ *
+ * Medido antes de escrever isto: +12 dB contra -12 dB nas bandas altas dao
+ * 20,4 dB de diferenca, e as bandas nao tocadas ficam quietas.
+ *
+ * DOIS CAMINHOS QUE MORRERAM, para nao se repetirem:
+ *   - capturar o audio do frame e reemitir filtrado: o `enableLocalEcho:false`
+ *     NAO cala o original (confirmado de ouvido) e ouvia-se em duplicado;
+ *   - calar o player e reemitir: o mute apaga tambem a captura (RMS a zero).
+ *
+ * `createMediaElementSource` so pode ser chamado UMA VEZ por elemento, dai o
+ * `window.__duotoneEq` guardar o grafo e a instalacao ser idempotente.
+ */
+const EQ_INSTALAR = `(() => {
+  const v = document.querySelector('video');
+  if (!v) return { ok: false, porque: 'sem video' };
+  const eq = window.__duotoneEq;
+  // Se o YouTube trocou o elemento, o grafo antigo ficou preso ao anterior e
+  // tem de se montar outro.
+  if (eq && eq.video === v) return { ok: true, ja: true };
+  try {
+    const ctx = eq ? eq.ctx : new (window.AudioContext || window.webkitAudioContext)();
+    const fonte = ctx.createMediaElementSource(v);
+    const bandas = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+    let no = fonte;
+    const filtros = bandas.map((f) => {
+      const b = ctx.createBiquadFilter();
+      b.type = 'peaking';
+      b.frequency.value = f;
+      b.Q.value = 1;
+      b.gain.value = 0;
+      no.connect(b);
+      no = b;
+      return b;
+    });
+    no.connect(ctx.destination);
+    window.__duotoneEq = { ctx, filtros, video: v };
+    return { ok: true, estado: ctx.state };
+  } catch (e) {
+    return { ok: false, porque: (e && e.name) + ': ' + (e && e.message) };
+  }
+})()`;
+
+const eqAplicar = (ganhos) => `(async () => {
+  const eq = window.__duotoneEq;
+  if (!eq) return { ok: false, porque: 'sem grafo' };
+  try { await eq.ctx.resume(); } catch (e) {}
+  const g = ${JSON.stringify(ganhos)};
+  // Rampa curta: saltar o ganho de uma vez estala nas colunas.
+  const t = eq.ctx.currentTime;
+  eq.filtros.forEach((f, i) => {
+    const v = Number(g[i]) || 0;
+    try { f.gain.setTargetAtTime(v, t, 0.02); } catch (e) { f.gain.value = v; }
+  });
+  return { ok: true };
+})()`;
+
+function frameDoYouTubeParaEq(raiz) {
+  if (!raiz) return null;
+  try {
+    for (const frame of raiz.framesInSubtree || []) {
+      let anfitriao = '';
+      try { anfitriao = new URL(frame.url).hostname; } catch { continue; }
+      if (/(^|\.)(youtube|youtube-nocookie)\.com$/.test(anfitriao)) return frame;
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Instala (se preciso) e aplica os ganhos. Devolve o que correu, para o
+ * renderer poder dizer a verdade em vez de fingir que o EQ esta ligado.
+ *
+ * Uma falha aqui NAO tem consequencias no som: sem grafo, o video toca pelo
+ * caminho normal. E por isso que isto pode falhar sem estragar nada.
+ */
+async function aplicarEqualizador(win, ganhos) {
+  if (!win || win.isDestroyed()) return { ok: false, porque: 'sem janela' };
+  const frame = frameDoYouTubeParaEq(win.webContents.mainFrame);
+  if (!frame) return { ok: false, porque: 'sem frame do YouTube' };
+  try {
+    const instalado = await frame.executeJavaScript(EQ_INSTALAR);
+    if (!instalado || !instalado.ok) return { ok: false, porque: (instalado && instalado.porque) || 'nao instalou' };
+    return await frame.executeJavaScript(eqAplicar(ganhos));
+  } catch (e) {
+    return { ok: false, porque: e && e.message };
+  }
+}
+
 function sendWindowState(win) {
   win.webContents.send('window:maximized', win.isMaximized());
 }
@@ -214,6 +310,11 @@ function createWindow() {
   else win.loadURL(`http://localhost:${SERVER_PORT}/index.html`);
   mainWindow = win;
 }
+
+ipcMain.handle('eq:aplicar', async (event, ganhos) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return aplicarEqualizador(win, Array.isArray(ganhos) ? ganhos : []);
+});
 
 ipcMain.on('window:minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
 ipcMain.on('window:toggle-maximize', (event) => {

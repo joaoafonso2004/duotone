@@ -1,0 +1,131 @@
+import {
+  aoTocar,
+  BANDAS,
+  chaveDaFaixa,
+  daPersistencia,
+  ePlano,
+  GANHO_MAXIMO,
+  guardar,
+  MAX_FAIXAS,
+  normalizar,
+  perfilDe,
+  perfilPorId,
+  PERFIS,
+  PLANO,
+  podar,
+  type MemoriaDeAjustes,
+} from '../src/lib/equalizer.ts';
+
+let bad = 0;
+const check = (label: string, cond: boolean, extra = '') => {
+  if (!cond) bad++;
+  console.log(`  ${cond ? 'ok   ' : 'FALHA'} ${label}${extra ? '  -> ' + extra : ''}`);
+};
+
+console.log('\nas bandas');
+check('sao dez', BANDAS.length === 10);
+check('vao de 32 Hz a 16 kHz', BANDAS[0] === 32 && BANDAS[9] === 16000);
+check('cada uma e o dobro da anterior',
+  BANDAS.slice(1).every((b, i) => Math.abs(b / BANDAS[i] - 2) < 0.01 || Math.abs(b / BANDAS[i] - 1.953) < 0.01));
+
+console.log('\nnormalizar');
+check('o plano sao dez zeros', PLANO.length === 10 && ePlano(PLANO));
+check('prende no maximo', normalizar([99])[0] === GANHO_MAXIMO);
+check('prende no minimo', normalizar([-99])[0] === -GANHO_MAXIMO);
+check('arredonda a uma casa', normalizar([3.14159])[0] === 3.1);
+check('faltas viram zero', normalizar([3])[5] === 0);
+check('lixo vira zero', normalizar([NaN, Infinity, 'x' as any])[0] === 0);
+check('null nao rebenta', normalizar(null).length === 10 && ePlano(normalizar(null)));
+check('sobras sao ignoradas', normalizar(new Array(40).fill(2)).length === 10);
+
+console.log('\nos perfis sao para MUSICA');
+check('ha seis', PERFIS.length === 6);
+check('todos tem dez bandas', PERFIS.every((p) => p.ganhos.length === 10));
+check('nenhum passa dos limites',
+  PERFIS.every((p) => p.ganhos.every((g) => Math.abs(g) <= GANHO_MAXIMO)));
+check('o flat e mesmo plano', ePlano(perfilPorId('flat')!.ganhos));
+// Subir tudo e subir o volume, nao equalizar. Cada perfil (menos o flat) tem
+// de ter pelo menos uma banda em baixo.
+check('nenhum perfil levanta tudo',
+  PERFIS.filter((p) => p.id !== 'flat').every((p) => p.ganhos.some((g) => g < 0)),
+  PERFIS.filter((p) => p.id !== 'flat' && !p.ganhos.some((g) => g < 0)).map((p) => p.id).join());
+check('o bass boost pesa em baixo e nao em cima',
+  perfilPorId('bass')!.ganhos[0] > 3 && perfilPorId('bass')!.ganhos[8] < 3);
+check('o bright faz o contrario',
+  perfilPorId('bright')!.ganhos[0] < 0 && perfilPorId('bright')!.ganhos[8] > 3);
+check('nao ha FPS Competition nem coisas de jogo',
+  !PERFIS.some((p) => /fps|game|jogo|competition/i.test(p.nome + p.id)));
+check('ids unicos', new Set(PERFIS.map((p) => p.id)).size === PERFIS.length);
+check('id desconhecido nao rebenta', perfilPorId('nao-existe') === null);
+
+console.log('\nreconhecer o perfil a partir dos ganhos');
+check('reconhece o bass boost', perfilDe(perfilPorId('bass')!.ganhos)?.id === 'bass');
+check('o plano e o flat', perfilDe(PLANO)?.id === 'flat');
+check('uma curva a mao nao e perfil nenhum',
+  perfilDe([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) === null);
+
+console.log('\nmemoria por faixa');
+const agora = Date.UTC(2026, 7, 29, 12, 0, 0);
+const chave = chaveDaFaixa({ source: 'youtube', sourceId: 'abc' });
+check('a chave e fonte:id', chave === 'youtube:abc');
+
+let m: MemoriaDeAjustes = {};
+// O ponto: uma faixa no normal NAO deixa registo, senao a memoria enchia-se de
+// entradas que nao dizem nada.
+m = guardar(m, chave, { rate: 1, ganhos: PLANO }, agora);
+check('normal e plano nao deixa registo', Object.keys(m).length === 0);
+
+m = guardar(m, chave, { rate: 0.8, ganhos: PLANO }, agora);
+check('so a velocidade ja e registo', !!m[chave]);
+check('guarda a velocidade', m[chave].rate === 0.8);
+check('e nao guarda ganhos planos', m[chave].ganhos === null);
+
+m = guardar(m, chave, { rate: 1, ganhos: perfilPorId('bass')!.ganhos }, agora);
+check('so o EQ tambem e registo', m[chave].ganhos !== null);
+check('e nao guarda a velocidade normal', m[chave].rate === null);
+
+// Voltar tudo ao normal e como o utilizador desfaz.
+m = guardar(m, chave, { rate: 1, ganhos: PLANO }, agora);
+check('voltar ao normal APAGA a entrada', m[chave] === undefined);
+
+console.log('\naplicar ao tocar');
+let m2: MemoriaDeAjustes = {};
+m2 = guardar(m2, 'youtube:x', { rate: 0.8, ganhos: perfilPorId('warm')!.ganhos }, agora);
+const comRegisto = aoTocar(m2, 'youtube:x', { rate: 1, ganhos: PLANO });
+check('devolve o que estava guardado', comRegisto.rate === 0.8 && comRegisto.lembrado === true);
+check('e os ganhos guardados', comRegisto.ganhos[0] === perfilPorId('warm')!.ganhos[0]);
+
+// O ajuste de uma faixa nao pode pingar para a seguinte.
+const semRegisto = aoTocar(m2, 'youtube:outra', { rate: 1, ganhos: PLANO });
+check('faixa sem registo volta ao padrao', semRegisto.rate === 1 && ePlano(semRegisto.ganhos));
+check('e diz que nao era lembrada', semRegisto.lembrado === false);
+
+const soRate = aoTocar(guardar({}, 'k', { rate: 1.5, ganhos: PLANO }, agora), 'k', { rate: 1, ganhos: PLANO });
+check('registo so de velocidade nao inventa EQ', ePlano(soRate.ganhos) && soRate.rate === 1.5);
+
+console.log('\no teto de faixas lembradas');
+let grande: MemoriaDeAjustes = {};
+for (let i = 0; i < MAX_FAIXAS + 50; i++) {
+  grande = guardar(grande, `k${i}`, { rate: 1.2, ganhos: PLANO }, agora + i);
+}
+check('nao passa do teto', Object.keys(grande).length === MAX_FAIXAS, String(Object.keys(grande).length));
+check('as que ficam sao as MAIS RECENTES', !!grande[`k${MAX_FAIXAS + 49}`] && !grande['k0']);
+check('podar uma memoria pequena nao mexe nela',
+  Object.keys(podar({ a: { rate: 1.1, ganhos: null, visto: 1 } })).length === 1);
+
+console.log('\nler a persistencia sem confiar nela');
+check('vazio da vazio', Object.keys(daPersistencia(null)).length === 0);
+check('json partido da vazio', Object.keys(daPersistencia('{{{')).length === 0);
+check('um array nao e memoria', Object.keys(daPersistencia('[1,2,3]')).length === 0);
+check('entradas sem nada sao deitadas fora',
+  Object.keys(daPersistencia('{"a":{"rate":null,"ganhos":null}}')).length === 0);
+check('ganhos fora dos limites sao presos',
+  daPersistencia('{"a":{"rate":null,"ganhos":[99,0,0,0,0,0,0,0,0,0],"visto":1}}').a.ganhos![0] === GANHO_MAXIMO);
+check('rate invalido nao passa',
+  daPersistencia('{"a":{"rate":"rapido","ganhos":[3,0,0,0,0,0,0,0,0,0],"visto":1}}').a.rate === null);
+const ida = JSON.stringify(guardar({}, 'youtube:z', { rate: 0.7, ganhos: perfilPorId('vocal')!.ganhos }, agora));
+check('ida e volta pela persistencia mantem tudo',
+  JSON.stringify(daPersistencia(ida)) === ida, ida.slice(0, 60));
+
+console.log(bad === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${bad} caso(s) a falhar.\n`);
+process.exit(bad === 0 ? 0 : 1);

@@ -1,5 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { arredondar as arredondarRate, daPreferenciaAntiga } from './playbackRate';
+import {
+  daPersistencia, normalizar as normalizarGanhos, type MemoriaDeAjustes,
+} from './equalizer';
 
 const KEY_DEFAULT_YT_VIEW = 'pref:defaultYtView';
 const KEY_REPEAT_MODE = 'pref:repeatMode';
@@ -16,6 +19,8 @@ const KEY_VOLUME_NORMALIZATION = 'pref:volumeNormalization';
 const KEY_SOUND_PRESET = 'pref:soundPreset';
 // Substituiu o KEY_SOUND_PRESET; a chave velha so e lida para migrar.
 const KEY_PLAYBACK_RATE = 'pref:playbackRate';
+const KEY_EQ_GANHOS = 'pref:eqGanhos';
+const KEY_AJUSTES_FAIXA = 'pref:ajustesPorFaixa';
 // Chave antiga, escrita à mão pelo ecrã de Definições antes de haver getter.
 const KEY_KEEP_AWAKE = 'pref:keepAwake';
 const KEY_NOTIFICATIONS = 'pref:notifications';
@@ -127,6 +132,27 @@ export async function getPlaybackRate(): Promise<number> {
 }
 export async function setPlaybackRate(v: number): Promise<void> {
   await AsyncStorage.setItem(KEY_PLAYBACK_RATE, String(arredondarRate(v)));
+}
+
+/** Os ganhos do equalizador para quem nao tem nada guardado na faixa. */
+export async function getEqGanhos(): Promise<number[]> {
+  const v = await AsyncStorage.getItem(KEY_EQ_GANHOS);
+  try {
+    return normalizarGanhos(v ? JSON.parse(v) : null);
+  } catch {
+    return normalizarGanhos(null);
+  }
+}
+export async function setEqGanhos(g: number[]): Promise<void> {
+  await AsyncStorage.setItem(KEY_EQ_GANHOS, JSON.stringify(normalizarGanhos(g)));
+}
+
+/** O que cada faixa lembra: a velocidade e os ganhos com que a deixaste. */
+export async function getAjustesPorFaixa(): Promise<MemoriaDeAjustes> {
+  return daPersistencia(await AsyncStorage.getItem(KEY_AJUSTES_FAIXA));
+}
+export async function setAjustesPorFaixa(m: MemoriaDeAjustes): Promise<void> {
+  await AsyncStorage.setItem(KEY_AJUSTES_FAIXA, JSON.stringify(m));
 }
 
 export async function getKeepAwake(): Promise<boolean> {
