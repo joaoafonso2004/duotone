@@ -103,6 +103,24 @@ check('e diz que nao era lembrada', semRegisto.lembrado === false);
 const soRate = aoTocar(guardar({}, 'k', { rate: 1.5, ganhos: PLANO }, agora), 'k', { rate: 1, ganhos: PLANO });
 check('registo so de velocidade nao inventa EQ', ePlano(soRate.ganhos) && soRate.rate === 1.5);
 
+console.log('\nos ajustes NAO pingam de uma faixa para a seguinte');
+// O bug relatado: pos-se uma musica lenta e a seguinte vinha lenta tambem. A
+// causa era o padrao passado ser o estado ATUAL em vez do das Definicoes.
+const memoria = guardar({}, 'youtube:lenta', { rate: 0.5, ganhos: PLANO }, agora);
+const padrao = { rate: 1, ganhos: PLANO };
+const primeira = aoTocar(memoria, 'youtube:lenta', padrao);
+check('a faixa com registo vem lenta', primeira.rate === 0.5);
+// A seguinte nao tem registo: TEM de voltar ao padrao, e nao herdar o 0.5.
+const seguinte = aoTocar(memoria, 'youtube:outra', padrao);
+check('a seguinte volta ao padrao e nao herda', seguinte.rate === 1);
+check('e tambem nao herda o EQ',
+  ePlano(aoTocar(guardar(memoria, 'youtube:eq', { rate: 1, ganhos: perfilPorId('bass')!.ganhos }, agora),
+    'youtube:limpa', padrao).ganhos));
+// E se o padrao NAO for 1, a faixa sem registo tem de vir com o padrao.
+const comPadrao = aoTocar(memoria, 'youtube:nova', { rate: 1.5, ganhos: perfilPorId('warm')!.ganhos });
+check('o padrao das Definicoes e que manda nas faixas sem registo',
+  comPadrao.rate === 1.5 && comPadrao.ganhos[0] === perfilPorId('warm')!.ganhos[0]);
+
 console.log('\no teto de faixas lembradas');
 let grande: MemoriaDeAjustes = {};
 for (let i = 0; i < MAX_FAIXAS + 50; i++) {

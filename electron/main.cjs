@@ -194,6 +194,53 @@ function frameDoYouTubeParaEq(raiz) {
 }
 
 /**
+ * O tom acompanha a velocidade, em vez de o browser esticar o tempo.
+ *
+ * ISTO ESTAVA PARTIDO E NAO SE VIA. O renderer tentava fazer
+ * `iframe.contentDocument.querySelectorAll('video')` — mas o iframe e de outra
+ * origem, o `contentDocument` vem `null`, e o bloco inteiro nunca corria. O
+ * `preservesPitch` ficava no valor por omissao (`true`), o browser esticava o
+ * tempo para manter o tom, e era DAI que vinham os artefactos em camara lenta:
+ * a 0,5x um algoritmo de time-stretch tem de inventar metade do sinal.
+ *
+ * Com `preservesPitch = false` nao ha nada a inventar — e uma leitura mais
+ * lenta da mesma onda, como abrandar uma fita. O tom desce, e e isso que faz o
+ * lento soar a "slowed" em vez de soar a estragado.
+ */
+const PRESERVAR_TOM = `(() => {
+  const v = document.querySelector('video');
+  if (!v) return { ok: false, porque: 'sem video' };
+  const antes = v.preservesPitch;
+  v.preservesPitch = false;
+  v.mozPreservesPitch = false;
+  v.webkitPreservesPitch = false;
+  return { ok: true, antes, agora: v.preservesPitch, rate: v.playbackRate };
+})()`;
+
+/**
+ * Insiste ate o `<video>` existir. Medido: a primeira tentativa chega cedo
+ * demais — o iframe ainda nao trocou de elemento — e falhava em silencio, o que
+ * deixava a faixa inteira a tocar com o tempo esticado.
+ */
+async function pararDeEsticarOTempo(win, tentativas = 8) {
+  if (!win || win.isDestroyed()) return { ok: false, porque: 'sem janela' };
+  for (let i = 0; i < tentativas; i++) {
+    const frame = frameDoYouTubeParaEq(win.webContents.mainFrame);
+    if (frame) {
+      try {
+        const r = await frame.executeJavaScript(PRESERVAR_TOM);
+        if (r && r.ok) return r;
+      } catch (e) {
+        if (i === tentativas - 1) return { ok: false, porque: e && e.message };
+      }
+    }
+    await new Promise((r) => setTimeout(r, 400));
+    if (win.isDestroyed()) return { ok: false, porque: 'janela fechada' };
+  }
+  return { ok: false, porque: 'sem video ao fim de varias tentativas' };
+}
+
+/**
  * Instala (se preciso) e aplica os ganhos. Devolve o que correu, para o
  * renderer poder dizer a verdade em vez de fingir que o EQ esta ligado.
  *
@@ -310,6 +357,11 @@ function createWindow() {
   else win.loadURL(`http://localhost:${SERVER_PORT}/index.html`);
   mainWindow = win;
 }
+
+ipcMain.handle('player:preservar-tom', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  return pararDeEsticarOTempo(win);
+});
 
 ipcMain.handle('eq:aplicar', async (event, ganhos) => {
   const win = BrowserWindow.fromWebContents(event.sender);

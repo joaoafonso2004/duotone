@@ -297,7 +297,11 @@ Dez bandas de 32 Hz a 16 kHz, ±12 dB, com perfis e memória por faixa.
   voltar tudo ao normal APAGA a entrada — é assim que se desfaz. Teto de 300
   faixas (LRU): isto vive no AsyncStorage.
 - O ajuste de uma faixa **não pinga para a seguinte**: sem registo, volta ao
-  padrão. Senão ouvias tudo com o EQ que puseste numa música só.
+  padrão. Senão ouvias tudo com o EQ que puseste numa música só. Isto já falhou
+  uma vez: o padrão que se passava ao `aoTocar` era o estado ATUAL em vez do das
+  Definições, e nada repunha nada. Daí o `padraoRate`/`padraoGanhos` na store
+  serem campos SEPARADOS do que está aplicado agora — as Definições mexem no
+  padrão (`comoPadrao: true`), o painel do Now Playing mexe na faixa.
 - Perfis para MÚSICA. A referência trazia coisas como "FPS Competition", que
   não têm nada que fazer aqui. E nenhum perfil levanta todas as bandas — isso é
   subir o volume, não equalizar (há um teste que o garante).
@@ -319,7 +323,18 @@ três **não concordavam entre plataformas**: o "rápido" era 1,5 no telemóvel 
   era impossível de agarrar.
 - **O tom acompanha a velocidade** (`preservesPitch = false`), de propósito: é
   isso que faz o lento soar a *slowed* e o rápido a *nightcore*. Preservar o tom
-  dava uma leitura de podcast acelerado, que é outra coisa.
+  dava uma leitura de podcast acelerado, que é outra coisa — e, pior, obriga o
+  browser a esticar o tempo: a 0,5× um time-stretch tem de inventar metade do
+  sinal, e ouvem-se artefactos.
+- **Aplicar isso NÃO se faz do renderer.** Esteve lá muito tempo um
+  `iframe.contentDocument.querySelectorAll('video')` que nunca correu: o iframe
+  é de outra origem, o `contentDocument` vem `null`, e o `catch {}` à volta
+  escondia-o. O valor ficava no `true` por omissão e a câmara lenta soava mal.
+  Vai pelo `WebFrameMain.executeJavaScript` do processo principal, como o EQ, e
+  **insiste** até o `<video>` existir — a primeira tentativa chega cedo demais.
+- O efeito que o pede **não pode ter um `if (!playerRef.current) return`**: na
+  montagem o IFrame ainda não existe, e como o efeito só volta a correr quando a
+  velocidade muda, o pedido nunca chegava a ser feito na primeira faixa.
 - A leitura da preferência MIGRA o `pref:soundPreset` antigo (slowed → 0,8,
   fast → 1,4). A chave velha fica onde está: apagá-la não ganha nada e tirava a
   rede a quem instalasse uma versão anterior.

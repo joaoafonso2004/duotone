@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
    * `{ ok }` — o renderer precisa de saber se pegou, para nao mostrar um EQ
    * ligado que nao esta a fazer nada. */
   aplicarEqualizador: (ganhos) => ipcRenderer.invoke('eq:aplicar', ganhos),
+  /** Poe o `preservesPitch` a false dentro do frame do YouTube. Sem isto o
+   * browser estica o tempo para manter o tom, e a camara lenta enche-se de
+   * artefactos. */
+  naoEsticarOTempo: () => ipcRenderer.invoke('player:preservar-tom'),
   showContextMenu: (items) => ipcRenderer.send('context-menu', items),
   onContextMenuSelection: (listener) => {
     const handler = (_event, id) => listener(String(id));
