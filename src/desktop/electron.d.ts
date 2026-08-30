@@ -23,6 +23,9 @@ declare global {
       /** Aplica os ganhos do equalizador dentro do frame do YouTube.
        * Falhar aqui nao estraga o som: sem grafo, o video toca na mesma. */
       aplicarEqualizador?: (ganhos: number[]) => Promise<{ ok: boolean; porque?: string }>;
+      /** Faz o tom acompanhar a velocidade em vez de o browser esticar o
+       * tempo — e o time-stretch que estraga a camara lenta. */
+      naoEsticarOTempo?: () => Promise<{ ok: boolean; antes?: boolean; agora?: boolean }>;
       showContextMenu(items: { id: string; label: string; enabled?: boolean }[]): void;
       onContextMenuSelection(listener: (id: string) => void): () => void;
     };

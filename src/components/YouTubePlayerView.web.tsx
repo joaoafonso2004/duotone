@@ -290,26 +290,25 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   const playbackRate = usePlayer((s) => s.playbackRate);
   useEffect(() => {
-    const p = playerRef.current;
-    if (!p) return;
+    // O `playerRef` pode ainda ser null (o IFrame monta-se depois). Antes havia
+    // aqui um `if (!p) return` que abortava o efeito inteiro — e como ele so
+    // volta a correr quando a velocidade muda, o pedido do tom nunca chegava a
+    // ser agendado na primeira faixa.
     try {
-      p.setPlaybackRate?.(playbackRate);
-      setTimeout(() => {
-        try {
-          const iframe = document.getElementById(hostId.current) as HTMLIFrameElement | null;
-          const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
-          const videos = doc?.querySelectorAll('video');
-          videos?.forEach((video: any) => {
-            video.preservesPitch = false;
-            video.mozPreservesPitch = false;
-            video.webkitPreservesPitch = false;
-            video.playbackRate = 1.0;
-            video.playbackRate = playbackRate;
-          });
-        } catch {}
-      }, 80);
+      playerRef.current?.setPlaybackRate?.(playbackRate);
     } catch {}
-  }, [playbackRate]);
+    // O tom tem de ACOMPANHAR a velocidade. Sem isto o browser estica o tempo
+    // para o manter, e a 0,5x um time-stretch tem de inventar metade do sinal
+    // — sao esses os artefactos que se ouviam em camara lenta.
+    //
+    // Isto vive no processo principal porque o iframe e de OUTRA ORIGEM. Aqui
+    // estava um `iframe.contentDocument.querySelectorAll('video')` que devolvia
+    // sempre null e nunca fez nada; o `catch {}` a volta escondia-o.
+    //
+    // O atraso da tempo ao iframe de trocar de <video> na mudanca de faixa.
+    const t = setTimeout(() => { void window.duotoneDesktop?.naoEsticarOTempo?.(); }, 400);
+    return () => clearTimeout(t);
+  }, [playbackRate, track.sourceId]);
 
   return <div id={hostId.current} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} />;
 }

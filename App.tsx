@@ -75,11 +75,10 @@ export default function App() {
       player.setShowRewindButton(showRewindButton);
       player.setAutoplayRadio(autoplayRadio);
       player.setVolumeNormalization(volumeNormalization);
-      player.setPlaybackRate(playbackRate);
       // A memoria por faixa e os ganhos entram JUNTOS e sem reaplicar nada: o
       // grafo do EQ so existe quando ha um video, e isso e tratado no
       // playTrack.
-      player._carregarAjustes(ajustes, eqGanhos);
+      player._carregarAjustes(ajustes, eqGanhos, playbackRate);
     });
 
     // "Manter o ecrã ligado" só era aplicado pelo useEffect do ecrã de

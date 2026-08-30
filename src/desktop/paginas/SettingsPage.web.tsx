@@ -182,10 +182,10 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
             <View style={styles.settingLine}>
               <View style={{ flex: 1, paddingRight: ESP.lg }}>
                 <Text style={styles.settingLabel}>Playback speed</Text>
-                <Text style={styles.settingDescription}>Pitch follows the speed, so slowing down sounds slowed, not just slower.</Text>
+                <Text style={styles.settingDescription}>The default for tracks you have not set individually. Pitch follows the speed, so slowing down sounds slowed.</Text>
               </View>
               <View style={{ width: 260 }}>
-                <BarraVelocidade valor={playbackRate} aoMudar={setPlaybackRate} />
+                <BarraVelocidade valor={playbackRate} aoMudar={(v) => setPlaybackRate(v, true)} />
               </View>
             </View>
           </SettingsCard>

@@ -105,11 +105,22 @@ interface PlayerState {
   eqGanhos: Ganhos;
   /** O que cada faixa lembra da ultima vez que a ouviste. */
   ajustesPorFaixa: MemoriaDeAjustes;
+  /**
+   * O padrao, para faixas SEM registo. Vem das Definicoes e e outra coisa do
+   * que o `playbackRate`/`eqGanhos`, que sao o que esta aplicado agora.
+   *
+   * Sem esta separacao os ajustes pingavam: a faixa seguinte nao tinha registo,
+   * nada a repunha, e ficava com o que a anterior deixou.
+   */
+  padraoRate: number;
+  padraoGanhos: Ganhos;
   /** false quando o grafo do EQ nao pegou. A UI tem de o dizer em vez de
    * mostrar deslizadores que nao fazem nada. */
   eqAtivo: boolean;
-  setEqGanhos: (g: number[]) => void;
-  _carregarAjustes: (m: MemoriaDeAjustes, ganhos: number[]) => void;
+  /** `comoPadrao` distingue quem manda: as Definicoes mudam o PADRAO, o painel
+   * do Now Playing muda ESTA faixa (e passa a lembrar-se dela). */
+  setEqGanhos: (g: number[], comoPadrao?: boolean) => void;
+  _carregarAjustes: (m: MemoriaDeAjustes, ganhos: number[], rate: number) => void;
   /** Progresso (0..1) do download da faixa atual, ou null se não está a descarregar. */
   downloadProgress: number | null;
   /** false quando a faixa vem do restauro da sessão anterior — o player
@@ -155,7 +166,7 @@ interface PlayerState {
    * timeUpdate do player nativo, para funcionar em background). */
   checkSleepTimer: () => void;
   _setDownloadProgress: (p: number | null) => void;
-  setPlaybackRate: (rate: number) => void;
+  setPlaybackRate: (rate: number, comoPadrao?: boolean) => void;
   pausePlayback: () => void;
   toggleShuffle: () => void;
   setShowRewindButton: (v: boolean) => void;
@@ -301,6 +312,8 @@ export const usePlayer = create<PlayerState>()(
   playbackRate: RATE_NORMAL,
   eqGanhos: PLANO,
   ajustesPorFaixa: {},
+  padraoRate: RATE_NORMAL,
+  padraoGanhos: PLANO,
   eqAtivo: false,
   downloadProgress: null,
   autoplayOnLoad: true,
@@ -360,14 +373,15 @@ export const usePlayer = create<PlayerState>()(
     // com o EQ que puseste numa so.
     {
       const st = get();
-      const lembrado = ajusteAoTocar(
+      // O padrao vem das Definicoes, NAO do que a faixa anterior deixou. Era
+      // esse o bug: sem registo nada era reposto, e a musica seguinte herdava
+      // a velocidade e o EQ da anterior.
+      const aplicar = ajusteAoTocar(
         st.ajustesPorFaixa,
         chaveDaFaixa(playableTrack),
-        { rate: st.playbackRate, ganhos: st.eqGanhos },
+        { rate: st.padraoRate, ganhos: st.padraoGanhos },
       );
-      if (lembrado.lembrado) {
-        set({ playbackRate: arredondarRate(lembrado.rate), eqGanhos: lembrado.ganhos });
-      }
+      set({ playbackRate: arredondarRate(aplicar.rate), eqGanhos: aplicar.ganhos });
       // O grafo vive dentro do frame do YouTube, que muda de video a cada
       // faixa — os ganhos tem de ser reaplicados sempre, mesmo quando sao os
       // mesmos. O atraso da tempo ao iframe de trocar de <video>.
@@ -793,27 +807,31 @@ export const usePlayer = create<PlayerState>()(
 
   _setDownloadProgress: (p) => set({ downloadProgress: p }),
 
-  setEqGanhos: (g) => {
+  setEqGanhos: (g, comoPadrao = false) => {
     const ganhos = normalizarGanhos(g);
-    set({ eqGanhos: ganhos });
+    set(comoPadrao ? { eqGanhos: ganhos, padraoGanhos: ganhos } : { eqGanhos: ganhos });
     void aplicarEqNoMotor(ganhos);
-    persistEqGanhos(ganhos).catch(() => {});
-    lembrarDaFaixa();
+    // Das Definicoes muda-se o PADRAO; do painel do Now Playing muda-se ESTA
+    // faixa, e e ela que passa a lembrar-se.
+    if (comoPadrao) persistEqGanhos(ganhos).catch(() => {});
+    else lembrarDaFaixa();
   },
 
   /** Chamado uma vez no arranque, com o que estava guardado. */
-  _carregarAjustes: (m, ganhos) => {
-    set({ ajustesPorFaixa: m, eqGanhos: normalizarGanhos(ganhos) });
+  _carregarAjustes: (m, ganhos, rate) => {
+    const g = normalizarGanhos(ganhos);
+    const r = arredondarRate(rate);
+    set({ ajustesPorFaixa: m, eqGanhos: g, padraoGanhos: g, playbackRate: r, padraoRate: r });
   },
 
-  setPlaybackRate: (rate) => {
+  setPlaybackRate: (rate, comoPadrao = false) => {
     const v = arredondarRate(rate);
-    set({ playbackRate: v });
-    lembrarDaFaixa();
+    set(comoPadrao ? { playbackRate: v, padraoRate: v } : { playbackRate: v });
     // Persistido aqui e não nos ecrãs de Definições: são dois (telemóvel e
     // desktop) e assim nenhum se pode esquecer. Antes o preset voltava a
     // "normal" a cada arranque, apesar de estar apresentado como definição.
-    persistPlaybackRate(v).catch(() => {});
+    if (comoPadrao) persistPlaybackRate(v).catch(() => {});
+    else lembrarDaFaixa();
   },
 
   moveQueueItem: (fromIndex, toIndex) => {
