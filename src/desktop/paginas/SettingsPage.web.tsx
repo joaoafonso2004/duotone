@@ -10,7 +10,7 @@ import React, { ReactNode, useEffect, useState } from 'react';
 import { Pressable, Switch, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_VERSION, BUILD_ID } from '../../lib/buildInfo';
-import { historico, limparHistorico, relatorio, resumo } from '../../lib/playbackDiagnostics';
+import { historico, limparHistorico, relatorio, resumo, rotulo as rotuloDaFalha } from '../../lib/playbackDiagnostics';
 import {
   getGlitchMode, setGlitchMode, type GlitchMode,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
@@ -203,7 +203,7 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
             <SettingLine
               label="Failures this session"
               value={falhas.length
-                ? `${falhas.length} — ${Object.entries(resumo(falhas)).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${n}x ${t}`).join(', ')}`
+                ? `${falhas.length} — ${Object.entries(resumo(falhas)).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${n}× ${rotuloDaFalha(t as any)}`).join(', ')}`
                 : 'None'}
             />
             <SettingAction label="Export playback report" onPress={exportarRelatorio} />

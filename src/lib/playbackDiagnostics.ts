@@ -242,6 +242,26 @@ export function mensagem(tipo: TipoFalha): string {
   }
 }
 
+/**
+ * Nome legivel de cada tipo. Os identificadores (`bloqueio-bot`,
+ * `indisponivel`) sao internos e estavam a vazar para as Definicoes como se
+ * fossem texto — ninguem tem de saber como e que lhes chamamos por dentro.
+ */
+export function rotulo(tipo: TipoFalha): string {
+  switch (tipo) {
+    case 'sem-rede': return 'no connection';
+    case 'indisponivel': return 'upload gone';
+    case 'embed-bloqueado': return 'embedding blocked';
+    case 'restrito-idade': return 'age-restricted';
+    case 'restrito-regiao': return 'blocked in your country';
+    case 'bloqueio-bot': return 'throttled by YouTube';
+    case 'sem-formato': return 'no usable audio';
+    case 'cdn-recusou': return 'link refused';
+    case 'tempo-esgotado': return 'never started';
+    case 'desconhecido': return 'unknown';
+  }
+}
+
 // ---------------------------------------------------------------- registo --
 //
 // Um anel de eventos em memória. É o que alimenta o relatório exportável, e
@@ -298,24 +318,27 @@ export type Contexto = {
  */
 export function relatorio(ctx: Contexto, lista: readonly Evento[] = eventos): string {
   const linhas: string[] = [];
-  linhas.push('Duotone — relatorio de reproducao');
-  linhas.push(`gerado:     ${ctx.gerado}`);
-  linhas.push(`versao:     ${ctx.versao} (build ${ctx.build})`);
-  linhas.push(`plataforma: ${ctx.plataforma}`);
+  // Em ingles como o resto da UI do desktop — o botao que o gera diz "Export
+  // playback report", e um ficheiro em portugues a seguir a isso e a mesma
+  // incoerencia do "REPOR" no meio de um painel em ingles.
+  linhas.push('Duotone — playback report');
+  linhas.push(`generated: ${ctx.gerado}`);
+  linhas.push(`version:   ${ctx.versao} (build ${ctx.build})`);
+  linhas.push(`platform:  ${ctx.plataforma}`);
   linhas.push('');
 
   if (!lista.length) {
-    linhas.push('Sem falhas registadas nesta sessao.');
+    linhas.push('No failures recorded this session.');
     return linhas.join('\n');
   }
 
   const contagem = resumo(lista);
-  linhas.push(`falhas: ${lista.length}`);
+  linhas.push(`failures: ${lista.length}`);
   for (const tipo of Object.keys(contagem).sort((a, b) => contagem[b] - contagem[a])) {
-    linhas.push(`  ${contagem[tipo]}x ${tipo}`);
+    linhas.push(`  ${contagem[tipo]}x ${rotulo(tipo as TipoFalha)}  (${tipo})`);
   }
   linhas.push('');
-  linhas.push('--- eventos, do mais antigo para o mais recente ---');
+  linhas.push('--- events, oldest first ---');
   for (const e of lista) {
     const hora = new Date(e.quando).toISOString().slice(11, 19);
     linhas.push(`[${hora}] ${e.tipo} (${e.fase}) ${e.videoId} — ${e.titulo}`);

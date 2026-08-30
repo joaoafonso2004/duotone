@@ -9,6 +9,7 @@ import {
   registar,
   relatorio,
   resumo,
+  rotulo,
   type TipoFalha,
 } from '../src/lib/playbackDiagnostics.ts';
 
@@ -128,6 +129,18 @@ check('nenhuma mensagem tem jargao tecnico', limpas);
 check('todas cabem na barra do leitor (<= 64 chars)', curtas);
 check('ha uma mensagem por tipo', TIPOS.every((t) => mensagem(t).length > 0));
 
+console.log('\nnomes legiveis dos tipos');
+// Os identificadores (`bloqueio-bot`, `indisponivel`) sao internos e estavam a
+// vazar para as Definicoes como se fossem texto.
+check('cada tipo tem nome legivel',
+  TIPOS.every((t) => rotulo(t).length > 0 && rotulo(t) !== t));
+// Nao se pode proibir o hifen: "age-restricted" e uma palavra, nao um
+// identificador. O que interessa e que nenhum rotulo SEJA um identificador.
+check('nenhum rotulo e um identificador',
+  TIPOS.every((t) => !TIPOS.includes(rotulo(t) as any)),
+  TIPOS.map(rotulo).filter((r) => TIPOS.includes(r as any)).join());
+check('os nomes sao todos diferentes', new Set(TIPOS.map(rotulo)).size === TIPOS.length);
+
 console.log('\nregisto e relatorio');
 limparHistorico();
 check('comeca vazio', historico().length === 0);
@@ -142,14 +155,17 @@ check('resume por tipo', r['bloqueio-bot'] === 2 && r['indisponivel'] === 1, JSO
 const texto = relatorio({ versao: '1.4.1', build: 'abc123', plataforma: 'ios', gerado: '2026-08-29T14:31:00Z' });
 check('o relatorio TEM o detalhe tecnico', texto.includes('client=IOS pot=no') && texto.includes('http=403'));
 check('o relatorio tem o build', texto.includes('abc123'));
-check('o relatorio conta as falhas', texto.includes('2x bloqueio-bot'));
+check('o relatorio conta as falhas', texto.includes('2x throttled by YouTube'));
+// O identificador interno fica no relatorio (serve para mim), mas acompanhado
+// do nome legivel — na UI so aparece o nome.
+check('e mantem o identificador ao lado', texto.includes('(bloqueio-bot)'));
 check('o relatorio poe os eventos por ordem',
   texto.indexOf('aaa') < texto.indexOf('bbb') && texto.indexOf('bbb') < texto.indexOf('ccc'));
 check('as horas sao legiveis', texto.includes('14:30:00'));
 
 limparHistorico();
 check('relatorio vazio nao mente',
-  relatorio({ versao: '1', build: 'b', plataforma: 'web', gerado: 'x' }).includes('Sem falhas registadas'));
+  relatorio({ versao: '1', build: 'b', plataforma: 'web', gerado: 'x' }).includes('No failures recorded'));
 
 // O anel nao pode crescer sem fim: a app fica horas aberta.
 for (let i = 0; i < 200; i++) {

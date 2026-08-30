@@ -2,10 +2,9 @@ import React, { useCallback, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
   arredondar, daFraccao, eNormal, formatar, paraFraccao, passo,
-  PASSOS, RATE_MAXIMO, RATE_MINIMO,
+  RATE_MAXIMO, RATE_MINIMO,
 } from '../lib/playbackRate';
 import { COR, ESP, RAIO, TIPO } from './tokens.web';
-import { ui } from './ui.web';
 
 /** O react-native-web renderiza uma View como <div>, mas os tipos do RN nao
  * conhecem `className`, `onKeyDown`, `role` nem `tabIndex`. E o mesmo truque
@@ -27,16 +26,17 @@ const V = View as any;
  * Os degraus ficam igualmente espaçados na barra, e não proporcionais ao
  * valor: o 0,25 e o 0,3 estão colados em número, e proporcionalmente o
  * primeiro degrau era impossível de agarrar.
+ *
+ * A barra não escreve os extremos por baixo: o valor está ao lado, a marca do
+ * 1× está na própria barra, e uma legenda a dizer "0,25× … 2×" era repetir o
+ * que o gesto já mostra.
  */
 export function BarraVelocidade({
   valor,
   aoMudar,
-  compacta = false,
 }: {
   valor: number;
   aoMudar: (v: number) => void;
-  /** Sem as marcas nem os extremos escritos, para caber ao lado de outra coisa. */
-  compacta?: boolean;
 }) {
   const trilho = useRef<any>(null);
   const actual = arredondar(valor);
@@ -101,8 +101,7 @@ export function BarraVelocidade({
           </View>
           <V className="slider-thumb" style={{ left: `${fraccao * 100}%` }} />
           {/* A marca do 1x: sem ela nao se encontra o normal a olho. */}
-          {!compacta && (
-            <V
+          <V
               pointerEvents="none"
               style={{
                 position: 'absolute',
@@ -110,8 +109,7 @@ export function BarraVelocidade({
                 width: 1, height: 9, marginLeft: -0.5,
                 backgroundColor: COR.textoFraco,
               }}
-            />
-          )}
+          />
         </V>
         <Text style={[TIPO.numero, { color: eNormal(actual) ? COR.textoFraco : COR.texto, width: 46, textAlign: 'right' }]}>
           {formatar(actual)}
@@ -130,18 +128,11 @@ export function BarraVelocidade({
                 hovered && { backgroundColor: COR.hover },
               ]}
             >
-              <Text style={[TIPO.micro, { color: COR.textoFraco }]}>REPOR</Text>
+              <Text style={[TIPO.micro, { color: COR.textoFraco }]}>RESET</Text>
             </Pressable>
           )}
         </View>
       </View>
-      {!compacta && (
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={[ui.eyebrow]}>{formatar(RATE_MINIMO)}</Text>
-          <Text style={[ui.eyebrow]}>{`${PASSOS.length} PASSOS DE 0.1`}</Text>
-          <Text style={[ui.eyebrow]}>{formatar(RATE_MAXIMO)}</Text>
-        </View>
-      )}
     </View>
   );
 }
