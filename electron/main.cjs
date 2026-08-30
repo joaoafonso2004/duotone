@@ -159,26 +159,45 @@ const EQ_INSTALAR = `(() => {
       no = b;
       return b;
     });
-    no.connect(ctx.destination);
-    window.__duotoneEq = { ctx, filtros, video: v };
+    // A MARGEM. Sem este no a cadeia ia dos filtros DIRETO ao destino, e o
+    // reforco cortava a onda em vez de a levantar: medido, um baixo de 60 Hz
+    // com amplitude 0,8 saia a 2,05 de pico com o Bass boost, contra o maximo
+    // de 1,0 — 67% das amostras decapitadas. O que se ouvia como "os graves
+    // nao se notam" era a distorcao de os cortar. O valor vem do renderer,
+    // calculado no lib/equalizer.ts, que e quem sabe quanto e que as bandas
+    // somam quando se sobrepoem.
+    const margem = ctx.createGain();
+    margem.gain.value = 1;
+    no.connect(margem);
+    margem.connect(ctx.destination);
+    window.__duotoneEq = { ctx, filtros, margem, video: v };
     return { ok: true, estado: ctx.state };
   } catch (e) {
     return { ok: false, porque: (e && e.name) + ': ' + (e && e.message) };
   }
 })()`;
 
-const eqAplicar = (ganhos) => `(async () => {
+const eqAplicar = (ganhos, compensacao) => `(async () => {
   const eq = window.__duotoneEq;
   if (!eq) return { ok: false, porque: 'sem grafo' };
   try { await eq.ctx.resume(); } catch (e) {}
   const g = ${JSON.stringify(ganhos)};
+  const margem = ${JSON.stringify(compensacao)};
   // Rampa curta: saltar o ganho de uma vez estala nas colunas.
   const t = eq.ctx.currentTime;
   eq.filtros.forEach((f, i) => {
     const v = Number(g[i]) || 0;
     try { f.gain.setTargetAtTime(v, t, 0.02); } catch (e) { f.gain.value = v; }
   });
-  return { ok: true };
+  // A margem anda na MESMA rampa que os filtros: se descesse depois deles
+  // ouvia-se um pico no meio da mudanca de perfil.
+  if (eq.margem) {
+    const m = Number(margem);
+    const seguro = Number.isFinite(m) && m > 0 && m <= 1 ? m : 1;
+    try { eq.margem.gain.setTargetAtTime(seguro, t, 0.02); }
+    catch (e) { eq.margem.gain.value = seguro; }
+  }
+  return { ok: true, margem: margem };
 })()`;
 
 function frameDoYouTubeParaEq(raiz) {
@@ -247,14 +266,14 @@ async function pararDeEsticarOTempo(win, tentativas = 8) {
  * Uma falha aqui NAO tem consequencias no som: sem grafo, o video toca pelo
  * caminho normal. E por isso que isto pode falhar sem estragar nada.
  */
-async function aplicarEqualizador(win, ganhos) {
+async function aplicarEqualizador(win, ganhos, compensacao) {
   if (!win || win.isDestroyed()) return { ok: false, porque: 'sem janela' };
   const frame = frameDoYouTubeParaEq(win.webContents.mainFrame);
   if (!frame) return { ok: false, porque: 'sem frame do YouTube' };
   try {
     const instalado = await frame.executeJavaScript(EQ_INSTALAR);
     if (!instalado || !instalado.ok) return { ok: false, porque: (instalado && instalado.porque) || 'nao instalou' };
-    return await frame.executeJavaScript(eqAplicar(ganhos));
+    return await frame.executeJavaScript(eqAplicar(ganhos, compensacao));
   } catch (e) {
     return { ok: false, porque: e && e.message };
   }
@@ -363,9 +382,14 @@ ipcMain.handle('player:preservar-tom', async (event) => {
   return pararDeEsticarOTempo(win);
 });
 
-ipcMain.handle('eq:aplicar', async (event, ganhos) => {
+ipcMain.handle('eq:aplicar', async (event, ajuste) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  return aplicarEqualizador(win, Array.isArray(ganhos) ? ganhos : []);
+  // Aceita a forma antiga (so o array) porque o preload e o renderer sao
+  // empacotados juntos mas podem ficar dessincronizados numa build parcial:
+  // sem margem, o EQ volta ao que era, e nao rebenta.
+  const ganhos = Array.isArray(ajuste) ? ajuste : (ajuste && ajuste.ganhos) || [];
+  const compensacao = Array.isArray(ajuste) ? 1 : Number(ajuste && ajuste.compensacao);
+  return aplicarEqualizador(win, ganhos, Number.isFinite(compensacao) ? compensacao : 1);
 });
 
 ipcMain.on('window:minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());

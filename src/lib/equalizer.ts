@@ -44,6 +44,154 @@ export function ePlano(ganhos: readonly number[]): boolean {
   return normalizar(ganhos).every((g) => g === 0);
 }
 
+// ------------------------------------------------- a resposta e a margem ----
+
+export type TipoDeBanda = 'lowshelf' | 'peaking' | 'highshelf';
+
+/**
+ * TODAS as bandas são `peaking`. Isto foi MEDIDO, não escolhido.
+ *
+ * A ideia de pôr prateleiras nas pontas parece óbvia — uma prateleira levanta
+ * tudo o que está para lá dela, em vez de fazer uma campânula num sítio onde
+ * poucas colunas chegam — e chegou a estar escrita como melhoria. A medição
+ * diz o contrário, e as duas contas batem certo (esta matemática e o
+ * `getFrequencyResponse` do browser, dígito a dígito):
+ *
+ * ```
+ * Bass boost, a 60 Hz     tudo peaking  +8,1 dB
+ *                         com prateleira +6,4 dB
+ * ```
+ *
+ * A razão é a frequência das pontas. Uma prateleira a 32 Hz levanta sobretudo
+ * ABAIXO de 32 Hz — que quase não se ouve e que nenhuma coluna pequena
+ * reproduz — e já desceu quando chega aos 60. Um `peaking` a 32 Hz com Q=1 tem
+ * uma saia larga que chega aos 50-80 Hz, que é onde um baixo se ouve mesmo.
+ * O mesmo em cima: a prateleira a 16 kHz manda energia para onde não há
+ * audição (0,6 dB contra 1,1 dB aos 16 kHz).
+ *
+ * Uma prateleira só valeria a pena com o joelho lá para os 100-125 Hz, e isso
+ * partia a promessa do deslizador que diz «32». Fica registado para não se
+ * voltar a tentar.
+ */
+export const TIPOS: readonly TipoDeBanda[] = BANDAS.map(() => 'peaking' as TipoDeBanda);
+
+/** O Q dos filtros de pico. Um por oitava com Q=1 sobrepõe-se de propósito: é
+ * o que dá uma curva contínua em vez de dez bicos. */
+export const Q_PICO = 1;
+
+/** A frequência de amostragem assumida para a matemática. O valor exato quase
+ * não mexe no resultado (décimas de dB) — o que importa é ser o mesmo aqui e
+ * no browser. */
+const TAXA = 48000;
+
+/**
+ * A magnitude, em dB, de UM biquad a uma frequência. As fórmulas são as do
+ * cookbook do Robert Bristow-Johnson, que é o que o Web Audio implementa —
+ * por isso o que se calcula aqui é o que se vai ouvir, e não uma aproximação.
+ */
+function magnitudeDeUm(tipo: TipoDeBanda, f0: number, ganhoDb: number, f: number): number {
+  if (ganhoDb === 0) return 0;
+  const A = Math.pow(10, ganhoDb / 40);
+  const w0 = (2 * Math.PI * f0) / TAXA;
+  const cos0 = Math.cos(w0);
+  const sin0 = Math.sin(w0);
+  const raizA = Math.sqrt(A);
+
+  let b0: number, b1: number, b2: number, a0: number, a1: number, a2: number;
+  if (tipo === 'peaking') {
+    const alfa = sin0 / (2 * Q_PICO);
+    b0 = 1 + alfa * A;
+    b1 = -2 * cos0;
+    b2 = 1 - alfa * A;
+    a0 = 1 + alfa / A;
+    a1 = -2 * cos0;
+    a2 = 1 - alfa / A;
+  } else {
+    // S = 1 nas prateleiras, que é o que o Web Audio usa.
+    const alfa = (sin0 / 2) * Math.SQRT2;
+    if (tipo === 'lowshelf') {
+      b0 = A * (A + 1 - (A - 1) * cos0 + 2 * raizA * alfa);
+      b1 = 2 * A * (A - 1 - (A + 1) * cos0);
+      b2 = A * (A + 1 - (A - 1) * cos0 - 2 * raizA * alfa);
+      a0 = A + 1 + (A - 1) * cos0 + 2 * raizA * alfa;
+      a1 = -2 * (A - 1 + (A + 1) * cos0);
+      a2 = A + 1 + (A - 1) * cos0 - 2 * raizA * alfa;
+    } else {
+      b0 = A * (A + 1 + (A - 1) * cos0 + 2 * raizA * alfa);
+      b1 = -2 * A * (A - 1 + (A + 1) * cos0);
+      b2 = A * (A + 1 + (A - 1) * cos0 - 2 * raizA * alfa);
+      a0 = A + 1 - (A - 1) * cos0 + 2 * raizA * alfa;
+      a1 = 2 * (A - 1 - (A + 1) * cos0);
+      a2 = A + 1 - (A - 1) * cos0 - 2 * raizA * alfa;
+    }
+  }
+
+  // |H(e^jw)|, com z^-1 = cos(w) - j.sin(w).
+  const w = (2 * Math.PI * f) / TAXA;
+  const c1 = Math.cos(w);
+  const s1 = Math.sin(w);
+  const c2 = Math.cos(2 * w);
+  const s2 = Math.sin(2 * w);
+  const numRe = b0 + b1 * c1 + b2 * c2;
+  const numIm = -(b1 * s1 + b2 * s2);
+  const denRe = a0 + a1 * c1 + a2 * c2;
+  const denIm = -(a1 * s1 + a2 * s2);
+  const num = Math.hypot(numRe, numIm);
+  const den = Math.hypot(denRe, denIm);
+  if (den === 0) return 0;
+  return 20 * Math.log10(num / den);
+}
+
+/** A resposta da cascata inteira a uma frequência, em dB. Os filtros estão em
+ * série, por isso os dB somam-se. */
+export function respostaDb(ganhos: readonly number[], f: number): number {
+  const g = normalizar(ganhos);
+  let total = 0;
+  for (let i = 0; i < BANDAS.length; i++) total += magnitudeDeUm(TIPOS[i], BANDAS[i], g[i], f);
+  return total;
+}
+
+/**
+ * O pico da curva, em dB — o ponto onde a cascata mais levanta o sinal.
+ *
+ * **Não é o mesmo que o maior ganho das bandas**, e é essa a razão de existir
+ * esta função: as bandas estão a uma oitava umas das outras com Q=1, portanto
+ * sobrepõem-se, e duas vizinhas a +6 dão bem mais do que +6 juntas.
+ */
+export function picoDb(ganhos: readonly number[]): number {
+  let pico = 0;
+  // Grelha logarítmica dos 20 Hz aos 20 kHz: 24 pontos por oitava chega para
+  // não falhar o topo de nenhuma campânula.
+  const oitavas = Math.log2(20000 / 20);
+  const passos = Math.round(oitavas * 24);
+  for (let i = 0; i <= passos; i++) {
+    const f = 20 * Math.pow(2, (i / passos) * oitavas);
+    const db = respostaDb(ganhos, f);
+    if (db > pico) pico = db;
+  }
+  return Math.round(pico * 10) / 10;
+}
+
+/**
+ * Quanto é preciso baixar a saída, em dB, para a curva não cortar a onda.
+ *
+ * **Isto é a correção do defeito que se ouvia.** A cadeia ia dos filtros
+ * direto ao destino: com o Bass boost, um baixo de 60 Hz com amplitude 0,8 —
+ * um master normal — saía a 2,05 de pico contra o máximo de 1,0, com 67% das
+ * amostras decapitadas. O que se ouvia como «graves fracos» era a distorção de
+ * os cortar. Nunca é positivo: só atenua, nunca inventa volume.
+ */
+export function compensacaoDb(ganhos: readonly number[]): number {
+  const pico = picoDb(ganhos);
+  return pico === 0 ? 0 : -pico;
+}
+
+/** A mesma compensação como multiplicador de amplitude, que é o que um
+ * GainNode quer. */
+export function compensacaoLinear(ganhos: readonly number[]): number {
+  return Math.pow(10, compensacaoDb(ganhos) / 20);
+}
+
 export type Perfil = { id: string; nome: string; ganhos: Ganhos };
 
 /**

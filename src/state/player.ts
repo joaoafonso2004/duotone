@@ -28,7 +28,7 @@ import {
 } from '../lib/playbackMachine';
 import { arredondar as arredondarRate, RATE_NORMAL } from '../lib/playbackRate';
 import {
-  aoTocar as ajusteAoTocar, chaveDaFaixa, guardar as guardarAjuste,
+  aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear, guardar as guardarAjuste,
   normalizar as normalizarGanhos, PLANO, type Ganhos, type MemoriaDeAjustes,
 } from '../lib/equalizer';
 import type { Track } from '../types';
@@ -249,6 +249,10 @@ function passo(estado: EstadoDeReproducao, tipo: Evento['tipo']) {
  * Manda os ganhos ao processo principal, que os instala DENTRO do frame do
  * YouTube. Uma falha aqui nao estraga o som — sem grafo o video toca na mesma —
  * mas tem de se saber, para a UI nao mostrar um EQ ligado que nao faz nada.
+ *
+ * Vai junto a MARGEM (`compensacao`), calculada aqui e nao no processo
+ * principal, para a conta viver so num sitio: o `lib/equalizer.ts`, que e o
+ * unico que sabe as bandas e o que elas somam quando se sobrepoem.
  */
 async function aplicarEqNoMotor(ganhos: number[]): Promise<void> {
   const ponte = typeof window !== 'undefined' ? window.duotoneDesktop : undefined;
@@ -257,7 +261,7 @@ async function aplicarEqNoMotor(ganhos: number[]): Promise<void> {
     return;
   }
   try {
-    const r = await ponte.aplicarEqualizador(ganhos);
+    const r = await ponte.aplicarEqualizador({ ganhos, compensacao: compensacaoLinear(ganhos) });
     usePlayer.setState({ eqAtivo: !!r?.ok });
   } catch {
     usePlayer.setState({ eqAtivo: false });
