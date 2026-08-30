@@ -11,10 +11,11 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
     ipcRenderer.on('window:maximized', handler);
     return () => ipcRenderer.removeListener('window:maximized', handler);
   },
-  /** Aplica os ganhos do equalizador dentro do frame do YouTube. Devolve
+  /** Aplica `{ ganhos, compensacao }` dentro do frame do YouTube. Devolve
    * `{ ok }` — o renderer precisa de saber se pegou, para nao mostrar um EQ
-   * ligado que nao esta a fazer nada. */
-  aplicarEqualizador: (ganhos) => ipcRenderer.invoke('eq:aplicar', ganhos),
+   * ligado que nao esta a fazer nada. A `compensacao` e a margem que impede a
+   * curva de cortar a onda. */
+  aplicarEqualizador: (ajuste) => ipcRenderer.invoke('eq:aplicar', ajuste),
   /** Poe o `preservesPitch` a false dentro do frame do YouTube. Sem isto o
    * browser estica o tempo para manter o tom, e a camara lenta enche-se de
    * artefactos. */

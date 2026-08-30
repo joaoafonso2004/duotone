@@ -2,6 +2,8 @@ import {
   aoTocar,
   BANDAS,
   chaveDaFaixa,
+  compensacaoDb,
+  compensacaoLinear,
   daPersistencia,
   ePlano,
   GANHO_MAXIMO,
@@ -11,8 +13,11 @@ import {
   perfilDe,
   perfilPorId,
   PERFIS,
+  picoDb,
   PLANO,
   podar,
+  respostaDb,
+  TIPOS,
   type MemoriaDeAjustes,
 } from '../src/lib/equalizer.ts';
 
@@ -63,6 +68,48 @@ check('reconhece o bass boost', perfilDe(perfilPorId('bass')!.ganhos)?.id === 'b
 check('o plano e o flat', perfilDe(PLANO)?.id === 'flat');
 check('uma curva a mao nao e perfil nenhum',
   perfilDe([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) === null);
+
+console.log('\na resposta em frequencia');
+// Estes numeros NAO sao inventados: sao os que o getFrequencyResponse do
+// Chrome devolve para a mesma cascata, comparados digito a digito. Ficam
+// fixados aqui para que mexer nas bandas ou nos tipos nao passe despercebido.
+const bass = perfilPorId('bass')!.ganhos;
+const perto = (a: number, b: number, tol = 0.15) => Math.abs(a - b) <= tol;
+check('o plano nao mexe em nada',
+  [30, 60, 200, 1000, 8000, 16000].every((f) => Math.abs(respostaDb(PLANO, f)) < 0.001));
+check('bass boost: +7,9 dB a 40 Hz', perto(respostaDb(bass, 40), 7.9), respostaDb(bass, 40).toFixed(2));
+check('bass boost: +8,1 dB a 60 Hz', perto(respostaDb(bass, 60), 8.1), respostaDb(bass, 60).toFixed(2));
+check('bass boost: +6,4 dB a 100 Hz', perto(respostaDb(bass, 100), 6.4), respostaDb(bass, 100).toFixed(2));
+check('bass boost: -1,8 dB a 1 kHz', perto(respostaDb(bass, 1000), -1.8), respostaDb(bass, 1000).toFixed(2));
+// A razao de existir a funcao: as bandas sobrepoem-se, por isso o pico da
+// curva e MAIOR do que a banda mais alta (6 dB no bass boost).
+check('o pico e maior do que a banda mais alta', picoDb(bass) > Math.max(...bass),
+  `pico ${picoDb(bass)} vs banda ${Math.max(...bass)}`);
+check('todas as bandas sao peaking — as prateleiras foram medidas e davam menos',
+  TIPOS.every((t) => t === 'peaking'));
+
+console.log('\na margem que impede o corte');
+check('o plano nao precisa de margem', compensacaoDb(PLANO) === 0 && compensacaoLinear(PLANO) === 1);
+check('uma curva so a cortar tambem nao', compensacaoDb(BANDAS.map(() => -6)) === 0);
+check('a margem nunca AUMENTA o volume',
+  PERFIS.every((p) => compensacaoLinear(p.ganhos) <= 1));
+check('a margem e sempre um multiplicador valido',
+  PERFIS.every((p) => { const m = compensacaoLinear(p.ganhos); return m > 0 && m <= 1; }));
+// A garantia que interessa, e a que faltava: com a margem aplicada, NENHUM
+// perfil pode levantar o sinal acima do que entrou. Era isto que estava a
+// cortar a onda.
+check('com margem, nenhum perfil passa de 0 dB em frequencia nenhuma',
+  PERFIS.every((p) => {
+    const m = compensacaoDb(p.ganhos);
+    return [30, 40, 60, 100, 200, 500, 1000, 2000, 4000, 8000, 12000, 16000, 19000]
+      .every((f) => respostaDb(p.ganhos, f) + m <= 0.05);
+  }),
+  PERFIS.filter((p) => {
+    const m = compensacaoDb(p.ganhos);
+    return [30, 60, 100, 1000, 8000, 16000].some((f) => respostaDb(p.ganhos, f) + m > 0.05);
+  }).map((p) => p.id).join());
+check('o pior caso (tudo a +12) tambem fica preso',
+  compensacaoDb(BANDAS.map(() => GANHO_MAXIMO)) < -20);
 
 console.log('\nmemoria por faixa');
 const agora = Date.UTC(2026, 7, 29, 12, 0, 0);
