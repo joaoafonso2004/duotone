@@ -305,6 +305,28 @@ Dez bandas de 32 Hz a 16 kHz, ±12 dB, com perfis e memória por faixa.
 - Perfis para MÚSICA. A referência trazia coisas como "FPS Competition", que
   não têm nada que fazer aqui. E nenhum perfil levanta todas as bandas — isso é
   subir o volume, não equalizar (há um teste que o garante).
+- **A MARGEM não é opcional — sem ela o EQ distorce.** A cadeia ia dos filtros
+  direto ao destino, e o reforço cortava a onda. Medido com um baixo de 60 Hz a
+  0,8 (nível de um master normal): Bass boost dava pico **2,036** contra o
+  máximo de 1,0, com **67,3%** das amostras decapitadas; Warm e Late night
+  cortavam 47%. O que se ouvia como "os graves não se notam" era a distorção de
+  os cortar. Há um `GainNode` no fim, com a atenuação vinda do renderer
+  (`compensacaoLinear`) — a conta vive só no `lib/equalizer.ts`.
+- **O pico da curva NÃO é o maior ganho das bandas.** Estão a uma oitava umas
+  das outras com Q=1, portanto sobrepõem-se: o Bass boost soma +8,1 dB a 60 Hz
+  com a banda mais alta a +6. Por isso a compensação sai do `picoDb`, que
+  percorre a curva, e não de um `Math.max` dos ganhos.
+- **As prateleiras nas pontas foram medidas e REJEITADAS.** Parecia óbvio pôr
+  `lowshelf` a 32 Hz e `highshelf` a 16 kHz, e chegou a estar escrito como
+  melhoria num plano. Dá **menos**: +6,4 dB a 60 Hz contra os +8,1 do
+  `peaking`. Uma prateleira a 32 Hz levanta sobretudo ABAIXO de 32 Hz, que
+  quase não se ouve e que coluna pequena nenhuma reproduz; o `peaking` com Q=1
+  tem uma saia larga que chega aos 50-80 Hz, que é onde o baixo se ouve. Só
+  valeria com o joelho nos 100-125 Hz, e isso partia a promessa do deslizador
+  que diz "32".
+- A matemática da resposta (`respostaDb`, fórmulas do cookbook RBJ) foi validada
+  **dígito a dígito** contra o `getFrequencyResponse` do Chrome. Se mexeres nas
+  bandas, há testes que fixam a curva medida.
 
 ## Velocidade de reprodução
 
@@ -313,14 +335,21 @@ três **não concordavam entre plataformas**: o "rápido" era 1,5 no telemóvel 
 1,35 no PC. Agora é um número, `playbackRate`, com a matemática em
 `lib/playbackRate.ts` (pura, testada em `scripts/test-playback-rate.ts`).
 
-- **O mínimo é 0,25 e não 0,2.** Medido no IFrame do YouTube: pede-se 0,2 e ele
-  fixa 0,25. De 0,3 para cima aceita qualquer valor ao certo — incluindo os que
-  **não** estão nos oito que o `getAvailablePlaybackRates()` anuncia (0,85 e
-  1,35 sempre funcionaram). Um degrau a 0,2 seria um número no ecrã que o motor
-  ignora.
-- Os degraus ficam igualmente espaçados NA BARRA, não proporcionais ao valor: o
-  0,25 e o 0,3 estão colados em número, e proporcionalmente o primeiro degrau
-  era impossível de agarrar.
+- **O intervalo é 0,5-2, e o gesto e o teclado NÃO andam ao mesmo passo.**
+  Arrastar move 0,05; as setas movem 0,01; shift+seta move 0,1. Não é
+  inconsistência: a 0,01 são 151 posições, o que numa barra destas dá pouco mais
+  de **1 px por degrau** — à mão não se acerta e o valor treme debaixo do
+  cursor. Quem quer um número exato usa as setas. No telemóvel os `-`/`+` andam
+  0,1, senão eram trinta toques de ponta a ponta.
+- O motor aceita qualquer valor ao certo, incluindo os que **não** estão nos
+  oito que o `getAvailablePlaybackRates()` anuncia (0,85 e 1,35 sempre
+  funcionaram). Só prende **abaixo de 0,25**, que já nem está no intervalo.
+- A escala na barra é **linear** — a posição é a proporção do valor. Só pôde
+  passar a sê-lo depois de o intervalo ficar regular: antes o primeiro degrau
+  era 0,25 seguido de 0,3, colados em número, e proporcionalmente era
+  impossível de agarrar.
+- **Tudo em centésimos inteiros.** `0,5 + 0,01*3` em vírgula flutuante dá
+  `0.53000000000000005`, e isso chegava a aparecer no ecrã.
 - **O tom acompanha a velocidade** (`preservesPitch = false`), de propósito: é
   isso que faz o lento soar a *slowed* e o rápido a *nightcore*. Preservar o tom
   dava uma leitura de podcast acelerado, que é outra coisa — e, pior, obriga o
