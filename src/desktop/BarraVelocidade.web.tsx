@@ -2,7 +2,7 @@ import React, { useCallback, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
   arredondar, daFraccao, eNormal, formatar, paraFraccao, passo,
-  RATE_MAXIMO, RATE_MINIMO,
+  PASSO_FINO, PASSO_LARGO, RATE_MAXIMO, RATE_MINIMO,
 } from '../lib/playbackRate';
 import { COR, ESP, RAIO, TIPO } from './tokens.web';
 
@@ -18,17 +18,15 @@ const V = View as any;
  * três nem concordavam entre plataformas — o "rápido" era 1,5 no telemóvel e
  * 1,35 no PC.
  *
- * **Vai de 0,25 a 2 e não de 0,2.** Medido no IFrame do YouTube: pede-se 0,2 e
- * ele fixa 0,25; de 0,3 para cima aceita tudo ao certo, mesmo os valores que
- * não estão na lista que ele anuncia. Um degrau a 0,2 seria um número no ecrã
- * que o motor ignora.
- *
- * Os degraus ficam igualmente espaçados na barra, e não proporcionais ao
- * valor: o 0,25 e o 0,3 estão colados em número, e proporcionalmente o
- * primeiro degrau era impossível de agarrar.
+ * **Vai de 0,5× a 2×, e o gesto e o teclado não andam ao mesmo passo.**
+ * Arrastar move de 0,05; as setas movem de 0,01; shift+seta move 0,1. Não é
+ * inconsistência, é a única forma de dar as duas coisas: a 0,01 são 151
+ * posições, o que nesta barra dá pouco mais de 1 px por degrau — à mão isso
+ * não se acerta, e o valor tremia debaixo do cursor. Quem quer um número
+ * exato usa as setas.
  *
  * A barra não escreve os extremos por baixo: o valor está ao lado, a marca do
- * 1× está na própria barra, e uma legenda a dizer "0,25× … 2×" era repetir o
+ * 1× está na própria barra, e uma legenda a dizer "0,5× … 2×" era repetir o
  * que o gesto já mostra.
  */
 export function BarraVelocidade({
@@ -83,8 +81,10 @@ export function BarraVelocidade({
           aria-valuetext={formatar(actual)}
           tabIndex={0}
           onKeyDown={(e: any) => {
-            if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); aoMudar(passo(actual, 1)); }
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); aoMudar(passo(actual, -1)); }
+            // Seta = 0,01 (o valor exato); shift+seta = 0,1 (atravessar).
+            const g = e.shiftKey ? PASSO_LARGO : PASSO_FINO;
+            if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); aoMudar(passo(actual, 1, g)); }
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); aoMudar(passo(actual, -1, g)); }
             if (e.key === 'Home') { e.preventDefault(); aoMudar(RATE_MINIMO); }
             if (e.key === 'End') { e.preventDefault(); aoMudar(RATE_MAXIMO); }
           }}
@@ -111,7 +111,9 @@ export function BarraVelocidade({
               }}
           />
         </V>
-        <Text style={[TIPO.numero, { color: eNormal(actual) ? COR.textoFraco : COR.texto, width: 46, textAlign: 'right' }]}>
+        {/* 54 e nao 46: agora cabe "0.85×", que e um caractere a mais do que
+            os valores antigos e encolhia a barra ao aparecer. */}
+        <Text style={[TIPO.numero, { color: eNormal(actual) ? COR.textoFraco : COR.texto, width: 54, textAlign: 'right' }]}>
           {formatar(actual)}
         </Text>
         {/* O lugar do "repor" esta SEMPRE reservado, mesmo quando o botao nao

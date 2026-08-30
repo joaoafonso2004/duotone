@@ -41,7 +41,7 @@ import {
 import { clearDownloadedAudioCache, formatCacheSize, getAudioCacheBytes } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
-import { formatar as formatarRate, passo as passoRate } from '../lib/playbackRate';
+import { formatar as formatarRate, PASSO_LARGO, passo as passoRate } from '../lib/playbackRate';
 import { usePlayer } from '../state/player';
 import { colors, radii, spacing, type } from '../theme';
 
@@ -331,16 +331,18 @@ export function SettingsScreen({ navigation }: Props) {
               onChange={changeAudioQuality}
             />
 
-            {/* Os tres presets viraram uma velocidade continua (0,25 a 2, de
-                0,1 em 0,1). No telemovel fica um passo a passo em vez de uma
-                barra: e o que se acerta com o polegar sem falhar o degrau. */}
+            {/* Os tres presets viraram uma velocidade continua (0,5 a 2). No
+                telemovel fica um passo a passo em vez de uma barra: e o que se
+                acerta com o polegar sem falhar o degrau.
+                E anda 0,1 e nao 0,05 como o arrasto do PC — com o passo de la
+                seriam trinta toques de ponta a ponta. */}
             <Label style={{ marginTop: spacing.md }}>
               Velocidade — {formatarRate(playbackRate)}
             </Label>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <PillButton
                 label="−"
-                onPress={() => { hapticSelection(); setPlaybackRate(passoRate(playbackRate, -1)); }}
+                onPress={() => { hapticSelection(); setPlaybackRate(passoRate(playbackRate, -1, PASSO_LARGO)); }}
               />
               <PillButton
                 label="1×"
@@ -348,7 +350,7 @@ export function SettingsScreen({ navigation }: Props) {
               />
               <PillButton
                 label="+"
-                onPress={() => { hapticSelection(); setPlaybackRate(passoRate(playbackRate, 1)); }}
+                onPress={() => { hapticSelection(); setPlaybackRate(passoRate(playbackRate, 1, PASSO_LARGO)); }}
               />
             </View>
 
