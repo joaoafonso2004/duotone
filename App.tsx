@@ -12,6 +12,8 @@ import {
   getShowRewindButton,
   getShuffle,
   getPlaybackRate,
+  getEqGanhos,
+  getAjustesPorFaixa,
   getVolumeNormalization,
   loadPrefsCache,
 } from './src/lib/prefs';
@@ -64,7 +66,9 @@ export default function App() {
       getAutoplayRadio(),
       getVolumeNormalization(),
       getPlaybackRate(),
-    ]).then(([repeatMode, shuffle, showRewindButton, autoplayRadio, volumeNormalization, playbackRate]) => {
+      getEqGanhos(),
+      getAjustesPorFaixa(),
+    ]).then(([repeatMode, shuffle, showRewindButton, autoplayRadio, volumeNormalization, playbackRate, eqGanhos, ajustes]) => {
       const player = usePlayer.getState();
       player.setRepeatMode(repeatMode);
       player.setShuffle(shuffle);
@@ -72,6 +76,10 @@ export default function App() {
       player.setAutoplayRadio(autoplayRadio);
       player.setVolumeNormalization(volumeNormalization);
       player.setPlaybackRate(playbackRate);
+      // A memoria por faixa e os ganhos entram JUNTOS e sem reaplicar nada: o
+      // grafo do EQ so existe quando ha um video, e isso e tratado no
+      // playTrack.
+      player._carregarAjustes(ajustes, eqGanhos);
     });
 
     // "Manter o ecrã ligado" só era aplicado pelo useEffect do ecrã de

@@ -6,7 +6,10 @@ import { incrementPlayCount } from '../lib/playCounts';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
-import { setShuffle as persistShuffle, setPlaybackRate as persistPlaybackRate } from '../lib/prefs';
+import {
+  setShuffle as persistShuffle, setPlaybackRate as persistPlaybackRate,
+  setEqGanhos as persistEqGanhos, setAjustesPorFaixa as persistAjustes,
+} from '../lib/prefs';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
 import {
   replayMountedSource,
@@ -24,6 +27,10 @@ import {
   type EstadoDeReproducao, type Evento,
 } from '../lib/playbackMachine';
 import { arredondar as arredondarRate, RATE_NORMAL } from '../lib/playbackRate';
+import {
+  aoTocar as ajusteAoTocar, chaveDaFaixa, guardar as guardarAjuste,
+  normalizar as normalizarGanhos, PLANO, type Ganhos, type MemoriaDeAjustes,
+} from '../lib/equalizer';
 import type { Track } from '../types';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
@@ -93,6 +100,16 @@ interface PlayerState {
   /** Velocidade de reproducao, 0,25 a 2 em degraus de 0,1 (ver
    * `lib/playbackRate.ts`). Substituiu os tres presets. */
   playbackRate: number;
+  /** Os dez ganhos do equalizador, em dB. So o desktop os aplica — no
+   * telemovel o motor e outro e ainda nao passam por la. */
+  eqGanhos: Ganhos;
+  /** O que cada faixa lembra da ultima vez que a ouviste. */
+  ajustesPorFaixa: MemoriaDeAjustes;
+  /** false quando o grafo do EQ nao pegou. A UI tem de o dizer em vez de
+   * mostrar deslizadores que nao fazem nada. */
+  eqAtivo: boolean;
+  setEqGanhos: (g: number[]) => void;
+  _carregarAjustes: (m: MemoriaDeAjustes, ganhos: number[]) => void;
   /** Progresso (0..1) do download da faixa atual, ou null se não está a descarregar. */
   downloadProgress: number | null;
   /** false quando a faixa vem do restauro da sessão anterior — o player
@@ -217,6 +234,43 @@ function passo(estado: EstadoDeReproducao, tipo: Evento['tipo']) {
   return { maquina, ...derivados(maquina) };
 }
 
+/**
+ * Manda os ganhos ao processo principal, que os instala DENTRO do frame do
+ * YouTube. Uma falha aqui nao estraga o som — sem grafo o video toca na mesma —
+ * mas tem de se saber, para a UI nao mostrar um EQ ligado que nao faz nada.
+ */
+async function aplicarEqNoMotor(ganhos: number[]): Promise<void> {
+  const ponte = typeof window !== 'undefined' ? window.duotoneDesktop : undefined;
+  if (!ponte?.aplicarEqualizador) {
+    usePlayer.setState({ eqAtivo: false });
+    return;
+  }
+  try {
+    const r = await ponte.aplicarEqualizador(ganhos);
+    usePlayer.setState({ eqAtivo: !!r?.ok });
+  } catch {
+    usePlayer.setState({ eqAtivo: false });
+  }
+}
+
+/**
+ * Guarda na faixa atual o que ela tem de diferente do normal. So se guarda o
+ * que foge ao padrao: uma faixa a 1x e plana nao deixa registo, e voltar tudo
+ * ao normal apaga a entrada — e assim que se desfaz.
+ */
+function lembrarDaFaixa(): void {
+  const { current, playbackRate, eqGanhos, ajustesPorFaixa } = usePlayer.getState();
+  if (!current) return;
+  const nova = guardarAjuste(
+    ajustesPorFaixa,
+    chaveDaFaixa(current),
+    { rate: playbackRate, ganhos: eqGanhos },
+    Date.now(),
+  );
+  usePlayer.setState({ ajustesPorFaixa: nova });
+  persistAjustes(nova).catch(() => {});
+}
+
 /** Guarda contra duas idas à rede do rádio em simultâneo. */
 let radioInFlight = false;
 /** Impede que uma resolucao lenta de uma faixa antiga substitua um clique mais recente. */
@@ -245,6 +299,9 @@ export const usePlayer = create<PlayerState>()(
   sleepTimerTimeLeft: 0,
   sleepTimerEndsAt: null,
   playbackRate: RATE_NORMAL,
+  eqGanhos: PLANO,
+  ajustesPorFaixa: {},
+  eqAtivo: false,
   downloadProgress: null,
   autoplayOnLoad: true,
   resumePositionMs: null,
@@ -296,15 +353,27 @@ export const usePlayer = create<PlayerState>()(
       downloadProgress: null,
       autoplayOnLoad: true,
       resumePositionMs: null,
-      // Alinhar o percurso do shuffle com a fila. Quando o `next()` chama isto
-      // com a MESMA fila, o reconcile não mexe em nada e a travessia continua;
-      // quando chega uma playlist nova, não sobra chave nenhuma e sai uma
-      // ordem inteiramente nova. Um só caminho para os dois casos.
-      shuffleOrder: get().shuffle ? reconcileOrder(get().shuffleOrder, q, index) : [],
-      // Escolher uma fila nova sai do rádio; continuar na mesma mantém-no.
-      radioActive: get().radioActive && q === get().queue,
-      ...(shouldExpand ? { expanded: true } : {}),
     });
+
+    // O que ESTA faixa lembra. Sem registo volta ao padrao, de proposito: o
+    // ajuste de uma musica nao pode pingar para a seguinte, senao ouvias tudo
+    // com o EQ que puseste numa so.
+    {
+      const st = get();
+      const lembrado = ajusteAoTocar(
+        st.ajustesPorFaixa,
+        chaveDaFaixa(playableTrack),
+        { rate: st.playbackRate, ganhos: st.eqGanhos },
+      );
+      if (lembrado.lembrado) {
+        set({ playbackRate: arredondarRate(lembrado.rate), eqGanhos: lembrado.ganhos });
+      }
+      // O grafo vive dentro do frame do YouTube, que muda de video a cada
+      // faixa — os ganhos tem de ser reaplicados sempre, mesmo quando sao os
+      // mesmos. O atraso da tempo ao iframe de trocar de <video>.
+      const ganhos = get().eqGanhos;
+      setTimeout(() => { void aplicarEqNoMotor(ganhos); }, 900);
+    }
   },
 
   replaceUnavailableTrack: (failedSourceId, replacement) => {
@@ -724,9 +793,23 @@ export const usePlayer = create<PlayerState>()(
 
   _setDownloadProgress: (p) => set({ downloadProgress: p }),
 
+  setEqGanhos: (g) => {
+    const ganhos = normalizarGanhos(g);
+    set({ eqGanhos: ganhos });
+    void aplicarEqNoMotor(ganhos);
+    persistEqGanhos(ganhos).catch(() => {});
+    lembrarDaFaixa();
+  },
+
+  /** Chamado uma vez no arranque, com o que estava guardado. */
+  _carregarAjustes: (m, ganhos) => {
+    set({ ajustesPorFaixa: m, eqGanhos: normalizarGanhos(ganhos) });
+  },
+
   setPlaybackRate: (rate) => {
     const v = arredondarRate(rate);
     set({ playbackRate: v });
+    lembrarDaFaixa();
     // Persistido aqui e não nos ecrãs de Definições: são dois (telemóvel e
     // desktop) e assim nenhum se pode esquecer. Antes o preset voltava a
     // "normal" a cada arranque, apesar de estar apresentado como definição.

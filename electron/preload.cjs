@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
     ipcRenderer.on('window:maximized', handler);
     return () => ipcRenderer.removeListener('window:maximized', handler);
   },
+  /** Aplica os ganhos do equalizador dentro do frame do YouTube. Devolve
+   * `{ ok }` — o renderer precisa de saber se pegou, para nao mostrar um EQ
+   * ligado que nao esta a fazer nada. */
+  aplicarEqualizador: (ganhos) => ipcRenderer.invoke('eq:aplicar', ganhos),
   showContextMenu: (items) => ipcRenderer.send('context-menu', items),
   onContextMenuSelection: (listener) => {
     const handler = (_event, id) => listener(String(id));

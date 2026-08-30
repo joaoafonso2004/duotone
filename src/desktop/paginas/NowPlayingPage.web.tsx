@@ -14,11 +14,13 @@ import {
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
 } from '../../lib/prefs';
 import { usePlayer } from '../../state/player';
+import { chaveDaFaixa } from '../../lib/equalizer';
 import { FilaArrastavel } from '../FilaArrastavel.web';
+import { PainelEqualizador } from '../PainelEqualizador.web';
 import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { Artwork, ContentScroll, Empty, IconButton, Page, ui } from '../ui.web';
+import { Artwork, ContentScroll, Dialog, Empty, IconButton, Page, ui } from '../ui.web';
 import type { CommonPageProps } from '../rotas';
 
 /**
@@ -49,6 +51,7 @@ export function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: Comm
 
   // A preferencia e lida uma vez e depois vem por evento, como a opacidade dos
   // paineis: as Definicoes sao outro ecra e este fica montado.
+  const [eqAberto, setEqAberto] = useState(false);
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
   const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
   useEffect(() => {
@@ -95,6 +98,12 @@ export function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: Comm
             <View style={styles.npTitleRow}>
               <Text numberOfLines={2} style={styles.npTitulo}>{track.title}</Text>
               <IconButton
+                name="options-outline"
+                label="Equaliser and speed"
+                onPress={() => setEqAberto(true)}
+                active={!p.eqGanhos.every((g) => g === 0) || p.playbackRate !== 1}
+              />
+              <IconButton
                 name={currentIsSaved ? 'heart' : 'heart-outline'}
                 label={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'}
                 onPress={toggleSaveCurrent}
@@ -131,6 +140,16 @@ export function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: Comm
           </View>
         </View>
       </ContentScroll>
+      <Dialog open={eqAberto} title="Equaliser" onClose={() => setEqAberto(false)} width={560}>
+        <PainelEqualizador
+          ganhos={p.eqGanhos}
+          aoMudarGanhos={p.setEqGanhos}
+          rate={p.playbackRate}
+          aoMudarRate={p.setPlaybackRate}
+          activo={p.eqAtivo}
+          lembrado={!!p.ajustesPorFaixa[chaveDaFaixa(track)]}
+        />
+      </Dialog>
     </Page>
   );
 }
