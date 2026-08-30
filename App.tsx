@@ -11,7 +11,7 @@ import {
   getRepeatMode,
   getShowRewindButton,
   getShuffle,
-  getSoundPreset,
+  getPlaybackRate,
   getVolumeNormalization,
   loadPrefsCache,
 } from './src/lib/prefs';
@@ -63,15 +63,15 @@ export default function App() {
       getShowRewindButton(),
       getAutoplayRadio(),
       getVolumeNormalization(),
-      getSoundPreset(),
-    ]).then(([repeatMode, shuffle, showRewindButton, autoplayRadio, volumeNormalization, soundPreset]) => {
+      getPlaybackRate(),
+    ]).then(([repeatMode, shuffle, showRewindButton, autoplayRadio, volumeNormalization, playbackRate]) => {
       const player = usePlayer.getState();
       player.setRepeatMode(repeatMode);
       player.setShuffle(shuffle);
       player.setShowRewindButton(showRewindButton);
       player.setAutoplayRadio(autoplayRadio);
       player.setVolumeNormalization(volumeNormalization);
-      player.setSoundPreset(soundPreset);
+      player.setPlaybackRate(playbackRate);
     });
 
     // "Manter o ecrã ligado" só era aplicado pelo useEffect do ecrã de

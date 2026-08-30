@@ -259,7 +259,7 @@ decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
 - Preferências vivem em `lib/prefs.ts` — nunca `AsyncStorage` cru nos ecrãs.
   O estado persistido do player (`player-session`) guarda a SESSÃO; as
   preferências são outra coisa e ficam à parte.
-- Persistir DENTRO da ação da store (como `setSoundPreset`) e não nos ecrãs:
+- Persistir DENTRO da ação da store (como `setPlaybackRate`) e não nos ecrãs:
   há dois ecrãs de definições e assim nenhum se esquece.
 - Preferências aplicadas no arranque pertencem ao `App.tsx`, não ao
   `useEffect` do ecrã de Definições — o "manter o ecrã ligado" só ligava
@@ -267,6 +267,30 @@ decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
 - `${{ }}` nos workflows é substituído como TEXTO CRU antes de o shell
   analisar a linha: passar mensagens de commit por lá parte com aspas e abre
   a porta a injeção. Usar `env:`.
+
+## Velocidade de reprodução
+
+Substituiu os três presets ("Slowed / Normal / Fast"), que além de serem só
+três **não concordavam entre plataformas**: o "rápido" era 1,5 no telemóvel e
+1,35 no PC. Agora é um número, `playbackRate`, com a matemática em
+`lib/playbackRate.ts` (pura, testada em `scripts/test-playback-rate.ts`).
+
+- **O mínimo é 0,25 e não 0,2.** Medido no IFrame do YouTube: pede-se 0,2 e ele
+  fixa 0,25. De 0,3 para cima aceita qualquer valor ao certo — incluindo os que
+  **não** estão nos oito que o `getAvailablePlaybackRates()` anuncia (0,85 e
+  1,35 sempre funcionaram). Um degrau a 0,2 seria um número no ecrã que o motor
+  ignora.
+- Os degraus ficam igualmente espaçados NA BARRA, não proporcionais ao valor: o
+  0,25 e o 0,3 estão colados em número, e proporcionalmente o primeiro degrau
+  era impossível de agarrar.
+- **O tom acompanha a velocidade** (`preservesPitch = false`), de propósito: é
+  isso que faz o lento soar a *slowed* e o rápido a *nightcore*. Preservar o tom
+  dava uma leitura de podcast acelerado, que é outra coisa.
+- A leitura da preferência MIGRA o `pref:soundPreset` antigo (slowed → 0,8,
+  fast → 1,4). A chave velha fica onde está: apagá-la não ganha nada e tirava a
+  rede a quem instalasse uma versão anterior.
+- O espaço do botão "repor" está sempre reservado. Sem isso a barra encolhia ao
+  sair do 1×, e o controlo mudava de tamanho a meio de um arrasto.
 
 ## Convenções e armadilhas
 

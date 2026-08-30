@@ -6,7 +6,7 @@ import { incrementPlayCount } from '../lib/playCounts';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
-import { setShuffle as persistShuffle, setSoundPreset as persistSoundPreset } from '../lib/prefs';
+import { setShuffle as persistShuffle, setPlaybackRate as persistPlaybackRate } from '../lib/prefs';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
 import {
   replayMountedSource,
@@ -23,6 +23,7 @@ import {
   derivados, INICIAL as MAQUINA_INICIAL, transicao,
   type EstadoDeReproducao, type Evento,
 } from '../lib/playbackMachine';
+import { arredondar as arredondarRate, RATE_NORMAL } from '../lib/playbackRate';
 import type { Track } from '../types';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
@@ -89,7 +90,9 @@ interface PlayerState {
    * no timeUpdate do player nativo (que continua a disparar em background)
    * pausa a música à hora certa mesmo com o ecrã bloqueado. */
   sleepTimerEndsAt: number | null;
-  soundPreset: 'normal' | 'slowed' | 'fast';
+  /** Velocidade de reproducao, 0,25 a 2 em degraus de 0,1 (ver
+   * `lib/playbackRate.ts`). Substituiu os tres presets. */
+  playbackRate: number;
   /** Progresso (0..1) do download da faixa atual, ou null se não está a descarregar. */
   downloadProgress: number | null;
   /** false quando a faixa vem do restauro da sessão anterior — o player
@@ -135,7 +138,7 @@ interface PlayerState {
    * timeUpdate do player nativo, para funcionar em background). */
   checkSleepTimer: () => void;
   _setDownloadProgress: (p: number | null) => void;
-  setSoundPreset: (preset: 'normal' | 'slowed' | 'fast') => void;
+  setPlaybackRate: (rate: number) => void;
   pausePlayback: () => void;
   toggleShuffle: () => void;
   setShowRewindButton: (v: boolean) => void;
@@ -241,7 +244,7 @@ export const usePlayer = create<PlayerState>()(
   error: null,
   sleepTimerTimeLeft: 0,
   sleepTimerEndsAt: null,
-  soundPreset: 'normal',
+  playbackRate: RATE_NORMAL,
   downloadProgress: null,
   autoplayOnLoad: true,
   resumePositionMs: null,
@@ -721,12 +724,13 @@ export const usePlayer = create<PlayerState>()(
 
   _setDownloadProgress: (p) => set({ downloadProgress: p }),
 
-  setSoundPreset: (preset) => {
-    set({ soundPreset: preset });
+  setPlaybackRate: (rate) => {
+    const v = arredondarRate(rate);
+    set({ playbackRate: v });
     // Persistido aqui e não nos ecrãs de Definições: são dois (telemóvel e
     // desktop) e assim nenhum se pode esquecer. Antes o preset voltava a
     // "normal" a cada arranque, apesar de estar apresentado como definição.
-    persistSoundPreset(preset).catch(() => {});
+    persistPlaybackRate(v).catch(() => {});
   },
 
   moveQueueItem: (fromIndex, toIndex) => {

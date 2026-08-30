@@ -25,6 +25,7 @@ import { useTheme } from '../../state/theme';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
 import { Button, ContentScroll, desktop, Dialog, Page } from '../ui.web';
+import { BarraVelocidade } from '../BarraVelocidade.web';
 import { newerVersion } from './comum.web';
 
 export function SettingsPage({ notify }: { notify: (s: string) => void }) {
@@ -43,8 +44,8 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
 
   const themeName = useTheme((s) => s.themeName);
   const setTheme = useTheme((s) => s.setTheme);
-  const soundPreset = usePlayer((s) => s.soundPreset);
-  const setSoundPreset = usePlayer((s) => s.setSoundPreset);
+  const playbackRate = usePlayer((s) => s.playbackRate);
+  const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   // Vem já carregado da store (App.tsx lê a preferência no arranque nas duas
   // plataformas), por isso não precisa de entrar no Promise.all acima.
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
@@ -175,7 +176,18 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
             <ToggleLine label="Autoplay radio" description="When the queue ends, keep playing similar music instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} />
             <ToggleLine label="15-second rewind" description="Show a rewind control in the desktop player." value={rewind} onChange={(v) => { setRewindState(v); setShowRewindButton(v); usePlayer.getState().setShowRewindButton(v); }} />
             <ChoiceLine label="Sleep timer" value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} />
-            <ChoiceLine label="Sound Presets" value={soundPreset} choices={[['normal', 'Standard'], ['slowed', 'Slowed & Reverb'], ['fast', 'Nightcore']]} onChange={(v) => setSoundPreset(v as any)} />
+            {/* Era um controlo de tres posicoes; passa a barra continua, de
+                0,25 a 2 em degraus de 0,1. O 0,25 e o minimo REAL: o IFrame
+                prende ai qualquer pedido mais baixo. */}
+            <View style={styles.settingLine}>
+              <View style={{ flex: 1, paddingRight: ESP.lg }}>
+                <Text style={styles.settingLabel}>Playback speed</Text>
+                <Text style={styles.settingDescription}>Pitch follows the speed, so slowing down sounds slowed, not just slower.</Text>
+              </View>
+              <View style={{ width: 260 }}>
+                <BarraVelocidade valor={playbackRate} aoMudar={setPlaybackRate} />
+              </View>
+            </View>
           </SettingsCard>
           
           <SettingsCard icon="desktop-outline" title="Appearance & Visuals">
