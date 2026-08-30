@@ -108,7 +108,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const prev = usePlayer((s) => s.prev);
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
-  const soundPreset = usePlayer((s) => s.soundPreset);
+  const playbackRate = usePlayer((s) => s.playbackRate);
   // Só para as dependências do pré-carregamento: ligar/desligar o shuffle a
   // meio de uma faixa muda qual é a faixa seguinte.
   const shuffle = usePlayer((s) => s.shuffle);
@@ -155,12 +155,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // arrancava a música sozinho no restauro de sessão (que fica em pausa).
   useEffect(() => {
     if (backend !== 'native' || !wantsPlayRef.current) return;
-    let rate = 1.0;
-    if (soundPreset === 'slowed') rate = 0.85;
-    else if (soundPreset === 'fast') rate = 1.5;
-
-    player.playbackRate = rate;
-  }, [backend, player, soundPreset]);
+    player.playbackRate = playbackRate;
+  }, [backend, player, playbackRate]);
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
   // recente sem re-executar a cada render (a função é recriada em cada um).
@@ -297,7 +293,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         fadeIn();
       } else {
         // Garantia explícita de pausa: nada abaixo pode arrancar o playback
-        // (nem o efeito do soundPreset — ver guard de wantsPlayRef acima).
+        // (nem o efeito da velocidade — ver guard de wantsPlayRef acima).
         try {
           player.pause();
         } catch {
@@ -683,11 +679,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           // uma pausa longa disparava o fallback de download por engano.
           lastProgressRef.current = { time: lastProgressRef.current.time, at: Date.now() };
           player.play();
-          // Reaplica o preset de som: o efeito reativo não corre no play
-          // manual (deps inalteradas) e o guard de wantsPlayRef pode tê-lo
-          // saltado enquanto estávamos em pausa (ex.: restauro de sessão).
-          const preset = usePlayer.getState().soundPreset;
-          player.playbackRate = preset === 'slowed' ? 0.85 : preset === 'fast' ? 1.5 : 1.0;
+          // Reaplica a velocidade: o efeito reativo não corre no play manual
+          // (deps inalteradas) e o guard de wantsPlayRef pode tê-lo saltado
+          // enquanto estávamos em pausa (ex.: restauro de sessão).
+          player.playbackRate = usePlayer.getState().playbackRate;
         },
         pause: () => {
           wantsPlayRef.current = false;

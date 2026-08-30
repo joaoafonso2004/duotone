@@ -41,6 +41,7 @@ import {
 import { clearDownloadedAudioCache, formatCacheSize, getAudioCacheBytes } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
+import { formatar as formatarRate, passo as passoRate } from '../lib/playbackRate';
 import { usePlayer } from '../state/player';
 import { colors, radii, spacing, type } from '../theme';
 
@@ -74,8 +75,8 @@ export function SettingsScreen({ navigation }: Props) {
   const volumeNormalization = usePlayer((s) => s.volumeNormalization);
   const setVolumeNormalization = usePlayer((s) => s.setVolumeNormalization);
   const setShowRewindButton = usePlayer((s) => s.setShowRewindButton);
-  const soundPreset = usePlayer((s) => s.soundPreset);
-  const setSoundPreset = usePlayer((s) => s.setSoundPreset);
+  const playbackRate = usePlayer((s) => s.playbackRate);
+  const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   const sleepTimerTimeLeft = usePlayer((s) => s.sleepTimerTimeLeft);
   const setSleepTimer = usePlayer((s) => s.setSleepTimer);
   const themeName = useTheme((s) => s.themeName);
@@ -330,22 +331,26 @@ export function SettingsScreen({ navigation }: Props) {
               onChange={changeAudioQuality}
             />
 
-            <Label style={{ marginTop: spacing.md }}>Sound Preset (Efeito)</Label>
-            <SegmentedControl
-              options={['Slowed', 'Normal', 'Fast']}
-              value={
-                soundPreset === 'slowed'
-                  ? 0
-                  : soundPreset === 'normal'
-                  ? 1
-                  : 2
-              }
-              onChange={(i) => {
-                hapticSelection();
-                const presets = ['slowed', 'normal', 'fast'] as const;
-                setSoundPreset(presets[i]);
-              }}
-            />
+            {/* Os tres presets viraram uma velocidade continua (0,25 a 2, de
+                0,1 em 0,1). No telemovel fica um passo a passo em vez de uma
+                barra: e o que se acerta com o polegar sem falhar o degrau. */}
+            <Label style={{ marginTop: spacing.md }}>
+              Velocidade — {formatarRate(playbackRate)}
+            </Label>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <PillButton
+                label="−"
+                onPress={() => { hapticSelection(); setPlaybackRate(passoRate(playbackRate, -1)); }}
+              />
+              <PillButton
+                label="1×"
+                onPress={() => { hapticSelection(); setPlaybackRate(1); }}
+              />
+              <PillButton
+                label="+"
+                onPress={() => { hapticSelection(); setPlaybackRate(passoRate(playbackRate, 1)); }}
+              />
+            </View>
 
             <Label style={{ marginTop: spacing.md }}>
               Sleep Timer (Temporizador)

@@ -157,12 +157,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             } catch (err) {
               console.warn('Failed to set initial volume on YT player', err);
             }
-            let rate = 1.0;
-            const activePreset = usePlayer.getState().soundPreset;
-            if (activePreset === 'slowed') rate = 0.85;
-            else if (activePreset === 'fast') rate = 1.35;
+            // Medido: o IFrame aceita QUALQUER valor, nao so os oito que
+            // anuncia — 0,3 a 2 saem exatos. So o 0,2 e que ele prende em
+            // 0,25, e por isso a barra nao desce abaixo disso.
             try {
-              event.target.setPlaybackRate?.(rate);
+              event.target.setPlaybackRate?.(usePlayer.getState().playbackRate);
             } catch {}
             const initialPos = usePlayer.getState().positionMs;
             if (initialPos > 1500) {
@@ -197,7 +196,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
                 const videos = doc?.querySelectorAll('video');
                 videos?.forEach((video: any) => {
                   if (video.preservesPitch !== false) {
-                    video.preservesPitch = false;
+                    // O tom ACOMPANHA a velocidade, de proposito: era isto que fazia
+            // o "slowed" soar a slowed e o "fast" a nightcore. Preservar o tom
+            // daria uma leitura de podcast acelerado, que e outra coisa.
+            video.preservesPitch = false;
                     video.mozPreservesPitch = false;
                     video.webkitPreservesPitch = false;
                     const currentRate = video.playbackRate;
@@ -286,15 +288,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     };
   }, [track.sourceId]);
 
-  const soundPreset = usePlayer((s) => s.soundPreset);
+  const playbackRate = usePlayer((s) => s.playbackRate);
   useEffect(() => {
     const p = playerRef.current;
     if (!p) return;
-    let rate = 1.0;
-    if (soundPreset === 'slowed') rate = 0.85;
-    else if (soundPreset === 'fast') rate = 1.35;
     try {
-      p.setPlaybackRate?.(rate);
+      p.setPlaybackRate?.(playbackRate);
       setTimeout(() => {
         try {
           const iframe = document.getElementById(hostId.current) as HTMLIFrameElement | null;
@@ -305,12 +304,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             video.mozPreservesPitch = false;
             video.webkitPreservesPitch = false;
             video.playbackRate = 1.0;
-            video.playbackRate = rate;
+            video.playbackRate = playbackRate;
           });
         } catch {}
       }, 80);
     } catch {}
-  }, [soundPreset]);
+  }, [playbackRate]);
 
   return <div id={hostId.current} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} />;
 }

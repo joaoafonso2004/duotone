@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { arredondar as arredondarRate, daPreferenciaAntiga } from './playbackRate';
 
 const KEY_DEFAULT_YT_VIEW = 'pref:defaultYtView';
 const KEY_REPEAT_MODE = 'pref:repeatMode';
@@ -13,6 +14,8 @@ const KEY_POT_SERVER_URL = 'pref:potServerUrl';
 const KEY_AUTOPLAY_RADIO = 'pref:autoplayRadio';
 const KEY_VOLUME_NORMALIZATION = 'pref:volumeNormalization';
 const KEY_SOUND_PRESET = 'pref:soundPreset';
+// Substituiu o KEY_SOUND_PRESET; a chave velha so e lida para migrar.
+const KEY_PLAYBACK_RATE = 'pref:playbackRate';
 // Chave antiga, escrita à mão pelo ecrã de Definições antes de haver getter.
 const KEY_KEEP_AWAKE = 'pref:keepAwake';
 const KEY_NOTIFICATIONS = 'pref:notifications';
@@ -109,17 +112,21 @@ export async function setEffectIntensity(v: EffectIntensity): Promise<void> {
   await AsyncStorage.setItem(KEY_EFFECT_INTENSITY, v);
 }
 
-export type SoundPreset = 'normal' | 'slowed' | 'fast';
-
-/** Efeito de velocidade. Vive aqui e não no estado persistido do player: o
- * `player-session` guarda a SESSÃO (faixa, fila, posição) e as preferências
- * ficam separadas — mesma divisão do repeat e do shuffle. */
-export async function getSoundPreset(): Promise<SoundPreset> {
-  const v = await AsyncStorage.getItem(KEY_SOUND_PRESET);
-  return v === 'slowed' || v === 'fast' ? v : 'normal';
+/**
+ * Velocidade de reproducao. Substituiu os tres presets, que nem sequer
+ * concordavam entre plataformas (o "fast" era 1,5 no telemovel e 1,35 no PC).
+ *
+ * A leitura MIGRA a preferencia antiga: quem tinha "Slowed" nao pode abrir a
+ * app e encontra-la a 1x. A chave velha fica onde esta — apaga-la nao ganha
+ * nada e tirava a rede de seguranca a quem instalasse uma versao anterior.
+ */
+export async function getPlaybackRate(): Promise<number> {
+  const v = await AsyncStorage.getItem(KEY_PLAYBACK_RATE);
+  if (v !== null) return arredondarRate(Number(v));
+  return daPreferenciaAntiga(await AsyncStorage.getItem(KEY_SOUND_PRESET));
 }
-export async function setSoundPreset(v: SoundPreset): Promise<void> {
-  await AsyncStorage.setItem(KEY_SOUND_PRESET, v);
+export async function setPlaybackRate(v: number): Promise<void> {
+  await AsyncStorage.setItem(KEY_PLAYBACK_RATE, String(arredondarRate(v)));
 }
 
 export async function getKeepAwake(): Promise<boolean> {
