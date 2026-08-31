@@ -11,7 +11,7 @@
  * um sinal trocado nos coeficientes ou na actualizacao do estado.
  */
 import {
-  BANDAS, compensacaoDb, ganhoDeProgramaDb, PERFIS, respostaDb,
+  BANDAS, compensacaoDb, PERFIS, respostaDb, TIPOS, type TipoDeBanda,
 } from '../src/lib/equalizer.ts';
 
 const TAXA = 48000;
@@ -34,8 +34,41 @@ function peaking(f0: number, ganhoDb: number) {
   };
 }
 
+/** Porte de `Coeficientes.shelf` (S=1), normalizado por a0. */
+function shelf(f0: number, ganhoDb: number, alto: boolean) {
+  if (ganhoDb === 0) return { b0: 1, b1: 0, b2: 0, a1: 0, a2: 0 };
+  const A = Math.pow(10, ganhoDb / 40);
+  const w0 = (2 * Math.PI * f0) / TAXA;
+  const cos0 = Math.cos(w0);
+  const alfa = (Math.sin(w0) / 2) * Math.SQRT2;
+  const doisRaizAAlfa = 2 * Math.sqrt(A) * alfa;
+  let b0: number, b1: number, b2: number, a0: number, a1: number, a2: number;
+  if (alto) {
+    b0 = A * (A + 1 + (A - 1) * cos0 + doisRaizAAlfa);
+    b1 = -2 * A * (A - 1 + (A + 1) * cos0);
+    b2 = A * (A + 1 + (A - 1) * cos0 - doisRaizAAlfa);
+    a0 = A + 1 - (A - 1) * cos0 + doisRaizAAlfa;
+    a1 = 2 * (A - 1 - (A + 1) * cos0);
+    a2 = A + 1 - (A - 1) * cos0 - doisRaizAAlfa;
+  } else {
+    b0 = A * (A + 1 - (A - 1) * cos0 + doisRaizAAlfa);
+    b1 = 2 * A * (A - 1 - (A + 1) * cos0);
+    b2 = A * (A + 1 - (A - 1) * cos0 - doisRaizAAlfa);
+    a0 = A + 1 + (A - 1) * cos0 + doisRaizAAlfa;
+    a1 = -2 * (A - 1 + (A + 1) * cos0);
+    a2 = A + 1 + (A - 1) * cos0 - doisRaizAAlfa;
+  }
+  return { b0: b0 / a0, b1: b1 / a0, b2: b2 / a0, a1: a1 / a0, a2: a2 / a0 };
+}
+
+function biquad(tipo: TipoDeBanda, f0: number, ganhoDb: number) {
+  if (tipo === 'lowshelf') return shelf(f0, ganhoDb, false);
+  if (tipo === 'highshelf') return shelf(f0, ganhoDb, true);
+  return peaking(f0, ganhoDb);
+}
+
 /** A magnitude analitica de um biquad ja normalizado. */
-function magnitudeDb(c: ReturnType<typeof peaking>, f: number) {
+function magnitudeDb(c: ReturnType<typeof biquad>, f: number) {
   const w = (2 * Math.PI * f) / TAXA;
   const c1 = Math.cos(w), s1 = Math.sin(w);
   const c2 = Math.cos(2 * w), s2 = Math.sin(2 * w);
@@ -52,7 +85,7 @@ function magnitudeDb(c: ReturnType<typeof peaking>, f: number) {
  * trocado na actualizacao do estado, que a magnitude analitica nao apanharia.
  */
 function ganhoMedidoDb(ganhos: number[], f: number, margem = 1) {
-  const cs = BANDAS.map((hz, i) => peaking(hz, ganhos[i] ?? 0));
+  const cs = BANDAS.map((hz, i) => biquad(TIPOS[i], hz, ganhos[i] ?? 0));
   const estados = cs.map(() => ({ s1: 0, s2: 0 }));
   const N = 48000; // um segundo: chega para o transiente assentar
   let soma = 0;
@@ -78,6 +111,21 @@ function ganhoMedidoDb(ganhos: number[], f: number, margem = 1) {
   return 20 * Math.log10(rms * Math.SQRT2);
 }
 
+/** Porte do peak limiter ligado do Swift: canais ligados, ataque instantaneo,
+ * release de 150 ms e teto de -0,1 dBFS. */
+function limitar(frames: number[][], margem: number, taxa = TAXA) {
+  const teto = Math.pow(10, -0.1 / 20);
+  const release = Math.exp(-1 / (0.15 * taxa));
+  let ganho = 1;
+  return frames.map((frame) => {
+    const pico = Math.max(...frame.map((x) => Math.abs(x * margem)));
+    const desejado = pico > teto ? teto / pico : 1;
+    const recuperado = 1 + release * (ganho - 1);
+    ganho = Math.min(desejado, recuperado);
+    return frame.map((x) => x * margem * ganho);
+  });
+}
+
 let mau = 0;
 const check = (rotulo: string, ok: boolean, extra = '') => {
   if (!ok) mau++;
@@ -87,7 +135,7 @@ const check = (rotulo: string, ok: boolean, extra = '') => {
 console.log('\nos coeficientes do Swift dao a curva do PC');
 for (const p of PERFIS) {
   for (const f of [40, 60, 100, 250, 1000, 4000, 12000]) {
-    const doSwift = BANDAS.reduce((soma, hz, i) => soma + magnitudeDb(peaking(hz, p.ganhos[i]), f), 0);
+    const doSwift = BANDAS.reduce((soma, hz, i) => soma + magnitudeDb(biquad(TIPOS[i], hz, p.ganhos[i]), f), 0);
     const doPc = respostaDb(p.ganhos, f);
     if (Math.abs(doSwift - doPc) > 0.01) {
       check(`${p.nome} @ ${f} Hz`, false, `swift ${doSwift.toFixed(3)} vs pc ${doPc.toFixed(3)}`);
@@ -109,7 +157,7 @@ for (const p of PERFIS.filter((x) => x.id !== 'flat')) {
   check(`${p.nome}: o filtro a correr da o que a curva promete`, true);
 }
 
-console.log('\na margem faz o que diz');
+console.log('\no bass boost e aditivo, sem baixar o master');
 const bass = PERFIS.find((p) => p.id === 'bass')!.ganhos;
 // A margem vem da BIBLIOTECA e nao escrita a mao aqui. Escrita a mao, este
 // teste continuava a passar depois de a regra mudar -- e a mentir. Foi o que
@@ -117,13 +165,24 @@ const bass = PERFIS.find((p) => p.id === 'bass')!.ganhos;
 const margem = Math.pow(10, compensacaoDb(bass) / 20);
 const semMargem = ganhoMedidoDb(bass, 60, 1);
 const comMargem = ganhoMedidoDb(bass, 60, margem);
-check('sem margem, os graves sobem bem acima de 0 dB', semMargem > 6, semMargem.toFixed(2));
-// A promessa NAO e que fique em 0 dB a 60 Hz: isso seria nao haver reforco
-// nenhum. E que o VOLUME nao muda -- o reforco nos graves fica.
-check('com a margem, os graves continuam reforcados', comMargem > 2, comMargem.toFixed(2));
-check('e o volume de programa fica igual ao plano',
-  Math.abs(ganhoDeProgramaDb(bass) + compensacaoDb(bass)) < 0.1,
-  (ganhoDeProgramaDb(bass) + compensacaoDb(bass)).toFixed(2));
+check('os graves sobem quase 5 dB', semMargem > 4.5, semMargem.toFixed(2));
+check('a margem e unidade e nao rouba esse reforco',
+  margem === 1 && Math.abs(comMargem - semMargem) < 0.01, comMargem.toFixed(2));
+check('os medios continuam no volume original',
+  Math.abs(ganhoMedidoDb(bass, 1000, margem)) < 0.1,
+  ganhoMedidoDb(bass, 1000, margem).toFixed(2));
+
+console.log('\no limiter protege picos sem mexer no Flat');
+const teto = Math.pow(10, -0.1 / 20);
+const limitado = limitar([[1.4, -0.7], [0.4, -0.2], [1.2, -0.6]], 1);
+check('nenhum canal passa de -0,1 dBFS',
+  limitado.flat().every((x) => Math.abs(x) <= teto + 1e-6),
+  String(Math.max(...limitado.flat().map(Math.abs))));
+check('os canais ficam ligados e a imagem stereo nao anda',
+  limitado.every(([l, r]) => Math.abs(l / r + 2) < 1e-6));
+// Flat nem instala o tap no iOS e usa ratio 1 no Web Audio: o limiter existe
+// apenas para proteger o headroom criado por uma curva ativa.
+check('o caminho Flat continua a ser bypass', PERFIS.find((p) => p.id === 'flat')!.ganhos.every((g) => g === 0));
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

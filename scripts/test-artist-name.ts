@@ -70,6 +70,9 @@ const biblioteca = [
   { source: 'youtube', title: 'XXXTENTACION - what are you so afraid of', artist: 'Uploader' },
   { source: 'youtube', title: 'Future - Married to the Game', artist: 'Future - Topic' },
   { source: 'youtube', title: 'ZillaKami - THREATS', artist: 'ZillaKami' },
+  // Caso real que criava um artista falso: o canal aparecia no fim do título
+  // e, por ser mais comprido, ganhava ao artista verdadeiro.
+  { source: 'youtube', title: 'Juice Wrld-Backspinn Prod.by Xan-Wrld999', artist: 'Xan-Wrld999' },
 ];
 
 const vocabulario = aprenderVocabulario(biblioteca);
@@ -80,7 +83,10 @@ const nomes = grupos.map((g) => g.nome);
 const juice = grupos.filter((g) => chaveDeArtista(g.nome) === 'juice wrld');
 check('ha UM so grupo de Juice WRLD', juice.length === 1, `${juice.length} grupos`);
 eq('e escreve-se Juice WRLD', juice[0]?.nome, 'Juice WRLD');
-check('com as cinco faixas dele', juice[0]?.faixas.length === 5, String(juice[0]?.faixas.length));
+check('com as seis faixas dele', juice[0]?.faixas.length === 6, String(juice[0]?.faixas.length));
+check('o uploader Xan-Wrld999 NAO vira artista', !nomes.includes('Xan-Wrld999'));
+eq('o caso exato da screenshot encontra Juice WRLD',
+  displayArtist(biblioteca[biblioteca.length - 1], vocabulario), 'Juice WRLD');
 
 const tjay = grupos.filter((g) => chaveDeArtista(g.nome) === 'lil tjay');
 check('o (LEAK) x colaboracao junta-se ao Lil Tjay', tjay.length === 1 && tjay[0].faixas.length === 2,
@@ -111,6 +117,12 @@ check('as faixas nao se perdem no agrupamento',
 check('nao ha duas chaves iguais', new Set(grupos.map((g) => g.chave)).size === grupos.length);
 // Um titulo que nao diz o artista em lado nenhum NAO se adivinha.
 eq('sem pistas, fica o canal', extractArtist('When It Rains It Pours', 'LusiEntertainment'), 'LusiEntertainment');
+eq('um hifen de Remix nao inventa um artista',
+  extractArtist('When It Rains-Remix', 'LusiEntertainment'), 'LusiEntertainment');
+eq('Artista-Musica sem espacos funciona para nomes compostos',
+  extractArtist('Brazza Og-Nova Musica', 'Uploads', vocabulario), 'Brazza Og');
+eq('Artista-Musica sem espacos funciona quando o canal confirma um nome curto',
+  extractArtist('ZillaKami-THREATS', 'ZillaKami', VOCABULARIO_VAZIO), 'ZillaKami');
 
 console.log('\no Spotify nao passa pela extracao');
 eq('o artista do Spotify e fiavel',

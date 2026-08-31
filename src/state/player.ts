@@ -9,7 +9,7 @@ import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
 import {
   setShuffle as persistShuffle, setPlaybackRate as persistPlaybackRate,
-  setEqGanhos as persistEqGanhos, setAjustesPorFaixa as persistAjustes,
+  setAjustesPorFaixa as persistAjustes,
 } from '../lib/prefs';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
 import {
@@ -101,14 +101,13 @@ interface PlayerState {
   /** Velocidade de reproducao, 0,25 a 2 em degraus de 0,1 (ver
    * `lib/playbackRate.ts`). Substituiu os tres presets. */
   playbackRate: number;
-  /** Os dez ganhos do equalizador, em dB. So o desktop os aplica — no
-   * telemovel o motor e outro e ainda nao passam por la. */
+  /** Os dez ganhos do equalizador, em dB, aplicados pelo motor de cada plataforma. */
   eqGanhos: Ganhos;
   /** O que cada faixa lembra da ultima vez que a ouviste. */
   ajustesPorFaixa: MemoriaDeAjustes;
   /**
-   * O padrao, para faixas SEM registo. Vem das Definicoes e e outra coisa do
-   * que o `playbackRate`/`eqGanhos`, que sao o que esta aplicado agora.
+   * O padrão para faixas SEM registo. A velocidade vem das Definições; o EQ é
+   * sempre Flat. É outra coisa do que `playbackRate`/`eqGanhos`, aplicados agora.
    *
    * Sem esta separacao os ajustes pingavam: a faixa seguinte nao tinha registo,
    * nada a repunha, e ficava com o que a anterior deixou.
@@ -118,9 +117,8 @@ interface PlayerState {
   /** false quando o grafo do EQ nao pegou. A UI tem de o dizer em vez de
    * mostrar deslizadores que nao fazem nada. */
   eqAtivo: boolean;
-  /** `comoPadrao` distingue quem manda: as Definicoes mudam o PADRAO, o painel
-   * do Now Playing muda ESTA faixa (e passa a lembrar-se dela). */
-  setEqGanhos: (g: number[], comoPadrao?: boolean) => void;
+  /** Muda ESTA faixa e passa a lembrar-se dela. O padrão global é sempre Flat. */
+  setEqGanhos: (g: number[]) => void;
   _carregarAjustes: (m: MemoriaDeAjustes, ganhos: number[], rate: number) => void;
   /** Progresso (0..1) do download da faixa atual, ou null se não está a descarregar. */
   downloadProgress: number | null;
@@ -382,9 +380,9 @@ export const usePlayer = create<PlayerState>()(
     // com o EQ que puseste numa so.
     {
       const st = get();
-      // O padrao vem das Definicoes, NAO do que a faixa anterior deixou. Era
-      // esse o bug: sem registo nada era reposto, e a musica seguinte herdava
-      // a velocidade e o EQ da anterior.
+      // O padrão NÃO vem do que a faixa anterior deixou: velocidade das
+      // Definições e EQ Flat. Era esse o bug: sem registo nada era reposto e a
+      // música seguinte herdava a velocidade e o EQ da anterior.
       const aplicar = ajusteAoTocar(
         st.ajustesPorFaixa,
         chaveDaFaixa(playableTrack),
@@ -816,14 +814,11 @@ export const usePlayer = create<PlayerState>()(
 
   _setDownloadProgress: (p) => set({ downloadProgress: p }),
 
-  setEqGanhos: (g, comoPadrao = false) => {
+  setEqGanhos: (g) => {
     const ganhos = normalizarGanhos(g);
-    set(comoPadrao ? { eqGanhos: ganhos, padraoGanhos: ganhos } : { eqGanhos: ganhos });
+    set({ eqGanhos: ganhos });
     void aplicarEqNoMotor(ganhos);
-    // Das Definicoes muda-se o PADRAO; do painel do Now Playing muda-se ESTA
-    // faixa, e e ela que passa a lembrar-se.
-    if (comoPadrao) persistEqGanhos(ganhos).catch(() => {});
-    else lembrarDaFaixa();
+    lembrarDaFaixa();
   },
 
   /** Chamado uma vez no arranque, com o que estava guardado. */

@@ -19,8 +19,15 @@
  * (`scripts/test-equalizer.ts`), como o `lib/radio.ts`.
  */
 
-/** As dez bandas, em Hz. As mesmas de qualquer equalizador gráfico. */
-export const BANDAS: readonly number[] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+/**
+ * Dez controlos: prateleiras largas nas pontas e oito bandas de presença no
+ * meio. A ordem é a da UI, não uma ordenação estrita por frequência: BASS é
+ * uma região inteira, não um pico estreito em 32 Hz.
+ */
+export const BANDAS: readonly number[] = [105, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 10000];
+export const ETIQUETAS_BANDAS: readonly string[] = [
+  'BASS', 'SUB', 'PUNCH', 'WARM', 'BODY', 'MIDS', 'PRES', 'CLEAR', 'AIR', 'TREBLE',
+];
 
 /** O limite em dB para cada lado. */
 export const GANHO_MAXIMO = 12;
@@ -28,6 +35,14 @@ export const GANHO_MAXIMO = 12;
 export type Ganhos = number[];
 
 export const PLANO: Ganhos = BANDAS.map(() => 0);
+
+/**
+ * O equalizador arranca sempre neutro. Ajustes explícitos continuam a ser
+ * lembrados por faixa, mas nunca passam a ser o padrão global por acidente.
+ */
+export function ganhosPorOmissao(): Ganhos {
+  return PLANO.slice();
+}
 
 /** Prende cada banda no intervalo e arredonda a uma casa: um EQ com sete casas
  * decimais não muda nada que se ouça e enche a persistência de lixo. */
@@ -44,39 +59,22 @@ export function ePlano(ganhos: readonly number[]): boolean {
   return normalizar(ganhos).every((g) => g === 0);
 }
 
-// ------------------------------------------------- a resposta e a margem ----
+// ------------------------------------------------ resposta e headroom ----
 
 export type TipoDeBanda = 'lowshelf' | 'peaking' | 'highshelf';
 
-/**
- * TODAS as bandas são `peaking`. Isto foi MEDIDO, não escolhido.
- *
- * A ideia de pôr prateleiras nas pontas parece óbvia — uma prateleira levanta
- * tudo o que está para lá dela, em vez de fazer uma campânula num sítio onde
- * poucas colunas chegam — e chegou a estar escrita como melhoria. A medição
- * diz o contrário, e as duas contas batem certo (esta matemática e o
- * `getFrequencyResponse` do browser, dígito a dígito):
- *
- * ```
- * Bass boost, a 60 Hz     tudo peaking  +8,1 dB
- *                         com prateleira +6,4 dB
- * ```
- *
- * A razão é a frequência das pontas. Uma prateleira a 32 Hz levanta sobretudo
- * ABAIXO de 32 Hz — que quase não se ouve e que nenhuma coluna pequena
- * reproduz — e já desceu quando chega aos 60. Um `peaking` a 32 Hz com Q=1 tem
- * uma saia larga que chega aos 50-80 Hz, que é onde um baixo se ouve mesmo.
- * O mesmo em cima: a prateleira a 16 kHz manda energia para onde não há
- * audição (0,6 dB contra 1,1 dB aos 16 kHz).
- *
- * Uma prateleira só valeria a pena com o joelho lá para os 100-125 Hz, e isso
- * partia a promessa do deslizador que diz «32». Fica registado para não se
- * voltar a tentar.
- */
-export const TIPOS: readonly TipoDeBanda[] = BANDAS.map(() => 'peaking' as TipoDeBanda);
+/** AutoEq usa precisamente esta arquitetura para ajustes de preferência em
+ * headphones: low-shelf perto de 105 Hz, high-shelf perto de 10 kHz, e picos
+ * para o detalhe entre ambos. */
+export const TIPOS: readonly TipoDeBanda[] = [
+  'lowshelf',
+  'peaking', 'peaking', 'peaking', 'peaking',
+  'peaking', 'peaking', 'peaking', 'peaking',
+  'highshelf',
+];
 
-/** O Q dos filtros de pico. Um por oitava com Q=1 sobrepõe-se de propósito: é
- * o que dá uma curva contínua em vez de dez bicos. */
+/** O Q dos oito filtros de pico. Q=1 dá transições musicais e contínuas entre
+ * as bandas centrais, sem ressonâncias estreitas. */
 export const Q_PICO = 1;
 
 /** A frequência de amostragem assumida para a matemática. O valor exato quase
@@ -154,9 +152,9 @@ export function respostaDb(ganhos: readonly number[], f: number): number {
 /**
  * O pico da curva, em dB — o ponto onde a cascata mais levanta o sinal.
  *
- * **Não é o mesmo que o maior ganho das bandas**, e é essa a razão de existir
- * esta função: as bandas estão a uma oitava umas das outras com Q=1, portanto
- * sobrepõem-se, e duas vizinhas a +6 dão bem mais do que +6 juntas.
+ * **Não é necessariamente o mesmo que o maior ganho dos controlos**, e é essa
+ * a razão de existir esta função: os biquads sobrepõem-se e os seus ganhos em
+ * dB somam-se onde as curvas se cruzam.
  */
 export function picoDb(ganhos: readonly number[]): number {
   let pico = 0;
@@ -176,9 +174,8 @@ export function picoDb(ganhos: readonly number[]): number {
  * O que a curva faz ao VOLUME de música a sério, em dB.
  *
  * É a média em energia da curva com peso igual por oitava — o espectro do
- * ruído rosa, que é a aproximação clássica de programa musical. Muito
- * diferente do pico: o Bass boost tem um pico de +8,1 dB mas só levanta o
- * programa +3,5 dB, porque a subida está concentrada numa ponta do espectro.
+ * ruído rosa, que é a aproximação clássica de programa musical. Pode ser muito
+ * diferente do pico quando a subida está concentrada numa ponta do espectro.
  */
 export function ganhoDeProgramaDb(ganhos: readonly number[]): number {
   const oitavas = Math.log2(20000 / 20);
@@ -192,29 +189,15 @@ export function ganhoDeProgramaDb(ganhos: readonly number[]): number {
 }
 
 /**
- * Quanto se baixa a saída, em dB, para o equalizador não cortar a onda.
- *
- * **Compensa o ganho a PROGRAMA e não o pico da curva, e isso foi corrigido
- * depois de o utilizador se queixar.** A primeira versão usava o pico, que é o
- * pior caso possível — um tom puro exatamente na frequência mais reforçada — e
- * música nenhuma é isso. O resultado: o Bass boost perdia **5,3 dB** de volume
- * e os picos ficavam nos 0,46 quando o tecto é 1,0. Estava a deitar fora
- * metade da margem sem precisar, e como só as faixas com perfil guardado
- * levavam margem, umas tocavam mais alto do que outras.
- *
- * Medido com ruído rosa a −14 dBFS, que é o nível de um master de streaming:
- * com esta compensação o pico fica em 0,70–0,80, contra 0,775 do plano. Ou
- * seja, equalizar deixa de mexer no volume — que é o que se quer.
- *
- * Nunca é positivo: só atenua, nunca inventa volume.
+ * O EQ já não baixa o master para fingir reforço. Frequências não tocadas ficam
+ * a 0 dB; o limiter dos motores protege apenas picos que excedam a saída.
+ * Mantêm-se estas funções para a ponte entre versões continuar compatível.
  */
-export function compensacaoDb(ganhos: readonly number[]): number {
-  const programa = ganhoDeProgramaDb(ganhos);
-  return programa <= 0 ? 0 : -programa;
+export function compensacaoDb(_ganhos: readonly number[]): number {
+  return 0;
 }
 
-/** A mesma compensação como multiplicador de amplitude, que é o que um
- * GainNode quer. */
+/** Mantido para compatibilidade com a ponte nativa/Web Audio; devolve unidade. */
 export function compensacaoLinear(ganhos: readonly number[]): number {
   return Math.pow(10, compensacaoDb(ganhos) / 20);
 }
@@ -226,34 +209,23 @@ export type Perfil = { id: string; nome: string; ganhos: Ganhos };
  * como "FPS Competition", que não têm nada que fazer aqui: um perfil de jogo
  * existe para destacar passos, não para uma canção soar bem.
  *
- * Nenhum deles levanta tudo — subir todas as bandas é subir o volume, não
- * equalizar. O que muda é o EQUILÍBRIO entre elas.
+ * Bass boost e Bright são reforços aditivos: deixam a zona não escolhida em
+ * 0 dB. Os restantes perfis moldam o equilíbrio tonal para o efeito indicado.
  */
 export const PERFIS: readonly Perfil[] = [
   { id: 'flat', nome: 'Flat', ganhos: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-  /**
-   * O peso está nos 60–200 Hz, e não nos 32.
-   *
-   * A versão anterior era `[6, 5, 3.5, 1, …]` — a força toda a 32 e 64 Hz. É o
-   * que parece certo no papel e é o que soa a nada: **uma coluna de portátil
-   * não reproduz 40 Hz**, e o que sobrava era o corte dos médios. Já estava
-   * negativa aos 200 Hz. O utilizador descreveu-o como "o bass boost reduz o
-   * volume nos graves", e tinha razão.
-   *
-   * Medido, o que se ouve depois da margem: +4,2 dB aos 60, +4,4 aos 80, +4,5
-   * aos 100, +3,9 aos 150 e ainda +2,5 aos 200 — contra +1,3 aos 150 e −0,4
-   * aos 200 da versão antiga. O contraste grave/médio sobe de 7,3 para 9,7 dB.
-   */
-  { id: 'bass', nome: 'Bass boost', ganhos: [4, 5.5, 6, 4, 0, -1, -1, -0.5, 0, 0.5] },
+  // Reforço aditivo: shelf largo +5 dB e um pouco de punch a 125 Hz. O resto
+  // fica literalmente a zero — não se ganha "bass" baixando a música.
+  { id: 'bass', nome: 'Bass boost', ganhos: [5, 0, 1.5, 0, 0, 0, 0, 0, 0, 0] },
   // A voz vive entre os 250 Hz e os 4 kHz. Cavar à volta destaca-a sem a subir.
-  { id: 'vocal', nome: 'Vocal', ganhos: [-3, -2, 0, 2, 3.5, 3.5, 2, 1, 0, -1] },
+  { id: 'vocal', nome: 'Vocal', ganhos: [-2, -1, 0, 2, 3.5, 3.5, 2, 1, 0, -1] },
   // Analógico: corpo em baixo, brilho cortado. Bom para gravações duras.
-  { id: 'warm', nome: 'Warm', ganhos: [3, 3, 2, 1, 0, -1, -2, -3, -3.5, -4] },
-  // Ar e detalhe em cima, sem mexer no corpo.
-  { id: 'bright', nome: 'Bright', ganhos: [-2, -1.5, -0.5, 0, 0.5, 1.5, 3, 4, 5, 5] },
+  { id: 'warm', nome: 'Warm', ganhos: [3, 0.5, 1, 1, 0, -1, -2, -3, -2, -2.5] },
+  // Ar e detalhe aditivos; graves e médios ficam intactos.
+  { id: 'bright', nome: 'Bright', ganhos: [0, 0, 0, 0, 0, 0, 0, 1.5, 1, 3.5] },
   // De noite e baixinho, os extremos são os primeiros a desaparecer (curvas de
   // Fletcher-Munson). Levantá-los devolve a musica a volume baixo.
-  { id: 'noite', nome: 'Late night', ganhos: [4, 3, 1, -0.5, -1.5, -1, 0.5, 2, 3, 3.5] },
+  { id: 'noite', nome: 'Late night', ganhos: [3, 0, 1, -0.5, -1.5, -1, 0.5, 1, 1, 2.5] },
 ];
 
 export function perfilPorId(id: string | null | undefined): Perfil | null {
@@ -360,8 +332,13 @@ export function aoTocar(
  * sistema, não no programa.
  */
 const CURVAS_ANTIGAS: readonly { id: string; ganhos: Ganhos }[] = [
-  // Bass boost antes de a força passar dos 32-64 Hz para os 60-200.
+  // Perfis do equalizador gráfico antigo (dez picos de 32 Hz a 16 kHz).
   { id: 'bass', ganhos: [6, 5, 3.5, 1, -1, -1.5, -0.5, 0, 0.5, 1] },
+  { id: 'bass', ganhos: [4, 5.5, 6, 4, 0, -1, -1, -0.5, 0, 0.5] },
+  { id: 'vocal', ganhos: [-3, -2, 0, 2, 3.5, 3.5, 2, 1, 0, -1] },
+  { id: 'warm', ganhos: [3, 3, 2, 1, 0, -1, -2, -3, -3.5, -4] },
+  { id: 'bright', ganhos: [-2, -1.5, -0.5, 0, 0.5, 1.5, 3, 4, 5, 5] },
+  { id: 'noite', ganhos: [4, 3, 1, -0.5, -1.5, -1, 0.5, 2, 3, 3.5] },
 ];
 
 /** Se estes ganhos são a versão antiga de um perfil, devolve a atual. */

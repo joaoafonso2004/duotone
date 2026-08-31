@@ -1,13 +1,12 @@
 import AVFoundation
-import Accelerate
 
 /**
  * O equalizador de dez bandas, no audio que o AVPlayer ja esta a tocar.
  *
  * COMO. Um `MTAudioProcessingTap` pendurado no `audioMix` do AVPlayerItem: as
  * amostras passam por aqui antes de irem para a saida, e aplicamos-lhes uma
- * cascata de dez biquads -- as MESMAS dez bandas, com o mesmo Q, que o
- * `lib/equalizer.ts` usa no PC. As formulas sao as do cookbook do Robert
+ * cascata de dez biquads -- as MESMAS duas prateleiras e oito bandas de pico
+ * que o `lib/equalizer.ts` usa no PC. As formulas sao as do cookbook do Robert
  * Bristow-Johnson, que e o que o Web Audio implementa; foi assim que as duas
  * plataformas ficaram a soar igual, e a curva do lado do JS ja esta validada
  * digito a digito contra o browser.
@@ -27,7 +26,14 @@ import Accelerate
  */
 enum DuotoneEq {
   /** As mesmas de `lib/equalizer.ts`. Se mudarem la, tem de mudar aqui. */
-  static let frequencias: [Float] = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000]
+  enum TipoDeBanda { case lowshelf, peaking, highshelf }
+  static let frequencias: [Float] = [105, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 10000]
+  static let tipos: [TipoDeBanda] = [
+    .lowshelf,
+    .peaking, .peaking, .peaking, .peaking,
+    .peaking, .peaking, .peaking, .peaking,
+    .highshelf,
+  ]
   static let q: Float = 1
   static var numeroDeBandas: Int { frequencias.count }
 
@@ -117,6 +123,64 @@ struct Coeficientes {
     c.a2 = (1 - alfa / A) / a0
     return c
   }
+
+  /** Prateleiras RBJ com slope S=1, iguais ao BiquadFilterNode do browser. */
+  static func shelf(
+    frequencia f0: Float,
+    ganhoDb: Float,
+    taxa: Float,
+    alto: Bool
+  ) -> Coeficientes {
+    var c = Coeficientes()
+    guard ganhoDb != 0, taxa > 0, f0 < taxa / 2 else { return c }
+    let A = powf(10, ganhoDb / 40)
+    let w0 = 2 * Float.pi * f0 / taxa
+    let cos0 = cosf(w0)
+    let alfa = (sinf(w0) / 2) * sqrtf(2)
+    let raizA = sqrtf(A)
+    let doisRaizAAlfa = 2 * raizA * alfa
+    var b0: Float, b1: Float, b2: Float, a0: Float, a1: Float, a2: Float
+
+    if alto {
+      b0 = A * (A + 1 + (A - 1) * cos0 + doisRaizAAlfa)
+      b1 = -2 * A * (A - 1 + (A + 1) * cos0)
+      b2 = A * (A + 1 + (A - 1) * cos0 - doisRaizAAlfa)
+      a0 = A + 1 - (A - 1) * cos0 + doisRaizAAlfa
+      a1 = 2 * (A - 1 - (A + 1) * cos0)
+      a2 = A + 1 - (A - 1) * cos0 - doisRaizAAlfa
+    } else {
+      b0 = A * (A + 1 - (A - 1) * cos0 + doisRaizAAlfa)
+      b1 = 2 * A * (A - 1 - (A + 1) * cos0)
+      b2 = A * (A + 1 - (A - 1) * cos0 - doisRaizAAlfa)
+      a0 = A + 1 + (A - 1) * cos0 + doisRaizAAlfa
+      a1 = -2 * (A - 1 + (A + 1) * cos0)
+      a2 = A + 1 + (A - 1) * cos0 - doisRaizAAlfa
+    }
+
+    c.b0 = b0 / a0
+    c.b1 = b1 / a0
+    c.b2 = b2 / a0
+    c.a1 = a1 / a0
+    c.a2 = a2 / a0
+    return c
+  }
+
+  static func criar(
+    tipo: DuotoneEq.TipoDeBanda,
+    frequencia: Float,
+    ganhoDb: Float,
+    q: Float,
+    taxa: Float
+  ) -> Coeficientes {
+    switch tipo {
+    case .lowshelf:
+      return shelf(frequencia: frequencia, ganhoDb: ganhoDb, taxa: taxa, alto: false)
+    case .highshelf:
+      return shelf(frequencia: frequencia, ganhoDb: ganhoDb, taxa: taxa, alto: true)
+    case .peaking:
+      return peaking(frequencia: frequencia, ganhoDb: ganhoDb, q: q, taxa: taxa)
+    }
+  }
 }
 
 /**
@@ -139,6 +203,12 @@ final class EstadoDoTap {
   private var z1: [Float] = []
   private var z2: [Float] = []
   private var canais = 0
+  /** Peak limiter estéreo ligado depois do EQ. A margem é unidade nas versões
+   * atuais; o limiter só impede que conteúdo reforçado ultrapasse a saída
+   * digital. */
+  private let teto: Float = powf(10, -0.1 / 20)
+  private var ganhoDoLimitador: Float = 1
+  private var coeficienteDeRelease: Float = 0
 
   init(ganhos: [Float], margem: Float) {
     self.ganhos = ganhos
@@ -147,10 +217,15 @@ final class EstadoDoTap {
 
   func preparar(taxa: Float, canais: Int) {
     self.canais = max(1, canais)
+    // 150 ms: abaixo disto a recuperação começa a modular a própria onda dos
+    // graves e ouve-se como distorção. Ataque instantâneo para nunca cortar.
+    coeficienteDeRelease = expf(-1 / (0.15 * max(1, taxa)))
+    ganhoDoLimitador = 1
     coeficientes = (0..<DuotoneEq.numeroDeBandas).compactMap { i in
       let db = i < ganhos.count ? ganhos[i] : 0
       guard abs(db) >= 0.05 else { return nil }
-      return Coeficientes.peaking(
+      return Coeficientes.criar(
+        tipo: DuotoneEq.tipos[i],
         frequencia: DuotoneEq.frequencias[i], ganhoDb: db, q: DuotoneEq.q, taxa: taxa
       )
     }
@@ -175,9 +250,7 @@ final class EstadoDoTap {
   ) {
     guard quantas > 0, canal < canais else { return }
     let bandas = coeficientes.count
-    // Uma curva sem bandas activas ainda pode ter margem para aplicar; o
-    // contrario tambem. Sao coisas independentes.
-    guard bandas > 0 || margem < 1 else { return }
+    guard bandas > 0 else { return }
     z1.withUnsafeMutableBufferPointer { e1 in
       z2.withUnsafeMutableBufferPointer { e2 in
         for banda in 0..<bandas {
@@ -201,9 +274,57 @@ final class EstadoDoTap {
         }
       }
     }
-    if margem < 1 {
-      var g = margem
-      vDSP_vsmul(base, vDSP_Stride(passo), &g, base, vDSP_Stride(passo), vDSP_Length(quantas))
+  }
+
+  /** Ganho comum aos canais: baixar L/R de forma diferente deslocaria a imagem
+   * estéreo. A descida é instantânea; a recuperação demora 150 ms. */
+  private func ganhoParaOPico(_ pico: Float) -> Float {
+    let desejado = pico > teto ? teto / pico : 1
+    let recuperado = 1 + coeficienteDeRelease * (ganhoDoLimitador - 1)
+    ganhoDoLimitador = min(desejado, recuperado)
+    return margem * ganhoDoLimitador
+  }
+
+  /** Saída planar: um AudioBuffer por canal (o caso normal do AVPlayer). */
+  func finalizarNaoEntrelacado(_ lista: UnsafeMutableAudioBufferListPointer) {
+    guard !lista.isEmpty else { return }
+    var frames = Int.max
+    for buffer in lista {
+      guard buffer.mData != nil else { continue }
+      frames = min(frames, Int(buffer.mDataByteSize) / MemoryLayout<Float>.size)
+    }
+    guard frames != Int.max, frames > 0 else { return }
+
+    for frame in 0..<frames {
+      var pico: Float = 0
+      for buffer in lista {
+        guard let dados = buffer.mData else { continue }
+        let x = dados.assumingMemoryBound(to: Float.self)[frame] * margem
+        pico = max(pico, abs(x))
+      }
+      let g = ganhoParaOPico(pico)
+      for buffer in lista {
+        guard let dados = buffer.mData else { continue }
+        dados.assumingMemoryBound(to: Float.self)[frame] *= g
+      }
+    }
+  }
+
+  /** Saída intercalada: L,R,L,R... dentro de um único AudioBuffer. */
+  func finalizarEntrelacado(
+    _ amostras: UnsafeMutablePointer<Float>,
+    frames: Int,
+    canais: Int
+  ) {
+    guard frames > 0, canais > 0 else { return }
+    for frame in 0..<frames {
+      let inicio = frame * canais
+      var pico: Float = 0
+      for canal in 0..<canais {
+        pico = max(pico, abs(amostras[inicio + canal] * margem))
+      }
+      let g = ganhoParaOPico(pico)
+      for canal in 0..<canais { amostras[inicio + canal] *= g }
     }
   }
 }
@@ -259,6 +380,7 @@ private let tapProcess: MTAudioProcessingTapProcessCallback = {
         canal: canal
       )
     }
+    estado.finalizarNaoEntrelacado(lista)
     return
   }
 
@@ -272,4 +394,5 @@ private let tapProcess: MTAudioProcessingTapProcessCallback = {
   for canal in 0..<canais {
     estado.filtrar(amostras + canal, quantas: porCanal, passo: canais, canal: canal)
   }
+  estado.finalizarEntrelacado(amostras, frames: porCanal, canais: canais)
 }

@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { agruparPorArtista } from '../lib/artistName';
 import { EmptyState } from '../components/EmptyState';
+import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
@@ -34,6 +35,8 @@ export function ArtistsScreen() {
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const theme = useTheme((s) => s.theme);
 
   const load = useCallback(async () => {
@@ -66,12 +69,31 @@ export function ArtistsScreen() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [tracks]);
 
+  const filteredArtists = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    return query
+      ? artists.filter((artist) => artist.name.toLocaleLowerCase().includes(query))
+      : artists;
+  }, [artists, searchQuery]);
+
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
   return (
     <Screen
       title="Artists"
       subtitle={`${artists.length} ${artists.length === 1 ? 'artist' : 'artists'}`}
+      right={artists.length > 0 ? (
+        <Pressable
+          hitSlop={10}
+          onPress={() => {
+            setSearchOpen((open) => !open);
+            if (searchOpen) setSearchQuery('');
+          }}
+          style={{ padding: 4 }}
+        >
+          <Ionicons name={searchOpen ? 'close' : 'search-outline'} size={24} color={colors.text} />
+        </Pressable>
+      ) : undefined}
     >
       {loading ? (
         <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
@@ -82,10 +104,23 @@ export function ArtistsScreen() {
           subtitle="Save songs to your library and their artists (or YouTube channels) show up here."
         />
       ) : (
-        <FlatList
-          data={artists}
+        <View style={{ flex: 1 }}>
+          {searchOpen && (
+            <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
+              <Input
+                icon="search"
+                placeholder="Search artists"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onClear={() => setSearchQuery('')}
+              />
+            </View>
+          )}
+          <FlatList
+          data={filteredArtists}
           keyExtractor={(a) => a.name}
           contentContainerStyle={{ paddingBottom: bottomPad }}
+          ListEmptyComponent={<EmptyState icon="search-outline" title="No artists found" subtitle={`No artist matches "${searchQuery}".`} />}
           renderItem={({ item }) => (
             <Pressable
               onPress={() =>
@@ -126,7 +161,8 @@ export function ArtistsScreen() {
               />
             </Pressable>
           )}
-        />
+          />
+        </View>
       )}
     </Screen>
   );

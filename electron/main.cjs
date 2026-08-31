@@ -147,11 +147,13 @@ const EQ_INSTALAR = `(() => {
   try {
     const ctx = eq ? eq.ctx : new (window.AudioContext || window.webkitAudioContext)();
     const fonte = ctx.createMediaElementSource(v);
-    const bandas = [32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+    const bandas = [105, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 10000];
+    const tipos = ['lowshelf', 'peaking', 'peaking', 'peaking', 'peaking',
+      'peaking', 'peaking', 'peaking', 'peaking', 'highshelf'];
     let no = fonte;
-    const filtros = bandas.map((f) => {
+    const filtros = bandas.map((f, i) => {
       const b = ctx.createBiquadFilter();
-      b.type = 'peaking';
+      b.type = tipos[i];
       b.frequency.value = f;
       b.Q.value = 1;
       b.gain.value = 0;
@@ -159,18 +161,24 @@ const EQ_INSTALAR = `(() => {
       no = b;
       return b;
     });
-    // A MARGEM. Sem este no a cadeia ia dos filtros DIRETO ao destino, e o
-    // reforco cortava a onda em vez de a levantar: medido, um baixo de 60 Hz
-    // com amplitude 0,8 saia a 2,05 de pico com o Bass boost, contra o maximo
-    // de 1,0 — 67% das amostras decapitadas. O que se ouvia como "os graves
-    // nao se notam" era a distorcao de os cortar. O valor vem do renderer,
-    // calculado no lib/equalizer.ts, que e quem sabe quanto e que as bandas
-    // somam quando se sobrepoem.
+    // Compatibilidade com builds antigas da ponte. A margem atual e sempre 1:
+    // frequencias nao tocadas mantem o volume original.
     const margem = ctx.createGain();
     margem.gain.value = 1;
+    // Ultima rede de seguranca. O master nao e atenuado: o limiter so apanha
+    // picos que o reforco novo empurre para alem da saida digital. Flat usa
+    // ratio 1 e fica transparente. Releases demasiado curtos modulam a propria
+    // onda dos graves, por isso a recuperacao demora 150 ms.
+    const limitador = ctx.createDynamicsCompressor();
+    limitador.threshold.value = -0.1;
+    limitador.knee.value = 0;
+    limitador.ratio.value = 1;
+    limitador.attack.value = 0.003;
+    limitador.release.value = 0.15;
     no.connect(margem);
-    margem.connect(ctx.destination);
-    window.__duotoneEq = { ctx, filtros, margem, video: v };
+    margem.connect(limitador);
+    limitador.connect(ctx.destination);
+    window.__duotoneEq = { ctx, filtros, margem, limitador, video: v };
     return { ok: true, estado: ctx.state };
   } catch (e) {
     return { ok: false, porque: (e && e.name) + ': ' + (e && e.message) };
@@ -189,13 +197,20 @@ const eqAplicar = (ganhos, compensacao) => `(async () => {
     const v = Number(g[i]) || 0;
     try { f.gain.setTargetAtTime(v, t, 0.02); } catch (e) { f.gain.value = v; }
   });
-  // A margem anda na MESMA rampa que os filtros: se descesse depois deles
-  // ouvia-se um pico no meio da mudanca de perfil.
+  // Mantido para aceitar mensagens de builds anteriores; nas atuais e sempre
+  // unidade e, portanto, nao baixa o master.
   if (eq.margem) {
     const m = Number(margem);
     const seguro = Number.isFinite(m) && m > 0 && m <= 1 ? m : 1;
     try { eq.margem.gain.setTargetAtTime(seguro, t, 0.02); }
     catch (e) { eq.margem.gain.value = seguro; }
+  }
+  if (eq.limitador) {
+    const activo = g.some((v) => Math.abs(Number(v) || 0) >= 0.05);
+    // Web Audio limita o ratio a 20. Com ratio 1 o no e transparente quando
+    // o equalizador esta Flat; com EQ ativo funciona como peak limiter.
+    try { eq.limitador.ratio.setTargetAtTime(activo ? 20 : 1, t, 0.02); }
+    catch (e) { eq.limitador.ratio.value = activo ? 20 : 1; }
   }
   return { ok: true, margem: margem };
 })()`;
@@ -284,7 +299,7 @@ function sendWindowState(win) {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
+  const iconPath = path.join(__dirname, '..', 'logo_windows.png');
   tray = new Tray(iconPath);
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -332,7 +347,7 @@ function createWindow() {
     show: false,
     backgroundColor: '#09090d',
     autoHideMenuBar: true,
-    icon: path.join(__dirname, '..', 'assets', 'icon.png'),
+    icon: path.join(__dirname, '..', 'logo_windows.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -386,7 +401,7 @@ ipcMain.handle('eq:aplicar', async (event, ajuste) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   // Aceita a forma antiga (so o array) porque o preload e o renderer sao
   // empacotados juntos mas podem ficar dessincronizados numa build parcial:
-  // sem margem, o EQ volta ao que era, e nao rebenta.
+  // sem este campo, assume unidade e nao rebenta.
   const ganhos = Array.isArray(ajuste) ? ajuste : (ajuste && ajuste.ganhos) || [];
   const compensacao = Array.isArray(ajuste) ? 1 : Number(ajuste && ajuste.compensacao);
   return aplicarEqualizador(win, ganhos, Number.isFinite(compensacao) ? compensacao : 1);
