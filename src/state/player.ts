@@ -192,7 +192,9 @@ interface PlayerState {
   setPlaybackRate: (rate: number, comoPadrao?: boolean) => void;
   pausePlayback: () => void;
   toggleShuffle: () => void;
-  /** Mete na fila uma faixa relacionada e toca-a. Devolve se conseguiu. */
+  /** Mete na fila uma faixa relacionada. Devolve se conseguiu. */
+  /** Semeia varias sugestoes de uma vez. Devolve quantas entraram. */
+  semearSugestoes: () => Promise<number>;
   intercalarSugestao: () => Promise<boolean>;
   setShowRewindButton: (v: boolean) => void;
   setError: (e: string | null) => void;
@@ -811,6 +813,65 @@ export const usePlayer = create<PlayerState>()(
     set({ shuffleInteligente: seguinte === 'inteligente' });
     persistShuffleInteligente(seguinte === 'inteligente').catch(() => {});
     get().setShuffle(seguinte !== 'off');
+    // LIGAR O MODO TEM DE SE VER. Sem isto a primeira sugestao so entrava ao
+    // fim de quatro faixas: carregava-se no botao, olhava-se para o "Up next"
+    // e estava tudo igual -- que foi exatamente a queixa. Agora semeiam-se
+    // algumas de imediato, e a partir dai o ritmo normal toma conta.
+    if (seguinte === 'inteligente') void get().semearSugestoes();
+  },
+
+  /**
+   * Mete VARIAS sugestoes na fila de uma vez, espalhadas pelo que vem a
+   * seguir. E o que faz ligar o modo ter efeito visivel.
+   *
+   * Espalhadas e nao todas juntas: tres seguidas fariam a playlist parecer
+   * outra. Vao de tres em tres faixas, que e o mesmo ritmo com que entram
+   * depois.
+   */
+  semearSugestoes: async () => {
+    const { queue, queueIndex, sugeridas } = get();
+    if (queue.length === 0) return 0;
+    try {
+      const contexto = radioSeeds(queue, queueIndex);
+      if (contexto.length === 0) return 0;
+      const naFila = new Set(queue.map((t) => trackKey(t)));
+      const candidatas = await candidatasParaDescoberta(
+        contexto, naFila, new Set(sugeridas),
+      );
+      if (candidatas.length === 0) return 0;
+
+      const quantas = Math.min(3, candidatas.length);
+      let fila = [...get().queue];
+      let ordem = [...get().shuffleOrder];
+      const novas: string[] = [];
+      const base = get().queueIndex;
+
+      for (let i = 0; i < quantas; i++) {
+        const t = candidatas[i];
+        const chave = trackKey(t);
+        if (!chave || fila.some((q) => trackKey(q) === chave)) continue;
+        const posicao = Math.min(base + 1 + (i + 1) * 3, fila.length);
+        fila = [...fila.slice(0, posicao), t, ...fila.slice(posicao)];
+        if (ordem.length > 0) {
+          const actual = fila[base] ? trackKey(fila[base]) : null;
+          const onde = actual ? ordem.indexOf(actual) : -1;
+          const alvo = onde >= 0 ? Math.min(onde + 1 + (i + 1) * 3, ordem.length) : ordem.length;
+          ordem = [...ordem.slice(0, alvo), chave, ...ordem.slice(alvo)];
+        }
+        novas.push(chave);
+      }
+      if (novas.length === 0) return 0;
+
+      set({
+        queue: fila,
+        shuffleOrder: ordem,
+        sugeridas: [...sugeridas, ...novas].slice(-200),
+        desdeASugestao: 0,
+      });
+      return novas.length;
+    } catch {
+      return 0;
+    }
   },
 
   /**

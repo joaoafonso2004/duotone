@@ -6,6 +6,7 @@ import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import {
   alvosDeProcura, artistasVizinhos, retratoDoContexto, vizinhosPorPlaylist,
 } from '../lib/afinidade';
+import { pareceMusica } from '../lib/musica';
 import { trackKey } from '../lib/shuffle';
 import type { Track } from '../types';
 
@@ -37,8 +38,10 @@ export async function candidatasParaDescoberta(
   contexto: readonly Track[],
   jaNaFila: ReadonlySet<string>,
   jaSugeridas: ReadonlySet<string>,
+  quantas: number = QUANTAS,
+  quantosAlvos: number = ALVOS,
 ): Promise<Track[]> {
-  const alvos = await escolherAlvos(contexto);
+  const alvos = await escolherAlvos(contexto, quantosAlvos);
   if (alvos.length === 0) return [];
 
   // O que ele já tem fica de fora: é isso que separa descobrir de repetir.
@@ -62,11 +65,33 @@ export async function candidatasParaDescoberta(
     for (const t of achadas) {
       const k = trackKey(t);
       if (!k || jaNaFila.has(k) || jaSugeridas.has(k) || daBiblioteca.has(k)) continue;
+      // A pesquisa do YouTube devolve VIDEOS, nao faixas: sem este filtro
+      // entravam reacoes, entrevistas e sets de duas horas. Ver lib/musica.ts.
+      if (!pareceMusica(t)) continue;
       saida.push(t);
-      if (saida.length >= QUANTAS) return saida;
+      if (saida.length >= quantas) return saida;
     }
   }
   return saida;
+}
+
+/**
+ * "Discover new": só música que ele NÃO tem, escolhida pelo que ele ouve.
+ *
+ * É a primeira prateleira da Pesquisa e não mistura nada de conhecido — o
+ * "Daily flow" já faz essa mistura. Aqui a promessa do título é literal: se
+ * aparecer uma faixa que ele já tinha, o nome da prateleira está a mentir.
+ *
+ * Procura por MAIS artistas do que o shuffle (que só precisa de uma sugestão
+ * de cada vez) porque uma prateleira com duas coisas não é uma prateleira.
+ */
+export async function descobrirNovas(
+  limite: number,
+  biblioteca: readonly Track[],
+): Promise<Track[]> {
+  const contexto = biblioteca.slice(0, 60);
+  return candidatasParaDescoberta(contexto, new Set(), new Set(), limite, 5)
+    .catch(() => [] as Track[]);
 }
 
 /**
@@ -114,7 +139,10 @@ export async function flowDoDia(limite: number, biblioteca: readonly Track[]): P
  * consulta a falhar), cai nos próprios artistas do contexto. Sem essa rede o
  * modo ficava mudo — que foi exatamente o defeito anterior.
  */
-async function escolherAlvos(contexto: readonly Track[]): Promise<string[]> {
+async function escolherAlvos(
+  contexto: readonly Track[],
+  quantosAlvos: number = ALVOS,
+): Promise<string[]> {
   const doContexto = contexto
     .map((t) => ({ artista: displayArtist(t) }))
     .filter((f) => f.artista && f.artista !== 'Unknown artist');
@@ -143,7 +171,7 @@ async function escolherAlvos(contexto: readonly Track[]): Promise<string[]> {
     // sem co-ocorrência: fica a rede de segurança
   }
 
-  return alvosDeProcura(retrato, vizinhos, ALVOS)
+  return alvosDeProcura(retrato, vizinhos, quantosAlvos)
     .map((chave) => nomePorChave.get(chave) ?? chave)
     .filter(Boolean);
 }

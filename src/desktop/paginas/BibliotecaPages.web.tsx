@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getLibrary, getLikedSongs } from '../../api/library';
-import { flowDoDia } from '../../api/descoberta';
+import { descobrirNovas, flowDoDia } from '../../api/descoberta';
 import {
   fetchYouTubePlaylistById, searchYouTube, searchYouTubePlaylists,
   type YtRecommendedPlaylist,
@@ -35,6 +35,7 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
   const [query, setQuery] = useState(''); const [results, setResults] = useState<Track[]>([]); const [history, setHistory] = useState<string[]>([]); const [loading, setLoading] = useState(false); const input = useRef<any>(null);
   // Recomendacoes, como no telemovel. Todas saem de RPCs do Supabase sobre o
   // historico do proprio utilizador — nenhuma gasta quota da YouTube API.
+  const [descobrir, setDescobrir] = useState<Track[]>([]);
   const [ouvirDeNovo, setOuvirDeNovo] = useState<Track[]>([]);
   const [flow, setFlow] = useState<Track[]>([]);
   const [maisTocadas, setMaisTocadas] = useState<Track[]>([]);
@@ -52,10 +53,13 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
     // inteligente. Precisa da biblioteca para saber com o que se parecer.
     Promise.all([
       semFalhar(getProfileRecentlyPlayed(14)),
-      semFalhar(getLibrary()).then((lib) => flowDoDia(14, lib)).catch(() => [] as Track[]),
+      semFalhar(getLibrary()).then((lib) => Promise.all([
+        descobrirNovas(14, lib), flowDoDia(14, lib),
+      ])).catch(() => [[], []] as [Track[], Track[]]),
       semFalhar(getHeavyRotation(14)),
       semFalhar(getForgottenFavorites(14)),
-    ]).then(([recentes, f, m, e]) => {
+    ]).then(([recentes, [novas, f], m, e]) => {
+      setDescobrir(novas);
       // getProfileRecentlyPlayed devolve ProfilePlayEntry, que nao tem `album`.
       setOuvirDeNovo(recentes.map((r: any) => ({ ...r, album: null } as Track)));
       setFlow(f); setMaisTocadas(m); setEsquecidas(e);
@@ -69,7 +73,8 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
     {!results.length && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
     <ContentScroll>{loading ? <View style={{ height: 320 }}><Loading /></View>
       : results.length ? <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, results)} onMore={more} />
-      : (ouvirDeNovo.length || flow.length || maisTocadas.length || esquecidas.length) ? <>
+      : (descobrir.length || ouvirDeNovo.length || flow.length || maisTocadas.length || esquecidas.length) ? <>
+          <Shelf titulo="Discover new" nota="music you don't have yet, based on what you listen to" tracks={descobrir} onPlay={play} onMore={more} />
           <Shelf titulo="Listen again" tracks={ouvirDeNovo} onPlay={play} onMore={more} />
           <Shelf titulo="Daily flow" nota="based on your listening" tracks={flow} onPlay={play} onMore={more} />
           <Shelf titulo="Heavy rotation" tracks={maisTocadas} onPlay={play} onMore={more} />
@@ -103,13 +108,18 @@ export function SongsPage(props: CommonPageProps) {
   // e inteligente, e o botao daqui mostra-o e respeita-o. Ter cada pagina com
   // a sua opiniao dava dois sitios a discordar.
   const inteligente = usePlayer((s) => s.shuffleInteligente);
-  const playAll = (shuffle = false) => {
+  const ligado = usePlayer((s) => s.shuffle);
+  const alternarShuffle = usePlayer((s) => s.toggleShuffle);
+  // Modelo do Spotify: o botao de shuffle ALTERNA o modo e nao toca; quem
+  // toca e o "Play all", que respeita o modo escolhido. Com um botao que
+  // tocasse E alternasse, o que se ve no botao seria o que NAO se ia ouvir.
+  const playAll = () => {
     if (!filteredTracks.length) return;
-    if (shuffle) usePlayer.getState().playShuffled(filteredTracks, inteligente);
+    if (ligado) usePlayer.getState().playShuffled(filteredTracks, inteligente);
     else props.play(filteredTracks[0], filteredTracks);
   };
 
-  return <Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={() => playAll(false)}>Play all</Button><Button secondary brilho={inteligente} icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button></View>}>
+  return <Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary={!ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button></View>}>
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search your library" value={query} onChangeText={setQuery} /></View>
       <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>
@@ -265,9 +275,11 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   };
 
   const inteligente = usePlayer((s) => s.shuffleInteligente);
-  const playAll = (shuffle = false) => {
+  const ligado = usePlayer((s) => s.shuffle);
+  const alternarShuffle = usePlayer((s) => s.toggleShuffle);
+  const playAll = () => {
     if (!tracks.length) return;
-    if (shuffle) usePlayer.getState().playShuffled(tracks, inteligente);
+    if (ligado) usePlayer.getState().playShuffled(tracks, inteligente);
     else props.play(tracks[0], tracks);
   };
   const tocarAlbum = () => {
@@ -287,8 +299,8 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <Text numberOfLines={2} style={styles.detailHeroTitle}>{name}</Text>
             <Text style={styles.detailHeroMeta}>{tracks.length} saved {tracks.length === 1 ? 'track' : 'tracks'}</Text>
             <View style={styles.detailHeroActions}>
-              <Button icon="play" onPress={() => playAll(false)} disabled={!tracks.length}>Play</Button>
-              <Button secondary brilho={inteligente} icon="shuffle" onPress={() => playAll(true)} disabled={!tracks.length}>Shuffle</Button>
+              <Button icon="play" onPress={playAll} disabled={!tracks.length}>Play</Button>
+              <Button secondary={!ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!tracks.length}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
             </View>
           </View>
         </View>

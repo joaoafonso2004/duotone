@@ -30,7 +30,7 @@ import { TrackRow } from '../components/TrackRow';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
 import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptics';
 import { usePlayer } from '../state/player';
-import { flowDoDia } from '../api/descoberta';
+import { descobrirNovas, flowDoDia } from '../api/descoberta';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 
@@ -60,6 +60,7 @@ export function SearchScreen() {
   const [dailyTop, setDailyTop] = useState<Track[]>([]);
   const [newReleases, setNewReleases] = useState<Track[]>([]);
   const [chillFocus, setChillFocus] = useState<Track[]>([]);
+  const [descobrir, setDescobrir] = useState<Track[]>([]);
   const [flowMix, setFlowMix] = useState<Track[]>([]);
   const [heavyRotation, setHeavyRotation] = useState<Track[]>([]);
   const [forgottenFavorites, setForgottenFavorites] = useState<Track[]>([]);
@@ -87,8 +88,9 @@ export function SearchScreen() {
       // descoberta sai agora da afinidade (a mesma do shuffle inteligente) e
       // nao do `get_flow_mix`, que escolhia 30% do catalogo ao acaso.
       const biblioteca = await getLibrary();
-      const [flow, heavy, forgotten, libTracks, trendingRes, chillRes, recentRes, recentArtist, userTopArtists] = await Promise.all([
+      const [flow, novas, heavy, forgotten, libTracks, trendingRes, chillRes, recentRes, recentArtist, userTopArtists] = await Promise.all([
         flowDoDia(12, biblioteca).catch(() => [] as Track[]),
+        descobrirNovas(12, biblioteca),
         getHeavyRotation(12),
         getForgottenFavorites(12),
         Promise.resolve(biblioteca),
@@ -99,6 +101,7 @@ export function SearchScreen() {
         getTopArtists(3).catch(() => []),
       ]);
       setFlowMix(flow);
+      setDescobrir(novas);
       setHeavyRotation(heavy);
       setForgottenFavorites(forgotten);
       setChillFocus(chillRes.slice(0, 12));
@@ -433,6 +436,9 @@ export function SearchScreen() {
               <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
             ) : (
               <View>
+                {/* A PRIMEIRA prateleira e so descoberta: musica que ele nao tem,
+                    escolhida pelo que ele ouve. */}
+                {renderRecommendationSection('Discover new', descobrir, 'sparkles-outline')}
                 {listenAgain.length > 0 && renderRecommendationSection('Ouvir Novamente', listenAgain, 'time-outline')}
                 {renderRecommendationSection('Em Alta 🔥', dailyTop, 'trending-up-outline')}
                 {newReleases.length > 0 && renderRecommendationSection('Também em Alta', newReleases, 'musical-notes-outline')}
