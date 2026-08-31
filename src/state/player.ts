@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { temAudioNativo } from '../../modules/duotone-audio';
 import { recordPlayInSupabase } from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
@@ -257,7 +258,11 @@ function passo(estado: EstadoDeReproducao, tipo: Evento['tipo']) {
 async function aplicarEqNoMotor(ganhos: number[]): Promise<void> {
   const ponte = typeof window !== 'undefined' ? window.duotoneDesktop : undefined;
   if (!ponte?.aplicarEqualizador) {
-    usePlayer.setState({ eqAtivo: false });
+    // No telemovel nao ha ponte nenhuma: quem aplica os ganhos e o modulo
+    // nativo, a partir do YouTubePlayerView. O que se decide aqui e so se a
+    // UI pode dizer que o EQ esta ligado — e no iOS isso depende de o binario
+    // incluir o modulo, que numa build antiga ou no Expo Go nao inclui.
+    usePlayer.setState({ eqAtivo: temAudioNativo });
     return;
   }
   try {

@@ -268,11 +268,13 @@ decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
   analisar a linha: passar mensagens de commit por lá parte com aspas e abre
   a porta a injeção. Usar `env:`.
 
-## Equalizador (só desktop)
+## Equalizador (as duas plataformas)
 
 Dez bandas de 32 Hz a 16 kHz, ±12 dB, com perfis e memória por faixa.
-`lib/equalizer.ts` (puro, testado), o grafo em `electron/main.cjs`, o painel em
-`desktop/PainelEqualizador.web.tsx`.
+`lib/equalizer.ts` (puro, testado) é partilhado; o que muda é só o motor — o
+grafo em `electron/main.cjs` no PC, o módulo nativo `modules/duotone-audio` no
+iOS. Painéis: `desktop/PainelEqualizador.web.tsx` e
+`components/EqualizadorSheet.tsx`.
 
 - **O grafo corre DENTRO do frame do YouTube.** A música toca num iframe de
   outra origem e do renderer não se lhe toca. O que destrava é o
@@ -328,6 +330,42 @@ Dez bandas de 32 Hz a 16 kHz, ±12 dB, com perfis e memória por faixa.
   **dígito a dígito** contra o `getFrequencyResponse` do Chrome. Se mexeres nas
   bandas, há testes que fixam a curva medida.
 
+### O lado do iOS — `modules/duotone-audio`
+
+- **Como é que se chega ao AVPlayer do expo-video.** Ele declara
+  `internal final class VideoPlayer: SharedRef<AVPlayer>`, e um `SharedRef`
+  existe — nas palavras do comentário do próprio Expo — para *passar referências
+  a objetos nativos entre bibliotecas independentes*. O objeto que o
+  `useVideoPlayer` devolve entra no módulo como argumento e do outro lado sai o
+  `AVPlayer` verdadeiro. É o mecanismo documentado, não um truque, e é o que
+  torna isto barato.
+- **Aditivo, como o `duotone-remote-commands`.** Não se substitui o player nem a
+  sessão de áudio: o expo-video continua dono do Now Playing, do segundo plano e
+  do ecrã bloqueado. Só se acrescentam duas coisas ao *item*.
+- **Tem de ser a cada item, não uma vez.** As duas propriedades vivem no
+  `AVPlayerItem`, e cada `replaceAsync` cria um item de raiz. Por isso o módulo
+  faz KVO ao `currentItem` em vez de aplicar no arranque — do lado do JS não há
+  evento fiável para isso.
+- **`audioTimePitchAlgorithm = .varispeed`** é o equivalente iOS do
+  `preservesPitch = false` do PC. Os valores por omissão preservam o tom, ou
+  seja esticam o tempo, e a 0,5× dão os mesmos artefactos — confirmado à escuta
+  no aparelho antes de se escrever isto.
+- **O EQ é um `MTAudioProcessingTap` no `audioMix`.** Mudar de perfil
+  **reconstrói o tap** em vez de mexer nos coeficientes: o `process` corre numa
+  thread de tempo real onde não se pode bloquear nem alocar, e assim não há
+  estado partilhado entre threads. Custa uma descontinuidade curta ao trocar de
+  perfil.
+- **O HLS fica sem equalizador**, porque o tap precisa das faixas do asset e um
+  manifesto não as expõe. Na prática quase não acontece: o `ytstream.ts` escolhe
+  sempre mp4 progressivo primeiro e só cai no HLS quando não há formato
+  progressivo nenhum. Nesses casos não se instala mix e a faixa toca sem EQ, em
+  vez de não tocar.
+- **O Swift não se compila no Windows.** O que se pode verificar daqui é a
+  matemática: o `scripts/test-eq-nativo.ts` porta o `Coeficientes.peaking` e a
+  recorrência da forma direta II transposta para JS e compara com a curva do PC.
+  Se mexeres no DSP, corre-o. O resto — que compila, que não estala, que o
+  `SharedRef` chega mesmo — só a build do EAS confirma.
+
 ## Velocidade de reprodução
 
 Substituiu os três presets ("Slowed / Normal / Fast"), que além de serem só
@@ -339,8 +377,10 @@ três **não concordavam entre plataformas**: o "rápido" era 1,5 no telemóvel 
   Arrastar move 0,05; as setas movem 0,01; shift+seta move 0,1. Não é
   inconsistência: a 0,01 são 151 posições, o que numa barra destas dá pouco mais
   de **1 px por degrau** — à mão não se acerta e o valor treme debaixo do
-  cursor. Quem quer um número exato usa as setas. No telemóvel os `-`/`+` andam
-  0,1, senão eram trinta toques de ponta a ponta.
+  cursor. Quem quer um número exato usa as setas. **No telemóvel** também há
+  barra (`components/BarraVelocidade.tsx`, com `PanResponder` — a app não tem
+  biblioteca de gestos e não vale a pena trazer uma), e lá anda sempre 0,05:
+  não há teclado para pedir o valor exato, e um polegar não acerta em 0,01.
 - O motor aceita qualquer valor ao certo, incluindo os que **não** estão nos
   oito que o `getAvailablePlaybackRates()` anuncia (0,85 e 1,35 sempre
   funcionaram). Só prende **abaixo de 0,25**, que já nem está no intervalo.

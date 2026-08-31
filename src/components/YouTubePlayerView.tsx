@@ -15,6 +15,8 @@ import {
   sinalDoErro, type TipoFalha,
 } from '../lib/playbackDiagnostics';
 import { usePlayer } from '../state/player';
+import { compensacaoLinear } from '../lib/equalizer';
+import { aplicarEqualizadorNativo, ligarAudioNativo } from '../../modules/duotone-audio';
 import type { Track } from '../types';
 import { type HarvestResult } from './YtStreamHarvester';
 
@@ -97,6 +99,7 @@ true;
 type Backend = 'resolving' | 'native' | 'webview';
 
 export function YouTubePlayerView({ track }: { track: Track }) {
+  const eqGanhos = usePlayer((s) => s.eqGanhos);
   const registerYtControls = usePlayer((s) => s.registerYtControls);
   const onStateChange = usePlayer((s) => s._onYtStateChange);
   const setProgress = usePlayer((s) => s._setProgress);
@@ -148,6 +151,22 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   useEffect(() => {
     player.loop = repeatMode === 'one';
   }, [player, repeatMode]);
+
+  // Entrega o player ao módulo nativo, UMA vez. Daí em diante é ele que trata
+  // de cada faixa nova, porque o que ele mexe — o tom e o equalizador — vive
+  // no AVPlayerItem, e cada `replaceAsync` cria um item de raiz. Do lado do JS
+  // não há evento fiável para isso; do lado nativo há KVO no `currentItem`.
+  useEffect(() => {
+    ligarAudioNativo(player);
+  }, [player]);
+
+  // O equalizador. A margem é calculada aqui e não no Swift, para a conta
+  // viver só num sítio: o `lib/equalizer.ts`, que é quem sabe quanto é que as
+  // bandas somam quando se sobrepõem. É a mesma que o PC usa.
+  useEffect(() => {
+    if (backend !== 'native') return;
+    aplicarEqualizadorNativo(eqGanhos, compensacaoLinear(eqGanhos));
+  }, [backend, eqGanhos]);
 
   // Aplica o Preset de Som reativamente na velocidade de reprodução nativa.
   // ATENÇÃO: no expo-video, definir playbackRate faz `AVPlayer.rate = x`, e no
