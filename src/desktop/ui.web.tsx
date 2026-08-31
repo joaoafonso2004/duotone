@@ -4,6 +4,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, Text
 import { colors } from '../theme';
 import type { Track } from '../types';
 import { displayArtist } from '../lib/artistName';
+import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
 import { useSaved } from '../state/saved';
 import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
@@ -92,20 +93,140 @@ export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
  * A capa e o elemento; o texto e legenda. Numa lista de descoberta ninguem le
  * titulos em coluna, olha para as capas.
  */
+/**
+ * O carrossel de uma prateleira: setas, arrasto, e saber onde estamos.
+ *
+ * **A `ScrollView horizontal` sozinha nao chega num computador.** Ela rola,
+ * mas o indicador esta escondido, a roda do rato rola a PAGINA (que e
+ * vertical) e nao ha nada para agarrar — as faixas que nao cabem no ecra
+ * ficavam simplesmente inalcancaveis com um rato. Daqui saem as duas maneiras
+ * de la chegar: as setas, que se veem, e o arrasto, que se tenta.
+ */
+function usarCarrossel() {
+  const ref = useRef<any>(null);
+  const [podeEsquerda, setPodeEsquerda] = useState(false);
+  const [podeDireita, setPodeDireita] = useState(false);
+  // Distingue um clique de um arrasto. Sem isto, arrastar a prateleira punha
+  // uma musica a tocar quando se largasse em cima de um cartao.
+  const arrastou = useRef(false);
+
+  useEffect(() => {
+    const bruto = ref.current;
+    const el: HTMLElement | null = bruto?.getScrollableNode?.() ?? bruto ?? null;
+    if (!el || typeof el.addEventListener !== 'function') return;
+
+    const medir = () => {
+      setPodeEsquerda(el.scrollLeft > 1);
+      setPodeDireita(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    };
+    medir();
+
+    let aArrastar = false;
+    let xInicial = 0;
+    let scrollInicial = 0;
+
+    const carregou = (e: PointerEvent) => {
+      if (e.button !== 0) return;
+      aArrastar = true;
+      // Limpar AQUI e nao ao largar: se o arrasto for interrompido (a janela
+      // perde o foco, Escape), a flag ficava presa e comia o clique seguinte.
+      arrastou.current = false;
+      xInicial = e.clientX;
+      scrollInicial = el.scrollLeft;
+    };
+    const moveu = (e: PointerEvent) => {
+      if (!aArrastar) return;
+      const dx = e.clientX - xInicial;
+      if (!arrastou.current && Math.abs(dx) < LIMIAR_ARRASTO_PX) return;
+      arrastou.current = true;
+      el.scrollLeft = scrollInicial - dx;
+    };
+    const largou = () => { aArrastar = false; };
+    // Na fase de CAPTURA, para chegar antes do React: um arrasto que acaba em
+    // cima de um cartao nao pode contar como carregar nele.
+    const clicou = (e: MouseEvent) => {
+      if (!arrastou.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    el.addEventListener('scroll', medir, { passive: true });
+    el.addEventListener('pointerdown', carregou);
+    window.addEventListener('pointermove', moveu);
+    window.addEventListener('pointerup', largou);
+    el.addEventListener('click', clicou, true);
+    const observador = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(medir) : null;
+    observador?.observe(el);
+
+    return () => {
+      el.removeEventListener('scroll', medir);
+      el.removeEventListener('pointerdown', carregou);
+      window.removeEventListener('pointermove', moveu);
+      window.removeEventListener('pointerup', largou);
+      el.removeEventListener('click', clicou, true);
+      observador?.disconnect();
+    };
+  }, []);
+
+  const deslizar = (sentido: 1 | -1) => {
+    const bruto = ref.current;
+    const el: HTMLElement | null = bruto?.getScrollableNode?.() ?? bruto ?? null;
+    if (!el) return;
+    // Quase um ecra de cada vez, deixando um cartao a espreitar — e assim que
+    // se percebe que a lista continua.
+    const salto = Math.max(200, el.clientWidth - 168);
+    const suave = typeof window !== 'undefined'
+      && !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    el.scrollBy({ left: sentido * salto, behavior: suave ? 'smooth' : 'auto' });
+  };
+
+  return { ref, podeEsquerda, podeDireita, deslizar, arrastou };
+}
+
+function SetaDaPrateleira({ sentido, activa, aoCarregar }: {
+  sentido: 1 | -1; activa: boolean; aoCarregar: () => void;
+}) {
+  return <P
+    accessibilityLabel={sentido === 1 ? 'Show more' : 'Show previous'}
+    disabled={!activa}
+    onPress={aoCarregar}
+    style={({ hovered }: any) => [ui.shelfSeta, !activa && ui.shelfSetaInactiva, hovered && activa && ui.shelfSetaHover]}>
+    <Ionicons name={sentido === 1 ? 'chevron-forward' : 'chevron-back'} size={15}
+      color={activa ? COR.texto : COR.textoFraco} />
+  </P>;
+}
+
 export function Shelf({ titulo, nota, tracks, onPlay, onMore }: {
   titulo: string; nota?: string; tracks: Track[];
   onPlay: (track: Track, fila: Track[]) => void; onMore?: (track: Track) => void;
 }) {
+  const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = usarCarrossel();
   if (!tracks.length) return null;
+  const rola = podeEsquerda || podeDireita;
   return <View style={{ marginBottom: ESP.xxl }}>
-    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: ESP.md, marginBottom: ESP.md }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: ESP.md }}>
       <Text style={ui.shelfTitle}>{titulo}</Text>
       {nota ? <Text style={ui.shelfNota}>{nota}</Text> : null}
+      {/* As setas ficam ao pe do titulo e nao sobrepostas aos cartoes: por cima
+          tapavam capas, e so aparecerem a passagem do rato e precisamente o que
+          torna um carrossel dificil de descobrir. Ficam SEMPRE visiveis quando
+          ha mais para ver, e apagadas na ponta onde ja nao da para andar. */}
+      <View style={{ flex: 1 }} />
+      {rola ? (
+        <View style={{ flexDirection: 'row', gap: ESP.sm }}>
+          <SetaDaPrateleira sentido={-1} activa={podeEsquerda} aoCarregar={() => deslizar(-1)} />
+          <SetaDaPrateleira sentido={1} activa={podeDireita} aoCarregar={() => deslizar(1)} />
+        </View>
+      ) : null}
     </View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
+    <ScrollView
+      ref={ref}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
       {tracks.map((t) => (
         <P key={`${t.source}:${t.sourceId}`}
-          onPress={() => onPlay(t, tracks)}
+          onPress={() => { if (arrastou.current) return; onPlay(t, tracks); }}
           onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t); }) as any}
           style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
           <Artwork track={t} size={148} />
@@ -250,6 +371,15 @@ export const ui = StyleSheet.create({
   shelfNota: { ...TIPO.legenda, color: COR.textoFraco },
   shelfCard: { width: 148, borderRadius: RAIO.cartao, gap: 2 },
   shelfCardHover: { opacity: .82 },
+  shelfSeta: {
+    width: 26, height: 26, borderRadius: RAIO.pilula,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linha,
+  },
+  shelfSetaHover: { backgroundColor: COR.hover },
+  // Apagada, mas continua la: uma seta que DESAPARECE na ponta faz as outras
+  // saltarem de sitio, e a que sobra passa a estar onde estava a outra.
+  shelfSetaInactiva: { opacity: .35 },
   shelfCardTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any, marginTop: ESP.sm },
   shelfCardArtista: { ...TIPO.legenda, color: COR.textoMedio },
 
