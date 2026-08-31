@@ -8,14 +8,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getLikedSongs } from '../../api/library';
+import { getLibrary, getLikedSongs } from '../../api/library';
+import { flowDoDia } from '../../api/descoberta';
 import {
   fetchYouTubePlaylistById, searchYouTube, searchYouTubePlaylists,
   type YtRecommendedPlaylist,
 } from '../../api/youtube';
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import {
-  getFlowMix, getForgottenFavorites, getHeavyRotation, getProfileRecentlyPlayed, getTopArtists,
+  getForgottenFavorites, getHeavyRotation, getProfileRecentlyPlayed, getTopArtists,
 } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist } from '../../lib/artistName';
@@ -44,9 +45,14 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
     // Falham em silencio uma a uma: se uma RPC nao existir na base de dados,
     // as outras prateleiras aparecem na mesma.
     const semFalhar = <T,>(p: Promise<T[]>) => p.catch(() => [] as T[]);
+    // O "Daily flow" deixou de vir do `get_flow_mix`: aquela funcao escolhe
+    // 30% do catalogo AO ACASO (`order by random()`), sem relacao nenhuma com
+    // o que se ouve -- e por isso que as recomendacoes as vezes nao diziam
+    // nada. Agora a descoberta sai da afinidade, a mesma do shuffle
+    // inteligente. Precisa da biblioteca para saber com o que se parecer.
     Promise.all([
       semFalhar(getProfileRecentlyPlayed(14)),
-      semFalhar(getFlowMix(14)),
+      semFalhar(getLibrary()).then((lib) => flowDoDia(14, lib)).catch(() => [] as Track[]),
       semFalhar(getHeavyRotation(14)),
       semFalhar(getForgottenFavorites(14)),
     ]).then(([recentes, f, m, e]) => {

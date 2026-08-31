@@ -33,7 +33,7 @@ import {
 } from '../lib/avatarPrefs';
 import {
   getProfilePlayStats, getProfileMostPlayed, getProfileRecentlyPlayed, getTopArtists,
-  getFlowMix, getHeavyRotation, getForgottenFavorites,
+  getHeavyRotation, getForgottenFavorites,
   type ProfilePlayEntry, type DbPlayStats,
 } from '../api/plays';
 import {
