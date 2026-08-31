@@ -97,15 +97,23 @@ export function injectDesktopDocumentStyles() {
        presa no valor inicial e forcar o valor a mao FICAVA, ou seja nao havia
        nada a animar por cima. No telemovel o Animated corre bem e e o que la
        fica; aqui manda o CSS. */
-    @keyframes duotone-cintilar {
-      0%, 100% { opacity: .22; }
+    /* As particulas do modo inteligente atravessam da direita para a
+       esquerda. A camada tem o dobro da largura e leva o campo duas vezes,
+       por isso deslizar -50% cai num sitio onde a imagem e igual e o ciclo
+       nao se ve. */
+    @keyframes duotone-atravessar {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    @keyframes duotone-respirar {
+      0%, 100% { opacity: .35; }
       50%      { opacity: 1; }
     }
     @media (prefers-reduced-motion: reduce) {
       /* Quem pediu menos movimento nao leva pontos a piscar. O seletor apanha
          qualquer elemento com este keyframe, porque o react-native-web nao
          deixa passar classes nossas. */
-      *[style*="duotone-cintilar"] { animation: none !important; opacity: .5 !important; }
+      *[style*="duotone-atravessar"], *[style*="duotone-respirar"] { animation: none !important; opacity: .5 !important; }
     }
     @keyframes pulse {
       0% { opacity: 0.6; }

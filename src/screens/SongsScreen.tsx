@@ -32,6 +32,7 @@ export function SongsScreen() {
   
   const playTrack = usePlayer((s) => s.playTrack);
   const playShuffled = usePlayer((s) => s.playShuffled);
+  const inteligente = usePlayer((s) => s.shuffleInteligente);
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
@@ -205,24 +206,13 @@ export function SongsScreen() {
 
               <Pressable
                 style={styles.shuffleButton}
-                onPress={() => playShuffled(sortedTracks)}
+                onPress={() => playShuffled(sortedTracks, inteligente)}
               >
+                {/* O MODO vem do leitor: um so sitio decide se o shuffle e
+                    inteligente, e este botao mostra-o e respeita-o. */}
+                {inteligente && <BrilhoInteligente largura={132} altura={40} />}
                 <Ionicons name="shuffle" size={20} color={colors.text} />
                 <Text style={styles.buttonTextShuffle}>Shuffle</Text>
-              </Pressable>
-
-              {/* O mesmo shuffle, mas a intercalar musicas de fora da lista.
-                  Botao proprio e nao um segundo toque no de cima: aqui a
-                  escolha e feita ANTES de comecar a ouvir, e um ciclo
-                  escondido nao se descobria. */}
-              <Pressable
-                style={styles.shuffleButton}
-                accessibilityLabel="Smart shuffle — mixes in new tracks"
-                onPress={() => playShuffled(sortedTracks, true)}
-              >
-                <BrilhoInteligente largura={132} altura={40} />
-                <Ionicons name="shuffle" size={20} color={colors.text} />
-                <Text style={styles.buttonTextShuffle}>Smart</Text>
               </Pressable>
             </View>
           )}
