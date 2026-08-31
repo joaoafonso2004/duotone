@@ -16,6 +16,7 @@ import {
 } from '../lib/playbackDiagnostics';
 import { usePlayer } from '../state/player';
 import { compensacaoLinear } from '../lib/equalizer';
+import { displayArtist, tituloLimpo } from '../lib/artistName';
 import { aplicarEqualizadorNativo, ligarAudioNativo } from '../../modules/duotone-audio';
 import type { Track } from '../types';
 import { type HarvestResult } from './YtStreamHarvester';
@@ -97,6 +98,23 @@ true;
 `;
 
 type Backend = 'resolving' | 'native' | 'webview';
+
+/**
+ * O que aparece no ecrã bloqueado e no Centro de Controlo.
+ *
+ * O desenho é do iOS e não se muda; o que é NOSSO são estes três campos, e
+ * estavam a ser mandados em cru. Via-se "Juice WRLD - Orlando" no título e
+ * "Juice WRLD" outra vez por baixo, porque o título ia tal e qual e o artista
+ * era o nome do CANAL. Agora o artista sai do extractor e o título vem sem o
+ * nome do artista à frente nem o "(Official Audio)" atrás.
+ */
+function metadadosDoEcraBloqueado(track: Track) {
+  return {
+    title: tituloLimpo(track),
+    artist: displayArtist(track),
+    artwork: track.artworkUrl ?? undefined,
+  };
+}
 
 export function YouTubePlayerView({ track }: { track: Track }) {
   const eqGanhos = usePlayer((s) => s.eqGanhos);
@@ -332,11 +350,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         await player.replaceAsync({
           uri: localFile.uri,
           contentType: 'progressive',
-          metadata: {
-            title: track.title,
-            artist: track.artist ?? 'YouTube',
-            artwork: track.artworkUrl ?? undefined,
-          },
+          metadata: metadadosDoEcraBloqueado(track),
         });
         if (!alive()) return;
         beginPlayback();
@@ -406,11 +420,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       await player.replaceAsync({
         uri: playableUri,
         contentType: stream.isHls ? 'hls' : 'progressive',
-        metadata: {
-          title: track.title,
-          artist: track.artist ?? 'YouTube',
-          artwork: track.artworkUrl ?? undefined,
-        },
+        metadata: metadadosDoEcraBloqueado(track),
       });
       if (!alive()) return;
       beginPlayback();
@@ -501,11 +511,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       await player.replaceAsync({
         uri,
         contentType: 'progressive',
-        metadata: {
-          title: track.title,
-          artist: track.artist ?? 'YouTube',
-          artwork: track.artworkUrl ?? undefined,
-        },
+        metadata: metadadosDoEcraBloqueado(track),
       });
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       nativeTrackIdRef.current = track.sourceId;
