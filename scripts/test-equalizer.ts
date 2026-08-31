@@ -13,6 +13,7 @@ import {
   perfilDe,
   perfilPorId,
   PERFIS,
+  ganhoDeProgramaDb,
   picoDb,
   PLANO,
   podar,
@@ -95,21 +96,32 @@ check('a margem nunca AUMENTA o volume',
   PERFIS.every((p) => compensacaoLinear(p.ganhos) <= 1));
 check('a margem e sempre um multiplicador valido',
   PERFIS.every((p) => { const m = compensacaoLinear(p.ganhos); return m > 0 && m <= 1; }));
-// A garantia que interessa, e a que faltava: com a margem aplicada, NENHUM
-// perfil pode levantar o sinal acima do que entrou. Era isto que estava a
-// cortar a onda.
-check('com margem, nenhum perfil passa de 0 dB em frequencia nenhuma',
-  PERFIS.every((p) => {
-    const m = compensacaoDb(p.ganhos);
-    return [30, 40, 60, 100, 200, 500, 1000, 2000, 4000, 8000, 12000, 16000, 19000]
-      .every((f) => respostaDb(p.ganhos, f) + m <= 0.05);
-  }),
-  PERFIS.filter((p) => {
-    const m = compensacaoDb(p.ganhos);
-    return [30, 60, 100, 1000, 8000, 16000].some((f) => respostaDb(p.ganhos, f) + m > 0.05);
-  }).map((p) => p.id).join());
-check('o pior caso (tudo a +12) tambem fica preso',
-  compensacaoDb(BANDAS.map(() => GANHO_MAXIMO)) < -20);
+// A GARANTIA, e repara no que ela diz e no que nao diz: equalizar nao mexe no
+// VOLUME. Nao diz que a curva nunca passa de 0 dB nalguma frequencia -- se nao
+// passasse, nao havia reforco nenhum, so corte. Um "bass boost" que nao
+// levanta os graves em lado nenhum nao e um bass boost.
+check('com a margem, o volume de programa fica igual ao plano',
+  PERFIS.every((p) => Math.abs(ganhoDeProgramaDb(p.ganhos) + compensacaoDb(p.ganhos)) <= 0.1),
+  PERFIS.map((p) => `${p.id}:${(ganhoDeProgramaDb(p.ganhos) + compensacaoDb(p.ganhos)).toFixed(2)}`).join(' '));
+// A regressao que o utilizador ouviu: a margem antiga era o PICO da curva,
+// que e um tom puro no pior sitio. O bass boost perdia 5,3 dB de volume, e
+// como so as faixas com perfil guardado levavam margem, umas tocavam mais
+// alto do que outras.
+check('nenhum perfil rouba mais de 1 dB de volume',
+  PERFIS.every((p) => compensacaoDb(p.ganhos) + ganhoDeProgramaDb(p.ganhos) > -1),
+  PERFIS.map((p) => `${p.id}:${compensacaoDb(p.ganhos)}`).join(' '));
+check('a margem do bass boost e muito menor do que o pico da curva',
+  Math.abs(compensacaoDb(bass)) < picoDb(bass) - 3,
+  `margem ${compensacaoDb(bass)} vs pico ${picoDb(bass)}`);
+// E o reforco continua la: e disto que a funcionalidade trata.
+check('depois da margem, o bass boost ainda levanta os graves',
+  respostaDb(bass, 60) + compensacaoDb(bass) > 3,
+  (respostaDb(bass, 60) + compensacaoDb(bass)).toFixed(1));
+check('e continua a baixar onde a curva desce',
+  respostaDb(bass, 1000) + compensacaoDb(bass) < 0);
+check('o pior caso (tudo a +12) atenua a serio',
+  compensacaoDb(BANDAS.map(() => GANHO_MAXIMO)) < -10,
+  String(compensacaoDb(BANDAS.map(() => GANHO_MAXIMO))));
 
 console.log('\nmemoria por faixa');
 const agora = Date.UTC(2026, 7, 29, 12, 0, 0);

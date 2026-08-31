@@ -173,17 +173,44 @@ export function picoDb(ganhos: readonly number[]): number {
 }
 
 /**
- * Quanto é preciso baixar a saída, em dB, para a curva não cortar a onda.
+ * O que a curva faz ao VOLUME de música a sério, em dB.
  *
- * **Isto é a correção do defeito que se ouvia.** A cadeia ia dos filtros
- * direto ao destino: com o Bass boost, um baixo de 60 Hz com amplitude 0,8 —
- * um master normal — saía a 2,05 de pico contra o máximo de 1,0, com 67% das
- * amostras decapitadas. O que se ouvia como «graves fracos» era a distorção de
- * os cortar. Nunca é positivo: só atenua, nunca inventa volume.
+ * É a média em energia da curva com peso igual por oitava — o espectro do
+ * ruído rosa, que é a aproximação clássica de programa musical. Muito
+ * diferente do pico: o Bass boost tem um pico de +8,1 dB mas só levanta o
+ * programa +3,5 dB, porque a subida está concentrada numa ponta do espectro.
+ */
+export function ganhoDeProgramaDb(ganhos: readonly number[]): number {
+  const oitavas = Math.log2(20000 / 20);
+  const passos = Math.round(oitavas * 24);
+  let soma = 0;
+  for (let i = 0; i <= passos; i++) {
+    const f = 20 * Math.pow(2, (i / passos) * oitavas);
+    soma += Math.pow(10, respostaDb(ganhos, f) / 10);
+  }
+  return Math.round(10 * Math.log10(soma / (passos + 1)) * 10) / 10;
+}
+
+/**
+ * Quanto se baixa a saída, em dB, para o equalizador não cortar a onda.
+ *
+ * **Compensa o ganho a PROGRAMA e não o pico da curva, e isso foi corrigido
+ * depois de o utilizador se queixar.** A primeira versão usava o pico, que é o
+ * pior caso possível — um tom puro exatamente na frequência mais reforçada — e
+ * música nenhuma é isso. O resultado: o Bass boost perdia **5,3 dB** de volume
+ * e os picos ficavam nos 0,46 quando o tecto é 1,0. Estava a deitar fora
+ * metade da margem sem precisar, e como só as faixas com perfil guardado
+ * levavam margem, umas tocavam mais alto do que outras.
+ *
+ * Medido com ruído rosa a −14 dBFS, que é o nível de um master de streaming:
+ * com esta compensação o pico fica em 0,70–0,80, contra 0,775 do plano. Ou
+ * seja, equalizar deixa de mexer no volume — que é o que se quer.
+ *
+ * Nunca é positivo: só atenua, nunca inventa volume.
  */
 export function compensacaoDb(ganhos: readonly number[]): number {
-  const pico = picoDb(ganhos);
-  return pico === 0 ? 0 : -pico;
+  const programa = ganhoDeProgramaDb(ganhos);
+  return programa <= 0 ? 0 : -programa;
 }
 
 /** A mesma compensação como multiplicador de amplitude, que é o que um
