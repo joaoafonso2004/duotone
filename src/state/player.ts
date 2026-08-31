@@ -1033,12 +1033,22 @@ export const usePlayer = create<PlayerState>()(
 
   setPlaybackRate: (rate, comoPadrao = false) => {
     const v = arredondarRate(rate);
-    set(comoPadrao ? { playbackRate: v, padraoRate: v } : { playbackRate: v });
-    // Persistido aqui e não nos ecrãs de Definições: são dois (telemóvel e
-    // desktop) e assim nenhum se pode esquecer. Antes o preset voltava a
-    // "normal" a cada arranque, apesar de estar apresentado como definição.
-    if (comoPadrao) persistPlaybackRate(v).catch(() => {});
-    else lembrarDaFaixa();
+    if (comoPadrao) {
+      // SÓ o padrão. Mexer na definição não pode alterar a música que está a
+      // tocar — é o que o próprio controlo promete ("the default for tracks
+      // you have not set individually"), e escrever também o `playbackRate`
+      // fazia dele um controlo de velocidade disfarçado de definição. O valor
+      // passa a valer a partir da faixa seguinte que não tenha ajuste próprio
+      // (ver `ajusteAoTocar`, onde o padrão é aplicado a cada mudança).
+      set({ padraoRate: v });
+      // Persistido aqui e não nos ecrãs de Definições: são dois (telemóvel e
+      // desktop) e assim nenhum se pode esquecer. Antes o preset voltava a
+      // "normal" a cada arranque, apesar de estar apresentado como definição.
+      persistPlaybackRate(v).catch(() => {});
+    } else {
+      set({ playbackRate: v });
+      lembrarDaFaixa();
+    }
   },
 
   moveQueueItem: (fromIndex, toIndex) => {
