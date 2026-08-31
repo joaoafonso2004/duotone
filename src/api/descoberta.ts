@@ -1,4 +1,5 @@
 import { getLibraryKeys } from './library';
+import { getHeavyRotation } from './plays';
 import { paresDeArtistaEPlaylist } from './afinidade';
 import { searchYouTube } from './youtube';
 import { chaveDeArtista, displayArtist } from '../lib/artistName';
@@ -65,6 +66,40 @@ export async function candidatasParaDescoberta(
       if (saida.length >= QUANTAS) return saida;
     }
   }
+  return saida;
+}
+
+/**
+ * O "Daily flow" da Pesquisa, misturado AQUI e não na base de dados.
+ *
+ * **Porque é que se saiu do `get_flow_mix`.** Aquela função escolhe 70% do
+ * histórico e 30% do catálogo **ao acaso** — `order by random()` sobre a
+ * tabela `tracks`, sem relação nenhuma com o que a pessoa ouve. É por isso que
+ * as recomendações às vezes não dizem nada. A parte dos favoritos continua a
+ * vir do servidor, que é quem sabe o histórico; a parte da descoberta passa a
+ * sair da afinidade, que é a mesma que serve o shuffle inteligente.
+ *
+ * Um só sítio decide o que é "parecido", e serve as duas funcionalidades.
+ */
+export async function flowDoDia(limite: number, biblioteca: readonly Track[]): Promise<Track[]> {
+  const quantosFavoritos = Math.max(1, Math.round(limite * 0.7));
+  const favoritos = await getHeavyRotation(quantosFavoritos).catch(() => [] as Track[]);
+
+  const jaLa = new Set(favoritos.map((t) => trackKey(t)));
+  const novas = await candidatasParaDescoberta(biblioteca, jaLa, new Set())
+    .catch(() => [] as Track[]);
+
+  // Intercaladas e não em bloco: as novas ao fundo eram as que ninguém via.
+  const saida: Track[] = [];
+  const aCada = Math.max(2, Math.floor(limite / Math.max(1, limite - quantosFavoritos)));
+  let iNovas = 0;
+  for (let i = 0; i < favoritos.length && saida.length < limite; i++) {
+    saida.push(favoritos[i]);
+    if ((i + 1) % aCada === 0 && iNovas < novas.length && saida.length < limite) {
+      saida.push(novas[iNovas++]);
+    }
+  }
+  while (saida.length < limite && iNovas < novas.length) saida.push(novas[iNovas++]);
   return saida;
 }
 

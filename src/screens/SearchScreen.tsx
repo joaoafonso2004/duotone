@@ -17,7 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, getLibrary } from '../api/library';
 import { searchYouTube, searchYouTubePlaylists, getTrendingMusic, YtRecommendedPlaylist } from '../api/youtube';
-import { getFlowMix, getHeavyRotation, getForgottenFavorites, getProfileRecentlyPlayed, getRecentTopArtist, getTopArtists } from '../api/plays';
+import { getHeavyRotation, getForgottenFavorites, getProfileRecentlyPlayed, getRecentTopArtist, getTopArtists } from '../api/plays';
 import { shuffleCandidates } from '../lib/radio';
 import { useSaved } from '../state/saved';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
@@ -30,6 +30,7 @@ import { TrackRow } from '../components/TrackRow';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
 import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptics';
 import { usePlayer } from '../state/player';
+import { flowDoDia } from '../api/descoberta';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 
@@ -82,11 +83,15 @@ export function SearchScreen() {
   const loadRecommendations = async () => {
     setLoadingRecs(true);
     try {
+      // A biblioteca vem primeiro porque o "Flow do Dia" precisa dela: a
+      // descoberta sai agora da afinidade (a mesma do shuffle inteligente) e
+      // nao do `get_flow_mix`, que escolhia 30% do catalogo ao acaso.
+      const biblioteca = await getLibrary();
       const [flow, heavy, forgotten, libTracks, trendingRes, chillRes, recentRes, recentArtist, userTopArtists] = await Promise.all([
-        getFlowMix(12),
+        flowDoDia(12, biblioteca).catch(() => [] as Track[]),
         getHeavyRotation(12),
         getForgottenFavorites(12),
-        getLibrary(),
+        Promise.resolve(biblioteca),
         getTrendingMusic(40),
         searchYouTube('lofi hip hop study focus chill beats'),
         getProfileRecentlyPlayed(12).catch(() => []),
