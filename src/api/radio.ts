@@ -1,4 +1,4 @@
-import { displayArtist } from '../lib/artistName';
+import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import {
   filterRadioCandidates,
   RADIO_BATCH,
@@ -32,11 +32,14 @@ export async function fetchRadioTracks(
   //    e é garantidamente música que ele gosta.
   if (artists.length > 0) {
     try {
-      const wanted = artists.map((a) => a.toLowerCase());
+      // Pela chave canonica e nao por toLowerCase(): a semente pode vir
+      // escrita "Juice WRLD" e a faixa na biblioteca "Juice Wrld", e o radio
+      // saltava-a so por causa da grafia.
+      const wanted = new Set(artists.map((a) => chaveDeArtista(a)));
       const library = await getLibrary();
       pool.push(
         ...shuffleCandidates(
-          library.filter((t) => wanted.includes(displayArtist(t).toLowerCase()))
+          library.filter((t) => wanted.has(chaveDeArtista(displayArtist(t))))
         )
       );
     } catch {

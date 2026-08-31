@@ -268,6 +268,38 @@ decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
   analisar a linha: passar mensagens de commit por lá parte com aspas e abre
   a porta a injeção. Usar `env:`.
 
+## Artistas
+
+O YouTube devolve o CANAL como artista, e o `lib/artistName.ts` extrai o nome
+real do título. O que faltava — e que se media em 6 erros em 17 títulos reais —
+era **canonicalizar**: havia quatro grupos onde devia haver um (`Juice WRLD`,
+`juice wrld`, `JUICE WRLD`, `Juice Wrld & Trippie Redd`).
+
+- **Agrupa-se pela CHAVE, nunca pelo nome mostrado.** `chaveDeArtista` tira
+  maiúsculas, acentos e pontuação. Era agrupar pelo nome que punha as três
+  grafias em três cartões. Quem mostrar artistas usa `agruparPorArtista`, e
+  quem abrir a página de um usa a chave para filtrar — senão o cartão dizia
+  cinco faixas e a página abria com duas.
+- **O `$` conta como `s`** na chave: é estilização, não pontuação, e sem isso
+  `A$AP Rocky` e `ASAP Rocky` ficavam separados.
+- **A vírgula NÃO corta colaborações.** Corta-se em `&`, ` x `, `feat.` — mas
+  há nomes com vírgula lá dentro ("Tyler, The Creator") e cortar por ela
+  partia-os ao meio.
+- **O vocabulário aprende com a biblioteca**, não com a lista escrita à mão:
+  os canais `- Topic` e VEVO dão o nome como a editora o escreve, e essa grafia
+  passa a mandar. A lista de ~50 nomes é só a semente.
+- **`fiaveis` existe separado do `porChave` de propósito.** O extractor corre
+  sobre a biblioteca toda e aprende também os enganos: de
+  `Meus planos - BrazzaOg` sai "Meus planos". Se a pergunta *"isto é um
+  artista?"* olhasse para tudo o que se viu, o engano respondia que sim e
+  bloqueava a própria correção do título ao contrário. Um teste apanhou isso.
+- **Nunca fundir por semelhança.** Juntar dois artistas diferentes é pior do
+  que os separar, porque um deles desaparece da biblioteca. Só se funde por
+  chave canónica — a mesma palavra escrita de outra maneira.
+- O que **não** se resolve: um título que não diz o artista em lado nenhum
+  (`When It Rains It Pours` no canal `LusiEntertainment`). Isso precisava de
+  uma base de dados de músicas, não de heurística — fica o canal.
+
 ## Equalizador (as duas plataformas)
 
 Dez bandas de 32 Hz a 16 kHz, ±12 dB, com perfis e memória por faixa.

@@ -20,7 +20,7 @@ import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '../theme';
 import { useTheme } from '../state/theme';
 import { hapticNotification } from '../lib/haptics';
-import { displayArtist } from '../lib/artistName';
+import { agruparPorArtista, chaveDeArtista } from '../lib/artistName';
 import type { Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
@@ -57,14 +57,15 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       // Marca as faixas do YouTube deste artista que já estão na biblioteca.
       useSaved.getState().refresh();
       const all = await getLibrary();
-      setTracks(
-        all.filter((t) =>
-          type === 'album'
-            ? t.album === name
-            : // mesmo agrupamento da página de Artistas (artista extraído)
-              displayArtist(t) === name
-        )
-      );
+      if (type === 'album') {
+        setTracks(all.filter((t) => t.album === name));
+      } else {
+        // Pela CHAVE canónica e não pelo nome mostrado — tem de ser o mesmo
+        // agrupamento da página de Artistas, senão o cartão dizia cinco
+        // faixas e esta página abria com duas.
+        const alvo = chaveDeArtista(name);
+        setTracks(agruparPorArtista(all).find((g) => g.chave === alvo)?.faixas ?? []);
+      }
     } catch {
       // ignorar
     } finally {
