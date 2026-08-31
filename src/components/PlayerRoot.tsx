@@ -29,6 +29,7 @@ import { ProgressBar } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
 import { LyricsView } from './LyricsView';
 import { QueueSheet } from './QueueSheet';
+import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { EqualizadorSheet } from './EqualizadorSheet';
 import { navigationRef } from '../navigation/RootNavigator';
 import { clearPresence, publishPresence } from '../api/social';
@@ -58,6 +59,7 @@ export function PlayerRoot() {
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
   const cycleRepeat = usePlayer((s) => s.cycleRepeat);
   const toggleShuffle = usePlayer((s) => s.toggleShuffle);
+  const shuffleInteligente = usePlayer((s) => s.shuffleInteligente);
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const positionMs = usePlayer((s) => s.positionMs);
   const durationMs = usePlayer((s) => s.durationMs);
@@ -550,12 +552,28 @@ export function PlayerRoot() {
 
             {/* Controlos: shuffle · anterior · play · seguinte · repeat */}
             <View style={styles.controls}>
-              <Pressable hitSlop={12} onPress={onToggleShuffle} accessibilityLabel="Shuffle">
+              {/* Três estados: apagado, ligado, e inteligente — este último
+                  com uma estrelinha ao canto, que é como o Spotify o mostra e
+                  como o João o conhece. Sem a estrela, ligar o inteligente não
+                  se distinguia do normal e ninguém saberia em que modo está. */}
+              <Pressable
+                hitSlop={12}
+                onPress={onToggleShuffle}
+                accessibilityLabel={rotuloDoModo(modoDeShuffle(shuffle, shuffleInteligente))}
+              >
                 <Ionicons
                   name="shuffle"
                   size={22}
                   color={shuffle ? colors.text : colors.textTertiary}
                 />
+                {shuffleInteligente && (
+                  <Ionicons
+                    name="sparkles"
+                    size={11}
+                    color={theme.color}
+                    style={{ position: 'absolute', top: -5, right: -7 }}
+                  />
+                )}
               </Pressable>
 
               <Pressable

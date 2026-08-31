@@ -268,6 +268,32 @@ decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
   analisar a linha: passar mensagens de commit por lá parte com aspas e abre
   a porta a injeção. Usar `env:`.
 
+## Shuffle inteligente
+
+Ideia de um amigo do João, e a mesma do Spotify: o botão de shuffle tem **três
+estados** — apagado, normal, e inteligente, este com uma estrelinha ao canto.
+No inteligente entra, de quatro em quatro faixas, uma música que **não está na
+fila** mas é parecida com o que se anda a ouvir. Lógica em
+`lib/smartShuffle.ts` (pura, testada), estado em `state/player.ts`.
+
+- **Reaproveita o rádio.** As candidatas vêm do `api/radio.ts`, que já sabia
+  partir das últimas ouvidas e excluir o que já está na fila. Não se escreveu
+  recomendador nenhum.
+- **A sugestão ENTRA na fila**, logo a seguir à atual — não no fim. A graça é
+  ouvi-la já, e entrando na fila aparece na lista e pode ser saltada ou
+  guardada como qualquer outra.
+- **Falhar não é erro.** Sem rede, ou sem candidata que sirva, cai no shuffle
+  normal sem dizer nada. Uma funcionalidade de descoberta não pode partir a
+  reprodução.
+- **Uma em cada quatro**, e o número tem razão de ser: uma em cada duas deixa
+  de ser a playlist do utilizador, uma em cada dez não se nota. Há um teste que
+  prende o intervalo entre 3 e 6.
+- **Nunca à primeira faixa.** Começar uma sessão com música que não é tua dá a
+  impressão de que a playlist está errada.
+- `shuffleInteligente` vive à parte do `shuffle` booleano em vez de o tornar um
+  modo de três valores: o booleano é lido em quinze sítios. O ciclo do botão
+  está no `lib/smartShuffle.ts` e a UI pergunta-lhe o modo.
+
 ## Artistas
 
 O YouTube devolve o CANAL como artista, e o `lib/artistName.ts` extrai o nome
