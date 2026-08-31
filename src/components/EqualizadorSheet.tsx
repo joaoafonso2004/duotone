@@ -94,7 +94,24 @@ function DeslizadorDeBanda({
           backgroundColor: colors.text,
         }} />
       </View>
-      <Text style={[type.micro, { color: colors.textTertiary }]}>{etiqueta}</Text>
+      <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        style={[
+          type.micro,
+          {
+            width: LARGURA_BANDA,
+            color: colors.textTertiary,
+            fontSize: 8,
+            lineHeight: 10,
+            letterSpacing: 0.1,
+            textAlign: 'center',
+          },
+        ]}
+      >
+        {etiqueta}
+      </Text>
     </View>
   );
 }
