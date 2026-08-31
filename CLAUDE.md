@@ -268,6 +268,34 @@ decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
   analisar a linha: passar mensagens de commit por lá parte com aspas e abre
   a porta a injeção. Usar `env:`.
 
+## Como se decide o que é "música parecida"
+
+`lib/afinidade.ts` (pura, testada) + `api/afinidade.ts` (os dados) +
+`api/descoberta.ts` (junta tudo). Alimenta o shuffle inteligente.
+
+- **Não há géneros nem características de áudio.** O YouTube não os dá e estas
+  faixas não passam pelo Spotify. O único sinal é o **artista**, e a partir
+  dele o que existe na base de dados do próprio utilizador.
+- **A co-ocorrência é o sinal bom.** Dois artistas que aparecem nas mesmas
+  playlists estão relacionados *para esta pessoa* — não é uma verdade sobre
+  música, é uma verdade sobre o gosto dela, o que aqui vale mais.
+- **O peso do retrato é a RAIZ da contagem**, não a contagem: sem isso um
+  artista com 40 faixas numa biblioteca de 60 abafava tudo e as sugestões eram
+  sempre dele.
+- **Playlists de mais de 60 artistas são ignoradas** e o peso desce com o
+  tamanho: uma lista gigante relaciona toda a gente com toda a gente, o que não
+  diz nada.
+- **A rede de segurança não é opcional.** Sem playlists não há co-ocorrência
+  nenhuma, e sem essa rede o modo ficava mudo — que foi exatamente o defeito
+  que o utilizador reportou. Aí procura-se pelos próprios artistas do contexto.
+- **A escolha do alvo é aleatória com viés e não "o melhor primeiro":** pelo
+  topo davam-se sempre as mesmas sugestões.
+- `paresDeArtistaEPlaylist` NÃO pode ser o `getLibrary`: esse junta tudo num
+  `Map` por faixa e deita fora a playlist de onde veio, que é precisamente a
+  informação de que isto vive. Fica em cache 30 min.
+- Falta ligar isto às recomendações da Pesquisa, onde o `get_flow_mix` continua
+  a escolher 30% ao acaso do catálogo.
+
 ## Shuffle inteligente
 
 Ideia de um amigo do João, e a mesma do Spotify: o botão de shuffle tem **três

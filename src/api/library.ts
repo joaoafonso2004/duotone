@@ -88,7 +88,7 @@ export async function upsertTracks(
   return out;
 }
 
-async function currentUserId(): Promise<string> {
+export async function currentUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) throw new Error('Session expired');
   return data.user.id;
