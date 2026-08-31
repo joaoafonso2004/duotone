@@ -30,6 +30,7 @@ import { YouTubePlayerView } from './YouTubePlayerView';
 import { LyricsView } from './LyricsView';
 import { QueueSheet } from './QueueSheet';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
+import { EstrelaInteligente } from './BrilhoInteligente';
 import { EqualizadorSheet } from './EqualizadorSheet';
 import { navigationRef } from '../navigation/RootNavigator';
 import { clearPresence, publishPresence } from '../api/social';
@@ -567,12 +568,9 @@ export function PlayerRoot() {
                   color={shuffle ? colors.text : colors.textTertiary}
                 />
                 {shuffleInteligente && (
-                  <Ionicons
-                    name="sparkles"
-                    size={11}
-                    color={theme.color}
-                    style={{ position: 'absolute', top: -5, right: -7 }}
-                  />
+                  <View style={{ position: 'absolute', top: -3, right: -5 }}>
+                    <EstrelaInteligente tamanho={7} cor={theme.color} />
+                  </View>
                 )}
               </Pressable>
 

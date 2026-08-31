@@ -43,6 +43,7 @@ import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { useTheme } from '../state/theme';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
+import { BrilhoInteligente } from '../components/BrilhoInteligente';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type, gradients, radii } from '../theme';
 import type { PlaylistTrack, Track } from '../types';
 
@@ -353,6 +354,17 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             >
               <Ionicons name="shuffle" size={20} color={colors.text} />
               <Text style={styles.buttonTextShuffle}>Shuffle</Text>
+            </Pressable>
+
+            {/* Intercala musicas de fora da playlist, relacionadas com ela. */}
+            <Pressable
+              style={styles.shuffleButton}
+              accessibilityLabel="Smart shuffle — mixes in new tracks"
+              onPress={() => playShuffled(sortedTracks, true)}
+            >
+              <BrilhoInteligente largura={132} altura={40} />
+              <Ionicons name="shuffle" size={20} color={colors.text} />
+              <Text style={styles.buttonTextShuffle}>Smart</Text>
             </Pressable>
           </View>
 

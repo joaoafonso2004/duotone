@@ -6,6 +6,9 @@ import { comecouAArrastar, deslize, indiceAlvo } from '../lib/reorder';
 import { styles } from './estilos.web';
 import { COR, ESP } from './tokens.web';
 import { Artwork } from './ui.web';
+import { EstrelaInteligente } from '../components/BrilhoInteligente';
+import { trackKey } from '../lib/shuffle';
+import { usePlayer } from '../state/player';
 
 /**
  * A fila do Now Playing, reordenável a arrastar.
@@ -56,6 +59,7 @@ export function FilaArrastavel({
   aoMenu: (track: Track) => void;
   aoMover: (deReal: number, paraReal: number) => void;
 }) {
+  const sugeridas = usePlayer((s) => s.sugeridas);
   const [arrasto, setArrasto] = useState<Arrasto | null>(null);
   const ref = useRef<Arrasto | null>(null);
   // Depois de arrastar, o `click` ainda chega; sem isto largar a faixa punha-a
@@ -174,7 +178,10 @@ export function FilaArrastavel({
             } as any}
           >
             <Artwork track={entrada.track} size={44} />
-            <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              {/* As que vieram do shuffle inteligente ficam marcadas: sem isto
+                  a fila enche-se de musicas que nao te lembras de ter posto. */}
+              {sugeridas.includes(trackKey(entrada.track)) ? <EstrelaInteligente tamanho={6} /> : null}
               <Text numberOfLines={1} style={styles.npFilaTitulo}>{entrada.track.title}</Text>
             </View>
             {podeArrastar && (

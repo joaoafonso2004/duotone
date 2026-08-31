@@ -165,9 +165,13 @@ interface PlayerState {
     queueIndex: number;
     positionMs: number;
   }) => void;
-  /** Toca uma lista inteira em modo aleatório (botões "Shuffle" da
-   * biblioteca e das playlists). */
-  playShuffled: (tracks: Track[]) => Promise<void>;
+  /**
+   * Toca uma lista inteira em modo aleatório (botões "Shuffle" da biblioteca e
+   * das playlists). Com `inteligente`, liga também o shuffle que intercala
+   * sugestões — é o mesmo modo do botão do leitor, para não haver dois
+   * "inteligentes" diferentes na app.
+   */
+  playShuffled: (tracks: Track[], inteligente?: boolean) => Promise<void>;
   playNext: (track: Track) => void;
   addToQueue: (track: Track) => void;
   togglePlay: () => Promise<void>;
@@ -501,7 +505,7 @@ export const usePlayer = create<PlayerState>()(
     });
   },
 
-  playShuffled: async (tracks) => {
+  playShuffled: async (tracks, inteligente = false) => {
     if (tracks.length === 0) return;
     // O que estava nos botões era `sort(() => Math.random() - 0.5)`: um
     // baralhamento enviesado (comparador inconsistente — o TimSort do V8
@@ -512,8 +516,16 @@ export const usePlayer = create<PlayerState>()(
     const start = Math.floor(Math.random() * tracks.length);
     // Percurso limpo: sem isto o reconcile aproveitaria a ordem da fila
     // anterior e a primeira faixa podia cair no fim do percurso.
-    set({ shuffle: true, shuffleOrder: [] });
+    set({
+      shuffle: true,
+      shuffleOrder: [],
+      shuffleInteligente: inteligente,
+      // A contagem recomeça: as sugestões contam-se a partir do início desta
+      // audição, não do que ficou de uma sessão anterior.
+      desdeASugestao: 0,
+    });
     persistShuffle(true).catch(() => {});
+    persistShuffleInteligente(inteligente).catch(() => {});
     await get().playTrack(tracks[start], tracks, true);
   },
 

@@ -5,6 +5,8 @@ import { usePlayer } from '../state/player';
 import { colors, spacing, type, radii } from '../theme';
 import { BottomSheet } from './BottomSheet';
 import { TrackRow } from './TrackRow';
+import { EstrelaInteligente } from './BrilhoInteligente';
+import { trackKey } from '../lib/shuffle';
 import { hapticSelection } from '../lib/haptics';
 
 interface Props {
@@ -22,6 +24,7 @@ export function QueueSheet({ visible, onClose }: Props) {
   const shuffle = usePlayer((s) => s.shuffle);
   // Re-avaliar quando o percurso do shuffle muda.
   const shuffleOrder = usePlayer((s) => s.shuffleOrder);
+  const sugeridas = usePlayer((s) => s.sugeridas);
 
   // A ordem em que as faixas vão MESMO tocar — com shuffle ligado não é a
   // ordem natural da fila. Antes esta lista mostrava `slice(queueIndex + 1)`
@@ -96,6 +99,14 @@ export function QueueSheet({ visible, onClose }: Props) {
 
             return (
               <View style={styles.queueItemRow}>
+                {/* Marca as que vieram do shuffle inteligente: sem isto nao se
+                    distingue o que e teu do que a app meteu, e a lista passa a
+                    ter musicas que nao te lembras de ter posto. */}
+                {sugeridas.includes(trackKey(item)) && (
+                  <View style={{ marginRight: 6, marginLeft: -2 }}>
+                    <EstrelaInteligente tamanho={7} />
+                  </View>
+                )}
                 <View style={{ flex: 1 }}>
                   <TrackRow
                     track={item}
