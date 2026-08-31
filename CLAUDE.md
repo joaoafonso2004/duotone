@@ -340,16 +340,34 @@ iOS. Painéis: `desktop/PainelEqualizador.web.tsx` e
   não têm nada que fazer aqui. E nenhum perfil levanta todas as bandas — isso é
   subir o volume, não equalizar (há um teste que o garante).
 - **A MARGEM não é opcional — sem ela o EQ distorce.** A cadeia ia dos filtros
-  direto ao destino, e o reforço cortava a onda. Medido com um baixo de 60 Hz a
-  0,8 (nível de um master normal): Bass boost dava pico **2,036** contra o
-  máximo de 1,0, com **67,3%** das amostras decapitadas; Warm e Late night
-  cortavam 47%. O que se ouvia como "os graves não se notam" era a distorção de
-  os cortar. Há um `GainNode` no fim, com a atenuação vinda do renderer
-  (`compensacaoLinear`) — a conta vive só no `lib/equalizer.ts`.
-- **O pico da curva NÃO é o maior ganho das bandas.** Estão a uma oitava umas
-  das outras com Q=1, portanto sobrepõem-se: o Bass boost soma +8,1 dB a 60 Hz
-  com a banda mais alta a +6. Por isso a compensação sai do `picoDb`, que
-  percorre a curva, e não de um `Math.max` dos ganhos.
+  direto ao destino, e o reforço cortava a onda. Há um `GainNode` no fim, com a
+  atenuação vinda do renderer (`compensacaoLinear`) — a conta vive só no
+  `lib/equalizer.ts`, e serve as duas plataformas.
+- **A margem compensa o ganho a PROGRAMA, não o pico da curva. Isto foi
+  corrigido depois de o utilizador se queixar do volume, e o erro é
+  instrutivo.** A primeira versão usava o `picoDb`, que é o pior caso possível
+  — um tom puro exatamente na frequência mais reforçada. Música nenhuma é isso.
+  Medido com ruído rosa a −14 dBFS (nível de um master de streaming):
+
+  | | margem pelo pico | margem por programa |
+  |---|---|---|
+  | Bass boost | −8,1 dB, **perdia 5,3 dB de volume** | −3,5 dB, perde 0 |
+  | pico de saída | 0,46 | 0,80 |
+  | referência plana | 0,775 | 0,775 |
+
+  Ou seja: estava a deitar fora metade da margem sem precisar, e os picos
+  ficavam a meio caminho do tecto. Pior: como **só as faixas com perfil
+  guardado levam margem**, umas tocavam 5 dB mais baixo do que outras — foi
+  assim que se deu por isto.
+- **Cuidado com o sinal de teste.** Um tom puro sobrestima a margem necessária;
+  ruído rosa a nível alto sobrestima o pico, porque tem um fator de crista que
+  música masterizada não tem (a referência PLANA dava pico 1,70 a −9 dBFS, sem
+  equalizador nenhum). O caso que representa a realidade é ruído rosa perto de
+  −14 dBFS.
+- **O pico da curva NÃO é o maior ganho das bandas** — estão a uma oitava umas
+  das outras com Q=1 e sobrepõem-se: o Bass boost soma +8,1 dB a 60 Hz com a
+  banda mais alta a +6. O `picoDb` continua a existir por isso, mas para
+  DIAGNÓSTICO; quem manda na margem é o `ganhoDeProgramaDb`.
 - **As prateleiras nas pontas foram medidas e REJEITADAS.** Parecia óbvio pôr
   `lowshelf` a 32 Hz e `highshelf` a 16 kHz, e chegou a estar escrito como
   melhoria num plano. Dá **menos**: +6,4 dB a 60 Hz contra os +8,1 do
