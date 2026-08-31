@@ -55,6 +55,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const playTrack = usePlayer((s) => s.playTrack);
   const playShuffled = usePlayer((s) => s.playShuffled);
   const inteligente = usePlayer((s) => s.shuffleInteligente);
+  const ligado = usePlayer((s) => s.shuffle);
+  const alternarShuffle = usePlayer((s) => s.toggleShuffle);
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
@@ -336,7 +338,9 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           <View style={styles.actionRow}>
             <Pressable
               style={styles.playButton}
-              onPress={() => playTrack(sortedTracks[0], sortedTracks, true)}
+              onPress={() => (ligado
+                  ? playShuffled(sortedTracks, inteligente)
+                  : playTrack(sortedTracks[0], sortedTracks, true))}
             >
               <LinearGradient
                 colors={theme.gradient}
@@ -351,12 +355,12 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
             <Pressable
               style={styles.shuffleButton}
-              onPress={() => playShuffled(sortedTracks, inteligente)}
+              onPress={() => { hapticSelection(); alternarShuffle(); }}
             >
               {/* O MODO vem do leitor — ver o comentario gemeo no PC. */}
               {inteligente && <BrilhoInteligente largura={132} altura={40} />}
               <Ionicons name="shuffle" size={20} color={colors.text} />
-              <Text style={styles.buttonTextShuffle}>Shuffle</Text>
+              <Text style={styles.buttonTextShuffle}>{inteligente ? 'Smart' : 'Shuffle'}</Text>
             </Pressable>
           </View>
 

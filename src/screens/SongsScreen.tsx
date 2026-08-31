@@ -20,6 +20,7 @@ import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { Input } from '../components/Input';
 import { useSaved } from '../state/saved';
+import { hapticSelection } from '../lib/haptics';
 import { usePlayer } from '../state/player';
 import { BrilhoInteligente } from '../components/BrilhoInteligente';
 import { useTheme } from '../state/theme';
@@ -33,6 +34,8 @@ export function SongsScreen() {
   const playTrack = usePlayer((s) => s.playTrack);
   const playShuffled = usePlayer((s) => s.playShuffled);
   const inteligente = usePlayer((s) => s.shuffleInteligente);
+  const ligado = usePlayer((s) => s.shuffle);
+  const alternarShuffle = usePlayer((s) => s.toggleShuffle);
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
@@ -191,7 +194,9 @@ export function SongsScreen() {
             <View style={styles.actionRow}>
               <Pressable
                 style={styles.playButton}
-                onPress={() => playTrack(sortedTracks[0], sortedTracks, true)}
+                onPress={() => (ligado
+                  ? playShuffled(sortedTracks, inteligente)
+                  : playTrack(sortedTracks[0], sortedTracks, true))}
               >
                 <LinearGradient
                   colors={theme.gradient}
@@ -206,13 +211,13 @@ export function SongsScreen() {
 
               <Pressable
                 style={styles.shuffleButton}
-                onPress={() => playShuffled(sortedTracks, inteligente)}
+                onPress={() => { hapticSelection(); alternarShuffle(); }}
               >
                 {/* O MODO vem do leitor: um so sitio decide se o shuffle e
                     inteligente, e este botao mostra-o e respeita-o. */}
                 {inteligente && <BrilhoInteligente largura={132} altura={40} />}
                 <Ionicons name="shuffle" size={20} color={colors.text} />
-                <Text style={styles.buttonTextShuffle}>Shuffle</Text>
+                <Text style={styles.buttonTextShuffle}>{inteligente ? 'Smart' : 'Shuffle'}</Text>
               </Pressable>
             </View>
           )}
