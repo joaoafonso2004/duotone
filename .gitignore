@@ -31,3 +31,7 @@ test-*.mjs
 
 # Cache do MCP motion-dev (SQLite gerado localmente, nao e codigo do projeto)
 docs/motion-docs.db
+
+# Videos e imagens de referencia largados na raiz (ex.: gravacoes do telemovel).
+IMG_*.mov
+IMG_*.MOV
