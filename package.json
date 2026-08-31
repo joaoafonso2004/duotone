@@ -79,6 +79,7 @@
       "electron/**/*",
       "dist-web/**/*",
       "assets/icon.png",
+      "logo_windows.png",
       "!node_modules/**/*"
     ],
     "extraMetadata": {
@@ -86,7 +87,7 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.png"
+      "icon": "logo_windows.png"
     },
     "nsis": {
       "oneClick": false,

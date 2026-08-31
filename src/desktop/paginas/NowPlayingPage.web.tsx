@@ -96,7 +96,7 @@ export function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: Comm
               </View>
             </View>
             <View style={styles.npTitleRow}>
-              <Text numberOfLines={2} style={styles.npTitulo}>{track.title}</Text>
+              <Text style={styles.npTitulo}>{track.title}</Text>
               <IconButton
                 name="options-outline"
                 label="Equaliser and speed"

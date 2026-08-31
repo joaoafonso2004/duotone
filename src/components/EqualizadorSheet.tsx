@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, Text, View } from 'react-native';
 import {
-  BANDAS, chaveDaFaixa, GANHO_MAXIMO, normalizar, perfilDe, PERFIS, PLANO,
+  BANDAS, chaveDaFaixa, ETIQUETAS_BANDAS, GANHO_MAXIMO, normalizar, perfilDe, PERFIS, PLANO,
 } from '../lib/equalizer';
 import { hapticSelection } from '../lib/haptics';
 import { usePlayer } from '../state/player';
@@ -166,7 +166,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
               <DeslizadorDeBanda
                 key={hz}
                 valor={g[i]}
-                etiqueta={hz >= 1000 ? `${hz / 1000}k` : String(hz)}
+                etiqueta={ETIQUETAS_BANDAS[i]}
                 aoMudar={(v) => {
                   const novo = g.slice();
                   novo[i] = v;

@@ -261,6 +261,49 @@ function conhecidoComSeguranca(nome: string | null, vocabulario: Vocabulario): b
     || vocabulario.fiaveisCompactas.has(chaveCompacta(nome));
 }
 
+/**
+ * Alguns uploads omitem os espaços do separador: `Artista-Música`.
+ *
+ * Não se pode cortar cegamente no primeiro hífen, porque `Song-Remix` e
+ * nomes como `Jay-Z` também existem. Aceitamos apenas quando há um sinal
+ * adicional de que o lado esquerdo é mesmo um nome: já é fiável, coincide
+ * com o canal, ou tem o formato habitual de um artista com várias palavras.
+ */
+function artistaAntesDeTracoColado(
+  texto: string,
+  channel: string | null,
+  vocabulario: Vocabulario,
+): string | null {
+  const canal = chaveDeArtista(channel);
+  for (const match of texto.matchAll(/[-–—]/g)) {
+    const indice = match.index ?? -1;
+    if (indice < 2) continue;
+    const esquerda = artistaPrincipal(clean(texto.slice(0, indice)));
+    const direita = clean(texto.slice(indice + 1));
+    const chave = chaveDeArtista(esquerda);
+    const palavras = chave.split(' ').filter(Boolean);
+    if (!chave || !direita || esquerda.length > 60 || /^\d+$/.test(chave)) continue;
+
+    // `When It Rains-Remix` é provavelmente um título com uma variante, não
+    // um artista chamado "When It Rains".
+    if (/^(?:remix|mix|live|edit|version|sped up|slowed(?: and reverb)?|instrumental)$/i.test(direita)) {
+      continue;
+    }
+
+    const confirmadoPeloCanal = canal === chave
+      || canal.startsWith(`${chave} `)
+      || canal.endsWith(` ${chave}`);
+    const pareceNomeComposto = palavras.length >= 2 && palavras.length <= 6
+      && esquerda !== esquerda.toLowerCase();
+    if (conhecidoComSeguranca(esquerda, vocabulario)
+      || confirmadoPeloCanal
+      || pareceNomeComposto) {
+      return esquerda;
+    }
+  }
+  return null;
+}
+
 // --------------------------------------------------------- a extração -----
 
 export function extractArtist(
@@ -303,14 +346,22 @@ function extrairBruto(
     }
   }
 
-  // 3) O título contém um artista que o vocabulário conhece, sem traço
-  // nenhum ("juice wrld wishing well").
+  // 3) O título contém um artista CONFIRMADO, mesmo que o separador não
+  // tenha espaços ("Juice Wrld-Backspinn Prod.by Xan-Wrld999"). Não se
+  // consultam aqui os canais aprendidos como fallback: foi isso que deixava
+  // `Xan-Wrld999` ganhar por ser um nome mais comprido.
   if (limpo) {
     const encontrado = procurarNoTexto(limpo.replace(FEAT_RE, ''), vocabulario);
     if (encontrado) return encontrado;
   }
 
-  // 5) O canal contém um artista conhecido ("Juice WRLD Fanpage").
+  // 4) Variante comum sem espaços em volta do traço: `Artista-Música`.
+  if (limpo) {
+    const antesDoTraco = artistaAntesDeTracoColado(limpo, channel, vocabulario);
+    if (antesDoTraco) return antesDoTraco;
+  }
+
+  // 5) O canal contém um artista confirmado ("Juice WRLD Fanpage").
   if (channel) {
     const encontrado = procurarNoTexto(channel, vocabulario);
     if (encontrado) return encontrado;
@@ -325,14 +376,17 @@ function extrairBruto(
   return null;
 }
 
-/** Procura, no texto, um artista que o vocabulário conheça. Compara por
+/** Procura, no texto, um artista CONFIRMADO por uma fonte fiável. Compara por
  * chave, para apanhar `juice wrld` tanto como `JUICE WRLD`. Fica com o nome
- * MAIS LONGO que casar, senão "Juice" ganhava a "Juice WRLD". */
+ * MAIS LONGO que casar, senão "Juice" ganhava a "Juice WRLD".
+ *
+ * `porChave` não pode ser usado aqui: inclui canais de upload aprendidos como
+ * fallback e fazia esses canais transformarem-se em artistas definitivos. */
 function procurarNoTexto(texto: string, vocabulario: Vocabulario): string | null {
   const chaveDoTexto = ` ${chaveDeArtista(texto)} `;
   let melhor: string | null = null;
   let melhorTamanho = 0;
-  for (const [chave, nome] of vocabulario.porChave) {
+  for (const [chave, nome] of vocabulario.fiaveis) {
     // Nomes curtíssimos dariam falsos positivos dentro de palavras comuns.
     if (chave.length < 3) continue;
     if (chave.length > melhorTamanho && chaveDoTexto.includes(` ${chave} `)) {

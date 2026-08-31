@@ -14,7 +14,6 @@ import {
   useWindowDimensions,
   View,
   Keyboard,
-  LayoutAnimation,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -98,18 +97,8 @@ export function PlayerRoot() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [currentRoute, setCurrentRoute] = useState<string | null>(null);
 
-  const [titleExpanded, setTitleExpanded] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    setTitleExpanded(false);
-  }, [current?.id]);
-
-  const toggleTitleExpansion = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setTitleExpanded(!titleExpanded);
-  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -513,12 +502,11 @@ export function PlayerRoot() {
             <View style={styles.titleRow}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Pressable
-                  onPress={toggleTitleExpansion}
                   onLongPress={handleTitleLongPress}
                   delayLongPress={500}
                   style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
                 >
-                  <Text numberOfLines={titleExpanded ? undefined : 2} style={styles.trackTitle}>
+                  <Text style={styles.trackTitle}>
                     {current.title}
                   </Text>
                 </Pressable>

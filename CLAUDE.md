@@ -299,10 +299,24 @@ era **canonicalizar**: havia quatro grupos onde devia haver um (`Juice WRLD`,
 - O que **não** se resolve: um título que não diz o artista em lado nenhum
   (`When It Rains It Pours` no canal `LusiEntertainment`). Isso precisava de
   uma base de dados de músicas, não de heurística — fica o canal.
+- **A página de artista é inteligente nas duas plataformas.** Além das faixas
+  guardadas, procura outras músicas e álbuns no YouTube. O desktop filtra as
+  músicas pela chave canónica do artista e só aceita playlists cujo título ou
+  canal mencione o artista; uma pesquisa por nome sem esta validação trazia
+  entrevistas, covers e reações. Um álbum abre uma pré-visualização que pode
+  ser tocada ou guardada como playlist.
+
+## Ícone do Windows
+
+O executável, a janela, a tray e o instalador usam `logo_windows.png` na raiz.
+`assets/icon.png` continua a ser o ícone das plataformas Expo e do favicon.
+Não voltar a apontar o `win.icon` ou o Electron desktop para o ícone genérico.
 
 ## Equalizador (as duas plataformas)
 
-Dez bandas de 32 Hz a 16 kHz, ±12 dB, com perfis e memória por faixa.
+Dez controlos, ±12 dB, com perfis e memória por faixa: uma prateleira de
+graves a 105 Hz, oito picos de 64 Hz a 8 kHz e uma prateleira de agudos a
+10 kHz.
 `lib/equalizer.ts` (puro, testado) é partilhado; o que muda é só o motor — o
 grafo em `electron/main.cjs` no PC, o módulo nativo `modules/duotone-audio` no
 iOS. Painéis: `desktop/PainelEqualizador.web.tsx` e
@@ -330,55 +344,48 @@ iOS. Painéis: `desktop/PainelEqualizador.web.tsx` e
 - **Só se guarda o que foge ao padrão.** Faixa a 1× e plana não deixa registo, e
   voltar tudo ao normal APAGA a entrada — é assim que se desfaz. Teto de 300
   faixas (LRU): isto vive no AsyncStorage.
+- **O padrão global do EQ é SEMPRE Flat.** Uma build antiga guardava em
+  `pref:eqGanhos` a curva que estava ativa e a captura `[6, 5, 3.5, 1, ...]`
+  passou a aparecer como default. `getEqGanhos` apaga essa chave legada no
+  arranque. Só escolhas explícitas por faixa vivem na persistência.
 - O ajuste de uma faixa **não pinga para a seguinte**: sem registo, volta ao
-  padrão. Senão ouvias tudo com o EQ que puseste numa música só. Isto já falhou
-  uma vez: o padrão que se passava ao `aoTocar` era o estado ATUAL em vez do das
-  Definições, e nada repunha nada. Daí o `padraoRate`/`padraoGanhos` na store
-  serem campos SEPARADOS do que está aplicado agora — as Definições mexem no
-  padrão (`comoPadrao: true`), o painel do Now Playing mexe na faixa.
-- Perfis para MÚSICA. A referência trazia coisas como "FPS Competition", que
-  não têm nada que fazer aqui. E nenhum perfil levanta todas as bandas — isso é
-  subir o volume, não equalizar (há um teste que o garante).
-- **A MARGEM não é opcional — sem ela o EQ distorce.** A cadeia ia dos filtros
-  direto ao destino, e o reforço cortava a onda. Há um `GainNode` no fim, com a
-  atenuação vinda do renderer (`compensacaoLinear`) — a conta vive só no
-  `lib/equalizer.ts`, e serve as duas plataformas.
-- **A margem compensa o ganho a PROGRAMA, não o pico da curva. Isto foi
-  corrigido depois de o utilizador se queixar do volume, e o erro é
-  instrutivo.** A primeira versão usava o `picoDb`, que é o pior caso possível
-  — um tom puro exatamente na frequência mais reforçada. Música nenhuma é isso.
-  Medido com ruído rosa a −14 dBFS (nível de um master de streaming):
-
-  | | margem pelo pico | margem por programa |
-  |---|---|---|
-  | Bass boost | −8,1 dB, **perdia 5,3 dB de volume** | −3,5 dB, perde 0 |
-  | pico de saída | 0,46 | 0,80 |
-  | referência plana | 0,775 | 0,775 |
-
-  Ou seja: estava a deitar fora metade da margem sem precisar, e os picos
-  ficavam a meio caminho do tecto. Pior: como **só as faixas com perfil
-  guardado levam margem**, umas tocavam 5 dB mais baixo do que outras — foi
-  assim que se deu por isto.
-- **Cuidado com o sinal de teste.** Um tom puro sobrestima a margem necessária;
-  ruído rosa a nível alto sobrestima o pico, porque tem um fator de crista que
-  música masterizada não tem (a referência PLANA dava pico 1,70 a −9 dBFS, sem
-  equalizador nenhum). O caso que representa a realidade é ruído rosa perto de
-  −14 dBFS.
-- **O pico da curva NÃO é o maior ganho das bandas** — estão a uma oitava umas
-  das outras com Q=1 e sobrepõem-se: o Bass boost soma +8,1 dB a 60 Hz com a
-  banda mais alta a +6. O `picoDb` continua a existir por isso, mas para
-  DIAGNÓSTICO; quem manda na margem é o `ganhoDeProgramaDb`.
-- **As prateleiras nas pontas foram medidas e REJEITADAS.** Parecia óbvio pôr
-  `lowshelf` a 32 Hz e `highshelf` a 16 kHz, e chegou a estar escrito como
-  melhoria num plano. Dá **menos**: +6,4 dB a 60 Hz contra os +8,1 do
-  `peaking`. Uma prateleira a 32 Hz levanta sobretudo ABAIXO de 32 Hz, que
-  quase não se ouve e que coluna pequena nenhuma reproduz; o `peaking` com Q=1
-  tem uma saia larga que chega aos 50-80 Hz, que é onde o baixo se ouve. Só
-  valeria com o joelho nos 100-125 Hz, e isso partia a promessa do deslizador
-  que diz "32".
+  padrão (velocidade das Definições + EQ Flat). Senão ouvias tudo com o EQ que
+  puseste numa música só. Isto já falhou uma vez: o padrão passado ao `aoTocar`
+  era o estado ATUAL, e nada repunha nada. Daí `padraoRate`/`padraoGanhos` serem
+  campos SEPARADOS do aplicado agora; o painel do Now Playing mexe só na faixa.
+- Perfis para MÚSICA. Bass boost e Bright são reforços aditivos: a zona
+  escolhida sobe e as frequências não tocadas ficam literalmente a 0 dB. Os
+  restantes perfis podem cortar bandas para moldar o equilíbrio tonal.
+- **Nunca fingir reforço com atenuação global.** A versão anterior aplicava
+  `compensacaoLinear` ao master e o perfil Bass ainda cortava médios. O baixo
+  podia crescer relativamente à música, mas o resultado ouvido era sobretudo
+  uma queda de volume. `compensacaoDb` existe para compatibilidade da ponte,
+  mas devolve sempre 0 dB (multiplicador 1).
+- **Bass boost é agora uma low-shelf real com joelho a 105 Hz.** O perfil põe
+  essa prateleira em +5 dB e acrescenta +1,5 dB de punch a 125 Hz. Medido pela
+  matemática RBJ: cerca de +4,9 dB a 60 Hz, +4,0 dB a 100 Hz e 0 dB a 1 kHz.
+  Isto reforça a região audível do baixo inteiro, em vez de um pico estreito a
+  32 Hz que muitos headphones mal reproduzem.
+- **Bright usa a solução simétrica:** high-shelf a 10 kHz, com algum detalhe
+  aditivo em 4/8 kHz. Graves e médios ficam a 0 dB.
+- **O limiter é apenas a rede de segurança.** Depois dos filtros há um limiter
+  estéreo ligado, com teto de −0,1 dBFS e release de 150 ms. Só atua quando os
+  novos picos ultrapassariam a saída digital; não há redução preventiva do
+  volume. Os canais usam o mesmo ganho para a imagem estéreo não andar. Flat
+  faz bypass no iOS e ratio 1 no Web Audio.
+- **A localização do joelho é essencial.** Low-shelf a 32 Hz e high-shelf a
+  16 kHz foram rejeitadas porque reforçam sobretudo frequências fora da zona
+  útil. A UI usa nomes perceptivos (`BASS`, `SUB`, `PUNCH`, `WARM`, `BODY`,
+  `MIDS`, `PRES`, `CLEAR`, `AIR`, `TREBLE`) em vez de frequências; os
+  joelhos reais das prateleiras continuam a ser 105 Hz e 10 kHz.
+- **O pico da curva não é necessariamente o maior valor dos controlos.** Os
+  biquads sobrepõem-se e somam em dB onde se cruzam. `picoDb` e
+  `ganhoDeProgramaDb` ficam disponíveis para diagnóstico, não controlam o
+  volume do master.
 - A matemática da resposta (`respostaDb`, fórmulas do cookbook RBJ) foi validada
-  **dígito a dígito** contra o `getFrequencyResponse` do Chrome. Se mexeres nas
-  bandas, há testes que fixam a curva medida.
+  contra o `getFrequencyResponse` do Chrome. Os testes também executam uma
+  porta das mesmas fórmulas do Swift para garantir que Electron e iOS produzem
+  a mesma curva. Se mexeres nas bandas, há testes que fixam a resposta medida.
 
 ### O lado do iOS — `modules/duotone-audio`
 

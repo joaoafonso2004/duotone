@@ -6,7 +6,9 @@ import {
   compensacaoLinear,
   daPersistencia,
   ePlano,
+  ETIQUETAS_BANDAS,
   GANHO_MAXIMO,
+  ganhosPorOmissao,
   guardar,
   MAX_FAIXAS,
   migrarCurvaAntiga,
@@ -14,7 +16,6 @@ import {
   perfilDe,
   perfilPorId,
   PERFIS,
-  ganhoDeProgramaDb,
   picoDb,
   PLANO,
   podar,
@@ -31,12 +32,15 @@ const check = (label: string, cond: boolean, extra = '') => {
 
 console.log('\nas bandas');
 check('sao dez', BANDAS.length === 10);
-check('vao de 32 Hz a 16 kHz', BANDAS[0] === 32 && BANDAS[9] === 16000);
-check('cada uma e o dobro da anterior',
-  BANDAS.slice(1).every((b, i) => Math.abs(b / BANDAS[i] - 2) < 0.01 || Math.abs(b / BANDAS[i] - 1.953) < 0.01));
+check('as pontas sao shelves de bass e treble',
+  BANDAS[0] === 105 && TIPOS[0] === 'lowshelf' && BANDAS[9] === 10000 && TIPOS[9] === 'highshelf');
+check('a UI usa nomes perceptivos em vez de frequencias',
+  ETIQUETAS_BANDAS.join(',') === 'BASS,SUB,PUNCH,WARM,BODY,MIDS,PRES,CLEAR,AIR,TREBLE');
 
 console.log('\nnormalizar');
 check('o plano sao dez zeros', PLANO.length === 10 && ePlano(PLANO));
+check('o default e sempre uma copia plana',
+  ePlano(ganhosPorOmissao()) && ganhosPorOmissao() !== PLANO);
 check('prende no maximo', normalizar([99])[0] === GANHO_MAXIMO);
 check('prende no minimo', normalizar([-99])[0] === -GANHO_MAXIMO);
 check('arredonda a uma casa', normalizar([3.14159])[0] === 3.1);
@@ -51,15 +55,14 @@ check('todos tem dez bandas', PERFIS.every((p) => p.ganhos.length === 10));
 check('nenhum passa dos limites',
   PERFIS.every((p) => p.ganhos.every((g) => Math.abs(g) <= GANHO_MAXIMO)));
 check('o flat e mesmo plano', ePlano(perfilPorId('flat')!.ganhos));
-// Subir tudo e subir o volume, nao equalizar. Cada perfil (menos o flat) tem
-// de ter pelo menos uma banda em baixo.
-check('nenhum perfil levanta tudo',
-  PERFIS.filter((p) => p.id !== 'flat').every((p) => p.ganhos.some((g) => g < 0)),
-  PERFIS.filter((p) => p.id !== 'flat' && !p.ganhos.some((g) => g < 0)).map((p) => p.id).join());
+// Bass/Bright sao de proposito aditivos: o erro anterior era baixar a musica
+// inteira para criar a ilusao de reforco.
+check('bass e bright nao cortam nenhuma banda',
+  ['bass', 'bright'].every((id) => perfilPorId(id)!.ganhos.every((g) => g >= 0)));
 check('o bass boost pesa em baixo e nao em cima',
   perfilPorId('bass')!.ganhos[0] > 3 && perfilPorId('bass')!.ganhos[8] < 3);
 check('o bright faz o contrario',
-  perfilPorId('bright')!.ganhos[0] < 0 && perfilPorId('bright')!.ganhos[8] > 3);
+  perfilPorId('bright')!.ganhos[0] === 0 && perfilPorId('bright')!.ganhos[9] > 3);
 check('nao ha FPS Competition nem coisas de jogo',
   !PERFIS.some((p) => /fps|game|jogo|competition/i.test(p.nome + p.id)));
 check('ids unicos', new Set(PERFIS.map((p) => p.id)).size === PERFIS.length);
@@ -73,30 +76,20 @@ check('uma curva a mao nao e perfil nenhum',
 
 console.log('\na resposta em frequencia');
 const bass = perfilPorId('bass')!.ganhos;
+const bright = perfilPorId('bright')!.ganhos;
 const perto = (a: number, b: number, tol = 0.15) => Math.abs(a - b) <= tol;
 check('o plano nao mexe em nada',
   [30, 60, 200, 1000, 8000, 16000].every((f) => Math.abs(respostaDb(PLANO, f)) < 0.001));
 
-// A curva de REFERENCIA esta fixada AQUI e nao e a de nenhum perfil, de
-// proposito: os numeros abaixo sao os que o getFrequencyResponse do Chrome
-// devolve para esta cascata, comparados digito a digito, e servem para provar
-// que a matematica esta certa. Se estivessem presos a um perfil, afinar esse
-// perfil (que e uma decisao de gosto) partia a verificacao da matematica, que
-// nao tem nada a ver. Aconteceu uma vez.
-const CURVA_MEDIDA_NO_CHROME = [6, 5, 3.5, 1, -1, -1.5, -0.5, 0, 0.5, 1];
-check('+7,9 dB a 40 Hz', perto(respostaDb(CURVA_MEDIDA_NO_CHROME, 40), 7.9),
-  respostaDb(CURVA_MEDIDA_NO_CHROME, 40).toFixed(2));
-check('+8,1 dB a 60 Hz', perto(respostaDb(CURVA_MEDIDA_NO_CHROME, 60), 8.1),
-  respostaDb(CURVA_MEDIDA_NO_CHROME, 60).toFixed(2));
-check('+6,4 dB a 100 Hz', perto(respostaDb(CURVA_MEDIDA_NO_CHROME, 100), 6.4),
-  respostaDb(CURVA_MEDIDA_NO_CHROME, 100).toFixed(2));
-check('-1,8 dB a 1 kHz', perto(respostaDb(CURVA_MEDIDA_NO_CHROME, 1000), -1.8),
-  respostaDb(CURVA_MEDIDA_NO_CHROME, 1000).toFixed(2));
-// A razao de existir o picoDb: as bandas sobrepoem-se, por isso o pico da
-// curva e MAIOR do que a banda mais alta.
-check('o pico e maior do que a banda mais alta',
-  picoDb(CURVA_MEDIDA_NO_CHROME) > Math.max(...CURVA_MEDIDA_NO_CHROME),
-  `pico ${picoDb(CURVA_MEDIDA_NO_CHROME)} vs banda ${Math.max(...CURVA_MEDIDA_NO_CHROME)}`);
+const SO_BASS = [6, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const SO_TREBLE = [0, 0, 0, 0, 0, 0, 0, 0, 0, 6];
+check('o low-shelf chega aos subgraves e desaparece nos medios',
+  respostaDb(SO_BASS, 30) > 5.5 && Math.abs(respostaDb(SO_BASS, 1000)) < 0.1,
+  `30:${respostaDb(SO_BASS, 30).toFixed(1)} 1k:${respostaDb(SO_BASS, 1000).toFixed(1)}`);
+check('o high-shelf chega ao ar e desaparece nos medios',
+  respostaDb(SO_TREBLE, 16000) > 5 && Math.abs(respostaDb(SO_TREBLE, 1000)) < 0.1,
+  `16k:${respostaDb(SO_TREBLE, 16000).toFixed(1)} 1k:${respostaDb(SO_TREBLE, 1000).toFixed(1)}`);
+check('o pico da curva e medido', picoDb(bass) >= 5);
 
 console.log('\no bass boost tem de se OUVIR como bass boost');
 // A queixa que originou isto: "o bass boost reduz o volume nos graves". A
@@ -104,48 +97,39 @@ console.log('\no bass boost tem de se OUVIR como bass boost');
 // reproduz, e ja estava NEGATIVA aos 200 Hz -- so se ouvia o corte.
 const efectivo = (f: number) => respostaDb(bass, f) + compensacaoDb(bass);
 check('levanta onde os graves se ouvem em colunas pequenas (60-200 Hz)',
-  [60, 80, 100, 150, 200].every((f) => efectivo(f) >= 2),
+  [60, 80, 100, 150, 200].every((f, i) => efectivo(f) >= [4, 4, 3.5, 2, 1][i]),
   [60, 80, 100, 150, 200].map((f) => `${f}:${efectivo(f).toFixed(1)}`).join(' '));
-check('nao gasta a margem toda no sub, que nao se reproduz',
-  bass[0] <= bass[2], `32Hz:${bass[0]} vs 125Hz:${bass[2]}`);
-check('e nao cava os medios ao ponto de soar oco',
-  efectivo(1000) > -6, efectivo(1000).toFixed(1));
-check('todas as bandas sao peaking — as prateleiras foram medidas e davam menos',
-  TIPOS.every((t) => t === 'peaking'));
+check('medios e agudos ficam no volume original',
+  [500, 1000, 2000, 4000, 8000, 16000].every((f) => Math.abs(efectivo(f)) < 0.2),
+  [500, 1000, 4000, 16000].map((f) => `${f}:${efectivo(f).toFixed(1)}`).join(' '));
 
-console.log('\na margem que impede o corte');
+console.log('\no reforco de agudos também tem de ser aditivo');
+const agudoEfectivo = (f: number) => respostaDb(bright, f) + compensacaoDb(bright);
+check('levanta detalhe e ar entre 4 e 16 kHz',
+  [4000, 8000, 12000, 16000].every((f) => agudoEfectivo(f) >= 1.5),
+  [4000, 8000, 12000, 16000].map((f) => `${f}:${agudoEfectivo(f).toFixed(1)}`).join(' '));
+check('nao transforma bright num simples corte global',
+  agudoEfectivo(8000) > 2 && Math.abs(agudoEfectivo(1000)) < 0.2,
+  `8k:${agudoEfectivo(8000).toFixed(1)} 1k:${agudoEfectivo(1000).toFixed(1)}`);
+
+console.log('\nsem atenuacao global');
 check('o plano nao precisa de margem', compensacaoDb(PLANO) === 0 && compensacaoLinear(PLANO) === 1);
 check('uma curva so a cortar tambem nao', compensacaoDb(BANDAS.map(() => -6)) === 0);
-check('a margem nunca AUMENTA o volume',
+check('a compatibilidade nunca AUMENTA o volume',
   PERFIS.every((p) => compensacaoLinear(p.ganhos) <= 1));
-check('a margem e sempre um multiplicador valido',
+check('o multiplicador de compatibilidade e valido',
   PERFIS.every((p) => { const m = compensacaoLinear(p.ganhos); return m > 0 && m <= 1; }));
-// A GARANTIA, e repara no que ela diz e no que nao diz: equalizar nao mexe no
-// VOLUME. Nao diz que a curva nunca passa de 0 dB nalguma frequencia -- se nao
-// passasse, nao havia reforco nenhum, so corte. Um "bass boost" que nao
-// levanta os graves em lado nenhum nao e um bass boost.
-check('com a margem, o volume de programa fica igual ao plano',
-  PERFIS.every((p) => Math.abs(ganhoDeProgramaDb(p.ganhos) + compensacaoDb(p.ganhos)) <= 0.1),
-  PERFIS.map((p) => `${p.id}:${(ganhoDeProgramaDb(p.ganhos) + compensacaoDb(p.ganhos)).toFixed(2)}`).join(' '));
-// A regressao que o utilizador ouviu: a margem antiga era o PICO da curva,
-// que e um tom puro no pior sitio. O bass boost perdia 5,3 dB de volume, e
-// como so as faixas com perfil guardado levavam margem, umas tocavam mais
-// alto do que outras.
-check('nenhum perfil rouba mais de 1 dB de volume',
-  PERFIS.every((p) => compensacaoDb(p.ganhos) + ganhoDeProgramaDb(p.ganhos) > -1),
-  PERFIS.map((p) => `${p.id}:${compensacaoDb(p.ganhos)}`).join(' '));
-check('a margem do bass boost e muito menor do que o pico da curva',
-  Math.abs(compensacaoDb(bass)) < picoDb(bass) - 3,
-  `margem ${compensacaoDb(bass)} vs pico ${picoDb(bass)}`);
+check('nenhum perfil baixa o master',
+  PERFIS.every((p) => compensacaoDb(p.ganhos) === 0 && compensacaoLinear(p.ganhos) === 1));
 // E o reforco continua la: e disto que a funcionalidade trata.
-check('depois da margem, o bass boost ainda levanta os graves',
+check('sem atenuacao, o bass boost levanta os graves',
   respostaDb(bass, 60) + compensacaoDb(bass) > 3,
   (respostaDb(bass, 60) + compensacaoDb(bass)).toFixed(1));
-check('e continua a baixar onde a curva desce',
-  respostaDb(bass, 1000) + compensacaoDb(bass) < 0);
-check('o pior caso (tudo a +12) atenua a serio',
-  compensacaoDb(BANDAS.map(() => GANHO_MAXIMO)) < -10,
-  String(compensacaoDb(BANDAS.map(() => GANHO_MAXIMO))));
+check('sem atenuacao, o bright levanta os agudos',
+  respostaDb(bright, 8000) + compensacaoDb(bright) > 2,
+  (respostaDb(bright, 8000) + compensacaoDb(bright)).toFixed(1));
+check('e o bass nao baixa onde a curva nao mexe',
+  Math.abs(respostaDb(bass, 1000) + compensacaoDb(bass)) < 0.1);
 
 console.log('\nmemoria por faixa');
 const agora = Date.UTC(2026, 7, 29, 12, 0, 0);

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { arredondar as arredondarRate, daPreferenciaAntiga } from './playbackRate';
 import {
-  daPersistencia, migrarCurvaAntiga, normalizar as normalizarGanhos,
+  daPersistencia, ganhosPorOmissao,
   type MemoriaDeAjustes,
 } from './equalizer';
 
@@ -135,20 +135,18 @@ export async function setPlaybackRate(v: number): Promise<void> {
   await AsyncStorage.setItem(KEY_PLAYBACK_RATE, String(arredondarRate(v)));
 }
 
-/** Os ganhos do equalizador para quem nao tem nada guardado na faixa. */
+/**
+ * O padrão do equalizador é sempre Flat. Builds antigas chegaram a guardar
+ * aqui a curva que estava ativa e transformaram um ajuste de uma faixa no
+ * default da aplicação (a curva da captura do bug). Apagamos essa chave
+ * legada no arranque; escolhas explícitas por faixa vivem noutra chave e não
+ * são afetadas.
+ */
 export async function getEqGanhos(): Promise<number[]> {
-  const v = await AsyncStorage.getItem(KEY_EQ_GANHOS);
-  try {
-    // Migra a curva antiga de um perfil reafinado, como se faz a memoria por
-    // faixa: instalar por cima NAO limpa o armazenamento, e sem isto o padrao
-    // ficava preso a uma curva que ja nao existe no codigo.
-    return migrarCurvaAntiga(normalizarGanhos(v ? JSON.parse(v) : null));
-  } catch {
-    return normalizarGanhos(null);
-  }
-}
-export async function setEqGanhos(g: number[]): Promise<void> {
-  await AsyncStorage.setItem(KEY_EQ_GANHOS, JSON.stringify(normalizarGanhos(g)));
+  // A limpeza é best-effort: mesmo que o armazenamento esteja indisponível,
+  // o arranque continua plano.
+  await AsyncStorage.removeItem(KEY_EQ_GANHOS).catch(() => {});
+  return ganhosPorOmissao();
 }
 
 /** O que cada faixa lembra: a velocidade e os ganhos com que a deixaste. */

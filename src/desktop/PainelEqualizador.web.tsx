@@ -1,7 +1,7 @@
 import React, { useCallback, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
-  BANDAS, GANHO_MAXIMO, normalizar, perfilDe, PERFIS, PLANO, type Ganhos,
+  BANDAS, ETIQUETAS_BANDAS, GANHO_MAXIMO, normalizar, perfilDe, PERFIS, PLANO, type Ganhos,
 } from '../lib/equalizer';
 import { BarraVelocidade } from './BarraVelocidade.web';
 import { COR, ESP, RAIO, TIPO } from './tokens.web';
@@ -68,7 +68,7 @@ function DeslizadorVertical({
       </Text>
       <div
         role="slider"
-        aria-label={`${etiqueta} hertz`}
+        aria-label={`${etiqueta} band`}
         aria-valuemin={-GANHO_MAXIMO}
         aria-valuemax={GANHO_MAXIMO}
         aria-valuenow={valor}
@@ -184,7 +184,7 @@ export function PainelEqualizador({
             <DeslizadorVertical
               key={hz}
               valor={g[i]}
-              etiqueta={hz >= 1000 ? `${hz / 1000}k` : String(hz)}
+              etiqueta={ETIQUETAS_BANDAS[i]}
               aoMudar={(v) => {
                 const novo = g.slice();
                 novo[i] = v;
