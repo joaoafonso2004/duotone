@@ -10,7 +10,9 @@
  * Isto apanha o que mais provavelmente estaria errado e passaria despercebido:
  * um sinal trocado nos coeficientes ou na actualizacao do estado.
  */
-import { BANDAS, PERFIS, respostaDb } from '../src/lib/equalizer.ts';
+import {
+  BANDAS, compensacaoDb, ganhoDeProgramaDb, PERFIS, respostaDb,
+} from '../src/lib/equalizer.ts';
 
 const TAXA = 48000;
 const Q = 1;
@@ -109,10 +111,19 @@ for (const p of PERFIS.filter((x) => x.id !== 'flat')) {
 
 console.log('\na margem faz o que diz');
 const bass = PERFIS.find((p) => p.id === 'bass')!.ganhos;
+// A margem vem da BIBLIOTECA e nao escrita a mao aqui. Escrita a mao, este
+// teste continuava a passar depois de a regra mudar -- e a mentir. Foi o que
+// aconteceu quando a compensacao passou do pico para o ganho a programa.
+const margem = Math.pow(10, compensacaoDb(bass) / 20);
 const semMargem = ganhoMedidoDb(bass, 60, 1);
-const comMargem = ganhoMedidoDb(bass, 60, Math.pow(10, -8.1 / 20));
-check('sem margem, passa de 0 dB', semMargem > 7.9, semMargem.toFixed(2));
-check('com a margem, fica em 0 dB', Math.abs(comMargem) < 0.2, comMargem.toFixed(2));
+const comMargem = ganhoMedidoDb(bass, 60, margem);
+check('sem margem, os graves sobem bem acima de 0 dB', semMargem > 6, semMargem.toFixed(2));
+// A promessa NAO e que fique em 0 dB a 60 Hz: isso seria nao haver reforco
+// nenhum. E que o VOLUME nao muda -- o reforco nos graves fica.
+check('com a margem, os graves continuam reforcados', comMargem > 2, comMargem.toFixed(2));
+check('e o volume de programa fica igual ao plano',
+  Math.abs(ganhoDeProgramaDb(bass) + compensacaoDb(bass)) < 0.1,
+  (ganhoDeProgramaDb(bass) + compensacaoDb(bass)).toFixed(2));
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);
