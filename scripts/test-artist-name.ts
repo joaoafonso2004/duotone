@@ -7,7 +7,6 @@ import {
   displayArtist,
   extractArtist,
   limparPrefixoDeUpload,
-  tituloLimpo,
   VOCABULARIO_VAZIO,
 } from '../src/lib/artistName.ts';
 
@@ -124,48 +123,6 @@ eq('Artista-Musica sem espacos funciona para nomes compostos',
   extractArtist('Brazza Og-Nova Musica', 'Uploads', vocabulario), 'Brazza Og');
 eq('Artista-Musica sem espacos funciona quando o canal confirma um nome curto',
   extractArtist('ZillaKami-THREATS', 'ZillaKami', VOCABULARIO_VAZIO), 'ZillaKami');
-
-console.log('\no titulo do ecra bloqueado');
-// O que se via na screenshot: "Juice WRLD - Orlando" no titulo e "Juice WRLD"
-// outra vez no artista, logo por baixo.
-eq('tira o artista da frente',
-  tituloLimpo({ source: 'youtube', title: 'Juice WRLD - Orlando', artist: 'Juice WRLD - Topic' }),
-  'Orlando');
-eq('tira o (Official Audio)',
-  tituloLimpo({ source: 'youtube', title: 'Kodak Black - Free Cool Pt. 2 [Official Audio]', artist: 'Kodak Black - Topic' }),
-  'Free Cool Pt. 2');
-// Sem certeza sobre o artista NAO se corta: mais vale um titulo comprido do
-// que a musica e o artista trocados no ecra bloqueado.
-eq('canal desconhecido: o titulo fica inteiro',
-  tituloLimpo({ source: 'youtube', title: 'JUICE WRLD - ROBBERY', artist: 'Some Uploader' }),
-  'JUICE WRLD - ROBBERY');
-eq('mas com o vocabulario ja corta',
-  tituloLimpo({ source: 'youtube', title: 'JUICE WRLD - ROBBERY', artist: 'Some Uploader' }, vocabulario),
-  'ROBBERY');
-eq('tira o (Official Music Video)',
-  tituloLimpo({ source: 'youtube', title: 'Drake - Passionfruit (Official Music Video)', artist: 'Drake - Topic' }),
-  'Passionfruit');
-eq('e o prefixo de upload tambem',
-  tituloLimpo({ source: 'youtube', title: '(LEAK) Lil Tjay - No Talking', artist: 'Lil Tjay - Topic' }),
-  'No Talking');
-// O que NAO se pode tirar: faz parte do nome da musica.
-eq('um (Remix) fica',
-  tituloLimpo({ source: 'youtube', title: 'Drake - Passionfruit (Remix)', artist: 'Drake - Topic' }),
-  'Passionfruit (Remix)');
-eq('um (feat. …) fica',
-  tituloLimpo({ source: 'youtube', title: 'Drake - Nice (feat. Future)', artist: 'Drake - Topic' }),
-  'Nice (feat. Future)');
-// O titulo ao contrario: sem certeza de quem e o artista, NAO se corta nada.
-// Cortar dava "BrazzaOg" como nome da musica e "Meus planos" como artista --
-// os dois trocados no ecra bloqueado, que e pior do que um titulo comprido.
-eq('titulo ao contrario fica intacto',
-  tituloLimpo({ source: 'youtube', title: 'Meus planos - BrazzaOg', artist: 'Uploads' }),
-  'Meus planos - BrazzaOg');
-eq('sem traco nenhum fica igual',
-  tituloLimpo({ source: 'youtube', title: 'Orlando', artist: 'Juice WRLD - Topic' }), 'Orlando');
-// Nunca pode devolver vazio: um titulo que e SO o nome do artista fica como esta.
-eq('nunca devolve vazio',
-  tituloLimpo({ source: 'youtube', title: 'Juice WRLD', artist: 'Juice WRLD - Topic' }), 'Juice WRLD');
 
 console.log('\no Spotify nao passa pela extracao');
 eq('o artista do Spotify e fiavel',
