@@ -11,6 +11,7 @@ import {
   getRepeatMode,
   getShowRewindButton,
   getShuffle,
+  getShuffleInteligente,
   getPlaybackRate,
   getEqGanhos,
   getAjustesPorFaixa,
@@ -62,16 +63,19 @@ export default function App() {
     Promise.all([
       getRepeatMode(),
       getShuffle(),
+      getShuffleInteligente(),
       getShowRewindButton(),
       getAutoplayRadio(),
       getVolumeNormalization(),
       getPlaybackRate(),
       getEqGanhos(),
       getAjustesPorFaixa(),
-    ]).then(([repeatMode, shuffle, showRewindButton, autoplayRadio, volumeNormalization, playbackRate, eqGanhos, ajustes]) => {
+    ]).then(([repeatMode, shuffle, shuffleInteligente, showRewindButton, autoplayRadio, volumeNormalization, playbackRate, eqGanhos, ajustes]) => {
       const player = usePlayer.getState();
       player.setRepeatMode(repeatMode);
       player.setShuffle(shuffle);
+      // O "inteligente" so vale com o shuffle ligado — ver lib/smartShuffle.ts.
+      usePlayer.setState({ shuffleInteligente: shuffle && shuffleInteligente });
       player.setShowRewindButton(showRewindButton);
       player.setAutoplayRadio(autoplayRadio);
       player.setVolumeNormalization(volumeNormalization);

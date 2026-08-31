@@ -8,6 +8,7 @@ import {
 const KEY_DEFAULT_YT_VIEW = 'pref:defaultYtView';
 const KEY_REPEAT_MODE = 'pref:repeatMode';
 const KEY_SHUFFLE = 'pref:shuffle';
+const KEY_SHUFFLE_INTELIGENTE = 'pref:shuffleInteligente';
 const KEY_AUDIO_QUALITY = 'pref:audioQuality';
 const KEY_SHOW_DURATION = 'pref:showTrackDuration';
 const KEY_SHOW_REWIND = 'pref:showRewindButton';
@@ -59,6 +60,14 @@ export async function setRepeatMode(v: RepeatMode): Promise<void> {
 export async function getShuffle(): Promise<boolean> {
   return getBool(KEY_SHUFFLE, false);
 }
+/** O segundo estado do botao de shuffle: intercalar sugestoes. */
+export async function getShuffleInteligente(): Promise<boolean> {
+  return getBool(KEY_SHUFFLE_INTELIGENTE, false);
+}
+export async function setShuffleInteligente(v: boolean): Promise<void> {
+  await setBool(KEY_SHUFFLE_INTELIGENTE, v);
+}
+
 export async function setShuffle(v: boolean): Promise<void> {
   await setBool(KEY_SHUFFLE, v);
 }

@@ -30,12 +30,20 @@ export const desktop = {
   accent: COR.metalClaro, accentSoft: 'rgba(233,234,238,.12)', danger: COR.erro,
 };
 
-export function IconButton({ name, label, onPress, active = false, danger = false }: {
+export function IconButton({ name, label, onPress, active = false, danger = false, estrela = false }: {
   name: keyof typeof Ionicons.glyphMap; label: string; onPress?: () => void; active?: boolean; danger?: boolean;
+  /** Estrelinha ao canto. Só o shuffle a usa, para se distinguir o modo
+   * inteligente do normal — sem ela os dois estados ligados eram iguais. */
+  estrela?: boolean;
 }) {
   return <P className="control-btn-animate" accessibilityLabel={label} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
-  ]}><Ionicons name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} /></P>;
+  ]}>
+    <Ionicons name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} />
+    {estrela ? <View style={{ position: 'absolute', top: 4, right: 4 }}>
+      <Ionicons name="sparkles" size={10} color={desktop.accent} />
+    </View> : null}
+  </P>;
 }
 
 export function Button({ children, onPress, icon, iconNode, secondary = false, danger = false, disabled = false }: {

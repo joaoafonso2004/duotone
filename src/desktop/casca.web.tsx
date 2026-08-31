@@ -12,6 +12,7 @@ import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { getInboxItems } from '../api/social';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { AVATAR_GRADIENTS, getAvatarChoice, type AvatarChoice } from '../lib/avatarPrefs';
+import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
@@ -314,7 +315,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSave
     </View>
     <View style={styles.playerCenter}>
       <View style={styles.playerControls}>
-        <IconButton name="shuffle" label="Shuffle" active={p.shuffle} onPress={p.toggleShuffle} />
+        <IconButton name="shuffle" label={rotuloDoModo(modoDeShuffle(p.shuffle, p.shuffleInteligente))} active={p.shuffle} estrela={p.shuffleInteligente} onPress={p.toggleShuffle} />
         <IconButton name="play-skip-back" label="Previous" onPress={p.prev} />
         {p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, p.positionMs - 15000))} />}
         <Pressable accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={19} color="#111117" /></Pressable>

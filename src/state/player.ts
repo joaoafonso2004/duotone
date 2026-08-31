@@ -5,10 +5,14 @@ import { temAudioNativo } from '../../modules/duotone-audio';
 import { recordPlayInSupabase } from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
+import {
+  deveSugerir, escolherSugestao, modoDeShuffle, posicaoDaSugestao, proximoModo,
+} from '../lib/smartShuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
 import {
-  setShuffle as persistShuffle, setPlaybackRate as persistPlaybackRate,
+  setShuffle as persistShuffle, setShuffleInteligente as persistShuffleInteligente,
+  setPlaybackRate as persistPlaybackRate,
   setAjustesPorFaixa as persistAjustes,
 } from '../lib/prefs';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
@@ -75,6 +79,21 @@ interface PlayerState {
    * "anterior" volta pelo caminho por onde veio. Ver lib/shuffle.ts.
    * Não é persistido — regenera-se sozinho. */
   shuffleOrder: string[];
+  /**
+   * Segundo estado do botão de shuffle: intercala faixas que NÃO estão na
+   * fila, relacionadas com o que se anda a ouvir.
+   *
+   * Vive à parte do `shuffle` em vez de o transformar num modo de três
+   * valores porque o `shuffle` booleano é lido em quinze sítios — o ciclo do
+   * botão está no `lib/smartShuffle.ts` e a UI pergunta-lhe o modo.
+   * "Inteligente" só existe com o shuffle ligado.
+   */
+  shuffleInteligente: boolean;
+  /** Faixas normais tocadas desde a última sugestão. */
+  desdeASugestao: number;
+  /** Chaves do que já foi sugerido nesta sessão: repetir uma sugestão é pior
+   * do que não sugerir nada. */
+  sugeridas: string[];
   /** Rádio: quando a fila acaba, continuar com música parecida em vez de
    * ficar em silêncio. Preferência do utilizador (Definições). */
   autoplayRadio: boolean;
@@ -168,6 +187,8 @@ interface PlayerState {
   setPlaybackRate: (rate: number, comoPadrao?: boolean) => void;
   pausePlayback: () => void;
   toggleShuffle: () => void;
+  /** Mete na fila uma faixa relacionada e toca-a. Devolve se conseguiu. */
+  intercalarSugestao: () => Promise<boolean>;
   setShowRewindButton: (v: boolean) => void;
   setError: (e: string | null) => void;
   moveQueueItem: (fromIndex: number, toIndex: number) => void;
@@ -306,6 +327,9 @@ export const usePlayer = create<PlayerState>()(
   repeatMode: 'off',
   shuffle: false,
   shuffleOrder: [],
+  shuffleInteligente: false,
+  desdeASugestao: 0,
+  sugeridas: [],
   autoplayRadio: true,
   radioActive: false,
   volumeNormalization: true,
@@ -334,6 +358,9 @@ export const usePlayer = create<PlayerState>()(
     // Fast path dentro do gesto do utilizador: importante para a faixa
     // restaurada, cujo iframe ja existe e pode estar sujeito a autoplay.
     const immediateControls = replayMountedSource(get().current, track, get()._yt);
+    // Conta as faixas desde a ultima sugestao, para o shuffle inteligente
+    // saber quando e a proxima. O `intercalarSugestao` poe isto a zero.
+    set({ desdeASugestao: get().desdeASugestao + 1 });
     // Conta esta reprodução (local; alimenta "Most played" no Perfil).
     incrementPlayCount(track).catch(() => {});
     // Conta esta reprodução no Supabase para recomendações.
@@ -547,6 +574,18 @@ export const usePlayer = create<PlayerState>()(
     const { queue, queueIndex, repeatMode, shuffle, playTrack } = get();
     if (queue.length === 0) return;
 
+    // SHUFFLE INTELIGENTE: de quatro em quatro faixas entra uma que nao esta
+    // na fila, relacionada com o que se anda a ouvir. Sai daqui e nao do
+    // percurso do shuffle de proposito — a sugestao ENTRA na fila, para
+    // aparecer na lista e se poder saltar ou guardar como qualquer outra.
+    //
+    // Se a rede falhar nao acontece nada: cai no shuffle normal. Uma
+    // funcionalidade de descoberta nao pode partir a reproducao.
+    if (deveSugerir(modoDeShuffle(shuffle, get().shuffleInteligente), get().desdeASugestao)) {
+      const entrou = await get().intercalarSugestao();
+      if (entrou) return;
+    }
+
     // Fim da fila: em vez de silêncio, o rádio. Normalmente já estendeu a
     // fila em antecipação (useAutoplayRadio) e nem se chega aqui; isto é a
     // rede de segurança para quando a rede foi lenta. Não recursa em ciclo:
@@ -746,7 +785,52 @@ export const usePlayer = create<PlayerState>()(
       shuffle: v,
       shuffleOrder: v ? shuffleKeys(s.queue, s.queueIndex) : [],
     })),
-  toggleShuffle: () => get().setShuffle(!get().shuffle),
+  /** O botão cicla off → normal → inteligente → off. */
+  toggleShuffle: () => {
+    const seguinte = proximoModo(modoDeShuffle(get().shuffle, get().shuffleInteligente));
+    set({ shuffleInteligente: seguinte === 'inteligente' });
+    persistShuffleInteligente(seguinte === 'inteligente').catch(() => {});
+    get().setShuffle(seguinte !== 'off');
+  },
+
+  /**
+   * Mete na fila uma faixa relacionada e toca-a. Devolve se conseguiu.
+   *
+   * As candidatas vêm do mesmo sítio que o rádio (`api/radio.ts`), que já sabe
+   * partir das últimas ouvidas e excluir o que já lá está. Falhar aqui NÃO é
+   * um erro: quem falha volta ao shuffle normal e o utilizador nem dá por
+   * isso — uma funcionalidade de descoberta não pode partir a reprodução.
+   */
+  intercalarSugestao: async () => {
+    const { queue, queueIndex, sugeridas } = get();
+    if (queue.length === 0) return false;
+    try {
+      const sementes = radioSeeds(queue, queueIndex);
+      if (sementes.length === 0) return false;
+      const candidatas = await fetchRadioTracks(sementes, queue, 6);
+      const naFila = new Set(queue.map((t) => trackKey(t)));
+      const escolhida = escolherSugestao(
+        candidatas, (t) => trackKey(t), naFila, new Set(sugeridas),
+      );
+      if (!escolhida) return false;
+
+      const posicao = posicaoDaSugestao(queue.length, queueIndex);
+      const nova = [...queue.slice(0, posicao), escolhida, ...queue.slice(posicao)];
+      set({
+        sugeridas: [...sugeridas, trackKey(escolhida)].slice(-200),
+        // O percurso do shuffle tem de ser refeito: a fila mudou de tamanho e
+        // o percurso antigo já não a descreve.
+        shuffleOrder: [],
+      });
+      await get().playTrack(escolhida, nova);
+      // A seguir a uma sugestão o contador recomeça. Tem de ser DEPOIS do
+      // playTrack, que é quem o incrementa.
+      set({ desdeASugestao: 0 });
+      return true;
+    } catch {
+      return false;
+    }
+  },
   setShowRewindButton: (v) => set({ showRewindButton: v }),
   setError: (e) => set({ error: e }),
 
