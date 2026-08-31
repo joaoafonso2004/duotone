@@ -48,6 +48,12 @@ enum DuotoneEq {
    * audio no asset -- o caso do HLS -- e ai a faixa toca sem equalizador.
    */
   static func mistura(para item: AVPlayerItem, ganhos: [Float], margem: Float) -> AVAudioMix? {
+    // O `tracks(withMediaType:)` sincrono esta marcado como obsoleto desde o
+    // iOS 16 a favor do `loadTracks`, que e assincrono. Fica o sincrono de
+    // proposito: o alvo do pod e o iOS 15.1, isto tem de devolver um mix a um
+    // chamador sincrono, e quem trata do caso "ainda nao carregou" e o modulo,
+    // que espera pelo `readyToPlay` e volta a pedir. Trocar por `loadTracks`
+    // sem mexer nessa parte trocava um aviso por uma corrida.
     guard let faixa = item.asset.tracks(withMediaType: .audio).first else { return nil }
 
     let estado = EstadoDoTap(ganhos: ganhos, margem: margem)
@@ -61,7 +67,12 @@ enum DuotoneEq {
       process: tapProcess
     )
 
-    var tap: Unmanaged<MTAudioProcessingTap>?
+    // O `MTAudioProcessingTapCreate` do Swift moderno devolve um
+    // `MTAudioProcessingTap?` ja gerido — nao um `Unmanaged`. Nao ha
+    // `release` a fazer sobre o tap; o que E preciso libertar a mao e o
+    // `passRetained` do estado, e so no caminho de erro (fora dele, quem o
+    // liberta e o `tapFinalize`).
+    var tap: MTAudioProcessingTap?
     let estadoDaCriacao = MTAudioProcessingTapCreate(
       kCFAllocatorDefault,
       &callbacks,
@@ -69,14 +80,12 @@ enum DuotoneEq {
       &tap
     )
     guard estadoDaCriacao == noErr, let tap else {
-      // O `passRetained` acima ficaria pendurado se sairmos por aqui.
       Unmanaged<EstadoDoTap>.fromOpaque(callbacks.clientInfo!).release()
       return nil
     }
 
     let parametros = AVMutableAudioMixInputParameters(track: faixa)
-    parametros.audioTapProcessor = tap.takeUnretainedValue()
-    tap.release()
+    parametros.audioTapProcessor = tap
 
     let mix = AVMutableAudioMix()
     mix.inputParameters = [parametros]
