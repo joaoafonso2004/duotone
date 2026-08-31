@@ -231,8 +231,20 @@ export type Perfil = { id: string; nome: string; ganhos: Ganhos };
  */
 export const PERFIS: readonly Perfil[] = [
   { id: 'flat', nome: 'Flat', ganhos: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
-  // O clássico: peso em baixo, um alívio nos médios para não embaciar.
-  { id: 'bass', nome: 'Bass boost', ganhos: [6, 5, 3.5, 1, -1, -1.5, -0.5, 0, 0.5, 1] },
+  /**
+   * O peso está nos 60–200 Hz, e não nos 32.
+   *
+   * A versão anterior era `[6, 5, 3.5, 1, …]` — a força toda a 32 e 64 Hz. É o
+   * que parece certo no papel e é o que soa a nada: **uma coluna de portátil
+   * não reproduz 40 Hz**, e o que sobrava era o corte dos médios. Já estava
+   * negativa aos 200 Hz. O utilizador descreveu-o como "o bass boost reduz o
+   * volume nos graves", e tinha razão.
+   *
+   * Medido, o que se ouve depois da margem: +4,2 dB aos 60, +4,4 aos 80, +4,5
+   * aos 100, +3,9 aos 150 e ainda +2,5 aos 200 — contra +1,3 aos 150 e −0,4
+   * aos 200 da versão antiga. O contraste grave/médio sobe de 7,3 para 9,7 dB.
+   */
+  { id: 'bass', nome: 'Bass boost', ganhos: [4, 5.5, 6, 4, 0, -1, -1, -0.5, 0, 0.5] },
   // A voz vive entre os 250 Hz e os 4 kHz. Cavar à volta destaca-a sem a subir.
   { id: 'vocal', nome: 'Vocal', ganhos: [-3, -2, 0, 2, 3.5, 3.5, 2, 1, 0, -1] },
   // Analógico: corpo em baixo, brilho cortado. Bom para gravações duras.

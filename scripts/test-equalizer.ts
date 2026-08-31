@@ -71,21 +71,44 @@ check('uma curva a mao nao e perfil nenhum',
   perfilDe([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) === null);
 
 console.log('\na resposta em frequencia');
-// Estes numeros NAO sao inventados: sao os que o getFrequencyResponse do
-// Chrome devolve para a mesma cascata, comparados digito a digito. Ficam
-// fixados aqui para que mexer nas bandas ou nos tipos nao passe despercebido.
 const bass = perfilPorId('bass')!.ganhos;
 const perto = (a: number, b: number, tol = 0.15) => Math.abs(a - b) <= tol;
 check('o plano nao mexe em nada',
   [30, 60, 200, 1000, 8000, 16000].every((f) => Math.abs(respostaDb(PLANO, f)) < 0.001));
-check('bass boost: +7,9 dB a 40 Hz', perto(respostaDb(bass, 40), 7.9), respostaDb(bass, 40).toFixed(2));
-check('bass boost: +8,1 dB a 60 Hz', perto(respostaDb(bass, 60), 8.1), respostaDb(bass, 60).toFixed(2));
-check('bass boost: +6,4 dB a 100 Hz', perto(respostaDb(bass, 100), 6.4), respostaDb(bass, 100).toFixed(2));
-check('bass boost: -1,8 dB a 1 kHz', perto(respostaDb(bass, 1000), -1.8), respostaDb(bass, 1000).toFixed(2));
-// A razao de existir a funcao: as bandas sobrepoem-se, por isso o pico da
-// curva e MAIOR do que a banda mais alta (6 dB no bass boost).
-check('o pico e maior do que a banda mais alta', picoDb(bass) > Math.max(...bass),
-  `pico ${picoDb(bass)} vs banda ${Math.max(...bass)}`);
+
+// A curva de REFERENCIA esta fixada AQUI e nao e a de nenhum perfil, de
+// proposito: os numeros abaixo sao os que o getFrequencyResponse do Chrome
+// devolve para esta cascata, comparados digito a digito, e servem para provar
+// que a matematica esta certa. Se estivessem presos a um perfil, afinar esse
+// perfil (que e uma decisao de gosto) partia a verificacao da matematica, que
+// nao tem nada a ver. Aconteceu uma vez.
+const CURVA_MEDIDA_NO_CHROME = [6, 5, 3.5, 1, -1, -1.5, -0.5, 0, 0.5, 1];
+check('+7,9 dB a 40 Hz', perto(respostaDb(CURVA_MEDIDA_NO_CHROME, 40), 7.9),
+  respostaDb(CURVA_MEDIDA_NO_CHROME, 40).toFixed(2));
+check('+8,1 dB a 60 Hz', perto(respostaDb(CURVA_MEDIDA_NO_CHROME, 60), 8.1),
+  respostaDb(CURVA_MEDIDA_NO_CHROME, 60).toFixed(2));
+check('+6,4 dB a 100 Hz', perto(respostaDb(CURVA_MEDIDA_NO_CHROME, 100), 6.4),
+  respostaDb(CURVA_MEDIDA_NO_CHROME, 100).toFixed(2));
+check('-1,8 dB a 1 kHz', perto(respostaDb(CURVA_MEDIDA_NO_CHROME, 1000), -1.8),
+  respostaDb(CURVA_MEDIDA_NO_CHROME, 1000).toFixed(2));
+// A razao de existir o picoDb: as bandas sobrepoem-se, por isso o pico da
+// curva e MAIOR do que a banda mais alta.
+check('o pico e maior do que a banda mais alta',
+  picoDb(CURVA_MEDIDA_NO_CHROME) > Math.max(...CURVA_MEDIDA_NO_CHROME),
+  `pico ${picoDb(CURVA_MEDIDA_NO_CHROME)} vs banda ${Math.max(...CURVA_MEDIDA_NO_CHROME)}`);
+
+console.log('\no bass boost tem de se OUVIR como bass boost');
+// A queixa que originou isto: "o bass boost reduz o volume nos graves". A
+// versao antiga punha a forca a 32-64 Hz, que uma coluna de portatil nao
+// reproduz, e ja estava NEGATIVA aos 200 Hz -- so se ouvia o corte.
+const efectivo = (f: number) => respostaDb(bass, f) + compensacaoDb(bass);
+check('levanta onde os graves se ouvem em colunas pequenas (60-200 Hz)',
+  [60, 80, 100, 150, 200].every((f) => efectivo(f) >= 2),
+  [60, 80, 100, 150, 200].map((f) => `${f}:${efectivo(f).toFixed(1)}`).join(' '));
+check('nao gasta a margem toda no sub, que nao se reproduz',
+  bass[0] <= bass[2], `32Hz:${bass[0]} vs 125Hz:${bass[2]}`);
+check('e nao cava os medios ao ponto de soar oco',
+  efectivo(1000) > -6, efectivo(1000).toFixed(1));
 check('todas as bandas sao peaking — as prateleiras foram medidas e davam menos',
   TIPOS.every((t) => t === 'peaking'));
 
