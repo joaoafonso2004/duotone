@@ -308,6 +308,29 @@ de pessoas a ouvir — que quem ouve Dillaz também ouve Bispo.
   canais dão **0** semelhantes e os artistas dão **20**. A única "excepção"
   foi o "Topic", que dá 20 e com razão — além de ser o sufixo dos canais
   automáticos do YouTube é um DJ alemão a sério.
+- **Ter vizinhança prova que é UM artista, não que é O DELE.** O crivo acima
+  matou o "999 Music", e não matou o problema: o **`999` sozinho é uma banda
+  punk inglesa de 1977**, com 3097 fãs e vinte artistas semelhantes. Passa
+  tudo, e traz os Buzzcocks e os Sham 69 a quem só ouve rap. Nenhum catálogo
+  pode responder a isto, porque a resposta certa não é sobre o `999` — é sobre
+  **de onde aquele nome veio**, e veio de uma leitura errada de um título.
+- **Quem sabe isso é a biblioteca dele** (`nomesDeConfianca`, em
+  `lib/artistName.ts`). Um nome só serve de alvo se: (1) um canal **`- Topic`
+  ou VEVO** o confirmar — esses são gerados a partir dos metadados da editora,
+  e o `999` nunca virá de um; ou (2) aparecer em **3 faixas distintas**. Duas
+  seria pouco, porque o `999` está no título de mais do que uma faixa do Juice
+  WRLD. Conta faixas distintas e não linhas: a mesma música em três playlists
+  é uma música.
+- **O `fiaveis` do `aprenderVocabulario` NÃO serve para decidir isto.** Ele
+  inclui a semente escrita à mão (`KNOWN_ARTISTS`, 50 nomes), e com ela o
+  `nomesDeConfianca([])` respondia Drake, Eminem e Taylor Swift a uma
+  biblioteca vazia — outra vez uma lista global a decidir. Apanhado por um
+  teste. A semente serve para escrever um nome como deve ser, não para dizer
+  quem esta pessoa ouve.
+- **Quando a biblioteca foi lida e nenhum candidato passa, a resposta é
+  nenhum.** Só se salta o crivo quando não há informação nenhuma (sem rede, a
+  consulta a falhar): aí filtrar por um conjunto vazio deixava a descoberta
+  muda sem razão. Ceder no outro caso repunha o defeito inteiro.
 - **A primeira tentativa foi uma lista de palavras** ("music", "records", "tv")
   mais uma conta de dígitos no nome. Deitada fora: é adivinhar pelos
   caracteres, rejeita o "Rap Nation" mas não o próximo canal que não leve

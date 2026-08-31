@@ -142,7 +142,7 @@ export const VOCABULARIO_VAZIO: Vocabulario = {
   fiaveisCompactas: new Map(),
 };
 
-type FaixaParaAprender = { source?: string; title: string; artist: string | null };
+export type FaixaParaAprender = { source?: string; title: string; artist: string | null };
 
 /** Um canal `- Topic` é gerado pelo YouTube a partir dos metadados da
  * editora, e um VEVO é oficial. São as duas fontes em que o nome do artista
@@ -445,4 +445,124 @@ export function agruparPorArtista<T extends FaixaParaAprender>(
   return [...grupos.values()].sort(
     (a, b) => b.faixas.length - a.faixas.length || a.nome.localeCompare(b.nome),
   );
+}
+
+// ------------------------------ em que nomes se pode confiar para PROCURAR --
+
+/**
+ * Em que nomes da biblioteca se pode confiar ao ponto de ir procurar por eles.
+ *
+ * **O caso que obrigou a isto.** As recomendações vieram cheias de música
+ * bhojpuri de um canal chamado "999 Music". A primeira correção foi exigir que
+ * o nome tivesse *vizinhança* num catálogo de música — que um agregador não
+ * tem. Resolveu o "999 Music", e não resolveu o problema: o **`999` sozinho é
+ * uma banda punk inglesa de 1977**, com 3097 fãs e vinte artistas semelhantes.
+ * Passa o crivo todo e traz os Buzzcocks e os Sham 69 a quem só ouve rap.
+ *
+ * A lição é que a pergunta estava a ser feita ao sítio errado. Nenhum catálogo
+ * pode responder a isto, porque a resposta certa não é sobre o `999` — é sobre
+ * de onde aquele nome veio. E veio de uma leitura errada de um título, não de
+ * uma banda que alguém ouviu.
+ *
+ * **Quem sabe isso é a biblioteca dele.** Duas maneiras de um nome merecer
+ * confiança, e basta uma:
+ *
+ *  1. **Um canal oficial confirma-o.** Os canais `- Topic` são gerados pelo
+ *     YouTube a partir dos metadados da editora e os VEVO são oficiais: o nome
+ *     que lá está é o nome do artista. É o `aprenderVocabulario` que os recolhe
+ *     (`fiaveis`), e o `999` nunca virá de um canal desses.
+ *  2. **Aparece em faixas diferentes que cheguem.** Um engano de leitura sai de
+ *     um título ou dois; um artista que se ouve mesmo espalha-se pela
+ *     biblioteca. Conta faixas DISTINTAS e não linhas: a mesma música em três
+ *     playlists é uma música, não três.
+ *
+ * O que isto NÃO faz: julgar como o nome se escreve. Já se tentou uma lista de
+ * palavras suspeitas e não presta — rejeita o "Rap Nation" e deixa passar o
+ * canal seguinte. Aqui a pergunta é de onde o nome veio, que é verificável.
+ *
+ * Testável em Node puro — ver `scripts/test-alvos.ts`.
+ */
+
+/**
+ * Faixas distintas que obrigam a levar um nome a sério quando nenhum canal
+ * oficial o confirma.
+ *
+ * Duas seria pouco: o `999` está no título de mais do que uma faixa do Juice
+ * WRLD, e um par de leituras erradas do mesmo padrão é fácil. Três já não
+ * acontece por acidente, e um artista que se ouve a sério chega lá depressa.
+ */
+export const FAIXAS_PARA_CONFIAR = 3;
+
+/**
+ * As chaves dos artistas em que se pode confiar para ir procurar.
+ *
+ * Devolve chaves canónicas (`chaveDeArtista`), que é a moeda com que o resto
+ * da afinidade trabalha.
+ */
+export function nomesDeConfianca(
+  faixas: readonly FaixaParaAprender[],
+): Set<string> {
+  // O vocabulário serve aqui só para dar nomes melhores ao contar — corrige a
+  // grafia e os títulos ao contrário, e assim três faixas do mesmo artista
+  // contam para o mesmo nome.
+  //
+  // O `fiaveis` dele NÃO decide a confiança, e isto foi um erro que um teste
+  // apanhou: ele traz também a semente escrita à mão (`KNOWN_ARTISTS`,
+  // cinquenta nomes), e com ela o `nomesDeConfianca([])` respondia Drake,
+  // Eminem e Taylor Swift a uma biblioteca vazia. A semente está certa para
+  // escrever um nome como deve ser; não diz nada sobre quem ESTA pessoa ouve,
+  // e era exactamente uma lista global a decidir — o que isto veio evitar.
+  const vocabulario = aprenderVocabulario(faixas);
+
+  const confianca = new Set<string>();
+  // Faixas DISTINTAS por artista. O título serve de identidade: a mesma música
+  // em três playlists chega aqui três vezes e não pode contar três.
+  const titulosPorArtista = new Map<string, Set<string>>();
+
+  for (const f of faixas) {
+    // 1. Confirmado por uma fonte oficial DESTA biblioteca.
+    if (f.source && f.source !== 'youtube') {
+      // Fora do YouTube o artista vem da API da fonte, já fiável.
+      const nome = artistaPrincipal(clean(f.artist ?? ''));
+      if (nome) confianca.add(chaveDeArtista(nome));
+    } else {
+      const oficial = nomeDeFonteFiavel(f.artist);
+      if (oficial) confianca.add(chaveDeArtista(oficial));
+    }
+
+    // 2. Peso na biblioteca, para quem nenhum canal oficial confirma.
+    const nome = displayArtist(f, vocabulario);
+    if (!nome || nome === 'Unknown artist') continue;
+    const k = chaveDeArtista(nome);
+    if (!k) continue;
+    const titulos = titulosPorArtista.get(k) ?? new Set<string>();
+    titulos.add((f.title ?? '').trim().toLowerCase());
+    titulosPorArtista.set(k, titulos);
+  }
+
+  for (const [k, titulos] of titulosPorArtista) {
+    if (titulos.size >= FAIXAS_PARA_CONFIAR) confianca.add(k);
+  }
+  return confianca;
+}
+
+/**
+ * Fica só com os candidatos de confiança.
+ *
+ * **A única rede de segurança é não haver informação nenhuma.** Sem biblioteca
+ * lida — sem rede, ou a consulta a falhar — o conjunto vem vazio, e filtrar por
+ * um conjunto vazio deixava a descoberta muda sem razão. Aí não se filtra.
+ *
+ * Mas quando a biblioteca FOI lida e nenhum candidato passa, isso é a resposta
+ * e não uma falha: os nomes propostos não são de artistas que ele oiça. Aqui
+ * não se cede — devolver tudo à mesma era repor exatamente o defeito, que uma
+ * sugestão errada não é meia sugestão, é lixo com o nome dele em cima.
+ */
+export function apenasDeConfianca<T>(
+  candidatos: readonly T[],
+  chaveDe: (c: T) => string,
+  confianca: ReadonlySet<string>,
+): T[] {
+  if (confianca.size === 0) return [...candidatos];
+  return candidatos.filter((c) => confianca.has(chaveDe(c)));
 }

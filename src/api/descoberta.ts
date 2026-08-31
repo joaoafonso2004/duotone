@@ -3,7 +3,10 @@ import { getHeavyRotation } from './plays';
 import { paresDeArtistaEPlaylist } from './afinidade';
 import { topDoArtista, vizinhancaDe, type FaixaDoCatalogo } from './catalogo';
 import { searchYouTubeFreeWithChannel } from './ytSearchFree';
-import { chaveDeArtista, displayArtist } from '../lib/artistName';
+import {
+  apenasDeConfianca, chaveDeArtista, displayArtist, nomesDeConfianca,
+  type FaixaParaAprender,
+} from '../lib/artistName';
 import {
   alvosDeProcura, artistasVizinhos, retratoDoContexto, vizinhosPorPlaylist,
 } from '../lib/afinidade';
@@ -281,8 +284,15 @@ async function escolherAlvos(
   }
 
   let vizinhos: ReturnType<typeof artistasVizinhos> = [];
+  // As linhas cruas da biblioteca, com o canal por tratar: e delas que sai a
+  // confianca nos nomes. O contexto entra tambem porque no "Discover new" ele
+  // E a biblioteca, e no shuffle e o que esta mesmo a tocar.
+  const cruas: FaixaParaAprender[] = contexto.map((t) => ({
+    source: t.source, title: t.title, artist: t.artist,
+  }));
   try {
-    const pares = await paresDeArtistaEPlaylist();
+    const { pares, faixas } = await paresDeArtistaEPlaylist();
+    cruas.push(...faixas);
     // Os vizinhos NÃO estão no contexto, por isso os nomes deles só existem
     // aqui. Sem isto pesquisava-se pela chave — "juice wrld" em vez de
     // "Juice WRLD" — que resulta, mas por acaso.
@@ -292,10 +302,22 @@ async function escolherAlvos(
     // sem co-ocorrência: fica a rede de segurança
   }
 
+  // **O crivo que impede um engano de leitura de virar um género inteiro.**
+  // O `999` que o extractor tira dos títulos do Juice WRLD é, num catálogo de
+  // música, uma banda punk inglesa de 1977 com vinte artistas semelhantes:
+  // passa por artista em qualquer verificação feita ao nome. Só a biblioteca
+  // dele sabe que aquilo nunca foi música que alguém ouviu. Ver `lib/alvos.ts`.
+  const confianca = nomesDeConfianca(cruas);
+  const retratoFiavel = new Map(
+    apenasDeConfianca([...retrato], ([k]) => k, confianca),
+  );
+  vizinhos = apenasDeConfianca(vizinhos, (v) => v.chave, confianca);
+  if (retratoFiavel.size === 0 && vizinhos.length === 0) return vazio;
+
   // A afinidade é indexada pela chave do CATÁLOGO, que é a que o
   // `ordenarPorGosto` usa para casar com os nomes que o Deezer devolve.
   const afinidade = new Map<string, number>();
-  for (const [k, peso] of retrato) {
+  for (const [k, peso] of retratoFiavel) {
     afinidade.set(chaveDeCatalogo(nomePorChave.get(k) ?? k), peso);
   }
   for (const v of vizinhos) {
@@ -303,7 +325,7 @@ async function escolherAlvos(
     afinidade.set(k, Math.max(afinidade.get(k) ?? 0, v.pontos));
   }
 
-  const alvos = alvosDeProcura(retrato, vizinhos, quantosAlvos)
+  const alvos = alvosDeProcura(retratoFiavel, vizinhos, quantosAlvos)
     .map((chave) => nomePorChave.get(chave) ?? chave)
     .filter(Boolean);
   return { alvos, afinidade };
