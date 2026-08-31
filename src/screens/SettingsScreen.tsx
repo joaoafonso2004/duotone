@@ -41,7 +41,7 @@ import {
 import { clearDownloadedAudioCache, formatCacheSize, getAudioCacheBytes } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
-import { formatar as formatarRate, PASSO_LARGO, passo as passoRate } from '../lib/playbackRate';
+import { BarraVelocidade } from '../components/BarraVelocidade';
 import { usePlayer } from '../state/player';
 import { colors, radii, spacing, type } from '../theme';
 
@@ -331,28 +331,14 @@ export function SettingsScreen({ navigation }: Props) {
               onChange={changeAudioQuality}
             />
 
-            {/* Os tres presets viraram uma velocidade continua (0,5 a 2). No
-                telemovel fica um passo a passo em vez de uma barra: e o que se
-                acerta com o polegar sem falhar o degrau.
-                E anda 0,1 e nao 0,05 como o arrasto do PC — com o passo de la
-                seriam trinta toques de ponta a ponta. */}
-            <Label style={{ marginTop: spacing.md }}>
-              Velocidade — {formatarRate(playbackRate)}
-            </Label>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-              <PillButton
-                label="−"
-                onPress={() => { hapticSelection(); setPlaybackRate(passoRate(playbackRate, -1, PASSO_LARGO)); }}
-              />
-              <PillButton
-                label="1×"
-                onPress={() => { hapticSelection(); setPlaybackRate(1); }}
-              />
-              <PillButton
-                label="+"
-                onPress={() => { hapticSelection(); setPlaybackRate(passoRate(playbackRate, 1, PASSO_LARGO)); }}
-              />
-            </View>
+            {/* Os tres presets viraram uma velocidade continua (0,5 a 2), e
+                agora numa barra em vez de botoes: de ponta a ponta eram trinta
+                toques. O valor vai escrito ao lado da propria barra. */}
+            <Label style={{ marginTop: spacing.md }}>Velocidade</Label>
+            <BarraVelocidade
+              valor={playbackRate}
+              aoMudar={(v) => setPlaybackRate(v, true)}
+            />
 
             <Label style={{ marginTop: spacing.md }}>
               Sleep Timer (Temporizador)

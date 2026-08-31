@@ -30,6 +30,7 @@ import { ProgressBar } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
 import { LyricsView } from './LyricsView';
 import { QueueSheet } from './QueueSheet';
+import { EqualizadorSheet } from './EqualizadorSheet';
 import { navigationRef } from '../navigation/RootNavigator';
 import { clearPresence, publishPresence } from '../api/social';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
@@ -93,6 +94,7 @@ export function PlayerRoot() {
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   const [queueVisible, setQueueVisible] = useState(false);
+  const [eqVisible, setEqVisible] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [currentRoute, setCurrentRoute] = useState<string | null>(null);
 
@@ -659,6 +661,18 @@ export function PlayerRoot() {
                 <Ionicons name="list" size={18} color={theme.color} />
                 <Text style={[styles.utilityIconLabel, { color: theme.color }]}>Queue</Text>
               </Pressable>
+
+              <Pressable
+                hitSlop={12}
+                onPress={() => {
+                  hapticSelection();
+                  setEqVisible(true);
+                }}
+                style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
+              >
+                <Ionicons name="options-outline" size={18} color={theme.color} />
+                <Text style={[styles.utilityIconLabel, { color: theme.color }]}>EQ</Text>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -868,6 +882,12 @@ export function PlayerRoot() {
       <QueueSheet
         visible={queueVisible}
         onClose={() => setQueueVisible(false)}
+      />
+
+      {/* ===================== EQUALIZADOR E VELOCIDADE ===================== */}
+      <EqualizadorSheet
+        visible={eqVisible}
+        onClose={() => setEqVisible(false)}
       />
     </View>
   );
