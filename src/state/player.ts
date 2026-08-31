@@ -825,7 +825,23 @@ export const usePlayer = create<PlayerState>()(
   _carregarAjustes: (m, ganhos, rate) => {
     const g = normalizarGanhos(ganhos);
     const r = arredondarRate(rate);
-    set({ ajustesPorFaixa: m, eqGanhos: g, padraoGanhos: g, playbackRate: r, padraoRate: r });
+    // O PADRAO e o que vem das Definicoes. Ate aqui era tambem o que ficava
+    // aplicado, e isso era um bug que se lia como "nao guardou": a sessao
+    // restaura a faixa PAUSADA, sem passar pelo `playTrack` — e o `playTrack`
+    // e o unico sitio que aplicava o que a faixa lembra. Resultado: mexias no
+    // EQ, fechavas a app, e ao voltar aparecia tudo a zero. Os dados estavam
+    // guardados; o que faltava era aplica-los ao restaurar.
+    const faixa = get().current;
+    const aplicar = faixa
+      ? ajusteAoTocar(m, chaveDaFaixa(faixa), { rate: r, ganhos: g })
+      : { rate: r, ganhos: g };
+    set({
+      ajustesPorFaixa: m,
+      padraoGanhos: g,
+      padraoRate: r,
+      eqGanhos: aplicar.ganhos,
+      playbackRate: arredondarRate(aplicar.rate),
+    });
   },
 
   setPlaybackRate: (rate, comoPadrao = false) => {
