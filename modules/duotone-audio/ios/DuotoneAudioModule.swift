@@ -22,6 +22,9 @@ import AVFoundation
  */
 public class DuotoneAudioModule: Module {
   private var observacao: NSKeyValueObservation?
+  /** Ver `aplicarNoItem`: as faixas do asset podem ainda nao estar carregadas
+   * quando o item aparece, e ai espera-se que ele fique pronto. */
+  private var observacaoDoItem: NSKeyValueObservation?
   private weak var player: AVPlayer?
   /** Ultimos ganhos pedidos, para reaplicar quando a faixa muda. */
   private var ganhos: [Float] = Array(repeating: 0, count: DuotoneEq.numeroDeBandas)
@@ -59,6 +62,8 @@ public class DuotoneAudioModule: Module {
       DispatchQueue.main.async { [weak self] in
         self?.observacao?.invalidate()
         self?.observacao = nil
+        self?.observacaoDoItem?.invalidate()
+        self?.observacaoDoItem = nil
       }
     }
   }
@@ -78,6 +83,8 @@ public class DuotoneAudioModule: Module {
   }
 
   private func aplicarNoItem(_ item: AVPlayerItem?) {
+    observacaoDoItem?.invalidate()
+    observacaoDoItem = nil
     guard let item else { return }
 
     // 1. O TOM ACOMPANHA A VELOCIDADE.
@@ -97,6 +104,28 @@ public class DuotoneAudioModule: Module {
       item.audioMix = nil
       return
     }
-    item.audioMix = DuotoneEq.mistura(para: item, ganhos: ganhos, margem: margem)
+
+    if let mix = DuotoneEq.mistura(para: item, ganhos: ganhos, margem: margem) {
+      item.audioMix = mix
+      return
+    }
+
+    // Nao ha faixa de audio no asset. Ou o item ainda nao carregou -- e ai
+    // espera-se por ele -- ou e HLS, que nunca expoe faixas e onde nao ha
+    // equalizador possivel. Sem esta espera, uma faixa apanhada cedo demais
+    // ficava sem EQ EM SILENCIO, que e o pior dos dois mundos: nao falha,
+    // so nao faz nada.
+    guard item.status != .readyToPlay else { return }
+    observacaoDoItem = item.observe(\.status, options: [.new]) { [weak self] observado, _ in
+      guard observado.status == .readyToPlay else { return }
+      DispatchQueue.main.async { [weak self] in
+        guard let self, self.player?.currentItem === observado else { return }
+        self.observacaoDoItem?.invalidate()
+        self.observacaoDoItem = nil
+        observado.audioMix = DuotoneEq.mistura(
+          para: observado, ganhos: self.ganhos, margem: self.margem
+        )
+      }
+    }
   }
 }
