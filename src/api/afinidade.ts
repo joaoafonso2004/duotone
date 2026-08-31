@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { currentUserId } from './library';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, type FaixaParaAprender } from '../lib/artistName';
 import type { FaixaComArtista } from '../lib/afinidade';
 
 /**
@@ -19,10 +19,21 @@ import type { FaixaComArtista } from '../lib/afinidade';
  * escuta e menos do que o tempo que leva a reorganizar playlists. */
 const VALIDADE_MS = 30 * 60 * 1000;
 
-let cache: { em: number; pares: FaixaComArtista[] } | null = null;
+export type DadosDeAfinidade = {
+  /** Um par por linha: e a co-ocorrencia. */
+  pares: FaixaComArtista[];
+  /**
+   * As linhas cruas, com o canal por tratar. Servem para o `nomesDeConfianca`
+   * saber que nomes vieram de um canal oficial -- o que o `pares` ja nao diz,
+   * porque ai o artista ja foi extraido.
+   */
+  faixas: FaixaParaAprender[];
+};
 
-export async function paresDeArtistaEPlaylist(): Promise<FaixaComArtista[]> {
-  if (cache && Date.now() - cache.em < VALIDADE_MS) return cache.pares;
+let cache: { em: number; dados: DadosDeAfinidade } | null = null;
+
+export async function paresDeArtistaEPlaylist(): Promise<DadosDeAfinidade> {
+  if (cache && Date.now() - cache.em < VALIDADE_MS) return cache.dados;
 
   const userId = await currentUserId();
   const { data, error } = await supabase
@@ -32,18 +43,20 @@ export async function paresDeArtistaEPlaylist(): Promise<FaixaComArtista[]> {
   if (error) throw error;
 
   const pares: FaixaComArtista[] = [];
+  const faixas: FaixaParaAprender[] = [];
   for (const linha of (data ?? []) as any[]) {
     const t = linha.tracks;
     if (!t) continue;
-    const artista = displayArtist({
-      source: t.source, title: t.title ?? '', artist: t.artist ?? null,
-    });
+    const crua = { source: t.source, title: t.title ?? '', artist: t.artist ?? null };
+    faixas.push(crua);
+    const artista = displayArtist(crua);
     if (!artista || artista === 'Unknown artist') continue;
     pares.push({ artista, playlistId: linha.playlist_id ?? null });
   }
 
-  cache = { em: Date.now(), pares };
-  return pares;
+  const dados = { pares, faixas };
+  cache = { em: Date.now(), dados };
+  return dados;
 }
 
 /** Esquece o mapa. Chamar quando se mexe numa playlist, para a próxima
