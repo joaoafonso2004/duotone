@@ -44,7 +44,9 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
 
   const themeName = useTheme((s) => s.themeName);
   const setTheme = useTheme((s) => s.setTheme);
-  const playbackRate = usePlayer((s) => s.playbackRate);
+  // O padrao, e nao a velocidade da faixa a tocar: e isso que este controlo
+  // define, e mostrar a outra fazia a barra saltar a cada mudanca de musica.
+  const padraoRate = usePlayer((s) => s.padraoRate);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   // Vem já carregado da store (App.tsx lê a preferência no arranque nas duas
   // plataformas), por isso não precisa de entrar no Promise.all acima.
@@ -185,7 +187,7 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
                 <Text style={styles.settingDescription}>The default for tracks you have not set individually. Pitch follows the speed, so slowing down sounds slowed.</Text>
               </View>
               <View style={{ width: 260 }}>
-                <BarraVelocidade valor={playbackRate} aoMudar={(v) => setPlaybackRate(v, true)} />
+                <BarraVelocidade valor={padraoRate} aoMudar={(v) => setPlaybackRate(v, true)} />
               </View>
             </View>
           </SettingsCard>

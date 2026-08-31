@@ -75,7 +75,9 @@ export function SettingsScreen({ navigation }: Props) {
   const volumeNormalization = usePlayer((s) => s.volumeNormalization);
   const setVolumeNormalization = usePlayer((s) => s.setVolumeNormalization);
   const setShowRewindButton = usePlayer((s) => s.setShowRewindButton);
-  const playbackRate = usePlayer((s) => s.playbackRate);
+  // O padrao, e nao a velocidade da faixa a tocar: e isso que este controlo
+  // define, e mostrar a outra fazia a barra saltar a cada mudanca de musica.
+  const padraoRate = usePlayer((s) => s.padraoRate);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   const sleepTimerTimeLeft = usePlayer((s) => s.sleepTimerTimeLeft);
   const setSleepTimer = usePlayer((s) => s.setSleepTimer);
@@ -336,7 +338,7 @@ export function SettingsScreen({ navigation }: Props) {
                 toques. O valor vai escrito ao lado da propria barra. */}
             <Label style={{ marginTop: spacing.md }}>Velocidade</Label>
             <BarraVelocidade
-              valor={playbackRate}
+              valor={padraoRate}
               aoMudar={(v) => setPlaybackRate(v, true)}
             />
 

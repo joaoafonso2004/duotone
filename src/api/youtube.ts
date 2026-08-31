@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { cacheGet, cacheSet } from './cache';
 import { ENV } from '../lib/env';
 import { extractArtist } from '../lib/artistName';
 import { searchAttempts } from '../lib/searchQuery';
@@ -9,39 +9,6 @@ const BASE = 'https://www.googleapis.com/youtube/v3';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SEARCH_TTL = 7 * DAY_MS; // pesquisa: cache 7 dias
 const PLAYLIST_TTL = 1 * DAY_MS; // playlists: cache 1 dia
-
-// ------------------------------------------------------------
-// Cache no Supabase (a search da Data API custa 100 unidades de
-// quota por chamada — o tier grátis são 10.000/dia)
-// ------------------------------------------------------------
-
-async function cacheGet<T>(key: string, maxAgeMs: number): Promise<T | null> {
-  try {
-    const { data } = await supabase
-      .from('yt_cache')
-      .select('payload, fetched_at')
-      .eq('cache_key', key)
-      .maybeSingle();
-    if (!data) return null;
-    const age = Date.now() - new Date(data.fetched_at as string).getTime();
-    if (age > maxAgeMs) return null;
-    return data.payload as T;
-  } catch {
-    return null;
-  }
-}
-
-async function cacheSet(key: string, payload: unknown): Promise<void> {
-  try {
-    await supabase.from('yt_cache').upsert({
-      cache_key: key,
-      payload,
-      fetched_at: new Date().toISOString(),
-    });
-  } catch {
-    // cache é best-effort
-  }
-}
 
 // ------------------------------------------------------------
 // Helpers

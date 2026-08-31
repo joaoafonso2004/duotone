@@ -261,6 +261,14 @@ decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
   preferências são outra coisa e ficam à parte.
 - Persistir DENTRO da ação da store (como `setPlaybackRate`) e não nos ecrãs:
   há dois ecrãs de definições e assim nenhum se esquece.
+- **Uma definição de "padrão" não pode mexer no que está a tocar.** O
+  `setPlaybackRate(v, true)` escrevia `playbackRate` *e* `padraoRate`, o que
+  fazia da definição um controlo de velocidade disfarçado — ao contrário do
+  que o próprio texto dela promete ("the default for tracks you have not set
+  individually"). Escreve só `padraoRate`, que o `ajusteAoTocar` aplica na
+  faixa seguinte que não tenha ajuste próprio. Os dois ecrãs mostram
+  `padraoRate` e não `playbackRate`: mostrar o outro fazia a barra saltar a
+  cada mudança de música.
 - Preferências aplicadas no arranque pertencem ao `App.tsx`, não ao
   `useEffect` do ecrã de Definições — o "manter o ecrã ligado" só ligava
   depois de se visitar esse ecrã.
@@ -270,15 +278,76 @@ decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
 
 ## Como se decide o que é "música parecida"
 
-`lib/afinidade.ts` (pura, testada) + `api/afinidade.ts` (os dados) +
-`api/descoberta.ts` (junta tudo). Alimenta o shuffle inteligente.
+`lib/catalogo.ts` + `api/catalogo.ts` (quem se parece com quem, visto de fora) +
+`lib/afinidade.ts` + `api/afinidade.ts` (o gosto dele, visto de dentro) +
+`api/descoberta.ts` (junta tudo). Alimenta o shuffle inteligente E a prateleira
+"Discover new" da Pesquisa — um só sítio decide o que é parecido.
 
-- **Não há géneros nem características de áudio.** O YouTube não os dá e estas
-  faixas não passam pelo Spotify. O único sinal é o **artista**, e a partir
-  dele o que existe na base de dados do próprio utilizador.
-- **A co-ocorrência é o sinal bom.** Dois artistas que aparecem nas mesmas
-  playlists estão relacionados *para esta pessoa* — não é uma verdade sobre
-  música, é uma verdade sobre o gosto dela, o que aqui vale mais.
+**A pergunta não se responde só com os dados da app.** O YouTube não dá género
+nem características de áudio e estas faixas não passam pelo Spotify. A
+co-ocorrência nas playlists dele é um bom sinal, mas é fechado: nunca sai da
+biblioteca, e "descobrir" obriga a sair. Falta o que só se sabe vendo milhões
+de pessoas a ouvir — que quem ouve Dillaz também ouve Bispo.
+
+- **O catálogo é o Deezer**, `/artist/{id}/related`, sem chave e sem registo.
+  Escolhido depois de medir: aguenta fora do mainstream americano, que era o
+  receio real (Dillaz → Bispo, 9 Miller, Regula, Plutónio; Amália → Mariza,
+  Ana Moura, Dulce Pontes). O **ListenBrainz** também é grátis e tem CORS
+  aberto, mas é indexado por MBID e obriga a passar pelo MusicBrainz, limitado
+  a 1 pedido/s e que respondeu 503 no teste — fica como reserva se o Deezer
+  fechar. O **Last.fm** é bom mas exige chave e registo.
+- **CORS:** o Deezer não manda `Access-Control-Allow-Origin`. Não é problema
+  onde a app corre — no iOS o `fetch` é nativo e não tem CORS, e no Electron a
+  janela já usa `webSecurity: false` por causa do InnerTube. Na build web para
+  browser falha, em silêncio, e a descoberta cai na co-ocorrência local.
+- **Um nome só é artista se tiver VIZINHANÇA.** É a defesa contra o caso real
+  que originou isto: as recomendações encheram-se de bhojpuri de um canal
+  chamado "999 Music" — o `999` anda colado ao Juice WRLD nos títulos e o
+  extractor tomou-o por artista. Não basta o nome existir no catálogo: esse
+  existe lá, com zero fãs. Medido com 15 nomes de canal e 18 artistas, os
+  canais dão **0** semelhantes e os artistas dão **20**. A única "excepção"
+  foi o "Topic", que dá 20 e com razão — além de ser o sufixo dos canais
+  automáticos do YouTube é um DJ alemão a sério.
+- **A primeira tentativa foi uma lista de palavras** ("music", "records", "tv")
+  mais uma conta de dígitos no nome. Deitada fora: é adivinhar pelos
+  caracteres, rejeita o "Rap Nation" mas não o próximo canal que não leve
+  nenhuma das palavras, e um dia rejeita um artista por ter "TV" no nome.
+  Ficou uma propriedade medida do sinal, e não um palpite sobre a escrita.
+- **A ordem que o catálogo devolve na PESQUISA não presta.** Procurar
+  "Radiohead" dá primeiro um homónimo de 502 fãs e só depois os de 4 milhões.
+  Resolve-se por audiência entre os que casam pelo nome, e desce-se a lista até
+  um deles ter vizinhança.
+- **A chave de comparação com o catálogo é mais tolerante que a
+  `chaveDeArtista`** — `&`/`e`/`and` e o `the` inicial caem, que é onde as duas
+  grafias do mesmo nome divergem. Sem isso "Xutos e Pontapes" não casava com
+  "Xutos & Pontapés" e a resolução ficava com um homónimo de 1732 fãs em vez
+  da banda de 70 mil.
+- **Uma lista de semelhantes POR ALVO, nunca todas num saco.** Defeito apanhado
+  a correr a coisa de ponta a ponta: partindo de "Juice WRLD" e de "Dillaz", as
+  doze sugestões saíram todas do lado do Juice WRLD — as listas coladas faziam
+  quem vinha depois herdar uma posição pior só por ter sido acrescentado a
+  seguir.
+- **O catálogo propõe, a afinidade escolhe.** As duas parcelas do
+  `ordenarPorGosto` ficam ambas entre 0 e 1: a escala da afinidade depende do
+  tamanho da biblioteca e em bruto decidia sozinha.
+- **Não se pesquisa o nome do artista no YouTube — procura-se uma faixa
+  concreta.** O `/artist/{id}/top` dá título e duração reais, e o
+  `lib/trackMatch.ts` (o mesmo da importação do Spotify) verifica que o vídeo é
+  aquele, com as penalizações que já existiam para ao vivo, remix, karaoke e
+  reações. Sem confiança não entra: numa prateleira automática ninguém está
+  lá para corrigir a escolha errada.
+- **Pela pesquisa livre (`ytSearchFree`, InnerTube), não pela Data API:** agora
+  é uma procura por faixa, e a Data API custa 100 das 10.000 unidades diárias
+  por chamada.
+- **Cache de 30 dias no `yt_cache`** (`api/cache.ts`, partilhada com o
+  `youtube.ts`). Guarda-se também o "não é artista": os nomes maus repetem-se
+  faixa após faixa e sem isso pagavam-se duas chamadas de cada vez.
+
+O lado pessoal, que continua a valer e agora ordena o que o catálogo propõe:
+
+- **A co-ocorrência é o sinal bom.** Dois artistas nas mesmas playlists estão
+  relacionados *para esta pessoa* — não é uma verdade sobre música, é uma
+  verdade sobre o gosto dela, o que aqui vale mais.
 - **O peso do retrato é a RAIZ da contagem**, não a contagem: sem isso um
   artista com 40 faixas numa biblioteca de 60 abafava tudo e as sugestões eram
   sempre dele.
@@ -286,15 +355,14 @@ decidir a recuperação, e dizer ao utilizador uma frase que se perceba.
   tamanho: uma lista gigante relaciona toda a gente com toda a gente, o que não
   diz nada.
 - **A rede de segurança não é opcional.** Sem playlists não há co-ocorrência
-  nenhuma, e sem essa rede o modo ficava mudo — que foi exatamente o defeito
-  que o utilizador reportou. Aí procura-se pelos próprios artistas do contexto.
-- **A escolha do alvo é aleatória com viés e não "o melhor primeiro":** pelo
-  topo davam-se sempre as mesmas sugestões.
+  nenhuma, e sem essa rede o modo ficava mudo — defeito já reportado uma vez.
+  Aí parte-se dos próprios artistas do contexto.
 - `paresDeArtistaEPlaylist` NÃO pode ser o `getLibrary`: esse junta tudo num
   `Map` por faixa e deita fora a playlist de onde veio, que é precisamente a
   informação de que isto vive. Fica em cache 30 min.
-- Falta ligar isto às recomendações da Pesquisa, onde o `get_flow_mix` continua
-  a escolher 30% ao acaso do catálogo.
+- O `get_flow_mix` do Supabase escolhe 30% ao acaso do catálogo, e é por isso
+  que a mistura passou a ser feita no cliente (`flowDoDia`): do servidor vem só
+  a parte dos favoritos, que é a que ele sabe.
 
 ## Shuffle inteligente
 
