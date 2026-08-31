@@ -10,6 +10,7 @@ import {
 } from '../lib/smartShuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
+import { candidatasParaDescoberta } from '../api/descoberta';
 import {
   setShuffle as persistShuffle, setShuffleInteligente as persistShuffleInteligente,
   setPlaybackRate as persistPlaybackRate,
@@ -595,7 +596,14 @@ export const usePlayer = create<PlayerState>()(
     // funcionalidade de descoberta nao pode partir a reproducao.
     if (deveSugerir(modoDeShuffle(shuffle, get().shuffleInteligente), get().desdeASugestao)) {
       const entrou = await get().intercalarSugestao();
-      if (entrou) return;
+      // FALHAR REPOE O CONTADOR NA MESMA. Sem isto, a partir do primeiro
+      // falhanco a condicao ficava verdadeira para sempre e CADA mudanca de
+      // faixa ia a rede: duas consultas ao Supabase mais uma pesquisa no
+      // YouTube, que tem quota diaria. Assim espera as quatro faixas
+      // seguintes antes de tentar outra vez.
+      if (!entrou) set({ desdeASugestao: 0 });
+      // E nao se sai daqui: a sugestao entrou na fila mas nao interrompe,
+      // por isso segue-se para o `next` normal.
     }
 
     // Fim da fila: em vez de silêncio, o rádio. Normalmente já estendeu a
@@ -817,10 +825,14 @@ export const usePlayer = create<PlayerState>()(
     const { queue, queueIndex, sugeridas } = get();
     if (queue.length === 0) return false;
     try {
-      const sementes = radioSeeds(queue, queueIndex);
-      if (sementes.length === 0) return false;
-      const candidatas = await fetchRadioTracks(sementes, queue, 6);
+      // O CONTEXTO sao as ultimas ouvidas e nao so a atual: numa fila variada
+      // a ultima faixa pode nao representar o que se esteve a ouvir.
+      const contexto = radioSeeds(queue, queueIndex);
+      if (contexto.length === 0) return false;
       const naFila = new Set(queue.map((t) => trackKey(t)));
+      const candidatas = await candidatasParaDescoberta(
+        contexto, naFila, new Set(sugeridas),
+      );
       const escolhida = escolherSugestao(
         candidatas, (t) => trackKey(t), naFila, new Set(sugeridas),
       );
@@ -828,16 +840,34 @@ export const usePlayer = create<PlayerState>()(
 
       const posicao = posicaoDaSugestao(queue.length, queueIndex);
       const nova = [...queue.slice(0, posicao), escolhida, ...queue.slice(posicao)];
+      const chave = trackKey(escolhida);
+
+      // O PERCURSO DO SHUFFLE NAO SE LIMPA: enfia-se a chave logo a seguir a
+      // atual. Limpa-lo obrigava a gerar um percurso novo, e num percurso novo
+      // as faixas JA OUVIDAS voltam a entrar -- o shuffle inteligente partia a
+      // garantia de cada faixa tocar uma vez, que e o que este percurso existe
+      // para dar. Apanhado numa captura de ecra do utilizador, com uma faixa
+      // ja tocada de volta no "Up next".
+      const ordem = get().shuffleOrder;
+      let novaOrdem = ordem;
+      if (ordem.length > 0) {
+        const actual = queue[queueIndex] ? trackKey(queue[queueIndex]) : null;
+        const onde = actual ? ordem.indexOf(actual) : -1;
+        novaOrdem = onde >= 0
+          ? [...ordem.slice(0, onde + 1), chave, ...ordem.slice(onde + 1)]
+          : [...ordem, chave];
+      }
+
+      // NAO interrompe: a sugestao entra na fila e toca quando la chegar. A
+      // tocar de imediato nunca chegava a estar no "Up next" -- e no iOS, onde
+      // trocar de faixa descarrega o ficheiro primeiro, calava a musica
+      // durante segundos.
       set({
-        sugeridas: [...sugeridas, trackKey(escolhida)].slice(-200),
-        // O percurso do shuffle tem de ser refeito: a fila mudou de tamanho e
-        // o percurso antigo já não a descreve.
-        shuffleOrder: [],
+        queue: nova,
+        shuffleOrder: novaOrdem,
+        sugeridas: [...sugeridas, chave].slice(-200),
+        desdeASugestao: 0,
       });
-      await get().playTrack(escolhida, nova);
-      // A seguir a uma sugestão o contador recomeça. Tem de ser DEPOIS do
-      // playTrack, que é quem o incrementa.
-      set({ desdeASugestao: 0 });
       return true;
     } catch {
       return false;
