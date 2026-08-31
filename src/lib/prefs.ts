@@ -1,7 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { arredondar as arredondarRate, daPreferenciaAntiga } from './playbackRate';
 import {
-  daPersistencia, normalizar as normalizarGanhos, type MemoriaDeAjustes,
+  daPersistencia, migrarCurvaAntiga, normalizar as normalizarGanhos,
+  type MemoriaDeAjustes,
 } from './equalizer';
 
 const KEY_DEFAULT_YT_VIEW = 'pref:defaultYtView';
@@ -138,7 +139,10 @@ export async function setPlaybackRate(v: number): Promise<void> {
 export async function getEqGanhos(): Promise<number[]> {
   const v = await AsyncStorage.getItem(KEY_EQ_GANHOS);
   try {
-    return normalizarGanhos(v ? JSON.parse(v) : null);
+    // Migra a curva antiga de um perfil reafinado, como se faz a memoria por
+    // faixa: instalar por cima NAO limpa o armazenamento, e sem isto o padrao
+    // ficava preso a uma curva que ja nao existe no codigo.
+    return migrarCurvaAntiga(normalizarGanhos(v ? JSON.parse(v) : null));
   } catch {
     return normalizarGanhos(null);
   }

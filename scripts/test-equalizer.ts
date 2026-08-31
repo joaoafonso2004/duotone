@@ -9,6 +9,7 @@ import {
   GANHO_MAXIMO,
   guardar,
   MAX_FAIXAS,
+  migrarCurvaAntiga,
   normalizar,
   perfilDe,
   perfilPorId,
@@ -212,6 +213,27 @@ check('nao passa do teto', Object.keys(grande).length === MAX_FAIXAS, String(Obj
 check('as que ficam sao as MAIS RECENTES', !!grande[`k${MAX_FAIXAS + 49}`] && !grande['k0']);
 check('podar uma memoria pequena nao mexe nela',
   Object.keys(podar({ a: { rate: 1.1, ganhos: null, visto: 1 } })).length === 1);
+
+console.log('\nreafinar um perfil nao pode deixar o que estava guardado orfao');
+// O que se guarda por faixa sao os GANHOS, nao o nome do perfil. Quando o Bass
+// boost foi reafinado, tudo o que estava guardado com a curva velha ficou a
+// tocar a versao velha E deixou de corresponder a botao nenhum -- nem se
+// percebia em que estado se estava. Instalar por cima nao limpa nada.
+const BASS_ANTIGO = [6, 5, 3.5, 1, -1, -1.5, -0.5, 0, 0.5, 1];
+check('a curva antiga do bass boost vira a nova',
+  migrarCurvaAntiga(BASS_ANTIGO).every((g, i) => g === perfilPorId('bass')!.ganhos[i]),
+  migrarCurvaAntiga(BASS_ANTIGO).join(','));
+check('e passa a ser reconhecida como perfil', perfilDe(migrarCurvaAntiga(BASS_ANTIGO))?.id === 'bass');
+check('um perfil ATUAL nao e tocado',
+  migrarCurvaAntiga(perfilPorId('warm')!.ganhos).every((g, i) => g === perfilPorId('warm')!.ganhos[i]));
+// Uma curva feita a mao e do utilizador: nao se lhe mexe.
+check('uma curva a mao fica como esta',
+  migrarCurvaAntiga([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])[3] === 4);
+check('o plano fica plano', ePlano(migrarCurvaAntiga(PLANO)));
+// E a migracao tem de acontecer AO LER, senao nao serve de nada.
+check('a persistencia ja devolve a curva migrada',
+  daPersistencia(JSON.stringify({ 'youtube:x': { rate: null, ganhos: BASS_ANTIGO, visto: 1 } }))['youtube:x']
+    .ganhos!.every((g, i) => g === perfilPorId('bass')!.ganhos[i]));
 
 console.log('\nler a persistencia sem confiar nela');
 check('vazio da vazio', Object.keys(daPersistencia(null)).length === 0);

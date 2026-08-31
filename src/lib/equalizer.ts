@@ -347,6 +347,38 @@ export function aoTocar(
   };
 }
 
+/**
+ * Curvas de perfis que já existiram e foram reafinadas.
+ *
+ * **Porque é que isto tem de existir.** O que se guarda por faixa são os
+ * GANHOS, não o nome do perfil. Quando um perfil é reafinado, tudo o que
+ * estava guardado com a curva antiga fica órfão: continua a tocar a versão
+ * velha e deixa de corresponder a botão nenhum, por isso nem se percebe em que
+ * estado se está. Aconteceu ao reafinar o Bass boost — o utilizador viu uma
+ * curva que já não existia no código e não tinha como voltar atrás sem ser a
+ * olho. Instalar por cima não limpa nada: o estado vive no armazenamento do
+ * sistema, não no programa.
+ */
+const CURVAS_ANTIGAS: readonly { id: string; ganhos: Ganhos }[] = [
+  // Bass boost antes de a força passar dos 32-64 Hz para os 60-200.
+  { id: 'bass', ganhos: [6, 5, 3.5, 1, -1, -1.5, -0.5, 0, 0.5, 1] },
+];
+
+/** Se estes ganhos são a versão antiga de um perfil, devolve a atual. */
+export function migrarCurvaAntiga(ganhos: readonly number[]): Ganhos {
+  const n = normalizar(ganhos);
+  // Se já corresponde a um perfil atual, não se toca: pode ser coincidência
+  // de alguém ter posto a curva à mão, e nesse caso é a curva dele.
+  if (perfilDe(n)) return n;
+  for (const antiga of CURVAS_ANTIGAS) {
+    if (normalizar(antiga.ganhos).every((g, i) => g === n[i])) {
+      const actual = perfilPorId(antiga.id);
+      if (actual) return normalizar(actual.ganhos);
+    }
+  }
+  return n;
+}
+
 /** Lê a memória de uma string do AsyncStorage sem confiar nela. */
 export function daPersistencia(cru: string | null | undefined): MemoriaDeAjustes {
   if (!cru) return {};
@@ -357,7 +389,7 @@ export function daPersistencia(cru: string | null | undefined): MemoriaDeAjustes
     for (const [k, v] of Object.entries(obj as Record<string, any>)) {
       if (!v || typeof v !== 'object') continue;
       const rate = typeof v.rate === 'number' && Number.isFinite(v.rate) ? v.rate : null;
-      const ganhos = Array.isArray(v.ganhos) ? normalizar(v.ganhos) : null;
+      const ganhos = Array.isArray(v.ganhos) ? migrarCurvaAntiga(v.ganhos) : null;
       if (rate === null && ganhos === null) continue;
       saida[k] = { rate, ganhos, visto: typeof v.visto === 'number' ? v.visto : 0 };
     }
