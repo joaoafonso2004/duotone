@@ -91,6 +91,22 @@ export function injectDesktopDocumentStyles() {
       transform: translate(-50%, -50%) scale(1);
     }
     .glass-panel{backdrop-filter:blur(28px) saturate(140%);-webkit-backdrop-filter:blur(28px) saturate(140%);will-change:transform,filter;transform:translateZ(0)}
+    /* O cintilar do modo inteligente.
+       Em CSS e nao com o Animated do React Native: sob react-native-web o
+       Animated nao mexeu nos pontos -- medido no browser, a opacidade ficava
+       presa no valor inicial e forcar o valor a mao FICAVA, ou seja nao havia
+       nada a animar por cima. No telemovel o Animated corre bem e e o que la
+       fica; aqui manda o CSS. */
+    @keyframes duotone-cintilar {
+      0%, 100% { opacity: .22; }
+      50%      { opacity: 1; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      /* Quem pediu menos movimento nao leva pontos a piscar. O seletor apanha
+         qualquer elemento com este keyframe, porque o react-native-web nao
+         deixa passar classes nossas. */
+      *[style*="duotone-cintilar"] { animation: none !important; opacity: .5 !important; }
+    }
     @keyframes pulse {
       0% { opacity: 0.6; }
       50% { opacity: 1; }

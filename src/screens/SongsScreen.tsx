@@ -21,6 +21,7 @@ import { TrackRow } from '../components/TrackRow';
 import { Input } from '../components/Input';
 import { useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
+import { BrilhoInteligente } from '../components/BrilhoInteligente';
 import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -208,6 +209,20 @@ export function SongsScreen() {
               >
                 <Ionicons name="shuffle" size={20} color={colors.text} />
                 <Text style={styles.buttonTextShuffle}>Shuffle</Text>
+              </Pressable>
+
+              {/* O mesmo shuffle, mas a intercalar musicas de fora da lista.
+                  Botao proprio e nao um segundo toque no de cima: aqui a
+                  escolha e feita ANTES de comecar a ouvir, e um ciclo
+                  escondido nao se descobria. */}
+              <Pressable
+                style={styles.shuffleButton}
+                accessibilityLabel="Smart shuffle — mixes in new tracks"
+                onPress={() => playShuffled(sortedTracks, true)}
+              >
+                <BrilhoInteligente largura={132} altura={40} />
+                <Ionicons name="shuffle" size={20} color={colors.text} />
+                <Text style={styles.buttonTextShuffle}>Smart</Text>
               </Pressable>
             </View>
           )}

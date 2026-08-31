@@ -5,6 +5,7 @@ import { colors } from '../theme';
 import type { Track } from '../types';
 import { displayArtist } from '../lib/artistName';
 import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
+import { BrilhoInteligente, EstrelaInteligente } from '../components/BrilhoInteligente';
 import { useSaved } from '../state/saved';
 import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
@@ -40,22 +41,26 @@ export function IconButton({ name, label, onPress, active = false, danger = fals
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
   ]}>
     <Ionicons name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} />
-    {estrela ? <View style={{ position: 'absolute', top: 4, right: 4 }}>
-      <Ionicons name="sparkles" size={10} color={desktop.accent} />
+    {estrela ? <View style={{ position: 'absolute', top: 5, right: 5 }}>
+      <EstrelaInteligente tamanho={6} />
     </View> : null}
   </P>;
 }
 
-export function Button({ children, onPress, icon, iconNode, secondary = false, danger = false, disabled = false }: {
+export function Button({ children, onPress, icon, iconNode, secondary = false, danger = false, disabled = false, brilho = false }: {
   children: ReactNode; onPress?: () => void; icon?: keyof typeof Ionicons.glyphMap;
   /** Ícone à medida, para marcas que o Ionicons não tem — como o Spotify. */
   iconNode?: ReactNode;
   secondary?: boolean; danger?: boolean; disabled?: boolean;
+  /** O gradiente com pontos a cintilar por trás do texto. Só o shuffle
+   * inteligente o usa: é o que o distingue do shuffle normal ao lado. */
+  brilho?: boolean;
 }) {
   return <P className="btn-animate" disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.button, secondary && ui.buttonSecondary, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
     pressed && ui.pressed, disabled && ui.disabled,
-  ]}>{iconNode ?? (icon && <Ionicons name={icon} size={16} color={danger ? COR.erro : secondary ? COR.texto : COR.fundo} />)}<Text style={[ui.buttonText, secondary && ui.buttonTextSec, danger && ui.buttonTextDanger]}>{children}</Text></P>;
+    brilho && { overflow: 'hidden' as const },
+  ]}>{brilho ? <BrilhoInteligente largura={150} altura={38} raio={RAIO.ctrl} /> : null}{iconNode ?? (icon && <Ionicons name={icon} size={16} color={danger ? COR.erro : secondary ? COR.texto : COR.fundo} />)}<Text style={[ui.buttonText, secondary && ui.buttonTextSec, danger && ui.buttonTextDanger]}>{children}</Text></P>;
 }
 
 export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput> & { icon?: keyof typeof Ionicons.glyphMap }>(function Field(props, ref) {
