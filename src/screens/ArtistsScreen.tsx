@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
-import { displayArtist } from '../lib/artistName';
+import { agruparPorArtista } from '../lib/artistName';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -53,25 +53,17 @@ export function ArtistsScreen() {
   );
 
   const artists = useMemo<ArtistGroup[]>(() => {
-    const map = new Map<string, ArtistGroup>();
-    for (const t of tracks) {
-      // displayArtist extrai o artista real do título/canal — agrupa faixas
-      // antigas (guardadas com o nome do canal) e novas sob o mesmo artista.
-      const name = displayArtist(t);
-      const existing = map.get(name);
-      if (existing) {
-        existing.count++;
-        if (!existing.artworkUrl && t.artworkUrl)
-          existing.artworkUrl = t.artworkUrl;
-      } else {
-        map.set(name, {
-          name,
-          artworkUrl: t.artworkUrl,
-          count: 1,
-        });
-      }
-    }
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+    // Agrupa por CHAVE canónica e não pelo nome mostrado: era pelo nome que
+    // `Juice WRLD`, `juice wrld` e `JUICE WRLD` apareciam como três artistas
+    // diferentes. O `agruparPorArtista` também aprende a grafia certa com as
+    // fontes fiáveis da própria biblioteca (canais `- Topic`, VEVO).
+    return agruparPorArtista(tracks)
+      .map((g) => ({
+        name: g.nome,
+        artworkUrl: g.faixas.find((t) => t.artworkUrl)?.artworkUrl ?? null,
+        count: g.faixas.length,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [tracks]);
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;

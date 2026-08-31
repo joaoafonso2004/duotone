@@ -14,7 +14,7 @@ import {
   getFlowMix, getForgottenFavorites, getHeavyRotation, getProfileRecentlyPlayed, getTopArtists,
 } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
-import { displayArtist } from '../../lib/artistName';
+import { agruparPorArtista, chaveDeArtista, displayArtist } from '../../lib/artistName';
 import { usePlayer } from '../../state/player';
 import { useSaved } from '../../state/saved';
 import type { Track } from '../../types';
@@ -113,26 +113,34 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
   const [ranking, setRanking] = useState<Map<string, number>>(new Map());
   useEffect(() => {
     getTopArtists(200)
-      .then((tops) => setRanking(new Map(tops.map((a, i) => [a.name.toLowerCase(), i]))))
+      // Pela chave canonica e nao por toLowerCase(): o ranking vem do
+      // historico, onde o mesmo artista pode estar escrito de outra maneira.
+      .then((tops) => setRanking(new Map(tops.map((a, i) => [chaveDeArtista(a.name), i]))))
       .catch(() => {});
   }, []);
-  const artists = useMemo(() => {
-    const map = new Map<string, Track[]>();
-    data.tracks.forEach((t) => { const key = displayArtist(t); map.set(key, [...(map.get(key) || []), t]); });
-    return [...map.entries()].sort((a, b) => {
-      const ra = ranking.get(a[0].toLowerCase()) ?? Infinity;
-      const rb = ranking.get(b[0].toLowerCase()) ?? Infinity;
+  // Agrupado por CHAVE canonica e nao pelo nome mostrado -- era isso que punha
+  // `Juice WRLD`, `juice wrld` e `JUICE WRLD` em tres cartoes diferentes.
+  const artists = useMemo(
+    () => agruparPorArtista(data.tracks).sort((a, b) => {
+      const ra = ranking.get(a.chave) ?? Infinity;
+      const rb = ranking.get(b.chave) ?? Infinity;
       if (ra !== rb) return ra - rb;
-      if (a[1].length !== b[1].length) return b[1].length - a[1].length;
-      return a[0].localeCompare(b[0]);
-    });
-  }, [data.tracks, ranking]);
-  return <Page title="Artists" subtitle={`${artists.length} artists in your library`}><ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : artists.length ? <View style={styles.playlistGrid}>{artists.map(([name, tracks]) => <Pressable key={name} onPress={() => navigate({ name: 'artist', value: name })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.playlistCardHover]}><View style={styles.playlistArt}><Artwork track={tracks[0]} size={200} /></View><Text numberOfLines={1} style={styles.playlistTitle}>{name}</Text><Text style={styles.playlistMeta}>{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll></Page>;
+      if (a.faixas.length !== b.faixas.length) return b.faixas.length - a.faixas.length;
+      return a.nome.localeCompare(b.nome);
+    }),
+    [data.tracks, ranking],
+  );
+  return <Page title="Artists" subtitle={`${artists.length} artists in your library`}><ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : artists.length ? <View style={styles.playlistGrid}>{artists.map(({ nome, chave, faixas }) => <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.playlistCardHover]}><View style={styles.playlistArt}><Artwork track={faixas[0]} size={200} /></View><Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text><Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll></Page>;
 }
 
 export function ArtistPage({ name, back, ...props }: { name: string; back: () => void } & CommonPageProps) {
   const data = useLibraryData();
-  const tracks = data.tracks.filter((t) => displayArtist(t) === name);
+  // Pela chave e nao pelo nome: a pagina tem de trazer as faixas das TRES
+  // grafias, senao o cartao dizia 5 faixas e a pagina abria com 2.
+  const tracks = useMemo(() => {
+    const alvo = chaveDeArtista(name);
+    return agruparPorArtista(data.tracks).find((g) => g.chave === alvo)?.faixas ?? [];
+  }, [data.tracks, name]);
   const playAll = (shuffle = false) => {
     if (!tracks.length) return;
     if (shuffle) usePlayer.getState().playShuffled(tracks);
