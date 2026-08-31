@@ -93,13 +93,17 @@ export function SongsPage(props: CommonPageProps) {
   // O Shuffle liga o modo aleatório do player (Fisher-Yates) em vez de
   // baralhar a lista com `sort(() => Math.random() - 0.5)`, que é enviesado e
   // deixava o botão em desacordo com o interruptor do player.
-  const playAll = (shuffle = false, inteligente = false) => {
+  // O MODO vem do leitor e nao desta pagina: um so sitio decide se o shuffle
+  // e inteligente, e o botao daqui mostra-o e respeita-o. Ter cada pagina com
+  // a sua opiniao dava dois sitios a discordar.
+  const inteligente = usePlayer((s) => s.shuffleInteligente);
+  const playAll = (shuffle = false) => {
     if (!filteredTracks.length) return;
     if (shuffle) usePlayer.getState().playShuffled(filteredTracks, inteligente);
     else props.play(filteredTracks[0], filteredTracks);
   };
 
-  return <Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={() => playAll(false)}>Play all</Button><Button secondary icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button><Button secondary brilho icon="shuffle" onPress={() => playAll(true, true)}>Smart</Button></View>}>
+  return <Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={() => playAll(false)}>Play all</Button><Button secondary brilho={inteligente} icon="shuffle" onPress={() => playAll(true)}>Shuffle</Button></View>}>
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search your library" value={query} onChangeText={setQuery} /></View>
       <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>
@@ -254,7 +258,8 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     }
   };
 
-  const playAll = (shuffle = false, inteligente = false) => {
+  const inteligente = usePlayer((s) => s.shuffleInteligente);
+  const playAll = (shuffle = false) => {
     if (!tracks.length) return;
     if (shuffle) usePlayer.getState().playShuffled(tracks, inteligente);
     else props.play(tracks[0], tracks);
@@ -277,7 +282,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <Text style={styles.detailHeroMeta}>{tracks.length} saved {tracks.length === 1 ? 'track' : 'tracks'}</Text>
             <View style={styles.detailHeroActions}>
               <Button icon="play" onPress={() => playAll(false)} disabled={!tracks.length}>Play</Button>
-              <Button secondary icon="shuffle" onPress={() => playAll(true)} disabled={!tracks.length}>Shuffle</Button><Button secondary brilho icon="shuffle" onPress={() => playAll(true, true)} disabled={!tracks.length}>Smart</Button>
+              <Button secondary brilho={inteligente} icon="shuffle" onPress={() => playAll(true)} disabled={!tracks.length}>Shuffle</Button>
             </View>
           </View>
         </View>
