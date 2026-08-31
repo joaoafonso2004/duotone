@@ -411,57 +411,6 @@ export function displayArtist(
   return extractArtist(t.title, t.artist, vocabulario) ?? t.artist ?? 'Unknown artist';
 }
 
-// ------------------------------------------------- o titulo que se mostra --
-
-/**
- * Ruído que os canais põem no título e que não é o nome da música.
- *
- * A lista é fechada de propósito. Um `(Remix)`, um `(feat. …)` ou um
- * `(Sped Up)` FAZEM parte do nome da música e têm de ficar — tirar tudo o que
- * está entre parênteses daria "Orlando" para duas faixas diferentes.
- */
-const RUIDO_NO_TITULO =
-  /\s*[[(](?:\s*(?:official|oficial)?\s*(?:music\s*)?(?:video|audio|visualizer|visualiser|lyric[s]?(?:\s*video)?|mv)|hd|hq|4k|full\s*hd|explicit|clipe\s*oficial|videoclipe)\s*[\])]/gi;
-
-/**
- * O nome da música para mostrar no ecrã bloqueado.
- *
- * O que se via antes: **"Juice WRLD - Orlando"** no título e **"Juice WRLD"**
- * logo por baixo no artista — o nome duas vezes, porque se mandava
- * `track.title` tal e qual. Aqui tira-se o artista da frente (que já vai no
- * campo dele) e o ruído de quem faz o upload.
- *
- * Nunca devolve vazio: se depois de limpar não sobrar nada, fica o original.
- */
-export function tituloLimpo(
-  t: { source?: string; title: string; artist: string | null },
-  vocabulario: Vocabulario = VOCABULARIO_VAZIO,
-): string {
-  let s = limparPrefixoDeUpload(t.title).replace(RUIDO_NO_TITULO, '');
-
-  // Tirar "Artista - " da frente — mas SÓ com a certeza de quem é o artista.
-  //
-  // Sem essa condição isto estragava mais do que arranjava, e um teste
-  // apanhou-o: em `Meus planos - BrazzaOg` o extractor lê "Meus planos" como
-  // artista (é o que está à esquerda), e cortá-lo deixava a MÚSICA a chamar-se
-  // "BrazzaOg". No ecrã bloqueado apareciam os dois trocados.
-  //
-  // Certeza quer dizer: o canal é `- Topic` ou VEVO — onde o nome vem da
-  // editora — ou o vocabulário conhece-o de uma fonte dessas. Sem isso o
-  // título fica como está, que é o que já acontecia.
-  const doCanal = nomeDeFonteFiavel(t.artist);
-  const m = s.match(/^(.{2,60}?)\s*[-–—]\s*(.+)$/);
-  if (m) {
-    const esquerda = artistaPrincipal(clean(m[1]));
-    const chaveEsquerda = chaveDeArtista(esquerda);
-    const certo = (doCanal && chaveDeArtista(artistaPrincipal(doCanal)) === chaveEsquerda)
-      || conhecidoComSeguranca(esquerda, vocabulario);
-    if (certo) s = m[2];
-  }
-
-  return s.replace(/\s{2,}/g, ' ').trim() || t.title;
-}
-
 // ------------------------------------------------------- o agrupamento -----
 
 export type GrupoDeArtista<T> = {

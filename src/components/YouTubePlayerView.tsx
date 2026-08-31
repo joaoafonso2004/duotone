@@ -16,7 +16,7 @@ import {
 } from '../lib/playbackDiagnostics';
 import { usePlayer } from '../state/player';
 import { compensacaoLinear } from '../lib/equalizer';
-import { displayArtist, tituloLimpo } from '../lib/artistName';
+import { displayArtist } from '../lib/artistName';
 import { aplicarEqualizadorNativo, ligarAudioNativo } from '../../modules/duotone-audio';
 import type { Track } from '../types';
 import { type HarvestResult } from './YtStreamHarvester';
@@ -102,15 +102,20 @@ type Backend = 'resolving' | 'native' | 'webview';
 /**
  * O que aparece no ecrã bloqueado e no Centro de Controlo.
  *
- * O desenho é do iOS e não se muda; o que é NOSSO são estes três campos, e
- * estavam a ser mandados em cru. Via-se "Juice WRLD - Orlando" no título e
- * "Juice WRLD" outra vez por baixo, porque o título ia tal e qual e o artista
- * era o nome do CANAL. Agora o artista sai do extractor e o título vem sem o
- * nome do artista à frente nem o "(Official Audio)" atrás.
+ * O desenho é do iOS e não se muda; o que é nosso são estes três campos.
+ *
+ * **O título vai INTEIRO, de propósito.** Chegou a ir limpo — sem o nome do
+ * artista à frente e sem o "(Official Audio)" atrás, o que dava "Orlando" em
+ * vez de "Juice WRLD - Orlando". O utilizador preferiu como estava, e o gosto
+ * é dele. Não voltar a "arranjar" isto.
+ *
+ * O artista é que passou a sair do extractor em vez de ser o nome do canal:
+ * no caso comum dá o mesmo, e nos outros deixa de aparecer o nome de quem fez
+ * o upload no lugar do músico.
  */
 function metadadosDoEcraBloqueado(track: Track) {
   return {
-    title: tituloLimpo(track),
+    title: track.title,
     artist: displayArtist(track),
     artwork: track.artworkUrl ?? undefined,
   };
