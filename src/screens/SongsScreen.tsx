@@ -210,14 +210,37 @@ export function SongsScreen() {
               </Pressable>
 
               <Pressable
-                style={styles.shuffleButton}
+                style={[
+                  styles.shuffleButton,
+                  // **O shuffle normal tambem tem de se ver ligado.** So o
+                  // modo inteligente e que se notava, pelo brilho; ligado e
+                  // desligado eram o mesmo botao, e nao havia como saber.
+                  ligado && !inteligente && {
+                    borderColor: theme.color,
+                    backgroundColor: theme.soft,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: ligado }}
+                accessibilityLabel={
+                  inteligente ? 'Smart shuffle on'
+                    : ligado ? 'Shuffle on' : 'Shuffle off'
+                }
                 onPress={() => { hapticSelection(); alternarShuffle(); }}
               >
                 {/* O MODO vem do leitor: um so sitio decide se o shuffle e
-                    inteligente, e este botao mostra-o e respeita-o. */}
-                {inteligente && <BrilhoInteligente largura={132} altura={40} />}
-                <Ionicons name="shuffle" size={20} color={colors.text} />
-                <Text style={styles.buttonTextShuffle}>{inteligente ? 'Smart' : 'Shuffle'}</Text>
+                    inteligente, e este botao mostra-o e respeita-o. O brilho
+                    nao leva tamanho -- estica-se por este botao. */}
+                {inteligente && <BrilhoInteligente />}
+                <Ionicons
+                  name="shuffle"
+                  size={20}
+                  color={ligado && !inteligente ? theme.color : colors.text}
+                />
+                <Text style={[
+                  styles.buttonTextShuffle,
+                  ligado && !inteligente && { color: theme.color },
+                ]}>{inteligente ? 'Smart' : 'Shuffle'}</Text>
               </Pressable>
             </View>
           )}
@@ -490,6 +513,9 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: radii.xl,
+    // O brilho do modo inteligente estica-se por este botao; e o raio daqui
+    // que lhe da a forma.
+    overflow: 'hidden',
     backgroundColor: colors.surfaceHigh,
     flexDirection: 'row',
     alignItems: 'center',
