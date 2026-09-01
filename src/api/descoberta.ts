@@ -180,7 +180,14 @@ async function faixasParaProcurar(
   const porArtista: FaixaDoCatalogo[][] = [];
   for (const artista of escolhidos) {
     const top = await topDoArtista(artista.id, FAIXAS_POR_ARTISTA);
-    if (top.length > 0) porArtista.push(top);
+    // **As faixas do topo de um artista nem sempre são DELE.** O catálogo
+    // devolve ali colaborações e participações, creditadas a quem canta
+    // primeiro. Apanhado a medir isto: numa prateleira montada à volta do
+    // 2hollis apareceu "2hollis - afraid", vinda do topo de outro artista —
+    // numa lista que promete música que ele ainda não ouve. Quem ele já ouve
+    // sai; um convidado novo fica, que continua a ser uma descoberta.
+    const novas = top.filter((f) => !jaOuve.has(chaveDeCatalogo(f.artista)));
+    if (novas.length > 0) porArtista.push(novas);
   }
 
   // Uma faixa de cada artista antes da segunda de qualquer um: senão a
