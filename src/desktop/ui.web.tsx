@@ -70,7 +70,7 @@ export function Button({ children, onPress, icon, iconNode, secondary = false, d
     ui.button, secondary && ui.buttonSecondary, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
     pressed && ui.pressed, disabled && ui.disabled,
     brilho && { overflow: 'hidden' as const },
-  ]}>{brilho ? <BrilhoInteligente largura={150} altura={38} raio={RAIO.ctrl} /> : null}{iconNode ?? (icon && <Ionicons name={icon} size={16} color={danger ? COR.erro : secondary ? COR.texto : COR.fundo} />)}<Text style={[ui.buttonText, secondary && ui.buttonTextSec, danger && ui.buttonTextDanger]}>{children}</Text></P>;
+  ]}>{brilho ? <BrilhoInteligente /> : null}{iconNode ?? (icon && <Ionicons name={icon} size={16} color={danger ? COR.erro : secondary ? COR.texto : COR.fundo} />)}<Text style={[ui.buttonText, secondary && ui.buttonTextSec, danger && ui.buttonTextDanger]}>{children}</Text></P>;
 }
 
 export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput> & { icon?: keyof typeof Ionicons.glyphMap }>(function Field(props, ref) {
@@ -363,7 +363,9 @@ export const ui = StyleSheet.create({
 
   // O botao primario e LUZ, nao cor: e a tese da identidade aplicada ao
   // controlo mais visivel da interface.
-  button: { minHeight: 38, paddingHorizontal: ESP.lg, borderRadius: RAIO.cartao, backgroundColor: COR.metalClaro, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: ESP.sm, borderWidth: 1, borderColor: 'transparent' },
+  // `overflow: hidden` para o brilho do modo inteligente ser recortado por
+  // este botao: ele estica-se pelo pai e nao tem forma propria.
+  button: { minHeight: 38, overflow: 'hidden', paddingHorizontal: ESP.lg, borderRadius: RAIO.cartao, backgroundColor: COR.metalClaro, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: ESP.sm, borderWidth: 1, borderColor: 'transparent' },
   buttonSecondary: { backgroundColor: 'transparent', borderColor: COR.linha },
   buttonDanger: { backgroundColor: 'rgba(190,95,98,.14)', borderColor: 'rgba(190,95,98,.45)' },
   buttonHover: { opacity: .88 },

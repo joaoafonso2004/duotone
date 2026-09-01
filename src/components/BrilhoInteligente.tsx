@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, Platform, View } from 'react-native';
+import {
+  AccessibilityInfo, Animated, Easing, Platform, StyleSheet, View,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 /**
@@ -93,21 +95,29 @@ function Campo({ largura, altura, deslocamento }: {
   );
 }
 
-export function BrilhoInteligente({
-  largura,
-  altura,
-  raio,
-}: {
-  largura: number;
-  altura: number;
-  /** Por omissão fica uma pílula. */
-  raio?: number;
-}) {
+/**
+ * O brilho preenche o botão em que está — **não tem tamanho próprio**.
+ *
+ * Tinha: recebia `largura` e `altura` a martelo (132×40 no telemóvel, 150×38 no
+ * PC) e desenhava-se em absoluto a partir do canto. Só que os botões não têm
+ * esse tamanho — o do telemóvel é `flex: 1` com 48 de altura, e o do PC é
+ * medido pelo conteúdo. Dava um bloco de gradiente mais pequeno do que o botão,
+ * com um anel escuro à volta.
+ *
+ * Agora estica-se pelo pai e **mede-se** para saber quanto tem de andar. Quem o
+ * usa trata do recorte: o botão leva `overflow: 'hidden'` e é o raio dele que
+ * decide a forma, o que dispensa escrever o mesmo raio em dois sítios.
+ */
+export function BrilhoInteligente() {
   const parado = usarMovimentoReduzido();
   const desliza = useRef(new Animated.Value(0)).current;
+  const [medida, setMedida] = useState({ largura: 0, altura: 0 });
+  const { largura, altura } = medida;
 
   useEffect(() => {
-    if (NA_WEB || parado) return;
+    // Sem medida ainda não há distância nenhuma para percorrer.
+    if (NA_WEB || parado || largura <= 0) return;
+    desliza.setValue(0);
     const ciclo = Animated.loop(
       Animated.timing(desliza, {
         toValue: -largura,
@@ -138,22 +148,25 @@ export function BrilhoInteligente({
   return (
     <View
       pointerEvents="none"
-      style={{
-        position: 'absolute',
-        left: 0, top: 0,
-        width: largura,
-        height: altura,
-        borderRadius: raio ?? altura / 2,
-        overflow: 'hidden',
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        // Só quando muda mesmo. O `onLayout` dispara a cada redesenho, e
+        // reiniciar a animação em cada um fazia o campo tremer no sítio.
+        setMedida((antes) => (
+          Math.abs(antes.largura - width) < 1 && Math.abs(antes.altura - height) < 1
+            ? antes
+            : { largura: width, altura: height }
+        ));
       }}
+      style={StyleSheet.absoluteFill}
     >
       <LinearGradient
         colors={CORES}
         start={{ x: 0, y: 0.5 }}
         end={{ x: 1, y: 0.5 }}
-        style={{ width: largura, height: altura, opacity: 0.30 }}
+        style={[StyleSheet.absoluteFill, { opacity: 0.30 }]}
       />
-      {NA_WEB ? (
+      {largura > 0 && (NA_WEB ? (
         <View style={[camada, animacaoWeb as any]}>
           <Campo largura={largura} altura={altura} deslocamento={0} />
           <Campo largura={largura} altura={altura} deslocamento={largura} />
@@ -163,7 +176,7 @@ export function BrilhoInteligente({
           <Campo largura={largura} altura={altura} deslocamento={0} />
           <Campo largura={largura} altura={altura} deslocamento={largura} />
         </Animated.View>
-      )}
+      ))}
     </View>
   );
 }

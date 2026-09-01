@@ -354,13 +354,33 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             </Pressable>
 
             <Pressable
-              style={styles.shuffleButton}
+              style={[
+                styles.shuffleButton,
+                // Ligado tem de se ver: so o modo inteligente e que se notava.
+                ligado && !inteligente && {
+                  borderColor: theme.color,
+                  backgroundColor: theme.soft,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: ligado }}
+              accessibilityLabel={
+                inteligente ? 'Smart shuffle on'
+                  : ligado ? 'Shuffle on' : 'Shuffle off'
+              }
               onPress={() => { hapticSelection(); alternarShuffle(); }}
             >
               {/* O MODO vem do leitor — ver o comentario gemeo no PC. */}
-              {inteligente && <BrilhoInteligente largura={132} altura={40} />}
-              <Ionicons name="shuffle" size={20} color={colors.text} />
-              <Text style={styles.buttonTextShuffle}>{inteligente ? 'Smart' : 'Shuffle'}</Text>
+              {inteligente && <BrilhoInteligente />}
+              <Ionicons
+                name="shuffle"
+                size={20}
+                color={ligado && !inteligente ? theme.color : colors.text}
+              />
+              <Text style={[
+                styles.buttonTextShuffle,
+                ligado && !inteligente && { color: theme.color },
+              ]}>{inteligente ? 'Smart' : 'Shuffle'}</Text>
             </Pressable>
           </View>
 
@@ -814,6 +834,8 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderRadius: radii.md,
+    // O brilho estica-se por este botao; e o raio daqui que lhe da a forma.
+    overflow: 'hidden',
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderStrong,
