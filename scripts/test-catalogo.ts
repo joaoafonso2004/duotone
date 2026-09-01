@@ -2,6 +2,7 @@ import {
   candidatosPlausiveis,
   chaveDeCatalogo,
   ordenarPorGosto,
+  repartir,
   type ArtistaDoCatalogo,
 } from '../src/lib/catalogo.ts';
 
@@ -123,6 +124,39 @@ eq('quem aparece nas duas listas aparece uma vez', repetido.length, 3);
 eq('e fica com a melhor posicao que teve', repetido[0]?.nome, 'Comum');
 
 eq('lista vazia devolve vazia', ordenarPorGosto([], new Map()).length, 0);
+
+console.log('\ncomo se repartem os lugares da prateleira');
+const soma = (a: number[]) => a.reduce((x, y) => x + y, 0);
+// O pedido dele: "se eu tenho ouvido mais juice wrld deve aparecer mais
+// juice wrld ... mas mantendo um pouco de tudo". Antes cada artista de
+// partida contribuia o mesmo, e uma prateleira de doze era seis de cada.
+const doze = repartir([9, 3], 12);
+eq('reparte 12 entre 9 e 3 na proporcao', doze.join(), '9,3');
+eq('e nao perde nem inventa lugares', soma(doze), 12);
+check('quem ele ouve mais leva mais', doze[0] > doze[1], doze.join());
+
+// A outra metade da frase. Sem minimo, o de peso 1 num universo de 100
+// levava zero e um lado inteiro do gosto desaparecia da prateleira.
+const esmagado = repartir([100, 1], 12);
+check('quem ele ouve pouco leva sempre pelo menos um', esmagado[1] >= 1, esmagado.join());
+eq('e o total continua certo', soma(esmagado), 12);
+
+// Menos lugares do que artistas: um a cada, pela ordem do peso.
+const apertado = repartir([5, 3, 1], 2);
+eq('com menos lugares que artistas nao se corta ninguem para dar dois a outro',
+  apertado.join(), '1,1,0');
+eq('total certo mesmo apertado', soma(apertado), 2);
+
+eq('um artista so leva tudo', repartir([7], 12).join(), '12');
+eq('sem artistas nao rebenta', repartir([], 12).length, 0);
+eq('sem lugares da tudo a zero', repartir([5, 5], 0).join(), '0,0');
+// Pesos todos a zero nao podem partir a conta.
+eq('sem pesos reparte por igual', repartir([0, 0, 0], 9).join(), '3,3,3');
+// Os minimos podem pedir mais do que ha: a conta tem de fechar na mesma.
+const muitos = repartir([10, 1, 1, 1, 1], 6);
+eq('com muitos artistas e poucos lugares o total fecha', soma(muitos), 6);
+check('e ninguem fica a zero quando ha lugares para todos',
+  muitos.every((x) => x >= 1), muitos.join());
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

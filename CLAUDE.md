@@ -366,6 +366,27 @@ de pessoas a ouvir — que quem ouve Dillaz também ouve Bispo.
   `youtube.ts`). Guarda-se também o "não é artista": os nomes maus repetem-se
   faixa após faixa e sem isso pagavam-se duas chamadas de cada vez.
 
+- **Cada lado do gosto leva lugares na medida em que é ouvido** (`repartir`,
+  em `lib/catalogo.ts`). Antes todos os artistas de partida contribuíam o
+  mesmo, e uma prateleira de doze era seis de cada. O pedido dele foi
+  específico: *"se eu tenho ouvido mais juice wrld deve aparecer mais juice
+  wrld ... mas mantendo um pouco de tudo"* — as duas metades puxam para lados
+  opostos e ambas contam, por isso há proporção **e** um mínimo de um lugar
+  por artista. Reparte pelo maior resto; arredondar cada parcela perdia ou
+  inventava lugares.
+- **O retrato sai do que ele OUVE, não do que tem guardado** (`getTopArtists`).
+  A biblioteca diz o que ele salvou uma vez; o histórico diz o que ele põe a
+  tocar. Sem isto, sessenta faixas guardadas há um ano pesavam o mesmo que o
+  artista de todos os dias. O peso continua a ser a RAIZ da contagem, pela
+  razão do costume.
+- **As prateleiras vivem fora do ecrã** (`state/recomendacoes.ts`) e carregam
+  no arranque da app. Estavam num `useState` da `SearchPage`, que desmonta ao
+  mudar de separador: ir aos Artists e voltar recomeçava o "Preparing
+  recommendations…" do zero, e a espera não é pequena. Refazê-las passa a ser
+  uma decisão — o botão de refrescar — e não um acidente da navegação.
+  Medido: as quatro RPCs disparam uma vez aos ~200 ms e nenhuma volta a
+  disparar ao trocar de aba.
+
 O lado pessoal, que continua a valer e agora ordena o que o catálogo propõe:
 
 - **A co-ocorrência é o sinal bom.** Dois artistas nas mesmas playlists estão
