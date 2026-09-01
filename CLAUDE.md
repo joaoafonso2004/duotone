@@ -410,6 +410,27 @@ O lado pessoal, que continua a valer e agora ordena o que o catálogo propõe:
 
 ## Shuffle inteligente
 
+**O botão tem três estados e os três têm de se ver.** No telemóvel só o modo
+inteligente e que se notava, pelo brilho: ligado e desligado eram o mesmo
+botão e não havia como saber. Ligado leva a cor de destaque na borda, no
+fundo, no ícone e no texto, mais `accessibilityState` para o VoiceOver o
+dizer. No PC isso já vinha do `secondary`.
+
+**O brilho (`BrilhoInteligente`) NÃO tem tamanho próprio.** Recebia `largura` e
+`altura` a martelo — 132×40 no telemóvel, 150×38 no PC — e desenhava-se em
+absoluto a partir do canto. Só que os botões não têm esse tamanho: o do
+telemóvel é `flex: 1` com 48 de altura e o do PC é medido pelo conteúdo. Dava
+um bloco de gradiente **mais pequeno** do que o botão, com um anel escuro à
+volta. Agora estica-se pelo pai (`StyleSheet.absoluteFill`) e mede-se com
+`onLayout` para saber quanto tem de andar; quem o usa é que recorta, com
+`overflow: 'hidden'` no botão — assim o raio vive num sítio só. Medido no PC:
+botão 148,7×38, brilho 146,7×36 a 1 px de cada lado, que é a área interior toda
+sem pintar por cima da borda.
+
+**O `onLayout` só aceita mudanças de mais de 1 px.** Ele dispara a cada
+redesenho, e reiniciar a animação em cada um punha o campo a tremer no sítio
+em vez de o fazer atravessar.
+
 Ideia de um amigo do João, e a mesma do Spotify: o botão de shuffle tem **três
 estados** — apagado, normal, e inteligente, este com uma estrelinha ao canto.
 No inteligente entra, de quatro em quatro faixas, uma música que **não está na
