@@ -1,5 +1,6 @@
 import {
   agruparPorArtista,
+  aprenderComABiblioteca,
   aprenderVocabulario,
   artistaPrincipal,
   canonizar,
@@ -136,6 +137,60 @@ eq('displayArtist com um argumento',
   displayArtist({ source: 'youtube', title: 'Drake - Passionfruit', artist: 'Random' }), 'Drake');
 eq('nada de nada da null', extractArtist(null, null), null);
 eq('canonizar sem vocabulario da null', canonizar('Juice WRLD', VOCABULARIO_VAZIO), null);
+
+
+console.log('\ntitulos ao contrario com sufixo de versao');
+// Caso real, reportado com um print: a app abriu a pagina do artista
+// chamada "poster boy" -- que e a MUSICA. O titulo era
+// `poster boy - Zhollis (Perfectly Slowed)`, e o lado direito ficava
+// `Zhollis (Perfectly Slowed)`, que nunca casava com `Zhollis` no
+// vocabulario. O catalogo confirma quem e quem: "poster boy" e uma faixa
+// do 2hollis.
+{
+  const vocab = aprenderVocabulario([
+    { source: 'youtube', title: 'crush', artist: 'Zhollis - Topic' },
+    { source: 'youtube', title: 'poster boy - Zhollis (Perfectly Slowed)', artist: 'Um Canal' },
+  ]);
+  const artista = (t: string) =>
+    displayArtist({ source: 'youtube', title: t, artist: 'Um Canal' }, vocab);
+
+  eq('destroca o titulo apesar do (Perfectly Slowed)',
+    artista('poster boy - Zhollis (Perfectly Slowed)'), 'Zhollis');
+  eq('e com dois sufixos colados',
+    artista('poster boy - Zhollis (Perfectly Slowed) (Lyrics)'), 'Zhollis');
+  eq('e com parentesis rectos',
+    artista('poster boy - Zhollis [Official Audio]'), 'Zhollis');
+  // O que NAO pode partir: um titulo na ordem certa fica na ordem certa.
+  eq('a ordem normal continua a dar o artista',
+    artista('Zhollis - poster boy'), 'Zhollis');
+  eq('e um artista desconhecido de ambos os lados nao se troca',
+    artista('alguma musica - alguem sem nome'), 'alguma musica');
+}
+
+console.log('\no vocabulario que a app usa por omissao');
+// A razao de fundo do bug: o `displayArtist` sabia destrocar, mas a app
+// chamava-o SEM vocabulario em 17 dos 19 sitios -- a maquinaria estava
+// escrita e morta. Agora ha um vocabulario aprendido da biblioteca.
+{
+  const semNada = displayArtist({
+    source: 'youtube', title: 'poster boy - Zhollis (Perfectly Slowed)', artist: 'Um Canal',
+  });
+  eq('antes de aprender fica o que o titulo diz', semNada, 'poster boy');
+
+  aprenderComABiblioteca([
+    { source: 'youtube', title: 'crush', artist: 'Zhollis - Topic' },
+  ]);
+  const depois = displayArtist({
+    source: 'youtube', title: 'poster boy - Zhollis (Perfectly Slowed)', artist: 'Um Canal',
+  });
+  eq('depois de aprender, sem lhe passar nada, ja acerta', depois, 'Zhollis');
+
+  // Aprender com uma lista vazia nao pode APAGAR o que ja se sabia.
+  aprenderComABiblioteca([]);
+  eq('uma leitura vazia nao desaprende', displayArtist({
+    source: 'youtube', title: 'poster boy - Zhollis (Perfectly Slowed)', artist: 'Um Canal',
+  }), 'Zhollis');
+}
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

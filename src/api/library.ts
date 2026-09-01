@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { aprenderComABiblioteca } from '../lib/artistName';
 import type { Track } from '../types';
 
 function rowToTrack(row: any): Track {
@@ -191,7 +192,14 @@ export async function getLibrary(): Promise<Track[]> {
     }
   }
 
-  return Array.from(tracksMap.values());
+  const faixas = Array.from(tracksMap.values());
+  // **E daqui que a app aprende os nomes.** O `displayArtist` sabe corrigir a
+  // grafia e destrocar titulos ao contrario (`poster boy - Zhollis`), mas so
+  // com um vocabulario -- e a app chamava-o sem ele em 17 dos 19 sitios, o que
+  // deixava essa maquinaria toda escrita e morta. A biblioteca e o unico sitio
+  // por onde passam faixas que cheguem para aprender.
+  aprenderComABiblioteca(faixas);
+  return faixas;
 }
 
 /**

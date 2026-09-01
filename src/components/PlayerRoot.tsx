@@ -613,9 +613,18 @@ export function PlayerRoot() {
                 <Ionicons name="play-skip-forward" size={28} color={colors.text} />
               </Pressable>
 
-              <Pressable hitSlop={12} onPress={onCycleRepeat} accessibilityLabel="Repeat">
+              <Pressable
+                hitSlop={12}
+                onPress={onCycleRepeat}
+                accessibilityRole="button"
+                accessibilityState={{ selected: repeatMode !== 'off' }}
+                accessibilityLabel={
+                  repeatMode === 'one' ? 'Repeat this track'
+                    : repeatMode === 'all' ? 'Repeat queue' : 'Repeat off'
+                }
+              >
                 <Ionicons
-                  name={repeatMode === 'one' ? 'repeat' : 'repeat'}
+                  name="repeat" 
                   size={22}
                   color={repeatMode === 'off' ? colors.textTertiary : colors.text}
                 />

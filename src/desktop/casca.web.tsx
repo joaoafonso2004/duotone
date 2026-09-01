@@ -344,7 +344,16 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSave
         {p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, p.positionMs - 15000))} />}
         <Pressable accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={19} color="#111117" /></Pressable>
         <IconButton name="play-skip-forward" label="Next" onPress={p.next} />
-        <IconButton name={p.repeatMode === 'one' ? 'repeat' : 'repeat-outline'} label="Repeat" active={p.repeatMode !== 'off'} onPress={p.cycleRepeat} />
+        {/* O icone e o MESMO nos dois modos: o `repeat` e o `repeat-outline`
+            do Ionicons sao praticamente iguais a este tamanho, e o botao
+            ficava com dois estados a mostrar um. Quem os separa e o "1". */}
+        <IconButton
+          name="repeat"
+          label={p.repeatMode === 'one' ? 'Repeat this track' : p.repeatMode === 'all' ? 'Repeat queue' : 'Repeat off'}
+          active={p.repeatMode !== 'off'}
+          marca={p.repeatMode === 'one' ? '1' : undefined}
+          onPress={p.cycleRepeat}
+        />
       </View>
       <View style={styles.progressRow}>
         <Text style={styles.timeText}>{formatTime(p.positionMs / 1000)}</Text>
