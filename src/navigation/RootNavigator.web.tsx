@@ -9,6 +9,7 @@ import { fetchYouTubePlaylist, searchYouTube } from '../api/youtube';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { useSaved } from '../state/saved';
+import { useRecomendacoes } from '../state/recomendacoes';
 import { fetchListeningStats, type StatsResult } from '../api/listeningStats';
 import { formatListeningTime, type StatsPeriod, type TimelineBucket } from '../lib/listeningStats';
 import { HandoffBanner } from '../components/HandoffBanner';
@@ -277,6 +278,12 @@ function DesktopShell() {
     }
   }, [isPlayingState]);
 
+  // **As recomendacoes comecam com a app, e nao com a pagina.** Preparar a
+  // descoberta demora -- fala com um catalogo e com o YouTube faixa a faixa --
+  // e faze-lo so quando ele abre a Pesquisa e faze-lo a horas de ele estar a
+  // olhar. Aqui ja ha sessao (esta casca so existe com ela).
+  useEffect(() => { void useRecomendacoes.getState().carregar(); }, []);
+
   const more = useCallback(async (track: Track) => {
     setTrackMenu(track);
     setTrackMenuOpen(true);
@@ -323,7 +330,15 @@ function DesktopShell() {
   };
 
   const openPlaylistDialog = async () => {
-    setPlaylists(await listPlaylists());
+    // A leitura pode falhar (sessao expirada, sem rede). Sem isto a promessa
+    // ficava por apanhar e carregar no botao nao fazia NADA -- nem abria, nem
+    // dizia porque nao. Abre-se na mesma: o dialogo sabe mostrar-se vazio.
+    try {
+      setPlaylists(await listPlaylists());
+    } catch (e: any) {
+      setPlaylists([]);
+      notify(e?.message || 'Could not load your playlists.');
+    }
     setPlaylistDialog(true);
   };
 
@@ -379,7 +394,7 @@ function DesktopShell() {
     case 'stats': page = <StatsPage back={back} play={play} />; break;
     case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} />; break;
     case 'social': page = <SocialPage notify={notify} play={play} more={more} />; break;
-    case 'now-playing': page = <NowPlayingPage play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} />; break;
+    case 'now-playing': page = <NowPlayingPage play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} />; break;
   }
 
   // Painel dos tokens, com a opacidade que o utilizador escolher nas
@@ -403,6 +418,10 @@ function DesktopShell() {
           <Pressable onPress={() => { usePlayer.getState().addToQueue(trackMenu); setTrackMenuOpen(false); notify('Added to queue.'); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="list-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Add to queue</Text></Pressable>
           <Pressable onPress={toggleSave} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name={isSaved ? "heart" : "heart-outline"} size={18} color={isSaved ? '#EF4444' : theme.color} /><Text style={styles.destinationText}>{isSaved ? 'Remove from library' : 'Save to library'}</Text></Pressable>
           <Pressable onPress={() => { setTrackMenuOpen(false); openPlaylistDialog(); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="albums-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Add to playlist…</Text></Pressable>
+          {/* O artista sai do `displayArtist` e nao do campo `artist`, que no
+              YouTube e o CANAL: com o campo cru abria-se a pagina de um canal
+              de uploads em vez da do artista. */}
+          <Pressable onPress={() => { setTrackMenuOpen(false); navigate({ name: 'artist', value: displayArtist(trackMenu) }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="mic-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>View artist</Text></Pressable>
           <Pressable onPress={() => { setTrackMenuOpen(false); openShareDialog({ itemType: 'track', item: trackMenu, name: trackMenu.title }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="share-social-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Share with a friend…</Text></Pressable>
           {route.name === 'playlist' && (
             <Pressable onPress={removeFromCurrentPlaylist} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="trash-outline" size={18} color="#EF4444" /><Text style={[styles.destinationText, { color: '#EF4444' }]}>Remove from this playlist</Text></Pressable>

@@ -1,5 +1,5 @@
 import { getLibraryKeys } from './library';
-import { getHeavyRotation } from './plays';
+import { getHeavyRotation, getTopArtists } from './plays';
 import { paresDeArtistaEPlaylist } from './afinidade';
 import { topDoArtista, vizinhancaDe, type FaixaDoCatalogo } from './catalogo';
 import { searchYouTubeFreeWithChannel } from './ytSearchFree';
@@ -10,7 +10,9 @@ import {
 import {
   alvosDeProcura, artistasVizinhos, retratoDoContexto, vizinhosPorPlaylist,
 } from '../lib/afinidade';
-import { chaveDeCatalogo, ordenarPorGosto, type ArtistaDoCatalogo } from '../lib/catalogo';
+import {
+  chaveDeCatalogo, ordenarPorGosto, repartir, type ArtistaDoCatalogo,
+} from '../lib/catalogo';
 import { pareceMusica } from '../lib/musica';
 import { pickBest } from '../lib/trackMatch';
 import { trackKey } from '../lib/shuffle';
@@ -53,6 +55,14 @@ import type { Track } from '../types';
  * desta custaria 100 das 10.000 unidades diárias, e agora faz-se uma por faixa.
  */
 
+/**
+ * Um artista por onde comecar, e o peso que ele tem no que a pessoa ouve.
+ *
+ * O peso nao e decoracao: e ele que decide quantos lugares da prateleira
+ * cabem a cada lado do gosto. Ver `repartir`.
+ */
+type Alvo = { nome: string; peso: number };
+
 /** Quantas candidatas devolver. */
 const QUANTAS = 12;
 /** Por quantos artistas do utilizador começar. Cada um dá até 25 semelhantes. */
@@ -71,8 +81,9 @@ export async function candidatasParaDescoberta(
   jaSugeridas: ReadonlySet<string>,
   quantas: number = QUANTAS,
   quantosAlvos: number = ALVOS,
+  escutas?: ReadonlyMap<string, number>,
 ): Promise<Track[]> {
-  const { alvos, afinidade } = await escolherAlvos(contexto, quantosAlvos);
+  const { alvos, afinidade } = await escolherAlvos(contexto, quantosAlvos, escutas);
   if (alvos.length === 0) return [];
 
   // O que ele já tem fica de fora: é isso que separa descobrir de repetir.
@@ -118,14 +129,14 @@ export async function candidatasParaDescoberta(
  * descoberta fica calada em vez de dizer disparates.
  */
 async function faixasParaProcurar(
-  alvos: readonly string[],
+  alvos: readonly Alvo[],
   afinidade: ReadonlyMap<string, number>,
   contexto: readonly Track[],
 ): Promise<FaixaDoCatalogo[]> {
   // Quem ele já ouve não é descoberta. Inclui os alvos e todo o contexto,
   // porque o catálogo devolve muitas vezes os artistas uns dos outros.
   const jaOuve = new Set<string>();
-  for (const nome of alvos) jaOuve.add(chaveDeCatalogo(nome));
+  for (const a of alvos) jaOuve.add(chaveDeCatalogo(a.nome));
   for (const t of contexto) {
     const nome = displayArtist(t);
     if (nome) jaOuve.add(chaveDeCatalogo(nome));
@@ -135,14 +146,36 @@ async function faixasParaProcurar(
   // segundo alvo ficasse sempre atrás do primeiro, e as sugestões saíam todas
   // do mesmo lado. Ver `ordenarPorGosto`.
   const listas: ArtistaDoCatalogo[][] = [];
+  const pesos: number[] = [];
   for (const alvo of alvos) {
-    const vizinhanca = await vizinhancaDe(alvo);
+    const vizinhanca = await vizinhancaDe(alvo.nome);
     if (!vizinhanca) continue; // não é um artista, ou o catálogo não respondeu
-    if (vizinhanca.semelhantes.length > 0) listas.push(vizinhanca.semelhantes);
+    if (vizinhanca.semelhantes.length === 0) continue;
+    listas.push(vizinhanca.semelhantes);
+    pesos.push(alvo.peso);
   }
   if (listas.length === 0) return [];
 
-  const escolhidos = ordenarPorGosto(listas, afinidade, jaOuve).slice(0, SEMELHANTES);
+  // **Cada lado do gosto leva lugares na medida em que é ouvido.** Antes todos
+  // os alvos contribuíam o mesmo, e uma prateleira era metade de cada — o que
+  // se ouve a dobrar aparecia na mesma medida do resto. O mínimo de um lugar
+  // que a `repartir` garante é a outra metade do pedido: um pouco de tudo.
+  const quota = repartir(pesos, SEMELHANTES);
+  const escolhidos: ArtistaDoCatalogo[] = [];
+  const jaEscolhido = new Set<string>();
+  listas.forEach((lista, i) => {
+    // Ordenado DENTRO da lista de onde veio: o primeiro semelhante de um alvo
+    // compete com o primeiro do outro, não com a lista toda do primeiro.
+    let levados = 0;
+    for (const a of ordenarPorGosto([lista], afinidade, jaOuve)) {
+      if (levados >= quota[i]) break;
+      const k = chaveDeCatalogo(a.nome);
+      if (!k || jaEscolhido.has(k)) continue;
+      jaEscolhido.add(k);
+      escolhidos.push(a);
+      levados++;
+    }
+  });
 
   const porArtista: FaixaDoCatalogo[][] = [];
   for (const artista of escolhidos) {
@@ -213,7 +246,20 @@ export async function descobrirNovas(
   biblioteca: readonly Track[],
 ): Promise<Track[]> {
   const contexto = biblioteca.slice(0, 60);
-  return candidatasParaDescoberta(contexto, new Set(), new Set(), limite, 4)
+  // **O que ele OUVE, e não o que tem guardado.** A biblioteca diz o que ele
+  // salvou uma vez; o histórico diz o que ele põe a tocar, que é a pergunta.
+  // Sem isto, sessenta faixas guardadas há um ano pesavam o mesmo que o
+  // artista que ele anda a ouvir todos os dias.
+  const escutas = new Map<string, number>();
+  try {
+    for (const a of await getTopArtists(20)) {
+      const k = chaveDeArtista(a.name);
+      if (k && a.plays > 0) escutas.set(k, a.plays);
+    }
+  } catch {
+    // sem histórico: fica o retrato da biblioteca, como era
+  }
+  return candidatasParaDescoberta(contexto, new Set(), new Set(), limite, 4, escutas)
     .catch(() => [] as Track[]);
 }
 
@@ -264,8 +310,9 @@ export async function flowDoDia(limite: number, biblioteca: readonly Track[]): P
 async function escolherAlvos(
   contexto: readonly Track[],
   quantosAlvos: number = ALVOS,
-): Promise<{ alvos: string[]; afinidade: Map<string, number> }> {
-  const vazio = { alvos: [] as string[], afinidade: new Map<string, number>() };
+  escutas?: ReadonlyMap<string, number>,
+): Promise<{ alvos: Alvo[]; afinidade: Map<string, number> }> {
+  const vazio = { alvos: [] as Alvo[], afinidade: new Map<string, number>() };
 
   const doContexto = contexto
     .map((t) => ({ artista: displayArtist(t) }))
@@ -273,6 +320,17 @@ async function escolherAlvos(
   if (doContexto.length === 0) return vazio;
 
   const retrato = retratoDoContexto(doContexto, chaveDeArtista);
+
+  // **As escutas mandam sobre a biblioteca.** Ter uma faixa guardada e pô-la a
+  // tocar todos os dias não é a mesma coisa, e a pergunta aqui é a segunda. O
+  // peso continua a ser a RAIZ da contagem, pela mesma razão de sempre: em
+  // bruto, o artista mais ouvido abafava tudo o resto e as sugestões eram
+  // sempre dele. A raiz mantém a ordem e aproxima os extremos.
+  if (escutas) {
+    for (const [k, tocou] of escutas) {
+      if (tocou > 0) retrato.set(k, Math.sqrt(tocou));
+    }
+  }
   if (retrato.size === 0) return vazio;
 
   // As chaves são canónicas (minúsculas, sem pontuação) e não servem para
@@ -325,8 +383,12 @@ async function escolherAlvos(
     afinidade.set(k, Math.max(afinidade.get(k) ?? 0, v.pontos));
   }
 
+  // O peso vai colado ao alvo: e ele que decide, la a frente, quantos lugares
+  // da prateleira cabem a este lado do gosto (ver `repartir`).
+  const pesoDe = (chave: string) =>
+    retratoFiavel.get(chave) ?? vizinhos.find((v) => v.chave === chave)?.pontos ?? 1;
   const alvos = alvosDeProcura(retratoFiavel, vizinhos, quantosAlvos)
-    .map((chave) => nomePorChave.get(chave) ?? chave)
-    .filter(Boolean);
+    .map((chave) => ({ nome: nomePorChave.get(chave) ?? chave, peso: pesoDe(chave) }))
+    .filter((a) => a.nome);
   return { alvos, afinidade };
 }

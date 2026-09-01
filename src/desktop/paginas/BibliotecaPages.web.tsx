@@ -8,19 +8,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { getLibrary, getLikedSongs } from '../../api/library';
-import { descobrirNovas, flowDoDia } from '../../api/descoberta';
+import { getLikedSongs } from '../../api/library';
 import {
   fetchYouTubePlaylistById, searchYouTube, searchYouTubePlaylists,
   type YtRecommendedPlaylist,
 } from '../../api/youtube';
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
-import {
-  getForgottenFavorites, getHeavyRotation, getProfileRecentlyPlayed, getTopArtists,
-} from '../../api/plays';
+import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist } from '../../lib/artistName';
 import { usePlayer } from '../../state/player';
+import { temRecomendacoes, useRecomendacoes } from '../../state/recomendacoes';
 import { useSaved } from '../../state/saved';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
@@ -33,47 +31,27 @@ import { useLibraryData } from './comum.web';
 
 export function SearchPage({ play, notify, more }: CommonPageProps) {
   const [query, setQuery] = useState(''); const [results, setResults] = useState<Track[]>([]); const [history, setHistory] = useState<string[]>([]); const [loading, setLoading] = useState(false); const input = useRef<any>(null);
-  // Recomendacoes, como no telemovel. Todas saem de RPCs do Supabase sobre o
-  // historico do proprio utilizador — nenhuma gasta quota da YouTube API.
-  const [descobrir, setDescobrir] = useState<Track[]>([]);
-  const [ouvirDeNovo, setOuvirDeNovo] = useState<Track[]>([]);
-  const [flow, setFlow] = useState<Track[]>([]);
-  const [maisTocadas, setMaisTocadas] = useState<Track[]>([]);
-  const [esquecidas, setEsquecidas] = useState<Track[]>([]);
-  const [recsCarregadas, setRecsCarregadas] = useState(false);
-
-  useEffect(() => {
-    // Falham em silencio uma a uma: se uma RPC nao existir na base de dados,
-    // as outras prateleiras aparecem na mesma.
-    const semFalhar = <T,>(p: Promise<T[]>) => p.catch(() => [] as T[]);
-    // O "Daily flow" deixou de vir do `get_flow_mix`: aquela funcao escolhe
-    // 30% do catalogo AO ACASO (`order by random()`), sem relacao nenhuma com
-    // o que se ouve -- e por isso que as recomendacoes as vezes nao diziam
-    // nada. Agora a descoberta sai da afinidade, a mesma do shuffle
-    // inteligente. Precisa da biblioteca para saber com o que se parecer.
-    Promise.all([
-      semFalhar(getProfileRecentlyPlayed(14)),
-      semFalhar(getLibrary()).then((lib) => Promise.all([
-        descobrirNovas(14, lib), flowDoDia(14, lib),
-      ])).catch(() => [[], []] as [Track[], Track[]]),
-      semFalhar(getHeavyRotation(14)),
-      semFalhar(getForgottenFavorites(14)),
-    ]).then(([recentes, [novas, f], m, e]) => {
-      setDescobrir(novas);
-      // getProfileRecentlyPlayed devolve ProfilePlayEntry, que nao tem `album`.
-      setOuvirDeNovo(recentes.map((r: any) => ({ ...r, album: null } as Track)));
-      setFlow(f); setMaisTocadas(m); setEsquecidas(e);
-      setRecsCarregadas(true);
-    });
-  }, []);
+  // **As recomendacoes vivem fora desta pagina** (`state/recomendacoes.ts`).
+  // Estavam num `useState` daqui, e esta pagina desmonta ao mudar de
+  // separador: ir aos Artists e voltar recomecava o "Preparing
+  // recommendations..." do zero, e a espera nao e pequena.
+  const recs = useRecomendacoes();
+  const { descobrir, ouvirDeNovo, flow, maisTocadas, esquecidas } = recs;
+  const recsCarregadas = recs.estado === 'pronto';
+  // Nao repete o trabalho: se ja estao carregadas ou a carregar, isto e um
+  // no-op. Existe para o caso de a app nao as ter comecado no arranque.
+  useEffect(() => { void recs.carregar(); }, []);
   // Conjunto das faixas já guardadas, para marcar os resultados com um coração.
   useEffect(() => { useSaved.getState().refresh(); getSearchHistory().then(setHistory); const focus = () => input.current?.focus(); window.addEventListener('duotone:focus-search', focus); return () => window.removeEventListener('duotone:focus-search', focus); }, []);
   const run = async (q = query) => { const clean = q.trim(); if (!clean) return; setQuery(clean); setLoading(true); try { const [items, next] = await Promise.all([searchYouTube(clean), addSearchHistoryEntry(clean)]); setResults(items); setHistory(next); } catch (e: any) { notify(e?.message || 'Search failed.'); } finally { setLoading(false); } };
-  return <Page title="Search" subtitle="Search YouTube and add music to your Duotone library."><View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
+  return <Page title="Search" subtitle="Search YouTube and add music to your Duotone library."
+    action={<IconButton name="refresh" label="Refresh recommendations"
+      onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} />}>
+    <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
     {!results.length && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
     <ContentScroll>{loading ? <View style={{ height: 320 }}><Loading /></View>
       : results.length ? <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, results)} onMore={more} />
-      : (descobrir.length || ouvirDeNovo.length || flow.length || maisTocadas.length || esquecidas.length) ? <>
+      : temRecomendacoes(recs) ? <>
           <Shelf titulo="Discover new" nota="music you don't have yet, based on what you listen to" tracks={descobrir} onPlay={play} onMore={more} />
           <Shelf titulo="Listen again" tracks={ouvirDeNovo} onPlay={play} onMore={more} />
           <Shelf titulo="Daily flow" nota="based on your listening" tracks={flow} onPlay={play} onMore={more} />

@@ -10,6 +10,16 @@ import { useSaved } from '../state/saved';
 import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 
+/**
+ * Largura da coluna de duracao, no cabecalho E na celula.
+ *
+ * Estava escrita duas vezes com o mesmo numero magico, e tinha de bater certo
+ * nas duas. Eram 64, e "DURATION" nao cabia: o `colHead` e mono de 10px com
+ * `letterSpacing` 1.5 (uns 60px de texto) mais 8+8 de padding, por isso o
+ * cabecalho partia-se em "DURATI / ON".
+ */
+const LARGURA_DURACAO = 84;
+
 const P = Pressable as any;
 
 /** Referência estável: um Set novo a cada render fazia a tabela redesenhar. */
@@ -69,9 +79,22 @@ export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput
     if (e.key === 'Enter' || e.keyCode === 13) {
       onSubmitEditing?.(e);
     }
+    // Limpar com Escape, que e o que se carrega sem pensar num campo destes.
+    if (e.key === 'Escape' && rest.value) {
+      e.preventDefault?.();
+      (rest as any).onChangeText?.('');
+    }
   };
+  // So nas lupas: um X num campo de mensagem nao quer dizer nada, e este
+  // componente serve os dois. Aparece so quando ha o que limpar.
+  const limpavel = icon === 'search' && !!rest.value && !!(rest as any).onChangeText;
   return <View style={ui.fieldWrap}>{icon && <Ionicons name={icon} size={18} color={desktop.dim} />}<TextInput
-    ref={ref} placeholderTextColor={desktop.dim} selectionColor={desktop.accent} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyDown={handleKeyDown} style={[ui.field, style]} /></View>;
+    ref={ref} placeholderTextColor={desktop.dim} selectionColor={desktop.accent} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyDown={handleKeyDown} style={[ui.field, style]} />
+    {limpavel && <P accessibilityRole="button" accessibilityLabel="Clear search"
+      onPress={() => { (rest as any).onChangeText?.(''); (ref as any)?.current?.focus?.(); }}
+      style={({ hovered }: any) => [ui.fieldLimpar, hovered && { backgroundColor: COR.hover }]}>
+      <Ionicons name="close" size={14} color={desktop.dim} />
+    </P>}</View>;
 });
 
 export function Page({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {
@@ -269,7 +292,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   const showTime = isShowTrackDurationSync();
   if (!tracks.length) return <>{empty}</>;
   const artworkSize = plain ? 48 : 40;
-  return <View style={[ui.table, plain && ui.tablePlain]}><View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}><Text style={[ui.colHead, { width: 40 }]}>#</Text><Text style={[ui.colHead, { flex: 1 }]}>Track</Text>{showTime && <Text style={[ui.colHead, { width: 64, textAlign: 'right' }]}>Duration</Text>}<View style={{ width: 42 }} /></View>
+  return <View style={[ui.table, plain && ui.tablePlain]}><View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}><Text numberOfLines={1} style={[ui.colHead, { width: 40 }]}>#</Text><Text numberOfLines={1} style={[ui.colHead, { flex: 1 }]}>Track</Text>{showTime && <Text numberOfLines={1} style={[ui.colHead, { width: LARGURA_DURACAO, textAlign: 'right' }]}>Duration</Text>}<View style={{ width: 42 }} /></View>
     {tracks.map((track, index) => <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track)}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track); }) as any}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
@@ -284,7 +307,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
           </View>
         </View>
       </View>
-      {showTime && <Text style={[ui.trackMeta, { width: 64, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
+      {showTime && <Text numberOfLines={1} style={[ui.trackMeta, { width: LARGURA_DURACAO, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
       <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track)} /></P>)}
   </View>;
 }
@@ -362,6 +385,8 @@ export const ui = StyleSheet.create({
   tablePlain: { borderWidth: 0, borderRadius: 0, backgroundColor: 'transparent', overflow: 'visible' },
   tableHeader: { height: 38, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
   tableHeaderPlain: { paddingHorizontal: ESP.sm, borderTopWidth: 1, borderTopColor: COR.linhaSuave },
+  // Redondo e discreto: e um atalho, nao um controlo do formulario.
+  fieldLimpar: { width: 22, height: 22, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   colHead: { ...TIPO.micro, color: COR.textoFraco, paddingHorizontal: ESP.sm },
   // Altura unica em toda a app. Havia 62, 52 e 38 conforme o ecra, o que se
   // lia como tres aplicacoes diferentes.

@@ -21,7 +21,9 @@ import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
 import { Artwork, ContentScroll, Dialog, Empty, IconButton, Page, ui } from '../ui.web';
-import type { CommonPageProps } from '../rotas';
+import type { CommonPageProps, NavegarFn } from '../rotas';
+import type { Track } from '../../types';
+import { displayArtist } from '../../lib/artistName';
 
 /**
  * Now Playing — UMA ideia visual, nao quatro.
@@ -39,7 +41,14 @@ import type { CommonPageProps } from '../rotas';
  * As barras de equalizador eram o caso mais claro: uma animacao CSS de duracao
  * fixa, a fingir que reagia. O glitch ou reage mesmo ou nao esta la.
  */
-export function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: CommonPageProps & { currentIsSaved: boolean; toggleSaveCurrent: () => void }) {
+export function NowPlayingPage({
+  more, currentIsSaved, toggleSaveCurrent, navigate, aoAdicionarAPlaylist,
+}: CommonPageProps & {
+  currentIsSaved: boolean;
+  toggleSaveCurrent: () => void;
+  navigate: NavegarFn;
+  aoAdicionarAPlaylist: (t: Track) => void;
+}) {
   const p = usePlayer();
   const { width } = useWindowDimensions();
   // Uma vez por render: este ecrã redesenha a cada segundo (posição) e a
@@ -108,6 +117,18 @@ export function NowPlayingPage({ more, currentIsSaved, toggleSaveCurrent }: Comm
                 label={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'}
                 onPress={toggleSaveCurrent}
                 active={currentIsSaved}
+              />
+              <IconButton
+                name="albums-outline"
+                label="Add to playlist"
+                onPress={() => aoAdicionarAPlaylist(track)}
+              />
+              {/* Do `displayArtist` e nao do campo `artist`: no YouTube esse e
+                  o CANAL, e abria a pagina de um canal de uploads. */}
+              <IconButton
+                name="mic-outline"
+                label={`View ${displayArtist(track)}`}
+                onPress={() => navigate({ name: 'artist', value: displayArtist(track) })}
               />
             </View>
           </View>

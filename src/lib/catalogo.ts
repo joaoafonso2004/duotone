@@ -141,3 +141,62 @@ export function ordenarPorGosto(
     .sort((a, b) => b.pontos - a.pontos)
     .map((x) => x.artista);
 }
+
+/**
+ * Como repartir N lugares por vários artistas de partida, na proporção do que
+ * cada um é ouvido — mas sem deixar nenhum de fora.
+ *
+ * **O pedido que obrigou a isto**, nas palavras dele: *"se eu tenho ouvido mais
+ * juice wrld deve aparecer mais juice wrld, se eu tiver ouvido mais angelcore,
+ * deve aparecer mais angelcore, mas mantendo um pouco de tudo"*. Antes cada
+ * artista de partida contribuía o mesmo, e uma prateleira de doze era seis de
+ * cada — o que ele ouve a dobrar aparecia na mesma medida do resto.
+ *
+ * As duas metades da frase puxam para lados opostos e ambas contam: a
+ * proporção dá o "mais do que ouves mais", e o **mínimo de um lugar** dá o
+ * "um pouco de tudo". O mínimo ganha quando não há lugares para todos — mais
+ * vale ouvir menos de cada um do que perder um lado inteiro do gosto.
+ *
+ * Reparte pelo maior resto: distribuir por arredondamento de cada parcela
+ * perde ou inventa lugares conforme os restos calharem.
+ */
+export function repartir(pesos: readonly number[], total: number): number[] {
+  const n = pesos.length;
+  if (n === 0 || total <= 0) return new Array(n).fill(0);
+  // Menos lugares do que artistas: fica um para cada, pela ordem do peso, e os
+  // últimos ficam a zero. Nunca se corta um artista para dar dois a outro.
+  if (total <= n) {
+    const ordem = pesos.map((p, i) => ({ i, p })).sort((a, b) => b.p - a.p);
+    const saida = new Array(n).fill(0);
+    for (let k = 0; k < total; k++) saida[ordem[k].i] = 1;
+    return saida;
+  }
+
+  const soma = pesos.reduce((s, p) => s + Math.max(p, 0), 0);
+  // Sem pesos que digam alguma coisa, reparte-se por igual.
+  const exactos = soma > 0
+    ? pesos.map((p) => (Math.max(p, 0) / soma) * total)
+    : pesos.map(() => total / n);
+
+  // O mínimo de um lugar é o "um pouco de tudo", e tem de sair de algum lado:
+  // tira-se a quem tem de sobra, e não do total, senão a conta deixa de fechar.
+  const saida = exactos.map((e) => Math.max(1, Math.floor(e)));
+  let sobra = total - saida.reduce((s, v) => s + v, 0);
+
+  // Sobraram lugares: vão para os maiores restos.
+  const restos = exactos
+    .map((e, i) => ({ i, resto: e - Math.floor(e) }))
+    .sort((a, b) => b.resto - a.resto);
+  for (let k = 0; sobra > 0; k++, sobra--) saida[restos[k % n].i] += 1;
+
+  // Faltam lugares (os mínimos comeram mais do que havia): tira-se a quem tem
+  // mais, e nunca abaixo de um.
+  while (sobra < 0) {
+    let maior = 0;
+    for (let i = 1; i < n; i++) if (saida[i] > saida[maior]) maior = i;
+    if (saida[maior] <= 1) break;
+    saida[maior] -= 1;
+    sobra += 1;
+  }
+  return saida;
+}
