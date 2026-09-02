@@ -1,4 +1,3 @@
-import { extractArtist } from '../lib/artistName';
 import type { Track } from '../types';
 
 /**
@@ -15,8 +14,7 @@ import type { Track } from '../types';
  *
  * O compromisso é o mesmo que a app já aceita para reproduzir: é uma API
  * privada, e quando o YouTube muda a `clientVersion` é preciso atualizá-la
- * aqui. Por isso esta função serve a IMPORTAÇÃO, não a pesquisa normal —
- * se parar, a app continua a funcionar.
+ * aqui. A pesquisa normal usa-a primeiro e recorre à Data API se falhar.
  */
 
 const ENDPOINT = 'https://www.youtube.com/youtubei/v1/search';
@@ -75,9 +73,10 @@ function collectVideos(node: unknown, out: any[], depth = 0): void {
 }
 
 /** Pesquisa com o canal de cada resultado. É esta que faz o trabalho. */
-export async function searchYouTubeFreeWithChannel(query: string): Promise<FreeSearchResult[]> {
+export async function searchYouTubeFreeWithChannel(query: string, signal?: AbortSignal): Promise<FreeSearchResult[]> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
+    signal,
     headers: {
       'Content-Type': 'application/json',
       Origin: 'https://www.youtube.com',
@@ -90,7 +89,9 @@ export async function searchYouTubeFreeWithChannel(query: string): Promise<FreeS
   if (!res.ok) throw new Error(`InnerTube HTTP ${res.status}`);
 
   const renderers: any[] = [];
-  collectVideos(await res.json(), renderers);
+  const corpo = await res.json();
+  if (!corpo?.contents) throw new Error('Resposta de pesquisa inesperada.');
+  collectVideos(corpo, renderers);
 
   const out: FreeSearchResult[] = [];
   for (const v of renderers) {
@@ -108,7 +109,7 @@ export async function searchYouTubeFreeWithChannel(query: string): Promise<FreeS
         sourceId,
         title,
         // O canal "- Topic" é gerado pela editora e traz o artista limpo.
-        artist: extractArtist(title, channel.replace(/ - Topic$/, '')),
+        artist: channel,
         album: null,
         artworkUrl: `https://i.ytimg.com/vi/${sourceId}/hqdefault.jpg`,
         durationSeconds: parseDuration(v?.lengthText?.simpleText),
@@ -122,6 +123,6 @@ export async function searchYouTubeFreeWithChannel(query: string): Promise<FreeS
 }
 
 /** Só as faixas, para quem não precisa do canal. */
-export async function searchYouTubeFree(query: string): Promise<Track[]> {
-  return (await searchYouTubeFreeWithChannel(query)).map((r) => r.track);
+export async function searchYouTubeFree(query: string, signal?: AbortSignal): Promise<Track[]> {
+  return (await searchYouTubeFreeWithChannel(query, signal)).map((r) => r.track);
 }

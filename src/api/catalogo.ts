@@ -1,4 +1,5 @@
 import { cacheGet, cacheSet, DIA_MS } from './cache';
+import { chaveDeArtista } from '../lib/artistName';
 import {
   candidatosPlausiveis, chaveDeCatalogo, type ArtistaDoCatalogo,
 } from '../lib/catalogo';
@@ -69,7 +70,11 @@ async function pedir<T>(caminho: string): Promise<T | null> {
   return emFila(async () => {
     for (let tentativa = 0; tentativa < 3; tentativa++) {
       try {
-        const res = await fetch(`${BASE}${caminho}`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        let res: Response;
+        try { res = await fetch(`${BASE}${caminho}`, { signal: controller.signal }); }
+        finally { clearTimeout(timeout); }
         if (!res.ok) return null;
         const corpo: any = await res.json();
         // O Deezer responde 200 com {error:{code:4}} quando se excede o ritmo.
@@ -113,21 +118,36 @@ const paraArtista = (a: any): ArtistaDoCatalogo => ({
  * só o primeiro: procurar "Xutos e Pontapes" devolve o homónimo de 1732 fãs à
  * frente da banda de 70 mil, e desistir no primeiro perdia a banda.
  */
-export async function vizinhancaDe(nome: string): Promise<Vizinhanca | null> {
+const emCurso = new Map<string, Promise<Vizinhanca | null>>();
+
+export function vizinhancaDe(nome: string): Promise<Vizinhanca | null> {
+  const chave = chaveDeCatalogo(nome);
+  const pendente = emCurso.get(chave);
+  if (pendente) return pendente;
+  const pedido = consultarVizinhanca(nome).finally(() => emCurso.delete(chave));
+  emCurso.set(chave, pedido);
+  return pedido;
+}
+
+async function consultarVizinhanca(nome: string): Promise<Vizinhanca | null> {
   const limpo = (nome ?? '').trim();
   if (!limpo) return null;
 
-  const chaveCache = `deezer:vizinhanca:v1:${chaveDeCatalogo(limpo)}`;
+  // v2 invalida os negativos antigos que também podiam significar «sem rede».
+  const chaveCache = `deezer:vizinhanca:v2:${chaveDeCatalogo(limpo)}`;
   const guardado = await cacheGet<Vizinhanca | { nao: true }>(chaveCache, VALIDADE);
   if (guardado) return 'nao' in guardado ? null : guardado;
 
   const busca = await pedir<{ data?: any[] }>(
     `/search/artist?q=${encodeURIComponent(limpo)}&limit=8`,
   );
-  const candidatos = (busca?.data ?? []).map(paraArtista);
+  // Sem resposta não há evidência para guardar um resultado negativo.
+  if (!busca || !Array.isArray(busca.data)) throw new Error('Catálogo indisponível.');
+  const candidatos = busca.data.map(paraArtista);
 
   for (const candidato of candidatosPlausiveis(limpo, candidatos)) {
     const rel = await pedir<{ data?: any[] }>(`/artist/${candidato.id}/related?limit=25`);
+    if (!rel || !Array.isArray(rel.data)) throw new Error('Catálogo indisponível.');
     const semelhantes = (rel?.data ?? []).map(paraArtista).filter((a) => a.nome);
     if (semelhantes.length === 0) continue; // <- o crivo
     const achado: Vizinhanca = { artista: candidato, semelhantes };
@@ -139,6 +159,44 @@ export async function vizinhancaDe(nome: string): Promise<Vizinhanca | null> {
   // faixa após faixa, e sem isto pagavam-se duas chamadas de cada vez.
   await cacheSet(chaveCache, { nao: true });
   return null;
+}
+
+/**
+ * Confirma uma grafia corrigida pelo catálogo com a música exata desse artista.
+ * Ex.: o Deezer sugere 2hollis para Zhollis, mas só aceitamos a sugestão se
+ * houver também uma faixa chamada «poster boy», com o mesmo id de artista.
+ * Não funde artistas apenas por semelhança entre os nomes.
+ */
+const faixasEmCurso = new Map<string, Promise<string | null>>();
+
+export function artistaDaFaixa(titulo: string, nome: string): Promise<string | null> {
+  const chave = `deezer:artista-faixa:v1:${chaveDeArtista(titulo)}:${chaveDeCatalogo(nome)}`;
+  const emCurso = faixasEmCurso.get(chave);
+  if (emCurso) return emCurso;
+  const pedido = consultarArtistaDaFaixa(titulo, nome, chave).finally(() => faixasEmCurso.delete(chave));
+  faixasEmCurso.set(chave, pedido);
+  return pedido;
+}
+
+async function consultarArtistaDaFaixa(titulo: string, nome: string, chave: string): Promise<string | null> {
+  const guardado = await cacheGet<{ nome: string | null }>(chave, VALIDADE);
+  if (guardado) return guardado.nome;
+  const busca = await pedir<{ data?: any[] }>(`/search/artist?q=${encodeURIComponent(nome)}&limit=3`);
+  if (!busca || !Array.isArray(busca.data)) throw new Error('Catálogo indisponível.');
+  const confirmados = new Set<string>();
+  for (const candidato of busca.data) {
+    const query = `artist:"${String(candidato.name).replace(/"/g, '')}" track:"${titulo.replace(/"/g, '')}"`;
+    const faixas = await pedir<{ data?: any[] }>(`/search?q=${encodeURIComponent(query)}&limit=10`);
+    if (!faixas || !Array.isArray(faixas.data)) throw new Error('Catálogo indisponível.');
+    const exata = faixas.data.some((f) => f.artist?.id === candidato.id
+      && chaveDeArtista(f.title) === chaveDeArtista(titulo));
+    if (!exata) continue;
+    const vizinhanca = await vizinhancaDe(candidato.name);
+    if (vizinhanca && vizinhanca.artista.id === candidato.id) confirmados.add(vizinhanca.artista.nome);
+  }
+  const achado = confirmados.size === 1 ? [...confirmados][0] : null;
+  await cacheSet(chave, { nome: achado });
+  return achado;
 }
 
 /** Uma faixa como o catálogo a conhece: título a sério e duração a sério. */

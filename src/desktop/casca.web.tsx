@@ -7,7 +7,7 @@
  * porque o react-native-web impõe a stack dele a cada `<Text>`.
  */
 import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { getInboxItems } from '../api/social';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
@@ -270,6 +270,11 @@ export function NavItem({ label, icon, active, badge, onPress }: { label: string
 
 export function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSaved: boolean; toggleSaveCurrent: () => void }) {
   const p = usePlayer(); const ratio = p.durationMs ? Math.min(1, p.positionMs / p.durationMs) : 0;
+  const volumeAudivel = useRef(80);
+  if (p.volume > 0) volumeAudivel.current = p.volume;
+  const alternarSilencio = () => {
+    p.setVolume(p.volume > 0 ? 0 : volumeAudivel.current || 80);
+  };
   if (!p.current) return null;
 
   const startDragProgress = (mouseDownEvent: any) => {
@@ -363,7 +368,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSave
     </View>
     <View style={styles.playerRight}>
       {p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}
-      <V style={styles.volumeRow} className="slider-container"><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={() => p.setVolume(p.volume === 0 ? 80 : 0)} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${p.volume}%` }} /></P></V>
+      <V style={styles.volumeRow} className="slider-container"><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={alternarSilencio} accessibilityRole="button" accessibilityLabel={p.volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${p.volume}%` }} /></P></V>
       <IconButton name="close" label="Close player" onPress={p.close} />
     </View>
   </V>;

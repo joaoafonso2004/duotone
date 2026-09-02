@@ -1,3 +1,4 @@
+import { displayArtist } from '../lib/artistName';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React from 'react';
@@ -130,7 +131,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
                 <SourceBadge source={track.source} />
                 {track.artist ? (
                   <Text numberOfLines={1} style={type.caption}>
-                    {track.artist}
+                    {displayArtist(track)}
                   </Text>
                 ) : null}
               </View>

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,13 +15,12 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { saveToLibrary, getLibrary } from '../api/library';
-import { searchYouTube, searchYouTubePlaylists, getTrendingMusic, YtRecommendedPlaylist } from '../api/youtube';
-import { getHeavyRotation, getForgottenFavorites, getProfileRecentlyPlayed, getRecentTopArtist, getTopArtists } from '../api/plays';
-import { shuffleCandidates } from '../lib/radio';
+import { saveToLibrary } from '../api/library';
+import { useMusicSearch } from '../hooks/useMusicSearch';
+import { temRecomendacoes, useRecomendacoes } from '../state/recomendacoes';
+import { displayArtist } from '../lib/artistName';
 import { useSaved } from '../state/saved';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
-import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
@@ -30,7 +29,6 @@ import { TrackRow } from '../components/TrackRow';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
 import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptics';
 import { usePlayer } from '../state/player';
-import { descobrirNovas, flowDoDia } from '../api/descoberta';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 
@@ -44,10 +42,6 @@ export function SearchScreen() {
   const markSaved = useSaved((s) => s.markSaved);
 
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
   const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
   const [history, setHistory] = useState<string[]>([]);
@@ -55,24 +49,14 @@ export function SearchScreen() {
   // Search focus state
   const [isFocused, setIsFocused] = useState(false);
 
-  // Recommendations states
-  const [listenAgain, setListenAgain] = useState<Track[]>([]);
-  const [dailyTop, setDailyTop] = useState<Track[]>([]);
-  const [newReleases, setNewReleases] = useState<Track[]>([]);
-  const [chillFocus, setChillFocus] = useState<Track[]>([]);
-  const [descobrir, setDescobrir] = useState<Track[]>([]);
-  const [flowMix, setFlowMix] = useState<Track[]>([]);
-  const [heavyRotation, setHeavyRotation] = useState<Track[]>([]);
-  const [forgottenFavorites, setForgottenFavorites] = useState<Track[]>([]);
-  const [personalizedArtist, setPersonalizedArtist] = useState<string | null>(null);
-  const [newRecommendations, setNewRecommendations] = useState<Track[]>([]);
-  const [recommendedPlaylists, setRecommendedPlaylists] = useState<YtRecommendedPlaylist[]>([]);
-  const [selectedRecommendPlaylist, setSelectedRecommendPlaylist] = useState<YtRecommendedPlaylist | null>(null);
-  const [loadingRecs, setLoadingRecs] = useState(false);
-  const [becauseArtist, setBecauseArtist] = useState<string | null>(null);
-  const [becauseTracks, setBecauseTracks] = useState<Track[]>([]);
-
-  const requestId = useRef(0);
+  const recs = useRecomendacoes();
+  const { descobrir, ouvirDeNovo: listenAgain, flow: flowMix,
+    maisTocadas: heavyRotation, esquecidas: forgottenFavorites } = recs;
+  const loadingRecs = recs.estado === 'a-carregar';
+  const { results, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
+    void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
+  });
+  useEffect(() => { void recs.carregar(); }, [recs.carregar]);
 
   useEffect(() => {
     getSearchHistory().then(setHistory);
@@ -80,174 +64,6 @@ export function SearchScreen() {
     // para a lista toda, em vez de um checkIsSaved por linha.
     refreshSaved();
   }, [refreshSaved]);
-
-  const loadRecommendations = async () => {
-    setLoadingRecs(true);
-    try {
-      // A biblioteca vem primeiro porque o "Flow do Dia" precisa dela: a
-      // descoberta sai agora da afinidade (a mesma do shuffle inteligente) e
-      // nao do `get_flow_mix`, que escolhia 30% do catalogo ao acaso.
-      const biblioteca = await getLibrary();
-      const [flow, novas, heavy, forgotten, libTracks, trendingRes, chillRes, recentRes, recentArtist, userTopArtists] = await Promise.all([
-        flowDoDia(12, biblioteca).catch(() => [] as Track[]),
-        descobrirNovas(12, biblioteca),
-        getHeavyRotation(12),
-        getForgottenFavorites(12),
-        Promise.resolve(biblioteca),
-        getTrendingMusic(40),
-        searchYouTube('lofi hip hop study focus chill beats'),
-        getProfileRecentlyPlayed(12).catch(() => []),
-        getRecentTopArtist().catch(() => null),
-        getTopArtists(3).catch(() => []),
-      ]);
-      setFlowMix(flow);
-      setDescobrir(novas);
-      setHeavyRotation(heavy);
-      setForgottenFavorites(forgotten);
-      setChillFocus(chillRes.slice(0, 12));
-      
-      const mappedRecent: Track[] = (recentRes ?? []).map((r: any) => ({
-        id: r.id,
-        source: r.source,
-        sourceId: r.sourceId,
-        title: r.title,
-        artist: r.artist,
-        album: null,
-        artworkUrl: r.artworkUrl,
-        durationSeconds: r.durationSeconds,
-      }));
-      setListenAgain(mappedRecent);
-
-      // "Porque Ouviste..." — recomendações baseadas no artista mais ouvido recentemente
-      setBecauseArtist(recentArtist);
-      if (recentArtist) {
-        searchYouTube(`${recentArtist} music`).then((tracks) => {
-          const savedIds = new Set(libTracks.map((t) => t.sourceId));
-          setBecauseTracks(tracks.filter((t) => !savedIds.has(t.sourceId)).slice(0, 12));
-        }).catch(() => {});
-      }
-
-      // Personalização do "Em Alta" e "Também em Alta":
-      // Procura mixes populares dos artistas favoritos do utilizador (que trazem músicas semelhantes e do mesmo género)
-      // e mistura com as tendências gerais
-      let personalizedTracks: Track[] = [];
-      if (userTopArtists && userTopArtists.length > 0) {
-        try {
-          const searches = await Promise.all(
-            userTopArtists.map(artist => searchYouTube(`${artist.name} mix`).catch(() => []))
-          );
-          // Junta as pesquisas de todos os artistas top e baralha
-          const customTracks = searches.flat();
-          const savedIds = new Set(libTracks.map((t) => t.sourceId));
-          // Baralha para dar variedade de géneros similares. Fisher-Yates e
-          // não `sort(() => Math.random() - 0.5)`: esse é enviesado e deixava
-          // os mesmos artistas sempre no topo das recomendações.
-          personalizedTracks = shuffleCandidates(
-            customTracks.filter((t) => !savedIds.has(t.sourceId))
-          );
-        } catch (e) {
-          console.warn('Error fetching personalized trending:', e);
-        }
-      }
-
-      const mixedTrending: Track[] = [];
-      let trendIdx = 0;
-      let persIdx = 0;
-
-      // Intercala faixas personalizadas com faixas em alta gerais
-      while (mixedTrending.length < 30 && (trendIdx < trendingRes.length || persIdx < personalizedTracks.length)) {
-        if (persIdx < personalizedTracks.length) {
-          const t = personalizedTracks[persIdx++];
-          if (!mixedTrending.some(x => x.sourceId === t.sourceId)) {
-            mixedTrending.push(t);
-          }
-        }
-        if (trendIdx < trendingRes.length && mixedTrending.length < 30) {
-          const t = trendingRes[trendIdx++];
-          if (!mixedTrending.some(x => x.sourceId === t.sourceId)) {
-            mixedTrending.push(t);
-          }
-        }
-      }
-
-      const finalTrending = mixedTrending.length >= 10 ? mixedTrending : trendingRes;
-      setDailyTop(finalTrending.slice(0, 12));
-      setNewReleases(finalTrending.slice(12, 25));
-
-      // Extract unique artists from library
-      const artists = Array.from(
-        new Set(libTracks.map((t) => t.artist).filter(Boolean))
-      ) as string[];
-
-      let chosen = '';
-      if (artists.length > 0) {
-        chosen = artists[Math.floor(Math.random() * artists.length)];
-      }
-
-      const queryForTracks = chosen ? `${chosen} popular` : 'Lofi chill beats study';
-      const queryForPlaylists = chosen ? `${chosen} playlist` : 'Chill music playlist';
-      
-      setPersonalizedArtist(chosen || null);
-
-      const [tracksRes, playlistsRes] = await Promise.all([
-        searchYouTube(queryForTracks),
-        searchYouTubePlaylists(queryForPlaylists, 6),
-      ]);
-
-      // Filter out songs already in library to ensure they are new recommendations
-      const savedIds = new Set(libTracks.map((t) => t.sourceId));
-      const filteredTracks = tracksRes
-        .filter((t) => !savedIds.has(t.sourceId))
-        .slice(0, 12);
-
-      setNewRecommendations(filteredTracks);
-      setRecommendedPlaylists(playlistsRes);
-    } catch (e) {
-      console.error('Failed to load recommendations:', e);
-    } finally {
-      setLoadingRecs(false);
-    }
-  };
-
-  useEffect(() => {
-    if (query.trim() === '') {
-      loadRecommendations();
-    }
-  }, [query]);
-
-  // pesquisa com debounce
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setResults([]);
-      setLoading(false);
-      setErrorMsg(null);
-      return;
-    }
-
-    const id = ++requestId.current;
-    setLoading(true);
-    setErrorMsg(null);
-    const timer = setTimeout(async () => {
-      try {
-        const found = await searchYouTube(q);
-        if (requestId.current === id) {
-          setResults(found);
-          if (found.length > 0) {
-            addSearchHistoryEntry(q).then(setHistory);
-          }
-        }
-      } catch (e: any) {
-        if (requestId.current === id) {
-          setResults([]);
-          setErrorMsg(e?.message ?? 'Search failed.');
-        }
-      } finally {
-        if (requestId.current === id) setLoading(false);
-      }
-    }, 550);
-    return () => clearTimeout(timer);
-  }, [query]);
 
   const doClearHistory = () => {
     setHistory([]);
@@ -298,58 +114,7 @@ export function SearchScreen() {
                 {track.title}
               </Text>
               <Text numberOfLines={1} style={styles.cardArtist}>
-                {track.artist ?? 'YouTube'}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  };
-
-  const renderPlaylistRecommendationSection = (
-    title: string,
-    data: YtRecommendedPlaylist[],
-    icon: keyof typeof Ionicons.glyphMap
-  ) => {
-    if (data.length === 0) return null;
-    return (
-      <View style={styles.recsSection}>
-        <View style={styles.sectionHeader}>
-          <Ionicons name={icon} size={18} color={colors.text} />
-          <Text style={styles.sectionTitle}>{title}</Text>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScroll}
-        >
-          {data.map((playlist) => (
-            <Pressable
-              key={playlist.id}
-              onPress={() => {
-                hapticImpact();
-                setSelectedRecommendPlaylist(playlist);
-              }}
-              style={({ pressed }) => [styles.recCard, pressed && { opacity: 0.8 }]}
-            >
-              {playlist.artworkUrl ? (
-                <Image
-                  source={{ uri: playlist.artworkUrl }}
-                  style={styles.cardArt}
-                  contentFit="cover"
-                  transition={200}
-                />
-              ) : (
-                <View style={[styles.cardArt, styles.artFallback]}>
-                  <Ionicons name="albums-outline" size={24} color={colors.textTertiary} />
-                </View>
-              )}
-              <Text numberOfLines={1} style={styles.cardTitle}>
-                {playlist.title}
-              </Text>
-              <Text numberOfLines={1} style={styles.cardArtist}>
-                {playlist.channelTitle ?? 'YouTube'}
+                {displayArtist(track)}
               </Text>
             </Pressable>
           ))}
@@ -376,7 +141,7 @@ export function SearchScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
-            onSubmitEditing={() => Keyboard.dismiss()}
+            onSubmitEditing={() => { pesquisarAgora(); Keyboard.dismiss(); }}
           />
         </View>
 
@@ -432,7 +197,13 @@ export function SearchScreen() {
             contentContainerStyle={{ paddingBottom: bottomPad }}
             showsVerticalScrollIndicator={false}
           >
-            {loadingRecs && flowMix.length === 0 ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Refresh recommendations"
+              disabled={loadingRecs} onPress={() => void recs.carregar(true)}
+              style={{ alignSelf: 'flex-end', padding: spacing.lg, flexDirection: 'row', gap: spacing.sm }}>
+              <Ionicons name="refresh" size={18} color={colors.text} />
+              <Text style={type.caption}>Refresh recommendations</Text>
+            </Pressable>
+            {loadingRecs && !temRecomendacoes(recs) ? (
               <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
             ) : (
               <View>
@@ -440,29 +211,11 @@ export function SearchScreen() {
                     escolhida pelo que ele ouve. */}
                 {renderRecommendationSection('Discover new', descobrir, 'sparkles-outline')}
                 {listenAgain.length > 0 && renderRecommendationSection('Ouvir Novamente', listenAgain, 'time-outline')}
-                {renderRecommendationSection('Em Alta 🔥', dailyTop, 'trending-up-outline')}
-                {newReleases.length > 0 && renderRecommendationSection('Também em Alta', newReleases, 'musical-notes-outline')}
-                {becauseArtist && becauseTracks.length > 0 && renderRecommendationSection(`Porque Ouviste ${becauseArtist}`, becauseTracks, 'heart-outline')}
-                {renderRecommendationSection('Foco & Relaxar', chillFocus, 'cafe-outline')}
                 {renderRecommendationSection('Flow do Dia', flowMix, 'sparkles-outline')}
                 {renderRecommendationSection('Mais Tocadas Recentes', heavyRotation, 'flame-outline')}
                 {renderRecommendationSection('Favoritos Esquecidos', forgottenFavorites, 'heart-dislike-outline')}
                 
-                {/* New Recommendations (not heard yet) */}
-                {renderRecommendationSection(
-                  personalizedArtist ? `Descobrir ${personalizedArtist}` : 'Descobrir Novidades',
-                  newRecommendations,
-                  'compass-outline'
-                )}
-
-                {/* YouTube Playlists Recommendations */}
-                {renderPlaylistRecommendationSection(
-                  personalizedArtist ? `Playlists de ${personalizedArtist}` : 'Playlists Recomendadas',
-                  recommendedPlaylists,
-                  'albums-outline'
-                )}
-                
-                {flowMix.length === 0 && heavyRotation.length === 0 && forgottenFavorites.length === 0 && newRecommendations.length === 0 && (
+                {!temRecomendacoes(recs) && (
                   <Text style={styles.emptyRecsText}>
                     No recommendations yet. Start playing songs and saving them to your library to generate your Flow!
                   </Text>
@@ -568,13 +321,6 @@ export function SearchScreen() {
         onClose={() => setPlaylistTrack(null)}
       />
 
-      <YtPlaylistRecommendationSheet
-        visible={!!selectedRecommendPlaylist}
-        playlistId={selectedRecommendPlaylist?.id ?? null}
-        playlistTitle={selectedRecommendPlaylist?.title ?? null}
-        playlistArtwork={selectedRecommendPlaylist?.artworkUrl ?? null}
-        onClose={() => setSelectedRecommendPlaylist(null)}
-      />
     </Screen>
   );
 }

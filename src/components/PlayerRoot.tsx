@@ -1,3 +1,4 @@
+import { displayArtist } from '../lib/artistName';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -509,14 +510,14 @@ export function PlayerRoot() {
                   delayLongPress={500}
                   style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
                 >
-                  <Text style={styles.trackTitle}>
+                  <Text style={styles.trackTitle} numberOfLines={2}>
                     {current.title}
                   </Text>
                 </Pressable>
                 <Text numberOfLines={1} style={styles.trackArtist}>
                   {downloadProgress != null
                     ? `A descarregar… ${Math.round(downloadProgress * 100)}%`
-                    : current.artist ?? 'YouTube'}
+                    : displayArtist(current)}
                 </Text>
               </View>
               <Pressable
@@ -734,7 +735,7 @@ export function PlayerRoot() {
               <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
                 {downloadProgress != null
                   ? `A descarregar… ${Math.round(downloadProgress * 100)}%`
-                  : current.artist ?? 'YouTube'}
+                  : displayArtist(current)}
               </Text>
             </View>
 

@@ -31,9 +31,17 @@ import { registerBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { useAuth } from './src/state/auth';
 import { usePlayer } from './src/state/player';
 import { useTheme } from './src/state/theme';
+import { useRecomendacoes } from './src/state/recomendacoes';
 
 export default function App() {
   const init = useAuth((s) => s.init);
+  const userId = useAuth((s) => s.session?.user.id);
+
+  useEffect(() => {
+    if (!userId) return;
+    void useRecomendacoes.getState().carregar();
+    return () => useRecomendacoes.getState().limpar();
+  }, [userId]);
 
   useEffect(() => {
     init();

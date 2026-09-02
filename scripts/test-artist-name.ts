@@ -8,6 +8,9 @@ import {
   displayArtist,
   extractArtist,
   limparPrefixoDeUpload,
+  ladosPorConfirmar,
+  registarNomeDoCatalogo,
+  nomesDeConfianca,
   VOCABULARIO_VAZIO,
 } from '../src/lib/artistName.ts';
 
@@ -190,6 +193,30 @@ console.log('\no vocabulario que a app usa por omissao');
   eq('uma leitura vazia nao desaprende', displayArtist({
     source: 'youtube', title: 'poster boy - Zhollis (Perfectly Slowed)', artist: 'Um Canal',
   }), 'Zhollis');
+}
+
+console.log('\nconfirmacao automatica pelo catalogo');
+{
+  const faixas = ['(Slowed)', '(Lyrics)', '(Looped)'].map((versao) => ({
+    source: 'youtube', title: `Tema Desconhecido - Artista Novo ${versao}`, artist: 'Uploads',
+  }));
+  const vocab = aprenderVocabulario(faixas);
+  eq('versoes repetidas nao confirmam um artista', ladosPorConfirmar(faixas[0], vocab).join('|'), 'Tema Desconhecido|Artista Novo');
+  eq('canal oficial dispensa catalogo', ladosPorConfirmar({ ...faixas[0], artist: 'Artista Novo - Topic' }, vocab).length, 0);
+  eq('Spotify dispensa catalogo', ladosPorConfirmar({ ...faixas[0], source: 'spotify' }, vocab).length, 0);
+  registarNomeDoCatalogo('Tema Desconhecido', null);
+  registarNomeDoCatalogo('Artista Novo', 'Artista Novo');
+  aprenderComABiblioteca(faixas);
+  eq('destroca sem canais oficiais', displayArtist(faixas[0]), 'Artista Novo');
+  eq('agrupamento usa a mesma confirmacao', agruparPorArtista(faixas)[0].nome, 'Artista Novo');
+  check('as recomendacoes confiam no artista confirmado', nomesDeConfianca(faixas).has('artista novo'));
+  check('as versoes nao transformam a musica em artista', !nomesDeConfianca(faixas).has('tema desconhecido'));
+  registarNomeDoCatalogo('Grafia Errada', 'Nome Correto');
+  aprenderComABiblioteca([{ source: 'youtube', title: 'Outra Faixa - Grafia Errada (Lyrics)', artist: 'Uploads' }]);
+  eq('confirmacao da faixa corrige tambem a grafia', displayArtist({ source: 'youtube', title: 'Outra Faixa - Grafia Errada (Lyrics)', artist: 'Uploads' }), 'Nome Correto');
+  registarNomeDoCatalogo('Primeiro Artista', 'Primeiro Artista');
+  registarNomeDoCatalogo('Segundo Artista', 'Segundo Artista');
+  eq('dois artistas confirmados preservam a ordem', displayArtist({ source: 'youtube', title: 'Primeiro Artista - Segundo Artista', artist: 'Uploads' }, aprenderVocabulario([])), 'Primeiro Artista');
 }
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);

@@ -92,7 +92,9 @@ drop policy if exists "chat_group_members: remover"     on public.chat_group_mem
 create policy "chat_groups: ver os meus"
   on public.chat_groups for select
   to authenticated
-  using (public.e_membro_do_grupo(id));
+  -- O criador precisa de ler o grupo antes de inserir os primeiros membros.
+  -- Também permite o INSERT ... RETURNING usado pelo cliente nessa fase.
+  using (created_by = auth.uid() or public.e_membro_do_grupo(id));
 
 create policy "chat_groups: criar"
   on public.chat_groups for insert

@@ -1,3 +1,4 @@
+import { displayArtist } from '../lib/artistName';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -166,7 +167,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     return libraryTracks.filter(
       (t) =>
         t.title.toLowerCase().includes(query) ||
-        (t.artist ?? '').toLowerCase().includes(query)
+        displayArtist(t).toLowerCase().includes(query)
     );
   }, [libraryTracks, addSearchQuery]);
 
@@ -454,7 +455,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                     {item.title}
                   </Text>
                   <Text numberOfLines={1} style={type.caption}>
-                    {item.artist ?? 'YouTube'}
+                    {displayArtist(item)}
                   </Text>
                 </View>
                 <Pressable
@@ -718,7 +719,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                           {item.title}
                         </Text>
                         <Text numberOfLines={1} style={type.caption}>
-                          {item.artist || 'Unknown Artist'}
+                          {displayArtist(item)}
                         </Text>
                       </View>
                     </Pressable>

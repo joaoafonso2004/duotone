@@ -1,3 +1,4 @@
+import { displayArtist } from '../../lib/artistName';
 /**
  * Perfil e "A tua escuta".
  *
@@ -223,7 +224,7 @@ export function ProfileStat({ icon, label, value, wide = false }: { icon: keyof 
 
 export function ProfileHistory({ entries, ranked = false, onPlay, empty }: { entries: ProfilePlayEntry[]; ranked?: boolean; onPlay: (entry: ProfilePlayEntry) => void; empty: string }) {
   if (!entries.length) return <View style={styles.profileHistoryEmpty}><Ionicons name="musical-notes-outline" size={24} color={desktop.dim} /><Text style={styles.profileHistoryEmptyText}>{empty}</Text></View>;
-  return <View style={styles.profileHistory}>{entries.map((entry, index) => <Pressable key={`${ranked ? 'm' : 'r'}:${entry.source}:${entry.sourceId}`} onPress={() => onPlay(entry)} style={({ hovered, focused }) => [styles.profileHistoryRow, (hovered || focused) && styles.profileHistoryHover]}>{ranked && <Text style={styles.profileRank}>{index + 1}</Text>}<Artwork track={playEntryToTrack(entry)} size={42} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.profileTrackTitle}>{entry.title}</Text><Text numberOfLines={1} style={styles.profileTrackArtist}>{entry.artist || 'YouTube'}</Text></View>{ranked ? <View style={styles.profileCount}><Ionicons name="play" size={9} color={desktop.muted} /><Text style={styles.profileCountText}>{entry.count}</Text></View> : entry.lastPlayed ? <Text style={styles.profileRecentTime}>{relativeTime(entry.lastPlayed)}</Text> : null}</Pressable>)}</View>;
+  return <View style={styles.profileHistory}>{entries.map((entry, index) => <Pressable key={`${ranked ? 'm' : 'r'}:${entry.source}:${entry.sourceId}`} onPress={() => onPlay(entry)} style={({ hovered, focused }) => [styles.profileHistoryRow, (hovered || focused) && styles.profileHistoryHover]}>{ranked && <Text style={styles.profileRank}>{index + 1}</Text>}<Artwork track={playEntryToTrack(entry)} size={42} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.profileTrackTitle}>{entry.title}</Text><Text numberOfLines={1} style={styles.profileTrackArtist}>{displayArtist(entry)}</Text></View>{ranked ? <View style={styles.profileCount}><Ionicons name="play" size={9} color={desktop.muted} /><Text style={styles.profileCountText}>{entry.count}</Text></View> : entry.lastPlayed ? <Text style={styles.profileRecentTime}>{relativeTime(entry.lastPlayed)}</Text> : null}</Pressable>)}</View>;
 }
 
 export function AvatarDialog({ open, value, onChange, onClose }: { open: boolean; value: AvatarChoice; onChange: (value: AvatarChoice) => void; onClose: () => void }) {

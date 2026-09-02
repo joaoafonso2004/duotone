@@ -1,3 +1,4 @@
+import { displayArtist } from '../lib/artistName';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -135,7 +136,7 @@ export function SongsScreen() {
     return tracks.filter(
       (t) =>
         t.title.toLowerCase().includes(query) ||
-        (t.artist ?? '').toLowerCase().includes(query)
+        displayArtist(t).toLowerCase().includes(query)
     );
   }, [tracks, searchQuery]);
 

@@ -32,7 +32,7 @@ type Recomendacoes = {
   maisTocadas: Track[];
   esquecidas: Track[];
   estado: EstadoDasRecomendacoes;
-  /** Quando ficaram prontas. Serve para não as refazer a cada arranque. */
+  /** Quando ficaram prontas nesta sessão. */
   carregadoEm: number;
   /**
    * Carrega as prateleiras. Sem `forcar`, não faz nada se já estiverem
@@ -40,22 +40,15 @@ type Recomendacoes = {
    * arranque da app e a própria página) não duplica o trabalho.
    */
   carregar: (forcar?: boolean) => Promise<void>;
+  limpar: () => void;
 };
 
 /** Quantas faixas por prateleira. */
 const POR_PRATELEIRA = 14;
 
-/**
- * Quanto tempo se aproveitam as de antes.
- *
- * Não é uma cache de rede — as chamadas lá dentro têm as suas. É para o caso
- * de a app ser aberta e fechada seguidas vezes: refazer isto de cada vez não
- * mudava as recomendações e gastava a ligação.
- */
-const VALIDADE_MS = 30 * 60 * 1000;
-
 /** Impede que duas chamadas ao mesmo tempo façam o trabalho a dobrar. */
 let emCurso: Promise<void> | null = null;
+let geracao = 0;
 
 export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
   descobrir: [],
@@ -65,13 +58,16 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
   esquecidas: [],
   estado: 'vazio',
   carregadoEm: 0,
+  limpar: () => {
+    geracao++;
+    emCurso = null;
+    set({ descobrir: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], estado: 'vazio', carregadoEm: 0 });
+  },
 
   carregar: async (forcar = false) => {
-    const { estado, carregadoEm } = get();
-    if (!forcar) {
-      if (emCurso) return emCurso;
-      if (estado === 'pronto' && Date.now() - carregadoEm < VALIDADE_MS) return;
-    }
+    if (emCurso) return emCurso;
+    if (!forcar && get().estado === 'pronto') return;
+    const atual = geracao;
 
     set({ estado: 'a-carregar' });
     const semFalhar = <T,>(p: Promise<T[]>) => p.catch(() => [] as T[]);
@@ -86,6 +82,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
       semFalhar(getHeavyRotation(POR_PRATELEIRA)),
       semFalhar(getForgottenFavorites(POR_PRATELEIRA)),
     ]).then(([recentes, [novas, f], maisTocadas, esquecidas]) => {
+      if (atual !== geracao) return;
       set({
         descobrir: novas,
         // `getProfileRecentlyPlayed` devolve ProfilePlayEntry, sem `album`.
@@ -99,9 +96,9 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
     }).catch(() => {
       // Nem isto devia acontecer (cada parte já falha sozinha), mas ficar
       // preso em "a-carregar" para sempre seria pior do que dizer que não há.
-      set({ estado: 'pronto', carregadoEm: Date.now() });
+      if (atual === geracao) set({ estado: 'pronto', carregadoEm: Date.now() });
     }).finally(() => {
-      emCurso = null;
+      if (atual === geracao) emCurso = null;
     });
 
     emCurso = trabalho;

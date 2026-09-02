@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { aprenderComABiblioteca } from '../lib/artistName';
+import { confirmarArtistas } from './artistNames';
 import type { Track } from '../types';
 
 function rowToTrack(row: any): Track {
@@ -154,7 +154,9 @@ async function getLikedSongsForUser(userId: string): Promise<Track[]> {
 
 /** Apenas as faixas que o utilizador guardou com o coracao. */
 export async function getLikedSongs(): Promise<Track[]> {
-  return getLikedSongsForUser(await currentUserId());
+  const faixas = await getLikedSongsForUser(await currentUserId());
+  await confirmarArtistas(faixas);
+  return faixas;
 }
 
 export async function getLibrary(): Promise<Track[]> {
@@ -198,7 +200,7 @@ export async function getLibrary(): Promise<Track[]> {
   // com um vocabulario -- e a app chamava-o sem ele em 17 dos 19 sitios, o que
   // deixava essa maquinaria toda escrita e morta. A biblioteca e o unico sitio
   // por onde passam faixas que cheguem para aprender.
-  aprenderComABiblioteca(faixas);
+  await confirmarArtistas(faixas);
   return faixas;
 }
 

@@ -170,6 +170,24 @@ export const VOCABULARIO_VAZIO: Vocabulario = {
 
 export type FaixaParaAprender = { source?: string; title: string; artist: string | null };
 
+/** Respostas do catálogo, preenchidas ao ler a biblioteca, nunca no desenho. */
+const nomesDoCatalogo = new Map<string, string | null>();
+
+export function registarNomeDoCatalogo(procurado: string, confirmado: string | null): void {
+  nomesDoCatalogo.set(chaveDeArtista(procurado), confirmado);
+  if (confirmado) nomesDoCatalogo.set(chaveDeArtista(confirmado), confirmado);
+}
+
+/** Só consulta títulos ambíguos; um canal oficial ou um lado conhecido já resolve. */
+export function ladosPorConfirmar(faixa: FaixaParaAprender, vocabulario: Vocabulario): string[] {
+  if ((faixa.source && faixa.source !== 'youtube') || nomeDeFonteFiavel(faixa.artist)) return [];
+  const m = limparPrefixoDeUpload(faixa.title).match(/^(.{2,60}?)\s+[-–—]\s+(.+)$/);
+  if (!m) return [];
+  const lados = [m[1], m[2]].map((s) => artistaPrincipal(clean(semSufixoDeVersao(s))));
+  if (lados.some((s) => conhecidoComSeguranca(s, vocabulario))) return [];
+  return lados.filter((s) => s.length >= 2 && s.length <= 60);
+}
+
 /** Um canal `- Topic` é gerado pelo YouTube a partir dos metadados da
  * editora, e um VEVO é oficial. São as duas fontes em que o nome do artista
  * vem escrito como deve ser. */
@@ -254,6 +272,13 @@ export function aprenderVocabulario(faixas: readonly FaixaParaAprender[]): Vocab
     return saida;
   };
 
+  for (const [chave, nome] of nomesDoCatalogo) {
+    if (!nome) continue;
+    for (const k of [chave, chaveDeArtista(nome)]) {
+      porChave.set(k, nome);
+      fiaveis.set(k, nome);
+    }
+  }
   return {
     porChave,
     porChaveCompacta: compactar(porChave),
@@ -593,6 +618,9 @@ export function nomesDeConfianca(
     if (!nome || nome === 'Unknown artist') continue;
     const k = chaveDeArtista(nome);
     if (!k) continue;
+    // A resposta do catálogo prevalece sobre versões repetidas do mesmo título.
+    if (nomesDoCatalogo.get(k) === null) continue;
+    if (nomesDoCatalogo.get(k)) confianca.add(k);
     const titulos = titulosPorArtista.get(k) ?? new Set<string>();
     titulos.add((f.title ?? '').trim().toLowerCase());
     titulosPorArtista.set(k, titulos);

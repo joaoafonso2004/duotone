@@ -10,6 +10,7 @@ import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { useSaved } from '../state/saved';
 import { useRecomendacoes } from '../state/recomendacoes';
+import { useDesktopNotifications } from '../hooks/useDesktopNotifications';
 import { fetchListeningStats, type StatsResult } from '../api/listeningStats';
 import { formatListeningTime, type StatsPeriod, type TimelineBucket } from '../lib/listeningStats';
 import { HandoffBanner } from '../components/HandoffBanner';
@@ -40,7 +41,7 @@ import {
 import {
   acceptFriendRequest, archiveInboxItem, declineOrRemoveFriendship,
   getFriendCount, getFriendships, getInboxItems, searchProfiles,
-  shareItem, publishPresence, clearPresence, sendFriendRequest, getChatMessages, type Friendship, type SharedItem
+  shareComGrupo, getGrupos, type ChatGroup, shareItem, publishPresence, clearPresence, sendFriendRequest, getChatMessages, type Friendship, type SharedItem
 } from '../api/social';
 import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
 import { historico, limparHistorico, relatorio, resumo } from '../lib/playbackDiagnostics';
@@ -84,6 +85,8 @@ function AuthDesktop() {
 
 function DesktopShell() {
   const [route, setRoute] = useState<Route>({ name: 'search' }); const history = useRef<Route[]>([]); const [toast, setToast] = useState('');
+  const abrirSocial = useCallback(() => setRoute({ name: 'social' }), []);
+  useDesktopNotifications(abrirSocial);
   const [trackMenu, setTrackMenu] = useState<Track | null>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
   const [playlistDialog, setPlaylistDialog] = useState(false);
@@ -93,6 +96,8 @@ function DesktopShell() {
   // VARIOS destinatarios, nao um. Mandar a mesma musica a tres pessoas
   // eram tres idas ao dialogo; o `shareItem` ja aceita uma lista e
   // insere-as de uma vez.
+  const [shareGroups, setShareGroups] = useState<ChatGroup[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [shareMessage, setShareMessage] = useState('');
   const [loadingFriends, setLoadingFriends] = useState(false);
@@ -265,7 +270,7 @@ function DesktopShell() {
       if (currentTrack) {
         navigator.mediaSession.metadata = new MediaMetadata({
           title: currentTrack.title,
-          artist: currentTrack.artist || 'YouTube',
+          artist: displayArtist(currentTrack),
           album: currentTrack.album || 'Duotone',
           artwork: currentTrack.artworkUrl ? [{ src: currentTrack.artworkUrl }] : []
         });
@@ -358,13 +363,16 @@ function DesktopShell() {
 
   const openShareDialog = async (target: ShareTarget) => {
     setShareTarget(target);
+    setSelectedGroups([]);
+    setShareGroups([]);
     setSelectedFriends([]);
     setShareMessage('');
     setShareDialog(true);
     setLoadingFriends(true);
     try {
-      const list = await getFriendships();
+      const [list, groups] = await Promise.all([getFriendships(), getGrupos()]);
       setFriends(list.filter(f => f.status === 'accepted'));
+      setShareGroups(groups);
     } catch {
       setFriends([]);
     } finally {
@@ -373,20 +381,26 @@ function DesktopShell() {
   };
 
   const sendShare = async () => {
-    if (!shareTarget || selectedFriends.length === 0) return;
+    if (!shareTarget || sharing || selectedFriends.length + selectedGroups.length === 0) return;
     setSharing(true);
     try {
-      await shareItem(selectedFriends, shareTarget.itemType, shareTarget.item, shareMessage);
+      const envios = [
+        ...(selectedFriends.length ? [{ tipo: 'amigos', id: '', enviar: () => shareItem(selectedFriends, shareTarget.itemType, shareTarget.item, shareMessage) }] : []),
+        ...selectedGroups.map((id) => ({ tipo: 'grupo', id, enviar: () => shareComGrupo(id, shareTarget.itemType, shareTarget.item, shareMessage) })),
+      ];
+      const resultados = await Promise.allSettled(envios.map((e) => e.enviar()));
+      const falhas = envios.filter((_, i) => resultados[i].status === 'rejected');
+      // Só ficam selecionados os destinos falhados: repetir não duplica os envios feitos.
+      setSelectedFriends(falhas.some((e) => e.tipo === 'amigos') ? selectedFriends : []);
+      setSelectedGroups(falhas.filter((e) => e.tipo === 'grupo').map((e) => e.id));
+      if (falhas.length) {
+        notify('Some shares failed. Retry the selected recipients.');
+        return;
+      }
       setShareDialog(false);
       setShareTarget(null);
       setShareMessage('');
-      setSelectedFriends([]);
-      const oQue = shareTarget.itemType === 'playlist' ? 'Playlist' : 'Song';
-      notify(selectedFriends.length === 1
-        ? `${oQue} shared successfully.`
-        : `${oQue} shared with ${selectedFriends.length} friends.`);
-    } catch (e: any) {
-      notify(e?.message || `Could not share ${shareTarget.itemType}.`);
+      notify(shareTarget.itemType === 'playlist' ? 'Playlist shared successfully.' : 'Song shared successfully.');
     } finally {
       setSharing(false);
     }
@@ -417,7 +431,7 @@ function DesktopShell() {
             <Artwork track={trackMenu} size={48} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 14, fontWeight: '700' }}>{trackMenu.title}</Text>
-              <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 12 }}>{trackMenu.artist || 'Unknown Artist'}</Text>
+              <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 12 }}>{displayArtist(trackMenu)}</Text>
             </View>
           </View>
           <Pressable onPress={() => { play(trackMenu); setTrackMenuOpen(false); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="play-circle-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Play now</Text></Pressable>
@@ -428,7 +442,7 @@ function DesktopShell() {
               YouTube e o CANAL: com o campo cru abria-se a pagina de um canal
               de uploads em vez da do artista. */}
           <Pressable onPress={() => { setTrackMenuOpen(false); navigate({ name: 'artist', value: displayArtist(trackMenu) }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="mic-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>View artist</Text></Pressable>
-          <Pressable onPress={() => { setTrackMenuOpen(false); openShareDialog({ itemType: 'track', item: trackMenu, name: trackMenu.title }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="share-social-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Share with a friend…</Text></Pressable>
+          <Pressable onPress={() => { setTrackMenuOpen(false); openShareDialog({ itemType: 'track', item: trackMenu, name: trackMenu.title }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="share-social-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Share with friends or groups…</Text></Pressable>
           {route.name === 'playlist' && (
             <Pressable onPress={removeFromCurrentPlaylist} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="trash-outline" size={18} color="#EF4444" /><Text style={[styles.destinationText, { color: '#EF4444' }]}>Remove from this playlist</Text></Pressable>
           )}
@@ -442,7 +456,7 @@ function DesktopShell() {
     </Dialog>
 
     {/* SHARE DIALOG */}
-    <Dialog open={shareDialog} title={shareTarget?.itemType === 'playlist' ? 'Share playlist' : 'Share song'} onClose={() => { setShareDialog(false); setSelectedFriends([]); }}>
+    <Dialog open={shareDialog} title={shareTarget?.itemType === 'playlist' ? 'Share playlist' : 'Share song'} onClose={() => { if (!sharing) { setShareDialog(false); setSelectedFriends([]); setSelectedGroups([]); } }}>
       {shareTarget && (
         <View style={{ gap: 12 }}>
           <Text numberOfLines={1} style={styles.dialogBody}>Sharing “{shareTarget.name}”</Text>
@@ -454,6 +468,7 @@ function DesktopShell() {
                 // escolhem-se quantos se quiser.
                 <Pressable
                   key={f.friendId}
+                  disabled={sharing}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: selectedFriends.includes(f.friendId) }}
                   onPress={() => setSelectedFriends((antes) => antes.includes(f.friendId)
@@ -472,18 +487,30 @@ function DesktopShell() {
             </View>
           ) : <Text style={styles.dialogBody}>No friends found. Go to the Social page to add friends.</Text>}
 
-          {friends.length > 0 && (
+          {shareGroups.length > 0 && <>
+            <Text style={styles.formLabel}>SELECT GROUPS</Text>
+            <ScrollView style={{ maxHeight: 180 }} contentContainerStyle={{ gap: 6 }}>
+              {shareGroups.map((g) => <Pressable key={g.id} disabled={sharing}
+                accessibilityRole="checkbox" accessibilityState={{ checked: selectedGroups.includes(g.id) }}
+                onPress={() => setSelectedGroups((antes) => antes.includes(g.id) ? antes.filter((id) => id !== g.id) : [...antes, g.id])}
+                style={[styles.destination, selectedGroups.includes(g.id) && { borderColor: theme.color, backgroundColor: theme.soft }]}>
+                <Ionicons name={selectedGroups.includes(g.id) ? 'checkbox' : 'square-outline'} size={18} color={theme.color} />
+                <Text style={styles.destinationText}>{g.name} · {g.membros.length} members</Text>
+              </Pressable>)}
+            </ScrollView>
+          </>}
+          {friends.length + shareGroups.length > 0 && (
             <>
               <Text style={styles.formLabel}>MESSAGE (OPTIONAL)</Text>
               <Field placeholder={`Add a note about this ${shareTarget.itemType}…`} value={shareMessage} onChangeText={setShareMessage} />
               <View style={styles.dialogActions}>
-                <Button secondary onPress={() => setShareDialog(false)}>Cancel</Button>
-                <Button onPress={sendShare} disabled={selectedFriends.length === 0 || sharing}>{
+                <Button secondary disabled={sharing} onPress={() => setShareDialog(false)}>Cancel</Button>
+                <Button onPress={sendShare} disabled={selectedFriends.length + selectedGroups.length === 0 || sharing}>{
                   sharing ? 'Sharing…'
-                    : selectedFriends.length > 1
+                    : selectedFriends.length + selectedGroups.length > 1
                       // Diz quantos: quem escolheu cinco pessoas quer ver o cinco
                       // antes de carregar, e nao depois no aviso.
-                      ? `Share with ${selectedFriends.length}`
+                      ? `Share with ${selectedFriends.length + selectedGroups.length}`
                       : shareTarget.itemType === 'playlist' ? 'Share Playlist' : 'Share Song'
                 }</Button>
               </View>

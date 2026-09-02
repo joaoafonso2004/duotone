@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, net, protocol, session, shell, Tray, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, net, protocol, session, shell, Tray, globalShortcut, Notification } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -7,6 +7,16 @@ let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 
+// Um arranque automático não pode criar um segundo leitor em paralelo.
+if (!app.requestSingleInstanceLock()) app.quit();
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+});
+
 protocol.registerSchemesAsPrivileged([{
   scheme: 'duotone',
   privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
@@ -14,6 +24,58 @@ protocol.registerSchemesAsPrivileged([{
 
 const http = require('node:http');
 const fs = require('node:fs');
+
+const STARTUP_ARGS = ['--duotone-auto-start'];
+function startupMode() {
+  try {
+    const guardado = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'windows-startup.json'), 'utf8'));
+    return guardado.mode === 'window' ? 'window' : 'tray';
+  } catch { return 'tray'; }
+}
+function getStartup() {
+  const available = process.platform === 'win32' && app.isPackaged;
+  const settings = available ? app.getLoginItemSettings({ path: process.execPath, args: STARTUP_ARGS }) : null;
+  return { available, enabled: !!settings?.openAtLogin && settings.executableWillLaunchAtLogin !== false, mode: startupMode() };
+}
+function daJanelaPrincipal(event) {
+  return mainWindow && event.sender === mainWindow.webContents
+    && event.senderFrame === mainWindow.webContents.mainFrame;
+}
+ipcMain.handle('startup:get', (event) => daJanelaPrincipal(event) ? getStartup() : null);
+ipcMain.handle('startup:set', (event, enabled, mode) => {
+  if (!daJanelaPrincipal(event) || typeof enabled !== 'boolean' || !['window', 'tray'].includes(mode)) throw new Error('Pedido inválido.');
+  if (!getStartup().available) throw new Error('Disponível na aplicação instalada no Windows.');
+  fs.writeFileSync(path.join(app.getPath('userData'), 'windows-startup.json'), JSON.stringify({ mode }));
+  app.setLoginItemSettings({ openAtLogin: enabled, path: process.execPath, args: STARTUP_ARGS });
+  return getStartup();
+});
+
+// Só a janela principal pode pedir notificações; o iframe do YouTube não pode.
+const notificacoes = new Map();
+ipcMain.on('notification:message', (event, message) => {
+  if (!daJanelaPrincipal(event) || !Notification.isSupported() || mainWindow.isFocused()) return;
+  if (!message || typeof message.id !== 'string' || typeof message.title !== 'string' || typeof message.body !== 'string') return;
+  if (notificacoes.has(message.id)) return;
+  const notification = new Notification({
+    title: message.title.slice(0, 100), body: message.body.slice(0, 300),
+    icon: path.join(__dirname, '..', 'logo_windows.png'),
+  });
+  notificacoes.set(message.id, notification);
+  if (notificacoes.size > 100) {
+    const primeiro = notificacoes.keys().next().value;
+    notificacoes.get(primeiro)?.close();
+    notificacoes.delete(primeiro);
+  }
+  notification.on('click', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.webContents.send('notification:open');
+  });
+  notification.on('failed', (_event, error) => console.warn('Falha na notificação:', error));
+  notification.show();
+});
 
 let localServer = null;
 const SERVER_PORT = 18081;
@@ -358,7 +420,9 @@ function createWindow() {
     },
   });
 
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    if (!process.argv.includes('--duotone-auto-start') || startupMode() === 'window') win.show();
+  });
   win.on('maximize', () => sendWindowState(win));
   win.on('unmaximize', () => sendWindowState(win));
   win.on('close', (event) => {
@@ -433,6 +497,7 @@ app.on('will-quit', () => {
 });
 
 app.whenReady().then(() => {
+  app.setAppUserModelId('com.joao.duotone.desktop');
   Menu.setApplicationMenu(null);
   if (!isDev) startLocalServer();
   configurarCaptura(session.defaultSession);

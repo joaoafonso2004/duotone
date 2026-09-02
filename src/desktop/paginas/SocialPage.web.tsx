@@ -63,6 +63,9 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
   const [nomeDoGrupo, setNomeDoGrupo] = useState('');
   const [membrosEscolhidos, setMembrosEscolhidos] = useState<string[]>([]);
   const [aCriarGrupo, setACriarGrupo] = useState(false);
+  const [grupoParaMembros, setGrupoParaMembros] = useState<ChatGroup | null>(null);
+  const [novosMembros, setNovosMembros] = useState<string[]>([]);
+  const [aAdicionar, setAAdicionar] = useState(false);
 
   const abrirConversa = async (f: Friendship) => {
     setConversa({ tipo: 'amigo', amigo: f });
@@ -178,6 +181,23 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
     } finally {
       setACriarGrupo(false);
     }
+  };
+
+  const adicionarMembros = async () => {
+    if (!grupoParaMembros || aAdicionar || novosMembros.length === 0) return;
+    setAAdicionar(true);
+    try {
+      await acrescentarAoGrupo(grupoParaMembros.id, novosMembros);
+      const gs = await getGrupos();
+      setGrupos(gs);
+      const atualizado = gs.find((g) => g.id === grupoParaMembros.id);
+      if (atualizado) setConversa({ tipo: 'grupo', grupo: atualizado });
+      setGrupoParaMembros(null);
+      setNovosMembros([]);
+      notify('Members added.');
+    } catch (e: any) {
+      notify(e?.message || 'Could not add members.');
+    } finally { setAAdicionar(false); }
   };
 
   const sairGrupo = async (g: ChatGroup) => {
@@ -526,12 +546,15 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
         title={!conversa ? 'Chat'
           : conversa.tipo === 'amigo' ? `Chat with ${conversa.amigo.name}`
           : `${conversa.grupo.name} · ${conversa.grupo.membros.length} members`}
-        onClose={() => setConversa(null)}
+        onClose={() => { if (!grupoParaMembros) setConversa(null); }}
         width={500}
       >
         {conversa && (
           <View style={{ height: 420, justifyContent: 'space-between' }}>
-            <ScrollView 
+            {conversa.tipo === 'grupo' && <Button secondary icon="person-add-outline" onPress={() => {
+              setNovosMembros([]); setGrupoParaMembros(conversa.grupo);
+            }}>Add members</Button>}
+            <ScrollView
               ref={chatScrollRef}
               contentContainerStyle={{ gap: 10, paddingVertical: 10 }}
               style={{ flex: 1, marginBottom: 12 }}
@@ -603,6 +626,33 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
           </View>
         )}
       </Dialog>
+      <Dialog open={!!grupoParaMembros} title={`Add members · ${grupoParaMembros?.name ?? ''}`}
+        onClose={() => { if (!aAdicionar) setGrupoParaMembros(null); }}>
+        <View style={{ gap: ESP.md }}>
+          <Text style={styles.dialogBody}>Choose friends to join this group.</Text>
+          <ScrollView style={{ maxHeight: 260 }} contentContainerStyle={{ gap: 6 }}>
+            {activeFriends.filter((f) => !grupoParaMembros?.membros.some((m) => m.id === f.friendId)).map((f) => {
+              const escolhido = novosMembros.includes(f.friendId);
+              return <Pressable key={f.friendId} disabled={aAdicionar} accessibilityRole="checkbox"
+                accessibilityState={{ checked: escolhido }}
+                onPress={() => setNovosMembros((antes) => escolhido ? antes.filter((id) => id !== f.friendId) : [...antes, f.friendId])}
+                style={[styles.destination, escolhido && { borderColor: COR.texto }]}>
+                <Ionicons name={escolhido ? 'checkbox' : 'square-outline'} size={18} color={COR.texto} />
+                <Text style={styles.destinationText}>{f.name} (@{f.username})</Text>
+              </Pressable>;
+            })}
+          </ScrollView>
+          {activeFriends.every((f) => grupoParaMembros?.membros.some((m) => m.id === f.friendId)) &&
+            <Text style={styles.dialogBody}>All your friends are already in this group.</Text>}
+          <View style={styles.dialogActions}>
+            <Button secondary disabled={aAdicionar} onPress={() => setGrupoParaMembros(null)}>Cancel</Button>
+            <Button disabled={aAdicionar || novosMembros.length === 0} onPress={() => void adicionarMembros()}>
+              {aAdicionar ? 'Adding…' : `Add ${novosMembros.length} ${novosMembros.length === 1 ? 'member' : 'members'}`}
+            </Button>
+          </View>
+        </View>
+      </Dialog>
+
     </Page>
   );
 }

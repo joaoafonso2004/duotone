@@ -148,7 +148,7 @@ async function faixasParaProcurar(
   const listas: ArtistaDoCatalogo[][] = [];
   const pesos: number[] = [];
   for (const alvo of alvos) {
-    const vizinhanca = await vizinhancaDe(alvo.nome);
+    const vizinhanca = await vizinhancaDe(alvo.nome).catch(() => null);
     if (!vizinhanca) continue; // não é um artista, ou o catálogo não respondeu
     if (vizinhanca.semelhantes.length === 0) continue;
     listas.push(vizinhanca.semelhantes);

@@ -25,6 +25,8 @@ yarn-error.*
 
 # Scripts de teste locais: tocam a base de dados com credenciais reais.
 test-*.mjs
+# Regressões isoladas, sem credenciais nem chamadas à base de dados real.
+!scripts/test-api-regressions.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

@@ -17,6 +17,7 @@ import {
   getShowRewindButton, getShowTrackDuration,
   setShowRewindButton, setShowTrackDuration, setShowTrackDurationCache,
   setAutoplayRadio as persistAutoplayRadio,
+  getNotificationsEnabled, setNotificationsEnabled,
 } from '../../lib/prefs';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../state/auth';
@@ -29,6 +30,20 @@ import { BarraVelocidade } from '../BarraVelocidade.web';
 import { newerVersion } from './comum.web';
 
 export function SettingsPage({ notify }: { notify: (s: string) => void }) {
+  const [notifications, setNotifications] = useState(true);
+  const [startup, setStartup] = useState<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean } | null>(null);
+  const [savingStartup, setSavingStartup] = useState(false);
+  useEffect(() => {
+    void getNotificationsEnabled().then(setNotifications);
+    void window.duotoneDesktop?.getStartup?.().then(setStartup).catch(() => {});
+  }, []);
+  const changeStartup = async (enabled: boolean, mode: 'window' | 'tray') => {
+    if (savingStartup || !window.duotoneDesktop?.setStartup) return;
+    setSavingStartup(true);
+    try { setStartup(await window.duotoneDesktop.setStartup(enabled, mode)); }
+    catch (e: any) { notify(e?.message || 'Could not change Windows startup.'); }
+    finally { setSavingStartup(false); }
+  };
   const [duration, setDurationState] = useState(true);
   const [rewind, setRewindState] = useState(false);
    const [opacity, setOpacity] = useState('0.72');
@@ -173,6 +188,16 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
     <Page title="Settings" subtitle="Desktop playback, appearance, and account preferences.">
       <ContentScroll>
         <View style={styles.settingsGrid}>
+          {window.duotoneDesktop?.notifyMessage && <SettingsCard icon="desktop-outline" title="Windows">
+            <ToggleLine label="Message notifications" description="Show a Windows notification when a message arrives while you are away."
+              value={notifications} onChange={(v) => { setNotifications(v); void setNotificationsEnabled(v); }} />
+            {startup?.available && <>
+              <ToggleLine label="Start with Windows" description="Open Duotone automatically when you sign in to Windows."
+                value={startup.enabled} onChange={(v) => void changeStartup(v, startup.mode)} />
+              <ChoiceLine label="When Windows starts" value={startup.mode} choices={[[ 'tray', 'System tray' ], [ 'window', 'Open window' ]]}
+                onChange={(v) => void changeStartup(startup.enabled, v as 'window' | 'tray')} />
+            </>}
+          </SettingsCard>}
           <SettingsCard icon="play-circle-outline" title="Playback">
             <ToggleLine label="Show track duration" description="Display a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />
             <ToggleLine label="Autoplay radio" description="When the queue ends, keep playing similar music instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} />
@@ -245,6 +270,6 @@ export function SettingLine({ label, value }: { label: string; value: string }) 
 
 export function SettingAction({ label, onPress, danger = false }: { label: string; onPress: () => void; danger?: boolean }) { return <Pressable onPress={onPress} style={({ hovered }) => [styles.settingLine, hovered && styles.settingHover]}><Text style={[styles.settingLabel, danger && { color: desktop.danger }]}>{label}</Text><Ionicons name="chevron-forward" size={15} color={desktop.dim} /></Pressable>; }
 
-export function ToggleLine({ label, description, value, onChange }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void }) { return <View style={styles.settingLine}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text></View><Switch value={value} onValueChange={onChange} trackColor={{ false: COR.elevado, true: COR.metalClaro }} thumbColor={COR.fundo} /></View>; }
+export function ToggleLine({ label, description, value, onChange }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void }) { return <View style={styles.settingLine}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text></View><Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ false: COR.elevado, true: COR.metalClaro }} thumbColor={COR.fundo} /></View>; }
 
 export function ChoiceLine({ label, description, value, choices, onChange }: { label: string; description?: string; value: string; choices: [string, string][]; onChange: (v: string) => void }) { return <View style={[styles.settingLine, { alignItems: 'flex-start' }]}><View style={{ flex: 1, marginTop: 8, paddingRight: ESP.md }}><Text style={styles.settingLabel}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}</View><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: desktop.text }]}>{text}</Text></Pressable>)}</View></View>; }

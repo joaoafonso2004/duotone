@@ -17,6 +17,7 @@ import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist } from '../../lib/artistName';
+import { useMusicSearch } from '../../hooks/useMusicSearch';
 import { usePlayer } from '../../state/player';
 import { temRecomendacoes, useRecomendacoes } from '../../state/recomendacoes';
 import { useSaved } from '../../state/saved';
@@ -30,7 +31,7 @@ import { COR, ESP, FONT, RAIO, TIPO } from '../tokens.web';
 import { useLibraryData } from './comum.web';
 
 export function SearchPage({ play, notify, more }: CommonPageProps) {
-  const [query, setQuery] = useState(''); const [results, setResults] = useState<Track[]>([]); const [history, setHistory] = useState<string[]>([]); const [loading, setLoading] = useState(false); const input = useRef<any>(null);
+  const [query, setQuery] = useState(''); const [history, setHistory] = useState<string[]>([]); const input = useRef<any>(null);
   // **As recomendacoes vivem fora desta pagina** (`state/recomendacoes.ts`).
   // Estavam num `useState` daqui, e esta pagina desmonta ao mudar de
   // separador: ir aos Artists e voltar recomecava o "Preparing
@@ -43,14 +44,19 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
   useEffect(() => { void recs.carregar(); }, []);
   // Conjunto das faixas já guardadas, para marcar os resultados com um coração.
   useEffect(() => { useSaved.getState().refresh(); getSearchHistory().then(setHistory); const focus = () => input.current?.focus(); window.addEventListener('duotone:focus-search', focus); return () => window.removeEventListener('duotone:focus-search', focus); }, []);
-  const run = async (q = query) => { const clean = q.trim(); if (!clean) return; setQuery(clean); setLoading(true); try { const [items, next] = await Promise.all([searchYouTube(clean), addSearchHistoryEntry(clean)]); setResults(items); setHistory(next); } catch (e: any) { notify(e?.message || 'Search failed.'); } finally { setLoading(false); } };
+  const { results, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
+    void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
+  });
+  const run = (q = query) => { setQuery(q); pesquisarAgora(); };
   return <Page title="Search" subtitle="Search YouTube and add music to your Duotone library."
     action={<IconButton name="refresh" label="Refresh recommendations"
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} />}>
     <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
-    {!results.length && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
+    {query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
     <ContentScroll>{loading ? <View style={{ height: 320 }}><Loading /></View>
       : results.length ? <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, results)} onMore={more} />
+      : errorMsg ? <Empty icon="cloud-offline-outline" title="Search failed" body={errorMsg} />
+      : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
       : temRecomendacoes(recs) ? <>
           <Shelf titulo="Discover new" nota="music you don't have yet, based on what you listen to" tracks={descobrir} onPlay={play} onMore={more} />
           <Shelf titulo="Listen again" tracks={ouvirDeNovo} onPlay={play} onMore={more} />

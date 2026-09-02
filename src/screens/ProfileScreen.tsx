@@ -1,3 +1,4 @@
+import { displayArtist } from '../lib/artistName';
 import { Ionicons } from '@expo/vector-icons';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -559,7 +560,7 @@ function TrackRow({
           {entry.title}
         </Text>
         <Text numberOfLines={1} style={styles.rowArtist}>
-          {entry.artist ?? 'YouTube'}
+          {displayArtist(entry)}
         </Text>
       </View>
       <View style={styles.countPill}>

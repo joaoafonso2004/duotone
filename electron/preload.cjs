@@ -2,6 +2,14 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   platform: process.platform,
+  getStartup: () => ipcRenderer.invoke('startup:get'),
+  setStartup: (enabled, mode) => ipcRenderer.invoke('startup:set', enabled, mode),
+  notifyMessage: (message) => ipcRenderer.send('notification:message', message),
+  onNotificationClick: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on('notification:open', handler);
+    return () => ipcRenderer.removeListener('notification:open', handler);
+  },
   minimize: () => ipcRenderer.send('window:minimize'),
   toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
   close: () => ipcRenderer.send('window:close'),

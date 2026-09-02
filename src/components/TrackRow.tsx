@@ -1,3 +1,4 @@
+import { displayArtist } from '../lib/artistName';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React from 'react';
@@ -119,7 +120,7 @@ export function TrackRow({
           ) : null}
           {track.artist ? (
             <Text numberOfLines={1} style={[type.caption, { flexShrink: 1 }]}>
-              {track.artist}
+              {displayArtist(track)}
             </Text>
           ) : null}
         </View>
