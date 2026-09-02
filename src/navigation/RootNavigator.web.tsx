@@ -90,7 +90,10 @@ function DesktopShell() {
   const [shareDialog, setShareDialog] = useState(false);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [friends, setFriends] = useState<Friendship[]>([]);
-  const [selectedFriend, setSelectedFriend] = useState('');
+  // VARIOS destinatarios, nao um. Mandar a mesma musica a tres pessoas
+  // eram tres idas ao dialogo; o `shareItem` ja aceita uma lista e
+  // insere-as de uma vez.
+  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
   const [shareMessage, setShareMessage] = useState('');
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [sharing, setSharing] = useState(false);
@@ -355,7 +358,7 @@ function DesktopShell() {
 
   const openShareDialog = async (target: ShareTarget) => {
     setShareTarget(target);
-    setSelectedFriend('');
+    setSelectedFriends([]);
     setShareMessage('');
     setShareDialog(true);
     setLoadingFriends(true);
@@ -370,15 +373,18 @@ function DesktopShell() {
   };
 
   const sendShare = async () => {
-    if (!shareTarget || !selectedFriend) return;
+    if (!shareTarget || selectedFriends.length === 0) return;
     setSharing(true);
     try {
-      await shareItem(selectedFriend, shareTarget.itemType, shareTarget.item, shareMessage);
+      await shareItem(selectedFriends, shareTarget.itemType, shareTarget.item, shareMessage);
       setShareDialog(false);
       setShareTarget(null);
       setShareMessage('');
-      setSelectedFriend('');
-      notify(`${shareTarget.itemType === 'playlist' ? 'Playlist' : 'Song'} shared successfully.`);
+      setSelectedFriends([]);
+      const oQue = shareTarget.itemType === 'playlist' ? 'Playlist' : 'Song';
+      notify(selectedFriends.length === 1
+        ? `${oQue} shared successfully.`
+        : `${oQue} shared with ${selectedFriends.length} friends.`);
     } catch (e: any) {
       notify(e?.message || `Could not share ${shareTarget.itemType}.`);
     } finally {
@@ -436,15 +442,32 @@ function DesktopShell() {
     </Dialog>
 
     {/* SHARE DIALOG */}
-    <Dialog open={shareDialog} title={shareTarget?.itemType === 'playlist' ? 'Share playlist' : 'Share song'} onClose={() => setShareDialog(false)}>
+    <Dialog open={shareDialog} title={shareTarget?.itemType === 'playlist' ? 'Share playlist' : 'Share song'} onClose={() => { setShareDialog(false); setSelectedFriends([]); }}>
       {shareTarget && (
         <View style={{ gap: 12 }}>
           <Text numberOfLines={1} style={styles.dialogBody}>Sharing “{shareTarget.name}”</Text>
-          <Text style={styles.formLabel}>SELECT FRIEND</Text>
+          <Text style={styles.formLabel}>SELECT FRIENDS</Text>
           {loadingFriends ? <Loading /> : friends.length ? (
             <View style={{ gap: 6, maxHeight: 180, overflow: 'auto' as any }}>
               {friends.map((f) => (
-                <Pressable key={f.friendId} onPress={() => setSelectedFriend(f.friendId)} style={[styles.destination, selectedFriend === f.friendId && { borderColor: theme.color, backgroundColor: theme.soft }]}><Ionicons name={selectedFriend === f.friendId ? "radio-button-on" : "radio-button-off"} color={selectedFriend === f.friendId ? theme.color : desktop.dim} size={18} /><Text style={styles.destinationText}>{f.name} (@{f.username})</Text></Pressable>
+                // Caixas e nao circulos: o circulo diz "escolhe UM", e agora
+                // escolhem-se quantos se quiser.
+                <Pressable
+                  key={f.friendId}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: selectedFriends.includes(f.friendId) }}
+                  onPress={() => setSelectedFriends((antes) => antes.includes(f.friendId)
+                    ? antes.filter((id) => id !== f.friendId)
+                    : [...antes, f.friendId])}
+                  style={[styles.destination, selectedFriends.includes(f.friendId) && { borderColor: theme.color, backgroundColor: theme.soft }]}
+                >
+                  <Ionicons
+                    name={selectedFriends.includes(f.friendId) ? 'checkbox' : 'square-outline'}
+                    color={selectedFriends.includes(f.friendId) ? theme.color : desktop.dim}
+                    size={18}
+                  />
+                  <Text style={styles.destinationText}>{f.name} (@{f.username})</Text>
+                </Pressable>
               ))}
             </View>
           ) : <Text style={styles.dialogBody}>No friends found. Go to the Social page to add friends.</Text>}
@@ -455,7 +478,14 @@ function DesktopShell() {
               <Field placeholder={`Add a note about this ${shareTarget.itemType}…`} value={shareMessage} onChangeText={setShareMessage} />
               <View style={styles.dialogActions}>
                 <Button secondary onPress={() => setShareDialog(false)}>Cancel</Button>
-                <Button onPress={sendShare} disabled={!selectedFriend || sharing}>{sharing ? 'Sharing…' : shareTarget.itemType === 'playlist' ? 'Share Playlist' : 'Share Song'}</Button>
+                <Button onPress={sendShare} disabled={selectedFriends.length === 0 || sharing}>{
+                  sharing ? 'Sharing…'
+                    : selectedFriends.length > 1
+                      // Diz quantos: quem escolheu cinco pessoas quer ver o cinco
+                      // antes de carregar, e nao depois no aviso.
+                      ? `Share with ${selectedFriends.length}`
+                      : shareTarget.itemType === 'playlist' ? 'Share Playlist' : 'Share Song'
+                }</Button>
               </View>
             </>
           )}

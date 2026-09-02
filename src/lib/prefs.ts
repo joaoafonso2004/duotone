@@ -13,6 +13,7 @@ const KEY_AUDIO_QUALITY = 'pref:audioQuality';
 const KEY_SHOW_DURATION = 'pref:showTrackDuration';
 const KEY_SHOW_REWIND = 'pref:showRewindButton';
 const KEY_HAPTICS_ENABLED = 'pref:hapticsEnabled';
+const KEY_CHATS_VISTOS = 'pref:chatsVistos';
 const KEY_SEARCH_HISTORY = 'pref:searchHistory';
 const MAX_SEARCH_HISTORY = 10;
 const KEY_POT_SERVER_URL = 'pref:potServerUrl';
@@ -272,4 +273,35 @@ export async function loadPrefsCache(): Promise<void> {
   ]);
   hapticsEnabledCache = haptics;
   showTrackDurationCache = duration;
+}
+
+/**
+ * Quando cada conversa foi aberta pela ultima vez: `friendId` -> ISO.
+ *
+ * E o que substitui a aba Inbox a dizer que chegou coisa nova. Fica do lado
+ * de ca porque a `shared_items` nao tem coluna de "lido" e acrescentar uma
+ * obrigava a uma migracao -- ver `lib/social.ts`.
+ */
+export async function getChatsVistos(): Promise<Record<string, string>> {
+  const raw = await AsyncStorage.getItem(KEY_CHATS_VISTOS);
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return obj && typeof obj === 'object' && !Array.isArray(obj) ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Marca a conversa como vista agora. Devolve o mapa ja actualizado, para
+ * quem chama nao ter de o voltar a ler. */
+export async function marcarChatVisto(friendId: string): Promise<Record<string, string>> {
+  const actual = await getChatsVistos();
+  const novo = { ...actual, [friendId]: new Date().toISOString() };
+  try {
+    await AsyncStorage.setItem(KEY_CHATS_VISTOS, JSON.stringify(novo));
+  } catch {
+    // best-effort: perder a marca so faz reaparecer o ponto, nao parte nada
+  }
+  return novo;
 }

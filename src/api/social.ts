@@ -153,29 +153,48 @@ export async function declineOrRemoveFriendship(friendId: string): Promise<void>
   if (error) throw new Error('Não foi possível remover a amizade.');
 }
 
+/**
+ * Partilha com um amigo ou com varios de uma vez.
+ *
+ * Aceita uma lista porque mandar a mesma musica a tres pessoas eram tres
+ * viagens a base de dados e tres sitios onde falhar a meio; o Supabase insere
+ * um array numa chamada so, e ou entram todas ou nao entra nenhuma.
+ */
 export async function shareItem(
-  friendId: string,
+  friendId: string | readonly string[],
   itemType: 'playlist' | 'track',
   item: any,
   message?: string
 ): Promise<void> {
   const currentUid = await currentUserId();
 
-  const payload: any = {
+  // Sem duplicados: a mesma pessoa escolhida duas vezes na interface nao pode
+  // dar duas mensagens iguais.
+  const destinatarios = Array.from(new Set(
+    (Array.isArray(friendId) ? friendId : [friendId]).filter(Boolean),
+  ));
+  if (destinatarios.length === 0) return;
+
+  const comum: any = {
     sender_id: currentUid,
-    recipient_id: friendId,
     item_type: itemType,
     message: message?.trim() || null,
   };
 
   if (itemType === 'playlist') {
-    payload.playlist_id = item.id;
+    comum.playlist_id = item.id;
   } else {
-    payload.track_data = item;
+    comum.track_data = item;
   }
 
-  const { error } = await supabase.from('shared_items').insert(payload);
-  if (error) throw new Error('Não foi possível partilhar o item.');
+  const linhas = destinatarios.map((id) => ({ ...comum, recipient_id: id }));
+
+  const { error } = await supabase.from('shared_items').insert(linhas);
+  if (error) {
+    throw new Error(destinatarios.length > 1
+      ? 'Não foi possível partilhar com todos.'
+      : 'Não foi possível partilhar o item.');
+  }
 }
 
 export async function getInboxItems(): Promise<SharedItem[]> {

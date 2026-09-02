@@ -7,13 +7,15 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import {
-  acceptFriendRequest, archiveInboxItem, declineOrRemoveFriendship,
+  acceptFriendRequest, declineOrRemoveFriendship,
   getChatMessages, getFriendships, getInboxItems, searchProfiles,
   sendFriendRequest, shareItem, type Friendship, type SharedItem,
 } from '../../api/social';
 import { importSharedPlaylist } from '../../api/playlists';
 import { FriendAvatar } from '../../components/FriendAvatar';
 import { displayArtist } from '../../lib/artistName';
+import { getChatsVistos, marcarChatVisto } from '../../lib/prefs';
+import { naoLidasPorAmigo, totalNaoLidas } from '../../lib/social';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
 import { COR, ESP, RAIO, TIPO } from '../tokens.web';
@@ -27,7 +29,11 @@ const P = Pressable as any;
 
 
 export function SocialPage({ notify, play, more }: { notify: (s: string) => void; play: (t: Track, q?: Track[]) => void; more: (t: Track) => void }) {
-  const [activeTab, setActiveTab] = useState<'inbox' | 'friends' | 'add'>('inbox');
+  // A aba Inbox foi-se: o que te mandam vive na conversa de cada amigo,
+  // que e onde se procura por isso. O que ela fazia de util -- dizer que
+  // chegou coisa nova -- passa a ser uma marca por amigo (ver lib/social).
+  const [activeTab, setActiveTab] = useState<'friends' | 'add'>('friends');
+  const [vistos, setVistos] = useState<Record<string, string>>({});
   const [inbox, setInbox] = useState<SharedItem[]>([]);
   const [friendships, setFriendships] = useState<Friendship[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -37,6 +43,12 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
 
   // Chat states
   const [activeChatFriend, setActiveChatFriend] = useState<Friendship | null>(null);
+
+  /** Abrir a conversa e o que a marca como vista -- e o gesto que ja existe. */
+  const abrirConversa = async (f: Friendship) => {
+    setActiveChatFriend(f);
+    setVistos(await marcarChatVisto(f.friendId));
+  };
   const [chatMessages, setChatMessages] = useState<SharedItem[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -45,9 +57,14 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
 
   const loadSocialData = useCallback(async () => {
     try {
-      const [ib, fs] = await Promise.all([getInboxItems(), getFriendships()]);
+      const [ib, fs, vs] = await Promise.all([
+        getInboxItems(), getFriendships(), getChatsVistos(),
+      ]);
+      // O `inbox` deixa de ter aba propria, mas continua a ser a consulta
+      // "o que me mandaram" -- e dela que sai a contagem de nao-lidas.
       setInbox(ib);
       setFriendships(fs);
+      setVistos(vs);
     } catch (e: any) {
       console.warn(e);
     }
@@ -104,16 +121,6 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
       setChatInput(msg);
     } finally {
       setSendingMessage(false);
-    }
-  };
-
-  const archiveItem = async (id: string) => {
-    try {
-      await archiveInboxItem(id);
-      notify('Inbox item archived.');
-      loadSocialData();
-    } catch (e: any) {
-      notify(e?.message || 'Could not archive.');
     }
   };
 
@@ -176,6 +183,9 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
 
   const activeFriends = friendships.filter(f => f.status === 'accepted');
   const pendingRequests = friendships.filter(f => f.status === 'pending');
+  // O que chegou depois da ultima vez que abriste cada conversa.
+  const naoLidas = naoLidasPorAmigo(inbox, vistos);
+  const porLer = totalNaoLidas(naoLidas);
 
   return (
     <Page title="Social" subtitle="Connect and share music with friends.">
@@ -184,8 +194,9 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
           e o metal, e a cor fica reservada a significado. */}
       <View style={styles.socialTabBar}>
         {([
-          ['inbox', 'Inbox', inbox.length],
-          ['friends', 'Friends', activeFriends.length],
+          // A conta dos Friends e o que esta por LER e nao quantos amigos ha:
+          // um numero que nao muda nao e informacao, e era isso que dizia.
+          ['friends', 'Friends', porLer],
           ['add', 'Find profiles', 0],
         ] as const).map(([id, rotulo, conta]) => (
           <Pressable key={id} onPress={() => setActiveTab(id)} style={[styles.socialTab, activeTab === id && styles.socialTabAtivo]}>
@@ -199,46 +210,6 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
         <View style={{ marginTop: 16 }}>
         {loading && !inbox.length && !friendships.length && <Loading />}
 
-        {activeTab === 'inbox' && (
-          <View>
-            {inbox.map((item) => (
-              <View key={item.id} style={styles.socialItem}>
-                <View style={styles.socialItemCabeca}>
-                  <Text style={styles.socialRemetente}>{item.sender.name} · @{item.sender.username}</Text>
-                  <IconButton name="archive-outline" label="Archive message" onPress={() => archiveItem(item.id)} />
-                </View>
-                {item.trackData && (
-                  <P onPress={() => play(item.trackData!)} style={({ hovered }: any) => [styles.socialPartilha, hovered && { opacity: .82 }]}>
-                    <Artwork track={item.trackData} size={44} />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={styles.socialPartilhaTitulo}>{item.trackData.title}</Text>
-                      <Text numberOfLines={1} style={styles.socialPartilhaNota}>{displayArtist(item.trackData)}</Text>
-                    </View>
-                    <IconButton name="play" label="Play" onPress={() => play(item.trackData!)} />
-                  </P>
-                )}
-                {item.itemType === 'playlist' && item.playlistId && (
-                  <P onPress={() => void importPlaylist(item.playlistId!)} style={({ hovered }: any) => [styles.socialPartilha, hovered && { opacity: .82 }]}>
-                    <View style={styles.socialIconeCaixa}>
-                      <Ionicons name="albums-outline" size={20} color={COR.textoMedio} />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={styles.socialPartilhaTitulo}>Shared playlist</Text>
-                      <Text numberOfLines={1} style={styles.socialPartilhaNota}>Add a copy to your playlists</Text>
-                    </View>
-                    <IconButton
-                      name={importingShared === item.playlistId ? 'hourglass-outline' : 'download-outline'}
-                      label="Import playlist"
-                      onPress={() => void importPlaylist(item.playlistId!)}
-                    />
-                  </P>
-                )}
-                {item.message && <Text style={styles.socialMensagem}>{item.message}</Text>}
-              </View>
-            ))}
-            {!inbox.length && !loading && <Empty icon="mail-outline" title="Inbox is empty" body="Shared tracks, playlists, and messages from your friends will appear here." />}
-          </View>
-        )}
 
         {activeTab === 'friends' && (
           <View>
@@ -277,18 +248,28 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
             )}
             {activeFriends.map((f) => {
               const online = !!f.lastSeenAt && Date.now() - new Date(f.lastSeenAt).getTime() < 3 * 60 * 1000;
+              const porLerDele = naoLidas.get(f.friendId) ?? 0;
               return (
               // A linha inteira abre a conversa, como em qualquer outra lista
               // da app. Antes so o icone respondia, e nada dizia que a linha
               // era clicavel.
               <P
                 key={f.friendId}
-                onPress={() => setActiveChatFriend(f)}
+                onPress={() => void abrirConversa(f)}
                 style={({ hovered, focused }: any) => [styles.socialLinha, (hovered || focused) && styles.socialLinhaHover]}
               >
                 <FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={40} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text numberOfLines={1} style={styles.socialNome}>{f.name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm }}>
+                    <Text numberOfLines={1} style={[styles.socialNome, porLerDele > 0 && { fontWeight: '700' as any }]}>{f.name}</Text>
+                    {/* O que substitui a aba Inbox. Sem isto, tirar a aba
+                        fazia as partilhas aterrarem em silencio. */}
+                    {porLerDele > 0 && (
+                      <View style={styles.socialPorLer}>
+                        <Text style={styles.socialPorLerTexto}>{porLerDele > 99 ? '99+' : porLerDele}</Text>
+                      </View>
+                    )}
+                  </View>
                   {f.currentlyPlaying ? (
                     // A capa em miniatura diz mais depressa o que ele esta a
                     // ouvir do que o titulo escrito — e e a unica cor que a
@@ -319,7 +300,7 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
                       onPress={() => play({ source: f.currentlyPlaying!.source as any, sourceId: f.currentlyPlaying!.sourceId, title: f.currentlyPlaying!.title, artist: f.currentlyPlaying!.artist, album: null, artworkUrl: f.currentlyPlaying!.artworkUrl, durationSeconds: f.currentlyPlaying!.durationSeconds })}
                     />
                   )}
-                  <IconButton name="chatbubble-ellipses-outline" label="Chat" onPress={() => setActiveChatFriend(f)} />
+                  <IconButton name="chatbubble-ellipses-outline" label="Chat" onPress={() => void abrirConversa(f)} />
                   <IconButton name="trash-outline" label="Remove friend" onPress={() => handleRemoveFriend(f.friendId)} />
                 </View>
               </P>

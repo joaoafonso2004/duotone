@@ -80,6 +80,10 @@ export const styles = StyleSheet.create({
   socialTabTextAtivo: { color: COR.texto },
   /** As contagens em mono, como todos os numeros da app. */
   socialTabConta: { ...TIPO.numero, color: COR.textoFraco },
+  // O que esta por ler e a unica coisa nesta pagina que pede accao,
+  // por isso e a unica que leva a cor de destaque.
+  socialPorLer: { minWidth: 18, height: 18, borderRadius: 999, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: COR.texto },
+  socialPorLerTexto: { ...TIPO.numero, fontSize: 10, lineHeight: 18, color: COR.fundo },
 
   /** Uma so densidade para amigos, pedidos, perfis e itens da caixa. */
   socialLinha: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingVertical: ESP.md, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave },
