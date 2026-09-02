@@ -46,6 +46,32 @@ const COLABORACAO_RE = /\s+(?:&|\+|x|X|vs\.?|with|feat\.?|ft\.?|featuring)\s+.*$
 const PREFIXO_DE_UPLOAD_RE =
   /^\s*(?:[[(][^\])]{0,24}[\])]|\*[^*]{0,24}\*|(?:NEW|LEAK|LEAKED|FREE|EXCLUSIVE|UNRELEASED|SNIPPET)\b[\s!:-]*)\s*/i;
 
+/**
+ * Sufixos entre parenteses ou parentesis rectos, no fim: `(Perfectly Slowed)`,
+ * `[Official Video]`, `(Lyrics)`, `(Slowed + Reverb)`.
+ *
+ * Existe por um caso real. Em `poster boy - Zhollis (Perfectly Slowed)` o lado
+ * direito ficava `Zhollis (Perfectly Slowed)`, que nao casa com `Zhollis` no
+ * vocabulario -- e por isso o titulo ao contrario nunca era detectado e a app
+ * ficava com a MUSICA no lugar do artista.
+ *
+ * So se tira do fim, e um de cada vez: um nome pode ter parenteses no meio,
+ * e cortar por qualquer parentese partia-o.
+ */
+const SUFIXO_ENTRE_PARENTESIS_RE = /\s*[[(][^()\[\]]{0,40}[\])]\s*$/;
+
+/** Tira os sufixos de versao do fim, quantos houver. */
+function semSufixoDeVersao(s: string): string {
+  let saida = s.trim();
+  for (let i = 0; i < 4; i++) {
+    const antes = saida;
+    saida = saida.replace(SUFIXO_ENTRE_PARENTESIS_RE, '').trim();
+    if (saida === antes) break;
+  }
+  // Se nao sobrar nada, o nome ERA o parentesis: fica como estava.
+  return saida || s.trim();
+}
+
 function clean(s: string): string {
   return s
     .replace(/[«»“”„]/g, '')
@@ -338,9 +364,16 @@ function extrairBruto(
       // 4) O título ao contrário ("Meus planos - BrazzaOg"). Só se troca
       // quando o vocabulário CONHECE o lado direito e não conhece o esquerdo
       // — sem essa dupla condição isto seria um palpite.
-      if (conhecidoComSeguranca(direita, vocabulario)
-        && !conhecidoComSeguranca(esquerda, vocabulario)) {
-        return direita;
+      //
+      // Os sufixos de versão saem antes de perguntar ao vocabulário. Era o
+      // que faltava num caso real: em `poster boy - Zhollis (Perfectly
+      // Slowed)` o lado direito ficava `Zhollis (Perfectly Slowed)`, não
+      // casava com `Zhollis`, e a app ficava com a MÚSICA no lugar do artista.
+      const direitaNua = artistaPrincipal(clean(semSufixoDeVersao(m[2])));
+      const esquerdaNua = artistaPrincipal(clean(semSufixoDeVersao(m[1])));
+      if (conhecidoComSeguranca(direitaNua, vocabulario)
+        && !conhecidoComSeguranca(esquerdaNua, vocabulario)) {
+        return direitaNua;
       }
       if (esquerdaServe) return esquerda;
     }
@@ -400,9 +433,34 @@ function procurarNoTexto(texto: string, vocabulario: Vocabulario): string | null
 /** Nome de artista a mostrar/agrupar para uma faixa (qualquer fonte).
  * Para faixas do Spotify o artist já é fiável; a extração só se aplica ao
  * YouTube (onde artist = canal). */
+/**
+ * O vocabulario aprendido da biblioteca de quem esta a usar a app.
+ *
+ * **Porque e que isto tem de existir.** O `displayArtist` recebe o vocabulario
+ * por parametro, e a app chamava-o SEM ele em 17 dos 19 sitios -- ou seja, a
+ * correccao de grafia e a deteccao de titulos ao contrario nunca corriam. Toda
+ * a maquinaria estava escrita e morta.
+ *
+ * Fica aqui um so, alimentado quando a biblioteca e lida (ver `api/library.ts`)
+ * e usado por omissao. As funcoes continuam puras para quem lhe passar um
+ * vocabulario explicito, que e o que os testes fazem.
+ */
+let vocabularioDaBiblioteca: Vocabulario = VOCABULARIO_VAZIO;
+
+/** Aprende com estas faixas. Chamar quando a biblioteca e lida. */
+export function aprenderComABiblioteca(faixas: readonly FaixaParaAprender[]): void {
+  if (faixas.length === 0) return;
+  vocabularioDaBiblioteca = aprenderVocabulario(faixas);
+}
+
+/** O que se aprendeu ate agora. Vazio ate a biblioteca ser lida. */
+export function vocabularioAprendido(): Vocabulario {
+  return vocabularioDaBiblioteca;
+}
+
 export function displayArtist(
   t: { source?: string; title: string; artist: string | null },
-  vocabulario: Vocabulario = VOCABULARIO_VAZIO,
+  vocabulario: Vocabulario = vocabularioAprendido(),
 ): string {
   if (t.source && t.source !== 'youtube') {
     const nome = artistaPrincipal(clean(t.artist ?? ''));

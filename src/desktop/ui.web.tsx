@@ -41,16 +41,26 @@ export const desktop = {
   accent: COR.metalClaro, accentSoft: 'rgba(233,234,238,.12)', danger: COR.erro,
 };
 
-export function IconButton({ name, label, onPress, active = false, danger = false, estrela = false }: {
+export function IconButton({ name, label, onPress, active = false, danger = false, estrela = false, marca }: {
   name: keyof typeof Ionicons.glyphMap; label: string; onPress?: () => void; active?: boolean; danger?: boolean;
   /** Estrelinha ao canto. Só o shuffle a usa, para se distinguir o modo
    * inteligente do normal — sem ela os dois estados ligados eram iguais. */
   estrela?: boolean;
+  /**
+   * Um caracter no canto, para distinguir dois modos do MESMO botao.
+   *
+   * Existe pelo repeat: "repetir tudo" e "repetir esta" eram `repeat` e
+   * `repeat-outline`, dois icones do Ionicons que a 18px sao praticamente
+   * iguais -- o botao tinha dois estados e mostrava um. Um "1" no canto e o
+   * que toda a gente ja percebe.
+   */
+  marca?: string;
 }) {
   return <P className="control-btn-animate" accessibilityLabel={label} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
   ]}>
     <Ionicons name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} />
+    {marca ? <View style={ui.marcaDeModo}><Text style={ui.marcaDeModoTexto}>{marca}</Text></View> : null}
     {estrela ? <View style={{ position: 'absolute', top: 5, right: 5 }}>
       <EstrelaInteligente tamanho={6} />
     </View> : null}
@@ -389,6 +399,10 @@ export const ui = StyleSheet.create({
   tableHeaderPlain: { paddingHorizontal: ESP.sm, borderTopWidth: 1, borderTopColor: COR.linhaSuave },
   // Redondo e discreto: e um atalho, nao um controlo do formulario.
   fieldLimpar: { width: 22, height: 22, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
+  // A marca de modo (o "1" do repeat) vive no canto, como a estrelinha do
+  // shuffle inteligente: mesma gramatica para a mesma ideia.
+  marcaDeModo: { position: 'absolute', top: 3, right: 3, minWidth: 11, height: 11, borderRadius: 999, alignItems: 'center', justifyContent: 'center', backgroundColor: COR.texto },
+  marcaDeModoTexto: { fontFamily: FONT.mono, fontSize: 8, lineHeight: 11, fontWeight: '700' as any, color: COR.fundo },
   colHead: { ...TIPO.micro, color: COR.textoFraco, paddingHorizontal: ESP.sm },
   // Altura unica em toda a app. Havia 62, 52 e 38 conforme o ecra, o que se
   // lia como tres aplicacoes diferentes.
