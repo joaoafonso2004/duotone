@@ -97,4 +97,18 @@ assert.equal(nomes.nomesDeConfianca(faixas.slice(0, 1)).has('2hollis'), true, 'U
 const anteriores = idasAoCatalogo;
 await biblioteca.confirmarArtistas(faixas);
 assert.equal(idasAoCatalogo, anteriores, 'Reler a biblioteca não repete a descoberta dos nomes');
-console.log('Pesquisa, cache e identificação automática: todos os casos passaram.');
+// A coluna vem da definição exportada do Supabase, não do nome interno da tabela.
+const dataReproducao = '2026-09-02T12:34:56.000Z';
+let respostaHistorico = [{ source: 'youtube', source_id: 'faixa', title: 'Faixa', max_played_at: dataReproducao }];
+const historico = ambiente(async () => {}, {
+  'src/lib/supabase.ts': { supabase: { rpc: async (nome, parametros) => {
+    assert.equal(nome, 'get_profile_recently_played');
+    assert.equal(parametros.limit_val, 12);
+    return { data: respostaHistorico, error: null };
+  } } },
+  'src/api/library.ts': {},
+}).carregar('src/api/plays.ts');
+assert.equal((await historico.getProfileRecentlyPlayed(12))[0].lastPlayed, Date.parse(dataReproducao));
+respostaHistorico = [{ source: 'youtube', source_id: 'faixa', title: 'Faixa', max_played_at: null }];
+assert.equal((await historico.getProfileRecentlyPlayed(12))[0].lastPlayed, undefined);
+console.log('Pesquisa, cache, identificação automática e datas do histórico: todos os casos passaram.');

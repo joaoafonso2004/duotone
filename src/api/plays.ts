@@ -103,7 +103,7 @@ export async function getProfileRecentlyPlayed(limit = 10): Promise<ProfilePlayE
     artworkUrl: row.artwork_url,
     durationSeconds: row.duration_seconds,
     count: 1,
-    lastPlayed: row.last_played ? new Date(row.last_played).getTime() : undefined,
+    lastPlayed: row.max_played_at ? new Date(row.max_played_at).getTime() : undefined,
   }));
 }
 

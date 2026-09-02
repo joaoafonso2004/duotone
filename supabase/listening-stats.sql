@@ -2,12 +2,11 @@
 -- DUOTONE — histórico de reproduções e estatísticas de escuta
 -- Executar uma vez no SQL Editor. Seguro para voltar a executar.
 --
--- Isto também repara uma dívida: a tabela `plays` é usada por
--- recordPlayInSupabase e por SEIS funções (get_top_artists, get_flow_mix,
--- get_heavy_rotation, get_forgotten_favorites, get_profile_play_stats,
--- get_profile_recently_played) mas não existia em ficheiro nenhum. O
--- repositório não conseguia reconstruir a base de dados. Passa a conseguir —
--- pelo menos a tabela; as funções continuam a existir só na BD.
+-- A tabela `plays` é usada por recordPlayInSupabase, get_top_artists,
+-- get_flow_mix e get_forgotten_favorites. As funções estão em top-artists.sql
+-- e funcoes-existentes.sql; as de perfil e heavy rotation usam user_play_counts.
+-- Numa base nova, executar este ficheiro depois de schema.sql e antes de
+-- funcoes-existentes.sql.
 --
 -- `if not exists` em tudo: numa base de dados que já a tenha, isto não mexe
 -- em nada.
