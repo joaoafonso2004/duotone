@@ -118,11 +118,30 @@ end; $$;
 revoke all on function public.get_social_profile_plays(uuid,timestamptz,integer) from public;
 grant execute on function public.get_social_profile_plays(uuid,timestamptz,integer) to authenticated;
 
--- A regra restritiva protege também bases que tenham políticas permissivas antigas.
+-- ATENÇÃO ao `requester_id is null` das duas políticas abaixo, e porquê.
+--
+-- A coluna acabou de ser acrescentada, por isso os pedidos que já existem
+-- têm-na a NULL. Sem tratar esse caso ficavam impossíveis de aceitar, e em
+-- SILÊNCIO: a política pergunta `requester_id <> auth.uid()`, com NULL isso dá
+-- NULL, e uma política só deixa passar quando dá verdadeiro. O `update`
+-- afetaria zero linhas sem erro nenhum — carregar em aceitar e não acontecer
+-- nada. Confirmado em Postgres antes de se escrever isto.
+--
+-- E NÃO se preenche a coluna a adivinhar. O `user_id_1` é o UUID mais pequeno
+-- dos dois e não quem fez o pedido (ver `sendFriendRequest`): preenchê-la a
+-- partir da posição acertava em metade dos casos e, na outra metade, deixava
+-- quem pediu aceitar o seu próprio pedido — pior do que o problema. Essa
+-- informação não existe nas linhas antigas e não se inventa.
+--
+-- Fica assim: um pedido ANTIGO aceita-se como sempre se aceitou, por qualquer
+-- um dos dois; um pedido NOVO já traz o autor e só o destinatário o aceita.
+-- A regra apertada vale para tudo o que for criado a partir daqui.
 drop policy if exists "friendships: apenas destinatário aceita" on public.friendships;
 create policy "friendships: apenas destinatário aceita" on public.friendships as restrictive for update to authenticated
-  using (status='pending' and requester_id <> auth.uid() and auth.uid() in (user_id_1,user_id_2))
-  with check (status='accepted' and requester_id <> auth.uid() and auth.uid() in (user_id_1,user_id_2));
+  using (status='pending' and auth.uid() in (user_id_1,user_id_2)
+    and (requester_id is null or requester_id <> auth.uid()))
+  with check (status='accepted' and auth.uid() in (user_id_1,user_id_2)
+    and (requester_id is null or requester_id <> auth.uid()));
 drop policy if exists "friendships: autor do pedido" on public.friendships;
 create policy "friendships: autor do pedido" on public.friendships as restrictive for insert to authenticated
   with check (requester_id=auth.uid() and status='pending' and auth.uid() in (user_id_1,user_id_2));
