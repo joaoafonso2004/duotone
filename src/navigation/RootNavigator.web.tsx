@@ -41,7 +41,7 @@ import {
 import {
   acceptFriendRequest, archiveInboxItem, declineOrRemoveFriendship,
   getFriendCount, getFriendships, getInboxItems, searchProfiles,
-  shareComGrupo, getGrupos, type ChatGroup, shareItem, publishPresence, clearPresence, sendFriendRequest, getChatMessages, type Friendship, type SharedItem
+  shareComGrupo, getGrupos, type ChatGroup, shareItem, sendFriendRequest, getChatMessages, type Friendship, type SharedItem
 } from '../api/social';
 import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
 import { historico, limparHistorico, relatorio, resumo } from '../lib/playbackDiagnostics';
@@ -85,7 +85,7 @@ function AuthDesktop() {
 
 function DesktopShell() {
   const [route, setRoute] = useState<Route>({ name: 'search' }); const history = useRef<Route[]>([]); const [toast, setToast] = useState('');
-  const abrirSocial = useCallback(() => setRoute({ name: 'social' }), []);
+  const abrirSocial = useCallback((conversation?:{friendId?:string;groupId?:string}) => setRoute({ name: 'social',...conversation }), []);
   useDesktopNotifications(abrirSocial);
   const [trackMenu, setTrackMenu] = useState<Track | null>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
@@ -195,30 +195,15 @@ function DesktopShell() {
     return () => window.removeEventListener('duotone:navigate', handleNav);
   }, []);
 
-  // Broadcast currently playing track for friends list sync
+  // Guardar a sessão privada ao fechar; a presença tem validade no servidor.
   useEffect(() => {
-    publishPresence(currentTrack, isPlayingState);
-  }, [currentTrack, isPlayingState]);
-
-  // Sem isto, fechar a janela deixava o último tema gravado no perfil e os
-  // amigos viam "Listening to" indefinidamente. `pagehide` é o único que
-  // dispara de forma fiável ao fechar no Electron e no Safari.
-  useEffect(() => {
-    const bye = () => {
-      clearPresence();
-      // A sessão do handoff sobrevive de propósito a fechar a janela: é o
-      // que permite pegar no telemóvel e continuar de onde o PC ficou.
-      if (usePlayer.getState().current) publishSessionNow();
-    };
+    const bye = () => { if (usePlayer.getState().current) publishSessionNow(); };
     window.addEventListener('pagehide', bye);
-    return () => {
-      window.removeEventListener('pagehide', bye);
-      clearPresence();
-    };
+    return () => window.removeEventListener('pagehide', bye);
   }, []);
 
   // Sessão deste PC, para o telemóvel poder continuar. Mesma assimetria do
-  // telemóvel: o presence é apagado ao sair, a sessão fica.
+  // telemóvel: a fila é independente do estado social.
   useEffect(() => {
     if (currentTrack) publishSession();
     else if (hadTrackRef.current) void endSession();
@@ -411,9 +396,10 @@ function DesktopShell() {
   switch (route.name) {
     case 'search': page = <SearchPage {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} />; break;
     case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} back={back} share={openShareDialog} {...common} />; break;
-    case 'stats': page = <StatsPage back={back} play={play} />; break;
+    case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;
     case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} />; break;
-    case 'social': page = <SocialPage notify={notify} play={play} more={more} />; break;
+    case 'social': page = <SocialPage navigate={navigate} friendId={route.friendId} groupId={route.groupId} notify={notify} play={play} more={more} />; break;
+    case 'friend-profile': page = <ProfilePage userId={route.userId} navigate={navigate} notify={notify} />; break;
     case 'now-playing': page = <NowPlayingPage play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} />; break;
   }
 

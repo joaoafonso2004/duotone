@@ -56,7 +56,8 @@ function rowToPlay(row: any): PlayRow | null {
 
 export async function fetchListeningStats(
   period: StatsPeriod,
-  now: number = Date.now()
+  now: number = Date.now(),
+  targetUserId?: string
 ): Promise<StatsResult> {
   const empty = computeStats([], period, now);
   try {
@@ -68,18 +69,12 @@ export async function fetchListeningStats(
     let truncated = false;
 
     for (let page = 0; page < MAX_PAGES; page++) {
-      let q = supabase
-        .from('plays')
-        .select(
-          'played_at, tracks (source, source_id, title, artist, artwork_url, duration_seconds)'
-        )
-        .eq('user_id', user.id)
-        .order('played_at', { ascending: false })
-        .range(page * PAGE, page * PAGE + PAGE - 1);
+      const {data,error} = targetUserId
+        ? await supabase.rpc('get_social_profile_plays', {target_user_id:targetUserId,p_since:start === null ? null : new Date(start).toISOString(),p_offset:page*PAGE})
+        : await supabase.from('plays').select('played_at, tracks (source, source_id, title, artist, artwork_url, duration_seconds)')
+          .eq('user_id',user.id).order('played_at',{ascending:false}).range(page*PAGE,page*PAGE+PAGE-1)
+          .gte('played_at',start === null ? '1970-01-01T00:00:00Z' : new Date(start).toISOString());
 
-      if (start !== null) q = q.gte('played_at', new Date(start).toISOString());
-
-      const { data, error } = await q;
       if (error) return { stats: empty, truncated: false, unavailable: true };
       if (!data || data.length === 0) break;
 

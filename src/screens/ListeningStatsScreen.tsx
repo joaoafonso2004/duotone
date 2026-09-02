@@ -32,7 +32,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ListeningStats'>;
 const PERIODS: StatsPeriod[] = ['30d', '6m', 'all'];
 const PERIOD_LABELS = ['30 dias', '6 meses', 'Sempre'];
 
-export function ListeningStatsScreen({ navigation }: Props) {
+export function ListeningStatsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const theme = useTheme((s) => s.theme);
   const playTrack = usePlayer((s) => s.playTrack);
@@ -44,11 +44,11 @@ export function ListeningStatsScreen({ navigation }: Props) {
   const load = useCallback(async (period: StatsPeriod) => {
     setLoading(true);
     try {
-      setResult(await fetchListeningStats(period));
+      setResult(await fetchListeningStats(period,Date.now(),route.params?.userId));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [route.params?.userId]);
 
   useEffect(() => {
     load(PERIODS[periodIndex]);
@@ -76,7 +76,7 @@ export function ListeningStatsScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen title="A tua escuta" onBack={() => navigation.goBack()}>
+    <Screen title={route.params?.userId ? "Estatísticas de escuta" : "A tua escuta"} onBack={() => navigation.goBack()}>
       <ScrollView
         contentContainerStyle={{
           paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl,

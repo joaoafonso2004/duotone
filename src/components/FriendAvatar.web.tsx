@@ -1,3 +1,4 @@
+import { useProfileMedia } from '../lib/profileMedia';
 import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { decodeAvatar } from '../lib/avatarPrefs';
@@ -18,7 +19,8 @@ interface Props {
  * resto do shell desktop.
  */
 export function FriendAvatar({ avatarUrl, name, size = 36 }: Props) {
-  const avatar = decodeAvatar(avatarUrl, name);
+  const resolved = useProfileMedia(avatarUrl?.startsWith('storage:') ? avatarUrl : null);
+  const avatar = decodeAvatar(avatarUrl?.startsWith('storage:') ? resolved : avatarUrl, name);
   const round = { width: size, height: size, borderRadius: size / 2 };
 
   if (avatar.kind === 'emoji') {

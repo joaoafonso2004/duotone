@@ -1,10 +1,11 @@
+import { getPublicProfiles } from '../api/profiles';
 import { useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { getNotificationsEnabled } from '../lib/prefs';
 import { useAuth } from '../state/auth';
 
 /** Realtime avisa já; a consulta periódica recupera mensagens após uma quebra. */
-export function useDesktopNotifications(abrirSocial: () => void) {
+export function useDesktopNotifications(abrirSocial: (conversation?:{friendId?:string;groupId?:string}) => void) {
   const userId = useAuth((s) => s.session?.user.id);
   useEffect(() => {
     const desktop = window.duotoneDesktop;
@@ -19,10 +20,11 @@ export function useDesktopNotifications(abrirSocial: () => void) {
       // Limite de memória para uma app que pode ficar semanas no tabuleiro.
       if (vistos.size > 2000) vistos.delete(vistos.values().next().value!);
       if (!await getNotificationsEnabled() || !ativo) return;
-      const { data } = await supabase.from('profiles').select('name').eq('id', r.sender_id).maybeSingle();
+      const data = (await getPublicProfiles([r.sender_id]))[0];
       if (!ativo) return;
       desktop.notifyMessage!({
         id: r.id,
+        friendId:r.group_id?undefined:r.sender_id,groupId:r.group_id || undefined,
         title: data?.name || 'Duotone',
         body: r.message || (r.item_type === 'playlist' ? 'Shared a playlist with you.' : r.track_data?.title || 'Shared a song with you.'),
       });

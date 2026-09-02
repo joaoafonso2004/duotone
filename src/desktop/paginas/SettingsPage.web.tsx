@@ -1,3 +1,4 @@
+import { removeOwnProfileMedia } from '../../lib/profileMedia';
 /**
  * Definições do desktop, e as linhas de que é feita.
  *
@@ -136,6 +137,7 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
 
   const runDeleteAccount = async () => {
     try {
+      await removeOwnProfileMedia();
       const { error } = await supabase.rpc('delete_user_account');
       if (error) throw error;
       setDeleteConfirm(false);

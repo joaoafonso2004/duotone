@@ -1,3 +1,9 @@
+import { closePlayerSmoothly, confirmaSwipe } from '../lib/closePlayer';
+import { FriendAvatar } from '../components/FriendAvatar';
+import { getPublicProfiles } from '../api/profiles';
+import { useSocial } from '../state/social';
+import { naoLidasPorAmigo } from '../lib/social';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 /**
  * A casca da janela: barra de título, barra lateral e barra do leitor.
  *
@@ -8,12 +14,9 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
-import { getInboxItems } from '../api/social';
+import { Image, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
-import { AVATAR_GRADIENTS, getAvatarChoice, type AvatarChoice } from '../lib/avatarPrefs';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
@@ -189,71 +192,22 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
   const session = useAuth((s) => s.session);
   const active = route.name === 'artist' ? 'artists' : route.name === 'playlist' || route.name === 'import' ? 'playlists' : route.name;
 
-  const [name, setName] = useState('Profile');
-  const [avatar, setAvatar] = useState<AvatarChoice>({ emoji: '🎧', gradientIndex: 0 });
-  const [hasSocialNotification, setHasSocialNotification] = useState(false);
-
-  useEffect(() => {
-    if (!session) return;
-    
-    // 1) Set initial values from cached session
-    const currentName = (session?.user.user_metadata?.username as string | undefined) || (session?.user.user_metadata?.name as string | undefined) || session?.user.email?.split('@')[0] || 'Profile';
-    setName(currentName);
-    
-    const userMeta = session?.user?.user_metadata;
-    setAvatar({
-      emoji: userMeta?.avatar_emoji || '🎧',
-      gradientIndex: Number(userMeta?.avatar_gradient ?? 0),
-      avatarUrl: userMeta?.avatar_url && !userMeta.avatar_url.startsWith('emoji:') ? userMeta.avatar_url : undefined
-    });
-
-    // 2) Asynchronously fetch fresh data from Supabase DB to sync with mobile
-    const refreshProfile = async () => {
-      const freshAvatar = await getAvatarChoice();
-      setAvatar(freshAvatar);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: dbProf } = await supabase.from('profiles').select('name, username').eq('id', user.id).maybeSingle();
-        const freshName = dbProf?.username || dbProf?.name || user.user_metadata?.username || user.user_metadata?.name || user.email?.split('@')[0] || 'Profile';
-        setName(freshName);
-      }
-    };
-    refreshProfile();
-    window.addEventListener('duotone:refresh-profile', refreshProfile);
-
-    // 3) Check inbox notification badge
-    getInboxItems().then((items) => {
-      setHasSocialNotification(items.length > 0);
-    }).catch(() => {});
-    const interval = setInterval(() => {
-      getInboxItems().then((items) => {
-        setHasSocialNotification(items.length > 0);
-      }).catch(() => {});
-    }, 10000);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('duotone:refresh-profile', refreshProfile);
-    };
-  }, [session]);
-
-  const avatarEmoji = avatar.emoji || '🎧';
-  const avatarGradientIdx = avatar.gradientIndex ?? 0;
-  const avatarUrl = avatar.avatarUrl;
-  const cleanAvatarUrl = avatarUrl && !avatarUrl.startsWith('emoji:') ? avatarUrl : undefined;
-  const colorsPair = AVATAR_GRADIENTS[avatarGradientIdx] || AVATAR_GRADIENTS[0];
-
-  const avatarDisplay = cleanAvatarUrl ? (
-    <Image source={{ uri: cleanAvatarUrl }} style={{ width: 31, height: 31, borderRadius: 9 }} />
-  ) : (
-    <View style={[styles.avatar, { backgroundImage: `linear-gradient(135deg, ${colorsPair[0]}, ${colorsPair[1]})` } as any]}>
-      <Text style={{ fontSize: 13 }}>{avatarEmoji}</Text>
-    </View>
-  );
+  const [name,setName]=useState('Perfil');
+  const [publicAvatar,setPublicAvatar]=useState<string|null>(null);
+  const social=useSocial();
+  useEffect(()=>{
+    let active=true;
+    if(!session)return;
+    const refresh=()=>getPublicProfiles([session.user.id]).then(([p])=>{if(active&&p){setName(p.name);setPublicAvatar(p.avatar_url);}}).catch(()=>{});
+    void refresh();const timer=setInterval(()=>void refresh(),30000);
+    return()=>{active=false;clearInterval(timer);};
+  },[session?.user.id,social.profileVersion]);
+  const avatarDisplay=<FriendAvatar avatarUrl={publicAvatar} name={name} size={31}/>;
 
   return <View style={styles.sidebar}>
     <ScrollView contentContainerStyle={styles.sidebarContent}>
       <Text style={styles.navLabel}>DISCOVER</Text>
-      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} {...item} badge={item.id === 'social' && hasSocialNotification} onPress={() => navigate({ name: item.id })} />)}
+      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(social.received,social.seen).size>0 || social.friends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
       <View style={styles.navDivider} /><Text style={styles.navLabel}>ACCOUNT</Text>
       <NavItem label="Profile" icon="person-circle-outline" active={active === 'profile'} onPress={() => navigate({ name: 'profile' })} />
       <NavItem label="Settings" icon="settings-outline" active={active === 'settings'} onPress={() => navigate({ name: 'settings' })} />
@@ -270,6 +224,17 @@ export function NavItem({ label, icon, active, badge, onPress }: { label: string
 
 export function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSaved: boolean; toggleSaveCurrent: () => void }) {
   const p = usePlayer(); const ratio = p.durationMs ? Math.min(1, p.positionMs / p.durationMs) : 0;
+  const [dragX,setDragX]=useState(0);
+  const swipeWidth=useRef(360),swiping=useRef(false);
+  const reducedMotion=useReducedMotion();
+  useEffect(()=>{setDragX(0);},[p.current]);
+  const dragClose = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_e,g)=>!usePlayer.getState().closing&&g.dx>14&&g.dx>Math.abs(g.dy)*1.5,
+    onPanResponderGrant:()=>{swiping.current=true;},
+    onPanResponderMove:(_e,g)=>setDragX(Math.max(0,g.dx)),
+    onPanResponderRelease: (_e,g)=>{if(confirmaSwipe(g.dx,g.dy,g.vx,swipeWidth.current))void closePlayerSmoothly();else setDragX(0);setTimeout(()=>{swiping.current=false;},200);},
+    onPanResponderTerminate:()=>{setDragX(0);swiping.current=false;},
+  })).current;
   const volumeAudivel = useRef(80);
   if (p.volume > 0) volumeAudivel.current = p.volume;
   const alternarSilencio = () => {
@@ -323,12 +288,12 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSave
     window.addEventListener('touchend', stop);
   };
 
-  return <V style={styles.player} className="glass-panel">
+  return <V style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]} className="glass-panel">
     <YouTubePlayerView track={p.current} />
-    <View style={styles.playerTrack}>
+    <View style={styles.playerTrack} {...dragClose.panHandlers} onLayout={e=>{swipeWidth.current=e.nativeEvent.layout.width;}}>
       <Pressable
         style={styles.playerTrackLink}
-        onPress={() => window.dispatchEvent(new CustomEvent('duotone:navigate', { detail: { name: 'now-playing' } }))}
+        onPress={() => {if(!swiping.current)window.dispatchEvent(new CustomEvent('duotone:navigate', { detail: { name: 'now-playing' } }));}}
       >
         <Artwork track={p.current} size={52} />
         <Text numberOfLines={1} style={styles.playerTitle}>{p.current.title}</Text>
@@ -369,7 +334,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSave
     <View style={styles.playerRight}>
       {p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}
       <V style={styles.volumeRow} className="slider-container"><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={alternarSilencio} accessibilityRole="button" accessibilityLabel={p.volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${p.volume}%` }} /></P></V>
-      <IconButton name="close" label="Close player" onPress={p.close} />
+      <IconButton name="close" label="Close player" onPress={()=>void closePlayerSmoothly()} />
     </View>
   </V>;
 }

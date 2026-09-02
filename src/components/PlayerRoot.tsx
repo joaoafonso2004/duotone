@@ -1,3 +1,5 @@
+import { closePlayerSmoothly, confirmaSwipe } from '../lib/closePlayer';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { displayArtist } from '../lib/artistName';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -34,7 +36,6 @@ import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { EstrelaInteligente } from './BrilhoInteligente';
 import { EqualizadorSheet } from './EqualizadorSheet';
 import { navigationRef } from '../navigation/RootNavigator';
-import { clearPresence, publishPresence } from '../api/social';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
 import {
@@ -74,7 +75,9 @@ export function PlayerRoot() {
   const togglePlay = usePlayer((s) => s.togglePlay);
   const next = usePlayer((s) => s.next);
   const prev = usePlayer((s) => s.prev);
-  const close = usePlayer((s) => s.close);
+  const close = closePlayerSmoothly;
+  const closeGain = usePlayer((s) => s.closeGain);
+  const reducedMotion=useReducedMotion();
   const setExpanded = usePlayer((s) => s.setExpanded);
   const seekTo = usePlayer((s) => s.seekTo);
   const setError = usePlayer((s) => s.setError);
@@ -91,6 +94,23 @@ export function PlayerRoot() {
   // Deslocamento vertical do gesto de "arrastar para baixo para fechar" o
   // now-playing. Soma-se ao translateY do overlay (e da frame de vídeo).
   const dragY = useRef(new Animated.Value(0)).current;
+  const dragX = useRef(new Animated.Value(0)).current;
+  const widthRef = useRef(W); widthRef.current = W;
+  const swiping = useRef(false);
+  const swipeClose = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_e,g) => !usePlayer.getState().expanded && !usePlayer.getState().closing && g.dx>12 && g.dx>Math.abs(g.dy)*1.5,
+    onPanResponderGrant: () => { swiping.current=true; },
+    onPanResponderMove: (_e,g) => dragX.setValue(Math.max(0,g.dx)),
+    onPanResponderRelease: (_e,g) => {
+      if(confirmaSwipe(g.dx,g.dy,g.vx,widthRef.current)) void closePlayerSmoothly();
+      else Animated.spring(dragX,{toValue:0,useNativeDriver:true}).start();
+      setTimeout(()=>{swiping.current=false;},200);
+    },
+    onPanResponderTerminate: () => {swiping.current=false;Animated.spring(dragX,{toValue:0,useNativeDriver:true}).start();},
+  })).current;
+  useEffect(()=>{dragX.setValue(0);},[current,dragX]);
+  const miniFade=Animated.multiply(closeGain,dragX.interpolate({inputRange:[0,W],outputRange:[1,0.2],extrapolate:'clamp'}));
+
   // Opacidade da capa: "respira" (fade in/out) enquanto a música carrega.
   const pulse = useRef(new Animated.Value(1)).current;
 
@@ -145,22 +165,7 @@ export function PlayerRoot() {
     }).start();
   }, [shouldHide]);
 
-  // Publicação do "a ouvir agora".
-  //
-  // Isto esteve desativado por causar lag: chamava a rede a cada mudança do
-  // leitor, e saltar faixas disparava um pedido por salto. O
-  // `publishPresence` agrupa as chamadas (2s), por isso uma rajada de saltos
-  // dá um pedido só, já depois de o utilizador ter parado de saltar.
-  useEffect(() => {
-    publishPresence(current, isPlaying);
-  }, [current, isPlaying]);
-
-  // Sessão deste dispositivo, para o "continuar aqui" no PC.
-  //
-  // Repara na diferença para o presence acima: o presence é APAGADO ao ir
-  // para segundo plano (os amigos não te devem ver a ouvir com a app
-  // fechada), a sessão é GUARDADA — é precisamente com o telemóvel no bolso
-  // que o PC precisa de a encontrar. Por isso são duas tabelas e não uma.
+  // A sessão de handoff mantém a fila privada entre dispositivos.
   useEffect(() => {
     if (current) {
       hadTrackRef.current = true;
@@ -172,23 +177,12 @@ export function PlayerRoot() {
     }
   }, [current, isPlaying, queueIndex]);
 
-  // Ir para segundo plano conta como deixar de ouvir: sem isto, fechar a app
-  // pelo gesto deixava a faixa gravada no perfil até expirar.
+  // Guardar o handoff ao mudar de estado; a presença é gerida globalmente.
   useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
-        publishPresence(usePlayer.getState().current, usePlayer.getState().isPlaying);
-      } else {
-        clearPresence();
-      }
-      // A sessão vai nos dois sentidos, e sem debounce: ao sair não há tempo
-      // de espera, e ao voltar queremos a posição certa já lá.
+    const sub = AppState.addEventListener('change', () => {
       if (usePlayer.getState().current) publishSessionNow();
     });
-    return () => {
-      sub.remove();
-      clearPresence();
-    };
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -693,13 +687,17 @@ export function PlayerRoot() {
       </Animated.View>
 
       <Animated.View
+        {...swipeClose.panHandlers}
+        accessibilityActions={[{name:'dismiss',label:'Fechar leitor'}]}
+        onAccessibilityAction={()=>void closePlayerSmoothly()}
         pointerEvents={shouldHide || expanded ? 'none' : 'auto'}
         style={[
           styles.mini,
           {
             bottom: miniBottom,
+            transform:[{translateX:reducedMotion?0:Animated.add(dragX,(1-closeGain)*W)}],
             opacity: Animated.multiply(
-              visibilityAnim,
+              Animated.multiply(visibilityAnim,miniFade),
               anim.interpolate({
                 inputRange: [0, 0.35],
                 outputRange: [1, 0],
@@ -709,7 +707,7 @@ export function PlayerRoot() {
           },
         ]}
       >
-          <Pressable style={styles.miniInner} onPress={() => setExpanded(true)}>
+          <Pressable style={styles.miniInner} onPress={() => {if(!swiping.current)setExpanded(true);}}>
             {isYt ? (
               // slot — o WebView flutua exatamente por cima desta área
               <View style={styles.miniVideoSlot} />
@@ -781,10 +779,11 @@ export function PlayerRoot() {
       {/* ============ FRAME DE VÍDEO YOUTUBE (flutuante, nunca desmonta) ============ */}
       {isYt ? (
         <Animated.View
+          {...(!expanded ? swipeClose.panHandlers : {})}
           pointerEvents={shouldHide ? 'none' : 'auto'}
           style={{
             position: 'absolute',
-            opacity: visibilityAnim,
+            opacity: expanded ? visibilityAnim : Animated.multiply(visibilityAnim,miniFade),
             left: anim.interpolate({
               inputRange: [0, 1],
               outputRange: [vidMini.x, vidFull.x],
@@ -805,7 +804,7 @@ export function PlayerRoot() {
               inputRange: [0, 1],
               outputRange: [8, 20],
             }),
-            transform: [{ translateY: dragY }],
+            transform: [{ translateY: dragY },{translateX:expanded||reducedMotion?0:Animated.add(dragX,(1-closeGain)*W)}],
             overflow: 'hidden',
             backgroundColor: '#000',
           }}
@@ -837,7 +836,7 @@ export function PlayerRoot() {
           {!expanded ? (
             <Pressable
               style={StyleSheet.absoluteFill}
-              onPress={() => setExpanded(true)}
+              onPress={() => {if(!swiping.current)setExpanded(true);}}
             />
           ) : null}
         </Animated.View>

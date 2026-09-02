@@ -17,8 +17,8 @@ declare global {
       platform: string;
       getStartup?: () => Promise<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean }>;
       setStartup?: (enabled: boolean, mode: 'window' | 'tray') => Promise<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean }>;
-      notifyMessage?: (message: { id: string; title: string; body: string }) => void;
-      onNotificationClick?: (listener: () => void) => () => void;
+      notifyMessage?: (message: { id: string; title: string; body: string;friendId?:string;groupId?:string }) => void;
+      onNotificationClick?: (listener: (conversation?:{friendId?:string;groupId?:string}) => void) => () => void;
       minimize(): void;
       toggleMaximize(): void;
       close(): void;

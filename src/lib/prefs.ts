@@ -282,8 +282,8 @@ export async function loadPrefsCache(): Promise<void> {
  * de ca porque a `shared_items` nao tem coluna de "lido" e acrescentar uma
  * obrigava a uma migracao -- ver `lib/social.ts`.
  */
-export async function getChatsVistos(): Promise<Record<string, string>> {
-  const raw = await AsyncStorage.getItem(KEY_CHATS_VISTOS);
+export async function getChatsVistos(accountId=''): Promise<Record<string, string>> {
+  const raw = await AsyncStorage.getItem(`${KEY_CHATS_VISTOS}:${accountId}`);
   if (!raw) return {};
   try {
     const obj = JSON.parse(raw);
@@ -295,11 +295,12 @@ export async function getChatsVistos(): Promise<Record<string, string>> {
 
 /** Marca a conversa como vista agora. Devolve o mapa ja actualizado, para
  * quem chama nao ter de o voltar a ler. */
-export async function marcarChatVisto(friendId: string): Promise<Record<string, string>> {
-  const actual = await getChatsVistos();
-  const novo = { ...actual, [friendId]: new Date().toISOString() };
+export async function marcarChatVisto(friendId: string,timestamp:string,accountId=''): Promise<Record<string, string>> {
+  const actual = await getChatsVistos(accountId);
+  if(!Number.isFinite(Date.parse(timestamp)))return actual;
+  const novo = { ...actual, [friendId]: Date.parse(actual[friendId] || '')>Date.parse(timestamp)?actual[friendId]:timestamp };
   try {
-    await AsyncStorage.setItem(KEY_CHATS_VISTOS, JSON.stringify(novo));
+    await AsyncStorage.setItem(`${KEY_CHATS_VISTOS}:${accountId}`, JSON.stringify(novo));
   } catch {
     // best-effort: perder a marca so faz reaparecer o ponto, nao parte nada
   }

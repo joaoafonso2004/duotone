@@ -67,6 +67,9 @@ interface PlayerState {
   queue: Track[];
   queueIndex: number;
   isPlaying: boolean;
+  playbackConfirmed: boolean;
+  closing: boolean;
+  closeGain: number;
   /** A verdade sobre a reproducao. `isPlaying`/`buffering` derivam daqui. */
   maquina: EstadoDeReproducao;
   /** overlay Now Playing expandido vs mini-player */
@@ -269,7 +272,10 @@ function debouncedStorage() {
  */
 function passo(estado: EstadoDeReproducao, tipo: Evento['tipo']) {
   const maquina = transicao(estado, { tipo } as Evento);
-  return { maquina, ...derivados(maquina) };
+  return { maquina, ...derivados(maquina),
+    ...(tipo === 'a-tocar' ? {playbackConfirmed:true} : tipo === 'motor-pronto' ? {} : {playbackConfirmed:false}),
+    ...(tipo === 'faixa-escolhida' || tipo === 'parou-tudo' ? {closing:false,closeGain:1} : {}),
+  };
 }
 
 /**
@@ -330,6 +336,9 @@ export const usePlayer = create<PlayerState>()(
   queueIndex: 0,
   isPlaying: false,
   maquina: MAQUINA_INICIAL,
+  playbackConfirmed: false,
+  closing: false,
+  closeGain: 1,
   expanded: false,
   repeatMode: 'off',
   shuffle: false,
@@ -362,6 +371,8 @@ export const usePlayer = create<PlayerState>()(
 
   playTrack: async (track, queue, shouldExpand) => {
     const requestId = ++playRequestId;
+    set({closing:false,closeGain:1,playbackConfirmed:false});
+    get()._yt?.setVolume?.(get().volume);
     // Fast path dentro do gesto do utilizador: importante para a faixa
     // restaurada, cujo iframe ja existe e pode estar sujeito a autoplay.
     const immediateControls = replayMountedSource(get().current, track, get()._yt);
@@ -947,19 +958,20 @@ export const usePlayer = create<PlayerState>()(
         console.warn('Failed to save volume to localStorage', e);
       }
     }
-    get()._yt?.setVolume?.(clamped);
+    get()._yt?.setVolume?.(clamped * get().closeGain);
   },
 
   registerYtControls: (c) => {
     set({ _yt: c });
     if (c && c.setVolume) {
-      c.setVolume(get().volume);
+      c.setVolume(get().volume * get().closeGain);
     }
   },
 
   _setActiveBackend: (b) => set({ activeBackend: b }),
 
   _onYtStateChange: (s) => {
+    if (get().closing && s === 'ended') return;
     if (s === 'ended') {
       const { repeatMode, _yt } = get();
       if (repeatMode === 'one') {

@@ -139,6 +139,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // meio de uma faixa muda qual é a faixa seguinte.
   const shuffle = usePlayer((s) => s.shuffle);
   const volumeNormalization = usePlayer((s) => s.volumeNormalization);
+  const closeGain = usePlayer(s=>s.closeGain);
+  const closing = usePlayer(s=>s.closing);
+  const closingVolume = useRef<number|null>(null);
 
   const [backend, setBackend] = useState<Backend>('resolving');
   const _setActiveBackend = usePlayer((s) => s._setActiveBackend);
@@ -240,6 +243,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   };
 
   const fadeIn = () => {
+    if(usePlayer.getState().closing)return;
     if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
     const ceiling = ceilingRef.current;
     player.volume = 0.0;
@@ -248,6 +252,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // faixa normalizada como numa que fica em 1.0.
     const step = ceiling / 10;
     fadeIntervalRef.current = setInterval(() => {
+      if(usePlayer.getState().closing){clearInterval(fadeIntervalRef.current);fadeIntervalRef.current=null;return;}
       vol += step;
       if (vol >= ceiling) {
         vol = ceiling;
@@ -557,6 +562,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
     // O áudio começou mesmo → deixa de estar "a carregar" (pára o pulsar).
     if (currentTime > 0) setBuffering(false);
+    if(currentTime>0&&player.playing&&!usePlayer.getState().playbackConfirmed)onStateChange('playing');
 
     // [duration-debug] player.duration é exatamente o que o expo-video publica
     // no Lock Screen (MPMediaItemPropertyPlaybackDuration = currentItem.duration).
@@ -578,6 +584,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // fim real do áudio e é a única autoridade para avançar/repetir.
   });
   useEventListener(player, 'playToEnd', () => {
+    if(usePlayer.getState().closing)return;
     if (backend === 'native' && nativeTrackIdRef.current === track.sourceId) {
       if (repeatMode === 'one') {
         player.currentTime = 0;
@@ -635,7 +642,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (backend !== 'native') return;
     const ceiling = applyCeiling();
     // Não mexer a meio de um fade: ele acaba no teto novo à mesma.
-    if (!fadeIntervalRef.current) {
+    if (!fadeIntervalRef.current && !usePlayer.getState().closing) {
       try {
         player.volume = ceiling;
       } catch {
@@ -643,6 +650,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
     }
   }, [volumeNormalization, backend, track.sourceId]);
+
+  // O fecho usa o volume efetivo: não sobrescreve a preferência nem compete com o fade-in.
+  useEffect(()=>{
+    if(backend !== 'native') return;
+    if(closing){
+      if(closingVolume.current === null) closingVolume.current=player.volume;
+      if(fadeIntervalRef.current){clearInterval(fadeIntervalRef.current);fadeIntervalRef.current=null;}
+      player.volume=closingVolume.current*closeGain;
+    } else if(closingVolume.current !== null){
+      closingVolume.current=null;
+      player.volume=ceilingRef.current;
+    }
+  },[closeGain,closing,backend,player]);
 
   // Smart Cache: Pré-descarrega a próxima música da fila em segundo plano após 5 segundos
   //
@@ -732,6 +752,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           webRef.current?.injectJavaScript(
             'window.__duotone&&window.__duotone.pause();true;'
           ),
+        setVolume: (v) => webRef.current?.injectJavaScript(`(function(){var v=document.querySelector('video');if(v)v.volume=${Math.max(0,Math.min(1,v/100))};})();true;`),
         seek: (ms) =>
           webRef.current?.injectJavaScript(
             `window.__duotone&&window.__duotone.seek(${(ms / 1000).toFixed(2)});true;`

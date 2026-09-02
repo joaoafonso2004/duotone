@@ -1,3 +1,4 @@
+import { useProfileMedia } from '../lib/profileMedia';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React from 'react';
@@ -14,7 +15,8 @@ interface Props {
 
 /** Avatar de outra pessoa. Ver `decodeAvatar` para o formato. */
 export function FriendAvatar({ avatarUrl, name, size = 36 }: Props) {
-  const avatar = decodeAvatar(avatarUrl, name);
+  const resolved = useProfileMedia(avatarUrl?.startsWith('storage:') ? avatarUrl : null);
+  const avatar = decodeAvatar(avatarUrl?.startsWith('storage:') ? resolved : avatarUrl, name);
   const round = { width: size, height: size, borderRadius: size / 2 };
 
   if (avatar.kind === 'emoji') {

@@ -32,10 +32,19 @@ import { useAuth } from './src/state/auth';
 import { usePlayer } from './src/state/player';
 import { useTheme } from './src/state/theme';
 import { useRecomendacoes } from './src/state/recomendacoes';
+import { iniciarPresenca } from './src/lib/presenceSync';
+import { iniciarSocial } from './src/state/social';
 
 export default function App() {
   const init = useAuth((s) => s.init);
   const userId = useAuth((s) => s.session?.user.id);
+
+  useEffect(() => {
+    if (!userId) return;
+    const pararPresenca = iniciarPresenca(userId);
+    const pararSocial = iniciarSocial(userId);
+    return () => { pararPresenca(); pararSocial(); };
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;

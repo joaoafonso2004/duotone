@@ -1,3 +1,4 @@
+import { FriendAvatar } from './FriendAvatar';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
@@ -118,15 +119,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
                 return (
                   <View style={styles.friendRow}>
                     <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                      {friend.avatarUrl ? (
-                        <Image source={{ uri: friend.avatarUrl }} style={styles.friendAvatar} />
-                      ) : (
-                        <View style={[styles.avatarFallback, { backgroundColor: colors.surfaceHigh }]}>
-                          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.textSecondary }}>
-                            {friend.name.charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
+                      <FriendAvatar avatarUrl={friend.avatarUrl} name={friend.name} size={36}/>
                       <View style={{ flex: 1 }}>
                         <Text style={[typography.body, { fontWeight: '600' }]} numberOfLines={1}>
                           {friend.name}

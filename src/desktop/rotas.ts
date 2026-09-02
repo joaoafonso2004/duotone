@@ -15,11 +15,13 @@ export type PrimaryRoute =
   | 'profile' | 'settings' | 'social' | 'now-playing';
 
 export type Route =
-  | { name: PrimaryRoute }
+  | { name: Exclude<PrimaryRoute,'social'> }
+  | { name:'social';friendId?:string;groupId?:string }
+  | { name:'friend-profile';userId:string }
   | { name: 'artist'; value: string }
   | { name: 'playlist'; id: string; title: string }
   | { name: 'import' }
-  | { name: 'stats' }
+  | { name: 'stats';userId?:string }
   | { name: 'spotify-import' };
 
 /** O que se pode partilhar com um amigo. */

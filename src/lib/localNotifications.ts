@@ -56,10 +56,10 @@ export async function ensureNotificationPermission(): Promise<boolean> {
   }
 }
 
-async function present(title: string, body: string, target: 'social' | 'profile'): Promise<void> {
+async function present(title: string, body: string, target: 'social' | 'profile', conversation: {friendId?:string;groupId?:string}={}): Promise<void> {
   try {
     await Notifications.scheduleNotificationAsync({
-      content: { title, body, data: { target } },
+      content: { title, body, data: { target, ...conversation } },
       trigger: null, // já
     });
   } catch {
@@ -89,8 +89,7 @@ export async function notifyNewInboxItems(items: SharedItem[]): Promise<void> {
     await AsyncStorage.setItem(LAST_NOTIFIED_KEY, latest.id);
     // Primeira execução (ainda sem marca): não notificar o histórico todo.
     if (lastNotified === null) return;
-    const extra = items.length > 1 ? ` (+${items.length - 1} na inbox)` : '';
-    await present('Duotone', describe(latest) + extra, 'social');
+    await present('Duotone', describe(latest), 'social', latest.groupId?{groupId:latest.groupId}:{friendId:latest.sender.id});
   } catch {
     // ignorar
   }

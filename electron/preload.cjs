@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   setStartup: (enabled, mode) => ipcRenderer.invoke('startup:set', enabled, mode),
   notifyMessage: (message) => ipcRenderer.send('notification:message', message),
   onNotificationClick: (listener) => {
-    const handler = () => listener();
+    const handler = (_event, conversation) => listener(conversation);
     ipcRenderer.on('notification:open', handler);
     return () => ipcRenderer.removeListener('notification:open', handler);
   },

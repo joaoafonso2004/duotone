@@ -1,3 +1,6 @@
+import { useSocial } from '../state/social';
+import { naoLidasPorAmigo } from '../lib/social';
+import { FriendProfileScreen } from '../screens/FriendProfileScreen';
 import { Ionicons } from '@expo/vector-icons';
 import {
   DarkTheme,
@@ -32,7 +35,7 @@ import { useTheme } from '../state/theme';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getNotificationsEnabled } from '../lib/prefs';
 import * as Notifications from 'expo-notifications';
-import { getFriendships, getInboxItems, updateLastSeen } from '../api/social';
+import { getFriendships, getInboxItems } from '../api/social';
 import { useNotifications } from '../state/notifications';
 import {
   ensureNotificationPermission,
@@ -43,13 +46,14 @@ import {
 export type RootStackParamList = {
   Tabs: undefined;
   Settings: undefined;
-  ListeningStats: undefined;
+  ListeningStats: {userId?:string} | undefined;
+  FriendProfile: {userId:string};
   Playlists: undefined;
   PlaylistDetail: { id: string; name: string };
   ImportYouTube: undefined;
   Artists: undefined;
   LibraryGroup: { type: 'album' | 'artist'; name: string };
-  Social: { openChatWithFriendId?: string } | undefined;
+  Social: { openChatWithFriendId?: string; openGroupId?: string } | undefined;
 };
 
 type TabsParamList = {
@@ -180,26 +184,12 @@ export function RootNavigator() {
   const initialized = useAuth((s) => s.initialized);
   const theme = useTheme((s) => s.theme);
 
-  useEffect(() => {
-    if (!session) return;
-    updateLastSeen();
-    const interval = setInterval(() => {
-      if (AppState.currentState === 'active') {
-        updateLastSeen();
-      }
-    }, 45000);
-
-    const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
-        updateLastSeen();
-      }
-    });
-
-    return () => {
-      clearInterval(interval);
-      sub.remove();
-    };
-  }, [session]);
+  const social=useSocial();
+  useEffect(()=>{
+    const unread=naoLidasPorAmigo(social.received,social.seen).size>0;
+    const pending=social.friends.some(f=>f.status==='pending'&&!f.isSender);
+    useNotifications.setState({hasNotification:unread||pending,hasSocialNotification:unread||pending});
+  },[social.received,social.seen,social.friends]);
 
   // Poll inbox items every 15 seconds to check for new messages
   useEffect(() => {
@@ -213,11 +203,6 @@ export function RootNavigator() {
         const notifyAllowed = await getNotificationsEnabled();
         const items = await getInboxItems();
         if (items.length > 0) {
-          const lastSeenId = await AsyncStorage.getItem('notifications:lastSeenId');
-          const latestItem = items[0]; // ordered by created_at desc
-          if (latestItem && latestItem.id !== lastSeenId) {
-            useNotifications.getState().setHasNotification(true);
-          }
           // Com a app em primeiro plano a bolinha vermelha chega; notificar
           // por cima disso seria ruído. Fora do primeiro plano (típico desta
           // app: a tocar música com o ecrã bloqueado) é a única forma de o
@@ -232,7 +217,7 @@ export function RootNavigator() {
         // Recebido = pendente em que EU nao sou o remetente (nao ha campo
         // `direction`; a Friendship marca isso com `isSender`).
         const pendentes = friendships.filter((f) => f.status === 'pending' && !f.isSender).length;
-        if (pendentes > 0) useNotifications.getState().setHasSocialNotification(true);
+
         if (notifyAllowed && AppState.currentState !== 'active') {
           await notifyPendingFriendRequests(pendentes);
         }
@@ -252,7 +237,8 @@ export function RootNavigator() {
     const sub = Notifications.addNotificationResponseReceivedListener((res) => {
       const target = res.notification.request.content.data?.target;
       if (target === 'social' && navigationRef.isReady()) {
-        navigationRef.navigate('Social');
+        const data=res.notification.request.content.data ?? {};
+        navigationRef.navigate('Social',{openChatWithFriendId:typeof data.friendId==='string'?data.friendId:undefined,openGroupId:typeof data.groupId==='string'?data.groupId:undefined});
       }
     });
     return () => sub.remove();
@@ -305,6 +291,9 @@ export function RootNavigator() {
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="ListeningStats" component={ListeningStatsScreen} />
               <Stack.Screen name="Social" component={SocialScreen} />
+              <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
+              <Stack.Screen name="LibraryGroup" component={LibraryGroupScreen} />
+              <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
             </Stack.Navigator>
             <PlayerRoot />
             {/* "A tocar no PC — continuar aqui". Fica por cima do mini-player. */}

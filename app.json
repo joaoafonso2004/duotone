@@ -54,7 +54,15 @@
         }
       ],
       "expo-file-system",
-      "expo-background-task"
+      "expo-background-task",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite ao Duotone escolher a fotografia e a capa do teu perfil.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ]
   }
 }

@@ -1,4 +1,4 @@
-import { livePresence, PRESENCE_DEBOUNCE_MS, PRESENCE_HEARTBEAT_MS } from '../lib/presence';
+import { getPublicProfiles, searchPublicProfiles } from './profiles';
 import { supabase } from '../lib/supabase';
 import type { Track } from '../types';
 
@@ -10,9 +10,10 @@ export interface Friendship {
   status: 'pending' | 'accepted';
   isSender: boolean;
   lastSeenAt: string | null;
+  online?: boolean;
   currentlyPlaying?: {
-    id: string | null;
-    source: string;
+    id?: string | null;
+    source: 'youtube' | 'spotify';
     sourceId: string;
     title: string;
     artist: string | null;
@@ -31,6 +32,7 @@ export interface SharedItem {
     name: string;
     avatarUrl: string | null;
   };
+  groupId?: string | null;
   itemType: 'playlist' | 'track';
   playlistId: string | null;
   trackData: Track | null;
@@ -65,7 +67,8 @@ export async function sendFriendRequest(targetUserId: string): Promise<void> {
     });
 
   if (insError) {
-    throw new Error('Já existe um pedido pendente ou ligação com este utilizador.');
+    if(insError.code==='23505')return;
+    throw new Error('Não foi possível enviar o pedido. Tenta novamente.');
   }
 }
 
@@ -74,15 +77,7 @@ export async function searchProfiles(query: string): Promise<any[]> {
   if (q.length < 2) return [];
   const currentUid = await currentUserId();
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, name, username, avatar_url')
-    .or(`username.ilike.%${q}%,name.ilike.%${q}%`)
-    .neq('id', currentUid)
-    .limit(15);
-
-  if (error || !data) return [];
-  return data;
+  return (await searchPublicProfiles(q)).filter((p) => p.id !== currentUid);
 }
 
 export async function getFriendships(): Promise<Friendship[]> {
@@ -93,16 +88,14 @@ export async function getFriendships(): Promise<Friendship[]> {
     .select('*')
     .or(`user_id_1.eq.${currentUid},user_id_2.eq.${currentUid}`);
 
-  if (error || !data || data.length === 0) return [];
+  if (error) throw error;
+  if (!data || data.length === 0) return [];
 
   const otherIds = data.map((r) => (r.user_id_1 === currentUid ? r.user_id_2 : r.user_id_1));
 
-  const { data: profiles, error: pError } = await supabase
-    .from('profiles')
-    .select('id, name, username, avatar_url, last_seen_at, currently_playing')
-    .in('id', otherIds);
+  const profiles = await getPublicProfiles(otherIds);
 
-  if (pError || !profiles) return [];
+  if (!profiles) return [];
 
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
 
@@ -116,11 +109,11 @@ export async function getFriendships(): Promise<Friendship[]> {
       avatarUrl: profile?.avatar_url || null,
       status: r.status as 'pending' | 'accepted',
       isSender: r.requester_id === currentUid,
-      lastSeenAt: profile?.last_seen_at || null,
+      lastSeenAt: null,
       // Filtrado à leitura: registos antigos (app fechada sem limpar) ou em
       // pausa não contam como "a ouvir". Corrige também o que já está preso
       // na base de dados, sem migração.
-      currentlyPlaying: livePresence(profile?.currently_playing),
+      currentlyPlaying: null,
     };
   });
 }
@@ -130,13 +123,14 @@ export async function acceptFriendRequest(friendId: string): Promise<void> {
   const user_id_1 = currentUid < friendId ? currentUid : friendId;
   const user_id_2 = currentUid < friendId ? friendId : currentUid;
 
-  const { error } = await supabase
+  const { data,error } = await supabase
     .from('friendships')
     .update({ status: 'accepted' })
     .eq('user_id_1', user_id_1)
-    .eq('user_id_2', user_id_2);
+    .eq('user_id_2', user_id_2).eq('status','pending').eq('requester_id',friendId).select('status');
 
   if (error) throw new Error('Não foi possível aceitar o pedido.');
+  if(!data?.length){const {data:existing}=await supabase.from('friendships').select('status').eq('user_id_1',user_id_1).eq('user_id_2',user_id_2).maybeSingle();if(existing?.status!=='accepted')throw new Error('Este pedido já não está disponível. Atualiza os amigos.');}
 }
 
 export async function declineOrRemoveFriendship(friendId: string): Promise<void> {
@@ -206,20 +200,18 @@ export async function getInboxItems(): Promise<SharedItem[]> {
   const { data, error } = await supabase
     .from('shared_items')
     .select('*')
-    .eq('recipient_id', currentUid)
+    .neq('sender_id', currentUid)
     .is('archived_at', null)
     .order('created_at', { ascending: false });
 
-  if (error || !data || data.length === 0) return [];
+  if (error) throw error;
+  if (!data || data.length === 0) return [];
 
   // Obter perfis dos remetentes
   const senderIds = Array.from(new Set(data.map((r) => r.sender_id)));
-  const { data: profiles, error: pError } = await supabase
-    .from('profiles')
-    .select('id, name, username, avatar_url')
-    .in('id', senderIds);
+  const profiles = await getPublicProfiles(senderIds);
 
-  if (pError || !profiles) return [];
+  if (!profiles) return [];
 
   const profileMap = new Map(profiles.map((p) => [p.id, p]));
 
@@ -227,6 +219,7 @@ export async function getInboxItems(): Promise<SharedItem[]> {
     const sender = profileMap.get(r.sender_id);
     return {
       id: r.id,
+      groupId: r.group_id ?? null,
       sender: {
         id: r.sender_id,
         username: sender?.username || 'unknown',
@@ -275,141 +268,21 @@ export async function getFriendCount(): Promise<number> {
   }
 }
 
-export async function updateLastSeen(): Promise<void> {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase
-      .from('profiles')
-      .update({ last_seen_at: new Date().toISOString() })
-      .eq('id', user.id);
-  } catch {
-    // silently fail
-  }
+type MessageCursor=Pick<SharedItem,'id'|'createdAt'>;
+export function getChatMessages(friendId:string,before?:MessageCursor):Promise<SharedItem[]> {
+  return getConversationMessages({p_friend:friendId},before);
 }
-
-export async function getChatMessages(friendId: string): Promise<SharedItem[]> {
-  const currentUid = await currentUserId();
-
-  const { data, error } = await supabase
-    .from('shared_items')
-    .select('*')
-    .or(`and(sender_id.eq.${currentUid},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${currentUid})`)
-    .order('created_at', { ascending: true });
-
-  if (error || !data || data.length === 0) return [];
-
-  const senderIds = Array.from(new Set(data.map((r) => r.sender_id)));
-  const { data: profiles, error: pError } = await supabase
-    .from('profiles')
-    .select('id, name, username, avatar_url')
-    .in('id', senderIds);
-
-  if (pError || !profiles) return [];
-  const profileMap = new Map(profiles.map((p) => [p.id, p]));
-
-  return data.map((r) => {
-    const sender = profileMap.get(r.sender_id);
-    return {
-      id: r.id,
-      sender: {
-        id: r.sender_id,
-        username: sender?.username || 'unknown',
-        name: sender?.name || 'Unknown',
-        avatarUrl: sender?.avatar_url || null,
-      },
-      itemType: r.item_type as 'playlist' | 'track',
-      playlistId: r.playlist_id,
-      trackData: r.track_data,
-      message: r.message,
-      createdAt: r.created_at,
-    };
+async function getConversationMessages(target:{p_friend?:string;p_group?:string},before?:MessageCursor):Promise<SharedItem[]> {
+  const {data,error}=await supabase.rpc('get_social_messages',{...target,p_before_time:before?.createdAt,p_before_id:before?.id});
+  if(error)throw error;
+  if(!data?.length)return [];
+  const profiles=await getPublicProfiles(Array.from(new Set<string>(data.map((r:any)=>r.sender_id))));
+  const map=new Map(profiles.map(p=>[p.id,p]));
+  return [...data].reverse().map((r:any)=>{
+    const p=map.get(r.sender_id);
+    return {id:r.id,groupId:r.group_id??null,sender:{id:r.sender_id,name:p?.name||'Utilizador',username:p?.username||'',avatarUrl:p?.avatar_url||null},
+      itemType:r.item_type,playlistId:r.playlist_id,trackData:r.track_data,message:r.message,createdAt:r.created_at};
   });
-}
-
-/**
- * Escreve (ou limpa) o "a ouvir agora" do utilizador atual.
- *
- * Chamar diretamente a cada mudança de estado do leitor era o que causava
- * lag ao saltar faixas — cada salto disparava um pedido. Usa antes
- * `publishPresence`, que agrupa as chamadas.
- */
-export async function updateCurrentlyPlaying(track: any | null, isPlaying: boolean): Promise<void> {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // Em pausa não se guarda a faixa: um registo pausado deixado para trás é
-    // exatamente o que fazia os amigos aparecerem a ouvir algo para sempre.
-    const payload =
-      track && isPlaying
-        ? {
-            id: track.id || null,
-            source: track.source,
-            sourceId: track.sourceId,
-            title: track.title,
-            artist: track.artist || null,
-            artworkUrl: track.artworkUrl || null,
-            durationSeconds: track.durationSeconds || null,
-            isPlaying: true,
-            updatedAt: new Date().toISOString(),
-          }
-        : null;
-
-    await supabase
-      .from('profiles')
-      .update({ currently_playing: payload })
-      .eq('id', user.id);
-  } catch {
-    // silently fail
-  }
-}
-
-let presenceTimer: ReturnType<typeof setTimeout> | null = null;
-let presenceBeat: ReturnType<typeof setInterval> | null = null;
-let presenceLast: { track: any | null; isPlaying: boolean } = { track: null, isPlaying: false };
-
-/**
- * Ponto de entrada usado pelas duas plataformas.
- *
- * Agrupa as escritas (saltar 5 faixas seguidas dá um pedido, não cinco) e
- * mantém um batimento enquanto toca, para o registo não expirar a meio de um
- * tema longo.
- */
-export function publishPresence(track: any | null, isPlaying: boolean): void {
-  presenceLast = { track, isPlaying };
-
-  if (presenceTimer) clearTimeout(presenceTimer);
-  presenceTimer = setTimeout(() => {
-    void updateCurrentlyPlaying(presenceLast.track, presenceLast.isPlaying);
-  }, PRESENCE_DEBOUNCE_MS);
-
-  if (presenceBeat) {
-    clearInterval(presenceBeat);
-    presenceBeat = null;
-  }
-  if (track && isPlaying) {
-    presenceBeat = setInterval(() => {
-      void updateCurrentlyPlaying(presenceLast.track, presenceLast.isPlaying);
-    }, PRESENCE_HEARTBEAT_MS);
-  }
-}
-
-/**
- * Limpeza imediata, sem passar pelo agrupamento: para sair da app, ir para
- * segundo plano ou fechar a janela, onde não há tempo para esperar.
- */
-export function clearPresence(): void {
-  if (presenceTimer) {
-    clearTimeout(presenceTimer);
-    presenceTimer = null;
-  }
-  if (presenceBeat) {
-    clearInterval(presenceBeat);
-    presenceBeat = null;
-  }
-  presenceLast = { track: null, isPlaying: false };
-  void updateCurrentlyPlaying(null, false);
 }
 
 export interface FriendProfile {
@@ -421,19 +294,10 @@ export interface FriendProfile {
 }
 
 export async function getFriendProfile(friendId: string): Promise<FriendProfile> {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, name, username, avatar_url, last_seen_at')
-    .eq('id', friendId)
-    .single();
-  if (error || !data) throw new Error('Perfil não encontrado');
-  return {
-    id: data.id,
-    name: data.name || 'Unknown',
-    username: data.username || 'unknown',
-    avatarUrl: data.avatar_url,
-    lastSeenAt: data.last_seen_at,
-  };
+  const data = (await getPublicProfiles([friendId]))[0];
+  if (!data) throw new Error('Perfil não encontrado');
+  return { id:data.id, name:data.name || 'Sem nome', username:data.username || '', avatarUrl:data.avatar_url, lastSeenAt:null };
+
 }
 
 // ============================================================ conversas de grupo ==
@@ -504,20 +368,19 @@ export async function getGrupos(): Promise<ChatGroup[]> {
     .from('chat_group_members')
     .select('group_id')
     .eq('user_id', currentUid);
-  if (error || !meus || meus.length === 0) return [];
+  if(error)throw error;
+  if (!meus || meus.length === 0) return [];
 
   const ids = meus.map((m) => m.group_id);
-  const [{ data: grupos }, { data: membros }] = await Promise.all([
+  const [{ data: grupos,error:groupError }, { data: membros,error:memberError }] = await Promise.all([
     supabase.from('chat_groups').select('id, name, created_by').in('id', ids),
     supabase.from('chat_group_members').select('group_id, user_id').in('group_id', ids),
   ]);
+  if(groupError||memberError)throw groupError||memberError;
   if (!grupos) return [];
 
   const pessoas = Array.from(new Set((membros ?? []).map((m) => m.user_id)));
-  const { data: perfis } = await supabase
-    .from('profiles')
-    .select('id, name, username, avatar_url')
-    .in('id', pessoas.length ? pessoas : ['']);
+  const perfis = await getPublicProfiles(pessoas);
   const porId = new Map((perfis ?? []).map((p) => [p.id, p]));
 
   return grupos.map((g) => ({
@@ -539,39 +402,8 @@ export async function getGrupos(): Promise<ChatGroup[]> {
 }
 
 /** As mensagens de um grupo, da mais antiga para a mais nova. */
-export async function getGroupMessages(groupId: string): Promise<SharedItem[]> {
-  const { data, error } = await supabase
-    .from('shared_items')
-    .select('*')
-    .eq('group_id', groupId)
-    .order('created_at', { ascending: true });
-
-  if (error || !data || data.length === 0) return [];
-
-  const senderIds = Array.from(new Set(data.map((r) => r.sender_id)));
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, name, username, avatar_url')
-    .in('id', senderIds);
-  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
-
-  return data.map((r) => {
-    const sender = profileMap.get(r.sender_id);
-    return {
-      id: r.id,
-      sender: {
-        id: r.sender_id,
-        username: sender?.username || 'unknown',
-        name: sender?.name || 'Unknown',
-        avatarUrl: sender?.avatar_url || null,
-      },
-      itemType: r.item_type,
-      playlistId: r.playlist_id,
-      trackData: r.track_data,
-      message: r.message,
-      createdAt: r.created_at,
-    } as SharedItem;
-  });
+export function getGroupMessages(groupId:string,before?:MessageCursor):Promise<SharedItem[]> {
+  return getConversationMessages({p_group:groupId},before);
 }
 
 /** Partilha (ou escreve) num grupo. */

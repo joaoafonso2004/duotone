@@ -24,6 +24,7 @@
 export type PartilhaRecebida = {
   /** Quem a mandou. */
   sender: { id: string };
+  groupId?: string | null;
   createdAt: string;
 };
 
@@ -42,7 +43,7 @@ export function naoLidasPorAmigo(
 ): Map<string, number> {
   const contagem = new Map<string, number>();
   for (const p of recebidas) {
-    const de = p.sender?.id;
+    const de = p.groupId ? `group:${p.groupId}` : p.sender?.id;
     if (!de) continue;
 
     const visto = vistos[de];

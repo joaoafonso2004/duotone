@@ -1,3 +1,4 @@
+import { removeOwnProfileMedia } from '../lib/profileMedia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View, Share, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
@@ -257,6 +258,7 @@ export function SettingsScreen({ navigation }: Props) {
   const doDeleteAccount = async () => {
     setDeletingAccount(true);
     try {
+      await removeOwnProfileMedia();
       const { error } = await supabase.rpc('delete_user_account');
       if (error) throw error;
       setDeleteAccountOpen(false);

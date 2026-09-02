@@ -71,7 +71,10 @@ ipcMain.on('notification:message', (event, message) => {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
-    mainWindow.webContents.send('notification:open');
+    mainWindow.webContents.send('notification:open', {
+      friendId:typeof message.friendId==='string'?message.friendId.slice(0,100):undefined,
+      groupId:typeof message.groupId==='string'?message.groupId.slice(0,100):undefined,
+    });
   });
   notification.on('failed', (_event, error) => console.warn('Falha na notificação:', error));
   notification.show();
