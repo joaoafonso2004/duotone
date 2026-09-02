@@ -435,3 +435,192 @@ export async function getFriendProfile(friendId: string): Promise<FriendProfile>
     lastSeenAt: data.last_seen_at,
   };
 }
+
+// ============================================================ conversas de grupo ==
+
+/**
+ * Um grupo, com quem la esta dentro.
+ *
+ * As mensagens de grupo vivem na MESMA tabela das outras (`shared_items`), mas
+ * apontam para o grupo em vez de para uma pessoa (`group_id` em vez de
+ * `recipient_id`). Guardar uma copia por membro parecia mais simples e nao e:
+ * partia-se assim que alguem entrasse ou saisse, porque as mensagens antigas
+ * ficavam com a lista de membros de quando foram enviadas. Ver
+ * `supabase/group-chats.sql`.
+ */
+export interface ChatGroup {
+  id: string;
+  name: string;
+  createdBy: string;
+  membros: {
+    id: string;
+    name: string;
+    username: string;
+    avatarUrl: string | null;
+  }[];
+}
+
+/**
+ * Cria um grupo e mete la dentro quem foi escolhido -- e a ti.
+ *
+ * Quem cria entra sempre: um grupo sem o dono e um grupo que ele nao consegue
+ * ver, porque a politica de leitura pede que se seja membro.
+ */
+export async function criarGrupo(
+  nome: string,
+  membros: readonly string[],
+): Promise<string> {
+  const currentUid = await currentUserId();
+  const limpo = nome.trim();
+  if (!limpo) throw new Error('O grupo precisa de um nome.');
+
+  const { data, error } = await supabase
+    .from('chat_groups')
+    .insert({ name: limpo, created_by: currentUid })
+    .select('id')
+    .single();
+  if (error || !data) throw new Error('Não foi possível criar o grupo.');
+
+  const todos = Array.from(new Set([currentUid, ...membros].filter(Boolean)));
+  const { error: erroMembros } = await supabase
+    .from('chat_group_members')
+    .insert(todos.map((id) => ({ group_id: data.id, user_id: id })));
+
+  if (erroMembros) {
+    // Um grupo sem membros nao serve para nada e ficava la a ocupar espaco.
+    await supabase.from('chat_groups').delete().eq('id', data.id);
+    throw new Error('Não foi possível adicionar os membros.');
+  }
+  return data.id as string;
+}
+
+/** Os grupos em que estas, com os membros de cada um. */
+export async function getGrupos(): Promise<ChatGroup[]> {
+  const currentUid = await currentUserId();
+
+  // Os grupos onde estou. A politica ja filtra por mim, mas pedir explicito
+  // poupa trabalho ao servidor e diz o que se quer.
+  const { data: meus, error } = await supabase
+    .from('chat_group_members')
+    .select('group_id')
+    .eq('user_id', currentUid);
+  if (error || !meus || meus.length === 0) return [];
+
+  const ids = meus.map((m) => m.group_id);
+  const [{ data: grupos }, { data: membros }] = await Promise.all([
+    supabase.from('chat_groups').select('id, name, created_by').in('id', ids),
+    supabase.from('chat_group_members').select('group_id, user_id').in('group_id', ids),
+  ]);
+  if (!grupos) return [];
+
+  const pessoas = Array.from(new Set((membros ?? []).map((m) => m.user_id)));
+  const { data: perfis } = await supabase
+    .from('profiles')
+    .select('id, name, username, avatar_url')
+    .in('id', pessoas.length ? pessoas : ['']);
+  const porId = new Map((perfis ?? []).map((p) => [p.id, p]));
+
+  return grupos.map((g) => ({
+    id: g.id as string,
+    name: g.name as string,
+    createdBy: g.created_by as string,
+    membros: (membros ?? [])
+      .filter((m) => m.group_id === g.id)
+      .map((m) => {
+        const p = porId.get(m.user_id);
+        return {
+          id: m.user_id as string,
+          name: p?.name || 'Unknown',
+          username: p?.username || 'unknown',
+          avatarUrl: p?.avatar_url || null,
+        };
+      }),
+  }));
+}
+
+/** As mensagens de um grupo, da mais antiga para a mais nova. */
+export async function getGroupMessages(groupId: string): Promise<SharedItem[]> {
+  const { data, error } = await supabase
+    .from('shared_items')
+    .select('*')
+    .eq('group_id', groupId)
+    .order('created_at', { ascending: true });
+
+  if (error || !data || data.length === 0) return [];
+
+  const senderIds = Array.from(new Set(data.map((r) => r.sender_id)));
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, name, username, avatar_url')
+    .in('id', senderIds);
+  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  return data.map((r) => {
+    const sender = profileMap.get(r.sender_id);
+    return {
+      id: r.id,
+      sender: {
+        id: r.sender_id,
+        username: sender?.username || 'unknown',
+        name: sender?.name || 'Unknown',
+        avatarUrl: sender?.avatar_url || null,
+      },
+      itemType: r.item_type,
+      playlistId: r.playlist_id,
+      trackData: r.track_data,
+      message: r.message,
+      createdAt: r.created_at,
+    } as SharedItem;
+  });
+}
+
+/** Partilha (ou escreve) num grupo. */
+export async function shareComGrupo(
+  groupId: string,
+  itemType: 'playlist' | 'track',
+  item: any,
+  message?: string,
+): Promise<void> {
+  const currentUid = await currentUserId();
+
+  const payload: any = {
+    sender_id: currentUid,
+    group_id: groupId,
+    // A base de dados exige um destino e SO um: com o group_id preenchido, o
+    // recipient_id tem de ficar a null (ver a constraint destino_unico).
+    recipient_id: null,
+    item_type: itemType,
+    message: message?.trim() || null,
+  };
+  if (itemType === 'playlist') payload.playlist_id = item.id;
+  else payload.track_data = item;
+
+  const { error } = await supabase.from('shared_items').insert(payload);
+  if (error) throw new Error('Não foi possível enviar para o grupo.');
+}
+
+/** Sair de um grupo. Sair e sempre direito de cada um. */
+export async function sairDoGrupo(groupId: string): Promise<void> {
+  const currentUid = await currentUserId();
+  const { error } = await supabase
+    .from('chat_group_members')
+    .delete()
+    .eq('group_id', groupId)
+    .eq('user_id', currentUid);
+  if (error) throw new Error('Não foi possível sair do grupo.');
+}
+
+/** Acrescenta pessoas a um grupo onde ja estas. */
+export async function acrescentarAoGrupo(
+  groupId: string,
+  membros: readonly string[],
+): Promise<void> {
+  const novos = Array.from(new Set(membros.filter(Boolean)));
+  if (novos.length === 0) return;
+  const { error } = await supabase
+    .from('chat_group_members')
+    // Quem ja la esta nao pode dar erro: a chave e (grupo, pessoa).
+    .upsert(novos.map((id) => ({ group_id: groupId, user_id: id })),
+      { onConflict: 'group_id,user_id', ignoreDuplicates: true });
+  if (error) throw new Error('Não foi possível adicionar ao grupo.');
+}

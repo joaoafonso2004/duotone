@@ -8,11 +8,13 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import {
   acceptFriendRequest, declineOrRemoveFriendship,
-  getChatMessages, getFriendships, getInboxItems, searchProfiles,
-  sendFriendRequest, shareItem, type Friendship, type SharedItem,
+  acrescentarAoGrupo, criarGrupo, getChatMessages, getFriendships, getGroupMessages,
+  getGrupos, getInboxItems, sairDoGrupo, searchProfiles, sendFriendRequest,
+  shareComGrupo, shareItem, type ChatGroup, type Friendship, type SharedItem,
 } from '../../api/social';
 import { importSharedPlaylist } from '../../api/playlists';
 import { FriendAvatar } from '../../components/FriendAvatar';
+import { supabase } from '../../lib/supabase';
 import { displayArtist } from '../../lib/artistName';
 import { getChatsVistos, marcarChatVisto } from '../../lib/prefs';
 import { naoLidasPorAmigo, totalNaoLidas } from '../../lib/social';
@@ -42,24 +44,51 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
   const [importingShared, setImportingShared] = useState<string | null>(null);
 
   // Chat states
-  const [activeChatFriend, setActiveChatFriend] = useState<Friendship | null>(null);
+  /**
+   * A conversa aberta -- de um amigo OU de um grupo.
+   *
+   * Um so estado e nao dois: o dialogo, o envio e o ciclo de recarregar sao os
+   * mesmos, e a unica coisa que muda e para onde vai a mensagem. Com dois
+   * estados havia sessenta linhas de JSX duplicadas e dois sitios para
+   * corrigir de cada vez.
+   */
+  const [conversa, setConversa] = useState<
+    { tipo: 'amigo'; amigo: Friendship } | { tipo: 'grupo'; grupo: ChatGroup } | null
+  >(null);
+  const [grupos, setGrupos] = useState<ChatGroup[]>([]);
+  /** Precisa-se do proprio id para saber que bolhas sao nossas: num grupo nao
+   * chega dizer "nao e do outro", porque ha varios outros. */
+  const [meuId, setMeuId] = useState<string | null>(null);
+  const [novoGrupoAberto, setNovoGrupoAberto] = useState(false);
+  const [nomeDoGrupo, setNomeDoGrupo] = useState('');
+  const [membrosEscolhidos, setMembrosEscolhidos] = useState<string[]>([]);
+  const [aCriarGrupo, setACriarGrupo] = useState(false);
 
-  /** Abrir a conversa e o que a marca como vista -- e o gesto que ja existe. */
   const abrirConversa = async (f: Friendship) => {
-    setActiveChatFriend(f);
+    setConversa({ tipo: 'amigo', amigo: f });
     setVistos(await marcarChatVisto(f.friendId));
   };
+  const abrirGrupo = (g: ChatGroup) => setConversa({ tipo: 'grupo', grupo: g });
   const [chatMessages, setChatMessages] = useState<SharedItem[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
   const chatScrollRef = useRef<any>(null);
 
+  // O proprio id, uma vez. Sem ele nao se sabe que bolhas sao nossas
+  // num grupo -- e ha varios "outros".
+  useEffect(() => {
+    supabase.auth.getUser()
+      .then(({ data }) => setMeuId(data.user?.id ?? null))
+      .catch(() => {});
+  }, []);
+
   const loadSocialData = useCallback(async () => {
     try {
-      const [ib, fs, vs] = await Promise.all([
-        getInboxItems(), getFriendships(), getChatsVistos(),
+      const [ib, fs, vs, gs] = await Promise.all([
+        getInboxItems(), getFriendships(), getChatsVistos(), getGrupos(),
       ]);
+      setGrupos(gs);
       // O `inbox` deixa de ter aba propria, mas continua a ser a consulta
       // "o que me mandaram" -- e dela que sai a contagem de nao-lidas.
       setInbox(ib);
@@ -76,51 +105,89 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
     return () => clearInterval(interval);
   }, [loadSocialData]);
 
-  // Load and poll chat messages
+  /** Ler a conversa aberta, seja ela de um amigo ou de um grupo. */
+  const lerMensagens = useCallback(async () => {
+    if (!conversa) return [] as SharedItem[];
+    return conversa.tipo === 'amigo'
+      ? getChatMessages(conversa.amigo.friendId)
+      : getGroupMessages(conversa.grupo.id);
+  }, [conversa]);
+
   const loadChat = useCallback(async () => {
-    if (!activeChatFriend) return;
+    if (!conversa) return;
     setChatLoading(true);
     try {
-      const msgs = await getChatMessages(activeChatFriend.friendId);
-      setChatMessages(msgs);
+      setChatMessages(await lerMensagens());
       setTimeout(() => chatScrollRef.current?.scrollToEnd?.({ animated: false }), 100);
     } catch (err) {
       console.warn(err);
     } finally {
       setChatLoading(false);
     }
-  }, [activeChatFriend]);
+  }, [conversa, lerMensagens]);
 
   useEffect(() => {
-    if (!activeChatFriend) {
+    if (!conversa) {
       setChatMessages([]);
       return;
     }
     loadChat();
     const chatInterval = setInterval(async () => {
       try {
-        const msgs = await getChatMessages(activeChatFriend.friendId);
-        setChatMessages(msgs);
+        setChatMessages(await lerMensagens());
       } catch {}
     }, 6000);
     return () => clearInterval(chatInterval);
-  }, [activeChatFriend, loadChat]);
+  }, [conversa, loadChat, lerMensagens]);
 
   const sendChatMessage = async () => {
-    if (!activeChatFriend || !chatInput.trim() || sendingMessage) return;
+    if (!conversa || !chatInput.trim() || sendingMessage) return;
     const msg = chatInput.trim();
     setChatInput('');
     setSendingMessage(true);
     try {
-      await shareItem(activeChatFriend.friendId, 'track', null, msg);
-      const msgs = await getChatMessages(activeChatFriend.friendId);
-      setChatMessages(msgs);
+      // Uma mensagem de texto e um item sem faixa -- e como o chat ja
+      // funcionava antes dos grupos existirem.
+      if (conversa.tipo === 'amigo') await shareItem(conversa.amigo.friendId, 'track', null, msg);
+      else await shareComGrupo(conversa.grupo.id, 'track', null, msg);
+      setChatMessages(await lerMensagens());
       setTimeout(() => chatScrollRef.current?.scrollToEnd?.({ animated: true }), 100);
     } catch (err: any) {
       notify(err?.message || 'Could not send message.');
+      // A mensagem volta para a caixa: perde-se o que se escreveu se nao.
       setChatInput(msg);
     } finally {
       setSendingMessage(false);
+    }
+  };
+
+  /** Criar o grupo e abri-lo logo -- que e o que se quer a seguir. */
+  const criarGrupoAgora = async () => {
+    if (!nomeDoGrupo.trim() || membrosEscolhidos.length === 0 || aCriarGrupo) return;
+    setACriarGrupo(true);
+    try {
+      await criarGrupo(nomeDoGrupo, membrosEscolhidos);
+      const gs = await getGrupos();
+      setGrupos(gs);
+      setNovoGrupoAberto(false);
+      setNomeDoGrupo('');
+      setMembrosEscolhidos([]);
+      notify('Group created.');
+    } catch (e: any) {
+      notify(e?.message || 'Could not create the group.');
+    } finally {
+      setACriarGrupo(false);
+    }
+  };
+
+  const sairGrupo = async (g: ChatGroup) => {
+    try {
+      await sairDoGrupo(g.id);
+      setConversa(null);
+      setGrupos(await getGrupos());
+      notify(`Left ${g.name}.`);
+    } catch (e: any) {
+      notify(e?.message || 'Could not leave the group.');
     }
   };
 
@@ -188,7 +255,13 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
   const porLer = totalNaoLidas(naoLidas);
 
   return (
-    <Page title="Social" subtitle="Connect and share music with friends.">
+    <Page
+      title="Social"
+      subtitle="Connect and share music with friends."
+      action={activeTab === 'friends' && activeFriends.length > 0 ? (
+        <Button icon="people-outline" secondary onPress={() => setNovoGrupoAberto(true)}>New group</Button>
+      ) : undefined}
+    >
       {/* Os separadores alinham com a margem do resto da pagina (48) e o
           activo marca-se com LUZ, nao com o roxo do tema — a identidade da app
           e o metal, e a cor fica reservada a significado. */}
@@ -237,6 +310,34 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
                       </View>
                     )}
                   </View>
+                ))}
+              </>
+            )}
+
+            {/* Os grupos vem ANTES dos amigos: sao poucos e sao onde a
+                conversa costuma estar viva. */}
+            {grupos.length > 0 && (
+              <>
+                <Text style={[ui.eyebrow, { marginTop: ESP.lg, marginBottom: ESP.xs }]}>
+                  GROUPS · {grupos.length}
+                </Text>
+                {grupos.map((g) => (
+                  <P
+                    key={g.id}
+                    onPress={() => abrirGrupo(g)}
+                    style={({ hovered, focused }: any) => [styles.socialLinha, (hovered || focused) && styles.socialLinhaHover]}
+                  >
+                    <View style={styles.socialIconeCaixa}>
+                      <Ionicons name="people" size={20} color={COR.textoMedio} />
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text numberOfLines={1} style={styles.socialNome}>{g.name}</Text>
+                      <Text numberOfLines={1} style={styles.socialUtilizador}>
+                        {g.membros.map((m) => m.name).join(', ')}
+                      </Text>
+                    </View>
+                    <IconButton name="exit-outline" label={`Leave ${g.name}`} onPress={() => void sairGrupo(g)} />
+                  </P>
                 ))}
               </>
             )}
@@ -369,8 +470,66 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
       </ContentScroll>
 
       {/* CHAT DIALOG */}
-      <Dialog open={!!activeChatFriend} title={activeChatFriend ? `Chat with ${activeChatFriend.name}` : 'Chat'} onClose={() => setActiveChatFriend(null)} width={500}>
-        {activeChatFriend && (
+      {/* CRIAR GRUPO */}
+      <Dialog
+        open={novoGrupoAberto}
+        title="New group"
+        onClose={() => { setNovoGrupoAberto(false); setMembrosEscolhidos([]); setNomeDoGrupo(''); }}
+      >
+        <View style={{ gap: ESP.md }}>
+          <Text style={styles.formLabel}>GROUP NAME</Text>
+          <Field
+            placeholder="Give it a name"
+            value={nomeDoGrupo}
+            onChangeText={setNomeDoGrupo}
+            onSubmitEditing={() => void criarGrupoAgora()}
+          />
+          <Text style={styles.formLabel}>MEMBERS</Text>
+          {activeFriends.length === 0 ? (
+            <Text style={styles.dialogBody}>Add friends first, then you can group them.</Text>
+          ) : (
+            <View style={{ gap: 6, maxHeight: 220, overflow: 'auto' as any }}>
+              {activeFriends.map((f) => {
+                const dentro = membrosEscolhidos.includes(f.friendId);
+                return (
+                  <Pressable
+                    key={f.friendId}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: dentro }}
+                    onPress={() => setMembrosEscolhidos((antes) => dentro
+                      ? antes.filter((id) => id !== f.friendId)
+                      : [...antes, f.friendId])}
+                    style={[styles.destination, dentro && { borderColor: COR.texto }]}
+                  >
+                    <Ionicons name={dentro ? 'checkbox' : 'square-outline'} size={18} color={dentro ? COR.texto : COR.textoFraco} />
+                    <Text style={styles.destinationText}>{f.name} (@{f.username})</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+          <View style={styles.dialogActions}>
+            <Button secondary onPress={() => { setNovoGrupoAberto(false); setMembrosEscolhidos([]); setNomeDoGrupo(''); }}>Cancel</Button>
+            <Button
+              onPress={() => void criarGrupoAgora()}
+              disabled={!nomeDoGrupo.trim() || membrosEscolhidos.length === 0 || aCriarGrupo}
+            >
+              {aCriarGrupo ? 'Creating…' : `Create with ${membrosEscolhidos.length}`}
+            </Button>
+          </View>
+        </View>
+      </Dialog>
+
+      {/* CHAT */}
+      <Dialog
+        open={!!conversa}
+        title={!conversa ? 'Chat'
+          : conversa.tipo === 'amigo' ? `Chat with ${conversa.amigo.name}`
+          : `${conversa.grupo.name} · ${conversa.grupo.membros.length} members`}
+        onClose={() => setConversa(null)}
+        width={500}
+      >
+        {conversa && (
           <View style={{ height: 420, justifyContent: 'space-between' }}>
             <ScrollView 
               ref={chatScrollRef}
@@ -380,7 +539,11 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
               {chatLoading && chatMessages.length === 0 ? (
                 <Loading />
               ) : chatMessages.map((msg) => {
-                const minha = msg.sender.id !== activeChatFriend.friendId;
+                // Numa conversa a dois bastava "nao e do outro". Num grupo ha
+                // varios outros, por isso compara-se com o proprio id.
+                const minha = conversa.tipo === 'amigo'
+                  ? msg.sender.id !== conversa.amigo.friendId
+                  : msg.sender.id === meuId;
                 const corTexto = minha ? COR.fundo : COR.texto;
                 return (
                   <View key={msg.id} style={{ alignSelf: minha ? 'flex-end' : 'flex-start', maxWidth: '80%', gap: ESP.xs }}>
@@ -417,7 +580,9 @@ export function SocialPage({ notify, play, more }: { notify: (s: string) => void
               })}
               {!chatMessages.length && !chatLoading && (
                 <Text style={styles.socialSemMensagens}>
-                  No messages yet. Say hello to {activeChatFriend.name}.
+                  {conversa.tipo === 'amigo'
+                    ? `No messages yet. Say hello to ${conversa.amigo.name}.`
+                    : `No messages yet in ${conversa.grupo.name}.`}
                 </Text>
               )}
             </ScrollView>
