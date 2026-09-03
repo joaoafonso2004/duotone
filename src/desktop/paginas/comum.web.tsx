@@ -15,14 +15,64 @@ import type { Track } from '../../types';
 import { desktop } from '../ui.web';
 import { styles } from '../estilos.web';
 
+/**
+ * O que já se leu da biblioteca, por leitor.
+ *
+ * **Porque é que isto existe.** O `useLibraryData` ia buscar a biblioteca
+ * inteira ao servidor a cada montagem — e as páginas Artists, Liked Songs e
+ * Playlists montam-se todas as vezes que se clica no separador. Ou seja: cada
+ * ida aos Artists eram duas consultas ao Supabase (as gostadas mais as faixas
+ * de todas as playlists, com junção) e uma espera com o ecrã vazio, para
+ * mostrar exatamente o que já lá estava um segundo antes.
+ *
+ * Guarda-se por leitor porque são dois — a biblioteca alargada e só as
+ * gostadas — e não são a mesma lista.
+ */
+const cache = new Map<unknown, { em: number; faixas: Track[] }>();
+/** Meia hora. A biblioteca muda quando ELE a muda, e nessas alturas o evento
+ * `duotone:refresh-library` já força a releitura. */
+const VALIDADE_MS = 30 * 60 * 1000;
+
+/** Esquece o que está guardado. Serve para quando a sessão muda. */
+export function esquecerBiblioteca(): void {
+  cache.clear();
+}
+
 export function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
-  const [tracks, setTracks] = useState<Track[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null);
-  const refresh = useCallback(async () => { setLoading(true); try { setTracks(await loader()); setError(null); } catch (e: any) { setError(e?.message || 'Could not load your library.'); } finally { setLoading(false); } }, [loader]);
+  const guardado = cache.get(loader);
+  const fresco = guardado && Date.now() - guardado.em < VALIDADE_MS;
+  const [tracks, setTracks] = useState<Track[]>(fresco ? guardado!.faixas : []);
+  const [loading, setLoading] = useState(!fresco);
+  const [error, setError] = useState<string | null>(null);
+
+  const ler = useCallback(async (forcar: boolean) => {
+    const actual = cache.get(loader);
+    if (!forcar && actual && Date.now() - actual.em < VALIDADE_MS) {
+      // Já se sabe a resposta: mostra-se sem passar pelo estado de espera.
+      setTracks(actual.faixas); setLoading(false); setError(null);
+      return;
+    }
+    setLoading(true);
+    try {
+      const faixas = await loader();
+      cache.set(loader, { em: Date.now(), faixas });
+      setTracks(faixas); setError(null);
+    } catch (e: any) {
+      setError(e?.message || 'Could not load your library.');
+    } finally {
+      setLoading(false);
+    }
+  }, [loader]);
+
+  const refresh = useCallback(() => ler(true), [ler]);
+
   useEffect(() => {
-    refresh();
-    window.addEventListener('duotone:refresh-library', refresh);
-    return () => window.removeEventListener('duotone:refresh-library', refresh);
-  }, [refresh]);
+    void ler(false);
+    const forcar = () => { void ler(true); };
+    window.addEventListener('duotone:refresh-library', forcar);
+    return () => window.removeEventListener('duotone:refresh-library', forcar);
+  }, [ler]);
+
   return { tracks, loading, error, refresh };
 }
 

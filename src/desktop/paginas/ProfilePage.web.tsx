@@ -132,10 +132,11 @@ export function StatsChart({ buckets, color }: { buckets: TimelineBucket[]; colo
     </View>))}</View>;
 }
 
-export function ProfilePage({navigate,userId}:{navigate:(r:Route)=>void;notify:(s:string)=>void;userId?:string}) {
+export function ProfilePage({navigate,userId,back}:{navigate:(r:Route)=>void;notify:(s:string)=>void;userId?:string;back?:()=>void}) {
   const ownId=useAuth(s=>s.session?.user.id);
   const target=userId || ownId;
-  return <Page title={userId?'Profile':'Your profile'} subtitle="The music that is part of you.">{target&&<SocialProfileView key={target} userId={target}
+  return <Page title={userId?'Profile':'Your profile'} subtitle="The music that is part of you."
+    action={userId&&back?<Button secondary icon="arrow-back" onPress={back}>Back</Button>:undefined}>{target&&<SocialProfileView key={target} userId={target}
     onMessage={friendId=>navigate({name:'social',friendId})}
     onPlaylist={id=>navigate({name:'playlist',id,title:'Playlist'})}
     onSocial={()=>navigate({name:'social'})} onSettings={()=>navigate({name:'settings'})}

@@ -456,3 +456,25 @@ export async function acrescentarAoGrupo(
       { onConflict: 'group_id,user_id', ignoreDuplicates: true });
   if (error) throw new Error('Não foi possível adicionar ao grupo.');
 }
+
+/**
+ * Apaga a conversa inteira com uma pessoa.
+ *
+ * Serve para as conversas que ficam para tras depois de se remover uma
+ * amizade: o historico e preservado de proposito (a mensagem que alguem te
+ * mandou nao desaparece porque deixaram de ser amigos), mas tem de haver
+ * maneira de o arrumar.
+ *
+ * Apaga os dois sentidos. A politica de RLS deixa: numa conversa a dois podes
+ * apagar o que enviaste E o que te enviaram. Numa de grupo so o que escreveste
+ * -- por isso esta funcao nao serve para grupos, onde sair e o gesto certo.
+ */
+export async function apagarConversa(friendId: string): Promise<void> {
+  const currentUid = await currentUserId();
+  const { error } = await supabase
+    .from('shared_items')
+    .delete()
+    .is('group_id', null)
+    .or(`and(sender_id.eq.${currentUid},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${currentUid})`);
+  if (error) throw new Error('Não foi possível apagar a conversa.');
+}

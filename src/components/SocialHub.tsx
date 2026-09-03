@@ -1,7 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import { ActivityIndicator,FlatList,Image,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { acceptFriendRequest,acrescentarAoGrupo,criarGrupo,declineOrRemoveFriendship,getChatMessages,getGroupMessages,sairDoGrupo,searchProfiles,sendFriendRequest,shareComGrupo,shareItem,type SharedItem } from '../api/social';
+import { acceptFriendRequest,acrescentarAoGrupo,criarGrupo,declineOrRemoveFriendship,getChatMessages,getGroupMessages,apagarConversa, sairDoGrupo,searchProfiles,sendFriendRequest,shareComGrupo,shareItem,type SharedItem } from '../api/social';
 import type { PublicProfile } from '../api/profiles';
 import { useSocial } from '../state/social';
 import { useAuth } from '../state/auth';
@@ -20,7 +20,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const [tab,setTab]=useState<'friends'|'add'>('friends'),[query,setQuery]=useState(''),[results,setResults]=useState<PublicProfile[]>([]);
   const [error,setError]=useState(''),[busy,setBusy]=useState(false),[messages,setMessages]=useState<SharedItem[]>([]),[chatLoading,setChatLoading]=useState(false);
   const [older,setOlder]=useState(false),[hasOlder,setHasOlder]=useState(false);
-  const [track,setTrack]=useState<Track|null>(null),[confirm,setConfirm]=useState<{id:string;group:boolean}|null>(null);
+  const [track,setTrack]=useState<Track|null>(null),[confirm,setConfirm]=useState<{id:string;group:boolean;conversa?:boolean}|null>(null);
   const [groupEditor,setGroupEditor]=useState<string|null>(null),[groupName,setGroupName]=useState(''),[members,setMembers]=useState<string[]>([]);
   const conversation=social.conversation;
   const contact=conversation?.kind==='friend'?social.contacts.find(c=>c.id===conversation.id):null;
@@ -95,7 +95,10 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
           <Pressable style={{flex:1,gap:3}} onPress={()=>open('friend',f.friendId)}><View style={s.row}><Text style={[s.text,{fontWeight:'700',flex:1}]}>{f.name}</Text>{!!unread.get(f.friendId)&&<Text style={s.badge}>{unread.get(f.friendId)}</Text>}</View><Text numberOfLines={2} style={[s.muted,f.online&&{color:colors.online}]}>{f.online?'● Online now':ultimaAtividade(f.lastSeenAt,social.now)}</Text>{f.currentlyPlaying&&<Text numberOfLines={1} style={s.muted}>♫ {f.currentlyPlaying.title}</Text>}</Pressable>
           <Pressable accessibilityLabel={`Remove ${f.name} from friends`} hitSlop={12} onPress={()=>setConfirm({id:f.friendId,group:false})}><Ionicons name="person-remove-outline" size={18} color={colors.textSecondary}/></Pressable>
         </View>)}
-        {social.contacts.filter(p=>!accepted.some(f=>f.friendId===p.id)).map(p=><Pressable key={p.id} onPress={()=>open('friend',p.id)} style={[s.card,s.row]}><FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={42}/><View style={{flex:1}}><Text style={s.text}>{p.name}</Text><Text style={s.muted}>Older messages</Text></View>{!!unread.get(p.id)&&<Text style={s.badge}>{unread.get(p.id)}</Text>}</Pressable>)}
+        {/* Conversas de quem ja nao e amigo. O historico fica de proposito -- uma
+          mensagem nao desaparece porque deixaram de ser amigos -- mas tem de
+          haver maneira de a arrumar, dai o caixote. */}
+        {social.contacts.filter(p=>!accepted.some(f=>f.friendId===p.id)).map(p=><Pressable key={p.id} onPress={()=>open('friend',p.id)} style={[s.card,s.row]}><FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={42}/><View style={{flex:1}}><Text style={s.text}>{p.name}</Text><Text style={s.muted}>Older messages</Text></View>{!!unread.get(p.id)&&<Text style={s.badge}>{unread.get(p.id)}</Text>}<Pressable accessibilityRole="button" accessibilityLabel={`Delete conversation with ${p.name}`} hitSlop={12} onPress={()=>setConfirm({id:p.id,group:false,conversa:true})}><Ionicons name="trash-outline" size={18} color={colors.textSecondary}/></Pressable></Pressable>)}
       </>}
     </ScrollView>
     <SocialModal visible={!!conversation&&visible&&!track&&!groupEditor&&!confirm} title={title} onClose={()=>useSocial.setState({conversation:null})}>
@@ -113,7 +116,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         <View style={s.row}><TextInput accessibilityLabel="Mensagem" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}/><SocialButton disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>
       </View>
     </SocialModal>
-    <SocialModal visible={!!confirm} title={confirm?.group?'Sair do grupo?':'Remove friend?'} onClose={()=>setConfirm(null)}><View style={{padding:20,gap:12}}><Text style={s.muted}>As mensagens anteriores continuam guardadas.</Text><SocialButton disabled={busy} onPress={()=>void run(async()=>{if(!confirm)return;if(confirm.group)await sairDoGrupo(confirm.id);else await declineOrRemoveFriendship(confirm.id);setConfirm(null);useSocial.setState({conversation:null});})}>Confirmar</SocialButton><SocialButton quiet onPress={()=>setConfirm(null)}>Cancel</SocialButton></View></SocialModal>
+    <SocialModal visible={!!confirm} title={confirm?.conversa?'Delete conversation?':confirm?.group?'Leave group?':'Remove friend?'} onClose={()=>setConfirm(null)}><View style={{padding:20,gap:12}}><Text style={s.muted}>{confirm?.conversa?'The messages are deleted for good, on both sides. This cannot be undone.':'Earlier messages stay saved.'}</Text><SocialButton disabled={busy} onPress={()=>void run(async()=>{if(!confirm)return;if(confirm.conversa)await apagarConversa(confirm.id);else if(confirm.group)await sairDoGrupo(confirm.id);else await declineOrRemoveFriendship(confirm.id);setConfirm(null);useSocial.setState({conversation:null});})}>{confirm?.conversa?'Delete':'Confirm'}</SocialButton><SocialButton quiet onPress={()=>setConfirm(null)}>Cancel</SocialButton></View></SocialModal>
     <SocialModal visible={!!groupEditor} title={groupEditor==='new'?'New group':'Add people'} onClose={()=>setGroupEditor(null)}><ScrollView contentContainerStyle={{padding:20,gap:12}}>{groupEditor==='new'&&<TextInput accessibilityLabel="Group name" value={groupName} onChangeText={setGroupName} placeholder="Group name" placeholderTextColor={colors.textSecondary} style={s.input}/>}{accepted.filter(f=>groupEditor==='new'||!social.groups.find(g=>g.id===groupEditor)?.membros.some(m=>m.id===f.friendId)).map(f=><SocialButton key={f.friendId} onPress={()=>setMembers(m=>m.includes(f.friendId)?m.filter(id=>id!==f.friendId):[...m,f.friendId])}>{members.includes(f.friendId)?'✓ ':''}{f.name}</SocialButton>)}<SocialButton disabled={busy||!members.length||(groupEditor==='new'&&!groupName.trim())} onPress={()=>void run(async()=>{if(groupEditor==='new')await criarGrupo(groupName,members);else if(groupEditor)await acrescentarAoGrupo(groupEditor,members);setGroupEditor(null);})}>Save</SocialButton>{!!error&&<Text style={s.error}>{error}</Text>}</ScrollView></SocialModal>
     <SocialTrackActions track={track} onClose={()=>setTrack(null)} onArtist={onArtist}/>
   </View>;
