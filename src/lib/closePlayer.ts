@@ -14,7 +14,15 @@ export function closePlayerSmoothly():Promise<void> {
   const operation=new Promise<void>(resolve=>{
     const timer=setInterval(()=>{
       const state=usePlayer.getState();
-      if(!state.closing||state.current!==track){clearInterval(timer);state._yt?.setVolume?.(state.volume);resolve();return;}
+      // O mesmo cuidado da linha de baixo. Este ramo e o de ABORTO -- corre
+      // quando o fecho e cancelado ou a faixa muda a meio do fade, que e
+      // exatamente quando o motor pode estar a ser desmontado por baixo.
+      // Estava por proteger, ao contrario do irmao dele.
+      if(!state.closing||state.current!==track){
+        clearInterval(timer);
+        try { state._yt?.setVolume?.(state.volume); } catch { /* Ja foi desmontado. */ }
+        resolve();return;
+      }
       const gain=Math.max(0,1-(Date.now()-start)/CLOSE_FADE_MS);
       usePlayer.setState({closeGain:gain});
       try { state._yt?.setVolume?.(state.volume*gain); } catch { /* O motor pode já ter sido desmontado. */ }
