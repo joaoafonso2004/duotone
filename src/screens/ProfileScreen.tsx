@@ -9,7 +9,7 @@ import { useAuth } from '../state/auth';
 export function ProfileScreen() {
   const navigation=useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const userId=useAuth(s=>s.session?.user.id);
-  return <Screen title="O teu perfil">{userId&&<SocialProfileView userId={userId}
+  return <Screen title="Your profile">{userId&&<SocialProfileView userId={userId}
     onMessage={id=>navigation.navigate('Social',{openChatWithFriendId:id})}
     onSocial={()=>navigation.navigate('Social')}
     onSettings={()=>navigation.navigate('Settings')}

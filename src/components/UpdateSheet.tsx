@@ -85,8 +85,8 @@ export function UpdateSheet() {
       )}
 
       <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
-        <PillButton label="Abrir o site" variant="primary" onPress={open} />
-        <PillButton label="Agora não" variant="ghost" onPress={later} />
+        <PillButton label="Open the site" variant="primary" onPress={open} />
+        <PillButton label="Not now" variant="ghost" onPress={later} />
       </View>
     </BottomSheet>
   );

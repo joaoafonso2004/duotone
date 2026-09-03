@@ -152,7 +152,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
             <Text style={[type.micro, { color: colors.textTertiary }]}>EQUALIZADOR</Text>
             {/* Dizer a verdade em vez de fingir. */}
             {!eqAtivo && (
-              <Text style={[type.micro, { color: colors.textTertiary }]}>INDISPONÍVEL NESTA VERSÃO</Text>
+              <Text style={[type.micro, { color: colors.textTertiary }]}>NOT AVAILABLE IN THIS BUILD</Text>
             )}
           </View>
 

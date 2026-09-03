@@ -95,14 +95,14 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
         ) : result?.unavailable ? (
           <EmptyState
             icon="cloud-offline-outline"
-            title="Histórico indisponível"
+            title="No listening history yet"
             subtitle="A base de dados não devolveu o histórico. Corre supabase/listening-stats.sql no SQL Editor."
           />
         ) : !stats || stats.totalPlays === 0 ? (
           <EmptyState
             icon="stats-chart-outline"
             title="Ainda sem dados"
-            subtitle="Ouve algumas músicas e as tuas estatísticas aparecem aqui."
+            subtitle="Play a few tracks and your stats will show up here."
           />
         ) : (
           <>
