@@ -61,9 +61,18 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
   const friends=useSocial(x=>x.friends),now=useSocial(x=>x.now);
   const friend=friends.find(f=>f.friendId===userId);
   const cover=useProfileMedia(profile?.appearance?.cover_path?`storage:${profile.appearance.cover_path}`:null,'cover');
-  const load=useCallback(async()=>{
+  /**
+   * `silencioso` atualiza por baixo, sem apagar o que já está no ecrã.
+   *
+   * Guardar uma playlist, mudar a visibilidade de outra, sair do editor --
+   * cada uma destas recarregava o perfil inteiro com o estado de carregamento
+   * ligado, e o ecrã piscava a cada toque. Quem já está a ver o perfil não
+   * precisa de o ver desaparecer para saber que alguma coisa mudou.
+   */
+  const load=useCallback(async(silencioso=false)=>{
     const id=++request.current;
-    setError('');setLoading(true);setHighlightsLoaded(false);
+    setError('');
+    if(!silencioso){setLoading(true);setHighlightsLoaded(false);}
     try {
       const p=await getSocialProfile(userId);if(id!==request.current)return;setProfile(p);
       const result=await loadProfileSections(userId,own,p.canView);
@@ -80,9 +89,26 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
         playlists:l.status==='rejected'?(missingProfilePlaylistColumns(l.reason)?PROFILE_SHARING_UNAVAILABLE:'Could not load playlists.'):'',
         copies:c.status==='rejected'?'Could not check your saved playlists.':'',
       });
-    }catch{if(id===request.current)setError('Could not open this profile. Please try again.');}finally{if(id===request.current)setLoading(false);}
+    }catch{if(id===request.current)setError('Could not open this profile. Please try again.');}finally{if(id===request.current&&!silencioso)setLoading(false);}
   },[userId,own]);
-  useEffect(()=>{if(!active)return;setProfile(null);setEditing(false);setChoosingPlaylists(false);setPlaylistMutationError('');setSectionErrors({most:'',recent:'',playlists:'',copies:''});setHighlights({playlistIds:[],moment:null});setMost([]);setRecent([]);setTudoMais(false);setTudoRecente(false);setPlaylists([]);setGuardadas(new Set());void load();return()=>{request.current++;};},[load,friend?.status,active]);
+  // Limpar só quando se troca de pessoa: o que está no ecrã passa a ser de
+  // outra conta e não pode ficar à vista. Uma mudança de amizade ou uma ação
+  // não são motivo para apagar nada.
+  useEffect(()=>{
+    setProfile(null);setEditing(false);setChoosingPlaylists(false);setPlaylistMutationError('');
+    setSectionErrors({most:'',recent:'',playlists:'',copies:''});setHighlights({playlistIds:[],moment:null});
+    setMost([]);setRecent([]);setTudoMais(false);setTudoRecente(false);setPlaylists([]);setGuardadas(new Set());
+  },[userId]);
+  const jaLido=useRef<string|null>(null);
+  useEffect(()=>{
+    if(!active)return;
+    // Só a primeira leitura de cada pessoa mostra o carregamento; as
+    // seguintes entram por baixo.
+    const primeira=jaLido.current!==userId;
+    jaLido.current=userId;
+    void load(!primeira);
+    return()=>{request.current++;};
+  },[load,friend?.status,active,userId]);
   /** Guardar (ou largar) a playlist de outra pessoa. Fica uma copia minha. */
   const alternarCopia=async(pl:Playlist)=>{
     if(mutation.current || loading || sectionErrors.copies) return;
@@ -97,7 +123,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
       if(generation!==request.current)return;
       setGuardadas(g=>{const n=new Set(g);if(tinha)n.delete(pl.id);else n.add(pl.id);return n;});
     } catch{ if(generation===request.current)setPlaylistMutationError('Could not update your saved playlists. Please try again.'); }
-    finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(); }
+    finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(true); }
   };
 
   /** Mostrar ou esconder uma playlist minha no perfil. */
@@ -114,7 +140,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
       if(generation!==request.current)return;
       setPlaylists(l=>l.map(x=>x.id===pl.id?{...x,visibleOnProfile:passaA}:x));
     } catch(e){ if(generation===request.current)setPlaylistMutationError(missingProfilePlaylistColumns(e)?PROFILE_SHARING_UNAVAILABLE:'Could not change this playlist. Please try again.'); }
-    finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(); }
+    finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(true); }
   };
 
   const row=(entry:ProfileTrack,index:number,recentes=false)=><View key={`${entry.source}:${entry.sourceId}`} style={s.listRow}>
@@ -225,7 +251,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
       </>}
       </View>
     </ScrollView>
-    {editing&&profile&&<ProfileEditor profile={profile} highlights={highlightsLoaded&&!sectionErrors.playlists?highlights:null} playlists={playlists} onClose={()=>setEditing(false)} onSaved={()=>{void load();void useSocial.getState().refresh();}}/>}
+    {editing&&profile&&<ProfileEditor profile={profile} highlights={highlightsLoaded&&!sectionErrors.playlists?highlights:null} playlists={playlists} onClose={()=>setEditing(false)} onSaved={()=>{void load(true);void useSocial.getState().refresh();}}/>}
     {choosingPlaylists&&own&&<ProfilePlaylistPicker playlists={playlists} loading={loading} busy={ocupada} error={playlistMutationError||sectionErrors.playlists}
       onToggle={p=>void alternarVisibilidade(p)} onClose={()=>setChoosingPlaylists(false)} onRetry={()=>{setPlaylistMutationError('');void load();}}/>}
     <SocialTrackActions track={track} onClose={()=>setTrack(null)} onArtist={onArtist}/>
