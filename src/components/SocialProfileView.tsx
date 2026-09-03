@@ -11,6 +11,7 @@ import { ultimaAtividade } from '../lib/socialPresence';
 import { displayArtist } from '../lib/artistName';
 import { FriendAvatar } from './FriendAvatar';
 import { colors, spacing } from '../theme';
+import { RACIO_DA_CAPA } from '../lib/profileImageCrop';
 import { ProfileEditor } from './ProfileEditor';
 import { SocialTrackActions } from './SocialTrackActions';
 import { SocialButton,socialStyles as s } from './socialUI';
@@ -61,8 +62,13 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
           A cor escolhida continua a fazer um trabalho: a linha debaixo da
           capa, que identifica a pessoa sem pintar o resto. */}
       <View style={{marginHorizontal:-spacing.xl,marginTop:-spacing.xl}}>
-        <View style={{aspectRatio:2/1,maxHeight:190,backgroundColor:colors.surfaceHigh}}>{cover&&<Image source={{uri:cover}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>}</View>
-        <View style={{height:3,backgroundColor:profile.appearance?.accent || colors.accent}}/>
+        {/* O MESMO racio com que a capa foi gravada, e nada por cima dele.
+            Tinha um `maxHeight` que ganhava ao `aspectRatio` nas janelas
+            largas: a caixa deixava de ser 8/3, o `resizeMode="cover"`
+            recortava o que sobrava, e a capa mostrava uma coisa diferente
+            em cada largura de janela. Agora o que se escolheu no editor e o
+            que aparece aqui, sempre. */}
+        <View style={{width:'100%',aspectRatio:RACIO_DA_CAPA,backgroundColor:colors.surfaceHigh}}>{cover&&<Image source={{uri:cover}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>}</View>
         <View style={{paddingHorizontal:spacing.xl,gap:12}}>
           <View style={[s.row,{marginTop:-36,alignItems:'flex-end',justifyContent:'space-between'}]}><View style={{borderRadius:52,borderWidth:5,borderColor:colors.bg}}><FriendAvatar avatarUrl={profile.profile.avatar_url} name={profile.profile.name} size={90}/></View>
             {own?<SocialButton onPress={()=>setEditing(true)}>Edit profile</SocialButton>:profile.canView?<SocialButton onPress={()=>onMessage(userId)}>Message</SocialButton>:<SocialButton onPress={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(e=>setError(e.message));}}>{friend?.status==='pending'?'Request pending':'Add friend'}</SocialButton>}

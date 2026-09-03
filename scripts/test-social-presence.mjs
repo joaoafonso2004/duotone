@@ -50,6 +50,26 @@ assert.equal(state.current.id,'d');assert.equal(volumes.at(-1),64);assert.equal(
 // e o carimbo `visto` que decide, POR FAIXA -- nunca campo a campo, senao
 // ficava a velocidade de um aparelho com o equalizador do outro, que e uma
 // combinacao que ninguem escolheu.
+// ---------------------------------------------------------------------------
+// Arrastar o recorte das imagens do perfil.
+//
+// Arrastar move a IMAGEM e nao a moldura: puxar para a direita traz para a
+// vista o que estava a esquerda. Dai o foco andar ao contrario do dedo.
+const {arrastarFoco,RACIO_DA_CAPA}=carregar('../src/lib/profileImageCrop.ts');
+// Uma imagem 2000x1000 recortada a 8/3 da 2000x750: sobram 250px na vertical.
+const c=imageCrop(2000,1000,RACIO_DA_CAPA,0.5,0.5);
+assert.equal(c.width,2000);assert.equal(c.height,750);
+// Metade do espaco livre, a escala 1, e meio caminho do foco.
+assert.equal(arrastarFoco(0.5,-125,1,250),1);
+assert.equal(arrastarFoco(0.5,125,1,250),0);
+// Nunca sai de [0,1], por muito que se arraste.
+assert.equal(arrastarFoco(0.5,-99999,1,250),1);
+assert.equal(arrastarFoco(0.5,99999,1,250),0);
+// A escala do ecra conta: a moldura mostrada e menor que a imagem real.
+assert.equal(arrastarFoco(0.5,-50,0.4,250),1);
+// Sem espaco livre nesse eixo nao ha nada a ajustar -- e nao da NaN.
+assert.equal(arrastarFoco(0.5,-100,1,0),0.5);
+assert.equal(arrastarFoco(0.5,-100,0,250),0.5);
 const {fundirAjustes,MAX_FAIXAS}=carregar('../src/lib/equalizer.ts');
 const aj=(visto,rate,ganho)=>({rate,ganhos:ganho===null?null:[ganho,0,0,0,0,0,0,0,0,0],visto});
 
@@ -68,4 +88,4 @@ assert.equal(fundida.rate,0.75);assert.equal(fundida.ganhos[0],3);
 // E o teto continua a valer depois de juntar os dois lados.
 const muitos=(inicio,n)=>Object.fromEntries(Array.from({length:n},(_,i)=>['k'+(inicio+i),aj(inicio+i,1.5,null)]));
 assert.equal(Object.keys(fundirAjustes(muitos(0,MAX_FAIXAS),muitos(MAX_FAIXAS,MAX_FAIXAS))).length,MAX_FAIXAS);
-console.log('Presença, expiração, recorte, direção do gesto, fade, mute, cancelamento e fusão de ajustes passaram.');
+console.log('Presença, expiração, recorte, direção do gesto, fade, mute, cancelamento, fusão de ajustes e arrasto do recorte passaram.');

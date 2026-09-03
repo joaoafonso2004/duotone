@@ -30,10 +30,6 @@ import {
   setAutoplayRadio as persistAutoplayRadio
 } from '../lib/prefs';
 import {
-  AVATAR_EMOJIS, AVATAR_GRADIENTS, getAvatarChoice, setAvatarChoice,
-  type AvatarChoice,
-} from '../lib/avatarPrefs';
-import {
   getProfilePlayStats, getProfileMostPlayed, getProfileRecentlyPlayed, getTopArtists,
   getHeavyRotation, getForgottenFavorites,
   type ProfilePlayEntry, type DbPlayStats,

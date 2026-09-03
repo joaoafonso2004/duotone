@@ -1,43 +1,56 @@
 import React,{useState} from 'react';
-import { Image,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
+import { Image,ScrollView,Text,TextInput,View } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import { appearanceOf,saveProfileAppearance,type SocialProfile } from '../api/profiles';
-import { AVATAR_EMOJIS,AVATAR_GRADIENTS } from '../lib/avatarPrefs';
 import { pickProfileImage,prepareProfileImage,type SelectedProfileImage } from '../lib/profileImage';
+import { RACIO_DA_CAPA,RACIO_DO_AVATAR } from '../lib/profileImageCrop';
 import { mediaBucket,removeProfileMedia,useProfileMedia,type ProfileMediaKind } from '../lib/profileMedia';
 import { supabase } from '../lib/supabase';
 import { FriendAvatar } from './FriendAvatar';
 import { ProfileCropPreview } from './ProfileCropPreview';
 import { useSocial } from '../state/social';
 import { SocialButton,SocialModal,socialStyles as s } from './socialUI';
-import { colors } from '../theme';
+import { colors,spacing } from '../theme';
 
 /**
- * As cores que se podem escolher para o perfil.
+ * Editar o perfil: as duas imagens, o nome e a bio.
  *
- * Sao DADOS e nao cromagem da app: nao vao para os tokens porque nao descrevem
- * um papel ("texto", "fundo"), sao opcoes que a pessoa escolhe. Ficam com
- * nome para nao andarem soltas pelo meio do JSX.
+ * **O recorte escolhe-se a arrastar, e o que se vê é o que fica.** Havia
+ * quatro botões de setas para a fotografia e um "↑ Up / ↓ Down" com uma
+ * percentagem para a capa — ninguém pensa na sua fotografia em percentagens.
+ * As duas molduras têm agora o rácio EXATO com que a imagem é gravada
+ * (`RACIO_DA_CAPA`, `RACIO_DO_AVATAR`), por isso não há diferença entre o que
+ * se escolhe aqui e o que aparece depois no perfil.
+ *
+ * Saíram daqui a cor de destaque e os avatares de emoji. Avatares de emoji
+ * antigos continuam a aparecer — o `FriendAvatar` sabe lê-los —, só deixou de
+ * se poder escolher um novo.
  */
-const PALETA_DE_DESTAQUE = [
-  colors.accent, colors.accentAlt,
-  '#A78BFA', '#60A5FA', '#34D399', '#FBBF24',
-] as const;
-
 export function ProfileEditor({profile,onClose,onSaved}:{profile:SocialProfile;onClose:()=>void;onSaved:()=>void}) {
   const [value,setValue]=useState(()=>appearanceOf(profile));
   const [name,setName]=useState(profile.profile.name);
   const [username,setUsername]=useState(profile.profile.username || '');
   const [avatar,setAvatar]=useState<SelectedProfileImage|null>(null);
   const [cover,setCover]=useState<SelectedProfileImage|null>(null);
+  // O ponto focal de cada imagem enquanto se escolhe. Nao vai para a base de
+  // dados: fica assado no ficheiro no momento do envio.
   const [avatarX,setAvatarX]=useState(0.5),[avatarY,setAvatarY]=useState(0.5);
+  const [coverX,setCoverX]=useState(0.5),[coverY,setCoverY]=useState(0.5);
   const [stage,setStage]=useState(''),[error,setError]=useState('');
   const coverUrl=useProfileMedia(value.cover_path ? `storage:${value.cover_path}` : null,'cover');
   const avatarUrl=value.avatar_path ? `storage:${value.avatar_path}` : value.legacy_avatar_url || `emoji:${value.emoji}:${value.gradient_index}`;
+
   const select=async(kind:ProfileMediaKind)=>{
-    try { setError('');const image=await pickProfileImage();if(!image)return;if(kind==='avatar'){setAvatar(image);setAvatarX(0.5);setAvatarY(0.5);}else setCover(image); }
+    try {
+      setError('');
+      const image=await pickProfileImage();
+      if(!image)return;
+      if(kind==='avatar'){setAvatar(image);setAvatarX(0.5);setAvatarY(0.5);}
+      else {setCover(image);setCoverX(0.5);setCoverY(0.5);}
+    }
     catch(e:any){setError(e.message || 'Could not open that image.');}
   };
+
   const save=async()=>{
     if(stage)return;
     const uploaded:{kind:ProfileMediaKind;path:string}[]=[];
@@ -47,7 +60,11 @@ export function ProfileEditor({profile,onClose,onSaved}:{profile:SocialProfile;o
       const next={...value};
       for(const kind of ['avatar','cover'] as const){
         const image=kind==='avatar'?avatar:cover;if(!image)continue;
-        const bytes=await prepareProfileImage(image,kind,kind==='avatar'?avatarY:value.cover_position,kind==='avatar'?avatarX:0.5);
+        const bytes=await prepareProfileImage(
+          image,kind,
+          kind==='avatar'?avatarY:coverY,
+          kind==='avatar'?avatarX:coverX,
+        );
         const path=`${profile.profile.id}/${kind}/${Crypto.randomUUID()}.jpg`;
         setStage(kind==='avatar'?'Uploading photo…':'Uploading cover…');
         const {error:failure}=await supabase.storage.from(mediaBucket(kind)).upload(path,bytes,{contentType:'image/jpeg',upsert:false});
@@ -74,26 +91,49 @@ export function ProfileEditor({profile,onClose,onSaved}:{profile:SocialProfile;o
       setError(e.message || 'Could not save. You can try again.');
     } finally {setStage('');}
   };
+
   return <SocialModal visible title="Edit profile" onClose={()=>{if(!stage)onClose();}}>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:20,gap:20}}>
-      <View style={{aspectRatio:8/3,borderRadius:18,overflow:'hidden',backgroundColor:value.accent+'33'}}>
-        {cover ? <ProfileCropPreview image={cover} ratio={8/3} y={value.cover_position}/> : coverUrl ? <Image source={{uri:coverUrl}} style={{width:'100%',height:'100%'}} resizeMode="cover"/> : null}
-        <View style={[s.row,{position:'absolute',bottom:12,left:12,right:12,backgroundColor:colors.overlay,borderRadius:14,padding:10}]}>
-          {avatar ? <View style={{width:58,borderRadius:29,overflow:'hidden'}}><ProfileCropPreview image={avatar} ratio={1} x={avatarX} y={avatarY}/></View> : <FriendAvatar avatarUrl={avatarUrl} name={name} size={58}/>}
-          <View style={{flex:1}}><Text style={[s.title,{fontSize:21}]}>{name || 'Your name'}</Text><Text style={s.muted}>@{profile.profile.username}</Text></View>
+
+      <Text style={s.label}>Cover image</Text>
+      {/* A moldura tem o racio com que a capa e gravada, e nada por cima que o
+          possa quebrar. E por isso que o que esta aqui e o que aparece no
+          perfil, em qualquer largura de janela. */}
+      <View style={{borderRadius:14,overflow:'hidden'}}>
+        {cover
+          ? <ProfileCropPreview image={cover} ratio={RACIO_DA_CAPA} x={coverX} y={coverY}
+              onChange={(x,y)=>{setCoverX(x);setCoverY(y);}}/>
+          : <View style={{width:'100%',aspectRatio:RACIO_DA_CAPA,backgroundColor:colors.surfaceHigh,alignItems:'center',justifyContent:'center'}}>
+              {coverUrl
+                ? <Image source={{uri:coverUrl}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>
+                : <Text style={s.muted}>No cover yet</Text>}
+            </View>}
+      </View>
+      <View style={[s.row,{flexWrap:'wrap'}]}>
+        <SocialButton disabled={!!stage} onPress={()=>void select('cover')}>{cover||value.cover_path?'Change cover':'Upload cover'}</SocialButton>
+        {(cover||value.cover_path)&&<SocialButton quiet disabled={!!stage} onPress={()=>{setCover(null);setValue({...value,cover_path:null});}}>Remove cover</SocialButton>}
+      </View>
+
+      <Text style={s.label}>Photo</Text>
+      <View style={[s.row,{gap:spacing.lg}]}>
+        {/* Redonda, porque e assim que ela aparece em todo o lado. Ajustar
+            dentro de um quadrado e depois ve-la cortada num circulo era outra
+            maneira de o que se ve nao ser o que fica. */}
+        <View style={{width:110,borderRadius:55,overflow:'hidden'}}>
+          {avatar
+            ? <ProfileCropPreview image={avatar} ratio={RACIO_DO_AVATAR} x={avatarX} y={avatarY}
+                onChange={(x,y)=>{setAvatarX(x);setAvatarY(y);}}/>
+            : <FriendAvatar avatarUrl={avatarUrl} name={name} size={110}/>}
+        </View>
+        <View style={{flex:1,gap:spacing.sm}}>
+          <SocialButton disabled={!!stage} onPress={()=>void select('avatar')}>{avatar||value.avatar_path?'Change photo':'Upload photo'}</SocialButton>
+          {(avatar||value.avatar_path)&&<SocialButton quiet disabled={!!stage} onPress={()=>{setAvatar(null);setValue({...value,avatar_path:null,legacy_avatar_url:null});}}>Remove photo</SocialButton>}
         </View>
       </View>
-      <Text style={s.label}>Photo</Text>
-      <View style={[s.row,{flexWrap:'wrap'}]}><SocialButton disabled={!!stage} onPress={()=>void select('avatar')}>Upload photo</SocialButton><SocialButton quiet disabled={!!stage} onPress={()=>{setAvatar(null);setValue({...value,avatar_path:null,legacy_avatar_url:null});}}>Use an emoji</SocialButton></View>
-      {avatar && <View style={[s.row,{flexWrap:'wrap'}]}><Text style={s.muted}>Adjust crop</Text><SocialButton disabled={!!stage} onPress={()=>setAvatarX(Math.max(0,avatarX-0.1))}>←</SocialButton><SocialButton disabled={!!stage} onPress={()=>setAvatarX(Math.min(1,avatarX+0.1))}>→</SocialButton><SocialButton disabled={!!stage} onPress={()=>setAvatarY(Math.max(0,avatarY-0.1))}>↑</SocialButton><SocialButton disabled={!!stage} onPress={()=>setAvatarY(Math.min(1,avatarY+0.1))}>↓</SocialButton></View>}
-      {!avatar && !value.avatar_path && !value.legacy_avatar_url && <><View style={[s.row,{flexWrap:'wrap'}]}>{AVATAR_EMOJIS.map(emoji=><SocialButton disabled={!!stage} key={emoji} onPress={()=>setValue({...value,emoji})}>{emoji}</SocialButton>)}</View><View style={[s.row,{flexWrap:'wrap'}]}>{AVATAR_GRADIENTS.map((_,i)=><Pressable disabled={!!stage} accessibilityRole="button" accessibilityLabel={`Gradient ${i+1}`} accessibilityState={{selected:value.gradient_index===i}} key={i} onPress={()=>setValue({...value,gradient_index:i})} style={{padding:3,borderWidth:2,borderRadius:26,borderColor:value.gradient_index===i?colors.text:'transparent'}}><FriendAvatar avatarUrl={`emoji:${value.emoji}:${i}`} name={name} size={34}/></Pressable>)}</View></>}
-      <Text style={s.label}>Cover image</Text>
-      <View style={[s.row,{flexWrap:'wrap'}]}><SocialButton disabled={!!stage} onPress={()=>void select('cover')}>Upload cover</SocialButton><SocialButton quiet disabled={!!stage} onPress={()=>{setCover(null);setValue({...value,cover_path:null});}}>Remove cover</SocialButton></View>
-      {cover && <View style={s.row}><SocialButton disabled={!!stage} onPress={()=>setValue({...value,cover_position:Math.max(0,value.cover_position-0.1)})}>↑ Up</SocialButton><SocialButton disabled={!!stage} onPress={()=>setValue({...value,cover_position:Math.min(1,value.cover_position+0.1)})}>↓ Down</SocialButton><Text style={s.muted}>{Math.round(value.cover_position*100)}%</Text></View>}
+
       <Text style={s.label}>Name</Text><TextInput accessibilityLabel="Display name" editable={!stage} value={name} onChangeText={setName} maxLength={40} style={s.input}/>
       <Text style={s.label}>Username</Text><TextInput accessibilityLabel="Username" autoComplete="off" textContentType="none" editable={!stage} autoCapitalize="none" autoCorrect={false} value={username} onChangeText={setUsername} maxLength={30} style={s.input}/>
       <Text style={s.label}>About you</Text><TextInput accessibilityLabel="Bio" editable={!stage} value={value.bio} onChangeText={bio=>setValue({...value,bio})} maxLength={180} multiline placeholder="A line about you or your music." placeholderTextColor={colors.textSecondary} style={[s.input,{minHeight:80}]}/>
-      <Text style={s.label}>Accent colour</Text><View style={[s.row,{flexWrap:'wrap'}]}>{PALETA_DE_DESTAQUE.map(accent=><SocialButton key={accent} onPress={()=>setValue({...value,accent})}><Text style={{color:accent}}>● {value.accent===accent?'✓':''}</Text></SocialButton>)}</View>
       {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}
     </ScrollView>
     <View style={[s.row,{padding:16,borderTopWidth:1,borderColor:colors.border,justifyContent:'flex-end'}]}><SocialButton quiet disabled={!!stage} onPress={onClose}>Cancel</SocialButton><SocialButton disabled={!!stage||name.trim().length<2} onPress={()=>void save()}>{stage || 'Save changes'}</SocialButton></View>

@@ -21,9 +21,6 @@ import {
   getProfilePlayStats, getProfileMostPlayed, getProfileRecentlyPlayed, type ProfilePlayEntry, type DbPlayStats,
 } from '../../api/plays';
 import { getFriendCount } from '../../api/social';
-import {
-  AVATAR_EMOJIS, AVATAR_GRADIENTS, getAvatarChoice, setAvatarChoice, type AvatarChoice,
-} from '../../lib/avatarPrefs';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../state/auth';
 import { usePlayer } from '../../state/player';
