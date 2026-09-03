@@ -129,7 +129,14 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
     </Pressable><SocialIconButton label={`Options for ${entry.title}`} icon="ellipsis-horizontal" onPress={()=>setTrack(entry)}/>
   </View>;
   const visiblePlaylists=playlists.filter(p=>!own||p.visibleOnProfile);
-  const sectionFailure=(message:string)=><View style={{gap:8}}><Text accessibilityRole="alert" style={s.muted}>{message}</Text><View style={{alignSelf:'flex-start'}}><SocialButton quiet onPress={()=>void load()}>Try again</SocialButton></View></View>;
+  /**
+   * Uma secção que falha diz o que aconteceu e cala-se. O botão de repetir que
+   * estava aqui não valia a linha que ocupava -- e chegavam a aparecer dois,
+   * empilhados por baixo do mesmo título. Quem quer tentar outra vez já tem
+   * por onde: puxar a página para baixo no iPhone, ou o refrescar do cabeçalho
+   * no Windows.
+   */
+  const sectionFailure=(message:string)=><Text accessibilityRole="alert" style={s.muted}>{message}</Text>;
   const playlistsSection=<View style={{gap:12}}>
     <View style={[s.row,{justifyContent:'space-between'}]}>
       <Text style={s.title}>{own?'Your playlists':'Playlists'}</Text>
