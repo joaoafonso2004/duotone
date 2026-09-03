@@ -1,4 +1,4 @@
-import React from 'react';
+import React,{useState} from 'react';
 import {Image,Platform,Pressable,StyleSheet,Text,View} from 'react-native';
 import {Ionicons,MaterialCommunityIcons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
@@ -6,19 +6,37 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
 import {FriendAvatar} from './FriendAvatar';
 import {SocialButton,socialStyles as s} from './socialUI';
-import {RACIO_DA_CAPA} from '../lib/profileImageCrop';
+import {enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {colors,SOCIAL_GUTTER,type} from './socialTokens';
 
 type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:number;status?:string;
-  onEdit:()=>void;onMessage:()=>void;onStats:()=>void;onBack?:()=>void;
+  /**
+   * Uma imagem escolhida mas ainda por recortar, para o editor mostrar o
+   * cabeçalho a sério em vez de uma moldura à parte. Sem isto o preview era
+   * outro componente, com outro enquadramento e sem vinheta -- e por isso
+   * nunca podia corresponder ao que ficava.
+   */
+  recorte?:{largura:number;altura:number;x:number;y:number};
+  onEdit:()=>void;onMessage:()=>void;onBack?:()=>void;
   onSocial?:()=>void;onSettings?:()=>void;onRefresh:()=>void;onAddFriend:()=>void;pending:boolean};
 
 /** Quem fez a app. O perfil dele leva uma marca que não se pode tirar. */
 const CRIADOR='joao';
 
 /** Uma só zona de identidade, com ações utilitárias alinhadas no topo. */
-export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,onStats,onBack,onSocial,onSettings,onRefresh,onAddFriend,pending}:Props) {
+export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMessage,onBack,onSocial,onSettings,onRefresh,onAddFriend,pending}:Props) {
   const web=Platform.OS==='web',safe=useSafeAreaInsets();
+  // A caixa da capa medida, para posicionar uma imagem por recortar. Só o
+  // editor precisa disto; com a capa já gravada o `cover` normal chega.
+  const [caixa,setCaixa]=useState({largura:0,altura:0});
+  const capa=(estilo:any)=>{
+    if(!recorte||!caixa.largura||!caixa.altura)
+      return <Image source={{uri:cover!}} resizeMode="cover" style={estilo}/>;
+    const p=enquadrarPreVisualizacao(recorte.largura,recorte.altura,RACIO_DA_CAPA,recorte.x,recorte.y,caixa.largura,caixa.altura);
+    return <View style={[estilo,{overflow:'hidden'}]}>
+      <Image source={{uri:cover!}} resizeMode="stretch" style={{position:'absolute',width:p.width,height:p.height,left:p.left,top:p.top}}/>
+    </View>;
+  };
   const action=(label:string,icon:keyof typeof Ionicons.glyphMap,onPress:()=>void,badge=0)=><Pressable key={label}
     accessibilityRole="button" accessibilityLabel={badge?`${label}, ${badge} unread`:label} onPress={onPress}
     style={({pressed,hovered,focused}:any)=>({width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',backgroundColor:pressed||hovered||focused?colors.surfacePressed:'rgba(10,10,15,0.46)',borderWidth:1,borderColor:colors.border})}>
@@ -27,16 +45,15 @@ export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,on
   </Pressable>;
   return <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?320:360,overflow:'hidden',backgroundColor:colors.bg}}>
     {!!cover&&<View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* O recorte é 8:3, muito panorâmico.
-          No telemóvel a caixa é 2:1 e a capa preenche-a: perde-se cerca de um
-          quarto dos lados, que é o preço de ela se ver.
-          No PC não há caixa nenhuma — a capa preenche o cabeçalho de ponta a
-          ponta. Havia aqui um `aspectRatio` com `maxHeight`, e num ecrã largo
-          isso limitava a altura aos 320 do cabeçalho e a largura a 320×2,67:
-          a capa ficava uma faixa de 853px solta ao meio do painel, com
-          arestas duras dos dois lados. Um cabeçalho não tem margens. */}
+      {/* No telemóvel a caixa tem o rácio do recorte, por isso a capa cabe lá
+          inteira. No PC não há caixa — a capa preenche o cabeçalho de ponta a
+          ponta, e uma faixa larga corta-lhe em cima e em baixo. Um cabeçalho
+          não tem margens: já aqui esteve um `aspectRatio` com `maxHeight` que
+          num ecrã largo deixava a capa a flutuar a meio do painel. */}
       <Image source={{uri:cover}} resizeMode="cover" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
-      {web?<Image source={{uri:cover}} resizeMode="cover" style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>:
+      {web?<View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})} style={StyleSheet.absoluteFill}>
+        {capa([StyleSheet.absoluteFill,{opacity:0.78}])}
+      </View>:
       <View style={[StyleSheet.absoluteFill,{justifyContent:'flex-start',alignItems:'center'}]}>
         {/* Encostada ao topo, não centrada: assim começa por trás do título em
             vez de flutuar a meio, e a vinheta é que a acaba por baixo.
@@ -44,8 +61,8 @@ export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,on
             forma diferente aqui, o cabeçalho corta a imagem uma segunda vez
             por cima do recorte e uma foto vertical acaba ampliada até só se
             ver um ombro. */}
-        <View style={{width:'100%',aspectRatio:RACIO_DA_CAPA}}>
-          <Image source={{uri:cover}} resizeMode="cover" style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>
+        <View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})} style={{width:'100%',aspectRatio:RACIO_DA_CAPA}}>
+          {capa([StyleSheet.absoluteFill,{opacity:0.78}])}
           <LinearGradient colors={['transparent','transparent',colors.bg]} locations={[0,0.55,1]} style={StyleSheet.absoluteFill}/>
         </View>
       </View>}
@@ -87,13 +104,13 @@ export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,on
         </View>
       </View>
       {!!profile.appearance?.bio&&<Text style={[s.text,{maxWidth:640}]}>{profile.appearance.bio}</Text>}
-      <View style={[s.row,{flexWrap:'wrap',gap:8}]}>
-        {!own&&(profile.canView?<SocialButton icon="chatbubble-outline" onPress={onMessage}>Message</SocialButton>:<SocialButton disabled={pending} onPress={onAddFriend}>{pending?'Request pending':'Add friend'}</SocialButton>)}
-        {profile.canView&&<Pressable accessibilityRole="button" accessibilityLabel="Listening stats" onPress={onStats}
-          style={({pressed,hovered}:any)=>[s.row,{minHeight:44,gap:8,paddingRight:12},(pressed||hovered)&&{opacity:0.7}]}>
-          <Ionicons name="stats-chart-outline" color={colors.textSecondary} size={18}/><Text style={s.text}>Listening stats</Text><Ionicons name="chevron-forward" color={colors.textSecondary} size={15}/>
-        </Pressable>}
-      </View>
+      {/* O "Listening stats" esteve aqui e ficava órfão: um link solto entre a
+          bio e as playlists, longe dos números que ele abre. Passou para o
+          título do "Listening overview", que é o resumo de que ele é o
+          detalhe. Ver SocialProfileView. */}
+      {!own&&<View style={[s.row,{flexWrap:'wrap',gap:8}]}>
+        {profile.canView?<SocialButton icon="chatbubble-outline" onPress={onMessage}>Message</SocialButton>:<SocialButton disabled={pending} onPress={onAddFriend}>{pending?'Request pending':'Add friend'}</SocialButton>}
+      </View>}
     </>}
   </View>;
 }

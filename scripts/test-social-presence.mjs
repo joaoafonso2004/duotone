@@ -55,7 +55,7 @@ assert.equal(state.current.id,'d');assert.equal(volumes.at(-1),64);assert.equal(
 //
 // Arrastar move a IMAGEM e nao a moldura: puxar para a direita traz para a
 // vista o que estava a esquerda. Dai o foco andar ao contrario do dedo.
-const {arrastarFoco,RACIO_DA_CAPA}=carregar('../src/lib/profileImageCrop.ts');
+const {arrastarFoco,enquadrarPreVisualizacao,RACIO_DA_CAPA}=carregar('../src/lib/profileImageCrop.ts');
 // Uma imagem quadrada recortada ao racio da capa fica com a largura toda e
 // sobra na vertical. Os numeros saem do RACIO_DA_CAPA e nao escritos a mao:
 // estavam presos ao 8/3 e o teste partiu-se assim que a capa mudou de forma.
@@ -65,6 +65,36 @@ assert.equal(c.height,Math.floor(2000/RACIO_DA_CAPA),'a altura sai do racio');
 assert.ok(Math.abs(c.width/c.height-RACIO_DA_CAPA)<0.01,'o recorte respeita o racio');
 // E o recorte nunca sai de dentro da imagem.
 assert.ok(c.originX>=0&&c.originY>=0&&c.originX+c.width<=2000&&c.originY+c.height<=2000);
+// A pre-visualizacao da capa mostra a imagem AINDA por recortar dentro do
+// cabecalho. A invariante que interessa: a zona que vai ser gravada tem de
+// cobrir a caixa toda -- se nao cobrir, ve-se fundo onde vai estar imagem, e o
+// preview volta a mentir. Verificado em varias formas de imagem e de caixa.
+for(const [iw,ih] of [[616,1024],[4000,3000],[1000,1000],[1600,1067]]){
+  for(const [bw,bh] of [[390,260],[1300,320],[390,300]]){
+    for(const foco of [0,0.5,1]){
+      const p=enquadrarPreVisualizacao(iw,ih,RACIO_DA_CAPA,foco,foco,bw,bh);
+      const c=imageCrop(iw,ih,RACIO_DA_CAPA,foco,foco);
+      const escala=p.width/iw;
+      const esq=p.left+c.originX*escala, topo=p.top+c.originY*escala;
+      const dir=esq+c.width*escala, baixo=topo+c.height*escala;
+      const contexto=`${iw}x${ih} em ${bw}x${bh} foco ${foco}`;
+      assert.ok(esq<=0.01&&topo<=0.01,`o recorte comeca dentro da caixa (${contexto})`);
+      assert.ok(dir>=bw-0.01&&baixo>=bh-0.01,`o recorte cobre a caixa toda (${contexto})`);
+      assert.ok(Math.abs(p.height/p.width-ih/iw)<1e-6,`a imagem nao e distorcida (${contexto})`);
+    }
+  }
+}
+// Numa caixa com o racio do recorte -- o caso do telemovel -- e exacto: a zona
+// gravada enche a caixa sem sobrar nada de lado nenhum.
+{
+  const bw=390,bh=Math.round(390/RACIO_DA_CAPA);
+  const p=enquadrarPreVisualizacao(616,1024,RACIO_DA_CAPA,0.5,0.5,bw,bh);
+  const c=imageCrop(616,1024,RACIO_DA_CAPA,0.5,0.5);
+  const escala=p.width/616;
+  assert.ok(Math.abs(c.width*escala-bw)<1,'a largura gravada assenta na caixa');
+  assert.ok(Math.abs(c.height*escala-bh)<1.5,'e a altura tambem');
+}
+
 // Metade do espaco livre, a escala 1, e meio caminho do foco.
 assert.equal(arrastarFoco(0.5,-125,1,250),1);
 assert.equal(arrastarFoco(0.5,125,1,250),0);

@@ -15,12 +15,18 @@ import { colors, type } from './socialTokens';
  * um "↑ Up / ↓ Down" com uma percentagem ao lado. Ninguém pensa na sua
  * fotografia em percentagens: arrasta-se até ficar bem. Com `onChange` a
  * moldura passa a aceitar o arrasto; sem ele fica só a mostrar.
+ *
+ * Com `vista`, mostra ISSO em vez da imagem nua — é assim que a capa passa a
+ * ser ajustada dentro do próprio cabeçalho do perfil, com a vinheta e o avatar
+ * por cima. O gesto e as contas são os mesmos; muda só o que se desenha.
  */
-export function ProfileCropPreview({ image, ratio, x=0.5, y=0.5, onChange, onDraggingChange }: {
+export function ProfileCropPreview({ image, ratio, x=0.5, y=0.5, vista, onChange, onDraggingChange }: {
   image:SelectedProfileImage;
   ratio:number;
   x?:number;
   y?:number;
+  /** O que desenhar em vez da imagem nua. Não recebe toques: o gesto é daqui. */
+  vista?:React.ReactNode;
   /** Recebe o ponto focal novo enquanto se arrasta. */
   onChange?:(x:number,y:number)=>void;
   /** Suspende o scroll do editor até terminar ou cancelar o gesto. */
@@ -78,12 +84,15 @@ export function ProfileCropPreview({ image, ratio, x=0.5, y=0.5, onChange, onDra
     onLayout={e=>setWidth(e.nativeEvent.layout.width)}
     {...(podeArrastar?gesto.panHandlers:{})}
     accessibilityHint={podeArrastar?'Drag to choose what shows':undefined}
-    style={{width:'100%',aspectRatio:ratio,overflow:'hidden',backgroundColor:colors.surfaceHigh,
+    style={{width:'100%',overflow:'hidden',backgroundColor:colors.surfaceHigh,
+      ...(vista?{}:{aspectRatio:ratio}),
       ...(Platform.OS==='web'&&podeArrastar?{touchAction:'none',userSelect:'none'} as const:{})}}>
-    {width>0&&<View pointerEvents="none"><Image
-      source={{uri:image.uri}}
-      resizeMode="stretch"
-      style={{position:'absolute',width:image.width*scale,height:image.height*scale,left:-crop.originX*scale,top:-crop.originY*scale}}/></View>}
+    {vista
+      ? <View pointerEvents="none">{vista}</View>
+      : width>0&&<View pointerEvents="none"><Image
+          source={{uri:image.uri}}
+          resizeMode="stretch"
+          style={{position:'absolute',width:image.width*scale,height:image.height*scale,left:-crop.originX*scale,top:-crop.originY*scale}}/></View>}
     {podeArrastar&&<View pointerEvents="none" style={{position:'absolute',left:0,right:0,bottom:0,alignItems:'center',paddingVertical:6,backgroundColor:colors.overlay}}>
       <Text style={type.micro}>DRAG TO ADJUST</Text>
     </View>}

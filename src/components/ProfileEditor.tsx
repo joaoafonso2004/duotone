@@ -8,6 +8,7 @@ import { mediaBucket,removeProfileMedia,useProfileMedia,type ProfileMediaKind } 
 import { supabase } from '../lib/supabase';
 import { FriendAvatar } from './FriendAvatar';
 import { ProfileCropPreview } from './ProfileCropPreview';
+import { ProfileHero } from './ProfileHero';
 import { useSocial } from '../state/social';
 import { SocialButton,SocialModal,socialStyles as s } from './socialUI';
 import type { Playlist } from '../types';
@@ -56,6 +57,14 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
     }
     catch(e:any){setError(e.message || 'Could not open that image.');}
   };
+
+  // O avatar por confirmar entra na pré-visualização: quem troca os dois ao
+  // mesmo tempo tem de ver os dois, senão o cabeçalho mostra o avatar antigo
+  // por cima da capa nova e a decisão é tomada sobre uma imagem que não existe.
+  const naoFazNada=()=>{};
+  const profileParaPreVisualizar=avatar
+    ? {...profile,profile:{...profile.profile,avatar_url:avatar.uri}}
+    : profile;
 
   const save=async()=>{
     if(stage)return;
@@ -106,12 +115,20 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       <View style={{flex:wide?1:undefined,minWidth:0,gap:16}}>
 
       <Text style={s.label}>Cover image</Text>
-      {/* A moldura preserva o formato do ficheiro; a vinheta só aparece no perfil. */}
+      {/* A moldura É o cabeçalho do perfil, com a imagem por confirmar lá
+          dentro: mesma vinheta, mesmo degradê, mesmo avatar por cima. Antes
+          mostrava a fotografia limpa e noutro formato, por isso não havia como
+          saber se a cara ficava tapada antes de gravar. */}
       <View style={{borderRadius:radii.lg,overflow:'hidden'}}>
         {cover
           ? <ProfileCropPreview image={cover} ratio={RACIO_DA_CAPA} x={coverX} y={coverY}
               onDraggingChange={setAdjustingImage}
-              onChange={(x,y)=>{setCoverX(x);setCoverY(y);}}/>
+              onChange={(x,y)=>{setCoverX(x);setCoverY(y);}}
+              vista={<ProfileHero own profile={profileParaPreVisualizar} cover={cover.uri}
+                recorte={{largura:cover.width,altura:cover.height,x:coverX,y:coverY}}
+                unread={0} onEdit={naoFazNada} onMessage={naoFazNada}
+                onSocial={naoFazNada} onSettings={naoFazNada} onRefresh={naoFazNada}
+                onAddFriend={naoFazNada} pending={false}/>}/>
           : <View style={{width:'100%',aspectRatio:RACIO_DA_CAPA,backgroundColor:colors.surfaceHigh,alignItems:'center',justifyContent:'center'}}>
               {coverUrl
                 ? <Image source={{uri:coverUrl}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>

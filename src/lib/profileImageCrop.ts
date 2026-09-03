@@ -22,6 +22,32 @@ export const LARGURA_DA_CAPA = 1600;
 /** A fotografia de perfil: quadrada, porque aparece dentro de um círculo. */
 export const RACIO_DO_AVATAR = 1;
 
+/**
+ * Onde pôr uma imagem AINDA POR RECORTAR para ela se ver como se ficasse.
+ *
+ * São dois passos encadeados, e é por os separar que o preview mentia:
+ *   1. o recorte que vai ser gravado, dado o ponto focal;
+ *   2. esse recorte a preencher a caixa do cabeçalho, que nem sempre tem o
+ *      mesmo formato — no telemóvel tem o rácio do recorte e enche-a exacta,
+ *      no PC é uma faixa mais larga e ainda corta em cima e em baixo.
+ *
+ * Devolve a medida e o deslocamento da imagem inteira dentro da caixa, para
+ * o preview poder mostrar o resultado sem gravar nada.
+ */
+export function enquadrarPreVisualizacao(
+  largura:number,altura:number,racio:number,x:number,y:number,caixaW:number,caixaH:number,
+) {
+  const recorte=imageCrop(largura,altura,racio,x,y);
+  // `cover`: a escala é a maior das duas, para não sobrar caixa por preencher.
+  const escala=Math.max(caixaW/recorte.width,caixaH/recorte.height);
+  return {
+    width:largura*escala,
+    height:altura*escala,
+    left:(caixaW-recorte.width*escala)/2-recorte.originX*escala,
+    top:(caixaH-recorte.height*escala)/2-recorte.originY*escala,
+  };
+}
+
 /** Recorte proporcional, com ponto focal limitado ao espaço disponível. */
 export function imageCrop(width:number,height:number,ratio:number,x=0.5,y=0.5) {
   if(!Number.isFinite(width)||!Number.isFinite(height)||width<=0||height<=0) throw new Error('Invalid image.');

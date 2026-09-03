@@ -218,7 +218,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
     <ScrollView contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled">
       <ProfileHero profile={profile} own={own} cover={cover} unread={unread}
         status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
-        onEdit={()=>setEditing(true)} onSocial={onSocial} onSettings={onSettings} onBack={onBack} onStats={onStats}
+        onEdit={()=>setEditing(true)} onSocial={onSocial} onSettings={onSettings} onBack={onBack}
         onMessage={()=>onMessage(userId)} onRefresh={()=>void load()} pending={friend?.status==='pending'}
         onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError('Could not send the friend request. Please try again.'));}}/>
       <View style={{paddingHorizontal:SOCIAL_GUTTER,gap:28}}>
@@ -247,7 +247,16 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
           </View>}
           {playlistsSection}
           <View style={{gap:16}}>
-            <Text style={s.title}>Listening overview</Text>
+            {/* O título é o caminho para o detalhe: o resumo e a página
+                completa deixam de estar em pontas opostas do perfil. */}
+            {profile.canView
+              ? <Pressable accessibilityRole="button" accessibilityLabel="Listening stats" onPress={onStats}
+                  style={({pressed,hovered}:any)=>[s.row,{gap:8},(pressed||hovered)&&{opacity:0.7}]}>
+                  <Text style={[s.title,{flex:1}]}>Listening overview</Text>
+                  <Text style={s.muted}>Listening stats</Text>
+                  <Ionicons name="chevron-forward" color={colors.textSecondary} size={16}/>
+                </Pressable>
+              : <Text style={s.title}>Listening overview</Text>}
             <View style={[s.row,{flexWrap:'wrap'}]}>{[[profile.stats?.totalPlays??0,'Plays'],[profile.stats?.uniqueTracks??0,'Tracks'],[profile.friendCount??0,'Friends']].map(([v,label])=><View key={label} style={[s.card,{flex:1,minWidth:85}]}><Text style={s.title}>{v}</Text><Text style={s.muted}>{label}</Text></View>)}</View>
             {profile.stats?.topArtist&&<Pressable accessibilityRole="button" onPress={()=>onArtist(profile.stats!.topArtist!.name)}
               style={({pressed,hovered}:any)=>[s.listRow,(pressed||hovered)&&{backgroundColor:colors.surfacePressed}]}>
