@@ -1,3 +1,5 @@
+import { OfflineNotice,withInternet } from '../components/OfflineNotice';
+import { useConnectivity } from '../state/connectivity';
 import { useSocial } from '../state/social';
 import { naoLidasPorAmigo } from '../lib/social';
 import { FriendProfileScreen } from '../screens/FriendProfileScreen';
@@ -43,6 +45,17 @@ import {
   notifyPendingFriendRequests,
 } from '../lib/localNotifications';
 
+const OnlineArtists=withInternet(ArtistsScreen,'Artists');
+const OnlineImportYouTube=withInternet(ImportYouTubeScreen,'ImportYouTube');
+const OnlineListeningStats=withInternet(ListeningStatsScreen,'ListeningStats');
+const OnlineLibraryGroup=withInternet(LibraryGroupScreen,'LibraryGroup');
+const OnlinePlaylistDetail=withInternet(PlaylistDetailScreen,'PlaylistDetail');
+const OnlinePlaylists=withInternet(PlaylistsScreen,'Playlists');
+const OnlineProfile=withInternet(ProfileScreen,'Profile');
+const OnlineSearch=withInternet(SearchScreen,'Search');
+const OnlineSocial=withInternet(SocialScreen,'Social');
+const OnlineFriendProfile=withInternet(FriendProfileScreen,'Profile');
+
 export type RootStackParamList = {
   Tabs: undefined;
   Settings: undefined;
@@ -76,9 +89,9 @@ const stackScreenOptions = { headerShown: false } as const;
 function PlaylistsStack() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="Playlists" component={PlaylistsScreen} />
-      <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
-      <Stack.Screen name="ImportYouTube" component={ImportYouTubeScreen} />
+      <Stack.Screen name="Playlists" component={OnlinePlaylists} />
+      <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />
+      <Stack.Screen name="ImportYouTube" component={OnlineImportYouTube} />
     </Stack.Navigator>
   );
 }
@@ -86,8 +99,8 @@ function PlaylistsStack() {
 function ArtistsStack() {
   return (
     <Stack.Navigator screenOptions={stackScreenOptions}>
-      <Stack.Screen name="Artists" component={ArtistsScreen} />
-      <Stack.Screen name="LibraryGroup" component={LibraryGroupScreen} />
+      <Stack.Screen name="Artists" component={OnlineArtists} />
+      <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
     </Stack.Navigator>
   );
 }
@@ -105,6 +118,7 @@ function Tabs() {
 
   return (
     <Tab.Navigator
+      initialRouteName={useConnectivity.getState().offline?"Songs":"Search"}
       screenOptions={({ route }) => ({
         headerShown: false,
         lazy: false,
@@ -156,11 +170,11 @@ function Tabs() {
         },
       })}
     >
-      <Tab.Screen name="Search" component={SearchScreen} />
+      <Tab.Screen name="Search" component={OnlineSearch} />
       <Tab.Screen name="Songs" component={SongsScreen} />
       <Tab.Screen name="Artists" component={ArtistsStack} />
       <Tab.Screen name="Playlists" component={PlaylistsStack} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Profile" component={OnlineProfile} />
     </Tab.Navigator>
   );
 }
@@ -181,6 +195,8 @@ export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 export function RootNavigator() {
   const session = useAuth((s) => s.session);
+  const offlineUserId=useAuth(s=>s.offlineUserId);
+  const offline=useConnectivity(s=>s.offline);
   const initialized = useAuth((s) => s.initialized);
   const theme = useTheme((s) => s.theme);
 
@@ -193,7 +209,7 @@ export function RootNavigator() {
 
   // Poll inbox items every 15 seconds to check for new messages
   useEffect(() => {
-    if (!session) return;
+    if (!session||offline) return;
     ensureNotificationPermission();
 
     const checkNewMessages = async () => {
@@ -229,7 +245,7 @@ export function RootNavigator() {
     checkNewMessages();
     const interval = setInterval(checkNewMessages, 15000);
     return () => clearInterval(interval);
-  }, [session]);
+  }, [session,offline]);
 
   // Tocar na notificação leva ao Social — sem isto abria a app na última
   // página e o utilizador tinha de ir procurar a mensagem à mão.
@@ -261,7 +277,7 @@ export function RootNavigator() {
   return (
     <NavigationContainer theme={navTheme} ref={navigationRef}>
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
-        {session ? (
+        {session || offlineUserId ? (
           <View style={{ flex: 1 }}>
             {/* Imagem de fundo abstrata global (renderizada apenas uma vez na app inteira) */}
             <Image
@@ -289,11 +305,11 @@ export function RootNavigator() {
             <Stack.Navigator screenOptions={stackScreenOptions}>
               <Stack.Screen name="Tabs" component={Tabs} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
-              <Stack.Screen name="ListeningStats" component={ListeningStatsScreen} />
-              <Stack.Screen name="Social" component={SocialScreen} />
-              <Stack.Screen name="FriendProfile" component={FriendProfileScreen} />
-              <Stack.Screen name="LibraryGroup" component={LibraryGroupScreen} />
-              <Stack.Screen name="PlaylistDetail" component={PlaylistDetailScreen} />
+              <Stack.Screen name="ListeningStats" component={OnlineListeningStats} />
+              <Stack.Screen name="Social" component={OnlineSocial} />
+              <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
+              <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
+              <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />
             </Stack.Navigator>
             <PlayerRoot />
             {/* "A tocar no PC — continuar aqui". Fica por cima do mini-player. */}
@@ -315,7 +331,7 @@ export function RootNavigator() {
                 permanencia. <BotGuardMinter /> para reativar. */}
           </View>
         ) : (
-          <AuthScreen />
+          <View style={{flex:1}}>{offline&&<OfflineNotice compact signIn/>}<AuthScreen /></View>
         )}
       </View>
     </NavigationContainer>

@@ -1,3 +1,4 @@
+import { useConnectivity } from '../state/connectivity';
 import { useEventListener } from 'expo';
 import { useVideoPlayer } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
@@ -370,6 +371,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
     }
 
+    if(useConnectivity.getState().offline){
+      setError('This song is not available offline. Choose a downloaded song in Songs.');
+      usePlayer.getState()._setBuffering(false);
+      return;
+    }
+
     // Fora do try para ficar acessível no catch (diagnóstico do cliente/token).
     let stream: YtStream | undefined;
     try {
@@ -682,7 +689,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (nextTrack.sourceId === track.sourceId) return;
 
       const file = cachedAudioFile(nextTrack.sourceId);
-      if (file.exists) return; // já descarregado
+      if (file.exists||useConnectivity.getState().offline) return; // já descarregado ou sem rede
 
       try {
         const quality = await getAudioQuality();

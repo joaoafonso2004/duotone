@@ -1,8 +1,11 @@
+import { useOfflineMode } from '../hooks/useOfflineMode';
+import { useConnectivity } from '../state/connectivity';
+import { RecommendationPreferences } from './RecommendationPreferences';
 import { displayArtist } from '../lib/artistName';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { hapticImpact } from '../lib/haptics';
 import { getAudioQuality } from '../lib/prefs';
 import { resolveYouTubeStream } from '../api/ytstream';
@@ -21,6 +24,7 @@ export interface SheetAction {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   destructive?: boolean;
+  requiresInternet?:boolean;
   onPress: () => void;
 }
 
@@ -32,6 +36,9 @@ interface Props {
 }
 
 export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
+  const offline=useOfflineMode();
+  const {height}=useWindowDimensions();
+  const [recommendationTrack,setRecommendationTrack]=React.useState<Track|null>(null);
   const [shareFriendVisible, setShareFriendVisible] = React.useState(false);
   const [localTrack, setLocalTrack] = React.useState<Track | null>(null);
 
@@ -71,6 +78,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
           stream.contentLength,
           track.durationSeconds || stream.durationSeconds || null,
           {
+            shouldAbort:()=>useConnectivity.getState().offline,
             renewUrl: async () =>
               (await resolveYouTubeStream(track.sourceId, quality, true)).url,
           }
@@ -81,9 +89,10 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
     }
   };
 
-  const allActions = track
+  const allActions:SheetAction[] = track
     ? [
         ...actions,
+        {icon:'options-outline' as const,label:'Recommendations…',onPress:()=>{setRecommendationTrack(track);onClose();}},
         ...(isYtTrack
           ? [
               {
@@ -91,6 +100,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
                   ? 'checkmark-circle'
                   : 'arrow-down-circle-outline') as keyof typeof Ionicons.glyphMap,
                 label: isDownloaded ? 'Remove download' : 'Download',
+                requiresInternet:!isDownloaded,
                 onPress: handleDownloadToggle,
               },
             ]
@@ -106,6 +116,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
   return (
     <>
       <BottomSheet visible={visible} onClose={onClose}>
+        <ScrollView style={{maxHeight:height*0.75}} keyboardShouldPersistTaps="handled">
         {track ? (
           <View style={styles.header}>
             {track.artworkUrl ? (
@@ -139,15 +150,19 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
           </View>
         ) : null}
 
+        {offline&&<Text style={type.caption}>Offline · actions that need internet are unavailable.</Text>}
         {allActions.map((a) => (
           <Pressable
             key={a.label}
+            disabled={offline&&a.requiresInternet!==false}
+            accessibilityState={{disabled:offline&&a.requiresInternet!==false}}
             onPress={() => {
               hapticImpact();
               a.onPress();
             }}
             style={({ pressed }) => [
               styles.action,
+              offline&&a.requiresInternet!==false&&{opacity:0.4},
               pressed && { backgroundColor: colors.surfacePressed },
             ]}
           >
@@ -167,8 +182,10 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
             </Text>
           </Pressable>
         ))}
+        </ScrollView>
       </BottomSheet>
 
+      <RecommendationPreferences visible={!!recommendationTrack} track={recommendationTrack} onClose={()=>setRecommendationTrack(null)}/>
       <ShareFriendSheet
         visible={shareFriendVisible}
         itemType="track"

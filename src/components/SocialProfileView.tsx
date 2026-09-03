@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import { ActivityIndicator,Image,Platform,Pressable,ScrollView,Text,View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getSocialProfile,getSocialProfileTracks,type SocialProfile,type ProfileTrack } from '../api/profiles';
+import { getSocialProfile,getSocialProfileTracks,getProfileHighlights,type ProfileHighlights,type SocialProfile,type ProfileTrack } from '../api/profiles';
 import { sendFriendRequest } from '../api/social';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
@@ -38,6 +38,8 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
   const myId=useAuth(x=>x.session?.user.id),own=userId===myId;
   const [profile,setProfile]=useState<SocialProfile|null>(null),[most,setMost]=useState<ProfileTrack[]>([]),[recent,setRecent]=useState<ProfileTrack[]>([]);
   const [error,setError]=useState(''),[loading,setLoading]=useState(true),[editing,setEditing]=useState(false),[track,setTrack]=useState<Track|null>(null);
+  const [highlights,setHighlights]=useState<ProfileHighlights>({playlistIds:[],moment:null});
+  const [highlightsLoaded,setHighlightsLoaded]=useState(false);
   const [playlists,setPlaylists]=useState<Playlist[]>([]);
   // De que playlists dos outros ja tenho copia. Pergunta-se UMA vez em vez de
   // uma por linha, senao uma lista de dez faz dez idas ao servidor.
@@ -57,22 +59,23 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
   const cover=useProfileMedia(profile?.appearance?.cover_path?`storage:${profile.appearance.cover_path}`:null,'cover');
   const load=useCallback(async()=>{
     const id=++request.current;
-    setError('');setLoading(true);
+    setError('');setLoading(true);setHighlightsLoaded(false);
     try {
       const p=await getSocialProfile(userId);if(id!==request.current)return;setProfile(p);
       // No meu perfil vejo as minhas todas (para poder escolher quais mostro);
       // no de outra pessoa so as que ela marcou. As copias que ja tenho vem
       // junto, para o botao saber em que estado esta.
-      const [m,r,l,c]=await Promise.all([
+      const [m,r,l,c,h]=await Promise.all([
         p.canView?getSocialProfileTracks(userId):[],
         p.canView?getSocialProfileTracks(userId,true):[],
         own?listPlaylists():(p.canView?listProfilePlaylists(userId):[]),
         own?Promise.resolve(new Set<string>()):copiasGuardadas(),
+        p.canView?getProfileHighlights(userId):{playlistIds:[],moment:null},
       ]);
-      if(id!==request.current)return;setMost(m);setRecent(r);setPlaylists(l);setGuardadas(c);
+      if(id!==request.current)return;setMost(m);setRecent(r);setPlaylists(l);setGuardadas(c);setHighlights(h);setHighlightsLoaded(true);
     }catch(e:any){if(id===request.current)setError(e.message || 'Could not open this profile.');}finally{if(id===request.current)setLoading(false);}
   },[userId,own]);
-  useEffect(()=>{if(!active)return;setProfile(null);setMost([]);setRecent([]);setPlaylists([]);setGuardadas(new Set());void load();return()=>{request.current++;};},[load,friend?.status,active]);
+  useEffect(()=>{if(!active)return;setProfile(null);setHighlights({playlistIds:[],moment:null});setMost([]);setRecent([]);setPlaylists([]);setGuardadas(new Set());void load();return()=>{request.current++;};},[load,friend?.status,active]);
   /** Guardar (ou largar) a playlist de outra pessoa. Fica uma copia minha. */
   const alternarCopia=async(pl:Playlist)=>{
     if(mutation.current || loading) return;
@@ -122,7 +125,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
     <Text style={s.title}>{own?'Your playlists':'Playlists'}</Text>
     <Text style={s.muted}>{own?'Choose which playlists your friends can see.':'Save your own copy. Changes to the original will not change your copy.'}</Text>
     <View style={{flexDirection:wide?'row':'column',flexWrap:'wrap',gap:12}}>
-      {playlists.map(pl=>{
+      {[...playlists].sort((a,b)=>{const rank=(id:string)=>{const i=highlights.playlistIds.indexOf(id);return i<0?3:i;};return rank(a.id)-rank(b.id);}).map(pl=>{
         const marked=own?!!pl.visibleOnProfile:guardadas.has(pl.id);
         const busy=ocupada===pl.id;
         const label=own?(marked?`Hide ${pl.name} from your profile`:`Show ${pl.name} on your profile`):(marked?`Remove your copy of ${pl.name}`:`Save ${pl.name}`);
@@ -130,7 +133,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
           <Pressable accessibilityRole="button" accessibilityLabel={`Open ${pl.name}`} disabled={!onPlaylist} onPress={()=>onPlaylist?.(pl.id)}
             style={({pressed,hovered}:any)=>[s.row,{minWidth:0},(pressed||hovered)&&{opacity:0.75}]}>
             <View style={{borderRadius:radii.md,overflow:'hidden'}}><ArtworkCollage artworks={pl.artworks} size={56}/></View>
-            <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={[s.text,{fontWeight:'600'}]}>{pl.name}</Text><Text style={s.muted}>{pl.trackCount} {pl.trackCount===1?'track':'tracks'}</Text></View>
+            <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={[s.text,{fontWeight:'600'}]}>{highlights.playlistIds.includes(pl.id)?'★ ':''}{pl.name}</Text><Text style={s.muted}>{pl.trackCount} {pl.trackCount===1?'track':'tracks'}</Text></View>
             <Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{selected:marked,busy,disabled:!!ocupada||loading}}
@@ -165,7 +168,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
             </View>
             {!!profile.appearance?.bio&&<Text style={s.text}>{profile.appearance.bio}</Text>}
             <View style={[s.row,{flexWrap:'wrap',gap:8}]}>
-              {own?<SocialButton icon="pencil-outline" onPress={()=>setEditing(true)}>Edit profile</SocialButton>:profile.canView?<SocialButton primary icon="chatbubble-outline" onPress={()=>onMessage(userId)}>Message</SocialButton>:<SocialButton primary disabled={friend?.status==='pending'} onPress={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(e=>setError(e.message));}}>{friend?.status==='pending'?'Request pending':'Add friend'}</SocialButton>}
+              {own?<SocialButton disabled={loading||!highlightsLoaded} icon="pencil-outline" onPress={()=>setEditing(true)}>Edit profile</SocialButton>:profile.canView?<SocialButton primary icon="chatbubble-outline" onPress={()=>onMessage(userId)}>Message</SocialButton>:<SocialButton primary disabled={friend?.status==='pending'} onPress={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(e=>setError(e.message));}}>{friend?.status==='pending'?'Request pending':'Add friend'}</SocialButton>}
               {own&&onSocial&&<SocialButton primary icon="chatbubbles-outline" badge={unread} onPress={onSocial}>Friends and chats</SocialButton>}
               {profile.canView&&<SocialButton quiet icon="stats-chart-outline" onPress={onStats}>Listening stats</SocialButton>}
               {own&&onSettings&&<SocialIconButton label="Settings" icon="settings-outline" onPress={onSettings}/>}
@@ -178,6 +181,17 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
           </View>
         </View>
         {!profile.canView?<Text style={s.muted}>Stats become available once you are friends.</Text>:<>
+          {highlights.moment&&<View style={[s.card,{gap:12}]}>
+            <Text style={s.label}>Song of the moment</Text>
+            <View style={s.row}>
+              <Pressable accessibilityRole="button" accessibilityLabel={`Play ${highlights.moment.title}`} onPress={()=>void usePlayer.getState().playTrack(highlights.moment!,[highlights.moment!])} style={[s.row,{flex:1,minWidth:0}]}>
+                {highlights.moment.artworkUrl?<Image source={{uri:highlights.moment.artworkUrl}} style={{width:56,height:56,borderRadius:radii.sm}}/>:<Ionicons name="musical-notes" size={40} color={accent}/>}
+                <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={s.text}>{highlights.moment.title}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(highlights.moment)}</Text></View>
+                <Ionicons name="play-circle" size={32} color={accent}/>
+              </Pressable>
+              <SocialIconButton label={`Options for ${highlights.moment.title}`} icon="ellipsis-horizontal" onPress={()=>setTrack(highlights.moment)}/>
+            </View>
+          </View>}
           {playlistsSection}
           <View style={{gap:16}}>
             <Text style={s.title}>Listening overview</Text>
@@ -204,7 +218,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
         </>}
       </>}
     </ScrollView>
-    {editing&&profile&&<ProfileEditor profile={profile} onClose={()=>setEditing(false)} onSaved={()=>{void load();void useSocial.getState().refresh();}}/>}
+    {editing&&profile&&<ProfileEditor profile={profile} highlights={highlights} playlists={playlists} onClose={()=>setEditing(false)} onSaved={()=>{void load();void useSocial.getState().refresh();}}/>}
     <SocialTrackActions track={track} onClose={()=>setTrack(null)} onArtist={onArtist}/>
   </View>;
 }

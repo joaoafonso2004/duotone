@@ -1,3 +1,5 @@
+import { useConnectivity } from './connectivity';
+import { filterSuggestions } from './recommendationFeedback';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -739,7 +741,8 @@ export const usePlayer = create<PlayerState>()(
     if (radioInFlight) return false;
     radioInFlight = true;
     try {
-      const tracks = await fetchRadioTracks(radioSeeds(queue, queueIndex), queue);
+      const tracks = filterSuggestions(await fetchRadioTracks(radioSeeds(queue, queueIndex), queue));
+      if(useConnectivity.getState().offline||get().queue!==queue||!get().autoplayRadio)return false;
       if (tracks.length === 0) return false;
 
       // A fila pode ter mudado enquanto isto foi à rede — reler o estado,
@@ -856,16 +859,18 @@ export const usePlayer = create<PlayerState>()(
       const candidatas = await candidatasParaDescoberta(
         contexto, naFila, new Set(sugeridas),
       );
+      if(useConnectivity.getState().offline||get().queue!==queue||!get().shuffleInteligente)return 0;
       if (candidatas.length === 0) return 0;
 
-      const quantas = Math.min(3, candidatas.length);
+      const filtradas=filterSuggestions(candidatas);
+      const quantas = Math.min(3, filtradas.length);
       let fila = [...get().queue];
       let ordem = [...get().shuffleOrder];
       const novas: string[] = [];
       const base = get().queueIndex;
 
       for (let i = 0; i < quantas; i++) {
-        const t = candidatas[i];
+        const t = filtradas[i];
         const chave = trackKey(t);
         if (!chave || fila.some((q) => trackKey(q) === chave)) continue;
         const posicao = Math.min(base + 1 + (i + 1) * 3, fila.length);
@@ -912,8 +917,9 @@ export const usePlayer = create<PlayerState>()(
       const candidatas = await candidatasParaDescoberta(
         contexto, naFila, new Set(sugeridas),
       );
+      if(useConnectivity.getState().offline||get().queue!==queue||!get().shuffleInteligente)return false;
       const escolhida = escolherSugestao(
-        candidatas, (t) => trackKey(t), naFila, new Set(sugeridas),
+        filterSuggestions(candidatas), (t) => trackKey(t), naFila, new Set(sugeridas),
       );
       if (!escolhida) return false;
 

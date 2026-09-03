@@ -1,3 +1,5 @@
+import { RecommendationPreferences } from '../components/RecommendationPreferences';
+import { useOfflineMode } from '../hooks/useOfflineMode';
 import { removeOwnProfileMedia } from '../lib/profileMedia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
@@ -50,6 +52,8 @@ import { colors, radii, spacing, type } from '../theme';
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
 export function SettingsScreen({ navigation }: Props) {
+  const offline=useOfflineMode();
+  const [recommendationsOpen,setRecommendationsOpen]=useState(false);
   const insets = useSafeAreaInsets();
   const session = useAuth((s) => s.session);
   const signOut = useAuth((s) => s.signOut);
@@ -274,6 +278,7 @@ export function SettingsScreen({ navigation }: Props) {
 
   return (
     <Screen title="Settings" onBack={() => navigation.goBack()}>
+      <RecommendationPreferences visible={recommendationsOpen} onClose={()=>setRecommendationsOpen(false)}/>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
@@ -286,6 +291,10 @@ export function SettingsScreen({ navigation }: Props) {
             gap: spacing.xl,
           }}
         >
+          <Section title="Recommendations">
+            <Text style={type.caption}>{offline?'Connect to the internet to change your recommendation preferences.':'Review songs you have hidden and artists you want to hear less often.'}</Text>
+            <PillButton label="Manage preferences" disabled={offline} onPress={()=>setRecommendationsOpen(true)}/>
+          </Section>
           <Section title="Theme">
             <Label>Cor de destaque</Label>
             <View style={styles.themesGrid}>
@@ -414,6 +423,7 @@ export function SettingsScreen({ navigation }: Props) {
           </Section>
 
           <Section title="Data">
+            {offline&&<Text style={type.caption}>Offline · library changes and playlist exports need internet.</Text>}
             <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
               YouTube audio is downloaded locally so it can keep playing with the
               screen locked. Clearing the cache frees that space; songs
@@ -428,6 +438,7 @@ export function SettingsScreen({ navigation }: Props) {
             />
             <PillButton
               label="Clear library"
+              disabled={offline}
               variant="danger"
               small
               onPress={() => setClearLibraryOpen(true)}
@@ -435,6 +446,7 @@ export function SettingsScreen({ navigation }: Props) {
             />
             <PillButton
               label="Export playlists (JSON)"
+              disabled={offline}
               variant="ghost"
               small
               loading={exportingPlaylists}
@@ -465,7 +477,7 @@ export function SettingsScreen({ navigation }: Props) {
               variant="ghost"
               small
               loading={testingPotServer}
-              disabled={!potServerUrl.trim()}
+              disabled={offline||!potServerUrl.trim()}
               onPress={testPotServer}
               style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
             />
@@ -477,10 +489,12 @@ export function SettingsScreen({ navigation }: Props) {
           </Section>
 
           <Section title="Account">
+            {offline&&<Text style={type.caption}>Offline · connect to manage your account.</Text>}
             <Row label="Email" value={session?.user?.email ?? '—'} />
             <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' }}>
               <PillButton
                 label="Reset password"
+              disabled={offline}
                 variant="ghost"
                 small
                 loading={resettingPw}
@@ -496,6 +510,7 @@ export function SettingsScreen({ navigation }: Props) {
               />
               <PillButton
                 label="Delete account"
+              disabled={offline}
                 variant="danger"
                 small
                 onPress={() => setDeleteAccountOpen(true)}

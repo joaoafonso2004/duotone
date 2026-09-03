@@ -1,4 +1,7 @@
 import 'react-native-url-polyfill/auto';
+import { startConnectivity,useConnectivity } from './src/state/connectivity';
+import { loadRecommendationFeedback,useRecommendationFeedback } from './src/state/recommendationFeedback';
+import { refreshSuggestionPreferences } from './src/state/recomendacoes';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { AppState } from 'react-native';
@@ -39,21 +42,34 @@ import { iniciarPresenca } from './src/lib/presenceSync';
 import { iniciarSocial } from './src/state/social';
 
 export default function App() {
+  useEffect(startConnectivity,[]);
+  const offline=useConnectivity(s=>s.offline);
   const init = useAuth((s) => s.init);
   const userId = useAuth((s) => s.session?.user.id);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId||offline) return;
     const pararPresenca = iniciarPresenca(userId);
     const pararSocial = iniciarSocial(userId);
     return () => { pararPresenca(); pararSocial(); };
-  }, [userId]);
+  }, [userId,offline]);
 
   useEffect(() => {
-    if (!userId) return;
-    void useRecomendacoes.getState().carregar();
-    return () => useRecomendacoes.getState().limpar();
-  }, [userId]);
+    if (!userId||offline) return;
+    let active=true;
+    void loadRecommendationFeedback(userId).then(()=>{if(active)void useRecomendacoes.getState().carregar();});
+    return () => {active=false;useRecomendacoes.getState().limpar();};
+  }, [userId,offline]);
+
+  useEffect(()=>useRecommendationFeedback.subscribe((next,prev)=>{
+    if(next.revision!==prev.revision)refreshSuggestionPreferences();
+  }),[]);
+  useEffect(()=>{if(!userId)void loadRecommendationFeedback(null);},[userId]);
+  useEffect(()=>{
+    if(offline){supabase.auth.stopAutoRefresh();return;}
+    supabase.auth.startAutoRefresh();
+    void useAuth.getState().refreshSession().catch(()=>{});
+  },[offline]);
 
   useEffect(() => {
     init();
@@ -73,8 +89,8 @@ export default function App() {
       // reprodução, e protegendo a fila restaurada da sessão anterior.
       const prune = () =>
         pruneAudioCacheLRU(usePlayer.getState().queue.map((t) => t.sourceId));
-      if (usePlayer.persist.hasHydrated()) prune();
-      else usePlayer.persist.onFinishHydration(prune);
+      if (usePlayer.persist.hasHydrated()) {if(!useConnectivity.getState().offline)prune();}
+      else usePlayer.persist.onFinishHydration(()=>{if(!useConnectivity.getState().offline)prune();});
     });
     useTheme.getState().loadTheme();
     // Loudness conhecida por vídeo (normalização de volume) — tem de estar em
@@ -132,9 +148,9 @@ export default function App() {
   // vazias ao regressar — "perdia" biblioteca/artistas até reiniciar. Ao
   // voltar a "active" força-se a renovação; em background pára-se o ticker.
   useEffect(() => {
-    supabase.auth.startAutoRefresh();
+    if(!useConnectivity.getState().offline)supabase.auth.startAutoRefresh();
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') {
+      if (state === 'active'&&!useConnectivity.getState().offline) {
         supabase.auth.startAutoRefresh();
       } else {
         supabase.auth.stopAutoRefresh();

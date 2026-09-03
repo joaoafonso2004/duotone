@@ -1,3 +1,4 @@
+import { feedbackReady,filterSuggestions } from './recommendationFeedback';
 import { create } from 'zustand';
 import { getLibrary } from '../api/library';
 import { descobrirNovas, flowDoDia } from '../api/descoberta';
@@ -52,6 +53,7 @@ const POR_PRATELEIRA = 14;
 /** Impede que duas chamadas ao mesmo tempo façam o trabalho a dobrar. */
 let emCurso: Promise<void> | null = null;
 let geracao = 0;
+let rawShelves:Partial<Record<'descobrir'|'ouvirDeNovo'|'flow'|'maisTocadas'|'esquecidas',Track[]>>={};
 
 export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
   descobrir: [],
@@ -63,6 +65,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
   carregadoEm: 0,
   limpar: () => {
     geracao++;
+    rawShelves={};
     emCurso = null;
     set({ descobrir: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], estado: 'vazio', carregadoEm: 0 });
   },
@@ -88,9 +91,14 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
      * Uma prateleira que falha nao leva as outras atras, como antes.
      */
     const publicar = <T,>(p: Promise<T[]>, campo: (v: T[]) => Partial<Recomendacoes>) =>
-      p.then((v) => { if (atual === geracao) set(campo(v)); }).catch(() => {});
+      p.then((v) => {
+        if(atual!==geracao)return;
+        const values=campo(v);
+        Object.assign(rawShelves,values);
+        set(Object.fromEntries(Object.entries(values).map(([key,tracks])=>[key,Array.isArray(tracks)?filterSuggestions(tracks as Track[]):tracks])));
+      }).catch(() => {});
 
-    const trabalho = Promise.all([
+    const trabalho = Promise.resolve().then(()=>feedbackReady()).then(() => atual!==geracao?undefined:Promise.all([
       publicar(getProfileRecentlyPlayed(POR_PRATELEIRA), (recentes) => ({
         // `getProfileRecentlyPlayed` devolve ProfilePlayEntry, sem `album`.
         ouvirDeNovo: recentes.map((r: any) => ({ ...r, album: null } as Track)),
@@ -102,7 +110,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
         publicar(descobrirNovas(POR_PRATELEIRA, lib), (descobrir) => ({ descobrir })),
         publicar(flowDoDia(POR_PRATELEIRA, lib), (flow) => ({ flow })),
       ])).catch(() => {}),
-    ]).then(() => {
+    ])).then(() => {
       if (atual !== geracao) return;
       set({ estado: 'pronto', carregadoEm: Date.now() });
     }).catch(() => {
@@ -122,3 +130,8 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
 export const temRecomendacoes = (r: Recomendacoes): boolean =>
   r.descobrir.length > 0 || r.ouvirDeNovo.length > 0 || r.flow.length > 0
   || r.maisTocadas.length > 0 || r.esquecidas.length > 0;
+
+/** Aplica uma alteração sem refazer os pedidos nem alterar a fila manual. */
+export function refreshSuggestionPreferences():void {
+  useRecomendacoes.setState(Object.fromEntries(Object.entries(rawShelves).map(([key,tracks])=>[key,filterSuggestions(tracks)])));
+}

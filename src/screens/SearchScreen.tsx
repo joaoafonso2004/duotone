@@ -1,3 +1,4 @@
+import { useRecommendationFeedback } from '../state/recommendationFeedback';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
@@ -49,6 +50,7 @@ export function SearchScreen() {
   // Search focus state
   const [isFocused, setIsFocused] = useState(false);
 
+  const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
   const { descobrir, ouvirDeNovo: listenAgain, flow: flowMix,
     maisTocadas: heavyRotation, esquecidas: forgottenFavorites } = recs;
@@ -222,7 +224,7 @@ export function SearchScreen() {
                 
                 {!temRecomendacoes(recs) && (
                   <Text style={styles.emptyRecsText}>
-                    No recommendations yet. Start playing songs and saving them to your library to generate your Flow!
+                    {hasFeedback?'No suggestions match your current preferences. You can review them in Settings → Recommendations, or search for music above.':'No recommendations yet. Start playing songs and saving them to your library to generate your Flow!'}
                   </Text>
                 )}
               </View>

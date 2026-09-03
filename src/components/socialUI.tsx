@@ -20,7 +20,7 @@ export const socialStyles = StyleSheet.create({
   card: { backgroundColor: colors.surface, padding: spacing.lg, borderRadius: radii.lg, gap: spacing.md, borderWidth: 1, borderColor: colors.border },
   listRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 12, flexDirection: 'row', alignItems: 'center' },
   button: { minHeight: 44, overflow: 'hidden', paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: web ? radii.md : radii.pill, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: colors.borderStrong },
-  buttonText: { ...type.body, fontSize: 13, fontWeight: '600' },
+  buttonText: { ...type.body, fontSize: 13, fontWeight: '600', flexShrink:1, minWidth:0, textAlign:'center' },
   iconButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
   input: { ...type.body, minHeight: 46, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radii.md, padding: 13 },
   error: { ...type.caption, color: colors.danger, lineHeight: 19 },

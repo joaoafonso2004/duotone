@@ -1,3 +1,4 @@
+import { useRecommendationFeedback } from '../../state/recommendationFeedback';
 /**
  * Biblioteca: Search, Liked Songs, Artists e a página de um artista.
  *
@@ -36,6 +37,7 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
   // Estavam num `useState` daqui, e esta pagina desmonta ao mudar de
   // separador: ir aos Artists e voltar recomecava o "Preparing
   // recommendations..." do zero, e a espera nao e pequena.
+  const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
   const { descobrir, ouvirDeNovo, flow, maisTocadas, esquecidas } = recs;
   const recsCarregadas = recs.estado === 'pronto';
@@ -67,7 +69,7 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
       : <Empty icon={recsCarregadas ? 'search-outline' : 'sparkles-outline'}
           title={recsCarregadas ? 'Nothing to recommend yet' : 'Preparing recommendations…'}
           body={recsCarregadas
-            ? 'Listen to a few tracks and this page will learn what you enjoy. Until then, search the YouTube catalogue above.'
+            ? hasFeedback?'No suggestions match your current preferences. Review them in Settings → Recommendations, or search for music above.':'Listen to a few tracks and this page will learn what you enjoy. Until then, search the YouTube catalogue above.'
             : 'One moment.'} />}
     </ContentScroll></Page>;
 }

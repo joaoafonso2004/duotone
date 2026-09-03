@@ -1,7 +1,7 @@
 import React,{useState} from 'react';
 import { Image,Platform,ScrollView,Text,TextInput,View,useWindowDimensions } from 'react-native';
 import * as Crypto from 'expo-crypto';
-import { appearanceOf,saveProfileAppearance,type SocialProfile } from '../api/profiles';
+import { appearanceOf,saveProfileCustomization,type SocialProfile,type ProfileHighlights } from '../api/profiles';
 import { pickProfileImage,prepareProfileImage,type SelectedProfileImage } from '../lib/profileImage';
 import { RACIO_DA_CAPA,RACIO_DO_AVATAR } from '../lib/profileImageCrop';
 import { mediaBucket,removeProfileMedia,useProfileMedia,type ProfileMediaKind } from '../lib/profileMedia';
@@ -10,6 +10,8 @@ import { FriendAvatar } from './FriendAvatar';
 import { ProfileCropPreview } from './ProfileCropPreview';
 import { useSocial } from '../state/social';
 import { SocialButton,SocialModal,socialStyles as s } from './socialUI';
+import type { Playlist } from '../types';
+import { ProfileHighlightsEditor } from './ProfileHighlightsEditor';
 import { spacing } from '../theme';
 import { colors,radii } from './socialTokens';
 
@@ -27,9 +29,10 @@ import { colors,radii } from './socialTokens';
  * antigos continuam a aparecer — o `FriendAvatar` sabe lê-los —, só deixou de
  * se poder escolher um novo.
  */
-export function ProfileEditor({profile,onClose,onSaved}:{profile:SocialProfile;onClose:()=>void;onSaved:()=>void}) {
+export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{profile:SocialProfile;highlights:ProfileHighlights;playlists:Playlist[];onClose:()=>void;onSaved:()=>void}) {
   const {width}=useWindowDimensions();
   const wide=Platform.OS==='web'&&width>=850;
+  const [featured,setFeatured]=useState(highlights);
   const [value,setValue]=useState(()=>appearanceOf(profile));
   const [name,setName]=useState(profile.profile.name);
   const [username,setUsername]=useState(profile.profile.username || '');
@@ -77,7 +80,7 @@ export function ProfileEditor({profile,onClose,onSaved}:{profile:SocialProfile;o
       }
       setStage('Saving profile…');
       saving=true;
-      await saveProfileAppearance(next,name,username);
+      await saveProfileCustomization(next,name,username,featured);
       useSocial.setState(s=>({profileVersion:s.profileVersion+1}));
       const previous=appearanceOf(profile);
       // Só remover ficheiros antigos depois da referência nova estar confirmada.
@@ -141,6 +144,7 @@ export function ProfileEditor({profile,onClose,onSaved}:{profile:SocialProfile;o
       <Text style={s.label}>Name</Text><TextInput accessibilityLabel="Display name" editable={!stage} value={name} onChangeText={setName} maxLength={40} style={s.input}/>
       <Text style={s.label}>Username</Text><TextInput accessibilityLabel="Username" autoComplete="off" textContentType="none" editable={!stage} autoCapitalize="none" autoCorrect={false} value={username} onChangeText={setUsername} maxLength={30} style={s.input}/>
       <Text style={s.label}>About you</Text><TextInput accessibilityLabel="Bio" editable={!stage} value={value.bio} onChangeText={bio=>setValue({...value,bio})} maxLength={180} multiline placeholder="A line about you or your music." placeholderTextColor={colors.textSecondary} style={[s.input,{minHeight:80}]}/>
+      <ProfileHighlightsEditor value={featured} onChange={setFeatured} playlists={playlists} disabled={!!stage}/>
       {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}
       </View></View>
     </ScrollView>

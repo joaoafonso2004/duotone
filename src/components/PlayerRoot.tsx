@@ -1,3 +1,6 @@
+import { useOfflineMode } from '../hooks/useOfflineMode';
+import { readLikedSongsCache } from '../lib/likedSongsCache';
+import { useAuth } from '../state/auth';
 import { closePlayerSmoothly, confirmaSwipe } from '../lib/closePlayer';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { displayArtist } from '../lib/artistName';
@@ -48,6 +51,8 @@ const HEADER_H = 44;
 const APP_NAME = 'Duotone';
 
 export function PlayerRoot() {
+  const offline=useOfflineMode();
+  const offlineId=useAuth(s=>s.session?.user.id??s.offlineUserId);
   const insets = useSafeAreaInsets();
   const { width: W, height: H } = useWindowDimensions();
   const theme = useTheme((s) => s.theme);
@@ -317,11 +322,16 @@ export function PlayerRoot() {
       setDbTrackId(null);
       return;
     }
-    checkIsSaved(current.source, current.sourceId).then((res) => {
-      setSaved(res.saved);
-      setDbTrackId(res.trackId);
-    });
-  }, [current?.sourceId]);
+    let active=true;
+    if(offline){
+      if(offlineId)void readLikedSongsCache(offlineId).then(tracks=>{
+        if(!active)return;
+        const t=tracks.find(t=>t.source===current.source&&t.sourceId===current.sourceId);
+        setSaved(!!t);setDbTrackId(t?.id??null);
+      });
+    }else checkIsSaved(current.source,current.sourceId).then(res=>{if(active){setSaved(res.saved);setDbTrackId(res.trackId);}});
+    return()=>{active=false;};
+  },[current?.source,current?.sourceId,offline,offlineId]);
 
   const [showLyrics, setShowLyrics] = useState(false);
   useEffect(() => {
@@ -365,6 +375,7 @@ export function PlayerRoot() {
   };
 
   const saveCurrentToLibrary = async () => {
+    if(offline){Alert.alert('Offline','Connect to the internet to change your liked songs.');return;}
     if (!current) return;
     const wasSaved = saved;
     setSaved(!wasSaved); // otimista
@@ -528,7 +539,7 @@ export function PlayerRoot() {
               </Pressable>
               <Pressable
                 hitSlop={8}
-                onPress={() => setPlaylistOpen(true)}
+                onPress={() => {if(offline)Alert.alert('Offline','Connect to the internet to edit playlists.');else setPlaylistOpen(true);}}
                 style={styles.actionsBtn}
                 accessibilityLabel="Add to playlist"
               >

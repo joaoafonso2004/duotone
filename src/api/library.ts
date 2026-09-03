@@ -1,3 +1,4 @@
+import { cacheLikedSongs,changeCachedLikes,likedCacheRevision } from '../lib/likedSongsCache';
 import { supabase } from '../lib/supabase';
 import { confirmarArtistasEmSegundoPlano } from './artistNames';
 import type { Track } from '../types';
@@ -105,6 +106,7 @@ export async function saveToLibrary(track: Track): Promise<string> {
       { onConflict: 'user_id,track_id', ignoreDuplicates: true }
     );
   if (error) throw error;
+  await changeCachedLikes(userId,old=>[{...track,id:trackId},...old.filter(t=>t.id!==trackId)]);
   return trackId;
 }
 
@@ -115,6 +117,7 @@ export async function removeFromLibrary(trackId: string): Promise<void> {
     .delete()
     .match({ user_id: userId, track_id: trackId });
   if (error) throw error;
+  await changeCachedLikes(userId,old=>old.filter(t=>t.id!==trackId));
 }
 
 export async function removeMultipleFromLibrary(trackIds: string[]): Promise<void> {
@@ -125,6 +128,7 @@ export async function removeMultipleFromLibrary(trackIds: string[]): Promise<voi
     .eq('user_id', userId)
     .in('track_id', trackIds);
   if (error) throw error;
+  await changeCachedLikes(userId,old=>old.filter(t=>!t.id||!trackIds.includes(t.id)));
 }
 
 /** Remove TODAS as faixas guardadas do utilizador atual (ação destrutiva). */
@@ -135,21 +139,21 @@ export async function clearLibrary(): Promise<void> {
     .delete()
     .match({ user_id: userId });
   if (error) throw error;
+  await changeCachedLikes(userId,()=>[]);
 }
 
 async function getLikedSongsForUser(userId: string): Promise<Track[]> {
-  const { data: libData, error: libError } = await supabase
-    .from('library_tracks')
-    .select('added_at, tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds)')
-    .eq('user_id', userId)
-    .order('added_at', { ascending: false });
-
-  if (libError) throw libError;
-
-  return (libData ?? [])
-    .map((row: any) => row.tracks)
-    .filter(Boolean)
-    .map(rowToTrack);
+  const revision=likedCacheRevision(userId),tracks:Track[]=[];
+  for(let offset=0;;offset+=1000){
+    const {data,error}=await supabase.from('library_tracks')
+      .select('added_at, tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds)')
+      .eq('user_id',userId).order('added_at',{ascending:false}).order('track_id').range(offset,offset+999);
+    if(error)throw error;
+    tracks.push(...(data??[]).map((r:any)=>r.tracks).filter(Boolean).map(rowToTrack));
+    if(!data||data.length<1000)break;
+  }
+  await cacheLikedSongs(userId,tracks,revision);
+  return tracks;
 }
 
 /** Apenas as faixas que o utilizador guardou com o coracao. */

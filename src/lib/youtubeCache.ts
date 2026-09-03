@@ -1,3 +1,6 @@
+import { create } from 'zustand';
+export const useAudioCache=create<{revision:number}>(()=>({revision:0}));
+const changed=()=>useAudioCache.setState(s=>({revision:s.revision+1}));
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixMp4Duration } from './mp4Fixer';
@@ -114,11 +117,11 @@ export function loadCachedAudioIndex(): void {
   try {
     const ids = new Set<string>();
     for (const entry of audioDir().list()) {
-      if (entry instanceof File && entry.name.startsWith(PREFIX)) {
+      if (entry instanceof File && entry.name.startsWith(PREFIX) && entry.name.endsWith('.m4a') && entry.size>0) {
         ids.add(entry.name.slice(PREFIX.length).replace(/\.m4a$/, ''));
       }
     }
-    cachedIdsIndex = ids;
+    cachedIdsIndex = ids;changed();
   } catch {
     cachedIdsIndex = null;
   }
@@ -167,7 +170,7 @@ export function removeDownloadedAudio(videoId: string): void {
   if (Platform.OS === 'web') return;
   const f = cachedAudioFile(videoId);
   if (f && f.exists) f.delete();
-  cachedIdsIndex?.delete(videoId);
+  cachedIdsIndex?.delete(videoId);changed();
 }
 
 /** Apaga todo o áudio de YouTube descarregado localmente (Definições > Clear cache). */
@@ -178,7 +181,7 @@ export function clearDownloadedAudioCache(): void {
       entry.delete();
     }
   }
-  cachedIdsIndex = new Set();
+  cachedIdsIndex = new Set();changed();
 }
 
 // Limite do cache de áudio. Pruning LRU corre APENAS no arranque da app —
@@ -212,7 +215,7 @@ export function pruneAudioCacheLRU(protectedIds: string[] = []): void {
       if (protectedSet.has(f.id)) continue;
       try {
         f.file.delete();
-        cachedIdsIndex?.delete(f.id);
+        cachedIdsIndex?.delete(f.id);changed();
         totalBytes -= f.size;
       } catch {
         // ficheiro em uso ou já removido — segue para o próximo
@@ -352,6 +355,6 @@ export async function downloadProgressiveAudio(
 
   dest.create({ overwrite: true });
   dest.write(combined);
-  cachedIdsIndex?.add(videoId);
+  cachedIdsIndex?.add(videoId);changed();
   return dest.uri;
 }

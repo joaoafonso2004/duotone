@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+import { useConnectivity } from './connectivity';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import type { Session } from '@supabase/supabase-js';
@@ -5,6 +7,8 @@ import { supabase } from '../lib/supabase';
 import { endSession } from '../lib/sessionSync';
 import { terminarPresenca } from '../lib/presenceSync';
 
+let authGeneration=0;
+let unsubscribeAuth:(()=>void)|undefined;
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_TIME_MS = 60 * 1000; // 60 segundos de bloqueio
 
@@ -23,8 +27,10 @@ async function handleFailedLoginAttempt(): Promise<void> {
 
 interface AuthState {
   session: Session | null;
+  offlineUserId: string | null;
   initialized: boolean;
   init: () => void;
+  refreshSession:()=>Promise<void>;
   /** `identifier` pode ser email OU username (ver email_for_username no SQL). */
   signIn: (identifier: string, password: string) => Promise<string | null>;
   signUp: (
@@ -41,15 +47,49 @@ interface AuthState {
 
 export const useAuth = create<AuthState>((set) => ({
   session: null,
+  offlineUserId: null,
   initialized: false,
 
   init: () => {
-    supabase.auth.getSession().then(({ data }) => {
-      set({ session: data.session, initialized: true });
+    const run=++authGeneration;
+    unsubscribeAuth?.();
+    // Guarda apenas a identidade para abrir ficheiros locais. Nunca fabrica
+    // tokens: todo o acesso remoto continua a exigir uma sessão Supabase.
+    if(Platform.OS==='ios')void AsyncStorage.getItem('offline:last-user').then(id=>{
+      if(run===authGeneration&&id&&!useAuth.getState().session)set({offlineUserId:id,initialized:true});
+    }).catch(()=>{});
+    supabase.auth.getSession().then(({data,error})=>{
+      if(run!==authGeneration)return;
+      if(data.session)set({session:data.session,offlineUserId:data.session.user.id,initialized:true});
+      else if(!error&&!useConnectivity.getState().offline){authGeneration++;set({session:null,offlineUserId:null,initialized:true});if(Platform.OS==='ios')void AsyncStorage.removeItem('offline:last-user');}
+      else set({initialized:true});
+    }).catch(()=>{if(run===authGeneration)set({initialized:true});});
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
+      if(session){
+        authGeneration++;
+        set({session,offlineUserId:session.user.id,initialized:true});
+        if(Platform.OS==='ios')void AsyncStorage.setItem('offline:last-user',session.user.id);
+      }else if(event==='SIGNED_OUT'){
+        authGeneration++;
+        set({session:null,offlineUserId:null,initialized:true});
+        if(Platform.OS==='ios')void AsyncStorage.removeItem('offline:last-user');
+      }
     });
-    supabase.auth.onAuthStateChange((_event, session) => {
-      set({ session });
-    });
+    unsubscribeAuth=()=>subscription.unsubscribe();
+  },
+
+  refreshSession:async()=>{
+    const run=authGeneration;
+    const {data,error}=await supabase.auth.getSession();
+    if(run!==authGeneration)return;
+    if(data.session){
+      set({session:data.session,offlineUserId:data.session.user.id,initialized:true});
+      if(Platform.OS==='ios')void AsyncStorage.setItem('offline:last-user',data.session.user.id);
+    }else if(!error){
+      authGeneration++;
+      set({session:null,offlineUserId:null,initialized:true});
+      if(Platform.OS==='ios')void AsyncStorage.removeItem('offline:last-user');
+    }
   },
 
   signIn: async (identifier, password) => {
@@ -122,11 +162,13 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   signOut: async () => {
+    authGeneration++;
     // Antes do signOut, enquanto ainda há JWT para a RLS deixar apagar: uma
     // sessão órfã ficava a oferecer handoff no outro dispositivo até expirar.
-    await endSession();
-    await terminarPresenca();
-    await supabase.auth.signOut();
+    if(!useConnectivity.getState().offline){await endSession();await terminarPresenca();}
+    if(Platform.OS==='ios')await AsyncStorage.removeItem('offline:last-user');
+    set({session:null,offlineUserId:null});
+    await supabase.auth.signOut({scope:useConnectivity.getState().offline?'local':'global'});
   },
 
   updateName: async (name) => {

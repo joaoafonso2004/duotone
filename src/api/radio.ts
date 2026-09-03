@@ -1,3 +1,5 @@
+import { useConnectivity } from '../state/connectivity';
+import { feedbackReady,filterSuggestions } from '../state/recommendationFeedback';
 import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import {
   filterRadioCandidates,
@@ -24,9 +26,11 @@ export async function fetchRadioTracks(
   exclude: Track[],
   limit: number = RADIO_BATCH
 ): Promise<Track[]> {
+  if(useConnectivity.getState().offline)return [];
+  await feedbackReady();
   const artists = seedArtists(seeds, displayArtist);
   const pool: Track[] = [];
-  const harvest = () => filterRadioCandidates(pool, exclude, trackKey, limit);
+  const harvest = () => filterRadioCandidates(filterSuggestions(pool), exclude, trackKey, limit);
 
   // 1. A própria biblioteca, pelos artistas que se estava a ouvir. Custo zero
   //    e é garantidamente música que ele gosta.

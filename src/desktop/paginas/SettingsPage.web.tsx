@@ -1,3 +1,4 @@
+import { RecommendationPreferences } from '../../components/RecommendationPreferences';
 import { removeOwnProfileMedia } from '../../lib/profileMedia';
 /**
  * Definições do desktop, e as linhas de que é feita.
@@ -31,6 +32,7 @@ import { BarraVelocidade } from '../BarraVelocidade.web';
 import { newerVersion } from './comum.web';
 
 export function SettingsPage({ notify }: { notify: (s: string) => void }) {
+  const [recommendationsOpen,setRecommendationsOpen]=useState(false);
   const [notifications, setNotifications] = useState(true);
   const [startup, setStartup] = useState<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean } | null>(null);
   const [savingStartup, setSavingStartup] = useState(false);
@@ -188,8 +190,13 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
 
   return (
     <Page title="Settings" subtitle="Desktop playback, appearance, and account preferences.">
+      <RecommendationPreferences visible={recommendationsOpen} onClose={()=>setRecommendationsOpen(false)}/>
       <ContentScroll>
         <View style={styles.settingsGrid}>
+          <SettingsCard icon="options-outline" title="Recommendations">
+            <Text style={{color:desktop.muted,marginBottom:16}}>Review hidden songs and artists you want to hear less often.</Text>
+            <Button secondary onPress={()=>setRecommendationsOpen(true)}>Manage preferences</Button>
+          </SettingsCard>
           {window.duotoneDesktop?.notifyMessage && <SettingsCard icon="desktop-outline" title="Windows">
             <ToggleLine label="Message notifications" description="Show a Windows notification when a message arrives while you are away."
               value={notifications} onChange={(v) => { setNotifications(v); void setNotificationsEnabled(v); }} />

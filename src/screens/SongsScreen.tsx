@@ -1,8 +1,13 @@
+import { useOfflineMode } from '../hooks/useOfflineMode';
+import { OfflineNotice } from '../components/OfflineNotice';
+import { useAuth } from '../state/auth';
+import { isAudioCached,useAudioCache } from '../lib/youtubeCache';
+import { readLikedSongsCache } from '../lib/likedSongsCache';
 import { displayArtist } from '../lib/artistName';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,7 +18,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getLibrary, removeFromLibrary, removeMultipleFromLibrary } from '../api/library';
+import { getLikedSongs, removeFromLibrary, removeMultipleFromLibrary } from '../api/library';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
@@ -41,7 +46,13 @@ export function SongsScreen() {
   const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
 
-  const [tracks, setTracks] = useState<Track[]>([]);
+  const offline=useOfflineMode();
+  const userId=useAuth(s=>s.session?.user.id??s.offlineUserId);
+  const cacheVersion=useAudioCache(s=>s.revision);
+  const [loadError,setLoadError]=useState('');
+  const generation=useRef(0);
+  const [allTracks, setTracks] = useState<Track[]>([]);
+  const tracks=useMemo(()=>offline?allTracks.filter(t=>t.source==='youtube'&&isAudioCached(t.sourceId)):allTracks,[allTracks,offline,cacheVersion]);
   const [loading, setLoading] = useState(true);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
   const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
@@ -60,20 +71,22 @@ export function SongsScreen() {
   const [sortBy, setSortBy] = useState<'recent' | 'az'>('recent');
 
   const load = useCallback(async () => {
+    const run=++generation.current;
+    setLoadError('');
+    if(!userId){setTracks([]);setLoading(false);return;}
+    const cached=await readLikedSongsCache(userId);
+    if(run!==generation.current)return;
+    setTracks(cached);setLoading(false);
+    if(offline)return;
     try {
-      setTracks(await getLibrary());
-    } catch {
-      // sessão pode ter expirado
-    } finally {
-      setLoading(false);
+      const result=await getLikedSongs();
+      if(run===generation.current)setTracks(result);
+    }catch{
+      if(run===generation.current)setLoadError('Could not refresh your liked songs. Your last saved list is shown.');
     }
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
+  },[offline,userId]);
+  useFocusEffect(useCallback(()=>{void load();return()=>{generation.current++;};},[load]));
+  useEffect(()=>{if(offline){setSelectMode(false);setSelectedIds(new Set());setPlaylistTrack(null);setPlaylistMultipleOpen(false);}},[offline]);
 
   const toggleSelection = (trackId: string) => {
     setSelectedIds((prev) => {
@@ -153,7 +166,7 @@ export function SongsScreen() {
   return (
     <Screen
       title="Songs"
-      subtitle={`${tracks.length} saved ${tracks.length === 1 ? 'song' : 'songs'}`}
+      subtitle={`${tracks.length} ${offline?'downloaded':'saved'} ${tracks.length === 1 ? 'song' : 'songs'}`}
       right={
         tracks.length > 0 ? (
           <Pressable
@@ -169,13 +182,15 @@ export function SongsScreen() {
         ) : undefined
       }
     >
+      {offline&&<OfflineNotice compact/>}
+      {!!loadError&&<Text accessibilityRole="alert" style={{color:colors.textSecondary,paddingHorizontal:spacing.xl,paddingBottom:12}}>{loadError}</Text>}
       {loading ? (
         <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
       ) : tracks.length === 0 ? (
         <EmptyState
           icon="heart-outline"
-          title="Your library is empty"
-          subtitle="Search for tracks and save the ones you love."
+          title={offline?"No downloaded liked songs":"Your library is empty"}
+          subtitle={offline?"Download your liked songs while online to listen here without internet.":"Search for tracks and save the ones you love."}
         />
       ) : (
         <View style={{ flex: 1 }}>
@@ -263,7 +278,8 @@ export function SongsScreen() {
             </View>
 
             <Pressable
-              style={styles.selectButton}
+              style={[styles.selectButton,offline&&{opacity:0.4}]}
+              disabled={offline}
               onPress={() => {
                 if (selectMode) {
                   setSelectMode(false);
@@ -357,6 +373,7 @@ export function SongsScreen() {
           {
             icon: 'play-outline',
             label: 'Tocar a seguir',
+            requiresInternet:false,
             onPress: () => {
               const t = actionTrack;
               setActionTrack(null);
@@ -366,6 +383,7 @@ export function SongsScreen() {
           {
             icon: 'add-circle-outline',
             label: 'Add to queue',
+            requiresInternet:false,
             onPress: () => {
               const t = actionTrack;
               setActionTrack(null);

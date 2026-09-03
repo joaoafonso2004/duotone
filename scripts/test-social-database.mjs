@@ -223,5 +223,42 @@ const sobrou=(await q('select copied_from from playlists where id=$1',[copia.id]
 assert.equal(sobrou.length,1,'a copia nao pode desaparecer com o original');
 assert.equal(sobrou[0].copied_from,null);
 await q('delete from playlists where id=$1',[copia.id]);
+// Destaques: autorização, limite, ordem, gravação atómica e privacidade.
+await db.exec('reset role');
+for(let i=0;i<2;i++)for(const file of ['profile-highlights.sql','recommendation-feedback.sql'])await db.exec(ler(file));
+await como(1);
+const featured=[];
+for(let i=0;i<4;i++)featured.push((await q(`insert into playlists(owner_id,name,visible_on_profile) values($1,$2,true) returning id`,[uid(1),`Destaque ${i}`])).rows[0].id);
+const version=async()=>Number((await q('select get_social_profile($1) as p',[uid(1)])).rows[0].p.appearance.version);
+const oldVersion=await version();
+await q('select save_profile_customization($1,$2,$3,$4,$5)',[{bio:'Personalizado'},oldVersion,'Personalizado',featured.slice(0,3),uid(10)]);
+const readHighlights=async(id=uid(1))=>(await q('select get_profile_highlights($1) as h',[id])).rows[0].h;
+assert.deepEqual((await readHighlights()).playlistIds,featured.slice(0,3));
+assert.equal((await readHighlights()).moment.sourceId,'abc');
+const before=await version();
+const invalidSave=(ids)=>q('select save_profile_customization($1,$2,$3,$4,null)',[{bio:'Não gravar'},before,'Não gravar',ids]);
+await assert.rejects(invalidSave(featured),/até três/);
+await assert.rejects(invalidSave([featured[0],featured[0]]),/diferentes/);
+assert.equal(await version(),before,'falhar os destaques não pode gravar o resto do perfil');
+assert.equal((await q('select get_social_profile($1) as p',[uid(1)])).rows[0].p.profile.name,'Personalizado');
+await como(2);
+assert.equal((await readHighlights()).playlistIds.length,3);
+const appearance=(await q('select get_social_profile($1) as p',[uid(1)])).rows[0].p.appearance;
+assert.ok(!('pinned_playlist_ids' in appearance),'a aparência não contorna a leitura filtrada');
+await assert.rejects(q('select save_profile_customization($1,0,$2,$3,null)',[{},'Outro perfil',[featured[0]]]),/tuas visíveis/);
+await como(3);await assert.rejects(readHighlights(),/Perfil privado/);
+await como(1);await q('update playlists set visible_on_profile=false where id=$1',[featured[0]]);
+await assert.rejects(invalidSave([featured[0]]),/tuas visíveis/);
+await q('delete from playlists where id=$1',[featured[1]]);
+await como(2);assert.deepEqual((await readHighlights()).playlistIds,[featured[2]]);
+// As preferências não são legíveis nem alteráveis por amigos.
+await como(1);
+await q(`insert into recommendation_feedback values($1,'track','youtube:abc','Teste')`,[uid(1)]);
+await como(2);assert.equal((await q('select * from recommendation_feedback')).rows.length,0);
+await assert.rejects(q(`insert into recommendation_feedback values($1,'artist','artista','Artista')`,[uid(1)]),/row-level security/);
+assert.equal((await q(`delete from recommendation_feedback where user_id=$1 returning *`,[uid(1)])).rows.length,0);
+await como(1);assert.equal((await q('select * from recommendation_feedback')).rows.length,1);
+await q('delete from recommendation_feedback');
+console.log('Destaques: limite, visibilidade, gravação atómica e isolamento das preferências passaram.');
 console.log('SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos, grupos, ajustes por faixa, playlists no perfil e Storage passaram.');
 }finally{await db.close();}

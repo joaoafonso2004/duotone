@@ -1,3 +1,4 @@
+import { RecommendationPreferences } from '../components/RecommendationPreferences';
 import { Ionicons } from '@expo/vector-icons';
 import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
@@ -85,6 +86,7 @@ function DesktopShell() {
   useDesktopNotifications(abrirSocial);
   const [trackMenu, setTrackMenu] = useState<Track | null>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
+  const [recommendationTrack,setRecommendationTrack]=useState<Track|null>(null);
   const [playlistDialog, setPlaylistDialog] = useState(false);
   const [shareDialog, setShareDialog] = useState(false);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
@@ -425,13 +427,15 @@ function DesktopShell() {
               de uploads em vez da do artista. */}
           <Pressable onPress={() => { setTrackMenuOpen(false); navigate({ name: 'artist', value: displayArtist(trackMenu) }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="mic-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>View artist</Text></Pressable>
           <Pressable onPress={() => { setTrackMenuOpen(false); openShareDialog({ itemType: 'track', item: trackMenu, name: trackMenu.title }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="share-social-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Share with friends or groups…</Text></Pressable>
-          {route.name === 'playlist' && (
+          <Pressable onPress={()=>{setTrackMenuOpen(false);setRecommendationTrack(trackMenu);}} style={({hovered})=>[styles.destination,hovered&&styles.settingHover]}><Ionicons name="options-outline" size={18} color={theme.color}/><Text style={styles.destinationText}>Recommendations…</Text></Pressable>
+          {route.name === 'playlist'  && (
             <Pressable onPress={removeFromCurrentPlaylist} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="trash-outline" size={18} color="#EF4444" /><Text style={[styles.destinationText, { color: '#EF4444' }]}>Remove from this playlist</Text></Pressable>
           )}
         </View>
       )}
     </Dialog>
 
+    <RecommendationPreferences visible={!!recommendationTrack} track={recommendationTrack} onClose={()=>setRecommendationTrack(null)}/>
     {/* PLAYLIST DIALOG */}
     <Dialog open={playlistDialog} title="Add to playlist" onClose={() => setPlaylistDialog(false)}>
       {playlists.length ? <View style={{ gap: 6 }}>{playlists.map((p) => <Pressable key={p.id} onPress={() => addTo(p.id)} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="albums-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>{p.name}</Text></Pressable>)}</View> : <Empty icon="albums-outline" title="No playlists" body="Create a playlist first, then add this track." />}

@@ -1,3 +1,5 @@
+import { useConnectivity } from '../state/connectivity';
+import { artistWeight,feedbackReady,filterSuggestions,trackIsSuppressed } from '../state/recommendationFeedback';
 import { getLibraryKeys } from './library';
 import { getHeavyRotation, getTopArtists } from './plays';
 import { paresDeArtistaEPlaylist } from './afinidade';
@@ -83,6 +85,8 @@ export async function candidatasParaDescoberta(
   quantosAlvos: number = ALVOS,
   escutas?: ReadonlyMap<string, number>,
 ): Promise<Track[]> {
+  if(useConnectivity.getState().offline)return [];
+  await feedbackReady();
   const { alvos, afinidade } = await escolherAlvos(contexto, quantosAlvos, escutas);
   if (alvos.length === 0) return [];
 
@@ -105,7 +109,7 @@ export async function candidatasParaDescoberta(
     const lote = desejadas.slice(i, i + EM_PARALELO);
     const achadas = await Promise.all(lote.map(procurarNoYouTube));
     for (const t of achadas) {
-      if (!t) continue;
+      if (!t||trackIsSuppressed(t)) continue;
       const k = trackKey(t);
       if (!k || vistas.has(k)) continue;
       if (jaNaFila.has(k) || jaSugeridas.has(k) || daBiblioteca.has(k)) continue;
@@ -117,7 +121,7 @@ export async function candidatasParaDescoberta(
       if (saida.length >= quantas) break;
     }
   }
-  return saida;
+  return filterSuggestions(saida);
 }
 
 /**
@@ -299,7 +303,7 @@ export async function flowDoDia(limite: number, biblioteca: readonly Track[]): P
     }
   }
   while (saida.length < limite && iNovas < novas.length) saida.push(novas[iNovas++]);
-  return saida;
+  return filterSuggestions(saida);
 }
 
 /**
@@ -394,6 +398,9 @@ async function escolherAlvos(
   // da prateleira cabem a este lado do gosto (ver `repartir`).
   const pesoDe = (chave: string) =>
     retratoFiavel.get(chave) ?? vizinhos.find((v) => v.chave === chave)?.pontos ?? 1;
+  for (const [k,peso] of retratoFiavel) retratoFiavel.set(k,peso*artistWeight(nomePorChave.get(k)??k));
+  vizinhos=vizinhos.map(v=>({...v,pontos:v.pontos*artistWeight(nomePorChave.get(v.chave)??v.chave)})).sort((a,b)=>b.pontos-a.pontos);
+  for (const [k,peso] of afinidade) afinidade.set(k,peso*artistWeight(k));
   const alvos = alvosDeProcura(retratoFiavel, vizinhos, quantosAlvos)
     .map((chave) => ({ nome: nomePorChave.get(chave) ?? chave, peso: pesoDe(chave) }))
     .filter((a) => a.nome);

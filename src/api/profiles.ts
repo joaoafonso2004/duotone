@@ -15,6 +15,19 @@ export interface SocialProfile {
   stats: DbPlayStats | null; friendCount: number | null;
 }
 export type ProfileTrack = Track & { count: number; lastPlayed: number };
+export type ProfileHighlights = { playlistIds: string[]; moment: Track | null };
+export async function getProfileHighlights(id: string): Promise<ProfileHighlights> {
+  const {data,error}=await supabase.rpc('get_profile_highlights',{target_user_id:id});
+  if(error)throw error;
+  return data;
+}
+export async function saveProfileCustomization(value: ProfileAppearance,name:string,username:string,highlights:ProfileHighlights):Promise<void> {
+  const {error}=await supabase.rpc('save_profile_customization',{
+    p_value:{...value,username},p_version:value.version,p_name:name.trim(),
+    p_playlists:highlights.playlistIds,p_moment:highlights.moment?.id??null,
+  });
+  if(error)throw new Error(error.code==='40001'?'O perfil foi alterado noutro dispositivo. Fecha e volta a abrir o editor.':error.message);
+}
 
 export async function getPublicProfiles(ids: string[]): Promise<PublicProfile[]> {
   if (!ids.length) return [];
