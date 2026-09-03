@@ -192,7 +192,7 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
   const session = useAuth((s) => s.session);
   const active = route.name === 'artist' ? 'artists' : route.name === 'playlist' || route.name === 'import' ? 'playlists' : route.name;
 
-  const [name,setName]=useState('Perfil');
+  const [name,setName]=useState('Profile');
   const [publicAvatar,setPublicAvatar]=useState<string|null>(null);
   const social=useSocial();
   useEffect(()=>{

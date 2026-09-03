@@ -15,14 +15,14 @@ export function SocialTrackActions({track,onClose,onArtist}:{track:Track|null;on
     if(!track||busy)return;setBusy(true);setError('');
     try {const saved=await checkIsSaved(track.source,track.sourceId);if(saved.saved&&saved.trackId)await removeFromLibrary(saved.trackId);else await saveToLibrary(track);useSaved.getState().markSaved(track,!saved.saved);onClose();}catch(e:any){setError(e.message);}finally{setBusy(false);}
   };
-  return <><SocialModal visible={!!track&&!share&&!playlist} title={track?.title || 'Música'} onClose={onClose}><View style={{padding:20,gap:8}}>
-    <SocialButton onPress={()=>{if(track)usePlayer.getState().playTrack(track);onClose();}}>Tocar agora</SocialButton>
-    <SocialButton onPress={()=>{if(track)usePlayer.getState().playNext(track);onClose();}}>Tocar a seguir</SocialButton>
-    <SocialButton onPress={()=>{if(track)usePlayer.getState().addToQueue(track);onClose();}}>Adicionar à fila</SocialButton>
-    <SocialButton disabled={busy} onPress={()=>void save()}>Guardar / retirar da minha biblioteca</SocialButton>
-    <SocialButton onPress={()=>setPlaylist(true)}>Adicionar à minha playlist</SocialButton>
+  return <><SocialModal visible={!!track&&!share&&!playlist} title={track?.title || 'Track'} onClose={onClose}><View style={{padding:20,gap:8}}>
+    <SocialButton onPress={()=>{if(track)usePlayer.getState().playTrack(track);onClose();}}>Play now</SocialButton>
+    <SocialButton onPress={()=>{if(track)usePlayer.getState().playNext(track);onClose();}}>Play next</SocialButton>
+    <SocialButton onPress={()=>{if(track)usePlayer.getState().addToQueue(track);onClose();}}>Add to queue</SocialButton>
+    <SocialButton disabled={busy} onPress={()=>void save()}>Save to / remove from my library</SocialButton>
+    <SocialButton onPress={()=>setPlaylist(true)}>Add to my playlist</SocialButton>
     <SocialButton onPress={()=>setShare(true)}>Partilhar</SocialButton>
-    <SocialButton onPress={()=>{if(track)onArtist(displayArtist(track));onClose();}}>Ver artista</SocialButton>
+    <SocialButton onPress={()=>{if(track)onArtist(displayArtist(track));onClose();}}>View artist</SocialButton>
     {!!error&&<Text style={s.error}>{error}</Text>}
   </View></SocialModal><ShareFriendSheet visible={share} itemType="track" item={track} onClose={()=>{setShare(false);onClose();}}/><AddToPlaylistSheet visible={playlist} track={track} onClose={()=>{setPlaylist(false);onClose();}}/></>;
 }

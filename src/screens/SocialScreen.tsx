@@ -9,7 +9,7 @@ export function SocialScreen() {
   const navigation=useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route=useRoute<RouteProp<RootStackParamList,'Social'>>();
   const focused=useIsFocused();
-  return <Screen title="Social" subtitle="Amigos, música e conversas." onBack={()=>navigation.goBack()}>
+  return <Screen title="Social" subtitle="Friends, music and conversations." onBack={()=>navigation.goBack()}>
     <SocialHub visible={focused} initialFriend={route.params?.openChatWithFriendId} initialGroup={route.params?.openGroupId}
       onProfile={id=>navigation.navigate('FriendProfile',{userId:id})}
       onArtist={name=>navigation.navigate('LibraryGroup',{type:'artist',name})}

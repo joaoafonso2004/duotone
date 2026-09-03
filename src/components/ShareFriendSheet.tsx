@@ -105,7 +105,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
           ) : friends.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="people-outline" size={24} color={colors.textTertiary} />
-              <Text style={styles.emptyText}>Garante que tens amigos aceites para partilhares músicas.</Text>
+              <Text style={styles.emptyText}>You need accepted friends before you can share music.</Text>
             </View>
           ) : (
             <FlatList

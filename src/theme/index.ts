@@ -21,6 +21,11 @@ export const colors = {
   youtube: '#FF4E45',
   youtubeSoft: 'rgba(255,78,69,0.14)',
 
+  // Presenca: um amigo ligado. Estava escrito a mao em dois sitios com
+  // dois verdes ligeiramente diferentes -- e um estado com significado,
+  // por isso tem nome.
+  online: '#7EDDB7',
+
   danger: '#FF453A',
   overlay: 'rgba(0,0,0,0.55)',
 };
