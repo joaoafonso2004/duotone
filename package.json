@@ -1,6 +1,6 @@
 {
   "name": "duotone",
-  "version": "1.5.7",
+  "version": "1.5.8",
   "description": "A desktop-first music library and player for Windows.",
   "author": "Duotone",
   "main": "index.ts",
