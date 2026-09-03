@@ -12,9 +12,12 @@ import type { Track } from '../types';
  */
 
 const KEY = 'playCounts:v1';
-const PENDING_PREFIX = 'playCounts:pending:v2:';
+const PENDING_PREFIX = 'playCounts:pending:v3:';
+const LEGACY_PENDING_PREFIX = 'playCounts:pending:v2:';
 const MIGRATED_PREFIX = 'playCounts:migrated:v2:';
 const LAST_USER_KEY = 'playCounts:lastUser:v2';
+const DEVICE_KEY = 'playCounts:device:v3';
+const SEQUENCE_PREFIX = 'playCounts:sequence:v3:';
 
 export interface PlayCountEntry {
   source: Track['source'];
@@ -28,6 +31,7 @@ export interface PlayCountEntry {
 }
 
 type PlayCounts = Record<string, PlayCountEntry>;
+type PendingDelta = PlayCountEntry & { operationDevice: string; operationSequence: number };
 
 function keyOf(track: Pick<Track, 'source' | 'sourceId'>): string {
   return `${track.source}:${track.sourceId}`;
@@ -74,7 +78,7 @@ async function userId(): Promise<string | null> {
   }
 }
 
-async function applyDeltas(entries: PlayCountEntry[]): Promise<boolean> {
+async function applyDeltas(entries: PendingDelta[]): Promise<boolean> {
   if (!entries.length) return true;
   const { error } = await supabase.rpc('apply_play_count_deltas', {
     entries: entries.map((entry) => ({
@@ -86,6 +90,8 @@ async function applyDeltas(entries: PlayCountEntry[]): Promise<boolean> {
       durationSeconds: entry.durationSeconds,
       count: entry.count,
       lastPlayed: entry.lastPlayed,
+      operationDevice: entry.operationDevice,
+      operationSequence: entry.operationSequence,
     })),
   });
   if (error) {
@@ -95,15 +101,51 @@ async function applyDeltas(entries: PlayCountEntry[]): Promise<boolean> {
 }
 
 async function pullRemote(uid: string): Promise<PlayCounts | null> {
-  const { data, error } = await supabase
-    .from('user_play_counts')
-    .select('source, source_id, title, artist, artwork_url, duration_seconds, play_count, last_played')
-    .eq('user_id', uid);
-  if (error) {
-    console.error('pullRemote error:', error.message, error.details, error.hint);
-    return null;
+  const rows:any[]=[];
+  for(let offset=0;;offset+=1000){
+    const { data, error } = await supabase.from('user_play_counts')
+      .select('source, source_id, title, artist, artwork_url, duration_seconds, play_count, last_played')
+      .eq('user_id', uid).order('source').order('source_id').range(offset,offset+999);
+    if (error) {
+      console.error('pullRemote error:', error.message, error.details, error.hint);
+      return null;
+    }
+    rows.push(...(data??[]));
+    if(!data||data.length<1000)break;
   }
-  return entriesToMap((data ?? []).map(rowToEntry));
+  return entriesToMap(rows.map(rowToEntry));
+}
+
+async function operation(uid:string,entry:PlayCountEntry):Promise<PendingDelta>{
+  let device=await AsyncStorage.getItem(DEVICE_KEY);
+  if(!device){device=`${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;await AsyncStorage.setItem(DEVICE_KEY,device);}
+  const key=`${SEQUENCE_PREFIX}${uid}:${device}`;
+  const sequence=Math.max(0,Number(await AsyncStorage.getItem(key))||0)+1;
+  await AsyncStorage.setItem(key,String(sequence));
+  return {...entry,operationDevice:device,operationSequence:sequence};
+}
+
+async function readPending(uid:string):Promise<PendingDelta[]>{
+  const key=`${PENDING_PREFIX}${uid}`,raw=await AsyncStorage.getItem(key);
+  if(raw){try{const value=JSON.parse(raw);if(Array.isArray(value))return value.filter(x=>x&&typeof x.operationDevice==='string'&&Number.isSafeInteger(x.operationSequence));}catch{}}
+  const legacy=Object.values(await readMap(`${LEGACY_PENDING_PREFIX}${uid}`));
+  const converted:PendingDelta[]=[];
+  for(const entry of legacy)converted.push(await operation(uid,entry));
+  if(converted.length)await AsyncStorage.setItem(key,JSON.stringify(converted));
+  await writeMap({},`${LEGACY_PENDING_PREFIX}${uid}`);
+  return converted;
+}
+
+async function flushPending(uid:string):Promise<boolean>{
+  const key=`${PENDING_PREFIX}${uid}`;
+  let pending=await readPending(uid);
+  while(pending.length){
+    const chunk=pending.slice(0,500);
+    if(!await applyDeltas(chunk))return false;
+    pending=pending.slice(chunk.length);
+    await AsyncStorage.setItem(key,JSON.stringify(pending));
+  }
+  return true;
 }
 
 /** Serializa migração, flush e pull para nunca perder deltas concorrentes. */
@@ -135,12 +177,12 @@ async function syncUnsafe(): Promise<PlayCounts> {
       local = {};
       await writeMap(local);
     }
-    if ((!canImportLegacyCache || await applyDeltas(Object.values(local)))) {
-      await AsyncStorage.multiSet([[migratedKey, '1'], [pendingKey, '{}'], [LAST_USER_KEY, uid]]);
-    }
+    const pending:PendingDelta[]=[];
+    if(canImportLegacyCache)for(const entry of Object.values(local))pending.push(await operation(uid,entry));
+    await AsyncStorage.multiSet([[pendingKey,JSON.stringify(pending)],[`${LEGACY_PENDING_PREFIX}${uid}`,'{}'],[migratedKey,'1'],[LAST_USER_KEY,uid]]);
+    await flushPending(uid);
   } else {
-    const pending = await readMap(pendingKey);
-    if (await applyDeltas(Object.values(pending))) await writeMap({}, pendingKey);
+    await flushPending(uid);
   }
 
   const remote = await pullRemote(uid);
@@ -177,14 +219,9 @@ export async function incrementPlayCount(track: Track): Promise<void> {
 
     if (uid) {
       const pendingKey = `${PENDING_PREFIX}${uid}`;
-      const pending = await readMap(pendingKey);
-      const queued = pending[key];
-      pending[key] = {
-        ...local[key],
-        count: (queued?.count ?? 0) + 1,
-        lastPlayed: now,
-      };
-      await writeMap(pending, pendingKey);
+      const pending = await readPending(uid);
+      pending.push(await operation(uid,{...local[key],count:1,lastPlayed:now}));
+      await AsyncStorage.setItem(pendingKey,JSON.stringify(pending));
     }
 
     await syncUnsafe();
@@ -241,7 +278,8 @@ export async function clearPlayCounts(): Promise<void> {
       if (error) throw error;
       await AsyncStorage.multiSet([
         [`${MIGRATED_PREFIX}${uid}`, '1'],
-        [`${PENDING_PREFIX}${uid}`, '{}'],
+        [`${PENDING_PREFIX}${uid}`, '[]'],
+        [`${LEGACY_PENDING_PREFIX}${uid}`, '{}'],
         [LAST_USER_KEY, uid],
       ]);
     }

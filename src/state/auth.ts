@@ -31,8 +31,8 @@ interface AuthState {
   initialized: boolean;
   init: () => void;
   refreshSession:()=>Promise<void>;
-  /** `identifier` pode ser email OU username (ver email_for_username no SQL). */
-  signIn: (identifier: string, password: string) => Promise<string | null>;
+  /** Login por email; o servidor nunca revela emails através de usernames. */
+  signIn: (email: string, password: string) => Promise<string | null>;
   signUp: (
     email: string,
     password: string,
@@ -108,22 +108,8 @@ export const useAuth = create<AuthState>((set) => ({
       // ignorar erros de AsyncStorage
     }
 
-    let email = identifier.trim();
-    // Sem "@" → tratamos como username: pedimos o email associado via RPC.
-    // (Se o SQL de username ainda não foi aplicado, a RPC falha e explicamos.)
-    if (!email.includes('@')) {
-      const { data, error } = await supabase.rpc('email_for_username', {
-        uname: email,
-      });
-      if (error) {
-        return 'Username login is not set up on the server yet. Use your email, or run supabase/username-login.sql.';
-      }
-      if (!data) {
-        await handleFailedLoginAttempt();
-        return 'Invalid credentials. Please check your details.';
-      }
-      email = data as string;
-    }
+    const email = identifier.trim();
+    if (!email.includes('@')) return 'Enter the email address associated with your account.';
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     

@@ -30,9 +30,8 @@ begin
 end;
 $$;
 
--- 3) RPC: email associado a um username (usado no login por username).
---    NOTA: expõe o email a partir do username. Aceitável nesta app pessoal;
---    se um dia for pública, repensar (ex.: devolver um id opaco).
+-- Mantida durante a migração para instalações antigas, mas sem permissão de
+-- execução: o login atual exige email e não revela endereços por username.
 create or replace function public.email_for_username(uname text)
 returns text
 language sql
@@ -57,5 +56,5 @@ as $$
   );
 $$;
 
-grant execute on function public.email_for_username(text) to anon, authenticated;
+revoke all on function public.email_for_username(text) from public, anon, authenticated;
 grant execute on function public.username_available(text) to anon, authenticated;

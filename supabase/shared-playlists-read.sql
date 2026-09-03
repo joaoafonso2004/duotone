@@ -20,6 +20,7 @@ create policy "playlists: ler partilhadas comigo"
     exists (
       select 1 from public.shared_items si
       where si.playlist_id = playlists.id
+        and si.sender_id = playlists.owner_id
         and (si.recipient_id = auth.uid() or si.sender_id = auth.uid()
           or (si.group_id is not null and public.e_membro_do_grupo(si.group_id)))
     )
@@ -32,6 +33,7 @@ create policy "playlist_tracks: ler de playlists partilhadas comigo"
   using (
     exists (
       select 1 from public.shared_items si
+      join public.playlists p on p.id = si.playlist_id and p.owner_id = si.sender_id
       where si.playlist_id = playlist_tracks.playlist_id
         and (si.recipient_id = auth.uid() or si.sender_id = auth.uid()
           or (si.group_id is not null and public.e_membro_do_grupo(si.group_id)))

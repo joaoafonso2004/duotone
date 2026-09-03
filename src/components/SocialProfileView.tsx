@@ -1,5 +1,5 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import { ActivityIndicator,Image,Platform,Pressable,RefreshControl,ScrollView,Text,View } from 'react-native';
+import { ActivityIndicator,Image,Platform,Pressable,ScrollView,Text,View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getSocialProfile,getSocialProfileTracks,type ProfileHighlights,type SocialProfile,type ProfileTrack } from '../api/profiles';
 import { loadProfileSections } from '../api/profileSections';
@@ -166,8 +166,10 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
     {!visiblePlaylists.length&&!sectionErrors.playlists&&(loading?<ActivityIndicator color={accent}/>:<Text style={s.muted}>No playlists shared yet</Text>)}
   </View>;
   return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>
-    <ScrollView contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled"
-      refreshControl={!web?<RefreshControl refreshing={loading&&!!profile} onRefresh={()=>void load()} tintColor={accent}/>:undefined}>
+    {/* Sem puxar-para-recarregar: era a unica pagina da app que reagia ao
+        gesto, e um gesto que so existe num sitio nao se aprende. Recarrega
+        ao voltar a entrar, e no Windows pelo refrescar do cabecalho. */}
+    <ScrollView contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled">
       <ProfileHero profile={profile} own={own} cover={cover} unread={unread}
         status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
         onEdit={()=>setEditing(true)} onSocial={onSocial} onSettings={onSettings} onBack={onBack} onStats={onStats}

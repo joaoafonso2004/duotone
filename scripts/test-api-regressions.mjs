@@ -32,7 +32,7 @@ function ambiente(fetch, substituicoes = {}) {
     const module = { exports: {} };
     modulos.set(nome, module);
     const contexto = vm.createContext({
-      module, exports: module.exports, fetch, console, setTimeout, clearTimeout, AbortController, URL,
+      module, exports: module.exports, fetch, console, setTimeout, clearTimeout, setInterval, clearInterval, AbortController, URL,
       require: (pedido) => {
         if (stubs[pedido]) return stubs[pedido];
         if (!pedido.startsWith('.')) return require(pedido);
@@ -288,4 +288,97 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
     assert.equal(cubeProgress(start,sign*160,320,dir),0.5);
   }
   console.log('Cubo: gesto horizontal, ambos os sentidos, cancelamento e velocidade passaram.');
+}
+
+// Entradas sociais malformadas nunca chegam aos componentes como uma Track.
+{
+  const rpc=[];
+  const social=ambiente(async()=>{}, {
+    'src/api/profiles.ts':{getPublicProfiles:async()=>[],searchPublicProfiles:async()=>[]},
+    'src/lib/supabase.ts':{supabase:{rpc:async(name,args)=>{rpc.push([name,args]);return {data:true,error:null};}}},
+  }).carregar('src/api/social.ts');
+  assert.equal(social.sharedTrack(null),null);
+  assert.equal(social.sharedTrack({source:'youtube',sourceId:'x',title:7}),null);
+  assert.equal(social.sharedTrack({source:'file',sourceId:'x',title:'Faixa'}),null);
+  assert.equal(social.sharedTrack({source:'youtube',sourceId:'x',title:' Faixa ',durationSeconds:180}).title,'Faixa');
+  await social.archiveInboxItem('mensagem-1');
+  assert.equal(rpc[0][0],'set_shared_item_archived');
+  assert.equal(rpc[0][1].p_item,'mensagem-1');assert.equal(rpc[0][1].p_archived,true);
+  console.log('Social: conteúdo não fiável é filtrado e o arquivo usa a RPC limitada ao destinatário.');
+}
+
+// O catálogo global só é escrito através da função validada no servidor.
+{
+  const calls=[];
+  const library=ambiente(async()=>{}, {
+    'src/lib/supabase.ts':{supabase:{rpc:async(name,args)=>{
+      calls.push([name,args]);
+      return {data:args.entries.map((entry,i)=>({id:`id-${calls.length}-${i}`,source:entry.source,source_id:entry.sourceId})),error:null};
+    }}},
+  }).carregar('src/api/library.ts');
+  const track={source:'youtube',sourceId:'abc',title:'Faixa',artist:'Artista'};
+  assert.equal(await library.upsertTrack(track),'id-1-0');
+  const ids=await library.upsertTracks(Array.from({length:3},(_,i)=>({...track,sourceId:`s-${i}`})),2);
+  assert.equal(calls.length,3); // uma chamada individual + dois lotes
+  assert.equal(calls.every(([name])=>name==='upsert_catalog_tracks'),true);
+  assert.equal(ids.size,3);
+  console.log('Catálogo: escrita individual e em lote passam exclusivamente pela RPC validada.');
+}
+
+// Uma resposta perdida não duplica reproduções e a leitura passa o limite de 1000 linhas.
+{
+  const disk=new Map([['playCounts:migrated:v2:user-1','1'],['playCounts:lastUser:v2','user-1']]);
+  const storage={
+    getItem:async key=>disk.get(key)??null,
+    setItem:async(key,value)=>{disk.set(key,value);},
+    removeItem:async key=>{disk.delete(key);},
+    multiSet:async pairs=>{for(const [key,value] of pairs)disk.set(key,value);},
+  };
+  const remote=new Map();const cursor=new Map();let loseReply=true;
+  const row=(entry,count)=>({source:entry.source,source_id:entry.sourceId,title:entry.title,artist:entry.artist,
+    artwork_url:entry.artworkUrl,duration_seconds:entry.durationSeconds,play_count:count,last_played:new Date(entry.lastPlayed).toISOString()});
+  const supabase={
+    auth:{getSession:async()=>({data:{session:{user:{id:'user-1'}}}})},
+    rpc:async(_name,{entries})=>{
+      for(const entry of entries){const previous=cursor.get(entry.operationDevice)??0;if(entry.operationSequence<=previous)continue;
+        cursor.set(entry.operationDevice,entry.operationSequence);const old=remote.get(`${entry.source}:${entry.sourceId}`);
+        remote.set(`${entry.source}:${entry.sourceId}`,row(entry,(old?.play_count??0)+entry.count));}
+      if(loseReply){loseReply=false;return {error:{message:'resposta perdida'}};}return {error:null};
+    },
+    from:()=>{const query={select:()=>query,eq:()=>query,order:()=>query,
+      range:async(start,end)=>({data:[...remote.values()].sort((a,b)=>`${a.source}:${a.source_id}`.localeCompare(`${b.source}:${b.source_id}`)).slice(start,end+1),error:null}),
+      delete:()=>query};return query;},
+  };
+  const counts=ambiente(async()=>{}, {
+    '@react-native-async-storage/async-storage':{default:storage,...storage},
+    'src/lib/supabase.ts':{supabase},
+  }).carregar('src/lib/playCounts.ts');
+  const track={source:'youtube',sourceId:'one',title:'One',artist:'Artist'};
+  await counts.incrementPlayCount(track);
+  await counts.synchronizePlayCounts();
+  assert.equal(remote.get('youtube:one').play_count,1,'repetir a mesma operação não volta a somar');
+  for(let i=0;i<1004;i++)remote.set(`youtube:bulk-${String(i).padStart(4,'0')}`,{
+    source:'youtube',source_id:`bulk-${String(i).padStart(4,'0')}`,title:`Faixa ${i}`,artist:null,artwork_url:null,
+    duration_seconds:null,play_count:1,last_played:new Date(0).toISOString(),
+  });
+  assert.equal((await counts.getMostPlayed(2000)).length,1005,'a paginação traz todas as linhas');
+  console.log('Contagens: retry idempotente e paginação acima de 1000 linhas passaram.');
+}
+
+// O downloader nativo rejeita alocações excessivas e respeita cancelamento.
+{
+  class File {constructor(_dir,name){this.name=name;this.uri=`file://${name}`;this.exists=false;}create(){}write(){}}
+  const storage={getItem:async()=>null,setItem:async()=>{}};
+  const stubs={
+    'react-native':{Platform:{OS:'ios'}},
+    '@react-native-async-storage/async-storage':{default:storage,...storage},
+    'expo-file-system':{File,Paths:{document:{list:()=>[]},cache:{list:()=>[]}}},
+    'src/lib/mp4Fixer.ts':{fixMp4Duration:()=>{}},
+  };
+  const excessive=ambiente(async()=>{throw Error('não devia pedir rede');},stubs).carregar('src/lib/youtubeCache.ts');
+  await assert.rejects(excessive.downloadProgressiveAudio('x','https://audio.test',300*1024*1024,null),/too large/);
+  await assert.rejects(excessive.downloadProgressiveAudio('x','https://audio.test',10,null,{shouldAbort:()=>true}),/download aborted/);
+  const discovered=ambiente(async()=>({headers:{get:name=>name==='content-range'?'bytes 0-1/999999999':null}}),stubs).carregar('src/lib/youtubeCache.ts');
+  await assert.rejects(discovered.discoverContentLength('https://audio.test'),/too large/);
+  console.log('Downloads: tamanho máximo, descoberta remota e cancelamento foram limitados.');
 }

@@ -83,18 +83,30 @@ ipcMain.on('notification:message', (event, message) => {
 let localServer = null;
 const SERVER_PORT = 18081;
 
+function resolverFicheiroLocal(reqUrl, webRoot) {
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent((reqUrl || '/').split('?')[0]);
+  } catch {
+    return { status: 400 };
+  }
+  const safeUrlPath = (urlPath === '/' ? '/index.html' : urlPath).replace(/^[/\\]+/, '');
+  const filePath = path.resolve(webRoot, safeUrlPath);
+  const relative = path.relative(webRoot, filePath);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) return { status: 403 };
+  return { status: 200, filePath };
+}
+
 function startLocalServer() {
   const webRoot = path.resolve(__dirname, '..', 'dist-web');
   localServer = http.createServer((req, res) => {
-    const urlPath = req.url.split('?')[0];
-    const safeUrlPath = decodeURIComponent(urlPath === '/' ? '/index.html' : urlPath).replace(/^[/\\]+/, '');
-    const filePath = path.resolve(webRoot, safeUrlPath);
-    
-    if (!filePath.startsWith(webRoot)) {
-      res.statusCode = 403;
-      res.end('Forbidden');
+    const resolved = resolverFicheiroLocal(req.url, webRoot);
+    if (resolved.status !== 200) {
+      res.statusCode = resolved.status;
+      res.end(resolved.status === 400 ? 'Bad Request' : 'Forbidden');
       return;
     }
+    const filePath = resolved.filePath;
     
     fs.readFile(filePath, (err, data) => {
       if (err) {
@@ -164,6 +176,10 @@ function frameDoYouTube(raiz) {
 
 function configurarCaptura(ses) {
   ses.setDisplayMediaRequestHandler((request, callback) => {
+    if (!mainWindow || request.frame !== mainWindow.webContents.mainFrame || !origemDaApp(request.frame?.url)) {
+      callback({});
+      return;
+    }
     callback({ audio: frameDoYouTube(request.frame), enableLocalEcho: true });
   }, { useSystemPicker: false });
 
@@ -174,12 +190,24 @@ function configurarCaptura(ses) {
   // O resto e negado de proposito: sem handler o Electron concede quase tudo,
   // e um leitor de musica nao tem nada que ver com geolocalizacao, MIDI, USB
   // ou serie.
-  const PERMITIDAS = new Set([
-    'media', 'display-capture', 'fullscreen', 'notifications',
-    'clipboard-read', 'clipboard-sanitized-write',
-  ]);
-  ses.setPermissionRequestHandler((_conteudos, permissao, callback) => callback(PERMITIDAS.has(permissao)));
-  ses.setPermissionCheckHandler((_conteudos, permissao) => PERMITIDAS.has(permissao));
+  const PERMITIDAS = new Set(['media', 'display-capture', 'fullscreen', 'clipboard-sanitized-write']);
+  const permitido = (conteudos, permissao, detalhes = {}) => {
+    if (!mainWindow || conteudos !== mainWindow.webContents || !PERMITIDAS.has(permissao)) return false;
+    const url = detalhes.requestingUrl || detalhes.securityOrigin || conteudos.getURL?.() || '';
+    return origemDaApp(url);
+  };
+  ses.setPermissionRequestHandler((conteudos, permissao, callback, detalhes) => callback(permitido(conteudos, permissao, detalhes)));
+  ses.setPermissionCheckHandler((conteudos, permissao, origem, detalhes) => permitido(conteudos, permissao, { ...detalhes, securityOrigin: origem }));
+}
+
+function origemDaApp(valor) {
+  try {
+    const origin = new URL(valor).origin;
+    if (isDev) return origin === new URL(process.env.DUOTONE_DEV_URL || 'http://localhost:8081').origin;
+    return origin === `http://127.0.0.1:${SERVER_PORT}` || origin === `http://localhost:${SERVER_PORT}`;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -419,7 +447,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: true,
-      webSecurity: false,
+      webSecurity: true,
     },
   });
 
@@ -447,8 +475,7 @@ function createWindow() {
   });
 
   win.webContents.on('will-navigate', (event, url) => {
-    const allowed = isDev ? url.startsWith('http://localhost:8081') : (url.startsWith(`http://127.0.0.1:${SERVER_PORT}`) || url.startsWith(`http://localhost:${SERVER_PORT}`));
-    if (!allowed) {
+    if (!origemDaApp(url)) {
       event.preventDefault();
       if (/^https?:/.test(url)) shell.openExternal(url);
     }
@@ -460,11 +487,13 @@ function createWindow() {
 }
 
 ipcMain.handle('player:preservar-tom', async (event) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido inválido.');
   const win = BrowserWindow.fromWebContents(event.sender);
   return pararDeEsticarOTempo(win);
 });
 
 ipcMain.handle('eq:aplicar', async (event, ajuste) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido inválido.');
   const win = BrowserWindow.fromWebContents(event.sender);
   // Aceita a forma antiga (so o array) porque o preload e o renderer sao
   // empacotados juntos mas podem ficar dessincronizados numa build parcial:
@@ -474,16 +503,18 @@ ipcMain.handle('eq:aplicar', async (event, ajuste) => {
   return aplicarEqualizador(win, ganhos, Number.isFinite(compensacao) ? compensacao : 1);
 });
 
-ipcMain.on('window:minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
+ipcMain.on('window:minimize', (event) => { if (daJanelaPrincipal(event)) mainWindow.minimize(); });
 ipcMain.on('window:toggle-maximize', (event) => {
+  if (!daJanelaPrincipal(event)) return;
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return;
   win.isMaximized() ? win.unmaximize() : win.maximize();
 });
-ipcMain.on('window:close', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
-ipcMain.handle('window:is-maximized', (event) => BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false);
+ipcMain.on('window:close', (event) => { if (daJanelaPrincipal(event)) mainWindow.close(); });
+ipcMain.handle('window:is-maximized', (event) => daJanelaPrincipal(event) ? mainWindow.isMaximized() : false);
 ipcMain.on('context-menu', (event, items) => {
-  const safeItems = Array.isArray(items) ? items.slice(0, 8) : [];
+  if (!daJanelaPrincipal(event)) return;
+  const safeItems = Array.isArray(items) ? items.filter((item) => item && typeof item === 'object').slice(0, 8) : [];
   Menu.buildFromTemplate(safeItems.map((item) => ({
     label: String(item.label || ''),
     enabled: item.enabled !== false,

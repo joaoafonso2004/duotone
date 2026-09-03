@@ -12,11 +12,19 @@
 alter table public.shared_items
   add column if not exists archived_at timestamptz;
 
--- O destinatário precisa de poder atualizar a linha para a arquivar
--- (não existia nenhuma política de UPDATE nesta tabela).
+-- Arquivar não pode conceder UPDATE ao resto da mensagem: isso deixava o
+-- destinatário mudar remetente e conteúdo.
 drop policy if exists "shared_items: arquivar itens recebidos" on public.shared_items;
-create policy "shared_items: arquivar itens recebidos"
-  on public.shared_items for update
-  to authenticated
-  using (auth.uid() = recipient_id)
-  with check (auth.uid() = recipient_id);
+revoke update on public.shared_items from authenticated;
+create or replace function public.set_shared_item_archived(p_item uuid,p_archived boolean default true)
+returns boolean language plpgsql security definer set search_path=public as $$
+declare changed integer;
+begin
+  if auth.uid() is null then raise exception 'Sessão necessária'; end if;
+  update public.shared_items set archived_at=case when p_archived then now() else null end
+    where id=p_item and recipient_id=auth.uid();
+  get diagnostics changed=row_count;
+  return changed=1;
+end $$;
+revoke all on function public.set_shared_item_archived(uuid,boolean) from public;
+grant execute on function public.set_shared_item_archived(uuid,boolean) to authenticated;

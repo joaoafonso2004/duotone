@@ -9,6 +9,10 @@ export const colors = {
 };
 export const type = {
   ...baseType,
+  // O `largeTitle` faltava aqui, e sem ele um componente partilhado que o
+  // usasse caia na escala do telemovel. E o nivel do titulo de uma pagina --
+  // o mesmo que o `Page` usa -- por isso e o `display`.
+  largeTitle: { ...TIPO.display, color: COR.texto, lineHeight: 40 },
   title: { ...TIPO.titulo, color: COR.texto },
   headline: { ...TIPO.seccao, color: COR.texto },
   body: { ...TIPO.corpo, color: COR.texto },

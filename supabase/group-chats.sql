@@ -189,12 +189,29 @@ create policy "shared_items: ler itens recebidos ou enviados"
 
 -- Mandar para um grupo exige estar lá dentro. Sem esta segunda metade,
 -- qualquer pessoa com o id de um grupo podia escrever nele.
+create or replace function public.shared_track_valid(value jsonb)
+returns boolean language sql immutable set search_path=public as $$
+  select jsonb_typeof(value)='object'
+    and jsonb_typeof(value->'source')='string' and value->>'source' in ('youtube','spotify')
+    and jsonb_typeof(value->'sourceId')='string' and length(value->>'sourceId') between 1 and 300
+    and jsonb_typeof(value->'title')='string' and length(trim(value->>'title')) between 1 and 500
+    and (not (value ? 'artist') or jsonb_typeof(value->'artist') in ('string','null'))
+    and length(coalesce(value->>'artist',''))<=500
+    and (not (value ? 'artworkUrl') or jsonb_typeof(value->'artworkUrl') in ('string','null'))
+    and length(coalesce(value->>'artworkUrl',''))<=2048;
+$$;
+
 create policy "shared_items: enviar itens"
   on public.shared_items for insert
   to authenticated
   with check (
     auth.uid() = sender_id
     and (group_id is null or public.e_membro_do_grupo(group_id))
+    and (item_type<>'playlist' or (playlist_id is not null and exists(
+      select 1 from public.playlists p where p.id=playlist_id and p.owner_id=auth.uid()
+    )))
+    and (item_type<>'track' or public.shared_track_valid(track_data)
+      or (track_data is null and length(trim(message)) between 1 and 4000))
   );
 
 -- Numa conversa de grupo cada um apaga o que escreveu, e não o dos outros.

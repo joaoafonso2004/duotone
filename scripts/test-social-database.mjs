@@ -169,8 +169,8 @@ await q(`insert into friendships(user_id_1,user_id_2,status,requester_id) values
 await como(1);
 const pl=(await q(`insert into playlists(owner_id,name) values($1,'So minha') returning id, visible_on_profile`,[uid(1)])).rows[0];
 assert.equal(pl.visible_on_profile,false,'uma playlist nova nasce privada');
-await q(`insert into tracks(id,source,source_id,title,artist,duration_seconds) values($1,'youtube','plx','Faixa','Artista',200) on conflict do nothing`,[uid(20)]);
-await q(`insert into playlist_tracks(playlist_id,track_id,position) values($1,$2,0)`,[pl.id,uid(20)]);
+const faixaPlaylist=(await q(`select * from upsert_catalog_tracks($1)`,[[{source:'youtube',sourceId:'plx',title:'Faixa',artist:'Artista',durationSeconds:200}]])).rows[0];
+await q(`insert into playlist_tracks(playlist_id,track_id,position) values($1,$2,0)`,[pl.id,faixaPlaylist.id]);
 
 // Enquanto esta privada, nem o amigo a ve.
 await como(2);
@@ -197,7 +197,10 @@ await assert.rejects(q('select set_profile_playlist_copy($1,true)',[pl.id]),/no 
 
 // A cópia inclui mais de 1000 faixas; copiar no cliente cortava a lista.
 await como(1);
-await q(`insert into tracks(source,source_id,title) select 'youtube','copy-'||n,'Faixa '||n from generate_series(1,1005)n`);
+const faixasGrandes=Array.from({length:1005},(_,i)=>({source:'youtube',sourceId:`copy-${i+1}`,title:`Faixa ${i+1}`}));
+await q('select * from upsert_catalog_tracks($1)',[faixasGrandes.slice(0,500)]);
+await q('select * from upsert_catalog_tracks($1)',[faixasGrandes.slice(500,1000)]);
+await q('select * from upsert_catalog_tracks($1)',[faixasGrandes.slice(1000)]);
 await q(`insert into playlist_tracks(playlist_id,track_id,position) select $1,id,substring(source_id from 6)::int from tracks where source_id like 'copy-%'`,[pl.id]);
 await assert.rejects(q('select set_profile_playlist_copy($1,true)',[pl.id]),/no longer available/);
 await como(2);

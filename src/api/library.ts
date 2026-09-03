@@ -18,24 +18,16 @@ function rowToTrack(row: any): Track {
 
 /** Garante que a faixa existe no catálogo global e devolve o id na BD. */
 export async function upsertTrack(t: Track): Promise<string> {
-  const { data, error } = await supabase
-    .from('tracks')
-    .upsert(
-      {
-        source: t.source,
-        source_id: t.sourceId,
-        title: t.title,
-        artist: t.artist,
-        album: t.album,
-        artwork_url: t.artworkUrl,
-        duration_seconds: t.durationSeconds,
-      },
-      { onConflict: 'source,source_id' }
-    )
-    .select('id')
-    .single();
+  const { data, error } = await supabase.rpc('upsert_catalog_tracks', { entries: [catalogEntry(t)] });
   if (error) throw error;
-  return data.id as string;
+  const row = data?.[0];
+  if (!row?.id) throw new Error('Could not save this track in the catalogue.');
+  return row.id as string;
+}
+
+function catalogEntry(t: Track) {
+  return { source:t.source,sourceId:t.sourceId,title:t.title,artist:t.artist,album:t.album,
+    artworkUrl:t.artworkUrl,durationSeconds:t.durationSeconds };
 }
 
 /** Chave estavel de uma faixa no catalogo global. */
@@ -66,21 +58,7 @@ export async function upsertTracks(
 
   for (let i = 0; i < lista.length; i += chunkSize) {
     const lote = lista.slice(i, i + chunkSize);
-    const { data, error } = await supabase
-      .from('tracks')
-      .upsert(
-        lote.map((t) => ({
-          source: t.source,
-          source_id: t.sourceId,
-          title: t.title,
-          artist: t.artist,
-          album: t.album,
-          artwork_url: t.artworkUrl,
-          duration_seconds: t.durationSeconds,
-        })),
-        { onConflict: 'source,source_id' }
-      )
-      .select('id, source, source_id');
+    const { data, error } = await supabase.rpc('upsert_catalog_tracks', { entries: lote.map(catalogEntry) });
     if (error) throw error;
     for (const row of data ?? []) {
       out.set(`${row.source}:${row.source_id}`, row.id as string);

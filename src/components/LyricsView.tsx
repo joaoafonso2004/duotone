@@ -27,12 +27,14 @@ export function LyricsView({track,visible}:{track:Track;visible:boolean}){
   useEffect(()=>{offsets.current={};previous.current=-1;setManual(false);void ensureLyrics(track);},[key]);
   useEffect(()=>()=>{if(resume.current)clearTimeout(resume.current);},[]);
   useEffect(()=>{
-    if(!visible||manual||!synced)return;
+    // A face escondida continua a acompanhar a música. `visible` só controla
+    // interação; parar aqui fazia as letras saltarem no fim da rotação.
+    if(manual||!synced)return;
     const y=offsets.current[index];
     if(index>=0&&y===undefined)return;
     scroll.current?.scrollTo({y:Math.max(0,(y??0)-height*0.28),animated:!reduced&&previous.current>=0&&Math.abs(index-previous.current)<5});
     previous.current=index;
-  },[index,visible,manual,height,revision,synced,reduced]);
+  },[index,manual,height,revision,synced,reduced]);
   const pauseFollowing=()=>{setManual(true);if(resume.current)clearTimeout(resume.current);resume.current=setTimeout(()=>setManual(false),5000);};
   const retry=()=>void ensureLyrics(track,true);
   return <View style={styles.root}>
@@ -43,7 +45,7 @@ export function LyricsView({track,visible}:{track:Track;visible:boolean}){
         {!data?.instrumental&&<Pressable disabled={!visible} accessibilityRole="button" onPress={retry} style={styles.retry}><Text style={styles.note}>Try again</Text></Pressable>}
       </View>:
       <>
-        <View style={{flex:1,overflow:'hidden'}}><ScrollView ref={scroll} onLayout={e=>setHeight(e.nativeEvent.layout.height)} onContentSizeChange={()=>setRevision(v=>v+1)} {...({onWheel:pauseFollowing} as any)} onScrollBeginDrag={pauseFollowing} onTouchStart={pauseFollowing} showsVerticalScrollIndicator={false} contentContainerStyle={{paddingHorizontal:24,paddingTop:height*0.28,paddingBottom:height*0.65}}>
+        <View style={{flex:1,overflow:'hidden'}}><ScrollView ref={scroll} onLayout={e=>setHeight(e.nativeEvent.layout.height)} onContentSizeChange={()=>setRevision(v=>v+1)} {...({onWheel:pauseFollowing,style:{touchAction:'pan-y'}} as any)} onScrollBeginDrag={pauseFollowing} onTouchStart={pauseFollowing} showsVerticalScrollIndicator={false} contentContainerStyle={{paddingHorizontal:24,paddingTop:height*0.28,paddingBottom:height*0.65}}>
           {synced?lines.map((line,i)=><Line key={`${key}:${i}`} text={line.text} active={i===index} reduced={reduced} visible={visible} onLayout={y=>{offsets.current[i]=y;}} onPress={()=>{seek(line.timeMs);setManual(false);}} />):<Text style={[styles.words,{fontSize:20,lineHeight:30}]}>{data?.plainLyrics}</Text>}
         </ScrollView>
         <LinearGradient pointerEvents="none" colors={['rgba(10,10,16,0.48)','rgba(10,10,16,0)']} style={{position:'absolute',top:0,left:0,right:0,height:22}} />

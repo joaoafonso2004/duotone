@@ -84,7 +84,10 @@ jobs:
           node-version: 22
 
       - name: Instalar dependências
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
+
+      - name: Validar TypeScript e regressões
+        run: npm run typecheck && npm test
 
       # O .env não vai no repositório; vem do secret ENV_FILE
       # (Settings -> Secrets and variables -> Actions)

@@ -40,6 +40,27 @@ export interface SharedItem {
   createdAt: string;
 }
 
+/** Dados sociais são entrada não confiável, mesmo depois da validação SQL:
+ * instalações antigas e linhas já existentes também passam por aqui. */
+export function sharedTrack(value: unknown): Track | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if ((row.source !== 'youtube' && row.source !== 'spotify')
+      || typeof row.sourceId !== 'string' || !row.sourceId || row.sourceId.length > 300
+      || typeof row.title !== 'string' || !row.title.trim() || row.title.length > 500
+      || (row.artist != null && typeof row.artist !== 'string')
+      || (row.album != null && typeof row.album !== 'string')
+      || (row.artworkUrl != null && typeof row.artworkUrl !== 'string')
+      || (row.durationSeconds != null && (typeof row.durationSeconds !== 'number' || !Number.isFinite(row.durationSeconds)))) return null;
+  return {
+    source: row.source, sourceId: row.sourceId, title: row.title.trim(),
+    artist: typeof row.artist === 'string' ? row.artist.slice(0, 500) : null,
+    album: typeof row.album === 'string' ? row.album.slice(0, 500) : null,
+    artworkUrl: typeof row.artworkUrl === 'string' && row.artworkUrl.length <= 2048 ? row.artworkUrl : null,
+    durationSeconds: typeof row.durationSeconds === 'number' && row.durationSeconds >= 0 && row.durationSeconds <= 86400 ? row.durationSeconds : null,
+  };
+}
+
 async function currentUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) throw new Error('Session expired');
@@ -217,6 +238,7 @@ export async function getInboxItems(): Promise<SharedItem[]> {
 
   return data.map((r) => {
     const sender = profileMap.get(r.sender_id);
+    const trackData = r.item_type === 'track' ? sharedTrack(r.track_data) : null;
     return {
       id: r.id,
       groupId: r.group_id ?? null,
@@ -228,8 +250,8 @@ export async function getInboxItems(): Promise<SharedItem[]> {
       },
       itemType: r.item_type as 'playlist' | 'track',
       playlistId: r.playlist_id,
-      trackData: r.track_data,
-      message: r.message,
+      trackData,
+      message: r.item_type === 'track' && !trackData ? 'This shared track is unavailable.' : r.message,
       createdAt: r.created_at,
     };
   });
@@ -239,14 +261,8 @@ export async function getInboxItems(): Promise<SharedItem[]> {
  * archived_at em vez de DELETE (que apagava a mensagem dos dois lados —
  * requer a migração supabase/inbox-archive.sql). */
 export async function archiveInboxItem(itemId: string): Promise<void> {
-  // .select() no fim: sem a política de UPDATE da migração, o Supabase
-  // "atualiza" 0 linhas sem erro — o select vazio denuncia isso.
-  const { data, error } = await supabase
-    .from('shared_items')
-    .update({ archived_at: new Date().toISOString() })
-    .eq('id', itemId)
-    .select('id');
-  if (error || !data || data.length === 0) {
+  const { data, error } = await supabase.rpc('set_shared_item_archived', { p_item: itemId, p_archived: true });
+  if (error || data !== true) {
     throw new Error(
       'Could not remove this from your inbox. (Have you run the supabase/inbox-archive.sql migration?)'
     );
@@ -280,8 +296,9 @@ async function getConversationMessages(target:{p_friend?:string;p_group?:string}
   const map=new Map(profiles.map(p=>[p.id,p]));
   return [...data].reverse().map((r:any)=>{
     const p=map.get(r.sender_id);
+    const trackData=r.item_type==='track'?sharedTrack(r.track_data):null;
     return {id:r.id,groupId:r.group_id??null,sender:{id:r.sender_id,name:p?.name||'Utilizador',username:p?.username||'',avatarUrl:p?.avatar_url||null},
-      itemType:r.item_type,playlistId:r.playlist_id,trackData:r.track_data,message:r.message,createdAt:r.created_at};
+      itemType:r.item_type,playlistId:r.playlist_id,trackData,message:r.item_type==='track'&&!trackData?'This shared track is unavailable.':r.message,createdAt:r.created_at};
   });
 }
 

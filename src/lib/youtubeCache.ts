@@ -54,6 +54,8 @@ const CHUNK_BYTES = 1_000_000;
 const MIN_CHUNK_BYTES = 131_072; // 128KB — abaixo disto não compensa
 const CHUNK_PACING_MS = 0;
 const MAX_ATTEMPTS_PER_CHUNK = 4;
+const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_AUDIO_BYTES = 256 * 1024 * 1024;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -227,12 +229,26 @@ export function pruneAudioCacheLRU(protectedIds: string[] = []): void {
 }
 
 /** Descobre o tamanho total do ficheiro via Content-Range, quando a API não o deu. */
-export async function discoverContentLength(url: string): Promise<number> {
-  const res = await fetch(url, { headers: { Range: 'bytes=0-1' } });
-  const range = res.headers.get('content-range'); // "bytes 0-1/4406875"
-  const total = range ? Number(range.split('/')[1]) : NaN;
-  if (!Number.isFinite(total)) throw new Error('Could not determine stream length');
-  return total;
+export async function discoverContentLength(url: string, shouldAbort?: () => boolean): Promise<number> {
+  if (shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const cancel = shouldAbort ? setInterval(() => { if (shouldAbort()) controller.abort(); }, 100) : undefined;
+  try {
+    const res = await fetch(url, { headers: { Range: 'bytes=0-1' }, signal: controller.signal });
+    const range = res.headers.get('content-range'); // "bytes 0-1/4406875"
+    const total = range ? Number(range.split('/')[1]) : NaN;
+    if (!Number.isSafeInteger(total) || total <= 0 || total > MAX_AUDIO_BYTES) {
+      throw new Error('Audio file is too large to download safely.');
+    }
+    return total;
+  } catch (error) {
+    if (shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    if (cancel) clearInterval(cancel);
+  }
 }
 
 /** Estados em que o URL assinado do CDN morreu de vez: repetir o MESMO URL
@@ -245,18 +261,33 @@ export async function fetchChunkWithRetry(
   url: string,
   start: number,
   end: number,
-  renewUrl?: () => Promise<string | null>
+  renewUrl?: () => Promise<string | null>,
+  shouldAbort?: () => boolean,
 ): Promise<{ bytes: Uint8Array; url: string }> {
   let lastStatus = 0;
   let current = url;
   let renewed = false;
   for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_CHUNK; attempt++) {
+    if (shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
     if (attempt > 0) await sleep(800 * 2 ** (attempt - 1)); // 800ms, 1.6s, 3.2s
-    const res = await fetch(current, { headers: { Range: `bytes=${start}-${end}` } });
-    if (res.status === 206 || res.status === 200) {
-      return { bytes: new Uint8Array(await res.arrayBuffer()), url: current };
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
+    const cancel=shouldAbort?setInterval(()=>{if(shouldAbort())controller.abort();},100):undefined;
+    try{
+      const res=await fetch(current,{headers:{Range:`bytes=${start}-${end}`},signal:controller.signal});
+      if (res.status === 206 || res.status === 200) {
+        const declared=Number(res.headers.get('content-length'));
+        const expected=end-start+1;
+        if(Number.isFinite(declared)&&declared>expected)throw new Error('Chunk response exceeded the requested size.');
+        return { bytes: new Uint8Array(await res.arrayBuffer()), url: current };
+      }
+      lastStatus = res.status;
     }
-    lastStatus = res.status;
+    catch(e){
+      if(shouldAbort?.())throw new Error(DOWNLOAD_ABORTED);
+      if(attempt===MAX_ATTEMPTS_PER_CHUNK-1)throw e;
+      continue;
+    }finally{clearTimeout(timeout);if(cancel)clearInterval(cancel);}
     // O URL do googlevideo está ligado ao IP que o pediu e tem validade. Em
     // 4G o IP muda (troca de célula, reconexão) e o URL que estava em cache
     // morre — e o retry repetia-o ús 4 vezes, dando sempre 403. Pedimos um
@@ -307,10 +338,13 @@ export async function downloadProgressiveAudio(
   if (Platform.OS === 'web') return '';
   const dest = cachedAudioFile(videoId);
   if (dest.exists) return dest.uri;
+  if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
 
   let currentUrl = url;
   let chunkSize = CHUNK_BYTES;
-  const total = knownLength ?? (await discoverContentLength(url));
+  const total = knownLength ?? (await discoverContentLength(url, opts.shouldAbort));
+  if (!Number.isSafeInteger(total) || total<=0 || total>MAX_AUDIO_BYTES) throw new Error('Audio file is too large to download safely.');
+  if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
   const combined = new Uint8Array(total);
   let offset = 0;
   let first = true;
@@ -321,7 +355,7 @@ export async function downloadProgressiveAudio(
     const end = Math.min(offset + chunkSize, total) - 1;
     let part: Uint8Array;
     try {
-      const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl);
+      const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl, opts.shouldAbort);
       part = got.bytes;
       currentUrl = got.url; // se foi renovado, os chunks seguintes usam o novo
     } catch (e) {

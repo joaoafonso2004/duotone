@@ -48,45 +48,49 @@ create policy "user_play_counts: apagar as próprias"
   on public.user_play_counts for delete
   using (auth.uid() = user_id);
 
--- Soma deltas de vários dispositivos de forma atómica. O user_id nunca vem
--- do cliente: é sempre obtido do JWT autenticado.
+create table if not exists public.play_count_devices (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  device_id text not null check(length(device_id) between 8 and 200),
+  last_sequence bigint not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key(user_id,device_id)
+);
+alter table public.play_count_devices enable row level security;
+
+-- Cada dispositivo numera os deltas. O cursor é atualizado na mesma transação
+-- que a contagem, logo repetir um pedido cuja resposta se perdeu não volta a
+-- somar a reprodução.
 create or replace function public.apply_play_count_deltas(entries jsonb)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare item jsonb; last_seen bigint; sequence bigint; device text;
 begin
-  if auth.uid() is null then
-    raise exception 'Not authenticated';
-  end if;
-
-  insert into public.user_play_counts as existing (
-    user_id, source, source_id, title, artist, artwork_url,
-    duration_seconds, play_count, last_played, updated_at
-  )
-  select
-    auth.uid(),
-    item ->> 'source',
-    item ->> 'sourceId',
-    coalesce(item ->> 'title', 'Unknown track'),
-    nullif(item ->> 'artist', ''),
-    nullif(item ->> 'artworkUrl', ''),
-    nullif(item ->> 'durationSeconds', '')::integer,
-    greatest(0, coalesce((item ->> 'count')::integer, 0)),
-    to_timestamp(coalesce((item ->> 'lastPlayed')::double precision, extract(epoch from now()) * 1000) / 1000.0),
-    now()
-  from jsonb_array_elements(coalesce(entries, '[]'::jsonb)) item
-  where nullif(item ->> 'sourceId', '') is not null
-    and item ->> 'source' in ('youtube', 'spotify')
-  on conflict (user_id, source, source_id) do update set
-    play_count = existing.play_count + excluded.play_count,
-    title = excluded.title,
-    artist = excluded.artist,
-    artwork_url = excluded.artwork_url,
-    duration_seconds = coalesce(excluded.duration_seconds, existing.duration_seconds),
-    last_played = greatest(existing.last_played, excluded.last_played),
-    updated_at = now();
+  if auth.uid() is null then raise exception 'Not authenticated'; end if;
+  if jsonb_typeof(entries)<>'array' or jsonb_array_length(entries)>500 then raise exception 'Invalid play-count batch'; end if;
+  for item in select value from jsonb_array_elements(entries) order by (value->>'operationSequence')::bigint loop
+    device:=item->>'operationDevice'; sequence:=(item->>'operationSequence')::bigint;
+    if device is null or length(device) not between 8 and 200 or sequence<1
+      or item->>'source' not in ('youtube','spotify') or length(coalesce(item->>'sourceId','')) not between 1 and 300
+      or length(coalesce(item->>'title','')) not between 1 and 500
+      or coalesce((item->>'count')::integer,0) not between 0 and 100000 then raise exception 'Invalid play-count entry'; end if;
+    insert into public.play_count_devices(user_id,device_id) values(auth.uid(),device) on conflict do nothing;
+    select last_sequence into last_seen from public.play_count_devices
+      where user_id=auth.uid() and device_id=device for update;
+    if sequence<=last_seen then continue; end if;
+    insert into public.user_play_counts as existing(user_id,source,source_id,title,artist,artwork_url,duration_seconds,play_count,last_played,updated_at)
+    values(auth.uid(),item->>'source',item->>'sourceId',item->>'title',nullif(item->>'artist',''),nullif(item->>'artworkUrl',''),
+      nullif(item->>'durationSeconds','')::integer,(item->>'count')::integer,
+      to_timestamp((item->>'lastPlayed')::double precision/1000.0),now())
+    on conflict(user_id,source,source_id) do update set play_count=existing.play_count+excluded.play_count,
+      title=excluded.title,artist=excluded.artist,artwork_url=excluded.artwork_url,
+      duration_seconds=coalesce(excluded.duration_seconds,existing.duration_seconds),
+      last_played=greatest(existing.last_played,excluded.last_played),updated_at=now();
+    update public.play_count_devices set last_sequence=sequence,updated_at=now()
+      where user_id=auth.uid() and device_id=device;
+  end loop;
 end;
 $$;
 

@@ -70,15 +70,33 @@ create policy "tracks: leitura autenticada"
   to authenticated
   using (true);
 
-create policy "tracks: inserção autenticada"
-  on public.tracks for insert
-  to authenticated
-  with check (true);
-
-create policy "tracks: update autenticado"
-  on public.tracks for update
-  to authenticated
-  using (true);
+create or replace function public.upsert_catalog_tracks(entries jsonb)
+returns table(id uuid, source text, source_id text)
+language plpgsql security definer set search_path=public as $$
+#variable_conflict use_column
+begin
+  if auth.uid() is null then raise exception 'Sessão necessária'; end if;
+  if jsonb_typeof(entries)<>'array' or jsonb_array_length(entries)>500 then raise exception 'Lote de músicas inválido'; end if;
+  if exists(select 1 from jsonb_array_elements(entries) e where
+    jsonb_typeof(e)<>'object'
+    or jsonb_typeof(e->'source')<>'string' or e->>'source' not in ('youtube','spotify')
+    or jsonb_typeof(e->'sourceId')<>'string' or length(e->>'sourceId') not between 1 and 300
+    or jsonb_typeof(e->'title')<>'string' or length(trim(e->>'title')) not between 1 and 500
+    or (e ? 'artist' and jsonb_typeof(e->'artist') not in ('string','null')) or length(coalesce(e->>'artist',''))>500
+    or (e ? 'album' and jsonb_typeof(e->'album') not in ('string','null')) or length(coalesce(e->>'album',''))>500
+    or (e ? 'artworkUrl' and jsonb_typeof(e->'artworkUrl') not in ('string','null')) or length(coalesce(e->>'artworkUrl',''))>2048
+    or (e ? 'durationSeconds' and jsonb_typeof(e->'durationSeconds') not in ('number','null'))
+    or coalesce((e->>'durationSeconds')::numeric,0) not between 0 and 86400
+  ) then raise exception 'Metadados de música inválidos'; end if;
+  insert into public.tracks(source,source_id,title,artist,album,artwork_url,duration_seconds)
+  select e->>'source',e->>'sourceId',trim(e->>'title'),nullif(e->>'artist',''),nullif(e->>'album',''),
+    nullif(e->>'artworkUrl',''),(e->>'durationSeconds')::integer from jsonb_array_elements(entries) e
+  on conflict(source,source_id) do nothing;
+  return query select t.id,t.source,t.source_id from public.tracks t join jsonb_array_elements(entries) e
+    on t.source=e->>'source' and t.source_id=e->>'sourceId';
+end $$;
+revoke all on function public.upsert_catalog_tracks(jsonb) from public;
+grant execute on function public.upsert_catalog_tracks(jsonb) to authenticated;
 
 -- ------------------------------------------------------------
 -- LIBRARY (faixas guardadas por utilizador)
@@ -149,9 +167,11 @@ create index playlist_tracks_playlist_idx
 -- YT_CACHE (cache de respostas da YouTube Data API — poupa quota)
 -- ------------------------------------------------------------
 create table public.yt_cache (
-  cache_key  text primary key,
+  user_id    uuid not null default auth.uid() references public.profiles(id) on delete cascade,
+  cache_key  text not null,
   payload    jsonb not null,
-  fetched_at timestamptz not null default now()
+  fetched_at timestamptz not null default now(),
+  primary key(user_id,cache_key)
 );
 
 alter table public.yt_cache enable row level security;
@@ -159,17 +179,18 @@ alter table public.yt_cache enable row level security;
 create policy "yt_cache: leitura autenticada"
   on public.yt_cache for select
   to authenticated
-  using (true);
+  using (auth.uid()=user_id);
 
 create policy "yt_cache: escrita autenticada"
   on public.yt_cache for insert
   to authenticated
-  with check (true);
+  with check (auth.uid()=user_id);
 
 create policy "yt_cache: update autenticado"
   on public.yt_cache for update
   to authenticated
-  using (true);
+  using (auth.uid()=user_id)
+  with check (auth.uid()=user_id);
 
 -- ------------------------------------------------------------
 -- PROFILE PREFERENCES (avatar sincronizado entre dispositivos)
@@ -218,38 +239,62 @@ create policy "user_play_counts: apagar as próprias"
   on public.user_play_counts for delete
   using (auth.uid() = user_id);
 
+create table if not exists public.play_count_devices (
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  device_id text not null check(length(device_id) between 8 and 200),
+  last_sequence bigint not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key(user_id, device_id)
+);
+
+alter table public.play_count_devices enable row level security;
+
 create or replace function public.apply_play_count_deltas(entries jsonb)
 returns void
 language plpgsql
 security definer
 set search_path = public
 as $$
+declare item jsonb; last_seen bigint; sequence bigint; device text;
 begin
   if auth.uid() is null then raise exception 'Not authenticated'; end if;
-
-  insert into public.user_play_counts as existing (
-    user_id, source, source_id, title, artist, artwork_url,
-    duration_seconds, play_count, last_played, updated_at
-  )
-  select
-    auth.uid(), item ->> 'source', item ->> 'sourceId',
-    coalesce(item ->> 'title', 'Unknown track'),
-    nullif(item ->> 'artist', ''), nullif(item ->> 'artworkUrl', ''),
-    nullif(item ->> 'durationSeconds', '')::integer,
-    greatest(0, coalesce((item ->> 'count')::integer, 0)),
-    to_timestamp(coalesce((item ->> 'lastPlayed')::double precision, extract(epoch from now()) * 1000) / 1000.0),
-    now()
-  from jsonb_array_elements(coalesce(entries, '[]'::jsonb)) item
-  where nullif(item ->> 'sourceId', '') is not null
-    and item ->> 'source' in ('youtube', 'spotify')
-  on conflict (user_id, source, source_id) do update set
-    play_count = existing.play_count + excluded.play_count,
-    title = excluded.title,
-    artist = excluded.artist,
-    artwork_url = excluded.artwork_url,
-    duration_seconds = coalesce(excluded.duration_seconds, existing.duration_seconds),
-    last_played = greatest(existing.last_played, excluded.last_played),
-    updated_at = now();
+  if jsonb_typeof(entries) <> 'array' or jsonb_array_length(entries) > 500 then
+    raise exception 'Invalid play-count batch';
+  end if;
+  for item in
+    select value from jsonb_array_elements(entries)
+    order by (value ->> 'operationSequence')::bigint
+  loop
+    device := item ->> 'operationDevice';
+    sequence := (item ->> 'operationSequence')::bigint;
+    if device is null or length(device) not between 8 and 200 or sequence < 1
+      or item ->> 'source' not in ('youtube', 'spotify')
+      or length(coalesce(item ->> 'sourceId', '')) not between 1 and 300
+      or length(coalesce(item ->> 'title', '')) not between 1 and 500
+      or coalesce((item ->> 'count')::integer, 0) not between 0 and 100000 then
+      raise exception 'Invalid play-count entry';
+    end if;
+    insert into public.play_count_devices(user_id, device_id)
+      values(auth.uid(), device) on conflict do nothing;
+    select last_sequence into last_seen from public.play_count_devices
+      where user_id = auth.uid() and device_id = device for update;
+    if sequence <= last_seen then continue; end if;
+    insert into public.user_play_counts as existing(
+      user_id, source, source_id, title, artist, artwork_url,
+      duration_seconds, play_count, last_played, updated_at
+    ) values(
+      auth.uid(), item ->> 'source', item ->> 'sourceId', item ->> 'title',
+      nullif(item ->> 'artist', ''), nullif(item ->> 'artworkUrl', ''),
+      nullif(item ->> 'durationSeconds', '')::integer, (item ->> 'count')::integer,
+      to_timestamp((item ->> 'lastPlayed')::double precision / 1000.0), now()
+    ) on conflict(user_id, source, source_id) do update set
+      play_count = existing.play_count + excluded.play_count,
+      title = excluded.title, artist = excluded.artist, artwork_url = excluded.artwork_url,
+      duration_seconds = coalesce(excluded.duration_seconds, existing.duration_seconds),
+      last_played = greatest(existing.last_played, excluded.last_played), updated_at = now();
+    update public.play_count_devices set last_sequence = sequence, updated_at = now()
+      where user_id = auth.uid() and device_id = device;
+  end loop;
 end;
 $$;
 

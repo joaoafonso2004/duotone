@@ -7,7 +7,7 @@ import type {SocialProfile} from '../api/profiles';
 import {RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {FriendAvatar} from './FriendAvatar';
 import {SocialButton,socialStyles as s} from './socialUI';
-import {colors,SOCIAL_GUTTER} from './socialTokens';
+import {colors,SOCIAL_GUTTER,type} from './socialTokens';
 
 type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:number;status?:string;
   onEdit:()=>void;onMessage:()=>void;onStats:()=>void;onBack?:()=>void;
@@ -38,7 +38,11 @@ export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,on
     </View>}
     <View style={[s.row,{gap:8}]}>
       {onBack&&action('Back','chevron-back',onBack)}
-      <Text style={[s.title,{flex:1,fontSize:web?24:22}]}>{own?'Your profile':'Profile'}</Text>
+      {/* A mesma regra do `Screen`: a raiz de um separador leva `largeTitle`, uma
+          sub-pagina com seta para tras leva `title`. Estava aqui um tamanho
+          escrito a mao, e o perfil era a unica raiz com o titulo menor que as
+          outras. Os tokens resolvem-se por plataforma, logo isto serve os dois. */}
+      <Text numberOfLines={1} style={[onBack?s.title:type.largeTitle,{flex:1}]}>{own?'Your profile':'Profile'}</Text>
       <View style={{flexDirection:'row',gap:8}}>
         {own&&profile&&action('Edit profile','pencil-outline',onEdit)}
         {own&&onSocial&&action('Friends and chats','chatbubbles-outline',onSocial,unread)}
