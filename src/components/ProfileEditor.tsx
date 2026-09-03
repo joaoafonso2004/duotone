@@ -34,7 +34,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
   const [featured,setFeatured]=useState(highlights);
   const [value,setValue]=useState(()=>appearanceOf(profile));
   const [name,setName]=useState(profile.profile.name);
-  const [username,setUsername]=useState(profile.profile.username || '');
+  const username=profile.profile.username || '';
   const [avatar,setAvatar]=useState<SelectedProfileImage|null>(null);
   const [cover,setCover]=useState<SelectedProfileImage|null>(null);
   const [adjustingImage,setAdjustingImage]=useState(false);
@@ -144,7 +144,13 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       </View>
       <View style={{flex:wide?1:undefined,minWidth:0,gap:12}}>
       <Text style={s.label}>Name</Text><TextInput accessibilityLabel="Display name" editable={!stage} value={name} onChangeText={setName} maxLength={40} style={s.input}/>
-      <Text style={s.label}>Username</Text><TextInput accessibilityLabel="Username" autoComplete="off" textContentType="none" editable={!stage} autoCapitalize="none" autoCorrect={false} value={username} onChangeText={setUsername} maxLength={30} style={s.input}/>
+      {/* O username identifica a conta, como o email: e por ele que os amigos
+          te encontram e e com ele que se faz login. Deixar mudar partia as duas
+          coisas para quem ja te tinha. Mostra-se, nao se edita -- e o servidor
+          tambem o recusa, para nao depender so deste ecra. */}
+      <Text style={s.label}>Username</Text>
+      <View style={[s.input,{justifyContent:'center',opacity:0.6}]}><Text style={s.text}>@{username}</Text></View>
+      <Text style={s.muted}>Your username identifies your account and cannot be changed.</Text>
       <Text style={s.label}>About you</Text><TextInput accessibilityLabel="Bio" editable={!stage} value={value.bio} onChangeText={bio=>setValue({...value,bio})} maxLength={180} multiline placeholder="A line about you or your music." placeholderTextColor={colors.textSecondary} style={[s.input,{minHeight:80}]}/>
       {featured?<ProfileHighlightsEditor value={featured} onChange={setFeatured} playlists={playlists} disabled={!!stage}/>:<Text style={s.muted}>Highlights could not load. You can still edit your photo, cover and details.</Text>}
       {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}

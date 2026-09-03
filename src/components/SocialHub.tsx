@@ -86,7 +86,13 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
       if(current?.id===conversation.id&&current.kind===conversation.kind){setMessages(previous=>mergeMessages(previous,rows));const last=rows.filter(m=>m.sender.id!==myId).at(-1);if(last)await social.markRead(key,last.createdAt);}
     });
   };
-  const accepted=social.friends.filter(f=>f.status==='accepted');
+  // Uma lista de conversas ordena-se por quem falou por último, não pela ordem
+  // em que a amizade foi aceite. Quem ainda nunca trocou nada fica por baixo,
+  // por nome, para a secção não parecer baralhada ao acaso.
+  const accepted=social.friends.filter(f=>f.status==='accepted').slice().sort((a,b)=>{
+    const x=social.activity[a.friendId]??0,y=social.activity[b.friendId]??0;
+    return x||y?y-x:a.name.localeCompare(b.name);
+  });
   const pending=social.friends.filter(f=>f.status==='pending');
   const title=friend?.name || group?.name || 'Chat';
   const list=<View style={s.body}>

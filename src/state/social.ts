@@ -14,6 +14,8 @@ interface SocialState {
   friends: Friendship[];
   groups: ChatGroup[];
   received: SharedItem[];
+  /** Última mensagem de cada conversa, nas duas direções, para a ordenar. */
+  activity: Record<string, number>;
   seen: Record<string, string>;
   loading: boolean;
   error: string | null;
@@ -36,14 +38,22 @@ const friendsNow = (now: number) => rawFriends.map((friend) => {
 
 export const useSocial = create<SocialState>((set, get) => ({
   contacts:[],profileVersion:0,conversation:null,drafts:{},
-  friends: [], groups: [], received: [], seen: {}, loading: true, error: null, now: Date.now(),
+  friends: [], groups: [], received: [], activity: {}, seen: {}, loading: true, error: null, now: Date.now(),
   refresh: () => {
     if (running) { queued = true; return running; }
     const gen = generation;
     const job = async () => {
       try {
-        const [friends, groups, received, seen, presence,contacts] = await Promise.all([
+        const [friends, groups, received, seen, presence,contacts,activity] = await Promise.all([
           getFriendships(), getGrupos(), getInboxItems(), getChatsVistos(accountId), supabase.rpc('get_social_presence'),getSocialConversations(),
+          // Uma instalação sem o SQL novo continua a abrir: fica sem ordem, não sem lista.
+          (async():Promise<Record<string,number>>=>{
+            try{
+              const r=await supabase.rpc('conversation_activity');
+              if(r.error||!r.data)return {};
+              return Object.fromEntries((r.data as {outro:string;ultima:string}[]).map(x=>[x.outro,Date.parse(x.ultima)]));
+            }catch{return {};}
+          })(),
         ]);
         if (gen !== generation) return;
         if (rawFriends.some(f=>f.status==='accepted'&&!friends.some(n=>n.friendId===f.friendId&&n.status==='accepted'))) clearProfileMediaCache();
@@ -56,7 +66,7 @@ export const useSocial = create<SocialState>((set, get) => ({
           }
         }
         const now = Date.now() + clockOffset;
-        set({ contacts,friends: friendsNow(now), groups, received, seen, now, loading: false,
+        set({ contacts,friends: friendsNow(now), groups, received, activity, seen, now, loading: false,
           error: presence.error ? 'Could not update presence. Try again.' : null });
       } catch (e) {
         if (gen === generation) set({ loading: false, error: 'Could not refresh Social. What you see may be out of date.' });
@@ -79,7 +89,7 @@ export function iniciarSocial(userId: string): () => void {
   const gen = ++generation;
   accountId=userId;clearProfileMediaCache();
   rawFriends = []; presences = {}; available = false; clockOffset = 0; running = null; queued = false;
-  useSocial.setState({ contacts:[],friends: [], groups: [], received: [], seen: {}, loading: true, error: null,conversation:null,drafts:{} });
+  useSocial.setState({ contacts:[],friends: [], groups: [], received: [], activity: {}, seen: {}, loading: true, error: null,conversation:null,drafts:{} });
   let debounce: ReturnType<typeof setTimeout>;
   const refresh = () => { clearTimeout(debounce); debounce = setTimeout(() => void useSocial.getState().refresh(), 100); };
   const channel = supabase.channel(`social:${userId}`)

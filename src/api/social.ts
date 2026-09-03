@@ -251,7 +251,7 @@ export async function getInboxItems(): Promise<SharedItem[]> {
       itemType: r.item_type as 'playlist' | 'track',
       playlistId: r.playlist_id,
       trackData,
-      message: r.item_type === 'track' && !trackData ? 'This shared track is unavailable.' : r.message,
+      message: r.item_type === 'track' && !trackData && !r.message ? 'This shared track is unavailable.' : r.message,
       createdAt: r.created_at,
     };
   });
@@ -298,7 +298,7 @@ async function getConversationMessages(target:{p_friend?:string;p_group?:string}
     const p=map.get(r.sender_id);
     const trackData=r.item_type==='track'?sharedTrack(r.track_data):null;
     return {id:r.id,groupId:r.group_id??null,sender:{id:r.sender_id,name:p?.name||'Utilizador',username:p?.username||'',avatarUrl:p?.avatar_url||null},
-      itemType:r.item_type,playlistId:r.playlist_id,trackData,message:r.item_type==='track'&&!trackData?'This shared track is unavailable.':r.message,createdAt:r.created_at};
+      itemType:r.item_type,playlistId:r.playlist_id,trackData,message:r.item_type==='track'&&!trackData&&!r.message?'This shared track is unavailable.':r.message,createdAt:r.created_at};
   });
 }
 
