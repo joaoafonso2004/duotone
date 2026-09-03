@@ -2,8 +2,8 @@
  * As formas das imagens do perfil, e o recorte que as produz.
  *
  * O envio e a moldura do editor partilham o mesmo rácio. O perfil apresenta
- * a capa como fundo atrás da identidade, com enquadramento adaptado ao ecrã
- * e vinheta; essa apresentação nunca volta a recortar o ficheiro gravado.
+ * a capa inteira atrás da identidade, com extensão desfocada e vinheta;
+ * a altura do cabeçalho nunca obriga a ampliar e cortar de novo a imagem.
  */
 
 /** A capa: larga e baixa. Gravada em 1600×600. */

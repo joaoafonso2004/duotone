@@ -1,7 +1,6 @@
 import {acceptsCubeSwipe,cubeDirection,cubeProgress,cubeDestination} from '../lib/lyricsCubeGesture';
 import React, {useEffect,useMemo,useRef,useState} from 'react';
-import {Animated,Image,PanResponder,Platform,Pressable,StyleSheet,Text,View} from 'react-native';
-import {Ionicons} from '@expo/vector-icons';
+import {Animated,Image,PanResponder,Platform,StyleSheet,View} from 'react-native';
 import {useReducedMotion} from '../hooks/useReducedMotion';
 import type {Track} from '../types';
 import {LyricsView} from './LyricsView';
@@ -54,7 +53,17 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange}
   const base=[{perspective:size*3},...depth(-radius),{rotateY:rotation}];
   const frontStyle=reduced?{opacity:showLyrics?0:1}:{transform:[...base,...depth(radius)]};
   const lyricsStyle=reduced?{opacity:showLyrics?1:0}:{transform:[...base,{rotateY:`${direction*90}deg`},...depth(radius)]};
-  return <View {...responder.panHandlers} testID="artwork-lyrics-cube" style={[{width:size,height:size},Platform.OS==='web'&&({touchAction:'pan-y',userSelect:'none'} as any)]}>
+  return <View {...responder.panHandlers} testID="artwork-lyrics-cube"
+    accessible={!showLyrics} accessibilityLabel={showLyrics?'Lyrics':'Album artwork'}
+    role={Platform.OS==='web'?'group':undefined} accessibilityRole={Platform.OS==='web'?undefined:'adjustable'}
+    accessibilityValue={{text:showLyrics?'Lyrics':'Artwork'}}
+    accessibilityActions={[{name:'activate',label:showLyrics?'Show artwork':'Show lyrics'},{name:'increment',label:'Turn artwork'},{name:'decrement',label:'Turn artwork'}]}
+    onAccessibilityAction={()=>onChange(!showLyrics)} onAccessibilityEscape={()=>onChange(false)}
+    {...(Platform.OS==='web'?{tabIndex:0,onKeyDown:(event:any)=>{
+      if(event.target!==event.currentTarget)return;
+      if(['ArrowLeft','ArrowRight','Enter',' '].includes(event.key)){event.preventDefault();onChange(!showLyrics);}
+      else if(event.key==='Escape'&&showLyrics){event.preventDefault();onChange(false);}
+    }}:{})} style={[{width:size,height:size},Platform.OS==='web'&&({touchAction:'pan-y',userSelect:'none'} as any)]}>
     <Animated.View pointerEvents="none" aria-hidden={showLyrics} accessibilityElementsHidden={showLyrics} importantForAccessibility={showLyrics?'no-hide-descendants':'auto'} style={[styles.face,frontStyle]}>
       {front}
       <Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0,0.35]})}]} />
@@ -65,17 +74,8 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange}
       <LyricsView track={track} visible={showLyrics&&!moving} />
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.4,0]})}]} />
     </Animated.View>
-    <Pressable accessibilityRole="button" accessibilityLabel={showLyrics?'Show artwork':'Show lyrics'} accessibilityHint="You can also swipe the artwork left or right." onPress={()=>onChange(!showLyrics)} style={({pressed})=>[styles.switcher,{opacity:pressed?0.65:1}]}>
-      <Ionicons name={showLyrics?'image-outline':'musical-notes-outline'} size={15} color="#fff" />
-      <Text style={styles.label}>{showLyrics?'Artwork':'Lyrics'}</Text>
-    </Pressable>
-    <View pointerEvents="none" style={styles.dots}>{[0,1].map(i=><View key={i} style={[styles.dot,{opacity:(showLyrics?1:0)===i?0.9:0.3}]} />)}</View>
   </View>;
 }
 const styles=StyleSheet.create({
   face:{position:'absolute',top:0,bottom:0,left:0,right:0,backgroundColor:'#16161d',borderRadius:20,overflow:'hidden',backfaceVisibility:'hidden'},
-  switcher:{position:'absolute',right:10,top:10,minHeight:44,paddingHorizontal:12,borderRadius:20,backgroundColor:'rgba(10,10,16,0.66)',zIndex:2,flexDirection:'row',gap:6,alignItems:'center'},
-  label:{fontSize:12,fontWeight:'600',color:'#fff'},
-  dots:{position:'absolute',bottom:10,left:0,right:0,flexDirection:'row',gap:5,justifyContent:'center'},
-  dot:{height:4,width:4,borderRadius:2,backgroundColor:'#fff'},
 });

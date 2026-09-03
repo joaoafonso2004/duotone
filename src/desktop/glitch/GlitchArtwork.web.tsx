@@ -3,7 +3,7 @@ import { Image, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COR, RAIO } from '../tokens.web';
 import type { EffectIntensity, GlitchMode } from '../../lib/prefs';
-import { criarRenderer } from './renderer.web';
+import { criarRenderer, detetarRecorte, type Recorte } from './renderer.web';
 import { iniciarCaptura, type Captura } from './beat.web';
 
 /**
@@ -36,6 +36,21 @@ for (let i = 0; i < ESPETRO_ESTATICO.length; i++) {
   ESPETRO_ESTATICO[i] = Math.round(210 * Math.exp(-i / 72) + 18 * (1 - i / 255));
 }
 
+/**
+ * O recorte de cada capa, medido uma vez e guardado por URL.
+ *
+ * Sem isto, a capa tinha DOIS enquadramentos e trocava de um para o outro
+ * a meio do gesto: o canvas corta as barras que o YouTube embrulhou na
+ * thumbnail (ver `detetarRecorte`), a `<Image>` simples nao. Arrastar as
+ * letras de volta punha `modo` a 'off' antes de o cubo acabar de rodar, e o
+ * que se via era a capa a ganhar barras pretas e a perde-las outra vez.
+ *
+ * Medir por URL e nao por ecra: quem volta a mesma faixa nao paga a leitura
+ * de pixeis outra vez, e o recorte ja esta pronto ANTES de a capa ser
+ * precisa sem canvas -- e essa antecipacao que evita o salto.
+ */
+const recortes = new Map<string, Recorte & { largura: number; altura: number }>();
+
 function preferePoucoMovimento(): boolean {
   try {
     return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -57,9 +72,37 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
     return () => mq.removeEventListener('change', ouvir);
   }, []);
 
+  const [recorte, setRecorte] = useState<(Recorte & { largura: number; altura: number }) | null>(
+    () => (uri ? recortes.get(uri) ?? null : null),
+  );
+
   // Capa nova, oportunidade nova: uma falha de CORS numa faixa nao pode
   // condenar as seguintes.
   useEffect(() => setFalhou(false), [uri]);
+
+  // Independente do modo, de proposito: o recorte tem de estar medido antes
+  // de o glitch se desligar, senao a troca volta a dar-se a vista de todos.
+  useEffect(() => {
+    if (!uri) { setRecorte(null); return; }
+    const guardado = recortes.get(uri);
+    if (guardado) { setRecorte(guardado); return; }
+    setRecorte(null);
+    let vivo = true;
+    const imagem = new window.Image();
+    imagem.crossOrigin = 'anonymous';
+    imagem.onload = () => {
+      if (!vivo) return;
+      const largura = imagem.naturalWidth || 1;
+      const altura = imagem.naturalHeight || 1;
+      const medido = { ...detetarRecorte(imagem, largura, altura), largura, altura };
+      recortes.set(uri, medido);
+      setRecorte(medido);
+    };
+    // Sem CORS nao ha medicao possivel; fica o `cover` centrado de sempre.
+    imagem.onerror = () => {};
+    imagem.src = uri;
+    return () => { vivo = false; imagem.onload = null; imagem.onerror = null; };
+  }, [uri]);
 
   const efetivo: GlitchMode = modo === 'reactive' && poucoMovimento ? 'static' : modo;
   const comCanvas = efetivo !== 'off' && !!uri && !falhou;
@@ -153,12 +196,26 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
     );
   }
 
-  if (!comCanvas) {
-    return <Image source={{ uri }} style={moldura} />;
-  }
+  // A mesma zona util que o shader amostra, agora tambem em CSS: a escala leva
+  // o lado do recorte a preencher a moldura e as margens saem por fora do
+  // `overflow: hidden`. Enquanto a medicao nao chegar fica o `cover` de antes.
+  const escala = recorte ? lado / recorte.lado : 0;
+  const capa = recorte
+    ? <Image source={{ uri }} style={{
+        position: 'absolute',
+        width: recorte.largura * escala,
+        height: recorte.altura * escala,
+        left: -recorte.x * escala,
+        top: -recorte.y * escala,
+      }} />
+    : <Image source={{ uri }} style={{ position: 'absolute', width: lado, height: lado }} />;
 
+  // A capa fica SEMPRE por baixo, com ou sem canvas. Vale para o modo
+  // "off" das Definicoes e para a queda por falta de WebGL ou de CORS, e
+  // tapa tambem os primeiros fotogramas em que o canvas ainda esta vazio.
   return (
     <View style={moldura}>
+      {capa}
       {/* A `key` obriga a um elemento NOVO sempre que o renderer e refeito, e
           nao e cosmetica: um canvas so tem um contexto WebGL em toda a vida, e
           o `destruir()` do renderer anterior perde-o de proposito para libertar
@@ -167,12 +224,12 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
           ouvinte do novo e marcava falha, e o `getContext` seguinte no mesmo
           elemento vinha nulo. O sintoma era a capa passar a imagem simples ao
           mudar de faixa ou de modo. */}
-      <canvas
+      {comCanvas && <canvas
         key={`${efetivo}|${intensidade}|${uri}|${lado}`}
         ref={canvasRef}
-        style={{ width: lado, height: lado, display: 'block' }}
+        style={{ position: 'absolute', left: 0, top: 0, width: lado, height: lado, display: 'block' }}
         aria-hidden="true"
-      />
+      />}
     </View>
   );
 }

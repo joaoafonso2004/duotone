@@ -77,7 +77,7 @@ export function NowPlayingPage({
         <View style={[styles.npGrelha, estreito && { flexDirection: 'column' }]}>
           <View style={[styles.npLado, { width: ladoCapa }]}>
             <ArtworkLyricsCube key={`${track.source}:${track.sourceId}`} track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
-              front={<GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={showLyrics?'off':glitch} intensidade={effectIntensity} />} />
+              front={<GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
             <View style={styles.npVisualControls}>
               <View style={styles.npVisualGroup}>
                 {(['subtle', 'normal', 'strong'] as EffectIntensity[]).map((intensidade) => <Pressable key={intensidade} onPress={() => escolherIntensidade(intensidade)} style={[styles.npVisualOption, effectIntensity === intensidade && styles.npVisualOptionActive]}><Text style={[styles.npVisualOptionText, effectIntensity === intensidade && styles.npVisualOptionTextActive]}>{intensidade[0].toUpperCase() + intensidade.slice(1)}</Text></Pressable>)}

@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 function carregar(path,extras={}){
   const module={exports:{}};
-  const code=ts.transpileModule(fs.readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const code=ts.transpileModule(fs.readFileSync(new URL(path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.React}}).outputText;
   vm.runInNewContext(code,{module,exports:module.exports,...extras});return module.exports;
 }
 const {estadoDaPresenca,ultimaAtividade}=carregar('../src/lib/socialPresence.ts');
@@ -70,6 +70,38 @@ assert.equal(arrastarFoco(0.5,-50,0.4,250),1);
 // Sem espaco livre nesse eixo nao ha nada a ajustar -- e nao da NaN.
 assert.equal(arrastarFoco(0.5,-100,1,0),0.5);
 assert.equal(arrastarFoco(0.5,-100,0,250),0.5);
+
+// Exercitar o ciclo do responder: o scroll não pode roubar um arrasto da
+// imagem, mas tem de voltar a funcionar ao largar, cancelar ou desmontar.
+// Os hooks apenas dão contexto ao componente; não simulam o UIScrollView.
+let responder,cleanup;
+const locks=[],positions=[];
+const react={createElement:(element,props,...children)=>({element,props,children}),
+  useState:()=>[400,()=>{}],useRef:value=>({current:value}),useEffect:fn=>{cleanup=fn();}};
+const cropModule=carregar('../src/lib/profileImageCrop.ts');
+const {ProfileCropPreview}=carregar('../src/components/ProfileCropPreview.tsx',{require:name=>{
+  if(name==='react')return {...react,default:react};
+  if(name==='react-native')return {View:'View',Image:'Image',Text:'Text',Platform:{OS:'ios'},PanResponder:{create:handlers=>{responder=handlers;return {panHandlers:handlers};}}};
+  if(name.endsWith('profileImageCrop'))return cropModule;
+  if(name.endsWith('socialTokens'))return {colors:{},type:{}};
+  throw new Error(name);
+}});
+ProfileCropPreview({image:{uri:'teste',width:2000,height:1000},ratio:RACIO_DA_CAPA,
+  onChange:(x,y)=>positions.push([x,y]),onDraggingChange:locked=>locks.push(locked)});
+assert.equal(responder.onStartShouldSetPanResponderCapture(),true);
+responder.onPanResponderGrant();
+assert.equal(locks.at(-1),true,'suspende o scroll assim que se agarra a imagem');
+assert.equal(responder.onPanResponderTerminationRequest(),false,'recusa entregar o gesto ao scroll');
+responder.onPanResponderMove(null,{dx:0,dy:-25});
+assert.deepEqual(positions.at(-1),[0.5,1],'o arrasto vertical ajusta o recorte à escala do ecrã');
+responder.onPanResponderRelease();
+assert.deepEqual(locks,[true,false]);
+responder.onPanResponderGrant();responder.onPanResponderTerminate();
+assert.equal(locks.at(-1),false,'uma interrupção também desbloqueia');
+responder.onPanResponderGrant();cleanup();
+assert.equal(locks.at(-1),false,'remover a imagem durante o gesto não prende o editor');
+const noCrop=ProfileCropPreview({image:{uri:'teste',width:1600,height:600},ratio:RACIO_DA_CAPA,onChange:()=>{}});
+assert.equal(noCrop.props.onPanResponderGrant,undefined,'uma imagem sem margem para ajustar deixa passar o scroll');
 const {fundirAjustes,MAX_FAIXAS}=carregar('../src/lib/equalizer.ts');
 const aj=(visto,rate,ganho)=>({rate,ganhos:ganho===null?null:[ganho,0,0,0,0,0,0,0,0,0],visto});
 

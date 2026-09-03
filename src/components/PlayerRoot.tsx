@@ -21,6 +21,7 @@ import {
   useWindowDimensions,
   View,
   Keyboard,
+  Image as RNImage,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -644,7 +645,7 @@ export function PlayerRoot() {
             </View>
           </View>
 
-          {/* Grupo de Rodapé: Botão Recuar & Botões Utilitários (Letras & Fila) */}
+          {/* Grupo de Rodapé: Botão Recuar & Botões Utilitários (Fila & Equalizador) */}
           <View style={styles.bottomGroup}>
             {showRewindButton ? (
               <Pressable
@@ -658,18 +659,6 @@ export function PlayerRoot() {
             ) : null}
 
             <View style={styles.utilityRow}>
-              <Pressable
-                hitSlop={12}
-                onPress={() => {
-                  hapticSelection();
-                  setShowLyrics(v=>!v);
-                }}
-                style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
-              >
-                <Ionicons name="chatbubble-ellipses-outline" size={18} color={theme.color} />
-                <Text style={[styles.utilityIconLabel, { color: theme.color }]}>Lyrics</Text>
-              </Pressable>
-
               <Pressable
                 hitSlop={12}
                 onPress={() => {
@@ -845,7 +834,7 @@ export function PlayerRoot() {
           ) : null}
 
           {expanded && <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics}
-            front={artSource?<Image source={{uri:artSource}} style={StyleSheet.absoluteFill} contentFit="cover" onError={onArtError} />:<View style={StyleSheet.absoluteFill} />} />}
+            front={artSource?<RNImage source={{uri:artSource}} style={StyleSheet.absoluteFill} resizeMode="cover" onError={onArtError} />:<View style={StyleSheet.absoluteFill} />} />}
 
           {/* No modo mini, tocar no vídeo expande */}
           {!expanded ? (

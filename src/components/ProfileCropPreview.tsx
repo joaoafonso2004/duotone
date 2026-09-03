@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { Image, PanResponder, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Image, PanResponder, Platform, Text, View } from 'react-native';
 import type { SelectedProfileImage } from '../lib/profileImage';
 import { arrastarFoco, imageCrop } from '../lib/profileImageCrop';
 import { colors, type } from './socialTokens';
@@ -16,13 +16,15 @@ import { colors, type } from './socialTokens';
  * fotografia em percentagens: arrasta-se até ficar bem. Com `onChange` a
  * moldura passa a aceitar o arrasto; sem ele fica só a mostrar.
  */
-export function ProfileCropPreview({ image, ratio, x=0.5, y=0.5, onChange }: {
+export function ProfileCropPreview({ image, ratio, x=0.5, y=0.5, onChange, onDraggingChange }: {
   image:SelectedProfileImage;
   ratio:number;
   x?:number;
   y?:number;
   /** Recebe o ponto focal novo enquanto se arrasta. */
   onChange?:(x:number,y:number)=>void;
+  /** Suspende o scroll do editor até terminar ou cancelar o gesto. */
+  onDraggingChange?:(dragging:boolean)=>void;
 }) {
   const [width,setWidth]=useState(0);
   const crop=imageCrop(image.width,image.height,ratio,x,y);
@@ -38,13 +40,30 @@ export function ProfileCropPreview({ image, ratio, x=0.5, y=0.5, onChange }: {
   // daqui em vez de os fechar dentro dele, senao ficava preso aos do primeiro
   // render e o arrasto saltava para o sitio errado.
   const inicio=useRef({x,y});
-  const vivo=useRef({x,y,scale,livreX,livreY,onChange});
-  vivo.current={x,y,scale,livreX,livreY,onChange};
+  const vivo=useRef({x,y,scale,livreX,livreY,onChange,onDraggingChange});
+  vivo.current={x,y,scale,livreX,livreY,onChange,onDraggingChange};
+  const aArrastar=useRef(false);
+  const terminar=()=>{
+    if(!aArrastar.current)return;
+    aArrastar.current=false;
+    vivo.current.onDraggingChange?.(false);
+  };
+  useEffect(()=>terminar,[]);
 
   const gesto=useRef(PanResponder.create({
     onStartShouldSetPanResponder:()=>true,
+    onStartShouldSetPanResponderCapture:()=>true,
     onMoveShouldSetPanResponder:(_e,g)=>Math.abs(g.dx)>2||Math.abs(g.dy)>2,
-    onPanResponderGrant:()=>{ inicio.current={x:vivo.current.x,y:vivo.current.y}; },
+    onPanResponderGrant:()=>{
+      inicio.current={x:vivo.current.x,y:vivo.current.y};
+      aArrastar.current=true;
+      vivo.current.onDraggingChange?.(true);
+    },
+    // O ScrollView tentava tomar conta do gesto vertical já iniciado na foto.
+    onPanResponderTerminationRequest:()=>false,
+    onShouldBlockNativeResponder:()=>true,
+    onPanResponderRelease:terminar,
+    onPanResponderTerminate:terminar,
     onPanResponderMove:(_e,g)=>{
       const v=vivo.current;
       if(!v.onChange) return;
@@ -59,12 +78,13 @@ export function ProfileCropPreview({ image, ratio, x=0.5, y=0.5, onChange }: {
     onLayout={e=>setWidth(e.nativeEvent.layout.width)}
     {...(podeArrastar?gesto.panHandlers:{})}
     accessibilityHint={podeArrastar?'Drag to choose what shows':undefined}
-    style={{width:'100%',aspectRatio:ratio,overflow:'hidden',backgroundColor:colors.surfaceHigh}}>
-    {width>0&&<Image
+    style={{width:'100%',aspectRatio:ratio,overflow:'hidden',backgroundColor:colors.surfaceHigh,
+      ...(Platform.OS==='web'&&podeArrastar?{touchAction:'none',userSelect:'none'} as const:{})}}>
+    {width>0&&<View pointerEvents="none"><Image
       source={{uri:image.uri}}
       resizeMode="stretch"
-      style={{position:'absolute',width:image.width*scale,height:image.height*scale,left:-crop.originX*scale,top:-crop.originY*scale}}/>}
-    {podeArrastar&&<View style={{position:'absolute',left:0,right:0,bottom:0,alignItems:'center',paddingVertical:6,backgroundColor:colors.overlay}}>
+      style={{position:'absolute',width:image.width*scale,height:image.height*scale,left:-crop.originX*scale,top:-crop.originY*scale}}/></View>}
+    {podeArrastar&&<View pointerEvents="none" style={{position:'absolute',left:0,right:0,bottom:0,alignItems:'center',paddingVertical:6,backgroundColor:colors.overlay}}>
       <Text style={type.micro}>DRAG TO ADJUST</Text>
     </View>}
   </View>;

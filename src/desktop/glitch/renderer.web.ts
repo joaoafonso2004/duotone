@@ -157,7 +157,7 @@ export type GlitchRenderer = {
   destruir(): void;
 };
 
-type Recorte = { x: number; y: number; lado: number };
+export type Recorte = { x: number; y: number; lado: number };
 
 /**
  * Deteta margens que ja fazem parte da thumbnail (letterbox/pillarbox).
@@ -168,7 +168,7 @@ type Recorte = { x: number; y: number; lado: number };
  * faixas quase uniformes nas extremidades e devolvemos um recorte quadrado da
  * zona util. Em caso de duvida ou CORS, fica o cover centrado habitual.
  */
-function detetarRecorte(imagem: TexImageSource, largura: number, altura: number): Recorte {
+export function detetarRecorte(imagem: TexImageSource, largura: number, altura: number): Recorte {
   const ladoBase = Math.min(largura, altura);
   const base: Recorte = {
     x: (largura - ladoBase) / 2,

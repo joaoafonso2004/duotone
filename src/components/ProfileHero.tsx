@@ -4,6 +4,7 @@ import {Ionicons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
+import {RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {FriendAvatar} from './FriendAvatar';
 import {SocialButton,socialStyles as s} from './socialUI';
 import {colors,SOCIAL_GUTTER} from './socialTokens';
@@ -23,10 +24,16 @@ export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,on
   </Pressable>;
   return <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?320:350,overflow:'hidden',backgroundColor:colors.bg}}>
     {!!cover&&<View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* Um fundo contínuo, sem as barras que o contain deixava atrás do
-          avatar. O ficheiro mantém-se intacto; só o enquadramento se adapta. */}
-      <Image source={{uri:cover}} resizeMode="cover" style={[StyleSheet.absoluteFill,{opacity:0.6}]}/>
-      <LinearGradient colors={['rgba(10,10,15,0.25)','rgba(10,10,15,0.12)','rgba(10,10,15,0.82)',colors.bg]} locations={[0,0.32,0.8,1]} style={StyleSheet.absoluteFill}/>
+      {/* A capa inteira cabe no ecrã. Só a extensão desfocada preenche a
+          altura extra: ampliar a panorâmica cortava quase tudo no iPhone. */}
+      <Image source={{uri:cover}} resizeMode="cover" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
+      <View style={[StyleSheet.absoluteFill,{justifyContent:'center',alignItems:'center'}]}>
+        <View style={{width:'100%',aspectRatio:RACIO_DA_CAPA,maxHeight:'100%'}}>
+          <Image source={{uri:cover}} resizeMode="contain" style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>
+          <LinearGradient colors={[colors.bg,'transparent','transparent',colors.bg]} locations={[0,0.24,0.7,1]} style={StyleSheet.absoluteFill}/>
+        </View>
+      </View>
+      <LinearGradient colors={['rgba(10,10,15,0.2)','rgba(10,10,15,0.08)','rgba(10,10,15,0.65)',colors.bg]} locations={[0,0.32,0.8,1]} style={StyleSheet.absoluteFill}/>
       <LinearGradient colors={['rgba(10,10,15,0.45)','transparent','rgba(10,10,15,0.45)']} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
     </View>}
     <View style={[s.row,{gap:8}]}>

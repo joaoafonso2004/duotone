@@ -21,8 +21,8 @@ import { colors,radii } from './socialTokens';
  * **O recorte escolhe-se a arrastar, e o que se vê é o que fica.** Havia
  * quatro botões de setas para a fotografia e um "↑ Up / ↓ Down" com uma
  * percentagem para a capa — ninguém pensa na sua fotografia em percentagens.
- * As molduras mostram o rácio do ficheiro gravado. No perfil, a capa é usada
- * como fundo e o enquadramento adapta-se à largura disponível.
+ * As molduras mostram o rácio do ficheiro gravado. No perfil, a capa conserva
+ * esse enquadramento e o fundo desfocado preenche o espaço restante.
  *
  * Saíram daqui a cor de destaque e os avatares de emoji. Avatares de emoji
  * antigos continuam a aparecer — o `FriendAvatar` sabe lê-los —, só deixou de
@@ -37,6 +37,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
   const [username,setUsername]=useState(profile.profile.username || '');
   const [avatar,setAvatar]=useState<SelectedProfileImage|null>(null);
   const [cover,setCover]=useState<SelectedProfileImage|null>(null);
+  const [adjustingImage,setAdjustingImage]=useState(false);
   // O ponto focal de cada imagem enquanto se escolhe. Nao vai para a base de
   // dados: fica assado no ficheiro no momento do envio.
   const [avatarX,setAvatarX]=useState(0.5),[avatarY,setAvatarY]=useState(0.5);
@@ -100,7 +101,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
   };
 
   return <SocialModal visible wide title="Edit profile" onClose={()=>{if(!stage)onClose();}}>
-    <ScrollView style={{flexShrink:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:24}}>
+    <ScrollView style={{flexShrink:1}} scrollEnabled={!adjustingImage} keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:24}}>
       <View style={{flexDirection:wide?'row':'column',gap:32}}>
       <View style={{flex:wide?1:undefined,minWidth:0,gap:16}}>
 
@@ -109,6 +110,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       <View style={{borderRadius:radii.lg,overflow:'hidden'}}>
         {cover
           ? <ProfileCropPreview image={cover} ratio={RACIO_DA_CAPA} x={coverX} y={coverY}
+              onDraggingChange={setAdjustingImage}
               onChange={(x,y)=>{setCoverX(x);setCoverY(y);}}/>
           : <View style={{width:'100%',aspectRatio:RACIO_DA_CAPA,backgroundColor:colors.surfaceHigh,alignItems:'center',justifyContent:'center'}}>
               {coverUrl
@@ -129,6 +131,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
         <View style={{width:110,borderRadius:55,overflow:'hidden'}}>
           {avatar
             ? <ProfileCropPreview image={avatar} ratio={RACIO_DO_AVATAR} x={avatarX} y={avatarY}
+                onDraggingChange={setAdjustingImage}
                 onChange={(x,y)=>{setAvatarX(x);setAvatarY(y);}}/>
             : <FriendAvatar avatarUrl={avatarUrl} name={name} size={110}/>}
         </View>
