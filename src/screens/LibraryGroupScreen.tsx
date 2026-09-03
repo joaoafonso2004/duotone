@@ -122,7 +122,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       },
       {
         icon: 'add-circle-outline' as const,
-        label: 'Adicionar à fila',
+        label: 'Add to queue',
         onPress: () => {
           addToQueue(actionTrack);
           setActionTrack(null);

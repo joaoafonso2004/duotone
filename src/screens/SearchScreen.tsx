@@ -278,7 +278,7 @@ export function SearchScreen() {
           },
           {
             icon: 'add-circle-outline',
-            label: 'Adicionar à fila',
+            label: 'Add to queue',
             onPress: () => {
               const t = actionTrack;
               setActionTrack(null);

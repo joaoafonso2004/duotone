@@ -76,7 +76,7 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
   };
 
   return (
-    <Screen title={route.params?.userId ? "Estatísticas de escuta" : "A tua escuta"} onBack={() => navigation.goBack()}>
+    <Screen title={route.params?.userId ? "Listening stats" : "Your listening"} onBack={() => navigation.goBack()}>
       <ScrollView
         contentContainerStyle={{
           paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl,

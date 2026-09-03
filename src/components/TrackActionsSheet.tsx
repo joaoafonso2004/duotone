@@ -97,7 +97,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
           : []),
         {
           icon: 'people-outline' as keyof typeof Ionicons.glyphMap,
-          label: 'Partilhar com amigo…',
+          label: 'Share with a friend…',
           onPress: handleShareFriend,
         },
       ]

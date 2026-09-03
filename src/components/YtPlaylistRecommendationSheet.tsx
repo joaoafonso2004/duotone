@@ -76,7 +76,7 @@ export function YtPlaylistRecommendationSheet({
         if (pts.length === 0) {
           throw new Error(
             name
-              ? 'A playlist partilhada está vazia.'
+              ? 'This shared playlist is empty.'
               : 'Sem acesso à playlist partilhada — corre a migração shared-playlists-read.sql no Supabase.'
           );
         }

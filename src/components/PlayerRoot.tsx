@@ -510,7 +510,7 @@ export function PlayerRoot() {
                 </Pressable>
                 <Text numberOfLines={1} style={styles.trackArtist}>
                   {downloadProgress != null
-                    ? `A descarregar… ${Math.round(downloadProgress * 100)}%`
+                    ? `Downloading… ${Math.round(downloadProgress * 100)}%`
                     : displayArtist(current)}
                 </Text>
               </View>
@@ -732,7 +732,7 @@ export function PlayerRoot() {
               </Text>
               <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
                 {downloadProgress != null
-                  ? `A descarregar… ${Math.round(downloadProgress * 100)}%`
+                  ? `Downloading… ${Math.round(downloadProgress * 100)}%`
                   : displayArtist(current)}
               </Text>
             </View>

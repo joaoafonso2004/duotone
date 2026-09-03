@@ -210,7 +210,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       },
       {
         icon: 'list-outline' as const,
-        label: 'Adicionar à fila',
+        label: 'Add to queue',
         onPress: () => {
           addToQueue(actionTrack);
           setActionTrack(null);

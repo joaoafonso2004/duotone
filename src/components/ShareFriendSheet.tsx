@@ -77,7 +77,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
           <View style={styles.handle} />
           
           <Text style={[typography.body, { fontWeight: '700', textAlign: 'center', marginBottom: spacing.md }]}>
-            Partilhar {itemType === 'track' ? 'Música' : 'Playlist'}
+            Share {itemType === 'track' ? 'track' : 'playlist'}
           </Text>
 
           {/* Comment input */}
