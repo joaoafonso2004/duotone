@@ -40,6 +40,7 @@ export const STATS_PERIODS: [StatsPeriod, string][] = [['30d', 'Last 30 days'], 
 
 export function StatsPage({ back, play, userId }: { userId?:string; back: () => void; play: (t: Track, q?: Track[]) => void }) {
   const theme = useTheme((s) => s.theme);
+  const ownId = useAuth(s => s.session?.user.id);
   const [period, setPeriod] = useState<StatsPeriod>('30d');
   const [result, setResult] = useState<StatsResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,7 +65,7 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
       <Text style={[styles.smallSegmentText, period === value && { color: desktop.text }]}>{label}</Text>
     </P>))}</View>;
 
-  return <Page title="Your listening" subtitle="How much you played, and what." action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}<Button secondary icon="arrow-back" onPress={back}>Profile</Button></View>}>
+  return <Page title={userId&&userId!==ownId?"Listening stats":"Your listening"} subtitle="How much you played, and what." action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}<Button secondary icon="arrow-back" onPress={back}>Profile</Button></View>}>
     <ContentScroll>
       {loading ? <View style={{ height: 320 }}><Loading /></View>
         : result?.unavailable ? <Empty icon="cloud-offline-outline" title="History unavailable" body="The database returned no history. Run supabase/listening-stats.sql in the SQL Editor." />

@@ -1,5 +1,5 @@
 import React,{useState} from 'react';
-import { Image,ScrollView,Text,TextInput,View } from 'react-native';
+import { Image,Platform,ScrollView,Text,TextInput,View,useWindowDimensions } from 'react-native';
 import * as Crypto from 'expo-crypto';
 import { appearanceOf,saveProfileAppearance,type SocialProfile } from '../api/profiles';
 import { pickProfileImage,prepareProfileImage,type SelectedProfileImage } from '../lib/profileImage';
@@ -10,7 +10,8 @@ import { FriendAvatar } from './FriendAvatar';
 import { ProfileCropPreview } from './ProfileCropPreview';
 import { useSocial } from '../state/social';
 import { SocialButton,SocialModal,socialStyles as s } from './socialUI';
-import { colors,spacing } from '../theme';
+import { spacing } from '../theme';
+import { colors,radii } from './socialTokens';
 
 /**
  * Editar o perfil: as duas imagens, o nome e a bio.
@@ -27,6 +28,8 @@ import { colors,spacing } from '../theme';
  * se poder escolher um novo.
  */
 export function ProfileEditor({profile,onClose,onSaved}:{profile:SocialProfile;onClose:()=>void;onSaved:()=>void}) {
+  const {width}=useWindowDimensions();
+  const wide=Platform.OS==='web'&&width>=850;
   const [value,setValue]=useState(()=>appearanceOf(profile));
   const [name,setName]=useState(profile.profile.name);
   const [username,setUsername]=useState(profile.profile.username || '');
@@ -92,14 +95,16 @@ export function ProfileEditor({profile,onClose,onSaved}:{profile:SocialProfile;o
     } finally {setStage('');}
   };
 
-  return <SocialModal visible title="Edit profile" onClose={()=>{if(!stage)onClose();}}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:20,gap:20}}>
+  return <SocialModal visible wide title="Edit profile" onClose={()=>{if(!stage)onClose();}}>
+    <ScrollView style={{flexShrink:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:24}}>
+      <View style={{flexDirection:wide?'row':'column',gap:32}}>
+      <View style={{flex:wide?1:undefined,minWidth:0,gap:16}}>
 
       <Text style={s.label}>Cover image</Text>
       {/* A moldura tem o racio com que a capa e gravada, e nada por cima que o
           possa quebrar. E por isso que o que esta aqui e o que aparece no
           perfil, em qualquer largura de janela. */}
-      <View style={{borderRadius:14,overflow:'hidden'}}>
+      <View style={{borderRadius:radii.lg,overflow:'hidden'}}>
         {cover
           ? <ProfileCropPreview image={cover} ratio={RACIO_DA_CAPA} x={coverX} y={coverY}
               onChange={(x,y)=>{setCoverX(x);setCoverY(y);}}/>
@@ -131,11 +136,14 @@ export function ProfileEditor({profile,onClose,onSaved}:{profile:SocialProfile;o
         </View>
       </View>
 
+      </View>
+      <View style={{flex:wide?1:undefined,minWidth:0,gap:12}}>
       <Text style={s.label}>Name</Text><TextInput accessibilityLabel="Display name" editable={!stage} value={name} onChangeText={setName} maxLength={40} style={s.input}/>
       <Text style={s.label}>Username</Text><TextInput accessibilityLabel="Username" autoComplete="off" textContentType="none" editable={!stage} autoCapitalize="none" autoCorrect={false} value={username} onChangeText={setUsername} maxLength={30} style={s.input}/>
       <Text style={s.label}>About you</Text><TextInput accessibilityLabel="Bio" editable={!stage} value={value.bio} onChangeText={bio=>setValue({...value,bio})} maxLength={180} multiline placeholder="A line about you or your music." placeholderTextColor={colors.textSecondary} style={[s.input,{minHeight:80}]}/>
       {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}
+      </View></View>
     </ScrollView>
-    <View style={[s.row,{padding:16,borderTopWidth:1,borderColor:colors.border,justifyContent:'flex-end'}]}><SocialButton quiet disabled={!!stage} onPress={onClose}>Cancel</SocialButton><SocialButton disabled={!!stage||name.trim().length<2} onPress={()=>void save()}>{stage || 'Save changes'}</SocialButton></View>
+    <View style={[s.row,{padding:16,borderTopWidth:1,borderColor:colors.border,justifyContent:'flex-end'}]}><SocialButton quiet disabled={!!stage} onPress={onClose}>Cancel</SocialButton><SocialButton primary disabled={!!stage||name.trim().length<2} onPress={()=>void save()}>{stage || 'Save changes'}</SocialButton></View>
   </SocialModal>;
 }

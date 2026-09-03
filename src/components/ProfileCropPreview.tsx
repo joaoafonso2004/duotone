@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { Image, PanResponder, Text, View } from 'react-native';
 import type { SelectedProfileImage } from '../lib/profileImage';
 import { arrastarFoco, imageCrop } from '../lib/profileImageCrop';
-import { colors, type } from '../theme';
+import { colors, type } from './socialTokens';
 
 /**
  * Mostra exatamente o recorte que vai ser gravado — e deixa arrastá-lo.

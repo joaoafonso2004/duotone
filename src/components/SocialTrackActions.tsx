@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import type { Track } from '../types';
@@ -10,7 +10,8 @@ import { ShareFriendSheet } from './ShareFriendSheet';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { SocialModal, socialStyles as s } from './socialUI';
 import { displayArtist } from '../lib/artistName';
-import { colors, radii, spacing, type } from '../theme';
+import { spacing } from '../theme';
+import { colors, radii, type } from './socialTokens';
 
 /**
  * O que se pode fazer a uma música vista no perfil de outra pessoa.
@@ -38,14 +39,14 @@ function Linha({ icone, cor, children, onPress, disabled }: {
       accessibilityRole="button"
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }: any) => [{
+      style={({ pressed, hovered, focused }: any) => [{
         flexDirection: 'row',
         alignItems: 'center',
         gap: spacing.md,
         paddingVertical: 13,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
-        backgroundColor: pressed ? colors.surfacePressed : 'transparent',
+        backgroundColor: pressed || hovered || focused ? colors.surfacePressed : 'transparent',
         opacity: disabled ? 0.4 : 1,
       }]}
     >
@@ -95,7 +96,7 @@ export function SocialTrackActions({ track, onClose, onArtist }: {
 
   return <>
     <SocialModal visible={!!track && !share && !playlist} title="Track actions" onClose={onClose}>
-      <View style={{ padding: spacing.lg, gap: spacing.sm }}>
+      <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}>
         {track && (
           <View style={[s.row, {
             paddingBottom: spacing.md,
@@ -131,7 +132,7 @@ export function SocialTrackActions({ track, onClose, onArtist }: {
         <Linha icone="share-social-outline" onPress={() => setShare(true)}>Share with friends or groups…</Linha>
 
         {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}
-      </View>
+      </ScrollView>
     </SocialModal>
     <ShareFriendSheet visible={share} itemType="track" item={track} onClose={() => { setShare(false); onClose(); }} />
     <AddToPlaylistSheet visible={playlist} track={track} onClose={() => { setPlaylist(false); onClose(); }} />
