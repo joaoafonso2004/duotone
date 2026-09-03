@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { confirmarArtistas } from './artistNames';
+import { confirmarArtistasEmSegundoPlano } from './artistNames';
 import type { Track } from '../types';
 
 function rowToTrack(row: any): Track {
@@ -155,7 +155,7 @@ async function getLikedSongsForUser(userId: string): Promise<Track[]> {
 /** Apenas as faixas que o utilizador guardou com o coracao. */
 export async function getLikedSongs(): Promise<Track[]> {
   const faixas = await getLikedSongsForUser(await currentUserId());
-  await confirmarArtistas(faixas);
+  confirmarArtistasEmSegundoPlano(faixas);
   return faixas;
 }
 
@@ -164,12 +164,15 @@ export async function getLibrary(): Promise<Track[]> {
 
   // A biblioteca alargada alimenta artistas e radio: gostos + conteudo de
   // playlists. A pagina Songs usa getLikedSongs para nao misturar os dois.
-  const likedTracks = await getLikedSongsForUser(userId);
-
-  const { data: plTracksData, error: plTracksError } = await supabase
-    .from('playlist_tracks')
-    .select('tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds), playlists!inner (owner_id)')
-    .eq('playlists.owner_id', userId);
+  // As duas consultas nao dependem uma da outra, por isso vao juntas. Em fila
+  // somavam-se as duas esperas, e esta e a primeira carga da pagina.
+  const [likedTracks, { data: plTracksData, error: plTracksError }] = await Promise.all([
+    getLikedSongsForUser(userId),
+    supabase
+      .from('playlist_tracks')
+      .select('tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds), playlists!inner (owner_id)')
+      .eq('playlists.owner_id', userId),
+  ]);
 
   if (plTracksError) throw plTracksError;
 
@@ -200,7 +203,7 @@ export async function getLibrary(): Promise<Track[]> {
   // com um vocabulario -- e a app chamava-o sem ele em 17 dos 19 sitios, o que
   // deixava essa maquinaria toda escrita e morta. A biblioteca e o unico sitio
   // por onde passam faixas que cheguem para aprender.
-  await confirmarArtistas(faixas);
+  confirmarArtistasEmSegundoPlano(faixas);
   return faixas;
 }
 

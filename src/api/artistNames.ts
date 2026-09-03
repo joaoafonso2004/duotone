@@ -4,6 +4,42 @@ import {
   ladosPorConfirmar, registarNomeDoCatalogo, type FaixaParaAprender,
 } from '../lib/artistName';
 
+/**
+ * O mesmo trabalho, mas sem prender a lista à espera da rede.
+ *
+ * **Porque é que isto existe.** O `getLibrary` e o `getLikedSongs` faziam
+ * `await confirmarArtistas(...)` antes de devolverem uma única faixa. Só que
+ * confirmar nomes vai ao catálogo -- três pedidos em paralelo, e a seguir um
+ * ciclo SEQUENCIAL com mais dois pedidos por cada par ambíguo. Resultado: as
+ * páginas Artists e Liked Songs ficavam com o ecrã vazio durante todo esse
+ * tempo, para mostrar faixas que já estavam em memória desde o primeiro
+ * pedido.
+ *
+ * A confirmação é um APERFEIÇOAMENTO do nome, não uma condição para o
+ * mostrar. O que é local -- e é o que o `displayArtist` mais usa -- acontece
+ * já, de graça; o que precisa de rede vai atrás e avisa quando aterrar.
+ */
+export function confirmarArtistasEmSegundoPlano(faixas: readonly FaixaParaAprender[]): void {
+  // Barato e sem rede: o vocabulário que sai da própria biblioteca.
+  aprenderComABiblioteca(faixas);
+  void confirmarArtistas(faixas)
+    .catch(() => { /* Sem rede fica o que se aprendeu localmente. */ })
+    .then(avisarQueOsNomesMudaram);
+}
+
+/**
+ * Diz às páginas que os nomes melhoraram, para voltarem a desenhar.
+ *
+ * Só na web: no iOS o `window` existe mas não tem `dispatchEvent`, e lá os
+ * nomes acertam-se na navegação seguinte.
+ */
+function avisarQueOsNomesMudaram(): void {
+  const alvo: any = typeof window !== 'undefined' ? window : null;
+  if (alvo && typeof alvo.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
+    alvo.dispatchEvent(new CustomEvent('duotone:artistas-confirmados'));
+  }
+}
+
 /** Aprende nomes antes de entregar a biblioteca aos ecrãs e às recomendações. */
 export async function confirmarArtistas(faixas: readonly FaixaParaAprender[]): Promise<void> {
   const vocabulario = aprenderVocabulario(faixas);

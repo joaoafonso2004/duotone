@@ -69,8 +69,16 @@ export function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
   useEffect(() => {
     void ler(false);
     const forcar = () => { void ler(true); };
+    // Os nomes dos artistas confirmam-se em segundo plano, depois da lista ja
+    // estar no ecra. Quando isso acontece basta voltar a desenhar -- referencia
+    // nova, mesmas faixas -- e nao ir outra vez ao servidor.
+    const redesenhar = () => setTracks((f) => (f.length ? [...f] : f));
     window.addEventListener('duotone:refresh-library', forcar);
-    return () => window.removeEventListener('duotone:refresh-library', forcar);
+    window.addEventListener('duotone:artistas-confirmados', redesenhar);
+    return () => {
+      window.removeEventListener('duotone:refresh-library', forcar);
+      window.removeEventListener('duotone:artistas-confirmados', redesenhar);
+    };
   }, [ler]);
 
   return { tracks, loading, error, refresh };
