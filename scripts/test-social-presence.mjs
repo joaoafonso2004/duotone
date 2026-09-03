@@ -56,9 +56,15 @@ assert.equal(state.current.id,'d');assert.equal(volumes.at(-1),64);assert.equal(
 // Arrastar move a IMAGEM e nao a moldura: puxar para a direita traz para a
 // vista o que estava a esquerda. Dai o foco andar ao contrario do dedo.
 const {arrastarFoco,RACIO_DA_CAPA}=carregar('../src/lib/profileImageCrop.ts');
-// Uma imagem 2000x1000 recortada a 8/3 da 2000x750: sobram 250px na vertical.
-const c=imageCrop(2000,1000,RACIO_DA_CAPA,0.5,0.5);
-assert.equal(c.width,2000);assert.equal(c.height,750);
+// Uma imagem quadrada recortada ao racio da capa fica com a largura toda e
+// sobra na vertical. Os numeros saem do RACIO_DA_CAPA e nao escritos a mao:
+// estavam presos ao 8/3 e o teste partiu-se assim que a capa mudou de forma.
+const c=imageCrop(2000,2000,RACIO_DA_CAPA,0.5,0.5);
+assert.equal(c.width,2000,'fica com a largura toda');
+assert.equal(c.height,Math.floor(2000/RACIO_DA_CAPA),'a altura sai do racio');
+assert.ok(Math.abs(c.width/c.height-RACIO_DA_CAPA)<0.01,'o recorte respeita o racio');
+// E o recorte nunca sai de dentro da imagem.
+assert.ok(c.originX>=0&&c.originY>=0&&c.originX+c.width<=2000&&c.originY+c.height<=2000);
 // Metade do espaco livre, a escala 1, e meio caminho do foco.
 assert.equal(arrastarFoco(0.5,-125,1,250),1);
 assert.equal(arrastarFoco(0.5,125,1,250),0);
@@ -86,21 +92,32 @@ const {ProfileCropPreview}=carregar('../src/components/ProfileCropPreview.tsx',{
   if(name.endsWith('socialTokens'))return {colors:{},type:{}};
   throw new Error(name);
 }});
-ProfileCropPreview({image:{uri:'teste',width:2000,height:1000},ratio:RACIO_DA_CAPA,
+// Quadrada de proposito: garante folga na vertical seja qual for o racio da
+// capa. Com 2000x1000 e um racio de 3:2 nao sobrava nada para arrastar, e o
+// teste passava a afirmar o contrario do que quer dizer.
+ProfileCropPreview({image:{uri:'teste',width:2000,height:2000},ratio:RACIO_DA_CAPA,
   onChange:(x,y)=>positions.push([x,y]),onDraggingChange:locked=>locks.push(locked)});
 assert.equal(responder.onStartShouldSetPanResponderCapture(),true);
 responder.onPanResponderGrant();
 assert.equal(locks.at(-1),true,'suspende o scroll assim que se agarra a imagem');
 assert.equal(responder.onPanResponderTerminationRequest(),false,'recusa entregar o gesto ao scroll');
 responder.onPanResponderMove(null,{dx:0,dy:-25});
-assert.deepEqual(positions.at(-1),[0.5,1],'o arrasto vertical ajusta o recorte à escala do ecrã');
+// O que interessa e a direcao, nao um valor exacto preso a um racio: puxar
+// para cima traz para a vista o que estava por baixo, e o eixo x nao mexe.
+assert.equal(positions.at(-1)[0],0.5,'o arrasto vertical nao mexe no eixo horizontal');
+assert.ok(positions.at(-1)[1]>0.5,'o arrasto vertical ajusta o recorte à escala do ecrã');
+assert.ok(positions.at(-1)[1]<=1,'e nunca sai do limite');
 responder.onPanResponderRelease();
 assert.deepEqual(locks,[true,false]);
 responder.onPanResponderGrant();responder.onPanResponderTerminate();
 assert.equal(locks.at(-1),false,'uma interrupção também desbloqueia');
 responder.onPanResponderGrant();cleanup();
 assert.equal(locks.at(-1),false,'remover a imagem durante o gesto não prende o editor');
-const noCrop=ProfileCropPreview({image:{uri:'teste',width:1600,height:600},ratio:RACIO_DA_CAPA,onChange:()=>{}});
+// Uma imagem que ja vem exactamente no racio da capa nao tem nada a ajustar
+// em nenhum dos eixos. As medidas saem do racio: estavam 1600x600, que so era
+// "sem margem" enquanto a capa foi 8:3.
+const semMargem={uri:'teste',width:1500,height:Math.round(1500/RACIO_DA_CAPA)};
+const noCrop=ProfileCropPreview({image:semMargem,ratio:RACIO_DA_CAPA,onChange:()=>{}});
 assert.equal(noCrop.props.onPanResponderGrant,undefined,'uma imagem sem margem para ajustar deixa passar o scroll');
 const {fundirAjustes,MAX_FAIXAS}=carregar('../src/lib/equalizer.ts');
 const aj=(visto,rate,ganho)=>({rate,ganhos:ganho===null?null:[ganho,0,0,0,0,0,0,0,0,0],visto});

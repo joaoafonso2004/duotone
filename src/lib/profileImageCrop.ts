@@ -1,13 +1,23 @@
 /**
  * As formas das imagens do perfil, e o recorte que as produz.
  *
- * O envio e a moldura do editor partilham o mesmo rácio. O perfil apresenta
- * a capa inteira atrás da identidade, com extensão desfocada e vinheta;
- * a altura do cabeçalho nunca obriga a ampliar e cortar de novo a imagem.
+ * O envio, a moldura do editor E o cabeçalho do perfil partilham o mesmo
+ * rácio. Isto não é detalhe: se o cabeçalho mostrar noutra forma, corta a
+ * imagem uma segunda vez por cima do recorte, e o resultado é uma ampliação
+ * enorme de uma fatia — foi o que aconteceu com uma foto vertical enquanto a
+ * capa foi 8:3 e o cabeçalho a mostrava mais alta.
  */
 
-/** A capa: larga e baixa. Gravada em 1600×600. */
-export const RACIO_DA_CAPA = 8 / 3;
+/**
+ * A capa. Era 8:3 — tão panorâmica que num telemóvel dava uma tira de 146px
+ * e obrigava o cabeçalho a cortá-la outra vez para ela se ver. A 3:2 cabe
+ * inteira num cabeçalho com altura decente (390 de largura dão 260) e o
+ * telemóvel deixa de precisar de segundo corte.
+ */
+export const RACIO_DA_CAPA = 3 / 2;
+
+/** Largura com que a capa é gravada; a altura sai do rácio. */
+export const LARGURA_DA_CAPA = 1600;
 
 /** A fotografia de perfil: quadrada, porque aparece dentro de um círculo. */
 export const RACIO_DO_AVATAR = 1;

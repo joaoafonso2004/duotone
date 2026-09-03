@@ -1,5 +1,5 @@
 import type { ProfileMediaKind } from './profileMedia';
-import { imageCrop, RACIO_DA_CAPA, RACIO_DO_AVATAR } from './profileImageCrop';
+import { imageCrop, LARGURA_DA_CAPA, RACIO_DA_CAPA, RACIO_DO_AVATAR } from './profileImageCrop';
 
 export interface SelectedProfileImage { uri:string; width:number; height:number }
 export async function pickProfileImage():Promise<SelectedProfileImage|null> {
@@ -21,7 +21,7 @@ function loadImage(uri:string):Promise<HTMLImageElement> {
 export async function prepareProfileImage(image:SelectedProfileImage,kind:ProfileMediaKind,y=0.5,x=0.5):Promise<ArrayBuffer> {
   const img=await loadImage(image.uri);
   const crop=imageCrop(image.width,image.height,kind==='avatar'?RACIO_DO_AVATAR:RACIO_DA_CAPA,x,y);
-  const canvas=document.createElement('canvas');canvas.width=kind==='avatar'?512:1600;canvas.height=kind==='avatar'?512:600;
+  const canvas=document.createElement('canvas');canvas.width=kind==='avatar'?512:LARGURA_DA_CAPA;canvas.height=kind==='avatar'?512:Math.round(LARGURA_DA_CAPA/RACIO_DA_CAPA);
   const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Could not prepare the image.');
   ctx.fillStyle='#191920';ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(img,crop.originX,crop.originY,crop.width,crop.height,0,0,canvas.width,canvas.height);

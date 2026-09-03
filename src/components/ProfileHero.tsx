@@ -6,6 +6,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
 import {FriendAvatar} from './FriendAvatar';
 import {SocialButton,socialStyles as s} from './socialUI';
+import {RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {colors,SOCIAL_GUTTER,type} from './socialTokens';
 
 type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:number;status?:string;
@@ -38,8 +39,12 @@ export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,on
       {web?<Image source={{uri:cover}} resizeMode="cover" style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>:
       <View style={[StyleSheet.absoluteFill,{justifyContent:'flex-start',alignItems:'center'}]}>
         {/* Encostada ao topo, não centrada: assim começa por trás do título em
-            vez de flutuar a meio, e a vinheta é que a acaba por baixo. */}
-        <View style={{width:'100%',height:300}}>
+            vez de flutuar a meio, e a vinheta é que a acaba por baixo.
+            O rácio é O MESMO do recorte, e tem de continuar a ser: com uma
+            forma diferente aqui, o cabeçalho corta a imagem uma segunda vez
+            por cima do recorte e uma foto vertical acaba ampliada até só se
+            ver um ombro. */}
+        <View style={{width:'100%',aspectRatio:RACIO_DA_CAPA}}>
           <Image source={{uri:cover}} resizeMode="cover" style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>
           <LinearGradient colors={['transparent','transparent',colors.bg]} locations={[0,0.55,1]} style={StyleSheet.absoluteFill}/>
         </View>
