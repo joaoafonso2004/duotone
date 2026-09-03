@@ -4,7 +4,6 @@ import {Ionicons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
-import {RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {FriendAvatar} from './FriendAvatar';
 import {SocialButton,socialStyles as s} from './socialUI';
 import {colors,SOCIAL_GUTTER,type} from './socialTokens';
@@ -24,18 +23,22 @@ export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,on
   </Pressable>;
   return <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?320:430,overflow:'hidden',backgroundColor:colors.bg}}>
     {!!cover&&<View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* O recorte é 8:3, muito panorâmico: a 390px de largura dava uma faixa
-          de 146px, com escuro em cima e em baixo. No telemóvel a caixa passa a
-          2:1 e a capa preenche-a — perde-se cerca de um quarto dos lados, que
-          é o preço de ela se ver. No PC não há aperto nenhum, por isso lá
-          continua inteira. */}
+      {/* O recorte é 8:3, muito panorâmico.
+          No telemóvel a caixa é 2:1 e a capa preenche-a: perde-se cerca de um
+          quarto dos lados, que é o preço de ela se ver.
+          No PC não há caixa nenhuma — a capa preenche o cabeçalho de ponta a
+          ponta. Havia aqui um `aspectRatio` com `maxHeight`, e num ecrã largo
+          isso limitava a altura aos 320 do cabeçalho e a largura a 320×2,67:
+          a capa ficava uma faixa de 853px solta ao meio do painel, com
+          arestas duras dos dois lados. Um cabeçalho não tem margens. */}
       <Image source={{uri:cover}} resizeMode="cover" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
+      {web?<Image source={{uri:cover}} resizeMode="cover" style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>:
       <View style={[StyleSheet.absoluteFill,{justifyContent:'center',alignItems:'center'}]}>
-        <View style={{width:'100%',aspectRatio:web?RACIO_DA_CAPA:2,maxHeight:'100%'}}>
-          <Image source={{uri:cover}} resizeMode={web?"contain":"cover"} style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>
+        <View style={{width:'100%',aspectRatio:2,maxHeight:'100%'}}>
+          <Image source={{uri:cover}} resizeMode="cover" style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>
           <LinearGradient colors={[colors.bg,'transparent','transparent',colors.bg]} locations={[0,0.24,0.7,1]} style={StyleSheet.absoluteFill}/>
         </View>
-      </View>
+      </View>}
       <LinearGradient colors={['rgba(10,10,15,0.2)','rgba(10,10,15,0.08)','rgba(10,10,15,0.65)',colors.bg]} locations={[0,0.32,0.8,1]} style={StyleSheet.absoluteFill}/>
       <LinearGradient colors={['rgba(10,10,15,0.45)','transparent','rgba(10,10,15,0.45)']} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
     </View>}
