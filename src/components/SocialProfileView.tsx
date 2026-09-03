@@ -17,13 +17,20 @@ import { SocialTrackActions } from './SocialTrackActions';
 import { SocialButton,socialStyles as s } from './socialUI';
 import type { Track } from '../types';
 import type { Playlist } from '../types';
-import { listPlaylists } from '../api/playlists';
+import {
+  copiasGuardadas, listPlaylists, listProfilePlaylists,
+  savePlaylistCopy, setPlaylistVisibility, unsavePlaylistCopy,
+} from '../api/playlists';
 
 export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,onSocial,onPlaylist}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void}) {
   const myId=useAuth(x=>x.session?.user.id),own=userId===myId;
   const [profile,setProfile]=useState<SocialProfile|null>(null),[most,setMost]=useState<ProfileTrack[]>([]),[recent,setRecent]=useState<ProfileTrack[]>([]);
   const [error,setError]=useState(''),[loading,setLoading]=useState(true),[editing,setEditing]=useState(false),[track,setTrack]=useState<Track|null>(null);
   const [playlists,setPlaylists]=useState<Playlist[]>([]);
+  // De que playlists dos outros ja tenho copia. Pergunta-se UMA vez em vez de
+  // uma por linha, senao uma lista de dez faz dez idas ao servidor.
+  const [guardadas,setGuardadas]=useState<Set<string>>(new Set());
+  const [ocupada,setOcupada]=useState<string|null>(null);
   // As duas listas chegam com 20 entradas cada. Mostradas por inteiro sao
   // quarenta linhas de scroll antes de se chegar ao fim do perfil, num ecra
   // de telemovel. Abrem quando se pedem.
@@ -37,11 +44,42 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
     setError('');setLoading(true);
     try {
       const p=await getSocialProfile(userId);if(id!==request.current)return;setProfile(p);
-      const [m,r,l]=await Promise.all([p.canView?getSocialProfileTracks(userId):[],p.canView?getSocialProfileTracks(userId,true):[],own?listPlaylists():[]]);
-      if(id!==request.current)return;setMost(m);setRecent(r);setPlaylists(l);
+      // No meu perfil vejo as minhas todas (para poder escolher quais mostro);
+      // no de outra pessoa so as que ela marcou. As copias que ja tenho vem
+      // junto, para o botao saber em que estado esta.
+      const [m,r,l,c]=await Promise.all([
+        p.canView?getSocialProfileTracks(userId):[],
+        p.canView?getSocialProfileTracks(userId,true):[],
+        own?listPlaylists():(p.canView?listProfilePlaylists(userId):[]),
+        own?Promise.resolve(new Set<string>()):copiasGuardadas(),
+      ]);
+      if(id!==request.current)return;setMost(m);setRecent(r);setPlaylists(l);setGuardadas(c);
     }catch(e:any){if(id===request.current)setError(e.message || 'Could not open this profile.');}finally{if(id===request.current)setLoading(false);}
   },[userId,own]);
-  useEffect(()=>{setProfile(null);setMost([]);setRecent([]);setPlaylists([]);void load();return()=>{request.current++;};},[load,friend?.status]);
+  useEffect(()=>{setProfile(null);setMost([]);setRecent([]);setPlaylists([]);setGuardadas(new Set());void load();return()=>{request.current++;};},[load,friend?.status]);
+  /** Guardar (ou largar) a playlist de outra pessoa. Fica uma copia minha. */
+  const alternarCopia=async(pl:Playlist)=>{
+    if(ocupada) return;
+    setOcupada(pl.id);setError('');
+    const tinha=guardadas.has(pl.id);
+    try {
+      if(tinha) await unsavePlaylistCopy(pl.id); else await savePlaylistCopy(pl.id);
+      setGuardadas(g=>{const n=new Set(g);if(tinha)n.delete(pl.id);else n.add(pl.id);return n;});
+    } catch(e:any){ setError(e?.message || 'Could not update your playlists.'); }
+    finally { setOcupada(null); }
+  };
+
+  /** Mostrar ou esconder uma playlist minha no perfil. */
+  const alternarVisibilidade=async(pl:Playlist)=>{
+    if(ocupada) return;
+    setOcupada(pl.id);setError('');
+    const passaA=!pl.visibleOnProfile;
+    try {
+      await setPlaylistVisibility(pl.id,passaA);
+      setPlaylists(l=>l.map(x=>x.id===pl.id?{...x,visibleOnProfile:passaA}:x));
+    } catch(e:any){ setError(e?.message || 'Could not change that.'); }
+    finally { setOcupada(null); }
+  };
   const row=(entry:ProfileTrack,index:number,recentes=false)=><View key={`${entry.source}:${entry.sourceId}`} style={[s.row,{paddingVertical:10,borderBottomWidth:1,borderColor:colors.border}]}>
     {!recentes&&<Text style={[s.muted,{width:20}]}>{index+1}</Text>}
     <Pressable accessibilityRole="button" onPress={()=>void usePlayer.getState().playTrack(entry,recentes?recent:most)} style={[s.row,{flex:1}]}>
@@ -108,10 +146,41 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
           {recent.length>5&&!tudoRecente&&<SocialButton quiet onPress={()=>setTudoRecente(true)}>Show all {recent.length}</SocialButton>}
           {tudoRecente&&recent.length>0&&recent.length%20===0&&<SocialButton quiet onPress={()=>{void getSocialProfileTracks(userId,true,recent.length).then(r=>setRecent([...recent,...r])).catch(e=>setError(e.message));}}>Show more</SocialButton>}
         </View>
-        {own&&onPlaylist&&<View style={{gap:2}}>
-          <Text style={s.label}>Your playlists</Text>
-          {playlists.length?playlists.map(p=><Pressable key={p.id} style={[s.row,{paddingVertical:10,borderBottomWidth:1,borderColor:colors.border}]} onPress={()=>onPlaylist(p.id)}><Ionicons name="albums-outline" size={24} color={colors.accent}/><Text style={[s.text,{flex:1}]}>{p.name}</Text><Text style={s.muted}>{p.trackCount} tracks</Text></Pressable>):<Text style={s.muted}>Playlists you create show up here.</Text>}
-        </View>}
+        {/* No MEU perfil a lista e das minhas todas, e o botao da direita diz se
+            cada uma esta a ser mostrada aos amigos -- comecam todas escondidas.
+            No perfil de OUTRA pessoa a lista e so das que ela mostra, e o botao
+            guarda uma copia (ou apaga a que ja tinha). */}
+        <View style={{gap:2}}>
+          <Text style={s.label}>{own?'Your playlists':'Playlists'}</Text>
+          {playlists.length?playlists.map(pl=>{
+            const marcada=own?!!pl.visibleOnProfile:guardadas.has(pl.id);
+            const aTrabalhar=ocupada===pl.id;
+            return <View key={pl.id} style={[s.row,{paddingVertical:10,borderBottomWidth:1,borderColor:colors.border}]}>
+              <Pressable style={[s.row,{flex:1,minWidth:0}]} disabled={!onPlaylist} onPress={()=>onPlaylist?.(pl.id)}>
+                <Ionicons name="albums-outline" size={24} color={colors.accent}/>
+                <View style={{flex:1,minWidth:0}}>
+                  <Text numberOfLines={1} style={s.text}>{pl.name}</Text>
+                  <Text style={s.muted}>{pl.trackCount} {pl.trackCount===1?'track':'tracks'}</Text>
+                </View>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{checked:marcada}}
+                accessibilityLabel={own
+                  ?(marcada?`Hide ${pl.name} from your profile`:`Show ${pl.name} on your profile`)
+                  :(marcada?`Remove your copy of ${pl.name}`:`Save ${pl.name}`)}
+                hitSlop={10}
+                disabled={aTrabalhar}
+                onPress={()=>void (own?alternarVisibilidade(pl):alternarCopia(pl))}
+                style={{opacity:aTrabalhar?0.4:1,paddingHorizontal:6}}>
+                <Ionicons
+                  name={own?(marcada?'eye':'eye-off-outline'):(marcada?'checkmark-circle':'add-circle-outline')}
+                  size={24}
+                  color={marcada?colors.accent:colors.textSecondary}/>
+              </Pressable>
+            </View>;
+          }):<Text style={s.muted}>{own?'Playlists you create show up here.':'Nothing shown here yet.'}</Text>}
+        </View>
       </>}
     </>}
   </ScrollView>{editing&&profile&&<ProfileEditor profile={profile} onClose={()=>setEditing(false)} onSaved={()=>{void load();void useSocial.getState().refresh();}}/>}<SocialTrackActions track={track} onClose={()=>setTrack(null)} onArtist={onArtist}/></View>;

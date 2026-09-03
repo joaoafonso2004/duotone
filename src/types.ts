@@ -22,6 +22,10 @@ export interface Playlist {
   trackCount: number;
   /** até 4 artworks para a colagem */
   artworks: string[];
+  /** Aparece no perfil para os amigos? Falso por omissão. */
+  visibleOnProfile?: boolean;
+  /** De que playlist é cópia, quando foi guardada de outra pessoa. */
+  copiedFrom?: string | null;
 }
 
 export interface PlaylistTrack extends Track {

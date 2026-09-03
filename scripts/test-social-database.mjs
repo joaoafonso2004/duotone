@@ -25,6 +25,8 @@ alter table friendships add column if not exists requester_id uuid;
 grant all on all tables in schema public to authenticated;
 create policy "diagnóstico: perfis públicos" on profiles for select to authenticated using(true);`);
 for(let i=0;i<2;i++)for(const f of ['social-presence.sql','social-profiles.sql','profile-media.sql'])await db.exec(ler(f));
+// Depois do social-presence: e ele que cria o social_can_view, de que este depende.
+await db.exec(ler('profile-playlists.sql'));
 await q(`insert into auth.users(id,email,raw_user_meta_data) values ($1,'um@example.test','{"name":"Um"}'),($2,'dois@example.test','{"name":"Dois"}'),($3,'tres@example.test','{"name":"Tres"}')`,[uid(1),uid(2),uid(3)]);
 await como(1);
 await q(`insert into friendships(user_id_1,user_id_2,status,requester_id) values($1,$2,'pending',$1)`,[uid(1),uid(2)]);
@@ -138,5 +140,57 @@ assert.equal((await q('select * from user_track_adjustments')).rows.length,2);
 await db.exec('reset role');await db.exec(ler('track-adjustments.sql'));await como(1);
 assert.equal((await q('select * from user_track_adjustments')).rows.length,2,'a segunda aplicacao nao pode apagar o que la esta');
 await q('delete from user_track_adjustments');
-console.log('SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos, grupos, ajustes por faixa e Storage passaram.');
+// ---------------------------------------------------------------------------
+// Playlists no perfil: privadas por omissao, visiveis so quando se marca.
+//
+// Ate aqui uma playlist de outra pessoa so era legivel se tivesse sido
+// mandada numa conversa. Agora ha um interruptor por playlist -- e o que
+// importa provar e que ele comeca DESLIGADO e que ligar so abre a porta a
+// amigos, nao a toda a gente.
+// O uid(1) e o uid(2) sao amigos aceites; o uid(3) nao e amigo de ninguem.
+// A amizade e reposta aqui porque um teste acima apaga-as todas, e sem ela
+// o social_can_view diz que nao a toda a gente -- o que faria este bloco
+// passar pelas razoes erradas.
+await db.exec('reset role');
+await q(`insert into friendships(user_id_1,user_id_2,status,requester_id) values($1,$2,'accepted',$1)
+  on conflict (user_id_1,user_id_2) do update set status='accepted'`,[uid(1),uid(2)]);
+await como(1);
+const pl=(await q(`insert into playlists(owner_id,name) values($1,'So minha') returning id, visible_on_profile`,[uid(1)])).rows[0];
+assert.equal(pl.visible_on_profile,false,'uma playlist nova nasce privada');
+await q(`insert into tracks(id,source,source_id,title,artist,duration_seconds) values($1,'youtube','plx','Faixa','Artista',200) on conflict do nothing`,[uid(20)]);
+await q(`insert into playlist_tracks(playlist_id,track_id,position) values($1,$2,0)`,[pl.id,uid(20)]);
+
+// Enquanto esta privada, nem o amigo a ve.
+await como(2);
+assert.equal((await q('select * from playlists where id=$1',[pl.id])).rows.length,0);
+assert.equal((await q('select * from playlist_tracks where playlist_id=$1',[pl.id])).rows.length,0);
+
+// O dono liga o interruptor.
+await como(1);
+await q('update playlists set visible_on_profile=true where id=$1',[pl.id]);
+
+// O amigo passa a ver a playlist E as faixas dela.
+await como(2);
+assert.equal((await q('select * from playlists where id=$1',[pl.id])).rows.length,1);
+assert.equal((await q('select * from playlist_tracks where playlist_id=$1',[pl.id])).rows.length,1);
+// Mas ver nao e mexer: continua a ser do dono.
+await assert.rejects(q(`update playlists set name='Roubada' where id=$1 returning id`,[pl.id]).then(r=>{if(!r.rows.length)throw new Error('row-level security');return r;}),/row-level security/);
+
+// Quem nao e amigo nao ve, marcada ou nao.
+await como(3);
+assert.equal((await q('select * from playlists where id=$1',[pl.id])).rows.length,0);
+assert.equal((await q('select * from playlist_tracks where playlist_id=$1',[pl.id])).rows.length,0);
+
+// A copia e do amigo, e sabe de onde veio.
+await como(2);
+const copia=(await q(`insert into playlists(owner_id,name,copied_from) values($1,'So minha (Shared)',$2) returning id`,[uid(2),pl.id])).rows[0];
+assert.equal((await q('select copied_from from playlists where id=$1',[copia.id])).rows[0].copied_from,pl.id);
+// Se o dono original apagar a dele, a copia FICA -- e minha. Perde so a ligacao.
+await como(1);await q('delete from playlists where id=$1',[pl.id]);
+await como(2);
+const sobrou=(await q('select copied_from from playlists where id=$1',[copia.id])).rows;
+assert.equal(sobrou.length,1,'a copia nao pode desaparecer com o original');
+assert.equal(sobrou[0].copied_from,null);
+await q('delete from playlists where id=$1',[copia.id]);
+console.log('SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos, grupos, ajustes por faixa, playlists no perfil e Storage passaram.');
 }finally{await db.close();}

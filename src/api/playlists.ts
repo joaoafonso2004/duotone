@@ -12,7 +12,7 @@ export async function listPlaylists(): Promise<Playlist[]> {
   const userId = await currentUserId();
   const { data, error } = await supabase
     .from('playlists')
-    .select('id, name, created_at, playlist_tracks (position, tracks (artwork_url))')
+    .select('id, name, created_at, visible_on_profile, copied_from, playlist_tracks (position, tracks (artwork_url))')
     .eq('owner_id', userId)
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -30,8 +30,97 @@ export async function listPlaylists(): Promise<Playlist[]> {
         .map((pt) => pt.tracks?.artwork_url)
         .filter(Boolean)
         .slice(0, 4),
+      visibleOnProfile: !!row.visible_on_profile,
+      copiedFrom: row.copied_from ?? null,
     };
   });
+}
+
+/**
+ * Mostrar (ou esconder) uma playlist no perfil.
+ *
+ * Começam todas escondidas. A política que deixa um amigo ler só se aplica às
+ * que estiverem marcadas -- ver supabase/profile-playlists.sql.
+ */
+export async function setPlaylistVisibility(id: string, visible: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('playlists')
+    .update({ visible_on_profile: visible })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+/**
+ * As playlists que alguém mostra no perfil.
+ *
+ * Não é preciso filtrar por "são amigos" aqui: a política de leitura já o faz,
+ * e uma consulta que devolva zero linhas é exatamente a resposta certa para
+ * quem não pode ver.
+ */
+export async function listProfilePlaylists(userId: string): Promise<Playlist[]> {
+  const { data, error } = await supabase
+    .from('playlists')
+    .select('id, name, created_at, playlist_tracks (position, tracks (artwork_url))')
+    .eq('owner_id', userId)
+    .eq('visible_on_profile', true)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => {
+    const pts: any[] = [...(row.playlist_tracks ?? [])].sort((a, b) => a.position - b.position);
+    return {
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      trackCount: pts.length,
+      artworks: pts.map((pt) => pt.tracks?.artwork_url).filter(Boolean).slice(0, 4),
+      visibleOnProfile: true,
+      copiedFrom: null,
+    };
+  });
+}
+
+/**
+ * De que playlists dos outros é que eu já tenho cópia.
+ *
+ * É isto que deixa o botão saber em que estado está sem perguntar uma vez por
+ * cada playlist da lista.
+ */
+export async function copiasGuardadas(): Promise<Set<string>> {
+  const userId = await currentUserId();
+  const { data, error } = await supabase
+    .from('playlists')
+    .select('copied_from')
+    .eq('owner_id', userId)
+    .not('copied_from', 'is', null);
+  if (error) return new Set();
+  return new Set((data ?? []).map((r: any) => r.copied_from as string));
+}
+
+/**
+ * Guardar a playlist de outra pessoa: fica uma cópia MINHA.
+ *
+ * É uma cópia e não uma ligação viva: passa a ser tua, podes editá-la, e não
+ * muda quando o dono mexe na dele. O `copied_from` fica gravado só para o
+ * botão saber que já a tens -- e para o clique seguinte saber o que apagar.
+ */
+export async function savePlaylistCopy(sourceId: string): Promise<string> {
+  const novaId = await importSharedPlaylist(sourceId);
+  // Se isto falhar, a cópia existe na mesma e só não se sabe de onde veio: o
+  // botão volta a dizer "guardar", que é melhor do que perder a playlist.
+  await supabase.from('playlists').update({ copied_from: sourceId }).eq('id', novaId);
+  return novaId;
+}
+
+/** Tirar a marca: apaga a cópia que se tinha feito desta playlist. */
+export async function unsavePlaylistCopy(sourceId: string): Promise<void> {
+  const userId = await currentUserId();
+  const { error } = await supabase
+    .from('playlists')
+    .delete()
+    .eq('owner_id', userId)
+    .eq('copied_from', sourceId);
+  if (error) throw error;
 }
 
 export async function createPlaylist(name: string): Promise<Playlist> {
