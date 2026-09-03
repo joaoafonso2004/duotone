@@ -82,9 +82,9 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
       {tab==='add'?<>
         <Text style={s.title}>Encontra a tua companhia musical</Text><Text style={s.muted}>Pesquisa pelo nome ou username.</Text>
         <TextInput accessibilityLabel="Search people" value={query} onChangeText={setQuery} style={s.input} placeholder="Name or username" placeholderTextColor={colors.textSecondary} autoCapitalize="none"/>
-        {results.map(p=><View key={p.id} style={[s.card,s.row]}><Pressable onPress={()=>onProfile(p.id)}><FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={44}/></Pressable><View style={{flex:1}}><Text style={s.text}>{p.name}</Text><Text style={s.muted}>@{p.username}</Text></View><SocialButton disabled={busy||social.friends.some(f=>f.friendId===p.id)} onPress={()=>void run(()=>sendFriendRequest(p.id))}>{social.friends.some(f=>f.friendId===p.id)?'Adicionado':'Add'}</SocialButton></View>)}
+        {results.map(p=><View key={p.id} style={[s.card,s.row]}><Pressable onPress={()=>onProfile(p.id)}><FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={44}/></Pressable><View style={{flex:1}}><Text style={s.text}>{p.name}</Text><Text style={s.muted}>@{p.username}</Text></View><SocialButton disabled={busy||social.friends.some(f=>f.friendId===p.id)} onPress={()=>void run(()=>sendFriendRequest(p.id))}>{social.friends.some(f=>f.friendId===p.id)?'Added':'Add'}</SocialButton></View>)}
       </>:<>
-        {pending.length>0&&<Text style={s.label}>Pedidos de amizade</Text>}
+        {pending.length>0&&<Text style={s.label}>Friend requests</Text>}
         {pending.map(f=><View key={f.friendId} style={s.card}><View style={s.row}><FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={40}/><View style={{flex:1}}><Text style={s.text}>{f.name}</Text><Text style={s.muted}>{f.isSender?'Request sent':'Wants to be your friend'}</Text></View></View><View style={s.row}>{!f.isSender&&<SocialButton disabled={busy} onPress={()=>void run(()=>acceptFriendRequest(f.friendId))}>Accept</SocialButton>}<SocialButton quiet disabled={busy} onPress={()=>void run(()=>declineOrRemoveFriendship(f.friendId))}>{f.isSender?'Cancel request':'Decline'}</SocialButton></View></View>)}
         <View style={[s.row,{justifyContent:'space-between'}]}><Text style={s.label}>Groups</Text><SocialButton quiet onPress={()=>{setGroupEditor('new');setMembers([]);setGroupName('');}}>+ New group</SocialButton></View>
         {social.groups.map(g=><Pressable key={g.id} style={[s.card,s.row]} onPress={()=>open('group',g.id)}><Ionicons name="people" size={28} color={colors.accent}/><View style={{flex:1}}><Text style={s.text}>{g.name}</Text><Text numberOfLines={1} style={s.muted}>{g.membros.map(m=>m.name).join(', ')}</Text></View>{!!unread.get(`group:${g.id}`)&&<Text style={s.badge}>{unread.get(`group:${g.id}`)}</Text>}</Pressable>)}
@@ -103,21 +103,46 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
     </ScrollView>
     <SocialModal visible={!!conversation&&visible&&!track&&!groupEditor&&!confirm} title={title} onClose={()=>useSocial.setState({conversation:null})}>
       <View style={{height:480,flexShrink:1,padding:16,gap:12}}>
-        {friend&&<Pressable accessibilityLabel={`View ${friend.name}`} style={s.row} onPress={()=>onProfile(friend.friendId)}><FriendAvatar avatarUrl={friend.avatarUrl} name={friend.name} size={40}/><View style={{flex:1}}><Text style={s.text}>{friend.name} · Ver perfil</Text><Text style={s.muted}>{friend.online?'● Online now':ultimaAtividade(friend.lastSeenAt,social.now)}</Text>{friend.currentlyPlaying&&<Text numberOfLines={1} style={s.muted}>♫ {friend.currentlyPlaying.title}</Text>}</View></Pressable>}
+        {friend&&<Pressable accessibilityLabel={`View ${friend.name}`} style={s.row} onPress={()=>onProfile(friend.friendId)}><FriendAvatar avatarUrl={friend.avatarUrl} name={friend.name} size={40}/><View style={{flex:1}}><Text style={s.text}>{friend.name} · View profile</Text><Text style={s.muted}>{friend.online?'● Online now':ultimaAtividade(friend.lastSeenAt,social.now)}</Text>{friend.currentlyPlaying&&<Text numberOfLines={1} style={s.muted}>♫ {friend.currentlyPlaying.title}</Text>}</View></Pressable>}
         {group&&<View style={s.row}><SocialButton quiet onPress={()=>{setMembers([]);setGroupEditor(group.id);}}>Add people</SocialButton><SocialButton quiet onPress={()=>setConfirm({id:group.id,group:true})}>Leave group</SocialButton></View>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={colors.accent}/>}
-        <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Mensagens anteriores'}</SocialButton>:null} data={[...messages].reverse()} keyExtractor={m=>m.id} contentContainerStyle={{gap:12,paddingVertical:10}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m})=><View style={{alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%',backgroundColor:m.sender.id===myId?colors.surfaceHigh:colors.surface,padding:12,borderRadius:15,gap:8}}>
+        <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={[...messages].reverse()} keyExtractor={m=>m.id} contentContainerStyle={{gap:12,paddingVertical:10}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m})=><View style={{alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%',backgroundColor:m.sender.id===myId?colors.surfaceHigh:colors.surface,padding:12,borderRadius:15,gap:8}}>
           {m.sender.id!==myId&&<Pressable onPress={()=>onProfile(m.sender.id)} style={s.row}><FriendAvatar avatarUrl={m.sender.avatarUrl} name={m.sender.name} size={22}/><Text style={s.muted}>{m.sender.name}</Text></Pressable>}
           {!!m.message&&<Text selectable style={s.text}>{m.message}</Text>}
           {m.trackData&&<Pressable style={s.row} onPress={()=>setTrack(m.trackData)}>{m.trackData.artworkUrl&&<Image source={{uri:m.trackData.artworkUrl}} style={{width:44,height:44,borderRadius:8}}/>}<Text numberOfLines={2} style={[s.text,{flexShrink:1}]}>♫ {m.trackData.title}</Text></Pressable>}
           {m.playlistId&&<SocialButton quiet onPress={()=>onPlaylist(m.playlistId!)}>Open playlist</SocialButton>}
           <Text style={[s.muted,{fontSize:10}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
         </View>}/>
-        <View style={s.row}><TextInput accessibilityLabel="Mensagem" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}/><SocialButton disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>
+        <View style={s.row}><TextInput accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}/><SocialButton disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>
       </View>
     </SocialModal>
     <SocialModal visible={!!confirm} title={confirm?.conversa?'Delete conversation?':confirm?.group?'Leave group?':'Remove friend?'} onClose={()=>setConfirm(null)}><View style={{padding:20,gap:12}}><Text style={s.muted}>{confirm?.conversa?'The messages are deleted for good, on both sides. This cannot be undone.':'Earlier messages stay saved.'}</Text><SocialButton disabled={busy} onPress={()=>void run(async()=>{if(!confirm)return;if(confirm.conversa)await apagarConversa(confirm.id);else if(confirm.group)await sairDoGrupo(confirm.id);else await declineOrRemoveFriendship(confirm.id);setConfirm(null);useSocial.setState({conversation:null});})}>{confirm?.conversa?'Delete':'Confirm'}</SocialButton><SocialButton quiet onPress={()=>setConfirm(null)}>Cancel</SocialButton></View></SocialModal>
-    <SocialModal visible={!!groupEditor} title={groupEditor==='new'?'New group':'Add people'} onClose={()=>setGroupEditor(null)}><ScrollView contentContainerStyle={{padding:20,gap:12}}>{groupEditor==='new'&&<TextInput accessibilityLabel="Group name" value={groupName} onChangeText={setGroupName} placeholder="Group name" placeholderTextColor={colors.textSecondary} style={s.input}/>}{accepted.filter(f=>groupEditor==='new'||!social.groups.find(g=>g.id===groupEditor)?.membros.some(m=>m.id===f.friendId)).map(f=><SocialButton key={f.friendId} onPress={()=>setMembers(m=>m.includes(f.friendId)?m.filter(id=>id!==f.friendId):[...m,f.friendId])}>{members.includes(f.friendId)?'✓ ':''}{f.name}</SocialButton>)}<SocialButton disabled={busy||!members.length||(groupEditor==='new'&&!groupName.trim())} onPress={()=>void run(async()=>{if(groupEditor==='new')await criarGrupo(groupName,members);else if(groupEditor)await acrescentarAoGrupo(groupEditor,members);setGroupEditor(null);})}>Save</SocialButton>{!!error&&<Text style={s.error}>{error}</Text>}</ScrollView></SocialModal>
+    {/* O mesmo cartao com avatar, nome e @username que a lista de amigos usa.
+        Estava aqui uma coluna de botoes centrados com um visto colado ao nome
+        -- que nao mostrava quem era a pessoa, nao dizia quantos iam escolhidos,
+        e nao se parecia com nada no resto da app. */}
+    <SocialModal visible={!!groupEditor} title={groupEditor==='new'?'New group':'Add people'} onClose={()=>setGroupEditor(null)}>
+      <ScrollView contentContainerStyle={{padding:20,gap:12}} keyboardShouldPersistTaps="handled">
+        {groupEditor==='new'&&<TextInput accessibilityLabel="Group name" value={groupName} onChangeText={setGroupName} placeholder="Group name" placeholderTextColor={colors.textSecondary} style={s.input}/>}
+        {(() => {
+          const escolhiveis=accepted.filter(f=>groupEditor==='new'||!social.groups.find(g=>g.id===groupEditor)?.membros.some(m=>m.id===f.friendId));
+          if(!escolhiveis.length)return <Text style={s.muted}>{groupEditor==='new'?'Add a friend before you can start a group.':'Everyone you know is already in this group.'}</Text>;
+          return <>
+            <Text style={s.label}>{members.length?`Selected · ${members.length}`:'Choose who goes in'}</Text>
+            {escolhiveis.map(f=>{
+              const escolhido=members.includes(f.friendId);
+              return <Pressable key={f.friendId} accessibilityRole="checkbox" accessibilityState={{checked:escolhido}} style={[s.card,s.row]} onPress={()=>setMembers(m=>m.includes(f.friendId)?m.filter(id=>id!==f.friendId):[...m,f.friendId])}>
+                <FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={40}/>
+                <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.text}>{f.name}</Text><Text numberOfLines={1} style={s.muted}>@{f.username}</Text></View>
+                <Ionicons name={escolhido?'checkmark-circle':'ellipse-outline'} size={24} color={escolhido?colors.accent:colors.textSecondary}/>
+              </Pressable>;
+            })}
+          </>;
+        })()}
+        <SocialButton disabled={busy||!members.length||(groupEditor==='new'&&!groupName.trim())} onPress={()=>void run(async()=>{if(groupEditor==='new')await criarGrupo(groupName,members);else if(groupEditor)await acrescentarAoGrupo(groupEditor,members);setGroupEditor(null);})}>{groupEditor==='new'?'Create group':'Add to group'}</SocialButton>
+        {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
+      </ScrollView>
+    </SocialModal>
     <SocialTrackActions track={track} onClose={()=>setTrack(null)} onArtist={onArtist}/>
   </View>;
 }

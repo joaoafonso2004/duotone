@@ -50,7 +50,7 @@ export async function sendFriendRequest(targetUserId: string): Promise<void> {
   const currentUid = await currentUserId();
 
   if (targetUserId === currentUid) {
-    throw new Error('Não se pode adicionar a si próprio.');
+    throw new Error('You cannot add yourself.');
   }
 
   // Garantir a ordem dos IDs na amizade (user_id_1 < user_id_2)
@@ -68,7 +68,7 @@ export async function sendFriendRequest(targetUserId: string): Promise<void> {
 
   if (insError) {
     if(insError.code==='23505')return;
-    throw new Error('Não foi possível enviar o pedido. Tenta novamente.');
+    throw new Error('Could not send the request. Try again.');
   }
 }
 
@@ -129,8 +129,8 @@ export async function acceptFriendRequest(friendId: string): Promise<void> {
     .eq('user_id_1', user_id_1)
     .eq('user_id_2', user_id_2).eq('status','pending').eq('requester_id',friendId).select('status');
 
-  if (error) throw new Error('Não foi possível aceitar o pedido.');
-  if(!data?.length){const {data:existing}=await supabase.from('friendships').select('status').eq('user_id_1',user_id_1).eq('user_id_2',user_id_2).maybeSingle();if(existing?.status!=='accepted')throw new Error('Este pedido já não está disponível. Atualiza os amigos.');}
+  if (error) throw new Error('Could not accept the request.');
+  if(!data?.length){const {data:existing}=await supabase.from('friendships').select('status').eq('user_id_1',user_id_1).eq('user_id_2',user_id_2).maybeSingle();if(existing?.status!=='accepted')throw new Error('This request is no longer available. Refresh your friends.');}
 }
 
 export async function declineOrRemoveFriendship(friendId: string): Promise<void> {
@@ -144,7 +144,7 @@ export async function declineOrRemoveFriendship(friendId: string): Promise<void>
     .eq('user_id_1', user_id_1)
     .eq('user_id_2', user_id_2);
 
-  if (error) throw new Error('Não foi possível remover a amizade.');
+  if (error) throw new Error('Could not remove this friend.');
 }
 
 /**
@@ -186,8 +186,8 @@ export async function shareItem(
   const { error } = await supabase.from('shared_items').insert(linhas);
   if (error) {
     throw new Error(destinatarios.length > 1
-      ? 'Não foi possível partilhar com todos.'
-      : 'Não foi possível partilhar o item.');
+      ? 'Could not share with everyone.'
+      : 'Could not share this item.');
   }
 }
 
@@ -248,7 +248,7 @@ export async function archiveInboxItem(itemId: string): Promise<void> {
     .select('id');
   if (error || !data || data.length === 0) {
     throw new Error(
-      'Não foi possível remover da caixa de entrada. (Já correste a migração supabase/inbox-archive.sql?)'
+      'Could not remove this from your inbox. (Have you run the supabase/inbox-archive.sql migration?)'
     );
   }
 }
@@ -295,7 +295,7 @@ export interface FriendProfile {
 
 export async function getFriendProfile(friendId: string): Promise<FriendProfile> {
   const data = (await getPublicProfiles([friendId]))[0];
-  if (!data) throw new Error('Perfil não encontrado');
+  if (!data) throw new Error('Profile not found.');
   return { id:data.id, name:data.name || 'Sem nome', username:data.username || '', avatarUrl:data.avatar_url, lastSeenAt:null };
 
 }
@@ -330,20 +330,34 @@ export interface ChatGroup {
  * Quem cria entra sempre: um grupo sem o dono e um grupo que ele nao consegue
  * ver, porque a politica de leitura pede que se seja membro.
  */
+/**
+ * Junta a causa real à mensagem, quando o servidor a dá.
+ *
+ * Deitar fora o erro do Postgres foi o que fez a criação de grupos falhar
+ * às escuras: a app dizia "não foi possível" e o servidor tinha dito
+ * "new row violates row-level security policy", que é a resposta inteira.
+ */
+function detalhe(mensagem: string, erro: { message?: string } | null): string {
+  return erro?.message ? mensagem + ' (' + erro.message + ')' : mensagem;
+}
+
 export async function criarGrupo(
   nome: string,
   membros: readonly string[],
 ): Promise<string> {
   const currentUid = await currentUserId();
   const limpo = nome.trim();
-  if (!limpo) throw new Error('O grupo precisa de um nome.');
+  if (!limpo) throw new Error('The group needs a name.');
 
   const { data, error } = await supabase
     .from('chat_groups')
     .insert({ name: limpo, created_by: currentUid })
     .select('id')
     .single();
-  if (error || !data) throw new Error('Não foi possível criar o grupo.');
+  // O erro do Postgres diz o que se passou -- a politica que barrou, a
+  // coluna que falta. Sem ele fica-se com um "nao foi possivel" seco e a
+  // adivinhar, que foi exatamente o que aconteceu aqui uma vez.
+  if (error || !data) throw new Error(detalhe('Could not create the group.', error));
 
   const todos = Array.from(new Set([currentUid, ...membros].filter(Boolean)));
   const { error: erroMembros } = await supabase
@@ -353,7 +367,7 @@ export async function criarGrupo(
   if (erroMembros) {
     // Um grupo sem membros nao serve para nada e ficava la a ocupar espaco.
     await supabase.from('chat_groups').delete().eq('id', data.id);
-    throw new Error('Não foi possível adicionar os membros.');
+    throw new Error(detalhe('Could not add the members.', erroMembros));
   }
   return data.id as string;
 }
@@ -428,7 +442,7 @@ export async function shareComGrupo(
   else payload.track_data = item;
 
   const { error } = await supabase.from('shared_items').insert(payload);
-  if (error) throw new Error('Não foi possível enviar para o grupo.');
+  if (error) throw new Error('Could not send to this group.');
 }
 
 /** Sair de um grupo. Sair e sempre direito de cada um. */
@@ -439,7 +453,7 @@ export async function sairDoGrupo(groupId: string): Promise<void> {
     .delete()
     .eq('group_id', groupId)
     .eq('user_id', currentUid);
-  if (error) throw new Error('Não foi possível sair do grupo.');
+  if (error) throw new Error('Could not leave this group.');
 }
 
 /** Acrescenta pessoas a um grupo onde ja estas. */
@@ -454,7 +468,7 @@ export async function acrescentarAoGrupo(
     // Quem ja la esta nao pode dar erro: a chave e (grupo, pessoa).
     .upsert(novos.map((id) => ({ group_id: groupId, user_id: id })),
       { onConflict: 'group_id,user_id', ignoreDuplicates: true });
-  if (error) throw new Error('Não foi possível adicionar ao grupo.');
+  if (error) throw new Error('Could not add people to this group.');
 }
 
 /**
@@ -476,5 +490,5 @@ export async function apagarConversa(friendId: string): Promise<void> {
     .delete()
     .is('group_id', null)
     .or(`and(sender_id.eq.${currentUid},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${currentUid})`);
-  if (error) throw new Error('Não foi possível apagar a conversa.');
+  if (error) throw new Error('Could not delete this conversation.');
 }

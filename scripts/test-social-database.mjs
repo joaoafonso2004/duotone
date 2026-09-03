@@ -86,5 +86,26 @@ assert.equal((await q('select * from get_social_messages($1)',[uid(1)])).rows.le
 assert.equal((await q('select * from social_presence')).rows.length,0);
 assert.equal((await q('select * from storage.objects')).rows.length,1);
 await assert.rejects(q('select * from get_social_profile_plays($1)',[uid(1)]),/Perfil privado/);
-console.log('SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos e Storage passaram.');
+// ---------------------------------------------------------------------------
+// Grupos: criar um grupo e pôr lá gente.
+//
+// Porque e que isto existe: a politica de leitura da chat_groups foi escrita
+// como "so ve quem e membro". So que quem CRIA o grupo ainda nao e membro de
+// nada -- e o cliente faz `insert ... returning id`, que precisa de ler a
+// linha nova. Resultado: o Postgres recusava a insercao inteira e a app dizia
+// "nao foi possivel criar o grupo" sem dizer porque. Isto prende a correcao.
+await como(1);
+const grupo=(await q(`insert into chat_groups(name,created_by) values($1,$2) returning id`,['Os do costume',uid(1)])).rows[0];
+assert.ok(grupo?.id,'quem cria o grupo tem de conseguir ler a linha que acabou de criar');
+await q(`insert into chat_group_members(group_id,user_id) values($1,$2),($1,$3)`,[grupo.id,uid(1),uid(2)]);
+assert.equal((await q('select * from chat_group_members')).rows.length,2);
+// Quem esta dentro le a conversa; quem nao esta nao a ve sequer.
+await q(`insert into shared_items(sender_id,group_id,item_type,message) values($1,$2,'track','ouve isto')`,[uid(1),grupo.id]);
+await como(2);assert.equal((await q('select * from shared_items where group_id is not null')).rows.length,1);
+await como(3);assert.equal((await q('select * from shared_items where group_id is not null')).rows.length,0);
+// E quem esta de fora nao consegue escrever no grupo dos outros.
+await assert.rejects(q(`insert into shared_items(sender_id,group_id,item_type,message) values($1,$2,'track','intruso')`,[uid(3),grupo.id]),/row-level security/);
+await como(1);await q('delete from shared_items where group_id is not null');await q('delete from chat_group_members');await q('delete from chat_groups');
+
+console.log('SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos, grupos e Storage passaram.');
 }finally{await db.close();}

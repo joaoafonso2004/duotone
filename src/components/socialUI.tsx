@@ -51,7 +51,11 @@ export const socialStyles = StyleSheet.create({
     borderColor: colors.borderStrong,
     borderRadius: radii.md,
     padding: 13,
-  },
+    // O mesmo que o `Field` do desktop faz. Sem isto o browser desenha o anel
+    // de foco dele por cima -- laranja, e so nestes menus, porque em todos os
+    // outros campos da app o anel ja estava desligado.
+    outlineStyle: 'none',
+  } as any,
   error: { ...type.caption, color: colors.danger, lineHeight: 19 },
   badge: { ...type.caption, fontSize: 12, fontWeight: '700', color: colors.text },
 });
