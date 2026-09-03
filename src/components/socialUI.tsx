@@ -66,8 +66,8 @@ export function SocialTabs({ value, onChange }: { value: 'friends' | 'add'; onCh
 }
 
 /** Diálogo no Windows, folha no iOS; a conversa móvel ocupa o ecrã inteiro. */
-export function SocialModal({ visible, title, onClose, children, wide = false, fullScreen = false }: {
-  visible: boolean; title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; fullScreen?: boolean;
+export function SocialModal({ visible, title, onClose, children, wide = false, fullScreen = false, header }: {
+  visible: boolean; title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; fullScreen?: boolean; header?: React.ReactNode;
 }) {
   const safe = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -76,11 +76,11 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
       style={{ flex: 1, backgroundColor: fullScreen ? colors.bg : colors.overlay, justifyContent: web ? 'center' : 'flex-end', alignItems: 'center', paddingTop: safe.top + (fullScreen ? 0 : 12), paddingBottom: web ? 12 : 0, paddingHorizontal: web ? 24 : 0 }}>
       <View style={{ width: '100%', maxWidth: web ? (wide ? 940 : 680) : undefined, flex: fullScreen ? 1 : undefined, maxHeight: fullScreen ? undefined : web ? height - 24 : height - safe.top - 12, backgroundColor: web || fullScreen ? colors.bg : colors.surfaceHigh, borderColor: colors.borderStrong, borderWidth: web ? 1 : 0, borderRadius: fullScreen ? 0 : radii.xl, borderBottomLeftRadius: web ? radii.xl : 0, borderBottomRightRadius: web ? radii.xl : 0, paddingBottom: web ? 0 : safe.bottom, overflow: 'hidden' }}>
         {!web && !fullScreen && <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong, alignSelf: 'center', marginTop: 8 }}/>}
-        <View style={[socialStyles.row, { paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.border }]}>
+        {header ?? <View style={[socialStyles.row, { paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.border }]}>
           {fullScreen && <SocialIconButton label="Back to chats" icon="chevron-back" onPress={onClose}/>}
           <Text numberOfLines={1} style={[socialStyles.title, { flex: 1, fontSize: 19 }]}>{title}</Text>
           {!fullScreen && <SocialIconButton label="Close" icon="close" onPress={onClose}/>}
-        </View>
+        </View>}
         {children}
       </View>
     </KeyboardAvoidingView>

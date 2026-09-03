@@ -15,6 +15,7 @@ import { useSocialBottomPadding } from './useSocialBottomPadding';
 import { useTheme } from '../state/theme';
 import { SocialButton,SocialModal,SocialIconButton,SocialTabs,socialStyles as s } from './socialUI';
 import { SocialTrackActions } from './SocialTrackActions';
+import { GroupAvatar,GroupChatHeader,GroupComposer,GroupDetails,GroupEmptyState,GroupMessage } from './GroupChat';
 import type { Track } from '../types';
 
 export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string}) {
@@ -30,17 +31,23 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const [older,setOlder]=useState(false),[hasOlder,setHasOlder]=useState(false);
   const [track,setTrack]=useState<Track|null>(null),[confirm,setConfirm]=useState<{id:string;group:boolean;conversa?:boolean}|null>(null);
   const [groupEditor,setGroupEditor]=useState<string|null>(null),[groupName,setGroupName]=useState(''),[members,setMembers]=useState<string[]>([]);
+  const [groupDetails,setGroupDetails]=useState<string|null>(null);
   const conversation=social.conversation;
   const contact=conversation?.kind==='friend'?social.contacts.find(c=>c.id===conversation.id):null;
   const friend=conversation?.kind==='friend'?social.friends.find(f=>f.friendId===conversation.id) || (contact?{friendId:contact.id,name:contact.name,avatarUrl:contact.avatar_url,online:false,lastSeenAt:null,currentlyPlaying:null}:null):null;
   const group=conversation?.kind==='group'?social.groups.find(g=>g.id===conversation.id):null;
+  const detailedGroup=social.groups.find(g=>g.id===groupDetails);
   const key=conversation?(conversation.kind==='group'?`group:${conversation.id}`:conversation.id):'';
   const draft=social.drafts[key] || '';
   const unread=naoLidasPorAmigo(social.received,social.seen);
+  const ordered=[...messages].reverse();
+  /** Mensagens seguidas da mesma pessoa, dentro de cinco minutos, ficam sem o cabeçalho repetido. */
+  const seguida=(m:SharedItem,index:number)=>{const antes=ordered[index+1];return !!antes&&antes.sender.id===m.sender.id&&new Date(m.createdAt).getTime()-new Date(antes.createdAt).getTime()<300000;};
   const setDraft=(text:string)=>useSocial.setState(x=>({drafts:{...x.drafts,[key]:text}}));
   const open=(kind:'friend'|'group',id:string)=>useSocial.setState({conversation:{kind,id}});
   const run=async(action:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await action();await social.refresh();}catch(e:any){setError(e.message || 'That did not go through.');}finally{setBusy(false);}};
   useEffect(()=>{if(initialFriend)open('friend',initialFriend);else if(initialGroup)open('group',initialGroup);},[initialFriend,initialGroup]);
+  useEffect(()=>{setGroupDetails(null);},[key]);
   useEffect(()=>{
     let active=true;
     if(query.trim().length<2){setResults([]);return;}
@@ -95,7 +102,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         {pending.length>0&&<Text style={s.label}>Friend requests</Text>}
         {pending.map(f=><View key={f.friendId} style={s.card}><View style={s.row}><FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={40}/><View style={{flex:1}}><Text style={s.text}>{f.name}</Text><Text style={s.muted}>{f.isSender?'Request sent':'Wants to be your friend'}</Text></View></View><View style={s.row}>{!f.isSender&&<SocialButton primary disabled={busy} onPress={()=>void run(()=>acceptFriendRequest(f.friendId))}>Accept</SocialButton>}<SocialButton quiet disabled={busy} onPress={()=>void run(()=>declineOrRemoveFriendship(f.friendId))}>{f.isSender?'Cancel request':'Decline'}</SocialButton></View></View>)}
         <View style={[s.row,{justifyContent:'space-between'}]}><Text style={s.label}>Groups</Text><SocialButton quiet onPress={()=>{setGroupEditor('new');setMembers([]);setGroupName('');}}>+ New group</SocialButton></View>
-        {social.groups.map(g=><Pressable key={g.id} accessibilityRole="button" accessibilityState={{selected:conversation?.kind==='group'&&conversation.id===g.id}} style={({pressed,hovered}:any)=>[s.listRow,{borderRadius:8,paddingHorizontal:8},(pressed||hovered||conversation?.id===g.id)&&{backgroundColor:colors.surface}]} onPress={()=>open('group',g.id)}><Ionicons name="people" size={28} color={accent}/><View style={{flex:1}}><Text numberOfLines={1} style={s.text}>{g.name}</Text><Text numberOfLines={1} style={s.muted}>{g.membros.map(m=>m.name).join(', ')}</Text></View>{!!unread.get(`group:${g.id}`)&&<Text style={s.badge}>{unread.get(`group:${g.id}`)}</Text>}</Pressable>)}
+        {social.groups.map(g=><Pressable key={g.id} accessibilityRole="button" accessibilityState={{selected:conversation?.kind==='group'&&conversation.id===g.id}} style={({pressed,hovered}:any)=>[s.listRow,{borderRadius:8,paddingHorizontal:8},(pressed||hovered||conversation?.id===g.id)&&{backgroundColor:colors.surface}]} onPress={()=>open('group',g.id)}><GroupAvatar group={g}/><View style={{flex:1,minWidth:0,gap:3}}><Text numberOfLines={1} style={[s.text,{fontWeight:'600'}]}>{g.name}</Text><Text numberOfLines={1} style={s.muted}>{g.membros.length} members · {g.membros.map(m=>m.id===myId?'You':m.name).join(', ')}</Text></View>{!!unread.get(`group:${g.id}`)&&<View style={{minWidth:22,padding:4,borderRadius:12,backgroundColor:colors.surfaceHigh}}><Text style={[s.badge,{textAlign:'center'}]}>{unread.get(`group:${g.id}`)}</Text></View>}</Pressable>)}
         <Text style={s.label}>Friends · {accepted.length}</Text>
         {!accepted.length&&!social.loading&&<View style={s.card}><Text style={s.title}>Music is better with company</Text><Text style={s.muted}>Add a friend to share music and start a conversation.</Text><SocialButton onPress={()=>setTab('add')}>Add friend</SocialButton></View>}
         {accepted.map(f=><View key={f.friendId} style={[s.listRow,{borderRadius:8,paddingHorizontal:8},conversation?.kind==='friend'&&conversation.id===f.friendId&&{backgroundColor:colors.surface}]}>
@@ -110,20 +117,24 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
       </>}
     </ScrollView>
   </View>;
-  const chat=<View style={{flex:1,minHeight:0,padding:web?24:16,gap:12}}>
-        {web&&<View style={s.row}><Text numberOfLines={1} style={[s.title,{flex:1}]}>{title}</Text><SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/></View>}
+  const groupHeader=group?<GroupChatHeader group={group} split={split} onBack={closeChat} onDetails={()=>setGroupDetails(group.id)}/>:undefined;
+  const chat=<View style={{flex:1,minHeight:0}}>
+      {web&&groupHeader}
+      <View style={{flex:1,minHeight:0,padding:web?24:16,gap:12}}>
+        {web&&!group&&<View style={s.row}><Text numberOfLines={1} style={[s.title,{flex:1}]}>{title}</Text><SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/></View>}
         {friend&&<Pressable accessibilityLabel={`View ${friend.name}`} style={s.row} onPress={()=>onProfile(friend.friendId)}><FriendAvatar avatarUrl={friend.avatarUrl} name={friend.name} size={40}/><View style={{flex:1}}><Text numberOfLines={1} style={s.text}>{friend.name} · View profile</Text><Text style={s.muted}>{friend.online?'● Online now':ultimaAtividade(friend.lastSeenAt,social.now)}</Text>{friend.currentlyPlaying&&<Text numberOfLines={1} style={s.muted}>♫ {friend.currentlyPlaying.title}</Text>}</View></Pressable>}
-        {group&&<View style={s.row}><SocialButton quiet onPress={()=>{setMembers([]);setGroupEditor(group.id);}}>Add people</SocialButton><SocialButton quiet onPress={()=>setConfirm({id:group.id,group:true})}>Leave group</SocialButton></View>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={accent}/>}
-        <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={[...messages].reverse()} keyExtractor={m=>m.id} contentContainerStyle={{gap:12,paddingVertical:10}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m})=><View style={{alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%',backgroundColor:m.sender.id===myId?colors.surfaceHigh:colors.bg,padding:12,borderRadius:15,gap:8}}>
+        {group&&!chatLoading&&!messages.length&&!error?<View style={{flex:1,justifyContent:'center'}}><GroupEmptyState group={group}/></View>:
+        <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{gap:group?6:12,paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>group?<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>:<View style={{alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%',backgroundColor:m.sender.id===myId?colors.surfaceHigh:colors.bg,padding:12,borderRadius:15,gap:8}}>
           {m.sender.id!==myId&&<Pressable onPress={()=>onProfile(m.sender.id)} style={s.row}><FriendAvatar avatarUrl={m.sender.avatarUrl} name={m.sender.name} size={22}/><Text style={s.muted}>{m.sender.name}</Text></Pressable>}
           {!!m.message&&<Text selectable style={s.text}>{m.message}</Text>}
           {m.trackData&&<Pressable style={s.row} onPress={()=>setTrack(m.trackData)}>{m.trackData.artworkUrl&&<Image source={{uri:m.trackData.artworkUrl}} style={{width:44,height:44,borderRadius:8}}/>}<Text numberOfLines={2} style={[s.text,{flexShrink:1}]}>♫ {m.trackData.title}</Text></Pressable>}
           {m.playlistId&&<SocialButton quiet onPress={()=>onPlaylist(m.playlistId!)}>Open playlist</SocialButton>}
           <Text style={[s.muted,{fontSize:11}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
-        </View>}/>
-        <View style={s.row}><TextInput accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}/><SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>
-      </View>;
+        </View>}/>}
+        {group?<GroupComposer value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:
+          <View style={s.row}><TextInput accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}/><SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>}
+      </View></View>;
 
   return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>
     <View style={{flex:1,minHeight:0,flexDirection:split?'row':'column',paddingHorizontal:web?SOCIAL_GUTTER:24,gap:split?24:0,paddingBottom:web?24:0}}>
@@ -132,7 +143,13 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         {conversation?chat:<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:24,gap:12}}><Ionicons name="chatbubbles-outline" size={36} color={colors.textSecondary}/><Text style={s.title}>Your conversations</Text><Text style={[s.muted,{textAlign:'center'}]}>Choose a friend or group to open a conversation.</Text></View>}
       </View>}
     </View>
-    {!web&&<SocialModal fullScreen visible={!!conversation&&visible&&!track&&!groupEditor&&!confirm} title={title} onClose={closeChat}>{chat}</SocialModal>}
+    {!web&&<SocialModal fullScreen visible={!!conversation&&visible&&!track&&!groupEditor&&!confirm&&!detailedGroup} title={title} header={groupHeader} onClose={closeChat}>{chat}</SocialModal>}
+
+    <SocialModal visible={!!detailedGroup&&visible} title="Group details" onClose={()=>setGroupDetails(null)}>
+      {detailedGroup&&<GroupDetails group={detailedGroup} myId={myId} onProfile={id=>{setGroupDetails(null);onProfile(id);}}
+        onAdd={()=>{setMembers([]);setError('');setGroupEditor(detailedGroup.id);setGroupDetails(null);}}
+        onLeave={()=>{setError('');setConfirm({id:detailedGroup.id,group:true});setGroupDetails(null);}}/>}
+    </SocialModal>
 
     <SocialModal visible={!!confirm} title={confirm?.conversa?'Delete conversation?':confirm?.group?'Leave group?':'Remove friend?'} onClose={()=>setConfirm(null)}><View style={{padding:20,gap:12}}><Text style={s.muted}>{confirm?.conversa?'The messages are deleted for good, on both sides. This cannot be undone.':'Earlier messages stay saved.'}</Text><SocialButton danger disabled={busy} onPress={()=>void run(async()=>{if(!confirm)return;if(confirm.conversa)await apagarConversa(confirm.id);else if(confirm.group)await sairDoGrupo(confirm.id);else await declineOrRemoveFriendship(confirm.id);setConfirm(null);useSocial.setState({conversation:null});})}>{confirm?.conversa?'Delete':'Confirm'}</SocialButton><SocialButton quiet onPress={()=>setConfirm(null)}>Cancel</SocialButton></View></SocialModal>
     {/* O mesmo cartao com avatar, nome e @username que a lista de amigos usa.
@@ -141,7 +158,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         e nao se parecia com nada no resto da app. */}
     <SocialModal visible={!!groupEditor} title={groupEditor==='new'?'New group':'Add people'} onClose={()=>setGroupEditor(null)}>
       <ScrollView style={{flexShrink:1}} contentContainerStyle={{padding:20,gap:12}} keyboardShouldPersistTaps="handled">
-        {groupEditor==='new'&&<TextInput accessibilityLabel="Group name" value={groupName} onChangeText={setGroupName} placeholder="Group name" placeholderTextColor={colors.textSecondary} style={s.input}/>}
+        {groupEditor==='new'&&<TextInput accessibilityLabel="Group name" value={groupName} onChangeText={setGroupName} maxLength={60} placeholder="Group name" placeholderTextColor={colors.textSecondary} style={s.input}/>}
         {(() => {
           const escolhiveis=accepted.filter(f=>groupEditor==='new'||!social.groups.find(g=>g.id===groupEditor)?.membros.some(m=>m.id===f.friendId));
           if(!escolhiveis.length)return <Text style={s.muted}>{groupEditor==='new'?'Add a friend before you can start a group.':'Everyone you know is already in this group.'}</Text>;
