@@ -16,6 +16,7 @@ import {
   setPlaybackRate as persistPlaybackRate,
   setAjustesPorFaixa as persistAjustes,
 } from '../lib/prefs';
+import { guardarAjusteRemoto } from '../api/ajustes';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
 import {
   replayMountedSource,
@@ -313,14 +314,20 @@ async function aplicarEqNoMotor(ganhos: number[]): Promise<void> {
 function lembrarDaFaixa(): void {
   const { current, playbackRate, eqGanhos, ajustesPorFaixa } = usePlayer.getState();
   if (!current) return;
+  const chave = chaveDaFaixa(current);
   const nova = guardarAjuste(
     ajustesPorFaixa,
-    chaveDaFaixa(current),
+    chave,
     { rate: playbackRate, ganhos: eqGanhos },
     Date.now(),
   );
   usePlayer.setState({ ajustesPorFaixa: nova });
   persistAjustes(nova).catch(() => {});
+  // E tambem no servidor, para o outro aparelho o ver. O local e que manda
+  // no arranque -- isto e a segunda copia, e falha em silencio.
+  // `nova[chave]` vem indefinido quando se voltou tudo ao normal, e nesse
+  // caso o remoto tem de APAGAR a linha, nao ficar com a antiga.
+  void guardarAjusteRemoto(chave, nova[chave] ?? null);
 }
 
 /** Guarda contra duas idas à rede do rádio em simultâneo. */

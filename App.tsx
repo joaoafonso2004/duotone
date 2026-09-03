@@ -15,6 +15,7 @@ import {
   getPlaybackRate,
   getEqGanhos,
   getAjustesPorFaixa,
+  setAjustesPorFaixa,
   getVolumeNormalization,
   loadPrefsCache,
 } from './src/lib/prefs';
@@ -29,6 +30,8 @@ import {
 } from './src/lib/youtubeCache';
 import { registerBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { useAuth } from './src/state/auth';
+import { lerAjustesRemotos } from './src/api/ajustes';
+import { fundirAjustes } from './src/lib/equalizer';
 import { usePlayer } from './src/state/player';
 import { useTheme } from './src/state/theme';
 import { useRecomendacoes } from './src/state/recomendacoes';
@@ -100,6 +103,18 @@ export default function App() {
       // grafo do EQ so existe quando ha um video, e isso e tratado no
       // playTrack.
       player._carregarAjustes(ajustes, eqGanhos, playbackRate);
+      // O que este aparelho sabe entra JA, sem esperar pela rede. O que o
+      // servidor sabe chega a seguir e funde-se por cima: por faixa, ganha o
+      // ajuste mexido mais recentemente. Ate aqui as duas memorias viviam
+      // separadas e o equalizador do PC nao chegava ao telemovel.
+      void lerAjustesRemotos()
+        .then((remoto) => {
+          if (!Object.keys(remoto).length) return;
+          const juntos = fundirAjustes(usePlayer.getState().ajustesPorFaixa, remoto);
+          usePlayer.setState({ ajustesPorFaixa: juntos });
+          return setAjustesPorFaixa(juntos);
+        })
+        .catch(() => { /* Sem rede fica o que o aparelho ja sabia. */ });
     });
 
     // "Manter o ecrã ligado" só era aplicado pelo useEffect do ecrã de

@@ -42,4 +42,30 @@ const muted=closePlayerSmoothly();time=550;tick();assert.equal(volumes.at(-1),0)
 state={...state,current:{id:'c'},volume:64};time=800;
 const cancel=closePlayerSmoothly();time=900;tick();state={...state,current:{id:'d'},closing:false,closeGain:1};tick();await cancel;
 assert.equal(state.current.id,'d');assert.equal(volumes.at(-1),64);assert.equal(closed,2);
-console.log('Presença, expiração, recorte, direção do gesto, fade, mute e cancelamento passaram.');
+// ---------------------------------------------------------------------------
+// Fundir os ajustes por faixa entre aparelhos.
+//
+// O equalizador e a velocidade de cada musica viviam so no aparelho: o PC e o
+// telemovel tinham memorias separadas para as mesmas faixas. Ao juntar as duas
+// e o carimbo `visto` que decide, POR FAIXA -- nunca campo a campo, senao
+// ficava a velocidade de um aparelho com o equalizador do outro, que e uma
+// combinacao que ninguem escolheu.
+const {fundirAjustes,MAX_FAIXAS}=carregar('../src/lib/equalizer.ts');
+const aj=(visto,rate,ganho)=>({rate,ganhos:ganho===null?null:[ganho,0,0,0,0,0,0,0,0,0],visto});
+
+// O que so o servidor tem chega ca.
+assert.equal(fundirAjustes({},{a:aj(10,1.25,null)}).a.rate,1.25);
+// O que so este aparelho tem fica.
+assert.equal(fundirAjustes({b:aj(10,null,6)},{}).b.ganhos[0],6);
+// Mais recente ganha, venha de onde vier.
+assert.equal(fundirAjustes({c:aj(10,1.5,null)},{c:aj(20,0.75,null)}).c.rate,0.75);
+assert.equal(fundirAjustes({c:aj(30,1.5,null)},{c:aj(20,0.75,null)}).c.rate,1.5);
+// Empate fica com o local: quem esta ao teclado mandou por ultimo.
+assert.equal(fundirAjustes({d:aj(10,1.5,null)},{d:aj(10,0.75,null)}).d.rate,1.5);
+// A faixa vem inteira, nao meia de cada: o rate e os ganhos andam juntos.
+const fundida=fundirAjustes({e:aj(10,1.5,9)},{e:aj(20,0.75,3)}).e;
+assert.equal(fundida.rate,0.75);assert.equal(fundida.ganhos[0],3);
+// E o teto continua a valer depois de juntar os dois lados.
+const muitos=(inicio,n)=>Object.fromEntries(Array.from({length:n},(_,i)=>['k'+(inicio+i),aj(inicio+i,1.5,null)]));
+assert.equal(Object.keys(fundirAjustes(muitos(0,MAX_FAIXAS),muitos(MAX_FAIXAS,MAX_FAIXAS))).length,MAX_FAIXAS);
+console.log('Presença, expiração, recorte, direção do gesto, fade, mute, cancelamento e fusão de ajustes passaram.');

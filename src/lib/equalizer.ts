@@ -288,6 +288,33 @@ export function guardar(
   return podar(saida);
 }
 
+/**
+ * Junta o que este aparelho sabe com o que o servidor sabe.
+ *
+ * **Porque é preciso.** Os ajustes viviam só no armazenamento local, por isso
+ * o PC e o telemóvel tinham memórias separadas para as MESMAS faixas: mexer no
+ * equalizador ou na velocidade num deles não chegava ao outro.
+ *
+ * A regra é por faixa e é o `visto` que decide: fica o ajuste mexido mais
+ * recentemente. Não se pode fundir campo a campo (ficar com o `rate` de um e
+ * os `ganhos` do outro) porque isso inventaria uma combinação que ninguém
+ * escolheu -- a velocidade de ontem com o equalizador de hoje.
+ *
+ * Empates ficam com o local: quem está a usar o aparelho é quem mandou por
+ * último, e piscar o valor à frente dele seria pior.
+ */
+export function fundirAjustes(
+  local: MemoriaDeAjustes,
+  remoto: MemoriaDeAjustes,
+): MemoriaDeAjustes {
+  const saida: MemoriaDeAjustes = { ...local };
+  for (const [chave, doServidor] of Object.entries(remoto)) {
+    const daqui = saida[chave];
+    if (!daqui || doServidor.visto > daqui.visto) saida[chave] = doServidor;
+  }
+  return podar(saida);
+}
+
 /** Deixa só as `MAX_FAIXAS` mais recentes. */
 export function podar(memoria: MemoriaDeAjustes): MemoriaDeAjustes {
   const chaves = Object.keys(memoria);

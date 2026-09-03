@@ -19,7 +19,7 @@ create function storage.foldername(name text) returns text[] language sql as $$s
 alter table storage.objects enable row level security;
 grant usage on schema storage to authenticated;grant select,insert,delete on storage.objects to authenticated;
 `);
-for(const f of ['schema.sql','listening-stats.sql','funcoes-existentes.sql','social-setup.sql','group-chats.sql'])await db.exec(ler(f).replace('create extension if not exists "pgcrypto";',''));
+for(const f of ['schema.sql','listening-stats.sql','funcoes-existentes.sql','social-setup.sql','group-chats.sql','track-adjustments.sql'])await db.exec(ler(f).replace('create extension if not exists "pgcrypto";',''));
 await db.exec(`alter table profiles add column if not exists avatar_url text;alter table profiles add column if not exists username text;
 alter table friendships add column if not exists requester_id uuid;
 grant all on all tables in schema public to authenticated;
@@ -107,5 +107,36 @@ await como(3);assert.equal((await q('select * from shared_items where group_id i
 await assert.rejects(q(`insert into shared_items(sender_id,group_id,item_type,message) values($1,$2,'track','intruso')`,[uid(3),grupo.id]),/row-level security/);
 await como(1);await q('delete from shared_items where group_id is not null');await q('delete from chat_group_members');await q('delete from chat_groups');
 
-console.log('SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos, grupos e Storage passaram.');
+// ---------------------------------------------------------------------------
+// Ajustes por faixa: sao privados, e a tabela recusa lixo.
+//
+// O equalizador e a velocidade de cada musica passaram a viver tambem no
+// servidor, para o PC e o telemovel deixarem de ter memorias separadas das
+// MESMAS faixas. Ao contrario das estatisticas, isto nao aparece em perfil
+// nenhum: e so de quem o escreveu.
+await como(1);
+await q(`insert into user_track_adjustments(user_id,source,source_id,rate,gains) values($1,'youtube','abc',1.25,null)`,[uid(1)]);
+await q(`insert into user_track_adjustments(user_id,source,source_id,rate,gains) values($1,'youtube','def',null,$2)`,[uid(1),[3,0,0,0,0,0,0,0,0,-2]]);
+assert.equal((await q('select * from user_track_adjustments')).rows.length,2);
+// Outra pessoa nao os ve nem lhes toca.
+await como(2);
+assert.equal((await q('select * from user_track_adjustments')).rows.length,0);
+await assert.rejects(q(`insert into user_track_adjustments(user_id,source,source_id,rate) values($1,'youtube','xyz',2)`,[uid(1)]),/row-level security/);
+await como(1);
+// Uma linha sem nada fora do normal nao existe: voltar tudo ao normal apaga.
+await assert.rejects(q(`insert into user_track_adjustments(user_id,source,source_id) values($1,'youtube','vazio')`,[uid(1)]),/tem_alguma_coisa/);
+// Os ganhos sao dez, nem nove nem onze -- uma linha dessas nao sabe tocar.
+await assert.rejects(q(`insert into user_track_adjustments(user_id,source,source_id,gains) values($1,'youtube','curto',$2)`,[uid(1),[1,2,3]]),/gains/);
+// E a velocidade fica dentro do que a interface oferece.
+await assert.rejects(q(`insert into user_track_adjustments(user_id,source,source_id,rate) values($1,'youtube','rapido',9)`,[uid(1),]),/rate/);
+// Mexer outra vez na mesma faixa substitui, nao duplica.
+await q(`insert into user_track_adjustments(user_id,source,source_id,rate) values($1,'youtube','abc',0.75)
+  on conflict (user_id,source,source_id) do update set rate=excluded.rate,seen_at=now()`,[uid(1)]);
+assert.equal((await q(`select rate from user_track_adjustments where source_id='abc'`)).rows[0].rate,0.75);
+assert.equal((await q('select * from user_track_adjustments')).rows.length,2);
+// O ficheiro promete ser seguro a segunda passagem. Prova-se.
+await db.exec('reset role');await db.exec(ler('track-adjustments.sql'));await como(1);
+assert.equal((await q('select * from user_track_adjustments')).rows.length,2,'a segunda aplicacao nao pode apagar o que la esta');
+await q('delete from user_track_adjustments');
+console.log('SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos, grupos, ajustes por faixa e Storage passaram.');
 }finally{await db.close();}
