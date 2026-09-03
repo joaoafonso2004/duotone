@@ -1,3 +1,5 @@
+import {AdjustmentSyncStatus} from '../components/AdjustmentSyncStatus';
+import {SelectionPill} from '../components/SelectionPill';
 import React, { useCallback, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
@@ -20,6 +22,7 @@ import { ui } from './ui.web';
  */
 
 const ALTURA = 132;
+const pillPalette={fill:COR.metalSuave,text:COR.texto,muted:COR.textoMedio,border:COR.linhaSuave};
 
 function DeslizadorVertical({
   valor,
@@ -159,23 +162,7 @@ export function PainelEqualizador({
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: ESP.xs }}>
           {PERFIS.map((p) => {
             const escolhido = perfil?.id === p.id;
-            return (
-              <Pressable
-                key={p.id}
-                onPress={() => aoMudarGanhos(normalizar(p.ganhos))}
-                style={({ hovered }: any) => [
-                  {
-                    minHeight: 28, paddingHorizontal: ESP.md,
-                    borderRadius: RAIO.pilula, justifyContent: 'center',
-                    borderWidth: 1, borderColor: escolhido ? 'transparent' : COR.linhaSuave,
-                    backgroundColor: escolhido ? COR.metalSuave : 'transparent',
-                  },
-                  hovered && !escolhido && { backgroundColor: COR.hover },
-                ]}
-              >
-                <Text style={[TIPO.legenda, { color: escolhido ? COR.texto : COR.textoMedio }]}>{p.nome}</Text>
-              </Pressable>
-            );
+              return <SelectionPill palette={pillPalette} key={p.id} selected={escolhido} label={p.nome} onPress={() => aoMudarGanhos(normalizar(p.ganhos))} />;
           })}
         </View>
 
@@ -194,6 +181,7 @@ export function PainelEqualizador({
           ))}
         </View>
 
+<AdjustmentSyncStatus />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: ESP.xs }}>
           <Text style={[TIPO.micro, { color: COR.textoFraco }]}>
             {lembrado ? 'SAVED FOR THIS TRACK' : 'DOUBLE-CLICK A BAND TO ZERO IT'}

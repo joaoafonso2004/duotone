@@ -1,7 +1,9 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import { ActivityIndicator,Image,Platform,Pressable,ScrollView,Text,View } from 'react-native';
+import { ActivityIndicator,Image,Platform,Pressable,RefreshControl,ScrollView,Text,View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getSocialProfile,getSocialProfileTracks,getProfileHighlights,type ProfileHighlights,type SocialProfile,type ProfileTrack } from '../api/profiles';
+import { getSocialProfile,getSocialProfileTracks,type ProfileHighlights,type SocialProfile,type ProfileTrack } from '../api/profiles';
+import { loadProfileSections } from '../api/profileSections';
+import { missingProfilePlaylistColumns,PROFILE_SHARING_UNAVAILABLE } from '../lib/profileSchema';
 import { sendFriendRequest } from '../api/social';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
@@ -9,24 +11,23 @@ import { useSocial } from '../state/social';
 import { useProfileMedia } from '../lib/profileMedia';
 import { ultimaAtividade } from '../lib/socialPresence';
 import { displayArtist } from '../lib/artistName';
-import { FriendAvatar } from './FriendAvatar';
-import { colors, radii } from './socialTokens';
+import { colors, radii, SOCIAL_GUTTER } from './socialTokens';
 import { useTheme } from '../state/theme';
 import { useSocialBottomPadding } from './useSocialBottomPadding';
 import { naoLidasPorAmigo } from '../lib/social';
 import { ArtworkCollage } from './ArtworkCollage';
-import { RACIO_DA_CAPA } from '../lib/profileImageCrop';
 import { ProfileEditor } from './ProfileEditor';
+import { ProfileHero } from './ProfileHero';
+import { ProfilePlaylistPicker } from './ProfilePlaylistPicker';
 import { SocialTrackActions } from './SocialTrackActions';
 import { SocialButton,SocialIconButton,socialStyles as s } from './socialUI';
 import type { Track } from '../types';
 import type { Playlist } from '../types';
 import {
-  copiasGuardadas, listPlaylists, listProfilePlaylists,
   savePlaylistCopy, setPlaylistVisibility, unsavePlaylistCopy,
 } from '../api/playlists';
 
-export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,onSocial,onPlaylist,active=true}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void;active?:boolean}) {
+export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,onSocial,onPlaylist,onBack,active=true}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void;onBack?:()=>void;active?:boolean}) {
   const web=Platform.OS==='web';
   const [width,setWidth]=useState(0);
   const wide=web&&width>=780;
@@ -41,6 +42,9 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
   const [highlights,setHighlights]=useState<ProfileHighlights>({playlistIds:[],moment:null});
   const [highlightsLoaded,setHighlightsLoaded]=useState(false);
   const [playlists,setPlaylists]=useState<Playlist[]>([]);
+  const [choosingPlaylists,setChoosingPlaylists]=useState(false);
+  const [sectionErrors,setSectionErrors]=useState({most:'',recent:'',playlists:'',copies:''});
+  const [playlistMutationError,setPlaylistMutationError]=useState('');
   // De que playlists dos outros ja tenho copia. Pergunta-se UMA vez em vez de
   // uma por linha, senao uma lista de dez faz dez idas ao servidor.
   const [guardadas,setGuardadas]=useState<Set<string>>(new Set());
@@ -62,26 +66,29 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
     setError('');setLoading(true);setHighlightsLoaded(false);
     try {
       const p=await getSocialProfile(userId);if(id!==request.current)return;setProfile(p);
-      // No meu perfil vejo as minhas todas (para poder escolher quais mostro);
-      // no de outra pessoa so as que ela marcou. As copias que ja tenho vem
-      // junto, para o botao saber em que estado esta.
-      const [m,r,l,c,h]=await Promise.all([
-        p.canView?getSocialProfileTracks(userId):[],
-        p.canView?getSocialProfileTracks(userId,true):[],
-        own?listPlaylists():(p.canView?listProfilePlaylists(userId):[]),
-        own?Promise.resolve(new Set<string>()):copiasGuardadas(),
-        p.canView?getProfileHighlights(userId):{playlistIds:[],moment:null},
-      ]);
-      if(id!==request.current)return;setMost(m);setRecent(r);setPlaylists(l);setGuardadas(c);setHighlights(h);setHighlightsLoaded(true);
-    }catch(e:any){if(id===request.current)setError(e.message || 'Could not open this profile.');}finally{if(id===request.current)setLoading(false);}
+      const result=await loadProfileSections(userId,own,p.canView);
+      if(id!==request.current)return;
+      const {most:m,recent:r,playlists:l,copies:c,highlights:h}=result;
+      if(m.status==='fulfilled')setMost(m.value);
+      if(r.status==='fulfilled')setRecent(r.value);
+      if(l.status==='fulfilled')setPlaylists(l.value);
+      if(c.status==='fulfilled')setGuardadas(c.value);
+      if(h.status==='fulfilled'){setHighlights(h.value);setHighlightsLoaded(true);}
+      setSectionErrors({
+        most:m.status==='rejected'?'Could not load your most played songs.':'',
+        recent:r.status==='rejected'?'Could not load listening history.':'',
+        playlists:l.status==='rejected'?(missingProfilePlaylistColumns(l.reason)?PROFILE_SHARING_UNAVAILABLE:'Could not load playlists.'):'',
+        copies:c.status==='rejected'?'Could not check your saved playlists.':'',
+      });
+    }catch{if(id===request.current)setError('Could not open this profile. Please try again.');}finally{if(id===request.current)setLoading(false);}
   },[userId,own]);
-  useEffect(()=>{if(!active)return;setProfile(null);setHighlights({playlistIds:[],moment:null});setMost([]);setRecent([]);setPlaylists([]);setGuardadas(new Set());void load();return()=>{request.current++;};},[load,friend?.status,active]);
+  useEffect(()=>{if(!active)return;setProfile(null);setEditing(false);setChoosingPlaylists(false);setPlaylistMutationError('');setSectionErrors({most:'',recent:'',playlists:'',copies:''});setHighlights({playlistIds:[],moment:null});setMost([]);setRecent([]);setTudoMais(false);setTudoRecente(false);setPlaylists([]);setGuardadas(new Set());void load();return()=>{request.current++;};},[load,friend?.status,active]);
   /** Guardar (ou largar) a playlist de outra pessoa. Fica uma copia minha. */
   const alternarCopia=async(pl:Playlist)=>{
-    if(mutation.current || loading) return;
+    if(mutation.current || loading || sectionErrors.copies) return;
     mutation.current=true;
     const generation=request.current;
-    setOcupada(pl.id);setError('');
+    setOcupada(pl.id);setPlaylistMutationError('');
     const tinha=guardadas.has(pl.id);
     let confirmed=false;
     try {
@@ -89,7 +96,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
       confirmed=true;
       if(generation!==request.current)return;
       setGuardadas(g=>{const n=new Set(g);if(tinha)n.delete(pl.id);else n.add(pl.id);return n;});
-    } catch(e:any){ if(generation===request.current)setError(e?.message || 'Could not update your playlists.'); }
+    } catch{ if(generation===request.current)setPlaylistMutationError('Could not update your saved playlists. Please try again.'); }
     finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(); }
   };
 
@@ -98,7 +105,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
     if(mutation.current || loading) return;
     mutation.current=true;
     const generation=request.current;
-    setOcupada(pl.id);setError('');
+    setOcupada(pl.id);setPlaylistMutationError('');
     const passaA=!pl.visibleOnProfile;
     let confirmed=false;
     try {
@@ -106,7 +113,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
       confirmed=true;
       if(generation!==request.current)return;
       setPlaylists(l=>l.map(x=>x.id===pl.id?{...x,visibleOnProfile:passaA}:x));
-    } catch(e:any){ if(generation===request.current)setError(e?.message || 'Could not change that.'); }
+    } catch(e){ if(generation===request.current)setPlaylistMutationError(missingProfilePlaylistColumns(e)?PROFILE_SHARING_UNAVAILABLE:'Could not change this playlist. Please try again.'); }
     finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(); }
   };
 
@@ -121,65 +128,53 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
       <Text style={s.muted}>{recentes?new Date(entry.lastPlayed).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'}):entry.count}</Text>
     </Pressable><SocialIconButton label={`Options for ${entry.title}`} icon="ellipsis-horizontal" onPress={()=>setTrack(entry)}/>
   </View>;
+  const visiblePlaylists=playlists.filter(p=>!own||p.visibleOnProfile);
+  const sectionFailure=(message:string)=><View style={{gap:8}}><Text accessibilityRole="alert" style={s.muted}>{message}</Text><View style={{alignSelf:'flex-start'}}><SocialButton quiet onPress={()=>void load()}>Try again</SocialButton></View></View>;
   const playlistsSection=<View style={{gap:12}}>
-    <Text style={s.title}>{own?'Your playlists':'Playlists'}</Text>
-    <Text style={s.muted}>{own?'Choose which playlists your friends can see.':'Save your own copy. Changes to the original will not change your copy.'}</Text>
-    <View style={{flexDirection:wide?'row':'column',flexWrap:'wrap',gap:12}}>
-      {[...playlists].sort((a,b)=>{const rank=(id:string)=>{const i=highlights.playlistIds.indexOf(id);return i<0?3:i;};return rank(a.id)-rank(b.id);}).map(pl=>{
-        const marked=own?!!pl.visibleOnProfile:guardadas.has(pl.id);
-        const busy=ocupada===pl.id;
-        const label=own?(marked?`Hide ${pl.name} from your profile`:`Show ${pl.name} on your profile`):(marked?`Remove your copy of ${pl.name}`:`Save ${pl.name}`);
-        return <View key={pl.id} style={[s.card,{padding:12,flexBasis:wide?260:undefined,flexGrow:wide?1:0,minWidth:0}]}>
+    <View style={[s.row,{justifyContent:'space-between'}]}>
+      <Text style={s.title}>{own?'Your playlists':'Playlists'}</Text>
+      {own&&<SocialIconButton label="Choose playlists to share" icon="add-circle-outline" onPress={()=>{setPlaylistMutationError('');setChoosingPlaylists(true);}}/>}
+    </View>
+    {!!sectionErrors.playlists&&sectionFailure(sectionErrors.playlists)}
+    {!!sectionErrors.copies&&sectionFailure(sectionErrors.copies)}
+    {!!playlistMutationError&&!choosingPlaylists&&<Text accessibilityRole="alert" style={s.error}>{playlistMutationError}</Text>}
+    <View style={{flexDirection:wide?'row':'column',flexWrap:wide?'wrap':'nowrap',gap:12}}>
+      {[...visiblePlaylists].sort((a,b)=>{const rank=(id:string)=>{const i=highlights.playlistIds.indexOf(id);return i<0?3:i;};return rank(a.id)-rank(b.id);}).map(pl=>{
+        const marked=guardadas.has(pl.id),busy=ocupada===pl.id;
+        return <View key={pl.id} style={[s.card,{padding:12,width:wide?undefined:'100%',flexDirection:'row',alignItems:'center',flexBasis:wide?280:undefined,flexGrow:wide?1:0,minWidth:0}]}>
           <Pressable accessibilityRole="button" accessibilityLabel={`Open ${pl.name}`} disabled={!onPlaylist} onPress={()=>onPlaylist?.(pl.id)}
-            style={({pressed,hovered}:any)=>[s.row,{minWidth:0},(pressed||hovered)&&{opacity:0.75}]}>
+            style={({pressed,hovered}:any)=>[s.row,{flex:1,minWidth:0},(pressed||hovered)&&{opacity:0.75}]}>
             <View style={{borderRadius:radii.md,overflow:'hidden'}}><ArtworkCollage artworks={pl.artworks} size={56}/></View>
-            <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={[s.text,{fontWeight:'600'}]}>{highlights.playlistIds.includes(pl.id)?'★ ':''}{pl.name}</Text><Text style={s.muted}>{pl.trackCount} {pl.trackCount===1?'track':'tracks'}</Text></View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>
+            <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={[s.text,{fontWeight:'600'}]}>{pl.name}</Text><Text style={s.muted}>{pl.trackCount} {pl.trackCount===1?'track':'tracks'}</Text></View>
+            {own&&<Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>}
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{selected:marked,busy,disabled:!!ocupada||loading}}
-            disabled={!!ocupada||loading} onPress={()=>void(own?alternarVisibilidade(pl):alternarCopia(pl))}
-            style={({pressed,hovered}:any)=>[s.row,{minHeight:44,paddingHorizontal:12,borderRadius:radii.md,backgroundColor:colors.bg},(pressed||hovered)&&{backgroundColor:colors.surfacePressed},busy&&{opacity:0.5}]}>
-            {busy?<ActivityIndicator size="small" color={accent}/>:<Ionicons name={own?(marked?'eye':'eye-off-outline'):(marked?'checkmark-circle':'add-circle-outline')} size={22} color={marked?accent:colors.textSecondary}/>}
-            <Text style={[s.muted,{color:marked?accent:colors.textSecondary}]}>{own?(marked?'Visible to friends':'Only you'):(marked?'Saved · remove copy':'Save a copy')}</Text>
-          </Pressable>
+          {!own&&<Pressable accessibilityRole="button" accessibilityLabel={marked?`Remove your copy of ${pl.name}`:`Save a copy of ${pl.name}`} aria-selected={marked} aria-busy={busy} aria-disabled={!!ocupada||loading||!!sectionErrors.copies} accessibilityState={{selected:marked,busy,disabled:!!ocupada||loading||!!sectionErrors.copies}}
+            disabled={!!ocupada||loading||!!sectionErrors.copies} onPress={()=>void alternarCopia(pl)} style={{minHeight:44,minWidth:56,alignItems:'center',justifyContent:'center',gap:3,opacity:sectionErrors.copies?0.4:1}}>
+            {busy?<ActivityIndicator size="small" color={accent}/>:<Ionicons name={marked?'checkmark-circle':'add-circle-outline'} size={24} color={marked?accent:colors.textSecondary}/>}
+            <Text style={s.muted}>{marked?'Saved':'Save'}</Text>
+          </Pressable>}
         </View>;
       })}
     </View>
-    {!playlists.length&&<Text style={s.muted}>{own?'Playlists you create show up here.':'No playlists shared on this profile yet.'}</Text>}
+    {!visiblePlaylists.length&&!sectionErrors.playlists&&(loading?<ActivityIndicator color={accent}/>:<Text style={s.muted}>No playlists shared yet</Text>)}
   </View>;
   return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>
-    <ScrollView contentContainerStyle={[s.content,{paddingBottom:bottomPadding}]} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled"
+      refreshControl={!web?<RefreshControl refreshing={loading&&!!profile} onRefresh={()=>void load()} tintColor={accent}/>:undefined}>
+      <ProfileHero profile={profile} own={own} cover={cover} unread={unread}
+        status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
+        onEdit={()=>setEditing(true)} onSocial={onSocial} onSettings={onSettings} onBack={onBack} onStats={onStats}
+        onMessage={()=>onMessage(userId)} onRefresh={()=>void load()} pending={friend?.status==='pending'}
+        onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError('Could not send the friend request. Please try again.'));}}/>
+      <View style={{paddingHorizontal:SOCIAL_GUTTER,gap:28}}>
       {loading&&!profile&&<ActivityIndicator color={accent}/>}
-      {!!error&&<View style={s.card}><Text accessibilityRole="alert" style={s.error}>{error}</Text><SocialButton onPress={()=>void load()}>Try again</SocialButton></View>}
+      {!!error&&sectionFailure(error)}
       {profile&&<>
-        {/* Limitar a largura da capa mantém o recorte 8/3 sem empurrar a pessoa
-            para fora da primeira vista. Sem capa não há um retângulo vazio. */}
-        <View style={{flexDirection:wide?'row':'column',alignItems:wide?'center':'stretch',gap:24,paddingBottom:24,borderBottomWidth:1,borderColor:colors.border}}>
-          {!!profile.appearance?.cover_path&&<View style={{width:wide?'44%':'100%',aspectRatio:RACIO_DA_CAPA,borderRadius:radii.lg,overflow:'hidden',backgroundColor:colors.surfaceHigh}}>
-            {cover&&<Image source={{uri:cover}} resizeMode="cover" style={{width:'100%',height:'100%'}}/>}
-          </View>}
-          <View style={{flex:wide?1:undefined,minWidth:0,gap:12}}>
-            <View style={s.row}>
-              <FriendAvatar avatarUrl={profile.profile.avatar_url} name={profile.profile.name} size={web?72:80}/>
-              <View style={{flex:1,minWidth:0}}><Text style={[s.title,{fontSize:28}]}>{profile.profile.name}</Text><Text style={s.muted}>@{profile.profile.username}</Text>
-                {!own&&profile.canView&&<Text style={[s.muted,friend?.online&&{color:colors.online}]}>{friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)}</Text>}
-              </View>
-              <SocialIconButton label="Refresh profile" icon="refresh" onPress={()=>void load()}/>
-            </View>
-            {!!profile.appearance?.bio&&<Text style={s.text}>{profile.appearance.bio}</Text>}
-            <View style={[s.row,{flexWrap:'wrap',gap:8}]}>
-              {own?<SocialButton disabled={loading||!highlightsLoaded} icon="pencil-outline" onPress={()=>setEditing(true)}>Edit profile</SocialButton>:profile.canView?<SocialButton primary icon="chatbubble-outline" onPress={()=>onMessage(userId)}>Message</SocialButton>:<SocialButton primary disabled={friend?.status==='pending'} onPress={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(e=>setError(e.message));}}>{friend?.status==='pending'?'Request pending':'Add friend'}</SocialButton>}
-              {own&&onSocial&&<SocialButton primary icon="chatbubbles-outline" badge={unread} onPress={onSocial}>Friends and chats</SocialButton>}
-              {profile.canView&&<SocialButton quiet icon="stats-chart-outline" onPress={onStats}>Listening stats</SocialButton>}
-              {own&&onSettings&&<SocialIconButton label="Settings" icon="settings-outline" onPress={onSettings}/>}
-            </View>
-            {friend?.currentlyPlaying&&<Pressable accessibilityRole="button" accessibilityLabel={`Play ${friend.currentlyPlaying.title}`}
-              onPress={()=>{const t=friend.currentlyPlaying;if(t)void usePlayer.getState().playTrack({...t,id:t.id??undefined,album:null});}}
-              style={({pressed}:any)=>[s.row,{padding:12,borderRadius:radii.md,backgroundColor:colors.surface},pressed&&{opacity:0.7}]}>
-              <Ionicons name="play-circle" size={28} color={accent}/><View style={{flex:1,minWidth:0}}><Text style={s.label}>Listening now</Text><Text numberOfLines={1} style={s.text}>{friend.currentlyPlaying.title}</Text></View>
-            </Pressable>}
-          </View>
-        </View>
+        {friend?.currentlyPlaying&&profile.canView&&<Pressable accessibilityRole="button" accessibilityLabel={`Play ${friend.currentlyPlaying.title}`}
+          onPress={()=>{const t=friend.currentlyPlaying;if(t)void usePlayer.getState().playTrack({...t,id:t.id??undefined,album:null});}}
+          style={({pressed}:any)=>[s.row,s.card,pressed&&{opacity:0.7}]}>
+          <Ionicons name="play-circle" size={28} color={accent}/><View style={{flex:1,minWidth:0}}><Text style={s.label}>Listening now</Text><Text numberOfLines={1} style={s.text}>{friend.currentlyPlaying.title}</Text></View>
+        </Pressable>}
         {!profile.canView?<Text style={s.muted}>Stats become available once you are friends.</Text>:<>
           {highlights.moment&&<View style={[s.card,{gap:12}]}>
             <Text style={s.label}>Song of the moment</Text>
@@ -204,21 +199,26 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
           <View style={{flexDirection:columns?'row':'column',gap:32}}>
             <View style={{flex:columns?1:undefined,minWidth:0,gap:8}}>
               <Text style={s.title}>Most played</Text>
-              {most.length?(tudoMais?most:most.slice(0,5)).map((e,i)=>row(e,i)):<Text style={s.muted}>Nothing played yet.</Text>}
+              {!!sectionErrors.most&&sectionFailure(sectionErrors.most)}
+              {most.length?(tudoMais?most:most.slice(0,5)).map((e,i)=>row(e,i)):loading?<ActivityIndicator color={accent}/>:!sectionErrors.most&&<Text style={s.muted}>Nothing played yet.</Text>}
               {most.length>5&&!tudoMais&&<SocialButton quiet onPress={()=>setTudoMais(true)}>Show all {most.length}</SocialButton>}
               {tudoMais&&most.length>0&&most.length%20===0&&<SocialButton quiet onPress={()=>{void getSocialProfileTracks(userId,false,most.length).then(m=>setMost([...most,...m])).catch(e=>setError(e.message));}}>Show more</SocialButton>}
             </View>
             <View style={{flex:columns?1:undefined,minWidth:0,gap:8}}>
               <Text style={s.title}>Recently played</Text>
-              {recent.length?(tudoRecente?recent:recent.slice(0,5)).map((e,i)=>row(e,i,true)):<Text style={s.muted}>Your listening history appears here.</Text>}
+              {!!sectionErrors.recent&&sectionFailure(sectionErrors.recent)}
+              {recent.length?(tudoRecente?recent:recent.slice(0,5)).map((e,i)=>row(e,i,true)):loading?<ActivityIndicator color={accent}/>:!sectionErrors.recent&&<Text style={s.muted}>Your listening history appears here.</Text>}
               {recent.length>5&&!tudoRecente&&<SocialButton quiet onPress={()=>setTudoRecente(true)}>Show all {recent.length}</SocialButton>}
               {tudoRecente&&recent.length>0&&recent.length%20===0&&<SocialButton quiet onPress={()=>{void getSocialProfileTracks(userId,true,recent.length).then(r=>setRecent([...recent,...r])).catch(e=>setError(e.message));}}>Show more</SocialButton>}
             </View>
           </View>
         </>}
       </>}
+      </View>
     </ScrollView>
-    {editing&&profile&&<ProfileEditor profile={profile} highlights={highlights} playlists={playlists} onClose={()=>setEditing(false)} onSaved={()=>{void load();void useSocial.getState().refresh();}}/>}
+    {editing&&profile&&<ProfileEditor profile={profile} highlights={highlightsLoaded&&!sectionErrors.playlists?highlights:null} playlists={playlists} onClose={()=>setEditing(false)} onSaved={()=>{void load();void useSocial.getState().refresh();}}/>}
+    {choosingPlaylists&&own&&<ProfilePlaylistPicker playlists={playlists} loading={loading} busy={ocupada} error={playlistMutationError||sectionErrors.playlists}
+      onToggle={p=>void alternarVisibilidade(p)} onClose={()=>setChoosingPlaylists(false)} onRetry={()=>{setPlaylistMutationError('');void load();}}/>}
     <SocialTrackActions track={track} onClose={()=>setTrack(null)} onArtist={onArtist}/>
   </View>;
 }

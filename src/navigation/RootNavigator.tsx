@@ -1,3 +1,5 @@
+import {useReducedMotion} from '../hooks/useReducedMotion';
+import {StateIcon} from '../components/StateIcon';
 import { OfflineNotice,withInternet } from '../components/OfflineNotice';
 import { useConnectivity } from '../state/connectivity';
 import { useSocial } from '../state/social';
@@ -114,6 +116,7 @@ const TAB_ICONS: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
 };
 
 function Tabs() {
+  const reducedMotion=useReducedMotion();
   const theme = useTheme((s) => s.theme);
 
   return (
@@ -121,6 +124,8 @@ function Tabs() {
       initialRouteName={useConnectivity.getState().offline?"Songs":"Search"}
       screenOptions={({ route }) => ({
         headerShown: false,
+        animation: reducedMotion?'none':'fade',
+        transitionSpec: {animation:'timing',config:{duration:180}},
         lazy: false,
         tabBarActiveTintColor: theme.color,
         tabBarInactiveTintColor: colors.textTertiary,
@@ -143,7 +148,7 @@ function Tabs() {
           const hasNotification = useNotifications((s) => s.hasNotification);
           return (
             <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-              <Ionicons
+              <StateIcon
                 name={
                   focused
                     ? TAB_ICONS[route.name]

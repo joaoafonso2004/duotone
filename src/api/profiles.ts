@@ -67,3 +67,9 @@ export async function saveProfileAppearance(value: ProfileAppearance,name: strin
   const {error}=await supabase.rpc('save_profile_appearance',{p_value:{...value,username},p_version:value.version,p_name:name.trim()});
   if(error) throw new Error(error.code==='40001' ? 'O perfil foi alterado noutro dispositivo. Fecha e volta a abrir o editor.' : error.message);
 }
+
+/** Sem uma leitura confirmada, editar a identidade conserva os destaques. */
+export async function saveProfileEdits(value:ProfileAppearance,name:string,username:string,highlights:ProfileHighlights|null):Promise<void> {
+  if(highlights)await saveProfileCustomization(value,name,username,highlights);
+  else await saveProfileAppearance(value,name,username);
+}

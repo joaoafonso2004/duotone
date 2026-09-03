@@ -1,7 +1,7 @@
 import React,{useState} from 'react';
 import { Image,Platform,ScrollView,Text,TextInput,View,useWindowDimensions } from 'react-native';
 import * as Crypto from 'expo-crypto';
-import { appearanceOf,saveProfileCustomization,type SocialProfile,type ProfileHighlights } from '../api/profiles';
+import { appearanceOf,saveProfileEdits,type SocialProfile,type ProfileHighlights } from '../api/profiles';
 import { pickProfileImage,prepareProfileImage,type SelectedProfileImage } from '../lib/profileImage';
 import { RACIO_DA_CAPA,RACIO_DO_AVATAR } from '../lib/profileImageCrop';
 import { mediaBucket,removeProfileMedia,useProfileMedia,type ProfileMediaKind } from '../lib/profileMedia';
@@ -21,15 +21,14 @@ import { colors,radii } from './socialTokens';
  * **O recorte escolhe-se a arrastar, e o que se vê é o que fica.** Havia
  * quatro botões de setas para a fotografia e um "↑ Up / ↓ Down" com uma
  * percentagem para a capa — ninguém pensa na sua fotografia em percentagens.
- * As duas molduras têm agora o rácio EXATO com que a imagem é gravada
- * (`RACIO_DA_CAPA`, `RACIO_DO_AVATAR`), por isso não há diferença entre o que
- * se escolhe aqui e o que aparece depois no perfil.
+ * As molduras mostram o rácio do ficheiro gravado. No perfil, a capa é usada
+ * como fundo e o enquadramento adapta-se à largura disponível.
  *
  * Saíram daqui a cor de destaque e os avatares de emoji. Avatares de emoji
  * antigos continuam a aparecer — o `FriendAvatar` sabe lê-los —, só deixou de
  * se poder escolher um novo.
  */
-export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{profile:SocialProfile;highlights:ProfileHighlights;playlists:Playlist[];onClose:()=>void;onSaved:()=>void}) {
+export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{profile:SocialProfile;highlights:ProfileHighlights|null;playlists:Playlist[];onClose:()=>void;onSaved:()=>void}) {
   const {width}=useWindowDimensions();
   const wide=Platform.OS==='web'&&width>=850;
   const [featured,setFeatured]=useState(highlights);
@@ -80,7 +79,9 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       }
       setStage('Saving profile…');
       saving=true;
-      await saveProfileCustomization(next,name,username,featured);
+      // Não substituir destaques desconhecidos por uma lista vazia. A RPC
+      // anterior altera só a aparência e conserva os destaques no servidor.
+      await saveProfileEdits(next,name,username,featured);
       useSocial.setState(s=>({profileVersion:s.profileVersion+1}));
       const previous=appearanceOf(profile);
       // Só remover ficheiros antigos depois da referência nova estar confirmada.
@@ -104,9 +105,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       <View style={{flex:wide?1:undefined,minWidth:0,gap:16}}>
 
       <Text style={s.label}>Cover image</Text>
-      {/* A moldura tem o racio com que a capa e gravada, e nada por cima que o
-          possa quebrar. E por isso que o que esta aqui e o que aparece no
-          perfil, em qualquer largura de janela. */}
+      {/* A moldura preserva o formato do ficheiro; a vinheta só aparece no perfil. */}
       <View style={{borderRadius:radii.lg,overflow:'hidden'}}>
         {cover
           ? <ProfileCropPreview image={cover} ratio={RACIO_DA_CAPA} x={coverX} y={coverY}
@@ -144,7 +143,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       <Text style={s.label}>Name</Text><TextInput accessibilityLabel="Display name" editable={!stage} value={name} onChangeText={setName} maxLength={40} style={s.input}/>
       <Text style={s.label}>Username</Text><TextInput accessibilityLabel="Username" autoComplete="off" textContentType="none" editable={!stage} autoCapitalize="none" autoCorrect={false} value={username} onChangeText={setUsername} maxLength={30} style={s.input}/>
       <Text style={s.label}>About you</Text><TextInput accessibilityLabel="Bio" editable={!stage} value={value.bio} onChangeText={bio=>setValue({...value,bio})} maxLength={180} multiline placeholder="A line about you or your music." placeholderTextColor={colors.textSecondary} style={[s.input,{minHeight:80}]}/>
-      <ProfileHighlightsEditor value={featured} onChange={setFeatured} playlists={playlists} disabled={!!stage}/>
+      {featured?<ProfileHighlightsEditor value={featured} onChange={setFeatured} playlists={playlists} disabled={!!stage}/>:<Text style={s.muted}>Highlights could not load. You can still edit your photo, cover and details.</Text>}
       {!!error && <Text accessibilityRole="alert" style={s.error}>{error}</Text>}
       </View></View>
     </ScrollView>

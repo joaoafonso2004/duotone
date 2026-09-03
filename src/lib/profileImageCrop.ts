@@ -1,17 +1,9 @@
 /**
  * As formas das imagens do perfil, e o recorte que as produz.
  *
- * **Isto é a única fonte da verdade sobre o formato.** O que se vê tem de ser
- * o que ficou gravado, e para isso o mesmo número tem de mandar em três
- * sítios: o recorte no envio (`prepareProfileImage`), o preview do editor
- * (`ProfileCropPreview`) e a caixa onde a capa aparece no perfil.
- *
- * Quando não era assim, a capa mostrava coisas diferentes conforme o tamanho
- * da janela: o ficheiro estava gravado em 8/3, mas a caixa levava um
- * `maxHeight` por cima do `aspectRatio`. Numa janela larga o `maxHeight`
- * ganhava, a caixa deixava de ter 8/3, e o `resizeMode="cover"` recortava o
- * que sobrava — um recorte diferente em cada largura. Nunca pôr um `maxHeight`
- * (nem uma altura fixa) numa caixa que usa estes rácios: é isso que os quebra.
+ * O envio e a moldura do editor partilham o mesmo rácio. O perfil apresenta
+ * a capa como fundo atrás da identidade, com enquadramento adaptado ao ecrã
+ * e vinheta; essa apresentação nunca volta a recortar o ficheiro gravado.
  */
 
 /** A capa: larga e baixa. Gravada em 1600×600. */

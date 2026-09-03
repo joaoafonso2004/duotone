@@ -25,6 +25,10 @@ alter table friendships add column if not exists requester_id uuid;
 grant all on all tables in schema public to authenticated;
 create policy "diagnóstico: perfis públicos" on profiles for select to authenticated using(true);`);
 for(let i=0;i<2;i++)for(const f of ['social-presence.sql','social-profiles.sql','profile-media.sql'])await db.exec(ler(f));
+// Falha cedo se os destaques forem aplicados antes das playlists.
+await assert.rejects(db.exec(ler('profile-highlights.sql')),/Aplica primeiro/);
+await db.exec('rollback');
+assert.equal((await q("select 1 from information_schema.columns where table_name='profile_appearance' and column_name='pinned_playlist_ids'")).rows.length,0);
 // Depois do social-presence: e ele que cria o social_can_view, de que este depende.
 await db.exec(ler('profile-playlists.sql'));
 await db.exec(ler('profile-playlists.sql'));
@@ -140,6 +144,13 @@ assert.equal((await q('select * from user_track_adjustments')).rows.length,2);
 // O ficheiro promete ser seguro a segunda passagem. Prova-se.
 await db.exec('reset role');await db.exec(ler('track-adjustments.sql'));await como(1);
 assert.equal((await q('select * from user_track_adjustments')).rows.length,2,'a segunda aplicacao nao pode apagar o que la esta');
+// A escrita usada pela app: inserir sem substituir e atualizar apenas se mais recente.
+await q(`update user_track_adjustments set rate=1,gains=$1,seen_at='2026-09-03T12:00:00Z' where source_id='abc'`,[Array(10).fill(0)]);
+await q(`insert into user_track_adjustments(user_id,source,source_id,rate,seen_at) values($1,'youtube','abc',0.7,'2026-09-03T11:00:00Z') on conflict(user_id,source,source_id) do nothing`,[uid(1)]);
+await q(`update user_track_adjustments set rate=0.7,seen_at='2026-09-03T11:00:00Z' where source_id='abc' and seen_at<'2026-09-03T11:00:00Z'`);
+assert.equal((await q(`select rate from user_track_adjustments where source_id='abc'`)).rows[0].rate,1,'um envio atrasado não anula a reposição Flat/1×');
+await q(`update user_track_adjustments set rate=1.4,seen_at='2026-09-03T13:00:00Z' where source_id='abc' and seen_at<'2026-09-03T13:00:00Z'`);
+assert.equal((await q(`select rate from user_track_adjustments where source_id='abc'`)).rows[0].rate,1.4,'a edição mais recente atravessa RLS');
 await q('delete from user_track_adjustments');
 // ---------------------------------------------------------------------------
 // Playlists no perfil: privadas por omissao, visiveis so quando se marca.
@@ -259,6 +270,12 @@ await assert.rejects(q(`insert into recommendation_feedback values($1,'artist','
 assert.equal((await q(`delete from recommendation_feedback where user_id=$1 returning *`,[uid(1)])).rows.length,0);
 await como(1);assert.equal((await q('select * from recommendation_feedback')).rows.length,1);
 await q('delete from recommendation_feedback');
+// A edição básica de uma app com destaques indisponíveis mantém os IDs.
+await como(1);
+const pinsBefore=(await readHighlights()).playlistIds;
+const appearanceBefore=(await q('select get_social_profile($1) as p',[uid(1)])).rows[0].p.appearance;
+await q('select save_profile_appearance($1,$2,$3)',[{...appearanceBefore,bio:'Bio atualizada'},appearanceBefore.version,'Um']);
+assert.deepEqual((await readHighlights()).playlistIds,pinsBefore);
 console.log('Destaques: limite, visibilidade, gravação atómica e isolamento das preferências passaram.');
 console.log('SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos, grupos, ajustes por faixa, playlists no perfil e Storage passaram.');
 }finally{await db.close();}

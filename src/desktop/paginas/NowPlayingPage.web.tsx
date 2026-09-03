@@ -1,11 +1,4 @@
-/**
- * Now Playing — UMA ideia visual, não quatro.
- *
- * O que estava aqui a competir pelo mesmo ecrã: Flow Focus com cronómetro
- * próprio, aura ambiente a pulsar, a capa desfocada por cima da página
- * inteira, a capa rodada em 3D, e barras de equalizador em CSS a bater a um
- * ritmo que não era o da música. Fica só a capa com o glitch equalizer.
- */
+import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
@@ -25,22 +18,7 @@ import type { CommonPageProps, NavegarFn } from '../rotas';
 import type { Track } from '../../types';
 import { displayArtist } from '../../lib/artistName';
 
-/**
- * Now Playing — UMA ideia visual, nao quatro.
- *
- * O que estava aqui a competir pelo mesmo ecra: o modo Flow Focus (com
- * cronometro proprio a substituir a fila), a aura ambiente a pulsar por tras,
- * o brilho da capa desfocado a 90 px por cima da pagina inteira, a capa rodada
- * em 3D com `perspective` e quatro barras de equalizador em CSS a bater a um
- * ritmo que nao era o da musica. Quatro ideias, nenhuma a ganhar — era isso
- * que fazia o ecra parecer indeciso, e nao faltar-lhe nada.
- *
- * Fica uma so: a capa com o GLITCH EQUALIZER por cima, que reage ao som a
- * serio (src/desktop/glitch/). O resto e tipografia e a fila.
- *
- * As barras de equalizador eram o caso mais claro: uma animacao CSS de duracao
- * fixa, a fingir que reagia. O glitch ou reage mesmo ou nao esta la.
- */
+/** A capa mantém o glitch; o gesto revela as letras na face adjacente. */
 export function NowPlayingPage({
   more, currentIsSaved, toggleSaveCurrent, navigate, aoAdicionarAPlaylist,
 }: CommonPageProps & {
@@ -50,6 +28,8 @@ export function NowPlayingPage({
   aoAdicionarAPlaylist: (t: Track) => void;
 }) {
   const p = usePlayer();
+  const [showLyrics,setShowLyrics]=useState(false);
+  useEffect(()=>setShowLyrics(false),[p.current?.source,p.current?.sourceId]);
   const { width } = useWindowDimensions();
   // Uma vez por render: este ecrã redesenha a cada segundo (posição) e a
   // lista percorre a fila toda.
@@ -96,9 +76,8 @@ export function NowPlayingPage({
       <ContentScroll>
         <View style={[styles.npGrelha, estreito && { flexDirection: 'column' }]}>
           <View style={[styles.npLado, { width: ladoCapa }]}>
-            <View style={styles.npArtworkFrame}>
-              <GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />
-            </View>
+            <ArtworkLyricsCube key={`${track.source}:${track.sourceId}`} track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
+              front={<GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={showLyrics?'off':glitch} intensidade={effectIntensity} />} />
             <View style={styles.npVisualControls}>
               <View style={styles.npVisualGroup}>
                 {(['subtle', 'normal', 'strong'] as EffectIntensity[]).map((intensidade) => <Pressable key={intensidade} onPress={() => escolherIntensidade(intensidade)} style={[styles.npVisualOption, effectIntensity === intensidade && styles.npVisualOptionActive]}><Text style={[styles.npVisualOptionText, effectIntensity === intensidade && styles.npVisualOptionTextActive]}>{intensidade[0].toUpperCase() + intensidade.slice(1)}</Text></Pressable>)}

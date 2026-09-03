@@ -1,4 +1,16 @@
 -- Executar depois de profile-media.sql e profile-playlists.sql. Repetível.
+begin;
+-- O PostgreSQL só resolve parte dos nomes PL/pgSQL na primeira chamada.
+-- Sem esta verificação aceitava funções que falhavam apenas ao abrir a app.
+do $$ begin
+  if not exists(select 1 from information_schema.columns where table_schema='public'
+    and table_name='playlists' and column_name='visible_on_profile')
+    or not exists(select 1 from information_schema.columns where table_schema='public'
+    and table_name='playlists' and column_name='copied_from')
+    or to_regprocedure('public.save_profile_appearance(jsonb,bigint,text)') is null
+  then raise exception 'Aplica primeiro profile-media.sql e profile-playlists.sql; depois volta a executar profile-highlights.sql.';
+  end if;
+end $$;
 alter table public.profile_appearance
   add column if not exists pinned_playlist_ids uuid[] not null default '{}',
   add column if not exists moment_track_id uuid references public.tracks(id) on delete set null;
@@ -69,3 +81,4 @@ begin
 end; $$;
 revoke all on function public.get_social_profile(uuid) from public;
 grant execute on function public.get_social_profile(uuid) to authenticated;
+commit;

@@ -1,3 +1,4 @@
+import {ensureLyrics} from './lyrics';
 import { useConnectivity } from './connectivity';
 import { filterSuggestions } from './recommendationFeedback';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -16,9 +17,9 @@ import { candidatasParaDescoberta } from '../api/descoberta';
 import {
   setShuffle as persistShuffle, setShuffleInteligente as persistShuffleInteligente,
   setPlaybackRate as persistPlaybackRate,
-  setAjustesPorFaixa as persistAjustes,
 } from '../lib/prefs';
-import { guardarAjusteRemoto } from '../api/ajustes';
+import { queueTrackAdjustment } from './trackAdjustments';
+import { useAuth } from './auth';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
 import {
   replayMountedSource,
@@ -37,7 +38,7 @@ import {
 } from '../lib/playbackMachine';
 import { arredondar as arredondarRate, RATE_NORMAL } from '../lib/playbackRate';
 import {
-  aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear, guardar as guardarAjuste,
+  aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear, fundirAjustes,
   normalizar as normalizarGanhos, PLANO, type Ganhos, type MemoriaDeAjustes,
 } from '../lib/equalizer';
 import type { Track } from '../types';
@@ -308,28 +309,17 @@ async function aplicarEqNoMotor(ganhos: number[]): Promise<void> {
   }
 }
 
-/**
- * Guarda na faixa atual o que ela tem de diferente do normal. So se guarda o
- * que foge ao padrao: uma faixa a 1x e plana nao deixa registo, e voltar tudo
- * ao normal apaga a entrada — e assim que se desfaz.
- */
+/** Guarda também 1×/Flat: a reposição precisa de viajar para o outro aparelho. */
 function lembrarDaFaixa(): void {
   const { current, playbackRate, eqGanhos, ajustesPorFaixa } = usePlayer.getState();
   if (!current) return;
   const chave = chaveDaFaixa(current);
-  const nova = guardarAjuste(
-    ajustesPorFaixa,
-    chave,
-    { rate: playbackRate, ganhos: eqGanhos },
-    Date.now(),
-  );
-  usePlayer.setState({ ajustesPorFaixa: nova });
-  persistAjustes(nova).catch(() => {});
-  // E tambem no servidor, para o outro aparelho o ver. O local e que manda
-  // no arranque -- isto e a segunda copia, e falha em silencio.
-  // `nova[chave]` vem indefinido quando se voltou tudo ao normal, e nesse
-  // caso o remoto tem de APAGAR a linha, nao ficar com a antiga.
-  void guardarAjusteRemoto(chave, nova[chave] ?? null);
+  const value={rate:playbackRate,ganhos:normalizarGanhos(eqGanhos),visto:Date.now()};
+  const nova=fundirAjustes(ajustesPorFaixa,{[chave]:value});
+  usePlayer.setState({ajustesPorFaixa:nova});
+  const auth=useAuth.getState(),userId=auth.session?.user.id??auth.offlineUserId;
+  if(userId)queueTrackAdjustment(userId,chave,value);
+
 }
 
 /** Guarda contra duas idas à rede do rádio em simultâneo. */
@@ -379,6 +369,8 @@ export const usePlayer = create<PlayerState>()(
   activeBackend: 'resolving',
 
   playTrack: async (track, queue, shouldExpand) => {
+    // As letras começam em paralelo com a resolução do áudio, antes de abrir a capa.
+    void ensureLyrics(track);
     const requestId = ++playRequestId;
     set({closing:false,closeGain:1,playbackConfirmed:false});
     get()._yt?.setVolume?.(get().volume);
@@ -1033,7 +1025,7 @@ export const usePlayer = create<PlayerState>()(
     lembrarDaFaixa();
   },
 
-  /** Chamado uma vez no arranque, com o que estava guardado. */
+  /** Hidratação e atualizações remotas; aplica também à faixa já aberta. */
   _carregarAjustes: (m, ganhos, rate) => {
     const g = normalizarGanhos(ganhos);
     const r = arredondarRate(rate);
@@ -1047,13 +1039,15 @@ export const usePlayer = create<PlayerState>()(
     const aplicar = faixa
       ? ajusteAoTocar(m, chaveDaFaixa(faixa), { rate: r, ganhos: g })
       : { rate: r, ganhos: g };
+    const ganhosMudaram=aplicar.ganhos.some((v,i)=>v!==get().eqGanhos[i]);
     set({
       ajustesPorFaixa: m,
       padraoGanhos: g,
       padraoRate: r,
-      eqGanhos: aplicar.ganhos,
+      eqGanhos: aplicar.ganhos.every((v,i)=>v===get().eqGanhos[i])?get().eqGanhos:aplicar.ganhos,
       playbackRate: arredondarRate(aplicar.rate),
     });
+    if(ganhosMudaram)void aplicarEqNoMotor(aplicar.ganhos);
   },
 
   setPlaybackRate: (rate, comoPadrao = false) => {
@@ -1143,6 +1137,12 @@ export const usePlayer = create<PlayerState>()(
           ...current,
           ...persisted,
           ...restoredPlaybackState(persisted.positionMs),
+          // A cache de ajustes pode chegar antes da sessão. Aplicá-la aqui
+          // cobre essa ordem sem iniciar reprodução nem alterar a posição.
+          ...(() => {
+            const adjustment=ajusteAoTocar(current.ajustesPorFaixa,chaveDaFaixa(persisted.current),{rate:current.padraoRate,ganhos:current.padraoGanhos});
+            return {playbackRate:arredondarRate(adjustment.rate),eqGanhos:adjustment.ganhos};
+          })(),
           // A maquina TEM de acompanhar o restauro. Sem isto ficava em
           // `sem-faixa` com uma faixa carregada, e como a maquina ignora
           // ordens sem faixa, o botao de play deixava de responder ao abrir a

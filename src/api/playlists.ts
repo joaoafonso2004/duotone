@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { trackKey, upsertTrack, upsertTracks } from './library';
 import type { Playlist, PlaylistTrack, Track } from '../types';
+import { missingProfilePlaylistColumns } from '../lib/profileSchema';
 
 async function currentUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
@@ -10,11 +11,13 @@ async function currentUserId(): Promise<string> {
 
 export async function listPlaylists(): Promise<Playlist[]> {
   const userId = await currentUserId();
-  const { data, error } = await supabase
-    .from('playlists')
-    .select('id, name, created_at, visible_on_profile, copied_from, playlist_tracks (position, tracks (artwork_url))')
-    .eq('owner_id', userId)
-    .order('created_at', { ascending: false });
+  const read=(fields:string)=>supabase.from('playlists').select(fields)
+    .eq('owner_id',userId).order('created_at',{ascending:false});
+  let { data, error } = await read('id, name, created_at, visible_on_profile, copied_from, playlist_tracks (position, tracks (artwork_url))');
+  // A biblioteca já existia antes da partilha de perfis. Uma migração em falta
+  // não pode fazê-la desaparecer; a leitura continua limitada ao próprio dono.
+  const legacy=missingProfilePlaylistColumns(error);
+  if(legacy)({data,error}=await read('id, name, created_at, playlist_tracks (position, tracks (artwork_url))'));
   if (error) throw error;
 
   return (data ?? []).map((row: any) => {
@@ -30,7 +33,7 @@ export async function listPlaylists(): Promise<Playlist[]> {
         .map((pt) => pt.tracks?.artwork_url)
         .filter(Boolean)
         .slice(0, 4),
-      visibleOnProfile: !!row.visible_on_profile,
+      visibleOnProfile: legacy ? undefined : !!row.visible_on_profile,
       copiedFrom: row.copied_from ?? null,
     };
   });

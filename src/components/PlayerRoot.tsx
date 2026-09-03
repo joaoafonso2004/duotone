@@ -1,3 +1,4 @@
+import {StateIcon} from './StateIcon';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { readLikedSongsCache } from '../lib/likedSongsCache';
 import { useAuth } from '../state/auth';
@@ -33,7 +34,7 @@ import { useTheme } from '../state/theme';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ProgressBar } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
-import { LyricsView } from './LyricsView';
+import {ArtworkLyricsCube} from './ArtworkLyricsCube';
 import { QueueSheet } from './QueueSheet';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { EstrelaInteligente } from './BrilhoInteligente';
@@ -531,7 +532,7 @@ export function PlayerRoot() {
                 style={[styles.actionsBtn, saved && styles.actionsBtnActive]}
                 accessibilityLabel={saved ? 'Saved to Library' : 'Save to Library'}
               >
-                <Ionicons
+                <StateIcon
                   name={saved ? 'heart' : 'heart-outline'}
                   size={20}
                   color={colors.text}
@@ -568,7 +569,7 @@ export function PlayerRoot() {
                 onPress={onToggleShuffle}
                 accessibilityLabel={rotuloDoModo(modoDeShuffle(shuffle, shuffleInteligente))}
               >
-                <Ionicons
+                <StateIcon
                   name="shuffle"
                   size={22}
                   color={shuffle ? colors.text : colors.textTertiary}
@@ -595,7 +596,7 @@ export function PlayerRoot() {
                 onPress={togglePlay}
                 style={({ pressed }) => [styles.playBtn, pressed && { opacity: 0.85 }]}
               >
-                <Ionicons
+                <StateIcon
                   name={isPlaying ? 'pause' : 'play'}
                   size={30}
                   color={colors.bg}
@@ -629,7 +630,7 @@ export function PlayerRoot() {
                     : repeatMode === 'all' ? 'Repeat queue' : 'Repeat off'
                 }
               >
-                <Ionicons
+                <StateIcon
                   name="repeat" 
                   size={22}
                   color={repeatMode === 'off' ? colors.textTertiary : colors.text}
@@ -661,7 +662,7 @@ export function PlayerRoot() {
                 hitSlop={12}
                 onPress={() => {
                   hapticSelection();
-                  setShowLyrics(true);
+                  setShowLyrics(v=>!v);
                 }}
                 style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
               >
@@ -755,14 +756,14 @@ export function PlayerRoot() {
               accessibilityLabel={saved ? 'Remove from Library' : 'Save to Library'}
               style={styles.miniBtn}
             >
-              <Ionicons
+              <StateIcon
                 name={saved ? 'heart' : 'heart-outline'}
                 size={19}
                 color={saved ? theme.color : colors.textSecondary}
               />
             </Pressable>
             <Pressable hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
-              <Ionicons
+              <StateIcon
                 name={isPlaying ? 'pause' : 'play'}
                 size={22}
                 color={colors.text}
@@ -788,7 +789,7 @@ export function PlayerRoot() {
         </Animated.View>
 
       {/* ============ FRAME DE VÍDEO YOUTUBE (flutuante, nunca desmonta) ============ */}
-      {isYt ? (
+      {current ? (
         <Animated.View
           {...(!expanded ? swipeClose.panHandlers : {})}
           pointerEvents={shouldHide ? 'none' : 'auto'}
@@ -816,22 +817,22 @@ export function PlayerRoot() {
               outputRange: [8, 20],
             }),
             transform: [{ translateY: dragY },{translateX:expanded||reducedMotion?0:Animated.add(dragX,(1-closeGain)*W)}],
-            overflow: 'hidden',
-            backgroundColor: '#000',
+            overflow: expanded ? 'visible' : 'hidden',
+            backgroundColor: expanded ? 'transparent' : '#000',
           }}
         >
-          <YouTubePlayerView track={current} />
+          {isYt && <View style={[StyleSheet.absoluteFill,{overflow:'hidden',borderRadius:20,opacity:expanded?0:1}]}><YouTubePlayerView track={current} /></View>}
 
           {/* Fundo preto opaco para tapar quaisquer controlos, logos ou botões do YouTube (WebView)
               de brilharem por trás quando a capa de álbum diminui de opacidade ao pulsar. */}
-          {(!expanded || activeBackend !== 'webview') && (
+          {!expanded && (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} pointerEvents="none" />
           )}
 
           {/* Mostramos SEMPRE a thumbnail por cima — o áudio nativo continua a
               tocar por trás. (A app é só áudio; o vídeo é irrelevante.) A capa
               "respira" (opacidade a pulsar) enquanto a música carrega. */}
-          {(!expanded || activeBackend !== 'webview') && artSource ? (
+          {!expanded && artSource ? (
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: pulse }]}>
               <Image
                 source={{ uri: artSource }}
@@ -842,6 +843,9 @@ export function PlayerRoot() {
               />
             </Animated.View>
           ) : null}
+
+          {expanded && <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics}
+            front={artSource?<Image source={{uri:artSource}} style={StyleSheet.absoluteFill} contentFit="cover" onError={onArtError} />:<View style={StyleSheet.absoluteFill} />} />}
 
           {/* No modo mini, tocar no vídeo expande */}
           {!expanded ? (
@@ -893,14 +897,6 @@ export function PlayerRoot() {
         track={current}
         onClose={() => setPlaylistOpen(false)}
       />
-
-      {expanded && showLyrics && current && (
-        <LyricsView
-          track={current}
-          positionMs={positionMs}
-          onClose={() => setShowLyrics(false)}
-        />
-      )}
 
       {/* ===================== LISTA DA FILA (QUEUE) ===================== */}
       <QueueSheet

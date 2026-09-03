@@ -3,7 +3,8 @@ import { startConnectivity,useConnectivity } from './src/state/connectivity';
 import { loadRecommendationFeedback,useRecommendationFeedback } from './src/state/recommendationFeedback';
 import { refreshSuggestionPreferences } from './src/state/recomendacoes';
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import {useLyricsPrefetch} from './src/hooks/useLyricsPrefetch';
 import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { UpdateSheet } from './src/components/UpdateSheet';
@@ -17,8 +18,6 @@ import {
   getShuffleInteligente,
   getPlaybackRate,
   getEqGanhos,
-  getAjustesPorFaixa,
-  setAjustesPorFaixa,
   getVolumeNormalization,
   loadPrefsCache,
 } from './src/lib/prefs';
@@ -33,8 +32,8 @@ import {
 } from './src/lib/youtubeCache';
 import { registerBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { useAuth } from './src/state/auth';
-import { lerAjustesRemotos } from './src/api/ajustes';
-import { fundirAjustes } from './src/lib/equalizer';
+import {chaveDaFaixa} from './src/lib/equalizer';
+import { startTrackAdjustmentSync } from './src/state/trackAdjustments';
 import { usePlayer } from './src/state/player';
 import { useTheme } from './src/state/theme';
 import { useRecomendacoes } from './src/state/recomendacoes';
@@ -42,10 +41,25 @@ import { iniciarPresenca } from './src/lib/presenceSync';
 import { iniciarSocial } from './src/state/social';
 
 export default function App() {
+  useLyricsPrefetch();
   useEffect(startConnectivity,[]);
   const offline=useConnectivity(s=>s.offline);
   const init = useAuth((s) => s.init);
   const userId = useAuth((s) => s.session?.user.id);
+  const adjustmentUserId=useAuth(s=>s.session?.user.id??s.offlineUserId);
+  const [preferencesReady,setPreferencesReady]=useState(false);
+  useEffect(()=>{
+    if(!preferencesReady)return;
+    const player=usePlayer.getState();player._carregarAjustes({},player.padraoGanhos,player.padraoRate);
+    if(!adjustmentUserId)return;
+    return startTrackAdjustmentSync(adjustmentUserId,values=>{
+      const p=usePlayer.getState(),key=p.current?chaveDaFaixa(p.current):null;
+      // Um polling sem alterações não aplica a meio da música um novo padrão
+      // escolhido nas Definições para as faixas seguintes.
+      if(!key||JSON.stringify(p.ajustesPorFaixa[key])===JSON.stringify(values[key]))usePlayer.setState({ajustesPorFaixa:values});
+      else p._carregarAjustes(values,p.padraoGanhos,p.padraoRate);
+    });
+  },[adjustmentUserId,preferencesReady]);
 
   useEffect(() => {
     if (!userId||offline) return;
@@ -105,8 +119,7 @@ export default function App() {
       getVolumeNormalization(),
       getPlaybackRate(),
       getEqGanhos(),
-      getAjustesPorFaixa(),
-    ]).then(([repeatMode, shuffle, shuffleInteligente, showRewindButton, autoplayRadio, volumeNormalization, playbackRate, eqGanhos, ajustes]) => {
+    ]).then(([repeatMode, shuffle, shuffleInteligente, showRewindButton, autoplayRadio, volumeNormalization, playbackRate, eqGanhos]) => {
       const player = usePlayer.getState();
       player.setRepeatMode(repeatMode);
       player.setShuffle(shuffle);
@@ -118,19 +131,8 @@ export default function App() {
       // A memoria por faixa e os ganhos entram JUNTOS e sem reaplicar nada: o
       // grafo do EQ so existe quando ha um video, e isso e tratado no
       // playTrack.
-      player._carregarAjustes(ajustes, eqGanhos, playbackRate);
-      // O que este aparelho sabe entra JA, sem esperar pela rede. O que o
-      // servidor sabe chega a seguir e funde-se por cima: por faixa, ganha o
-      // ajuste mexido mais recentemente. Ate aqui as duas memorias viviam
-      // separadas e o equalizador do PC nao chegava ao telemovel.
-      void lerAjustesRemotos()
-        .then((remoto) => {
-          if (!Object.keys(remoto).length) return;
-          const juntos = fundirAjustes(usePlayer.getState().ajustesPorFaixa, remoto);
-          usePlayer.setState({ ajustesPorFaixa: juntos });
-          return setAjustesPorFaixa(juntos);
-        })
-        .catch(() => { /* Sem rede fica o que o aparelho ja sabia. */ });
+      player._carregarAjustes({},eqGanhos,playbackRate);
+      setPreferencesReady(true);
     });
 
     // "Manter o ecrã ligado" só era aplicado pelo useEffect do ecrã de

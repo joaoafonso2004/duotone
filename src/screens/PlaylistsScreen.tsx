@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +26,7 @@ import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PromptSheet } from '../components/PromptSheet';
 import { Screen } from '../components/Screen';
+import { SocialButton } from '../components/socialUI';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -41,6 +42,8 @@ export function PlaylistsScreen() {
 
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError,setLoadError]=useState('');
+  const request=useRef(0);
   const [busy, setBusy] = useState(false);
   const theme = useTheme((s) => s.theme);
 
@@ -76,18 +79,22 @@ export function PlaylistsScreen() {
   };
 
   const load = useCallback(async () => {
+    const id=++request.current;
+    setLoading(true);setLoadError('');
     try {
-      setPlaylists(await listPlaylists());
+      const rows=await listPlaylists();
+      if(id===request.current)setPlaylists(rows);
     } catch {
-      // ignorar
+      if(id===request.current)setLoadError('Could not load your playlists. Please try again.');
     } finally {
-      setLoading(false);
+      if(id===request.current)setLoading(false);
     }
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       load();
+      return()=>{request.current++;};
     }, [load])
   );
 
@@ -142,7 +149,7 @@ export function PlaylistsScreen() {
   return (
     <Screen
       title="Playlists"
-      subtitle={`${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
+      subtitle={loading?'Loading…':loadError?undefined:`${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
       right={
         <Pressable
           hitSlop={10}
@@ -154,9 +161,10 @@ export function PlaylistsScreen() {
       }
     >
 
+      {!!loadError&&<View style={{paddingHorizontal:spacing.xl,paddingVertical:spacing.lg,gap:12}}><Text accessibilityRole="alert" style={type.caption}>{loadError}</Text><SocialButton onPress={()=>void load()}>Try again</SocialButton></View>}
       {loading ? (
         <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
-      ) : playlists.length === 0 ? (
+      ) : playlists.length === 0 && loadError ? null : playlists.length === 0 ? (
         <EmptyState
           icon="albums-outline"
           title="No playlists yet"

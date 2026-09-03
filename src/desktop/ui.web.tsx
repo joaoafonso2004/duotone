@@ -1,3 +1,4 @@
+import {StateIcon} from '../components/StateIcon';
 import { Ionicons } from '@expo/vector-icons';
 import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -59,7 +60,7 @@ export function IconButton({ name, label, onPress, active = false, danger = fals
   return <P className="control-btn-animate" accessibilityLabel={label} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
   ]}>
-    <Ionicons name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} />
+    <StateIcon name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} />
     {marca ? <View style={ui.marcaDeModo}><Text style={ui.marcaDeModoTexto}>{marca}</Text></View> : null}
     {estrela ? <View style={{ position: 'absolute', top: 5, right: 5 }}>
       <EstrelaInteligente tamanho={6} />

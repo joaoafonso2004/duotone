@@ -1,3 +1,5 @@
+import {AdjustmentSyncStatus} from './AdjustmentSyncStatus';
+import {SelectionPill} from './SelectionPill';
 import React, { useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, Text, View } from 'react-native';
 import {
@@ -159,22 +161,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs }}>
             {PERFIS.map((p) => {
               const escolhido = perfil?.id === p.id;
-              return (
-                <Pressable
-                  key={p.id}
-                  onPress={() => { hapticSelection(); setEqGanhos(normalizar(p.ganhos)); }}
-                  style={{
-                    minHeight: 32, paddingHorizontal: spacing.md, justifyContent: 'center',
-                    borderRadius: radii.pill, borderWidth: 1,
-                    borderColor: escolhido ? 'transparent' : colors.border,
-                    backgroundColor: escolhido ? colors.surfaceHigh : 'transparent',
-                  }}
-                >
-                  <Text style={[type.caption, { color: escolhido ? colors.text : colors.textSecondary }]}>
-                    {p.nome}
-                  </Text>
-                </Pressable>
-              );
+              return <SelectionPill key={p.id} selected={escolhido} label={p.nome} onPress={() => { hapticSelection(); setEqGanhos(normalizar(p.ganhos)); }} />;
             })}
           </View>
 
@@ -193,6 +180,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
             ))}
           </View>
 
+<AdjustmentSyncStatus />
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs }}>
             <Text style={[type.micro, { color: colors.textTertiary }]}>
               {lembrado ? 'SAVED FOR THIS TRACK' : ''}
