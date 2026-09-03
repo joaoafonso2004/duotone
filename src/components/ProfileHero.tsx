@@ -1,6 +1,6 @@
 import React from 'react';
 import {Image,Platform,Pressable,StyleSheet,Text,View} from 'react-native';
-import {Ionicons} from '@expo/vector-icons';
+import {Ionicons,MaterialCommunityIcons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
@@ -12,6 +12,9 @@ type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:numb
   onEdit:()=>void;onMessage:()=>void;onStats:()=>void;onBack?:()=>void;
   onSocial?:()=>void;onSettings?:()=>void;onRefresh:()=>void;onAddFriend:()=>void;pending:boolean};
 
+/** Quem fez a app. O perfil dele leva uma marca que não se pode tirar. */
+const CRIADOR='joao';
+
 /** Uma só zona de identidade, com ações utilitárias alinhadas no topo. */
 export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,onStats,onBack,onSocial,onSettings,onRefresh,onAddFriend,pending}:Props) {
   const web=Platform.OS==='web',safe=useSafeAreaInsets();
@@ -21,7 +24,7 @@ export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,on
     <Ionicons name={icon} size={20} color={colors.text}/>
     {badge>0&&<View style={{position:'absolute',right:0,top:0,minWidth:16,height:16,borderRadius:8,paddingHorizontal:3,backgroundColor:colors.danger,justifyContent:'center'}}><Text style={{fontSize:10,fontWeight:'700',color:'#fff',textAlign:'center'}}>{badge>99?'99+':badge}</Text></View>}
   </Pressable>;
-  return <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?320:430,overflow:'hidden',backgroundColor:colors.bg}}>
+  return <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?320:360,overflow:'hidden',backgroundColor:colors.bg}}>
     {!!cover&&<View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {/* O recorte é 8:3, muito panorâmico.
           No telemóvel a caixa é 2:1 e a capa preenche-a: perde-se cerca de um
@@ -33,14 +36,24 @@ export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,on
           arestas duras dos dois lados. Um cabeçalho não tem margens. */}
       <Image source={{uri:cover}} resizeMode="cover" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
       {web?<Image source={{uri:cover}} resizeMode="cover" style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>:
-      <View style={[StyleSheet.absoluteFill,{justifyContent:'center',alignItems:'center'}]}>
-        <View style={{width:'100%',aspectRatio:2,maxHeight:'100%'}}>
+      <View style={[StyleSheet.absoluteFill,{justifyContent:'flex-start',alignItems:'center'}]}>
+        {/* Encostada ao topo, não centrada: assim começa por trás do título em
+            vez de flutuar a meio, e a vinheta é que a acaba por baixo. */}
+        <View style={{width:'100%',height:300}}>
           <Image source={{uri:cover}} resizeMode="cover" style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>
-          <LinearGradient colors={[colors.bg,'transparent','transparent',colors.bg]} locations={[0,0.24,0.7,1]} style={StyleSheet.absoluteFill}/>
+          <LinearGradient colors={['transparent','transparent',colors.bg]} locations={[0,0.55,1]} style={StyleSheet.absoluteFill}/>
         </View>
       </View>}
       <LinearGradient colors={['rgba(10,10,15,0.2)','rgba(10,10,15,0.08)','rgba(10,10,15,0.65)',colors.bg]} locations={[0,0.32,0.8,1]} style={StyleSheet.absoluteFill}/>
       <LinearGradient colors={['rgba(10,10,15,0.45)','transparent','rgba(10,10,15,0.45)']} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
+    </View>}
+    {/* A coroa marca quem fez a app. Fica fora do bloco da capa de propósito:
+        assim continua lá com capa nova, com capa apagada, ou sem capa nenhuma.
+        `pointerEvents none` para não roubar toques ao que está por baixo. */}
+    {profile?.profile.username===CRIADOR&&<View pointerEvents="none" style={{position:'absolute',right:SOCIAL_GUTTER,bottom:16,
+      width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',
+      backgroundColor:'rgba(10,10,15,0.55)',borderWidth:1,borderColor:'rgba(240,200,90,0.45)'}}>
+      <MaterialCommunityIcons name="crown" size={15} color="#F0C85A"/>
     </View>}
     <View style={[s.row,{gap:8}]}>
       {onBack&&action('Back','chevron-back',onBack)}

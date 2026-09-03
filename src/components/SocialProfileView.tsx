@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import { ActivityIndicator,Image,Platform,Pressable,ScrollView,Text,View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getSocialProfile,getSocialProfileTracks,type ProfileHighlights,type SocialProfile,type ProfileTrack } from '../api/profiles';
+import { appearanceOf,getSocialProfile,getSocialProfileTracks,saveProfileCustomization,type ProfileHighlights,type SocialProfile,type ProfileTrack } from '../api/profiles';
 import { loadProfileSections } from '../api/profileSections';
 import { missingProfilePlaylistColumns,PROFILE_SHARING_UNAVAILABLE } from '../lib/profileSchema';
 import { sendFriendRequest } from '../api/social';
@@ -109,6 +109,26 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
     void load(!primeira);
     return()=>{request.current++;};
   },[load,friend?.status,active,userId]);
+  /**
+   * Tirar a musica destacada a partir do proprio cartao.
+   *
+   * O servidor sempre soube tirá-la e o editor sempre teve o botão, mas o
+   * único caminho até lá era abrir o editor e descer até aos destaques -- e o
+   * ⋯ do cartão abre as opções da FAIXA, que é outra coisa. Quem quer tirá-la
+   * procura-a aqui.
+   */
+  const [aTirarMoment,setATirarMoment]=useState(false);
+  const tirarMoment=async()=>{
+    if(!profile||aTirarMoment)return;
+    setATirarMoment(true);setError('');
+    try{
+      await saveProfileCustomization(appearanceOf(profile),profile.profile.name,profile.profile.username,{...highlights,moment:null});
+      setHighlights(h=>({...h,moment:null}));
+      void load(true);
+    }catch(e:any){ setError(e?.message || 'Could not remove the song. Please try again.'); }
+    finally{ setATirarMoment(false); }
+  };
+
   /** Guardar (ou largar) a playlist de outra pessoa. Fica uma copia minha. */
   const alternarCopia=async(pl:Playlist)=>{
     if(mutation.current || loading || sectionErrors.copies) return;
@@ -219,6 +239,9 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
                 <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={s.text}>{highlights.moment.title}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(highlights.moment)}</Text></View>
                 <Ionicons name="play-circle" size={32} color={accent}/>
               </Pressable>
+              {own&&(aTirarMoment
+                ? <ActivityIndicator size="small" color={accent}/>
+                : <SocialIconButton label="Remove this song from your profile" icon="close" onPress={()=>void tirarMoment()}/>)}
               <SocialIconButton label={`Options for ${highlights.moment.title}`} icon="ellipsis-horizontal" onPress={()=>setTrack(highlights.moment)}/>
             </View>
           </View>}

@@ -15,10 +15,15 @@ import {
   View,
   Keyboard,
 } from 'react-native';
-import { getFriendships, shareItem, type Friendship } from '../api/social';
+import { getFriendships, getGrupos, shareComGrupo, shareItem, type ChatGroup, type Friendship } from '../api/social';
+import { GroupAvatar } from './GroupChat';
 import { colors, radii, spacing, type as typography } from '../theme';
 import { useTheme } from '../state/theme';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
+
+type Destino =
+  | { kind: 'group'; id: string; nome: string; sub: string; grupo: ChatGroup }
+  | { kind: 'friend'; id: string; nome: string; sub: string; amigo: Friendship };
 
 interface ShareFriendSheetProps {
   visible: boolean;
@@ -30,6 +35,7 @@ interface ShareFriendSheetProps {
 export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFriendSheetProps) {
   const theme = useTheme((s) => s.theme);
   const [friends, setFriends] = useState<Friendship[]>([]);
+  const [groups, setGroups] = useState<ChatGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
   const [sendingStates, setSendingStates] = useState<Record<string, 'idle' | 'sending' | 'sent'>>({});
@@ -39,30 +45,42 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
       setLoading(true);
       setComment('');
       setSendingStates({});
-      getFriendships()
-        .then((list) => {
-          setFriends(list.filter((f) => f.status === 'accepted'));
+      // Os grupos faltavam aqui: dava para os criar e falar neles, mas não
+      // para lhes mandar uma música ou uma playlist -- o único caminho era
+      // abrir a conversa do grupo. Vão os dois, e um falhar não leva o outro.
+      Promise.allSettled([getFriendships(), getGrupos()])
+        .then(([a, g]) => {
+          if (a.status === 'fulfilled') setFriends(a.value.filter((f) => f.status === 'accepted'));
+          if (g.status === 'fulfilled') setGroups(g.value);
         })
-        .catch(() => {})
         .finally(() => setLoading(false));
     }
   }, [visible]);
 
-  const handleShare = async (friend: Friendship) => {
-    const friendId = friend.friendId;
-    if (sendingStates[friendId] === 'sending' || sendingStates[friendId] === 'sent') return;
+  /** `alvo` é um amigo ou um grupo; a chave do estado distingue-os. */
+  const handleShare = async (alvo: Destino) => {
+    const chave = alvo.kind === 'group' ? `g:${alvo.id}` : alvo.id;
+    if (sendingStates[chave] === 'sending' || sendingStates[chave] === 'sent') return;
 
     hapticSelection();
-    setSendingStates((prev) => ({ ...prev, [friendId]: 'sending' }));
+    setSendingStates((prev) => ({ ...prev, [chave]: 'sending' }));
 
     try {
-      await shareItem(friendId, itemType, item, comment);
+      if (alvo.kind === 'group') await shareComGrupo(alvo.id, itemType, item, comment);
+      else await shareItem(alvo.id, itemType, item, comment);
       hapticNotification();
-      setSendingStates((prev) => ({ ...prev, [friendId]: 'sent' }));
+      setSendingStates((prev) => ({ ...prev, [chave]: 'sent' }));
     } catch {
-      setSendingStates((prev) => ({ ...prev, [friendId]: 'idle' }));
+      setSendingStates((prev) => ({ ...prev, [chave]: 'idle' }));
     }
   };
+
+  // Grupos primeiro: são menos, e é para eles que se partilha quando se quer
+  // que mais do que uma pessoa oiça.
+  const destinos: Destino[] = [
+    ...groups.map((g) => ({ kind: 'group' as const, id: g.id, nome: g.name, sub: `${g.membros.length} ${g.membros.length === 1 ? 'member' : 'members'}`, grupo: g })),
+    ...friends.map((f) => ({ kind: 'friend' as const, id: f.friendId, nome: f.name, sub: `@${f.username}`, amigo: f })),
+  ];
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -95,42 +113,44 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
             />
           </View>
 
-          {/* Friends list */}
+          {/* Grupos e amigos */}
           <Text style={[typography.micro, { marginBottom: spacing.sm, color: colors.textSecondary }]}>
-            CHOOSE FRIENDS
+            {groups.length ? 'CHOOSE A GROUP OR A FRIEND' : 'CHOOSE FRIENDS'}
           </Text>
 
           {loading ? (
             <ActivityIndicator color={theme.color} style={{ marginVertical: 32 }} />
-          ) : friends.length === 0 ? (
+          ) : destinos.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Ionicons name="people-outline" size={24} color={colors.textTertiary} />
-              <Text style={styles.emptyText}>You need accepted friends before you can share music.</Text>
+              <Text style={styles.emptyText}>You need a friend or a group before you can share music.</Text>
             </View>
           ) : (
             <FlatList
-              data={friends}
-              keyExtractor={(f) => f.friendId}
+              data={destinos}
+              keyExtractor={(d) => `${d.kind}:${d.id}`}
               style={{ maxHeight: 250 }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              renderItem={({ item: friend }) => {
-                const state = sendingStates[friend.friendId] || 'idle';
+              renderItem={({ item: alvo }) => {
+                const state = sendingStates[alvo.kind === 'group' ? `g:${alvo.id}` : alvo.id] || 'idle';
                 return (
                   <View style={styles.friendRow}>
                     <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                      <FriendAvatar avatarUrl={friend.avatarUrl} name={friend.name} size={36}/>
+                      {alvo.kind === 'group'
+                        ? <GroupAvatar group={alvo.grupo} size={36}/>
+                        : <FriendAvatar avatarUrl={alvo.amigo.avatarUrl} name={alvo.nome} size={36}/>}
                       <View style={{ flex: 1 }}>
                         <Text style={[typography.body, { fontWeight: '600' }]} numberOfLines={1}>
-                          {friend.name}
+                          {alvo.nome}
                         </Text>
                         <Text style={[typography.caption, { fontSize: 11 }]} numberOfLines={1}>
-                          @{friend.username}
+                          {alvo.sub}
                         </Text>
                       </View>
                     </View>
                     <Pressable
-                      onPress={() => handleShare(friend)}
+                      onPress={() => handleShare(alvo)}
                       disabled={state !== 'idle'}
                       style={({ pressed }) => [
                         styles.shareBtn,
