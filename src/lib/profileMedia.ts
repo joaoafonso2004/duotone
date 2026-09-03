@@ -14,7 +14,7 @@ export async function signedProfileMedia(kind:ProfileMediaKind,path:string):Prom
   const gen=generation;
   const request=(async()=>{
     const {data,error}=await supabase.storage.from(mediaBucket(kind)).createSignedUrl(path,300);
-    if(error || !data) throw error || new Error('Imagem indisponível');
+    if(error || !data) throw error || new Error('Image unavailable.');
     if(gen===generation) cache.set(key,{url:data.signedUrl,until:Date.now()+270000});
     return data.signedUrl;
   })().finally(()=>{if(gen===generation) pending.delete(key);});
@@ -43,7 +43,7 @@ export async function removeProfileMedia(kind:ProfileMediaKind,paths:string[]) {
 /** O Storage exige a remoção dos objetos pela API antes de eliminar a conta. */
 export async function removeOwnProfileMedia() {
   const {data:{user},error}=await supabase.auth.getUser();
-  if(error||!user)throw new Error('A sessão expirou.');
+  if(error||!user)throw new Error('Your session has expired.');
   for(const kind of ['avatar','cover'] as const){
     const folder=`${user.id}/${kind}`;
     for(;;){

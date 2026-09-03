@@ -90,7 +90,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
                 icon: (isDownloaded
                   ? 'checkmark-circle'
                   : 'arrow-down-circle-outline') as keyof typeof Ionicons.glyphMap,
-                label: isDownloaded ? 'Remover download' : 'Descarregar',
+                label: isDownloaded ? 'Remove download' : 'Download',
                 onPress: handleDownloadToggle,
               },
             ]

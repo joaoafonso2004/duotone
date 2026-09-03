@@ -25,7 +25,7 @@ let readyWaiters: Array<() => void> = [];
 // sequer tentado), para aparecer na mensagem de erro do YouTubePlayerView em
 // vez de simplesmente "sem PO Token" — sem isto é impossível saber, à
 // distância, em que passo o mint falha num dispositivo real.
-let lastError: string | null = 'BotGuardMinter ainda não ficou pronta';
+let lastError: string | null = 'BotGuardMinter is not ready yet';
 
 export function getLastBotGuardError(): string | null {
   return lastError;
@@ -39,7 +39,7 @@ export function unregisterBotGuardWebView(): void {
   webviewRef = null;
   ready = false;
   readyWaiters = [];
-  lastError = 'BotGuardMinter ainda não ficou pronta';
+  lastError = 'BotGuardMinter is not ready yet';
 }
 
 /** Chamado pelo onMessage do BotGuardMinter. */
@@ -74,7 +74,7 @@ export function handleBotGuardMessage(raw: string): void {
     lastError = null;
     req.resolve(msg.poToken);
   } else {
-    lastError = typeof msg.error === 'string' ? msg.error : 'erro desconhecido no mint';
+    lastError = typeof msg.error === 'string' ? msg.error : 'unknown mint error';
     req.resolve(null);
   }
 }
@@ -109,7 +109,7 @@ export async function mintPoTokenOnDevice(
   readyWaitMs = 12000
 ): Promise<string | null> {
   if (!webviewRef?.current) {
-    lastError = 'BotGuardMinter não está montada';
+    lastError = 'BotGuardMinter is not mounted';
     return null;
   }
   if (!ready) {

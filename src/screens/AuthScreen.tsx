@@ -80,12 +80,12 @@ export function AuthScreen() {
     setInfo(null);
     if (mode === 0) {
       if (!identifier.trim() || !password) {
-        setError('Preencha o seu e-mail/username e a palavra-passe.');
+        setError('Enter your email or username, and your password.');
         triggerShake();
         return;
       }
     } else if (!email.trim() || !password || !username.trim()) {
-      setError('Preencha o username, e-mail e palavra-passe.');
+      setError('Enter a username, an email and a password.');
       triggerShake();
       return;
     }
@@ -107,12 +107,12 @@ export function AuthScreen() {
         } else {
           hapticNotification();
           setInfo(
-            'Conta criada. Se a confirmação de e-mail estiver ativa, verifique a sua caixa de entrada.'
+            'Account created. If email confirmation is on, check your inbox.'
           );
         }
       }
     } catch (e: any) {
-      setError(e?.message ?? 'Ocorreu um erro.');
+      setError(e?.message ?? 'Something went wrong.');
       triggerShake();
     } finally {
       setLoading(false);

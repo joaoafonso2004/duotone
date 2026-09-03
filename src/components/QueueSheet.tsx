@@ -65,7 +65,7 @@ export function QueueSheet({ visible, onClose }: Props) {
       )}
 
       <Text style={[type.micro, styles.sectionTitle, { marginTop: spacing.lg }]}>
-        UP NEXT ({upNext.length}){radioActive ? ' · RÁDIO' : ''}
+        UP NEXT ({upNext.length}){radioActive ? ' · RADIO' : ''}
       </Text>
 
       {upNext.length > 0 ? (

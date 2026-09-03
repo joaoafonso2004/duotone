@@ -80,7 +80,7 @@ export const useAuth = create<AuthState>((set) => ({
       }
       if (!data) {
         await handleFailedLoginAttempt();
-        return 'Credenciais inválidas. Por favor, verifique os seus dados.';
+        return 'Invalid credentials. Please check your details.';
       }
       email = data as string;
     }
@@ -90,7 +90,7 @@ export const useAuth = create<AuthState>((set) => ({
     if (error) {
       await handleFailedLoginAttempt();
       // Oculta a mensagem de erro específica do Supabase por questões de segurança
-      return 'Credenciais inválidas. Por favor, verifique os seus dados.';
+      return 'Invalid credentials. Please check your details.';
     }
 
     // Sucesso - Limpar tentativas falhadas

@@ -90,7 +90,7 @@ export async function searchYouTubeFreeWithChannel(query: string, signal?: Abort
 
   const renderers: any[] = [];
   const corpo = await res.json();
-  if (!corpo?.contents) throw new Error('Resposta de pesquisa inesperada.');
+  if (!corpo?.contents) throw new Error('Unexpected search response.');
   collectVideos(corpo, renderers);
 
   const out: FreeSearchResult[] = [];

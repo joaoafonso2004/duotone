@@ -195,7 +195,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
 
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs }}>
             <Text style={[type.micro, { color: colors.textTertiary }]}>
-              {lembrado ? 'GUARDADO PARA ESTA FAIXA' : ''}
+              {lembrado ? 'SAVED FOR THIS TRACK' : ''}
             </Text>
             <Pressable
               onPress={() => { hapticSelection(); setEqGanhos(PLANO.slice()); }}

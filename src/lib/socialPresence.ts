@@ -18,10 +18,10 @@ export function estadoDaPresenca(p: SocialPresence | undefined, now: number) {
 
 export function ultimaAtividade(iso: string | null | undefined, now = Date.now()): string {
   const at = Date.parse(iso ?? '');
-  if (!Number.isFinite(at)) return 'Última atividade indisponível';
+  if (!Number.isFinite(at)) return 'Last seen unknown';
   const minutos = Math.floor(Math.max(0, now - at) / 60000);
-  if (minutos < 1) return 'Última vez online agora mesmo';
-  if (minutos < 60) return `Última vez online há ${minutos} min`;
-  if (minutos < 1440) return `Última vez online há ${Math.floor(minutos / 60)} h`;
-  return `Última vez online ${new Date(at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
+  if (minutos < 1) return 'Last seen just now';
+  if (minutos < 60) return `Last seen ${minutos} min ago`;
+  if (minutos < 1440) return `Last seen ${Math.floor(minutos / 60)} h ago`;
+  return `Last seen ${new Date(at).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
 }

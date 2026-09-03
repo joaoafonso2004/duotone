@@ -57,9 +57,9 @@ export const useSocial = create<SocialState>((set, get) => ({
         }
         const now = Date.now() + clockOffset;
         set({ contacts,friends: friendsNow(now), groups, received, seen, now, loading: false,
-          error: presence.error ? 'Não foi possível atualizar a presença. Tenta novamente.' : null });
+          error: presence.error ? 'Could not update presence. Try again.' : null });
       } catch (e) {
-        if (gen === generation) set({ loading: false, error: 'Não foi possível atualizar o Social. Os dados apresentados podem estar desatualizados.' });
+        if (gen === generation) set({ loading: false, error: 'Could not refresh Social. What you see may be out of date.' });
         console.warn('Erro ao atualizar o Social:', e);
       }
     };

@@ -10,8 +10,8 @@ export async function pickProfileImage():Promise<SelectedProfileImage|null> {
   if(result.canceled) return null;
   const image=result.assets[0];
   if(image.mimeType&&!/^image\/(jpeg|jpg|png|webp|heic|heif)$/i.test(image.mimeType))throw new Error('Escolhe uma fotografia JPEG, PNG, WebP ou HEIC.');
-  if((image.fileSize ?? 0)>15*1024*1024) throw new Error('Escolhe uma imagem até 15 MB.');
-  if(image.width*image.height>50000000)throw new Error('Escolhe uma fotografia até 50 megapíxeis.');
+  if((image.fileSize ?? 0)>15*1024*1024) throw new Error('Pick an image up to 15 MB.');
+  if(image.width*image.height>50000000)throw new Error('Pick a photo up to 50 megapixels.');
   return {uri:image.uri,width:image.width,height:image.height};
 }
 export async function prepareProfileImage(image:SelectedProfileImage,kind:ProfileMediaKind,y=0.5,x=0.5):Promise<ArrayBuffer> {

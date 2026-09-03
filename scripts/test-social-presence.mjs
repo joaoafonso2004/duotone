@@ -15,7 +15,7 @@ assert.equal(estadoDaPresenca(p,now+2000).track,null);
 assert.equal(estadoDaPresenca(p,now+2000).online,true);
 assert.equal(estadoDaPresenca(p,now+6000).online,false);
 assert.equal(estadoDaPresenca({...p,online_until:'inválido'},now).online,false);
-assert.equal(ultimaAtividade(undefined,now),'Última atividade indisponível');
+assert.equal(ultimaAtividade(undefined,now),'Last seen unknown');
 assert.match(ultimaAtividade(iso(-120000),now),/2 min/);
 const {imageCrop}=carregar('../src/lib/profileImageCrop.ts');
 const top=imageCrop(100,400,1,0.5,0),bottom=imageCrop(100,400,1,0.5,1);

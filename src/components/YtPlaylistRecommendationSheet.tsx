@@ -77,7 +77,7 @@ export function YtPlaylistRecommendationSheet({
           throw new Error(
             name
               ? 'This shared playlist is empty.'
-              : 'Sem acesso à playlist partilhada — corre a migração shared-playlists-read.sql no Supabase.'
+              : 'No access to the shared playlist — run the shared-playlists-read.sql migration in Supabase.'
           );
         }
         setLoadedTitle(name);

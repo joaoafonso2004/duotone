@@ -83,12 +83,12 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
           {/* Comment input */}
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[typography.micro, { marginBottom: spacing.xs, color: colors.textSecondary }]}>
-              MENSAGEM / COMENTÁRIO (OPCIONAL)
+              MESSAGE (OPTIONAL)
             </Text>
             <TextInput
               value={comment}
               onChangeText={setComment}
-              placeholder="Escreve algo sobre este som..."
+              placeholder="Say something about it…"
               placeholderTextColor={colors.textTertiary}
               style={styles.commentInput}
               autoCorrect={false}
@@ -97,7 +97,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
 
           {/* Friends list */}
           <Text style={[typography.micro, { marginBottom: spacing.sm, color: colors.textSecondary }]}>
-            SELECIONAR AMIGOS
+            CHOOSE FRIENDS
           </Text>
 
           {loading ? (
@@ -142,11 +142,11 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
                         <ActivityIndicator size="small" color={theme.color} />
                       ) : state === 'sent' ? (
                         <Text style={[typography.body, { color: colors.spotify, fontWeight: '700', fontSize: 12 }]}>
-                          Enviado!
+                          Sent
                         </Text>
                       ) : (
                         <Text style={[typography.body, { color: theme.color, fontWeight: '700', fontSize: 12 }]}>
-                          Partilhar
+                          Share
                         </Text>
                       )}
                     </Pressable>
@@ -157,7 +157,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
           )}
 
           <Pressable style={styles.closeBtn} onPress={onClose}>
-            <Text style={styles.closeBtnText}>Fechar</Text>
+            <Text style={styles.closeBtnText}>Close</Text>
           </Pressable>
         </Pressable>
       </Pressable>

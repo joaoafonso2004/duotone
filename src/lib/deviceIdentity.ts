@@ -30,7 +30,7 @@ export function deviceKind(): DeviceKind {
 }
 
 export function defaultDeviceName(): string {
-  return Platform.OS === 'web' ? 'PC' : Platform.OS === 'ios' ? 'iPhone' : 'Telemóvel';
+  return Platform.OS === 'web' ? 'PC' : Platform.OS === 'ios' ? 'iPhone' : 'Phone';
 }
 
 // Uma só resolução por arranque, partilhada por todos os chamadores.

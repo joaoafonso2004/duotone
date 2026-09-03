@@ -186,7 +186,7 @@ const BOTGUARD_JS = `
     var interpreterUrl = 'https:' + challenge.interpreterUrl.privateDoNotAccessOrElseTrustedResourceUrlWrappedValue;
     await loadScript(interpreterUrl);
     if (!window[challenge.globalName]) {
-      throw new Error('VM global ausente depois de carregar o interpretador');
+      throw new Error('Global VM missing after loading the interpreter');
     }
 
     var bgClient = await BotGuardClient.create({

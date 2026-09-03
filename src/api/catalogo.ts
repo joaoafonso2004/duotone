@@ -142,12 +142,12 @@ async function consultarVizinhanca(nome: string): Promise<Vizinhanca | null> {
     `/search/artist?q=${encodeURIComponent(limpo)}&limit=8`,
   );
   // Sem resposta não há evidência para guardar um resultado negativo.
-  if (!busca || !Array.isArray(busca.data)) throw new Error('Catálogo indisponível.');
+  if (!busca || !Array.isArray(busca.data)) throw new Error('Catalogue unavailable.');
   const candidatos = busca.data.map(paraArtista);
 
   for (const candidato of candidatosPlausiveis(limpo, candidatos)) {
     const rel = await pedir<{ data?: any[] }>(`/artist/${candidato.id}/related?limit=25`);
-    if (!rel || !Array.isArray(rel.data)) throw new Error('Catálogo indisponível.');
+    if (!rel || !Array.isArray(rel.data)) throw new Error('Catalogue unavailable.');
     const semelhantes = (rel?.data ?? []).map(paraArtista).filter((a) => a.nome);
     if (semelhantes.length === 0) continue; // <- o crivo
     const achado: Vizinhanca = { artista: candidato, semelhantes };
@@ -182,12 +182,12 @@ async function consultarArtistaDaFaixa(titulo: string, nome: string, chave: stri
   const guardado = await cacheGet<{ nome: string | null }>(chave, VALIDADE);
   if (guardado) return guardado.nome;
   const busca = await pedir<{ data?: any[] }>(`/search/artist?q=${encodeURIComponent(nome)}&limit=3`);
-  if (!busca || !Array.isArray(busca.data)) throw new Error('Catálogo indisponível.');
+  if (!busca || !Array.isArray(busca.data)) throw new Error('Catalogue unavailable.');
   const confirmados = new Set<string>();
   for (const candidato of busca.data) {
     const query = `artist:"${String(candidato.name).replace(/"/g, '')}" track:"${titulo.replace(/"/g, '')}"`;
     const faixas = await pedir<{ data?: any[] }>(`/search?q=${encodeURIComponent(query)}&limit=10`);
-    if (!faixas || !Array.isArray(faixas.data)) throw new Error('Catálogo indisponível.');
+    if (!faixas || !Array.isArray(faixas.data)) throw new Error('Catalogue unavailable.');
     const exata = faixas.data.some((f) => f.artist?.id === candidato.id
       && chaveDeArtista(f.title) === chaveDeArtista(titulo));
     if (!exata) continue;
