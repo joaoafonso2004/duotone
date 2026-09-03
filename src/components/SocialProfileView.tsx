@@ -10,7 +10,7 @@ import { useProfileMedia } from '../lib/profileMedia';
 import { ultimaAtividade } from '../lib/socialPresence';
 import { displayArtist } from '../lib/artistName';
 import { FriendAvatar } from './FriendAvatar';
-import { colors } from '../theme';
+import { colors, radii } from '../theme';
 import { ProfileEditor } from './ProfileEditor';
 import { SocialTrackActions } from './SocialTrackActions';
 import { SocialButton,socialStyles as s } from './socialUI';
@@ -47,10 +47,17 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
   </View>;
   return <View style={s.body}><ScrollView contentContainerStyle={s.content}>
     {loading&&!profile&&<ActivityIndicator color={colors.accent}/>}
-    {!!error&&<View style={s.card}><Text style={s.error}>{error}</Text><SocialButton onPress={()=>void load()}>Tentar novamente</SocialButton></View>}
+    {!!error&&<View style={s.card}><Text style={s.error}>{error}</Text><SocialButton onPress={()=>void load()}>Try again</SocialButton></View>}
     {profile&&<>
-      <View style={{borderRadius:24,overflow:'hidden',backgroundColor:(profile.appearance?.accent || colors.accent)+'22'}}>
+      {/* O painel e NEUTRO, como todos os outros da app. Tinha um banho da cor
+          de destaque por tras do nome, da bio e dos botoes -- um bloco
+          colorido que a app nao usa em lado nenhum, porque aqui a cor esta
+          reservada a significado. A cor escolhida passa a fazer um trabalho:
+          uma linha fina debaixo da capa, que e onde ela identifica a pessoa
+          sem pintar o resto. */}
+      <View style={{borderRadius:radii.xl,overflow:'hidden',backgroundColor:colors.surface,borderWidth:1,borderColor:colors.border}}>
         <View style={{aspectRatio:8/3,maxHeight:300,backgroundColor:colors.surfaceHigh}}>{cover&&<Image source={{uri:cover}} style={{width:'100%',height:'100%'}} resizeMode="cover"/>}</View>
+        <View style={{height:3,backgroundColor:profile.appearance?.accent || colors.accent}}/>
         <View style={{padding:22,paddingTop:0,gap:15}}>
           <View style={[s.row,{marginTop:-36,alignItems:'flex-end',justifyContent:'space-between'}]}><View style={{borderRadius:52,borderWidth:5,borderColor:colors.bg}}><FriendAvatar avatarUrl={profile.profile.avatar_url} name={profile.profile.name} size={90}/></View>
             {own?<SocialButton onPress={()=>setEditing(true)}>Edit profile</SocialButton>:profile.canView?<SocialButton onPress={()=>onMessage(userId)}>Message</SocialButton>:<SocialButton onPress={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(e=>setError(e.message));}}>{friend?.status==='pending'?'Request pending':'Add friend'}</SocialButton>}
@@ -58,16 +65,15 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
           <View style={s.row}><View style={{flex:1}}><Text style={[s.title,{fontSize:28}]}>{profile.profile.name}</Text><Text style={s.muted}>@{profile.profile.username}</Text></View><Pressable accessibilityLabel="Refresh profile" onPress={()=>void load()}><Ionicons name="refresh" color={colors.textSecondary} size={20}/></Pressable></View>
           {!own&&profile.canView&&<Text style={[s.muted,friend?.online&&{color:colors.online}]}>{friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)}</Text>}
           {!!profile.appearance?.bio&&<Text style={s.text}>{profile.appearance.bio}</Text>}
-          {friend?.currentlyPlaying&&<SocialButton onPress={()=>{const t=friend.currentlyPlaying;if(t)void usePlayer.getState().playTrack({...t,id:t.id??undefined,album:null});}}>♫ Ouvir {friend.currentlyPlaying.title}</SocialButton>}
-          {own&&<View style={[s.row,{flexWrap:'wrap'}]}>{onSocial&&<SocialButton quiet onPress={onSocial}>Friends and chats</SocialButton>}{onSettings&&<SocialButton quiet onPress={onSettings}>Settings</SocialButton>}</View>}
+          {friend?.currentlyPlaying&&<SocialButton onPress={()=>{const t=friend.currentlyPlaying;if(t)void usePlayer.getState().playTrack({...t,id:t.id??undefined,album:null});}}>♫ Play {friend.currentlyPlaying.title}</SocialButton>}
         </View>
       </View>
       {!profile.canView?<Text style={s.muted}>Stats become available once you are friends.</Text>:<>
-        <View style={[s.row,{flexWrap:'wrap',justifyContent:'space-between'}]}>{[[profile.stats?.totalPlays ?? 0,'Plays'],[profile.stats?.uniqueTracks ?? 0,'Tracks'],[profile.friendCount ?? 0,'Amigos']].map(([v,label])=><View key={label} style={[s.card,{flex:1,minWidth:90}]}><Text style={s.title}>{v}</Text><Text style={s.muted}>{label}</Text></View>)}</View>
+        <View style={[s.row,{flexWrap:'wrap',justifyContent:'space-between'}]}>{[[profile.stats?.totalPlays ?? 0,'Plays'],[profile.stats?.uniqueTracks ?? 0,'Tracks'],[profile.friendCount ?? 0,'Friends']].map(([v,label])=><View key={label} style={[s.card,{flex:1,minWidth:90}]}><Text style={s.title}>{v}</Text><Text style={s.muted}>{label}</Text></View>)}</View>
         {profile.stats?.topArtist&&<Pressable onPress={()=>onArtist(profile.stats!.topArtist!.name)} style={s.card}><Text style={s.label}>Most played artist</Text><Text style={s.title}>{profile.stats.topArtist.name}</Text><Text style={s.muted}>{profile.stats.topArtist.plays} plays</Text></Pressable>}
         <SocialButton onPress={onStats}>View listening stats</SocialButton>
         <View style={s.card}><Text style={s.label}>Most played</Text>{most.length?most.map((e,i)=>row(e,i)):<Text style={s.muted}>Nothing played yet.</Text>}{most.length>0&&most.length%20===0&&<SocialButton onPress={()=>{void getSocialProfileTracks(userId,false,most.length).then(m=>setMost([...most,...m])).catch(e=>setError(e.message));}}>Show more</SocialButton>}</View>
-        <View style={s.card}><Text style={s.label}>Ouvidas recentemente</Text>{recent.length?recent.map((e,i)=>row(e,i,true)):<Text style={s.muted}>History shows up here once there is listening to show.</Text>}{recent.length>0&&recent.length%20===0&&<SocialButton onPress={()=>{void getSocialProfileTracks(userId,true,recent.length).then(r=>setRecent([...recent,...r])).catch(e=>setError(e.message));}}>Show recent</SocialButton>}</View>
+        <View style={s.card}><Text style={s.label}>Recently played</Text>{recent.length?recent.map((e,i)=>row(e,i,true)):<Text style={s.muted}>History shows up here once there is listening to show.</Text>}{recent.length>0&&recent.length%20===0&&<SocialButton onPress={()=>{void getSocialProfileTracks(userId,true,recent.length).then(r=>setRecent([...recent,...r])).catch(e=>setError(e.message));}}>Show recent</SocialButton>}</View>
         {own&&onPlaylist&&<View style={s.card}><Text style={s.label}>Your playlists</Text>{playlists.length?playlists.map(p=><Pressable key={p.id} style={[s.row,{paddingVertical:10}]} onPress={()=>onPlaylist(p.id)}><Ionicons name="albums-outline" size={24} color={colors.accent}/><Text style={[s.text,{flex:1}]}>{p.name}</Text><Text style={s.muted}>{p.trackCount} tracks</Text></Pressable>):<Text style={s.muted}>Playlists you create show up here.</Text>}</View>}
       </>}
     </>}
