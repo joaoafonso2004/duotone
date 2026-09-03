@@ -4,7 +4,6 @@ import {usePlayer} from '../state/player';
 import {ensureLyrics,lyricsCacheKey,useLyrics} from '../state/lyrics';
 import {activeLyricIndex} from '../lib/lyricsParser';
 import {useReducedMotion} from '../hooks/useReducedMotion';
-import {LinearGradient} from 'expo-linear-gradient';
 import type {Track} from '../types';
 
 const Line=memo(function Line({text,active,onPress,onLayout,reduced,visible}:{visible:boolean;text:string;active:boolean;onPress:()=>void;onLayout:(y:number)=>void;reduced:boolean}){
@@ -38,7 +37,6 @@ export function LyricsView({track,visible}:{track:Track;visible:boolean}){
   const pauseFollowing=()=>{setManual(true);if(resume.current)clearTimeout(resume.current);resume.current=setTimeout(()=>setManual(false),5000);};
   const retry=()=>void ensureLyrics(track,true);
   return <View style={styles.root}>
-    <Text style={styles.heading}>LYRICS</Text>
     {!entry||entry.status==='loading'?<View style={styles.center}><ActivityIndicator color="#fff" /><Text style={styles.note}>Loading lyrics…</Text></View>:
       entry.status==='error'||entry.status==='missing'||data?.instrumental?<View style={styles.center}>
         <Text style={styles.message}>{data?.instrumental?'Instrumental':entry.status==='missing'?'No lyrics found for this recording':entry.message||'Could not load lyrics.'}</Text>
@@ -48,21 +46,21 @@ export function LyricsView({track,visible}:{track:Track;visible:boolean}){
         <View style={{flex:1,overflow:'hidden'}}><ScrollView ref={scroll} onLayout={e=>setHeight(e.nativeEvent.layout.height)} onContentSizeChange={()=>setRevision(v=>v+1)} {...({onWheel:pauseFollowing,style:{touchAction:'pan-y'}} as any)} onScrollBeginDrag={pauseFollowing} onTouchStart={pauseFollowing} showsVerticalScrollIndicator={false} contentContainerStyle={{paddingHorizontal:24,paddingTop:height*0.28,paddingBottom:height*0.65}}>
           {synced?lines.map((line,i)=><Line key={`${key}:${i}`} text={line.text} active={i===index} reduced={reduced} visible={visible} onLayout={y=>{offsets.current[i]=y;}} onPress={()=>{seek(line.timeMs);setManual(false);}} />):<Text style={[styles.words,{fontSize:20,lineHeight:30}]}>{data?.plainLyrics}</Text>}
         </ScrollView>
-        <LinearGradient pointerEvents="none" colors={['rgba(10,10,16,0.48)','rgba(10,10,16,0)']} style={{position:'absolute',top:0,left:0,right:0,height:22}} />
-        <LinearGradient pointerEvents="none" colors={['rgba(10,10,16,0)','rgba(10,10,16,0.92)']} style={{position:'absolute',bottom:0,left:0,right:0,height:30}} />
         </View>
-        <View style={styles.footer}>
-          <Text style={styles.credit}>{synced?'LRCLIB':'Lyrics · timing unavailable · LRCLIB'}</Text>
-          {manual&&synced&&<Pressable disabled={!visible} accessibilityRole="button" onPress={()=>setManual(false)} hitSlop={8}><Text style={styles.follow}>Follow lyrics</Text></Pressable>}
-        </View>
+        {/* Só aparece rodapé quando há mesmo o que dizer. O "LYRICS" em cima e
+            o "LRCLIB" em baixo emolduravam a letra sem acrescentar nada, e os
+            dois degradês sobre o scroll liam-se como barras em vez de desvanecer. */}
+        {manual&&synced&&<View style={styles.footer}>
+          <Pressable disabled={!visible} accessibilityRole="button" onPress={()=>setManual(false)} hitSlop={8}><Text style={styles.follow}>Follow lyrics</Text></Pressable>
+        </View>}
       </>}
   </View>;
 }
 const styles=StyleSheet.create({
-  root:{flex:1,paddingTop:54,paddingBottom:25},heading:{position:'absolute',top:23,left:24,color:'rgba(255,255,255,0.65)',fontSize:10,fontWeight:'700',letterSpacing:2},
+  root:{flex:1,paddingTop:22,paddingBottom:16},
   center:{flex:1,alignItems:'center',justifyContent:'center',paddingHorizontal:28,gap:12},
   message:{color:'#fff',fontSize:17,fontWeight:'600',lineHeight:24,textAlign:'center'},note:{color:'rgba(255,255,255,0.7)',fontSize:13},
   retry:{minHeight:44,paddingHorizontal:18,justifyContent:'center',borderRadius:24,backgroundColor:'rgba(255,255,255,0.1)'},
   line:{paddingVertical:9},words:{color:'#fff',fontSize:23,lineHeight:31,fontWeight:'700'},
-  footer:{paddingHorizontal:24,paddingTop:6,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},credit:{color:'rgba(255,255,255,0.45)',fontSize:9},follow:{color:'#fff',fontSize:11,fontWeight:'600'},
+  footer:{paddingHorizontal:24,paddingTop:6,flexDirection:'row',alignItems:'center',justifyContent:'flex-end'},follow:{color:'#fff',fontSize:11,fontWeight:'600'},
 });

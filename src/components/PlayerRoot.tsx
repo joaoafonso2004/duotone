@@ -255,6 +255,14 @@ export function PlayerRoot() {
     // playback começa garante que a nossa configuração corre DEPOIS da dele
     // e os botões de faixa ganham os slots do Lock Screen.
     setRemoteCommandsEnabled(hasNext, hasTrack);
+    // Uma vez não chega. O expo-video volta a ligar os saltos de ±10s DEPOIS
+    // desta chamada -- é assíncrono e corre a seguir a cada transição, pausa
+    // incluída, e era por isso que ao pausar reapareciam os ±10s em vez do
+    // anterior/seguinte. Reafirmar duas vezes garante a última palavra sem
+    // ficar a martelar o MPRemoteCommandCenter.
+    const outra=setTimeout(()=>setRemoteCommandsEnabled(hasNext, hasTrack),250);
+    const ultima=setTimeout(()=>setRemoteCommandsEnabled(hasNext, hasTrack),900);
+    return () => { clearTimeout(outra); clearTimeout(ultima); };
   }, [current, queue.length, repeatMode, shuffle, isPlaying]);
 
   // Pulsar suave da capa durante o carregamento; volta a opaco quando toca.

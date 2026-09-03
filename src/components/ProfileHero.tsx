@@ -22,14 +22,17 @@ export function ProfileHero({profile,own,cover,unread,status,onEdit,onMessage,on
     <Ionicons name={icon} size={20} color={colors.text}/>
     {badge>0&&<View style={{position:'absolute',right:0,top:0,minWidth:16,height:16,borderRadius:8,paddingHorizontal:3,backgroundColor:colors.danger,justifyContent:'center'}}><Text style={{fontSize:10,fontWeight:'700',color:'#fff',textAlign:'center'}}>{badge>99?'99+':badge}</Text></View>}
   </Pressable>;
-  return <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?320:350,overflow:'hidden',backgroundColor:colors.bg}}>
+  return <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?320:430,overflow:'hidden',backgroundColor:colors.bg}}>
     {!!cover&&<View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* A capa inteira cabe no ecrã. Só a extensão desfocada preenche a
-          altura extra: ampliar a panorâmica cortava quase tudo no iPhone. */}
+      {/* O recorte é 8:3, muito panorâmico: a 390px de largura dava uma faixa
+          de 146px, com escuro em cima e em baixo. No telemóvel a caixa passa a
+          2:1 e a capa preenche-a — perde-se cerca de um quarto dos lados, que
+          é o preço de ela se ver. No PC não há aperto nenhum, por isso lá
+          continua inteira. */}
       <Image source={{uri:cover}} resizeMode="cover" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
       <View style={[StyleSheet.absoluteFill,{justifyContent:'center',alignItems:'center'}]}>
-        <View style={{width:'100%',aspectRatio:RACIO_DA_CAPA,maxHeight:'100%'}}>
-          <Image source={{uri:cover}} resizeMode="contain" style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>
+        <View style={{width:'100%',aspectRatio:web?RACIO_DA_CAPA:2,maxHeight:'100%'}}>
+          <Image source={{uri:cover}} resizeMode={web?"contain":"cover"} style={[StyleSheet.absoluteFill,{opacity:0.78}]}/>
           <LinearGradient colors={[colors.bg,'transparent','transparent',colors.bg]} locations={[0,0.24,0.7,1]} style={StyleSheet.absoluteFill}/>
         </View>
       </View>
