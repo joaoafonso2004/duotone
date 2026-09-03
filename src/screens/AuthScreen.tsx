@@ -29,7 +29,7 @@ export function AuthScreen() {
 
   const [mode, setMode] = useState(0); // 0 = sign in, 1 = sign up
   const [username, setUsername] = useState('');
-  const [identifier, setIdentifier] = useState('');
+  const [identifier, setIdentifier] = useState(''); // login: email OU username
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -80,7 +80,7 @@ export function AuthScreen() {
     setInfo(null);
     if (mode === 0) {
       if (!identifier.trim() || !password) {
-        setError('Enter your email and password.');
+        setError('Enter your email or username, and your password.');
         triggerShake();
         return;
       }
@@ -211,7 +211,7 @@ export function AuthScreen() {
                   />
                   <Input
                     icon="mail-outline"
-                    placeholder="Email"
+                    placeholder="Email or username"
                     value={email}
                     onChangeText={setEmail}
                     autoCapitalize="none"

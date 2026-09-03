@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
+import {pgcrypto} from '@electric-sql/pglite/contrib/pgcrypto';
 const root=new URL('../supabase/',import.meta.url),read=name=>fs.readFileSync(new URL(name,root),'utf8').replace('create extension if not exists "pgcrypto";','');
-const db=new PGlite(),uid=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
+const db=new PGlite({extensions:{pgcrypto}}),uid=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
 const q=(sql,args=[])=>db.query(sql,args),as=async n=>db.exec(`reset role;set role authenticated;select set_config('request.jwt.claim.sub','${uid(n)}',false)`);
 try{
+  await db.exec('create extension if not exists pgcrypto;');
   await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;
-    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb);
+    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb,encrypted_password text);
     create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
     grant usage on schema auth,public to authenticated,anon;
     create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
@@ -15,8 +17,8 @@ try{
     alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant select,insert,delete on storage.objects to authenticated;`);
   for(const file of ['schema.sql','username-login.sql','social-setup.sql','group-chats.sql','inbox-archive.sql'])await db.exec(read(file));
   await db.exec('alter table profiles add column if not exists avatar_url text;grant all on all tables in schema public to authenticated');
-  for(const file of ['social-presence.sql','social-profiles.sql','profile-media.sql','profile-playlists.sql','shared-playlists-read.sql','security-hardening.sql'])await db.exec(read(file));
-  for(let n=1;n<=3;n++)await q('insert into auth.users values($1,$2,$3)',[uid(n),`private-${n}@example.test`,{name:`Pessoa ${n}`,username:`pessoa${n}`}]);
+  for(const file of ['social-presence.sql','social-profiles.sql','profile-media.sql','profile-playlists.sql','shared-playlists-read.sql','security-hardening.sql','username-login-seguro.sql'])await db.exec(read(file));
+  for(let n=1;n<=3;n++)await q(`insert into auth.users values($1,$2,$3,crypt('segredo-'||$4,gen_salt('bf')))`,[uid(n),`private-${n}@example.test`,{name:`Pessoa ${n}`,username:`pessoa${n}`},String(n)]);
   await q(`insert into friendships(user_id_1,user_id_2,status,requester_id) values($1,$2,'accepted',$1)`,[uid(1),uid(2)]);
   await as(1);
   const entry={source:'youtube',sourceId:'faixa',title:'Título original',artist:'Artista',durationSeconds:180};
@@ -53,5 +55,21 @@ try{
   assert.equal((await q('select play_count from user_play_counts')).rows[0].play_count,1);
   await q('select apply_play_count_deltas($1)',[[{...delta,operationSequence:2}]]);
   assert.equal((await q('select play_count from user_play_counts')).rows[0].play_count,2);
-  console.log('Segurança: playlists, mensagens, catálogo, cache, email e contagens idempotentes passaram.');
+  // Login por username: só traduz para email quem já sabe a password, e a
+  // conta fecha-se ao fim de cinco enganos. Sem isto voltava a dar para
+  // colher emails a partir dos @ que estão à vista nos perfis.
+  await db.exec('reset role;set role anon');
+  const login=async(u,p)=>(await q('select email_para_login($1,$2) as email',[u,p])).rows[0].email;
+  assert.equal(await login('pessoa1','segredo-1'),'private-1@example.test');
+  assert.equal(await login('PESSOA1','segredo-1'),'private-1@example.test');
+  assert.equal(await login('pessoa1','errada'),null);
+  assert.equal(await login('nao-existe','seja-o-que-for'),null);
+  for(let i=0;i<5;i++)await login('pessoa2','errada');
+  assert.equal(await login('pessoa2','segredo-2'),null,'password certa durante o bloqueio tem de falhar');
+  await db.exec("reset role;update login_attempts set bloqueado_ate=now()-interval '1 minute' where chave='pessoa2';set role anon");
+  assert.equal(await login('pessoa2','segredo-2'),'private-2@example.test','passado o bloqueio volta a entrar');
+  await assert.rejects(q('select * from login_attempts'),'a tabela de tentativas nao pode ser legivel pelo anon');
+  await db.exec('reset role');
+  assert.equal((await q("select count(*)::int as n from login_attempts where chave='pessoa2'")).rows[0].n,0,'entrar limpa o contador');
+  console.log('Segurança: playlists, mensagens, catálogo, cache, email, login por username e contagens idempotentes passaram.');
 }finally{await db.close();}

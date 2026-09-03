@@ -31,8 +31,12 @@ interface AuthState {
   initialized: boolean;
   init: () => void;
   refreshSession:()=>Promise<void>;
-  /** Login por email; o servidor nunca revela emails através de usernames. */
-  signIn: (email: string, password: string) => Promise<string | null>;
+  /**
+   * `identifier` pode ser email OU username. O username resolve-se no servidor
+   * pela `email_para_login`, que só devolve o email a quem já provou saber a
+   * password -- ver supabase/username-login-seguro.sql.
+   */
+  signIn: (identifier: string, password: string) => Promise<string | null>;
   signUp: (
     email: string,
     password: string,
@@ -108,8 +112,18 @@ export const useAuth = create<AuthState>((set) => ({
       // ignorar erros de AsyncStorage
     }
 
-    const email = identifier.trim();
-    if (!email.includes('@')) return 'Enter the email address associated with your account.';
+    let email = identifier.trim();
+    // Sem "@" é username. Daqui não se distingue "username não existe" de
+    // "password errada" -- as duas devolvem nada. É essa indistinção que
+    // impede usar o login para recolher os emails de quem tem perfil.
+    if (!email.includes('@')) {
+      const { data, error } = await supabase.rpc('email_para_login', { uname: email, pass: password });
+      if (error || !data) {
+        await handleFailedLoginAttempt();
+        return 'Invalid credentials. Please check your details.';
+      }
+      email = data as string;
+    }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     
