@@ -3,6 +3,11 @@ import { displayArtist } from '../../lib/artistName';
 /**
  * Perfil e "A tua escuta".
  *
+ * NAO passa `onSocial` nem `onSettings` ao SocialProfileView: no PC a barra
+ * lateral ja tem os dois, e repeti-los no perfil e dizer a mesma coisa duas
+ * vezes. No telemovel e ao contrario -- o `ProfileScreen` passa-os, porque
+ * sem eles nao ha maneira nenhuma de chegar ao Social (la nao e separador).
+ *
  * As estatísticas são uma ESTIMATIVA e a UI tem de o dizer (o "≈"): a tabela
  * `plays` regista o ARRANQUE de cada faixa e não o fim, por isso quem salta a
  * meio conta o tema inteiro. Ver `lib/listeningStats.ts`.
@@ -139,6 +144,5 @@ export function ProfilePage({navigate,userId,back}:{navigate:(r:Route)=>void;not
     action={userId&&back?<Button secondary icon="arrow-back" onPress={back}>Back</Button>:undefined}>{target&&<SocialProfileView key={target} userId={target}
     onMessage={friendId=>navigate({name:'social',friendId})}
     onPlaylist={id=>navigate({name:'playlist',id,title:'Playlist'})}
-    onSocial={()=>navigate({name:'social'})} onSettings={()=>navigate({name:'settings'})}
     onArtist={value=>navigate({name:'artist',value})} onStats={()=>navigate({name:'stats',userId:target})}/>}</Page>;
 }
