@@ -3,7 +3,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
-import React, { useCallback, useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -25,6 +25,7 @@ import {
   addTracksToPlaylist,
   deletePlaylist,
   getPlaylistTracks,
+  getPlaylistDetails,
   removeTrackFromPlaylist,
   renamePlaylist,
   setPlaylistOrder,
@@ -44,6 +45,7 @@ import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { useTheme } from '../state/theme';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
+import { useAuth } from '../state/auth';
 import { BrilhoInteligente } from '../components/BrilhoInteligente';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type, gradients, radii } from '../theme';
 import type { PlaylistTrack, Track } from '../types';
@@ -52,6 +54,11 @@ type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
 export function PlaylistDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
+  const userId=useAuth(s=>s.session?.user.id);
+  const [details,setDetails]=useState<{id:string;name:string;ownerId:string}|null>(null);
+  const canEdit=details?.id===id&&details.ownerId===userId;
+  const [loadError,setLoadError]=useState('');
+  const detailRequest=useRef(0);
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
   const playShuffled = usePlayer((s) => s.playShuffled);
@@ -228,22 +235,28 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           }
         },
       },
-    ];
-  }, [actionTrack, playNext, addToQueue, tracks]);
+    ].filter(action=>canEdit||!action.destructive);
+  }, [actionTrack, playNext, addToQueue, tracks,canEdit]);
 
   const load = useCallback(async () => {
+    const token=++detailRequest.current;
+    setLoading(true);setLoadError('');
     try {
-      setTracks(await getPlaylistTracks(id));
-    } catch {
-      // ignorar
+      const [info,rows]=await Promise.all([getPlaylistDetails(id),getPlaylistTracks(id)]);
+      if(token!==detailRequest.current)return;
+      setDetails(info);setName(info.name);setTracks(rows);
+    } catch(e:any) {
+      if(token!==detailRequest.current)return;
+      setDetails(null);setTracks([]);setLoadError(e?.message || 'Could not load playlist.');
     } finally {
-      setLoading(false);
+      if(token===detailRequest.current)setLoading(false);
     }
   }, [id]);
 
   useFocusEffect(
     useCallback(() => {
       if (!editMode) load();
+      return()=>{detailRequest.current++;};
     }, [load, editMode])
   );
 
@@ -386,7 +399,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           </View>
 
           <View style={styles.playlistToolbar}>
-            <Pressable
+            {canEdit&&<Pressable
               style={styles.toolbarItem}
               onPress={() => {
                 hapticSelection();
@@ -395,7 +408,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             >
               <Ionicons name="add" size={22} color={theme.color} />
               <Text style={[styles.toolbarLabel, { color: theme.color }]}>Add tracks</Text>
-            </Pressable>
+            </Pressable>}
 
             <Pressable
               style={styles.toolbarItem}
@@ -408,7 +421,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               <Text style={styles.toolbarLabel}>Sort</Text>
             </Pressable>
 
-            <Pressable
+            {canEdit&&<Pressable
               style={styles.toolbarItem}
               onPress={() => {
                 hapticSelection();
@@ -418,7 +431,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             >
               <Ionicons name="pencil" size={16} color={colors.text} />
               <Text style={styles.toolbarLabel}>Edit</Text>
-            </Pressable>
+            </Pressable>}
 
             <Pressable
               style={styles.toolbarItem}
@@ -434,13 +447,13 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         </>
       ) : null}
 
-      {loading ? (
+      {loadError ? <View style={{padding:24,gap:12}}><Text style={{color:colors.danger}}>{loadError}</Text><Pressable onPress={()=>void load()}><Text style={{color:theme.color}}>Try again</Text></Pressable></View> : loading ? (
         <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
       ) : tracks.length === 0 ? (
         <EmptyState
           icon="musical-notes-outline"
           title="This playlist is empty"
-          subtitle="Add tracks from Search or your Library using the ••• menu on any track."
+          subtitle={canEdit?"Add tracks from Search or your Library using the ••• menu on any track.":"The owner has not added any tracks yet."}
         />
       ) : (
         <FlatList
@@ -500,7 +513,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         onClose={() => setOptionsOpen(false)}
         actions={[
           {
-            icon: 'people-outline',
+            icon: 'people-outline' as const,
             label: 'Partilhar com amigo…',
             onPress: () => {
               setOptionsOpen(false);
@@ -508,7 +521,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             },
           },
           {
-            icon: 'share-social-outline',
+            icon: 'share-social-outline' as const,
             label: 'QR Code / Copy link',
             onPress: () => {
               setOptionsOpen(false);
@@ -516,7 +529,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             },
           },
           {
-            icon: 'pencil-outline',
+            icon: 'pencil-outline' as const,
             label: 'Rename playlist',
             onPress: () => {
               setOptionsOpen(false);
@@ -524,7 +537,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             },
           },
           {
-            icon: 'trash-outline',
+            icon: 'trash-outline' as const,
             label: 'Delete playlist',
             destructive: true,
             onPress: () => {
@@ -532,7 +545,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               setDeleteOpen(true);
             },
           },
-        ]}
+        ].filter(action=>canEdit||(action.icon!=='pencil-outline'&&action.icon!=='trash-outline'))}
       />
 
       <ShareFriendSheet

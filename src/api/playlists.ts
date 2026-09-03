@@ -43,11 +43,13 @@ export async function listPlaylists(): Promise<Playlist[]> {
  * que estiverem marcadas -- ver supabase/profile-playlists.sql.
  */
 export async function setPlaylistVisibility(id: string, visible: boolean): Promise<void> {
-  const { error } = await supabase
+  const userId = await currentUserId();
+  const { data, error } = await supabase
     .from('playlists')
     .update({ visible_on_profile: visible })
-    .eq('id', id);
+    .eq('id', id).eq('owner_id', userId).select('id').maybeSingle();
   if (error) throw error;
+  if (!data) throw new Error('This playlist is no longer available to edit.');
 }
 
 /**
@@ -93,7 +95,7 @@ export async function copiasGuardadas(): Promise<Set<string>> {
     .select('copied_from')
     .eq('owner_id', userId)
     .not('copied_from', 'is', null);
-  if (error) return new Set();
+  if (error) throw error;
   return new Set((data ?? []).map((r: any) => r.copied_from as string));
 }
 
@@ -105,22 +107,24 @@ export async function copiasGuardadas(): Promise<Set<string>> {
  * botão saber que já a tens -- e para o clique seguinte saber o que apagar.
  */
 export async function savePlaylistCopy(sourceId: string): Promise<string> {
-  const novaId = await importSharedPlaylist(sourceId);
-  // Se isto falhar, a cópia existe na mesma e só não se sabe de onde veio: o
-  // botão volta a dizer "guardar", que é melhor do que perder a playlist.
-  await supabase.from('playlists').update({ copied_from: sourceId }).eq('id', novaId);
-  return novaId;
+  const {data,error}=await supabase.rpc('set_profile_playlist_copy',{p_source_id:sourceId,p_save:true});
+  if(error)throw error;
+  if(!data)throw new Error('Could not save this playlist.');
+  return data as string;
 }
 
 /** Tirar a marca: apaga a cópia que se tinha feito desta playlist. */
 export async function unsavePlaylistCopy(sourceId: string): Promise<void> {
-  const userId = await currentUserId();
-  const { error } = await supabase
-    .from('playlists')
-    .delete()
-    .eq('owner_id', userId)
-    .eq('copied_from', sourceId);
+  const { error } = await supabase.rpc('set_profile_playlist_copy',{p_source_id:sourceId,p_save:false});
   if (error) throw error;
+}
+
+/** Identidade e dono da playlist autorizada pela RLS, para abrir em modo de leitura. */
+export async function getPlaylistDetails(id:string):Promise<{id:string;name:string;ownerId:string}> {
+  const {data,error}=await supabase.from('playlists').select('id,name,owner_id').eq('id',id).maybeSingle();
+  if(error)throw error;
+  if(!data)throw new Error('This playlist is no longer available.');
+  return {id:data.id,name:data.name,ownerId:data.owner_id};
 }
 
 export async function createPlaylist(name: string): Promise<Playlist> {
@@ -163,14 +167,15 @@ export async function deletePlaylist(id: string): Promise<void> {
 export async function getPlaylistTracks(
   playlistId: string
 ): Promise<PlaylistTrack[]> {
-  const { data, error } = await supabase
-    .from('playlist_tracks')
-    .select(
-      'position, tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds)'
-    )
-    .eq('playlist_id', playlistId)
-    .order('position', { ascending: true });
-  if (error) throw error;
+  const data:any[]=[];
+  for(let offset=0;;offset+=1000){
+    const {data:page,error}=await supabase.from('playlist_tracks')
+      .select('position, tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds)')
+      .eq('playlist_id',playlistId).order('position',{ascending:true}).order('track_id',{ascending:true}).range(offset,offset+999);
+    if(error)throw error;
+    data.push(...(page??[]));
+    if(!page||page.length<1000)break;
+  }
 
   return (data ?? [])
     .filter((row: any) => row.tracks)

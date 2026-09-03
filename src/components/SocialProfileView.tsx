@@ -22,7 +22,7 @@ import {
   savePlaylistCopy, setPlaylistVisibility, unsavePlaylistCopy,
 } from '../api/playlists';
 
-export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,onSocial,onPlaylist}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void}) {
+export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,onSocial,onPlaylist,active=true}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void;active?:boolean}) {
   const myId=useAuth(x=>x.session?.user.id),own=userId===myId;
   const [profile,setProfile]=useState<SocialProfile|null>(null),[most,setMost]=useState<ProfileTrack[]>([]),[recent,setRecent]=useState<ProfileTrack[]>([]);
   const [error,setError]=useState(''),[loading,setLoading]=useState(true),[editing,setEditing]=useState(false),[track,setTrack]=useState<Track|null>(null);
@@ -31,6 +31,10 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
   // uma por linha, senao uma lista de dez faz dez idas ao servidor.
   const [guardadas,setGuardadas]=useState<Set<string>>(new Set());
   const [ocupada,setOcupada]=useState<string|null>(null);
+  const mutation=useRef(false);
+  const view=useRef({userId,myId,active});view.current={userId,myId,active};
+  const mounted=useRef(true);
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
   // As duas listas chegam com 20 entradas cada. Mostradas por inteiro sao
   // quarenta linhas de scroll antes de se chegar ao fim do perfil, num ecra
   // de telemovel. Abrem quando se pedem.
@@ -56,29 +60,39 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
       if(id!==request.current)return;setMost(m);setRecent(r);setPlaylists(l);setGuardadas(c);
     }catch(e:any){if(id===request.current)setError(e.message || 'Could not open this profile.');}finally{if(id===request.current)setLoading(false);}
   },[userId,own]);
-  useEffect(()=>{setProfile(null);setMost([]);setRecent([]);setPlaylists([]);setGuardadas(new Set());void load();return()=>{request.current++;};},[load,friend?.status]);
+  useEffect(()=>{if(!active)return;setProfile(null);setMost([]);setRecent([]);setPlaylists([]);setGuardadas(new Set());void load();return()=>{request.current++;};},[load,friend?.status,active]);
   /** Guardar (ou largar) a playlist de outra pessoa. Fica uma copia minha. */
   const alternarCopia=async(pl:Playlist)=>{
-    if(ocupada) return;
+    if(mutation.current || loading) return;
+    mutation.current=true;
+    const generation=request.current;
     setOcupada(pl.id);setError('');
     const tinha=guardadas.has(pl.id);
+    let confirmed=false;
     try {
       if(tinha) await unsavePlaylistCopy(pl.id); else await savePlaylistCopy(pl.id);
+      confirmed=true;
+      if(generation!==request.current)return;
       setGuardadas(g=>{const n=new Set(g);if(tinha)n.delete(pl.id);else n.add(pl.id);return n;});
-    } catch(e:any){ setError(e?.message || 'Could not update your playlists.'); }
-    finally { setOcupada(null); }
+    } catch(e:any){ if(generation===request.current)setError(e?.message || 'Could not update your playlists.'); }
+    finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(); }
   };
 
   /** Mostrar ou esconder uma playlist minha no perfil. */
   const alternarVisibilidade=async(pl:Playlist)=>{
-    if(ocupada) return;
+    if(mutation.current || loading) return;
+    mutation.current=true;
+    const generation=request.current;
     setOcupada(pl.id);setError('');
     const passaA=!pl.visibleOnProfile;
+    let confirmed=false;
     try {
       await setPlaylistVisibility(pl.id,passaA);
+      confirmed=true;
+      if(generation!==request.current)return;
       setPlaylists(l=>l.map(x=>x.id===pl.id?{...x,visibleOnProfile:passaA}:x));
-    } catch(e:any){ setError(e?.message || 'Could not change that.'); }
-    finally { setOcupada(null); }
+    } catch(e:any){ if(generation===request.current)setError(e?.message || 'Could not change that.'); }
+    finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(); }
   };
   const row=(entry:ProfileTrack,index:number,recentes=false)=><View key={`${entry.source}:${entry.sourceId}`} style={[s.row,{paddingVertical:10,borderBottomWidth:1,borderColor:colors.border}]}>
     {!recentes&&<Text style={[s.muted,{width:20}]}>{index+1}</Text>}
@@ -152,6 +166,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
             guarda uma copia (ou apaga a que ja tinha). */}
         <View style={{gap:2}}>
           <Text style={s.label}>{own?'Your playlists':'Playlists'}</Text>
+          <Text style={s.muted}>{own?'Only playlists you mark are shown to friends.':'Save an independent copy to your playlists. Changes to the original will not change your copy.'}</Text>
           {playlists.length?playlists.map(pl=>{
             const marcada=own?!!pl.visibleOnProfile:guardadas.has(pl.id);
             const aTrabalhar=ocupada===pl.id;
@@ -165,18 +180,18 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                accessibilityState={{checked:marcada}}
+                accessibilityState={{selected:marcada,busy:aTrabalhar,disabled:!!ocupada||loading}}
                 accessibilityLabel={own
                   ?(marcada?`Hide ${pl.name} from your profile`:`Show ${pl.name} on your profile`)
                   :(marcada?`Remove your copy of ${pl.name}`:`Save ${pl.name}`)}
                 hitSlop={10}
-                disabled={aTrabalhar}
+                disabled={!!ocupada||loading}
                 onPress={()=>void (own?alternarVisibilidade(pl):alternarCopia(pl))}
                 style={{opacity:aTrabalhar?0.4:1,paddingHorizontal:6}}>
-                <Ionicons
+                {aTrabalhar?<ActivityIndicator size="small" color={colors.accent}/>:<Ionicons
                   name={own?(marcada?'eye':'eye-off-outline'):(marcada?'checkmark-circle':'add-circle-outline')}
                   size={24}
-                  color={marcada?colors.accent:colors.textSecondary}/>
+                  color={marcada?colors.accent:colors.textSecondary}/>}
               </Pressable>
             </View>;
           }):<Text style={s.muted}>{own?'Playlists you create show up here.':'Nothing shown here yet.'}</Text>}

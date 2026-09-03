@@ -27,6 +27,7 @@ create policy "diagnóstico: perfis públicos" on profiles for select to authent
 for(let i=0;i<2;i++)for(const f of ['social-presence.sql','social-profiles.sql','profile-media.sql'])await db.exec(ler(f));
 // Depois do social-presence: e ele que cria o social_can_view, de que este depende.
 await db.exec(ler('profile-playlists.sql'));
+await db.exec(ler('profile-playlists.sql'));
 await q(`insert into auth.users(id,email,raw_user_meta_data) values ($1,'um@example.test','{"name":"Um"}'),($2,'dois@example.test','{"name":"Dois"}'),($3,'tres@example.test','{"name":"Tres"}')`,[uid(1),uid(2),uid(3)]);
 await como(1);
 await q(`insert into friendships(user_id_1,user_id_2,status,requester_id) values($1,$2,'pending',$1)`,[uid(1),uid(2)]);
@@ -164,6 +165,7 @@ await q(`insert into playlist_tracks(playlist_id,track_id,position) values($1,$2
 await como(2);
 assert.equal((await q('select * from playlists where id=$1',[pl.id])).rows.length,0);
 assert.equal((await q('select * from playlist_tracks where playlist_id=$1',[pl.id])).rows.length,0);
+await assert.rejects(q('select set_profile_playlist_copy($1,true)',[pl.id]),/no longer available/);
 
 // O dono liga o interruptor.
 await como(1);
@@ -180,11 +182,40 @@ await assert.rejects(q(`update playlists set name='Roubada' where id=$1 returnin
 await como(3);
 assert.equal((await q('select * from playlists where id=$1',[pl.id])).rows.length,0);
 assert.equal((await q('select * from playlist_tracks where playlist_id=$1',[pl.id])).rows.length,0);
+await assert.rejects(q('select set_profile_playlist_copy($1,true)',[pl.id]),/no longer available/);
 
-// A copia e do amigo, e sabe de onde veio.
+// A cópia inclui mais de 1000 faixas; copiar no cliente cortava a lista.
+await como(1);
+await q(`insert into tracks(source,source_id,title) select 'youtube','copy-'||n,'Faixa '||n from generate_series(1,1005)n`);
+await q(`insert into playlist_tracks(playlist_id,track_id,position) select $1,id,substring(source_id from 6)::int from tracks where source_id like 'copy-%'`,[pl.id]);
+await assert.rejects(q('select set_profile_playlist_copy($1,true)',[pl.id]),/no longer available/);
 await como(2);
-const copia=(await q(`insert into playlists(owner_id,name,copied_from) values($1,'So minha (Shared)',$2) returning id`,[uid(2),pl.id])).rows[0];
+const copia=(await q(`select set_profile_playlist_copy($1,true) as id`,[pl.id])).rows[0];
+assert.equal((await q(`select set_profile_playlist_copy($1,true) as id`,[pl.id])).rows[0].id,copia.id,'repetir o pedido não duplica a cópia');
 assert.equal((await q('select copied_from from playlists where id=$1',[copia.id])).rows[0].copied_from,pl.id);
+assert.equal((await q('select * from playlist_tracks where playlist_id=$1',[copia.id])).rows.length,1006);
+assert.equal((await q('select visible_on_profile from playlists where id=$1',[copia.id])).rows[0].visible_on_profile,false);
+await como(1);
+await q(`update playlists set name='Original alterada',visible_on_profile=false where id=$1`,[pl.id]);
+await q(`delete from playlist_tracks where playlist_id=$1 and position=0`,[pl.id]);
+await q('select set_profile_playlist_copy($1,false)',[pl.id]);
+await como(2);
+assert.equal((await q('select name from playlists where id=$1',[copia.id])).rows[0].name,'So minha (Shared)');
+assert.equal((await q('select * from playlist_tracks where playlist_id=$1',[copia.id])).rows.length,1006);
+await q('select set_profile_playlist_copy($1,false)',[pl.id]);
+await q('select set_profile_playlist_copy($1,false)',[pl.id]);
+assert.equal((await q('select * from playlists where id=$1',[copia.id])).rows.length,0);
+await assert.rejects(q('select set_profile_playlist_copy($1,true)',[pl.id]),/no longer available/);
+// Uma falha durante a inserção das faixas não deixa uma playlist vazia.
+await como(1);await q('update playlists set visible_on_profile=true where id=$1',[pl.id]);
+await db.exec(`reset role;create function public.qa_fail_copy() returns trigger language plpgsql as $$begin if current_setting('qa.fail_copy',true)='1' then raise exception 'Falha simulada';end if;return new;end;$$;
+create trigger qa_fail_copy before insert on playlist_tracks for each row execute function qa_fail_copy();
+select set_config('qa.fail_copy','1',false);`);
+await como(2);
+await assert.rejects(q('select set_profile_playlist_copy($1,true)',[pl.id]),/Falha simulada/);
+assert.equal((await q('select * from playlists where copied_from=$1',[pl.id])).rows.length,0);
+await db.exec(`select set_config('qa.fail_copy','0',false)`);
+copia.id=(await q('select set_profile_playlist_copy($1,true) as id',[pl.id])).rows[0].id;
 // Se o dono original apagar a dele, a copia FICA -- e minha. Perde so a ligacao.
 await como(1);await q('delete from playlists where id=$1',[pl.id]);
 await como(2);

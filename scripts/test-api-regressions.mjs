@@ -112,3 +112,41 @@ assert.equal((await historico.getProfileRecentlyPlayed(12))[0].lastPlayed, Date.
 respostaHistorico = [{ source: 'youtube', source_id: 'faixa', title: 'Faixa', max_played_at: null }];
 assert.equal((await historico.getProfileRecentlyPlayed(12))[0].lastPlayed, undefined);
 console.log('Pesquisa, cache, identificação automática e datas do histórico: todos os casos passaram.');
+
+// Guardar no perfil usa uma RPC atómica. Erros de leitura não podem parecer
+// "ainda não guardaste", nem updates de zero linhas podem acender o olho.
+let erroPlaylist=null,linhasPlaylist=[],rpcPlaylist=null;
+const pedidosPlaylist=[];
+const playlistApi=ambiente(async()=>{}, {
+  'src/api/library.ts':{},
+  'src/lib/supabase.ts':{supabase:{
+    auth:{getUser:async()=>({data:{user:{id:'eu'}},error:null})},
+    rpc:async(nome,args)=>{pedidosPlaylist.push([nome,args]);return {data:rpcPlaylist,error:erroPlaylist};},
+    from:(table)=>{
+      let from=0,to=999,single=false;
+      const query={
+        select:()=>query,eq:()=>query,not:()=>query,update:()=>query,order:()=>query,
+        range:(start,end)=>{from=start;to=end;return query;},
+        maybeSingle:()=>{single=true;return query;},
+        then:(resolve,reject)=>Promise.resolve({data:single?linhasPlaylist[0]??null:linhasPlaylist.slice(from,to+1),error:erroPlaylist}).then(resolve,reject),
+      };
+      return query;
+    },
+  }},
+}).carregar('src/api/playlists.ts');
+erroPlaylist=new Error('Falha de rede');
+await assert.rejects(playlistApi.copiasGuardadas(),/Falha de rede/);
+await assert.rejects(playlistApi.savePlaylistCopy('origem'),/Falha de rede/);
+await assert.rejects(playlistApi.unsavePlaylistCopy('origem'),/Falha de rede/);
+erroPlaylist=null;
+await assert.rejects(playlistApi.setPlaylistVisibility('alheia',true),/no longer available/);
+rpcPlaylist='copia';
+assert.equal(await playlistApi.savePlaylistCopy('origem'),'copia');
+assert.equal(pedidosPlaylist.at(-1)[0],'set_profile_playlist_copy');
+assert.equal(pedidosPlaylist.at(-1)[1].p_save,true);
+await playlistApi.unsavePlaylistCopy('origem');
+assert.equal(pedidosPlaylist.at(-1)[1].p_save,false);
+linhasPlaylist=Array.from({length:1006},(_,i)=>({position:i,tracks:{id:`t-${i}`,source:'youtube',source_id:`s-${i}`,title:`Faixa ${i}`}}));
+const todas=await playlistApi.getPlaylistTracks('copia');
+assert.equal(todas.length,1006);assert.equal(todas.at(-1).id,'t-1005');
+console.log('Playlists: erros preservados, RPC de guardar/remover e leitura acima de 1000 faixas passaram.');

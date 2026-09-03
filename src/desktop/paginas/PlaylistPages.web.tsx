@@ -5,12 +5,13 @@
  * inconsistente dá baralhamento enviesado, e o botão discordava do
  * interruptor. Usar o `playShuffled()` da store.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import {
-  createPlaylist, deletePlaylist, getPlaylistTracks, listPlaylists, renamePlaylist,
+  createPlaylist, deletePlaylist, getPlaylistTracks, getPlaylistDetails, listPlaylists, renamePlaylist,
 } from '../../api/playlists';
 import { usePlayer } from '../../state/player';
+import { useAuth } from '../../state/auth';
 import type { Playlist, Track } from '../../types';
 import { styles } from '../estilos.web';
 import {
@@ -37,14 +38,25 @@ export function PlaylistPage({ id, title, back, share, ...props }: { id: string;
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameVal, setRenameVal] = useState(title);
   const [query, setQuery] = useState('');
+  const userId=useAuth(s=>s.session?.user.id);
+  const [ownerId,setOwnerId]=useState<string|null>(null);
+  const [loadError,setLoadError]=useState('');
+  const canEdit=ownerId===userId;
+  const detailRequest=useRef(0);
 
   useEffect(() => {
     setPlaylistTitle(title);
     setRenameVal(title);
   }, [title]);
 
-  const refresh = useCallback(async () => { setLoading(true); try { setTracks(await getPlaylistTracks(id)); } catch (e: any) { props.notify(e?.message || 'Could not load playlist.'); } finally { setLoading(false); } }, [id, props.notify]);
-  useEffect(() => { refresh(); }, [refresh]);
+  const refresh = useCallback(async () => {
+    const token=++detailRequest.current;
+    setLoading(true);setOwnerId(null);setLoadError('');
+    try {const [info,rows]=await Promise.all([getPlaylistDetails(id),getPlaylistTracks(id)]);if(token!==detailRequest.current)return;setOwnerId(info.ownerId);setPlaylistTitle(info.name);setRenameVal(info.name);setTracks(rows);}
+    catch(e:any){if(token!==detailRequest.current)return;setTracks([]);setLoadError(e?.message || 'Could not load playlist.');}
+    finally{if(token===detailRequest.current)setLoading(false);}
+  }, [id]);
+  useEffect(() => { refresh();return()=>{detailRequest.current++;}; }, [refresh]);
   const remove = async () => { try { await deletePlaylist(id); back(); } catch (e: any) { props.notify(e?.message || 'Could not delete playlist.'); } };
 
   const doRename = async () => {
@@ -82,5 +94,5 @@ export function PlaylistPage({ id, title, back, share, ...props }: { id: string;
     else props.play(filteredTracks[0], filteredTracks);
   };
   const artworks = tracks.map((track) => track.artworkUrl).filter((uri): uri is string => !!uri);
-  return <><Page title="Playlist" action={<Button secondary icon="arrow-back" onPress={back}>Back to playlists</Button>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : <><View style={styles.detailHero}><PlaylistArtwork artworks={artworks} lado={176} /><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>PLAYLIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{playlistTitle}</Text><Text style={styles.detailHeroMeta}>{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}</Text><View style={styles.detailHeroActions}><Button icon="play" onPress={playAll}>Play</Button><Button secondary={!ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><Button secondary icon="share-social-outline" onPress={() => share({ itemType: 'playlist', item: { id, name: playlistTitle }, name: playlistTitle })}>Share</Button><IconButton name="pencil-outline" label="Rename playlist" onPress={() => { setRenameVal(playlistTitle); setRenameOpen(true); }} /><IconButton name="trash-outline" label="Delete playlist" onPress={() => setConfirm(true)} /></View></View></View><View style={styles.detailSearch}><Field icon="search" placeholder="Search this playlist" value={query} onChangeText={setQuery} /></View><TrackTable plain tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} /></>}</ContentScroll></Page><Dialog open={confirm} title="Delete playlist?" onClose={() => setConfirm(false)}><Text style={styles.dialogBody}>“{playlistTitle}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setConfirm(false)}>Cancel</Button><Button danger onPress={remove}>Delete</Button></View></Dialog><Dialog open={renameOpen} title="Rename playlist" onClose={() => setRenameOpen(false)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={renameVal} onChangeText={setRenameVal} onSubmitEditing={doRename} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenameOpen(false)}>Cancel</Button><Button onPress={doRename} disabled={!renameVal.trim()}>Save</Button></View></Dialog></>;
+  return <><Page title="Playlist" action={<Button secondary icon="arrow-back" onPress={back}>Back to playlists</Button>}><ContentScroll>{loading ? <View style={{ height: 350 }}><Loading /></View> : loadError ? <Empty icon="alert-circle-outline" title="Playlist unavailable" body={loadError} action={<Button onPress={refresh}>Try again</Button>}/> : <><View style={styles.detailHero}><PlaylistArtwork artworks={artworks} lado={176} /><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>PLAYLIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{playlistTitle}</Text><Text style={styles.detailHeroMeta}>{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}</Text><View style={styles.detailHeroActions}><Button icon="play" onPress={playAll}>Play</Button><Button secondary={!ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><Button secondary icon="share-social-outline" onPress={() => share({ itemType: 'playlist', item: { id, name: playlistTitle }, name: playlistTitle })}>Share</Button>{canEdit&&<><IconButton name="pencil-outline" label="Rename playlist" onPress={() => { setRenameVal(playlistTitle); setRenameOpen(true); }} /><IconButton name="trash-outline" label="Delete playlist" onPress={() => setConfirm(true)} /></>}</View></View></View><View style={styles.detailSearch}><Field icon="search" placeholder="Search this playlist" value={query} onChangeText={setQuery} /></View><TrackTable plain tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} /></>}</ContentScroll></Page><Dialog open={confirm} title="Delete playlist?" onClose={() => setConfirm(false)}><Text style={styles.dialogBody}>“{playlistTitle}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setConfirm(false)}>Cancel</Button><Button danger onPress={remove}>Delete</Button></View></Dialog><Dialog open={renameOpen} title="Rename playlist" onClose={() => setRenameOpen(false)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={renameVal} onChangeText={setRenameVal} onSubmitEditing={doRename} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenameOpen(false)}>Cancel</Button><Button onPress={doRename} disabled={!renameVal.trim()}>Save</Button></View></Dialog></>;
 }
