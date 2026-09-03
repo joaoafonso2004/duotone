@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { Linking, Pressable, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import {
   checkForUpdate,
   dismissUpdate,
   PORTFOLIO_URL,
   type UpdateInfo,
 } from '../lib/updates';
-import { colors, spacing, type } from '../theme';
+import { colors, radii, spacing, type } from '../theme';
 import { BottomSheet } from './BottomSheet';
 import { PillButton } from './PillButton';
 
@@ -29,6 +30,25 @@ function summarise(notes: string): string[] {
 }
 
 /**
+ * Como se instala a nova versão, que não é a mesma coisa nos dois sistemas.
+ *
+ * No Windows o site entrega um instalador e acabou. No iOS a app não vem de
+ * loja nenhuma: o SideStore é que a instala, e só fala com o telemóvel
+ * através do LocalDevVPN -- por isso a ordem importa e esquecer o primeiro
+ * passo faz o segundo parecer avariado.
+ */
+const COMO_ATUALIZAR: Record<'ios' | 'windows', string[]> = {
+  ios: [
+    'Turn on LocalDevVPN.',
+    'Open SideStore and install Duotone from there.',
+  ],
+  windows: [
+    'Open the site and download Duotone.',
+    'Run the installer.',
+  ],
+};
+
+/**
  * Aviso de nova versão disponível.
  *
  * Só aparece na plataforma onde a versão saiu de facto — o versions.json
@@ -36,6 +56,9 @@ function summarise(notes: string): string[] {
  */
 export function UpdateSheet() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  // Fechado por omissão: quem já sabe atualizar não quer o passo a passo
+  // à frente das notas de versão todas as vezes.
+  const [ajuda, setAjuda] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,12 +89,60 @@ export function UpdateSheet() {
 
   return (
     <BottomSheet visible onClose={close}>
-      <Text style={type.micro}>
-        {update.platform === 'ios' ? 'iOS' : 'Windows'} · {update.current} → {update.latest}
-      </Text>
-      <Text style={[type.title, { marginTop: spacing.sm, marginBottom: 6 }]}>
-        Nova versão disponível
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={type.micro}>
+            {update.platform === 'ios' ? 'iOS' : 'Windows'} · {update.current} → {update.latest}
+          </Text>
+          <Text style={[type.title, { marginTop: spacing.sm, marginBottom: 6 }]}>
+            New version available
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={ajuda ? 'Hide update instructions' : 'How do I update?'}
+          accessibilityState={{ expanded: ajuda }}
+          hitSlop={10}
+          onPress={() => setAjuda((a) => !a)}
+          style={({ pressed }: any) => [{
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: ajuda ? colors.surfaceHigh : 'transparent',
+            borderWidth: 1,
+            borderColor: ajuda ? colors.borderStrong : colors.border,
+            opacity: pressed ? 0.6 : 1,
+          }]}
+        >
+          <Ionicons
+            name="help"
+            size={17}
+            color={ajuda ? colors.text : colors.textSecondary}
+          />
+        </Pressable>
+      </View>
+
+      {ajuda && (
+        <View style={{
+          backgroundColor: colors.surfaceHigh,
+          borderRadius: radii.md,
+          borderWidth: 1,
+          borderColor: colors.border,
+          padding: spacing.md,
+          gap: 6,
+          marginBottom: spacing.sm,
+        }}>
+          <Text style={[type.micro, { marginBottom: 2 }]}>HOW TO UPDATE</Text>
+          {COMO_ATUALIZAR[update.platform].map((passo, i) => (
+            <Text key={i} style={[type.caption, { lineHeight: 19 }]}>
+              <Text style={{ color: colors.accent }}>{i + 1}. </Text>
+              {passo}
+            </Text>
+          ))}
+        </View>
+      )}
 
       {lines.length > 0 && (
         <View style={{ gap: 4, marginBottom: spacing.sm }}>
