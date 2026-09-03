@@ -21,6 +21,9 @@ import type { Track } from '../types';
  *
  * Falham em silêncio, uma a uma: se uma RPC não existir na base de dados, as
  * outras prateleiras aparecem na mesma.
+ *
+ * E aparecem **à medida que chegam**, não todas no fim: as três que saem da
+ * base de dados são quase imediatas, a descoberta é que demora.
  */
 
 export type EstadoDasRecomendacoes = 'vazio' | 'a-carregar' | 'pronto';
@@ -70,29 +73,38 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
     const atual = geracao;
 
     set({ estado: 'a-carregar' });
-    const semFalhar = <T,>(p: Promise<T[]>) => p.catch(() => [] as T[]);
+
+    /**
+     * Publica uma prateleira assim que ela chega, em vez de esperar pelas
+     * outras.
+     *
+     * **Porque isto mudou.** Estavam as quatro num `Promise.all` e o ecra so
+     * mostrava alguma coisa quando a ULTIMA aterrasse. Tres delas sao
+     * consultas diretas a base de dados e chegam quase de imediato; a quarta
+     * -- a descoberta -- fala com o catalogo e com o YouTube, faixa a faixa,
+     * e demora segundos. O resultado era ficar a olhar para um indicador com
+     * tres prateleiras ja prontas em memoria, escondidas atras da lenta.
+     *
+     * Uma prateleira que falha nao leva as outras atras, como antes.
+     */
+    const publicar = <T,>(p: Promise<T[]>, campo: (v: T[]) => Partial<Recomendacoes>) =>
+      p.then((v) => { if (atual === geracao) set(campo(v)); }).catch(() => {});
 
     const trabalho = Promise.all([
-      semFalhar(getProfileRecentlyPlayed(POR_PRATELEIRA)),
-      // A descoberta e o flow precisam ambos da biblioteca: pede-se uma vez.
-      semFalhar(getLibrary()).then((lib) => Promise.all([
-        descobrirNovas(POR_PRATELEIRA, lib),
-        flowDoDia(POR_PRATELEIRA, lib),
-      ])).catch(() => [[], []] as [Track[], Track[]]),
-      semFalhar(getHeavyRotation(POR_PRATELEIRA)),
-      semFalhar(getForgottenFavorites(POR_PRATELEIRA)),
-    ]).then(([recentes, [novas, f], maisTocadas, esquecidas]) => {
-      if (atual !== geracao) return;
-      set({
-        descobrir: novas,
+      publicar(getProfileRecentlyPlayed(POR_PRATELEIRA), (recentes) => ({
         // `getProfileRecentlyPlayed` devolve ProfilePlayEntry, sem `album`.
         ouvirDeNovo: recentes.map((r: any) => ({ ...r, album: null } as Track)),
-        flow: f,
-        maisTocadas,
-        esquecidas,
-        estado: 'pronto',
-        carregadoEm: Date.now(),
-      });
+      })),
+      publicar(getHeavyRotation(POR_PRATELEIRA), (maisTocadas) => ({ maisTocadas })),
+      publicar(getForgottenFavorites(POR_PRATELEIRA), (esquecidas) => ({ esquecidas })),
+      // A descoberta e o flow precisam ambos da biblioteca: pede-se uma vez.
+      getLibrary().then((lib) => Promise.all([
+        publicar(descobrirNovas(POR_PRATELEIRA, lib), (descobrir) => ({ descobrir })),
+        publicar(flowDoDia(POR_PRATELEIRA, lib), (flow) => ({ flow })),
+      ])).catch(() => {}),
+    ]).then(() => {
+      if (atual !== geracao) return;
+      set({ estado: 'pronto', carregadoEm: Date.now() });
     }).catch(() => {
       // Nem isto devia acontecer (cada parte já falha sozinha), mas ficar
       // preso em "a-carregar" para sempre seria pior do que dizer que não há.

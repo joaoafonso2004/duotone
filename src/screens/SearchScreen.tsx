@@ -123,8 +123,19 @@ export function SearchScreen() {
     );
   };
 
+  // O refrescar vive no cabecalho, como no PC -- um icone, nao uma linha de
+  // texto encostada a direita por cima de tudo. E so aparece quando ha
+  // recomendacoes: antes disso nao ha nada para refrescar, e o botao chegava
+  // ao ecra antes daquilo que ele refresca.
   return (
-    <Screen title="Search" subtitle="Find tracks on YouTube">
+    <Screen title="Search" subtitle="Find tracks on YouTube"
+      right={temRecomendacoes(recs) ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Refresh recommendations"
+          hitSlop={12} disabled={loadingRecs} onPress={() => void recs.carregar(true)}
+          style={{ opacity: loadingRecs ? 0.4 : 1 }}>
+          <Ionicons name="refresh" size={22} color={colors.textSecondary} />
+        </Pressable>
+      ) : undefined}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
@@ -197,12 +208,6 @@ export function SearchScreen() {
             contentContainerStyle={{ paddingBottom: bottomPad }}
             showsVerticalScrollIndicator={false}
           >
-            <Pressable accessibilityRole="button" accessibilityLabel="Refresh recommendations"
-              disabled={loadingRecs} onPress={() => void recs.carregar(true)}
-              style={{ alignSelf: 'flex-end', padding: spacing.lg, flexDirection: 'row', gap: spacing.sm }}>
-              <Ionicons name="refresh" size={18} color={colors.text} />
-              <Text style={type.caption}>Refresh recommendations</Text>
-            </Pressable>
             {loadingRecs && !temRecomendacoes(recs) ? (
               <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
             ) : (
@@ -210,10 +215,10 @@ export function SearchScreen() {
                 {/* A PRIMEIRA prateleira e so descoberta: musica que ele nao tem,
                     escolhida pelo que ele ouve. */}
                 {renderRecommendationSection('Discover new', descobrir, 'sparkles-outline')}
-                {listenAgain.length > 0 && renderRecommendationSection('Ouvir Novamente', listenAgain, 'time-outline')}
-                {renderRecommendationSection('Flow do Dia', flowMix, 'sparkles-outline')}
-                {renderRecommendationSection('Mais Tocadas Recentes', heavyRotation, 'flame-outline')}
-                {renderRecommendationSection('Favoritos Esquecidos', forgottenFavorites, 'heart-dislike-outline')}
+                {listenAgain.length > 0 && renderRecommendationSection('Listen again', listenAgain, 'time-outline')}
+                {renderRecommendationSection('Daily flow', flowMix, 'sparkles-outline')}
+                {renderRecommendationSection('Heavy rotation', heavyRotation, 'flame-outline')}
+                {renderRecommendationSection('Forgotten favourites', forgottenFavorites, 'heart-dislike-outline')}
                 
                 {!temRecomendacoes(recs) && (
                   <Text style={styles.emptyRecsText}>
