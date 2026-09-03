@@ -15,8 +15,10 @@ import { useSocialBottomPadding } from './useSocialBottomPadding';
 import { useTheme } from '../state/theme';
 import { SocialButton,SocialModal,SocialIconButton,SocialTabs,socialStyles as s } from './socialUI';
 import { SocialTrackActions } from './SocialTrackActions';
+import { SharedPlaylistCard } from './SharedPlaylistCard';
+import { getPlaylistPreviews } from '../api/playlists';
 import { GroupAvatar,GroupChatHeader,GroupComposer,GroupDetails,GroupEmptyState,GroupMessage } from './GroupChat';
-import type { Track } from '../types';
+import type { Playlist,Track } from '../types';
 
 export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string}) {
   const web=Platform.OS==='web';
@@ -41,6 +43,16 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const draft=social.drafts[key] || '';
   const unread=naoLidasPorAmigo(social.received,social.seen);
   const ordered=[...messages].reverse();
+  // As mensagens só guardam o id da playlist. O nome e as capas vêm daqui, uma
+  // vez por conjunto de ids: sem isto o chat só sabia dizer "Open playlist".
+  const [playlistsDoChat,setPlaylistsDoChat]=useState<Map<string,Playlist>>(new Map());
+  const idsDePlaylist=Array.from(new Set(messages.map(m=>m.playlistId).filter(Boolean) as string[])).sort().join(',');
+  useEffect(()=>{
+    if(!idsDePlaylist){setPlaylistsDoChat(new Map());return;}
+    let vivo=true;
+    void getPlaylistPreviews(idsDePlaylist.split(',')).then(m=>{if(vivo)setPlaylistsDoChat(m);});
+    return()=>{vivo=false;};
+  },[idsDePlaylist]);
   /** Mensagens seguidas da mesma pessoa, dentro de cinco minutos, ficam sem o cabeçalho repetido. */
   const seguida=(m:SharedItem,index:number)=>{const antes=ordered[index+1];return !!antes&&antes.sender.id===m.sender.id&&new Date(m.createdAt).getTime()-new Date(antes.createdAt).getTime()<300000;};
   const setDraft=(text:string)=>useSocial.setState(x=>({drafts:{...x.drafts,[key]:text}}));
@@ -131,11 +143,11 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         {friend&&<Pressable accessibilityLabel={`View ${friend.name}`} style={s.row} onPress={()=>onProfile(friend.friendId)}><FriendAvatar avatarUrl={friend.avatarUrl} name={friend.name} size={40}/><View style={{flex:1}}><Text numberOfLines={1} style={s.text}>{friend.name} · View profile</Text><Text style={s.muted}>{friend.online?'● Online now':ultimaAtividade(friend.lastSeenAt,social.now)}</Text>{friend.currentlyPlaying&&<Text numberOfLines={1} style={s.muted}>♫ {friend.currentlyPlaying.title}</Text>}</View></Pressable>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={accent}/>}
         {group&&!chatLoading&&!messages.length&&!error?<View style={{flex:1,justifyContent:'center'}}><GroupEmptyState group={group}/></View>:
-        <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{gap:group?6:12,paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>group?<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>:<View style={{alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%',backgroundColor:m.sender.id===myId?colors.surfaceHigh:colors.bg,padding:12,borderRadius:15,gap:8}}>
+        <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{gap:group?6:12,paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>group?<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>:<View style={{alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%',backgroundColor:m.sender.id===myId?colors.surfaceHigh:colors.bg,padding:12,borderRadius:15,gap:8}}>
           {m.sender.id!==myId&&<Pressable onPress={()=>onProfile(m.sender.id)} style={s.row}><FriendAvatar avatarUrl={m.sender.avatarUrl} name={m.sender.name} size={22}/><Text style={s.muted}>{m.sender.name}</Text></Pressable>}
           {!!m.message&&<Text selectable style={s.text}>{m.message}</Text>}
           {m.trackData&&<Pressable style={s.row} onPress={()=>setTrack(m.trackData)}>{m.trackData.artworkUrl&&<Image source={{uri:m.trackData.artworkUrl}} style={{width:44,height:44,borderRadius:8}}/>}<Text numberOfLines={2} style={[s.text,{flexShrink:1}]}>♫ {m.trackData.title}</Text></Pressable>}
-          {m.playlistId&&<SocialButton quiet onPress={()=>onPlaylist(m.playlistId!)}>Open playlist</SocialButton>}
+          {m.playlistId&&<SharedPlaylistCard playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
           <Text style={[s.muted,{fontSize:11}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
         </View>}/>}
         {group?<GroupComposer value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:

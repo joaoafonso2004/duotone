@@ -310,6 +310,38 @@ export async function addTracksToPlaylist(
 
 /** Nome de uma playlist partilhada (leitura permitida a quem participa na
  * partilha — ver supabase/shared-playlists-read.sql). */
+/**
+ * Nome, número de faixas e capas das playlists que aparecem numa conversa.
+ *
+ * Uma mensagem só guarda o `playlist_id`, por isso sem isto o chat só sabia
+ * dizer "Open playlist" -- não dizia QUAL. Vai buscar todas de uma vez, que
+ * uma conversa pode ter várias.
+ *
+ * A RLS é que decide o que volta: depois do security-hardening.sql, uma
+ * playlist só se lê se existir mesmo uma partilha do dono para quem está a
+ * ler. Um id que já não esteja partilhado simplesmente não vem, e o chat
+ * mantém o botão simples.
+ */
+export async function getPlaylistPreviews(ids: string[]): Promise<Map<string, Playlist>> {
+  const unicos = Array.from(new Set(ids.filter(Boolean)));
+  if (!unicos.length) return new Map();
+  const { data, error } = await supabase
+    .from('playlists')
+    .select('id, name, created_at, playlist_tracks (position, tracks (artwork_url))')
+    .in('id', unicos);
+  if (error) return new Map();
+  return new Map((data ?? []).map((row: any) => {
+    const pts: any[] = [...(row.playlist_tracks ?? [])].sort((a, b) => a.position - b.position);
+    return [row.id as string, {
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      trackCount: pts.length,
+      artworks: pts.map((pt) => pt.tracks?.artwork_url).filter(Boolean).slice(0, 4),
+    } as Playlist];
+  }));
+}
+
 export async function getPlaylistName(playlistId: string): Promise<string | null> {
   const { data } = await supabase
     .from('playlists')
