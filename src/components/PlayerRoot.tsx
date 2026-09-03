@@ -500,7 +500,16 @@ export function PlayerRoot() {
           <Pressable hitSlop={12} onPress={() => setExpanded(false)} style={styles.headerBtn}>
             <Ionicons name="chevron-down" size={24} color={colors.text} />
           </Pressable>
-          <View style={styles.headerCenter}>
+          {/* Marca empilhada: símbolo em cima, nome por baixo, ambos ao
+              centro. O ficheiro é quadrado com a marca ao centro (ocupa 84%
+              da largura), por isso a caixa também é quadrada -- numa caixa
+              larga o `contain` encolhia-a até não se ver. */}
+          <View style={[styles.headerCenter, { flexDirection: 'column', alignItems: 'center', gap: 1 }]}>
+            <Image
+              source={require('../../assets/auth-logo.png')}
+              style={{ width: 22, height: 22 }}
+              contentFit="contain"
+            />
             <Text style={[type.micro, { letterSpacing: 1, fontWeight: '700' }]}>
               {APP_NAME.toUpperCase()}
             </Text>
