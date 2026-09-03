@@ -1,0 +1,57 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {PGlite} from '@electric-sql/pglite';
+const root=new URL('../supabase/',import.meta.url),read=name=>fs.readFileSync(new URL(name,root),'utf8').replace('create extension if not exists "pgcrypto";','');
+const db=new PGlite(),uid=n=>`00000000-0000-0000-0000-${String(n).padStart(12,'0')}`;
+const q=(sql,args=[])=>db.query(sql,args),as=async n=>db.exec(`reset role;set role authenticated;select set_config('request.jwt.claim.sub','${uid(n)}',false)`);
+try{
+  await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;
+    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb);
+    create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+    grant usage on schema auth,public to authenticated,anon;
+    create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text,name text);
+    create function storage.foldername(name text) returns text[] language sql as $$select string_to_array(name,'/')$$;
+    alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant select,insert,delete on storage.objects to authenticated;`);
+  for(const file of ['schema.sql','username-login.sql','social-setup.sql','group-chats.sql','inbox-archive.sql'])await db.exec(read(file));
+  await db.exec('alter table profiles add column if not exists avatar_url text;grant all on all tables in schema public to authenticated');
+  for(const file of ['social-presence.sql','social-profiles.sql','profile-media.sql','profile-playlists.sql','shared-playlists-read.sql','security-hardening.sql'])await db.exec(read(file));
+  for(let n=1;n<=3;n++)await q('insert into auth.users values($1,$2,$3)',[uid(n),`private-${n}@example.test`,{name:`Pessoa ${n}`,username:`pessoa${n}`}]);
+  await q(`insert into friendships(user_id_1,user_id_2,status,requester_id) values($1,$2,'accepted',$1)`,[uid(1),uid(2)]);
+  await as(1);
+  const entry={source:'youtube',sourceId:'faixa',title:'Título original',artist:'Artista',durationSeconds:180};
+  const track=(await q('select * from upsert_catalog_tracks($1)',[[entry]])).rows[0];assert.ok(track.id);
+  const playlist=(await q(`insert into playlists(owner_id,name) values($1,'Privada') returning id`,[uid(1)])).rows[0];
+  await q('insert into playlist_tracks values($1,$2,0,now())',[playlist.id,track.id]);
+  await q(`insert into shared_items(sender_id,recipient_id,item_type,playlist_id) values($1,$2,'playlist',$3)`,[uid(1),uid(2),playlist.id]);
+  await q(`insert into shared_items(sender_id,recipient_id,item_type,message) values($1,$2,'track','Olá')`,[uid(1),uid(2)]);
+  await q(`insert into yt_cache(cache_key,payload) values('mesma',$1)`,[{owner:1}]);
+  // Simula uma referência abusiva criada antes da migração: a nova política
+  // de leitura também protege dados históricos, não apenas novos INSERTs.
+  await db.exec('reset role');
+  await q(`insert into shared_items(sender_id,recipient_id,item_type,playlist_id) values($1,$1,'playlist',$2)`,[uid(3),playlist.id]);
+  await as(3);
+  assert.equal((await q('select * from playlists where id=$1',[playlist.id])).rows.length,0);
+  await as(2);
+  assert.equal((await q('select * from playlists where id=$1',[playlist.id])).rows.length,1);
+  await assert.rejects(q(`insert into shared_items(sender_id,recipient_id,item_type,playlist_id) values($1,$1,'playlist',$2)`,[uid(2),playlist.id]));
+  await assert.rejects(q(`update tracks set title='Adulterado' where id=$1`,[track.id]));
+  await q('select * from upsert_catalog_tracks($1)',[[{...entry,title:'Adulterado'}]]);
+  assert.equal((await q('select title from tracks where id=$1',[track.id])).rows[0].title,'Título original');
+  assert.equal((await q('select * from yt_cache')).rows.length,0);await q(`insert into yt_cache(cache_key,payload) values('mesma',$1)`,[{owner:2}]);
+  assert.equal((await q('select payload from yt_cache')).rows[0].payload.owner,2);
+  const message=(await q(`select id,sender_id from shared_items where message='Olá'`)).rows[0];
+  await assert.rejects(q('update shared_items set sender_id=$1 where id=$2',[uid(3),message.id]));
+  assert.equal((await q('select set_shared_item_archived($1,true) as ok',[message.id])).rows[0].ok,true);
+  assert.equal((await q('select sender_id from shared_items where id=$1',[message.id])).rows[0].sender_id,uid(1));
+  await assert.rejects(q(`insert into shared_items(sender_id,recipient_id,item_type,track_data) values($1,$2,'track',$3)`,[uid(2),uid(1),{source:'youtube',sourceId:'x',title:{bad:true}}]));
+  await q(`insert into shared_items(sender_id,recipient_id,item_type,track_data) values($1,$2,'track',$3)`,[uid(2),uid(1),entry]);
+  await db.exec('reset role;set role anon');await assert.rejects(q("select email_for_username('pessoa1')"));
+  await as(1);
+  const delta={...entry,count:1,lastPlayed:Date.now(),operationDevice:'dispositivo-teste',operationSequence:1};
+  await q('select apply_play_count_deltas($1)',[[delta]]);await q('select apply_play_count_deltas($1)',[[delta]]);
+  assert.equal((await q('select play_count from user_play_counts')).rows[0].play_count,1);
+  await q('select apply_play_count_deltas($1)',[[{...delta,operationSequence:2}]]);
+  assert.equal((await q('select play_count from user_play_counts')).rows[0].play_count,2);
+  console.log('Segurança: playlists, mensagens, catálogo, cache, email e contagens idempotentes passaram.');
+}finally{await db.close();}
