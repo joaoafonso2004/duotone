@@ -60,6 +60,39 @@ const PREFIXO_DE_UPLOAD_RE =
  */
 const SUFIXO_ENTRE_PARENTESIS_RE = /\s*[[(][^()\[\]]{0,40}[\])]\s*$/;
 
+/**
+ * Números de faixa de um rip de álbum: "01. ", "9 - ", "14 -".
+ *
+ * Sem isto, `01. N.W.A - Straight Outta Compton` dava o artista `01. N.W.A`,
+ * que fica como cartão à parte do `N.W.A` que a pessoa já tem. Tirar o número
+ * não esconde ninguém: FUNDE com o artista certo.
+ */
+const NUMERO_DE_FAIXA_RE = /^\s*\d{1,3}\s*[.)\-–—]\s+/;
+
+/**
+ * Marcas que só aparecem em TÍTULOS, nunca no nome de um artista.
+ *
+ * Não é uma lista de palavras proibidas a torto e a direito: é a diferença
+ * entre `CARNÍVORO (Clipe Oficial)` e o nome de uma pessoa. Ninguém se chama
+ * `(Official Music Video)` nem `Type Beat 2026`.
+ */
+const MARCA_DE_TITULO_RE = /\b(?:official\s+(?:music\s+)?video|official\s+audio|clipe\s+oficial|v[íi]deo\s+oficial|lyrics?\s*video|visuali[sz]er|4k\s+upgrade|prod\.?\s+by|type\s+beat|soundtrack|wshh)\b/i;
+
+/**
+ * O nome parece um título de música em vez de um artista?
+ *
+ * Dois sinais, ambos verificáveis, e nenhum deles um palpite sobre gosto: uma
+ * marca que só existe em títulos, ou parênteses por fechar -- que é o que
+ * sobra quando um título comprido foi cortado a meio (`That Go! (feat. T`).
+ */
+function pareceTitulo(nome: string): boolean {
+  if (!nome) return true;
+  if (MARCA_DE_TITULO_RE.test(nome)) return true;
+  const abre = (nome.match(/[([]/g) ?? []).length;
+  const fecha = (nome.match(/[)\]]/g) ?? []).length;
+  return abre !== fecha;
+}
+
 /** Tira os sufixos de versao do fim, quantos houver. */
 function semSufixoDeVersao(s: string): string {
   let saida = s.trim();
@@ -378,7 +411,8 @@ function extrairBruto(
   if (fiavel) return artistaPrincipal(fiavel);
 
   // 2) Título "Artista - Título", já sem os prefixos de quem faz upload.
-  const limpo = title ? limparPrefixoDeUpload(title) : null;
+  // O número de faixa sai antes de tudo: é numeração de um rip, não nome.
+  const limpo = title ? limparPrefixoDeUpload(title).replace(NUMERO_DE_FAIXA_RE, '') : null;
   if (limpo) {
     const m = limpo.match(/^(.{2,60}?)\s+[-–—]\s+(.+)$/);
     if (m) {
@@ -400,7 +434,15 @@ function extrairBruto(
         && !conhecidoComSeguranca(esquerdaNua, vocabulario)) {
         return direitaNua;
       }
-      if (esquerdaServe) return esquerda;
+      // Um lado que parece TÍTULO não pode ser o artista. Quando é o
+      // esquerdo e o direito não tem esse ar, o título está ao contrário --
+      // e isto apanha os casos que o vocabulário ainda não conhece.
+      if (pareceTitulo(esquerda) && !pareceTitulo(direitaNua) && direitaNua.length >= 2) {
+        return direitaNua;
+      }
+      // Se ambos os lados parecem título, não se inventa um artista aqui:
+      // deixa-se seguir para as regras do canal, que ao menos é uma fonte.
+      if (esquerdaServe && !pareceTitulo(esquerda)) return esquerda;
     }
   }
 

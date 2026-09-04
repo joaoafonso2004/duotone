@@ -68,7 +68,13 @@ export function ArtistsScreen() {
         artworkUrl: g.faixas.find((t) => t.artworkUrl)?.artworkUrl ?? null,
         count: g.faixas.length,
       }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      // Por PESO na biblioteca, e não por alfabeto — que é o que o PC já faz.
+      // A ordem alfabética parecia neutra e era o contrário: punha à cabeça
+      // tudo o que começa por símbolo ou número, e é exactamente aí que se
+      // acumulam os nomes que a extração não acertou. Numa biblioteca de 2.700
+      // faixas o primeiro ecrã enchia-se de coisas que não são artistas, e os
+      // artistas a sério só apareciam muito mais abaixo.
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [tracks]);
 
   const filteredArtists = useMemo(() => {

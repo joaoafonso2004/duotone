@@ -219,5 +219,21 @@ console.log('\nconfirmacao automatica pelo catalogo');
   eq('dois artistas confirmados preservam a ordem', displayArtist({ source: 'youtube', title: 'Primeiro Artista - Segundo Artista', artist: 'Uploads' }, aprenderVocabulario([])), 'Primeiro Artista');
 }
 
+// --- Nomes que são títulos, apanhados na biblioteca real (2.694 faixas) ---
+// O número de faixa de um rip não é parte do nome: sem isto ficava um cartão
+// `01. N.W.A` ao lado do `N.W.A` que a pessoa já tinha.
+eq('número de faixa sai do artista', extractArtist('01. N.W.A - Straight Outta Compton', null), 'N.W.A');
+eq('número de faixa com ponto e espaço', extractArtist('9. L7NNON - Alguma Coisa', null), 'L7NNON');
+// Um artista não se chama "(Official Music Video)": quando a marca de título
+// está à esquerda, o título está ao contrário.
+eq('marca de vídeo denuncia o lado errado',
+  extractArtist('BURN IT DOWN (Official Music Video) [4K Upgrade] - Linkin Park', null), 'Linkin Park');
+eq('marca em português também conta',
+  extractArtist('CARNÍVORO (Clipe Oficial) - MC Alguem', null), 'MC Alguem');
+// Parêntese por fechar é um título cortado a meio, nunca um nome.
+eq('parêntese por fechar não é artista', extractArtist('That Go! (feat. T - alguem', null), 'alguem');
+// E o caso normal não pode mexer-se.
+eq('título normal continua igual', extractArtist('Juice WRLD - Lucid Dreams', null), 'Juice WRLD');
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);
