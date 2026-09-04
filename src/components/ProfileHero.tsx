@@ -122,8 +122,10 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
     {profile?.profile.username===CRIADOR&&<View pointerEvents="none" style={{position:'absolute',right:SOCIAL_GUTTER,bottom:16,
       width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',
       backgroundColor:'rgba(10,10,15,0.55)',borderWidth:1,borderColor:'rgba(240,200,90,0.45)'}}>
-      {/* Reutiliza a fonte já carregada pela app. Importar uma família inteira
-          só para esta marca acrescentava 1,3 MB a todas as builds. */}
+      {/* Era uma coroa, dos MaterialCommunityIcons. A fita reutiliza a fonte que
+          a app já carrega; a coroa obrigava a empacotar uma família inteira, que
+          são 1,3 MB em TODAS as builds só por causa deste emblema.
+          A troca foi decidida e mantida de propósito -- não é para reverter. */}
       <Ionicons name="ribbon" size={15} color="#F0C85A"/>
     </View>}
     <View style={[s.row,{gap:8}]}>
