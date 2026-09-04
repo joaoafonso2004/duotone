@@ -2,7 +2,7 @@ import React from 'react';
 import {ActivityIndicator,Image,Platform,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
 import {Ionicons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
-import type {ChatGroup,SharedItem} from '../api/social';
+import type {ChatGroup,Reaction,SharedItem} from '../api/social';
 import type {Playlist,Track} from '../types';
 import {useTheme} from '../state/theme';
 import {displayArtist} from '../lib/artistName';
@@ -10,6 +10,7 @@ import {FriendAvatar} from './FriendAvatar';
 import {colors,radii} from './socialTokens';
 import {SocialButton,SocialIconButton,socialStyles as s} from './socialUI';
 import {SharedPlaylistCard} from './SharedPlaylistCard';
+import {MessageBubble,ReactionRow} from './ReactionRow';
 
 /** A identidade do grupo vem dos seus membros, incluindo os avatares de emoji. */
 export function GroupAvatar({group,size=44}:{group:ChatGroup;size?:number}) {
@@ -78,7 +79,10 @@ export function GroupEmptyState({group}:{group:ChatGroup}) {
  * mas desaparece quando a mesma pessoa fala de seguida: repetir o avatar e o
  * nome em cada linha era o que fazia o grupo parecer uma lista de recibos.
  */
-export function GroupMessage({message:m,own,showSender=true,playlist,onProfile,onTrack,onPlaylist}:{message:SharedItem;own:boolean;showSender?:boolean;playlist?:Playlist;onProfile:(id:string)=>void;onTrack:(track:Track)=>void;onPlaylist:(id:string)=>void}) {
+export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[],myId,aReagir=false,onReagir,onAbrirReacoes,onFecharReacoes,onProfile,onTrack,onPlaylist}:{message:SharedItem;own:boolean;showSender?:boolean;playlist?:Playlist;
+  reactions?:Reaction[];myId?:string;aReagir?:boolean;
+  onReagir?:(emoji:string|null)=>void;onAbrirReacoes?:()=>void;onFecharReacoes?:()=>void;
+  onProfile:(id:string)=>void;onTrack:(track:Track)=>void;onPlaylist:(id:string)=>void}) {
   return <View style={{alignSelf:own?'flex-end':'flex-start',maxWidth:Platform.OS==='web'?'82%':'94%',minWidth:128,gap:6,marginTop:showSender?12:0}}>
     {showSender&&<Pressable accessibilityRole="button" accessibilityLabel={`View ${m.sender.name}'s profile`} onPress={()=>onProfile(m.sender.id)}
       style={({pressed})=>[s.row,{gap:7,alignSelf:own?'flex-end':'flex-start',maxWidth:'100%',minHeight:36,opacity:pressed?0.7:1}]}>
@@ -86,8 +90,10 @@ export function GroupMessage({message:m,own,showSender=true,playlist,onProfile,o
       <Text numberOfLines={1} style={[s.muted,{fontWeight:'600',color:colors.text,flexShrink:1}]}>{m.sender.name}</Text>
       {own&&<Text style={[s.muted,{fontSize:11}]}>You</Text>}
     </Pressable>}
-    <View style={{padding:12,gap:10,borderRadius:18,borderTopLeftRadius:!own&&showSender?6:18,borderTopRightRadius:own&&showSender?6:18,
-      backgroundColor:own?colors.surfaceHigh:colors.surface,borderWidth:1,borderColor:own?colors.borderStrong:colors.border}}>
+    <MessageBubble own={own} aberto={aReagir} onAbrir={()=>onAbrirReacoes?.()}
+      rotulo={`Message from ${m.sender.name}. Hold to react`}
+      style={{padding:12,gap:10,borderRadius:18,borderTopLeftRadius:!own&&showSender?6:18,borderTopRightRadius:own&&showSender?6:18,
+        backgroundColor:own?colors.surfaceHigh:colors.surface,borderWidth:1,borderColor:own?colors.borderStrong:colors.border}}>
       {!!m.message&&<Text selectable style={[s.text,{lineHeight:22}]}>{m.message}</Text>}
       {m.trackData&&<Pressable accessibilityRole="button" accessibilityLabel={`Open ${m.trackData.title}`}
         onPress={()=>onTrack(m.trackData!)} style={({pressed})=>[s.row,{padding:10,gap:10,minWidth:190,borderRadius:12,backgroundColor:colors.bg,opacity:pressed?0.7:1}]}>
@@ -98,7 +104,9 @@ export function GroupMessage({message:m,own,showSender=true,playlist,onProfile,o
       </Pressable>}
       {m.playlistId&&<SharedPlaylistCard playlist={playlist} onPress={()=>onPlaylist(m.playlistId!)}/>}
       <Text style={[s.muted,{fontSize:10,lineHeight:13,alignSelf:'flex-end'}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
-    </View>
+    </MessageBubble>
+    <ReactionRow reactions={reactions} myId={myId} own={own} aberto={aReagir}
+      onEscolher={emoji=>onReagir?.(emoji)} onFechar={()=>onFecharReacoes?.()}/>
   </View>;
 }
 

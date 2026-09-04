@@ -24,6 +24,47 @@ export interface Friendship {
   } | null;
 }
 
+/** Quem reagiu ao quê. Uma por pessoa por mensagem — a chave é (item, pessoa). */
+export interface Reaction { itemId:string; userId:string; emoji:string }
+
+/**
+ * As reações das mensagens visíveis, todas de uma vez.
+ *
+ * Uma consulta por conversa e não uma por mensagem: um chat com cem mensagens
+ * daria cem idas ao servidor para mostrar meia dúzia de emojis.
+ */
+export async function getReactions(itemIds: readonly string[]): Promise<Map<string, Reaction[]>> {
+  const ids = Array.from(new Set(itemIds.filter(Boolean)));
+  const mapa = new Map<string, Reaction[]>();
+  if (!ids.length) return mapa;
+  const { data, error } = await supabase
+    .from('item_reactions')
+    .select('item_id, user_id, emoji')
+    .in('item_id', ids);
+  // Sem o SQL das reações aplicado isto falha; o chat continua a abrir sem elas.
+  if (error) return mapa;
+  for (const r of data ?? []) {
+    const lista = mapa.get(r.item_id) ?? [];
+    lista.push({ itemId: r.item_id, userId: r.user_id, emoji: r.emoji });
+    mapa.set(r.item_id, lista);
+  }
+  return mapa;
+}
+
+/** `emoji` a null tira a minha reação. Repetir o mesmo emoji também. */
+export async function setReaction(itemId: string, emoji: string | null): Promise<void> {
+  const userId = await currentUserId();
+  if (!emoji) {
+    const { error } = await supabase.from('item_reactions').delete().eq('item_id', itemId).eq('user_id', userId);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase
+    .from('item_reactions')
+    .upsert({ item_id: itemId, user_id: userId, emoji }, { onConflict: 'item_id,user_id' });
+  if (error) throw error;
+}
+
 export interface SharedItem {
   id: string;
   sender: {

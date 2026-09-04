@@ -1,7 +1,7 @@
-import React,{useEffect,useRef,useState} from 'react';
+import React,{useCallback,useEffect,useRef,useState} from 'react';
 import { ActivityIndicator,FlatList,Image,Platform,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { acceptFriendRequest,acrescentarAoGrupo,criarGrupo,declineOrRemoveFriendship,getChatMessages,getGroupMessages,apagarConversa, sairDoGrupo,searchProfiles,sendFriendRequest,shareComGrupo,shareItem,type SharedItem } from '../api/social';
+import { acceptFriendRequest,acrescentarAoGrupo,criarGrupo,declineOrRemoveFriendship,getChatMessages,getGroupMessages,apagarConversa, sairDoGrupo,searchProfiles,sendFriendRequest,getReactions,setReaction,shareComGrupo,shareItem,type Reaction,type SharedItem } from '../api/social';
 import type { PublicProfile } from '../api/profiles';
 import { useSocial } from '../state/social';
 import { useAuth } from '../state/auth';
@@ -16,6 +16,7 @@ import { useTheme } from '../state/theme';
 import { SocialButton,SocialModal,SocialIconButton,SocialTabs,socialStyles as s } from './socialUI';
 import { SocialTrackActions } from './SocialTrackActions';
 import { SharedPlaylistCard } from './SharedPlaylistCard';
+import { MessageBubble,ReactionRow } from './ReactionRow';
 import { getPlaylistPreviews } from '../api/playlists';
 import { GroupAvatar,GroupChatHeader,GroupComposer,GroupDetails,GroupEmptyState,GroupMessage } from './GroupChat';
 import type { Playlist,Track } from '../types';
@@ -46,6 +47,34 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   // As mensagens só guardam o id da playlist. O nome e as capas vêm daqui, uma
   // vez por conjunto de ids: sem isto o chat só sabia dizer "Open playlist".
   const [playlistsDoChat,setPlaylistsDoChat]=useState<Map<string,Playlist>>(new Map());
+  const [reacoes,setReacoes]=useState<Map<string,Reaction[]>>(new Map());
+  const [aReagir,setAReagir]=useState<string|null>(null);
+  const idsDasMensagens=messages.map(m=>m.id).join(',');
+  const recarregarReacoes=useCallback(async()=>{
+    if(!idsDasMensagens){setReacoes(new Map());return;}
+    setReacoes(await getReactions(idsDasMensagens.split(',')));
+  },[idsDasMensagens]);
+  useEffect(()=>{void recarregarReacoes();},[recarregarReacoes]);
+  // O canal de tempo real nasce uma vez por conversa; a ref dá-lhe sempre a
+  // versão actual da função em vez da que existia quando ele foi criado.
+  const recarregarReacoesRef=useRef(recarregarReacoes);recarregarReacoesRef.current=recarregarReacoes;
+  /**
+   * A reação aparece no toque e só depois vai ao servidor: esperar pela ida e
+   * volta faz um botão que parece partido. Se falhar, a releitura repõe o
+   * estado certo.
+   */
+  const reagir=async(itemId:string,emoji:string|null)=>{
+    setAReagir(null);
+    if(!myId)return;
+    setReacoes(anterior=>{
+      const copia=new Map(anterior);
+      const semAMinha=(copia.get(itemId)??[]).filter(r=>r.userId!==myId);
+      copia.set(itemId,emoji?[...semAMinha,{itemId,userId:myId,emoji}]:semAMinha);
+      return copia;
+    });
+    try{await setReaction(itemId,emoji);}catch{/* a releitura repõe */}
+    void recarregarReacoes();
+  };
   const idsDePlaylist=Array.from(new Set(messages.map(m=>m.playlistId).filter(Boolean) as string[])).sort().join(',');
   useEffect(()=>{
     if(!idsDePlaylist){setPlaylistsDoChat(new Map());return;}
@@ -78,7 +107,12 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
       finally{loading=false;if(active)setChatLoading(false);}
     };
     void load();const timer=setInterval(()=>void load(),6000);
-    const channel=supabase.channel(`chat:${key}`).on('postgres_changes',{event:'INSERT',schema:'public',table:'shared_items'},()=>void load()).subscribe();
+    const channel=supabase.channel(`chat:${key}`)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'shared_items'},()=>void load())
+      // Sem isto a reação do outro só aparecia no recarregamento de 6
+      // segundos, e uma reação que demora seis segundos não é uma reação.
+      .on('postgres_changes',{event:'*',schema:'public',table:'item_reactions'},()=>void recarregarReacoesRef.current())
+      .subscribe();
     return()=>{active=false;clearInterval(timer);void supabase.removeChannel(channel);};
   },[key,visible]);
   const loadOlder=async()=>{
@@ -143,12 +177,19 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         {friend&&<Pressable accessibilityLabel={`View ${friend.name}`} style={s.row} onPress={()=>onProfile(friend.friendId)}><FriendAvatar avatarUrl={friend.avatarUrl} name={friend.name} size={40}/><View style={{flex:1}}><Text numberOfLines={1} style={s.text}>{friend.name} · View profile</Text><Text style={s.muted}>{friend.online?'● Online now':ultimaAtividade(friend.lastSeenAt,social.now)}</Text>{friend.currentlyPlaying&&<Text numberOfLines={1} style={s.muted}>♫ {friend.currentlyPlaying.title}</Text>}</View></Pressable>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={accent}/>}
         {group&&!chatLoading&&!messages.length&&!error?<View style={{flex:1,justifyContent:'center'}}><GroupEmptyState group={group}/></View>:
-        <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{gap:group?6:12,paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>group?<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>:<View style={{alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%',backgroundColor:m.sender.id===myId?colors.surfaceHigh:colors.bg,padding:12,borderRadius:15,gap:8}}>
+        <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{gap:group?6:12,paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>group?<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
+          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>:<View style={{alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%',gap:5}}>
+          <MessageBubble own={m.sender.id===myId} aberto={aReagir===m.id} onAbrir={()=>setAReagir(a=>a===m.id?null:m.id)}
+            rotulo={`Message from ${m.sender.name}. Hold to react`}
+            style={{backgroundColor:m.sender.id===myId?colors.surfaceHigh:colors.bg,padding:12,borderRadius:15,gap:8}}>
           {m.sender.id!==myId&&<Pressable onPress={()=>onProfile(m.sender.id)} style={s.row}><FriendAvatar avatarUrl={m.sender.avatarUrl} name={m.sender.name} size={22}/><Text style={s.muted}>{m.sender.name}</Text></Pressable>}
           {!!m.message&&<Text selectable style={s.text}>{m.message}</Text>}
           {m.trackData&&<Pressable style={s.row} onPress={()=>setTrack(m.trackData)}>{m.trackData.artworkUrl&&<Image source={{uri:m.trackData.artworkUrl}} style={{width:44,height:44,borderRadius:8}}/>}<Text numberOfLines={2} style={[s.text,{flexShrink:1}]}>♫ {m.trackData.title}</Text></Pressable>}
           {m.playlistId&&<SharedPlaylistCard playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
           <Text style={[s.muted,{fontSize:11}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
+          </MessageBubble>
+          <ReactionRow reactions={reacoes.get(m.id)??[]} myId={myId} own={m.sender.id===myId}
+            aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}/>
         </View>}/>}
         {group?<GroupComposer value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:
           <View style={s.row}><TextInput accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}/><SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>}

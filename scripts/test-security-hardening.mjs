@@ -17,7 +17,7 @@ try{
     alter table storage.objects enable row level security;grant usage on schema storage to authenticated;grant select,insert,delete on storage.objects to authenticated;`);
   for(const file of ['schema.sql','username-login.sql','social-setup.sql','group-chats.sql','inbox-archive.sql'])await db.exec(read(file));
   await db.exec('alter table profiles add column if not exists avatar_url text;grant all on all tables in schema public to authenticated');
-  for(const file of ['social-presence.sql','social-profiles.sql','profile-media.sql','profile-playlists.sql','shared-playlists-read.sql','security-hardening.sql','username-login-seguro.sql'])await db.exec(read(file));
+  for(const file of ['social-presence.sql','social-profiles.sql','profile-media.sql','profile-playlists.sql','shared-playlists-read.sql','security-hardening.sql','username-login-seguro.sql','reactions.sql'])await db.exec(read(file));
   for(let n=1;n<=3;n++)await q(`insert into auth.users values($1,$2,$3,crypt('segredo-'||$4,gen_salt('bf')))`,[uid(n),`private-${n}@example.test`,{name:`Pessoa ${n}`,username:`pessoa${n}`},String(n)]);
   await q(`insert into friendships(user_id_1,user_id_2,status,requester_id) values($1,$2,'accepted',$1)`,[uid(1),uid(2)]);
   await as(1);
@@ -71,5 +71,34 @@ try{
   await assert.rejects(q('select * from login_attempts'),'a tabela de tentativas nao pode ser legivel pelo anon');
   await db.exec('reset role');
   assert.equal((await q("select count(*)::int as n from login_attempts where chave='pessoa2'")).rows[0].n,0,'entrar limpa o contador');
-  console.log('Segurança: playlists, mensagens, catálogo, cache, email, login por username e contagens idempotentes passaram.');
+  // Reações: quem vê a mensagem vê as reações dela, e mais ninguém. Uma por
+  // pessoa por mensagem, e cada um só mexe na sua.
+  const msg=(await q(`select id from shared_items where message='Olá'`)).rows[0].id;
+  await as(2);
+  await q(`insert into item_reactions(item_id,user_id,emoji) values($1,$2,'🔥')`,[msg,uid(2)]);
+  assert.equal((await q('select emoji from item_reactions where item_id=$1',[msg])).rows[0].emoji,'🔥');
+  // Trocar substitui, nao acumula: a chave e (mensagem, pessoa).
+  await q(`insert into item_reactions(item_id,user_id,emoji) values($1,$2,'😂')
+           on conflict(item_id,user_id) do update set emoji=excluded.emoji`,[msg,uid(2)]);
+  assert.equal((await q('select count(*)::int as n from item_reactions where item_id=$1',[msg])).rows[0].n,1,'uma reacao por pessoa');
+  assert.equal((await q('select emoji from item_reactions where item_id=$1',[msg])).rows[0].emoji,'😂');
+  // Nao da para reagir em nome de outra pessoa.
+  await assert.rejects(q(`insert into item_reactions(item_id,user_id,emoji) values($1,$2,'👎')`,[msg,uid(1)]),'reagir por outro');
+  // Nem para escrever texto disfarcado de emoji.
+  await assert.rejects(q(`insert into item_reactions(item_id,user_id,emoji) values($1,$2,'ola')`,[msg,uid(2)]),'texto em vez de emoji');
+  // O remetente ve a reacao que recebeu.
+  await as(1);
+  assert.equal((await q('select count(*)::int as n from item_reactions where item_id=$1',[msg])).rows[0].n,1,'o remetente ve a reacao');
+  // Quem nao esta na conversa nao ve nada, e nao consegue reagir.
+  await as(3);
+  assert.equal((await q('select count(*)::int as n from item_reactions where item_id=$1',[msg])).rows[0].n,0,'estranho nao ve reacoes');
+  await assert.rejects(q(`insert into item_reactions(item_id,user_id,emoji) values($1,$2,'🔥')`,[msg,uid(3)]),'estranho nao reage');
+  // E ninguem apaga a reacao de outro.
+  await as(1);
+  await q('delete from item_reactions where item_id=$1',[msg]);
+  await as(2);
+  assert.equal((await q('select count(*)::int as n from item_reactions where item_id=$1',[msg])).rows[0].n,1,'a reacao do outro sobrevive');
+  await q('delete from item_reactions where item_id=$1 and user_id=$2',[msg,uid(2)]);
+  assert.equal((await q('select count(*)::int as n from item_reactions where item_id=$1',[msg])).rows[0].n,0,'mas a propria tira-se');
+  console.log('Segurança: playlists, mensagens, catálogo, cache, email, login por username, reações e contagens idempotentes passaram.');
 }finally{await db.close();}
