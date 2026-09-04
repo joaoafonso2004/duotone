@@ -43,7 +43,7 @@ import { EqualizadorSheet } from './EqualizadorSheet';
 import { navigationRef } from '../navigation/RootNavigator';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
-import { addRemoteCommandListeners } from '../../modules/duotone-remote-commands';
+import { addPlayPauseListeners, addRemoteCommandListeners } from '../../modules/duotone-remote-commands';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 
 const TAB_BAR_BASE = 49;
@@ -242,6 +242,26 @@ export function PlayerRoot() {
       ),
     []
   );
+
+  // O play/pause de fora (Lock Screen, carro, auscultadores) é tratado pelo
+  // expo-video sem passar pela store, que ficava a achar que ainda queria
+  // tocar. Repor a intenção aqui é o que permite ao watchdog distinguir uma
+  // pausa nos últimos segundos de uma faixa encravada.
+  useEffect(
+    () =>
+      addPlayPauseListeners(
+        () => {
+          // `togglePlay` sobre um estado que já é "a tocar" faria o contrário
+          // do que foi pedido.
+          const s = usePlayer.getState();
+          if (!s.isPlaying) void s.togglePlay();
+        },
+        // Já é guardado por `isPlaying` lá dentro.
+        () => usePlayer.getState().pausePlayback()
+      ),
+    []
+  );
+
   // A fila mudou -> reafirmar. Os eventos do player nativo cobrem o resto,
   // que é onde isto falhava (ver src/lib/comandosDeFaixa.ts).
   useEffect(() => {

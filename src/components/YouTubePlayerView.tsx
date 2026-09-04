@@ -8,6 +8,7 @@ import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '.
 import { BUILD_ID } from '../lib/buildInfo';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
+import { acaoDoWatchdog } from '../lib/fimDeFaixa';
 import { definirCapaDoEcraBloqueado, temCapaNativa } from '../../modules/duotone-remote-commands';
 import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
@@ -665,24 +666,50 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (backend === 'webview') setBuffering(false);
   }, [backend, setBuffering]);
 
-  // Watchdog: se a app tenciona tocar mas a posição não avança há vários
-  // segundos, o AVPlayer não conseguiu arrancar/continuar o stream progressivo
-  // (típico de músicas longas no 4G — nem começam). Muda para o download do
-  // ficheiro, que arranca de certeza. Usa a INTENÇÃO (wantsPlayRef), por isso
-  // apanha também o caso em que a música NUNCA começa (posição presa em ~0).
+  // Watchdog da posição parada. Duas paragens, duas respostas -- a decisão
+  // está isolada e testada em src/lib/fimDeFaixa.ts:
+  //
+  //  - longe do fim, o stream não arrancou ou morreu a meio (músicas longas
+  //    em 4G, que às vezes nem começam): troca para o ficheiro descarregado;
+  //  - no último par de segundos não há nada a recuperar, o áudio acabou e o
+  //    AVPlayer não emitiu o `playToEnd`: avança na fila.
+  //
+  // Usa a INTENÇÃO (wantsPlayRef), por isso apanha também o caso em que a
+  // música nunca chega a começar (posição presa em ~0).
   useEffect(() => {
     if (backend !== 'native') return;
     const id = setInterval(() => {
-      if (downloadTriedRef.current || !wantsPlayRef.current) return;
-      const stuckMs = Date.now() - lastProgressRef.current.at;
-      const dur = track.durationSeconds ?? 0;
-      const nearEnd = dur > 0 && lastProgressRef.current.time >= dur - 2;
-      if (stuckMs > 6000 && !nearEnd) {
+      // A mesma duração que a barra mostra. O `player.duration` fica de fora
+      // de propósito: há m4a do YouTube que reportam o dobro, e com ele a
+      // faixa nunca seria vista como perto do fim.
+      const acao = acaoDoWatchdog({
+        querTocar: wantsPlayRef.current,
+        paradoMs: Date.now() - lastProgressRef.current.at,
+        posicaoSegundos: lastProgressRef.current.time,
+        duracaoSegundos: track.durationSeconds || streamRef.current?.durationSeconds || 0,
+        jaDescarregou: downloadTriedRef.current,
+      });
+
+      if (acao === 'descarregar') {
         fallbackRef.current();
+        return;
       }
+      if (acao !== 'avancar') return;
+
+      // O fim que o AVPlayer não anunciou: segue-se o mesmo caminho do
+      // `playToEnd`, para repeat e fila se comportarem exatamente na mesma.
+      if (endedRef.current || usePlayer.getState().closing) return;
+      if (nativeTrackIdRef.current !== track.sourceId) return;
+      if (repeatMode === 'one') {
+        player.currentTime = 0;
+        player.play();
+        return;
+      }
+      endedRef.current = true;
+      onStateChange('ended');
     }, 2000);
     return () => clearInterval(id);
-  }, [backend, track.durationSeconds]);
+  }, [backend, track.durationSeconds, track.sourceId, repeatMode, player, onStateChange]);
 
   // Ligar/desligar a normalização nas Definições aplica-se já, sem esperar
   // pela faixa seguinte.
