@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme, ACCENT_THEMES } from '../state/theme';
+import { useTheme, STEEL } from '../state/theme';
 import { clearLibrary } from '../api/library';
 import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
 import { clearStreamMemo, clearVisitorData } from '../api/ytstream';
@@ -86,8 +86,11 @@ export function SettingsScreen({ navigation }: Props) {
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   const sleepTimerTimeLeft = usePlayer((s) => s.sleepTimerTimeLeft);
   const setSleepTimer = usePlayer((s) => s.setSleepTimer);
-  const themeName = useTheme((s) => s.themeName);
-  const setTheme = useTheme((s) => s.setTheme);
+  const modo = useTheme((s) => s.mode);
+  const setMode = useTheme((s) => s.setMode);
+  // O que a capa a tocar está a dar agora. Serve de amostra na própria
+  // escolha: uma opção chamada "segue a capa" tem de mostrar qual é a capa.
+  const temaActual = useTheme((s) => s.theme);
   const activeTheme = useTheme((s) => s.theme);
 
   const [audioQuality, setAudioQualityState] = useState<AudioQuality>('high');
@@ -296,44 +299,39 @@ export function SettingsScreen({ navigation }: Props) {
             <PillButton label="Manage preferences" disabled={offline} onPress={()=>setRecommendationsOpen(true)}/>
           </Section>
           <Section title="Theme">
-            <Label>Cor de destaque</Label>
+            <Label>Accent</Label>
             <View style={styles.themesGrid}>
-              {(['violet', 'blue', 'orange', 'green', 'pink', 'red', 'mono', 'steel'] as const).map((name) => {
-                const item = ACCENT_THEMES[name];
-                const isActive = themeName === name;
+              {([
+                ['steel', 'Steel', STEEL],
+                ['cover', 'Cover', modo === 'cover' ? temaActual : STEEL],
+              ] as const).map(([nome, rotulo, amostra]) => {
+                const activo = modo === nome;
                 return (
                   <Pressable
-                    key={name}
+                    key={nome}
                     onPress={() => {
                       hapticSelection();
-                      setTheme(name);
+                      void setMode(nome);
                     }}
                     style={styles.themeCircleWrap}
                   >
                     <LinearGradient
-                      colors={item.gradient}
+                      colors={amostra.gradient}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
-                      style={[
-                        styles.themeCircle,
-                        isActive && { borderWidth: 2, borderColor: '#fff' }
-                      ]}
+                      style={[styles.themeCircle, activo && { borderWidth: 2, borderColor: '#fff' }]}
                     >
-                      {isActive && (
-                        <Ionicons
-                          name="checkmark"
-                          size={16}
-                          color={item.textColorOnGradient}
-                        />
-                      )}
+                      {activo && <Ionicons name="checkmark" size={16} color={amostra.textColorOnGradient} />}
                     </LinearGradient>
-                    <Text style={styles.themeLabel}>
-                      {name === 'mono' ? 'Mono' : name === 'steel' ? 'Steel' : name.charAt(0).toUpperCase() + name.slice(1)}
-                    </Text>
+                    <Text style={styles.themeLabel}>{rotulo}</Text>
                   </Pressable>
                 );
               })}
             </View>
+            <Text style={type.caption}>
+              Steel is the app's own colour. Cover follows the artwork of whatever is playing,
+              and falls back to Steel when a cover has no colour to give.
+            </Text>
           </Section>
 
           <Section title="Playback">

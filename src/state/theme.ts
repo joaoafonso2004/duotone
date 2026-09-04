@@ -1,100 +1,113 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { lerCelulasDaCapa } from '../lib/celulasDaCapa';
+import { misturarTemas, temaDaCapa } from '../lib/corDaCapa';
 
-export type AccentColorName = 'violet' | 'blue' | 'orange' | 'green' | 'pink' | 'red' | 'mono' | 'steel';
+/**
+ * O acento da app: ou é o metal do símbolo, ou é a capa que manda.
+ *
+ * Havia oito cores fixas à escolha. Saíram todas: uma paleta de arco-íris não
+ * é identidade nenhuma, e nenhuma delas dizia o que a app é. Ficam dois modos
+ * -- o steel, que é a cor do próprio símbolo, e o `cover`, que segue a capa
+ * do que está a tocar.
+ *
+ * A forma do `AccentTheme` não mudou de propósito: são vinte e sete sítios a
+ * ler `theme.color`, `theme.soft` e `theme.gradient`, e nenhum deles precisa
+ * de saber de onde a cor veio.
+ */
 
-export interface AccentTheme {
-  name: AccentColorName;
-  color: string;
-  soft: string;
-  gradient: readonly [string, string];
-  textColorOnGradient: string;
-}
+export type { ThemeMode, AccentColorName, AccentTheme } from '../lib/modoDoTema';
+export { STEEL, modoGuardado } from '../lib/modoDoTema';
 
-export const ACCENT_THEMES: Record<AccentColorName, AccentTheme> = {
-  violet: {
-    name: 'violet',
-    color: '#8B5CF6',
-    soft: 'rgba(139,92,246,0.16)',
-    gradient: ['#7C3AED', '#DB2777'] as const,
-    textColorOnGradient: '#FFFFFF',
-  },
-  blue: {
-    name: 'blue',
-    color: '#3B82F6',
-    soft: 'rgba(59,130,246,0.16)',
-    gradient: ['#2563EB', '#22D3EE'] as const,
-    textColorOnGradient: '#FFFFFF',
-  },
-  orange: {
-    name: 'orange',
-    color: '#F97316',
-    soft: 'rgba(249,115,22,0.16)',
-    gradient: ['#F97316', '#EF4444'] as const,
-    textColorOnGradient: '#FFFFFF',
-  },
-  green: {
-    name: 'green',
-    color: '#10B981',
-    soft: 'rgba(16,185,129,0.16)',
-    gradient: ['#10B981', '#84CC16'] as const,
-    textColorOnGradient: '#FFFFFF',
-  },
-  pink: {
-    name: 'pink',
-    color: '#EC4899',
-    soft: 'rgba(236,72,153,0.16)',
-    gradient: ['#EC4899', '#8B5CF6'] as const,
-    textColorOnGradient: '#FFFFFF',
-  },
-  red: {
-    name: 'red',
-    color: '#EF4444',
-    soft: 'rgba(239,68,68,0.16)',
-    gradient: ['#EF4444', '#F59E0B'] as const,
-    textColorOnGradient: '#FFFFFF',
-  },
-  mono: {
-    name: 'mono',
-    color: '#F5F5F7',
-    soft: 'rgba(255,255,255,0.12)',
-    gradient: ['#FFFFFF', '#A1A1AA'] as const,
-    textColorOnGradient: '#0A0A0F', // Preto para contraste absoluto
-  },
-  steel: {
-    // Alinhado com a paleta do desktop (src/desktop/tokens.web.ts): e o metal
-    // do proprio simbolo da app. Quem escolher este tema fica com a
-    // identidade exata, sem cor nenhuma a competir com a capa do disco.
-    name: 'steel',
-    color: '#E9EAEE',
-    soft: 'rgba(233,234,238,0.12)',
-    gradient: ['#E9EAEE', '#34363E'] as const,
-    textColorOnGradient: '#0B0B0E', // sobre prata claro, texto escuro
-  },
-};
+import { modoGuardado, STEEL, type AccentTheme, type ThemeMode } from '../lib/modoDoTema';
+
+const CHAVE = 'pref:accentTheme';
+
+/** Duração da passagem de uma cor para a outra. */
+const TRANSICAO_MS = 380;
+/** Passos da transição. Mais do que isto não se vê; menos, salta. */
+const PASSOS = 14;
 
 interface ThemeState {
-  themeName: AccentColorName;
+  mode: ThemeMode;
   theme: AccentTheme;
-  setTheme: (name: AccentColorName) => Promise<void>;
+  /** O que a capa actual deu, ou o steel. É o destino da transição. */
+  destino: AccentTheme;
+  setMode: (mode: ThemeMode) => Promise<void>;
   loadTheme: () => Promise<void>;
+  /** Diz qual é a capa a tocar. Sem efeito nenhum fora do modo `cover`. */
+  aplicarCapa: (uri: string | null | undefined) => Promise<void>;
 }
 
-export const useTheme = create<ThemeState>((set) => ({
-  themeName: 'mono',
-  theme: ACCENT_THEMES.mono,
-  setTheme: async (name) => {
-    const theme = ACCENT_THEMES[name] || ACCENT_THEMES.mono;
-    set({ themeName: name, theme });
-    await AsyncStorage.setItem('pref:accentTheme', name);
+/**
+ * A cor lida de cada capa, guardada por endereço.
+ *
+ * Ler uma capa custa uma descodificação; voltar atrás na fila ou repetir a
+ * mesma música não tem de a pagar outra vez. E como a leitura é
+ * determinística, o que está em cache é exactamente o que se voltaria a obter.
+ */
+const lidas = new Map<string, AccentTheme | null>();
+
+/** Cancela a animação a meio quando chega outra capa antes de esta acabar. */
+let animacao: ReturnType<typeof setTimeout> | undefined;
+/** Distingue pedidos: uma capa lenta não pode pintar por cima de uma recente. */
+let pedido = 0;
+
+export const useTheme = create<ThemeState>((set, get) => ({
+  mode: 'steel',
+  theme: STEEL,
+  destino: STEEL,
+
+  setMode: async (mode) => {
+    const alvo = mode === 'cover' ? get().destino : STEEL;
+    set({ mode, theme: alvo, destino: alvo });
+    await AsyncStorage.setItem(CHAVE, mode);
   },
+
   loadTheme: async () => {
-    const saved = await AsyncStorage.getItem('pref:accentTheme');
-    if (saved && saved in ACCENT_THEMES) {
-      const name = saved as AccentColorName;
-      set({ themeName: name, theme: ACCENT_THEMES[name] });
+    const guardado = await AsyncStorage.getItem(CHAVE);
+    set({ mode: modoGuardado(guardado), theme: STEEL, destino: STEEL });
+  },
+
+  aplicarCapa: async (uri) => {
+    if (get().mode !== 'cover') return;
+
+    const meu = ++pedido;
+    let alvo: AccentTheme;
+
+    if (!uri) {
+      alvo = STEEL;
+    } else if (lidas.has(uri)) {
+      alvo = lidas.get(uri) ?? STEEL;
     } else {
-      set({ themeName: 'mono', theme: ACCENT_THEMES.mono });
+      const celulas = await lerCelulasDaCapa(uri);
+      const lido = temaDaCapa(celulas);
+      lidas.set(uri, lido);
+      alvo = lido ?? STEEL;
     }
+
+    // Enquanto se lia esta capa já mudou a música: quem chegou depois manda.
+    if (meu !== pedido || get().mode !== 'cover') return;
+
+    const partida = get().theme;
+    set({ destino: alvo });
+    if (partida.color === alvo.color) {
+      set({ theme: alvo });
+      return;
+    }
+
+    // A transição vive aqui e não em cada ecrã: mexer no tema da loja anima os
+    // vinte e sete sítios de uma vez, e nenhum deles tem de saber disso. Um
+    // salto de cor a cada faixa era o que fazia isto parecer um erro em vez de
+    // uma escolha.
+    clearTimeout(animacao);
+    let passo = 0;
+    const andar = () => {
+      if (meu !== pedido) return;
+      passo++;
+      set({ theme: passo >= PASSOS ? alvo : misturarTemas(partida, alvo, passo / PASSOS) });
+      if (passo < PASSOS) animacao = setTimeout(andar, TRANSICAO_MS / PASSOS);
+    };
+    animacao = setTimeout(andar, TRANSICAO_MS / PASSOS);
   },
 }));

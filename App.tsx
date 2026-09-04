@@ -36,11 +36,15 @@ import {chaveDaFaixa} from './src/lib/equalizer';
 import { startTrackAdjustmentSync } from './src/state/trackAdjustments';
 import { usePlayer } from './src/state/player';
 import { useTheme } from './src/state/theme';
+import { useAcompanharCapa } from './src/hooks/useAcompanharCapa';
 import { useRecomendacoes } from './src/state/recomendacoes';
 import { iniciarPresenca } from './src/lib/presenceSync';
 import { iniciarSocial } from './src/state/social';
 
 export default function App() {
+  // O acento segue a capa a tocar quando esse modo esta escolhido. Aqui em
+  // cima porque a App e a raiz das duas plataformas -- um so sitio a ligar.
+  useAcompanharCapa();
   useLyricsPrefetch();
   useEffect(startConnectivity,[]);
   const offline=useConnectivity(s=>s.offline);

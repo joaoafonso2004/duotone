@@ -60,8 +60,8 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
   const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
 
-  const themeName = useTheme((s) => s.themeName);
-  const setTheme = useTheme((s) => s.setTheme);
+  const modo = useTheme((s) => s.mode);
+  const setMode = useTheme((s) => s.setMode);
   // O padrao, e nao a velocidade da faixa a tocar: e isso que este controlo
   // define, e mostrar a outra fazia a barra saltar a cada mudanca de musica.
   const padraoRate = usePlayer((s) => s.padraoRate);
@@ -231,7 +231,7 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
                 o efeito reagir ao som, e desligar a opcao desliga-a mesmo. */}
             <ChoiceLine label="Effect intensity" description="Adjust the visual strength without changing beat detection." value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />
             <ChoiceLine label="Effect mode" description="Reactive follows the music. Static freezes the selected style. Off shows the plain artwork and stops audio capture." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
-            <ChoiceLine label="Accent Theme" value={themeName} choices={[['violet', 'Violet'], ['blue', 'Blue'], ['orange', 'Orange'], ['green', 'Green'], ['pink', 'Pink'], ['red', 'Red'], ['mono', 'White'], ['steel', 'Steel']]} onChange={(v) => setTheme(v as any)} />
+            <ChoiceLine label="Accent" value={modo} choices={[['steel', 'Steel'], ['cover', 'Follow the cover']]} onChange={(v) => void setMode(v as any)} />
             <ChoiceLine label="Glass Transparency" value={opacity} choices={[['0.95', 'Solid'], ['0.72', 'Default'], ['0.55', 'Translucent'], ['0.35', 'Neon blur']]} onChange={changeOpacity} />
           </SettingsCard>
 

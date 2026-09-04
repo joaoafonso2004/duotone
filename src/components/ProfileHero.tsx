@@ -1,4 +1,4 @@
-import React,{useState} from 'react';
+import React,{useEffect,useState} from 'react';
 import {Image,Platform,Pressable,StyleSheet,Text,View} from 'react-native';
 import {Ionicons,MaterialCommunityIcons} from '@expo/vector-icons';
 import {LinearGradient} from 'expo-linear-gradient';
@@ -7,6 +7,8 @@ import type {SocialProfile} from '../api/profiles';
 import {FriendAvatar} from './FriendAvatar';
 import {SocialButton,socialStyles as s} from './socialUI';
 import {enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
+import {lerCelulasDaCapa} from '../lib/celulasDaCapa';
+import {veuDaCapa} from '../lib/corDaCapa';
 import {colors,SOCIAL_GUTTER,type} from './socialTokens';
 
 type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:number;status?:string;
@@ -29,6 +31,25 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
   // A caixa da capa medida, para posicionar uma imagem por recortar. Só o
   // editor precisa disto; com a capa já gravada o `cover` normal chega.
   const [caixa,setCaixa]=useState({largura:0,altura:0});
+
+  /**
+   * O perfil tinge-se pela SUA capa, e não pela música a tocar.
+   *
+   * São duas coisas separadas de propósito: o acento da app segue o que está a
+   * tocar, mas um perfil é de uma pessoa e tem de ter sempre o mesmo ar --
+   * mudar de cor conforme a música de quem o visita não dizia nada sobre
+   * ninguém.
+   *
+   * É um véu, não uma pintura: a opacidade é baixa e o cabeçalho continua
+   * escuro. Sem capa, ou com uma capa sem cor, fica simplesmente sem véu.
+   */
+  const [veu,setVeu]=useState<string|null>(null);
+  useEffect(()=>{
+    let vivo=true;
+    if(!cover){setVeu(null);return;}
+    void lerCelulasDaCapa(cover).then(celulas=>{if(vivo)setVeu(veuDaCapa(celulas));});
+    return ()=>{vivo=false;};
+  },[cover]);
   const capa=(estilo:any)=>{
     if(!recorte||!caixa.largura||!caixa.altura)
       return <Image source={{uri:cover!}} resizeMode="cover" style={estilo}/>;
@@ -68,6 +89,10 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
       </View>}
       <LinearGradient colors={['rgba(10,10,15,0.2)','rgba(10,10,15,0.08)','rgba(10,10,15,0.65)',colors.bg]} locations={[0,0.32,0.8,1]} style={StyleSheet.absoluteFill}/>
       <LinearGradient colors={['rgba(10,10,15,0.45)','transparent','rgba(10,10,15,0.45)']} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
+      {/* Por cima das vinhetas e não por baixo: elas escurecem para o texto se
+          ler, e o véu é o que devolve ao cabeçalho o tom da capa depois disso.
+          Ficando por baixo, o cinzento delas comia-o. */}
+      {!!veu&&<View style={[StyleSheet.absoluteFill,{backgroundColor:veu}]}/>}
     </View>}
     {/* A coroa marca quem fez a app. Fica fora do bloco da capa de propósito:
         assim continua lá com capa nova, com capa apagada, ou sem capa nenhuma.
