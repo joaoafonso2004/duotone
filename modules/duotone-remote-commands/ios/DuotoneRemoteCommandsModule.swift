@@ -215,7 +215,17 @@ public class DuotoneRemoteCommandsModule: Module {
       }
 
       let limpa = self.semBarras(imagem)
-      let arte = MPMediaItemArtwork(boundsSize: limpa.size) { _ in limpa }
+      // O tamanho PEDIDO tem de ser respeitado. Devolver sempre a mesma
+      // imagem, como estava aqui, faz o iOS recusar a arte -- e foi por isso
+      // que o ecrã de bloqueio e o centro de controlo ficaram sem capa.
+      let arte = MPMediaItemArtwork(boundsSize: limpa.size) { pedido in
+        if pedido == limpa.size { return limpa }
+        let formato = UIGraphicsImageRendererFormat.default()
+        formato.scale = 1
+        return UIGraphicsImageRenderer(size: pedido, format: formato).image { _ in
+          limpa.draw(in: CGRect(origin: .zero, size: pedido))
+        }
+      }
 
       DispatchQueue.main.async {
         // A faixa pode ter mudado enquanto isto descarregava.
@@ -223,6 +233,18 @@ public class DuotoneRemoteCommandsModule: Module {
         if self.capaCache.count > 40 { self.capaCache.removeAll() }
         self.capaCache[chave] = arte
         self.escreverCapa(arte)
+
+        // O expo-video também vai buscar a capa (o JS voltou a passar-lha, para
+        // nunca ficar ecrã sem imagem se isto falhar) e escreve-a quando o
+        // download DELE acabar. Reafirmar duas vezes garante que fica a nossa,
+        // que é a recortada, sem depender de quem chega primeiro.
+        for atraso in [0.4, 1.2] {
+          DispatchQueue.main.asyncAfter(deadline: .now() + atraso) { [weak self] in
+            guard let self = self, self.capaUrlAtual == chave,
+                  let guardada = self.capaCache[chave] else { return }
+            self.escreverCapa(guardada)
+          }
+        }
       }
     }
     capaTask = task

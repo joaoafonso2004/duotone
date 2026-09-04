@@ -122,11 +122,12 @@ function metadadosDoEcraBloqueado(track: Track) {
   return {
     title: track.title,
     artist: displayArtist(track),
-    // Com o módulo nativo a capa é posta por nós, já sem as barras pretas
-    // do YouTube -- e o expo-video só sobrescreve MPMediaItemPropertyArtwork
-    // se lhe passarmos `artwork` aqui. Sem módulo (Expo Go, build antiga)
-    // volta ao thumbnail cru, que é melhor do que ficar sem capa nenhuma.
-    artwork: temCapaNativa() ? undefined : (track.artworkUrl ?? undefined),
+    // A capa vai SEMPRE, mesmo havendo módulo nativo. Tirá-la daqui deixou o
+    // ecrã de bloqueio sem imagem nenhuma quando o nosso caminho falhou --
+    // um ecrã sem capa é muito pior do que uma capa com as barras do YouTube.
+    // O módulo escreve a versão recortada por cima, e reafirma-a, por isso o
+    // pior caso passa a ser cosmético em vez de não haver imagem.
+    artwork: track.artworkUrl ?? undefined,
   };
 }
 
