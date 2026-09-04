@@ -157,7 +157,7 @@ struct VistaDoWidget: View {
   var entrada: Entrada
   var cor: Color { Color(hexadecimal: entrada.estado.cor) ?? STEEL }
 
-  var body: some View {
+  private var conteudo: some View {
     VStack(alignment: .leading, spacing: 7) {
       HStack(spacing: 10) {
         ACapa(cor: cor)
@@ -169,18 +169,32 @@ struct VistaDoWidget: View {
       Spacer(minLength: 0)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .containerBackground(for: .widget) {
-      // O tom da capa não pinta o fundo, tinge-o: por cima do preto da app,
-      // com pouca opacidade. Um widget inteiro da cor da capa competia com o
-      // resto do ecrã inicial e deixava de se ler.
-      ZStack {
-        FUNDO
-        LinearGradient(
-          colors: [cor.opacity(0.22), .clear],
-          startPoint: .topLeading,
-          endPoint: .bottomTrailing
-        )
+  }
+
+  private var fundo: some View {
+    // O tom da capa não pinta o fundo, tinge-o: por cima do preto da app,
+    // com pouca opacidade. Um widget inteiro da cor da capa competia com o
+    // resto do ecrã inicial e deixava de se ler.
+    ZStack {
+      FUNDO
+      LinearGradient(
+        colors: [cor.opacity(0.22), .clear],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+      )
+    }
+  }
+
+  @ViewBuilder
+  var body: some View {
+    if #available(iOSApplicationExtension 17.0, *) {
+      conteudo.containerBackground(for: .widget) {
+        fundo
       }
+    } else {
+      // `containerBackground` só existe no iOS 17. O fundo clássico mantém o
+      // widget funcional no iOS 16.4, que é o alvo mínimo desta extensão.
+      conteudo.background(fundo)
     }
   }
 }
