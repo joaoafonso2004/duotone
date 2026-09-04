@@ -8,6 +8,7 @@ import { FriendProfileScreen } from '../screens/FriendProfileScreen';
 import { Ionicons } from '@expo/vector-icons';
 import {
   DarkTheme,
+  LinkingOptions,
   NavigationContainer,
   Theme,
   createNavigationContainerRef,
@@ -198,6 +199,20 @@ function Splash() {
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
+// Os links do widget entram pelo scheme da app e chegam directamente à
+// conversa escolhida. Sem esta configuração, o iOS abria o Duotone mas
+// deixava-o na página onde já estava.
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: ['duotone://'],
+  config: {
+    screens: {
+      Social: {
+        path: 'social',
+      },
+    },
+  },
+};
+
 export function RootNavigator() {
   const session = useAuth((s) => s.session);
   const offlineUserId=useAuth(s=>s.offlineUserId);
@@ -280,7 +295,7 @@ export function RootNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navTheme} ref={navigationRef}>
+    <NavigationContainer theme={navTheme} ref={navigationRef} linking={linking}>
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         {session || offlineUserId ? (
           <View style={{ flex: 1 }}>

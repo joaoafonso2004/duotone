@@ -47,6 +47,7 @@ import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
 import { usePlayer } from '../state/player';
 import { colors, radii, spacing, type } from '../theme';
+import { widgetDisponivel } from '../../modules/duotone-widget';
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
@@ -99,6 +100,7 @@ export function SettingsScreen({ navigation }: Props) {
   const [keepAwakeOn, setKeepAwakeOn] = useState(false);
   const [notificationsOn, setNotificationsOn] = useState(true);
   const [cacheBytes, setCacheBytes] = useState(0);
+  const [widgetPronto, setWidgetPronto] = useState<boolean | null>(null);
 
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [clearLibraryOpen, setClearLibraryOpen] = useState(false);
@@ -115,6 +117,7 @@ export function SettingsScreen({ navigation }: Props) {
     getShowTrackDuration().then(setShowDuration);
     getHapticsEnabled().then(setHapticsOn);
     getPoTokenServerUrl().then(setPotServerUrlState);
+    if (Platform.OS === 'ios') setWidgetPronto(widgetDisponivel());
 
     // Só reflete o estado — quem o aplica no arranque é o App.tsx.
     getKeepAwake().then(setKeepAwakeOn);
@@ -484,6 +487,12 @@ export function SettingsScreen({ navigation }: Props) {
           <Section title="About">
             <Row label="Version" value={APP_VERSION} />
             <Row label="Build" value={BUILD_ID} />
+            {Platform.OS === 'ios' && (
+              <Row
+                label="Home Screen widget"
+                value={widgetPronto === null ? 'Checking…' : widgetPronto ? 'Ready' : 'App Group unavailable'}
+              />
+            )}
           </Section>
 
           <Section title="Account">

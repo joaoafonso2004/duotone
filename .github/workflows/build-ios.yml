@@ -96,8 +96,8 @@ jobs:
         env:
           ENV_FILE: ${{ secrets.ENV_FILE }}
 
-      - name: Gerar projeto nativo iOS (prebuild)
-        run: npx expo prebuild --platform ios --no-install
+      - name: Gerar projeto nativo iOS (app + widget)
+        run: npx expo prebuild --platform ios --no-install --clean
         env:
           CI: 1
 
@@ -113,6 +113,14 @@ jobs:
             -archivePath build/Duotone.xcarchive \
             archive \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      # O plugin pode gerar um alvo sem o embutir no produto principal. Um
+      # arquivo que passe sem o .appex daria um IPA válido, mas sem widget.
+      - name: Confirmar widget dentro da app
+        run: |
+          WIDGET="build/Duotone.xcarchive/Products/Applications/Duotone.app/PlugIns/DuotoneWidget.appex"
+          test -d "$WIDGET"
+          plutil -p "$WIDGET/Info.plist"
 
       # Nos releases o ficheiro chama-se sempre Duotone.ipa, porque é esse o
       # nome que o portfólio procura. Nas builds de teste mantém-se o SHA no
