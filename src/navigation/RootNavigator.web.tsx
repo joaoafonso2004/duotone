@@ -149,7 +149,16 @@ function DesktopShell() {
   const [panelOpacity, setPanelOpacity] = useState(0.72);
   const theme = useTheme((s) => s.theme);
 
-  const navigate = useCallback((next: Route) => { setRoute((current) => { history.current.push(current); return next; }); }, []);
+  const navigate = useCallback((next: Route) => {
+    setRoute((current) => {
+      // Carregar duas vezes no mesmo sítio não é navegar. Sem isto o histórico
+      // enchia-se de repetições e o voltar ficava a pedir cliques para não sair
+      // do mesmo ecrã.
+      if (JSON.stringify(current) === JSON.stringify(next)) return current;
+      history.current.push(current);
+      return next;
+    });
+  }, []);
   const back = useCallback(() => setRoute(history.current.pop() || { name: 'playlists' }), []);
   const notify = useCallback((s: string) => setToast(s), []);
   const play = useCallback((track: Track, queue?: Track[]) => { usePlayer.getState().playTrack(track, queue); }, []);
@@ -187,12 +196,16 @@ function DesktopShell() {
   }, []);
 
   useEffect(() => {
+    // Pelo `navigate` e não pelo `setRoute`: abrir o Now Playing pela barra do
+    // player é navegar como qualquer outra coisa. A saltar o histórico, ficava
+    // um ecrã sem volta -- para regressar à playlist era abri-la de novo e
+    // percorrer tudo outra vez até onde se ia.
     const handleNav = (e: any) => {
-      if (e.detail) setRoute(e.detail);
+      if (e.detail) navigate(e.detail);
     };
     window.addEventListener('duotone:navigate', handleNav);
     return () => window.removeEventListener('duotone:navigate', handleNav);
-  }, []);
+  }, [navigate]);
 
   // Guardar a sessão privada ao fechar; a presença tem validade no servidor.
   useEffect(() => {
@@ -399,7 +412,7 @@ function DesktopShell() {
     case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} />; break;
     case 'social': page = <SocialPage navigate={navigate} friendId={route.friendId} groupId={route.groupId} notify={notify} play={play} more={more} />; break;
     case 'friend-profile': page = <ProfilePage userId={route.userId} navigate={navigate} notify={notify} back={back} />; break;
-    case 'now-playing': page = <NowPlayingPage play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} />; break;
+    case 'now-playing': page = <NowPlayingPage play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} />; break;
   }
 
   // Painel dos tokens, com a opacidade que o utilizador escolher nas

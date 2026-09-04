@@ -13,18 +13,20 @@ import { PainelEqualizador } from '../PainelEqualizador.web';
 import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { Artwork, ContentScroll, Dialog, Empty, IconButton, Page, ui } from '../ui.web';
+import { Artwork, Button, ContentScroll, Dialog, Empty, IconButton, Page, ui } from '../ui.web';
 import type { CommonPageProps, NavegarFn } from '../rotas';
 import type { Track } from '../../types';
 import { displayArtist } from '../../lib/artistName';
 
 /** A capa mantém o glitch; o gesto revela as letras na face adjacente. */
 export function NowPlayingPage({
-  more, currentIsSaved, toggleSaveCurrent, navigate, aoAdicionarAPlaylist,
+  more, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist,
 }: CommonPageProps & {
   currentIsSaved: boolean;
   toggleSaveCurrent: () => void;
   navigate: NavegarFn;
+  /** Devolve ao ecrã de onde se veio, como nas outras páginas. */
+  back: () => void;
   aoAdicionarAPlaylist: (t: Track) => void;
 }) {
   const p = usePlayer();
@@ -65,14 +67,14 @@ export function NowPlayingPage({
   };
 
   if (!p.current) {
-    return <Page title="Now Playing" subtitle="Nothing is playing right now."><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
+    return <Page title="Now Playing" subtitle="Nothing is playing right now." action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
   }
   const track = p.current;
   const estreito = width < 1180;
   const ladoCapa = estreito ? 300 : width >= 1420 ? 420 : 384;
 
   return (
-    <Page title="Now Playing">
+    <Page title="Now Playing" action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}>
       <ContentScroll>
         <View style={[styles.npGrelha, estreito && { flexDirection: 'column' }]}>
           <View style={[styles.npLado, { width: ladoCapa }]}>

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ImportedTrack } from '../lib/spotifyImport';
 import type { Track } from '../types';
@@ -50,6 +50,18 @@ export function SpotifyReview({
     return out;
   }, [items, decisions]);
 
+  const decision = decisions[index];
+  const options: { track: Track; chosen: boolean }[] = useMemo(
+    () =>
+      current
+        ? [
+            ...(current.track ? [{ track: current.track, chosen: true }] : []),
+            ...current.alternatives.map((track) => ({ track, chosen: false })),
+          ]
+        : [],
+    [current]
+  );
+
   function decide(decision: Decision) {
     setDecisions((prev) => ({ ...prev, [index]: decision }));
     // Avança sozinho: rever 200 faixas com dois cliques cada é o dobro do
@@ -57,13 +69,57 @@ export function SpotifyReview({
     if (index < items.length - 1) setIndex(index + 1);
   }
 
-  if (!current) return null;
+  /**
+   * Rever ao teclado.
+   *
+   * Com mil faixas importadas ficam dezenas por confirmar, e a maior parte
+   * resolve-se num relance -- a escolha certa já está em primeiro. Ao rato é
+   * apontar e clicar a cada uma; aqui é Enter atrás de Enter, e só se sai da
+   * cadência quando a sugestão está errada.
+   *
+   * Os números seguem a ordem em que as opções aparecem, e vêem-se no cartão
+   * de cada uma: um atalho que não se vê não existe.
+   */
+  useEffect(() => {
+    const aoTeclar = (e: KeyboardEvent) => {
+      // Um campo de texto em foco fica com as teclas todas.
+      const alvo = e.target as HTMLElement | null;
+      if (alvo && /^(INPUT|TEXTAREA)$/.test(alvo.tagName)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
 
-  const decision = decisions[index];
-  const options: { track: Track; chosen: boolean }[] = [
-    ...(current.track ? [{ track: current.track, chosen: true }] : []),
-    ...current.alternatives.map((track) => ({ track, chosen: false })),
-  ];
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        decide({ kind: 'keep' });
+        return;
+      }
+      if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') {
+        e.preventDefault();
+        decide({ kind: 'skip' });
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setIndex((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        setIndex((i) => Math.min(items.length - 1, i + 1));
+        return;
+      }
+      const n = Number(e.key);
+      if (Number.isInteger(n) && n >= 1 && n <= options.length) {
+        e.preventDefault();
+        const escolha = options[n - 1]!;
+        decide(escolha.chosen ? { kind: 'keep' } : { kind: 'replace', track: escolha.track });
+      }
+    };
+
+    window.addEventListener('keydown', aoTeclar);
+    return () => window.removeEventListener('keydown', aoTeclar);
+  });
+
+  if (!current) return null;
 
   return (
     <View style={s.wrap}>
@@ -90,7 +146,7 @@ export function SpotifyReview({
       {/* Candidatos */}
       <Text style={s.label}>WHICH ONE IS CORRECT?</Text>
       <View style={s.options}>
-        {options.map(({ track, chosen }) => {
+        {options.map(({ track, chosen }, i) => {
           const picked =
             decision?.kind === 'replace'
               ? decision.track.sourceId === track.sourceId
@@ -128,10 +184,17 @@ export function SpotifyReview({
                 </Text>
               </View>
               {chosen && <Text style={s.badge}>suggested</Text>}
+              <View style={s.key}>
+                <Text style={s.keyText}>{i + 1}</Text>
+              </View>
             </Pressable>
           );
         })}
       </View>
+
+      <Text style={s.hint}>
+        Enter keeps the suggestion · 1-{Math.max(options.length, 1)} picks one · 0 skips · ← → moves
+      </Text>
 
       {/* Ações */}
       <View style={s.actions}>
@@ -193,6 +256,9 @@ const s = StyleSheet.create({
   optionTitle: { color: desktop.text, fontSize: 13, fontWeight: '600' },
   optionMeta: { color: desktop.muted, fontSize: 11, marginTop: 2 },
   badge: { color: desktop.accent, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  key: { width: 20, height: 20, borderRadius: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: desktop.panel, borderWidth: 1, borderColor: desktop.border },
+  keyText: { color: desktop.dim, fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  hint: { color: desktop.dim, fontSize: 11, marginTop: 2 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 8, paddingTop: 14, borderTopWidth: 1, borderTopColor: desktop.border },
 });
