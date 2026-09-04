@@ -12,7 +12,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
  * abrir igual sem rede. E a família vai EXPLÍCITA em cada estilo de texto,
  * porque o react-native-web impõe a stack dele a cada `<Text>`.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
@@ -194,20 +194,23 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
 
   const [name,setName]=useState('Profile');
   const [publicAvatar,setPublicAvatar]=useState<string|null>(null);
-  const social=useSocial();
+  const profileVersion=useSocial(s=>s.profileVersion);
+  const socialReceived=useSocial(s=>s.received);
+  const socialSeen=useSocial(s=>s.seen);
+  const socialFriends=useSocial(s=>s.friends);
   useEffect(()=>{
     let active=true;
     if(!session)return;
     const refresh=()=>getPublicProfiles([session.user.id]).then(([p])=>{if(active&&p){setName(p.name);setPublicAvatar(p.avatar_url);}}).catch(()=>{});
-    void refresh();const timer=setInterval(()=>void refresh(),30000);
-    return()=>{active=false;clearInterval(timer);};
-  },[session?.user.id,social.profileVersion]);
+    void refresh();
+    return()=>{active=false;};
+  },[session?.user.id,profileVersion]);
   const avatarDisplay=<FriendAvatar avatarUrl={publicAvatar} name={name} size={31}/>;
 
   return <View style={styles.sidebar}>
     <ScrollView contentContainerStyle={styles.sidebarContent}>
       <Text style={styles.navLabel}>DISCOVER</Text>
-      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(social.received,social.seen).size>0 || social.friends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
+      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
       <View style={styles.navDivider} /><Text style={styles.navLabel}>ACCOUNT</Text>
       <NavItem label="Profile" icon="person-circle-outline" active={active === 'profile'} onPress={() => navigate({ name: 'profile' })} />
       <NavItem label="Settings" icon="settings-outline" active={active === 'settings'} onPress={() => navigate({ name: 'settings' })} />

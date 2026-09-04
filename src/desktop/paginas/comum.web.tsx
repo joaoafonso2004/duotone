@@ -6,7 +6,7 @@
  * quando se tentava tirar uma página do ficheiro e ela levava um ajudante
  * atrás. O que só uma página usa fica junto dessa página.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { getLibrary } from '../../api/library';

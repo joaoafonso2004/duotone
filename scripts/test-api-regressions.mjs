@@ -176,6 +176,29 @@ for(const failure of [{code:'42501',message:'permission denied'},{code:'503',mes
 playlistError=null;playlistReads=[];
 assert.equal((await profilePlaylists.listPlaylists())[0].visibleOnProfile,true);assert.equal(playlistReads.length,1,'reconhece a migração no próximo pedido sem reiniciar');
 
+// Uma relação embutida vem cortada a 1000, mas o cartão do perfil tem de
+// mostrar a contagem exata que a playlist aberta já consegue paginar.
+let pedidosDeContagem=0;
+const countEnv=ambiente(async()=>{}, {
+  'src/api/library.ts':{},
+  'src/lib/supabase.ts':{supabase:{from:(table)=>{
+    let head=false;
+    const query={
+      select:(_fields,options)=>{head=!!options?.head;return query;},
+      eq:()=>query,
+      order:()=>query,
+      then:fn=>Promise.resolve(fn(table==='playlist_tracks'&&head
+        ?{data:null,error:null,count:(pedidosDeContagem++,2000)}
+        :{data:[{id:'grande',name:'Grande',created_at:'2026-01-01',visible_on_profile:true,
+          playlist_tracks:Array.from({length:1000},(_,position)=>({position,tracks:{artwork_url:null}}))}],error:null})),
+    };
+    return query;
+  }}},
+});
+const countPlaylists=countEnv.carregar('src/api/playlists.ts');
+const [grande]=await countPlaylists.listProfilePlaylists('amigo');
+assert.equal(grande.trackCount,2000);assert.equal(pedidosDeContagem,1);
+
 let reads=0,failedSection='highlights';
 const sections=ambiente(async()=>{}, {
   'src/api/profiles.ts':{

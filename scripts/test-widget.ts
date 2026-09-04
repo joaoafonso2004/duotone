@@ -5,7 +5,13 @@
  * ordem, quantos cabem, quando vale a pena redesenhar -- é deste lado, e é
  * isso que se testa.
  */
-import { amigosAOuvir, MAXIMO_DE_AMIGOS, montarEstado, mudou } from '../src/lib/estadoDoWidget.ts';
+import {
+  amigosAOuvir,
+  INTERVALO_DO_RETRATO_MS,
+  MAXIMO_DE_AMIGOS,
+  montarEstado,
+  mudou,
+} from '../src/lib/estadoDoWidget.ts';
 import type { Friendship } from '../src/api/social.ts';
 import type { Track } from '../src/types.ts';
 
@@ -102,16 +108,20 @@ check('sem nada, o estado é válido', vazio.faixa === null && vazio.amigos.leng
 // segundos mesmo sem nada mudar, e a cor interpola durante a transição.
 check('o primeiro estado escreve-se sempre', mudou(null, tocando));
 check('o mesmo estado não se reescreve',
-  !mudou(tocando, montarEstado({ faixa, aTocar: true, cor: '#DB4949', amigos: todos, agora: 999999 })));
-check('só o relógio a mudar não conta',
+  !mudou(tocando, montarEstado({ faixa, aTocar: true, cor: '#DB4949', amigos: todos, agora: 2000 })));
+check('só um minuto de relógio não conta',
   !mudou(tocando, { ...tocando, quando: tocando.quando + 60000 }));
+check('um retrato com cinco minutos é renovado',
+  mudou(tocando, { ...tocando, quando: tocando.quando + INTERVALO_DO_RETRATO_MS }));
 check('outra cor conta', mudou(tocando, { ...tocando, cor: '#28C878' }));
 check('outra faixa conta',
   mudou(tocando, montarEstado({ faixa: { ...faixa, title: 'Outra' }, aTocar: true, cor: '#DB4949', amigos: todos })));
 // Um quarto amigo que nem cabe não deve acordar o widget; uma mudança numa
 // das três linhas visíveis, sim.
 check('um amigo que fica fora não força redesenho',
-  !mudou(tocando, montarEstado({ faixa, aTocar: true, cor: '#DB4949', amigos: [...todos, aOuvir('d', 'Quarta', 'D')] })));
+  !mudou(tocando, montarEstado({
+    faixa, aTocar: true, cor: '#DB4949', amigos: [...todos, aOuvir('d', 'Quarta', 'D')], agora: 2000,
+  })));
 check('uma linha visível diferente conta',
   mudou(tocando, montarEstado({ faixa, aTocar: true, cor: '#DB4949', amigos: [aOuvir('a', 'Outra', 'Artista A'), ...todos.slice(0, 2)] })));
 

@@ -1,6 +1,6 @@
 import React,{useState} from 'react';
 import {ActivityIndicator,Pressable,ScrollView,Text,TextInput,View} from 'react-native';
-import {Ionicons} from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type {Playlist} from '../types';
 import {ArtworkCollage} from './ArtworkCollage';
 import {SocialButton,SocialModal,socialStyles as s} from './socialUI';

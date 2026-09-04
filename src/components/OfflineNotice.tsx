@@ -1,7 +1,7 @@
 import React from 'react';
 import { Text,View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { refreshConnectivity,useConnectivity } from '../state/connectivity';
 import { colors,spacing,type } from '../theme';
 import { PillButton } from './PillButton';

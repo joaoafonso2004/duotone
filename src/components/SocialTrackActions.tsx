@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { Track } from '../types';
 import { usePlayer } from '../state/player';
 import { useSaved } from '../state/saved';

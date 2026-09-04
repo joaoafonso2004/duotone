@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import {Image,Platform,Pressable,StyleSheet,Text,View} from 'react-native';
-import {Ionicons,MaterialCommunityIcons} from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import {LinearGradient} from 'expo-linear-gradient';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
@@ -100,7 +100,9 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
     {profile?.profile.username===CRIADOR&&<View pointerEvents="none" style={{position:'absolute',right:SOCIAL_GUTTER,bottom:16,
       width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',
       backgroundColor:'rgba(10,10,15,0.55)',borderWidth:1,borderColor:'rgba(240,200,90,0.45)'}}>
-      <MaterialCommunityIcons name="crown" size={15} color="#F0C85A"/>
+      {/* Reutiliza a fonte já carregada pela app. Importar uma família inteira
+          só para esta marca acrescentava 1,3 MB a todas as builds. */}
+      <Ionicons name="ribbon" size={15} color="#F0C85A"/>
     </View>}
     <View style={[s.row,{gap:8}]}>
       {onBack&&action('Back','chevron-back',onBack)}

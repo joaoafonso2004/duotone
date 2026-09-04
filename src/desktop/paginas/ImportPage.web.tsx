@@ -1,7 +1,7 @@
 /**
  * Importar uma playlist do YouTube por URL.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { fetchYouTubePlaylist } from '../../api/youtube';

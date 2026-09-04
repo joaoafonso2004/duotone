@@ -1,6 +1,6 @@
 import React from 'react';
 import {Pressable,Text,View} from 'react-native';
-import {Ionicons} from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import {useAdjustmentSync,retryAdjustmentSync} from '../state/trackAdjustments';
 import {useConnectivity} from '../state/connectivity';
 import {colors} from '../theme';

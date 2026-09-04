@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import { trackKey, upsertTrack, upsertTracks } from './library';
 import type { Playlist, PlaylistTrack, Track } from '../types';
 import { missingProfilePlaylistColumns } from '../lib/profileSchema';
+import { planearMerge } from '../lib/playlistMerge';
 
 async function currentUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
@@ -20,7 +21,7 @@ export async function listPlaylists(): Promise<Playlist[]> {
   if(legacy)({data,error}=await read('id, name, created_at, playlist_tracks (position, tracks (artwork_url))'));
   if (error) throw error;
 
-  return (data ?? []).map((row: any) => {
+  const playlists = (data ?? []).map((row: any) => {
     const pts: any[] = [...(row.playlist_tracks ?? [])].sort(
       (a, b) => a.position - b.position
     );
@@ -37,6 +38,23 @@ export async function listPlaylists(): Promise<Playlist[]> {
       copiedFrom: row.copied_from ?? null,
     };
   });
+  await corrigirContagensLimitadas(playlists);
+  return playlists;
+}
+
+/** O PostgREST corta relações embutidas em 1000 linhas. Só fazemos o pedido
+ * de contagem exata quando o resultado tem precisamente o tamanho suspeito. */
+async function corrigirContagensLimitadas(playlists: Playlist[]): Promise<void> {
+  const suspeitas = playlists.filter((p) => p.trackCount >= 1000);
+  for (let i = 0; i < suspeitas.length; i += 8) {
+    await Promise.all(suspeitas.slice(i, i + 8).map(async (playlist) => {
+      const { count, error } = await supabase
+        .from('playlist_tracks')
+        .select('*', { count: 'exact', head: true })
+        .eq('playlist_id', playlist.id);
+      if (!error && typeof count === 'number') playlist.trackCount = count;
+    }));
+  }
 }
 
 /**
@@ -71,7 +89,7 @@ export async function listProfilePlaylists(userId: string): Promise<Playlist[]> 
     .order('created_at', { ascending: false });
   if (error) throw error;
 
-  return (data ?? []).map((row: any) => {
+  const playlists = (data ?? []).map((row: any) => {
     const pts: any[] = [...(row.playlist_tracks ?? [])].sort((a, b) => a.position - b.position);
     return {
       id: row.id,
@@ -83,6 +101,8 @@ export async function listProfilePlaylists(userId: string): Promise<Playlist[]> 
       copiedFrom: null,
     };
   });
+  await corrigirContagensLimitadas(playlists);
+  return playlists;
 }
 
 /**
@@ -308,6 +328,21 @@ export async function addTracksToPlaylist(
   }
 }
 
+export interface ResultadoDoMerge {
+  adicionadas: number;
+  repetidas: number;
+  totalDaOrigem: number;
+}
+
+/** Copia apenas as faixas em falta; a playlist de origem nunca é alterada. */
+export async function mergePlaylists(targetId: string, sourceId: string): Promise<ResultadoDoMerge> {
+  if (!targetId || !sourceId || targetId === sourceId) throw new Error('Choose two different playlists.');
+  const [target, source] = await Promise.all([getPlaylistTracks(targetId), getPlaylistTracks(sourceId)]);
+  const plano = planearMerge(target, source);
+  if (plano.novas.length) await addTracksToPlaylist(targetId, plano.novas);
+  return { adicionadas: plano.novas.length, repetidas: plano.repetidas, totalDaOrigem: source.length };
+}
+
 /** Nome de uma playlist partilhada (leitura permitida a quem participa na
  * partilha — ver supabase/shared-playlists-read.sql). */
 /**
@@ -330,16 +365,18 @@ export async function getPlaylistPreviews(ids: string[]): Promise<Map<string, Pl
     .select('id, name, created_at, playlist_tracks (position, tracks (artwork_url))')
     .in('id', unicos);
   if (error) return new Map();
-  return new Map((data ?? []).map((row: any) => {
+  const playlists = (data ?? []).map((row: any) => {
     const pts: any[] = [...(row.playlist_tracks ?? [])].sort((a, b) => a.position - b.position);
-    return [row.id as string, {
+    return {
       id: row.id,
       name: row.name,
       createdAt: row.created_at,
       trackCount: pts.length,
       artworks: pts.map((pt) => pt.tracks?.artwork_url).filter(Boolean).slice(0, 4),
-    } as Playlist];
-  }));
+    } as Playlist;
+  });
+  await corrigirContagensLimitadas(playlists);
+  return new Map(playlists.map((playlist) => [playlist.id, playlist]));
 }
 
 export async function getPlaylistName(playlistId: string): Promise<string | null> {

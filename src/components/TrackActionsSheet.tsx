@@ -2,7 +2,7 @@ import { useOfflineMode } from '../hooks/useOfflineMode';
 import { useConnectivity } from '../state/connectivity';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { displayArtist } from '../lib/artistName';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';

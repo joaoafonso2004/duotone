@@ -5,6 +5,10 @@ import { getDeviceId } from './deviceIdentity';
 import { usePlayer } from '../state/player';
 
 let terminarAtual: (() => Promise<void>) | null = null;
+// O servidor mantém cada publicação válida por 120 s. Setenta e cinco deixa
+// margem confortável para rede lenta e quase reduz a metade os batimentos que
+// antes saíam de 45 em 45 segundos.
+const PRESENCE_PUBLISH_MS=75_000;
 export async function terminarPresenca(): Promise<void> { await terminarAtual?.(); }
 
 /** Um publicador por sessão autenticada; não depende de ter o Social aberto. */
@@ -44,12 +48,12 @@ export function iniciarPresenca(userId: string): () => void {
     if (s.current !== p.current || s.isPlaying !== p.isPlaying || s.playbackConfirmed !== p.playbackConfirmed || s.buffering !== p.buffering || s.error !== p.error) changed();
     // O avanço vem do timeUpdate nativo, que também serve o sleep timer com
     // o ecrã bloqueado. Não depender só de setInterval para o batimento iOS.
-    else if(!terminado&&s.positionMs!==p.positionMs&&s.isPlaying&&Date.now()-lastPublished>=45000)void publicar();
+    else if(!terminado&&s.positionMs!==p.positionMs&&s.isPlaying&&Date.now()-lastPublished>=PRESENCE_PUBLISH_MS)void publicar();
   });
   const app = AppState.addEventListener('change', () => { if (!terminado) void publicar(); });
   const beat = setInterval(() => {
     if (!terminado && (Platform.OS === 'web' || AppState.currentState === 'active' || usePlayer.getState().isPlaying)) void publicar();
-  }, 45000);
+  }, PRESENCE_PUBLISH_MS);
   const voltar = () => { if (!terminado) void publicar(); };
   const terminar = async () => {
     if (terminado) return;

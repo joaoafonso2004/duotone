@@ -1,6 +1,6 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import { ActivityIndicator,Image,Platform,Pressable,ScrollView,Text,View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { appearanceOf,getSocialProfile,getSocialProfileTracks,saveProfileCustomization,type ProfileHighlights,type SocialProfile,type ProfileTrack } from '../api/profiles';
 import { loadProfileSections } from '../api/profileSections';
 import { missingProfilePlaylistColumns,PROFILE_SHARING_UNAVAILABLE } from '../lib/profileSchema';

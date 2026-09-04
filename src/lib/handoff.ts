@@ -27,7 +27,7 @@ export const SESSION_DEBOUNCE_MS = 2500;
 
 /** Batimento enquanto toca: mantém a sessão fresca e a posição recente sem
  * escrever a cada segundo. Tem de ser confortavelmente inferior ao TTL. */
-export const SESSION_HEARTBEAT_MS = 45 * 1000;
+export const SESSION_HEARTBEAT_MS = 90 * 1000;
 
 /** Quantas faixas da fila viajam. A fila inteira podia ter milhares (import
  * de playlist) e isto vai numa coluna jsonb — o que interessa para continuar
@@ -89,7 +89,7 @@ export function pickHandoffSession(
 /**
  * Onde a faixa vai neste momento no outro dispositivo.
  *
- * O batimento é de 45s, por isso a posição gravada está sempre atrasada. Em
+ * O batimento é de 90s, por isso a posição gravada está sempre atrasada. Em
  * vez de escrever mais vezes, avança-se a posição pelo tempo decorrido desde
  * a escrita — a barra de progresso anda sozinha e as escritas continuam raras.
  *

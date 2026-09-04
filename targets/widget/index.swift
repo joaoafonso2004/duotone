@@ -6,7 +6,7 @@ import WidgetKit
  *
  * Um widget de play/pause com a capa é o que toda a gente tem. Este mostra
  * duas coisas que mais nenhum mostra: a faixa tingida pela cor da própria
- * capa, e por baixo quem dos teus amigos está a ouvir o quê neste momento.
+ * capa, e por baixo o retrato mais recente de quem estava a ouvir o quê.
  *
  * Não toca em rede nenhuma. Tudo o que desenha veio do App Group, escrito
  * pela app -- um widget que faz pedidos seus gasta bateria de fundo e
@@ -115,15 +115,41 @@ struct ACapa: View {
 struct OsAmigos: View {
   let amigos: [AmigoAOuvir]
   let cor: Color
+  let quando: Double
+
+  private var atualizadoEm: Date? {
+    guard quando > 0 else { return nil }
+    return Date(timeIntervalSince1970: quando / 1000)
+  }
 
   var body: some View {
-    if amigos.isEmpty {
-      Text("No friends listening right now")
-        .font(.system(size: 11))
-        .foregroundStyle(.white.opacity(0.4))
-        .lineLimit(1)
-    } else {
-      VStack(alignment: .leading, spacing: 5) {
+    VStack(alignment: .leading, spacing: 5) {
+      HStack(alignment: .firstTextBaseline, spacing: 6) {
+        Text("FRIENDS RECENTLY LISTENING")
+          .font(.system(size: 8, weight: .bold))
+          .tracking(0.55)
+          .foregroundStyle(cor.opacity(0.9))
+          .lineLimit(1)
+        Spacer(minLength: 4)
+        if let atualizadoEm {
+          (Text("Updated ") + Text(atualizadoEm, style: .relative))
+            .font(.system(size: 8))
+            .foregroundStyle(.white.opacity(0.35))
+            .lineLimit(1)
+        } else {
+          Text("Not synced yet")
+            .font(.system(size: 8))
+            .foregroundStyle(.white.opacity(0.35))
+            .lineLimit(1)
+        }
+      }
+
+      if amigos.isEmpty {
+        Text("No recent listening activity")
+          .font(.system(size: 11))
+          .foregroundStyle(.white.opacity(0.4))
+          .lineLimit(1)
+      } else {
         ForEach(amigos) { amigo in
           // Tocar num amigo abre a conversa dele. O `scheme` é o mesmo que a
           // app declara no app.json.
@@ -165,7 +191,7 @@ struct VistaDoWidget: View {
           .frame(maxWidth: .infinity, alignment: .leading)
       }
       Divider().overlay(cor.opacity(0.25))
-      OsAmigos(amigos: entrada.estado.amigos, cor: cor)
+      OsAmigos(amigos: entrada.estado.amigos, cor: cor, quando: entrada.estado.quando)
       Spacer(minLength: 0)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -205,7 +231,7 @@ struct DuotoneWidget: Widget {
       VistaDoWidget(entrada: entrada)
     }
     .configurationDisplayName("Duotone")
-    .description("What you're playing, and what your friends are listening to.")
+    .description("What you're playing, and your friends' latest listening snapshot.")
     .supportedFamilies([.systemMedium])
   }
 }

@@ -1,5 +1,5 @@
 import {StateIcon} from '../components/StateIcon';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '../theme';
@@ -112,8 +112,33 @@ export function Page({ title, subtitle, action, children }: { title: string; sub
   return <View style={ui.page}><View style={ui.pageHeader}><View style={{ flex: 1 }}><Text style={ui.eyebrow}>DUOTONE</Text><Text style={ui.title}>{title}</Text>{subtitle && <Text style={ui.subtitle}>{subtitle}</Text>}</View>{action}</View>{children}</View>;
 }
 
-export function ContentScroll({ children }: { children: ReactNode }) {
-  return <ScrollView style={{ flex: 1 }} contentContainerStyle={ui.scrollContent}>{children}</ScrollView>;
+const posicoesDeScroll = new Map<string, number>();
+
+/** Mantém a posição quando uma rota desktop desmonta para abrir o leitor. */
+export function ContentScroll({ children, scrollKey }: { children: ReactNode; scrollKey?: string }) {
+  const ref = useRef<any>(null);
+  const alturaVisivel = useRef(0);
+  const restaurado = useRef(!scrollKey);
+  useEffect(() => { restaurado.current = !scrollKey; }, [scrollKey]);
+  const tentarRestaurar = (alturaConteudo: number) => {
+    if (!scrollKey || restaurado.current) return;
+    const y = posicoesDeScroll.get(scrollKey) ?? 0;
+    // Espera pelo conteúdo real; restaurar enquanto só existe o spinner faz o
+    // browser limitar a posição a zero e perder o sítio guardado.
+    if (y > 0 && alturaConteudo < y + alturaVisivel.current) return;
+    restaurado.current = true;
+    requestAnimationFrame(() => ref.current?.scrollTo?.({ y, animated: false }));
+  };
+  return <ScrollView
+    ref={ref}
+    style={{ flex: 1 }}
+    contentContainerStyle={ui.scrollContent}
+    scrollEventThrottle={100}
+    onLayout={(e) => { alturaVisivel.current = e.nativeEvent.layout.height; }}
+    onContentSizeChange={(_w, h) => tentarRestaurar(h)}
+    onScroll={(e) => { if (scrollKey) posicoesDeScroll.set(scrollKey, e.nativeEvent.contentOffset.y); }}>
+    {children}
+  </ScrollView>;
 }
 
 export function Empty({ icon, title, body, action }: { icon: keyof typeof Ionicons.glyphMap; title: string; body: string; action?: ReactNode }) {
@@ -285,7 +310,11 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore }: {
   </View>;
 }
 
-export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false }: {
+const LINHAS_INICIAIS = 200;
+const PASSO_DE_LINHAS = 200;
+const linhasVisiveisPorLista = new Map<string, number>();
+
+export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey }: {
   tracks: Track[]; onPlay: (track: Track) => void; onMore?: (track: Track) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
    * guardadas e não guardadas (pesquisa) — na tabela de Songs seria um
@@ -293,18 +322,33 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   showSavedBadge?: boolean;
   /** Lista aberta, sem o aspeto de uma caixa dentro da página. */
   plain?: boolean;
+  /** Identidade persistente para não voltar às primeiras 200 linhas ao regressar. */
+  listKey?: string;
 }) {
   // Subscrito sempre (regras dos hooks); sem a badge o seletor devolve um
   // Set vazio estável, por isso a tabela não redesenha à toa.
   const savedKeys = useSaved((s) => (showSavedBadge ? s.keys : EMPTY_KEYS));
+  const [limite, setLimite] = useState(() => listKey
+    ? (linhasVisiveisPorLista.get(listKey) ?? LINHAS_INICIAIS)
+    : LINHAS_INICIAIS);
+  useEffect(() => {
+    const guardado = listKey ? linhasVisiveisPorLista.get(listKey) : undefined;
+    setLimite(guardado ?? LINHAS_INICIAIS);
+  }, [listKey]);
   // A preferencia "Show track duration" das Definicoes so era respeitada no
   // telemovel (TrackRow); aqui a coluna aparecia sempre. Cache sincrono, como
   // no mobile: aplica-se na proxima renderizacao da tabela.
   const showTime = isShowTrackDurationSync();
   if (!tracks.length) return <>{empty}</>;
   const artworkSize = plain ? 48 : 40;
+  const visiveis = tracks.slice(0, limite);
+  const mostrarMais = () => setLimite((atual) => {
+    const seguinte = Math.min(tracks.length, atual + PASSO_DE_LINHAS);
+    if (listKey) linhasVisiveisPorLista.set(listKey, seguinte);
+    return seguinte;
+  });
   return <View style={[ui.table, plain && ui.tablePlain]}><View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}><Text numberOfLines={1} style={[ui.colHead, { width: 40 }]}>#</Text><Text numberOfLines={1} style={[ui.colHead, { flex: 1 }]}>Track</Text>{showTime && <Text numberOfLines={1} style={[ui.colHead, { width: LARGURA_DURACAO, textAlign: 'right' }]}>Duration</Text>}<View style={{ width: 42 }} /></View>
-    {tracks.map((track, index) => <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track)}
+    {visiveis.map((track, index) => <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track)}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track); }) as any}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
       <Text style={[ui.trackIndex, { width: 40 }]}>{index + 1}</Text>
@@ -320,6 +364,10 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
       </View>
       {showTime && <Text numberOfLines={1} style={[ui.trackMeta, { width: LARGURA_DURACAO, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
       <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track)} /></P>)}
+    {visiveis.length < tracks.length && <View style={{ alignItems: 'center', paddingVertical: ESP.xl, gap: ESP.sm }}>
+      <Text style={{ color: desktop.dim }}>{visiveis.length} of {tracks.length} tracks shown</Text>
+      <Button secondary onPress={mostrarMais}>Show next {Math.min(PASSO_DE_LINHAS, tracks.length - visiveis.length)}</Button>
+    </View>}
   </View>;
 }
 

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Linking, Pressable, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   checkForUpdate,
   dismissUpdate,
   PORTFOLIO_URL,
+  SIDELOADLY_URL,
   type UpdateInfo,
 } from '../lib/updates';
 import { colors, radii, spacing, type } from '../theme';
@@ -33,14 +34,12 @@ function summarise(notes: string): string[] {
  * Como se instala a nova versão, que não é a mesma coisa nos dois sistemas.
  *
  * No Windows o site entrega um instalador e acabou. No iOS a app não vem de
- * loja nenhuma: o SideStore é que a instala, e só fala com o telemóvel
- * através do LocalDevVPN -- por isso a ordem importa e esquecer o primeiro
- * passo faz o segundo parecer avariado.
+ * loja nenhuma: o Sideloadly corre no computador e instala o IPA no iPhone.
  */
 const COMO_ATUALIZAR: Record<'ios' | 'windows', string[]> = {
   ios: [
-    'Turn on LocalDevVPN.',
-    'Open SideStore and install Duotone from there.',
+    'Open Sideloadly on your Mac or PC.',
+    'Download the new Duotone IPA and install it on your iPhone.',
   ],
   windows: [
     'Open the site and download Duotone.',
@@ -81,7 +80,7 @@ export function UpdateSheet() {
   };
 
   const open = () => {
-    void Linking.openURL(PORTFOLIO_URL);
+    void Linking.openURL(update.platform === 'ios' ? SIDELOADLY_URL : PORTFOLIO_URL);
     close();
   };
 
@@ -156,7 +155,7 @@ export function UpdateSheet() {
       )}
 
       <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
-        <PillButton label="Open the site" variant="primary" onPress={open} />
+        <PillButton label={update.platform === 'ios' ? 'Open Sideloadly' : 'Open the site'} variant="primary" onPress={open} />
         <PillButton label="Not now" variant="ghost" onPress={later} />
       </View>
     </BottomSheet>

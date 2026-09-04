@@ -7,6 +7,7 @@ import {daPersistencia,type AjusteDaFaixa,type MemoriaDeAjustes} from '../lib/eq
 import {lerAjustesRemotos,guardarAjusteRemoto} from '../api/ajustes';
 import {useConnectivity} from './connectivity';
 import {useAuth} from './auth';
+import {appEstaVisivel} from '../lib/appVisibility';
 
 export const useAdjustmentSync=create<{status:AdjustmentStatus}>(()=>({status:'loading'}));
 let active:{userId:string;engine:AdjustmentSync;flush:()=>void}|null=null;
@@ -22,7 +23,7 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
   let stopped=false,timer:ReturnType<typeof setTimeout>|undefined;
   const key=`track-adjustments:v2:${userId}`;
   const online=()=>!stopped&&!useConnectivity.getState().offline
-    &&useAuth.getState().session?.user.id===userId&&(Platform.OS==='web'||AppState.currentState==='active');
+    &&useAuth.getState().session?.user.id===userId&&appEstaVisivel();
   const engine=new AdjustmentSync({
     readLocal:async()=>{
       const raw=await AsyncStorage.getItem(key);
@@ -45,12 +46,15 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
   for(const [k,v] of Object.entries(early.get(userId)??{}))engine.edit(k,v);early.delete(userId);
   const reconnect=useConnectivity.subscribe(s=>{if(!s.offline)flush();});
   const focus=AppState.addEventListener('change',state=>{if(state==='active')flush();});
-  const interval=setInterval(()=>{if(online())void engine.sync();},15000);
+  // Há Realtime e cada edição já agenda um flush. Este intervalo é apenas uma
+  // recuperação; 15 s repetia leituras sem alterações e mantinha a app/janela
+  // escondida ocupada sem benefício.
+  const interval=setInterval(()=>{if(online())void engine.sync();},120000);
   const channel=supabase.channel(`track-adjustments:${userId}`).on('postgres_changes',
     {event:'*',schema:'public',table:'user_track_adjustments',filter:`user_id=eq.${userId}`},flush).subscribe();
-  if(Platform.OS==='web'){window.addEventListener('online',flush);window.addEventListener('focus',flush);}
+  if(Platform.OS==='web'){window.addEventListener('online',flush);window.addEventListener('focus',flush);document.addEventListener('visibilitychange',flush);}
   flush();
   return()=>{stopped=true;engine.stop();if(active?.engine===engine)active=null;if(timer)clearTimeout(timer);
     clearInterval(interval);reconnect();focus.remove();void supabase.removeChannel(channel);
-    if(Platform.OS==='web'){window.removeEventListener('online',flush);window.removeEventListener('focus',flush);}};
+    if(Platform.OS==='web'){window.removeEventListener('online',flush);window.removeEventListener('focus',flush);document.removeEventListener('visibilitychange',flush);}};
 }

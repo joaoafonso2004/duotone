@@ -5,7 +5,7 @@ import { useAuth } from '../state/auth';
 import { closePlayerSmoothly, confirmaSwipe } from '../lib/closePlayer';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { displayArtist } from '../lib/artistName';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';

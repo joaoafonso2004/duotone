@@ -110,11 +110,22 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // sobrevivem à troca de música e não podem ficar presas à primeira.
   const faixaRef = useRef(track);
   faixaRef.current = track;
-  const progressoRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const progressoRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const atualizarProgressoRef = useRef<(() => void) | null>(null);
   const vigiaRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const prontoRef = useRef(false);
   const arrancouRef = useRef(false);
   const primeiraRef = useRef(true);
+
+  // Ao restaurar a janela, não esperar pelos cinco segundos do ritmo de
+  // background para atualizar a barra e a posição da sessão.
+  useEffect(() => {
+    const visibilidade = () => {
+      if (!document.hidden) atualizarProgressoRef.current?.();
+    };
+    document.addEventListener('visibilitychange', visibilidade);
+    return () => document.removeEventListener('visibilitychange', visibilidade);
+  }, []);
 
   /**
    * O watchdog é por FAIXA, não por player.
@@ -212,7 +223,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               },
             });
             state._setBuffering(false);
-            progressoRef.current = setInterval(() => {
+            const atualizarProgresso = () => {
+              clearTimeout(progressoRef.current);
+              if (disposed) return;
               const duration = Number(event.target.getDuration?.() || 0) * 1000;
               const position = Number(event.target.getCurrentTime?.() || 0) * 1000;
               usePlayer.getState()._setProgress(position, duration);
@@ -235,7 +248,14 @@ export function YouTubePlayerView({ track }: { track: Track }) {
                   }
                 });
               } catch {}
-            }, 500);
+              // Com a janela escondida basta manter uma posição recente para
+              // handoff/restauro. Não há barra visível que justifique acordar
+              // React duas vezes por segundo. Visível, 1 Hz é suficiente e
+              // coincide com o player nativo.
+              progressoRef.current = setTimeout(atualizarProgresso, document.hidden ? 5000 : 1000);
+            };
+            atualizarProgressoRef.current = atualizarProgresso;
+            atualizarProgresso();
           },
           onStateChange: (event: any) => {
             const s = event.data;
@@ -306,7 +326,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     return () => {
       disposed = true;
       clearTimeout(vigiaRef.current);
-      clearInterval(progressoRef.current);
+      clearTimeout(progressoRef.current);
+      atualizarProgressoRef.current = null;
       playerRef.current = null;
       try { player?.mute?.(); } catch {}
       try { player?.destroy?.(); } catch {}

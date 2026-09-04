@@ -5,7 +5,7 @@ import { useConnectivity } from '../state/connectivity';
 import { useSocial } from '../state/social';
 import { naoLidasPorAmigo } from '../lib/social';
 import { FriendProfileScreen } from '../screens/FriendProfileScreen';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   DarkTheme,
   LinkingOptions,
@@ -118,7 +118,9 @@ const TAB_ICONS: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
 
 function Tabs() {
   const reducedMotion=useReducedMotion();
-  const theme = useTheme((s) => s.theme);
+  // A navegação inteira não precisa de redesenhar em cada passo da animação;
+  // os controlos/ecrãs visíveis animam o tema diretamente.
+  const theme = useTheme((s) => s.destino);
 
   return (
     <Tab.Navigator
@@ -218,16 +220,18 @@ export function RootNavigator() {
   const offlineUserId=useAuth(s=>s.offlineUserId);
   const offline=useConnectivity(s=>s.offline);
   const initialized = useAuth((s) => s.initialized);
-  const theme = useTheme((s) => s.theme);
+  const theme = useTheme((s) => s.destino);
 
-  const social=useSocial();
+  const socialReceived=useSocial(s=>s.received);
+  const socialSeen=useSocial(s=>s.seen);
+  const socialFriends=useSocial(s=>s.friends);
   useEffect(()=>{
-    const unread=naoLidasPorAmigo(social.received,social.seen).size>0;
-    const pending=social.friends.some(f=>f.status==='pending'&&!f.isSender);
+    const unread=naoLidasPorAmigo(socialReceived,socialSeen).size>0;
+    const pending=socialFriends.some(f=>f.status==='pending'&&!f.isSender);
     useNotifications.setState({hasNotification:unread||pending,hasSocialNotification:unread||pending});
-  },[social.received,social.seen,social.friends]);
+  },[socialReceived,socialSeen,socialFriends]);
 
-  // Poll inbox items every 15 seconds to check for new messages
+  // Rede de segurança para notificações enquanto há áudio em background.
   useEffect(() => {
     if (!session||offline) return;
     ensureNotificationPermission();
@@ -262,9 +266,17 @@ export function RootNavigator() {
       }
     };
 
-    checkNewMessages();
-    const interval = setInterval(checkNewMessages, 15000);
-    return () => clearInterval(interval);
+    // Em primeiro plano o Realtime de `useSocial` já atualiza a bolinha; duas
+    // queries adicionais de 15 em 15 segundos só duplicavam trabalho. Este
+    // caminho existe para notificações enquanto há áudio em background, com
+    // a tarefa do BGTaskScheduler como recuperação quando o iOS suspende JS.
+    const checkEmBackground=()=>{
+      if(AppState.currentState!=='active')void checkNewMessages();
+    };
+    checkEmBackground();
+    const interval = setInterval(checkEmBackground, 120000);
+    const app=AppState.addEventListener('change',checkEmBackground);
+    return () => {clearInterval(interval);app.remove();};
   }, [session,offline]);
 
   // Tocar na notificação leva ao Social — sem isto abria a app na última

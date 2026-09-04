@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
-import { agruparPorArtista } from '../lib/artistName';
+import { agruparPorArtista, contaComResetDeArtistas, semCanaisLegadosNosArtistas } from '../lib/artistName';
+import { correspondeAPesquisa } from '../lib/searchText';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
@@ -21,6 +22,7 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
 import type { Track } from '../types';
+import { useAuth } from '../state/auth';
 
 interface ArtistGroup {
   name: string;
@@ -38,6 +40,7 @@ export function ArtistsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const theme = useTheme((s) => s.theme);
+  const resetDoJoao = useAuth((s) => contaComResetDeArtistas(s.session?.user.user_metadata));
 
   const load = useCallback(async () => {
     try {
@@ -60,19 +63,20 @@ export function ArtistsScreen() {
     // `Juice WRLD`, `juice wrld` e `JUICE WRLD` apareciam como três artistas
     // diferentes. O `agruparPorArtista` também aprende a grafia certa com as
     // fontes fiáveis da própria biblioteca (canais `- Topic`, VEVO).
-    return agruparPorArtista(tracks)
+    const fonte = resetDoJoao ? semCanaisLegadosNosArtistas(tracks) : tracks;
+    return agruparPorArtista(fonte)
       .map((g) => ({
         name: g.nome,
         artworkUrl: g.faixas.find((t) => t.artworkUrl)?.artworkUrl ?? null,
         count: g.faixas.length,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [tracks]);
+  }, [tracks, resetDoJoao]);
 
   const filteredArtists = useMemo(() => {
-    const query = searchQuery.trim().toLocaleLowerCase();
+    const query = searchQuery.trim();
     return query
-      ? artists.filter((artist) => artist.name.toLocaleLowerCase().includes(query))
+      ? artists.filter((artist) => correspondeAPesquisa(query, artist.name))
       : artists;
   }, [artists, searchQuery]);
 
@@ -119,6 +123,11 @@ export function ArtistsScreen() {
           <FlatList
           data={filteredArtists}
           keyExtractor={(a) => a.name}
+          initialNumToRender={12}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          windowSize={7}
+          removeClippedSubviews
           contentContainerStyle={{ paddingBottom: bottomPad }}
           ListEmptyComponent={<EmptyState icon="search-outline" title="No artists found" subtitle={`No artist matches "${searchQuery}".`} />}
           renderItem={({ item }) => (

@@ -1,7 +1,7 @@
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,7 +12,7 @@ import { EmptyState } from '../components/EmptyState';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet, SheetAction } from '../components/TrackActionsSheet';
-import { TrackRow } from '../components/TrackRow';
+import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useSaved } from '../state/saved';
@@ -20,7 +20,8 @@ import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '../theme';
 import { useTheme } from '../state/theme';
 import { hapticNotification } from '../lib/haptics';
-import { agruparPorArtista, chaveDeArtista } from '../lib/artistName';
+import { agruparPorArtista, chaveDeArtista, contaComResetDeArtistas, semCanaisLegadosNosArtistas } from '../lib/artistName';
+import { useAuth } from '../state/auth';
 import type { Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
@@ -33,6 +34,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
+  const resetDoJoao = useAuth((s) => contaComResetDeArtistas(s.session?.user.user_metadata));
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,14 +66,15 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         // agrupamento da página de Artistas, senão o cartão dizia cinco
         // faixas e esta página abria com duas.
         const alvo = chaveDeArtista(name);
-        setTracks(agruparPorArtista(all).find((g) => g.chave === alvo)?.faixas ?? []);
+        const fonte = resetDoJoao ? semCanaisLegadosNosArtistas(all) : all;
+        setTracks(agruparPorArtista(fonte).find((g) => g.chave === alvo)?.faixas ?? []);
       }
     } catch {
       // ignorar
     } finally {
       setLoading(false);
     }
-  }, [type, name]);
+  }, [type, name, resetDoJoao]);
 
   useFocusEffect(
     useCallback(() => {
@@ -243,6 +246,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
                 <FlatList
                   data={tracks}
                   keyExtractor={(t) => t.id ?? `${t.source}:${t.sourceId}`}
+                  initialNumToRender={12}
+                  maxToRenderPerBatch={10}
+                  updateCellsBatchingPeriod={50}
+                  windowSize={7}
+                  removeClippedSubviews
+                  getItemLayout={getTrackRowLayout}
                   contentContainerStyle={{ paddingBottom: bottomPad }}
                   renderItem={({ item }) => (
                     <TrackRow
@@ -274,6 +283,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
                 <FlatList
                   data={ytTracks}
                   keyExtractor={(t) => t.sourceId}
+                  initialNumToRender={12}
+                  maxToRenderPerBatch={10}
+                  updateCellsBatchingPeriod={50}
+                  windowSize={7}
+                  removeClippedSubviews
+                  getItemLayout={getTrackRowLayout}
                   contentContainerStyle={{ paddingBottom: bottomPad }}
                   renderItem={({ item }) => (
                     <TrackRow
@@ -306,6 +321,11 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
                 <FlatList
                   data={ytAlbums}
                   keyExtractor={(t) => t.id}
+                  initialNumToRender={10}
+                  maxToRenderPerBatch={8}
+                  updateCellsBatchingPeriod={50}
+                  windowSize={7}
+                  removeClippedSubviews
                   contentContainerStyle={{ paddingBottom: bottomPad }}
                   renderItem={({ item }) => (
                     <Pressable

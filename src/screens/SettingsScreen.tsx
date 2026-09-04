@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View, Share, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, STEEL } from '../state/theme';
 import { clearLibrary } from '../api/library';

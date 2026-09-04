@@ -1,5 +1,5 @@
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import {
@@ -29,15 +29,30 @@ export function NowPlayingPage({
   back: () => void;
   aoAdicionarAPlaylist: (t: Track) => void;
 }) {
-  const p = usePlayer();
+  // Esta página não usa a posição. Subscrever o store inteiro fazia a capa,
+  // letras, fila e WebGL voltarem a renderizar a cada atualização da barra.
+  const current = usePlayer((s) => s.current);
+  const queue = usePlayer((s) => s.queue);
+  const queueIndex = usePlayer((s) => s.queueIndex);
+  const shuffle = usePlayer((s) => s.shuffle);
+  const shuffleOrder = usePlayer((s) => s.shuffleOrder);
+  const upcomingQueue = usePlayer((s) => s.upcomingQueue);
+  const playTrack = usePlayer((s) => s.playTrack);
+  const moveQueueItem = usePlayer((s) => s.moveQueueItem);
+  const eqGanhos = usePlayer((s) => s.eqGanhos);
+  const setEqGanhos = usePlayer((s) => s.setEqGanhos);
+  const playbackRate = usePlayer((s) => s.playbackRate);
+  const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
+  const eqAtivo = usePlayer((s) => s.eqAtivo);
+  const ajustesPorFaixa = usePlayer((s) => s.ajustesPorFaixa);
   const [showLyrics,setShowLyrics]=useState(false);
-  useEffect(()=>setShowLyrics(false),[p.current?.source,p.current?.sourceId]);
+  useEffect(()=>setShowLyrics(false),[current?.source,current?.sourceId]);
   const { width } = useWindowDimensions();
   // Uma vez por render: este ecrã redesenha a cada segundo (posição) e a
   // lista percorre a fila toda.
   const upNext = useMemo(
-    () => p.upcomingQueue(),
-    [p.queue, p.queueIndex, p.shuffle, p.shuffleOrder]
+    () => upcomingQueue(),
+    [queue, queueIndex, shuffle, shuffleOrder, upcomingQueue]
   );
 
   // A preferencia e lida uma vez e depois vem por evento, como a opacidade dos
@@ -66,10 +81,10 @@ export function NowPlayingPage({
     window.dispatchEvent(new CustomEvent('duotone:effect-intensity', { detail: intensidade }));
   };
 
-  if (!p.current) {
+  if (!current) {
     return <Page title="Now Playing" subtitle="Nothing is playing right now." action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
   }
-  const track = p.current;
+  const track = current;
   const estreito = width < 1180;
   const ladoCapa = estreito ? 300 : width >= 1420 ? 420 : 384;
 
@@ -91,7 +106,7 @@ export function NowPlayingPage({
                 name="options-outline"
                 label="Equaliser and speed"
                 onPress={() => setEqAberto(true)}
-                active={!p.eqGanhos.every((g) => g === 0) || p.playbackRate !== 1}
+                active={!eqGanhos.every((g) => g === 0) || playbackRate !== 1}
               />
               <IconButton
                 name={currentIsSaved ? 'heart' : 'heart-outline'}
@@ -128,10 +143,10 @@ export function NowPlayingPage({
                 baralhada não corresponde a nada. */}
             <FilaArrastavel
               entradas={upNext.slice(0, 8)}
-              podeArrastar={!p.shuffle}
-              aoTocar={(t) => p.playTrack(t, p.queue)}
+              podeArrastar={!shuffle}
+              aoTocar={(t) => playTrack(t, queue)}
               aoMenu={more}
-              aoMover={(de, para) => p.moveQueueItem(de, para)}
+              aoMover={(de, para) => moveQueueItem(de, para)}
             />
             {upNext.length === 0 && (
               <Text style={styles.npFilaVazia}>Queue ends after this track.</Text>
@@ -144,12 +159,12 @@ export function NowPlayingPage({
       </ContentScroll>
       <Dialog open={eqAberto} title="Equaliser" onClose={() => setEqAberto(false)} width={560}>
         <PainelEqualizador
-          ganhos={p.eqGanhos}
-          aoMudarGanhos={p.setEqGanhos}
-          rate={p.playbackRate}
-          aoMudarRate={p.setPlaybackRate}
-          activo={p.eqAtivo}
-          lembrado={!!p.ajustesPorFaixa[chaveDaFaixa(track)]}
+          ganhos={eqGanhos}
+          aoMudarGanhos={setEqGanhos}
+          rate={playbackRate}
+          aoMudarRate={setPlaybackRate}
+          activo={eqAtivo}
+          lembrado={!!ajustesPorFaixa[chaveDaFaixa(track)]}
         />
       </Dialog>
     </Page>

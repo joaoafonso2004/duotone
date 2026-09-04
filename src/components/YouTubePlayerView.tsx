@@ -2,7 +2,7 @@ import { useConnectivity } from '../state/connectivity';
 import { useEventListener } from 'expo';
 import { useVideoPlayer } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { AppState, StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
@@ -172,6 +172,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     p.timeUpdateEventInterval = 1;
     p.loop = false;
   });
+
+  // Em background não há barra de progresso para animar. Dois segundos
+  // continuam a verificar o sleep timer com boa precisão e reduzem para
+  // metade as travessias nativo -> JS, atualizações Zustand e renders que o
+  // iPhone teria de fazer com o ecrã bloqueado.
+  useEffect(() => {
+    const ajustar = (state = AppState.currentState) => {
+      player.timeUpdateEventInterval = state === 'active' ? 1 : 2;
+    };
+    ajustar();
+    const sub = AppState.addEventListener('change', ajustar);
+    return () => sub.remove();
+  }, [player]);
 
   // Repeat "one": o player nativo repete a própria faixa (sem passar por
   // 'ended'/next). Reativo ao modo de repetição escolhido no player.
@@ -689,7 +702,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (nextTrack.sourceId === track.sourceId) return;
 
       const file = cachedAudioFile(nextTrack.sourceId);
-      if (file.exists||useConnectivity.getState().offline) return; // já descarregado ou sem rede
+      const rede = useConnectivity.getState();
+      // Em ligação marcada como cara (dados móveis/hotspot), pré-descarregar a
+      // faixa que talvez nem seja ouvida gasta rádio, dados e bateria. A faixa
+      // atual continua a tocar normalmente e a seguinte resolve quando pedida.
+      if (file.exists||rede.offline||rede.expensive) return; // já descarregado ou sem rede adequada
 
       try {
         const quality = await getAudioQuality();

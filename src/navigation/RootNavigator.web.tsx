@@ -1,6 +1,6 @@
 import {TransitionView} from '../components/TransitionView';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
 import { displayArtist } from '../lib/artistName';
@@ -58,7 +58,7 @@ import { ProfilePage, StatsPage } from '../desktop/paginas/ProfilePage.web';
 
 import { ArtistPage, ArtistsPage, SearchPage, SongsPage } from '../desktop/paginas/BibliotecaPages.web';
 
-import { PlaylistPage, PlaylistsPage } from '../desktop/paginas/PlaylistPages.web';
+import { invalidarCacheDaPlaylist, PlaylistPage, PlaylistsPage } from '../desktop/paginas/PlaylistPages.web';
 
 import { ImportPage } from '../desktop/paginas/ImportPage.web';
 
@@ -81,9 +81,20 @@ function AuthDesktop() {
     <View style={{ gap: 12 }}>{mode === 'signin' ? <Field icon="mail-outline" placeholder="Email" value={identifier} onChangeText={setIdentifier} onSubmitEditing={submit} keyboardType="email-address" /> : <><Field icon="person-outline" placeholder="Username" value={username} onChangeText={setUsername} /><Field icon="mail-outline" placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" /></>}<Field icon="lock-closed-outline" placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry onSubmitEditing={submit} />{error && <Text style={styles.error}>{error}</Text>}<Button onPress={submit} disabled={busy}>{busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}</Button></View></View><Text style={styles.authFoot}>Duotone for Windows</Text></View>;
 }
 
+/** Atualiza as variáveis CSS sem voltar a renderizar a casca e a página. */
+function ThemeCssSync({panelOpacity}:{panelOpacity:number}) {
+  const color=useTheme(s=>s.theme.color);
+  useEffect(()=>{
+    document.documentElement.style.setProperty('--accent-color',color);
+    document.documentElement.style.setProperty('--panel-opacity',String(panelOpacity));
+  },[color,panelOpacity]);
+  return null;
+}
+
 function DesktopShell() {
   const [route, setRoute] = useState<Route>({ name: 'search' }); const history = useRef<Route[]>([]); const [toast, setToast] = useState('');
-  const abrirSocial = useCallback((conversation?:{friendId?:string;groupId?:string}) => setRoute({ name: 'social',...conversation }), []);
+  const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
+  const abrirSocial = useCallback((conversation?:{friendId?:string;groupId?:string}) => { setNowPlayingOpen(false); setRoute({ name: 'social',...conversation }); }, []);
   useDesktopNotifications(abrirSocial);
   const [trackMenu, setTrackMenu] = useState<Track | null>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
@@ -105,8 +116,13 @@ function DesktopShell() {
   const [savedTrackId, setSavedTrackId] = useState<string | null>(null);
   const [currentIsSaved, setCurrentIsSaved] = useState(false);
 
-  const p = usePlayer();
-  const currentTrack = p.current;
+  // Não subscrever a casca inteira ao store: `positionMs` muda durante toda
+  // a reprodução e fazia voltar a renderizar navegação, página, diálogos e
+  // sidebar só para a barra avançar. Cada consumidor de progresso subscreve-o
+  // diretamente (PlayerBar/HandoffBanner).
+  const currentTrack = usePlayer((s) => s.current);
+  const isPlayingState = usePlayer((s) => s.isPlaying);
+  const queueIndex = usePlayer((s) => s.queueIndex);
 
   const checkCurrentSaved = useCallback(() => {
     if (!currentTrack) {
@@ -147,9 +163,18 @@ function DesktopShell() {
   };
 
   const [panelOpacity, setPanelOpacity] = useState(0.72);
-  const theme = useTheme((s) => s.theme);
+  // Diálogos usam o destino estável. A animação CSS vive no componente
+  // minúsculo abaixo e deixa de redesenhar toda a aplicação dez vezes.
+  const theme = useTheme((s) => s.destino);
 
   const navigate = useCallback((next: Route) => {
+    if (next.name === 'now-playing') {
+      // O leitor é uma camada: a página de origem continua montada por baixo,
+      // com scroll, pesquisa e ordenação exatamente onde estavam.
+      setNowPlayingOpen(true);
+      return;
+    }
+    setNowPlayingOpen(false);
     setRoute((current) => {
       // Carregar duas vezes no mesmo sítio não é navegar. Sem isto o histórico
       // enchia-se de repetições e o voltar ficava a pedir cliques para não sair
@@ -159,7 +184,10 @@ function DesktopShell() {
       return next;
     });
   }, []);
-  const back = useCallback(() => setRoute(history.current.pop() || { name: 'playlists' }), []);
+  const back = useCallback(() => {
+    if (nowPlayingOpen) { setNowPlayingOpen(false); return; }
+    setRoute(history.current.pop() || { name: 'playlists' });
+  }, [nowPlayingOpen]);
   const notify = useCallback((s: string) => setToast(s), []);
   const play = useCallback((track: Track, queue?: Track[]) => { usePlayer.getState().playTrack(track, queue); }, []);
 
@@ -169,7 +197,6 @@ function DesktopShell() {
     return () => window.removeEventListener('duotone:playback-notice', onPlaybackNotice);
   }, [notify]);
 
-  const isPlayingState = p.isPlaying;
   // Evita mandar um delete ao arrancar sem nada a tocar.
   const hadTrackRef = useRef(false);
 
@@ -181,11 +208,6 @@ function DesktopShell() {
       if (val) setPanelOpacity(Number(val));
     });
   }, []);
-
-  useEffect(() => {
-    document.documentElement.style.setProperty('--accent-color', theme.color);
-    document.documentElement.style.setProperty('--panel-opacity', String(panelOpacity));
-  }, [theme.color, panelOpacity]);
 
   useEffect(() => {
     const handleOpacity = (e: any) => {
@@ -220,7 +242,7 @@ function DesktopShell() {
     if (currentTrack) publishSession();
     else if (hadTrackRef.current) void endSession();
     hadTrackRef.current = !!currentTrack;
-  }, [currentTrack, isPlayingState, p.queueIndex]);
+  }, [currentTrack, isPlayingState, queueIndex]);
 
   // Media Session Keyboard API sync + Electron hardware keys integration
   useEffect(() => {
@@ -351,8 +373,11 @@ function DesktopShell() {
     if (!trackMenu) return;
     try {
       await addTracksToPlaylist(id, [trackMenu]);
+      invalidarCacheDaPlaylist(id);
       setPlaylistDialog(false);
       notify('Added to playlist.');
+      window.dispatchEvent(new CustomEvent('duotone:refresh-playlist', { detail: { id } }));
+      window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
     } catch (e: any) {
       notify(e?.message || 'Could not add track.');
     }
@@ -419,7 +444,7 @@ function DesktopShell() {
   // Definicoes. Era `rgba(18,18,24)` a martelo, fora de qualquer paleta.
   const bgStyle = { backgroundColor: `rgba(12, 12, 16, ${panelOpacity})` };
 
-  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><TitleBar /><View style={styles.main}><V style={[styles.sidebar, bgStyle]} className="glass-panel"><Sidebar route={route} navigate={navigate} /></V><V style={[styles.content, bgStyle]} className="glass-panel"><TransitionView transitionKey={JSON.stringify(route)}>{page}</TransitionView></V></View><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} /><HandoffBanner />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><View style={styles.main}><V style={[styles.sidebar, bgStyle]} className="glass-panel"><Sidebar route={route} navigate={navigate} /></V><V style={[styles.content, bgStyle]} className="glass-panel"><TransitionView transitionKey={JSON.stringify(route)}>{page}</TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><NowPlayingPage play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></View>}</V></View><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} /><HandoffBanner />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     
     {/* CUSTOM ACTIONS DIALOG */}
     <Dialog open={trackMenuOpen} title="Track Actions" onClose={() => setTrackMenuOpen(false)}>
@@ -442,7 +467,7 @@ function DesktopShell() {
           <Pressable onPress={() => { setTrackMenuOpen(false); navigate({ name: 'artist', value: displayArtist(trackMenu) }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="mic-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>View artist</Text></Pressable>
           <Pressable onPress={() => { setTrackMenuOpen(false); openShareDialog({ itemType: 'track', item: trackMenu, name: trackMenu.title }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="share-social-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Share with friends or groups…</Text></Pressable>
           <Pressable onPress={()=>{setTrackMenuOpen(false);setRecommendationTrack(trackMenu);}} style={({hovered})=>[styles.destination,hovered&&styles.settingHover]}><Ionicons name="options-outline" size={18} color={theme.color}/><Text style={styles.destinationText}>Recommendations…</Text></Pressable>
-          {route.name === 'playlist'  && (
+          {route.name === 'playlist' && !nowPlayingOpen && (
             <Pressable onPress={removeFromCurrentPlaylist} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="trash-outline" size={18} color="#EF4444" /><Text style={[styles.destinationText, { color: '#EF4444' }]}>Remove from this playlist</Text></Pressable>
           )}
         </View>

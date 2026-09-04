@@ -1,6 +1,6 @@
 import React,{useRef,useState} from 'react';
 import {Platform,Pressable,Text,TextInput,View} from 'react-native';
-import {Ionicons} from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type {Reaction} from '../api/social';
 import {colors,radii} from './socialTokens';
 import {socialStyles as s} from './socialUI';

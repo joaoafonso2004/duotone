@@ -1,6 +1,6 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import { ActivityIndicator,FlatList,Image,Platform,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { acceptFriendRequest,acrescentarAoGrupo,criarGrupo,declineOrRemoveFriendship,getChatMessages,getGroupMessages,apagarConversa, sairDoGrupo,searchProfiles,sendFriendRequest,getReactions,setReaction,shareComGrupo,shareItem,type Reaction,type SharedItem } from '../api/social';
 import type { PublicProfile } from '../api/profiles';
 import { useSocial } from '../state/social';
@@ -106,11 +106,13 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
       catch(e:any){if(active)setError(e.message || 'Could not refresh this conversation.');}
       finally{loading=false;if(active)setChatLoading(false);}
     };
-    void load();const timer=setInterval(()=>void load(),6000);
+    // Realtime entrega mensagens novas imediatamente. Esta consulta é apenas
+    // recuperação para uma ligação silenciosamente caída; seis segundos
+    // mantinham o chat a pedir a mesma página dez vezes por minuto.
+    void load();const timer=setInterval(()=>void load(),60000);
     const channel=supabase.channel(`chat:${key}`)
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'shared_items'},()=>void load())
-      // Sem isto a reação do outro só aparecia no recarregamento de 6
-      // segundos, e uma reação que demora seis segundos não é uma reação.
+      // As reações chegam pelo seu próprio evento, sem esperar pelo polling.
       .on('postgres_changes',{event:'*',schema:'public',table:'item_reactions'},()=>void recarregarReacoesRef.current())
       .subscribe();
     return()=>{active=false;clearInterval(timer);void supabase.removeChannel(channel);};
@@ -192,7 +194,8 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
             aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}/>
         </View>}/>}
         {group?<GroupComposer value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:
-          <View style={s.row}><TextInput accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}/><SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>}
+          <View style={s.row}><TextInput accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}
+            {...({onKeyDown:(e:any)=>{const evento=e?.nativeEvent??e;if(!web||evento?.key!=='Enter'||evento?.shiftKey||evento?.isComposing)return;e.preventDefault?.();evento.preventDefault?.();if(!busy&&draft.trim())void send();}} as any)}/><SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>}
       </View></View>;
 
   return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>

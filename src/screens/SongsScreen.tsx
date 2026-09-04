@@ -5,7 +5,7 @@ import { isAudioCached,useAudioCache } from '../lib/youtubeCache';
 import { readLikedSongsCache } from '../lib/likedSongsCache';
 import { displayArtist } from '../lib/artistName';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
@@ -23,7 +23,7 @@ import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
-import { TrackRow } from '../components/TrackRow';
+import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
 import { Input } from '../components/Input';
 import { useSaved } from '../state/saved';
 import { hapticSelection } from '../lib/haptics';
@@ -298,6 +298,12 @@ export function SongsScreen() {
           <FlatList
             data={sortedTracks}
             keyExtractor={(t) => t.id ?? `${t.source}:${t.sourceId}`}
+            initialNumToRender={12}
+            maxToRenderPerBatch={10}
+            updateCellsBatchingPeriod={50}
+            windowSize={7}
+            removeClippedSubviews
+            getItemLayout={getTrackRowLayout}
             contentContainerStyle={{ paddingBottom: bottomPad }}
             renderItem={({ item }) => {
               const itemId = item.id ?? `${item.source}:${item.sourceId}`;

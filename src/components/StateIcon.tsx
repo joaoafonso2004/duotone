@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react';
 import {Animated,StyleSheet,View} from 'react-native';
-import {Ionicons} from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import {useReducedMotion} from '../hooks/useReducedMotion';
 
 type Props=React.ComponentProps<typeof Ionicons>;

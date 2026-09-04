@@ -44,6 +44,8 @@ export type Captura = {
    * sempre o mesmo: quem chama pode envia-lo para a GPU sem alocar. */
   espetro(): Uint8Array;
   estado(): EstadoCaptura;
+  /** Suspende/retoma o AudioContext sem perder a captura. */
+  definirAtiva(ativa: boolean): void;
   parar(): void;
 };
 
@@ -57,7 +59,7 @@ const INTERVALO_NORMAL_MS = 145;
  * voltar a introduzir o tremor constante entre batidas. */
 const INTERVALO_RAPIDO_MS = 72;
 /** Uma janela de ~1 s de fluxo para o limiar adaptativo. */
-const JANELA = 60;
+const JANELA = 30;
 
 async function pedirFluxo(): Promise<MediaStream> {
   const md = navigator.mediaDevices as any;
@@ -114,6 +116,7 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
   let energiaAguda = 0;
   let ultimaBatidaMs = 0;
   let ultimoQuadroMs = 0;
+  let desejadaAtiva = true;
   let desarmarGesto: (() => void) | null = null;
 
   const mudar = (e: EstadoCaptura) => {
@@ -153,6 +156,7 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
     // sempre e ninguem sabia porque.
     s.getAudioTracks()[0]?.addEventListener('ended', () => mudar('indisponivel'));
     mudar('ativa');
+    if(!desejadaAtiva)void ctx.suspend().catch(()=>{});
   };
 
   const tentar = async () => {
@@ -204,7 +208,7 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
       // batidas, precisamente quando devia estar completamente quieto.
       if (pico < 0.055) pico = 0;
 
-      if (estado !== 'ativa' || !detecao || !visual || !tempo) {
+      if (!desejadaAtiva || estado !== 'ativa' || !detecao || !visual || !tempo) {
         return 0;
       }
 
@@ -298,6 +302,11 @@ export function iniciarCaptura(aoMudarEstado?: (e: EstadoCaptura) => void): Capt
     batida: () => pico,
     agudos: () => energiaAguda,
     espetro: () => espetro,
+    definirAtiva(ativa) {
+      desejadaAtiva=ativa;
+      if(!ctx)return;
+      void (ativa?ctx.resume():ctx.suspend()).catch(()=>{});
+    },
     parar() {
       parado = true;
       desarmarGesto?.();

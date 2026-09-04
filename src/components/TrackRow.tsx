@@ -1,5 +1,5 @@
 import { displayArtist } from '../lib/artistName';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -27,6 +27,14 @@ interface Props {
   showSavedBadge?: boolean;
 }
 
+/** 52 px de capa + 8 px de padding em cima e em baixo. */
+export const TRACK_ROW_HEIGHT = 68;
+export const getTrackRowLayout = (_: ArrayLike<Track> | null | undefined, index: number) => ({
+  length: TRACK_ROW_HEIGHT,
+  offset: TRACK_ROW_HEIGHT * index,
+  index,
+});
+
 function formatDuration(s: number | null): string {
   if (!s) return '';
   const m = Math.floor(s / 60);
@@ -34,7 +42,7 @@ function formatDuration(s: number | null): string {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-export function TrackRow({
+function TrackRowComponent({
   track,
   active,
   onPress,
@@ -88,7 +96,10 @@ export function TrackRow({
             source={{ uri: track.artworkUrl }}
             style={styles.artwork}
             contentFit="cover"
-            transition={150}
+            // Em listas longas, animar cada imagem que entra na janela de
+            // virtualização mantém a GPU ocupada durante todo o scroll.
+            transition={0}
+            cachePolicy="memory-disk"
           />
         ) : (
           <View style={[styles.artwork, styles.artworkFallback]}>
@@ -145,6 +156,8 @@ export function TrackRow({
     </Pressable>
   );
 }
+
+export const TrackRow = React.memo(TrackRowComponent);
 
 const styles = StyleSheet.create({
   row: {

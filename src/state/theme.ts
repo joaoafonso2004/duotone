@@ -25,8 +25,9 @@ const CHAVE = 'pref:accentTheme';
 
 /** Duração da passagem de uma cor para a outra. */
 const TRANSICAO_MS = 380;
-/** Passos da transição. Mais do que isto não se vê; menos, salta. */
-const PASSOS = 14;
+/** Dez passos em 380 ms mantêm a passagem visível sem obrigar todos os
+ * consumidores do tema a redesenhar 14 vezes por mudança de faixa. */
+const PASSOS = 10;
 
 interface ThemeState {
   mode: ThemeMode;

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { COR, RAIO } from '../tokens.web';
 import type { EffectIntensity, GlitchMode } from '../../lib/prefs';
 import { criarRenderer, detetarRecorte, type Recorte } from './renderer.web';
@@ -127,6 +127,9 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
     let vivo = true;
     let raf = 0;
     let captura: Captura | null = null;
+    let ultimoDesenho=0;
+    const visibilidade=()=>captura?.definirAtiva(!document.hidden);
+    document.addEventListener('visibilitychange',visibilidade);
 
     const imagem = new window.Image();
     // Testado com i.ytimg.com: as miniaturas deixam-se ler. Sem isto a tela
@@ -145,10 +148,13 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
         return;
       }
       captura = iniciarCaptura();
+      captura.definirAtiva(!document.hidden);
       const inicio = performance.now();
       const laco = (agora: number) => {
         if (!vivo) return;
         raf = requestAnimationFrame(laco);
+        if(document.hidden||agora-ultimoDesenho<1000/30)return;
+        ultimoDesenho=agora;
         // O array do espectro e sempre o mesmo: 256 bytes para a textura, uma
         // escrita de uniforms e um drawArrays, sem alocacoes por fotograma.
         const energiaGrave = captura!.nivel(agora);
@@ -174,6 +180,7 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
       // analisar som para ninguem ver gasta CPU e mantem aberta uma permissao
       // de captura sem motivo.
       captura?.parar();
+      document.removeEventListener('visibilitychange',visibilidade);
       imagem.onload = null;
       imagem.onerror = null;
       r.destruir();

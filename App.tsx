@@ -51,6 +51,7 @@ export default function App() {
   useLyricsPrefetch();
   useEffect(startConnectivity,[]);
   const offline=useConnectivity(s=>s.offline);
+  const sleepTimerEndsAt=usePlayer(s=>s.sleepTimerEndsAt);
   const init = useAuth((s) => s.init);
   const userId = useAuth((s) => s.session?.user.id);
   const adjustmentUserId=useAuth(s=>s.session?.user.id??s.offlineUserId);
@@ -168,13 +169,17 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
-  // Temporizador (Sleep Timer) global ticking a cada 1 segundo
+  // O relógio do sleep timer só existe quando há um timer armado. Antes a app
+  // acordava uma vez por segundo durante toda a sua vida para uma função que,
+  // quase sempre, devolvia imediatamente.
   useEffect(() => {
+    if (!sleepTimerEndsAt) return;
+    usePlayer.getState().tickSleepTimer();
     const id = setInterval(() => {
       usePlayer.getState().tickSleepTimer();
     }, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [sleepTimerEndsAt]);
 
   return (
     <SafeAreaProvider>

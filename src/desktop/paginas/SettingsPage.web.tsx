@@ -7,7 +7,7 @@ import { removeOwnProfileMedia } from '../../lib/profileMedia';
  * faz nada é pior do que não existir.** Antes de acrescentar uma, verificar
  * que ALGUÉM a lê fora deste ecrã.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, useEffect, useState } from 'react';
 import { Pressable, Switch, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';

@@ -3,7 +3,7 @@ import { useConnectivity } from './connectivity';
 import { filterSuggestions } from './recommendationFeedback';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware';
 import { temAudioNativo } from '../../modules/duotone-audio';
 import { recordPlayInSupabase } from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
@@ -246,26 +246,47 @@ interface PlayerState {
   _setActiveBackend: (backend: 'resolving' | 'native' | 'webview') => void;
 }
 
-// Escritas no AsyncStorage com debounce: o positionMs muda a cada segundo e
-// serializar a fila inteira a esse ritmo seria desperdício — 3s de atraso na
-// persistência é irrelevante para "continuar a ouvir".
-function debouncedStorage() {
-  let pendingValue: string | null = null;
+// O middleware `persist` chama o storage em CADA `set`, incluindo o progresso.
+// `createJSONStorage` faria o JSON.stringify ANTES de chegar a um debounce e,
+// numa fila com 2.000 faixas, serializava-a várias vezes por segundo mesmo que
+// só escrevesse no disco de três em três. Este storage adia também a própria
+// serialização: durante o intervalo guarda apenas a referência para o retrato
+// mais recente.
+function deferredJsonStorage(): PersistStorage<any> {
+  let pendingName: string | null = null;
+  let pendingValue: StorageValue<any> | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   return {
-    getItem: (name: string) => AsyncStorage.getItem(name),
-    setItem: (name: string, value: string) => {
+    getItem: async (name: string) => {
+      const raw = await AsyncStorage.getItem(name);
+      return raw ? JSON.parse(raw) : null;
+    },
+    setItem: (name: string, value: StorageValue<any>) => {
+      pendingName = name;
       pendingValue = value;
       if (!timer) {
         timer = setTimeout(() => {
           timer = null;
+          const key = pendingName;
           const v = pendingValue;
+          pendingName = null;
           pendingValue = null;
-          if (v != null) AsyncStorage.setItem(name, v).catch(() => {});
+          if (key && v != null) {
+            // Só aqui — uma vez por janela — se percorre e serializa a fila.
+            AsyncStorage.setItem(key, JSON.stringify(v)).catch(() => {});
+          }
         }, 3000);
       }
     },
-    removeItem: (name: string) => AsyncStorage.removeItem(name),
+    removeItem: (name: string) => {
+      if (pendingName === name) {
+        pendingName = null;
+        pendingValue = null;
+        if (timer) clearTimeout(timer);
+        timer = null;
+      }
+      return AsyncStorage.removeItem(name);
+    },
   };
 }
 
@@ -1123,7 +1144,7 @@ export const usePlayer = create<PlayerState>()(
     }),
     {
       name: 'player-session',
-      storage: createJSONStorage(debouncedStorage),
+      storage: deferredJsonStorage(),
       // Persistimos apenas o necessário para "continuar a ouvir" após a app
       // ser morta: faixa atual, fila e posição. Repeat/shuffle já vivem nas
       // prefs; o resto é estado transitório.

@@ -415,8 +415,9 @@ export function criarRenderer(
     },
     temTextura: () => temTex,
     redimensionar(ladoCss) {
-      // Teto de 2x: acima disso sao pixeis que ninguem distingue a custo real.
-      const dpr = Math.min(2, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1);
+      // 1,5x mantém a capa nítida e corta quase pela metade os píxeis que a
+      // GPU processava a 2x (630² em vez de 840² numa capa de 420 px).
+      const dpr = Math.min(1.5, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1);
       const px = Math.max(1, Math.round(ladoCss * dpr));
       tamanhoCss = ladoCss;
       if (px === lado) return;

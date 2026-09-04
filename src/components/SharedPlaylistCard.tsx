@@ -1,6 +1,6 @@
 import React from 'react';
 import {Pressable,Text,View} from 'react-native';
-import {Ionicons} from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type {Playlist} from '../types';
 import {ArtworkCollage} from './ArtworkCollage';
 import {colors,radii} from './socialTokens';

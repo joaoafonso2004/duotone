@@ -1,5 +1,5 @@
 import { displayArtist } from '../lib/artistName';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
@@ -26,6 +26,8 @@ import {
   deletePlaylist,
   getPlaylistTracks,
   getPlaylistDetails,
+  listPlaylists,
+  mergePlaylists,
   removeTrackFromPlaylist,
   renamePlaylist,
   setPlaylistOrder,
@@ -38,17 +40,18 @@ import { PromptSheet } from '../components/PromptSheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
-import { TrackRow } from '../components/TrackRow';
+import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
 import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
 import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
+import { correspondeAPesquisa } from '../lib/searchText';
 import { useTheme } from '../state/theme';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { useAuth } from '../state/auth';
 import { BrilhoInteligente } from '../components/BrilhoInteligente';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type, gradients, radii } from '../theme';
-import type { PlaylistTrack, Track } from '../types';
+import type { Playlist, PlaylistTrack, Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
@@ -82,6 +85,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const [removeFor, setRemoveFor] = useState<PlaylistTrack | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareFriendOpen, setShareFriendOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeItems, setMergeItems] = useState<Playlist[]>([]);
   const theme = useTheme((s) => s.theme);
 
   // States for Add Tracks Modal
@@ -90,6 +95,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addSearchQuery, setAddSearchQuery] = useState('');
+  const [playlistSearchQuery, setPlaylistSearchQuery] = useState('');
 
   // States for Sorting
   const [sortOpen, setSortOpen] = useState(false);
@@ -169,13 +175,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   };
 
   const filteredLibrary = useMemo(() => {
-    if (!addSearchQuery.trim()) return libraryTracks;
-    const query = addSearchQuery.toLowerCase();
-    return libraryTracks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(query) ||
-        displayArtist(t).toLowerCase().includes(query)
-    );
+    return libraryTracks.filter((t) => correspondeAPesquisa(addSearchQuery, t.title, displayArtist(t)));
   }, [libraryTracks, addSearchQuery]);
 
   const sortedTracks = useMemo(() => {
@@ -203,6 +203,11 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         return [...tracks].sort((a, b) => a.position - b.position);
     }
   }, [tracks, sortMode, playCounts]);
+
+  const visibleTracks = useMemo(
+    () => sortedTracks.filter((t) => correspondeAPesquisa(playlistSearchQuery, t.title, displayArtist(t))),
+    [sortedTracks, playlistSearchQuery],
+  );
 
   const trackActions = useMemo(() => {
     if (!actionTrack) return [];
@@ -326,6 +331,26 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const abrirMerge = async () => {
+    setOptionsOpen(false);
+    setMergeOpen(true);
+    try { setMergeItems((await listPlaylists()).filter((playlist) => playlist.id !== id)); }
+    catch (e: any) { setMergeOpen(false); Alert.alert('Error', e?.message ?? 'Could not load your playlists.'); }
+  };
+
+  const fazerMerge = async (source: Playlist) => {
+    setBusy(true);
+    try {
+      const resultado = await mergePlaylists(id, source.id);
+      setMergeOpen(false);
+      await load();
+      hapticNotification();
+      Alert.alert('Playlists merged', `${resultado.adicionadas} added · ${resultado.repetidas} already existed.\n\n“${source.name}” was not changed.`);
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not merge the playlists.');
+    } finally { setBusy(false); }
+  };
+
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
   return (
@@ -353,8 +378,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             <Pressable
               style={styles.playButton}
               onPress={() => (ligado
-                  ? playShuffled(sortedTracks, inteligente)
-                  : playTrack(sortedTracks[0], sortedTracks, true))}
+                  ? playShuffled(visibleTracks, inteligente)
+                  : visibleTracks[0] && playTrack(visibleTracks[0], visibleTracks, true))}
             >
               <LinearGradient
                 colors={theme.gradient}
@@ -447,6 +472,18 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         </>
       ) : null}
 
+      {tracks.length > 0 && !editMode ? (
+        <View style={styles.playlistSearchBox}>
+          <Input
+            icon="search"
+            placeholder="Search this playlist"
+            value={playlistSearchQuery}
+            onChangeText={setPlaylistSearchQuery}
+            onClear={() => setPlaylistSearchQuery('')}
+          />
+        </View>
+      ) : null}
+
       {loadError ? <View style={{padding:24,gap:12}}><Text style={{color:colors.danger}}>{loadError}</Text><Pressable onPress={()=>void load()}><Text style={{color:theme.color}}>Try again</Text></Pressable></View> : loading ? (
         <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
       ) : tracks.length === 0 ? (
@@ -455,10 +492,18 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           title="This playlist is empty"
           subtitle={canEdit?"Add tracks from Search or your Library using the ••• menu on any track.":"The owner has not added any tracks yet."}
         />
+      ) : playlistSearchQuery.trim() && visibleTracks.length === 0 ? (
+        <EmptyState icon="search-outline" title="No songs found" subtitle={`No track matches "${playlistSearchQuery}".`} />
       ) : (
         <FlatList
-          data={editMode ? tracks : sortedTracks}
+          data={editMode ? tracks : visibleTracks}
           keyExtractor={(t) => t.id}
+          initialNumToRender={12}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          windowSize={7}
+          removeClippedSubviews
+          getItemLayout={editMode ? undefined : getTrackRowLayout}
           contentContainerStyle={{ paddingBottom: bottomPad }}
           renderItem={({ item, index }) =>
             editMode ? (
@@ -498,7 +543,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                   current?.source === item.source &&
                   current?.sourceId === item.sourceId
                 }
-                onPress={() => playTrack(item, sortedTracks, true)}
+                onPress={() => playTrack(item, visibleTracks, true)}
                 onAction={() => setActionTrack(item)}
               />
             )
@@ -529,6 +574,11 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             },
           },
           {
+            icon: 'git-merge-outline' as const,
+            label: 'Merge another playlist…',
+            onPress: () => { void abrirMerge(); },
+          },
+          {
             icon: 'pencil-outline' as const,
             label: 'Rename playlist',
             onPress: () => {
@@ -545,8 +595,21 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               setDeleteOpen(true);
             },
           },
-        ].filter(action=>canEdit||(action.icon!=='pencil-outline'&&action.icon!=='trash-outline'))}
+        ].filter(action=>canEdit||(action.icon!=='git-merge-outline'&&action.icon!=='pencil-outline'&&action.icon!=='trash-outline'))}
       />
+
+      <BottomSheet visible={mergeOpen} onClose={() => !busy && setMergeOpen(false)}>
+        <Text style={[type.title, { marginBottom: spacing.sm }]}>Merge into {name}</Text>
+        <Text style={[type.caption, { marginBottom: spacing.md }]}>Only missing tracks are copied. The other playlist stays unchanged.</Text>
+        {!mergeItems.length ? <Text style={type.caption}>You need another playlist to merge.</Text> : mergeItems.map((playlist) => (
+          <Pressable key={playlist.id} disabled={busy} onPress={() => void fazerMerge(playlist)}
+            style={({ pressed }) => [styles.menuOption, pressed && { backgroundColor: colors.surfacePressed }]}>
+            <Ionicons name="albums-outline" size={20} color={theme.color} />
+            <View style={{ flex: 1, marginLeft: 8 }}><Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>{playlist.name}</Text><Text style={type.caption}>{playlist.trackCount} tracks</Text></View>
+            {busy ? <ActivityIndicator size="small" color={theme.color} /> : <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />}
+          </Pressable>
+        ))}
+      </BottomSheet>
 
       <ShareFriendSheet
         visible={shareFriendOpen}
@@ -700,6 +763,11 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               <FlatList
                 data={filteredLibrary}
                 keyExtractor={(item) => item.sourceId}
+                initialNumToRender={12}
+                maxToRenderPerBatch={10}
+                updateCellsBatchingPeriod={50}
+                windowSize={7}
+                removeClippedSubviews
                 contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
                 renderItem={({ item }) => {
                   const isSelected = selectedIds.has(item.sourceId);
@@ -766,6 +834,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
+  },
+  playlistSearchBox: {
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.md,
   },
   toolbarItem: {
     alignItems: 'center',

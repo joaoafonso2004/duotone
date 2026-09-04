@@ -52,9 +52,9 @@ export function useEstadoDoWidget(): void {
       contaAnterior.current = conta;
     }
     const estado = montarEstado({ faixa, aTocar, cor, amigos });
-    // A presença republica-se de 45 em 45 segundos mesmo sem nada mudar, e a
-    // cor anda a interpolar durante a transição. Escrever a cada uma dessas
-    // vezes acordava o WidgetKit para redesenhar o mesmo.
+    // A presença republica-se mesmo sem nada mudar e a cor anda a interpolar
+    // durante a transição. `mudou` limita o retrato social a uma escrita de
+    // cinco em cinco minutos, em vez de acordar o WidgetKit a cada batimento.
     if (!mudou(anterior.current, estado)) return;
     anterior.current = estado;
     escreverEstado(estado);

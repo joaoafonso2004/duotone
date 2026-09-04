@@ -141,6 +141,21 @@ export async function getLikedSongs(): Promise<Track[]> {
   return faixas;
 }
 
+async function getPlaylistTracksForUser(userId: string): Promise<any[]> {
+  const rows: any[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase
+      .from('playlist_tracks')
+      .select('tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds), playlists!inner (owner_id)')
+      .eq('playlists.owner_id', userId)
+      .range(offset, offset + 999);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
+  }
+  return rows;
+}
+
 export async function getLibrary(): Promise<Track[]> {
   const userId = await currentUserId();
 
@@ -148,15 +163,10 @@ export async function getLibrary(): Promise<Track[]> {
   // playlists. A pagina Songs usa getLikedSongs para nao misturar os dois.
   // As duas consultas nao dependem uma da outra, por isso vao juntas. Em fila
   // somavam-se as duas esperas, e esta e a primeira carga da pagina.
-  const [likedTracks, { data: plTracksData, error: plTracksError }] = await Promise.all([
+  const [likedTracks, plTracksData] = await Promise.all([
     getLikedSongsForUser(userId),
-    supabase
-      .from('playlist_tracks')
-      .select('tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds), playlists!inner (owner_id)')
-      .eq('playlists.owner_id', userId),
+    getPlaylistTracksForUser(userId),
   ]);
-
-  if (plTracksError) throw plTracksError;
 
   const tracksMap = new Map<string, Track>();
 

@@ -12,7 +12,7 @@ import { displayArtist } from '../../lib/artistName';
  * `plays` regista o ARRANQUE de cada faixa e não o fim, por isso quem salta a
  * meio conta o tema inteiro. Ver `lib/listeningStats.ts`.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { fetchListeningStats, type StatsResult } from '../../api/listeningStats';

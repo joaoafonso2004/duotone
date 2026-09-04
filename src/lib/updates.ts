@@ -12,6 +12,7 @@ import { APP_VERSION } from './buildInfo';
 
 const VERSIONS_URL = 'https://joaoafonso.vercel.app/ota/versions.json';
 export const PORTFOLIO_URL = 'https://joaoafonso.vercel.app/#apps';
+export const SIDELOADLY_URL = 'https://sideloadly.io/';
 
 const APP_ID = 'duotone';
 

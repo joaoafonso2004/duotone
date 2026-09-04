@@ -20,6 +20,16 @@ import { displayArtist } from './artistName';
  */
 export const MAXIMO_DE_AMIGOS = 3;
 
+/**
+ * Enquanto a app está viva, renova também a hora do retrato social.
+ *
+ * Sem este limite, `quando` ficava preso à última mudança de música e um
+ * "Updated ... ago" podia dizer horas apesar de a app ter acabado de
+ * confirmar que nada mudou. Cinco minutos mantém o rótulo honesto sem pedir
+ * ao WidgetKit um redesenho a cada batimento de presença.
+ */
+export const INTERVALO_DO_RETRATO_MS = 5 * 60 * 1000;
+
 /** Um nome vazio não identifica ninguém; o utilizador é o recurso. */
 const nomeDe = (amigo: Friendship): string =>
   amigo.name?.trim() || amigo.username?.trim() || 'Someone';
@@ -88,11 +98,13 @@ export function montarEstado(opcoes: {
  * presença actualiza-se de 45 em 45 segundos mesmo quando nada mudou -- sem
  * esta comparação, o widget acordava a toda a hora para desenhar o mesmo.
  *
- * O `quando` fica de fora da comparação, senão nunca havia dois estados
- * iguais e isto não servia de nada.
+ * O `quando` fica fora da comparação do conteúdo, mas força uma renovação de
+ * cinco em cinco minutos. Assim o texto "Updated ... ago" mede uma
+ * sincronização real sem redesenhar a cada batimento.
  */
 export function mudou(anterior: EstadoDoWidget | null, novo: EstadoDoWidget): boolean {
   if (!anterior) return true;
   const semRelogio = ({ quando, ...resto }: EstadoDoWidget) => JSON.stringify(resto);
-  return semRelogio(anterior) !== semRelogio(novo);
+  if (semRelogio(anterior) !== semRelogio(novo)) return true;
+  return novo.quando - anterior.quando >= INTERVALO_DO_RETRATO_MS;
 }

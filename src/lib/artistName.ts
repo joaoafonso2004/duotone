@@ -494,6 +494,28 @@ export function displayArtist(
   return extractArtist(t.title, t.artist, vocabulario) ?? t.artist ?? 'Unknown artist';
 }
 
+/**
+ * Reconstrói a matéria-prima da aba Artistas sem usar canais de uploads como
+ * fallback. Foi criada para a migração isolada da conta @joao: não altera as
+ * faixas nem o catálogo global, apenas a vista calculada dessa conta.
+ */
+export function semCanaisLegadosNosArtistas<T extends FaixaParaAprender>(faixas: readonly T[]): T[] {
+  return faixas.map((faixa) => {
+    if (faixa.source && faixa.source !== 'youtube') return faixa;
+    // Topic e VEVO são metadados oficiais; os restantes canais antigos não
+    // devem voltar a transformar-se em cartões de artista.
+    if (nomeDeFonteFiavel(faixa.artist)) return faixa;
+    return { ...faixa, artist: null };
+  });
+}
+
+/** Migração deliberadamente limitada à conta pedida; suporta metadata antiga. */
+export function contaComResetDeArtistas(metadata: Record<string, unknown> | null | undefined): boolean {
+  const identificador = String(metadata?.username ?? metadata?.name ?? '')
+    .trim().replace(/^@/, '').toLocaleLowerCase();
+  return identificador === 'joao';
+}
+
 // ------------------------------------------------------- o agrupamento -----
 
 export type GrupoDeArtista<T> = {

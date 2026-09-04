@@ -6,7 +6,7 @@ import { useRecommendationFeedback } from '../../state/recommendationFeedback';
  * gostadas e o separador Songs é a vista dela. Não criar uma segunda porta
  * para a mesma coisa.
  */
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getLikedSongs } from '../../api/library';
@@ -17,7 +17,9 @@ import {
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
-import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist } from '../../lib/artistName';
+import { agruparPorArtista, chaveDeArtista, contaComResetDeArtistas, displayArtist, extractArtist, semCanaisLegadosNosArtistas } from '../../lib/artistName';
+import { useAuth } from '../../state/auth';
+import { correspondeAPesquisa } from '../../lib/searchText';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
 import { usePlayer } from '../../state/player';
 import { temRecomendacoes, useRecomendacoes } from '../../state/recomendacoes';
@@ -77,15 +79,17 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
 export function SongsPage(props: CommonPageProps) {
   const data = useLibraryData(getLikedSongs);
   const [query, setQuery] = useState('');
+  const [sortMode, setSortMode] = useState<'recent' | 'title' | 'artist' | 'duration'>('recent');
+  const [sortOpen, setSortOpen] = useState(false);
+  const nomes = { recent: 'Recently added', title: 'Title', artist: 'Artist', duration: 'Duration' } as const;
 
   const filteredTracks = useMemo(() => {
-    if (!query.trim()) return data.tracks;
-    const q = query.toLowerCase();
-    return data.tracks.filter(t => 
-      t.title.toLowerCase().includes(q) || 
-      (t.artist && t.artist.toLowerCase().includes(q))
-    );
-  }, [data.tracks, query]);
+    const filtradas = data.tracks.filter(t => correspondeAPesquisa(query, t.title, t.artist));
+    if (sortMode === 'recent') return filtradas;
+    if (sortMode === 'duration') return [...filtradas].sort((a, b) => (a.durationSeconds ?? 0) - (b.durationSeconds ?? 0));
+    if (sortMode === 'artist') return [...filtradas].sort((a, b) => (a.artist ?? '').localeCompare(b.artist ?? '', undefined, { sensitivity: 'base' }));
+    return [...filtradas].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+  }, [data.tracks, query, sortMode]);
 
   // O Shuffle liga o modo aleatório do player (Fisher-Yates) em vez de
   // baralhar a lista com `sort(() => Math.random() - 0.5)`, que é enviesado e
@@ -105,18 +109,19 @@ export function SongsPage(props: CommonPageProps) {
     else props.play(filteredTracks[0], filteredTracks);
   };
 
-  return <Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary={!ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button></View>}>
+  return <><Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary={!ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{nomes[sortMode]}</Button></View>}>
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search your library" value={query} onChangeText={setQuery} /></View>
       <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>
       <IconButton name="refresh" label="Refresh library" onPress={data.refresh} />
     </View>
-    <ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable plain tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
-  </Page>;
+    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable plain listKey="songs" tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
+  </Page><Dialog open={sortOpen} title="Sort liked songs" onClose={() => setSortOpen(false)}><View style={{ gap: 8 }}>{(Object.keys(nomes) as Array<keyof typeof nomes>).map((modo) => <Button key={modo} secondary={sortMode !== modo} onPress={() => { setSortMode(modo); setSortOpen(false); }}>{nomes[modo]}</Button>)}</View></Dialog></>;
 }
 
 export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) {
   const data = useLibraryData();
+  const resetDoJoao = useAuth((s) => contaComResetDeArtistas(s.session?.user.user_metadata));
   const [query, setQuery] = useState('');
   // Ordem por ESCUTA. Alfabetica era neutra e por isso inutil: quem tem 200
   // artistas nao procura pelo nome, procura por quem ouve. O ranking vem do
@@ -133,14 +138,14 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
   // Agrupado por CHAVE canonica e nao pelo nome mostrado -- era isso que punha
   // `Juice WRLD`, `juice wrld` e `JUICE WRLD` em tres cartoes diferentes.
   const artists = useMemo(
-    () => agruparPorArtista(data.tracks).sort((a, b) => {
+    () => agruparPorArtista(resetDoJoao ? semCanaisLegadosNosArtistas(data.tracks) : data.tracks).sort((a, b) => {
       const ra = ranking.get(a.chave) ?? Infinity;
       const rb = ranking.get(b.chave) ?? Infinity;
       if (ra !== rb) return ra - rb;
       if (a.faixas.length !== b.faixas.length) return b.faixas.length - a.faixas.length;
       return a.nome.localeCompare(b.nome);
     }),
-    [data.tracks, ranking],
+    [data.tracks, ranking, resetDoJoao],
   );
   const filteredArtists = useMemo(() => {
     const q = chaveDeArtista(query);
@@ -152,12 +157,13 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search artists" value={query} onChangeText={setQuery} /></View>
       <Text style={styles.songsResultCount}>{query ? `${filteredArtists.length} of ` : ''}{artists.length} {artists.length === 1 ? 'artist' : 'artists'}</Text>
     </View>
-    <ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : filteredArtists.length ? <View style={styles.playlistGrid}>{filteredArtists.map(({ nome, chave, faixas }) => <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.playlistCardHover]}><View style={styles.playlistArt}><Artwork track={faixas[0]} size={200} /></View><Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text><Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
+    <ContentScroll scrollKey="artists">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : filteredArtists.length ? <View style={styles.playlistGrid}>{filteredArtists.map(({ nome, chave, faixas }) => <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.playlistCardHover]}><View style={styles.playlistArt}><Artwork track={faixas[0]} size={200} /></View><Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text><Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
   </Page>;
 }
 
 export function ArtistPage({ name, back, ...props }: { name: string; back: () => void } & CommonPageProps) {
   const data = useLibraryData();
+  const resetDoJoao = useAuth((s) => contaComResetDeArtistas(s.session?.user.user_metadata));
   const [separador, setSeparador] = useState<'library' | 'tracks' | 'albums'>('library');
   const [outras, setOutras] = useState<Track[]>([]);
   const [albuns, setAlbuns] = useState<YtRecommendedPlaylist[]>([]);
@@ -171,8 +177,9 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   // grafias, senao o cartao dizia 5 faixas e a pagina abria com 2.
   const tracks = useMemo(() => {
     const alvo = chaveDeArtista(name);
-    return agruparPorArtista(data.tracks).find((g) => g.chave === alvo)?.faixas ?? [];
-  }, [data.tracks, name]);
+    const fonte = resetDoJoao ? semCanaisLegadosNosArtistas(data.tracks) : data.tracks;
+    return agruparPorArtista(fonte).find((g) => g.chave === alvo)?.faixas ?? [];
+  }, [data.tracks, name, resetDoJoao]);
 
   useEffect(() => {
     let cancelado = false;
@@ -276,7 +283,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
 
   return <>
     <Page title="Artist" action={<Button secondary icon="arrow-back" onPress={back}>Back to artists</Button>}>
-      <ContentScroll>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <>
+      <ContentScroll scrollKey={`artist:${chaveDeArtista(name)}`}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <>
         <View style={styles.detailHero}>
           <View style={[styles.detailHeroArt, !tracks[0] && artistStyles.heroFallback]}>{tracks[0] ? <Artwork track={tracks[0]} size={176} /> :
             <Ionicons name="person" size={48} color={desktop.dim} />}</View>

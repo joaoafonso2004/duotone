@@ -1,10 +1,12 @@
 import { create } from 'zustand';
+import { AppState, Platform } from 'react-native';
 import { getFriendships, getGrupos, getInboxItems, type Friendship, type ChatGroup, type SharedItem } from '../api/social';
 import { getChatsVistos, marcarChatVisto } from '../lib/prefs';
 import { supabase } from '../lib/supabase';
 import { estadoDaPresenca, type SocialPresence } from '../lib/socialPresence';
 import { clearProfileMediaCache } from '../lib/profileMedia';
 import { getSocialConversations,type PublicProfile } from '../api/profiles';
+import { appEstaVisivel } from '../lib/appVisibility';
 
 interface SocialState {
   profileVersion: number;
@@ -91,14 +93,20 @@ export function iniciarSocial(userId: string): () => void {
   rawFriends = []; presences = {}; available = false; clockOffset = 0; running = null; queued = false;
   useSocial.setState({ contacts:[],friends: [], groups: [], received: [], activity: {}, seen: {}, loading: true, error: null,conversation:null,drafts:{} });
   let debounce: ReturnType<typeof setTimeout>;
-  const refresh = () => { clearTimeout(debounce); debounce = setTimeout(() => void useSocial.getState().refresh(), 100); };
+  let dirty=false;
+  const refresh = () => {
+    if(!appEstaVisivel()){dirty=true;return;}
+    dirty=false;
+    clearTimeout(debounce); debounce = setTimeout(() => void useSocial.getState().refresh(), 100);
+  };
   const channel = supabase.channel(`social:${userId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'social_presence' }, (event) => {
       if (gen !== generation) return;
       const p = event.new as SocialPresence;
       if (p.user_id && (!presences[p.user_id] || Date.parse(p.updated_at) >= Date.parse(presences[p.user_id].updated_at))) {
         presences[p.user_id] = p;
-        useSocial.setState({ friends: friendsNow(Date.now() + clockOffset) });
+        if(appEstaVisivel())useSocial.setState({ friends: friendsNow(Date.now() + clockOffset) });
+        else dirty=true;
       }
     })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, refresh)
@@ -106,13 +114,26 @@ export function iniciarSocial(userId: string): () => void {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, ()=>{useSocial.setState(s=>({profileVersion:s.profileVersion+1}));refresh();})
     .subscribe((status) => { if (status === 'SUBSCRIBED') refresh(); });
   const tick = setInterval(() => {
+    if(!appEstaVisivel())return;
     const now = Date.now() + clockOffset;
     useSocial.setState({ now, friends: friendsNow(now) });
-  }, 15000);
-  const recovery = setInterval(refresh, 30000);
+  }, 30000);
+  // Realtime é o caminho normal. A consulta periódica é só recuperação de uma
+  // quebra silenciosa, por isso dois minutos chegam e evitam duas leituras
+  // sociais completas por minuto enquanto nada muda.
+  const recovery = setInterval(refresh, 120000);
+  const acordar=()=>{
+    if(!appEstaVisivel())return;
+    const now=Date.now()+clockOffset;
+    useSocial.setState({now,friends:friendsNow(now)});
+    if(dirty)refresh(); else void useSocial.getState().refresh();
+  };
+  const app=AppState.addEventListener('change',acordar);
+  if(Platform.OS==='web')document.addEventListener('visibilitychange',acordar);
   void useSocial.getState().refresh();
   return () => {
     ++generation; clearTimeout(debounce); clearInterval(tick); clearInterval(recovery);
+    app.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar);
     accountId='';clearProfileMediaCache();
     void supabase.removeChannel(channel);
     rawFriends = []; presences = {}; available = false; running = null; queued = false;

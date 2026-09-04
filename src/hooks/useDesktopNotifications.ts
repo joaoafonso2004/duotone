@@ -49,7 +49,10 @@ export function useDesktopNotifications(abrirSocial: (conversation?:{friendId?:s
         // Voltar a ler mantém a mesma filtragem RLS e a ordem do polling.
         void consultar();
       }).subscribe();
-    const timer = setInterval(() => void consultar(), 15000);
+    // O canal Realtime avisa de imediato; o polling só recupera uma quebra
+    // silenciosa da ligação. Dois minutos evitam quatro consultas por minuto
+    // numa app que costuma ficar aberta dias no tabuleiro.
+    const timer = setInterval(() => void consultar(), 120000);
     const desligarClique = desktop.onNotificationClick?.(abrirSocial);
     void consultar();
     return () => {

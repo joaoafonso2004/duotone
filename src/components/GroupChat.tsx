@@ -1,6 +1,6 @@
 import React from 'react';
 import {ActivityIndicator,Image,Platform,Pressable,ScrollView,StyleSheet,Text,TextInput,View} from 'react-native';
-import {Ionicons} from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import {LinearGradient} from 'expo-linear-gradient';
 import type {ChatGroup,Reaction,SharedItem} from '../api/social';
 import type {Playlist,Track} from '../types';
@@ -112,9 +112,16 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
 
 export function GroupComposer({value,onChange,onSend,busy}:{value:string;onChange:(text:string)=>void;onSend:()=>void;busy:boolean}) {
   const theme=useTheme(s=>s.theme),web=Platform.OS==='web',disabled=busy||!value.trim();
+  const aoCarregarTecla=(e:any)=>{
+    const evento=e?.nativeEvent??e;
+    if(!web||evento?.key!=='Enter'||evento?.shiftKey||evento?.isComposing)return;
+    e.preventDefault?.();evento.preventDefault?.();
+    if(!disabled)onSend();
+  };
   return <View style={[s.row,{alignItems:'flex-end',gap:8,padding:6,borderRadius:web?radii.lg:28,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.borderStrong}]}>
     <TextInput accessibilityLabel="Message" placeholder="Message the group…" placeholderTextColor={colors.textSecondary}
       value={value} onChangeText={onChange} multiline numberOfLines={1} maxLength={4000} editable={!busy}
+      {...({onKeyDown:aoCarregarTecla} as any)}
       style={[s.text,{flex:1,minWidth:0,minHeight:44,maxHeight:110,paddingHorizontal:12,paddingVertical:12}]}/>
     <Pressable accessibilityRole="button" accessibilityLabel="Send message" accessibilityState={{disabled,busy}} disabled={disabled} onPress={onSend}
       style={({pressed})=>({width:44,height:44,borderRadius:22,overflow:'hidden',alignItems:'center',justifyContent:'center',

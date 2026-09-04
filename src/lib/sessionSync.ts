@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import {
   deleteOwnSession,
   fetchOtherSessions,
@@ -16,6 +16,7 @@ import {
   type RemoteSession,
 } from './handoff';
 import { usePlayer } from '../state/player';
+import { appEstaVisivel } from './appVisibility';
 
 /**
  * O motor do "continuar noutro dispositivo": escreve a sessão deste
@@ -25,7 +26,7 @@ import { usePlayer } from '../state/player';
  * `api/` só fala com o Supabase.
  */
 
-const POLL_MS = 20_000;
+const POLL_MS = 60_000;
 
 /** Quanto tempo um dispositivo fica silenciado depois de o dispensarmos (ou
  * de lhe assumirmos a reprodução). Ver a nota em `shouldOfferHandoff`: a
@@ -166,16 +167,16 @@ export function useHandoffSession(): {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    if(appEstaVisivel())void refresh();
     const id = setInterval(() => {
       // Em segundo plano não vale a pena gastar rede: ao voltar a "active"
       // o listener abaixo recarrega de imediato.
-      if (AppState.currentState === 'active') void refresh();
+      if (appEstaVisivel()) void refresh();
     }, POLL_MS);
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void refresh();
-    });
-    return () => { clearInterval(id); sub.remove(); };
+    const acordar=()=>{if(appEstaVisivel())void refresh();};
+    const sub = AppState.addEventListener('change', acordar);
+    if(Platform.OS==='web')document.addEventListener('visibilitychange',acordar);
+    return () => { clearInterval(id); sub.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar); };
   }, [refresh]);
 
   const picked = myDeviceId ? pickHandoffSession(sessions, myDeviceId) : null;
@@ -188,7 +189,7 @@ export function useHandoffSession(): {
   // quando deixa de ser fresca.
   useEffect(() => {
     if (!visible) return;
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    const id = setInterval(() => {if(appEstaVisivel())setTick((t) => t + 1);}, 1000);
     return () => clearInterval(id);
   }, [!!visible]);
 
