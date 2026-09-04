@@ -118,7 +118,7 @@ jobs:
       # arquivo que passe sem o .appex daria um IPA válido, mas sem widget.
       - name: Confirmar widget dentro da app
         run: |
-          WIDGET="build/Duotone.xcarchive/Products/Applications/Duotone.app/PlugIns/DuotoneWidget.appex"
+          WIDGET="build/Duotone.xcarchive/Products/Applications/Duotone.app/PlugIns/DuotoneHomeWidget.appex"
           test -d "$WIDGET"
           plutil -p "$WIDGET/Info.plist"
 

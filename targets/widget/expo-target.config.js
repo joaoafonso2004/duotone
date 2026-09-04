@@ -13,7 +13,9 @@ module.exports = {
   type: 'widget',
   // O alvo principal já se chama Duotone. Repetir o nome aqui colide no
   // projecto Xcode gerado; o displayName pode continuar a ser o da app.
-  name: 'DuotoneWidget',
+  // Distinto do pod nativo `DuotoneWidget`, que escreve no App Group. Dois
+  // alvos Xcode com o mesmo nome fazem o autolinking perder esse módulo.
+  name: 'DuotoneHomeWidget',
   displayName: 'Duotone',
   bundleIdentifier: '.widget',
   icon: '../../assets/icon.png',
