@@ -8,7 +8,7 @@ import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '.
 import { BUILD_ID } from '../lib/buildInfo';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
-import { acaoDoWatchdog } from '../lib/fimDeFaixa';
+import { acaoDoWatchdog, fimPorFaltaDeDados } from '../lib/fimDeFaixa';
 import { definirCapaDoEcraBloqueado, temCapaNativa } from '../../modules/duotone-remote-commands';
 import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
@@ -580,6 +580,23 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const fallbackRef = useRef(runDownloadFallback);
   fallbackRef.current = runDownloadFallback;
 
+  /**
+   * O fim que o AVPlayer não anunciou. Segue exatamente o caminho do
+   * `playToEnd` para o repeat e a fila se comportarem na mesma, e é
+   * idempotente por `endedRef` -- os dois detetores podem disparar juntos.
+   */
+  const avancarPorFimSilencioso = () => {
+    if (endedRef.current || usePlayer.getState().closing) return;
+    if (nativeTrackIdRef.current !== track.sourceId) return;
+    if (repeatMode === 'one') {
+      player.currentTime = 0;
+      player.play();
+      return;
+    }
+    endedRef.current = true;
+    onStateChange('ended');
+  };
+
   // Eventos do player nativo -> store
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
     // Mudar de ritmo faz o expo-video reconstruir os alvos do Now Playing e
@@ -644,6 +661,25 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // `readyToPlay` faz o expo-video reconstruir os alvos. Numa ligação lenta
     // chega muito depois da faixa mudar, fora de qualquer janela de espera.
     if (status === 'readyToPlay') reafirmarComandosDeFaixa();
+
+    // Fim de faixa com o ecrã bloqueado. O `setInterval` do watchdog é
+    // suspenso pelo iOS aí; este evento vem de KVO no AVPlayer e continua a
+    // chegar. É também o único sinal que separa uma pausa (readyToPlay) de
+    // um encravamento (loading) -- ver src/lib/fimDeFaixa.ts.
+    if (
+      backend === 'native' &&
+      nativeTrackIdRef.current === track.sourceId &&
+      fimPorFaltaDeDados({
+        querTocar: wantsPlayRef.current,
+        aCarregar: status === 'loading',
+        aTocar: player.playing,
+        posicaoSegundos: lastProgressRef.current.time,
+        duracaoSegundos: track.durationSeconds || streamRef.current?.durationSeconds || 0,
+      })
+    ) {
+      avancarPorFimSilencioso();
+      return;
+    }
     if (backend !== 'native' || status !== 'error' || nativeTrackIdRef.current !== track.sourceId) return;
     fallbackRef.current().then((handled) => {
       if (!handled) {
@@ -695,18 +731,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         return;
       }
       if (acao !== 'avancar') return;
-
-      // O fim que o AVPlayer não anunciou: segue-se o mesmo caminho do
-      // `playToEnd`, para repeat e fila se comportarem exatamente na mesma.
-      if (endedRef.current || usePlayer.getState().closing) return;
-      if (nativeTrackIdRef.current !== track.sourceId) return;
-      if (repeatMode === 'one') {
-        player.currentTime = 0;
-        player.play();
-        return;
-      }
-      endedRef.current = true;
-      onStateChange('ended');
+      avancarPorFimSilencioso();
     }, 2000);
     return () => clearInterval(id);
   }, [backend, track.durationSeconds, track.sourceId, repeatMode, player, onStateChange]);
