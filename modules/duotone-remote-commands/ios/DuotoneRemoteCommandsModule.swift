@@ -42,6 +42,38 @@ public class DuotoneRemoteCommandsModule: Module {
       }
     }
 
+    /**
+     * A capa reduzida a uma grelha de médias, para dela sair a cor.
+     *
+     * O lado do PC faz isto com `canvas`: desenha a imagem em 4x4 e lê as
+     * dezasseis células. No telemóvel usava-se um blurhash, que NÃO é a mesma
+     * coisa -- é uma reconstrução por cossenos, com oscilação, e inventa cores
+     * que a foto não tem. Como quem escolhe o tom fica com a célula mais
+     * saturada, bastava um artefacto para o perfil ficar roxo de uma fotografia
+     * castanha, e o mesmo ficheiro dava tons diferentes nas duas plataformas.
+     *
+     * Devolve r,g,b seguidos, saltando o que vier translúcido -- exactamente o
+     * que o `celulasDaCapa.web.ts` faz.
+     */
+    AsyncFunction("sampleCells") { (url: String, colunas: Int, linhas: Int, promise: Promise) in
+      guard let endereco = URL(string: url), colunas > 0, linhas > 0 else {
+        promise.resolve([Int]())
+        return
+      }
+      URLSession.shared.dataTask(with: endereco) { [weak self] dados, resposta, _ in
+        guard let self = self,
+              (resposta as? HTTPURLResponse)?.statusCode == 200,
+              let dados = dados,
+              let imagem = UIImage(data: dados),
+              let cg = imagem.cgImage
+        else {
+          promise.resolve([Int]())
+          return
+        }
+        promise.resolve(self.amostrar(cg, colunas, linhas))
+      }.resume()
+    }
+
     OnDestroy {
       DispatchQueue.main.async { [weak self] in
         guard let self = self else { return }
@@ -315,6 +347,43 @@ public class DuotoneRemoteCommandsModule: Module {
 
     if util.isEmpty { return quadradoCentral(cg, tudo) ?? imagem }
     return quadradoCentral(cg, util) ?? imagem
+  }
+
+  /// A imagem desenhada numa grelha pequena, uma média por célula.
+  private func amostrar(_ cg: CGImage, _ colunas: Int, _ linhas: Int) -> [Int] {
+    var pixeis = [UInt8](repeating: 0, count: colunas * linhas * 4)
+
+    let desenhou: Bool = pixeis.withUnsafeMutableBytes { buffer -> Bool in
+      guard let base = buffer.baseAddress,
+            let ctx = CGContext(
+              data: base,
+              width: colunas,
+              height: linhas,
+              bitsPerComponent: 8,
+              bytesPerRow: colunas * 4,
+              space: CGColorSpaceCreateDeviceRGB(),
+              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            )
+      else { return false }
+      // Sem isto a redução apanha um pixel a cada salto em vez da média da
+      // área, e uma capa com detalhe fino dava cores que lá não estão.
+      ctx.interpolationQuality = .high
+      ctx.draw(cg, in: CGRect(x: 0, y: 0, width: colunas, height: linhas))
+      return true
+    }
+
+    guard desenhou else { return [] }
+
+    var saida: [Int] = []
+    saida.reserveCapacity(colunas * linhas * 3)
+    for i in stride(from: 0, to: pixeis.count, by: 4) {
+      // Margens translúcidas de um PNG não são cor da capa.
+      if pixeis[i + 3] < 200 { continue }
+      saida.append(Int(pixeis[i]))
+      saida.append(Int(pixeis[i + 1]))
+      saida.append(Int(pixeis[i + 2]))
+    }
+    return saida
   }
 
   /// O maior quadrado centrado dentro de `zona`, já recortado da imagem.

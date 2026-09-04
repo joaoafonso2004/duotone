@@ -6,7 +6,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
 import {FriendAvatar} from './FriendAvatar';
 import {SocialButton,socialStyles as s} from './socialUI';
-import {enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
+import {enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {lerCelulasDaCapa} from '../lib/celulasDaCapa';
 import {veuDaCapa} from '../lib/corDaCapa';
 import {colors,SOCIAL_GUTTER,type} from './socialTokens';
@@ -50,13 +50,32 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
     void lerCelulasDaCapa(cover).then(celulas=>{if(vivo)setVeu(veuDaCapa(celulas));});
     return ()=>{vivo=false;};
   },[cover]);
-  const capa=(estilo:any)=>{
-    if(!recorte||!caixa.largura||!caixa.altura)
-      return <Image source={{uri:cover!}} resizeMode="cover" style={estilo}/>;
-    const p=enquadrarPreVisualizacao(recorte.largura,recorte.altura,RACIO_DA_CAPA,recorte.x,recorte.y,caixa.largura,caixa.altura);
-    return <View style={[estilo,{overflow:'hidden'}]}>
-      <Image source={{uri:cover!}} resizeMode="stretch" style={{position:'absolute',width:p.width,height:p.height,left:p.left,top:p.top}}/>
-    </View>;
+  /**
+   * A capa a preencher o cabeçalho todo, encostada ao topo.
+   *
+   * Estava aqui uma caixa com o rácio do recorte no telemóvel e um
+   * `absoluteFill` no PC, e as duas divergiam em tudo o que se vê: no telemóvel
+   * a caixa é mais baixa do que o cabeçalho, por isso a foto acabava antes da
+   * biografia e as vinhetas caíam sobre fundo liso em vez de sobre a imagem; no
+   * PC a mesma capa era cortada ao centro, e mostrava outra parte da fotografia.
+   *
+   * Agora é um caminho só: a imagem é escalada até cobrir a caixa medida, sem
+   * deformar, e alinhada ao TOPO -- que é onde está o que a pessoa enquadrou no
+   * editor, e o que o resto do cabeçalho cobre por baixo.
+   */
+  const capa=()=>{
+    if(!caixa.largura||!caixa.altura)return null;
+    // No editor a imagem ainda é a original, por recortar: quem manda no
+    // enquadramento é o gesto em curso.
+    if(recorte){
+      const p=enquadrarPreVisualizacao(recorte.largura,recorte.altura,RACIO_DA_CAPA,recorte.x,recorte.y,caixa.largura,caixa.altura);
+      return <Image source={{uri:cover!}} resizeMode="stretch"
+        style={{position:'absolute',width:p.width,height:p.height,left:p.left,top:p.top,opacity:0.78}}/>;
+    }
+    // Capa já gravada: vem no rácio do recorte, e só falta cobrir a caixa.
+    const e=enquadrarCapa(caixa.largura,caixa.altura);
+    return <Image source={{uri:cover!}} resizeMode="cover"
+      style={{position:'absolute',width:e.largura,height:e.altura,left:e.left,top:e.top,opacity:0.78}}/>;
   };
   const action=(label:string,icon:keyof typeof Ionicons.glyphMap,onPress:()=>void,badge=0)=><Pressable key={label}
     accessibilityRole="button" accessibilityLabel={badge?`${label}, ${badge} unread`:label} onPress={onPress}
@@ -66,29 +85,21 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
   </Pressable>;
   return <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?320:360,overflow:'hidden',backgroundColor:colors.bg}}>
     {!!cover&&<View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* No telemóvel a caixa tem o rácio do recorte, por isso a capa cabe lá
-          inteira. No PC não há caixa — a capa preenche o cabeçalho de ponta a
-          ponta, e uma faixa larga corta-lhe em cima e em baixo. Um cabeçalho
-          não tem margens: já aqui esteve um `aspectRatio` com `maxHeight` que
-          num ecrã largo deixava a capa a flutuar a meio do painel. */}
+      {/* Um cabeçalho não tem margens. O desfoque por baixo preenche o que a
+          capa não chegue a tapar em proporções extremas. */}
       <Image source={{uri:cover}} resizeMode="cover" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
-      {web?<View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})} style={StyleSheet.absoluteFill}>
-        {capa([StyleSheet.absoluteFill,{opacity:0.78}])}
-      </View>:
-      <View style={[StyleSheet.absoluteFill,{justifyContent:'flex-start',alignItems:'center'}]}>
-        {/* Encostada ao topo, não centrada: assim começa por trás do título em
-            vez de flutuar a meio, e a vinheta é que a acaba por baixo.
-            O rácio é O MESMO do recorte, e tem de continuar a ser: com uma
-            forma diferente aqui, o cabeçalho corta a imagem uma segunda vez
-            por cima do recorte e uma foto vertical acaba ampliada até só se
-            ver um ombro. */}
-        <View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})} style={{width:'100%',aspectRatio:RACIO_DA_CAPA}}>
-          {capa([StyleSheet.absoluteFill,{opacity:0.78}])}
-          <LinearGradient colors={['transparent','transparent',colors.bg]} locations={[0,0.55,1]} style={StyleSheet.absoluteFill}/>
-        </View>
-      </View>}
-      <LinearGradient colors={['rgba(10,10,15,0.2)','rgba(10,10,15,0.08)','rgba(10,10,15,0.65)',colors.bg]} locations={[0,0.32,0.8,1]} style={StyleSheet.absoluteFill}/>
-      <LinearGradient colors={['rgba(10,10,15,0.45)','transparent','rgba(10,10,15,0.45)']} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
+      {/* Uma caixa só, medida, igual nas duas plataformas. */}
+      <View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})}
+        style={[StyleSheet.absoluteFill,{overflow:'hidden'}]}>
+        {capa()}
+      </View>
+      {/* A vinheta. Dois eixos, porque não há gradiente radial nativo -- o
+          vertical acaba a capa no fundo do cabeçalho e escurece o topo para o
+          título se ler; o horizontal fecha os lados. Parecia ter desaparecido
+          porque no telemóvel caía quase toda fora da foto, sobre o fundo liso
+          que sobrava por baixo da caixa antiga. */}
+      <LinearGradient colors={['rgba(10,10,15,0.34)','rgba(10,10,15,0.08)','rgba(10,10,15,0.68)',colors.bg]} locations={[0,0.32,0.82,1]} style={StyleSheet.absoluteFill}/>
+      <LinearGradient colors={['rgba(10,10,15,0.55)','transparent','transparent','rgba(10,10,15,0.55)']} locations={[0,0.22,0.78,1]} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
       {/* Por cima das vinhetas e não por baixo: elas escurecem para o texto se
           ler, e o véu é o que devolve ao cabeçalho o tom da capa depois disso.
           Ficando por baixo, o cinzento delas comia-o. */}

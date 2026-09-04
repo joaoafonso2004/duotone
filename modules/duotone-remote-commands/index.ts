@@ -59,3 +59,19 @@ export function addPlayPauseListeners(onPlay: () => void, onPause: () => void): 
     b.remove();
   };
 }
+
+/**
+ * A capa reduzida a uma grelha de médias (r,g,b seguidos).
+ *
+ * Existe para o telemóvel chegar às MESMAS células que o PC tira do `canvas`.
+ * Devolve null quando não há módulo nativo, e quem chama volta ao blurhash.
+ */
+export async function amostrarCapaNativa(
+  uri: string,
+  colunas: number,
+  linhas: number
+): Promise<number[] | null> {
+  if (!native?.sampleCells) return null;
+  const valores = await native.sampleCells(uri, colunas, linhas);
+  return Array.isArray(valores) && valores.length >= 3 ? (valores as number[]) : null;
+}

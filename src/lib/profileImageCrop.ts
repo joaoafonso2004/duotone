@@ -79,3 +79,31 @@ export function arrastarFoco(
   const novo=focoActual-emPixeisDaImagem/livre;
   return Math.max(0,Math.min(1,novo));
 }
+
+/**
+ * A capa JÁ GRAVADA a cobrir uma caixa, sem deformar e encostada ao topo.
+ *
+ * Existe para o telemóvel e o PC mostrarem a mesma parte da fotografia. Antes
+ * o telemóvel punha a capa numa caixa com o rácio do recorte -- mais baixa do
+ * que o cabeçalho, por isso a foto acabava a meio e as vinheta caíam sobre o
+ * fundo liso -- e o PC preenchia o cabeçalho cortando ao CENTRO, o que mostrava
+ * outra zona da imagem.
+ *
+ * O topo é a âncora de propósito: é onde está o que a pessoa enquadrou, e o
+ * resto do cabeçalho (avatar, nome, biografia) vem por cima do fundo.
+ *
+ * Cobre sempre: a caixa larga transborda por baixo, a caixa alta transborda
+ * pelos lados, e nunca fica margem à vista.
+ */
+export function enquadrarCapa(
+  caixaLargura: number,
+  caixaAltura: number,
+  racio: number = RACIO_DA_CAPA,
+): { largura: number; altura: number; left: number; top: number } {
+  if (!(caixaLargura > 0) || !(caixaAltura > 0) || !(racio > 0)) {
+    return { largura: 0, altura: 0, left: 0, top: 0 };
+  }
+  const largura = Math.max(caixaLargura, caixaAltura * racio);
+  const altura = largura / racio;
+  return { largura, altura, left: (caixaLargura - largura) / 2, top: 0 };
+}
