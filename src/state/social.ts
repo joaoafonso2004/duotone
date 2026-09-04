@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { AppState, Platform } from 'react-native';
-import { getFriendships, getGrupos, getInboxItems, type Friendship, type ChatGroup, type SharedItem } from '../api/social';
+import { getFriendships, getGrupos, getInboxItems, lerConversasVistas, marcarConversaVista, type Friendship, type ChatGroup, type SharedItem } from '../api/social';
 import { getChatsVistos, marcarChatVisto } from '../lib/prefs';
 import { supabase } from '../lib/supabase';
 import { estadoDaPresenca, type SocialPresence } from '../lib/socialPresence';
+import { fundirVistos } from '../lib/social';
 import { clearProfileMediaCache } from '../lib/profileMedia';
 import { getSocialConversations,type PublicProfile } from '../api/profiles';
 import { appEstaVisivel } from '../lib/appVisibility';
@@ -46,7 +47,7 @@ export const useSocial = create<SocialState>((set, get) => ({
     const gen = generation;
     const job = async () => {
       try {
-        const [friends, groups, received, seen, presence,contacts,activity] = await Promise.all([
+        const [friends, groups, received, seenLocal, presence,contacts,activity,seenRemoto] = await Promise.all([
           getFriendships(), getGrupos(), getInboxItems(), getChatsVistos(accountId), supabase.rpc('get_social_presence'),getSocialConversations(),
           // Uma instalação sem o SQL novo continua a abrir: fica sem ordem, não sem lista.
           (async():Promise<Record<string,number>>=>{
@@ -55,6 +56,11 @@ export const useSocial = create<SocialState>((set, get) => ({
               if(r.error||!r.data)return {};
               return Object.fromEntries((r.data as {outro:string;ultima:string}[]).map(x=>[x.outro,Date.parse(x.ultima)]));
             }catch{return {};}
+          })(),
+          // Idem: sem o chat-reads.sql aplicado, a marca fica só local — que
+          // é exatamente o comportamento antigo, não uma avaria.
+          (async():Promise<Record<string,string>>=>{
+            try{return await lerConversasVistas();}catch{return {};}
           })(),
         ]);
         if (gen !== generation) return;
@@ -68,6 +74,9 @@ export const useSocial = create<SocialState>((set, get) => ({
           }
         }
         const now = Date.now() + clockOffset;
+        // Nenhum lado manda sobre o outro: o local pode estar à frente (leste
+        // agora, sem rede) e a conta também (leste no outro aparelho).
+        const seen = fundirVistos(seenLocal, seenRemoto);
         set({ contacts,friends: friendsNow(now), groups, received, activity, seen, now, loading: false,
           error: presence.error ? 'Could not update presence. Try again.' : null });
       } catch (e) {
@@ -82,7 +91,15 @@ export const useSocial = create<SocialState>((set, get) => ({
     });
     return running;
   },
-  markRead: async (id,timestamp) => { const gen=generation;const seen=await marcarChatVisto(id,timestamp,accountId);if(gen===generation)set({seen}); },
+  markRead: async (id,timestamp) => {
+    const gen=generation;
+    // O local primeiro: a bolinha tem de sair já, com ou sem rede.
+    const seen=await marcarChatVisto(id,timestamp,accountId);
+    if(gen===generation)set({seen});
+    // E depois a conta, para os outros aparelhos saberem. Falhar aqui só
+    // deixa a marca por partilhar; o próximo markRead com rede resolve.
+    try{await marcarConversaVista(id,timestamp);}catch{/* sem rede, ou SQL por aplicar */}
+  },
 }));
 let accountId='';
 

@@ -64,3 +64,23 @@ export function totalNaoLidas(porAmigo: ReadonlyMap<string, number>): number {
   for (const n of porAmigo.values()) total += n;
   return total;
 }
+
+/**
+ * Junta a marca local com a da conta, ficando com a mais recente de cada
+ * conversa.
+ *
+ * Nenhum dos lados manda sobre o outro: o local pode estar à frente (acabaste
+ * de abrir a conversa, ainda sem rede) e a conta pode estar à frente (leste no
+ * outro aparelho). Datas por perceber são ignoradas em vez de apagarem uma
+ * marca boa.
+ */
+export function fundirVistos(local: ChatsVistos, remoto: ChatsVistos): ChatsVistos {
+  const juntos: Record<string, string> = { ...local };
+  for (const [conversa, quando] of Object.entries(remoto)) {
+    const t = Date.parse(quando);
+    if (!Number.isFinite(t)) continue;
+    const atual = Date.parse(juntos[conversa] ?? '');
+    if (!Number.isFinite(atual) || t > atual) juntos[conversa] = quando;
+  }
+  return juntos;
+}

@@ -550,3 +550,39 @@ export async function apagarConversa(friendId: string): Promise<void> {
     .or(`and(sender_id.eq.${currentUid},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${currentUid})`);
   if (error) throw new Error('Could not delete this conversation.');
 }
+
+/**
+ * Até onde cada conversa já foi lida, na CONTA e não no aparelho.
+ *
+ * A marca vivia só em AsyncStorage: ler no PC não tirava a bolinha do
+ * telemóvel, e uma reinstalação trazia tudo de volta por ler. Ver
+ * supabase/chat-reads.sql, que é preciso correr à mão.
+ *
+ * Falhar aqui não é motivo para partir o Social: quem chama fica com a marca
+ * local, que é o comportamento antigo.
+ */
+export async function lerConversasVistas(): Promise<Record<string, string>> {
+  const { data, error } = await supabase
+    .from('chat_reads')
+    .select('conversation,last_read_at');
+  if (error) throw error;
+  const mapa: Record<string, string> = {};
+  for (const linha of data ?? []) {
+    if (typeof linha.conversation === 'string' && linha.last_read_at) {
+      mapa[linha.conversation] = new Date(linha.last_read_at).toISOString();
+    }
+  }
+  return mapa;
+}
+
+/** Avança a marca de uma conversa. A RLS garante que só se escreve na própria. */
+export async function marcarConversaVista(conversation: string, quando: string): Promise<void> {
+  const uid = await currentUserId();
+  const { error } = await supabase
+    .from('chat_reads')
+    .upsert(
+      { user_id: uid, conversation, last_read_at: quando },
+      { onConflict: 'user_id,conversation' }
+    );
+  if (error) throw error;
+}

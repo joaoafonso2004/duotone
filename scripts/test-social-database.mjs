@@ -280,5 +280,22 @@ const appearanceBefore=(await q('select get_social_profile($1) as p',[uid(1)])).
 await q('select save_profile_appearance($1,$2,$3)',[{...appearanceBefore,bio:'Bio atualizada'},appearanceBefore.version,'Um']);
 assert.deepEqual((await readHighlights()).playlistIds,pinsBefore);
 console.log('Destaques: limite, visibilidade, gravação atómica e isolamento das preferências passaram.');
+// --- Marca de leitura das conversas, partilhada entre PC e telemóvel ---
+// Duas vezes: as migrações correm à mão e a segunda aplicação tem de passar.
+await db.exec('reset role;');await db.exec(ler('chat-reads.sql'));await db.exec(ler('chat-reads.sql'));await db.exec('grant all on all tables in schema public to authenticated;');
+await como(1);
+await q(`insert into chat_reads(user_id,conversation,last_read_at) values($1,$2,now())`,[uid(1),uid(2)]);
+await q(`insert into chat_reads(user_id,conversation,last_read_at) values($1,'group:abc',now())`,[uid(1)]);
+assert.equal((await q('select * from chat_reads')).rows.length,2);
+// A marca é do leitor: ninguém mais a vê nem a escreve por ele.
+await como(2);
+assert.equal((await q('select * from chat_reads')).rows.length,0);
+await assert.rejects(q(`insert into chat_reads(user_id,conversation,last_read_at) values($1,$2,now())`,[uid(1),uid(3)]));
+assert.equal((await q(`update chat_reads set last_read_at=now() returning *`)).rows.length,0);
+assert.equal((await q(`delete from chat_reads returning *`)).rows.length,0);
+// O dono continua a poder avançar a sua própria marca.
+await como(1);
+assert.equal((await q(`update chat_reads set last_read_at=now() where conversation=$1 returning *`,[uid(2)])).rows.length,1);
+console.log('Marca de leitura: por conta, isolada entre utilizadores e idempotente na dupla aplicação.');
 console.log('SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos, grupos, ajustes por faixa, playlists no perfil e Storage passaram.');
 }finally{await db.close();}

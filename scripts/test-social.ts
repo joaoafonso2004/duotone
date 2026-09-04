@@ -1,4 +1,4 @@
-import { naoLidasPorAmigo, totalNaoLidas } from '../src/lib/social.ts';
+import { fundirVistos, naoLidasPorAmigo, totalNaoLidas } from '../src/lib/social.ts';
 
 let mau = 0;
 const check = (rotulo: string, ok: boolean, extra = '') => {
@@ -51,6 +51,27 @@ eq('sem nada recebido', totalNaoLidas(naoLidasPorAmigo([], {})), 0);
 eq('sem remetente e ignorado',
   naoLidasPorAmigo([{ sender: { id: '' }, createdAt: '2026-09-01T10:00:00Z' }], {}).size, 0);
 eq('total de um mapa vazio', totalNaoLidas(new Map()), 0);
+
+// --- Marca de leitura partilhada entre o PC e o telemovel ---
+const LIDO_CEDO = '2026-09-04T10:00:00.000Z';
+const LIDO_TARDE = '2026-09-04T12:00:00.000Z';
+check('fundir: a conta esta a frente do aparelho',
+  fundirVistos({ amigo: LIDO_CEDO }, { amigo: LIDO_TARDE }).amigo === LIDO_TARDE);
+check('fundir: o aparelho esta a frente da conta',
+  fundirVistos({ amigo: LIDO_TARDE }, { amigo: LIDO_CEDO }).amigo === LIDO_TARDE);
+check('fundir: conversa que so existe na conta entra',
+  fundirVistos({}, { amigo: LIDO_CEDO }).amigo === LIDO_CEDO);
+check('fundir: conversa que so existe no aparelho fica',
+  fundirVistos({ amigo: LIDO_CEDO }, {}).amigo === LIDO_CEDO);
+check('fundir: data por perceber nao apaga a marca boa',
+  fundirVistos({ amigo: LIDO_CEDO }, { amigo: 'nao-e-data' }).amigo === LIDO_CEDO);
+check('fundir: grupos usam a mesma chave',
+  fundirVistos({}, { 'group:xyz': LIDO_TARDE })['group:xyz'] === LIDO_TARDE);
+check('fundir: nao altera o mapa que recebe', (() => {
+  const local = { amigo: LIDO_CEDO };
+  fundirVistos(local, { amigo: LIDO_TARDE });
+  return local.amigo === LIDO_CEDO;
+})());
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);
