@@ -26,3 +26,18 @@ export function addRemoteCommandListeners(
     b.remove();
   };
 }
+
+/** Há módulo nativo para a capa? Sem ele deixamos o expo-video tratar dela. */
+export function temCapaNativa(): boolean {
+  return !!native?.setArtwork;
+}
+
+/**
+ * Capa do Lock Screen / CarPlay, já sem as barras pretas do YouTube.
+ *
+ * As fontes vão por ordem de preferência (ver src/lib/capaDoEcraBloqueado.ts);
+ * fica a primeira que responder. Lista vazia limpa a capa.
+ */
+export function definirCapaDoEcraBloqueado(urls: string[]): void {
+  native?.setArtwork(urls);
+}

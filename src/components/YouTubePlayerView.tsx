@@ -7,6 +7,8 @@ import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
+import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
+import { definirCapaDoEcraBloqueado, temCapaNativa } from '../../modules/duotone-remote-commands';
 import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
 import { targetVolume } from '../lib/loudness';
@@ -119,7 +121,11 @@ function metadadosDoEcraBloqueado(track: Track) {
   return {
     title: track.title,
     artist: displayArtist(track),
-    artwork: track.artworkUrl ?? undefined,
+    // Com o módulo nativo a capa é posta por nós, já sem as barras pretas
+    // do YouTube -- e o expo-video só sobrescreve MPMediaItemPropertyArtwork
+    // se lhe passarmos `artwork` aqui. Sem módulo (Expo Go, build antiga)
+    // volta ao thumbnail cru, que é melhor do que ficar sem capa nenhuma.
+    artwork: temCapaNativa() ? undefined : (track.artworkUrl ?? undefined),
   };
 }
 
@@ -186,6 +192,14 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const sub = AppState.addEventListener('change', ajustar);
     return () => sub.remove();
   }, [player]);
+
+  // A capa vai para o Lock Screen e para o ecrã do carro recortada, sem as
+  // barras que o YouTube põe à volta -- o recorte é no nativo, que tem acesso
+  // aos píxeis. Ver src/lib/capaDoEcraBloqueado.ts.
+  useEffect(() => {
+    if (!temCapaNativa()) return;
+    definirCapaDoEcraBloqueado(urlsDaCapa(track.artworkUrl));
+  }, [track.sourceId, track.artworkUrl]);
 
   // Repeat "one": o player nativo repete a própria faixa (sem passar por
   // 'ended'/next). Reativo ao modo de repetição escolhido no player.
