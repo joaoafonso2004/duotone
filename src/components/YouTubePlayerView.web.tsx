@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { searchYouTube } from '../api/youtube';
 import { pickBest } from '../lib/trackMatch';
 import { rememberPlaybackAlternative } from '../lib/playbackAlternatives';
@@ -106,42 +106,69 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const hostId = useRef(`duotone-player-${Math.random().toString(36).slice(2)}`);
   const playerRef = useRef<any>(null);
 
-  useEffect(() => {
-    let player: any;
-    let progress: ReturnType<typeof setInterval> | undefined;
-    let disposed = false;
-    let ready = false;
-    let started = false;
-    const state = usePlayer.getState();
+  // A faixa actual, lida por referência: agora as callbacks do player
+  // sobrevivem à troca de música e não podem ficar presas à primeira.
+  const faixaRef = useRef(track);
+  faixaRef.current = track;
+  const progressoRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const vigiaRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const prontoRef = useRef(false);
+  const arrancouRef = useRef(false);
+  const primeiraRef = useRef(true);
 
-    // Watchdog: a IFrame API não tem timeout nenhum. Se o script não carregar,
-    // ou o embed nunca ficar pronto (rede, IP marcado pela Google, embed
-    // bloqueado no vídeo), o onReady/onStateChange nunca dispara — e como são
-    // os ÚNICOS sítios que limpam o `buffering`, a UI ficava em ampulheta para
-    // sempre e sem erro nenhum. Aqui qualquer falha acaba num estado terminal.
-    const watchdog = setTimeout(() => {
-      if (disposed || started) return;
+  /**
+   * O watchdog é por FAIXA, não por player.
+   *
+   * A IFrame API não tem timeout nenhum. Se o embed nunca ficar pronto (rede,
+   * IP marcado pela Google, embed bloqueado no vídeo), o onReady/onStateChange
+   * nunca dispara — e como são os ÚNICOS sítios que limpam o `buffering`, a UI
+   * ficava em ampulheta para sempre e sem erro nenhum. Com o player agora
+   * reutilizado entre faixas, isto tem de ser re-armado a cada troca.
+   */
+  const armarVigia = useCallback(() => {
+    clearTimeout(vigiaRef.current);
+    arrancouRef.current = false;
+    vigiaRef.current = setTimeout(() => {
+      if (arrancouRef.current) return;
+      const state = usePlayer.getState();
       state._setBuffering(false);
       // Nunca arrancou: se nem o embed ficou pronto, o mais provável é a rede.
-      const tipo: TipoFalha = ready ? 'tempo-esgotado' : 'sem-rede';
+      const tipo: TipoFalha = prontoRef.current ? 'tempo-esgotado' : 'sem-rede';
       registar({
         quando: Date.now(),
-        videoId: track.sourceId,
-        titulo: track.title,
+        videoId: faixaRef.current.sourceId,
+        titulo: faixaRef.current.title,
         fase: 'watchdog',
         tipo,
-        detalhe: `sem arranque em 15s (embed ${ready ? 'pronto' : 'nunca ficou pronto'})`,
+        detalhe: 'sem arranque em 15s (embed ' + (prontoRef.current ? 'pronto' : 'nunca ficou pronto') + ')',
       });
       state.setError(mensagemDaFalha(tipo));
       playbackNotice(mensagemDaFalha(tipo));
     }, 15000);
+  }, []);
+
+  /**
+   * O player nasce UMA vez e fica.
+   *
+   * Estava preso a `[track.sourceId]`, e a limpeza dele chamava `destroy()`:
+   * por cada música deitava-se fora o iframe, construía-se outro, e esperava-se
+   * que o YouTube carregasse o player dele antes de haver som. Era esse o
+   * silêncio entre faixas no PC. Agora a troca é um `loadVideoById` no player
+   * que já está quente — ver o efeito a seguir.
+   */
+  useEffect(() => {
+    let player: any;
+    let disposed = false;
+    const state = usePlayer.getState();
+
+    armarVigia();
 
     const mount = () => {
       if (disposed || !window.YT?.Player) return;
       player = new window.YT.Player(hostId.current, {
         height: '1',
         width: '1',
-        videoId: track.sourceId,
+        videoId: faixaRef.current.sourceId,
         playerVars: {
           autoplay: 1,
           controls: 0,
@@ -150,7 +177,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         },
         events: {
           onReady: (event: any) => {
-            ready = true;
+            prontoRef.current = true;
             playerRef.current = event.target;
             try {
               event.target.setVolume(state.volume);
@@ -185,7 +212,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               },
             });
             state._setBuffering(false);
-            progress = setInterval(() => {
+            progressoRef.current = setInterval(() => {
               const duration = Number(event.target.getDuration?.() || 0) * 1000;
               const position = Number(event.target.getCurrentTime?.() || 0) * 1000;
               usePlayer.getState()._setProgress(position, duration);
@@ -197,9 +224,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
                 videos?.forEach((video: any) => {
                   if (video.preservesPitch !== false) {
                     // O tom ACOMPANHA a velocidade, de proposito: era isto que fazia
-            // o "slowed" soar a slowed e o "fast" a nightcore. Preservar o tom
-            // daria uma leitura de podcast acelerado, que e outra coisa.
-            video.preservesPitch = false;
+                    // o "slowed" soar a slowed e o "fast" a nightcore. Preservar o tom
+                    // daria uma leitura de podcast acelerado, que e outra coisa.
+                    video.preservesPitch = false;
                     video.mozPreservesPitch = false;
                     video.webkitPreservesPitch = false;
                     const currentRate = video.playbackRate;
@@ -212,7 +239,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           },
           onStateChange: (event: any) => {
             const s = event.data;
-            if (s === 1 || s === 2) started = true;
+            if (s === 1 || s === 2) arrancouRef.current = true;
             if (s === 1) state._onYtStateChange('playing');
             else if (s === 2) state._onYtStateChange('paused');
             else if (s === 0) state._onYtStateChange('ended');
@@ -223,20 +250,20 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             // Códigos da IFrame API: 2 id inválido, 5 erro do player HTML5,
             // 100 vídeo removido/privado, 101/150 embed proibido pelo dono.
             // São números e não texto, por isso classificam-se sem adivinhar.
-            started = true;
+            arrancouRef.current = true;
             state._setBuffering(false);
             const code = Number(event?.data);
             const tipo = classificar({ codigoEmbed: Number.isFinite(code) ? code : null });
             registar({
               quando: Date.now(),
-              videoId: track.sourceId,
-              titulo: track.title,
+              videoId: faixaRef.current.sourceId,
+              titulo: faixaRef.current.title,
               fase: 'embed',
               tipo,
-              detalhe: `iframe code=${code}`,
+              detalhe: 'iframe code=' + code,
             });
             if (recuperacao(tipo).alternativa) {
-              void recoverUnavailableVideo(track, tipo);
+              void recoverUnavailableVideo(faixaRef.current, tipo);
             } else {
               state.setError(mensagemDaFalha(tipo));
               playbackNotice(mensagemDaFalha(tipo));
@@ -259,12 +286,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // Sem isto, um script bloqueado (rede/firewall) ficava em silêncio.
         script.onerror = () => {
           if (disposed) return;
-          started = true;
+          arrancouRef.current = true;
           state._setBuffering(false);
           registar({
             quando: Date.now(),
-            videoId: track.sourceId,
-            titulo: track.title,
+            videoId: faixaRef.current.sourceId,
+            titulo: faixaRef.current.title,
             fase: 'iframe-api',
             tipo: 'sem-rede',
             detalhe: 'o script iframe_api nao carregou (rede ou firewall)',
@@ -272,21 +299,34 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           state.setError(mensagemDaFalha('sem-rede'));
           playbackNotice(mensagemDaFalha('sem-rede'));
         };
-        document.head.appendChild(script);
+        document.body.appendChild(script);
       }
     }
 
     return () => {
       disposed = true;
-      clearTimeout(watchdog);
-      if (progress) clearInterval(progress);
-      usePlayer.getState().registerYtControls(null);
+      clearTimeout(vigiaRef.current);
+      clearInterval(progressoRef.current);
       playerRef.current = null;
-      try { player?.pauseVideo?.(); } catch {}
       try { player?.mute?.(); } catch {}
       try { player?.destroy?.(); } catch {}
     };
-  }, [track.sourceId]);
+  }, [armarVigia]);
+
+  /**
+   * Trocar de faixa no player que já existe.
+   *
+   * A primeira já foi carregada pelo `videoId` da criação, por isso este efeito
+   * salta-a — senão pedia-se o mesmo vídeo duas vezes ao arrancar.
+   */
+  useEffect(() => {
+    if (primeiraRef.current) { primeiraRef.current = false; return; }
+    const p = playerRef.current;
+    if (!p?.loadVideoById) return;
+    usePlayer.getState()._setBuffering(true);
+    armarVigia();
+    try { p.loadVideoById(track.sourceId); } catch {}
+  }, [track.sourceId, armarVigia]);
 
   const playbackRate = usePlayer((s) => s.playbackRate);
   useEffect(() => {
