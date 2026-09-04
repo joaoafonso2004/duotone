@@ -298,12 +298,28 @@ export function PlayerRoot() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, anim, dragY, current?.sourceId]);
 
-  // Gesto de arrastar para baixo (no cabeçalho) para fechar o now-playing.
+  /**
+   * Arrastar para baixo, de QUALQUER ponto da página, para fechar o
+   * now-playing. Estava só no cabeçalho, que é uma faixa estreita.
+   *
+   * O que impede isto de roubar os gestos de quem está por dentro é ser um
+   * responder da fase NORMAL e não de captura: a negociação começa no nó mais
+   * fundo tocado e sobe, por isso quem estiver lá dentro decide primeiro.
+   * Em concreto, e sem precisar de exceções escritas à mão:
+   *
+   *  - as letras vivem num `ScrollView`, que fica com os arrastos verticais;
+   *  - o cubo reclama em captura, mas só gestos horizontais (`acceptsCubeSwipe`);
+   *  - a fila e o equalizador são folhas irmãs desta vista, não descendentes,
+   *    portanto nunca chegam sequer a ver este gesto.
+   *
+   * O limiar subiu de 6 para 12 px, com a mesma dominância vertical de 1,5x que
+   * o `swipeClose` usa: sobre a página inteira há botões por todo o lado, e 6 px
+   * de deriva ao carregar num deles não pode começar a fechar o ecrã.
+   */
   const dismissPan = useRef(
     PanResponder.create({
-      // Só assume o gesto se for claramente um arrasto vertical para baixo.
       onMoveShouldSetPanResponder: (_e, g) =>
-        g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+        g.dy > 12 && g.dy > Math.abs(g.dx) * 1.5,
       onPanResponderMove: (_e, g) => {
         dragY.setValue(Math.max(0, g.dy));
       },
@@ -463,6 +479,7 @@ export function PlayerRoot() {
       {/* ===================== OVERLAY EXPANDIDO ===================== */}
       <Animated.View
         pointerEvents={expanded ? 'auto' : 'none'}
+        {...dismissPan.panHandlers}
         style={[
           styles.full,
           {
@@ -495,10 +512,9 @@ export function PlayerRoot() {
           pointerEvents="none"
         />
 
-        {/* cabeçalho — arrastável para baixo para fechar */}
+        {/* cabeçalho — o arrasto para fechar agora é da página toda */}
         <View
           style={[styles.fullHeader, { marginTop: insets.top + 6 }]}
-          {...dismissPan.panHandlers}
         >
           <Pressable hitSlop={12} onPress={() => setExpanded(false)} style={styles.headerBtn}>
             <Ionicons name="chevron-down" size={24} color={colors.text} />
