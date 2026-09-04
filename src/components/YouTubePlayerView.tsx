@@ -6,6 +6,7 @@ import { AppState, StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
+import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
 import { targetVolume } from '../lib/loudness';
@@ -566,6 +567,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   // Eventos do player nativo -> store
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    // Mudar de ritmo faz o expo-video reconstruir os alvos do Now Playing e
+    // voltar a ligar os saltos de ±10 s. Reafirmar aqui, não por relógio.
+    reafirmarComandosDeFaixa();
     if (backend === 'native' && nativeTrackIdRef.current === track.sourceId) {
       onStateChange(isPlaying ? 'playing' : 'paused');
     }
@@ -622,6 +626,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
   });
   useEventListener(player, 'statusChange', ({ status, error }) => {
+    // `readyToPlay` faz o expo-video reconstruir os alvos. Numa ligação lenta
+    // chega muito depois da faixa mudar, fora de qualquer janela de espera.
+    if (status === 'readyToPlay') reafirmarComandosDeFaixa();
     if (backend !== 'native' || status !== 'error' || nativeTrackIdRef.current !== track.sourceId) return;
     fallbackRef.current().then((handled) => {
       if (!handled) {
@@ -629,6 +636,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         setBackend('webview');
       }
     });
+  });
+
+  // Cada `replaceAsync` cria um AVPlayerItem novo e o expo-video volta a
+  // registar os comandos. Acontece também a meio da faixa, quando o watchdog
+  // troca para o ficheiro descarregado — e aí nada no React muda.
+  useEventListener(player, 'sourceChange', () => {
+    reafirmarComandosDeFaixa();
   });
 
   // No embed (webview) a reprodução é do próprio YouTube — deixa de fazer

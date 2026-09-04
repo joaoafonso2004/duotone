@@ -43,10 +43,8 @@ import { EqualizadorSheet } from './EqualizadorSheet';
 import { navigationRef } from '../navigation/RootNavigator';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
-import {
-  addRemoteCommandListeners,
-  setRemoteCommandsEnabled,
-} from '../../modules/duotone-remote-commands';
+import { addRemoteCommandListeners } from '../../modules/duotone-remote-commands';
+import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 
 const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
@@ -244,25 +242,10 @@ export function PlayerRoot() {
       ),
     []
   );
+  // A fila mudou -> reafirmar. Os eventos do player nativo cobrem o resto,
+  // que é onde isto falhava (ver src/lib/comandosDeFaixa.ts).
   useEffect(() => {
-    const hasTrack = !!current;
-    const hasNext =
-      hasTrack && (queue.length > 1 || repeatMode === 'all' || shuffle);
-    // "Anterior" fica sempre ativo com faixa carregada: com >3s de reprodução
-    // recomeça a faixa (comportamento standard), senão recua na fila.
-    // `isPlaying` está nas deps de propósito: o expo-video reativa os skips
-    // ±10s ao registar o player (async, na montagem); re-afirmar quando o
-    // playback começa garante que a nossa configuração corre DEPOIS da dele
-    // e os botões de faixa ganham os slots do Lock Screen.
-    setRemoteCommandsEnabled(hasNext, hasTrack);
-    // Uma vez não chega. O expo-video volta a ligar os saltos de ±10s DEPOIS
-    // desta chamada -- é assíncrono e corre a seguir a cada transição, pausa
-    // incluída, e era por isso que ao pausar reapareciam os ±10s em vez do
-    // anterior/seguinte. Reafirmar duas vezes garante a última palavra sem
-    // ficar a martelar o MPRemoteCommandCenter.
-    const outra=setTimeout(()=>setRemoteCommandsEnabled(hasNext, hasTrack),250);
-    const ultima=setTimeout(()=>setRemoteCommandsEnabled(hasNext, hasTrack),900);
-    return () => { clearTimeout(outra); clearTimeout(ultima); };
+    reafirmarComandosDeFaixa();
   }, [current, queue.length, repeatMode, shuffle, isPlaying]);
 
   // Pulsar suave da capa durante o carregamento; volta a opaco quando toca.
