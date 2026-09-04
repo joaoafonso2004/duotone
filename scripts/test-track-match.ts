@@ -1,4 +1,4 @@
-import { pickBest, buildSearchQueries, type MatchCandidate, type MatchTarget } from '../src/lib/trackMatch.ts';
+import { pickBest, buildSearchQueries, nucleoDoTitulo, type MatchCandidate, type MatchTarget } from '../src/lib/trackMatch.ts';
 
 let bad = 0;
 const check = (label: string, cond: boolean, extra = '') => {
@@ -101,6 +101,95 @@ check('sem álbum, só uma consulta', buildSearchQueries(target({ album: null })
 
 // 6. Degradação.
 const empty = pickBest([], target());
+// --- Sufixos do Spotify ----------------------------------------------------
+// O Spotify escreve "X - Remastered 2011" onde o YouTube tem "X". Medido em
+// 20 faixas comuns: três iam a revisão só por causa disto, com a escolha
+// certa já em primeiro lugar.
+
+check('reedição sai do título', nucleoDoTitulo('Bohemian Rhapsody - Remastered 2011') === 'Bohemian Rhapsody');
+check('remaster sem ano sai', nucleoDoTitulo('Wonderwall - Remastered') === 'Wonderwall');
+check('ano à frente sai', nucleoDoTitulo('Heroes - 2017 Remaster') === 'Heroes');
+check('bonus track sai', nucleoDoTitulo('Song - Bonus Track') === 'Song');
+
+check('sufixo de versão sai da comparação', nucleoDoTitulo('Song - Live at Wembley') === 'Song');
+check('mas um travessão a sério fica', nucleoDoTitulo('Sunflower - Spider-Man: Into the Spider-Verse')
+  === 'Sunflower - Spider-Man: Into the Spider-Verse');
+
+// O ponto todo: OUTRA gravação nunca pode entrar sozinha no lugar da pedida.
+// Testa-se onde a decisão é tomada, e nos DOIS sentidos -- as duas trocas são
+// igualmente erradas, e cada uma delas falhava por sua razão.
+const ESTUDIO = { id: 'a', title: 'Artista - Song (Official Audio)', channel: 'Artista - Topic', durationSec: 200 };
+const versoes: [string, string][] = [
+  ['ao vivo', 'Artista - Song (Live at Wembley)'],
+  ['acústica', 'Artista - Song (Acoustic)'],
+  ['remix', 'Artista - Song (Tiesto Remix)'],
+  ['instrumental', 'Artista - Song (Instrumental)'],
+  ['acelerada', 'Artista - Song (Sped Up)'],
+  ['demo', 'Artista - Song (Demo)'],
+];
+
+for (const [nome, titulo] of versoes) {
+  const candidato = { id: 'b', title: titulo, channel: 'Artista - Topic', durationSec: 200 };
+  const limpo = { title: 'Song', artist: 'Artista', durationSec: 200, album: null };
+
+  // Pediu-se a de estúdio e só existe a outra: tem de ir a revisão.
+  check('pedir estúdio não aceita ' + nome + ' sozinha',
+    !pickBest([candidato], limpo).confident);
+
+  // Pediu-se a outra e só existe a de estúdio: também tem de ir a revisão.
+  const pedida = { title: 'Song - ' + titulo.replace(/^.*\(|\)$/g, ''), artist: 'Artista', durationSec: 200, album: null };
+  check('pedir ' + nome + ' não aceita estúdio sozinho',
+    !pickBest([ESTUDIO], pedida).confident);
+
+  // E quando existe a certa, entra sem perguntar.
+  check('pedir ' + nome + ' aceita ' + nome,
+    pickBest([candidato], pedida).confident, 'score=' + pickBest([candidato], pedida).best?.score);
+}
+
+check('título que é só o sufixo fica intacto', nucleoDoTitulo(' - Remastered') === ' - Remastered');
+check('sem sufixo não muda nada', nucleoDoTitulo('Creep') === 'Creep');
+
+// O sufixo deixa de custar pontos: a mesma gravação, com e sem ele, decide igual.
+const comSufixo = pickBest(
+  [{ id: 'a', title: 'Queen - Bohemian Rhapsody', channel: 'Queen Official', durationSec: 355 }],
+  { title: 'Bohemian Rhapsody - Remastered 2011', artist: 'Queen', durationSec: 355, album: null }
+);
+const semSufixo = pickBest(
+  [{ id: 'a', title: 'Queen - Bohemian Rhapsody', channel: 'Queen Official', durationSec: 355 }],
+  { title: 'Bohemian Rhapsody', artist: 'Queen', durationSec: 355, album: null }
+);
+check('o sufixo já não tira pontos', comSufixo.best?.score === semSufixo.best?.score,
+  comSufixo.best?.score + ' vs ' + semSufixo.best?.score);
+check('e a faixa entra sozinha', comSufixo.confident);
+
+// A versão ao vivo continua a ser apanhada, apesar de ter o mesmo núcleo.
+const aoVivo = pickBest(
+  [{ id: 'a', title: 'Queen - Bohemian Rhapsody (Live Aid 1985)', channel: 'Queen Official', durationSec: 355 }],
+  { title: 'Bohemian Rhapsody - Remastered 2011', artist: 'Queen', durationSec: 355, album: null }
+);
+check('ao vivo não passa como a gravação de estúdio', !aoVivo.confident, 'score=' + aoVivo.best?.score);
+
+// Apóstrofos: "Don't" e "Dont" são a mesma palavra.
+const apostrofo = pickBest(
+  [{ id: 'a', title: 'Queen - Dont Stop Me Now', channel: 'Queen Official', durationSec: 210 }],
+  { title: "Don't Stop Me Now - Remastered 2011", artist: 'Queen', durationSec: 210, album: null }
+);
+check('apóstrofo não parte a palavra', apostrofo.confident, 'score=' + apostrofo.best?.score);
+
+// Quem PROCURA a versão ao vivo tem de a receber: o candidato traz a mesma
+// marca do alvo, por isso não é "mais marcado" e entra sozinho.
+const querAoVivo = pickBest(
+  [{ id: 'a', title: 'Queen - Bohemian Rhapsody (Live Aid 1985)', channel: 'Queen Official', durationSec: 355 }],
+  { title: 'Bohemian Rhapsody - Live', artist: 'Queen', durationSec: 355, album: null }
+);
+check('ao vivo entra quando é o ao vivo que se pede', querAoVivo.confident, 'score=' + querAoVivo.best?.score);
+
+const querAcustica = pickBest(
+  [{ id: 'a', title: 'Song (Acoustic)', channel: 'Artista - Topic', durationSec: 200 }],
+  { title: 'Song - Acoustic', artist: 'Artista', durationSec: 200, album: null }
+);
+check('acústica entra quando é a acústica que se pede', querAcustica.confident, 'score=' + querAcustica.best?.score);
+
 check('sem candidatos não rebenta', empty.best === null && !empty.confident);
 
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);

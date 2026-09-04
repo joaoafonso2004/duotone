@@ -64,15 +64,101 @@ const NOISE: [RegExp, number][] = [
   [/\banimatic\b|\bvisuali[sz]er\b|\bteaser\b|\btrailer\b/i, -35],
 ];
 
+/**
+ * Marcas que mudam a GRAVAÇÃO, e não só a qualidade do upload.
+ *
+ * Não é a mesma lista do `NOISE`, de propósito. O `NOISE` desconta pontos a
+ * uploads piores -- um vídeo de letras tem o áudio original, só traz texto por
+ * cima. Estas são outra coisa: um ao vivo, uma acústica ou um remix são outra
+ * gravação, e trocá-los pela de estúdio é dar a música errada a quem a pediu.
+ *
+ * Servem para comparar o que se PROCURA com o que se ENCONTROU, nos dois
+ * sentidos. Uma soma de pontos não chega: um "(Live Aid 1985)" no canal
+ * oficial com a duração exacta junta pontos que tapam a penalização e passa o
+ * limiar. E ao contrário também falhava -- pedir "- Live" e receber a de
+ * estúdio dava confiança total, porque nada no cálculo dava pela falta.
+ */
+const VERSAO: [string, RegExp][] = [
+  ['live', /\blive\b|\bao vivo\b|\bconcert\b|\bunplugged\b|\bsession\b|\bfestival\b/i],
+  ['cover', /\bcover\b|\bcovered by\b/i],
+  ['remix', /\bremix\b|\bmashup\b|\bbootleg\b|\bflip\b/i],
+  ['ritmo', /\bsped ?up\b|\bslowed\b|\breverb\b|\b8d\b|\bnightcore\b/i],
+  ['karaoke', /\bkaraoke\b|\binstrumental\b|\bbacking ?track\b/i],
+  ['semparte', /\bdrumless\b|\bbassless\b|\bguitarless\b|\bno ?vocals?\b|\bacapella\b|\ba cappella\b|\bvocals? only\b/i],
+  ['acustica', /\bacoustic[ao]?\b|\bac[uú]stic[ao]\b/i],
+  ['demo', /\bdemo\b/i],
+  ['edicao', /\bedition\b|\bstems?\b|\bbass ?boosted\b/i],
+];
+
+/**
+ * As marcas de versão de um título, em texto comparável.
+ *
+ * A ordem vem da lista e não do título, para "Live Acoustic" e "Acoustic Live"
+ * darem a mesma assinatura.
+ */
+function marcasDeVersao(titulo: string): string {
+  return VERSAO.filter(([, padrao]) => padrao.test(titulo)).map(([nome]) => nome).join('+');
+}
+
 /** Reduz um título a palavras comparáveis, sem ruído editorial. */
 function normalise(value: string | null | undefined): string {
   return (value ?? '')
     .toLowerCase()
     .replace(/\(.*?\)|\[.*?\]/g, ' ')
     .replace(/\b(official|video|audio|music|hd|4k|mv)\b/g, ' ')
+    // O apóstrofo cola, não parte: "Don't" e "Dont" são a mesma palavra, e a
+    // separar dava "don t" contra "dont" -- duas coisas diferentes para uma
+    // comparação por texto, e lá se ia o bónus de o título bater certo.
+    .replace(/['\u2019\u02bc\u0060]/g, '')
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Sufixos do Spotify que são a MESMA gravação, reeditada.
+ *
+ * O Spotify escreve "Bohemian Rhapsody - Remastered 2011", e o YouTube tem-na
+ * como "Bohemian Rhapsody". A comparação de títulos é tudo-ou-nada, por isso
+ * o sufixo fazia perder 30 pontos de uma vez -- medido: de 20 faixas comuns,
+ * três iam a revisão só por causa disto, com a escolha certa em primeiro.
+ *
+ * A lista é curta de propósito, e o que fica de fora é o que interessa: um
+ * "- Live", "- Acoustic", "- Demo", "- Remix" ou "- Radio Edit" é OUTRA
+ * gravação. Apagar esses casaria a de estúdio com a ao vivo em silêncio, que
+ * é o erro que não se pode cometer. Esses continuam a comparar-se inteiros, e
+ * as penalizações de ruído continuam a apanhá-los.
+ */
+const REEDICAO =
+  /\s[-\u2013]\s(?:\d{4}\s)?(?:digital\s|album\s)?(?:remaster(?:ed)?|remasterizad[oa])(?:\s\d{4})?$|\s[-\u2013]\s(?:bonus\stracks?|original\smix|single\sversion|album\sversion)$/i;
+
+/**
+ * O título sem o sufixo do Spotify. Devolve-o intacto se não houver nenhum.
+ *
+ * Serve só para COMPARAR títulos, e é seguro tirar aqui também as marcas de
+ * versão: quem decide se a gravação é a mesma é o `marcasDeVersao`, que lê o
+ * título inteiro. Separar as duas coisas é o que permite ser generoso na
+ * comparação sem abrir a porta a trocar uma versão pela outra -- "Bohemian
+ * Rhapsody - Live" e "Bohemian Rhapsody (Live Aid 1985)" têm o mesmo núcleo,
+ * batem certo, e continuam a ser as duas ao vivo.
+ *
+ * A lista é fechada de propósito: um travessão faz parte de muitos títulos a
+ * sério, e só sai o que se reconhece.
+ */
+export function nucleoDoTitulo(titulo: string): string {
+  let limpo = titulo.replace(REEDICAO, '').trim();
+
+  // Sufixo de versão: "Song - Live at Wembley", "Song - Acoustic".
+  const corte = limpo.search(/\s[-\u2013]\s[^-\u2013]*$/);
+  if (corte > 0) {
+    const sufixo = limpo.slice(corte);
+    if (sufixo.length <= 40 && VERSAO.some(([, padrao]) => padrao.test(sufixo))) {
+      limpo = limpo.slice(0, corte).trim();
+    }
+  }
+
+  // Um título que É só o sufixo ficaria vazio e passava a bater com tudo.
+  return limpo.length >= 2 ? limpo : titulo;
 }
 
 export function scoreCandidate(candidate: MatchCandidate, target: MatchTarget): number {
@@ -81,7 +167,7 @@ export function scoreCandidate(candidate: MatchCandidate, target: MatchTarget): 
   const nTitle = normalise(title);
   const nChannel = normalise(channel);
   const nArtist = normalise(target.artist);
-  const nName = normalise(target.title);
+  const nName = normalise(nucleoDoTitulo(target.title));
 
   // Canal " - Topic": upload automático da editora, alinhado com o catálogo
   // do Spotify. É o sinal mais fiável que existe.
@@ -165,7 +251,7 @@ function sameRecording(a: ScoredCandidate, b: ScoredCandidate, target: MatchTarg
   if (a.durationSec == null || b.durationSec == null) return false;
   if (Math.abs(a.durationSec - b.durationSec) > 2) return false;
   if (noisePenalty(a.title) !== noisePenalty(b.title)) return false;
-  const name = normalise(target.title);
+  const name = normalise(nucleoDoTitulo(target.title));
   if (!name) return false;
   return normalise(a.title).includes(name) && normalise(b.title).includes(name);
 }
@@ -179,12 +265,23 @@ export function pickBest(candidates: MatchCandidate[], target: MatchTarget): Mat
   // A margem mede-se contra o primeiro concorrente que seja mesmo outra coisa.
   const rival = best ? ranked.slice(1).find((c) => !sameRecording(best, c, target)) : undefined;
 
+  /**
+   * A versão encontrada tem de ser a versão procurada.
+   *
+   * Compara-se nos dois sentidos porque falhava nos dois: um ao vivo a entrar
+   * como estúdio, e o estúdio a entrar quando se pediu o ao vivo. Quem pede
+   * "- Live" recebe o ao vivo -- as marcas batem certo e a faixa entra
+   * sozinha; o que não acontece é uma trocar pela outra sem ninguém ver.
+   */
+  const outraVersao = !!best && marcasDeVersao(best.title) !== marcasDeVersao(target.title);
+
   return {
     best,
     ranked,
     confident:
       !!best &&
       best.score >= CONFIDENT_SCORE &&
+      !outraVersao &&
       (!rival || best.score - rival.score >= CONFIDENT_MARGIN),
   };
 }
