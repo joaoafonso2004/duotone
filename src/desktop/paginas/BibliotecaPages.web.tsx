@@ -17,7 +17,7 @@ import {
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
-import { agruparPorArtista, chaveDeArtista, contaComResetDeArtistas, displayArtist, extractArtist, semCanaisLegadosNosArtistas } from '../../lib/artistName';
+import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist } from '../../lib/artistName';
 import { useAuth } from '../../state/auth';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
@@ -121,7 +121,6 @@ export function SongsPage(props: CommonPageProps) {
 
 export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) {
   const data = useLibraryData();
-  const resetDoJoao = useAuth((s) => contaComResetDeArtistas(s.session?.user.user_metadata));
   const [query, setQuery] = useState('');
   // Ordem por ESCUTA. Alfabetica era neutra e por isso inutil: quem tem 200
   // artistas nao procura pelo nome, procura por quem ouve. O ranking vem do
@@ -138,14 +137,14 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
   // Agrupado por CHAVE canonica e nao pelo nome mostrado -- era isso que punha
   // `Juice WRLD`, `juice wrld` e `JUICE WRLD` em tres cartoes diferentes.
   const artists = useMemo(
-    () => agruparPorArtista(resetDoJoao ? semCanaisLegadosNosArtistas(data.tracks) : data.tracks).sort((a, b) => {
+    () => agruparPorArtista(data.tracks).sort((a, b) => {
       const ra = ranking.get(a.chave) ?? Infinity;
       const rb = ranking.get(b.chave) ?? Infinity;
       if (ra !== rb) return ra - rb;
       if (a.faixas.length !== b.faixas.length) return b.faixas.length - a.faixas.length;
       return a.nome.localeCompare(b.nome);
     }),
-    [data.tracks, ranking, resetDoJoao],
+    [data.tracks, ranking],
   );
   const filteredArtists = useMemo(() => {
     const q = chaveDeArtista(query);
@@ -163,7 +162,6 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
 
 export function ArtistPage({ name, back, ...props }: { name: string; back: () => void } & CommonPageProps) {
   const data = useLibraryData();
-  const resetDoJoao = useAuth((s) => contaComResetDeArtistas(s.session?.user.user_metadata));
   const [separador, setSeparador] = useState<'library' | 'tracks' | 'albums'>('library');
   const [outras, setOutras] = useState<Track[]>([]);
   const [albuns, setAlbuns] = useState<YtRecommendedPlaylist[]>([]);
@@ -177,9 +175,8 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   // grafias, senao o cartao dizia 5 faixas e a pagina abria com 2.
   const tracks = useMemo(() => {
     const alvo = chaveDeArtista(name);
-    const fonte = resetDoJoao ? semCanaisLegadosNosArtistas(data.tracks) : data.tracks;
-    return agruparPorArtista(fonte).find((g) => g.chave === alvo)?.faixas ?? [];
-  }, [data.tracks, name, resetDoJoao]);
+    return agruparPorArtista(data.tracks).find((g) => g.chave === alvo)?.faixas ?? [];
+  }, [data.tracks, name]);
 
   useEffect(() => {
     let cancelado = false;

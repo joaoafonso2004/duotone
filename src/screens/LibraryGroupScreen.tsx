@@ -20,7 +20,7 @@ import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '../theme';
 import { useTheme } from '../state/theme';
 import { hapticNotification } from '../lib/haptics';
-import { agruparPorArtista, chaveDeArtista, contaComResetDeArtistas, semCanaisLegadosNosArtistas } from '../lib/artistName';
+import { agruparPorArtista, chaveDeArtista } from '../lib/artistName';
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
 
@@ -34,7 +34,6 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
-  const resetDoJoao = useAuth((s) => contaComResetDeArtistas(s.session?.user.user_metadata));
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,15 +65,14 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         // agrupamento da página de Artistas, senão o cartão dizia cinco
         // faixas e esta página abria com duas.
         const alvo = chaveDeArtista(name);
-        const fonte = resetDoJoao ? semCanaisLegadosNosArtistas(all) : all;
-        setTracks(agruparPorArtista(fonte).find((g) => g.chave === alvo)?.faixas ?? []);
+        setTracks(agruparPorArtista(all).find((g) => g.chave === alvo)?.faixas ?? []);
       }
     } catch {
       // ignorar
     } finally {
       setLoading(false);
     }
-  }, [type, name, resetDoJoao]);
+  }, [type, name]);
 
   useFocusEffect(
     useCallback(() => {

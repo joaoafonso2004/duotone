@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
-import { agruparPorArtista, contaComResetDeArtistas, semCanaisLegadosNosArtistas } from '../lib/artistName';
+import { agruparPorArtista } from '../lib/artistName';
 import { correspondeAPesquisa } from '../lib/searchText';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
@@ -40,7 +40,6 @@ export function ArtistsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const theme = useTheme((s) => s.theme);
-  const resetDoJoao = useAuth((s) => contaComResetDeArtistas(s.session?.user.user_metadata));
 
   const load = useCallback(async () => {
     try {
@@ -63,15 +62,14 @@ export function ArtistsScreen() {
     // `Juice WRLD`, `juice wrld` e `JUICE WRLD` apareciam como três artistas
     // diferentes. O `agruparPorArtista` também aprende a grafia certa com as
     // fontes fiáveis da própria biblioteca (canais `- Topic`, VEVO).
-    const fonte = resetDoJoao ? semCanaisLegadosNosArtistas(tracks) : tracks;
-    return agruparPorArtista(fonte)
+    return agruparPorArtista(tracks)
       .map((g) => ({
         name: g.nome,
         artworkUrl: g.faixas.find((t) => t.artworkUrl)?.artworkUrl ?? null,
         count: g.faixas.length,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [tracks, resetDoJoao]);
+  }, [tracks]);
 
   const filteredArtists = useMemo(() => {
     const query = searchQuery.trim();
