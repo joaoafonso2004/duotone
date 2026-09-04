@@ -349,3 +349,17 @@ export function misturarTemas(a: AccentTheme, b: AccentTheme, t: number): Accent
     textColorOnGradient: t < 0.5 ? a.textColorOnGradient : b.textColorOnGradient,
   };
 }
+
+/**
+ * O mesmo tom, com opacidade zero.
+ *
+ * Serve para um degradê acabar no PRÓPRIO véu em vez de atravessar o preto:
+ * interpolar até `transparent` passa por rgba(0,0,0,0) e escurece o caminho,
+ * o que deixaria uma sombra onde devia haver uma passagem limpa.
+ */
+export function semOpacidade(cor: string): string {
+  const m = /^rgba?\(([^)]+)\)$/i.exec(cor.trim());
+  const partes = m ? m[1]!.split(',').map((p) => p.trim()) : [];
+  if (partes.length < 3) return 'rgba(0,0,0,0)';
+  return `rgba(${partes[0]},${partes[1]},${partes[2]},0)`;
+}

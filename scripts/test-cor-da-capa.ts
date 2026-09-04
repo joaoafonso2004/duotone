@@ -4,6 +4,7 @@
  * São as exigências que o plano fixou, e cada uma tem aqui um caso. A quarta
  * -- a transição não ser um salto -- é de quem consome, não deste módulo.
  */
+import { semOpacidade } from '../src/lib/corDaCapa.ts';
 import {
   celulasDoBlurhash,
   contraste,
@@ -171,6 +172,21 @@ for (const antiga of ['violet', 'blue', 'orange', 'green', 'pink', 'red', 'mono'
 }
 check('steel continua steel', modoGuardado('steel') === 'steel');
 check('cover é respeitado', modoGuardado('cover') === 'cover');
+
+// --- O véu tem de poder desaparecer sem passar pelo preto ---
+
+
+// O que `veuDaCapa` produz mantém o tom e perde a opacidade.
+if (semOpacidade('rgba(120,160,90,0.14)') !== 'rgba(120,160,90,0)')
+  throw new Error('véu sem opacidade tem de manter o tom');
+if (semOpacidade('rgb(12, 34, 56)') !== 'rgba(12,34,56,0)')
+  throw new Error('rgb sem alfa também tem de servir');
+// Nada de aproveitável não pode devolver uma cor a sério.
+for (const mau of ['#FFFFFF', '', 'rgba(1,2)', 'seja o que for'])
+  if (semOpacidade(mau) !== 'rgba(0,0,0,0)')
+    throw new Error(`entrada inválida devia dar transparente: ${mau}`);
+
+console.log('Véu: perde a opacidade sem perder o tom.');
 
 console.log(mau ? `\n  ${mau} falha(s)` : '\n  Todos os casos passaram.');
 process.exit(mau ? 1 : 0);

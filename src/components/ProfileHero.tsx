@@ -8,7 +8,7 @@ import {FriendAvatar} from './FriendAvatar';
 import {SocialButton,socialStyles as s} from './socialUI';
 import {degradeDaCapa,enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {lerCelulasDaCapa} from '../lib/celulasDaCapa';
-import {veuDaCapa} from '../lib/corDaCapa';
+import {semOpacidade,veuDaCapa} from '../lib/corDaCapa';
 import {colors,SOCIAL_GUTTER,type} from './socialTokens';
 
 type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:number;status?:string;
@@ -105,8 +105,16 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
       <LinearGradient colors={['rgba(10,10,15,0.55)','transparent','transparent','rgba(10,10,15,0.55)']} locations={[0,0.22,0.78,1]} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
       {/* Por cima das vinhetas e não por baixo: elas escurecem para o texto se
           ler, e o véu é o que devolve ao cabeçalho o tom da capa depois disso.
-          Ficando por baixo, o cinzento delas comia-o. */}
-      {!!veu&&<View style={[StyleSheet.absoluteFill,{backgroundColor:veu}]}/>}
+          Ficando por baixo, o cinzento delas comia-o.
+
+          Mas TEM de acabar onde a capa acaba. Era um `View` sólido sobre o
+          cabeçalho inteiro, e isso deixava a última linha do cabeçalho a
+          `#0A0A0F` TINGIDO enquanto a página logo abaixo era `#0A0A0F` puro:
+          um degrau de cor exactamente na aresta, que nenhum degradê por baixo
+          conseguia esconder. Era esta a linha que se via. Agora some no mesmo
+          sítio em que a fotografia some, e acaba no PRÓPRIO tom sem opacidade
+          -- até `transparent` passaria pelo preto e deixaria uma sombra. */}
+      {!!veu&&<LinearGradient colors={[veu,veu,semOpacidade(veu)]} locations={[0,0.76,0.95]} style={StyleSheet.absoluteFill}/>}
     </View>}
     {/* A coroa marca quem fez a app. Fica fora do bloco da capa de propósito:
         assim continua lá com capa nova, com capa apagada, ou sem capa nenhuma.
