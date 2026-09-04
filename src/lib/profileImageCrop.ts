@@ -107,3 +107,31 @@ export function enquadrarCapa(
   const altura = largura / racio;
   return { largura, altura, left: (caixaLargura - largura) / 2, top: 0 };
 }
+
+/**
+ * As paragens do degradê que acaba a capa no fundo do cabeçalho.
+ *
+ * O fim via-se como uma linha. Duas razões, e as duas estão aqui:
+ *
+ *  1. A subida era curta e reta -- de 0,68 para opaco nos últimos 18%. Uma
+ *     rampa linear contra uma fotografia deixa o olho apanhar o ponto onde ela
+ *     CHEGA ao opaco, e é isso que lê como aresta. Agora a curva é suave nas
+ *     duas pontas: sobe devagar, acelera a meio e volta a abrandar no fim.
+ *  2. Chegava ao opaco exatamente na aresta onde o `overflow:'hidden'` corta.
+ *     Qualquer diferença de meio tom entre o cabeçalho e a página aparecia ali.
+ *     Agora fica opaco ANTES do fim, e os últimos por cento já são só fundo --
+ *     o corte cai sobre cor lisa e não tem nada para revelar.
+ *
+ * O primeiro par é o escurecimento do topo, para o título e os botões se lerem
+ * por cima de uma capa clara.
+ */
+export function degradeDaCapa(fundo: string): {
+  cores: readonly [string, string, ...string[]];
+  paragens: readonly [number, number, ...number[]];
+} {
+  const veu = (a: number) => `rgba(10,10,15,${a})`;
+  return {
+    cores: [veu(0.34), veu(0.06), veu(0.2), veu(0.46), veu(0.76), veu(0.94), fundo, fundo],
+    paragens: [0, 0.28, 0.46, 0.62, 0.76, 0.87, 0.95, 1],
+  };
+}

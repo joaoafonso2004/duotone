@@ -32,3 +32,36 @@ for (const [w, h] of [[0, 0], [-1, 10], [10, 0]]) {
 }
 
 console.log('Capa do perfil: cobre a caixa, mantém o rácio, ancora ao topo nas duas plataformas.');
+
+// --- O degradê que esconde o fim da capa ---
+import { degradeDaCapa } from '../src/lib/profileImageCrop.ts';
+
+const FUNDO = '#0A0A0F';
+const d = degradeDaCapa(FUNDO);
+
+assert.equal(d.cores.length, d.paragens.length, 'uma paragem por cor');
+assert.equal(d.paragens[0], 0, 'começa no topo');
+assert.equal(d.paragens[d.paragens.length - 1], 1, 'acaba no fundo');
+
+for (let i = 1; i < d.paragens.length; i++) {
+  assert.ok(d.paragens[i]! > d.paragens[i - 1]!, `paragens sempre a subir (${i})`);
+}
+
+// A opacidade do véu, depois da zona limpa do topo, nunca pode descer: uma
+// descida a meio devolvia a fotografia e criava uma segunda aresta.
+const alfa = (c: string) => (c.startsWith('#') ? 1 : Number(/([\d.]+)\)$/.exec(c)![1]));
+for (let i = 2; i < d.cores.length; i++) {
+  assert.ok(alfa(d.cores[i]!) >= alfa(d.cores[i - 1]!), `opacidade sem recuos (${i})`);
+}
+
+// Opaco ANTES da aresta: é isto que impede o corte de se ver.
+const primeiroOpaco = d.cores.findIndex((c) => alfa(c) === 1);
+assert.ok(primeiroOpaco > 0, 'chega a opaco');
+assert.ok(d.paragens[primeiroOpaco]! <= 0.95, 'chega a opaco antes do fim');
+assert.equal(d.cores[d.cores.length - 1], FUNDO, 'a última cor é o fundo da página');
+
+// A chegada tem de ser mansa: um último salto grande volta a marcar a linha.
+assert.ok(alfa(d.cores[primeiroOpaco]!) - alfa(d.cores[primeiroOpaco - 1]!) <= 0.15,
+  'o último passo até ao opaco é pequeno');
+
+console.log('Degradê da capa: monótono, opaco antes da aresta e com chegada suave.');

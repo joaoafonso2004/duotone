@@ -6,7 +6,7 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
 import {FriendAvatar} from './FriendAvatar';
 import {SocialButton,socialStyles as s} from './socialUI';
-import {enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
+import {degradeDaCapa,enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {lerCelulasDaCapa} from '../lib/celulasDaCapa';
 import {veuDaCapa} from '../lib/corDaCapa';
 import {colors,SOCIAL_GUTTER,type} from './socialTokens';
@@ -50,6 +50,7 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
     void lerCelulasDaCapa(cover).then(celulas=>{if(vivo)setVeu(veuDaCapa(celulas));});
     return ()=>{vivo=false;};
   },[cover]);
+  const degrade=degradeDaCapa(colors.bg);
   /**
    * A capa a preencher o cabeçalho todo, encostada ao topo.
    *
@@ -97,8 +98,10 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
           vertical acaba a capa no fundo do cabeçalho e escurece o topo para o
           título se ler; o horizontal fecha os lados. Parecia ter desaparecido
           porque no telemóvel caía quase toda fora da foto, sobre o fundo liso
-          que sobrava por baixo da caixa antiga. */}
-      <LinearGradient colors={['rgba(10,10,15,0.34)','rgba(10,10,15,0.08)','rgba(10,10,15,0.68)',colors.bg]} locations={[0,0.32,0.82,1]} style={StyleSheet.absoluteFill}/>
+          que sobrava por baixo da caixa antiga.
+          A curva do vertical está em `degradeDaCapa`, com o porquê de cada
+          paragem: é ela que faz o fim da capa deixar de se ver. */}
+      <LinearGradient colors={degrade.cores} locations={degrade.paragens} style={StyleSheet.absoluteFill}/>
       <LinearGradient colors={['rgba(10,10,15,0.55)','transparent','transparent','rgba(10,10,15,0.55)']} locations={[0,0.22,0.78,1]} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
       {/* Por cima das vinhetas e não por baixo: elas escurecem para o texto se
           ler, e o véu é o que devolve ao cabeçalho o tom da capa depois disso.
