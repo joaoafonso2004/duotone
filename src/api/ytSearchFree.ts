@@ -72,8 +72,35 @@ function collectVideos(node: unknown, out: any[], depth = 0): void {
   for (const key of Object.keys(record)) collectVideos(record[key], out, depth + 1);
 }
 
-/** Pesquisa com o canal de cada resultado. É esta que faz o trabalho. */
-export async function searchYouTubeFreeWithChannel(query: string, signal?: AbortSignal): Promise<FreeSearchResult[]> {
+/**
+ * O pedido em si, pelo caminho que a plataforma deixa.
+ *
+ * No iOS o `fetch` fala directamente com o YouTube. No Windows não pode: a
+ * app corre dentro de um renderer do Electron, e daí isto é um pedido
+ * cross-origin -- os cabeçalhos `X-YouTube-*` obrigam a um preflight, e o
+ * YouTube responde-lhe 403 sem cabeçalho de CORS nenhum. O pedido morria
+ * antes de haver resposta, e como quem chama lê uma falha como "não
+ * encontrei nada", uma importação inteira do Spotify dava zero faixas sem
+ * um único erro aparecer. Por isso no Electron isto passa pelo processo
+ * principal, que não tem CORS.
+ */
+async function pedirAoYouTube(query: string, signal?: AbortSignal): Promise<any> {
+  const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.pesquisarNoYouTube : undefined;
+
+  if (ponte) {
+    const pedido = ponte({ query, clientVersion: CLIENT.clientVersion, params: VIDEO_ONLY });
+    if (!signal) return pedido;
+    // O IPC não leva o AbortSignal. Quem cancelou deixa de esperar aqui; o
+    // pedido que ficou a caminho resolve-se sozinho e ninguém o lê.
+    return Promise.race([
+      pedido,
+      new Promise((_resolver, rejeitar) => {
+        if (signal.aborted) return rejeitar(new Error('Aborted'));
+        signal.addEventListener('abort', () => rejeitar(new Error('Aborted')), { once: true });
+      }),
+    ]);
+  }
+
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     signal,
@@ -85,11 +112,14 @@ export async function searchYouTubeFreeWithChannel(query: string, signal?: Abort
     },
     body: JSON.stringify({ context: { client: CLIENT }, query, params: VIDEO_ONLY }),
   });
-
   if (!res.ok) throw new Error(`InnerTube HTTP ${res.status}`);
+  return res.json();
+}
 
+/** Pesquisa com o canal de cada resultado. É esta que faz o trabalho. */
+export async function searchYouTubeFreeWithChannel(query: string, signal?: AbortSignal): Promise<FreeSearchResult[]> {
   const renderers: any[] = [];
-  const corpo = await res.json();
+  const corpo = await pedirAoYouTube(query, signal);
   if (!corpo?.contents) throw new Error('Unexpected search response.');
   collectVideos(corpo, renderers);
 

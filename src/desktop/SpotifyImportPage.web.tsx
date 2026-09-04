@@ -182,13 +182,22 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
     setPhase('running');
     setProgress({ done: 0, total: rows.length, current: '', confident: 0, uncertain: 0, missing: 0 });
 
-    const found = await importSpotifyCsv({
-      rows,
-      signal: abort.current.signal,
-      resumeFrom: resolved.current,
-      search: searchYouTubeFreeWithChannel,
-      onProgress: setProgress,
-    });
+    let found;
+    try {
+      found = await importSpotifyCsv({
+        rows,
+        signal: abort.current.signal,
+        resumeFrom: resolved.current,
+        search: searchYouTubeFreeWithChannel,
+        onProgress: setProgress,
+      });
+    } catch (e: any) {
+      // Volta a 'parsed' e não a 'idle': o CSV continua lido, e depois de
+      // resolvida a rede basta carregar outra vez sem o escolher de novo.
+      setPhase('parsed');
+      notify(e?.message ?? 'The import failed.');
+      return;
+    }
 
     for (const item of found) {
       if (item.row.uri) resolved.current.set(item.row.uri, item);

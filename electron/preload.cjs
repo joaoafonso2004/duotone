@@ -28,6 +28,9 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
    * browser estica o tempo para manter o tom, e a camara lenta enche-se de
    * artefactos. */
   naoEsticarOTempo: () => ipcRenderer.invoke('player:preservar-tom'),
+  /** Pesquisa no YouTube pelo processo principal, que nao tem CORS. Feita
+   * no renderer, o preflight leva 403 e a chamada morre antes da resposta. */
+  pesquisarNoYouTube: (pedido) => ipcRenderer.invoke('yt:pesquisa', pedido),
   showContextMenu: (items) => ipcRenderer.send('context-menu', items),
   onContextMenuSelection: (listener) => {
     const handler = (_event, id) => listener(String(id));

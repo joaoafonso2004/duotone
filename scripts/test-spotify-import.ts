@@ -4,8 +4,8 @@ import {
   uncertainResults,
   missingResults,
   type SearchHit,
-} from '../src/lib/spotifyImport';
-import type { SpotifyCsvRow } from '../src/lib/spotifyCsv';
+} from '../src/lib/spotifyImport.ts';
+import type { SpotifyCsvRow } from '../src/lib/spotifyCsv.ts';
 
 let bad = 0;
 const check = (label: string, cond: boolean, extra = '') => {
@@ -153,6 +153,38 @@ async function main() {
   });
   check('retoma devolve tudo', resumed.length === 5, String(resumed.length));
   check('retoma só pesquisa o que falta', networkCalls === 2, String(networkCalls));
+
+  // 8. A pesquisa em baixo pára a importação, em vez de dizer que não
+  //    encontrou nada. Era isto: um erro de CORS no Electron fazia rebentar
+  //    todas as pesquisas, e como cada falha virava "not found", duas mil
+  //    faixas davam duas mil não-encontradas sem um único erro à vista.
+  let tentativas = 0;
+  let rebentou = '';
+  try {
+    await importSpotifyCsv({
+      rows: Array.from({ length: 60 }, (_, i) => row('Faixa' + i)),
+      search: async () => {
+        tentativas++;
+        throw new Error('InnerTube HTTP 403');
+      },
+    });
+  } catch (e: any) {
+    rebentou = e?.message ?? '';
+  }
+  check('pesquisa sempre em baixo pára a importação', !!rebentou, rebentou);
+  check('pára cedo, não percorre as 60 faixas', tentativas < 60, String(tentativas));
+
+  // E o contador reinicia: falhas espalhadas pelo meio não são uma avaria.
+  let n = 0;
+  const intermitente = await importSpotifyCsv({
+    rows: Array.from({ length: 30 }, (_, i) => row('Salta' + i)),
+    search: async (q) => {
+      n++;
+      if (n % 2 === 0) throw new Error('rede');
+      return [hit(q.split(' ').slice(1).join(' '), 'Artista', 200, 'Artista - Topic')];
+    },
+  });
+  check('falhas alternadas não param nada', intermitente.length === 30, String(intermitente.length));
 
   console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);
   process.exit(bad ? 1 : 0);

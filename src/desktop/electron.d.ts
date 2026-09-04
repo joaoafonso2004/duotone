@@ -19,6 +19,7 @@ declare global {
       setStartup?: (enabled: boolean, mode: 'window' | 'tray') => Promise<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean }>;
       notifyMessage?: (message: { id: string; title: string; body: string;friendId?:string;groupId?:string }) => void;
       onNotificationClick?: (listener: (conversation?:{friendId?:string;groupId?:string}) => void) => () => void;
+      pesquisarNoYouTube?: (pedido: { query: string; clientVersion: string; params: string }) => Promise<any>;
       minimize(): void;
       toggleMaximize(): void;
       close(): void;

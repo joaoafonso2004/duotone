@@ -503,6 +503,46 @@ ipcMain.handle('eq:aplicar', async (event, ajuste) => {
   return aplicarEqualizador(win, ganhos, Number.isFinite(compensacao) ? compensacao : 1);
 });
 
+/**
+ * A pesquisa do InnerTube tem de sair do processo principal.
+ *
+ * No renderer isto e um pedido cross-origin, e os cabecalhos X-YouTube-*
+ * obrigam a um preflight que o YouTube recusa com 403 e sem cabecalhos de
+ * CORS. O fetch rebentava antes de haver resposta -- e como quem chama le
+ * uma falha como 'nao encontrei nada', uma importacao inteira do Spotify
+ * dava zero faixas sem um unico erro a aparecer. Aqui nao ha CORS.
+ *
+ * Recebe a pergunta, nao um URL: o endereco fica fixo deste lado para isto
+ * ser uma pesquisa no YouTube e mais nada, e nunca um proxy por onde o
+ * renderer alcance o que lhe apetecer.
+ */
+ipcMain.handle('yt:pesquisa', async (event, pedido) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  const query = pedido && typeof pedido.query === 'string' ? pedido.query.trim() : '';
+  if (!query) throw new Error('Pesquisa vazia.');
+  // A versao do cliente vive no ytSearchFree.ts, para nao haver duas para
+  // manter; aqui so se valida a forma antes de a repetir num cabecalho.
+  const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
+    ? pedido.clientVersion : '2.20260114.08.00';
+  const params = typeof pedido.params === 'string' && /^[\w%=-]{0,64}$/.test(pedido.params) ? pedido.params : '';
+  const res = await net.fetch('https://www.youtube.com/youtubei/v1/search', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Origin: 'https://www.youtube.com',
+      'X-YouTube-Client-Name': '1',
+      'X-YouTube-Client-Version': versao,
+    },
+    body: JSON.stringify({
+      context: { client: { clientName: 'WEB', clientVersion: versao, hl: 'en', gl: 'US' } },
+      query: query.slice(0, 300),
+      params,
+    }),
+  });
+  if (!res.ok) throw new Error('InnerTube HTTP ' + res.status);
+  return res.json();
+});
+
 ipcMain.on('window:minimize', (event) => { if (daJanelaPrincipal(event)) mainWindow.minimize(); });
 ipcMain.on('window:toggle-maximize', (event) => {
   if (!daJanelaPrincipal(event)) return;
