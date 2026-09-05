@@ -61,6 +61,16 @@ import { type HarvestResult } from './YtStreamHarvester';
  * load player item" ao fazer um pedido sem Range (confirmado por teste).
  */
 
+/**
+ * Quanto se espera pela fila depois de uma passagem acabar.
+ *
+ * O `next()` pode ir à rede pelo caminho (uma sugestão do shuffle
+ * inteligente, o rádio do fim da fila), por isso não pode ser curto. Seis
+ * segundos são muito mais do que qualquer um desses demora e continuam a ser
+ * menos do que o tempo que uma pessoa leva a perceber que algo encravou.
+ */
+const ESPERA_PELA_ENTREGA_MS = 6000;
+
 const BRIDGE_JS = `
 (function () {
   if (window.__duotoneHooked) { return; }
@@ -244,6 +254,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * Guarda os DOIS tetos porque cada faixa tem o seu, vindo da normalização
    * de loudness: a curva tem de respeitar os dois, senão a que entra salta.
    */
+  /**
+   * Uma passagem que já acabou e mandou a fila avançar, mas cuja faixa ainda
+   * não chegou. Enquanto isto não for `null`, a entrega está a meio.
+   */
+  const entregaRef = useRef<{ deQual: string; quando: number } | null>(null);
+
   const passagemRef = useRef<{
     sourceId: string;
     tetoSai: number;
@@ -554,6 +570,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // motor sem fonte — ignorar
     }
     endedRef.current = true;
+    // A partir daqui a fila TEM de avançar. Se não avançar, quem entrou
+    // fica a tocar sem ninguém a saber -- ver o ouvinte do motor em espera.
+    entregaRef.current = { deQual: track.sourceId, quando: Date.now() };
     onStateChange('ended');
   };
 
@@ -616,6 +635,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   };
 
   useEffect(() => {
+    // A faixa mudou: seja para a preparada ou para outra qualquer, a
+    // entrega chegou ao destino.
+    entregaRef.current = null;
+
     // CAMINHO CURTO: a faixa que agora entra já está carregada no outro
     // motor. Troca-se de motor, em vez de resolver e descarregar de novo.
     // Sem faixa preparada -- e é sempre o caso com o crossfade desligado --
@@ -1156,6 +1179,47 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // troca para o ficheiro descarregado — e aí nada no React muda.
   useEventListener(player, 'sourceChange', () => {
     reafirmarComandosDeFaixa();
+  });
+
+  /**
+   * A rede de segurança da passagem, e a razão de ela existir.
+   *
+   * O crossfade entrega a fila ao `ended`, que é quem sabe de repeat, de
+   * rádio e do shuffle inteligente. Só que o `ended` pode não avançar faixa
+   * nenhuma -- e quando isso acontece a app fica num estado que não se
+   * desfaz: quem entrou está a tocar, a loja continua na faixa que saiu, e
+   * os controlos mexem no motor que já acabou. O botão de pausa deixa de
+   * fazer barulho nenhum e só reiniciar a app resolve. Aconteceu.
+   *
+   * O relógio é o motor que ENTROU, e não há outro: quem saiu já acabou e
+   * não emite mais nada, e um `setInterval` não corre com o ecrã bloqueado.
+   * Fora de uma entrega este ouvinte não faz nada -- o motor em espera está
+   * parado, portanto não manda eventos.
+   *
+   * A recuperação é modesta de propósito: cala quem entrou e volta a pedir
+   * o `ended` uma vez. Se a fila avançar, continua-se com uma falha no som;
+   * se não avançar, fica-se no estado que a app teria sem crossfade nenhum
+   * -- faixa acabada e parado. Feio, mas mexe-se, que era o que faltava.
+   */
+  useEventListener(motorEmEspera, 'timeUpdate', () => {
+    const entrega = entregaRef.current;
+    if (!entrega) return;
+    if (entrega.deQual !== track.sourceId) {
+      entregaRef.current = null;
+      return;
+    }
+    if (Date.now() - entrega.quando < ESPERA_PELA_ENTREGA_MS) return;
+
+    entregaRef.current = null;
+    seguinteRef.current = null;
+    registarEvento('entrega_falhada');
+    try {
+      motorEmEspera.pause();
+      motorEmEspera.volume = 0;
+    } catch {
+      // motor sem fonte — ignorar
+    }
+    onStateChange('ended');
   });
 
   // No embed (webview) a reprodução é do próprio YouTube — deixa de fazer

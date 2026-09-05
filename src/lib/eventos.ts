@@ -28,6 +28,7 @@ export type NomeDeEvento =
   | 'faixa_falhou'
   | 'caiu_no_embed'
   | 'fim_encravado'
+  | 'entrega_falhada'
   | 'trocou_para_ficheiro'
   | 'pesquisa_feita'
   | 'faixa_guardada'
