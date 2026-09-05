@@ -24,6 +24,7 @@ import { ArtworkCollage } from '../components/ArtworkCollage';
 import { BottomSheet } from '../components/BottomSheet';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
+import { PrimeiroPasso } from '../components/PrimeiroPasso';
 import { PromptSheet } from '../components/PromptSheet';
 import { Screen } from '../components/Screen';
 import { SocialButton } from '../components/socialUI';
@@ -168,8 +169,22 @@ export function PlaylistsScreen() {
         <EmptyState
           icon="albums-outline"
           title="No playlists yet"
-          subtitle="Create a playlist or import one from YouTube — tracks from both sources live side by side."
-        />
+          subtitle="Bring one over from YouTube, or start an empty one and fill it as you go."
+        >
+          <View style={{ gap: spacing.sm, marginTop: spacing.xl, alignSelf: "stretch", paddingHorizontal: spacing.xl }}>
+            <PrimeiroPasso
+              icon="logo-youtube"
+              label="Import a YouTube playlist"
+              nota="Tracks from both sources live side by side"
+              onPress={() => navigation.navigate("ImportYouTube")}
+            />
+            <PrimeiroPasso
+              icon="add-circle-outline"
+              label="Create an empty playlist"
+              onPress={() => setCreateOpen(true)}
+            />
+          </View>
+        </EmptyState>
       ) : (
         <FlatList
           data={playlists}

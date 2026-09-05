@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLikedSongs, removeFromLibrary, removeMultipleFromLibrary } from '../api/library';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
+import { PrimeiroPasso } from '../components/PrimeiroPasso';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
@@ -189,9 +190,29 @@ export function SongsScreen() {
       ) : tracks.length === 0 ? (
         <EmptyState
           icon="heart-outline"
-          title={offline?"No downloaded liked songs":"Your library is empty"}
-          subtitle={offline?"Download your liked songs while online to listen here without internet.":"Search for tracks and save the ones you love."}
-        />
+          title={offline ? "No downloaded liked songs" : "Nothing here yet"}
+          subtitle={offline
+            ? "Download your liked songs while online to listen here without internet."
+            : "Bring in a playlist you already have, or find something new."}
+        >
+          {/* Um ecrã vazio que não diz o que fazer a seguir é um beco. A
+              importação já existia, escondida numa página que só se
+              encontrava por acaso. */}
+          {!offline && (
+            <View style={{ gap: spacing.sm, marginTop: spacing.xl, alignSelf: "stretch", paddingHorizontal: spacing.xl }}>
+              <PrimeiroPasso
+                icon="logo-youtube"
+                label="Import a YouTube playlist"
+                onPress={() => navigation.navigate("ImportYouTube")}
+              />
+              <PrimeiroPasso
+                icon="search-outline"
+                label="Search for music"
+                onPress={() => navigation.navigate("Tabs", { screen: "Search" })}
+              />
+            </View>
+          )}
+        </EmptyState>
       ) : (
         <View style={{ flex: 1 }}>
           {searchOpen && (
