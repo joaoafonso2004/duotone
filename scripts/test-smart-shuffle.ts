@@ -8,6 +8,8 @@ import {
   rotuloDoModo,
   type ModoDeShuffle,
 } from '../src/lib/smartShuffle.ts';
+import { stepIndex, trackKey } from '../src/lib/shuffle.ts';
+import type { Track } from '../src/types.ts';
 
 let mau = 0;
 const check = (rotulo: string, ok: boolean, extra = '') => {
@@ -72,6 +74,35 @@ eq('sem nada que sirva devolve null',
 eq('sem candidatas devolve null', escolherSugestao([], chave, new Set(), new Set()), null);
 eq('uma chave vazia e ignorada',
   escolherSugestao([{ k: '' }, { k: 'b' }], chave, new Set(), new Set())?.k, 'b');
+
+console.log('\na fila depois de a sugestao entrar');
+// REGRESSAO. O `next()` lia a fila ANTES de mandar intercalar a sugestao e
+// depois continuava com essa copia. O percurso ja conhecia a chave nova e a
+// fila velha nao, e daí duas coisas: o `stepIndex` nao encontrava a chave e
+// devolvia null (a sugestao era saltada, e ia-se parar ao radio do fim da
+// fila), e o `playTrack` -- que recebe a fila por argumento e a grava por
+// cima -- apagava a sugestao que acabara de entrar. O modo parecia funcionar
+// duas ou tres vezes, que eram as semeadas ao ligar, e calava-se.
+const faixa = (id: string): Track => ({
+  source: 'youtube', sourceId: id, title: id, artist: null,
+  album: null, artworkUrl: null, durationSeconds: 180,
+});
+{
+  const antes = [faixa('a'), faixa('b'), faixa('c')];
+  const atual = 0;
+  const onde = posicaoDaSugestao(antes.length, atual);
+  const depois = [...antes.slice(0, onde), faixa('nova'), ...antes.slice(onde)];
+  // O percurso, como o `intercalarSugestao` o deixa: a chave nova logo a
+  // seguir a da faixa atual.
+  const percurso = ['a', 'nova', 'b', 'c'].map((id) => trackKey(faixa(id)));
+
+  eq('com a fila de ANTES a sugestao perde-se',
+    stepIndex(percurso, antes, atual, 1), null);
+
+  const alvo = stepIndex(percurso, depois, atual, 1);
+  eq('com a fila relida a sugestao e a proxima a tocar',
+    alvo === null ? null : trackKey(depois[alvo]), trackKey(faixa('nova')));
+}
 
 console.log('\nos rotulos');
 const modos: ModoDeShuffle[] = ['off', 'normal', 'inteligente'];

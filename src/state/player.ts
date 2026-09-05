@@ -654,8 +654,7 @@ export const usePlayer = create<PlayerState>()(
   },
 
   next: async () => {
-    const { queue, queueIndex, repeatMode, shuffle, playTrack } = get();
-    if (queue.length === 0) return;
+    if (get().queue.length === 0) return;
 
     // SHUFFLE INTELIGENTE: de quatro em quatro faixas entra uma que nao esta
     // na fila, relacionada com o que se anda a ouvir. Sai daqui e nao do
@@ -664,7 +663,7 @@ export const usePlayer = create<PlayerState>()(
     //
     // Se a rede falhar nao acontece nada: cai no shuffle normal. Uma
     // funcionalidade de descoberta nao pode partir a reproducao.
-    if (deveSugerir(modoDeShuffle(shuffle, get().shuffleInteligente), get().desdeASugestao)) {
+    if (deveSugerir(modoDeShuffle(get().shuffle, get().shuffleInteligente), get().desdeASugestao)) {
       const entrou = await get().intercalarSugestao();
       // FALHAR REPOE O CONTADOR NA MESMA. Sem isto, a partir do primeiro
       // falhanco a condicao ficava verdadeira para sempre e CADA mudanca de
@@ -675,6 +674,26 @@ export const usePlayer = create<PlayerState>()(
       // E nao se sai daqui: a sugestao entrou na fila mas nao interrompe,
       // por isso segue-se para o `next` normal.
     }
+
+    // A FILA LÊ-SE AQUI, DEPOIS DA SUGESTÃO, e não no início da função.
+    //
+    // Isto era o bug que fazia o shuffle inteligente calar-se depois das
+    // primeiras faixas semeadas: o `intercalarSugestao` mete uma faixa na
+    // fila e a chave dela no percurso, mas quem estivesse com a cópia de
+    // ANTES via um percurso que já a conhecia e uma fila que ainda não. Duas
+    // consequências, as duas más:
+    //
+    //  - o `stepIndex` procurava a chave nessa fila velha, não a encontrava
+    //    e devolvia `null` -- a sugestão era saltada, e ia-se parar ao rádio
+    //    do fim da fila como se o percurso tivesse acabado;
+    //  - e o `playTrack` recebe a fila por argumento e GRAVA-A por cima da
+    //    que está na loja, portanto apagava a sugestão que acabara de
+    //    entrar. Nunca chegava a aparecer no "Up next".
+    //
+    // As semeadas no arranque sobreviviam porque entram pelo `toggleShuffle`
+    // e pelo `playShuffled`, fora daqui -- daí parecer que o modo funcionava
+    // duas ou três vezes e desistia.
+    const { queue, queueIndex, repeatMode, shuffle, playTrack } = get();
 
     // Fim da fila: em vez de silêncio, o rádio. Normalmente já estendeu a
     // fila em antecipação (useAutoplayRadio) e nem se chega aqui; isto é a
