@@ -24,7 +24,8 @@ import {
   sinalDoErro, type TipoFalha,
 } from '../lib/playbackDiagnostics';
 import { usePlayer } from '../state/player';
-import { compensacaoLinear } from '../lib/equalizer';
+import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear } from '../lib/equalizer';
+import { arredondar as arredondarRate } from '../lib/playbackRate';
 import { displayArtist } from '../lib/artistName';
 import { aplicarEqualizadorNativo, ligarAudioNativo } from '../../modules/duotone-audio';
 import type { Track } from '../types';
@@ -189,17 +190,31 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    *
    * O que impede isto de contaminar o resto do ficheiro: `player` continua
    * a existir e passa a significar O MOTOR ATIVO. Tudo o que já estava
-   * escrito à volta dele -- eventos, equalizador, watchdog, controlos --
-   * fica igual e passa a seguir quem estiver ativo.
+   * escrito à volta dele -- eventos, watchdog, controlos -- fica igual e
+   * passa a seguir quem estiver ativo.
    *
-   * O `showNowPlayingNotification` NÃO se liga aqui: com os dois ligados
-   * havia dois a disputar o ecrã de bloqueio. Quem o decide é o efeito
-   * mais abaixo, que liga o novo antes de desligar o velho.
+   * Duas coisas fogem a essa regra, e fogem de propósito, porque durante uma
+   * passagem os dois motores estão MESMO a tocar:
+   *
+   *  - o equalizador e a velocidade são por FAIXA, e por isso vivem em cada
+   *    motor e não no ativo. Os dois estão registados no módulo nativo, cada
+   *    um com o seu perfil -- ver o efeito do `ligarAudioNativo` e o fim do
+   *    `prepararSeguinte`. Sem isso, quem entrava tocava o fade inteiro sem
+   *    equalizador e apanhava-o de golpe no instante da troca.
+   *  - o `showNowPlayingNotification` é de um só: com os dois ligados havia
+   *    dois a disputar o ecrã de bloqueio. Quem o decide é o efeito mais
+   *    abaixo, que liga o novo antes de desligar o velho.
    */
   const configurarMotor = (p: any) => {
     p.staysActiveInBackground = true;
     p.timeUpdateEventInterval = 1;
     p.loop = false;
+    // O tom acompanha a velocidade, e desde o primeiro item. O módulo nativo
+    // também põe `.varispeed`, mas só quando o KVO do `currentItem` chega --
+    // e um item nasce `.spectral`, que estica o tempo em vez de mexer no tom.
+    // Dizendo-o também ao expo-video, ele estampa-o na criação do item e não
+    // há janela nenhuma com o tom errado. É o que o PC já faz.
+    p.preservesPitch = false;
   };
   const motorA = useVideoPlayer(null, configurarMotor);
   const motorB = useVideoPlayer(null, configurarMotor);
@@ -213,8 +228,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * Enquanto isto for `null` a app comporta-se exatamente como antes: sem
    * faixa preparada não há troca de motor, e a mudança de faixa segue o
    * caminho de sempre. Com o crossfade desligado nunca deixa de ser `null`.
+   *
+   * Traz a VELOCIDADE dela porque é por faixa, como o equalizador: quem entra
+   * tem de soar à velocidade que é dela desde a primeira amostra, senão dava um
+   * salto de tom no instante da troca. Os ganhos não vêm aqui — esses já foram
+   * entregues ao motor em espera, do lado nativo.
    */
-  const seguinteRef = useRef<{ sourceId: string; pronta: boolean } | null>(null);
+  const seguinteRef = useRef<{ sourceId: string; pronta: boolean; rate: number } | null>(null);
   const aPrepararRef = useRef(false);
 
   /**
@@ -255,26 +275,43 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     player.loop = repeatMode === 'one';
   }, [player, repeatMode]);
 
-  // Entrega o player ao módulo nativo, UMA vez. Daí em diante é ele que trata
-  // de cada faixa nova, porque o que ele mexe — o tom e o equalizador — vive
-  // no AVPlayerItem, e cada `replaceAsync` cria um item de raiz. Do lado do JS
-  // não há evento fiável para isso; do lado nativo há KVO no `currentItem`.
+  // Quem publica o ecrã de bloqueio. Ligar o NOVO antes de desligar o velho:
+  // se os dois ficarem desligados ao mesmo tempo, o expo-video chama
+  // `unregisterPlayer` sem ninguém a substituir e o ecrã fica vazio.
   useEffect(() => {
-    // Ligar o NOVO antes de desligar o velho. Se os dois ficarem desligados
-    // ao mesmo tempo, o expo-video chama `unregisterPlayer` sem ninguém a
-    // substituir e o ecrã de bloqueio fica vazio.
     player.showNowPlayingNotification = true;
     motorEmEspera.showNowPlayingNotification = false;
-    ligarAudioNativo(player);
   }, [player, motorEmEspera]);
 
-  // O equalizador. A margem é calculada aqui e não no Swift, para a conta
-  // viver só num sítio: o `lib/equalizer.ts`, que é quem sabe quanto é que as
-  // bandas somam quando se sobrepõem. É a mesma que o PC usa.
+  // Entrega OS DOIS motores ao módulo nativo, e não só o ativo. Daí em diante
+  // é ele que trata de cada faixa nova em cada um, porque o que ele mexe — o
+  // tom e o equalizador — vive no AVPlayerItem, e cada `replaceAsync` cria um
+  // item de raiz. Do lado do JS não há evento fiável para isso; do lado nativo
+  // há KVO no `currentItem`.
+  //
+  // Tem de ser os dois por causa da passagem: durante o fade os dois AVPlayer
+  // soam ao mesmo tempo, e com só o ativo registado a música que entrava tocava
+  // o fade inteiro sem equalizador e sem a margem do limitador, e apanhava-os
+  // de golpe no instante da troca. Do lado nativo o `ligar` é idempotente por
+  // motor, por isso repetir não custa nada.
+  useEffect(() => {
+    ligarAudioNativo(motorA);
+    ligarAudioNativo(motorB);
+  }, [motorA, motorB]);
+
+  // O equalizador DA FAIXA QUE TOCA, no motor que a está a tocar. A margem é
+  // calculada aqui e não no Swift, para a conta viver só num sítio: o
+  // `lib/equalizer.ts`, que é quem sabe quanto é que as bandas somam quando se
+  // sobrepõem. É a mesma que o PC usa.
+  //
+  // O `player` está nas dependências porque o perfil é por faixa: numa troca de
+  // motor, o perfil novo tem de ir para o motor certo. Quem entra já o trouxe
+  // do `prepararSeguinte`; isto reafirma-o, e é o que trata do caso normal, sem
+  // passagem nenhuma.
   useEffect(() => {
     if (backend !== 'native') return;
-    aplicarEqualizadorNativo(eqGanhos, compensacaoLinear(eqGanhos));
-  }, [backend, eqGanhos]);
+    aplicarEqualizadorNativo(player, eqGanhos, compensacaoLinear(eqGanhos));
+  }, [backend, player, eqGanhos]);
 
   // Aplica o Preset de Som reativamente na velocidade de reprodução nativa.
   // ATENÇÃO: no expo-video, definir playbackRate faz `AVPlayer.rate = x`, e no
@@ -414,17 +451,38 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const ficheiro = cachedAudioFile(seguinte.sourceId);
     if (!ficheiro.exists) return;
 
+    // O que ESTA faixa lembra. O equalizador e a velocidade são por faixa, e
+    // sem registo voltam ao padrão -- é o mesmo cálculo que o `playTrack` faz.
+    // Tem de ser feito aqui e não lá: a store só passa a estes valores quando a
+    // faixa começar mesmo, e nessa altura a passagem já acabou.
+    const ajuste = ajusteAoTocar(
+      st.ajustesPorFaixa,
+      chaveDaFaixa(seguinte),
+      { rate: st.padraoRate, ganhos: st.padraoGanhos },
+    );
+
     aPrepararRef.current = true;
-    seguinteRef.current = { sourceId: seguinte.sourceId, pronta: false };
+    seguinteRef.current = {
+      sourceId: seguinte.sourceId,
+      pronta: false,
+      rate: arredondarRate(ajuste.rate),
+    };
+    // Guardado por cima do `await`: enquanto esta faixa não estiver `pronta`
+    // não há troca de motor nenhuma, por isso não pode ficar obsoleto.
+    const emEspera = motorEmEspera;
     try {
-      motorEmEspera.volume = 0;
-      await motorEmEspera.replaceAsync({
+      emEspera.volume = 0;
+      await emEspera.replaceAsync({
         uri: ficheiro.uri,
         contentType: 'progressive',
         metadata: metadadosDoEcraBloqueado(seguinte),
       });
       // A faixa pode ter mudado enquanto isto carregava.
       if (seguinteRef.current?.sourceId === seguinte.sourceId) {
+        // O perfil DELA no motor DELA, antes de soar uma amostra. É isto que
+        // faz a música que entra numa passagem já vir com o equalizador certo,
+        // em vez de o apanhar de repente no fim do fade.
+        aplicarEqualizadorNativo(emEspera, ajuste.ganhos, compensacaoLinear(ajuste.ganhos));
         seguinteRef.current.pronta = true;
         // Daqui até ao fim da faixa vale a pena saber a posição mais vezes.
         reporIntervaloDeTempo();
@@ -527,7 +585,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     reporIntervaloDeTempo();
     try {
       motorEmEspera.volume = 0;
-      motorEmEspera.playbackRate = st.playbackRate;
+      // A velocidade DELA, e não a da faixa que sai: é por faixa, tal como o
+      // equalizador, e veio calculada do `prepararSeguinte`. Com a da que sai,
+      // quem entra tocava o fade inteiro à velocidade errada e saltava de tom
+      // no instante da troca.
+      motorEmEspera.playbackRate = seguinteRef.current?.rate ?? st.playbackRate;
       motorEmEspera.play();
     } catch {
       abortarPassagem();
