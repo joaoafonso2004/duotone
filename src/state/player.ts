@@ -588,6 +588,16 @@ export const usePlayer = create<PlayerState>()(
     persistShuffle(true).catch(() => {});
     persistShuffleInteligente(inteligente).catch(() => {});
     await get().playTrack(tracks[start], tracks, true);
+    // SEMEAR AQUI, e depois do `playTrack`. O botão da barra inferior
+    // (`toggleShuffle`) já semeava, mas este caminho -- o Play das Liked
+    // Songs e das playlists -- não: montava uma fila nova por cima da que
+    // tinha sido semeada e ficava sem sugestão nenhuma. O modo dizia "smart
+    // shuffle" e não entrava nada na fila até à quarta faixa, e só voltava
+    // ao normal quem desligasse e ligasse outra vez o botão de baixo.
+    //
+    // Depois e não antes porque é o `playTrack` que monta a fila, e o
+    // `semearSugestoes` semeia na fila que existe nesse momento.
+    if (inteligente) void get().semearSugestoes();
   },
 
   playNext: (track) => {
