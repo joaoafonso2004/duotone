@@ -12,7 +12,7 @@ import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
 import {
   deveComecarCrossfade, podeCrossfade, volumesDoCrossfade,
 } from '../lib/crossfade';
-import { acaoDoWatchdog, fimPorFaltaDeDados } from '../lib/fimDeFaixa';
+import { acaoDoWatchdog, duracaoParaDetetarOFim, fimPorFaltaDeDados } from '../lib/fimDeFaixa';
 import { definirCapaDoEcraBloqueado, temCapaNativa } from '../../modules/duotone-remote-commands';
 import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
@@ -1121,7 +1121,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         aCarregar: status === 'loading',
         aTocar: player.playing,
         posicaoSegundos: lastProgressRef.current.time,
-        duracaoSegundos: track.durationSeconds || streamRef.current?.durationSeconds || 0,
+        // Aqui -- e SÓ aqui e no watchdog -- o `player.duration` entra como
+        // último recurso. Ver `duracaoParaDetetarOFim`: uma faixa que chega sem
+        // duração ficava presa no último segundo para sempre.
+        duracaoSegundos: duracaoParaDetetarOFim(
+          track.durationSeconds || streamRef.current?.durationSeconds,
+          player.duration,
+        ),
       })
     ) {
       // Um fim que o AVPlayer não anunciou. Vale a pena saber quantos são.
@@ -1165,14 +1171,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   useEffect(() => {
     if (backend !== 'native') return;
     const id = setInterval(() => {
-      // A mesma duração que a barra mostra. O `player.duration` fica de fora
-      // de propósito: há m4a do YouTube que reportam o dobro, e com ele a
-      // faixa nunca seria vista como perto do fim.
+      // A duração de confiança primeiro; o `player.duration` só se não houver
+      // outra. Ver `duracaoParaDetetarOFim` -- é o único par de sítios onde ele
+      // entra, e entra porque errar aqui por excesso só perde a deteção.
       const acao = acaoDoWatchdog({
         querTocar: wantsPlayRef.current,
         paradoMs: Date.now() - lastProgressRef.current.at,
         posicaoSegundos: lastProgressRef.current.time,
-        duracaoSegundos: track.durationSeconds || streamRef.current?.durationSeconds || 0,
+        duracaoSegundos: duracaoParaDetetarOFim(
+          track.durationSeconds || streamRef.current?.durationSeconds,
+          player.duration,
+        ),
         jaDescarregou: downloadTriedRef.current,
       });
 

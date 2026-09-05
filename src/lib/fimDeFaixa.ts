@@ -82,3 +82,40 @@ export function fimPorFaltaDeDados(estado: {
   if (estado.duracaoSegundos <= 0) return false;
   return estado.posicaoSegundos >= estado.duracaoSegundos - SEM_DADOS_PERTO_DO_FIM_S;
 }
+
+/**
+ * Que duração dar aos dois detetores acima.
+ *
+ * Em todo o resto da app o `player.duration` fica DE FORA, e por boa razão: há
+ * m4a do YouTube que declaram o dobro, e com um deles a barra mentia e a
+ * passagem do crossfade começava a meio da música.
+ *
+ * Aqui entra -- mas em ÚLTIMO recurso, só quando a app não sabe a duração de
+ * mais lado nenhum. O que torna isto seguro é o sentido do erro. A pergunta que
+ * se faz a seguir é "já passei do fim menos dois segundos?", e uma duração
+ * grande de mais nunca chega a ser atingida: perde-se a deteção, que é
+ * exatamente o que já acontecia sem duração nenhuma. Mau seria uma duração
+ * PEQUENA de mais -- essa saltava uma faixa a meio -- e não é essa a forma
+ * deste defeito.
+ *
+ * Sem isto, uma faixa que chega à fila sem duração ficava presa no último
+ * segundo PARA SEMPRE. É o caso das sugestões do shuffle inteligente quando o
+ * InnerTube não manda o `lengthText`: o contentor declara mais dados do que
+ * tem, o AVPlayer espera pelo resto e nunca emite o `playToEnd`, e as duas
+ * redes de segurança estavam ambas caladas por não haver duração.
+ *
+ * Aceita lixo de propósito: antes de o item carregar, o AVPlayer devolve `NaN`
+ * ou `Infinity` na duração.
+ */
+export function duracaoParaDetetarOFim(
+  conhecida: number | null | undefined,
+  doMotor: number | null | undefined,
+): number {
+  if (typeof conhecida === 'number' && Number.isFinite(conhecida) && conhecida > 0) {
+    return conhecida;
+  }
+  if (typeof doMotor === 'number' && Number.isFinite(doMotor) && doMotor > 0) {
+    return doMotor;
+  }
+  return 0;
+}

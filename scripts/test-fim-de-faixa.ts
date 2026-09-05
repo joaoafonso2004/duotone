@@ -86,3 +86,54 @@ assert.equal(fimPorFaltaDeDados({ ...semDados, querTocar: false }), false);
 assert.equal(fimPorFaltaDeDados({ ...semDados, duracaoSegundos: 0 }), false);
 
 console.log('Fim sem dados: buffer vazio no fim, pausa, buffer a meio e motor a tocar passaram.');
+
+// --- Que duração dar aos dois detetores ---
+import { duracaoParaDetetarOFim } from '../src/lib/fimDeFaixa.ts';
+
+// A conhecida ganha sempre, mesmo com o motor a dizer o dobro.
+assert.equal(duracaoParaDetetarOFim(187, 374), 187);
+
+// Sem nenhuma conhecida vale a do motor. É isto que destrava as faixas que
+// chegam à fila sem duração -- as sugestões do shuffle inteligente, quando o
+// InnerTube não manda o `lengthText`.
+assert.equal(duracaoParaDetetarOFim(null, 132), 132);
+assert.equal(duracaoParaDetetarOFim(undefined, 132), 132);
+assert.equal(duracaoParaDetetarOFim(0, 132), 132);
+
+// Sem nenhuma das duas continua a não se adivinhar nada.
+assert.equal(duracaoParaDetetarOFim(null, null), 0);
+assert.equal(duracaoParaDetetarOFim(null, 0), 0);
+
+// Antes de o item carregar, o AVPlayer devolve NaN ou Infinity: não passam.
+assert.equal(duracaoParaDetetarOFim(null, NaN), 0);
+assert.equal(duracaoParaDetetarOFim(null, Infinity), 0);
+assert.equal(duracaoParaDetetarOFim(NaN, 132), 132);
+assert.equal(duracaoParaDetetarOFim(Infinity, 132), 132);
+
+// O SENTIDO DO ERRO, que é o que torna seguro deixar entrar o `player.duration`
+// aqui e em mais lado nenhum: com o m4a que declara o dobro, a posição real
+// nunca chega ao fim menos dois -- perde-se a deteção, que é exatamente o que
+// já acontecia sem duração nenhuma. Nunca se avança cedo, que é o que não se
+// pode fazer.
+assert.equal(
+  fimPorFaltaDeDados({
+    ...semDados,
+    posicaoSegundos: 132,
+    duracaoSegundos: duracaoParaDetetarOFim(null, 264),
+  }),
+  false,
+  'duração a dobrar: perde a deteção, não salta',
+);
+
+// Com a duração do motor certa, a mesma posição já é reconhecida como fim.
+assert.equal(
+  fimPorFaltaDeDados({
+    ...semDados,
+    posicaoSegundos: 132,
+    duracaoSegundos: duracaoParaDetetarOFim(null, 132),
+  }),
+  true,
+  'o caso da faixa presa a 2:12 de 2:12',
+);
+
+console.log('Duração para detetar o fim: a conhecida ganha, o motor é o último recurso, e errar por excesso só perde a deteção.');

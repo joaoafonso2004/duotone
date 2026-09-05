@@ -239,7 +239,19 @@ async function procurarNoYouTube(faixa: FaixaDoCatalogo): Promise<Track | null> 
   if (!escolhida) return null;
   // O artista passa a ser o do catálogo e não o que se adivinha do título: é o
   // nome certo, e é o que a biblioteca vai guardar se ele gostar da faixa.
-  return { ...escolhida.track, artist: faixa.artista };
+  //
+  // A DURAÇÃO vem pelo mesmo caminho quando a pesquisa não a trouxe. O
+  // InnerTube nem sequer manda sempre o `lengthText`, e uma faixa sem duração
+  // atravessa a app toda: é ela que corrige o contentor do ficheiro
+  // descarregado (`fixMp4Duration`) e que arma os dois detetores do fim. Sem
+  // ela a música ficava presa no último segundo, sem nunca passar à seguinte
+  // -- e só nas sugestões, porque as da biblioteca trazem a duração do
+  // Supabase.
+  return {
+    ...escolhida.track,
+    artist: faixa.artista,
+    durationSeconds: escolhida.track.durationSeconds ?? faixa.duracaoS,
+  };
 }
 
 /**
