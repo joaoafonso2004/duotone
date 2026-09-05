@@ -94,8 +94,27 @@ public class DuotoneAudioModule: Module {
         // espera: prepara-se o perfil no mesmo instante em que se lhe carrega
         // a faixa. Quem chegar primeiro cria o motor; o outro encontra-o.
         let motor = self.motores.first { $0.player === p } ?? self.registar(p)
-        motor.ganhos = DuotoneEq.normalizar(db)
-        motor.margem = margem.isFinite && margem > 0 && margem <= 1 ? Float(margem) : 1
+        let novos = DuotoneEq.normalizar(db)
+        let novaMargem = margem.isFinite && margem > 0 && margem <= 1 ? Float(margem) : 1
+
+        // MESMO PERFIL, NAO SE MEXE.
+        //
+        // Instalar um `audioMix` reconstroi o tap (ver o cabecalho do
+        // DuotoneEq), e num item que JA esta a tocar isso custa uma
+        // descontinuidade audivel -- o proprio ficheiro avisa disso.
+        //
+        // No fim de uma passagem o motor que entra ja trazia este perfil desde
+        // o `prepararSeguinte`, posto antes de ele soar uma amostra. Mas o
+        // efeito do lado do JS volta a pedi-lo, porque o motor ativo mudou.
+        // Sem esta guarda, cada crossfade acabava com um solavanco -- e o
+        // trabalho todo era para deixar o item exatamente como ja estava.
+        //
+        // Um item NOVO nao passa por aqui: quem trata desse e o KVO do
+        // `currentItem`, que aplica o perfil guardado no motor.
+        if motor.ganhos == novos && motor.margem == novaMargem { return }
+
+        motor.ganhos = novos
+        motor.margem = novaMargem
         self.aplicarNoItem(motor.player?.currentItem, de: motor)
       }
     }
