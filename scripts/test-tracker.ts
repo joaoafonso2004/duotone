@@ -1,0 +1,112 @@
+/**
+ * O segundo catálogo — o que existe e nunca foi lançado.
+ *
+ * As linhas de exemplo aqui são reais, tiradas do tracker do Playboi Carti:
+ * é uma folha mantida à mão por dezenas de pessoas, e inventar linhas limpas
+ * para a testar seria testar outra coisa.
+ */
+import {
+  faixasDoTracker, jaTens, porOuvir, procuraNoYouTube, segundosDoTempo, tituloLimpo,
+  type FaixaDoTracker,
+} from '../src/lib/tracker.ts';
+
+let mau = 0;
+const check = (rotulo: string, ok: boolean, extra = '') => {
+  if (!ok) mau++;
+  console.log(`  ${ok ? 'ok   ' : 'FALHA'} ${rotulo}${extra ? '  -> ' + extra : ''}`);
+};
+const eq = (rotulo: string, veio: unknown, esperado: unknown) =>
+  check(rotulo, veio === esperado, veio === esperado ? '' : `esperado ${JSON.stringify(esperado)}, veio ${JSON.stringify(veio)}`);
+
+console.log('\nos tempos da folha');
+eq('minutos e segundos', segundosDoTempo('3:19'), 199);
+eq('com horas', segundosDoTempo('1:02:03'), 3723);
+eq('espaços à volta não estorvam', segundosDoTempo(' 2:44 '), 164);
+eq('o que ninguém sabe vem a interrogações', segundosDoTempo('?:??'), null);
+eq('um traço não é um tempo', segundosDoTempo('-'), null);
+eq('vazio não é um tempo', segundosDoTempo(''), null);
+eq('nem um número solto', segundosDoTempo('199'), null);
+eq('nem outra coisa qualquer', segundosDoTempo(null), null);
+
+console.log('\nos títulos');
+eq('a estrela do destaque sai', tituloLimpo('⭐️ Cry'), 'Cry');
+eq('a versão FICA', tituloLimpo('⭐ At The Gate [V4]'), 'At The Gate [V4]');
+eq('sem estrela fica igual', tituloLimpo('Molly'), 'Molly');
+eq('o que não for texto dá vazio', tituloLimpo(undefined), '');
+
+console.log('\na resposta da aba');
+// A forma exacta que o trackerapi devolve.
+const resposta = {
+  name: 'Playboi Carti Tracker [Official]',
+  eras: [
+    {
+      name: 'Killing Me Softly',
+      tracks: [{
+        name: { raw: '⭐️ Cry\n(prod. Harry Fraud)', title: '⭐️ Cry', credits: ['(prod. Harry Fraud)'] },
+        track_length: '3:19', leak_date: 'Jul 17, 2011',
+        available_length: 'Full', quality: 'High Quality', type: 'High Bitrate Rip',
+      }],
+    },
+    {
+      name: 'Die Lit',
+      tracks: [
+        {
+          name: { raw: '⭐ Texas [V1]\n(prod. Jake One & Southside)', title: '⭐ Texas [V1]', credits: ['(prod. Jake One & Southside)'] },
+          track_length: '3:26', leak_date: 'Mar 5, 2021',
+          available_length: 'OG File', quality: 'CD Quality', type: 'Demo',
+        },
+        // Uma linha estragada não pode deitar abaixo a lista toda.
+        { name: { title: '   ' }, track_length: '2:00' },
+      ],
+    },
+  ],
+};
+
+const faixas = faixasDoTracker(resposta);
+eq('a linha sem título é deitada fora', faixas.length, 2);
+eq('a era vem colada à faixa', faixas[0].era, 'Killing Me Softly');
+eq('o título vem limpo', faixas[0].titulo, 'Cry');
+eq('a duração vem em segundos', faixas[0].duracaoSegundos, 199);
+eq('o produtor vem separado', faixas[0].creditos[0], '(prod. Harry Fraud)');
+eq('e o resto da ficha também', faixas[1].disponibilidade, 'OG File');
+eq('uma resposta vazia não rebenta', faixasDoTracker({}).length, 0);
+eq('nem uma resposta que não é uma resposta', faixasDoTracker(null).length, 0);
+
+console.log('\no que já se tem');
+const t = (titulo: string, dur: number | null = null): FaixaDoTracker => ({
+  titulo, creditos: [], era: 'Die Lit', duracaoSegundos: dur,
+  dataDoLeak: null, disponibilidade: null, qualidade: null, tipo: null,
+});
+
+check('o nome verdadeiro aparece dentro do lixo do YouTube',
+  jaTens({ titulo: '[LEAK] Playboi Carti - Southside Freestyle (CDQ)' }, t('Southside Freestyle')));
+check('e igual também conta',
+  jaTens({ titulo: 'Southside Freestyle' }, t('Southside Freestyle')));
+check('outra faixa não conta',
+  !jaTens({ titulo: 'Playboi Carti - Magnolia' }, t('Southside Freestyle')));
+
+// A guarda que evita o exagero: um título curto cabe dentro de meio mundo.
+check('título curto sozinho não chega',
+  !jaTens({ titulo: 'Carti - Cry Baby (Official Video)', duracaoSegundos: 240 }, t('Cry', 199)));
+check('título curto com a duração a confirmar já chega',
+  jaTens({ titulo: 'Carti - Cry Baby (Official Video)', duracaoSegundos: 201 }, t('Cry', 199)));
+check('título curto sem durações não conta',
+  !jaTens({ titulo: 'Carti - Cry Baby' }, t('Cry')));
+
+console.log('\no que falta ouvir');
+const doTracker = [t('Southside Freestyle'), t('Texas [V1]'), t('At The Gate [V4]')];
+const minha = [{ titulo: '[LEAK] Playboi Carti - Southside Freestyle (CDQ)' }];
+const falta = porOuvir(doTracker, minha);
+eq('tira o que já se tem', falta.length, 2);
+eq('e mantém a ordem da comunidade', falta[0].titulo, 'Texas [V1]');
+eq('sem biblioteca, falta tudo', porOuvir(doTracker, []).length, 3);
+eq('sem tracker, não falta nada', porOuvir([], minha).length, 0);
+
+console.log('\no que se manda procurar');
+eq('com versão, a versão chega',
+  procuraNoYouTube('Playboi Carti', t('Texas [V1]')), 'Playboi Carti Texas [V1]');
+eq('sem versão, junta-se a era para desambiguar',
+  procuraNoYouTube('Playboi Carti', t('Cry')), 'Playboi Carti Cry Die Lit');
+
+console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
+process.exit(mau === 0 ? 0 : 1);

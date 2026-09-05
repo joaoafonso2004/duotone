@@ -3,10 +3,14 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary, removeFromLibrary, saveToLibrary } from '../api/library';
 import { searchYouTube, searchYouTubePlaylists } from '../api/youtube';
+import { abaDoTracker, faixasDoArtista, trackerDoArtista } from '../api/trackers';
+import { porOuvir, procuraNoYouTube, type FaixaDoTracker } from '../lib/tracker';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PillButton } from '../components/PillButton';
@@ -42,7 +46,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
 
   // Artist additional content states
-  const [activeTab, setActiveTab] = useState<'library' | 'youtube_tracks' | 'youtube_albums'>('library');
+  const [activeTab, setActiveTab] = useState<'library' | 'por_ouvir' | 'youtube_tracks' | 'youtube_albums'>('library');
+  // O segundo catálogo: o que este artista nunca lançou. Ver lib/tracker.ts.
+  const [folhaDoTracker, setFolhaDoTracker] = useState<string | null>(null);
+  const [doTracker, setDoTracker] = useState<FaixaDoTracker[] | null>(null);
+  const [aCarregarTracker, setACarregarTracker] = useState(false);
+  const [aProcurar, setAProcurar] = useState<string | null>(null);
   const [ytTracks, setYtTracks] = useState<Track[]>([]);
   const [ytAlbums, setYtAlbums] = useState<any[]>([]);
   const [loadingYtTracks, setLoadingYtTracks] = useState(false);
@@ -80,6 +89,42 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     }, [load])
   );
 
+  /**
+   * O que existe deste artista e não está na biblioteca.
+   *
+   * Só corre num ecrã que a pessoa abriu, nunca no caminho da reprodução, e
+   * falha em silêncio: sem tracker, sem rede ou com a folha em baixo, o
+   * separador simplesmente não aparece.
+   */
+  useEffect(() => {
+    if (type !== 'artist' || !name) return;
+    let cancelado = false;
+    setFolhaDoTracker(null);
+    setDoTracker(null);
+    (async () => {
+      const artista = await trackerDoArtista(name);
+      if (cancelado || !artista) return;
+      // Só o `meta`, que custa umas centenas de bytes: chega para saber se
+      // há separador para mostrar. As faixas podem ser centenas de KB e só
+      // descem quando alguém o abrir.
+      const aba = await abaDoTracker(artista.folha);
+      if (!cancelado && aba && aba.total > 0) setFolhaDoTracker(artista.folha);
+    })().catch(() => {});
+    return () => { cancelado = true; };
+  }, [type, name]);
+
+  /** As faixas só se descarregam ao abrir o separador. */
+  useEffect(() => {
+    if (activeTab !== 'por_ouvir' || !folhaDoTracker || doTracker) return;
+    let cancelado = false;
+    setACarregarTracker(true);
+    faixasDoArtista(folhaDoTracker)
+      .then((f) => { if (!cancelado) setDoTracker(f); })
+      .catch(() => { if (!cancelado) setDoTracker([]); })
+      .finally(() => { if (!cancelado) setACarregarTracker(false); });
+    return () => { cancelado = true; };
+  }, [activeTab, folhaDoTracker, doTracker]);
+
   // Fetch YouTube tracks & albums when artist name is ready
   useEffect(() => {
     if (type === 'artist' && name) {
@@ -103,6 +148,33 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         .finally(() => setLoadingYtAlbums(false));
     }
   }, [type, name, tracks.length]);
+
+  const listaPorOuvir = useMemo(
+    () => (doTracker ? porOuvir(doTracker, tracks.map((t) => ({
+      titulo: t.title, duracaoSegundos: t.durationSeconds,
+    }))) : []),
+    [doTracker, tracks],
+  );
+
+  /**
+   * Ouvir uma destas: procura-se no YouTube, como para tudo o resto.
+   *
+   * A folha traz ligações para alojadores de terceiros e elas são ignoradas
+   * de propósito -- daqui só se importam metadados.
+   */
+  const ouvirDoTracker = useCallback(async (f: FaixaDoTracker) => {
+    if (aProcurar) return;
+    setAProcurar(f.titulo);
+    try {
+      const res = await searchYouTube(procuraNoYouTube(name, f));
+      if (res.length > 0) playTrack(res[0], res, true);
+      else Alert.alert('Não encontrei', `"${f.titulo}" não aparece no YouTube.`);
+    } catch {
+      Alert.alert('Não encontrei', 'A procura falhou. Tenta outra vez.');
+    } finally {
+      setAProcurar(null);
+    }
+  }, [aProcurar, name, playTrack]);
 
   const isSaved = useMemo(() => {
     if (!actionTrack) return false;
@@ -190,7 +262,13 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       onBack={() => navigation.goBack()}
     >
       {type === 'artist' && (
-        <View style={styles.tabsContainer}>
+        // Quatro separadores não cabem num telemóvel estreito. A rolar,
+        // cabem todos e nenhum fica cortado a meio da palavra.
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsContainer}
+        >
           <Pressable
             style={[styles.tabChip, activeTab === 'library' && styles.tabChipActive]}
             onPress={() => setActiveTab('library')}
@@ -199,6 +277,16 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
               Na Biblioteca
             </Text>
           </Pressable>
+          {!!folhaDoTracker && (
+            <Pressable
+              style={[styles.tabChip, activeTab === 'por_ouvir' && styles.tabChipActive]}
+              onPress={() => setActiveTab('por_ouvir')}
+            >
+              <Text style={[styles.tabLabel, activeTab === 'por_ouvir' && { color: colors.text }]}>
+                Por Ouvir{doTracker ? ` · ${listaPorOuvir.length}` : ''}
+              </Text>
+            </Pressable>
+          )}
           <Pressable
             style={[styles.tabChip, activeTab === 'youtube_tracks' && styles.tabChipActive]}
             onPress={() => setActiveTab('youtube_tracks')}
@@ -215,7 +303,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
               Álbuns
             </Text>
           </Pressable>
-        </View>
+        </ScrollView>
       )}
 
       {loading ? (
@@ -261,6 +349,65 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
                       onPress={() => playTrack(item, tracks, true)}
                       onAction={() => setActionTrack(item)}
                     />
+                  )}
+                />
+              )}
+            </>
+          )}
+
+          {activeTab === 'por_ouvir' && (
+            <>
+              {aCarregarTracker ? (
+                <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
+              ) : listaPorOuvir.length === 0 ? (
+                <EmptyState
+                  icon="checkmark-done-outline"
+                  title="Tens tudo"
+                  subtitle="Não há nada no tracker deste artista que não esteja já na tua biblioteca."
+                />
+              ) : (
+                <FlatList
+                  data={listaPorOuvir}
+                  keyExtractor={(f, i) => `${f.era}:${f.titulo}:${i}`}
+                  initialNumToRender={14}
+                  maxToRenderPerBatch={12}
+                  windowSize={7}
+                  removeClippedSubviews
+                  contentContainerStyle={{ paddingBottom: bottomPad }}
+                  ListHeaderComponent={
+                    <Text style={styles.notaDoTracker}>
+                      Do tracker da comunidade — o que este artista nunca lançou e não
+                      tens guardado. Toca para procurar no YouTube.
+                    </Text>
+                  }
+                  renderItem={({ item }) => (
+                    <Pressable
+                      onPress={() => void ouvirDoTracker(item)}
+                      style={({ pressed }) => [
+                        styles.linhaDoTracker,
+                        pressed && { backgroundColor: colors.surface },
+                      ]}
+                    >
+                      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+                        <Text numberOfLines={1} style={typography.body}>{item.titulo}</Text>
+                        <Text numberOfLines={1} style={typography.caption}>
+                          {[item.era, item.creditos[0], item.dataDoLeak]
+                            .filter(Boolean).join(' · ')}
+                        </Text>
+                      </View>
+                      {item.disponibilidade ? (
+                        <View style={[styles.selo, { borderColor: theme.soft }]}>
+                          <Text style={[styles.seloTexto, { color: theme.color }]}>
+                            {item.disponibilidade}
+                          </Text>
+                        </View>
+                      ) : null}
+                      {aProcurar === item.titulo ? (
+                        <ActivityIndicator size="small" color={theme.color} />
+                      ) : (
+                        <Ionicons name="search" size={16} color={colors.textTertiary} />
+                      )}
+                    </Pressable>
                   )}
                 />
               )}
@@ -397,6 +544,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     marginBottom: spacing.md,
   },
+  notaDoTracker: {
+    ...typography.caption,
+    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.md,
+  },
+  linhaDoTracker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: 10,
+  },
+  selo: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  seloTexto: { fontSize: 10, fontWeight: '700' },
   tabChip: {
     paddingHorizontal: 14,
     paddingVertical: 7,

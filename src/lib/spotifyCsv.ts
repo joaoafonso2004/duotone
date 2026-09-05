@@ -48,8 +48,11 @@ export interface ParseResult {
  * Um `split(',')` ingénuo parte em qualquer título com vírgula — e há muitos.
  * As aspas também podem conter quebras de linha, por isso a divisão em linhas
  * tem de acontecer aqui dentro, e não antes.
+ *
+ * Exportado porque não deve haver dois: o índice de artistas do segundo
+ * catálogo (api/trackers.ts) também é um CSV com vírgulas dentro das aspas.
  */
-function parseCsv(text: string): string[][] {
+export function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';

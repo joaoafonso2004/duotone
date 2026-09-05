@@ -18,6 +18,8 @@ import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist } from '../../lib/artistName';
+import { abaDoTracker, faixasDoArtista, trackerDoArtista } from '../../api/trackers';
+import { porOuvir, procuraNoYouTube, type FaixaDoTracker } from '../../lib/tracker';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
 import { ordenarArtistas, ordenarFaixas } from '../../lib/ordenacao';
 import { useAuth } from '../../state/auth';
@@ -160,7 +162,11 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
 
 export function ArtistPage({ name, back, ...props }: { name: string; back: () => void } & CommonPageProps) {
   const data = useLibraryData();
-  const [separador, setSeparador] = useState<'library' | 'tracks' | 'albums'>('library');
+  const [separador, setSeparador] = useState<'library' | 'por_ouvir' | 'tracks' | 'albums'>('library');
+  // O segundo catálogo: o que este artista nunca lançou. Ver lib/tracker.ts.
+  const [folhaDoTracker, setFolhaDoTracker] = useState<string | null>(null);
+  const [doTracker, setDoTracker] = useState<FaixaDoTracker[] | null>(null);
+  const [aProcurar, setAProcurar] = useState<string | null>(null);
   const [outras, setOutras] = useState<Track[]>([]);
   const [albuns, setAlbuns] = useState<YtRecommendedPlaylist[]>([]);
   const [aDescobrir, setADescobrir] = useState(true);
@@ -262,6 +268,63 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     }
   };
 
+  /**
+   * O que existe deste artista e não está na biblioteca.
+   *
+   * Falha em silêncio: sem tracker, sem rede, ou com a folha em baixo, o
+   * separador simplesmente não aparece. Ver as regras em api/trackers.ts.
+   */
+  useEffect(() => {
+    let cancelado = false;
+    setFolhaDoTracker(null);
+    setDoTracker(null);
+    (async () => {
+      const artista = await trackerDoArtista(name);
+      if (cancelado || !artista) return;
+      // Só o `meta` ao abrir a página -- umas centenas de bytes. As faixas
+      // podem ser centenas de KB e só descem se alguém abrir o separador.
+      const aba = await abaDoTracker(artista.folha);
+      if (!cancelado && aba && aba.total > 0) setFolhaDoTracker(artista.folha);
+    })().catch(() => {});
+    return () => { cancelado = true; };
+  }, [name]);
+
+  /** As faixas só se descarregam ao abrir o separador. */
+  useEffect(() => {
+    if (separador !== 'por_ouvir' || !folhaDoTracker || doTracker) return;
+    let cancelado = false;
+    faixasDoArtista(folhaDoTracker)
+      .then((f) => { if (!cancelado) setDoTracker(f); })
+      .catch(() => { if (!cancelado) setDoTracker([]); });
+    return () => { cancelado = true; };
+  }, [separador, folhaDoTracker, doTracker]);
+
+  const listaPorOuvir = useMemo(
+    () => (doTracker ? porOuvir(doTracker, tracks.map((t) => ({
+      titulo: t.title, duracaoSegundos: t.durationSeconds,
+    }))) : []),
+    [doTracker, tracks],
+  );
+
+  /**
+   * Ouvir uma destas: procura-se no YouTube, como para tudo o resto. As
+   * ligações que a folha traz apontam para alojadores de terceiros e são
+   * ignoradas de propósito -- daqui só se importam metadados.
+   */
+  const ouvirDoTracker = async (f: FaixaDoTracker) => {
+    if (aProcurar) return;
+    setAProcurar(f.titulo);
+    try {
+      const res = await searchYouTube(procuraNoYouTube(name, f));
+      if (res.length > 0) props.play(res[0], res);
+      else props.notify(`“${f.titulo}” não aparece no YouTube.`);
+    } catch (e: any) {
+      props.notify(e?.message || 'A procura falhou.');
+    } finally {
+      setAProcurar(null);
+    }
+  };
+
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const ligado = usePlayer((s) => s.shuffle);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
@@ -296,6 +359,10 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
         <View style={artistStyles.tabs}>
           {([
             ['library', 'In your library', 'heart-outline'],
+            // Só aparece havendo tracker para este artista e algo a faltar.
+            ...(folhaDoTracker
+              ? [['por_ouvir', doTracker ? `Unreleased · ${listaPorOuvir.length}` : 'Unreleased', 'sparkles-outline'] as const]
+              : []),
             ['tracks', 'More tracks', 'musical-notes-outline'],
             ['albums', 'Albums', 'albums-outline'],
           ] as const).map(([id, label, icon]) => <Pressable key={id} onPress={() => setSeparador(id)}
@@ -307,6 +374,21 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
 
         {separador === 'library' && <TrackTable plain tracks={tracks} onPlay={(t) => props.play(t, tracks)} onMore={props.more}
           empty={<Empty icon="heart-outline" title="Nothing saved" body="Save a track by this artist and it will appear here." />} />}
+
+        {separador === 'por_ouvir' && (doTracker === null ? <View style={{ height: 280 }}><Loading /></View> :
+          listaPorOuvir.length ? <View style={artistStyles.porOuvir}>
+            <Text style={artistStyles.porOuvirNota}>Do tracker da comunidade — o que este artista nunca lançou e não tens guardado. Clica para procurar no YouTube.</Text>
+            {listaPorOuvir.map((f, i) => <Pressable key={`${f.era}:${f.titulo}:${i}`} onPress={() => void ouvirDoTracker(f)}
+              style={({ hovered }) => [artistStyles.porOuvirLinha, hovered && artistStyles.porOuvirLinhaHover]}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={artistStyles.porOuvirTitulo}>{f.titulo}</Text>
+                <Text numberOfLines={1} style={artistStyles.porOuvirMeta}>{[f.era, f.creditos[0], f.dataDoLeak].filter(Boolean).join(' · ')}</Text>
+              </View>
+              {f.disponibilidade ? <Text style={artistStyles.porOuvirSelo}>{f.disponibilidade}</Text> : null}
+              <Ionicons name={aProcurar === f.titulo ? 'hourglass-outline' : 'search'} size={15} color={desktop.dim} />
+            </Pressable>)}
+          </View> :
+          <Empty icon="checkmark-done-outline" title="You have everything" body="Nothing in this artist's tracker is missing from your library." />)}
 
         {separador === 'tracks' && (aDescobrir ? <View style={{ height: 280 }}><Loading /></View> :
           <TrackTable plain showSavedBadge tracks={outrasSemRepetir} onPlay={(t) => props.play(t, outrasSemRepetir)} onMore={props.more}
@@ -343,6 +425,23 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
 
 const artistStyles = StyleSheet.create({
   heroFallback: { alignItems: 'center', justifyContent: 'center' },
+
+  // O segundo catálogo. Linhas, e não cartões: são muitas, e o que se lê em
+  // cada uma é uma linha de texto, não uma capa -- estas faixas não têm.
+  porOuvir: { gap: 2 },
+  porOuvirNota: { ...TIPO.legenda, color: COR.textoFraco, paddingBottom: ESP.md, maxWidth: 640 },
+  porOuvirLinha: {
+    flexDirection: 'row', alignItems: 'center', gap: ESP.md,
+    paddingHorizontal: ESP.md, paddingVertical: 9, borderRadius: RAIO.cartao, cursor: 'pointer',
+  } as any,
+  porOuvirLinhaHover: { backgroundColor: COR.hover },
+  porOuvirTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' as any },
+  porOuvirMeta: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 1 },
+  porOuvirSelo: {
+    ...TIPO.legenda, color: COR.textoFraco, fontWeight: '700' as any,
+    borderWidth: 1, borderColor: COR.linha, borderRadius: RAIO.pilula,
+    paddingHorizontal: 8, paddingVertical: 2, whiteSpace: 'nowrap',
+  } as any,
   tabs: {
     flexDirection: 'row', alignItems: 'center', gap: ESP.sm,
     paddingBottom: ESP.xl, marginBottom: ESP.lg, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave,
