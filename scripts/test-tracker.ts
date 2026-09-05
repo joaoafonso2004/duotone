@@ -6,8 +6,8 @@
  * para a testar seria testar outra coisa.
  */
 import {
-  faixasDoTracker, jaTens, porOuvir, procuraNoYouTube, segundosDoTempo, tituloLimpo,
-  type FaixaDoTracker,
+  capasPorEra, faixasDoTracker, iniciaisDaEra, jaTens, porOuvir, procuraNoYouTube,
+  segundosDoTempo, tituloLimpo, type FaixaDoTracker,
 } from '../src/lib/tracker.ts';
 
 let mau = 0;
@@ -73,9 +73,10 @@ eq('uma resposta vazia não rebenta', faixasDoTracker({}).length, 0);
 eq('nem uma resposta que não é uma resposta', faixasDoTracker(null).length, 0);
 
 console.log('\no que já se tem');
-const t = (titulo: string, dur: number | null = null): FaixaDoTracker => ({
-  titulo, creditos: [], era: 'Die Lit', duracaoSegundos: dur,
+const t = (titulo: string, dur: number | null = null, era = 'Die Lit'): FaixaDoTracker => ({
+  titulo, creditos: [], era, duracaoSegundos: dur,
   dataDoLeak: null, disponibilidade: null, qualidade: null, tipo: null,
+  cor: '#620e0d', corDoTexto: '#ffffff',
 });
 
 check('o nome verdadeiro aparece dentro do lixo do YouTube',
@@ -107,6 +108,33 @@ eq('com versão, a versão chega',
   procuraNoYouTube('Playboi Carti', t('Texas [V1]')), 'Playboi Carti Texas [V1]');
 eq('sem versão, junta-se a era para desambiguar',
   procuraNoYouTube('Playboi Carti', t('Cry')), 'Playboi Carti Cry Die Lit');
+
+console.log('\nas iniciais da era');
+eq('duas palavras dão duas letras', iniciaisDaEra('Die Lit'), 'DL');
+eq('as de ligação não contam', iniciaisDaEra('death in tune'), 'DT');
+eq('uma palavra dá as duas primeiras letras', iniciaisDaEra('Sen$ation'), 'SE');
+eq('a pontuação não estorva', iniciaisDaEra('THC: The High Chronical$'), 'TH');
+eq('sendo a única palavra, a de ligação vale', iniciaisDaEra('The'), 'TH');
+eq('sem era, não se inventa', iniciaisDaEra(''), '?');
+
+console.log('\nas capas de cada era');
+// A ideia: as eras que SAÍRAM têm faixas tuas, e essas trazem a capa delas. As
+// que nunca saíram não têm capa em lado nenhum, e ficam com a cor da era.
+{
+  const doTrackerComEras = [
+    t('Long Time', 200, 'Die Lit'),
+    t('Fell In Luv', 210, 'Die Lit'),
+    t('Southside Freestyle', 163, 'death in tune'),
+  ];
+  const aMinha = [
+    { titulo: 'Playboi Carti - Long Time (Official Audio)', duracaoSegundos: 200, capa: 'https://exemplo/die-lit.jpg' },
+    { titulo: 'Playboi Carti - Southside Freestyle', duracaoSegundos: 163, capa: null },
+  ];
+  const capas = capasPorEra(doTrackerComEras, aMinha);
+  eq('a era lançada herda a capa da tua faixa', capas.get('Die Lit'), 'https://exemplo/die-lit.jpg');
+  check('a era que nunca saiu fica sem capa', !capas.has('death in tune'));
+  eq('sem biblioteca não há capas', capasPorEra(doTrackerComEras, []).size, 0);
+}
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

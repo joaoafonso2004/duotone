@@ -19,7 +19,9 @@ import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist } from '../../lib/artistName';
 import { abaDoTracker, faixasDoArtista, trackerDoArtista } from '../../api/trackers';
-import { porOuvir, procuraNoYouTube, type FaixaDoTracker } from '../../lib/tracker';
+import {
+  capasPorEra, iniciaisDaEra, porOuvir, procuraNoYouTube, type FaixaDoTracker,
+} from '../../lib/tracker';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
 import { ordenarArtistas, ordenarFaixas } from '../../lib/ordenacao';
 import { useAuth } from '../../state/auth';
@@ -299,11 +301,21 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     return () => { cancelado = true; };
   }, [separador, folhaDoTracker, doTracker]);
 
+  /** A biblioteca deste artista, na forma que o `lib/tracker` compara. */
+  const paraComparar = useMemo(
+    () => tracks.map((t) => ({
+      titulo: t.title, duracaoSegundos: t.durationSeconds, capa: t.artworkUrl,
+    })),
+    [tracks],
+  );
   const listaPorOuvir = useMemo(
-    () => (doTracker ? porOuvir(doTracker, tracks.map((t) => ({
-      titulo: t.title, duracaoSegundos: t.durationSeconds,
-    }))) : []),
-    [doTracker, tracks],
+    () => (doTracker ? porOuvir(doTracker, paraComparar) : []),
+    [doTracker, paraComparar],
+  );
+  /** A capa de cada era -- a sério se saiu, a cor da comunidade se não. */
+  const capasDasEras = useMemo(
+    () => (doTracker ? capasPorEra(doTracker, paraComparar) : new Map<string, string>()),
+    [doTracker, paraComparar],
   );
 
   /**
@@ -380,6 +392,11 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <Text style={artistStyles.porOuvirNota}>Do tracker da comunidade — o que este artista nunca lançou e não tens guardado. Clica para procurar no YouTube.</Text>
             {listaPorOuvir.map((f, i) => <Pressable key={`${f.era}:${f.titulo}:${i}`} onPress={() => void ouvirDoTracker(f)}
               style={({ hovered }) => [artistStyles.porOuvirLinha, hovered && artistStyles.porOuvirLinhaHover]}>
+              {capasDasEras.get(f.era)
+                ? <Image source={{ uri: capasDasEras.get(f.era)! }} style={artistStyles.porOuvirCapa} />
+                : <View style={[artistStyles.porOuvirCapa, artistStyles.porOuvirMosaico, { backgroundColor: f.cor || COR.elevado }]}>
+                    <Text style={[artistStyles.porOuvirMosaicoTexto, { color: f.corDoTexto || COR.textoMedio }]}>{iniciaisDaEra(f.era)}</Text>
+                  </View>}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text numberOfLines={1} style={artistStyles.porOuvirTitulo}>{f.titulo}</Text>
                 <Text numberOfLines={1} style={artistStyles.porOuvirMeta}>{[f.era, f.creditos[0], f.dataDoLeak].filter(Boolean).join(' · ')}</Text>
@@ -435,6 +452,9 @@ const artistStyles = StyleSheet.create({
     paddingHorizontal: ESP.md, paddingVertical: 9, borderRadius: RAIO.cartao, cursor: 'pointer',
   } as any,
   porOuvirLinhaHover: { backgroundColor: COR.hover },
+  porOuvirCapa: { width: 40, height: 40, borderRadius: RAIO.cartao, backgroundColor: COR.elevado },
+  porOuvirMosaico: { alignItems: 'center', justifyContent: 'center' },
+  porOuvirMosaicoTexto: { ...TIPO.legenda, fontWeight: '800' as any, letterSpacing: 0.5 },
   porOuvirTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' as any },
   porOuvirMeta: { ...TIPO.legenda, color: COR.textoMedio, marginTop: 1 },
   porOuvirSelo: {

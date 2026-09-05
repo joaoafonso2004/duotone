@@ -44,6 +44,13 @@ export interface FaixaDoTracker {
   dataDoLeak: string | null;
   /** `Full`, `OG File`, `Snippet`, `Cut` — quanto da faixa é que existe. */
   disponibilidade: string | null;
+  /**
+   * A cor que a comunidade deu a esta era, e a que escolheu para o texto por
+   * cima. Não é decoração: é a única imagem que este material tem, e o par vem
+   * escolhido de origem, por isso o contraste já está resolvido.
+   */
+  cor: string | null;
+  corDoTexto: string | null;
   qualidade: string | null;
   tipo: string | null;
 }
@@ -52,6 +59,8 @@ export interface FaixaDoTracker {
 export interface FaixaGuardada {
   titulo: string;
   duracaoSegundos?: number | null;
+  /** A capa que a faixa já tem, quando a há. Ver `capasPorEra`. */
+  capa?: string | null;
 }
 
 /**
@@ -95,6 +104,8 @@ export function faixasDoTracker(resposta: unknown): FaixaDoTracker[] {
   const saida: FaixaDoTracker[] = [];
   for (const era of eras) {
     const nomeDaEra = typeof era?.name === 'string' ? era.name.trim() : '';
+    const cor = typeof era?.color === 'string' ? era.color : null;
+    const corDoTexto = typeof era?.text_color === 'string' ? era.text_color : null;
     const faixas = Array.isArray(era?.tracks) ? era.tracks : [];
     for (const f of faixas) {
       const titulo = tituloLimpo(f?.name?.title ?? f?.name?.raw);
@@ -110,6 +121,8 @@ export function faixasDoTracker(resposta: unknown): FaixaDoTracker[] {
         disponibilidade: typeof f?.available_length === 'string' ? f.available_length : null,
         qualidade: typeof f?.quality === 'string' ? f.quality : null,
         tipo: typeof f?.type === 'string' ? f.type : null,
+        cor,
+        corDoTexto,
       });
     }
   }
@@ -162,4 +175,53 @@ export function porOuvir(
 export function procuraNoYouTube(artista: string, f: FaixaDoTracker): string {
   const versao = /\[[^\]]*\]/.test(f.titulo) ? f.titulo : `${f.titulo} ${f.era}`.trim();
   return `${artista} ${versao}`.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * As iniciais de uma era, para o mosaico.
+ *
+ * Duas letras, das primeiras palavras que contem letras -- `Die Lit` dá `DL`,
+ * `death in tune` dá `DT`, `Sen$ation` dá `SE`. Palavras de ligação ficam de
+ * fora, senão metade das eras dava `TH` do `The`.
+ */
+export function iniciaisDaEra(era: string): string {
+  const LIGACAO = new Set(['the', 'a', 'of', 'in', 'and', 'to', 'de', 'da', 'do']);
+  // Corta nos ESPAÇOS e só depois limpa cada palavra. Cortar em tudo o que
+  // não é letra partia `Sen$ation` em `Sen` + `ation` e dava `SA` -- e nestes
+  // nomes o `$` é um `s`, não um separador. `Ca$h Carti` é uma palavra e meia,
+  // não três.
+  const palavras = (era || '')
+    .split(/\s+/)
+    .map((p) => p.replace(/[^\p{L}\p{N}]+/gu, ''))
+    .filter((p) => p && /\p{L}/u.test(p))
+    .filter((p, _i, todas) => todas.length === 1 || !LIGACAO.has(p.toLowerCase()));
+  if (palavras.length === 0) return '?';
+  if (palavras.length === 1) return palavras[0].slice(0, 2).toUpperCase();
+  return (palavras[0][0] + palavras[1][0]).toUpperCase();
+}
+
+/**
+ * A capa de cada era, tirada da PRÓPRIA biblioteca.
+ *
+ * A ideia: se já tens faixas de uma era, elas trazem a capa dela. `Die Lit` e
+ * `Whole Lotta Red` saíram e tu tens música delas, portanto têm capa a sério;
+ * `death in tune` e `Sen$ation` nunca saíram e não têm capa nenhuma no mundo,
+ * portanto ficam com o mosaico da cor.
+ *
+ * Isso é exactamente a distinção que interessa ver de relance -- o que saiu
+ * contra o que nunca saiu -- e sai de graça: nem uma ida à rede, nem um
+ * catálogo a consultar, nem nomes de álbuns a adivinhar. É só cruzar o que já
+ * cá está.
+ */
+export function capasPorEra(
+  doTracker: readonly FaixaDoTracker[],
+  biblioteca: readonly FaixaGuardada[],
+): Map<string, string> {
+  const capas = new Map<string, string>();
+  for (const f of doTracker) {
+    if (!f.era || capas.has(f.era)) continue;
+    const igual = biblioteca.find((g) => !!g.capa && jaTens(g, f));
+    if (igual?.capa) capas.set(f.era, igual.capa);
+  }
+  return capas;
 }

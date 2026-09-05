@@ -8,7 +8,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary, removeFromLibrary, saveToLibrary } from '../api/library';
 import { searchYouTube, searchYouTubePlaylists } from '../api/youtube';
 import { abaDoTracker, faixasDoArtista, trackerDoArtista } from '../api/trackers';
-import { porOuvir, procuraNoYouTube, type FaixaDoTracker } from '../lib/tracker';
+import {
+  capasPorEra, iniciaisDaEra, porOuvir, procuraNoYouTube, type FaixaDoTracker,
+} from '../lib/tracker';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PillButton } from '../components/PillButton';
@@ -147,11 +149,25 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     }
   }, [type, name, tracks.length]);
 
+  /** A biblioteca deste artista, na forma que o `lib/tracker` compara. */
+  const paraComparar = useMemo(
+    () => tracks.map((t) => ({
+      titulo: t.title, duracaoSegundos: t.durationSeconds, capa: t.artworkUrl,
+    })),
+    [tracks],
+  );
   const listaPorOuvir = useMemo(
-    () => (doTracker ? porOuvir(doTracker, tracks.map((t) => ({
-      titulo: t.title, duracaoSegundos: t.durationSeconds,
-    }))) : []),
-    [doTracker, tracks],
+    () => (doTracker ? porOuvir(doTracker, paraComparar) : []),
+    [doTracker, paraComparar],
+  );
+  /**
+   * A capa de cada era, tirada das faixas que já tens dela. As eras que
+   * saíram ficam com a capa a sério; as que nunca saíram ficam com a cor que
+   * a comunidade lhes deu. Ver `capasPorEra`.
+   */
+  const capasDasEras = useMemo(
+    () => (doTracker ? capasPorEra(doTracker, paraComparar) : new Map<string, string>()),
+    [doTracker, paraComparar],
   );
 
   /**
@@ -381,6 +397,30 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
                         pressed && { backgroundColor: colors.surface },
                       ]}
                     >
+                      {capasDasEras.get(item.era) ? (
+                        <Image
+                          source={{ uri: capasDasEras.get(item.era)! }}
+                          style={styles.capaDaEra}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            styles.capaDaEra,
+                            styles.mosaicoDaEra,
+                            { backgroundColor: item.cor || colors.surfaceHigh },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.mosaicoTexto,
+                              { color: item.corDoTexto || colors.textSecondary },
+                            ]}
+                          >
+                            {iniciaisDaEra(item.era)}
+                          </Text>
+                        </View>
+                      )}
                       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
                         <Text numberOfLines={1} style={typography.body}>{item.titulo}</Text>
                         <Text numberOfLines={1} style={typography.caption}>
@@ -552,8 +592,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
-    paddingVertical: 10,
+    paddingVertical: 8,
   },
+  // O mesmo tamanho e o mesmo raio da capa de uma faixa normal (TrackRow):
+  // as duas listas passam a alinhar, em vez de parecerem dois ecrãs.
+  capaDaEra: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surfaceHigh,
+  },
+  mosaicoDaEra: { alignItems: 'center', justifyContent: 'center' },
+  mosaicoTexto: { fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
   selo: {
     paddingHorizontal: 8,
     paddingVertical: 3,
