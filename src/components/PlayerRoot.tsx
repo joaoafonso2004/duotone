@@ -43,7 +43,10 @@ import { EqualizadorSheet } from './EqualizadorSheet';
 import { navigationRef } from '../navigation/RootNavigator';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
-import { addRemoteCommandListeners } from '../../modules/duotone-remote-commands';
+import {
+  addAudioInterruptionListeners, addRemoteCommandListeners,
+} from '../../modules/duotone-remote-commands';
+import { deveRetomar } from '../lib/interrupcaoDeAudio';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 
 const TAB_BAR_BASE = 49;
@@ -239,6 +242,43 @@ export function PlayerRoot() {
       addRemoteCommandListeners(
         () => usePlayer.getState().next(),
         () => usePlayer.getState().prev()
+      ),
+    []
+  );
+
+  // Uma chamada, um alarme, um vídeo do Instagram: o iOS tira o áudio e o
+  // AVPlayer pára. Isso chegava como uma pausa igual às outras, e a máquina
+  // trata as confirmações do motor como FASE e nunca como intenção -- de
+  // propósito, senão uma confirmação atrasada ressuscitava a reprodução. O
+  // efeito era a música calar-se com a app a mostrar-se a tocar, e ter de se
+  // carregar em pausa e outra vez em play para voltar a ouvir.
+  //
+  // Guarda-se a intenção do instante em que a interrupção COMEÇOU: quando ela
+  // acaba já não se sabe, porque a intenção entretanto caiu por nossa mão.
+  const tocavaAntesDaInterrupcao = useRef(false);
+  useEffect(
+    () =>
+      addAudioInterruptionListeners(
+        () => {
+          const st = usePlayer.getState();
+          tocavaAntesDaInterrupcao.current = st.isPlaying;
+          // O som já está cortado; isto só faz a UI dizer a verdade -- e põe o
+          // `wantsPlayRef` a falso, que é o que impede o watchdog de ver uma
+          // posição parada e julgar que o stream encravou.
+          st.pausePlayback();
+        },
+        (oSistemaPede) => {
+          const retomar = deveRetomar({
+            tocavaAntes: tocavaAntesDaInterrupcao.current,
+            oSistemaPede,
+          });
+          tocavaAntesDaInterrupcao.current = false;
+          const st = usePlayer.getState();
+          // O `isPlaying` na condição não é zelo a mais: se a pessoa carregou
+          // em play durante a interrupção, já está a tocar e o toggle
+          // pausava-a.
+          if (retomar && !st.isPlaying) void st.togglePlay();
+        }
       ),
     []
   );

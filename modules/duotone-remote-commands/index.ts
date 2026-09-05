@@ -27,6 +27,34 @@ export function addRemoteCommandListeners(
   };
 }
 
+/**
+ * O sistema a tirar e a devolver o áudio: uma chamada, um alarme, um vídeo do
+ * Instagram a começar com som. Devolve o unsubscribe.
+ *
+ * O `onInterrompida` chega com o som JÁ cortado — não há nada a parar, só a
+ * registar que a intenção caiu, senão a app continuava a mostrar-se a tocar. O
+ * `onDevolvida` traz o `deveRetomar` do próprio iOS, que é quem sabe se aquilo
+ * foi um som de passagem ou outra app de música a ficar com o áudio. Quem
+ * decide o que fazer com os dois é o `src/lib/interrupcaoDeAudio.ts`.
+ *
+ * Sem o módulo nativo isto é um no-op, como o resto do ficheiro: a app fica
+ * como estava, com a interrupção a passar despercebida.
+ */
+export function addAudioInterruptionListeners(
+  onInterrompida: () => void,
+  onDevolvida: (deveRetomar: boolean) => void
+): () => void {
+  if (!native) return () => {};
+  const a = native.addListener('onAudioInterrupted', onInterrompida);
+  const b = native.addListener('onAudioResumable', (e: { deveRetomar?: boolean }) =>
+    onDevolvida(!!e?.deveRetomar)
+  );
+  return () => {
+    a.remove();
+    b.remove();
+  };
+}
+
 /** Há módulo nativo para a capa? Sem ele deixamos o expo-video tratar dela. */
 export function temCapaNativa(): boolean {
   return !!native?.setArtwork;

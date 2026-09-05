@@ -1,16 +1,20 @@
+import AVFoundation
 import ExpoModulesCore
 import MediaPlayer
 import UIKit
 
 /**
- * Comandos remotos de faixa e capa do Lock Screen / CarPlay / auscultadores.
+ * Comandos remotos de faixa, capa do Lock Screen e interrupcoes de audio.
  *
- * Duas coisas que o expo-video não faz:
+ * Tres coisas que o expo-video nao faz:
  *
  *  1. nextTrackCommand/previousTrackCommand — para o iOS cada música é um item
  *     isolado, não uma fila. Registamo-los aqui e reencaminhamo-los para o JS,
  *     que é quem conhece a fila.
  *  2. A capa sem barras — ver `semBarras` mais abaixo.
+ *  3. As interrupcoes da sessao de audio — ver `aoInterromper`. O expo-video so
+ *     observa o `mediaServicesWereReset`, e sem este aviso uma chamada ou um
+ *     video do Instagram calava a musica com a app a mostrar-se a tocar.
  */
 public class DuotoneRemoteCommandsModule: Module {
   private var nextTarget: Any?
@@ -20,10 +24,31 @@ public class DuotoneRemoteCommandsModule: Module {
   private var capaUrlAtual: String?
   private var capaCache: [String: MPMediaItemArtwork] = [:]
 
+  /** Ver `aoInterromper`. Guardado para se poder largar no `OnDestroy`. */
+  private var observadorDeInterrupcao: NSObjectProtocol?
+
   public func definition() -> ModuleDefinition {
     Name("DuotoneRemoteCommands")
 
-    Events("onNextTrack", "onPreviousTrack")
+    Events("onNextTrack", "onPreviousTrack", "onAudioInterrupted", "onAudioResumable")
+
+    /**
+     * O sistema a tirar e a devolver o audio.
+     *
+     * Fica aqui e nao no `duotone-audio` porque isto e da SESSAO e nao de um
+     * player: e a mesma notificacao para os dois motores do crossfade, e este
+     * modulo ja e o que ouve o sistema por causa do Lock Screen.
+     */
+    OnCreate { [weak self] in
+      guard let self = self else { return }
+      self.observadorDeInterrupcao = NotificationCenter.default.addObserver(
+        forName: AVAudioSession.interruptionNotification,
+        object: AVAudioSession.sharedInstance(),
+        queue: .main
+      ) { [weak self] nota in
+        self?.aoInterromper(nota)
+      }
+    }
 
     Function("setCommandsEnabled") { (next: Bool, previous: Bool) in
       DispatchQueue.main.async { [weak self] in
@@ -75,7 +100,44 @@ public class DuotoneRemoteCommandsModule: Module {
         guard let self = self else { return }
         self.apply(next: false, previous: false)
         self.capaTask?.cancel()
+        if let observador = self.observadorDeInterrupcao {
+          NotificationCenter.default.removeObserver(observador)
+          self.observadorDeInterrupcao = nil
+        }
       }
+    }
+  }
+
+  /**
+   * O que o iOS diz quando tira e quando devolve o audio.
+   *
+   * O `.began` chega com o som JA cortado -- nao ha nada a parar, so a dizer ao
+   * JS que a intencao caiu, senao a app continuava a mostrar-se a tocar.
+   *
+   * O `.ended` traz o `shouldResume`, e e essa flag que separa os dois casos
+   * que do lado do JS eram indistinguiveis: um som de passagem devolve o audio
+   * e pede a retoma; outra app de MUSICA que ficou com ele nao pede nada, e ai
+   * voltar a tocar seria pormo-nos por cima dela. A decisao final e do
+   * `lib/interrupcaoDeAudio.ts`, que junta isto a saber se estavamos mesmo a
+   * tocar quando comecou.
+   */
+  private func aoInterromper(_ nota: Notification) {
+    guard
+      let info = nota.userInfo,
+      let cru = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+      let tipo = AVAudioSession.InterruptionType(rawValue: cru)
+    else { return }
+
+    switch tipo {
+    case .began:
+      sendEvent("onAudioInterrupted")
+    case .ended:
+      let opcoes = AVAudioSession.InterruptionOptions(
+        rawValue: info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+      )
+      sendEvent("onAudioResumable", ["deveRetomar": opcoes.contains(.shouldResume)])
+    @unknown default:
+      break
     }
   }
 
