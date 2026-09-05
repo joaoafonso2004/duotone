@@ -18,6 +18,7 @@ import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist } from '../../lib/artistName';
+import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
 import { useAuth } from '../../state/auth';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
@@ -136,15 +137,16 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
   }, []);
   // Agrupado por CHAVE canonica e nao pelo nome mostrado -- era isso que punha
   // `Juice WRLD`, `juice wrld` e `JUICE WRLD` em tres cartoes diferentes.
+  const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
   const artists = useMemo(
-    () => agruparPorArtista(data.tracks).sort((a, b) => {
+    () => agruparPorArtista(data.tracks.map(comCatalogo)).sort((a, b) => {
       const ra = ranking.get(a.chave) ?? Infinity;
       const rb = ranking.get(b.chave) ?? Infinity;
       if (ra !== rb) return ra - rb;
       if (a.faixas.length !== b.faixas.length) return b.faixas.length - a.faixas.length;
       return a.nome.localeCompare(b.nome);
     }),
-    [data.tracks, ranking],
+    [data.tracks, ranking, versaoDoCatalogo],
   );
   const filteredArtists = useMemo(() => {
     const q = chaveDeArtista(query);

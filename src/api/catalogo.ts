@@ -1,5 +1,6 @@
 import { cacheGet, cacheSet, DIA_MS } from './cache';
 import { chaveDeArtista } from '../lib/artistName';
+import { escolher, type Candidato, type FaixaLocal } from '../lib/catalogoDaFaixa';
 import {
   candidatosPlausiveis, chaveDeCatalogo, type ArtistaDoCatalogo,
 } from '../lib/catalogo';
@@ -232,4 +233,69 @@ export async function topDoArtista(id: number, quantas = 5): Promise<FaixaDoCata
 
   if (faixas.length > 0) await cacheSet(chaveCache, faixas);
   return faixas;
+}
+
+// ---------------------------------------------------------------------------
+// Resolver uma faixa: quem é, como se chama, de que álbum, e a capa
+// ---------------------------------------------------------------------------
+
+export type FaixaResolvida = {
+  artista: string;
+  titulo: string;
+  album: string | null;
+  /** Capa QUADRADA. É a que resolve as barras pretas do YouTube na origem. */
+  capa: string | null;
+  prova: 'artista' | 'duracao';
+};
+
+type FaixaDeezer = {
+  title?: string; duration?: number;
+  artist?: { name?: string };
+  album?: { title?: string; cover_big?: string; cover_xl?: string };
+};
+
+const paraCandidato = (d: FaixaDeezer): Candidato => ({
+  titulo: d.title ?? '',
+  artista: d.artist?.name ?? '',
+  album: d.album?.title ?? null,
+  capa: d.album?.cover_xl || d.album?.cover_big || null,
+  duracao: d.duration ?? null,
+});
+
+/**
+ * O que o catálogo confirma sobre uma faixa nossa, ou null.
+ *
+ * Duas buscas, e a segunda só existe por causa das faixas cujo artista a app
+ * não conseguiu adivinhar — que são precisamente as que mais precisam disto.
+ * As regras de aceitação estão em `lib/catalogoDaFaixa.ts`, com a medição que
+ * as justifica: aceitar o primeiro resultado por título dava um erro em cada
+ * quatro, e um metadado errado é pior do que nenhum.
+ */
+export async function resolverFaixa(local: FaixaLocal): Promise<FaixaResolvida | null> {
+  const titulo = local.titulo.trim();
+  if (!titulo) return null;
+
+  const mesmaChave = (a: string, b: string) =>
+    !!chaveDeArtista(a) && chaveDeArtista(a) === chaveDeArtista(b);
+
+  const tentar = async (procura: string) => {
+    const r = await pedir<{ data?: FaixaDeezer[] }>(`/search?limit=5&q=${encodeURIComponent(procura)}`);
+    const candidatos = (r?.data ?? []).map(paraCandidato);
+    return escolher(local, candidatos, mesmaChave);
+  };
+
+  let achado = local.artistaFiavel ? await tentar(`${local.artista} ${titulo}`) : null;
+  // Sem artista fiável, ou com ele a não dar nada, procura-se só pelo título.
+  // A aceitação por duração é o que impede um `So What` de virar P!nk.
+  if (!achado) achado = await tentar(titulo);
+  if (!achado) return null;
+
+  const { candidato, prova } = achado;
+  return {
+    artista: candidato.artista,
+    titulo: candidato.titulo,
+    album: candidato.album ?? null,
+    capa: candidato.capa ?? null,
+    prova,
+  };
 }

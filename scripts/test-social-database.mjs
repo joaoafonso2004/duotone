@@ -297,5 +297,20 @@ assert.equal((await q(`delete from chat_reads returning *`)).rows.length,0);
 await como(1);
 assert.equal((await q(`update chat_reads set last_read_at=now() where conversation=$1 returning *`,[uid(2)])).rows.length,1);
 console.log('Marca de leitura: por conta, isolada entre utilizadores e idempotente na dupla aplicação.');
+// --- Catálogo de faixas: partilhado, e só de acrescentar ---
+await db.exec('reset role;');await db.exec(ler('track-catalog.sql'));await db.exec(ler('track-catalog.sql'));
+await db.exec('grant all on all tables in schema public to authenticated;');
+await como(1);
+await q(`insert into track_catalog(source,source_id,artist,title) values('youtube','abc','Kanye West','Devil In A New Dress')`);
+// Toda a gente lê: é isso que faz a resolução ser feita uma vez só.
+await como(2);
+assert.equal((await q(`select * from track_catalog`)).rows.length,1,'o catálogo é partilhado');
+// Mas ninguém troca o que lá está por outra coisa.
+assert.equal((await q(`update track_catalog set artist='Errado' returning *`)).rows.length,0);
+assert.equal((await q(`delete from track_catalog returning *`)).rows.length,0);
+// Acrescentar uma faixa nova é para todos.
+await q(`insert into track_catalog(source,source_id,artist,title) values('youtube','xyz','Drake','Broke Boys')`);
+assert.equal((await q(`select * from track_catalog`)).rows.length,2);
+console.log('Catálogo de faixas: leitura partilhada, escrita só a acrescentar.');
 console.log('SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos, grupos, ajustes por faixa, playlists no perfil e Storage passaram.');
 }finally{await db.close();}

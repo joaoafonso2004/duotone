@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { agruparPorArtista } from '../lib/artistName';
+import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import { correspondeAPesquisa } from '../lib/searchText';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
@@ -43,7 +44,11 @@ export function ArtistsScreen() {
 
   const load = useCallback(async () => {
     try {
-      setTracks(await getLibrary());
+      const carregadas = await getLibrary();
+      setTracks(carregadas);
+      // Vai buscar os metadados que faltam, aos poucos: quem já os resolveu
+      // (outro aparelho, ou outra pessoa) partilha-os pela tabela.
+      void garantirCatalogo(carregadas);
     } catch {
       // ignorar
     } finally {
@@ -57,12 +62,14 @@ export function ArtistsScreen() {
     }, [load])
   );
 
+  const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
   const artists = useMemo<ArtistGroup[]>(() => {
     // Agrupa por CHAVE canónica e não pelo nome mostrado: era pelo nome que
     // `Juice WRLD`, `juice wrld` e `JUICE WRLD` apareciam como três artistas
     // diferentes. O `agruparPorArtista` também aprende a grafia certa com as
     // fontes fiáveis da própria biblioteca (canais `- Topic`, VEVO).
-    return agruparPorArtista(tracks)
+    // Com o que o catálogo confirmou por cima do que a app adivinha.
+    return agruparPorArtista(tracks.map(comCatalogo))
       .map((g) => ({
         name: g.nome,
         artworkUrl: g.faixas.find((t) => t.artworkUrl)?.artworkUrl ?? null,
@@ -75,7 +82,7 @@ export function ArtistsScreen() {
       // faixas o primeiro ecrã enchia-se de coisas que não são artistas, e os
       // artistas a sério só apareciam muito mais abaixo.
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, [tracks]);
+  }, [tracks, versaoDoCatalogo]);
 
   const filteredArtists = useMemo(() => {
     const query = searchQuery.trim();

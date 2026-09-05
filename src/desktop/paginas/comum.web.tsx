@@ -9,6 +9,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
+import { garantirCatalogo } from '../../state/catalogoDeFaixas';
 import { getLibrary } from '../../api/library';
 import type { ProfilePlayEntry } from '../../api/plays';
 import type { Track } from '../../types';
@@ -57,6 +58,9 @@ export function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
       const faixas = await loader();
       cache.set(loader, { em: Date.now(), faixas });
       setTracks(faixas); setError(null);
+      // Os metadados que faltarem vêm aos poucos, e o que já estiver resolvido
+      // na tabela partilhada chega de graça.
+      void garantirCatalogo(faixas);
     } catch (e: any) {
       setError(e?.message || 'Could not load your library.');
     } finally {
