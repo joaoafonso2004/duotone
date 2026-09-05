@@ -1,5 +1,5 @@
 import { getDeviceId, getDeviceName, deviceKind } from '../lib/deviceIdentity';
-import { trimQueueForSync, type RemoteSession } from '../lib/handoff';
+import { instanteDaAmostra, trimQueueForSync, type RemoteSession } from '../lib/handoff';
 import { supabase } from '../lib/supabase';
 import type { Track } from '../types';
 
@@ -16,6 +16,8 @@ export interface SessionSnapshot {
   queue: Track[];
   queueIndex: number;
   positionMs: number;
+  /** O instante a que a `positionMs` se refere. Ver `instanteDaAmostra`. */
+  positionAt: number;
   isPlaying: boolean;
 }
 
@@ -54,8 +56,11 @@ export async function writeSession(snapshot: SessionSnapshot): Promise<void> {
         queue_index: trimmed.queueIndex,
         position_ms: Math.max(0, Math.round(snapshot.positionMs)),
         is_playing: snapshot.isPlaying,
-        // Relógio do cliente de propósito — quem lê extrapola com o seu.
-        updated_at: new Date().toISOString(),
+        // O instante da AMOSTRA, não o da escrita: quem lê extrapola a
+        // partir daqui, e escrever a hora de agora com uma posição de há um
+        // minuto era exatamente o bug. Relógio do cliente de propósito --
+        // quem lê extrapola com o seu. Ver instanteDaAmostra em lib/handoff.
+        updated_at: new Date(instanteDaAmostra(snapshot.positionAt)).toISOString(),
       },
       { onConflict: 'user_id,device_id' }
     );

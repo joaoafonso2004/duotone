@@ -46,6 +46,16 @@ import type { Track } from '../types';
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
 export type YtControls = PlaybackControls;
 
+/**
+ * A posição e o instante a que ela se refere andam SEMPRE juntos.
+ *
+ * Escrever `positionMs` sozinho deixava o `positionAt` a apontar para a
+ * posição anterior -- e o handoff, que extrapola a partir dele, mostrava no
+ * outro dispositivo uma posição que nunca existiu. Passando por aqui, o par
+ * não se pode separar por distração.
+ */
+const posicao = (ms: number) => ({ positionMs: ms, positionAt: Date.now() });
+
 const getInitialVolume = () => {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -117,6 +127,16 @@ interface PlayerState {
   /** mostrar o botão de recuar 15s no player expandido (preferência das Definições) */
   showRewindButton: boolean;
   positionMs: number;
+  /**
+   * O instante (Date.now) a que a `positionMs` se refere.
+   *
+   * Existe por causa do handoff: o outro dispositivo extrapola a posição a
+   * partir daqui, e se este carimbo fosse o da ESCRITA em vez do da amostra,
+   * mostrava a posição de um momento qualquer. Ver `instanteDaAmostra` em
+   * src/lib/handoff.ts. Não se persiste -- uma posição guardada volta a ser
+   * verdade no instante em que a app abre, e é isso que o restauro carimba.
+   */
+  positionAt: number;
   durationMs: number;
   /** a resolver/descarregar a faixa (ainda não começou a tocar áudio) */
   buffering: boolean;
@@ -375,6 +395,7 @@ export const usePlayer = create<PlayerState>()(
   crossfadeSegundos: 0,
   showRewindButton: false,
   positionMs: 0,
+  positionAt: Date.now(),
   durationMs: 0,
   buffering: false,
   error: null,
@@ -432,7 +453,7 @@ export const usePlayer = create<PlayerState>()(
       queue: q,
       queueIndex: index,
       error: null,
-      positionMs: 0,
+      ...posicao(0),
       durationMs: (playableTrack.durationSeconds ?? 0) * 1000,
       // Faixa nova: volta a resolver, e leva a intencao atras — quem estava a
       // ouvir e carregou em "seguinte" continua a querer ouvir. Se o motor foi
@@ -479,7 +500,7 @@ export const usePlayer = create<PlayerState>()(
       return {
         ...troca,
         error: null,
-        positionMs: 0,
+        ...posicao(0),
         durationMs: (troca.current.durationSeconds ?? 0) * 1000,
         ...passo(state.maquina, 'faixa-escolhida'),
         activeBackend: 'resolving' as const,
@@ -515,7 +536,7 @@ export const usePlayer = create<PlayerState>()(
       shuffleOrder: ordem,
       ...passo(state.maquina, 'parou-tudo'),
       error: null,
-      positionMs: 0,
+      ...posicao(0),
       durationMs: 0,
       activeBackend: 'resolving',
       downloadProgress: null,
@@ -530,7 +551,7 @@ export const usePlayer = create<PlayerState>()(
       queue: q,
       queueIndex: index,
       error: null,
-      positionMs,
+      ...posicao(positionMs),
       durationMs: (track.durationSeconds ?? 0) * 1000,
       ...passo(get().maquina, 'faixa-escolhida'),
       activeBackend: 'resolving',
@@ -577,7 +598,7 @@ export const usePlayer = create<PlayerState>()(
         queue: [track],
         queueIndex: 0,
         ...passo(get().maquina, 'faixa-escolhida'),
-        positionMs: 0,
+        ...posicao(0),
         durationMs: (track.durationSeconds ?? 0) * 1000,
       });
       return;
@@ -595,7 +616,7 @@ export const usePlayer = create<PlayerState>()(
         queue: [track],
         queueIndex: 0,
         ...passo(get().maquina, 'faixa-escolhida'),
-        positionMs: 0,
+        ...posicao(0),
         durationMs: (track.durationSeconds ?? 0) * 1000,
       });
       return;
@@ -735,7 +756,7 @@ export const usePlayer = create<PlayerState>()(
       queueIndex: 0,
       ...passo(get().maquina, 'parou-tudo'),
       expanded: false,
-      positionMs: 0,
+      ...posicao(0),
       durationMs: 0,
       error: null,
       activeBackend: 'resolving',
@@ -828,7 +849,7 @@ export const usePlayer = create<PlayerState>()(
     const { current, _yt, durationMs } = get();
     if (!current) return;
     const clamped = Math.max(0, Math.min(ms, durationMs));
-    set({ positionMs: clamped });
+    set(posicao(clamped));
     _yt?.seek(clamped);
   },
 
@@ -1017,7 +1038,7 @@ export const usePlayer = create<PlayerState>()(
     set(passo(get().maquina, s === 'playing' ? 'a-tocar' : 'em-pausa'));
   },
 
-  _setProgress: (positionMs, durationMs) => set({ positionMs, durationMs }),
+  _setProgress: (positionMs, durationMs) => set({ ...posicao(positionMs), durationMs }),
 
   _setIsPlaying: (v) => set(passo(get().maquina, v ? 'quer-tocar' : 'quer-parar')),
 
@@ -1168,6 +1189,10 @@ export const usePlayer = create<PlayerState>()(
           sugeridas: persisted.sugeridas ?? current.sugeridas,
           desdeASugestao: persisted.desdeASugestao ?? current.desdeASugestao,
           ...restoredPlaybackState(persisted.positionMs),
+          // A posição guardada é verdade AGORA: a sessão volta em pausa,
+          // portanto não andou nada desde que foi gravada. Sem este carimbo
+          // o handoff publicava-a com a hora do arranque do módulo.
+          positionAt: Date.now(),
           // A cache de ajustes pode chegar antes da sessão. Aplicá-la aqui
           // cobre essa ordem sem iniciar reprodução nem alterar a posição.
           ...(() => {

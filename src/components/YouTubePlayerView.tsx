@@ -8,6 +8,7 @@ import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '.
 import { BUILD_ID } from '../lib/buildInfo';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 import { registar as registarEvento } from '../lib/eventos';
+import { baterSessao } from '../lib/sessionSync';
 import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
 import {
   deveComecarCrossfade, podeCrossfade, volumesDoCrossfade,
@@ -1004,6 +1005,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // background (sessão de áudio ativa) — ao contrário dos setInterval JS,
     // que o iOS suspende com o ecrã bloqueado.
     usePlayer.getState().checkSleepTimer();
+    // Pelo mesmo motivo, e não por acaso ao lado: o batimento da sessão de
+    // handoff. Estava num `setInterval` e por isso NUNCA corria com o ecrã
+    // bloqueado -- justamente quando o outro dispositivo precisava de saber
+    // onde é que a música ia.
+    baterSessao();
     if (backend !== 'native' || nativeTrackIdRef.current !== track.sourceId) return;
     // Regista avanço real da posição (para o watchdog de stream preso).
     if (currentTime !== lastProgressRef.current.time) {

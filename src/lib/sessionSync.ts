@@ -15,6 +15,7 @@ import {
   SESSION_HEARTBEAT_MS,
   type RemoteSession,
 } from './handoff';
+
 import { usePlayer } from '../state/player';
 import { appEstaVisivel } from './appVisibility';
 
@@ -56,41 +57,57 @@ function snapshot(): SessionSnapshot | null {
     queue: s.queue.length > 0 ? s.queue : [s.current],
     queueIndex: s.queueIndex,
     positionMs: s.positionMs,
+    positionAt: s.positionAt,
     isPlaying: s.isPlaying,
   };
 }
 
 let writeTimer: ReturnType<typeof setTimeout> | null = null;
-let beatTimer: ReturnType<typeof setInterval> | null = null;
+/** Quando é que a sessão foi publicada pela última vez. */
+let ultimaEscrita = 0;
 
 function clearTimers() {
   if (writeTimer) { clearTimeout(writeTimer); writeTimer = null; }
-  if (beatTimer) { clearInterval(beatTimer); beatTimer = null; }
+}
+
+function escrever(): void {
+  const snap = snapshot();
+  if (!snap) return;
+  ultimaEscrita = Date.now();
+  void writeSession(snap);
 }
 
 /**
- * Agrupa as escritas (saltar cinco faixas dá um pedido, não cinco) e mantém
- * um batimento enquanto toca, para a sessão não expirar a meio de um tema.
+ * Agrupa as escritas: saltar cinco faixas dá um pedido, não cinco.
  *
- * O batimento relê a store em vez de guardar o que lhe passaram: assim a
- * posição que viaja é a de agora, sem precisar de uma escrita por segundo.
+ * Relê a store no fim da espera em vez de guardar o que lhe passaram, para a
+ * posição que viaja ser a de então.
  */
 export function publishSession(): void {
   if (writeTimer) clearTimeout(writeTimer);
   writeTimer = setTimeout(() => {
     writeTimer = null;
-    const snap = snapshot();
-    if (snap) void writeSession(snap);
+    escrever();
   }, SESSION_DEBOUNCE_MS);
+}
 
-  if (beatTimer) { clearInterval(beatTimer); beatTimer = null; }
-  const snap = snapshot();
-  if (snap?.isPlaying) {
-    beatTimer = setInterval(() => {
-      const s = snapshot();
-      if (s) void writeSession(s);
-    }, SESSION_HEARTBEAT_MS);
-  }
+/**
+ * O batimento, chamado pelo RELÓGIO DO PLAYER a cada progresso.
+ *
+ * Era um `setInterval`, e é por isso que não funcionava onde mais fazia
+ * falta: no iPhone com o ecrã bloqueado o iOS suspende os temporizadores de
+ * JS, e a sessão ficava congelada no instante em que a app foi para trás --
+ * com a faixa errada, se entretanto tivesse mudado. O evento de progresso
+ * vem do AVPlayer e continua a chegar. (A mesma lição do crossfade, ver
+ * src/lib/crossfade.ts.)
+ *
+ * Barato de chamar a cada segundo: é uma comparação de dois números, e só
+ * escreve de 90 em 90 segundos.
+ */
+export function baterSessao(): void {
+  if (Date.now() - ultimaEscrita < SESSION_HEARTBEAT_MS) return;
+  if (!usePlayer.getState().isPlaying) return;
+  escrever();
 }
 
 /** Escrita imediata, sem agrupamento: para ir para segundo plano ou fechar a
@@ -101,8 +118,7 @@ export function publishSession(): void {
  * outro dispositivo precisa de a encontrar. */
 export function publishSessionNow(): void {
   if (writeTimer) { clearTimeout(writeTimer); writeTimer = null; }
-  const snap = snapshot();
-  if (snap) void writeSession(snap);
+  escrever();
 }
 
 /** Fechar o player / terminar sessão: já não há nada para continuar.

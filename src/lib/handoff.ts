@@ -26,7 +26,12 @@ export const SESSION_TTL_MS = 3 * 60 * 1000;
 export const SESSION_DEBOUNCE_MS = 2500;
 
 /** Batimento enquanto toca: mantém a sessão fresca e a posição recente sem
- * escrever a cada segundo. Tem de ser confortavelmente inferior ao TTL. */
+ * escrever a cada segundo. Tem de ser confortavelmente inferior ao TTL.
+ *
+ * Quem o dá é o RELÓGIO DO PLAYER (o evento de progresso), e não um
+ * `setInterval`: no iOS com o ecrã bloqueado os temporizadores de JS são
+ * suspensos, e era precisamente aí que o batimento fazia falta. Mesma lição
+ * que o crossfade aprendeu em src/lib/crossfade.ts. */
 export const SESSION_HEARTBEAT_MS = 90 * 1000;
 
 /** Quantas faixas da fila viajam. A fila inteira podia ter milhares (import
@@ -46,8 +51,11 @@ export interface RemoteSession {
   queueIndex: number;
   positionMs: number;
   isPlaying: boolean;
-  /** ISO. Escrito pelo cliente (como no presence) — ver nota em
-   * `extrapolatedPositionMs` sobre desvio de relógios. */
+  /**
+   * ISO, e o instante a que a `positionMs` se refere -- NÃO o instante da
+   * escrita. Escrito pelo cliente (como no presence) — ver nota em
+   * `extrapolatedPositionMs` sobre desvio de relógios.
+   */
   updatedAt: string;
 }
 
@@ -102,6 +110,8 @@ export function extrapolatedPositionMs(
   session: RemoteSession,
   now: number = Date.now()
 ): number {
+  // A conta só fecha se o `updatedAt` for o instante a que a `positionMs` se
+  // refere. Ver `instanteDaAmostra`: era aqui que o bug entrava.
   const base = Math.max(0, session.positionMs || 0);
   const durationMs = (session.track?.durationSeconds ?? 0) * 1000;
 
@@ -114,6 +124,37 @@ export function extrapolatedPositionMs(
   // O teto do TTL já limita o disparate; o clamp à duração evita pedir um
   // seek para lá do fim quando a sessão morreu no início de um tema curto.
   return durationMs > 0 ? Math.min(projected, durationMs) : projected;
+}
+
+/**
+ * O carimbo de tempo a publicar com uma posição.
+ *
+ * **Este é o bug que o handoff tinha, e vale a pena perceber porquê.** O que
+ * se escrevia era `new Date()` — o instante da ESCRITA. Mas a posição vinha
+ * da store, e a store é atualizada pelo relógio do player. Enquanto os dois
+ * andam a par não se nota. Quando não andam, a diferença é o erro:
+ *
+ *  - no PC com a janela escondida, o Chromium estrangula os temporizadores
+ *    (uma vez por minuto depois de cinco minutos escondida) e a posição na
+ *    store fica até um minuto atrasada -- mas era escrita com a hora certa,
+ *    e o telemóvel mostrava-a como se fosse de agora;
+ *  - no iPhone com o ecrã bloqueado é pior: os temporizadores de JS param, e
+ *    a última posição publicada podia ser de outra faixa.
+ *
+ * Publicando o instante da AMOSTRA, a extrapolação volta a fechar sozinha:
+ * quem lê soma o tempo que passou desde que aquela posição era verdade, e o
+ * atraso do escritor deixa de ter importância nenhuma. De caminho, a
+ * frescura passa a querer dizer o que diz -- uma sessão cuja posição não
+ * anda há três minutos não é uma sessão fresca.
+ */
+export function instanteDaAmostra(
+  positionAt: number | null | undefined,
+  agora: number = Date.now(),
+): number {
+  if (typeof positionAt !== 'number' || !Number.isFinite(positionAt)) return agora;
+  // Nunca no futuro: um carimbo à frente do relógio de quem lê faria a
+  // posição recuar (o `freshnessMs` corta os negativos a zero).
+  return Math.min(positionAt, agora);
 }
 
 /**

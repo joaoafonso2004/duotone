@@ -5,6 +5,7 @@ import { rememberPlaybackAlternative } from '../lib/playbackAlternatives';
 import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar, type TipoFalha,
 } from '../lib/playbackDiagnostics';
+import { baterSessao } from '../lib/sessionSync';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 
@@ -229,6 +230,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               const duration = Number(event.target.getDuration?.() || 0) * 1000;
               const position = Number(event.target.getCurrentTime?.() || 0) * 1000;
               usePlayer.getState()._setProgress(position, duration);
+              // O batimento da sessão de handoff anda com o relógio do
+              // player e não com um temporizador à parte -- com a janela
+              // escondida o Chromium estrangula os temporizadores, e a
+              // posição publicada tem de ser a que acabámos de ler.
+              baterSessao();
 
               try {
                 const iframe = document.getElementById(hostId.current) as HTMLIFrameElement | null;

@@ -1,5 +1,6 @@
 import {
   extrapolatedPositionMs,
+  instanteDaAmostra,
   isSessionFresh,
   pickHandoffSession,
   shouldOfferHandoff,
@@ -96,6 +97,32 @@ check(
   'relógio adiantado não recua a posição',
   extrapolatedPositionMs(session({ positionMs: 30_000, updatedAt: new Date(NOW + 9_000).toISOString() }), NOW) === 30_000
 );
+
+// --- o carimbo de tempo publicado -------------------------------------------
+// O bug que isto fecha: publicava-se a hora da ESCRITA com uma posição que
+// podia ser de há um minuto, e o outro dispositivo mostrava-a como se fosse
+// de agora.
+check('sem amostra, vale agora', instanteDaAmostra(undefined, NOW) === NOW);
+check('amostra inválida vale agora', instanteDaAmostra(Number.NaN, NOW) === NOW);
+check('o carimbo é o da amostra', instanteDaAmostra(NOW - 45_000, NOW) === NOW - 45_000);
+// Um carimbo no futuro faria a posição recuar do outro lado.
+check('nunca no futuro', instanteDaAmostra(NOW + 30_000, NOW) === NOW);
+
+// A volta completa, que é o que interessa: o PC com a janela escondida lê a
+// posição de 60 em 60 segundos (o Chromium estrangula-lhe os temporizadores),
+// e escreve 50 segundos depois de a ter lido. O telemóvel abre logo a seguir.
+{
+  const lidaEm = NOW - 50_000;   // quando a posição era mesmo 30s
+  const escritaEm = NOW;         // quando o pedido saiu
+  const publicado = instanteDaAmostra(lidaEm, escritaEm);
+  const mostrado = extrapolatedPositionMs(
+    session({ positionMs: 30_000, updatedAt: new Date(publicado).toISOString() }),
+    NOW
+  );
+  // 30s de posição + os 50s que passaram desde a leitura = 80s. Antes desta
+  // correção mostrava 30s -- os 50 segundos desapareciam.
+  check('a posição não perde o atraso do escritor', mostrado === 80_000, String(mostrado));
+}
 
 // --- recorte da fila --------------------------------------------------------
 const fila = Array.from({ length: 500 }, (_, i) => track(`t${i}`));
