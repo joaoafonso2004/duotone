@@ -91,18 +91,32 @@ export function volumesDoCrossfade(
 }
 
 export type Interrupcao = 'salto' | 'anterior' | 'faixa-nova' | 'pausa' | 'seek' | 'fechar';
-export type AcaoAoInterromper = 'cortar' | 'suspender';
+export type AcaoAoInterromper = 'cortar' | 'suspender' | 'abortar';
 
 /**
  * O que fazer quando alguém mexe a meio de uma passagem.
  *
- * `cortar` acaba a passagem já: quem estava a entrar fica a tocar sozinho, no
- * seu teto, e o outro cala-se. `suspender` pára os dois e guarda o ponto, para
- * a passagem continuar de onde ia.
+ * São três saídas, e a diferença entre duas delas é a que custou a ver:
  *
- * Um `seek` corta porque a posição deixa de estar no fim — a razão da passagem
- * desapareceu. Uma pausa suspende, porque a intenção é voltar.
+ * - `cortar` termina a passagem JÁ e quem estava a entrar fica a tocar
+ *   sozinho, no seu teto. É o caso de quem carrega em seguinte: a faixa que
+ *   estava a entrar é precisamente a que a pessoa pediu.
+ * - `abortar` faz o contrário: cala quem estava a entrar e devolve a faixa
+ *   atual ao seu teto. É o caso do `seek` (a posição deixou de estar no fim,
+ *   a razão da passagem desapareceu) e o de saltar para uma faixa QUALQUER,
+ *   que não é a que estava a entrar -- deixá-la a tocar punha duas músicas
+ *   ao mesmo tempo.
+ * - `suspender` pára os dois e guarda o ponto, para a passagem continuar de
+ *   onde ia. Só a pausa: quem pausa quer voltar.
+ *
+ * O `oQueEntraFicaATocar` é o que separa `cortar` de `abortar`, e não o
+ * motivo: carregar em seguinte e escolher à mão a faixa seguinte são o mesmo
+ * acontecimento visto de dois sítios.
  */
-export function acaoAoInterromper(motivo: Interrupcao): AcaoAoInterromper {
-  return motivo === 'pausa' ? 'suspender' : 'cortar';
+export function acaoAoInterromper(
+  motivo: Interrupcao,
+  oQueEntraFicaATocar = false,
+): AcaoAoInterromper {
+  if (motivo === 'pausa') return 'suspender';
+  return oQueEntraFicaATocar ? 'cortar' : 'abortar';
 }

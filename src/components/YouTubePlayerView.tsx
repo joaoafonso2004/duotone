@@ -9,7 +9,9 @@ import { BUILD_ID } from '../lib/buildInfo';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 import { registar as registarEvento } from '../lib/eventos';
 import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
-import { podeCrossfade } from '../lib/crossfade';
+import {
+  deveComecarCrossfade, podeCrossfade, volumesDoCrossfade,
+} from '../lib/crossfade';
 import { acaoDoWatchdog, fimPorFaltaDeDados } from '../lib/fimDeFaixa';
 import { definirCapaDoEcraBloqueado, temCapaNativa } from '../../modules/duotone-remote-commands';
 import { getLastBotGuardError } from '../lib/botguardBridge';
@@ -215,16 +217,27 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const seguinteRef = useRef<{ sourceId: string; pronta: boolean } | null>(null);
   const aPrepararRef = useRef(false);
 
+  /**
+   * A passagem a decorrer, ou `null`.
+   *
+   * Guarda os DOIS tetos porque cada faixa tem o seu, vindo da normalização
+   * de loudness: a curva tem de respeitar os dois, senão a que entra salta.
+   */
+  const passagemRef = useRef<{
+    sourceId: string;
+    tetoSai: number;
+    tetoEntra: number;
+    /** Fixa no arranque: mudar a definição a meio não torce a curva. */
+    duracaoDoFade: number;
+  } | null>(null);
+
   // Em background não há barra de progresso para animar. Dois segundos
   // continuam a verificar o sleep timer com boa precisão e reduzem para
   // metade as travessias nativo -> JS, atualizações Zustand e renders que o
   // iPhone teria de fazer com o ecrã bloqueado.
   useEffect(() => {
-    const ajustar = (state = AppState.currentState) => {
-      player.timeUpdateEventInterval = state === 'active' ? 1 : 2;
-    };
-    ajustar();
-    const sub = AppState.addEventListener('change', ajustar);
+    reporIntervaloDeTempo();
+    const sub = AppState.addEventListener('change', () => reporIntervaloDeTempo());
     return () => sub.remove();
   }, [player]);
 
@@ -332,6 +345,213 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }, 100);
   };
 
+  /**
+   * Quantas vezes por segundo queremos saber a posição.
+   *
+   * É a única decisão sobre o ritmo dos eventos de tempo, e está toda aqui:
+   *
+   *  - durante uma passagem, 0,25 s, para a curva não se ouvir aos degraus;
+   *  - com a faixa seguinte já preparada, 0,5 s, para não se perder o
+   *    instante de começar (a 2 s podia começar quase no fim do fade, e a
+   *    música que sai caía de repente);
+   *  - de resto, 1 s à frente e 2 s atrás -- em background não há barra de
+   *    progresso para animar e é metade das travessias nativo -> JS.
+   */
+  const reporIntervaloDeTempo = () => {
+    const passo = passagemRef.current
+      ? 0.25
+      : seguinteRef.current?.pronta
+        ? 0.5
+        : AppState.currentState === 'active'
+          ? 1
+          : 2;
+    try {
+      player.timeUpdateEventInterval = passo;
+    } catch {
+      // motor já libertado — ignorar
+    }
+  };
+
+  /**
+   * Deixa a faixa seguinte carregada no motor em espera, calada.
+   *
+   * Só usa o ficheiro que o Smart Cache já descarregou: nada aqui vai à
+   * rede. Se o download ainda não acabou, não se prepara nada e a mudança
+   * de faixa segue o caminho normal -- é melhor perder a passagem do que
+   * gastar 4G a correr atrás dela.
+   *
+   * Com o crossfade nas Definições em 0, o `podeCrossfade` corta logo na
+   * primeira linha e isto nunca chega a preparar nada.
+   */
+  const prepararSeguinte = async () => {
+    if (aPrepararRef.current || backend !== 'native') return;
+    const st = usePlayer.getState();
+    const seguinte = st.peekNextTrack();
+    if (!seguinte || seguinte.source !== 'youtube') return;
+    if (seguinte.sourceId === track.sourceId) return;
+    if (seguinteRef.current?.sourceId === seguinte.sourceId) return;
+
+    const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
+    if (
+      !podeCrossfade({
+        duracaoDoFade: st.crossfadeSegundos,
+        duracaoSegundos: duracao,
+        posicaoSegundos: lastProgressRef.current.time,
+        temFaixaSeguinte: true,
+        repeatUma: st.repeatMode === 'one',
+        backendNativo: true,
+        seguinteCarregada: false,
+        aDecorrer: false,
+      })
+    ) {
+      return;
+    }
+    // Só perto do fim. Preparar no primeiro segundo deixava um AVPlayerItem
+    // inteiro em memória durante a faixa toda, sem proveito nenhum.
+    const falta = duracao! - lastProgressRef.current.time;
+    if (falta > st.crossfadeSegundos + 20) return;
+
+    const ficheiro = cachedAudioFile(seguinte.sourceId);
+    if (!ficheiro.exists) return;
+
+    aPrepararRef.current = true;
+    seguinteRef.current = { sourceId: seguinte.sourceId, pronta: false };
+    try {
+      motorEmEspera.volume = 0;
+      await motorEmEspera.replaceAsync({
+        uri: ficheiro.uri,
+        contentType: 'progressive',
+        metadata: metadadosDoEcraBloqueado(seguinte),
+      });
+      // A faixa pode ter mudado enquanto isto carregava.
+      if (seguinteRef.current?.sourceId === seguinte.sourceId) {
+        seguinteRef.current.pronta = true;
+        // Daqui até ao fim da faixa vale a pena saber a posição mais vezes.
+        reporIntervaloDeTempo();
+      }
+    } catch {
+      // Fica marcada como tentada e não pronta. Voltar a pôr `null` fazia o
+      // `timeUpdate` tentar de segundo a segundo, até ao fim da faixa, um
+      // ficheiro que o AVPlayer já recusou.
+      if (seguinteRef.current?.sourceId === seguinte.sourceId) {
+        seguinteRef.current.pronta = false;
+      }
+    } finally {
+      aPrepararRef.current = false;
+    }
+  };
+
+  /**
+   * Cala quem estava a entrar e devolve a faixa atual ao teto dela.
+   *
+   * É o `abortar` do src/lib/crossfade.ts, e é a saída que apanha o caso
+   * perigoso: saltar a meio de uma passagem para uma faixa que NÃO é a que
+   * estava a entrar. Sem isto ficavam duas músicas a tocar ao mesmo tempo.
+   */
+  const abortarPassagem = () => {
+    const p = passagemRef.current;
+    if (!p) return;
+    passagemRef.current = null;
+    seguinteRef.current = null;
+    endedRef.current = false;
+    reporIntervaloDeTempo();
+    try {
+      motorEmEspera.pause();
+      motorEmEspera.volume = 0;
+    } catch {
+      // motor sem fonte — ignorar
+    }
+    try {
+      player.volume = p.tetoSai;
+    } catch {
+      // motor sem fonte — ignorar
+    }
+  };
+
+  /**
+   * A passagem chegou ao fim. Avança a fila pelo caminho de sempre.
+   *
+   * Repare-se que não se chama `next()`: manda-se o mesmo `ended` que o fim
+   * de uma faixa manda. É o `ended` que sabe de repeat, de rádio no fim da
+   * fila e do resto -- e assim a passagem não tem de saber nada disso.
+   */
+  const terminarPassagem = () => {
+    const p = passagemRef.current;
+    if (!p) return;
+    // Ligar o repeat "one" a meio de uma passagem tira-lhe a razão de ser:
+    // a faixa vai repetir-se, não vai entregar o lugar a ninguém. Aborta e
+    // deixa o `playToEnd` tratar da repetição, como sempre. Sem isto o
+    // `ended` mandava repetir a faixa que sai -- que a curva já tinha
+    // deixado em silêncio -- com a seguinte a tocar por cima.
+    if (usePlayer.getState().repeatMode === 'one') {
+      abortarPassagem();
+      return;
+    }
+    passagemRef.current = null;
+    reporIntervaloDeTempo();
+    try {
+      motorEmEspera.volume = p.tetoEntra;
+    } catch {
+      // motor sem fonte — ignorar
+    }
+    endedRef.current = true;
+    onStateChange('ended');
+  };
+
+  /**
+   * Começa a passagem: a faixa seguinte arranca calada por cima da atual.
+   *
+   * O relógio da passagem é o `timeUpdate` do motor que sai, e NÃO um
+   * `setInterval`: com o ecrã bloqueado o iOS suspende os temporizadores de
+   * JS e a passagem ficava congelada a meio, com as duas faixas a meio
+   * volume. O `timeUpdate` vem do AVPlayer e continua a chegar. Enquanto ela
+   * dura pede-se um evento a cada 0,25 s, para a curva não se ouvir aos
+   * degraus -- são uns segundos, não é o regime normal.
+   *
+   * O `endedRef` fica logo marcado: daqui em diante quem avança a fila é o
+   * fim da passagem, não o `playToEnd` da faixa que sai.
+   */
+  const comecarPassagem = (seguinte: Track) => {
+    const st = usePlayer.getState();
+    passagemRef.current = {
+      sourceId: seguinte.sourceId,
+      tetoSai: ceilingRef.current,
+      tetoEntra: targetVolume(getLoudnessDb(seguinte.sourceId), st.volumeNormalization),
+      duracaoDoFade: st.crossfadeSegundos,
+    };
+    endedRef.current = true;
+    if (fadeIntervalRef.current) {
+      clearInterval(fadeIntervalRef.current);
+      fadeIntervalRef.current = null;
+    }
+    reporIntervaloDeTempo();
+    try {
+      motorEmEspera.volume = 0;
+      motorEmEspera.playbackRate = st.playbackRate;
+      motorEmEspera.play();
+    } catch {
+      abortarPassagem();
+    }
+  };
+
+  /** Um passo da curva, a cada evento de tempo do motor que sai. */
+  const avancarPassagem = (posicaoSegundos: number, duracaoSegundos: number) => {
+    const p = passagemRef.current;
+    if (!p) return;
+    const duracaoDoFade = p.duracaoDoFade;
+    // O decorrido lê-se da POSIÇÃO e não de um relógio: se um evento se
+    // atrasar, o passo seguinte apanha o atraso em vez de o acumular.
+    const decorrido = duracaoDoFade - (duracaoSegundos - posicaoSegundos);
+    const v = volumesDoCrossfade(decorrido, duracaoDoFade, p.tetoSai, p.tetoEntra);
+    try {
+      player.volume = v.sai;
+      motorEmEspera.volume = v.entra;
+    } catch {
+      // motor sem fonte — ignorar
+    }
+    if (decorrido >= duracaoDoFade) terminarPassagem();
+  };
+
   useEffect(() => {
     // CAMINHO CURTO: a faixa que agora entra já está carregada no outro
     // motor. Troca-se de motor, em vez de resolver e descarregar de novo.
@@ -344,7 +564,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       backend === 'native' &&
       usePlayer.getState().autoplayOnLoad
     ) {
+      // `cortar`: quem estava a entrar é exatamente quem agora toca.
       seguinteRef.current = null;
+      passagemRef.current = null;
       runIdRef.current++;
       const entra = motorEmEspera;
       const sai = player;
@@ -383,6 +605,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       return;
     }
 
+    // A faixa que entra não é a que estava preparada. Calar o outro motor
+    // é INCONDICIONAL, e não só quando há passagem a decorrer: entre o fim
+    // de uma passagem e a fila avançar, o `next()` pode meter à frente uma
+    // faixa diferente (o shuffle inteligente intercala uma sugestão de
+    // quatro em quatro). Aí já não há passagem para abortar e a que estava a
+    // entrar ficava a tocar por cima desta.
+    abortarPassagem();
+    try {
+      motorEmEspera.pause();
+      motorEmEspera.volume = 0;
+    } catch {
+      // motor sem fonte — ignorar
+    }
     seguinteRef.current = null;
     const myRun = ++runIdRef.current;
     nativeTrackIdRef.current = null;
@@ -729,6 +964,53 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const knownMs = durationSec * 1000;
     setProgress(currentTime * 1000, knownMs);
 
+    // A passagem para a faixa seguinte -- as decisões estão em
+    // src/lib/crossfade.ts; aqui só se mexem volumes.
+    //
+    // A duração usada é a de CONFIANÇA, sem o `player.duration`: há m4a do
+    // YouTube que reportam o dobro, e com um deles a passagem começaria a
+    // meio da música.
+    const duracaoFiavel = track.durationSeconds || streamRef.current?.durationSeconds || null;
+    if (passagemRef.current) {
+      if (duracaoFiavel) avancarPassagem(currentTime, duracaoFiavel);
+    } else if (!usePlayer.getState().closing) {
+      const preparada = seguinteRef.current;
+      if (!preparada?.pronta) {
+        // O `timeUpdate` vem do AVPlayer e continua a chegar com o ecrã
+        // bloqueado -- ao contrário do `setInterval` do watchdog, que o iOS
+        // suspende. Preparar a seguinte a partir dali dava crossfade com a
+        // app à frente e nenhum com o telemóvel no bolso, que é o caso que
+        // conta.
+        void prepararSeguinte();
+      } else if (!endedRef.current) {
+        // O `endedRef` já marcado quer dizer que esta faixa já entregou o
+        // lugar -- ou por uma passagem que fechou, ou pelo fim normal. Sem
+        // esta guarda, enquanto o `next()` não voltasse (pode ir à rede
+        // buscar uma sugestão), a faixa que sai começava uma SEGUNDA
+        // passagem por cima da que já estava a tocar em cheio.
+        const st = usePlayer.getState();
+        const seguinte = st.peekNextTrack();
+        if (!seguinte || seguinte.sourceId !== preparada.sourceId) {
+          // A fila mudou por baixo: deixa preparar outra vez.
+          seguinteRef.current = null;
+          reporIntervaloDeTempo();
+        } else if (
+          deveComecarCrossfade({
+            duracaoDoFade: st.crossfadeSegundos,
+            duracaoSegundos: duracaoFiavel,
+            posicaoSegundos: currentTime,
+            temFaixaSeguinte: true,
+            repeatUma: st.repeatMode === 'one',
+            backendNativo: true,
+            seguinteCarregada: true,
+            aDecorrer: false,
+          })
+        ) {
+          comecarPassagem(seguinte);
+        }
+      }
+    }
+
     // Nunca antecipar o fim com base numa duração arredondada. O código
     // antigo começava um fade quando ainda faltavam 1,5 s e marcava a faixa
     // como terminada no fim desse fade — daí a fila saltar visivelmente antes
@@ -738,6 +1020,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   useEventListener(player, 'playToEnd', () => {
     if(usePlayer.getState().closing)return;
     if (backend === 'native' && nativeTrackIdRef.current === track.sourceId) {
+      if (passagemRef.current) {
+        // O áudio que sai acabou antes de a curva fechar -- a duração
+        // conhecida é aproximada. Fecha-a já: sem mais eventos de tempo a
+        // passagem ficava pendurada e a fila não avançava.
+        terminarPassagem();
+        return;
+      }
       if (repeatMode === 'one') {
         player.currentTime = 0;
         player.play();
@@ -801,68 +1090,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (backend === 'webview') setBuffering(false);
   }, [backend, setBuffering]);
 
-  /**
-   * Deixa a faixa seguinte carregada no motor em espera, calada.
-   *
-   * Só usa o ficheiro que o Smart Cache já descarregou: nada aqui vai à
-   * rede. Se o download ainda não acabou, não se prepara nada e a mudança
-   * de faixa segue o caminho normal -- é melhor perder a passagem do que
-   * gastar 4G a correr atrás dela.
-   *
-   * Com o crossfade nas Definições em 0, o `podeCrossfade` corta logo na
-   * primeira linha e isto nunca chega a preparar nada.
-   */
-  const prepararSeguinte = async () => {
-    if (aPrepararRef.current || backend !== 'native') return;
-    const st = usePlayer.getState();
-    const seguinte = st.peekNextTrack();
-    if (!seguinte || seguinte.source !== 'youtube') return;
-    if (seguinte.sourceId === track.sourceId) return;
-    if (seguinteRef.current?.sourceId === seguinte.sourceId) return;
-
-    const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
-    if (
-      !podeCrossfade({
-        duracaoDoFade: st.crossfadeSegundos,
-        duracaoSegundos: duracao,
-        posicaoSegundos: lastProgressRef.current.time,
-        temFaixaSeguinte: true,
-        repeatUma: st.repeatMode === 'one',
-        backendNativo: true,
-        seguinteCarregada: false,
-        aDecorrer: false,
-      })
-    ) {
-      return;
-    }
-    // Só perto do fim. Preparar no primeiro segundo deixava um AVPlayerItem
-    // inteiro em memória durante a faixa toda, sem proveito nenhum.
-    const falta = duracao! - lastProgressRef.current.time;
-    if (falta > st.crossfadeSegundos + 20) return;
-
-    const ficheiro = cachedAudioFile(seguinte.sourceId);
-    if (!ficheiro.exists) return;
-
-    aPrepararRef.current = true;
-    seguinteRef.current = { sourceId: seguinte.sourceId, pronta: false };
-    try {
-      motorEmEspera.volume = 0;
-      await motorEmEspera.replaceAsync({
-        uri: ficheiro.uri,
-        contentType: 'progressive',
-        metadata: metadadosDoEcraBloqueado(seguinte),
-      });
-      // A faixa pode ter mudado enquanto isto carregava.
-      if (seguinteRef.current?.sourceId === seguinte.sourceId) {
-        seguinteRef.current.pronta = true;
-      }
-    } catch {
-      seguinteRef.current = null;
-    } finally {
-      aPrepararRef.current = false;
-    }
-  };
-
   // Watchdog da posição parada. Duas paragens, duas respostas -- a decisão
   // está isolada e testada em src/lib/fimDeFaixa.ts:
   //
@@ -888,9 +1115,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       });
 
       if (acao === 'descarregar') { registarEvento('trocou_para_ficheiro'); fallbackRef.current(); }
-
-      // Boleia no relógio que já existe, em vez de abrir outro.
-      void prepararSeguinte();
     }, 2000);
     return () => clearInterval(id);
   }, [backend, track.durationSeconds, track.sourceId, repeatMode, player, onStateChange]);
@@ -900,8 +1124,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   useEffect(() => {
     if (backend !== 'native') return;
     const ceiling = applyCeiling();
-    // Não mexer a meio de um fade: ele acaba no teto novo à mesma.
-    if (!fadeIntervalRef.current && !usePlayer.getState().closing) {
+    // Não mexer a meio de um fade nem de uma passagem: os dois acabam no
+    // teto novo à mesma.
+    if (!fadeIntervalRef.current && !passagemRef.current && !usePlayer.getState().closing) {
       try {
         player.volume = ceiling;
       } catch {
@@ -914,6 +1139,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   useEffect(()=>{
     if(backend !== 'native') return;
     if(closing){
+      // Fechar não é passar: cala a que entrava e leva só a atual no fade.
+      abortarPassagem();
       if(closingVolume.current === null) closingVolume.current=player.volume;
       if(fadeIntervalRef.current){clearInterval(fadeIntervalRef.current);fadeIntervalRef.current=null;}
       player.volume=closingVolume.current*closeGain;
@@ -992,12 +1219,33 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           // (deps inalteradas) e o guard de wantsPlayRef pode tê-lo saltado
           // enquanto estávamos em pausa (ex.: restauro de sessão).
           player.playbackRate = usePlayer.getState().playbackRate;
+          // Passagem suspensa: os dois motores voltam juntos, de onde iam.
+          if (passagemRef.current) {
+            try {
+              motorEmEspera.play();
+            } catch {
+              // motor sem fonte — ignorar
+            }
+          }
         },
         pause: () => {
           wantsPlayRef.current = false;
           player.pause();
+          // `suspender`: quem pausa quer voltar, e a passagem continua de
+          // onde ia. Parar o motor que sai já congela a curva, porque é o
+          // `timeUpdate` dele que a faz andar.
+          if (passagemRef.current) {
+            try {
+              motorEmEspera.pause();
+            } catch {
+              // motor sem fonte — ignorar
+            }
+          }
         },
         seek: (ms) => {
+          // `abortar`: a posição deixa de estar no fim, a razão da passagem
+          // desapareceu -- e a faixa atual continua.
+          abortarPassagem();
           player.currentTime = ms / 1000;
         },
       });

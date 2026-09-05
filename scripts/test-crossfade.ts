@@ -65,10 +65,21 @@ assert.deepEqual(volumesDoCrossfade(1, 0, 1, 0.9), { sai: 0, entra: 0.9 });
 
 // --- interrupções ---
 assert.equal(acaoAoInterromper('pausa'), 'suspender', 'quem pausa quer voltar');
-for (const motivo of ['salto', 'anterior', 'faixa-nova', 'fechar'] as const) {
-  assert.equal(acaoAoInterromper(motivo), 'cortar');
+assert.equal(acaoAoInterromper('pausa', true), 'suspender', 'a pausa não olha ao resto');
+
+// Quem carrega em seguinte pediu a faixa que já estava a entrar: ela fica.
+assert.equal(acaoAoInterromper('salto', true), 'cortar');
+assert.equal(acaoAoInterromper('faixa-nova', true), 'cortar');
+
+// O caso que interessa mesmo: saltar para OUTRA faixa. Deixar a que estava a
+// entrar a tocar punha duas músicas ao mesmo tempo.
+for (const motivo of ['salto', 'anterior', 'faixa-nova', 'fechar', 'seek'] as const) {
+  assert.equal(acaoAoInterromper(motivo), 'abortar', motivo);
+  assert.equal(acaoAoInterromper(motivo, false), 'abortar', motivo);
 }
-// Um seek tira a posição do fim: a razão da passagem desaparece.
-assert.equal(acaoAoInterromper('seek'), 'cortar');
+
+// Um seek tira a posição do fim: a razão da passagem desaparece, e a faixa
+// atual continua -- mesmo que a seguinte já estivesse a soar.
+assert.equal(acaoAoInterromper('seek', false), 'abortar');
 
 console.log('Crossfade: condições, momento, curva de igual potência e interrupções passaram.');
