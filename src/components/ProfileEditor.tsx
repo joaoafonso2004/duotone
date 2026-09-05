@@ -3,7 +3,7 @@ import { Image,Platform,ScrollView,Text,TextInput,View,useWindowDimensions } fro
 import * as Crypto from 'expo-crypto';
 import { appearanceOf,saveProfileEdits,type SocialProfile,type ProfileHighlights } from '../api/profiles';
 import { pickProfileImage,prepareProfileImage,type SelectedProfileImage } from '../lib/profileImage';
-import { RACIO_DA_CAPA,RACIO_DO_AVATAR } from '../lib/profileImageCrop';
+import { LARGURA_DA_CAPA,LARGURA_DO_AVATAR,RACIO_DA_CAPA,RACIO_DO_AVATAR,zoomMaximo,ZOOM_MINIMO } from '../lib/profileImageCrop';
 import { mediaBucket,removeProfileMedia,useProfileMedia,type ProfileMediaKind } from '../lib/profileMedia';
 import { supabase } from '../lib/supabase';
 import { FriendAvatar } from './FriendAvatar';
@@ -15,6 +15,33 @@ import type { Playlist } from '../types';
 import { ProfileHighlightsEditor } from './ProfileHighlightsEditor';
 import { spacing } from '../theme';
 import { colors,radii } from './socialTokens';
+
+/**
+ * O zoom para quem não tem dois dedos.
+ *
+ * No telemóvel aproxima-se com um pinch na própria moldura, que é o gesto que
+ * toda a gente já conhece. Mas este editor é o MESMO no PC — o
+ * `desktop/paginas/ProfilePage.web.tsx` monta-o tal e qual — e lá um pinch não
+ * existe. Sem isto, o Windows ficava com metade da funcionalidade.
+ *
+ * Vive FORA do editor de propósito: declarada lá dentro, era um tipo de
+ * componente novo a cada render, e o React desmontava-a e remontava-a de cada
+ * vez — incluindo por baixo do dedo que acabou de carregar no botão.
+ *
+ * Não aparece quando a imagem não tem resolução para aproximar: um controlo que
+ * não faz nada é pior do que não haver controlo.
+ */
+function Zoom({valor,teto,disabled,onChange}:{
+  valor:number;teto:number;disabled:boolean;onChange:(v:number)=>void;
+}) {
+  if(teto<=ZOOM_MINIMO+0.001)return null;
+  const passo=(d:number)=>onChange(Math.max(ZOOM_MINIMO,Math.min(teto,Math.round((valor+d)*20)/20)));
+  return <View style={[s.row,{alignItems:'center',gap:spacing.sm}]}>
+    <SocialButton quiet disabled={disabled||valor<=ZOOM_MINIMO+0.001} onPress={()=>passo(-0.2)}>−</SocialButton>
+    <Text style={s.muted}>{`Zoom ${valor.toFixed(1)}×`}</Text>
+    <SocialButton quiet disabled={disabled||valor>=teto-0.001} onPress={()=>passo(0.2)}>+</SocialButton>
+  </View>;
+}
 
 /**
  * Editar o perfil: as duas imagens, o nome e a bio.
@@ -43,6 +70,9 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
   // dados: fica assado no ficheiro no momento do envio.
   const [avatarX,setAvatarX]=useState(0.5),[avatarY,setAvatarY]=useState(0.5);
   const [coverX,setCoverX]=useState(0.5),[coverY,setCoverY]=useState(0.5);
+  // 1 é o recorte de área máxima, que é como isto sempre funcionou. Aproximar
+  // encolhe-o, e é o que dá espaço para andar também para os lados.
+  const [avatarZoom,setAvatarZoom]=useState(ZOOM_MINIMO),[coverZoom,setCoverZoom]=useState(ZOOM_MINIMO);
   const [stage,setStage]=useState(''),[error,setError]=useState('');
   const coverUrl=useProfileMedia(value.cover_path ? `storage:${value.cover_path}` : null,'cover');
   const avatarUrl=value.avatar_path ? `storage:${value.avatar_path}` : value.legacy_avatar_url || `emoji:${value.emoji}:${value.gradient_index}`;
@@ -52,8 +82,10 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       setError('');
       const image=await pickProfileImage();
       if(!image)return;
-      if(kind==='avatar'){setAvatar(image);setAvatarX(0.5);setAvatarY(0.5);}
-      else {setCover(image);setCoverX(0.5);setCoverY(0.5);}
+      // O zoom volta ao princípio com a imagem: herdar o da anterior mostrava
+      // uma fatia de uma fotografia que ainda ninguém enquadrou.
+      if(kind==='avatar'){setAvatar(image);setAvatarX(0.5);setAvatarY(0.5);setAvatarZoom(ZOOM_MINIMO);}
+      else {setCover(image);setCoverX(0.5);setCoverY(0.5);setCoverZoom(ZOOM_MINIMO);}
     }
     catch(e:any){setError(e.message || 'Could not open that image.');}
   };
@@ -62,6 +94,14 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
   // mesmo tempo tem de ver os dois, senão o cabeçalho mostra o avatar antigo
   // por cima da capa nova e a decisão é tomada sobre uma imagem que não existe.
   const naoFazNada=()=>{};
+
+  // O teto depende da resolução de cada imagem: numa fotografia de telemóvel há
+  // muito por onde aproximar, numa captura de ecrã da largura da saída não há
+  // nada. Quando dá 1, o controlo não aparece.
+  const tetoDaCapa=cover?zoomMaximo(cover.width,cover.height,RACIO_DA_CAPA,LARGURA_DA_CAPA):ZOOM_MINIMO;
+  const tetoDoAvatar=avatar?zoomMaximo(avatar.width,avatar.height,RACIO_DO_AVATAR,LARGURA_DO_AVATAR):ZOOM_MINIMO;
+
+
   const profileParaPreVisualizar=avatar
     ? {...profile,profile:{...profile.profile,avatar_url:avatar.uri}}
     : profile;
@@ -79,6 +119,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
           image,kind,
           kind==='avatar'?avatarY:coverY,
           kind==='avatar'?avatarX:coverX,
+          kind==='avatar'?avatarZoom:coverZoom,
         );
         const path=`${profile.profile.id}/${kind}/${Crypto.randomUUID()}.jpg`;
         setStage(kind==='avatar'?'Uploading photo…':'Uploading cover…');
@@ -122,10 +163,12 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
       <View style={{borderRadius:radii.lg,overflow:'hidden'}}>
         {cover
           ? <ProfileCropPreview image={cover} ratio={RACIO_DA_CAPA} x={coverX} y={coverY}
+              zoom={coverZoom} zoomMaximo={tetoDaCapa}
               onDraggingChange={setAdjustingImage}
               onChange={(x,y)=>{setCoverX(x);setCoverY(y);}}
+              onZoomChange={setCoverZoom}
               vista={<ProfileHero own profile={profileParaPreVisualizar} cover={cover.uri}
-                recorte={{largura:cover.width,altura:cover.height,x:coverX,y:coverY}}
+                recorte={{largura:cover.width,altura:cover.height,x:coverX,y:coverY,zoom:coverZoom}}
                 unread={0} onEdit={naoFazNada} onMessage={naoFazNada}
                 onSocial={naoFazNada} onSettings={naoFazNada} onRefresh={naoFazNada}
                 onAddFriend={naoFazNada} pending={false}/>}/>
@@ -135,6 +178,7 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
                 : <Text style={s.muted}>No cover yet</Text>}
             </View>}
       </View>
+      {cover&&<Zoom valor={coverZoom} teto={tetoDaCapa} disabled={!!stage} onChange={setCoverZoom}/>}
       <View style={[s.row,{flexWrap:'wrap'}]}>
         <SocialButton disabled={!!stage} onPress={()=>void select('cover')}>{cover||value.cover_path?'Change cover':'Upload cover'}</SocialButton>
         {(cover||value.cover_path)&&<SocialButton quiet disabled={!!stage} onPress={()=>{setCover(null);setValue({...value,cover_path:null});}}>Remove cover</SocialButton>}
@@ -148,13 +192,16 @@ export function ProfileEditor({profile,highlights,playlists,onClose,onSaved}:{pr
         <View style={{width:110,borderRadius:55,overflow:'hidden'}}>
           {avatar
             ? <ProfileCropPreview image={avatar} ratio={RACIO_DO_AVATAR} x={avatarX} y={avatarY}
+                zoom={avatarZoom} zoomMaximo={tetoDoAvatar}
                 onDraggingChange={setAdjustingImage}
-                onChange={(x,y)=>{setAvatarX(x);setAvatarY(y);}}/>
+                onChange={(x,y)=>{setAvatarX(x);setAvatarY(y);}}
+                onZoomChange={setAvatarZoom}/>
             : <FriendAvatar avatarUrl={avatarUrl} name={name} size={110}/>}
         </View>
         <View style={{flex:1,gap:spacing.sm}}>
           <SocialButton disabled={!!stage} onPress={()=>void select('avatar')}>{avatar||value.avatar_path?'Change photo':'Upload photo'}</SocialButton>
           {(avatar||value.avatar_path)&&<SocialButton quiet disabled={!!stage} onPress={()=>{setAvatar(null);setValue({...value,avatar_path:null,legacy_avatar_url:null});}}>Remove photo</SocialButton>}
+          {avatar&&<Zoom valor={avatarZoom} teto={tetoDoAvatar} disabled={!!stage} onChange={setAvatarZoom}/>}
         </View>
       </View>
 

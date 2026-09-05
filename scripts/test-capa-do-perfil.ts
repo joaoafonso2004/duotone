@@ -101,3 +101,85 @@ assert.ok(alturaDoCabecalhoNoPc(3840, 2160) <= 560);
 assert.ok(alturaDoCabecalhoNoPc(1600, 0) >= ALTURA_MINIMA_DO_CABECALHO);
 
 console.log('Cabeçalho no PC: a altura acompanha a largura, com mínimo e teto.');
+
+// --- O zoom da moldura ---
+import {
+  imageCrop, LARGURA_DA_CAPA, LARGURA_DO_AVATAR, RACIO_DO_AVATAR,
+  zoomMaximo, ZOOM_MAXIMO, ZOOM_MINIMO,
+} from '../src/lib/profileImageCrop.ts';
+
+// UMA FOTO VERTICAL, que é o caso da queixa: com o recorte de área máxima o
+// recorte come a largura toda e não sobra NADA para andar na horizontal.
+const vertical = { largura: 3000, altura: 4000 };
+const semZoom = imageCrop(vertical.largura, vertical.altura, RACIO_DA_CAPA, 0.5, 0.5);
+assert.equal(semZoom.width, vertical.largura, 'sem zoom o recorte usa a largura toda');
+assert.equal(vertical.largura - semZoom.width, 0, 'e por isso não há folga lateral nenhuma');
+
+// Aproximar encolhe o recorte, e é isso que abre espaço nos DOIS eixos.
+const comZoom = imageCrop(vertical.largura, vertical.altura, RACIO_DA_CAPA, 0.5, 0.5, 2);
+assert.ok(vertical.largura - comZoom.width > 0, 'com zoom já há folga lateral');
+assert.ok(vertical.altura - comZoom.height > 0, 'e continua a haver folga vertical');
+
+// O rácio não se perde ao aproximar -- os dois lados descem pelo mesmo fator.
+//
+// A tolerância é UM PÍXEL de altura, e não um epsilon: um recorte é feito de
+// píxeis inteiros, e 3:2 exacto só existe quando a largura é múltipla de 3.
+// A 3,7x o recorte é 1081x720, que dá 1,5014 -- não há inteiros ali que dêem
+// melhor. O que interessa é que o erro fique preso ao arredondamento e não
+// cresça com o zoom.
+for (const z of [1, 1.5, 2, 3.7]) {
+  const c = imageCrop(4000, 3000, RACIO_DA_CAPA, 0.5, 0.5, z);
+  const folga = RACIO_DA_CAPA / c.height;
+  assert.ok(
+    Math.abs(c.width / c.height - RACIO_DA_CAPA) < folga,
+    `rácio mantido com zoom ${z}: ${c.width}x${c.height}`,
+  );
+}
+
+// Metade do recorte por cada duplicação do zoom.
+const z1 = imageCrop(4000, 3000, RACIO_DA_CAPA, 0.5, 0.5, 1);
+const z2 = imageCrop(4000, 3000, RACIO_DA_CAPA, 0.5, 0.5, 2);
+assert.equal(z2.width, Math.floor(z1.width / 2), 'o dobro do zoom é metade do recorte');
+
+// Um zoom disparatado não pode produzir um recorte de zero nem NaN.
+for (const mau of [0, -3, NaN, Infinity]) {
+  const c = imageCrop(4000, 3000, RACIO_DA_CAPA, 0.5, 0.5, mau as number);
+  assert.deepEqual(c, z1, `zoom inválido (${mau}) cai no recorte máximo`);
+}
+assert.ok(imageCrop(40, 30, RACIO_DA_CAPA, 0.5, 0.5, 1000).width >= 1, 'nunca um recorte de zero');
+
+// O ponto focal continua a andar de ponta a ponta, agora também na horizontal.
+const esquerda = imageCrop(3000, 4000, RACIO_DA_CAPA, 0, 0.5, 2);
+const direita = imageCrop(3000, 4000, RACIO_DA_CAPA, 1, 0.5, 2);
+assert.equal(esquerda.originX, 0, 'encostado à esquerda');
+assert.equal(direita.originX, 3000 - direita.width, 'encostado à direita');
+
+console.log('Zoom do recorte: encolhe nos dois eixos, mantém o rácio e destrava o movimento lateral.');
+
+// --- O teto por imagem ---
+
+// Uma fotografia de telemóvel tem resolução de sobra para aproximar.
+assert.ok(zoomMaximo(4000, 3000, RACIO_DA_CAPA, LARGURA_DA_CAPA) > 2, 'foto grande deixa aproximar');
+
+// Uma imagem já do tamanho da saída não tem por onde: aproximar seria só
+// ampliar pixéis. Tolera-se 1,5x, e nada mais.
+quaseIgual(zoomMaximo(1600, 1067, RACIO_DA_CAPA, LARGURA_DA_CAPA), 1.5, 'imagem justa tolera 1,5x');
+assert.equal(zoomMaximo(800, 533, RACIO_DA_CAPA, LARGURA_DA_CAPA), ZOOM_MINIMO,
+  'imagem pequena não deixa aproximar nada');
+
+// O teto absoluto manda, por maior que seja a fotografia.
+assert.equal(zoomMaximo(20000, 15000, RACIO_DA_CAPA, LARGURA_DA_CAPA), ZOOM_MAXIMO);
+
+// O avatar grava a 512, por isso a mesma fotografia dá muito mais zoom.
+assert.ok(
+  zoomMaximo(3000, 4000, RACIO_DO_AVATAR, LARGURA_DO_AVATAR)
+  > zoomMaximo(3000, 4000, RACIO_DA_CAPA, LARGURA_DA_CAPA),
+  'o avatar tolera mais zoom do que a capa, porque grava mais pequeno',
+);
+
+// Medidas por saber nunca devolvem NaN nem deixam aproximar às cegas.
+for (const [w, h, r, saida] of [[0, 10, 1.5, 1600], [10, 0, 1.5, 1600], [10, 10, 0, 1600], [10, 10, 1.5, 0]]) {
+  assert.equal(zoomMaximo(w!, h!, r!, saida!), ZOOM_MINIMO);
+}
+
+console.log('Teto do zoom: sai da resolução de cada imagem, com mínimo de 1 e teto absoluto.');

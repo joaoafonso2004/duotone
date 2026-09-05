@@ -143,6 +143,43 @@ responder.onPanResponderGrant();responder.onPanResponderTerminate();
 assert.equal(locks.at(-1),false,'uma interrupção também desbloqueia');
 responder.onPanResponderGrant();cleanup();
 assert.equal(locks.at(-1),false,'remover a imagem durante o gesto não prende o editor');
+// --- DOIS DEDOS APROXIMAM, e com o zoom passa a haver folga lateral ---
+//
+// Era esta a queixa: numa foto vertical o recorte maximo come a largura toda,
+// nao sobra folga em x, e o arrasto horizontal nao tinha para onde ir.
+const zooms=[],lateral=[];
+const vertical={uri:'teste',width:3000,height:4000};
+const doisDedos=(separacao)=>({nativeEvent:{touches:[{pageX:0,pageY:0},{pageX:separacao,pageY:0}]}});
+
+ProfileCropPreview({image:vertical,ratio:RACIO_DA_CAPA,zoom:1,zoomMaximo:3,
+  onChange:()=>{},onZoomChange:z=>zooms.push(z),onDraggingChange:()=>{}});
+responder.onPanResponderGrant(doisDedos(100),{dx:0,dy:0});
+responder.onPanResponderMove(doisDedos(200),{dx:0,dy:0});
+assert.ok(Math.abs(zooms.at(-1)-2)<1e-9,'afastar os dedos ao dobro duplica o zoom');
+responder.onPanResponderMove(doisDedos(1000),{dx:0,dy:0});
+assert.equal(zooms.at(-1),3,'o teto da imagem manda');
+responder.onPanResponderMove(doisDedos(10),{dx:0,dy:0});
+assert.equal(zooms.at(-1),1,'e nunca se afasta para alem do recorte maximo');
+
+// Com o zoom aplicado ja HA folga lateral, e o arrasto horizontal mexe mesmo.
+ProfileCropPreview({image:vertical,ratio:RACIO_DA_CAPA,zoom:2,zoomMaximo:3,
+  onChange:(x,y)=>lateral.push([x,y]),onZoomChange:()=>{},onDraggingChange:()=>{}});
+responder.onPanResponderGrant(null,{dx:0,dy:0});
+responder.onPanResponderMove(null,{dx:-40,dy:0});
+assert.ok(lateral.at(-1)[0]>0.5,'com zoom, arrastar para o lado mexe MESMO no eixo horizontal');
+
+// MUDAR O NUMERO DE DEDOS RECOMECA A CONTAR. O `dx` do PanResponder conta
+// desde o primeiro toque e nunca se repoe: sem isto, levantar um dedo a meio
+// de um pinch atirava a imagem para o outro lado de uma so vez.
+lateral.length=0;
+responder.onPanResponderMove(doisDedos(100),{dx:-300,dy:0});
+assert.equal(lateral.length,0,'a passagem a dois dedos nao arrasta nada');
+responder.onPanResponderMove(null,{dx:-300,dy:0});
+assert.equal(lateral.length,0,'nem a volta a um dedo: so recomeca a contar');
+responder.onPanResponderMove(null,{dx:-310,dy:0});
+const salto=Math.abs(lateral.at(-1)[0]-0.5);
+assert.ok(salto>0&&salto<0.1,`depois de recomecar anda o pouco que se andou: ${salto}`);
+
 // Uma imagem que ja vem exactamente no racio da capa nao tem nada a ajustar
 // em nenhum dos eixos. As medidas saem do racio: estavam 1600x600, que so era
 // "sem margem" enquanto a capa foi 8:3.

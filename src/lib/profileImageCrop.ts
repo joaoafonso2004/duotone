@@ -19,6 +19,9 @@ export const RACIO_DA_CAPA = 3 / 2;
 /** Largura com que a capa é gravada; a altura sai do rácio. */
 export const LARGURA_DA_CAPA = 1600;
 
+/** O lado com que a fotografia de perfil é gravada. */
+export const LARGURA_DO_AVATAR = 512;
+
 /** A fotografia de perfil: quadrada, porque aparece dentro de um círculo. */
 export const RACIO_DO_AVATAR = 1;
 
@@ -35,9 +38,9 @@ export const RACIO_DO_AVATAR = 1;
  * o preview poder mostrar o resultado sem gravar nada.
  */
 export function enquadrarPreVisualizacao(
-  largura:number,altura:number,racio:number,x:number,y:number,caixaW:number,caixaH:number,
+  largura:number,altura:number,racio:number,x:number,y:number,caixaW:number,caixaH:number,zoom=1,
 ) {
-  const recorte=imageCrop(largura,altura,racio,x,y);
+  const recorte=imageCrop(largura,altura,racio,x,y,zoom);
   // `cover`: a escala é a maior das duas, para não sobrar caixa por preencher.
   const escala=Math.max(caixaW/recorte.width,caixaH/recorte.height);
   return {
@@ -48,11 +51,60 @@ export function enquadrarPreVisualizacao(
   };
 }
 
-/** Recorte proporcional, com ponto focal limitado ao espaço disponível. */
-export function imageCrop(width:number,height:number,ratio:number,x=0.5,y=0.5) {
+/**
+ * O zoom da moldura.
+ *
+ * `1` é o recorte de ÁREA MÁXIMA -- exatamente o que existia antes de haver
+ * zoom, por isso nada muda para quem não lhe toca.
+ *
+ * Acima de 1 o recorte encolhe, e é isso que abre espaço para andar nos DOIS
+ * eixos. Com o recorte máximo há sempre um eixo sem folga nenhuma: numa foto
+ * vertical o recorte come a largura toda e só sobra ajuste vertical, que era a
+ * queixa. Não era um defeito do arrasto -- era não haver para onde ir.
+ */
+export const ZOOM_MINIMO = 1;
+
+/** Passado daqui já não se enquadra nada: esfrega-se o nariz na fotografia. */
+export const ZOOM_MAXIMO = 4;
+
+/**
+ * Quanto se tolera ampliar para lá da resolução de saída.
+ *
+ * O recorte é sempre esticado até à largura de saída, por isso aproximar é
+ * aumentar uma ampliação que muitas vezes já existe. A 1,5x, nestes tamanhos,
+ * ainda não se lê como suja.
+ */
+const AMPLIACAO_TOLERADA = 1.5;
+
+/**
+ * Até onde vale a pena deixar aproximar ESTA imagem.
+ *
+ * O teto não pode ser só um número fixo: numa fotografia de telemóvel de 4000px
+ * há muito por onde aproximar, e numa captura de ecrã com a largura da saída
+ * não há nada -- aproximar só ampliaria pixéis. Sai daqui um teto por imagem, e
+ * quando ele dá 1 é porque essa fotografia não tem resolução para mais.
+ */
+export function zoomMaximo(
+  largura:number,altura:number,racio:number,larguraDeSaida:number,
+): number {
+  if(!(largura>0)||!(altura>0)||!(racio>0)||!(larguraDeSaida>0)) return ZOOM_MINIMO;
+  const recorteMaximo=Math.min(largura,altura*racio);
+  const porResolucao=(recorteMaximo*AMPLIACAO_TOLERADA)/larguraDeSaida;
+  return Math.max(ZOOM_MINIMO,Math.min(ZOOM_MAXIMO,porResolucao));
+}
+
+/**
+ * Recorte proporcional, com ponto focal limitado ao espaço disponível.
+ *
+ * Os dois lados são divididos pelo MESMO fator, e é isso que mantém o rácio:
+ * saem os dois da mesma restrição. O píxel de guarda impede um recorte de zero
+ * num zoom absurdo com uma imagem minúscula.
+ */
+export function imageCrop(width:number,height:number,ratio:number,x=0.5,y=0.5,zoom=1) {
   if(!Number.isFinite(width)||!Number.isFinite(height)||width<=0||height<=0) throw new Error('Invalid image.');
-  const w=Math.floor(Math.min(width,height*ratio));
-  const h=Math.floor(Math.min(height,width/ratio));
+  const z=Number.isFinite(zoom)&&zoom>ZOOM_MINIMO?zoom:ZOOM_MINIMO;
+  const w=Math.max(1,Math.floor(Math.min(width,height*ratio)/z));
+  const h=Math.max(1,Math.floor(Math.min(height,width/ratio)/z));
   return {originX:Math.round((width-w)*Math.max(0,Math.min(1,x))),originY:Math.round((height-h)*Math.max(0,Math.min(1,y))),width:w,height:h};
 }
 

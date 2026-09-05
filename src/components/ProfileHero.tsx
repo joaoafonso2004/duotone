@@ -18,7 +18,7 @@ type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:numb
    * outro componente, com outro enquadramento e sem vinheta -- e por isso
    * nunca podia corresponder ao que ficava.
    */
-  recorte?:{largura:number;altura:number;x:number;y:number};
+  recorte?:{largura:number;altura:number;x:number;y:number;zoom?:number};
   onEdit:()=>void;onMessage:()=>void;onBack?:()=>void;
   onSocial?:()=>void;onSettings?:()=>void;onRefresh:()=>void;onAddFriend:()=>void;pending:boolean};
 
@@ -79,7 +79,7 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
     // No editor a imagem ainda é a original, por recortar: quem manda no
     // enquadramento é o gesto em curso.
     if(recorte){
-      const p=enquadrarPreVisualizacao(recorte.largura,recorte.altura,RACIO_DA_CAPA,recorte.x,recorte.y,caixa.largura,caixa.altura);
+      const p=enquadrarPreVisualizacao(recorte.largura,recorte.altura,RACIO_DA_CAPA,recorte.x,recorte.y,caixa.largura,caixa.altura,recorte.zoom??1);
       return <Image source={{uri:cover!}} resizeMode="stretch"
         style={{position:'absolute',width:p.width,height:p.height,left:p.left,top:p.top,opacity:0.78}}/>;
     }
