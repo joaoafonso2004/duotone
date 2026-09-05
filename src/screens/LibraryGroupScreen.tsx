@@ -260,41 +260,42 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       onBack={() => navigation.goBack()}
     >
       {type === 'artist' && (
+        // Escritos UMA vez e repetidos, como no PC (BibliotecaPages.web).
+        // Estavam quatro blocos iguais copiados, e um separador novo era um
+        // quinto bloco onde qualquer diferença passava despercebida.
         <View style={styles.tabsContainer}>
-          <Pressable
-            style={[styles.tabChip, activeTab === 'library' && styles.tabChipActive]}
-            onPress={() => setActiveTab('library')}
-          >
-            <Text style={[styles.tabLabel, activeTab === 'library' && { color: colors.text }]}>
-              Na Biblioteca
-            </Text>
-          </Pressable>
-          {!!folhaDoTracker && (
-            <Pressable
-              style={[styles.tabChip, activeTab === 'por_ouvir' && styles.tabChipActive]}
-              onPress={() => setActiveTab('por_ouvir')}
-            >
-              <Text style={[styles.tabLabel, activeTab === 'por_ouvir' && { color: colors.text }]}>
-                Por Ouvir{doTracker ? ` · ${listaPorOuvir.length}` : ''}
-              </Text>
-            </Pressable>
-          )}
-          <Pressable
-            style={[styles.tabChip, activeTab === 'youtube_tracks' && styles.tabChipActive]}
-            onPress={() => setActiveTab('youtube_tracks')}
-          >
-            <Text style={[styles.tabLabel, activeTab === 'youtube_tracks' && { color: colors.text }]}>
-              Outras Músicas
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tabChip, activeTab === 'youtube_albums' && styles.tabChipActive]}
-            onPress={() => setActiveTab('youtube_albums')}
-          >
-            <Text style={[styles.tabLabel, activeTab === 'youtube_albums' && { color: colors.text }]}>
-              Álbuns
-            </Text>
-          </Pressable>
+          {([
+            ['library', 'Na Biblioteca', 'heart-outline'],
+            ...(folhaDoTracker
+              ? [['por_ouvir', `Por Ouvir${doTracker ? ` · ${listaPorOuvir.length}` : ''}`, 'sparkles-outline'] as const]
+              : []),
+            ['youtube_tracks', 'Outras Músicas', 'musical-notes-outline'],
+            ['youtube_albums', 'Álbuns', 'albums-outline'],
+          ] as const).map(([id, rotulo, icone]) => {
+            const activo = activeTab === id;
+            return (
+              <Pressable
+                key={id}
+                onPress={() => setActiveTab(id)}
+                style={({ pressed }) => [
+                  styles.tabChip,
+                  // O aceso leva a cor da CAPA, como o resto da app -- o
+                  // cinzento um tom acima quase não se distinguia do apagado.
+                  activo && [styles.tabChipActive, { backgroundColor: theme.soft }],
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Ionicons
+                  name={icone}
+                  size={13}
+                  color={activo ? theme.color : colors.textTertiary}
+                />
+                <Text style={[styles.tabLabel, activo && { color: theme.color }]}>
+                  {rotulo}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       )}
 
@@ -561,7 +562,12 @@ const styles = StyleSheet.create({
   },
   seloTexto: { fontSize: 10, fontWeight: '700' },
   tabChip: {
-    paddingHorizontal: 14,
+    // Ícone + texto, os mesmos do PC: o mesmo componente visto nas duas
+    // plataformas, e não dois que se parecem.
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 13,
     paddingVertical: 7,
     borderRadius: radii.pill,
     backgroundColor: colors.surface,
