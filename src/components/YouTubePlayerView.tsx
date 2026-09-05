@@ -9,6 +9,7 @@ import { BUILD_ID } from '../lib/buildInfo';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 import { registar as registarEvento } from '../lib/eventos';
 import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
+import { podeCrossfade } from '../lib/crossfade';
 import { acaoDoWatchdog, fimPorFaltaDeDados } from '../lib/fimDeFaixa';
 import { definirCapaDoEcraBloqueado, temCapaNativa } from '../../modules/duotone-remote-commands';
 import { getLastBotGuardError } from '../lib/botguardBridge';
@@ -176,12 +177,43 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     };
   }, []);
 
-  const player = useVideoPlayer(null, (p) => {
+  /**
+   * DOIS motores, e não um.
+   *
+   * Uma passagem cruzada obriga a faixa que sai e a que entra a soar ao
+   * mesmo tempo, e um AVPlayer só toca um item de cada vez. A alternativa
+   * -- um `replaceAsync` a meio da passagem -- é exatamente o que mata o
+   * áudio antigo.
+   *
+   * O que impede isto de contaminar o resto do ficheiro: `player` continua
+   * a existir e passa a significar O MOTOR ATIVO. Tudo o que já estava
+   * escrito à volta dele -- eventos, equalizador, watchdog, controlos --
+   * fica igual e passa a seguir quem estiver ativo.
+   *
+   * O `showNowPlayingNotification` NÃO se liga aqui: com os dois ligados
+   * havia dois a disputar o ecrã de bloqueio. Quem o decide é o efeito
+   * mais abaixo, que liga o novo antes de desligar o velho.
+   */
+  const configurarMotor = (p: any) => {
     p.staysActiveInBackground = true;
-    p.showNowPlayingNotification = true;
     p.timeUpdateEventInterval = 1;
     p.loop = false;
-  });
+  };
+  const motorA = useVideoPlayer(null, configurarMotor);
+  const motorB = useVideoPlayer(null, configurarMotor);
+  const [qualMotor, setQualMotor] = useState<'a' | 'b'>('a');
+  const player = qualMotor === 'a' ? motorA : motorB;
+  const motorEmEspera = qualMotor === 'a' ? motorB : motorA;
+
+  /**
+   * A faixa que o motor em espera já tem carregada, se houver.
+   *
+   * Enquanto isto for `null` a app comporta-se exatamente como antes: sem
+   * faixa preparada não há troca de motor, e a mudança de faixa segue o
+   * caminho de sempre. Com o crossfade desligado nunca deixa de ser `null`.
+   */
+  const seguinteRef = useRef<{ sourceId: string; pronta: boolean } | null>(null);
+  const aPrepararRef = useRef(false);
 
   // Em background não há barra de progresso para animar. Dois segundos
   // continuam a verificar o sleep timer com boa precisão e reduzem para
@@ -215,8 +247,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // no AVPlayerItem, e cada `replaceAsync` cria um item de raiz. Do lado do JS
   // não há evento fiável para isso; do lado nativo há KVO no `currentItem`.
   useEffect(() => {
+    // Ligar o NOVO antes de desligar o velho. Se os dois ficarem desligados
+    // ao mesmo tempo, o expo-video chama `unregisterPlayer` sem ninguém a
+    // substituir e o ecrã de bloqueio fica vazio.
+    player.showNowPlayingNotification = true;
+    motorEmEspera.showNowPlayingNotification = false;
     ligarAudioNativo(player);
-  }, [player]);
+  }, [player, motorEmEspera]);
 
   // O equalizador. A margem é calculada aqui e não no Swift, para a conta
   // viver só num sítio: o `lib/equalizer.ts`, que é quem sabe quanto é que as
@@ -296,6 +333,57 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   };
 
   useEffect(() => {
+    // CAMINHO CURTO: a faixa que agora entra já está carregada no outro
+    // motor. Troca-se de motor, em vez de resolver e descarregar de novo.
+    // Sem faixa preparada -- e é sempre o caso com o crossfade desligado --
+    // segue-se o caminho de sempre, linha por linha igual ao que era.
+    const preparada = seguinteRef.current;
+    if (
+      preparada?.pronta &&
+      preparada.sourceId === track.sourceId &&
+      backend === 'native' &&
+      usePlayer.getState().autoplayOnLoad
+    ) {
+      seguinteRef.current = null;
+      runIdRef.current++;
+      const entra = motorEmEspera;
+      const sai = player;
+      streamRef.current = undefined;
+      downloadTriedRef.current = false;
+      lastProgressRef.current = { time: 0, at: Date.now() };
+      endedRef.current = false;
+      webviewSkippedRef.current = false;
+      wantsPlayRef.current = true;
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      }
+      applyCeiling();
+      usePlayer.setState({ resumePositionMs: null });
+      nativeTrackIdRef.current = track.sourceId;
+      try {
+        sai.pause();
+      } catch {
+        // motor sem fonte — ignorar
+      }
+      try {
+        entra.volume = ceilingRef.current;
+        entra.playbackRate = usePlayer.getState().playbackRate;
+        entra.play();
+        // O `playingChange` do motor que entra ainda não tem ouvinte: só
+        // passa a ter no render seguinte a esta troca. Sem isto a UI ficava
+        // a dizer "em pausa" com a música a tocar, até ao primeiro
+        // `timeUpdate` a corrigi-la.
+        onStateChange('playing');
+      } catch {
+        // se o motor preparado falhar, o caminho normal volta a correr
+        // quando o `sourceId` mudar outra vez
+      }
+      setQualMotor((q) => (q === 'a' ? 'b' : 'a'));
+      return;
+    }
+
+    seguinteRef.current = null;
     const myRun = ++runIdRef.current;
     nativeTrackIdRef.current = null;
     streamRef.current = undefined;
@@ -325,18 +413,24 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   // Ao desmontar (ex.: fechar o player no X), parar mesmo o áudio nativo —
   // com staysActiveInBackground ele podia continuar a tocar sozinho.
+  // Depende dos motores em si e não do ativo: se dependesse de `player`, a
+  // troca de papéis fazia o React correr esta limpeza no motor que sai --
+  // e um `replace(null)` no meio de uma passagem cortava-lhe o som.
   useEffect(() => {
     return () => {
       if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
       nativeTrackIdRef.current = null;
-      try {
-        player.pause();
-        player.replace(null);
-      } catch {
-        // player já libertado — ignorar
+      seguinteRef.current = null;
+      for (const p of [motorA, motorB]) {
+        try {
+          p.pause();
+          p.replace(null);
+        } catch {
+          // player já libertado — ignorar
+        }
       }
     };
-  }, [player]);
+  }, [motorA, motorB]);
 
   // Chamado pelo YtStreamHarvester (fase 1) com o que conseguiu capturar, ou
   // `null` se não capturou nada dentro do timeout.
@@ -707,6 +801,68 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (backend === 'webview') setBuffering(false);
   }, [backend, setBuffering]);
 
+  /**
+   * Deixa a faixa seguinte carregada no motor em espera, calada.
+   *
+   * Só usa o ficheiro que o Smart Cache já descarregou: nada aqui vai à
+   * rede. Se o download ainda não acabou, não se prepara nada e a mudança
+   * de faixa segue o caminho normal -- é melhor perder a passagem do que
+   * gastar 4G a correr atrás dela.
+   *
+   * Com o crossfade nas Definições em 0, o `podeCrossfade` corta logo na
+   * primeira linha e isto nunca chega a preparar nada.
+   */
+  const prepararSeguinte = async () => {
+    if (aPrepararRef.current || backend !== 'native') return;
+    const st = usePlayer.getState();
+    const seguinte = st.peekNextTrack();
+    if (!seguinte || seguinte.source !== 'youtube') return;
+    if (seguinte.sourceId === track.sourceId) return;
+    if (seguinteRef.current?.sourceId === seguinte.sourceId) return;
+
+    const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
+    if (
+      !podeCrossfade({
+        duracaoDoFade: st.crossfadeSegundos,
+        duracaoSegundos: duracao,
+        posicaoSegundos: lastProgressRef.current.time,
+        temFaixaSeguinte: true,
+        repeatUma: st.repeatMode === 'one',
+        backendNativo: true,
+        seguinteCarregada: false,
+        aDecorrer: false,
+      })
+    ) {
+      return;
+    }
+    // Só perto do fim. Preparar no primeiro segundo deixava um AVPlayerItem
+    // inteiro em memória durante a faixa toda, sem proveito nenhum.
+    const falta = duracao! - lastProgressRef.current.time;
+    if (falta > st.crossfadeSegundos + 20) return;
+
+    const ficheiro = cachedAudioFile(seguinte.sourceId);
+    if (!ficheiro.exists) return;
+
+    aPrepararRef.current = true;
+    seguinteRef.current = { sourceId: seguinte.sourceId, pronta: false };
+    try {
+      motorEmEspera.volume = 0;
+      await motorEmEspera.replaceAsync({
+        uri: ficheiro.uri,
+        contentType: 'progressive',
+        metadata: metadadosDoEcraBloqueado(seguinte),
+      });
+      // A faixa pode ter mudado enquanto isto carregava.
+      if (seguinteRef.current?.sourceId === seguinte.sourceId) {
+        seguinteRef.current.pronta = true;
+      }
+    } catch {
+      seguinteRef.current = null;
+    } finally {
+      aPrepararRef.current = false;
+    }
+  };
+
   // Watchdog da posição parada. Duas paragens, duas respostas -- a decisão
   // está isolada e testada em src/lib/fimDeFaixa.ts:
   //
@@ -732,6 +888,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       });
 
       if (acao === 'descarregar') { registarEvento('trocou_para_ficheiro'); fallbackRef.current(); }
+
+      // Boleia no relógio que já existe, em vez de abrir outro.
+      void prepararSeguinte();
     }, 2000);
     return () => clearInterval(id);
   }, [backend, track.durationSeconds, track.sourceId, repeatMode, player, onStateChange]);
