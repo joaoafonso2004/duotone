@@ -4,7 +4,7 @@ import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '../theme';
 import type { Track } from '../types';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
 import { BrilhoInteligente, EstrelaInteligente } from '../components/BrilhoInteligente';
 import { useSaved } from '../state/saved';
@@ -306,7 +306,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore }: {
           onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t); }) as any}
           style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
           <Artwork track={t} size={148} />
-          <Text numberOfLines={1} style={ui.shelfCardTitle}>{t.title}</Text>
+          <Text numberOfLines={1} style={ui.shelfCardTitle}>{tituloDaFaixa(t)}</Text>
           <Text numberOfLines={1} style={ui.shelfCardArtista}>{displayArtist(t)}</Text>
         </P>
       ))}
@@ -359,7 +359,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
       <View style={[ui.trackTitleCell, { flex: 1 }]}>
         <Artwork track={track} size={artworkSize} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={ui.trackTitle}>{track.title}</Text>
+          <Text numberOfLines={1} style={ui.trackTitle}>{tituloDaFaixa(track)}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
             <Text numberOfLines={1} style={ui.trackSource}>{displayArtist(track)}</Text>
             {savedKeys.has(`${track.source}:${track.sourceId}`) && <Ionicons name="heart" size={10} color={COR.texto} />}

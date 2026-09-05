@@ -1,4 +1,4 @@
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React from 'react';
@@ -117,7 +117,7 @@ function TrackRowComponent({
           numberOfLines={1}
           style={[type.body, { fontWeight: '600' }, active && { color: theme.color }]}
         >
-          {track.title}
+          {tituloDaFaixa(track)}
         </Text>
         <View style={styles.metaRow}>
           <SourceBadge source={track.source} />

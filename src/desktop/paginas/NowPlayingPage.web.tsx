@@ -17,6 +17,7 @@ import { Artwork, Button, ContentScroll, Dialog, Empty, IconButton, Page, ui } f
 import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
 import type { Track } from '../../types';
 import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
+import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
 
 /** A capa mantém o glitch; o gesto revela as letras na face adjacente. */
 export function NowPlayingPage({
@@ -85,7 +86,11 @@ export function NowPlayingPage({
   if (!current) {
     return <Page title="Now Playing" subtitle="Nothing is playing right now." action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
   }
-  const track = current;
+  // O que o catálogo confirmou: nome, artista e capa QUADRADA. A versão entra
+  // nas dependências para o ecrã redesenhar quando a resposta chegar.
+  const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
+  const track = useMemo(() => (current ? comCatalogo(current) : current), [current, versaoDoCatalogo]);
+  useEffect(() => { if (current) void garantirCatalogo([current]); }, [current?.sourceId]);
   const estreito = width < 1180;
   const ladoCapa = estreito ? 300 : width >= 1420 ? 420 : 384;
 

@@ -7,6 +7,7 @@ import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
+import { registar as registarEvento } from '../lib/eventos';
 import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
 import { acaoDoWatchdog, fimPorFaltaDeDados } from '../lib/fimDeFaixa';
 import { definirCapaDoEcraBloqueado, temCapaNativa } from '../../modules/duotone-remote-commands';
@@ -678,6 +679,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         duracaoSegundos: track.durationSeconds || streamRef.current?.durationSeconds || 0,
       })
     ) {
+      // Um fim que o AVPlayer não anunciou. Vale a pena saber quantos são.
+      registarEvento('fim_encravado');
       avancarPorFimSilencioso();
       return;
     }
@@ -685,6 +688,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     fallbackRef.current().then((handled) => {
       if (!handled) {
         setError(`[build ${BUILD_ID}] YouTube: playback error (${error?.message ?? 'unknown'}), using embed.`);
+        registarEvento('caiu_no_embed', { motivo: 'erro_de_reproducao' });
         setBackend('webview');
       }
     });
@@ -727,7 +731,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         jaDescarregou: downloadTriedRef.current,
       });
 
-      if (acao === 'descarregar') fallbackRef.current();
+      if (acao === 'descarregar') { registarEvento('trocou_para_ficheiro'); fallbackRef.current(); }
     }, 2000);
     return () => clearInterval(id);
   }, [backend, track.durationSeconds, track.sourceId, repeatMode, player, onStateChange]);

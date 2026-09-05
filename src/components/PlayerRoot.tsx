@@ -600,6 +600,8 @@ export function PlayerRoot() {
               </Pressable>
 
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Previous track"
                 hitSlop={14}
                 onPress={prev}
                 disabled={repeatMode === 'off' && !shuffle && queueIndex === 0}
@@ -611,6 +613,8 @@ export function PlayerRoot() {
               </Pressable>
 
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
                 onPress={togglePlay}
                 style={({ pressed }) => [styles.playBtn, pressed && { opacity: 0.85 }]}
               >
@@ -623,6 +627,8 @@ export function PlayerRoot() {
               </Pressable>
 
               <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Next track"
                 hitSlop={14}
                 onPress={next}
                 disabled={
@@ -768,7 +774,7 @@ export function PlayerRoot() {
                 color={saved ? theme.color : colors.textSecondary}
               />
             </Pressable>
-            <Pressable hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
+            <Pressable accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause' : 'Play'} hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
               <StateIcon
                 name={isPlaying ? 'pause' : 'play'}
                 size={22}

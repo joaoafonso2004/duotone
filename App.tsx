@@ -40,6 +40,8 @@ import { useAcompanharCapa } from './src/hooks/useAcompanharCapa';
 import { useEstadoDoWidget } from './src/hooks/useEstadoDoWidget';
 import { useRecomendacoes } from './src/state/recomendacoes';
 import { iniciarPresenca } from './src/lib/presenceSync';
+import { sincronizarPreferencias } from './src/lib/prefsSync';
+import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
 
 export default function App() {
@@ -72,8 +74,11 @@ export default function App() {
   useEffect(() => {
     if (!userId||offline) return;
     const pararPresenca = iniciarPresenca(userId);
+    // As preferências passam a viver na conta: reinstalar deixa de as apagar.
+    const pararPrefs = sincronizarPreferencias(userId);
+    const pararEventos = iniciarEventos(userId);
     const pararSocial = iniciarSocial(userId);
-    return () => { pararPresenca(); pararSocial(); };
+    return () => { pararPresenca(); pararSocial(); pararPrefs(); pararEventos(); };
   }, [userId,offline]);
 
   useEffect(() => {
