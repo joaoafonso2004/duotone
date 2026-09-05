@@ -2,7 +2,7 @@ import { RecommendationPreferences } from '../components/RecommendationPreferenc
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { removeOwnProfileMedia } from '../lib/profileMedia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState, useRef } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View, Share, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -46,6 +46,8 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
 import { usePlayer } from '../state/player';
+import { getLibrary } from '../api/library';
+import { varrerCatalogo } from '../state/catalogoDeFaixas';
 import { colors, radii, spacing, type } from '../theme';
 import { widgetDisponivel } from '../../modules/duotone-widget';
 
@@ -100,6 +102,12 @@ export function SettingsScreen({ navigation }: Props) {
   const [keepAwakeOn, setKeepAwakeOn] = useState(false);
   const [notificationsOn, setNotificationsOn] = useState(true);
   const [cacheBytes, setCacheBytes] = useState(0);
+  // Identificação da biblioteca contra um catálogo a sério. Só corre quando
+  // se pede: são uma ou duas chamadas de rede por faixa.
+  const [aIdentificar, setAIdentificar] = useState(false);
+  const [progresso, setProgresso] = useState<{ feitas: number; total: number } | null>(null);
+  const [resumoDoCatalogo, setResumoDoCatalogo] = useState<string | null>(null);
+  const pararIdentificacao = useRef(false);
   const [widgetPronto, setWidgetPronto] = useState<boolean | null>(null);
 
   const [signOutOpen, setSignOutOpen] = useState(false);
@@ -181,6 +189,32 @@ export function SettingsScreen({ navigation }: Props) {
       await activateKeepAwakeAsync();
     } else {
       deactivateKeepAwake();
+    }
+  };
+
+  const identificarBiblioteca = async () => {
+    setAIdentificar(true);
+    setResumoDoCatalogo(null);
+    pararIdentificacao.current = false;
+    try {
+      const faixas = await getLibrary();
+      const { resolvidas, semResposta } = await varrerCatalogo(
+        faixas,
+        (feitas, total) => setProgresso(total ? { feitas, total } : null),
+        () => pararIdentificacao.current,
+      );
+      // O que não se encontra é quase sempre unreleased, que não existe em
+      // catálogo nenhum. Dizer isso evita parecer uma falha.
+      setResumoDoCatalogo(
+        resolvidas || semResposta
+          ? `${resolvidas} identified · ${semResposta} not in any catalogue (usually unreleased).`
+          : 'Everything was already identified.',
+      );
+    } catch {
+      setResumoDoCatalogo('Could not finish. Check your connection and try again.');
+    } finally {
+      setProgresso(null);
+      setAIdentificar(false);
     }
   };
 
@@ -435,6 +469,24 @@ export function SettingsScreen({ navigation }: Props) {
               variant="ghost"
               small
               onPress={doClearCache}
+              style={{ alignSelf: 'flex-start' }}
+            />
+            {/* Identificar a biblioteca: o artista e o título vêm adivinhados
+                do título do vídeo do YouTube, e um catálogo a sério corrige-os
+                — incluindo a capa quadrada, sem as barras pretas. */}
+            <Text style={[type.caption, { lineHeight: 18, marginTop: spacing.lg, marginBottom: spacing.sm }]}>
+              {progresso
+                ? `Identifying ${progresso.feitas} of ${progresso.total}…`
+                : resumoDoCatalogo
+                  ?? 'Match your library against a music catalogue to fix artist names, titles and cover art.'}
+            </Text>
+            <PillButton
+              label={aIdentificar ? 'Stop' : 'Identify library'}
+              disabled={offline}
+              variant="ghost"
+              small
+              loading={aIdentificar && !progresso}
+              onPress={aIdentificar ? () => { pararIdentificacao.current = true; } : identificarBiblioteca}
               style={{ alignSelf: 'flex-start' }}
             />
             <PillButton

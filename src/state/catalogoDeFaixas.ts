@@ -118,6 +118,85 @@ export function comCatalogo<T extends Track>(faixa: T): T {
   };
 }
 
+/**
+ * Identificar a biblioteca toda, de uma vez, com a app aberta.
+ *
+ * O `garantirCatalogo` resolve aos poucos à medida que as listas aparecem, o que
+ * converge com o uso mas nunca acaba numa biblioteca de milhares de faixas. Isto
+ * é o caminho explícito: a pessoa pede, vê a barra andar, e pode parar.
+ *
+ * Não corre sozinho e não corre em segundo plano de propósito. São uma ou duas
+ * chamadas de rede por faixa — pô-las a acontecer sem ninguém pedir era o género
+ * de trabalho contínuo que se andou a tirar desta app.
+ */
+export async function varrerCatalogo(
+  faixas: readonly Track[],
+  aoProgredir: (feitas: number, total: number) => void,
+  deveParar: () => boolean = () => false,
+): Promise<{ resolvidas: number; semResposta: number }> {
+  const uteis = faixas.filter((t) => t.sourceId && t.source);
+  const confianca = nomesDeConfianca(uteis);
+
+  // O que a tabela partilhada já sabe vem de graça, e em lotes.
+  const sabidas = await lerCatalogoDeFaixas(
+    uteis.map((t) => ({ source: t.source, sourceId: t.sourceId })),
+  );
+  if (sabidas.size) {
+    useCatalogoDeFaixas.setState((s) => ({
+      porFaixa: { ...s.porFaixa, ...Object.fromEntries(sabidas) },
+      versao: s.versao + 1,
+    }));
+  }
+
+  const porResolver = uteis.filter((t) => {
+    const k = chaveDoCatalogo(t.source, t.sourceId);
+    return !sabidas.has(k) && !useCatalogoDeFaixas.getState().porFaixa[k] && !semResposta.has(k);
+  });
+
+  let resolvidas = 0;
+  let falhadas = 0;
+  aoProgredir(0, porResolver.length);
+
+  for (let i = 0; i < porResolver.length; i++) {
+    if (deveParar()) break;
+    const t = porResolver[i]!;
+    const k = chaveDoCatalogo(t.source, t.sourceId);
+    try {
+      const artista = displayArtist(t);
+      const achado = await resolverFaixa({
+        titulo: tituloDaFaixa(t),
+        artista,
+        artistaFiavel: artista !== 'Unknown artist' && confianca.has(chaveDeArtista(artista)),
+        duracaoSegundos: t.durationSeconds ?? null,
+      });
+      if (achado) {
+        guardar(k, achado);
+        void guardarNoCatalogo({ source: t.source, sourceId: t.sourceId }, achado);
+        resolvidas++;
+      } else {
+        semResposta.add(k);
+        falhadas++;
+      }
+    } catch {
+      semResposta.add(k);
+      falhadas++;
+    }
+    aoProgredir(i + 1, porResolver.length);
+  }
+
+  return { resolvidas, semResposta: falhadas };
+}
+
+/** Quantas faixas desta lista já estão identificadas. */
+export function quantasIdentificadas(faixas: readonly Track[]): number {
+  const { porFaixa } = useCatalogoDeFaixas.getState();
+  let n = 0;
+  for (const t of faixas) {
+    if (t.sourceId && t.source && porFaixa[chaveDoCatalogo(t.source, t.sourceId)]) n++;
+  }
+  return n;
+}
+
 export function limparCatalogoDeFaixas(): void {
   semResposta.clear();
   aResolver.clear();
