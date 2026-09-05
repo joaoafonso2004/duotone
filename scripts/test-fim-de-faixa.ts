@@ -9,13 +9,15 @@ const base = {
   jaDescarregou: false,
 };
 
-// O bug: preso no último segundo sem o AVPlayer anunciar o fim.
-assert.equal(acaoDoWatchdog({ ...base, posicaoSegundos: 186, paradoMs: 5000 }), 'avancar');
+// Perto do fim este caminho NÃO decide nada: parado por pausa e parado por
+// encravamento são iguais vistos daqui. Quem trata do fim é o
+// `fimPorFaltaDeDados`, que tem o sinal para os separar.
+assert.equal(acaoDoWatchdog({ ...base, posicaoSegundos: 186, paradoMs: 5000 }), 'nada');
 
-// Ainda não parou tempo suficiente: a reprodução normal não pode saltar.
+// E também não decide nada com pouco tempo parado.
 assert.equal(acaoDoWatchdog({ ...base, posicaoSegundos: 186, paradoMs: 2000 }), 'nada');
 
-// Em pausa no fim não se avança faixa nenhuma.
+// Em pausa declarada, muito menos.
 assert.equal(
   acaoDoWatchdog({ ...base, querTocar: false, posicaoSegundos: 186, paradoMs: 30000 }),
   'nada'
@@ -30,11 +32,11 @@ assert.equal(
   'nada'
 );
 
-// Preso no fim avança mesmo depois de o download já ter sido tentado -- era
-// aqui que a guarda antiga deixava a faixa encravada para sempre.
+// Perto do fim, com o download já tentado, continua a não haver nada a fazer
+// por este caminho.
 assert.equal(
   acaoDoWatchdog({ ...base, posicaoSegundos: 186, paradoMs: 9000, jaDescarregou: true }),
-  'avancar'
+  'nada'
 );
 
 // Buffering a meio, ainda dentro da folga.
@@ -46,11 +48,12 @@ assert.equal(
   'descarregar'
 );
 
-// A fronteira: exatamente dois segundos do fim já conta como fim.
-assert.equal(acaoDoWatchdog({ ...base, posicaoSegundos: 185, paradoMs: 5000 }), 'avancar');
-assert.equal(acaoDoWatchdog({ ...base, posicaoSegundos: 184.9, paradoMs: 5000 }), 'nada');
+// A fronteira: a dois segundos do fim já conta como fim, e por isso cala-se;
+// mais atrás do que isso volta a ser uma paragem a meio.
+assert.equal(acaoDoWatchdog({ ...base, posicaoSegundos: 185, paradoMs: 5000 }), 'nada');
+assert.equal(acaoDoWatchdog({ ...base, posicaoSegundos: 184.9, paradoMs: 7000 }), 'descarregar');
 
-console.log('Fim de faixa: encravado no fim, buffering a meio, pausa, download já tentado e fronteiras passaram.');
+console.log('Watchdog do relógio: só trata de paragens a meio; o fim é do statusChange.');
 
 // --- O caminho que sobrevive ao ecrã bloqueado ---
 import { fimPorFaltaDeDados } from '../src/lib/fimDeFaixa.ts';

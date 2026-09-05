@@ -16,10 +16,6 @@ public class DuotoneRemoteCommandsModule: Module {
   private var nextTarget: Any?
   private var prevTarget: Any?
 
-  private var playTarget: Any?
-  private var pauseTarget: Any?
-  private var aObservarPlayPause = false
-
   private var capaTask: URLSessionDataTask?
   private var capaUrlAtual: String?
   private var capaCache: [String: MPMediaItemArtwork] = [:]
@@ -27,7 +23,7 @@ public class DuotoneRemoteCommandsModule: Module {
   public func definition() -> ModuleDefinition {
     Name("DuotoneRemoteCommands")
 
-    Events("onNextTrack", "onPreviousTrack", "onPlayCommand", "onPauseCommand")
+    Events("onNextTrack", "onPreviousTrack")
 
     Function("setCommandsEnabled") { (next: Bool, previous: Bool) in
       DispatchQueue.main.async { [weak self] in
@@ -79,49 +75,12 @@ public class DuotoneRemoteCommandsModule: Module {
         guard let self = self else { return }
         self.apply(next: false, previous: false)
         self.capaTask?.cancel()
-        let center = MPRemoteCommandCenter.shared()
-        if let t = self.playTarget { center.playCommand.removeTarget(t) }
-        if let t = self.pauseTarget { center.pauseCommand.removeTarget(t) }
-        self.playTarget = nil
-        self.pauseTarget = nil
-        self.aObservarPlayPause = false
       }
-    }
-  }
-
-  /**
-   * O play/pause do Lock Screen e do carro é tratado pelo expo-video, que mexe
-   * no AVPlayer directamente e nunca passa pela store. Resultado: a app ficava
-   * a pensar que ainda queria tocar depois de o utilizador pausar por fora.
-   *
-   * Isso importa mais do que parece. O `isPlaying` do expo-video é
-   * `timeControlStatus == .playing`, que dá falso tanto numa pausa como num
-   * stream encravado — em JS os dois casos são indistinguíveis. Saber que veio
-   * mesmo uma ORDEM de pausa é o que os separa, e é o que impede o watchdog de
-   * fim de faixa de confundir uma pausa nos últimos segundos com uma faixa
-   * presa.
-   *
-   * Um MPRemoteCommand aceita vários alvos e chama-os todos, por isso isto
-   * observa sem tirar nada ao expo-video.
-   */
-  private func observarPlayPause() {
-    if aObservarPlayPause { return }
-    aObservarPlayPause = true
-    let center = MPRemoteCommandCenter.shared()
-
-    playTarget = center.playCommand.addTarget { [weak self] _ in
-      self?.sendEvent("onPlayCommand")
-      return .success
-    }
-    pauseTarget = center.pauseCommand.addTarget { [weak self] _ in
-      self?.sendEvent("onPauseCommand")
-      return .success
     }
   }
 
   private func apply(next: Bool, previous: Bool) {
     let center = MPRemoteCommandCenter.shared()
-    observarPlayPause()
 
     if let t = nextTarget {
       center.nextTrackCommand.removeTarget(t)
@@ -161,10 +120,9 @@ public class DuotoneRemoteCommandsModule: Module {
   // MARK: - Capa
 
   /**
-   * O JS deixa de passar `artwork` nos metadados do expo-video, por isso ele
-   * nunca escreve MPMediaItemPropertyArtwork — e como funde sempre com o
-   * nowPlayingInfo existente em vez de o substituir, a capa que pomos aqui
-   * sobrevive às atualizações dele.
+   * O JS passa a capa nos metadados do expo-video E nós escrevemos a versão
+   * recortada por cima, reafirmando-a. Assim o pior caso é a capa com as barras
+   * do YouTube, em vez de ecrã de bloqueio sem imagem nenhuma.
    */
   private func definirCapa(_ urls: [String]) {
     let chave = urls.first ?? ""

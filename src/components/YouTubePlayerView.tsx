@@ -727,12 +727,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         jaDescarregou: downloadTriedRef.current,
       });
 
-      if (acao === 'descarregar') {
-        fallbackRef.current();
-        return;
-      }
-      if (acao !== 'avancar') return;
-      avancarPorFimSilencioso();
+      if (acao === 'descarregar') fallbackRef.current();
     }, 2000);
     return () => clearInterval(id);
   }, [backend, track.durationSeconds, track.sourceId, repeatMode, player, onStateChange]);
@@ -783,11 +778,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (nextTrack.sourceId === track.sourceId) return;
 
       const file = cachedAudioFile(nextTrack.sourceId);
-      const rede = useConnectivity.getState();
-      // Em ligação marcada como cara (dados móveis/hotspot), pré-descarregar a
-      // faixa que talvez nem seja ouvida gasta rádio, dados e bateria. A faixa
-      // atual continua a tocar normalmente e a seguinte resolve quando pedida.
-      if (file.exists||rede.offline||rede.expensive) return; // já descarregado ou sem rede adequada
+      if (file.exists||useConnectivity.getState().offline) return; // já descarregado ou sem rede
 
       try {
         const quality = await getAudioQuality();

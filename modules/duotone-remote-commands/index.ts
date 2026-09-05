@@ -42,23 +42,6 @@ export function definirCapaDoEcraBloqueado(urls: string[]): void {
   native?.setArtwork(urls);
 }
 
-/**
- * Play/pause vindos do Lock Screen, do carro ou dos auscultadores.
- *
- * O expo-video trata destes comandos mexendo no AVPlayer directamente, sem
- * passar pela store — a app ficava a pensar que ainda queria tocar. Sem isto,
- * o watchdog de fim de faixa não distingue uma pausa nos últimos segundos de
- * uma faixa encravada. Devolve o unsubscribe.
- */
-export function addPlayPauseListeners(onPlay: () => void, onPause: () => void): () => void {
-  if (!native) return () => {};
-  const a = native.addListener('onPlayCommand', onPlay);
-  const b = native.addListener('onPauseCommand', onPause);
-  return () => {
-    a.remove();
-    b.remove();
-  };
-}
 
 /**
  * A capa reduzida a uma grelha de médias (r,g,b seguidos).

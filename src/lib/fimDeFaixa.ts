@@ -15,14 +15,10 @@
  * Função pura -- ver scripts/test-fim-de-faixa.ts.
  */
 
-export type AcaoDoWatchdog = 'nada' | 'avancar' | 'descarregar';
+export type AcaoDoWatchdog = 'nada' | 'descarregar';
 
 /** A que distância do fim se considera que a faixa já lá está. */
 export const PERTO_DO_FIM_S = 2;
-
-/** Parado no fim. Com o timeUpdate a 2 s em segundo plano são duas
- * atualizações falhadas — longe de um falso positivo. */
-export const PRESO_NO_FIM_MS = 4000;
 
 /** Parado a meio. Mais folga: aqui ainda pode ser buffering a sério. */
 export const PRESO_A_MEIO_MS = 6000;
@@ -44,7 +40,12 @@ export function acaoDoWatchdog(estado: {
     estado.duracaoSegundos > 0 &&
     estado.posicaoSegundos >= estado.duracaoSegundos - PERTO_DO_FIM_S;
 
-  if (perto) return estado.paradoMs > PRESO_NO_FIM_MS ? 'avancar' : 'nada';
+  // Perto do fim não se faz nada AQUI. Este caminho só sabe que a posição
+  // parou, e uma pausa parada é indistinguível de um encravamento parado --
+  // avançar por relógio saltava uma faixa que o utilizador tinha pausado nos
+  // últimos segundos. Quem trata do fim é o `fimPorFaltaDeDados`, que tem o
+  // sinal que separa os dois casos.
+  if (perto) return 'nada';
   if (estado.jaDescarregou) return 'nada';
   return estado.paradoMs > PRESO_A_MEIO_MS ? 'descarregar' : 'nada';
 }
