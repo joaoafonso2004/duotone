@@ -443,7 +443,9 @@ const artistStyles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 2, whiteSpace: 'nowrap',
   } as any,
   tabs: {
-    flexDirection: 'row', alignItems: 'center', gap: ESP.sm,
+    // Quatro separadores: numa janela estreita mudam de linha em vez de
+    // transbordarem para fora do painel.
+    flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: ESP.sm,
     paddingBottom: ESP.xl, marginBottom: ESP.lg, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave,
   },
   tab: {

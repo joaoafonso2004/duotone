@@ -3,9 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
-import {
-  ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View,
-} from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary, removeFromLibrary, saveToLibrary } from '../api/library';
 import { searchYouTube, searchYouTubePlaylists } from '../api/youtube';
@@ -262,13 +260,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       onBack={() => navigation.goBack()}
     >
       {type === 'artist' && (
-        // Quatro separadores não cabem num telemóvel estreito. A rolar,
-        // cabem todos e nenhum fica cortado a meio da palavra.
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsContainer}
-        >
+        <View style={styles.tabsContainer}>
           <Pressable
             style={[styles.tabChip, activeTab === 'library' && styles.tabChipActive]}
             onPress={() => setActiveTab('library')}
@@ -303,7 +295,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
               Álbuns
             </Text>
           </Pressable>
-        </ScrollView>
+        </View>
       )}
 
       {loading ? (
@@ -540,6 +532,11 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   tabsContainer: {
     flexDirection: 'row',
+    // Com quatro separadores já não cabem numa linha num telemóvel estreito.
+    // A mudar de linha ficam todos à vista; a rolar na horizontal, o último
+    // ficava cortado na margem e ninguém sabia que existia.
+    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: spacing.sm,
     paddingHorizontal: spacing.xl,
     marginBottom: spacing.md,
