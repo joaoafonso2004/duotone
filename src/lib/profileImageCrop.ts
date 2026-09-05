@@ -135,3 +135,36 @@ export function degradeDaCapa(fundo: string): {
     paragens: [0, 0.28, 0.46, 0.62, 0.76, 0.87, 0.95, 1],
   };
 }
+
+/**
+ * A altura do cabeçalho do perfil no PC.
+ *
+ * No telemóvel a caixa é alta e estreita, por isso a capa cabe lá de alto a
+ * baixo: vê-se a fotografia toda. No PC a altura era fixa e a largura crescia
+ * com a janela, e a conta é impiedosa -- com o recorte a 3:2, uma caixa de
+ * 1100x370 mostra metade da fotografia, uma de 1660 mostra um terço, e em ecrã
+ * grande sobra uma faixa de 23%. Era isso que fazia o fundo mudar conforme o
+ * tamanho da janela e nunca ficar bem em ecrã completo.
+ *
+ * A correção é a altura acompanhar a largura: com a proporção da CAIXA fixa, a
+ * fração da fotografia que se vê deixa de depender do tamanho da janela.
+ *
+ * Os limites existem pelas duas pontas. O mínimo é o que o conteúdo precisa --
+ * avatar, nome, biografia e botões. O máximo impede um cabeçalho que come o
+ * ecrã todo num monitor grande, e por isso é também uma fração da altura da
+ * janela e não só um número.
+ */
+export const RACIO_DO_CABECALHO_NO_PC = 3;
+export const ALTURA_MINIMA_DO_CABECALHO = 320;
+export const ALTURA_MAXIMA_DO_CABECALHO = 560;
+/** Um cabeçalho não pode ser quase a janela toda. */
+export const FRACAO_MAXIMA_DA_JANELA = 0.52;
+
+export function alturaDoCabecalhoNoPc(largura: number, alturaDaJanela: number): number {
+  if (!(largura > 0)) return ALTURA_MINIMA_DO_CABECALHO;
+  const tectoDaJanela = alturaDaJanela > 0
+    ? Math.max(ALTURA_MINIMA_DO_CABECALHO, alturaDaJanela * FRACAO_MAXIMA_DA_JANELA)
+    : ALTURA_MAXIMA_DO_CABECALHO;
+  const maximo = Math.min(ALTURA_MAXIMA_DO_CABECALHO, tectoDaJanela);
+  return Math.round(Math.min(maximo, Math.max(ALTURA_MINIMA_DO_CABECALHO, largura / RACIO_DO_CABECALHO_NO_PC)));
+}

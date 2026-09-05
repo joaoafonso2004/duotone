@@ -1,12 +1,12 @@
 import React,{useEffect,useState} from 'react';
-import {Image,Platform,Pressable,StyleSheet,Text,View} from 'react-native';
+import {Image,Platform,Pressable,StyleSheet,Text,useWindowDimensions,View} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {LinearGradient} from 'expo-linear-gradient';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
 import {FriendAvatar} from './FriendAvatar';
 import {SocialButton,socialStyles as s} from './socialUI';
-import {degradeDaCapa,enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
+import {alturaDoCabecalhoNoPc,degradeDaCapa,enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {lerCelulasDaCapa} from '../lib/celulasDaCapa';
 import {semOpacidade,veuDaCapa} from '../lib/corDaCapa';
 import {colors,SOCIAL_GUTTER,type} from './socialTokens';
@@ -31,6 +31,16 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
   // A caixa da capa medida, para posicionar uma imagem por recortar. Só o
   // editor precisa disto; com a capa já gravada o `cover` normal chega.
   const [caixa,setCaixa]=useState({largura:0,altura:0});
+  /**
+   * Só no PC. Lá a altura era fixa e a largura crescia com a janela, e com o
+   * recorte a 3:2 isso significava ver cada vez MENOS fotografia: metade numa
+   * janela normal, um terço num ecrã largo, e uma faixa de 23% em ecrã grande.
+   * Com a altura a acompanhar a largura, a fração que se vê deixa de depender
+   * do tamanho da janela. Ver `alturaDoCabecalhoNoPc`.
+   */
+  const {height:alturaDaJanela}=useWindowDimensions();
+  const [larguraDoCabecalho,setLarguraDoCabecalho]=useState(0);
+  const alturaNoPc=web?alturaDoCabecalhoNoPc(larguraDoCabecalho,alturaDaJanela):0;
 
   /**
    * O perfil tinge-se pela SUA capa, e não pela música a tocar.
@@ -84,7 +94,9 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
     <Ionicons name={icon} size={20} color={colors.text}/>
     {badge>0&&<View style={{position:'absolute',right:0,top:0,minWidth:16,height:16,borderRadius:8,paddingHorizontal:3,backgroundColor:colors.danger,justifyContent:'center'}}><Text style={{fontSize:10,fontWeight:'700',color:'#fff',textAlign:'center'}}>{badge>99?'99+':badge}</Text></View>}
   </Pressable>;
-  return <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?320:360,overflow:'hidden',backgroundColor:colors.bg}}>
+  return <View
+    onLayout={web?(e=>setLarguraDoCabecalho(e.nativeEvent.layout.width)):undefined}
+    style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?alturaNoPc:360,overflow:'hidden',backgroundColor:colors.bg}}>
     {!!cover&&<View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {/* Um cabeçalho não tem margens. O desfoque por baixo preenche o que a
           capa não chegue a tapar em proporções extremas. */}
