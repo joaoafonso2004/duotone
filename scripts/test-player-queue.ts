@@ -126,13 +126,20 @@ check('e nunca da segundos negativos',
 console.log('\npersistencia da sessao');
 const guardada = sessaoParaGuardar({
   current: fila3[0], queue: fila3, queueIndex: 1, positionMs: 4200, durationMs: 200000,
+  sugeridas: ['youtube:s1'], desdeASugestao: 2,
   isPlaying: true, shuffle: true, repeatMode: 'all',
 } as any);
-check('guarda os cinco campos', Object.keys(guardada).sort().join() ===
-  'current,durationMs,positionMs,queue,queueIndex');
+check('guarda os sete campos', Object.keys(guardada).sort().join() ===
+  'current,desdeASugestao,durationMs,positionMs,queue,queueIndex,sugeridas');
 // Repeat e shuffle vivem nas prefs; a sessao e outra coisa.
 check('NAO guarda o isPlaying', !('isPlaying' in guardada));
 check('NAO guarda shuffle nem repeat',
   !('shuffle' in guardada) && !('repeatMode' in guardada));
+// A marca do shuffle inteligente e sobre ESTA fila, nao e uma preferencia:
+// sem ela a fila voltava a abrir cheia de musicas sem estrela, que e o mesmo
+// que nao saber o que a app meteu la.
+check('guarda as sugeridas', guardada.sugeridas.join() === 'youtube:s1');
+// A zeros em cada arranque, obrigava a ouvir quatro faixas antes da proxima.
+check('guarda o contador ate a proxima sugestao', guardada.desdeASugestao === 2);
 console.log(bad === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${bad} caso(s) a falhar.\n`);
 process.exit(bad === 0 ? 0 : 1);

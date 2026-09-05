@@ -1161,6 +1161,12 @@ export const usePlayer = create<PlayerState>()(
         return {
           ...current,
           ...persisted,
+          // Uma sessao gravada por uma versao anterior nao tem estes dois
+          // campos. Sem o `??`, o `sugeridas` chegava `undefined` e a lista da
+          // fila rebentava no primeiro `includes` -- a app parte ao ABRIR, na
+          // primeira vez depois da atualizacao.
+          sugeridas: persisted.sugeridas ?? current.sugeridas,
+          desdeASugestao: persisted.desdeASugestao ?? current.desdeASugestao,
           ...restoredPlaybackState(persisted.positionMs),
           // A cache de ajustes pode chegar antes da sessão. Aplicá-la aqui
           // cobre essa ordem sem iniciar reprodução nem alterar a posição.

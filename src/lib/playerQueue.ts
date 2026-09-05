@@ -176,10 +176,27 @@ export type SessaoGuardada = {
   queueIndex: number;
   positionMs: number;
   durationMs: number;
+  /** Quais destas faixas foi o shuffle inteligente a meter. */
+  sugeridas: string[];
+  /** Faixas tocadas desde a última sugestão. */
+  desdeASugestao: number;
 };
 
-/** O restauro em si vive no `lib/playerLifecycle.ts` (`restoredPlaybackState`),
- * que já o faz e já tem teste — não se duplica aqui. */
+/**
+ * O restauro em si vive no `lib/playerLifecycle.ts` (`restoredPlaybackState`),
+ * que já o faz e já tem teste — não se duplica aqui.
+ *
+ * O `sugeridas` e o `desdeASugestao` estão deste lado da fronteira por serem
+ * sobre ESTA fila e não sobre gostos. O `sugeridas` diz quais destas faixas foi
+ * a app que meteu, e é o que lhes põe a estrela na lista: sem ele a fila
+ * voltava cheia de músicas que ninguém se lembra de ter posto, que é
+ * exatamente o problema que a marca existe para resolver. No PC não se dava por
+ * isso, porque a janela fica aberta; no telemóvel a app é morta e relançada, e
+ * a marca desaparecia sempre.
+ *
+ * O `desdeASugestao` vem atrás pelo mesmo motivo: a zeros em cada arranque,
+ * obrigava a ouvir quatro faixas antes de a primeira sugestão poder entrar.
+ */
 export function sessaoParaGuardar<T extends SessaoGuardada>(s: T): SessaoGuardada {
   return {
     current: s.current,
@@ -187,5 +204,7 @@ export function sessaoParaGuardar<T extends SessaoGuardada>(s: T): SessaoGuardad
     queueIndex: s.queueIndex,
     positionMs: s.positionMs,
     durationMs: s.durationMs,
+    sugeridas: s.sugeridas,
+    desdeASugestao: s.desdeASugestao,
   };
 }
