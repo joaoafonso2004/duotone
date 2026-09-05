@@ -79,9 +79,18 @@ export function HandoffBanner() {
           </Text>
         </View>
 
+        {/*
+          O texto do botão vem do TEMA, não é branco fixo. O acento `steel` é
+          #E9EAEE -- quase branco -- e branco sobre ele deixava o botão a
+          parecer um retângulo vazio. O `textColorOnGradient` é escolhido por
+          medição de contraste em lib/corDaCapa.ts, por isso serve tanto o
+          steel como qualquer cor que a capa dê.
+        */}
         <View style={[styles.cta, { backgroundColor: theme.color }]}>
-          <Ionicons name="play" size={14} color="#FFFFFF" />
-          <Text style={styles.ctaText}>Continuar aqui</Text>
+          <Ionicons name="play" size={14} color={theme.textColorOnGradient} />
+          <Text style={[styles.ctaText, { color: theme.textColorOnGradient }]}>
+            Continuar aqui
+          </Text>
         </View>
 
         <Pressable
@@ -148,7 +157,8 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: radii.pill,
   },
-  ctaText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  // A cor vem do tema, no sítio de uso.
+  ctaText: { fontSize: 12, fontWeight: '700' },
   close: { padding: 2 },
   trackLine: { height: 2, backgroundColor: 'rgba(255,255,255,0.08)' },
   trackFill: { height: 2 },

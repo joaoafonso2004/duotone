@@ -61,8 +61,14 @@ export function HandoffBanner() {
             pressed && s.pressed,
           ]}
         >
-          <Ionicons name="play" size={13} color="#FFFFFF" />
-          <Text style={s.ctaText}>Continuar aqui</Text>
+          {/* Ver a nota no HandoffBanner.tsx: branco fixo sobre o acento
+              `steel` (#E9EAEE) dava um botão sem letras nenhumas. É também
+              o que o botão primário do desktop faz -- metal claro com texto
+              escuro, ui.button em src/desktop/ui.web.tsx. */}
+          <Ionicons name="play" size={13} color={theme.textColorOnGradient} />
+          <Text style={[s.ctaText, { color: theme.textColorOnGradient }]}>
+            Continuar aqui
+          </Text>
         </P>
 
         <P
@@ -105,7 +111,8 @@ const s = StyleSheet.create({
   cta: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 13, borderRadius: 999, cursor: 'pointer' } as any,
   ctaHover: { opacity: 0.88 },
   pressed: { opacity: 0.72 },
-  ctaText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  // A cor vem do tema, no sítio de uso.
+  ctaText: { fontSize: 12, fontWeight: '700' },
   close: { width: 26, height: 26, borderRadius: 6, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
   closeHover: { backgroundColor: desktop.hover },
   trackLine: { height: 2, backgroundColor: 'rgba(255,255,255,.08)' },
