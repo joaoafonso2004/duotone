@@ -2,7 +2,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -15,6 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { agruparPorArtista } from '../lib/artistName';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
+import { ordenarArtistas } from '../lib/ordenacao';
+import { getTopArtists } from '../api/plays';
+import { chaveDeArtista } from '../lib/artistName';
 import { correspondeAPesquisa } from '../lib/searchText';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
@@ -41,6 +44,15 @@ export function ArtistsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const theme = useTheme((s) => s.theme);
+  // A MESMA ordem do PC: primeiro quem se ouve, depois o peso na biblioteca.
+  // Pela chave canónica, porque no histórico o mesmo artista pode estar
+  // escrito de outra maneira.
+  const [ranking, setRanking] = useState<Map<string, number>>(new Map());
+  useEffect(() => {
+    getTopArtists(200)
+      .then((tops) => setRanking(new Map(tops.map((a, i) => [chaveDeArtista(a.name), i]))))
+      .catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -69,20 +81,13 @@ export function ArtistsScreen() {
     // diferentes. O `agruparPorArtista` também aprende a grafia certa com as
     // fontes fiáveis da própria biblioteca (canais `- Topic`, VEVO).
     // Com o que o catálogo confirmou por cima do que a app adivinha.
-    return agruparPorArtista(tracks.map(comCatalogo))
+    return ordenarArtistas(agruparPorArtista(tracks.map(comCatalogo)), ranking)
       .map((g) => ({
         name: g.nome,
         artworkUrl: g.faixas.find((t) => t.artworkUrl)?.artworkUrl ?? null,
         count: g.faixas.length,
-      }))
-      // Por PESO na biblioteca, e não por alfabeto — que é o que o PC já faz.
-      // A ordem alfabética parecia neutra e era o contrário: punha à cabeça
-      // tudo o que começa por símbolo ou número, e é exactamente aí que se
-      // acumulam os nomes que a extração não acertou. Numa biblioteca de 2.700
-      // faixas o primeiro ecrã enchia-se de coisas que não são artistas, e os
-      // artistas a sério só apareciam muito mais abaixo.
-      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }, [tracks, versaoDoCatalogo]);
+      }));
+  }, [tracks, versaoDoCatalogo, ranking]);
 
   const filteredArtists = useMemo(() => {
     const query = searchQuery.trim();

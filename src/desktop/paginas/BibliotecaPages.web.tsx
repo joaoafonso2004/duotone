@@ -19,6 +19,7 @@ import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist } from '../../lib/artistName';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
+import { ordenarArtistas, ordenarFaixas } from '../../lib/ordenacao';
 import { useAuth } from '../../state/auth';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
@@ -87,9 +88,7 @@ export function SongsPage(props: CommonPageProps) {
   const filteredTracks = useMemo(() => {
     const filtradas = data.tracks.filter(t => correspondeAPesquisa(query, t.title, t.artist));
     if (sortMode === 'recent') return filtradas;
-    if (sortMode === 'duration') return [...filtradas].sort((a, b) => (a.durationSeconds ?? 0) - (b.durationSeconds ?? 0));
-    if (sortMode === 'artist') return [...filtradas].sort((a, b) => (a.artist ?? '').localeCompare(b.artist ?? '', undefined, { sensitivity: 'base' }));
-    return [...filtradas].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+    return ordenarFaixas(filtradas, sortMode);
   }, [data.tracks, query, sortMode]);
 
   // O Shuffle liga o modo aleatório do player (Fisher-Yates) em vez de
@@ -139,18 +138,15 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
   // `Juice WRLD`, `juice wrld` e `JUICE WRLD` em tres cartoes diferentes.
   const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
   const artists = useMemo(
-    () => agruparPorArtista(data.tracks.map(comCatalogo)).sort((a, b) => {
-      const ra = ranking.get(a.chave) ?? Infinity;
-      const rb = ranking.get(b.chave) ?? Infinity;
-      if (ra !== rb) return ra - rb;
-      if (a.faixas.length !== b.faixas.length) return b.faixas.length - a.faixas.length;
-      return a.nome.localeCompare(b.nome);
-    }),
+    () => ordenarArtistas(agruparPorArtista(data.tracks.map(comCatalogo)), ranking),
     [data.tracks, ranking, versaoDoCatalogo],
   );
   const filteredArtists = useMemo(() => {
-    const q = chaveDeArtista(query);
-    return q ? artists.filter((artist) => artist.chave.includes(q)) : artists;
+    // O mesmo comparador do telemóvel: procurar por `juice` dava listas
+    // diferentes nas duas plataformas, porque aqui era um pedaço da chave
+    // canónica e lá o comparador de pesquisa sem acentos.
+    const q = query.trim();
+    return q ? artists.filter((artist) => correspondeAPesquisa(q, artist.nome)) : artists;
   }, [artists, query]);
 
   return <Page title="Artists" subtitle={`${artists.length} artists in your library`}>

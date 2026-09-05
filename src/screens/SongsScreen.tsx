@@ -22,6 +22,7 @@ import { getLikedSongs, removeFromLibrary, removeMultipleFromLibrary } from '../
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PrimeiroPasso } from '../components/PrimeiroPasso';
+import { ordenarFaixas } from '../lib/ordenacao';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
@@ -157,7 +158,9 @@ export function SongsScreen() {
   const sortedTracks = useMemo(() => {
     const list = [...filteredTracks];
     if (sortBy === 'az') {
-      return list.sort((a, b) => a.title.localeCompare(b.title));
+      // A MESMA regra do PC: sem isto, `Ángel` e `angel` ordenavam em
+      // sítios diferentes conforme a plataforma.
+      return ordenarFaixas(list, 'title');
     }
     return list; // default order from database (added_at desc)
   }, [filteredTracks, sortBy]);
