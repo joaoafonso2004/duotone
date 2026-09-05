@@ -50,6 +50,12 @@ export const styles = StyleSheet.create({
   detailHeroMeta: { ...TIPO.corpo, color: COR.textoMedio, marginTop: ESP.sm },
   detailHeroActions: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: ESP.sm, marginTop: ESP.xl },
   detailSearch: { width: 390, maxWidth: '60%' as any, marginBottom: ESP.xl },
+  /** A barra da tabela: pesquisa à esquerda, ordenação à direita. A ordenação
+   * esteve no cabeçalho, ao lado do Play, e não é uma acção sobre a playlist —
+   * é o controlo da lista que está aqui por baixo. */
+  detailToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: ESP.lg, marginBottom: ESP.xl },
+  /** Separa o que apaga do resto, dentro de um menu. */
+  menuDivisor: { height: 1, backgroundColor: COR.linhaSuave, marginVertical: ESP.xs },
   dialogActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 9, marginTop: 20 }, dialogBody: { fontFamily: FONT.body, color: desktop.muted, fontSize: 13, lineHeight: 20 }, formLabel: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 9, fontWeight: '800', letterSpacing: 1.1, marginBottom: 8 }, importPanel: { maxWidth: 760, padding: 24, borderWidth: 1, borderColor: desktop.border, borderRadius: 11, backgroundColor: desktop.panel }, importSummary: { minHeight: 80, marginVertical: 22, borderTopWidth: 1, borderBottomWidth: 1, borderColor: desktop.border, justifyContent: 'center' }, destinationGrid: { gap: 6 }, destination: { minHeight: 43, paddingHorizontal: 12, borderRadius: 7, borderWidth: 1, borderColor: desktop.border, flexDirection: 'row', alignItems: 'center', gap: 10 }, destinationActive: { backgroundColor: desktop.accentSoft, borderColor: 'rgba(155,123,255,.38)' }, destinationText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, flex: 1 },
   profileHero: { minHeight: 148, paddingHorizontal: ESP.sm, paddingBottom: ESP.xxl, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: ESP.xl },
   profileAvatarWrap: { width: 96, height: 96 }, profileAvatarHover: { transform: [{ scale: 1.025 }] }, profileAvatar: { width: 96, height: 96, borderRadius: 30, alignItems: 'center', justifyContent: 'center', boxShadow: '0 14px 35px rgba(0,0,0,.3)' } as any, profileEmoji: { fontFamily: FONT.body, fontSize: 43 }, profileAvatarEdit: { position: 'absolute', right: -3, bottom: -3, width: 29, height: 29, borderRadius: 9, backgroundColor: desktop.hover, borderWidth: 2, borderColor: desktop.panel, alignItems: 'center', justifyContent: 'center' },
@@ -138,6 +144,15 @@ export const styles = StyleSheet.create({
   npVisualOptionActive: { backgroundColor: COR.metalSuave },
   npVisualOptionText: { ...TIPO.micro, color: COR.textoFraco, textTransform: 'capitalize' },
   npVisualOptionTextActive: { color: COR.texto },
+  /** Nome e artista, um por linha. Estiveram na mesma linha dos ícones, onde o
+   * título competia por largura com quatro botões e era cortado a meio -- e o
+   * artista não aparecia como texto em lado nenhum. */
+  npIdentidade: { marginTop: ESP.xl, paddingHorizontal: ESP.xs, gap: 2 },
+  npArtista: { ...TIPO.corpo, color: COR.textoMedio, alignSelf: 'flex-start' as const },
+  npArtistaHover: { color: COR.texto, textDecorationLine: 'underline' as const },
+  npAccoes: { flexDirection: 'row', alignItems: 'center', gap: ESP.xs, marginTop: ESP.lg, paddingHorizontal: 2 },
+  /** Separa o que é definição de reprodução do que é acção sobre a faixa. */
+  npAccoesDivisor: { width: 1, height: 20, backgroundColor: COR.linha, marginHorizontal: ESP.sm },
   npTitleRow: { flexDirection: 'row', alignItems: 'center', gap: ESP.lg, marginTop: ESP.xl, paddingHorizontal: ESP.xs },
   npTitulo: { fontFamily: FONT.display, color: COR.texto, fontSize: 28, fontWeight: '700' as any, letterSpacing: -.45, lineHeight: 34, flex: 1 },
   // A fila e uma coluna editorial aberta, nao outra caixa dentro da pagina.

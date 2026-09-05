@@ -6,6 +6,7 @@ import {
   canonizar,
   chaveDeArtista,
   displayArtist,
+  tituloDaFaixa,
   extractArtist,
   limparPrefixoDeUpload,
   ladosPorConfirmar,
@@ -234,6 +235,28 @@ eq('marca em português também conta',
 eq('parêntese por fechar não é artista', extractArtist('That Go! (feat. T - alguem', null), 'alguem');
 // E o caso normal não pode mexer-se.
 eq('título normal continua igual', extractArtist('Juice WRLD - Lucid Dreams', null), 'Juice WRLD');
+
+// --- O título mostrado, sem o artista à frente nem marcas de upload ---
+const yt = (title: string, artist: string | null = null) => ({ source: 'youtube', title, artist });
+eq('tira o artista e a marca do fim',
+  tituloDaFaixa(yt('Playboi Carti - @ MEH [Official Video]')), '@ MEH');
+eq('a marca sozinha entre parênteses também sai',
+  tituloDaFaixa(yt('Bankroll Mafia - No Color (Audio)')), 'No Color');
+eq('número de faixa e marca ao mesmo tempo',
+  tituloDaFaixa(yt('5. Yunk Vino - Magic City (Official Visual)')), 'Magic City');
+// O `feat.` é parte do nome da música e FICA; só a marca é que sai.
+eq('o feat fica, a marca sai',
+  tituloDaFaixa(yt('Seether - Broken (feat. Amy Lee) (Official Audio)')), 'Broken (feat. Amy Lee)');
+// As versões de leaks dizem qual é o ficheiro: não são marketing.
+eq('as versões ficam',
+  tituloDaFaixa(yt('Juice WRLD - Following My Lead (v2)')), 'Following My Lead (v2)');
+eq('sem marcas fica só o título', tituloDaFaixa(yt('Deftones - Root')), 'Root');
+// Sem traço não há o que cortar, e um título que não é do artista fica inteiro.
+eq('título sem traço não se toca', tituloDaFaixa(yt('Uma Música Sem Traço')), 'Uma Música Sem Traço');
+// Fora do YouTube o título já vem limpo da API da fonte.
+eq('o Spotify não passa por isto',
+  tituloDaFaixa({ source: 'spotify', title: 'Drake - Passionfruit', artist: 'Drake' }),
+  'Drake - Passionfruit');
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

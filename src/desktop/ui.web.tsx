@@ -68,7 +68,7 @@ export function IconButton({ name, label, onPress, active = false, danger = fals
   </P>;
 }
 
-export function Button({ children, onPress, icon, iconNode, secondary = false, danger = false, disabled = false, brilho = false }: {
+export function Button({ children, onPress, icon, iconNode, secondary = false, danger = false, disabled = false, brilho = false, marcado = false }: {
   children: ReactNode; onPress?: () => void; icon?: keyof typeof Ionicons.glyphMap;
   /** Ícone à medida, para marcas que o Ionicons não tem — como o Spotify. */
   iconNode?: ReactNode;
@@ -76,9 +76,13 @@ export function Button({ children, onPress, icon, iconNode, secondary = false, d
   /** O gradiente com pontos a cintilar por trás do texto. Só o shuffle
    * inteligente o usa: é o que o distingue do shuffle normal ao lado. */
   brilho?: boolean;
+  /** Ligado, mas sem ser a acção principal da página. É o que separa um
+   * interruptor aceso de um botão primário — sem isto, um toggle activo tinha
+   * de se pintar de primário e passava a competir com o `Play`. */
+  marcado?: boolean;
 }) {
   return <P className="btn-animate" disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
-    ui.button, secondary && ui.buttonSecondary, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
+    ui.button, secondary && ui.buttonSecondary, marcado && ui.buttonMarcado, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
     pressed && ui.pressed, disabled && ui.disabled,
     brilho && { overflow: 'hidden' as const },
   ]}>{brilho ? <BrilhoInteligente /> : null}{iconNode ?? (icon && <Ionicons name={icon} size={16} color={danger ? COR.erro : secondary ? COR.texto : COR.fundo} />)}<Text style={[ui.buttonText, secondary && ui.buttonTextSec, danger && ui.buttonTextDanger]}>{children}</Text></P>;
@@ -426,6 +430,7 @@ export const ui = StyleSheet.create({
   // este botao: ele estica-se pelo pai e nao tem forma propria.
   button: { minHeight: 38, overflow: 'hidden', paddingHorizontal: ESP.lg, borderRadius: RAIO.cartao, backgroundColor: COR.metalClaro, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: ESP.sm, borderWidth: 1, borderColor: 'transparent' },
   buttonSecondary: { backgroundColor: 'transparent', borderColor: COR.linha },
+  buttonMarcado: { backgroundColor: COR.metalSuave, borderColor: 'rgba(233,234,238,0.28)' },
   buttonDanger: { backgroundColor: 'rgba(190,95,98,.14)', borderColor: 'rgba(190,95,98,.45)' },
   buttonHover: { opacity: .88 },
   buttonText: { ...TIPO.corpo, fontWeight: '600' as any, color: COR.fundo },

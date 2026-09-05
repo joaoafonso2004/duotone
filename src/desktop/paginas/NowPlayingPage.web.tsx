@@ -14,13 +14,13 @@ import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
 import { Artwork, Button, ContentScroll, Dialog, Empty, IconButton, Page, ui } from '../ui.web';
-import type { CommonPageProps, NavegarFn } from '../rotas';
+import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
 import type { Track } from '../../types';
-import { displayArtist } from '../../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 
 /** A capa mantém o glitch; o gesto revela as letras na face adjacente. */
 export function NowPlayingPage({
-  more, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist,
+  more, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist, share,
 }: CommonPageProps & {
   currentIsSaved: boolean;
   toggleSaveCurrent: () => void;
@@ -28,6 +28,7 @@ export function NowPlayingPage({
   /** Devolve ao ecrã de onde se veio, como nas outras páginas. */
   back: () => void;
   aoAdicionarAPlaylist: (t: Track) => void;
+  share: (target: ShareTarget) => void;
 }) {
   // Esta página não usa a posição. Subscrever o store inteiro fazia a capa,
   // letras, fila e WebGL voltarem a renderizar a cada atualização da barra.
@@ -95,19 +96,24 @@ export function NowPlayingPage({
           <View style={[styles.npLado, { width: ladoCapa }]}>
             <ArtworkLyricsCube key={`${track.source}:${track.sourceId}`} track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
               front={<GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
-            <View style={styles.npVisualControls}>
-              <View style={styles.npVisualGroup}>
-                {(['subtle', 'normal', 'strong'] as EffectIntensity[]).map((intensidade) => <Pressable key={intensidade} onPress={() => escolherIntensidade(intensidade)} style={[styles.npVisualOption, effectIntensity === intensidade && styles.npVisualOptionActive]}><Text style={[styles.npVisualOptionText, effectIntensity === intensidade && styles.npVisualOptionTextActive]}>{intensidade[0].toUpperCase() + intensidade.slice(1)}</Text></Pressable>)}
-              </View>
+            {/* A identidade primeiro: o nome da faixa e, por baixo, o artista.
+                O artista sai do `displayArtist` e nao do campo `artist`, que no
+                YouTube e o CANAL -- e abria a pagina de um canal de uploads. */}
+            <View style={styles.npIdentidade}>
+              <Text style={styles.npTitulo}>{tituloDaFaixa(track)}</Text>
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel={`View ${displayArtist(track)}`}
+                onPress={() => navigate({ name: 'artist', value: displayArtist(track) })}
+                style={({ hovered, focused }: any) => [styles.npArtista, (hovered || focused) && styles.npArtistaHover]}
+              >
+                <Text style={styles.npArtista}>{displayArtist(track)}</Text>
+              </Pressable>
             </View>
-            <View style={styles.npTitleRow}>
-              <Text style={styles.npTitulo}>{track.title}</Text>
-              <IconButton
-                name="options-outline"
-                label="Equaliser and speed"
-                onPress={() => setEqAberto(true)}
-                active={!eqGanhos.every((g) => g === 0) || playbackRate !== 1}
-              />
+
+            {/* Primeiro o que se faz A ESTA FAIXA; depois da linha, o que e uma
+                definicao de reproducao e vale para todas. */}
+            <View style={styles.npAccoes}>
               <IconButton
                 name={currentIsSaved ? 'heart' : 'heart-outline'}
                 label={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'}
@@ -119,12 +125,17 @@ export function NowPlayingPage({
                 label="Add to playlist"
                 onPress={() => aoAdicionarAPlaylist(track)}
               />
-              {/* Do `displayArtist` e nao do campo `artist`: no YouTube esse e
-                  o CANAL, e abria a pagina de um canal de uploads. */}
               <IconButton
-                name="mic-outline"
-                label={`View ${displayArtist(track)}`}
-                onPress={() => navigate({ name: 'artist', value: displayArtist(track) })}
+                name="share-social-outline"
+                label="Share this track"
+                onPress={() => share({ itemType: 'track', item: track, name: track.title })}
+              />
+              <View style={styles.npAccoesDivisor} />
+              <IconButton
+                name="options-outline"
+                label="Equaliser and speed"
+                onPress={() => setEqAberto(true)}
+                active={!eqGanhos.every((g) => g === 0) || playbackRate !== 1}
               />
             </View>
           </View>

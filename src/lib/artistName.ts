@@ -536,6 +536,54 @@ export function displayArtist(
   return extractArtist(t.title, t.artist, vocabulario) ?? t.artist ?? 'Unknown artist';
 }
 
+/**
+ * O título da faixa sem o nome do artista à frente e sem as marcas de upload.
+ *
+ * `Playboi Carti - @ MEH [Official Video]` mostra-se como `@ MEH`, com o artista
+ * na sua própria linha. Não se inventa nada: o lado que se corta é o que
+ * corresponde ao artista que o `displayArtist` já devolve, comparado pela chave
+ * canónica. Se nenhum dos lados for o artista, o título fica inteiro — mais vale
+ * comprido do que errado.
+ *
+ * Do fim só saem parênteses cujo conteúdo é MARCA DE TÍTULO: `(Official Video)`,
+ * `(Clipe Oficial)`, `[4K Upgrade]`. Um `(Slowed + Reverb)` ou um `(feat. X)`
+ * fazem parte do nome da música e ficam.
+ */
+export function tituloDaFaixa(
+  t: { source?: string; title: string; artist: string | null },
+  vocabulario: Vocabulario = vocabularioAprendido(),
+): string {
+  const bruto = (t.title ?? '').trim();
+  // Fora do YouTube o título vem da API da fonte e já é só o título.
+  if (!bruto || (t.source && t.source !== 'youtube')) return bruto;
+
+  let texto = limparPrefixoDeUpload(bruto).replace(NUMERO_DE_FAIXA_RE, '').trim();
+
+  const artista = displayArtist(t, vocabulario);
+  const chaveDoArtista = artista && artista !== 'Unknown artist' ? chaveDeArtista(artista) : '';
+  const m = texto.match(/^(.{2,60}?)\s+[-–—]\s+(.+)$/);
+  if (m && chaveDoArtista) {
+    const esquerda = chaveDeArtista(artistaPrincipal(clean(m[1]!)));
+    const direita = chaveDeArtista(artistaPrincipal(clean(semSufixoDeVersao(m[2]!))));
+    if (esquerda === chaveDoArtista) texto = m[2]!.trim();
+    else if (direita === chaveDoArtista) texto = m[1]!.trim();
+  }
+
+  // Um parêntese que É só a marca, e nada mais: `(Audio)`, `(Official Visual)`.
+  // Está separado do MARCA_DE_TITULO_RE de propósito: `audio` e `video` sozinhos
+  // são palavras comuns de mais para se procurarem no meio de um título.
+  const soMarca = /^[\s([]*(?:official\s+)?(?:audio|video|visual|visualizer|lyric\s*video|lyrics)[\s)\]]*$/i;
+  // Quantas houver, mas uma de cada vez: um título pode ter dois sufixos.
+  for (let i = 0; i < 3; i++) {
+    const antes = texto;
+    texto = texto.replace(/\s*[([][^()[\]]{0,40}[)\]]\s*$/, (bloco) =>
+      MARCA_DE_TITULO_RE.test(bloco) || soMarca.test(bloco) ? '' : bloco).trim();
+    if (texto === antes) break;
+  }
+
+  return texto || bruto;
+}
+
 // ------------------------------------------------------- o agrupamento -----
 
 export type GrupoDeArtista<T> = {
