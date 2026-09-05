@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from './crossfade';
 import { arredondar as arredondarRate, daPreferenciaAntiga } from './playbackRate';
 import {
   daPersistencia, ganhosPorOmissao,
@@ -305,4 +306,25 @@ export async function marcarChatVisto(friendId: string,timestamp:string,accountI
     // best-effort: perder a marca so faz reaparecer o ponto, nao parte nada
   }
   return novo;
+}
+
+/**
+ * Segundos de passagem entre faixas. Zero desliga, e é o que vem de origem:
+ * um crossfade que ninguém pediu é uma surpresa numa app de música.
+ *
+ * Guardado como texto, como as outras preferências, e validado à leitura contra
+ * a lista das durações oferecidas — um valor estranho no armazenamento não pode
+ * virar um fade de trinta segundos.
+ */
+const KEY_CROSSFADE = 'pref:crossfade';
+
+export async function getCrossfadeSegundos(): Promise<DuracaoDoCrossfade> {
+  const v = Number(await AsyncStorage.getItem(KEY_CROSSFADE));
+  return (DURACOES_DO_CROSSFADE as readonly number[]).includes(v)
+    ? (v as DuracaoDoCrossfade)
+    : 0;
+}
+
+export async function setCrossfadeSegundos(v: DuracaoDoCrossfade): Promise<void> {
+  await AsyncStorage.setItem(KEY_CROSSFADE, String(v));
 }

@@ -18,6 +18,7 @@ import {
   getShuffleInteligente,
   getPlaybackRate,
   getEqGanhos,
+  getCrossfadeSegundos,
   getVolumeNormalization,
   loadPrefsCache,
 } from './src/lib/prefs';
@@ -132,7 +133,8 @@ export default function App() {
       getVolumeNormalization(),
       getPlaybackRate(),
       getEqGanhos(),
-    ]).then(([repeatMode, shuffle, shuffleInteligente, showRewindButton, autoplayRadio, volumeNormalization, playbackRate, eqGanhos]) => {
+      getCrossfadeSegundos(),
+    ]).then(([repeatMode, shuffle, shuffleInteligente, showRewindButton, autoplayRadio, volumeNormalization, playbackRate, eqGanhos, crossfadeSegundos]) => {
       const player = usePlayer.getState();
       player.setRepeatMode(repeatMode);
       player.setShuffle(shuffle);
@@ -144,6 +146,9 @@ export default function App() {
       // A memoria por faixa e os ganhos entram JUNTOS e sem reaplicar nada: o
       // grafo do EQ so existe quando ha um video, e isso e tratado no
       // playTrack.
+      // O player lê isto a cada tique, dentro de um intervalo: tem de estar
+      // na store e não só nas preferências.
+      usePlayer.setState({ crossfadeSegundos });
       player._carregarAjustes({},eqGanhos,playbackRate);
       setPreferencesReady(true);
     });

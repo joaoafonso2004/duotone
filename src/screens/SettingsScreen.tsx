@@ -40,6 +40,8 @@ import {
   setShowTrackDuration as persistShowTrackDuration,
   setShowTrackDurationCache,
   type AudioQuality,
+  getCrossfadeSegundos,
+  setCrossfadeSegundos,
 } from '../lib/prefs';
 import { clearDownloadedAudioCache, formatCacheSize, getAudioCacheBytes } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -47,6 +49,7 @@ import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
 import { usePlayer } from '../state/player';
 import { getLibrary } from '../api/library';
+import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade';
 import { varrerCatalogo } from '../state/catalogoDeFaixas';
 import { colors, radii, spacing, type } from '../theme';
 import { widgetDisponivel } from '../../modules/duotone-widget';
@@ -97,6 +100,7 @@ export function SettingsScreen({ navigation }: Props) {
   const activeTheme = useTheme((s) => s.theme);
 
   const [audioQuality, setAudioQualityState] = useState<AudioQuality>('high');
+  const [crossfade, setCrossfadeState] = useState<DuracaoDoCrossfade>(0);
   const [showDuration, setShowDuration] = useState(true);
   const [hapticsOn, setHapticsOn] = useState(false);
   const [keepAwakeOn, setKeepAwakeOn] = useState(false);
@@ -122,6 +126,7 @@ export function SettingsScreen({ navigation }: Props) {
 
   useEffect(() => {
     getAudioQuality().then(setAudioQualityState);
+    getCrossfadeSegundos().then(setCrossfadeState);
     getShowTrackDuration().then(setShowDuration);
     getHapticsEnabled().then(setHapticsOn);
     getPoTokenServerUrl().then(setPotServerUrlState);
@@ -190,6 +195,13 @@ export function SettingsScreen({ navigation }: Props) {
     } else {
       deactivateKeepAwake();
     }
+  };
+
+  const changeCrossfade = (indice: number) => {
+    const valor = DURACOES_DO_CROSSFADE[indice] ?? 0;
+    setCrossfadeState(valor);
+    usePlayer.setState({ crossfadeSegundos: valor });
+    void setCrossfadeSegundos(valor);
   };
 
   const identificarBiblioteca = async () => {
@@ -377,6 +389,17 @@ export function SettingsScreen({ navigation }: Props) {
               options={['High', 'Data saver']}
               value={audioQuality === 'saver' ? 1 : 0}
               onChange={changeAudioQuality}
+            />
+
+            {/* Desligado de origem. A passagem só entra em mudanças
+                automáticas de faixa: num salto manual faria o botão parecer
+                lento. E fica de fora quando a duração da faixa não é de
+                confiança, porque sem ela não se sabe onde é o fim. */}
+            <Label style={{ marginTop: spacing.md }}>Crossfade</Label>
+            <SegmentedControl
+              options={['Off', '3s', '6s', '9s']}
+              value={DURACOES_DO_CROSSFADE.indexOf(crossfade)}
+              onChange={changeCrossfade}
             />
 
             {/* Os tres presets viraram uma velocidade continua (0,5 a 2), e

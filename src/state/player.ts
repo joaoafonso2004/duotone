@@ -111,6 +111,9 @@ interface PlayerState {
    * o salto de volume entre uploads é o defeito mais audível da fonte.
    * Ver lib/loudness.ts. */
   volumeNormalization: boolean;
+  /** Segundos de passagem entre faixas. 0 desliga. Vive aqui e nao so nas
+   * preferencias porque o player le-o a cada tique, dentro de um intervalo. */
+  crossfadeSegundos: number;
   /** mostrar o botão de recuar 15s no player expandido (preferência das Definições) */
   showRewindButton: boolean;
   positionMs: number;
@@ -369,6 +372,7 @@ export const usePlayer = create<PlayerState>()(
   autoplayRadio: true,
   radioActive: false,
   volumeNormalization: true,
+  crossfadeSegundos: 0,
   showRewindButton: false,
   positionMs: 0,
   durationMs: 0,
