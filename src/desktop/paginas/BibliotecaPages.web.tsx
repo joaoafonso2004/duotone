@@ -109,7 +109,7 @@ export function SongsPage(props: CommonPageProps) {
     else props.play(filteredTracks[0], filteredTracks);
   };
 
-  return <><Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary={!ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{nomes[sortMode]}</Button></View>}>
+  return <><Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{nomes[sortMode]}</Button></View>}>
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search your library" value={query} onChangeText={setQuery} /></View>
       <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>
@@ -288,7 +288,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <Text style={styles.detailHeroMeta}>{tracks.length} saved {tracks.length === 1 ? 'track' : 'tracks'}</Text>
             <View style={styles.detailHeroActions}>
               <Button icon="play" onPress={playAll} disabled={!tracks.length}>Play</Button>
-              <Button secondary={!ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!tracks.length}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
+              <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!tracks.length}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
             </View>
           </View>
         </View>
