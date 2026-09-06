@@ -22,6 +22,7 @@ import { correspondeAPesquisa } from '../lib/searchText';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
+import { SkeletonDeArtistas } from '../components/Skeleton';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
@@ -116,7 +117,7 @@ export function ArtistsScreen() {
       ) : undefined}
     >
       {loading ? (
-        <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
+        <SkeletonDeArtistas />
       ) : artists.length === 0 ? (
         <EmptyState
           icon="people-outline"

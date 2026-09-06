@@ -50,6 +50,7 @@ import {
 import { addIntentListener } from '../../modules/duotone-intents';
 import { accaoParaComando } from '../lib/comandosDaSiri';
 import { deveRetomar } from '../lib/interrupcaoDeAudio';
+import { apresentarErro } from '../lib/erroDeReproducao';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 
 const TAB_BAR_BASE = 49;
@@ -79,6 +80,7 @@ export function PlayerRoot() {
   const durationMs = usePlayer((s) => s.durationMs);
   const buffering = usePlayer((s) => s.buffering);
   const error = usePlayer((s) => s.error);
+  const maquina = usePlayer((s) => s.maquina);
   const activeBackend = usePlayer((s) => s.activeBackend);
   const downloadProgress = usePlayer((s) => s.downloadProgress);
 
@@ -496,12 +498,19 @@ export function PlayerRoot() {
     }
   };
 
-  // Auto-limpar erros
+  // Um aviso some-se sozinho; uma falha fica, porque tem o que fazer dentro.
+  // Ver lib/erroDeReproducao.ts.
+  const aviso = apresentarErro({
+    mensagem: error,
+    estado: maquina,
+    temSeguinte: !!usePlayer.getState().peekNextTrack(),
+  });
+  const erroTemporario = aviso?.temporario ?? false;
   useEffect(() => {
-    if (!error) return;
+    if (!error || !erroTemporario) return;
     const id = setTimeout(() => setError(null), 4500);
     return () => clearTimeout(id);
-  }, [error, setError]);
+  }, [error, erroTemporario, setError]);
 
   if (!current) return null;
 
@@ -990,12 +999,37 @@ export function PlayerRoot() {
       ) : null}
 
       {/* ===================== TOAST DE ERRO ===================== */}
-      {error ? (
+      {aviso ? (
         <View
           style={[styles.toast, { bottom: miniBottom + MINI_PLAYER_HEIGHT + 10 }]}
         >
           <Ionicons name="alert-circle" size={16} color={colors.danger} />
-          <Text style={styles.toastText}>{error}</Text>
+          <View style={{ flex: 1, gap: aviso.accoes.length ? 8 : 0 }}>
+            <Text style={styles.toastText}>{aviso.mensagem}</Text>
+            {/* Uma faixa que falha não pode custar o sítio na fila: daqui
+                repete-se ou salta-se, e a fila fica onde estava. */}
+            {aviso.accoes.length > 0 && (
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                {aviso.accoes.map((accao) => (
+                  <Pressable
+                    key={accao}
+                    onPress={() => {
+                      const st = usePlayer.getState();
+                      setError(null);
+                      if (accao === 'repetir') void st.togglePlay();
+                      else void st.next();
+                    }}
+                    hitSlop={6}
+                    style={({ pressed }) => [styles.accaoDoErro, pressed && { opacity: 0.6 }]}
+                  >
+                    <Text style={[type.caption, { color: theme.color, fontWeight: '700' }]}>
+                      {accao === 'repetir' ? 'Tentar outra vez' : 'Seguinte'}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+          </View>
         </View>
       ) : null}
 
@@ -1305,12 +1339,18 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     backgroundColor: colors.text,
   },
+  accaoDoErro: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
+  },
   toast: {
     position: 'absolute',
     left: 20,
     right: 20,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 8,
     backgroundColor: colors.surfaceHigh,
     borderColor: colors.borderStrong,

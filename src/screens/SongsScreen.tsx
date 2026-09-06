@@ -24,6 +24,7 @@ import { EmptyState } from '../components/EmptyState';
 import { PrimeiroPasso } from '../components/PrimeiroPasso';
 import { ordenarFaixas } from '../lib/ordenacao';
 import { Screen } from '../components/Screen';
+import { SkeletonDeFaixas } from '../components/Skeleton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
 import { Input } from '../components/Input';
@@ -189,7 +190,7 @@ export function SongsScreen() {
       {offline&&<OfflineNotice compact/>}
       {!!loadError&&<Text accessibilityRole="alert" style={{color:colors.textSecondary,paddingHorizontal:spacing.xl,paddingBottom:12}}>{loadError}</Text>}
       {loading ? (
-        <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
+        <SkeletonDeFaixas />
       ) : tracks.length === 0 ? (
         <EmptyState
           icon="heart-outline"

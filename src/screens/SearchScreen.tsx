@@ -23,6 +23,7 @@ import { displayArtist } from '../lib/artistName';
 import { useSaved } from '../state/saved';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
+import { SkeletonDeFaixas } from '../components/Skeleton';
 import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -159,7 +160,7 @@ export function SearchScreen() {
         </View>
 
         {loading ? (
-          <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
+          <SkeletonDeFaixas />
         ) : errorMsg ? (
           <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
             <EmptyState
@@ -211,7 +212,7 @@ export function SearchScreen() {
             showsVerticalScrollIndicator={false}
           >
             {loadingRecs && !temRecomendacoes(recs) ? (
-              <ActivityIndicator color={colors.text} style={{ marginTop: 48 }} />
+              <SkeletonDeFaixas />
             ) : (
               <View>
                 {/* A PRIMEIRA prateleira e so descoberta: musica que ele nao tem,

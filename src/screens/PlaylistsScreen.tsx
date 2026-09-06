@@ -27,6 +27,7 @@ import { EmptyState } from '../components/EmptyState';
 import { PrimeiroPasso } from '../components/PrimeiroPasso';
 import { PromptSheet } from '../components/PromptSheet';
 import { Screen } from '../components/Screen';
+import { SkeletonDeFaixas } from '../components/Skeleton';
 import { SocialButton } from '../components/socialUI';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
@@ -164,7 +165,7 @@ export function PlaylistsScreen() {
 
       {!!loadError&&<View style={{paddingHorizontal:spacing.xl,paddingVertical:spacing.lg,gap:12}}><Text accessibilityRole="alert" style={type.caption}>{loadError}</Text><SocialButton onPress={()=>void load()}>Try again</SocialButton></View>}
       {loading ? (
-        <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
+        <SkeletonDeFaixas linhas={6} />
       ) : playlists.length === 0 && loadError ? null : playlists.length === 0 ? (
         <EmptyState
           icon="albums-outline"
