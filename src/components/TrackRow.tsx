@@ -10,7 +10,6 @@ import { colors, radii, spacing, type } from '../theme';
 import { useSaved } from '../state/saved';
 import { useTheme } from '../state/theme';
 import type { Track } from '../types';
-import { SourceBadge } from './SourceBadge';
 
 interface Props {
   track: Track;
@@ -120,7 +119,6 @@ function TrackRowComponent({
           {tituloDaFaixa(track)}
         </Text>
         <View style={styles.metaRow}>
-          <SourceBadge source={track.source} />
           {track.source === 'youtube' && isAudioCached(track.sourceId) ? (
             // Disponível offline (áudio já descarregado no cache local)
             <Ionicons name="arrow-down-circle" size={12} color={colors.textSecondary} />

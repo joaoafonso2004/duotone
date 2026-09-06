@@ -17,7 +17,6 @@ import {
 import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 import { BottomSheet } from './BottomSheet';
-import { SourceBadge } from './SourceBadge';
 import { ShareFriendSheet } from './ShareFriendSheet';
 
 export interface SheetAction {
@@ -139,7 +138,6 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
                 {track.title}
               </Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <SourceBadge source={track.source} />
                 {track.artist ? (
                   <Text numberOfLines={1} style={type.caption}>
                     {displayArtist(track)}
