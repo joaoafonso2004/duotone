@@ -51,6 +51,7 @@ import { addIntentListener } from '../../modules/duotone-intents';
 import { accaoParaComando } from '../lib/comandosDaSiri';
 import { deveRetomar } from '../lib/interrupcaoDeAudio';
 import { apresentarErro } from '../lib/erroDeReproducao';
+import { limparOrigem, origemValida, type RectanguloDaCapa } from '../state/origemDaCapa';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 
 const TAB_BAR_BASE = 49;
@@ -361,6 +362,41 @@ export function PlayerRoot() {
     }).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, anim, dragY, current?.sourceId]);
+
+  /**
+   * A capa entra a voar da linha que foi tocada.
+   *
+   * Só quando o player estava ESCONDIDO: trocar de faixa com o mini já no
+   * ecrã não pode fazer a capa saltar para fora e voltar -- ela já lá está.
+   *
+   * Declarado a seguir ao efeito de cima de propósito: os dois correm quando a
+   * faixa muda, e o último a correr é que manda no `anim`.
+   */
+  const [origemDaEntrada, setOrigemDaEntrada] = useState<RectanguloDaCapa | null>(null);
+  const tinhaFaixa = useRef(false);
+  useEffect(() => {
+    const temAgora = !!current;
+    const entrou = temAgora && !tinhaFaixa.current;
+    tinhaFaixa.current = temAgora;
+    if (!entrou) { limparOrigem(); return; }
+
+    const origem = origemValida(H);
+    limparOrigem();
+    // Sem medição válida (a lista rolou, a linha desmontou, veio de outro
+    // sítio que não uma lista), ou com menos animação pedida ao sistema, o
+    // player entra exactamente como sempre entrou.
+    if (!origem || reducedMotion) return;
+
+    setOrigemDaEntrada(origem);
+    anim.setValue(-1);
+    Animated.spring(anim, {
+      toValue: expanded ? 1 : 0,
+      useNativeDriver: false,
+      speed: 14,
+      bounciness: 3,
+    }).start(({ finished }) => { if (finished) setOrigemDaEntrada(null); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.sourceId]);
 
   /**
    * Arrastar para baixo, de QUALQUER ponto da página, para fechar o
@@ -938,24 +974,32 @@ export function PlayerRoot() {
             position: 'absolute',
             opacity: expanded ? visibilityAnim : Animated.multiply(visibilityAnim,miniFade),
             left: anim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [vidMini.x, vidFull.x],
+              inputRange: origemDaEntrada ? [-1, 0, 1] : [0, 1],
+              outputRange: origemDaEntrada
+                ? [origemDaEntrada.x, vidMini.x, vidFull.x]
+                : [vidMini.x, vidFull.x],
             }),
             top: anim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [vidMini.y, vidFull.y],
+              inputRange: origemDaEntrada ? [-1, 0, 1] : [0, 1],
+              outputRange: origemDaEntrada
+                ? [origemDaEntrada.y, vidMini.y, vidFull.y]
+                : [vidMini.y, vidFull.y],
             }),
             width: anim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [vidMini.w, vidFull.w],
+              inputRange: origemDaEntrada ? [-1, 0, 1] : [0, 1],
+              outputRange: origemDaEntrada
+                ? [origemDaEntrada.largura, vidMini.w, vidFull.w]
+                : [vidMini.w, vidFull.w],
             }),
             height: anim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [vidMini.h, vidFull.h],
+              inputRange: origemDaEntrada ? [-1, 0, 1] : [0, 1],
+              outputRange: origemDaEntrada
+                ? [origemDaEntrada.altura, vidMini.h, vidFull.h]
+                : [vidMini.h, vidFull.h],
             }),
             borderRadius: anim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [8, 20],
+              inputRange: origemDaEntrada ? [-1, 0, 1] : [0, 1],
+              outputRange: origemDaEntrada ? [8, 8, 20] : [8, 20],
             }),
             transform: [{ translateY: dragY },{translateX:expanded||reducedMotion?0:Animated.add(dragX,(1-closeGain)*W)}],
             overflow: expanded ? 'visible' : 'hidden',
@@ -973,13 +1017,19 @@ export function PlayerRoot() {
           {/* Mostramos SEMPRE a thumbnail por cima — o áudio nativo continua a
               tocar por trás. (A app é só áudio; o vídeo é irrelevante.) A capa
               "respira" (opacidade a pulsar) enquanto a música carrega. */}
-          {!expanded && artSource ? (
+          {!expanded && (origemDaEntrada?.uri || artSource) ? (
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: pulse }]}>
+              {/* Durante o voo mostra-se a MESMA imagem que a lista mostrava.
+                  A lista usa a hqdefault (480x360, com as barras pretas do
+                  YouTube) e o player sobe para a maxresdefault (1280x720, sem
+                  barras): trocar a meio do caminho mudava o enquadramento, não
+                  só a nitidez, e dava-se pela ilusão. A troca acontece depois
+                  de pousar, a 48 px, onde ninguém a vê. */}
               <Image
-                source={{ uri: artSource }}
+                source={{ uri: origemDaEntrada?.uri || artSource || undefined }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
-                transition={250}
+                transition={origemDaEntrada ? 0 : 250}
                 onError={onArtError}
               />
             </Animated.View>

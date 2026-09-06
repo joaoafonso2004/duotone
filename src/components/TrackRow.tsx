@@ -1,8 +1,9 @@
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import React from 'react';
+import React, { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { guardarOrigem } from '../state/origemDaCapa';
 import { hapticImpact, hapticSelection } from '../lib/haptics';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { isAudioCached } from '../lib/youtubeCache';
@@ -52,6 +53,8 @@ function TrackRowComponent({
   showSavedBadge = false,
 }: Props) {
   const theme = useTheme((s) => s.theme);
+  /** A moldura da capa desta linha, para o player saber de onde a fazer voar. */
+  const capa = useRef<View>(null);
   // Subscrito sempre (as regras dos hooks não deixam condicionar), mas o
   // seletor devolve `false` quando a badge está desligada, por isso as listas
   // da biblioteca não voltam a renderizar quando a biblioteca muda.
@@ -63,6 +66,13 @@ function TrackRowComponent({
     <Pressable
       onPress={() => {
         hapticImpact();
+        // Onde é que a capa está NESTE instante, em coordenadas de ecrã. É
+        // daqui que ela voa para o player. A medição é assíncrona e pode
+        // chegar tarde ou nunca -- se não chegar, o player entra como sempre
+        // entrou. Por isso o onPress não espera por ela.
+        capa.current?.measureInWindow((x, y, largura, altura) => {
+          guardarOrigem({ x, y, largura, altura, uri: track.artworkUrl ?? null });
+        });
         onPress();
       }}
       onLongPress={
@@ -89,7 +99,7 @@ function TrackRowComponent({
           />
         </View>
       )}
-      <View style={styles.artworkWrap}>
+      <View ref={capa} collapsable={false} style={styles.artworkWrap}>
         {track.artworkUrl ? (
           <Image
             source={{ uri: track.artworkUrl }}
