@@ -110,13 +110,17 @@ export function PlayerRoot() {
   // now-playing. Soma-se ao translateY do overlay (e da frame de vídeo).
   const dragY = useRef(new Animated.Value(0)).current;
   /**
-   * O raio dos cantos, à parte.
+   * O raio dos cantos, à parte -- mas no MESMO driver que o resto.
    *
-   * Tudo o resto da moldura passou a animar por transformação, que corre na UI
-   * thread. O `borderRadius` não é transformável e teria de continuar a
-   * atravessar a ponte a cada fotograma -- mas sozinho é uma propriedade de
-   * pintura, barata, e não obriga a recalcular layout como o left/top/width.
-   * Corre em paralelo com o `anim`, com a mesma mola.
+   * Está separado do `anim` só porque tem outra escala: o `anim` vai de -1 a 1
+   * para caber o voo de entrada, e o raio só tem duas paragens.
+   *
+   * O driver não é opcional. Uma vista só tem um nó de propriedades, e assim
+   * que UMA delas passa para o driver nativo o React Native leva a vista
+   * inteira -- animar outra propriedade da mesma vista a partir do JS deixa de
+   * degradar e passa a ATIRAR, no arranque, antes de haver ecrã. Foi o que
+   * matou a 1.12.0. O `borderRadius` está na lista do módulo nativo, por isso
+   * não há aqui nada a sacrificar.
    */
   const animRaio = useRef(new Animated.Value(0)).current;
   const dragX = useRef(new Animated.Value(0)).current;
@@ -184,10 +188,14 @@ export function PlayerRoot() {
   const shouldHide = (keyboardVisible && !expanded) || currentRoute === 'Settings';
 
   useEffect(() => {
+    // Tem de ser nativa. Este valor entra na opacidade de vistas cuja
+    // transformacao ja corre no driver nativo, e o React Native passa a vista
+    // INTEIRA para nativo quando uma das propriedades la vai -- animar esta a
+    // partir do JS a seguir e um erro fatal, nao um degrade.
     Animated.timing(visibilityAnim, {
       toValue: shouldHide ? 0 : 1,
       duration: 250,
-      useNativeDriver: false,
+      useNativeDriver: true,
     }).start();
   }, [shouldHide]);
 
@@ -367,7 +375,7 @@ export function PlayerRoot() {
     }
     Animated.parallel([
       Animated.spring(anim, { toValue: expanded ? 1 : 0, useNativeDriver: true, speed: 14, bounciness: 3 }),
-      Animated.spring(animRaio, { toValue: expanded ? 1 : 0, useNativeDriver: false, speed: 14, bounciness: 3 }),
+      Animated.spring(animRaio, { toValue: expanded ? 1 : 0, useNativeDriver: true, speed: 14, bounciness: 3 }),
     ]).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, anim, dragY, current?.sourceId]);
