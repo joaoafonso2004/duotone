@@ -21,7 +21,12 @@ export const socialStyles = StyleSheet.create({
   title: { ...type.title },
   label: { ...type.micro, letterSpacing: 1.5 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  card: { backgroundColor: colors.surface, padding: spacing.lg, borderRadius: radii.lg, gap: spacing.md, borderWidth: 1, borderColor: colors.border },
+  // Sem contorno e com o mesmo raio das outras superficies da app. A caixa
+  // desenhada a linha era a linguagem antiga; hoje o que levanta um bloco do
+  // fundo e o preenchimento, e nada no resto da app tem moldura.
+  card: { backgroundColor: colors.surface, padding: spacing.lg, borderRadius: radii.md, gap: spacing.md },
+  // Uma linha de lista dentro do perfil: sem caixa nenhuma, como nas Songs.
+  linhaSimples: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 10 },
   listRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 12, flexDirection: 'row', alignItems: 'center' },
   // A linha da lista de conversas. Sem risco por baixo: o que separa é o
   // espaço. Uma altura mínima igual para todas é o que dá o ritmo -- havia

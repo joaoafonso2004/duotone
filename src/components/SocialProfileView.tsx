@@ -194,7 +194,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
     <View style={{flexDirection:wide?'row':'column',flexWrap:wide?'wrap':'nowrap',gap:12}}>
       {[...visiblePlaylists].sort((a,b)=>{const rank=(id:string)=>{const i=highlights.playlistIds.indexOf(id);return i<0?3:i;};return rank(a.id)-rank(b.id);}).map(pl=>{
         const marked=guardadas.has(pl.id),busy=ocupada===pl.id;
-        return <View key={pl.id} style={[s.card,{padding:12,width:wide?undefined:'100%',flexDirection:'row',alignItems:'center',flexBasis:wide?280:undefined,flexGrow:wide?1:0,minWidth:0}]}>
+        return <View key={pl.id} style={[s.linhaSimples,{width:wide?undefined:'100%',flexDirection:'row',alignItems:'center',flexBasis:wide?280:undefined,flexGrow:wide?1:0,minWidth:0}]}>
           <Pressable accessibilityRole="button" accessibilityLabel={`Open ${pl.name}`} disabled={!onPlaylist} onPress={()=>onPlaylist?.(pl.id)}
             style={({pressed,hovered}:any)=>[s.row,{flex:1,minWidth:0},(pressed||hovered)&&{opacity:0.75}]}>
             <View style={{borderRadius:radii.md,overflow:'hidden'}}><ArtworkCollage artworks={pl.artworks} size={56}/></View>
