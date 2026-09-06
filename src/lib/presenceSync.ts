@@ -1,4 +1,5 @@
 import { AppState, Platform } from 'react-native';
+import { appEstaVisivel } from './appVisibility';
 import * as Crypto from 'expo-crypto';
 import { supabase } from './supabase';
 import { getDeviceId } from './deviceIdentity';
@@ -25,7 +26,11 @@ export function iniciarPresenca(userId: string): () => void {
     const s = usePlayer.getState();
     const faixa = s.current && s.isPlaying && s.playbackConfirmed && !s.buffering && !s.error ? s.current : null;
     const seq = ++sequencia;
-    const ativo = Platform.OS === 'web' || AppState.currentState === 'active';
+    // `appEstaVisivel` e nao `Platform.OS === 'web'`: no PC isto dizia SEMPRE
+    // que a pessoa estava activa, sem sequer olhar para a janela. Bastava ter
+    // o Duotone aberto e minimizado -- ou o portatil fechado -- para aparecer
+    // "Online now" aos amigos durante horas, mesmo com o telemovel desligado.
+    const ativo = appEstaVisivel();
     fila = fila.catch(() => {}).then(async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session?.user.id !== userId) return;
@@ -52,7 +57,10 @@ export function iniciarPresenca(userId: string): () => void {
   });
   const app = AppState.addEventListener('change', () => { if (!terminado) void publicar(); });
   const beat = setInterval(() => {
-    if (!terminado && (Platform.OS === 'web' || AppState.currentState === 'active' || usePlayer.getState().isPlaying)) void publicar();
+    // Continua a bater com musica a tocar: e o que mantem o "esta a ouvir"
+    // verdadeiro. O que isso ja NAO faz e dizer que a pessoa esta online --
+    // essa janela agora so se estende com `p_active`.
+    if (!terminado && (appEstaVisivel() || usePlayer.getState().isPlaying)) void publicar();
   }, PRESENCE_PUBLISH_MS);
   const voltar = () => { if (!terminado) void publicar(); };
   const terminar = async () => {
