@@ -58,3 +58,27 @@ export function aplicarEqualizadorNativo(
     // Idem: sem EQ a música toca na mesma.
   }
 }
+
+/**
+ * Os níveis da cauda de um ficheiro local, em blocos, para saber onde a música
+ * acaba mesmo.
+ *
+ * Devolve o RMS de cada bloco em dBFS. Lista vazia quando não há módulo
+ * nativo, o ficheiro não se lê, ou a plataforma não é o iOS -- e nesses casos
+ * quem chama fica sem análise e o crossfade conta do fim do ficheiro, como
+ * sempre contou.
+ *
+ * Quem decide o que estes números querem dizer é o `src/lib/fimDaFaixa.ts`.
+ */
+export async function analisarCaudaNativa(
+  uri: string,
+  segundos = 30,
+  segundosPorBloco = 0.4,
+): Promise<number[]> {
+  try {
+    const niveis = await nativo?.analisarCauda(uri, segundos, segundosPorBloco);
+    return Array.isArray(niveis) ? niveis : [];
+  } catch {
+    return [];
+  }
+}

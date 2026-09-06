@@ -62,8 +62,75 @@ public class DuotoneAudioModule: Module {
   /** Dois com o crossfade ligado, um sem ele. */
   private var motores: [Motor] = []
 
+  /**
+   * O nivel da cauda de um ficheiro local, em blocos.
+   *
+   * Devolve o RMS de cada bloco em dBFS, do mais antigo para o mais recente.
+   * Le so o fim do ficheiro -- nao o ficheiro todo -- porque a pergunta e "onde
+   * acaba a musica", e essa vive nos ultimos segundos.
+   *
+   * NAO decide nada. O limiar, quantos blocos calados contam e o que fazer com
+   * um fade gravado sao decisoes, e vivem em src/lib/fimDaFaixa.ts, onde ha
+   * testes. Aqui so se leem amostras, que e a unica coisa que o JS nao alcanca.
+   *
+   * RMS e nao pico: o audio e AAC, e em compressao com perdas o silencio traz
+   * ruido de codificacao. Um pico isolado nao diz nada sobre o bloco.
+   */
+  private static func niveisDaCauda(_ url: URL, segundos: Double, porBloco: Double) throws -> [Double] {
+    let ficheiro = try AVAudioFile(forReading: url)
+    let formato = ficheiro.processingFormat
+    let taxa = formato.sampleRate
+    guard taxa > 0, ficheiro.length > 0, porBloco > 0 else { return [] }
+
+    let quadrosPorBloco = AVAudioFrameCount(max(1, (porBloco * taxa).rounded()))
+    let quadrosDaCauda = AVAudioFramePosition(min(Double(ficheiro.length), segundos * taxa))
+    ficheiro.framePosition = max(0, ficheiro.length - quadrosDaCauda)
+
+    guard let buffer = AVAudioPCMBuffer(pcmFormat: formato, frameCapacity: quadrosPorBloco) else {
+      return []
+    }
+
+    var niveis: [Double] = []
+    while ficheiro.framePosition < ficheiro.length {
+      try ficheiro.read(into: buffer, frameCount: quadrosPorBloco)
+      let quadros = Int(buffer.frameLength)
+      if quadros == 0 { break }
+      guard let canais = buffer.floatChannelData else { break }
+
+      // Media das potencias de todos os canais: um bloco so e silencio quando
+      // esta calado dos dois lados.
+      var soma = 0.0
+      let numeroDeCanais = Int(formato.channelCount)
+      for canal in 0..<numeroDeCanais {
+        let amostras = canais[canal]
+        for i in 0..<quadros {
+          let v = Double(amostras[i])
+          soma += v * v
+        }
+      }
+      let media = soma / Double(max(1, quadros * numeroDeCanais))
+      let rms = media.squareRoot()
+      // -160 e o chao que se usa para "zero" em vez de -infinito, que nao
+      // atravessa a ponte para o JS como numero.
+      niveis.append(rms > 0 ? 20 * log10(rms) : -160)
+    }
+    return niveis
+  }
+
   public func definition() -> ModuleDefinition {
     Name("DuotoneAudio")
+
+    /** Ver `niveisDaCauda`. Assincrona: le do disco. */
+    AsyncFunction("analisarCauda") { (uri: String, segundos: Double, porBloco: Double) -> [Double] in
+      guard let url = URL(string: uri) else { return [] }
+      do {
+        return try DuotoneAudioModule.niveisDaCauda(url, segundos: segundos, porBloco: porBloco)
+      } catch {
+        // Um ficheiro que nao se le nao e um erro a propagar: quem chama fica
+        // sem analise e o crossfade conta do fim, como sempre contou.
+        return []
+      }
+    }
 
     /**
      * Liga-se a um motor e passa a tratar de cada item que ele tocar.

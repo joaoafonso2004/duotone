@@ -33,7 +33,24 @@ export type ContextoDoCrossfade = {
   seguinteCarregada: boolean;
   /** Já está uma passagem a decorrer. */
   aDecorrer: boolean;
+  /**
+   * O instante em que a MÚSICA acaba, que raramente é onde o ficheiro acaba.
+   *
+   * Vem da análise da cauda (ver `fimDaFaixa.ts`). Sem ela fica o fim do
+   * ficheiro, que é o comportamento de sempre -- e numa faixa com três
+   * segundos de silêncio no fim isso cruzava a seguinte com o nada.
+   */
+  fimMusicalSegundos?: number | null;
 };
+
+/** Onde a passagem deve estar terminada. */
+export function fimEfectivo(c: ContextoDoCrossfade): number {
+  const d = c.duracaoSegundos ?? 0;
+  const fim = c.fimMusicalSegundos;
+  if (fim == null || !Number.isFinite(fim) || fim <= 0) return d;
+  // Nunca depois do fim do ficheiro, e nunca tão cedo que a passagem não caiba.
+  return Math.min(fim, d);
+}
 
 /**
  * Estão reunidas as condições para haver passagem nesta faixa?
@@ -61,7 +78,7 @@ export function deveComecarCrossfade(c: ContextoDoCrossfade): boolean {
   // podia já estar dentro da janela e a passagem começava antes de a música
   // chegar a ouvir-se.
   if (c.posicaoSegundos <= 0) return false;
-  const falta = c.duracaoSegundos! - c.posicaoSegundos;
+  const falta = fimEfectivo(c) - c.posicaoSegundos;
   return falta <= c.duracaoDoFade;
 }
 

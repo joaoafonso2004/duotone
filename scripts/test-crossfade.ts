@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict';
-import {
-  podeCrossfade, deveComecarCrossfade, volumesDoCrossfade, acaoAoInterromper,
-} from '../src/lib/crossfade.ts';
+import { podeCrossfade, deveComecarCrossfade, volumesDoCrossfade, acaoAoInterromper, fimEfectivo } from '../src/lib/crossfade.ts';
 
 const base = {
   duracaoDoFade: 6,
@@ -83,3 +81,27 @@ for (const motivo of ['salto', 'anterior', 'faixa-nova', 'fechar', 'seek'] as co
 assert.equal(acaoAoInterromper('seek', false), 'abortar');
 
 console.log('Crossfade: condições, momento, curva de igual potência e interrupções passaram.');
+
+// ---- a passagem conta a partir do fim da MUSICA, nao do ficheiro ----------
+//
+// Numa faixa que acaba com silencio gravado, contar do fim do ficheiro cruzava
+// a seguinte com o nada -- ouvia-se um buraco onde devia haver passagem.
+{
+  const base = {
+    duracaoDoFade: 6, duracaoSegundos: 200, posicaoSegundos: 0,
+    temFaixaSeguinte: true, repeatUma: false, backendNativo: true,
+    seguinteCarregada: true, aDecorrer: false,
+  };
+  // Sem analise, o fim e o do ficheiro: nada muda.
+  assert.equal(fimEfectivo(base), 200);
+  assert.equal(fimEfectivo({ ...base, fimMusicalSegundos: null }), 200);
+  // Com 8 s de silencio no fim, a passagem passa a comecar 8 s mais cedo.
+  assert.equal(fimEfectivo({ ...base, fimMusicalSegundos: 192 }), 192);
+  assert.equal(deveComecarCrossfade({ ...base, posicaoSegundos: 187, fimMusicalSegundos: 192 }), true,
+    'nao comecou a tempo do fim da musica');
+  assert.equal(deveComecarCrossfade({ ...base, posicaoSegundos: 187 }), false,
+    'sem analise comecou cedo demais');
+  // Uma analise absurda nunca pode empurrar a passagem para depois do ficheiro.
+  assert.equal(fimEfectivo({ ...base, fimMusicalSegundos: 9999 }), 200);
+  console.log('Crossfade: a passagem conta do fim da musica quando ele e conhecido.');
+}
