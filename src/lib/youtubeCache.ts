@@ -312,7 +312,13 @@ export async function fetchChunkWithRetry(
     if (isDeadUrlStatus(lastStatus)) {
       if (renewUrl && !renewed) {
         renewed = true;
-        const fresh = await renewUrl().catch(() => null);
+        // Com prazo: era esta a chamada que podia pendurar para sempre e
+        // deixar a vaga da fila presa -- e com ela toda a app parada em 0:00
+        // até alguém reiniciar.
+        const fresh = await Promise.race([
+          renewUrl(),
+          new Promise<null>((r) => setTimeout(() => r(null), REQUEST_TIMEOUT_MS)),
+        ]).catch(() => null);
         if (fresh) {
           current = fresh;
           continue;
@@ -362,7 +368,7 @@ export async function downloadProgressiveAudio(
   if (dest.exists) return dest.uri;
   if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
 
-  await pedirVez(opts.prioridade ?? 'explicito');
+  const bilhete = await pedirVez(opts.prioridade ?? 'explicito');
   try {
     // Entre pedir a vez e chega-la, a faixa pode ter mudado ou outro job pode
     // ter descarregado esta mesma.
@@ -370,7 +376,7 @@ export async function downloadProgressiveAudio(
     if (dest.exists) return dest.uri;
     return await descarregarAgora(videoId, url, knownLength, durationSeconds, opts, dest);
   } finally {
-    largarVez();
+    largarVez(bilhete);
   }
 }
 

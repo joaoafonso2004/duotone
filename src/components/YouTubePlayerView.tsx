@@ -20,6 +20,7 @@ import { getAudioQuality } from '../lib/prefs';
 import { targetVolume } from '../lib/loudness';
 import { getLoudnessDb, rememberLoudnessDb } from '../lib/loudnessCache';
 import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED } from '../lib/youtubeCache';
+import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
 import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar,
   sinalDoErro, type TipoFalha,
@@ -1098,6 +1099,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             backendNativo: true,
             seguinteCarregada: true,
             aDecorrer: false,
+            // Onde a música acaba mesmo, quando a análise da cauda já correu.
+            // Sem ela conta-se do fim do ficheiro, como sempre.
+            fimMusicalSegundos: fimMusicalGuardado(track.sourceId),
           })
         ) {
           comecarPassagem(seguinte);
@@ -1323,7 +1327,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         rememberLoudnessDb(nextTrack.sourceId, stream?.loudnessDb);
         if (stream && !stream.isHls) {
           // Descarregar localmente em segundo plano; aborta se a faixa mudar
-          await downloadProgressiveAudio(
+          const uriLocal = await downloadProgressiveAudio(
             nextTrack.sourceId,
             stream.url,
             stream.contentLength,
@@ -1337,6 +1341,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
                 (await resolveYouTubeStream(nextTrack.sourceId, quality, true)).url,
             }
           );
+          // Com o ficheiro em disco e tempo de sobra até esta faixa tocar,
+          // fica-se a saber onde a MÚSICA dela acaba -- que raramente é onde o
+          // ficheiro acaba. É o que impede o crossfade de cruzar a seguinte
+          // com o silêncio gravado no fim desta.
+          if (!cancelled && uriLocal) {
+            void analisarFimDaFaixa(
+              nextTrack.sourceId,
+              uriLocal,
+              nextTrack.durationSeconds || stream.durationSeconds || null,
+            );
+          }
         }
       } catch (err: any) {
         if (err?.message !== DOWNLOAD_ABORTED) {
