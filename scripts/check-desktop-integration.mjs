@@ -79,6 +79,16 @@ captura.request(janela.webContents, 'media', (value) => { permitido = value; }, 
 assert.equal(permitido, false, 'Permissões de outra origem são negadas');
 captura.request(janela.webContents, 'media', (value) => { permitido = value; }, { requestingUrl: 'http://localhost:18081/player' });
 assert.equal(permitido, true, 'A janela principal mantém a permissão de áudio');
+captura.request(janela.webContents, 'media', (value) => { permitido = value; }, { requestingUrl: 'http://localhost:18081/player', mediaTypes: ['audio'] });
+assert.equal(permitido, true, 'Um pedido só de áudio continua a passar');
+captura.request(janela.webContents, 'media', (value) => { permitido = value; }, { requestingUrl: 'http://localhost:18081/player', mediaTypes: ['audio', 'video'] });
+assert.equal(permitido, false, 'O "media" deixa de abrir a porta à câmara');
+captura.check(janela.webContents, 'media', 'http://localhost:18081', { mediaType: 'video' });
+assert.equal(
+  captura.check(janela.webContents, 'media', 'http://localhost:18081', { mediaType: 'video' }),
+  false,
+  'A verificação de permissão também recusa vídeo',
+);
 captura.request(janela.webContents, 'geolocation', (value) => { permitido = value; }, { requestingUrl: 'http://localhost:18081/player' });
 assert.equal(permitido, false, 'Permissões desnecessárias são negadas');
 let fonteCapturada;

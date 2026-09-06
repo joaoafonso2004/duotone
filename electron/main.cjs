@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, net, protocol, session, shell, Tray, globalShortcut, Notification } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell, Tray, globalShortcut, Notification } = require('electron');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -80,7 +80,7 @@ ipcMain.on('notification:message', (event, message) => {
   notification.show();
 });
 
-let localServer = null;
+let localServers = [];
 const SERVER_PORT = 18081;
 
 function resolverFicheiroLocal(reqUrl, webRoot) {
@@ -99,7 +99,7 @@ function resolverFicheiroLocal(reqUrl, webRoot) {
 
 function startLocalServer() {
   const webRoot = path.resolve(__dirname, '..', 'dist-web');
-  localServer = http.createServer((req, res) => {
+  const servir = (req, res) => {
     const resolved = resolverFicheiroLocal(req.url, webRoot);
     if (resolved.status !== 200) {
       res.statusCode = resolved.status;
@@ -136,10 +136,33 @@ function startLocalServer() {
         res.end(data);
       }
     });
+  };
+
+  // Duas escutas de loopback, nao uma. O bind era so em 127.0.0.1 mas a janela
+  // carrega `localhost` -- e em Windows o localhost resolve muitas vezes para
+  // ::1 primeiro. Outro processo a escuta em [::1]:18081 seria carregado como
+  // se fosse a app, com todos os privilegios da origem de confianca. Segurando
+  // as duas pontas, nao sobra janela para ninguem.
+  //
+  // Mudar o loadURL para 127.0.0.1 resolveria na mesma, mas mudava a ORIGEM --
+  // e o localStorage e particionado por origem. Toda a gente abriria a app
+  // deslogada e sem preferencias. Por isso a correcao e do lado do servidor.
+  const escutar = (host) => new Promise((resolve, reject) => {
+    const servidor = http.createServer(servir);
+    servidor.once('error', (erro) => {
+      // Sem pilha IPv6 no sistema nao ha ::1 para ninguem ocupar: seguimos.
+      if (host === '::1' && (erro.code === 'EADDRNOTAVAIL' || erro.code === 'EAFNOSUPPORT')) {
+        resolve(null);
+      } else {
+        reject(erro);
+      }
+    });
+    servidor.listen(SERVER_PORT, host, () => resolve(servidor));
   });
-  
-  localServer.listen(SERVER_PORT, '127.0.0.1', () => {
-    console.log(`Local production server listening on http://127.0.0.1:${SERVER_PORT}`);
+
+  return Promise.all([escutar('127.0.0.1'), escutar('::1')]).then((abertos) => {
+    localServers = abertos.filter(Boolean);
+    console.log(`Local production server listening on ${SERVER_PORT} (${localServers.length}x loopback)`);
   });
 }
 
@@ -191,8 +214,20 @@ function configurarCaptura(ses) {
   // e um leitor de musica nao tem nada que ver com geolocalizacao, MIDI, USB
   // ou serie.
   const PERMITIDAS = new Set(['media', 'display-capture', 'fullscreen', 'clipboard-sanitized-write']);
+  // O 'media' e um so nome para microfone E camara. A app precisa de audio
+  // (a captura do glitch) e de camara nunca -- por isso um pedido que diga
+  // explicitamente 'video' e recusado. Quando o Electron nao diz o tipo,
+  // mantem-se o comportamento antigo: e o caminho por onde passa a captura
+  // que ja funciona, e recusar as cegas partia o "Album art glitch".
+  const mediaSemCamara = (permissao, detalhes) => {
+    if (permissao !== 'media') return true;
+    if (Array.isArray(detalhes.mediaTypes)) return !detalhes.mediaTypes.includes('video');
+    if (typeof detalhes.mediaType === 'string') return detalhes.mediaType !== 'video';
+    return true;
+  };
   const permitido = (conteudos, permissao, detalhes = {}) => {
     if (!mainWindow || conteudos !== mainWindow.webContents || !PERMITIDAS.has(permissao)) return false;
+    if (!mediaSemCamara(permissao, detalhes)) return false;
     const url = detalhes.requestingUrl || detalhes.securityOrigin || conteudos.getURL?.() || '';
     return origemDaApp(url);
   };
@@ -572,10 +607,25 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   app.setAppUserModelId('com.joao.duotone.desktop');
   Menu.setApplicationMenu(null);
-  if (!isDev) startLocalServer();
+  // A janela so abre depois de o servidor estar mesmo de pe. Se a porta
+  // estiver ocupada, e melhor nao abrir de todo do que carregar o que quer
+  // que esteja la a responder.
+  if (!isDev) {
+    try {
+      await startLocalServer();
+    } catch (erro) {
+      console.error('Nao foi possivel abrir o servidor local:', erro);
+      dialog.showErrorBox(
+        'Duotone',
+        `A porta ${SERVER_PORT} esta a ser usada por outro programa. Fecha-o e abre o Duotone outra vez.`,
+      );
+      app.quit();
+      return;
+    }
+  }
   configurarCaptura(session.defaultSession);
 
   createWindow();
