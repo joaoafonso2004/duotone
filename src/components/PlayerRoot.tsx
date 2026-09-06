@@ -4,7 +4,7 @@ import { readLikedSongsCache } from '../lib/likedSongsCache';
 import { useAuth } from '../state/auth';
 import { closePlayerSmoothly, confirmaSwipe } from '../lib/closePlayer';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -614,7 +614,11 @@ export function PlayerRoot() {
                   style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
                 >
                   <Text style={styles.trackTitle} numberOfLines={2}>
-                    {current.title}
+                    {/* O mesmo título que as listas mostram. O player era o
+                        único sítio da app a mostrar o título CRU do YouTube --
+                        com o nome do artista à frente e o [Official Video]
+                        atrás, por cima do artista repetido na linha de baixo. */}
+                    {tituloDaFaixa(current)}
                   </Text>
                 </Pressable>
                 <Text numberOfLines={1} style={styles.trackArtist}>
@@ -831,7 +835,7 @@ export function PlayerRoot() {
                 numberOfLines={1}
                 style={[type.body, { fontWeight: '600', fontSize: 13.5 }]}
               >
-                {current.title}
+                {tituloDaFaixa(current)}
               </Text>
               <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
                 {downloadProgress != null
