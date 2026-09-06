@@ -40,6 +40,7 @@ import { QueueSheet } from './QueueSheet';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { EstrelaInteligente } from './BrilhoInteligente';
 import { EqualizadorSheet } from './EqualizadorSheet';
+import { ShareFriendSheet } from './ShareFriendSheet';
 import { navigationRef } from '../navigation/RootNavigator';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
@@ -125,6 +126,7 @@ export function PlayerRoot() {
   const pulse = useRef(new Animated.Value(1)).current;
 
   const [playlistOpen, setPlaylistOpen] = useState(false);
+  const [partilhaAberta, setPartilhaAberta] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   const [queueVisible, setQueueVisible] = useState(false);
   const [eqVisible, setEqVisible] = useState(false);
@@ -600,12 +602,35 @@ export function PlayerRoot() {
 
         {/* Espaço reservado para a capa quadrada grande (a frame flutua por
             cima nesta posição). */}
-        <View style={{ height: vidFull.h, marginTop: 20, marginBottom: 12 }} />
+        <View style={{ height: vidFull.h, marginTop: 20, marginBottom: 8 }} />
+
+        {/* Dois pontos por baixo da capa: a pista mínima de que ali há outro
+            lado. A capa fica limpa -- nada por cima dela, que era a condição.
+            E tocar troca, para quem nunca descobrir o gesto de rodar. */}
+        <View style={styles.pontosDoCubo}>
+          {[false, true].map((paraAsLetras) => (
+            <Pressable
+              key={String(paraAsLetras)}
+              hitSlop={10}
+              onPress={() => setShowLyrics(paraAsLetras)}
+              accessibilityLabel={paraAsLetras ? 'Ver as letras' : 'Ver a capa'}
+            >
+              <View
+                style={[
+                  styles.ponto,
+                  showLyrics === paraAsLetras && { backgroundColor: theme.color, opacity: 1 },
+                ]}
+              />
+            </Pressable>
+          ))}
+        </View>
 
         <View style={styles.staticBody}>
           {/* Grupo Principal: Título + Ações, Barra de Progresso e Controlos de Reprodução */}
           <View style={styles.mainControlsGroup}>
             {/* título + ações visíveis (guardar / adicionar a playlist) */}
+            {/* O título ocupa a largura toda. As ações estavam à direita dele
+                e, com duas linhas de título, empurravam-se uma à outra. */}
             <View style={styles.titleRow}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Pressable
@@ -627,6 +652,10 @@ export function PlayerRoot() {
                     : displayArtist(current)}
                 </Text>
               </View>
+            </View>
+
+            {/* Guardar, juntar a uma playlist, mandar a alguém. */}
+            <View style={styles.accoesRow}>
               <Pressable
                 hitSlop={8}
                 onPress={saveCurrentToLibrary}
@@ -646,6 +675,14 @@ export function PlayerRoot() {
                 accessibilityLabel="Add to playlist"
               >
                 <Ionicons name="add" size={22} color={colors.text} />
+              </Pressable>
+              <Pressable
+                hitSlop={8}
+                onPress={() => {if(offline)Alert.alert('Offline','Connect to the internet to share.');else setPartilhaAberta(true);}}
+                style={styles.actionsBtn}
+                accessibilityLabel="Partilhar com um amigo"
+              >
+                <Ionicons name="paper-plane-outline" size={19} color={colors.text} />
               </Pressable>
             </View>
 
@@ -993,6 +1030,14 @@ export function PlayerRoot() {
         onClose={() => setPlaylistOpen(false)}
       />
 
+      {/* ===================== PARTILHAR COM UM AMIGO ===================== */}
+      <ShareFriendSheet
+        visible={partilhaAberta}
+        itemType="track"
+        item={current}
+        onClose={() => setPartilhaAberta(false)}
+      />
+
       {/* ===================== LISTA DA FILA (QUEUE) ===================== */}
       <QueueSheet
         visible={queueVisible}
@@ -1095,6 +1140,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  pontosDoCubo: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 7,
+    marginBottom: 10,
+  },
+  ponto: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.textTertiary,
+    opacity: 0.5,
+  },
+  accoesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   actionsBtn: {
     width: 42,

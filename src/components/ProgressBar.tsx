@@ -84,7 +84,12 @@ export function ProgressBar({ positionMs, durationMs, onSeek, onScrubbingChange 
         </View>
       </View>
       <View style={styles.times}>
-        <Text style={styles.time}>{fmt(shownMs)}</Text>
+        {/* O tempo decorrido é o que se lê -- "onde vou" pergunta-se muito mais
+            do que "quanto dura". Ficavam os dois no mesmo cinzento fraco, e
+            nenhum se lia. A geometria não mudou: só o contraste. */}
+        <Text style={[styles.time, styles.decorrido, dragging && styles.aArrastar]}>
+          {fmt(shownMs)}
+        </Text>
         <Text style={styles.time}>{fmt(durationMs)}</Text>
       </View>
     </View>
@@ -138,5 +143,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: colors.textTertiary,
     fontVariant: ['tabular-nums'],
+  },
+  decorrido: {
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  // A arrastar, o número que muda passa a ser o mais legível do ecrã: é a
+  // confirmação de para onde se vai, sem precisar de balão nenhum.
+  aArrastar: {
+    color: colors.text,
   },
 });
