@@ -55,7 +55,7 @@ export function SearchScreen() {
   const { descobrir, nuncaLancado, ouvirDeNovo: listenAgain, flow: flowMix,
     maisTocadas: heavyRotation, esquecidas: forgottenFavorites } = recs;
   const loadingRecs = recs.estado === 'a-carregar';
-  const { results, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
+  const { results, naBiblioteca, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
     void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
   });
   useEffect(() => { void recs.carregar(); }, [recs.carregar]);
@@ -235,7 +235,7 @@ export function SearchScreen() {
               </View>
             )}
           </ScrollView>
-        ) : results.length === 0 ? (
+        ) : results.length === 0 && naBiblioteca.length === 0 ? (
           <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
             <EmptyState
               icon="logo-youtube"
@@ -254,6 +254,34 @@ export function SearchScreen() {
             contentContainerStyle={{ paddingBottom: bottomPad }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
+            /* O que já é teu vem PRIMEIRO, e sem esperar pela rede. A procura
+               ao YouTube continua por baixo, e é a mesma de sempre. */
+            ListHeaderComponent={naBiblioteca.length > 0 ? (
+              <View>
+                <View style={[styles.sectionHeader, { marginBottom: spacing.sm }]}>
+                  <Ionicons name="heart" size={18} color={colors.text} />
+                  <Text style={styles.sectionTitle}>Na tua biblioteca</Text>
+                </View>
+                {naBiblioteca.map((t) => (
+                  <TrackRow
+                    key={`local:${t.source}:${t.sourceId}`}
+                    track={t}
+                    active={current?.source === t.source && current?.sourceId === t.sourceId}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      playTrack(t, naBiblioteca, true);
+                    }}
+                    onAction={() => setActionTrack(t)}
+                  />
+                ))}
+                {results.length > 0 && (
+                  <View style={[styles.sectionHeader, { marginTop: spacing.lg, marginBottom: spacing.sm }]}>
+                    <Ionicons name="logo-youtube" size={18} color={colors.text} />
+                    <Text style={styles.sectionTitle}>No YouTube</Text>
+                  </View>
+                )}
+              </View>
+            ) : null}
             renderItem={({ item }) => (
               <TrackRow
                 track={item}

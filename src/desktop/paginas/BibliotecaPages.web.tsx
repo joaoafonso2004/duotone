@@ -50,7 +50,7 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
   useEffect(() => { void recs.carregar(); }, []);
   // Conjunto das faixas já guardadas, para marcar os resultados com um coração.
   useEffect(() => { useSaved.getState().refresh(); getSearchHistory().then(setHistory); const focus = () => input.current?.focus(); window.addEventListener('duotone:focus-search', focus); return () => window.removeEventListener('duotone:focus-search', focus); }, []);
-  const { results, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
+  const { results, naBiblioteca, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
     void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
   });
   const run = (q = query) => { setQuery(q); pesquisarAgora(); };
@@ -59,8 +59,21 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} />}>
     <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
     {query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
-    <ContentScroll>{loading ? <View style={{ height: 320 }}><Loading /></View>
-      : results.length ? <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, results)} onMore={more} />
+    <ContentScroll>{
+      /* O que já é teu vem primeiro e não espera pela rede; o YouTube fica por
+         baixo. Ver lib/pesquisaLocal.ts. */
+      naBiblioteca.length || (results.length && !loading) ? <>
+        {naBiblioteca.length ? <>
+          <Text style={styles.sectionTitle}>In your library</Text>
+          <TrackTable tracks={naBiblioteca} onPlay={(t) => play(t, naBiblioteca)} onMore={more} />
+        </> : null}
+        {loading ? <View style={{ height: 200 }}><Loading /></View>
+          : results.length ? <>
+            {naBiblioteca.length ? <Text style={[styles.sectionTitle, { marginTop: 24 }]}>On YouTube</Text> : null}
+            <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, results)} onMore={more} />
+          </> : null}
+      </>
+      : loading ? <View style={{ height: 320 }}><Loading /></View>
       : errorMsg ? <Empty icon="cloud-offline-outline" title="Search failed" body={errorMsg} />
       : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
       : temRecomendacoes(recs) ? <>
