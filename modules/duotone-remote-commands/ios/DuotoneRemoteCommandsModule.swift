@@ -26,11 +26,16 @@ public class DuotoneRemoteCommandsModule: Module {
 
   /** Ver `aoInterromper`. Guardado para se poder largar no `OnDestroy`. */
   private var observadorDeInterrupcao: NSObjectProtocol?
+  private var observadorDeRota: NSObjectProtocol?
 
   public func definition() -> ModuleDefinition {
     Name("DuotoneRemoteCommands")
 
-    Events("onNextTrack", "onPreviousTrack", "onAudioInterrupted", "onAudioResumable")
+    Events(
+      "onNextTrack", "onPreviousTrack",
+      "onAudioInterrupted", "onAudioResumable",
+      "onAudioOutputRemoved"
+    )
 
     /**
      * O sistema a tirar e a devolver o audio.
@@ -47,6 +52,14 @@ public class DuotoneRemoteCommandsModule: Module {
         queue: .main
       ) { [weak self] nota in
         self?.aoInterromper(nota)
+      }
+
+      self.observadorDeRota = NotificationCenter.default.addObserver(
+        forName: AVAudioSession.routeChangeNotification,
+        object: AVAudioSession.sharedInstance(),
+        queue: .main
+      ) { [weak self] nota in
+        self?.aoMudarRota(nota)
       }
     }
 
@@ -104,6 +117,10 @@ public class DuotoneRemoteCommandsModule: Module {
           NotificationCenter.default.removeObserver(observador)
           self.observadorDeInterrupcao = nil
         }
+        if let observador = self.observadorDeRota {
+          NotificationCenter.default.removeObserver(observador)
+          self.observadorDeRota = nil
+        }
       }
     }
   }
@@ -139,6 +156,32 @@ public class DuotoneRemoteCommandsModule: Module {
     @unknown default:
       break
     }
+  }
+
+  /**
+   * A saida que estava a tocar desapareceu: fio puxado, Bluetooth desligado.
+   *
+   * O iOS ja pausou o AVPlayer sozinho -- e faz bem, senao a musica saltava
+   * para as colunas no meio da rua. O que faltava era a app FICAR A SABER: sem
+   * isto a intencao continuava em "tocar", o botao ficava em play, e com o
+   * crossfade so um dos dois motores tinha parado.
+   *
+   * So o `.oldDeviceUnavailable`. Ligar auscultadores TAMBEM e uma mudanca de
+   * rota (`.newDeviceAvailable`), e reagir a todas seria pausar a musica no
+   * instante exato em que a pessoa acabou de meter os AirPods.
+   *
+   * Nao ha evento de volta, de proposito: voltar a ligar nao retoma nada --
+   * como no Spotify. Retomar e escolha de quem ouve, nao do sistema.
+   */
+  private func aoMudarRota(_ nota: Notification) {
+    guard
+      let info = nota.userInfo,
+      let cru = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+      let motivo = AVAudioSession.RouteChangeReason(rawValue: cru),
+      motivo == .oldDeviceUnavailable
+    else { return }
+
+    sendEvent("onAudioOutputRemoved")
   }
 
   private func apply(next: Bool, previous: Bool) {

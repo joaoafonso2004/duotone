@@ -55,6 +55,22 @@ export function addAudioInterruptionListeners(
   };
 }
 
+/**
+ * A saída que estava a tocar desapareceu: fio puxado, Bluetooth desligado.
+ * Devolve o unsubscribe.
+ *
+ * Chega com o som JÁ pausado pelo iOS — isto serve só para a app deixar de se
+ * mostrar a tocar. Não há contraparte de "voltou a ligar", de propósito:
+ * reconectar os auscultadores não retoma nada, como no Spotify.
+ */
+export function addAudioOutputRemovedListener(onRemovida: () => void): () => void {
+  if (!native) return () => {};
+  const a = native.addListener('onAudioOutputRemoved', onRemovida);
+  return () => {
+    a.remove();
+  };
+}
+
 /** Há módulo nativo para a capa? Sem ele deixamos o expo-video tratar dela. */
 export function temCapaNativa(): boolean {
   return !!native?.setArtwork;

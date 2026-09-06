@@ -44,7 +44,7 @@ import { navigationRef } from '../navigation/RootNavigator';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
 import {
-  addAudioInterruptionListeners, addRemoteCommandListeners,
+  addAudioInterruptionListeners, addAudioOutputRemovedListener, addRemoteCommandListeners,
 } from '../../modules/duotone-remote-commands';
 import { deveRetomar } from '../lib/interrupcaoDeAudio';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
@@ -280,6 +280,25 @@ export function PlayerRoot() {
           if (retomar && !st.isPlaying) void st.togglePlay();
         }
       ),
+    []
+  );
+
+  // Tirar os auscultadores. O iOS pausa o AVPlayer sozinho, mas a app ficava a
+  // achar que estava a tocar: botão em play, Lock Screen desalinhado, e com o
+  // crossfade só um dos dois motores parado.
+  //
+  // Voltar a ligar NÃO retoma -- como no Spotify. É por isso que não há aqui
+  // um segundo handler: a ausência dele é a decisão.
+  useEffect(
+    () =>
+      addAudioOutputRemovedListener(() => {
+        const st = usePlayer.getState();
+        // A interrupção guarda a intenção para poder retomar; aqui limpa-se de
+        // propósito. Sem isto, uma chamada que acabasse logo a seguir lia um
+        // `tocavaAntes` velho e punha a tocar sem ninguém ter pedido.
+        tocavaAntesDaInterrupcao.current = false;
+        if (st.isPlaying) st.pausePlayback();
+      }),
     []
   );
 
