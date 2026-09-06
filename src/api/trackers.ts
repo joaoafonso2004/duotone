@@ -130,6 +130,17 @@ export async function trackerDoArtista(nome: string): Promise<ArtistaComTracker 
 // As faixas de um artista
 // ---------------------------------------------------------------------------
 
+/**
+ * As abas que a comunidade curou.
+ *
+ * O `main` traz tudo e pode ser enorme -- o do Chief Keef são 664 KB. Para uma
+ * prateleira que carrega sozinha ao abrir a app, e em dados móveis, isso não
+ * se faz. E o `best` é melhor pergunta na mesma: «do que ele nunca lançou, o
+ * que é que vale a pena ouvir?». Um artista sem estas abas simplesmente não
+ * entra na prateleira.
+ */
+export const ABAS_CURADAS = ['best', 'grails'] as const;
+
 const faixasEmMemoria = new Map<string, FaixaDoTracker[]>();
 const abaEmMemoria = new Map<string, { aba: string; total: number } | null>();
 
@@ -165,12 +176,18 @@ export async function abaDoTracker(folha: string): Promise<{ aba: string; total:
  * As faixas da aba escolhida. Só em memória, e só durante a sessão: são
  * dezenas ou centenas de KB por artista e não vale a pena enchê-lo no disco.
  */
-export async function faixasDoArtista(folha: string): Promise<FaixaDoTracker[]> {
+export async function faixasDoArtista(
+  folha: string,
+  abasAceites?: readonly string[],
+): Promise<FaixaDoTracker[]> {
   const guardadas = faixasEmMemoria.get(folha);
   if (guardadas) return guardadas;
 
   const escolhida = await abaDoTracker(folha);
   if (!escolhida) return [];
+  // A prateleira da Pesquisa só aceita as abas curadas -- ver a nota em
+  // `CURADAS`. Sem isto, um artista sem `best` arrastava o `main` inteiro.
+  if (abasAceites && !abasAceites.includes(escolhida.aba)) return [];
 
   const r = await pedir(`${API}/sh/${encodeURIComponent(folha)}/tab/${escolhida.aba}`);
   if (!r) return [];

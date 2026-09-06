@@ -171,6 +171,50 @@ export function porOuvir(
   return doTracker.filter((f) => !biblioteca.some((g) => jaTens(g, f)));
 }
 
+/**
+ * O que NÃO é a faixa, por muito que o título pareça.
+ *
+ * Procurar `Ken Carson Dream [V2]` no YouTube devolve, entre outras coisas,
+ * `|FREE| Ken Carson x Destroy Lonely x Playboicarti Type beat`. Traz o nome
+ * do artista, traz palavras do título, e o `pickBest` -- que foi feito para a
+ * importação do Spotify, onde a procura devolve a faixa a sério -- dá-lhe
+ * pontos por isso e confirma-a. Medido: em 15 procuras, 11 "confirmadas" e 5
+ * delas eram type beats ou outra música.
+ *
+ * Estas marcas não aparecem no título de uma faixa verdadeira.
+ */
+const NAO_E_A_FAIXA = /\b(type ?beat|beat ?pack|loop ?kit|drum ?kit|sample ?pack|instrumental|karaoke|reaction|reacts|tutorial|how to (make|rap))\b/i;
+
+/**
+ * Este vídeo é mesmo a faixa do tracker?
+ *
+ * Uma porta, e não uma pontuação. O `pickBest` fica onde está -- continua a
+ * escolher o melhor entre os resultados -- mas o que ele devolve tem ainda de
+ * passar por aqui, e aqui a DURAÇÃO é obrigatória dos dois lados.
+ *
+ * Ser obrigatória é o ponto: sem ela um type beat com o nome do artista no
+ * título passa. 97% das faixas das abas curadas trazem duração (medido em três
+ * trackers), por isso exigi-la custa quase nada -- e o que se perde é uma
+ * sugestão, enquanto o que se evita é uma prateleira de lixo com o nome
+ * "nunca lançado" por cima.
+ */
+export function aceitarDoYouTube(
+  f: FaixaDoTracker,
+  candidato: { titulo: string; duracaoSegundos?: number | null },
+): boolean {
+  if (NAO_E_A_FAIXA.test(candidato.titulo)) return false;
+
+  // O TÍTULO tem de lá estar. Só a duração não chega: `Living Reckless [V2]`
+  // saía como `Playboi Carti - SOUTH ATLANTA BABY` porque o `pickBest` dá
+  // pontos por o artista bater e a duração calhou dentro da tolerância. Dois
+  // títulos sem uma palavra em comum não são a mesma faixa, dure o que durar.
+  const alvo = normalizar(f.titulo);
+  const achado = normalizar(candidato.titulo);
+  if (!alvo || !achado || !achado.includes(alvo)) return false;
+
+  return duracoesCasam(candidato.duracaoSegundos, f.duracaoSegundos);
+}
+
 /** O que se manda procurar ao YouTube para uma destas. */
 export function procuraNoYouTube(artista: string, f: FaixaDoTracker): string {
   const versao = /\[[^\]]*\]/.test(f.titulo) ? f.titulo : `${f.titulo} ${f.era}`.trim();

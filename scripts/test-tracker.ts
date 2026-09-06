@@ -6,8 +6,8 @@
  * para a testar seria testar outra coisa.
  */
 import {
-  capasPorEra, faixasDoTracker, iniciaisDaEra, jaTens, porOuvir, procuraNoYouTube,
-  segundosDoTempo, tituloLimpo, type FaixaDoTracker,
+  aceitarDoYouTube, capasPorEra, faixasDoTracker, iniciaisDaEra, jaTens, porOuvir,
+  procuraNoYouTube, segundosDoTempo, tituloLimpo, type FaixaDoTracker,
 } from '../src/lib/tracker.ts';
 
 let mau = 0;
@@ -135,6 +135,33 @@ console.log('\nas capas de cada era');
   check('a era que nunca saiu fica sem capa', !capas.has('death in tune'));
   eq('sem biblioteca não há capas', capasPorEra(doTrackerComEras, []).size, 0);
 }
+
+console.log('\na porta do que vem do YouTube');
+// TODOS os exemplos abaixo saíram de procuras a sério, e os que falham eram
+// resultados que o `pickBest` tinha dado como confirmados. Ver a nota em
+// `aceitarDoYouTube`: ele foi feito para a importação do Spotify, onde a
+// procura devolve a faixa; aqui o espaço está cheio de type beats.
+check('a faixa certa passa',
+  aceitarDoYouTube(t('Cry', 199), { titulo: 'Playboi Carti - Cry (Official Audio)', duracaoSegundos: 200 }));
+check('um type beat com o nome do artista NÃO passa',
+  !aceitarDoYouTube(t('Dream [V2]', 113), { titulo: '|FREE|Ken Carson x Destroy Lonley x Playboicarti Type beat', duracaoSegundos: 113 }));
+check('nem em minúsculas e entre chavetas',
+  !aceitarDoYouTube(t('Pissed Off [V2]', 136), { titulo: '{free} ken carson xperiment type beat "pissed off"', duracaoSegundos: 136 }));
+check('nem um instrumental',
+  !aceitarDoYouTube(t('Faster [V2]', 160), { titulo: 'Playboi Carti - Faster (Instrumental)', duracaoSegundos: 160 }));
+// O caso que só a duração não apanhava: dois títulos sem uma palavra em comum.
+check('outra música com a duração a calhar NÃO passa',
+  !aceitarDoYouTube(t('Living Reckless [V2]', 135), { titulo: 'Playboi Carti - SOUTH ATLANTA BABY (Official Audio)', duracaoSegundos: 135 }));
+check('a duração fora da tolerância não passa',
+  !aceitarDoYouTube(t('Loot', 109), { titulo: 'Ken Carson - Loot', duracaoSegundos: 140 }));
+check('sem duração do lado do YouTube não passa',
+  !aceitarDoYouTube(t('Loot', 109), { titulo: 'Ken Carson - Loot', duracaoSegundos: null }));
+check('sem duração no tracker também não',
+  !aceitarDoYouTube(t('Loot', null), { titulo: 'Ken Carson - Loot', duracaoSegundos: 109 }));
+// A versão vive entre parênteses rectos e o `normalizar` tira-a: `6PM [V2]`
+// tem de continuar a casar com um vídeo que lhe chame só `6PM`.
+check('a marca de versão não impede o encontro',
+  aceitarDoYouTube(t('6PM [V2]', 136), { titulo: 'Destroy Lonely - 6PM (unreleased)', duracaoSegundos: 137 }));
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

@@ -2,6 +2,7 @@ import { feedbackReady,filterSuggestions } from './recommendationFeedback';
 import { create } from 'zustand';
 import { getLibrary } from '../api/library';
 import { descobrirNovas, flowDoDia } from '../api/descoberta';
+import { nuncaLancadas } from '../api/naoLancado';
 import {
   getForgottenFavorites, getHeavyRotation, getProfileRecentlyPlayed,
 } from '../api/plays';
@@ -31,6 +32,8 @@ export type EstadoDasRecomendacoes = 'vazio' | 'a-carregar' | 'pronto';
 
 type Recomendacoes = {
   descobrir: Track[];
+  /** O que os teus artistas nunca lançaram. Ver api/naoLancado.ts. */
+  nuncaLancado: Track[];
   ouvirDeNovo: Track[];
   flow: Track[];
   maisTocadas: Track[];
@@ -53,10 +56,11 @@ const POR_PRATELEIRA = 14;
 /** Impede que duas chamadas ao mesmo tempo façam o trabalho a dobrar. */
 let emCurso: Promise<void> | null = null;
 let geracao = 0;
-let rawShelves:Partial<Record<'descobrir'|'ouvirDeNovo'|'flow'|'maisTocadas'|'esquecidas',Track[]>>={};
+let rawShelves:Partial<Record<'descobrir'|'nuncaLancado'|'ouvirDeNovo'|'flow'|'maisTocadas'|'esquecidas',Track[]>>={};
 
 export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
   descobrir: [],
+  nuncaLancado: [],
   ouvirDeNovo: [],
   flow: [],
   maisTocadas: [],
@@ -67,7 +71,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
     geracao++;
     rawShelves={};
     emCurso = null;
-    set({ descobrir: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], estado: 'vazio', carregadoEm: 0 });
+    set({ descobrir: [], nuncaLancado: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], estado: 'vazio', carregadoEm: 0 });
   },
 
   carregar: async (forcar = false) => {
@@ -109,6 +113,9 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
       getLibrary().then((lib) => Promise.all([
         publicar(descobrirNovas(POR_PRATELEIRA, lib), (descobrir) => ({ descobrir })),
         publicar(flowDoDia(POR_PRATELEIRA, lib), (flow) => ({ flow })),
+        // Falha por si, como as outras: sem trackers para estes artistas, ou
+        // sem rede, a prateleira não aparece e as vizinhas nem dão por isso.
+        publicar(nuncaLancadas(POR_PRATELEIRA, lib), (nuncaLancado) => ({ nuncaLancado })),
       ])).catch(() => {}),
     ])).then(() => {
       if (atual !== geracao) return;
@@ -128,8 +135,8 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
 
 /** Há alguma coisa para mostrar? */
 export const temRecomendacoes = (r: Recomendacoes): boolean =>
-  r.descobrir.length > 0 || r.ouvirDeNovo.length > 0 || r.flow.length > 0
-  || r.maisTocadas.length > 0 || r.esquecidas.length > 0;
+  r.descobrir.length > 0 || r.nuncaLancado.length > 0 || r.ouvirDeNovo.length > 0
+  || r.flow.length > 0 || r.maisTocadas.length > 0 || r.esquecidas.length > 0;
 
 /** Aplica uma alteração sem refazer os pedidos nem alterar a fila manual. */
 export function refreshSuggestionPreferences():void {

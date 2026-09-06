@@ -107,7 +107,7 @@ export async function candidatasParaDescoberta(
   const vistas = new Set<string>();
   for (let i = 0; i < desejadas.length && saida.length < quantas; i += EM_PARALELO) {
     const lote = desejadas.slice(i, i + EM_PARALELO);
-    const achadas = await Promise.all(lote.map(procurarNoYouTube));
+    const achadas = await Promise.all(lote.map((f) => procurarNoYouTube(f)));
     for (const t of achadas) {
       if (!t||trackIsSuppressed(t)) continue;
       const k = trackKey(t);
@@ -215,7 +215,22 @@ async function faixasParaProcurar(
  * confiança devolve nada: numa prateleira automática ninguém está lá para
  * corrigir a escolha errada.
  */
-async function procurarNoYouTube(faixa: FaixaDoCatalogo): Promise<Track | null> {
+/**
+ * Exportado porque o segundo catálogo (api/naoLancado.ts) precisa do MESMO
+ * resolvedor: dar-lhe outro seria ter duas ideias diferentes de quando um
+ * vídeo do YouTube é mesmo a faixa que se pediu.
+ */
+export async function procurarNoYouTube(
+  faixa: FaixaDoCatalogo,
+  /**
+   * Porta extra sobre o candidato ESCOLHIDO, com os valores tal como o
+   * YouTube os deu. Corre antes de qualquer substituição -- é esse o ponto:
+   * o `durationSeconds` abaixo cai para a duração do alvo quando a pesquisa
+   * não a trouxe, e uma porta que corresse depois estaria a comparar a
+   * duração do alvo consigo própria. Ver `aceitarDoYouTube` em lib/tracker.
+   */
+  aceitar?: (candidato: { titulo: string; duracaoSegundos: number | null }) => boolean,
+): Promise<Track | null> {
   let achados;
   try {
     achados = await searchYouTubeFreeWithChannel(`${faixa.artista} ${faixa.titulo}`);
@@ -237,6 +252,10 @@ async function procurarNoYouTube(faixa: FaixaDoCatalogo): Promise<Track | null> 
 
   const escolhida = achados.find((a) => a.track.sourceId === best.id);
   if (!escolhida) return null;
+  if (aceitar && !aceitar({
+    titulo: escolhida.track.title,
+    duracaoSegundos: escolhida.track.durationSeconds ?? null,
+  })) return null;
   // O artista passa a ser o do catálogo e não o que se adivinha do título: é o
   // nome certo, e é o que a biblioteca vai guardar se ele gostar da faixa.
   //

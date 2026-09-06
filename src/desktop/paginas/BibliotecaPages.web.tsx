@@ -43,7 +43,7 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
   // recommendations..." do zero, e a espera nao e pequena.
   const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
-  const { descobrir, ouvirDeNovo, flow, maisTocadas, esquecidas } = recs;
+  const { descobrir, nuncaLancado, ouvirDeNovo, flow, maisTocadas, esquecidas } = recs;
   const recsCarregadas = recs.estado === 'pronto';
   // Nao repete o trabalho: se ja estao carregadas ou a carregar, isto e um
   // no-op. Existe para o caso de a app nao as ter comecado no arranque.
@@ -65,6 +65,9 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
       : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
       : temRecomendacoes(recs) ? <>
           <Shelf titulo="Discover new" nota="music you don't have yet, based on what you listen to" tracks={descobrir} onPlay={play} onMore={more} />
+          {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
+              vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
+          <Shelf titulo="Never released" nota="what your artists never put out" tracks={nuncaLancado} onPlay={play} onMore={more} />
           <Shelf titulo="Listen again" tracks={ouvirDeNovo} onPlay={play} onMore={more} />
           <Shelf titulo="Daily flow" nota="based on your listening" tracks={flow} onPlay={play} onMore={more} />
           <Shelf titulo="Heavy rotation" tracks={maisTocadas} onPlay={play} onMore={more} />

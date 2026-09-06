@@ -52,7 +52,7 @@ export function SearchScreen() {
 
   const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
-  const { descobrir, ouvirDeNovo: listenAgain, flow: flowMix,
+  const { descobrir, nuncaLancado, ouvirDeNovo: listenAgain, flow: flowMix,
     maisTocadas: heavyRotation, esquecidas: forgottenFavorites } = recs;
   const loadingRecs = recs.estado === 'a-carregar';
   const { results, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
@@ -217,6 +217,11 @@ export function SearchScreen() {
                 {/* A PRIMEIRA prateleira e so descoberta: musica que ele nao tem,
                     escolhida pelo que ele ouve. */}
                 {renderRecommendationSection('Discover new', descobrir, 'sparkles-outline')}
+                {/* Logo a seguir, e de propósito. O "Discover new" vai para
+                    FORA -- artistas vizinhos, e só música que saiu. Esta vai
+                    para dentro: o que os artistas dele nunca lançaram, que não
+                    existe em catálogo nenhum. Ver api/naoLancado.ts. */}
+                {renderRecommendationSection('Never released', nuncaLancado, 'lock-open-outline')}
                 {listenAgain.length > 0 && renderRecommendationSection('Listen again', listenAgain, 'time-outline')}
                 {renderRecommendationSection('Daily flow', flowMix, 'sparkles-outline')}
                 {renderRecommendationSection('Heavy rotation', heavyRotation, 'flame-outline')}
