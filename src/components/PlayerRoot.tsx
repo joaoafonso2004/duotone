@@ -109,6 +109,16 @@ export function PlayerRoot() {
   // Deslocamento vertical do gesto de "arrastar para baixo para fechar" o
   // now-playing. Soma-se ao translateY do overlay (e da frame de vídeo).
   const dragY = useRef(new Animated.Value(0)).current;
+  /**
+   * O raio dos cantos, à parte.
+   *
+   * Tudo o resto da moldura passou a animar por transformação, que corre na UI
+   * thread. O `borderRadius` não é transformável e teria de continuar a
+   * atravessar a ponte a cada fotograma -- mas sozinho é uma propriedade de
+   * pintura, barata, e não obriga a recalcular layout como o left/top/width.
+   * Corre em paralelo com o `anim`, com a mesma mola.
+   */
+  const animRaio = useRef(new Animated.Value(0)).current;
   const dragX = useRef(new Animated.Value(0)).current;
   const widthRef = useRef(W); widthRef.current = W;
   const swiping = useRef(false);
@@ -355,12 +365,10 @@ export function PlayerRoot() {
     if (expanded) {
       dragY.setValue(0);
     }
-    Animated.spring(anim, {
-      toValue: expanded ? 1 : 0,
-      useNativeDriver: false,
-      speed: 14,
-      bounciness: 3,
-    }).start();
+    Animated.parallel([
+      Animated.spring(anim, { toValue: expanded ? 1 : 0, useNativeDriver: true, speed: 14, bounciness: 3 }),
+      Animated.spring(animRaio, { toValue: expanded ? 1 : 0, useNativeDriver: false, speed: 14, bounciness: 3 }),
+    ]).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, anim, dragY, current?.sourceId]);
 
@@ -390,9 +398,10 @@ export function PlayerRoot() {
 
     setOrigemDaEntrada(origem);
     anim.setValue(-1);
+    animRaio.setValue(0);
     Animated.spring(anim, {
       toValue: expanded ? 1 : 0,
-      useNativeDriver: false,
+      useNativeDriver: true,
       speed: 14,
       bounciness: 3,
     }).start(({ finished }) => { if (finished) setOrigemDaEntrada(null); });
@@ -431,14 +440,14 @@ export function PlayerRoot() {
           Animated.timing(dragY, {
             toValue: 0,
             duration: 220,
-            useNativeDriver: false,
+            useNativeDriver: true,
           }).start();
         } else {
-          Animated.spring(dragY, { toValue: 0, useNativeDriver: false }).start();
+          Animated.spring(dragY, { toValue: 0, useNativeDriver: true }).start();
         }
       },
       onPanResponderTerminate: () => {
-        Animated.spring(dragY, { toValue: 0, useNativeDriver: false }).start();
+        Animated.spring(dragY, { toValue: 0, useNativeDriver: true }).start();
       },
     })
   ).current;
@@ -579,6 +588,33 @@ export function PlayerRoot() {
     w: ART_FULL,
     h: ART_FULL,
   };
+
+  /**
+   * Onde a moldura tem de estar em cada paragem, em escala e deslocação.
+   *
+   * O centro é o que se desloca: escalar em RN é à volta do centro, por isso
+   * basta levar o centro do quadrado grande até ao centro do sítio de destino
+   * e encolher. Assim não há uma única propriedade de layout a animar.
+   */
+  const centro = (r: { x: number; y: number; w: number; h: number }) => ({
+    x: r.x + r.w / 2,
+    y: r.y + r.h / 2,
+  });
+  const centroFull = centro(vidFull);
+  const centroMini = centro(vidMini);
+  const escalaMini = vidMini.w / vidFull.w;
+  const deslocacaoMini = { x: centroMini.x - centroFull.x, y: centroMini.y - centroFull.y };
+  const origemComoRect = origemDaEntrada
+    ? { x: origemDaEntrada.x, y: origemDaEntrada.y, w: origemDaEntrada.largura, h: origemDaEntrada.altura }
+    : vidMini;
+  const centroOrigem = centro(origemComoRect);
+  const escalaOrigem = origemComoRect.w / vidFull.w;
+  const deslocacaoOrigem = { x: centroOrigem.x - centroFull.x, y: centroOrigem.y - centroFull.y };
+  // Sem voo de entrada a interpolação tem duas paragens, exactamente como antes.
+  const faixaDoVoo = origemDaEntrada ? [-1, 0, 1] : [0, 1];
+  const saidaDoVoo = (deOrigem: number, deMini: number, deFull: number) =>
+    origemDaEntrada ? [deOrigem, deMini, deFull] : [deMini, deFull];
+
 
   // upNext is now handled inside QueueSheet
 
@@ -974,35 +1010,49 @@ export function PlayerRoot() {
           style={{
             position: 'absolute',
             opacity: expanded ? visibilityAnim : Animated.multiply(visibilityAnim,miniFade),
-            left: anim.interpolate({
-              inputRange: origemDaEntrada ? [-1, 0, 1] : [0, 1],
-              outputRange: origemDaEntrada
-                ? [origemDaEntrada.x, vidMini.x, vidFull.x]
-                : [vidMini.x, vidFull.x],
+            // A moldura fica SEMPRE com a geometria do player grande, e vai
+            // ao mini por escala e deslocação. O left/top/width/height são
+            // propriedades de layout: não correm no driver nativo, e cada
+            // fotograma tinha de atravessar a ponte para o JS e recalcular
+            // layout -- era isso que dava a sensação de meia-cadência ao
+            // minimizar. Escala e deslocação correm na UI thread.
+            //
+            // Ordem importa: translate depois de scale, para o arrasto do dedo
+            // continuar a ser em píxeis de ecrã e não em píxeis encolhidos.
+            left: vidFull.x,
+            top: vidFull.y,
+            width: vidFull.w,
+            height: vidFull.h,
+            borderRadius: animRaio.interpolate({
+              inputRange: [0, 1],
+              outputRange: [8, 20],
             }),
-            top: anim.interpolate({
-              inputRange: origemDaEntrada ? [-1, 0, 1] : [0, 1],
-              outputRange: origemDaEntrada
-                ? [origemDaEntrada.y, vidMini.y, vidFull.y]
-                : [vidMini.y, vidFull.y],
-            }),
-            width: anim.interpolate({
-              inputRange: origemDaEntrada ? [-1, 0, 1] : [0, 1],
-              outputRange: origemDaEntrada
-                ? [origemDaEntrada.largura, vidMini.w, vidFull.w]
-                : [vidMini.w, vidFull.w],
-            }),
-            height: anim.interpolate({
-              inputRange: origemDaEntrada ? [-1, 0, 1] : [0, 1],
-              outputRange: origemDaEntrada
-                ? [origemDaEntrada.altura, vidMini.h, vidFull.h]
-                : [vidMini.h, vidFull.h],
-            }),
-            borderRadius: anim.interpolate({
-              inputRange: origemDaEntrada ? [-1, 0, 1] : [0, 1],
-              outputRange: origemDaEntrada ? [8, 8, 20] : [8, 20],
-            }),
-            transform: [{ translateY: dragY },{translateX:expanded||reducedMotion?0:Animated.add(dragX,(1-closeGain)*W)}],
+            transform: [
+              {
+                translateX: Animated.add(
+                  anim.interpolate({
+                    inputRange: faixaDoVoo,
+                    outputRange: saidaDoVoo(deslocacaoOrigem.x, deslocacaoMini.x, 0),
+                  }),
+                  expanded || reducedMotion ? 0 : Animated.add(dragX, (1 - closeGain) * W)
+                ),
+              },
+              {
+                translateY: Animated.add(
+                  anim.interpolate({
+                    inputRange: faixaDoVoo,
+                    outputRange: saidaDoVoo(deslocacaoOrigem.y, deslocacaoMini.y, 0),
+                  }),
+                  dragY
+                ),
+              },
+              {
+                scale: anim.interpolate({
+                  inputRange: faixaDoVoo,
+                  outputRange: saidaDoVoo(escalaOrigem, escalaMini, 1),
+                }),
+              },
+            ],
             overflow: expanded ? 'visible' : 'hidden',
             backgroundColor: expanded ? 'transparent' : '#000',
           }}

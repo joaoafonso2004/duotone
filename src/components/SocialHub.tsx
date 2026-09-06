@@ -163,7 +163,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         {social.groups.map(g=>{
           const porLer=!!unread.get(`group:${g.id}`);
           return <Pressable key={g.id} accessibilityRole="button" accessibilityState={{selected:conversation?.kind==='group'&&conversation.id===g.id}}
-            style={({pressed,hovered}:any)=>[s.conversa,(pressed||hovered||conversation?.id===g.id)&&{backgroundColor:colors.surface}]}
+            style={[s.conversa,conversation?.id===g.id&&{backgroundColor:colors.surface}]}
             onPress={()=>open('group',g.id)}>
             <GroupAvatar group={g} size={54}/>
             <View style={{flex:1,minWidth:0,gap:2}}>
@@ -185,7 +185,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
             onPress={()=>open('friend',f.friendId)}
             onLongPress={()=>setConfirm({id:f.friendId,group:false})}
             delayLongPress={350}
-            style={({pressed,hovered}:any)=>[s.conversa,(pressed||hovered||activa)&&{backgroundColor:colors.surface}]}>
+            style={[s.conversa,activa&&{backgroundColor:colors.surface}]}>
             <Pressable accessibilityLabel={`View ${f.name}`} onPress={()=>onProfile(f.friendId)}>
               <AvatarDeConversa avatarUrl={f.avatarUrl} nome={f.name} online={f.online}/>
             </Pressable>
