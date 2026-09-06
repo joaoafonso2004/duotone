@@ -46,6 +46,8 @@ import { useAutoplayRadio } from '../lib/radioSync';
 import {
   addAudioInterruptionListeners, addAudioOutputRemovedListener, addRemoteCommandListeners,
 } from '../../modules/duotone-remote-commands';
+import { addIntentListener } from '../../modules/duotone-intents';
+import { accaoParaComando } from '../lib/comandosDaSiri';
 import { deveRetomar } from '../lib/interrupcaoDeAudio';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 
@@ -298,6 +300,24 @@ export function PlayerRoot() {
         // `tocavaAntes` velho e punha a tocar sem ninguém ter pedido.
         tocavaAntesDaInterrupcao.current = false;
         if (st.isPlaying) st.pausePlayback();
+      }),
+    []
+  );
+
+  // Os atalhos da Siri. Não passam pelo `togglePlay` de propósito: quem fala
+  // não vê o estado antes de falar, e dizer "tocar" com a música já a tocar
+  // não pode pausá-la. A decisão está em lib/comandosDaSiri.ts, testada.
+  useEffect(
+    () =>
+      addIntentListener((comando) => {
+        const st = usePlayer.getState();
+        const accao = accaoParaComando(comando, {
+          aTocar: st.isPlaying,
+          temFaixa: !!st.current,
+        });
+        if (accao === 'tocar' || accao === 'pausar') void st.togglePlay();
+        else if (accao === 'seguinte') void st.next();
+        else if (accao === 'anterior') void st.prev();
       }),
     []
   );
