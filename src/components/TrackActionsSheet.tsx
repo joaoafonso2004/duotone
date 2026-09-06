@@ -77,6 +77,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
           stream.contentLength,
           track.durationSeconds || stream.durationSeconds || null,
           {
+            prioridade: 'explicito',
             shouldAbort:()=>useConnectivity.getState().offline,
             renewUrl: async () =>
               (await resolveYouTubeStream(track.sourceId, quality, true)).url,

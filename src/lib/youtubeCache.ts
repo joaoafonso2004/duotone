@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixMp4Duration } from './mp4Fixer';
 import { validarRespostaParcial } from './audioRange';
+import { largarVez, pedirVez, type Prioridade } from './filaDeDownloads';
 
 let File: any;
 let Paths: any;
@@ -326,7 +327,11 @@ export interface DownloadOptions {
    * expirado (ou preso a um IP antigo) é irrecuperável: os 4 retries
    * repetem exatamente o mesmo URL morto. Devolve null se não der. */
   renewUrl?: () => Promise<string | null>;
+  /** Quem fica a frente na fila. Ver `Prioridade`. */
+  prioridade?: Prioridade;
 }
+
+
 
 /** Erro lançado quando um download é abortado via shouldAbort — os callers
  * tratam-no como cancelamento silencioso, não como falha. */
@@ -342,8 +347,30 @@ export async function downloadProgressiveAudio(
 ): Promise<string> {
   if (Platform.OS === 'web') return '';
   const dest = cachedAudioFile(videoId);
+  // O que ja esta em disco nem chega a entrar na fila.
   if (dest.exists) return dest.uri;
   if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+
+  await pedirVez(opts.prioridade ?? 'explicito');
+  try {
+    // Entre pedir a vez e chega-la, a faixa pode ter mudado ou outro job pode
+    // ter descarregado esta mesma.
+    if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+    if (dest.exists) return dest.uri;
+    return await descarregarAgora(videoId, url, knownLength, durationSeconds, opts, dest);
+  } finally {
+    largarVez();
+  }
+}
+
+async function descarregarAgora(
+  videoId: string,
+  url: string,
+  knownLength: number | null,
+  durationSeconds: number | null,
+  opts: DownloadOptions,
+  dest: any
+): Promise<string> {
 
   let currentUrl = url;
   let chunkSize = CHUNK_BYTES;

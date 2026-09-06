@@ -863,6 +863,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           stream.contentLength,
           track.durationSeconds || stream.durationSeconds || null,
           {
+            // Esta e a faixa que o utilizador esta a ouvir: ninguem a ultrapassa.
+            prioridade: 'reproducao',
             // Aborta entre chunks se o utilizador trocar de faixa — sem isto,
             // saltar várias faixas deixava vários downloads completos a
             // competir pela rede.
@@ -961,6 +963,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         stream.contentLength,
         track.durationSeconds || stream.durationSeconds || null,
         {
+          prioridade: 'reproducao',
           shouldAbort: () => !isMountedRef.current || myRun !== runIdRef.current,
           onProgress: (f) => {
             if (isMountedRef.current && myRun === runIdRef.current) setDownloadProgress(f);
@@ -1326,6 +1329,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             stream.contentLength,
             nextTrack.durationSeconds || stream.durationSeconds || null,
             {
+              // O crossfade precisa desta pronta a tempo, por isso vem antes de
+              // qualquer gravacao de fundo -- mas nunca a frente do que toca.
+              prioridade: 'seguinte',
               shouldAbort: () => cancelled,
               renewUrl: async () =>
                 (await resolveYouTubeStream(nextTrack.sourceId, quality, true)).url,
