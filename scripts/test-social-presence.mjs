@@ -15,7 +15,14 @@ assert.equal(estadoDaPresenca(p,now+2000).track,null);
 assert.equal(estadoDaPresenca(p,now+2000).online,true);
 assert.equal(estadoDaPresenca(p,now+6000).online,false);
 assert.equal(estadoDaPresenca({...p,online_until:'inválido'},now).online,false);
-assert.equal(ultimaAtividade(undefined,now),'Last seen unknown');
+// Sem data nao se inventa: "Offline" fala do amigo, "Last seen unknown"
+// falava da nossa base de dados.
+assert.equal(ultimaAtividade(undefined,now),'Offline');
+assert.match(ultimaAtividade(iso(-3*86400000),now),/3 d ago/);
+// A lista nao pode misturar "6 h ago" com "05/09, 16:30": passada uma semana
+// mostra-se a data, e nunca as horas.
+const antigo=ultimaAtividade(iso(-30*86400000),now);
+assert.match(antigo,/Last seen \d+ \w+$/,`data antiga mal formatada: ${antigo}`);
 assert.match(ultimaAtividade(iso(-120000),now),/2 min/);
 const {imageCrop}=carregar('../src/lib/profileImageCrop.ts');
 const top=imageCrop(100,400,1,0.5,0),bottom=imageCrop(100,400,1,0.5,1);

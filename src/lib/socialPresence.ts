@@ -18,10 +18,18 @@ export function estadoDaPresenca(p: SocialPresence | undefined, now: number) {
 
 export function ultimaAtividade(iso: string | null | undefined, now = Date.now()): string {
   const at = Date.parse(iso ?? '');
-  if (!Number.isFinite(at)) return 'Last seen unknown';
+  // Não sabermos quando foi não é uma informação sobre a pessoa. "Last seen
+  // unknown" dizia mais sobre a nossa base de dados do que sobre o amigo.
+  if (!Number.isFinite(at)) return 'Offline';
   const minutos = Math.floor(Math.max(0, now - at) / 60000);
   if (minutos < 1) return 'Last seen just now';
   if (minutos < 60) return `Last seen ${minutos} min ago`;
-  if (minutos < 1440) return `Last seen ${Math.floor(minutos / 60)} h ago`;
-  return `Last seen ${new Date(at).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `Last seen ${horas} h ago`;
+  const dias = Math.floor(horas / 24);
+  // Uma semana de distância ainda se lê melhor em dias; mais do que isso, a
+  // data diz mais. O que não pode é a lista misturar "6 h ago" com
+  // "05/09, 16:30" -- eram duas grelhas mentais na mesma coluna.
+  if (dias < 7) return `Last seen ${dias} d ago`;
+  return `Last seen ${new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
 }
