@@ -42,6 +42,7 @@
       "favicon": "./assets/icon.png"
     },
     "plugins": [
+      "./plugins/atalhos-da-siri",
       "expo-secure-store",
       [
         "expo-video",

@@ -1,7 +1,17 @@
 import AppIntents
+// A ponte vive no pod; as frases têm de viver no alvo da app (ver o porquê
+// no cabeçalho abaixo), por isso o módulo importa-se explicitamente.
+import DuotoneIntents
 
 /**
  * Os atalhos que a Siri conhece sem ninguém os configurar.
+ *
+ * ESTE FICHEIRO NÃO VIVE AQUI: é copiado para dentro do alvo principal da app
+ * pelo `plugins/atalhos-da-siri.js`, a cada prebuild. O Xcode só extrai um
+ * `AppShortcutsProvider` do alvo da app -- quando isto estava no pod, as
+ * AÇÕES eram extraídas na mesma (apareciam nos Atalhos) mas o campo
+ * `autoShortcuts` do bundle saía vazio, e a Siri respondia que não podia
+ * fazer aquilo. Confirmado a ler o Metadata.appintents do .ipa da 1.11.1.
  *
  * Um `AppShortcutsProvider` publica-os na instalação: "Ei Siri, faixa seguinte
  * no Duotone" passa a funcionar sem a pessoa ir aos Atalhos criar seja o que

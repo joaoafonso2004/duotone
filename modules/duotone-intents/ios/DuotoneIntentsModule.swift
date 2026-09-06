@@ -1,7 +1,7 @@
 import ExpoModulesCore
 
 /// O que a Siri (e, mais tarde, um botão de widget) pode pedir ao leitor.
-enum ComandoDeIntent: String {
+public enum ComandoDeIntent: String {
   case tocar
   case pausar
   case seguinte
@@ -20,17 +20,17 @@ enum ComandoDeIntent: String {
  * `enviar` devolve falso. É aí que o intent pede ao sistema para abrir a app,
  * em vez de falhar em silêncio.
  */
-final class PonteDeIntents {
-  static let partilhada = PonteDeIntents()
+public final class PonteDeIntents {
+  public static let partilhada = PonteDeIntents()
   private init() {}
 
   private var aoReceber: ((ComandoDeIntent) -> Void)?
   /// O comando que ficou à espera de a app acabar de abrir.
   private var pendente: ComandoDeIntent?
 
-  var ligado: Bool { aoReceber != nil }
+  public var ligado: Bool { aoReceber != nil }
 
-  func ligar(_ handler: @escaping (ComandoDeIntent) -> Void) {
+  public func ligar(_ handler: @escaping (ComandoDeIntent) -> Void) {
     aoReceber = handler
     // Abrir a app é assíncrono: quando a Siri diz "tocar" com ela fechada, o
     // intent corre ANTES de o leitor existir. Sem isto o comando perdia-se e a
@@ -42,7 +42,7 @@ final class PonteDeIntents {
     }
   }
 
-  func desligar() {
+  public func desligar() {
     aoReceber = nil
   }
 
@@ -52,7 +52,7 @@ final class PonteDeIntents {
   /// "faixa seguinte" para o entregar meia hora depois, quando a app abrisse
   /// por outra razão, seria um salto que ninguém pediu.
   @discardableResult
-  func enviar(_ comando: ComandoDeIntent, guardarSeFechado: Bool = false) -> Bool {
+  public func enviar(_ comando: ComandoDeIntent, guardarSeFechado: Bool = false) -> Bool {
     guard let handler = aoReceber else {
       if guardarSeFechado { pendente = comando }
       return false
