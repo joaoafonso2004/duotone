@@ -25,11 +25,21 @@ final class PonteDeIntents {
   private init() {}
 
   private var aoReceber: ((ComandoDeIntent) -> Void)?
+  /// O comando que ficou à espera de a app acabar de abrir.
+  private var pendente: ComandoDeIntent?
 
   var ligado: Bool { aoReceber != nil }
 
   func ligar(_ handler: @escaping (ComandoDeIntent) -> Void) {
     aoReceber = handler
+    // Abrir a app é assíncrono: quando a Siri diz "tocar" com ela fechada, o
+    // intent corre ANTES de o leitor existir. Sem isto o comando perdia-se e a
+    // app abria parada, que é a pior das duas hipóteses -- interrompeu a
+    // pessoa e não fez o que ela pediu.
+    if let guardado = pendente {
+      pendente = nil
+      enviar(guardado)
+    }
   }
 
   func desligar() {
@@ -37,9 +47,16 @@ final class PonteDeIntents {
   }
 
   /// Entrega o comando. Falso quando não há ninguém do outro lado.
+  ///
+  /// `guardarSeFechado` só faz sentido para quem também abre a app: guardar um
+  /// "faixa seguinte" para o entregar meia hora depois, quando a app abrisse
+  /// por outra razão, seria um salto que ninguém pediu.
   @discardableResult
-  func enviar(_ comando: ComandoDeIntent) -> Bool {
-    guard let handler = aoReceber else { return false }
+  func enviar(_ comando: ComandoDeIntent, guardarSeFechado: Bool = false) -> Bool {
+    guard let handler = aoReceber else {
+      if guardarSeFechado { pendente = comando }
+      return false
+    }
     DispatchQueue.main.async { handler(comando) }
     return true
   }

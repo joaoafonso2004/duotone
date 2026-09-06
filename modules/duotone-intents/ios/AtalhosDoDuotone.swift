@@ -7,27 +7,23 @@ import AppIntents
  * no Duotone" passa a funcionar sem a pessoa ir aos Atalhos criar seja o que
  * for. É a diferença entre uma funcionalidade que existe e uma que é usada.
  *
- * Todos partilham a mesma regra: se a app estiver viva, o comando chega ao
- * leitor sem abrir nada; se não estiver, pede-se ao sistema para a abrir. Ver
- * a `PonteDeIntents`.
+ * Só o "tocar" abre a app, e por uma razão simples: com a app fechada não há
+ * nada a tocar, por isso pausar ou saltar não têm o que fazer -- e responder
+ * "não está a tocar" é a resposta CERTA, não uma falha. Abrir a app para
+ * descobrir isso seria interromper a pessoa para não fazer nada.
  */
-
-@available(iOS 16.4, *)
-private func entregar(_ comando: ComandoDeIntent, _ intent: any AppIntent) throws {
-  if PonteDeIntents.partilhada.enviar(comando) { return }
-  // Sem app não há leitor. Isto abre-a em vez de a Siri dizer "pronto" sobre
-  // uma coisa que não aconteceu.
-  throw intent.needsToContinueInForegroundError()
-}
 
 @available(iOS 16.4, *)
 struct TocarNoDuotone: AppIntent {
   static var title: LocalizedStringResource = "Tocar"
   static var description = IntentDescription("Retoma a música onde ficou.")
-  static var openAppWhenRun: Bool = false
+  /// Sem app não há leitor: esta é a única que precisa mesmo de a abrir.
+  static var openAppWhenRun: Bool = true
 
   func perform() async throws -> some IntentResult {
-    try entregar(.tocar, self)
+    // Se a app ainda estiver a arrancar, a ponte guarda o comando e entrega-o
+    // assim que o leitor existir.
+    PonteDeIntents.partilhada.enviar(.tocar, guardarSeFechado: true)
     return .result()
   }
 }
@@ -38,9 +34,11 @@ struct PausarNoDuotone: AppIntent {
   static var description = IntentDescription("Pausa o que está a tocar.")
   static var openAppWhenRun: Bool = false
 
-  func perform() async throws -> some IntentResult {
-    try entregar(.pausar, self)
-    return .result()
+  func perform() async throws -> some IntentResult & ProvidesDialog {
+    if PonteDeIntents.partilhada.enviar(.pausar) {
+      return .result(dialog: "Pausado.")
+    }
+    return .result(dialog: "O Duotone não está a tocar.")
   }
 }
 
@@ -50,9 +48,11 @@ struct FaixaSeguinteNoDuotone: AppIntent {
   static var description = IntentDescription("Salta para a faixa a seguir na fila.")
   static var openAppWhenRun: Bool = false
 
-  func perform() async throws -> some IntentResult {
-    try entregar(.seguinte, self)
-    return .result()
+  func perform() async throws -> some IntentResult & ProvidesDialog {
+    if PonteDeIntents.partilhada.enviar(.seguinte) {
+      return .result(dialog: "Feito.")
+    }
+    return .result(dialog: "O Duotone não está a tocar.")
   }
 }
 
@@ -62,9 +62,11 @@ struct FaixaAnteriorNoDuotone: AppIntent {
   static var description = IntentDescription("Volta à faixa anterior.")
   static var openAppWhenRun: Bool = false
 
-  func perform() async throws -> some IntentResult {
-    try entregar(.anterior, self)
-    return .result()
+  func perform() async throws -> some IntentResult & ProvidesDialog {
+    if PonteDeIntents.partilhada.enviar(.anterior) {
+      return .result(dialog: "Feito.")
+    }
+    return .result(dialog: "O Duotone não está a tocar.")
   }
 }
 
