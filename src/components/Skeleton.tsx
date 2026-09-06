@@ -69,7 +69,32 @@ export function SkeletonDeArtistas({ linhas = 6 }: { linhas?: number }) {
   );
 }
 
+/**
+ * A grelha das playlists: dois quadrados grandes por linha, com o nome e a
+ * contagem por baixo. Um esqueleto com a forma da LISTA de faixas aqui era
+ * pior do que um spinner: prometia uma coisa e chegava outra.
+ */
+export function SkeletonDePlaylists({ lado, linhas = 3 }: { lado: number; linhas?: number }) {
+  return (
+    <View accessibilityLabel="A carregar" style={styles.grelha}>
+      {Array.from({ length: linhas * 2 }).map((_, i) => (
+        <View key={i} style={{ width: lado, gap: spacing.sm }}>
+          <Barra style={{ width: lado, height: lado, borderRadius: radii.lg }} />
+          <Barra style={{ height: 11, width: `${80 - (i % 3) * 15}%` }} />
+          <Barra style={{ height: 9, width: '40%' }} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  grelha: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.lg,
+    paddingHorizontal: spacing.xl,
+  },
   barra: {
     backgroundColor: colors.surfaceHigh,
     borderRadius: radii.sm,

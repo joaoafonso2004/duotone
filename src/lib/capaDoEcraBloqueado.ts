@@ -18,6 +18,30 @@
 
 const YTIMG_RE = /^https?:\/\/i\.ytimg\.com\/vi\/([A-Za-z0-9_-]{6,})\/[A-Za-z0-9_]+\.jpg(\?.*)?$/;
 
+/**
+ * A capa para um quadrado pequeno -- uma linha de lista, uma grelha.
+ *
+ * O `hqdefault` é 4:3 (480x360) e traz a moldura preta em cima e em baixo: num
+ * recorte quadrado ela vai junto, e é por isso que as listas ficavam com barras
+ * pretas à volta de metade das capas.
+ *
+ * O `mqdefault` é 16:9 (320x180) e não tem essa moldura. Recortado ao centro
+ * num quadrado dá as duas coisas certas: numa capa de álbum quadrada, o
+ * recorte cai exactamente sobre ela e as barras laterais ficam de fora; num
+ * vídeo mesmo 16:9, dá o centro da imagem. Em nenhum dos casos sobra preto.
+ *
+ * 320x180 chega e sobra para 48 px, e é uma imagem muito mais leve numa lista
+ * de milhares de linhas.
+ *
+ * Função pura -- ver scripts/test-capa.ts.
+ */
+export function capaParaLista(artworkUrl: string | null | undefined): string | null {
+  if (!artworkUrl) return null;
+  const m = YTIMG_RE.exec(artworkUrl);
+  if (!m) return artworkUrl;
+  return `https://i.ytimg.com/vi/${m[1]}/mqdefault.jpg`;
+}
+
 export function urlsDaCapa(artworkUrl: string | null | undefined): string[] {
   if (!artworkUrl) return [];
   const m = YTIMG_RE.exec(artworkUrl);

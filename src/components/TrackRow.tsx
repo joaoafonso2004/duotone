@@ -3,6 +3,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React, { useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { guardarOrigem } from '../state/origemDaCapa';
 import { hapticImpact, hapticSelection } from '../lib/haptics';
 import { isShowTrackDurationSync } from '../lib/prefs';
@@ -55,6 +56,9 @@ function TrackRowComponent({
   const theme = useTheme((s) => s.theme);
   /** A moldura da capa desta linha, para o player saber de onde a fazer voar. */
   const capa = useRef<View>(null);
+  // Sem as barras pretas do 4:3 -- ver capaDoEcraBloqueado.ts. É também o que
+  // faz a capa aterrar no mini player sem mudar de enquadramento.
+  const capaUri = capaParaLista(track.artworkUrl);
   // Subscrito sempre (as regras dos hooks não deixam condicionar), mas o
   // seletor devolve `false` quando a badge está desligada, por isso as listas
   // da biblioteca não voltam a renderizar quando a biblioteca muda.
@@ -71,7 +75,7 @@ function TrackRowComponent({
         // chegar tarde ou nunca -- se não chegar, o player entra como sempre
         // entrou. Por isso o onPress não espera por ela.
         capa.current?.measureInWindow((x, y, largura, altura) => {
-          guardarOrigem({ x, y, largura, altura, uri: track.artworkUrl ?? null });
+          guardarOrigem({ x, y, largura, altura, uri: capaUri });
         });
         onPress();
       }}
@@ -100,9 +104,9 @@ function TrackRowComponent({
         </View>
       )}
       <View ref={capa} collapsable={false} style={styles.artworkWrap}>
-        {track.artworkUrl ? (
+        {capaUri ? (
           <Image
-            source={{ uri: track.artworkUrl }}
+            source={{ uri: capaUri }}
             style={styles.artwork}
             contentFit="cover"
             // Em listas longas, animar cada imagem que entra na janela de

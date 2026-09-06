@@ -51,6 +51,7 @@ import { addIntentListener } from '../../modules/duotone-intents';
 import { accaoParaComando } from '../lib/comandosDaSiri';
 import { deveRetomar } from '../lib/interrupcaoDeAudio';
 import { apresentarErro } from '../lib/erroDeReproducao';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { limparOrigem, origemValida, type RectanguloDaCapa } from '../state/origemDaCapa';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 
@@ -1017,16 +1018,15 @@ export function PlayerRoot() {
           {/* Mostramos SEMPRE a thumbnail por cima — o áudio nativo continua a
               tocar por trás. (A app é só áudio; o vídeo é irrelevante.) A capa
               "respira" (opacidade a pulsar) enquanto a música carrega. */}
-          {!expanded && (origemDaEntrada?.uri || artSource) ? (
+          {!expanded && (origemDaEntrada?.uri || capaParaLista(artSource)) ? (
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: pulse }]}>
-              {/* Durante o voo mostra-se a MESMA imagem que a lista mostrava.
-                  A lista usa a hqdefault (480x360, com as barras pretas do
-                  YouTube) e o player sobe para a maxresdefault (1280x720, sem
-                  barras): trocar a meio do caminho mudava o enquadramento, não
-                  só a nitidez, e dava-se pela ilusão. A troca acontece depois
-                  de pousar, a 48 px, onde ninguém a vê. */}
+              {/* A MESMA imagem que a lista mostrava, e no mesmo formato: a
+                  mini usa a mqdefault como as listas, não a que o player grande
+                  carregou. Sem isto a capa aterrava e perdia as barras pretas
+                  no momento do pouso -- dava-se pela troca, que é justamente o
+                  que a animação existe para esconder. */}
               <Image
-                source={{ uri: origemDaEntrada?.uri || artSource || undefined }}
+                source={{ uri: origemDaEntrada?.uri || capaParaLista(artSource) || undefined }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
                 transition={origemDaEntrada ? 0 : 250}
