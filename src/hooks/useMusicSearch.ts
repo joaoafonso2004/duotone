@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { pesquisarMusica } from '../api/search';
+import { pesquisarMaisMusica, pesquisarMusica } from '../api/search';
 import { getLibrary } from '../api/library';
 import { pesquisarNaBiblioteca } from '../lib/pesquisaLocal';
 import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
@@ -76,13 +76,36 @@ export function useMusicSearch(query: string, onFound: (query: string) => void) 
       try {
         const found = await pesquisarMusica(q, controller.signal);
         if (!atual) return;
-        setResults(found);
-        if (found.length) aoEncontrar.current(q);
+        setResults(found.faixas);
+        if (found.faixas.length) aoEncontrar.current(q);
+        setLoading(false);
+
+        // A segunda página vai atrás, sem ninguém esperar por ela.
+        //
+        // O YouTube devolve ~20 por página e a app ficava-se pela primeira:
+        // uma faixa que caísse em 21.º ao procurar pelo nome do artista era
+        // inalcançável, mesmo estando lá. Pedir as duas de uma vez juntava
+        // meio segundo a TODAS as pesquisas, por isso a primeira aparece já e
+        // a segunda entra por baixo quando chegar.
+        if (found.continuacao) {
+          try {
+            const mais = await pesquisarMaisMusica(found.continuacao, controller.signal);
+            if (!atual || !mais.faixas.length) return;
+            setResults((antes) => {
+              const vistos = new Set(antes.map((t) => `${t.source}:${t.sourceId}`));
+              return antes.concat(mais.faixas.filter((t) => !vistos.has(`${t.source}:${t.sourceId}`)));
+            });
+          } catch {
+            // A primeira página já está no ecrã; falhar a segunda não é um erro
+            // que valha a pena mostrar a ninguém.
+          }
+        }
       } catch (e: any) {
         if (atual) setErrorMsg(e?.message || 'Search failed.');
       } finally {
         if (atual) setLoading(false);
       }
+
     }, espera);
     return () => { atual = false; clearTimeout(timer); controller.abort(); };
   }, [query, submissao]);

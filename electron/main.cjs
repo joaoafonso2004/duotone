@@ -556,7 +556,12 @@ ipcMain.handle('eq:aplicar', async (event, ajuste) => {
 ipcMain.handle('yt:pesquisa', async (event, pedido) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
   const query = pedido && typeof pedido.query === 'string' ? pedido.query.trim() : '';
-  if (!query) throw new Error('Pesquisa vazia.');
+  // Uma pagina seguinte nao leva pergunta nenhuma: leva o token que a pagina
+  // anterior devolveu. Sem isto o Windows ficava preso nos primeiros 20
+  // resultados enquanto o iPhone via a lista toda.
+  const continuacao = pedido && typeof pedido.continuation === 'string'
+    && /^[\w%=.-]{1,4096}$/.test(pedido.continuation) ? pedido.continuation : '';
+  if (!query && !continuacao) throw new Error('Pesquisa vazia.');
   // A versao do cliente vive no ytSearchFree.ts, para nao haver duas para
   // manter; aqui so se valida a forma antes de a repetir num cabecalho.
   const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
@@ -570,11 +575,15 @@ ipcMain.handle('yt:pesquisa', async (event, pedido) => {
       'X-YouTube-Client-Name': '1',
       'X-YouTube-Client-Version': versao,
     },
-    body: JSON.stringify({
-      context: { client: { clientName: 'WEB', clientVersion: versao, hl: 'en', gl: 'US' } },
-      query: query.slice(0, 300),
-      params,
-    }),
+    body: JSON.stringify(
+      continuacao
+        ? { context: { client: { clientName: 'WEB', clientVersion: versao, hl: 'en', gl: 'US' } }, continuation: continuacao }
+        : {
+            context: { client: { clientName: 'WEB', clientVersion: versao, hl: 'en', gl: 'US' } },
+            query: query.slice(0, 300),
+            params,
+          },
+    ),
   });
   if (!res.ok) throw new Error('InnerTube HTTP ' + res.status);
   return res.json();

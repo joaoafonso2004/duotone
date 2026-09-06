@@ -49,13 +49,16 @@ const resposta = (corpo) => ({ ok: true, json: async () => corpo });
 
 let livres = 0, pagas = 0, falhar = false;
 const pesquisa = ambiente(async () => {}, {
-  'src/api/ytSearchFree.ts': { searchYouTubeFree: async () => { livres++; if (falhar) throw Error('Falha'); return []; } },
+  'src/api/ytSearchFree.ts': {
+    pesquisarPaginaFree: async () => { livres++; if (falhar) throw Error('Falha'); return { resultados: [], continuacao: null }; },
+    continuarPesquisaFree: async () => ({ resultados: [], continuacao: null }),
+  },
   'src/api/youtube.ts': { searchYouTube: async () => { pagas++; return ['alternativa']; } },
 }).carregar('src/api/search.ts');
-assert.equal((await pesquisa.pesquisarMusica('sem resultados')).length, 0);
+assert.equal((await pesquisa.pesquisarMusica('sem resultados')).faixas.length, 0);
 assert.equal(pagas, 0, 'Uma pesquisa livre vazia não gasta quota');
 falhar = true;
-assert.equal((await pesquisa.pesquisarMusica('falha de rede'))[0], 'alternativa');
+assert.equal((await pesquisa.pesquisarMusica('falha de rede')).faixas[0], 'alternativa');
 assert.equal(livres, 2);
 assert.equal(pagas, 1, 'A alternativa só entra quando a livre falha');
 const cancelada = new AbortController();
