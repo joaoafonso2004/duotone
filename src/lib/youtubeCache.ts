@@ -7,6 +7,7 @@ import { fixMp4Duration } from './mp4Fixer';
 import { validarRespostaParcial } from './audioRange';
 import { largarVez, pedirVez, type Prioridade } from './filaDeDownloads';
 import { escolherParaApagar, type FicheiroEmCache } from './limpezaDoCache';
+import { publicarAudio } from './publicarDownload';
 
 let File: any;
 let Paths: any;
@@ -435,16 +436,14 @@ async function descarregarAgora(
   // `if (dest.exists)` la em cima devolvia-o para sempre -- a faixa nunca mais
   // tocava e nao havia mensagem nenhuma a dizer porque.
   const parcial = new File(audioDir(), `${PREFIX}${videoId}-${Date.now()}-${Math.random().toString(36).slice(2)}.part`);
-  try {
-    parcial.create();
-    parcial.write(combined);
-    if (parcial.size !== total) throw new Error('Gravacao de audio incompleta');
-    if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
-    if (dest.exists) return dest.uri; // outro job chegou primeiro
-    parcial.moveSync(dest);
-  } finally {
-    try { if (parcial.exists) parcial.delete(); } catch {}
-  }
+  const uri = publicarAudio({
+    parcial,
+    destino: dest,
+    dados: combined,
+    total,
+    abortado: opts.shouldAbort,
+    erroDeAborto: DOWNLOAD_ABORTED,
+  });
   cachedIdsIndex?.add(videoId);changed();
-  return dest.uri;
+  return uri;
 }
