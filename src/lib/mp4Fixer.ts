@@ -24,6 +24,8 @@
  *    elst re-mapeie a timeline por cima da nossa correção).
  */
 
+import { validarEstruturaMp4 } from './mp4Structure';
+
 function read32(buffer: Uint8Array, offset: number): number {
   return (
     (buffer[offset] << 24) |
@@ -66,6 +68,17 @@ function neutralizeBox(buffer: Uint8Array, offset: number) {
  * que a correção funciona mesmo sem duração conhecida (passar null/0).
  */
 export function fixMp4Duration(buffer: Uint8Array, durationSeconds: number | null): void {
+  // Preflight: confirmar que os campos onde vamos escrever cabem mesmo dentro
+  // das suas boxes. Sem isto, um mvhd truncado fazia o write32 alterar bytes do
+  // mdat seguinte -- o corretor de duracao corrompia o audio que ia corrigir.
+  // Estrutura duvidosa => nao tocamos em nada: fica a duracao errada no Lock
+  // Screen, que e muito melhor do que ficar com a faixa estragada.
+  try {
+    validarEstruturaMp4(buffer);
+  } catch {
+    return;
+  }
+
   try {
     let movieTimescale = 1000; // Timescale padrão caso o mvhd não seja lido antes
 

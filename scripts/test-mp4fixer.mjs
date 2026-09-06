@@ -12,14 +12,19 @@ import path from 'node:path';
 
 // ---- carrega o fixMp4Duration REAL (strip trivial das anotações de tipo) ----
 const projectRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const ts = readFileSync(path.join(projectRoot, 'src', 'lib', 'mp4Fixer.ts'), 'utf8');
-const js = ts
-  .replace(/export function/g, 'function')
-  .replace(/: Uint8Array/g, '')
-  .replace(/: number \| null/g, '')
-  .replace(/: number/g, '')
-  .replace(/: void/g, '');
-const { fixMp4Duration } = new Function(js + '\nreturn { fixMp4Duration };')();
+const semTipos = (ficheiro) =>
+  readFileSync(path.join(projectRoot, 'src', 'lib', ficheiro), 'utf8')
+    .replace(/^import .*$/gm, '') // o mp4Fixer importa o validador; juntamos os dois a mao
+    .replace(/export function/g, 'function')
+    .replace(/: Uint8Array/g, '')
+    .replace(/: number \| null/g, '')
+    .replace(/: number/g, '')
+    .replace(/: string/g, '')
+    .replace(/: void/g, '');
+const js = semTipos('mp4Structure.ts') + '\n' + semTipos('mp4Fixer.ts');
+const { fixMp4Duration, validarEstruturaMp4 } = new Function(
+  js + '\nreturn { fixMp4Duration, validarEstruturaMp4 };',
+)();
 
 // ---- helpers de construção de boxes -----------------------------------------
 const TIMESCALE = 44100;
@@ -152,6 +157,40 @@ function check(name, fn) {
   });
   check('não lança em buffer vazio', () => {
     fixMp4Duration(new Uint8Array(0), 100);
+  });
+}
+
+// ---- teste 4: preflight de estrutura (regressao A03) -------------------------
+//
+// O parser antigo confirmava que a box cabia no PAI mas escrevia em offsets
+// fixos sem confirmar o fim da PROPRIA box: um mvhd truncado fazia o write32
+// alterar bytes do mdat seguinte. Reproduzido na auditoria: offsets 32-35.
+{
+  console.log('preflight de estrutura:');
+
+  const mvhdCurto = box('mvhd', pad(4)); // 12 bytes: nao chega para a duracao
+  const moovCurto = box('moov', mvhdCurto);
+  const mdatVizinho = box('mdat', [9, 9, 9, 9, 9, 9, 9, 9]);
+  const truncado = new Uint8Array([...ftyp, ...moovCurto, ...mdatVizinho]);
+
+  check('mvhd truncado e rejeitado pelo validador', () => {
+    assert.throws(() => validarEstruturaMp4(truncado));
+  });
+
+  check('o fixer nao altera um byte de um ficheiro suspeito', () => {
+    const antes = truncado.slice();
+    fixMp4Duration(truncado, 213);
+    assert.deepEqual(truncado, antes, 'o buffer foi modificado apesar do preflight');
+  });
+
+  check('um ficheiro valido continua a passar', () => {
+    validarEstruturaMp4(buildFile());
+  });
+
+  check('box maior do que o pai e rejeitada', () => {
+    const mau = new Uint8Array([...box('moov', pad(4))]);
+    mau[2] = 0xff;
+    assert.throws(() => validarEstruturaMp4(mau));
   });
 }
 

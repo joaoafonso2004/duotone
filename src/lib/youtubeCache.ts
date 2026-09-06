@@ -4,6 +4,7 @@ const changed=()=>useAudioCache.setState(s=>({revision:s.revision+1}));
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixMp4Duration } from './mp4Fixer';
+import { validarRespostaParcial } from './audioRange';
 
 let File: any;
 let Paths: any;
@@ -201,6 +202,7 @@ export function pruneAudioCacheLRU(protectedIds: string[] = []): void {
     let totalBytes = 0;
     for (const entry of audioDir().list()) {
       if (!(entry instanceof File) || !entry.name.startsWith(PREFIX)) continue;
+      if (!entry.name.endsWith('.m4a')) continue; // .part de um download a decorrer
       const size = entry.size ?? 0;
       totalBytes += size;
       files.push({
@@ -263,6 +265,7 @@ export async function fetchChunkWithRetry(
   end: number,
   renewUrl?: () => Promise<string | null>,
   shouldAbort?: () => boolean,
+  expectedTotal?: number,
 ): Promise<{ bytes: Uint8Array; url: string }> {
   let lastStatus = 0;
   let current = url;
@@ -276,9 +279,11 @@ export async function fetchChunkWithRetry(
     try{
       const res=await fetch(current,{headers:{Range:`bytes=${start}-${end}`},signal:controller.signal});
       if (res.status === 206 || res.status === 200) {
-        const declared=Number(res.headers.get('content-length'));
-        const expected=end-start+1;
-        if(Number.isFinite(declared)&&declared>expected)throw new Error('Chunk response exceeded the requested size.');
+        if (expectedTotal === undefined) throw new Error('Total do audio em falta');
+        // Nao chega verificar o TAMANHO: pedir 4-7 e receber "bytes 0-3/8" da
+        // 4 bytes certinhos no offset errado, e o ficheiro fica corrompido sem
+        // um unico erro pelo caminho.
+        validarRespostaParcial(res, start, end, expectedTotal);
         return { bytes: new Uint8Array(await res.arrayBuffer()), url: current };
       }
       lastStatus = res.status;
@@ -355,7 +360,7 @@ export async function downloadProgressiveAudio(
     const end = Math.min(offset + chunkSize, total) - 1;
     let part: Uint8Array;
     try {
-      const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl, opts.shouldAbort);
+      const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl, opts.shouldAbort, total);
       part = got.bytes;
       currentUrl = got.url; // se foi renovado, os chunks seguintes usam o novo
     } catch (e) {
@@ -387,8 +392,22 @@ export async function downloadProgressiveAudio(
   // sempre — durationSeconds só é usada para o mehd, quando exista.
   fixMp4Duration(combined, durationSeconds);
 
-  dest.create({ overwrite: true });
-  dest.write(combined);
+  // Escrever primeiro para .part e so promover depois de confirmar o tamanho.
+  // Como estava, o create() publicava o nome final ANTES de a escrita acabar:
+  // uma interrupcao deixava um ficheiro truncado com o nome bom, e o
+  // `if (dest.exists)` la em cima devolvia-o para sempre -- a faixa nunca mais
+  // tocava e nao havia mensagem nenhuma a dizer porque.
+  const parcial = new File(audioDir(), `${PREFIX}${videoId}-${Date.now()}-${Math.random().toString(36).slice(2)}.part`);
+  try {
+    parcial.create();
+    parcial.write(combined);
+    if (parcial.size !== total) throw new Error('Gravacao de audio incompleta');
+    if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+    if (dest.exists) return dest.uri; // outro job chegou primeiro
+    parcial.moveSync(dest);
+  } finally {
+    try { if (parcial.exists) parcial.delete(); } catch {}
+  }
   cachedIdsIndex?.add(videoId);changed();
   return dest.uri;
 }

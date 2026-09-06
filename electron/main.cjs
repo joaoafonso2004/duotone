@@ -468,7 +468,9 @@ function createWindow() {
     return { action: 'deny' };
   });
   win.webContents.on('before-input-event', (event, input) => {
-    if (input.control && input.shift && input.key.toLowerCase() === 'i') {
+    // So em desenvolvimento: numa build final o atalho abria as DevTools a
+    // qualquer pessoa que carregasse em Ctrl+Shift+I.
+    if (isDev && input.control && input.shift && input.key.toLowerCase() === 'i') {
       win.webContents.toggleDevTools();
       event.preventDefault();
     }
