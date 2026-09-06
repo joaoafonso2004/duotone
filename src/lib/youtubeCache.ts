@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixMp4Duration } from './mp4Fixer';
 import { validarRespostaParcial } from './audioRange';
 import { largarVez, pedirVez, type Prioridade } from './filaDeDownloads';
+import { escolherParaApagar, type FicheiroEmCache } from './limpezaDoCache';
 
 let File: any;
 let Paths: any;
@@ -153,6 +154,26 @@ export function getAudioCacheBytes(): number {
   }
 }
 
+/** O que está descarregado, com tamanho e data. Para o ecrã de Downloads. */
+export function listarDescarregados(): FicheiroEmCache[] {
+  if (Platform.OS === 'web') return [];
+  try {
+    const out: FicheiroEmCache[] = [];
+    for (const entry of audioDir().list()) {
+      if (!(entry instanceof File) || !entry.name.startsWith(PREFIX)) continue;
+      if (!entry.name.endsWith('.m4a')) continue; // .part de um download a decorrer
+      out.push({
+        id: entry.name.slice(PREFIX.length).replace(/\.m4a$/, ''),
+        bytes: entry.size ?? 0,
+        modificadoEm: (entry as any).modificationTime ?? 0,
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 /** "1,2 GB" / "340 MB" / "—" quando não há nada. */
 export function formatCacheSize(bytes: number): string {
   if (!bytes) return '—';
@@ -198,30 +219,19 @@ const MAX_CACHE_BYTES = 500 * 1024 * 1024;
 export function pruneAudioCacheLRU(protectedIds: string[] = []): void {
   if (Platform.OS === 'web') return;
   try {
-    const protectedSet = new Set(protectedIds);
-    const files: { file: any; id: string; size: number; mtime: number }[] = [];
-    let totalBytes = 0;
+    const ficheiros = listarDescarregados();
+    // A DECISAO vive em limpezaDoCache.ts, testada sem tocar em disco: e a
+    // unica coisa nesta app que apaga musica do telemovel.
+    const aApagar = new Set(escolherParaApagar(ficheiros, protectedIds, MAX_CACHE_BYTES));
+    if (aApagar.size === 0) return;
+
     for (const entry of audioDir().list()) {
       if (!(entry instanceof File) || !entry.name.startsWith(PREFIX)) continue;
-      if (!entry.name.endsWith('.m4a')) continue; // .part de um download a decorrer
-      const size = entry.size ?? 0;
-      totalBytes += size;
-      files.push({
-        file: entry,
-        id: entry.name.slice(PREFIX.length).replace(/\.m4a$/, ''),
-        size,
-        mtime: (entry as any).modificationTime ?? 0,
-      });
-    }
-    if (totalBytes <= MAX_CACHE_BYTES) return;
-    files.sort((a, b) => a.mtime - b.mtime); // mais antigos primeiro
-    for (const f of files) {
-      if (totalBytes <= MAX_CACHE_BYTES) break;
-      if (protectedSet.has(f.id)) continue;
+      const id = entry.name.slice(PREFIX.length).replace(/\.m4a$/, '');
+      if (!aApagar.has(id)) continue;
       try {
-        f.file.delete();
-        cachedIdsIndex?.delete(f.id);changed();
-        totalBytes -= f.size;
+        entry.delete();
+        cachedIdsIndex?.delete(id);changed();
       } catch {
         // ficheiro em uso ou já removido — segue para o próximo
       }

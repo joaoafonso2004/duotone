@@ -488,7 +488,14 @@ export function SettingsScreen({ navigation }: Props) {
               re-download next time you play them.
             </Text>
             <PillButton
-              label={`Clear YouTube cache (${formatCacheSize(cacheBytes)})`}
+              label={`Downloads (${formatCacheSize(cacheBytes)})`}
+              variant="ghost"
+              small
+              onPress={() => navigation.navigate('Downloads')}
+              style={{ alignSelf: 'flex-start', marginBottom: spacing.sm }}
+            />
+            <PillButton
+              label="Clear YouTube cache"
               variant="ghost"
               small
               onPress={doClearCache}

@@ -26,6 +26,7 @@ import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { ImportYouTubeScreen } from '../screens/ImportYouTubeScreen';
 import { ListeningStatsScreen } from '../screens/ListeningStatsScreen';
+import { DownloadsScreen } from '../screens/DownloadsScreen';
 import { RetrospetivaScreen } from '../screens/RetrospetivaScreen';
 import { LibraryGroupScreen } from '../screens/LibraryGroupScreen';
 import { PlaylistDetailScreen } from '../screens/PlaylistDetailScreen';
@@ -66,6 +67,7 @@ export type RootStackParamList = {
   Settings: undefined;
   ListeningStats: {userId?:string} | undefined;
   Retrospetiva: {ano?:number;userId?:string} | undefined;
+  Downloads: undefined;
   FriendProfile: {userId:string};
   Playlists: undefined;
   PlaylistDetail: { id: string; name: string };
@@ -342,6 +344,9 @@ export function RootNavigator() {
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="ListeningStats" component={OnlineListeningStats} />
               <Stack.Screen name="Retrospetiva" component={OnlineRetrospetiva} />
+              {/* Sem withInternet: ver o que está guardado é justamente o que
+                  tem de funcionar sem rede. */}
+              <Stack.Screen name="Downloads" component={DownloadsScreen} />
               <Stack.Screen name="Social" component={OnlineSocial} />
               <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
               <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
