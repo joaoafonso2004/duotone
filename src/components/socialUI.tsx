@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -10,6 +10,9 @@ import { colors, radii, type, SOCIAL_GUTTER } from './socialTokens';
 
 const web = Platform.OS === 'web';
 export const socialStyles = StyleSheet.create({
+  // A faixa que apanha o gesto de voltar. Estreita de propósito: mais larga
+  // do que isto e comeria os toques na margem das mensagens.
+  margemDeVoltar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 22 },
   body: { flex: 1, minHeight: 0, minWidth: 0 },
   content: { paddingHorizontal: SOCIAL_GUTTER, paddingTop: web ? 0 : spacing.lg, gap: spacing.xl },
   text: { ...type.body },
@@ -71,6 +74,28 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
 }) {
   const safe = useSafeAreaInsets();
   const { height } = useWindowDimensions();
+
+  /**
+   * Arrastar da esquerda para a direita volta atrás, como no resto da app.
+   *
+   * O chat parece um ecrã mas não é: é uma troca de vista dentro do Social,
+   * por isso não herdava o gesto nativo da navegação. Quem lá estava dentro
+   * ficava sem a saída que usa em todo o lado.
+   *
+   * O responder vive numa faixa estreita da margem esquerda -- por cima da
+   * lista de mensagens roubava-lhe o dedo a cada scroll.
+   */
+  const fechar = React.useRef(onClose);
+  fechar.current = onClose;
+  const voltar = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_e, g) => g.dx > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onPanResponderRelease: (_e, g) => {
+        if (g.dx > 60 || g.vx > 0.5) fechar.current();
+      },
+    })
+  ).current;
+
   return <Modal visible={visible} transparent={!fullScreen} animationType={web ? 'fade' : 'slide'} onRequestClose={onClose}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1, backgroundColor: fullScreen ? colors.bg : colors.overlay, justifyContent: web ? 'center' : 'flex-end', alignItems: 'center', paddingTop: safe.top + (fullScreen ? 0 : 12), paddingBottom: web ? 12 : 0, paddingHorizontal: web ? 24 : 0 }}>
@@ -87,6 +112,9 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
           {!fullScreen && <SocialIconButton label="Close" icon="close" onPress={onClose}/>}
         </View>}
         {children}
+        {!web && fullScreen && (
+          <View {...voltar.panHandlers} style={socialStyles.margemDeVoltar} pointerEvents="box-only" />
+        )}
       </View>
     </KeyboardAvoidingView>
   </Modal>;

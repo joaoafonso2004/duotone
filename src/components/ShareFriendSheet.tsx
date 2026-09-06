@@ -1,25 +1,17 @@
-import { FriendAvatar } from './FriendAvatar';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
-  ActivityIndicator,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  Keyboard,
-} from 'react-native';
-import { getFriendships, getGrupos, shareComGrupo, shareItem, type ChatGroup, type Friendship } from '../api/social';
-import { GroupAvatar } from './GroupChat';
-import { colors, radii, spacing, type as typography } from '../theme';
-import { useTheme } from '../state/theme';
+  getFriendships, getGrupos, shareComGrupo, shareItem,
+  type ChatGroup, type Friendship,
+} from '../api/social';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
+import { useTheme } from '../state/theme';
+import { colors, radii, spacing, type } from '../theme';
+import { BottomSheet } from './BottomSheet';
+import { FriendAvatar } from './FriendAvatar';
+import { GroupAvatar } from './GroupChat';
+import { Input } from './Input';
 
 type Destino =
   | { kind: 'group'; id: string; nome: string; sub: string; grupo: ChatGroup }
@@ -32,8 +24,19 @@ interface ShareFriendSheetProps {
   onClose: () => void;
 }
 
+/**
+ * Mandar uma faixa ou uma playlist a alguém.
+ *
+ * Construída sobre o mesmo `BottomSheet` do "Adicionar a playlist", e não
+ * sobre um modal próprio: eram duas folhas com o mesmo trabalho e desenhos
+ * diferentes -- cantos, pega, título, tipos de letra, e até a forma de fechar.
+ * Partilhadas as fundações, herda também o arrastar para baixo.
+ *
+ * A linha inteira é o botão, como nas playlists. Antes havia um "Share"
+ * pequeno à direita e o resto da linha não fazia nada.
+ */
 export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFriendSheetProps) {
-  const theme = useTheme((s) => s.theme);
+  const tema = useTheme((s) => s.theme);
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [groups, setGroups] = useState<ChatGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,9 +60,10 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
     }
   }, [visible]);
 
-  /** `alvo` é um amigo ou um grupo; a chave do estado distingue-os. */
+  const chaveDe = (alvo: Destino) => (alvo.kind === 'group' ? `g:${alvo.id}` : alvo.id);
+
   const handleShare = async (alvo: Destino) => {
-    const chave = alvo.kind === 'group' ? `g:${alvo.id}` : alvo.id;
+    const chave = chaveDe(alvo);
     if (sendingStates[chave] === 'sending' || sendingStates[chave] === 'sent') return;
 
     hapticSelection();
@@ -78,193 +82,101 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   // Grupos primeiro: são menos, e é para eles que se partilha quando se quer
   // que mais do que uma pessoa oiça.
   const destinos: Destino[] = [
-    ...groups.map((g) => ({ kind: 'group' as const, id: g.id, nome: g.name, sub: `${g.membros.length} ${g.membros.length === 1 ? 'member' : 'members'}`, grupo: g })),
-    ...friends.map((f) => ({ kind: 'friend' as const, id: f.friendId, nome: f.name, sub: `@${f.username}`, amigo: f })),
+    ...groups.map((g) => ({
+      kind: 'group' as const, id: g.id, nome: g.name,
+      sub: `${g.membros.length} ${g.membros.length === 1 ? 'member' : 'members'}`, grupo: g,
+    })),
+    ...friends.map((f) => ({
+      kind: 'friend' as const, id: f.friendId, nome: f.name, sub: `@${f.username}`, amigo: f,
+    })),
   ];
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      {/* Sem isto o teclado tapava a lista de amigos e os botões "Partilhar"
-          quando o campo de mensagem estava focado. */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
-      >
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <View style={styles.handle} />
-          
-          <Text style={[typography.body, { fontWeight: '700', textAlign: 'center', marginBottom: spacing.md }]}>
-            Share {itemType === 'track' ? 'track' : 'playlist'}
+    <BottomSheet visible={visible} onClose={onClose}>
+      <Text style={[type.title, { marginBottom: spacing.md }]}>
+        Share {itemType === 'track' ? 'track' : 'playlist'}
+      </Text>
+
+      <View style={{ marginBottom: spacing.md }}>
+        <Input
+          icon="chatbubble-outline"
+          placeholder="Say something about it…"
+          value={comment}
+          onChangeText={setComment}
+          onClear={() => setComment('')}
+          autoCorrect={false}
+          returnKeyType="done"
+        />
+      </View>
+
+      {loading ? (
+        <ActivityIndicator color={colors.text} style={{ marginVertical: 24 }} />
+      ) : destinos.length === 0 ? (
+        <View style={styles.vazio}>
+          <Ionicons name="people-outline" size={24} color={colors.textTertiary} />
+          <Text style={[type.caption, { textAlign: 'center' }]}>
+            You need a friend or a group before you can share music.
           </Text>
-
-          {/* Comment input */}
-          <View style={{ marginBottom: spacing.md }}>
-            <Text style={[typography.micro, { marginBottom: spacing.xs, color: colors.textSecondary }]}>
-              MESSAGE (OPTIONAL)
-            </Text>
-            <TextInput
-              value={comment}
-              onChangeText={setComment}
-              placeholder="Say something about it…"
-              placeholderTextColor={colors.textTertiary}
-              style={styles.commentInput}
-              autoCorrect={false}
-            />
-          </View>
-
-          {/* Grupos e amigos */}
-          <Text style={[typography.micro, { marginBottom: spacing.sm, color: colors.textSecondary }]}>
-            {groups.length ? 'CHOOSE A GROUP OR A FRIEND' : 'CHOOSE FRIENDS'}
-          </Text>
-
-          {loading ? (
-            <ActivityIndicator color={theme.color} style={{ marginVertical: 32 }} />
-          ) : destinos.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="people-outline" size={24} color={colors.textTertiary} />
-              <Text style={styles.emptyText}>You need a friend or a group before you can share music.</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={destinos}
-              keyExtractor={(d) => `${d.kind}:${d.id}`}
-              style={{ maxHeight: 250 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item: alvo }) => {
-                const state = sendingStates[alvo.kind === 'group' ? `g:${alvo.id}` : alvo.id] || 'idle';
-                return (
-                  <View style={styles.friendRow}>
-                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-                      {alvo.kind === 'group'
-                        ? <GroupAvatar group={alvo.grupo} size={36}/>
-                        : <FriendAvatar avatarUrl={alvo.amigo.avatarUrl} name={alvo.nome} size={36}/>}
-                      <View style={{ flex: 1 }}>
-                        <Text style={[typography.body, { fontWeight: '600' }]} numberOfLines={1}>
-                          {alvo.nome}
-                        </Text>
-                        <Text style={[typography.caption, { fontSize: 11 }]} numberOfLines={1}>
-                          {alvo.sub}
-                        </Text>
-                      </View>
-                    </View>
-                    <Pressable
-                      onPress={() => handleShare(alvo)}
-                      disabled={state !== 'idle'}
-                      style={({ pressed }) => [
-                        styles.shareBtn,
-                        state === 'sent' && { backgroundColor: 'rgba(16, 185, 129, 0.15)' },
-                        pressed && { opacity: 0.8 },
-                      ]}
-                    >
-                      {state === 'sending' ? (
-                        <ActivityIndicator size="small" color={theme.color} />
-                      ) : state === 'sent' ? (
-                        <Text style={[typography.body, { color: colors.spotify, fontWeight: '700', fontSize: 12 }]}>
-                          Sent
-                        </Text>
-                      ) : (
-                        <Text style={[typography.body, { color: theme.color, fontWeight: '700', fontSize: 12 }]}>
-                          Share
-                        </Text>
-                      )}
-                    </Pressable>
-                  </View>
-                );
-              }}
-            />
-          )}
-
-          <Pressable style={styles.closeBtn} onPress={onClose}>
-            <Text style={styles.closeBtnText}>Close</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-      </KeyboardAvoidingView>
-    </Modal>
+        </View>
+      ) : (
+        <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
+          {destinos.map((alvo) => {
+            const estado = sendingStates[chaveDe(alvo)] ?? 'idle';
+            const enviado = estado === 'sent';
+            return (
+              <Pressable
+                key={`${alvo.kind}:${alvo.id}`}
+                onPress={() => handleShare(alvo)}
+                disabled={estado !== 'idle'}
+                style={({ pressed }) => [
+                  styles.row,
+                  pressed && { backgroundColor: colors.surfacePressed },
+                ]}
+              >
+                {alvo.kind === 'group' ? (
+                  <GroupAvatar group={alvo.grupo} size={44} />
+                ) : (
+                  <FriendAvatar avatarUrl={alvo.amigo.avatarUrl} name={alvo.nome} size={44} />
+                )}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
+                    {alvo.nome}
+                  </Text>
+                  <Text numberOfLines={1} style={type.caption}>{alvo.sub}</Text>
+                </View>
+                {/* O mesmo vocabulário da folha das playlists: um visto quando
+                    está feito, uma seta quando ainda há alguma coisa a fazer. */}
+                {estado === 'sending' ? (
+                  <ActivityIndicator size="small" color={tema.color} />
+                ) : (
+                  <Ionicons
+                    name={enviado ? 'checkmark-circle' : 'paper-plane-outline'}
+                    size={enviado ? 20 : 16}
+                    color={enviado ? colors.text : colors.textTertiary}
+                  />
+                )}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radii.xl,
-    borderTopRightRadius: radii.xl,
-    padding: spacing.xl,
-    gap: spacing.sm,
-  },
-  handle: {
-    alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderStrong,
-    marginBottom: spacing.sm,
-  },
-  commentInput: {
-    height: 40,
-    backgroundColor: colors.surfaceHigh,
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    color: colors.text,
-    fontSize: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderStrong,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 24,
-    gap: spacing.xs,
-  },
-  emptyText: {
-    ...typography.caption,
-    textAlign: 'center',
-    paddingHorizontal: spacing.xl,
-  },
-  friendRow: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: spacing.md,
     paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    paddingHorizontal: spacing.xs,
+    borderRadius: radii.md,
   },
-  avatarFallback: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  vazio: {
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  friendAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-  },
-  shareBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surfaceHigh,
-    minWidth: 70,
-    alignItems: 'center',
-  },
-  closeBtn: {
-    marginTop: spacing.md,
-    backgroundColor: colors.surfaceHigh,
-    borderRadius: radii.pill,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  closeBtnText: {
-    ...typography.body,
-    fontWeight: '700',
+    gap: spacing.sm,
+    paddingVertical: 32,
+    paddingHorizontal: spacing.lg,
   },
 });

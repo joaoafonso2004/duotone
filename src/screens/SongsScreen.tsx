@@ -226,6 +226,9 @@ export function SongsScreen() {
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 onClear={() => setSearchQuery('')}
+                // Abrir a pesquisa É querer escrever. Sem isto eram dois
+                // toques -- um na lupa e outro na caixa -- para uma coisa só.
+                autoFocus
               />
             </View>
           )}
