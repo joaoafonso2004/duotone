@@ -90,6 +90,22 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
           />
         </View>
 
+        {/* A retrospetiva sai do MESMO histórico; só faz sentido oferecê-la
+            quando há algum. */}
+        {!loading && !result?.unavailable && (stats?.totalPlays ?? 0) > 0 && (
+          <Pressable
+            onPress={() => navigation.navigate('Retrospetiva', { userId: route.params?.userId })}
+            style={({ pressed }) => [styles.retro, pressed && { opacity: 0.7 }]}
+          >
+            <Ionicons name="sparkles" size={18} color={theme.color} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[type.body, { fontWeight: '700' }]}>Retrospetiva</Text>
+              <Text style={type.caption}>O ano em revista, mês a mês</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </Pressable>
+        )}
+
         {loading ? (
           <ActivityIndicator color={colors.text} style={{ marginTop: 64 }} />
         ) : result?.unavailable ? (
@@ -274,6 +290,16 @@ function formatDay(key: string): string {
 }
 
 const styles = StyleSheet.create({
+  retro: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.lg,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.md,
+  },
   hero: {
     marginHorizontal: spacing.md,
     borderRadius: radii.lg,

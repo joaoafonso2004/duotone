@@ -54,17 +54,19 @@ function rowToPlay(row: any): PlayRow | null {
   };
 }
 
-export async function fetchListeningStats(
-  period: StatsPeriod,
-  now: number = Date.now(),
+/** O histórico em bruto, às páginas. `start` a null lê tudo.
+ *
+ * Vive separado da agregação porque há mais do que uma: as estatísticas
+ * agregam por período, a retrospetiva por ano civil. A consulta é a mesma e
+ * não deve ser escrita duas vezes. */
+export async function lerReproducoes(
+  start: number | null,
   targetUserId?: string
-): Promise<StatsResult> {
-  const empty = computeStats([], period, now);
+): Promise<{ rows: PlayRow[]; truncated: boolean; unavailable: boolean }> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { stats: empty, truncated: false, unavailable: false };
+    if (!user) return { rows: [], truncated: false, unavailable: false };
 
-    const start = periodStart(period, now);
     const rows: PlayRow[] = [];
     let truncated = false;
 
@@ -75,7 +77,7 @@ export async function fetchListeningStats(
           .eq('user_id',user.id).order('played_at',{ascending:false}).range(page*PAGE,page*PAGE+PAGE-1)
           .gte('played_at',start === null ? '1970-01-01T00:00:00Z' : new Date(start).toISOString());
 
-      if (error) return { stats: empty, truncated: false, unavailable: true };
+      if (error) return { rows: [], truncated: false, unavailable: true };
       if (!data || data.length === 0) break;
 
       for (const row of data) {
@@ -87,8 +89,17 @@ export async function fetchListeningStats(
       if (page === MAX_PAGES - 1) truncated = true;
     }
 
-    return { stats: computeStats(rows, period, now), truncated, unavailable: false };
+    return { rows, truncated, unavailable: false };
   } catch {
-    return { stats: empty, truncated: false, unavailable: true };
+    return { rows: [], truncated: false, unavailable: true };
   }
+}
+
+export async function fetchListeningStats(
+  period: StatsPeriod,
+  now: number = Date.now(),
+  targetUserId?: string
+): Promise<StatsResult> {
+  const { rows, truncated, unavailable } = await lerReproducoes(periodStart(period, now), targetUserId);
+  return { stats: computeStats(rows, period, now), truncated, unavailable };
 }
