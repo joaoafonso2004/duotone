@@ -1,7 +1,11 @@
 import AppIntents
 // A ponte vive no pod; as frases têm de viver no alvo da app (ver o porquê
 // no cabeçalho abaixo), por isso o módulo importa-se explicitamente.
-import DuotoneIntents
+//
+// O nível de acesso é explícito porque tem de ser: o ExpoModulesProvider que o
+// autolinking gera importa o mesmo módulo como `internal`, e sem o dizermos
+// aqui o Swift recusa-se a adivinhar -- "ambiguous implicit access level".
+internal import DuotoneIntents
 
 /**
  * Os atalhos que a Siri conhece sem ninguém os configurar.
