@@ -2,6 +2,7 @@ import React from 'react';
 import { KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { FriendAvatar } from './FriendAvatar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../state/theme';
 import { hapticSelection } from '../lib/haptics';
@@ -22,6 +23,13 @@ export const socialStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   card: { backgroundColor: colors.surface, padding: spacing.lg, borderRadius: radii.lg, gap: spacing.md, borderWidth: 1, borderColor: colors.border },
   listRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border, gap: 12, flexDirection: 'row', alignItems: 'center' },
+  // A linha da lista de conversas. Sem risco por baixo: o que separa é o
+  // espaço. Uma altura mínima igual para todas é o que dá o ritmo -- havia
+  // linhas de duas linhas de texto e outras de três (a que está a tocar), e
+  // com o risco a marcar cada uma via-se a diferença.
+  conversa: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 68, paddingVertical: 8, paddingHorizontal: 8, borderRadius: radii.md },
+  pontoOnline: { position: 'absolute', right: -1, bottom: -1, width: 15, height: 15, borderRadius: 8, backgroundColor: colors.online, borderWidth: 3, borderColor: colors.bg },
+  pontoPorLer: { width: 9, height: 9, borderRadius: 5 },
   button: { minHeight: 44, overflow: 'hidden', paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: web ? radii.md : radii.pill, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, borderWidth: 1, borderColor: colors.borderStrong },
   buttonText: { ...type.body, fontSize: 13, fontWeight: '600', flexShrink:1, minWidth:0, textAlign:'center' },
   iconButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: radii.md },
@@ -57,6 +65,22 @@ export function SocialIconButton({ label, icon, onPress }: { label: string; icon
     style={({ pressed, hovered, focused }: any) => [socialStyles.iconButton, (pressed || hovered || focused) && { backgroundColor: colors.surfacePressed }]}>
     <Ionicons name={icon} size={20} color={colors.textSecondary}/>
   </Pressable>;
+}
+
+/**
+ * O avatar com o estado agarrado a ele.
+ *
+ * O "● Online now" era uma linha de texto que gastava a segunda linha da
+ * conversa -- a mesma onde deve estar o que interessa. Um ponto no avatar diz
+ * o mesmo sem gastar linha nenhuma.
+ */
+export function AvatarDeConversa({ avatarUrl, nome, online, tamanho = 54 }: {
+  avatarUrl: string | null | undefined; nome?: string | null; online?: boolean; tamanho?: number;
+}) {
+  return <View>
+    <FriendAvatar avatarUrl={avatarUrl} name={nome} size={tamanho}/>
+    {online && <View style={socialStyles.pontoOnline}/>}
+  </View>;
 }
 
 export function SocialTabs({ value, onChange }: { value: 'friends' | 'add'; onChange: (value: 'friends' | 'add') => void }) {

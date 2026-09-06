@@ -13,7 +13,7 @@ import { FriendAvatar } from './FriendAvatar';
 import { colors, SOCIAL_GUTTER } from './socialTokens';
 import { useSocialBottomPadding } from './useSocialBottomPadding';
 import { useTheme } from '../state/theme';
-import { SocialButton,SocialModal,SocialIconButton,SocialTabs,socialStyles as s } from './socialUI';
+import { AvatarDeConversa,SocialButton,SocialModal,SocialIconButton,socialStyles as s } from './socialUI';
 import { SocialTrackActions } from './SocialTrackActions';
 import { SharedPlaylistCard } from './SharedPlaylistCard';
 import { MessageBubble,ReactionRow } from './ReactionRow';
@@ -144,36 +144,69 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const pending=social.friends.filter(f=>f.status==='pending');
   const title=friend?.name || group?.name || 'Chat';
   const list=<View style={s.body}>
-    <View style={[s.row,{paddingBottom:16}]}><SocialTabs value={tab} onChange={setTab}/><SocialIconButton label="Refresh" icon="refresh" onPress={()=>void social.refresh()}/></View>
+    {/* As conversas aparecem por si -- nao precisavam de um separador chamado
+        "Chats" ao lado de outro. Procurar gente e uma acao pontual, e passa a
+        viver atras de um icone. */}
+    <View style={[s.row,{paddingBottom:12,justifyContent:'flex-end'}]}>
+      <SocialIconButton label="Add friend" icon="person-add-outline" onPress={()=>setTab('add')}/>
+      <SocialIconButton label="Refresh" icon="refresh" onPress={()=>void social.refresh()}/>
+    </View>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{gap:16,paddingBottom:bottomPadding}}>
       {(error||social.error)&&<Text accessibilityRole="alert" style={s.error}>{error||social.error}</Text>}
       {social.loading&&<ActivityIndicator color={accent}/>}
-      {tab==='add'?<>
-        <Text style={s.title}>Find your music people</Text><Text style={s.muted}>Search by name or username.</Text>
-        <TextInput accessibilityLabel="Search people" value={query} onChangeText={setQuery} style={s.input} placeholder="Name or username" placeholderTextColor={colors.textSecondary} autoCapitalize="none"/>
-        {results.map(p=><View key={p.id} style={[s.listRow]}><Pressable onPress={()=>onProfile(p.id)}><FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={44}/></Pressable><View style={{flex:1}}><Text style={s.text}>{p.name}</Text><Text style={s.muted}>@{p.username}</Text></View><SocialButton disabled={busy||social.friends.some(f=>f.friendId===p.id)} onPress={()=>void run(()=>sendFriendRequest(p.id))}>{social.friends.some(f=>f.friendId===p.id)?'Added':'Add'}</SocialButton></View>)}
-      </>:<>
+      <>
         {pending.length>0&&<Text style={s.label}>Friend requests</Text>}
         {pending.map(f=><View key={f.friendId} style={s.card}><View style={s.row}><FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={44}/><View style={{flex:1}}><Text style={s.text}>{f.name}</Text><Text style={s.muted}>{f.isSender?'Request sent':'Wants to be your friend'}</Text></View></View><View style={s.row}>{!f.isSender&&<SocialButton primary disabled={busy} onPress={()=>void run(()=>acceptFriendRequest(f.friendId))}>Accept</SocialButton>}<SocialButton quiet disabled={busy} onPress={()=>void run(()=>declineOrRemoveFriendship(f.friendId))}>{f.isSender?'Cancel request':'Decline'}</SocialButton></View></View>)}
         <View style={[s.row,{justifyContent:'space-between'}]}><Text style={s.label}>Groups{social.groups.length?` · ${social.groups.length}`:''}</Text>{/* Era `quiet`, o que lhe tirava fundo e contorno: ficava texto solto ao
               lado de um cabecalho, e nao se lia como coisa em que se carrega. */}
           <SocialButton icon="add" onPress={()=>{setGroupEditor('new');setMembers([]);setGroupName('');}}>New group</SocialButton></View>
-        {social.groups.map(g=><Pressable key={g.id} accessibilityRole="button" accessibilityState={{selected:conversation?.kind==='group'&&conversation.id===g.id}} style={({pressed,hovered}:any)=>[s.listRow,{borderRadius:8,paddingHorizontal:8},(pressed||hovered||conversation?.id===g.id)&&{backgroundColor:colors.surface}]} onPress={()=>open('group',g.id)}><GroupAvatar group={g}/><View style={{flex:1,minWidth:0,gap:3}}><Text numberOfLines={1} style={[s.text,{fontWeight:'600'}]}>{g.name}</Text><Text numberOfLines={1} style={s.muted}>{g.membros.length} members · {g.membros.map(m=>m.id===myId?'You':m.name).join(', ')}</Text></View>{!!unread.get(`group:${g.id}`)&&<View style={{minWidth:22,padding:4,borderRadius:12,backgroundColor:colors.surfaceHigh}}><Text style={[s.badge,{textAlign:'center'}]}>{unread.get(`group:${g.id}`)}</Text></View>}</Pressable>)}
+        {social.groups.map(g=>{
+          const porLer=!!unread.get(`group:${g.id}`);
+          return <Pressable key={g.id} accessibilityRole="button" accessibilityState={{selected:conversation?.kind==='group'&&conversation.id===g.id}}
+            style={({pressed,hovered}:any)=>[s.conversa,(pressed||hovered||conversation?.id===g.id)&&{backgroundColor:colors.surface}]}
+            onPress={()=>open('group',g.id)}>
+            <GroupAvatar group={g} size={54}/>
+            <View style={{flex:1,minWidth:0,gap:2}}>
+              <Text numberOfLines={1} style={[s.text,{fontWeight:porLer?'800':'600'}]}>{g.name}</Text>
+              <Text numberOfLines={1} style={[s.muted,porLer&&{color:colors.text,fontWeight:'600'}]}>{g.membros.length} members · {g.membros.map(m=>m.id===myId?'You':m.name).join(', ')}</Text>
+            </View>
+            {porLer&&<View style={[s.pontoPorLer,{backgroundColor:accent}]}/>}
+          </Pressable>;
+        })}
         <Text style={s.label}>Friends · {accepted.length}</Text>
         {!accepted.length&&!social.loading&&<View style={s.card}><Text style={s.title}>Music is better with company</Text><Text style={s.muted}>Add a friend to share music and start a conversation.</Text><SocialButton onPress={()=>setTab('add')}>Add friend</SocialButton></View>}
-        {accepted.map(f=><View key={f.friendId} style={[s.listRow,{borderRadius:8,paddingHorizontal:8},conversation?.kind==='friend'&&conversation.id===f.friendId&&{backgroundColor:colors.surface}]}>
-          <Pressable accessibilityLabel={`View ${f.name}`} onPress={()=>onProfile(f.friendId)}><FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={44}/></Pressable>
-          <Pressable accessibilityRole="button" accessibilityState={{selected:conversation?.kind==='friend'&&conversation.id===f.friendId}} style={({pressed,hovered}:any)=>[{flex:1,minWidth:0,gap:3},(pressed||hovered)&&{backgroundColor:colors.surfacePressed}]} onPress={()=>open('friend',f.friendId)}><View style={s.row}><Text numberOfLines={1} style={[s.text,{fontWeight:'700',flex:1}]}>{f.name}</Text>{!!unread.get(f.friendId)&&<Text style={s.badge}>{unread.get(f.friendId)}</Text>}</View><Text numberOfLines={2} style={[s.muted,f.online&&{color:colors.online}]}>{f.online?'● Online now':ultimaAtividade(f.lastSeenAt,social.now)}</Text>{f.currentlyPlaying&&<Text numberOfLines={1} style={s.muted}>♫ {f.currentlyPlaying.title}</Text>}</Pressable>
-          {/* Era um "remover amigo" sempre a vista, a um toque, em todas as linhas
-             -- a unica acao destrutiva da app exposta assim. No resto da app o
-             que fica a direita de uma linha sao os tres pontos. */}
-          <Pressable accessibilityLabel={`More options for ${f.name}`} style={s.iconButton} onPress={()=>setConfirm({id:f.friendId,group:false})}><Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary}/></Pressable>
-        </View>)}
+        {accepted.map(f=>{
+          const porLer=!!unread.get(f.friendId);
+          const activa=conversation?.kind==='friend'&&conversation.id===f.friendId;
+          // As opcoes passam para o toque longo, como nas listas de musica.
+          // Ter "remover amigo" sempre a vista era a unica acao destrutiva da
+          // app exposta assim.
+          return <Pressable key={f.friendId} accessibilityRole="button" accessibilityState={{selected:activa}}
+            onPress={()=>open('friend',f.friendId)}
+            onLongPress={()=>setConfirm({id:f.friendId,group:false})}
+            delayLongPress={350}
+            style={({pressed,hovered}:any)=>[s.conversa,(pressed||hovered||activa)&&{backgroundColor:colors.surface}]}>
+            <Pressable accessibilityLabel={`View ${f.name}`} onPress={()=>onProfile(f.friendId)}>
+              <AvatarDeConversa avatarUrl={f.avatarUrl} nome={f.name} online={f.online}/>
+            </Pressable>
+            <View style={{flex:1,minWidth:0,gap:2}}>
+              <Text numberOfLines={1} style={[s.text,{fontWeight:porLer?'800':'600'}]}>{f.name}</Text>
+              {/* UMA linha, sempre. O que esta a tocar ganha ao estado, porque
+                  e a coisa que muda e que interessa; sem musica fica o estado.
+                  Duas ou tres linhas conforme a pessoa era o que partia o
+                  ritmo da lista. */}
+              <Text numberOfLines={1} style={[s.muted,porLer&&{color:colors.text,fontWeight:'600'}]}>
+                {f.currentlyPlaying?`♫ ${f.currentlyPlaying.title}`:f.online?'Online now':ultimaAtividade(f.lastSeenAt,social.now)}
+              </Text>
+            </View>
+            {porLer&&<View style={[s.pontoPorLer,{backgroundColor:accent}]}/>}
+          </Pressable>;
+        })}
         {/* Conversas de quem ja nao e amigo. O historico fica de proposito -- uma
           mensagem nao desaparece porque deixaram de ser amigos -- mas tem de
           haver maneira de a arrumar, dai o caixote. */}
         {social.contacts.filter(p=>!accepted.some(f=>f.friendId===p.id)).map(p=><Pressable key={p.id} onPress={()=>open('friend',p.id)} style={[s.listRow]}><FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={44}/><View style={{flex:1}}><Text style={s.text}>{p.name}</Text><Text style={s.muted}>Older messages</Text></View>{!!unread.get(p.id)&&<Text style={s.badge}>{unread.get(p.id)}</Text>}<Pressable accessibilityRole="button" accessibilityLabel={`Delete conversation with ${p.name}`} style={s.iconButton} onPress={()=>setConfirm({id:p.id,group:false,conversa:true})}><Ionicons name="trash-outline" size={18} color={colors.textSecondary}/></Pressable></Pressable>)}
-      </>}
+      </>
     </ScrollView>
   </View>;
   const groupHeader=group?<GroupChatHeader group={group} split={split} onBack={closeChat} onDetails={()=>setGroupDetails(group.id)}/>:undefined;
@@ -211,6 +244,24 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
       </View>}
     </View>
     {!web&&<SocialModal fullScreen visible={!!conversation&&visible&&!track&&!groupEditor&&!confirm&&!detailedGroup} title={title} header={groupHeader} onClose={closeChat}>{chat}</SocialModal>}
+
+    {/* Procurar gente deixou de ser um separador ao lado das conversas: e uma
+        coisa que se faz de vez em quando, e agora vive atras do icone. */}
+    <SocialModal visible={tab==='add'&&visible} title="Find people" onClose={()=>{setTab('friends');setQuery('');}}>
+      <View style={{padding:20,gap:12}}>
+        <Text style={s.muted}>Search by name or username.</Text>
+        <TextInput accessibilityLabel="Search people" value={query} onChangeText={setQuery} style={s.input} placeholder="Name or username" placeholderTextColor={colors.textSecondary} autoCapitalize="none" autoFocus/>
+        {results.map(p=><View key={p.id} style={s.conversa}>
+          <Pressable onPress={()=>onProfile(p.id)}><FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={44}/></Pressable>
+          <View style={{flex:1,minWidth:0,gap:2}}>
+            <Text numberOfLines={1} style={[s.text,{fontWeight:'600'}]}>{p.name}</Text>
+            <Text numberOfLines={1} style={s.muted}>@{p.username}</Text>
+          </View>
+          <SocialButton disabled={busy||social.friends.some(f=>f.friendId===p.id)} onPress={()=>void run(()=>sendFriendRequest(p.id))}>{social.friends.some(f=>f.friendId===p.id)?'Added':'Add'}</SocialButton>
+        </View>)}
+        {!results.length&&!!query.trim()&&<Text style={s.muted}>Nobody with that name.</Text>}
+      </View>
+    </SocialModal>
 
     <SocialModal visible={!!detailedGroup&&visible} title="Group details" onClose={()=>setGroupDetails(null)}>
       {detailedGroup&&<GroupDetails group={detailedGroup} myId={myId} onProfile={id=>{setGroupDetails(null);onProfile(id);}}
