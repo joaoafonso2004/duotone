@@ -1,5 +1,8 @@
 import React from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { LinhaArrastavel } from './LinhaArrastavel';
+import { destinoDoArrasto } from '../lib/arrastarFila';
+import { TRACK_ROW_HEIGHT } from './TrackRow';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
@@ -60,6 +63,33 @@ export function QueueSheet({ visible, onClose }: Props) {
   // utilizador tem de perceber porque é que continua a tocar.
   const radioActive = usePlayer((s) => s.radioActive);
 
+  // O arrasto vive aqui e nao em cada linha: a linha pegada precisa de saber
+  // que e ela, e as outras precisam de saber para onde se afastar.
+  const [arrastar, setArrastar] = React.useState<number | null>(null);
+  const dy = React.useRef(new Animated.Value(0)).current;
+  // Medida em vez de assumida: a linha da fila e um `TrackRow` mais a linha
+  // do separador, e meio pixel de erro por linha desalinha o gesto todo ao fim
+  // de dez. O `TRACK_ROW_HEIGHT` serve so ate a primeira medicao chegar.
+  const [altura, setAltura] = React.useState(TRACK_ROW_HEIGHT);
+
+  // A fila pode mudar por baixo do dedo -- a musica acaba e o `queueIndex`
+  // avanca. Largar uma linha que ja nao existe move a errada.
+  React.useEffect(() => {
+    if (arrastar != null && arrastar >= upNext.length) {
+      setArrastar(null);
+      dy.setValue(0);
+    }
+  }, [arrastar, upNext.length, dy]);
+
+  const largar = (de: number) => (dyFinal: number) => {
+    setArrastar(null);
+    dy.setValue(0);
+    const para = destinoDoArrasto(de, dyFinal, altura, upNext.length);
+    if (para === de || !upNext[de] || !upNext[para]) return;
+    hapticSelection();
+    moveQueueItem(upNext[de].index, upNext[para].index);
+  };
+
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <View style={styles.header}>
@@ -94,24 +124,11 @@ export function QueueSheet({ visible, onClose }: Props) {
           data={upNext}
           keyExtractor={(entry, index) => `${entry.track.source}:${entry.track.sourceId}-${index}`}
           style={styles.list}
+          scrollEnabled={arrastar === null}
           contentContainerStyle={{ paddingBottom: 40 }}
           renderItem={({ item: entry, index }) => {
             const item = entry.track;
             const realIndex = entry.index;
-
-            const handleMoveUp = () => {
-              hapticSelection();
-              if (index > 0) {
-                moveQueueItem(realIndex, realIndex - 1);
-              }
-            };
-
-            const handleMoveDown = () => {
-              hapticSelection();
-              if (index < upNext.length - 1) {
-                moveQueueItem(realIndex, realIndex + 1);
-              }
-            };
 
             const handleRemove = () => {
               hapticSelection();
@@ -119,7 +136,20 @@ export function QueueSheet({ visible, onClose }: Props) {
             };
 
             return (
-              <View style={styles.queueItemRow}>
+              <LinhaArrastavel
+                index={index}
+                arrastarIndex={arrastar}
+                altura={altura}
+                dy={dy}
+                aoLargar={largar(index)}
+              >
+              <View
+                style={styles.queueItemRow}
+                onLayout={index === 0 ? (e) => {
+                  const h = e.nativeEvent.layout.height;
+                  if (h > 0 && Math.abs(h - altura) > 0.5) setAltura(h);
+                } : undefined}
+              >
                 {/* Marca as que vieram do shuffle inteligente: sem isto nao se
                     distingue o que e teu do que a app meteu, e a lista passa a
                     ter musicas que nao te lembras de ter posto. */}
@@ -134,43 +164,24 @@ export function QueueSheet({ visible, onClose }: Props) {
                     onPress={() => {
                       playTrack(item, queue);
                     }}
+                    onLongPress={canReorder ? () => {
+                      hapticSelection();
+                      dy.setValue(0);
+                      setArrastar(index);
+                    } : undefined}
+                    delayLongPress={canReorder ? 1000 : undefined}
                   />
                 </View>
                 <View style={styles.actionButtons}>
-                  {canReorder && (<>
-                  <Pressable
-                    onPress={handleMoveUp}
-                    disabled={index === 0}
-                    style={({ pressed }) => [
-                      styles.actionBtn,
-                      index === 0 && styles.disabledBtn,
-                      pressed && { opacity: 0.6 }
-                    ]}
-                    hitSlop={6}
-                  >
-                    <Ionicons
-                      name="arrow-up"
-                      size={14}
-                      color={index === 0 ? colors.textTertiary : colors.textSecondary}
-                    />
-                  </Pressable>
-                  <Pressable
-                    onPress={handleMoveDown}
-                    disabled={index === upNext.length - 1}
-                    style={({ pressed }) => [
-                      styles.actionBtn,
-                      index === upNext.length - 1 && styles.disabledBtn,
-                      pressed && { opacity: 0.6 }
-                    ]}
-                    hitSlop={6}
-                  >
-                    <Ionicons
-                      name="arrow-down"
-                      size={14}
-                      color={index === upNext.length - 1 ? colors.textTertiary : colors.textSecondary}
-                    />
-                  </Pressable>
-                  </>)}
+                  {canReorder && (
+                    <View style={styles.pega} pointerEvents="none">
+                      <Ionicons
+                        name="reorder-three-outline"
+                        size={16}
+                        color={arrastar === index ? colors.text : colors.textTertiary}
+                      />
+                    </View>
+                  )}
                   <Pressable
                     onPress={handleRemove}
                     style={({ pressed }) => [
@@ -183,6 +194,7 @@ export function QueueSheet({ visible, onClose }: Props) {
                   </Pressable>
                 </View>
               </View>
+              </LinhaArrastavel>
             );
           }}
         />
@@ -228,6 +240,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xs,
     paddingRight: spacing.sm,
+  },
+  pega: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   actionBtn: {
     width: 28,

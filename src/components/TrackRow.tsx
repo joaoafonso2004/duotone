@@ -28,6 +28,13 @@ interface Props {
    * YouTube). Nas listas da própria biblioteca seria um ícone em todas as
    * linhas, ou seja, ruído. */
   showSavedBadge?: boolean;
+  /**
+   * Sobrepõe-se ao gesto do `onAction` para quem precisa do toque longo para
+   * outra coisa -- pegar numa linha da fila para a mudar de sítio.
+   */
+  onLongPress?: () => void;
+  /** Só faz sentido com `onLongPress`. Sem ele, o toque longo fica nos 350 ms. */
+  delayLongPress?: number;
 }
 
 /** 52 px de capa + 8 px de padding em cima e em baixo. */
@@ -54,6 +61,8 @@ function TrackRowComponent({
   selectMode = false,
   selected = false,
   showSavedBadge = false,
+  onLongPress,
+  delayLongPress,
 }: Props) {
   const theme = useTheme((s) => s.theme);
   /** A moldura da capa desta linha, para o player saber de onde a fazer voar. */
@@ -86,14 +95,15 @@ function TrackRowComponent({
         onPress();
       }}
       onLongPress={
-        !selectMode && onAction
+        onLongPress ??
+        (!selectMode && onAction
           ? () => {
               hapticSelection();
               onAction();
             }
-          : undefined
+          : undefined)
       }
-      delayLongPress={350}
+      delayLongPress={delayLongPress ?? 350}
       style={[styles.row, active && { backgroundColor: theme.soft }]}
     >
       {selectMode && (
