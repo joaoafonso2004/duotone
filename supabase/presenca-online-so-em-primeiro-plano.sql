@@ -9,8 +9,16 @@
 --
 -- A separação: a validade da SESSÃO continua a incluir quem está a tocar em
 -- segundo plano -- é o que faz o "♫ está a ouvir" aparecer, e isso está certo.
--- O ONLINE passa a sair de uma janela própria, que só se estende quando a app
--- está mesmo em primeiro plano.
+-- O ONLINE passa a sair de uma janela própria, `active_until`, que só se
+-- estende quando a app está mesmo em primeiro plano.
+--
+-- Esta versão é uma cópia da função original com TRÊS alterações e nada mais:
+-- a coluna nova, a janela nova a ser escrita, e o `online_until` a sair dela.
+-- Tudo o resto -- os `default` dos parâmetros, o `clock_timestamp()`, e o
+-- fecho das sessões antigas do mesmo dispositivo -- fica exactamente como
+-- estava. O fecho das sessões antigas é especialmente importante aqui: é o que
+-- impede que uma app morta e reaberta deixe para trás uma sessão com a janela
+-- ainda no futuro, a manter a pessoa acesa.
 --
 -- Idempotente: pode correr-se as vezes que forem precisas.
 
@@ -23,11 +31,12 @@ alter table public.social_presence_sessions
 
 create or replace function public.publish_social_presence(
   p_device_id text, p_session_id uuid, p_sequence bigint,
-  p_active boolean, p_track jsonb, p_end boolean
-) returns void language plpgsql security definer set search_path = public as $$
+  p_active boolean, p_track jsonb default null, p_end boolean default false
+) returns void language plpgsql security definer set search_path = public
+as $$
 declare
   uid uuid := auth.uid();
-  instante timestamptz := now();
+  instante timestamptz := clock_timestamp();
   anterior public.social_presence_sessions;
   faixa jsonb;
   escolhida public.social_presence_sessions;
@@ -52,29 +61,29 @@ begin
       'sourceId',p_track->'sourceId','title',p_track->'title','artist',p_track->'artist',
       'artworkUrl',p_track->'artworkUrl','durationSeconds',p_track->'durationSeconds');
   end if;
-
-  if p_end then
+  -- Sessão nova neste dispositivo: fecha as que lá estavam. Sem isto, uma app
+  -- morta à força deixa a sessão anterior aberta e com janela no futuro -- e
+  -- era ela que mantinha a pessoa "Online now" sem lá estar ninguém.
+  if anterior.session_id is null and not p_end then
     update public.social_presence_sessions
       set closed_at = instante, valid_until = instante, active_until = instante, track = null
-      where user_id = uid and device_id = p_device_id and session_id = p_session_id;
-  else
-    insert into public.social_presence_sessions as s
-      (user_id,device_id,session_id,sequence,updated_at,valid_until,active_until,
-       track,playing_changed_at,closed_at)
-    values(uid,p_device_id,p_session_id,p_sequence,instante,
-      -- A sessão continua viva com a app em segundo plano a tocar: é o que
-      -- mantém o "♫ está a ouvir" verdadeiro.
-      case when p_active or faixa is not null then instante + interval '120 seconds' else instante end,
-      -- O online, não. Só se estende com a app à frente da pessoa.
-      case when p_active then instante + interval '120 seconds' else instante end,
-      faixa,instante,null)
-    on conflict(user_id,device_id,session_id) do update set
-      sequence = excluded.sequence, updated_at = instante,
-      valid_until = excluded.valid_until, active_until = excluded.active_until,
-      track = excluded.track, closed_at = excluded.closed_at,
-      playing_changed_at = case when s.track is distinct from excluded.track then instante else s.playing_changed_at end;
+      where user_id = uid and device_id = p_device_id and closed_at is null;
   end if;
-
+  insert into public.social_presence_sessions as s
+    (user_id,device_id,session_id,sequence,updated_at,valid_until,active_until,
+     track,playing_changed_at,closed_at)
+  values(uid,p_device_id,p_session_id,p_sequence,instante,
+    -- A sessão continua viva com a app em segundo plano a tocar: é o que
+    -- mantém o "♫ está a ouvir" verdadeiro.
+    case when not p_end and (p_active or faixa is not null) then instante + interval '120 seconds' else instante end,
+    -- O online, não. Só se estende com a app à frente da pessoa.
+    case when not p_end and p_active then instante + interval '120 seconds' else instante end,
+    faixa,instante,case when p_end then instante end)
+  on conflict(user_id,device_id,session_id) do update set
+    sequence = excluded.sequence, updated_at = instante,
+    valid_until = excluded.valid_until, active_until = excluded.active_until,
+    track = excluded.track, closed_at = excluded.closed_at,
+    playing_changed_at = case when s.track is distinct from excluded.track then instante else s.playing_changed_at end;
   -- Aqui está a mudança que interessa: o online sai da janela de primeiro
   -- plano, e não da validade da sessão.
   select max(active_until) into online_ate from public.social_presence_sessions
@@ -82,7 +91,6 @@ begin
   select * into escolhida from public.social_presence_sessions
     where user_id = uid and closed_at is null and valid_until > instante and track is not null
     order by playing_changed_at desc, session_id limit 1;
-
   insert into public.social_presence(user_id,last_seen_at,online_until,currently_playing,playing_until,updated_at)
   values(uid,instante,online_ate,
     case when escolhida.track is not null then escolhida.track || jsonb_build_object('isPlaying',true,'updatedAt',escolhida.updated_at) end,
