@@ -1,5 +1,7 @@
 import {StateIcon} from './StateIcon';
 import { Toque } from './Toque';
+import { BarraDaSessao } from './BarraDaSessao';
+import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
 import { ESCALA } from '../lib/movimento';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { readLikedSongsCache } from '../lib/likedSongsCache';
@@ -152,6 +154,9 @@ export function PlayerRoot() {
   const [eqVisible, setEqVisible] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [currentRoute, setCurrentRoute] = useState<string | null>(null);
+  // Montado aqui porque o PlayerRoot existe enquanto a app existe -- e uma
+  // sessao de escuta nao pode depender de um ecra estar aberto.
+  useSincroniaDaSessao();
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -568,7 +573,26 @@ export function PlayerRoot() {
     return () => clearTimeout(id);
   }, [error, erroTemporario, setError]);
 
-  if (!current) return null;
+  // Sem faixa não há leitor -- mas pode haver SESSÃO. Entrar numa sessão e
+  // ficar à espera que o anfitrião escolha a primeira música é um estado
+  // normal, e nesse a barra é a única coisa no ecrã que explica o que se passa.
+  // Devolver `null` aqui deixava o convidado a olhar para uma app que parecia
+  // não ter reagido ao convite.
+  if (!current) {
+    return (
+      <View
+        pointerEvents="box-none"
+        style={{
+          position: 'absolute',
+          left: spacing.xl,
+          right: spacing.xl,
+          bottom: TAB_BAR_BASE + insets.bottom + 8,
+        }}
+      >
+        <BarraDaSessao />
+      </View>
+    );
+  }
 
   const isYt = current.source === 'youtube';
   const atQueueEnd =
@@ -1076,6 +1100,25 @@ export function PlayerRoot() {
             />
           </View>
         </Animated.View>
+
+      {/* A faixa da sessão de escuta, mesmo por cima do leitor pequeno.
+          Fora do `Animated.View` do mini de propósito: ela existe mesmo quando
+          ainda não há faixa nenhuma a tocar -- entrar numa sessão e ficar à
+          espera que o anfitrião escolha é um estado normal, e nesse a barra é a
+          única coisa que diz o que se está a passar. */}
+      {!shouldHide && !expanded ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            left: spacing.xl,
+            right: spacing.xl,
+            bottom: miniBottom + (current ? MINI_PLAYER_HEIGHT + 6 : 0),
+          }}
+        >
+          <BarraDaSessao />
+        </View>
+      ) : null}
 
       {/* ============ FRAME DE VÍDEO YOUTUBE (flutuante, nunca desmonta) ============ */}
       {current ? (

@@ -264,6 +264,41 @@ await verificar('a faixa guardada só leva os campos conhecidos', async () => {
   assert.equal(t.title, 'Boa');
 });
 
+console.log('\nO convite:');
+
+await verificar('o anfitrião convida um amigo, e a mensagem cai no chat dele', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await q('select public.convidar_para_sessao($1,$2::uuid[],$3)', [s, [uid(2)], 'anda ouvir isto']);
+  await db.exec('reset role');
+  const m = (await q(`select * from shared_items where item_type='sessao' and session_id=$1`, [s])).rows;
+  assert.equal(m.length, 1);
+  assert.equal(m[0].recipient_id, uid(2));
+  assert.equal(m[0].message, 'anda ouvir isto');
+});
+
+await verificar('convidar quem não é amigo não manda nada', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await q('select public.convidar_para_sessao($1,$2::uuid[],null)', [s, [uid(3)]]);
+  await db.exec('reset role');
+  assert.equal(
+    (await q('select 1 from shared_items where session_id=$1 and recipient_id=$2', [s, uid(3)])).rows.length,
+    0,
+    'convidar um estranho era mandar-lhe uma mensagem sem ser amigo dele'
+  );
+});
+
+await verificar('um convidado não convida em nome do anfitrião', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await como(2);
+  await assert.rejects(
+    q('select public.convidar_para_sessao($1,$2::uuid[],null)', [s, [uid(3)]]),
+    /anfitri/i
+  );
+});
+
 console.log('\nA hora do servidor:');
 
 await verificar('avança entre chamadas dentro da mesma transacção', async () => {

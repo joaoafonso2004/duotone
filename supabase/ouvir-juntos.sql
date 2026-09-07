@@ -574,3 +574,74 @@ begin
   end if;
 end;
 $$;
+
+
+-- ---------------------------------------------------------------------------
+-- 11) O convite é uma mensagem
+-- ---------------------------------------------------------------------------
+--
+-- Não há ecrã novo para o convite, nem notificação nova, nem caixa de entrada
+-- própria. Ele chega ao chat como qualquer partilha: já há notificações de
+-- mensagens, já há histórico, e um convite que não se viu na altura continua lá
+-- amanhã. O que muda é o tipo, para a app o saber desenhar como um convite e
+-- não como uma música partilhada.
+--
+-- `on delete set null` e não `cascade`: se a sessão desaparecer, a MENSAGEM
+-- fica -- ela faz parte da conversa, e apagar histórico por causa de uma sessão
+-- que acabou seria apagar o que as pessoas disseram uma à outra.
+
+alter table public.shared_items
+  add column if not exists session_id uuid
+  references public.listening_sessions (id) on delete set null;
+
+do $$
+begin
+  -- O `check` original só conhecia 'playlist' e 'track'. Substitui-se pelo
+  -- mesmo mais 'sessao'; se já tiver sido substituído, isto é inofensivo.
+  alter table public.shared_items drop constraint if exists shared_items_item_type_check;
+  alter table public.shared_items add constraint shared_items_item_type_check
+    check (item_type in ('playlist', 'track', 'sessao'));
+end;
+$$;
+
+/**
+ * Convidar alguém, numa chamada só.
+ *
+ * Podia ser um `insert` do lado da app, mas então a app é que decidiria a que
+ * sessão o convite aponta -- e um cliente alterado convidava gente para a
+ * sessão de outra pessoa. Aqui verifica-se que quem convida é mesmo o
+ * anfitrião, e a mensagem que sai não pode apontar para outro sítio.
+ */
+create or replace function public.convidar_para_sessao(
+  p_session uuid, p_amigos uuid[], p_mensagem text default null
+)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  uid uuid := auth.uid();
+  amigo uuid;
+begin
+  if uid is null then raise exception 'Sessão necessária' using errcode = '42501'; end if;
+  if public.anfitriao_da_sessao(p_session) <> uid then
+    raise exception 'Só o anfitrião convida' using errcode = '42501';
+  end if;
+
+  foreach amigo in array coalesce(p_amigos, array[]::uuid[]) loop
+    if amigo is null or amigo = uid then continue; end if;
+    -- Convidar quem não é amigo era mandar uma mensagem a um estranho.
+    if not exists (
+      select 1 from public.friendships f
+      where f.status = 'accepted'
+        and f.user_id_1 = least(uid, amigo)
+        and f.user_id_2 = greatest(uid, amigo)
+    ) then
+      continue;
+    end if;
+    insert into public.shared_items (sender_id, recipient_id, item_type, session_id, message)
+    values (uid, amigo, 'sessao', p_session, nullif(btrim(coalesce(p_mensagem, '')), ''));
+  end loop;
+end;
+$$;
+
+revoke all on function public.convidar_para_sessao(uuid,uuid[],text) from public;
+grant execute on function public.convidar_para_sessao(uuid,uuid[],text) to authenticated;

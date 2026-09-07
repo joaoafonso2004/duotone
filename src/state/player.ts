@@ -151,6 +151,19 @@ interface PlayerState {
   /** Velocidade de reproducao, 0,25 a 2 em degraus de 0,1 (ver
    * `lib/playbackRate.ts`). Substituiu os tres presets. */
   playbackRate: number;
+  /**
+   * Correcção de sincronia numa sessão de escuta partilhada. 1 = nenhuma.
+   *
+   * É um MULTIPLICADOR à parte, e não um valor escrito no `playbackRate`, por
+   * duas razões. A preferência de velocidade é do utilizador e fica guardada
+   * POR FAIXA (`lembrarDaFaixa`): escrever 1,02 lá dentro fazia a app lembrar-se
+   * para sempre de que aquela música se ouve a 1,02. E quem tem 1,25x escolhido
+   * não pode ser atirado para perto de 1x só porque está a ouvir com um amigo.
+   *
+   * Quem multiplica os dois é o motor, no `YouTubePlayerView`. Ver
+   * `velocidadeAAplicar` em `lib/sincronizacao.ts`.
+   */
+  correcaoDeSincronia: number;
   /** Os dez ganhos do equalizador, em dB, aplicados pelo motor de cada plataforma. */
   eqGanhos: Ganhos;
   /** O que cada faixa lembra da ultima vez que a ouviste. */
@@ -265,6 +278,8 @@ interface PlayerState {
   _setProgress: (positionMs: number, durationMs: number) => void;
   _setIsPlaying: (v: boolean) => void;
   _setBuffering: (v: boolean) => void;
+  /** Ver `correcaoDeSincronia`. Só o motor de sincronia mexe nisto. */
+  _setCorrecaoDeSincronia: (v: number) => void;
   activeBackend: 'resolving' | 'native' | 'webview';
   _setActiveBackend: (backend: 'resolving' | 'native' | 'webview') => void;
 }
@@ -402,6 +417,7 @@ export const usePlayer = create<PlayerState>()(
   sleepTimerTimeLeft: 0,
   sleepTimerEndsAt: null,
   playbackRate: RATE_NORMAL,
+  correcaoDeSincronia: 1,
   eqGanhos: PLANO,
   ajustesPorFaixa: {},
   padraoRate: RATE_NORMAL,
@@ -1072,6 +1088,12 @@ export const usePlayer = create<PlayerState>()(
   _setIsPlaying: (v) => set(passo(get().maquina, v ? 'quer-tocar' : 'quer-parar')),
 
   _setBuffering: (v) => set(passo(get().maquina, v ? 'a-encher' : 'motor-pronto')),
+
+  _setCorrecaoDeSincronia: (v) => {
+    // Um valor absurdo aqui parava o som ou punha-o aos guinchos. Na dúvida, 1.
+    const seguro = Number.isFinite(v) && v > 0.5 && v < 2 ? v : 1;
+    if (get().correcaoDeSincronia !== seguro) set({ correcaoDeSincronia: seguro });
+  },
 
   setSleepTimer: (minutes) => {
     const { fimEm, restanteS } = prazoDoTemporizador(minutes, Date.now());

@@ -19,6 +19,7 @@ import { SharedPlaylistCard } from './SharedPlaylistCard';
 import { MessageBubble,ReactionRow } from './ReactionRow';
 import { getPlaylistPreviews } from '../api/playlists';
 import { GroupAvatar,GroupChatHeader,GroupComposer,GroupDetails,GroupEmptyState,GroupMessage } from './GroupChat';
+import { ConviteDeSessao } from './ConviteDeSessao';
 import type { Playlist,Track } from '../types';
 
 export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string}) {
@@ -223,7 +224,8 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
             rotulo={`Message from ${m.sender.name}. Hold to react`}
             style={{backgroundColor:m.sender.id===myId?colors.surfaceHigh:colors.bg,padding:12,borderRadius:15,gap:8}}>
           {m.sender.id!==myId&&<Pressable onPress={()=>onProfile(m.sender.id)} style={s.row}><FriendAvatar avatarUrl={m.sender.avatarUrl} name={m.sender.name} size={22}/><Text style={s.muted}>{m.sender.name}</Text></Pressable>}
-          {!!m.message&&<Text selectable style={s.text}>{m.message}</Text>}
+          {m.itemType==='sessao'&&m.sessionId?<ConviteDeSessao id={m.sessionId} mensagem={m.message}/>:null}
+          {!!m.message&&m.itemType!=='sessao'&&<Text selectable style={s.text}>{m.message}</Text>}
           {m.trackData&&<Pressable style={s.row} onPress={()=>setTrack(m.trackData)}>{m.trackData.artworkUrl&&<Image source={{uri:m.trackData.artworkUrl}} style={{width:44,height:44,borderRadius:8}}/>}<Text numberOfLines={2} style={[s.text,{flexShrink:1}]}>♫ {m.trackData.title}</Text></Pressable>}
           {m.playlistId&&<SharedPlaylistCard playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
           <Text style={[s.muted,{fontSize:11}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>

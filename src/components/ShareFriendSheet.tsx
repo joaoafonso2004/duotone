@@ -12,6 +12,9 @@ import { BottomSheet } from './BottomSheet';
 import { FriendAvatar } from './FriendAvatar';
 import { GroupAvatar } from './GroupChat';
 import { Input } from './Input';
+import { Toque } from './Toque';
+import { ESCALA } from '../lib/movimento';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 
 type Destino =
   | { kind: 'group'; id: string; nome: string; sub: string; grupo: ChatGroup }
@@ -37,6 +40,10 @@ interface ShareFriendSheetProps {
  */
 export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFriendSheetProps) {
   const tema = useTheme((s) => s.theme);
+  const abrirSessao = useOuvirJuntos((s) => s.abrir);
+  const sessaoActual = useOuvirJuntos((s) => s.sessao);
+  const [escolhidos, setEscolhidos] = useState<string[]>([]);
+  const [aAbrir, setAAbrir] = useState(false);
   const [friends, setFriends] = useState<Friendship[]>([]);
   const [groups, setGroups] = useState<ChatGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +68,36 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   }, [visible]);
 
   const chaveDe = (alvo: Destino) => (alvo.kind === 'group' ? `g:${alvo.id}` : alvo.id);
+
+  /**
+   * A folha faz duas coisas, e a segunda só existe para faixas.
+   *
+   * Partilhar é mandar e acabou; ouvir juntos é escolher COM QUEM e depois
+   * abrir. Por isso o modo entra quando se toca no botão de baixo: as linhas
+   * passam de "enviar a cada um" para "marcar quem vem", que é uma pergunta
+   * diferente e não podia ficar com o mesmo gesto.
+   */
+  const [modoSessao, setModoSessao] = useState(false);
+  const podeOuvirJuntos = itemType === 'track' && !!item?.sourceId;
+
+  const comecarSessao = async () => {
+    if (!escolhidos.length || aAbrir) return;
+    setAAbrir(true);
+    try {
+      hapticSelection();
+      await abrirSessao(item, escolhidos, comment.trim() || undefined);
+      hapticNotification();
+      onClose();
+    } catch {
+      // Falhou: fica-se na folha, com as escolhas de pé, para tentar outra vez.
+    } finally {
+      setAAbrir(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!visible) { setModoSessao(false); setEscolhidos([]); }
+  }, [visible]);
 
   const handleShare = async (alvo: Destino) => {
     const chave = chaveDe(alvo);
@@ -94,7 +131,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <Text style={[type.title, { marginBottom: spacing.md }]}>
-        Share {itemType === 'track' ? 'track' : 'playlist'}
+        {modoSessao ? 'Listen together' : `Share ${itemType === 'track' ? 'track' : 'playlist'}`}
       </Text>
 
       <View style={{ marginBottom: spacing.md }}>
@@ -126,8 +163,14 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
             return (
               <Pressable
                 key={`${alvo.kind}:${alvo.id}`}
-                onPress={() => handleShare(alvo)}
-                disabled={estado !== 'idle'}
+                onPress={() =>
+                  modoSessao
+                    ? setEscolhidos((e) =>
+                        e.includes(alvo.id) ? e.filter((x) => x !== alvo.id) : [...e, alvo.id]
+                      )
+                    : handleShare(alvo)
+                }
+                disabled={modoSessao ? alvo.kind === 'group' : estado !== 'idle'}
                 style={({ pressed }) => [
                   styles.row,
                   pressed && { backgroundColor: colors.surfacePressed },
@@ -146,7 +189,13 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
                 </View>
                 {/* O mesmo vocabulário da folha das playlists: um visto quando
                     está feito, uma seta quando ainda há alguma coisa a fazer. */}
-                {estado === 'sending' ? (
+                {modoSessao ? (
+                  <Ionicons
+                    name={escolhidos.includes(alvo.id) ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={22}
+                    color={escolhidos.includes(alvo.id) ? tema.color : colors.textTertiary}
+                  />
+                ) : estado === 'sending' ? (
                   <ActivityIndicator size="small" color={tema.color} />
                 ) : (
                   <Ionicons
@@ -160,6 +209,59 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
           })}
         </ScrollView>
       )}
+
+      {/* Não é um ícone a mais na linha de acções do leitor -- essa já tem três
+          e não devia crescer. Vive aqui porque esta folha já sabe quem são os
+          amigos, e escolher com quem ouvir é a mesma pergunta que escolher a
+          quem mandar. */}
+      {podeOuvirJuntos && destinos.length > 0 && !loading ? (
+        <View style={styles.rodape}>
+          {modoSessao ? (
+            <>
+              <Toque
+                escala={ESCALA.botao}
+                onPress={comecarSessao}
+                disabled={!escolhidos.length || aAbrir}
+                accessibilityLabel="Start listening together"
+                style={[
+                  styles.botaoSessao,
+                  { backgroundColor: tema.color },
+                  (!escolhidos.length || aAbrir) && { opacity: 0.45 },
+                ]}
+              >
+                {aAbrir ? (
+                  <ActivityIndicator size="small" color={colors.bg} />
+                ) : (
+                  <Text style={[type.body, { color: colors.bg, fontWeight: '700' }]}>
+                    {escolhidos.length
+                      ? `Listen together · ${escolhidos.length}`
+                      : 'Choose who comes'}
+                  </Text>
+                )}
+              </Toque>
+              <Toque
+                escala={ESCALA.botao}
+                onPress={() => { setModoSessao(false); setEscolhidos([]); }}
+                style={styles.botaoQuieto}
+              >
+                <Text style={type.caption}>Cancel</Text>
+              </Toque>
+            </>
+          ) : (
+            <Toque
+              escala={ESCALA.botao}
+              onPress={() => { hapticSelection(); setModoSessao(true); }}
+              accessibilityLabel="Listen together"
+              style={styles.botaoQuieto}
+            >
+              <Ionicons name="headset-outline" size={17} color={tema.color} />
+              <Text style={[type.body, { color: tema.color, fontWeight: '600' }]}>
+                {sessaoActual ? 'Invite to your session' : 'Listen together'}
+              </Text>
+            </Toque>
+          )}
+        </View>
+      ) : null}
     </BottomSheet>
   );
 }
@@ -172,6 +274,28 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xs,
     borderRadius: radii.md,
+  },
+  rodape: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  botaoSessao: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    borderRadius: radii.lg,
+  },
+  botaoQuieto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    paddingVertical: 12,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
   },
   vazio: {
     alignItems: 'center',

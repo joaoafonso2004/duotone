@@ -163,6 +163,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
   const playbackRate = usePlayer((s) => s.playbackRate);
+  const correcaoDeSincronia = usePlayer((s) => s.correcaoDeSincronia);
   // Só para as dependências do pré-carregamento: ligar/desligar o shuffle a
   // meio de uma faixa muda qual é a faixa seguinte.
   const shuffle = usePlayer((s) => s.shuffle);
@@ -338,8 +339,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // arrancava a música sozinho no restauro de sessão (que fica em pausa).
   useEffect(() => {
     if (backend !== 'native' || !wantsPlayRef.current) return;
-    player.playbackRate = playbackRate;
-  }, [backend, player, playbackRate]);
+    // A escolha do utilizador VEZES a correcao de sincronia. Ver
+    // `velocidadeAAplicar` e o comentario do `correcaoDeSincronia`: escrever a
+    // correccao no `playbackRate` fazia a app lembrar-se para sempre de que
+    // aquela musica se ouve a 1,02.
+    player.playbackRate = playbackRate * correcaoDeSincronia;
+  }, [backend, player, playbackRate, correcaoDeSincronia]);
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
   // recente sem re-executar a cada render (a função é recriada em cada um).

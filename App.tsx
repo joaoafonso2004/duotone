@@ -42,6 +42,7 @@ import { useAcompanharCapa } from './src/hooks/useAcompanharCapa';
 import { useEstadoDoWidget } from './src/hooks/useEstadoDoWidget';
 import { useRecomendacoes } from './src/state/recomendacoes';
 import { iniciarPresenca } from './src/lib/presenceSync';
+import { useOuvirJuntos } from './src/state/ouvirJuntos';
 import { sincronizarPreferencias } from './src/lib/prefsSync';
 import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
@@ -80,7 +81,14 @@ export default function App() {
     const pararPrefs = sincronizarPreferencias(userId);
     const pararEventos = iniciarEventos(userId);
     const pararSocial = iniciarSocial(userId);
-    return () => { pararPresenca(); pararSocial(); pararPrefs(); pararEventos(); };
+    // Fechar a app nao e sair de uma sessao de escuta: se ficou uma aberta,
+    // volta-se a entrar nela em silencio. Sair e uma decisao, e faz-se pela
+    // barra.
+    void useOuvirJuntos.getState().ligar(userId);
+    return () => {
+      pararPresenca(); pararSocial(); pararPrefs(); pararEventos();
+      useOuvirJuntos.getState().desligar();
+    };
   }, [userId,offline]);
 
   useEffect(() => {
