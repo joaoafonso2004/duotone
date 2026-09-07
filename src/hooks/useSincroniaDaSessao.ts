@@ -4,6 +4,7 @@ import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { correccaoNecessaria } from '../lib/sincronizacao';
 import { assinaturaDaSessao } from '../lib/jam';
+import { precisaDeEmpurrao } from '../lib/arranqueTravado';
 import { cachedAudioFile } from '../lib/youtubeCache';
 import { appEstaVisivel } from '../lib/appVisibility';
 import type { SessaoDeEscuta } from '../api/ouvirJuntos';
@@ -86,6 +87,45 @@ export function useSincroniaDaSessao(): void {
       void p.seekTo(correcao.paraMs, true);
     }, AFINACAO_MS);
     return () => clearInterval(relogio);
+  }, [id, faixa, fonte]);
+
+  // A rede do arranque travado. Ver `arranqueTravado.ts` para o que se sabe e
+  // o que não se sabe sobre a causa -- isto é deliberadamente um remédio e não
+  // uma explicação.
+  useEffect(() => {
+    if (!id || !faixa) return;
+    let empurroes = 0, ultimaPosicao = -1, paradoDesde = Date.now();
+    const vigia = setInterval(() => {
+      const p = usePlayer.getState(), s = useOuvirJuntos.getState();
+      if (s.sessao?.id !== id || s.sessao.track?.sourceId !== faixa) return;
+      if (p.positionMs !== ultimaPosicao) {
+        ultimaPosicao = p.positionMs;
+        paradoDesde = Date.now();
+        return;
+      }
+      const mesma = p.current?.sourceId === faixa && p.current.source === fonte;
+      if (!precisaDeEmpurrao({
+        sessaoATocar: s.sessao.aTocar,
+        querTocar: p.isPlaying,
+        pronta: mesma && p.activeBackend !== 'resolving' && !p.buffering,
+        posicaoMs: p.positionMs,
+        paradoMs: Date.now() - paradoDesde,
+        empurroesDados: empurroes,
+      })) return;
+      empurroes++;
+      paradoDesde = Date.now();
+      // Exactamente o que a pausa e o retomar do anfitrião fazem à mão, que é
+      // a única coisa que se sabe que destrava isto: primeiro o seek, e só
+      // depois a ordem de tocar. Por esta ordem -- foi o seek que curou.
+      const alvo = Math.max(0, s.posicaoAgora() ?? 0);
+      void p.seekTo(alvo, true).then(() => {
+        const agora = useOuvirJuntos.getState();
+        if (agora.sessao?.id === id && agora.sessao.aTocar) {
+          usePlayer.getState()._forcarReproducao(true);
+        }
+      }).catch(() => {});
+    }, 1000);
+    return () => clearInterval(vigia);
   }, [id, faixa, fonte]);
 
   useEffect(() => {

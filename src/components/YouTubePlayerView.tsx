@@ -1490,7 +1490,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           // Reaplica a velocidade: o efeito reativo não corre no play manual
           // (deps inalteradas) e o guard de wantsPlayRef pode tê-lo saltado
           // enquanto estávamos em pausa (ex.: restauro de sessão).
-          player.playbackRate = usePlayer.getState().playbackRate;
+          //
+          // Pela `velocidadeNaSessao` e não em cru: este caminho escapava ao
+          // 1x do jam, e bastava carregar em play para o convidado voltar aos
+          // 0,9x que tinha escolhido para ouvir sozinho -- e a partir daí
+          // afastar-se dos outros sem nada o corrigir.
+          player.playbackRate = velocidadeNaSessao(
+            usePlayer.getState().playbackRate,
+            !!useOuvirJuntos.getState().sessao
+          );
           // Passagem suspensa: os dois motores voltam juntos, de onde iam.
           if (passagemRef.current) {
             try {
