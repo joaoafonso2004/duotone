@@ -29,6 +29,7 @@ import { usePlayer } from '../state/player';
 import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear } from '../lib/equalizer';
 import { arredondar as arredondarRate } from '../lib/playbackRate';
 import { trocarFonte } from '../lib/trocaDeFonte';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 
 /**
  * Quanto se espera por uma resolucao antes de a dar por perdida.
@@ -493,6 +494,24 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (!seguinte || seguinte.source !== 'youtube') return;
     if (seguinte.sourceId === track.sourceId) return;
     if (seguinteRef.current?.sourceId === seguinte.sourceId) return;
+
+    // SEM PASSAGEM DENTRO DE UMA SESSÃO DE ESCUTA.
+    //
+    // Uma passagem tem de saber, com antecedência, qual é a faixa seguinte --
+    // é isso que ela prepara no segundo motor. Numa sessão isso não se sabe: a
+    // faixa seguinte sai da fila PARTILHADA, e essa só é consumida no fim da
+    // música, depois de se esperar por quem ainda está a descarregar.
+    //
+    // Com os dois ligados, o crossfade preparava a faixa seguinte LOCAL e
+    // começava a passagem; ao chegar ao fim, a sessão mandava tocar outra --
+    // a da fila. Duas faixas a disputar o mesmo instante, com dois motores a
+    // trocar de papéis a meio. O resultado foi a app a partir-se.
+    //
+    // Não se tenta fazê-los concordar: a passagem perde-se dentro de uma
+    // sessão, e é uma perda pequena e compreensível. Ouvir junto é sobre a
+    // mesma música ao mesmo tempo, não sobre a costura entre elas -- que aliás
+    // nunca ficaria igual nos dois telemóveis.
+    if (useOuvirJuntos.getState().sessao) return;
 
     const duracao = track.durationSeconds || streamRef.current?.durationSeconds || null;
     if (

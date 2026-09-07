@@ -41,13 +41,41 @@ import { decisaoDeArranque } from '../lib/sessaoViva';
 /** De quanto em quanto tempo se compara a nossa posição com a da sessão. */
 const AFINACAO_MS = 2000;
 
+/**
+ * Quanto tempo se fica quieto depois de um salto.
+ *
+ * ISTO É O QUE TIRAVA O SOM AOS CONVIDADOS. A posição que a store guarda vem do
+ * `timeUpdate` do motor, que chega cerca de uma vez por segundo -- e um salto
+ * demora ainda mais a aparecer lá, porque o AVPlayer tem de reencher o buffer.
+ *
+ * Sem esta pausa, a comparação seguinte via a posição de ANTES do salto,
+ * concluía que continuávamos atrasados, e saltava outra vez. E outra. Cada
+ * salto corta o som -- o resultado era música aos pedaços do princípio ao fim.
+ *
+ * Cinco segundos é folga que chega para o salto assentar e para a posição
+ * voltar a ser verdade.
+ */
+const DESCANSO_APOS_SALTO_MS = 5000;
+
+/**
+ * Quantas leituras seguidas fora do sítio antes de saltar.
+ *
+ * Uma medição isolada pode ser ruído: o `timeUpdate` atrasou-se, a rede deu um
+ * soluço. Saltar por causa dela corta o som por nada. Duas leituras seguidas a
+ * dizer o mesmo já é um desvio real.
+ */
+const LEITURAS_PARA_SALTAR = 2;
+
 export function useSincroniaDaSessao(): void {
   const sessao = useOuvirJuntos((s) => s.sessao);
   const posicaoAgora = useOuvirJuntos((s) => s.posicaoAgora);
   const souAnfitriao = useOuvirJuntos((s) => s.souAnfitriao);
   const anunciarProntidao = useOuvirJuntos((s) => s.anunciarProntidao);
 
-  /** A última faixa que ESTA sessão nos mandou tocar, para não repetir. */
+  /** A faixa que toca AQUI. O efeito 1 reage a ela e não só à da sessão. */
+  const faixaLocalDoConvidado = usePlayer((s) => s.current?.sourceId);
+
+  /** A última faixa que ESTA sessão nos mandou tocar. */
   const ultimaMandada = useRef<string | null>(null);
   const ultimaProntidao = useRef<boolean | null>(null);
 
@@ -75,23 +103,35 @@ export function useSincroniaDaSessao(): void {
   };
 
   // ---- 1) a faixa -----------------------------------------------------------
+  //
+  // Repara no que ESTE efeito depende: a faixa da sessão E a faixa local. Antes
+  // só olhava para a da sessão e guardava a última que tinha aplicado -- e essa
+  // memória era pegajosa de mais: se o convidado trocasse de música por sua
+  // conta, o efeito via que já tinha aplicado aquela faixa e não fazia nada.
+  // Ficava a ouvir outra coisa, sozinho, e a sessão nem dava por isso.
   useEffect(() => {
     if (!sessao || souAnfitriao()) return;
     const alvo = sessao.track;
     if (!alvo?.sourceId) return;
-    if (ultimaMandada.current === alvo.sourceId) return;
 
     const actual = usePlayer.getState().current;
-    if (actual?.sourceId === alvo.sourceId) {
-      ultimaMandada.current = alvo.sourceId;
-      return;
+    if (actual?.sourceId === alvo.sourceId) return;
+
+    // Saiu da faixa da sessão sem ter licença para mandar nela. O que ele
+    // escolheu não se deita fora -- vai para a FILA, que é o que qualquer
+    // membro pode fazer sempre. Depois volta-se ao que a sessão está a tocar.
+    //
+    // Perder a escolha em silêncio era a pior das saídas: nem tocava o que ele
+    // pediu, nem dizia porquê.
+    if (actual?.sourceId && ultimaMandada.current !== null) {
+      void useOuvirJuntos.getState().sugerir(actual).catch(() => {});
     }
     ultimaMandada.current = alvo.sourceId;
     // Uma faixa de cada vez: a fila partilhada vive no servidor e e quem manda
     // que a consome no fim de cada musica. Dar uma fila local ao convidado
     // punha-o a adivinhar o que vinha a seguir.
     void usePlayer.getState().playTrack(alvo, [alvo]);
-  }, [sessao?.track?.sourceId, sessao?.id, souAnfitriao]);
+  }, [sessao?.track?.sourceId, sessao?.id, faixaLocalDoConvidado, souAnfitriao]);
 
   // ---- 2) pausa e retoma ----------------------------------------------------
   useEffect(() => {
@@ -105,12 +145,21 @@ export function useSincroniaDaSessao(): void {
   }, [sessao?.aTocar, sessao?.track?.sourceId, sessao?.id, souAnfitriao]);
 
   // ---- 3) o alinhamento -----------------------------------------------------
+  const saltouEm = useRef(0);
+  const forasSeguidos = useRef(0);
+
   useEffect(() => {
     if (!sessao) return;
+    saltouEm.current = 0;
+    forasSeguidos.current = 0;
     const relogio = setInterval(() => {
       const p = usePlayer.getState();
       const s = useOuvirJuntos.getState();
       if (!s.sessao) return;
+
+      // Ainda a assentar de um salto: a posição que se lê agora é anterior a
+      // ele, e compará-la levaria a saltar outra vez.
+      if (Date.now() - saltouEm.current < DESCANSO_APOS_SALTO_MS) return;
 
       // O anfitrião não se corrige a si próprio: ele É a referência.
       if (s.souAnfitriao()) {
@@ -134,10 +183,17 @@ export function useSincroniaDaSessao(): void {
       });
 
       if (correcao.tipo === 'saltar') {
+        // Confirma-se antes de cortar o som: uma leitura isolada fora do sítio
+        // pode ser só um `timeUpdate` atrasado.
+        forasSeguidos.current += 1;
+        if (forasSeguidos.current < LEITURAS_PARA_SALTAR) return;
+        forasSeguidos.current = 0;
+        saltouEm.current = Date.now();
         p._setCorrecaoDeSincronia(1);
         void p.seekTo(correcao.paraMs);
         return;
       }
+      forasSeguidos.current = 0;
       p._setCorrecaoDeSincronia(velocidadeAAplicar(1, correcao));
     }, AFINACAO_MS);
 

@@ -694,3 +694,41 @@ create policy "sessoes: so quem esta dentro" on public.listening_sessions
 -- Os MEMBROS e a FILA continuam só para quem está dentro: um convite dá direito
 -- a ver que a sessão existe e o que está a tocar -- o suficiente para decidir
 -- se se entra -- e não a espreitar quem lá está nem o que eles escolheram.
+
+
+-- ---------------------------------------------------------------------------
+-- 13) `smallint` era o tipo errado para uma RPC
+-- ---------------------------------------------------------------------------
+--
+-- Sintoma: quem entrava numa sessão ficava para sempre em "a descarregar · 0%"
+-- na lista dos outros, mesmo com a música a tocar-lhe bem.
+--
+-- O PostgREST resolve os argumentos de uma RPC por NOME e TIPO. Um número
+-- vindo de JSON não casa com `smallint` de forma fiável -- e a chamada falhava
+-- sempre, silenciosamente, porque do lado da app o erro era engolido por um
+-- `catch` vazio (era "informação de conforto", e uma falha aqui não podia
+-- partir a reprodução). O resultado foi um erro invisível durante uma build
+-- inteira.
+--
+-- `integer` é o que o PostgREST casa naturalmente. O `drop` é obrigatório: sem
+-- ele ficavam as duas versões e a chamada passava a ser ambígua, que é uma
+-- maneira diferente de falhar sempre.
+
+drop function if exists public.marcar_pronto(uuid, boolean, smallint);
+
+create or replace function public.marcar_pronto(
+  p_session uuid, p_pronta boolean, p_percentagem integer default 0
+)
+returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  update public.listening_members set
+    ready = coalesce(p_pronta, false),
+    download_pct = least(100, greatest(0, coalesce(p_percentagem, 0)))::smallint,
+    last_seen = clock_timestamp()
+  where session_id = p_session and user_id = auth.uid();
+end;
+$$;
+
+revoke all on function public.marcar_pronto(uuid,boolean,integer) from public;
+grant execute on function public.marcar_pronto(uuid,boolean,integer) to authenticated;

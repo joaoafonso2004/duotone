@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useSocial } from '../state/social';
+import { perfilEmCache } from '../lib/cachePerfil';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
@@ -79,8 +80,16 @@ export function BarraDaSessao({ aoAbrir, encostada = true }: {
     if (id === euId) return 'tu';
     return amigos.find((f) => f.friendId === id)?.name ?? 'alguém';
   };
-  const avatarDe = (id: string) =>
-    amigos.find((f) => f.friendId === id)?.avatarUrl ?? null;
+  // A nossa propria cara nao esta na lista de amigos -- e por isso aparecia a
+  // inicial do nome num circulo, ao lado das fotografias de toda a gente.
+  // Vem da cache do perfil, que ja e lida no arranque da app.
+  const avatarDe = (id: string) => {
+    if (id === euId) {
+      const meu = euId ? perfilEmCache(euId) : null;
+      return (meu?.perfil as any)?.profile?.avatar_url ?? null;
+    }
+    return amigos.find((f) => f.friendId === id)?.avatarUrl ?? null;
+  };
 
   // A frase vive no `lib/sessaoViva.ts`: qual das verdades mostrar quando há
   // várias é uma decisão, e as decisões testam-se.

@@ -8,6 +8,7 @@ import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useSocial } from '../state/social';
+import { perfilEmCache } from '../lib/cachePerfil';
 import { useTheme } from '../state/theme';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -50,8 +51,16 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
 
   const nomeDe = (id: string) =>
     id === euId ? 'Tu' : amigos.find((f) => f.friendId === id)?.name ?? 'Alguém';
-  const avatarDe = (id: string) =>
-    amigos.find((f) => f.friendId === id)?.avatarUrl ?? null;
+  // A nossa propria cara nao esta na lista de amigos -- e por isso aparecia a
+  // inicial do nome num circulo, ao lado das fotografias de toda a gente.
+  // Vem da cache do perfil, que ja e lida no arranque da app.
+  const avatarDe = (id: string) => {
+    if (id === euId) {
+      const meu = euId ? perfilEmCache(euId) : null;
+      return (meu?.perfil as any)?.profile?.avatar_url ?? null;
+    }
+    return amigos.find((f) => f.friendId === id)?.avatarUrl ?? null;
+  };
 
   React.useEffect(() => { if (!visivel) setConvidados([]); }, [visivel]);
 

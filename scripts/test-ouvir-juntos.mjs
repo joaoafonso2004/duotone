@@ -412,6 +412,32 @@ await verificar('a fila morre com a sessão', async () => {
   );
 });
 
+await verificar('marcar pronto aceita um número como o PostgREST o manda', async () => {
+  // `smallint` não casa com um número vindo de JSON, e a chamada falhava
+  // sempre -- em silêncio, porque a app engolia o erro num `catch` vazio.
+  // Ficava toda a gente em "a descarregar · 0%" para sempre, com a música a
+  // tocar-lhes bem.
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await q('select public.marcar_pronto($1,$2,$3)', [s, true, 100]);
+  await db.exec('reset role');
+  const m = (await q('select ready, download_pct from listening_members where session_id=$1', [s])).rows[0];
+  assert.equal(m.ready, true);
+  assert.equal(Number(m.download_pct), 100);
+});
+
+await verificar('a percentagem é limitada aos extremos', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await q('select public.marcar_pronto($1,$2,$3)', [s, false, 999]);
+  await db.exec('reset role');
+  assert.equal(
+    Number((await q('select download_pct from listening_members where session_id=$1', [s])).rows[0].download_pct),
+    100,
+    'um valor fora da escala rebentava a coluna em vez de ser cortado'
+  );
+});
+
 console.log('\nA hora do servidor:');
 
 await verificar('avança entre chamadas dentro da mesma transacção', async () => {

@@ -740,25 +740,26 @@ export function PlayerRoot() {
           </Toque>
         </View>
 
-        {/* No leitor grande basta um sinal, e nao a barra inteira: aqui o ecra
-            e da musica, e uma faixa com nomes e estados por cima da capa rouba
-            a atencao ao que se veio ver. Um icone diz o mesmo -- ha sessao a
-            decorrer -- e leva ao mesmo sitio. */}
-        {temSessao ? (
-          <Toque
-            escala={ESCALA.icone}
-            hitSlop={12}
-            onPress={() => setSessaoAberta(true)}
-            accessibilityLabel="Ver a sessão de escuta"
-            style={styles.sinalDaSessao}
-          >
-            <Ionicons name="headset" size={15} color={theme.color} />
-          </Toque>
-        ) : null}
 
         {/* Espaço reservado para a capa quadrada grande (a frame flutua por
             cima nesta posição). */}
-        <View style={{ height: vidFull.h, marginTop: 20, marginBottom: 8 }} />
+        {/* O espaço reservado à capa (a moldura flutua por cima nesta posição)
+            -- e o canto onde vive o sinal da sessão. Estava no cabeçalho, com
+            posição absoluta, e acabava em cima da barra de estado do telemóvel:
+            fora da app inteira. Aqui está onde se olha. */}
+        <View style={{ height: vidFull.h, marginTop: 20, marginBottom: 8 }}>
+          {temSessao ? (
+            <Toque
+              escala={ESCALA.icone}
+              hitSlop={10}
+              onPress={() => setSessaoAberta(true)}
+              accessibilityLabel="Ver a sessão de escuta"
+              style={[styles.sinalDaSessao, { right: (W - vidFull.w) / 2 + 10 }]}
+            >
+              <Ionicons name="headset" size={15} color={theme.color} />
+            </Toque>
+          ) : null}
+        </View>
 
         {/* Dois pontos por baixo da capa: a pista mínima de que ali há outro
             lado. A capa fica limpa -- nada por cima dela, que era a condição.
@@ -1384,16 +1385,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   // O sinal de que ha sessao, no canto do cabecalho do leitor grande.
+  // No canto de cima da capa, por dentro dela. O `zIndex` porque a moldura da
+  // capa flutua por cima deste espaco -- sem ele o icone ficava por baixo.
   sinalDaSessao: {
     position: 'absolute',
-    right: 46,
-    top: 2,
+    top: 10,
+    zIndex: 5,
     width: 30,
     height: 30,
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceHigh,
+    backgroundColor: 'rgba(10,10,15,0.72)',
   },
   headerBtn: {
     width: 40,
