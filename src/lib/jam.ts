@@ -60,6 +60,36 @@ export function restoDaLista(
   return (i >= 0 ? lista.slice(i + 1) : lista).filter(t => !mesma(t)).slice(0, limite);
 }
 
+/**
+ * O que de uma sessão manda no que o motor está a fazer.
+ *
+ * Existe porque comparar sessões por IDENTIDADE DE OBJECTO estava a cancelar
+ * reproduções a meio. Cada leitura do servidor devolve um objecto novo, e uma
+ * leitura acontece depois de cada comando -- incluindo depois de encher a fila.
+ * Dar play numa lista mandava dois: a faixa e a fila. O segundo chegava
+ * enquanto o primeiro ainda carregava o áudio, o `vigente()` dizia que já não
+ * era a mesma sessão, e a aplicação desistia sem nunca chegar a mandar tocar.
+ * O convidado ficava com a faixa nova no ecrã e a antiga no ouvido.
+ *
+ * A fila NÃO entra aqui de propósito: alguém acrescentar uma música não pode
+ * interromper o que está a dar. Só o que muda o áudio conta.
+ */
+export function assinaturaDaSessao(
+  s: {
+    id: string;
+    track: { source: string; sourceId: string } | null;
+    aTocar: boolean;
+    comecouEmServidor: number | null;
+    pausadaEmMs: number | null;
+  } | null,
+): string | null {
+  if (!s) return null;
+  return [
+    s.id, s.track?.source ?? '', s.track?.sourceId ?? '',
+    s.aTocar, s.comecouEmServidor ?? '', s.pausadaEmMs ?? '',
+  ].join('|');
+}
+
 /** A ponte é registada pela store da sessão, antes dos efeitos React. */
 export type PonteJam = {
   sessao: { id: string };

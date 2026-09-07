@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { registarOuvirJuntos, usePlayer } from '../src/state/player.ts';
 import type { Track } from '../src/types.ts';
-import { proximaFaixa, decisaoDeControlo, restoDaLista, velocidadeNaSessao, type PonteJam } from '../src/lib/jam.ts';
+import { proximaFaixa, decisaoDeControlo, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, type PonteJam } from '../src/lib/jam.ts';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
 import type { SessaoDeEscuta } from '../src/api/ouvirJuntos.ts';
@@ -272,6 +272,33 @@ assert.equal(usePlayer.getState().resumePositionMs, null, 'faixa nova a tocar ar
   assert.ok(plays > antes,
     'a confirmacao da faixa nova manda o motor tocar, mesmo com a intencao ja de acordo');
   usePlayer.setState({ _yt: null });
+}
+
+
+// ---- encher a fila nao pode cancelar a faixa a meio -------------------------
+//
+// Cada leitura do servidor devolve um objecto NOVO, e ha uma leitura depois de
+// cada comando. Comparar por identidade fazia o `vigente()` dizer "ja nao e a
+// mesma sessao" enquanto o audio ainda carregava, e a aplicacao desistia sem
+// mandar tocar: faixa nova no ecra, faixa velha no ouvido.
+{
+  const lida = (): SessaoDeEscuta => ({ ...confirmada });
+  const a = lida(), b = lida();
+  assert.notEqual(a, b, 'sao objectos diferentes, como vem do servidor');
+  assert.equal(assinaturaDaSessao(a), assinaturaDaSessao(b),
+    'mesmos valores, mesma assinatura -- reler nao invalida nada');
+
+  // O que MUDA o audio tem de mudar a assinatura.
+  assert.notEqual(assinaturaDaSessao({ ...a, track: actual }), assinaturaDaSessao(a), 'faixa');
+  assert.notEqual(assinaturaDaSessao({ ...a, aTocar: false }), assinaturaDaSessao(a), 'pausa');
+  assert.notEqual(assinaturaDaSessao({ ...a, comecouEmServidor: a.comecouEmServidor + 1 }),
+    assinaturaDaSessao(a), 'ancora nova');
+  assert.notEqual(assinaturaDaSessao({ ...a, pausadaEmMs: 999 }), assinaturaDaSessao(a), 'seek');
+  assert.equal(assinaturaDaSessao(null), null);
+
+  // E o que NAO muda o audio nao pode mexer nela: acrescentar a fila e o caso.
+  assert.equal(assinaturaDaSessao({ ...a, convidadosControlam: !a.convidadosControlam }),
+    assinaturaDaSessao(a), 'dar controlo nao interrompe o que esta a dar');
 }
 
 

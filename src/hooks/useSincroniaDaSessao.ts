@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { correccaoNecessaria } from '../lib/sincronizacao';
+import { assinaturaDaSessao } from '../lib/jam';
 import { cachedAudioFile } from '../lib/youtubeCache';
 import { appEstaVisivel } from '../lib/appVisibility';
 import type { SessaoDeEscuta } from '../api/ouvirJuntos';
@@ -31,14 +32,20 @@ export function useSincroniaDaSessao(): void {
   const fonteLocal = usePlayer(s => s.current?.source);
   const anterior = useRef<SessaoDeEscuta | null>(null);
 
+  // Pela ASSINATURA e não pelo objecto: encher a fila não pode cancelar uma
+  // faixa a meio de carregar. Ver `assinaturaDaSessao`.
+  const assinatura = assinaturaDaSessao(sessao);
+
   useEffect(() => {
+    const agora = useOuvirJuntos.getState().sessao;
     const ultima = anterior.current;
-    anterior.current = sessao;
-    if (!sessao) return;
+    anterior.current = agora;
+    if (!agora) return;
     let cancelado = false;
-    const aplicar = () => seguirSessao(sessao, ultima, {
+    const aplicar = () => seguirSessao(agora, ultima, {
       player: usePlayer.getState,
-      vigente: () => !cancelado && useOuvirJuntos.getState().sessao === sessao,
+      vigente: () => !cancelado &&
+        assinaturaDaSessao(useOuvirJuntos.getState().sessao) === assinatura,
       posicaoAgora: () => useOuvirJuntos.getState().posicaoAgora(),
       guardarRetoma: ms => usePlayer.setState({ resumePositionMs: ms }),
     });
@@ -46,7 +53,7 @@ export function useSincroniaDaSessao(): void {
       if (!cancelado) useOuvirJuntos.setState({ aviso: 'Could not play this Jam track. Please try again.' });
     });
     return () => { cancelado = true; };
-  }, [sessao, faixaLocal, fonteLocal]);
+  }, [assinatura, faixaLocal, fonteLocal]);
 
   const id = sessao?.id;
   const faixa = sessao?.track?.sourceId;
