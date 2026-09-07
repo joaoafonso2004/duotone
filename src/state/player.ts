@@ -1,4 +1,4 @@
-import { proximaFaixa, decisaoDeControlo, restoDaLista, type PonteJam } from '../lib/jam';
+import { proximaFaixa, decisaoDeControlo, restoDaLista, baralhada, type PonteJam } from '../lib/jam';
 import {ensureLyrics} from './lyrics';
 import { useConnectivity } from './connectivity';
 import { filterSuggestions } from './recommendationFeedback';
@@ -233,6 +233,18 @@ interface PlayerState {
    * "inteligentes" diferentes na app.
    */
   playShuffled: (tracks: Track[], inteligente?: boolean) => Promise<void>;
+  /**
+   * O botão Play de uma LISTA -- Songs, uma playlist, as guardadas.
+   *
+   * Existe para dar a este gesto um significado próprio dentro de um jam.
+   * Tocar numa música é "esta agora"; carregar em Play na tua biblioteca é
+   * "quero ouvir isto", e isso não pode apagar o que toda a gente está a
+   * ouvir. Lá dentro a lista vai para a fila partilhada; só arranca sozinha
+   * quando não há nada a dar.
+   *
+   * Fora de um jam não muda nada: é o que os botões já faziam.
+   */
+  tocarLista: (tracks: Track[], aleatorio: boolean, inteligente?: boolean) => Promise<void>;
   playNext: (track: Track) => void;
   addToQueue: (track: Track) => void;
   togglePlay: () => Promise<void>;
@@ -626,6 +638,30 @@ export const usePlayer = create<PlayerState>()(
       // no segundo certo nas duas plataformas.
       resumePositionMs: positionMs > 1500 ? positionMs : null,
     });
+  },
+
+  tocarLista: async (tracks, aleatorio, inteligente = false) => {
+    if (tracks.length === 0) return;
+    if (ouvirJuntos()) {
+      const lista = aleatorio ? baralhada(tracks) : tracks;
+      await comandarJam(async s => {
+        // Há música a dar para toda a gente: a lista vai para a fila e não
+        // interrompe nada. Carregar em Play na tua biblioteca não é motivo
+        // para apagar o que os outros estavam a ouvir -- para isso toca-se
+        // numa música, que continua a querer dizer "esta agora".
+        if (s.temFaixa || decisaoDeControlo(s) === 'sugerir') {
+          await s.semearFila(lista);
+          return;
+        }
+        // Sessão parada, sem nada a dar: aí Play quer mesmo dizer play.
+        await s.anunciarFaixa(lista[0]);
+        const resto = restoDaLista(lista, lista[0]);
+        if (resto.length) await s.semearFila(resto);
+      });
+      return;
+    }
+    if (aleatorio) { await get().playShuffled(tracks, inteligente); return; }
+    await get().playTrack(tracks[0], tracks, true);
   },
 
   playShuffled: async (tracks, inteligente = false) => {

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { registarOuvirJuntos, usePlayer } from '../src/state/player.ts';
 import type { Track } from '../src/types.ts';
-import { proximaFaixa, decisaoDeControlo, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, type PonteJam } from '../src/lib/jam.ts';
+import { proximaFaixa, decisaoDeControlo, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, type PonteJam } from '../src/lib/jam.ts';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
 import type { SessaoDeEscuta } from '../src/api/ouvirJuntos.ts';
@@ -18,6 +18,7 @@ const limpar = () => {
   semeadas = [];
   ponte = {
     sessao: { id: 'jam' }, fila: [{ track: escolhida }], anfitriao: false, convidadosControlam: false,
+    temFaixa: true,
     sugerir: async t => { sugeridas.push(t); }, anunciarFaixa: async t => { anunciadas.push(t); },
     semearFila: async ts => { semeadas.push([...ts]); },
     alternarPausa: async () => { pausas++; }, procurar: async ms => { saltos.push(ms); },
@@ -299,6 +300,49 @@ assert.equal(usePlayer.getState().resumePositionMs, null, 'faixa nova a tocar ar
   // E o que NAO muda o audio nao pode mexer nela: acrescentar a fila e o caso.
   assert.equal(assinaturaDaSessao({ ...a, convidadosControlam: !a.convidadosControlam }),
     assinaturaDaSessao(a), 'dar controlo nao interrompe o que esta a dar');
+}
+
+
+// ---- Play numa lista dentro do jam nao apaga o que esta a dar --------------
+{
+  const a = faixa('la'), b = faixa('lb'), c = faixa('lc');
+
+  // Com musica a dar, a lista vai para a fila e ninguem e interrompido.
+  limpar(); ponte!.anfitriao = true; ponte!.temFaixa = true;
+  await usePlayer.getState().tocarLista([a, b, c], false);
+  assert.equal(anunciadas.length, 0, 'Play numa lista nao interrompe quem esta a ouvir');
+  assert.deepEqual(semeadas[0]?.map(t => t.sourceId), ['la', 'lb', 'lc'],
+    'a lista inteira entra na fila, a primeira incluida');
+
+  // Sessao parada e sem faixa: ai Play quer mesmo dizer play.
+  limpar(); ponte!.anfitriao = true; ponte!.temFaixa = false;
+  await usePlayer.getState().tocarLista([a, b, c], false);
+  assert.deepEqual(anunciadas.map(t => t.sourceId), ['la']);
+  assert.deepEqual(semeadas[0]?.map(t => t.sourceId), ['lb', 'lc']);
+
+  // Um convidado sem licenca nunca anuncia, mesmo com a sessao parada.
+  limpar(); ponte!.anfitriao = false; ponte!.convidadosControlam = false; ponte!.temFaixa = false;
+  await usePlayer.getState().tocarLista([a, b, c], false);
+  assert.equal(anunciadas.length, 0);
+  assert.deepEqual(semeadas[0]?.map(t => t.sourceId), ['la', 'lb', 'lc']);
+
+  // Com aleatorio, entra a lista toda -- baralhada, sem perder nem repetir.
+  limpar(); ponte!.anfitriao = true; ponte!.temFaixa = true;
+  await usePlayer.getState().tocarLista([a, b, c], true);
+  assert.deepEqual([...(semeadas[0] ?? [])].map(t => t.sourceId).sort(), ['la', 'lb', 'lc']);
+}
+
+// ---- baralhar nao perde nem repete -----------------------------------------
+{
+  const lista = Array.from({ length: 40 }, (_, i) => 'n' + i);
+  // Gerador fixo: o teste nao pode depender da sorte do dia.
+  let semente = 1;
+  const rng = () => (semente = (semente * 1103515245 + 12345) % 2147483648) / 2147483648;
+  const saida = baralhada(lista, rng);
+  assert.equal(saida.length, lista.length);
+  assert.deepEqual([...saida].sort(), [...lista].sort(), 'e uma permutacao, nao uma amostra');
+  assert.notDeepEqual(saida, lista, 'e mesmo baralhada');
+  assert.deepEqual(lista, Array.from({ length: 40 }, (_, i) => 'n' + i), 'a lista de entrada nao e tocada');
 }
 
 

@@ -121,8 +121,7 @@ export function SongsPage(props: CommonPageProps) {
   // tocasse E alternasse, o que se ve no botao seria o que NAO se ia ouvir.
   const playAll = () => {
     if (!filteredTracks.length) return;
-    if (ligado) usePlayer.getState().playShuffled(filteredTracks, inteligente);
-    else props.play(filteredTracks[0], filteredTracks);
+    void usePlayer.getState().tocarLista(filteredTracks, ligado, inteligente);
   };
 
   return <><Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{nomes[sortMode]}</Button></View>}>
@@ -283,8 +282,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
   const playAll = () => {
     if (!tracks.length) return;
-    if (ligado) usePlayer.getState().playShuffled(tracks, inteligente);
-    else props.play(tracks[0], tracks);
+    void usePlayer.getState().tocarLista(tracks, ligado, inteligente);
   };
   const tocarAlbum = () => {
     if (!faixasDoAlbum.length) return;

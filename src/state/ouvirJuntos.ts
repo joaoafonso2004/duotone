@@ -412,6 +412,7 @@ registarOuvirJuntos(() => {
   return {
     sessao: s.sessao, fila: s.fila,
     anfitriao: s.souAnfitriao(), convidadosControlam: s.sessao.convidadosControlam,
+    temFaixa: !!s.sessao.track,
     sugerir: s.sugerir, semearFila: s.semearFila, anunciarFaixa: s.anunciarFaixa,
     alternarPausa: async () => {
       if (!aindaAqui()) return;

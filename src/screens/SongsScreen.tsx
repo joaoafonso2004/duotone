@@ -41,7 +41,7 @@ export function SongsScreen() {
   const navigation = useNavigation<any>();
   
   const playTrack = usePlayer((s) => s.playTrack);
-  const playShuffled = usePlayer((s) => s.playShuffled);
+  const tocarLista = usePlayer((s) => s.tocarLista);
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const ligado = usePlayer((s) => s.shuffle);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
@@ -238,9 +238,7 @@ export function SongsScreen() {
             <View style={styles.actionRow}>
               <Pressable
                 style={styles.playButton}
-                onPress={() => (ligado
-                  ? playShuffled(sortedTracks, inteligente)
-                  : playTrack(sortedTracks[0], sortedTracks, true))}
+                onPress={() => void tocarLista(sortedTracks, ligado, inteligente)}
               >
                 <LinearGradient
                   colors={theme.gradient}

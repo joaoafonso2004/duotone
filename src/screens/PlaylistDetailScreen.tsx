@@ -64,7 +64,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const detailRequest=useRef(0);
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
-  const playShuffled = usePlayer((s) => s.playShuffled);
+  const tocarLista = usePlayer((s) => s.tocarLista);
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const ligado = usePlayer((s) => s.shuffle);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
@@ -377,9 +377,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           <View style={styles.actionRow}>
             <Pressable
               style={styles.playButton}
-              onPress={() => (ligado
-                  ? playShuffled(visibleTracks, inteligente)
-                  : visibleTracks[0] && playTrack(visibleTracks[0], visibleTracks, true))}
+              onPress={() => void tocarLista(visibleTracks, ligado, inteligente)}
             >
               <LinearGradient
                 colors={theme.gradient}

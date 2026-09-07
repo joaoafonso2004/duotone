@@ -90,12 +90,24 @@ export function assinaturaDaSessao(
   ].join('|');
 }
 
+/** Fisher-Yates, com o gerador injectável para o teste não depender da sorte. */
+export function baralhada<T>(lista: readonly T[], rng: () => number = Math.random): T[] {
+  const saida = [...lista];
+  for (let i = saida.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [saida[i], saida[j]] = [saida[j], saida[i]];
+  }
+  return saida;
+}
+
 /** A ponte é registada pela store da sessão, antes dos efeitos React. */
 export type PonteJam = {
   sessao: { id: string };
   fila: readonly { track: Track }[];
   anfitriao: boolean;
   convidadosControlam: boolean;
+  /** A sessão tem alguma coisa a dar. Decide se o Play de uma lista interrompe. */
+  temFaixa: boolean;
   sugerir: (track: Track) => Promise<void>;
   semearFila: (tracks: readonly Track[]) => Promise<void>;
   anunciarFaixa: (track: Track) => Promise<void>;
