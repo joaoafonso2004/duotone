@@ -68,11 +68,23 @@ export type Estimativa = {
 };
 
 /**
- * Acima disto a amostra não diz nada de útil -- meio segundo de ida e volta dá
- * um quarto de segundo de incerteza, que é mais do que a tolerância de toda a
- * sincronização.
+ * Acima disto a amostra é lixo, não é apenas fraca.
+ *
+ * Isto já foi 500 ms, e estava a fazer o trabalho de duas coisas diferentes.
+ * Em dados móveis é vulgar as cinco amostras da ronda passarem todas dos 500,
+ * e nesse caso ficava-se SEM estimativa nenhuma -- e sem estimativa não se
+ * salta. O amigo arrastava a barra e o outro telemóvel não se mexia.
+ *
+ * Só que uma amostra de 700 ms não é inútil: dá um erro máximo de 350 ms, o
+ * que é péssimo para afinar 600 ms e excelente para saltar trinta segundos.
+ * A qualidade da estimativa já vem no `incertezaMs`, que ninguém lia -- e é
+ * quem chama que sabe se o que vai fazer tolera esse erro.
+ *
+ * Por isso este tecto passou a marcar só o absurdo, e a decisão de afinar ou
+ * não mudou-se para onde pertence: junto da correcção fina, que compara a
+ * incerteza com a tolerância antes de mexer no som.
  */
-export const RTT_MAXIMO_MS = 500;
+export const RTT_MAXIMO_MS = 3000;
 
 /**
  * Quanto tempo uma estimativa serve antes de valer a pena medir outra vez.

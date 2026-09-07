@@ -12,6 +12,17 @@ const DESCANSO_APOS_SALTO_MS = 5000;
 const LEITURAS_PARA_SALTAR = 2;
 const SALTOS_POR_FAIXA = 2;
 
+/**
+ * Quão bom tem de ser o relógio para valer a pena afinar por ele.
+ *
+ * Metade da tolerância: corrigir um desvio de 600 ms com uma estimativa que
+ * pode estar 350 ms errada é mexer no som para perseguir ruído -- e às vezes
+ * saltar para MAIS longe do que se estava. Um comando explícito (arrastar a
+ * barra, retomar) não passa por aqui, e ainda bem: aí o salto é de segundos e
+ * até uma estimativa fraca chega bem.
+ */
+const INCERTEZA_PARA_AFINAR_MS = 300;
+
 /** Todos seguem o servidor, incluindo quem enviou o comando. Nunca se publica
  * uma confirmação do motor como se fosse uma escolha do utilizador. */
 export function useSincroniaDaSessao(): void {
@@ -47,6 +58,8 @@ export function useSincroniaDaSessao(): void {
       const p = usePlayer.getState(), s = useOuvirJuntos.getState();
       if (s.sessao?.id !== id || s.sessao.track?.sourceId !== faixa) return;
       if (Date.now() - saltouEm < DESCANSO_APOS_SALTO_MS) return;
+      // Afinar com um relógio mal medido é saltar às cegas -- ver a constante.
+      if (!s.relogio || s.relogio.incertezaMs > INCERTEZA_PARA_AFINAR_MS) return;
       const pronta = p.current?.sourceId === faixa && p.current.source === fonte &&
         p.activeBackend !== 'resolving' && !p.buffering;
       const decorrido = p.isPlaying ? Date.now() - p.positionAt : 0;

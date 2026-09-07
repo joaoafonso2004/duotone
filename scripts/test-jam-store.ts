@@ -237,6 +237,44 @@ assert.equal(usePlayer.getState().resumePositionMs, null, 'faixa nova a tocar ar
 }
 
 
+// ---- o caminho INTEIRO da mudanca automatica, do lado do convidado ---------
+//
+// O teste acima prova o contrato do `_forcarReproducao`. Este prova o BUG:
+// a sequencia real que deixava o convidado nos 0:00, do `ended` ate a
+// confirmacao da faixa nova. Se alguem repuser a guarda, falha aqui.
+{
+  limpar();
+  ponte!.anfitriao = false; ponte!.convidadosControlam = false;
+  let plays = 0;
+  usePlayer.setState({ _yt: { play: () => { plays++; }, pause: () => {},
+    seek: () => {}, setVolume: () => {} } as never });
+
+  // 1. o convidado esta a ouvir a faixa actual, a tocar.
+  usePlayer.setState({ current: actual });
+  usePlayer.getState()._sincronizarPausa(true);
+  assert.equal(usePlayer.getState().isPlaying, true);
+
+  // 2. a faixa acaba sozinha. No convidado o `avancar` nao faz nada -- quem
+  //    avanca e o anfitriao -- e a INTENCAO fica em "tocar", como deve.
+  usePlayer.getState()._onYtStateChange('ended');
+  assert.equal(avancos, 0, 'o convidado nao avanca a sessao');
+  assert.equal(usePlayer.getState().isPlaying, true,
+    'a intencao sobrevive ao fim da faixa: quem ouvia continua a querer ouvir');
+
+  // 3. o anfitriao avanca e a confirmacao chega com a faixa nova, a tocar.
+  const antes = plays;
+  await seguirSessao(confirmada, { ...confirmada, track: actual }, porta);
+
+  // 4. o motor TEM de ter recebido a ordem. Era exactamente isto que faltava:
+  //    aTocar=true era igual a intencao que ja la estava, a guarda do
+  //    `_sincronizarPausa` fechava a porta, e so pausar e retomar curava.
+  assert.equal(usePlayer.getState().current?.sourceId, escolhida.sourceId);
+  assert.ok(plays > antes,
+    'a confirmacao da faixa nova manda o motor tocar, mesmo com a intencao ja de acordo');
+  usePlayer.setState({ _yt: null });
+}
+
+
 registarOuvirJuntos(() => null);
 await usePlayer.getState().playTrack(actual, [actual, escolhida]);
 assert.equal(usePlayer.getState().proximaFaixa(), escolhida);
