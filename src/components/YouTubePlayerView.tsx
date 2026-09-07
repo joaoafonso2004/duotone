@@ -13,7 +13,7 @@ import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
 import {
   deveComecarCrossfade, podeCrossfade, volumesDoCrossfade,
 } from '../lib/crossfade';
-import { acaoDoWatchdog, duracaoParaDetetarOFim, fimPorFaltaDeDados } from '../lib/fimDeFaixa';
+import { acaoDoWatchdog, DESISTIR_MS, duracaoParaDetetarOFim, fimPorFaltaDeDados } from '../lib/fimDeFaixa';
 import { definirCapaDoEcraBloqueado, temCapaNativa } from '../../modules/duotone-remote-commands';
 import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
@@ -357,6 +357,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // pelo utilizador). Usamos a INTENÇÃO, não o estado real, para apanhar
   // também o caso em que nunca começa (o `playingChange` nunca dispara).
   const lastProgressRef = useRef({ time: 0, at: Date.now() });
+  /**
+   * O download em curso, e quando avancou pela ultima vez.
+   *
+   * O watchdog precisa de distinguir "esta lento" de "esta encravado". Um
+   * ficheiro grande em 4G pode demorar minutos e nao ha nada de errado nisso
+   * -- desde que va andando. O que nao pode acontecer e ficar tudo parado sem
+   * ninguem reparar.
+   */
+  const descarregarRef = useRef({ ativo: false, at: Date.now() });
   const wantsPlayRef = useRef(true);
 
   // [duration-debug] log único por faixa do player.duration (o valor que o
@@ -660,6 +669,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       streamRef.current = undefined;
       downloadTriedRef.current = false;
       lastProgressRef.current = { time: 0, at: Date.now() };
+      descarregarRef.current = { ativo: false, at: Date.now() };
       endedRef.current = false;
       webviewSkippedRef.current = false;
       wantsPlayRef.current = true;
@@ -711,6 +721,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     streamRef.current = undefined;
     downloadTriedRef.current = false;
     lastProgressRef.current = { time: 0, at: Date.now() };
+    descarregarRef.current = { ativo: false, at: Date.now() };
     wantsPlayRef.current = true;
     endedRef.current = false;
     webviewSkippedRef.current = false; // Reset webview skip flag
@@ -781,6 +792,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       applyCeiling();
       usePlayer.setState({ resumePositionMs: null });
       lastProgressRef.current = { time: 0, at: Date.now() };
+      descarregarRef.current = { ativo: false, at: Date.now() };
       nativeTrackIdRef.current = track.sourceId;
       wantsPlayRef.current = autoplay;
       if (autoplay) {
@@ -858,6 +870,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       let playableUri = stream.url;
       if (!stream.isHls) {
         downloadTriedRef.current = true;
+        descarregarRef.current = { ativo: true, at: Date.now() };
         playableUri = await downloadProgressiveAudio(
           track.sourceId,
           stream.url,
@@ -871,6 +884,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             // competir pela rede.
             shouldAbort: () => !alive(),
             onProgress: (f) => {
+              // Cada byte que chega adia o watchdog: lento nao e encravado.
+              descarregarRef.current.at = Date.now();
               if (alive()) setDownloadProgress(f);
             },
             // Se o CDN matar o URL a meio (403), pede um fresco em vez de
@@ -879,6 +894,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               (await resolveYouTubeStream(track.sourceId, quality, true)).url,
           }
         );
+        descarregarRef.current.ativo = false;
         if (!alive()) return;
         setDownloadProgress(null);
       }
@@ -891,6 +907,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (!alive()) return;
       beginPlayback();
     } catch (e: any) {
+      // Falhou: ja nao ha download a decorrer, e o watchdog nao tem de contar
+      // um tempo de espera que deixou de existir.
+      descarregarRef.current.ativo = false;
       if (alive()) {
         const errMsg = e?.message ?? 'unknown';
         setDownloadProgress(null);
@@ -1260,9 +1279,31 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           player.duration,
         ),
         jaDescarregou: downloadTriedRef.current,
+        downloadParadoMs: descarregarRef.current.ativo
+          ? Date.now() - descarregarRef.current.at
+          : null,
       });
 
       if (acao === 'descarregar') { registarEvento('trocou_para_ficheiro'); fallbackRef.current(); }
+      // Nunca arrancou e nada mexe ha muito tempo. Nao ha recuperacao a
+      // tentar -- ha um estado por destrancar. Ficar calado aqui era o que
+      // deixava a faixa em 0:00 ate a app ser reiniciada.
+      if (acao === 'desistir') {
+        registarEvento('desistiu_de_arrancar');
+        registar({
+          quando: Date.now(),
+          videoId: track.sourceId,
+          titulo: track.title,
+          fase: 'watchdog',
+          tipo: 'tempo-esgotado',
+          detalhe: `build=${BUILD_ID} nada avancou em ${DESISTIR_MS}ms`,
+        });
+        descarregarRef.current.ativo = false;
+        wantsPlayRef.current = false;
+        setDownloadProgress(null);
+        usePlayer.getState()._setBuffering(false);
+        setError(mensagemDaFalha('tempo-esgotado'));
+      }
     }, 2000);
     return () => clearInterval(id);
   }, [backend, track.durationSeconds, track.sourceId, repeatMode, player, onStateChange]);

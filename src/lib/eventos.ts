@@ -30,6 +30,8 @@ export type NomeDeEvento =
   | 'fim_encravado'
   | 'entrega_falhada'
   | 'trocou_para_ficheiro'
+  /** Nunca arrancou e nada avancou: o watchdog deu a tentativa por perdida. */
+  | 'desistiu_de_arrancar'
   | 'pesquisa_feita'
   | 'faixa_guardada'
   | 'playlist_criada'

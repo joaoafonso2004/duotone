@@ -12,16 +12,33 @@
  *    `AVPlayerItemDidPlayToEndTime`. Sem isto a música ficava presa a 3:06 de
  *    3:07 e a fila não avançava.
  *
+ * E há uma terceira paragem, que durante muito tempo não estava aqui: a que
+ * **nunca arranca**. Nem posição a avançar, nem download a avançar, nada. Essa
+ * não tem recuperação nenhuma -- o que tem de haver é um LIMITE, para a app
+ * poder dizer que falhou em vez de ficar em 0:00 a fingir que carrega.
+ *
  * Função pura -- ver scripts/test-fim-de-faixa.ts.
  */
 
-export type AcaoDoWatchdog = 'nada' | 'descarregar';
+export type AcaoDoWatchdog = 'nada' | 'descarregar' | 'desistir';
 
 /** A que distância do fim se considera que a faixa já lá está. */
 export const PERTO_DO_FIM_S = 2;
 
 /** Parado a meio. Mais folga: aqui ainda pode ser buffering a sério. */
 export const PRESO_A_MEIO_MS = 6000;
+
+/** Abaixo disto considera-se que a faixa nunca chegou a arrancar. */
+export const ARRANCOU_S = 0.5;
+
+/**
+ * Quanto tempo sem NADA a mexer antes de dar a tentativa por perdida.
+ *
+ * Generoso: 4G lento a descarregar um ficheiro grande é lento, mas mexe -- e
+ * enquanto mexer isto não dispara. Só conta o tempo em que nem a posição nem
+ * o download avançam.
+ */
+export const DESISTIR_MS = 45000;
 
 export function acaoDoWatchdog(estado: {
   /** A app tenciona tocar? Em pausa não se faz nada. */
@@ -33,6 +50,12 @@ export function acaoDoWatchdog(estado: {
   duracaoSegundos: number;
   /** Já se tentou o ficheiro descarregado nesta faixa. */
   jaDescarregou: boolean;
+  /**
+   * Há quanto tempo o download não avança um único byte. `null` quando não há
+   * download nenhum em curso -- e aí, com a posição parada em zero, não há
+   * mesmo nada a acontecer.
+   */
+  downloadParadoMs?: number | null;
 }): AcaoDoWatchdog {
   if (!estado.querTocar) return 'nada';
 
@@ -46,8 +69,28 @@ export function acaoDoWatchdog(estado: {
   // últimos segundos. Quem trata do fim é o `fimPorFaltaDeDados`, que tem o
   // sinal que separa os dois casos.
   if (perto) return 'nada';
-  if (estado.jaDescarregou) return 'nada';
-  return estado.paradoMs > PRESO_A_MEIO_MS ? 'descarregar' : 'nada';
+
+  if (!estado.jaDescarregou) {
+    return estado.paradoMs > PRESO_A_MEIO_MS ? 'descarregar' : 'nada';
+  }
+
+  // Já se tentou o ficheiro descarregado. Trocar outra vez não resolve nada --
+  // mas isso NÃO pode querer dizer "não fazer nada, para sempre".
+  //
+  // Era o que dizia. E como `jaDescarregou` é posto a verdadeiro ANTES de o
+  // download começar, entrar no caminho progressivo desarmava o watchdog por
+  // completo: se o download encravasse, a faixa ficava em 0:00 sem erro, sem
+  // recuperação e sem limite de tempo. A única saída era reiniciar a app.
+  //
+  // Aqui não se inventa uma recuperação que não existe: reconhece-se a
+  // desistência, para que quem chama possa dizê-lo ao utilizador e destrancar
+  // o estado, em vez de deixar a app a fingir que ainda está a carregar.
+  const nuncaArrancou = estado.posicaoSegundos <= ARRANCOU_S;
+  const downloadParado =
+    estado.downloadParadoMs == null || estado.downloadParadoMs > DESISTIR_MS;
+  if (nuncaArrancou && estado.paradoMs > DESISTIR_MS && downloadParado) return 'desistir';
+
+  return 'nada';
 }
 
 /** Quão perto do fim é preciso estar para o buffer vazio valer como fim. */

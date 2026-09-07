@@ -624,6 +624,25 @@ export function PlayerRoot() {
     origemDaEntrada ? [deOrigem, deMini, deFull] : [deMini, deFull];
 
 
+  /**
+   * O artista do now-playing leva à página dele.
+   *
+   * Fecha o now-playing antes de navegar: o overlay é ecrã inteiro e por cima
+   * do navegador, por isso navegar sem o minimizar abria a página do artista
+   * por trás -- o utilizador carregava e não via acontecer nada.
+   *
+   * "Unknown artist" não é um artista. Aí o nome continua a aparecer, mas não
+   * é um botão: levava a uma página vazia.
+   */
+  const nomeDoArtista = displayArtist(current);
+  const temArtista = !!nomeDoArtista && nomeDoArtista !== 'Unknown artist';
+  const abrirArtista = () => {
+    if (!temArtista || !navigationRef.isReady()) return;
+    hapticSelection();
+    setExpanded(false);
+    navigationRef.navigate('LibraryGroup', { type: 'artist', name: nomeDoArtista });
+  };
+
   // upNext is now handled inside QueueSheet
 
   return (
@@ -736,11 +755,31 @@ export function PlayerRoot() {
                     {tituloDaFaixa(current)}
                   </Text>
                 </Pressable>
-                <Text numberOfLines={1} style={styles.trackArtist}>
-                  {downloadProgress != null
-                    ? `Downloading… ${Math.round(downloadProgress * 100)}%`
-                    : displayArtist(current)}
-                </Text>
+                {downloadProgress != null ? (
+                  <Text numberOfLines={1} style={styles.trackArtist}>
+                    {`Downloading… ${Math.round(downloadProgress * 100)}%`}
+                  </Text>
+                ) : (
+                  // O nome do artista leva à página dele, como em todo o resto
+                  // da app. `alignSelf` para a área de toque acabar no fim do
+                  // nome e não atravessar a largura toda -- um alvo invisível a
+                  // ocupar a linha inteira apanha toques que não eram para ele.
+                  <Pressable
+                    onPress={abrirArtista}
+                    disabled={!temArtista}
+                    hitSlop={8}
+                    accessibilityRole={temArtista ? 'link' : undefined}
+                    accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
+                    style={({ pressed }) => [
+                      { alignSelf: 'flex-start', maxWidth: '100%' },
+                      pressed && temArtista ? { opacity: 0.6 } : null,
+                    ]}
+                  >
+                    <Text numberOfLines={1} style={styles.trackArtist}>
+                      {nomeDoArtista}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
             </View>
 

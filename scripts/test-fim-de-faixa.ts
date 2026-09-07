@@ -53,7 +53,74 @@ assert.equal(
 assert.equal(acaoDoWatchdog({ ...base, posicaoSegundos: 185, paradoMs: 5000 }), 'nada');
 assert.equal(acaoDoWatchdog({ ...base, posicaoSegundos: 184.9, paradoMs: 7000 }), 'descarregar');
 
-console.log('Watchdog do relógio: só trata de paragens a meio; o fim é do statusChange.');
+// --- A faixa que NUNCA arranca -------------------------------------------
+//
+// Isto e o bug que obrigava a reiniciar a app: `jaDescarregou` e posto a
+// verdadeiro ANTES de o download comecar, por isso entrar no caminho
+// progressivo desarmava o watchdog. Se o download encravasse, a faixa ficava
+// em 0:00 sem erro, sem recuperacao e sem limite de tempo.
+
+const parado = { ...base, jaDescarregou: true, posicaoSegundos: 0 };
+
+// O caso reportado: varias faixas nao descarregadas seguidas, tudo parado em
+// 0:00, e a app so voltava a si depois de ser reiniciada.
+assert.equal(
+  acaoDoWatchdog({ ...parado, paradoMs: 50000, downloadParadoMs: null }),
+  'desistir',
+  'a faixa presa em 0:00 tem de ser dada por perdida, nao ficar a fingir que carrega'
+);
+
+// Um download LENTO nao e um download encravado. Enquanto entrarem bytes,
+// ninguem desiste -- 4G a puxar um ficheiro grande demora mesmo.
+assert.equal(
+  acaoDoWatchdog({ ...parado, paradoMs: 120000, downloadParadoMs: 3000 }),
+  'nada',
+  'um download que avanca nao pode ser interrompido so por demorar'
+);
+
+// Download em curso mas parado ha muito: nem posicao nem bytes.
+assert.equal(
+  acaoDoWatchdog({ ...parado, paradoMs: 50000, downloadParadoMs: 50000 }),
+  'desistir'
+);
+
+// Antes do limite, nao. A app tem de ter espaco para arrancar devagar.
+assert.equal(
+  acaoDoWatchdog({ ...parado, paradoMs: 30000, downloadParadoMs: null }),
+  'nada'
+);
+
+// Ja arrancou -- parou a meio, nao no arranque. Esse caso e outro, e ja se
+// tentou o ficheiro: aqui nao ha nada a fazer.
+assert.equal(
+  acaoDoWatchdog({ ...parado, posicaoSegundos: 40, paradoMs: 90000, downloadParadoMs: null }),
+  'nada'
+);
+
+// Em pausa nao se desiste de nada.
+assert.equal(
+  acaoDoWatchdog({ ...parado, querTocar: false, paradoMs: 90000, downloadParadoMs: null }),
+  'nada'
+);
+
+// Sem o download tentado, o primeiro remedio continua a ser o antigo: trocar
+// para o ficheiro. So depois de isso falhar e que se desiste.
+assert.equal(
+  acaoDoWatchdog({ ...base, posicaoSegundos: 0, paradoMs: 50000, downloadParadoMs: null }),
+  'descarregar'
+);
+
+// A fronteira do "nunca arrancou": meio segundo ainda conta como parado.
+assert.equal(
+  acaoDoWatchdog({ ...parado, posicaoSegundos: 0.5, paradoMs: 50000, downloadParadoMs: null }),
+  'desistir'
+);
+assert.equal(
+  acaoDoWatchdog({ ...parado, posicaoSegundos: 0.6, paradoMs: 50000, downloadParadoMs: null }),
+  'nada'
+);
+
+console.log('Watchdog do relógio: paragens a meio, e faixas que nunca chegam a arrancar.');
 
 // --- O caminho que sobrevive ao ecrã bloqueado ---
 import { fimPorFaltaDeDados } from '../src/lib/fimDeFaixa.ts';
