@@ -55,6 +55,14 @@ type Estado = {
    */
   acabouSemAviso: boolean;
   limparAviso: () => void;
+  /**
+   * Uma frase curta que a barra mostra em vez do estado, por uns segundos.
+   *
+   * Existe porque um toque numa música dentro de uma sessão junta-a à fila em
+   * vez de a tocar -- e sem uma palavra isso lê-se como o toque não ter feito
+   * nada. A barra é onde a sessão fala; é lá que se diz.
+   */
+  aviso: string | null;
 
   ligar: (userId: string) => Promise<void>;
   desligar: () => void;
@@ -95,6 +103,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   relogio: null,
   euId: null,
   acabouSemAviso: false,
+  aviso: null,
 
   souAnfitriao: () => {
     const { sessao, euId } = get();
@@ -282,6 +291,12 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     const s = get().sessao;
     if (!s) return;
     await juntarAFila(s.id, track);
+    set({ aviso: `${track.title?.slice(0, 28) ?? 'A música'} foi para a fila` });
+    setTimeout(() => {
+      // Só se apaga o PRÓPRIO aviso: entretanto pode ter entrado outro, e
+      // apagar o dele deixava a barra muda a meio de uma frase.
+      if (get().aviso?.startsWith(track.title?.slice(0, 28) ?? '')) set({ aviso: null });
+    }, 3500);
   },
 
   retirarSugestao: async (item) => {

@@ -68,6 +68,20 @@ const posicao = (ms: number) => ({ positionMs: ms, positionAt: Date.now() });
 export const ATRASO_DA_SUGESTAO_MS = 2000;
 
 /**
+ * A sessao de escuta, se houver, sem a store do leitor a saber dela.
+ *
+ * Mesmo ponto de registo do `registarFimNaSessao`: um import directo punha a
+ * store do leitor a depender do ouvir-juntos, e sao camadas diferentes.
+ */
+let ouvirJuntos: () => {
+  sessao: unknown;
+  sugerir: (t: Track) => Promise<void>;
+} | null = () => null;
+export function registarOuvirJuntos(fn: typeof ouvirJuntos): void {
+  ouvirJuntos = fn;
+}
+
+/**
  * Quem trata do fim da faixa quando ha uma sessao de escuta a decorrer.
  *
  * Um ponto de registo e nao um import directo: assim a store do leitor
@@ -219,7 +233,14 @@ interface PlayerState {
   volume: number;
   setVolume: (v: number) => void;
 
-  playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean) => Promise<void>;
+  /**
+   * `interno`: esta chamada NAO e uma escolha do utilizador.
+   *
+   * Serve para o `next`, o `prev`, o radio e o motor da sessao -- que fazem a
+   * fila andar, e nao querem que um toque seja reinterpretado. Tudo o resto e,
+   * por definicao, alguem a tocar numa musica.
+   */
+  playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean, interno?: boolean) => Promise<void>;
   /** Troca apenas a fonte da faixa atual depois de um vídeo indisponível.
    * Não conta uma segunda reprodução e mantém a posição da faixa na fila. */
   replaceUnavailableTrack: (failedSourceId: string, replacement: Track) => boolean;
@@ -456,7 +477,23 @@ export const usePlayer = create<PlayerState>()(
   _yt: null,
   activeBackend: 'resolving',
 
-  playTrack: async (track, queue, shouldExpand) => {
+  playTrack: async (track, queue, shouldExpand, interno = false) => {
+    // DENTRO DE UMA SESSAO, um toque numa musica junta-a a fila partilhada.
+    //
+    // O caminho antigo era carregar muito tempo na musica, abrir o share, e so
+    // depois "juntar a fila" -- tres toques para a coisa que mais se faz numa
+    // sessao. E se a pessoa nao tivesse licenca para mandar, o toque normal
+    // punha-a a ouvir outra coisa sozinha, fora da sessao.
+    //
+    // Uma regra so, para toda a gente incluindo o anfitriao: numa sessao, tocar
+    // numa musica e propo-la. Quem manda e quiser ouvi-la ja, salta.
+    if (!interno) {
+      const sessao = ouvirJuntos();
+      if (sessao?.sessao) {
+        void sessao.sugerir(track).catch(() => {});
+        return;
+      }
+    }
     // As letras começam em paralelo com a resolução do áudio, antes de abrir a capa.
     void ensureLyrics(track);
     const requestId = ++playRequestId;
@@ -565,7 +602,7 @@ export const usePlayer = create<PlayerState>()(
     if (ordem !== state.shuffleOrder) set({ shuffleOrder: ordem });
 
     if (alvo) {
-      await get().playTrack(alvo, fila);
+      await get().playTrack(alvo, fila, false, true);
       return;
     }
 
@@ -629,7 +666,7 @@ export const usePlayer = create<PlayerState>()(
     });
     persistShuffle(true).catch(() => {});
     persistShuffleInteligente(inteligente).catch(() => {});
-    await get().playTrack(tracks[start], tracks, true);
+    await get().playTrack(tracks[start], tracks, true, true);
     // SEMEAR AQUI, e depois do `playTrack`. O botão da barra inferior
     // (`toggleShuffle`) já semeava, mas este caminho -- o Play das Liked
     // Songs e das playlists -- não: montava uma fila nova por cima da que
@@ -780,7 +817,7 @@ export const usePlayer = create<PlayerState>()(
       const order = get()._ensureShuffleOrder();
       const target = stepIndex(order, queue, queueIndex, 1);
       if (target !== null) {
-        await playTrack(queue[target], queue);
+        await playTrack(queue[target], queue, false, true);
         return;
       }
       // Percurso esgotado: com repeat "all" baralha-se outra vez (como a
@@ -790,7 +827,7 @@ export const usePlayer = create<PlayerState>()(
         set({ shuffleOrder: fresh });
         const first = stepIndex(fresh, queue, queueIndex, 1);
         if (first !== null) {
-          await playTrack(queue[first], queue);
+          await playTrack(queue[first], queue, false, true);
           return;
         }
       }
@@ -799,9 +836,9 @@ export const usePlayer = create<PlayerState>()(
     }
 
     if (queueIndex + 1 < queue.length) {
-      await playTrack(queue[queueIndex + 1], queue);
+      await playTrack(queue[queueIndex + 1], queue, false, true);
     } else if (repeatMode === 'all') {
-      await playTrack(queue[0], queue);
+      await playTrack(queue[0], queue, false, true);
     } else {
       await stopOrRadio();
     }
@@ -821,20 +858,20 @@ export const usePlayer = create<PlayerState>()(
       const order = get()._ensureShuffleOrder();
       const target = stepIndex(order, queue, queueIndex, -1);
       if (target !== null) {
-        await playTrack(queue[target], queue);
+        await playTrack(queue[target], queue, false, true);
         return;
       }
       if (repeatMode === 'all') {
         const lastKey = order[order.length - 1];
         const last = queue.findIndex((t) => trackKey(t) === lastKey);
-        if (last >= 0) await playTrack(queue[last], queue);
+        if (last >= 0) await playTrack(queue[last], queue, false, true);
       }
       return;
     }
     if (queueIndex - 1 >= 0) {
-      await playTrack(queue[queueIndex - 1], queue);
+      await playTrack(queue[queueIndex - 1], queue, false, true);
     } else if (repeatMode === 'all' && queue.length > 0) {
-      await playTrack(queue[queue.length - 1], queue);
+      await playTrack(queue[queue.length - 1], queue, false, true);
     }
   },
 

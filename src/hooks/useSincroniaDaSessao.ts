@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { registarFimNaSessao, usePlayer } from '../state/player';
+import { registarFimNaSessao, registarOuvirJuntos, usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { correccaoNecessaria, velocidadeAAplicar } from '../lib/sincronizacao';
 import { cachedAudioFile } from '../lib/youtubeCache';
@@ -72,6 +72,17 @@ export function useSincroniaDaSessao(): void {
   const souAnfitriao = useOuvirJuntos((s) => s.souAnfitriao);
   const anunciarProntidao = useOuvirJuntos((s) => s.anunciarProntidao);
 
+  // A store do leitor precisa de saber se ha sessao para decidir o que um toque
+  // numa musica quer dizer -- mas nao pode importar o ouvir-juntos, que e uma
+  // camada acima dela. Regista-se aqui, como o `registarFimNaSessao`.
+  useEffect(() => {
+    registarOuvirJuntos(() => {
+      const s = useOuvirJuntos.getState();
+      return s.sessao ? { sessao: s.sessao, sugerir: s.sugerir } : null;
+    });
+    return () => registarOuvirJuntos(() => null);
+  }, []);
+
   /** A faixa que toca AQUI. O efeito 1 reage a ela e não só à da sessão. */
   const faixaLocalDoConvidado = usePlayer((s) => s.current?.sourceId);
 
@@ -117,20 +128,14 @@ export function useSincroniaDaSessao(): void {
     const actual = usePlayer.getState().current;
     if (actual?.sourceId === alvo.sourceId) return;
 
-    // Saiu da faixa da sessão sem ter licença para mandar nela. O que ele
-    // escolheu não se deita fora -- vai para a FILA, que é o que qualquer
-    // membro pode fazer sempre. Depois volta-se ao que a sessão está a tocar.
-    //
-    // Perder a escolha em silêncio era a pior das saídas: nem tocava o que ele
-    // pediu, nem dizia porquê.
-    if (actual?.sourceId && ultimaMandada.current !== null) {
-      void useOuvirJuntos.getState().sugerir(actual).catch(() => {});
-    }
+    // Um toque numa música já vai para a fila sozinho (ver o `playTrack`), por
+    // isso aqui só se traz a pessoa de volta ao que a sessão está a tocar --
+    // para os casos que não passam por um toque, como a fila local a avançar.
     ultimaMandada.current = alvo.sourceId;
     // Uma faixa de cada vez: a fila partilhada vive no servidor e e quem manda
     // que a consome no fim de cada musica. Dar uma fila local ao convidado
     // punha-o a adivinhar o que vinha a seguir.
-    void usePlayer.getState().playTrack(alvo, [alvo]);
+    void usePlayer.getState().playTrack(alvo, [alvo], false, true);
   }, [sessao?.track?.sourceId, sessao?.id, faixaLocalDoConvidado, souAnfitriao]);
 
   // ---- 2) pausa e retoma ----------------------------------------------------
@@ -258,7 +263,7 @@ export function useSincroniaDaSessao(): void {
       // Quem manda tambem toca: a sessao diz qual e a faixa, mas so os
       // convidados e que obedecem a sessao. Sem esta linha o anfitriao punha a
       // faixa a tocar para toda a gente menos para ele.
-      if (avancou) void usePlayer.getState().playTrack(primeira.track, [primeira.track]);
+      if (avancou) void usePlayer.getState().playTrack(primeira.track, [primeira.track], false, true);
       return avancou;
     });
     return () => registarFimNaSessao(null);

@@ -93,12 +93,16 @@ export function BarraDaSessao({ aoAbrir, encostada = true }: {
 
   // A frase vive no `lib/sessaoViva.ts`: qual das verdades mostrar quando há
   // várias é uma decisão, e as decisões testam-se.
-  const estado = estadoDaSessao({
+  const aviso = useOuvirJuntos((s) => s.aviso);
+  const estadoNormal = estadoDaSessao({
     outros: membros
       .filter((m) => m.userId !== euId)
       .map((m) => ({ ...m, nome: nomeDe(m.userId) })),
     agora: Date.now(),
   });
+  // O aviso ganha ao estado: acabou de acontecer uma coisa por causa de um
+  // toque, e é isso que a pessoa está à espera de ver confirmado.
+  const estado = aviso ?? estadoNormal;
 
   return (
     <Toque
