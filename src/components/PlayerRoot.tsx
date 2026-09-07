@@ -792,9 +792,10 @@ export function PlayerRoot() {
                 style={[styles.actionsBtn, saved && styles.actionsBtnActive]}
                 accessibilityLabel={saved ? 'Saved to Library' : 'Save to Library'}
               >
-                {/* O unico `pulsar` deste ecra. Guardar uma musica e a
-                    pequena celebracao daqui; passar de "repetir tudo" para
-                    "repetir uma" e informacao, e por isso nao salta. */}
+                {/* Salta ao guardar, como o shuffle salta ao ligar. O repeat
+                    nao salta: percorrer tres modos e informacao, nao uma
+                    escolha que se celebra -- e um icone a saltar de cada vez
+                    que se passa por ele deixaria de querer dizer nada. */}
                 <StateIcon
                   pulsar={saved}
                   name={saved ? 'heart' : 'heart-outline'}
@@ -844,7 +845,11 @@ export function PlayerRoot() {
                 onPress={onToggleShuffle}
                 accessibilityLabel={rotuloDoModo(modoDeShuffle(shuffle, shuffleInteligente))}
               >
+                {/* Salta ao LIGAR e nao ao desligar. Ligar o shuffle e uma
+                    escolha; desliga-lo e voltar ao normal, e o normal nao se
+                    anuncia. A mesma assimetria do coracao. */}
                 <StateIcon
+                  pulsar={shuffle}
                   name="shuffle"
                   size={22}
                   color={shuffle ? colors.text : colors.textTertiary}
@@ -877,7 +882,11 @@ export function PlayerRoot() {
                 onPress={togglePlay}
                 style={styles.playBtn}
               >
+                {/* `rodar` porque play e pause sao o mesmo botao visto dos
+                    dois lados -- rodar diz isso. Nao `pulsar`: quem carrega
+                    no play ja esta a olhar para ele, nao precisa de aviso. */}
                 <StateIcon
+                  rodar
                   name={isPlaying ? 'pause' : 'play'}
                   size={30}
                   color={colors.bg}
@@ -1042,6 +1051,7 @@ export function PlayerRoot() {
             </Toque>
             <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause' : 'Play'} hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
               <StateIcon
+                rodar
                 name={isPlaying ? 'pause' : 'play'}
                 size={22}
                 color={colors.text}

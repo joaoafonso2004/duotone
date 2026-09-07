@@ -1,8 +1,8 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {Animated,StyleSheet,View} from 'react-native';
+import {Animated,StyleSheet} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {useReducedMotion} from '../hooks/useReducedMotion';
-import {ESTADO,PULO} from '../lib/movimento';
+import {ESTADO,GIRO_GRAUS,PULO} from '../lib/movimento';
 
 type Props=React.ComponentProps<typeof Ionicons>&{
   /**
@@ -15,9 +15,19 @@ type Props=React.ComponentProps<typeof Ionicons>&{
    * decisão vive lá e não aqui.
    */
   pulsar?:boolean;
+  /**
+   * O ícone que sai roda para um lado e o que entra vem do outro.
+   *
+   * Só faz sentido quando os dois estados são DUAS CARAS DA MESMA COISA, e não
+   * dois itens de uma lista: play/pause é o caso exemplar -- é o mesmo botão
+   * visto dos dois lados, e rodar diz exactamente isso. Um coração a encher-se
+   * não roda, porque não tem dois lados; e um separador da barra de baixo muito
+   * menos, que ficava a andar à roda a cada mudança de página.
+   */
+  rodar?:boolean;
 };
 /** Dissolver entre os estados sem mudar a dimensão ou o alvo do botão. */
-export function StateIcon({pulsar=false,...props}:Props){
+export function StateIcon({pulsar=false,rodar=false,...props}:Props){
   const reduced=useReducedMotion(),progress=useRef(new Animated.Value(1)).current;
   const salto=useRef(new Animated.Value(1)).current;
   const previous=useRef(props),[outgoing,setOutgoing]=useState<Props|null>(null);
@@ -38,8 +48,19 @@ export function StateIcon({pulsar=false,...props}:Props){
     }
     return()=>{animation.stop();pulo?.stop();};
   },[props.name,props.color,reduced,pulsar]);
+
+  // O que entra vem de tras e o que sai continua para a frente: o MESMO sentido
+  // de rotacao nos dois, para se ler como uma peca a virar e nao como duas a
+  // cruzarem-se. Sem `rodar` as listas ficam vazias e o transform nem se cria.
+  const giroEntra=rodar&&!reduced
+    ?[{rotate:progress.interpolate({inputRange:[0,1],outputRange:[`-${GIRO_GRAUS}deg`,'0deg']})}]
+    :[];
+  const giroSai=rodar&&!reduced
+    ?[{rotate:progress.interpolate({inputRange:[0,1],outputRange:['0deg',`${GIRO_GRAUS}deg`]})}]
+    :[];
+
   return <Animated.View style={{width:props.size??24,height:props.size??24,alignItems:'center',justifyContent:'center',transform:[{scale:salto}]}} pointerEvents="none">
-    {outgoing&&<Animated.View accessible={false} style={[StyleSheet.absoluteFill,{alignItems:'center',justifyContent:'center',opacity:progress.interpolate({inputRange:[0,1],outputRange:[1,0]})}]}><Ionicons {...outgoing} /></Animated.View>}
-    <Animated.View style={{opacity:progress}}><Ionicons {...props} /></Animated.View>
+    {outgoing&&<Animated.View accessible={false} style={[StyleSheet.absoluteFill,{alignItems:'center',justifyContent:'center',opacity:progress.interpolate({inputRange:[0,1],outputRange:[1,0]}),transform:giroSai}]}><Ionicons {...outgoing} /></Animated.View>}
+    <Animated.View style={{opacity:progress,transform:giroEntra}}><Ionicons {...props} /></Animated.View>
   </Animated.View>;
 }

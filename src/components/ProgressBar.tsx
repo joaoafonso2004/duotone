@@ -1,5 +1,7 @@
-import React, { useRef, useState } from 'react';
-import { LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { BARRA_A_ARRASTAR, BOTAO_DA_BARRA, ESTADO, SOLTAR } from '../lib/movimento';
 import { colors } from '../theme';
 
 interface Props {
@@ -20,6 +22,16 @@ function fmt(ms: number): string {
 
 export function ProgressBar({ positionMs, durationMs, onSeek, onScrubbingChange }: Props) {
   const [width, setWidth] = useState(0);
+  const reduzido = useReducedMotion();
+  /**
+   * 0 em repouso, 1 debaixo do dedo.
+   *
+   * Antes a barra trocava de geometria de um fotograma para o outro: o
+   * botao saltava de 10 para 16 px e a margem mudava com ele. Era a troca
+   * de fotograma mais visivel da app, porque acontece exactamente no
+   * momento em que o dedo esta pousado a olhar para ali.
+   */
+  const agarrado = useRef(new Animated.Value(0)).current;
   const onScrubbingRef = useRef(onScrubbingChange);
   onScrubbingRef.current = onScrubbingChange;
   // Enquanto o utilizador arrasta, mostramos a posição do DEDO (suave, a
@@ -68,17 +80,39 @@ export function ProgressBar({ positionMs, durationMs, onSeek, onScrubbingChange 
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
 
+  useEffect(() => {
+    // Agarrar e imediato; largar e que volta com mola. Mesma assimetria do
+    // resto da app -- ver src/lib/movimento.ts.
+    Animated.spring(agarrado, {
+      toValue: dragging ? 1 : 0,
+      ...(dragging ? ESTADO : SOLTAR),
+      useNativeDriver: true,
+    }).start();
+  }, [dragging, agarrado]);
+
+  const espessura = reduzido
+    ? 1
+    : agarrado.interpolate({ inputRange: [0, 1], outputRange: [1, BARRA_A_ARRASTAR] });
+  const tamanhoDoBotao = agarrado.interpolate({
+    inputRange: [0, 1],
+    outputRange: [BOTAO_DA_BARRA.repouso, 1],
+  });
+
   return (
     <View style={styles.wrap}>
       {/* hitSlop maior em cima/baixo para ser fácil de agarrar */}
       <View style={styles.hit} {...pan.panHandlers}>
-        <View style={styles.track} onLayout={onLayout}>
-          <View style={[styles.fill, { width: `${fraction * 100}%` }]} />
-          <View
+        {/* A pista e o botao sao IRMAOS e nao pai/filho: a pista engorda por
+            `scaleY`, e se o botao vivesse la dentro engordava com ela. */}
+        <View style={styles.pista} onLayout={onLayout}>
+          <Animated.View style={[styles.track, { transform: [{ scaleY: espessura }] }]}>
+            <View style={[styles.fill, { width: `${fraction * 100}%` }]} />
+          </Animated.View>
+          <Animated.View
             style={[
               styles.knob,
               { left: `${fraction * 100}%` },
-              dragging && styles.knobActive,
+              { transform: [{ scale: tamanhoDoBotao }] },
             ]}
           />
         </View>
@@ -104,6 +138,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     justifyContent: 'center',
   },
+  // A caixa que da a largura e onde o botao se posiciona. Sem altura
+  // propria: e a pista que a define, e o botao sai dela para os lados.
+  pista: {
+    justifyContent: 'center',
+  },
   track: {
     height: 4,
     borderRadius: 2,
@@ -118,21 +157,16 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: colors.text,
   },
+  // Desenhado sempre no tamanho GRANDE e encolhido por escala. Assim a
+  // margem que o centra nao tem de mudar com o estado -- e escalar e a
+  // volta do centro, por isso ele nao se desloca ao crescer.
   knob: {
     position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: BOTAO_DA_BARRA.grande,
+    height: BOTAO_DA_BARRA.grande,
+    borderRadius: BOTAO_DA_BARRA.grande / 2,
     backgroundColor: colors.text,
-    marginLeft: -5,
-    top: -3,
-  },
-  knobActive: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginLeft: -8,
-    top: -6,
+    marginLeft: -BOTAO_DA_BARRA.grande / 2,
   },
   times: {
     flexDirection: 'row',

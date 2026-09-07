@@ -31,7 +31,10 @@
 // está aqui em números.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ESCALA, ENTRADA, ESTADO, PREMIR, PULO, SOLTAR } from '../src/lib/movimento.ts';
+import {
+  BARRA_A_ARRASTAR, BOTAO_DA_BARRA, ESCALA, ENTRADA, ESTADO,
+  GIRO_GRAUS, PREMIR, PULO, SEPARADOR_ACTIVO, SOLTAR,
+} from '../src/lib/movimento.ts';
 
 let falhas = 0;
 function verificar(nome: string, fn: () => void) {
@@ -58,6 +61,8 @@ const SO_NATIVO = [
   'src/components/Toque.tsx',
   'src/components/StateIcon.tsx',
   'src/components/TransitionView.tsx',
+  'src/components/ProgressBar.tsx',
+  'src/navigation/RootNavigator.tsx',
 ];
 
 console.log('Driver de animação:');
@@ -112,6 +117,24 @@ verificar('o Toque não anima nenhuma propriedade de layout', () => {
   }
 });
 
+// A barra de progresso é onde a tentação de animar `height` é maior: engordar
+// é literalmente o que se quer ver acontecer. A saída é `scaleY`, e este teste
+// existe para que alguém com pressa não volte atrás.
+verificar('a barra de progresso engorda por escala e não por altura', () => {
+  const fonte = ler('src/components/ProgressBar.tsx');
+  assert.ok(/scaleY: espessura/.test(fonte), 'a pista deixou de engordar por scaleY');
+  for (const proibida of ['height', 'width', 'top', 'marginLeft']) {
+    assert.ok(
+      !new RegExp(`${proibida}\\s*:\\s*(espessura|tamanhoDoBotao|agarrado)`).test(fonte),
+      `a barra anima \`${proibida}\`, que é layout`
+    );
+  }
+  assert.ok(
+    !/knobActive/.test(fonte),
+    'o `knobActive` voltou -- era ele que trocava a geometria de um fotograma para o outro'
+  );
+});
+
 console.log('\nAssimetria do movimento:');
 
 verificar('premir responde mais depressa do que soltar', () => {
@@ -154,6 +177,36 @@ verificar('as escalas encolhem, e menos quanto maior for o alvo', () => {
 verificar('o pulo cresce em vez de encolher', () => {
   assert.ok(PULO > 1, 'um salto que encolhe não é um salto');
   assert.ok(PULO < 1.6, `${PULO} é grande de mais -- um coração a saltar meio ecrã é uma piada, não um estado`);
+});
+
+verificar('o giro sugere sem borrar', () => {
+  assert.ok(GIRO_GRAUS > 0, 'sem graus não há giro');
+  assert.ok(
+    GIRO_GRAUS <= 45,
+    `${GIRO_GRAUS}° é de mais -- a esta velocidade o olho perde a forma a meio e fica um borrão`
+  );
+});
+
+verificar('a barra e o separador crescem, sem exagero', () => {
+  assert.ok(
+    BARRA_A_ARRASTAR > 1 && BARRA_A_ARRASTAR <= 2,
+    `a barra a ${BARRA_A_ARRASTAR}x debaixo do dedo deixa de ser uma barra`
+  );
+  assert.ok(
+    SEPARADOR_ACTIVO > 1 && SEPARADOR_ACTIVO < 1.3,
+    `um separador a ${SEPARADOR_ACTIVO}x sai da barra de baixo`
+  );
+});
+
+verificar('o botão da barra vive encolhido e cresce até ao tamanho desenhado', () => {
+  assert.ok(
+    BOTAO_DA_BARRA.repouso > 0 && BOTAO_DA_BARRA.repouso < 1,
+    'o repouso tem de ser uma FRACÇÃO do desenhado -- é isso que evita mexer em width/height'
+  );
+  assert.ok(
+    BOTAO_DA_BARRA.grande >= 12,
+    'o desenhado tem de ser o estado grande, senão a escala aumenta em vez de encolher e fica borratado'
+  );
 });
 
 verificar('todas as molas têm massa e rigidez positivas', () => {

@@ -19,7 +19,8 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator, AppState } from 'react-native';
+import { Animated, StyleSheet, Text, View, ActivityIndicator, AppState } from 'react-native';
+import { ESTADO, SEPARADOR_ACTIVO } from '../lib/movimento';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
@@ -87,6 +88,52 @@ type TabsParamList = {
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabsParamList>();
+
+/**
+ * O separador escolhido levanta-se um bocadinho.
+ *
+ * O `StateIcon` ja dissolvia entre o contorno e o preenchido, o que diz QUAL
+ * esta escolhido -- mas dizia-o sem nada acontecer: a mudanca chegava ao ecra
+ * sem movimento nenhum, e por isso lia-se como uma troca de imagem.
+ *
+ * Uma escala pequena com mola resolve, e nao mexe em layout nenhum: o icone
+ * ocupa sempre a mesma caixa, so e desenhado maior. Sem isto teria de se mexer
+ * em `width`/`height`, que nao correm na UI thread e obrigariam a barra inteira
+ * a refazer o layout a cada mudanca de pagina.
+ */
+function SeparadorActivo({ activo, tamanho, children }: {
+  activo: boolean; tamanho: number; children: React.ReactNode;
+}) {
+  const reduzido = useReducedMotion();
+  const levantado = React.useRef(new Animated.Value(activo ? 1 : 0)).current;
+
+  React.useEffect(() => {
+    if (reduzido) { levantado.setValue(activo ? 1 : 0); return; }
+    const mola = Animated.spring(levantado, {
+      toValue: activo ? 1 : 0,
+      ...ESTADO,
+      useNativeDriver: true,
+    });
+    mola.start();
+    return () => mola.stop();
+  }, [activo, reduzido, levantado]);
+
+  return (
+    <Animated.View
+      style={{
+        width: tamanho,
+        height: tamanho,
+        justifyContent: 'center',
+        alignItems: 'center',
+        transform: [{
+          scale: levantado.interpolate({ inputRange: [0, 1], outputRange: [1, SEPARADOR_ACTIVO] }),
+        }],
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
 const stackScreenOptions = { headerShown: false } as const;
 
 // Cada tab com navegação para ecrãs de detalhe recebe o seu próprio stack
@@ -155,7 +202,10 @@ function Tabs() {
         tabBarIcon: ({ color, size, focused }) => {
           const hasNotification = useNotifications((s) => s.hasNotification);
           return (
-            <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
+            <SeparadorActivo activo={focused} tamanho={size}>
+              {/* Sem `rodar`: cinco separadores a girar de cada vez que se
+                  muda de pagina seria uma feira. Aqui basta o preenchido a
+                  dissolver por cima do contorno, e o levantar. */}
               <StateIcon
                 name={
                   focused
@@ -178,7 +228,7 @@ function Tabs() {
                   }}
                 />
               )}
-            </View>
+            </SeparadorActivo>
           );
         },
       })}

@@ -89,6 +89,37 @@ export const BRILHO_DA_LINHA = 0.055;
 export const PULO = 1.28;
 
 /**
+ * Quanto roda um ícone que troca pelo seu par (play/pause).
+ *
+ * Um quarto de volta é de mais: a esta velocidade o olho perde a forma a meio e
+ * fica um borrão. O que se quer é a sugestão de uma peça a virar, e trinta
+ * graus chegam para isso sem tirar a legibilidade a nenhum dos dois lados.
+ */
+export const GIRO_GRAUS = 30;
+
+/**
+ * A barra de progresso debaixo do dedo.
+ *
+ * A altura não se anima -- é layout, não corre na UI thread, e misturar
+ * drivers na mesma vista atira. Anima-se `scaleY`, que dá o mesmo ao olho.
+ * A distorção do raio a esta espessura não se vê.
+ */
+export const BARRA_A_ARRASTAR = 1.6;
+
+/**
+ * O botão da barra desenha-se SEMPRE grande e vive encolhido.
+ *
+ * Ao contrário: crescer de 10 para 16 mudando `width`/`height` obrigava a
+ * mexer também na margem para o centro não fugir, e nada disso corre no driver
+ * nativo. Desenhado a 16 e escalado para 0.625 em repouso, o centro é o mesmo
+ * nos dois estados e o que anima é só a escala.
+ */
+export const BOTAO_DA_BARRA = { grande: 16, repouso: 10 / 16 } as const;
+
+/** O separador activo levanta-se um bocadinho acima dos outros. */
+export const SEPARADOR_ACTIVO = 1.12;
+
+/**
  * Com `reduce motion` ligado nada disto desaparece -- muda de linguagem.
  *
  * Quem pede menos animação não está a pedir menos informação: continua a
