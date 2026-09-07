@@ -57,6 +57,17 @@ export type YtControls = PlaybackControls;
 const posicao = (ms: number) => ({ positionMs: ms, positionAt: Date.now() });
 
 /**
+ * Quanto tempo a sugestao do shuffle inteligente espera antes de entrar.
+ *
+ * Ela deixou de travar o botao de seguinte, e por isso passou a correr em
+ * paralelo com a mudanca de faixa -- o que a punha a competir com o `playTrack`
+ * pela fila. Este atraso poe-na depois de tudo assentar.
+ *
+ * Exportado para os testes poderem esperar por ela sem adivinhar o numero.
+ */
+export const ATRASO_DA_SUGESTAO_MS = 2000;
+
+/**
  * Quem trata do fim da faixa quando ha uma sessao de escuta a decorrer.
  *
  * Um ponto de registo e nao um import directo: assim a store do leitor
@@ -695,15 +706,36 @@ export const usePlayer = create<PlayerState>()(
     // Se a rede falhar nao acontece nada: cai no shuffle normal. Uma
     // funcionalidade de descoberta nao pode partir a reproducao.
     if (deveSugerir(modoDeShuffle(get().shuffle, get().shuffleInteligente), get().desdeASugestao)) {
-      const entrou = await get().intercalarSugestao();
+      // NAO SE ESPERA POR ISTO. Era `await`, e era a resposta a pergunta "porque
+      // e que o botao de seguinte demora": a sugestao e uma ida a rede -- duas
+      // consultas ao Supabase mais uma pesquisa no YouTube -- e acontecia de
+      // quatro em quatro faixas ANTES de a musica sequer mudar. O utilizador
+      // carregava e ficava a olhar para a faixa antiga enquanto a app procurava
+      // uma sugestao para dali a umas musicas.
+      //
+      // A sugestao entra na fila para uma posicao mais a frente: nao ha razao
+      // nenhuma para ela travar a faixa que se quer ouvir AGORA. Vai para tras
+      // e insere-se na fila que existir quando chegar.
+      //
       // FALHAR REPOE O CONTADOR NA MESMA. Sem isto, a partir do primeiro
       // falhanco a condicao ficava verdadeira para sempre e CADA mudanca de
-      // faixa ia a rede: duas consultas ao Supabase mais uma pesquisa no
-      // YouTube, que tem quota diaria. Assim espera as quatro faixas
-      // seguintes antes de tentar outra vez.
-      if (!entrou) set({ desdeASugestao: 0 });
-      // E nao se sai daqui: a sugestao entrou na fila mas nao interrompe,
-      // por isso segue-se para o `next` normal.
+      // faixa ia a rede, que tem quota diaria.
+      // DEPOIS de a faixa mudar, e nao ao mesmo tempo.
+      //
+      // Correr isto em paralelo com o avanco reintroduzia a corrida que o
+      // comentario mais abaixo descreve: a sugestao inseria-se na fila e o
+      // `playTrack`, que recebe a fila por argumento, gravava a copia ANTIGA
+      // por cima -- a sugestao desaparecia sem deixar rasto. O atraso poe-na
+      // depois de tudo assentar, e a insercao ja usa a fila que existir nessa
+      // altura.
+      //
+      // Dois segundos nao custam nada a uma descoberta que so vai tocar dali a
+      // umas faixas, e custam tudo se estiverem a travar o botao de seguinte.
+      setTimeout(() => {
+        void get().intercalarSugestao().then((entrou) => {
+          if (!entrou) set({ desdeASugestao: 0 });
+        });
+      }, ATRASO_DA_SUGESTAO_MS);
     }
 
     // A FILA LÊ-SE AQUI, DEPOIS DA SUGESTÃO, e não no início da função.
@@ -1015,14 +1047,26 @@ export const usePlayer = create<PlayerState>()(
       const candidatas = await candidatasParaDescoberta(
         contexto, naFila, new Set(sugeridas),
       );
-      if(useConnectivity.getState().offline||get().queue!==queue||!get().shuffleInteligente)return false;
+      if(useConnectivity.getState().offline||!get().shuffleInteligente)return false;
       const escolhida = escolherSugestao(
         filterSuggestions(candidatas), (t) => trackKey(t), naFila, new Set(sugeridas),
       );
       if (!escolhida) return false;
 
-      const posicao = posicaoDaSugestao(queue.length, queueIndex);
-      const nova = [...queue.slice(0, posicao), escolhida, ...queue.slice(posicao)];
+      // A fila de AGORA, e nao a de quando esta procura comecou.
+      //
+      // Isto deixou de correr antes de a faixa mudar (ver o `next`), por isso
+      // quando chega aqui a fila ja avancou. Insistir na copia antiga ou
+      // desistir por ela ter mudado era, nos dois casos, transformar uma ida a
+      // rede num desperdicio.
+      const filaAgora = get().queue;
+      const indiceAgora = get().queueIndex;
+      if (filaAgora.length === 0) return false;
+      // Entretanto pode ter entrado por outro caminho.
+      if (filaAgora.some((t) => trackKey(t) === trackKey(escolhida))) return false;
+
+      const posicao = posicaoDaSugestao(filaAgora.length, indiceAgora);
+      const nova = [...filaAgora.slice(0, posicao), escolhida, ...filaAgora.slice(posicao)];
       const chave = trackKey(escolhida);
 
       // O PERCURSO DO SHUFFLE NAO SE LIMPA: enfia-se a chave logo a seguir a
@@ -1034,7 +1078,7 @@ export const usePlayer = create<PlayerState>()(
       const ordem = get().shuffleOrder;
       let novaOrdem = ordem;
       if (ordem.length > 0) {
-        const actual = queue[queueIndex] ? trackKey(queue[queueIndex]) : null;
+        const actual = filaAgora[indiceAgora] ? trackKey(filaAgora[indiceAgora]) : null;
         const onde = actual ? ordem.indexOf(actual) : -1;
         novaOrdem = onde >= 0
           ? [...ordem.slice(0, onde + 1), chave, ...ordem.slice(onde + 1)]

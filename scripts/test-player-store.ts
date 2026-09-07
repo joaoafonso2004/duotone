@@ -15,7 +15,7 @@
  *   DUOTONE_DUPLOS=1 node --experimental-strip-types \
  *     --import ./scripts/registar-resolver.mjs scripts/test-player-store.ts
  */
-import { usePlayer } from '../src/state/player.ts';
+import { ATRASO_DA_SUGESTAO_MS, usePlayer } from '../src/state/player.ts';
 import { trackKey } from '../src/lib/shuffle.ts';
 import { controlo, reporControlo } from './duplos/controlo.ts';
 import { guardadas } from './duplos/prefs.ts';
@@ -36,6 +36,14 @@ const faixa = (id: string): Track => ({
 const fila = (...ids: string[]) => ids.map(faixa);
 const ids = () => usePlayer.getState().queue.map((t) => t.sourceId);
 const atual = () => usePlayer.getState().current?.sourceId ?? null;
+/**
+ * Deixa a sugestao do shuffle inteligente chegar.
+ *
+ * Ela deixou de ser esperada pelo `next` -- ver o comentario la -- e por
+ * isso os testes que olham para a fila tem de lhe dar o tique que ela
+ * precisa. Sem isto assertavam a fila de ANTES da sugestao.
+ */
+const esperarUmTique = () => new Promise((r) => setTimeout(r, ATRASO_DA_SUGESTAO_MS + 60));
 
 /**
  * Deixa o que ficou pendente resolver-se.
@@ -104,9 +112,26 @@ preparar({
 });
 controlo.candidatas = [faixa('nova')];
 await usePlayer.getState().next();
-check('a sugestão fica na fila', ids().includes('nova'), ids().join(','));
-eq('e é ela que toca a seguir', atual(), 'nova');
-eq('o contador da sugestão foi reposto', usePlayer.getState().desdeASugestao, 1);
+
+// A FAIXA MUDA JA, e a sugestao chega a seguir.
+//
+// Isto era sincrono: o `next` esperava pela sugestao -- duas consultas ao
+// Supabase mais uma pesquisa no YouTube -- ANTES de mudar de musica. De quatro
+// em quatro faixas, o utilizador carregava em seguinte e ficava a olhar para a
+// faixa antiga enquanto a app procurava uma sugestao para dali a umas musicas.
+//
+// A troca deliberada: a sugestao passa a tocar uma faixa mais tarde, porque se
+// insere depois de a fila ja ter avancado. Invisivel para quem ouve; o atraso
+// no botao nao era.
+eq('a faixa muda já, sem esperar pela rede', atual(), 'b');
+await esperarUmTique();
+check('a sugestão entra na fila logo a seguir', ids().includes('nova'), ids().join(','));
+eq('e fica a seguir à que está a tocar', ids()[usePlayer.getState().queueIndex + 1], 'nova');
+// Zero, e nao um. Antes a sugestao corria ANTES do `playTrack`, que depois
+// incrementava o contador para 1. Agora corre depois, e o valor final e o
+// que a propria sugestao deixa -- que e o mais correcto dos dois: acabou
+// de se sugerir, faltam quatro faixas para a proxima.
+eq('o contador da sugestão foi reposto', usePlayer.getState().desdeASugestao, 0);
 
 preparar({
   shuffle: true, shuffleInteligente: true, desdeASugestao: 1,
@@ -114,6 +139,7 @@ preparar({
 });
 controlo.candidatas = [faixa('nova')];
 await usePlayer.getState().next();
+await esperarUmTique();
 check('cedo demais não sugere nada', !ids().includes('nova'));
 eq('e nem foi à rede', controlo.chamadas.candidatas, 0);
 
@@ -141,8 +167,11 @@ preparar({
 });
 controlo.candidatas = [];
 await usePlayer.getState().next();
-eq('sem candidatas, o contador volta a zero e espera', usePlayer.getState().desdeASugestao, 1);
-// (1 e não 0: o `playTrack` da faixa seguinte incrementa-o logo a seguir.)
+await esperarUmTique();
+eq('sem candidatas, o contador volta a zero e espera', usePlayer.getState().desdeASugestao, 0);
+// Zero pela mesma razao do caso acima: a reposicao passou a ser a ultima coisa
+// a acontecer. O que importa e que NAO fique alto -- senao cada mudanca de
+// faixa ia a rede, e essa tem quota diaria.
 
 // ===========================================================================
 console.log('\no play a partir de uma lista');

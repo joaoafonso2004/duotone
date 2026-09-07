@@ -354,6 +354,21 @@ export interface DownloadOptions {
  * tratam-no como cancelamento silencioso, não como falha. */
 export const DOWNLOAD_ABORTED = 'download aborted';
 
+/**
+ * Os downloads a decorrer, por faixa.
+ *
+ * Duas pessoas a pedir o mesmo ficheiro ao mesmo tempo -- o adiantamento da
+ * faixa seguinte e o toque do utilizador nessa mesma faixa -- descarregavam-no
+ * DUAS vezes, uma atras da outra, porque a fila so deixa passar um de cada vez.
+ * Aqui a segunda espera pela primeira.
+ */
+const emCurso = new Map<string, Promise<string>>();
+
+/** So para testes: esquece o que esta a meio. */
+export function limparDownloadsEmCurso(): void {
+  emCurso.clear();
+}
+
 /** Descarrega áudio progressivo por pedaços para armazenamento local e corrige os metadados de duração. */
 export async function downloadProgressiveAudio(
   videoId: string,
@@ -368,15 +383,51 @@ export async function downloadProgressiveAudio(
   if (dest.exists) return dest.uri;
   if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
 
-  const bilhete = await pedirVez(opts.prioridade ?? 'explicito');
+  // JA ESTA A SER DESCARREGADO? Entao espera-se por ele em vez de pedir vez.
+  //
+  // Isto e o que tirava o "delay" do botao de seguinte. O Smart Cache comeca a
+  // descarregar a faixa seguinte cinco segundos depois de a actual arrancar. Se
+  // o utilizador carregar em seguinte a meio disso, a chamada da REPRODUCAO
+  // pedia vez ao mesmo tempo -- e como so passa um download de cada vez, ficava
+  // atras do adiantamento DA MESMA FAIXA. Esperava que ele acabasse e depois
+  // recomecava do zero: o dobro do tempo e o dobro da rede, para o mesmo
+  // ficheiro.
+  //
+  // Agora quem chega a seguir espera pelo que ja anda. Se esse for abandonado,
+  // quem ainda quer a faixa tenta por si -- o abandono de um nao pode condenar
+  // o outro.
+  const jaAnda = emCurso.get(videoId);
+  if (jaAnda) {
+    try {
+      return await jaAnda;
+    } catch (e: any) {
+      if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+      if (dest.exists) return dest.uri;
+      if (e?.message !== DOWNLOAD_ABORTED) throw e;
+      // Abandonado por quem o comecou. Segue-se para o caminho normal.
+    }
+  }
+
+  const meu = (async () => {
+    const bilhete = await pedirVez(opts.prioridade ?? 'explicito');
+    try {
+      // Entre pedir a vez e chega-la, a faixa pode ter mudado ou outro job pode
+      // ter descarregado esta mesma.
+      if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+      if (dest.exists) return dest.uri;
+      return await descarregarAgora(videoId, url, knownLength, durationSeconds, opts, dest);
+    } finally {
+      largarVez(bilhete);
+    }
+  })();
+
+  emCurso.set(videoId, meu);
   try {
-    // Entre pedir a vez e chega-la, a faixa pode ter mudado ou outro job pode
-    // ter descarregado esta mesma.
-    if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
-    if (dest.exists) return dest.uri;
-    return await descarregarAgora(videoId, url, knownLength, durationSeconds, opts, dest);
+    return await meu;
   } finally {
-    largarVez(bilhete);
+    // So se apaga a PROPRIA: entre o fim desta e esta linha pode ja ter
+    // comecado outra para a mesma faixa, e apagar a dela deixava duas a andar.
+    if (emCurso.get(videoId) === meu) emCurso.delete(videoId);
   }
 }
 
