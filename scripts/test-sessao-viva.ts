@@ -112,7 +112,7 @@ const q = (nome: string, hàQuanto: number, pronta: boolean, percentagem = 0) =>
   ({ userId: nome, nome, vistoEm: AGORA - hàQuanto, pronta, percentagem });
 
 verificar('sem ninguém, diz que se está à espera', () => {
-  assert.equal(estadoDaSessao({ outros: [], agora: AGORA }), 'À espera de quem convidaste');
+  assert.equal(estadoDaSessao({ outros: [], agora: AGORA }), 'Waiting for your friends');
 });
 
 verificar('com quem falta, é isso que se diz -- e não quem está', () => {
@@ -121,21 +121,21 @@ verificar('com quem falta, é isso que se diz -- e não quem está', () => {
   const s = estadoDaSessao({
     outros: [q('zyn', 0, true), q('miguel', 0, false, 40)], agora: AGORA,
   });
-  assert.equal(s, 'miguel a descarregar · 40%');
+  assert.equal(s, 'miguel · 40%');
 });
 
 verificar('com vários a descarregar, conta-os', () => {
   const s = estadoDaSessao({
     outros: [q('a', 0, false, 10), q('b', 0, false, 20)], agora: AGORA,
   });
-  assert.equal(s, '2 pessoas a descarregar');
+  assert.equal(s, '2 still loading');
 });
 
 verificar('com todos prontos, diz com quem se está', () => {
-  assert.equal(estadoDaSessao({ outros: [q('zyn', 0, true)], agora: AGORA }), 'A ouvir com zyn');
+  assert.equal(estadoDaSessao({ outros: [q('zyn', 0, true)], agora: AGORA }), 'Listening with zyn');
   assert.equal(
     estadoDaSessao({ outros: [q('a', 0, true), q('b', 0, true)], agora: AGORA }),
-    'A ouvir com 2 amigos'
+    'Listening with 2 friends'
   );
 });
 
@@ -143,14 +143,14 @@ verificar('os fantasmas não entram na contagem', () => {
   const s = estadoDaSessao({
     outros: [q('zyn', 0, true), q('foi-se', PRESENCA_VALIDA_MS + 10, true)], agora: AGORA,
   });
-  assert.equal(s, 'A ouvir com zyn', 'contou alguém que já tinha ido embora');
+  assert.equal(s, 'Listening with zyn', 'contou alguém que já tinha ido embora');
 });
 
 verificar('um fantasma que nunca ficou pronto também não conta', () => {
   const s = estadoDaSessao({
     outros: [q('zyn', 0, true), q('foi-se', PRESENCA_VALIDA_MS + 10, false, 30)], agora: AGORA,
   });
-  assert.equal(s, 'A ouvir com zyn', 'a barra ficava presa em "a descarregar" para sempre');
+  assert.equal(s, 'Listening with zyn', 'a barra ficava presa em "a descarregar" para sempre');
 });
 
 if (falhas > 0) {

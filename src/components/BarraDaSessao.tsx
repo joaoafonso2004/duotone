@@ -65,20 +65,20 @@ export function BarraDaSessao({ aoAbrir, encostada = true }: {
       <Toque
         escala={ESCALA.cartao}
         onPress={limparAviso}
-        accessibilityLabel="A sessão acabou"
+        accessibilityLabel="Session ended"
         style={[styles.barra, styles.acabou]}
       >
         <Ionicons name="headset-outline" size={15} color={colors.textSecondary} />
         <Text style={[styles.titulo, { color: colors.textSecondary }]}>
-          A sessão acabou
+          Session ended
         </Text>
       </Toque>
     );
   }
 
   const nomeDe = (id: string) => {
-    if (id === euId) return 'tu';
-    return amigos.find((f) => f.friendId === id)?.name ?? 'alguém';
+    if (id === euId) return 'you';
+    return amigos.find((f) => f.friendId === id)?.name ?? 'someone';
   };
   // A nossa propria cara nao esta na lista de amigos -- e por isso aparecia a
   // inicial do nome num circulo, ao lado das fotografias de toda a gente.

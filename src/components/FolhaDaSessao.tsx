@@ -50,7 +50,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
   );
 
   const nomeDe = (id: string) =>
-    id === euId ? 'Tu' : amigos.find((f) => f.friendId === id)?.name ?? 'Alguém';
+    id === euId ? 'You' : amigos.find((f) => f.friendId === id)?.name ?? 'Someone';
   // A nossa propria cara nao esta na lista de amigos -- e por isso aparecia a
   // inicial do nome num circulo, ao lado das fotografias de toda a gente.
   // Vem da cache do perfil, que ja e lida no arranque da app.
@@ -66,23 +66,23 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
 
   return (
     <BottomSheet visible={visivel && !!sessao} onClose={aoFechar}>
-      <Text style={[type.title, { marginBottom: spacing.md }]}>Ouvir juntos</Text>
+      <Text style={[type.title, { marginBottom: spacing.md }]}>Listen together</Text>
 
       <ScrollView style={{ maxHeight: 420 }} keyboardShouldPersistTaps="handled">
-        <Text style={styles.seccao}>QUEM ESTÁ</Text>
+        <Text style={styles.seccao}>IN THE SESSION</Text>
         {membros.map((m) => (
           <View key={m.userId} style={styles.linha}>
             <FriendAvatar avatarUrl={avatarDe(m.userId)} name={nomeDe(m.userId)} size={38} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={styles.nome}>
                 {nomeDe(m.userId)}
-                {sessao?.hostId === m.userId ? ' · anfitrião' : ''}
+                {sessao?.hostId === m.userId ? ' · host' : ''}
               </Text>
               {/* A espera tem de ser visível. No Duotone tocar uma faixa é
                   descarregá-la primeiro, e um amigo em silêncio há trinta
                   segundos parece avaria quando é só a rede dele. */}
               <Text numberOfLines={1} style={styles.estado}>
-                {m.pronta ? 'Pronto' : `A descarregar · ${m.percentagem}%`}
+                {m.pronta ? 'Ready' : `Loading · ${m.percentagem}%`}
               </Text>
             </View>
             <Ionicons
@@ -96,13 +96,11 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
         {anfitriao ? (
           <View style={styles.permissao}>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.nome}>Deixar os outros controlar</Text>
+              <Text style={styles.nome}>Guests can control</Text>
               {/* O defeito é NÃO. Quatro pessoas com o dedo no pause é uma
                   sessão que não toca nada -- e juntar à fila, que é o que
                   quase toda a gente quer fazer, nunca precisou disto. */}
-              <Text style={styles.estado}>
-                Mudar de música e pôr em pausa. Sugerir já podem sempre.
-              </Text>
+              <Text style={styles.estado}>Skip and pause. Anyone can always add.</Text>
             </View>
             <Switch
               value={!!sessao?.convidadosControlam}
@@ -118,7 +116,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
             outros, e um botão que dá erro é pior do que não haver botão. */}
         {anfitriao && porConvidar.length > 0 ? (
           <>
-            <Text style={styles.seccao}>CHAMAR MAIS ALGUÉM</Text>
+            <Text style={styles.seccao}>INVITE</Text>
             {porConvidar.map((f) => {
               const jaFoi = convidados.includes(f.friendId);
               return (
@@ -126,9 +124,13 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
                   <FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={38} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text numberOfLines={1} style={styles.nome}>{f.name}</Text>
-                    <Text numberOfLines={1} style={styles.estado}>
-                      {jaFoi ? 'Convite enviado' : f.online ? 'Online now' : 'Recebe no chat'}
-                    </Text>
+                    {/* Uma linha em branco em vez de "recebe no chat" repetido em
+                        cada pessoa: e sempre verdade, logo nao informa nada. */}
+                    {jaFoi || f.online ? (
+                      <Text numberOfLines={1} style={styles.estado}>
+                        {jaFoi ? 'Invited' : 'Online'}
+                      </Text>
+                    ) : null}
                   </View>
                   <Toque
                     escala={ESCALA.icone}
@@ -139,7 +141,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
                       setConvidados((c) => [...c, f.friendId]);
                       void convidarMais([f.friendId]);
                     }}
-                    accessibilityLabel={`Convidar ${f.name}`}
+                    accessibilityLabel={`Invite ${f.name}`}
                     style={{ padding: 4 }}
                   >
                     <Ionicons
@@ -154,11 +156,10 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
           </>
         ) : null}
 
-        <Text style={styles.seccao}>A SEGUIR</Text>
+        <Text style={styles.seccao}>UP NEXT</Text>
         {fila.length === 0 ? (
           <Text style={[styles.estado, { paddingHorizontal: spacing.xs, paddingBottom: spacing.sm }]}>
-            Ninguém sugeriu nada ainda. Qualquer pessoa pode — partilha uma música e
-            escolhe "juntar à fila".
+            Tap any song to add it here.
           </Text>
         ) : (
           fila.map((item) => {
@@ -201,19 +202,15 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
       <Toque
         escala={ESCALA.botao}
         onPress={() => { void abandonar(); aoFechar(); }}
-        accessibilityLabel="Sair da sessão"
+        accessibilityLabel={anfitriao ? 'End session' : 'Leave session'}
         style={styles.sair}
       >
         <Ionicons name="exit-outline" size={17} color={colors.danger} />
         <Text style={[type.body, { color: colors.danger, fontWeight: '600' }]}>
-          {anfitriao ? 'Terminar a sessão' : 'Sair da sessão'}
+          {anfitriao ? 'End session' : 'Leave'}
         </Text>
       </Toque>
-      {anfitriao ? (
-        <Text style={[styles.estado, { textAlign: 'center', marginTop: 6 }]}>
-          Terminar fecha-a para toda a gente.
-        </Text>
-      ) : null}
+
     </BottomSheet>
   );
 }

@@ -68,9 +68,9 @@ export function ConviteDeSessao({ id, mensagem }: { id: string; mensagem: string
       // mensagem aqui foi exactamente o erro da versão anterior.
       const m = String(e?.message ?? '');
       setRecusa(
-        /acabou/i.test(m) ? 'Esta sessão já acabou.'
-          : /amigo/i.test(m) ? 'Só se entra na sessão de um amigo.'
-          : 'Não deu para entrar. Tenta outra vez.'
+        /acabou/i.test(m) ? 'This session has ended.'
+          : /amigo/i.test(m) ? 'You can only join a friend.'
+          : 'Could not join. Try again.'
       );
       void lerSessao(id).then(setSessao);
     } finally {
@@ -82,7 +82,7 @@ export function ConviteDeSessao({ id, mensagem }: { id: string; mensagem: string
     <View style={[styles.cartao, { borderColor: tema.color }]}>
       <View style={styles.linha}>
         <Ionicons name="headset" size={13} color={tema.color} />
-        <Text style={[styles.etiqueta, { color: tema.color }]}>OUVIR JUNTOS</Text>
+        <Text style={[styles.etiqueta, { color: tema.color }]}>LISTEN TOGETHER</Text>
       </View>
 
       {!!mensagem && <Text style={type.body}>{mensagem}</Text>}
@@ -106,23 +106,23 @@ export function ConviteDeSessao({ id, mensagem }: { id: string; mensagem: string
       {jaLaEstou ? (
         <View style={styles.dentro}>
           <Ionicons name="checkmark-circle" size={16} color={colors.online} />
-          <Text style={[type.caption, { color: colors.online }]}>Estás nesta sessão</Text>
+          <Text style={[type.caption, { color: colors.online }]}>You're in</Text>
         </View>
       ) : acabou ? (
-        <Text style={[type.caption, { color: colors.textTertiary }]}>Esta sessão já acabou.</Text>
+        <Text style={[type.caption, { color: colors.textTertiary }]}>This session has ended.</Text>
       ) : (
         <>
           <Toque
             escala={ESCALA.botao}
             onPress={entrar}
             disabled={aEntrar}
-            accessibilityLabel="Entrar na sessão"
+            accessibilityLabel="Join session"
             style={[styles.botao, { backgroundColor: tema.soft, borderColor: tema.color }]}
           >
             {aEntrar ? (
               <ActivityIndicator size="small" color={tema.color} />
             ) : (
-              <Text style={[type.body, { color: colors.text, fontWeight: '700' }]}>Entrar</Text>
+              <Text style={[type.body, { color: colors.text, fontWeight: '700' }]}>Join</Text>
             )}
           </Toque>
           {!!recusa && (

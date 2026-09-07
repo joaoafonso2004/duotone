@@ -66,6 +66,25 @@ const DESCANSO_APOS_SALTO_MS = 5000;
  */
 const LEITURAS_PARA_SALTAR = 2;
 
+/**
+ * Quantos saltos se dão por faixa antes de desistir do alinhamento.
+ *
+ * O travão que faltava, e o que quebra o ciclo.
+ *
+ * Cada salto obriga o AVPlayer a reencher o buffer. Num telemóvel com rede pior,
+ * esse reenchimento faz a pessoa ficar AINDA mais atrasada -- o que provoca
+ * outro salto, que provoca outro reenchimento. Realimentação: quanto mais se
+ * corrige, mais correcção é preciso, e o som fica aos pedaços do princípio ao
+ * fim da música.
+ *
+ * Ao segundo salto sem sucesso desiste-se do alinhamento até à faixa seguinte.
+ * Ficam alguns segundos desencontrados -- e isso é MUITO menos mau do que a
+ * música picotada. Está escrito no cabeçalho deste ficheiro e vale a pena
+ * repetir: das três coisas que isto faz, o alinhamento é a menos importante.
+ * A faixa certa e a pausa é que não se negoceiam.
+ */
+const SALTOS_POR_FAIXA = 2;
+
 export function useSincroniaDaSessao(): void {
   const sessao = useOuvirJuntos((s) => s.sessao);
   const posicaoAgora = useOuvirJuntos((s) => s.posicaoAgora);
@@ -152,6 +171,10 @@ export function useSincroniaDaSessao(): void {
   // ---- 3) o alinhamento -----------------------------------------------------
   const saltouEm = useRef(0);
   const forasSeguidos = useRef(0);
+  const saltosNestaFaixa = useRef(0);
+
+  // Contagem a zero a cada faixa: a desistência é por música, não para sempre.
+  useEffect(() => { saltosNestaFaixa.current = 0; }, [sessao?.track?.sourceId]);
 
   useEffect(() => {
     if (!sessao) return;
@@ -193,6 +216,15 @@ export function useSincroniaDaSessao(): void {
         forasSeguidos.current += 1;
         if (forasSeguidos.current < LEITURAS_PARA_SALTAR) return;
         forasSeguidos.current = 0;
+
+        // Já se tentou o que havia a tentar nesta faixa. Insistir é o ciclo
+        // descrito no `SALTOS_POR_FAIXA`: mais saltos, mais buffer, mais
+        // atraso. Fica-se desencontrado e com o som inteiro.
+        if (saltosNestaFaixa.current >= SALTOS_POR_FAIXA) {
+          p._setCorrecaoDeSincronia(1);
+          return;
+        }
+        saltosNestaFaixa.current += 1;
         saltouEm.current = Date.now();
         p._setCorrecaoDeSincronia(1);
         void p.seekTo(correcao.paraMs);

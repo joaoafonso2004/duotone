@@ -291,7 +291,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     const s = get().sessao;
     if (!s) return;
     await juntarAFila(s.id, track);
-    set({ aviso: `${track.title?.slice(0, 28) ?? 'A música'} foi para a fila` });
+    set({ aviso: `Added · ${track.title?.slice(0, 26) ?? 'song'}` });
     setTimeout(() => {
       // Só se apaga o PRÓPRIO aviso: entretanto pode ter entrado outro, e
       // apagar o dele deixava a barra muda a meio de uma frase.

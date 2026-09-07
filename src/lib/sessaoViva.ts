@@ -87,14 +87,14 @@ export function estadoDaSessao(entrada: {
   agora: number;
 }): string {
   const cá = presentes(entrada.outros, entrada.agora);
-  if (cá.length === 0) return 'À espera de quem convidaste';
+  if (cá.length === 0) return 'Waiting for your friends';
 
   const aEsperar = cá.filter((m) => !m.pronta);
   if (aEsperar.length === 1) {
-    return `${aEsperar[0]!.nome} a descarregar · ${aEsperar[0]!.percentagem}%`;
+    return `${aEsperar[0]!.nome} · ${aEsperar[0]!.percentagem}%`;
   }
-  if (aEsperar.length > 1) return `${aEsperar.length} pessoas a descarregar`;
+  if (aEsperar.length > 1) return `${aEsperar.length} still loading`;
 
-  if (cá.length === 1) return `A ouvir com ${cá[0]!.nome}`;
-  return `A ouvir com ${cá.length} amigos`;
+  if (cá.length === 1) return `Listening with ${cá[0]!.nome}`;
+  return `Listening with ${cá.length} friends`;
 }

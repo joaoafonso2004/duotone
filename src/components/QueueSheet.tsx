@@ -2,6 +2,7 @@ import React from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePlayer } from '../state/player';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { colors, spacing, type, radii } from '../theme';
 import { BottomSheet } from './BottomSheet';
 import { TrackRow } from './TrackRow';
@@ -29,15 +30,32 @@ export function QueueSheet({ visible, onClose }: Props) {
   // A ordem em que as faixas vão MESMO tocar — com shuffle ligado não é a
   // ordem natural da fila. Antes esta lista mostrava `slice(queueIndex + 1)`
   // e mentia sempre que o shuffle estava ligado.
-  const upNext = React.useMemo(
+  // NUMA SESSAO, o que vem a seguir e a fila PARTILHADA.
+  //
+  // Havia duas listas a responder a mesma pergunta e a dizer coisas diferentes:
+  // esta mostrava a fila local, e a folha da sessao mostrava a partilhada. Numa
+  // sessao a local nao decide nada -- e a partilhada que e consumida no fim de
+  // cada musica -- por isso mostra-la aqui era mentir com confianca.
+  const filaDaSessao = useOuvirJuntos((s) => s.fila);
+  const emSessao = useOuvirJuntos((s) => !!s.sessao);
+
+  const upNextLocal = React.useMemo(
     () => usePlayer.getState().upcomingQueue(),
     [queue, queueIndex, shuffle, shuffleOrder]
   );
+  // A mesma forma que o `upcomingQueue` devolve, para a lista abaixo nao ter
+  // de saber de onde vieram as faixas.
+  const upNext = emSessao
+    ? filaDaSessao.map((i, n) => ({ track: i.track, index: n }))
+    : upNextLocal;
 
   // Reordenar uma lista baralhada não quer dizer nada: as setas movem a fila
   // natural, que não é o que está à frente do utilizador. Só remover é que
   // continua a fazer sentido (mapeia para o índice real).
-  const canReorder = !shuffle;
+  // Numa sessao a ordem e de toda a gente: mexer nela daqui, sem as regras de
+  // quem pode o que, era dar controlo por uma porta lateral. Tira-se e
+  // reordena-se na folha da sessao, que sabe dessas regras.
+  const canReorder = !shuffle && !emSessao;
   // Dizer de onde vêm as faixas: se a fila acabou e o rádio a estendeu, o
   // utilizador tem de perceber porque é que continua a tocar.
   const radioActive = usePlayer((s) => s.radioActive);
@@ -47,7 +65,9 @@ export function QueueSheet({ visible, onClose }: Props) {
       <View style={styles.header}>
         <Text style={type.title}>Play Queue</Text>
         <Text style={type.caption}>
-          {queue.length} {queue.length === 1 ? 'song' : 'songs'} in queue
+          {emSessao
+            ? `${upNext.length} shared ${upNext.length === 1 ? 'song' : 'songs'}`
+            : `${queue.length} ${queue.length === 1 ? 'song' : 'songs'} in queue`}
         </Text>
       </View>
 
@@ -65,7 +85,8 @@ export function QueueSheet({ visible, onClose }: Props) {
       )}
 
       <Text style={[type.micro, styles.sectionTitle, { marginTop: spacing.lg }]}>
-        UP NEXT ({upNext.length}){radioActive ? ' · RADIO' : ''}
+        UP NEXT ({upNext.length})
+        {emSessao ? ' · SHARED' : radioActive ? ' · RADIO' : ''}
       </Text>
 
       {upNext.length > 0 ? (

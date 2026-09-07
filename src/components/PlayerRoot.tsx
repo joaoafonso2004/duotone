@@ -753,7 +753,7 @@ export function PlayerRoot() {
               escala={ESCALA.icone}
               hitSlop={10}
               onPress={() => setSessaoAberta(true)}
-              accessibilityLabel="Ver a sessão de escuta"
+              accessibilityLabel="Listen together"
               style={[styles.sinalDaSessao, { right: (W - vidFull.w) / 2 + 10 }]}
             >
               <Ionicons name="headset" size={15} color={theme.color} />
