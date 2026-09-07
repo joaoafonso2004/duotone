@@ -49,6 +49,11 @@ export function BarraDaSessao({ aoAbrir, encostada = true }: {
   const amigos = useSocial((s) => s.friends);
   const acabouSemAviso = useOuvirJuntos((s) => s.acabouSemAviso);
   const limparAviso = useOuvirJuntos((s) => s.limparAviso);
+  // TODOS os hooks antes do primeiro `return`. Este estava lá em baixo, depois
+  // do caminho sem sessão -- sem sessão eram sete hooks, com sessão oito, e o
+  // React atira "Rendered more hooks than during the previous render" no
+  // instante em que a sessão abre. Fatal, e nenhum tipo o apanha.
+  const aviso = useOuvirJuntos((s) => s.aviso);
 
   // A sessão fechou por baixo -- normalmente o anfitrião a sair. A barra some,
   // e sem uma palavra isso lê-se como a app ter estoirado. Fica um aviso que
@@ -93,7 +98,6 @@ export function BarraDaSessao({ aoAbrir, encostada = true }: {
 
   // A frase vive no `lib/sessaoViva.ts`: qual das verdades mostrar quando há
   // várias é uma decisão, e as decisões testam-se.
-  const aviso = useOuvirJuntos((s) => s.aviso);
   const estadoNormal = estadoDaSessao({
     outros: membros
       .filter((m) => m.userId !== euId)
