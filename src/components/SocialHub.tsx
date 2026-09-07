@@ -21,7 +21,7 @@ import { getPlaylistPreviews } from '../api/playlists';
 import { GroupAvatar,GroupChatHeader,GroupComposer,GroupDetails,GroupEmptyState,GroupMessage } from './GroupChat';
 import { ConviteDeSessao } from './ConviteDeSessao';
 import { SkeletonDeConversas } from './Skeleton';
-import { CabecalhoDoAmigo, FaixaPartilhada, MarcaDeAgua } from './ChatAmigo';
+import { CabecalhoDoAmigo, FaixaPartilhada, FundoDaApp } from './ChatAmigo';
 import type { Playlist,Track } from '../types';
 
 export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string}) {
@@ -30,6 +30,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const split=web&&width>=850;
   const bottomPadding=useSocialBottomPadding();
   const accent=useTheme(s=>s.theme.color);
+  const tema=useTheme(s=>s.theme);
   const closeChat=()=>useSocial.setState({conversation:null});
   const social=useSocial(),myId=useAuth(x=>x.session?.user.id);
   const [tab,setTab]=useState<'friends'|'add'>('friends'),[query,setQuery]=useState(''),[results,setResults]=useState<PublicProfile[]>([]);
@@ -228,18 +229,31 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const chat=<View style={{flex:1,minHeight:0}}>
       {web&&groupHeader}
       <View style={{flex:1,minHeight:0,padding:web?24:16,gap:12}}>
-        {!web&&!group&&<MarcaDeAgua/>}
+        {!web&&<FundoDaApp/>}
         {web&&!group&&<View style={s.row}><Text numberOfLines={1} style={[s.title,{flex:1}]}>{title}</Text><SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/></View>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={accent}/>}
         {group&&!chatLoading&&!messages.length&&!error?<View style={{flex:1,justifyContent:'center'}}><GroupEmptyState group={group}/></View>:
         <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{gap:group?6:12,paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>group?<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
-          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>:<View style={{alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%',gap:5}}>
+          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>:<View style={{flexDirection:'row',alignItems:'flex-end',gap:6,alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%'}}>
+          {/* A cara de quem falou, ao lado do balao. So do lado dele: a nossa
+              propria cara ao lado de cada coisa que escrevemos nao diz nada a
+              ninguem, e rouba largura ao texto. */}
+          {m.sender.id!==myId?<Pressable onPress={()=>onProfile(m.sender.id)} accessibilityLabel={`View ${m.sender.name}`} style={{marginBottom:2}}>
+            <FriendAvatar avatarUrl={m.sender.avatarUrl} name={m.sender.name} size={26}/>
+          </Pressable>:null}
+          <View style={{flexShrink:1,gap:5}}>
           <MessageBubble own={m.sender.id===myId} aberto={aReagir===m.id} onAbrir={()=>setAReagir(a=>a===m.id?null:m.id)}
             rotulo={`Message from ${m.sender.name}. Hold to react`}
             style={{
-              // `colors.bg` era a cor do FUNDO do ecra: as mensagens recebidas
-              // tinham um balao invisivel e flutuavam sem caixa nenhuma.
-              backgroundColor:m.sender.id===myId?accent:colors.surface,
+              // `theme.soft` e nao `accent` puro. O accent e escolhido pelo
+              // utilizador e pode ser CLARO -- o do Joao e branco -- e um balao
+              // branco com texto branco por cima nao se le. `soft` e o mesmo
+              // accent a baixa opacidade, que e o que o resto da app usa para
+              // superficies (ver os botoes Queue e EQ no leitor): fica sempre
+              // escuro, tinge na cor certa, e o texto continua a ser o normal.
+              backgroundColor:m.sender.id===myId?tema.soft:colors.surface,
+              borderWidth:m.sender.id===myId?1:0,
+              borderColor:accent,
               paddingHorizontal:12,paddingVertical:9,borderRadius:18,gap:7,
               // O canto cortado do lado de quem fala: e a pista que se le sem
               // pensar, mesmo com um balao a ocupar quase a largura toda.
@@ -247,18 +261,19 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
             }}>
           {m.itemType==='sessao'&&m.sessionId?<ConviteDeSessao id={m.sessionId} mensagem={m.message}/>:null}
           {!!m.message&&m.itemType!=='sessao'&&<View style={{flexDirection:'row',alignItems:'flex-end',gap:8,flexWrap:'wrap'}}>
-            <Text selectable style={[s.text,{flexShrink:1,color:m.sender.id===myId?'#fff':colors.text}]}>{m.message}</Text>
-            <Text style={[s.muted,{fontSize:10.5,marginBottom:1,opacity:0.7,color:m.sender.id===myId?'#fff':colors.textSecondary}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
+            <Text selectable style={[s.text,{flexShrink:1}]}>{m.message}</Text>
+            <Text style={[s.muted,{fontSize:10.5,marginBottom:1,opacity:0.7}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
           </View>}
           {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={m.sender.id===myId} onPress={()=>setTrack(m.trackData)}/>}
           {m.playlistId&&<SharedPlaylistCard playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
           {/* A hora so aparece a parte quando NAO ha texto para lhe dar boleia --
               uma faixa ou uma playlist sozinhas. Com texto, ela encosta ao fim
               da ultima linha e poupa uma linha inteira por mensagem. */}
-          {!m.message||m.itemType==='sessao'?<Text style={[s.muted,{fontSize:10.5,alignSelf:'flex-end',opacity:0.7,color:m.sender.id===myId?'#fff':colors.textSecondary}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>:null}
+          {!m.message||m.itemType==='sessao'?<Text style={[s.muted,{fontSize:10.5,alignSelf:'flex-end',opacity:0.7}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>:null}
           </MessageBubble>
           <ReactionRow reactions={reacoes.get(m.id)??[]} myId={myId} own={m.sender.id===myId}
             aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}/>
+          </View>
         </View>}/>}
         {group?<GroupComposer value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:
           <View style={s.row}><TextInput accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}

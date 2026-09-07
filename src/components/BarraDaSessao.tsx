@@ -7,6 +7,7 @@ import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
 import { estadoDaSessao, presentes } from '../lib/sessaoViva';
+import { useTheme } from '../state/theme';
 import { colors, radii, spacing, type } from '../theme';
 
 /**
@@ -23,7 +24,18 @@ import { colors, radii, spacing, type } from '../theme';
  * linha, isso lê-se como avaria -- a app dele parece partida e ninguém percebe
  * porquê. Com ela, é só espera, e a espera vê-se.
  */
-export function BarraDaSessao({ aoAbrir }: { aoAbrir?: () => void }) {
+export function BarraDaSessao({ aoAbrir, encostada = true }: {
+  aoAbrir?: () => void;
+  /**
+   * Encostada ao leitor mini (o caso normal) ou solta.
+   *
+   * Encostada, os cantos de baixo ficam direitos e a borda de baixo
+   * desaparece, para as duas se lerem como uma peca so. Solta -- no leitor
+   * grande, onde nao ha mini nenhum por baixo -- fica um cartao inteiro.
+   */
+  encostada?: boolean;
+}) {
+  const tema = useTheme((s) => s.theme);
   const sessao = useOuvirJuntos((s) => s.sessao);
   // NUNCA chamar uma funcao dentro do selector: devolveria um array novo a
   // cada leitura, e o zustand le a store pelo `useSyncExternalStore`, que
@@ -85,7 +97,14 @@ export function BarraDaSessao({ aoAbrir }: { aoAbrir?: () => void }) {
       onPress={aoAbrir}
       disabled={!aoAbrir}
       accessibilityLabel={estado}
-      style={styles.barra}
+      // Cores do TEMA e não um roxo escrito à mão: o accent é escolhido pelo
+      // utilizador, e uma barra roxa fixa numa app com o tema branco lê-se como
+      // uma peça de outra aplicação.
+      style={[
+        styles.barra,
+        { backgroundColor: tema.soft, borderColor: tema.color },
+        encostada ? styles.encostada : styles.solta,
+      ]}
     >
       <View style={styles.pilha}>
         {membros.slice(0, 3).map((m, i) => (
@@ -94,14 +113,13 @@ export function BarraDaSessao({ aoAbrir }: { aoAbrir?: () => void }) {
           </View>
         ))}
       </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text numberOfLines={1} style={styles.titulo}>{estado}</Text>
-        {!!sessao.track?.title && (
-          <Text numberOfLines={1} style={styles.faixa}>{sessao.track.title}</Text>
-        )}
-      </View>
+      {/* Uma linha e nao duas. A segunda tinha o titulo da faixa -- cru do
+          YouTube, em maiusculas e cortado -- e o leitor mini logo por baixo ja
+          diz o mesmo, limpo e com a capa. Repetir era gastar altura para
+          mostrar pior. */}
+      <Text numberOfLines={1} style={[styles.titulo, { flex: 1 }]}>{estado}</Text>
       {aoAbrir ? (
-        <Ionicons name="chevron-up" size={16} color={colors.textSecondary} />
+        <Ionicons name="chevron-up" size={15} color={colors.textSecondary} />
       ) : null}
     </Toque>
   );
@@ -112,13 +130,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 7,
-    borderRadius: radii.md,
-    backgroundColor: colors.accentSoft,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: 'rgba(139,92,246,0.36)',
   },
+  encostada: {
+    borderTopLeftRadius: radii.md,
+    borderTopRightRadius: radii.md,
+    borderBottomWidth: 0,
+  },
+  solta: { borderRadius: radii.md },
   acabou: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
@@ -131,6 +152,5 @@ const styles = StyleSheet.create({
     borderColor: colors.bg,
     borderRadius: 999,
   },
-  titulo: { ...type.caption, color: colors.text, fontWeight: '600' },
-  faixa: { ...type.micro, color: colors.textSecondary },
+  titulo: { ...type.micro, color: colors.text, fontWeight: '600' },
 });

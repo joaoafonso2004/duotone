@@ -738,6 +738,13 @@ export function PlayerRoot() {
           </Toque>
         </View>
 
+        {/* No leitor grande nao aparecia NADA quando havia sessao: abrias uma,
+            subias o leitor, e a app nao dizia que estavas a ouvir com alguem.
+            A barra vive por cima do leitor mini, e o mini nao existe aqui. */}
+        <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.sm }}>
+          <BarraDaSessao encostada={false} aoAbrir={() => setSessaoAberta(true)} />
+        </View>
+
         {/* Espaço reservado para a capa quadrada grande (a frame flutua por
             cima nesta posição). */}
         <View style={{ height: vidFull.h, marginTop: 20, marginBottom: 8 }} />
@@ -1116,7 +1123,9 @@ export function PlayerRoot() {
             position: 'absolute',
             left: spacing.xl,
             right: spacing.xl,
-            bottom: miniBottom + (current ? MINI_PLAYER_HEIGHT + 6 : 0),
+            // Encostada, sem folga: com os cantos de baixo direitos na barra,
+            // as duas leem-se como uma peca so.
+            bottom: miniBottom + (current ? MINI_PLAYER_HEIGHT : 0),
           }}
         >
           <BarraDaSessao aoAbrir={() => setSessaoAberta(true)} />

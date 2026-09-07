@@ -299,6 +299,43 @@ await verificar('um convidado não convida em nome do anfitrião', async () => {
   );
 });
 
+await verificar('quem foi convidado CONSEGUE ver a sessão antes de entrar', async () => {
+  // Este é o bug que tornava o convite inútil: a política deixava ler a
+  // quem era anfitrião ou MEMBRO, e quem recebe um convite ainda não é nem
+  // uma coisa nem outra. A leitura vinha vazia, o cartão do chat lia isso
+  // como "já acabou", e o botão de entrar nunca aparecia.
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await q('select public.convidar_para_sessao($1,$2::uuid[],null)', [s, [uid(2)]]);
+  await como(2);
+  const vista = (await q('select * from listening_sessions where id=$1', [s])).rows;
+  assert.equal(vista.length, 1, 'o convidado não vê a sessão para que foi convidado');
+  assert.equal(vista[0].ended_at, null);
+});
+
+await verificar('mas um convite não deixa espreitar quem lá está nem a fila', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await q('select public.juntar_a_fila($1,$2::jsonb)', [s, OUTRA]);
+  await q('select public.convidar_para_sessao($1,$2::uuid[],null)', [s, [uid(2)]]);
+  await como(2);
+  // Ver que existe e o que toca chega para decidir se se entra. O resto é
+  // de quem lá está.
+  assert.equal((await q('select * from listening_members where session_id=$1', [s])).rows.length, 0);
+  assert.equal((await q('select * from listening_queue where session_id=$1', [s])).rows.length, 0);
+});
+
+await verificar('sem convite nenhum, continua sem ver nada', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await como(3);
+  assert.equal(
+    (await q('select * from listening_sessions where id=$1', [s])).rows.length,
+    0,
+    'a correcção abriu a sessão a quem não foi convidado'
+  );
+});
+
 console.log('\nA fila partilhada:');
 
 await verificar('qualquer membro junta à fila, e a ordem é a de chegada', async () => {

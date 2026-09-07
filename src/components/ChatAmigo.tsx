@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image as RNImage, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { FriendAvatar } from './FriendAvatar';
@@ -55,24 +56,29 @@ export function CabecalhoDoAmigo({
 }
 
 /**
- * O símbolo do Duotone por trás das mensagens.
+ * O mesmo fundo que a app inteira tem.
  *
- * Fixo, não rola com a lista: uma marca que anda com o conteúdo lê-se como
- * conteúdo. A opacidade vive numa constante única porque é a única coisa aqui
- * que se afina a olho -- entre invisível e a estorvar a leitura o intervalo é
- * estreito, e a diferença entre as duas são dois pontos percentuais.
+ * O `RootNavigator` desenha o `login_bg.png` desfocado por trás de tudo, e é
+ * ele que dá o ambiente ao resto da app. O chat abre num `Modal`, e um modal no
+ * iOS desenha na sua própria hierarquia nativa -- por isso esse fundo não passa
+ * por baixo e o ecrã ficava preto liso.
+ *
+ * Eu tinha resolvido isso a inventar um logótipo à parte, e era a resposta
+ * errada à pergunta certa: o chat não devia ter uma marca PRÓPRIA, devia ter a
+ * MESMA. Repete-se aqui a mesma imagem, o mesmo desfoque e a mesma camada de
+ * contraste, para o chat não se parecer com outra aplicação.
  */
-const OPACIDADE_DA_MARCA = 0.04;
-
-export function MarcaDeAgua() {
+export function FundoDaApp() {
   return (
     <View pointerEvents="none" style={styles.marca}>
-      <RNImage
-        source={require('../../assets/auth-logo.png')}
-        style={styles.simbolo}
-        resizeMode="contain"
-        blurRadius={3}
+      <Image
+        source={require('../../assets/login_bg.png')}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        transition={300}
       />
+      <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10, 10, 15, 0.88)' }]} />
     </View>
   );
 }
@@ -144,12 +150,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  simbolo: {
-    width: '78%',
-    height: '46%',
-    opacity: OPACIDADE_DA_MARCA,
-  },
-
   faixa: {
     flexDirection: 'row',
     alignItems: 'center',

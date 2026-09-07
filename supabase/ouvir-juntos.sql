@@ -645,3 +645,52 @@ $$;
 
 revoke all on function public.convidar_para_sessao(uuid,uuid[],text) from public;
 grant execute on function public.convidar_para_sessao(uuid,uuid[],text) to authenticated;
+
+
+-- ---------------------------------------------------------------------------
+-- 12) Quem foi convidado tem de conseguir VER a sessão
+-- ---------------------------------------------------------------------------
+--
+-- Esta correcção vem de um bug que tornava o convite inútil: quem o recebia via
+-- sempre "Esta sessão já acabou" e nunca conseguia entrar.
+--
+-- A política da secção 4 deixa ler a sessão a quem é anfitrião OU membro. Mas
+-- quem acabou de receber um convite não é nem uma coisa nem outra -- é membro
+-- DEPOIS de entrar. A leitura vinha vazia, o cartão do chat interpretava isso
+-- como "a sessão já não existe", e o botão de entrar nunca aparecia.
+--
+-- Não se resolve alargando a política a toda a gente: uma sessão não é pública,
+-- e saber o que os outros ouvem é precisamente o que a app protege. Resolve-se
+-- reconhecendo o convite, que é uma relação que já existe na `shared_items` e
+-- que só o anfitrião pode criar.
+
+create or replace function public.fui_convidado_para(s uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from public.shared_items i
+    where i.session_id = s
+      and i.recipient_id = auth.uid()
+      and i.item_type = 'sessao'
+  );
+$$;
+
+revoke all on function public.fui_convidado_para(uuid) from public;
+grant execute on function public.fui_convidado_para(uuid) to authenticated;
+
+drop policy if exists "sessoes: so quem esta dentro" on public.listening_sessions;
+create policy "sessoes: so quem esta dentro" on public.listening_sessions
+  for select to authenticated
+  using (
+    host_id = auth.uid()
+    or public.e_membro_da_sessao(id)
+    or public.fui_convidado_para(id)
+  );
+
+-- Os MEMBROS e a FILA continuam só para quem está dentro: um convite dá direito
+-- a ver que a sessão existe e o que está a tocar -- o suficiente para decidir
+-- se se entra -- e não a espreitar quem lá está nem o que eles escolheram.
