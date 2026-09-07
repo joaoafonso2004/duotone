@@ -12,6 +12,7 @@ import { useTheme } from '../state/theme';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
+import { presentes } from '../lib/sessaoViva';
 import { colors, radii, spacing, type } from '../theme';
 
 /**
@@ -25,7 +26,13 @@ import { colors, radii, spacing, type } from '../theme';
 export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFechar: () => void }) {
   const tema = useTheme((s) => s.theme);
   const sessao = useOuvirJuntos((s) => s.sessao);
-  const membros = useOuvirJuntos((s) => s.membrosPresentes());
+  // NUNCA chamar uma funcao dentro do selector: devolveria um array novo a
+  // cada leitura, e o zustand le a store pelo `useSyncExternalStore`, que
+  // exige um valor ESTAVEL. Com um valor novo de cada vez o React 18 atira
+  // "The result of getSnapshot should be cached to avoid an infinite loop"
+  // -- erro fatal, na montagem, antes de haver ecra. Filtra-se aqui fora.
+  const todos = useOuvirJuntos((s) => s.membros);
+  const membros = presentes(todos, Date.now());
   const convidarMais = useOuvirJuntos((s) => s.convidarMais);
   const [convidados, setConvidados] = React.useState<string[]>([]);
   const fila = useOuvirJuntos((s) => s.fila);

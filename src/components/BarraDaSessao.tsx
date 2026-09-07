@@ -6,7 +6,7 @@ import { useSocial } from '../state/social';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
-import { estadoDaSessao } from '../lib/sessaoViva';
+import { estadoDaSessao, presentes } from '../lib/sessaoViva';
 import { colors, radii, spacing, type } from '../theme';
 
 /**
@@ -25,7 +25,13 @@ import { colors, radii, spacing, type } from '../theme';
  */
 export function BarraDaSessao({ aoAbrir }: { aoAbrir?: () => void }) {
   const sessao = useOuvirJuntos((s) => s.sessao);
-  const membros = useOuvirJuntos((s) => s.membrosPresentes());
+  // NUNCA chamar uma funcao dentro do selector: devolveria um array novo a
+  // cada leitura, e o zustand le a store pelo `useSyncExternalStore`, que
+  // exige um valor ESTAVEL. Com um valor novo de cada vez o React 18 atira
+  // "The result of getSnapshot should be cached to avoid an infinite loop"
+  // -- erro fatal, na montagem, antes de haver ecra. Filtra-se aqui fora.
+  const todos = useOuvirJuntos((s) => s.membros);
+  const membros = presentes(todos, Date.now());
   const euId = useOuvirJuntos((s) => s.euId);
   const amigos = useSocial((s) => s.friends);
   const acabouSemAviso = useOuvirJuntos((s) => s.acabouSemAviso);

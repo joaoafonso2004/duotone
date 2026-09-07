@@ -30,7 +30,9 @@
 // Isto não se vê a ler o código -- vê-se a usar a app, tarde de mais. Por isso
 // está aqui em números.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   BARRA_A_ARRASTAR, BOTAO_DA_BARRA, ESCALA, ENTRADA, ESTADO,
   GIRO_GRAUS, PREMIR, PULO, SEPARADOR_ACTIVO, SOLTAR,
@@ -238,6 +240,63 @@ verificar('o nome do amigo aparece uma vez, não em cada mensagem', () => {
     !/m\.sender\.id!==myId&&<Pressable[^>]*>[\s\S]{0,200}m\.sender\.name/.test(fonte),
     'voltou o nome dentro de cada mensagem recebida -- numa conversa a dois ' +
       'só há duas pessoas, e o lado do balão já diz quem falou'
+  );
+});
+
+// ---- selectores estáveis ----------------------------------------------------
+//
+// O zustand lê a store pelo `useSyncExternalStore`, e esse exige que a leitura
+// devolva SEMPRE o mesmo valor enquanto a store não mudar. Um selector que
+// construa um array, um objecto, ou que CHAME uma função devolve uma coisa nova
+// de cada vez -- e o React 18 atira:
+//
+//   The result of getSnapshot should be cached to avoid an infinite loop
+//
+// Fatal, na montagem, antes de haver ecrã: a app abre meio segundo e fecha.
+// Foi assim que morreu a 2.1.0 -- e o sintoma é indistinguível do erro de
+// driver que matou a 1.12.0. Duas causas diferentes com exactamente a mesma
+// cara, o que torna esta a mais cara de diagnosticar da app.
+//
+// Nenhum tipo apanha isto: `s.membrosPresentes()` é uma expressão válida.
+
+console.log('\nSelectores:');
+
+function ficheirosDeCodigo(dir: string): string[] {
+  const achados: string[] = [];
+  for (const nome of readdirSync(dir)) {
+    const caminho = join(dir, nome);
+    if (statSync(caminho).isDirectory()) achados.push(...ficheirosDeCodigo(caminho));
+    else if (/\.tsx?$/.test(nome)) achados.push(caminho);
+  }
+  return achados;
+}
+
+verificar('nenhum selector chama uma função ou constrói um valor novo', () => {
+  const raiz = fileURLToPath(new URL('../src', import.meta.url));
+  const culpados: string[] = [];
+
+  // `useAlgo((s) => s.coisa())` -- uma chamada devolve algo novo de cada vez.
+  const chama = /use[A-Z]\w*\(\(\w+\)\s*=>\s*\w+\.\w+\(\)/;
+  // `useAlgo((s) => ({...}))` ou `=> [...]` -- um literal é sempre novo.
+  //
+  // Só `({` e `[`, e não um `(` qualquer: `(s) => (a ? b : c)` é um parêntese
+  // de AGRUPAMENTO, e se os dois ramos forem referências estáveis o valor é
+  // estável. Apanhar isso era um teste que obrigava a piorar código correcto.
+  const constroi = /use[A-Z]\w*\(\(\w+\)\s*=>\s*(\(\s*\{|\[)/;
+
+  for (const f of ficheirosDeCodigo(raiz)) {
+    readFileSync(f, 'utf8').split('\n').forEach((linha, i) => {
+      if (chama.test(linha) || constroi.test(linha)) {
+        culpados.push(`${f.slice(raiz.length + 1).replace(/\\/g, '/')}:${i + 1}`);
+      }
+    });
+  }
+
+  assert.deepEqual(
+    culpados,
+    [],
+    'estes selectores devolvem um valor novo a cada leitura e matam a app no ' +
+      `arranque:\n    ${culpados.join('\n    ')}`
   );
 });
 

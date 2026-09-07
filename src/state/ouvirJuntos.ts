@@ -10,7 +10,6 @@ import {
 import { agoraNoServidor, type Estimativa } from '../lib/relogioPartilhado';
 import { posicaoDaSessao } from '../lib/sincronizacao';
 import { appEstaVisivel } from '../lib/appVisibility';
-import { presentes } from '../lib/sessaoViva';
 import { supabase } from '../lib/supabase';
 import type { Track } from '../types';
 
@@ -48,15 +47,6 @@ type Estado = {
   possoControlar: () => boolean;
   /** Onde a sessão está agora, em ms. `null` sem informação suficiente. */
   posicaoAgora: () => number | null;
-  /**
-   * Só quem bateu à porta há pouco.
-   *
-   * Sair pela app apaga a linha, mas ninguém sai sempre pela app: fecha-se à
-   * bruta, a bateria acaba, o metro entra num túnel. Sem isto essas pessoas
-   * ficavam na sessão para sempre -- e uma lista com fantasmas diz uma coisa
-   * falsa, que é pior do que não dizer nada.
-   */
-  membrosPresentes: () => MembroDaSessao[];
   /**
    * A sessão acabou agora, e ainda não foi dito a quem cá está.
    *
@@ -116,8 +106,6 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (!sessao) return false;
     return get().souAnfitriao() || sessao.convidadosControlam;
   },
-
-  membrosPresentes: () => presentes(get().membros, Date.now()),
 
   limparAviso: () => set({ acabouSemAviso: false }),
 
