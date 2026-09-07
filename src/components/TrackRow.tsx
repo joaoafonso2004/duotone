@@ -2,7 +2,9 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React, { useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Toque } from './Toque';
+import { ESCALA } from '../lib/movimento';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { guardarOrigem } from '../state/origemDaCapa';
 import { hapticImpact, hapticSelection } from '../lib/haptics';
@@ -67,7 +69,11 @@ function TrackRowComponent({
   );
 
   return (
-    <Pressable
+    // `acende` e nao escala: uma linha de lista inteira a encolher le-se
+    // como a lista a saltar, nao como uma resposta ao dedo. O que uma linha
+    // faz e iluminar-se, sem deslocar nada.
+    <Toque
+      acende
       onPress={() => {
         hapticImpact();
         // Onde é que a capa está NESTE instante, em coordenadas de ecrã. É
@@ -88,11 +94,7 @@ function TrackRowComponent({
           : undefined
       }
       delayLongPress={350}
-      style={({ pressed }) => [
-        styles.row,
-        pressed && { backgroundColor: colors.surface },
-        active && { backgroundColor: theme.soft },
-      ]}
+      style={[styles.row, active && { backgroundColor: theme.soft }]}
     >
       {selectMode && (
         <View style={styles.checkboxContainer}>
@@ -154,7 +156,8 @@ function TrackRowComponent({
       ) : null}
 
       {!selectMode && onAction ? (
-        <Pressable
+        <Toque
+          escala={ESCALA.icone}
           onPress={() => {
             hapticImpact();
             onAction();
@@ -163,9 +166,9 @@ function TrackRowComponent({
           style={styles.actionBtn}
         >
           <Ionicons name={actionIcon} size={18} color={colors.textSecondary} />
-        </Pressable>
+        </Toque>
       ) : null}
-    </Pressable>
+    </Toque>
   );
 }
 

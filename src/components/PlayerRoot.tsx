@@ -1,4 +1,6 @@
 import {StateIcon} from './StateIcon';
+import { Toque } from './Toque';
+import { ESCALA } from '../lib/movimento';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { readLikedSongsCache } from '../lib/likedSongsCache';
 import { useAuth } from '../state/auth';
@@ -687,9 +689,9 @@ export function PlayerRoot() {
         <View
           style={[styles.fullHeader, { marginTop: insets.top + 6 }]}
         >
-          <Pressable hitSlop={12} onPress={() => setExpanded(false)} style={styles.headerBtn}>
+          <Toque escala={ESCALA.icone} hitSlop={12} onPress={() => setExpanded(false)} style={styles.headerBtn}>
             <Ionicons name="chevron-down" size={24} color={colors.text} />
-          </Pressable>
+          </Toque>
           {/* Marca empilhada: símbolo em cima, nome por baixo, ambos ao
               centro. O ficheiro é quadrado com a marca ao centro (ocupa 84%
               da largura), por isso a caixa também é quadrada -- numa caixa
@@ -704,9 +706,9 @@ export function PlayerRoot() {
               {APP_NAME.toUpperCase()}
             </Text>
           </View>
-          <Pressable hitSlop={12} onPress={close} style={styles.headerBtn}>
+          <Toque escala={ESCALA.icone} hitSlop={12} onPress={close} style={styles.headerBtn}>
             <Ionicons name="close" size={22} color={colors.textSecondary} />
-          </Pressable>
+          </Toque>
         </View>
 
         {/* Espaço reservado para a capa quadrada grande (a frame flutua por
@@ -764,55 +766,60 @@ export function PlayerRoot() {
                   // da app. `alignSelf` para a área de toque acabar no fim do
                   // nome e não atravessar a largura toda -- um alvo invisível a
                   // ocupar a linha inteira apanha toques que não eram para ele.
-                  <Pressable
+                  <Toque
+                    escala={ESCALA.cartao}
                     onPress={abrirArtista}
                     disabled={!temArtista}
                     hitSlop={8}
                     accessibilityRole={temArtista ? 'link' : undefined}
                     accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
-                    style={({ pressed }) => [
-                      { alignSelf: 'flex-start', maxWidth: '100%' },
-                      pressed && temArtista ? { opacity: 0.6 } : null,
-                    ]}
+                    style={{ alignSelf: 'flex-start', maxWidth: '100%' }}
                   >
                     <Text numberOfLines={1} style={styles.trackArtist}>
                       {nomeDoArtista}
                     </Text>
-                  </Pressable>
+                  </Toque>
                 )}
               </View>
             </View>
 
             {/* Guardar, juntar a uma playlist, mandar a alguém. */}
             <View style={styles.accoesRow}>
-              <Pressable
+              <Toque
+                escala={ESCALA.botao}
                 hitSlop={8}
                 onPress={saveCurrentToLibrary}
                 style={[styles.actionsBtn, saved && styles.actionsBtnActive]}
                 accessibilityLabel={saved ? 'Saved to Library' : 'Save to Library'}
               >
+                {/* O unico `pulsar` deste ecra. Guardar uma musica e a
+                    pequena celebracao daqui; passar de "repetir tudo" para
+                    "repetir uma" e informacao, e por isso nao salta. */}
                 <StateIcon
+                  pulsar={saved}
                   name={saved ? 'heart' : 'heart-outline'}
                   size={20}
                   color={colors.text}
                 />
-              </Pressable>
-              <Pressable
+              </Toque>
+              <Toque
+                escala={ESCALA.botao}
                 hitSlop={8}
                 onPress={() => {if(offline)Alert.alert('Offline','Connect to the internet to edit playlists.');else setPlaylistOpen(true);}}
                 style={styles.actionsBtn}
                 accessibilityLabel="Add to playlist"
               >
                 <Ionicons name="add" size={22} color={colors.text} />
-              </Pressable>
-              <Pressable
+              </Toque>
+              <Toque
+                escala={ESCALA.botao}
                 hitSlop={8}
                 onPress={() => {if(offline)Alert.alert('Offline','Connect to the internet to share.');else setPartilhaAberta(true);}}
                 style={styles.actionsBtn}
                 accessibilityLabel="Partilhar com um amigo"
               >
                 <Ionicons name="paper-plane-outline" size={19} color={colors.text} />
-              </Pressable>
+              </Toque>
             </View>
 
             {/* Barra de Progresso */}
@@ -831,7 +838,8 @@ export function PlayerRoot() {
                   com uma estrelinha ao canto, que é como o Spotify o mostra e
                   como o João o conhece. Sem a estrela, ligar o inteligente não
                   se distinguia do normal e ninguém saberia em que modo está. */}
-              <Pressable
+              <Toque
+                escala={ESCALA.icone}
                 hitSlop={12}
                 onPress={onToggleShuffle}
                 accessibilityLabel={rotuloDoModo(modoDeShuffle(shuffle, shuffleInteligente))}
@@ -846,9 +854,10 @@ export function PlayerRoot() {
                     <EstrelaInteligente tamanho={7} cor={theme.color} />
                   </View>
                 )}
-              </Pressable>
+              </Toque>
 
-              <Pressable
+              <Toque
+                escala={ESCALA.icone}
                 accessibilityRole="button"
                 accessibilityLabel="Previous track"
                 hitSlop={14}
@@ -859,13 +868,14 @@ export function PlayerRoot() {
                 }
               >
                 <Ionicons name="play-skip-back" size={28} color={colors.text} />
-              </Pressable>
+              </Toque>
 
-              <Pressable
+              <Toque
+                escala={ESCALA.botao}
                 accessibilityRole="button"
                 accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
                 onPress={togglePlay}
-                style={({ pressed }) => [styles.playBtn, pressed && { opacity: 0.85 }]}
+                style={styles.playBtn}
               >
                 <StateIcon
                   name={isPlaying ? 'pause' : 'play'}
@@ -873,9 +883,10 @@ export function PlayerRoot() {
                   color={colors.bg}
                   style={!isPlaying && { marginLeft: 3 }}
                 />
-              </Pressable>
+              </Toque>
 
-              <Pressable
+              <Toque
+                escala={ESCALA.icone}
                 accessibilityRole="button"
                 accessibilityLabel="Next track"
                 hitSlop={14}
@@ -891,9 +902,10 @@ export function PlayerRoot() {
                 }
               >
                 <Ionicons name="play-skip-forward" size={28} color={colors.text} />
-              </Pressable>
+              </Toque>
 
-              <Pressable
+              <Toque
+                escala={ESCALA.icone}
                 hitSlop={12}
                 onPress={onCycleRepeat}
                 accessibilityRole="button"
@@ -913,25 +925,27 @@ export function PlayerRoot() {
                     <Text style={styles.repeatOneText}>1</Text>
                   </View>
                 ) : null}
-              </Pressable>
+              </Toque>
             </View>
           </View>
 
           {/* Grupo de Rodapé: Botão Recuar & Botões Utilitários (Fila & Equalizador) */}
           <View style={styles.bottomGroup}>
             {showRewindButton ? (
-              <Pressable
+              <Toque
+                escala={ESCALA.icone}
                 hitSlop={14}
                 onPress={() => seekTo(Math.max(0, positionMs - 15000))}
                 accessibilityLabel="Rewind 15 seconds"
                 style={{ alignSelf: 'center', marginBottom: spacing.md }}
               >
                 <Ionicons name="play-back" size={20} color={colors.textSecondary} />
-              </Pressable>
+              </Toque>
             ) : null}
 
             <View style={styles.utilityRow}>
-              <Pressable
+              <Toque
+                escala={ESCALA.botao}
                 hitSlop={12}
                 onPress={() => {
                   hapticSelection();
@@ -941,9 +955,10 @@ export function PlayerRoot() {
               >
                 <Ionicons name="list" size={18} color={theme.color} />
                 <Text style={[styles.utilityIconLabel, { color: theme.color }]}>Queue</Text>
-              </Pressable>
+              </Toque>
 
-              <Pressable
+              <Toque
+                escala={ESCALA.botao}
                 hitSlop={12}
                 onPress={() => {
                   hapticSelection();
@@ -953,7 +968,7 @@ export function PlayerRoot() {
               >
                 <Ionicons name="options-outline" size={18} color={theme.color} />
                 <Text style={[styles.utilityIconLabel, { color: theme.color }]}>EQ</Text>
-              </Pressable>
+              </Toque>
             </View>
           </View>
         </View>
@@ -1011,26 +1026,29 @@ export function PlayerRoot() {
             </View>
 
             {/* Guardar sem ter de abrir o player todo. */}
-            <Pressable
+            <Toque
+              escala={ESCALA.icone}
               hitSlop={8}
               onPress={saveCurrentToLibrary}
               accessibilityLabel={saved ? 'Remove from Library' : 'Save to Library'}
               style={styles.miniBtn}
             >
               <StateIcon
+                pulsar={saved}
                 name={saved ? 'heart' : 'heart-outline'}
                 size={19}
                 color={saved ? theme.color : colors.textSecondary}
               />
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause' : 'Play'} hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
+            </Toque>
+            <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause' : 'Play'} hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
               <StateIcon
                 name={isPlaying ? 'pause' : 'play'}
                 size={22}
                 color={colors.text}
               />
-            </Pressable>
-            <Pressable
+            </Toque>
+            <Toque
+              escala={ESCALA.icone}
               hitSlop={8}
               onPress={next}
               // Com o rádio ligado a fila nunca é o fim: o `next()` estende-a.
@@ -1038,7 +1056,7 @@ export function PlayerRoot() {
               style={[styles.miniBtn, atQueueEnd && styles.dimmed]}
             >
               <Ionicons name="play-skip-forward" size={20} color={colors.text} />
-            </Pressable>
+            </Toque>
           </Pressable>
 
           {/* linha de progresso fina */}
