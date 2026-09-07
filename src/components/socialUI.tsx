@@ -13,7 +13,6 @@ const web = Platform.OS === 'web';
 export const socialStyles = StyleSheet.create({
   // A faixa que apanha o gesto de voltar. Estreita de propósito: mais larga
   // do que isto e comeria os toques na margem das mensagens.
-  margemDeVoltar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 22 },
   body: { flex: 1, minHeight: 0, minWidth: 0 },
   content: { paddingHorizontal: SOCIAL_GUTTER, paddingTop: web ? 0 : spacing.lg, gap: spacing.xl },
   text: { ...type.body },
@@ -118,7 +117,11 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
   fechar.current = onClose;
   const voltar = React.useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => g.dx > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      // Exige-se um movimento CLARAMENTE horizontal e para a direita. O dobro
+      // (e não 1,5x) porque agora isto cobre o ecrã todo, incluindo a lista de
+      // mensagens: um arrasto vertical com um bocadinho de inclinação não pode
+      // fechar a conversa a meio de uma leitura.
+      onMoveShouldSetPanResponder: (_e, g) => g.dx > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
       onPanResponderRelease: (_e, g) => {
         if (g.dx > 60 || g.vx > 0.5) fechar.current();
       },
@@ -140,10 +143,16 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
           <Text numberOfLines={1} style={[socialStyles.title, { flex: 1, fontSize: 19 }]}>{title}</Text>
           {!fullScreen && <SocialIconButton label="Close" icon="close" onPress={onClose}/>}
         </View>}
-        {children}
-        {!web && fullScreen && (
-          <View {...voltar.panHandlers} style={socialStyles.margemDeVoltar} pointerEvents="box-only" />
-        )}
+        {/* O gesto vive no PAI do conteúdo, não numa tira por cima dele.
+            Numa tira de 22 px o dedo tinha de começar praticamente na moldura
+            do telemóvel, e quem começasse um milímetro para dentro não apanhava
+            nada -- parecia que o gesto não existia.
+            Aqui, como só se reclama no MOVIMENTO horizontal, a lista continua
+            a ganhar o dedo em qualquer arrasto vertical, e os toques e as
+            pressões longas nas mensagens passam intactos. */}
+        {!web && fullScreen
+          ? <View style={{ flex: 1, minHeight: 0 }} {...voltar.panHandlers}>{children}</View>
+          : children}
       </View>
     </KeyboardAvoidingView>
   </Modal>;

@@ -215,6 +215,32 @@ verificar('todas as molas têm massa e rigidez positivas', () => {
   }
 });
 
+// ---- o chat -----------------------------------------------------------------
+//
+// Duas regras que se perdem com uma linha distraida, e cujo sintoma nao e um
+// erro: e um ecra que se le mal. Ficam aqui porque este ja e o ficheiro dos
+// invariantes que nenhum tipo apanha.
+
+console.log('\nChat:');
+
+verificar('os balões recebidos não têm a cor do fundo do ecrã', () => {
+  const fonte = ler('src/components/SocialHub.tsx');
+  assert.ok(
+    !/backgroundColor:\s*m\.sender\.id===myId\?[^:]+:colors\.bg/.test(fonte),
+    'as mensagens recebidas voltaram a `colors.bg` -- que é a cor do fundo, ' +
+      'e por isso o balão fica invisível e a mensagem flutua sem caixa'
+  );
+});
+
+verificar('o nome do amigo aparece uma vez, não em cada mensagem', () => {
+  const fonte = ler('src/components/SocialHub.tsx');
+  assert.ok(
+    !/m\.sender\.id!==myId&&<Pressable[^>]*>[\s\S]{0,200}m\.sender\.name/.test(fonte),
+    'voltou o nome dentro de cada mensagem recebida -- numa conversa a dois ' +
+      'só há duas pessoas, e o lado do balão já diz quem falou'
+  );
+});
+
 if (falhas > 0) {
   console.error(`\n${falhas} teste(s) falharam`);
   process.exit(1);

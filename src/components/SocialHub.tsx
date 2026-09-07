@@ -21,6 +21,7 @@ import { getPlaylistPreviews } from '../api/playlists';
 import { GroupAvatar,GroupChatHeader,GroupComposer,GroupDetails,GroupEmptyState,GroupMessage } from './GroupChat';
 import { ConviteDeSessao } from './ConviteDeSessao';
 import { SkeletonDeConversas } from './Skeleton';
+import { CabecalhoDoAmigo, FaixaPartilhada, MarcaDeAgua } from './ChatAmigo';
 import type { Playlist,Track } from '../types';
 
 export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string}) {
@@ -214,24 +215,47 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
     </ScrollView>
   </View>;
   const groupHeader=group?<GroupChatHeader group={group} split={split} onBack={closeChat} onDetails={()=>setGroupDetails(group.id)}/>:undefined;
+  // O nome aparecia TRES vezes: na barra, na linha de perfil, e dentro de cada
+  // mensagem recebida. Numa conversa a dois so ha duas pessoas -- e o lado do
+  // balao ja diz quem falou. Fica uma vez, com a cara e o estado.
+  const amigoHeader=friend?<CabecalhoDoAmigo
+    nome={friend.name} avatarUrl={friend.avatarUrl}
+    estado={friend.online?'Online now':ultimaAtividade(friend.lastSeenAt,social.now)}
+    online={friend.online}
+    aOuvir={friend.currentlyPlaying?.title??null}
+    onVoltar={closeChat} onPerfil={()=>onProfile(friend.friendId)}
+  />:undefined;
   const chat=<View style={{flex:1,minHeight:0}}>
       {web&&groupHeader}
       <View style={{flex:1,minHeight:0,padding:web?24:16,gap:12}}>
+        {!web&&!group&&<MarcaDeAgua/>}
         {web&&!group&&<View style={s.row}><Text numberOfLines={1} style={[s.title,{flex:1}]}>{title}</Text><SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/></View>}
-        {friend&&<Pressable accessibilityLabel={`View ${friend.name}`} style={s.row} onPress={()=>onProfile(friend.friendId)}><FriendAvatar avatarUrl={friend.avatarUrl} name={friend.name} size={40}/><View style={{flex:1}}><Text numberOfLines={1} style={s.text}>{friend.name} · View profile</Text><Text style={s.muted}>{friend.online?'● Online now':ultimaAtividade(friend.lastSeenAt,social.now)}</Text>{friend.currentlyPlaying&&<Text numberOfLines={1} style={s.muted}>♫ {friend.currentlyPlaying.title}</Text>}</View></Pressable>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={accent}/>}
         {group&&!chatLoading&&!messages.length&&!error?<View style={{flex:1,justifyContent:'center'}}><GroupEmptyState group={group}/></View>:
         <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{gap:group?6:12,paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>group?<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
           reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>:<View style={{alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%',gap:5}}>
           <MessageBubble own={m.sender.id===myId} aberto={aReagir===m.id} onAbrir={()=>setAReagir(a=>a===m.id?null:m.id)}
             rotulo={`Message from ${m.sender.name}. Hold to react`}
-            style={{backgroundColor:m.sender.id===myId?colors.surfaceHigh:colors.bg,padding:12,borderRadius:15,gap:8}}>
-          {m.sender.id!==myId&&<Pressable onPress={()=>onProfile(m.sender.id)} style={s.row}><FriendAvatar avatarUrl={m.sender.avatarUrl} name={m.sender.name} size={22}/><Text style={s.muted}>{m.sender.name}</Text></Pressable>}
+            style={{
+              // `colors.bg` era a cor do FUNDO do ecra: as mensagens recebidas
+              // tinham um balao invisivel e flutuavam sem caixa nenhuma.
+              backgroundColor:m.sender.id===myId?accent:colors.surface,
+              paddingHorizontal:12,paddingVertical:9,borderRadius:18,gap:7,
+              // O canto cortado do lado de quem fala: e a pista que se le sem
+              // pensar, mesmo com um balao a ocupar quase a largura toda.
+              [m.sender.id===myId?'borderBottomRightRadius':'borderBottomLeftRadius']:6,
+            }}>
           {m.itemType==='sessao'&&m.sessionId?<ConviteDeSessao id={m.sessionId} mensagem={m.message}/>:null}
-          {!!m.message&&m.itemType!=='sessao'&&<Text selectable style={s.text}>{m.message}</Text>}
-          {m.trackData&&<Pressable style={s.row} onPress={()=>setTrack(m.trackData)}>{m.trackData.artworkUrl&&<Image source={{uri:m.trackData.artworkUrl}} style={{width:44,height:44,borderRadius:8}}/>}<Text numberOfLines={2} style={[s.text,{flexShrink:1}]}>♫ {m.trackData.title}</Text></Pressable>}
+          {!!m.message&&m.itemType!=='sessao'&&<View style={{flexDirection:'row',alignItems:'flex-end',gap:8,flexWrap:'wrap'}}>
+            <Text selectable style={[s.text,{flexShrink:1,color:m.sender.id===myId?'#fff':colors.text}]}>{m.message}</Text>
+            <Text style={[s.muted,{fontSize:10.5,marginBottom:1,opacity:0.7,color:m.sender.id===myId?'#fff':colors.textSecondary}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
+          </View>}
+          {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={m.sender.id===myId} onPress={()=>setTrack(m.trackData)}/>}
           {m.playlistId&&<SharedPlaylistCard playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
-          <Text style={[s.muted,{fontSize:11}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
+          {/* A hora so aparece a parte quando NAO ha texto para lhe dar boleia --
+              uma faixa ou uma playlist sozinhas. Com texto, ela encosta ao fim
+              da ultima linha e poupa uma linha inteira por mensagem. */}
+          {!m.message||m.itemType==='sessao'?<Text style={[s.muted,{fontSize:10.5,alignSelf:'flex-end',opacity:0.7,color:m.sender.id===myId?'#fff':colors.textSecondary}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>:null}
           </MessageBubble>
           <ReactionRow reactions={reacoes.get(m.id)??[]} myId={myId} own={m.sender.id===myId}
             aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}/>
@@ -248,7 +272,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         {conversation?chat:<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:24,gap:12}}><Ionicons name="chatbubbles-outline" size={36} color={colors.textSecondary}/><Text style={s.title}>Your conversations</Text><Text style={[s.muted,{textAlign:'center'}]}>Choose a friend or group to open a conversation.</Text></View>}
       </View>}
     </View>
-    {!web&&<SocialModal fullScreen visible={!!conversation&&visible&&!track&&!groupEditor&&!confirm&&!detailedGroup} title={title} header={groupHeader} onClose={closeChat}>{chat}</SocialModal>}
+    {!web&&<SocialModal fullScreen visible={!!conversation&&visible&&!track&&!groupEditor&&!confirm&&!detailedGroup} title={title} header={groupHeader??amigoHeader} onClose={closeChat}>{chat}</SocialModal>}
 
     {/* Procurar gente deixou de ser um separador ao lado das conversas: e uma
         coisa que se faz de vez em quando, e agora vive atras do icone. */}
