@@ -216,3 +216,42 @@ export async function minhaSessaoAberta(userId: string): Promise<SessaoDeEscuta 
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// A fila partilhada
+// ---------------------------------------------------------------------------
+
+export type ItemDaFila = {
+  id: string;
+  posicao: number;
+  track: Track;
+  postoPor: string;
+};
+
+export function itemDaLinha(r: any): ItemDaFila {
+  return {
+    id: r.id,
+    posicao: Number(r.posicao) || 0,
+    track: r.track as Track,
+    postoPor: r.added_by,
+  };
+}
+
+export async function lerFila(sessao: string): Promise<ItemDaFila[]> {
+  const { data, error } = await supabase
+    .from('listening_queue').select('*').eq('session_id', sessao).order('posicao');
+  if (error || !data) return [];
+  return data.map(itemDaLinha);
+}
+
+export async function juntarAFila(sessao: string, track: Track): Promise<void> {
+  const { error } = await supabase.rpc('juntar_a_fila', {
+    p_session: sessao, p_track: track,
+  });
+  if (error) throw error;
+}
+
+export async function tirarDaFila(item: string): Promise<void> {
+  const { error } = await supabase.rpc('tirar_da_fila', { p_item: item });
+  if (error) throw error;
+}

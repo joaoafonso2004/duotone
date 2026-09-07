@@ -2,9 +2,10 @@ import { create } from 'zustand';
 import { AppState } from 'react-native';
 import {
   continuoNaSessao, convidar, criarSessao, definirFaixa, entrar,
-  lerMembros, lerSessao, marcarPronto, membroDaLinha, minhaSessaoAberta,
-  pausar, permitirControlo, relogioActualizado, retomar, sair, sessaoDaLinha,
-  type MembroDaSessao, type SessaoDeEscuta,
+  juntarAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
+  minhaSessaoAberta, pausar, permitirControlo, relogioActualizado, retomar,
+  sair, sessaoDaLinha, tirarDaFila,
+  type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta,
 } from '../api/ouvirJuntos';
 import { agoraNoServidor, type Estimativa } from '../lib/relogioPartilhado';
 import { posicaoDaSessao } from '../lib/sincronizacao';
@@ -37,6 +38,7 @@ const BATIMENTO_MS = 30_000;
 type Estado = {
   sessao: SessaoDeEscuta | null;
   membros: MembroDaSessao[];
+  fila: ItemDaFila[];
   relogio: Estimativa | null;
   /** O nosso id, guardado para não o pedir a cada render. */
   euId: string | null;
@@ -59,6 +61,17 @@ type Estado = {
   anunciarRetoma: () => Promise<void>;
   darControlo: (pode: boolean) => Promise<void>;
   anunciarProntidao: (pronta: boolean, percentagem?: number) => Promise<void>;
+
+  sugerir: (track: Track) => Promise<void>;
+  retirarSugestao: (item: string) => Promise<void>;
+  /**
+   * Tira a primeira da fila e põe-na a tocar. Só quem manda.
+   *
+   * Devolve `false` quando não havia nada -- e aí quem chama segue o caminho
+   * normal do fim de faixa, que sabe de repeat, de rádio e do resto. A fila
+   * partilhada acrescenta, não substitui.
+   */
+  avancarPelaFila: () => Promise<boolean>;
 };
 
 let canal: ReturnType<typeof supabase.channel> | null = null;
@@ -70,6 +83,7 @@ let geracao = 0;
 export const useOuvirJuntos = create<Estado>((set, get) => ({
   sessao: null,
   membros: [],
+  fila: [],
   relogio: null,
   euId: null,
 
@@ -110,12 +124,13 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (minha !== geracao) return;
     if (!sessao) return;
 
-    const [membros, relogio] = await Promise.all([
+    const [membros, fila, relogio] = await Promise.all([
       lerMembros(sessao.id),
+      lerFila(sessao.id),
       relogioActualizado(null),
     ]);
     if (minha !== geracao) return;
-    set({ sessao, membros, relogio });
+    set({ sessao, membros, fila, relogio });
 
     canal = supabase
       .channel(`sessao:${sessao.id}`)
@@ -138,6 +153,14 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
           void lerMembros(sessao.id).then((m) => { if (minha === geracao) set({ membros: m }); });
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'listening_queue', filter: `session_id=eq.${sessao.id}` },
+        () => {
+          if (minha !== geracao) return;
+          void lerFila(sessao.id).then((f) => { if (minha === geracao) set({ fila: f }); });
+        }
+      )
       .subscribe();
 
     batimento = setInterval(() => {
@@ -152,12 +175,13 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
       if (!appEstaVisivel() || minha !== geracao) return;
       const s = get().sessao;
       if (!s) return;
-      void Promise.all([lerSessao(s.id), lerMembros(s.id), relogioActualizado(get().relogio)])
-        .then(([nova, membros, relogio]) => {
-          if (minha !== geracao) return;
-          if (!nova || nova.acabouEm) { get().desligar(); return; }
-          set({ sessao: nova, membros, relogio });
-        });
+      void Promise.all([
+        lerSessao(s.id), lerMembros(s.id), lerFila(s.id), relogioActualizado(get().relogio),
+      ]).then(([nova, membros, fila, relogio]) => {
+        if (minha !== geracao) return;
+        if (!nova || nova.acabouEm) { get().desligar(); return; }
+        set({ sessao: nova, membros, fila, relogio });
+      });
     });
   },
 
@@ -167,7 +191,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (batimento) { clearInterval(batimento); batimento = null; }
     subscricaoDeEstado?.remove();
     subscricaoDeEstado = null;
-    set({ sessao: null, membros: [] });
+    set({ sessao: null, membros: [], fila: [] });
   },
 
   // -------------------------------------------------------------------------
@@ -232,6 +256,31 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     const s = get().sessao;
     if (!s) return;
     await marcarPronto(s.id, pronta, percentagem);
+  },
+
+  // Sugerir NAO exige a permissao de controlo, e e essa a diferenca entre
+  // ouvir com alguem e assistir a alguem: pôr uma musica na fila nao
+  // interrompe ninguem.
+  sugerir: async (track) => {
+    const s = get().sessao;
+    if (!s) return;
+    await juntarAFila(s.id, track);
+  },
+
+  retirarSugestao: async (item) => {
+    await tirarDaFila(item);
+  },
+
+  avancarPelaFila: async () => {
+    const s = get().sessao;
+    if (!s || !get().possoControlar()) return false;
+    const [primeira] = get().fila;
+    if (!primeira) return false;
+    // Tirar ANTES de pôr a tocar: se a ordem fosse a contraria e a remocao
+    // falhasse, a mesma faixa ficava na fila a repetir-se para sempre.
+    await tirarDaFila(primeira.id);
+    await definirFaixa(s.id, primeira.track);
+    return true;
   },
 }));
 

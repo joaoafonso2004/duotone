@@ -1,6 +1,7 @@
 import {StateIcon} from './StateIcon';
 import { Toque } from './Toque';
 import { BarraDaSessao } from './BarraDaSessao';
+import { FolhaDaSessao } from './FolhaDaSessao';
 import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
 import { ESCALA } from '../lib/movimento';
 import { useOfflineMode } from '../hooks/useOfflineMode';
@@ -157,6 +158,7 @@ export function PlayerRoot() {
   // Montado aqui porque o PlayerRoot existe enquanto a app existe -- e uma
   // sessao de escuta nao pode depender de um ecra estar aberto.
   useSincroniaDaSessao();
+  const [sessaoAberta, setSessaoAberta] = useState(false);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -589,7 +591,8 @@ export function PlayerRoot() {
           bottom: TAB_BAR_BASE + insets.bottom + 8,
         }}
       >
-        <BarraDaSessao />
+        <BarraDaSessao aoAbrir={() => setSessaoAberta(true)} />
+        <FolhaDaSessao visivel={sessaoAberta} aoFechar={() => setSessaoAberta(false)} />
       </View>
     );
   }
@@ -1116,9 +1119,10 @@ export function PlayerRoot() {
             bottom: miniBottom + (current ? MINI_PLAYER_HEIGHT + 6 : 0),
           }}
         >
-          <BarraDaSessao />
+          <BarraDaSessao aoAbrir={() => setSessaoAberta(true)} />
         </View>
       ) : null}
+      <FolhaDaSessao visivel={sessaoAberta} aoFechar={() => setSessaoAberta(false)} />
 
       {/* ============ FRAME DE VÍDEO YOUTUBE (flutuante, nunca desmonta) ============ */}
       {current ? (

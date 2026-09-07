@@ -56,6 +56,21 @@ export type YtControls = PlaybackControls;
  */
 const posicao = (ms: number) => ({ positionMs: ms, positionAt: Date.now() });
 
+/**
+ * Quem trata do fim da faixa quando ha uma sessao de escuta a decorrer.
+ *
+ * Um ponto de registo e nao um import directo: assim a store do leitor
+ * continua a nao saber que o ouvir-juntos existe. Quem regista e o
+ * `useSincroniaDaSessao`, e so enquanto ha sessao e permissao para mandar --
+ * fora disso isto e nulo e o fim de faixa segue o caminho de sempre.
+ *
+ * Devolve `true` se tratou do assunto (havia fila e ela avancou).
+ */
+let aoAcabarNaSessao: (() => Promise<boolean>) | null = null;
+export function registarFimNaSessao(fn: (() => Promise<boolean>) | null): void {
+  aoAcabarNaSessao = fn;
+}
+
 const getInitialVolume = () => {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -1073,6 +1088,17 @@ export const usePlayer = create<PlayerState>()(
       if (repeatMode === 'one') {
         _yt?.seek(0);
         _yt?.play();
+        return;
+      }
+      // Numa sessao de escuta, a fila partilhada tem prioridade sobre a fila
+      // local -- foi o que as pessoas escolheram juntas. So no FIM da faixa,
+      // nunca num salto explicito: quem carrega em seguinte quer a musica
+      // seguinte dele, nao a sugestao de outra pessoa.
+      //
+      // Se nao houver sessao ou a fila estiver vazia, segue o caminho de
+      // sempre, que sabe de repeat, de radio no fim e do resto.
+      if (aoAcabarNaSessao) {
+        void aoAcabarNaSessao().then((tratou) => { if (!tratou) void get().next(); });
         return;
       }
       get().next();

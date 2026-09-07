@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { usePlayer } from '../state/player';
+import { registarFimNaSessao, usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { correccaoNecessaria, velocidadeAAplicar } from '../lib/sincronizacao';
 import { cachedAudioFile } from '../lib/youtubeCache';
@@ -63,8 +63,9 @@ export function useSincroniaDaSessao(): void {
       return;
     }
     ultimaMandada.current = alvo.sourceId;
-    // Sem fila: a sessão manda uma faixa de cada vez. A fila partilhada é a
-    // onda 4.
+    // Uma faixa de cada vez: a fila partilhada vive no servidor e e quem manda
+    // que a consome no fim de cada musica. Dar uma fila local ao convidado
+    // punha-o a adivinhar o que vinha a seguir.
     void usePlayer.getState().playTrack(alvo, [alvo]);
   }, [sessao?.track?.sourceId, sessao?.id, souAnfitriao]);
 
@@ -149,6 +150,32 @@ export function useSincroniaDaSessao(): void {
     if (p.isPlaying) void s.anunciarRetoma();
     else void s.anunciarPausa(p.positionMs);
   }, [aTocarLocal, sessao?.id]);
+
+  // ---- a fila partilhada manda no fim da faixa ------------------------------
+  //
+  // Registado e nao importado: a store do leitor continua a nao saber que o
+  // ouvir-juntos existe, e sem sessao (ou sem permissao) isto e nulo e o fim
+  // de faixa segue o caminho de sempre.
+  //
+  // So no FIM. Quem carrega em seguinte quer a musica seguinte DELE, nao a
+  // sugestao de outra pessoa -- e uma fila partilhada que sequestrasse o botao
+  // de saltar era uma fila que ninguem queria ligar.
+  useEffect(() => {
+    if (!sessao) { registarFimNaSessao(null); return; }
+    registarFimNaSessao(async () => {
+      const s = useOuvirJuntos.getState();
+      if (!s.sessao || !s.possoControlar()) return false;
+      const [primeira] = s.fila;
+      if (!primeira) return false;
+      const avancou = await s.avancarPelaFila();
+      // Quem manda tambem toca: a sessao diz qual e a faixa, mas so os
+      // convidados e que obedecem a sessao. Sem esta linha o anfitriao punha a
+      // faixa a tocar para toda a gente menos para ele.
+      if (avancou) void usePlayer.getState().playTrack(primeira.track, [primeira.track]);
+      return avancou;
+    });
+    return () => registarFimNaSessao(null);
+  }, [sessao?.id]);
 
   // ---- e dizer aos outros se já temos a faixa -------------------------------
   useEffect(() => {

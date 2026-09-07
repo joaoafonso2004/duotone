@@ -42,6 +42,8 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   const tema = useTheme((s) => s.theme);
   const abrirSessao = useOuvirJuntos((s) => s.abrir);
   const sessaoActual = useOuvirJuntos((s) => s.sessao);
+  const sugerir = useOuvirJuntos((s) => s.sugerir);
+  const [sugerida, setSugerida] = useState(false);
   const [escolhidos, setEscolhidos] = useState<string[]>([]);
   const [aAbrir, setAAbrir] = useState(false);
   const [friends, setFriends] = useState<Friendship[]>([]);
@@ -96,8 +98,27 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   };
 
   useEffect(() => {
-    if (!visible) { setModoSessao(false); setEscolhidos([]); }
+    if (!visible) { setModoSessao(false); setEscolhidos([]); setSugerida(false); }
   }, [visible]);
+
+  /**
+   * Já numa sessão, o botão muda de trabalho: em vez de abrir outra, junta
+   * esta música à fila de quem já está a ouvir contigo.
+   *
+   * Não precisa de permissão nenhuma -- sugerir não interrompe ninguém, e é
+   * essa a diferença entre ouvir COM alguém e assistir a alguém.
+   */
+  const juntarAFilaDaSessao = async () => {
+    if (!sessaoActual || sugerida) return;
+    try {
+      hapticSelection();
+      await sugerir(item);
+      setSugerida(true);
+      hapticNotification();
+    } catch {
+      // Fica como estava; tocar outra vez tenta de novo.
+    }
+  };
 
   const handleShare = async (alvo: Destino) => {
     const chave = chaveDe(alvo);
@@ -250,13 +271,25 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
           ) : (
             <Toque
               escala={ESCALA.botao}
-              onPress={() => { hapticSelection(); setModoSessao(true); }}
-              accessibilityLabel="Listen together"
-              style={styles.botaoQuieto}
+              onPress={() => {
+                if (sessaoActual) void juntarAFilaDaSessao();
+                else { hapticSelection(); setModoSessao(true); }
+              }}
+              disabled={sugerida}
+              accessibilityLabel={sessaoActual ? 'Add to the session queue' : 'Listen together'}
+              style={[styles.botaoQuieto, sugerida && { opacity: 0.6 }]}
             >
-              <Ionicons name="headset-outline" size={17} color={tema.color} />
+              <Ionicons
+                name={sugerida ? 'checkmark-circle' : sessaoActual ? 'add-circle-outline' : 'headset-outline'}
+                size={17}
+                color={tema.color}
+              />
               <Text style={[type.body, { color: tema.color, fontWeight: '600' }]}>
-                {sessaoActual ? 'Invite to your session' : 'Listen together'}
+                {sugerida
+                  ? 'Added to the queue'
+                  : sessaoActual
+                    ? 'Add to the session queue'
+                    : 'Listen together'}
               </Text>
             </Toque>
           )}

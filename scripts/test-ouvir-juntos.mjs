@@ -299,6 +299,82 @@ await verificar('um convidado não convida em nome do anfitrião', async () => {
   );
 });
 
+console.log('\nA fila partilhada:');
+
+await verificar('qualquer membro junta à fila, e a ordem é a de chegada', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await como(2);
+  await q('select public.entrar_na_sessao($1)', [s]);
+  // O convidado NÃO tem controlo -- e junta à mesma.
+  await q('select public.juntar_a_fila($1,$2::jsonb)', [s, OUTRA]);
+  await como(1);
+  await q('select public.juntar_a_fila($1,$2::jsonb)', [s, FAIXA]);
+  await db.exec('reset role');
+  const f = (await q('select * from listening_queue where session_id=$1 order by posicao', [s])).rows;
+  assert.equal(f.length, 2);
+  assert.equal(f[0].added_by, uid(2), 'a ordem não é a de chegada');
+  assert.ok(Number(f[1].posicao) > Number(f[0].posicao));
+});
+
+await verificar('quem não está na sessão não junta nada', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await como(3);
+  await assert.rejects(q('select public.juntar_a_fila($1,$2::jsonb)', [s, OUTRA]), /est/i);
+});
+
+await verificar('cada um tira a sua sugestão', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await como(2);
+  await q('select public.entrar_na_sessao($1)', [s]);
+  const meu = (await q('select public.juntar_a_fila($1,$2::jsonb) as id', [s, OUTRA])).rows[0].id;
+  await q('select public.tirar_da_fila($1)', [meu]);
+  await db.exec('reset role');
+  assert.equal((await q('select 1 from listening_queue where id=$1', [meu])).rows.length, 0);
+});
+
+await verificar('um convidado NÃO tira as sugestões dos outros', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  const doAnfitriao = (await q('select public.juntar_a_fila($1,$2::jsonb) as id', [s, OUTRA])).rows[0].id;
+  await como(2);
+  await q('select public.entrar_na_sessao($1)', [s]);
+  await q('select public.tirar_da_fila($1)', [doAnfitriao]);
+  await db.exec('reset role');
+  assert.equal(
+    (await q('select 1 from listening_queue where id=$1', [doAnfitriao])).rows.length,
+    1,
+    'apagar as sugestões dos outros é controlo disfarçado de arrumação'
+  );
+});
+
+await verificar('o anfitrião tira qualquer uma', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await como(2);
+  await q('select public.entrar_na_sessao($1)', [s]);
+  const doConvidado = (await q('select public.juntar_a_fila($1,$2::jsonb) as id', [s, OUTRA])).rows[0].id;
+  await como(1);
+  await q('select public.tirar_da_fila($1)', [doConvidado]);
+  await db.exec('reset role');
+  assert.equal((await q('select 1 from listening_queue where id=$1', [doConvidado])).rows.length, 0);
+});
+
+await verificar('a fila morre com a sessão', async () => {
+  await como(1);
+  const s = (await q('select public.criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  await q('select public.juntar_a_fila($1,$2::jsonb)', [s, OUTRA]);
+  await db.exec('reset role');
+  await q('delete from listening_sessions where id=$1', [s]);
+  assert.equal(
+    (await q('select 1 from listening_queue where session_id=$1', [s])).rows.length,
+    0,
+    'ficaram sugestões órfãs de uma sessão que já não existe'
+  );
+});
+
 console.log('\nA hora do servidor:');
 
 await verificar('avança entre chamadas dentro da mesma transacção', async () => {
