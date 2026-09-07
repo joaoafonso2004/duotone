@@ -32,13 +32,15 @@ import { colors } from '../theme';
  * arrastar uma música para baixo fechava a fila em vez de a reordenar.
  */
 export function LinhaArrastavel({
-  index, arrastarIndex, altura, dy, aoLargar, children,
+  index, arrastarIndex, altura, dy, aoPegar, aoLargar, children,
 }: {
   index: number;
   /** Qual das linhas está a ser arrastada. `null` = nenhuma. */
   arrastarIndex: number | null;
   altura: number;
   dy: Animated.Value;
+  /** O dedo mexeu-se e o arrasto arrancou mesmo. */
+  aoPegar: () => void;
   aoLargar: (dyFinal: number) => void;
   children: React.ReactNode;
 }) {
@@ -49,6 +51,8 @@ export function LinhaArrastavel({
   activoRef.current = activo;
   const largarRef = React.useRef(aoLargar);
   largarRef.current = aoLargar;
+  const pegarRef = React.useRef(aoPegar);
+  pegarRef.current = aoPegar;
 
   const pan = React.useMemo(
     () =>
@@ -57,6 +61,7 @@ export function LinhaArrastavel({
         // simples, que toca a música.
         onMoveShouldSetPanResponder: () => activoRef.current,
         onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: () => pegarRef.current(),
         onPanResponderMove: (_e, g) => {
           if (activoRef.current) dy.setValue(g.dy);
         },

@@ -23,7 +23,7 @@ export function QueueSheet({ visible, onClose }: Props) {
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
   const playTrack = usePlayer((s) => s.playTrack);
-  const moveQueueItem = usePlayer((s) => s.moveQueueItem);
+  const reordenarProximas = usePlayer((s) => s.reordenarProximas);
   const removeFromQueue = usePlayer((s) => s.removeFromQueue);
   const shuffle = usePlayer((s) => s.shuffle);
   // Re-avaliar quando o percurso do shuffle muda.
@@ -52,13 +52,14 @@ export function QueueSheet({ visible, onClose }: Props) {
     ? filaDaSessao.map((i, n) => ({ track: i.track, index: n }))
     : upNextLocal;
 
-  // Reordenar uma lista baralhada não quer dizer nada: as setas movem a fila
-  // natural, que não é o que está à frente do utilizador. Só remover é que
-  // continua a fazer sentido (mapeia para o índice real).
+  // Com o shuffle ligado a ordem visível vive no percurso e não na fila, e o
+  // `reordenarProximas` sabe disso -- por isso arrastar funciona nos dois
+  // modos. Com as setas não funcionava, e daí terem estado desligadas aqui.
+  //
   // Numa sessao a ordem e de toda a gente: mexer nela daqui, sem as regras de
   // quem pode o que, era dar controlo por uma porta lateral. Tira-se e
   // reordena-se na folha da sessao, que sabe dessas regras.
-  const canReorder = !shuffle && !emSessao;
+  const canReorder = !emSessao;
   // Dizer de onde vêm as faixas: se a fila acabou e o rádio a estendeu, o
   // utilizador tem de perceber porque é que continua a tocar.
   const radioActive = usePlayer((s) => s.radioActive);
@@ -67,6 +68,11 @@ export function QueueSheet({ visible, onClose }: Props) {
   // que e ela, e as outras precisam de saber para onde se afastar.
   const [arrastar, setArrastar] = React.useState<number | null>(null);
   const dy = React.useRef(new Animated.Value(0)).current;
+  // O toque longo PEGA na linha, mas o arrasto só arranca quando o dedo se
+  // mexe. Levantá-lo sem mexer deixava a linha pegada para sempre e a lista
+  // sem deslizar -- daí o `onPressOut` a desfazer, e esta marca a distinguir
+  // o dedo levantado do gesto que foi mesmo por diante.
+  const pegou = React.useRef(false);
   // Medida em vez de assumida: a linha da fila e um `TrackRow` mais a linha
   // do separador, e meio pixel de erro por linha desalinha o gesto todo ao fim
   // de dez. O `TRACK_ROW_HEIGHT` serve so ate a primeira medicao chegar.
@@ -87,7 +93,7 @@ export function QueueSheet({ visible, onClose }: Props) {
     const para = destinoDoArrasto(de, dyFinal, altura, upNext.length);
     if (para === de || !upNext[de] || !upNext[para]) return;
     hapticSelection();
-    moveQueueItem(upNext[de].index, upNext[para].index);
+    reordenarProximas(de, para);
   };
 
   return (
@@ -141,6 +147,7 @@ export function QueueSheet({ visible, onClose }: Props) {
                 arrastarIndex={arrastar}
                 altura={altura}
                 dy={dy}
+                aoPegar={() => { pegou.current = true; }}
                 aoLargar={largar(index)}
               >
               <View
@@ -167,9 +174,20 @@ export function QueueSheet({ visible, onClose }: Props) {
                     onLongPress={canReorder ? () => {
                       hapticSelection();
                       dy.setValue(0);
+                      pegou.current = false;
                       setArrastar(index);
                     } : undefined}
                     delayLongPress={canReorder ? 1000 : undefined}
+                    onPressOut={canReorder ? () => {
+                      // O `onPressOut` chega TAMBEM quando o arrasto rouba o
+                      // dedo. O adiamento de um tick deixa o `aoPegar` chegar
+                      // primeiro e dizer que nao foi um dedo levantado.
+                      setTimeout(() => {
+                        if (pegou.current) return;
+                        setArrastar((actual) => (actual === index ? null : actual));
+                        dy.setValue(0);
+                      }, 0);
+                    } : undefined}
                   />
                 </View>
                 <View style={styles.actionButtons}>

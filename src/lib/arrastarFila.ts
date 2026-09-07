@@ -25,6 +25,15 @@ export function destinoDoArrasto(
   return Math.min(total - 1, Math.max(0, alvo));
 }
 
+/** Move `de` para `para`, devolvendo uma cópia. Fora dos limites, não mexe. */
+export function movido<T>(lista: readonly T[], de: number, para: number): T[] {
+  const saida = [...lista];
+  if (de < 0 || de >= saida.length || para < 0 || para >= saida.length) return saida;
+  const [item] = saida.splice(de, 1);
+  saida.splice(para, 0, item);
+  return saida;
+}
+
 /**
  * A partir de que deslocamento a linha `j` cede o lugar a quem vem a caminho.
  *

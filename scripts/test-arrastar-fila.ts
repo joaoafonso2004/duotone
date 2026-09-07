@@ -6,7 +6,7 @@
 // consegue reproduzir de propósito, porque depende de meio pixel de dedo.
 import assert from 'node:assert/strict';
 import {
-  destinoDoArrasto, limiarDaLinha, desvioDaLinha,
+  destinoDoArrasto, limiarDaLinha, desvioDaLinha, movido,
 } from '../src/lib/arrastarFila.ts';
 
 const H = 60;
@@ -76,6 +76,16 @@ verificar('o limiar é o mesmo dos dois lados da linha', () => {
   assert.equal(limiarDaLinha(1, 0, H), H * 0.5);
   assert.equal(limiarDaLinha(0, 1, H), -H * 0.5);
   assert.equal(limiarDaLinha(3, 0, H), H * 2.5);
+});
+
+verificar('mover não perde nem duplica', () => {
+  const l = ['a', 'b', 'c', 'd'];
+  assert.deepEqual(movido(l, 0, 2), ['b', 'c', 'a', 'd']);
+  assert.deepEqual(movido(l, 3, 0), ['d', 'a', 'b', 'c']);
+  assert.deepEqual(movido(l, 1, 1), l, 'para o mesmo sítio não mexe');
+  assert.deepEqual(l, ['a', 'b', 'c', 'd'], 'a lista de entrada não é tocada');
+  assert.deepEqual(movido(l, -1, 2), l, 'fora dos limites devolve como estava');
+  assert.deepEqual(movido(l, 0, 9), l);
 });
 
 if (falhas > 0) {

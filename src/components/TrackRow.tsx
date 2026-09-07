@@ -35,6 +35,8 @@ interface Props {
   onLongPress?: () => void;
   /** Só faz sentido com `onLongPress`. Sem ele, o toque longo fica nos 350 ms. */
   delayLongPress?: number;
+  /** O dedo saiu -- levantado, ou roubado por outro gesto. */
+  onPressOut?: () => void;
 }
 
 /** 52 px de capa + 8 px de padding em cima e em baixo. */
@@ -63,6 +65,7 @@ function TrackRowComponent({
   showSavedBadge = false,
   onLongPress,
   delayLongPress,
+  onPressOut,
 }: Props) {
   const theme = useTheme((s) => s.theme);
   /** A moldura da capa desta linha, para o player saber de onde a fazer voar. */
@@ -104,6 +107,7 @@ function TrackRowComponent({
           : undefined)
       }
       delayLongPress={delayLongPress ?? 350}
+      onPressOut={onPressOut}
       style={[styles.row, active && { backgroundColor: theme.soft }]}
     >
       {selectMode && (

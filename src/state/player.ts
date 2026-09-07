@@ -20,6 +20,7 @@ import {
   setPlaybackRate as persistPlaybackRate,
 } from '../lib/prefs';
 import { queueTrackAdjustment } from './trackAdjustments';
+import { movido } from '../lib/arrastarFila';
 import { useAuth } from './auth';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
 import {
@@ -274,6 +275,8 @@ interface PlayerState {
   intercalarSugestao: () => Promise<boolean>;
   setShowRewindButton: (v: boolean) => void;
   setError: (e: string | null) => void;
+  /** Reordena o que se vê em "Up next" -- com shuffle ligado também. */
+  reordenarProximas: (de: number, para: number) => void;
   moveQueueItem: (fromIndex: number, toIndex: number) => void;
   removeFromQueue: (index: number) => void;
 
@@ -1342,6 +1345,36 @@ export const usePlayer = create<PlayerState>()(
       set({ playbackRate: v });
       lembrarDaFaixa();
     }
+  },
+
+  /**
+   * Reordena o que se VÊ em "Up next", com shuffle ligado ou desligado.
+   *
+   * Com o shuffle desligado o que está à frente do utilizador é a fila, e
+   * mexer na fila chega. Com o shuffle ligado não é: a ordem visível sai do
+   * `shuffleOrder`, que é uma lista de chaves, e a fila por baixo pode estar
+   * em qualquer ordem. Mover a FILA nesse caso não mudava nada do que se via
+   * -- e era por isso que reordenar estava simplesmente desligado com o
+   * shuffle ligado.
+   *
+   * Desligar o gesto era a resposta certa para as setas, que só sabiam mexer
+   * na fila. Para o arrasto a resposta certa é outra: mexer no sítio onde a
+   * ordem vive mesmo.
+   */
+  reordenarProximas: (de, para) => {
+    if (de === para) return;
+    const proximas = get().upcomingQueue();
+    const origem = proximas[de], destino = proximas[para];
+    if (!origem || !destino) return;
+    if (!get().shuffle) {
+      get().moveQueueItem(origem.index, destino.index);
+      return;
+    }
+    const ordem = get()._ensureShuffleOrder();
+    const i = ordem.indexOf(trackKey(origem.track));
+    const j = ordem.indexOf(trackKey(destino.track));
+    if (i < 0 || j < 0) return;
+    set({ shuffleOrder: movido(ordem, i, j) });
   },
 
   moveQueueItem: (fromIndex, toIndex) => {
