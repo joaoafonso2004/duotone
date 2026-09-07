@@ -237,6 +237,29 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const motorEmEspera = qualMotor === 'a' ? motorB : motorA;
 
   /**
+   * Qual dos motores manda AGORA -- e nao qual mandava quando esta funcao foi
+   * criada.
+   *
+   * O `player` sai de `qualMotor`, que e estado do React, e por isso fica
+   * congelado no closure de tudo o que for `async`. O caminho que poe uma
+   * faixa a tocar demora entre cinco e trinta segundos (resolver o YouTube e
+   * descarregar o ficheiro), e uma passagem que termine a meio disso TROCA o
+   * motor activo.
+   *
+   * Quando isso acontece, o audio acaba instalado no motor que ja nao manda,
+   * enquanto a app -- controlos, watchdog, posicao -- esta a olhar para o
+   * outro. Nada toca, a posicao fica em 0:00, e mudar de faixa nao resolve
+   * porque a proxima tentativa tem o mesmo risco. So reiniciar.
+   *
+   * Isto existia antes, mas era dificil de apanhar: a passagem so comecava
+   * mesmo no fim do ficheiro. Desde que ela passou a comecar no fim da MUSICA,
+   * a janela ficou muito maior -- e foi por isso que apareceu agora.
+   */
+  const qualMotorRef = useRef(qualMotor);
+  qualMotorRef.current = qualMotor;
+  const motorActivo = () => (qualMotorRef.current === 'a' ? motorA : motorB);
+
+  /**
    * A faixa que o motor em espera já tem carregada, se houver.
    *
    * Enquanto isto for `null` a app comporta-se exatamente como antes: sem
@@ -789,7 +812,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       const resumeMs = st.resumePositionMs;
       if (resumeMs && resumeMs > 1500) {
         try {
-          player.currentTime = resumeMs / 1000;
+          motorActivo().currentTime = resumeMs / 1000;
         } catch {
           // seek falhou — recomeça do início
         }
@@ -802,17 +825,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       nativeTrackIdRef.current = track.sourceId;
       wantsPlayRef.current = autoplay;
       if (autoplay) {
-        player.play();
+        motorActivo().play();
         fadeIn();
       } else {
         // Garantia explícita de pausa: nada abaixo pode arrancar o playback
         // (nem o efeito da velocidade — ver guard de wantsPlayRef acima).
         try {
-          player.pause();
+          motorActivo().pause();
         } catch {
           // player sem fonte — ignorar
         }
-        player.volume = ceilingRef.current;
+        motorActivo().volume = ceilingRef.current;
         st._setIsPlaying(false);
         st._setBuffering(false);
       }
@@ -823,7 +846,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const localFile = cachedAudioFile(track.sourceId);
     if (localFile.exists) {
       try {
-        await trocarFonte(player, {
+        await trocarFonte(motorActivo(), {
           uri: localFile.uri,
           contentType: 'progressive',
           metadata: metadadosDoEcraBloqueado(track),
@@ -905,7 +928,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         setDownloadProgress(null);
       }
 
-      await trocarFonte(player, {
+      await trocarFonte(motorActivo(), {
         uri: playableUri,
         contentType: stream.isHls ? 'hls' : 'progressive',
         metadata: metadadosDoEcraBloqueado(track),
@@ -981,7 +1004,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (!stream || stream.isHls || downloadTriedRef.current) return false;
     downloadTriedRef.current = true;
     const myRun = runIdRef.current;
-    const resumeAt = player.currentTime;
+    const resumeAt = motorActivo().currentTime;
     try {
       const uri = await downloadProgressiveAudio(
         track.sourceId,
@@ -1000,7 +1023,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       );
       setDownloadProgress(null);
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
-      await trocarFonte(player, {
+      await trocarFonte(motorActivo(), {
         uri,
         contentType: 'progressive',
         metadata: metadadosDoEcraBloqueado(track),
@@ -1008,11 +1031,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       nativeTrackIdRef.current = track.sourceId;
       try {
-        if (resumeAt > 1) player.currentTime = resumeAt;
+        if (resumeAt > 1) motorActivo().currentTime = resumeAt;
       } catch {
         // ignorar — recomeça do início se o seek falhar
       }
-      player.play();
+      motorActivo().play();
       fadeIn();
     } catch (e: any) {
       setDownloadProgress(null);

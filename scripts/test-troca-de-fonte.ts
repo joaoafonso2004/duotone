@@ -197,8 +197,42 @@ await verificar('um erro numa troca não impede a seguinte', async () => {
   assert.equal(segunda, true, 'a segunda troca não chegou a acontecer');
 });
 
+// ---- e no motor certo ------------------------------------------------------
+//
+// O `player` do YouTubePlayerView sai de `qualMotor`, que e estado do React:
+// fica congelado no closure de tudo o que seja `async`. O caminho que poe uma
+// faixa a tocar demora entre cinco e trinta segundos, e uma passagem que
+// termine a meio disso troca o motor activo.
+//
+// Quando isso acontece, o audio e instalado no motor que ja nao manda enquanto
+// a app olha para o outro: nada toca, a posicao fica em 0:00, e mudar de faixa
+// nao resolve. So reiniciar. E o mesmo sintoma da corrida do expo-video, por
+// outra porta -- e nenhum tipo o apanha, porque `player` e uma variavel
+// perfeitamente valida.
+
+console.log('\nNo motor certo:');
+
+await verificar('as trocas de fonte usam o motor activo AGORA, não o do closure', async () => {
+  const { readFileSync } = await import('node:fs');
+  const fonte = readFileSync(
+    new URL('../src/components/YouTubePlayerView.tsx', import.meta.url),
+    'utf8'
+  );
+  const chamadas = [...fonte.matchAll(/trocarFonte\(\s*([A-Za-z().]+)\s*,/g)].map((m) => m[1]);
+  assert.ok(chamadas.length >= 3, `só ${chamadas.length} trocas de fonte -- o teste ficou cego`);
+
+  const permitidos = new Set(['motorActivo()', 'emEspera']);
+  const más = chamadas.filter((c) => !permitidos.has(c));
+  assert.deepEqual(
+    más,
+    [],
+    'estas trocas usam um motor capturado no render e podem instalar o áudio ' +
+      `no motor errado: ${más.join(', ')}`
+  );
+});
+
 if (falhas > 0) {
   console.error(`\n${falhas} teste(s) falharam`);
   process.exit(1);
 }
-console.log('\nTroca de fonte: uma de cada vez, e a bandeira desce sempre.');
+console.log('\nTroca de fonte: uma de cada vez, no motor certo, e a bandeira desce sempre.');
