@@ -43,6 +43,7 @@ import { useEstadoDoWidget } from './src/hooks/useEstadoDoWidget';
 import { useRecomendacoes } from './src/state/recomendacoes';
 import { iniciarPresenca } from './src/lib/presenceSync';
 import { useOuvirJuntos } from './src/state/ouvirJuntos';
+import { aquecerPerfil, limparCachePerfil } from './src/lib/cachePerfil';
 import { sincronizarPreferencias } from './src/lib/prefsSync';
 import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
@@ -85,9 +86,13 @@ export default function App() {
     // volta-se a entrar nela em silencio. Sair e uma decisao, e faz-se pela
     // barra.
     void useOuvirJuntos.getState().ligar(userId);
+    // O perfil fica lido antes de alguem la tocar. Ao sair da conta a cache
+    // e esquecida: os dados de quem sai nao podem aparecer a quem entra.
+    void aquecerPerfil(userId);
     return () => {
       pararPresenca(); pararSocial(); pararPrefs(); pararEventos();
       useOuvirJuntos.getState().desligar();
+      limparCachePerfil();
     };
   }, [userId,offline]);
 

@@ -18,6 +18,8 @@ import { naoLidasPorAmigo } from '../lib/social';
 import { ArtworkCollage } from './ArtworkCollage';
 import { ProfileEditor } from './ProfileEditor';
 import { ProfileHero } from './ProfileHero';
+import { guardarPerfil, perfilEmCache } from '../lib/cachePerfil';
+import { SkeletonDoPerfil } from './Skeleton';
 import { ProfilePlaylistPicker } from './ProfilePlaylistPicker';
 import { SocialTrackActions } from './SocialTrackActions';
 import { SocialButton,SocialIconButton,socialStyles as s } from './socialUI';
@@ -83,6 +85,17 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
       if(l.status==='fulfilled')setPlaylists(l.value);
       if(c.status==='fulfilled')setGuardadas(c.value);
       if(h.status==='fulfilled'){setHighlights(h.value);setHighlightsLoaded(true);}
+      // A leitura boa fica guardada: a proxima abertura pinta com ela e so
+      // depois actualiza, em vez de mostrar uma roda a girar.
+      guardarPerfil(userId,{
+        perfil:p,
+        most:m.status==='fulfilled'?m.value:[],
+        recent:r.status==='fulfilled'?r.value:[],
+        playlists:l.status==='fulfilled'?l.value:[],
+        guardadas:c.status==='fulfilled'?c.value:new Set<string>(),
+        highlights:h.status==='fulfilled'?h.value:{playlistIds:[],moment:null},
+        highlightsLidos:h.status==='fulfilled',
+      });
       setSectionErrors({
         most:m.status==='rejected'?'Could not load your most played songs.':'',
         recent:r.status==='rejected'?'Could not load listening history.':'',
@@ -95,16 +108,32 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
   // outra conta e não pode ficar à vista. Uma mudança de amizade ou uma ação
   // não são motivo para apagar nada.
   useEffect(()=>{
-    setProfile(null);setEditing(false);setChoosingPlaylists(false);setPlaylistMutationError('');
-    setSectionErrors({most:'',recent:'',playlists:'',copies:''});setHighlights({playlistIds:[],moment:null});
-    setMost([]);setRecent([]);setTudoMais(false);setTudoRecente(false);setPlaylists([]);setGuardadas(new Set());
+    setEditing(false);setChoosingPlaylists(false);setPlaylistMutationError('');
+    setSectionErrors({most:'',recent:'',playlists:'',copies:''});
+    setTudoMais(false);setTudoRecente(false);
+    // Se ja se leu esta pessoa nesta sessao, o ecra pinta JA com o que se
+    // sabe e a leitura nova corre por baixo. Limpar tudo aqui era o que
+    // obrigava a uma roda a girar mesmo quando nada tinha mudado.
+    const guardado=perfilEmCache(userId);
+    if(guardado){
+      setProfile(guardado.perfil as any);
+      setMost(guardado.most as any);setRecent(guardado.recent as any);
+      setPlaylists(guardado.playlists as any);setGuardadas(guardado.guardadas);
+      setHighlights(guardado.highlights as any);setHighlightsLoaded(guardado.highlightsLidos);
+      setLoading(false);
+      return;
+    }
+    setProfile(null);setHighlights({playlistIds:[],moment:null});
+    setMost([]);setRecent([]);setPlaylists([]);setGuardadas(new Set());
   },[userId]);
   const jaLido=useRef<string|null>(null);
   useEffect(()=>{
     if(!active)return;
     // Só a primeira leitura de cada pessoa mostra o carregamento; as
     // seguintes entram por baixo.
-    const primeira=jaLido.current!==userId;
+    // Silenciosa tambem quando ha cache: o ecra ja tem conteudo, e pousar-lhe
+    // um carregamento por cima seria esconder o que ja se ve.
+    const primeira=jaLido.current!==userId&&!perfilEmCache(userId);
     jaLido.current=userId;
     void load(!primeira);
     return()=>{request.current++;};
@@ -222,7 +251,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
         onMessage={()=>onMessage(userId)} onRefresh={()=>void load()} pending={friend?.status==='pending'}
         onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError('Could not send the friend request. Please try again.'));}}/>
       <View style={{paddingHorizontal:SOCIAL_GUTTER,gap:28}}>
-      {loading&&!profile&&<ActivityIndicator color={accent}/>}
+      {loading&&!profile&&<SkeletonDoPerfil/>}
       {!!error&&sectionFailure(error)}
       {profile&&<>
         {friend?.currentlyPlaying&&profile.canView&&<Pressable accessibilityRole="button" accessibilityLabel={`Play ${friend.currentlyPlaying.title}`}

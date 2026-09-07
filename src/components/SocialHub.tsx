@@ -20,6 +20,7 @@ import { MessageBubble,ReactionRow } from './ReactionRow';
 import { getPlaylistPreviews } from '../api/playlists';
 import { GroupAvatar,GroupChatHeader,GroupComposer,GroupDetails,GroupEmptyState,GroupMessage } from './GroupChat';
 import { ConviteDeSessao } from './ConviteDeSessao';
+import { SkeletonDeConversas } from './Skeleton';
 import type { Playlist,Track } from '../types';
 
 export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string}) {
@@ -154,7 +155,9 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
     </View>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{gap:16,paddingBottom:bottomPadding}}>
       {(error||social.error)&&<Text accessibilityRole="alert" style={s.error}>{error||social.error}</Text>}
-      {social.loading&&<ActivityIndicator color={accent}/>}
+      {/* Um esqueleto com a forma da lista, e nao uma roda: diz o que vem a
+          seguir e quanto e, em vez de dizer so 'espera'. */}
+      {social.loading&&!accepted.length&&<SkeletonDeConversas/>}
       <>
         {pending.length>0&&<Text style={s.label}>Friend requests</Text>}
         {pending.map(f=><View key={f.friendId} style={s.card}><View style={s.row}><FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={44}/><View style={{flex:1}}><Text style={s.text}>{f.name}</Text><Text style={s.muted}>{f.isSender?'Request sent':'Wants to be your friend'}</Text></View></View><View style={s.row}>{!f.isSender&&<SocialButton primary disabled={busy} onPress={()=>void run(()=>acceptFriendRequest(f.friendId))}>Accept</SocialButton>}<SocialButton quiet disabled={busy} onPress={()=>void run(()=>declineOrRemoveFriendship(f.friendId))}>{f.isSender?'Cancel request':'Decline'}</SocialButton></View></View>)}

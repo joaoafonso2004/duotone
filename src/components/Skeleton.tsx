@@ -106,5 +106,72 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   capa: { width: 48, height: 48, borderRadius: radii.sm },
+  avatarGrande: { width: 54, height: 54, borderRadius: 27 },
+  conversa: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    minHeight: 68,
+    paddingHorizontal: spacing.xl,
+  },
   redondo: { width: 48, height: 48, borderRadius: 24 },
 });
+
+/**
+ * A lista de conversas do Social: avatar redondo grande, nome e a linha de
+ * baixo (o que está a ouvir, ou quando foi visto).
+ *
+ * As medidas são as do `socialStyles.conversa` -- 54 de avatar, 68 de altura
+ * mínima. Um esqueleto com outras medidas é pior do que nenhum: promete uma
+ * forma e chega outra, e o salto na troca vê-se.
+ */
+export function SkeletonDeConversas({ linhas = 6 }: { linhas?: number }) {
+  return (
+    <View accessibilityLabel="A carregar">
+      {Array.from({ length: linhas }).map((_, i) => (
+        <View key={i} style={styles.conversa}>
+          <Barra style={styles.avatarGrande} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <Barra style={{ height: 12, width: `${58 - (i % 3) * 12}%` }} />
+            <Barra style={{ height: 10, width: `${76 - (i % 4) * 14}%` }} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * O perfil: a capa e o avatar em cima, e as secções por baixo.
+ *
+ * Não tenta desenhar o perfil todo -- só o que ocupa o primeiro ecrã. Um
+ * esqueleto que continua para lá do que se vê é trabalho a mais para desenhar
+ * o que ninguém está a olhar.
+ */
+export function SkeletonDoPerfil() {
+  return (
+    <View accessibilityLabel="A carregar" style={{ gap: spacing.xl }}>
+      <View style={{ gap: spacing.md }}>
+        <Barra style={{ height: 132, borderRadius: radii.lg }} />
+        <View style={{ paddingHorizontal: spacing.xl, gap: 9 }}>
+          <Barra style={{ height: 16, width: '46%' }} />
+          <Barra style={{ height: 11, width: '30%' }} />
+        </View>
+      </View>
+      {[0, 1].map((n) => (
+        <View key={n} style={{ paddingHorizontal: spacing.xl, gap: spacing.md }}>
+          <Barra style={{ height: 10, width: '34%' }} />
+          {[0, 1, 2].map((i) => (
+            <View key={i} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+              <Barra style={styles.capa} />
+              <View style={{ flex: 1, gap: 7 }}>
+                <Barra style={{ height: 11, width: `${70 - (i % 3) * 14}%` }} />
+                <Barra style={{ height: 9, width: `${42 - (i % 2) * 12}%` }} />
+              </View>
+            </View>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
