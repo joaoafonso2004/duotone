@@ -56,7 +56,7 @@ const PONTOS = [
   { x: 0.93, y: 0.26, r: 1.2, o: 0.6 },
 ];
 
-function usarMovimentoReduzido(): boolean {
+function useMovimentoReduzido(): boolean {
   const [reduzido, setReduzido] = useState(false);
   useEffect(() => {
     let vivo = true;
@@ -109,7 +109,7 @@ function Campo({ largura, altura, deslocamento }: {
  * decide a forma, o que dispensa escrever o mesmo raio em dois sítios.
  */
 export function BrilhoInteligente() {
-  const parado = usarMovimentoReduzido();
+  const parado = useMovimentoReduzido();
   const desliza = useRef(new Animated.Value(0)).current;
   const [medida, setMedida] = useState({ largura: 0, altura: 0 });
   const { largura, altura } = medida;
@@ -190,7 +190,7 @@ export function BrilhoInteligente() {
 export function EstrelaInteligente({ tamanho = 11, cor = '#E8B84B' }: {
   tamanho?: number; cor?: string;
 }) {
-  const parado = usarMovimentoReduzido();
+  const parado = useMovimentoReduzido();
   const pulso = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {

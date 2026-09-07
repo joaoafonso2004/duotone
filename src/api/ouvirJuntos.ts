@@ -255,3 +255,16 @@ export async function tirarDaFila(item: string): Promise<void> {
   const { error } = await supabase.rpc('tirar_da_fila', { p_item: item });
   if (error) throw error;
 }
+
+export async function avancarFila(sessao: string, item: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('avancar_fila_da_sessao', { p_session: sessao, p_item: item });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function procurarNaSessao(sessao: string, ms: number): Promise<void> {
+  const { error } = await supabase.rpc('procurar_na_sessao', {
+    p_session: sessao, p_posicao_ms: Math.max(0, Math.round(ms)),
+  });
+  if (error) throw error;
+}

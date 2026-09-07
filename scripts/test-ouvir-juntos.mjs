@@ -63,6 +63,8 @@ console.log('Ouvir juntos -- migração:');
 await verificar('aplica-se, e aplica-se outra vez sem se queixar', async () => {
   await db.exec(ler('ouvir-juntos.sql'));
   await db.exec(ler('ouvir-juntos.sql'));
+  await db.exec(ler('jam-solido.sql'));
+  await db.exec(ler('jam-solido.sql'));
 });
 
 const FAIXA = JSON.stringify({
@@ -446,6 +448,52 @@ await verificar('avança entre chamadas dentro da mesma transacção', async () 
   // mesmo -- um relogio que nao anda nao serve para medir nada.
   const r = await q('select public.hora_do_servidor() as a, pg_sleep(0.01), public.hora_do_servidor() as b');
   assert.ok(new Date(r.rows[0].b) > new Date(r.rows[0].a), 'a hora não avançou: está marcada `stable`?');
+});
+
+console.log('\nJam sólido: avanço e procura atómicos');
+await verificar('convidado com controlo consome a sugestão do anfitrião uma única vez', async () => {
+  await como(1);
+  const s = (await q('select criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  const item = (await q('select juntar_a_fila($1,$2::jsonb) as id', [s, OUTRA])).rows[0].id;
+  const segundo = (await q('select juntar_a_fila($1,$2::jsonb) as id', [s, FAIXA])).rows[0].id;
+  await como(2);
+  await q('select entrar_na_sessao($1)', [s]);
+  await assert.rejects(q('select avancar_fila_da_sessao($1,$2)', [s, item]), /controlo|autoriz|permiss|anfitri/i);
+  await como(1);
+  await q('select permitir_controlo_aos_convidados($1,true)', [s]);
+  await como(2);
+  assert.equal((await q('select avancar_fila_da_sessao($1,$2) as ok', [s, item])).rows[0].ok, true);
+  assert.equal((await q('select track from listening_sessions where id=$1', [s])).rows[0].track.sourceId, 'def456');
+  assert.equal((await q('select avancar_fila_da_sessao($1,$2) as ok', [s, item])).rows[0].ok, false);
+  assert.deepEqual((await q('select id from listening_queue where session_id=$1', [s])).rows.map(r => r.id), [segundo]);
+  await q('select procurar_na_sessao($1,42000)', [s]);
+  const tocando = (await q('select is_playing,paused_position_ms from listening_sessions where id=$1', [s])).rows[0];
+  assert.equal(tocando.is_playing, true, 'seek não emite pausa intermédia');
+  assert.equal(tocando.paused_position_ms, 42000);
+  await q('select pausar_sessao($1,42000)', [s]);
+  await q('select procurar_na_sessao($1,12000)', [s]);
+  const pausada = (await q('select is_playing,paused_position_ms from listening_sessions where id=$1', [s])).rows[0];
+  assert.equal(pausada.is_playing, false);
+  assert.equal(pausada.paused_position_ms, 12000);
+  await como(1);
+  await q('select permitir_controlo_aos_convidados($1,false)', [s]);
+  await como(2);
+  await assert.rejects(q('select procurar_na_sessao($1,0)', [s]));
+  await assert.rejects(q('select avancar_fila_da_sessao($1,$2)', [s, segundo]));
+  await como(3);
+  await assert.rejects(q('select avancar_fila_da_sessao($1,$2)', [s, segundo]));
+});
+
+await verificar('falhar a mudança de faixa não perde a sugestão', async () => {
+  await como(1);
+  const s = (await q('select criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  const item = (await q('select juntar_a_fila($1,$2::jsonb) as id', [s, OUTRA])).rows[0].id;
+  await db.exec('reset role');
+  await q(`update listening_queue set track='{"source":"invalida"}'::jsonb where id=$1`, [item]);
+  await como(1);
+  await assert.rejects(q('select avancar_fila_da_sessao($1,$2)', [s, item]));
+  assert.equal((await q('select id from listening_queue where id=$1', [item])).rows.length, 1);
+  assert.equal((await q('select track from listening_sessions where id=$1', [s])).rows[0].track.sourceId, 'abc123');
 });
 
 if (falhas > 0) {

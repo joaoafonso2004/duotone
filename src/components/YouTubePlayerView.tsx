@@ -174,7 +174,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
   const playbackRate = usePlayer((s) => s.playbackRate);
-  const correcaoDeSincronia = usePlayer((s) => s.correcaoDeSincronia);
+  const sessaoJam = useOuvirJuntos(s => s.sessao?.id);
+  const filaJam = useOuvirJuntos(s => s.fila);
   // Só para as dependências do pré-carregamento: ligar/desligar o shuffle a
   // meio de uma faixa muda qual é a faixa seguinte.
   const shuffle = usePlayer((s) => s.shuffle);
@@ -373,12 +374,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // arrancava a música sozinho no restauro de sessão (que fica em pausa).
   useEffect(() => {
     if (backend !== 'native' || !wantsPlayRef.current) return;
-    // A escolha do utilizador VEZES a correcao de sincronia. Ver
-    // `velocidadeAAplicar` e o comentario do `correcaoDeSincronia`: escrever a
-    // correccao no `playbackRate` fazia a app lembrar-se para sempre de que
-    // aquela musica se ouve a 1,02.
-    player.playbackRate = playbackRate * correcaoDeSincronia;
-  }, [backend, player, playbackRate, correcaoDeSincronia]);
+    if (player.playbackRate !== playbackRate) player.playbackRate = playbackRate;
+  }, [backend, player, playbackRate]);
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
   // recente sem re-executar a cada render (a função é recriada em cada um).
@@ -490,7 +487,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const prepararSeguinte = async () => {
     if (aPrepararRef.current || backend !== 'native') return;
     const st = usePlayer.getState();
-    const seguinte = st.peekNextTrack();
+    const seguinte = st.proximaFaixa();
     if (!seguinte || seguinte.source !== 'youtube') return;
     if (seguinte.sourceId === track.sourceId) return;
     if (seguinteRef.current?.sourceId === seguinte.sourceId) return;
@@ -1176,8 +1173,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // buscar uma sugestão), a faixa que sai começava uma SEGUNDA
         // passagem por cima da que já estava a tocar em cheio.
         const st = usePlayer.getState();
-        const seguinte = st.peekNextTrack();
-        if (!seguinte || seguinte.sourceId !== preparada.sourceId) {
+        const seguinte = st.proximaFaixa();
+        if (useOuvirJuntos.getState().sessao || !seguinte || seguinte.sourceId !== preparada.sourceId) {
           // A fila mudou por baixo: deixa preparar outra vez.
           seguinteRef.current = null;
           reporIntervaloDeTempo();
@@ -1412,19 +1409,14 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
   },[closeGain,closing,backend,player]);
 
-  // Smart Cache: Pré-descarrega a próxima música da fila em segundo plano após 5 segundos
-  //
-  // A faixa vem do `peekNextTrack` da store, que é a MESMA decisão que o
-  // `next()` toma. Antes isto era `queueIndex + 1` fixo, e com shuffle ligado
-  // pré-carregava sistematicamente a faixa errada: gastava rede e a seguinte
-  // apanhava na mesma o buraco do download. Também ignorava a volta do
-  // repeat "all" (da última para a primeira).
+  // O Smart Cache segue a mesma decisão da reprodução. Uma sugestão que chega
+  // depois do primeiro timer volta a disparar o efeito e cancela a antiga.
   useEffect(() => {
     if (backend !== 'native') return;
 
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const nextTrack = usePlayer.getState().peekNextTrack();
+      const nextTrack = usePlayer.getState().proximaFaixa();
       if (!nextTrack || nextTrack.source !== 'youtube') return;
       // Fila de uma faixa só, ou repeat "one": não há nada para adiantar.
       if (nextTrack.sourceId === track.sourceId) return;
@@ -1478,7 +1470,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [track.sourceId, backend, queue, queueIndex, shuffle, repeatMode]);
+  }, [track.sourceId, backend, queue, queueIndex, shuffle, repeatMode, sessaoJam, filaJam]);
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
   useEffect(() => {

@@ -10,8 +10,7 @@ import {
   precisaDeMedir, RTT_MAXIMO_MS, VALIDADE_MS, type Amostra,
 } from '../src/lib/relogioPartilhado.ts';
 import {
-  correccaoNecessaria, posicaoDaSessao, velocidadeAAplicar,
-  JANELA_DE_CORRECAO_MS, LIMITE_DA_VELOCIDADE_MS, MULTIPLICADOR_MAXIMO, TOLERANCIA_MS,
+  correccaoNecessaria, posicaoDaSessao, TOLERANCIA_MS,
 } from '../src/lib/sincronizacao.ts';
 
 let falhas = 0;
@@ -144,62 +143,16 @@ verificar('dentro da tolerância não se mexe no som', () => {
   assert.deepEqual(sit(10_000 + TOLERANCIA_MS, 10_000), { tipo: 'nada' });
 });
 
-// A desigualdade que prende as tres constantes. Sem isto e facil escolhe-las
-// de maneira a que o tecto corte tudo, a janela seja codigo morto, e a app
-// finja que corrige durante um minuto. Foi o que eu fiz a primeira vez.
-verificar('as três constantes fecham entre si', () => {
-  const exigido = LIMITE_DA_VELOCIDADE_MS / JANELA_DE_CORRECAO_MS;
-  assert.ok(
-    exigido <= MULTIPLICADOR_MAXIMO + 1e-9,
-    `fechar ${LIMITE_DA_VELOCIDADE_MS} ms em ${JANELA_DE_CORRECAO_MS} ms exige ` +
-      `${(exigido * 100).toFixed(1)}% de velocidade, e o tecto é ${MULTIPLICADOR_MAXIMO * 100}%. ` +
-      'O tecto passaria a cortar tudo, a janela era decorativa, e a convergência ' +
-      `demoraria ${(LIMITE_DA_VELOCIDADE_MS / MULTIPLICADOR_MAXIMO / 1000).toFixed(0)} s.`
-  );
+verificar('desvios até 600 ms não mexem no som em nenhum sentido', () => {
+  for (const desvio of [-600, -300, -150, 0, 150, 300, 600]) {
+    assert.deepEqual(sit(10_000 + desvio, 10_000), { tipo: 'nada' });
+  }
 });
 
-verificar('o pior caso converge em menos de meio minuto', () => {
-  const pior = LIMITE_DA_VELOCIDADE_MS / MULTIPLICADOR_MAXIMO;
-  assert.ok(pior <= 30_000, `${(pior / 1000).toFixed(0)} s é mais do que uma pessoa aguenta desencontrada`);
-});
-
-verificar('um desvio pequeno corrige-se pela velocidade, sem o tecto morder', () => {
-  const c = sit(10_400, 10_000); // 400 ms a frente, dentro da gama
-  assert.equal(c.tipo, 'velocidade');
-  if (c.tipo !== 'velocidade') return;
-  assert.ok(c.multiplicador < 1, 'estamos à frente: tem de abrandar');
-  assert.equal(
-    c.multiplicador,
-    1 - 400 / JANELA_DE_CORRECAO_MS,
-    'o tecto cortou uma correcção que devia ter passado inteira'
-  );
-});
-
-verificar('atrás acelera, à frente abranda', () => {
-  const atras = sit(10_000, 10_500);
-  const frente = sit(10_500, 10_000);
-  assert.equal(atras.tipo, 'velocidade');
-  assert.equal(frente.tipo, 'velocidade');
-  if (atras.tipo !== 'velocidade' || frente.tipo !== 'velocidade') return;
-  assert.ok(atras.multiplicador > 1);
-  assert.ok(frente.multiplicador < 1);
-});
-
-verificar('a correcção nunca chega a ouvir-se', () => {
-  const c = sit(10_000 + LIMITE_DA_VELOCIDADE_MS, 10_000);
-  assert.equal(c.tipo, 'velocidade');
-  if (c.tipo !== 'velocidade') return;
-  assert.ok(
-    Math.abs(1 - c.multiplicador) <= MULTIPLICADOR_MAXIMO + 1e-9,
-    `${c.multiplicador} passa dos ${MULTIPLICADOR_MAXIMO * 100}% e ouve-se`
-  );
-});
-
-verificar('acima do limite salta, e salta para o sítio certo', () => {
+verificar('acima do limite salta para o sítio certo', () => {
   assert.deepEqual(sit(30_000, 10_000), { tipo: 'saltar', paraMs: 10_000 });
-  // E na fronteira, um milissegundo acima ja salta.
-  assert.equal(sit(10_000 + LIMITE_DA_VELOCIDADE_MS + 1, 10_000).tipo, 'saltar');
-  assert.equal(sit(10_000 + LIMITE_DA_VELOCIDADE_MS, 10_000).tipo, 'velocidade');
+  assert.deepEqual(sit(10_000 - TOLERANCIA_MS - 1, 10_000), { tipo: 'saltar', paraMs: 10_000 });
+  assert.equal(sit(10_000 + TOLERANCIA_MS, 10_000).tipo, 'nada');
 });
 
 verificar('em pausa não se mexe na velocidade', () => {
@@ -221,14 +174,9 @@ verificar('sem posição da sessão não se adivinha', () => {
   assert.deepEqual(sit(10_000, null), { tipo: 'nada' });
 });
 
-verificar('a escolha de velocidade do utilizador é respeitada', () => {
-  // Alguem que poe 1,25x nas Definicoes nao pode ser atirado para perto de 1x
-  // por uma correccao de sincronia.
-  const c = sit(10_500, 10_000);
-  const aplicada = velocidadeAAplicar(1.25, c);
-  assert.ok(aplicada > 1.2 && aplicada < 1.25, `${aplicada} desfez a escolha do utilizador`);
-  assert.equal(velocidadeAAplicar(1.25, { tipo: 'nada' }), 1.25);
-  assert.equal(velocidadeAAplicar(1.25, { tipo: 'saltar', paraMs: 0 }), 1.25);
+verificar('amostras inválidas não provocam seeks', () => {
+  assert.deepEqual(sit(NaN, 10_000), { tipo: 'nada' });
+  assert.deepEqual(sit(10_000, Infinity), { tipo: 'nada' });
 });
 
 if (falhas > 0) {

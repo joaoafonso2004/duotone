@@ -235,7 +235,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSave
     onMoveShouldSetPanResponder: (_e,g)=>!usePlayer.getState().closing&&g.dx>14&&g.dx>Math.abs(g.dy)*1.5,
     onPanResponderGrant:()=>{swiping.current=true;},
     onPanResponderMove:(_e,g)=>setDragX(Math.max(0,g.dx)),
-    onPanResponderRelease: (_e,g)=>{if(confirmaSwipe(g.dx,g.dy,g.vx,swipeWidth.current))void closePlayerSmoothly();else setDragX(0);setTimeout(()=>{swiping.current=false;},200);},
+    onPanResponderRelease: (_e,g)=>{if(confirmaSwipe(g.dx,g.dy,g.vx,swipeWidth.current))void closePlayerSmoothly().then(()=>setDragX(0));else setDragX(0);setTimeout(()=>{swiping.current=false;},200);},
     onPanResponderTerminate:()=>{setDragX(0);swiping.current=false;},
   })).current;
   const volumeAudivel = useRef(80);

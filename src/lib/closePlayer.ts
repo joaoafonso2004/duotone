@@ -7,7 +7,14 @@ export function confirmaSwipe(dx:number,dy:number,vx:number,width:number):boolea
 let pending:Promise<void>|null=null;
 /** O ganho é transitório: não altera volume, mute ou preferências guardadas. */
 export function closePlayerSmoothly():Promise<void> {
-  if(usePlayer.getState().closing&&pending)return pending;
+  if(pending)return pending;
+  const operation=fechar();
+  pending=operation;
+  void operation.finally(()=>{if(pending===operation)pending=null;});
+  return operation;
+}
+async function fechar():Promise<void> {
+  if(!await usePlayer.getState().prepararFecho())return;
   const track=usePlayer.getState().current;if(!track)return Promise.resolve();
   usePlayer.setState({closing:true,closeGain:1});
   const start=Date.now();
@@ -29,7 +36,5 @@ export function closePlayerSmoothly():Promise<void> {
       if(gain===0){clearInterval(timer);void state.close().then(resolve,()=>{usePlayer.setState({closing:false,closeGain:1});resolve();});}
     },16);
   });
-  pending=operation;
-  void operation.finally(()=>{if(pending===operation)pending=null;});
   return operation;
 }

@@ -178,7 +178,7 @@ export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
  * ficavam simplesmente inalcancaveis com um rato. Daqui saem as duas maneiras
  * de la chegar: as setas, que se veem, e o arrasto, que se tenta.
  */
-function usarCarrossel() {
+function useCarrossel() {
   const ref = useRef<any>(null);
   const [podeEsquerda, setPodeEsquerda] = useState(false);
   const [podeDireita, setPodeDireita] = useState(false);
@@ -276,7 +276,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore }: {
   titulo: string; nota?: string; tracks: Track[];
   onPlay: (track: Track, fila: Track[]) => void; onMore?: (track: Track) => void;
 }) {
-  const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = usarCarrossel();
+  const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
   if (!tracks.length) return null;
   const rola = podeEsquerda || podeDireita;
   return <View style={{ marginBottom: ESP.xxl }}>

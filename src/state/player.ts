@@ -1,3 +1,4 @@
+import { proximaFaixa, decisaoDeControlo, type PonteJam } from '../lib/jam';
 import {ensureLyrics} from './lyrics';
 import { useConnectivity } from './connectivity';
 import { filterSuggestions } from './recommendationFeedback';
@@ -67,33 +68,15 @@ const posicao = (ms: number) => ({ positionMs: ms, positionAt: Date.now() });
  */
 export const ATRASO_DA_SUGESTAO_MS = 2000;
 
-/**
- * A sessao de escuta, se houver, sem a store do leitor a saber dela.
- *
- * Mesmo ponto de registo do `registarFimNaSessao`: um import directo punha a
- * store do leitor a depender do ouvir-juntos, e sao camadas diferentes.
- */
-let ouvirJuntos: () => {
-  sessao: unknown;
-  sugerir: (t: Track) => Promise<void>;
-} | null = () => null;
-export function registarOuvirJuntos(fn: typeof ouvirJuntos): void {
-  ouvirJuntos = fn;
-}
+/** Registada sincronamente pela store Jam, sem depender da montagem do player. */
+let ouvirJuntos: () => PonteJam | null = () => null;
+export function registarOuvirJuntos(fn: typeof ouvirJuntos): void { ouvirJuntos = fn; }
 
-/**
- * Quem trata do fim da faixa quando ha uma sessao de escuta a decorrer.
- *
- * Um ponto de registo e nao um import directo: assim a store do leitor
- * continua a nao saber que o ouvir-juntos existe. Quem regista e o
- * `useSincroniaDaSessao`, e so enquanto ha sessao e permissao para mandar --
- * fora disso isto e nulo e o fim de faixa segue o caminho de sempre.
- *
- * Devolve `true` se tratou do assunto (havia fila e ela avancou).
- */
-let aoAcabarNaSessao: (() => Promise<boolean>) | null = null;
-export function registarFimNaSessao(fn: (() => Promise<boolean>) | null): void {
-  aoAcabarNaSessao = fn;
+/** Erros de comandos ficam visíveis na barra e nunca caem em reprodução local. */
+async function comandarJam(acao: (s: PonteJam) => Promise<void>): Promise<void> {
+  const s = ouvirJuntos();
+  if (!s) return;
+  try { await acao(s); } catch { s.avisarErro(); }
 }
 
 const getInitialVolume = () => {
@@ -191,19 +174,6 @@ interface PlayerState {
   /** Velocidade de reproducao, 0,25 a 2 em degraus de 0,1 (ver
    * `lib/playbackRate.ts`). Substituiu os tres presets. */
   playbackRate: number;
-  /**
-   * Correcção de sincronia numa sessão de escuta partilhada. 1 = nenhuma.
-   *
-   * É um MULTIPLICADOR à parte, e não um valor escrito no `playbackRate`, por
-   * duas razões. A preferência de velocidade é do utilizador e fica guardada
-   * POR FAIXA (`lembrarDaFaixa`): escrever 1,02 lá dentro fazia a app lembrar-se
-   * para sempre de que aquela música se ouve a 1,02. E quem tem 1,25x escolhido
-   * não pode ser atirado para perto de 1x só porque está a ouvir com um amigo.
-   *
-   * Quem multiplica os dois é o motor, no `YouTubePlayerView`. Ver
-   * `velocidadeAAplicar` em `lib/sincronizacao.ts`.
-   */
-  correcaoDeSincronia: number;
   /** Os dez ganhos do equalizador, em dB, aplicados pelo motor de cada plataforma. */
   eqGanhos: Ganhos;
   /** O que cada faixa lembra da ultima vez que a ouviste. */
@@ -266,9 +236,11 @@ interface PlayerState {
   playNext: (track: Track) => void;
   addToQueue: (track: Track) => void;
   togglePlay: () => Promise<void>;
+  _sincronizarPausa: (aTocar: boolean) => void;
   next: () => Promise<void>;
   prev: () => Promise<void>;
   close: () => Promise<void>;
+  prepararFecho: () => Promise<boolean>;
   setExpanded: (v: boolean) => void;
   setRepeatMode: (m: RepeatMode) => void;
   cycleRepeat: () => void;
@@ -291,13 +263,12 @@ interface PlayerState {
   moveQueueItem: (fromIndex: number, toIndex: number) => void;
   removeFromQueue: (index: number) => void;
 
-  seekTo: (ms: number) => Promise<void>;
+  seekTo: (ms: number, interno?: boolean) => Promise<void>;
 
-  /** Que faixa é que o `next()` tocaria a seguir, sem tocar nada.
-   * Existe para o pré-carregamento no YouTubePlayerView usar EXATAMENTE a
-   * mesma decisão que o `next()` — antes descarregava sempre `queueIndex+1`
-   * e com shuffle ligado pré-carregava sempre a faixa errada. */
+  /** Decisão da fila pessoal. Consumidores devem usar proximaFaixa. */
   peekNextTrack: () => Track | null;
+  /** Única decisão pública: fila Jam durante a sessão, fila pessoal fora dela. */
+  proximaFaixa: () => Track | null;
 
   /** As faixas que vêm a seguir, pela ordem em que vão MESMO tocar, com o
    * índice real na fila (para remover/reordenar). Com shuffle ligado isto
@@ -325,8 +296,6 @@ interface PlayerState {
   _setProgress: (positionMs: number, durationMs: number) => void;
   _setIsPlaying: (v: boolean) => void;
   _setBuffering: (v: boolean) => void;
-  /** Ver `correcaoDeSincronia`. Só o motor de sincronia mexe nisto. */
-  _setCorrecaoDeSincronia: (v: number) => void;
   activeBackend: 'resolving' | 'native' | 'webview';
   _setActiveBackend: (backend: 'resolving' | 'native' | 'webview') => void;
 }
@@ -464,7 +433,6 @@ export const usePlayer = create<PlayerState>()(
   sleepTimerTimeLeft: 0,
   sleepTimerEndsAt: null,
   playbackRate: RATE_NORMAL,
-  correcaoDeSincronia: 1,
   eqGanhos: PLANO,
   ajustesPorFaixa: {},
   padraoRate: RATE_NORMAL,
@@ -478,21 +446,12 @@ export const usePlayer = create<PlayerState>()(
   activeBackend: 'resolving',
 
   playTrack: async (track, queue, shouldExpand, interno = false) => {
-    // DENTRO DE UMA SESSAO, um toque numa musica junta-a a fila partilhada.
-    //
-    // O caminho antigo era carregar muito tempo na musica, abrir o share, e so
-    // depois "juntar a fila" -- tres toques para a coisa que mais se faz numa
-    // sessao. E se a pessoa nao tivesse licenca para mandar, o toque normal
-    // punha-a a ouvir outra coisa sozinha, fora da sessao.
-    //
-    // Uma regra so, para toda a gente incluindo o anfitriao: numa sessao, tocar
-    // numa musica e propo-la. Quem manda e quiser ouvi-la ja, salta.
-    if (!interno) {
-      const sessao = ouvirJuntos();
-      if (sessao?.sessao) {
-        void sessao.sugerir(track).catch(() => {});
-        return;
-      }
+    if (!interno && ouvirJuntos()) {
+      await comandarJam(async s => {
+        if (decisaoDeControlo(s) === 'sugerir') await s.sugerir(track);
+        else await s.anunciarFaixa(track);
+      });
+      return;
     }
     // As letras começam em paralelo com a resolução do áudio, antes de abrir a capa.
     void ensureLyrics(track);
@@ -518,7 +477,9 @@ export const usePlayer = create<PlayerState>()(
     );
     // Se esta fonte já falhou antes e foi encontrada uma cópia segura, usar o
     // ID aprendido sem alterar título, capa, histórico ou playlist guardada.
-    const playableTrack = await applyPlaybackAlternative(track).catch(() => track);
+    // Numa sessão todos recebem o mesmo sourceId. Uma alternativa lembrada
+    // só neste dispositivo não pode trocar a faixa por baixo da sincronização.
+    const playableTrack = ouvirJuntos() ? track : await applyPlaybackAlternative(track).catch(() => track);
     if (requestId !== playRequestId) return;
     // Ao escolher de novo a faixa restaurada do arranque, o sourceId nao
     // muda e o YouTubePlayerView nao remonta. Guardar os controlos existentes
@@ -569,6 +530,12 @@ export const usePlayer = create<PlayerState>()(
   },
 
   replaceUnavailableTrack: (failedSourceId, replacement) => {
+    const jam = ouvirJuntos();
+    if (jam) {
+      if (!jam.anfitriao || get().current?.sourceId !== failedSourceId) return false;
+      void comandarJam(s => s.anunciarFaixa(replacement));
+      return true;
+    }
     let replaced = false;
     set((state) => {
       // A decisao vive em `lib/playerQueue.ts` e tem teste em Node puro: o que
@@ -594,6 +561,11 @@ export const usePlayer = create<PlayerState>()(
   skipUnavailableTrack: async (failedSourceId) => {
     const state = get();
     if (!state.current || state.current.sourceId !== failedSourceId) return;
+    if (ouvirJuntos()) {
+      get().pausePlayback();
+      await comandarJam(s => s.avancar(true));
+      return;
+    }
 
     const { alvo, fila, ordem } = saltoAposFalha(
       { ...state, shuffleOrder: state.shuffle ? state._ensureShuffleOrder() : state.shuffleOrder },
@@ -623,6 +595,7 @@ export const usePlayer = create<PlayerState>()(
   },
 
   adoptSession: ({ track, queue, queueIndex, positionMs }) => {
+    if (ouvirJuntos()) return; // O handoff pessoal não substitui a sessão partilhada.
     const q = queue.length > 0 ? queue : [track];
     const index = Math.max(0, Math.min(queueIndex, q.length - 1));
     set({
@@ -647,6 +620,10 @@ export const usePlayer = create<PlayerState>()(
 
   playShuffled: async (tracks, inteligente = false) => {
     if (tracks.length === 0) return;
+    if (ouvirJuntos()) {
+      await get().playTrack(tracks[Math.floor(Math.random() * tracks.length)], tracks, true);
+      return;
+    }
     // O que estava nos botões era `sort(() => Math.random() - 0.5)`: um
     // baralhamento enviesado (comparador inconsistente — o TimSort do V8
     // deixa os elementos perto de onde estavam) que além disso NÃO ligava o
@@ -680,6 +657,7 @@ export const usePlayer = create<PlayerState>()(
   },
 
   playNext: (track) => {
+    if (ouvirJuntos()) { void comandarJam(s => s.sugerir(track)); return; }
     const { queue, queueIndex } = get();
     if (queue.length === 0) {
       set({
@@ -698,6 +676,7 @@ export const usePlayer = create<PlayerState>()(
   },
 
   addToQueue: (track) => {
+    if (ouvirJuntos()) { void comandarJam(s => s.sugerir(track)); return; }
     const { queue } = get();
     if (queue.length === 0) {
       set({
@@ -713,7 +692,20 @@ export const usePlayer = create<PlayerState>()(
     set({ queue: [...queue, track] });
   },
 
+  _sincronizarPausa: (aTocar) => {
+    set({ autoplayOnLoad: aTocar });
+    const { isPlaying, _yt } = get();
+    if (isPlaying === aTocar) return;
+    set(aTocar
+      ? { ...requestPlay(_yt), ...passo(get().maquina, 'quer-tocar') }
+      : { ...requestPause(_yt), ...passo(get().maquina, 'quer-parar') });
+  },
+
   togglePlay: async () => {
+    if (ouvirJuntos()) {
+      await comandarJam(async s => { if (decisaoDeControlo(s) === 'anunciar') await s.alternarPausa(); });
+      return;
+    }
     const { current, isPlaying, _yt } = get();
     if (!current) return;
     // Os helpers do `playerLifecycle` fazem o efeito (play/pause no motor) e
@@ -733,6 +725,7 @@ export const usePlayer = create<PlayerState>()(
   },
 
   next: async () => {
+    if (ouvirJuntos()) { await comandarJam(s => s.avancar(false)); return; }
     if (get().queue.length === 0) return;
 
     // SHUFFLE INTELIGENTE: de quatro em quatro faixas entra uma que nao esta
@@ -845,6 +838,10 @@ export const usePlayer = create<PlayerState>()(
   },
 
   prev: async () => {
+    if (ouvirJuntos()) {
+      await get().seekTo(0);
+      return;
+    }
     const { queue, queueIndex, repeatMode, playTrack, positionMs, seekTo } = get();
     // Comportamento standard (Spotify/Apple Music): com mais de 3s de
     // reprodução, "anterior" recomeça a faixa atual em vez de recuar na fila.
@@ -875,11 +872,20 @@ export const usePlayer = create<PlayerState>()(
     }
   },
 
+  prepararFecho: async () => {
+    const s = ouvirJuntos();
+    if (!s) return true;
+    try { return await s.sairAoFechar(); } catch { s.avisarErro(); return false; }
+  },
+
   close: async () => {
+    if (!await get().prepararFecho()) return;
+    ++playRequestId; // Respostas de uma resolução antiga não reabrem o player.
     // Parar o áudio ANTES de desmontar o player (com staysActiveInBackground
     // a media podia continuar a tocar mesmo depois de fechar o ecrã).
     get()._yt?.pause();
     set({
+      closing: false, closeGain: 1,
       current: null,
       queue: [],
       queueIndex: 0,
@@ -897,6 +903,7 @@ export const usePlayer = create<PlayerState>()(
   setVolumeNormalization: (v) => set({ volumeNormalization: v }),
 
   extendQueueWithRadio: async () => {
+    if (ouvirJuntos()) return false;
     const { autoplayRadio, current, queue, queueIndex, repeatMode } = get();
     if (
       !shouldExtendWithRadio(autoplayRadio, !!current, get().upcomingQueue().length, repeatMode)
@@ -952,6 +959,8 @@ export const usePlayer = create<PlayerState>()(
     return order;
   },
 
+  proximaFaixa: () => proximaFaixa(ouvirJuntos(), get().peekNextTrack),
+
   peekNextTrack: () => {
     const { queue, queueIndex, repeatMode, shuffle, shuffleOrder } = get();
     if (queue.length === 0) return null;
@@ -974,7 +983,11 @@ export const usePlayer = create<PlayerState>()(
     return null;
   },
 
-  seekTo: async (ms) => {
+  seekTo: async (ms, interno = false) => {
+    if (!interno && ouvirJuntos()) {
+      await comandarJam(async s => { if (decisaoDeControlo(s) === 'anunciar') await s.procurar(ms); });
+      return;
+    }
     const { current, _yt, durationMs } = get();
     if (!current) return;
     const clamped = Math.max(0, Math.min(ms, durationMs));
@@ -1165,21 +1178,11 @@ export const usePlayer = create<PlayerState>()(
   _onYtStateChange: (s) => {
     if (get().closing && s === 'ended') return;
     if (s === 'ended') {
+      if (ouvirJuntos()) { void comandarJam(jam => jam.avancar(true)); return; }
       const { repeatMode, _yt } = get();
       if (repeatMode === 'one') {
         _yt?.seek(0);
         _yt?.play();
-        return;
-      }
-      // Numa sessao de escuta, a fila partilhada tem prioridade sobre a fila
-      // local -- foi o que as pessoas escolheram juntas. So no FIM da faixa,
-      // nunca num salto explicito: quem carrega em seguinte quer a musica
-      // seguinte dele, nao a sugestao de outra pessoa.
-      //
-      // Se nao houver sessao ou a fila estiver vazia, segue o caminho de
-      // sempre, que sabe de repeat, de radio no fim e do resto.
-      if (aoAcabarNaSessao) {
-        void aoAcabarNaSessao().then((tratou) => { if (!tratou) void get().next(); });
         return;
       }
       get().next();
@@ -1195,12 +1198,6 @@ export const usePlayer = create<PlayerState>()(
   _setIsPlaying: (v) => set(passo(get().maquina, v ? 'quer-tocar' : 'quer-parar')),
 
   _setBuffering: (v) => set(passo(get().maquina, v ? 'a-encher' : 'motor-pronto')),
-
-  _setCorrecaoDeSincronia: (v) => {
-    // Um valor absurdo aqui parava o som ou punha-o aos guinchos. Na dúvida, 1.
-    const seguro = Number.isFinite(v) && v > 0.5 && v < 2 ? v : 1;
-    if (get().correcaoDeSincronia !== seguro) set({ correcaoDeSincronia: seguro });
-  },
 
   setSleepTimer: (minutes) => {
     const { fimEm, restanteS } = prazoDoTemporizador(minutes, Date.now());
@@ -1295,6 +1292,7 @@ export const usePlayer = create<PlayerState>()(
   },
 
   removeFromQueue: (index) => {
+    if (ouvirJuntos()) return; // A fila Jam usa retirarSugestao, por id do servidor.
     const { queue, queueIndex } = get();
     if (index < 0 || index >= queue.length) return;
 

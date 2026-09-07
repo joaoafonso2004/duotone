@@ -100,11 +100,11 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
               {/* O defeito é NÃO. Quatro pessoas com o dedo no pause é uma
                   sessão que não toca nada -- e juntar à fila, que é o que
                   quase toda a gente quer fazer, nunca precisou disto. */}
-              <Text style={styles.estado}>Skip and pause. Anyone can always add.</Text>
+              <Text style={styles.estado}>Play songs, skip and pause. Anyone can add to queue.</Text>
             </View>
             <Switch
               value={!!sessao?.convidadosControlam}
-              onValueChange={(v) => { hapticSelection(); void darControlo(v); }}
+              onValueChange={(v) => { hapticSelection(); void darControlo(v).catch(() => useOuvirJuntos.setState({ aviso: 'Could not change control. Please try again.' })); }}
               trackColor={{ true: tema.color, false: colors.surfaceHigh }}
             />
           </View>
@@ -186,7 +186,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
                   <Toque
                     escala={ESCALA.icone}
                     hitSlop={10}
-                    onPress={() => { hapticSelection(); void retirarSugestao(item.id); }}
+                    onPress={() => { hapticSelection(); void retirarSugestao(item.id).catch(() => useOuvirJuntos.setState({ aviso: 'Could not remove song. Please try again.' })); }}
                     accessibilityLabel={`Remove ${tituloDaFaixa(item.track)}`}
                     style={{ padding: 4 }}
                   >
@@ -201,7 +201,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
 
       <Toque
         escala={ESCALA.botao}
-        onPress={() => { void abandonar(); aoFechar(); }}
+        onPress={() => { void abandonar().then(aoFechar).catch(() => useOuvirJuntos.setState({ aviso: 'Could not leave Jam. Please try again.' })); }}
         accessibilityLabel={anfitriao ? 'End session' : 'Leave session'}
         style={styles.sair}
       >

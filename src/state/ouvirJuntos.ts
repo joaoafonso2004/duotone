@@ -1,10 +1,12 @@
+import { registarOuvirJuntos, usePlayer } from './player';
+import { confirmarFechoDaSessao } from '../lib/confirmarFechoDaSessao';
 import { create } from 'zustand';
 import { AppState } from 'react-native';
 import {
   continuoNaSessao, convidar, criarSessao, definirFaixa, entrar,
   juntarAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
   minhaSessaoAberta, pausar, permitirControlo, relogioActualizado, retomar,
-  sair, sessaoDaLinha, tirarDaFila,
+  sair, sessaoDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
   type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta,
 } from '../api/ouvirJuntos';
 import { agoraNoServidor, type Estimativa } from '../lib/relogioPartilhado';
@@ -75,6 +77,7 @@ type Estado = {
   anunciarFaixa: (track: Track) => Promise<void>;
   anunciarPausa: (posicaoMs: number) => Promise<void>;
   anunciarRetoma: () => Promise<void>;
+  anunciarPosicao: (ms: number) => Promise<void>;
   darControlo: (pode: boolean) => Promise<void>;
   anunciarProntidao: (pronta: boolean, percentagem?: number) => Promise<void>;
 
@@ -83,11 +86,11 @@ type Estado = {
   /**
    * Tira a primeira da fila e põe-na a tocar. Só quem manda.
    *
-   * Devolve `false` quando não havia nada -- e aí quem chama segue o caminho
-   * normal do fim de faixa, que sabe de repeat, de rádio e do resto. A fila
-   * partilhada acrescenta, não substitui.
+   * Devolve `false` quando não havia nada ou a cabeça já mudou. Nunca autoriza
+   * um fallback para repeat, rádio ou fila pessoal durante a sessão.
    */
   avancarPelaFila: () => Promise<boolean>;
+  actualizar: () => Promise<void>;
 };
 
 let canal: ReturnType<typeof supabase.channel> | null = null;
@@ -95,6 +98,10 @@ let batimento: ReturnType<typeof setInterval> | null = null;
 let subscricaoDeEstado: { remove: () => void } | null = null;
 /** Cresce a cada `ligar`: respostas de uma ligação antiga não escrevem estado. */
 let geracao = 0;
+let leitura = 0;
+let avancando = false;
+let fecho: Promise<boolean> | null = null;
+
 
 export const useOuvirJuntos = create<Estado>((set, get) => ({
   sessao: null,
@@ -215,13 +222,21 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (batimento) { clearInterval(batimento); batimento = null; }
     subscricaoDeEstado?.remove();
     subscricaoDeEstado = null;
-    set({ sessao: null, membros: [], fila: [] });
+    set({ sessao: null, membros: [], fila: [], aviso: null });
   },
 
   // -------------------------------------------------------------------------
 
   abrir: async (track, amigos, mensagem) => {
     const id = await criarSessao(track);
+    // A criação começa pausada no servidor. Preservar a audição actual antes
+    // de ligar o seguidor; caso contrário o anfitrião pausava ao abrir o Jam.
+    const p = usePlayer.getState();
+    if (track && p.current?.sourceId === track.sourceId && p.current.source === track.source) {
+      const tocava = p.isPlaying;
+      await pausar(id, p.positionMs);
+      if (tocava) await retomar(id);
+    }
     if (amigos.length) await convidar(id, amigos, mensagem);
     const euId = get().euId;
     if (euId) await get().ligar(euId);
@@ -237,13 +252,9 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   abandonar: async () => {
     const s = get().sessao;
     if (!s) return;
-    get().desligar();
-    // Quem sai por vontade própria não precisa de ser avisado de que saiu.
+    await sair(s.id);
+    if (get().sessao?.id === s.id) get().desligar();
     set({ acabouSemAviso: false });
-    // Depois de desligar: a saída pode falhar por rede, e nesse caso é melhor
-    // ficar de fora na app do que preso numa sessão que já não se quer. O
-    // `last_seen` deixa de ser batido e o servidor esquece-nos.
-    try { await sair(s.id); } catch { /* idem */ }
   },
 
   convidarMais: async (amigos, mensagem) => {
@@ -258,24 +269,28 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     const s = get().sessao;
     if (!s || !get().possoControlar()) return;
     await definirFaixa(s.id, track);
+    if (get().sessao?.id === s.id) await get().actualizar();
   },
 
   anunciarPausa: async (posicaoMs) => {
     const s = get().sessao;
     if (!s || !get().possoControlar()) return;
     await pausar(s.id, posicaoMs);
+    if (get().sessao?.id === s.id) await get().actualizar();
   },
 
   anunciarRetoma: async () => {
     const s = get().sessao;
     if (!s || !get().possoControlar()) return;
     await retomar(s.id);
+    if (get().sessao?.id === s.id) await get().actualizar();
   },
 
   darControlo: async (pode) => {
     const s = get().sessao;
     if (!s || !get().souAnfitriao()) return;
     await permitirControlo(s.id, pode);
+    if (get().sessao?.id === s.id) await get().actualizar();
   },
 
   anunciarProntidao: async (pronta, percentagem = 0) => {
@@ -291,28 +306,50 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     const s = get().sessao;
     if (!s) return;
     await juntarAFila(s.id, track);
-    set({ aviso: `Added · ${track.title?.slice(0, 26) ?? 'song'}` });
+    if (get().sessao?.id !== s.id) return;
+    await get().actualizar();
+    const aviso = `Added · ${track.title?.slice(0, 26) ?? 'song'}`;
+    set({ aviso });
     setTimeout(() => {
-      // Só se apaga o PRÓPRIO aviso: entretanto pode ter entrado outro, e
-      // apagar o dele deixava a barra muda a meio de uma frase.
-      if (get().aviso?.startsWith(track.title?.slice(0, 28) ?? '')) set({ aviso: null });
+      if (get().sessao?.id === s.id && get().aviso === aviso) set({ aviso: null });
     }, 3500);
   },
 
   retirarSugestao: async (item) => {
     await tirarDaFila(item);
+    await get().actualizar();
+  },
+
+  anunciarPosicao: async (ms) => {
+    const s = get().sessao;
+    if (!s || !get().possoControlar()) return;
+    await procurarNaSessao(s.id, ms);
+    if (get().sessao?.id === s.id) await get().actualizar();
+  },
+
+  actualizar: async () => {
+    const s = get().sessao;
+    if (!s) return;
+    const minha = geracao, pedido = ++leitura;
+    const [nova, fila] = await Promise.all([lerSessao(s.id), lerFila(s.id)]);
+    if (minha !== geracao || pedido !== leitura || get().sessao?.id !== s.id) return;
+    if (nova?.acabouEm) { get().desligar(); set({ acabouSemAviso: true }); return; }
+    if (nova) set({ sessao: nova, fila });
   },
 
   avancarPelaFila: async () => {
     const s = get().sessao;
-    if (!s || !get().possoControlar()) return false;
-    const [primeira] = get().fila;
-    if (!primeira) return false;
-    // Tirar ANTES de pôr a tocar: se a ordem fosse a contraria e a remocao
-    // falhasse, a mesma faixa ficava na fila a repetir-se para sempre.
-    await tirarDaFila(primeira.id);
-    await definirFaixa(s.id, primeira.track);
-    return true;
+    if (!s || !get().possoControlar() || avancando) return false;
+    // A mesma função alimenta o Smart Cache, o crossfade e o avanço.
+    const seguinte = usePlayer.getState().proximaFaixa();
+    const primeira = get().fila[0];
+    if (!seguinte || !primeira) return false;
+    avancando = true;
+    try {
+      const avancou = await avancarFila(s.id, primeira.id);
+      if (get().sessao?.id === s.id) await get().actualizar();
+      return avancou;
+    } finally { avancando = false; }
   },
 }));
 
@@ -323,3 +360,57 @@ export function limparOuvirJuntos(): void {
 }
 
 export { membroDaLinha };
+
+// A ponte existe mesmo com o player vazio e durante o primeiro render.
+registarOuvirJuntos(() => {
+  const s = useOuvirJuntos.getState();
+  if (!s.sessao) return null;
+  const id = s.sessao.id;
+  const aindaAqui = () => useOuvirJuntos.getState().sessao?.id === id;
+  return {
+    sessao: s.sessao, fila: s.fila,
+    anfitriao: s.souAnfitriao(), convidadosControlam: s.sessao.convidadosControlam,
+    sugerir: s.sugerir, anunciarFaixa: s.anunciarFaixa,
+    alternarPausa: async () => {
+      if (!aindaAqui()) return;
+      const actual = useOuvirJuntos.getState();
+      if (actual.sessao?.aTocar) await actual.anunciarPausa(actual.posicaoAgora() ?? usePlayer.getState().positionMs);
+      else await actual.anunciarRetoma();
+    },
+    procurar: s.anunciarPosicao,
+    avancar: async (automatico) => {
+      if (!aindaAqui()) return;
+      let actual = useOuvirJuntos.getState();
+      // O fim automático tem um único dono, mesmo com convidados com controlo.
+      if (automatico ? !actual.souAnfitriao() : !actual.possoControlar()) return;
+      const versao = actual.sessao;
+      // Uma sugestão pode ter chegado ao servidor antes do evento realtime.
+      // Reler também evita consumir a fila antiga depois de uma mudança remota.
+      await actual.actualizar();
+      if (!aindaAqui()) return;
+      actual = useOuvirJuntos.getState();
+      if (actual.sessao?.track?.sourceId !== versao?.track?.sourceId ||
+          actual.sessao?.comecouEmServidor !== versao?.comecouEmServidor) return;
+      if (!usePlayer.getState().proximaFaixa()) {
+        if (automatico) await actual.anunciarPausa(usePlayer.getState().durationMs);
+        return;
+      }
+      await actual.avancarPelaFila();
+    },
+    sairAoFechar: () => {
+      if (fecho) return fecho;
+      const operacao = (async () => {
+        if (s.souAnfitriao() && !await confirmarFechoDaSessao()) return false;
+        if (!aindaAqui()) return !useOuvirJuntos.getState().sessao;
+        await useOuvirJuntos.getState().abandonar();
+        return true;
+      })();
+      fecho = operacao;
+      void operacao.then(() => { fecho = null; }, () => { fecho = null; });
+      return operacao;
+    },
+    avisarErro: () => {
+      if (aindaAqui()) useOuvirJuntos.setState({ aviso: 'Could not update Jam. Please try again.' });
+    },
+  };
+});

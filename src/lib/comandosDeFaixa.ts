@@ -1,5 +1,6 @@
 import { setRemoteCommandsEnabled } from '../../modules/duotone-remote-commands';
 import { usePlayer } from '../state/player';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 
 /**
  * Quem tem a última palavra sobre os botões do Lock Screen.
@@ -19,6 +20,8 @@ import { usePlayer } from '../state/player';
 function calcular(): [next: boolean, previous: boolean] {
   const s = usePlayer.getState();
   const temFaixa = !!s.current;
+  const jam = useOuvirJuntos.getState();
+  if (jam.sessao) return [temFaixa && jam.possoControlar() && !!s.proximaFaixa(), temFaixa && jam.possoControlar()];
   // "Anterior" fica sempre ativo com faixa carregada: com >3 s de reprodução
   // recomeça a faixa (comportamento padrão), senão recua na fila.
   return [temFaixa && (s.queue.length > 1 || s.repeatMode === 'all' || s.shuffle), temFaixa];

@@ -169,6 +169,7 @@ const TAB_ICONS: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
 };
 
 function Tabs() {
+  const hasNotification = useNotifications((s) => s.hasNotification);
   const reducedMotion=useReducedMotion();
   // A navegação inteira não precisa de redesenhar em cada passo da animação;
   // os controlos/ecrãs visíveis animam o tema diretamente.
@@ -200,7 +201,6 @@ function Tabs() {
           />
         ),
         tabBarIcon: ({ color, size, focused }) => {
-          const hasNotification = useNotifications((s) => s.hasNotification);
           return (
             <SeparadorActivo activo={focused} tamanho={size}>
               {/* Sem `rodar`: cinco separadores a girar de cada vez que se

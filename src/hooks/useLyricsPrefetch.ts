@@ -1,3 +1,4 @@
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 import {useEffect,useState} from 'react';
 import {AppState,Platform} from 'react-native';
 import {usePlayer} from '../state/player';
@@ -6,6 +7,7 @@ import {ensureLyrics} from '../state/lyrics';
 import {appEstaVisivel} from '../lib/appVisibility';
 
 export function useLyricsPrefetch(){
+  const sessao=useOuvirJuntos(s=>s.sessao?.id),fila=useOuvirJuntos(s=>s.fila);
   const current=usePlayer(s=>s.current),queue=usePlayer(s=>s.queue),order=usePlayer(s=>s.shuffleOrder);
   const shuffle=usePlayer(s=>s.shuffle),repeat=usePlayer(s=>s.repeatMode),offline=useConnectivity(s=>s.offline);
   const [visivel,setVisivel]=useState(appEstaVisivel);
@@ -22,9 +24,9 @@ export function useLyricsPrefetch(){
     // ao voltar a active este efeito corre e prepara-as.
     if(visivel&&current)void ensureLyrics(current).then(()=>{
       if(cancelled||offline)return;
-      const next=usePlayer.getState().peekNextTrack();
+      const next=usePlayer.getState().proximaFaixa();
       if(next)void ensureLyrics(next);
     });
     return()=>{cancelled=true;};
-  },[current,queue,order,shuffle,repeat,offline,visivel]);
+  },[current,queue,order,shuffle,repeat,offline,visivel,sessao,fila]);
 }

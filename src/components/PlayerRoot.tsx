@@ -137,7 +137,9 @@ export function PlayerRoot() {
     onPanResponderGrant: () => { swiping.current=true; },
     onPanResponderMove: (_e,g) => dragX.setValue(Math.max(0,g.dx)),
     onPanResponderRelease: (_e,g) => {
-      if(confirmaSwipe(g.dx,g.dy,g.vx,widthRef.current)) void closePlayerSmoothly();
+      if(confirmaSwipe(g.dx,g.dy,g.vx,widthRef.current)) void closePlayerSmoothly().then(() => {
+        Animated.spring(dragX,{toValue:0,useNativeDriver:true}).start();
+      });
       else Animated.spring(dragX,{toValue:0,useNativeDriver:true}).start();
       setTimeout(()=>{swiping.current=false;},200);
     },
@@ -161,6 +163,8 @@ export function PlayerRoot() {
   useSincroniaDaSessao();
   const [sessaoAberta, setSessaoAberta] = useState(false);
   const temSessao = useOuvirJuntos((s) => !!s.sessao);
+  const filaDaSessao = useOuvirJuntos((s) => s.fila);
+  const convidadosControlam = useOuvirJuntos((s) => s.sessao?.convidadosControlam);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -361,7 +365,7 @@ export function PlayerRoot() {
   // que é onde isto falhava (ver src/lib/comandosDeFaixa.ts).
   useEffect(() => {
     reafirmarComandosDeFaixa();
-  }, [current, queue.length, repeatMode, shuffle, isPlaying]);
+  }, [current, queue.length, repeatMode, shuffle, isPlaying, temSessao, filaDaSessao, convidadosControlam]);
 
   // Pulsar suave da capa durante o carregamento; volta a opaco quando toca.
   useEffect(() => {
@@ -568,7 +572,7 @@ export function PlayerRoot() {
   const aviso = apresentarErro({
     mensagem: error,
     estado: maquina,
-    temSeguinte: !!usePlayer.getState().peekNextTrack(),
+    temSeguinte: !!usePlayer.getState().proximaFaixa(),
   });
   const erroTemporario = aviso?.temporario ?? false;
   useEffect(() => {
