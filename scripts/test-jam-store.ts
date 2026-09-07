@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { registarOuvirJuntos, usePlayer } from '../src/state/player.ts';
 import type { Track } from '../src/types.ts';
-import { proximaFaixa, decisaoDeControlo, type PonteJam } from '../src/lib/jam.ts';
+import { proximaFaixa, decisaoDeControlo, restoDaLista, velocidadeNaSessao, type PonteJam } from '../src/lib/jam.ts';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
 import type { SessaoDeEscuta } from '../src/api/ouvirJuntos.ts';
@@ -10,13 +10,16 @@ const faixa = (sourceId: string): Track => ({ source: 'youtube', sourceId,
   title: sourceId, artist: 'Teste', album: null, artworkUrl: null, durationSeconds: 180 });
 const actual = faixa('actual'), escolhida = faixa('escolhida');
 let sugeridas: Track[] = [], anunciadas: Track[] = [], pausas = 0, saltos: number[] = [];
+let semeadas: Track[][] = [];
 let avancos = 0, erros = 0, saidas = 0;
 let ponte: PonteJam | null;
 const limpar = () => {
   sugeridas = []; anunciadas = []; pausas = 0; saltos = []; avancos = 0; erros = 0; saidas = 0;
+  semeadas = [];
   ponte = {
     sessao: { id: 'jam' }, fila: [{ track: escolhida }], anfitriao: false, convidadosControlam: false,
     sugerir: async t => { sugeridas.push(t); }, anunciarFaixa: async t => { anunciadas.push(t); },
+    semearFila: async ts => { semeadas.push([...ts]); },
     alternarPausa: async () => { pausas++; }, procurar: async ms => { saltos.push(ms); },
     avancar: async automatico => { if (ponte && (automatico ? ponte.anfitriao : decisaoDeControlo(ponte) === 'anunciar')) avancos++; },
     sairAoFechar: async () => { saidas++; ponte = null; return true; }, avisarErro: () => { erros++; },
@@ -147,6 +150,92 @@ usePlayer.setState({ playTrack: async (...args) => { await tocar(...args); vigen
 await seguirSessao({ ...confirmada, aTocar: false, pausadaEmMs: 42000 }, null, porta);
 assert.equal(usePlayer.getState().resumePositionMs, null, 'uma aplicação invalidada durante o play não força seek');
 usePlayer.setState({ playTrack: tocar }); vigente = true;
+
+// ---- o resto da lista vai atras da faixa tocada ---------------------------
+{
+  const a = faixa('a'), b = faixa('b'), c = faixa('c');
+  assert.deepEqual(restoDaLista([a, b, c], a).map(t => t.sourceId), ['b', 'c']);
+  assert.deepEqual(restoDaLista([a, b, c], b).map(t => t.sourceId), ['c'],
+    'dar play a meio leva o resto, nao o album todo outra vez');
+  assert.deepEqual(restoDaLista([a, b, c], c), [], 'a ultima nao arrasta nada');
+  assert.deepEqual(restoDaLista([a, b], faixa('fora')).map(t => t.sourceId), ['a', 'b'],
+    'sem a tocada la dentro, a lista inteira e o que vem a seguir');
+  assert.deepEqual(restoDaLista(undefined, a), []);
+  assert.deepEqual(restoDaLista([a], a), [], 'uma musica sozinha nao se semeia a si propria');
+  // A tocada nao pode entrar pela porta das traseiras e tocar duas vezes.
+  assert.deepEqual(restoDaLista([a, b, a], a).map(t => t.sourceId), ['b']);
+  assert.equal(restoDaLista(Array.from({ length: 250 }, (_, i) => faixa('f' + i)), a).length, 100,
+    'o limite do cliente e o mesmo do servidor');
+}
+
+// ---- a velocidade dentro da sessao ----------------------------------------
+assert.equal(velocidadeNaSessao(0.9, true), 1, 'acompanhado anda-se a 1x');
+assert.equal(velocidadeNaSessao(1.25, true), 1);
+assert.equal(velocidadeNaSessao(0.9, false), 0.9, 'sozinho a preferencia manda');
+
+// ---- dar play numa playlist enche a fila partilhada ------------------------
+limpar();
+ponte!.anfitriao = true;
+await usePlayer.getState().playTrack(escolhida, [actual, escolhida, faixa('d'), faixa('e')]);
+assert.deepEqual(anunciadas.map(t => t.sourceId), ['escolhida'], 'a tocada e anunciada');
+assert.deepEqual(semeadas[0]?.map(t => t.sourceId), ['d', 'e'],
+  'o que vem depois dela entra na fila de toda a gente');
+
+// Sem licenca, tocar numa musica propoe UMA, e nao a playlist de onde saiu.
+limpar();
+ponte!.anfitriao = false; ponte!.convidadosControlam = false;
+await usePlayer.getState().playTrack(escolhida, [actual, escolhida, faixa('d')]);
+assert.deepEqual(sugeridas.map(t => t.sourceId), ['escolhida']);
+assert.equal(semeadas.length, 0, 'encher a fila dos outros sem autorizacao nao e sugerir');
+
+// Com a licenca ligada, o convidado ja pode.
+limpar();
+ponte!.convidadosControlam = true;
+await usePlayer.getState().playTrack(escolhida, [actual, escolhida, faixa('d')]);
+assert.deepEqual(semeadas[0]?.map(t => t.sourceId), ['d']);
+
+
+// ---- retomar re-ancora toda a gente ---------------------------------------
+//
+// O `retomar_sessao` mexe no `started_at` e deixa o `paused_position_ms`
+// quieto. Enquanto o teste do comando de posicao exigia `anterior.aTocar`,
+// retomar nao contava como comando e NINGUEM saltava: cada telemovel
+// despausava quando o seu evento chegava, e a diferenca ficava la o resto da
+// faixa. Ora um a frente, ora o outro -- conforme a rede do dia.
+limpar();
+usePlayer.setState({ current: escolhida, resumePositionMs: null });
+const emPausa: SessaoDeEscuta = { ...confirmada, aTocar: false, pausadaEmMs: 30000 };
+const retomada: SessaoDeEscuta = { ...emPausa, aTocar: true, comecouEmServidor: Date.now() + 5000 };
+await seguirSessao(retomada, emPausa, porta);
+assert.equal(usePlayer.getState().resumePositionMs, 42000,
+  'retomar e um comando de posicao: toda a gente re-ancora no servidor');
+
+// Uma faixa nova a tocar continua a NAO saltar: os dois arrancam do zero ao
+// mesmo tempo, e meter o relogio na conta so introduzia erro.
+limpar();
+usePlayer.setState({ current: escolhida, resumePositionMs: null });
+await seguirSessao(confirmada, { ...confirmada, track: actual }, porta);
+assert.equal(usePlayer.getState().resumePositionMs, null, 'faixa nova a tocar arranca do zero, sem seek');
+
+// ---- a ordem vai ao motor mesmo quando a intencao ja concorda --------------
+//
+// O `isPlaying` e a INTENCAO, nao "o motor esta a dar som". Depois de uma
+// faixa acabar sozinha a intencao continua "tocar", e era por isso que o
+// convidado ficava nos 0:00: a confirmacao chegava com aTocar=true, igual a
+// intencao, e o `_sincronizarPausa` saia pela guarda sem chamar play().
+{
+  let plays = 0, pauses = 0;
+  usePlayer.setState({ _yt: { play: () => { plays++; }, pause: () => { pauses++; },
+    seek: () => {}, setVolume: () => {} } as never });
+  usePlayer.getState()._sincronizarPausa(true);
+  const comGuarda = plays;
+  usePlayer.getState()._forcarReproducao(true);
+  assert.equal(plays, comGuarda + 1, 'forcar manda sempre, mesmo com a intencao ja de acordo');
+  usePlayer.getState()._forcarReproducao(false);
+  assert.equal(pauses, 1);
+  usePlayer.setState({ _yt: null });
+}
+
 
 registarOuvirJuntos(() => null);
 await usePlayer.getState().playTrack(actual, [actual, escolhida]);

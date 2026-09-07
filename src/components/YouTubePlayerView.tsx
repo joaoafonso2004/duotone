@@ -30,6 +30,7 @@ import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear } from '../li
 import { arredondar as arredondarRate } from '../lib/playbackRate';
 import { trocarFonte } from '../lib/trocaDeFonte';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { velocidadeNaSessao } from '../lib/jam';
 
 /**
  * Quanto se espera por uma resolucao antes de a dar por perdida.
@@ -173,9 +174,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const prev = usePlayer((s) => s.prev);
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
-  const playbackRate = usePlayer((s) => s.playbackRate);
+  const velocidadeEscolhida = usePlayer((s) => s.playbackRate);
   const sessaoJam = useOuvirJuntos(s => s.sessao?.id);
   const filaJam = useOuvirJuntos(s => s.fila);
+  // Acompanhado anda-se a 1x, e a preferência fica guardada à espera. A conta
+  // da posição de uma sessão é tempo de parede -- ver `velocidadeNaSessao`.
+  const playbackRate = velocidadeNaSessao(velocidadeEscolhida, !!sessaoJam);
   // Só para as dependências do pré-carregamento: ligar/desligar o shuffle a
   // meio de uma faixa muda qual é a faixa seguinte.
   const shuffle = usePlayer((s) => s.shuffle);

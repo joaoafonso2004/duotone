@@ -8,11 +8,56 @@ export function proximaFaixa(
   return sessao ? sessao.fila[0]?.track ?? null : proximaLocal();
 }
 
+/**
+ * Dentro de uma sessão anda toda a gente a 1x, e não é uma preferência: é o
+ * que o modelo do servidor exige.
+ *
+ * A posição de uma sessão é `started_at` mais o tempo que passou no RELÓGIO --
+ * tempo de parede. Essa conta só é a posição do áudio se o áudio andar a 1x.
+ * Um ouvinte a 0,9x fica cada vez mais atrasado em relação à conta, para
+ * sempre, e nada nesta app consegue corrigir isso: dez segundos de música dão
+ * um segundo de atraso, e o próximo minuto dá outros seis.
+ *
+ * Equivaler à velocidade do anfitrião em vez de forçar 1x era possível, mas
+ * obrigava a multiplicar o tempo decorrido pela velocidade em cada sítio que
+ * calcula posições, mais uma coluna nova para a transportar. Muito mais peça
+ * para o mesmo fim -- e a velocidade é uma escolha de quem ouve sozinho.
+ *
+ * A preferência do utilizador não se perde: continua guardada, e volta assim
+ * que ele sair da sessão. Só não manda no motor enquanto estiver acompanhado.
+ */
+export function velocidadeNaSessao(escolhida: number, emSessao: boolean): number {
+  return emSessao ? 1 : escolhida;
+}
+
 export function decisaoDeControlo(
   sessao: { anfitriao: boolean; convidadosControlam: boolean } | null,
 ): 'local' | 'anunciar' | 'sugerir' {
   if (!sessao) return 'local';
   return sessao.anfitriao || sessao.convidadosControlam ? 'anunciar' : 'sugerir';
+}
+
+/**
+ * O que vai atrás da faixa tocada, pela ordem em que a lista está.
+ *
+ * Dar play a meio de um álbum leva o resto do álbum, não o álbum todo outra
+ * vez -- é o que acontece a ouvir sozinho, e é o que se espera aqui. A faixa
+ * tocada fica de fora porque já foi anunciada como a que está a dar; deixá-la
+ * entrar punha-a a tocar duas vezes seguidas.
+ *
+ * O limite é o mesmo do servidor. Existir dos dois lados não é repetição: aqui
+ * poupa-se o envio, lá impõe-se a quem não passe por aqui.
+ */
+export function restoDaLista(
+  lista: readonly Track[] | undefined,
+  tocada: Track,
+  limite = 100,
+): Track[] {
+  if (!lista?.length) return [];
+  const mesma = (t: Track) => t.source === tocada.source && t.sourceId === tocada.sourceId;
+  const i = lista.findIndex(mesma);
+  // Sem a tocada lá dentro, a lista inteira é o que vem a seguir.
+  return (i >= 0 ? lista.slice(i + 1) : lista).filter(t => !mesma(t)).slice(0, limite);
 }
 
 /** A ponte é registada pela store da sessão, antes dos efeitos React. */
@@ -22,6 +67,7 @@ export type PonteJam = {
   anfitriao: boolean;
   convidadosControlam: boolean;
   sugerir: (track: Track) => Promise<void>;
+  semearFila: (tracks: readonly Track[]) => Promise<void>;
   anunciarFaixa: (track: Track) => Promise<void>;
   alternarPausa: () => Promise<void>;
   procurar: (ms: number) => Promise<void>;

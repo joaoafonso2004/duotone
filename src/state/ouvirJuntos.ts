@@ -4,7 +4,7 @@ import { create } from 'zustand';
 import { AppState } from 'react-native';
 import {
   continuoNaSessao, convidar, criarSessao, definirFaixa, entrar,
-  juntarAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
+  juntarAFila, juntarMuitasAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
   minhaSessaoAberta, pausar, permitirControlo, relogioActualizado, retomar,
   sair, sessaoDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
   type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta,
@@ -82,6 +82,8 @@ type Estado = {
   anunciarProntidao: (pronta: boolean, percentagem?: number) => Promise<void>;
 
   sugerir: (track: Track) => Promise<void>;
+  /** A lista toda de uma vez, quando se dá play numa playlist cá dentro. */
+  semearFila: (tracks: readonly Track[]) => Promise<void>;
   retirarSugestao: (item: string) => Promise<void>;
   /**
    * Tira a primeira da fila e põe-na a tocar. Só quem manda.
@@ -128,6 +130,18 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   posicaoAgora: () => {
     const { sessao, relogio } = get();
     if (!sessao) return null;
+    // Em pausa a posição é absoluta -- `pausadaEmMs` -- e não passa por relógio
+    // nenhum. A tocar deriva-se do `started_at`, e aí SEM ESTIMATIVA NÃO HÁ
+    // RESPOSTA: o `agoraNoServidor` devolve o relógio local quando não tem
+    // desvio medido, e isso não é a posição da sessão, é a posição segundo o
+    // relógio deste telemóvel. Dois telemóveis, dois relógios, e o seek de
+    // quem arrasta a barra deixa-os a um segundo um do outro sem que a
+    // correcção dê por isso -- ela compara contra o mesmo relógio torto.
+    //
+    // Devolver `null` faz quem chama não saltar, que é o certo: ficar onde se
+    // está é melhor do que saltar para um sítio inventado. O `actualizar()`
+    // volta a medir a cada leitura enquanto não houver estimativa.
+    if (sessao.aTocar && !relogio) return null;
     return posicaoDaSessao(
       {
         comecouEmServidor: sessao.comecouEmServidor,
@@ -315,6 +329,34 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     }, 3500);
   },
 
+  /**
+   * Dar play numa playlist dentro do jam põe a playlist na fila de todos.
+   *
+   * Sem isto só entrava a música tocada e a fila partilhada ficava vazia --
+   * quem quisesse ouvir um disco a dois tinha de o acrescentar faixa a faixa,
+   * e no fim de cada música a sessão parava à espera de mão humana.
+   *
+   * Falhar aqui não estraga o play: a faixa já foi anunciada, e a lista é o
+   * extra. Por isso o erro só aparece como aviso.
+   */
+  semearFila: async (tracks) => {
+    const s = get().sessao;
+    if (!s || !tracks.length) return;
+    try {
+      const entraram = await juntarMuitasAFila(s.id, tracks);
+      if (get().sessao?.id !== s.id) return;
+      await get().actualizar();
+      if (entraram <= 0) return;
+      const aviso = `Queued ${entraram} song${entraram === 1 ? '' : 's'}`;
+      set({ aviso });
+      setTimeout(() => {
+        if (get().sessao?.id === s.id && get().aviso === aviso) set({ aviso: null });
+      }, 3500);
+    } catch {
+      if (get().sessao?.id === s.id) set({ aviso: 'Could not queue the rest of the list.' });
+    }
+  },
+
   retirarSugestao: async (item) => {
     await tirarDaFila(item);
     await get().actualizar();
@@ -370,7 +412,7 @@ registarOuvirJuntos(() => {
   return {
     sessao: s.sessao, fila: s.fila,
     anfitriao: s.souAnfitriao(), convidadosControlam: s.sessao.convidadosControlam,
-    sugerir: s.sugerir, anunciarFaixa: s.anunciarFaixa,
+    sugerir: s.sugerir, semearFila: s.semearFila, anunciarFaixa: s.anunciarFaixa,
     alternarPausa: async () => {
       if (!aindaAqui()) return;
       const actual = useOuvirJuntos.getState();

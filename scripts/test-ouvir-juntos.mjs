@@ -496,6 +496,34 @@ await verificar('falhar a mudança de faixa não perde a sugestão', async () =>
   assert.equal((await q('select track from listening_sessions where id=$1', [s])).rows[0].track.sourceId, 'abc123');
 });
 
+await verificar('encher a fila de uma vez respeita a ordem e salta as inválidas', async () => {
+  await como(1);
+  const s = (await q('select criar_sessao_de_escuta($1::jsonb) as id', [FAIXA])).rows[0].id;
+  const lote = JSON.stringify([
+    { source: 'youtube', sourceId: 'p1', title: 'Primeira' },
+    { source: 'invalida', sourceId: 'x', title: 'Esta não entra' },
+    { source: 'youtube', sourceId: 'p2', title: 'Segunda' },
+    { source: 'youtube', sourceId: '', title: 'Sem id' },
+    { source: 'youtube', sourceId: 'p3', title: 'Terceira' },
+  ]);
+  // Uma entrada estranha no meio não pode deitar as boas fora: é o caso que
+  // acontece a sério, com uma playlist grande importada de outro sítio.
+  assert.equal((await q('select juntar_muitas_a_fila($1,$2::jsonb) as n', [s, lote])).rows[0].n, 3);
+  const fila = (await q('select track from listening_queue where session_id=$1 order by posicao', [s])).rows;
+  assert.deepEqual(fila.map(r => r.track.sourceId), ['p1', 'p2', 'p3'], 'a ordem da playlist é a ordem da fila');
+
+  // Um segundo lote continua depois do primeiro, não por cima dele.
+  const mais = JSON.stringify([{ source: 'youtube', sourceId: 'p4', title: 'Quarta' }]);
+  await q('select juntar_muitas_a_fila($1,$2::jsonb) as n', [s, mais]);
+  assert.deepEqual(
+    (await q('select track from listening_queue where session_id=$1 order by posicao', [s])).rows.map(r => r.track.sourceId),
+    ['p1', 'p2', 'p3', 'p4']);
+
+  // Sugerir não exige controlo, mas exige estar lá dentro.
+  await como(3);
+  await assert.rejects(q('select juntar_muitas_a_fila($1,$2::jsonb)', [s, mais]), /sess|membro|estás/i);
+});
+
 if (falhas > 0) {
   console.error(`\n${falhas} teste(s) falharam`);
   process.exit(1);

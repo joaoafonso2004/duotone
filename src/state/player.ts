@@ -1,4 +1,4 @@
-import { proximaFaixa, decisaoDeControlo, type PonteJam } from '../lib/jam';
+import { proximaFaixa, decisaoDeControlo, restoDaLista, type PonteJam } from '../lib/jam';
 import {ensureLyrics} from './lyrics';
 import { useConnectivity } from './connectivity';
 import { filterSuggestions } from './recommendationFeedback';
@@ -237,6 +237,8 @@ interface PlayerState {
   addToQueue: (track: Track) => void;
   togglePlay: () => Promise<void>;
   _sincronizarPausa: (aTocar: boolean) => void;
+  /** Como o `_sincronizarPausa`, mas sem a guarda da intenção. Ver lá. */
+  _forcarReproducao: (aTocar: boolean) => void;
   next: () => Promise<void>;
   prev: () => Promise<void>;
   close: () => Promise<void>;
@@ -448,8 +450,16 @@ export const usePlayer = create<PlayerState>()(
   playTrack: async (track, queue, shouldExpand, interno = false) => {
     if (!interno && ouvirJuntos()) {
       await comandarJam(async s => {
-        if (decisaoDeControlo(s) === 'sugerir') await s.sugerir(track);
-        else await s.anunciarFaixa(track);
+        // Sem licença para mandar, tocar numa música é propô-la -- e propõe-se
+        // uma, não a playlist de onde saiu: encher a fila dos outros sem
+        // autorização não é sugerir, é tomar conta.
+        if (decisaoDeControlo(s) === 'sugerir') { await s.sugerir(track); return; }
+        await s.anunciarFaixa(track);
+        // A lista vai atrás da faixa. Dar play num álbum dentro do jam tem de
+        // dar o álbum, senão a sessão pára no fim da primeira música à espera
+        // que alguém acrescente a seguinte à mão.
+        const resto = restoDaLista(queue, track);
+        if (resto.length) await s.semearFila(resto);
       });
       return;
     }
@@ -696,6 +706,33 @@ export const usePlayer = create<PlayerState>()(
     set({ autoplayOnLoad: aTocar });
     const { isPlaying, _yt } = get();
     if (isPlaying === aTocar) return;
+    set(aTocar
+      ? { ...requestPlay(_yt), ...passo(get().maquina, 'quer-tocar') }
+      : { ...requestPause(_yt), ...passo(get().maquina, 'quer-parar') });
+  },
+
+  /**
+   * O mesmo, sem a guarda -- e a guarda existe por uma razão que aqui não vale.
+   *
+   * O `isPlaying` é a INTENÇÃO, não "o motor está a dar som" (ver a
+   * `playbackMachine`). Numa faixa que acabou sozinha a intenção continua a ser
+   * "tocar", e é isso que se quer: quem estava a ouvir continua a querer ouvir.
+   *
+   * Só que numa sessão isso deixava o convidado parado. A faixa acabava, o
+   * motor emitia `ended`, o anfitrião avançava, e a confirmação chegava ao
+   * convidado com `aTocar = true` -- igual à intenção que já lá estava. O
+   * `_sincronizarPausa` saía pela guarda sem mandar nada ao motor, e o arranque
+   * ficava dependente de o `autoplayOnLoad` sobreviver à troca de faixa. Quando
+   * não sobrevivia, ficava tudo nos 0:00 e só pausar e retomar curava -- porque
+   * só uma transição verdadeira chegava a chamar `play()` no motor.
+   *
+   * Aqui a ordem vai sempre, mesmo que a intenção já concorde. Numa sessão a
+   * confirmação do servidor é uma ORDEM, não uma opinião sobre o que já se
+   * queria: quem a aplica não pode presumir nada sobre o estado do motor.
+   */
+  _forcarReproducao: (aTocar) => {
+    set({ autoplayOnLoad: aTocar });
+    const { _yt } = get();
     set(aTocar
       ? { ...requestPlay(_yt), ...passo(get().maquina, 'quer-tocar') }
       : { ...requestPause(_yt), ...passo(get().maquina, 'quer-parar') });

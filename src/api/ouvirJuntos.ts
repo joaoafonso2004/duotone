@@ -251,6 +251,21 @@ export async function juntarAFila(sessao: string, track: Track): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Uma playlist inteira de uma vez. Devolve quantas entraram -- o servidor salta
+ * as faixas inválidas em vez de recusar o lote todo, e corta acima de 100.
+ */
+export async function juntarMuitasAFila(
+  sessao: string, tracks: readonly Track[]
+): Promise<number> {
+  if (!tracks.length) return 0;
+  const { data, error } = await supabase.rpc('juntar_muitas_a_fila', {
+    p_session: sessao, p_tracks: tracks as unknown as Track[],
+  });
+  if (error) throw error;
+  return typeof data === 'number' ? data : 0;
+}
+
 export async function tirarDaFila(item: string): Promise<void> {
   const { error } = await supabase.rpc('tirar_da_fila', { p_item: item });
   if (error) throw error;

@@ -32,10 +32,21 @@ export async function seguirSessao(
   if (!porta.vigente()) return;
   p = porta.player();
   if (p.current?.sourceId !== alvo.sourceId || p.current.source !== alvo.source) return;
-  p._sincronizarPausa(sessao.aTocar);
+  // Forçar, e não sincronizar: a confirmação é uma ordem, e quem a aplica não
+  // sabe em que estado o motor ficou. Ver `_forcarReproducao`.
+  p._forcarReproducao(sessao.aTocar);
+  // Retomar TAMBÉM é um comando de posição.
+  //
+  // O `retomar_sessao` mexe no `started_at` e deixa o `paused_position_ms`
+  // quieto, por isso a primeira metade desta conta não dispara. E como o
+  // `anterior.aTocar` é falso -- estava em pausa, é esse o ponto de partida --
+  // a segunda metade também não disparava, e ninguém fazia seek: cada
+  // telemóvel despausava quando o SEU evento chegava, e a diferença entre as
+  // chegadas ficava lá para o resto da faixa. Ora um à frente, ora o outro,
+  // conforme a rede do dia.
   const comandoDePosicao = anterior?.id === sessao.id && anterior.track?.sourceId === alvo.sourceId && (
     anterior.pausadaEmMs !== sessao.pausadaEmMs ||
-    (anterior.aTocar && sessao.aTocar && anterior.comecouEmServidor !== sessao.comecouEmServidor)
+    (sessao.aTocar && anterior.comecouEmServidor !== sessao.comecouEmServidor)
   );
   const posicao = porta.posicaoAgora();
   if (posicao != null && (!sessao.aTocar || comandoDePosicao)) {

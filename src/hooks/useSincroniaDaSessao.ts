@@ -51,7 +51,10 @@ export function useSincroniaDaSessao(): void {
         p.activeBackend !== 'resolving' && !p.buffering;
       const decorrido = p.isPlaying ? Date.now() - p.positionAt : 0;
       const correcao = correccaoNecessaria({
-        posicaoLocalMs: p.positionMs + decorrido * p.playbackRate,
+        // Dentro da sessão o motor anda a 1x, aconteça o que acontecer à
+        // preferência guardada. Usar `p.playbackRate` aqui media o tempo com
+        // uma velocidade que o motor não está a praticar.
+        posicaoLocalMs: p.positionMs + decorrido,
         posicaoDaSessaoMs: s.posicaoAgora(),
         aTocar: p.isPlaying && s.sessao.aTocar, pronta,
       });
