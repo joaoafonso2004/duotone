@@ -2,6 +2,7 @@ import {StateIcon} from './StateIcon';
 import { Toque } from './Toque';
 import { BarraDaSessao } from './BarraDaSessao';
 import { FolhaDaSessao } from './FolhaDaSessao';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
 import { ESCALA } from '../lib/movimento';
 import { useOfflineMode } from '../hooks/useOfflineMode';
@@ -159,6 +160,7 @@ export function PlayerRoot() {
   // sessao de escuta nao pode depender de um ecra estar aberto.
   useSincroniaDaSessao();
   const [sessaoAberta, setSessaoAberta] = useState(false);
+  const temSessao = useOuvirJuntos((s) => !!s.sessao);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const toastOpacity = useRef(new Animated.Value(0)).current;
@@ -738,12 +740,21 @@ export function PlayerRoot() {
           </Toque>
         </View>
 
-        {/* No leitor grande nao aparecia NADA quando havia sessao: abrias uma,
-            subias o leitor, e a app nao dizia que estavas a ouvir com alguem.
-            A barra vive por cima do leitor mini, e o mini nao existe aqui. */}
-        <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.sm }}>
-          <BarraDaSessao encostada={false} aoAbrir={() => setSessaoAberta(true)} />
-        </View>
+        {/* No leitor grande basta um sinal, e nao a barra inteira: aqui o ecra
+            e da musica, e uma faixa com nomes e estados por cima da capa rouba
+            a atencao ao que se veio ver. Um icone diz o mesmo -- ha sessao a
+            decorrer -- e leva ao mesmo sitio. */}
+        {temSessao ? (
+          <Toque
+            escala={ESCALA.icone}
+            hitSlop={12}
+            onPress={() => setSessaoAberta(true)}
+            accessibilityLabel="Ver a sessão de escuta"
+            style={styles.sinalDaSessao}
+          >
+            <Ionicons name="headset" size={15} color={theme.color} />
+          </Toque>
+        ) : null}
 
         {/* Espaço reservado para a capa quadrada grande (a frame flutua por
             cima nesta posição). */}
@@ -1371,6 +1382,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
+  },
+  // O sinal de que ha sessao, no canto do cabecalho do leitor grande.
+  sinalDaSessao: {
+    position: 'absolute',
+    right: 46,
+    top: 2,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceHigh,
   },
   headerBtn: {
     width: 40,

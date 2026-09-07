@@ -24,7 +24,7 @@ import type { Track } from '../types';
  * o que a linha do meio fazia e passa a caber aqui.
  */
 export function CabecalhoDoAmigo({
-  nome, avatarUrl, estado, aOuvir, onVoltar, onPerfil,
+  nome, avatarUrl, estado, online, aOuvir, onVoltar, onPerfil,
 }: {
   nome: string;
   avatarUrl: string | null;
@@ -43,7 +43,13 @@ export function CabecalhoDoAmigo({
         accessibilityLabel={`View ${nome}`}
         style={styles.identidade}
       >
-        <FriendAvatar avatarUrl={avatarUrl} name={nome} size={34} />
+        {/* A bolinha no canto do avatar, e nao uma palavra na linha de baixo:
+            e onde toda a gente a procura, e deixa a linha livre para o que ele
+            esta a ouvir. */}
+        <View>
+          <FriendAvatar avatarUrl={avatarUrl} name={nome} size={34} />
+          {online ? <View style={styles.online} /> : null}
+        </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={styles.nome}>{nome}</Text>
           <Text numberOfLines={1} style={styles.estado}>
@@ -142,6 +148,19 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   nome: { ...type.body, fontWeight: '700', fontSize: 17 },
+  online: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: colors.online,
+    // A borda da cor do fundo e o que separa o ponto do avatar -- sem ela
+    // desaparece contra uma fotografia clara.
+    borderWidth: 2,
+    borderColor: colors.bg,
+  },
   estado: { ...type.micro, color: colors.textSecondary },
 
   marca: {

@@ -70,25 +70,31 @@ export function acaoDoWatchdog(estado: {
   // sinal que separa os dois casos.
   if (perto) return 'nada';
 
-  if (!estado.jaDescarregou) {
-    return estado.paradoMs > PRESO_A_MEIO_MS ? 'descarregar' : 'nada';
-  }
-
-  // Já se tentou o ficheiro descarregado. Trocar outra vez não resolve nada --
-  // mas isso NÃO pode querer dizer "não fazer nada, para sempre".
+  // A DESISTÊNCIA VEM PRIMEIRO, e o `jaDescarregou` não a pode bloquear.
   //
-  // Era o que dizia. E como `jaDescarregou` é posto a verdadeiro ANTES de o
-  // download começar, entrar no caminho progressivo desarmava o watchdog por
-  // completo: se o download encravasse, a faixa ficava em 0:00 sem erro, sem
-  // recuperação e sem limite de tempo. A única saída era reiniciar a app.
+  // Isto estava ao contrário, e o erro é subtil: eu punha o `jaDescarregou`
+  // à frente e só considerava desistir DEPOIS. Mas há um caminho em que ele
+  // nunca é verdadeiro -- quando o que encrava é a RESOLUÇÃO do stream, antes
+  // de o download sequer começar. Aí a função devolvia `descarregar` para
+  // sempre, quem chamava tentava trocar para um ficheiro que ainda não existe,
+  // falhava, e voltava tudo ao início. Um ciclo silencioso: 0:00 eterno, sem
+  // erro, sem recuperação, e só reiniciar a app resolvia.
   //
-  // Aqui não se inventa uma recuperação que não existe: reconhece-se a
-  // desistência, para que quem chama possa dizê-lo ao utilizador e destrancar
-  // o estado, em vez de deixar a app a fingir que ainda está a carregar.
+  // É precisamente o caso de trocar de música depressa, que é quando há
+  // resoluções a mais em curso ao mesmo tempo.
+  //
+  // A ordem certa é esta: nunca arrancou e nada anda há muito tempo -> desiste,
+  // venha o encrave de onde vier. Como o prazo aqui (45 s) é muito maior do que
+  // o de trocar para o ficheiro (6 s), a tentativa barata continua a acontecer
+  // primeiro -- só deixa de ser a única saída.
   const nuncaArrancou = estado.posicaoSegundos <= ARRANCOU_S;
   const downloadParado =
     estado.downloadParadoMs == null || estado.downloadParadoMs > DESISTIR_MS;
   if (nuncaArrancou && estado.paradoMs > DESISTIR_MS && downloadParado) return 'desistir';
+
+  if (!estado.jaDescarregou) {
+    return estado.paradoMs > PRESO_A_MEIO_MS ? 'descarregar' : 'nada';
+  }
 
   return 'nada';
 }

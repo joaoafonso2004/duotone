@@ -117,11 +117,20 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
   fechar.current = onClose;
   const voltar = React.useRef(
     PanResponder.create({
-      // Exige-se um movimento CLARAMENTE horizontal e para a direita. O dobro
-      // (e não 1,5x) porque agora isto cobre o ecrã todo, incluindo a lista de
-      // mensagens: um arrasto vertical com um bocadinho de inclinação não pode
-      // fechar a conversa a meio de uma leitura.
-      onMoveShouldSetPanResponder: (_e, g) => g.dx > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+      // CAPTURA, e não a fase normal.
+      //
+      // A fase normal pergunta de dentro para fora: a `FlatList` das mensagens
+      // é filha, responde primeiro, e uma ScrollView reclama o dedo mal ele se
+      // mexe. O pai nunca chegava a ser perguntado -- era por isso que o gesto
+      // continuava sem funcionar mesmo depois de eu o ter tirado da tira de 22
+      // píxeis e o ter posto a cobrir o ecrã todo.
+      //
+      // A captura pergunta de fora para dentro, antes de a lista poder decidir.
+      // Isso obriga o critério a ser ESTRITO, senão roubava-lhe o scroll: exige
+      // 12 píxeis para a direita e o dobro da componente vertical. Um arrasto a
+      // ler mensagens não passa nesse crivo; um gesto de voltar passa sempre.
+      onMoveShouldSetPanResponderCapture: (_e, g) =>
+        g.dx > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
       onPanResponderRelease: (_e, g) => {
         if (g.dx > 60 || g.vx > 0.5) fechar.current();
       },

@@ -29,6 +29,16 @@ import { usePlayer } from '../state/player';
 import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear } from '../lib/equalizer';
 import { arredondar as arredondarRate } from '../lib/playbackRate';
 import { trocarFonte } from '../lib/trocaDeFonte';
+
+/**
+ * Quanto se espera por uma resolucao antes de a dar por perdida.
+ *
+ * O caminho de resolver uma faixa pode levar 27 segundos so no PO Token, e
+ * nao tem prazo nenhum proprio. Quarenta da folga a uma rede lenta e continua
+ * a ser menos do que o tempo que uma pessoa aguenta a olhar para 0:00.
+ */
+const PRAZO_DA_RESOLUCAO_MS = 40_000;
+const RESOLUCAO_DEMOROU = 'resolucao sem resposta';
 import { displayArtist } from '../lib/artistName';
 import { aplicarEqualizadorNativo, ligarAudioNativo } from '../../modules/duotone-audio';
 import type { Track } from '../types';
@@ -886,7 +896,22 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           client: 'harvest/rawUrl',
         };
       } else {
-        stream = await resolveYouTubeStream(track.sourceId, quality);
+        // COM PRAZO. O `resolveYouTubeStream` não tem nenhum: fala com o
+        // InnerTube e pede um PO Token à WebView do BotGuard, que sozinho pode
+        // levar 27 segundos (12 à espera que ela fique pronta, 15 a cunhar).
+        // Trocar de música depressa põe várias destas em curso ao mesmo tempo,
+        // e uma que não volte deixa a faixa em 0:00 sem nada a acontecer.
+        //
+        // Uma resolução que passa deste prazo já não vale a pena esperar: ou a
+        // rede está mesmo mal, ou encravou. Falhar aqui dá uma mensagem e
+        // devolve o controlo -- não fazer nada deixa a app à espera para
+        // sempre.
+        stream = await Promise.race([
+          resolveYouTubeStream(track.sourceId, quality),
+          new Promise<never>((_, rejeitar) =>
+            setTimeout(() => rejeitar(new Error(RESOLUCAO_DEMOROU)), PRAZO_DA_RESOLUCAO_MS)
+          ),
+        ]);
       }
       if (!alive()) return;
       streamRef.current = stream;

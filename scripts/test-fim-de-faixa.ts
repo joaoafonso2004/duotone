@@ -104,10 +104,38 @@ assert.equal(
 );
 
 // Sem o download tentado, o primeiro remedio continua a ser o antigo: trocar
-// para o ficheiro. So depois de isso falhar e que se desiste.
+// para o ficheiro. Passados os 6 segundos, e antes dos 45.
+//
+// Este caso tinha 50000 e passava -- ou seja, estava a FIXAR um bug em vez de o
+// apanhar. Aos cinquenta segundos parado em 0:00, desistir e o comportamento
+// certo; o numero e que estava mal escolhido para exprimir a intencao.
+assert.equal(
+  acaoDoWatchdog({ ...base, posicaoSegundos: 0, paradoMs: 10000, downloadParadoMs: null }),
+  'descarregar'
+);
+
+// O caminho que nao tinha saida nenhuma, e que obrigava a reiniciar a app.
+//
+// Quando o que encrava e a RESOLUCAO do stream, o download nunca chega a ser
+// tentado e o `jaDescarregou` fica FALSO. Com ele a ser lido primeiro, a funcao
+// devolvia `descarregar` para sempre: quem chamava tentava trocar para um
+// ficheiro que ainda nao existe, falhava, e voltava tudo ao inicio. Ciclo
+// silencioso -- 0:00 eterno, sem erro e sem recuperacao.
+//
+// E exactamente o caso de trocar de musica depressa, que e quando ha
+// resolucoes a mais em curso ao mesmo tempo.
 assert.equal(
   acaoDoWatchdog({ ...base, posicaoSegundos: 0, paradoMs: 50000, downloadParadoMs: null }),
-  'descarregar'
+  'desistir',
+  'a resolucao encravada continua sem saida: 0:00 eterno e so reiniciar resolve'
+);
+
+// Mas desistir continua a exigir que NADA ande: um download a progredir segura
+// tudo, mesmo muito depois do prazo.
+assert.equal(
+  acaoDoWatchdog({ ...base, posicaoSegundos: 0, paradoMs: 90000, downloadParadoMs: 2000 }),
+  'descarregar',
+  'desistiu de um download que estava a andar'
 );
 
 // A fronteira do "nunca arrancou": meio segundo ainda conta como parado.
