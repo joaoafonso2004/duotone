@@ -6,6 +6,7 @@ import { useSocial } from '../state/social';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
+import { estadoDaSessao } from '../lib/sessaoViva';
 import { colors, radii, spacing, type } from '../theme';
 
 /**
@@ -24,11 +25,37 @@ import { colors, radii, spacing, type } from '../theme';
  */
 export function BarraDaSessao({ aoAbrir }: { aoAbrir?: () => void }) {
   const sessao = useOuvirJuntos((s) => s.sessao);
-  const membros = useOuvirJuntos((s) => s.membros);
+  const membros = useOuvirJuntos((s) => s.membrosPresentes());
   const euId = useOuvirJuntos((s) => s.euId);
   const amigos = useSocial((s) => s.friends);
+  const acabouSemAviso = useOuvirJuntos((s) => s.acabouSemAviso);
+  const limparAviso = useOuvirJuntos((s) => s.limparAviso);
 
-  if (!sessao) return null;
+  // A sessão fechou por baixo -- normalmente o anfitrião a sair. A barra some,
+  // e sem uma palavra isso lê-se como a app ter estoirado. Fica um aviso que
+  // se apaga sozinho.
+  React.useEffect(() => {
+    if (!acabouSemAviso) return;
+    const t = setTimeout(limparAviso, 6000);
+    return () => clearTimeout(t);
+  }, [acabouSemAviso, limparAviso]);
+
+  if (!sessao) {
+    if (!acabouSemAviso) return null;
+    return (
+      <Toque
+        escala={ESCALA.cartao}
+        onPress={limparAviso}
+        accessibilityLabel="A sessão acabou"
+        style={[styles.barra, styles.acabou]}
+      >
+        <Ionicons name="headset-outline" size={15} color={colors.textSecondary} />
+        <Text style={[styles.titulo, { color: colors.textSecondary }]}>
+          A sessão acabou
+        </Text>
+      </Toque>
+    );
+  }
 
   const nomeDe = (id: string) => {
     if (id === euId) return 'tu';
@@ -37,20 +64,14 @@ export function BarraDaSessao({ aoAbrir }: { aoAbrir?: () => void }) {
   const avatarDe = (id: string) =>
     amigos.find((f) => f.friendId === id)?.avatarUrl ?? null;
 
-  const outros = membros.filter((m) => m.userId !== euId);
-  const aEsperar = outros.filter((m) => !m.pronta);
-
-  // Uma frase e não duas: quem está, ou quem falta. Enquanto alguém não tem a
-  // faixa, é isso que interessa saber -- a lista de presentes pode esperar.
-  const estado = aEsperar.length
-    ? aEsperar.length === 1
-      ? `${nomeDe(aEsperar[0].userId)} a descarregar · ${aEsperar[0].percentagem}%`
-      : `${aEsperar.length} pessoas a descarregar`
-    : outros.length === 0
-      ? 'À espera de quem convidaste'
-      : outros.length === 1
-        ? `A ouvir com ${nomeDe(outros[0].userId)}`
-        : `A ouvir com ${outros.length} amigos`;
+  // A frase vive no `lib/sessaoViva.ts`: qual das verdades mostrar quando há
+  // várias é uma decisão, e as decisões testam-se.
+  const estado = estadoDaSessao({
+    outros: membros
+      .filter((m) => m.userId !== euId)
+      .map((m) => ({ ...m, nome: nomeDe(m.userId) })),
+    agora: Date.now(),
+  });
 
   return (
     <Toque
@@ -91,6 +112,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.accentSoft,
     borderWidth: 1,
     borderColor: 'rgba(139,92,246,0.36)',
+  },
+  acabou: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
   },
   pilha: { flexDirection: 'row' },
   // A borda da cor do fundo é o que separa os avatares quando se sobrepõem --

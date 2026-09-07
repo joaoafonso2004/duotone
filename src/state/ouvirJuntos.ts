@@ -10,6 +10,7 @@ import {
 import { agoraNoServidor, type Estimativa } from '../lib/relogioPartilhado';
 import { posicaoDaSessao } from '../lib/sincronizacao';
 import { appEstaVisivel } from '../lib/appVisibility';
+import { presentes } from '../lib/sessaoViva';
 import { supabase } from '../lib/supabase';
 import type { Track } from '../types';
 
@@ -47,6 +48,23 @@ type Estado = {
   possoControlar: () => boolean;
   /** Onde a sessão está agora, em ms. `null` sem informação suficiente. */
   posicaoAgora: () => number | null;
+  /**
+   * Só quem bateu à porta há pouco.
+   *
+   * Sair pela app apaga a linha, mas ninguém sai sempre pela app: fecha-se à
+   * bruta, a bateria acaba, o metro entra num túnel. Sem isto essas pessoas
+   * ficavam na sessão para sempre -- e uma lista com fantasmas diz uma coisa
+   * falsa, que é pior do que não dizer nada.
+   */
+  membrosPresentes: () => MembroDaSessao[];
+  /**
+   * A sessão acabou agora, e ainda não foi dito a quem cá está.
+   *
+   * O anfitrião a sair fecha a sessão para todos. Desaparecer a barra sem
+   * explicação deixava as pessoas a pensar que a app tinha estoirado.
+   */
+  acabouSemAviso: boolean;
+  limparAviso: () => void;
 
   ligar: (userId: string) => Promise<void>;
   desligar: () => void;
@@ -86,6 +104,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   fila: [],
   relogio: null,
   euId: null,
+  acabouSemAviso: false,
 
   souAnfitriao: () => {
     const { sessao, euId } = get();
@@ -97,6 +116,10 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (!sessao) return false;
     return get().souAnfitriao() || sessao.convidadosControlam;
   },
+
+  membrosPresentes: () => presentes(get().membros, Date.now()),
+
+  limparAviso: () => set({ acabouSemAviso: false }),
 
   posicaoAgora: () => {
     const { sessao, relogio } = get();
@@ -140,8 +163,10 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
         (evento) => {
           if (minha !== geracao) return;
           const nova = sessaoDaLinha(evento.new as any);
-          // Acabou: sai-se sozinho, sem esperar por ninguém.
-          if (nova.acabouEm) { get().desligar(); return; }
+          // Acabou por decisão de outra pessoa -- normalmente o anfitrião a
+          // sair. Sai-se sozinho, mas DIZ-SE: uma barra que desaparece sem
+          // explicação lê-se como a app ter estoirado.
+          if (nova.acabouEm) { get().desligar(); set({ acabouSemAviso: true }); return; }
           set({ sessao: nova });
         }
       )
@@ -179,7 +204,9 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
         lerSessao(s.id), lerMembros(s.id), lerFila(s.id), relogioActualizado(get().relogio),
       ]).then(([nova, membros, fila, relogio]) => {
         if (minha !== geracao) return;
-        if (!nova || nova.acabouEm) { get().desligar(); return; }
+        // Acabou enquanto a app estava suspensa: o realtime não entrega aí, e
+        // é ao voltar que se descobre.
+        if (!nova || nova.acabouEm) { get().desligar(); set({ acabouSemAviso: true }); return; }
         set({ sessao: nova, membros, fila, relogio });
       });
     });
@@ -214,6 +241,8 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     const s = get().sessao;
     if (!s) return;
     get().desligar();
+    // Quem sai por vontade própria não precisa de ser avisado de que saiu.
+    set({ acabouSemAviso: false });
     // Depois de desligar: a saída pode falhar por rede, e nesse caso é melhor
     // ficar de fora na app do que preso numa sessão que já não se quer. O
     // `last_seen` deixa de ser batido e o servidor esquece-nos.

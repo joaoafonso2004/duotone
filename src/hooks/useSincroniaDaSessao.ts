@@ -4,6 +4,7 @@ import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { correccaoNecessaria, velocidadeAAplicar } from '../lib/sincronizacao';
 import { cachedAudioFile } from '../lib/youtubeCache';
 import { appEstaVisivel } from '../lib/appVisibility';
+import { decisaoDeArranque } from '../lib/sessaoViva';
 
 /**
  * O que faz uma sessão de escuta acontecer no leitor.
@@ -49,6 +50,29 @@ export function useSincroniaDaSessao(): void {
   /** A última faixa que ESTA sessão nos mandou tocar, para não repetir. */
   const ultimaMandada = useRef<string | null>(null);
   const ultimaProntidao = useRef<boolean | null>(null);
+
+  /**
+   * Dá tempo a quem ainda está a descarregar, até ao tecto.
+   *
+   * Sonda de meio em meio segundo em vez de esperar o tecto todo: quando estão
+   * todos prontos em dois segundos, arranca aos dois segundos. Uma espera fixa
+   * era o pior dos dois mundos -- lenta quando não era preciso e curta quando
+   * era.
+   */
+  const esperarPorTodos = async () => {
+    const inicio = Date.now();
+    for (;;) {
+      const s = useOuvirJuntos.getState();
+      if (!s.sessao) return;
+      const d = decisaoDeArranque({
+        membros: s.membros,
+        agora: Date.now(),
+        desdeQuandoMs: Date.now() - inicio,
+      });
+      if (d.tipo === 'arrancar') return;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  };
 
   // ---- 1) a faixa -----------------------------------------------------------
   useEffect(() => {
@@ -167,6 +191,13 @@ export function useSincroniaDaSessao(): void {
       if (!s.sessao || !s.possoControlar()) return false;
       const [primeira] = s.fila;
       if (!primeira) return false;
+      // ESPERAR por quem ainda nao tem a faixa, ate ao tecto. Arrancar sem
+      // isto punha o convidado a entrar a meio de TODAS as musicas -- e a
+      // fila de downloads dele so deixa passar uma de cada vez.
+      //
+      // O tecto nao e opcional: sem ele, um amigo em 3G mau congela a sessao
+      // inteira e ninguem percebe porque. Ver `lib/sessaoViva.ts`.
+      await esperarPorTodos();
       const avancou = await s.avancarPelaFila();
       // Quem manda tambem toca: a sessao diz qual e a faixa, mas so os
       // convidados e que obedecem a sessao. Sem esta linha o anfitriao punha a

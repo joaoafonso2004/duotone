@@ -25,7 +25,9 @@ import { colors, radii, spacing, type } from '../theme';
 export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFechar: () => void }) {
   const tema = useTheme((s) => s.theme);
   const sessao = useOuvirJuntos((s) => s.sessao);
-  const membros = useOuvirJuntos((s) => s.membros);
+  const membros = useOuvirJuntos((s) => s.membrosPresentes());
+  const convidarMais = useOuvirJuntos((s) => s.convidarMais);
+  const [convidados, setConvidados] = React.useState<string[]>([]);
   const fila = useOuvirJuntos((s) => s.fila);
   const euId = useOuvirJuntos((s) => s.euId);
   const souAnfitriao = useOuvirJuntos((s) => s.souAnfitriao);
@@ -35,11 +37,16 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
   const amigos = useSocial((s) => s.friends);
 
   const anfitriao = souAnfitriao();
+  const porConvidar = amigos.filter(
+    (f) => !membros.some((m) => m.userId === f.friendId)
+  );
 
   const nomeDe = (id: string) =>
     id === euId ? 'Tu' : amigos.find((f) => f.friendId === id)?.name ?? 'Alguém';
   const avatarDe = (id: string) =>
     amigos.find((f) => f.friendId === id)?.avatarUrl ?? null;
+
+  React.useEffect(() => { if (!visivel) setConvidados([]); }, [visivel]);
 
   return (
     <BottomSheet visible={visivel && !!sessao} onClose={aoFechar}>
@@ -87,6 +94,48 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
               trackColor={{ true: tema.color, false: colors.surfaceHigh }}
             />
           </View>
+        ) : null}
+
+        {/* Convidar a meio. Sem isto, uma sessão de grupo só existia se
+            tivesses convidado toda a gente no primeiro toque -- e as sessões
+            crescem, não nascem feitas. Só o anfitrião: o servidor recusa os
+            outros, e um botão que dá erro é pior do que não haver botão. */}
+        {anfitriao && porConvidar.length > 0 ? (
+          <>
+            <Text style={styles.seccao}>CHAMAR MAIS ALGUÉM</Text>
+            {porConvidar.map((f) => {
+              const jaFoi = convidados.includes(f.friendId);
+              return (
+                <View key={f.friendId} style={styles.linha}>
+                  <FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={38} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text numberOfLines={1} style={styles.nome}>{f.name}</Text>
+                    <Text numberOfLines={1} style={styles.estado}>
+                      {jaFoi ? 'Convite enviado' : f.online ? 'Online now' : 'Recebe no chat'}
+                    </Text>
+                  </View>
+                  <Toque
+                    escala={ESCALA.icone}
+                    hitSlop={10}
+                    disabled={jaFoi}
+                    onPress={() => {
+                      hapticSelection();
+                      setConvidados((c) => [...c, f.friendId]);
+                      void convidarMais([f.friendId]);
+                    }}
+                    accessibilityLabel={`Convidar ${f.name}`}
+                    style={{ padding: 4 }}
+                  >
+                    <Ionicons
+                      name={jaFoi ? 'checkmark-circle' : 'person-add-outline'}
+                      size={19}
+                      color={jaFoi ? colors.online : tema.color}
+                    />
+                  </Toque>
+                </View>
+              );
+            })}
+          </>
         ) : null}
 
         <Text style={styles.seccao}>A SEGUIR</Text>
