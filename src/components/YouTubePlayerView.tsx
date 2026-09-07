@@ -28,6 +28,7 @@ import {
 import { usePlayer } from '../state/player';
 import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear } from '../lib/equalizer';
 import { arredondar as arredondarRate } from '../lib/playbackRate';
+import { trocarFonte } from '../lib/trocaDeFonte';
 import { displayArtist } from '../lib/artistName';
 import { aplicarEqualizadorNativo, ligarAudioNativo } from '../../modules/duotone-audio';
 import type { Track } from '../types';
@@ -499,11 +500,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const emEspera = motorEmEspera;
     try {
       emEspera.volume = 0;
-      await emEspera.replaceAsync({
+      await trocarFonte(emEspera, {
         uri: ficheiro.uri,
         contentType: 'progressive',
         metadata: metadadosDoEcraBloqueado(seguinte),
-      });
+      }, { desistir: () => seguinteRef.current?.sourceId !== seguinte.sourceId });
       // A faixa pode ter mudado enquanto isto carregava.
       if (seguinteRef.current?.sourceId === seguinte.sourceId) {
         // O perfil DELA no motor DELA, antes de soar uma amostra. É isto que
@@ -817,11 +818,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const localFile = cachedAudioFile(track.sourceId);
     if (localFile.exists) {
       try {
-        await player.replaceAsync({
+        await trocarFonte(player, {
           uri: localFile.uri,
           contentType: 'progressive',
           metadata: metadadosDoEcraBloqueado(track),
-        });
+        }, { desistir: () => !alive() });
         if (!alive()) return;
         beginPlayback();
         return;
@@ -899,11 +900,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         setDownloadProgress(null);
       }
 
-      await player.replaceAsync({
+      await trocarFonte(player, {
         uri: playableUri,
         contentType: stream.isHls ? 'hls' : 'progressive',
         metadata: metadadosDoEcraBloqueado(track),
-      });
+      }, { desistir: () => !alive() });
       if (!alive()) return;
       beginPlayback();
     } catch (e: any) {
@@ -994,11 +995,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       );
       setDownloadProgress(null);
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
-      await player.replaceAsync({
+      await trocarFonte(player, {
         uri,
         contentType: 'progressive',
         metadata: metadadosDoEcraBloqueado(track),
-      });
+      }, { desistir: () => !isMountedRef.current || myRun !== runIdRef.current });
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       nativeTrackIdRef.current = track.sourceId;
       try {
