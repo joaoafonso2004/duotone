@@ -7,6 +7,8 @@ import {
   getForgottenFavorites, getHeavyRotation, getProfileRecentlyPlayed,
 } from '../api/plays';
 import type { Track } from '../types';
+import { semRepetidas } from '../lib/prateleirasSemRepetidas';
+import { trackKey } from '../lib/shuffle';
 
 /**
  * As prateleiras de recomendações, fora do ecrã que as mostra.
@@ -38,6 +40,13 @@ type Recomendacoes = {
   flow: Track[];
   maisTocadas: Track[];
   esquecidas: Track[];
+  /**
+   * Quais ja aterraram -- vazia por ter chegado vazia, e nao por ainda vir a
+   * caminho. Sao coisas diferentes e o ecra precisa de as distinguir: uma
+   * mostra esqueleto, a outra desaparece. Sem isto, uma prateleira lenta era
+   * indistinguivel de uma prateleira sem nada.
+   */
+  prontas: NomeDaPrateleira[];
   estado: EstadoDasRecomendacoes;
   /** Quando ficaram prontas nesta sessão. */
   carregadoEm: number;
@@ -53,6 +62,22 @@ type Recomendacoes = {
 /** Quantas faixas por prateleira. */
 const POR_PRATELEIRA = 14;
 
+/**
+ * A ordem em que as prateleiras se veem -- e, por consequencia, quem fica com
+ * uma faixa que aparece em duas.
+ *
+ * TEM de bater certo com a ordem do ecra. Se alguem reordenar as seccoes da
+ * pesquisa e esquecer esta linha, o dedupe passa a dar a faixa a uma
+ * prateleira que aparece mais abaixo, e o utilizador ve um buraco no sitio
+ * onde ela devia estar. Por isso o ecra importa esta constante em vez de ter
+ * a ordem escrita outra vez.
+ */
+export const ORDEM_DAS_PRATELEIRAS = [
+  'descobrir', 'nuncaLancado', 'ouvirDeNovo', 'flow', 'maisTocadas', 'esquecidas',
+] as const;
+
+export type NomeDaPrateleira = typeof ORDEM_DAS_PRATELEIRAS[number];
+
 /** Impede que duas chamadas ao mesmo tempo façam o trabalho a dobrar. */
 let emCurso: Promise<void> | null = null;
 let geracao = 0;
@@ -65,13 +90,14 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
   flow: [],
   maisTocadas: [],
   esquecidas: [],
+  prontas: [],
   estado: 'vazio',
   carregadoEm: 0,
   limpar: () => {
     geracao++;
     rawShelves={};
     emCurso = null;
-    set({ descobrir: [], nuncaLancado: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], estado: 'vazio', carregadoEm: 0 });
+    set({ descobrir: [], nuncaLancado: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], prontas: [], estado: 'vazio', carregadoEm: 0 });
   },
 
   carregar: async (forcar = false) => {
@@ -94,12 +120,30 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
      *
      * Uma prateleira que falha nao leva as outras atras, como antes.
      */
+    /**
+     * Refaz as SEIS de cada vez que UMA aterra.
+     *
+     * Podia parecer desperdicio publicar so a que chegou. Nao e: a mesma faixa
+     * pode estar em duas prateleiras, e quem fica com ela decide-se pela ordem
+     * em que se veem -- nao pela ordem em que chegam, que muda com a rede.
+     * Recalcular a partir dos originais e o que torna o resultado sempre o
+     * mesmo. Sao seis listas de catorze; o custo nao se mede.
+     */
+    const republicar = () => {
+      const filtradas = Object.fromEntries(
+        ORDEM_DAS_PRATELEIRAS.map((nome) => [nome, filterSuggestions(rawShelves[nome] ?? [])])
+      ) as Record<NomeDaPrateleira, Track[]>;
+      set({
+        ...semRepetidas(filtradas, ORDEM_DAS_PRATELEIRAS, trackKey),
+        prontas: ORDEM_DAS_PRATELEIRAS.filter((nome) => rawShelves[nome] !== undefined),
+      });
+    };
+
     const publicar = <T,>(p: Promise<T[]>, campo: (v: T[]) => Partial<Recomendacoes>) =>
       p.then((v) => {
         if(atual!==geracao)return;
-        const values=campo(v);
-        Object.assign(rawShelves,values);
-        set(Object.fromEntries(Object.entries(values).map(([key,tracks])=>[key,Array.isArray(tracks)?filterSuggestions(tracks as Track[]):tracks])));
+        Object.assign(rawShelves, campo(v));
+        republicar();
       }).catch(() => {});
 
     const trabalho = Promise.resolve().then(()=>feedbackReady()).then(() => atual!==geracao?undefined:Promise.all([

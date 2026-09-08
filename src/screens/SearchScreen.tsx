@@ -18,12 +18,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary } from '../api/library';
 import { useMusicSearch } from '../hooks/useMusicSearch';
-import { temRecomendacoes, useRecomendacoes } from '../state/recomendacoes';
+import { temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
 import { displayArtist } from '../lib/artistName';
 import { useSaved } from '../state/saved';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
-import { SkeletonDeFaixas } from '../components/Skeleton';
+import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -54,7 +54,10 @@ export function SearchScreen() {
   const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
   const { descobrir, nuncaLancado, ouvirDeNovo: listenAgain, flow: flowMix,
-    maisTocadas: heavyRotation, esquecidas: forgottenFavorites } = recs;
+    maisTocadas: heavyRotation, esquecidas: forgottenFavorites, prontas } = recs;
+  /** Ja aterrou? Vazia por ter chegado vazia e vazia por vir a caminho sao
+   *  coisas diferentes: uma esconde-se, a outra mostra esqueleto. */
+  const jaChegou = (nome: NomeDaPrateleira) => prontas.includes(nome);
   const loadingRecs = recs.estado === 'a-carregar';
   const { results, naBiblioteca, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
     void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
@@ -77,14 +80,21 @@ export function SearchScreen() {
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
   // Render horizontal recommendation lists
-  const renderRecommendationSection = (title: string, data: Track[], icon: keyof typeof Ionicons.glyphMap) => {
-    if (data.length === 0) return null;
+  const renderRecommendationSection = (
+    title: string, data: Track[], icon: keyof typeof Ionicons.glyphMap,
+    chegou: boolean, largura = 120,
+  ) => {
+    // Chegou e veio vazia: a seccao desaparece, sem deixar um titulo orfao.
+    if (chegou && data.length === 0) return null;
     return (
       <View style={styles.recsSection}>
         <View style={styles.sectionHeader}>
           <Ionicons name={icon} size={18} color={colors.text} />
           <Text style={styles.sectionTitle}>{title}</Text>
         </View>
+        {!chegou ? (
+          <SkeletonDePrateleira largura={largura} />
+        ) : (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -99,17 +109,17 @@ export function SearchScreen() {
                 setActionTrack(track);
               }}
               delayLongPress={350}
-              style={({ pressed }) => [styles.recCard, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [styles.recCard, { width: largura }, pressed && { opacity: 0.8 }]}
             >
               {track.artworkUrl ? (
                 <Image
                   source={{ uri: track.artworkUrl }}
-                  style={styles.cardArt}
+                  style={[styles.cardArt, { width: largura, height: largura }]}
                   contentFit="cover"
                   transition={200}
                 />
               ) : (
-                <View style={[styles.cardArt, styles.artFallback]}>
+                <View style={[styles.cardArt, { width: largura, height: largura }, styles.artFallback]}>
                   <Ionicons name="musical-note" size={24} color={colors.textTertiary} />
                 </View>
               )}
@@ -122,6 +132,7 @@ export function SearchScreen() {
             </Pressable>
           ))}
         </ScrollView>
+        )}
       </View>
     );
   };
@@ -211,24 +222,28 @@ export function SearchScreen() {
             contentContainerStyle={{ paddingBottom: bottomPad }}
             showsVerticalScrollIndicator={false}
           >
-            {loadingRecs && !temRecomendacoes(recs) ? (
-              <SkeletonDeFaixas />
-            ) : (
+            {/* Sem porteiro global: cada prateleira mostra o SEU esqueleto e
+                entra quando chega. O que estava aqui escondia as tres rapidas
+                -- consultas diretas a base de dados -- atras da descoberta,
+                que fala com o YouTube faixa a faixa. Era esperar pela mais
+                lenta com as outras ja prontas em memoria, que e precisamente
+                o que o carregamento por partes existe para evitar. */}
+            {(
               <View>
                 {/* A PRIMEIRA prateleira e so descoberta: musica que ele nao tem,
                     escolhida pelo que ele ouve. */}
-                {renderRecommendationSection('Discover new', descobrir, 'sparkles-outline')}
+                {renderRecommendationSection('Discover new', descobrir, 'sparkles-outline', jaChegou('descobrir'), 150)}
                 {/* Logo a seguir, e de propósito. O "Discover new" vai para
                     FORA -- artistas vizinhos, e só música que saiu. Esta vai
                     para dentro: o que os artistas dele nunca lançaram, que não
                     existe em catálogo nenhum. Ver api/naoLancado.ts. */}
-                {renderRecommendationSection('Never released', nuncaLancado, 'lock-open-outline')}
-                {listenAgain.length > 0 && renderRecommendationSection('Listen again', listenAgain, 'time-outline')}
-                {renderRecommendationSection('Daily flow', flowMix, 'sparkles-outline')}
-                {renderRecommendationSection('Heavy rotation', heavyRotation, 'flame-outline')}
-                {renderRecommendationSection('Forgotten favourites', forgottenFavorites, 'heart-dislike-outline')}
+                {renderRecommendationSection('Never released', nuncaLancado, 'lock-open-outline', jaChegou('nuncaLancado'), 150)}
+                {renderRecommendationSection('Listen again', listenAgain, 'time-outline', jaChegou('ouvirDeNovo'))}
+                {renderRecommendationSection('Daily flow', flowMix, 'sparkles-outline', jaChegou('flow'))}
+                {renderRecommendationSection('Heavy rotation', heavyRotation, 'flame-outline', jaChegou('maisTocadas'))}
+                {renderRecommendationSection('Forgotten favourites', forgottenFavorites, 'heart-dislike-outline', jaChegou('esquecidas'))}
                 
-                {!temRecomendacoes(recs) && (
+                {!loadingRecs && !temRecomendacoes(recs) && (
                   <Text style={styles.emptyRecsText}>
                     {hasFeedback?'No suggestions match your current preferences. You can review them in Settings → Recommendations, or search for music above.':'No recommendations yet. Start playing songs and saving them to your library to generate your Flow!'}
                   </Text>
@@ -261,7 +276,7 @@ export function SearchScreen() {
               <View>
                 <View style={[styles.sectionHeader, { marginBottom: spacing.sm }]}>
                   <Ionicons name="heart" size={18} color={colors.text} />
-                  <Text style={styles.sectionTitle}>Na tua biblioteca</Text>
+                  <Text style={styles.sectionTitle}>In your library</Text>
                 </View>
                 {naBiblioteca.map((t) => (
                   <TrackRow
@@ -278,7 +293,7 @@ export function SearchScreen() {
                 {results.length > 0 && (
                   <View style={[styles.sectionHeader, { marginTop: spacing.lg, marginBottom: spacing.sm }]}>
                     <Ionicons name="logo-youtube" size={18} color={colors.text} />
-                    <Text style={styles.sectionTitle}>No YouTube</Text>
+                    <Text style={styles.sectionTitle}>On YouTube</Text>
                   </View>
                 )}
               </View>

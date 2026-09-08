@@ -55,6 +55,33 @@ export function SkeletonDeFaixas({ linhas = 8 }: { linhas?: number }) {
   );
 }
 
+/**
+ * Uma prateleira horizontal a chegar: capa quadrada, título e artista.
+ *
+ * Existe por secção e não uma vez por ecrã, porque as prateleiras aterram em
+ * alturas diferentes -- as que saem da base de dados chegam quase logo, a
+ * descoberta fala com o YouTube e demora segundos. Um esqueleto único à
+ * frente de todas escondia as rápidas atrás da lenta, que é exactamente o
+ * problema que o carregamento por partes foi feito para resolver.
+ *
+ * Não desliza na horizontal de propósito: um esqueleto não se percorre.
+ */
+export function SkeletonDePrateleira({ cartoes = 4, largura = 120 }: {
+  cartoes?: number; largura?: number;
+}) {
+  return (
+    <View accessibilityLabel="Loading" style={styles.prateleira}>
+      {Array.from({ length: cartoes }).map((_, i) => (
+        <View key={i} style={{ width: largura, gap: 6 }}>
+          <Barra style={{ width: largura, height: largura, borderRadius: radii.md }} />
+          <Barra style={{ height: 10, width: `${84 - (i % 3) * 14}%` }} />
+          <Barra style={{ height: 9, width: `${56 - (i % 2) * 12}%` }} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /** A grelha redonda dos artistas. */
 export function SkeletonDeArtistas({ linhas = 6 }: { linhas?: number }) {
   return (
@@ -104,6 +131,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: 10,
+  },
+  prateleira: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    overflow: 'hidden',
   },
   capa: { width: 48, height: 48, borderRadius: radii.sm },
   avatarGrande: { width: 54, height: 54, borderRadius: 27 },
