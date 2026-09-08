@@ -90,6 +90,16 @@ const AR_ACIMA_DA_CAPA = 20;
  */
 const RESERVA_DOS_CONTROLOS = 360;
 
+/**
+ * Quanto e que a placa da sombra encolhe em relacao a capa.
+ *
+ * Dez pontos de cada lado. Chegam para a placa ficar sempre escondida por
+ * baixo da capa -- mesmo a meio da rotacao do cubo, onde a pegada do quadrado
+ * muda -- e sao pouco face ao raio da sombra, por isso o que transborda quase
+ * nao se nota que sai de um quadrado mais pequeno.
+ */
+const RECUO_DA_SOMBRA = 10;
+
 /** O espaçamento entre as letras da marca. Ver o `brandName`. */
 const ESPACO_DA_MARCA = 2.6;
 
@@ -720,6 +730,41 @@ export function PlayerRoot() {
   const saidaDoVoo = (deOrigem: number, deMini: number, deFull: number) =>
     origemDaEntrada ? [deOrigem, deMini, deFull] : [deMini, deFull];
 
+  /**
+   * O voo da moldura, num sitio so.
+   *
+   * Estava escrito por extenso dentro do `style` da moldura. Passou a ser
+   * preciso duas vezes -- a placa da sombra tem de fazer exactamente o mesmo
+   * percurso -- e duas copias destas interpolacoes divergiam ao primeiro
+   * acerto, com a sombra a descolar da capa a meio da animacao.
+   */
+  const vooDaMoldura = [
+    {
+      translateX: Animated.add(
+        anim.interpolate({
+          inputRange: faixaDoVoo,
+          outputRange: saidaDoVoo(deslocacaoOrigem.x, deslocacaoMini.x, 0),
+        }),
+        expanded || reducedMotion ? 0 : Animated.add(dragX, (1 - closeGain) * W)
+      ),
+    },
+    {
+      translateY: Animated.add(
+        anim.interpolate({
+          inputRange: faixaDoVoo,
+          outputRange: saidaDoVoo(deslocacaoOrigem.y, deslocacaoMini.y, 0),
+        }),
+        dragY
+      ),
+    },
+    {
+      scale: anim.interpolate({
+        inputRange: faixaDoVoo,
+        outputRange: saidaDoVoo(escalaOrigem, escalaMini, 1),
+      }),
+    },
+  ];
+
 
   /**
    * O artista do now-playing leva à página dele.
@@ -1269,6 +1314,47 @@ export function PlayerRoot() {
       ) : null}
       <FolhaDaSessao visivel={sessaoAberta} aoFechar={() => setSessaoAberta(false)} />
 
+      {/* ===================== A SOMBRA DA CAPA =====================
+          Numa placa POR TRAS da moldura, e nao na propria moldura.
+          ------------------------------------------------------------------
+          Duas razoes, as duas do iOS. A primeira: uma sombra numa View com
+          fundo transparente nao desenha -- o `CALayer` tira-a do conteudo da
+          camada, e a moldura e transparente de propósito quando expandida,
+          para o cubo poder rodar e deixar ver a pagina por tras. A segunda: a
+          moldura tem `overflow: hidden` no mini, e isso corta a sombra.
+
+          A placa e ENCOLHIDA em relacao a capa (ver `RECUO_DA_SOMBRA`) para
+          ficar sempre escondida por baixo dela -- inclusive a meio da rotacao
+          do cubo, onde a pegada do quadrado muda. O que se ve e so o que
+          transborda: um halo curto em baixo e aos lados.
+
+          Faz o MESMO voo da moldura (o `vooDaMoldura`), e so aparece com o
+          leitor aberto: uma sombra debaixo da capa de 48 px do mini-player
+          nao se veria e ainda pintava por baixo da barra. */}
+      {current ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.sombraDaCapa,
+            {
+              position: 'absolute',
+              left: vidFull.x + RECUO_DA_SOMBRA,
+              top: vidFull.y + RECUO_DA_SOMBRA,
+              width: Math.max(0, vidFull.w - RECUO_DA_SOMBRA * 2),
+              height: Math.max(0, vidFull.h - RECUO_DA_SOMBRA * 2),
+              opacity: Animated.multiply(
+                visibilityAnim,
+                anim.interpolate({
+                  inputRange: faixaDoVoo,
+                  outputRange: saidaDoVoo(0, 0, 1),
+                }),
+              ),
+              transform: vooDaMoldura,
+            },
+          ]}
+        />
+      ) : null}
+
       {/* ============ FRAME DE VÍDEO YOUTUBE (flutuante, nunca desmonta) ============ */}
       {current ? (
         <Animated.View
@@ -1294,32 +1380,7 @@ export function PlayerRoot() {
               inputRange: [0, 1],
               outputRange: [8, 20],
             }),
-            transform: [
-              {
-                translateX: Animated.add(
-                  anim.interpolate({
-                    inputRange: faixaDoVoo,
-                    outputRange: saidaDoVoo(deslocacaoOrigem.x, deslocacaoMini.x, 0),
-                  }),
-                  expanded || reducedMotion ? 0 : Animated.add(dragX, (1 - closeGain) * W)
-                ),
-              },
-              {
-                translateY: Animated.add(
-                  anim.interpolate({
-                    inputRange: faixaDoVoo,
-                    outputRange: saidaDoVoo(deslocacaoOrigem.y, deslocacaoMini.y, 0),
-                  }),
-                  dragY
-                ),
-              },
-              {
-                scale: anim.interpolate({
-                  inputRange: faixaDoVoo,
-                  outputRange: saidaDoVoo(escalaOrigem, escalaMini, 1),
-                }),
-              },
-            ],
+            transform: vooDaMoldura,
             overflow: expanded ? 'visible' : 'hidden',
             backgroundColor: expanded ? 'transparent' : '#000',
           }}
@@ -1590,6 +1651,25 @@ const styles = StyleSheet.create({
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /**
+   * Ligeira, e ligeira a serio.
+   *
+   * O que se quer e a capa parecer pousada, nao recortada: um halo curto por
+   * baixo e quase nada aos lados. Dai o deslocamento so na vertical, a
+   * opacidade a menos de metade, e um raio largo -- uma sombra apertada
+   * desenha um contorno, e um contorno le-se como uma moldura.
+   *
+   * O `elevation` e para o Android; o resto e o iOS, que e onde isto se ve.
+   */
+  sombraDaCapa: {
+    borderRadius: 20,
+    backgroundColor: '#000',
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
   artworkWrap: {
     alignItems: 'center',
