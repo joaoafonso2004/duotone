@@ -31,17 +31,15 @@ export const MINIMO_PARA_VALER = 5;
 /**
  * As misturas por artista, a partir da tua biblioteca.
  *
- * ## O que isto é, e o que ainda não é
+ * ## O que uma mistura é
  *
- * Uma mistura ancorada num artista que ouves muito: tudo o que tens dele,
- * baralhado. É honesto e é útil -- resolve o "quero ouvir tudo o que tenho
- * deste" sem ir à página dele.
+ * O artista âncora é alguém que se ouve muito; as faixas são as dele **e as
+ * dos vizinhos dele**, intercaladas. É isso que separa uma mistura de uma
+ * lista: sai-se do que já se conhece sem se sair do que se gosta.
  *
- * Não é ainda o *daily mix* do Spotify, que mistura o artista âncora com
- * VIZINHOS dele. Falta o mapa de quem é vizinho de quem, e ele existe: o
- * `descobrirNovas` calcula-o para escolher o que sugerir, e deita-o fora no
- * fim. Guardá-lo é o passo seguinte, e é em `api/descoberta.ts` que se faz --
- * não aqui.
+ * O mapa de vizinhos vem do `descobertasPorAncora`. Já era calculado para
+ * escolher o que sugerir na descoberta e era deitado fora no fim -- guardá-lo
+ * foi quase todo o trabalho, e fez-se lá e não aqui.
  *
  * ## Porque só artistas com música que chegue
  *
@@ -64,6 +62,9 @@ export function misturasDaBiblioteca(
    * trocavam de sítio entre um regresso à pesquisa e o seguinte.
    */
   deslocamento = 0,
+  /** Descobertas por âncora, do `descobertasPorAncora`. Vazio degrada para a
+   *  mistura só com a biblioteca, que é o que existia antes disto. */
+  vizinhas: ReadonlyMap<string, readonly Track[]> = new Map(),
 ): Mistura[] {
   const porChave = new Map<string, Track[]>();
   for (const faixa of biblioteca) {
@@ -85,10 +86,20 @@ export function misturasDaBiblioteca(
     const chave = chaveDoNome(artista.name);
     const faixas = porChave.get(chave);
     if (!faixas || faixas.length < MINIMO_PARA_VALER) continue;
+    // Uma tua, uma nova, uma tua: o conhecido dá o tom e o desconhecido entra
+    // por entre ele. Em bloco, as novas ficavam todas no fim -- que é onde
+    // ninguém chega -- e a mistura era a tua biblioteca com um apêndice.
+    const minhas = baralhar(faixas);
+    const novas = baralhar([...(vizinhas.get(chaveDoNome(artista.name)) ?? [])]);
+    const juntas: Track[] = [];
+    for (let i = 0; juntas.length < POR_MISTURA && (i < minhas.length || i < novas.length); i++) {
+      if (minhas[i]) juntas.push(minhas[i]);
+      if (novas[i] && juntas.length < POR_MISTURA) juntas.push(novas[i]);
+    }
     saida.push({
       id: `artista:${chave}`,
       nome: `${artista.name} mix`,
-      faixas: baralhar(faixas).slice(0, POR_MISTURA),
+      faixas: juntas,
     });
   }
   return saida;

@@ -8,6 +8,7 @@ import { searchYouTubeFreeWithChannel } from './ytSearchFree';
 import {
   apenasDeConfianca, chaveDeArtista, displayArtist, nomesDeConfianca,
   type FaixaParaAprender,
+  extractArtist,
 } from '../lib/artistName';
 import {
   alvosDeProcura, artistasVizinhos, retratoDoContexto, vizinhosPorPlaylist,
@@ -16,6 +17,7 @@ import {
   chaveDeCatalogo, ordenarPorGosto, repartir, type ArtistaDoCatalogo,
 } from '../lib/catalogo';
 import { pareceMusica } from '../lib/musica';
+import { fetchYouTubePlaylistById, searchYouTubePlaylists } from './youtube';
 import { pickBest } from '../lib/trackMatch';
 import { trackKey } from '../lib/shuffle';
 import type { Track } from '../types';
@@ -84,6 +86,15 @@ export async function candidatasParaDescoberta(
   quantas: number = QUANTAS,
   quantosAlvos: number = ALVOS,
   escutas?: ReadonlyMap<string, number>,
+  /**
+   * Se vier, é preenchido com as descobertas agrupadas pelo ARTISTA DO
+   * UTILIZADOR que as trouxe.
+   *
+   * Sai por parâmetro e não no retorno de propósito: três chamadores já usam
+   * esta função e nenhum deles quer o agrupamento. Mudar o tipo de retorno
+   * obrigava-os todos a desembrulhar uma coisa que não pediram.
+   */
+  porAncora?: Map<string, Track[]>,
 ): Promise<Track[]> {
   if(useConnectivity.getState().offline)return [];
   await feedbackReady();
@@ -107,8 +118,9 @@ export async function candidatasParaDescoberta(
   const vistas = new Set<string>();
   for (let i = 0; i < desejadas.length && saida.length < quantas; i += EM_PARALELO) {
     const lote = desejadas.slice(i, i + EM_PARALELO);
-    const achadas = await Promise.all(lote.map((f) => procurarNoYouTube(f)));
-    for (const t of achadas) {
+    const achadas = await Promise.all(lote.map((d) => procurarNoYouTube(d.faixa)));
+    for (let n = 0; n < achadas.length; n++) {
+      const t = achadas[n];
       if (!t||trackIsSuppressed(t)) continue;
       const k = trackKey(t);
       if (!k || vistas.has(k)) continue;
@@ -118,6 +130,14 @@ export async function candidatasParaDescoberta(
       if (!pareceMusica(t)) continue;
       vistas.add(k);
       saida.push(t);
+      // A âncora sobrevive à resolução. É este o passo que faltava: até aqui
+      // sabia-se que uma faixa era uma descoberta, e perdia-se de QUEM ela
+      // era vizinha -- que é precisamente o que uma mistura precisa de saber.
+      const ancora = desejadas[i + n]?.ancora;
+      if (porAncora && ancora) {
+        const lista = porAncora.get(ancora);
+        if (lista) lista.push(t); else porAncora.set(ancora, [t]);
+      }
       if (saida.length >= quantas) break;
     }
   }
@@ -136,7 +156,7 @@ async function faixasParaProcurar(
   alvos: readonly Alvo[],
   afinidade: ReadonlyMap<string, number>,
   contexto: readonly Track[],
-): Promise<FaixaDoCatalogo[]> {
+): Promise<{ faixa: FaixaDoCatalogo; ancora: string }[]> {
   // Quem ele já ouve não é descoberta. Inclui os alvos e todo o contexto,
   // porque o catálogo devolve muitas vezes os artistas uns dos outros.
   const jaOuve = new Set<string>();
@@ -151,12 +171,17 @@ async function faixasParaProcurar(
   // do mesmo lado. Ver `ordenarPorGosto`.
   const listas: ArtistaDoCatalogo[][] = [];
   const pesos: number[] = [];
+  // De que alvo veio cada lista. Sem isto o índice de `listas` deixa de bater
+  // certo com o de `alvos` -- só entram os alvos que o catálogo resolveu -- e
+  // a ligação entre um vizinho e o artista que o trouxe perde-se aqui mesmo.
+  const ancoras: string[] = [];
   for (const alvo of alvos) {
     const vizinhanca = await vizinhancaDe(alvo.nome).catch(() => null);
     if (!vizinhanca) continue; // não é um artista, ou o catálogo não respondeu
     if (vizinhanca.semelhantes.length === 0) continue;
     listas.push(vizinhanca.semelhantes);
     pesos.push(alvo.peso);
+    ancoras.push(alvo.nome);
   }
   if (listas.length === 0) return [];
 
@@ -166,6 +191,8 @@ async function faixasParaProcurar(
   // que a `repartir` garante é a outra metade do pedido: um pouco de tudo.
   const quota = repartir(pesos, SEMELHANTES);
   const escolhidos: ArtistaDoCatalogo[] = [];
+  /** Vizinho -> artista do utilizador que o trouxe. */
+  const deQuemVeio = new Map<ArtistaDoCatalogo['id'], string>();
   const jaEscolhido = new Set<string>();
   listas.forEach((lista, i) => {
     // Ordenado DENTRO da lista de onde veio: o primeiro semelhante de um alvo
@@ -177,11 +204,14 @@ async function faixasParaProcurar(
       if (!k || jaEscolhido.has(k)) continue;
       jaEscolhido.add(k);
       escolhidos.push(a);
+      deQuemVeio.set(a.id, ancoras[i]);
       levados++;
     }
   });
 
   const porArtista: FaixaDoCatalogo[][] = [];
+  /** A mesma ordem do `faixas` de saída: a âncora de cada faixa devolvida. */
+  const ancoraDe: string[][] = [];
   for (const artista of escolhidos) {
     const top = await topDoArtista(artista.id, FAIXAS_POR_ARTISTA);
     // **As faixas do topo de um artista nem sempre são DELE.** O catálogo
@@ -191,17 +221,20 @@ async function faixasParaProcurar(
     // numa lista que promete música que ele ainda não ouve. Quem ele já ouve
     // sai; um convidado novo fica, que continua a ser uma descoberta.
     const novas = top.filter((f) => !jaOuve.has(chaveDeCatalogo(f.artista)));
-    if (novas.length > 0) porArtista.push(novas);
+    if (novas.length > 0) {
+      porArtista.push(novas);
+      ancoraDe.push(novas.map(() => deQuemVeio.get(artista.id) ?? ''));
+    }
   }
 
   // Uma faixa de cada artista antes da segunda de qualquer um: senão a
   // prateleira enchia-se com quatro do mesmo e parecia um álbum.
-  const faixas: FaixaDoCatalogo[] = [];
+  const faixas: { faixa: FaixaDoCatalogo; ancora: string }[] = [];
   for (let i = 0; i < FAIXAS_POR_ARTISTA; i++) {
-    for (const doArtista of porArtista) {
+    porArtista.forEach((doArtista, n) => {
       const f = doArtista[i];
-      if (f) faixas.push(f);
-    }
+      if (f) faixas.push({ faixa: f, ancora: ancoraDe[n][i] ?? '' });
+    });
   }
   return faixas;
 }
@@ -436,4 +469,87 @@ async function escolherAlvos(
     .map((chave) => ({ nome: nomePorChave.get(chave) ?? chave, peso: pesoDe(chave) }))
     .filter((a) => a.nome);
   return { alvos, afinidade };
+}
+
+
+/**
+ * As descobertas agrupadas pelo artista do utilizador que as trouxe.
+ *
+ * É isto que faz uma mistura ser uma mistura e não uma lista: o âncora é
+ * alguém que ele ouve, e o resto são vizinhos DESSE alguém -- não vizinhos de
+ * toda a gente misturados num saco.
+ *
+ * Corre o mesmo trabalho da descoberta e não outro. Chamá-lo à parte
+ * duplicaria a conversa com o catálogo e com o YouTube, que é a parte cara e
+ * lenta de tudo isto.
+ */
+export async function descobertasPorAncora(
+  biblioteca: readonly Track[],
+  quantas = 60,
+): Promise<Map<string, Track[]>> {
+  const porAncora = new Map<string, Track[]>();
+  const contexto = biblioteca.slice(0, 60);
+  const escutas = new Map<string, number>();
+  try {
+    for (const a of await getTopArtists(20)) {
+      const k = chaveDeArtista(a.name);
+      if (k && a.plays > 0) escutas.set(k, a.plays);
+    }
+  } catch {
+    // sem histórico: fica o retrato da biblioteca, como na descoberta
+  }
+  await candidatasParaDescoberta(contexto, new Set(), new Set(), quantas, 6, escutas, porAncora)
+    .catch(() => [] as Track[]);
+  return porAncora;
+}
+
+
+/** Quantas faixas uma âncora precisa de ter antes de valer a pena a rede. */
+const VIZINHAS_QUE_CHEGAM = 8;
+
+/**
+ * A rede: quando o catálogo não dá vizinhos que cheguem, vai-se buscar uma
+ * playlist do artista ao YouTube.
+ *
+ * Não é a fonte, é o remendo -- e a diferença importa. A mistura a sério sai
+ * do catálogo, que sabe quem se parece com quem; o primeiro resultado de uma
+ * pesquisa no YouTube é uma lotaria e pode ser uma compilação de dez horas ou
+ * um `type beat`. Só entra quando a alternativa é uma mistura curta demais
+ * para valer a pena, e mesmo aí passa pelo `pareceMusica`, que é o mesmo
+ * filtro que a descoberta usa.
+ *
+ * Preenche o mapa que recebe em vez de devolver outro: quem chama já o tem, e
+ * duas fontes na mesma prateleira devem acabar no mesmo sítio.
+ */
+export async function taparBuracosComOYouTube(
+  ancoras: readonly string[],
+  vizinhas: Map<string, Track[]>,
+  chaveDoNome: (nome: string) => string,
+): Promise<void> {
+  if (useConnectivity.getState().offline) return;
+  for (const nome of ancoras) {
+    const chave = chaveDoNome(nome);
+    if ((vizinhas.get(chave)?.length ?? 0) >= VIZINHAS_QUE_CHEGAM) continue;
+    try {
+      const achadas = await searchYouTubePlaylists(`${nome} playlist`, 1);
+      const primeira = achadas[0];
+      if (!primeira) continue;
+      const lista = await fetchYouTubePlaylistById(primeira.id);
+      const faixas = lista.items.map((i): Track => ({
+        source: 'youtube' as const,
+        sourceId: i.videoId,
+        title: i.title,
+        artist: extractArtist(i.title, i.channel || null),
+        album: null,
+        artworkUrl: i.thumbnail,
+        durationSeconds: null,
+      })).filter((t) => pareceMusica(t) && !trackIsSuppressed(t));
+      if (faixas.length === 0) continue;
+      const jaLa = vizinhas.get(chave) ?? [];
+      vizinhas.set(chave, [...jaLa, ...filterSuggestions(faixas)]);
+    } catch {
+      // Uma âncora sem rede não estraga as outras: a mistura dela sai mais
+      // curta, como saía antes de isto existir.
+    }
+  }
 }

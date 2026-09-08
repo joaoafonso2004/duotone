@@ -95,6 +95,36 @@ verificar('dá a volta em vez de devolver menos', () => {
   assert.deepEqual(r.map((m) => m.nome).sort(), ['C mix', 'D mix']);
 });
 
+verificar('a mistura intercala o teu com o novo', () => {
+  // É isto que separa uma mistura de uma lista: sai-se do que já se conhece
+  // sem se sair do que se gosta.
+  const lib = muitas('A', 6);
+  const vizinhas = new Map([['a', [f('v1', 'Vizinho'), f('v2', 'Vizinho'), f('v3', 'Vizinho')]]]);
+  const r = misturasDaBiblioteca([{ name: 'A' }], lib, chaveT, chaveN, (l) => [...l], 0, vizinhas);
+  const ids = r[0].faixas.map((t) => t.sourceId);
+  assert.equal(ids[0], 'A0', 'o conhecido dá o tom');
+  assert.equal(ids[1], 'v1', 'e o novo entra por entre ele');
+  assert.equal(ids[2], 'A1');
+  assert.equal(ids[3], 'v2');
+});
+
+verificar('sem vizinhos degrada para a biblioteca, não desaparece', () => {
+  const lib = muitas('A', 7);
+  const r = misturasDaBiblioteca([{ name: 'A' }], lib, chaveT, chaveN);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].faixas.length, 7, 'a mistura sai mais curta, e sai');
+});
+
+verificar('as novas não ficam todas no fim', () => {
+  // Em bloco, o que é novo ficava onde ninguém chega -- e a mistura era a
+  // biblioteca com um apêndice.
+  const lib = muitas('A', 20);
+  const vizinhas = new Map([['a', Array.from({ length: 20 }, (_, i) => f('v' + i, 'Vizinho'))]]);
+  const r = misturasDaBiblioteca([{ name: 'A' }], lib, chaveT, chaveN, (l) => [...l], 0, vizinhas);
+  const metade = r[0].faixas.slice(0, Math.floor(r[0].faixas.length / 2));
+  assert.ok(metade.some((t) => t.artist === 'Vizinho'), 'há novidade na primeira metade');
+});
+
 if (falhas > 0) {
   console.error(`\n${falhas} teste(s) falharam`);
   process.exit(1);

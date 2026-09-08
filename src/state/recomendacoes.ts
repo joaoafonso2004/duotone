@@ -2,7 +2,7 @@ import { artistPreferenceKey,feedbackReady,filterSuggestions } from './recommend
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import { getLibrary } from '../api/library';
-import { descobrirNovas, flowDoDia } from '../api/descoberta';
+import { descobertasPorAncora, descobrirNovas, flowDoDia, taparBuracosComOYouTube } from '../api/descoberta';
 import { nuncaLancadas } from '../api/naoLancado';
 import {
   getForgottenFavorites, getHeavyRotation, getProfileRecentlyPlayed,
@@ -189,15 +189,32 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
       // coisas que a descoberta já vai buscar. Falham por si, como as
       // prateleiras: sem elas a secção não aparece e as vizinhas nem dão por
       // isso.
-      Promise.all([getLibrary(), getTopArtists(CANDIDATOS)])
-        .then(([lib, artistas]) => {
+      // As descobertas por âncora correm ao lado das outras: se falharem, as
+      // misturas saem só com a biblioteca em vez de não saírem.
+      getLibrary()
+        .then(async (lib) => {
+          // A biblioteca primeiro: é dela que saem as âncoras, e chamar a
+          // descoberta sem ela procurava vizinhos de ninguém.
+          const [artistas, vizinhas] = await Promise.all([
+            getTopArtists(CANDIDATOS),
+            descobertasPorAncora(lib).catch(() => new Map<string, Track[]>()),
+          ]);
+          // A rede, e só para quem precisa: o catálogo é a fonte, o YouTube é
+          // o remendo de quem ficou curto. Nunca corre para os que já têm
+          // vizinhos que cheguem.
+          await taparBuracosComOYouTube(
+            artistas.slice(0, CANDIDATOS).map((a) => a.name), vizinhas, chaveDeArtista
+          ).catch(() => {});
+          return [lib, artistas, vizinhas] as const;
+        })
+        .then(([lib, artistas, vizinhas]) => {
           if (atual !== geracao) return;
           set({
             // O deslocamento vem do DIA. Do acaso mudaria as playlists de
             // sítio a cada regresso à pesquisa, e uma prateleira que se mexe
             // sozinha é pior do que uma que não muda nunca.
             misturas: misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
-              chaveDeArtista, baralhada, Math.floor(Date.now() / 86_400_000)),
+              chaveDeArtista, baralhada, Math.floor(Date.now() / 86_400_000), vizinhas),
             misturasProntas: true,
           });
         })
