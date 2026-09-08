@@ -9,7 +9,7 @@ import {
 } from '../src/lib/arranqueTravado.ts';
 
 const base = {
-  sessaoATocar: true,
+  autorizadoATocar: true,
   querTocar: true,
   pronta: true,
   posicaoMs: 0,
@@ -40,8 +40,8 @@ verificar('uma faixa que ARRANCOU não se empurra', () => {
 });
 
 verificar('em pausa não se empurra nada', () => {
-  assert.equal(precisaDeEmpurrao({ ...base, sessaoATocar: false }), false,
-    'a sessão está em pausa: parado é o que se espera');
+  assert.equal(precisaDeEmpurrao({ ...base, autorizadoATocar: false }), false,
+    'quem manda diz pausa: parado é o que se espera');
   assert.equal(precisaDeEmpurrao({ ...base, querTocar: false }), false,
     'o utilizador pausou: parado é o que ele pediu');
 });

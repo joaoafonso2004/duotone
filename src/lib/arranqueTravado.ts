@@ -47,8 +47,16 @@ export const PARADO_DEMAIS_MS = 2500;
 export const EMPURROES_POR_FAIXA = 3;
 
 export type EstadoDoArranque = {
-  /** A sessão diz que se está a tocar. */
-  sessaoATocar: boolean;
+  /**
+   * Quem manda diz que se devia estar a tocar.
+   *
+   * Numa sessão é o servidor; sozinho não há ninguém a contrariar a intenção
+   * do utilizador, e vale `true`. Chamava-se `sessaoATocar` enquanto isto só
+   * existia dentro do jam -- o nome deixou de ser verdade quando passou a
+   * valer para quem ouve sozinho, que é onde o encravamento obrigava a
+   * reiniciar a app.
+   */
+  autorizadoATocar: boolean;
   /** A app tenciona estar a tocar (a intenção, não a fase). */
   querTocar: boolean;
   /** O motor tem mesmo esta faixa carregada e responde. */
@@ -70,7 +78,7 @@ export type EstadoDoArranque = {
  * Empurrar aqui seria dois watchdogs a saltar sobre o mesmo sintoma.
  */
 export function precisaDeEmpurrao(e: EstadoDoArranque): boolean {
-  if (!e.sessaoATocar || !e.querTocar || !e.pronta) return false;
+  if (!e.autorizadoATocar || !e.querTocar || !e.pronta) return false;
   if (e.empurroesDados >= EMPURROES_POR_FAIXA) return false;
   if (e.posicaoMs > 1000) return false;
   return e.paradoMs >= PARADO_DEMAIS_MS;

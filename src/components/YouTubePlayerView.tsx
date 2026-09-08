@@ -31,6 +31,7 @@ import { arredondar as arredondarRate } from '../lib/playbackRate';
 import { trocarFonte } from '../lib/trocaDeFonte';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { velocidadeNaSessao } from '../lib/jam';
+import { useArranqueTravado } from '../hooks/useArranqueTravado';
 
 /**
  * Quanto se espera por uma resolucao antes de a dar por perdida.
@@ -174,6 +175,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const prev = usePlayer((s) => s.prev);
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
+  // A rede do encravamento nos 0:00, sozinho ou acompanhado. Vive aqui e nao
+  // no PlayerRoot porque este componente existe enquanto houver faixa, que e
+  // exactamente quando ela faz sentido.
+  useArranqueTravado();
+
   const velocidadeEscolhida = usePlayer((s) => s.playbackRate);
   /**
    * O percurso do shuffle é a fila, quando o shuffle está ligado.
