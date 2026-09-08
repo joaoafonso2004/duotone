@@ -50,12 +50,22 @@ alter table public.user_track_adjustments
   check (source <> 'padrao' or source_id = 'global');
 
 -- ---------------------------------------------------------------------------
--- Como confirmar que pegou
+-- ANTES e DEPOIS: a mesma consulta serve para as duas coisas.
+--
+-- Corre-a ANTES para confirmar que o check do `source` se chama mesmo
+-- `user_track_adjustments_source_check`. Esse e o nome que o Postgres da a um
+-- check declarado na coluna, e e o que os `drop constraint` aqui em cima
+-- esperam -- se por alguma razao se chamar outra coisa, o drop nao faz nada, o
+-- check VELHO fica de pe, e a linha do padrao passa a ser recusada sem que a
+-- migracao tenha dado erro nenhum.
+--
+-- E corre-a DEPOIS: o 'padrao' tem de aparecer na lista do check.
 --
 --   select conname, pg_get_constraintdef(oid)
 --     from pg_constraint
 --    where conrelid = 'public.user_track_adjustments'::regclass
---      and conname like '%source%' or conname like '%padrao%';
+--      and contype = 'c';
 --
--- Deve aparecer o 'padrao' na lista do check do source.
+-- Os parenteses faltavam aqui: sem eles o `or` solta-se do `conrelid` e a
+-- consulta devolvia constraints de tabelas que nao tem nada a ver.
 -- ---------------------------------------------------------------------------
