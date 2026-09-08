@@ -589,6 +589,56 @@ ipcMain.handle('yt:pesquisa', async (event, pedido) => {
   return res.json();
 });
 
+/**
+ * As unicas formas de caminho que o catalogo aceita.
+ *
+ * Sao exactamente as que o `src/api/catalogo.ts` pede, e nada mais. Mesma
+ * regra do `yt:pesquisa` logo acima: o ENDERECO vive deste lado, e do
+ * renderer so vem o caminho -- que ainda tem de passar por aqui. Sem esta
+ * lista, isto deixava de ser "o catalogo" e passava a ser um proxy por onde
+ * o renderer alcancava qualquer coisa em api.deezer.com.
+ *
+ * O `q` e sempre produzido por `encodeURIComponent`, cujo alfabeto de saida e
+ * este: letras, digitos, `%XX`, e `- _ . ! ~ * ' ( )`.
+ */
+const CAMINHOS_DO_CATALOGO = [
+  /^\/search\/artist\?q=[A-Za-z0-9%._~!*'()-]{1,500}&limit=\d{1,3}$/,
+  /^\/search\?q=[A-Za-z0-9%._~!*'()-]{1,500}&limit=\d{1,3}$/,
+  /^\/search\?limit=\d{1,3}&q=[A-Za-z0-9%._~!*'()-]{1,500}$/,
+  /^\/artist\/\d{1,20}\/related\?limit=\d{1,3}$/,
+  /^\/artist\/\d{1,20}\/top\?limit=\d{1,3}$/,
+];
+
+/**
+ * O catalogo tem de sair do processo principal, pela MESMA razao que a
+ * pesquisa do YouTube.
+ *
+ * No renderer isto e cross-origin, e a resposta da Deezer nao traz
+ * `Access-Control-Allow-Origin` -- o browser deita-a fora antes de alguem a
+ * ler. E como quem chama le a falha como "nao ha vizinhos", no Windows a
+ * descoberta inteira ficava vazia sem um unico erro: sem "Discover new", sem
+ * vizinhos nas misturas, e com o shuffle inteligente a nunca sugerir nada.
+ *
+ * Devolve `null` num HTTP mau, que e o que o `pedir()` do lado do JS ja sabe
+ * ler. O ritmo (uma chamada de cada vez, com folga) continua la, para as duas
+ * plataformas baterem no limite da Deezer da mesma maneira.
+ */
+ipcMain.handle('catalogo:pedir', async (event, caminho) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  if (typeof caminho !== 'string' || !CAMINHOS_DO_CATALOGO.some((forma) => forma.test(caminho))) {
+    throw new Error('Caminho de catalogo invalido.');
+  }
+  const controlador = new AbortController();
+  const relogio = setTimeout(() => controlador.abort(), 8000);
+  try {
+    const resposta = await net.fetch(`https://api.deezer.com${caminho}`, { signal: controlador.signal });
+    if (!resposta.ok) return null;
+    return await resposta.json();
+  } finally {
+    clearTimeout(relogio);
+  }
+});
+
 ipcMain.on('window:minimize', (event) => { if (daJanelaPrincipal(event)) mainWindow.minimize(); });
 ipcMain.on('window:toggle-maximize', (event) => {
   if (!daJanelaPrincipal(event)) return;

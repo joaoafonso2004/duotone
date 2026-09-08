@@ -66,18 +66,47 @@ function emFila<T>(tarefa: () => Promise<T>): Promise<T> {
   return proximo;
 }
 
+/**
+ * O pedido em si, pelo caminho que a plataforma deixa.
+ *
+ * No iOS o `fetch` fala directamente com o catálogo. **No Windows não pode:** a
+ * app corre dentro de um renderer do Electron com `webSecurity: true`, e daí
+ * isto é cross-origin — e a resposta da Deezer traz `Access-Control-Allow-`
+ * Headers, Methods e Credentials mas **não traz `Allow-Origin`**, por isso o
+ * browser deita-a fora.
+ *
+ * E a falha era invisível: o `pedir()` lê-a como «não encontrei nada», o
+ * `consultarVizinhanca` transforma-a em «Catalogue unavailable», e o
+ * `descoberta.ts` engole isso com um `.catch(() => null)`. Resultado no PC: o
+ * "Discover new" vazio, as misturas sem vizinhos, e o shuffle inteligente a
+ * acender o botão sem nunca meter nada na fila.
+ *
+ * É o mesmo acidente que o `api/ytSearchFree.ts` já tinha apanhado com o
+ * YouTube, e a saída é a mesma: no Electron o pedido sai do processo
+ * principal, que não tem CORS. O caminho vai daqui, mas o ENDEREÇO fica do
+ * outro lado e só as formas que esta app usa passam — isto é o catálogo e
+ * mais nada, nunca um proxy por onde o renderer alcance o que lhe apetecer.
+ */
+async function buscar(caminho: string): Promise<any> {
+  const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.pedirAoCatalogo : undefined;
+  if (ponte) return ponte(caminho);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  let res: Response;
+  try { res = await fetch(`${BASE}${caminho}`, { signal: controller.signal }); }
+  finally { clearTimeout(timeout); }
+  if (!res.ok) return null;
+  return res.json();
+}
+
 /** Um GET ao catálogo, em fila, com uma tentativa extra se bater no limite. */
 async function pedir<T>(caminho: string): Promise<T | null> {
   return emFila(async () => {
     for (let tentativa = 0; tentativa < 3; tentativa++) {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        let res: Response;
-        try { res = await fetch(`${BASE}${caminho}`, { signal: controller.signal }); }
-        finally { clearTimeout(timeout); }
-        if (!res.ok) return null;
-        const corpo: any = await res.json();
+        const corpo: any = await buscar(caminho);
+        if (corpo === null || corpo === undefined) return null;
         // O Deezer responde 200 com {error:{code:4}} quando se excede o ritmo.
         if (corpo?.error?.code === 4) {
           await dorme(1200);

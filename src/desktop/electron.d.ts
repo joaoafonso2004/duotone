@@ -20,6 +20,11 @@ declare global {
       notifyMessage?: (message: { id: string; title: string; body: string;friendId?:string;groupId?:string }) => void;
       onNotificationClick?: (listener: (conversation?:{friendId?:string;groupId?:string}) => void) => () => void;
       pesquisarNoYouTube?: (pedido: { query?: string; clientVersion: string; params?: string; continuation?: string }) => Promise<any>;
+      /** Um GET ao catálogo pelo processo principal, que não tem CORS. Leva só
+       * o caminho (`/artist/123/related?limit=25`); o endereço e as formas que
+       * passam vivem no `electron/main.cjs`. Devolve `null` num HTTP mau, que é
+       * o que o `api/catalogo.ts` já sabe ler. */
+      pedirAoCatalogo?: (caminho: string) => Promise<any>;
       minimize(): void;
       toggleMaximize(): void;
       close(): void;
