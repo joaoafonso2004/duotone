@@ -125,6 +125,35 @@ verificar('as novas não ficam todas no fim', () => {
   assert.ok(metade.some((t) => t.artist === 'Vizinho'), 'há novidade na primeira metade');
 });
 
+verificar('um artista com pouca biblioteca mas muitos vizinhos VALE', () => {
+  // O mínimo conta as duas fontes. Contá-lo só sobre a biblioteca deitava
+  // fora misturas perfeitamente boas -- e era isso que fazia aparecerem três
+  // playlists onde cabiam quatro.
+  const lib = muitas('A', 2);
+  const vizinhas = new Map([['a', Array.from({ length: 10 }, (_, i) => f('v' + i, 'Vizinho'))]]);
+  const r = misturasDaBiblioteca([{ name: 'A' }], lib, chaveT, chaveN, undefined, 0, vizinhas);
+  assert.equal(r.length, 1, 'duas guardadas mais dez descobertas dão uma mistura');
+  assert.ok(r[0].faixas.length >= MINIMO_PARA_VALER);
+});
+
+verificar('sem biblioteca nem vizinhos continua a não haver mistura', () => {
+  const r = misturasDaBiblioteca([{ name: 'A' }], muitas('A', 2), chaveT, chaveN);
+  assert.deepEqual(r, [], 'duas faixas com um título por cima não são playlist');
+});
+
+verificar('a chave das vizinhas é a NORMALIZADA', () => {
+  // O bug que isto guarda: a descoberta preenchia o mapa com o nome em cru e
+  // a leitura procurava pela chave normalizada. Nenhuma leitura acertava,
+  // ninguém dava erro, e as misturas saíam sem vizinhos.
+  const lib = muitas('Juice WRLD', 6);
+  const crua = new Map([['Juice WRLD', [f('v1', 'Vizinho')]]]);
+  const normal = new Map([['juice wrld', [f('v1', 'Vizinho')]]]);
+  const comCrua = misturasDaBiblioteca([{ name: 'Juice WRLD' }], lib, chaveT, chaveN, undefined, 0, crua);
+  const comNormal = misturasDaBiblioteca([{ name: 'Juice WRLD' }], lib, chaveT, chaveN, undefined, 0, normal);
+  assert.ok(!comCrua[0].faixas.some((t) => t.artist === 'Vizinho'), 'a chave crua não é encontrada');
+  assert.ok(comNormal[0].faixas.some((t) => t.artist === 'Vizinho'), 'a normalizada é');
+});
+
 if (falhas > 0) {
   console.error(`\n${falhas} teste(s) falharam`);
   process.exit(1);

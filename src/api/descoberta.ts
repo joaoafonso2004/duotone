@@ -500,7 +500,23 @@ export async function descobertasPorAncora(
   }
   await candidatasParaDescoberta(contexto, new Set(), new Set(), quantas, 6, escutas, porAncora)
     .catch(() => [] as Track[]);
-  return porAncora;
+
+  // A chave sai daqui NORMALIZADA, e é isto que faltava.
+  //
+  // Lá dentro o mapa é preenchido com o nome do artista tal como o catálogo o
+  // deu, porque é o que a função tem à mão. Mas quem o lê -- as misturas e a
+  // rede do YouTube -- procura pela chave normalizada. Duas chaves diferentes
+  // no mesmo mapa: os vizinhos do catálogo nunca eram encontrados, a rede via
+  // zero para toda a gente, e o YouTube passava a ser a FONTE em vez do
+  // remendo. Exactamente ao contrário do que se queria.
+  const normalizado = new Map<string, Track[]>();
+  for (const [nome, faixas] of porAncora) {
+    const chave = chaveDeArtista(nome);
+    if (!chave) continue;
+    const jaLa = normalizado.get(chave);
+    if (jaLa) jaLa.push(...faixas); else normalizado.set(chave, [...faixas]);
+  }
+  return normalizado;
 }
 
 

@@ -62,8 +62,16 @@ export function misturasDaBiblioteca(
    * trocavam de sítio entre um regresso à pesquisa e o seguinte.
    */
   deslocamento = 0,
-  /** Descobertas por âncora, do `descobertasPorAncora`. Vazio degrada para a
-   *  mistura só com a biblioteca, que é o que existia antes disto. */
+  /**
+   * Descobertas por âncora, do `descobertasPorAncora`.
+   *
+   * **Indexado pelo `chaveDoNome`**, e não pelo nome em cru. Já foram as duas
+   * coisas ao mesmo tempo e o resultado foi silencioso: nenhuma leitura
+   * acertava, ninguém dava erro, e as misturas saíam sem vizinhos nenhuns.
+   *
+   * Vazio degrada para a mistura só com a biblioteca, que é o que existia
+   * antes disto.
+   */
   vizinhas: ReadonlyMap<string, readonly Track[]> = new Map(),
 ): Mistura[] {
   const porChave = new Map<string, Track[]>();
@@ -84,13 +92,18 @@ export function misturasDaBiblioteca(
     if (saida.length >= MISTURAS) break;
     const artista = artistas[(deslocamento + n) % total];
     const chave = chaveDoNome(artista.name);
-    const faixas = porChave.get(chave);
-    if (!faixas || faixas.length < MINIMO_PARA_VALER) continue;
+    const faixas = porChave.get(chave) ?? [];
+    const doLado = vizinhas.get(chave) ?? [];
+    // O mínimo conta as duas fontes. Contar só a biblioteca deitava fora
+    // artistas com três faixas guardadas e vinte descobertas à espera -- uma
+    // mistura perfeitamente boa, recusada por uma conta que ficou por
+    // actualizar quando os vizinhos entraram.
+    if (faixas.length + doLado.length < MINIMO_PARA_VALER) continue;
     // Uma tua, uma nova, uma tua: o conhecido dá o tom e o desconhecido entra
     // por entre ele. Em bloco, as novas ficavam todas no fim -- que é onde
     // ninguém chega -- e a mistura era a tua biblioteca com um apêndice.
     const minhas = baralhar(faixas);
-    const novas = baralhar([...(vizinhas.get(chaveDoNome(artista.name)) ?? [])]);
+    const novas = baralhar([...doLado]);
     const juntas: Track[] = [];
     for (let i = 0; juntas.length < POR_MISTURA && (i < minhas.length || i < novas.length); i++) {
       if (minhas[i]) juntas.push(minhas[i]);
