@@ -13,9 +13,9 @@ import {
   addTrackToPlaylist,
   addTracksToPlaylist,
   createPlaylist,
-  listPlaylists,
 } from '../api/playlists';
 import { supabase } from '../lib/supabase';
+import { usePlaylists } from '../state/playlists';
 import { hapticNotification } from '../lib/haptics';
 import { colors, radii, spacing, type } from '../theme';
 import type { Playlist, Track } from '../types';
@@ -42,7 +42,12 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const allPl = await listPlaylists();
+      // Pela store, e não por uma chamada só desta folha. Abrir isto de dentro
+      // do ecrã de Playlists pedia a MESMA lista uma segunda vez, com a
+      // primeira ainda quente. A store devolve o que tem e só vai à rede se
+      // estiver velha -- ver `state/playlists.ts`.
+      await usePlaylists.getState().carregar();
+      const allPl = usePlaylists.getState().items;
       setPlaylists(allPl);
 
       // If we have a single track, check which playlists it belongs to
@@ -141,6 +146,10 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
     setCreating(true);
     try {
       const pl = await createPlaylist(newName.trim());
+      // A store tem de saber da playlist nova: sem isto, o ecrã de Playlists
+      // podia ficar até trinta segundos sem ela, que é o tempo que uma lista
+      // se considera fresca.
+      void usePlaylists.getState().carregar(true);
       setNewName('');
       
       // If we have a single track, add it to the newly created playlist

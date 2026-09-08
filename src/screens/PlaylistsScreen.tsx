@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,7 +16,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   createPlaylist,
   deletePlaylist,
-  listPlaylists,
   renamePlaylist,
   importSharedPlaylist,
 } from '../api/playlists';
@@ -33,6 +32,7 @@ import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
+import { usePlaylists } from '../state/playlists';
 import { useTheme } from '../state/theme';
 import type { Playlist } from '../types';
 
@@ -42,10 +42,16 @@ export function PlaylistsScreen() {
   const insets = useSafeAreaInsets();
   const { width: W } = useWindowDimensions();
 
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError,setLoadError]=useState('');
-  const request=useRef(0);
+  // A lista vive na store e não neste ecrã. Era um `useState` local com um
+  // `useFocusEffect` a recarregá-lo a cada foco -- e a pôr `loading` a true,
+  // que trocava a grelha inteira pelo esqueleto. Ver `state/playlists.ts`.
+  const playlists = usePlaylists((s) => s.items);
+  const estado = usePlaylists((s) => s.estado);
+  const loadError = usePlaylists((s) => s.erro);
+  const carregar = usePlaylists((s) => s.carregar);
+  /** Esqueleto só para quem ainda não tem nada. Com lista no ecrã, a
+   *  revalidação não se anuncia -- era esse anúncio o pisca. */
+  const loading = estado !== 'pronto' && playlists.length === 0;
   const [busy, setBusy] = useState(false);
   const theme = useTheme((s) => s.theme);
 
@@ -80,24 +86,14 @@ export function PlaylistsScreen() {
     }
   };
 
-  const load = useCallback(async () => {
-    const id=++request.current;
-    setLoading(true);setLoadError('');
-    try {
-      const rows=await listPlaylists();
-      if(id===request.current)setPlaylists(rows);
-    } catch {
-      if(id===request.current)setLoadError('Could not load your playlists. Please try again.');
-    } finally {
-      if(id===request.current)setLoading(false);
-    }
-  }, []);
+  /** Depois de mexer na lista, a versão do servidor é a que manda. */
+  const load = useCallback(() => { void carregar(true); }, [carregar]);
 
+  // No foco, revalida-se em silêncio -- e nem isso, se a lista for recente.
+  // A cancelar já não há nada: quem trata de respostas fora de tempo é o
+  // contador de geração da store.
   useFocusEffect(
-    useCallback(() => {
-      load();
-      return()=>{request.current++;};
-    }, [load])
+    useCallback(() => { void carregar(); }, [carregar])
   );
 
   const doCreate = async (name: string) => {

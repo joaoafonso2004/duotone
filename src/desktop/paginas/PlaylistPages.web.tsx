@@ -12,6 +12,7 @@ import {
 } from '../../api/playlists';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { usePlayer } from '../../state/player';
+import { usePlaylists } from '../../state/playlists';
 import { useAuth } from '../../state/auth';
 import type { Playlist, PlaylistTrack, Track } from '../../types';
 import { styles } from '../estilos.web';
@@ -33,25 +34,27 @@ const cacheDePlaylist = new Map<string, { tracks: PlaylistTrack[]; ownerId: stri
 export const invalidarCacheDaPlaylist = (id: string) => { cacheDePlaylist.delete(id); };
 
 export function PlaylistsPage({ navigate, notify, share }: { navigate: (route: Route) => void; notify: (s: string) => void; share: (target: ShareTarget) => void }) {
-  const [items, setItems] = useState<Playlist[]>([]); const [loading, setLoading] = useState(true); const [createOpen, setCreateOpen] = useState(false); const [name, setName] = useState('');
-  const [loadError,setLoadError]=useState('');
+  const [createOpen, setCreateOpen] = useState(false); const [name, setName] = useState('');
   /** A playlist sobre a qual se carregou com o botao direito. */
   const [menuAlvo, setMenuAlvo] = useState<Playlist | null>(null);
   const [renomear, setRenomear] = useState<Playlist | null>(null);
   const [nomeNovo, setNomeNovo] = useState('');
   const [apagar, setApagar] = useState<Playlist | null>(null);
-  const request=useRef(0);
-  const refresh=useCallback(async()=>{
-    const id=++request.current;setLoading(true);setLoadError('');
-    try{const rows=await listPlaylists();if(id===request.current)setItems(rows);}
-    catch{if(id===request.current)setLoadError('Could not load your playlists. Please try again.');}
-    finally{if(id===request.current)setLoading(false);}
-  },[]);
+  // A mesma store do telemovel. Aqui a pagina desmonta ao mudar de separador,
+  // por isso o `useEffect` de montagem recarregava tudo -- e mostrava o
+  // Loading por cima de uma lista que ja tinha estado no ecra ha um segundo.
+  const items = usePlaylists((s) => s.items);
+  const estado = usePlaylists((s) => s.estado);
+  const loadError = usePlaylists((s) => s.erro);
+  const carregar = usePlaylists((s) => s.carregar);
+  const loading = estado !== 'pronto' && items.length === 0;
+  /** Depois de mexer na lista, a versao do servidor e a que manda. */
+  const refresh = useCallback(() => { void carregar(true); }, [carregar]);
   useEffect(() => {
-    refresh();
+    void carregar();
     window.addEventListener('duotone:refresh-playlists', refresh);
-    return () => {request.current++;window.removeEventListener('duotone:refresh-playlists', refresh);};
-  }, [refresh]);
+    return () => { window.removeEventListener('duotone:refresh-playlists', refresh); };
+  }, [carregar, refresh]);
   const confirmarNome = async () => {
     if (!renomear || !nomeNovo.trim()) return;
     try { await renamePlaylist(renomear.id, nomeNovo.trim()); setRenomear(null); void refresh(); }

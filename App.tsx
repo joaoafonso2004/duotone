@@ -41,6 +41,7 @@ import { useTheme } from './src/state/theme';
 import { useAcompanharCapa } from './src/hooks/useAcompanharCapa';
 import { useEstadoDoWidget } from './src/hooks/useEstadoDoWidget';
 import { useRecomendacoes } from './src/state/recomendacoes';
+import { usePlaylists } from './src/state/playlists';
 import { iniciarPresenca } from './src/lib/presenceSync';
 import { useOuvirJuntos } from './src/state/ouvirJuntos';
 import { aquecerPerfil, limparCachePerfil } from './src/lib/cachePerfil';
@@ -102,6 +103,20 @@ export default function App() {
     void loadRecommendationFeedback(userId).then(()=>{if(active)void useRecomendacoes.getState().carregar();});
     return () => {active=false;useRecomendacoes.getState().limpar();};
   }, [userId,offline]);
+
+  /**
+   * As playlists saem com a conta.
+   *
+   * Ao lado do `limpar()` das recomendações, e pela mesma razão: agora que a
+   * lista vive numa store e não morre com o ecrã, trocar de conta deixava as
+   * playlists da conta anterior à vista até a rede responder. Com esta linha,
+   * quem entra vê o esqueleto -- que é a verdade -- em vez da biblioteca de
+   * outra pessoa.
+   */
+  useEffect(() => {
+    if (!userId) { usePlaylists.getState().limpar(); return; }
+    return () => { usePlaylists.getState().limpar(); };
+  }, [userId]);
 
   useEffect(()=>useRecommendationFeedback.subscribe((next,prev)=>{
     if(next.revision!==prev.revision)refreshSuggestionPreferences();
