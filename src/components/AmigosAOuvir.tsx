@@ -4,6 +4,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { ESCALA } from '../lib/movimento';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useSocial } from '../state/social';
@@ -12,6 +13,17 @@ import { colors, spacing, type } from '../theme';
 /** O anel à volta de quem está a ouvir. */
 const TAMANHO = 58;
 const ANEL = 2;
+
+/**
+ * A largura do cartão, e ela sai de uma frase.
+ *
+ * Eram 66 -- o avatar mais oito -- porque só lá vivia um primeiro nome. Com a
+ * faixa por baixo, 66 cortava-a na primeira palavra. 112 é o que leva
+ * "Juice WRLD — Vibing" inteiro a 11 pt, que foi o exemplo que o João deu, e
+ * ainda deixa três avatares e meio à vista num iPhone -- o suficiente para
+ * isto continuar a ler-se como uma FILA de pessoas e não como uma lista.
+ */
+const LARGURA = 112;
 
 /**
  * Quem dos teus amigos está a ouvir alguma coisa AGORA.
@@ -41,8 +53,14 @@ export function AmigosAOuvir() {
   // nesta app e a versão não arrancava.
   const amigos = useSocial((s) => s.friends);
 
+  // O filtro é um type guard e não um `boolean`: quem sobrevive a ele TEM
+  // `currentlyPlaying`, e é isso que deixa a linha da faixa lá em baixo lê-lo
+  // sem um `!` a fingir que se sabe uma coisa que o compilador não sabe.
   const aOuvir = React.useMemo(
-    () => amigos.filter((a) => a.status === 'accepted' && a.online && a.currentlyPlaying),
+    () => amigos.filter(
+      (a): a is typeof a & { currentlyPlaying: NonNullable<typeof a.currentlyPlaying> } =>
+        a.status === 'accepted' && !!a.online && !!a.currentlyPlaying
+    ),
     [amigos]
   );
 
@@ -75,6 +93,17 @@ export function AmigosAOuvir() {
           <Text numberOfLines={1} style={styles.nome}>
             {amigo.name || amigo.username}
           </Text>
+          {/* E o que ele está a ouvir, que é a razão de o avatar estar aqui.
+              A informação já vinha no `currentlyPlaying` e já era dita ao
+              leitor de ecrã, na etiqueta acima -- só nunca era MOSTRADA.
+
+              Pelo `displayArtist` e pelo `tituloDaFaixa`, como no resto da
+              app: o título cru do YouTube traz o artista à frente e o
+              [Official Video] atrás, e aqui não há espaço para nenhum dos
+              dois. */}
+          <Text numberOfLines={1} style={styles.faixa}>
+            {`${displayArtist(amigo.currentlyPlaying)} — ${tituloDaFaixa(amigo.currentlyPlaying)}`}
+          </Text>
         </Toque>
       ))}
     </ScrollView>
@@ -82,9 +111,20 @@ export function AmigosAOuvir() {
 }
 
 const styles = StyleSheet.create({
-  caixa: { marginBottom: spacing.lg },
+  /**
+   * O espaço de cima tem de bater certo com o de baixo.
+   *
+   * Não havia `marginTop`: por cima vinham os 12 do `controls.marginBottom` da
+   * pesquisa, por baixo os 16 daqui. Doze contra dezasseis lê-se logo como
+   * "está encostado ao de cima", que foi exactamente a queixa. Os 4 daqui
+   * fecham a conta em 16/16.
+   *
+   * Corrige-se DENTRO do componente e não no `SearchScreen`: mexer lá mudava
+   * também o espaço do histórico de pesquisas, que não tem nada a ver.
+   */
+  caixa: { marginTop: spacing.xs, marginBottom: spacing.lg },
   fila: { paddingHorizontal: spacing.xl, gap: spacing.md },
-  pessoa: { width: TAMANHO + 8, alignItems: 'center', gap: 6 },
+  pessoa: { width: LARGURA, alignItems: 'center', gap: 6 },
   anel: {
     width: TAMANHO,
     height: TAMANHO,
@@ -95,4 +135,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   nome: { ...type.micro, color: colors.textSecondary, textAlign: 'center' },
+  /**
+   * A faixa NÃO herda o `type.micro` do nome.
+   *
+   * Aquele é maiúsculas com `letterSpacing` -- é uma etiqueta, e é o que o
+   * nome de uma pessoa aqui é. Um título de música em maiúsculas espaçadas
+   * lê-se como um aviso, e o espaçamento ainda roubava dois ou três
+   * caracteres a uma linha que já é curta.
+   *
+   * Mais apagada do que o nome de propósito: são duas linhas no mesmo cartão e
+   * a pessoa é que manda. Com o mesmo peso, competiam.
+   */
+  faixa: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textTertiary,
+    textAlign: 'center',
+  },
 });
