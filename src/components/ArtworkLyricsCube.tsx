@@ -5,22 +5,43 @@ import {useReducedMotion} from '../hooks/useReducedMotion';
 import type {Track} from '../types';
 import {LyricsView} from './LyricsView';
 
-type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;showLyrics:boolean;onChange:(open:boolean)=>void};
+type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;showLyrics:boolean;onChange:(open:boolean)=>void;
+  /**
+   * Avisa quem monta o cubo de que ele esta a virar -- durante o arrasto do
+   * dedo E durante a mola que o assenta.
+   *
+   * Existe por causa da sombra da capa no leitor. Ela vive numa placa POR TRAS
+   * do cubo, e uma placa nao roda: a meio da volta a perspectiva encolhe a
+   * face que se ve, e um canto da placa espreitava por tras dela. Com este
+   * aviso, quem a desenha apaga-a enquanto o cubo se mexe.
+   *
+   * Opcional: quem nao a passar nao paga nada, e e por isso que a pagina do PC
+   * fica exactamente como estava.
+   */
+  aoRodar?:(aRodar:boolean)=>void};
 // Translação Z equivalente, também nos motores nativos que só expõem X e Y.
 const depth=(z:number)=>[{rotateY:'90deg'},{translateX:-z},{rotateY:'-90deg'}];
 
 /** Duas faces do mesmo cubo. O motor de áudio vive fora destas transformações. */
-export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange}:Props){
+export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar}:Props){
   const reduced=useReducedMotion();
   const progress=useRef(new Animated.Value(showLyrics?1:0)).current;
   const [direction,setDirection]=useState(1);
   const [moving,setMoving]=useState(false);
+  // O `moving` ja existia para calar as letras a meio da volta; agora tambem
+  // sai para fora. Num efeito e nao nas chamadas ao `setMoving`, para o aviso
+  // sair uma vez por MUDANCA e nao uma vez por chamada.
+  const aoRodarRef=useRef(aoRodar);aoRodarRef.current=aoRodar;
+  useEffect(()=>{aoRodarRef.current?.(moving);},[moving]);
   const cubeRef=useRef<any>(null);
   const latest=useRef({showLyrics,onChange,size,reduced});latest.current={showLyrics,onChange,size,reduced};
   const gesture=useRef({start:0,direction:1});
   const webGesture=useRef({pointer:-1,x:0,y:0,time:0,active:false,start:0,direction:1});
   const alive=useRef(true);
-  useEffect(()=>{alive.current=true;return()=>{alive.current=false;progress.stopAnimation();};},[progress]);
+  // Ao sair, diz que ja nao esta a rodar. Sem isto, fechar o leitor a meio de
+  // uma volta deixava o aviso presa em `true` -- e a sombra da capa nao voltava
+  // a aparecer da proxima vez que se abrisse.
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;progress.stopAnimation();aoRodarRef.current?.(false);};},[progress]);
   const settle=useCallback((value:number)=>{
     progress.stopAnimation();
     if(latest.current.reduced){progress.setValue(value);setMoving(false);return;}

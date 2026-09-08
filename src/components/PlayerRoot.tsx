@@ -216,6 +216,28 @@ export function PlayerRoot() {
   };
   const [partilhaAberta, setPartilhaAberta] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
+  /**
+   * A capa esta a virar para as letras?
+   *
+   * A sombra vive numa placa por tras do cubo, e uma placa NAO roda. A meio da
+   * volta a perspectiva encolhe a face que se ve -- com a distancia de
+   * `size*3` que o cubo usa, a aresta mais afastada chega a ficar ~14% mais
+   * baixa -- e a placa, que e um rectangulo parado, espreitava por cima e por
+   * baixo dela como uma tira preta. Enquanto o cubo se mexe, a placa apaga-se.
+   */
+  const [capaARodar, setCapaARodar] = useState(false);
+  const sombraAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    // Depressa a sair e devagar a entrar: a sombra tem de desaparecer ANTES de
+    // a face encolher o suficiente para a deixar ver, e volta sem se dar por
+    // ela quando o cubo assenta.
+    Animated.timing(sombraAnim, {
+      toValue: capaARodar ? 0 : 1,
+      duration: capaARodar ? 90 : 220,
+      useNativeDriver: true,
+    }).start();
+  }, [capaARodar, sombraAnim]);
+
   const [bodyHeight, setBodyHeight] = useState(0);
   const [bodyContentHeight, setBodyContentHeight] = useState(0);
   const [queueVisible, setQueueVisible] = useState(false);
@@ -1343,11 +1365,14 @@ export function PlayerRoot() {
               width: Math.max(0, vidFull.w - RECUO_DA_SOMBRA * 2),
               height: Math.max(0, vidFull.h - RECUO_DA_SOMBRA * 2),
               opacity: Animated.multiply(
-                visibilityAnim,
-                anim.interpolate({
-                  inputRange: faixaDoVoo,
-                  outputRange: saidaDoVoo(0, 0, 1),
-                }),
+                sombraAnim,
+                Animated.multiply(
+                  visibilityAnim,
+                  anim.interpolate({
+                    inputRange: faixaDoVoo,
+                    outputRange: saidaDoVoo(0, 0, 1),
+                  }),
+                ),
               ),
               transform: vooDaMoldura,
             },
@@ -1413,7 +1438,7 @@ export function PlayerRoot() {
             </Animated.View>
           ) : null}
 
-          {expanded && <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics}
+          {expanded && <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar}
             front={artSource?<RNImage source={{uri:artSource}} style={StyleSheet.absoluteFill} resizeMode="cover" onError={onArtError} />:<View style={StyleSheet.absoluteFill} />} />}
 
           {/* No modo mini, tocar no vídeo expande */}
