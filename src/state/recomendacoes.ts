@@ -1,4 +1,4 @@
-import { feedbackReady,filterSuggestions } from './recommendationFeedback';
+import { artistPreferenceKey,feedbackReady,filterSuggestions } from './recommendationFeedback';
 import { create } from 'zustand';
 import { getLibrary } from '../api/library';
 import { descobrirNovas, flowDoDia } from '../api/descoberta';
@@ -8,6 +8,7 @@ import {
 } from '../api/plays';
 import type { Track } from '../types';
 import { semRepetidas } from '../lib/prateleirasSemRepetidas';
+import { intercalarPorArtista } from '../lib/intercalarPorArtista';
 import { trackKey } from '../lib/shuffle';
 
 /**
@@ -133,8 +134,15 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
       const filtradas = Object.fromEntries(
         ORDEM_DAS_PRATELEIRAS.map((nome) => [nome, filterSuggestions(rawShelves[nome] ?? [])])
       ) as Record<NomeDaPrateleira, Track[]>;
+      // Primeiro decide-se QUEM fica com cada faixa (entre prateleiras), e só
+      // depois a ordem DENTRO de cada uma. Pela ordem contrária, o dedupe
+      // desfazia a intercalação a seguir a ela ser feita.
+      const unicas = semRepetidas(filtradas, ORDEM_DAS_PRATELEIRAS, trackKey);
+      const arrumadas = Object.fromEntries(
+        ORDEM_DAS_PRATELEIRAS.map((nome) => [nome, intercalarPorArtista(unicas[nome], artistPreferenceKey)])
+      ) as Record<NomeDaPrateleira, Track[]>;
       set({
-        ...semRepetidas(filtradas, ORDEM_DAS_PRATELEIRAS, trackKey),
+        ...arrumadas,
         prontas: ORDEM_DAS_PRATELEIRAS.filter((nome) => rawShelves[nome] !== undefined),
       });
     };
