@@ -11,6 +11,8 @@ import type { Track } from '../types';
 import { semRepetidas } from '../lib/prateleirasSemRepetidas';
 import { intercalarPorArtista } from '../lib/intercalarPorArtista';
 import { CANDIDATOS, misturasDaBiblioteca, type Mistura } from '../lib/misturas';
+import { agruparPorEstilo, CANDIDATOS_A_ESTILO, misturasDeEstilo } from '../lib/estilos';
+import { vizinhosPorArtista } from '../api/catalogo';
 import { baralhada } from '../lib/jam';
 import { chaveDeArtista } from '../lib/artistName';
 import { getTopArtists } from '../api/plays';
@@ -207,14 +209,43 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
           ).catch(() => {});
           return [lib, artistas, vizinhas] as const;
         })
-        .then(([lib, artistas, vizinhas]) => {
+        .then(async ([lib, artistas, vizinhas]) => {
           if (atual !== geracao) return;
+          /**
+           * Os ESTILOS, que é a segunda forma de misturar.
+           *
+           * Até aqui havia um só eixo -- o artista -- e era daí que vinha a
+           * sensação de a página ser curta: seis misturas, todas do mesmo tipo.
+           * Um estilo junta artistas teus que partilham vizinhos, e é outra
+           * pergunta: não "mais deste", mas "mais disto".
+           *
+           * Os vizinhos vêm do MESMO sítio que a descoberta já usou, e por isso
+           * com a cache quente isto não custa uma ida à rede. Falha por si: sem
+           * vizinhanças não há grupos, e a secção simplesmente não aparece.
+           */
+          const vizinhosPorChave = await vizinhosPorArtista(
+            artistas.slice(0, CANDIDATOS_A_ESTILO).map((a) => a.name),
+          ).catch(() => new Map<string, string[]>());
+          if (atual !== geracao) return;
+          const estilos = agruparPorEstilo(
+            artistas.map((a) => ({ nome: a.name, escutas: a.plays })),
+            (chave) => vizinhosPorChave.get(chave) ?? [],
+            chaveDeArtista,
+          );
           set({
             // O deslocamento vem do DIA. Do acaso mudaria as playlists de
             // sítio a cada regresso à pesquisa, e uma prateleira que se mexe
             // sozinha é pior do que uma que não muda nunca.
-            misturas: misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
-              chaveDeArtista, baralhada, Math.floor(Date.now() / 86_400_000), vizinhas),
+            //
+            // As de estilo vão à FRENTE: são a novidade da página, e uma
+            // prateleira nova atrás de seis iguais não se descobre. Todas na
+            // mesma lista para a navegação as encontrar pelo id, e o ecrã
+            // separa-as pelo prefixo `estilo:`.
+            misturas: [
+              ...misturasDeEstilo(estilos, lib, artistPreferenceKey, baralhada, vizinhas),
+              ...misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
+                chaveDeArtista, baralhada, Math.floor(Date.now() / 86_400_000), vizinhas),
+            ],
             misturasProntas: true,
           });
         })

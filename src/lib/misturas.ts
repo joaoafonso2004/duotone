@@ -8,8 +8,18 @@ export type Mistura = {
   faixas: Track[];
 };
 
-/** Quantas se mostram. */
-export const MISTURAS = 4;
+/**
+ * Quantas se mostram.
+ *
+ * Eram quatro. Seis e o numero do Spotify -- os Daily Mix 1 a 6 -- e a
+ * diferenca nota-se: quatro cartoes numa prateleira horizontal leem-se como
+ * "e so isto", seis obrigam a deslizar e e isso que diz que ha mais.
+ *
+ * Subir isto e seguro com bibliotecas pequenas: o `misturasDaBiblioteca` da a
+ * volta a lista de artistas e salta os que nao tem musica que chegue, por isso
+ * quem so tiver tres artistas com material continua a ver tres.
+ */
+export const MISTURAS = 6;
 
 /**
  * De quantos artistas se escolhe, para as misturas mudarem de dia para dia.

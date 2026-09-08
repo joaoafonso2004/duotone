@@ -71,10 +71,25 @@ type Alvo = { nome: string; peso: number };
 const QUANTAS = 12;
 /** Por quantos artistas do utilizador começar. Cada um dá até 25 semelhantes. */
 const ALVOS = 2;
-/** Quantos semelhantes usar. Mais do que isto e já não se parecem com nada. */
-const SEMELHANTES = 6;
+/**
+ * Quantos semelhantes usar, NO TOTAL e não por âncora -- ver o `repartir` mais
+ * abaixo, que divide este número pelos alvos conforme o peso de cada um.
+ *
+ * **Era aqui o tecto, e não no 30.** O `POR_PRATELEIRA` do
+ * `state/recomendacoes.ts` pede trinta faixas, mas seis semelhantes a quatro
+ * faixas cada davam vinte e quatro no MELHOR dos casos -- antes de sair o que
+ * já está na biblioteca, o que já se ouve, o que foi marcado como "não
+ * sugerir", e o que o YouTube não confirma. Subir o trinta não fazia aparecer
+ * nada; subir isto faz.
+ *
+ * Dez vezes cinco dá cinquenta, o que põe o pedido de trinta a ser um limite a
+ * sério em vez de um número que nunca se alcança. Custa rede -- cada semelhante
+ * é uma ida ao catálogo e uma pesquisa no YouTube por faixa -- mas o catálogo
+ * vai a cache partilhada e as prateleiras já entram uma a uma.
+ */
+const SEMELHANTES = 10;
 /** Faixas a pedir por artista semelhante. */
-const FAIXAS_POR_ARTISTA = 4;
+const FAIXAS_POR_ARTISTA = 5;
 /** Procuras em paralelo. Sequencial demorava demasiado; todas de uma vez é
  * pouco simpático para o YouTube. */
 const EM_PARALELO = 4;

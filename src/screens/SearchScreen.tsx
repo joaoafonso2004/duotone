@@ -136,6 +136,23 @@ export function SearchScreen() {
     maisTocadas: heavyRotation, esquecidas: forgottenFavorites, prontas } = recs;
   /** Ja aterrou? Vazia por ter chegado vazia e vazia por vir a caminho sao
    *  coisas diferentes: uma esconde-se, a outra mostra esqueleto. */
+  /**
+   * As misturas vêm todas numa lista, e separam-se aqui pelo prefixo do id.
+   *
+   * Numa lista só porque a navegação as encontra pelo id -- o ecrã do "See all"
+   * recebe `{tipo:'mistura', id}` e vai buscá-la à store. Duas listas
+   * obrigavam a duas fontes na rota, para uma diferença que só existe no
+   * título da prateleira.
+   */
+  const misturasDeEstilo = React.useMemo(
+    () => misturas.filter((m) => m.id.startsWith('estilo:')),
+    [misturas],
+  );
+  const misturasDeArtista = React.useMemo(
+    () => misturas.filter((m) => !m.id.startsWith('estilo:')),
+    [misturas],
+  );
+
   const jaChegou = (nome: NomeDaPrateleira) => prontas.includes(nome);
   const loadingRecs = recs.estado === 'a-carregar';
   const { results, naBiblioteca, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
@@ -400,7 +417,57 @@ export function SearchScreen() {
                 {/* As playlists que a app monta. Entre a descoberta e o que
                     já se ouviu: é onde deixa de ser "música nova" e começa a
                     ser "música tua, arrumada". */}
-                {(!misturasProntas || misturas.length > 0) && (
+                {/* Duas prateleiras da mesma forma, e a diferenca esta no
+                    titulo: os ESTILOS juntam artistas teus que partilham
+                    vizinhos ("mais disto"), as playlists sao por artista
+                    ("mais deste"). Ver `lib/estilos.ts`. */}
+                {misturasDeEstilo.length > 0 && (
+                  <View style={styles.recsSection}>
+                    <View style={styles.sectionHeader}>
+                      <Text style={[styles.sectionTitle, { flex: 1 }]}>Your styles</Text>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.horizontalScroll}
+                    >
+                      {misturasDeEstilo.map((m) => (
+                        <Pressable
+                          key={m.id}
+                          ref={(r) => { molduras.current[m.id] = r; }}
+                          collapsable={false}
+                          onPress={() => navigation.navigate('Prateleira', {
+                            titulo: m.nome, fonte: { tipo: 'mistura', id: m.id },
+                          })}
+                          onLongPress={() => abrirMistura(m)}
+                          delayLongPress={350}
+                          style={({ pressed }) => [{ width: CAIXA_DA_MISTURA }, pressed && { opacity: 0.8 }]}
+                        >
+                          <View style={[styles.mosaico, { width: CAIXA_DA_MISTURA, height: CAIXA_DA_MISTURA }]}>
+                            {m.faixas.slice(0, 4).map((t, i) => (
+                              t.artworkUrl ? (
+                                <Image
+                                  key={i}
+                                  source={{ uri: t.artworkUrl }}
+                                  style={{ width: '50%', height: '50%' }}
+                                  contentFit="cover"
+                                  transition={200}
+                                />
+                              ) : (
+                                <View key={i} style={{ width: '50%', height: '50%', backgroundColor: colors.surfaceHigh }} />
+                              )
+                            ))}
+                          </View>
+                          <Text numberOfLines={1} style={styles.cardTitle}>{m.nome}</Text>
+                          <Text numberOfLines={1} style={styles.cardArtist}>
+                            {m.faixas.length} songs
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+                {(!misturasProntas || misturasDeArtista.length > 0) && (
                   <View style={styles.recsSection}>
                     <View style={styles.sectionHeader}>
                       <Text style={[styles.sectionTitle, { flex: 1 }]}>Playlists</Text>
@@ -413,7 +480,7 @@ export function SearchScreen() {
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={styles.horizontalScroll}
                       >
-                        {misturas.map((m) => (
+                        {misturasDeArtista.map((m) => (
                           <Pressable
                             key={m.id}
                             ref={(r) => { molduras.current[m.id] = r; }}

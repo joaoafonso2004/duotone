@@ -27,12 +27,19 @@ import {
  *    reserva se o Deezer fechar, não como primeira escolha.
  *  - **Last.fm** — bom, mas exige chave e registo.
  *
- * **CORS.** O Deezer não manda `Access-Control-Allow-Origin`. Não é problema
- * onde a app corre: no iOS o `fetch` é nativo e não tem CORS, e no Electron a
- * janela usa `webSecurity: false` (ver `electron/main.cjs`) porque a extração
- * do InnerTube já obrigava a isso. Na build web para o browser isto falha, e
- * falha em silêncio — a descoberta cai na co-ocorrência local, que é o que
- * havia antes.
+ * **CORS.** O Deezer não manda `Access-Control-Allow-Origin` -- confirmado com
+ * um pedido a sério: vêm o `Allow-Headers`, o `Allow-Methods` e o
+ * `Allow-Credentials`, e não vem o que conta.
+ *
+ * Esta nota dizia que a janela do Electron corria com `webSecurity: false` e
+ * que por isso não era problema. **Não é verdade, e talvez nunca tenha sido:**
+ * o `electron/main.cjs` tem `webSecurity: true`. Foi esta frase que fez o
+ * problema passar despercebido -- no Windows a resposta era deitada fora pelo
+ * browser e a descoberta inteira ficava vazia, em silêncio.
+ *
+ * O que resolve é a ponte: no Electron o pedido sai do processo principal, que
+ * não tem CORS (ver o `buscar` aqui em baixo e o `catalogo:pedir` no
+ * `main.cjs`). No iOS o `fetch` é nativo e vai directo, como sempre foi.
  *
  * **O que isto NÃO é.** Não é a fonte do áudio nem entra na biblioteca: o
  * Deezer diz só nomes e títulos. A música continua a vir do YouTube.
@@ -327,4 +334,32 @@ export async function resolverFaixa(local: FaixaLocal): Promise<FaixaResolvida |
     capa: candidato.capa ?? null,
     prova,
   };
+}
+
+/**
+ * Os vizinhos de varios artistas teus, em chaves canonicas.
+ *
+ * E o sinal de que o `lib/estilos.ts` precisa para agrupar: dois artistas que
+ * partilham vizinhos sao do mesmo estilo. Nao pede nada de novo -- o
+ * `vizinhancaDe` ja foi chamado pela descoberta para estes mesmos artistas, e
+ * a resposta vive na cache partilhada (`deezer:vizinhanca:v2:*`) e no mapa de
+ * pedidos em curso. Com a cache quente isto nao vai a rede uma unica vez.
+ *
+ * Quem o catalogo nao conhecer simplesmente nao entra no mapa, e o agrupamento
+ * deixa-o de fora -- que e o correcto: sem vizinhos nao ha como saber com quem
+ * ele se parece.
+ */
+export async function vizinhosPorArtista(
+  nomes: readonly string[],
+): Promise<Map<string, string[]>> {
+  const saida = new Map<string, string[]>();
+  await Promise.all(nomes.map(async (nome) => {
+    const vizinhanca = await vizinhancaDe(nome).catch(() => null);
+    if (!vizinhanca) return;
+    saida.set(
+      chaveDeCatalogo(nome),
+      vizinhanca.semelhantes.map((a) => chaveDeCatalogo(a.nome)).filter(Boolean),
+    );
+  }));
+  return saida;
 }
