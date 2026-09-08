@@ -200,7 +200,10 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
         {entry.artworkUrl?<Image source={{uri:entry.artworkUrl}} style={{width:44,height:44}}/>:<Ionicons name="musical-notes" color={colors.textSecondary} size={22}/>}
       </View>
       <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.text}>{entry.title}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(entry)}</Text></View>
-      <Text style={s.muted}>{recentes?new Date(entry.lastPlayed).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit'}):entry.count}</Text>
+      {/* Nas mais tocadas o número é a contagem e diz alguma coisa. Nas
+          recentes mostrava-se a data, que numa lista do que se ouviu há pouco
+          não acrescenta nada e rouba a linha ao título. */}
+      {!recentes&&<Text style={s.muted}>{entry.count}</Text>}
     </Pressable><SocialIconButton label={`Options for ${entry.title}`} icon="ellipsis-horizontal" onPress={()=>setTrack(entry)}/>
   </View>;
   const visiblePlaylists=playlists.filter(p=>!own||p.visibleOnProfile);
@@ -215,7 +218,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
   const playlistsSection=<View style={{gap:12}}>
     <View style={[s.row,{justifyContent:'space-between'}]}>
       <Text style={s.title}>{own?'Your playlists':'Playlists'}</Text>
-      {own&&<SocialIconButton label="Choose playlists to share" icon="add-circle-outline" onPress={()=>{setPlaylistMutationError('');setChoosingPlaylists(true);}}/>}
+      {own&&<SocialIconButton label="Choose which playlists to show" icon="add-circle-outline" onPress={()=>{setPlaylistMutationError('');setChoosingPlaylists(true);}}/>}
     </View>
     {!!sectionErrors.playlists&&sectionFailure(sectionErrors.playlists)}
     {!!sectionErrors.copies&&sectionFailure(sectionErrors.copies)}
@@ -230,6 +233,17 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
             <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={[s.text,{fontWeight:'600'}]}>{pl.name}</Text><Text style={s.muted}>{pl.trackCount} {pl.trackCount===1?'track':'tracks'}</Text></View>
             {own&&<Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>}
           </Pressable>
+          {/* Tirar do perfil aqui, e não só dentro do selector.
+              Era possível antes -- o mesmo selector que põe também tira -- mas
+              o caminho para lá é um ícone de "+", e quem pôs uma playlist e a
+              quer fora não pensa em carregar no mais outra vez. Uma coisa que
+              se põe tem de se poder tirar de onde ela está. */}
+          {own&&<Pressable accessibilityRole="button" accessibilityLabel={`Remove ${pl.name} from your profile`}
+            aria-busy={ocupada===pl.id} accessibilityState={{busy:ocupada===pl.id,disabled:!!ocupada||loading}}
+            disabled={!!ocupada||loading} onPress={()=>void alternarVisibilidade(pl)}
+            style={{minHeight:44,minWidth:44,alignItems:'center',justifyContent:'center'}}>
+            {ocupada===pl.id?<ActivityIndicator size="small" color={accent}/>:<Ionicons name="remove-circle-outline" size={22} color={colors.textSecondary}/>}
+          </Pressable>}
           {!own&&<Pressable accessibilityRole="button" accessibilityLabel={marked?`Remove your copy of ${pl.name}`:`Save a copy of ${pl.name}`} aria-selected={marked} aria-busy={busy} aria-disabled={!!ocupada||loading||!!sectionErrors.copies} accessibilityState={{selected:marked,busy,disabled:!!ocupada||loading||!!sectionErrors.copies}}
             disabled={!!ocupada||loading||!!sectionErrors.copies} onPress={()=>void alternarCopia(pl)} style={{minHeight:44,minWidth:56,alignItems:'center',justifyContent:'center',gap:3,opacity:sectionErrors.copies?0.4:1}}>
             {busy?<ActivityIndicator size="small" color={accent}/>:<Ionicons name={marked?'checkmark-circle':'add-circle-outline'} size={24} color={marked?accent:colors.textSecondary}/>}
@@ -260,7 +274,10 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
           <Ionicons name="play-circle" size={28} color={accent}/><View style={{flex:1,minWidth:0}}><Text style={s.label}>Listening now</Text><Text numberOfLines={1} style={s.text}>{friend.currentlyPlaying.title}</Text></View>
         </Pressable>}
         {!profile.canView?<Text style={s.muted}>Stats become available once you are friends.</Text>:<>
-          {highlights.moment&&<View style={[s.card,{gap:12}]}>
+          {/* Sem cartão à volta. Nesta app o cartão serve para separar objectos
+              uns dos outros; à volta de UM só, emoldura em vez de separar --
+              e uma faixa emoldurada lê-se como um anúncio dela própria. */}
+          {highlights.moment&&<View style={{gap:12}}>
             <Text style={s.label}>Song of the moment</Text>
             <View style={s.row}>
               <Pressable accessibilityRole="button" accessibilityLabel={`Play ${highlights.moment.title}`} onPress={()=>void usePlayer.getState().playTrack(highlights.moment!,[highlights.moment!])} style={[s.row,{flex:1,minWidth:0}]}>
