@@ -406,10 +406,12 @@ export function SearchScreen() {
                 o que o carregamento por partes existe para evitar. */}
             {(
               <View>
-                {/* A PRIMEIRA prateleira e so descoberta: musica que ele nao tem,
-                    escolhida pelo que ele ouve. */}
-                {renderRecommendationSection('descobrir', 'Discover new', descobrir, jaChegou('descobrir'), { lista: true })}
-                {/* Logo a seguir, e de propósito. O "Discover new" vai para
+                {/* A PRIMEIRA prateleira e so descoberta: musica que ele nao
+                    tem, escolhida pelo que ele ouve -- e a MESMA durante sete
+                    dias, para chegar a ser ouvida ate ao fim. Ver
+                    `descobertasDaSemana`. */}
+                {renderRecommendationSection('descobrir', 'Discover weekly', descobrir, jaChegou('descobrir'), { lista: true })}
+                {/* Logo a seguir, e de propósito. O "Discover weekly" vai para
                     FORA -- artistas vizinhos, e só música que saiu. Esta vai
                     para dentro: o que os artistas dele nunca lançaram, que não
                     existe em catálogo nenhum. Ver api/naoLancado.ts. */}

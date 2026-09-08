@@ -2,7 +2,7 @@ import { artistPreferenceKey,feedbackReady,filterSuggestions } from './recommend
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import { getLibrary } from '../api/library';
-import { descobertasPorAncora, descobrirNovas, flowDoDia, taparBuracosComOYouTube } from '../api/descoberta';
+import { descobertasDaSemana, descobertasPorAncora, flowDoDia, taparBuracosComOYouTube } from '../api/descoberta';
 import { nuncaLancadas } from '../api/naoLancado';
 import {
   getForgottenFavorites, getHeavyRotation, getProfileRecentlyPlayed,
@@ -251,7 +251,12 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
         })
         .catch(() => { if (atual === geracao) set({ misturasProntas: true }); }),
       getLibrary().then((lib) => Promise.all([
-        publicar(descobrirNovas(POR_PRATELEIRA, lib), (descobrir) => ({ descobrir })),
+        // A MESMA lista durante sete dias -- ver `descobertasDaSemana`. Era
+        // refeita a cada arranque, e uma lista que muda todos os dias nunca
+        // chega a ser ouvida até ao fim. O `forcar` vem do botão de
+        // refrescar: sem ele, refrescar não mexia justamente na prateleira
+        // mais visível da página.
+        publicar(descobertasDaSemana(POR_PRATELEIRA, lib, forcar), (descobrir) => ({ descobrir })),
         // O "Daily flow" só se vê na biblioteca do Windows. No telemóvel saiu
         // da pesquisa, e ir buscá-lo na mesma era pagar uma ida à rede -- que
         // fala com o catálogo, não é barata -- por uma prateleira que ninguém

@@ -77,7 +77,7 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
       : errorMsg ? <Empty icon="cloud-offline-outline" title="Search failed" body={errorMsg} />
       : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
       : temRecomendacoes(recs) ? <>
-          <Shelf titulo="Discover new" nota="music you don't have yet, based on what you listen to" tracks={descobrir} onPlay={play} onMore={more} />
+          <Shelf titulo="Discover weekly" nota="music you don't have yet, based on what you listen to. The same list all week." tracks={descobrir} onPlay={play} onMore={more} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
           <Shelf titulo="Never released" nota="what your artists never put out" tracks={nuncaLancado} onPlay={play} onMore={more} />

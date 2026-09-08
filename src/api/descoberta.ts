@@ -1,3 +1,4 @@
+import { cacheGet, cacheSet, DIA_MS } from './cache';
 import { useConnectivity } from '../state/connectivity';
 import { artistWeight,feedbackReady,filterSuggestions,trackIsSuppressed } from '../state/recommendationFeedback';
 import { getLibraryKeys } from './library';
@@ -331,6 +332,52 @@ export async function procurarNoYouTube(
  * Parte de mais artistas do que o shuffle (que só precisa de uma sugestão de
  * cada vez) porque uma prateleira com duas coisas não é uma prateleira.
  */
+/** O número da semana desde a época, em UTC. Muda à meia-noite de quinta para
+ *  sexta em UTC -- a época caiu numa quinta-feira -- e isso não tem
+ *  importância nenhuma: o que conta é mudar UMA vez por semana. */
+export function semanaDe(agora: number = Date.now()): number {
+  return Math.floor(agora / (7 * 86_400_000));
+}
+
+/** Uma chave só, reescrita todas as semanas, em vez de uma por semana: a
+ *  cache é por utilizador e não vale a pena deixar lá o histórico todo. */
+const CHAVE_DA_SEMANA = 'descobertas:semana:v1';
+
+/**
+ * A descoberta, mas a MESMA durante sete dias.
+ *
+ * **Porque é que isto muda alguma coisa.** A lista era refeita a cada arranque
+ * da app: abrias, via-se meia dúzia, fechava-se, e no dia seguinte era outra
+ * lista com outras faixas. Nunca chegava a ser *a tua* lista -- e uma lista que
+ * se sabe que vai estar lá amanhã é a única que se ouve até ao fim. É a ideia
+ * inteira do Discover Weekly do Spotify, e não custa mais nada do que guardar o
+ * que já se calculava.
+ *
+ * Fica no `yt_cache`, que é POR UTILIZADOR e tem RLS por `auth.uid()` (ver o
+ * `supabase/schema.sql`): a lista é a mesma no telemóvel e no PC, e não é de
+ * mais ninguém.
+ *
+ * `forcar` existe para o botão de refrescar: sem ele, carregar em refrescar não
+ * fazia nada a esta prateleira, que é a mais visível da página.
+ */
+export async function descobertasDaSemana(
+  limite: number,
+  biblioteca: readonly Track[],
+  forcar = false,
+): Promise<Track[]> {
+  const semana = semanaDe();
+  if (!forcar) {
+    const guardado = await cacheGet<{ semana: number; faixas: Track[] }>(
+      CHAVE_DA_SEMANA, 8 * DIA_MS,
+    );
+    if (guardado?.semana === semana && guardado.faixas?.length) return guardado.faixas;
+  }
+  const faixas = await descobrirNovas(limite, biblioteca);
+  // Uma lista vazia não se guarda: seria fixar o silêncio durante uma semana.
+  if (faixas.length > 0) await cacheSet(CHAVE_DA_SEMANA, { semana, faixas });
+  return faixas;
+}
+
 export async function descobrirNovas(
   limite: number,
   biblioteca: readonly Track[],
