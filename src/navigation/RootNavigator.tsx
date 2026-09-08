@@ -13,14 +13,14 @@ import {
   Theme,
   createNavigationContainerRef,
 } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { BarraDeSeparadores } from './BarraDeSeparadores';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import { Animated, StyleSheet, Text, View, ActivityIndicator, AppState } from 'react-native';
-import { ESTADO, SEPARADOR_ACTIVO } from '../lib/movimento';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
@@ -103,53 +103,8 @@ type TabsParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const Tab = createBottomTabNavigator<TabsParamList>();
+const Tab = createMaterialTopTabNavigator<TabsParamList>();
 
-/**
- * O separador escolhido levanta-se um bocadinho.
- *
- * O `StateIcon` ja dissolvia entre o contorno e o preenchido, o que diz QUAL
- * esta escolhido -- mas dizia-o sem nada acontecer: a mudanca chegava ao ecra
- * sem movimento nenhum, e por isso lia-se como uma troca de imagem.
- *
- * Uma escala pequena com mola resolve, e nao mexe em layout nenhum: o icone
- * ocupa sempre a mesma caixa, so e desenhado maior. Sem isto teria de se mexer
- * em `width`/`height`, que nao correm na UI thread e obrigariam a barra inteira
- * a refazer o layout a cada mudanca de pagina.
- */
-function SeparadorActivo({ activo, tamanho, children }: {
-  activo: boolean; tamanho: number; children: React.ReactNode;
-}) {
-  const reduzido = useReducedMotion();
-  const levantado = React.useRef(new Animated.Value(activo ? 1 : 0)).current;
-
-  React.useEffect(() => {
-    if (reduzido) { levantado.setValue(activo ? 1 : 0); return; }
-    const mola = Animated.spring(levantado, {
-      toValue: activo ? 1 : 0,
-      ...ESTADO,
-      useNativeDriver: true,
-    });
-    mola.start();
-    return () => mola.stop();
-  }, [activo, reduzido, levantado]);
-
-  return (
-    <Animated.View
-      style={{
-        width: tamanho,
-        height: tamanho,
-        justifyContent: 'center',
-        alignItems: 'center',
-        transform: [{
-          scale: levantado.interpolate({ inputRange: [0, 1], outputRange: [1, SEPARADOR_ACTIVO] }),
-        }],
-      }}
-    >
-      {children}
-    </Animated.View>
-  );
-}
 const stackScreenOptions = { headerShown: false } as const;
 
 // Cada tab com navegação para ecrãs de detalhe recebe o seu próprio stack
@@ -176,78 +131,35 @@ function ArtistsStack() {
   );
 }
 
-const TAB_ICONS: Record<keyof TabsParamList, keyof typeof Ionicons.glyphMap> = {
-  Search: 'search',
-  Songs: 'musical-notes',
-  Artists: 'people',
-  Playlists: 'albums',
-  Profile: 'person',
-};
 
+/**
+ * Os cinco separadores, agora com o dedo.
+ *
+ * Trocou-se o `bottom-tabs` por um navegador com paginador porque o primeiro
+ * não desliza -- não é configuração, é uma decisão da biblioteca. A barra
+ * continua em baixo e continua com o mesmo aspecto; está escrita à mão no
+ * `BarraDeSeparadores`, que é o preço do gesto.
+ *
+ * O `lazy` fica desligado como estava: as páginas montam todas de uma vez.
+ * Com deslize isso passou de preferência a necessidade -- a página do lado
+ * entra no ecrã ENQUANTO o dedo se move, e uma que só começasse a montar
+ * nesse instante mostrava um vazio a meio do gesto.
+ */
 function Tabs() {
-  const hasNotification = useNotifications((s) => s.hasNotification);
-  const reducedMotion=useReducedMotion();
-  // A navegação inteira não precisa de redesenhar em cada passo da animação;
-  // os controlos/ecrãs visíveis animam o tema diretamente.
-  const theme = useTheme((s) => s.destino);
+  const reducedMotion = useReducedMotion();
 
   return (
     <Tab.Navigator
-      initialRouteName={useConnectivity.getState().offline?"Songs":"Search"}
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        animation: reducedMotion?'none':'fade',
-        transitionSpec: {animation:'timing',config:{duration:180}},
+      initialRouteName={useConnectivity.getState().offline ? 'Songs' : 'Search'}
+      tabBarPosition="bottom"
+      tabBar={(props) => <BarraDeSeparadores {...props} />}
+      screenOptions={{
         lazy: false,
-        tabBarActiveTintColor: theme.color,
-        tabBarInactiveTintColor: colors.textTertiary,
-        tabBarStyle: {
-          position: 'absolute',
-          borderTopColor: colors.border,
-          backgroundColor: 'transparent',
-        },
-        tabBarBackground: () => (
-          <BlurView
-            tint="dark"
-            intensity={50}
-            style={[
-              StyleSheet.absoluteFill,
-              { backgroundColor: 'rgba(10,10,15,0.72)' },
-            ]}
-          />
-        ),
-        tabBarIcon: ({ color, size, focused }) => {
-          return (
-            <SeparadorActivo activo={focused} tamanho={size}>
-              {/* Sem `rodar`: cinco separadores a girar de cada vez que se
-                  muda de pagina seria uma feira. Aqui basta o preenchido a
-                  dissolver por cima do contorno, e o levantar. */}
-              <StateIcon
-                name={
-                  focused
-                    ? TAB_ICONS[route.name]
-                    : (`${TAB_ICONS[route.name]}-outline` as keyof typeof Ionicons.glyphMap)
-                }
-                size={size}
-                color={color}
-              />
-              {route.name === 'Profile' && hasNotification && (
-                <View
-                  style={{
-                    position: 'absolute',
-                    top: -2,
-                    right: -2,
-                    width: 8,
-                    height: 8,
-                    borderRadius: 4,
-                    backgroundColor: '#FF3B30',
-                  }}
-                />
-              )}
-            </SeparadorActivo>
-          );
-        },
-      })}
+        // Quem pediu menos animação continua a poder tocar nos separadores; o
+        // que se lhe tira é a página a correr por baixo do dedo.
+        swipeEnabled: !reducedMotion,
+        animationEnabled: !reducedMotion,
+      }}
     >
       <Tab.Screen name="Search" component={OnlineSearch} />
       <Tab.Screen name="Songs" component={SongsScreen} />
