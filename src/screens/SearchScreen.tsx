@@ -27,6 +27,7 @@ import { useSaved } from '../state/saved';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
+import { AmigosAOuvir } from '../components/AmigosAOuvir';
 import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -258,6 +259,12 @@ const LINHAS_NA_LISTA = 3;
             contentContainerStyle={{ paddingBottom: bottomPad }}
             showsVerticalScrollIndicator={false}
           >
+            {/* A cabeca de tudo, e so quando ha alguem: quem esta a ouvir
+                agora. Sem ninguem, o componente nao devolve nada e a pagina
+                comeca onde sempre comecou -- e por isso que isto pode viver
+                no sitio mais caro do ecra sem custar nada nos dias em que
+                nao ha ninguem online. */}
+            <AmigosAOuvir />
             {/* Sem porteiro global: cada prateleira mostra o SEU esqueleto e
                 entra quando chega. O que estava aqui escondia as tres rapidas
                 -- consultas diretas a base de dados -- atras da descoberta,
