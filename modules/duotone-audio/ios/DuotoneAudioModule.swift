@@ -46,6 +46,21 @@ public class DuotoneAudioModule: Module {
     /** Ver `aplicarNoItem`: as faixas do asset podem ainda nao estar
      * carregadas quando o item aparece, e ai espera-se que ele fique pronto. */
     var aEsperarPeloItem: NSKeyValueObservation?
+    /**
+     * O tap que esta instalado agora, e em que item.
+     *
+     * E o que permite mudar os ganhos SEM reconstruir nada: com o tap vivo,
+     * `aplicarEqualizador` fala com ele em vez de montar um `audioMix` novo --
+     * e era instalar um `audioMix` num item ja a tocar que fazia o
+     * AVFoundation desmontar a cadeia e calar o som por meio segundo.
+     *
+     * As duas sao `weak` de proposito. Quem mantem o estado vivo e o
+     * `passRetained` que o tap fez, e quem o larga e o `tapFinalize`; uma
+     * referencia forte aqui atrasava essa libertacao e guardava um item que
+     * ja nao toca.
+     */
+    weak var tapVivo: EstadoDoTap?
+    weak var itemDoTap: AVPlayerItem?
 
     init(_ player: AVPlayer) {
       self.player = player
@@ -182,6 +197,22 @@ public class DuotoneAudioModule: Module {
 
         motor.ganhos = novos
         motor.margem = novaMargem
+
+        // O CAMINHO CURTO, e o que resolve o corte: se ja ha um tap montado
+        // NESTE item, os ganhos vao la ter por dentro. O tap fica onde esta,
+        // o `audioMix` nao e tocado, e o som nao se interrompe -- os
+        // coeficientes caminham para os valores novos em 20 ms, que e o mesmo
+        // que o PC faz com o `setTargetAtTime`.
+        //
+        // Repara que isto vale TAMBEM para voltar ao plano: antes, uma curva
+        // plana punha `audioMix = nil` e isso era outra reconstrucao, com
+        // outro corte. Agora o tap fica e passa a nao fazer nada (ver o
+        // `inerte` no DuotoneEq).
+        if let vivo = motor.tapVivo, motor.itemDoTap === motor.player?.currentItem {
+          vivo.actualizar(ganhos: novos, margem: novaMargem)
+          return
+        }
+
         self.aplicarNoItem(motor.player?.currentItem, de: motor)
       }
     }
@@ -236,6 +267,14 @@ public class DuotoneAudioModule: Module {
   private func aplicarNoItem(_ item: AVPlayerItem?, de motor: Motor) {
     motor.aEsperarPeloItem?.invalidate()
     motor.aEsperarPeloItem = nil
+    // Item novo, tap novo. Deixar aqui a referencia do anterior fazia o
+    // caminho curto do `aplicarEqualizador` mandar ganhos para um tap que ja
+    // nao esta a tocar nada -- e a faixa nova ficava sem equalizador, em
+    // silencio, que e o pior dos casos.
+    if motor.itemDoTap !== item {
+      motor.tapVivo = nil
+      motor.itemDoTap = nil
+    }
     guard let item else { return }
 
     // 1. O TOM ACOMPANHA A VELOCIDADE.
@@ -255,14 +294,21 @@ public class DuotoneAudioModule: Module {
     // 2. O EQUALIZADOR.
     //
     // Sem ganhos nenhuns nao se instala tap nenhum: um tap tem custo por
-    // amostra, e uma curva plana nao muda nada.
+    // amostra, e uma curva plana nao muda nada. (Um tap JA montado nao se
+    // desmonta por a curva ficar plana -- isso era outra reconstrucao e outro
+    // corte. Esse caso nem chega aqui: e apanhado no caminho curto do
+    // `aplicarEqualizador`.)
     if DuotoneEq.ePlano(motor.ganhos) && motor.margem >= 1 {
+      motor.tapVivo = nil
+      motor.itemDoTap = nil
       item.audioMix = nil
       return
     }
 
-    if let mix = DuotoneEq.mistura(para: item, ganhos: motor.ganhos, margem: motor.margem) {
-      item.audioMix = mix
+    if let montado = DuotoneEq.mistura(para: item, ganhos: motor.ganhos, margem: motor.margem) {
+      item.audioMix = montado.mix
+      motor.tapVivo = montado.estado
+      motor.itemDoTap = item
       return
     }
 
@@ -279,9 +325,12 @@ public class DuotoneAudioModule: Module {
         guard let motor, motor.player?.currentItem === observado else { return }
         motor.aEsperarPeloItem?.invalidate()
         motor.aEsperarPeloItem = nil
-        observado.audioMix = DuotoneEq.mistura(
+        let montado = DuotoneEq.mistura(
           para: observado, ganhos: motor.ganhos, margem: motor.margem
         )
+        observado.audioMix = montado?.mix
+        motor.tapVivo = montado?.estado
+        motor.itemDoTap = montado == nil ? nil : observado
       }
     }
   }

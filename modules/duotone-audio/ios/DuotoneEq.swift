@@ -1,4 +1,5 @@
 import AVFoundation
+import os
 
 /**
  * O equalizador de dez bandas, no audio que o AVPlayer ja esta a tocar.
@@ -17,12 +18,30 @@ import AVFoundation
  * nenhum (ver o comentario em api/ytstream.ts). Nesses casos o audioMix nao se
  * instala e a faixa toca sem equalizador, em vez de nao tocar.
  *
- * PORQUE E QUE MUDAR OS GANHOS RECONSTROI O TAP. O `process` corre numa thread
- * de audio em tempo real, onde nao se pode bloquear nem alocar. Em vez de
- * mexer nos coeficientes por baixo dela, cada mudanca de perfil cria um tap
- * novo com os seus coeficientes ja fixos. Custa uma descontinuidade curta ao
- * trocar de perfil; em troca nao ha estado partilhado entre threads, que e
- * onde este tipo de codigo costuma estalar.
+ * MUDAR OS GANHOS JA NAO RECONSTROI O TAP -- e essa foi a correcao.
+ *
+ * Reconstruia. Cada mudanca criava um tap novo com os coeficientes ja fixos, e
+ * instalar um `audioMix` num item que JA esta a tocar faz o AVFoundation
+ * desmontar e voltar a preparar a cadeia: era o meio segundo de silencio que se
+ * ouvia ao mexer num deslizador. E num ARRASTO nao era um corte, eram vinte --
+ * o deslizador anda em passos de meio dB e cada passo reconstruia tudo.
+ *
+ * O tap passa a viver enquanto o item viver, e os coeficientes trocam-se por
+ * baixo dele. As duas regras da thread de audio continuam de pe:
+ *
+ *  - **Nao bloqueia.** A troca e protegida por um `os_unfair_lock`, mas do lado
+ *    do audio so se faz `trylock`: se a thread principal estiver a escrever
+ *    naquele instante, o bloco salta a actualizacao e continua com os
+ *    coeficientes que tinha. Um bloco de atraso sao dez milissegundos.
+ *  - **Nao aloca.** Os arrays sao dimensionados uma vez no `prepare`, para as
+ *    DEZ bandas, e nunca mudam de tamanho. Uma banda a zero passa a ser a
+ *    identidade em vez de desaparecer da lista -- era o desaparecer que
+ *    obrigava a realocar quando um ganho cruzava o zero.
+ *
+ * E os coeficientes nao saltam para o valor novo: caminham para la com a MESMA
+ * constante de tempo que o PC usa (`setTargetAtTime(..., 0.02)`), aplicada uma
+ * vez por bloco. Vinte milissegundos de aproximacao exponencial e o que torna a
+ * mudanca inaudivel em vez de um estalo.
  */
 enum DuotoneEq {
   /** As mesmas de `lib/equalizer.ts`. Se mudarem la, tem de mudar aqui. */
@@ -53,7 +72,9 @@ enum DuotoneEq {
    * Constroi o audioMix para este item. Devolve nil quando nao ha faixa de
    * audio no asset -- o caso do HLS -- e ai a faixa toca sem equalizador.
    */
-  static func mistura(para item: AVPlayerItem, ganhos: [Float], margem: Float) -> AVAudioMix? {
+  static func mistura(
+    para item: AVPlayerItem, ganhos: [Float], margem: Float
+  ) -> (mix: AVAudioMix, estado: EstadoDoTap)? {
     // O `tracks(withMediaType:)` sincrono esta marcado como obsoleto desde o
     // iOS 16 a favor do `loadTracks`, que e assincrono. Fica o sincrono de
     // proposito: o alvo do pod e o iOS 15.1, isto tem de devolver um mix a um
@@ -95,7 +116,11 @@ enum DuotoneEq {
 
     let mix = AVMutableAudioMix()
     mix.inputParameters = [parametros]
-    return mix
+    // O ESTADO sai junto com a mistura. E por ele que os ganhos seguintes
+    // chegam ao tap sem o reconstruir -- ver `actualizar`. Quem o guarda tem
+    // de o guardar `weak`: quem o mantem vivo e o `passRetained` de cima, e
+    // quem o larga e o `tapFinalize`.
+    return (mix, estado)
   }
 }
 
@@ -189,49 +214,193 @@ struct Coeficientes {
  * thread de audio, e mais ninguem lhe mexe.
  */
 final class EstadoDoTap {
-  let ganhos: [Float]
-  let margem: Float
+  /**
+   * O cadeado que separa quem escreve de quem le.
+   *
+   * A thread principal fecha-o para deixar ganhos novos; a de audio so TENTA
+   * (`trylock`) e desiste se estiver ocupado. E isso que o torna seguro em
+   * tempo real: do lado do audio isto nunca bloqueia. Perder uma actualizacao
+   * num bloco custa dez milissegundos de atraso, que ninguem ouve; bloquear a
+   * thread de audio custa um estalo, que toda a gente ouve.
+   *
+   * ALOCADO, e nao uma propriedade com `&`. A Apple avisa: passar `&` sobre
+   * uma variavel Swift a estas funcoes pode entregar-lhes uma COPIA
+   * temporaria, e um cadeado que tranca uma copia nao tranca nada -- falharia
+   * em silencio, e so se veria como estalos raros e irreproduziveis. Com o
+   * ponteiro proprio, e sempre a mesma memoria.
+   */
+  private let cadeado: UnsafeMutablePointer<os_unfair_lock> = {
+    let p = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
+    p.initialize(to: os_unfair_lock())
+    return p
+  }()
 
-  /** So as bandas que fazem alguma coisa. Uma banda a zero e a identidade, e
-   * filtrar por ela era gastar por nada -- o normal e o utilizador mexer em
-   * duas ou tres. */
-  private(set) var coeficientes: [Coeficientes] = []
-  /** Dois estados por banda e por canal, num array PLANO
-   * (`canal * bandas + banda`). Plano e nao aninhado de proposito: um
-   * `[[Float]]` faz uma verificacao de copia por acesso, e isto corre dentro
-   * da thread de audio. */
+  deinit {
+    cadeado.deinitialize(count: 1)
+    cadeado.deallocate()
+  }
+
+  /** O que a thread principal deixou por levantar. */
+  private var ganhosPendentes: [Float]
+  private var margemPendente: Float
+  private var haNovidade = true
+
+  /** Para onde os coeficientes caminham, e onde estao agora. Sempre DEZ,
+   *  mesmo os que estao a zero -- ver a identidade no `recolherNovidade`. */
+  private var destino: [Coeficientes] = []
+  private var atual: [Coeficientes] = []
+  private var margemDestino: Float = 1
+  private var margemAtual: Float = 1
+  /**
+   * Nada a fazer a este bloco: curva plana e margem cheia.
+   *
+   * Antes, uma curva plana nem sequer instalava tap -- "um tap tem custo por
+   * amostra, e uma curva plana nao muda nada". Agora o tap fica montado para
+   * poder receber ganhos sem se reconstruir, e e esta bandeira que lhe tira o
+   * custo: plano, nao se percorre uma unica amostra.
+   */
+  private var inerte = true
+
   private var z1: [Float] = []
   private var z2: [Float] = []
   private var canais = 0
-  /** Peak limiter estéreo ligado depois do EQ. A margem é unidade nas versões
-   * atuais; o limiter só impede que conteúdo reforçado ultrapasse a saída
+  private var taxa: Float = 48000
+  /** Peak limiter estereo ligado depois do EQ. A margem e unidade nas versoes
+   * atuais; o limiter so impede que conteudo reforcado ultrapasse a saida
    * digital. */
   private let teto: Float = powf(10, -0.1 / 20)
   private var ganhoDoLimitador: Float = 1
   private var coeficienteDeRelease: Float = 0
 
   init(ganhos: [Float], margem: Float) {
-    self.ganhos = ganhos
-    self.margem = margem
+    self.ganhosPendentes = ganhos
+    self.margemPendente = margem
+  }
+
+  /**
+   * Ganhos novos, vindos da thread principal.
+   *
+   * Nao toca nos coeficientes: so deixa o pedido. Quem os recalcula e a thread
+   * de audio, no inicio do proximo bloco -- sao dez biquads, umas dezenas de
+   * `sinf`/`cosf`, uns microsegundos dentro de um bloco de dez milissegundos.
+   * Nao aloca nada: os arrays ja tem o tamanho final desde o `preparar`.
+   */
+  func actualizar(ganhos: [Float], margem: Float) {
+    os_unfair_lock_lock(cadeado)
+    ganhosPendentes = ganhos
+    margemPendente = margem
+    haNovidade = true
+    os_unfair_lock_unlock(cadeado)
   }
 
   func preparar(taxa: Float, canais: Int) {
     self.canais = max(1, canais)
-    // 150 ms: abaixo disto a recuperação começa a modular a própria onda dos
-    // graves e ouve-se como distorção. Ataque instantâneo para nunca cortar.
+    self.taxa = max(1, taxa)
+    // 150 ms: abaixo disto a recuperacao comeca a modular a propria onda dos
+    // graves e ouve-se como distorcao. Ataque instantaneo para nunca cortar.
     coeficienteDeRelease = expf(-1 / (0.15 * max(1, taxa)))
     ganhoDoLimitador = 1
-    coeficientes = (0..<DuotoneEq.numeroDeBandas).compactMap { i in
-      let db = i < ganhos.count ? ganhos[i] : 0
-      guard abs(db) >= 0.05 else { return nil }
-      return Coeficientes.criar(
-        tipo: DuotoneEq.tipos[i],
-        frequencia: DuotoneEq.frequencias[i], ganhoDb: db, q: DuotoneEq.q, taxa: taxa
-      )
-    }
-    let total = self.canais * max(1, coeficientes.count)
+    // Espaco para as DEZ bandas, de uma vez. O tamanho nunca mais muda, e e
+    // isso que permite trocar ganhos sem alocar dentro do callback.
+    let total = self.canais * DuotoneEq.numeroDeBandas
     z1 = Array(repeating: 0, count: total)
     z2 = Array(repeating: 0, count: total)
+    // Dois arrays SEPARADOS, e nao `atual = destino`.
+    //
+    // Em Swift, `atual = destino` poe os dois a partilhar a mesma memoria, e a
+    // primeira escrita em `atual` dentro da rampa dispararia um copy-on-write
+    // -- uma ALOCACAO no meio do callback de audio, que e exactamente o que
+    // aqui nao se pode fazer. Cada um nasce com o seu buffer e nunca mais o
+    // troca; daqui para a frente copia-se elemento a elemento.
+    destino = Array(repeating: Coeficientes(), count: DuotoneEq.numeroDeBandas)
+    atual = Array(repeating: Coeficientes(), count: DuotoneEq.numeroDeBandas)
+    // A primeira vez nao leva rampa: a faixa comeca ja com o perfil dela.
+    recolherNovidade(comRampa: false)
+  }
+
+  /**
+   * Levanta o que a thread principal tenha deixado. So do lado do audio.
+   *
+   * `trylock` e nao `lock`: se a principal estiver a escrever neste instante,
+   * este bloco fica com os coeficientes de antes e leva o valor novo no
+   * seguinte.
+   */
+  func recolherNovidade(comRampa: Bool = true) {
+    guard os_unfair_lock_trylock(cadeado) else { return }
+    defer { os_unfair_lock_unlock(cadeado) }
+    guard haNovidade, !destino.isEmpty else { return }
+    haNovidade = false
+
+    for i in 0..<DuotoneEq.numeroDeBandas {
+      let db = i < ganhosPendentes.count ? ganhosPendentes[i] : 0
+      // Abaixo de 0,05 dB nao se ouve: fica a IDENTIDADE (b0 = 1, o resto a
+      // zero), e nao fora da lista. Sair da lista mudava o numero de bandas e
+      // obrigava a realocar os estados no meio do callback.
+      destino[i] = abs(db) < 0.05
+        ? Coeficientes()
+        : Coeficientes.criar(
+            tipo: DuotoneEq.tipos[i], frequencia: DuotoneEq.frequencias[i],
+            ganhoDb: db, q: DuotoneEq.q, taxa: taxa
+          )
+    }
+    margemDestino = margemPendente
+    if !comRampa {
+      // Elemento a elemento, pela mesma razao do `preparar`: uma atribuicao de
+      // array inteiro punha os dois a partilhar memoria e a rampa seguinte
+      // alocava dentro do callback.
+      for i in 0..<atual.count { atual[i] = destino[i] }
+      margemAtual = margemDestino
+    }
+    recalcularInercia()
+  }
+
+  /**
+   * Um passo da rampa, uma vez por bloco.
+   *
+   * A mesma matematica do `setTargetAtTime(v, t, 0.02)` que o PC usa no Web
+   * Audio: aproximacao exponencial com constante de tempo de 20 ms. O passo
+   * sai do numero de amostras do bloco, por isso a rampa dura o mesmo seja
+   * qual for o tamanho que o AVFoundation escolher.
+   *
+   * Por bloco e nao por amostra de proposito: por amostra obrigava a
+   * interpolar dez biquads a cada uma das 48 000 amostras por segundo, e a
+   * diferenca nao se ouve -- os blocos sao de milissegundos e o degrau de cada
+   * um e uma fraccao do total.
+   */
+  func avancarRampa(frames: Int) {
+    guard !destino.isEmpty, frames > 0 else { return }
+    let alfa = min(1, 1 - expf(-Float(frames) / (0.02 * taxa)))
+    var mudou = false
+    for i in 0..<atual.count {
+      let a = atual[i], d = destino[i]
+      if a.b0 == d.b0 && a.b1 == d.b1 && a.b2 == d.b2 && a.a1 == d.a1 && a.a2 == d.a2 { continue }
+      atual[i] = Coeficientes(
+        b0: a.b0 + (d.b0 - a.b0) * alfa,
+        b1: a.b1 + (d.b1 - a.b1) * alfa,
+        b2: a.b2 + (d.b2 - a.b2) * alfa,
+        a1: a.a1 + (d.a1 - a.a1) * alfa,
+        a2: a.a2 + (d.a2 - a.a2) * alfa
+      )
+      mudou = true
+    }
+    if margemAtual != margemDestino {
+      margemAtual += (margemDestino - margemAtual) * alfa
+      mudou = true
+    }
+    if mudou { recalcularInercia() }
+  }
+
+  /** Vale a pena percorrer as amostras deste bloco? */
+  private func recalcularInercia() {
+    if margemAtual < 0.999 { inerte = false; return }
+    for c in atual {
+      if abs(c.b0 - 1) > 1e-4 || abs(c.b1) > 1e-4 || abs(c.b2) > 1e-4
+        || abs(c.a1) > 1e-4 || abs(c.a2) > 1e-4 {
+        inerte = false
+        return
+      }
+    }
+    inerte = true
   }
 
   /**
@@ -248,13 +417,17 @@ final class EstadoDoTap {
     passo: Int,
     canal: Int
   ) {
-    guard quantas > 0, canal < canais else { return }
-    let bandas = coeficientes.count
+    guard quantas > 0, canal < canais, !inerte else { return }
+    let bandas = atual.count
     guard bandas > 0 else { return }
     z1.withUnsafeMutableBufferPointer { e1 in
       z2.withUnsafeMutableBufferPointer { e2 in
         for banda in 0..<bandas {
-          let c = coeficientes[banda]
+          let c = atual[banda]
+          // Uma banda na identidade nao muda uma amostra: salta-se, e o estado
+          // dela fica onde estava. E o que devolve o custo de uma banda a zero
+          // a exactamente zero, agora que elas ja nao saem da lista.
+          if c.b0 == 1 && c.b1 == 0 && c.b2 == 0 && c.a1 == 0 && c.a2 == 0 { continue }
           let indice = canal * bandas + banda
           // Forma direta II transposta: dois estados, uma multiplicacao a
           // menos por amostra do que a forma I.
@@ -277,17 +450,17 @@ final class EstadoDoTap {
   }
 
   /** Ganho comum aos canais: baixar L/R de forma diferente deslocaria a imagem
-   * estéreo. A descida é instantânea; a recuperação demora 150 ms. */
+   * estereo. A descida e instantanea; a recuperacao demora 150 ms. */
   private func ganhoParaOPico(_ pico: Float) -> Float {
     let desejado = pico > teto ? teto / pico : 1
     let recuperado = 1 + coeficienteDeRelease * (ganhoDoLimitador - 1)
     ganhoDoLimitador = min(desejado, recuperado)
-    return margem * ganhoDoLimitador
+    return margemAtual * ganhoDoLimitador
   }
 
-  /** Saída planar: um AudioBuffer por canal (o caso normal do AVPlayer). */
+  /** Saida planar: um AudioBuffer por canal (o caso normal do AVPlayer). */
   func finalizarNaoEntrelacado(_ lista: UnsafeMutableAudioBufferListPointer) {
-    guard !lista.isEmpty else { return }
+    guard !lista.isEmpty, !inerte else { return }
     var frames = Int.max
     for buffer in lista {
       guard buffer.mData != nil else { continue }
@@ -299,7 +472,7 @@ final class EstadoDoTap {
       var pico: Float = 0
       for buffer in lista {
         guard let dados = buffer.mData else { continue }
-        let x = dados.assumingMemoryBound(to: Float.self)[frame] * margem
+        let x = dados.assumingMemoryBound(to: Float.self)[frame] * margemAtual
         pico = max(pico, abs(x))
       }
       let g = ganhoParaOPico(pico)
@@ -310,23 +483,37 @@ final class EstadoDoTap {
     }
   }
 
-  /** Saída intercalada: L,R,L,R... dentro de um único AudioBuffer. */
+  /** Saida intercalada: L,R,L,R... dentro de um unico AudioBuffer. */
   func finalizarEntrelacado(
     _ amostras: UnsafeMutablePointer<Float>,
     frames: Int,
     canais: Int
   ) {
-    guard frames > 0, canais > 0 else { return }
+    guard frames > 0, canais > 0, !inerte else { return }
     for frame in 0..<frames {
       let inicio = frame * canais
       var pico: Float = 0
       for canal in 0..<canais {
-        pico = max(pico, abs(amostras[inicio + canal] * margem))
+        pico = max(pico, abs(amostras[inicio + canal] * margemAtual))
       }
       let g = ganhoParaOPico(pico)
       for canal in 0..<canais { amostras[inicio + canal] *= g }
     }
   }
+}
+
+/**
+ * Quantas amostras POR CANAL traz este bloco.
+ *
+ * A rampa precisa deste numero: e dele que sai o tamanho do passo, e e o que
+ * faz a aproximacao durar os mesmos 20 ms independentemente do tamanho de
+ * bloco que o AVFoundation escolher -- que nao e fixo nem anunciado.
+ */
+private func quantasAmostras(_ lista: UnsafeMutableAudioBufferListPointer) -> Int {
+  guard let primeiro = lista.first else { return 0 }
+  let total = Int(primeiro.mDataByteSize) / MemoryLayout<Float>.size
+  // Num buffer so, os canais vem entrelacados la dentro.
+  return lista.count > 1 ? total : total / max(1, Int(primeiro.mNumberChannels))
 }
 
 // ------------------------------------------------------------- callbacks ---
@@ -368,6 +555,13 @@ private let tapProcess: MTAudioProcessingTapProcessCallback = {
     .takeUnretainedValue()
 
   let lista = UnsafeMutableAudioBufferListPointer(listaDeBuffers)
+
+  // UMA VEZ POR BLOCO, e antes de tocar numa amostra: levantar os ganhos que a
+  // thread principal tenha deixado, e dar um passo da rampa para eles. E isto
+  // que substitui a reconstrucao do tap -- e, com ela, o meio segundo de
+  // silencio que se ouvia ao mexer num deslizador.
+  estado.recolherNovidade()
+  estado.avancarRampa(frames: quantasAmostras(lista))
 
   // Nao entrelacado (o caso normal aqui): um buffer por canal, passo 1.
   if lista.count > 1 {
