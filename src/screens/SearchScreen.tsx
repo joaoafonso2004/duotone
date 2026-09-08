@@ -63,7 +63,7 @@ export function SearchScreen() {
 
   const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
-  const { descobrir, nuncaLancado, ouvirDeNovo: listenAgain,
+  const { descobrir, nuncaLancado, ouvirDeNovo: listenAgain, misturas, misturasProntas,
     maisTocadas: heavyRotation, esquecidas: forgottenFavorites, prontas } = recs;
   /** Ja aterrou? Vazia por ter chegado vazia e vazia por vir a caminho sao
    *  coisas diferentes: uma esconde-se, a outra mostra esqueleto. */
@@ -107,7 +107,9 @@ export function SearchScreen() {
           {chegou && data.length > (emLista ? LINHAS_NA_LISTA : 0) && (
             <Pressable
               hitSlop={10}
-              onPress={() => navigation.navigate('Prateleira', { prateleira: nome, titulo: title })}
+              onPress={() => navigation.navigate('Prateleira', {
+                titulo: title, fonte: { tipo: 'prateleira', nome },
+              })}
             >
               <Text style={styles.verTudo}>See all</Text>
             </Pressable>
@@ -187,6 +189,9 @@ export function SearchScreen() {
 
 /** Quantas linhas por página na primeira secção. */
 const LINHAS_NA_LISTA = 3;
+
+/** Maiores do que as do "Never released", como pedido. */
+const CAIXA_DA_MISTURA = 178;
 
 /** Parte uma lista em páginas de `n`. A última pode vir mais curta. */
 function paginasDe<T>(lista: readonly T[], n: number): T[][] {
@@ -303,6 +308,57 @@ function paginasDe<T>(lista: readonly T[], n: number): T[][] {
                     para dentro: o que os artistas dele nunca lançaram, que não
                     existe em catálogo nenhum. Ver api/naoLancado.ts. */}
                 {renderRecommendationSection('nuncaLancado', 'Never released', nuncaLancado, jaChegou('nuncaLancado'), { largura: 150 })}
+                {/* As playlists que a app monta. Entre a descoberta e o que
+                    já se ouviu: é onde deixa de ser "música nova" e começa a
+                    ser "música tua, arrumada". */}
+                {(!misturasProntas || misturas.length > 0) && (
+                  <View style={styles.recsSection}>
+                    <View style={styles.sectionHeader}>
+                      <Text style={[styles.sectionTitle, { flex: 1 }]}>Playlists</Text>
+                    </View>
+                    {!misturasProntas ? (
+                      <SkeletonDePrateleira largura={CAIXA_DA_MISTURA} cartoes={2} />
+                    ) : (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.horizontalScroll}
+                      >
+                        {misturas.map((m) => (
+                          <Pressable
+                            key={m.id}
+                            onPress={() => navigation.navigate('Prateleira', {
+                              titulo: m.nome, fonte: { tipo: 'mistura', id: m.id },
+                            })}
+                            style={({ pressed }) => [{ width: CAIXA_DA_MISTURA }, pressed && { opacity: 0.8 }]}
+                          >
+                            {/* Mosaico de quatro. Uma capa só seria a de uma
+                                música a fingir que representa vinte e cinco. */}
+                            <View style={[styles.mosaico, { width: CAIXA_DA_MISTURA, height: CAIXA_DA_MISTURA }]}>
+                              {m.faixas.slice(0, 4).map((t, i) => (
+                                t.artworkUrl ? (
+                                  <Image
+                                    key={i}
+                                    source={{ uri: t.artworkUrl }}
+                                    style={{ width: '50%', height: '50%' }}
+                                    contentFit="cover"
+                                    transition={200}
+                                  />
+                                ) : (
+                                  <View key={i} style={{ width: '50%', height: '50%', backgroundColor: colors.surfaceHigh }} />
+                                )
+                              ))}
+                            </View>
+                            <Text numberOfLines={1} style={styles.cardTitle}>{m.nome}</Text>
+                            <Text numberOfLines={1} style={styles.cardArtist}>
+                              {m.faixas.length} songs
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    )}
+                  </View>
+                )}
                 {renderRecommendationSection('ouvirDeNovo', 'Listen again', listenAgain, jaChegou('ouvirDeNovo'))}
                 {renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, jaChegou('maisTocadas'))}
                 {renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, jaChegou('esquecidas'))}
@@ -506,6 +562,13 @@ const styles = StyleSheet.create({
   cardArtist: {
     fontSize: 11,
     color: colors.textSecondary,
+  },
+  mosaico: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    borderRadius: radii.md,
+    overflow: 'hidden',
+    backgroundColor: colors.surface,
   },
   verTudo: {
     ...type.caption,

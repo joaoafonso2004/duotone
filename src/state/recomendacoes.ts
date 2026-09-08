@@ -10,6 +10,10 @@ import {
 import type { Track } from '../types';
 import { semRepetidas } from '../lib/prateleirasSemRepetidas';
 import { intercalarPorArtista } from '../lib/intercalarPorArtista';
+import { misturasDaBiblioteca, type Mistura } from '../lib/misturas';
+import { baralhada } from '../lib/jam';
+import { chaveDeArtista } from '../lib/artistName';
+import { getTopArtists } from '../api/plays';
 import { trackKey } from '../lib/shuffle';
 
 /**
@@ -49,6 +53,11 @@ type Recomendacoes = {
    * indistinguivel de uma prateleira sem nada.
    */
   prontas: NomeDaPrateleira[];
+  /** As playlists que a app montou. Vazio até a biblioteca e os artistas
+   *  chegarem -- e vazio para sempre se não houver música que chegue. */
+  misturas: Mistura[];
+  /** As misturas já foram calculadas (mesmo que tenham dado zero). */
+  misturasProntas: boolean;
   estado: EstadoDasRecomendacoes;
   /** Quando ficaram prontas nesta sessão. */
   carregadoEm: number;
@@ -104,13 +113,15 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
   maisTocadas: [],
   esquecidas: [],
   prontas: [],
+  misturas: [],
+  misturasProntas: false,
   estado: 'vazio',
   carregadoEm: 0,
   limpar: () => {
     geracao++;
     rawShelves={};
     emCurso = null;
-    set({ descobrir: [], nuncaLancado: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], prontas: [], estado: 'vazio', carregadoEm: 0 });
+    set({ descobrir: [], nuncaLancado: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], prontas: [], misturas: [], misturasProntas: false, estado: 'vazio', carregadoEm: 0 });
   },
 
   carregar: async (forcar = false) => {
@@ -174,6 +185,20 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
       publicar(getHeavyRotation(POR_PRATELEIRA), (maisTocadas) => ({ maisTocadas })),
       publicar(getForgottenFavorites(POR_PRATELEIRA), (esquecidas) => ({ esquecidas })),
       // A descoberta e o flow precisam ambos da biblioteca: pede-se uma vez.
+      // As misturas saem da biblioteca e de quem se ouve mais -- as duas
+      // coisas que a descoberta já vai buscar. Falham por si, como as
+      // prateleiras: sem elas a secção não aparece e as vizinhas nem dão por
+      // isso.
+      Promise.all([getLibrary(), getTopArtists(12)])
+        .then(([lib, artistas]) => {
+          if (atual !== geracao) return;
+          set({
+            misturas: misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
+              chaveDeArtista, baralhada),
+            misturasProntas: true,
+          });
+        })
+        .catch(() => { if (atual === geracao) set({ misturasProntas: true }); }),
       getLibrary().then((lib) => Promise.all([
         publicar(descobrirNovas(POR_PRATELEIRA, lib), (descobrir) => ({ descobrir })),
         // O "Daily flow" só se vê na biblioteca do Windows. No telemóvel saiu

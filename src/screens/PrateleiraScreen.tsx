@@ -34,10 +34,19 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Prateleira'>;
  * prateleira ter aterrado, o que na prática é raro.
  */
 export function PrateleiraScreen({ route }: Props) {
-  const { prateleira, titulo } = route.params;
+  const { fonte, titulo } = route.params;
   const insets = useSafeAreaInsets();
-  const faixas = useRecomendacoes((s) => s[prateleira]);
-  const chegou = useRecomendacoes((s) => s.prontas.includes(prateleira));
+  // Duas origens, a mesma vista. O selector não constrói nada -- devolve o que
+  // está na store, porque um array novo a cada leitura punha o
+  // `useSyncExternalStore` num ciclo, e já foi assim que uma versão não
+  // arrancou.
+  const prateleiras = useRecomendacoes((s) => s);
+  const faixas = fonte.tipo === 'prateleira'
+    ? prateleiras[fonte.nome]
+    : prateleiras.misturas.find((m) => m.id === fonte.id)?.faixas ?? [];
+  const chegou = fonte.tipo === 'prateleira'
+    ? prateleiras.prontas.includes(fonte.nome)
+    : prateleiras.misturasProntas;
   const playTrack = usePlayer((s) => s.playTrack);
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);

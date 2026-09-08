@@ -78,10 +78,19 @@ export type RootStackParamList = {
   ImportYouTube: undefined;
   Artists: undefined;
   LibraryGroup: { type: 'album' | 'artist'; name: string };
-  /** O "See all" de uma prateleira de recomendações. Leva o NOME e não as
-   *  faixas: assim é uma vista sobre a store, e não uma cópia congelada que
-   *  fica a mostrar o que já não existe depois de um refrescar. */
-  Prateleira: { prateleira: NomeDaPrateleira; titulo: string };
+  /**
+   * A lista completa de uma prateleira de recomendações ou de uma mistura.
+   *
+   * Leva a ORIGEM e não as faixas: assim é uma vista sobre a store, e não uma
+   * cópia congelada que fica a mostrar o que já não existe depois de um
+   * refrescar.
+   */
+  Prateleira: {
+    titulo: string;
+    fonte:
+      | { tipo: 'prateleira'; nome: NomeDaPrateleira }
+      | { tipo: 'mistura'; id: string };
+  };
   Social: { openChatWithFriendId?: string; openGroupId?: string } | undefined;
 };
 
