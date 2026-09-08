@@ -33,6 +33,7 @@ import {
   setPlaylistOrder,
 } from '../api/playlists';
 import { BottomSheet } from '../components/BottomSheet';
+import { CabecalhoDaPlaylist } from '../components/CabecalhoDaPlaylist';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
@@ -361,27 +362,55 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
+  /** As quatro primeiras capas, para o mosaico -- como na grelha. */
+  const capasDaPlaylist = React.useMemo(
+    () => tracks.map((t) => t.artworkUrl).filter((u): u is string => !!u).slice(0, 4),
+    [tracks],
+  );
+  /**
+   * A soma das durações, e só quando se sabem TODAS.
+   *
+   * Uma soma feita com metade das faixas sem duração daria um número errado
+   * com ar de exacto -- e o cabeçalho prefere não dizer nada a mentir.
+   */
+  const duracaoTotal = React.useMemo(() => {
+    if (tracks.length === 0) return null;
+    let total = 0;
+    for (const t of tracks) {
+      if (!t.durationSeconds || t.durationSeconds <= 0) return null;
+      total += t.durationSeconds;
+    }
+    return total;
+  }, [tracks]);
+
   return (
     <Screen
-      title={name}
-      subtitle={`${tracks.length} ${tracks.length === 1 ? 'track' : 'tracks'}`}
-      onBack={() => navigation.goBack()}
-      right={
-        editMode ? (
-          <Pressable
-            hitSlop={10}
-            onPress={finishEdit}
-            style={{ padding: 4 }}
-          >
-            <Text style={[type.body, { fontWeight: '600', color: theme.color }]}>
-              Done
-            </Text>
+      /* O nome saiu do cabecalho generico e passou para o `CabecalhoDaPlaylist`,
+         que e onde ele pode ser grande e ter a capa por cima. Aqui em cima fica
+         so a moldura -- voltar, e o Done quando se esta a editar. */
+      topLeft={
+        <View style={styles.molduraDeCima}>
+          <Pressable hitSlop={10} onPress={() => navigation.goBack()} style={{ marginLeft: -8 }}>
+            <Ionicons name="chevron-back" size={26} color={colors.text} />
           </Pressable>
-        ) : undefined
+          {editMode ? (
+            <Pressable hitSlop={10} onPress={finishEdit} style={{ padding: 4 }}>
+              <Text style={[type.body, { fontWeight: '600', color: theme.color }]}>
+                Done
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
       }
     >
       {tracks.length > 0 && !editMode ? (
         <>
+          <CabecalhoDaPlaylist
+            nome={name}
+            artworks={capasDaPlaylist}
+            faixas={tracks.length}
+            duracaoSegundos={duracaoTotal}
+          />
           <View style={styles.actionRow}>
             <Pressable
               style={styles.playButton}
@@ -393,8 +422,10 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                 end={{ x: 1, y: 1 }}
                 style={styles.buttonGradient}
               >
-                <Ionicons name="play" size={18} color={theme.textColorOnGradient} />
-                <Text style={[styles.buttonTextPlay, { color: theme.textColorOnGradient }]}>Play</Text>
+                {/* Sem rotulo: um triangulo num circulo cheio nao precisa de
+                    dizer "Play". O `marginLeft` acerta o centro optico -- um
+                    triangulo centrado a matematica parece sempre a esquerda. */}
+                <Ionicons name="play" size={26} color={theme.textColorOnGradient} style={{ marginLeft: 3 }} />
               </LinearGradient>
             </Pressable>
 
@@ -422,10 +453,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                 size={20}
                 color={ligado && !inteligente ? theme.color : colors.text}
               />
-              <Text style={[
-                styles.buttonTextShuffle,
-                ligado && !inteligente && { color: theme.color },
-              ]}>{inteligente ? 'Smart' : 'Shuffle'}</Text>
             </Pressable>
           </View>
 
@@ -822,9 +849,30 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  /** Voltar (e o Done, a editar) por cima do cabecalho da playlist. */
+  molduraDeCima: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 30,
+  },
+  /**
+   * Um botao manda, os outros acompanham.
+   *
+   * Eram duas pilulas do mesmo tamanho, lado a lado, cada uma com icone e
+   * texto -- e nada dizia qual era a principal. Numa playlist ha uma accao
+   * obvia, que e por a tocar; o resto sao variantes dela. Agora o play e um
+   * circulo cheio com o gradiente do tema e o shuffle e um icone ao lado,
+   * que e a hierarquia que qualquer app de musica usa.
+   *
+   * Ao centro e nao a esquerda: o cabecalho por cima e centrado, e um botao
+   * encostado a margem partia esse eixo.
+   */
   actionRow: {
     flexDirection: 'row',
-    gap: spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xl,
     paddingHorizontal: spacing.xl,
     marginBottom: spacing.lg,
   },
@@ -910,22 +958,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceHigh,
   },
   playButton: {
-    flex: 1,
-    height: 48,
-    borderRadius: radii.md,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     overflow: 'hidden',
   },
   buttonGradient: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
   },
   shuffleButton: {
-    flex: 1,
+    width: 48,
     height: 48,
-    borderRadius: radii.md,
+    borderRadius: 24,
     // O brilho estica-se por este botao; e o raio daqui que lhe da a forma.
     overflow: 'hidden',
     backgroundColor: colors.surface,
