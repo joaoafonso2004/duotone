@@ -148,8 +148,24 @@ export const styles = StyleSheet.create({
    * título competia por largura com quatro botões e era cortado a meio -- e o
    * artista não aparecia como texto em lado nenhum. */
   npIdentidade: { marginTop: ESP.xl, paddingHorizontal: ESP.xs, gap: 2 },
-  npArtista: { ...TIPO.corpo, color: COR.textoMedio, alignSelf: 'flex-start' as const },
+  npArtista: { ...TIPO.corpo, color: COR.textoMedio },
   npArtistaHover: { color: COR.texto, textDecorationLine: 'underline' as const },
+  /**
+   * O ALVO do toque, que é outra coisa que o texto.
+   *
+   * As duas linhas acima são estilo de TEXTO -- `color` e sublinhado -- e
+   * estavam a ser postas no `Pressable`, que aqui é uma View. A `color` do
+   * `<Text>` lá dentro ganhava sempre à que vinha do pai, por isso passar o
+   * rato por cima não mudava nada, e o nome lia-se como texto morto. Agora o
+   * realce vive no `<Text>` e a View trata só do alvo.
+   *
+   * O cursor é explícito porque nesta app é sempre explícito -- ver o
+   * `statsRow`, o `progressHit` e o `volumeHit`. Sem ele o ponteiro fica em
+   * seta, que é a primeira coisa a dizer "isto não se clica".
+   */
+  npArtistaAlvo: { alignSelf: 'flex-start' as const, cursor: 'pointer' } as any,
+  /** Sem artista a que ir, o alvo continua lá mas não se anuncia. */
+  npArtistaAlvoInerte: { cursor: 'default' } as any,
   npAccoes: { flexDirection: 'row', alignItems: 'center', gap: ESP.xs, marginTop: ESP.lg, paddingHorizontal: 2 },
   /** Separa o que é definição de reprodução do que é acção sobre a faixa. */
   npAccoesDivisor: { width: 1, height: 20, backgroundColor: COR.linha, marginHorizontal: ESP.sm },

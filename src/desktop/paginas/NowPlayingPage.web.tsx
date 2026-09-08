@@ -62,6 +62,10 @@ export function NowPlayingPage({
   const [eqAberto, setEqAberto] = useState(false);
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
   const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
+  // O realce do nome do artista. Vive aqui e não no `style` do `Pressable`
+  // porque o que muda é a cor do TEXTO, e essa tem de ser posta no `<Text>`.
+  const [sobreOArtista, setSobreOArtista] = useState(false);
+  const [noArtista, setNoArtista] = useState(false);
   useEffect(() => {
     Promise.all([getGlitchMode(), getEffectIntensity()]).then(([modo, intensidade]) => {
       setGlitch(modo);
@@ -93,6 +97,10 @@ export function NowPlayingPage({
   }
   const estreito = width < 1180;
   const ladoCapa = estreito ? 300 : width >= 1420 ? 420 : 384;
+  // O artista sai do `displayArtist` e não do campo `artist`, que no YouTube é
+  // o CANAL. A guarda é a mesma do iOS: sem nome não há para onde ir.
+  const nomeDoArtista = displayArtist(track);
+  const temArtista = !!nomeDoArtista && nomeDoArtista !== 'Unknown artist';
 
   return (
     <Page title="Now Playing" action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}>
@@ -106,13 +114,31 @@ export function NowPlayingPage({
                 YouTube e o CANAL -- e abria a pagina de um canal de uploads. */}
             <View style={styles.npIdentidade}>
               <Text style={styles.npTitulo}>{tituloDaFaixa(track)}</Text>
+              {/* O nome leva à página do artista, como no telemóvel. E TEM de
+                  se ver que leva: o realce é no `<Text>` e o cursor é
+                  explícito -- ver o `npArtistaAlvo`.
+
+                  Sem artista não é botão nenhum, que é a mesma guarda do
+                  `PlayerRoot.tsx` no iOS: o `displayArtist` devolve "Unknown
+                  artist" quando não consegue extrair nada, e um link para
+                  isso leva a uma página vazia. */}
               <Pressable
-                accessibilityRole="link"
-                accessibilityLabel={`View ${displayArtist(track)}`}
-                onPress={() => navigate({ name: 'artist', value: displayArtist(track) })}
-                style={({ hovered, focused }: any) => [styles.npArtista, (hovered || focused) && styles.npArtistaHover]}
+                accessibilityRole={temArtista ? 'link' : undefined}
+                accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
+                disabled={!temArtista}
+                onHoverIn={() => setSobreOArtista(true)}
+                onHoverOut={() => setSobreOArtista(false)}
+                onFocus={() => setNoArtista(true)}
+                onBlur={() => setNoArtista(false)}
+                onPress={() => navigate({ name: 'artist', value: nomeDoArtista })}
+                style={[styles.npArtistaAlvo, !temArtista && styles.npArtistaAlvoInerte]}
               >
-                <Text style={styles.npArtista}>{displayArtist(track)}</Text>
+                <Text style={[
+                  styles.npArtista,
+                  temArtista && (sobreOArtista || noArtista) && styles.npArtistaHover,
+                ]}>
+                  {nomeDoArtista}
+                </Text>
               </Pressable>
             </View>
 
