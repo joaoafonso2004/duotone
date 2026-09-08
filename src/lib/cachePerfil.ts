@@ -66,8 +66,32 @@ export function limparCachePerfil(): void {
  * amigo aquece-se sozinho da primeira vez que se abre, e adivinhar quais os
  * amigos que ele vai visitar seria gastar rede por nada.
  */
+/**
+ * As leituras em curso, para nao se fazerem duas do mesmo.
+ *
+ * **Era isto que fazia o aquecimento nao servir de nada.** Ele arranca no
+ * arranque da app e demora -- sao duas viagens em serie, o perfil e depois as
+ * seccoes -- e tocar no separador do Perfil enquanto ele corria nao encontrava
+ * cache nenhuma. O ecra pedia tudo outra vez, e ficava a olhar para a roda a
+ * esperar pelo SEU pedido, com o do aquecimento a chegar ao lado sem ninguem o
+ * usar. Duas viagens, o dobro do tempo, e a sensacao de que o perfil so comeca
+ * a carregar quando se clica nele -- que foi exactamente a queixa.
+ *
+ * Agora quem chega a meio recebe a MESMA promessa e espera pelo que ja vinha a
+ * caminho.
+ */
+const emCurso = new Map<string, Promise<void>>();
+
 export async function aquecerPerfil(userId: string): Promise<void> {
   if (!userId || cache.has(userId)) return;
+  const pendente = emCurso.get(userId);
+  if (pendente) return pendente;
+  const trabalho = lerParaCache(userId).finally(() => { emCurso.delete(userId); });
+  emCurso.set(userId, trabalho);
+  return trabalho;
+}
+
+async function lerParaCache(userId: string): Promise<void> {
   try {
     const { getSocialProfile } = await import('../api/profiles');
     const { loadProfileSections } = await import('../api/profileSections');

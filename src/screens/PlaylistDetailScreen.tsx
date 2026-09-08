@@ -41,7 +41,7 @@ import { PromptSheet } from '../components/PromptSheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
-import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
+import { TrackRow } from '../components/TrackRow';
 import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
 import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
@@ -383,27 +383,24 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     return total;
   }, [tracks]);
 
-  return (
-    <Screen
-      /* O nome saiu do cabecalho generico e passou para o `CabecalhoDaPlaylist`,
-         que e onde ele pode ser grande e ter a capa por cima. Aqui em cima fica
-         so a moldura -- voltar, e o Done quando se esta a editar. */
-      topLeft={
-        <View style={styles.molduraDeCima}>
-          <Pressable hitSlop={10} onPress={() => navigation.goBack()} style={{ marginLeft: -8 }}>
-            <Ionicons name="chevron-back" size={26} color={colors.text} />
-          </Pressable>
-          {editMode ? (
-            <Pressable hitSlop={10} onPress={finishEdit} style={{ padding: 4 }}>
-              <Text style={[type.body, { fontWeight: '600', color: theme.color }]}>
-                Done
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
-      }
-    >
-      {tracks.length > 0 && !editMode ? (
+  /**
+   * O topo da pagina passa a ANDAR COM A LISTA.
+   *
+   * Estava fixo por cima dela: a capa, o play, a barra de ferramentas e a
+   * pesquisa ocupavam quase o ecra todo e sobrava uma janela de quatro
+   * musicas, que rolava dentro desse resto. Numa playlist de 1927 faixas isso
+   * e uma frincha.
+   *
+   * Entra como ELEMENTO e nao como funcao. `ListHeaderComponent={() => ...}`
+   * cria um tipo de componente novo a cada render, o que faz o FlatList
+   * REMONTAR o cabecalho -- e um `TextInput` la dentro perderia o foco a cada
+   * tecla. Com um elemento, o React reconcilia e nada remonta.
+   *
+   * A caixa de pesquisa fica de fora, encostada ao topo: procurar dentro de
+   * uma playlist longa e o caso em que MENOS se quer ter de rolar ate acima
+   * para chegar ao campo.
+   */
+  const cabecalhoDaLista = tracks.length > 0 && !editMode ? (
         <>
           <CabecalhoDaPlaylist
             nome={name}
@@ -503,7 +500,28 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             </Pressable>
           </View>
         </>
-      ) : null}
+  ) : null;
+
+  return (
+    <Screen
+      /* O nome saiu do cabecalho generico e passou para o `CabecalhoDaPlaylist`,
+         que e onde ele pode ser grande e ter a capa por cima. Aqui em cima fica
+         so a moldura -- voltar, e o Done quando se esta a editar. */
+      topLeft={
+        <View style={styles.molduraDeCima}>
+          <Pressable hitSlop={10} onPress={() => navigation.goBack()} style={{ marginLeft: -8 }}>
+            <Ionicons name="chevron-back" size={26} color={colors.text} />
+          </Pressable>
+          {editMode ? (
+            <Pressable hitSlop={10} onPress={finishEdit} style={{ padding: 4 }}>
+              <Text style={[type.body, { fontWeight: '600', color: theme.color }]}>
+                Done
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      }
+    >
 
       {tracks.length > 0 && !editMode ? (
         <View style={styles.playlistSearchBox}>
@@ -536,7 +554,17 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           updateCellsBatchingPeriod={50}
           windowSize={7}
           removeClippedSubviews
-          getItemLayout={editMode ? undefined : getTrackRowLayout}
+          /**
+           * Sem `getItemLayout`, e de proposito.
+           *
+           * Ele diz que a faixa `i` comeca em `i * altura` -- verdade sem
+           * cabecalho, mentira com ele: os deslocamentos passavam todos a
+           * faltar a altura do heroi, que depende da largura do ecra e nao se
+           * sabe de antemao. Era so uma optimizacao (nao ha `scrollToIndex`
+           * neste ecra), e uma optimizacao que mente sobre posicoes paga-se em
+           * espacos em branco a rolar depressa.
+           */
+          ListHeaderComponent={cabecalhoDaLista}
           contentContainerStyle={{ paddingBottom: bottomPad }}
           renderItem={({ item, index }) =>
             editMode ? (

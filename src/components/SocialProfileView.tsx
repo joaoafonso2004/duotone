@@ -18,7 +18,7 @@ import { naoLidasPorAmigo } from '../lib/social';
 import { ArtworkCollage } from './ArtworkCollage';
 import { ProfileEditor } from './ProfileEditor';
 import { ProfileHero } from './ProfileHero';
-import { guardarPerfil, perfilEmCache } from '../lib/cachePerfil';
+import { aquecerPerfil, guardarPerfil, perfilEmCache } from '../lib/cachePerfil';
 import { SkeletonDoPerfil } from './Skeleton';
 import { ProfilePlaylistPicker } from './ProfilePlaylistPicker';
 import { SocialTrackActions } from './SocialTrackActions';
@@ -135,6 +135,22 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
     // um carregamento por cima seria esconder o que ja se ve.
     const primeira=jaLido.current!==userId&&!perfilEmCache(userId);
     jaLido.current=userId;
+    // Antes de pedir o que quer que seja, junta-se ao aquecimento se houver um
+    // a caminho. Sem isto, tocar no Perfil enquanto o arranque da app o
+    // carregava disparava um segundo par de pedidos identico -- e este ecra
+    // ficava a esperar pelo seu, com o outro a chegar ao lado sem ninguem o
+    // usar. Se nao houver nenhum em curso, isto resolve de imediato e o
+    // `load` corre como sempre correu.
+    void aquecerPerfil(userId).then(()=>{
+      const quente=perfilEmCache(userId);
+      if(quente&&jaLido.current===userId){
+        setProfile(quente.perfil as any);
+        setMost(quente.most as any);setRecent(quente.recent as any);
+        setPlaylists(quente.playlists as any);setGuardadas(quente.guardadas);
+        setHighlights(quente.highlights as any);setHighlightsLoaded(quente.highlightsLidos);
+        setLoading(false);
+      }
+    }).catch(()=>{});
     void load(!primeira);
     return()=>{request.current++;};
   },[load,friend?.status,active,userId]);

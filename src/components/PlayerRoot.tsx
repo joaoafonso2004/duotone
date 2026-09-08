@@ -1081,13 +1081,18 @@ export function PlayerRoot() {
                   pulsar={shuffle}
                   name="shuffle"
                   size={22}
-                  // Duas cores e duas só: branco é "podes carregar", a cor
-                  // do tema é "está ligado". Os 34% que estavam aqui são os
-                  // mesmos que a app usa para DESACTIVADO -- e um interruptor
-                  // desligado não está desactivado, está disponível. Era isso
-                  // que fazia o shuffle parecer que não respondia, ao lado de
-                  // um anterior e um seguinte brancos.
-                  color={shuffle ? theme.color : colors.text}
+                  /**
+                   * Ligado leva a cor do tema, desligado fica cinzento.
+                   *
+                   * Esteve branco, com o argumento de que "um interruptor
+                   * desligado nao esta desactivado, esta disponivel". O
+                   * argumento e bom e a pratica desmentiu-o: ao lado de um
+                   * anterior e um seguinte que TAMBEM sao brancos, o branco
+                   * nao distingue nada, e ligar o shuffle nao se via. Um
+                   * interruptor tem de dizer em que estado esta antes de dizer
+                   * que se pode carregar nele.
+                   */
+                  color={shuffle ? theme.color : colors.textTertiary}
                 />
                 {shuffleInteligente && (
                   <View style={{ position: 'absolute', top: 5, right: 4 }}>
@@ -1122,9 +1127,28 @@ export function PlayerRoot() {
                 <StateIcon
                   rodar
                   name={isPlaying ? 'pause' : 'play'}
-                  size={23}
+                  size={27}
                   color={colors.bg}
-                  style={!isPlaying && { marginLeft: 3 }}
+                  /**
+                   * O acerto optico do triangulo, e porque era uma MARGEM que
+                   * nao chegava a acontecer.
+                   *
+                   * O `style` do StateIcon vai parar ao proprio `Ionicons`, que
+                   * ja esta centrado numa caixa do tamanho exacto do icone. Uma
+                   * `marginLeft` ali faz o filho ficar mais largo do que a
+                   * caixa, e o `alignItems: 'center'` reparte esse excesso
+                   * pelos dois lados -- so metade do deslocamento chegava ao
+                   * ecra. Era por isso que o triangulo continuava a parecer
+                   * encostado a esquerda.
+                   *
+                   * Um `translateX` nao mexe no layout: sai do centro e vai
+                   * inteiro. O valor nao e escolhido a olho -- no desenho do
+                   * Ionicons o triangulo vai de 96 a 416 num quadrado de 512, e
+                   * o centro de MASSA de um triangulo esta a um terco da base:
+                   * 202, contra os 256 do centro da caixa. Sao 10,4% do tamanho
+                   * a menos, e e isso que se devolve.
+                   */
+                  style={!isPlaying ? { transform: [{ translateX: 27 * 0.104 }] } : undefined}
                 />
               </Toque>
 
@@ -1158,9 +1182,10 @@ export function PlayerRoot() {
                 }
               >
                 <StateIcon
-                  name="repeat" 
+                  name="repeat"
                   size={22}
-                  color={repeatMode === 'off' ? colors.text : theme.color}
+                  // O mesmo do shuffle, e pela mesma razao.
+                  color={repeatMode === 'off' ? colors.textTertiary : theme.color}
                 />
                 {repeatMode === 'one' ? (
                   <View style={styles.repeatOneBadge}>
@@ -1438,8 +1463,14 @@ export function PlayerRoot() {
             </Animated.View>
           ) : null}
 
-          {expanded && <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar}
-            front={artSource?<RNImage source={{uri:artSource}} style={StyleSheet.absoluteFill} resizeMode="cover" onError={onArtError} />:<View style={StyleSheet.absoluteFill} />} />}
+          {/* A CAPA GRANDE TAMBEM RESPIRA enquanto carrega.
+              O `pulse` so estava no mini-player: no leitor aberto -- que e
+              onde se esta a olhar quando se espera pela musica -- a capa
+              ficava parada e nada dizia que alguma coisa estava a acontecer.
+              E o mesmo valor e a mesma animacao, so que aplicada aqui
+              tambem. */}
+          {expanded && <Animated.View style={{ opacity: pulse }}><ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar}
+            front={artSource?<RNImage source={{uri:artSource}} style={StyleSheet.absoluteFill} resizeMode="cover" onError={onArtError} />:<View style={StyleSheet.absoluteFill} />} /></Animated.View>}
 
           {/* No modo mini, tocar no vídeo expande */}
           {!expanded ? (
@@ -1792,9 +1823,11 @@ const styles = StyleSheet.create({
     color: colors.bg,
   },
   playBtn: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    // Um pouco maior do que os 54 que eram: e o alvo principal do ecra e o
+    // unico que se carrega sem olhar.
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',

@@ -74,7 +74,20 @@ export function SearchScreen() {
    * página mais o intervalo, em vez do `pagingEnabled`, que só sabe encaixar
    * na largura do `ScrollView`.
    */
-  const espreitadela = 44;
+  /**
+   * Quanto da pagina seguinte assoma na margem.
+   *
+   * Eram 44, e 44 corta a capa seguinte ao meio -- uma capa cortada le-se como
+   * um erro de desenho, nao como "ha mais para o lado". O numero certo sai da
+   * propria `TrackRow`: 24 de `paddingHorizontal` mais 52 de capa dao 76, e os
+   * 80 aqui deixam a capa inteira com uma folga de quatro para nao encostar a
+   * borda.
+   *
+   * E nao pode passar de 88: o titulo comeca 12 depois da capa (76 + 12), e a
+   * partir dai comecava a espreitar TEXTO cortado, que e o que se queria
+   * evitar. Uma capa inteira diz "ha mais"; meia palavra diz "isto esta mal".
+   */
+  const espreitadela = 80;
   const larguraDaPagina = useWindowDimensions().width - espreitadela;
 
   // --- guardar e partilhar uma mistura -------------------------------------
