@@ -7,6 +7,7 @@
 import assert from 'node:assert/strict';
 import {
   destinoDoArrasto, limiarDaLinha, desvioDaLinha, movido,
+  velocidadeDoDeslize, MARGEM_DE_DESLIZE, DESLIZE_MAXIMO_PX,
 } from '../src/lib/arrastarFila.ts';
 
 const H = 60;
@@ -86,6 +87,37 @@ verificar('mover não perde nem duplica', () => {
   assert.deepEqual(l, ['a', 'b', 'c', 'd'], 'a lista de entrada não é tocada');
   assert.deepEqual(movido(l, -1, 2), l, 'fora dos limites devolve como estava');
   assert.deepEqual(movido(l, 0, 9), l);
+});
+
+verificar('no meio da lista não se desliza nada', () => {
+  assert.equal(velocidadeDoDeslize(400, 100, 700), 0);
+  assert.equal(velocidadeDoDeslize(100 + MARGEM_DE_DESLIZE, 100, 700), 0, 'a fronteira ainda é o meio');
+});
+
+verificar('junto às bordas desliza, e para o lado certo', () => {
+  assert.ok(velocidadeDoDeslize(110, 100, 700) < 0, 'em cima sobe');
+  assert.ok(velocidadeDoDeslize(690, 100, 700) > 0, 'em baixo desce');
+});
+
+verificar('a velocidade cresce com a proximidade', () => {
+  const longe = Math.abs(velocidadeDoDeslize(155, 100, 700));
+  const perto = Math.abs(velocidadeDoDeslize(105, 100, 700));
+  assert.ok(perto > longe, `colado devia correr mais: ${perto} vs ${longe}`);
+  assert.equal(Math.abs(velocidadeDoDeslize(100, 100, 700)), DESLIZE_MAXIMO_PX, 'na borda vai ao máximo');
+  assert.equal(Math.abs(velocidadeDoDeslize(-50, 100, 700)), DESLIZE_MAXIMO_PX, 'e fora dela não passa disso');
+});
+
+verificar('uma lista pequena não desliza', () => {
+  // Sem espaço para as duas margens, tudo é borda e a lista tremia.
+  assert.equal(velocidadeDoDeslize(110, 100, 200), 0);
+  assert.equal(velocidadeDoDeslize(NaN, 100, 700), 0);
+});
+
+verificar('o destino conta com o que a lista deslizou', () => {
+  // O dedo mexeu-se meia linha, mas a lista correu duas por baixo dele: a
+  // música tem de aterrar duas linhas e meia abaixo, não meia.
+  const H = 60;
+  assert.equal(destinoDoArrasto(0, H * 0.5 + H * 2, H, 10), 3);
 });
 
 if (falhas > 0) {

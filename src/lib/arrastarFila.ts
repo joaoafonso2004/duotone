@@ -73,3 +73,46 @@ export function desvioDaLinha(
   if (j > de) return j <= destino ? -altura : 0;
   return j >= destino ? altura : 0;
 }
+
+/**
+ * A faixa junto às bordas onde a lista começa a deslizar sozinha.
+ *
+ * Sem isto, arrastar só funciona dentro do que já está visível: numa fila de
+ * cinquenta músicas dá para mover uma linha três lugares e mais nada, porque
+ * o destino nunca chega ao ecrã. Levar uma música do fim para o início era
+ * impossível, e o gesto parecia avariado quando na verdade estava preso.
+ */
+export const MARGEM_DE_DESLIZE = 64;
+
+/** Quanto se desliza por passo, no máximo, com o dedo colado à borda. */
+export const DESLIZE_MAXIMO_PX = 12;
+
+/**
+ * A que velocidade a lista desliza, com o dedo em `dedoY`.
+ *
+ * Cresce com a proximidade da borda em vez de ligar e desligar: uma
+ * velocidade única faz a lista arrancar de repente assim que se entra na
+ * faixa, e passa-se sempre do sítio. Assim aproxima-se devagar e só corre
+ * quando o dedo está mesmo encostado.
+ *
+ * Negativo sobe, positivo desce. Zero é o caso normal -- o dedo está no meio
+ * e não há nada a fazer.
+ */
+export function velocidadeDoDeslize(
+  dedoY: number,
+  topo: number,
+  fundo: number,
+  margem = MARGEM_DE_DESLIZE,
+  maximo = DESLIZE_MAXIMO_PX,
+): number {
+  if (!Number.isFinite(dedoY) || fundo - topo < margem * 2) return 0;
+  if (dedoY < topo + margem) {
+    const perto = Math.min(1, (topo + margem - dedoY) / margem);
+    return -Math.round(perto * maximo);
+  }
+  if (dedoY > fundo - margem) {
+    const perto = Math.min(1, (dedoY - (fundo - margem)) / margem);
+    return Math.round(perto * maximo);
+  }
+  return 0;
+}

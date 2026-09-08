@@ -1,7 +1,7 @@
 import React from 'react';
 import { Animated, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinhaArrastavel } from './LinhaArrastavel';
-import { destinoDoArrasto } from '../lib/arrastarFila';
+import { destinoDoArrasto, velocidadeDoDeslize } from '../lib/arrastarFila';
 import { TRACK_ROW_HEIGHT } from './TrackRow';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePlayer } from '../state/player';
@@ -82,6 +82,45 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
   // sem deslizar -- daí o `onPressOut` a desfazer, e esta marca a distinguir
   // o dedo levantado do gesto que foi mesmo por diante.
   const pegou = React.useRef(false);
+  // Tudo o que o deslize nas bordas precisa de saber, e nada disto pode ser
+  // estado: muda a cada frame do dedo e um `setState` por frame punha a lista
+  // inteira a redesenhar durante o gesto.
+  const listaRef = React.useRef<FlatList<any> | null>(null);
+  const molduraRef = React.useRef<View | null>(null);
+  /** Onde a lista começa e acaba NO ECRÃ. O dedo vem em coordenadas de ecrã. */
+  const limites = React.useRef({ topo: 0, fundo: 0 });
+  const offset = React.useRef(0);
+  const offsetAoPegar = React.useRef(0);
+  const gesto = React.useRef({ dy: 0, dedoY: 0 });
+
+  /** Quanto a lista correu por baixo do dedo desde que ele pegou na linha. */
+  const deslizou = () => offset.current - offsetAoPegar.current;
+  /**
+   * A linha segue o dedo E o que a lista correu, senão fica para trás.
+   *
+   * Estável de propósito: só lê referências, e recriá-la a cada render fazia
+   * o intervalo do deslize ser desmontado e montado outra vez a cada frame.
+   */
+  const escreverDy = React.useCallback(
+    () => dy.setValue(gesto.current.dy + offset.current - offsetAoPegar.current),
+    [dy]
+  );
+
+  // Enquanto uma linha está pegada e o dedo está encostado a uma borda, a
+  // lista corre sozinha. Sem isto o arrasto só alcança o que já está visível:
+  // numa fila de cinquenta músicas dá para mover três lugares e mais nada.
+  React.useEffect(() => {
+    if (arrastar == null) return;
+    const passo = setInterval(() => {
+      const v = velocidadeDoDeslize(gesto.current.dedoY, limites.current.topo, limites.current.fundo);
+      if (v === 0) return;
+      const novo = Math.max(0, offset.current + v);
+      offset.current = novo;
+      listaRef.current?.scrollToOffset({ offset: novo, animated: false });
+      escreverDy();
+    }, 16);
+    return () => clearInterval(passo);
+  }, [arrastar, escreverDy]);
   // Medida em vez de assumida: a linha da fila e um `TrackRow` mais a linha
   // do separador, e meio pixel de erro por linha desalinha o gesto todo ao fim
   // de dez. O `TRACK_ROW_HEIGHT` serve so ate a primeira medicao chegar.
@@ -97,9 +136,12 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
   }, [arrastar, upNext.length, dy]);
 
   const largar = (de: number) => (dyFinal: number) => {
+    // O que a lista correu conta tanto como o que o dedo andou: sem isto a
+    // música aterra onde o dedo está no ecrã, e não onde ela parece estar.
+    const percorrido = dyFinal + deslizou();
     setArrastar(null);
     dy.setValue(0);
-    const para = destinoDoArrasto(de, dyFinal, altura, upNext.length);
+    const para = destinoDoArrasto(de, percorrido, altura, upNext.length);
     if (para === de || !upNext[de] || !upNext[para]) return;
     hapticSelection();
     reordenarProximas(de, para);
@@ -142,11 +184,29 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
       </View>
 
       {upNext.length > 0 ? (
+        <View
+          ref={molduraRef}
+          collapsable={false}
+          // Os limites medem-se NO ECRÃ, porque é em coordenadas de ecrã que o
+          // `PanResponder` diz onde o dedo está. Um `onLayout` sozinho dava a
+          // posição dentro do pai, que aqui não serve de nada.
+          onLayout={() => {
+            molduraRef.current?.measureInWindow((_x, y, _l, altura) => {
+              limites.current = { topo: y, fundo: y + altura };
+            });
+          }}
+        >
         <FlatList
+          ref={listaRef}
           data={upNext}
           keyExtractor={(entry, index) => `${entry.track.source}:${entry.track.sourceId}-${index}`}
           style={styles.list}
+          // A lista não desliza ao dedo enquanto uma linha está pegada -- quem
+          // a faz correr nessa altura é o deslize das bordas, e os dois a
+          // disputar o mesmo dedo davam um empurra-empurra.
           scrollEnabled={arrastar === null}
+          scrollEventThrottle={16}
+          onScroll={(e) => { offset.current = e.nativeEvent.contentOffset.y; }}
           contentContainerStyle={{ paddingBottom: 40 }}
           renderItem={({ item: entry, index }) => {
             const item = entry.track;
@@ -163,7 +223,14 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
                 arrastarIndex={arrastar}
                 altura={altura}
                 dy={dy}
-                aoPegar={() => { pegou.current = true; }}
+                aoPegar={() => {
+                  pegou.current = true;
+                  offsetAoPegar.current = offset.current;
+                }}
+                aoMover={(d, dedoY) => {
+                  gesto.current = { dy: d, dedoY };
+                  escreverDy();
+                }}
                 aoLargar={largar(index)}
               >
               <View
@@ -191,9 +258,11 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
                       hapticSelection();
                       dy.setValue(0);
                       pegou.current = false;
+                      gesto.current = { dy: 0, dedoY: 0 };
+                      offsetAoPegar.current = offset.current;
                       setArrastar(index);
                     } : undefined}
-                    delayLongPress={canReorder ? 1000 : undefined}
+                    delayLongPress={canReorder ? 500 : undefined}
                     onPressOut={canReorder ? () => {
                       // O `onPressOut` chega TAMBEM quando o arrasto rouba o
                       // dedo. O adiamento de um tick deixa o `aoPegar` chegar
@@ -232,6 +301,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
             );
           }}
         />
+        </View>
       ) : (
         <Text style={styles.emptyText}>Queue is empty</Text>
       )}

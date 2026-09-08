@@ -20,11 +20,12 @@ import { colors } from '../theme';
  *
  * ## O gesto
  *
- * Um segundo de dedo parado abre o arrasto. Não é um número escolhido ao
- * calhas: o toque simples toca a música e o toque longo curto (350 ms) já
- * significa outra coisa nas outras listas da app. Com um segundo não há
- * hipótese de se confundirem, e ninguém pega numa linha sem querer enquanto
- * percorre a fila.
+ * Meio segundo de dedo parado abre o arrasto. Começou em mil, para não
+ * colidir com o toque longo de 350 ms das outras listas -- o raciocínio
+ * estava certo e o número errado. Um segundo com o dedo parado é tempo a
+ * mais para um gesto que se repete: parece que a app não respondeu, e
+ * levanta-se o dedo antes de ela reagir. Quinhentos separa os dois gestos
+ * na mesma e não se sente.
  *
  * A partir daí quem manda no dedo é esta linha e mais ninguém: o
  * `onPanResponderTerminationRequest` recusa entregá-lo. Sem isso a folha
@@ -32,7 +33,7 @@ import { colors } from '../theme';
  * arrastar uma música para baixo fechava a fila em vez de a reordenar.
  */
 export function LinhaArrastavel({
-  index, arrastarIndex, altura, dy, aoPegar, aoLargar, children,
+  index, arrastarIndex, altura, dy, aoPegar, aoMover, aoLargar, children,
 }: {
   index: number;
   /** Qual das linhas está a ser arrastada. `null` = nenhuma. */
@@ -41,6 +42,18 @@ export function LinhaArrastavel({
   dy: Animated.Value;
   /** O dedo mexeu-se e o arrasto arrancou mesmo. */
   aoPegar: () => void;
+  /**
+   * A cada movimento: o deslocamento do gesto e a posição ABSOLUTA do dedo.
+   *
+   * A segunda é que permite o deslize nas bordas -- o `dy` diz quanto o dedo
+   * andou, e não onde ele está. Quem decide se a lista tem de correr precisa
+   * de saber se o dedo está encostado ao topo do ecrã, e isso o `dy` nunca diz.
+   *
+   * Quem escreve no `dy` é o dono da lista e não esta linha: durante o deslize
+   * o valor tem de somar o que a lista correu, senão a linha fica para trás
+   * enquanto o conteúdo passa por baixo dela.
+   */
+  aoMover: (dy: number, dedoY: number) => void;
   aoLargar: (dyFinal: number) => void;
   children: React.ReactNode;
 }) {
@@ -53,6 +66,8 @@ export function LinhaArrastavel({
   largarRef.current = aoLargar;
   const pegarRef = React.useRef(aoPegar);
   pegarRef.current = aoPegar;
+  const moverRef = React.useRef(aoMover);
+  moverRef.current = aoMover;
 
   const pan = React.useMemo(
     () =>
@@ -63,14 +78,17 @@ export function LinhaArrastavel({
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => pegarRef.current(),
         onPanResponderMove: (_e, g) => {
-          if (activoRef.current) dy.setValue(g.dy);
+          if (activoRef.current) moverRef.current(g.dy, g.moveY);
         },
         onPanResponderRelease: (_e, g) => largarRef.current(g.dy),
         // O sistema tirou-nos o dedo (uma chamada a entrar, por exemplo):
         // devolve-se a linha ao sítio de onde veio em vez de a deixar a meio.
         onPanResponderTerminate: () => largarRef.current(0),
       }),
-    [dy]
+    // Sem dependências: tudo o que este gesto precisa de saber vem por
+    // referência, de propósito. Recriar o  a meio de um arrasto
+    // perdia o dedo.
+    []
   );
 
   const estilo = React.useMemo(() => {
