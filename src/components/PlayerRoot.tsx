@@ -69,6 +69,27 @@ const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
 const APP_NAME = 'Duotone';
 
+/**
+ * O ar entre o cabeçalho e a capa.
+ *
+ * Vive numa constante porque este número está em DOIS sítios que têm de
+ * concordar: o `vidFull.y`, que diz onde a moldura flutuante se pousa, e a
+ * margem da caixa vazia que lhe reserva o lugar no fluxo. Estavam os dois
+ * escritos à mão como `20`, e mexer num sem o outro descolava a capa do buraco
+ * que lhe foi guardado.
+ */
+const AR_ACIMA_DA_CAPA = 20;
+
+/**
+ * O que se reserva por baixo da capa para os controlos, antes de a encolher.
+ *
+ * Não é decoração: é a conta que impede a capa de empurrar o transporte para
+ * fora do ecrã quando o texto está aumentado. Sobe com o ritmo vertical do
+ * corpo -- se as folgas lá em baixo crescerem e este número não, em texto
+ * grande volta a faltar espaço.
+ */
+const RESERVA_DOS_CONTROLOS = 360;
+
 /** O espaçamento entre as letras da marca. Ver o `brandName`. */
 const ESPACO_DA_MARCA = 2.6;
 
@@ -651,8 +672,13 @@ export function PlayerRoot() {
   // capa é quadrada e grande, para um look limpo tipo app de música.
   // Reservar espaço para os controlos em ecrãs pequenos. Com texto muito
   // aumentado, só o corpo desliza: a capa e o motor continuam montados.
-  const ART_FULL = Math.min(W - 64, H * 0.42,
-    Math.max(96, H - insets.top - insets.bottom - HEADER_H - 360 * Math.min(fontScale, 1.4)));
+  // A margem lateral da capa. Eram 64 -- 32 de cada lado -- e num iPhone é a
+  // LARGURA que manda (W-64 = 329 contra H*0.42 = 358), por isso este número
+  // era, na prática, o tamanho da capa. 48 dá-lhe mais dezasseis pontos e
+  // aproxima o enquadramento do que se vê nas outras apps de música.
+  const MARGEM_DA_CAPA = 48;
+  const ART_FULL = Math.min(W - MARGEM_DA_CAPA, H * 0.42,
+    Math.max(96, H - insets.top - insets.bottom - HEADER_H - RESERVA_DOS_CONTROLOS * Math.min(fontScale, 1.4)));
   const vidMini = {
     x: 10 + 8,
     y: keyboardVisible && !expanded
@@ -663,7 +689,7 @@ export function PlayerRoot() {
   };
   const vidFull = {
     x: (W - ART_FULL) / 2,
-    y: insets.top + 6 + HEADER_H + 20,
+    y: insets.top + 6 + HEADER_H + AR_ACIMA_DA_CAPA,
     w: ART_FULL,
     h: ART_FULL,
   };
@@ -843,7 +869,7 @@ export function PlayerRoot() {
             -- e o canto onde vive o sinal da sessão. Estava no cabeçalho, com
             posição absoluta, e acabava em cima da barra de estado do telemóvel:
             fora da app inteira. Aqui está onde se olha. */}
-        <View style={{ height: vidFull.h, marginTop: 20, marginBottom: 8 }}>
+        <View style={{ height: vidFull.h, marginTop: AR_ACIMA_DA_CAPA, marginBottom: spacing.sm }}>
           {temSessao ? (
             <Toque
               escala={ESCALA.icone}
@@ -955,9 +981,20 @@ export function PlayerRoot() {
                 onScrubbingChange={setScrubbing}
               />
             </View>
+          </View>
 
-            {/* Controlos: shuffle · anterior · play · seguinte · repeat */}
-            <View style={styles.controls}>
+          {/* Controlos: shuffle · anterior · play · seguinte · repeat
+              ---------------------------------------------------------------
+              SAIU do grupo de cima, e é essa a correcção do espaço.
+
+              O corpo reparte-se com `space-between`. Com DOIS filhos --
+              identidade+transporte em cima, Queue/EQ em baixo -- toda a folga
+              do ecrã caía numa fenda só, e era o buraco que se via entre o
+              repeat e o Queue/EQ. Com TRÊS, a mesma folga divide-se em duas:
+              uma acima do transporte, onde uma pausa faz sentido, e outra
+              abaixo. Não se ganha nem se perde altura -- muda quem fica com
+              ela. */}
+          <View style={styles.controls}>
               <PlayerControlRow>
               {/* Três estados: apagado, ligado, e inteligente — este último
                   com uma estrelinha ao canto, que é como o Spotify o mostra e
@@ -1065,7 +1102,6 @@ export function PlayerRoot() {
                 ) : null}
               </Toque>
               </PlayerControlRow>
-            </View>
           </View>
 
           {/* Grupo de Rodapé: Botão Recuar & Botões Utilitários (Fila & Equalizador) */}
@@ -1440,10 +1476,17 @@ const styles = StyleSheet.create({
      * conteúdo não tem altura própria para dividir.
      */
     flexGrow: 1,
+    /**
+     * Continua a repartir, mas agora por TRÊS: identidade, transporte, e o
+     * Queue/EQ. Com dois filhos, toda a folga do ecrã ia para uma fenda só --
+     * o buraco entre o repeat e o Queue/EQ. Com três, divide-se em duas, e uma
+     * delas cai onde uma pausa faz sentido: por cima dos controlos.
+     */
     justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    gap: spacing.lg,
+    // Oito e não dezasseis: por cima já vêm os 8 da caixa da capa e os pontos
+    // do cubo. Eram quatro margens somadas às cegas entre a capa e o título.
+    paddingTop: spacing.sm,
   },
   mainControlsGroup: {
     width: '100%',
@@ -1452,10 +1495,9 @@ const styles = StyleSheet.create({
   bottomGroup: {
     width: '100%',
     alignItems: 'center',
-    // Separado do transporte: são coisas diferentes -- ali manda-se na
-    // reprodução, aqui abrem-se dois ecrãs. Colados liam-se como uma fila só
-    // de sete botões.
-    marginTop: spacing.md,
+    // Sem `marginTop`: a separação do transporte passou a vir da folga que o
+    // `space-between` reparte. Somar uma margem a essa folga era pedir duas
+    // vezes o mesmo espaço.
   },
   utilityIconBtn: {
     width: 48,
@@ -1576,7 +1618,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 7,
-    marginBottom: 10,
+    // Sete e não dez: isto é a terceira de quatro margens entre a capa e o
+    // título, e somadas davam um vazio que não era decisão de ninguém.
+    marginBottom: 7,
   },
   ponto: {
     width: 6,
@@ -1614,7 +1658,16 @@ const styles = StyleSheet.create({
   },
   controls: {
     width: '100%',
-    marginTop: 0,
+    /**
+     * O mínimo de ar por cima do transporte.
+     *
+     * A folga a sério vem do `space-between`, mas num ecrã pequeno -- ou com o
+     * texto aumentado, onde o título ocupa duas linhas -- não sobra folga
+     * nenhuma para repartir, e sem isto a fila de botões encostava-se à barra
+     * de progresso. Antes eram os `gap: spacing.md` do grupo a dar este ar; ao
+     * sair do grupo, o transporte passa a trazê-lo consigo.
+     */
+    marginTop: spacing.lg,
   },
   repeatOneBadge: {
     position: 'absolute',
