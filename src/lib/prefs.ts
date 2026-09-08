@@ -328,3 +328,32 @@ export async function getCrossfadeSegundos(): Promise<DuracaoDoCrossfade> {
 export async function setCrossfadeSegundos(v: DuracaoDoCrossfade): Promise<void> {
   await AsyncStorage.setItem(KEY_CROSSFADE, String(v));
 }
+
+/**
+ * Como as playlists são ordenadas.
+ *
+ * Guardado porque não o estar era um imposto a cada visita: escolhia-se a
+ * ordem, saía-se da playlist, voltava-se, e estava tudo outra vez como no
+ * princípio. Uma escolha que se repete é uma preferência, e preferências
+ * guardam-se.
+ *
+ * É uma só para todas as playlists e não uma por playlist -- quem gosta de ver
+ * por título gosta de ver por título, e não faixa a faixa por lista.
+ */
+export type OrdemDaPlaylist =
+  'default' | 'title' | 'recent' | 'played_recent' | 'played_most' | 'duration';
+
+const KEY_ORDEM_PLAYLIST = 'prefs:ordemDaPlaylist';
+const ORDENS: readonly OrdemDaPlaylist[] =
+  ['default', 'title', 'recent', 'played_recent', 'played_most', 'duration'];
+
+export async function getOrdemDaPlaylist(): Promise<OrdemDaPlaylist> {
+  const v = await AsyncStorage.getItem(KEY_ORDEM_PLAYLIST);
+  // Um valor desconhecido -- de uma versão futura, ou de dados estragados --
+  // não pode deixar a lista numa ordem que o ecrã não sabe desenhar.
+  return ORDENS.includes(v as OrdemDaPlaylist) ? (v as OrdemDaPlaylist) : 'default';
+}
+
+export async function setOrdemDaPlaylist(v: OrdemDaPlaylist): Promise<void> {
+  await AsyncStorage.setItem(KEY_ORDEM_PLAYLIST, v);
+}

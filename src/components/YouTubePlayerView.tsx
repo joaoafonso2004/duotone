@@ -1392,7 +1392,16 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         wantsPlayRef.current = false;
         setDownloadProgress(null);
         usePlayer.getState()._setBuffering(false);
-        setError(mensagemDaFalha('tempo-esgotado'));
+        // A mensagem dizia "Retrying another way..." e não havia retry nenhum:
+        // este ramo mostrava o aviso e parava ali. Um beco sem saída com uma
+        // placa a dizer que a estrada continua -- e a faixa ficava nos 0:00 até
+        // a app ser reiniciada, que foi exactamente o que voltou a acontecer.
+        //
+        // Agora diz o que faz e faz o que diz. O `skipUnavailableTrack` já
+        // sabe o resto: numa sessão avança a fila partilhada, sozinho procura
+        // uma cópia segura desta música antes de desistir dela.
+        setError('This track did not start. Skipping…');
+        void skipUnavailableTrack(track.sourceId);
       }
     }, 2000);
     return () => clearInterval(id);

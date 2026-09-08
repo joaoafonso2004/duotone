@@ -51,6 +51,7 @@ import { usePlayer } from '../state/player';
 import { useAuth } from '../state/auth';
 import { BrilhoInteligente } from '../components/BrilhoInteligente';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type, gradients, radii } from '../theme';
+import { getOrdemDaPlaylist, setOrdemDaPlaylist, type OrdemDaPlaylist } from '../lib/prefs';
 import type { Playlist, PlaylistTrack, Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
@@ -99,7 +100,14 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
   // States for Sorting
   const [sortOpen, setSortOpen] = useState(false);
-  const [sortMode, setSortMode] = useState<'default' | 'title' | 'recent' | 'played_recent' | 'played_most' | 'duration'>('default');
+  const [sortMode, setSortModeLocal] = useState<OrdemDaPlaylist>('default');
+  // A ordem guardada chega depois do primeiro render -- vem do disco. Até lá
+  // mostra-se a de origem, que é a da playlist e não uma invenção.
+  useEffect(() => { void getOrdemDaPlaylist().then(setSortModeLocal); }, []);
+  const setSortMode = (v: OrdemDaPlaylist) => {
+    setSortModeLocal(v);
+    void setOrdemDaPlaylist(v);
+  };
   const [playCounts, setPlayCounts] = useState<Record<string, { count: number; lastPlayed: number }>>({});
 
   // State for specific track actions (...)
