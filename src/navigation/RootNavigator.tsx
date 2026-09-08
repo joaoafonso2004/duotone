@@ -30,6 +30,8 @@ import { ListeningStatsScreen } from '../screens/ListeningStatsScreen';
 import { DownloadsScreen } from '../screens/DownloadsScreen';
 import { RetrospetivaScreen } from '../screens/RetrospetivaScreen';
 import { LibraryGroupScreen } from '../screens/LibraryGroupScreen';
+import { PrateleiraScreen } from '../screens/PrateleiraScreen';
+import type { NomeDaPrateleira } from '../state/recomendacoes';
 import { PlaylistDetailScreen } from '../screens/PlaylistDetailScreen';
 import { PlaylistsScreen } from '../screens/PlaylistsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
@@ -56,6 +58,7 @@ const OnlineImportYouTube=withInternet(ImportYouTubeScreen,'ImportYouTube');
 const OnlineListeningStats=withInternet(ListeningStatsScreen,'ListeningStats');
 const OnlineRetrospetiva=withInternet(RetrospetivaScreen,'Retrospetiva');
 const OnlineLibraryGroup=withInternet(LibraryGroupScreen,'LibraryGroup');
+const OnlinePrateleira=withInternet(PrateleiraScreen,'Prateleira');
 const OnlinePlaylistDetail=withInternet(PlaylistDetailScreen,'PlaylistDetail');
 const OnlinePlaylists=withInternet(PlaylistsScreen,'Playlists');
 const OnlineProfile=withInternet(ProfileScreen,'Profile');
@@ -75,6 +78,10 @@ export type RootStackParamList = {
   ImportYouTube: undefined;
   Artists: undefined;
   LibraryGroup: { type: 'album' | 'artist'; name: string };
+  /** O "See all" de uma prateleira de recomendações. Leva o NOME e não as
+   *  faixas: assim é uma vista sobre a store, e não uma cópia congelada que
+   *  fica a mostrar o que já não existe depois de um refrescar. */
+  Prateleira: { prateleira: NomeDaPrateleira; titulo: string };
   Social: { openChatWithFriendId?: string; openGroupId?: string } | undefined;
 };
 
@@ -400,6 +407,7 @@ export function RootNavigator() {
               <Stack.Screen name="Social" component={OnlineSocial} />
               <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
               <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
+              <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
               <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />
             </Stack.Navigator>
             <PlayerRoot />

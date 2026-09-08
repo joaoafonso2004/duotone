@@ -19,6 +19,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary } from '../api/library';
 import { useMusicSearch } from '../hooks/useMusicSearch';
 import { temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/RootNavigator';
 import { displayArtist } from '../lib/artistName';
 import { useSaved } from '../state/saved';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
@@ -35,6 +38,7 @@ import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 
 export function SearchScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
   const playNext = usePlayer((s) => s.playNext);
@@ -81,19 +85,47 @@ export function SearchScreen() {
 
   // Render horizontal recommendation lists
   const renderRecommendationSection = (
-    title: string, data: Track[], icon: keyof typeof Ionicons.glyphMap,
-    chegou: boolean, largura = 120,
+    nome: NomeDaPrateleira, title: string, data: Track[],
+    icon: keyof typeof Ionicons.glyphMap, chegou: boolean,
+    { largura = 120, lista = false }: { largura?: number; lista?: boolean } = {},
   ) => {
     // Chegou e veio vazia: a seccao desaparece, sem deixar um titulo orfao.
     if (chegou && data.length === 0) return null;
+    // A primeira seccao e uma LISTA e as outras carrosseis, de proposito: seis
+    // prateleiras da mesma forma leem-se como um rolo so, e a mudanca de forma
+    // e o que diz "isto aqui e outra coisa" sem precisar de o escrever.
+    const emLista = lista && chegou;
     return (
       <View style={styles.recsSection}>
         <View style={styles.sectionHeader}>
           <Ionicons name={icon} size={18} color={colors.text} />
-          <Text style={styles.sectionTitle}>{title}</Text>
+          <Text style={[styles.sectionTitle, { flex: 1 }]}>{title}</Text>
+          {chegou && data.length > (emLista ? LINHAS_NA_LISTA : 0) && (
+            <Pressable
+              hitSlop={10}
+              onPress={() => navigation.navigate('Prateleira', { prateleira: nome, titulo: title })}
+            >
+              <Text style={styles.verTudo}>See all</Text>
+            </Pressable>
+          )}
         </View>
-        {!chegou ? (
-          <SkeletonDePrateleira largura={largura} />
+        {emLista ? (
+          <View>
+            {data.slice(0, LINHAS_NA_LISTA).map((track) => (
+              <TrackRow
+                key={`${track.source}:${track.sourceId}`}
+                track={track}
+                onPress={() => playTrack(track, data, true)}
+                onAction={() => setActionTrack(track)}
+              />
+            ))}
+          </View>
+        ) : !chegou ? (
+          // Com a FORMA do que vem. Um esqueleto de carrossel a dar lugar a
+          // uma lista é um salto, e um esqueleto existe justamente para não
+          // haver salto nenhum.
+          lista ? <SkeletonDeFaixas linhas={LINHAS_NA_LISTA} />
+                : <SkeletonDePrateleira largura={largura} />
         ) : (
         <ScrollView
           horizontal
@@ -136,6 +168,10 @@ export function SearchScreen() {
       </View>
     );
   };
+
+/** Quantas linhas mostra a primeira secção antes do "See all". */
+const LINHAS_NA_LISTA = 3;
+
 
   // O refrescar vive no cabecalho, como no PC -- um icone, nao uma linha de
   // texto encostada a direita por cima de tudo. E so aparece quando ha
@@ -232,16 +268,16 @@ export function SearchScreen() {
               <View>
                 {/* A PRIMEIRA prateleira e so descoberta: musica que ele nao tem,
                     escolhida pelo que ele ouve. */}
-                {renderRecommendationSection('Discover new', descobrir, 'sparkles-outline', jaChegou('descobrir'), 150)}
+                {renderRecommendationSection('descobrir', 'Discover new', descobrir, 'sparkles-outline', jaChegou('descobrir'), { lista: true })}
                 {/* Logo a seguir, e de propósito. O "Discover new" vai para
                     FORA -- artistas vizinhos, e só música que saiu. Esta vai
                     para dentro: o que os artistas dele nunca lançaram, que não
                     existe em catálogo nenhum. Ver api/naoLancado.ts. */}
-                {renderRecommendationSection('Never released', nuncaLancado, 'lock-open-outline', jaChegou('nuncaLancado'), 150)}
-                {renderRecommendationSection('Listen again', listenAgain, 'time-outline', jaChegou('ouvirDeNovo'))}
-                {renderRecommendationSection('Daily flow', flowMix, 'sparkles-outline', jaChegou('flow'))}
-                {renderRecommendationSection('Heavy rotation', heavyRotation, 'flame-outline', jaChegou('maisTocadas'))}
-                {renderRecommendationSection('Forgotten favourites', forgottenFavorites, 'heart-dislike-outline', jaChegou('esquecidas'))}
+                {renderRecommendationSection('nuncaLancado', 'Never released', nuncaLancado, 'lock-open-outline', jaChegou('nuncaLancado'), { largura: 150 })}
+                {renderRecommendationSection('ouvirDeNovo', 'Listen again', listenAgain, 'time-outline', jaChegou('ouvirDeNovo'))}
+                {renderRecommendationSection('flow', 'Daily flow', flowMix, 'sparkles-outline', jaChegou('flow'))}
+                {renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, 'flame-outline', jaChegou('maisTocadas'))}
+                {renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, 'heart-dislike-outline', jaChegou('esquecidas'))}
                 
                 {!loadingRecs && !temRecomendacoes(recs) && (
                   <Text style={styles.emptyRecsText}>
@@ -325,7 +361,7 @@ export function SearchScreen() {
         actions={[
           {
             icon: 'play-outline',
-            label: 'Tocar a seguir',
+            label: 'Play next',
             onPress: () => {
               const t = actionTrack;
               setActionTrack(null);
@@ -441,6 +477,10 @@ const styles = StyleSheet.create({
   },
   cardArtist: {
     fontSize: 11,
+    color: colors.textSecondary,
+  },
+  verTudo: {
+    ...type.caption,
     color: colors.textSecondary,
   },
   emptyRecsText: {
