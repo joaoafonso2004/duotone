@@ -39,6 +39,22 @@ import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 
+/** Quantas linhas por página na primeira secção. */
+const LINHAS_NA_LISTA = 3;
+
+/** Maiores do que as do "Never released", como pedido. */
+const CAIXA_DA_MISTURA = 178;
+
+/** Largura dos cartões largos das secções de baixo. */
+const CARTAO_LARGO = 260;
+
+/** Parte uma lista em páginas de `n`. A última pode vir mais curta. */
+function paginasDe<T>(lista: readonly T[], n: number): T[][] {
+  const saida: T[][] = [];
+  for (let i = 0; i < lista.length; i += n) saida.push(lista.slice(i, i + n));
+  return saida;
+}
+
 export function SearchScreen() {
   // A página ocupa a largura do ecrã: com `pagingEnabled` cada paragem tem de
   // cair exactamente numa página, e para isso a largura tem de ser a mesma que
@@ -92,7 +108,8 @@ export function SearchScreen() {
   // Render horizontal recommendation lists
   const renderRecommendationSection = (
     nome: NomeDaPrateleira, title: string, data: Track[], chegou: boolean,
-    { largura = 120, lista = false }: { largura?: number; lista?: boolean } = {},
+    { largura = 120, lista = false, largas = false }:
+      { largura?: number; lista?: boolean; largas?: boolean } = {},
   ) => {
     // Chegou e veio vazia: a seccao desaparece, sem deixar um titulo orfao.
     if (chegou && data.length === 0) return null;
@@ -143,7 +160,35 @@ export function SearchScreen() {
           // uma lista é um salto, e um esqueleto existe justamente para não
           // haver salto nenhum.
           lista ? <SkeletonDeFaixas linhas={LINHAS_NA_LISTA} />
-                : <SkeletonDePrateleira largura={largura} />
+                : <SkeletonDePrateleira largura={largas ? CARTAO_LARGO : largura} cartoes={largas ? 2 : 4} />
+        ) : largas ? (
+          // Capa à esquerda, texto à direita. Depois das playlists a página já
+          // deu duas formas -- páginas de linhas e mosaicos grandes -- e uma
+          // terceira volta aos quadradinhos seria voltar atrás. Isto lê-se
+          // como a fila de reprodução, que é uma forma que já existe na app.
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+            {data.map((track) => (
+              <Pressable
+                key={`${track.source}:${track.sourceId}`}
+                onPress={() => playTrack(track, data, true)}
+                onLongPress={() => { hapticSelection(); setActionTrack(track); }}
+                delayLongPress={350}
+                style={({ pressed }) => [styles.cartaoLargo, pressed && { opacity: 0.8 }]}
+              >
+                {track.artworkUrl ? (
+                  <Image source={{ uri: track.artworkUrl }} style={styles.capaLarga} contentFit="cover" transition={200} />
+                ) : (
+                  <View style={[styles.capaLarga, styles.artFallback]}>
+                    <Ionicons name="musical-note" size={20} color={colors.textTertiary} />
+                  </View>
+                )}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={styles.cardTitle}>{track.title}</Text>
+                  <Text numberOfLines={1} style={styles.cardArtist}>{displayArtist(track)}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
         ) : (
         <ScrollView
           horizontal
@@ -187,18 +232,6 @@ export function SearchScreen() {
     );
   };
 
-/** Quantas linhas por página na primeira secção. */
-const LINHAS_NA_LISTA = 3;
-
-/** Maiores do que as do "Never released", como pedido. */
-const CAIXA_DA_MISTURA = 178;
-
-/** Parte uma lista em páginas de `n`. A última pode vir mais curta. */
-function paginasDe<T>(lista: readonly T[], n: number): T[][] {
-  const saida: T[][] = [];
-  for (let i = 0; i < lista.length; i += n) saida.push(lista.slice(i, i + n));
-  return saida;
-}
 
 
   // O refrescar vive no cabecalho, como no PC -- um icone, nao uma linha de
@@ -359,9 +392,9 @@ function paginasDe<T>(lista: readonly T[], n: number): T[][] {
                     )}
                   </View>
                 )}
-                {renderRecommendationSection('ouvirDeNovo', 'Listen again', listenAgain, jaChegou('ouvirDeNovo'))}
-                {renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, jaChegou('maisTocadas'))}
-                {renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, jaChegou('esquecidas'))}
+                {renderRecommendationSection('ouvirDeNovo', 'Listen again', listenAgain, jaChegou('ouvirDeNovo'), { largas: true })}
+                {renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, jaChegou('maisTocadas'), { largas: true })}
+                {renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, jaChegou('esquecidas'), { largas: true })}
                 
                 {!loadingRecs && !temRecomendacoes(recs) && (
                   <Text style={styles.emptyRecsText}>
@@ -562,6 +595,19 @@ const styles = StyleSheet.create({
   cardArtist: {
     fontSize: 11,
     color: colors.textSecondary,
+  },
+  cartaoLargo: {
+    width: CARTAO_LARGO,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingRight: spacing.sm,
+  },
+  capaLarga: {
+    width: 52,
+    height: 52,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
   },
   mosaico: {
     flexDirection: 'row',
