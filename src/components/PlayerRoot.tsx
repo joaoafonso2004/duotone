@@ -69,6 +69,9 @@ const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
 const APP_NAME = 'Duotone';
 
+/** O espaçamento entre as letras da marca. Ver o `brandName`. */
+const ESPACO_DA_MARCA = 2.6;
+
 export function PlayerRoot() {
   const offline=useOfflineMode();
   const offlineId=useAuth(s=>s.session?.user.id??s.offlineUserId);
@@ -1516,8 +1519,24 @@ const styles = StyleSheet.create({
   brandName: {
     ...type.micro,
     fontSize: 11,
-    letterSpacing: 2.6,
+    letterSpacing: ESPACO_DA_MARCA,
     fontWeight: '600',
+    /**
+     * O acerto que faz a marca ficar mesmo ao centro.
+     *
+     * O `letterSpacing` acrescenta espaço depois de CADA letra, incluindo a
+     * última. A caixa do texto fica com esse espaço à direita sem nada lá
+     * dentro, e ao centrá-la as letras assentam meio espaço à esquerda do
+     * centro -- o que se vê como o símbolo desviado para a direita, porque
+     * esse está bem centrado.
+     *
+     * Um `padding` igual do lado esquerdo devolve a simetria: as letras
+     * passam a ter o mesmo vazio dos dois lados, e o centro da caixa volta a
+     * ser o centro do que se lê. Tem de ser o MESMO valor do espaçamento, e é
+     * por isso que os dois saem da mesma constante em vez de serem dois
+     * números escritos à mão que podem divergir.
+     */
+    paddingLeft: ESPACO_DA_MARCA,
   },
   /**
    * A área de toque dos botões de transporte -- anterior, seguinte, repetir.
