@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Animated, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinhaArrastavel } from './LinhaArrastavel';
 import { destinoDoArrasto, velocidadeDoDeslize } from '../lib/arrastarFila';
 import { TRACK_ROW_HEIGHT } from './TrackRow';
@@ -12,6 +12,12 @@ import { TrackRow } from './TrackRow';
 import { EstrelaInteligente } from './BrilhoInteligente';
 import { trackKey } from '../lib/shuffle';
 import { hapticSelection } from '../lib/haptics';
+import { tituloDaFaixa } from '../lib/artistName';
+import { useOfflineMode } from '../hooks/useOfflineMode';
+import type { Track } from '../types';
+import { PlayerActionsContent, type PlayerAction } from './PlayerActionsSheet';
+import { AddToPlaylistSheet } from './AddToPlaylistSheet';
+import { ShareFriendSheet } from './ShareFriendSheet';
 
 interface Props {
   visible: boolean;
@@ -28,6 +34,10 @@ interface Props {
 }
 
 export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
+  const offline = useOfflineMode();
+  const [selection, setSelection] = React.useState<{ track: Track; index: number | null; queue: Track[] } | null>(null);
+  const [panel, setPanel] = React.useState<'actions' | 'playlist' | 'share'>('actions');
+  React.useEffect(() => { if (!visible) { setSelection(null); setPanel('actions'); } }, [visible]);
   const current = usePlayer((s) => s.current);
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
@@ -147,8 +157,44 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
     reordenarProximas(de, para);
   };
 
+  const openActions = (track: Track, index: number | null) => {
+    hapticSelection();
+    setSelection({ track, index, queue });
+    setPanel('actions');
+  };
+  // O menu pode ficar aberto enquanto a música termina ou a fila muda.
+  // Um índice antigo nunca deve remover outra música ou uma entrada do Jam.
+  const canRemove = !!selection && selection.index !== null && !emSessao &&
+    selection.queue === queue && selection.index !== queueIndex && queue[selection.index] === selection.track;
+  const actions: PlayerAction[] = selection ? [
+    { label: 'Add to playlist', icon: 'add', onPress: () => {
+      if (offline) { Alert.alert('Offline', 'Connect to the internet to edit playlists.'); return; }
+      setPanel('playlist');
+    } },
+    { label: 'Partilhar com um amigo', icon: 'paper-plane-outline', onPress: () => {
+      if (offline) { Alert.alert('Offline', 'Connect to the internet to share.'); return; }
+      setPanel('share');
+    } },
+    ...(emSessao && onOpenSession ? [{ label: 'Manage Jam queue', icon: 'people-outline' as const, onPress: onOpenSession }] : []),
+    ...(!emSessao && selection.index !== null ? [{
+      label: 'Remove from queue', icon: 'trash-outline' as const, destructive: true, disabled: !canRemove,
+      onPress: () => {
+        const latest = usePlayer.getState();
+        if (selection.index === null || useOuvirJuntos.getState().sessao ||
+          latest.queue !== selection.queue || latest.queueIndex === selection.index ||
+          latest.queue[selection.index] !== selection.track) return;
+        removeFromQueue(selection.index);
+        setSelection(null);
+      },
+    }] : []),
+    { label: 'Back to queue', icon: 'arrow-back', onPress: () => setSelection(null) },
+  ] : [];
+
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
+    <>
+    <BottomSheet visible={visible && panel === 'actions'} onClose={onClose}>
+      {selection && <PlayerActionsContent title={tituloDaFaixa(selection.track)} actions={actions} />}
+      <View style={selection ? styles.hidden : undefined}>
       <View style={styles.header}>
         <Text style={type.title}>Play Queue</Text>
         <Text style={type.caption}>
@@ -160,12 +206,22 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
 
       <Text style={[type.micro, styles.sectionTitle]}>NOW PLAYING</Text>
       {current ? (
-        <View style={styles.nowPlayingCard}>
+        <View style={[styles.nowPlayingCard, styles.queueItemRow]}>
+          <View style={{ flex: 1 }}>
           <TrackRow
             track={current}
             active
             onPress={onClose}
           />
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Options for ${tituloDaFaixa(current)}`}
+            onPress={() => openActions(current, null)}
+            style={styles.actionBtn}
+          >
+            <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+          </Pressable>
         </View>
       ) : (
         <Text style={styles.emptyText}>Nothing playing</Text>
@@ -211,11 +267,6 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
           renderItem={({ item: entry, index }) => {
             const item = entry.track;
             const realIndex = entry.index;
-
-            const handleRemove = () => {
-              hapticSelection();
-              removeFromQueue(realIndex);
-            };
 
             return (
               <LinhaArrastavel
@@ -286,14 +337,15 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
                     </View>
                   )}
                   <Pressable
-                    onPress={handleRemove}
+                    onPress={() => openActions(item, emSessao ? null : realIndex)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Options for ${tituloDaFaixa(item)}`}
                     style={({ pressed }) => [
                       styles.actionBtn,
                       pressed && { opacity: 0.6 }
                     ]}
-                    hitSlop={6}
                   >
-                    <Ionicons name="trash-outline" size={14} color={colors.danger} />
+                    <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
                   </Pressable>
                 </View>
               </View>
@@ -305,11 +357,16 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
       ) : (
         <Text style={styles.emptyText}>Queue is empty</Text>
       )}
+      </View>
     </BottomSheet>
+    <AddToPlaylistSheet visible={visible && panel === 'playlist'} track={selection?.track} onClose={() => setPanel('actions')} />
+    <ShareFriendSheet visible={visible && panel === 'share'} itemType="track" item={selection?.track ?? null} onClose={() => setPanel('actions')} />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  hidden: { display: 'none' },
   header: {
     marginBottom: spacing.md,
   },
@@ -362,10 +419,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   actionBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.surfacePressed,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },

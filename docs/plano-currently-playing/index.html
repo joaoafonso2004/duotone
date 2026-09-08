@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Duotone · Plano do Currently Playing</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,sans-serif;background:#101014;color:#ecebf0;line-height:1.65}
+*{box-sizing:border-box}body{margin:0}main{max-width:1040px;margin:auto;padding:44px 28px 70px}h1{font-size:clamp(28px,5vw,42px);line-height:1.15;margin:10px 0 20px;letter-spacing:-1px}h2{font-size:23px;margin:42px 0 14px}h3{font-size:17px;margin:0 0 12px}p{margin:12px 0}a{color:#c6b7d5}code{font-size:.9em;overflow-wrap:anywhere}.eyebrow{color:#a49aaf;font-size:12px;letter-spacing:2px}.muted,figcaption{color:#ada7b5;font-size:14px}.requirement{background:#24202b;border-left:4px solid #b5a1cd;padding:20px 24px;margin:25px 0}.requirement strong{font-size:19px;display:block}.compare{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start}figure{margin:0;min-width:0}figure>h3{margin-bottom:6px}figure>p{min-height:48px}.screen{width:100%;max-width:390px;margin:14px auto;background:#09090d;border-radius:28px;overflow:hidden}.screen img{display:block;width:100%;height:auto}.screen iframe{border:0;display:block;width:100%;height:890px;background:#101014}figcaption{margin-top:10px}.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;padding:14px 12px;vertical-align:top;border-bottom:1px solid #34303b}th{color:#c8bdcf;font-weight:600}th:first-child{width:19%}ol,ul{padding-left:24px}li{margin:10px 0}.phase{padding:20px 0;border-bottom:1px solid #34303b}.phase p{margin:8px 0}.eq-ref{display:block;width:173px;border-radius:8px;margin:15px 0}.end{border-top:1px solid #34303b;margin-top:35px;padding-top:20px}@media(max-width:720px){main{padding:24px 18px 45px}.compare{grid-template-columns:1fr}.compare figure>p{min-height:0}.screen iframe{height:850px}th,td{padding:10px 8px}}@media print{.screen iframe{height:880px}main{max-width:none;padding:0}.requirement{break-inside:avoid}h2,h3{break-after:avoid}}
+</style>
+</head>
+<body><main>
+<div class="eyebrow">DUOTONE · 08 SET 2026 · PLANO DE IMPLEMENTAÇÃO</div>
+<h1>Currently Playing<br>O mesmo leitor, mais coeso.</h1>
+<p>Atualizar a apresentação do leitor expandido a partir da última preview: Queue e EQ permanecem em baixo, integrados nos controlos de reprodução; play mais pequeno; símbolo e DUOTONE centrados no topo.</p>
+<p class="muted">Estado: implementação no código concluída em 08/09/2026; validação em iPhone real pendente. As referências visuais abaixo documentam a direção proposta. A imagem “Antes” é a captura fornecida pelo utilizador; “Depois” é uma simulação visual, não uma build funcional.</p>
+
+<div class="requirement"><strong>Obrigatório: manter todas as funcionalidades atuais da app.</strong><p>Esta intervenção altera a apresentação e a organização dos acessos. Nenhuma funcionalidade, opção, permissão, estado, gesto ou integração pode desaparecer por não estar representada na preview. Os componentes e comandos reais da app são a referência funcional. Uma ação deslocada deve continuar acessível e executar o mesmo comportamento.</p></div>
+
+<h2>Resultado da implementação</h2>
+<p>Integrada sobre as alterações recentes do Claude, preservando o arrasto automático da fila e o acesso Manage ao Jam. Concluídos os tamanhos e espaçamentos, a grelha comum de reprodução/Queue/EQ e os menus por faixa. As remoções pendentes são recusadas se a fila mudar, a faixa passar a atual ou começar uma sessão.</p>
+<p><strong>Verificações aprovadas:</strong> typecheck, suite completa, teste isolado dos handlers de QueueSheet (<code>node scripts/test-currently-playing-ui.cjs</code>), lint dos ficheiros alterados sem erros nem avisos novos e exportações Expo para iOS/Hermes e web. Dependências, lockfile e scripts npm mantidos.</p>
+<p>O leitor React Native foi inspecionado numa página de QA via React Native Web a 390×844 e 320×568, com dados locais e sem motor de áudio. Confirmados alinhamento, menu da fila, remoção da faixa certa e acesso ao painel real de EQ. A página de QA não usa conta de produção. Os testes de handlers substituem hooks e superfícies nativas, por isso não validam gestos físicos ou transições de Modals em iOS.</p>
+<p><strong>Pendente em dispositivo:</strong> áudio real, VoiceOver/texto aumentado, gestos de arrasto e fecho, transições entre folhas nativas e sessão Jam em dois iPhones. Os bundles exportados não são um IPA nem uma instalação no telefone.</p>
+<h2>Antes e depois</h2>
+<div class="compare">
+<figure><h3>Antes · app atual na captura</h3><p class="muted">Ações numa linha própria, play maior e Queue/EQ em cápsulas com larguras diferentes.</p><div class="screen"><img src="antes.png" alt="Captura original do leitor Duotone com Sky, de Playboi Carti, três ações e botões Queue e EQ em cápsulas."></div><figcaption>Referência original preservada sem alterações.</figcaption></figure>
+<figure><h3>Depois · direção visual proposta</h3><p class="muted">Ícones Queue/EQ com legenda discreta, alinhados sob anterior/seguinte e sem cápsulas.</p><div class="screen"><iframe src="depois.html" title="Preview interativa da apresentação proposta para o leitor" loading="eager"></iframe></div><figcaption>É possível abrir Queue/EQ na simulação. Os dados e painéis simplificados ilustram a apresentação; não definem as funcionalidades finais. <a href="depois.html">Abrir preview separadamente</a>.</figcaption></figure>
+</div>
+
+<h2>Alterações a implementar</h2>
+<div class="table-wrap"><table><thead><tr><th>Elemento</th><th>Direção proposta</th><th>Condição de preservação</th></tr></thead><tbody>
+<tr><td>Queue e EQ</td><td>Em baixo. Partilhar as colunas dos controlos de reprodução: Queue sob anterior, EQ sob seguinte. Ícones de cerca de 23 pt e legendas discretas por baixo; sem fundo em cápsula.</td><td>Abrir os mesmos painéis, com feedback tátil e áreas de toque de pelo menos 44 × 44 pt.</td></tr>
+<tr><td>Play / pause</td><td>Círculo de aproximadamente 54 pt, ícone de 21 pt, mantendo o centro visual do conjunto.</td><td>Conservar todos os estados, bloqueios, loading e comandos existentes. Não reduzir a área de toque abaixo do mínimo.</td></tr>
+<tr><td>Marca no topo</td><td>Preservar símbolo e DUOTONE centrados, com minimizar à esquerda e mais opções à direita.</td><td>Minimizar continua distinto de fechar. A opção fechar reutiliza o fluxo atual, incluindo confirmações de Jam.</td></tr>
+<tr><td>Ações da música</td><td>Coração junto ao título; adicionar a playlist e partilhar acessíveis pelo menu superior.</td><td>Reutilizar os fluxos reais de guardar, playlists e partilha com amigos, incluindo restrições offline e estados ativos.</td></tr>
+<tr><td>Fila</td><td>Tocar na linha seleciona a música quando permitido. Os três pontos à direita abrem ações, sem repetir um botão play.</td><td>Conservar remoção e arrasto existentes; manter as regras distintas da fila local e do Jam. O toque nas opções não pode iniciar reprodução.</td></tr>
+<tr><td>EQ</td><td>Ícone de barras verticais, semelhante à referência abaixo, com a mesma espessura visual dos restantes ícones.</td><td>Manter o equalizador real, velocidade, perfis, dez bandas e persistência; não substituir pelo painel simplificado da preview.</td></tr>
+<tr><td>Capa e espaçamento</td><td>Conservar capa em destaque, ambiente cromático e hierarquia título/artista. Aproximar os controlos inferiores.</td><td>Preservar navegação de letras, artista, gestos, animações e adaptações a safe area e acessibilidade.</td></tr>
+</tbody></table></div>
+<img class="eq-ref" src="referencia-eq.png" alt="Referência fornecida para o ícone EQ: barras verticais de alturas diferentes em tom lilás.">
+<p class="muted">As medidas da preview são referências em escala lógica, a ajustar ao layout React Native e à escala de texto. Não copiar píxeis da captura original. Queue/EQ no topo e cápsulas grandes ficam excluídos desta direção. As alternativas da preview e a linha opcional “A seguir” não entram automaticamente no âmbito.</p>
+
+<h2>Mapa da implementação</h2>
+<p>A inspeção do código aponta para <code>src/components/PlayerRoot.tsx</code> (layout, ações e abertura das folhas), <code>QueueSheet.tsx</code> (linhas e ações da fila) e <code>EqualizadorSheet.tsx</code> (painel de EQ e velocidade). Reutilizar <code>AddToPlaylistSheet</code>, <code>ShareFriendSheet</code> e os padrões existentes de menus, ícones, animação e toque.</p>
+<p><code>src/lib/closePlayer.ts</code>, <code>ArtworkLyricsCube</code>, stores, motores de reprodução e regras do Jam são dependências a preservar. Evitar alterações de lógica nestas áreas para acomodar o desenho. Queue e EQ devem continuar como folhas irmãs da vista do leitor, mantendo o comportamento de abertura e gestos.</p>
+
+<div class="phase"><h3>1 · Registar a referência funcional</h3><p>Inventariar todos os acessos e estados do leitor no checkout de implementação. Registar screenshots e comportamento de reprodução, letras, fila, EQ, menus, mini-player, modo offline e Jam. Associar cada ação existente ao seu destino após a reorganização.</p><p class="muted">Entrega: mapa de ações antes/depois e resultados de base dos checks existentes.</p></div>
+<div class="phase"><h3>2 · Ajustar o layout do leitor</h3><p>Aplicar marca, espaçamentos e tamanhos; usar uma grelha comum para reprodução e ferramentas inferiores. Conservar o play reduzido e Queue/EQ no rodapé. Reposicionar os acessos a favoritos, playlists, partilha e fecho ligando-os aos mesmos handlers, sem remontar o motor de áudio.</p><p class="muted">Entrega: apresentação proposta com todas as ações reais acessíveis e os estados condicionais preservados.</p></div>
+<div class="phase"><h3>3 · Integrar fila e ícone EQ</h3><p>Na fila, separar o alvo de seleção da música do alvo dos três pontos. A app já tem arrasto e remoção: preservá-los e não confundir o controlo de arrasto com play. As ações do menu devem atuar na faixa da linha, não necessariamente na faixa que está a tocar. Em Jam, conservar as restrições atuais e os acessos à folha de sessão.</p><p>Substituir apenas o ícone de acesso ao EQ; reutilizar integralmente o painel nativo. Preferir a biblioteca existente ou um pequeno componente de barras sem novas dependências.</p><p class="muted">Entrega: seleção e ações independentes, com menus, fila e equalizador funcionais.</p></div>
+<div class="phase"><h3>4 · Validar e comparar</h3><p>Executar a matriz abaixo e comparar screenshots nas mesmas dimensões e estados. Verificar iPhone pequeno e grande, texto aumentado, VoiceOver e restantes plataformas suportadas. Confirmar que abrir/fechar painéis e reorganizar elementos não interrompe o áudio nem reinicia a faixa.</p><p class="muted">Entrega: screenshots da implementação real, checks executados e lista explícita de qualquer validação ainda pendente em dispositivo.</p></div>
+
+<h2>Matriz obrigatória de não regressão</h2>
+<ul>
+<li><strong>Reprodução:</strong> play/pause, anterior/seguinte, seek, duração/progresso, loading/erro, fim de fila, repeat off/all/one e shuffle normal/inteligente.</li>
+<li><strong>Biblioteca e navegação:</strong> guardar/remover favoritos, abrir artista, adicionar a playlists e partilhar, conservando notificações e bloqueios offline.</li>
+<li><strong>Fila:</strong> atual e próximas, seleção autorizada, ordem, arrasto, remoção, fila vazia, listas longas e ausência de reprodução ao tocar nos três pontos.</li>
+<li><strong>EQ e velocidade:</strong> perfis, ajuste das dez bandas, valores guardados e aplicação real ao áudio; manter todas as opções atuais do painel.</li>
+<li><strong>Jam:</strong> indicador e acesso à sessão, fila partilhada, anfitrião/convidado com e sem controlo, sincronização, sair/terminar e confirmação de fecho. Nenhum novo acesso pode contornar permissões.</li>
+<li><strong>Ciclo de vida:</strong> minimizar/expandir, fechar por botão e gesto, mini-player, letras/cubo, acessibilidade e animações existentes; conservar comportamento de áudio em segundo plano, lock screen e interrupções.</li>
+<li><strong>Motor e dados:</strong> preservar cache/downloads, preparação da próxima faixa, crossfade e regras vigentes, restauração de estado e preferências. A redução visual não justifica alterações nestes sistemas.</li>
+</ul>
+<p>Para a implementação: <code>npm run typecheck</code>, <code>npm test</code> e <code>npm run lint</code> separadamente. Comparar os avisos de lint com a base e não introduzir novos problemas nos ficheiros tocados. Se mudar a gestão de eventos ou permissões, acrescentar testes de comportamento relevantes. Não integrar lint em <code>npm test</code>, não usar o preset <code>recommended</code> de React Hooks e não alterar dependências/lockfile sem necessidade.</p>
+
+<h2>Critérios de conclusão</h2>
+<ol>
+<li>Queue e EQ mantêm-se em baixo, simétricos, visualmente integrados e sem cápsulas grandes; marca centrada e play reduzido.</li>
+<li>Todas as ações inventariadas continuam disponíveis com os mesmos efeitos, estados e permissões. As funcionalidades ausentes da preview continuam presentes na app.</li>
+<li>Texto, gestos, áreas de toque e folhas funcionam sem cortes, sobreposições ou conflitos, incluindo offline e Jam.</li>
+<li>A implementação real foi comparada com este plano e verificada; resultados e limitações em dispositivo estão registados.</li>
+</ol>
+<p class="end"><strong>Regra de decisão:</strong> se houver conflito entre a simplificação visual e uma funcionalidade existente, adaptar o desenho para manter a funcionalidade. A preview é referência estética; o comportamento real da app deve ser preservado.</p>
+</main></body></html>

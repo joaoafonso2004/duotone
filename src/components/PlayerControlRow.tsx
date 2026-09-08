@@ -20,7 +20,7 @@ export function PlayerControlRow({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   row: { width: '100%', flexDirection: 'row', alignItems: 'center' },
   slot: { alignItems: 'center', justifyContent: 'center' },
-  edge: { width: 44 },
+  edge: { width: 48 },
   center: { width: 64 },
-  inner: { flex: 1, minWidth: 44 },
+  inner: { flex: 1, minWidth: 48 },
 });

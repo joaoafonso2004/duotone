@@ -72,7 +72,7 @@ export function PlayerRoot() {
   const offline=useOfflineMode();
   const offlineId=useAuth(s=>s.session?.user.id??s.offlineUserId);
   const insets = useSafeAreaInsets();
-  const { width: W, height: H } = useWindowDimensions();
+  const { width: W, height: H, fontScale } = useWindowDimensions();
   const theme = useTheme((s) => s.theme);
 
   const current = usePlayer((s) => s.current);
@@ -158,6 +158,8 @@ export function PlayerRoot() {
   const [optionsVisible, setOptionsVisible] = useState(false);
   const [partilhaAberta, setPartilhaAberta] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
+  const [bodyHeight, setBodyHeight] = useState(0);
+  const [bodyContentHeight, setBodyContentHeight] = useState(0);
   const [queueVisible, setQueueVisible] = useState(false);
   const [eqVisible, setEqVisible] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -620,7 +622,10 @@ export function PlayerRoot() {
   // Capa: mini (quadrado 48px, no mini-player) <-> expandido (quadrado GRANDE
   // centrado). Antes era 16:9 (herança do vídeo) — agora que é só áudio, a
   // capa é quadrada e grande, para um look limpo tipo app de música.
-  const ART_FULL = Math.min(W - 64, H * 0.42);
+  // Reservar espaço para os controlos em ecrãs pequenos. Com texto muito
+  // aumentado, só o corpo desliza: a capa e o motor continuam montados.
+  const ART_FULL = Math.min(W - 64, H * 0.42,
+    Math.max(96, H - insets.top - insets.bottom - HEADER_H - 360 * Math.min(fontScale, 1.4)));
   const vidMini = {
     x: 10 + 8,
     y: keyboardVisible && !expanded
@@ -790,7 +795,15 @@ export function PlayerRoot() {
           ))}
         </View>
 
-        <View style={styles.staticBody}>
+        <ScrollView
+          style={styles.bodyScroll}
+          contentContainerStyle={[styles.staticBody, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}
+          onLayout={(event) => setBodyHeight(event.nativeEvent.layout.height)}
+          onContentSizeChange={(_width, height) => setBodyContentHeight(height)}
+          scrollEnabled={bodyContentHeight > bodyHeight + 1 && !scrubbing}
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Grupo Principal: Título + Ações, Barra de Progresso e Controlos de Reprodução */}
           <View style={styles.mainControlsGroup}>
             {/* O título pode ocupar duas linhas; o coração tem um alvo fixo. */}
@@ -888,7 +901,7 @@ export function PlayerRoot() {
                   color={shuffle ? colors.text : colors.textTertiary}
                 />
                 {shuffleInteligente && (
-                  <View style={{ position: 'absolute', top: -3, right: -5 }}>
+                  <View style={{ position: 'absolute', top: 5, right: 4 }}>
                     <EstrelaInteligente tamanho={7} cor={theme.color} />
                   </View>
                 )}
@@ -1016,7 +1029,7 @@ export function PlayerRoot() {
               <View />
             </PlayerControlRow>
           </View>
-        </View>
+        </ScrollView>
       </Animated.View>
 
       <Animated.View
@@ -1338,40 +1351,32 @@ export function PlayerRoot() {
 }
 
 const styles = StyleSheet.create({
+  bodyScroll: { flex: 1 },
   staticBody: {
-    flex: 1,
     paddingHorizontal: spacing.xl,
-    justifyContent: 'space-between',
-    paddingBottom: spacing.xxl + spacing.xl,
     paddingTop: spacing.sm,
+    gap: spacing.md,
   },
   mainControlsGroup: {
     width: '100%',
-    gap: spacing.xl,
+    gap: spacing.md,
   },
   bottomGroup: {
     width: '100%',
     alignItems: 'center',
   },
-  utilityRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: spacing.lg,
-    marginTop: spacing.md,
-  },
   utilityIconBtn: {
-    flexDirection: 'row',
+    width: 48,
+    minHeight: 52,
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: radii.pill,
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 5,
   },
   utilityIconLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.3,
+    fontSize: 11,
+    fontWeight: '400',
+    color: colors.textSecondary,
   },
   full: {
     ...StyleSheet.absoluteFill,
@@ -1406,8 +1411,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(10,10,15,0.72)',
   },
   headerBtn: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1421,15 +1426,14 @@ const styles = StyleSheet.create({
   },
   brandName: {
     ...type.micro,
-    letterSpacing: 1,
-    fontWeight: '700',
+    fontSize: 11,
+    letterSpacing: 2.6,
+    fontWeight: '600',
   },
   /**
    * A área de toque dos botões de transporte -- anterior, seguinte, repetir.
    *
-   * Os ícones são de 28 px e o dedo não é. Quarenta e oito é o mínimo que as
-   * orientações da Apple pedem para um alvo de toque, e é o que separa
-   * "carreguei ao lado" de "a app não respondeu".
+   * A escala visual pode mudar sem reduzir os alvos de toque de 48 pt.
    */
   transportButton: {
     width: 48,
@@ -1473,31 +1477,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.textTertiary,
     opacity: 0.5,
   },
-  accoesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
   actionsBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.surfaceHigh,
+    width: 44,
+    height: 44,
+    flexShrink: 0,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.035)',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   actionsBtnActive: {
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderColor: colors.border,
   },
   trackTitle: {
-    fontSize: 23,
-    fontWeight: '800',
+    fontSize: 27,
+    fontWeight: '700',
     color: colors.text,
-    letterSpacing: 0.1,
+    letterSpacing: -0.6,
   },
   trackArtist: {
     fontSize: 15,
@@ -1506,16 +1505,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   controls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
+    width: '100%',
     marginTop: 0,
   },
   repeatOneBadge: {
     position: 'absolute',
-    top: -5,
-    right: -7,
+    top: 3,
+    right: 3,
     minWidth: 13,
     height: 13,
     borderRadius: 6.5,
@@ -1530,9 +1526,9 @@ const styles = StyleSheet.create({
     color: colors.bg,
   },
   playBtn: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: colors.text,
     alignItems: 'center',
     justifyContent: 'center',
