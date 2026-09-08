@@ -168,8 +168,12 @@ export function SearchScreen() {
     () => misturas.filter((m) => m.id.startsWith('estilo:')),
     [misturas],
   );
+  const radios = React.useMemo(
+    () => misturas.filter((m) => m.id.startsWith('radio:')),
+    [misturas],
+  );
   const misturasDeArtista = React.useMemo(
-    () => misturas.filter((m) => !m.id.startsWith('estilo:')),
+    () => misturas.filter((m) => !m.id.startsWith('estilo:') && !m.id.startsWith('radio:')),
     [misturas],
   );
 
@@ -194,6 +198,64 @@ export function SearchScreen() {
   };
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
+
+  /**
+   * Uma prateleira de MISTURAS -- estilos, radios ou playlists.
+   *
+   * Eram tres blocos de JSX quase identicos, com o mosaico de quatro celulas
+   * escrito por extenso em cada um. O que muda entre eles e o titulo e a
+   * lista; tudo o resto tem de ser igual, e a maneira de garantir isso e
+   * haver um so sitio onde esta escrito.
+   */
+  const renderPrateleiraDeMisturas = (titulo: string, lista: Mistura[]) => {
+    if (lista.length === 0) return null;
+    return (
+      <View style={styles.recsSection}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { flex: 1 }]}>{titulo}</Text>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalScroll}
+        >
+          {lista.map((m) => (
+            <Pressable
+              key={m.id}
+              ref={(r) => { molduras.current[m.id] = r; }}
+              collapsable={false}
+              onPress={() => navigation.navigate('Prateleira', {
+                titulo: m.nome, fonte: { tipo: 'mistura', id: m.id },
+              })}
+              onLongPress={() => abrirMistura(m)}
+              delayLongPress={350}
+              style={({ pressed }) => [{ width: CAIXA_DA_MISTURA }, pressed && { opacity: 0.8 }]}
+            >
+              {/* Mosaico de quatro. Uma capa so seria a de uma musica a fingir
+                  que representa vinte e cinco. */}
+              <View style={[styles.mosaico, { width: CAIXA_DA_MISTURA, height: CAIXA_DA_MISTURA }]}>
+                {m.faixas.slice(0, 4).map((t, i) => (
+                  t.artworkUrl ? (
+                    <Image
+                      key={i}
+                      source={{ uri: t.artworkUrl }}
+                      style={{ width: '50%', height: '50%' }}
+                      contentFit="cover"
+                      transition={200}
+                    />
+                  ) : (
+                    <View key={i} style={{ width: '50%', height: '50%', backgroundColor: colors.surfaceHigh }} />
+                  )
+                ))}
+              </View>
+              <Text numberOfLines={1} style={styles.cardTitle}>{m.nome}</Text>
+              <Text numberOfLines={1} style={styles.cardArtist}>{m.faixas.length} songs</Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
 
   // Render horizontal recommendation lists
   const renderRecommendationSection = (
@@ -489,108 +551,25 @@ export function SearchScreen() {
                 {/* As playlists que a app monta. Entre a descoberta e o que
                     já se ouviu: é onde deixa de ser "música nova" e começa a
                     ser "música tua, arrumada". */}
-                {/* Duas prateleiras da mesma forma, e a diferenca esta no
-                    titulo: os ESTILOS juntam artistas teus que partilham
-                    vizinhos ("mais disto"), as playlists sao por artista
-                    ("mais deste"). Ver `lib/estilos.ts`. */}
-                {misturasDeEstilo.length > 0 && (
-                  <View style={styles.recsSection}>
-                    <View style={styles.sectionHeader}>
-                      <Text style={[styles.sectionTitle, { flex: 1 }]}>Your styles</Text>
-                    </View>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.horizontalScroll}
-                    >
-                      {misturasDeEstilo.map((m) => (
-                        <Pressable
-                          key={m.id}
-                          ref={(r) => { molduras.current[m.id] = r; }}
-                          collapsable={false}
-                          onPress={() => navigation.navigate('Prateleira', {
-                            titulo: m.nome, fonte: { tipo: 'mistura', id: m.id },
-                          })}
-                          onLongPress={() => abrirMistura(m)}
-                          delayLongPress={350}
-                          style={({ pressed }) => [{ width: CAIXA_DA_MISTURA }, pressed && { opacity: 0.8 }]}
-                        >
-                          <View style={[styles.mosaico, { width: CAIXA_DA_MISTURA, height: CAIXA_DA_MISTURA }]}>
-                            {m.faixas.slice(0, 4).map((t, i) => (
-                              t.artworkUrl ? (
-                                <Image
-                                  key={i}
-                                  source={{ uri: t.artworkUrl }}
-                                  style={{ width: '50%', height: '50%' }}
-                                  contentFit="cover"
-                                  transition={200}
-                                />
-                              ) : (
-                                <View key={i} style={{ width: '50%', height: '50%', backgroundColor: colors.surfaceHigh }} />
-                              )
-                            ))}
-                          </View>
-                          <Text numberOfLines={1} style={styles.cardTitle}>{m.nome}</Text>
-                          <Text numberOfLines={1} style={styles.cardArtist}>
-                            {m.faixas.length} songs
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-                {(!misturasProntas || misturasDeArtista.length > 0) && (
-                  <View style={styles.recsSection}>
-                    <View style={styles.sectionHeader}>
-                      <Text style={[styles.sectionTitle, { flex: 1 }]}>Playlists</Text>
-                    </View>
-                    {!misturasProntas ? (
-                      <SkeletonDePrateleira largura={CAIXA_DA_MISTURA} cartoes={2} />
-                    ) : (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.horizontalScroll}
-                      >
-                        {misturasDeArtista.map((m) => (
-                          <Pressable
-                            key={m.id}
-                            ref={(r) => { molduras.current[m.id] = r; }}
-                            collapsable={false}
-                            onPress={() => navigation.navigate('Prateleira', {
-                              titulo: m.nome, fonte: { tipo: 'mistura', id: m.id },
-                            })}
-                            onLongPress={() => abrirMistura(m)}
-                            delayLongPress={350}
-                            style={({ pressed }) => [{ width: CAIXA_DA_MISTURA }, pressed && { opacity: 0.8 }]}
-                          >
-                            {/* Mosaico de quatro. Uma capa só seria a de uma
-                                música a fingir que representa vinte e cinco. */}
-                            <View style={[styles.mosaico, { width: CAIXA_DA_MISTURA, height: CAIXA_DA_MISTURA }]}>
-                              {m.faixas.slice(0, 4).map((t, i) => (
-                                t.artworkUrl ? (
-                                  <Image
-                                    key={i}
-                                    source={{ uri: t.artworkUrl }}
-                                    style={{ width: '50%', height: '50%' }}
-                                    contentFit="cover"
-                                    transition={200}
-                                  />
-                                ) : (
-                                  <View key={i} style={{ width: '50%', height: '50%', backgroundColor: colors.surfaceHigh }} />
-                                )
-                              ))}
-                            </View>
-                            <Text numberOfLines={1} style={styles.cardTitle}>{m.nome}</Text>
-                            <Text numberOfLines={1} style={styles.cardArtist}>
-                              {m.faixas.length} songs
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </ScrollView>
-                    )}
-                  </View>
-                )}
+                {/* Tres prateleiras da MESMA forma, e a diferenca esta toda
+                    no titulo -- que e o que elas tem de diferente:
+                      Your styles  -> artistas teus que partilham vizinhos
+                      Radio        -> tres faixas novas por cada tua
+                      Playlists    -> a tua biblioteca com descobertas pelo meio
+                    Ver `lib/estilos.ts` e `radiosDeArtista`. */}
+                {renderPrateleiraDeMisturas('Your styles', misturasDeEstilo)}
+                {renderPrateleiraDeMisturas('Radio', radios)}
+                {(!misturasProntas || misturasDeArtista.length > 0) &&
+                  (misturasProntas
+                    ? renderPrateleiraDeMisturas('Playlists', misturasDeArtista)
+                    : (
+                      <View style={styles.recsSection}>
+                        <View style={styles.sectionHeader}>
+                          <Text style={[styles.sectionTitle, { flex: 1 }]}>Playlists</Text>
+                        </View>
+                        <SkeletonDePrateleira largura={CAIXA_DA_MISTURA} cartoes={2} />
+                      </View>
+                    ))}
                 {renderRecommendationSection('ouvirDeNovo', 'Listen again', listenAgain, jaChegou('ouvirDeNovo'), { largas: true })}
                 {renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, jaChegou('maisTocadas'), { largas: true })}
                 {renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, jaChegou('esquecidas'), { largas: true })}

@@ -10,7 +10,7 @@ import {
 import type { Track } from '../types';
 import { semRepetidas } from '../lib/prateleirasSemRepetidas';
 import { intercalarPorArtista } from '../lib/intercalarPorArtista';
-import { CANDIDATOS, misturasDaBiblioteca, type Mistura } from '../lib/misturas';
+import { CANDIDATOS, misturasDaBiblioteca, radiosDeArtista, type Mistura } from '../lib/misturas';
 import { agruparPorEstilo, CANDIDATOS_A_ESTILO, misturasDeEstilo } from '../lib/estilos';
 import { vizinhosPorArtista } from '../api/catalogo';
 import { baralhada } from '../lib/jam';
@@ -243,6 +243,10 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
             // separa-as pelo prefixo `estilo:`.
             misturas: [
               ...misturasDeEstilo(estilos, lib, artistPreferenceKey, baralhada, vizinhas),
+              // As radios usam o MESMO mapa de vizinhos: nao custam rede
+              // nenhuma. O que as separa das misturas e a proporcao -- tres
+              // faixas novas por cada tua, o inverso do que a mistura faz.
+              ...radiosDeArtista(artistas, lib, artistPreferenceKey, chaveDeArtista, vizinhas, baralhada),
               ...misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
                 chaveDeArtista, baralhada, Math.floor(Date.now() / 86_400_000), vizinhas),
             ],

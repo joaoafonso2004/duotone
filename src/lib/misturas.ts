@@ -127,3 +127,73 @@ export function misturasDaBiblioteca(
   }
   return saida;
 }
+
+// --------------------------------------------------------------- radios ---
+
+/** Quantas radios se mostram. */
+export const RADIOS = 4;
+/** Faixas por radio. */
+export const POR_RADIO = 25;
+/**
+ * De cada quatro faixas, tres sao novas.
+ *
+ * **E isto que separa uma radio de uma mistura**, e a diferenca nao e
+ * cosmetica. Uma mistura e a tua biblioteca com descobertas pelo meio: reconheces
+ * quase tudo, e o pouco que nao reconheces entra por entre o que ja gostas. Uma
+ * radio e o contrario -- sais do que tens, e as tuas aparecem so o suficiente
+ * para te dizerem onde estas. Com a mesma proporcao das misturas, isto seria
+ * uma segunda prateleira a mostrar quase as mesmas faixas com outro titulo.
+ */
+export const NOVAS_POR_TUA = 3;
+/** Sem vizinhos que cheguem nao ha radio: seria a mistura outra vez. */
+export const MINIMO_DE_NOVAS = 6;
+
+/**
+ * Uma radio por cada um dos artistas que mais ouves.
+ *
+ * As faixas novas sao as dos VIZINHOS dele -- as mesmas que o
+ * `descobertasPorAncora` ja trouxe para a descoberta, agrupadas pelo artista
+ * teu que as puxou. Nao custa rede nenhuma: e o mesmo mapa que as misturas
+ * recebem.
+ *
+ * Sem imports de runtime, como o resto deste ficheiro.
+ */
+export function radiosDeArtista(
+  artistas: readonly { name: string }[],
+  biblioteca: readonly Track[],
+  chaveDoArtista: (t: Track) => string,
+  chaveDoNome: (nome: string) => string,
+  vizinhas: ReadonlyMap<string, readonly Track[]>,
+  baralhar: <T>(l: readonly T[]) => T[] = (l) => [...l],
+  quantas: number = RADIOS,
+): Mistura[] {
+  const porChave = new Map<string, Track[]>();
+  for (const faixa of biblioteca) {
+    const chave = chaveDoArtista(faixa);
+    if (!chave) continue;
+    const lista = porChave.get(chave);
+    if (lista) lista.push(faixa);
+    else porChave.set(chave, [faixa]);
+  }
+
+  const saida: Mistura[] = [];
+  for (const artista of artistas) {
+    if (saida.length >= quantas) break;
+    const chave = chaveDoNome(artista.name);
+    const novas = baralhar([...(vizinhas.get(chave) ?? [])]);
+    if (novas.length < MINIMO_DE_NOVAS) continue;
+    const minhas = baralhar(porChave.get(chave) ?? []);
+
+    const juntas: Track[] = [];
+    let iNovas = 0;
+    let iMinhas = 0;
+    while (juntas.length < POR_RADIO && iNovas < novas.length) {
+      for (let n = 0; n < NOVAS_POR_TUA && iNovas < novas.length && juntas.length < POR_RADIO; n++) {
+        juntas.push(novas[iNovas++]);
+      }
+      if (iMinhas < minhas.length && juntas.length < POR_RADIO) juntas.push(minhas[iMinhas++]);
+    }
+    saida.push({ id: `radio:${chave}`, nome: `${artista.name} radio`, faixas: juntas });
+  }
+  return saida;
+}

@@ -1,7 +1,7 @@
 // As playlists que a app monta sozinha, em Node puro.
 import assert from 'node:assert/strict';
 import {
-  misturasDaBiblioteca, MISTURAS, MINIMO_PARA_VALER, POR_MISTURA,
+  misturasDaBiblioteca, MISTURAS, MINIMO_PARA_VALER, POR_MISTURA, radiosDeArtista,
 } from '../src/lib/misturas.ts';
 import type { Track } from '../src/types.ts';
 
@@ -159,3 +159,43 @@ if (falhas > 0) {
   process.exit(1);
 }
 console.log('\nMisturas: só quando há música que chegue para elas.');
+
+// ------------------------------------------------------------------ radios
+
+verificar('a radio e sobretudo musica nova, ao contrario da mistura', () => {
+  const lib = muitas('A', 10);
+  const vizinhas = new Map([['a', muitas('Novo', 12)]]);
+  const r = radiosDeArtista([{ name: 'A' }], lib, chaveT, chaveN, vizinhas);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].nome, 'A radio');
+  const novas = r[0].faixas.filter((t) => t.artist === 'Novo').length;
+  // Tres em cada quatro: e isto que a separa de uma mistura.
+  assert.ok(novas > r[0].faixas.length * 0.6, `so ${novas} de ${r[0].faixas.length}`);
+});
+
+verificar('sem vizinhos que cheguem nao ha radio', () => {
+  const r = radiosDeArtista(
+    [{ name: 'A' }], muitas('A', 30), chaveT, chaveN,
+    new Map([['a', muitas('Novo', 2)]]),
+  );
+  assert.equal(r.length, 0);
+});
+
+verificar('a radio funciona sem nada teu do artista', () => {
+  // O artista pode estar no historico e nao na biblioteca.
+  const r = radiosDeArtista(
+    [{ name: 'A' }], [], chaveT, chaveN, new Map([['a', muitas('Novo', 12)]]),
+  );
+  assert.equal(r.length, 1);
+  assert.ok(r[0].faixas.length > 0);
+});
+
+verificar('nao devolve mais radios do que o pedido', () => {
+  const vizinhas = new Map([
+    ['a', muitas('N1', 12)], ['b', muitas('N2', 12)], ['c', muitas('N3', 12)],
+  ]);
+  const r = radiosDeArtista(
+    [{ name: 'A' }, { name: 'B' }, { name: 'C' }], [], chaveT, chaveN, vizinhas, undefined, 2,
+  );
+  assert.equal(r.length, 2);
+});
