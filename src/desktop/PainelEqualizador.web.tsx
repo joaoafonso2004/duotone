@@ -125,6 +125,71 @@ function DeslizadorVertical({
   );
 }
 
+/**
+ * So os perfis e as dez bandas, sem a velocidade nem o estado da faixa.
+ *
+ * Saiu daqui porque passou a haver DOIS sitios a mostrar o mesmo equalizador
+ * no PC: esta pagina, que mexe na faixa a tocar, e as Definicoes, que mexem no
+ * padrao de todas. Com o desenho copiado nos dois, um acerto num deixava o
+ * outro para tras -- e sao dez deslizadores com geometria a mao.
+ *
+ * Nao le nem escreve na store: recebe os ganhos e devolve os novos.
+ */
+export function BandasDoEqualizador({
+  ganhos,
+  aoMudarGanhos,
+}: {
+  ganhos: Ganhos;
+  aoMudarGanhos: (g: Ganhos) => void;
+}) {
+  const g = normalizar(ganhos);
+  const perfil = perfilDe(g);
+  return (
+    <View style={{ gap: ESP.sm }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: ESP.xs }}>
+        {PERFIS.map((p) => (
+          <SelectionPill
+            palette={pillPalette}
+            key={p.id}
+            selected={perfil?.id === p.id}
+            label={p.nome}
+            onPress={() => aoMudarGanhos(normalizar(p.ganhos))}
+          />
+        ))}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 2, marginTop: ESP.sm }}>
+        {BANDAS.map((hz, i) => (
+          <DeslizadorVertical
+            key={hz}
+            valor={g[i]}
+            etiqueta={ETIQUETAS_BANDAS[i]}
+            aoMudar={(v) => {
+              const novo = g.slice();
+              novo[i] = v;
+              aoMudarGanhos(normalizar(novo));
+            }}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/** O "repor" a parte, para cada sitio o por onde lhe faz sentido. */
+export function ReporEqualizador({ aoRepor }: { aoRepor: () => void }) {
+  return (
+    <Pressable
+      onPress={aoRepor}
+      style={({ hovered }: any) => [
+        { minHeight: 24, paddingHorizontal: ESP.sm, borderRadius: RAIO.pilula, justifyContent: 'center' },
+        hovered && { backgroundColor: COR.hover },
+      ]}
+    >
+      <Text style={[TIPO.micro, { color: COR.textoFraco }]}>RESET</Text>
+    </Pressable>
+  );
+}
+
 export function PainelEqualizador({
   ganhos,
   aoMudarGanhos,
@@ -159,42 +224,14 @@ export function PainelEqualizador({
           {!activo && <Text style={[TIPO.micro, { color: COR.textoFraco }]}>WAITING FOR PLAYBACK</Text>}
         </View>
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: ESP.xs }}>
-          {PERFIS.map((p) => {
-            const escolhido = perfil?.id === p.id;
-              return <SelectionPill palette={pillPalette} key={p.id} selected={escolhido} label={p.nome} onPress={() => aoMudarGanhos(normalizar(p.ganhos))} />;
-          })}
-        </View>
-
-        <View style={{ flexDirection: 'row', gap: 2, marginTop: ESP.sm }}>
-          {BANDAS.map((hz, i) => (
-            <DeslizadorVertical
-              key={hz}
-              valor={g[i]}
-              etiqueta={ETIQUETAS_BANDAS[i]}
-              aoMudar={(v) => {
-                const novo = g.slice();
-                novo[i] = v;
-                aoMudarGanhos(normalizar(novo));
-              }}
-            />
-          ))}
-        </View>
+        <BandasDoEqualizador ganhos={ganhos} aoMudarGanhos={aoMudarGanhos} />
 
 <AdjustmentSyncStatus />
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: ESP.xs }}>
           <Text style={[TIPO.micro, { color: COR.textoFraco }]}>
             {lembrado ? 'SAVED FOR THIS TRACK' : 'DOUBLE-CLICK A BAND TO ZERO IT'}
           </Text>
-          <Pressable
-            onPress={() => aoMudarGanhos(PLANO.slice())}
-            style={({ hovered }: any) => [
-              { minHeight: 24, paddingHorizontal: ESP.sm, borderRadius: RAIO.pilula, justifyContent: 'center' },
-              hovered && { backgroundColor: COR.hover },
-            ]}
-          >
-            <Text style={[TIPO.micro, { color: COR.textoFraco }]}>RESET</Text>
-          </Pressable>
+          <ReporEqualizador aoRepor={() => aoMudarGanhos(PLANO.slice())} />
         </View>
       </View>
     </View>

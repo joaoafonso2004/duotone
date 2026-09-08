@@ -29,6 +29,8 @@ import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
 import { Button, ContentScroll, desktop, Dialog, Page } from '../ui.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
+import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
+import { PLANO } from '../../lib/equalizer';
 import { newerVersion } from './comum.web';
 
 export function SettingsPage({ notify }: { notify: (s: string) => void }) {
@@ -65,6 +67,8 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
   // O padrao, e nao a velocidade da faixa a tocar: e isso que este controlo
   // define, e mostrar a outra fazia a barra saltar a cada mudanca de musica.
   const padraoRate = usePlayer((s) => s.padraoRate);
+  const padraoGanhos = usePlayer((s) => s.padraoGanhos);
+  const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   // Vem já carregado da store (App.tsx lê a preferência no arranque nas duas
   // plataformas), por isso não precisa de entrar no Promise.all acima.
@@ -223,6 +227,21 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
               <View style={{ width: 260 }}>
                 <BarraVelocidade valor={padraoRate} aoMudar={(v) => setPlaybackRate(v, true)} />
               </View>
+            </View>
+
+            {/* O equalizador base, ao lado da velocidade: as duas sao o que
+                vale para as faixas que nao tenham o seu, e nenhuma delas mexe
+                na que esta a tocar. As mesmas bandas do Now Playing, para nao
+                haver dois equalizadores diferentes na mesma app. */}
+            <View style={[styles.settingLine, { flexDirection: 'column', alignItems: 'stretch', gap: ESP.md }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1, paddingRight: ESP.lg }}>
+                  <Text style={styles.settingLabel}>Equaliser</Text>
+                  <Text style={styles.settingDescription}>The default for tracks you have not set individually. The one playing only changes on the next track.</Text>
+                </View>
+                <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
+              </View>
+              <BandasDoEqualizador ganhos={padraoGanhos} aoMudarGanhos={(g) => setEqGanhos(g, true)} />
             </View>
           </SettingsCard>
           

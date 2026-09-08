@@ -18,6 +18,7 @@ import {
   getShuffleInteligente,
   getPlaybackRate,
   getEqGanhos,
+  getEqPadrao,
   getCrossfadeSegundos,
   getVolumeNormalization,
   loadPrefsCache,
@@ -168,8 +169,9 @@ export default function App() {
       getVolumeNormalization(),
       getPlaybackRate(),
       getEqGanhos(),
+      getEqPadrao(),
       getCrossfadeSegundos(),
-    ]).then(([repeatMode, shuffle, shuffleInteligente, showRewindButton, autoplayRadio, volumeNormalization, playbackRate, eqGanhos, crossfadeSegundos]) => {
+    ]).then(([repeatMode, shuffle, shuffleInteligente, showRewindButton, autoplayRadio, volumeNormalization, playbackRate, eqGanhos, eqPadrao, crossfadeSegundos]) => {
       const player = usePlayer.getState();
       player.setRepeatMode(repeatMode);
       player.setShuffle(shuffle);
@@ -184,7 +186,11 @@ export default function App() {
       // O player lê isto a cada tique, dentro de um intervalo: tem de estar
       // na store e não só nas preferências.
       usePlayer.setState({ crossfadeSegundos });
-      player._carregarAjustes({},eqGanhos,playbackRate);
+      // O `getEqGanhos` continua a ser chamado por causa da limpeza da chave
+      // legada que ele faz -- devolve sempre plano. Quem manda no padrão é o
+      // `getEqPadrao`, que é a definição que alguém escolheu de propósito.
+      void eqGanhos;
+      player._carregarAjustes({},eqPadrao,playbackRate);
       setPreferencesReady(true);
     });
 

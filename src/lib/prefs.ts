@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from './crossfade';
 import { arredondar as arredondarRate, daPreferenciaAntiga } from './playbackRate';
 import {
-  daPersistencia, ganhosPorOmissao,
+  daPersistencia, ganhosPorOmissao, normalizar as normalizarGanhos,
   type MemoriaDeAjustes,
 } from './equalizer';
 
@@ -24,6 +24,8 @@ const KEY_SOUND_PRESET = 'pref:soundPreset';
 // Substituiu o KEY_SOUND_PRESET; a chave velha so e lida para migrar.
 const KEY_PLAYBACK_RATE = 'pref:playbackRate';
 const KEY_EQ_GANHOS = 'pref:eqGanhos';
+/** O equalizador base das Definicoes. Chave NOVA -- ver `getEqPadrao`. */
+const KEY_EQ_PADRAO = 'pref:eqPadrao';
 const KEY_AJUSTES_FAIXA = 'pref:ajustesPorFaixa';
 // Chave antiga, escrita à mão pelo ecrã de Definições antes de haver getter.
 const KEY_KEEP_AWAKE = 'pref:keepAwake';
@@ -158,6 +160,37 @@ export async function getEqGanhos(): Promise<number[]> {
   // o arranque continua plano.
   await AsyncStorage.removeItem(KEY_EQ_GANHOS).catch(() => {});
   return ganhosPorOmissao();
+}
+
+/**
+ * O equalizador base, escolhido nas Definições e aplicado a todas as faixas
+ * que não tenham o seu.
+ *
+ * **Chave nova, e é de propósito.** A antiga (`pref:eqGanhos`, logo acima)
+ * continua a ser apagada a cada arranque e não se toca nela: ali guardava-se a
+ * curva ACTIVA sem ninguém a ter escolhido como padrão, e o resultado foi um
+ * ajuste de uma faixa a passar a valer para a app inteira. Aqui só entra o que
+ * alguém foi mexer às Definições de propósito, o que é outra coisa.
+ *
+ * Isto vive num `pref:` e por isso já viaja para a conta pelo `lib/prefsSync`
+ * -- o que resolve a reinstalação. O que ainda NÃO resolve é dois aparelhos
+ * vivos: a fusão do `prefsFusao` só escreve localmente uma chave que o
+ * aparelho não tenha. Ver o comentário no `state/player.ts`.
+ */
+export async function getEqPadrao(): Promise<number[]> {
+  try {
+    const guardado = await AsyncStorage.getItem(KEY_EQ_PADRAO);
+    if (!guardado) return ganhosPorOmissao();
+    const lido = JSON.parse(guardado);
+    return Array.isArray(lido) ? normalizarGanhos(lido) : ganhosPorOmissao();
+  } catch {
+    // Guardado ilegível: o padrão é plano, como sempre foi.
+    return ganhosPorOmissao();
+  }
+}
+
+export async function setEqPadrao(ganhos: readonly number[]): Promise<void> {
+  await AsyncStorage.setItem(KEY_EQ_PADRAO, JSON.stringify(normalizarGanhos(ganhos)));
 }
 
 /** O que cada faixa lembra: a velocidade e os ganhos com que a deixaste. */

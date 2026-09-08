@@ -47,6 +47,8 @@ import { clearDownloadedAudioCache, formatCacheSize, getAudioCacheBytes } from '
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
+import { Equalizador, ReporEqualizador } from '../components/Equalizador';
+import { PLANO } from '../lib/equalizer';
 import { usePlayer } from '../state/player';
 import { getLibrary } from '../api/library';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade';
@@ -89,6 +91,8 @@ export function SettingsScreen({ navigation }: Props) {
   // O padrao, e nao a velocidade da faixa a tocar: e isso que este controlo
   // define, e mostrar a outra fazia a barra saltar a cada mudanca de musica.
   const padraoRate = usePlayer((s) => s.padraoRate);
+  const padraoGanhos = usePlayer((s) => s.padraoGanhos);
+  const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   const sleepTimerTimeLeft = usePlayer((s) => s.sleepTimerTimeLeft);
   const setSleepTimer = usePlayer((s) => s.setSleepTimer);
@@ -409,6 +413,22 @@ export function SettingsScreen({ navigation }: Props) {
             <BarraVelocidade
               valor={padraoRate}
               aoMudar={(v) => setPlaybackRate(v, true)}
+            />
+
+            {/* O equalizador base. Mesmo sitio e mesmo padrao da velocidade
+                logo acima -- as duas sao o que vale para as faixas que nao
+                tenham o seu, e nenhuma delas mexe na que esta a tocar. */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }}>
+              <Label>Equalizador base</Label>
+              <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
+            </View>
+            <Text style={[type.caption, { marginBottom: spacing.sm }]}>
+              Aplica-se a todas as faixas que nao tenham equalizador proprio. A
+              que esta a tocar so muda na proxima.
+            </Text>
+            <Equalizador
+              ganhos={padraoGanhos}
+              aoMudar={(novo) => setEqGanhos(novo, true)}
             />
 
             <Label style={{ marginTop: spacing.md }}>

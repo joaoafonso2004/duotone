@@ -17,7 +17,7 @@ import { fetchRadioTracks } from '../api/radio';
 import { candidatasParaDescoberta } from '../api/descoberta';
 import {
   setShuffle as persistShuffle, setShuffleInteligente as persistShuffleInteligente,
-  setPlaybackRate as persistPlaybackRate,
+  setPlaybackRate as persistPlaybackRate, setEqPadrao as persistEqPadrao,
 } from '../lib/prefs';
 import { queueTrackAdjustment } from './trackAdjustments';
 import { movido } from '../lib/arrastarFila';
@@ -191,8 +191,12 @@ interface PlayerState {
   /** false quando o grafo do EQ nao pegou. A UI tem de o dizer em vez de
    * mostrar deslizadores que nao fazem nada. */
   eqAtivo: boolean;
-  /** Muda ESTA faixa e passa a lembrar-se dela. O padrão global é sempre Flat. */
-  setEqGanhos: (g: number[]) => void;
+  /**
+   * Sem `comoPadrao`: muda ESTA faixa e passa a lembrar-se dela.
+   * Com `comoPadrao`: muda só o equalizador base das Definições, que vale para
+   * as faixas que não tenham o seu -- e NÃO toca na que está a tocar.
+   */
+  setEqGanhos: (g: number[], comoPadrao?: boolean) => void;
   _carregarAjustes: (m: MemoriaDeAjustes, ganhos: number[], rate: number) => void;
   /** Progresso (0..1) do download da faixa atual, ou null se não está a descarregar. */
   downloadProgress: number | null;
@@ -1295,8 +1299,22 @@ export const usePlayer = create<PlayerState>()(
 
   _setDownloadProgress: (p) => set({ downloadProgress: p }),
 
-  setEqGanhos: (g) => {
+  setEqGanhos: (g, comoPadrao = false) => {
     const ganhos = normalizarGanhos(g);
+    if (comoPadrao) {
+      // SÓ o padrão -- é a mesma decisão, e a mesma razão, do `setPlaybackRate`
+      // aqui em baixo. Mexer na definição não pode alterar a música que está a
+      // tocar: é o que o próprio controlo promete ("aplica-se às faixas que não
+      // tenham equalizador próprio"), e escrever também o `eqGanhos` fazia dele
+      // um equalizador disfarçado de definição. O valor passa a valer a partir
+      // da faixa seguinte que não tenha ajuste seu -- ver `ajusteAoTocar`.
+      //
+      // Persistido aqui e não nos ecrãs de Definições: são dois, o do telemóvel
+      // e o do PC, e assim nenhum se pode esquecer.
+      set({ padraoGanhos: ganhos });
+      persistEqPadrao(ganhos).catch(() => {});
+      return;
+    }
     set({ eqGanhos: ganhos });
     void aplicarEqNoMotor(ganhos);
     lembrarDaFaixa();
