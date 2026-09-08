@@ -175,6 +175,16 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
   const velocidadeEscolhida = usePlayer((s) => s.playbackRate);
+  /**
+   * O percurso do shuffle é a fila, quando o shuffle está ligado.
+   *
+   * Faltava aqui, e passou a doer quando o arrasto começou a funcionar com o
+   * shuffle: o `reordenarProximas` mexe no `shuffleOrder` e não no `queue`,
+   * por isso reordenar não voltava a disparar o pré-carregamento -- e ficava
+   * a descarregar a música que ESTAVA a seguir, não a que passou a estar.
+   * Chegava-se depois a uma faixa sem ficheiro, com tudo o que isso traz.
+   */
+  const percursoDoShuffle = usePlayer((s) => s.shuffleOrder);
   const sessaoJam = useOuvirJuntos(s => s.sessao?.id);
   const filaJam = useOuvirJuntos(s => s.fila);
   // Acompanhado anda-se a 1x, e a preferência fica guardada à espera. A conta
@@ -1474,7 +1484,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [track.sourceId, backend, queue, queueIndex, shuffle, repeatMode, sessaoJam, filaJam]);
+  }, [track.sourceId, backend, queue, queueIndex, shuffle, percursoDoShuffle, repeatMode, sessaoJam, filaJam]);
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
   useEffect(() => {
