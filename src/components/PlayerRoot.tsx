@@ -163,6 +163,10 @@ export function PlayerRoot() {
   const [ancora, setAncora] = useState<Ancora | null>(null);
   /** O menu tem duas páginas: as acções, e as durações do temporizador. */
   const [paginaDoMenu, setPaginaDoMenu] = useState<'raiz' | 'sono'>('raiz');
+  // Aqui em cima, antes de qualquer `return`: um hook depois de uma saída
+  // antecipada muda a ordem dos hooks entre renderizações, e isso já pôs esta
+  // app a não arrancar uma vez. O lint apanhou-o -- foi para isto que entrou.
+  const depoisDeFechar = useRef<(() => void) | null>(null);
 
 
   const abrirOpcoes = () => {
@@ -710,15 +714,24 @@ export function PlayerRoot() {
   // upNext is now handled inside QueueSheet
 
   const fecharMenu = () => setOptionsVisible(false);
+  /**
+   * Fecha o menu e SÓ DEPOIS faz o resto.
+   *
+   * Abrir uma folha no mesmo toque punha o iOS a apresentar uma coisa
+   * enquanto outra saía. O que ficava era uma janela órfã e invisível a
+   * apanhar todos os toques: o som continuava e a app deixava de reagir ao
+   * dedo até ser reiniciada. Uma de cada vez.
+   */
+  const fecharEEntao = (fn: () => void) => { depoisDeFechar.current = fn; fecharMenu(); };
 
   const accoesDaFaixa: PlayerAction[] = [
     { label: 'Add to playlist', icon: 'add', onPress: () => {
       if (offline) { Alert.alert('Offline', 'Connect to the internet to edit playlists.'); return; }
-      fecharMenu(); setPlaylistOpen(true);
+      fecharEEntao(() => setPlaylistOpen(true));
     } },
     { label: 'Share with a friend', icon: 'paper-plane-outline', onPress: () => {
       if (offline) { Alert.alert('Offline', 'Connect to the internet to share.'); return; }
-      fecharMenu(); setPartilhaAberta(true);
+      fecharEEntao(() => setPartilhaAberta(true));
     } },
     // O estado vive na etiqueta e no ícone: um menu que diz sempre "Like"
     // deixa quem o abre sem saber se já lá está.
@@ -1377,6 +1390,7 @@ export function PlayerRoot() {
         visivel={optionsVisible}
         ancora={ancora}
         aoFechar={() => setOptionsVisible(false)}
+        aoFechado={() => { const fn = depoisDeFechar.current; depoisDeFechar.current = null; fn?.(); }}
         accoes={paginaDoMenu === 'sono' ? duracoesDoSono : accoesDaFaixa}
       />
       <AddToPlaylistSheet

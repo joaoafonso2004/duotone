@@ -88,6 +88,8 @@ export function SearchScreen() {
   const [ancoraDaMistura, setAncoraDaMistura] = useState<Ancora | null>(null);
   const [aGuardarMistura, setAGuardarMistura] = useState(false);
   const [playlistAPartilhar, setPlaylistAPartilhar] = useState<Playlist | null>(null);
+  /** Uma janela de cada vez -- ver `MenuFlutuante` e o `aoFechado`. */
+  const depoisDoMenu = useRef<(() => void) | null>(null);
 
   const guardarMistura = async (m: Mistura): Promise<Playlist | null> => {
     setAGuardarMistura(true);
@@ -586,13 +588,14 @@ export function SearchScreen() {
         visivel={!!misturaAberta}
         ancora={ancoraDaMistura}
         aoFechar={() => setMisturaAberta(null)}
+        aoFechado={() => { const fn = depoisDoMenu.current; depoisDoMenu.current = null; fn?.(); }}
         accoes={[
           { label: aGuardarMistura ? 'Saving…' : 'Save to your library', icon: 'bookmark-outline',
             disabled: aGuardarMistura,
             onPress: () => {
               const m = misturaAberta;
+              depoisDoMenu.current = () => { if (m) void guardarMistura(m); };
               setMisturaAberta(null);
-              if (m) void guardarMistura(m);
             } },
           // Guarda antes, e a etiqueta di-lo. Partilhar uma coisa que só
           // existe neste telemóvel não é possível, e esconder isso atrás de um
@@ -602,9 +605,11 @@ export function SearchScreen() {
             disabled: aGuardarMistura,
             onPress: () => {
               const m = misturaAberta;
+              depoisDoMenu.current = () => {
+                if (!m) return;
+                void guardarMistura(m).then((pl) => { if (pl) setPlaylistAPartilhar(pl); });
+              };
               setMisturaAberta(null);
-              if (!m) return;
-              void guardarMistura(m).then((pl) => { if (pl) setPlaylistAPartilhar(pl); });
             } },
         ]}
       />

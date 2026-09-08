@@ -40,11 +40,21 @@ const MARGEM = 12;
  * espaço em baixo, sobe. Sem isto nasceria sempre no mesmo sítio e a ligação
  * entre o que se tocou e o que abriu perdia-se.
  */
-export function MenuFlutuante({ visivel, ancora, accoes, aoFechar }: {
+export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: {
   visivel: boolean;
   ancora: Ancora | null;
   accoes: PlayerAction[];
   aoFechar: () => void;
+  /**
+   * Chamado quando o menu saiu MESMO do ecrã.
+   *
+   * É por aqui que se abre uma folha a seguir a uma escolha, e não no toque.
+   * Abrir uma no mesmo instante em que este fecha punha o iOS a apresentar
+   * uma coisa enquanto outra saía -- e o que ficava era uma janela órfã,
+   * invisível, a apanhar todos os toques. O som continuava e a app deixava de
+   * reagir ao dedo até ser reiniciada.
+   */
+  aoFechado?: () => void;
 }) {
   const { width, height } = useWindowDimensions();
   const reduzido = useReducedMotion();
@@ -52,6 +62,9 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar }: {
   // O `Modal` só desmonta quando a saída acaba: fechá-lo no toque cortava a
   // animação a meio e o menu desaparecia de um fotograma para o outro.
   const [montado, setMontado] = React.useState(visivel);
+
+  const fechadoRef = React.useRef(aoFechado);
+  fechadoRef.current = aoFechado;
 
   React.useEffect(() => {
     if (visivel) {
@@ -61,14 +74,26 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar }: {
       mola.start();
       return () => mola.stop();
     }
-    if (!montado) return;
-    if (reduzido) { entrada.setValue(0); setMontado(false); return; }
-    // A saída é mais rápida do que a entrada, e de propósito: a entrada tem de
-    // se ver para se perceber de onde veio; a saída já não tem nada a dizer.
+    // Desmontar SEMPRE, tenha a animação acabado ou não.
+    //
+    // Antes o `setMontado(false)` estava dentro do `finished`, e uma animação
+    // interrompida deixava o `Modal` montado com opacidade zero -- invisível,
+    // e com um `Pressable` do tamanho do ecrã a engolir tudo. A saída é
+    // decoração; desaparecer não é, e não pode depender de ela correr até ao
+    // fim.
+    const desmontar = () => {
+      setMontado(false);
+      fechadoRef.current?.();
+    };
+    if (reduzido) { entrada.setValue(0); desmontar(); return; }
     const saida = Animated.timing(entrada, { toValue: 0, duration: 130, useNativeDriver: true });
-    saida.start(({ finished }) => { if (finished) setMontado(false); });
+    saida.start(desmontar);
     return () => saida.stop();
-  }, [visivel, reduzido, entrada, montado]);
+    // O `montado` NÃO entra aqui: mudá-lo dentro do efeito voltava a
+    // dispará-lo, e a limpeza parava a animação que ele próprio tinha
+    // começado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visivel, reduzido, entrada]);
 
   if (!montado || !ancora) return null;
 
