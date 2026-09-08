@@ -56,10 +56,20 @@ function paginasDe<T>(lista: readonly T[], n: number): T[][] {
 }
 
 export function SearchScreen() {
-  // A página ocupa a largura do ecrã: com `pagingEnabled` cada paragem tem de
-  // cair exactamente numa página, e para isso a largura tem de ser a mesma que
-  // o `ScrollView` mede. O `TrackRow` já tem o seu próprio recuo lateral.
-  const larguraDaPagina = useWindowDimensions().width;
+  /**
+   * A página é mais estreita do que o ecrã, e a diferença é o ponto.
+   *
+   * Com `pagingEnabled` cada página ocupava o ecrã inteiro e não sobrava nada
+   * para se ver da seguinte -- e três linhas sem nada à direita lêem-se como
+   * "só há três músicas". O que diz que há mais não é o "See all": é a capa
+   * seguinte a assomar na margem.
+   *
+   * Por isso o encaixe passa a ser à mão: `snapToInterval` na largura da
+   * página mais o intervalo, em vez do `pagingEnabled`, que só sabe encaixar
+   * na largura do `ScrollView`.
+   */
+  const espreitadela = 44;
+  const larguraDaPagina = useWindowDimensions().width - espreitadela;
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
@@ -138,9 +148,11 @@ export function SearchScreen() {
           // cabem trinta no espaço de três, sem sair do ecrã.
           <ScrollView
             horizontal
-            pagingEnabled
             showsHorizontalScrollIndicator={false}
             decelerationRate="fast"
+            snapToInterval={larguraDaPagina}
+            snapToAlignment="start"
+            disableIntervalMomentum
           >
             {paginasDe(data, LINHAS_NA_LISTA).map((pagina, n) => (
               <View key={n} style={{ width: larguraDaPagina }}>
