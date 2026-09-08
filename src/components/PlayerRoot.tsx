@@ -44,7 +44,8 @@ import { YouTubePlayerView } from './YouTubePlayerView';
 import {ArtworkLyricsCube} from './ArtworkLyricsCube';
 import { QueueSheet } from './QueueSheet';
 import { PlayerControlRow } from './PlayerControlRow';
-import { PlayerActionsSheet } from './PlayerActionsSheet';
+import { PlayerActionsSheet, type PlayerAction } from './PlayerActionsSheet';
+import { MenuFlutuante, type Ancora } from './MenuFlutuante';
 import { EqualizerIcon } from './EqualizerIcon';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { EstrelaInteligente } from './BrilhoInteligente';
@@ -156,6 +157,25 @@ export function PlayerRoot() {
 
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
+  const sleepTimerTimeLeft = usePlayer((st) => st.sleepTimerTimeLeft);
+  const setSleepTimer = usePlayer((st) => st.setSleepTimer);
+  const ancoraDasOpcoes = useRef<View>(null);
+  const [ancora, setAncora] = useState<Ancora | null>(null);
+  /** O menu tem duas páginas: as acções, e as durações do temporizador. */
+  const [paginaDoMenu, setPaginaDoMenu] = useState<'raiz' | 'sono'>('raiz');
+
+
+  const abrirOpcoes = () => {
+    hapticSelection();
+    setPaginaDoMenu('raiz');
+    // Medido no ECRÃ, que é onde o menu se vai colocar. Se a medição falhar
+    // não se abre nada: um menu no canto superior esquerdo, longe do botão
+    // que se tocou, seria pior do que menu nenhum.
+    ancoraDasOpcoes.current?.measureInWindow((x, y, width, height) => {
+      setAncora({ x, y, width, height });
+      setOptionsVisible(true);
+    });
+  };
   const [partilhaAberta, setPartilhaAberta] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   const [bodyHeight, setBodyHeight] = useState(0);
@@ -689,6 +709,38 @@ export function PlayerRoot() {
 
   // upNext is now handled inside QueueSheet
 
+  const fecharMenu = () => setOptionsVisible(false);
+
+  const accoesDaFaixa: PlayerAction[] = [
+    { label: 'Add to playlist', icon: 'add', onPress: () => {
+      if (offline) { Alert.alert('Offline', 'Connect to the internet to edit playlists.'); return; }
+      fecharMenu(); setPlaylistOpen(true);
+    } },
+    { label: 'Share with a friend', icon: 'paper-plane-outline', onPress: () => {
+      if (offline) { Alert.alert('Offline', 'Connect to the internet to share.'); return; }
+      fecharMenu(); setPartilhaAberta(true);
+    } },
+    // O estado vive na etiqueta e no ícone: um menu que diz sempre "Like"
+    // deixa quem o abre sem saber se já lá está.
+    { label: saved ? 'Remove from Library' : 'Like', icon: saved ? 'heart' : 'heart-outline',
+      onPress: () => { fecharMenu(); void saveCurrentToLibrary(); } },
+    { label: sleepTimerTimeLeft > 0 ? `Sleep timer · ${Math.ceil(sleepTimerTimeLeft / 60000)} min` : 'Sleep timer',
+      icon: 'moon-outline', onPress: () => setPaginaDoMenu('sono') },
+    { label: 'Close player', icon: 'close', onPress: () => { fecharMenu(); void close(); } },
+  ];
+
+  /** A segunda página. Fica no mesmo menu em vez de abrir outro: o
+   *  temporizador é uma escolha DENTRO das opções, não um destino novo. */
+  const duracoesDoSono: PlayerAction[] = [
+    { label: 'Off', icon: 'close-circle-outline',
+      onPress: () => { setSleepTimer(0); fecharMenu(); } },
+    ...[15, 30, 45, 60].map((min) => ({
+      label: `${min} minutes`,
+      icon: 'moon-outline' as const,
+      onPress: () => { setSleepTimer(min); fecharMenu(); },
+    })),
+  ];
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* ===================== OVERLAY EXPANDIDO ===================== */}
@@ -748,9 +800,9 @@ export function PlayerRoot() {
               {APP_NAME.toUpperCase()}
             </Text>
           </View>
-          <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel="Player options" onPress={() => { hapticSelection(); setOptionsVisible(true); }} style={styles.headerBtn}>
-            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textSecondary} />
-          </Toque>
+          {/* O canto fica vazio de propósito: as opções desceram para junto
+              do título, que é onde o polegar chega e onde elas agem. */}
+          <View style={styles.headerBtn} />
         </View>
 
 
@@ -846,25 +898,21 @@ export function PlayerRoot() {
                   </Toque>
                 )}
               </View>
-              <Toque
-                escala={ESCALA.botao}
-                onPress={saveCurrentToLibrary}
-                style={[styles.actionsBtn, saved && styles.actionsBtnActive]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: saved }}
-                accessibilityLabel={saved ? 'Saved to Library' : 'Save to Library'}
-              >
-                {/* Salta ao guardar, como o shuffle salta ao ligar. O repeat
-                    nao salta: percorrer tres modos e informacao, nao uma
-                    escolha que se celebra -- e um icone a saltar de cada vez
-                    que se passa por ele deixaria de querer dizer nada. */}
-                <StateIcon
-                  pulsar={saved}
-                  name={saved ? 'heart' : 'heart-outline'}
-                  size={20}
-                  color={colors.text}
-                />
-              </Toque>
+              {/* As reticências vivem aqui e não no cabeçalho.
+                  No canto superior direito estavam no ponto mais longe do
+                  polegar de quem segura o telemóvel, e longe daquilo sobre
+                  que agem. Ao lado do título estão nas duas coisas. */}
+              <View ref={ancoraDasOpcoes} collapsable={false}>
+                <Toque
+                  escala={ESCALA.botao}
+                  onPress={abrirOpcoes}
+                  style={styles.actionsBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Track options"
+                >
+                  <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
+                </Toque>
+              </View>
             </View>
 
             {/* Barra de Progresso */}
@@ -898,7 +946,13 @@ export function PlayerRoot() {
                   pulsar={shuffle}
                   name="shuffle"
                   size={22}
-                  color={shuffle ? colors.text : colors.textTertiary}
+                  // Duas cores e duas só: branco é "podes carregar", a cor
+                  // do tema é "está ligado". Os 34% que estavam aqui são os
+                  // mesmos que a app usa para DESACTIVADO -- e um interruptor
+                  // desligado não está desactivado, está disponível. Era isso
+                  // que fazia o shuffle parecer que não respondia, ao lado de
+                  // um anterior e um seguinte brancos.
+                  color={shuffle ? theme.color : colors.text}
                 />
                 {shuffleInteligente && (
                   <View style={{ position: 'absolute', top: 5, right: 4 }}>
@@ -971,7 +1025,7 @@ export function PlayerRoot() {
                 <StateIcon
                   name="repeat" 
                   size={22}
-                  color={repeatMode === 'off' ? colors.textTertiary : colors.text}
+                  color={repeatMode === 'off' ? colors.text : theme.color}
                 />
                 {repeatMode === 'one' ? (
                   <View style={styles.repeatOneBadge}>
@@ -1009,7 +1063,7 @@ export function PlayerRoot() {
                 }}
                 style={styles.utilityIconBtn}
               >
-                <Ionicons name="list-outline" size={23} color={colors.textSecondary} />
+                <Ionicons name="list-outline" size={23} color={colors.text} />
                 <Text style={styles.utilityIconLabel}>Queue</Text>
               </Toque>
               <View />
@@ -1304,21 +1358,11 @@ export function PlayerRoot() {
       ) : null}
 
       {/* ===================== ADICIONAR A PLAYLIST ===================== */}
-      <PlayerActionsSheet
-        visible={optionsVisible}
-        title="Player options"
-        onClose={() => setOptionsVisible(false)}
-        actions={[
-          { label: 'Add to playlist', icon: 'add', onPress: () => {
-            if (offline) { Alert.alert('Offline', 'Connect to the internet to edit playlists.'); return; }
-            setOptionsVisible(false); setPlaylistOpen(true);
-          } },
-          { label: 'Partilhar com um amigo', icon: 'paper-plane-outline', onPress: () => {
-            if (offline) { Alert.alert('Offline', 'Connect to the internet to share.'); return; }
-            setOptionsVisible(false); setPartilhaAberta(true);
-          } },
-          { label: 'Close player', icon: 'close', onPress: () => { setOptionsVisible(false); void close(); } },
-        ]}
+      <MenuFlutuante
+        visivel={optionsVisible}
+        ancora={ancora}
+        aoFechar={() => setOptionsVisible(false)}
+        accoes={paginaDoMenu === 'sono' ? duracoesDoSono : accoesDaFaixa}
       />
       <AddToPlaylistSheet
         visible={playlistOpen}
