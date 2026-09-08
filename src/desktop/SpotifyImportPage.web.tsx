@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { addTracksToPlaylist, createPlaylist, deletePlaylist, listPlaylists } from '../api/playlists';
+import { addTracksToPlaylist, createPlaylist, deletePlaylist } from '../api/playlists';
+import { usePlaylists } from '../state/playlists';
 import { searchYouTubeFreeWithChannel } from '../api/ytSearchFree';
 import { parseSpotifyCsv, type SpotifyCsvRow } from '../lib/spotifyCsv';
 import {
@@ -56,7 +57,8 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
   const resolved = useRef(new Map<string, ImportedTrack>());
 
   useEffect(() => {
-    listPlaylists().then(setPlaylists).catch(() => {});
+    void usePlaylists.getState().carregar()
+      .then(() => setPlaylists(usePlaylists.getState().items)).catch(() => {});
     return () => abort.current?.abort();
   }, []);
 

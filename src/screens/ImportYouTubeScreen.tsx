@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addTracksToPlaylist,
   createPlaylist,
-  listPlaylists,
 } from '../api/playlists';
 import { fetchYouTubePlaylist, YtPlaylistImport } from '../api/youtube';
 import { extractArtist } from '../lib/artistName';
@@ -33,6 +32,7 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, radii, spacing, type, MINI_PLAYER_HEIGHT } from '../theme';
 import { useTheme } from '../state/theme';
 import { usePlayer } from '../state/player';
+import { usePlaylists } from '../state/playlists';
 import type { Playlist, Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ImportYouTube'>;
@@ -119,7 +119,9 @@ export function ImportYouTubeScreen({ navigation }: Props) {
 
   const openPicker = async () => {
     try {
-      setPlaylists(await listPlaylists());
+      // Pela store: quem vem do ecra de Playlists ja a trouxe carregada.
+      await usePlaylists.getState().carregar();
+      setPlaylists(usePlaylists.getState().items);
       setPickerOpen(true);
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Could not load playlists.');

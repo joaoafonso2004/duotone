@@ -4,7 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
 import { displayArtist } from '../lib/artistName';
-import { addTracksToPlaylist, createPlaylist, deletePlaylist, getPlaylistTracks, importSharedPlaylist, listPlaylists, removeTrackFromPlaylist, renamePlaylist } from '../api/playlists';
+import { addTracksToPlaylist, createPlaylist, deletePlaylist, getPlaylistTracks, importSharedPlaylist, removeTrackFromPlaylist, renamePlaylist } from '../api/playlists';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
 import { getLibrary, getLikedSongs, removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
 import { fetchYouTubePlaylist, searchYouTube } from '../api/youtube';
@@ -46,6 +46,7 @@ import { historico, limparHistorico, relatorio, resumo } from '../lib/playbackDi
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
+import { usePlaylists } from '../state/playlists';
 import { useTheme } from '../state/theme';
 import type { Playlist, Track } from '../types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -361,7 +362,8 @@ function DesktopShell() {
     // ficava por apanhar e carregar no botao nao fazia NADA -- nem abria, nem
     // dizia porque nao. Abre-se na mesma: o dialogo sabe mostrar-se vazio.
     try {
-      setPlaylists(await listPlaylists());
+      await usePlaylists.getState().carregar();
+      setPlaylists(usePlaylists.getState().items);
     } catch (e: any) {
       setPlaylists([]);
       notify(e?.message || 'Could not load your playlists.');

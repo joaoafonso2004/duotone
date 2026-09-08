@@ -5,7 +5,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { fetchYouTubePlaylist } from '../../api/youtube';
-import { addTracksToPlaylist, createPlaylist, listPlaylists } from '../../api/playlists';
+import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
+import { usePlaylists } from '../../state/playlists';
 import { useTheme } from '../../state/theme';
 import type { Playlist } from '../../types';
 import { styles } from '../estilos.web';
@@ -15,7 +16,7 @@ export function ImportPage({ back, notify }: { back: () => void; notify: (s: str
   const [url, setUrl] = useState(''); const [loading, setLoading] = useState(false); const [preview, setPreview] = useState<any>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]); const [target, setTarget] = useState<string>('');
   const [newPlName, setNewPlName] = useState(''); const [creatingNew, setCreatingNew] = useState(false);
   const theme = useTheme((s) => s.theme);
-  const refreshPlaylists = () => { listPlaylists().then((p) => { setPlaylists(p); if (p.length && !target) setTarget(p[0].id); }); };
+  const refreshPlaylists = () => { void usePlaylists.getState().carregar(true).then(() => { const p = usePlaylists.getState().items; setPlaylists(p); if (p.length && !target) setTarget(p[0].id); }); };
   useEffect(() => { refreshPlaylists(); }, []);
   const inspect = async () => { setLoading(true); try { setPreview(await fetchYouTubePlaylist(url)); } catch (e: any) { notify(e?.message || 'Could not read playlist.'); } finally { setLoading(false); } };
   const runImport = async () => {
