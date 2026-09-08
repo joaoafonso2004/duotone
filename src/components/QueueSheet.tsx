@@ -16,9 +16,18 @@ import { hapticSelection } from '../lib/haptics';
 interface Props {
   visible: boolean;
   onClose: () => void;
+  /**
+   * A saída para a folha da sessão.
+   *
+   * Numa sessão esta fila é só de leitura: a ordem é de toda a gente e mexer
+   * nela daqui, sem as regras de quem pode o quê, era dar controlo por uma
+   * porta lateral. Sem esta saída, quem abrisse a fila dentro de um jam via
+   * uma lista que não pode tocar e nenhuma pista de onde é que pode.
+   */
+  onOpenSession?: () => void;
 }
 
-export function QueueSheet({ visible, onClose }: Props) {
+export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
   const current = usePlayer((s) => s.current);
   const queue = usePlayer((s) => s.queue);
   const queueIndex = usePlayer((s) => s.queueIndex);
@@ -120,10 +129,17 @@ export function QueueSheet({ visible, onClose }: Props) {
         <Text style={styles.emptyText}>Nothing playing</Text>
       )}
 
-      <Text style={[type.micro, styles.sectionTitle, { marginTop: spacing.lg }]}>
-        UP NEXT ({upNext.length})
-        {emSessao ? ' · SHARED' : radioActive ? ' · RADIO' : ''}
-      </Text>
+      <View style={styles.tituloDaFila}>
+        <Text style={[type.micro, styles.sectionTitle, { flex: 1, marginBottom: 0 }]}>
+          UP NEXT ({upNext.length})
+          {emSessao ? ' · SHARED' : radioActive ? ' · RADIO' : ''}
+        </Text>
+        {emSessao && onOpenSession && (
+          <Pressable hitSlop={10} onPress={onOpenSession}>
+            <Text style={styles.irParaSessao}>Manage</Text>
+          </Pressable>
+        )}
+      </View>
 
       {upNext.length > 0 ? (
         <FlatList
@@ -239,6 +255,16 @@ const styles = StyleSheet.create({
   },
   list: {
     maxHeight: 300,
+  },
+  tituloDaFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    marginBottom: spacing.xs,
+  },
+  irParaSessao: {
+    ...type.caption,
+    color: colors.textSecondary,
   },
   emptyText: {
     ...type.caption,

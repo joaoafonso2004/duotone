@@ -43,6 +43,9 @@ import { ProgressBar } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
 import {ArtworkLyricsCube} from './ArtworkLyricsCube';
 import { QueueSheet } from './QueueSheet';
+import { PlayerControlRow } from './PlayerControlRow';
+import { PlayerActionsSheet } from './PlayerActionsSheet';
+import { EqualizerIcon } from './EqualizerIcon';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { EstrelaInteligente } from './BrilhoInteligente';
 import { EqualizadorSheet } from './EqualizadorSheet';
@@ -152,6 +155,7 @@ export function PlayerRoot() {
   const pulse = useRef(new Animated.Value(1)).current;
 
   const [playlistOpen, setPlaylistOpen] = useState(false);
+  const [optionsVisible, setOptionsVisible] = useState(false);
   const [partilhaAberta, setPartilhaAberta] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   const [queueVisible, setQueueVisible] = useState(false);
@@ -722,25 +726,25 @@ export function PlayerRoot() {
         <View
           style={[styles.fullHeader, { marginTop: insets.top + 6 }]}
         >
-          <Toque escala={ESCALA.icone} hitSlop={12} onPress={() => setExpanded(false)} style={styles.headerBtn}>
+          <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel="Minimize player" onPress={() => setExpanded(false)} style={styles.headerBtn}>
             <Ionicons name="chevron-down" size={24} color={colors.text} />
           </Toque>
           {/* Marca empilhada: símbolo em cima, nome por baixo, ambos ao
               centro. O ficheiro é quadrado com a marca ao centro (ocupa 84%
               da largura), por isso a caixa também é quadrada -- numa caixa
               larga o `contain` encolhia-a até não se ver. */}
-          <View style={[styles.headerCenter, { flexDirection: 'column', alignItems: 'center', gap: 1 }]}>
+          <View style={styles.headerCenter}>
             <Image
               source={require('../../assets/auth-logo.png')}
               style={{ width: 22, height: 22 }}
               contentFit="contain"
             />
-            <Text style={[type.micro, { letterSpacing: 1, fontWeight: '700' }]}>
+            <Text style={styles.brandName}>
               {APP_NAME.toUpperCase()}
             </Text>
           </View>
-          <Toque escala={ESCALA.icone} hitSlop={12} onPress={close} style={styles.headerBtn}>
-            <Ionicons name="close" size={22} color={colors.textSecondary} />
+          <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel="Player options" onPress={() => { hapticSelection(); setOptionsVisible(true); }} style={styles.headerBtn}>
+            <Ionicons name="ellipsis-horizontal" size={22} color={colors.textSecondary} />
           </Toque>
         </View>
 
@@ -789,9 +793,7 @@ export function PlayerRoot() {
         <View style={styles.staticBody}>
           {/* Grupo Principal: Título + Ações, Barra de Progresso e Controlos de Reprodução */}
           <View style={styles.mainControlsGroup}>
-            {/* título + ações visíveis (guardar / adicionar a playlist) */}
-            {/* O título ocupa a largura toda. As ações estavam à direita dele
-                e, com duas linhas de título, empurravam-se uma à outra. */}
+            {/* O título pode ocupar duas linhas; o coração tem um alvo fixo. */}
             <View style={styles.titleRow}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Pressable
@@ -831,15 +833,12 @@ export function PlayerRoot() {
                   </Toque>
                 )}
               </View>
-            </View>
-
-            {/* Guardar, juntar a uma playlist, mandar a alguém. */}
-            <View style={styles.accoesRow}>
               <Toque
                 escala={ESCALA.botao}
-                hitSlop={8}
                 onPress={saveCurrentToLibrary}
                 style={[styles.actionsBtn, saved && styles.actionsBtnActive]}
+                accessibilityRole="button"
+                accessibilityState={{ selected: saved }}
                 accessibilityLabel={saved ? 'Saved to Library' : 'Save to Library'}
               >
                 {/* Salta ao guardar, como o shuffle salta ao ligar. O repeat
@@ -852,24 +851,6 @@ export function PlayerRoot() {
                   size={20}
                   color={colors.text}
                 />
-              </Toque>
-              <Toque
-                escala={ESCALA.botao}
-                hitSlop={8}
-                onPress={() => {if(offline)Alert.alert('Offline','Connect to the internet to edit playlists.');else setPlaylistOpen(true);}}
-                style={styles.actionsBtn}
-                accessibilityLabel="Add to playlist"
-              >
-                <Ionicons name="add" size={22} color={colors.text} />
-              </Toque>
-              <Toque
-                escala={ESCALA.botao}
-                hitSlop={8}
-                onPress={() => {if(offline)Alert.alert('Offline','Connect to the internet to share.');else setPartilhaAberta(true);}}
-                style={styles.actionsBtn}
-                accessibilityLabel="Partilhar com um amigo"
-              >
-                <Ionicons name="paper-plane-outline" size={19} color={colors.text} />
               </Toque>
             </View>
 
@@ -885,14 +866,16 @@ export function PlayerRoot() {
 
             {/* Controlos: shuffle · anterior · play · seguinte · repeat */}
             <View style={styles.controls}>
+              <PlayerControlRow>
               {/* Três estados: apagado, ligado, e inteligente — este último
                   com uma estrelinha ao canto, que é como o Spotify o mostra e
                   como o João o conhece. Sem a estrela, ligar o inteligente não
                   se distinguia do normal e ninguém saberia em que modo está. */}
               <Toque
                 escala={ESCALA.icone}
-                hitSlop={12}
+                style={styles.transportButton}
                 onPress={onToggleShuffle}
+                accessibilityRole="button"
                 accessibilityLabel={rotuloDoModo(modoDeShuffle(shuffle, shuffleInteligente))}
               >
                 {/* Salta ao LIGAR e nao ao desligar. Ligar o shuffle e uma
@@ -915,12 +898,11 @@ export function PlayerRoot() {
                 escala={ESCALA.icone}
                 accessibilityRole="button"
                 accessibilityLabel="Previous track"
-                hitSlop={14}
                 onPress={prev}
                 disabled={repeatMode === 'off' && !shuffle && queueIndex === 0}
-                style={
+                style={[styles.transportButton,
                   repeatMode === 'off' && !shuffle && queueIndex === 0 && styles.dimmed
-                }
+                ]}
               >
                 <Ionicons name="play-skip-back" size={28} color={colors.text} />
               </Toque>
@@ -938,7 +920,7 @@ export function PlayerRoot() {
                 <StateIcon
                   rodar
                   name={isPlaying ? 'pause' : 'play'}
-                  size={30}
+                  size={23}
                   color={colors.bg}
                   style={!isPlaying && { marginLeft: 3 }}
                 />
@@ -948,24 +930,23 @@ export function PlayerRoot() {
                 escala={ESCALA.icone}
                 accessibilityRole="button"
                 accessibilityLabel="Next track"
-                hitSlop={14}
                 onPress={next}
                 disabled={
                   repeatMode === 'off' && !shuffle && queueIndex >= queue.length - 1
                 }
-                style={
+                style={[styles.transportButton,
                   repeatMode === 'off' &&
                   !shuffle &&
                   queueIndex >= queue.length - 1 &&
                   styles.dimmed
-                }
+                ]}
               >
                 <Ionicons name="play-skip-forward" size={28} color={colors.text} />
               </Toque>
 
               <Toque
                 escala={ESCALA.icone}
-                hitSlop={12}
+                style={styles.transportButton}
                 onPress={onCycleRepeat}
                 accessibilityRole="button"
                 accessibilityState={{ selected: repeatMode !== 'off' }}
@@ -985,6 +966,7 @@ export function PlayerRoot() {
                   </View>
                 ) : null}
               </Toque>
+              </PlayerControlRow>
             </View>
           </View>
 
@@ -1002,33 +984,37 @@ export function PlayerRoot() {
               </Toque>
             ) : null}
 
-            <View style={styles.utilityRow}>
+            <PlayerControlRow>
+              <View />
               <Toque
-                escala={ESCALA.botao}
-                hitSlop={12}
+                escala={ESCALA.icone}
+                accessibilityRole="button"
+                accessibilityLabel="Queue"
                 onPress={() => {
                   hapticSelection();
                   setQueueVisible(true);
                 }}
-                style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
+                style={styles.utilityIconBtn}
               >
-                <Ionicons name="list" size={18} color={theme.color} />
-                <Text style={[styles.utilityIconLabel, { color: theme.color }]}>Queue</Text>
+                <Ionicons name="list-outline" size={23} color={colors.textSecondary} />
+                <Text style={styles.utilityIconLabel}>Queue</Text>
               </Toque>
-
+              <View />
               <Toque
-                escala={ESCALA.botao}
-                hitSlop={12}
+                escala={ESCALA.icone}
+                accessibilityRole="button"
+                accessibilityLabel="EQ"
                 onPress={() => {
                   hapticSelection();
                   setEqVisible(true);
                 }}
-                style={[styles.utilityIconBtn, { backgroundColor: theme.soft }]}
+                style={styles.utilityIconBtn}
               >
-                <Ionicons name="options-outline" size={18} color={theme.color} />
-                <Text style={[styles.utilityIconLabel, { color: theme.color }]}>EQ</Text>
+                <EqualizerIcon />
+                <Text style={styles.utilityIconLabel}>EQ</Text>
               </Toque>
-            </View>
+              <View />
+            </PlayerControlRow>
           </View>
         </View>
       </Animated.View>
@@ -1305,6 +1291,22 @@ export function PlayerRoot() {
       ) : null}
 
       {/* ===================== ADICIONAR A PLAYLIST ===================== */}
+      <PlayerActionsSheet
+        visible={optionsVisible}
+        title="Player options"
+        onClose={() => setOptionsVisible(false)}
+        actions={[
+          { label: 'Add to playlist', icon: 'add', onPress: () => {
+            if (offline) { Alert.alert('Offline', 'Connect to the internet to edit playlists.'); return; }
+            setOptionsVisible(false); setPlaylistOpen(true);
+          } },
+          { label: 'Partilhar com um amigo', icon: 'paper-plane-outline', onPress: () => {
+            if (offline) { Alert.alert('Offline', 'Connect to the internet to share.'); return; }
+            setOptionsVisible(false); setPartilhaAberta(true);
+          } },
+          { label: 'Close player', icon: 'close', onPress: () => { setOptionsVisible(false); void close(); } },
+        ]}
+      />
       <AddToPlaylistSheet
         visible={playlistOpen}
         track={current}
@@ -1323,6 +1325,7 @@ export function PlayerRoot() {
       <QueueSheet
         visible={queueVisible}
         onClose={() => setQueueVisible(false)}
+        onOpenSession={() => { setQueueVisible(false); setSessaoAberta(true); }}
       />
 
       {/* ===================== EQUALIZADOR E VELOCIDADE ===================== */}
@@ -1409,9 +1412,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerCenter: {
-    flexDirection: 'row',
+    // Empilhada: símbolo em cima, nome por baixo. Era um override inline no
+    // JSX; ao passar para aqui tem de trazer o `column` atrás, senão a marca
+    // volta a deitar-se ao lado do símbolo.
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 6,
+    gap: 1,
+  },
+  brandName: {
+    ...type.micro,
+    letterSpacing: 1,
+    fontWeight: '700',
+  },
+  /**
+   * A área de toque dos botões de transporte -- anterior, seguinte, repetir.
+   *
+   * Os ícones são de 28 px e o dedo não é. Quarenta e oito é o mínimo que as
+   * orientações da Apple pedem para um alvo de toque, e é o que separa
+   * "carreguei ao lado" de "a app não respondeu".
+   */
+  transportButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   artworkWrap: {
     alignItems: 'center',
