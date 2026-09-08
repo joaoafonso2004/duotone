@@ -2,7 +2,8 @@ name: Build Windows (.exe)
 
 # Espelha o build-ios.yml, do lado do PC:
 #
-#   workflow_dispatch        -> .exe como artefacto, para testar
+#   push para main/Testing   -> .exe como artefacto, para testar
+#   workflow_dispatch        -> o mesmo, a pedido
 #   push de uma tag win-v*   -> .exe publicado como Release
 #
 # Lançar uma versão de PC passa a ser:
@@ -12,6 +13,10 @@ name: Build Windows (.exe)
 on:
   workflow_dispatch:
   push:
+    # Os mesmos ramos do build-ios.yml. Faltavam aqui, e a assimetria enganava:
+    # um push para Testing dava .ipa e nao dava .exe, o que se le como "a build
+    # de Windows falhou" quando na verdade nunca chegou a ser pedida.
+    branches: [main, Testing]
     tags: ['win-v*']
 
 permissions:
