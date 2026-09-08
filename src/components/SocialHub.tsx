@@ -132,7 +132,22 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
     const text=draft.trim();if(!conversation||!text||busy)return;
     await run(async()=>{
       if(conversation.kind==='group')await shareComGrupo(conversation.id,'track',null,text);else await shareItem(conversation.id,'track',null,text);
-      useSocial.setState(s=>({drafts:{...s.drafts,[key]:s.drafts[key]===draft?'':s.drafts[key]}}));
+      // Limpar o que foi enviado e MAIS NADA.
+      //
+      // A guarda que estava aqui comparava a string inteira com o rascunho
+      // capturado no início -- e o que foi enviado foi o `trim` dele. Bastava
+      // o campo diferir num espaço, e diferia: o corrector do iOS fecha a
+      // palavra ao carregar em Send, e essa alteração chega depois. A
+      // comparação falhava, a mensagem seguia, e o texto ficava no campo.
+      //
+      // A pergunta certa não é "está igual?" mas "sobrou alguma coisa que eu
+      // não enviei?". Escrever durante o envio continua a ser respeitado, que
+      // era a razão de haver guarda nenhuma.
+      useSocial.setState(s=>{
+        const agora=s.drafts[key]??'';
+        const sobra=agora.trim()===text?'':agora.startsWith(draft)?agora.slice(draft.length).trimStart():agora;
+        return {drafts:{...s.drafts,[key]:sobra}};
+      });
       const rows=conversation.kind==='group'?await getGroupMessages(conversation.id):await getChatMessages(conversation.id);
       const current=useSocial.getState().conversation;
       if(current?.id===conversation.id&&current.kind===conversation.kind){setMessages(previous=>mergeMessages(previous,rows));const last=rows.filter(m=>m.sender.id!==myId).at(-1);if(last)await social.markRead(key,last.createdAt);}
