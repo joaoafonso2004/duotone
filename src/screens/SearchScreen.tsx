@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary } from '../api/library';
 import { useMusicSearch } from '../hooks/useMusicSearch';
 import { temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
+import { useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -39,6 +40,10 @@ import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 
 export function SearchScreen() {
+  // A página ocupa a largura do ecrã: com `pagingEnabled` cada paragem tem de
+  // cair exactamente numa página, e para isso a largura tem de ser a mesma que
+  // o `ScrollView` mede. O `TrackRow` já tem o seu próprio recuo lateral.
+  const larguraDaPagina = useWindowDimensions().width;
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
@@ -58,7 +63,7 @@ export function SearchScreen() {
 
   const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
-  const { descobrir, nuncaLancado, ouvirDeNovo: listenAgain, flow: flowMix,
+  const { descobrir, nuncaLancado, ouvirDeNovo: listenAgain,
     maisTocadas: heavyRotation, esquecidas: forgottenFavorites, prontas } = recs;
   /** Ja aterrou? Vazia por ter chegado vazia e vazia por vir a caminho sao
    *  coisas diferentes: uma esconde-se, a outra mostra esqueleto. */
@@ -86,8 +91,7 @@ export function SearchScreen() {
 
   // Render horizontal recommendation lists
   const renderRecommendationSection = (
-    nome: NomeDaPrateleira, title: string, data: Track[],
-    icon: keyof typeof Ionicons.glyphMap, chegou: boolean,
+    nome: NomeDaPrateleira, title: string, data: Track[], chegou: boolean,
     { largura = 120, lista = false }: { largura?: number; lista?: boolean } = {},
   ) => {
     // Chegou e veio vazia: a seccao desaparece, sem deixar um titulo orfao.
@@ -99,7 +103,6 @@ export function SearchScreen() {
     return (
       <View style={styles.recsSection}>
         <View style={styles.sectionHeader}>
-          <Ionicons name={icon} size={18} color={colors.text} />
           <Text style={[styles.sectionTitle, { flex: 1 }]}>{title}</Text>
           {chegou && data.length > (emLista ? LINHAS_NA_LISTA : 0) && (
             <Pressable
@@ -111,16 +114,28 @@ export function SearchScreen() {
           )}
         </View>
         {emLista ? (
-          <View>
-            {data.slice(0, LINHAS_NA_LISTA).map((track) => (
-              <TrackRow
-                key={`${track.source}:${track.sourceId}`}
-                track={track}
-                onPress={() => playTrack(track, data, true)}
-                onAction={() => setActionTrack(track)}
-              />
+          // Páginas de três linhas, e desliza-se para a direita. Uma lista
+          // vertical cortada em três dava três músicas e um "See all"; assim
+          // cabem trinta no espaço de três, sem sair do ecrã.
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            decelerationRate="fast"
+          >
+            {paginasDe(data, LINHAS_NA_LISTA).map((pagina, n) => (
+              <View key={n} style={{ width: larguraDaPagina }}>
+                {pagina.map((track) => (
+                  <TrackRow
+                    key={`${track.source}:${track.sourceId}`}
+                    track={track}
+                    onPress={() => playTrack(track, data, true)}
+                    onAction={() => setActionTrack(track)}
+                  />
+                ))}
+              </View>
             ))}
-          </View>
+          </ScrollView>
         ) : !chegou ? (
           // Com a FORMA do que vem. Um esqueleto de carrossel a dar lugar a
           // uma lista é um salto, e um esqueleto existe justamente para não
@@ -170,8 +185,15 @@ export function SearchScreen() {
     );
   };
 
-/** Quantas linhas mostra a primeira secção antes do "See all". */
+/** Quantas linhas por página na primeira secção. */
 const LINHAS_NA_LISTA = 3;
+
+/** Parte uma lista em páginas de `n`. A última pode vir mais curta. */
+function paginasDe<T>(lista: readonly T[], n: number): T[][] {
+  const saida: T[][] = [];
+  for (let i = 0; i < lista.length; i += n) saida.push(lista.slice(i, i + n));
+  return saida;
+}
 
 
   // O refrescar vive no cabecalho, como no PC -- um icone, nao uma linha de
@@ -275,16 +297,15 @@ const LINHAS_NA_LISTA = 3;
               <View>
                 {/* A PRIMEIRA prateleira e so descoberta: musica que ele nao tem,
                     escolhida pelo que ele ouve. */}
-                {renderRecommendationSection('descobrir', 'Discover new', descobrir, 'sparkles-outline', jaChegou('descobrir'), { lista: true })}
+                {renderRecommendationSection('descobrir', 'Discover new', descobrir, jaChegou('descobrir'), { lista: true })}
                 {/* Logo a seguir, e de propósito. O "Discover new" vai para
                     FORA -- artistas vizinhos, e só música que saiu. Esta vai
                     para dentro: o que os artistas dele nunca lançaram, que não
                     existe em catálogo nenhum. Ver api/naoLancado.ts. */}
-                {renderRecommendationSection('nuncaLancado', 'Never released', nuncaLancado, 'lock-open-outline', jaChegou('nuncaLancado'), { largura: 150 })}
-                {renderRecommendationSection('ouvirDeNovo', 'Listen again', listenAgain, 'time-outline', jaChegou('ouvirDeNovo'))}
-                {renderRecommendationSection('flow', 'Daily flow', flowMix, 'sparkles-outline', jaChegou('flow'))}
-                {renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, 'flame-outline', jaChegou('maisTocadas'))}
-                {renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, 'heart-dislike-outline', jaChegou('esquecidas'))}
+                {renderRecommendationSection('nuncaLancado', 'Never released', nuncaLancado, jaChegou('nuncaLancado'), { largura: 150 })}
+                {renderRecommendationSection('ouvirDeNovo', 'Listen again', listenAgain, jaChegou('ouvirDeNovo'))}
+                {renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, jaChegou('maisTocadas'))}
+                {renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, jaChegou('esquecidas'))}
                 
                 {!loadingRecs && !temRecomendacoes(recs) && (
                   <Text style={styles.emptyRecsText}>

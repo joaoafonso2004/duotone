@@ -1,5 +1,6 @@
 import { artistPreferenceKey,feedbackReady,filterSuggestions } from './recommendationFeedback';
 import { create } from 'zustand';
+import { Platform } from 'react-native';
 import { getLibrary } from '../api/library';
 import { descobrirNovas, flowDoDia } from '../api/descoberta';
 import { nuncaLancadas } from '../api/naoLancado';
@@ -60,8 +61,19 @@ type Recomendacoes = {
   limpar: () => void;
 };
 
-/** Quantas faixas por prateleira. */
-const POR_PRATELEIRA = 14;
+/**
+ * Quantas faixas por prateleira.
+ *
+ * Eram catorze, e no telemóvel viam-se muito menos: a primeira secção corta
+ * nas que cabem, e o dedupe entre prateleiras tira faixas às de baixo. Quem
+ * está à procura de música ficava com meia dúzia por secção, que é o oposto
+ * do que uma página de descoberta devia dar.
+ *
+ * O tecto real pode não estar aqui. As três que saem da base de dados dão o
+ * que se lhes pedir, mas a descoberta depende do catálogo e do YouTube e pode
+ * devolver menos do que isto -- e nesse caso subir o número não muda nada.
+ */
+const POR_PRATELEIRA = 30;
 
 /**
  * A ordem em que as prateleiras se veem -- e, por consequencia, quem fica com
@@ -164,7 +176,13 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
       // A descoberta e o flow precisam ambos da biblioteca: pede-se uma vez.
       getLibrary().then((lib) => Promise.all([
         publicar(descobrirNovas(POR_PRATELEIRA, lib), (descobrir) => ({ descobrir })),
-        publicar(flowDoDia(POR_PRATELEIRA, lib), (flow) => ({ flow })),
+        // O "Daily flow" só se vê na biblioteca do Windows. No telemóvel saiu
+        // da pesquisa, e ir buscá-lo na mesma era pagar uma ida à rede -- que
+        // fala com o catálogo, não é barata -- por uma prateleira que ninguém
+        // chega a ver.
+        Platform.OS === 'web'
+          ? publicar(flowDoDia(POR_PRATELEIRA, lib), (flow) => ({ flow }))
+          : Promise.resolve(),
         // Falha por si, como as outras: sem trackers para estes artistas, ou
         // sem rede, a prateleira não aparece e as vizinhas nem dão por isso.
         publicar(nuncaLancadas(POR_PRATELEIRA, lib), (nuncaLancado) => ({ nuncaLancado })),
