@@ -37,6 +37,15 @@ interface Props {
   delayLongPress?: number;
   /** O dedo saiu -- levantado, ou roubado por outro gesto. */
   onPressOut?: () => void;
+  /**
+   * Esconde a duração mesmo com a definição ligada.
+   *
+   * Numa lista de descoberta a duração não ajuda a escolher -- ninguém decide
+   * ouvir uma música por ela ter 2:31 -- e ocupa o sítio onde a próxima capa
+   * devia estar a assomar. Na biblioteca é outra conversa, e por isso isto é
+   * uma excepção pedida e não o novo normal.
+   */
+  mostrarDuracao?: boolean;
 }
 
 /** 52 px de capa + 8 px de padding em cima e em baixo. */
@@ -66,6 +75,7 @@ function TrackRowComponent({
   onLongPress,
   delayLongPress,
   onPressOut,
+  mostrarDuracao = true,
 }: Props) {
   const theme = useTheme((s) => s.theme);
   /** A moldura da capa desta linha, para o player saber de onde a fazer voar. */
@@ -165,7 +175,7 @@ function TrackRowComponent({
         </View>
       </View>
 
-      {isShowTrackDurationSync() ? (
+      {mostrarDuracao && isShowTrackDurationSync() ? (
         <Text style={styles.duration}>{formatDuration(track.durationSeconds)}</Text>
       ) : null}
 

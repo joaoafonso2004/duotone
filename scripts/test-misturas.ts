@@ -64,6 +64,37 @@ verificar('faixas sem artista não formam uma mistura fantasma', () => {
   assert.deepEqual(misturasDaBiblioteca([{ name: '' }], lib, chaveT, chaveN), []);
 });
 
+verificar('o deslocamento muda quem sai hoje', () => {
+  const nomes = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const lib = nomes.flatMap((n) => muitas(n, 6));
+  const artistas = nomes.map((name) => ({ name }));
+  const hoje = misturasDaBiblioteca(artistas, lib, chaveT, chaveN, undefined, 0);
+  const amanha = misturasDaBiblioteca(artistas, lib, chaveT, chaveN, undefined, 1);
+  assert.notDeepEqual(hoje.map((m) => m.nome), amanha.map((m) => m.nome),
+    'dois dias seguidos não podem dar a mesma lista');
+  assert.equal(amanha.length, MISTURAS, 'e continuam a ser quatro');
+});
+
+verificar('o mesmo dia dá sempre o mesmo', () => {
+  // Dentro do mesmo dia a página tem de ser estável: sair da pesquisa e
+  // voltar não pode baralhar as playlists de sítio.
+  const nomes = ['A', 'B', 'C', 'D', 'E'];
+  const lib = nomes.flatMap((n) => muitas(n, 6));
+  const artistas = nomes.map((name) => ({ name }));
+  const a = misturasDaBiblioteca(artistas, lib, chaveT, chaveN, undefined, 3);
+  const b = misturasDaBiblioteca(artistas, lib, chaveT, chaveN, undefined, 3);
+  assert.deepEqual(a.map((m) => m.id), b.map((m) => m.id));
+});
+
+verificar('dá a volta em vez de devolver menos', () => {
+  // Os primeiros do deslocamento não têm música que chegue; em vez de
+  // devolver duas playlists, continua pelos seguintes.
+  const lib = [...muitas('A', 2), ...muitas('B', 2), ...muitas('C', 9), ...muitas('D', 9)];
+  const artistas = [{ name: 'A' }, { name: 'B' }, { name: 'C' }, { name: 'D' }];
+  const r = misturasDaBiblioteca(artistas, lib, chaveT, chaveN, undefined, 0);
+  assert.deepEqual(r.map((m) => m.nome).sort(), ['C mix', 'D mix']);
+});
+
 if (falhas > 0) {
   console.error(`\n${falhas} teste(s) falharam`);
   process.exit(1);

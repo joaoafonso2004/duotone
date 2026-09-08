@@ -10,7 +10,7 @@ import {
 import type { Track } from '../types';
 import { semRepetidas } from '../lib/prateleirasSemRepetidas';
 import { intercalarPorArtista } from '../lib/intercalarPorArtista';
-import { misturasDaBiblioteca, type Mistura } from '../lib/misturas';
+import { CANDIDATOS, misturasDaBiblioteca, type Mistura } from '../lib/misturas';
 import { baralhada } from '../lib/jam';
 import { chaveDeArtista } from '../lib/artistName';
 import { getTopArtists } from '../api/plays';
@@ -189,12 +189,15 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
       // coisas que a descoberta já vai buscar. Falham por si, como as
       // prateleiras: sem elas a secção não aparece e as vizinhas nem dão por
       // isso.
-      Promise.all([getLibrary(), getTopArtists(12)])
+      Promise.all([getLibrary(), getTopArtists(CANDIDATOS)])
         .then(([lib, artistas]) => {
           if (atual !== geracao) return;
           set({
+            // O deslocamento vem do DIA. Do acaso mudaria as playlists de
+            // sítio a cada regresso à pesquisa, e uma prateleira que se mexe
+            // sozinha é pior do que uma que não muda nunca.
             misturas: misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
-              chaveDeArtista, baralhada),
+              chaveDeArtista, baralhada, Math.floor(Date.now() / 86_400_000)),
             misturasProntas: true,
           });
         })

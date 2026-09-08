@@ -10,6 +10,19 @@ export type Mistura = {
 
 /** Quantas se mostram. */
 export const MISTURAS = 4;
+
+/**
+ * De quantos artistas se escolhe, para as misturas mudarem de dia para dia.
+ *
+ * Sem isto eram sempre as mesmas quatro, e por uma razão que não é acidente:
+ * os artistas mais ouvidos não mudam de um dia para o outro. As faixas lá
+ * dentro baralhavam, os nomes nunca. Uma prateleira que nunca muda deixa de
+ * se olhar ao fim de dois dias.
+ *
+ * Agora roda-se dentro dos doze mais ouvidos. Continua a ser música tua --
+ * o que muda é qual dos teus artistas sai hoje.
+ */
+export const CANDIDATOS = 12;
 /** Faixas por mistura. */
 export const POR_MISTURA = 25;
 /** Abaixo disto não é uma playlist, é uma música com um título por cima. */
@@ -45,6 +58,12 @@ export function misturasDaBiblioteca(
   chaveDoArtista: (t: Track) => string,
   chaveDoNome: (nome: string) => string,
   baralhar: <T>(l: readonly T[]) => T[] = (l) => [...l],
+  /**
+   * Por onde começar a escolher. Vem do DIA e não do acaso: dentro do mesmo
+   * dia a página tem de ser a mesma a cada abertura, senão as playlists
+   * trocavam de sítio entre um regresso à pesquisa e o seguinte.
+   */
+  deslocamento = 0,
 ): Mistura[] {
   const porChave = new Map<string, Track[]>();
   for (const faixa of biblioteca) {
@@ -56,8 +75,13 @@ export function misturasDaBiblioteca(
   }
 
   const saida: Mistura[] = [];
-  for (const artista of artistas) {
+  // Percorre-se a lista inteira a partir do deslocamento e dá-se a volta: se
+  // os de hoje não tiverem música que chegue, continua-se pelos outros em vez
+  // de devolver menos playlists do que as que cabiam.
+  const total = artistas.length;
+  for (let n = 0; n < total; n++) {
     if (saida.length >= MISTURAS) break;
+    const artista = artistas[(deslocamento + n) % total];
     const chave = chaveDoNome(artista.name);
     const faixas = porChave.get(chave);
     if (!faixas || faixas.length < MINIMO_PARA_VALER) continue;

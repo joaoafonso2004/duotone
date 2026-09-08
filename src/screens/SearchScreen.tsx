@@ -160,6 +160,7 @@ export function SearchScreen() {
                   <TrackRow
                     key={`${track.source}:${track.sourceId}`}
                     track={track}
+                    mostrarDuracao={false}
                     onPress={() => playTrack(track, data, true)}
                     onAction={() => setActionTrack(track)}
                   />
