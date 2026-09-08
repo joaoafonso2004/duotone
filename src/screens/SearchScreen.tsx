@@ -1,7 +1,7 @@
 import { useRecommendationFeedback } from '../state/recommendationFeedback';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -29,6 +29,11 @@ import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { AmigosAOuvir } from '../components/AmigosAOuvir';
+import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
+import { ShareFriendSheet } from '../components/ShareFriendSheet';
+import { addTracksToPlaylist, createPlaylist } from '../api/playlists';
+import type { Playlist } from '../types';
+import type { Mistura } from '../lib/misturas';
 import { Input } from '../components/Input';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -70,6 +75,42 @@ export function SearchScreen() {
    */
   const espreitadela = 44;
   const larguraDaPagina = useWindowDimensions().width - espreitadela;
+
+  // --- guardar e partilhar uma mistura -------------------------------------
+  //
+  // Uma mistura não é uma playlist: existe em memória e não tem linha nenhuma
+  // na base de dados. É isso que decide o desenho -- o `ShareFriendSheet`
+  // precisa de uma playlist com id, por isso PARTILHAR TEM DE GUARDAR ANTES.
+  // Não é um atalho: é o que "partilhar" quer dizer quando a coisa ainda não
+  // existe do outro lado.
+  const molduras = useRef<Record<string, View | null>>({});
+  const [misturaAberta, setMisturaAberta] = useState<Mistura | null>(null);
+  const [ancoraDaMistura, setAncoraDaMistura] = useState<Ancora | null>(null);
+  const [aGuardarMistura, setAGuardarMistura] = useState(false);
+  const [playlistAPartilhar, setPlaylistAPartilhar] = useState<Playlist | null>(null);
+
+  const guardarMistura = async (m: Mistura): Promise<Playlist | null> => {
+    setAGuardarMistura(true);
+    try {
+      const nova = await createPlaylist(m.nome);
+      await addTracksToPlaylist(nova.id, m.faixas);
+      hapticNotification();
+      return { ...nova, trackCount: m.faixas.length };
+    } catch (e: any) {
+      Alert.alert('Error', e?.message ?? 'Could not save this playlist.');
+      return null;
+    } finally {
+      setAGuardarMistura(false);
+    }
+  };
+
+  const abrirMistura = (m: Mistura) => {
+    hapticSelection();
+    molduras.current[m.id]?.measureInWindow((x: number, y: number, width: number, height: number) => {
+      setAncoraDaMistura({ x, y, width, height });
+      setMisturaAberta(m);
+    });
+  };
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
@@ -373,9 +414,13 @@ export function SearchScreen() {
                         {misturas.map((m) => (
                           <Pressable
                             key={m.id}
+                            ref={(r) => { molduras.current[m.id] = r; }}
+                            collapsable={false}
                             onPress={() => navigation.navigate('Prateleira', {
                               titulo: m.nome, fonte: { tipo: 'mistura', id: m.id },
                             })}
+                            onLongPress={() => abrirMistura(m)}
+                            delayLongPress={350}
                             style={({ pressed }) => [{ width: CAIXA_DA_MISTURA }, pressed && { opacity: 0.8 }]}
                           >
                             {/* Mosaico de quatro. Uma capa só seria a de uma
@@ -535,6 +580,39 @@ export function SearchScreen() {
             },
           },
         ]}
+      />
+
+      <MenuFlutuante
+        visivel={!!misturaAberta}
+        ancora={ancoraDaMistura}
+        aoFechar={() => setMisturaAberta(null)}
+        accoes={[
+          { label: aGuardarMistura ? 'Saving…' : 'Save to your library', icon: 'bookmark-outline',
+            disabled: aGuardarMistura,
+            onPress: () => {
+              const m = misturaAberta;
+              setMisturaAberta(null);
+              if (m) void guardarMistura(m);
+            } },
+          // Guarda antes, e a etiqueta di-lo. Partilhar uma coisa que só
+          // existe neste telemóvel não é possível, e esconder isso atrás de um
+          // "Share" seco deixava uma playlist nova na biblioteca sem o
+          // utilizador perceber de onde veio.
+          { label: 'Save and share', icon: 'paper-plane-outline',
+            disabled: aGuardarMistura,
+            onPress: () => {
+              const m = misturaAberta;
+              setMisturaAberta(null);
+              if (!m) return;
+              void guardarMistura(m).then((pl) => { if (pl) setPlaylistAPartilhar(pl); });
+            } },
+        ]}
+      />
+      <ShareFriendSheet
+        visible={!!playlistAPartilhar}
+        itemType="playlist"
+        item={playlistAPartilhar}
+        onClose={() => setPlaylistAPartilhar(null)}
       />
 
       <AddToPlaylistSheet
