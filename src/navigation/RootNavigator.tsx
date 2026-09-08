@@ -94,7 +94,10 @@ export type RootStackParamList = {
   Social: { openChatWithFriendId?: string; openGroupId?: string } | undefined;
 };
 
-type TabsParamList = {
+/** Os separadores de baixo. Exportado para quem precisa de saltar de um para
+ *  outro -- o `RootStackParamList` nao os conhece, e o `navigate` tipado por
+ *  ele recusa-os. */
+export type TabsParamList = {
   Search: undefined;
   Songs: undefined;
   Artists: undefined;

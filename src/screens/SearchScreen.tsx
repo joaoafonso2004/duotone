@@ -22,7 +22,8 @@ import { temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../st
 import { useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/RootNavigator';
+import type { MaterialTopTabNavigationProp } from '@react-navigation/material-top-tabs';
+import type { RootStackParamList, TabsParamList } from '../navigation/RootNavigator';
 import { displayArtist } from '../lib/artistName';
 import { useSaved } from '../state/saved';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
@@ -114,6 +115,17 @@ export function SearchScreen() {
     });
   };
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  /**
+   * O MESMO objecto de navegacao, visto como o navegador de separadores.
+   *
+   * A Pesquisa vive dentro dos separadores, por isso este `navigation` e o
+   * deles -- o `navigate('Prateleira')` la em baixo so funciona porque o React
+   * Navigation faz subir o que nao reconhece. Para ir ao Songs, que e um IRMAO
+   * e nao um ecra do stack de raiz, o tipo tem de ser o dos separadores; com o
+   * do stack, o TypeScript recusa o nome. E `getParent()` nao serve: esse e o
+   * stack de raiz, que tambem nao conhece o Songs.
+   */
+  const separadores = useNavigation<MaterialTopTabNavigationProp<TabsParamList>>();
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
   const playNext = usePlayer((s) => s.playNext);
@@ -144,6 +156,14 @@ export function SearchScreen() {
    * obrigavam a duas fontes na rota, para uma diferença que só existe no
    * título da prateleira.
    */
+  /**
+   * Os sete atalhos da grelha do topo, mais o "Liked songs" que vai a frente.
+   *
+   * Sete e nao oito porque o coracao ocupa o primeiro lugar: a grelha e de
+   * duas colunas, e um numero impar deixava um buraco na ultima linha.
+   */
+  const atalhos = React.useMemo(() => misturas.slice(0, 7), [misturas]);
+
   const misturasDeEstilo = React.useMemo(
     () => misturas.filter((m) => m.id.startsWith('estilo:')),
     [misturas],
@@ -398,6 +418,56 @@ export function SearchScreen() {
                 no sitio mais caro do ecra sem custar nada nos dias em que
                 nao ha ninguem online. */}
             <AmigosAOuvir />
+            {/* A grelha de atalhos, a cabeca da pagina.
+                ------------------------------------------------------------
+                Sao os mesmos mixes que estao nas prateleiras la em baixo, e a
+                repeticao e deliberada: la o mosaico e grande e serve para
+                olhar, aqui e pequeno e serve para chegar la num toque, sem
+                rolar. E o "Liked songs" a abrir, porque e o unico destino que
+                se abre sempre e nunca muda de nome.
+
+                So aparece com mixes: uma grelha com um quadrado sozinho nao e
+                uma grelha, e no primeiro dia de uma conta nova nao ha mixes
+                nenhuns. */}
+            {atalhos.length > 0 && (
+              <View style={styles.atalhos}>
+                <Pressable
+                  onPress={() => separadores.navigate('Songs')}
+                  style={({ pressed }) => [styles.atalho, pressed && { opacity: 0.75 }]}
+                >
+                  <View style={[styles.atalhoCapa, styles.atalhoCoracao]}>
+                    <Ionicons name="heart" size={20} color={colors.text} />
+                  </View>
+                  <Text numberOfLines={2} style={styles.atalhoNome}>Liked songs</Text>
+                </Pressable>
+                {atalhos.map((m) => (
+                  <Pressable
+                    key={m.id}
+                    onPress={() => navigation.navigate('Prateleira', {
+                      titulo: m.nome, fonte: { tipo: 'mistura', id: m.id },
+                    })}
+                    style={({ pressed }) => [styles.atalho, pressed && { opacity: 0.75 }]}
+                  >
+                    <View style={styles.atalhoCapa}>
+                      {m.faixas.slice(0, 4).map((t, i) => (
+                        t.artworkUrl ? (
+                          <Image
+                            key={i}
+                            source={{ uri: t.artworkUrl }}
+                            style={{ width: '50%', height: '50%' }}
+                            contentFit="cover"
+                            transition={200}
+                          />
+                        ) : (
+                          <View key={i} style={{ width: '50%', height: '50%', backgroundColor: colors.surfaceHigh }} />
+                        )
+                      ))}
+                    </View>
+                    <Text numberOfLines={2} style={styles.atalhoNome}>{m.nome}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
             {/* Sem porteiro global: cada prateleira mostra o SEU esqueleto e
                 entra quando chega. O que estava aqui escondia as tres rapidas
                 -- consultas diretas a base de dados -- atras da descoberta,
@@ -717,6 +787,49 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: 10,
     borderRadius: radii.sm,
+  },
+  /**
+   * A grelha de atalhos: duas colunas de rectangulos baixos.
+   *
+   * Rectangulo e nao quadrado, e e essa a diferenca entre isto e as
+   * prateleiras: aqui a capa e pequena e o nome vive AO LADO dela, o que faz
+   * caber oito destinos na altura que uma prateleira gasta com quatro.
+   */
+  atalhos: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+  },
+  atalho: {
+    flexGrow: 1,
+    flexBasis: '46%',
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radii.sm,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  atalhoCapa: {
+    width: 52,
+    height: 52,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: colors.surfaceHigh,
+  },
+  atalhoCoracao: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  atalhoNome: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+    paddingRight: spacing.sm,
   },
   recsSection: {
     marginTop: spacing.lg,
