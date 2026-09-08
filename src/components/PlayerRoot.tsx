@@ -724,9 +724,13 @@ export function PlayerRoot() {
     // deixa quem o abre sem saber se já lá está.
     { label: saved ? 'Remove from Library' : 'Like', icon: saved ? 'heart' : 'heart-outline',
       onPress: () => { fecharMenu(); void saveCurrentToLibrary(); } },
-    { label: sleepTimerTimeLeft > 0 ? `Sleep timer · ${Math.ceil(sleepTimerTimeLeft / 60000)} min` : 'Sleep timer',
+    // O `sleepTimerTimeLeft` está em SEGUNDOS -- o store guarda `restanteS`.
+    // Dividi-o por 60000 como se fossem milissegundos, e quinze minutos
+    // apareciam como "1 min": 900 sobre 60000 dá 0,015, que arredonda para um.
+    { label: sleepTimerTimeLeft > 0
+        ? `Sleep timer · ${Math.floor(sleepTimerTimeLeft / 60)}:${String(sleepTimerTimeLeft % 60).padStart(2, '0')}`
+        : 'Sleep timer',
       icon: 'moon-outline', onPress: () => setPaginaDoMenu('sono') },
-    { label: 'Close player', icon: 'close', onPress: () => { fecharMenu(); void close(); } },
   ];
 
   /** A segunda página. Fica no mesmo menu em vez de abrir outro: o
@@ -800,9 +804,20 @@ export function PlayerRoot() {
               {APP_NAME.toUpperCase()}
             </Text>
           </View>
-          {/* O canto fica vazio de propósito: as opções desceram para junto
-              do título, que é onde o polegar chega e onde elas agem. */}
-          <View style={styles.headerBtn} />
+          {/* Fechar volta ao canto, e as opções ficam em baixo.
+              São gestos diferentes: fechar é sair do ecrã e vive na moldura,
+              ao lado do minimizar; as opções agem sobre a FAIXA e vivem ao pé
+              dela. Estavam trocados -- o fechar escondido num menu e o menu
+              no canto mais longe do polegar. */}
+          <Toque
+            escala={ESCALA.icone}
+            accessibilityRole="button"
+            accessibilityLabel="Close player"
+            onPress={() => { hapticSelection(); void close(); }}
+            style={styles.headerBtn}
+          >
+            <Ionicons name="close" size={24} color={colors.text} />
+          </Toque>
         </View>
 
 
@@ -1397,9 +1412,21 @@ export function PlayerRoot() {
 const styles = StyleSheet.create({
   bodyScroll: { flex: 1 },
   staticBody: {
+    /**
+     * O corpo ocupa o que sobra e reparte-o.
+     *
+     * O `flexGrow` com o `space-between` perdeu-se num refactor, e sem eles o
+     * conteúdo empilha-se todo em cima: a capa, o título, os controlos e o
+     * Queue/EQ ficavam colados uns aos outros com um terço do ecrã vazio por
+     * baixo. Num `ScrollView` é o `contentContainerStyle` que precisa do
+     * `flexGrow: 1` -- o `flex: 1` aqui não faz nada, porque o contentor de
+     * conteúdo não tem altura própria para dividir.
+     */
+    flexGrow: 1,
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
-    gap: spacing.md,
+    paddingTop: spacing.lg,
+    gap: spacing.lg,
   },
   mainControlsGroup: {
     width: '100%',
@@ -1408,6 +1435,10 @@ const styles = StyleSheet.create({
   bottomGroup: {
     width: '100%',
     alignItems: 'center',
+    // Separado do transporte: são coisas diferentes -- ali manda-se na
+    // reprodução, aqui abrem-se dois ecrãs. Colados liam-se como uma fila só
+    // de sete botões.
+    marginTop: spacing.md,
   },
   utilityIconBtn: {
     width: 48,
