@@ -1,14 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import { ArtworkCollage } from './ArtworkCollage';
-import { lerCelulasDaCapa } from '../lib/celulasDaCapa';
-import { semOpacidade, veuDaCapa } from '../lib/corDaCapa';
 import { colors, radii, spacing, type } from '../theme';
 
 /**
- * A cabeça de uma playlist: capa grande, nome grande, e uma linha que diz o que
- * ela é.
+ * A cabeça de uma playlist -- ou de um artista: capa grande, nome grande, e uma
+ * linha que diz o que aquilo é.
  *
  * ## O que estava mal
  *
@@ -21,17 +19,27 @@ import { colors, radii, spacing, type } from '../theme';
  * ## Porque é que isto não é um estilo novo
  *
  * Não há aqui uma peça inventada. A capa é o `ArtworkCollage`, o mesmo mosaico
- * de quatro que a grelha já usa; o véu de cor sai do `lerCelulasDaCapa` mais o
- * `veuDaCapa`, que é EXACTAMENTE o que o `ProfileHero` já faz com a capa do
- * perfil; e o tamanho do nome é o `type.largeTitle` que os outros ecrãs usam
- * nos seus títulos. O que muda é o arranjo, não o vocabulário.
+ * de quatro que a grelha já usa, e o tamanho do nome é o `type.largeTitle` que
+ * os outros ecrãs usam nos seus títulos. O que muda é o arranjo.
  *
- * ## O véu é um véu
+ * ## O véu de cor saiu
  *
- * Opacidade baixa, e por cima um degradé que morre no fundo da app. Uma capa
- * escura ou sem cor não produz véu nenhum e o cabeçalho fica como sempre
- * esteve -- que é melhor do que inventar-lhe um tom que ela não tem. A
- * garantia de contraste vem de dentro do `veuDaCapa`.
+ * Havia por trás disto um degradé tirado da capa (`lerCelulasDaCapa` +
+ * `veuDaCapa`, como o `ProfileHero` ainda faz). Saiu a pedido: dentro de uma
+ * playlist a cor não dizia nada sobre ela, dizia sobre a primeira capa que lhe
+ * calhou, e mudava de tom cada vez que a ordem mudava. Levou consigo uma
+ * leitura de imagem por playlist aberta.
+ *
+ * A sombra da capa ficou. Nasceu para a descolar do véu, mas continua a fazer
+ * falta sem ele: é o que separa uma capa escura do fundo escuro da app.
+ *
+ * ## `artista`
+ *
+ * Uma só diferença: a imagem é redonda e é UMA, não um mosaico de quatro. Um
+ * artista tem cara, uma playlist é um saco de coisas -- e um mosaico de quatro
+ * capas para representar uma pessoa lê-se como um erro. Todo o resto (o
+ * tamanho, o nome, a linha de meta, a fila de acções) é partilhado de
+ * propósito, que é o que faz a página do artista parecer a de uma playlist.
  */
 export function CabecalhoDaPlaylist({
   nome,
@@ -39,7 +47,10 @@ export function CabecalhoDaPlaylist({
   faixas,
   duracaoSegundos,
   accoes,
+  artista = false,
 }: {
+  /** Uma imagem redonda em vez do mosaico. Ver o cabeçalho. */
+  artista?: boolean;
   nome: string;
   artworks: string[];
   faixas: number;
@@ -54,27 +65,11 @@ export function CabecalhoDaPlaylist({
   // e a fila de botões para fora, e a página deixa de se ver de uma vez.
   const lado = Math.min(240, Math.round(W * 0.52));
 
-  const [veu, setVeu] = useState<string | null>(null);
-  useEffect(() => {
-    let vivo = true;
-    const primeira = artworks[0];
-    if (!primeira) { setVeu(null); return; }
-    void lerCelulasDaCapa(primeira).then((celulas) => { if (vivo) setVeu(veuDaCapa(celulas)); });
-    return () => { vivo = false; };
-  }, [artworks[0]]);
-
   return (
     <View style={styles.caixa}>
-      {veu ? (
-        <LinearGradient
-          colors={[veu, semOpacidade(veu)]}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
-      ) : null}
-
-      <View style={styles.capa}>
-        <ArtworkCollage artworks={artworks} size={lado} />
+      <View style={[styles.capa, artista && { borderRadius: lado / 2 }]}>
+        {artista && artworks[0] ? <Image source={{ uri: artworks[0] }} style={{ width: lado, height: lado }} contentFit="cover" />
+          : <ArtworkCollage artworks={artworks} size={lado} />}
       </View>
 
       {/* Duas linhas, e o nome é a maior coisa da página. */}
@@ -118,8 +113,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     overflow: 'hidden',
     marginBottom: spacing.lg,
-    // A sombra é o que descola a capa do véu que tem por trás. Sem ela, com
-    // uma capa da mesma família de cor do véu, as duas fundem-se.
     shadowColor: '#000',
     shadowOpacity: 0.45,
     shadowRadius: 24,

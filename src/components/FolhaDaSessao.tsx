@@ -1,8 +1,8 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { StyleSheet, Switch, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import { BottomSheet } from './BottomSheet';
+import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
@@ -68,7 +68,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
     <BottomSheet visible={visivel && !!sessao} onClose={aoFechar}>
       <Text style={[type.title, { marginBottom: spacing.md }]}>Listen together</Text>
 
-      <ScrollView style={{ maxHeight: 420 }} keyboardShouldPersistTaps="handled">
+      <BottomSheetScrollView style={{ maxHeight: 420 }} keyboardShouldPersistTaps="handled">
         <Text style={styles.seccao}>IN THE SESSION</Text>
         {membros.map((m) => (
           <View key={m.userId} style={styles.linha}>
@@ -197,7 +197,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
             );
           })
         )}
-      </ScrollView>
+      </BottomSheetScrollView>
 
       <Toque
         escala={ESCALA.botao}

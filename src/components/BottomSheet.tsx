@@ -1,7 +1,14 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
-import React, { useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
 import {
   Animated,
+  Keyboard,
+  ScrollView,
+  FlatList,
+  type ScrollViewProps,
+  type FlatListProps,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
   Modal,
   PanResponder,
   Pressable,
@@ -18,9 +25,10 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  gestureBlocked?: boolean;
 }
 
-export function BottomSheet({ visible, onClose, children }: Props) {
+export function BottomSheet({ visible, onClose, children, gestureBlocked = false }: Props) {
   const { height } = useWindowDimensions();
   const notificationDismiss = useNotificationOverlay(visible,onClose);
   const insets = useSafeAreaInsets();
@@ -30,6 +38,13 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   // O PanResponder nasce uma vez; o onClose de hoje tem de lhe chegar por ref.
   const fechar = useRef(onClose);
   fechar.current = onClose;
+  const bloqueado = useRef(false); bloqueado.current = gestureBlocked;
+  const gestos = useRef({ offsets: new Map<object, number>(), controls: new Set<object>() }).current;
+  const tecladoPrimeiro = useRef(false);
+  const topoNoInicio = useRef(true);
+  const podePuxar = (_e: unknown, g: { dx: number; dy: number }) =>
+    !bloqueado.current && gestos.controls.size === 0 && topoNoInicio.current &&
+    g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx);
 
   useEffect(() => {
     if (visible) arrasto.setValue(0); // reabrir não pode herdar o arrasto antigo
@@ -41,21 +56,20 @@ export function BottomSheet({ visible, onClose, children }: Props) {
     }).start();
   }, [visible, anim, arrasto]);
 
-  /**
-   * Arrastar para baixo fecha.
-   *
-   * Vive só na pega e não na folha inteira de propósito: o conteúdo costuma
-   * ser uma lista que rola, e um responder por cima dela roubava-lhe o dedo.
-   */
   const puxar = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx),
+      onMoveShouldSetPanResponder: podePuxar,
+      onMoveShouldSetPanResponderCapture: Platform.OS === 'ios' ? podePuxar : undefined,
+      onPanResponderGrant: () => {
+        tecladoPrimeiro.current = Keyboard.isVisible();
+        if (tecladoPrimeiro.current) Keyboard.dismiss();
+      },
       onPanResponderMove: (_e, g) => {
-        if (g.dy > 0) arrasto.setValue(g.dy);
+        if (!tecladoPrimeiro.current && g.dy > 0) arrasto.setValue(g.dy);
       },
       onPanResponderRelease: (_e, g) => {
         // Longe o suficiente OU rápido o suficiente: um piparote curto conta.
-        if (g.dy > 90 || g.vy > 0.8) fechar.current();
+        if (!tecladoPrimeiro.current && (g.dy > 90 || g.vy > 0.8)) fechar.current();
         else Animated.spring(arrasto, { toValue: 0, useNativeDriver: true, speed: 18, bounciness: 6 }).start();
       },
       onPanResponderTerminate: () => {
@@ -78,6 +92,8 @@ export function BottomSheet({ visible, onClose, children }: Props) {
           style={styles.keyboardContainer}
         >
           <Animated.View
+            {...(Platform.OS === 'ios' ? puxar.panHandlers : {})}
+            onTouchStart={() => { topoNoInicio.current = [...gestos.offsets.values()].every(y => y <= 1); }}
             style={[
               styles.sheet,
               {
@@ -97,10 +113,10 @@ export function BottomSheet({ visible, onClose, children }: Props) {
             ]}
           >
             {/* A zona de agarrar é maior do que o traço que se vê. */}
-            <View {...puxar.panHandlers} style={styles.zonaDaPega}>
+            <View {...(Platform.OS === 'ios' ? {} : puxar.panHandlers)} style={styles.zonaDaPega}>
               <View style={styles.handle} />
             </View>
-            {children}
+            <SheetGestures.Provider value={gestos}>{children}</SheetGestures.Provider>
           </Animated.View>
         </KeyboardAvoidingView>
       </View>
@@ -138,3 +154,34 @@ const styles = StyleSheet.create({
     backgroundColor: colors.borderStrong,
   },
 });
+
+// Os filhos registam a posição real sem redesenhar a folha em cada frame.
+const SheetGestures = createContext<{ offsets: Map<object, number>; controls: Set<object> } | null>(null);
+function useSheetScroll(onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void, enabled = true) {
+  const context = useContext(SheetGestures);
+  const id = useRef({}).current;
+  useEffect(() => {
+    if (enabled) context?.offsets.set(id, 0);
+    return () => { context?.offsets.delete(id); };
+  }, [context, id, enabled]);
+  return (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (enabled) context?.offsets.set(id, e.nativeEvent.contentOffset.y);
+    onScroll?.(e);
+  };
+}
+export function BottomSheetScrollView({ onScroll, ...props }: ScrollViewProps) {
+  const scroll = useSheetScroll(onScroll);
+  return <ScrollView keyboardShouldPersistTaps="handled" {...props} onScroll={scroll} scrollEventThrottle={16} />;
+}
+export function BottomSheetFlatList<T>({ onScroll, ref, dismissScrollEnabled = true, ...props }: FlatListProps<T> & { ref?: React.Ref<FlatList<T>>; dismissScrollEnabled?: boolean }) {
+  const scroll = useSheetScroll(onScroll, dismissScrollEnabled);
+  return <FlatList {...props} ref={ref} onScroll={scroll} scrollEventThrottle={16} />;
+}
+/** Um controlo vertical (EQ) é dono do gesto até o dedo levantar. */
+export function BottomSheetGestureGuard({ children }: { children: React.ReactNode }) {
+  const context = useContext(SheetGestures);
+  const id = useRef({}).current;
+  useEffect(() => () => { context?.controls.delete(id); }, [context, id]);
+  return <View onTouchStart={() => context?.controls.add(id)} onTouchEnd={() => context?.controls.delete(id)}
+    onTouchCancel={() => context?.controls.delete(id)}>{children}</View>;
+}

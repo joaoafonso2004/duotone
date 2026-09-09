@@ -7,7 +7,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { colors, spacing, type, radii } from '../theme';
-import { BottomSheet } from './BottomSheet';
+import { BottomSheet, BottomSheetFlatList } from './BottomSheet';
 import { TrackRow } from './TrackRow';
 import { EstrelaInteligente } from './BrilhoInteligente';
 import { trackKey } from '../lib/shuffle';
@@ -192,7 +192,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
 
   return (
     <>
-    <BottomSheet visible={visible && panel === 'actions'} onClose={onClose}>
+    <BottomSheet gestureBlocked={arrastar !== null} visible={visible && panel === 'actions'} onClose={onClose}>
       {selection && <PlayerActionsContent title={tituloDaFaixa(selection.track)} actions={actions} />}
       <View style={selection ? styles.hidden : undefined}>
       <View style={styles.header}>
@@ -252,7 +252,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
             });
           }}
         >
-        <FlatList
+        <BottomSheetFlatList dismissScrollEnabled={!selection}
           ref={listaRef}
           data={upNext}
           keyExtractor={(entry, index) => `${entry.track.source}:${entry.track.sourceId}-${index}`}

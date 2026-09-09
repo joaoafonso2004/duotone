@@ -1,7 +1,7 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { BottomSheet } from './BottomSheet';
+import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { Toque } from './Toque';
 import { hapticSelection } from '../lib/haptics';
 import { colors, spacing, type } from '../theme';
@@ -17,7 +17,7 @@ export type PlayerAction = {
 export function PlayerActionsContent({ title, actions }: { title: string; actions: PlayerAction[] }) {
   const { height } = useWindowDimensions();
   return (
-    <ScrollView style={{ maxHeight: height * 0.65 }} contentContainerStyle={styles.content}>
+    <BottomSheetScrollView style={{ maxHeight: height * 0.65 }} contentContainerStyle={styles.content}>
       <Text accessibilityRole="header" style={type.title}>{title}</Text>
       <View>
         {actions.map(action => (
@@ -36,7 +36,7 @@ export function PlayerActionsContent({ title, actions }: { title: string; action
           </Toque>
         ))}
       </View>
-    </ScrollView>
+    </BottomSheetScrollView>
   );
 }
 

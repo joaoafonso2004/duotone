@@ -450,3 +450,11 @@ export async function getArtistasSemente(): Promise<string[]> {
 export async function setArtistasSemente(nomes: readonly string[]): Promise<void> {
   await AsyncStorage.setItem(KEY_SEMENTES, JSON.stringify(nomes.slice(0, 12)));
 }
+
+export type OrdemDosArtistas = 'az' | 'played_most';
+export async function getOrdemDosArtistas(): Promise<OrdemDosArtistas> {
+  return await AsyncStorage.getItem('pref:ordemDosArtistas') === 'az' ? 'az' : 'played_most';
+}
+export async function setOrdemDosArtistas(value: OrdemDosArtistas): Promise<void> {
+  await AsyncStorage.setItem('pref:ordemDosArtistas', value);
+}

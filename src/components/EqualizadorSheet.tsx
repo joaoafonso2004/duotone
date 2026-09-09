@@ -5,7 +5,7 @@ import { chaveDaFaixa, PLANO } from '../lib/equalizer';
 import { usePlayer } from '../state/player';
 import { colors, spacing, type } from '../theme';
 import { BarraVelocidade } from './BarraVelocidade';
-import { BottomSheet } from './BottomSheet';
+import { BottomSheet, BottomSheetGestureGuard } from './BottomSheet';
 import { Equalizador, ReporEqualizador } from './Equalizador';
 
 
@@ -47,7 +47,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
             )}
           </View>
 
-          <Equalizador ganhos={eqGanhos} aoMudar={(novo) => setEqGanhos(novo)} />
+          <BottomSheetGestureGuard><Equalizador ganhos={eqGanhos} aoMudar={(novo) => setEqGanhos(novo)} /></BottomSheetGestureGuard>
 
 <AdjustmentSyncStatus />
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.xs }}>

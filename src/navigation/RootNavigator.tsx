@@ -13,6 +13,7 @@ import {
   NavigationContainer,
   Theme,
   createNavigationContainerRef,
+  getFocusedRouteNameFromRoute,
 } from '@react-navigation/native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { BarraDeSeparadores } from './BarraDeSeparadores';
@@ -176,8 +177,12 @@ function Tabs() {
     >
       <Tab.Screen name="Search" component={OnlineSearch} />
       <Tab.Screen name="Songs" component={SongsScreen} />
-      <Tab.Screen name="Artists" component={ArtistsStack} />
-      <Tab.Screen name="Playlists" component={PlaylistsStack} />
+      <Tab.Screen name="Artists" component={ArtistsStack} options={({ route }) => ({
+        swipeEnabled: !reducedMotion && (getFocusedRouteNameFromRoute(route) ?? 'Artists') === 'Artists',
+      })} />
+      <Tab.Screen name="Playlists" component={PlaylistsStack} options={({ route }) => ({
+        swipeEnabled: !reducedMotion && (getFocusedRouteNameFromRoute(route) ?? 'Playlists') === 'Playlists',
+      })} />
       <Tab.Screen name="Profile" component={OnlineProfile} />
       {/* Depois do Perfil, e escondido da barra: e o destino do arrastar para
           la da ultima seccao. Ver o `TabsParamList`. */}

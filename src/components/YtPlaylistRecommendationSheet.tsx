@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Pressable,
   StyleSheet,
   Text,
@@ -22,7 +21,7 @@ import {
 import { usePlayer } from '../state/player';
 import { colors, spacing, type, radii, gradients } from '../theme';
 import { useTheme } from '../state/theme';
-import { BottomSheet } from './BottomSheet';
+import { BottomSheet, BottomSheetFlatList } from './BottomSheet';
 import { TrackRow } from './TrackRow';
 import { hapticNotification } from '../lib/haptics';
 import { extractArtist } from '../lib/artistName';
@@ -195,7 +194,7 @@ export function YtPlaylistRecommendationSheet({
             TRACKS PREVIEW ({tracks.length})
           </Text>
 
-          <FlatList
+          <BottomSheetFlatList
             data={tracks}
             keyExtractor={(item, index) => `${item.sourceId}-${index}`}
             style={styles.list}

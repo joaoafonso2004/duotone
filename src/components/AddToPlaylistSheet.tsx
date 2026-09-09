@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Alert,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -20,7 +19,7 @@ import { hapticNotification } from '../lib/haptics';
 import { colors, radii, spacing, type } from '../theme';
 import type { Playlist, Track } from '../types';
 import { ArtworkCollage } from './ArtworkCollage';
-import { BottomSheet } from './BottomSheet';
+import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { Input } from './Input';
 import { PillButton } from './PillButton';
 
@@ -204,7 +203,7 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
       {loading ? (
         <ActivityIndicator color={colors.text} style={{ marginVertical: 24 }} />
       ) : (
-        <ScrollView style={{ maxHeight: 320 }}>
+        <BottomSheetScrollView style={{ maxHeight: 320 }}>
           {playlists.map((pl) => {
             const isAssociated = activePlaylistIds.has(pl.id);
             return (
@@ -238,7 +237,7 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
               No playlists yet — create your first one above.
             </Text>
           ) : null}
-        </ScrollView>
+        </BottomSheetScrollView>
       )}
     </BottomSheet>
   );

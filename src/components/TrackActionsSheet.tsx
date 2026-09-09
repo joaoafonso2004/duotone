@@ -5,7 +5,7 @@ import { displayArtist } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { hapticImpact } from '../lib/haptics';
 import { getAudioQuality } from '../lib/prefs';
 import { resolveYouTubeStream } from '../api/ytstream';
@@ -16,7 +16,7 @@ import {
 } from '../lib/youtubeCache';
 import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
-import { BottomSheet } from './BottomSheet';
+import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { ShareFriendSheet } from './ShareFriendSheet';
 
 export interface SheetAction {
@@ -116,7 +116,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
   return (
     <>
       <BottomSheet visible={visible} onClose={onClose}>
-        <ScrollView style={{maxHeight:height*0.75}} keyboardShouldPersistTaps="handled">
+        <BottomSheetScrollView style={{maxHeight:height*0.75}} keyboardShouldPersistTaps="handled">
         {track ? (
           <View style={styles.header}>
             {track.artworkUrl ? (
@@ -181,7 +181,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
             </Text>
           </Pressable>
         ))}
-        </ScrollView>
+        </BottomSheetScrollView>
       </BottomSheet>
 
       <RecommendationPreferences visible={!!recommendationTrack} track={recommendationTrack} onClose={()=>setRecommendationTrack(null)}/>

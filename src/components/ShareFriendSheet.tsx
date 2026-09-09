@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   getFriendships, getGrupos, shareComGrupo, shareItem,
   type ChatGroup, type Friendship,
@@ -8,7 +8,7 @@ import {
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { useTheme } from '../state/theme';
 import { colors, radii, spacing, type } from '../theme';
-import { BottomSheet } from './BottomSheet';
+import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { FriendAvatar } from './FriendAvatar';
 import { GroupAvatar } from './GroupChat';
 import { Input } from './Input';
@@ -177,7 +177,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
           </Text>
         </View>
       ) : (
-        <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
+        <BottomSheetScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
           {destinos.map((alvo) => {
             const estado = sendingStates[chaveDe(alvo)] ?? 'idle';
             const enviado = estado === 'sent';
@@ -228,7 +228,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
               </Pressable>
             );
           })}
-        </ScrollView>
+        </BottomSheetScrollView>
       )}
 
       {/* Não é um ícone a mais na linha de acções do leitor -- essa já tem três
