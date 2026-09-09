@@ -42,8 +42,8 @@ import {
 } from '../lib/playbackMachine';
 import { arredondar as arredondarRate, RATE_NORMAL } from '../lib/playbackRate';
 import {
-  aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear, fundirAjustes,
-  normalizar as normalizarGanhos, PLANO, type Ganhos, type MemoriaDeAjustes,
+  aoTocar as ajusteAoTocar, chaveDaFaixa, CHAVE_DO_PADRAO, compensacaoLinear, fundirAjustes,
+  normalizar as normalizarGanhos, padraoGuardado, PLANO, type Ganhos, type MemoriaDeAjustes,
 } from '../lib/equalizer';
 import type { Track } from '../types';
 
@@ -418,6 +418,30 @@ function lembrarDaFaixa(): void {
   const auth=useAuth.getState(),userId=auth.session?.user.id??auth.offlineUserId;
   if(userId)queueTrackAdjustment(userId,chave,value);
 
+}
+
+/**
+ * O equalizador BASE, escrito onde ele sincroniza mesmo.
+ *
+ * Gémeo do `lembrarDaFaixa` aqui em cima, e de propósito: é a mesma memória, a
+ * mesma fusão por data e a mesma fila de envio. O que muda é só a chave -- ver
+ * o `CHAVE_DO_PADRAO` no `lib/equalizer.ts` para o porquê de ela viver aqui e
+ * não numa preferência.
+ *
+ * O `pref:eqPadrao` continua a ser escrito por quem chama: é o que a app lê
+ * antes de a sincronização acordar, e é o que resta quando não há conta.
+ *
+ * Escreve-se SEMPRE com valores concretos, nunca a null: uma linha com os dois
+ * a null é deitada fora pelo `daPersistencia`, e voltar o padrão a plano é uma
+ * escolha tão explícita como qualquer outra -- tem de viajar como as outras.
+ */
+function guardarOPadrao(rate: number, ganhos: readonly number[]): void {
+  const value = { rate, ganhos: normalizarGanhos(ganhos), visto: Date.now() };
+  usePlayer.setState({
+    ajustesPorFaixa: fundirAjustes(usePlayer.getState().ajustesPorFaixa, { [CHAVE_DO_PADRAO]: value }),
+  });
+  const auth = useAuth.getState(), userId = auth.session?.user.id ?? auth.offlineUserId;
+  if (userId) queueTrackAdjustment(userId, CHAVE_DO_PADRAO, value);
 }
 
 /** Guarda contra duas idas à rede do rádio em simultâneo. */
@@ -1371,6 +1395,7 @@ export const usePlayer = create<PlayerState>()(
       // e o do PC, e assim nenhum se pode esquecer.
       set({ padraoGanhos: ganhos });
       persistEqPadrao(ganhos).catch(() => {});
+      guardarOPadrao(get().padraoRate, ganhos);
       return;
     }
     set({ eqGanhos: ganhos });
@@ -1380,8 +1405,22 @@ export const usePlayer = create<PlayerState>()(
 
   /** Hidratação e atualizações remotas; aplica também à faixa já aberta. */
   _carregarAjustes: (m, ganhos, rate) => {
-    const g = normalizarGanhos(ganhos);
-    const r = arredondarRate(rate);
+    // A LINHA GANHA À PREFERÊNCIA. Ela é a única das duas que atravessa
+    // aparelhos vivos -- e chega aqui já fundida pela data, com a edição mais
+    // recente de qualquer aparelho por cima. Sem linha nenhuma (ninguém ainda
+    // tocou no controlo depois desta versão) vale o que veio das preferências,
+    // que é o comportamento de sempre.
+    const doServidor = padraoGuardado(m);
+    const g = normalizarGanhos(doServidor?.ganhos ?? ganhos);
+    const r = arredondarRate(doServidor?.rate ?? rate);
+    // Escrito também na preferência local: é dela que o arranque seguinte lê,
+    // antes de a sincronização acordar, e é ela que os dois ecrãs de Definições
+    // mostram. NÃO se chama o `guardarOPadrao` aqui -- isto é a chegada de uma
+    // edição, não uma edição, e reenviá-la era um ciclo.
+    if (doServidor) {
+      persistEqPadrao(g).catch(() => {});
+      persistPlaybackRate(r).catch(() => {});
+    }
     // O PADRAO e o que vem das Definicoes. Ate aqui era tambem o que ficava
     // aplicado, e isso era um bug que se lia como "nao guardou": a sessao
     // restaura a faixa PAUSADA, sem passar pelo `playTrack` — e o `playTrack`
@@ -1417,6 +1456,7 @@ export const usePlayer = create<PlayerState>()(
       // desktop) e assim nenhum se pode esquecer. Antes o preset voltava a
       // "normal" a cada arranque, apesar de estar apresentado como definição.
       persistPlaybackRate(v).catch(() => {});
+      guardarOPadrao(v, get().padraoGanhos);
     } else {
       if (get().playbackRate === v) return;
       set({ playbackRate: v });

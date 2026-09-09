@@ -263,6 +263,38 @@ export function chaveDaFaixa(faixa: { source: string; sourceId: string }): strin
 }
 
 /**
+ * O equalizador BASE, guardado na mesma memória que os ajustes por faixa.
+ *
+ * ## Porquê aqui e não nas preferências
+ *
+ * O padrão vivia numa preferência local (`pref:eqPadrao`), que o `prefsSync`
+ * manda para a conta. Isso resolve a reinstalação e não resolve dois aparelhos
+ * vivos: a fusão do `prefsFusao` é tímida de propósito e, ao entrar na conta,
+ * só escreve localmente uma chave que o aparelho NÃO tenha. Mudar o
+ * equalizador no PC nunca chegava a um telemóvel que já tivesse a chave.
+ *
+ * Esta memória já tem tudo o que falta à outra: fusão por data (`visto`, o mais
+ * recente ganha), Realtime a avisar o outro aparelho, fila para quando está
+ * offline, e repetição em caso de falha. E a forma de uma linha --
+ * `{rate, ganhos, visto}` -- é exactamente a de um padrão.
+ *
+ * ## Porque é que não colide com faixa nenhuma
+ *
+ * As chaves são `fonte:id`, e a app só conhece duas fontes (ver o `Source` em
+ * `src/types.ts`). `padrao` não é uma delas e nunca sai do `chaveDaFaixa`. A
+ * migração `supabase/eq-padrao-sincronizado.sql` fecha o mesmo por baixo, com
+ * um check que só deixa passar `padrao` com o id `global`.
+ */
+export const CHAVE_DO_PADRAO = 'padrao:global';
+
+/** O padrão que está guardado, se estiver. */
+export function padraoGuardado(
+  memoria: MemoriaDeAjustes,
+): { rate: number | null; ganhos: Ganhos | null; visto: number } | null {
+  return memoria[CHAVE_DO_PADRAO] ?? null;
+}
+
+/**
  * Guardar o que a faixa tem de diferente do normal.
  *
  * **Só se guarda o que foge ao padrão.** Uma faixa a 1× e plana não deixa
@@ -315,12 +347,24 @@ export function fundirAjustes(
   return podar(saida);
 }
 
-/** Deixa só as `MAX_FAIXAS` mais recentes. */
+/**
+ * Deixa só as `MAX_FAIXAS` mais recentes -- e o padrão, sempre.
+ *
+ * O padrão está nesta memória mas não é uma faixa: é uma definição, e uma
+ * definição não caduca por se ouvirem trezentas músicas depois dela. Sem esta
+ * excepção, quem mexesse no equalizador base e não lhe voltasse a tocar perdia-o
+ * assim que a memória enchesse -- e o sintoma seria "as Definições esqueceram-se
+ * sozinhas", que é dos piores para se ir procurar.
+ */
 export function podar(memoria: MemoriaDeAjustes): MemoriaDeAjustes {
   const chaves = Object.keys(memoria);
   if (chaves.length <= MAX_FAIXAS) return memoria;
-  const ordenadas = chaves.sort((a, b) => (memoria[b]?.visto ?? 0) - (memoria[a]?.visto ?? 0));
+  const padrao = memoria[CHAVE_DO_PADRAO];
+  const ordenadas = chaves
+    .filter((k) => k !== CHAVE_DO_PADRAO)
+    .sort((a, b) => (memoria[b]?.visto ?? 0) - (memoria[a]?.visto ?? 0));
   const saida: MemoriaDeAjustes = {};
+  if (padrao) saida[CHAVE_DO_PADRAO] = padrao;
   for (const k of ordenadas.slice(0, MAX_FAIXAS)) saida[k] = memoria[k];
   return saida;
 }

@@ -2,17 +2,20 @@ import {
   aoTocar,
   BANDAS,
   chaveDaFaixa,
+  CHAVE_DO_PADRAO,
   compensacaoDb,
   compensacaoLinear,
   daPersistencia,
   ePlano,
   ETIQUETAS_BANDAS,
+  fundirAjustes,
   GANHO_MAXIMO,
   ganhosPorOmissao,
   guardar,
   MAX_FAIXAS,
   migrarCurvaAntiga,
   normalizar,
+  padraoGuardado,
   perfilDe,
   perfilPorId,
   PERFIS,
@@ -232,6 +235,50 @@ check('rate invalido nao passa',
 const ida = JSON.stringify(guardar({}, 'youtube:z', { rate: 0.7, ganhos: perfilPorId('vocal')!.ganhos }, agora));
 check('ida e volta pela persistencia mantem tudo',
   JSON.stringify(daPersistencia(ida)) === ida, ida.slice(0, 60));
+
+console.log('\no equalizador base, na mesma memoria das faixas');
+// A chave nao pode colidir com faixa nenhuma: a app so conhece 'youtube' e
+// 'spotify', e nenhuma delas sai do chaveDaFaixa como 'padrao'.
+check('a chave e padrao:global', CHAVE_DO_PADRAO === 'padrao:global');
+check('nao e a chave de uma faixa',
+  chaveDaFaixa({ source: 'youtube', sourceId: 'global' }) !== CHAVE_DO_PADRAO);
+check('sem linha nenhuma nao ha padrao guardado', padraoGuardado({}) === null);
+const memoriaComPadrao: MemoriaDeAjustes = {
+  [CHAVE_DO_PADRAO]: { rate: 1.25, ganhos: normalizar([4, 0, 0, 0, 0, 0, 0, 0, 0, 0]), visto: 10 },
+};
+check('a linha le-se de volta', padraoGuardado(memoriaComPadrao)?.rate === 1.25);
+check('e nao se confunde com o que uma faixa lembra',
+  aoTocar(memoriaComPadrao, 'youtube:abc', { rate: 1, ganhos: PLANO }).lembrado === false);
+
+// Uma definicao nao caduca por se ouvirem trezentas musicas depois dela.
+const cheia: MemoriaDeAjustes = { ...memoriaComPadrao };
+for (let i = 0; i < MAX_FAIXAS + 50; i++) {
+  cheia['youtube:t' + i] = { rate: 1.1, ganhos: null, visto: 1000 + i };
+}
+const podada = podar(cheia);
+check('o padrao sobrevive a poda', padraoGuardado(podada)?.rate === 1.25);
+check('e nao rouba lugar as faixas',
+  Object.keys(podada).filter((k) => k !== CHAVE_DO_PADRAO).length === MAX_FAIXAS);
+check('a poda deitou fora as mais antigas', podada['youtube:t0'] === undefined);
+
+// Voltar a plano E a 1x e uma escolha explicita, e tem de viajar como as
+// outras. Com os dois campos a null a linha era deitada fora pela
+// persistencia -- e e por isso que o `guardarOPadrao` escreve sempre valores
+// concretos, nunca nulls.
+const raso = JSON.stringify({ [CHAVE_DO_PADRAO]: { rate: 1, ganhos: PLANO, visto: 5 } });
+check('plano e 1x sobrevivem a persistencia', padraoGuardado(daPersistencia(raso))?.rate === 1);
+check('com os dois a null nao sobreviveria',
+  padraoGuardado(daPersistencia(JSON.stringify(
+    { [CHAVE_DO_PADRAO]: { rate: null, ganhos: null, visto: 5 } }))) === null);
+
+// A fusao e a mesma das faixas: a edicao mais recente ganha, venha de onde vier.
+const doOutroAparelho: MemoriaDeAjustes = {
+  [CHAVE_DO_PADRAO]: { rate: 0.9, ganhos: PLANO, visto: 20 },
+};
+check('o aparelho com a edicao mais recente ganha',
+  padraoGuardado(fundirAjustes(memoriaComPadrao, doOutroAparelho))?.rate === 0.9);
+check('e uma edicao antiga nao ressuscita',
+  padraoGuardado(fundirAjustes(doOutroAparelho, memoriaComPadrao))?.rate === 0.9);
 
 console.log(bad === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${bad} caso(s) a falhar.\n`);
 process.exit(bad === 0 ? 0 : 1);
