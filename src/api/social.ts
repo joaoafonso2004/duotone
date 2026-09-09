@@ -2,6 +2,9 @@ import { getPublicProfiles, searchPublicProfiles } from './profiles';
 import { supabase } from '../lib/supabase';
 import type { Track } from '../types';
 
+import { AMIGOS_A_CONSULTAR, favoritasDosAmigos, type EscutaDeAmigo, type FavoritaDeAmigo } from '../lib/favoritasDosAmigos';
+import { getSocialProfileTracks } from './profiles';
+import { trackKey } from '../lib/shuffle';
 export interface Friendship {
   friendId: string;
   username: string;
@@ -588,4 +591,31 @@ export async function marcarConversaVista(conversation: string, quando: string):
       { onConflict: 'user_id,conversation' }
     );
   if (error) throw error;
+}
+
+/**
+ * O que os teus amigos mais ouvem.
+ *
+ * Usa o MESMO `get_social_profile_tracks` que a página de um amigo já usa --
+ * com a RLS dele, portanto só devolve quem te deixa ver. Não foi preciso SQL
+ * novo: os dados já estavam a ser lidos um perfil de cada vez, e o que faltava
+ * era juntá-los.
+ *
+ * Só amigos ACEITES, e no máximo oito: cada um é uma ida à rede, e a partir daí
+ * paga-se tempo de arranque para faixas que vão cair no fim da lista.
+ *
+ * Falha por amigo e não em conjunto -- um perfil privado ou uma leitura que
+ * corra mal tira aquele amigo da conta e deixa os outros de pé.
+ */
+export async function favoritasDeAmigos(limite: number): Promise<FavoritaDeAmigo[]> {
+  const amizades = await getFriendships();
+  const aceites = amizades.filter((a) => a.status === 'accepted').slice(0, AMIGOS_A_CONSULTAR);
+  if (aceites.length === 0) return [];
+
+  const escutas = await Promise.all(aceites.map(async (a): Promise<EscutaDeAmigo> => ({
+    nome: a.name || a.username,
+    faixas: await getSocialProfileTracks(a.friendId).catch(() => []),
+  })));
+
+  return favoritasDosAmigos(escutas, trackKey, limite);
 }

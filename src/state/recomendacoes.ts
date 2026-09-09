@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { getLibrary } from '../api/library';
 import { descobertasDaSemana, descobertasPorAncora, flowDoDia, taparBuracosComOYouTube } from '../api/descoberta';
 import { nuncaLancadas } from '../api/naoLancado';
+import { favoritasDeAmigos } from '../api/social';
 import {
   getForgottenFavorites, getHeavyRotation, getProfileRecentlyPlayed,
 } from '../api/plays';
@@ -45,6 +46,8 @@ type Recomendacoes = {
   /** O que os teus artistas nunca lançaram. Ver api/naoLancado.ts. */
   nuncaLancado: Track[];
   ouvirDeNovo: Track[];
+  /** O que os teus amigos mais ouvem. Ver `lib/favoritasDosAmigos.ts`. */
+  amigos: Track[];
   flow: Track[];
   maisTocadas: Track[];
   esquecidas: Track[];
@@ -97,7 +100,10 @@ const POR_PRATELEIRA = 30;
  * a ordem escrita outra vez.
  */
 export const ORDEM_DAS_PRATELEIRAS = [
-  'descobrir', 'nuncaLancado', 'ouvirDeNovo', 'flow', 'maisTocadas', 'esquecidas',
+  // As dos amigos vao a seguir a descoberta e antes do que ja e teu: sao a
+  // unica coisa nesta pagina que nao saiu do teu proprio historico, e por isso
+  // ganham uma faixa repetida as de baixo -- que a teriam na mesma.
+  'descobrir', 'nuncaLancado', 'amigos', 'ouvirDeNovo', 'flow', 'maisTocadas', 'esquecidas',
 ] as const;
 
 export type NomeDaPrateleira = typeof ORDEM_DAS_PRATELEIRAS[number];
@@ -105,11 +111,12 @@ export type NomeDaPrateleira = typeof ORDEM_DAS_PRATELEIRAS[number];
 /** Impede que duas chamadas ao mesmo tempo façam o trabalho a dobrar. */
 let emCurso: Promise<void> | null = null;
 let geracao = 0;
-let rawShelves:Partial<Record<'descobrir'|'nuncaLancado'|'ouvirDeNovo'|'flow'|'maisTocadas'|'esquecidas',Track[]>>={};
+let rawShelves:Partial<Record<'descobrir'|'nuncaLancado'|'amigos'|'ouvirDeNovo'|'flow'|'maisTocadas'|'esquecidas',Track[]>>={};
 
 export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
   descobrir: [],
   nuncaLancado: [],
+  amigos: [],
   ouvirDeNovo: [],
   flow: [],
   maisTocadas: [],
@@ -123,7 +130,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
     geracao++;
     rawShelves={};
     emCurso = null;
-    set({ descobrir: [], nuncaLancado: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], prontas: [], misturas: [], misturasProntas: false, estado: 'vazio', carregadoEm: 0 });
+    set({ descobrir: [], nuncaLancado: [], amigos: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], prontas: [], misturas: [], misturasProntas: false, estado: 'vazio', carregadoEm: 0 });
   },
 
   carregar: async (forcar = false) => {
@@ -185,6 +192,10 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
         ouvirDeNovo: recentes.map((r: any) => ({ ...r, album: null } as Track)),
       })),
       publicar(getHeavyRotation(POR_PRATELEIRA), (maisTocadas) => ({ maisTocadas })),
+      // Os amigos. Falha por si como as outras: sem amigos aceites, ou com a
+      // leitura a correr mal, a prateleira nao aparece e as vizinhas nem dao
+      // por isso.
+      publicar(favoritasDeAmigos(POR_PRATELEIRA), (amigos) => ({ amigos })),
       publicar(getForgottenFavorites(POR_PRATELEIRA), (esquecidas) => ({ esquecidas })),
       // A descoberta e o flow precisam ambos da biblioteca: pede-se uma vez.
       // As misturas saem da biblioteca e de quem se ouve mais -- as duas
@@ -290,7 +301,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
 
 /** Há alguma coisa para mostrar? */
 export const temRecomendacoes = (r: Recomendacoes): boolean =>
-  r.descobrir.length > 0 || r.nuncaLancado.length > 0 || r.ouvirDeNovo.length > 0
+  r.descobrir.length > 0 || r.nuncaLancado.length > 0 || r.amigos.length > 0 || r.ouvirDeNovo.length > 0
   || r.flow.length > 0 || r.maisTocadas.length > 0 || r.esquecidas.length > 0;
 
 /** Aplica uma alteração sem refazer os pedidos nem alterar a fila manual. */

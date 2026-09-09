@@ -157,7 +157,7 @@ export function SearchScreen() {
 
   const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
-  const { descobrir, nuncaLancado, ouvirDeNovo: listenAgain, misturas, misturasProntas,
+  const { descobrir, nuncaLancado, amigos: dosAmigos, ouvirDeNovo: listenAgain, misturas, misturasProntas,
     maisTocadas: heavyRotation, esquecidas: forgottenFavorites, prontas } = recs;
   /** Ja aterrou? Vazia por ter chegado vazia e vazia por vir a caminho sao
    *  coisas diferentes: uma esconde-se, a outra mostra esqueleto. */
@@ -583,6 +583,10 @@ export function SearchScreen() {
                         <SkeletonDePrateleira largura={CAIXA_DA_MISTURA} cartoes={2} />
                       </View>
                     ))}
+                {/* Os amigos, e a unica prateleira desta pagina que nao sai
+                    do teu proprio historico. Fica entre a descoberta e o que
+                    ja e teu, que e onde ela pertence. */}
+                {renderRecommendationSection('amigos', "Your friends' favourites", dosAmigos, jaChegou('amigos'), { largas: true })}
                 {renderRecommendationSection('ouvirDeNovo', 'Listen again', listenAgain, jaChegou('ouvirDeNovo'), { largas: true })}
                 {renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, jaChegou('maisTocadas'), { largas: true })}
                 {renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, jaChegou('esquecidas'), { largas: true })}
