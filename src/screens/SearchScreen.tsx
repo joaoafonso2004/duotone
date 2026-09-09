@@ -189,8 +189,13 @@ export function SearchScreen() {
     () => misturas.filter((m) => m.id.startsWith('radio:')),
     [misturas],
   );
+  const decadas = React.useMemo(
+    () => misturas.filter((m) => m.id.startsWith('decada:')),
+    [misturas],
+  );
   const misturasDeArtista = React.useMemo(
-    () => misturas.filter((m) => !m.id.startsWith('estilo:') && !m.id.startsWith('radio:')),
+    () => misturas.filter((m) => !m.id.startsWith('estilo:')
+      && !m.id.startsWith('radio:') && !m.id.startsWith('decada:')),
     [misturas],
   );
 
@@ -576,6 +581,10 @@ export function SearchScreen() {
                     Ver `lib/estilos.ts` e `radiosDeArtista`. */}
                 {renderPrateleiraDeMisturas('Your styles', misturasDeEstilo)}
                 {renderPrateleiraDeMisturas('Radio', radios)}
+                {/* As decadas sao a unica familia que nao pergunta nada a
+                    catalogo nenhum: e a musica DELE daquela era, e nao musica
+                    nova daquela era. Ver `lib/decadas.ts`. */}
+                {renderPrateleiraDeMisturas('Decades', decadas)}
                 {(!misturasProntas || misturasDeArtista.length > 0) &&
                   (misturasProntas
                     ? renderPrateleiraDeMisturas('Playlists', misturasDeArtista)

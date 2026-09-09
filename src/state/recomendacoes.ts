@@ -18,6 +18,8 @@ import { baralhada } from '../lib/jam';
 import { chaveDeArtista } from '../lib/artistName';
 import { artistasParaRecomendacoes } from '../api/plays';
 import { trackKey } from '../lib/shuffle';
+import { misturasPorDecada } from '../lib/decadas';
+import { anoDaFaixa, encherDoPartilhado } from './catalogoDeFaixas';
 
 /**
  * As prateleiras de recomendações, fora do ecrã que as mostra.
@@ -270,6 +272,28 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
             (chave) => vizinhosPorChave.get(chave) ?? [],
             chaveDeArtista,
           );
+          /**
+           * As DÉCADAS, a terceira forma de misturar -- e a única que não
+           * pergunta nada a catálogo de semelhanças nenhum.
+           *
+           * Uma "2010s mix" não é descoberta: é a MÚSICA DELE daquela era. Sai
+           * toda da biblioteca que já está aqui, e a única coisa que falta é o
+           * ano -- que vive na tabela partilhada de metadados. Enche-se agora,
+           * de uma vez, senão num arranque frio o catálogo conhece meia dúzia
+           * de faixas e não há década nenhuma com material.
+           *
+           * O peso é o das ESCUTAS POR ARTISTA, que é o que já está em mão: a
+           * década à frente é aquela onde estão os artistas que ele mais ouve,
+           * e não a mais recente. Quem não está no topo pesa zero e desempata
+           * pela quantidade, que é a resposta honesta -- "a década de que tens
+           * mais música".
+           */
+          await encherDoPartilhado(lib).catch(() => {});
+          if (atual !== geracao) return;
+          const escutasPorArtista = new Map(
+            artistas.map((a) => [chaveDeArtista(a.name), a.plays]),
+          );
+
           set({
             // O deslocamento vem do DIA. Do acaso mudaria as playlists de
             // sítio a cada regresso à pesquisa, e uma prateleira que se mexe
@@ -285,6 +309,11 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
               // nenhuma. O que as separa das misturas e a proporcao -- tres
               // faixas novas por cada tua, o inverso do que a mistura faz.
               ...radiosDeArtista(artistas, lib, artistPreferenceKey, chaveDeArtista, vizinhas, baralhada),
+              // As décadas entram DEPOIS das radios de propósito: a grelha de
+              // atalhos do topo leva as sete primeiras, e essas sete são os
+              // estilos e as radios. Ver o `lib/decadas.ts`.
+              ...misturasPorDecada(lib, anoDaFaixa, trackKey,
+                (t) => escutasPorArtista.get(artistPreferenceKey(t)) ?? 0, baralhada),
               ...misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
                 chaveDeArtista, baralhada,
                 Math.floor(Date.now() / 86_400_000) + voltasDeRefresco, vizinhas),

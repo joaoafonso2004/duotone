@@ -44,6 +44,14 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
   const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
   const { descobrir, nuncaLancado, ouvirDeNovo, flow, maisTocadas, esquecidas } = recs;
+  // As misturas por DECADA sao a unica familia de misturas que cabe aqui tal
+  // como esta: sao faixas da biblioteca, e a `Shelf` desta pagina ja sabe
+  // desenhar faixas. As outras (estilos, radios, playlists) precisam do
+  // mosaico e de uma rota propria, que o desktop ainda nao tem.
+  const decadas = useMemo(
+    () => recs.misturas.filter((m) => m.id.startsWith('decada:')),
+    [recs.misturas],
+  );
   const recsCarregadas = recs.estado === 'pronto';
   // Nao repete o trabalho: se ja estao carregadas ou a carregar, isto e um
   // no-op. Existe para o caso de a app nao as ter comecado no arranque.
@@ -85,6 +93,9 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
           <Shelf titulo="Daily flow" nota="based on your listening" tracks={flow} onPlay={play} onMore={more} />
           <Shelf titulo="Heavy rotation" tracks={maisTocadas} onPlay={play} onMore={more} />
           <Shelf titulo="Forgotten favourites" nota="not played in a while" tracks={esquecidas} onPlay={play} onMore={more} />
+          {/* A tua musica daquela era, e nao musica nova daquela era. Ver
+              `lib/decadas.ts`. */}
+          {decadas.map((m) => <Shelf key={m.id} titulo={m.nome} nota="your music from that decade" tracks={m.faixas} onPlay={play} onMore={more} />)}
         </>
       : <Empty icon={recsCarregadas ? 'search-outline' : 'sparkles-outline'}
           title={recsCarregadas ? 'Nothing to recommend yet' : 'Preparing recommendations…'}

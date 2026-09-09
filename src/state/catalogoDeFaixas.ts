@@ -98,12 +98,66 @@ export async function garantirCatalogo(faixas: readonly Track[]): Promise<void> 
   }
 }
 
+/** Já se perguntou à tabela partilhada por esta faixa nesta sessão. */
+const jaPerguntado = new Set<string>();
+
+/**
+ * Enche o catálogo com o que a tabela partilhada JÁ sabe — e mais nada.
+ *
+ * O `garantirCatalogo` faz isto e a seguir ainda vai ao Deezer resolver o que
+ * sobrou, doze faixas de cada vez. Aqui não se vai: quem chama quer o que já
+ * está resolvido para a biblioteca INTEIRA, de uma vez, e não pode pagar uma
+ * ida à rede por faixa para o ter.
+ *
+ * É disto que vivem as misturas por década. O ano sai daqui ou não sai de lado
+ * nenhum — o `garantirCatalogo` resolve à medida que as listas aparecem, e num
+ * arranque frio isso são zero anos conhecidos, logo zero décadas. Ler a tabela
+ * (que outro dispositivo, ou outra pessoa, já pagou) resolve isso sem custar
+ * rádio ligado nenhum.
+ *
+ * Pergunta uma vez por faixa e por sessão: quem não estava na tabela continua
+ * a não estar, e refrescar a Pesquisa não repete a leitura toda. Marca-se
+ * ANTES de esperar, para duas chamadas ao mesmo tempo não pedirem o mesmo.
+ */
+export async function encherDoPartilhado(faixas: readonly Track[]): Promise<void> {
+  const porPerguntar = faixas.filter((t) => {
+    if (!t?.sourceId || !t?.source) return false;
+    const k = chaveDoCatalogo(t.source, t.sourceId);
+    return !useCatalogoDeFaixas.getState().porFaixa[k] && !jaPerguntado.has(k);
+  });
+  if (!porPerguntar.length) return;
+  for (const t of porPerguntar) jaPerguntado.add(chaveDoCatalogo(t.source, t.sourceId));
+
+  const sabidas = await lerCatalogoDeFaixas(
+    porPerguntar.map((t) => ({ source: t.source, sourceId: t.sourceId })),
+  );
+  if (!sabidas.size) return;
+  useCatalogoDeFaixas.setState((s) => ({
+    porFaixa: { ...s.porFaixa, ...Object.fromEntries(sabidas) },
+    versao: s.versao + 1,
+  }));
+}
+
 /**
  * A faixa como se deve mostrar: com o que o catálogo confirmou, se confirmou.
  *
  * Devolve a MESMA referência quando não há nada a corrigir, para as listas não
  * voltarem a desenhar à toa.
  */
+/**
+ * O ano de lancamento de uma faixa, quando o catalogo o sabe.
+ *
+ * A parte do `comCatalogo` de proposito: o `Track` e o tipo que anda pela app
+ * toda e por dentro do leitor, e acrescentar-lhe um campo que so duas
+ * prateleiras usam obrigava a mexer em todos os sitios que constroem um.
+ * Quem precisa do ano pergunta por ele.
+ */
+export function anoDaFaixa(faixa: Track | null | undefined): number | null {
+  if (!faixa?.sourceId || !faixa?.source) return null;
+  const achado = useCatalogoDeFaixas.getState().porFaixa[chaveDoCatalogo(faixa.source, faixa.sourceId)];
+  return typeof achado?.ano === 'number' ? achado.ano : null;
+}
+
 export function comCatalogo<T extends Track>(faixa: T): T {
   if (!faixa?.sourceId || !faixa?.source) return faixa;
   const achado = useCatalogoDeFaixas.getState().porFaixa[chaveDoCatalogo(faixa.source, faixa.sourceId)];
