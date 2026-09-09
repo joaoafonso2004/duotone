@@ -15,6 +15,8 @@ import {
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
 import { candidatasParaDescoberta } from '../api/descoberta';
+import { artistasParaRecomendacoes } from '../api/plays';
+import { chaveDeArtista } from '../lib/artistName';
 import {
   setShuffle as persistShuffle, setShuffleInteligente as persistShuffleInteligente,
   setPlaybackRate as persistPlaybackRate, setEqPadrao as persistEqPadrao,
@@ -422,6 +424,34 @@ function lembrarDaFaixa(): void {
 let radioInFlight = false;
 /** Impede que uma resolucao lenta de uma faixa antiga substitua um clique mais recente. */
 let playRequestId = 0;
+
+/**
+ * Quantas candidatas se pedem por sugestao, e de quantos artistas.
+ *
+ * Os valores por omissao do `candidatasParaDescoberta` sao 12 e 2 -- estreitos
+ * de mais para uma coisa que corre de quatro em quatro faixas durante horas.
+ */
+const POR_SUGESTAO = 30;
+const ALVOS_DA_SUGESTAO = 4;
+
+/**
+ * O retrato do que se ouve, para os alvos nao virem so das ultimas tres faixas.
+ *
+ * Falha em silencio: sem historico devolve `undefined` e o `escolherAlvos`
+ * volta a olhar so para o contexto, que e o que fazia antes.
+ */
+async function retratoDeEscutas(): Promise<Map<string, number> | undefined> {
+  try {
+    const mapa = new Map<string, number>();
+    for (const a of await artistasParaRecomendacoes(20)) {
+      const k = chaveDeArtista(a.name);
+      if (k) mapa.set(k, Math.max(mapa.get(k) ?? 0, a.plays));
+    }
+    return mapa.size ? mapa : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export const usePlayer = create<PlayerState>()(
   persist(
@@ -1118,6 +1148,20 @@ export const usePlayer = create<PlayerState>()(
       const naFila = new Set(queue.map((t) => trackKey(t)));
       const candidatas = await candidatasParaDescoberta(
         contexto, naFila, new Set(sugeridas),
+        // Mais fundo e mais largo, e e isto que corrige o "aparecem sempre as
+        // mesmas".
+        //
+        // Estava a usar os valores por omissao: DOIS alvos, tirados apenas das
+        // ultimas tres faixas ouvidas. Dentro de uma playlist essas tres sao
+        // quase sempre do mesmo mundo, portanto os dois alvos eram sempre os
+        // mesmos, os vizinhos deles eram sempre os mesmos, e a lista de onde
+        // se escolhe era sempre a mesma meia duzia. O `sugeridas` evitava o
+        // repetido exacto; nao evitava o poco ser raso.
+        //
+        // Quatro alvos e o que a descoberta ja usa, e o retrato das escutas
+        // faz os alvos representarem o que se ouve E NAO so o que esta a dar
+        // agora.
+        POR_SUGESTAO, ALVOS_DA_SUGESTAO, await retratoDeEscutas(),
       );
       if(useConnectivity.getState().offline||get().queue!==queue||!get().shuffleInteligente)return 0;
       if (candidatas.length === 0) return 0;
@@ -1176,6 +1220,20 @@ export const usePlayer = create<PlayerState>()(
       const naFila = new Set(queue.map((t) => trackKey(t)));
       const candidatas = await candidatasParaDescoberta(
         contexto, naFila, new Set(sugeridas),
+        // Mais fundo e mais largo, e e isto que corrige o "aparecem sempre as
+        // mesmas".
+        //
+        // Estava a usar os valores por omissao: DOIS alvos, tirados apenas das
+        // ultimas tres faixas ouvidas. Dentro de uma playlist essas tres sao
+        // quase sempre do mesmo mundo, portanto os dois alvos eram sempre os
+        // mesmos, os vizinhos deles eram sempre os mesmos, e a lista de onde
+        // se escolhe era sempre a mesma meia duzia. O `sugeridas` evitava o
+        // repetido exacto; nao evitava o poco ser raso.
+        //
+        // Quatro alvos e o que a descoberta ja usa, e o retrato das escutas
+        // faz os alvos representarem o que se ouve E NAO so o que esta a dar
+        // agora.
+        POR_SUGESTAO, ALVOS_DA_SUGESTAO, await retratoDeEscutas(),
       );
       if(useConnectivity.getState().offline||!get().shuffleInteligente)return false;
       const escolhida = escolherSugestao(
