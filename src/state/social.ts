@@ -8,8 +8,11 @@ import { fundirVistos } from '../lib/social';
 import { clearProfileMediaCache } from '../lib/profileMedia';
 import { getSocialConversations,type PublicProfile } from '../api/profiles';
 import { appEstaVisivel } from '../lib/appVisibility';
+import { serialRefresh, type InboxSnapshot } from '../lib/inAppNotifications';
 
 interface SocialState {
+  inboxSnapshot: InboxSnapshot | null;
+  inboxError: boolean;
   profileVersion: number;
   contacts:PublicProfile[];
   conversation: {kind:'friend'|'group';id:string}|null;
@@ -40,15 +43,15 @@ const friendsNow = (now: number) => rawFriends.map((friend) => {
 });
 
 export const useSocial = create<SocialState>((set, get) => ({
-  contacts:[],profileVersion:0,conversation:null,drafts:{},
+  inboxSnapshot:null,inboxError:false,contacts:[],profileVersion:0,conversation:null,drafts:{},
   friends: [], groups: [], received: [], activity: {}, seen: {}, loading: true, error: null, now: Date.now(),
   refresh: () => {
     if (running) { queued = true; return running; }
     const gen = generation;
     const job = async () => {
       try {
-        const [friends, groups, received, seenLocal, presence,contacts,activity,seenRemoto] = await Promise.all([
-          getFriendships(), getGrupos(), getInboxItems(), getChatsVistos(accountId), supabase.rpc('get_social_presence'),getSocialConversations(),
+        const [, groups, presence,contacts,activity] = await Promise.all([
+          refreshInbox(), getGrupos(), supabase.rpc('get_social_presence'),getSocialConversations(),
           // Uma instalação sem o SQL novo continua a abrir: fica sem ordem, não sem lista.
           (async():Promise<Record<string,number>>=>{
             try{
@@ -57,15 +60,8 @@ export const useSocial = create<SocialState>((set, get) => ({
               return Object.fromEntries((r.data as {outro:string;ultima:string}[]).map(x=>[x.outro,Date.parse(x.ultima)]));
             }catch{return {};}
           })(),
-          // Idem: sem o chat-reads.sql aplicado, a marca fica só local — que
-          // é exatamente o comportamento antigo, não uma avaria.
-          (async():Promise<Record<string,string>>=>{
-            try{return await lerConversasVistas();}catch{return {};}
-          })(),
         ]);
         if (gen !== generation) return;
-        if (rawFriends.some(f=>f.status==='accepted'&&!friends.some(n=>n.friendId===f.friendId&&n.status==='accepted'))) clearProfileMediaCache();
-        rawFriends = friends;
         if (!presence.error && presence.data) {
           available = true;
           clockOffset = Date.parse(presence.data.serverTime) - Date.now();
@@ -74,11 +70,8 @@ export const useSocial = create<SocialState>((set, get) => ({
           }
         }
         const now = Date.now() + clockOffset;
-        // Nenhum lado manda sobre o outro: o local pode estar à frente (leste
-        // agora, sem rede) e a conta também (leste no outro aparelho).
-        const seen = fundirVistos(seenLocal, seenRemoto);
-        set({ contacts,friends: friendsNow(now), groups, received, activity, seen, now, loading: false,
-          error: presence.error ? 'Could not update presence. Try again.' : null });
+        set({ contacts,friends: friendsNow(now), groups, activity, now, loading: false,
+          error: get().inboxError ? INBOX_ERROR : presence.error ? 'Could not update presence. Try again.' : null });
       } catch (e) {
         if (gen === generation) set({ loading: false, error: 'Could not refresh Social. What you see may be out of date.' });
         console.warn('Erro ao atualizar o Social:', e);
@@ -95,26 +88,62 @@ export const useSocial = create<SocialState>((set, get) => ({
     const gen=generation;
     // O local primeiro: a bolinha tem de sair já, com ou sem rede.
     const seen=await marcarChatVisto(id,timestamp,accountId);
-    if(gen===generation)set({seen});
+    if(gen===generation)set({seen:fundirVistos(get().seen,seen)});
     // E depois a conta, para os outros aparelhos saberem. Falhar aqui só
     // deixa a marca por partilhar; o próximo markRead com rede resolve.
+    if(gen !== generation)return;
     try{await marcarConversaVista(id,timestamp);}catch{/* sem rede, ou SQL por aplicar */}
   },
 }));
+const INBOX_ERROR = 'Could not update messages or friend requests. Retrying while the app is open.';
 let accountId='';
+let refreshInbox: () => Promise<void> = async () => {};
+
+/** Messages and requests must not wait for presence, groups or profile queries.
+ * Both the Social UI and notifications observe this same successful snapshot. */
+function createInboxRefresh(userId: string, gen: number) {
+  return serialRefresh(async () => {
+    if (gen !== generation || !appEstaVisivel()) return;
+    const [inbox, friendships, local, remote] = await Promise.allSettled([
+      getInboxItems(), getFriendships(), getChatsVistos(userId), lerConversasVistas(),
+    ]);
+    if (gen !== generation) return;
+    const seen = fundirVistos(useSocial.getState().seen, fundirVistos(
+      local.status === 'fulfilled' ? local.value : {}, remote.status === 'fulfilled' ? remote.value : {}));
+    const snapshot: InboxSnapshot = {accountId:userId};
+    if (inbox.status === 'fulfilled') snapshot.received = inbox.value;
+    if (friendships.status === 'fulfilled') {
+      snapshot.friends = friendships.value;
+      if (rawFriends.some(f => f.status === 'accepted' && !friendships.value.some(n => n.friendId === f.friendId && n.status === 'accepted'))) clearProfileMediaCache();
+      rawFriends = friendships.value;
+    }
+    const inboxError = inbox.status === 'rejected' || friendships.status === 'rejected';
+    useSocial.setState({inboxError, error:inboxError ? INBOX_ERROR : useSocial.getState().error === INBOX_ERROR ? null : useSocial.getState().error, seen, friends:friendsNow(Date.now()+clockOffset),
+      ...(snapshot.received ? {received:snapshot.received} : {}), inboxSnapshot:snapshot});
+  });
+}
+
 
 /** A lista, o perfil e os cabeçalhos das conversas observam as mesmas entidades. */
 export function iniciarSocial(userId: string): () => void {
   const gen = ++generation;
   accountId=userId;clearProfileMediaCache();
+  refreshInbox=createInboxRefresh(userId,gen);
+  const inboxRefresh=refreshInbox;
   rawFriends = []; presences = {}; available = false; clockOffset = 0; running = null; queued = false;
-  useSocial.setState({ contacts:[],friends: [], groups: [], received: [], activity: {}, seen: {}, loading: true, error: null,conversation:null,drafts:{} });
+  useSocial.setState({ inboxSnapshot:null,inboxError:false,contacts:[],friends: [], groups: [], received: [], activity: {}, seen: {}, loading: true, error: null,conversation:null,drafts:{} });
   let debounce: ReturnType<typeof setTimeout>;
   let dirty=false;
   const refresh = () => {
     if(!appEstaVisivel()){dirty=true;return;}
     dirty=false;
     clearTimeout(debounce); debounce = setTimeout(() => void useSocial.getState().refresh(), 100);
+  };
+  const refreshMessages = () => {
+    if (gen !== generation) return;
+    if (!appEstaVisivel()) { dirty=true; return; }
+    void inboxRefresh();
+    refresh();
   };
   const channel = supabase.channel(`social:${userId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'social_presence' }, (event) => {
@@ -126,10 +155,10 @@ export function iniciarSocial(userId: string): () => void {
         else dirty=true;
       }
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, refresh)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_items' }, refresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, refreshMessages)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_items' }, refreshMessages)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, ()=>{useSocial.setState(s=>({profileVersion:s.profileVersion+1}));refresh();})
-    .subscribe((status) => { if (status === 'SUBSCRIBED') refresh(); });
+    .subscribe((status) => { if (status === 'SUBSCRIBED') refreshMessages(); });
   const tick = setInterval(() => {
     if(!appEstaVisivel())return;
     const now = Date.now() + clockOffset;
@@ -139,21 +168,25 @@ export function iniciarSocial(userId: string): () => void {
   // quebra silenciosa, por isso dois minutos chegam e evitam duas leituras
   // sociais completas por minuto enquanto nada muda.
   const recovery = setInterval(refresh, 120000);
+  // Foreground-only recovery even when the SQL Realtime publication is absent.
+  // This reads the inbox, requests and read markers, not all Social metadata.
+  const inboxRecovery = setInterval(() => { if (appEstaVisivel()) void inboxRefresh(); }, 15000);
   const acordar=()=>{
     if(!appEstaVisivel())return;
     const now=Date.now()+clockOffset;
     useSocial.setState({now,friends:friendsNow(now)});
+    void inboxRefresh();
     if(dirty)refresh(); else void useSocial.getState().refresh();
   };
   const app=AppState.addEventListener('change',acordar);
   if(Platform.OS==='web')document.addEventListener('visibilitychange',acordar);
   void useSocial.getState().refresh();
   return () => {
-    ++generation; clearTimeout(debounce); clearInterval(tick); clearInterval(recovery);
+    ++generation; clearTimeout(debounce); clearInterval(tick); clearInterval(recovery); clearInterval(inboxRecovery);
     app.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar);
-    accountId='';clearProfileMediaCache();
+    accountId='';refreshInbox=async()=>{};clearProfileMediaCache();
     void supabase.removeChannel(channel);
     rawFriends = []; presences = {}; available = false; running = null; queued = false;
-    useSocial.setState({ contacts:[],friends: [], groups: [], received: [], seen: {}, error: null, loading: true,conversation:null,drafts:{} });
+    useSocial.setState({ inboxSnapshot:null,inboxError:false,contacts:[],friends: [], groups: [], received: [], seen: {}, error: null, loading: true,conversation:null,drafts:{} });
   };
 }

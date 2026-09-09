@@ -20,7 +20,7 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
-import { Animated, StyleSheet, Text, View, ActivityIndicator, AppState } from 'react-native';
+import { Animated, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
@@ -42,16 +42,12 @@ import { SocialScreen } from '../screens/SocialScreen';
 import { useAuth } from '../state/auth';
 import { colors } from '../theme';
 import { useTheme } from '../state/theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getNotificationsEnabled } from '../lib/prefs';
-import * as Notifications from 'expo-notifications';
-import { getFriendships, getInboxItems } from '../api/social';
 import { useNotifications } from '../state/notifications';
-import {
-  ensureNotificationPermission,
-  notifyNewInboxItems,
-  notifyPendingFriendRequests,
-} from '../lib/localNotifications';
+import { useInAppNotifications } from '../hooks/useInAppNotifications';
+import { NotificationBanner } from '../components/NotificationBanner';
+import { usePlayer } from '../state/player';
+import { closeNotificationOverlays } from '../lib/notificationOverlays';
+import type { NotificationTarget } from '../lib/inAppNotifications';
 
 const OnlineArtists=withInternet(ArtistsScreen,'Artists');
 const OnlineImportYouTube=withInternet(ImportYouTubeScreen,'ImportYouTube');
@@ -201,6 +197,23 @@ const linking: LinkingOptions<RootStackParamList> = {
   },
 };
 
+function visibleConversation(): string | null {
+  if (!navigationRef.isReady() || navigationRef.getCurrentRoute()?.name !== 'Social' || usePlayer.getState().expanded) return null;
+  const c = useSocial.getState().conversation;
+  return c ? c.kind === 'group' ? `group:${c.id}` : c.id : null;
+}
+async function openNotification(target: NotificationTarget) {
+  const userId = useAuth.getState().session?.user.id;
+  await closeNotificationOverlays();
+  if (!userId || useAuth.getState().session?.user.id !== userId) return;
+  if (!navigationRef.isReady()) return;
+  usePlayer.getState().setExpanded(false);
+  // Explicitly select on every tap, including a repeated link to the same chat.
+  useSocial.setState({conversation:target.groupId ? {kind:'group',id:target.groupId}
+    : target.friendId ? {kind:'friend',id:target.friendId} : null});
+  navigationRef.navigate('Social',{openChatWithFriendId:target.friendId,openGroupId:target.groupId});
+}
+
 export function RootNavigator() {
   const session = useAuth((s) => s.session);
   const offlineUserId=useAuth(s=>s.offlineUserId);
@@ -217,66 +230,7 @@ export function RootNavigator() {
     useNotifications.setState({hasNotification:unread||pending,hasSocialNotification:unread||pending});
   },[socialReceived,socialSeen,socialFriends]);
 
-  // Rede de segurança para notificações enquanto há áudio em background.
-  useEffect(() => {
-    if (!session||offline) return;
-    ensureNotificationPermission();
-
-    const checkNewMessages = async () => {
-      try {
-        // A bolinha vermelha na app continua sempre; o que a preferência
-        // controla são as notificações do sistema, que é o que incomoda.
-        const notifyAllowed = await getNotificationsEnabled();
-        const items = await getInboxItems();
-        if (items.length > 0) {
-          // Com a app em primeiro plano a bolinha vermelha chega; notificar
-          // por cima disso seria ruído. Fora do primeiro plano (típico desta
-          // app: a tocar música com o ecrã bloqueado) é a única forma de o
-          // utilizador saber que recebeu alguma coisa.
-          if (notifyAllowed && AppState.currentState !== 'active') {
-            await notifyNewInboxItems(items);
-          }
-        }
-
-        // Pedidos de amizade: ficam noutra tabela, não na inbox.
-        const friendships = await getFriendships();
-        // Recebido = pendente em que EU nao sou o remetente (nao ha campo
-        // `direction`; a Friendship marca isso com `isSender`).
-        const pendentes = friendships.filter((f) => f.status === 'pending' && !f.isSender).length;
-
-        if (notifyAllowed && AppState.currentState !== 'active') {
-          await notifyPendingFriendRequests(pendentes);
-        }
-      } catch (err) {
-        // ignore
-      }
-    };
-
-    // Em primeiro plano o Realtime de `useSocial` já atualiza a bolinha; duas
-    // queries adicionais de 15 em 15 segundos só duplicavam trabalho. Este
-    // caminho existe para notificações enquanto há áudio em background, com
-    // a tarefa do BGTaskScheduler como recuperação quando o iOS suspende JS.
-    const checkEmBackground=()=>{
-      if(AppState.currentState!=='active')void checkNewMessages();
-    };
-    checkEmBackground();
-    const interval = setInterval(checkEmBackground, 120000);
-    const app=AppState.addEventListener('change',checkEmBackground);
-    return () => {clearInterval(interval);app.remove();};
-  }, [session,offline]);
-
-  // Tocar na notificação leva ao Social — sem isto abria a app na última
-  // página e o utilizador tinha de ir procurar a mensagem à mão.
-  useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((res) => {
-      const target = res.notification.request.content.data?.target;
-      if (target === 'social' && navigationRef.isReady()) {
-        const data=res.notification.request.content.data ?? {};
-        navigationRef.navigate('Social',{openChatWithFriendId:typeof data.friendId==='string'?data.friendId:undefined,openGroupId:typeof data.groupId==='string'?data.groupId:undefined});
-      }
-    });
-    return () => sub.remove();
-  }, []);
+  useInAppNotifications(visibleConversation);
 
   if (!initialized) return <Splash />;
 
@@ -337,6 +291,7 @@ export function RootNavigator() {
             <PlayerRoot />
             {/* "A tocar no PC — continuar aqui". Fica por cima do mini-player. */}
             <HandoffBanner />
+            <NotificationBanner onOpen={openNotification} />
             {/* REATIVADO (ago 2026). A condição que este comentário previa
                 aconteceu: o ANDROID_VR já NÃO resolve áudio sem PO Token. O
                 CDN corta em ~1MB cumulativos por vídeo/IP — medido no 4G do

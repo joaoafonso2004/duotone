@@ -1,3 +1,4 @@
+import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import React from 'react';
 import { KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -101,6 +102,7 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
   visible: boolean; title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; fullScreen?: boolean; header?: React.ReactNode;
 }) {
   const safe = useSafeAreaInsets();
+  const notificationDismiss = useNotificationOverlay(visible,onClose);
   const { height } = useWindowDimensions();
 
   /**
@@ -137,7 +139,7 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
     })
   ).current;
 
-  return <Modal visible={visible} transparent={!fullScreen} animationType={web ? 'fade' : 'slide'} onRequestClose={onClose}>
+  return <Modal onDismiss={notificationDismiss} visible={visible} transparent={!fullScreen} animationType={web ? 'fade' : 'slide'} onRequestClose={onClose}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1, backgroundColor: fullScreen ? colors.bg : colors.overlay, justifyContent: web ? 'center' : 'flex-end', alignItems: 'center', paddingTop: safe.top + (fullScreen ? 0 : 12), paddingBottom: web ? 12 : 0, paddingHorizontal: web ? 24 : 0 }}>
       {/* Tocar fora fecha. Só numa folha: em ecrã inteiro não há "fora", e

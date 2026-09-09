@@ -94,8 +94,8 @@ export async function setVolumeNormalization(v: boolean): Promise<void> {
   await setBool(KEY_VOLUME_NORMALIZATION, v);
 }
 
-/** Notificações locais (inbox e pedidos de amizade). Ligadas por omissão —
- * são o único aviso de que chegou alguma coisa com a app fechada. */
+/** Avisos no topo da app móvel; no desktop também controla os avisos Windows.
+ * As marcas de mensagens por ler são independentes desta preferência. */
 export async function getNotificationsEnabled(): Promise<boolean> {
   return getBool(KEY_NOTIFICATIONS, true);
 }

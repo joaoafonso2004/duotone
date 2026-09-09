@@ -1,3 +1,4 @@
+import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
@@ -21,6 +22,7 @@ interface Props {
 
 export function BottomSheet({ visible, onClose, children }: Props) {
   const { height } = useWindowDimensions();
+  const notificationDismiss = useNotificationOverlay(visible,onClose);
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current;
   /** Quanto o dedo já arrastou a folha para baixo. */
@@ -63,7 +65,7 @@ export function BottomSheet({ visible, onClose, children }: Props) {
   ).current;
 
   return (
-    <Modal
+    <Modal onDismiss={notificationDismiss}
       visible={visible}
       transparent
       animationType="fade"

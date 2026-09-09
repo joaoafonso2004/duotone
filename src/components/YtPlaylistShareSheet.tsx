@@ -1,3 +1,4 @@
+import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React from 'react';
@@ -28,6 +29,7 @@ export function YtPlaylistShareSheet({
   playlistName,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const notificationDismiss = useNotificationOverlay(visible,onClose);
   const shareLink = `duotone://playlist/import?id=${playlistId}`;
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
     shareLink
@@ -50,7 +52,7 @@ export function YtPlaylistShareSheet({
   };
 
   return (
-    <Modal
+    <Modal onDismiss={notificationDismiss}
       visible={visible}
       animationType="slide"
       transparent

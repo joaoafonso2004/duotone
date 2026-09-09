@@ -33,7 +33,7 @@ import {
   migrateAudioCacheToDocuments,
   pruneAudioCacheLRU,
 } from './src/lib/youtubeCache';
-import { registerBackgroundInboxCheck } from './src/lib/backgroundInbox';
+import { retireBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { useAuth } from './src/state/auth';
 import {chaveDaFaixa} from './src/lib/equalizer';
 import { startTrackAdjustmentSync } from './src/state/trackAdjustments';
@@ -133,8 +133,8 @@ export default function App() {
     init();
     // Hidrata preferências persistidas no arranque da app.
     loadPrefsCache();
-    // Verificação da inbox com a app fechada (best-effort; ver backgroundInbox).
-    registerBackgroundInboxCheck();
+    // Retira a tarefa antiga: os avisos móveis passam a existir só dentro da app.
+    retireBackgroundInboxCheck();
     invalidateStaleAudioCache()
       // As músicas viviam na pasta Caches, que o iOS apaga sozinho quando
       // precisa de espaço — era por isso que os downloads desapareciam.

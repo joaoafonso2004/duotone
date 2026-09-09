@@ -1,3 +1,4 @@
+import { useNotifications } from '../state/notifications';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { removeOwnProfileMedia } from '../lib/profileMedia';
@@ -153,6 +154,7 @@ export function SettingsScreen({ navigation }: Props) {
 
   const toggleNotifications = async (v: boolean) => {
     setNotificationsOn(v);
+    if (!v) useNotifications.getState().clearBanners();
     hapticSelection();
     await persistNotifications(v);
   };
@@ -481,11 +483,12 @@ export function SettingsScreen({ navigation }: Props) {
               style={{ marginTop: spacing.md }}
             />
             <ToggleRow
-              label="Notifications"
+              label="In-app notifications"
               value={notificationsOn}
               onChange={toggleNotifications}
               style={{ marginTop: spacing.md }}
             />
+            <Text style={{color:colors.textSecondary,fontSize:12,marginTop:8}}>Show banners at the top while Duotone is open. No notifications outside the app.</Text>
             <ToggleRow
               label="Haptic feedback"
               value={hapticsOn}

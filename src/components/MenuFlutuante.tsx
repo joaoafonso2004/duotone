@@ -1,3 +1,4 @@
+import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -57,6 +58,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
   aoFechado?: () => void;
 }) {
   const { width, height } = useWindowDimensions();
+  const notificationDismiss = useNotificationOverlay(visivel && !!ancora,aoFechar);
   const reduzido = useReducedMotion();
   const entrada = React.useRef(new Animated.Value(0)).current;
   // O `Modal` só desmonta quando a saída acaba: fechá-lo no toque cortava a
@@ -92,10 +94,10 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
     // O `montado` NÃO entra aqui: mudá-lo dentro do efeito voltava a
     // dispará-lo, e a limpeza parava a animação que ele próprio tinha
     // começado.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visivel, reduzido, entrada]);
 
-  if (!montado || !ancora) return null;
+  // Keep the same Modal mounted until its native onDismiss is delivered.
+  if (!montado || !ancora) return <Modal visible={false} transparent animationType="none" onDismiss={notificationDismiss}/>;
 
   const alturaEstimada = accoes.length * 52 + spacing.sm * 2;
   const cabeEmBaixo = ancora.y + ancora.height + MARGEM + alturaEstimada < height;
@@ -108,7 +110,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
   );
 
   return (
-    <Modal transparent visible statusBarTranslucent animationType="none" onRequestClose={aoFechar}>
+    <Modal onDismiss={notificationDismiss} transparent visible statusBarTranslucent animationType="none" onRequestClose={aoFechar}>
       {/* Tocar fora fecha. Ocupa o ecrã todo de propósito: um menu aberto tem
           de se poder dispensar sem se acertar em nada. */}
       <Pressable style={StyleSheet.absoluteFill} onPress={aoFechar} accessibilityLabel="Close menu">

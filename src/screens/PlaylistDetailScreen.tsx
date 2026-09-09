@@ -1,3 +1,4 @@
+import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import { displayArtist } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -93,6 +94,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
   // States for Add Tracks Modal
   const [addTracksOpen, setAddTracksOpen] = useState(false);
+  const notificationDismiss = useNotificationOverlay(addTracksOpen,() => setAddTracksOpen(false));
   const [libraryTracks, setLibraryTracks] = useState<Track[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -780,7 +782,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       />
 
       {/* Add Tracks modal */}
-      <Modal visible={addTracksOpen} animationType="slide">
+      <Modal onDismiss={notificationDismiss} visible={addTracksOpen} animationType="slide">
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1, backgroundColor: colors.bg }}
