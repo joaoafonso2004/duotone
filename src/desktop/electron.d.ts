@@ -25,6 +25,12 @@ declare global {
        * passam vivem no `electron/main.cjs`. Devolve `null` num HTTP mau, que é
        * o que o `api/catalogo.ts` já sabe ler. */
       pedirAoCatalogo?: (caminho: string) => Promise<any>;
+      /** A presença do Discord, pelo socket local dele. `null` na actividade
+       * limpa; `null` no id desliga. Devolve se o Discord respondeu. */
+      definirPresencaNoDiscord?: (
+        clientId: string | null,
+        actividade: Record<string, unknown> | null,
+      ) => Promise<boolean>;
       minimize(): void;
       toggleMaximize(): void;
       close(): void;

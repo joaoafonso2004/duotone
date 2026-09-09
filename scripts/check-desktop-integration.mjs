@@ -46,7 +46,13 @@ const electron = {
   ipcMain: { handle: (event, fn) => handlers.set(event, fn), on: (event, fn) => handlers.set(event, fn) },
 };
 const contexto = vm.createContext({
-  require: (id) => id === 'electron' ? electron : id === 'node:fs' ? {
+  // O `main.cjs` corre aqui dentro com um `require` de mentira, e um caminho
+  // RELATIVO nao resolve a partir deste script. O modulo do Discord entra como
+  // duplo: esta verificacao e sobre a casca do Electron, e nao sobre o socket
+  // do Discord, que tem os seus proprios testes.
+  require: (id) => id === './discord.cjs' ? {
+    definirPresenca: () => Promise.resolve(false), fecharDiscord() {},
+  } : id === 'electron' ? electron : id === 'node:fs' ? {
     readFileSync: () => { if (!guardado) throw Error('Sem preferência'); return guardado; },
     writeFileSync: (_path, data) => { guardado = data; },
   } : require(id),

@@ -1,4 +1,5 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell, Tray, globalShortcut, Notification } = require('electron');
+const { definirPresenca, fecharDiscord } = require('./discord.cjs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -639,6 +640,31 @@ ipcMain.handle('catalogo:pedir', async (event, caminho) => {
   }
 });
 
+/**
+ * A presenca do Discord.
+ *
+ * O `clientId` vem das Definicoes -- e a aplicacao QUE O UTILIZADOR criou no
+ * portal do Discord, e nao ha uma nossa para embutir aqui. Validado a forma
+ * (o Discord usa snowflakes) para nao se abrir um pipe com lixo.
+ *
+ * A actividade vem montada do lado do JS (`lib/presencaDoDiscord.ts`), que e
+ * quem conhece os limites de tamanho do Discord. Aqui so se confirma que e um
+ * objecto, ou `null` para limpar.
+ *
+ * Devolve se pegou. Falhar e o caso NORMAL -- Discord fechado -- e por isso
+ * nao atira: quem chama so desliga o indicador.
+ */
+ipcMain.handle('discord:presenca', async (event, clientId, actividade) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  if (clientId !== null && (typeof clientId !== 'string' || !/^\d{17,20}$/.test(clientId))) return false;
+  if (actividade !== null && (typeof actividade !== 'object' || Array.isArray(actividade))) return false;
+  try {
+    return await definirPresenca(clientId, actividade);
+  } catch {
+    return false;
+  }
+});
+
 ipcMain.on('window:minimize', (event) => { if (daJanelaPrincipal(event)) mainWindow.minimize(); });
 ipcMain.on('window:toggle-maximize', (event) => {
   if (!daJanelaPrincipal(event)) return;
@@ -660,6 +686,9 @@ ipcMain.on('context-menu', (event, items) => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  // Fecha o socket do Discord a sair. Sem isto, a ultima faixa ficava colada
+  // ao perfil ate o proprio Discord dar pela ligacao morta.
+  fecharDiscord();
 });
 
 app.on('will-quit', () => {

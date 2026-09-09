@@ -46,6 +46,8 @@ import { historico, limparHistorico, relatorio, resumo } from '../lib/playbackDi
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
+import { usePresencaDoDiscord } from '../hooks/usePresencaDoDiscord';
+import { getDiscordAppId, getDiscordRichPresence } from '../lib/prefs';
 import { usePlaylists } from '../state/playlists';
 import { useTheme } from '../state/theme';
 import type { Playlist, Track } from '../types';
@@ -97,6 +99,23 @@ function DesktopShell() {
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   const abrirSocial = useCallback((conversation?:{friendId?:string;groupId?:string}) => { setNowPlayingOpen(false); setRoute({ name: 'social',...conversation }); }, []);
   useDesktopNotifications(abrirSocial);
+  /**
+   * A presenca do Discord vive na casca, e nao numa pagina.
+   *
+   * Publicar o que esta a tocar nao pode depender de se estar no Now Playing:
+   * a musica continua com a app em qualquer seccao, e a presenca tem de a
+   * acompanhar. As preferencias sao lidas uma vez e depois vem por evento,
+   * como o modo do glitch -- as Definicoes sao outra pagina e esta fica montada.
+   */
+  const [discordOn,setDiscordOn]=useState(false);
+  const [discordApp,setDiscordApp]=useState('');
+  useEffect(()=>{
+    void Promise.all([getDiscordRichPresence(),getDiscordAppId()]).then(([on,id])=>{setDiscordOn(on);setDiscordApp(id);});
+    const ouvir=(e:any)=>{setDiscordOn(!!e.detail?.on);setDiscordApp(String(e.detail?.appId??''));};
+    window.addEventListener('duotone:discord',ouvir);
+    return ()=>window.removeEventListener('duotone:discord',ouvir);
+  },[]);
+  usePresencaDoDiscord(discordOn,discordApp);
   const [trackMenu, setTrackMenu] = useState<Track | null>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
   const [recommendationTrack,setRecommendationTrack]=useState<Track|null>(null);

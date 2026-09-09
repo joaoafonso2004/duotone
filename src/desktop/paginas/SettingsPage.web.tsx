@@ -27,10 +27,11 @@ import { usePlayer } from '../../state/player';
 import { useTheme } from '../../state/theme';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { Button, ContentScroll, desktop, Dialog, Page } from '../ui.web';
+import { Button, ContentScroll, desktop, Dialog, Field, Page } from '../ui.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
 import { PLANO } from '../../lib/equalizer';
+import { getDiscordAppId, getDiscordRichPresence, setDiscordAppId, setDiscordRichPresence } from '../../lib/prefs';
 import { newerVersion } from './comum.web';
 
 export function SettingsPage({ notify }: { notify: (s: string) => void }) {
@@ -67,6 +68,12 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
   // O padrao, e nao a velocidade da faixa a tocar: e isso que este controlo
   // define, e mostrar a outra fazia a barra saltar a cada mudanca de musica.
   const padraoRate = usePlayer((s) => s.padraoRate);
+  const [discordOn,setDiscordOn]=useState(false);
+  const [discordApp,setDiscordApp]=useState('');
+  useEffect(()=>{void Promise.all([getDiscordRichPresence(),getDiscordAppId()]).then(([on,id])=>{setDiscordOn(on);setDiscordApp(id);});},[]);
+  /** A casca e outra arvore: o aviso passa por evento, como o glitch. */
+  const avisarDiscord=(on:boolean,appId:string)=>
+    window.dispatchEvent(new CustomEvent('duotone:discord',{detail:{on,appId}}));
   const padraoGanhos = usePlayer((s) => s.padraoGanhos);
   const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
@@ -204,6 +211,26 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
           {window.duotoneDesktop?.notifyMessage && <SettingsCard icon="desktop-outline" title="Windows">
             <ToggleLine label="Message notifications" description="Show a Windows notification when a message arrives while you are away."
               value={notifications} onChange={(v) => { setNotifications(v); void setNotificationsEnabled(v); }} />
+            {/* A presenca do Discord.
+                ------------------------------------------------------------
+                Desligada de origem, e de proposito: isto publica o que estas a
+                ouvir para toda a gente que veja o teu perfil.
+
+                O id da aplicacao vem de ti e nao embutido: a presenca aparece
+                com o NOME da aplicacao que a publica, por isso tem de ser uma
+                que tenhas criado no portal do Discord -- uma nossa mostrava o
+                nosso nome no teu perfil. */}
+            <ToggleLine label="Discord Rich Presence"
+              description="Show what you are listening to on your Discord profile, with the artwork and a progress bar. Needs the Discord app open on this PC."
+              value={discordOn} onChange={(v)=>{setDiscordOn(v);void setDiscordRichPresence(v);avisarDiscord(v,discordApp);}} />
+            {discordOn && <View style={[styles.settingLine,{flexDirection:'column',alignItems:'stretch',gap:ESP.sm}]}>
+              <View style={{flex:1}}>
+                <Text style={styles.settingLabel}>Discord application ID</Text>
+                <Text style={styles.settingDescription}>Create an application at discord.com/developers, then paste its ID here. Nothing shows up without it.</Text>
+              </View>
+              <Field placeholder="1234567890123456789" value={discordApp}
+                onChangeText={(v:string)=>{const limpo=v.replace(/\D/g,'').slice(0,20);setDiscordApp(limpo);void setDiscordAppId(limpo);avisarDiscord(discordOn,limpo);}} />
+            </View>}
             {startup?.available && <>
               <ToggleLine label="Start with Windows" description="Open Duotone automatically when you sign in to Windows."
                 value={startup.enabled} onChange={(v) => void changeStartup(v, startup.mode)} />

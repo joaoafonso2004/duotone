@@ -32,6 +32,9 @@ const KEY_KEEP_AWAKE = 'pref:keepAwake';
 const KEY_NOTIFICATIONS = 'pref:notifications';
 const KEY_GLITCH_MODE = 'pref:glitchMode';
 const KEY_EFFECT_INTENSITY = 'pref:effectIntensity';
+/** A presenca do Discord, so no PC. Ver `getDiscordRichPresence`. */
+const KEY_DISCORD_ON = 'pref:discordRichPresence';
+const KEY_DISCORD_APP = 'pref:discordAppId';
 
 export type YtViewMode = 'video' | 'photo';
 export type AudioQuality = 'high' | 'saver';
@@ -389,4 +392,35 @@ export async function getOrdemDaPlaylist(): Promise<OrdemDaPlaylist> {
 
 export async function setOrdemDaPlaylist(v: OrdemDaPlaylist): Promise<void> {
   await AsyncStorage.setItem(KEY_ORDEM_PLAYLIST, v);
+}
+
+/**
+ * A presença do Discord: mostrar no perfil o que está a tocar.
+ *
+ * **Desligada de origem, e de propósito.** Isto publica o que estás a ouvir
+ * para toda a gente que veja o teu perfil do Discord -- não é o género de
+ * coisa que se liga sozinha a ninguém.
+ *
+ * Só funciona no PC: o Discord expõe-se por um socket local, e no iPhone não
+ * há socket nenhum para abrir.
+ */
+export async function getDiscordRichPresence(): Promise<boolean> {
+  return getBool(KEY_DISCORD_ON, false);
+}
+export async function setDiscordRichPresence(v: boolean): Promise<void> {
+  await setBool(KEY_DISCORD_ON, v);
+}
+
+/**
+ * O id da aplicação do Discord.
+ *
+ * Vem do utilizador e não embutido aqui: a presença aparece com o NOME da
+ * aplicação que a publica, por isso tem de ser uma que ele tenha criado no
+ * portal do Discord. Uma nossa mostraria o nosso nome no perfil dele.
+ */
+export async function getDiscordAppId(): Promise<string> {
+  return (await AsyncStorage.getItem(KEY_DISCORD_APP)) ?? '';
+}
+export async function setDiscordAppId(v: string): Promise<void> {
+  await AsyncStorage.setItem(KEY_DISCORD_APP, v.trim());
 }
