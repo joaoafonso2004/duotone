@@ -16,7 +16,7 @@ import { agruparPorEstilo, CANDIDATOS_A_ESTILO, misturasDeEstilo } from '../lib/
 import { vizinhosPorArtista } from '../api/catalogo';
 import { baralhada } from '../lib/jam';
 import { chaveDeArtista } from '../lib/artistName';
-import { getTopArtists } from '../api/plays';
+import { artistasParaRecomendacoes } from '../api/plays';
 import { trackKey } from '../lib/shuffle';
 
 /**
@@ -234,7 +234,9 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
           // A biblioteca primeiro: é dela que saem as âncoras, e chamar a
           // descoberta sem ela procurava vizinhos de ninguém.
           const [artistas, vizinhas] = await Promise.all([
-            getTopArtists(CANDIDATOS),
+            // Pelo ponto unico: numa conta nova entram as sementes do
+            // primeiro dia, senao estas tres prateleiras nasciam vazias.
+            artistasParaRecomendacoes(CANDIDATOS),
             descobertasPorAncora(lib).catch(() => new Map<string, Track[]>()),
           ]);
           // A rede, e só para quem precisa: o catálogo é a fonte, o YouTube é

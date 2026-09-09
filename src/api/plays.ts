@@ -2,6 +2,9 @@ import { supabase } from '../lib/supabase';
 import { upsertTrack } from './library';
 import type { Track } from '../types';
 
+import { artistasParaRecomendar, HISTORICO_QUE_CHEGA } from '../lib/artistasSemente';
+import { getArtistasSemente } from '../lib/prefs';
+import { chaveDeArtista } from '../lib/artistName';
 async function currentUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) throw new Error('Session expired');
@@ -171,3 +174,28 @@ export async function getRecentTopArtist(): Promise<string | null> {
   }
 }
 
+
+/**
+ * Os artistas com que se recomenda: o histórico, completado pelas sementes.
+ *
+ * **Um só sítio a decidir isto.** A descoberta, as misturas e os estilos
+ * chamavam `getTopArtists` cada uma por si; três fallbacks copiados divergiam
+ * ao primeiro acerto, e o dia em que alguém mudasse a regra num deles ficava
+ * com a página meia semeada.
+ *
+ * As sementes vêm das Preferências e só entram enquanto o histórico for magro
+ * -- a regra e o porquê vivem no `lib/artistasSemente.ts`, testados à parte.
+ */
+export async function artistasParaRecomendacoes(limite: number): Promise<TopArtist[]> {
+  const historico = await getTopArtists(limite);
+  // Só se vai às preferências quando o histórico não chega: quem já ouve não
+  // paga uma leitura por causa de uma escolha que fez há meses.
+  if (historico.length >= HISTORICO_QUE_CHEGA) return historico;
+  const sementes = await getArtistasSemente().catch(() => [] as string[]);
+  if (!sementes.length) return historico;
+  // A capa vem do histórico quando o artista já lá está; uma semente ainda não
+  // tem nenhuma, e quem a mostra sabe desenhar sem ela.
+  const capas = new Map(historico.map((a) => [chaveDeArtista(a.name), a.artworkUrl]));
+  return artistasParaRecomendar(historico, sementes, chaveDeArtista, Math.max(HISTORICO_QUE_CHEGA, limite))
+    .map((a) => ({ name: a.name, plays: a.plays, artworkUrl: capas.get(chaveDeArtista(a.name)) ?? null }));
+}

@@ -30,6 +30,8 @@ import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { AmigosAOuvir } from '../components/AmigosAOuvir';
+import { EscolherArtistas } from '../components/EscolherArtistas';
+import { PillButton } from '../components/PillButton';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { addTracksToPlaylist, createPlaylist } from '../api/playlists';
@@ -148,6 +150,8 @@ export function SearchScreen() {
   const markSaved = useSaved((s) => s.markSaved);
 
   const [query, setQuery] = useState('');
+  /** A folha dos tres artistas, para uma conta nova ter por onde comecar. */
+  const [escolherAberto, setEscolherAberto] = useState(false);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
   const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
   const [history, setHistory] = useState<string[]>([]);
@@ -591,10 +595,24 @@ export function SearchScreen() {
                 {renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, jaChegou('maisTocadas'), { largas: true })}
                 {renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, jaChegou('esquecidas'), { largas: true })}
                 
+                {/* O vazio deixa de ser so uma frase.
+                    ------------------------------------------------------------
+                    Dizia "comeca a ouvir musica" a quem acabou de instalar a
+                    app -- verdade, e inutil: a pagina que devia mostrar musica
+                    estava a mandar a pessoa ir descobri-la sozinha. Escolher
+                    tres artistas da a esta pagina por onde comecar, e o botao
+                    desaparece assim que houver recomendacoes. */}
                 {!loadingRecs && !temRecomendacoes(recs) && (
-                  <Text style={styles.emptyRecsText}>
-                    {hasFeedback?'No suggestions match your current preferences. You can review them in Settings → Recommendations, or search for music above.':'No recommendations yet. Start playing songs and saving them to your library to generate your Flow!'}
-                  </Text>
+                  <View style={{ alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: spacing.xl }}>
+                    <Text style={styles.emptyRecsText}>
+                      {hasFeedback
+                        ? 'No suggestions match your current preferences. You can review them in Settings → Recommendations, or search for music above.'
+                        : 'Nothing to go on yet. Tell the app three artists you like and it starts from there.'}
+                    </Text>
+                    {!hasFeedback && (
+                      <PillButton label="Pick 3 artists" onPress={() => setEscolherAberto(true)} />
+                    )}
+                  </View>
                 )}
               </View>
             )}
@@ -666,6 +684,13 @@ export function SearchScreen() {
         )}
       </KeyboardAvoidingView>
 
+      <EscolherArtistas
+        visivel={escolherAberto}
+        aoFechar={() => setEscolherAberto(false)}
+        // Forcar: a store tem as prateleiras como "prontas" (vazias), e sem
+        // isto ficava a olhar para o vazio depois de ele deixar de existir.
+        aoGuardar={() => { void recs.carregar(true); }}
+      />
       <TrackActionsSheet
         visible={!!actionTrack}
         track={actionTrack}

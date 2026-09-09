@@ -417,3 +417,26 @@ export async function vizinhosPorArtista(
   }));
   return saida;
 }
+
+/**
+ * Procura artistas pelo nome, para quem esta a escolher.
+ *
+ * Usa a MESMA forma de pesquisa que a `vizinhancaDe` ja usa -- nao ha caminho
+ * novo a acrescentar a ponte do Electron. Ordena por audiencia, que e o que
+ * poe o artista a serio a frente do homonimo com mil fas.
+ */
+export async function procurarArtistas(
+  nome: string,
+  quantos = 12,
+): Promise<{ nome: string; capa: string | null }[]> {
+  const limpo = (nome ?? '').trim();
+  if (limpo.length < 2) return [];
+  const r = await pedir<{ data?: any[] }>(
+    `/search/artist?q=${encodeURIComponent(limpo)}&limit=${Math.min(25, Math.max(1, quantos))}`,
+  );
+  return (r?.data ?? [])
+    .filter((a) => a?.name)
+    .sort((a, b) => (b?.nb_fan ?? 0) - (a?.nb_fan ?? 0))
+    .slice(0, quantos)
+    .map((a) => ({ nome: String(a.name), capa: a.picture_medium ?? a.picture ?? null }));
+}

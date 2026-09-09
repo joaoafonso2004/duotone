@@ -2,7 +2,7 @@ import { cacheGet, cacheSet, DIA_MS } from './cache';
 import { useConnectivity } from '../state/connectivity';
 import { artistWeight,feedbackReady,filterSuggestions,trackIsSuppressed } from '../state/recommendationFeedback';
 import { getLibraryKeys } from './library';
-import { getHeavyRotation, getTopArtists } from './plays';
+import { artistasParaRecomendacoes, getHeavyRotation, getTopArtists } from './plays';
 import { paresDeArtistaEPlaylist } from './afinidade';
 import { topDoArtista, vizinhancaDe, type FaixaDoCatalogo } from './catalogo';
 import { searchYouTubeFreeWithChannel } from './ytSearchFree';
@@ -401,7 +401,9 @@ export async function descobrirNovas(
   // artista que ele anda a ouvir todos os dias.
   const escutas = new Map<string, number>();
   try {
-    for (const a of await getTopArtists(20)) {
+    // Pelo ponto unico: sem historico, as sementes do primeiro dia servem de
+    // retrato -- senao a descoberta nao tinha ancoras nenhumas.
+    for (const a of await artistasParaRecomendacoes(20)) {
       const k = chaveDeArtista(a.name);
       if (k && a.plays > 0) escutas.set(k, a.plays);
     }
