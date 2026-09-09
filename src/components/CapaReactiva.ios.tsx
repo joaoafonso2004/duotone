@@ -4,7 +4,8 @@ import { Asset } from 'expo-asset';
 import { requireOptionalNativeModule } from 'expo';
 import type { ExpoWebGLRenderingContext } from 'expo-gl';
 import { definirAnaliseDaCapa, lerAnaliseDaCapa, temAnaliseDaCapa } from '../../modules/duotone-audio';
-import { criarRendererIOS } from '../lib/glitchRendererIOS';
+import { criarRendererIOS, MULTIPLICADOR } from '../lib/glitchRendererIOS';
+import { getEffectIntensity } from '../lib/prefs';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import type { CapaReactivaProps } from './CapaReactiva';
@@ -17,8 +18,18 @@ export function CapaReactiva({ uri, size, active, onError }: CapaReactivaProps) 
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const [label, setLabel] = useState(false);
+  // A MESMA preferência do PC ("Effect intensity"). Estava presa em `normal`,
+  // e era por isso que baixar a intensidade não fazia nada no telemóvel.
+  const [intensidade, setIntensidade] = useState(1);
   const initialFeedback = useRef(feedback);
   useEffect(() => { void loadCapaIOS(); }, []);
+  useEffect(() => {
+    let vivo = true;
+    void getEffectIntensity()
+      .then((v) => { if (vivo) setIntensidade(MULTIPLICADOR[v] ?? 1); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
   useEffect(() => {
     const listener = AppState.addEventListener('change', state => setForeground(state === 'active'));
     return () => listener.remove();
@@ -31,11 +42,15 @@ export function CapaReactiva({ uri, size, active, onError }: CapaReactivaProps) 
   const enabled = active && foreground && mode === 'reactive' && temAnaliseDaCapa && !!GLView;
   return <View style={StyleSheet.absoluteFill}>
     <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={onError} />
-    {enabled && <ReactiveSurface key={`${uri}:${size}:${reduced}`} uri={uri} size={size} fps={reduced ? 30 : 60} />}
+    {/* A intensidade entra na `key`: fica cozida no programa de GL, e mudá-la
+        nas Definições tem de reconstruir a superfície. */}
+    {enabled && <ReactiveSurface key={`${uri}:${size}:${reduced}:${intensidade}`}
+      uri={uri} size={size} fps={reduced ? 30 : 60} intensidade={intensidade} />}
     {label && <View style={styles.label}><Text style={styles.labelText}>{mode === 'reactive' ? 'Reactive' : mode === 'static' ? 'Static' : 'Off'}</Text></View>}
   </View>;
 }
-function ReactiveSurface({ uri, size, fps }: { uri: string; size: number; fps: number }) {
+function ReactiveSurface({ uri, size, fps, intensidade }:
+  { uri: string; size: number; fps: number; intensidade: number }) {
   const renderer = useRef<Renderer | null>(null);
   const alive = useRef(true);
   const samples = useRef<number[]>([]);
@@ -80,7 +95,14 @@ function ReactiveSurface({ uri, size, fps }: { uri: string; size: number; fps: n
         Image.getSize(localUri, (width, height) => resolve({ width, height }), reject);
       });
       if (!alive.current) return;
-      const result = criarRendererIOS(gl, size, { localUri, ...dimensions });
+      const result = criarRendererIOS(gl, size, { localUri, ...dimensions }, intensidade);
+      // ENQUANTO CARREGA, A CAPA NORMAL. O `ready` só passa a true depois de se
+      // confirmar que saiu mesmo imagem na textura -- ver o `desenhouAlgo`. Sem
+      // esta confirmação, a superfície aparecia à frente da capa antes de ela
+      // ter chegado à GPU, e o que se via era um quadrado preto em vez da capa
+      // com o efeito de respiração por baixo.
+      if (!result.desenhouAlgo()) { result.destroy(); throw Error('capa vazia'); }
+      if (!alive.current) { result.destroy(); return; }
       renderer.current = result;
       if (samples.current.length === 9) result.draw(samples.current, performance.now() / 1000);
       setReady(true);

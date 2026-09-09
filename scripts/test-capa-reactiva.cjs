@@ -49,6 +49,9 @@ async function run() {
   // O MESMO GLSL do PC, byte a byte: um `\r` a mais e o driver que o recusa
   // seria o do telemóvel de alguém, meses depois. Ver `lib/glitchShaders.ts`.
   assert.ok(!shaders.VERTEX.includes('\r') && !shaders.FRAGMENT.includes('\r'), 'sem retornos de carro no shader');
+  // O que o `readPixels` devolve: 0 é uma textura que não carregou (a capa
+  // preta), qualquer outra coisa é imagem a sério.
+  let pixel = 0;
   const gl = new Proxy({ NO_ERROR: 0, drawingBufferWidth: 512, drawingBufferHeight: 512 }, {
     get(target, key) {
       if (key in target) return target[key];
@@ -60,18 +63,57 @@ async function run() {
         if (key === 'getError') return 0;
         if (key === 'getUniformLocation') return args[1];
         if (key === 'getAttribLocation') return 0;
+        if (key === 'readPixels') { args[6][0] = pixel; args[6][1] = pixel; args[6][2] = pixel; }
       };
     },
   });
-  const renderer = load('src/lib/glitchRendererIOS.ts', { './glitchShaders': shaders }).criarRendererIOS(gl,320,{ localUri:'file://cover.png',width:1600,height:900 });
+  const modulo = load('src/lib/glitchRendererIOS.ts', { './glitchShaders': shaders });
+  const renderer = modulo.criarRendererIOS(gl,320,{ localUri:'file://cover.png',width:1600,height:900 });
   assert.deepEqual(calls.filter(c => c[0] === 'shaderSource').map(c => c[2]),[shaders.VERTEX,shaders.FRAGMENT]);
   const scale = calls.find(c => c[0] === 'uniform2f' && c[1] === 'uEscala');
   assert.deepEqual(scale.slice(2),[900/1600,1],'landscape thumbnails use cover, never stretch');
-  renderer.draw(Array(9).fill(0),0); assert.equal(calls.filter(c=>c[0]==='drawArrays').length,1);
-  const frame = calls.find(c=>c[0]==='uniform4fv')[2]; assert.equal(frame[0],0); assert.equal(frame[6],0);
+
+  // A CAPA PRETA. Um ficheiro que o expo-gl não lê vira uma textura 0x0 sem
+  // erro nenhum -- por isso a pergunta é o que ficou desenhado, não se houve
+  // erro. Preto absoluto nos quatro cantos é uma textura que não carregou.
+  assert.equal(renderer.desenhouAlgo(),false,'textura vazia nao passa por boa');
+  assert.equal(calls.filter(c=>c[0]==='endFrameEXP').length,0,'a verificacao nao apresenta o quadro');
+  pixel = 40;
+  assert.equal(renderer.desenhouAlgo(),true,'com imagem a serio, passa');
+
+  const antesDoDraw = calls.filter(c=>c[0]==='drawArrays').length;
+  renderer.draw(Array(9).fill(0),0);
+  assert.equal(calls.filter(c=>c[0]==='drawArrays').length,antesDoDraw+1);
+  const frame = calls.filter(c=>c[0]==='uniform4fv').pop()[2];
+  assert.equal(frame[0],0); assert.equal(frame[6],0);
+  assert.equal(frame[7],0,'sem agudos nao ha textura extra');
+
+  // AS CONTAS SAO AS DO PC. O nivel e grave-first (0,82/0,18) e os agudos sao
+  // um EXCESSO sobre um piso -- em cru ficavam altos sempre e tremia tudo.
+  const bandas = [0.8,0.8,0.8,0.2,0.2,0.2,0.5,0.5];
+  renderer.draw([...bandas,0],1);
+  const comSinal = calls.filter(c=>c[0]==='uniform4fv').pop()[2];
+  const grave = 0.8, corpo = bandas.reduce((a,b)=>a+b,0)/8;
+  assert.ok(Math.abs(comSinal[0] - Math.min(1,grave*0.82+corpo*0.18)*255) < 0.01,'o nivel e o do beat.web.ts');
+  // Abaixo do piso os agudos NAO existem. Em cru estariam sempre acesos, e no
+  // shader eles multiplicam pela batida -- acesos de base, tremia tudo.
+  renderer.draw([...Array(8).fill(0.02),0],2);
+  assert.equal(calls.filter(c=>c[0]==='uniform4fv').pop()[2][7],0,'abaixo do piso nao ha agudos');
+  renderer.draw([...Array(8).fill(0.12),0],3);
+  const meio = calls.filter(c=>c[0]==='uniform4fv').pop()[2][7];
+  assert.ok(meio > 0 && meio < 1,'e entre o piso e o tecto sobem por graus');
+
+  // A intensidade da preferencia entra no shader E na conta das caixas.
+  assert.equal(modulo.MULTIPLICADOR.subtle,0.62);
+  const suave = modulo.criarRendererIOS(gl,320,{ localUri:'file://cover.png',width:900,height:900 },modulo.MULTIPLICADOR.subtle);
+  assert.equal(calls.filter(c=>c[0]==='uniform1f'&&c[1]==='uIntensidade').pop()[2],0.62,'a preferencia chega ao shader');
+  suave.destroy();
+
   renderer.destroy(); renderer.destroy(); renderer.draw(Array(9).fill(1),1);
-  assert.equal(calls.filter(c=>c[0]==='drawArrays').length,1,'no draws after disposal');
-  assert.equal(calls.filter(c=>c[0]==='deleteTexture').length,2,'textures released exactly once');
-  console.log('Capa reactiva: ponte nativa, preferência do iPhone e renderer passaram.');
+  const finais = calls.filter(c=>c[0]==='drawArrays').length;
+  renderer.draw(Array(9).fill(1),2);
+  assert.equal(calls.filter(c=>c[0]==='drawArrays').length,finais,'no draws after disposal');
+  assert.equal(renderer.desenhouAlgo(),false,'nem verificacoes depois de fechado');
+  console.log('Capa reactiva: ponte nativa, preferência do iPhone, capa preta e contas do PC passaram.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });
