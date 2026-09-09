@@ -8,6 +8,8 @@ import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
 import { naoLidasPorAmigo } from '../lib/social';
 import { ultimaAtividade } from '../lib/socialPresence';
+import { CONVERSAS_PARA_PESQUISAR, ordenarConversas } from '../lib/ordemDasConversas';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { supabase } from '../lib/supabase';
 import { FriendAvatar } from './FriendAvatar';
 import { colors, SOCIAL_GUTTER } from './socialTokens';
@@ -37,6 +39,9 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const [error,setError]=useState(''),[busy,setBusy]=useState(false),[messages,setMessages]=useState<SharedItem[]>([]),[chatLoading,setChatLoading]=useState(false);
   const [older,setOlder]=useState(false),[hasOlder,setHasOlder]=useState(false);
   const [track,setTrack]=useState<Track|null>(null),[confirm,setConfirm]=useState<{id:string;group:boolean;conversa?:boolean}|null>(null);
+  /** O texto da pesquisa da lista, e a folha do `+`. */
+  const [filtro,setFiltro]=useState('');
+  const [comecar,setComecar]=useState(false);
   const [groupEditor,setGroupEditor]=useState<string|null>(null),[groupName,setGroupName]=useState(''),[members,setMembers]=useState<string[]>([]);
   const [groupDetails,setGroupDetails]=useState<string|null>(null);
   const conversation=social.conversation;
@@ -167,13 +172,29 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   });
   const pending=social.friends.filter(f=>f.status==='pending');
   const title=friend?.name || group?.name || 'Chat';
+  /**
+   * UMA lista, por quem falou por ultimo -- grupos e amigos juntos.
+   *
+   * Eram duas, com dois cabecalhos e dois ritmos. A pergunta que se faz a esta
+   * pagina nao e "quais sao os meus grupos", e "com quem falo a seguir", e uma
+   * lista so responde a isso -- alem de devolver duas bandas de altura ao
+   * conteudo. A ordem e o degradar sem a migracao vivem no
+   * `lib/ordemDasConversas.ts`, testados a parte.
+   */
+  const conversas=ordenarConversas(
+    social.groups.map(g=>({id:g.id,nome:g.name,grupo:g})),
+    accepted.map(f=>({id:f.friendId,nome:f.name,amigo:f})),
+    social.activity,
+  );
+  const procura=filtro.trim().toLowerCase();
+  const visiveis=procura?conversas.filter(c=>c.nome.toLowerCase().includes(procura)):conversas;
   const list=<View style={s.body}>
-    {/* As conversas aparecem por si -- nao precisavam de um separador chamado
-        "Chats" ao lado de outro. Procurar gente e uma acao pontual, e passa a
-        viver atras de um icone. */}
+    {/* UM `+`, e nao dois icones mais uma pilula. Adicionar alguem e criar um
+        grupo sao a mesma intencao -- comecar uma conversa nova -- e eram tres
+        affordances para ela. O refrescar saiu: o `useSocial` tem Realtime, e um
+        botao que repete o que ja acontece sozinho so ensina a desconfiar. */}
     <View style={[s.row,{paddingBottom:12,justifyContent:'flex-end'}]}>
-      <SocialIconButton label="Add friend" icon="person-add-outline" onPress={()=>setTab('add')}/>
-      <SocialIconButton label="Refresh" icon="refresh" onPress={()=>void social.refresh()}/>
+      <SocialIconButton label="Start a conversation" icon="add" onPress={()=>setComecar(true)}/>
     </View>
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{gap:16,paddingBottom:bottomPadding}}>
       {(error||social.error)&&<Text accessibilityRole="alert" style={s.error}>{error||social.error}</Text>}
@@ -183,31 +204,45 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
       <>
         {pending.length>0&&<Text style={s.label}>Friend requests</Text>}
         {pending.map(f=><View key={f.friendId} style={s.card}><View style={s.row}><FriendAvatar avatarUrl={f.avatarUrl} name={f.name} size={44}/><View style={{flex:1}}><Text style={s.text}>{f.name}</Text><Text style={s.muted}>{f.isSender?'Request sent':'Wants to be your friend'}</Text></View></View><View style={s.row}>{!f.isSender&&<SocialButton primary disabled={busy} onPress={()=>void run(()=>acceptFriendRequest(f.friendId))}>Accept</SocialButton>}<SocialButton quiet disabled={busy} onPress={()=>void run(()=>declineOrRemoveFriendship(f.friendId))}>{f.isSender?'Cancel request':'Decline'}</SocialButton></View></View>)}
-        <View style={[s.row,{justifyContent:'space-between'}]}><Text style={s.label}>Groups{social.groups.length?` · ${social.groups.length}`:''}</Text>{/* Era `quiet`, o que lhe tirava fundo e contorno: ficava texto solto ao
-              lado de um cabecalho, e nao se lia como coisa em que se carrega. */}
-          <SocialButton icon="add" onPress={()=>{setGroupEditor('new');setMembers([]);setGroupName('');}}>New group</SocialButton></View>
-        {social.groups.map(g=>{
-          const porLer=!!unread.get(`group:${g.id}`);
-          return <Pressable key={g.id} accessibilityRole="button" accessibilityState={{selected:conversation?.kind==='group'&&conversation.id===g.id}}
-            style={[s.conversa,conversation?.id===g.id&&{backgroundColor:colors.surface}]}
-            onPress={()=>open('group',g.id)}>
-            <GroupAvatar group={g} size={54}/>
-            <View style={{flex:1,minWidth:0,gap:2}}>
-              <Text numberOfLines={1} style={[s.text,{fontWeight:porLer?'800':'600'}]}>{g.name}</Text>
-              <Text numberOfLines={1} style={[s.muted,porLer&&{color:colors.text,fontWeight:'600'}]}>{g.membros.length} members · {g.membros.map(m=>m.id===myId?'You':m.name).join(', ')}</Text>
-            </View>
-            {porLer&&<View style={[s.pontoPorLer,{backgroundColor:accent}]}/>}
-          </Pressable>;
-        })}
-        <Text style={s.label}>Friends · {accepted.length}</Text>
-        {!accepted.length&&!social.loading&&<View style={s.card}><Text style={s.title}>Music is better with company</Text><Text style={s.muted}>Add a friend to share music and start a conversation.</Text><SocialButton onPress={()=>setTab('add')}>Add friend</SocialButton></View>}
-        {accepted.map(f=>{
-          const porLer=!!unread.get(f.friendId);
+
+        {/* A pesquisa so aparece quando ha lista que a justifique: com meia
+            duzia de conversas e uma linha a ocupar espaco por cima de uma
+            lista que se ve inteira. */}
+        {conversas.length>=CONVERSAS_PARA_PESQUISAR&&
+          <TextInput accessibilityLabel="Search people and groups" value={filtro} onChangeText={setFiltro}
+            placeholder="Search people and groups" placeholderTextColor={colors.textSecondary}
+            autoCapitalize="none" style={s.input}/>}
+
+        {!conversas.length&&!social.loading&&<View style={s.card}><Text style={s.title}>Music is better with company</Text><Text style={s.muted}>Add a friend to share music and start a conversation.</Text><SocialButton onPress={()=>setTab('add')}>Add friend</SocialButton></View>}
+        {!!conversas.length&&!visiveis.length&&<Text style={s.muted}>No one matches “{filtro.trim()}”.</Text>}
+
+        {visiveis.map(c=>{
+          if(c.tipo==='grupo'){
+            const g=c.grupo;
+            const naoLidas=unread.get(`group:${g.id}`)??0;
+            return <Pressable key={`g:${g.id}`} accessibilityRole="button" accessibilityState={{selected:conversation?.kind==='group'&&conversation.id===g.id}}
+              style={[s.conversa,conversation?.id===g.id&&{backgroundColor:colors.surface}]}
+              onPress={()=>open('group',g.id)}>
+              {/* O GroupAvatar poe DOIS membros sobrepostos: e o que faz uma
+                  linha de grupo ler-se como grupo antes de se ler o nome. Numa
+                  lista misturada com pessoas, isso deixou de ser enfeite e
+                  passou a ser a unica coisa que os distingue. */}
+              <GroupAvatar group={g} size={46}/>
+              <View style={{flex:1,minWidth:0,gap:2}}>
+                <Text numberOfLines={1} style={[s.text,{fontWeight:naoLidas?'800':'600'}]}>{g.name}</Text>
+                <Text numberOfLines={1} style={[s.muted,naoLidas>0&&{color:colors.text,fontWeight:'600'}]}>{g.membros.length} members · {g.membros.map(m=>m.id===myId?'You':m.name).join(', ')}</Text>
+              </View>
+              {naoLidas>0&&<Text style={[s.badge,{backgroundColor:accent}]}>{naoLidas}</Text>}
+            </Pressable>;
+          }
+          const f=c.amigo;
+          const naoLidas=unread.get(f.friendId)??0;
           const activa=conversation?.kind==='friend'&&conversation.id===f.friendId;
+          const aOuvir=f.currentlyPlaying;
           // As opcoes passam para o toque longo, como nas listas de musica.
           // Ter "remover amigo" sempre a vista era a unica acao destrutiva da
           // app exposta assim.
-          return <Pressable key={f.friendId} accessibilityRole="button" accessibilityState={{selected:activa}}
+          return <Pressable key={`f:${f.friendId}`} accessibilityRole="button" accessibilityState={{selected:activa}}
             onPress={()=>open('friend',f.friendId)}
             onLongPress={()=>setConfirm({id:f.friendId,group:false})}
             delayLongPress={350}
@@ -216,16 +251,26 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
               <AvatarDeConversa avatarUrl={f.avatarUrl} nome={f.name} online={f.online}/>
             </Pressable>
             <View style={{flex:1,minWidth:0,gap:2}}>
-              <Text numberOfLines={1} style={[s.text,{fontWeight:porLer?'800':'600'}]}>{f.name}</Text>
+              <Text numberOfLines={1} style={[s.text,{fontWeight:naoLidas?'800':'600'}]}>{f.name}</Text>
               {/* UMA linha, sempre. O que esta a tocar ganha ao estado, porque
                   e a coisa que muda e que interessa; sem musica fica o estado.
                   Duas ou tres linhas conforme a pessoa era o que partia o
-                  ritmo da lista. */}
-              <Text numberOfLines={1} style={[s.muted,porLer&&{color:colors.text,fontWeight:'600'}]}>
-                {f.currentlyPlaying?`♫ ${f.currentlyPlaying.title}`:f.online?'Online now':ultimaAtividade(f.lastSeenAt,social.now)}
+                  ritmo da lista.
+
+                  E a tocar leva o ACENTO, com o artista. Estava no mesmo
+                  cinzento do "Last seen 4 h ago" -- a coisa viva e a coisa
+                  morta com o mesmo peso -- e era isso que fazia a pagina nao
+                  responder de relance a "quem esta a ouvir o que agora". */}
+              <Text numberOfLines={1} style={[
+                s.muted,
+                aOuvir&&{color:accent},
+                naoLidas>0&&!aOuvir&&{color:colors.text,fontWeight:'600'},
+              ]}>
+                {aOuvir?`♫ ${tituloDaFaixa(aOuvir)} · ${displayArtist(aOuvir)}`
+                  :f.online?'Online now':ultimaAtividade(f.lastSeenAt,social.now)}
               </Text>
             </View>
-            {porLer&&<View style={[s.pontoPorLer,{backgroundColor:accent}]}/>}
+            {naoLidas>0&&<Text style={[s.badge,{backgroundColor:accent}]}>{naoLidas}</Text>}
           </Pressable>;
         })}
         {/* Conversas de quem ja nao e amigo. O historico fica de proposito -- uma
@@ -311,6 +356,15 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
 
     {/* Procurar gente deixou de ser um separador ao lado das conversas: e uma
         coisa que se faz de vez em quando, e agora vive atras do icone. */}
+    {/* O que o `+` abre. Duas accoes, uma intencao -- comecar uma conversa
+        nova. Ter as duas sempre a vista custava um icone e uma pilula no topo
+        de uma pagina que e uma lista. */}
+    <SocialModal visible={comecar&&visible} title="Start a conversation" onClose={()=>setComecar(false)}>
+      <View style={{padding:20,gap:12}}>
+        <SocialButton icon="person-add-outline" onPress={()=>{setComecar(false);setTab('add');}}>Add a friend</SocialButton>
+        <SocialButton icon="people-outline" onPress={()=>{setComecar(false);setGroupEditor('new');setMembers([]);setGroupName('');}}>New group</SocialButton>
+      </View>
+    </SocialModal>
     <SocialModal visible={tab==='add'&&visible} title="Find people" onClose={()=>{setTab('friends');setQuery('');}}>
       <View style={{padding:20,gap:12}}>
         <Text style={s.muted}>Search by name or username.</Text>
