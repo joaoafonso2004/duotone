@@ -17,6 +17,14 @@ export type Candidato = {
   titulo: string;
   artista: string;
   album?: string | null;
+  /**
+   * O id do album no catalogo.
+   *
+   * Nao entra na ESCOLHA -- nao se aceita nem recusa um candidato por causa
+   * dele -- mas viaja com o vencedor, porque e a unica porta para o genero e o
+   * ano. Vinha na resposta da pesquisa desde sempre e era deitado fora.
+   */
+  albumId?: number | null;
   capa?: string | null;
   /** Segundos, como o Deezer devolve. */
   duracao?: number | null;

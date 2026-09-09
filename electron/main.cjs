@@ -608,6 +608,9 @@ const CAMINHOS_DO_CATALOGO = [
   /^\/search\?limit=\d{1,3}&q=[A-Za-z0-9%._~!*'()-]{1,500}$/,
   /^\/artist\/\d{1,20}\/related\?limit=\d{1,3}$/,
   /^\/artist\/\d{1,20}\/top\?limit=\d{1,3}$/,
+  // O album, para o genero e o ano. Sem esta linha o Windows ficava sem os
+  // dois, em silencio, como ja aconteceu com a descoberta inteira.
+  /^\/album\/\d{1,20}$/,
 ];
 
 /**

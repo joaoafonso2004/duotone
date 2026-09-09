@@ -279,6 +279,10 @@ export type FaixaResolvida = {
   artista: string;
   titulo: string;
   album: string | null;
+  /** Do Deezer, e grosso: "Rap/Hip Hop". Null quando nao se sabe. */
+  genero: string | null;
+  /** O ano do album. Null quando nao se sabe. */
+  ano: number | null;
   /** Capa QUADRADA. É a que resolve as barras pretas do YouTube na origem. */
   capa: string | null;
   prova: 'artista' | 'duracao';
@@ -287,16 +291,61 @@ export type FaixaResolvida = {
 type FaixaDeezer = {
   title?: string; duration?: number;
   artist?: { name?: string };
-  album?: { title?: string; cover_big?: string; cover_xl?: string };
+  album?: { id?: number; title?: string; cover_big?: string; cover_xl?: string };
 };
 
 const paraCandidato = (d: FaixaDeezer): Candidato => ({
   titulo: d.title ?? '',
   artista: d.artist?.name ?? '',
   album: d.album?.title ?? null,
+  // O id do album vinha aqui desde sempre e era deitado fora. E ele que abre a
+  // porta ao genero e ao ano -- ver `detalhesDoAlbum`.
+  albumId: d.album?.id ?? null,
   capa: d.album?.cover_xl || d.album?.cover_big || null,
   duracao: d.duration ?? null,
 });
+
+/**
+ * O genero e o ano de um album.
+ *
+ * **Uma chamada por ALBUM, e nao por faixa.** Um album tem dez faixas, os
+ * albuns repetem-se muito dentro de uma biblioteca, e o resultado fica na
+ * cache partilhada. Na pratica e uma ida a rede por cada cinco a dez faixas
+ * novas, uma vez.
+ *
+ * O genero do Deezer e grosso -- "Rap/Hip Hop", nao "Trap". Serve para
+ * agrupar; para as palavras que as pessoas usam mesmo era preciso outra fonte
+ * de etiquetas.
+ *
+ * Falha em silencio: sem album, sem rede, ou com uma resposta estranha, a
+ * faixa fica sem genero e sem ano -- que e a verdade, e melhor do que inventar.
+ */
+export async function detalhesDoAlbum(
+  id: number | null | undefined,
+): Promise<{ genero: string | null; ano: number | null }> {
+  const vazio = { genero: null, ano: null };
+  if (!id || !Number.isFinite(id)) return vazio;
+
+  const chaveCache = `deezer:album:v1:${id}`;
+  const guardado = await cacheGet<{ genero: string | null; ano: number | null }>(chaveCache, VALIDADE);
+  if (guardado) return guardado;
+
+  const r = await pedir<{ genres?: { data?: { name?: string }[] }; release_date?: string }>(
+    `/album/${id}`,
+  );
+  if (!r) return vazio;
+
+  const genero = r.genres?.data?.find((g) => g?.name)?.name ?? null;
+  // O `release_date` vem como "2019-05-17". Um ano fora do plausivel e um erro
+  // de leitura, e nao um album antigo.
+  const ano = Number.parseInt(String(r.release_date ?? '').slice(0, 4), 10);
+  const detalhes = {
+    genero: genero ? genero.slice(0, 60) : null,
+    ano: Number.isFinite(ano) && ano >= 1900 && ano <= 2100 ? ano : null,
+  };
+  if (detalhes.genero || detalhes.ano) await cacheSet(chaveCache, detalhes);
+  return detalhes;
+}
 
 /**
  * O que o catálogo confirma sobre uma faixa nossa, ou null.
@@ -327,10 +376,15 @@ export async function resolverFaixa(local: FaixaLocal): Promise<FaixaResolvida |
   if (!achado) return null;
 
   const { candidato, prova } = achado;
+  // O album so se pede DEPOIS de haver vencedor: pedi-lo para cada candidato
+  // multiplicava as chamadas por cinco para deitar fora quatro.
+  const { genero, ano } = await detalhesDoAlbum(candidato.albumId).catch(() => ({ genero: null, ano: null }));
   return {
     artista: candidato.artista,
     titulo: candidato.titulo,
     album: candidato.album ?? null,
+    genero,
+    ano,
     capa: candidato.capa ?? null,
     prova,
   };
