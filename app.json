@@ -43,6 +43,7 @@
     },
     "plugins": [
       "./plugins/atalhos-da-siri",
+      "./plugins/velocidade-expo-video",
       "expo-secure-store",
       [
         "expo-video",

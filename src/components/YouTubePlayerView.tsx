@@ -1,3 +1,4 @@
+import { atualizarVelocidadeDoMotor, tocarNaVelocidade } from '../lib/velocidadeDoMotor';
 import { useConnectivity } from '../state/connectivity';
 import { useEventListener } from 'expo';
 import { useVideoPlayer } from 'expo-video';
@@ -43,7 +44,7 @@ import { useArranqueTravado } from '../hooks/useArranqueTravado';
 const PRAZO_DA_RESOLUCAO_MS = 40_000;
 const RESOLUCAO_DEMOROU = 'resolucao sem resposta';
 import { displayArtist } from '../lib/artistName';
-import { aplicarEqualizadorNativo, ligarAudioNativo } from '../../modules/duotone-audio';
+import { aplicarEqualizadorNativo, ligarAudioNativo, aplicarVelocidadeNativa } from '../../modules/duotone-audio';
 import type { Track } from '../types';
 import { type HarvestResult } from './YtStreamHarvester';
 
@@ -388,13 +389,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     aplicarEqualizadorNativo(player, eqGanhos, compensacaoLinear(eqGanhos));
   }, [backend, player, eqGanhos]);
 
-  // Aplica o Preset de Som reativamente na velocidade de reprodução nativa.
-  // ATENÇÃO: no expo-video, definir playbackRate faz `AVPlayer.rate = x`, e no
-  // AVFoundation rate != 0 É "play" — sem o guard de wantsPlayRef, isto
-  // arrancava a música sozinho no restauro de sessão (que fica em pausa).
+  // O módulo nativo preserva reprodução/pausa e evita reavaliar o buffer
+  // durante uma alteração com áudio disponível. Não reinstala o tap do EQ.
   useEffect(() => {
-    if (backend !== 'native' || !wantsPlayRef.current) return;
-    if (player.playbackRate !== playbackRate) player.playbackRate = playbackRate;
+    if (backend !== 'native') return;
+    atualizarVelocidadeDoMotor(player,playbackRate,aplicarVelocidadeNativa);
   }, [backend, player, playbackRate]);
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
@@ -694,8 +693,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // equalizador, e veio calculada do `prepararSeguinte`. Com a da que sai,
       // quem entra tocava o fade inteiro à velocidade errada e saltava de tom
       // no instante da troca.
-      motorEmEspera.playbackRate = seguinteRef.current?.rate ?? st.playbackRate;
-      motorEmEspera.play();
+      tocarNaVelocidade(motorEmEspera,seguinteRef.current?.rate ?? st.playbackRate);
     } catch {
       abortarPassagem();
     }
@@ -762,8 +760,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
       try {
         entra.volume = ceilingRef.current;
-        entra.playbackRate = usePlayer.getState().playbackRate;
-        entra.play();
+        tocarNaVelocidade(entra,usePlayer.getState().playbackRate);
         // O `playingChange` do motor que entra ainda não tem ouvinte: só
         // passa a ter no render seguinte a esta troca. Sem isto a UI ficava
         // a dizer "em pausa" com a música a tocar, até ao primeiro
@@ -871,11 +868,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       nativeTrackIdRef.current = track.sourceId;
       wantsPlayRef.current = autoplay;
       if (autoplay) {
-        motorActivo().play();
+        tocarNaVelocidade(motorActivo(),velocidadeNaSessao(st.playbackRate,!!useOuvirJuntos.getState().sessao));
         fadeIn();
       } else {
         // Garantia explícita de pausa: nada abaixo pode arrancar o playback
-        // (nem o efeito da velocidade — ver guard de wantsPlayRef acima).
+        // (o efeito da velocidade também preserva a pausa).
         try {
           motorActivo().pause();
         } catch {
@@ -1511,19 +1508,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           // Reinicia o cronómetro do watchdog — sem isto, retomar depois de
           // uma pausa longa disparava o fallback de download por engano.
           lastProgressRef.current = { time: lastProgressRef.current.time, at: Date.now() };
-          player.play();
-          // Reaplica a velocidade: o efeito reativo não corre no play manual
-          // (deps inalteradas) e o guard de wantsPlayRef pode tê-lo saltado
-          // enquanto estávamos em pausa (ex.: restauro de sessão).
-          //
-          // Pela `velocidadeNaSessao` e não em cru: este caminho escapava ao
-          // 1x do jam, e bastava carregar em play para o convidado voltar aos
-          // 0,9x que tinha escolhido para ouvir sozinho -- e a partir daí
-          // afastar-se dos outros sem nada o corrigir.
-          player.playbackRate = velocidadeNaSessao(
-            usePlayer.getState().playbackRate,
-            !!useOuvirJuntos.getState().sessao
-          );
+          // Configura antes de tocar: começar a 1x e corrigir logo depois
+          // introduzia uma segunda mudança audível ao retomar. Jam mantém 1x.
+          tocarNaVelocidade(player,velocidadeNaSessao(
+            usePlayer.getState().playbackRate,!!useOuvirJuntos.getState().sessao
+          ));
           // Passagem suspensa: os dois motores voltam juntos, de onde iam.
           if (passagemRef.current) {
             try {

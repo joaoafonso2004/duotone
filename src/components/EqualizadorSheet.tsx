@@ -35,7 +35,7 @@ export function EqualizadorSheet({ visible, onClose }: { visible: boolean; onClo
       <View style={{ gap: spacing.xl, paddingBottom: spacing.md }}>
         <View style={{ gap: spacing.sm }}>
           <Text style={[type.micro, { color: colors.textTertiary }]}>VELOCIDADE</Text>
-          <BarraVelocidade valor={playbackRate} aoMudar={(v) => setPlaybackRate(v)} />
+          <BarraVelocidade key={current ? chaveDaFaixa(current) : 'sem-faixa'} valor={playbackRate} aoMudar={(v) => setPlaybackRate(v)} />
         </View>
 
         <View style={{ gap: spacing.sm }}>

@@ -1,7 +1,8 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, Text, View } from 'react-native';
 import {
   arredondar, daFraccao, eNormal, formatar, paraFraccao, PASSO_GROSSO,
+  RATE_MAXIMO, RATE_MINIMO,
 } from '../lib/playbackRate';
 import { hapticSelection } from '../lib/haptics';
 import { colors, radii, spacing, type } from '../theme';
@@ -22,6 +23,9 @@ const BOLA = 18;
  * 0,01 seriam 151 posições numa barra de uns 300 px, dois pixels cada. Com 0,05
  * são 31 posições, cerca de dez pixels, que é o que um dedo distingue.
  *
+ * O valor acompanha o dedo; o áudio recebe apenas o valor final ao largar.
+ * Isto evita dezenas de reavaliações do AVPlayer num único gesto.
+ *
  * Feito com `PanResponder`, que vem no React Native: a app não tem biblioteca
  * de gestos nem de slider, e não vale a pena trazer uma para isto.
  */
@@ -33,7 +37,13 @@ export function BarraVelocidade({
   aoMudar: (v: number) => void;
 }) {
   const [largura, setLargura] = useState(0);
-  const actual = arredondar(valor);
+  const [previa, setPrevia] = useState<number | null>(null);
+  const previaRef = useRef<number | null>(null);
+  const valorRef = useRef(arredondar(valor));
+  valorRef.current = arredondar(valor);
+  const actual = previa ?? arredondar(valor);
+  // Uma mudança externa durante o gesto cancela a escolha ainda não aplicada.
+  useEffect(() => { previaRef.current=null; setPrevia(null); }, [valor]);
   const fraccao = paraFraccao(actual);
 
   // O PanResponder é criado UMA vez (o gesto não pode ser reconstruído a meio),
@@ -58,7 +68,8 @@ export function BarraVelocidade({
     if (novo === ultimoRef.current) return;
     ultimoRef.current = novo;
     hapticSelection();
-    aoMudarRef.current(novo);
+    previaRef.current=novo;
+    setPrevia(novo);
   };
 
   const responder = useMemo(() => PanResponder.create({
@@ -69,10 +80,22 @@ export function BarraVelocidade({
     // diagonal fugia para a lista.
     onPanResponderTerminationRequest: () => false,
     onPanResponderGrant: (e) => {
+      previaRef.current=valorRef.current;
       inicioRef.current = e.nativeEvent.locationX;
       aplicar(inicioRef.current);
     },
-    onPanResponderMove: (_e, gesto) => aplicar(inicioRef.current + gesto.dx),
+    onPanResponderMove: (_e, gesto) => {
+      if (previaRef.current !== null) aplicar(inicioRef.current + gesto.dx);
+    },
+    onPanResponderRelease: (_e, gesto) => {
+      if (previaRef.current === null) return;
+      aplicar(inicioRef.current + gesto.dx);
+      const novo=previaRef.current;
+      previaRef.current=null;setPrevia(null);
+      // Uma alteração no áudio e na persistência por gesto, não por degrau.
+      if (novo !== valorRef.current) aoMudarRef.current(novo);
+    },
+    onPanResponderTerminate: () => { previaRef.current=null;setPrevia(null); },
   }), []);
 
   return (
@@ -82,6 +105,20 @@ export function BarraVelocidade({
           {...responder.panHandlers}
           onLayout={(e) => setLargura(e.nativeEvent.layout.width)}
           collapsable={false}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel="Playback speed"
+          // Os limites saem do `playbackRate.ts` e nao escritos a mao: sao os
+          // mesmos que o `arredondar` impoe, e dois numeros repetidos aqui
+          // passavam a mentir ao leitor de ecra no dia em que la mudassem.
+          accessibilityValue={{min:RATE_MINIMO,max:RATE_MAXIMO,now:actual,text:formatar(actual)}}
+          accessibilityActions={[{name:'increment',label:'Faster'},{name:'decrement',label:'Slower'}]}
+          onAccessibilityAction={event => {
+            const direction=event.nativeEvent.actionName === 'increment' ? 1 : event.nativeEvent.actionName === 'decrement' ? -1 : 0;
+            if (!direction) return;
+            const novo=arredondar(valorRef.current+direction*PASSO_GROSSO);
+            if (novo !== valorRef.current) { hapticSelection();aoMudarRef.current(novo); }
+          }}
           style={{ flex: 1, height: ALTURA_TOQUE, justifyContent: 'center' }}
         >
           <View style={{ height: TRILHO, borderRadius: radii.pill, backgroundColor: colors.border, overflow: 'hidden' }}>

@@ -1360,6 +1360,7 @@ export const usePlayer = create<PlayerState>()(
       // "normal" a cada arranque, apesar de estar apresentado como definição.
       persistPlaybackRate(v).catch(() => {});
     } else {
+      if (get().playbackRate === v) return;
       set({ playbackRate: v });
       lembrarDaFaixa();
     }

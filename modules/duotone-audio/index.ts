@@ -82,3 +82,12 @@ export async function analisarCaudaNativa(
     return [];
   }
 }
+
+/** Change speed on the existing player without restarting its audio graph.
+ * Older binaries return false so the caller can use expo-video's fallback. */
+export function aplicarVelocidadeNativa(player: unknown, velocidade: number): boolean {
+  try {
+    return typeof nativo?.aplicarVelocidade === 'function'
+      && nativo.aplicarVelocidade(player, velocidade) === true;
+  } catch { return false; }
+}

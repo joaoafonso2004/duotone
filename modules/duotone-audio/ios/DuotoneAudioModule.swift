@@ -217,6 +217,36 @@ public class DuotoneAudioModule: Module {
       }
     }
 
+    /**
+     * Muda apenas a velocidade, no AVPlayer existente. Não reinstala o EQ,
+     * não procura outra posição e não muda a sessão de áudio.
+     *
+     * `rate = x` pode voltar a avaliar quanto buffer precisa para essa taxa.
+     * Durante reprodução contínua, playImmediately usa o áudio já disponível
+     * sem introduzir essa espera. Com falta real de dados mantém-se a política
+     * normal de buffering, e uma pausa nunca é convertida num play.
+     */
+    Function("aplicarVelocidade") { (referencia: SharedRef<AVPlayer>, velocidade: Double) -> Bool in
+      guard #available(iOS 16.0, tvOS 16.0, *) else { return false }
+      guard velocidade.isFinite, velocidade >= 0.5, velocidade <= 2 else { return false }
+      let p = referencia.ref
+      let nova = Float(velocidade)
+      DispatchQueue.main.async {
+        // O estado REAL é lido aqui: uma pausa pode ter chegado desde o JS.
+        // defaultRate também guarda a escolha em pausa, sem iniciar áudio.
+        if p.defaultRate != nova { p.defaultRate = nova }
+        guard p.rate != 0, p.rate != nova else { return }
+        if p.timeControlStatus == .playing, let item = p.currentItem,
+           item.status == .readyToPlay, !item.isPlaybackBufferEmpty {
+          p.playImmediately(atRate: nova)
+        } else {
+          // Já estava a tentar tocar: alterar a taxa não força um buffer vazio.
+          p.rate = nova
+        }
+      }
+      return true
+    }
+
     OnDestroy {
       DispatchQueue.main.async { [weak self] in
         guard let self else { return }
