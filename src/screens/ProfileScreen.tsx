@@ -11,8 +11,8 @@ export function ProfileScreen() {
   const userId=useAuth(s=>s.session?.user.id);
   const active=useIsFocused();
   return <View style={{flex:1}}>{userId&&<SocialProfileView userId={userId} active={active}
-    onMessage={id=>navigation.navigate('Social',{openChatWithFriendId:id})}
-    onSocial={()=>navigation.navigate('Social')}
+    onMessage={id=>navigation.navigate('Tabs',{screen:'Social',params:{openChatWithFriendId:id}})}
+    onSocial={()=>navigation.navigate('Tabs',{screen:'Social'})}
     onSettings={()=>navigation.navigate('Settings')}
     onPlaylist={id=>navigation.navigate('PlaylistDetail',{id,name:'Playlist'})}
     onArtist={name=>navigation.navigate('LibraryGroup',{type:'artist',name})}

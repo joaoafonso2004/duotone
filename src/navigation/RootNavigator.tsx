@@ -1,3 +1,4 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import {useReducedMotion} from '../hooks/useReducedMotion';
 import {StateIcon} from '../components/StateIcon';
 import { OfflineNotice,withInternet } from '../components/OfflineNotice';
@@ -63,7 +64,7 @@ const OnlineSocial=withInternet(SocialScreen,'Social');
 const OnlineFriendProfile=withInternet(FriendProfileScreen,'Profile');
 
 export type RootStackParamList = {
-  Tabs: undefined;
+  Tabs: NavigatorScreenParams<TabsParamList>;
   Settings: undefined;
   ListeningStats: {userId?:string} | undefined;
   Retrospetiva: {ano?:number;userId?:string} | undefined;
@@ -87,7 +88,6 @@ export type RootStackParamList = {
       | { tipo: 'prateleira'; nome: NomeDaPrateleira }
       | { tipo: 'mistura'; id: string };
   };
-  Social: { openChatWithFriendId?: string; openGroupId?: string } | undefined;
 };
 
 /** Os separadores de baixo. Exportado para quem precisa de saltar de um para
@@ -99,6 +99,20 @@ export type TabsParamList = {
   Artists: undefined;
   Playlists: undefined;
   Profile: undefined;
+  /**
+   * O Social e uma SECCAO, e nao um ecra empilhado -- mas nao aparece na
+   * barra.
+   *
+   * Porque mudou: a app muda de seccao a arrastar para os lados, e o Perfil
+   * era a ultima. Arrastar para la dele nao fazia nada, e o Social so se
+   * abria por botao. Como seccao, o arrastar leva la com o mesmo gesto e a
+   * mesma animacao de todas as outras -- e o botao das mensagens continua
+   * onde estava, para quem prefere tocar.
+   *
+   * Fora da barra porque seis icones apertavam os cinco que ja la estao. Quem
+   * o filtra e a `BarraDeSeparadores`.
+   */
+  Social: { openChatWithFriendId?: string; openGroupId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -165,6 +179,9 @@ function Tabs() {
       <Tab.Screen name="Artists" component={ArtistsStack} />
       <Tab.Screen name="Playlists" component={PlaylistsStack} />
       <Tab.Screen name="Profile" component={OnlineProfile} />
+      {/* Depois do Perfil, e escondido da barra: e o destino do arrastar para
+          la da ultima seccao. Ver o `TabsParamList`. */}
+      <Tab.Screen name="Social" component={OnlineSocial} />
     </Tab.Navigator>
   );
 }
@@ -190,8 +207,16 @@ const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['duotone://'],
   config: {
     screens: {
-      Social: {
-        path: 'social',
+      // O Social passou a viver DENTRO dos separadores, por isso o caminho
+      // tem de ir buscá-lo lá. Deixá-lo à raiz fazia o `duotone://social` do
+      // widget abrir a app e não sair do sítio -- que é exactamente o
+      // problema que esta configuração existe para resolver.
+      Tabs: {
+        screens: {
+          Social: {
+            path: 'social',
+          },
+        },
       },
     },
   },
@@ -211,7 +236,7 @@ async function openNotification(target: NotificationTarget) {
   // Explicitly select on every tap, including a repeated link to the same chat.
   useSocial.setState({conversation:target.groupId ? {kind:'group',id:target.groupId}
     : target.friendId ? {kind:'friend',id:target.friendId} : null});
-  navigationRef.navigate('Social',{openChatWithFriendId:target.friendId,openGroupId:target.groupId});
+  navigationRef.navigate('Tabs',{screen:'Social',params:{openChatWithFriendId:target.friendId,openGroupId:target.groupId}});
 }
 
 export function RootNavigator() {
@@ -282,7 +307,6 @@ export function RootNavigator() {
               {/* Sem withInternet: ver o que está guardado é justamente o que
                   tem de funcionar sem rede. */}
               <Stack.Screen name="Downloads" component={DownloadsScreen} />
-              <Stack.Screen name="Social" component={OnlineSocial} />
               <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
               <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
               <Stack.Screen name="Prateleira" component={OnlinePrateleira} />

@@ -104,8 +104,15 @@ export function BarraDeSeparadores({ state, navigation }: MaterialTopTabBarProps
       <BlurView tint="dark" intensity={50} style={StyleSheet.absoluteFill} />
       <View style={[StyleSheet.absoluteFill, styles.tinta]} />
       <View style={styles.linha}>
-        {state.routes.map((route, i) => {
-          const escolhido = state.index === i;
+        {/* O Social e uma seccao mas NAO tem botao: chega-se la a arrastar
+            para la do Perfil, ou pelo botao das mensagens que ele ja tem.
+            Seis icones apertavam os cinco que ja aqui estao.
+
+            O escolhido compara-se pela CHAVE e nao pelo indice: depois de
+            filtrar, o `i` desta lista deixa de bater certo com o
+            `state.index`, que conta as rotas todas. */}
+        {state.routes.filter((route) => route.name !== 'Social').map((route) => {
+          const escolhido = state.routes[state.index]?.key === route.key;
           const cor = escolhido ? theme.color : colors.textTertiary;
           // O mapa dos ícones vive aqui e não nas opções de cada ecrã: passá-lo
           // por `options` obrigava a alargar os tipos do navegador ou a cinco
