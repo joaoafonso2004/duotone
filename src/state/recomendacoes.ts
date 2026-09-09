@@ -112,6 +112,16 @@ export type NomeDaPrateleira = typeof ORDEM_DAS_PRATELEIRAS[number];
 let emCurso: Promise<void> | null = null;
 let geracao = 0;
 let rawShelves:Partial<Record<'descobrir'|'nuncaLancado'|'amigos'|'ouvirDeNovo'|'flow'|'maisTocadas'|'esquecidas',Track[]>>={};
+/**
+ * Quantas vezes se carregou no refrescar nesta sessão.
+ *
+ * As misturas escolhem os artistas a partir de um deslocamento que vem do DIA
+ * -- para a página não se mexer sozinha entre visitas. O efeito colateral é
+ * que refrescar dava sempre as mesmas. Somar as voltas ao deslocamento faz o
+ * botão rodar para os artistas seguintes, sem perder a estabilidade dentro do
+ * mesmo dia para quem não lhe toca.
+ */
+let voltasDeRefresco=0;
 
 export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
   descobrir: [],
@@ -130,6 +140,9 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
     geracao++;
     rawShelves={};
     emCurso = null;
+    // Trocar de conta recomeça também as voltas: são um estado da sessão de
+    // quem estava a usar a app, e não da app.
+    voltasDeRefresco = 0;
     set({ descobrir: [], nuncaLancado: [], amigos: [], ouvirDeNovo: [], flow: [], maisTocadas: [], esquecidas: [], prontas: [], misturas: [], misturasProntas: false, estado: 'vazio', carregadoEm: 0 });
   },
 
@@ -137,6 +150,18 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
     if (emCurso) return emCurso;
     if (!forcar && get().estado === 'pronto') return;
     const atual = geracao;
+
+    /**
+     * O que já está no ecrã, para o refrescar não repetir.
+     *
+     * Só a refrescar: numa primeira carga não há nada a excluir, e excluir o
+     * que veio da sessão anterior daria uma página diferente a cada arranque
+     * -- que é o oposto do que o resto desta store faz.
+     */
+    const jaVistas = forcar
+      ? new Set(ORDEM_DAS_PRATELEIRAS.flatMap((nome) => (get()[nome] ?? []).map(trackKey)))
+      : new Set<string>();
+    if (forcar) voltasDeRefresco++;
 
     set({ estado: 'a-carregar' });
 
@@ -259,7 +284,8 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
               // faixas novas por cada tua, o inverso do que a mistura faz.
               ...radiosDeArtista(artistas, lib, artistPreferenceKey, chaveDeArtista, vizinhas, baralhada),
               ...misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
-                chaveDeArtista, baralhada, Math.floor(Date.now() / 86_400_000), vizinhas),
+                chaveDeArtista, baralhada,
+                Math.floor(Date.now() / 86_400_000) + voltasDeRefresco, vizinhas),
             ],
             misturasProntas: true,
           });
@@ -271,7 +297,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
         // chega a ser ouvida até ao fim. O `forcar` vem do botão de
         // refrescar: sem ele, refrescar não mexia justamente na prateleira
         // mais visível da página.
-        publicar(descobertasDaSemana(POR_PRATELEIRA, lib, forcar), (descobrir) => ({ descobrir })),
+        publicar(descobertasDaSemana(POR_PRATELEIRA, lib, forcar, jaVistas), (descobrir) => ({ descobrir })),
         // O "Daily flow" só se vê na biblioteca do Windows. No telemóvel saiu
         // da pesquisa, e ir buscá-lo na mesma era pagar uma ida à rede -- que
         // fala com o catálogo, não é barata -- por uma prateleira que ninguém

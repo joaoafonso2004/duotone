@@ -364,6 +364,8 @@ export async function descobertasDaSemana(
   limite: number,
   biblioteca: readonly Track[],
   forcar = false,
+  /** Só serve a refrescar: ver o `descobrirNovas`. */
+  jaSugeridas: ReadonlySet<string> = new Set(),
 ): Promise<Track[]> {
   const semana = semanaDe();
   if (!forcar) {
@@ -372,7 +374,7 @@ export async function descobertasDaSemana(
     );
     if (guardado?.semana === semana && guardado.faixas?.length) return guardado.faixas;
   }
-  const faixas = await descobrirNovas(limite, biblioteca);
+  const faixas = await descobrirNovas(limite, biblioteca, jaSugeridas);
   // Uma lista vazia não se guarda: seria fixar o silêncio durante uma semana.
   if (faixas.length > 0) await cacheSet(CHAVE_DA_SEMANA, { semana, faixas });
   return faixas;
@@ -381,6 +383,16 @@ export async function descobertasDaSemana(
 export async function descobrirNovas(
   limite: number,
   biblioteca: readonly Track[],
+  /**
+   * O que NÃO se quer ver outra vez.
+   *
+   * É isto que faz o botão de refrescar significar alguma coisa. A escolha das
+   * âncoras e dos vizinhos é determinística de propósito -- para a página não
+   * se mexer sozinha entre visitas -- e a consequência é que recalcular com as
+   * mesmas entradas dá exactamente a mesma lista. Passando o que já está no
+   * ecrã, o refrescar devolve outras.
+   */
+  jaSugeridas: ReadonlySet<string> = new Set(),
 ): Promise<Track[]> {
   const contexto = biblioteca.slice(0, 60);
   // **O que ele OUVE, e não o que tem guardado.** A biblioteca diz o que ele
@@ -396,7 +408,7 @@ export async function descobrirNovas(
   } catch {
     // sem histórico: fica o retrato da biblioteca, como era
   }
-  return candidatasParaDescoberta(contexto, new Set(), new Set(), limite, 4, escutas)
+  return candidatasParaDescoberta(contexto, new Set(), jaSugeridas, limite, 4, escutas)
     .catch(() => [] as Track[]);
 }
 
