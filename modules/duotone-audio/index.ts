@@ -91,3 +91,14 @@ export function aplicarVelocidadeNativa(player: unknown, velocidade: number): bo
       && nativo.aplicarVelocidade(player, velocidade) === true;
   } catch { return false; }
 }
+
+export const temAnaliseDaCapa = typeof nativo?.lerAnaliseDaCapa === 'function';
+export function definirAnaliseDaCapa(ativa: boolean): void {
+  try { nativo?.definirAnaliseDaCapa?.(ativa); } catch {}
+}
+export async function lerAnaliseDaCapa(): Promise<number[]> {
+  try {
+    const values = await nativo?.lerAnaliseDaCapa?.();
+    return Array.isArray(values) && values.length === 9 && values.every(Number.isFinite) ? values : [];
+  } catch { return []; }
+}

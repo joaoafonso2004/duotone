@@ -1,3 +1,5 @@
+import { CapaReactiva } from './CapaReactiva';
+import { useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
 import { Toque } from './Toque';
 import { BarraDaSessao } from './BarraDaSessao';
@@ -20,6 +22,7 @@ import {
   Animated,
   AppState,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -1469,8 +1472,8 @@ export function PlayerRoot() {
               ficava parada e nada dizia que alguma coisa estava a acontecer.
               E o mesmo valor e a mesma animacao, so que aplicada aqui
               tambem. */}
-          {expanded && <Animated.View style={{ opacity: pulse }}><ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar}
-            front={artSource?<RNImage source={{uri:artSource}} style={StyleSheet.absoluteFill} resizeMode="cover" onError={onArtError} />:<View style={StyleSheet.absoluteFill} />} /></Animated.View>}
+          {expanded && <Animated.View style={{ opacity: pulse }}><ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} aoTocar={Platform.OS === 'ios' ? useCapaIOS.getState().toggle : undefined}
+            front={artSource?<CapaReactiva uri={artSource} size={vidFull.w} active={isPlaying && !buffering && !showLyrics && !capaARodar} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />} /></Animated.View>}
 
           {/* No modo mini, tocar no vídeo expande */}
           {!expanded ? (

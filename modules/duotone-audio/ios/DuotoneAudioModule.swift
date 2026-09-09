@@ -76,6 +76,7 @@ public class DuotoneAudioModule: Module {
 
   /** Dois com o crossfade ligado, um sem ele. */
   private var motores: [Motor] = []
+  private var analiseAtiva = false
 
   /**
    * O nivel da cauda de um ficheiro local, em blocos.
@@ -247,6 +248,23 @@ public class DuotoneAudioModule: Module {
       return true
     }
 
+    // Só se muda uma bandeira do tap. Abrir/fechar a capa não muda audioMix.
+    Function("definirAnaliseDaCapa") { (ativa: Bool) in
+      DispatchQueue.main.async { [weak self] in
+        guard let self else { return }
+        self.analiseAtiva = ativa
+        for motor in self.motores { motor.tapVivo?.analise.setEnabled(ativa) }
+      }
+    }
+    AsyncFunction("lerAnaliseDaCapa") { () -> [Double] in
+      guard self.analiseAtiva else { return [] }
+      // Durante o crossfade, o motor que se ouve mais fornece o espectro.
+      let motor = self.motores.filter { $0.player?.timeControlStatus == .playing }
+        .max { ($0.player?.volume ?? 0) < ($1.player?.volume ?? 0) }
+      guard let motor, motor.itemDoTap === motor.player?.currentItem else { return [] }
+      return motor.tapVivo?.analise.read() ?? []
+    }.runOnQueue(.main)
+
     OnDestroy {
       DispatchQueue.main.async { [weak self] in
         guard let self else { return }
@@ -295,6 +313,7 @@ public class DuotoneAudioModule: Module {
   }
 
   private func aplicarNoItem(_ item: AVPlayerItem?, de motor: Motor) {
+    guard motor.player?.currentItem === item else { return }
     motor.aEsperarPeloItem?.invalidate()
     motor.aEsperarPeloItem = nil
     // Item novo, tap novo. Deixar aqui a referencia do anterior fazia o
@@ -305,7 +324,12 @@ public class DuotoneAudioModule: Module {
       motor.tapVivo = nil
       motor.itemDoTap = nil
     }
-    guard let item else { return }
+    guard let item, motor.player?.currentItem === item else { return }
+    if let tap = motor.tapVivo, motor.itemDoTap === item {
+      tap.actualizar(ganhos: motor.ganhos, margem: motor.margem)
+      tap.analise.setEnabled(analiseAtiva)
+      return
+    }
 
     // 1. O TOM ACOMPANHA A VELOCIDADE.
     //
@@ -321,22 +345,11 @@ public class DuotoneAudioModule: Module {
     // ate este KVO chegar.
     item.audioTimePitchAlgorithm = .varispeed
 
-    // 2. O EQUALIZADOR.
-    //
-    // Sem ganhos nenhuns nao se instala tap nenhum: um tap tem custo por
-    // amostra, e uma curva plana nao muda nada. (Um tap JA montado nao se
-    // desmonta por a curva ficar plana -- isso era outra reconstrucao e outro
-    // corte. Esse caso nem chega aqui: e apanhado no caminho curto do
-    // `aplicarEqualizador`.)
-    if DuotoneEq.ePlano(motor.ganhos) && motor.margem >= 1 {
-      motor.tapVivo = nil
-      motor.itemDoTap = nil
-      item.audioMix = nil
-      return
-    }
-
+    // Instala uma vez por item, mesmo com EQ plano. Em repouso o tap é um
+    // bypass; assim ligar o efeito ou a primeira banda não reconstrói áudio.
     if let montado = DuotoneEq.mistura(para: item, ganhos: motor.ganhos, margem: motor.margem) {
       item.audioMix = montado.mix
+      montado.estado.analise.setEnabled(analiseAtiva)
       motor.tapVivo = montado.estado
       motor.itemDoTap = item
       return
@@ -349,15 +362,16 @@ public class DuotoneAudioModule: Module {
     // so nao faz nada.
     guard item.status != .readyToPlay else { return }
     motor.aEsperarPeloItem = item.observe(\.status, options: [.new]) {
-      [weak motor] observado, _ in
+      [weak self, weak motor] observado, _ in
       guard observado.status == .readyToPlay else { return }
       DispatchQueue.main.async {
-        guard let motor, motor.player?.currentItem === observado else { return }
+        guard let self, let motor, motor.player?.currentItem === observado else { return }
         motor.aEsperarPeloItem?.invalidate()
         motor.aEsperarPeloItem = nil
         let montado = DuotoneEq.mistura(
           para: observado, ganhos: motor.ganhos, margem: motor.margem
         )
+        montado?.estado.analise.setEnabled(self.analiseAtiva)
         observado.audioMix = montado?.mix
         motor.tapVivo = montado?.estado
         motor.itemDoTap = montado == nil ? nil : observado

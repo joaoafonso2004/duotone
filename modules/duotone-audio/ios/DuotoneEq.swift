@@ -214,6 +214,7 @@ struct Coeficientes {
  * thread de audio, e mais ninguem lhe mexe.
  */
 final class EstadoDoTap {
+  let analise = AnaliseDaCapa()
   /**
    * O cadeado que separa quem escreve de quem le.
    *
@@ -294,6 +295,7 @@ final class EstadoDoTap {
   }
 
   func preparar(taxa: Float, canais: Int) {
+    analise.prepare(rate: taxa, channels: canais)
     self.canais = max(1, canais)
     self.taxa = max(1, taxa)
     // 150 ms: abaixo disto a recuperacao comeca a modular a propria onda dos
@@ -562,6 +564,7 @@ private let tapProcess: MTAudioProcessingTapProcessCallback = {
   // silencio que se ouvia ao mexer num deslizador.
   estado.recolherNovidade()
   estado.avancarRampa(frames: quantasAmostras(lista))
+  estado.analise.process(lista, frames: min(Int(quantidadeSaida.pointee), quantasAmostras(lista)))
 
   // Nao entrelacado (o caso normal aqui): um buffer por canal, passo 1.
   if lista.count > 1 {

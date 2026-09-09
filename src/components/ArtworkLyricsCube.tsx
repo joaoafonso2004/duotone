@@ -18,12 +18,12 @@ type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;s
    * Opcional: quem nao a passar nao paga nada, e e por isso que a pagina do PC
    * fica exactamente como estava.
    */
-  aoRodar?:(aRodar:boolean)=>void};
+  aoRodar?:(aRodar:boolean)=>void; aoTocar?:()=>void};
 // Translação Z equivalente, também nos motores nativos que só expõem X e Y.
 const depth=(z:number)=>[{rotateY:'90deg'},{translateX:-z},{rotateY:'-90deg'}];
 
 /** Duas faces do mesmo cubo. O motor de áudio vive fora destas transformações. */
-export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar}:Props){
+export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,aoTocar}:Props){
   const reduced=useReducedMotion();
   const progress=useRef(new Animated.Value(showLyrics?1:0)).current;
   const [direction,setDirection]=useState(1);
@@ -48,7 +48,7 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
     setMoving(true);
     Animated.spring(progress,{toValue:value,stiffness:230,damping:27,mass:1,useNativeDriver:true}).start(({finished})=>{if(finished&&alive.current)setMoving(false);});
   },[progress]);
-  useEffect(()=>{settle(showLyrics?1:0);},[showLyrics,reduced]);
+  useEffect(()=>{settle(showLyrics?1:0);},[showLyrics,reduced,settle]);
   const querGesto=(_:unknown,g:{dx:number;dy:number})=>{
       if(!acceptsCubeSwipe(g.dx,g.dy))return false;
       // O PanResponder repõe dx a zero ANTES de chamar Grant.
@@ -74,7 +74,7 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
     },
     onPanResponderTerminationRequest:()=>false,
     onPanResponderTerminate:()=>settle(latest.current.showLyrics?1:0),
-  }),[progress]);
+  }),[progress,settle]);
   // No Windows, um Pressable das letras pode tornar-se responder logo no
   // pointer-down. Um listener DOM em captura observa primeiro a direção:
   // vertical continua no ScrollView; horizontal passa para o cubo. O ref é
@@ -114,17 +114,25 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
     return()=>{element.removeEventListener('pointerdown',down,true);element.removeEventListener('pointermove',move,true);
       element.removeEventListener('pointerup',finish,true);element.removeEventListener('pointercancel',cancel,true);};
   },[progress,settle]);
+  const tap = useRef({ x: 0, y: 0, valid: false });
   const radius=size/2;
   const rotation=progress.interpolate({inputRange:[0,1],outputRange:['0deg',`${-direction*90}deg`]});
   const base=[{perspective:size*3},...depth(-radius),{rotateY:rotation}];
   const frontStyle=reduced?{opacity:showLyrics?0:1}:{transform:[...base,...depth(radius)]};
   const lyricsStyle=reduced?{opacity:showLyrics?1:0}:{transform:[...base,{rotateY:`${direction*90}deg`},...depth(radius)]};
   return <View ref={cubeRef} {...(Platform.OS==='web'?{}:responder.panHandlers)} testID="artwork-lyrics-cube"
+    onTouchStart={aoTocar ? e => { const t = e.nativeEvent; tap.current = { x: t.pageX, y: t.pageY, valid: !showLyrics && !moving && t.touches.length === 1 }; } : undefined}
+    onTouchMove={aoTocar ? e => { const t = e.nativeEvent; if (Math.hypot(t.pageX-tap.current.x, t.pageY-tap.current.y) >= 8 || t.touches.length !== 1) tap.current.valid = false; } : undefined}
+    onTouchCancel={() => { tap.current.valid = false; }}
+    onTouchEnd={aoTocar ? e => {
+      const t = e.nativeEvent, valid = tap.current.valid; tap.current.valid = false;
+      if (valid && !moving && !showLyrics && Math.hypot(t.pageX-tap.current.x, t.pageY-tap.current.y) < 8) aoTocar();
+    } : undefined}
     accessible={!showLyrics} accessibilityLabel={showLyrics?'Lyrics':'Album artwork'}
     role={Platform.OS==='web'?'group':undefined} accessibilityRole={Platform.OS==='web'?undefined:'adjustable'}
     accessibilityValue={{text:showLyrics?'Lyrics':'Artwork'}}
-    accessibilityActions={[{name:'activate',label:showLyrics?'Show artwork':'Show lyrics'},{name:'increment',label:'Turn artwork'},{name:'decrement',label:'Turn artwork'}]}
-    onAccessibilityAction={()=>onChange(!showLyrics)} onAccessibilityEscape={()=>onChange(false)}
+    accessibilityActions={[{name:'activate',label:showLyrics?'Show artwork':'Show lyrics'},{name:'increment',label:'Turn artwork'},{name:'decrement',label:'Turn artwork'}, ...(aoTocar ? [{name:'toggleEffect',label:'Toggle reactive artwork'}] : [])]}
+    onAccessibilityAction={e=>{if(e.nativeEvent.actionName==='toggleEffect')aoTocar?.();else onChange(!showLyrics);}} onAccessibilityEscape={()=>onChange(false)}
     {...(Platform.OS==='web'?{tabIndex:0,onKeyDown:(event:any)=>{
       if(event.target!==event.currentTarget)return;
       if(['ArrowLeft','ArrowRight','Enter',' '].includes(event.key)){event.preventDefault();onChange(!showLyrics);}

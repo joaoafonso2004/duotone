@@ -1,3 +1,4 @@
+import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import { useNotifications } from '../state/notifications';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
 import { useOfflineMode } from '../hooks/useOfflineMode';
@@ -62,6 +63,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
 export function SettingsScreen({ navigation }: Props) {
   const offline=useOfflineMode();
+  const coverMode = useCapaIOS(s => s.mode);
+  useEffect(() => { if (Platform.OS === 'ios') void loadCapaIOS(); }, []);
   const [recommendationsOpen,setRecommendationsOpen]=useState(false);
   const insets = useSafeAreaInsets();
   const session = useAuth((s) => s.session);
@@ -502,6 +505,12 @@ export function SettingsScreen({ navigation }: Props) {
               style={{ marginTop: spacing.md }}
             />
           </Section>
+
+          {Platform.OS === 'ios' && <Section title="Artwork effect">
+            <SegmentedControl options={['Reactive', 'Static', 'Off']} value={['reactive', 'static', 'off'].indexOf(coverMode)}
+              onChange={index => useCapaIOS.getState().setMode((['reactive', 'static', 'off'] as const)[index])} />
+            <Text style={[type.caption, { marginTop: spacing.sm }]}>Tap the artwork to switch between Reactive and Static. This preference only affects iPhone.</Text>
+          </Section>}
 
           <Section title="Data">
             {offline&&<Text style={type.caption}>Offline · library changes and playlist exports need internet.</Text>}
