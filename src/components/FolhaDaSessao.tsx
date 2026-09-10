@@ -40,6 +40,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
   const euId = useOuvirJuntos((s) => s.euId);
   const souAnfitriao = useOuvirJuntos((s) => s.souAnfitriao);
   const darControlo = useOuvirJuntos((s) => s.darControlo);
+  const rodarAux = useOuvirJuntos((s) => s.rodarAux);
   const retirarSugestao = useOuvirJuntos((s) => s.retirarSugestao);
   const abandonar = useOuvirJuntos((s) => s.abandonar);
   const amigos = useSocial((s) => s.friends);
@@ -107,6 +108,42 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
               onValueChange={(v) => { hapticSelection(); void darControlo(v).catch(() => useOuvirJuntos.setState({ aviso: 'Could not change control. Please try again.' })); }}
               trackColor={{ true: tema.color, false: colors.surfaceHigh }}
             />
+          </View>
+        ) : null}
+
+        {/* PASSA O AUX. Ao lado do controlo dos convidados porque e a mesma
+            pergunta -- quem manda no que se ouve -- e a resposta oposta: em vez
+            de abrir a toda a gente, da a vez a um de cada vez.
+
+            Repara no que ele NAO prende: o play, a pausa e o saltar. Prender o
+            controlo a quem tem a vez deixava a sala parada quando essa pessoa
+            metia o telemovel no bolso. Ver `supabase/passa-o-aux.sql`. */}
+        {anfitriao ? (
+          <View style={styles.permissao}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.nome}>Pass the aux</Text>
+              <Text style={styles.estado}>
+                One song each, in turn. Whoever has the aux picks what goes in the queue.
+              </Text>
+            </View>
+            <Switch
+              value={!!sessao?.auxDe}
+              onValueChange={(v) => { hapticSelection(); void rodarAux(v).catch(() => useOuvirJuntos.setState({ aviso: 'Could not change the aux. Please try again.' })); }}
+              trackColor={{ true: tema.color, false: colors.surfaceHigh }}
+            />
+          </View>
+        ) : null}
+
+        {/* De quem e a vez, para toda a gente e nao so para o anfitriao: numa
+            roda, saber quando chega a tua e metade da graca. */}
+        {sessao?.auxDe ? (
+          <View style={styles.permissao}>
+            <Ionicons name="headset-outline" size={18} color={tema.color} />
+            <Text style={[styles.estado, { flex: 1 }]}>
+              {sessao.auxDe === euId
+                ? 'Your turn — add a song to the queue.'
+                : `${nomeDe(sessao.auxDe)} has the aux.`}
+            </Text>
           </View>
         ) : null}
 

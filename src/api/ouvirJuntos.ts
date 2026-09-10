@@ -23,6 +23,14 @@ export type SessaoDeEscuta = {
   aTocar: boolean;
   pausadaEmMs: number;
   convidadosControlam: boolean;
+  /**
+   * De quem e a vez de ESCOLHER. `null` quando o aux nao esta a rodar.
+   *
+   * Prende so a fila, e nao o controlo: o play, a pausa e o saltar continuam
+   * de quem os tinha. Ver o cabecalho do `supabase/passa-o-aux.sql` -- prender
+   * o controlo a quem tem a vez deixava a sala refem de um telemovel no bolso.
+   */
+  auxDe: string | null;
   acabouEm: number | null;
 };
 
@@ -45,6 +53,7 @@ export function sessaoDaLinha(r: any): SessaoDeEscuta {
     aTocar: !!r.is_playing,
     pausadaEmMs: Number(r.paused_position_ms) || 0,
     convidadosControlam: !!r.guests_can_control,
+    auxDe: typeof r.aux_de === 'string' ? r.aux_de : null,
     acabouEm: instante(r.ended_at),
   };
 }
@@ -168,6 +177,12 @@ export async function pausar(sessao: string, posicaoMs: number): Promise<void> {
 
 export async function retomar(sessao: string): Promise<void> {
   const { error } = await supabase.rpc('retomar_sessao', { p_session: sessao });
+  if (error) throw error;
+}
+
+/** Liga e desliga a roda do aux. So o anfitriao. */
+export async function definirAux(sessao: string, ligado: boolean): Promise<void> {
+  const { error } = await supabase.rpc('definir_aux', { p_session: sessao, p_ligado: ligado });
   if (error) throw error;
 }
 

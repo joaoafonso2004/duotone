@@ -5,7 +5,7 @@ import { AppState } from 'react-native';
 import {
   continuoNaSessao, convidar, criarSessao, definirFaixa, entrar, retratoDaSessao,
   juntarAFila, juntarMuitasAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
-  minhaSessaoAberta, pausar, permitirControlo, relogioActualizado, retomar,
+  definirAux, minhaSessaoAberta, pausar, permitirControlo, relogioActualizado, retomar,
   sair, sessaoDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
   type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta,
 } from '../api/ouvirJuntos';
@@ -82,6 +82,10 @@ type Estado = {
   anunciarRetoma: () => Promise<void>;
   anunciarPosicao: (ms: number) => Promise<void>;
   darControlo: (pode: boolean) => Promise<void>;
+  /** Liga a roda do aux. So o anfitriao. Ver `supabase/passa-o-aux.sql`. */
+  rodarAux: (ligado: boolean) => Promise<void>;
+  /** E a minha vez de escolher? Sempre `true` com o aux parado. */
+  minhaVez: () => boolean;
   anunciarProntidao: (pronta: boolean, percentagem?: number) => Promise<void>;
 
   /** `aSeguir` poe no topo da fila partilhada em vez do fundo. */
@@ -324,6 +328,30 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (!s || !get().souAnfitriao()) return;
     await permitirControlo(s.id, pode);
     if (get().sessao?.id === s.id) await get().actualizar();
+  },
+
+  /**
+   * Poe o aux a rodar, ou para-o. So o anfitriao, como o controlo dos
+   * convidados -- e ao lado dele, porque sao a mesma pergunta: quem manda no
+   * que se ouve.
+   */
+  rodarAux: async (ligado) => {
+    const s = get().sessao;
+    if (!s || !get().souAnfitriao()) return;
+    await definirAux(s.id, ligado);
+    if (get().sessao?.id === s.id) await get().actualizar();
+  },
+
+  /**
+   * E a MINHA vez de escolher?
+   *
+   * Com o aux parado e sempre: qualquer membro pode sugerir, que e como era
+   * antes de isto existir.
+   */
+  minhaVez: () => {
+    const { sessao, euId } = get();
+    if (!sessao) return false;
+    return !sessao.auxDe || sessao.auxDe === euId;
   },
 
   anunciarProntidao: async (pronta, percentagem = 0) => {
