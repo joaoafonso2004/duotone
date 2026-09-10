@@ -458,3 +458,23 @@ export async function getOrdemDosArtistas(): Promise<OrdemDosArtistas> {
 export async function setOrdemDosArtistas(value: OrdemDosArtistas): Promise<void> {
   await AsyncStorage.setItem('pref:ordemDosArtistas', value);
 }
+
+/**
+ * Ao mudar a velocidade, o tom acompanha (falso) ou fica onde esta (verdadeiro)?
+ *
+ * Falso e o de sempre: reamostra, e a musica soa como uma fita abrandada.
+ * Verdadeiro estica o tempo e mantem o tom.
+ *
+ * A escolha nao e so de gosto. No iPhone, reamostrar muda a taxa de saida, e
+ * muda-la a meio obriga o AVFoundation a voltar a preparar a cadeia de audio --
+ * e e esse o corte que se ouve ao mexer no deslizador da velocidade. Preservar
+ * o tom nao muda a taxa e nao corta, em troca de algum artefacto nas
+ * velocidades extremas. Um corte ou um artefacto: e por isso que e uma
+ * preferencia e nao uma decisao escrita no codigo.
+ */
+export async function getVelocidadeMantemTom(): Promise<boolean> {
+  return await AsyncStorage.getItem('pref:velocidadeMantemTom') === '1';
+}
+export async function setVelocidadeMantemTom(v: boolean): Promise<void> {
+  await AsyncStorage.setItem('pref:velocidadeMantemTom', v ? '1' : '0');
+}

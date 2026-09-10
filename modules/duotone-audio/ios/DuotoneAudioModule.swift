@@ -77,6 +77,8 @@ public class DuotoneAudioModule: Module {
   /** Dois com o crossfade ligado, um sem ele. */
   private var motores: [Motor] = []
   private var analiseAtiva = false
+  /** Ver `definirTomDaVelocidade`. Falso = `.varispeed`, como sempre foi. */
+  private var mantemTom = false
 
   /**
    * O nivel da cauda de um ficheiro local, em blocos.
@@ -234,18 +236,66 @@ public class DuotoneAudioModule: Module {
       let nova = Float(velocidade)
       DispatchQueue.main.async {
         // O estado REAL é lido aqui: uma pausa pode ter chegado desde o JS.
-        // defaultRate também guarda a escolha em pausa, sem iniciar áudio.
-        if p.defaultRate != nova { p.defaultRate = nova }
-        guard p.rate != 0, p.rate != nova else { return }
-        if p.timeControlStatus == .playing, let item = p.currentItem,
-           item.status == .readyToPlay, !item.isPlaybackBufferEmpty {
-          p.playImmediately(atRate: nova)
-        } else {
-          // Já estava a tentar tocar: alterar a taxa não força um buffer vazio.
-          p.rate = nova
+        //
+        // A ORDEM IMPORTA, e estava ao contrário. O `defaultRate` vinha antes
+        // do `guard p.rate != nova`: se escrevê-lo mexer também na taxa
+        // corrente -- e a documentação não promete que não mexa -- o guard
+        // passava a ser verdadeiro, saía-se por ali, e o `playImmediately`
+        // aqui em baixo nunca chegava a correr. Ficava como código morto e a
+        // mudança acontecia pelo caminho lento, que é o que se ouve cortar.
+        //
+        // Agora é o contrário: com o leitor a tocar, quem manda é o
+        // `playImmediately`; o `defaultRate` escreve-se DEPOIS, e só serve
+        // para o próximo `play()` saber a que velocidade começar.
+        guard p.rate != 0 else {
+          // Em pausa não se toca no som -- só se guarda a escolha.
+          if p.defaultRate != nova { p.defaultRate = nova }
+          return
         }
+        if abs(p.rate - nova) > 0.001 {
+          if p.timeControlStatus == .playing, let item = p.currentItem,
+             item.status == .readyToPlay, !item.isPlaybackBufferEmpty {
+            p.playImmediately(atRate: nova)
+          } else {
+            // Já estava a tentar tocar: alterar a taxa não força um buffer vazio.
+            p.rate = nova
+          }
+        }
+        if p.defaultRate != nova { p.defaultRate = nova }
       }
       return true
+    }
+
+    /**
+     * O tom acompanha a velocidade, ou fica onde está?
+     *
+     * `.varispeed` é o que a app usa desde sempre: reamostra, e o tom desce
+     * com a velocidade como abrandar uma fita. Não inventa sinal nenhum, e foi
+     * por isso que se escolheu -- um time-stretch a 0,5x tem de inventar
+     * metade do sinal, e ouvia-se.
+     *
+     * O preço só apareceu agora: reamostrar muda a taxa de saída, e mudá-la a
+     * meio obriga o AVFoundation a voltar a preparar a cadeia de áudio. É esse
+     * o corte que se ouve ao mexer na velocidade -- e é também porque é que o
+     * equalizador NÃO corta: trocar coeficientes dentro do tap não mexe em
+     * formato nenhum.
+     *
+     * `.spectral` preserva o tom, e por isso a taxa de saída não muda e não há
+     * nada a voltar a preparar. Em troca, estica o tempo.
+     *
+     * Não há resposta certa: é uma escolha entre um corte e um artefacto, e
+     * por isso é uma preferência e não uma decisão escrita no código. Aplica-se
+     * já ao item que está a tocar, o que custa UM corte no momento em que se
+     * muda o interruptor -- e nenhum a partir daí.
+     */
+    Function("definirTomDaVelocidade") { (mantemTom: Bool) in
+      DispatchQueue.main.async { [weak self] in
+        guard let self else { return }
+        self.mantemTom = mantemTom
+        for motor in self.motores {
+          motor.player?.currentItem?.audioTimePitchAlgorithm = mantemTom ? .spectral : .varispeed
+        }
+      }
     }
 
     // Só se muda uma bandeira do tap. Abrir/fechar a capa não muda audioMix.
@@ -343,7 +393,7 @@ public class DuotoneAudioModule: Module {
     // `configurarMotor`), que o estampa na propria criacao do item. Aqui e a
     // rede de seguranca: sem isso um item nasceria `.spectral` e ficava assim
     // ate este KVO chegar.
-    item.audioTimePitchAlgorithm = .varispeed
+    item.audioTimePitchAlgorithm = mantemTom ? .spectral : .varispeed
 
     // Instala uma vez por item, mesmo com EQ plano. Em repouso o tap é um
     // bypass; assim ligar o efeito ou a primeira banda não reconstrói áudio.

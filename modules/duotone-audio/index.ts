@@ -102,3 +102,20 @@ export async function lerAnaliseDaCapa(): Promise<number[]> {
     return Array.isArray(values) && values.length === 9 && values.every(Number.isFinite) ? values : [];
   } catch { return []; }
 }
+
+/**
+ * O tom acompanha a velocidade, ou fica onde está?
+ *
+ * Falso (o de sempre) reamostra: o tom desce com a velocidade, como abrandar
+ * uma fita. Verdadeiro estica o tempo e deixa o tom onde está.
+ *
+ * A diferença que se OUVE não é só o tom -- é o corte. Reamostrar muda a taxa
+ * de saída, e mudá-la a meio obriga o AVFoundation a voltar a preparar a
+ * cadeia; é esse o meio segundo que se ouve ao mexer no deslizador. Preservar
+ * o tom não muda a taxa, e por isso não há nada a preparar outra vez.
+ *
+ * Ver o cabeçalho do `definirTomDaVelocidade` no módulo Swift.
+ */
+export function definirTomDaVelocidade(mantemTom: boolean): void {
+  try { nativo?.definirTomDaVelocidade?.(mantemTom); } catch {}
+}

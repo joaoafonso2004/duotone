@@ -19,6 +19,7 @@ import {
   getPlaybackRate,
   getEqGanhos,
   getEqPadrao,
+  getVelocidadeMantemTom,
   getCrossfadeSegundos,
   getVolumeNormalization,
   loadPrefsCache,
@@ -47,6 +48,7 @@ import { iniciarPresenca } from './src/lib/presenceSync';
 import { useOuvirJuntos } from './src/state/ouvirJuntos';
 import { aquecerPerfil, limparCachePerfil } from './src/lib/cachePerfil';
 import { sincronizarPreferencias } from './src/lib/prefsSync';
+import { definirTomDaVelocidade } from './modules/duotone-audio';
 import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
 
@@ -193,6 +195,12 @@ export default function App() {
       player._carregarAjustes({},eqPadrao,playbackRate);
       setPreferencesReady(true);
     });
+
+    // O tom da velocidade, no módulo nativo. Aplicado AQUI e não só no ecrã de
+    // Definições: era esse o defeito do "manter o ecrã ligado" aqui em baixo --
+    // o interruptor aparecia ligado depois de reiniciar mas não valia nada até
+    // alguém visitar aquele ecrã.
+    void getVelocidadeMantemTom().then(definirTomDaVelocidade).catch(() => {});
 
     // "Manter o ecrã ligado" só era aplicado pelo useEffect do ecrã de
     // Definições. Depois de reiniciar a app o interruptor aparecia ligado
