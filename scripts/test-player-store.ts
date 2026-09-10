@@ -214,5 +214,77 @@ await usePlayer.getState().next();
 check('mudar de faixa carimba a posição de novo',
   usePlayer.getState().positionAt >= antes && usePlayer.getState().positionMs === 0);
 
+// ===========================================================================
+console.log('\ntocar a seguir, em todos os modos');
+// ===========================================================================
+// A P0 do relatório estratégico: "Play next funciona em fila comum, rádio,
+// repeat, shuffle e Jam". O Jam tem os seus (test-jam-store.ts); o resto vive
+// aqui, com a store a correr, porque a falha que se viu a conduzir não era uma
+// conta errada -- era quem lia a fila e quando. `lib/playerQueue.ts` testa só
+// a peça pura (`colocarASeguir`).
+const aSeguir = () => usePlayer.getState().peekNextTrack()?.sourceId ?? null;
+
+preparar();
+usePlayer.getState().playNext(faixa('x'));
+eq('fila comum: entra logo a seguir à atual', ids().join(), 'a,x,b,c,d');
+eq('e é por ela que o pré-carregamento espera', aSeguir(), 'x');
+await usePlayer.getState().next();
+eq('e é ela que toca a seguir', atual(), 'x');
+
+preparar();
+usePlayer.getState().playNext(faixa('c'));
+eq('uma que já estava por tocar muda de lugar, sem cópia', ids().join(), 'a,c,b,d');
+usePlayer.getState().playNext(faixa('c'));
+eq('pedir outra vez não duplica nem muda nada', ids().join(), 'a,c,b,d');
+
+preparar({ queueIndex: 3, current: faixa('d'), repeatMode: 'all' });
+usePlayer.getState().playNext(faixa('x'));
+eq('repeat all, no fim da fila: o pré-carregamento vê a pedida', aSeguir(), 'x');
+await usePlayer.getState().next();
+eq('repeat all: toca a pedida, e não volta já ao início', atual(), 'x');
+await usePlayer.getState().next();
+eq('e só depois dá a volta', atual(), 'a');
+
+preparar({ repeatMode: 'one' });
+usePlayer.getState().playNext(faixa('x'));
+eq('repeat one: a pedida fica logo a seguir', ids().join(), 'a,x,b,c,d');
+// No repeat "one" o FIM da faixa repete-a (é o motor que decide); o botão de
+// seguinte salta sempre. Por isso não há nada a pré-carregar, mas saltar leva
+// à pedida.
+eq('repeat one: não se pré-carrega nada', aSeguir(), null);
+await usePlayer.getState().next();
+eq('repeat one: saltar leva à pedida', atual(), 'x');
+
+preparar({ queueIndex: 3, current: faixa('d') });
+controlo.radio = fila('r1', 'r2');
+usePlayer.getState().playNext(faixa('x'));
+await usePlayer.getState().next();
+eq('rádio no fim da fila: a pedida toca antes do rádio', atual(), 'x');
+check('e para isso nem se foi ao rádio', controlo.chamadas.radio === 0, String(controlo.chamadas.radio));
+await usePlayer.getState().next();
+eq('só depois entra o rádio', atual(), 'r1');
+
+preparar({ queueIndex: 3, current: faixa('d') });
+controlo.radio = fila('r1', 'r2');
+// O rádio estende a fila em ANTECIPAÇÃO (useAutoplayRadio): quando se pede a
+// seguinte, as dele já lá estão.
+await usePlayer.getState().extendQueueWithRadio();
+usePlayer.getState().playNext(faixa('x'));
+eq('com o rádio já na fila, a pedida passa-lhe à frente', ids().join(), 'a,b,c,d,x,r1,r2');
+await usePlayer.getState().next();
+eq('e toca antes dele', atual(), 'x');
+
+preparar({ shuffle: true });
+usePlayer.getState()._ensureShuffleOrder();
+usePlayer.getState().playNext(faixa('x'));
+eq('shuffle: o pré-carregamento segue o percurso até à pedida', aSeguir(), 'x');
+await usePlayer.getState().next();
+eq('shuffle: a pedida é a próxima do percurso', atual(), 'x');
+
+preparar({ current: null, queue: [], queueIndex: 0 });
+usePlayer.getState().playNext(faixa('x'));
+await assentar();
+eq('sem nada a tocar, "a seguir" é agora', atual(), 'x');
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);
