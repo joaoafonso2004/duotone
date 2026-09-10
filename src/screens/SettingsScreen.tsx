@@ -622,13 +622,18 @@ export function SettingsScreen({ navigation }: Props) {
             )}
           </Section>
 
+          {/* O texto dizia que sem PO Token as faixas paravam aos 20-30 s. Deixou
+              de ser verdade com o cliente VISIONOS (ago 2026): o servidor é só
+              uma rede de segurança, a seguir ao BotGuard do próprio aparelho, e
+              o token fica preso ao IP de quem o gerou -- em dados móveis o do
+              servidor não serve. Ver `api/potProvider.ts`. */}
           <Section title="Advanced">
             <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
-              PO Tokens (needed for full YouTube tracks to play natively
-              instead of stopping after ~20-30s) are generated on-device
-              automatically — nothing to set up. This optional field only
-              applies if you want to use an external bgutil-ytdlp-pot-provider
-              server instead. See GUIA-POT-TOKEN.md.
+              Playback needs no setup. This is only a fallback for when YouTube
+              blocks the usual way in: the address of a PO Token server
+              (bgutil-ytdlp-pot-provider). Its tokens only work on the same
+              internet connection as the server, so it helps at home, not on
+              mobile data.
             </Text>
             <Input
               placeholder="http://192.168.1.10:4416"
