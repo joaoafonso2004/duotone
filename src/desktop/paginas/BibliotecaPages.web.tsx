@@ -53,12 +53,13 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
    * diferenca que so existe no titulo da prateleira. E a mesma separacao que o
    * `SearchScreen` do telemovel faz.
    */
-  const { estilos, radios, decadas, playlists } = useMemo(() => ({
+  const { estilos, radios, generos, decadas, playlists } = useMemo(() => ({
     estilos: recs.misturas.filter((m) => m.id.startsWith('estilo:')),
     radios: recs.misturas.filter((m) => m.id.startsWith('radio:')),
+    generos: recs.misturas.filter((m) => m.id.startsWith('genero:')),
     decadas: recs.misturas.filter((m) => m.id.startsWith('decada:')),
-    playlists: recs.misturas.filter((m) => !m.id.startsWith('estilo:')
-      && !m.id.startsWith('radio:') && !m.id.startsWith('decada:')),
+    playlists: recs.misturas.filter((m) => !m.id.startsWith('estilo:') && !m.id.startsWith('radio:')
+      && !m.id.startsWith('decada:') && !m.id.startsWith('genero:')),
   }), [recs.misturas]);
   const abrirMistura = (m: { id: string; nome: string }) =>
     navigate({ name: 'mistura', id: m.id, titulo: m.nome });
@@ -103,11 +104,13 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
               toda no titulo -- que e o que elas tem de diferente:
                 Your styles -> artistas teus que partilham vizinhos
                 Radio       -> tres faixas novas por cada tua
+                Your genres -> a gaveta larga do catalogo ("Rap/Hip Hop")
                 Decades     -> a TUA musica daquela era, nao musica nova dela
                 Playlists   -> a tua biblioteca com descobertas pelo meio
               Ver `lib/estilos.ts`, `radiosDeArtista` e `lib/decadas.ts`. */}
           <PrateleiraDeMisturas titulo="Your styles" misturas={estilos} aoAbrir={abrirMistura} />
           <PrateleiraDeMisturas titulo="Radio" nota="three new tracks for every one of yours" misturas={radios} aoAbrir={abrirMistura} />
+          <PrateleiraDeMisturas titulo="Your genres" nota="your library, by genre" misturas={generos} aoAbrir={abrirMistura} />
           <PrateleiraDeMisturas titulo="Decades" nota="your music from that era" misturas={decadas} aoAbrir={abrirMistura} />
           <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura} />
           {/* A unica prateleira desta pagina que nao sai do teu proprio

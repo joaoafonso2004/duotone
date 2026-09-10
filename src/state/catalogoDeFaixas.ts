@@ -150,8 +150,15 @@ export async function encherDoPartilhado(faixas: readonly Track[]): Promise<void
  * A parte do `comCatalogo` de proposito: o `Track` e o tipo que anda pela app
  * toda e por dentro do leitor, e acrescentar-lhe um campo que so duas
  * prateleiras usam obrigava a mexer em todos os sitios que constroem um.
- * Quem precisa do ano pergunta por ele.
+ * Quem precisa do ano -- ou do genero -- pergunta por ele.
  */
+export function generoDaFaixa(faixa: Track | null | undefined): string | null {
+  if (!faixa?.sourceId || !faixa?.source) return null;
+  const achado = useCatalogoDeFaixas.getState().porFaixa[chaveDoCatalogo(faixa.source, faixa.sourceId)];
+  const g = achado?.genero;
+  return typeof g === 'string' && g.trim() ? g.trim() : null;
+}
+
 export function anoDaFaixa(faixa: Track | null | undefined): number | null {
   if (!faixa?.sourceId || !faixa?.source) return null;
   const achado = useCatalogoDeFaixas.getState().porFaixa[chaveDoCatalogo(faixa.source, faixa.sourceId)];

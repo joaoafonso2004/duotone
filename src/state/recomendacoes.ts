@@ -19,7 +19,8 @@ import { chaveDeArtista } from '../lib/artistName';
 import { artistasParaRecomendacoes } from '../api/plays';
 import { trackKey } from '../lib/shuffle';
 import { misturasPorDecada } from '../lib/decadas';
-import { anoDaFaixa, encherDoPartilhado } from './catalogoDeFaixas';
+import { misturasPorGenero } from '../lib/generos';
+import { anoDaFaixa, encherDoPartilhado, generoDaFaixa } from './catalogoDeFaixas';
 
 /**
  * As prateleiras de recomendações, fora do ecrã que as mostra.
@@ -309,9 +310,18 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
               // nenhuma. O que as separa das misturas e a proporcao -- tres
               // faixas novas por cada tua, o inverso do que a mistura faz.
               ...radiosDeArtista(artistas, lib, artistPreferenceKey, chaveDeArtista, vizinhas, baralhada),
-              // As décadas entram DEPOIS das radios de propósito: a grelha de
-              // atalhos do topo leva as sete primeiras, e essas sete são os
-              // estilos e as radios. Ver o `lib/decadas.ts`.
+              // Os GÉNEROS e as DÉCADAS saem da mesma linha do catálogo, e a
+              // pergunta que fazem é a mesma: arruma a minha biblioteca por
+              // uma gaveta que não é o artista. Entram DEPOIS das radios de
+              // propósito -- a grelha de atalhos do topo leva as sete
+              // primeiras, e essas sete são os estilos e as radios.
+              //
+              // Um género é uma etiqueta larga ("Rap/Hip Hop", não "Trap") e
+              // é por isso que ele e os estilos convivem: os estilos agrupam
+              // artistas que partilham vizinhos, o género é uma gaveta. Ver o
+              // `lib/generos.ts` e o `lib/decadas.ts`.
+              ...misturasPorGenero(lib, generoDaFaixa, trackKey,
+                (t) => escutasPorArtista.get(artistPreferenceKey(t)) ?? 0, baralhada),
               ...misturasPorDecada(lib, anoDaFaixa, trackKey,
                 (t) => escutasPorArtista.get(artistPreferenceKey(t)) ?? 0, baralhada),
               ...misturasDaBiblioteca(artistas, lib, artistPreferenceKey,

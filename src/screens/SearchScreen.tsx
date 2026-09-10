@@ -189,13 +189,17 @@ export function SearchScreen() {
     () => misturas.filter((m) => m.id.startsWith('radio:')),
     [misturas],
   );
+  const generos = React.useMemo(
+    () => misturas.filter((m) => m.id.startsWith('genero:')),
+    [misturas],
+  );
   const decadas = React.useMemo(
     () => misturas.filter((m) => m.id.startsWith('decada:')),
     [misturas],
   );
   const misturasDeArtista = React.useMemo(
-    () => misturas.filter((m) => !m.id.startsWith('estilo:')
-      && !m.id.startsWith('radio:') && !m.id.startsWith('decada:')),
+    () => misturas.filter((m) => !m.id.startsWith('estilo:') && !m.id.startsWith('radio:')
+      && !m.id.startsWith('decada:') && !m.id.startsWith('genero:')),
     [misturas],
   );
 
@@ -581,9 +585,11 @@ export function SearchScreen() {
                     Ver `lib/estilos.ts` e `radiosDeArtista`. */}
                 {renderPrateleiraDeMisturas('Your styles', misturasDeEstilo)}
                 {renderPrateleiraDeMisturas('Radio', radios)}
-                {/* As decadas sao a unica familia que nao pergunta nada a
-                    catalogo nenhum: e a musica DELE daquela era, e nao musica
-                    nova daquela era. Ver `lib/decadas.ts`. */}
+                {/* Generos e decadas arrumam a biblioteca por uma gaveta que
+                    nao e o artista, e nenhuma das duas pergunta seja o que for
+                    a catalogo nenhum -- saem da linha que ja la esta. Ver
+                    `lib/generos.ts` e `lib/decadas.ts`. */}
+                {renderPrateleiraDeMisturas('Your genres', generos)}
                 {renderPrateleiraDeMisturas('Decades', decadas)}
                 {(!misturasProntas || misturasDeArtista.length > 0) &&
                   (misturasProntas

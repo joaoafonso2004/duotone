@@ -1,6 +1,7 @@
 import { cacheGet, cacheSet, DIA_MS } from './cache';
 import { useConnectivity } from '../state/connectivity';
-import { artistWeight,feedbackReady,filterSuggestions,trackIsSuppressed } from '../state/recommendationFeedback';
+import { artistasPreferidos, artistWeight,feedbackReady,filterSuggestions,trackIsSuppressed } from '../state/recommendationFeedback';
+import { ESCUTAS_DE_UM_PREFERIDO } from '../lib/recommendationFeedback';
 import { getLibraryKeys } from './library';
 import { artistasParaRecomendacoes, getHeavyRotation, getTopArtists } from './plays';
 import { paresDeArtistaEPlaylist } from './afinidade';
@@ -538,6 +539,21 @@ async function escolherAlvos(
   // da prateleira cabem a este lado do gosto (ver `repartir`).
   const pesoDe = (chave: string) =>
     retratoFiavel.get(chave) ?? vizinhos.find((v) => v.chave === chave)?.pontos ?? 1;
+  // OS PREFERIDOS ENTRAM, mesmo os que nao estao na biblioteca.
+  //
+  // O `artistWeight` MULTIPLICA o que ja la esta, e um artista que nunca se
+  // guardou vale zero -- duas vezes e meia zero continua a ser zero. Sem esta
+  // injeccao, dizer "mais destas" a uma descoberta nao fazia rigorosamente
+  // nada, que e precisamente o caso que da sentido ao botao.
+  //
+  // A mesma decisao (e a mesma razao) das sementes do primeiro dia: uma
+  // escolha explicita vale um artista que se ouve sem ser todos os dias, e o
+  // peso faz o resto. Ver `lib/artistasSemente.ts`.
+  for (const { chave, nome } of artistasPreferidos()) {
+    if (!chave || retratoFiavel.has(chave)) continue;
+    retratoFiavel.set(chave, Math.sqrt(ESCUTAS_DE_UM_PREFERIDO));
+    if (nome) nomePorChave.set(chave, nome);
+  }
   for (const [k,peso] of retratoFiavel) retratoFiavel.set(k,peso*artistWeight(nomePorChave.get(k)??k));
   vizinhos=vizinhos.map(v=>({...v,pontos:v.pontos*artistWeight(nomePorChave.get(v.chave)??v.chave)})).sort((a,b)=>b.pontos-a.pontos);
   for (const [k,peso] of afinidade) afinidade.set(k,peso*artistWeight(k));
