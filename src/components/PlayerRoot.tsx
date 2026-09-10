@@ -1,4 +1,5 @@
 import { CapaReactiva } from './CapaReactiva';
+import { escolherDoDia } from '../api/escolhaDoDia';
 import { useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
 import { Toque } from './Toque';
@@ -827,6 +828,18 @@ export function PlayerRoot() {
     { label: 'Add to playlist', icon: 'add', onPress: () => {
       if (offline) { Alert.alert('Offline', 'Connect to the internet to edit playlists.'); return; }
       fecharEEntao(() => setPlaylistOpen(true));
+    } },
+    /* Uma musica por dia. Aqui e nao numa folha propria porque escolher e um
+       gesto sobre o que se esta a OUVIR -- e o que se esta a ouvir e isto. */
+    { label: 'Make this today’s pick', icon: 'today-outline', onPress: () => {
+      if (offline) { Alert.alert('Offline', 'Connect to the internet to pick a song.'); return; }
+      const faixa = current;
+      if (!faixa) return;
+      fecharEEntao(() => {
+        void escolherDoDia(faixa)
+          .then(() => hapticNotification())
+          .catch(() => Alert.alert('Could not pick', 'Please try again in a moment.'));
+      });
     } },
     { label: 'Share with a friend', icon: 'paper-plane-outline', onPress: () => {
       if (offline) { Alert.alert('Offline', 'Connect to the internet to share.'); return; }

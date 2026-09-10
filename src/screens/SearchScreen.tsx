@@ -30,6 +30,7 @@ import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { AmigosAOuvir } from '../components/AmigosAOuvir';
+import { EscolhasDoDia } from '../components/EscolhasDoDia';
 import { EscolherArtistas } from '../components/EscolherArtistas';
 import { PillButton } from '../components/PillButton';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
@@ -510,6 +511,11 @@ export function SearchScreen() {
                 no sitio mais caro do ecra sem custar nada nos dias em que
                 nao ha ninguem online. */}
             <AmigosAOuvir />
+            {/* Uma musica por dia, logo a seguir a fila de quem esta a ouvir:
+                sao as duas coisas desta pagina que sao sobre PESSOAS, e ficam
+                juntas antes de comecar o que a app calculou. Some-se num dia
+                em que ninguem escolheu. Ver `components/EscolhasDoDia.tsx`. */}
+            <EscolhasDoDia />
             {/* A grelha de atalhos, a cabeca da pagina.
                 ------------------------------------------------------------
                 Sao os mesmos mixes que estao nas prateleiras la em baixo, e a
