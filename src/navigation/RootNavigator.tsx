@@ -35,6 +35,7 @@ import { LibraryGroupScreen } from '../screens/LibraryGroupScreen';
 import { PrateleiraScreen } from '../screens/PrateleiraScreen';
 import type { NomeDaPrateleira } from '../state/recomendacoes';
 import { PlaylistDetailScreen } from '../screens/PlaylistDetailScreen';
+import { VocesOsDoisScreen } from '../screens/VocesOsDoisScreen';
 import { PlaylistsScreen } from '../screens/PlaylistsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SearchScreen } from '../screens/SearchScreen';
@@ -63,6 +64,7 @@ const OnlineProfile=withInternet(ProfileScreen,'Profile');
 const OnlineSearch=withInternet(SearchScreen,'Search');
 const OnlineSocial=withInternet(SocialScreen,'Social');
 const OnlineFriendProfile=withInternet(FriendProfileScreen,'Profile');
+const OnlineVocesOsDois=withInternet(VocesOsDoisScreen,'Profile');
 
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabsParamList>;
@@ -71,6 +73,8 @@ export type RootStackParamList = {
   Retrospetiva: {ano?:number;userId?:string} | undefined;
   Downloads: undefined;
   FriendProfile: {userId:string};
+  /** A pagina sobre ti e um amigo. Ver `screens/VocesOsDoisScreen.tsx`. */
+  VocesOsDois: { userId: string; nome?: string };
   Playlists: undefined;
   PlaylistDetail: { id: string; name: string };
   ImportYouTube: undefined;
@@ -313,6 +317,7 @@ export function RootNavigator() {
                   tem de funcionar sem rede. */}
               <Stack.Screen name="Downloads" component={DownloadsScreen} />
               <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
+              <Stack.Screen name="VocesOsDois" component={OnlineVocesOsDois} />
               <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
               <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
               <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />

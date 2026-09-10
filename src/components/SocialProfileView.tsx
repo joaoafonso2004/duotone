@@ -29,7 +29,7 @@ import {
   savePlaylistCopy, setPlaylistVisibility, unsavePlaylistCopy,
 } from '../api/playlists';
 
-export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,onSocial,onPlaylist,onBack,active=true}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void;onBack?:()=>void;active?:boolean}) {
+export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDois,onSettings,onSocial,onPlaylist,onBack,active=true}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onVocesOsDois?:(nome?:string)=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void;onBack?:()=>void;active?:boolean}) {
   const web=Platform.OS==='web';
   const [width,setWidth]=useState(0);
   const wide=web&&width>=780;
@@ -307,6 +307,24 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onSettings,
               <SocialIconButton label={`Options for ${highlights.moment.title}`} icon="ellipsis-horizontal" onPress={()=>setTrack(highlights.moment)}/>
             </View>
           </View>}
+          {/* VOCES OS DOIS. Fica ACIMA do resumo de escutas e nao dentro dele,
+              e de proposito: aquilo sao os numeros dele, isto e uma pagina
+              sobre voces os dois -- e e a unica coisa neste perfil que nao
+              existe em mais lado nenhum.
+
+              So aparece com o perfil visivel e com amizade aceite: sem uma das
+              duas, a funcao do lado da base recusa e o ecra abriria vazio. */}
+          {onVocesOsDois&&profile.canView&&friend?.status==='accepted'&&
+            <Pressable accessibilityRole="button" accessibilityLabel="You two"
+              onPress={()=>onVocesOsDois(profile.profile.name||profile.profile.username||undefined)}
+              style={({pressed,hovered}:any)=>[s.listRow,(pressed||hovered)&&{backgroundColor:colors.surfacePressed}]}>
+              <Ionicons name="sparkles-outline" size={24} color={accent}/>
+              <View style={{flex:1}}>
+                <Text style={s.label}>You two</Text>
+                <Text style={s.text}>What you share, and what you don’t</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>
+            </Pressable>}
           {playlistsSection}
           <View style={{gap:16}}>
             {/* O título é o caminho para o detalhe: o resumo e a página

@@ -11,5 +11,6 @@ export function FriendProfileScreen({route,navigation}:NativeStackScreenProps<Ro
     onPlaylist={id=>navigation.navigate('PlaylistDetail',{id,name:'Playlist'})}
     onMessage={id=>navigation.navigate('Tabs',{screen:'Social',params:{openChatWithFriendId:id}})}
     onArtist={name=>navigation.navigate('LibraryGroup',{type:'artist',name})}
-    onStats={()=>navigation.navigate('ListeningStats',{userId:route.params.userId})}/></View>;
+    onStats={()=>navigation.navigate('ListeningStats',{userId:route.params.userId})}
+    onVocesOsDois={nome=>navigation.navigate('VocesOsDois',{userId:route.params.userId,nome})}/></View>;
 }
