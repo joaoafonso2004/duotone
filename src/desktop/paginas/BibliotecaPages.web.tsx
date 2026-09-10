@@ -59,7 +59,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
     generos: recs.misturas.filter((m) => m.id.startsWith('genero:')),
     decadas: recs.misturas.filter((m) => m.id.startsWith('decada:')),
     playlists: recs.misturas.filter((m) => !m.id.startsWith('estilo:') && !m.id.startsWith('radio:')
-      && !m.id.startsWith('decada:') && !m.id.startsWith('genero:') && !m.id.startsWith('raras:')),
+      && !m.id.startsWith('decada:') && !m.id.startsWith('genero:')),
   }), [recs.misturas]);
   const abrirMistura = (m: { id: string; nome: string }) =>
     navigate({ name: 'mistura', id: m.id, titulo: m.nome });

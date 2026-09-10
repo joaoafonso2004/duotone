@@ -201,7 +201,7 @@ export function SearchScreen() {
   );
   const misturasDeArtista = React.useMemo(
     () => misturas.filter((m) => !m.id.startsWith('estilo:') && !m.id.startsWith('radio:')
-      && !m.id.startsWith('decada:') && !m.id.startsWith('genero:') && !m.id.startsWith('raras:')),
+      && !m.id.startsWith('decada:') && !m.id.startsWith('genero:')),
     [misturas],
   );
 
