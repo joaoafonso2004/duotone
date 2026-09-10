@@ -153,7 +153,11 @@ export function presencaDaFaixa(
     actividade.instance = true;
   }
 
-  if (faixa.source === 'youtube' && faixa.sourceId) {
+  // Num Jam, o botão do YouTube sai. O Discord recusa segredo e botões juntos
+  // -- `5005 "secrets cannot currently be sent with buttons"`, confirmado ao
+  // vivo contra o cliente a 10/9/2026 -- e a recusa é da actividade INTEIRA:
+  // o perfil ficava vazio e sem "Juntar-se", justamente durante o Jam.
+  if (!segredo && faixa.source === 'youtube' && faixa.sourceId) {
     actividade.buttons = [{
       label: 'Listen on YouTube'.slice(0, MAX_ETIQUETA),
       url: `https://www.youtube.com/watch?v=${faixa.sourceId}`,
@@ -177,6 +181,12 @@ export function presencaMudou(
   depois: ActividadeDoDiscord | null,
 ): boolean {
   if (!antes || !depois) return antes !== depois;
+  // O Jam conta como mudança: abrir um a meio da faixa tem de publicar o
+  // segredo JÁ, e não quando a música acabar. Sem isto, o "Juntar-se" levava
+  // uma faixa inteira a aparecer, e ficava no perfil depois de o Jam fechar.
+  if (antes.type !== depois.type
+    || antes.secrets?.join !== depois.secrets?.join
+    || antes.party?.size[0] !== depois.party?.size[0]) return true;
   return antes.details !== depois.details
     || antes.state !== depois.state
     || antes.assets?.large_image !== depois.assets?.large_image

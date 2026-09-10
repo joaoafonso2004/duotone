@@ -74,6 +74,28 @@ verificar('um Jam publica party e segredo para o botao nativo Juntar-se', () => 
   assert.equal(p.instance, true);
 });
 
+verificar('num Jam nao ha botao: o Discord recusa segredo e botoes juntos (5005)', () => {
+  // Confirmado ao vivo a 10/9/2026: com os dois, o Discord responde
+  // "secrets cannot currently be sent with buttons" e nao mostra NADA.
+  const p = presencaDaFaixa(f(), aTocar, titulo, artista, { sessao, membros: 2 })!;
+  assert.ok(p.secrets, 'o segredo e a razao de ser do Jam');
+  assert.equal(p.buttons, undefined, 'com segredo, o botao deita a actividade inteira abaixo');
+});
+
+verificar('abrir um Jam a meio da faixa justifica reenviar', () => {
+  const sozinho = presencaDaFaixa(f(), aTocar, titulo, artista);
+  const emJam = presencaDaFaixa(f(), aTocar, titulo, artista, { sessao, membros: 1 });
+  assert.equal(presencaMudou(sozinho, emJam), true, 'senao o Juntar-se so aparecia na faixa seguinte');
+  assert.equal(presencaMudou(emJam, sozinho), true, 'e fechar o Jam tem de o tirar do perfil');
+});
+
+verificar('alguem entrar no Jam justifica reenviar, para o tamanho da sala', () => {
+  const um = presencaDaFaixa(f(), aTocar, titulo, artista, { sessao, membros: 1 });
+  const dois = presencaDaFaixa(f(), aTocar, titulo, artista, { sessao, membros: 2 });
+  assert.equal(presencaMudou(um, dois), true);
+  assert.equal(presencaMudou(dois, presencaDaFaixa(f(), aTocar, titulo, artista, { sessao, membros: 2 })), false);
+});
+
 verificar('o segredo de Join e reversivel mas so aceita UUIDs da Duotone', () => {
   const segredo = segredoDiscordDaSessao(sessao)!;
   assert.equal(sessaoDoSegredoDiscord(segredo), sessao);

@@ -163,6 +163,12 @@ class LigacaoAoDiscord {
             ) {
               // Um callback defeituoso nunca pode derrubar o leitor nem o pipe.
               try { this.aoJuntar?.(mensagem.data.secret); } catch { /* renderer indisponível */ }
+            } else if (mensagem.evt === 'ERROR') {
+              // O Discord responde a cada comando, e um ERROR a um SET_ACTIVITY
+              // quer dizer que recusou a actividade INTEIRA: o perfil fica vazio.
+              // Foi assim que o 5005 (segredo + botões) saiu numa release sem
+              // ninguém dar por ele. Pelo menos no terminal passa a ver-se.
+              console.warn('[discord]', mensagem.cmd, mensagem.data?.code, mensagem.data?.message);
             }
           } catch {
             // Uma mensagem que não se percebe não derruba a ligação.
