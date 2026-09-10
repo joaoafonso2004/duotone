@@ -57,6 +57,13 @@ jobs:
       - name: Instalar dependências
         run: npm ci --no-audit --no-fund
 
+      # Desde o Electron 42 o `npm ci` já não descarrega o binário (o
+      # postinstall saiu, por segurança da cadeia de fornecimento). O
+      # electron-builder usa `electronDist: node_modules/electron/dist`, que sem
+      # isto não existe e o empacotamento parte.
+      - name: Descarregar o binário do Electron
+        run: node node_modules/electron/install.js
+
       - name: Validar TypeScript e regressões
         run: npm run typecheck && npm test
 
