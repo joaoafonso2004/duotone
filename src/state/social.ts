@@ -167,7 +167,7 @@ export function iniciarSocial(userId: string): () => void {
   // Realtime é o caminho normal. A consulta periódica é só recuperação de uma
   // quebra silenciosa, por isso dois minutos chegam e evitam duas leituras
   // sociais completas por minuto enquanto nada muda.
-  const recovery = setInterval(refresh, 120000);
+  const recovery = setInterval(() => { if (appEstaVisivel()) refresh(); }, 120000);
   // Foreground-only recovery even when the SQL Realtime publication is absent.
   // This reads the inbox, requests and read markers, not all Social metadata.
   const inboxRecovery = setInterval(() => { if (appEstaVisivel()) void inboxRefresh(); }, 15000);
