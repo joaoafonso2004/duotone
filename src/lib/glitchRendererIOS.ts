@@ -109,8 +109,12 @@ export function criarRendererIOS(
     gl.uniform1i(gl.getUniformLocation(program, 'uTex'), 0);
     gl.uniform1f(gl.getUniformLocation(program, 'uIntensidade'), intensidade);
     texture(gl.TEXTURE1, gl.NEAREST);
-    const spectrum = new Uint8Array(256 * 4);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, spectrum);
+    // LUMINANCE e nao RGBA, como o PC ja fazia: o shader le so o `.r`, e em
+    // RGBA mandavam-se 1024 bytes por fotograma para usar 256. Quatro vezes
+    // menos trabalho a subir para a GPU, trinta vezes por segundo, para um
+    // resultado identico ao pixel.
+    const spectrum = new Uint8Array(256);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 256, 1, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, spectrum);
     gl.uniform1i(gl.getUniformLocation(program, 'uEspetro'), 1);
     if (gl.getError() !== gl.NO_ERROR) throw Error('texture upload');
     const frameUniform = gl.getUniformLocation(program, 'uQuadro[0]');
@@ -141,9 +145,9 @@ export function criarRendererIOS(
         // quase o mesmo valor, e o shader (que lê um texel por LINHA do ecrã)
         // deslocava-as todas juntas -- blocos a deslizar em vez do pente
         // irregular do PC.
-        for (let i = 0; i < 256; i++) spectrum[i * 4] = bins[i];
+        for (let i = 0; i < 256; i++) spectrum[i] = bins[i];
         gl.activeTexture(gl.TEXTURE1);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 1, gl.RGBA, gl.UNSIGNED_BYTE, spectrum);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 1, gl.LUMINANCE, gl.UNSIGNED_BYTE, spectrum);
         gl.uniform4fv(frameUniform, frame); gl.drawArrays(gl.TRIANGLES, 0, 6); gl.endFrameEXP();
       },
       /**

@@ -1,5 +1,6 @@
 import { CapaReactiva } from './CapaReactiva';
 import { escolherDoDia } from '../api/escolhaDoDia';
+import { ModoCarro } from './ModoCarro';
 import { useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
 import { Toque } from './Toque';
@@ -586,6 +587,7 @@ export function PlayerRoot() {
   },[current?.source,current?.sourceId,offline,offlineId]);
 
   const [showLyrics, setShowLyrics] = useState(false);
+  const [modoCarro, setModoCarro] = useState(false);
   useEffect(() => {
     setShowLyrics(false);
   }, [current?.sourceId]);
@@ -828,6 +830,11 @@ export function PlayerRoot() {
     { label: 'Add to playlist', icon: 'add', onPress: () => {
       if (offline) { Alert.alert('Offline', 'Connect to the internet to edit playlists.'); return; }
       fecharEEntao(() => setPlaylistOpen(true));
+    } },
+    /* Modo carro. A primeira da lista porque e a unica que se procura com o
+       carro ja a andar -- as outras escolhem-se parado. */
+    { label: 'Car mode', icon: 'car-sport-outline', onPress: () => {
+      fecharEEntao(() => setModoCarro(true));
     } },
     /* Uma musica por dia. Aqui e nao numa folha propria porque escolher e um
        gesto sobre o que se esta a OUVIR -- e o que se esta a ouvir e isto. */
@@ -1570,6 +1577,9 @@ export function PlayerRoot() {
         track={current}
         onClose={() => setPlaylistOpen(false)}
       />
+
+      {/* ========================== MODO CARRO ========================== */}
+      <ModoCarro visivel={modoCarro} aoFechar={() => setModoCarro(false)} />
 
       {/* ===================== PARTILHAR COM UM AMIGO ===================== */}
       <ShareFriendSheet

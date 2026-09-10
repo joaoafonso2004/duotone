@@ -98,9 +98,14 @@ async function run() {
   // vizinhas receberem o mesmo valor -- e o shader le um texel por LINHA.
   const bins = Array.from({length:257},(_,i)=> i<256 ? (i%2 ? 200 : 40) : 0);
   renderer.draw(bins,1);
-  const textura = calls.filter(c=>c[0]==='texSubImage2D').pop()[9];
-  assert.equal(textura[0*4],40); assert.equal(textura[1*4],200);
-  assert.equal(textura[255*4],200,'o pente chega inteiro a textura');
+  const subida = calls.filter(c=>c[0]==='texSubImage2D').pop();
+  // LUMINANCE: um byte por texel, como no PC. Em RGBA subiam 1024 bytes por
+  // fotograma para usar 256.
+  assert.equal(subida[7],'LUMINANCE','um byte por texel, nao quatro');
+  const textura = subida[9];
+  assert.equal(textura.length,256);
+  assert.equal(textura[0],40); assert.equal(textura[1],200);
+  assert.equal(textura[255],200,'o pente chega inteiro a textura');
 
   // O nivel sai DOS BINS, com as contas do beat.web.ts: graves (45-260 Hz) a
   // 0,82 mais o corpo (metade do espectro) a 0,18.

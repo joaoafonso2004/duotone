@@ -492,3 +492,22 @@ export async function getSemanaVistaEm(): Promise<string | null> {
 export async function setSemanaVistaEm(chave: string): Promise<void> {
   await AsyncStorage.setItem('pref:semanaVistaEm', chave);
 }
+
+/**
+ * No modo carro, o ecra fica ligado?
+ *
+ * Ligado por omissao, porque e metade do que o modo carro e: um ecra que
+ * apaga a cada trinta segundos num suporte obriga a toca-lo para o acordar,
+ * que e exactamente o que nao se quer estar a fazer a conduzir.
+ *
+ * Desligavel na mesma: quem tem o telemovel a carregar no carro nao precisa,
+ * e quem nao o tem pode preferir a bateria. Isto NAO mexe no
+ * "manter o ecra ligado" geral -- sao duas definicoes, e o modo carro usa
+ * uma etiqueta propria para nao apagar a escolha da outra.
+ */
+export async function getCarroMantemEcra(): Promise<boolean> {
+  return await AsyncStorage.getItem('pref:carroMantemEcra') !== '0';
+}
+export async function setCarroMantemEcra(v: boolean): Promise<void> {
+  await AsyncStorage.setItem('pref:carroMantemEcra', v ? '1' : '0');
+}

@@ -1,5 +1,5 @@
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
-import { getVelocidadeMantemTom, setVelocidadeMantemTom } from '../lib/prefs';
+import { getCarroMantemEcra, getVelocidadeMantemTom, setCarroMantemEcra, setVelocidadeMantemTom } from '../lib/prefs';
 import { definirTomDaVelocidade } from '../../modules/duotone-audio';
 import { useNotifications } from '../state/notifications';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
@@ -67,6 +67,12 @@ export function SettingsScreen({ navigation }: Props) {
   const offline=useOfflineMode();
   const coverMode = useCapaIOS(s => s.mode);
   const [mantemTom, setMantemTom] = useState(false);
+  const [carroMantemEcra, setCarroMantemEcraState] = useState(true);
+  useEffect(() => {
+    let vivo = true;
+    void getCarroMantemEcra().then((v) => { if (vivo) setCarroMantemEcraState(v); }).catch(() => {});
+    return () => { vivo = false; };
+  }, []);
   useEffect(() => {
     if (Platform.OS !== 'ios') return;
     let vivo = true;
@@ -513,6 +519,16 @@ export function SettingsScreen({ navigation }: Props) {
               onChange={toggleKeepAwake}
               style={{ marginTop: spacing.md }}
             />
+          </Section>
+
+          <Section title="Car mode">
+            <ToggleRow label="Keep the screen on" value={carroMantemEcra}
+              onChange={(v) => { setCarroMantemEcraState(v); void setCarroMantemEcra(v).catch(() => {}); }} />
+            <Text style={[type.caption, { marginTop: spacing.sm }]}>
+              Car mode lives in the now playing menu. With this off, the screen dims as
+              usual — better for battery, but you have to wake the phone to skip a song.
+              This is separate from “Keep screen on” above.
+            </Text>
           </Section>
 
           {Platform.OS === 'ios' && <Section title="Playback speed">
