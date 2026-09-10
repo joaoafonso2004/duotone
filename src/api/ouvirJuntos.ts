@@ -118,6 +118,30 @@ export async function convidar(
   if (error) throw error;
 }
 
+/**
+ * Que amigos tem sessao aberta agora.
+ *
+ * Devolve so o par (amigo, sessao) -- nada sobre quem la esta ou o que toca.
+ * Falha em silencio com um mapa vazio: sem a migracao aplicada, ou sem rede, o
+ * botao de entrar simplesmente nao aparece e toca-se a mesma musica em vez de
+ * se entrar. Ver `supabase/entrar-na-sessao-do-amigo.sql`.
+ */
+export async function sessoesDeAmigos(): Promise<Map<string, string>> {
+  try {
+    const { data, error } = await supabase.rpc('sessoes_dos_amigos');
+    if (error || !Array.isArray(data)) return new Map();
+    const saida = new Map<string, string>();
+    // A consulta vem ordenada pela mais recente primeiro: a primeira de cada
+    // amigo e a que vale, e as seguintes nao substituem.
+    for (const linha of data as { amigo?: string; sessao?: string }[]) {
+      if (linha?.amigo && linha?.sessao && !saida.has(linha.amigo)) saida.set(linha.amigo, linha.sessao);
+    }
+    return saida;
+  } catch {
+    return new Map();
+  }
+}
+
 export async function entrar(sessao: string): Promise<void> {
   const { error } = await supabase.rpc('entrar_na_sessao', { p_session: sessao });
   if (error) throw error;
