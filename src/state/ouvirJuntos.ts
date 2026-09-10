@@ -3,7 +3,7 @@ import { confirmarFechoDaSessao } from '../lib/confirmarFechoDaSessao';
 import { create } from 'zustand';
 import { AppState } from 'react-native';
 import {
-  continuoNaSessao, convidar, criarSessao, definirFaixa, entrar,
+  continuoNaSessao, convidar, criarSessao, definirFaixa, entrar, retratoDaSessao,
   juntarAFila, juntarMuitasAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
   minhaSessaoAberta, pausar, permitirControlo, relogioActualizado, retomar,
   sair, sessaoDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
@@ -13,6 +13,9 @@ import { agoraNoServidor, type Estimativa } from '../lib/relogioPartilhado';
 import { posicaoDaSessao } from '../lib/sincronizacao';
 import { appEstaVisivel } from '../lib/appVisibility';
 import { supabase } from '../lib/supabase';
+import { candidatasParaDescoberta } from '../api/descoberta';
+import { chaveDeArtista } from '../lib/artistName';
+import { trackKey } from '../lib/shuffle';
 import type { Track } from '../types';
 
 /**
@@ -93,6 +96,8 @@ type Estado = {
    * um fallback para repeat, rádio ou fila pessoal durante a sessão.
    */
   avancarPelaFila: () => Promise<boolean>;
+  /** Enche a fila partilhada quando ela esta a acabar. So o anfitriao. */
+  encherSeSecar: () => Promise<void>;
   actualizar: () => Promise<void>;
 };
 
@@ -103,6 +108,19 @@ let subscricaoDeEstado: { remove: () => void } | null = null;
 let geracao = 0;
 let leitura = 0;
 let avancando = false;
+let aEncher = false;
+/**
+ * Abaixo de quantas faixas se enche, e quantas se juntam de cada vez.
+ *
+ * Tres e nao zero: encher no silencio ja e tarde -- a ida ao YouTube demora, e
+ * o que se ouvia era a pausa. Doze de cada vez chega para uns quarenta minutos
+ * sem se voltar a pensar no assunto.
+ */
+const MINIMO_NA_FILA = 3;
+const POR_ENCHIMENTO = 12;
+/** De quantos artistas da sala se puxa. Mais do que os 4 do smart shuffle:
+ * uma sala tem mais gostos do que uma pessoa. */
+const ALVOS_DA_SALA = 6;
 let fecho: Promise<boolean> | null = null;
 
 
@@ -380,6 +398,57 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (nova) set({ sessao: nova, fila });
   },
 
+  /**
+   * A FILA NAO SECA.
+   *
+   * Ate aqui, acabada a fila partilhada, a sessao parava -- e parava a espera
+   * de maos humanas, o que numa sala com quatro pessoas e sempre a mesma mao.
+   *
+   * Quem enche e o ANFITRIAO, e so ele: quatro telemoveis a encher a mesma
+   * fila ao mesmo tempo davam quatro vezes as mesmas musicas. E enche-se ANTES
+   * de acabar (ver o `MINIMO_NA_FILA`), porque encher no silencio ja e tarde.
+   *
+   * O que entra sai do RETRATO DA SALA -- a media do gosto de quem esta la
+   * dentro, e nao a fila pessoal de ninguem. Ver `supabase/retrato-da-sessao.sql`.
+   */
+  encherSeSecar: async () => {
+    const s = get().sessao;
+    if (!s || !get().souAnfitriao() || aEncher) return;
+    if (get().fila.length >= MINIMO_NA_FILA) return;
+    aEncher = true;
+    try {
+      const retrato = await retratoDaSessao(s.id);
+      if (!retrato.size || get().sessao?.id !== s.id) return;
+      // As chaves canonicas, que e o que o `escolherAlvos` espera.
+      const escutas = new Map<string, number>();
+      for (const [nome, peso] of retrato) {
+        const k = chaveDeArtista(nome);
+        if (k) escutas.set(k, Math.max(escutas.get(k) ?? 0, peso));
+      }
+      // O contexto sao os NOMES da sala, montados como faixas: e assim que o
+      // `escolherAlvos` os le. A faixa a tocar entra tambem, para o que vem a
+      // seguir nao ignorar o que esta a soar agora.
+      const contexto: Track[] = [...retrato.keys()].slice(0, 12).map((nome) => ({
+        source: 'youtube' as const, sourceId: `retrato:${nome}`, title: nome,
+        artist: nome, album: null, artworkUrl: null, durationSeconds: null,
+      }));
+      const actual = get().sessao?.track;
+      if (actual) contexto.unshift(actual);
+      const jaLa = new Set(get().fila.map((i) => trackKey(i.track)));
+      if (actual) jaLa.add(trackKey(actual));
+      const novas = await candidatasParaDescoberta(
+        contexto, jaLa, new Set<string>(), POR_ENCHIMENTO, ALVOS_DA_SALA, escutas,
+      );
+      if (!novas.length || get().sessao?.id !== s.id) return;
+      const entraram = await juntarMuitasAFila(s.id, novas);
+      if (entraram > 0 && get().sessao?.id === s.id) await get().actualizar();
+    } catch {
+      // Sem rede, sem migracao, ou sem historico: a fila seca como secava.
+    } finally {
+      aEncher = false;
+    }
+  },
+
   avancarPelaFila: async () => {
     const s = get().sessao;
     if (!s || !get().possoControlar() || avancando) return false;
@@ -391,6 +460,8 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     try {
       const avancou = await avancarFila(s.id, primeira.id);
       if (get().sessao?.id === s.id) await get().actualizar();
+      // Depois de andar, e nao antes: e aqui que se sabe quanto sobrou.
+      void get().encherSeSecar();
       return avancou;
     } finally { avancando = false; }
   },

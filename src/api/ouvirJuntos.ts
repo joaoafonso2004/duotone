@@ -289,6 +289,34 @@ export async function juntarAFila(
  * Uma playlist inteira de uma vez. Devolve quantas entraram -- o servidor salta
  * as faixas inválidas em vez de recusar o lote todo, e corta acima de 100.
  */
+/**
+ * O gosto de quem esta na sala, num mapa de artista -> peso.
+ *
+ * A media das PESSOAS e nao a soma das escutas: cada uma e normalizada pelo
+ * artista que mais ouve, e so depois se somam. Um artista que todos ouvem um
+ * bocado ganha a um que so um ouve muito -- que e o que se quer numa sala, e
+ * o que faz entrar numa sessao mudar o que vai tocar.
+ *
+ * Vazio sem a migracao, fora de uma sessao, ou sem rede. Quem chama nao enche
+ * nada, e a fila seca como sempre secou.
+ * Ver `supabase/retrato-da-sessao.sql`.
+ */
+export async function retratoDaSessao(sessao: string): Promise<Map<string, number>> {
+  try {
+    const { data, error } = await supabase.rpc('retrato_da_sessao', { p_session: sessao });
+    if (error || !Array.isArray(data)) return new Map();
+    const saida = new Map<string, number>();
+    for (const linha of data as { artista?: string; peso?: number | string }[]) {
+      const nome = typeof linha?.artista === 'string' ? linha.artista.trim() : '';
+      const peso = typeof linha?.peso === 'string' ? Number(linha.peso) : linha?.peso;
+      if (nome && typeof peso === 'number' && Number.isFinite(peso) && peso > 0) saida.set(nome, peso);
+    }
+    return saida;
+  } catch {
+    return new Map();
+  }
+}
+
 export async function juntarMuitasAFila(
   sessao: string, tracks: readonly Track[]
 ): Promise<number> {
