@@ -37,6 +37,7 @@
     "expo-asset": "~57.0.16",
     "expo-auth-session": "~57.0.11",
     "expo-background-task": "~57.0.15",
+    "expo-battery": "~57.0.2",
     "expo-blur": "~57.0.2",
     "expo-brightness": "~57.0.1",
     "expo-build-properties": "~57.0.16",

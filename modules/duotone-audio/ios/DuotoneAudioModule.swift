@@ -1,5 +1,8 @@
 import ExpoModulesCore
 import AVFoundation
+// `os_unfair_lock` -- ver a caixa da analise da capa. Mesma razao do
+// DuotoneEq.swift: cadeado sem prioridade invertida e sem alocacao.
+import os
 
 /**
  * Tom e equalizador por cima dos AVPlayer que o expo-video ja esta a tocar.
@@ -77,6 +80,23 @@ public class DuotoneAudioModule: Module {
   /** Dois com o crossfade ligado, um sem ele. */
   private var motores: [Motor] = []
   private var analiseAtiva = false
+  /**
+   * O tap de onde a capa le, e o cadeado que o protege.
+   *
+   * Escrito SEMPRE na thread principal (`fixarAnalise`), lido da thread do JS.
+   * `weak` porque quem o mantem vivo e o `passRetained` do tap, como em todo o
+   * resto deste ficheiro.
+   */
+  private let cadeadoDaCaixa: UnsafeMutablePointer<os_unfair_lock> = {
+    let p = UnsafeMutablePointer<os_unfair_lock>.allocate(capacity: 1)
+    p.initialize(to: os_unfair_lock()); return p
+  }()
+  private weak var analiseActual: AnaliseDaCapa?
+
+  deinit {
+    cadeadoDaCaixa.deinitialize(count: 1)
+    cadeadoDaCaixa.deallocate()
+  }
   /** Ver `definirTomDaVelocidade`. Falso = `.varispeed`, como sempre foi. */
   private var mantemTom = false
 
@@ -298,22 +318,49 @@ public class DuotoneAudioModule: Module {
       }
     }
 
+    /**
+     * Qual e o tap de onde a capa le. SO da thread principal.
+     *
+     * Durante uma passagem tocam dois motores, e escolhe-se o que se ouve mais
+     * alto -- e a escolha que faz o efeito acompanhar a musica que esta a
+     * entrar em vez da que esta a sair.
+     */
+    // (definida como metodo la em baixo; aqui fica so a nota de onde vive)
+
     // Só se muda uma bandeira do tap. Abrir/fechar a capa não muda audioMix.
     Function("definirAnaliseDaCapa") { (ativa: Bool) in
       DispatchQueue.main.async { [weak self] in
         guard let self else { return }
         self.analiseAtiva = ativa
         for motor in self.motores { motor.tapVivo?.analise.setEnabled(ativa) }
+        self.fixarAnalise()
       }
     }
-    AsyncFunction("lerAnaliseDaCapa") { () -> [Double] in
+    /**
+     * SINCRONA, e por isso e que a caixa existe.
+     *
+     * Era um `AsyncFunction` com salto para a thread principal: trinta idas por
+     * segundo, cada uma com uma promessa e 257 numeros a bordo. Uma `Function`
+     * na Nova Arquitectura e uma chamada JSI directa -- sem promessa, sem salto.
+     *
+     * O que a impedia era o corpo antigo ler `self.motores`, um array mutado na
+     * thread principal. Le-lo da thread do JS nao e lentidao, e uma corrida a
+     * serio: um array Swift a ser mutado enquanto outra thread o percorre e um
+     * crash, nao um valor errado.
+     *
+     * Por isso a escolha de QUAL tap interessa passou a ser feita na thread
+     * principal, quando ela muda (ver `fixarAnalise`), e guardada numa caixa
+     * com o seu proprio cadeado. Aqui so se copia a referencia com o cadeado na
+     * mao, larga-se, e so depois se le -- o `read()` tem o cadeado dele, e
+     * nunca se seguram os dois ao mesmo tempo.
+     */
+    Function("lerAnaliseDaCapa") { () -> [Double] in
       guard self.analiseAtiva else { return [] }
-      // Durante o crossfade, o motor que se ouve mais fornece o espectro.
-      let motor = self.motores.filter { $0.player?.timeControlStatus == .playing }
-        .max { ($0.player?.volume ?? 0) < ($1.player?.volume ?? 0) }
-      guard let motor, motor.itemDoTap === motor.player?.currentItem else { return [] }
-      return motor.tapVivo?.analise.read() ?? []
-    }.runOnQueue(.main)
+      os_unfair_lock_lock(self.cadeadoDaCaixa)
+      let alvo = self.analiseActual
+      os_unfair_lock_unlock(self.cadeadoDaCaixa)
+      return alvo?.read() ?? []
+    }
 
     OnDestroy {
       DispatchQueue.main.async { [weak self] in
@@ -362,6 +409,24 @@ public class DuotoneAudioModule: Module {
     return motor
   }
 
+  /**
+   * Fixa na caixa o tap de onde a capa deve ler. SO da thread principal.
+   *
+   * Durante uma passagem tocam dois motores, e escolhe-se o que se ouve mais
+   * alto: e o que faz o efeito acompanhar a musica que ENTRA em vez da que sai.
+   */
+  private func fixarAnalise() {
+    let escolhido = motores
+      .filter { $0.player?.timeControlStatus == .playing }
+      .max { ($0.player?.volume ?? 0) < ($1.player?.volume ?? 0) }
+      ?? motores.first
+    let tap = (escolhido?.itemDoTap === escolhido?.player?.currentItem)
+      ? escolhido?.tapVivo : nil
+    os_unfair_lock_lock(cadeadoDaCaixa)
+    analiseActual = tap
+    os_unfair_lock_unlock(cadeadoDaCaixa)
+  }
+
   private func aplicarNoItem(_ item: AVPlayerItem?, de motor: Motor) {
     guard motor.player?.currentItem === item else { return }
     motor.aEsperarPeloItem?.invalidate()
@@ -378,6 +443,7 @@ public class DuotoneAudioModule: Module {
     if let tap = motor.tapVivo, motor.itemDoTap === item {
       tap.actualizar(ganhos: motor.ganhos, margem: motor.margem)
       tap.analise.setEnabled(analiseAtiva)
+      fixarAnalise()
       return
     }
 
@@ -402,6 +468,7 @@ public class DuotoneAudioModule: Module {
       montado.estado.analise.setEnabled(analiseAtiva)
       motor.tapVivo = montado.estado
       motor.itemDoTap = item
+      fixarAnalise()
       return
     }
 
@@ -425,6 +492,7 @@ public class DuotoneAudioModule: Module {
         observado.audioMix = montado?.mix
         motor.tapVivo = montado?.estado
         motor.itemDoTap = montado == nil ? nil : observado
+        self.fixarAnalise()
       }
     }
   }

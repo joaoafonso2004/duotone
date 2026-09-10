@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, Image, PixelRatio, StyleSheet, Text, View } from 'react-native';
 import { Asset } from 'expo-asset';
+import { addLowPowerModeListener, isLowPowerModeEnabledAsync } from 'expo-battery';
 import { requireOptionalNativeModule } from 'expo';
 import type { ExpoWebGLRenderingContext } from 'expo-gl';
 import { definirAnaliseDaCapa, lerAnaliseDaCapa, temAnaliseDaCapa, VALORES_DA_CAPA } from '../../modules/duotone-audio';
@@ -34,6 +35,17 @@ export function CapaReactiva({ uri, size, active, onError }: CapaReactivaProps) 
   const mode = useCapaIOS(s => s.mode), feedback = useCapaIOS(s => s.feedback);
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
+  /**
+   * O MODO DE POUPANCA DO IOS desliga o efeito.
+   *
+   * Quando alguem liga a poupanca de bateria, o sistema esta literalmente a
+   * dizer "poupa-me" -- e a app ignorava-o. E a reducao automatica mais
+   * legitima que ha, porque foi o utilizador a pedi-la, e por isso nao tem
+   * interruptor: obedecer a uma definicao do sistema nao se negocia.
+   *
+   * A capa fica na mesma, parada. Nao desaparece nada.
+   */
+  const [poupanca, setPoupanca] = useState(false);
   const [label, setLabel] = useState(false);
   // A MESMA preferência do PC ("Effect intensity"). Estava presa em `normal`,
   // e era por isso que baixar a intensidade não fazia nada no telemóvel.
@@ -52,11 +64,19 @@ export function CapaReactiva({ uri, size, active, onError }: CapaReactivaProps) 
     return () => listener.remove();
   }, []);
   useEffect(() => {
+    let vivo = true;
+    void isLowPowerModeEnabledAsync().then((v) => { if (vivo) setPoupanca(v); }).catch(() => {});
+    // E enquanto a app esta aberta: ligar a poupanca a meio de uma musica tem
+    // de apagar o efeito nesse instante, e nao so da proxima vez.
+    const sub = addLowPowerModeListener(({ lowPowerMode }) => setPoupanca(lowPowerMode));
+    return () => { vivo = false; sub.remove(); };
+  }, []);
+  useEffect(() => {
     if (feedback === initialFeedback.current) return;
     setLabel(true); const timer = setTimeout(() => setLabel(false), 1000);
     return () => clearTimeout(timer);
   }, [feedback]);
-  const enabled = active && foreground && mode === 'reactive' && temAnaliseDaCapa && !!GLView;
+  const enabled = active && foreground && !poupanca && mode === 'reactive' && temAnaliseDaCapa && !!GLView;
   return <View style={StyleSheet.absoluteFill}>
     <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" onError={onError} />
     {/* A intensidade entra na `key`: fica cozida no programa de GL, e mudá-la
