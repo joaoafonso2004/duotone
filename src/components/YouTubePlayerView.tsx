@@ -27,6 +27,7 @@ import {
   sinalDoErro, type TipoFalha,
 } from '../lib/playbackDiagnostics';
 import { usePlayer } from '../state/player';
+import { useSaudeDaReproducao } from '../state/saudeDaReproducao';
 import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear } from '../lib/equalizer';
 import { arredondar as arredondarRate } from '../lib/playbackRate';
 import { trocarFonte } from '../lib/trocaDeFonte';
@@ -993,6 +994,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }, { desistir: () => !alive() });
       if (!alive()) return;
       beginPlayback();
+      // A extração passou. Só aqui, e não no ramo da cache: uma faixa já
+      // guardada toca do ficheiro e não prova nada sobre o YouTube.
+      useSaudeDaReproducao.getState().observar({ tipo: 'nativo' });
     } catch (e: any) {
       // Falhou: ja nao ha download a decorrer, e o watchdog nao tem de contar
       // um tempo de espera que deixou de existir.
@@ -1026,6 +1030,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           tipo,
           detalhe: `build=${BUILD_ID} ${clientInfo} ${potInfo} :: ${errMsg}`,
         });
+        // O anel acima vive neste telemóvel; a analítica é o que diz, no SQL
+        // Editor, se a porta se fechou a mais alguém. Só a etiqueta do tipo.
+        registarEvento('faixa_falhou', { tipo, fase: 'resolver' });
+        useSaudeDaReproducao.getState().observar({ tipo: 'falha', falha: tipo, videoId: track.sourceId });
 
         // Uma frase, sem build id, sem nome de cliente e sem estado do PO
         // Token. A barra do leitor mostra isto em 220 px — o que lá estava
@@ -1041,6 +1049,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           return;
         }
         if (plano.embed) {
+          registarEvento('caiu_no_embed', { motivo: tipo });
           setBackend('webview');
           return;
         }
@@ -1099,7 +1108,21 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       setDownloadProgress(null);
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       if (e?.message === DOWNLOAD_ABORTED) return true;
-      setError(`[build ${BUILD_ID}] YouTube: playback error (${e?.message ?? 'unknown'}), using embed.`);
+      // Era aqui que o 403 ao fim de ~1 MB (a porta fechada, ago 2026) caía no
+      // embed: com o `[build ...]` no ecrã e sem entrar no relatório. Passa
+      // pelo mesmo caminho do resolver -- classificar, registar, uma frase.
+      const tipo = classificar(sinalDoErro(e));
+      registar({
+        quando: Date.now(),
+        videoId: track.sourceId,
+        titulo: track.title,
+        fase: 'download',
+        tipo,
+        detalhe: `build=${BUILD_ID} client=${stream.client ?? '?'} :: ${e?.message ?? 'unknown'}`,
+      });
+      registarEvento('caiu_no_embed', { motivo: tipo, fase: 'download' });
+      useSaudeDaReproducao.getState().observar({ tipo: 'falha', falha: tipo, videoId: track.sourceId });
+      setError(mensagemDaFalha(tipo));
       setBackend('webview');
     }
     return true;
@@ -1280,7 +1303,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (backend !== 'native' || status !== 'error' || nativeTrackIdRef.current !== track.sourceId) return;
     fallbackRef.current().then((handled) => {
       if (!handled) {
-        setError(`[build ${BUILD_ID}] YouTube: playback error (${error?.message ?? 'unknown'}), using embed.`);
+        // O motor nativo deu erro e não havia ficheiro para onde fugir. A
+        // frase é a do diagnóstico; o detalhe vai para o relatório.
+        const tipo = classificar(sinalDoErro(error));
+        registar({
+          quando: Date.now(),
+          videoId: track.sourceId,
+          titulo: track.title,
+          fase: 'motor',
+          tipo,
+          detalhe: `build=${BUILD_ID} :: ${error?.message ?? 'unknown'}`,
+        });
+        setError(mensagemDaFalha(tipo));
         registarEvento('caiu_no_embed', { motivo: 'erro_de_reproducao' });
         setBackend('webview');
       }

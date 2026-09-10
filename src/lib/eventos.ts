@@ -32,6 +32,9 @@ export type NomeDeEvento =
   | 'trocou_para_ficheiro'
   /** Nunca arrancou e nada avancou: o watchdog deu a tentativa por perdida. */
   | 'desistiu_de_arrancar'
+  /** Três faixas diferentes seguidas bloqueadas pelo YouTube: apareceu o aviso
+   * de que a música vai parar com o ecrã bloqueado. Ver `lib/saudeDaReproducao.ts`. */
+  | 'extracao_bloqueada'
   | 'pesquisa_feita'
   | 'faixa_guardada'
   | 'playlist_criada'

@@ -56,6 +56,8 @@ import { usePlayer } from '../state/player';
 import { getLibrary } from '../api/library';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade';
 import { varrerCatalogo } from '../state/catalogoDeFaixas';
+import { historico, limparHistorico, resumo, rotulo as rotuloDaFalha, type TipoFalha } from '../lib/playbackDiagnostics';
+import { partilharRelatorioDeReproducao } from '../lib/relatorioDeReproducao';
 import { colors, radii, spacing, type } from '../theme';
 import { widgetDisponivel } from '../../modules/duotone-widget';
 
@@ -135,6 +137,10 @@ export function SettingsScreen({ navigation }: Props) {
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [exportingPlaylists, setExportingPlaylists] = useState(false);
+  // O anel de falhas vive fora do React; isto só serve para redesenhar depois
+  // de o limpar.
+  const [, setLimpezasDoRelatorio] = useState(0);
+  const falhasDaSessao = historico();
 
   const [potServerUrl, setPotServerUrlState] = useState('');
   const [testingPotServer, setTestingPotServer] = useState(false);
@@ -585,6 +591,35 @@ export function SettingsScreen({ navigation }: Props) {
               onPress={doExportPlaylists}
               style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
             />
+          </Section>
+
+          {/* O relatório que o PC já exportava. No telemóvel vai pela folha de
+              partilha: quem precisa dele é quem o vai mandar a alguém. */}
+          <Section title="Playback diagnostics">
+            <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
+              {falhasDaSessao.length
+                ? `${falhasDaSessao.length} ${falhasDaSessao.length === 1 ? 'failure' : 'failures'} this session: ${
+                  Object.entries(resumo(falhasDaSessao)).sort((a, b) => b[1] - a[1])
+                    .map(([t, n]) => `${n}× ${rotuloDaFalha(t as TipoFalha)}`).join(', ')}.`
+                : 'No playback failures this session.'}
+              {' '}The report has the technical detail. Send it when music stops playing.
+            </Text>
+            <PillButton
+              label="Share playback report"
+              variant="ghost"
+              small
+              onPress={() => { void partilharRelatorioDeReproducao().catch(() => {}); }}
+              style={{ alignSelf: 'flex-start' }}
+            />
+            {falhasDaSessao.length > 0 && (
+              <PillButton
+                label="Clear recorded failures"
+                variant="ghost"
+                small
+                onPress={() => { limparHistorico(); hapticSelection(); setLimpezasDoRelatorio((n) => n + 1); }}
+                style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
+              />
+            )}
           </Section>
 
           <Section title="Advanced">

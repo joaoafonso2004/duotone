@@ -48,6 +48,7 @@ import { useTheme } from '../state/theme';
 import { useNotifications } from '../state/notifications';
 import { useInAppNotifications } from '../hooks/useInAppNotifications';
 import { NotificationBanner } from '../components/NotificationBanner';
+import { AvisoDaReproducao } from '../components/AvisoDaReproducao';
 import { usePlayer } from '../state/player';
 import { closeNotificationOverlays } from '../lib/notificationOverlays';
 import type { NotificationTarget } from '../lib/inAppNotifications';
@@ -326,6 +327,9 @@ export function RootNavigator() {
             {/* "A tocar no PC — continuar aqui". Fica por cima do mini-player. */}
             <HandoffBanner />
             <NotificationBanner onOpen={openNotification} />
+            {/* "A música vai parar quando o ecrã bloquear": a extração do
+                YouTube está bloqueada. Ver lib/saudeDaReproducao.ts. */}
+            <AvisoDaReproducao />
             {/* REATIVADO (ago 2026). A condição que este comentário previa
                 aconteceu: o ANDROID_VR já NÃO resolve áudio sem PO Token. O
                 CDN corta em ~1MB cumulativos por vídeo/IP — medido no 4G do
