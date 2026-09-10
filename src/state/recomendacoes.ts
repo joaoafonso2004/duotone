@@ -1,4 +1,4 @@
-import { artistPreferenceKey,feedbackReady,filterSuggestions } from './recommendationFeedback';
+import { artistPreferenceKey,feedbackReady,filterSuggestions,useRecommendationFeedback } from './recommendationFeedback';
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import { getLibrary } from '../api/library';
@@ -348,7 +348,12 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
           : Promise.resolve(),
         // Falha por si, como as outras: sem trackers para estes artistas, ou
         // sem rede, a prateleira não aparece e as vizinhas nem dão por isso.
-        publicar(nuncaLancadas(POR_PRATELEIRA, lib), (nuncaLancado) => ({ nuncaLancado })),
+        // As ocultadas entram também aqui, e não só no `filterSuggestions`:
+        // esse tira o upload exato, e aqui sai também outra versão da mesma
+        // música -- é o que o "New to you" promete.
+        publicar(nuncaLancadas(POR_PRATELEIRA, lib,
+          useRecommendationFeedback.getState().items.filter((p) => p.kind === 'track')),
+        (nuncaLancado) => ({ nuncaLancado })),
       ])).catch(() => {}),
     ])).then(() => {
       if (atual !== geracao) return;

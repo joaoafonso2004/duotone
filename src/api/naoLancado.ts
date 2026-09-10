@@ -1,8 +1,10 @@
-import { agruparPorArtista, chaveDeArtista } from '../lib/artistName';
-import { aceitarDoYouTube, porOuvir, type FaixaDoTracker } from '../lib/tracker';
+import { agruparPorArtista, chaveDeArtista, displayArtist } from '../lib/artistName';
+import {
+  aceitarDoYouTube, chaveDaMusica, crivoDeNovidade, porOuvir, type FaixaDoTracker, type FaixaGuardada,
+} from '../lib/tracker';
 import { ABAS_CURADAS, faixasDoArtista, trackerDoArtista } from './trackers';
 import { procurarNoYouTube } from './descoberta';
-import { getTopArtists } from './plays';
+import { getProfileRecentlyPlayed, getTopArtists } from './plays';
 import type { Track } from '../types';
 
 /**
@@ -24,7 +26,41 @@ import type { Track } from '../types';
  * Falha em silêncio de ponta a ponta: sem trackers para os teus artistas, sem
  * rede, ou sem nada que se confirme, a prateleira não aparece. Nunca deixa uma
  * excepção subir para o carregamento das outras.
+ *
+ * **"New to you" é uma promessa, e cumpre-se em dois crivos.** Antes de ir ao
+ * YouTube, pelo TÍTULO (`porOuvir`): sai o que já tens, o que ouviste há pouco
+ * e o que ocultaste, em qualquer versão. Depois, pelo UPLOAD e pela música
+ * (`crivoDeNovidade`): sai o vídeo exato que já conheces, e a prateleira não
+ * mostra duas versões da mesma música. Só excluía as guardadas, e uma faixa
+ * ouvida ontem voltava aqui como descoberta.
  */
+
+/**
+ * Quanto do histórico conta como "já ouvida".
+ *
+ * Músicas DISTINTAS, não reproduções: o `get_profile_recently_played` agrega
+ * por faixa. Trezentas cobrem semanas de escuta, e é uma leitura de uma tabela
+ * já agregada, por isso não pesa.
+ */
+const HISTORICO_RECENTE = 300;
+
+/** Uma faixa que já se conhece, venha ela da biblioteca, do histórico ou das ocultadas. */
+type Conhecida = {
+  id: string;
+  titulo: string;
+  duracaoSegundos: number | null;
+  /** Chaves de artista por onde esta faixa pode ser do artista em causa. Vazio = de qualquer um. */
+  artistas: string[];
+};
+
+function conhecidaDaFaixa(t: {
+  source: string; sourceId: string; title: string; artist: string | null; durationSeconds: number | null;
+}): Conhecida {
+  // O canal e o artista que o título diz: o `artist` de uma faixa do YouTube é
+  // muitas vezes o canal, e é pelo título que o nome verdadeiro aparece.
+  const artistas = [chaveDeArtista(t.artist), chaveDeArtista(displayArtist(t as Track))].filter(Boolean) as string[];
+  return { id: `${t.source}:${t.sourceId}`, titulo: t.title, duracaoSegundos: t.durationSeconds, artistas };
+}
 
 /** Quantos artistas se sondam por carregamento. Cada um é uma folha a descer. */
 const ARTISTAS = 3;
@@ -66,10 +102,10 @@ async function artistasDeInteresse(biblioteca: readonly Track[]): Promise<string
   return nomes;
 }
 
-/** As faixas do tracker de um artista que ele ainda não tem. */
+/** As faixas do tracker de um artista que ele ainda não conhece. */
 async function faltamDeste(
   nome: string,
-  biblioteca: readonly Track[],
+  conhecidas: readonly Conhecida[],
 ): Promise<FaixaDoTracker[]> {
   const artista = await trackerDoArtista(nome);
   if (!artista) return [];
@@ -77,25 +113,38 @@ async function faltamDeste(
   if (doTracker.length === 0) return [];
 
   const alvo = chaveDeArtista(nome);
-  const dele = biblioteca.filter((t) => chaveDeArtista(t.artist) === alvo);
-  return porOuvir(doTracker, dele.map((t) => ({
-    titulo: t.title, duracaoSegundos: t.durationSeconds,
-  })));
+  // As ocultadas não trazem artista (só o título que tinham), por isso contam
+  // para todos: esconder de mais custa uma sugestão, e é o erro barato.
+  const dele: FaixaGuardada[] = conhecidas
+    .filter((c) => c.artistas.length === 0 || c.artistas.includes(alvo))
+    .map((c) => ({ titulo: c.titulo, duracaoSegundos: c.duracaoSegundos }));
+  return porOuvir(doTracker, dele);
 }
 
 export async function nuncaLancadas(
   limite: number,
   biblioteca: readonly Track[],
+  /** As ocultadas nas sugestões ("não recomendar esta"): `source:sourceId` e o título. */
+  ocultadas: readonly { key: string; label: string }[] = [],
 ): Promise<Track[]> {
   const nomes = await artistasDeInteresse(biblioteca);
   if (nomes.length === 0) return [];
+
+  // Sem histórico (sem rede, conta nova) segue-se com o resto: um crivo mais
+  // curto é melhor do que prateleira nenhuma.
+  const recentes = await getProfileRecentlyPlayed(HISTORICO_RECENTE).catch(() => []);
+  const conhecidas: Conhecida[] = [
+    ...biblioteca.map(conhecidaDaFaixa),
+    ...recentes.map((r) => conhecidaDaFaixa({ ...r, artist: r.artist ?? null })),
+    ...ocultadas.map((o) => ({ id: o.key, titulo: o.label, duracaoSegundos: null, artistas: [] })),
+  ];
 
   // Uma lista intercalada, e não os seis do primeiro artista seguidos: uma
   // prateleira que é toda do mesmo não parece uma descoberta, parece um erro.
   const porArtista: { artista: string; faixas: FaixaDoTracker[] }[] = [];
   for (const nome of nomes) {
     if (porArtista.length >= ARTISTAS) break;
-    const faixas = await faltamDeste(nome, biblioteca);
+    const faixas = await faltamDeste(nome, conhecidas);
     if (faixas.length > 0) porArtista.push({ artista: nome, faixas: faixas.slice(0, POR_ARTISTA) });
   }
   if (porArtista.length === 0) return [];
@@ -109,8 +158,7 @@ export async function nuncaLancadas(
   }
 
   const saida: Track[] = [];
-  const vistas = new Set<string>();
-  const guardadas = new Set(biblioteca.map((t) => `${t.source}:${t.sourceId}`));
+  const passa = crivoDeNovidade(conhecidas.map((c) => c.id));
   for (let i = 0; i < pedidos.length && saida.length < limite; i += EM_PARALELO) {
     const lote = pedidos.slice(i, i + EM_PARALELO);
     const achadas = await Promise.all(lote.map(({ artista, faixa }) => procurarNoYouTube(
@@ -119,12 +167,13 @@ export async function nuncaLancadas(
       // em `aceitarDoYouTube`.
       (candidato) => aceitarDoYouTube(faixa, candidato),
     ).catch(() => null)));
-    for (const t of achadas) {
-      if (!t || guardadas.has(`${t.source}:${t.sourceId}`) || vistas.has(t.sourceId)) continue;
-      vistas.add(t.sourceId);
-      saida.push(t);
-      if (saida.length >= limite) break;
-    }
+    achadas.forEach((t, n) => {
+      if (!t || saida.length >= limite) return;
+      // A música pelo título da FOLHA, que é limpo; o do YouTube traz o canal,
+      // "(unreleased)" e o resto do caos.
+      const { artista, faixa } = lote[n];
+      if (passa(`${t.source}:${t.sourceId}`, chaveDaMusica(chaveDeArtista(artista) ?? '', faixa.titulo))) saida.push(t);
+    });
   }
   return saida;
 }

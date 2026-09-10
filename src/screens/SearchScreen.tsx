@@ -288,8 +288,8 @@ export function SearchScreen() {
   // Render horizontal recommendation lists
   const renderRecommendationSection = (
     nome: NomeDaPrateleira, title: string, data: Track[], chegou: boolean,
-    { largura = 120, lista = false, largas = false }:
-      { largura?: number; lista?: boolean; largas?: boolean } = {},
+    { largura = 120, lista = false, largas = false, selo }:
+      { largura?: number; lista?: boolean; largas?: boolean; selo?: string } = {},
   ) => {
     // Chegou e veio vazia: a seccao desaparece, sem deixar um titulo orfao.
     if (chegou && data.length === 0) return null;
@@ -389,18 +389,25 @@ export function SearchScreen() {
               delayLongPress={350}
               style={({ pressed }) => [styles.recCard, { width: largura }, pressed && { opacity: 0.8 }]}
             >
-              {track.artworkUrl ? (
-                <Image
-                  source={{ uri: track.artworkUrl }}
-                  style={[styles.cardArt, { width: largura, height: largura }]}
-                  contentFit="cover"
-                  transition={200}
-                />
-              ) : (
-                <View style={[styles.cardArt, { width: largura, height: largura }, styles.artFallback]}>
-                  <Ionicons name="musical-note" size={24} color={colors.textTertiary} />
-                </View>
-              )}
+              <View>
+                {track.artworkUrl ? (
+                  <Image
+                    source={{ uri: track.artworkUrl }}
+                    style={[styles.cardArt, { width: largura, height: largura }]}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                ) : (
+                  <View style={[styles.cardArt, { width: largura, height: largura }, styles.artFallback]}>
+                    <Ionicons name="musical-note" size={24} color={colors.textTertiary} />
+                  </View>
+                )}
+                {selo ? (
+                  <View style={styles.selo} pointerEvents="none">
+                    <Text style={styles.seloTexto}>{selo}</Text>
+                  </View>
+                ) : null}
+              </View>
               <Text numberOfLines={1} style={styles.cardTitle}>
                 {track.title}
               </Text>
@@ -597,7 +604,10 @@ export function SearchScreen() {
                     FORA -- artistas vizinhos, e só música que saiu. Esta vai
                     para dentro: o que os artistas dele nunca lançaram, que não
                     existe em catálogo nenhum. Ver api/naoLancado.ts. */}
-                {renderRecommendationSection('nuncaLancado', 'Rare finds', nuncaLancado, jaChegou('nuncaLancado'), { largura: 150 })}
+                {/* "New to you" é uma promessa que o `api/naoLancado.ts`
+                    cumpre: nada guardado, ouvido há pouco ou ocultado, em
+                    versão nenhuma. */}
+                {renderRecommendationSection('nuncaLancado', 'Rare finds', nuncaLancado, jaChegou('nuncaLancado'), { largura: 150, selo: 'New to you' })}
                 {/* As playlists que a app monta. Entre a descoberta e o que
                     já se ouviu: é onde deixa de ser "música nova" e começa a
                     ser "música tua, arrumada". */}
@@ -949,6 +959,24 @@ const styles = StyleSheet.create({
   cardArtist: {
     fontSize: 11,
     color: colors.textSecondary,
+  },
+  selo: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(10, 10, 14, 0.78)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
+  },
+  seloTexto: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.text,
   },
   cartaoLargo: {
     width: CARTAO_LARGO,

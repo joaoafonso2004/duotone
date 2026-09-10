@@ -6,8 +6,8 @@
  * para a testar seria testar outra coisa.
  */
 import {
-  aceitarDoYouTube, capasPorEra, faixasDoTracker, iniciaisDaEra, jaTens, porOuvir,
-  procuraNoYouTube, segundosDoTempo, tituloLimpo, type FaixaDoTracker,
+  aceitarDoYouTube, capasPorEra, chaveDaMusica, crivoDeNovidade, faixasDoTracker, iniciaisDaEra,
+  jaTens, porOuvir, procuraNoYouTube, segundosDoTempo, tituloLimpo, type FaixaDoTracker,
 } from '../src/lib/tracker.ts';
 
 let mau = 0;
@@ -162,6 +162,24 @@ check('sem duração no tracker também não',
 // tem de continuar a casar com um vídeo que lhe chame só `6PM`.
 check('a marca de versão não impede o encontro',
   aceitarDoYouTube(t('6PM [V2]', 136), { titulo: 'Destroy Lonely - 6PM (unreleased)', duracaoSegundos: 137 }));
+
+console.log('\nnova para ti');
+eq('versões diferentes são a mesma música', chaveDaMusica('carti', 'At The Gate [V2]'), chaveDaMusica('carti', 'At The Gate [V4]'));
+eq('os créditos também não contam', chaveDaMusica('carti', "Kelly K (prod. Pi'erre Bourne)"), chaveDaMusica('carti', 'Kelly K'));
+check('o mesmo título de outro artista é outra música', chaveDaMusica('carti', 'Kelly K') !== chaveDaMusica('uzi', 'Kelly K'));
+eq('sem título não há chave', chaveDaMusica('carti', '[V2]'), '');
+{
+  const passa = crivoDeNovidade(['youtube:guardada', 'youtube:ouvida', 'youtube:oculta']);
+  eq('uma guardada não entra', passa('youtube:guardada', 'carti|a'), false);
+  eq('uma ouvida há pouco não entra', passa('youtube:ouvida', 'carti|b'), false);
+  eq('uma ocultada não entra', passa('youtube:oculta', 'carti|c'), false);
+  eq('uma nova entra', passa('youtube:nova', 'carti|at the gate'), true);
+  eq('o mesmo upload não entra duas vezes', passa('youtube:nova', 'carti|outra'), false);
+  eq('outra versão da mesma música também não', passa('youtube:outra-versao', 'carti|at the gate'), false);
+  eq('outra música entra', passa('youtube:outra', 'carti|kelly k'), true);
+  eq('sem chave de música, decide o id', passa('youtube:sem-titulo', ''), true);
+  eq('um id vazio nunca passa', passa('', 'carti|z'), false);
+}
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

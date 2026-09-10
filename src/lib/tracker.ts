@@ -215,6 +215,43 @@ export function aceitarDoYouTube(
   return duracoesCasam(candidato.duracaoSegundos, f.duracaoSegundos);
 }
 
+/**
+ * A mesma música, qualquer que seja a versão ou o upload.
+ *
+ * Artista e título-base: o `normalizar` já deita fora os `[V4]` e os
+ * `(prod. …)`, por isso `At The Gate [V2]` e `At The Gate [V4]` dão a mesma
+ * chave. Para uma prateleira de coisas NOVAS é a pergunta certa -- quem tem
+ * uma versão já conhece a música, e as outras não são descoberta nenhuma.
+ * Vazia quando o título não sobrevive à limpeza: sem título não se decide.
+ */
+export function chaveDaMusica(artistaChave: string, titulo: string): string {
+  const base = normalizar(titulo);
+  return artistaChave && base ? `${artistaChave}|${base}` : '';
+}
+
+/**
+ * O crivo final do "Rare finds": só passa o que é novo PARA ESTA PESSOA.
+ *
+ * Arranca com os ids (`source:sourceId`) de tudo o que ela já conhece --
+ * guardadas, ouvidas há pouco, ocultadas -- e vai aprendendo com o que deixa
+ * passar, para a própria prateleira não repetir: nem o mesmo upload duas
+ * vezes, nem duas versões da mesma música vindas de linhas diferentes da
+ * folha. É isto que torna o selo "New to you" uma afirmação, e não um enfeite.
+ *
+ * O que já se conhece PELO TÍTULO fica antes, no `porOuvir`: aqui só chegam
+ * ids e chaves de música.
+ */
+export function crivoDeNovidade(conhecidas: Iterable<string>): (id: string, musica: string) => boolean {
+  const ids = new Set(conhecidas);
+  const musicas = new Set<string>();
+  return (id, musica) => {
+    if (!id || ids.has(id) || (musica && musicas.has(musica))) return false;
+    ids.add(id);
+    if (musica) musicas.add(musica);
+    return true;
+  };
+}
+
 /** O que se manda procurar ao YouTube para uma destas. */
 export function procuraNoYouTube(artista: string, f: FaixaDoTracker): string {
   const versao = /\[[^\]]*\]/.test(f.titulo) ? f.titulo : `${f.titulo} ${f.era}`.trim();
