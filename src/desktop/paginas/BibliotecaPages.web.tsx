@@ -29,13 +29,14 @@ import { useSaved } from '../../state/saved';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
 import {
-  Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, Page, Shelf, TrackTable,
+  Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, Page,
+  PrateleiraDeMisturas, Shelf, TrackTable,
 } from '../ui.web';
-import type { CommonPageProps, Route } from '../rotas';
+import type { CommonPageProps, NavegarFn, Route } from '../rotas';
 import { COR, ESP, FONT, RAIO, TIPO } from '../tokens.web';
 import { useLibraryData } from './comum.web';
 
-export function SearchPage({ play, notify, more }: CommonPageProps) {
+export function SearchPage({ play, notify, more, navigate }: CommonPageProps & { navigate: NavegarFn }) {
   const [query, setQuery] = useState(''); const [history, setHistory] = useState<string[]>([]); const input = useRef<any>(null);
   // **As recomendacoes vivem fora desta pagina** (`state/recomendacoes.ts`).
   // Estavam num `useState` daqui, e esta pagina desmonta ao mudar de
@@ -43,15 +44,24 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
   // recommendations..." do zero, e a espera nao e pequena.
   const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
-  const { descobrir, nuncaLancado, ouvirDeNovo, flow, maisTocadas, esquecidas } = recs;
-  // As misturas por DECADA sao a unica familia de misturas que cabe aqui tal
-  // como esta: sao faixas da biblioteca, e a `Shelf` desta pagina ja sabe
-  // desenhar faixas. As outras (estilos, radios, playlists) precisam do
-  // mosaico e de uma rota propria, que o desktop ainda nao tem.
-  const decadas = useMemo(
-    () => recs.misturas.filter((m) => m.id.startsWith('decada:')),
-    [recs.misturas],
-  );
+  const { descobrir, nuncaLancado, amigos, ouvirDeNovo, flow, maisTocadas, esquecidas } = recs;
+  /**
+   * As quatro familias de misturas, separadas pelo prefixo do id.
+   *
+   * Vivem todas numa lista so na store -- e de proposito: a navegacao
+   * encontra-as pelo id, e duas listas obrigavam a duas fontes para uma
+   * diferenca que so existe no titulo da prateleira. E a mesma separacao que o
+   * `SearchScreen` do telemovel faz.
+   */
+  const { estilos, radios, decadas, playlists } = useMemo(() => ({
+    estilos: recs.misturas.filter((m) => m.id.startsWith('estilo:')),
+    radios: recs.misturas.filter((m) => m.id.startsWith('radio:')),
+    decadas: recs.misturas.filter((m) => m.id.startsWith('decada:')),
+    playlists: recs.misturas.filter((m) => !m.id.startsWith('estilo:')
+      && !m.id.startsWith('radio:') && !m.id.startsWith('decada:')),
+  }), [recs.misturas]);
+  const abrirMistura = (m: { id: string; nome: string }) =>
+    navigate({ name: 'mistura', id: m.id, titulo: m.nome });
   const recsCarregadas = recs.estado === 'pronto';
   // Nao repete o trabalho: se ja estao carregadas ou a carregar, isto e um
   // no-op. Existe para o caso de a app nao as ter comecado no arranque.
@@ -89,13 +99,24 @@ export function SearchPage({ play, notify, more }: CommonPageProps) {
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
           <Shelf titulo="Never released" nota="what your artists never put out" tracks={nuncaLancado} onPlay={play} onMore={more} />
+          {/* AS MISTURAS QUE A APP MONTA. Quatro familias, e a diferenca esta
+              toda no titulo -- que e o que elas tem de diferente:
+                Your styles -> artistas teus que partilham vizinhos
+                Radio       -> tres faixas novas por cada tua
+                Decades     -> a TUA musica daquela era, nao musica nova dela
+                Playlists   -> a tua biblioteca com descobertas pelo meio
+              Ver `lib/estilos.ts`, `radiosDeArtista` e `lib/decadas.ts`. */}
+          <PrateleiraDeMisturas titulo="Your styles" misturas={estilos} aoAbrir={abrirMistura} />
+          <PrateleiraDeMisturas titulo="Radio" nota="three new tracks for every one of yours" misturas={radios} aoAbrir={abrirMistura} />
+          <PrateleiraDeMisturas titulo="Decades" nota="your music from that era" misturas={decadas} aoAbrir={abrirMistura} />
+          <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura} />
+          {/* A unica prateleira desta pagina que nao sai do teu proprio
+              historico. Fica entre a descoberta e o que ja e teu. */}
+          <Shelf titulo="Your friends' favourites" tracks={amigos} onPlay={play} onMore={more} />
           <Shelf titulo="Listen again" tracks={ouvirDeNovo} onPlay={play} onMore={more} />
           <Shelf titulo="Daily flow" nota="based on your listening" tracks={flow} onPlay={play} onMore={more} />
           <Shelf titulo="Heavy rotation" tracks={maisTocadas} onPlay={play} onMore={more} />
           <Shelf titulo="Forgotten favourites" nota="not played in a while" tracks={esquecidas} onPlay={play} onMore={more} />
-          {/* A tua musica daquela era, e nao musica nova daquela era. Ver
-              `lib/decadas.ts`. */}
-          {decadas.map((m) => <Shelf key={m.id} titulo={m.nome} nota="your music from that decade" tracks={m.faixas} onPlay={play} onMore={more} />)}
         </>
       : <Empty icon={recsCarregadas ? 'search-outline' : 'sparkles-outline'}
           title={recsCarregadas ? 'Nothing to recommend yet' : 'Preparing recommendations…'}
@@ -181,6 +202,53 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
       <Text style={styles.songsResultCount}>{query ? `${filteredArtists.length} of ` : ''}{artists.length} {artists.length === 1 ? 'artist' : 'artists'}</Text>
     </View>
     <ContentScroll scrollKey="artists">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : filteredArtists.length ? <View style={styles.playlistGrid}>{filteredArtists.map(({ nome, chave, faixas }) => <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.playlistCardHover]}><View style={styles.playlistArt}><Artwork track={faixas[0]} size={200} /></View><Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text><Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
+  </Page>;
+}
+
+/**
+ * Uma mistura aberta: a lista das faixas que a app juntou.
+ *
+ * Curta de propósito, e nada parecida com a `PlaylistPage`. Uma playlist é uma
+ * coisa da base de dados que se renomeia, ordena, junta e partilha; uma mistura
+ * é uma vista sobre a store das recomendações, que se refaz sozinha. O que se
+ * pode fazer a ela é ouvi-la -- e é isso que a página tem.
+ *
+ * Gémea do `PrateleiraScreen` do telemóvel, e pela mesma razão: há UMA fonte
+ * (`state/recomendacoes`), e isto é uma janela para ela. Se a store ainda não
+ * as tiver montado, o id não encontra nada e diz-se isso em vez de mostrar uma
+ * página vazia sem explicação.
+ */
+export function MisturaPage({ id, titulo, back, ...props }: {
+  id: string; titulo: string; back: () => void;
+} & CommonPageProps) {
+  const misturas = useRecomendacoes((s) => s.misturas);
+  const prontas = useRecomendacoes((s) => s.misturasProntas);
+  const mistura = useMemo(() => misturas.find((m) => m.id === id), [misturas, id]);
+  const faixas = mistura?.faixas ?? [];
+  const ligado = usePlayer((s) => s.shuffle);
+  const inteligente = usePlayer((s) => s.shuffleInteligente);
+  const alternarShuffle = usePlayer((s) => s.toggleShuffle);
+  const tocarLista = usePlayer((s) => s.tocarLista);
+
+  return <Page
+    title={mistura?.nome ?? titulo}
+    subtitle={faixas.length ? `${faixas.length} ${faixas.length === 1 ? 'song' : 'songs'} · put together for you` : undefined}
+    action={<View style={{ flexDirection: 'row', gap: 8 }}>
+      {faixas.length ? <>
+        <Button icon="play" onPress={() => void tocarLista(faixas, ligado, inteligente)}>Play</Button>
+        <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>
+          {inteligente ? 'Smart shuffle' : 'Shuffle'}
+        </Button>
+      </> : null}
+      <Button secondary icon="arrow-back" onPress={back}>Back</Button>
+    </View>}>
+    <ContentScroll scrollKey={`mistura:${id}`}>
+      {!prontas && !mistura ? <View style={{ height: 320 }}><Loading /></View>
+        : !mistura ? <Empty icon="sparkles-outline" title="This mix is gone"
+            body="Mixes are rebuilt as you listen. Go back to Search and pick one of the current ones." />
+        : <TrackTable listKey={`mistura:${id}`} tracks={faixas}
+            onPlay={(t) => props.play(t, faixas)} onMore={props.more} />}
+    </ContentScroll>
   </Page>;
 }
 

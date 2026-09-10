@@ -314,6 +314,65 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore }: {
   </View>;
 }
 
+/**
+ * Uma prateleira de MISTURAS -- estilos, radios, decadas, playlists.
+ *
+ * O mesmo carrossel da `Shelf` aqui em cima, com as mesmas setas e o mesmo
+ * arrasto: o que muda e o cartao. Uma mistura nao tem capa propria, por isso
+ * leva o mosaico de quatro que o telemovel ja usa (ver o `renderPrateleiraDeMisturas`
+ * no `SearchScreen`) -- uma capa so seria a de uma musica a fingir que
+ * representa vinte e cinco.
+ *
+ * O clique ABRE, nao toca. Uma mistura e uma lista, e uma lista abre-se; o
+ * `onPlay` fica para quem quiser tocar a coisa inteira a partir de dentro.
+ */
+export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir }: {
+  titulo: string; nota?: string;
+  misturas: readonly { id: string; nome: string; faixas: Track[] }[];
+  aoAbrir: (mistura: { id: string; nome: string }) => void;
+}) {
+  const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
+  if (!misturas.length) return null;
+  const rola = podeEsquerda || podeDireita;
+  return <View style={{ marginBottom: ESP.xxl }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: ESP.md }}>
+      <Text style={ui.shelfTitle}>{titulo}</Text>
+      {nota ? <Text style={ui.shelfNota}>{nota}</Text> : null}
+      <View style={{ flex: 1 }} />
+      {rola ? (
+        <View style={{ flexDirection: 'row', gap: ESP.sm }}>
+          <SetaDaPrateleira sentido={-1} activa={podeEsquerda} aoCarregar={() => deslizar(-1)} />
+          <SetaDaPrateleira sentido={1} activa={podeDireita} aoCarregar={() => deslizar(1)} />
+        </View>
+      ) : null}
+    </View>
+    <ScrollView
+      ref={ref}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
+      {misturas.map((m) => (
+        <P key={m.id}
+          onPress={() => { if (arrastou.current) return; aoAbrir(m); }}
+          style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
+          <View style={ui.mosaico}>
+            {[0, 1, 2, 3].map((i) => {
+              const capa = m.faixas[i]?.artworkUrl;
+              return capa
+                ? <Image key={i} source={{ uri: capa }} style={ui.mosaicoCelula} resizeMode="cover" />
+                : <View key={i} style={ui.mosaicoCelula} />;
+            })}
+          </View>
+          <Text numberOfLines={1} style={ui.shelfCardTitle}>{m.nome}</Text>
+          <Text numberOfLines={1} style={ui.shelfCardArtista}>
+            {m.faixas.length} {m.faixas.length === 1 ? 'song' : 'songs'}
+          </Text>
+        </P>
+      ))}
+    </ScrollView>
+  </View>;
+}
+
 const LINHAS_INICIAIS = 200;
 const PASSO_DE_LINHAS = 200;
 const linhasVisiveisPorLista = new Map<string, number>();
@@ -488,6 +547,13 @@ export const ui = StyleSheet.create({
   // Apagada, mas continua la: uma seta que DESAPARECE na ponta faz as outras
   // saltarem de sitio, e a que sobra passa a estar onde estava a outra.
   shelfSetaInactiva: { opacity: .35 },
+  // O mesmo mosaico do telemovel: quatro celulas de metade do lado, com o
+  // fundo a fazer de celula vazia quando a mistura tem menos de quatro capas.
+  mosaico: {
+    width: 148, height: 148, flexDirection: 'row', flexWrap: 'wrap',
+    borderRadius: RAIO.cartao, overflow: 'hidden', backgroundColor: COR.elevado,
+  },
+  mosaicoCelula: { width: '50%', height: '50%' },
   shelfCardTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any, marginTop: ESP.sm },
   shelfCardArtista: { ...TIPO.legenda, color: COR.textoMedio },
 

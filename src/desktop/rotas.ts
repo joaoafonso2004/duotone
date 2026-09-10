@@ -20,6 +20,9 @@ export type Route =
   | { name:'friend-profile';userId:string }
   | { name: 'artist'; value: string }
   | { name: 'playlist'; id: string; title: string }
+  /** Uma mistura que a app montou -- estilo, radio, decada ou playlist. Vive na
+   *  store das recomendacoes e nao na base de dados, por isso viaja por id. */
+  | { name: 'mistura'; id: string; titulo: string }
   | { name: 'import' }
   | { name: 'stats';userId?:string }
   | { name: 'spotify-import' };

@@ -190,7 +190,11 @@ export function TitleBar() {
 
 export function Sidebar({ route, navigate }: { route: Route; navigate: (route: Route) => void }) {
   const session = useAuth((s) => s.session);
-  const active = route.name === 'artist' ? 'artists' : route.name === 'playlist' || route.name === 'import' ? 'playlists' : route.name;
+  // Uma mistura abre-se a partir da Pesquisa: e ai que o separador tem de
+  // ficar aceso, senao a barra dizia que se estava noutro sitio.
+  const active = route.name === 'artist' ? 'artists'
+    : route.name === 'mistura' ? 'search'
+    : route.name === 'playlist' || route.name === 'import' ? 'playlists' : route.name;
 
   const [name,setName]=useState('Profile');
   const [publicAvatar,setPublicAvatar]=useState<string|null>(null);
