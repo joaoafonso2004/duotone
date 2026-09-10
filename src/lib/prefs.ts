@@ -478,3 +478,17 @@ export async function getVelocidadeMantemTom(): Promise<boolean> {
 export async function setVelocidadeMantemTom(v: boolean): Promise<void> {
   await AsyncStorage.setItem('pref:velocidadeMantemTom', v ? '1' : '0');
 }
+
+/**
+ * A chave da ultima semana em que o cartaz de sexta-feira foi mostrado.
+ *
+ * Nao e uma data nem um booleano: e a chave que o `lib/sextaFeira.ts` devolve
+ * -- a data da ultima sexta. E ela que faz duas aberturas da mesma janela
+ * darem o mesmo resultado sem se ter de contar dias a mao.
+ */
+export async function getSemanaVistaEm(): Promise<string | null> {
+  return AsyncStorage.getItem('pref:semanaVistaEm');
+}
+export async function setSemanaVistaEm(chave: string): Promise<void> {
+  await AsyncStorage.setItem('pref:semanaVistaEm', chave);
+}

@@ -49,6 +49,7 @@ import { useOuvirJuntos } from './src/state/ouvirJuntos';
 import { aquecerPerfil, limparCachePerfil } from './src/lib/cachePerfil';
 import { sincronizarPreferencias } from './src/lib/prefsSync';
 import { definirTomDaVelocidade } from './modules/duotone-audio';
+import { CartazDaSemana } from './src/components/CartazDaSemana';
 import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
 
@@ -244,6 +245,11 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       <RootNavigator />
+      {/* O cartaz de sexta-feira. Vive AQUI, ao lado do `UpdateSheet`, porque
+          e a outra coisa nesta app que se poe a frente de alguem sem lhe ser
+          pedida -- e as duas tem de sobreviver a mudanca de separador. Ele
+          decide sozinho se aparece; ver `components/CartazDaSemana.tsx`. */}
+      <CartazDaSemana />
       <UpdateSheet />
     </SafeAreaProvider>
   );
