@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { resolverFaixa, type FaixaResolvida } from '../api/catalogo';
-import { chaveDoCatalogo, guardarNoCatalogo, lerCatalogoDeFaixas } from '../api/catalogoDeFaixas';
+import { chaveDoCatalogo, guardarNoCatalogo, lerCatalogoDeFaixas, marcarSemEdicao } from '../api/catalogoDeFaixas';
 import { displayArtist, chaveDeArtista, nomesDeConfianca, tituloDaFaixa } from '../lib/artistName';
 import type { Track } from '../types';
 
@@ -89,6 +89,10 @@ export async function garantirCatalogo(faixas: readonly Track[]): Promise<void> 
         void guardarNoCatalogo({ source: t.source, sourceId: t.sourceId }, achado);
       } else {
         semResposta.add(k);
+        // "Nao existe" e uma resposta, e vale para toda a gente: guarda-se.
+        // Era a informacao mais barata que a app tinha e a unica que nunca
+        // partilhava. Ver `marcarSemEdicao`.
+        void marcarSemEdicao({ source: t.source, sourceId: t.sourceId });
       }
     } catch {
       semResposta.add(k);
@@ -152,6 +156,19 @@ export async function encherDoPartilhado(faixas: readonly Track[]): Promise<void
  * prateleiras usam obrigava a mexer em todos os sitios que constroem um.
  * Quem precisa do ano -- ou do genero -- pergunta por ele.
  */
+/**
+ * Esta faixa nao tem edicao comercial? (Leia-se: nao esta no Spotify.)
+ *
+ * `false` tambem quer dizer "ainda nao se sabe" -- enquanto o catalogo nao
+ * tiver perguntado por ela, nao ha resposta. Isso e de proposito: um selo que
+ * aparece quando se tem a certeza vale mais do que um que aparece por defeito.
+ */
+export function semEdicaoComercial(faixa: Track | null | undefined): boolean {
+  if (!faixa?.sourceId || !faixa?.source) return false;
+  const achado = useCatalogoDeFaixas.getState().porFaixa[chaveDoCatalogo(faixa.source, faixa.sourceId)];
+  return achado?.semEdicao === true;
+}
+
 export function generoDaFaixa(faixa: Track | null | undefined): string | null {
   if (!faixa?.sourceId || !faixa?.source) return null;
   const achado = useCatalogoDeFaixas.getState().porFaixa[chaveDoCatalogo(faixa.source, faixa.sourceId)];

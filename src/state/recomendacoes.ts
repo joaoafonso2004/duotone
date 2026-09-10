@@ -20,7 +20,8 @@ import { artistasParaRecomendacoes } from '../api/plays';
 import { trackKey } from '../lib/shuffle';
 import { misturasPorDecada } from '../lib/decadas';
 import { misturasPorGenero } from '../lib/generos';
-import { anoDaFaixa, encherDoPartilhado, generoDaFaixa } from './catalogoDeFaixas';
+import { misturaSemEdicao } from '../lib/semEdicao';
+import { anoDaFaixa, encherDoPartilhado, generoDaFaixa, semEdicaoComercial } from './catalogoDeFaixas';
 
 /**
  * As prateleiras de recomendações, fora do ecrã que as mostra.
@@ -320,6 +321,11 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
               // é por isso que ele e os estilos convivem: os estilos agrupam
               // artistas que partilham vizinhos, o género é uma gaveta. Ver o
               // `lib/generos.ts` e o `lib/decadas.ts`.
+              // A que nao existe em servico nenhum, e vai a FRENTE das outras
+              // gavetas: nao e uma maneira de arrumar a biblioteca, e a razao
+              // de esta app existir. Ver o `lib/semEdicao.ts`.
+              ...misturaSemEdicao(lib, semEdicaoComercial, trackKey,
+                (t) => escutasPorArtista.get(artistPreferenceKey(t)) ?? 0, baralhada),
               ...misturasPorGenero(lib, generoDaFaixa, trackKey,
                 (t) => escutasPorArtista.get(artistPreferenceKey(t)) ?? 0, baralhada),
               ...misturasPorDecada(lib, anoDaFaixa, trackKey,

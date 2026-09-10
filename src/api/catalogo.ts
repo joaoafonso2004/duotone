@@ -281,6 +281,13 @@ export type FaixaResolvida = {
   album: string | null;
   /** Do Deezer, e grosso: "Rap/Hip Hop". Null quando nao se sabe. */
   genero: string | null;
+  /**
+   * O Deezer nao conhece esta faixa -- ou seja, ela nao tem edicao comercial.
+   *
+   * O Deezer tem o mesmo catalogo licenciado que o Spotify: as mesmas
+   * editoras, os mesmos distribuidores. Se ele nao a tem, ela nao esta la.
+   */
+  semEdicao?: boolean;
   /** O ano do album. Null quando nao se sabe. */
   ano: number | null;
   /** Capa QUADRADA. É a que resolve as barras pretas do YouTube na origem. */

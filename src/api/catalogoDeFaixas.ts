@@ -35,7 +35,7 @@ export async function lerCatalogoDeFaixas(
         const { data, error } = await supabase
           .from('track_catalog')
           .select(temGeneroEAno
-            ? 'source,source_id,artist,title,album,artwork_url,prova,genero,ano'
+            ? 'source,source_id,artist,title,album,artwork_url,prova,genero,ano,sem_edicao'
             : 'source,source_id,artist,title,album,artwork_url,prova')
           .eq('source', source)
           .in('source_id', unicos.slice(i, i + LOTE));
@@ -47,7 +47,10 @@ export async function lerCatalogoDeFaixas(
         }
         if (error || !data) continue;
         for (const linha of data as any[]) {
-          if (!linha.artist && !linha.title) continue;
+          // Uma linha VAZIA e uma resposta: quer dizer "o Deezer nao conhece
+          // isto". Sem esta excepcao ela era deitada fora aqui e a coluna do
+          // `sem_edicao` nunca chegava a lado nenhum.
+          if (!linha.artist && !linha.title && !linha.sem_edicao) continue;
           mapa.set(chaveDoCatalogo(linha.source, linha.source_id), {
             artista: linha.artist ?? '',
             titulo: linha.title ?? '',
@@ -57,6 +60,7 @@ export async function lerCatalogoDeFaixas(
             genero: linha.genero ?? null,
             ano: typeof linha.ano === 'number' ? linha.ano : null,
             capa: linha.artwork_url ?? null,
+            semEdicao: linha.sem_edicao === true,
             prova: linha.prova === 'duracao' ? 'duracao' : 'artista',
           });
         }
@@ -100,7 +104,7 @@ export async function guardarNoCatalogo(
   try {
     if (temGeneroEAno) {
       const { error } = await supabase.from('track_catalog')
-        .upsert({ ...base, genero: faixa.genero, ano: faixa.ano }, opcoes);
+        .upsert({ ...base, genero: faixa.genero, ano: faixa.ano, sem_edicao: faixa.semEdicao }, opcoes);
       if (!error) return;
       if (!semColuna(error)) return;
       temGeneroEAno = false;
@@ -108,6 +112,32 @@ export async function guardarNoCatalogo(
     await supabase.from('track_catalog').upsert(base, opcoes);
   } catch {
     // Perder a partilha só faz o próximo dispositivo resolver outra vez.
+  }
+}
+
+/**
+ * O Deezer nao conhece esta faixa -- e isso, agora, guarda-se.
+ *
+ * Ate aqui a resposta "nao encontrei" vivia so na memoria da sessao
+ * (`semResposta`) e morria ao fechar a app. Era a informacao mais barata que a
+ * app tinha e a unica que nunca partilhava: quem perguntasse a seguir voltava
+ * a pagar a mesma ida ao Deezer para ouvir o mesmo silencio.
+ *
+ * A linha nasce VAZIA de proposito -- ver o cabecalho do
+ * `supabase/sem-edicao-comercial.sql`. O palpite local de cada um continua a
+ * valer; a unica coisa que esta linha afirma e a que ela sabe mesmo.
+ */
+export async function marcarSemEdicao(chave: ChaveDeFaixa): Promise<void> {
+  if (!temGeneroEAno) return;
+  try {
+    const { error } = await supabase.from('track_catalog').upsert({
+      source: chave.source, source_id: chave.sourceId,
+      artist: '', title: '', album: null, artwork_url: null,
+      prova: 'artista', sem_edicao: true,
+    }, { onConflict: 'source,source_id', ignoreDuplicates: true });
+    if (error && semColuna(error)) temGeneroEAno = false;
+  } catch {
+    // Nao saber e o estado anterior: ninguem perde nada.
   }
 }
 

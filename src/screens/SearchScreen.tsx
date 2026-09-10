@@ -189,6 +189,10 @@ export function SearchScreen() {
     () => misturas.filter((m) => m.id.startsWith('radio:')),
     [misturas],
   );
+  const raras = React.useMemo(
+    () => misturas.filter((m) => m.id.startsWith('raras:')),
+    [misturas],
+  );
   const generos = React.useMemo(
     () => misturas.filter((m) => m.id.startsWith('genero:')),
     [misturas],
@@ -199,7 +203,7 @@ export function SearchScreen() {
   );
   const misturasDeArtista = React.useMemo(
     () => misturas.filter((m) => !m.id.startsWith('estilo:') && !m.id.startsWith('radio:')
-      && !m.id.startsWith('decada:') && !m.id.startsWith('genero:')),
+      && !m.id.startsWith('decada:') && !m.id.startsWith('genero:') && !m.id.startsWith('raras:')),
     [misturas],
   );
 
@@ -589,6 +593,10 @@ export function SearchScreen() {
                     nao e o artista, e nenhuma das duas pergunta seja o que for
                     a catalogo nenhum -- saem da linha que ja la esta. Ver
                     `lib/generos.ts` e `lib/decadas.ts`. */}
+                {/* A que nao existe em servico nenhum. Vai a frente das
+                    gavetas: nao e uma maneira de arrumar a biblioteca, e a
+                    razao de esta app existir. Ver `lib/semEdicao.ts`. */}
+                {renderPrateleiraDeMisturas('Rare finds', raras)}
                 {renderPrateleiraDeMisturas('Your genres', generos)}
                 {renderPrateleiraDeMisturas('Decades', decadas)}
                 {(!misturasProntas || misturasDeArtista.length > 0) &&

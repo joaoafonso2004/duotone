@@ -53,13 +53,14 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
    * diferenca que so existe no titulo da prateleira. E a mesma separacao que o
    * `SearchScreen` do telemovel faz.
    */
-  const { estilos, radios, generos, decadas, playlists } = useMemo(() => ({
+  const { raras, estilos, radios, generos, decadas, playlists } = useMemo(() => ({
+    raras: recs.misturas.filter((m) => m.id.startsWith('raras:')),
     estilos: recs.misturas.filter((m) => m.id.startsWith('estilo:')),
     radios: recs.misturas.filter((m) => m.id.startsWith('radio:')),
     generos: recs.misturas.filter((m) => m.id.startsWith('genero:')),
     decadas: recs.misturas.filter((m) => m.id.startsWith('decada:')),
     playlists: recs.misturas.filter((m) => !m.id.startsWith('estilo:') && !m.id.startsWith('radio:')
-      && !m.id.startsWith('decada:') && !m.id.startsWith('genero:')),
+      && !m.id.startsWith('decada:') && !m.id.startsWith('genero:') && !m.id.startsWith('raras:')),
   }), [recs.misturas]);
   const abrirMistura = (m: { id: string; nome: string }) =>
     navigate({ name: 'mistura', id: m.id, titulo: m.nome });
@@ -108,6 +109,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
                 Decades     -> a TUA musica daquela era, nao musica nova dela
                 Playlists   -> a tua biblioteca com descobertas pelo meio
               Ver `lib/estilos.ts`, `radiosDeArtista` e `lib/decadas.ts`. */}
+          <PrateleiraDeMisturas titulo="Rare finds" nota="not on Spotify, or anywhere else" misturas={raras} aoAbrir={abrirMistura} />
           <PrateleiraDeMisturas titulo="Your styles" misturas={estilos} aoAbrir={abrirMistura} />
           <PrateleiraDeMisturas titulo="Radio" nota="three new tracks for every one of yours" misturas={radios} aoAbrir={abrirMistura} />
           <PrateleiraDeMisturas titulo="Your genres" nota="your library, by genre" misturas={generos} aoAbrir={abrirMistura} />
