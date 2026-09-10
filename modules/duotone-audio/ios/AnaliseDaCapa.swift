@@ -1,31 +1,35 @@
+import Accelerate
 import AVFoundation
 import QuartzCore
 import os
 
 /**
- * A JANELA em dB, e porque nao e a do Web Audio.
+ * A FFT, e porque ela e que faltava.
  *
- * O PC le `getByteFrequencyData`, que mapeia -100..-30 dBFS em 0..255 -- mas
- * sobre BINS de uma FFT, cuja magnitude e muito menor do que o RMS de uma banda
- * inteira. Copiar esses numeros aqui punha o nivel encostado ao tecto o tempo
- * todo, que e como se ve: treme tudo, sempre, sem seguir a musica.
+ * O shader le o espectro POR LINHA do ecra: `texture2D(uEspetro, 1 - vUv.y)`,
+ * e o desvio de cada linha e `floor(banda/20 + 0,5)`. Com oito passa-bandas
+ * esticadas para 256 texels, linhas vizinhas recebem quase o mesmo valor --
+ * e o que se ve sao dois ou tres blocos a deslizar todos juntos. No PC, cada
+ * linha le um bin diferente de uma FFT de 1024 e o desvio muda de linha para
+ * linha: e disso que vem o pente irregular que faz o efeito parecer o efeito.
  *
- * Esta janela e a mesma ideia com os limites postos onde o RMS de uma banda
- * vive. Quarenta dB de amplitude, com o meio da musica a cair a meio:
+ * Os mesmos numeros do `beat.web.ts`: 1024 pontos, suavizacao 0,68, e a
+ * conversao para byte do `getByteFrequencyData` do Web Audio -- -100 a -30
+ * dBFS mapeados em 0..255. Assim o nivel e os agudos podem sair DOS BINS, com
+ * as formulas do PC, em vez de uma escala calibrada a mao deste lado.
  *
- *   -45 dB (uma passagem calada) ... 0,0
- *   -25 dB (o corpo de uma musica) . 0,5   -> levelAvg ~127, glitch de 3 px
- *   -14 dB (um refrao) ............. 0,78
- *    -5 dB (um pico) ............... 1,0
- *
- * O que importa nao e o valor absoluto -- e a DINAMICA. Com o nivel encostado
- * ao tecto, o `glitchCount` do shader passa de 3 px para 44 e o que se ve e
- * tremor constante que nao segue nada; e com a base a meio, o efeito fica
- * calmo e sao as BATIDAS que o empurram para cima (a batida vale 185 dos 255).
- * E a diferenca entre "treme tudo" e "anda colado a musica".
+ * Custa menos do que parece: uma FFT de 1024 por bloco sao ~10 mil operacoes,
+ * menos do que as oito biquads que ja la estavam. E nao aloca -- o `setup`, as
+ * janelas e os buffers nascem todos no `prepare`.
  */
-private let SILENCIO_DB: Float = -45
-private let CHEIO_DB: Float = -5
+private let FFT_LOG2: vDSP_Length = 10
+private let FFT_N = 1024
+private let BINS = 256
+/** A janela do `getByteFrequencyData`. */
+private let DB_MIN: Float = -100
+private let DB_MAX: Float = -30
+private let SUAVIZACAO: Float = 0.68
+
 
 /** Leitura do tap existente. Nunca escreve nas amostras nem espera por um lock
  * na thread de áudio. Os oito filtros e os buffers nascem no prepare. */
@@ -38,7 +42,6 @@ final class AnaliseDaCapa {
   private var reset = true
   private var publishedAt: Double = 0
   private var publishedBeat: Float = 0
-  private let published = UnsafeMutablePointer<Float>.allocate(capacity: 8)
   private var coefficients = [Coeficientes]()
   private var z1 = [Float](), z2 = [Float]()
   private var powers = [Float]()
@@ -47,9 +50,23 @@ final class AnaliseDaCapa {
   private var average: Float = 0, previous: Float = 0, envelope: Float = 0
   private var sinceBeat: Float = 1
 
-  init() { published.initialize(repeating: 0, count: 8) }
+  // --- a FFT do espectro visual (ver o cabecalho do ficheiro) --------------
+  private var fftSetup: FFTSetup?
+  private var janela = [Float]()
+  /** Anel de mono, sempre com as ultimas FFT_N amostras. */
+  private var anel = [Float]()
+  private var escrita = 0
+  private var janelado = [Float]()
+  private var parteReal = [Float](), parteImag = [Float]()
+  private var magnitudes = [Float]()
+  private let bins = UnsafeMutablePointer<Float>.allocate(capacity: BINS)
+
+  init() {
+    bins.initialize(repeating: 0, count: BINS)
+  }
   deinit {
-    published.deinitialize(count: 8); published.deallocate()
+    bins.deinitialize(count: BINS); bins.deallocate()
+    if let fftSetup { vDSP_destroy_fftsetup(fftSetup) }
     lock.deinitialize(count: 1); lock.deallocate()
   }
   func setEnabled(_ value: Bool) {
@@ -60,7 +77,12 @@ final class AnaliseDaCapa {
   func read() -> [Double] {
     os_unfair_lock_lock(lock); defer { os_unfair_lock_unlock(lock) }
     guard enabled, publishedAt > 0, CACurrentMediaTime() - publishedAt < 0.25 else { return [] }
-    return (0..<8).map { Double(published[$0]) } + [Double(publishedBeat)]
+    // [0..<BINS] o espectro, e no fim o envelope da batida. O nivel e os agudos
+    // saem dos bins do lado do JS, com as formulas do PC.
+    var saida = [Double](repeating: 0, count: BINS + 1)
+    for i in 0..<BINS { saida[i] = Double(bins[i]) }
+    saida[BINS] = Double(publishedBeat)
+    return saida
   }
   func prepare(rate: Float, channels: Int) {
     self.rate = max(1, rate); self.channels = max(1, channels)
@@ -78,6 +100,17 @@ final class AnaliseDaCapa {
     z2 = Array(repeating: 0, count: self.channels * 8)
     powers = Array(repeating: 0, count: 8)
     average = 0; previous = 0; envelope = 0; sinceBeat = 1
+
+    // Tudo o que a FFT precisa nasce AQUI: a thread de audio nao aloca.
+    if fftSetup == nil { fftSetup = vDSP_create_fftsetup(FFT_LOG2, FFTRadix(kFFTRadix2)) }
+    janela = [Float](repeating: 0, count: FFT_N)
+    vDSP_hann_window(&janela, vDSP_Length(FFT_N), Int32(vDSP_HANN_NORM))
+    anel = [Float](repeating: 0, count: FFT_N)
+    janelado = [Float](repeating: 0, count: FFT_N)
+    parteReal = [Float](repeating: 0, count: FFT_N / 2)
+    parteImag = [Float](repeating: 0, count: FFT_N / 2)
+    magnitudes = [Float](repeating: 0, count: BINS)
+    escrita = 0
   }
   func process(_ buffers: UnsafeMutableAudioBufferListPointer, frames: Int) {
     guard frames > 0, channels > 0, os_unfair_lock_trylock(lock) else { return }
@@ -89,6 +122,15 @@ final class AnaliseDaCapa {
       for i in z1.indices { z1[i] = 0; z2[i] = 0 }
       average = 0; previous = 0; envelope = 0; sinceBeat = 1
     }
+    if restarting {
+      for i in anel.indices { anel[i] = 0 }
+      for i in magnitudes.indices { magnitudes[i] = 0 }
+      escrita = 0
+    }
+    // O mono entra no anel primeiro: a FFT le a onda como ela chega, antes de
+    // as biquads da deteccao lhe tocarem.
+    somarAoAnel(buffers, frames: frames)
+
     for i in 0..<8 { powers[i] = 0 }
     var samples = 0
     for (bufferIndex, buffer) in buffers.enumerated() {
@@ -124,9 +166,12 @@ final class AnaliseDaCapa {
       envelope = min(1, flux * 14); sinceBeat = 0
     }
     average += (bass - average) * (1 - expf(-dt / 0.5)); previous = bass
+    calcularEspectro()
+
     guard os_unfair_lock_trylock(lock) else { return }
     defer { os_unfair_lock_unlock(lock) }
     guard enabled, !reset else { return }
+    for i in 0..<BINS { bins[i] = magnitudes[i] }
     // A MESMA escala do `getByteFrequencyData` do Web Audio, que e o que o
     // shader espera: dBFS de -100 a -30 mapeados em 0..1. Sem isto o iPhone
     // mandava um RMS LINEAR, que para musica normal fica em 0,05-0,2 -- e os
@@ -138,11 +183,73 @@ final class AnaliseDaCapa {
     // do tempo em baixo; o dB e comprimido e vive na parte de cima, que e o
     // que faz o efeito do PC estar continuamente vivo em vez de acordar so nas
     // batidas.
-    for band in 0..<8 {
-      let rms = sqrtf(powers[band] / Float(samples))
-      let db = 20 * log10f(max(rms, 1e-5))
-      published[band] = min(1, max(0, (db - SILENCIO_DB) / (CHEIO_DB - SILENCIO_DB)))
-    }
     publishedBeat = envelope; publishedAt = CACurrentMediaTime()
+  }
+
+  /** As amostras em mono, no anel circular. Sem alocar nada. */
+  private func somarAoAnel(_ buffers: UnsafeMutableAudioBufferListPointer, frames: Int) {
+    guard !anel.isEmpty else { return }
+    let planar = buffers.count > 1
+    for frame in 0..<frames {
+      var soma: Float = 0
+      var vozes = 0
+      for buffer in buffers {
+        guard let data = buffer.mData else { continue }
+        let values = data.assumingMemoryBound(to: Float.self)
+        let stride = max(1, Int(buffer.mNumberChannels))
+        let disponiveis = Int(buffer.mDataByteSize) / MemoryLayout<Float>.size / stride
+        guard frame < disponiveis else { continue }
+        if planar {
+          let v = values[frame]
+          soma += v.isFinite ? v : 0
+          vozes += 1
+        } else {
+          for canal in 0..<stride {
+            let v = values[frame * stride + canal]
+            soma += v.isFinite ? v : 0
+            vozes += 1
+          }
+        }
+      }
+      anel[escrita] = vozes > 0 ? soma / Float(vozes) : 0
+      escrita = (escrita + 1) % FFT_N
+    }
+  }
+
+  /**
+   * As ultimas FFT_N amostras -> 256 bytes na escala do `getByteFrequencyData`.
+   *
+   * A suavizacao e a media entre fotogramas que o AnalyserNode faz por dentro
+   * (0,68 no PC): sem ela o espectro pisca, com ela respira.
+   */
+  private func calcularEspectro() {
+    guard let fftSetup, anel.count == FFT_N, magnitudes.count == BINS else { return }
+    // Desenrola o anel pela ordem certa e aplica a janela de Hann no caminho.
+    for i in 0..<FFT_N {
+      janelado[i] = anel[(escrita + i) % FFT_N] * janela[i]
+    }
+    let escala = 2 / Float(FFT_N)
+    parteReal.withUnsafeMutableBufferPointer { re in
+      parteImag.withUnsafeMutableBufferPointer { im in
+        var split = DSPSplitComplex(realp: re.baseAddress!, imagp: im.baseAddress!)
+        janelado.withUnsafeBufferPointer { entrada in
+          entrada.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: FFT_N / 2) { par in
+            vDSP_ctoz(par, 2, &split, 1, vDSP_Length(FFT_N / 2))
+          }
+        }
+        vDSP_fft_zrip(fftSetup, &split, 1, FFT_LOG2, FFTDirection(FFT_FORWARD))
+        for k in 0..<BINS {
+          // O bin 0 do zrip traz o Nyquist no imaginario: nao serve de nada
+          // aqui e so faria a primeira linha saltar.
+          let re0 = k == 0 ? re[0] : re[k]
+          let im0 = k == 0 ? 0 : im[k]
+          // O zrip devolve o dobro, e o ctoz ja empacotou a metade util.
+          let mag = sqrtf(re0 * re0 + im0 * im0) * escala * 0.5
+          let db = 20 * log10f(max(mag, 1e-7))
+          let byte = max(0, min(255, 255 * (db - DB_MIN) / (DB_MAX - DB_MIN)))
+          magnitudes[k] = magnitudes[k] * SUAVIZACAO + byte * (1 - SUAVIZACAO)
+        }
+      }
+    }
   }
 }

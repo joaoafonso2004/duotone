@@ -3,7 +3,7 @@ import { AppState, Image, PixelRatio, StyleSheet, Text, View } from 'react-nativ
 import { Asset } from 'expo-asset';
 import { requireOptionalNativeModule } from 'expo';
 import type { ExpoWebGLRenderingContext } from 'expo-gl';
-import { definirAnaliseDaCapa, lerAnaliseDaCapa, temAnaliseDaCapa } from '../../modules/duotone-audio';
+import { definirAnaliseDaCapa, lerAnaliseDaCapa, temAnaliseDaCapa, VALORES_DA_CAPA } from '../../modules/duotone-audio';
 import { criarRendererIOS, MULTIPLICADOR } from '../lib/glitchRendererIOS';
 import { getEffectIntensity } from '../lib/prefs';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
@@ -69,8 +69,8 @@ function ReactiveSurface({ uri, size, fps, intensidade }:
       const values = await lerAnaliseDaCapa();
       if (!alive.current || failed.current) return;
       samples.current = values;
-      setSignal(values.length === 9);
-      if (values.length === 9) {
+      setSignal(values.length === VALORES_DA_CAPA);
+      if (values.length === VALORES_DA_CAPA) {
         setReceivedAudio(true);
         try { renderer.current?.draw(values, now / 1000); }
         catch { failed.current = true; setReady(false); definirAnaliseDaCapa(false); return; }
@@ -104,7 +104,7 @@ function ReactiveSurface({ uri, size, fps, intensidade }:
       if (!result.desenhouAlgo()) { result.destroy(); throw Error('capa vazia'); }
       if (!alive.current) { result.destroy(); return; }
       renderer.current = result;
-      if (samples.current.length === 9) result.draw(samples.current, performance.now() / 1000);
+      if (samples.current.length === VALORES_DA_CAPA) result.draw(samples.current, performance.now() / 1000);
       setReady(true);
     } catch {
       if (alive.current) { failed.current = true; setReady(false); definirAnaliseDaCapa(false); }

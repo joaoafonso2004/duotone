@@ -10,22 +10,44 @@ import { VERTEX, FRAGMENT } from './glitchShaders';
  * `nivel()` do `beat.web.ts` -- se mudarem lá, têm de mudar aqui.
  */
 
+/**
+ * Os limites dos bins, pelas MESMAS frequências do `beat.web.ts`.
+ *
+ * A taxa de amostragem assume-se 48 kHz, que é o mesmo recurso que o PC usa
+ * quando o AudioContext não a diz. A 44,1 kHz as fronteiras andam 9%, o que
+ * move o fim dos graves de 260 para 239 Hz -- invisível neste efeito.
+ */
+const HZ_POR_BIN = 48000 / 1024;
+const bin = (hz: number) => Math.round(hz / HZ_POR_BIN);
+const GRAVE = [Math.max(1, bin(45)), Math.max(2, bin(260))] as const;
+const AGUDO = [bin(3200), Math.min(256, bin(10000))] as const;
+/** Metade do espectro, como o `binsCorpo` do PC. */
+const CORPO = 128;
+
+const media = (bins: readonly number[], de: number, ate: number) => {
+  let soma = 0;
+  for (let i = de; i < ate; i++) soma += bins[i];
+  return soma / Math.max(1, ate - de) / 255;
+};
+
 /** O nível contínuo: grave-first, com um resto de corpo para as músicas sem
  * subgrave não matarem o efeito. Cópia do `nivel()` do `beat.web.ts`. */
-function nivelDoQuadro(bandas: readonly number[]): number {
-  // 64/125/250 Hz -- a mesma janela de 45-260 Hz que o PC isola na FFT.
-  const grave = (bandas[0] + bandas[1] + bandas[2]) / 3;
-  const corpo = bandas.reduce((soma, v) => soma + v, 0) / bandas.length;
+function nivelDoQuadro(bins: readonly number[]): number {
+  const grave = media(bins, GRAVE[0], GRAVE[1]);
+  const corpo = media(bins, 0, CORPO);
   return Math.min(1, grave * 0.82 + corpo * 0.18);
 }
 
 /**
  * Os agudos NUNCA criam movimento por si -- só mudam a textura dentro da janela
  * de uma batida. Por isso são um EXCESSO sobre um piso, e não a energia em cru:
- * em cru ficavam altos de forma constante e o shader tremia sempre.
+ * em cru ficavam altos de forma constante e o shader tremia sempre. RMS e não
+ * média, para um transiente estreito não desaparecer entre muitos bins.
  */
-function agudosDoQuadro(bandas: readonly number[]): number {
-  const rms = Math.sqrt((bandas[6] * bandas[6] + bandas[7] * bandas[7]) / 2);
+function agudosDoQuadro(bins: readonly number[]): number {
+  let quadrados = 0;
+  for (let i = AGUDO[0]; i < AGUDO[1]; i++) quadrados += bins[i] * bins[i];
+  const rms = Math.sqrt(quadrados / Math.max(1, AGUDO[1] - AGUDO[0])) / 255;
   return Math.max(0, Math.min(1, (rms - 0.045) / 0.32));
 }
 
@@ -98,9 +120,9 @@ export function criarRendererIOS(
     return {
       draw(values: readonly number[], seconds: number) {
         if (disposed) return;
-        const bandas = values.slice(0, 8);
-        const level = nivelDoQuadro(bandas);
-        const beat = Math.min(1, values[8]);
+        const bins = values;
+        const level = nivelDoQuadro(bins);
+        const beat = Math.min(1, values[256]);
         const step = Math.floor(seconds * 15);
         // A MESMA conta do `renderer.web.ts`: a intensidade entra aqui e no
         // shader, senão o número de caixas deixava de acompanhar o desenho.
@@ -113,13 +135,13 @@ export function criarRendererIOS(
         }
         previousBeat = beat;
         frame[0] = level * 255; frame[4] = step; frame[5] = size;
-        frame[6] = beat; frame[7] = agudosDoQuadro(bandas);
-        // O espectro nativo tem oito bandas medidas, interpoladas na textura
-        // de 256 amostras que o shader partilha com o PC.
-        for (let i = 0; i < 256; i++) {
-          const x = i * 7 / 255, band = Math.floor(x), mix = x - band;
-          spectrum[i * 4] = Math.round(255 * (bandas[band] * (1-mix) + bandas[Math.min(7, band+1)] * mix));
-        }
+        frame[6] = beat; frame[7] = agudosDoQuadro(bins);
+        // Um bin por texel, sem esticar nada. Era aqui que estava a diferença
+        // que se via: oito bandas esticadas para 256 davam a linhas vizinhas
+        // quase o mesmo valor, e o shader (que lê um texel por LINHA do ecrã)
+        // deslocava-as todas juntas -- blocos a deslizar em vez do pente
+        // irregular do PC.
+        for (let i = 0; i < 256; i++) spectrum[i * 4] = bins[i];
         gl.activeTexture(gl.TEXTURE1);
         gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, 256, 1, gl.RGBA, gl.UNSIGNED_BYTE, spectrum);
         gl.uniform4fv(frameUniform, frame); gl.drawArrays(gl.TRIANGLES, 0, 6); gl.endFrameEXP();

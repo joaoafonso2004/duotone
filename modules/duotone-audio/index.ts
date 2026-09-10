@@ -96,10 +96,20 @@ export const temAnaliseDaCapa = typeof nativo?.lerAnaliseDaCapa === 'function';
 export function definirAnaliseDaCapa(ativa: boolean): void {
   try { nativo?.definirAnaliseDaCapa?.(ativa); } catch {}
 }
+/** Quantos bins o espectro traz, mais o envelope da batida no fim. */
+export const BINS_DA_CAPA = 256;
+export const VALORES_DA_CAPA = BINS_DA_CAPA + 1;
+
+/**
+ * O espectro (256 bins, 0..255, na escala do `getByteFrequencyData`) e, no fim,
+ * o envelope da batida. O nivel e os agudos SAEM daqui, do lado do JS, com as
+ * mesmas formulas do PC -- ver o `glitchRendererIOS.ts`.
+ */
 export async function lerAnaliseDaCapa(): Promise<number[]> {
   try {
     const values = await nativo?.lerAnaliseDaCapa?.();
-    return Array.isArray(values) && values.length === 9 && values.every(Number.isFinite) ? values : [];
+    return Array.isArray(values) && values.length === VALORES_DA_CAPA && values.every(Number.isFinite)
+      ? values : [];
   } catch { return []; }
 }
 

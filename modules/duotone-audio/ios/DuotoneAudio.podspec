@@ -11,6 +11,8 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
+  # A FFT do espectro da capa vive no vDSP.
+  s.frameworks = 'Accelerate'
 
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',

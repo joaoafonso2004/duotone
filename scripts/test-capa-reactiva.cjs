@@ -24,10 +24,14 @@ function load(file, mocks = {}) {
 
 async function run() {
   const bridge = native => load('modules/duotone-audio/index.ts', { expo: { requireOptionalNativeModule: () => native } });
+  const N = bridge(null).VALORES_DA_CAPA;
+  assert.equal(N,257,'256 bins mais o envelope da batida');
   assert.deepEqual(await bridge(null).lerAnaliseDaCapa(),[]);
-  assert.deepEqual(await bridge({ lerAnaliseDaCapa: () => [NaN] }).lerAnaliseDaCapa(),[]);
+  assert.deepEqual(await bridge({ lerAnaliseDaCapa: () => Array(N).fill(NaN) }).lerAnaliseDaCapa(),[]);
+  assert.deepEqual(await bridge({ lerAnaliseDaCapa: () => Array(9).fill(0) }).lerAnaliseDaCapa(),[],
+    'um payload do tamanho antigo e recusado, nao interpretado a torto');
   assert.deepEqual(await bridge({ lerAnaliseDaCapa: () => { throw Error('released'); } }).lerAnaliseDaCapa(),[]);
-  assert.deepEqual(await bridge({ lerAnaliseDaCapa: () => Array(9).fill(0) }).lerAnaliseDaCapa(),Array(9).fill(0));
+  assert.deepEqual(await bridge({ lerAnaliseDaCapa: () => Array(N).fill(0) }).lerAnaliseDaCapa(),Array(N).fill(0));
 
   // A store a sério: uma leitura lenta do disco não pode desfazer um toque na
   // capa, e a chave partilhada com o PC nunca é lida nem escrita.
@@ -82,7 +86,7 @@ async function run() {
   assert.equal(renderer.desenhouAlgo(),true,'com imagem a serio, passa');
 
   const antesDoDraw = calls.filter(c=>c[0]==='drawArrays').length;
-  renderer.draw(Array(9).fill(0),0);
+  renderer.draw(Array(257).fill(0),0);
   assert.equal(calls.filter(c=>c[0]==='drawArrays').length,antesDoDraw+1);
   const frame = calls.filter(c=>c[0]==='uniform4fv').pop()[2];
   assert.equal(frame[0],0); assert.equal(frame[6],0);
@@ -90,16 +94,26 @@ async function run() {
 
   // AS CONTAS SAO AS DO PC. O nivel e grave-first (0,82/0,18) e os agudos sao
   // um EXCESSO sobre um piso -- em cru ficavam altos sempre e tremia tudo.
-  const bandas = [0.8,0.8,0.8,0.2,0.2,0.2,0.5,0.5];
-  renderer.draw([...bandas,0],1);
+  // UM BIN POR TEXEL. Era o esticar de oito bandas para 256 que fazia linhas
+  // vizinhas receberem o mesmo valor -- e o shader le um texel por LINHA.
+  const bins = Array.from({length:257},(_,i)=> i<256 ? (i%2 ? 200 : 40) : 0);
+  renderer.draw(bins,1);
+  const textura = calls.filter(c=>c[0]==='texSubImage2D').pop()[9];
+  assert.equal(textura[0*4],40); assert.equal(textura[1*4],200);
+  assert.equal(textura[255*4],200,'o pente chega inteiro a textura');
+
+  // O nivel sai DOS BINS, com as contas do beat.web.ts: graves (45-260 Hz) a
+  // 0,82 mais o corpo (metade do espectro) a 0,18.
+  const planos = Array.from({length:257},(_,i)=> i<256 ? 128 : 0);
+  renderer.draw(planos,2);
   const comSinal = calls.filter(c=>c[0]==='uniform4fv').pop()[2];
-  const grave = 0.8, corpo = bandas.reduce((a,b)=>a+b,0)/8;
-  assert.ok(Math.abs(comSinal[0] - Math.min(1,grave*0.82+corpo*0.18)*255) < 0.01,'o nivel e o do beat.web.ts');
+  assert.ok(Math.abs(comSinal[0] - (128/255)*255) < 0.5,'bins planos dao o nivel desses bins');
+
   // Abaixo do piso os agudos NAO existem. Em cru estariam sempre acesos, e no
   // shader eles multiplicam pela batida -- acesos de base, tremia tudo.
-  renderer.draw([...Array(8).fill(0.02),0],2);
+  renderer.draw(Array.from({length:257},(_,i)=> i<256 ? 5 : 0),3);
   assert.equal(calls.filter(c=>c[0]==='uniform4fv').pop()[2][7],0,'abaixo do piso nao ha agudos');
-  renderer.draw([...Array(8).fill(0.12),0],3);
+  renderer.draw(Array.from({length:257},(_,i)=> i<256 ? 30 : 0),4);
   const meio = calls.filter(c=>c[0]==='uniform4fv').pop()[2][7];
   assert.ok(meio > 0 && meio < 1,'e entre o piso e o tecto sobem por graus');
 
@@ -109,9 +123,9 @@ async function run() {
   assert.equal(calls.filter(c=>c[0]==='uniform1f'&&c[1]==='uIntensidade').pop()[2],0.62,'a preferencia chega ao shader');
   suave.destroy();
 
-  renderer.destroy(); renderer.destroy(); renderer.draw(Array(9).fill(1),1);
+  renderer.destroy(); renderer.destroy(); renderer.draw(Array(257).fill(1),1);
   const finais = calls.filter(c=>c[0]==='drawArrays').length;
-  renderer.draw(Array(9).fill(1),2);
+  renderer.draw(Array(257).fill(1),2);
   assert.equal(calls.filter(c=>c[0]==='drawArrays').length,finais,'no draws after disposal');
   assert.equal(renderer.desenhouAlgo(),false,'nem verificacoes depois de fechado');
   console.log('Capa reactiva: ponte nativa, preferência do iPhone, capa preta e contas do PC passaram.');
