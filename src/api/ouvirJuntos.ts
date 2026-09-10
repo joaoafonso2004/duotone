@@ -244,9 +244,19 @@ export async function lerFila(sessao: string): Promise<ItemDaFila[]> {
   return data.map(itemDaLinha);
 }
 
-export async function juntarAFila(sessao: string, track: Track): Promise<void> {
+/**
+ * Juntar a fila. `aSeguir` poe no TOPO em vez de no fundo.
+ *
+ * Ate aqui tudo caia no fundo, e numa fila cheia isso queria dizer que nao
+ * havia maneira nenhuma de ouvir uma musica a seguir a esta -- a unica saida
+ * era carregar nela e atropelar a que estava a tocar, o que numa sessao corta
+ * o som a toda a gente. Ver `supabase/tocar-a-seguir-no-jam.sql`.
+ */
+export async function juntarAFila(
+  sessao: string, track: Track, aSeguir = false,
+): Promise<void> {
   const { error } = await supabase.rpc('juntar_a_fila', {
-    p_session: sessao, p_track: track,
+    p_session: sessao, p_track: track, p_a_seguir: aSeguir,
   });
   if (error) throw error;
 }

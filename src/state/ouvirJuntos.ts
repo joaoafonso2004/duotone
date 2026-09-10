@@ -81,7 +81,8 @@ type Estado = {
   darControlo: (pode: boolean) => Promise<void>;
   anunciarProntidao: (pronta: boolean, percentagem?: number) => Promise<void>;
 
-  sugerir: (track: Track) => Promise<void>;
+  /** `aSeguir` poe no topo da fila partilhada em vez do fundo. */
+  sugerir: (track: Track, aSeguir?: boolean) => Promise<void>;
   /** A lista toda de uma vez, quando se dá play numa playlist cá dentro. */
   semearFila: (tracks: readonly Track[]) => Promise<void>;
   retirarSugestao: (item: string) => Promise<void>;
@@ -316,13 +317,13 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   // Sugerir NAO exige a permissao de controlo, e e essa a diferenca entre
   // ouvir com alguem e assistir a alguem: pôr uma musica na fila nao
   // interrompe ninguem.
-  sugerir: async (track) => {
+  sugerir: async (track, aSeguir = false) => {
     const s = get().sessao;
     if (!s) return;
-    await juntarAFila(s.id, track);
+    await juntarAFila(s.id, track, aSeguir);
     if (get().sessao?.id !== s.id) return;
     await get().actualizar();
-    const aviso = `Added · ${track.title?.slice(0, 26) ?? 'song'}`;
+    const aviso = `${aSeguir ? 'Playing next' : 'Added'} · ${track.title?.slice(0, 26) ?? 'song'}`;
     set({ aviso });
     setTimeout(() => {
       if (get().sessao?.id === s.id && get().aviso === aviso) set({ aviso: null });

@@ -764,7 +764,11 @@ export const usePlayer = create<PlayerState>()(
   },
 
   playNext: (track) => {
-    if (ouvirJuntos()) { void comandarJam(s => s.sugerir(track)); return; }
+    // NUMA SESSAO, "a seguir" tem de querer dizer a seguir. Isto mandava a
+    // faixa para o FUNDO da fila partilhada, e com a fila cheia era o mesmo
+    // que "adicionar" -- nao havia forma nenhuma de ouvir uma musica a seguir
+    // a esta sem carregar nela e atropelar o som de toda a gente.
+    if (ouvirJuntos()) { void comandarJam(s => s.sugerir(track, true)); return; }
     const { queue, queueIndex } = get();
     if (queue.length === 0) {
       set({

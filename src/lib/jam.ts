@@ -108,7 +108,8 @@ export type PonteJam = {
   convidadosControlam: boolean;
   /** A sessão tem alguma coisa a dar. Decide se o Play de uma lista interrompe. */
   temFaixa: boolean;
-  sugerir: (track: Track) => Promise<void>;
+  /** `aSeguir` poe no topo da fila partilhada em vez do fundo. */
+  sugerir: (track: Track, aSeguir?: boolean) => Promise<void>;
   semearFila: (tracks: readonly Track[]) => Promise<void>;
   anunciarFaixa: (track: Track) => Promise<void>;
   alternarPausa: () => Promise<void>;

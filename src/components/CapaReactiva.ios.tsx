@@ -12,6 +12,23 @@ import type { CapaReactivaProps } from './CapaReactiva';
 
 // Uma build antiga continua a mostrar a capa normal, mesmo com este bundle.
 const GLView: typeof import('expo-gl').GLView | null = requireOptionalNativeModule('ExpoGL') ? require('expo-gl').GLView : null;
+
+/**
+ * A que ritmo se desenha -- e porque nao sao 60.
+ *
+ * Pelo desenho do proprio shader, o efeito nao TEM 60 estados por segundo: os
+ * desvios RGB so se sorteiam a 15 Hz (`passo = floor(segundos * 15)`) e o
+ * espectro vem com suavizacao 0,68, que e uma media de umas cinco leituras.
+ * A 60 desenhava-se duas vezes a mesma coisa.
+ *
+ * E custava a dobrar nos dois sitios que pesam: o desenho na GPU, e uma ida
+ * assincrona a thread principal por fotograma a transportar 257 numeros.
+ *
+ * Com menos movimento pedido, cai para o proprio passo do shader: ve-se cada
+ * estado do glitch e nada pelo meio.
+ */
+const FPS = 30;
+const FPS_REDUZIDO = 15;
 type Renderer = ReturnType<typeof criarRendererIOS>;
 export function CapaReactiva({ uri, size, active, onError }: CapaReactivaProps) {
   const mode = useCapaIOS(s => s.mode), feedback = useCapaIOS(s => s.feedback);
@@ -45,7 +62,7 @@ export function CapaReactiva({ uri, size, active, onError }: CapaReactivaProps) 
     {/* A intensidade entra na `key`: fica cozida no programa de GL, e mudá-la
         nas Definições tem de reconstruir a superfície. */}
     {enabled && <ReactiveSurface key={`${uri}:${size}:${reduced}:${intensidade}`}
-      uri={uri} size={size} fps={reduced ? 30 : 60} intensidade={intensidade} />}
+      uri={uri} size={size} fps={reduced ? FPS_REDUZIDO : FPS} intensidade={intensidade} />}
     {label && <View style={styles.label}><Text style={styles.labelText}>{mode === 'reactive' ? 'Reactive' : mode === 'static' ? 'Static' : 'Off'}</Text></View>}
   </View>;
 }
