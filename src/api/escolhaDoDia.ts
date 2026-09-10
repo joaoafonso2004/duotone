@@ -1,3 +1,4 @@
+import { DIAS_DE_HISTORICO, diasAnteriores } from '../lib/escolhasDoDia';
 import { supabase } from '../lib/supabase';
 import type { Track } from '../types';
 
@@ -44,10 +45,18 @@ function faixa(v: any): Track | null {
   };
 }
 
-/** Lista vazia sem a migração, sem rede, ou num dia em que ninguém escolheu. */
-export async function lerEscolhasDoDia(): Promise<EscolhaDoDia[]> {
+/**
+ * As escolhas de um dia (`2026-09-10`), ou as de hoje sem argumento.
+ *
+ * Lista vazia sem a migração, sem rede, ou num dia em que ninguém escolheu.
+ * A `escolhas_do_dia` já aceitava o dia desde o início, e a RLS não limita a
+ * leitura por data: o histórico não precisou de SQL novo.
+ */
+async function lerEscolhasDe(dia?: string): Promise<EscolhaDoDia[]> {
   try {
-    const { data, error } = await supabase.rpc('escolhas_do_dia');
+    const { data, error } = dia
+      ? await supabase.rpc('escolhas_do_dia', { p_dia: dia })
+      : await supabase.rpc('escolhas_do_dia');
     if (error || !Array.isArray(data)) return [];
     const saida: EscolhaDoDia[] = [];
     for (const r of data as any[]) {
@@ -64,6 +73,27 @@ export async function lerEscolhasDoDia(): Promise<EscolhaDoDia[]> {
   } catch {
     return [];
   }
+}
+
+/** As de hoje: a minha e as dos amigos. */
+export function lerEscolhasDoDia(): Promise<EscolhaDoDia[]> {
+  return lerEscolhasDe();
+}
+
+export type DiaDeEscolhas = { dia: string; escolhas: EscolhaDoDia[] };
+
+/**
+ * Os dias anteriores, do mais recente para trás, e só os que têm alguma.
+ *
+ * Um dia sem escolhas não aparece -- nem com um título vazio por baixo. É a
+ * mesma regra da página: quem não escolheu não fica marcado como falhado.
+ */
+export async function lerHistoricoDasEscolhas(dias = DIAS_DE_HISTORICO): Promise<DiaDeEscolhas[]> {
+  const datas = diasAnteriores(Date.now(), dias);
+  const lidas = await Promise.all(datas.map((dia) => lerEscolhasDe(dia)));
+  return datas
+    .map((dia, i) => ({ dia, escolhas: lidas[i] }))
+    .filter((d) => d.escolhas.length > 0);
 }
 
 export class EscolhaDoDiaJaFeita extends Error {

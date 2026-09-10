@@ -272,9 +272,29 @@ function SetaDaPrateleira({ sentido, activa, aoCarregar }: {
   </P>;
 }
 
-export function Shelf({ titulo, nota, tracks, onPlay, onMore }: {
+/**
+ * Duas ou três vistas da mesma página, lado a lado ("Discover | Songs of the
+ * day"). É o mesmo comprimido do telemóvel, com os tokens do PC.
+ */
+export function Separadores<T extends string>({ opcoes, valor, aoMudar }: {
+  opcoes: readonly (readonly [T, string])[]; valor: T; aoMudar: (v: T) => void;
+}) {
+  return <View accessibilityRole={'tablist' as any} style={ui.separadores}>
+    {opcoes.map(([v, rotulo]) => {
+      const activo = v === valor;
+      return <P key={v} accessibilityRole="tab" accessibilityState={{ selected: activo }} onPress={() => aoMudar(v)}
+        style={({ hovered }: any) => [ui.separador, activo ? ui.separadorActivo : hovered && ui.separadorHover]}>
+        <Text style={[ui.separadorTexto, activo && ui.separadorTextoActivo]}>{rotulo}</Text>
+      </P>;
+    })}
+  </View>;
+}
+
+export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo }: {
   titulo: string; nota?: string; tracks: Track[];
   onPlay: (track: Track, fila: Track[]) => void; onMore?: (track: Track) => void;
+  /** Uma etiqueta por cima de cada capa ("New to you"). Só onde é uma promessa cumprida. */
+  selo?: string;
 }) {
   const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
   if (!tracks.length) return null;
@@ -305,7 +325,10 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore }: {
           onPress={() => { if (arrastou.current) return; onPlay(t, tracks); }}
           onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t); }) as any}
           style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
-          <Artwork track={t} size={148} />
+          <View>
+            <Artwork track={t} size={148} />
+            {selo ? <View style={ui.shelfSelo} pointerEvents="none"><Text style={ui.shelfSeloTexto}>{selo}</Text></View> : null}
+          </View>
           <Text numberOfLines={1} style={ui.shelfCardTitle}>{tituloDaFaixa(t)}</Text>
           <Text numberOfLines={1} style={ui.shelfCardArtista}>{displayArtist(t)}</Text>
         </P>
@@ -538,6 +561,20 @@ export const ui = StyleSheet.create({
   shelfNota: { ...TIPO.legenda, color: COR.textoFraco },
   shelfCard: { width: 148, borderRadius: RAIO.cartao, gap: 2 },
   shelfCardHover: { opacity: .82 },
+  shelfSelo: {
+    position: 'absolute', top: ESP.sm, left: ESP.sm, paddingHorizontal: 7, paddingVertical: 3,
+    borderRadius: 999, backgroundColor: 'rgba(6,6,8,0.78)', borderWidth: 1, borderColor: COR.linha,
+  },
+  shelfSeloTexto: { fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: COR.texto },
+  separadores: {
+    flexDirection: 'row', alignSelf: 'flex-start', gap: 2, padding: 3, marginBottom: ESP.lg,
+    borderRadius: RAIO.pilula, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave,
+  },
+  separador: { minHeight: 30, justifyContent: 'center', paddingHorizontal: ESP.md, borderRadius: RAIO.pilula },
+  separadorHover: { backgroundColor: COR.linhaSuave },
+  separadorActivo: { backgroundColor: COR.hover },
+  separadorTexto: { ...TIPO.legenda, color: COR.textoMedio },
+  separadorTextoActivo: { color: COR.texto, fontWeight: '600' as any },
   shelfSeta: {
     width: 26, height: 26, borderRadius: RAIO.pilula,
     alignItems: 'center', justifyContent: 'center',

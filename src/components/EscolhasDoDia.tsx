@@ -3,12 +3,15 @@ import { Image } from 'expo-image';
 import React from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
-  lerEscolhasDoDia, subscreverEscolhasDoDia, type EscolhaDoDia,
+  lerEscolhasDoDia, lerHistoricoDasEscolhas, subscreverEscolhasDoDia,
+  type DiaDeEscolhas, type EscolhaDoDia,
 } from '../api/escolhaDoDia';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { rotuloDoDia } from '../lib/escolhasDoDia';
 import { ESCALA } from '../lib/movimento';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
+import type { Track } from '../types';
 import { colors, radii, spacing, type } from '../theme';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
@@ -19,11 +22,16 @@ import { Toque } from './Toque';
  * Escolher deixou de viver aqui: faz-se uma vez, sobre a música que está a
  * tocar, no menu do leitor. Esta página é o destino da escolha — não um cartão
  * vazio misturado com recomendações e com os amigos que estão online.
+ *
+ * Por baixo de hoje ficam os dias anteriores da semana, só os que têm alguma
+ * escolha. Hoje vem sempre primeiro: o histórico serve para apanhar o que um
+ * amigo pôs ontem, não para a página passar a ser um arquivo.
  */
 export function EscolhasDoDia({ bottomPadding = spacing.xxl }: { bottomPadding?: number }) {
   const tema = useTheme((s) => s.theme);
   const playTrack = usePlayer((s) => s.playTrack);
   const [escolhas, setEscolhas] = React.useState<EscolhaDoDia[]>([]);
+  const [historico, setHistorico] = React.useState<DiaDeEscolhas[]>([]);
   const [aCarregar, setACarregar] = React.useState(true);
 
   const carregar = React.useCallback(() => {
@@ -34,11 +42,15 @@ export function EscolhasDoDia({ bottomPadding = spacing.xxl }: { bottomPadding?:
 
   React.useEffect(() => {
     carregar();
+    // O histórico não muda com a escolha de hoje: lê-se uma vez, à parte, e
+    // não atrasa o que interessa mais.
+    void lerHistoricoDasEscolhas().then(setHistorico);
     return subscreverEscolhasDoDia(carregar);
   }, [carregar]);
 
   const minha = escolhas.some((e) => e.souEu);
   const fila = React.useMemo(() => escolhas.map((e) => e.track), [escolhas]);
+  const agora = Date.now();
 
   return (
     <ScrollView
@@ -69,39 +81,71 @@ export function EscolhasDoDia({ bottomPadding = spacing.xxl }: { bottomPadding?:
       ) : (
         <View style={styles.lista}>
           {escolhas.map((e) => (
-            <Toque
-              key={e.userId}
-              escala={ESCALA.cartao}
-              onPress={() => void playTrack(e.track, fila, true)}
-              accessibilityRole="button"
-              accessibilityLabel={`${e.souEu ? 'Your pick' : `${e.nome || e.username}'s pick`}: ${tituloDaFaixa(e.track)}`}
-              style={styles.linha}
-            >
-              {e.track.artworkUrl ? (
-                <Image source={{ uri: e.track.artworkUrl }} style={styles.capa} contentFit="cover" transition={150} />
-              ) : (
-                <View style={[styles.capa, styles.capaVazia]}>
-                  <Ionicons name="musical-note" size={22} color={colors.textTertiary} />
-                </View>
-              )}
-              <View style={styles.texto}>
-                <View style={styles.pessoa}>
-                  <FriendAvatar avatarUrl={e.avatar} name={e.nome || e.username || '?'} size={20} />
-                  <Text numberOfLines={1} style={styles.nome}>
-                    {e.souEu ? 'You' : e.nome || e.username}
-                  </Text>
-                </View>
-                <Text numberOfLines={1} style={styles.faixa}>{tituloDaFaixa(e.track)}</Text>
-                <Text numberOfLines={1} style={styles.artista}>
-                  {e.nota || displayArtist(e.track)}
-                </Text>
-              </View>
-              <Ionicons name="play-circle" size={27} color={tema.color} />
-            </Toque>
+            <LinhaDaEscolha key={e.userId} escolha={e} fila={fila} cor={tema.color} tocar={playTrack} />
           ))}
         </View>
       )}
+
+      {!aCarregar && historico.length > 0 ? (
+        <View style={styles.historico}>
+          <Text style={styles.seccao}>Earlier this week</Text>
+          {historico.map(({ dia, escolhas: doDia }) => (
+            <View key={dia} style={styles.dia}>
+              <Text style={styles.rotuloDoDia}>{rotuloDoDia(dia, agora)}</Text>
+              <View style={styles.lista}>
+                {doDia.map((e) => (
+                  <LinhaDaEscolha
+                    key={`${dia}:${e.userId}`}
+                    escolha={e}
+                    fila={doDia.map((x) => x.track)}
+                    cor={tema.color}
+                    tocar={playTrack}
+                  />
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </ScrollView>
+  );
+}
+
+function LinhaDaEscolha({ escolha: e, fila, cor, tocar }: {
+  escolha: EscolhaDoDia;
+  fila: Track[];
+  cor: string;
+  tocar: (track: Track, queue?: Track[], autoplay?: boolean) => Promise<void> | void;
+}) {
+  return (
+    <Toque
+      escala={ESCALA.cartao}
+      onPress={() => void tocar(e.track, fila, true)}
+      accessibilityRole="button"
+      accessibilityLabel={`${e.souEu ? 'Your pick' : `${e.nome || e.username}'s pick`}: ${tituloDaFaixa(e.track)}`}
+      style={styles.linha}
+    >
+      {e.track.artworkUrl ? (
+        <Image source={{ uri: e.track.artworkUrl }} style={styles.capa} contentFit="cover" transition={150} />
+      ) : (
+        <View style={[styles.capa, styles.capaVazia]}>
+          <Ionicons name="musical-note" size={22} color={colors.textTertiary} />
+        </View>
+      )}
+      <View style={styles.texto}>
+        <View style={styles.pessoa}>
+          <FriendAvatar avatarUrl={e.avatar} name={e.nome || e.username || '?'} size={20} />
+          <Text numberOfLines={1} style={styles.nome}>
+            {e.souEu ? 'You' : e.nome || e.username}
+          </Text>
+        </View>
+        <Text numberOfLines={1} style={styles.faixa}>{tituloDaFaixa(e.track)}</Text>
+        <Text numberOfLines={1} style={styles.artista}>
+          {e.nota || displayArtist(e.track)}
+        </Text>
+      </View>
+      <Ionicons name="play-circle" size={27} color={cor} />
+    </Toque>
   );
 }
 
@@ -119,6 +163,10 @@ const styles = StyleSheet.create({
   vazioTitulo: { ...type.headline, marginBottom: spacing.xs },
   vazioTexto: { ...type.caption, textAlign: 'center', lineHeight: 19, maxWidth: 290 },
   lista: { gap: spacing.sm },
+  historico: { marginTop: spacing.xxl, gap: spacing.lg },
+  seccao: { ...type.headline },
+  dia: { gap: spacing.sm },
+  rotuloDoDia: { ...type.micro },
   linha: {
     minHeight: 82,
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,

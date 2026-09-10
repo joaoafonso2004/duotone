@@ -30,14 +30,19 @@ import type { Track } from '../../types';
 import { styles } from '../estilos.web';
 import {
   Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, Page,
-  PrateleiraDeMisturas, Shelf, TrackTable,
+  PrateleiraDeMisturas, Separadores, Shelf, TrackTable,
 } from '../ui.web';
+import { MusicasDoDia } from '../MusicasDoDia.web';
 import type { CommonPageProps, NavegarFn, Route } from '../rotas';
 import { COR, ESP, FONT, RAIO, TIPO } from '../tokens.web';
 import { useLibraryData } from './comum.web';
 
 export function SearchPage({ play, notify, more, navigate }: CommonPageProps & { navigate: NavegarFn }) {
   const [query, setQuery] = useState(''); const [history, setHistory] = useState<string[]>([]); const input = useRef<any>(null);
+  // As Músicas do dia, que no PC não existiam. Uma vista da Pesquisa, como no
+  // telemóvel, e não mais uma entrada na barra lateral: é sobre descobrir o
+  // que os amigos puseram, e a Pesquisa é a página de descobrir.
+  const [vista, setVista] = useState<'descobrir' | 'dia'>('descobrir');
   // **As recomendacoes vivem fora desta pagina** (`state/recomendacoes.ts`).
   // Estavam num `useState` daqui, e esta pagina desmonta ao mudar de
   // separador: ir aos Artists e voltar recomecava o "Preparing
@@ -73,11 +78,14 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
     void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
   });
   const run = (q = query) => { setQuery(q); pesquisarAgora(); };
+  const semPesquisa = query.trim().length < 2;
   return <Page title="Search" subtitle="Search YouTube and add music to your Duotone library."
-    action={<IconButton name="refresh" label="Refresh recommendations"
-      onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} />}>
+    action={vista === 'descobrir' ? <IconButton name="refresh" label="Refresh recommendations"
+      onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} /> : undefined}>
     <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
     {query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
+    {semPesquisa && !loading ? <Separadores opcoes={[['descobrir', 'Discover'], ['dia', 'Songs of the day']] as const}
+      valor={vista} aoMudar={setVista} /> : null}
     <ContentScroll>{
       /* O que já é teu vem primeiro e não espera pela rede; o YouTube fica por
          baixo. Ver lib/pesquisaLocal.ts. */
@@ -95,11 +103,12 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       : loading ? <View style={{ height: 320 }}><Loading /></View>
       : errorMsg ? <Empty icon="cloud-offline-outline" title="Search failed" body={errorMsg} />
       : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
+      : vista === 'dia' ? <MusicasDoDia play={play} notify={notify} />
       : temRecomendacoes(recs) ? <>
           <Shelf titulo="Discover weekly" nota="music you don't have yet, based on what you listen to. The same list all week." tracks={descobrir} onPlay={play} onMore={more} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
-          <Shelf titulo="Rare finds" nota="music from your artists that you have not saved yet" tracks={nuncaLancado} onPlay={play} onMore={more} />
+          <Shelf titulo="Rare finds" nota="unreleased songs from your artists that you haven't saved, played or hidden" selo="New to you" tracks={nuncaLancado} onPlay={play} onMore={more} />
           {/* AS MISTURAS QUE A APP MONTA. Quatro familias, e a diferenca esta
               toda no titulo -- que e o que elas tem de diferente:
                 Your styles -> artistas teus que partilham vizinhos
