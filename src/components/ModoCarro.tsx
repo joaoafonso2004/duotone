@@ -5,6 +5,7 @@ import React, { useEffect } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { urlsDaCapaQuadrada } from '../lib/capaDoEcraBloqueado';
 import { hapticImpact } from '../lib/haptics';
 import { getCarroMantemEcra } from '../lib/prefs';
 import { usePlayer } from '../state/player';
@@ -101,7 +102,7 @@ export function ModoCarro({ visivel, aoFechar }: { visivel: boolean; aoFechar: (
 
         <View style={styles.capaCaixa}>
           {current.artworkUrl ? (
-            <Image source={{ uri: current.artworkUrl }} style={{ width: lado, height: lado, borderRadius: radii.lg }} contentFit="cover" transition={200} />
+            <CapaDoCarro uri={current.artworkUrl} lado={lado} />
           ) : (
             <View style={[styles.capaVazia, { width: lado, height: lado }]}>
               <Ionicons name="musical-note" size={lado * 0.3} color={colors.textTertiary} />
@@ -141,6 +142,27 @@ export function ModoCarro({ visivel, aoFechar }: { visivel: boolean; aoFechar: (
         </Text>
       </View>
     </Modal>
+  );
+}
+
+/**
+ * As miniaturas `hqdefault` do YouTube já trazem preto dentro da imagem; um
+ * simples `contentFit="cover"` não o consegue recortar. Tentam-se as fontes
+ * 16:9 grandes e, se não existirem, a versão pequena sem essa moldura.
+ */
+function CapaDoCarro({ uri, lado }: { uri: string; lado: number }) {
+  const fontes = React.useMemo(() => urlsDaCapaQuadrada(uri), [uri]);
+  const [indice, setIndice] = React.useState(0);
+  React.useEffect(() => setIndice(0), [uri]);
+  const fonte = fontes[Math.min(indice, Math.max(0, fontes.length - 1))];
+  return (
+    <Image
+      source={{ uri: fonte }}
+      style={{ width: lado, height: lado, borderRadius: radii.lg }}
+      contentFit="cover"
+      transition={200}
+      onError={() => setIndice((i) => Math.min(i + 1, fontes.length - 1))}
+    />
   );
 }
 

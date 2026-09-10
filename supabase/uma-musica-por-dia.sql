@@ -11,9 +11,9 @@
 -- e um feed, e um feed le-se na diagonal.
 --
 -- O limite nao vive no cliente: e a CHAVE PRIMARIA (user_id, dia). Nao ha
--- contagem para correr nem estado para manter -- a segunda escolha do dia
--- substitui a primeira, e isso e de proposito: mudar de ideias antes da meia-
--- noite e diferente de publicar duas.
+-- contagem para correr nem estado para manter. A primeira escolha fica: a
+-- raridade de uma por dia perde-se se o mesmo botao servir para a trocar sem
+-- limite.
 --
 -- ---------------------------------------------------------------------------
 -- E NAO E UMA OBRIGACAO
@@ -39,11 +39,16 @@ create table if not exists public.daily_picks (
 
 alter table public.daily_picks enable row level security;
 
--- A minha, escrevo eu. Ninguem escreve pelos outros.
+-- A minha, leio e insiro eu. Não há update nem delete: a primeira escolha do
+-- dia fica até amanhã, inclusive contra um segundo cliente aberto ao mesmo
+-- tempo.
 drop policy if exists "escolha do dia: a minha" on public.daily_picks;
-create policy "escolha do dia: a minha" on public.daily_picks
-  for all to authenticated
-  using (user_id = auth.uid()) with check (user_id = auth.uid());
+drop policy if exists "escolha do dia: ler a minha" on public.daily_picks;
+drop policy if exists "escolha do dia: inserir a minha" on public.daily_picks;
+create policy "escolha do dia: ler a minha" on public.daily_picks
+  for select to authenticated using (user_id = auth.uid());
+create policy "escolha do dia: inserir a minha" on public.daily_picks
+  for insert to authenticated with check (user_id = auth.uid());
 
 -- E leem-se as dos amigos. So amizade ACEITE -- nao ha aqui um feed publico.
 drop policy if exists "escolha do dia: as dos amigos" on public.daily_picks;
@@ -57,13 +62,14 @@ create policy "escolha do dia: as dos amigos" on public.daily_picks
   ));
 
 revoke all on table public.daily_picks from anon;
-grant select, insert, update, delete on table public.daily_picks to authenticated;
+revoke update, delete on table public.daily_picks from authenticated;
+grant select, insert on table public.daily_picks to authenticated;
 
 -- A lista le-se por dia, e quase sempre so o de hoje.
 create index if not exists daily_picks_dia_idx on public.daily_picks (dia desc);
 
 -- ---------------------------------------------------------------------------
--- Publicar a minha. Substitui a de hoje se ja houver uma.
+-- Publicar a minha. A primeira do dia fica ate amanha.
 -- ---------------------------------------------------------------------------
 create or replace function public.escolher_do_dia(p_track jsonb, p_nota text default null)
 returns date
@@ -75,8 +81,10 @@ begin
   if uid is null then raise exception 'Sessão necessária' using errcode = '42501'; end if;
   insert into public.daily_picks (user_id, dia, track, nota)
   values (uid, hoje, public.faixa_valida(p_track), nullif(btrim(coalesce(p_nota, '')), ''))
-  on conflict (user_id, dia) do update
-    set track = excluded.track, nota = excluded.nota, created_at = clock_timestamp();
+  on conflict (user_id, dia) do nothing;
+  if not found then
+    raise exception 'Já escolheste a música de hoje' using errcode = '23505';
+  end if;
   return hoje;
 end;
 $$;

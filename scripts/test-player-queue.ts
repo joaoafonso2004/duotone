@@ -1,6 +1,7 @@
 import {
   prazoDoTemporizador,
   restanteDoTemporizador,
+  colocarASeguir,
   saltoAposFalha,
   sessaoParaGuardar,
   substituicaoDe,
@@ -28,6 +29,16 @@ const base = (extra: Partial<EstadoDaFila> = {}): EstadoDaFila => ({
   current: fila3[0], queue: fila3, queueIndex: 0,
   shuffle: false, repeatMode: 'off', shuffleOrder: [], ...extra,
 });
+
+console.log('\ntocar a seguir');
+const proxima = colocarASeguir(base(), yt('x'), chave);
+check('uma faixa nova fica logo depois da actual', proxima.queue.map(chave).join() === 'youtube:a,youtube:x,youtube:b,youtube:c');
+const movida = colocarASeguir(base(), fila3[2], chave);
+check('uma faixa que ja estava na fila e movida, nao duplicada', movida.queue.map(chave).join() === 'youtube:a,youtube:c,youtube:b');
+const comShuffle = colocarASeguir(base({ shuffle: true, shuffleOrder: ['youtube:a', 'youtube:b', 'youtube:c'] }), yt('x'), chave);
+check('no shuffle tambem passa a ser a proxima do percurso', comShuffle.shuffleOrder.join() === 'youtube:a,youtube:x,youtube:b,youtube:c');
+const shuffleMovido = colocarASeguir(base({ shuffle: true, shuffleOrder: ['youtube:a', 'youtube:b', 'youtube:c'] }), fila3[2], chave);
+check('no shuffle uma existente muda de lugar sem se repetir', shuffleMovido.shuffleOrder.join() === 'youtube:a,youtube:c,youtube:b');
 
 console.log('\nsubstituir por uma copia que toca');
 const sub = substituicaoDe(

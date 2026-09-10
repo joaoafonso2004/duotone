@@ -1,5 +1,5 @@
 import { CapaReactiva } from './CapaReactiva';
-import { escolherDoDia } from '../api/escolhaDoDia';
+import { EscolhaDoDiaJaFeita, escolherDoDia, lerEscolhasDoDia } from '../api/escolhaDoDia';
 import { ModoCarro } from './ModoCarro';
 import { useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
@@ -196,6 +196,7 @@ export function PlayerRoot() {
 
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
+  const [jaEscolheuHoje, setJaEscolheuHoje] = useState(false);
   const sleepTimerTimeLeft = usePlayer((st) => st.sleepTimerTimeLeft);
   const setSleepTimer = usePlayer((st) => st.setSleepTimer);
   const ancoraDasOpcoes = useRef<View>(null);
@@ -211,6 +212,9 @@ export function PlayerRoot() {
   const abrirOpcoes = () => {
     hapticSelection();
     setPaginaDoMenu('raiz');
+    if (!offline) {
+      void lerEscolhasDoDia().then((e) => setJaEscolheuHoje(e.some((x) => x.souEu)));
+    }
     // Medido no ECRÃ, que é onde o menu se vai colocar. Se a medição falhar
     // não se abre nada: um menu no canto superior esquerdo, longe do botão
     // que se tocou, seria pior do que menu nenhum.
@@ -838,14 +842,22 @@ export function PlayerRoot() {
     } },
     /* Uma musica por dia. Aqui e nao numa folha propria porque escolher e um
        gesto sobre o que se esta a OUVIR -- e o que se esta a ouvir e isto. */
-    { label: 'Make this today’s pick', icon: 'today-outline', onPress: () => {
+    { label: jaEscolheuHoje ? 'Today’s pick is set' : 'Make this today’s pick', icon: jaEscolheuHoje ? 'checkmark-circle' : 'today-outline',
+      disabled: jaEscolheuHoje, onPress: () => {
       if (offline) { Alert.alert('Offline', 'Connect to the internet to pick a song.'); return; }
       const faixa = current;
       if (!faixa) return;
       fecharEEntao(() => {
         void escolherDoDia(faixa)
-          .then(() => hapticNotification())
-          .catch(() => Alert.alert('Could not pick', 'Please try again in a moment.'));
+          .then(() => { setJaEscolheuHoje(true); hapticNotification(); })
+          .catch((e) => {
+            if (e instanceof EscolhaDoDiaJaFeita) {
+              setJaEscolheuHoje(true);
+              Alert.alert('Already picked', 'Your song for today is already set.');
+              return;
+            }
+            Alert.alert('Could not pick', 'Please try again in a moment.');
+          });
       });
     } },
     { label: 'Share with a friend', icon: 'paper-plane-outline', onPress: () => {

@@ -65,7 +65,7 @@ verificar('o id e estavel, para a navegacao o poder guardar', () => {
 });
 
 verificar('o nome diz o que e sem rodeios', () => {
-  assert.equal(misturaSemEdicao(muitas(MINIMO, true), rara, chave)[0].nome, 'Not on Spotify');
+  assert.equal(misturaSemEdicao(muitas(MINIMO, true), rara, chave)[0].nome, 'Rare finds');
 });
 
 console.log(falhas === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${falhas} falha(s).\n`);

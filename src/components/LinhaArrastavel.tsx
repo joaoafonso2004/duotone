@@ -41,7 +41,7 @@ export function LinhaArrastavel({
   altura: number;
   dy: Animated.Value;
   /** O dedo mexeu-se e o arrasto arrancou mesmo. */
-  aoPegar: () => void;
+  aoPegar: (dedoY: number) => void;
   /**
    * A cada movimento: o deslocamento do gesto e a posição ABSOLUTA do dedo.
    *
@@ -76,7 +76,7 @@ export function LinhaArrastavel({
         // simples, que toca a música.
         onMoveShouldSetPanResponder: () => activoRef.current,
         onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: () => pegarRef.current(),
+        onPanResponderGrant: (e) => pegarRef.current(e.nativeEvent.pageY),
         onPanResponderMove: (_e, g) => {
           if (activoRef.current) moverRef.current(g.dy, g.moveY);
         },

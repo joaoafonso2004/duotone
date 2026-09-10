@@ -53,8 +53,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
    * diferenca que so existe no titulo da prateleira. E a mesma separacao que o
    * `SearchScreen` do telemovel faz.
    */
-  const { raras, estilos, radios, generos, decadas, playlists } = useMemo(() => ({
-    raras: recs.misturas.filter((m) => m.id.startsWith('raras:')),
+  const { estilos, radios, generos, decadas, playlists } = useMemo(() => ({
     estilos: recs.misturas.filter((m) => m.id.startsWith('estilo:')),
     radios: recs.misturas.filter((m) => m.id.startsWith('radio:')),
     generos: recs.misturas.filter((m) => m.id.startsWith('genero:')),
@@ -100,7 +99,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
           <Shelf titulo="Discover weekly" nota="music you don't have yet, based on what you listen to. The same list all week." tracks={descobrir} onPlay={play} onMore={more} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
-          <Shelf titulo="Never released" nota="what your artists never put out" tracks={nuncaLancado} onPlay={play} onMore={more} />
+          <Shelf titulo="Rare finds" nota="music from your artists that you have not saved yet" tracks={nuncaLancado} onPlay={play} onMore={more} />
           {/* AS MISTURAS QUE A APP MONTA. Quatro familias, e a diferenca esta
               toda no titulo -- que e o que elas tem de diferente:
                 Your styles -> artistas teus que partilham vizinhos
@@ -109,7 +108,6 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
                 Decades     -> a TUA musica daquela era, nao musica nova dela
                 Playlists   -> a tua biblioteca com descobertas pelo meio
               Ver `lib/estilos.ts`, `radiosDeArtista` e `lib/decadas.ts`. */}
-          <PrateleiraDeMisturas titulo="Rare finds" nota="not on Spotify, or anywhere else" misturas={raras} aoAbrir={abrirMistura} />
           <PrateleiraDeMisturas titulo="Your styles" misturas={estilos} aoAbrir={abrirMistura} />
           <PrateleiraDeMisturas titulo="Radio" nota="three new tracks for every one of yours" misturas={radios} aoAbrir={abrirMistura} />
           <PrateleiraDeMisturas titulo="Your genres" nota="your library, by genre" misturas={generos} aoAbrir={abrirMistura} />

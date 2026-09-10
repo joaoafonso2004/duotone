@@ -1,7 +1,22 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// O clique pode chegar enquanto a página ainda está no login. Guardá-lo aqui
+// faz com que não se perca antes de o React montar o listener depois do login.
+const juncoesPendentes = [];
+const listenersDeJuncao = new Set();
+ipcRenderer.on('discord:juntar', (_event, secret) => {
+  if (typeof secret !== 'string') return;
+  if (!listenersDeJuncao.size) {
+    juncoesPendentes.push(secret);
+    if (juncoesPendentes.length > 3) juncoesPendentes.shift();
+    return;
+  }
+  for (const listener of listenersDeJuncao) listener(secret);
+});
+
 contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   platform: process.platform,
+  discordApplicationId: '1547625164328538133',
   getStartup: () => ipcRenderer.invoke('startup:get'),
   setStartup: (enabled, mode) => ipcRenderer.invoke('startup:set', enabled, mode),
   notifyMessage: (message) => ipcRenderer.send('notification:message', message),
@@ -40,6 +55,12 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
    * no id desliga. Devolve se o Discord esta do outro lado -- fechado e o caso
    * normal, e devolve false sem estragar nada. */
   definirPresencaNoDiscord: (clientId, actividade) => ipcRenderer.invoke('discord:presenca', clientId, actividade),
+  /** Recebe o segredo quando alguém aceita "Juntar-se" no Discord. */
+  onDiscordJoin: (listener) => {
+    listenersDeJuncao.add(listener);
+    while (juncoesPendentes.length) listener(juncoesPendentes.shift());
+    return () => listenersDeJuncao.delete(listener);
+  },
   showContextMenu: (items) => ipcRenderer.send('context-menu', items),
   onContextMenuSelection: (listener) => {
     const handler = (_event, id) => listener(String(id));

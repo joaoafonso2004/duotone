@@ -15,6 +15,8 @@ declare global {
   interface Window {
     duotoneDesktop?: {
       platform: string;
+      /** Id público da aplicação oficial Duotone no Discord. */
+      discordApplicationId?: string;
       getStartup?: () => Promise<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean }>;
       setStartup?: (enabled: boolean, mode: 'window' | 'tray') => Promise<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean }>;
       notifyMessage?: (message: { id: string; title: string; body: string;friendId?:string;groupId?:string }) => void;
@@ -31,6 +33,8 @@ declare global {
         clientId: string | null,
         actividade: Record<string, unknown> | null,
       ) => Promise<boolean>;
+      /** Entrega o segredo de um clique no botão nativo "Juntar-se". */
+      onDiscordJoin?: (listener: (secret: string) => void) => () => void;
       minimize(): void;
       toggleMaximize(): void;
       close(): void;

@@ -5,9 +5,9 @@ import type { Track } from '../types';
  * Uma música por dia: a tua e as dos teus amigos.
  *
  * O limite de uma não vive aqui -- é a chave primária da tabela. Não há
- * contagem para correr nem estado para manter, e a segunda escolha do dia
- * substitui a primeira: mudar de ideias antes da meia-noite é diferente de
- * publicar duas. Ver `supabase/uma-musica-por-dia.sql`.
+ * contagem para correr nem estado para manter. A primeira escolha fica até ao
+ * dia seguinte: "uma por dia" deixa de parecer um botão que se pode carregar
+ * vezes sem conta. Ver `supabase/uma-musica-por-dia.sql`.
  */
 
 export type EscolhaDoDia = {
@@ -22,6 +22,14 @@ export type EscolhaDoDia = {
 };
 
 const texto = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null);
+
+const ouvintes = new Set<() => void>();
+
+/** A vista diária actualiza-se no instante em que a escolha é feita no leitor. */
+export function subscreverEscolhasDoDia(ouvinte: () => void): () => void {
+  ouvintes.add(ouvinte);
+  return () => ouvintes.delete(ouvinte);
+}
 
 function faixa(v: any): Track | null {
   if (!v || typeof v !== 'object') return null;
@@ -58,10 +66,25 @@ export async function lerEscolhasDoDia(): Promise<EscolhaDoDia[]> {
   }
 }
 
-/** Publica a minha de hoje. Substitui a anterior, se houver. */
+export class EscolhaDoDiaJaFeita extends Error {
+  constructor() { super('You already picked today’s song.'); }
+}
+
+/** Publica a minha de hoje. A primeira escolha do dia é definitiva. */
 export async function escolherDoDia(track: Track, nota?: string): Promise<void> {
+  // Feedback imediato mesmo antes de a migração nova estar aplicada no
+  // servidor. A restrição verdadeira continua no SQL, para duas janelas ao
+  // mesmo tempo não conseguirem substituir a escolha uma da outra.
+  const hoje = await lerEscolhasDoDia();
+  if (hoje.some((e) => e.souEu)) throw new EscolhaDoDiaJaFeita();
   const { error } = await supabase.rpc('escolher_do_dia', {
     p_track: track, p_nota: nota?.slice(0, 140) ?? null,
   });
-  if (error) throw error;
+  if (error) {
+    if (error.code === '23505' || /já escolheste|already picked/i.test(error.message ?? '')) {
+      throw new EscolhaDoDiaJaFeita();
+    }
+    throw error;
+  }
+  for (const ouvir of ouvintes) ouvir();
 }

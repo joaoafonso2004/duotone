@@ -18,6 +18,7 @@ import { Image, PanResponder, Pressable, ScrollView, Text, View } from 'react-na
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { useAuth } from '../state/auth';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
@@ -229,8 +230,9 @@ export function NavItem({ label, icon, active, badge, onPress }: { label: string
   return <P className="nav-item-animate" onPress={onPress} style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : desktop.muted} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', marginRight: 4 }} />}</P>;
 }
 
-export function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSaved: boolean; toggleSaveCurrent: () => void }) {
+export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam }: { currentIsSaved: boolean; toggleSaveCurrent: () => void; onJam: () => void }) {
   const p = usePlayer(); const ratio = p.durationMs ? Math.min(1, p.positionMs / p.durationMs) : 0;
+  const jam = useOuvirJuntos((s) => s.sessao);
   const [dragX,setDragX]=useState(0);
   const swipeWidth=useRef(360),swiping=useRef(false);
   const reducedMotion=useReducedMotion();
@@ -340,6 +342,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent }: { currentIsSave
     </View>
     <View style={styles.playerRight}>
       {p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}
+      <IconButton name={jam ? 'people' : 'people-outline'} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam} />
       <V style={styles.volumeRow} className="slider-container"><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={alternarSilencio} accessibilityRole="button" accessibilityLabel={p.volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${p.volume}%` }} /></P></V>
       <IconButton name="close" label="Close player" onPress={()=>void closePlayerSmoothly()} />
     </View>

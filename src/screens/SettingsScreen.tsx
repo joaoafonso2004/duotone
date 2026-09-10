@@ -1,6 +1,5 @@
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
-import { getCarroMantemEcra, getVelocidadeMantemTom, setCarroMantemEcra, setVelocidadeMantemTom } from '../lib/prefs';
-import { definirTomDaVelocidade } from '../../modules/duotone-audio';
+import { getCarroMantemEcra, setCarroMantemEcra } from '../lib/prefs';
 import { useNotifications } from '../state/notifications';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
 import { useOfflineMode } from '../hooks/useOfflineMode';
@@ -66,17 +65,10 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 export function SettingsScreen({ navigation }: Props) {
   const offline=useOfflineMode();
   const coverMode = useCapaIOS(s => s.mode);
-  const [mantemTom, setMantemTom] = useState(false);
   const [carroMantemEcra, setCarroMantemEcraState] = useState(true);
   useEffect(() => {
     let vivo = true;
     void getCarroMantemEcra().then((v) => { if (vivo) setCarroMantemEcraState(v); }).catch(() => {});
-    return () => { vivo = false; };
-  }, []);
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    let vivo = true;
-    void getVelocidadeMantemTom().then((v) => { if (vivo) setMantemTom(v); }).catch(() => {});
     return () => { vivo = false; };
   }, []);
   useEffect(() => { if (Platform.OS === 'ios') void loadCapaIOS(); }, []);
@@ -530,21 +522,6 @@ export function SettingsScreen({ navigation }: Props) {
               This is separate from “Keep screen on” above.
             </Text>
           </Section>
-
-          {Platform.OS === 'ios' && <Section title="Playback speed">
-            <ToggleRow label="Keep the pitch when changing speed" value={mantemTom}
-              onChange={(v) => {
-                setMantemTom(v);
-                void setVelocidadeMantemTom(v).catch(() => {});
-                definirTomDaVelocidade(v);
-              }} />
-            <Text style={[type.caption, { marginTop: spacing.sm }]}>
-              Off, the song sounds like a tape slowed down or sped up — and the audio
-              cuts for a moment each time you move the speed slider. On, the pitch
-              stays put and the sound is continuous, at the cost of some artefacts
-              at the slowest and fastest settings.
-            </Text>
-          </Section>}
 
           {Platform.OS === 'ios' && <Section title="Artwork effect">
             <SegmentedControl options={['Reactive', 'Static', 'Off']} value={['reactive', 'static', 'off'].indexOf(coverMode)}

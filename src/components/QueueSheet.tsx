@@ -99,9 +99,14 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
   const molduraRef = React.useRef<View | null>(null);
   /** Onde a lista começa e acaba NO ECRÃ. O dedo vem em coordenadas de ecrã. */
   const limites = React.useRef({ topo: 0, fundo: 0 });
+  const alturaVisivel = React.useRef(0);
+  const alturaDoConteudo = React.useRef(0);
   const offset = React.useRef(0);
   const offsetAoPegar = React.useRef(0);
-  const gesto = React.useRef({ dy: 0, dedoY: 0 });
+  // `NaN` quer dizer que a linha foi escolhida pelo toque longo, mas ainda
+  // não começou a ser arrastada. Antes começava em zero, que é sempre acima
+  // da lista, e o auto-scroll puxava-a imediatamente para cima sozinho.
+  const gesto = React.useRef({ dy: 0, dedoY: Number.NaN });
 
   /** Quanto a lista correu por baixo do dedo desde que ele pegou na linha. */
   const deslizou = () => offset.current - offsetAoPegar.current;
@@ -124,7 +129,9 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
     const passo = setInterval(() => {
       const v = velocidadeDoDeslize(gesto.current.dedoY, limites.current.topo, limites.current.fundo);
       if (v === 0) return;
-      const novo = Math.max(0, offset.current + v);
+      const maximo = Math.max(0, alturaDoConteudo.current - alturaVisivel.current);
+      const novo = Math.max(0, Math.min(maximo, offset.current + v));
+      if (novo === offset.current) return;
       offset.current = novo;
       listaRef.current?.scrollToOffset({ offset: novo, animated: false });
       escreverDy();
@@ -149,6 +156,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
     // O que a lista correu conta tanto como o que o dedo andou: sem isto a
     // música aterra onde o dedo está no ecrã, e não onde ela parece estar.
     const percorrido = dyFinal + deslizou();
+    gesto.current = { dy: 0, dedoY: Number.NaN };
     setArrastar(null);
     dy.setValue(0);
     const para = destinoDoArrasto(de, percorrido, altura, upNext.length);
@@ -247,8 +255,9 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
           // `PanResponder` diz onde o dedo está. Um `onLayout` sozinho dava a
           // posição dentro do pai, que aqui não serve de nada.
           onLayout={() => {
-            molduraRef.current?.measureInWindow((_x, y, _l, altura) => {
-              limites.current = { topo: y, fundo: y + altura };
+            molduraRef.current?.measureInWindow((_x, y, _l, h) => {
+              alturaVisivel.current = h;
+              limites.current = { topo: y, fundo: y + h };
             });
           }}
         >
@@ -263,6 +272,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
           scrollEnabled={arrastar === null}
           scrollEventThrottle={16}
           onScroll={(e) => { offset.current = e.nativeEvent.contentOffset.y; }}
+          onContentSizeChange={(_w, h) => { alturaDoConteudo.current = h; }}
           contentContainerStyle={{ paddingBottom: 40 }}
           renderItem={({ item: entry, index }) => {
             const item = entry.track;
@@ -274,9 +284,10 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
                 arrastarIndex={arrastar}
                 altura={altura}
                 dy={dy}
-                aoPegar={() => {
+                aoPegar={(dedoY) => {
                   pegou.current = true;
                   offsetAoPegar.current = offset.current;
+                  gesto.current = { dy: 0, dedoY };
                 }}
                 aoMover={(d, dedoY) => {
                   gesto.current = { dy: d, dedoY };
@@ -309,7 +320,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
                       hapticSelection();
                       dy.setValue(0);
                       pegou.current = false;
-                      gesto.current = { dy: 0, dedoY: 0 };
+                      gesto.current = { dy: 0, dedoY: Number.NaN };
                       offsetAoPegar.current = offset.current;
                       setArrastar(index);
                     } : undefined}

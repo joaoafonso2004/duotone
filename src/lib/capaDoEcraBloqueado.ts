@@ -42,6 +42,26 @@ export function capaParaLista(artworkUrl: string | null | undefined): string | n
   return `https://i.ytimg.com/vi/${m[1]}/mqdefault.jpg`;
 }
 
+/**
+ * Fontes para uma capa QUADRADA grande, sem a moldura preta do `hqdefault`.
+ *
+ * O modo carro precisa de mais resolução do que uma linha de lista, portanto
+ * tenta primeiro as miniaturas 16:9 grandes. Se o vídeo não tiver nenhuma,
+ * cai no `mqdefault`: é menor, mas não volta a introduzir as barras pretas que
+ * esta função existe para retirar.
+ */
+export function urlsDaCapaQuadrada(artworkUrl: string | null | undefined): string[] {
+  if (!artworkUrl) return [];
+  const m = YTIMG_RE.exec(artworkUrl);
+  if (!m) return [artworkUrl];
+  const id = m[1];
+  return [
+    `https://i.ytimg.com/vi/${id}/maxresdefault.jpg`,
+    `https://i.ytimg.com/vi/${id}/hq720.jpg`,
+    `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
+  ];
+}
+
 export function urlsDaCapa(artworkUrl: string | null | undefined): string[] {
   if (!artworkUrl) return [];
   const m = YTIMG_RE.exec(artworkUrl);

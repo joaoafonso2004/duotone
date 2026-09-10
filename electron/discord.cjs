@@ -45,6 +45,8 @@ const OP_PONG = 4;
  * rede de segurança.
  */
 const INTERVALO_MS = 15_000;
+/** A aplicação oficial da Duotone no portal do Discord. É um id público. */
+const DISCORD_APP_ID = '1547625164328538133';
 
 function caminhoDoSocket(n) {
   if (process.platform === 'win32') return `\\\\?\\pipe\\discord-ipc-${n}`;
@@ -69,6 +71,7 @@ class LigacaoAoDiscord {
     this.ultimoEnvio = 0;
     this.porEnviar = null;
     this.relogio = null;
+    this.aoJuntar = null;
   }
 
   /** Liga, ou devolve a ligação que já está a ser feita. */
@@ -146,8 +149,20 @@ class LigacaoAoDiscord {
               clearTimeout(desistir);
               this.socket = socket;
               this.pronta = true;
+              // O segredo de uma actividade não chega sozinho: o cliente tem
+              // de subscrever explicitamente o evento de Join depois do READY.
+              socket.write(moldar(OP_FRAME, {
+                cmd: 'SUBSCRIBE', evt: 'ACTIVITY_JOIN', nonce: `${Date.now()}-join`,
+              }));
               acabar(true);
               if (this.porEnviar) this.despachar();
+            } else if (
+              mensagem.cmd === 'DISPATCH'
+              && mensagem.evt === 'ACTIVITY_JOIN'
+              && typeof mensagem.data?.secret === 'string'
+            ) {
+              // Um callback defeituoso nunca pode derrubar o leitor nem o pipe.
+              try { this.aoJuntar?.(mensagem.data.secret); } catch { /* renderer indisponível */ }
             }
           } catch {
             // Uma mensagem que não se percebe não derruba a ligação.
@@ -216,4 +231,19 @@ async function definirPresenca(clientId, actividade) {
   return true;
 }
 
-module.exports = { definirPresenca, fecharDiscord: () => ligacao.fechar() };
+/** Abre só a ligação/subscrição, sem publicar o que a pessoa está a ouvir. */
+async function prepararDiscord(clientId = DISCORD_APP_ID) {
+  return ligacao.ligar(clientId);
+}
+
+function ouvirJuncao(listener) {
+  ligacao.aoJuntar = typeof listener === 'function' ? listener : null;
+}
+
+module.exports = {
+  DISCORD_APP_ID,
+  definirPresenca,
+  prepararDiscord,
+  ouvirJuncao,
+  fecharDiscord: () => ligacao.fechar(),
+};

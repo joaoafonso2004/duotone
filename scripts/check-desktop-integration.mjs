@@ -12,6 +12,8 @@ let janela;
 const avisos = [];
 const externos = [];
 const captura = {};
+let aoJuntarDiscord = null;
+let preparacoesDiscord = 0;
 class Janela extends EventEmitter {
   constructor(options) {
     super(); janela = this;
@@ -22,6 +24,7 @@ class Janela extends EventEmitter {
     wc.send = (...args) => events.set('sent', args);
     wc.setWindowOpenHandler = (fn) => { wc.openHandler = fn; };
     wc.getURL = () => wc.url || '';
+    wc.isLoadingMainFrame = () => false;
     this.webContents = wc;
   }
   loadURL(url) { this.webContents.url = url; this.webContents.mainFrame.url = url; }
@@ -51,7 +54,11 @@ const contexto = vm.createContext({
   // duplo: esta verificacao e sobre a casca do Electron, e nao sobre o socket
   // do Discord, que tem os seus proprios testes.
   require: (id) => id === './discord.cjs' ? {
-    definirPresenca: () => Promise.resolve(false), fecharDiscord() {},
+    DISCORD_APP_ID: '1547625164328538133',
+    definirPresenca: () => Promise.resolve(false),
+    prepararDiscord: () => { preparacoesDiscord++; return Promise.resolve(true); },
+    ouvirJuncao: (listener) => { aoJuntarDiscord = listener; },
+    fecharDiscord() {},
   } : id === 'electron' ? electron : id === 'node:fs' ? {
     readFileSync: () => { if (!guardado) throw Error('Sem preferência'); return guardado; },
     writeFileSync: (_path, data) => { guardado = data; },
@@ -105,6 +112,10 @@ assert.equal(fonteCapturada.enableLocalEcho, true);
 const evento = () => ({ sender: janela.webContents, senderFrame: janela.webContents.mainFrame });
 janela.emit('ready-to-show');
 assert.equal(janela.visivel, false, 'O arranque automático no tabuleiro não abre a janela');
+aoJuntarDiscord('duotone-jam:123e4567-e89b-42d3-a456-426614174000');
+assert.deepEqual(events.get('sent'), ['discord:juntar', 'duotone-jam:123e4567-e89b-42d3-a456-426614174000']);
+events.get('second-instance')({}, ['C:/Duotone/Duotone.exe', 'discord-1547625164328538133://']);
+assert.equal(preparacoesDiscord, 1, 'Aceitar um convite volta a ligar o pipe do Discord');
 assert.equal(handlers.get('startup:get')(evento()).enabled, false);
 const ligado = handlers.get('startup:set')(evento(), true, 'window');
 assert.equal(ligado.enabled, true);

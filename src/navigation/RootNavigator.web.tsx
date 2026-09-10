@@ -47,7 +47,9 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
 import { usePresencaDoDiscord } from '../hooks/usePresencaDoDiscord';
-import { getDiscordAppId, getDiscordRichPresence } from '../lib/prefs';
+import { getDiscordRichPresence } from '../lib/prefs';
+import { sessaoDoSegredoDiscord } from '../lib/presencaDoDiscord';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePlaylists } from '../state/playlists';
 import { useTheme } from '../state/theme';
 import type { Playlist, Track } from '../types';
@@ -56,6 +58,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SocialPage } from '../desktop/paginas/SocialPage.web';
 
 import { SettingsPage } from '../desktop/paginas/SettingsPage.web';
+import { JanelaDoJam } from '../desktop/JanelaDoJam.web';
 
 import { ProfilePage, StatsPage } from '../desktop/paginas/ProfilePage.web';
 
@@ -97,6 +100,7 @@ function ThemeCssSync({panelOpacity}:{panelOpacity:number}) {
 function DesktopShell() {
   const [route, setRoute] = useState<Route>({ name: 'search' }); const history = useRef<Route[]>([]); const [toast, setToast] = useState('');
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
+  const [jamOpen, setJamOpen] = useState(false);
   const abrirSocial = useCallback((conversation?:{friendId?:string;groupId?:string}) => { setNowPlayingOpen(false); setRoute({ name: 'social',...conversation }); }, []);
   useDesktopNotifications(abrirSocial);
   /**
@@ -106,16 +110,42 @@ function DesktopShell() {
    * a musica continua com a app em qualquer seccao, e a presenca tem de a
    * acompanhar. As preferencias sao lidas uma vez e depois vem por evento,
    * como o modo do glitch -- as Definicoes sao outra pagina e esta fica montada.
-   */
+  */
   const [discordOn,setDiscordOn]=useState(false);
-  const [discordApp,setDiscordApp]=useState('');
+  const discordApp=window.duotoneDesktop?.discordApplicationId??'';
+  const discordUserId=useAuth((s)=>s.session?.user.id??null);
   useEffect(()=>{
-    void Promise.all([getDiscordRichPresence(),getDiscordAppId()]).then(([on,id])=>{setDiscordOn(on);setDiscordApp(id);});
-    const ouvir=(e:any)=>{setDiscordOn(!!e.detail?.on);setDiscordApp(String(e.detail?.appId??''));};
+    void getDiscordRichPresence().then(setDiscordOn);
+    const ouvir=(e:any)=>{setDiscordOn(!!e.detail?.on);};
     window.addEventListener('duotone:discord',ouvir);
     return ()=>window.removeEventListener('duotone:discord',ouvir);
   },[]);
   usePresencaDoDiscord(discordOn,discordApp);
+  useEffect(()=>{
+    const ouvir=window.duotoneDesktop?.onDiscordJoin;
+    if(!ouvir)return;
+    let aEntrar=false;
+    return ouvir((segredo)=>{
+      const sessao=sessaoDoSegredoDiscord(segredo);
+      if(!sessao){setToast('This Discord invite is not valid.');return;}
+      const actual=useOuvirJuntos.getState();
+      if(actual.sessao?.id===sessao){setToast('You are already in this Jam.');return;}
+      if(aEntrar)return;
+      aEntrar=true;
+      void (async()=>{
+        try{
+          // Um convite pode ter aberto a aplicação no ecrã de login. Quando o
+          // utilizador entra, a fila do preload entrega-o antes do efeito raiz
+          // ter tempo de ligar a store; garantimos aqui que ela já tem dono.
+          if(!useOuvirJuntos.getState().euId&&discordUserId)await useOuvirJuntos.getState().ligar(discordUserId);
+          await useOuvirJuntos.getState().juntarSe(sessao);
+          setToast('Joined the Jam from Discord.');
+        }catch{
+          setToast('Could not join this Jam. You must be Duotone friends and the Jam must still be open.');
+        }finally{aEntrar=false;}
+      })();
+    });
+  },[discordUserId]);
   const [trackMenu, setTrackMenu] = useState<Track | null>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
   const [recommendationTrack,setRecommendationTrack]=useState<Track|null>(null);
@@ -209,6 +239,21 @@ function DesktopShell() {
     setRoute(history.current.pop() || { name: 'playlists' });
   }, [nowPlayingOpen]);
   const notify = useCallback((s: string) => setToast(s), []);
+  const fecharJam = useCallback(() => setJamOpen(false), []);
+  const abrirJam = useCallback(async () => {
+    const juntos = useOuvirJuntos.getState();
+    if (!juntos.sessao) {
+      const track = usePlayer.getState().current;
+      if (!track) { notify('Play a song before starting a Jam.'); return; }
+      try {
+        await juntos.abrir(track, []);
+      } catch {
+        notify('Could not start the Jam. Check your connection and try again.');
+        return;
+      }
+    }
+    setJamOpen(true);
+  }, [notify]);
   const play = useCallback((track: Track, queue?: Track[]) => { usePlayer.getState().playTrack(track, queue); }, []);
 
   useEffect(() => {
@@ -466,7 +511,8 @@ function DesktopShell() {
   // Definicoes. Era `rgba(18,18,24)` a martelo, fora de qualquer paleta.
   const bgStyle = { backgroundColor: `rgba(12, 12, 16, ${panelOpacity})` };
 
-  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><View style={styles.main}><V style={[styles.sidebar, bgStyle]} className="glass-panel"><Sidebar route={route} navigate={navigate} /></V><V style={[styles.content, bgStyle]} className="glass-panel"><TransitionView transitionKey={JSON.stringify(route)}>{page}</TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></View>}</V></View><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} /><HandoffBanner />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><View style={styles.main}><V style={[styles.sidebar, bgStyle]} className="glass-panel"><Sidebar route={route} navigate={navigate} /></V><V style={[styles.content, bgStyle]} className="glass-panel"><TransitionView transitionKey={JSON.stringify(route)}>{page}</TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></View>}</V></View><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} /><HandoffBanner />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+    <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* CUSTOM ACTIONS DIALOG */}
     <Dialog open={trackMenuOpen} title="Track Actions" onClose={() => setTrackMenuOpen(false)}>

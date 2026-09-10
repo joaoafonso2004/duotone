@@ -4,6 +4,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import {
   presencaDaFaixa, presencaMudou, type ActividadeDoDiscord,
 } from '../lib/presencaDoDiscord';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePlayer } from '../state/player';
 
 /**
@@ -46,6 +47,10 @@ export function usePresencaDoDiscord(ligado: boolean, appId: string): void {
 
     const publicar = () => {
       const p = usePlayer.getState();
+      const juntos = useOuvirJuntos.getState();
+      const jam = juntos.sessao && !juntos.sessao.acabouEm
+        ? { sessao: juntos.sessao.id, membros: juntos.membros.length }
+        : null;
       const actividade = presencaDaFaixa(
         p.current,
         {
@@ -56,6 +61,7 @@ export function usePresencaDoDiscord(ligado: boolean, appId: string): void {
         },
         tituloDaFaixa,
         displayArtist,
+        jam,
       );
       if (!presencaMudou(ultima.current, actividade)) return;
       ultima.current = actividade;
@@ -63,9 +69,11 @@ export function usePresencaDoDiscord(ligado: boolean, appId: string): void {
     };
 
     publicar();
-    const parar = usePlayer.subscribe(publicar);
+    const pararPlayer = usePlayer.subscribe(publicar);
+    const pararJam = useOuvirJuntos.subscribe(publicar);
     return () => {
-      parar();
+      pararPlayer();
+      pararJam();
       // Ao sair, limpa. Fechar a app com a presença de pé deixava-a lá até o
       // Discord dar pela ligação morta.
       ultima.current = null;

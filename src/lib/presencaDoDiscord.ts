@@ -28,12 +28,15 @@ import type { Track } from '../types';
 
 /** A actividade tal como o Discord a quer. */
 export type ActividadeDoDiscord = {
-  /** 2 = "A ouvir". É o que põe o cabeçalho certo por cima do cartão. */
-  type: 2;
+  /** 2 = "A ouvir"; 0 = actividade jogável, exigida pelos convites nativos. */
+  type: 0 | 2;
   details: string;
   state?: string;
   assets?: { large_image?: string; large_text?: string };
   timestamps?: { start?: number; end?: number };
+  party?: { id: string; size: [number, number] };
+  secrets?: { join: string };
+  instance?: boolean;
   buttons?: { label: string; url: string }[];
 };
 
@@ -41,6 +44,28 @@ const MAX_TEXTO = 128;
 const MIN_TEXTO = 2;
 const MAX_IMAGEM = 300;
 const MAX_ETIQUETA = 32;
+const PREFIXO_JAM = 'duotone-jam:';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * O segredo que o Discord entrega a quem carrega em "Juntar-se".
+ *
+ * Não leva informação do utilizador nem da faixa: é apenas a chave da sala.
+ * A RPC `entrar_na_sessao` volta a confirmar no servidor que quem chegou é
+ * amigo do anfitrião, portanto conhecer este valor não contorna a privacidade
+ * do Jam.
+ */
+export function segredoDiscordDaSessao(sessao: string): string | null {
+  const id = sessao.trim();
+  return UUID.test(id) ? `${PREFIXO_JAM}${id.toLowerCase()}` : null;
+}
+
+/** Aceita apenas segredos desta versão da Duotone; lixo nunca chega à API. */
+export function sessaoDoSegredoDiscord(segredo: string): string | null {
+  if (!segredo.startsWith(PREFIXO_JAM)) return null;
+  const id = segredo.slice(PREFIXO_JAM.length);
+  return UUID.test(id) ? id.toLowerCase() : null;
+}
 
 /** Corta ao limite e devolve vazio se não sobrar o mínimo que o Discord exige. */
 function texto(valor: string | null | undefined): string {
@@ -67,6 +92,10 @@ export function presencaDaFaixa(
   },
   titulo: (t: Track) => string,
   artista: (t: Track) => string,
+  jam?: {
+    sessao: string;
+    membros: number;
+  } | null,
 ): ActividadeDoDiscord | null {
   if (!faixa) return null;
 
@@ -76,7 +105,11 @@ export function presencaDaFaixa(
   if (!nome) return null;
 
   const quem = artista(faixa);
-  const actividade: ActividadeDoDiscord = { type: 2, details: nome };
+  const segredo = jam ? segredoDiscordDaSessao(jam.sessao) : null;
+  // O Discord só expõe convites/join para actividades jogáveis. Fora de um
+  // Jam mantemos o cabeçalho correcto, "A ouvir Duotone"; dentro dele usamos
+  // Playing para ganhar o botão nativo que entrega o segredo da sala.
+  const actividade: ActividadeDoDiscord = { type: segredo ? 0 : 2, details: nome };
 
   // "Unknown artist" é o que o `displayArtist` devolve quando desiste. Mostrar
   // isso a um amigo não acrescenta nada.
@@ -101,8 +134,23 @@ export function presencaDaFaixa(
    */
   if (estado.aTocar && estado.duracaoMs && estado.duracaoMs > 0) {
     const posicao = Math.max(0, Math.min(estado.posicaoMs, estado.duracaoMs));
-    const inicio = Math.round(estado.agora - posicao);
-    actividade.timestamps = { start: inicio, end: inicio + Math.round(estado.duracaoMs) };
+    // A store e o JavaScript medem tempo em milissegundos, mas o RPC do
+    // Discord recebe Unix time em SEGUNDOS. Enviar Date.now() diretamente
+    // produz uma data dezenas de milhares de anos no futuro; o socket abre,
+    // mas o Discord recusa a atividade completa sem a mostrar no perfil.
+    const inicio = Math.floor((estado.agora - posicao) / 1000);
+    const fim = Math.ceil((estado.agora - posicao + estado.duracaoMs) / 1000);
+    actividade.timestamps = { start: inicio, end: fim };
+  }
+
+  if (segredo && jam) {
+    const presentes = Math.max(1, Math.floor(jam.membros));
+    // O Jam não tem lotação rígida. O Discord, porém, precisa de um máximo
+    // maior do que o tamanho actual para manter "Juntar-se" disponível.
+    const capacidade = Math.max(8, presentes + 1);
+    actividade.party = { id: jam.sessao.toLowerCase(), size: [presentes, capacidade] };
+    actividade.secrets = { join: segredo };
+    actividade.instance = true;
   }
 
   if (faixa.source === 'youtube' && faixa.sourceId) {

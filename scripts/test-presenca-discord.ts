@@ -1,6 +1,8 @@
 // A presenca do Discord, em Node puro.
 import assert from 'node:assert/strict';
-import { presencaDaFaixa, presencaMudou } from '../src/lib/presencaDoDiscord.ts';
+import {
+  presencaDaFaixa, presencaMudou, segredoDiscordDaSessao, sessaoDoSegredoDiscord,
+} from '../src/lib/presencaDoDiscord.ts';
 import type { Track } from '../src/types.ts';
 
 const f = (extra: Partial<Track> = {}): Track => ({
@@ -11,6 +13,7 @@ const f = (extra: Partial<Track> = {}): Track => ({
 const titulo = (t: Track) => t.title;
 const artista = (t: Track) => t.artist ?? 'Unknown artist';
 const aTocar = { aTocar: true, posicaoMs: 30_000, duracaoMs: 180_000, agora: 1_000_000 };
+const sessao = '123e4567-e89b-42d3-a456-426614174000';
 
 let falhas = 0;
 function verificar(nome: string, fn: () => void) {
@@ -41,10 +44,16 @@ verificar('capa http ou gigante nao entra, para nao deitar a presenca abaixo', (
 
 verificar('a tocar leva barra; em pausa NAO leva', () => {
   const tocando = presencaDaFaixa(f(), aTocar, titulo, artista)!;
-  assert.equal(tocando.timestamps?.start, 970_000, 'inicio = agora menos a posicao');
-  assert.equal(tocando.timestamps?.end, 1_150_000);
+  assert.equal(tocando.timestamps?.start, 970, 'o inicio vai para o Discord em segundos Unix');
+  assert.equal(tocando.timestamps?.end, 1_150, 'o fim vai para o Discord em segundos Unix');
   const parado = presencaDaFaixa(f(), { ...aTocar, aTocar: false }, titulo, artista)!;
   assert.equal(parado.timestamps, undefined, 'uma barra a andar com a musica parada e mentira');
+});
+
+verificar('Date.now nao pode virar uma data absurda no Discord', () => {
+  const agoraRealista = Date.UTC(2026, 8, 10, 16, 0, 0);
+  const p = presencaDaFaixa(f(), { ...aTocar, agora: agoraRealista }, titulo, artista)!;
+  assert.ok((p.timestamps?.start ?? Infinity) < 10_000_000_000, 'timestamp tem de estar em segundos, nao ms');
 });
 
 verificar('sem duracao conhecida tambem nao ha barra', () => {
@@ -55,6 +64,21 @@ verificar('sem duracao conhecida tambem nao ha barra', () => {
 verificar('o botao aponta para a faixa', () => {
   const p = presencaDaFaixa(f(), aTocar, titulo, artista)!;
   assert.deepEqual(p.buttons, [{ label: 'Listen on YouTube', url: 'https://www.youtube.com/watch?v=abc123' }]);
+});
+
+verificar('um Jam publica party e segredo para o botao nativo Juntar-se', () => {
+  const p = presencaDaFaixa(f(), aTocar, titulo, artista, { sessao, membros: 3 })!;
+  assert.equal(p.type, 0, 'o Discord so cria convites para uma actividade jogavel');
+  assert.deepEqual(p.party, { id: sessao, size: [3, 8] });
+  assert.deepEqual(p.secrets, { join: `duotone-jam:${sessao}` });
+  assert.equal(p.instance, true);
+});
+
+verificar('o segredo de Join e reversivel mas so aceita UUIDs da Duotone', () => {
+  const segredo = segredoDiscordDaSessao(sessao)!;
+  assert.equal(sessaoDoSegredoDiscord(segredo), sessao);
+  assert.equal(segredoDiscordDaSessao('nao-e-uma-sessao'), null);
+  assert.equal(sessaoDoSegredoDiscord('outra-app:' + sessao), null);
 });
 
 verificar('"Unknown artist" nao se mostra a ninguem', () => {

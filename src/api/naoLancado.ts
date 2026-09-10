@@ -110,6 +110,7 @@ export async function nuncaLancadas(
 
   const saida: Track[] = [];
   const vistas = new Set<string>();
+  const guardadas = new Set(biblioteca.map((t) => `${t.source}:${t.sourceId}`));
   for (let i = 0; i < pedidos.length && saida.length < limite; i += EM_PARALELO) {
     const lote = pedidos.slice(i, i + EM_PARALELO);
     const achadas = await Promise.all(lote.map(({ artista, faixa }) => procurarNoYouTube(
@@ -119,7 +120,7 @@ export async function nuncaLancadas(
       (candidato) => aceitarDoYouTube(faixa, candidato),
     ).catch(() => null)));
     for (const t of achadas) {
-      if (!t || vistas.has(t.sourceId)) continue;
+      if (!t || guardadas.has(`${t.source}:${t.sourceId}`) || vistas.has(t.sourceId)) continue;
       vistas.add(t.sourceId);
       saida.push(t);
       if (saida.length >= limite) break;

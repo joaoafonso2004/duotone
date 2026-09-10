@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { urlsDaCapa, capaParaLista } from '../src/lib/capaDoEcraBloqueado.ts';
+import { urlsDaCapa, urlsDaCapaQuadrada, capaParaLista } from '../src/lib/capaDoEcraBloqueado.ts';
 
 // Thumbnail do YouTube: sobe de resolução e mantém o original como rede.
 const hq = 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg';
@@ -56,3 +56,14 @@ console.log('Capa do Lock Screen: subida de resolução, deduplicação, fontes 
   listaOk(undefined, null);
   console.log('Capa das listas: sem barras, e o que não é do YouTube fica igual.');
 }
+
+// O modo carro precisa de uma fonte grande, mas nunca pode voltar ao
+// hqdefault com a moldura preta dentro do próprio bitmap.
+assert.deepEqual(urlsDaCapaQuadrada(hq), [
+  'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg',
+  'https://i.ytimg.com/vi/dQw4w9WgXcQ/hq720.jpg',
+  'https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg',
+]);
+assert.deepEqual(urlsDaCapaQuadrada(outra), [outra]);
+assert.deepEqual(urlsDaCapaQuadrada(null), []);
+console.log('Capa do modo carro: fontes grandes e fallback sem moldura passaram.');

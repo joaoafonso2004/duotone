@@ -35,6 +35,57 @@ export type EstadoDaFila = {
   shuffleOrder: string[];
 };
 
+// ------------------------------------------------------------ tocar a seguir --
+
+/**
+ * Põe uma faixa imediatamente depois da actual — na fila E no percurso do
+ * shuffle.
+ *
+ * Se ela já estiver por tocar, move-se em vez de criar outra cópia. Era a
+ * diferença entre o primeiro toque parecer não fazer nada e o segundo deixar
+ * uma cópia perdida mais abaixo. Com shuffle, inserir só no array também não
+ * chegava: quem manda no próximo salto é `shuffleOrder`.
+ */
+export function colocarASeguir(
+  estado: Pick<EstadoDaFila, 'queue' | 'queueIndex' | 'shuffle' | 'shuffleOrder'>,
+  faixa: Track,
+  chave: (t: Track) => string,
+): Pick<EstadoDaFila, 'queue' | 'queueIndex' | 'shuffleOrder'> {
+  if (estado.queue.length === 0) {
+    return { queue: [faixa], queueIndex: 0, shuffleOrder: estado.shuffle ? [chave(faixa)] : [] };
+  }
+
+  let queueIndex = Math.max(0, Math.min(estado.queueIndex, estado.queue.length - 1));
+  const queue = estado.queue.slice();
+  const escolhida = chave(faixa);
+  const actual = chave(queue[queueIndex]!);
+
+  // A própria faixa pode ser pedida outra vez no modo normal. No shuffle as
+  // chaves são únicas, por isso deixá-la onde está é a única resposta honesta.
+  if (escolhida === actual && estado.shuffle) {
+    return { queue, queueIndex, shuffleOrder: estado.shuffleOrder };
+  }
+
+  const existente = queue.findIndex((t, i) => i !== queueIndex && chave(t) === escolhida);
+  if (existente >= 0) {
+    queue.splice(existente, 1);
+    if (existente < queueIndex) queueIndex--;
+  }
+  queue.splice(queueIndex + 1, 0, faixa);
+
+  if (!estado.shuffle) return { queue, queueIndex, shuffleOrder: [] };
+
+  // A ordem chega já materializada pela store. Retira a posição antiga da
+  // escolhida e enfia-a exactamente depois da actual.
+  const semEscolhida = estado.shuffleOrder.filter((k) => k !== escolhida);
+  const ondeEstaActual = semEscolhida.indexOf(actual);
+  const posicao = ondeEstaActual >= 0 ? ondeEstaActual + 1 : 0;
+  const shuffleOrder = [
+    ...semEscolhida.slice(0, posicao), escolhida, ...semEscolhida.slice(posicao),
+  ];
+  return { queue, queueIndex, shuffleOrder };
+}
+
 // ------------------------------------------------------- copia alternativa --
 
 export type Substituicao = {

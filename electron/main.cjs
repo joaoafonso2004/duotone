@@ -1,5 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell, Tray, globalShortcut, Notification } = require('electron');
-const { definirPresenca, fecharDiscord } = require('./discord.cjs');
+const {
+  DISCORD_APP_ID, definirPresenca, prepararDiscord, ouvirJuncao, fecharDiscord,
+} = require('./discord.cjs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
@@ -7,15 +9,44 @@ const isDev = !app.isPackaged;
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
+let juncoesDoDiscordPendentes = [];
+
+const ESQUEMA_DISCORD = `discord-${DISCORD_APP_ID}`;
+function veioDoDiscord(argumentos) {
+  return argumentos.some((arg) => typeof arg === 'string' && arg.toLowerCase().startsWith(`${ESQUEMA_DISCORD}://`));
+}
+function mostrarJanelaPrincipal() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+function entregarJuncaoDoDiscord(segredo) {
+  if (typeof segredo !== 'string' || !segredo || segredo.length > 128) return;
+  if (!mainWindow || mainWindow.webContents.isLoadingMainFrame()) {
+    juncoesDoDiscordPendentes.push(segredo);
+    if (juncoesDoDiscordPendentes.length > 3) juncoesDoDiscordPendentes.shift();
+    return;
+  }
+  mainWindow.webContents.send('discord:juntar', segredo);
+  mostrarJanelaPrincipal();
+}
+function entregarJuncoesPendentes() {
+  if (!mainWindow) return;
+  const pendentes = juncoesDoDiscordPendentes;
+  juncoesDoDiscordPendentes = [];
+  for (const segredo of pendentes) mainWindow.webContents.send('discord:juntar', segredo);
+}
+
+ouvirJuncao(entregarJuncaoDoDiscord);
 
 // Um arranque automático não pode criar um segundo leitor em paralelo.
 if (!app.requestSingleInstanceLock()) app.quit();
-app.on('second-instance', () => {
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
-  }
+app.on('second-instance', (_event, argv) => {
+  mostrarJanelaPrincipal();
+  // O protocolo não transporta o segredo: abre a aplicação e, depois de ela
+  // subscrever ACTIVITY_JOIN, o próprio Discord entrega-o pelo pipe local.
+  if (veioDoDiscord(argv)) void prepararDiscord(DISCORD_APP_ID);
 });
 
 protocol.registerSchemesAsPrivileged([{
@@ -490,6 +521,7 @@ function createWindow() {
   win.once('ready-to-show', () => {
     if (!process.argv.includes('--duotone-auto-start') || startupMode() === 'window') win.show();
   });
+  win.webContents.once('did-finish-load', entregarJuncoesPendentes);
   win.on('maximize', () => sendWindowState(win));
   win.on('unmaximize', () => sendWindowState(win));
   win.on('close', (event) => {
@@ -700,6 +732,13 @@ app.on('will-quit', () => {
 
 app.whenReady().then(async () => {
   app.setAppUserModelId('com.joao.duotone.desktop');
+  // Equivalente ao Discord_Register do SDK legado. Permite ao Discord abrir a
+  // Duotone quando o convidado aceita um Jam e a aplicação estava fechada.
+  if (process.defaultApp && process.argv[1]) {
+    app.setAsDefaultProtocolClient(ESQUEMA_DISCORD, process.execPath, [path.resolve(process.argv[1])]);
+  } else {
+    app.setAsDefaultProtocolClient(ESQUEMA_DISCORD);
+  }
   Menu.setApplicationMenu(null);
   // A janela so abre depois de o servidor estar mesmo de pe. Se a porta
   // estiver ocupada, e melhor nao abrir de todo do que carregar o que quer
@@ -721,6 +760,7 @@ app.whenReady().then(async () => {
 
   createWindow();
   createTray();
+  if (veioDoDiscord(process.argv)) void prepararDiscord(DISCORD_APP_ID);
 
   try {
     globalShortcut.register('MediaPlayPause', () => {

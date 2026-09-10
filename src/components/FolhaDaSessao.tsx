@@ -46,6 +46,11 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
   const amigos = useSocial((s) => s.friends);
 
   const anfitriao = souAnfitriao();
+  // Sozinho não há uma roda para passar. O interruptor aparecia activo mas o
+  // resultado era indistinguível de uma falha; mantém-se a opção à vista para
+  // explicar quando fica disponível. Se já estava ligada e a outra pessoa
+  // saiu, continua a ser possível desligá-la.
+  const podeAlternarAux = !!sessao?.auxDe || membros.some((m) => m.userId !== euId);
   const porConvidar = amigos.filter(
     (f) => !membros.some((m) => m.userId === f.friendId)
   );
@@ -119,15 +124,18 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
             controlo a quem tem a vez deixava a sala parada quando essa pessoa
             metia o telemovel no bolso. Ver `supabase/passa-o-aux.sql`. */}
         {anfitriao ? (
-          <View style={styles.permissao}>
+          <View style={[styles.permissao, !podeAlternarAux && styles.permissaoDesactivada]}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.nome}>Pass the aux</Text>
               <Text style={styles.estado}>
-                One song each, in turn. Whoever has the aux picks what goes in the queue.
+                {podeAlternarAux
+                  ? 'One song each, in turn. Whoever has the aux picks what goes in the queue.'
+                  : 'Invite someone to the Jam to start passing the aux.'}
               </Text>
             </View>
             <Switch
               value={!!sessao?.auxDe}
+              disabled={!podeAlternarAux}
               onValueChange={(v) => { hapticSelection(); void rodarAux(v).catch(() => useOuvirJuntos.setState({ aviso: 'Could not change the aux. Please try again.' })); }}
               trackColor={{ true: tema.color, false: colors.surfaceHigh }}
             />
@@ -286,6 +294,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     backgroundColor: colors.surface,
   },
+  permissaoDesactivada: { opacity: 0.58 },
   sair: {
     flexDirection: 'row',
     alignItems: 'center',

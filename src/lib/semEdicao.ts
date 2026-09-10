@@ -69,7 +69,7 @@ export function misturaSemEdicao(
 
   return [{
     id: ID,
-    nome: 'Not on Spotify',
+    nome: 'Rare finds',
     faixas: [...topo, ...resto].slice(0, POR_PRATELEIRA),
   }];
 }

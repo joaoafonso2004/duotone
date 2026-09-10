@@ -34,7 +34,7 @@ import {
 } from '../lib/playerLifecycle';
 import {
   prazoDoTemporizador, restanteDoTemporizador, saltoAposFalha,
-  sessaoParaGuardar, substituicaoDe,
+  colocarASeguir, sessaoParaGuardar, substituicaoDe,
 } from '../lib/playerQueue';
 import {
   derivados, INICIAL as MAQUINA_INICIAL, transicao,
@@ -769,21 +769,16 @@ export const usePlayer = create<PlayerState>()(
     // que "adicionar" -- nao havia forma nenhuma de ouvir uma musica a seguir
     // a esta sem carregar nela e atropelar o som de toda a gente.
     if (ouvirJuntos()) { void comandarJam(s => s.sugerir(track, true)); return; }
-    const { queue, queueIndex } = get();
+    const { queue } = get();
     if (queue.length === 0) {
-      set({
-        current: track,
-        queue: [track],
-        queueIndex: 0,
-        ...passo(get().maquina, 'faixa-escolhida'),
-        ...posicao(0),
-        durationMs: (track.durationSeconds ?? 0) * 1000,
-      });
+      // Sem nada a tocar, "a seguir" é agora. Passar pelo caminho normal é
+      // importante: só ele resolve e arranca o áudio.
+      void get().playTrack(track, [track], true);
       return;
     }
-    const newQueue = [...queue];
-    newQueue.splice(queueIndex + 1, 0, track);
-    set({ queue: newQueue });
+    const estado = get();
+    const shuffleOrder = estado.shuffle ? estado._ensureShuffleOrder() : [];
+    set(colocarASeguir({ ...estado, shuffleOrder }, track, trackKey));
   },
 
   addToQueue: (track) => {

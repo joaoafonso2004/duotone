@@ -151,6 +151,7 @@ export function SearchScreen() {
   const markSaved = useSaved((s) => s.markSaved);
 
   const [query, setQuery] = useState('');
+  const [vista, setVista] = useState<'discover' | 'daily'>('discover');
   /** A folha dos tres artistas, para uma conta nova ter por onde comecar. */
   const [escolherAberto, setEscolherAberto] = useState(false);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
@@ -188,10 +189,6 @@ export function SearchScreen() {
   );
   const radios = React.useMemo(
     () => misturas.filter((m) => m.id.startsWith('radio:')),
-    [misturas],
-  );
-  const raras = React.useMemo(
-    () => misturas.filter((m) => m.id.startsWith('raras:')),
     [misturas],
   );
   const generos = React.useMemo(
@@ -426,7 +423,7 @@ export function SearchScreen() {
   // ao ecra antes daquilo que ele refresca.
   return (
     <Screen title="Search" subtitle="Find tracks on YouTube"
-      right={temRecomendacoes(recs) ? (
+      right={vista === 'discover' && temRecomendacoes(recs) ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Refresh recommendations"
           hitSlop={12} disabled={loadingRecs} onPress={() => void recs.carregar(true)}
           style={{ opacity: loadingRecs ? 0.4 : 1 }}>
@@ -444,13 +441,33 @@ export function SearchScreen() {
             value={query}
             onChangeText={setQuery}
             onClear={() => setQuery('')}
-            onFocus={() => setIsFocused(true)}
+            onFocus={() => { setVista('discover'); setIsFocused(true); }}
             onBlur={() => setIsFocused(false)}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
             onSubmitEditing={() => { pesquisarAgora(); Keyboard.dismiss(); }}
           />
+          {query.length === 0 && !isFocused ? (
+            <View style={styles.vistas} accessibilityRole="tablist">
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: vista === 'discover' }}
+                onPress={() => setVista('discover')}
+                style={[styles.vista, vista === 'discover' && styles.vistaActiva]}
+              >
+                <Text style={[styles.vistaTexto, vista === 'discover' && styles.vistaTextoActivo]}>Discover</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected: vista === 'daily' }}
+                onPress={() => setVista('daily')}
+                style={[styles.vista, vista === 'daily' && styles.vistaActiva]}
+              >
+                <Text style={[styles.vistaTexto, vista === 'daily' && styles.vistaTextoActivo]}>Songs of the day</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </View>
 
         {loading ? (
@@ -497,6 +514,8 @@ export function SearchScreen() {
               </Pressable>
             ))}
           </ScrollView>
+        ) : query.trim().length < 2 && !isFocused && vista === 'daily' ? (
+          <EscolhasDoDia bottomPadding={bottomPad} />
         ) : query.trim().length < 2 && !isFocused ? (
           /* Default state - Show Recommendations */
           <ScrollView
@@ -511,11 +530,6 @@ export function SearchScreen() {
                 no sitio mais caro do ecra sem custar nada nos dias em que
                 nao ha ninguem online. */}
             <AmigosAOuvir />
-            {/* Uma musica por dia, logo a seguir a fila de quem esta a ouvir:
-                sao as duas coisas desta pagina que sao sobre PESSOAS, e ficam
-                juntas antes de comecar o que a app calculou. Some-se num dia
-                em que ninguem escolheu. Ver `components/EscolhasDoDia.tsx`. */}
-            <EscolhasDoDia />
             {/* A grelha de atalhos, a cabeca da pagina.
                 ------------------------------------------------------------
                 Sao os mesmos mixes que estao nas prateleiras la em baixo, e a
@@ -583,7 +597,7 @@ export function SearchScreen() {
                     FORA -- artistas vizinhos, e só música que saiu. Esta vai
                     para dentro: o que os artistas dele nunca lançaram, que não
                     existe em catálogo nenhum. Ver api/naoLancado.ts. */}
-                {renderRecommendationSection('nuncaLancado', 'Never released', nuncaLancado, jaChegou('nuncaLancado'), { largura: 150 })}
+                {renderRecommendationSection('nuncaLancado', 'Rare finds', nuncaLancado, jaChegou('nuncaLancado'), { largura: 150 })}
                 {/* As playlists que a app monta. Entre a descoberta e o que
                     já se ouviu: é onde deixa de ser "música nova" e começa a
                     ser "música tua, arrumada". */}
@@ -599,10 +613,6 @@ export function SearchScreen() {
                     nao e o artista, e nenhuma das duas pergunta seja o que for
                     a catalogo nenhum -- saem da linha que ja la esta. Ver
                     `lib/generos.ts` e `lib/decadas.ts`. */}
-                {/* A que nao existe em servico nenhum. Vai a frente das
-                    gavetas: nao e uma maneira de arrumar a biblioteca, e a
-                    razao de esta app existir. Ver `lib/semEdicao.ts`. */}
-                {renderPrateleiraDeMisturas('Rare finds', raras)}
                 {renderPrateleiraDeMisturas('Your genres', generos)}
                 {renderPrateleiraDeMisturas('Decades', decadas)}
                 {(!misturasProntas || misturasDeArtista.length > 0) &&
@@ -825,6 +835,22 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     marginBottom: spacing.md,
   },
+  vistas: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+  },
+  vista: {
+    minHeight: 34,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.pill,
+  },
+  vistaActiva: { backgroundColor: colors.surfaceHigh },
+  vistaTexto: { ...type.caption, fontSize: 12, color: colors.textSecondary },
+  vistaTextoActivo: { color: colors.text, fontWeight: '700' },
   historyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
