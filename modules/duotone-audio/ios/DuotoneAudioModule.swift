@@ -423,7 +423,7 @@ public class DuotoneAudioModule: Module {
     let tap = (escolhido?.itemDoTap === escolhido?.player?.currentItem)
       ? escolhido?.tapVivo : nil
     os_unfair_lock_lock(cadeadoDaCaixa)
-    analiseActual = tap
+    analiseActual = tap?.analise
     os_unfair_lock_unlock(cadeadoDaCaixa)
   }
 
