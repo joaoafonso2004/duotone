@@ -225,7 +225,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     return [
       {
         icon: 'play-outline' as const,
-        label: 'Tocar a seguir',
+        label: 'Play next',
         onPress: () => {
           playNext(actionTrack);
           setActionTrack(null);

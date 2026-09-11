@@ -409,7 +409,7 @@ export function SongsScreen() {
         actions={[
           {
             icon: 'play-outline',
-            label: 'Tocar a seguir',
+            label: 'Play next',
             requiresInternet:false,
             onPress: () => {
               const t = actionTrack;

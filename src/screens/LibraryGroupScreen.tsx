@@ -112,7 +112,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     const base: SheetAction[] = [
       {
         icon: 'play-outline' as const,
-        label: 'Tocar a seguir',
+        label: 'Play next',
         onPress: () => {
           playNext(actionTrack);
           setActionTrack(null);
