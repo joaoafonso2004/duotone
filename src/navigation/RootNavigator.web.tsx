@@ -64,6 +64,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SocialPage } from '../desktop/paginas/SocialPage.web';
 
 import { SettingsPage } from '../desktop/paginas/SettingsPage.web';
+import { LibraryCheckPage } from '../desktop/paginas/LibraryCheckPage.web';
 import { JanelaDoJam } from '../desktop/JanelaDoJam.web';
 
 import { ProfilePage, StatsPage } from '../desktop/paginas/ProfilePage.web';
@@ -596,7 +597,8 @@ function DesktopShell() {
     case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} back={back} share={openShareDialog} {...common} />; break;
     case 'mistura': page = <MisturaPage key={route.id} id={route.id} titulo={route.titulo} back={back} {...common} />; break;
     case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;
-    case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} />; break;
+    case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} navigate={navigate} />; break;
+    case 'library-check': page = <LibraryCheckPage back={back} play={play} />; break;
     case 'social': page = <SocialPage navigate={navigate} friendId={route.friendId} groupId={route.groupId} notify={notify} play={play} more={more} />; break;
     case 'friend-profile': page = <ProfilePage userId={route.userId} navigate={navigate} notify={notify} back={back} />; break;
     case 'now-playing': page = <NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} />; break;

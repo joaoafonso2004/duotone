@@ -26,7 +26,9 @@ export type Route =
   | { name: 'mistura'; id: string; titulo: string }
   | { name: 'import' }
   | { name: 'stats';userId?:string }
-  | { name: 'spotify-import' };
+  | { name: 'spotify-import' }
+  /** O Library check, que se abre das Definições. */
+  | { name: 'library-check' };
 
 /** O que se pode partilhar com um amigo. */
 export type ShareTarget =

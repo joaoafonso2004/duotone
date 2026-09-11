@@ -61,7 +61,7 @@ import { chaveDaFaixa, PLANO } from '../lib/equalizer';
 import { usePlayer } from '../state/player';
 import { getLibrary } from '../api/library';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade';
-import { varrerCatalogo } from '../state/catalogoDeFaixas';
+import { resumoDoVarrimento, varrerCatalogo } from '../state/catalogoDeFaixas';
 import { historico, limparHistorico, resumo, rotulo as rotuloDaFalha, type TipoFalha } from '../lib/playbackDiagnostics';
 import { partilharRelatorioDeReproducao } from '../lib/relatorioDeReproducao';
 import { colors, radii, spacing, type } from '../theme';
@@ -248,18 +248,12 @@ export function SettingsScreen({ navigation }: Props) {
     pararIdentificacao.current = false;
     try {
       const faixas = await getLibrary();
-      const { resolvidas, semResposta } = await varrerCatalogo(
+      const r = await varrerCatalogo(
         faixas,
         (feitas, total) => setProgresso(total ? { feitas, total } : null),
         () => pararIdentificacao.current,
       );
-      // O que não se encontra é quase sempre unreleased, que não existe em
-      // catálogo nenhum. Dizer isso evita parecer uma falha.
-      setResumoDoCatalogo(
-        resolvidas || semResposta
-          ? `${resolvidas} identified · ${semResposta} not in any catalogue (usually unreleased).`
-          : 'Everything was already identified.',
-      );
+      setResumoDoCatalogo(resumoDoVarrimento(r));
     } catch {
       setResumoDoCatalogo('Could not finish. Check your connection and try again.');
     } finally {
@@ -638,6 +632,15 @@ export function SettingsScreen({ navigation }: Props) {
               loading={aIdentificar && !progresso}
               onPress={aIdentificar ? () => { pararIdentificacao.current = true; } : identificarBiblioteca}
               style={{ alignSelf: 'flex-start' }}
+            />
+            {/* O Library check: duplicados, vídeos que já não tocam e capas
+                partidas. Só corre quando se abre e se carrega. */}
+            <PillButton
+              label="Library check"
+              variant="ghost"
+              small
+              onPress={() => navigation.navigate('LibraryCheck')}
+              style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
             />
             <PillButton
               label="Clear library"

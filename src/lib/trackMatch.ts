@@ -96,7 +96,7 @@ const VERSAO: [string, RegExp][] = [
  * A ordem vem da lista e não do título, para "Live Acoustic" e "Acoustic Live"
  * darem a mesma assinatura.
  */
-function marcasDeVersao(titulo: string): string {
+export function marcasDeVersao(titulo: string): string {
   return VERSAO.filter(([, padrao]) => padrao.test(titulo)).map(([nome]) => nome).join('+');
 }
 

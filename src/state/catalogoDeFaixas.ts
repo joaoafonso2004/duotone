@@ -252,6 +252,17 @@ export async function varrerCatalogo(
   return { resolvidas, semResposta: falhadas };
 }
 
+/**
+ * A frase depois de identificar a biblioteca, igual no iPhone e no PC. O que
+ * não se encontra é quase sempre unreleased, que não existe em catálogo
+ * nenhum; dizê-lo evita parecer uma falha.
+ */
+export function resumoDoVarrimento(r: { resolvidas: number; semResposta: number }): string {
+  return r.resolvidas || r.semResposta
+    ? `${r.resolvidas} identified · ${r.semResposta} not in any catalogue (usually unreleased).`
+    : 'Everything was already identified.';
+}
+
 /** Quantas faixas desta lista já estão identificadas. */
 export function quantasIdentificadas(faixas: readonly Track[]): number {
   const { porFaixa } = useCatalogoDeFaixas.getState();

@@ -8,7 +8,7 @@ import { removeOwnProfileMedia } from '../../lib/profileMedia';
  * que ALGUÉM a lê fora deste ecrã.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { Pressable, Switch, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_VERSION, BUILD_ID } from '../../lib/buildInfo';
@@ -36,9 +36,38 @@ import { newerVersion } from './comum.web';
 import { efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
 import { usePrivacidade } from '../../state/privacidade';
+import { getLibrary } from '../../api/library';
+import { resumoDoVarrimento, varrerCatalogo } from '../../state/catalogoDeFaixas';
+import { useConnectivity } from '../../state/connectivity';
+import type { NavegarFn } from '../rotas';
 
-export function SettingsPage({ notify }: { notify: (s: string) => void }) {
+export function SettingsPage({ notify, navigate }: { notify: (s: string) => void; navigate: NavegarFn }) {
   const [recommendationsOpen,setRecommendationsOpen]=useState(false);
+  // Identificar a biblioteca contra um catálogo a sério, como no iPhone. Só
+  // corre quando se pede: são uma ou duas chamadas de rede por faixa.
+  const offline = useConnectivity((s) => s.offline);
+  const [aIdentificar, setAIdentificar] = useState(false);
+  const [progresso, setProgresso] = useState<{ feitas: number; total: number } | null>(null);
+  const [resumoDoCatalogo, setResumoDoCatalogo] = useState<string | null>(null);
+  const pararIdentificacao = useRef(false);
+  const identificarBiblioteca = async () => {
+    setAIdentificar(true);
+    setResumoDoCatalogo(null);
+    pararIdentificacao.current = false;
+    try {
+      const r = await varrerCatalogo(
+        await getLibrary(),
+        (feitas, total) => setProgresso(total ? { feitas, total } : null),
+        () => pararIdentificacao.current,
+      );
+      setResumoDoCatalogo(resumoDoVarrimento(r));
+    } catch {
+      setResumoDoCatalogo('Could not finish. Check your connection and try again.');
+    } finally {
+      setProgresso(null);
+      setAIdentificar(false);
+    }
+  };
   const [notifications, setNotifications] = useState(true);
   const [startup, setStartup] = useState<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean } | null>(null);
   const [savingStartup, setSavingStartup] = useState(false);
@@ -236,6 +265,34 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
           <SettingsCard icon="options-outline" title="Recommendations">
             <Text style={{color:desktop.muted,marginBottom:16}}>Review hidden songs and artists you want to hear less often.</Text>
             <Button secondary onPress={()=>setRecommendationsOpen(true)}>Manage preferences</Button>
+          </SettingsCard>
+          {/* A biblioteca: o artista e o título vêm adivinhados do título do
+              vídeo, e um catálogo a sério corrige-os; o Library check trata
+              dos duplicados, dos vídeos que já não tocam e das capas partidas.
+              Nenhum dos dois corre sozinho. */}
+          <SettingsCard icon="library-outline" title="Library">
+            <View style={styles.settingLine}>
+              <View style={{ flex: 1, paddingRight: ESP.lg }}>
+                <Text style={styles.settingLabel}>Identify library</Text>
+                <Text style={styles.settingDescription}>
+                  {progresso
+                    ? `Identifying ${progresso.feitas} of ${progresso.total}…`
+                    : resumoDoCatalogo
+                      ?? 'Match your library against a music catalogue to fix artist names, titles and cover art.'}
+                </Text>
+              </View>
+              <Button secondary disabled={offline && !aIdentificar}
+                onPress={aIdentificar ? () => { pararIdentificacao.current = true; } : () => void identificarBiblioteca()}>
+                {aIdentificar ? 'Stop' : 'Identify'}
+              </Button>
+            </View>
+            <View style={styles.settingLine}>
+              <View style={{ flex: 1, paddingRight: ESP.lg }}>
+                <Text style={styles.settingLabel}>Library check</Text>
+                <Text style={styles.settingDescription}>Find songs saved twice, videos that no longer play and covers that don't load. Nothing changes until you choose.</Text>
+              </View>
+              <Button secondary onPress={() => navigate({ name: 'library-check' })}>Open</Button>
+            </View>
           </SettingsCard>
           {window.duotoneDesktop?.notifyMessage && <SettingsCard icon="desktop-outline" title="Windows">
             <ToggleLine label="Message notifications" description="Show a Windows notification when a message arrives while you are away."
