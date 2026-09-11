@@ -161,6 +161,7 @@ function startLocalServer() {
         else if (ext === '.png') contentType = 'image/png';
         else if (ext === '.jpg' || ext === '.jpeg') contentType = 'image/jpeg';
         else if (ext === '.gif') contentType = 'image/gif';
+        else if (ext === '.webp') contentType = 'image/webp';
         else if (ext === '.svg') contentType = 'image/svg+xml; charset=utf-8';
         else if (ext === '.ico') contentType = 'image/x-icon';
         

@@ -48,6 +48,7 @@ import { useOuvirJuntos } from './src/state/ouvirJuntos';
 import { aquecerPerfilProprio, limparCachePerfil } from './src/lib/cachePerfil';
 import { sincronizarPreferencias } from './src/lib/prefsSync';
 import { CartazDaSemana } from './src/components/CartazDaSemana';
+import { Abertura } from './src/components/Abertura';
 import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
 import { garantirPrivacidade } from './src/state/privacidade';
@@ -247,6 +248,9 @@ export default function App() {
           decide sozinho se aparece; ver `components/CartazDaSemana.tsx`. */}
       <CartazDaSemana />
       <UpdateSheet />
+      {/* O eclipse do arranque, por cima de tudo e por isso em último. A app
+          arranca por baixo enquanto ele toca. Ver `components/Abertura.tsx`. */}
+      <Abertura />
     </SafeAreaProvider>
   );
 }

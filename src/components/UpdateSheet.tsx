@@ -8,6 +8,7 @@ import {
   SIDELOADLY_URL,
   type UpdateInfo,
 } from '../lib/updates';
+import { useAbertura } from '../state/abertura';
 import { colors, radii, spacing, type } from '../theme';
 import { BottomSheet } from './BottomSheet';
 import { PillButton } from './PillButton';
@@ -58,6 +59,8 @@ export function UpdateSheet() {
   // Fechado por omissão: quem já sabe atualizar não quer o passo a passo
   // à frente das notas de versão todas as vezes.
   const [ajuda, setAjuda] = useState(false);
+  // A resposta pode chegar a meio da abertura; o aviso espera que ela saia.
+  const tapado = useAbertura((s) => s.aFrente);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,7 +72,7 @@ export function UpdateSheet() {
     };
   }, []);
 
-  if (!update) return null;
+  if (!update || tapado) return null;
 
   const close = () => setUpdate(null);
 

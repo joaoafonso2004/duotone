@@ -6,6 +6,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { lerASemana, valeUmCartaz, type ASemana, type Pessoa } from '../api/aSemana';
 import { getSemanaVistaEm, setSemanaVistaEm } from '../lib/prefs';
 import { chaveDaSemana, mostrarCartaz } from '../lib/sextaFeira';
+import { useAbertura } from '../state/abertura';
 import { useAuth } from '../state/auth';
 import { useTheme } from '../state/theme';
 import { colors, radii, spacing, type } from '../theme';
@@ -38,6 +39,8 @@ export function CartazDaSemana() {
   const tema = useTheme((s) => s.theme);
   const [dados, setDados] = useState<ASemana | null>(null);
   const [aberto, setAberto] = useState(false);
+  // Não sobe a meio da abertura do arranque: espera que ela saia.
+  const tapado = useAbertura((s) => s.aFrente);
 
   useEffect(() => {
     if (!sessao) return;
@@ -56,7 +59,7 @@ export function CartazDaSemana() {
     return () => { vivo = false; };
   }, [sessao]);
 
-  if (!dados) return null;
+  if (!dados || tapado) return null;
   const nome = (p: Pessoa) => (p.souEu ? 'You' : p.nome || p.username || 'A friend');
 
   return (
