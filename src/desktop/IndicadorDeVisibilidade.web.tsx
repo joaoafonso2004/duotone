@@ -1,29 +1,49 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions } from 'react-native';
+import { Pressable } from 'react-native';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useVisibilidade } from '../hooks/useVisibilidade';
 import { avisoDaTroca } from '../lib/visibilidade';
 import { definirPrivacidade, usePrivacidade } from '../state/privacidade';
-import { COR, RAIO, TIPO } from './tokens.web';
+import { desktop, ui } from './ui.web';
 
 const P = Pressable as any;
 
+/** O tamanho dos ícones do `IconButton` ao lado, para o olho não destoar. */
+const TAMANHO = 19;
 /**
- * Abaixo desta largura de janela a pílula perde o texto e fica só o ícone.
- *
- * A coluna da direita da barra é 30% da largura dela. O Jam, o volume e o
- * fechar já levam uns 200 px, e a pílula com texto mais uns 90: abaixo de uns
- * 1010 px de janela não cabe, e nos 960 mínimos do Electron transbordava por
- * cima dos controlos do meio.
+ * As duas pálpebras são a mesma curva, uma virada ao contrário da outra. É
+ * isso que faz o piscar: fechar é virar a de cima sobre o centro do olho, e ela
+ * vai assentar exatamente em cima da de baixo.
  */
-const LARGURA_COM_TEXTO = 1040;
+const PALPEBRA_DE_CIMA = 'M2.5 12Q12 1.5 21.5 12';
+const PALPEBRA_DE_BAIXO = 'M2.5 12Q12 22.5 21.5 12';
+/** Perpendiculares à pálpebra de baixo. Só aparecem de olho fechado. */
+const PESTANAS = 'M7.2 15.9 6.2 17.8M12 17.2v2.2M16.8 15.9l1 1.9';
+/**
+ * Fechado, o que sobra do olho é a metade de baixo, e ficava descaído no
+ * botão. Sobe isto para voltar a ficar ao centro.
+ */
+const SUBIDA_FECHADO = 3.5;
+const CURVA = 'cubic-bezier(.4,0,.2,1)';
+
+type Transicao = [propriedade: string, ms: number, atraso?: number];
 
 /**
- * "Quem vê isto?" -- na barra do leitor, ao lado do Jam.
+ * "Quem vê isto?" -- um olho na barra do leitor, ao lado do Jam.
  *
- * Fora de um Jam, um clique liga ou desliga a escuta privada; dentro de um,
- * abre o Jam, que é onde se muda quem lá está. A regra e os textos são os
- * mesmos do iPhone (lib/visibilidade.ts); aqui só muda a forma.
+ * Aberto: os amigos veem o que está a tocar (e o Discord, se estiver ligado).
+ * Fechado: escuta privada. Um clique fecha-o ou abre-o. Dentro de um Jam fica
+ * aberto e o clique abre o Jam, porque quem lá está ouve na mesma, com privada
+ * ou sem ela. A regra e os textos são os do iPhone (lib/visibilidade.ts).
+ *
+ * Era uma pílula com o nome do estado ("Friends", "Discord", "Private") e saiu
+ * a 11/9/2026, por decisão do João. O que ela dizia continua no tooltip e no
+ * aviso que aparece ao carregar -- é aí que se fica a saber se o Discord vê.
+ *
+ * Um SVG e não o `eye-off` do Ionicons: esse é um olho riscado, não um olho
+ * fechado, e trocar de ícone não mostra a pálpebra a descer. As transições
+ * são CSS, em `style`: é um SVG do DOM, e o Animated do React Native não lhe
+ * chega.
  */
 export function IndicadorDeVisibilidade({ discordLigado, onJam, onAviso }: {
   discordLigado: boolean;
@@ -31,11 +51,9 @@ export function IndicadorDeVisibilidade({ discordLigado, onJam, onAviso }: {
   onAviso?: (mensagem: string) => void;
 }) {
   const v = useVisibilidade(discordLigado);
-  const { width } = useWindowDimensions();
-  const comTexto = width >= LARGURA_COM_TEXTO;
-  // Aceso quando alguém para lá do costume está a ver -- ou ninguém está. O
-  // estado normal (amigos) não se anuncia, como o shuffle desligado.
-  const aceso = v.estado === 'privada' || v.estado === 'jam';
+  const reduzido = useReducedMotion();
+  const fechado = v.estado === 'privada';
+  const texto = `${v.descricao} ${v.dica}.`;
 
   const carregar = () => {
     if (v.acao === 'abrirJam') { onJam(); return; }
@@ -44,33 +62,52 @@ export function IndicadorDeVisibilidade({ discordLigado, onJam, onAviso }: {
     onAviso?.(avisoDaTroca(privada, discordLigado));
   };
 
+  // Valem as do estado para onde se vai. A fechar, a pupila some-se primeiro e
+  // as pestanas só aparecem com a pálpebra em baixo; a abrir, o contrário.
+  const transicao = (...partes: Transicao[]) => reduzido
+    ? 'none'
+    : partes.map(([p, ms, atraso = 0]) => `${p} ${ms}ms ${CURVA} ${atraso}ms`).join(', ');
+
   return <P
+    className="control-btn-animate"
     onPress={carregar}
     accessibilityRole="button"
-    accessibilityLabel={`${v.descricao} ${v.dica}.`}
-    // A mesma ordem do IconButton: o aceso por último, para o hover não o
+    accessibilityLabel={texto}
+    // A mesma ordem do IconButton: o ligado por último, para o hover não o
     // apagar -- a cor de hover é mais escura do que a de ligado.
     style={({ hovered, focused, pressed }: any) => [
-      s.pilula, !comTexto && s.soIcone,
-      (hovered || focused) && s.hover, pressed && s.premida, aceso && s.acesa,
+      ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, fechado && ui.active,
     ]}
   >
-    <Ionicons name={v.icone} size={15} color={aceso ? COR.texto : COR.textoMedio} />
-    {comTexto ? <Text numberOfLines={1} style={[s.texto, aceso && s.textoAceso]}>{v.rotulo}</Text> : null}
+    <svg
+      width={TAMANHO} height={TAMANHO} viewBox="0 0 24 24" aria-hidden
+      fill="none" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"
+      style={{ overflow: 'visible', stroke: fechado ? desktop.accent : desktop.muted, transition: transicao(['stroke', 200]) }}
+    >
+      <title>{texto}</title>
+      <g style={{
+        transform: `translateY(${fechado ? -SUBIDA_FECHADO : 0}px)`,
+        transition: transicao(['transform', 240]),
+      }}>
+        <path d={PALPEBRA_DE_BAIXO} />
+        <path d={PALPEBRA_DE_CIMA} style={{
+          transformOrigin: '12px 12px',
+          transform: `scaleY(${fechado ? -1 : 1})`,
+          transition: transicao(['transform', 240]),
+        }} />
+        <circle cx={12} cy={12} r={3.2} style={{
+          transformOrigin: '12px 12px',
+          transform: `scale(${fechado ? 0 : 1})`,
+          opacity: fechado ? 0 : 1,
+          transition: fechado
+            ? transicao(['transform', 120], ['opacity', 120])
+            : transicao(['transform', 180, 110], ['opacity', 180, 110]),
+        }} />
+        <path d={PESTANAS} style={{
+          opacity: fechado ? 1 : 0,
+          transition: fechado ? transicao(['opacity', 160, 150]) : transicao(['opacity', 90]),
+        }} />
+      </g>
+    </svg>
   </P>;
 }
-
-const s = StyleSheet.create({
-  pilula: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    height: 30, paddingHorizontal: 10, marginRight: 4,
-    borderRadius: RAIO.pilula, borderWidth: 1, borderColor: COR.linha,
-    cursor: 'pointer', transition: 'background-color 0.15s',
-  } as any,
-  soIcone: { width: 34, paddingHorizontal: 0, justifyContent: 'center', borderColor: 'transparent' },
-  acesa: { backgroundColor: COR.metalSuave, borderColor: 'transparent' },
-  hover: { backgroundColor: COR.hover },
-  premida: { opacity: 0.72, transform: [{ scale: 0.985 }] },
-  texto: { ...TIPO.legenda, color: COR.textoMedio },
-  textoAceso: { color: COR.texto },
-});

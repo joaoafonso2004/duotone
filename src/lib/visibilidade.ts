@@ -36,13 +36,16 @@ export interface EntradaDaVisibilidade {
 
 export interface EstadoDaVisibilidade {
   estado: Visibilidade;
-  /** Curto: cabe por baixo de um ícone no iPhone e numa pílula no PC. */
+  /** Curto: cabe por baixo de um ícone no iPhone. O PC não o mostra -- lá é só um olho. */
   rotulo: string;
   /** A frase inteira, para quem lê com o VoiceOver e para o tooltip. */
   descricao: string;
   /** O que um clique faz, dito como o VoiceOver o diz. */
   dica: string;
-  /** Nomes do Ionicons, escritos aqui para os dois leitores não divergirem. */
+  /**
+   * Nomes do Ionicons, para o iPhone. O PC desenha o próprio olho a partir do
+   * `estado`: fechado na privada, aberto no resto.
+   */
   icone: 'headset' | 'eye-off-outline' | 'logo-discord' | 'eye-outline';
   acao: 'abrirJam' | 'alternarPrivada';
 }
