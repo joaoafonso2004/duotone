@@ -52,6 +52,8 @@ import { getDiscordRichPresence } from '../lib/prefs';
 import { sessaoDoSegredoDiscord } from '../lib/presencaDoDiscord';
 import { registar } from '../lib/eventos';
 import { contextoParaAnalytics, type DiscoveryContext } from '../lib/contextoDaDescoberta';
+import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
+import { useConnectivity } from '../state/connectivity';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePrivacidade } from '../state/privacidade';
 import { usePlaylists } from '../state/playlists';
@@ -181,7 +183,15 @@ function DesktopShell() {
   const [shareMessage, setShareMessage] = useState('');
   const [loadingFriends, setLoadingFriends] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
+  // `null` enquanto o servidor não responde: o menu diz "Checking your
+  // library…" em vez de mostrar o estado da faixa aberta antes desta.
+  const [isSaved, setIsSaved] = useState<boolean | null>(null);
+  /** O índice real na fila, quando o menu abriu numa linha da fila. */
+  const [trackMenuFila, setTrackMenuFila] = useState<number | null>(null);
+  const semRede = useConnectivity((s) => s.offline);
+  const emJam = useOuvirJuntos((s) => !!s.sessao);
+  const filaDoLeitor = usePlayer((s) => s.queue);
+  const indiceDoLeitor = usePlayer((s) => s.queueIndex);
   const [savedTrackId, setSavedTrackId] = useState<string | null>(null);
   const [currentIsSaved, setCurrentIsSaved] = useState(false);
 
@@ -399,9 +409,11 @@ function DesktopShell() {
   // olhar. Aqui ja ha sessao (esta casca so existe com ela).
   useEffect(() => { void useRecomendacoes.getState().carregar(); }, []);
 
-  const more = useCallback(async (track: Track, discoveryContext?:DiscoveryContext) => {
+  const more = useCallback(async (track: Track, discoveryContext?:DiscoveryContext, origem?: { fila?: number }) => {
     setTrackMenu(track);
     setTrackMenuContext(discoveryContext??null);
+    setTrackMenuFila(typeof origem?.fila === 'number' ? origem.fila : null);
+    setIsSaved(null);
     setTrackMenuOpen(true);
     try {
       const { saved, trackId } = await checkIsSaved(track.source, track.sourceId);
@@ -443,6 +455,64 @@ function DesktopShell() {
       window.dispatchEvent(new CustomEvent('duotone:refresh-playlist'));
     } catch (e: any) {
       notify(e?.message || 'Could not remove track.');
+    }
+  };
+
+  /**
+   * O menu da faixa no PC (clique direito e "…"): as ações, a ordem e os
+   * nomes de todos os menus, os do iPhone incluídos (lib/menuDaFaixa.ts).
+   * Ganhou o "Play next", que só não existia aqui, e o "Remove from queue" na
+   * fila do Now Playing. Download não há: o leitor do PC não guarda áudio.
+   */
+  const nomeDoArtistaDoMenu = trackMenu ? displayArtist(trackMenu) : '';
+  const filaMudou = trackMenuFila === null || !trackMenu || trackMenuFila === indiceDoLeitor
+    || filaDoLeitor[trackMenuFila]?.source !== trackMenu.source
+    || filaDoLeitor[trackMenuFila]?.sourceId !== trackMenu.sourceId;
+  const menuDoPc = trackMenu ? menuDaFaixa({
+    plataforma: 'pc',
+    onde: trackMenuFila !== null ? 'fila' : 'lista',
+    semRede,
+    tocaSemRede: false,
+    guardada: isSaved,
+    podeDescarregar: false,
+    descarregada: false,
+    temArtista: !!nomeDoArtistaDoMenu && nomeDoArtistaDoMenu !== 'Unknown artist',
+    playlist: route.name === 'playlist' && !nowPlayingOpen && trackMenuFila === null ? { podeEditar: true } : null,
+    fila: trackMenuFila !== null ? { emJam, mudou: filaMudou } : null,
+  }) : [];
+  const fazerNoMenu = (id: IdDaAcao) => {
+    const t = trackMenu;
+    if (!t) return;
+    switch (id) {
+      case 'tocar-agora':
+        setTrackMenuOpen(false);
+        // Na fila, o mesmo que clicar na linha; nas listas, o que já fazia.
+        if (trackMenuFila !== null) void usePlayer.getState().playTrack(t, usePlayer.getState().queue);
+        else play(t, undefined, trackMenuContext ?? undefined);
+        return;
+      case 'tocar-a-seguir': setTrackMenuOpen(false); usePlayer.getState().playNext(t); notify('Will play next.'); return;
+      case 'por-na-fila': setTrackMenuOpen(false); usePlayer.getState().addToQueue(t); notify('Added to queue.'); return;
+      case 'guardar': void toggleSave(); return;
+      case 'por-em-playlist': setTrackMenuOpen(false); void openPlaylistDialog(); return;
+      // O artista sai do `displayArtist` e nao do campo `artist`, que no
+      // YouTube e o CANAL: com o campo cru abria-se a pagina de um canal de
+      // uploads em vez da do artista.
+      case 'ver-artista': setTrackMenuOpen(false); navigate({ name: 'artist', value: nomeDoArtistaDoMenu }); return;
+      case 'partilhar': setTrackMenuOpen(false); void openShareDialog({ itemType: 'track', item: t, name: t.title }); return;
+      case 'recomendacoes': setTrackMenuOpen(false); setRecommendationTrack(t); setRecommendationContext(trackMenuContext); return;
+      case 'tirar-da-playlist': void removeFromCurrentPlaylist(); return;
+      case 'tirar-da-fila': {
+        setTrackMenuOpen(false);
+        // Relê na hora: um índice antigo nunca pode tirar outra música.
+        const p = usePlayer.getState();
+        const alvo = trackMenuFila === null ? undefined : p.queue[trackMenuFila];
+        if (trackMenuFila === null || useOuvirJuntos.getState().sessao || trackMenuFila === p.queueIndex
+          || !alvo || alvo.source !== t.source || alvo.sourceId !== t.sourceId) return;
+        p.removeFromQueue(trackMenuFila);
+        notify('Removed from queue.');
+        return;
+      }
+      default: return;
     }
   };
 
@@ -550,19 +620,27 @@ function DesktopShell() {
               <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 12 }}>{displayArtist(trackMenu)}</Text>
             </View>
           </View>
-          <Pressable onPress={() => { play(trackMenu,undefined,trackMenuContext??undefined); setTrackMenuOpen(false); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="play-circle-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Play now</Text></Pressable>
-          <Pressable onPress={() => { usePlayer.getState().addToQueue(trackMenu); setTrackMenuOpen(false); notify('Added to queue.'); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="list-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Add to queue</Text></Pressable>
-          <Pressable onPress={toggleSave} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name={isSaved ? "heart" : "heart-outline"} size={18} color={isSaved ? '#EF4444' : theme.color} /><Text style={styles.destinationText}>{isSaved ? 'Remove from library' : 'Save to library'}</Text></Pressable>
-          <Pressable onPress={() => { setTrackMenuOpen(false); openPlaylistDialog(); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="albums-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Add to playlist…</Text></Pressable>
-          {/* O artista sai do `displayArtist` e nao do campo `artist`, que no
-              YouTube e o CANAL: com o campo cru abria-se a pagina de um canal
-              de uploads em vez da do artista. */}
-          <Pressable onPress={() => { setTrackMenuOpen(false); navigate({ name: 'artist', value: displayArtist(trackMenu) }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="mic-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>View artist</Text></Pressable>
-          <Pressable onPress={() => { setTrackMenuOpen(false); openShareDialog({ itemType: 'track', item: trackMenu, name: trackMenu.title }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="share-social-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Share with friends or groups…</Text></Pressable>
-          <Pressable onPress={()=>{setTrackMenuOpen(false);setRecommendationTrack(trackMenu);setRecommendationContext(trackMenuContext);}} style={({hovered})=>[styles.destination,hovered&&styles.settingHover]}><Ionicons name="options-outline" size={18} color={theme.color}/><Text style={styles.destinationText}>Recommendations…</Text></Pressable>
-          {route.name === 'playlist' && !nowPlayingOpen && (
-            <Pressable onPress={removeFromCurrentPlaylist} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="trash-outline" size={18} color="#EF4444" /><Text style={[styles.destinationText, { color: '#EF4444' }]}>Remove from this playlist</Text></Pressable>
-          )}
+          {/* As linhas saem de lib/menuDaFaixa.ts. Uma indisponível fica à
+              vista, apagada, e diz porquê por baixo em vez de desaparecer. */}
+          {menuDoPc.map((a) => {
+            const apagada = !!a.indisponivel;
+            const cor = a.destrutiva ? '#EF4444' : theme.color;
+            return (
+              <Pressable
+                key={a.id}
+                disabled={apagada}
+                accessibilityState={{ disabled: apagada }}
+                onPress={() => fazerNoMenu(a.id)}
+                style={({ hovered }: any) => [styles.destination, a.indisponivel && { paddingVertical: 7 }, hovered && !apagada && styles.settingHover, apagada && ({ cursor: 'default' } as any)]}
+              >
+                <Ionicons name={a.icone as keyof typeof Ionicons.glyphMap} size={18} color={cor} style={{ opacity: apagada ? 0.4 : 1 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.destinationText, { flex: 0 }, a.destrutiva && { color: '#EF4444' }, apagada && { opacity: 0.4 }]}>{a.rotulo}</Text>
+                  {a.indisponivel ? <Text style={{ color: desktop.dim, fontSize: 11, marginTop: 2 }}>{a.indisponivel}</Text> : null}
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
       )}
     </Dialog>

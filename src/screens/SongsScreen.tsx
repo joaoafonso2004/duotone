@@ -18,7 +18,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getLikedSongs, removeFromLibrary, removeMultipleFromLibrary } from '../api/library';
+import { getLikedSongs, removeMultipleFromLibrary } from '../api/library';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PrimeiroPasso } from '../components/PrimeiroPasso';
@@ -45,8 +45,6 @@ export function SongsScreen() {
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const ligado = usePlayer((s) => s.shuffle);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
-  const playNext = usePlayer((s) => s.playNext);
-  const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
 
   const offline=useOfflineMode();
@@ -58,7 +56,6 @@ export function SongsScreen() {
   const tracks=useMemo(()=>offline?allTracks.filter(t=>t.source==='youtube'&&isAudioCached(t.sourceId)):allTracks,[allTracks,offline,cacheVersion]);
   const [loading, setLoading] = useState(true);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
-  const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
   
   // Selection states
   const [selectMode, setSelectMode] = useState(false);
@@ -89,7 +86,7 @@ export function SongsScreen() {
     }
   },[offline,userId]);
   useFocusEffect(useCallback(()=>{void load();return()=>{generation.current++;};},[load]));
-  useEffect(()=>{if(offline){setSelectMode(false);setSelectedIds(new Set());setPlaylistTrack(null);setPlaylistMultipleOpen(false);}},[offline]);
+  useEffect(()=>{if(offline){setSelectMode(false);setSelectedIds(new Set());setPlaylistMultipleOpen(false);}},[offline]);
 
   const toggleSelection = (trackId: string) => {
     setSelectedIds((prev) => {
@@ -397,64 +394,13 @@ export function SongsScreen() {
         </View>
       )}
 
+      {/* O menu é o de todas as listas (lib/menuDaFaixa.ts); daqui só se diz
+          que, depois de tirar da biblioteca, esta lista tem de reler. */}
       <TrackActionsSheet
         visible={!!actionTrack}
         track={actionTrack}
         onClose={() => setActionTrack(null)}
-        actions={[
-          {
-            icon: 'play-outline',
-            label: 'Play next',
-            requiresInternet:false,
-            onPress: () => {
-              const t = actionTrack;
-              setActionTrack(null);
-              if (t) playNext(t);
-            },
-          },
-          {
-            icon: 'add-circle-outline',
-            label: 'Add to queue',
-            requiresInternet:false,
-            onPress: () => {
-              const t = actionTrack;
-              setActionTrack(null);
-              if (t) addToQueue(t);
-            },
-          },
-          {
-            icon: 'list-outline',
-            label: 'Add to playlist…',
-            onPress: () => {
-              const t = actionTrack;
-              setActionTrack(null);
-              setPlaylistTrack(t);
-            },
-          },
-          {
-            icon: 'trash-outline',
-            label: 'Remove from Library',
-            destructive: true,
-            onPress: async () => {
-              const t = actionTrack;
-              setActionTrack(null);
-              if (!t?.id) return;
-              try {
-                await removeFromLibrary(t.id);
-                useSaved.getState().markSaved(t, false);
-                load();
-              } catch (e: any) {
-                Alert.alert('Error', e?.message ?? 'Could not remove the track.');
-              }
-            },
-          },
-        ]}
-      />
-
-      <AddToPlaylistSheet
-        visible={!!playlistTrack}
-        track={playlistTrack}
-        onClose={() => setPlaylistTrack(null)}
+        aoMudarBiblioteca={load}
       />
 
       <AddToPlaylistSheet

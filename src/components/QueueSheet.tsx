@@ -11,13 +11,18 @@ import { BottomSheet, BottomSheetFlatList } from './BottomSheet';
 import { TrackRow } from './TrackRow';
 import { EstrelaInteligente } from './BrilhoInteligente';
 import { trackKey } from '../lib/shuffle';
-import { hapticSelection } from '../lib/haptics';
-import { tituloDaFaixa } from '../lib/artistName';
+import { hapticNotification, hapticSelection } from '../lib/haptics';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import type { Track } from '../types';
-import { PlayerActionsContent, type PlayerAction } from './PlayerActionsSheet';
+import { accoesDoMenu, PlayerActionsContent, type PlayerAction } from './PlayerActionsSheet';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ShareFriendSheet } from './ShareFriendSheet';
+import { RecommendationPreferences } from './RecommendationPreferences';
+import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
+import { alternarDownload, estaDescarregada, podeDescarregar } from '../lib/descarregarFaixa';
+import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
+import { savedKey, useSaved } from '../state/saved';
 
 interface Props {
   visible: boolean;
@@ -31,12 +36,23 @@ interface Props {
    * uma lista que não pode tocar e nenhuma pista de onde é que pode.
    */
   onOpenSession?: () => void;
+  /**
+   * O "View artist" do menu. Quem sabe fechar o leitor e navegar é o
+   * PlayerRoot: a fila vive dentro do overlay, e navegar sem o baixar abria a
+   * página do artista por trás dele.
+   */
+  onVerArtista?: (nome: string) => void;
 }
 
-export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
+export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Props) {
   const offline = useOfflineMode();
-  const [selection, setSelection] = React.useState<{ track: Track; index: number | null; queue: Track[] } | null>(null);
-  const [panel, setPanel] = React.useState<'actions' | 'playlist' | 'share'>('actions');
+  /**
+   * A linha escolhida. `atual` separa a que está a TOCAR das outras: numa sessão
+   * todas vêm sem índice, e o menu da que toca é o do leitor (sem "Play now"
+   * nem "Remove from queue").
+   */
+  const [selection, setSelection] = React.useState<{ track: Track; index: number | null; queue: Track[]; atual: boolean } | null>(null);
+  const [panel, setPanel] = React.useState<'actions' | 'playlist' | 'share' | 'recomendacoes'>('actions');
   React.useEffect(() => { if (!visible) { setSelection(null); setPanel('actions'); } }, [visible]);
   const current = usePlayer((s) => s.current);
   const queue = usePlayer((s) => s.queue);
@@ -234,37 +250,70 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
     reordenarProximas(de, para);
   };
 
-  const openActions = (track: Track, index: number | null) => {
+  const openActions = (track: Track, index: number | null, atual = false) => {
     hapticSelection();
-    setSelection({ track, index, queue });
+    garantirGuardadas();
+    setSelection({ track, index, queue, atual });
     setPanel('actions');
   };
   // O menu pode ficar aberto enquanto a música termina ou a fila muda.
   // Um índice antigo nunca deve remover outra música ou uma entrada do Jam.
   const canRemove = !!selection && selection.index !== null && !emSessao &&
     selection.queue === queue && selection.index !== queueIndex && queue[selection.index] === selection.track;
-  const actions: PlayerAction[] = selection ? [
-    { label: 'Add to playlist', icon: 'add', onPress: () => {
-      if (offline) { Alert.alert('Offline', 'Connect to the internet to edit playlists.'); return; }
-      setPanel('playlist');
-    } },
-    { label: 'Partilhar com um amigo', icon: 'paper-plane-outline', onPress: () => {
-      if (offline) { Alert.alert('Offline', 'Connect to the internet to share.'); return; }
-      setPanel('share');
-    } },
-    ...(emSessao && onOpenSession ? [{ label: 'Manage Jam queue', icon: 'people-outline' as const, onPress: onOpenSession }] : []),
-    ...(!emSessao && selection.index !== null ? [{
-      label: 'Remove from queue', icon: 'trash-outline' as const, destructive: true, disabled: !canRemove,
-      onPress: () => {
+  const lida = useSaved((s) => s.loaded);
+  const naLoja = useSaved((s) => (selection ? s.keys.has(savedKey(selection.track)) : false));
+
+  /**
+   * As ações da faixa são as de todos os menus (lib/menuDaFaixa.ts). Esta era
+   * a que dizia "Partilhar com um amigo" em português, e escondia o "Remove
+   * from queue" dentro de um Jam em vez de dizer porque é que não dava.
+   */
+  const nomeDoArtista = selection ? displayArtist(selection.track) : '';
+  const menu = selection ? menuDaFaixa({
+    plataforma: 'ios',
+    onde: selection.atual ? 'leitor' : 'fila',
+    semRede: offline,
+    tocaSemRede: estaDescarregada(selection.track),
+    guardada: lida ? naLoja : null,
+    podeDescarregar: podeDescarregar(selection.track),
+    descarregada: estaDescarregada(selection.track),
+    temArtista: !!nomeDoArtista && nomeDoArtista !== 'Unknown artist',
+    fila: { emJam: emSessao, mudou: !emSessao && !canRemove },
+  }) : [];
+  const fazer = (id: IdDaAcao) => {
+    if (!selection) return;
+    const t = selection.track;
+    switch (id) {
+      case 'tocar-agora': setSelection(null); void playTrack(t, queue); return;
+      case 'guardar':
+        setSelection(null);
+        void alternarGuardada(t).then(() => hapticNotification())
+          .catch((e: any) => Alert.alert('Error', e?.message ?? 'Could not update your library.'));
+        return;
+      case 'por-em-playlist': setPanel('playlist'); return;
+      case 'ver-artista': setSelection(null); onVerArtista?.(nomeDoArtista); return;
+      case 'partilhar': setPanel('share'); return;
+      case 'descarregar': setSelection(null); void alternarDownload(t); return;
+      case 'recomendacoes': setPanel('recomendacoes'); return;
+      case 'tirar-da-fila': {
         const latest = usePlayer.getState();
         if (selection.index === null || useOuvirJuntos.getState().sessao ||
           latest.queue !== selection.queue || latest.queueIndex === selection.index ||
           latest.queue[selection.index] !== selection.track) return;
         removeFromQueue(selection.index);
         setSelection(null);
-      },
-    }] : []),
-    { label: 'Back to queue', icon: 'arrow-back', onPress: () => setSelection(null) },
+        return;
+      }
+      default: return;
+    }
+  };
+  const actions: PlayerAction[] = selection ? [
+    ...accoesDoMenu(menu, fazer),
+    // O que é da FILA e não da faixa, num grupo à parte.
+    ...(emSessao && onOpenSession
+      ? [{ label: 'Manage Jam queue', icon: 'people-outline' as const, inicioDeGrupo: true, onPress: onOpenSession }]
+      : []),
+    { label: 'Back to queue', icon: 'arrow-back', inicioDeGrupo: !(emSessao && onOpenSession), onPress: () => setSelection(null) },
   ] : [];
 
   return (
@@ -294,7 +343,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Options for ${tituloDaFaixa(current)}`}
-            onPress={() => openActions(current, null)}
+            onPress={() => openActions(current, null, true)}
             style={styles.actionBtn}
           >
             <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
@@ -439,6 +488,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
     </BottomSheet>
     <AddToPlaylistSheet visible={visible && panel === 'playlist'} track={selection?.track} onClose={() => setPanel('actions')} />
     <ShareFriendSheet visible={visible && panel === 'share'} itemType="track" item={selection?.track ?? null} onClose={() => setPanel('actions')} />
+    <RecommendationPreferences visible={visible && panel === 'recomendacoes'} track={selection?.track ?? null} onClose={() => setPanel('actions')} />
     </>
   );
 }

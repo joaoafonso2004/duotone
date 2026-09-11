@@ -6,16 +6,15 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getLibrary, removeFromLibrary, saveToLibrary } from '../api/library';
+import { getLibrary } from '../api/library';
 import { searchYouTube, searchYouTubePlaylists } from '../api/youtube';
-import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { BrilhoInteligente } from '../components/BrilhoInteligente';
 import { EmptyState } from '../components/EmptyState';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
-import { TrackActionsSheet, SheetAction } from '../components/TrackActionsSheet';
+import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -23,7 +22,7 @@ import { useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '../theme';
 import { useTheme } from '../state/theme';
-import { hapticNotification, hapticSelection } from '../lib/haptics';
+import { hapticSelection } from '../lib/haptics';
 import { agruparPorArtista, chaveDeArtista } from '../lib/artistName';
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
@@ -35,15 +34,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const { type, name } = route.params;
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
-  const playNext = usePlayer((s) => s.playNext);
-  const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const theme = useTheme((s) => s.theme);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
-  const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
 
   // Artist additional content states
   const [activeTab, setActiveTab] = useState<'library' | 'youtube_tracks' | 'youtube_albums'>('library');
@@ -100,81 +96,6 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     const ids = new Set(tracks.map(t => `${t.source}:${t.sourceId}`));
     return ytTracks.filter(t => !ids.has(`${t.source}:${t.sourceId}`));
   }, [ytTracks, tracks]);
-
-  const isSaved = useMemo(() => {
-    if (!actionTrack) return false;
-    return tracks.some((t) => t.source === actionTrack.source && t.sourceId === actionTrack.sourceId);
-  }, [actionTrack, tracks]);
-
-  const sheetActions = useMemo(() => {
-    if (!actionTrack) return [];
-    
-    const base: SheetAction[] = [
-      {
-        icon: 'play-outline' as const,
-        label: 'Play next',
-        onPress: () => {
-          playNext(actionTrack);
-          setActionTrack(null);
-        },
-      },
-      {
-        icon: 'add-circle-outline' as const,
-        label: 'Add to queue',
-        onPress: () => {
-          addToQueue(actionTrack);
-          setActionTrack(null);
-        },
-      },
-      {
-        icon: 'list-outline' as const,
-        label: 'Add to playlist…',
-        onPress: () => {
-          setPlaylistTrack(actionTrack);
-          setActionTrack(null);
-        },
-      },
-    ];
-
-    if (isSaved) {
-      const savedTrackObject = tracks.find(
-        (t) => t.source === actionTrack.source && t.sourceId === actionTrack.sourceId
-      );
-      base.push({
-        icon: 'trash-outline' as const,
-        label: 'Remove from Library',
-        destructive: true,
-        onPress: async () => {
-          setActionTrack(null);
-          if (!savedTrackObject?.id) return;
-          try {
-            await removeFromLibrary(savedTrackObject.id);
-            load();
-          } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'Could not remove the track.');
-          }
-        },
-      });
-    } else {
-      base.push({
-        icon: 'heart-outline' as const,
-        label: 'Save to Library',
-        onPress: async () => {
-          setActionTrack(null);
-          try {
-            useSaved.getState().markSaved(actionTrack, true);
-            await saveToLibrary(actionTrack);
-            hapticNotification();
-            load();
-          } catch (e: any) {
-            Alert.alert('Error', e?.message ?? 'Could not save the track.');
-          }
-        },
-      });
-    }
-
-    return base;
-  }, [actionTrack, isSaved, tracks, playNext, addToQueue, load]);
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
@@ -274,13 +195,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         visible={!!actionTrack}
         track={actionTrack}
         onClose={() => setActionTrack(null)}
-        actions={sheetActions}
-      />
-
-      <AddToPlaylistSheet
-        visible={!!playlistTrack}
-        track={playlistTrack}
-        onClose={() => setPlaylistTrack(null)}
+        aoMudarBiblioteca={load}
       />
 
       <YtPlaylistRecommendationSheet

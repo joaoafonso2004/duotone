@@ -56,7 +56,8 @@ export function FilaArrastavel({
    * corresponde a nada na fila real. */
   podeArrastar: boolean;
   aoTocar: (track: Track) => void;
-  aoMenu: (track: Track) => void;
+  /** O índice REAL na fila, para o menu poder tirar a faixa certa. */
+  aoMenu: (track: Track, indiceReal: number) => void;
   aoMover: (deReal: number, paraReal: number) => void;
 }) {
   const sugeridas = usePlayer((s) => s.sugeridas);
@@ -152,7 +153,7 @@ export function FilaArrastavel({
             }}
             onContextMenu={(e: any) => {
               e.preventDefault();
-              aoMenu(entrada.track);
+              aoMenu(entrada.track, entrada.index);
             }}
             style={{
               minHeight: 64,

@@ -16,7 +16,6 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { saveToLibrary } from '../api/library';
 import { useMusicSearch } from '../hooks/useMusicSearch';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
 import { useWindowDimensions } from 'react-native';
@@ -26,7 +25,6 @@ import type { MaterialTopTabNavigationProp } from '@react-navigation/material-to
 import type { RootStackParamList, TabsParamList } from '../navigation/RootNavigator';
 import { displayArtist } from '../lib/artistName';
 import { useSaved } from '../state/saved';
-import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { AmigosAOuvir } from '../components/AmigosAOuvir';
@@ -148,11 +146,8 @@ export function SearchScreen() {
   const separadores = useNavigation<MaterialTopTabNavigationProp<TabsParamList>>();
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
-  const playNext = usePlayer((s) => s.playNext);
-  const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
   const refreshSaved = useSaved((s) => s.refresh);
-  const markSaved = useSaved((s) => s.markSaved);
   const savedKeys = useSaved((s) => s.keys);
 
   const [query, setQuery] = useState('');
@@ -161,7 +156,6 @@ export function SearchScreen() {
   const [escolherAberto, setEscolherAberto] = useState(false);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
   const [actionContext,setActionContext]=useState<DiscoveryContext|null>(null);
-  const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
   const [history, setHistory] = useState<string[]>([]);
   
   // Search focus state
@@ -769,54 +763,6 @@ export function SearchScreen() {
         track={actionTrack}
         discoveryContext={actionContext}
         onClose={() => {setActionTrack(null);setActionContext(null);}}
-        actions={[
-          {
-            icon: 'play-outline',
-            label: 'Play next',
-            onPress: () => {
-              const t = actionTrack;
-              setActionTrack(null);
-              if (t) playNext(t);
-            },
-          },
-          {
-            icon: 'add-circle-outline',
-            label: 'Add to queue',
-            onPress: () => {
-              const t = actionTrack;
-              setActionTrack(null);
-              if (t) addToQueue(t);
-            },
-          },
-          {
-            icon: 'heart-outline',
-            label: 'Save to Library',
-            onPress: async () => {
-              const t = actionTrack;
-              setActionTrack(null);
-              if (!t) return;
-              try {
-                // Otimista: o coração aparece no toque, não daqui a 300ms.
-                markSaved(t, true);
-                await saveToLibrary(t);
-                if(actionContext)registar('recomendacao_guardada',contextoParaAnalytics(actionContext));
-                hapticNotification();
-              } catch (e: any) {
-                markSaved(t, false);
-                Alert.alert('Error', e?.message ?? 'Could not save the track.');
-              }
-            },
-          },
-          {
-            icon: 'list-outline',
-            label: 'Add to playlist…',
-            onPress: () => {
-              const t = actionTrack;
-              setActionTrack(null);
-              setPlaylistTrack(t);
-            },
-          },
-        ]}
       />
 
       <MenuFlutuante
@@ -853,12 +799,6 @@ export function SearchScreen() {
         itemType="playlist"
         item={playlistAPartilhar}
         onClose={() => setPlaylistAPartilhar(null)}
-      />
-
-      <AddToPlaylistSheet
-        visible={!!playlistTrack}
-        track={playlistTrack}
-        onClose={() => setPlaylistTrack(null)}
       />
 
     </Screen>

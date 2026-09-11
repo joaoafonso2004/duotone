@@ -4,6 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { Toque } from './Toque';
 import { hapticSelection } from '../lib/haptics';
+import type { AcaoDoMenu, IdDaAcao } from '../lib/menuDaFaixa';
 import { colors, spacing, type } from '../theme';
 
 export type PlayerAction = {
@@ -12,7 +13,25 @@ export type PlayerAction = {
   onPress: () => void;
   destructive?: boolean;
   disabled?: boolean;
+  /**
+   * Porque não se pode fazer agora. Com motivo a linha fica indisponível mas
+   * à vista, e o motivo aparece por baixo do rótulo -- ver lib/menuDaFaixa.ts.
+   */
+  motivo?: string | null;
+  /** Começa um grupo: um traço por cima separa-o do anterior. */
+  inicioDeGrupo?: boolean;
 };
+
+/** As linhas de um menu de faixa (lib/menuDaFaixa.ts), com o que cada uma faz. */
+export function accoesDoMenu(menu: AcaoDoMenu[], fazer: (id: IdDaAcao) => void): PlayerAction[] {
+  return menu.map((a) => ({
+    label: a.rotulo,
+    icon: a.icone as keyof typeof Ionicons.glyphMap,
+    destructive: a.destrutiva,
+    motivo: a.indisponivel,
+    onPress: () => fazer(a.id),
+  }));
+}
 
 export function PlayerActionsContent({ title, actions }: { title: string; actions: PlayerAction[] }) {
   const { height } = useWindowDimensions();
@@ -20,21 +39,27 @@ export function PlayerActionsContent({ title, actions }: { title: string; action
     <BottomSheetScrollView style={{ maxHeight: height * 0.65 }} contentContainerStyle={styles.content}>
       <Text accessibilityRole="header" style={type.title}>{title}</Text>
       <View>
-        {actions.map(action => (
-          <Toque
-            key={action.label}
-            acende
-            accessibilityRole="button"
-            accessibilityLabel={action.label}
-            accessibilityState={{ disabled: !!action.disabled }}
-            disabled={action.disabled}
-            onPress={() => { hapticSelection(); action.onPress(); }}
-            style={[styles.action, action.disabled && styles.disabled]}
-          >
-            <Ionicons name={action.icon} size={21} color={action.destructive ? colors.danger : colors.textSecondary} />
-            <Text style={[type.body, styles.label, action.destructive && { color: colors.danger }]}>{action.label}</Text>
-          </Toque>
-        ))}
+        {actions.map(action => {
+          const apagada = !!action.disabled || !!action.motivo;
+          return (
+            <Toque
+              key={action.label}
+              acende
+              accessibilityRole="button"
+              accessibilityLabel={action.motivo ? `${action.label}. ${action.motivo}` : action.label}
+              accessibilityState={{ disabled: apagada }}
+              disabled={apagada}
+              onPress={() => { hapticSelection(); action.onPress(); }}
+              style={[styles.action, action.inicioDeGrupo && styles.grupo]}
+            >
+              <Ionicons name={action.icon} size={21} color={action.destructive ? colors.danger : colors.textSecondary} style={apagada && styles.disabled} />
+              <View style={styles.label}>
+                <Text style={[type.body, action.destructive && { color: colors.danger }, apagada && styles.disabled]}>{action.label}</Text>
+                {action.motivo ? <Text style={[type.caption, styles.motivo]}>{action.motivo}</Text> : null}
+              </View>
+            </Toque>
+          );
+        })}
       </View>
     </BottomSheetScrollView>
   );
@@ -51,4 +76,6 @@ const styles = StyleSheet.create({
   action: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
   label: { flex: 1 },
   disabled: { opacity: 0.4 },
+  motivo: { marginTop: 2, color: colors.textSecondary },
+  grupo: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, marginTop: spacing.xs },
 });

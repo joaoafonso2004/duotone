@@ -10,11 +10,7 @@ import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useRecomendacoes } from '../state/recomendacoes';
 import { usePlayer } from '../state/player';
-import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
-import { saveToLibrary } from '../api/library';
 import { useSaved } from '../state/saved';
-import { hapticNotification } from '../lib/haptics';
-import { Alert } from 'react-native';
 import { MINI_PLAYER_HEIGHT } from '../theme';
 import type { Track } from '../types';
 import {
@@ -52,12 +48,8 @@ export function PrateleiraScreen({ route }: Props) {
     ? prateleiras.prontas.includes(fonte.nome)
     : prateleiras.misturasProntas;
   const playTrack = usePlayer((s) => s.playTrack);
-  const playNext = usePlayer((s) => s.playNext);
-  const addToQueue = usePlayer((s) => s.addToQueue);
-  const markSaved = useSaved((s) => s.markSaved);
   const savedKeys=useSaved((s)=>s.keys);
   const [aberta, setAberta] = useState<Track | null>(null);
-  const [paraPlaylist, setParaPlaylist] = useState<Track | null>(null);
   const contextoDe=useCallback((track:Track)=>fonte.tipo==='prateleira'
     ?contextoDaPrateleira(fonte.nome,savedKeys.has(`${track.source}:${track.sourceId}`))
     :contextoDaMistura(fonte.id,titulo,savedKeys.has(`${track.source}:${track.sourceId}`)),[fonte,savedKeys,titulo]);
@@ -103,33 +95,6 @@ export function PrateleiraScreen({ route }: Props) {
         track={aberta}
         discoveryContext={aberta?contextoDe(aberta):null}
         onClose={() => setAberta(null)}
-        actions={[
-          { icon: 'play-outline', label: 'Play next',
-            onPress: () => { const t = aberta; setAberta(null); if (t) playNext(t); } },
-          { icon: 'add-circle-outline', label: 'Add to queue',
-            onPress: () => { const t = aberta; setAberta(null); if (t) addToQueue(t); } },
-          { icon: 'heart-outline', label: 'Save to Library',
-            onPress: async () => {
-              const t = aberta; setAberta(null);
-              if (!t) return;
-              try {
-                markSaved(t, true);
-                await saveToLibrary(t);
-                registar('recomendacao_guardada',contextoParaAnalytics(contextoDe(t)));
-                hapticNotification();
-              } catch (e: any) {
-                markSaved(t, false);
-                Alert.alert('Error', e?.message ?? 'Could not save the track.');
-              }
-            } },
-          { icon: 'list-outline', label: 'Add to playlist…',
-            onPress: () => { const t = aberta; setAberta(null); setParaPlaylist(t); } },
-        ]}
-      />
-      <AddToPlaylistSheet
-        visible={!!paraPlaylist}
-        track={paraPlaylist}
-        onClose={() => setParaPlaylist(null)}
       />
     </Screen>
   );

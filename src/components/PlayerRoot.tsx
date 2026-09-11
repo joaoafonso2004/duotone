@@ -40,7 +40,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, removeFromLibrary, checkIsSaved } from '../api/library';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { setRepeatMode as persistRepeatMode, setShuffle as persistShuffle } from '../lib/prefs';
-import { useSaved } from '../state/saved';
+import { savedKey, useSaved } from '../state/saved';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
@@ -52,7 +52,10 @@ import { YouTubePlayerView } from './YouTubePlayerView';
 import {ArtworkLyricsCube} from './ArtworkLyricsCube';
 import { QueueSheet } from './QueueSheet';
 import { PlayerControlRow } from './PlayerControlRow';
-import { PlayerActionsSheet, type PlayerAction } from './PlayerActionsSheet';
+import { accoesDoMenu, PlayerActionsSheet, type PlayerAction } from './PlayerActionsSheet';
+import { RecommendationPreferences } from './RecommendationPreferences';
+import { menuDaFaixa, MOTIVOS, type IdDaAcao } from '../lib/menuDaFaixa';
+import { alternarDownload, estaDescarregada, podeDescarregar } from '../lib/descarregarFaixa';
 import { MenuFlutuante, type Ancora } from './MenuFlutuante';
 import { EqualizerIcon } from './EqualizerIcon';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
@@ -227,6 +230,7 @@ export function PlayerRoot() {
     });
   };
   const [partilhaAberta, setPartilhaAberta] = useState(false);
+  const [recomendacoesAbertas, setRecomendacoesAbertas] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   /**
    * A capa esta a virar para as letras?
@@ -592,6 +596,20 @@ export function PlayerRoot() {
     }else checkIsSaved(current.source,current.sourceId).then(res=>{if(active){setSaved(res.saved);setDbTrackId(res.trackId);}});
     return()=>{active=false;};
   },[current?.source,current?.sourceId,offline,offlineId]);
+  // O coração segue também o que se guarda nos OUTROS menus. Os menus
+  // passaram a ser os mesmos em todo o lado (lib/menuDaFaixa.ts), e a fila e
+  // as listas também guardam a faixa que está a tocar -- sem isto o coração do
+  // leitor ficava vazio até à música seguinte.
+  useEffect(() => {
+    if (!current) return;
+    const chave = savedKey(current);
+    return useSaved.subscribe((s, p) => {
+      const agora = s.keys.has(chave);
+      if (agora === p.keys.has(chave)) return;
+      setSaved(agora);
+      if (!agora) setDbTrackId(null);
+    });
+  }, [current?.source, current?.sourceId]);
 
   const [showLyrics, setShowLyrics] = useState(false);
   const [modoCarro, setModoCarro] = useState(false);
@@ -835,21 +853,50 @@ export function PlayerRoot() {
    */
   const fecharEEntao = (fn: () => void) => { depoisDeFechar.current = fn; fecharMenu(); };
 
+  /**
+   * O "…" do leitor: primeiro as ações da faixa, que são as de todos os menus
+   * -- a mesma ordem e os mesmos nomes da fila, das listas e do PC (ver
+   * lib/menuDaFaixa.ts). Aqui não há "Play now" nem "queue": a faixa já está
+   * a tocar. Chamava "Like" ao guardar e não tinha artista, download nem
+   * recomendações.
+   *
+   * Depois, num grupo à parte, o que é do LEITOR e não da faixa: o carro, a
+   * música do dia, o temporizador.
+   */
+  const menuDoLeitor = menuDaFaixa({
+    plataforma: 'ios',
+    onde: 'leitor',
+    semRede: offline,
+    tocaSemRede: estaDescarregada(current),
+    guardada: saved,
+    podeDescarregar: podeDescarregar(current),
+    descarregada: estaDescarregada(current),
+    temArtista,
+  });
+  const fazerNaFaixa = (id: IdDaAcao) => {
+    const faixa = current;
+    switch (id) {
+      case 'guardar': fecharMenu(); void saveCurrentToLibrary(); return;
+      case 'por-em-playlist': fecharEEntao(() => setPlaylistOpen(true)); return;
+      case 'ver-artista': fecharEEntao(abrirArtista); return;
+      case 'partilhar': fecharEEntao(() => setPartilhaAberta(true)); return;
+      case 'descarregar': fecharMenu(); void alternarDownload(faixa); return;
+      case 'recomendacoes': fecharEEntao(() => setRecomendacoesAbertas(true)); return;
+      default: return;
+    }
+  };
+
   const accoesDaFaixa: PlayerAction[] = [
-    { label: 'Add to playlist', icon: 'add', onPress: () => {
-      if (offline) { Alert.alert('Offline', 'Connect to the internet to edit playlists.'); return; }
-      fecharEEntao(() => setPlaylistOpen(true));
-    } },
-    /* Modo carro. A primeira da lista porque e a unica que se procura com o
-       carro ja a andar -- as outras escolhem-se parado. */
-    { label: 'Car mode', icon: 'car-sport-outline', onPress: () => {
+    ...accoesDoMenu(menuDoLeitor, fazerNaFaixa),
+    /* Modo carro, a abrir o grupo do leitor: e a unica que se procura com o
+       carro ja a andar, e o traco por cima encontra-se sem ler a lista. */
+    { label: 'Car mode', icon: 'car-sport-outline', inicioDeGrupo: true, onPress: () => {
       fecharEEntao(() => setModoCarro(true));
     } },
     /* Uma musica por dia. Aqui e nao numa folha propria porque escolher e um
        gesto sobre o que se esta a OUVIR -- e o que se esta a ouvir e isto. */
     { label: jaEscolheuHoje ? 'Today’s pick is set' : 'Make this today’s pick', icon: jaEscolheuHoje ? 'checkmark-circle' : 'today-outline',
-      disabled: jaEscolheuHoje, onPress: () => {
-      if (offline) { Alert.alert('Offline', 'Connect to the internet to pick a song.'); return; }
+      disabled: jaEscolheuHoje, motivo: !jaEscolheuHoje && offline ? MOTIVOS.semRede : null, onPress: () => {
       const faixa = current;
       if (!faixa) return;
       fecharEEntao(() => {
@@ -865,14 +912,6 @@ export function PlayerRoot() {
           });
       });
     } },
-    { label: 'Share with a friend', icon: 'paper-plane-outline', onPress: () => {
-      if (offline) { Alert.alert('Offline', 'Connect to the internet to share.'); return; }
-      fecharEEntao(() => setPartilhaAberta(true));
-    } },
-    // O estado vive na etiqueta e no ícone: um menu que diz sempre "Like"
-    // deixa quem o abre sem saber se já lá está.
-    { label: saved ? 'Remove from Library' : 'Like', icon: saved ? 'heart' : 'heart-outline',
-      onPress: () => { fecharMenu(); void saveCurrentToLibrary(); } },
     // O `sleepTimerTimeLeft` está em SEGUNDOS -- o store guarda `restanteS`.
     // Dividi-o por 60000 como se fossem milissegundos, e quinze minutos
     // apareciam como "1 min": 900 sobre 60000 dá 0,015, que arredonda para um.
@@ -1595,12 +1634,26 @@ export function PlayerRoot() {
         item={current}
         onClose={() => setPartilhaAberta(false)}
       />
+      <RecommendationPreferences
+        visible={recomendacoesAbertas}
+        track={current}
+        reason={contextoDaRecomendacaoAtual()?.reason}
+        onClose={() => setRecomendacoesAbertas(false)}
+      />
 
       {/* ===================== LISTA DA FILA (QUEUE) ===================== */}
       <QueueSheet
         visible={queueVisible}
         onClose={() => setQueueVisible(false)}
         onOpenSession={() => { setQueueVisible(false); setSessaoAberta(true); }}
+        // Como o nome do artista no leitor: baixa o leitor antes de navegar,
+        // senão a página abria por trás dele.
+        onVerArtista={(nome) => {
+          if (!navigationRef.isReady()) return;
+          setQueueVisible(false);
+          setExpanded(false);
+          navigationRef.navigate('LibraryGroup', { type: 'artist', name: nome });
+        }}
       />
 
       {/* ===================== EQUALIZADOR E VELOCIDADE ===================== */}

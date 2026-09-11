@@ -40,7 +40,11 @@ export type ShareTarget =
 export interface CommonPageProps {
   play: (track: Track, queue?: Track[], discoveryContext?: DiscoveryContext) => void;
   notify: (message: string) => void;
-  more: (track: Track, discoveryContext?: DiscoveryContext) => void;
+  /**
+   * O menu da faixa (lib/menuDaFaixa.ts). Com `origem.fila`, abriu numa linha
+   * da fila -- o índice real -- e ganha o "Remove from queue".
+   */
+  more: (track: Track, discoveryContext?: DiscoveryContext, origem?: { fila?: number }) => void;
 }
 
 export type NavegarFn = (route: Route) => void;

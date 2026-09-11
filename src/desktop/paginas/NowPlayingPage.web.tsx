@@ -187,7 +187,7 @@ export function NowPlayingPage({
               entradas={upNext.slice(0, 8)}
               podeArrastar={!shuffle}
               aoTocar={(t) => playTrack(t, queue)}
-              aoMenu={more}
+              aoMenu={(t, indiceReal) => more(t, undefined, { fila: indiceReal })}
               aoMover={(de, para) => moveQueueItem(de, para)}
             />
             {upNext.length === 0 && (

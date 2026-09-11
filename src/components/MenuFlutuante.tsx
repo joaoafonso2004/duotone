@@ -99,7 +99,13 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
   // Keep the same Modal mounted until its native onDismiss is delivered.
   if (!montado || !ancora) return <Modal visible={false} transparent animationType="none" onDismiss={notificationDismiss}/>;
 
-  const alturaEstimada = accoes.length * 52 + spacing.sm * 2;
+  // Uma linha com motivo leva mais uma linha de texto por baixo, e um grupo
+  // novo leva o traço: sem contar isto, o menu achava que cabia em baixo e
+  // saía pelo fundo do ecrã.
+  const alturaEstimada = accoes.length * 52
+    + accoes.filter((a) => a.motivo).length * 18
+    + accoes.filter((a) => a.inicioDeGrupo).length * spacing.xs
+    + spacing.sm * 2;
   const cabeEmBaixo = ancora.y + ancora.height + MARGEM + alturaEstimada < height;
   const topo = cabeEmBaixo
     ? ancora.y + ancora.height + MARGEM
@@ -128,30 +134,38 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
       >
         <BlurView tint="dark" intensity={40} style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, styles.tinta]} />
-        {accoes.map((accao) => (
-          <Toque
-            key={accao.label}
-            acende
-            accessibilityRole="button"
-            accessibilityLabel={accao.label}
-            accessibilityState={{ disabled: !!accao.disabled }}
-            disabled={accao.disabled}
-            onPress={() => { hapticSelection(); accao.onPress(); }}
-            style={[styles.linha, accao.disabled && styles.apagada]}
-          >
-            <Ionicons
-              name={accao.icon}
-              size={19}
-              color={accao.destructive ? colors.danger : colors.text}
-            />
-            <Text
-              numberOfLines={2}
-              style={[type.body, styles.etiqueta, accao.destructive && { color: colors.danger }]}
+        {accoes.map((accao) => {
+          // Indisponível fica à vista e diz porquê (lib/menuDaFaixa.ts).
+          const apagada = !!accao.disabled || !!accao.motivo;
+          return (
+            <Toque
+              key={accao.label}
+              acende
+              accessibilityRole="button"
+              accessibilityLabel={accao.motivo ? `${accao.label}. ${accao.motivo}` : accao.label}
+              accessibilityState={{ disabled: apagada }}
+              disabled={apagada}
+              onPress={() => { hapticSelection(); accao.onPress(); }}
+              style={[styles.linha, accao.inicioDeGrupo && styles.grupo]}
             >
-              {accao.label}
-            </Text>
-          </Toque>
-        ))}
+              <Ionicons
+                name={accao.icon}
+                size={19}
+                color={accao.destructive ? colors.danger : colors.text}
+                style={apagada && styles.apagada}
+              />
+              <View style={styles.etiqueta}>
+                <Text
+                  numberOfLines={2}
+                  style={[type.body, accao.destructive && { color: colors.danger }, apagada && styles.apagada]}
+                >
+                  {accao.label}
+                </Text>
+                {accao.motivo ? <Text numberOfLines={2} style={[type.caption, styles.motivo]}>{accao.motivo}</Text> : null}
+              </View>
+            </Toque>
+          );
+        })}
       </Animated.View>
     </Modal>
   );
@@ -178,4 +192,6 @@ const styles = StyleSheet.create({
   },
   etiqueta: { flex: 1 },
   apagada: { opacity: 0.4 },
+  motivo: { marginTop: 1, color: colors.textSecondary },
+  grupo: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong, marginTop: spacing.xs },
 });

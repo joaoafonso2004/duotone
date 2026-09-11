@@ -71,8 +71,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const ligado = usePlayer((s) => s.shuffle);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
-  const playNext = usePlayer((s) => s.playNext);
-  const addToQueue = usePlayer((s) => s.addToQueue);
   const current = usePlayer((s) => s.current);
 
   const [name, setName] = useState(route.params.name);
@@ -220,39 +218,11 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     [sortedTracks, playlistSearchQuery],
   );
 
-  const trackActions = useMemo(() => {
-    if (!actionTrack) return [];
-    return [
-      {
-        icon: 'play-outline' as const,
-        label: 'Play next',
-        onPress: () => {
-          playNext(actionTrack);
-          setActionTrack(null);
-        },
-      },
-      {
-        icon: 'list-outline' as const,
-        label: 'Add to queue',
-        onPress: () => {
-          addToQueue(actionTrack);
-          setActionTrack(null);
-        },
-      },
-      {
-        icon: 'trash-outline' as const,
-        label: 'Remover da playlist',
-        destructive: true,
-        onPress: () => {
-          setActionTrack(null);
-          const playlistTrack = tracks.find((t) => t.source === actionTrack.source && t.sourceId === actionTrack.sourceId);
-          if (playlistTrack) {
-            setRemoveFor(playlistTrack);
-          }
-        },
-      },
-    ].filter(action=>canEdit||!action.destructive);
-  }, [actionTrack, playNext, addToQueue, tracks,canEdit]);
+  /** O "Remove from this playlist" do menu: pede a confirmação que já havia. */
+  const tirarDaPlaylist = useCallback((track: Track) => {
+    const playlistTrack = tracks.find((t) => t.source === track.source && t.sourceId === track.sourceId);
+    if (playlistTrack) setRemoveFor(playlistTrack);
+  }, [tracks]);
 
   const load = useCallback(async () => {
     const token=++detailRequest.current;
@@ -773,12 +743,13 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         })}
       </BottomSheet>
 
-      {/* Track Actions sheet (...) */}
+      {/* O menu de todas as listas, com o "Remove from this playlist" no fim.
+          Numa playlist que não é tua fica à vista a dizer que só o dono pode. */}
       <TrackActionsSheet
         visible={!!actionTrack}
         track={actionTrack}
         onClose={() => setActionTrack(null)}
-        actions={trackActions}
+        playlist={{ podeEditar: canEdit, aoTirar: tirarDaPlaylist }}
       />
 
       {/* Add Tracks modal */}
