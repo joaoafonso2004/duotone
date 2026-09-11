@@ -12,7 +12,7 @@ import { getLibrary } from './library';
 import { getFlowMix } from './plays';
 import { searchYouTube } from './youtube';
 import type { Track } from '../types';
-import { misturarPorFamiliaridade, type DiscoveryMode } from '../lib/discoveryControl';
+import { misturarPorFamiliaridade } from '../lib/contextoDaDescoberta';
 
 /**
  * De onde sai a música do rádio, por ordem de preferência.
@@ -26,7 +26,6 @@ export async function fetchRadioTracks(
   seeds: Track[],
   exclude: Track[],
   limit: number = RADIO_BATCH,
-  mode: DiscoveryMode = 'balanced',
 ): Promise<Track[]> {
   if(useConnectivity.getState().offline)return [];
   await feedbackReady();
@@ -37,12 +36,12 @@ export async function fetchRadioTracks(
   const knownKeys=new Set(library.map(trackKey));
   const harvest = () => {
     // Filtra-se antes da proporção, mas sem truncar demasiado cedo: se o
-    // primeiro lote for todo conhecido, o modo Explore nunca chegaria às
-    // candidatas novas que estão logo a seguir.
+    // primeiro lote for todo conhecido, as três novas por cada tua nunca
+    // chegariam às candidatas novas que estão logo a seguir.
     const candidatas=filterRadioCandidates(filterSuggestions(pool),exclude,trackKey,Math.max(limit*4,limit));
     const conhecidas=candidatas.filter((t)=>knownKeys.has(trackKey(t)));
     const novas=candidatas.filter((t)=>!knownKeys.has(trackKey(t)));
-    return misturarPorFamiliaridade(conhecidas,novas,limit,mode,'radio');
+    return misturarPorFamiliaridade(conhecidas,novas,limit,'radio');
   };
 
   // 1. A própria biblioteca, pelos artistas que se estava a ouvir. Custo zero

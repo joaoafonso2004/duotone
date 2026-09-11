@@ -21,8 +21,7 @@ import { trackKey } from '../lib/shuffle';
 import { misturasPorDecada } from '../lib/decadas';
 import { misturasPorGenero } from '../lib/generos';
 import { anoDaFaixa, encherDoPartilhado, generoDaFaixa } from './catalogoDeFaixas';
-import { espacadasPorArtista, misturarPorFamiliaridade } from '../lib/discoveryControl';
-import { useDiscoveryControl } from './discoveryControl';
+import { espacadasPorArtista, misturarPorFamiliaridade } from '../lib/contextoDaDescoberta';
 
 /**
  * As prateleiras de recomendações, fora do ecrã que as mostra.
@@ -121,7 +120,6 @@ let rawMixes:Mistura[]=[];
 let libraryKeys=new Set<string>();
 
 function arrumarPrateleiras(): Pick<Recomendacoes, NomeDaPrateleira | 'prontas'> {
-  const modo=useDiscoveryControl.getState().mode;
   const filtradas = Object.fromEntries(
     ORDEM_DAS_PRATELEIRAS.map((nome) => [nome, filterSuggestions(rawShelves[nome] ?? [])])
   ) as Record<NomeDaPrateleira, Track[]>;
@@ -130,12 +128,12 @@ function arrumarPrateleiras(): Pick<Recomendacoes, NomeDaPrateleira | 'prontas'>
     let faixas=intercalarPorArtista(unicas[nome], artistPreferenceKey);
     // O Flow é a única prateleira que mistura explicitamente música guardada
     // e descoberta. As restantes já têm uma promessa própria (Rare Finds é
-    // sempre novo; Heavy Rotation é sempre familiar) que o controlo não deve
+    // sempre novo; Heavy Rotation é sempre familiar) que a mistura não deve
     // desfigurar.
     if(nome==='flow'){
       const conhecidas=faixas.filter((t)=>libraryKeys.has(trackKey(t)));
       const novas=faixas.filter((t)=>!libraryKeys.has(trackKey(t)));
-      faixas=misturarPorFamiliaridade(conhecidas,novas,faixas.length,modo,'flow');
+      faixas=misturarPorFamiliaridade(conhecidas,novas,faixas.length,'flow');
     }
     return [nome,espacadasPorArtista(faixas,artistPreferenceKey,7)];
   })) as Record<NomeDaPrateleira, Track[]>;
@@ -143,13 +141,12 @@ function arrumarPrateleiras(): Pick<Recomendacoes, NomeDaPrateleira | 'prontas'>
 }
 
 function arrumarMisturas():Mistura[]{
-  const modo=useDiscoveryControl.getState().mode;
   return rawMixes.map((mistura)=>{
     const filtradas=filterSuggestions(mistura.faixas);
     const conhecidas=filtradas.filter((t)=>libraryKeys.has(trackKey(t)));
     const novas=filtradas.filter((t)=>!libraryKeys.has(trackKey(t)));
     const tipo=mistura.id.startsWith('radio:')?'radio':'mix';
-    const faixas=misturarPorFamiliaridade(conhecidas,novas,filtradas.length,modo,tipo);
+    const faixas=misturarPorFamiliaridade(conhecidas,novas,filtradas.length,tipo);
     return {...mistura,faixas:espacadasPorArtista(faixas,artistPreferenceKey,7)};
   });
 }

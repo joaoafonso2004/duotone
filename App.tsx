@@ -50,7 +50,6 @@ import { sincronizarPreferencias } from './src/lib/prefsSync';
 import { CartazDaSemana } from './src/components/CartazDaSemana';
 import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
-import { carregarDiscoveryControl, useDiscoveryControl } from './src/state/discoveryControl';
 import { garantirPrivacidade } from './src/state/privacidade';
 
 export default function App() {
@@ -125,10 +124,6 @@ export default function App() {
   useEffect(()=>useRecommendationFeedback.subscribe((next,prev)=>{
     if(next.revision!==prev.revision)refreshSuggestionPreferences();
   }),[]);
-  useEffect(()=>useDiscoveryControl.subscribe((next,prev)=>{
-    if(next.revision!==prev.revision)refreshSuggestionPreferences();
-  }),[]);
-  useEffect(()=>{void carregarDiscoveryControl(adjustmentUserId??null);},[adjustmentUserId]);
   useEffect(()=>{if(!userId)void loadRecommendationFeedback(null);},[userId]);
   useEffect(()=>{
     if(offline){supabase.auth.stopAutoRefresh();return;}

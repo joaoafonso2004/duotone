@@ -10,7 +10,7 @@ import { recordPlayInSupabase } from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import {
-  deveSugerir, escolherSugestao, modoDeShuffle, posicaoDaSugestao, proximoModo,
+  A_CADA, deveSugerir, escolherSugestao, modoDeShuffle, posicaoDaSugestao, proximoModo,
 } from '../lib/smartShuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
@@ -49,9 +49,8 @@ import {
 import type { Track } from '../types';
 import {
   contextoDoRadioAutomatico, contextoDoSmartShuffle, contextoParaAnalytics,
-  intervaloDoSmartShuffle, type DiscoveryContext,
-} from '../lib/discoveryControl';
-import { useDiscoveryControl } from './discoveryControl';
+  type DiscoveryContext,
+} from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
@@ -908,11 +907,7 @@ export const usePlayer = create<PlayerState>()(
     //
     // Se a rede falhar nao acontece nada: cai no shuffle normal. Uma
     // funcionalidade de descoberta nao pode partir a reproducao.
-    if (deveSugerir(
-      modoDeShuffle(get().shuffle, get().shuffleInteligente),
-      get().desdeASugestao,
-      intervaloDoSmartShuffle(useDiscoveryControl.getState().mode),
-    )) {
+    if (deveSugerir(modoDeShuffle(get().shuffle, get().shuffleInteligente), get().desdeASugestao)) {
       // NAO SE ESPERA POR ISTO. Era `await`, e era a resposta a pergunta "porque
       // e que o botao de seguinte demora": a sugestao e uma ida a rede -- duas
       // consultas ao Supabase mais uma pesquisa no YouTube -- e acontecia de
@@ -1094,8 +1089,7 @@ export const usePlayer = create<PlayerState>()(
     if (radioInFlight) return false;
     radioInFlight = true;
     try {
-      const modo=useDiscoveryControl.getState().mode;
-      const tracks = filterSuggestions(await fetchRadioTracks(radioSeeds(queue, queueIndex), queue, undefined, modo));
+      const tracks = filterSuggestions(await fetchRadioTracks(radioSeeds(queue, queueIndex), queue));
       if(useConnectivity.getState().offline||get().queue!==queue||!get().autoplayRadio)return false;
       if (tracks.length === 0) return false;
 
@@ -1103,7 +1097,7 @@ export const usePlayer = create<PlayerState>()(
       // nunca usar o que foi capturado no início.
       const live = get();
       const merged = [...live.queue, ...tracks];
-      const contexto=contextoDoRadioAutomatico(modo);
+      const contexto=contextoDoRadioAutomatico();
       for(const track of tracks)contextosDaFila.set(trackKey(track),contexto);
       set({
         queue: merged,
@@ -1245,8 +1239,9 @@ export const usePlayer = create<PlayerState>()(
       let ordem = [...get().shuffleOrder];
       const novas: string[] = [];
       const base = get().queueIndex;
-      const intervalo=intervaloDoSmartShuffle(useDiscoveryControl.getState().mode);
-      const contextoDaSugestao=contextoDoSmartShuffle(useDiscoveryControl.getState().mode);
+      // O mesmo ritmo das sugestões uma a uma: uma a cada `A_CADA` faixas.
+      const intervalo=A_CADA;
+      const contextoDaSugestao=contextoDoSmartShuffle();
 
       for (let i = 0; i < quantas; i++) {
         const t = filtradas[i];
@@ -1333,7 +1328,7 @@ export const usePlayer = create<PlayerState>()(
       const posicao = posicaoDaSugestao(filaAgora.length, indiceAgora);
       const nova = [...filaAgora.slice(0, posicao), escolhida, ...filaAgora.slice(posicao)];
       const chave = trackKey(escolhida);
-      contextosDaFila.set(chave,contextoDoSmartShuffle(useDiscoveryControl.getState().mode));
+      contextosDaFila.set(chave,contextoDoSmartShuffle());
 
       // O PERCURSO DO SHUFFLE NAO SE LIMPA: enfia-se a chave logo a seguir a
       // atual. Limpa-lo obrigava a gerar um percurso novo, e num percurso novo
@@ -1362,7 +1357,7 @@ export const usePlayer = create<PlayerState>()(
         desdeASugestao: 0,
       });
       registar('recomendacao_mostrada',{
-        ...contextoParaAnalytics(contextoDoSmartShuffle(useDiscoveryControl.getState().mode)),
+        ...contextoParaAnalytics(contextoDoSmartShuffle()),
         quantidade:1,
       });
       return true;

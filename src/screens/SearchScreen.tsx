@@ -47,11 +47,9 @@ import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptic
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
-import { DiscoveryControl } from '../components/DiscoveryControl';
-import { useDiscoveryControl } from '../state/discoveryControl';
 import {
   contextoDaPrateleira, contextoParaAnalytics, type DiscoveryContext,
-} from '../lib/discoveryControl';
+} from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
 
 /** Quantas linhas por página na primeira secção. */
@@ -156,7 +154,6 @@ export function SearchScreen() {
   const refreshSaved = useSaved((s) => s.refresh);
   const markSaved = useSaved((s) => s.markSaved);
   const savedKeys = useSaved((s) => s.keys);
-  const discoveryMode=useDiscoveryControl((s)=>s.mode);
 
   const [query, setQuery] = useState('');
   const [vista, setVista] = useState<'discover' | 'daily'>('discover');
@@ -227,13 +224,13 @@ export function SearchScreen() {
     for(const nome of ORDEM_DAS_PRATELEIRAS){
       const data=recs[nome];
       if(!recs.prontas.includes(nome)||!data.length)continue;
-      const contexto=contextoDaPrateleira(nome,discoveryMode,savedKeys.has(`${data[0].source}:${data[0].sourceId}`));
-      const chave=`${discoveryMode}:${nome}:${recs.carregadoEm}:${data.length}`;
+      const contexto=contextoDaPrateleira(nome,savedKeys.has(`${data[0].source}:${data[0].sourceId}`));
+      const chave=`${nome}:${recs.carregadoEm}:${data.length}`;
       if(vistos.current.has(chave))continue;
       vistos.current.add(chave);
       registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:data.length});
     }
-  },[vista,discoveryMode,recs,recs.carregadoEm,recs.prontas,recs.descobrir,recs.nuncaLancado,recs.amigos,recs.ouvirDeNovo,recs.flow,recs.maisTocadas,recs.esquecidas,savedKeys]);
+  },[vista,recs,recs.carregadoEm,recs.prontas,recs.descobrir,recs.nuncaLancado,recs.amigos,recs.ouvirDeNovo,recs.flow,recs.maisTocadas,recs.esquecidas,savedKeys]);
 
   useEffect(() => {
     getSearchHistory().then(setHistory);
@@ -320,7 +317,7 @@ export function SearchScreen() {
     // prateleiras da mesma forma leem-se como um rolo so, e a mudanca de forma
     // e o que diz "isto aqui e outra coisa" sem precisar de o escrever.
     const emLista = lista && chegou;
-    const contextoDe=(track:Track)=>contextoDaPrateleira(nome,discoveryMode,savedKeys.has(`${track.source}:${track.sourceId}`));
+    const contextoDe=(track:Track)=>contextoDaPrateleira(nome,savedKeys.has(`${track.source}:${track.sourceId}`));
     const abrirAcoes=(track:Track)=>{setActionTrack(track);setActionContext(contextoDe(track));};
     return (
       <View style={styles.recsSection}>
@@ -563,7 +560,6 @@ export function SearchScreen() {
                 comeca onde sempre comecou -- e por isso que isto pode viver
                 no sitio mais caro do ecra sem custar nada nos dias em que
                 nao ha ninguem online. */}
-            <View style={{paddingHorizontal:spacing.xl,marginBottom:spacing.xl}}><DiscoveryControl /></View>
             <AmigosAOuvir />
             {/* A grelha de atalhos, a cabeca da pagina.
                 ------------------------------------------------------------

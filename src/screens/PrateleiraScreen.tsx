@@ -17,10 +17,9 @@ import { hapticNotification } from '../lib/haptics';
 import { Alert } from 'react-native';
 import { MINI_PLAYER_HEIGHT } from '../theme';
 import type { Track } from '../types';
-import { useDiscoveryControl } from '../state/discoveryControl';
 import {
   contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics,
-} from '../lib/discoveryControl';
+} from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Prateleira'>;
@@ -57,21 +56,20 @@ export function PrateleiraScreen({ route }: Props) {
   const addToQueue = usePlayer((s) => s.addToQueue);
   const markSaved = useSaved((s) => s.markSaved);
   const savedKeys=useSaved((s)=>s.keys);
-  const discoveryMode=useDiscoveryControl((s)=>s.mode);
   const [aberta, setAberta] = useState<Track | null>(null);
   const [paraPlaylist, setParaPlaylist] = useState<Track | null>(null);
   const contextoDe=useCallback((track:Track)=>fonte.tipo==='prateleira'
-    ?contextoDaPrateleira(fonte.nome,discoveryMode,savedKeys.has(`${track.source}:${track.sourceId}`))
-    :contextoDaMistura(fonte.id,titulo,discoveryMode,savedKeys.has(`${track.source}:${track.sourceId}`)),[fonte,discoveryMode,savedKeys,titulo]);
+    ?contextoDaPrateleira(fonte.nome,savedKeys.has(`${track.source}:${track.sourceId}`))
+    :contextoDaMistura(fonte.id,titulo,savedKeys.has(`${track.source}:${track.sourceId}`)),[fonte,savedKeys,titulo]);
   const impressao=useRef('');
   useEffect(()=>{
     if(!chegou||!faixas.length)return;
     const contexto=contextoDe(faixas[0]);
-    const chave=`${contexto.surface}:${discoveryMode}:${faixas.length}`;
+    const chave=`${contexto.surface}:${faixas.length}`;
     if(impressao.current===chave)return;
     impressao.current=chave;
     registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:faixas.length});
-  },[chegou,faixas,discoveryMode,contextoDe]);
+  },[chegou,faixas,contextoDe]);
 
   return (
     <Screen title={titulo} subtitle={chegou ? `${faixas.length} ${faixas.length === 1 ? 'song' : 'songs'}` : undefined}>

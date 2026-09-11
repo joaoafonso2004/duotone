@@ -51,7 +51,7 @@ import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
 import { getDiscordRichPresence } from '../lib/prefs';
 import { sessaoDoSegredoDiscord } from '../lib/presencaDoDiscord';
 import { registar } from '../lib/eventos';
-import { contextoParaAnalytics, type DiscoveryContext } from '../lib/discoveryControl';
+import { contextoParaAnalytics, type DiscoveryContext } from '../lib/contextoDaDescoberta';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePrivacidade } from '../state/privacidade';
 import { usePlaylists } from '../state/playlists';

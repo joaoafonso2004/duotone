@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { Track } from '../types';
-import type { DiscoveryContext } from '../lib/discoveryControl';
+import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 
 /**
  * Navegação do desktop: as rotas e o contrato que as páginas partilham.

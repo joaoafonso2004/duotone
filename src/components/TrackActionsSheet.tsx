@@ -16,7 +16,7 @@ import {
 } from '../lib/youtubeCache';
 import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
-import type { DiscoveryContext } from '../lib/discoveryControl';
+import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { ShareFriendSheet } from './ShareFriendSheet';
 

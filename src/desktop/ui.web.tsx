@@ -8,7 +8,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
 import { BrilhoInteligente, EstrelaInteligente } from '../components/BrilhoInteligente';
 import { useSaved } from '../state/saved';
-import type { DiscoveryContext } from '../lib/discoveryControl';
+import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 

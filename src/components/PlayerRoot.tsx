@@ -44,7 +44,7 @@ import { useSaved } from '../state/saved';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
-import { contextoParaAnalytics } from '../lib/discoveryControl';
+import { contextoParaAnalytics } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ProgressBar } from './ProgressBar';

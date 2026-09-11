@@ -36,9 +36,7 @@ import { MusicasDoDia } from '../MusicasDoDia.web';
 import type { CommonPageProps, NavegarFn, Route } from '../rotas';
 import { COR, ESP, FONT, RAIO, TIPO } from '../tokens.web';
 import { useLibraryData } from './comum.web';
-import { DiscoveryControl } from '../../components/DiscoveryControl';
-import { useDiscoveryControl } from '../../state/discoveryControl';
-import { contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics } from '../../lib/discoveryControl';
+import { contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics } from '../../lib/contextoDaDescoberta';
 import { registar } from '../../lib/eventos';
 
 export function SearchPage({ play, notify, more, navigate }: CommonPageProps & { navigate: NavegarFn }) {
@@ -53,7 +51,6 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
   // recommendations..." do zero, e a espera nao e pequena.
   const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
-  const discoveryMode=useDiscoveryControl((s)=>s.mode);
   const savedKeys=useSaved((s)=>s.keys);
   const { descobrir, nuncaLancado, amigos, ouvirDeNovo, flow, maisTocadas, esquecidas } = recs;
   /**
@@ -76,7 +73,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
     navigate({ name: 'mistura', id: m.id, titulo: m.nome });
   const recsCarregadas = recs.estado === 'pronto';
   const contextoPrateleira=useCallback((nome:NomeDaPrateleira)=>(track:Track)=>
-    contextoDaPrateleira(nome,discoveryMode,savedKeys.has(`${track.source}:${track.sourceId}`)),[discoveryMode,savedKeys]);
+    contextoDaPrateleira(nome,savedKeys.has(`${track.source}:${track.sourceId}`)),[savedKeys]);
   const vistos=useRef(new Set<string>());
   useEffect(()=>{
     if(vista!=='descobrir')return;
@@ -84,12 +81,12 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       const tracks=recs[nome];
       if(!recs.prontas.includes(nome)||!tracks.length)continue;
       const contexto=contextoPrateleira(nome)(tracks[0]);
-      const chave=`${discoveryMode}:${nome}:${recs.carregadoEm}:${tracks.length}`;
+      const chave=`${nome}:${recs.carregadoEm}:${tracks.length}`;
       if(vistos.current.has(chave))continue;
       vistos.current.add(chave);
       registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:tracks.length});
     }
-  },[vista,discoveryMode,recs,contextoPrateleira,recs.carregadoEm,recs.prontas,recs.descobrir,recs.nuncaLancado,recs.amigos,recs.ouvirDeNovo,recs.flow,recs.maisTocadas,recs.esquecidas,savedKeys]);
+  },[vista,recs,contextoPrateleira,recs.carregadoEm,recs.prontas,recs.descobrir,recs.nuncaLancado,recs.amigos,recs.ouvirDeNovo,recs.flow,recs.maisTocadas,recs.esquecidas,savedKeys]);
   // Nao repete o trabalho: se ja estao carregadas ou a carregar, isto e um
   // no-op. Existe para o caso de a app nao as ter comecado no arranque.
   useEffect(() => { void recs.carregar(); }, []);
@@ -105,8 +102,8 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} /> : undefined}>
     <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
     {query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
-    {semPesquisa && !loading ? <Separadores opcoes={[['descobrir', 'Discover'], ['dia', 'Songs of the day']] as const}
-      valor={vista} aoMudar={setVista} /> : null}
+    {semPesquisa && !loading ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['descobrir', 'Discover'], ['dia', 'Songs of the day']] as const}
+      valor={vista} aoMudar={setVista} /></View> : null}
     <ContentScroll>{
       /* O que já é teu vem primeiro e não espera pela rede; o YouTube fica por
          baixo. Ver lib/pesquisaLocal.ts. */
@@ -126,7 +123,6 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
       : vista === 'dia' ? <MusicasDoDia play={play} notify={notify} />
       : temRecomendacoes(recs) ? <>
-          <View style={{marginBottom:24}}><DiscoveryControl compact /></View>
           <Shelf titulo="Discover weekly" nota="music you don't have yet, based on what you listen to. The same list all week." tracks={descobrir} onPlay={play} onMore={more} contexto={contextoPrateleira('descobrir')} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
@@ -263,18 +259,17 @@ export function MisturaPage({ id, titulo, back, ...props }: {
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
   const tocarLista = usePlayer((s) => s.tocarLista);
-  const discoveryMode=useDiscoveryControl((s)=>s.mode);
   const savedKeys=useSaved((s)=>s.keys);
-  const contexto=useCallback((track:Track)=>contextoDaMistura(id,mistura?.nome??titulo,discoveryMode,savedKeys.has(`${track.source}:${track.sourceId}`)),[id,mistura?.nome,titulo,discoveryMode,savedKeys]);
+  const contexto=useCallback((track:Track)=>contextoDaMistura(id,mistura?.nome??titulo,savedKeys.has(`${track.source}:${track.sourceId}`)),[id,mistura?.nome,titulo,savedKeys]);
   const impressao=useRef('');
   useEffect(()=>{
     if(!mistura||!faixas.length)return;
     const ctx=contexto(faixas[0]);
-    const chave=`${ctx.surface}:${discoveryMode}:${faixas.length}`;
+    const chave=`${ctx.surface}:${faixas.length}`;
     if(impressao.current===chave)return;
     impressao.current=chave;
     registar('recomendacao_mostrada',{...contextoParaAnalytics(ctx),quantidade:faixas.length});
-  },[mistura,faixas,discoveryMode,contexto]);
+  },[mistura,faixas,contexto]);
 
   return <Page
     title={mistura?.nome ?? titulo}
