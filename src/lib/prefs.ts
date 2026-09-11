@@ -35,6 +35,8 @@ const KEY_EFFECT_INTENSITY = 'pref:effectIntensity';
 /** A presenca do Discord, so no PC. Ver `getDiscordRichPresence`. */
 const KEY_DISCORD_ON = 'pref:discordRichPresence';
 const KEY_DISCORD_APP = 'pref:discordAppId';
+/** A escuta privada. Ver `getEscutaPrivada`. */
+const KEY_ESCUTA_PRIVADA = 'pref:escutaPrivada';
 /** Os artistas escolhidos no primeiro dia. Ver `getArtistasSemente`. */
 const KEY_SEMENTES = 'pref:artistasSemente';
 
@@ -425,6 +427,22 @@ export async function getDiscordAppId(): Promise<string> {
 }
 export async function setDiscordAppId(v: string): Promise<void> {
   await AsyncStorage.setItem(KEY_DISCORD_APP, v.trim());
+}
+
+/**
+ * A escuta privada: os amigos e o Discord deixam de ver o que está a tocar
+ * NESTE aparelho.
+ *
+ * Do aparelho e não da conta, como a presença -- cada um publica a sua. Mas
+ * viaja com as outras preferências (prefsSync): um aparelho acabado de limpar
+ * que entra numa conta privada começa privado, que é o lado seguro de errar.
+ * Quem liga e desliga é o indicador no leitor (lib/visibilidade.ts).
+ */
+export async function getEscutaPrivada(): Promise<boolean> {
+  return getBool(KEY_ESCUTA_PRIVADA, false);
+}
+export async function setEscutaPrivada(v: boolean): Promise<void> {
+  await setBool(KEY_ESCUTA_PRIVADA, v);
 }
 
 /**

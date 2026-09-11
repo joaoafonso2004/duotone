@@ -25,6 +25,7 @@ import { styles } from './estilos.web';
 import { COR, FONT, FONTES } from './tokens.web';
 import { Artwork, desktop, formatTime, IconButton, ui } from './ui.web';
 import { PRIMARY, type Route } from './rotas';
+import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade.web';
 
 const P = Pressable as any;
 const V = View as any;
@@ -230,7 +231,12 @@ export function NavItem({ label, icon, active, badge, onPress }: { label: string
   return <P className="nav-item-animate" onPress={onPress} style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : desktop.muted} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', marginRight: 4 }} />}</P>;
 }
 
-export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam }: { currentIsSaved: boolean; toggleSaveCurrent: () => void; onJam: () => void }) {
+export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLigado = false, onAviso }: {
+  currentIsSaved: boolean; toggleSaveCurrent: () => void; onJam: () => void;
+  /** O Discord está a publicar -- quem sabe é a casca, que tem a preferência. */
+  discordLigado?: boolean;
+  onAviso?: (mensagem: string) => void;
+}) {
   const p = usePlayer(); const ratio = p.durationMs ? Math.min(1, p.positionMs / p.durationMs) : 0;
   const jam = useOuvirJuntos((s) => s.sessao);
   const [dragX,setDragX]=useState(0);
@@ -342,6 +348,8 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam }: { curren
     </View>
     <View style={styles.playerRight}>
       {p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}
+      {/* Quem vê o que está a tocar, ao lado do botão que abre o Jam. */}
+      <IndicadorDeVisibilidade discordLigado={discordLigado} onJam={onJam} onAviso={onAviso} />
       <IconButton name={jam ? 'people' : 'people-outline'} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam} />
       <V style={styles.volumeRow} className="slider-container"><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={alternarSilencio} accessibilityRole="button" accessibilityLabel={p.volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${p.volume}%` }} /></P></V>
       <IconButton name="close" label="Close player" onPress={()=>void closePlayerSmoothly()} />

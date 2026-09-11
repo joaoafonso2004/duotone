@@ -4,6 +4,7 @@ import { ModoCarro } from './ModoCarro';
 import { useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
 import { Toque } from './Toque';
+import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade';
 import { BarraDaSessao } from './BarraDaSessao';
 import { FolhaDaSessao } from './FolhaDaSessao';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
@@ -969,25 +970,12 @@ export function PlayerRoot() {
         </View>
 
 
-        {/* Espaço reservado para a capa quadrada grande (a frame flutua por
-            cima nesta posição). */}
-        {/* O espaço reservado à capa (a moldura flutua por cima nesta posição)
-            -- e o canto onde vive o sinal da sessão. Estava no cabeçalho, com
-            posição absoluta, e acabava em cima da barra de estado do telemóvel:
-            fora da app inteira. Aqui está onde se olha. */}
-        <View style={{ height: vidFull.h, marginTop: AR_ACIMA_DA_CAPA, marginBottom: spacing.sm }}>
-          {temSessao ? (
-            <Toque
-              escala={ESCALA.icone}
-              hitSlop={10}
-              onPress={() => setSessaoAberta(true)}
-              accessibilityLabel="Listen together"
-              style={[styles.sinalDaSessao, { right: (W - vidFull.w) / 2 + 10 }]}
-            >
-              <Ionicons name="headset" size={15} color={theme.color} />
-            </Toque>
-          ) : null}
-        </View>
+        {/* O espaço reservado à capa (a moldura flutua por cima nesta
+            posição). Teve no canto um auscultador a dizer que havia Jam; saiu
+            quando o indicador de visibilidade da fila de baixo passou a dizer
+            o mesmo -- com quantas pessoas, e a abrir a mesma folha. Dois sinais
+            para uma coisa, e um deles em cima da capa. */}
+        <View style={{ height: vidFull.h, marginTop: AR_ACIMA_DA_CAPA, marginBottom: spacing.sm }} />
 
         {/* Dois pontos por baixo da capa: a pista mínima de que ali há outro
             lado. A capa fica limpa -- nada por cima dela, que era a condição.
@@ -1264,7 +1252,11 @@ export function PlayerRoot() {
                 <Ionicons name="list-outline" size={23} color={colors.text} />
                 <Text style={styles.utilityIconLabel}>Queue</Text>
               </Toque>
-              <View />
+              {/* Quem vê o que está a tocar: amigos, ninguém, ou o Jam. */}
+              <IndicadorDeVisibilidade
+                onAbrirJam={() => setSessaoAberta(true)}
+                onAviso={showToast}
+              />
               <Toque
                 escala={ESCALA.icone}
                 accessibilityRole="button"
@@ -1688,20 +1680,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
-  },
-  // O sinal de que ha sessao, no canto do cabecalho do leitor grande.
-  // No canto de cima da capa, por dentro dela. O `zIndex` porque a moldura da
-  // capa flutua por cima deste espaco -- sem ele o icone ficava por baixo.
-  sinalDaSessao: {
-    position: 'absolute',
-    top: 10,
-    zIndex: 5,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(10,10,15,0.72)',
   },
   headerBtn: {
     width: 44,

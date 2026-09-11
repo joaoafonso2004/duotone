@@ -53,6 +53,7 @@ import { sessaoDoSegredoDiscord } from '../lib/presencaDoDiscord';
 import { registar } from '../lib/eventos';
 import { contextoParaAnalytics, type DiscoveryContext } from '../lib/discoveryControl';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { usePrivacidade } from '../state/privacidade';
 import { usePlaylists } from '../state/playlists';
 import { useTheme } from '../state/theme';
 import type { Playlist, Track } from '../types';
@@ -129,7 +130,13 @@ function DesktopShell() {
     window.addEventListener('duotone:discord',ouvir);
     return ()=>window.removeEventListener('duotone:discord',ouvir);
   },[]);
-  usePresencaDoDiscord(discordOn,discordApp);
+  // A escuta privada cala o Discord também. Espera-se pela preferência: ligar
+  // o Discord no arranque e só depois saber que a pessoa é privada publicava
+  // a faixa no perfil dela durante esse instante.
+  const privada=usePrivacidade((s)=>s.privada||!s.carregada);
+  usePresencaDoDiscord(discordOn&&!privada,discordApp);
+  // O que o indicador do leitor diz: se o Discord está mesmo a publicar.
+  const discordLigado=discordOn&&!!discordApp&&!!window.duotoneDesktop?.definirPresencaNoDiscord;
   useEffect(()=>{
     const ouvir=window.duotoneDesktop?.onDiscordJoin;
     if(!ouvir)return;
@@ -529,7 +536,7 @@ function DesktopShell() {
   // Definicoes. Era `rgba(18,18,24)` a martelo, fora de qualquer paleta.
   const bgStyle = { backgroundColor: `rgba(12, 12, 16, ${panelOpacity})` };
 
-  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><View style={styles.main}><V style={[styles.sidebar, bgStyle]} className="glass-panel"><Sidebar route={route} navigate={navigate} /></V><V style={[styles.content, bgStyle]} className="glass-panel"><TransitionView transitionKey={JSON.stringify(route)}>{page}</TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></View>}</V></View><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} /><HandoffBanner />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><View style={styles.main}><V style={[styles.sidebar, bgStyle]} className="glass-panel"><Sidebar route={route} navigate={navigate} /></V><V style={[styles.content, bgStyle]} className="glass-panel"><TransitionView transitionKey={JSON.stringify(route)}>{page}</TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></View>}</V></View><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* CUSTOM ACTIONS DIALOG */}

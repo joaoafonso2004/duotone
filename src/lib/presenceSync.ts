@@ -4,6 +4,7 @@ import * as Crypto from 'expo-crypto';
 import { supabase } from './supabase';
 import { getDeviceId } from './deviceIdentity';
 import { usePlayer } from '../state/player';
+import { garantirPrivacidade, usePrivacidade } from '../state/privacidade';
 
 let terminarAtual: (() => Promise<void>) | null = null;
 // O servidor mantém cada publicação válida por 120 s. Setenta e cinco deixa
@@ -34,9 +35,15 @@ export function iniciarPresenca(userId: string): () => void {
     fila = fila.catch(() => {}).then(async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session?.user.id !== userId) return;
+      // A escuta privada decide-se na hora do ENVIO e não na da chamada: um
+      // envio que estava na fila quando a pessoa a ligou já sai sem a faixa.
+      // E espera-se pela preferência -- no arranque, publicar primeiro e ler
+      // depois deixava a faixa à vista dos amigos durante uns segundos.
+      await garantirPrivacidade();
+      const privada = usePrivacidade.getState().privada;
       const { error } = await supabase.rpc('publish_social_presence', {
         p_device_id: await dispositivo, p_session_id: sessao, p_sequence: seq,
-        p_active: ativo && !encerrar, p_track: encerrar ? null : faixa, p_end: encerrar,
+        p_active: ativo && !encerrar, p_track: encerrar || privada ? null : faixa, p_end: encerrar,
       });
       if (error) console.warn('Não foi possível publicar a presença:', error.message);
     });
@@ -55,6 +62,11 @@ export function iniciarPresenca(userId: string): () => void {
     // o ecrã bloqueado. Não depender só de setInterval para o batimento iOS.
     else if(!terminado&&s.positionMs!==p.positionMs&&s.isPlaying&&Date.now()-lastPublished>=PRESENCE_PUBLISH_MS)void publicar();
   });
+  // Ligar a privada tem de tirar a faixa JÁ, e não no próximo batimento: são
+  // até 75 segundos a mostrar precisamente aquilo que se quis esconder.
+  const pararPrivacidade = usePrivacidade.subscribe((s, p) => {
+    if (!terminado && s.privada !== p.privada) void publicar();
+  });
   const app = AppState.addEventListener('change', () => { if (!terminado) void publicar(); });
   const beat = setInterval(() => {
     // Continua a bater com musica a tocar: e o que mantem o "esta a ouvir"
@@ -66,7 +78,7 @@ export function iniciarPresenca(userId: string): () => void {
   const terminar = async () => {
     if (terminado) return;
     terminado = true;
-    clearTimeout(timer); clearInterval(beat); unsubscribe(); app.remove();
+    clearTimeout(timer); clearInterval(beat); unsubscribe(); pararPrivacidade(); app.remove();
     if (Platform.OS === 'web') { window.removeEventListener('online', voltar); window.removeEventListener('focus', voltar); window.removeEventListener('pagehide', sair); }
     await publicar(true);
   };

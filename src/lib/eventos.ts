@@ -49,7 +49,9 @@ export type NomeDeEvento =
   | 'recomendacao_tocada'
   | 'recomendacao_guardada'
   | 'recomendacao_saltada'
-  | 'controlo_descoberta_alterado';
+  | 'controlo_descoberta_alterado'
+  /** O indicador do leitor ligou ou desligou a escuta privada. */
+  | 'escuta_privada_alterada';
 
 type Evento = { nome: NomeDeEvento; dados: Record<string, string | number | boolean>; em: string };
 

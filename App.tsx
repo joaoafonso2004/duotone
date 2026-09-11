@@ -51,6 +51,7 @@ import { CartazDaSemana } from './src/components/CartazDaSemana';
 import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
 import { carregarDiscoveryControl, useDiscoveryControl } from './src/state/discoveryControl';
+import { garantirPrivacidade } from './src/state/privacidade';
 
 export default function App() {
   // O acento segue a capa a tocar quando esse modo esta escolhido. Aqui em
@@ -163,6 +164,9 @@ export default function App() {
       else usePlayer.persist.onFinishHydration(()=>{if(!useConnectivity.getState().offline)prune();});
     });
     useTheme.getState().loadTheme();
+    // A escuta privada tem de estar lida antes de alguém publicar: a presença
+    // espera por ela, e o indicador do leitor mostra-a desde o primeiro ecrã.
+    void garantirPrivacidade();
     // Loudness conhecida por vídeo (normalização de volume) — tem de estar em
     // memória antes de a primeira faixa arrancar.
     loadLoudnessCache();
