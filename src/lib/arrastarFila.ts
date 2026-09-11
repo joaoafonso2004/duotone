@@ -105,7 +105,10 @@ export function velocidadeDoDeslize(
   margem = MARGEM_DE_DESLIZE,
   maximo = DESLIZE_MAXIMO_PX,
 ): number {
-  if (!Number.isFinite(dedoY) || fundo - topo < margem * 2) return 0;
+  // Sem limites medidos não há bordas: `NaN` quer dizer que a medição ainda
+  // não voltou. Correr às cegas foi exatamente o bug -- ver `offsetDoDeslize`.
+  if (!Number.isFinite(dedoY) || !Number.isFinite(topo) || !Number.isFinite(fundo)) return 0;
+  if (fundo - topo < margem * 2) return 0;
   if (dedoY < topo + margem) {
     const perto = Math.min(1, (topo + margem - dedoY) / margem);
     return -Math.round(perto * maximo);
@@ -115,4 +118,55 @@ export function velocidadeDoDeslize(
     return Math.round(perto * maximo);
   }
   return 0;
+}
+
+/**
+ * Quantos ecrãs de lista o deslize pode correr desde onde se pegou.
+ *
+ * A `FlatList` só tem montadas as linhas até dez ecrãs acima e abaixo do que se
+ * vê (`windowSize` 21). A linha pegada é quem tem o dedo: se o deslize a
+ * levasse para lá disso ela era desmontada, e o gesto morria a meio. Oito
+ * deixa margem, e numa lista de 300 px são umas quarenta músicas de uma vez
+ * -- para mais, larga-se e pega-se outra vez.
+ */
+export const ALCANCE_DO_DESLIZE_EM_ECRAS = 8;
+
+/**
+ * O deslocamento seguinte da lista durante o deslize nas bordas.
+ *
+ * Preso ao conteúdo (nem acima do topo, nem abaixo do fim) e ao alcance
+ * acima. Devolve o mesmo valor quando não há para onde ir -- quem chama usa
+ * isso para não pedir um scroll que não muda nada.
+ */
+export function offsetDoDeslize(
+  actual: number,
+  velocidade: number,
+  maximo: number,
+  ancora: number,
+  alturaVisivel: number,
+  alcance = ALCANCE_DO_DESLIZE_EM_ECRAS,
+): number {
+  if (!Number.isFinite(actual) || !Number.isFinite(velocidade) || velocidade === 0) return actual;
+  const raio = Math.max(0, alturaVisivel) * alcance;
+  const baixo = Math.max(0, ancora - raio);
+  const alto = Math.min(Math.max(0, maximo), ancora + raio);
+  return Math.max(baixo, Math.min(alto, actual + velocidade));
+}
+
+/**
+ * Chaves de linha que não mudam quando a lista muda de ordem.
+ *
+ * Eram `faixa-índice`: ao largar uma música, todas as linhas entre a origem e o
+ * destino mudavam de índice e portanto de chave, e o React desmontava-as e
+ * montava-as outra vez -- as capas piscavam, como se a lista tivesse
+ * recarregado. Com a própria faixa como chave, mudar de sítio é só mudar de
+ * sítio. A mesma música duas vezes na fila leva o número da ocorrência.
+ */
+export function chavesEstaveis(chaves: readonly string[]): string[] {
+  const vistas = new Map<string, number>();
+  return chaves.map((chave) => {
+    const n = vistas.get(chave) ?? 0;
+    vistas.set(chave, n + 1);
+    return n ? `${chave}#${n}` : chave;
+  });
 }

@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import {
   destinoDoArrasto, limiarDaLinha, desvioDaLinha, movido,
   velocidadeDoDeslize, MARGEM_DE_DESLIZE, DESLIZE_MAXIMO_PX,
+  offsetDoDeslize, ALCANCE_DO_DESLIZE_EM_ECRAS, chavesEstaveis,
 } from '../src/lib/arrastarFila.ts';
 
 const H = 60;
@@ -111,6 +112,38 @@ verificar('uma lista pequena não desliza', () => {
   // Sem espaço para as duas margens, tudo é borda e a lista tremia.
   assert.equal(velocidadeDoDeslize(110, 100, 200), 0);
   assert.equal(velocidadeDoDeslize(NaN, 100, 700), 0);
+});
+
+verificar('sem limites medidos não há deslize', () => {
+  // O bug da 2.6.4: os limites eram medidos com a folha ainda a subir, e a
+  // lista achava que o dedo estava sempre acima do topo -- subia sozinha e
+  // nunca descia. Agora mede-se ao pegar, e até a medição voltar é NaN.
+  assert.equal(velocidadeDoDeslize(400, NaN, NaN), 0);
+  assert.equal(velocidadeDoDeslize(690, 100, NaN), 0);
+});
+
+verificar('o deslize não sai do conteúdo', () => {
+  assert.equal(offsetDoDeslize(5, -12, 1000, 5, 300), 0, 'não passa acima do topo');
+  assert.equal(offsetDoDeslize(995, 12, 1000, 995, 300), 1000, 'nem abaixo do fim');
+  assert.equal(offsetDoDeslize(500, 0, 1000, 500, 300), 500, 'parado fica onde está');
+  assert.equal(offsetDoDeslize(500, NaN, 1000, 500, 300), 500);
+});
+
+verificar('o deslize não leva a linha pegada para fora das montadas', () => {
+  const raio = 300 * ALCANCE_DO_DESLIZE_EM_ECRAS;
+  assert.equal(offsetDoDeslize(raio, 12, 99_999, 0, 300), raio, 'para no alcance, a descer');
+  assert.equal(offsetDoDeslize(50_000 - raio, -12, 99_999, 50_000, 300), 50_000 - raio, 'e a subir');
+  assert.equal(offsetDoDeslize(100, 12, 99_999, 0, 300), 112, 'dentro do alcance corre à vontade');
+});
+
+verificar('as chaves das linhas não mudam com a ordem', () => {
+  const antes = chavesEstaveis(['a', 'b', 'c', 'd']);
+  const depois = chavesEstaveis(['b', 'c', 'a', 'd']);
+  // A mesma faixa tem a mesma chave nos dois sítios: mudar de lugar não é
+  // desmontar e montar, e as capas deixam de piscar.
+  assert.deepEqual([...depois].sort(), [...antes].sort());
+  assert.equal(depois[2], 'a');
+  assert.deepEqual(chavesEstaveis(['x', 'y', 'x', 'x']), ['x', 'y', 'x#1', 'x#2'], 'repetidas ficam distintas');
 });
 
 verificar('o destino conta com o que a lista deslizou', () => {

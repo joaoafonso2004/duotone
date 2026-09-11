@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, PanResponder, StyleSheet, View } from 'react-native';
+import { Animated, PanResponder, StyleSheet, View, type GestureResponderHandlers } from 'react-native';
 import { limiarDaLinha } from '../lib/arrastarFila';
 import { colors } from '../theme';
 
@@ -18,28 +18,43 @@ import { colors } from '../theme';
  * o lado -- a folha inferior, a barra de progresso, o cubo das letras -- e
  * chegam perfeitamente para uma lista de linhas todas da mesma altura.
  *
- * ## O gesto
+ * ## Os dois gestos
  *
- * Meio segundo de dedo parado abre o arrasto. Começou em mil, para não
- * colidir com o toque longo de 350 ms das outras listas -- o raciocínio
- * estava certo e o número errado. Um segundo com o dedo parado é tempo a
- * mais para um gesto que se repete: parece que a app não respondeu, e
- * levanta-se o dedo antes de ela reagir. Quinhentos separa os dois gestos
- * na mesma e não se sente.
+ * **A pega (≡) pega logo**, sem espera: é o gesto de reordenar que o iOS
+ * ensinou, e o que a pega promete. Esteve só desenhada -- arrastá-la fazia a
+ * lista deslizar, que é o contrário do que ela diz.
  *
- * A partir daí quem manda no dedo é esta linha e mais ninguém: o
+ * **Meio segundo de dedo parado em qualquer ponto da linha** também abre o
+ * arrasto, para quem não der pela pega. Começou em mil, para não colidir com
+ * o toque longo de 350 ms das outras listas -- o raciocínio estava certo e o
+ * número errado: um segundo parece a app a não responder.
+ *
+ * Nos dois, a partir daí quem manda no dedo é esta linha e mais ninguém: o
  * `onPanResponderTerminationRequest` recusa entregá-lo. Sem isso a folha
- * inferior -- que fecha ao arrastar para baixo -- roubava o gesto a meio, e
- * arrastar uma música para baixo fechava a fila em vez de a reordenar.
+ * inferior -- que fecha ao arrastar para baixo -- roubava o gesto a meio.
+ *
+ * ## Quem é a linha pegada, sem esperar pelo React
+ *
+ * O `pegadaRef` diz qual das linhas está pegada, e é escrito no próprio
+ * gesto. Com uma prop, o primeiro movimento a seguir ao toque longo ainda
+ * chegava antes do render que a marcava, e perdia-se para a lista ou para a
+ * folha.
  */
 export function LinhaArrastavel({
-  index, arrastarIndex, altura, dy, aoPegar, aoMover, aoLargar, children,
+  index, arrastarIndex, pegadaRef, podeArrastar, altura, dy,
+  aoComecar, aoPegar, aoMover, aoLargar, aoCancelar, children,
 }: {
   index: number;
-  /** Qual das linhas está a ser arrastada. `null` = nenhuma. */
+  /** Qual das linhas está a ser arrastada, para o desenho. `null` = nenhuma. */
   arrastarIndex: number | null;
+  /** O mesmo, mas escrito no gesto: é o que decide quem fica com o dedo. */
+  pegadaRef: React.RefObject<number | null>;
+  /** Numa sessão a fila é de toda a gente e não se reordena daqui. */
+  podeArrastar: boolean;
   altura: number;
   dy: Animated.Value;
+  /** A pega foi tocada: o arrasto abre aqui, como abre com o toque longo. */
+  aoComecar: (index: number) => void;
   /** O dedo mexeu-se e o arrasto arrancou mesmo. */
   aoPegar: (dedoY: number) => void;
   /**
@@ -47,7 +62,7 @@ export function LinhaArrastavel({
    *
    * A segunda é que permite o deslize nas bordas -- o `dy` diz quanto o dedo
    * andou, e não onde ele está. Quem decide se a lista tem de correr precisa
-   * de saber se o dedo está encostado ao topo do ecrã, e isso o `dy` nunca diz.
+   * de saber se o dedo está encostado a uma borda, e isso o `dy` nunca diz.
    *
    * Quem escreve no `dy` é o dono da lista e não esta linha: durante o deslize
    * o valor tem de somar o que a lista correu, senão a linha fica para trás
@@ -55,39 +70,63 @@ export function LinhaArrastavel({
    */
   aoMover: (dy: number, dedoY: number) => void;
   aoLargar: (dyFinal: number) => void;
-  children: React.ReactNode;
+  /**
+   * O sistema tirou-nos o dedo (uma chamada a entrar, por exemplo). Não é um
+   * largar: largar com o deslocamento a zero ainda contava o que a lista
+   * tinha corrido, e a música mudava de sítio sem ninguém a ter largado.
+   */
+  aoCancelar: () => void;
+  /** Recebe os gestos da pega, para quem desenha a linha os pôr no ≡. */
+  children: (pega: GestureResponderHandlers | null) => React.ReactNode;
 }) {
   const activo = arrastarIndex === index;
-  // O `PanResponder` fecha sobre o primeiro valor que vê. Sem a referência,
-  // continuaria a achar que esta linha não está activa depois de o ser.
-  const activoRef = React.useRef(activo);
-  activoRef.current = activo;
-  const largarRef = React.useRef(aoLargar);
-  largarRef.current = aoLargar;
-  const pegarRef = React.useRef(aoPegar);
-  pegarRef.current = aoPegar;
-  const moverRef = React.useRef(aoMover);
-  moverRef.current = aoMover;
+  // Os PanResponders fecham sobre o primeiro render. Tudo o que muda chega-lhes
+  // por referência -- incluindo o índice, que muda quando a fila se reordena
+  // e esta mesma linha passa a estar noutro sítio.
+  const indexRef = React.useRef(index);
+  indexRef.current = index;
+  const podeRef = React.useRef(podeArrastar);
+  podeRef.current = podeArrastar;
+  const cb = React.useRef({ aoComecar, aoPegar, aoMover, aoLargar, aoCancelar });
+  cb.current = { aoComecar, aoPegar, aoMover, aoLargar, aoCancelar };
+  const minha = () => pegadaRef.current === indexRef.current;
 
   const pan = React.useMemo(
     () =>
       PanResponder.create({
-        // Só depois do segundo de espera. Antes disso o dedo é do toque
-        // simples, que toca a música.
-        onMoveShouldSetPanResponder: () => activoRef.current,
+        // Só depois do toque longo. Antes disso o dedo é do toque simples, que
+        // toca a música.
+        onMoveShouldSetPanResponder: minha,
         onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: (e) => pegarRef.current(e.nativeEvent.pageY),
+        onPanResponderGrant: (e) => cb.current.aoPegar(e.nativeEvent.pageY),
         onPanResponderMove: (_e, g) => {
-          if (activoRef.current) moverRef.current(g.dy, g.moveY);
+          if (minha()) cb.current.aoMover(g.dy, g.moveY);
         },
-        onPanResponderRelease: (_e, g) => largarRef.current(g.dy),
-        // O sistema tirou-nos o dedo (uma chamada a entrar, por exemplo):
-        // devolve-se a linha ao sítio de onde veio em vez de a deixar a meio.
-        onPanResponderTerminate: () => largarRef.current(0),
+        onPanResponderRelease: (_e, g) => cb.current.aoLargar(g.dy),
+        onPanResponderTerminate: () => cb.current.aoCancelar(),
       }),
-    // Sem dependências: tudo o que este gesto precisa de saber vem por
-    // referência, de propósito. Recriar o  a meio de um arrasto
+    // Sem dependências, de propósito: recriar isto a meio de um arrasto
     // perdia o dedo.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  const pega = React.useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => podeRef.current,
+        onPanResponderTerminationRequest: () => false,
+        onPanResponderGrant: (e) => {
+          cb.current.aoComecar(indexRef.current);
+          cb.current.aoPegar(e.nativeEvent.pageY);
+        },
+        onPanResponderMove: (_e, g) => {
+          if (minha()) cb.current.aoMover(g.dy, g.moveY);
+        },
+        onPanResponderRelease: (_e, g) => cb.current.aoLargar(g.dy),
+        onPanResponderTerminate: () => cb.current.aoCancelar(),
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -119,7 +158,9 @@ export function LinhaArrastavel({
       // desaparecer debaixo da lista.
       style={[estilo, activo && styles.aPegar]}
     >
-      <View style={activo ? styles.pegada : undefined}>{children}</View>
+      <View style={activo ? styles.pegada : undefined}>
+        {children(podeArrastar ? pega.panHandlers : null)}
+      </View>
     </Animated.View>
   );
 }

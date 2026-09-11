@@ -26,9 +26,18 @@ interface Props {
   onClose: () => void;
   children: React.ReactNode;
   gestureBlocked?: boolean;
+  /**
+   * O mesmo que `gestureBlocked`, mas lido na hora do gesto e não do render.
+   *
+   * Existe pelo arrasto da fila. A prop só chega depois de o React voltar a
+   * desenhar, e o dedo não espera: o primeiro movimento a seguir ao toque
+   * longo ainda via a folha desbloqueada, e com o dedo a descer uns pixels a
+   * folha ficava com o gesto -- arrastava-se a fila inteira em vez da música.
+   */
+  bloqueioRef?: React.RefObject<boolean>;
 }
 
-export function BottomSheet({ visible, onClose, children, gestureBlocked = false }: Props) {
+export function BottomSheet({ visible, onClose, children, gestureBlocked = false, bloqueioRef }: Props) {
   const { height } = useWindowDimensions();
   const notificationDismiss = useNotificationOverlay(visible,onClose);
   const insets = useSafeAreaInsets();
@@ -39,11 +48,15 @@ export function BottomSheet({ visible, onClose, children, gestureBlocked = false
   const fechar = useRef(onClose);
   fechar.current = onClose;
   const bloqueado = useRef(false); bloqueado.current = gestureBlocked;
+  // O PanResponder fecha sobre o primeiro render: o ref de quem chama chega-lhe
+  // por outro ref, como o `onClose`.
+  const bloqueioExterno = useRef(bloqueioRef); bloqueioExterno.current = bloqueioRef;
   const gestos = useRef({ offsets: new Map<object, number>(), controls: new Set<object>() }).current;
   const tecladoPrimeiro = useRef(false);
   const topoNoInicio = useRef(true);
   const podePuxar = (_e: unknown, g: { dx: number; dy: number }) =>
-    !bloqueado.current && gestos.controls.size === 0 && topoNoInicio.current &&
+    !bloqueado.current && !bloqueioExterno.current?.current &&
+    gestos.controls.size === 0 && topoNoInicio.current &&
     g.dy > 4 && Math.abs(g.dy) > Math.abs(g.dx);
 
   useEffect(() => {

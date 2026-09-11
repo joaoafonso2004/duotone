@@ -1,7 +1,7 @@
 import React from 'react';
 import { Alert, Animated, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinhaArrastavel } from './LinhaArrastavel';
-import { destinoDoArrasto, velocidadeDoDeslize } from '../lib/arrastarFila';
+import { chavesEstaveis, destinoDoArrasto, offsetDoDeslize, velocidadeDoDeslize } from '../lib/arrastarFila';
 import { TRACK_ROW_HEIGHT } from './TrackRow';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePlayer } from '../state/player';
@@ -87,6 +87,14 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
   // que e ela, e as outras precisam de saber para onde se afastar.
   const [arrastar, setArrastar] = React.useState<number | null>(null);
   const dy = React.useRef(new Animated.Value(0)).current;
+  // O mesmo que o `arrastar`, mas escrito no gesto e nao no render: e por ele
+  // que a linha reclama o dedo e que a folha sabe que nao pode fechar. Ver
+  // `LinhaArrastavel` -- um render de atraso era um movimento perdido.
+  const pegadaRef = React.useRef<number | null>(null);
+  // A chave da faixa pegada. A fila pode andar por baixo do dedo (a musica
+  // acaba e o `queueIndex` avanca): largar pelo indice movia outra faixa.
+  const chaveDaPegada = React.useRef<string | null>(null);
+  const bloqueioDaFolha = React.useRef(false);
   // O toque longo PEGA na linha, mas o arrasto só arranca quando o dedo se
   // mexe. Levantá-lo sem mexer deixava a linha pegada para sempre e a lista
   // sem deslizar -- daí o `onPressOut` a desfazer, e esta marca a distinguir
@@ -97,8 +105,16 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
   // inteira a redesenhar durante o gesto.
   const listaRef = React.useRef<FlatList<any> | null>(null);
   const molduraRef = React.useRef<View | null>(null);
-  /** Onde a lista começa e acaba NO ECRÃ. O dedo vem em coordenadas de ecrã. */
-  const limites = React.useRef({ topo: 0, fundo: 0 });
+  /**
+   * Onde a lista começa e acaba NO ECRÃ. O dedo vem em coordenadas de ecrã.
+   *
+   * **Medido ao pegar, e não no `onLayout`.** Era no `onLayout`, e essa medição
+   * chega enquanto a folha ainda está a subir -- deslocada quase meio ecrã
+   * para baixo. Nada voltava a medir quando ela assentava, por isso a lista
+   * julgava o dedo sempre acima do topo: subia sozinha e nunca descia. Era o
+   * "não dá para fazer scroll enquanto se arrasta". `NaN` = ainda por medir.
+   */
+  const limites = React.useRef({ topo: Number.NaN, fundo: Number.NaN });
   const alturaVisivel = React.useRef(0);
   const alturaDoConteudo = React.useRef(0);
   const offset = React.useRef(0);
@@ -130,7 +146,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
       const v = velocidadeDoDeslize(gesto.current.dedoY, limites.current.topo, limites.current.fundo);
       if (v === 0) return;
       const maximo = Math.max(0, alturaDoConteudo.current - alturaVisivel.current);
-      const novo = Math.max(0, Math.min(maximo, offset.current + v));
+      const novo = offsetDoDeslize(offset.current, v, maximo, offsetAoPegar.current, alturaVisivel.current);
       if (novo === offset.current) return;
       offset.current = novo;
       listaRef.current?.scrollToOffset({ offset: novo, animated: false });
@@ -143,22 +159,75 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
   // de dez. O `TRACK_ROW_HEIGHT` serve so ate a primeira medicao chegar.
   const [altura, setAltura] = React.useState(TRACK_ROW_HEIGHT);
 
-  // A fila pode mudar por baixo do dedo -- a musica acaba e o `queueIndex`
-  // avanca. Largar uma linha que ja nao existe move a errada.
-  React.useEffect(() => {
-    if (arrastar != null && arrastar >= upNext.length) {
-      setArrastar(null);
-      dy.setValue(0);
-    }
-  }, [arrastar, upNext.length, dy]);
+  // A faixa, e nao o indice, e o que da nome a cada linha. Ver `chavesEstaveis`.
+  const chaves = React.useMemo(
+    () => chavesEstaveis(upNext.map((entry) => trackKey(entry.track))),
+    [upNext]
+  );
 
-  const largar = (de: number) => (dyFinal: number) => {
+  /** A lista para de deslizar ao dedo, ja -- sem esperar pelo render. */
+  const travarLista = (travada: boolean) => {
+    // O `scrollEnabled` da prop chega um render depois, e um arrasto rapido
+    // pela pega podia ser apanhado antes pelo deslize nativo da lista. Os dois
+    // lados chamam isto, para o nativo nunca ficar preso num estado que o
+    // React nao conhece.
+    try { (listaRef.current as any)?.setNativeProps?.({ scrollEnabled: !travada }); } catch { /* sem isto vale a prop */ }
+  };
+
+  const medirLimites = () => {
+    limites.current = { topo: Number.NaN, fundo: Number.NaN };
+    molduraRef.current?.measureInWindow((_x, y, _l, h) => {
+      if (pegadaRef.current == null) return; // o arrasto ja acabou
+      alturaVisivel.current = h;
+      limites.current = { topo: y, fundo: y + h };
+    });
+  };
+
+  const comecarArrasto = (index: number) => {
+    hapticSelection();
+    pegadaRef.current = index;
+    chaveDaPegada.current = chaves[index] ?? null;
+    bloqueioDaFolha.current = true;
+    pegou.current = false;
+    gesto.current = { dy: 0, dedoY: Number.NaN };
+    offsetAoPegar.current = offset.current;
+    dy.setValue(0);
+    travarLista(true);
+    medirLimites();
+    setArrastar(index);
+  };
+
+  const terminarArrasto = () => {
+    pegadaRef.current = null;
+    chaveDaPegada.current = null;
+    bloqueioDaFolha.current = false;
+    pegou.current = false;
+    gesto.current = { dy: 0, dedoY: Number.NaN };
+    limites.current = { topo: Number.NaN, fundo: Number.NaN };
+    travarLista(false);
+    // O `dy` NAO volta a zero aqui. Voltava, e antes de a lista se reordenar:
+    // durante um frame a musica regressava ao sitio de onde veio e depois
+    // saltava para o novo. Com o `arrastar` a null nenhuma linha le o `dy`, e
+    // o proximo arrasto poe-no a zero ao comecar.
+    setArrastar(null);
+  };
+
+  // A fila pode mudar por baixo do dedo -- a musica acaba e o `queueIndex`
+  // avanca, e as linhas sobem uma posicao. Continuar a arrastar pelo indice
+  // era pegar noutra musica; larga-se sem mexer em nada.
+  React.useEffect(() => {
+    if (arrastar != null && chaves[arrastar] !== chaveDaPegada.current) terminarArrasto();
+  });
+
+  const largar = (dyFinal: number) => {
     // O que a lista correu conta tanto como o que o dedo andou: sem isto a
     // música aterra onde o dedo está no ecrã, e não onde ela parece estar.
     const percorrido = dyFinal + deslizou();
-    gesto.current = { dy: 0, dedoY: Number.NaN };
-    setArrastar(null);
-    dy.setValue(0);
+    const chave = chaveDaPegada.current;
+    terminarArrasto();
+    // Pela chave, e nao pelo indice com que se pegou.
+    const de = chave ? chaves.indexOf(chave) : -1;
+    if (de < 0) return;
     const para = destinoDoArrasto(de, percorrido, altura, upNext.length);
     if (para === de || !upNext[de] || !upNext[para]) return;
     hapticSelection();
@@ -200,7 +269,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
 
   return (
     <>
-    <BottomSheet gestureBlocked={arrastar !== null} visible={visible && panel === 'actions'} onClose={onClose}>
+    <BottomSheet gestureBlocked={arrastar !== null} bloqueioRef={bloqueioDaFolha} visible={visible && panel === 'actions'} onClose={onClose}>
       {selection && <PlayerActionsContent title={tituloDaFaixa(selection.track)} actions={actions} />}
       <View style={selection ? styles.hidden : undefined}>
       <View style={styles.header}>
@@ -250,21 +319,15 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
       {upNext.length > 0 ? (
         <View
           ref={molduraRef}
-          collapsable={false}
           // Os limites medem-se NO ECRÃ, porque é em coordenadas de ecrã que o
-          // `PanResponder` diz onde o dedo está. Um `onLayout` sozinho dava a
-          // posição dentro do pai, que aqui não serve de nada.
-          onLayout={() => {
-            molduraRef.current?.measureInWindow((_x, y, _l, h) => {
-              alturaVisivel.current = h;
-              limites.current = { topo: y, fundo: y + h };
-            });
-          }}
+          // `PanResponder` diz onde o dedo está -- e medem-se ao pegar numa
+          // linha, com a folha já assente. Ver `limites`.
+          collapsable={false}
         >
         <BottomSheetFlatList dismissScrollEnabled={!selection}
           ref={listaRef}
           data={upNext}
-          keyExtractor={(entry, index) => `${entry.track.source}:${entry.track.sourceId}-${index}`}
+          keyExtractor={(_entry, index) => chaves[index]}
           style={styles.list}
           // A lista não desliza ao dedo enquanto uma linha está pegada -- quem
           // a faz correr nessa altura é o deslize das bordas, e os dois a
@@ -282,8 +345,11 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
               <LinhaArrastavel
                 index={index}
                 arrastarIndex={arrastar}
+                pegadaRef={pegadaRef}
+                podeArrastar={canReorder}
                 altura={altura}
                 dy={dy}
+                aoComecar={comecarArrasto}
                 aoPegar={(dedoY) => {
                   pegou.current = true;
                   offsetAoPegar.current = offset.current;
@@ -293,8 +359,10 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
                   gesto.current = { dy: d, dedoY };
                   escreverDy();
                 }}
-                aoLargar={largar(index)}
+                aoLargar={largar}
+                aoCancelar={terminarArrasto}
               >
+              {(pega) => (
               <View
                 style={styles.queueItemRow}
                 onLayout={index === 0 ? (e) => {
@@ -316,33 +384,31 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
                     onPress={() => {
                       playTrack(item, queue);
                     }}
-                    onLongPress={canReorder ? () => {
-                      hapticSelection();
-                      dy.setValue(0);
-                      pegou.current = false;
-                      gesto.current = { dy: 0, dedoY: Number.NaN };
-                      offsetAoPegar.current = offset.current;
-                      setArrastar(index);
-                    } : undefined}
+                    onLongPress={canReorder ? () => comecarArrasto(index) : undefined}
                     delayLongPress={canReorder ? 500 : undefined}
                     onPressOut={canReorder ? () => {
                       // O `onPressOut` chega TAMBEM quando o arrasto rouba o
                       // dedo. O adiamento de um tick deixa o `aoPegar` chegar
                       // primeiro e dizer que nao foi um dedo levantado.
                       setTimeout(() => {
-                        if (pegou.current) return;
-                        setArrastar((actual) => (actual === index ? null : actual));
-                        dy.setValue(0);
+                        if (pegou.current || pegadaRef.current !== index) return;
+                        terminarArrasto();
                       }, 0);
                     } : undefined}
                   />
                 </View>
                 <View style={styles.actionButtons}>
                   {canReorder && (
-                    <View style={styles.pega} pointerEvents="none">
+                    // A pega pega LOGO, sem o toque longo -- e o que ela
+                    // promete. Ver `LinhaArrastavel`.
+                    <View
+                      {...(pega ?? {})}
+                      accessibilityLabel={`Reorder ${tituloDaFaixa(item)}`}
+                      style={styles.pega}
+                    >
                       <Ionicons
                         name="reorder-three-outline"
-                        size={16}
+                        size={18}
                         color={arrastar === index ? colors.text : colors.textTertiary}
                       />
                     </View>
@@ -360,6 +426,7 @@ export function QueueSheet({ visible, onClose, onOpenSession }: Props) {
                   </Pressable>
                 </View>
               </View>
+              )}
               </LinhaArrastavel>
             );
           }}
@@ -423,9 +490,11 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingRight: spacing.sm,
   },
+  // Um alvo de dedo e nao so um desenho: era 28 x 28 e so decorativo. A altura
+  // e a da linha quase toda, para a pega se apanhar sem pontaria.
   pega: {
-    width: 28,
-    height: 28,
+    width: 36,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
