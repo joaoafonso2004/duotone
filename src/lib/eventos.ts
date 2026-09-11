@@ -38,7 +38,18 @@ export type NomeDeEvento =
   | 'pesquisa_feita'
   | 'faixa_guardada'
   | 'playlist_criada'
-  | 'partilha_enviada';
+  | 'partilha_enviada'
+  | 'jam_iniciado'
+  | 'discord_join_recebido'
+  | 'jam_entrada_concluida'
+  | 'jam_entrada_falhou'
+  | 'tempo_ate_ready_ms'
+  | 'musica_do_dia_escolhida'
+  | 'recomendacao_mostrada'
+  | 'recomendacao_tocada'
+  | 'recomendacao_guardada'
+  | 'recomendacao_saltada'
+  | 'controlo_descoberta_alterado';
 
 type Evento = { nome: NomeDeEvento; dados: Record<string, string | number | boolean>; em: string };
 

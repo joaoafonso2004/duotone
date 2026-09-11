@@ -1,5 +1,6 @@
 import { DIAS_DE_HISTORICO, diasAnteriores } from '../lib/escolhasDoDia';
 import { supabase } from '../lib/supabase';
+import { registar } from '../lib/eventos';
 import type { Track } from '../types';
 
 /**
@@ -116,5 +117,6 @@ export async function escolherDoDia(track: Track, nota?: string): Promise<void> 
     }
     throw error;
   }
+  registar('musica_do_dia_escolhida', { tem_nota: !!nota?.trim() });
   for (const ouvir of ouvintes) ouvir();
 }

@@ -1,4 +1,5 @@
 import {
+  pauseMountedSourceBeforeChange,
   replayMountedSource,
   requestPause,
   requestPlay,
@@ -31,6 +32,20 @@ check('reinicia antes de tocar', calls.join(',') === 'seek:0,play', calls.join('
 calls.length = 0;
 check('uma faixa diferente não reutiliza o iframe', replayMountedSource(source('abc'), source('xyz'), controls) === null);
 check('não enviou comandos à faixa errada', calls.length === 0, calls.join(','));
+
+calls.length = 0;
+check(
+  'mudar de faixa cala imediatamente o backend anterior',
+  pauseMountedSourceBeforeChange(source('abc'), source('xyz'), controls)
+);
+check('o corte acontece antes da resolução da nova faixa', calls.join(',') === 'pause', calls.join(','));
+
+calls.length = 0;
+check(
+  'repetir a mesma fonte não a pausa antes de reiniciar',
+  !pauseMountedSourceBeforeChange(source('abc'), source('abc'), controls)
+);
+check('a mesma fonte não recebeu pause', calls.length === 0, calls.join(','));
 
 check(
   'controlos reutilizados não deixam o player em buffering',

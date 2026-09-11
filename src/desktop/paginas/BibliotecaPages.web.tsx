@@ -7,7 +7,7 @@ import { useRecommendationFeedback } from '../../state/recommendationFeedback';
  * para a mesma coisa.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getLikedSongs } from '../../api/library';
 import {
@@ -24,7 +24,7 @@ import { useAuth } from '../../state/auth';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
 import { usePlayer } from '../../state/player';
-import { temRecomendacoes, useRecomendacoes } from '../../state/recomendacoes';
+import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../../state/recomendacoes';
 import { useSaved } from '../../state/saved';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
@@ -36,6 +36,10 @@ import { MusicasDoDia } from '../MusicasDoDia.web';
 import type { CommonPageProps, NavegarFn, Route } from '../rotas';
 import { COR, ESP, FONT, RAIO, TIPO } from '../tokens.web';
 import { useLibraryData } from './comum.web';
+import { DiscoveryControl } from '../../components/DiscoveryControl';
+import { useDiscoveryControl } from '../../state/discoveryControl';
+import { contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics } from '../../lib/discoveryControl';
+import { registar } from '../../lib/eventos';
 
 export function SearchPage({ play, notify, more, navigate }: CommonPageProps & { navigate: NavegarFn }) {
   const [query, setQuery] = useState(''); const [history, setHistory] = useState<string[]>([]); const input = useRef<any>(null);
@@ -49,6 +53,8 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
   // recommendations..." do zero, e a espera nao e pequena.
   const hasFeedback=useRecommendationFeedback(s=>s.items.length>0);
   const recs = useRecomendacoes();
+  const discoveryMode=useDiscoveryControl((s)=>s.mode);
+  const savedKeys=useSaved((s)=>s.keys);
   const { descobrir, nuncaLancado, amigos, ouvirDeNovo, flow, maisTocadas, esquecidas } = recs;
   /**
    * As quatro familias de misturas, separadas pelo prefixo do id.
@@ -69,6 +75,21 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
   const abrirMistura = (m: { id: string; nome: string }) =>
     navigate({ name: 'mistura', id: m.id, titulo: m.nome });
   const recsCarregadas = recs.estado === 'pronto';
+  const contextoPrateleira=useCallback((nome:NomeDaPrateleira)=>(track:Track)=>
+    contextoDaPrateleira(nome,discoveryMode,savedKeys.has(`${track.source}:${track.sourceId}`)),[discoveryMode,savedKeys]);
+  const vistos=useRef(new Set<string>());
+  useEffect(()=>{
+    if(vista!=='descobrir')return;
+    for(const nome of ORDEM_DAS_PRATELEIRAS){
+      const tracks=recs[nome];
+      if(!recs.prontas.includes(nome)||!tracks.length)continue;
+      const contexto=contextoPrateleira(nome)(tracks[0]);
+      const chave=`${discoveryMode}:${nome}:${recs.carregadoEm}:${tracks.length}`;
+      if(vistos.current.has(chave))continue;
+      vistos.current.add(chave);
+      registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:tracks.length});
+    }
+  },[vista,discoveryMode,recs,contextoPrateleira,recs.carregadoEm,recs.prontas,recs.descobrir,recs.nuncaLancado,recs.amigos,recs.ouvirDeNovo,recs.flow,recs.maisTocadas,recs.esquecidas,savedKeys]);
   // Nao repete o trabalho: se ja estao carregadas ou a carregar, isto e um
   // no-op. Existe para o caso de a app nao as ter comecado no arranque.
   useEffect(() => { void recs.carregar(); }, []);
@@ -105,10 +126,11 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
       : vista === 'dia' ? <MusicasDoDia play={play} notify={notify} />
       : temRecomendacoes(recs) ? <>
-          <Shelf titulo="Discover weekly" nota="music you don't have yet, based on what you listen to. The same list all week." tracks={descobrir} onPlay={play} onMore={more} />
+          <View style={{marginBottom:24}}><DiscoveryControl compact /></View>
+          <Shelf titulo="Discover weekly" nota="music you don't have yet, based on what you listen to. The same list all week." tracks={descobrir} onPlay={play} onMore={more} contexto={contextoPrateleira('descobrir')} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
-          <Shelf titulo="Rare finds" nota="unreleased songs from your artists that you haven't saved, played or hidden" selo="New to you" tracks={nuncaLancado} onPlay={play} onMore={more} />
+          <Shelf titulo="Rare finds" nota="unreleased songs from your artists that you haven't saved, played or hidden" selo="New to you" tracks={nuncaLancado} onPlay={play} onMore={more} contexto={contextoPrateleira('nuncaLancado')} />
           {/* AS MISTURAS QUE A APP MONTA. Quatro familias, e a diferenca esta
               toda no titulo -- que e o que elas tem de diferente:
                 Your styles -> artistas teus que partilham vizinhos
@@ -124,11 +146,11 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
           <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura} />
           {/* A unica prateleira desta pagina que nao sai do teu proprio
               historico. Fica entre a descoberta e o que ja e teu. */}
-          <Shelf titulo="Your friends' favourites" tracks={amigos} onPlay={play} onMore={more} />
-          <Shelf titulo="Listen again" tracks={ouvirDeNovo} onPlay={play} onMore={more} />
-          <Shelf titulo="Daily flow" nota="based on your listening" tracks={flow} onPlay={play} onMore={more} />
-          <Shelf titulo="Heavy rotation" tracks={maisTocadas} onPlay={play} onMore={more} />
-          <Shelf titulo="Forgotten favourites" nota="not played in a while" tracks={esquecidas} onPlay={play} onMore={more} />
+          <Shelf titulo="Your friends' favourites" tracks={amigos} onPlay={play} onMore={more} contexto={contextoPrateleira('amigos')} />
+          <Shelf titulo="Listen again" tracks={ouvirDeNovo} onPlay={play} onMore={more} contexto={contextoPrateleira('ouvirDeNovo')} />
+          <Shelf titulo="Daily flow" nota="based on your listening" tracks={flow} onPlay={play} onMore={more} contexto={contextoPrateleira('flow')} />
+          <Shelf titulo="Heavy rotation" tracks={maisTocadas} onPlay={play} onMore={more} contexto={contextoPrateleira('maisTocadas')} />
+          <Shelf titulo="Forgotten favourites" nota="not played in a while" tracks={esquecidas} onPlay={play} onMore={more} contexto={contextoPrateleira('esquecidas')} />
         </>
       : <Empty icon={recsCarregadas ? 'search-outline' : 'sparkles-outline'}
           title={recsCarregadas ? 'Nothing to recommend yet' : 'Preparing recommendations…'}
@@ -236,11 +258,23 @@ export function MisturaPage({ id, titulo, back, ...props }: {
   const misturas = useRecomendacoes((s) => s.misturas);
   const prontas = useRecomendacoes((s) => s.misturasProntas);
   const mistura = useMemo(() => misturas.find((m) => m.id === id), [misturas, id]);
-  const faixas = mistura?.faixas ?? [];
+  const faixas = useMemo(()=>mistura?.faixas ?? [],[mistura]);
   const ligado = usePlayer((s) => s.shuffle);
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
   const tocarLista = usePlayer((s) => s.tocarLista);
+  const discoveryMode=useDiscoveryControl((s)=>s.mode);
+  const savedKeys=useSaved((s)=>s.keys);
+  const contexto=useCallback((track:Track)=>contextoDaMistura(id,mistura?.nome??titulo,discoveryMode,savedKeys.has(`${track.source}:${track.sourceId}`)),[id,mistura?.nome,titulo,discoveryMode,savedKeys]);
+  const impressao=useRef('');
+  useEffect(()=>{
+    if(!mistura||!faixas.length)return;
+    const ctx=contexto(faixas[0]);
+    const chave=`${ctx.surface}:${discoveryMode}:${faixas.length}`;
+    if(impressao.current===chave)return;
+    impressao.current=chave;
+    registar('recomendacao_mostrada',{...contextoParaAnalytics(ctx),quantidade:faixas.length});
+  },[mistura,faixas,discoveryMode,contexto]);
 
   return <Page
     title={mistura?.nome ?? titulo}
@@ -258,8 +292,8 @@ export function MisturaPage({ id, titulo, back, ...props }: {
       {!prontas && !mistura ? <View style={{ height: 320 }}><Loading /></View>
         : !mistura ? <Empty icon="sparkles-outline" title="This mix is gone"
             body="Mixes are rebuilt as you listen. Go back to Search and pick one of the current ones." />
-        : <TrackTable listKey={`mistura:${id}`} tracks={faixas}
-            onPlay={(t) => props.play(t, faixas)} onMore={props.more} />}
+        : <TrackTable listKey={`mistura:${id}`} tracks={faixas} contexto={contexto}
+            onPlay={(t,c) => props.play(t, faixas,c)} onMore={props.more} />}
     </ContentScroll>
   </Page>;
 }

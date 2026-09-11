@@ -19,7 +19,7 @@ export function loadRecommendationFeedback(userId:string|null):Promise<void>{
     try {
       const raw=await AsyncStorage.getItem(storageKey(userId));
       const items=raw?JSON.parse(raw):[];
-      if(run===generation&&Array.isArray(items))useRecommendationFeedback.setState({items:items.filter(p=>p&&(p.kind==='track'||p.kind==='artist')&&typeof p.key==='string'&&typeof p.label==='string')});
+      if(run===generation&&Array.isArray(items))useRecommendationFeedback.setState({items:items.filter(p=>p&&(p.kind==='track'||p.kind==='artist'||p.kind==='artist_more')&&typeof p.key==='string'&&typeof p.label==='string')});
     }catch{/* Sem cache local continua com as preferências do servidor. */}
     try {
       const items:Feedback[]=[];

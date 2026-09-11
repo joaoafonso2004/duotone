@@ -61,7 +61,7 @@ export function ConviteDeSessao({ id, mensagem }: { id: string; mensagem: string
     setAEntrar(true);
     setRecusa(null);
     try {
-      await juntarSe(id);
+      await juntarSe(id, 'invite');
       hapticNotification();
     } catch (e: any) {
       // A razão vem do servidor e é dita tal como ele a deu. Inventar uma

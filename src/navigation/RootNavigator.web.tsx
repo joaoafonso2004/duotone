@@ -45,10 +45,13 @@ import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
 import { historico, limparHistorico, relatorio, resumo } from '../lib/playbackDiagnostics';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../state/auth';
-import { usePlayer } from '../state/player';
+import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { usePresencaDoDiscord } from '../hooks/usePresencaDoDiscord';
+import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
 import { getDiscordRichPresence } from '../lib/prefs';
 import { sessaoDoSegredoDiscord } from '../lib/presencaDoDiscord';
+import { registar } from '../lib/eventos';
+import { contextoParaAnalytics, type DiscoveryContext } from '../lib/discoveryControl';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePlaylists } from '../state/playlists';
 import { useTheme } from '../state/theme';
@@ -98,6 +101,12 @@ function ThemeCssSync({panelOpacity}:{panelOpacity:number}) {
 }
 
 function DesktopShell() {
+  // No iPhone este seguidor vive no PlayerRoot. O Windows tem uma barra e um
+  // player próprios, portanto tem de o montar aqui: sem ele a pessoa entrava
+  // na sala e aparecia na lista, mas a faixa da sessão nunca chegava ao player
+  // local — ficava eternamente em "Loading · 0%" e todos os toques passavam a
+  // ser interpretados como sugestões para o Jam.
+  useSincroniaDaSessao();
   const [route, setRoute] = useState<Route>({ name: 'search' }); const history = useRef<Route[]>([]); const [toast, setToast] = useState('');
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   const [jamOpen, setJamOpen] = useState(false);
@@ -127,6 +136,7 @@ function DesktopShell() {
     let aEntrar=false;
     return ouvir((segredo)=>{
       const sessao=sessaoDoSegredoDiscord(segredo);
+      registar('discord_join_recebido', { valido: !!sessao });
       if(!sessao){setToast('This Discord invite is not valid.');return;}
       const actual=useOuvirJuntos.getState();
       if(actual.sessao?.id===sessao){setToast('You are already in this Jam.');return;}
@@ -138,7 +148,7 @@ function DesktopShell() {
           // utilizador entra, a fila do preload entrega-o antes do efeito raiz
           // ter tempo de ligar a store; garantimos aqui que ela já tem dono.
           if(!useOuvirJuntos.getState().euId&&discordUserId)await useOuvirJuntos.getState().ligar(discordUserId);
-          await useOuvirJuntos.getState().juntarSe(sessao);
+          await useOuvirJuntos.getState().juntarSe(sessao, 'discord');
           setToast('Joined the Jam from Discord.');
         }catch{
           setToast('Could not join this Jam. You must be Duotone friends and the Jam must still be open.');
@@ -149,6 +159,8 @@ function DesktopShell() {
   const [trackMenu, setTrackMenu] = useState<Track | null>(null); const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [trackMenuOpen, setTrackMenuOpen] = useState(false);
   const [recommendationTrack,setRecommendationTrack]=useState<Track|null>(null);
+  const [recommendationContext,setRecommendationContext]=useState<DiscoveryContext|null>(null);
+  const [trackMenuContext,setTrackMenuContext]=useState<DiscoveryContext|null>(null);
   const [playlistDialog, setPlaylistDialog] = useState(false);
   const [shareDialog, setShareDialog] = useState(false);
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
@@ -204,6 +216,8 @@ function DesktopShell() {
       } else {
         await saveToLibrary(currentTrack);
         useSaved.getState().markSaved(currentTrack, true);
+        const contexto=contextoDaRecomendacaoAtual();
+        if(contexto)registar('recomendacao_guardada',contextoParaAnalytics(contexto));
         notify('Saved to library.');
       }
       window.dispatchEvent(new Event('duotone:refresh-library'));
@@ -254,7 +268,9 @@ function DesktopShell() {
     }
     setJamOpen(true);
   }, [notify]);
-  const play = useCallback((track: Track, queue?: Track[]) => { usePlayer.getState().playTrack(track, queue); }, []);
+  const play = useCallback((track: Track, queue?: Track[], discoveryContext?:DiscoveryContext) => {
+    usePlayer.getState().playTrack(track, queue, false, false, discoveryContext);
+  }, []);
 
   useEffect(() => {
     const onPlaybackNotice = (event: any) => notify(String(event.detail || 'Playback changed.'));
@@ -376,8 +392,9 @@ function DesktopShell() {
   // olhar. Aqui ja ha sessao (esta casca so existe com ela).
   useEffect(() => { void useRecomendacoes.getState().carregar(); }, []);
 
-  const more = useCallback(async (track: Track) => {
+  const more = useCallback(async (track: Track, discoveryContext?:DiscoveryContext) => {
     setTrackMenu(track);
+    setTrackMenuContext(discoveryContext??null);
     setTrackMenuOpen(true);
     try {
       const { saved, trackId } = await checkIsSaved(track.source, track.sourceId);
@@ -401,6 +418,7 @@ function DesktopShell() {
       } else {
         await saveToLibrary(trackMenu);
         useSaved.getState().markSaved(trackMenu, true);
+        if(trackMenuContext)registar('recomendacao_guardada',contextoParaAnalytics(trackMenuContext));
         notify('Saved to library.');
       }
       window.dispatchEvent(new Event('duotone:refresh-library'));
@@ -525,7 +543,7 @@ function DesktopShell() {
               <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 12 }}>{displayArtist(trackMenu)}</Text>
             </View>
           </View>
-          <Pressable onPress={() => { play(trackMenu); setTrackMenuOpen(false); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="play-circle-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Play now</Text></Pressable>
+          <Pressable onPress={() => { play(trackMenu,undefined,trackMenuContext??undefined); setTrackMenuOpen(false); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="play-circle-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Play now</Text></Pressable>
           <Pressable onPress={() => { usePlayer.getState().addToQueue(trackMenu); setTrackMenuOpen(false); notify('Added to queue.'); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="list-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Add to queue</Text></Pressable>
           <Pressable onPress={toggleSave} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name={isSaved ? "heart" : "heart-outline"} size={18} color={isSaved ? '#EF4444' : theme.color} /><Text style={styles.destinationText}>{isSaved ? 'Remove from library' : 'Save to library'}</Text></Pressable>
           <Pressable onPress={() => { setTrackMenuOpen(false); openPlaylistDialog(); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="albums-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Add to playlist…</Text></Pressable>
@@ -534,7 +552,7 @@ function DesktopShell() {
               de uploads em vez da do artista. */}
           <Pressable onPress={() => { setTrackMenuOpen(false); navigate({ name: 'artist', value: displayArtist(trackMenu) }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="mic-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>View artist</Text></Pressable>
           <Pressable onPress={() => { setTrackMenuOpen(false); openShareDialog({ itemType: 'track', item: trackMenu, name: trackMenu.title }); }} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="share-social-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>Share with friends or groups…</Text></Pressable>
-          <Pressable onPress={()=>{setTrackMenuOpen(false);setRecommendationTrack(trackMenu);}} style={({hovered})=>[styles.destination,hovered&&styles.settingHover]}><Ionicons name="options-outline" size={18} color={theme.color}/><Text style={styles.destinationText}>Recommendations…</Text></Pressable>
+          <Pressable onPress={()=>{setTrackMenuOpen(false);setRecommendationTrack(trackMenu);setRecommendationContext(trackMenuContext);}} style={({hovered})=>[styles.destination,hovered&&styles.settingHover]}><Ionicons name="options-outline" size={18} color={theme.color}/><Text style={styles.destinationText}>Recommendations…</Text></Pressable>
           {route.name === 'playlist' && !nowPlayingOpen && (
             <Pressable onPress={removeFromCurrentPlaylist} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="trash-outline" size={18} color="#EF4444" /><Text style={[styles.destinationText, { color: '#EF4444' }]}>Remove from this playlist</Text></Pressable>
           )}
@@ -542,7 +560,7 @@ function DesktopShell() {
       )}
     </Dialog>
 
-    <RecommendationPreferences visible={!!recommendationTrack} track={recommendationTrack} onClose={()=>setRecommendationTrack(null)}/>
+    <RecommendationPreferences visible={!!recommendationTrack} track={recommendationTrack} reason={recommendationContext?.reason} onClose={()=>{setRecommendationTrack(null);setRecommendationContext(null);}}/>
     {/* PLAYLIST DIALOG */}
     <Dialog open={playlistDialog} title="Add to playlist" onClose={() => setPlaylistDialog(false)}>
       {playlists.length ? <View style={{ gap: 6 }}>{playlists.map((p) => <Pressable key={p.id} onPress={() => addTo(p.id)} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="albums-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>{p.name}</Text></Pressable>)}</View> : <Empty icon="albums-outline" title="No playlists" body="Create a playlist first, then add this track." />}

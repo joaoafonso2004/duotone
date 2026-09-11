@@ -101,7 +101,7 @@ export function AmigosAOuvir() {
     const sessao = sessoes.get(friendId);
     if (sessao) {
       try {
-        await useOuvirJuntos.getState().juntarSe(sessao);
+        await useOuvirJuntos.getState().juntarSe(sessao, 'friend_presence');
         return;
       } catch {
         // A sessao pode ter acabado entre a leitura e o toque. Cai para a

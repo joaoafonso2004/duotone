@@ -48,6 +48,21 @@ const INTERVALO_MS = 15_000;
 /** A aplicação oficial da Duotone no portal do Discord. É um id público. */
 const DISCORD_APP_ID = '1547625164328538133';
 
+/**
+ * Entrar ou sair de um Jam não é uma atualização cosmética.
+ *
+ * A presença normal pode esperar pelo limitador; uma mudança que adiciona ou
+ * retira um `join secret` tem de substituir já o cartão anterior. Caso
+ * contrário, durante os primeiros 15 segundos do Jam os amigos continuam a
+ * ver "Listen on YouTube" — exatamente o botão errado no único momento em que
+ * precisam de "Join".
+ */
+function mudancaDeJam(antes, depois) {
+  const anterior = antes?.secrets?.join || null;
+  const seguinte = depois?.secrets?.join || null;
+  return anterior !== seguinte;
+}
+
 function caminhoDoSocket(n) {
   if (process.platform === 'win32') return `\\\\?\\pipe\\discord-ipc-${n}`;
   const base = process.env.XDG_RUNTIME_DIR || process.env.TMPDIR || '/tmp';
@@ -72,6 +87,7 @@ class LigacaoAoDiscord {
     this.porEnviar = null;
     this.relogio = null;
     this.aoJuntar = null;
+    this.ultimaPedida = null;
   }
 
   /** Liga, ou devolve a ligação que já está a ser feita. */
@@ -149,6 +165,9 @@ class LigacaoAoDiscord {
               clearTimeout(desistir);
               this.socket = socket;
               this.pronta = true;
+              // Uma ligação nova não herda o relógio da anterior. A primeira
+              // atividade tem de aparecer já, especialmente se abriu por Join.
+              this.ultimoEnvio = 0;
               // O segredo de uma actividade não chega sozinho: o cliente tem
               // de subscrever explicitamente o evento de Join depois do READY.
               socket.write(moldar(OP_FRAME, {
@@ -185,13 +204,19 @@ class LigacaoAoDiscord {
    * se perder: o último estado é sempre o que acaba por sair.
    */
   definir(actividade) {
+    const urgente = mudancaDeJam(this.ultimaPedida, actividade);
+    this.ultimaPedida = actividade;
     this.porEnviar = { actividade };
-    this.despachar();
+    this.despachar(urgente);
   }
 
-  despachar() {
+  despachar(urgente = false) {
     if (!this.pronta || !this.socket || !this.porEnviar) return;
-    const espera = INTERVALO_MS - (Date.now() - this.ultimoEnvio);
+    // Uma transição de Jam cabe folgadamente no orçamento do Discord e não
+    // pode ficar atrás de uma atualização de faixa. O resto continua
+    // coalescido pelo limitador conservador.
+    if (urgente && this.relogio) { clearTimeout(this.relogio); this.relogio = null; }
+    const espera = urgente ? 0 : INTERVALO_MS - (Date.now() - this.ultimoEnvio);
     if (espera > 0) {
       if (!this.relogio) this.relogio = setTimeout(() => { this.relogio = null; this.despachar(); }, espera);
       return;
@@ -219,6 +244,8 @@ class LigacaoAoDiscord {
     this.pronta = false;
     this.clientId = null;
     this.porEnviar = null;
+    this.ultimoEnvio = 0;
+    this.ultimaPedida = null;
   }
 }
 
@@ -248,6 +275,7 @@ function ouvirJuncao(listener) {
 
 module.exports = {
   DISCORD_APP_ID,
+  mudancaDeJam,
   definirPresenca,
   prepararDiscord,
   ouvirJuncao,

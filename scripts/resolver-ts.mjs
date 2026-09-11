@@ -50,12 +50,14 @@ const DUPLOS = new Map([
   ['src/state/recommendationFeedback', 'recommendationFeedback.ts'],
   ['src/state/trackAdjustments', 'trackAdjustments.ts'],
   ['src/state/auth', 'auth.ts'],
+  ['src/state/discoveryControl', 'discoveryControl.ts'],
   ['src/api/plays', 'plays.ts'],
   ['src/api/radio', 'radio.ts'],
   ['src/api/descoberta', 'descoberta.ts'],
   ['src/lib/playCounts', 'playCounts.ts'],
   ['src/lib/prefs', 'prefs.ts'],
   ['src/lib/playbackAlternatives', 'playbackAlternatives.ts'],
+  ['src/lib/eventos', 'eventos.ts'],
   ['modules/duotone-audio', 'duotone-audio.ts'],
 ]);
 

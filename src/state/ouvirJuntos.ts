@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import { candidatasParaDescoberta } from '../api/descoberta';
 import { chaveDeArtista } from '../lib/artistName';
 import { trackKey } from '../lib/shuffle';
+import { registar } from '../lib/eventos';
 import type { Track } from '../types';
 
 /**
@@ -47,6 +48,9 @@ type Estado = {
   relogio: Estimativa | null;
   /** O nosso id, guardado para não o pedir a cada render. */
   euId: string | null;
+  /** Início do funil abrir/entrar → áudio pronto. Não leva o id da sala para analytics. */
+  entradaComecouEm: number | null;
+  origemDaEntrada: OrigemDaEntrada | null;
 
   souAnfitriao: () => boolean;
   possoControlar: () => boolean;
@@ -73,7 +77,7 @@ type Estado = {
   desligar: () => void;
 
   abrir: (track: Track | null, amigos: readonly string[], mensagem?: string) => Promise<string>;
-  juntarSe: (sessao: string) => Promise<void>;
+  juntarSe: (sessao: string, origem?: OrigemDaEntrada) => Promise<void>;
   abandonar: () => Promise<void>;
   convidarMais: (amigos: readonly string[], mensagem?: string) => Promise<void>;
 
@@ -105,6 +109,8 @@ type Estado = {
   actualizar: () => Promise<void>;
 };
 
+export type OrigemDaEntrada = 'app' | 'discord' | 'friend_presence' | 'invite';
+
 let canal: ReturnType<typeof supabase.channel> | null = null;
 let batimento: ReturnType<typeof setInterval> | null = null;
 let subscricaoDeEstado: { remove: () => void } | null = null;
@@ -134,6 +140,8 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   fila: [],
   relogio: null,
   euId: null,
+  entradaComecouEm: null,
+  origemDaEntrada: null,
   acabouSemAviso: false,
   aviso: null,
 
@@ -259,31 +267,51 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (batimento) { clearInterval(batimento); batimento = null; }
     subscricaoDeEstado?.remove();
     subscricaoDeEstado = null;
-    set({ sessao: null, membros: [], fila: [], aviso: null });
+    set({
+      sessao: null, membros: [], fila: [], aviso: null,
+      entradaComecouEm: null, origemDaEntrada: null,
+    });
   },
 
   // -------------------------------------------------------------------------
 
   abrir: async (track, amigos, mensagem) => {
-    const id = await criarSessao(track);
-    // A criação começa pausada no servidor. Preservar a audição actual antes
-    // de ligar o seguidor; caso contrário o anfitrião pausava ao abrir o Jam.
-    const p = usePlayer.getState();
-    if (track && p.current?.sourceId === track.sourceId && p.current.source === track.source) {
-      const tocava = p.isPlaying;
-      await pausar(id, p.positionMs);
-      if (tocava) await retomar(id);
+    const comecou = Date.now();
+    try {
+      const id = await criarSessao(track);
+      // A criação começa pausada no servidor. Preservar a audição actual antes
+      // de ligar o seguidor; caso contrário o anfitrião pausava ao abrir o Jam.
+      const p = usePlayer.getState();
+      if (track && p.current?.sourceId === track.sourceId && p.current.source === track.source) {
+        const tocava = p.isPlaying;
+        await pausar(id, p.positionMs);
+        if (tocava) await retomar(id);
+      }
+      if (amigos.length) await convidar(id, amigos, mensagem);
+      const euId = get().euId;
+      if (euId) await get().ligar(euId);
+      set({ entradaComecouEm: comecou, origemDaEntrada: 'app' });
+      registar('jam_iniciado', { tem_faixa: !!track, convidados: amigos.length });
+      return id;
+    } catch (erro) {
+      set({ entradaComecouEm: null, origemDaEntrada: null });
+      throw erro;
     }
-    if (amigos.length) await convidar(id, amigos, mensagem);
-    const euId = get().euId;
-    if (euId) await get().ligar(euId);
-    return id;
   },
 
-  juntarSe: async (sessao) => {
-    await entrar(sessao);
-    const euId = get().euId;
-    if (euId) await get().ligar(euId);
+  juntarSe: async (sessao, origem = 'app') => {
+    const comecou = Date.now();
+    try {
+      await entrar(sessao);
+      const euId = get().euId;
+      if (euId) await get().ligar(euId);
+      set({ entradaComecouEm: comecou, origemDaEntrada: origem });
+      registar('jam_entrada_concluida', { origem });
+    } catch (erro) {
+      set({ entradaComecouEm: null, origemDaEntrada: null });
+      registar('jam_entrada_falhou', { origem });
+      throw erro;
+    }
   },
 
   abandonar: async () => {

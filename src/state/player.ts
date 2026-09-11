@@ -26,6 +26,7 @@ import { movido } from '../lib/arrastarFila';
 import { useAuth } from './auth';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
 import {
+  pauseMountedSourceBeforeChange,
   replayMountedSource,
   requestPause,
   requestPlay,
@@ -46,6 +47,12 @@ import {
   normalizar as normalizarGanhos, padraoGuardado, PLANO, type Ganhos, type MemoriaDeAjustes,
 } from '../lib/equalizer';
 import type { Track } from '../types';
+import {
+  contextoDoRadioAutomatico, contextoDoSmartShuffle, contextoParaAnalytics,
+  intervaloDoSmartShuffle, type DiscoveryContext,
+} from '../lib/discoveryControl';
+import { useDiscoveryControl } from './discoveryControl';
+import { registar } from '../lib/eventos';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
 export type YtControls = PlaybackControls;
@@ -74,6 +81,20 @@ export const ATRASO_DA_SUGESTAO_MS = 2000;
 /** Registada sincronamente pela store Jam, sem depender da montagem do player. */
 let ouvirJuntos: () => PonteJam | null = () => null;
 export function registarOuvirJuntos(fn: typeof ouvirJuntos): void { ouvirJuntos = fn; }
+
+/** Contexto sem conteúdo: acompanha a fila apenas em memória. */
+let contextosDaFila=new Map<string,DiscoveryContext>();
+let contextoAtual:DiscoveryContext|null=null;
+export function contextoDaRecomendacaoAtual():DiscoveryContext|null{return contextoAtual;}
+
+function registarSaltoDeRecomendacao(positionMs:number):void{
+  if(!contextoAtual)return;
+  registar('recomendacao_saltada',{
+    ...contextoParaAnalytics(contextoAtual),
+    antes_30s:positionMs<30_000,
+    posicao_s:Math.max(0,Math.round(positionMs/1000)),
+  });
+}
 
 /** Erros de comandos ficam visíveis na barra e nunca caem em reprodução local. */
 async function comandarJam(acao: (s: PonteJam) => Promise<void>): Promise<void> {
@@ -217,7 +238,7 @@ interface PlayerState {
    * fila andar, e nao querem que um toque seja reinterpretado. Tudo o resto e,
    * por definicao, alguem a tocar numa musica.
    */
-  playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean, interno?: boolean) => Promise<void>;
+  playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean, interno?: boolean, discoveryContext?: DiscoveryContext) => Promise<void>;
   /** Troca apenas a fonte da faixa atual depois de um vídeo indisponível.
    * Não conta uma segunda reprodução e mantém a posição da faixa na fila. */
   replaceUnavailableTrack: (failedSourceId: string, replacement: Track) => boolean;
@@ -258,7 +279,7 @@ interface PlayerState {
   _sincronizarPausa: (aTocar: boolean) => void;
   /** Como o `_sincronizarPausa`, mas sem a guarda da intenção. Ver lá. */
   _forcarReproducao: (aTocar: boolean) => void;
-  next: () => Promise<void>;
+  next: (manual?: boolean) => Promise<void>;
   prev: () => Promise<void>;
   close: () => Promise<void>;
   prepararFecho: () => Promise<boolean>;
@@ -520,8 +541,10 @@ export const usePlayer = create<PlayerState>()(
   _yt: null,
   activeBackend: 'resolving',
 
-  playTrack: async (track, queue, shouldExpand, interno = false) => {
+  playTrack: async (track, queue, shouldExpand, interno = false, discoveryContext) => {
     if (!interno && ouvirJuntos()) {
+      contextosDaFila.clear();
+      contextoAtual=null;
       await comandarJam(async s => {
         // Sem licença para mandar, tocar numa música é propô-la -- e propõe-se
         // uma, não a playlist de onde saiu: encher a fila dos outros sem
@@ -536,6 +559,22 @@ export const usePlayer = create<PlayerState>()(
       });
       return;
     }
+    const anterior=get().current;
+    // `applyPlaybackAlternative` e o download podem demorar. O backend da
+    // faixa anterior tem de se calar no proprio gesto, antes desses awaits;
+    // esperar pelo efeito do componente deixava a capa nova com o som velho.
+    pauseMountedSourceBeforeChange(anterior, track, get()._yt);
+    if(!interno){
+      if(contextoAtual&&anterior&&trackKey(anterior)!==trackKey(track))registarSaltoDeRecomendacao(get().positionMs);
+      contextosDaFila.clear();
+      if(discoveryContext){
+        for(const item of queue?.length?queue:[track])contextosDaFila.set(trackKey(item),discoveryContext);
+      }
+    }
+    const contextoSeguinte=discoveryContext??contextosDaFila.get(trackKey(track))??null;
+    const mudou=!anterior||trackKey(anterior)!==trackKey(track);
+    contextoAtual=contextoSeguinte;
+    if(contextoSeguinte&&mudou)registar('recomendacao_tocada',contextoParaAnalytics(contextoSeguinte));
     // As letras começam em paralelo com a resolução do áudio, antes de abrir a capa.
     void ensureLyrics(track);
     const requestId = ++playRequestId;
@@ -857,9 +896,10 @@ export const usePlayer = create<PlayerState>()(
     }
   },
 
-  next: async () => {
+  next: async (manual = true) => {
     if (ouvirJuntos()) { await comandarJam(s => s.avancar(false)); return; }
     if (get().queue.length === 0) return;
+    if(manual)registarSaltoDeRecomendacao(get().positionMs);
 
     // SHUFFLE INTELIGENTE: de quatro em quatro faixas entra uma que nao esta
     // na fila, relacionada com o que se anda a ouvir. Sai daqui e nao do
@@ -868,7 +908,11 @@ export const usePlayer = create<PlayerState>()(
     //
     // Se a rede falhar nao acontece nada: cai no shuffle normal. Uma
     // funcionalidade de descoberta nao pode partir a reproducao.
-    if (deveSugerir(modoDeShuffle(get().shuffle, get().shuffleInteligente), get().desdeASugestao)) {
+    if (deveSugerir(
+      modoDeShuffle(get().shuffle, get().shuffleInteligente),
+      get().desdeASugestao,
+      intervaloDoSmartShuffle(useDiscoveryControl.getState().mode),
+    )) {
       // NAO SE ESPERA POR ISTO. Era `await`, e era a resposta a pergunta "porque
       // e que o botao de seguinte demora": a sugestao e uma ida a rede -- duas
       // consultas ao Supabase mais uma pesquisa no YouTube -- e acontecia de
@@ -928,7 +972,7 @@ export const usePlayer = create<PlayerState>()(
     // não estender, pára.
     const stopOrRadio = async () => {
       if (await get().extendQueueWithRadio()) {
-        await get().next();
+        await get().next(false);
         return;
       }
       set(passo(get().maquina, 'quer-parar'));
@@ -1029,6 +1073,8 @@ export const usePlayer = create<PlayerState>()(
       error: null,
       activeBackend: 'resolving',
     });
+    contextosDaFila.clear();
+    contextoAtual=null;
   },
 
   setAutoplayRadio: (v) => set({ autoplayRadio: v }),
@@ -1048,7 +1094,8 @@ export const usePlayer = create<PlayerState>()(
     if (radioInFlight) return false;
     radioInFlight = true;
     try {
-      const tracks = filterSuggestions(await fetchRadioTracks(radioSeeds(queue, queueIndex), queue));
+      const modo=useDiscoveryControl.getState().mode;
+      const tracks = filterSuggestions(await fetchRadioTracks(radioSeeds(queue, queueIndex), queue, undefined, modo));
       if(useConnectivity.getState().offline||get().queue!==queue||!get().autoplayRadio)return false;
       if (tracks.length === 0) return false;
 
@@ -1056,6 +1103,8 @@ export const usePlayer = create<PlayerState>()(
       // nunca usar o que foi capturado no início.
       const live = get();
       const merged = [...live.queue, ...tracks];
+      const contexto=contextoDoRadioAutomatico(modo);
+      for(const track of tracks)contextosDaFila.set(trackKey(track),contexto);
       set({
         queue: merged,
         radioActive: true,
@@ -1063,6 +1112,7 @@ export const usePlayer = create<PlayerState>()(
           ? reconcileOrder(live.shuffleOrder, merged, live.queueIndex)
           : [],
       });
+      registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:tracks.length});
       return true;
     } catch {
       return false;
@@ -1195,20 +1245,23 @@ export const usePlayer = create<PlayerState>()(
       let ordem = [...get().shuffleOrder];
       const novas: string[] = [];
       const base = get().queueIndex;
+      const intervalo=intervaloDoSmartShuffle(useDiscoveryControl.getState().mode);
+      const contextoDaSugestao=contextoDoSmartShuffle(useDiscoveryControl.getState().mode);
 
       for (let i = 0; i < quantas; i++) {
         const t = filtradas[i];
         const chave = trackKey(t);
         if (!chave || fila.some((q) => trackKey(q) === chave)) continue;
-        const posicao = Math.min(base + 1 + (i + 1) * 3, fila.length);
+        const posicao = Math.min(base + 1 + (i + 1) * intervalo, fila.length);
         fila = [...fila.slice(0, posicao), t, ...fila.slice(posicao)];
         if (ordem.length > 0) {
           const actual = fila[base] ? trackKey(fila[base]) : null;
           const onde = actual ? ordem.indexOf(actual) : -1;
-          const alvo = onde >= 0 ? Math.min(onde + 1 + (i + 1) * 3, ordem.length) : ordem.length;
+          const alvo = onde >= 0 ? Math.min(onde + 1 + (i + 1) * intervalo, ordem.length) : ordem.length;
           ordem = [...ordem.slice(0, alvo), chave, ...ordem.slice(alvo)];
         }
         novas.push(chave);
+        contextosDaFila.set(chave,contextoDaSugestao);
       }
       if (novas.length === 0) return 0;
 
@@ -1218,6 +1271,7 @@ export const usePlayer = create<PlayerState>()(
         sugeridas: [...sugeridas, ...novas].slice(-200),
         desdeASugestao: 0,
       });
+      registar('recomendacao_mostrada',{...contextoParaAnalytics(contextoDaSugestao),quantidade:novas.length});
       return novas.length;
     } catch {
       return 0;
@@ -1279,6 +1333,7 @@ export const usePlayer = create<PlayerState>()(
       const posicao = posicaoDaSugestao(filaAgora.length, indiceAgora);
       const nova = [...filaAgora.slice(0, posicao), escolhida, ...filaAgora.slice(posicao)];
       const chave = trackKey(escolhida);
+      contextosDaFila.set(chave,contextoDoSmartShuffle(useDiscoveryControl.getState().mode));
 
       // O PERCURSO DO SHUFFLE NAO SE LIMPA: enfia-se a chave logo a seguir a
       // atual. Limpa-lo obrigava a gerar um percurso novo, e num percurso novo
@@ -1305,6 +1360,10 @@ export const usePlayer = create<PlayerState>()(
         shuffleOrder: novaOrdem,
         sugeridas: [...sugeridas, chave].slice(-200),
         desdeASugestao: 0,
+      });
+      registar('recomendacao_mostrada',{
+        ...contextoParaAnalytics(contextoDoSmartShuffle(useDiscoveryControl.getState().mode)),
+        quantidade:1,
       });
       return true;
     } catch {
@@ -1346,7 +1405,7 @@ export const usePlayer = create<PlayerState>()(
         _yt?.play();
         return;
       }
-      get().next();
+      get().next(false);
       return;
     }
     // Confirmacao DO MOTOR: mexe na fase, nunca na intencao. Uma confirmacao

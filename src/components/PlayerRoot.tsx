@@ -40,9 +40,11 @@ import { saveToLibrary, removeFromLibrary, checkIsSaved } from '../api/library';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { setRepeatMode as persistRepeatMode, setShuffle as persistShuffle } from '../lib/prefs';
 import { useSaved } from '../state/saved';
-import { usePlayer } from '../state/player';
+import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
+import { contextoParaAnalytics } from '../lib/discoveryControl';
+import { registar } from '../lib/eventos';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ProgressBar } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
@@ -653,6 +655,8 @@ export function PlayerRoot() {
         setDbTrackId(newId);
         setSaved(true);
         hapticNotification();
+        const contexto=contextoDaRecomendacaoAtual();
+        if(contexto)registar('recomendacao_guardada',contextoParaAnalytics(contexto));
       }
       // Manter o conjunto global em sincronia: é dele que vem a marca de
       // "já guardada" nos resultados de pesquisa.
@@ -1191,7 +1195,7 @@ export function PlayerRoot() {
                 escala={ESCALA.icone}
                 accessibilityRole="button"
                 accessibilityLabel="Next track"
-                onPress={next}
+                onPress={() => { void next(); }}
                 disabled={
                   repeatMode === 'off' && !shuffle && queueIndex >= queue.length - 1
                 }
@@ -1357,7 +1361,7 @@ export function PlayerRoot() {
             <Toque
               escala={ESCALA.icone}
               hitSlop={8}
-              onPress={next}
+              onPress={() => { void next(); }}
               // Com o rádio ligado a fila nunca é o fim: o `next()` estende-a.
               disabled={atQueueEnd}
               style={[styles.miniBtn, atQueueEnd && styles.dimmed]}

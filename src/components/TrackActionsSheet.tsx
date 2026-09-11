@@ -16,6 +16,7 @@ import {
 } from '../lib/youtubeCache';
 import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
+import type { DiscoveryContext } from '../lib/discoveryControl';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { ShareFriendSheet } from './ShareFriendSheet';
 
@@ -32,9 +33,10 @@ interface Props {
   track: Track | null;
   actions: SheetAction[];
   onClose: () => void;
+  discoveryContext?: DiscoveryContext | null;
 }
 
-export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
+export function TrackActionsSheet({ visible, track, actions, onClose, discoveryContext }: Props) {
   const offline=useOfflineMode();
   const {height}=useWindowDimensions();
   const [recommendationTrack,setRecommendationTrack]=React.useState<Track|null>(null);
@@ -184,7 +186,7 @@ export function TrackActionsSheet({ visible, track, actions, onClose }: Props) {
         </BottomSheetScrollView>
       </BottomSheet>
 
-      <RecommendationPreferences visible={!!recommendationTrack} track={recommendationTrack} onClose={()=>setRecommendationTrack(null)}/>
+      <RecommendationPreferences visible={!!recommendationTrack} track={recommendationTrack} reason={discoveryContext?.reason} onClose={()=>setRecommendationTrack(null)}/>
       <ShareFriendSheet
         visible={shareFriendVisible}
         itemType="track"

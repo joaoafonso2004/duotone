@@ -46,6 +46,8 @@ interface Props {
    * uma excepção pedida e não o novo normal.
    */
   mostrarDuracao?: boolean;
+  /** Explicação curta para uma faixa recomendada. */
+  contextLabel?: string;
 }
 
 /** 52 px de capa + 8 px de padding em cima e em baixo. */
@@ -76,6 +78,7 @@ function TrackRowComponent({
   delayLongPress,
   onPressOut,
   mostrarDuracao = true,
+  contextLabel,
 }: Props) {
   const theme = useTheme((s) => s.theme);
   /** A moldura da capa desta linha, para o player saber de onde a fazer voar. */
@@ -172,6 +175,8 @@ function TrackRowComponent({
               {displayArtist(track)}
             </Text>
           ) : null}
+          {contextLabel ? <Text style={styles.contextDot}>·</Text> : null}
+          {contextLabel ? <Text numberOfLines={1} style={styles.contextLabel}>{contextLabel}</Text> : null}
         </View>
       </View>
 
@@ -241,6 +246,8 @@ const styles = StyleSheet.create({
     ...type.caption,
     fontVariant: ['tabular-nums'],
   },
+  contextDot: { ...type.caption, color: colors.textTertiary },
+  contextLabel: { ...type.caption, fontSize: 10, color: colors.textTertiary, flex: 1 },
   actionBtn: {
     padding: 4,
   },

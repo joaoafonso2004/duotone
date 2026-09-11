@@ -38,6 +38,21 @@ export function replayMountedSource(
   return controls;
 }
 
+/**
+ * Cala o backend que ainda pertence à faixa anterior antes de qualquer
+ * resolução assíncrona da próxima. A intenção de tocar fica na store; isto
+ * corta apenas o áudio obsoleto durante a espera pelo download.
+ */
+export function pauseMountedSourceBeforeChange(
+  current: PlaybackSource | null | undefined,
+  requested: PlaybackSource,
+  controls: PlaybackControls | null
+): boolean {
+  if (!controls || !current || samePlaybackSource(current, requested)) return false;
+  controls.pause();
+  return true;
+}
+
 export function requestPlay(controls: PlaybackControls | null) {
   controls?.play();
   return {

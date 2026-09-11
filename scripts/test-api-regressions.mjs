@@ -208,12 +208,14 @@ const sections=ambiente(async()=>{}, {
     getSocialProfileTracks:async(_id,recent)=>{reads++;if(failedSection==='recent'&&recent)throw Error('network');return [{id:recent?'recent':'most'}];},
     getProfileHighlights:async()=>{reads++;if(failedSection==='highlights')throw {code:'42703',message:'column p.visible_on_profile does not exist'};return {playlistIds:[],moment:null};},
   },
-  'src/api/playlists.ts':{listPlaylists:async()=>{reads++;return [{id:'original'}];},listProfilePlaylists:async()=>{reads++;return [];},copiasGuardadas:async()=>{reads++;return new Set();}},
+  'src/api/playlists.ts':{listPlaylists:async()=>{reads++;return [{id:'original'}];},listProfilePlaylists:async()=>{reads++;return [{id:'publica'}];},copiasGuardadas:async()=>{reads++;return new Set();}},
 }).carregar('src/api/profileSections.ts');
 let parts=await sections.loadProfileSections('owner',true,true);
 assert.equal(parts.highlights.status,'rejected');assert.equal(parts.most.value[0].id,'most');assert.equal(parts.recent.value[0].id,'recent');assert.equal(parts.playlists.value[0].id,'original');
 failedSection='recent';parts=await sections.loadProfileSections('owner',true,true);
 assert.equal(parts.recent.status,'rejected');assert.equal(parts.highlights.status,'fulfilled');assert.equal(parts.most.status,'fulfilled');
+parts=await sections.loadProfileSections('friend',false,true);
+assert.equal(parts.playlists.value[0].id,'publica','um perfil de amigo lê apenas as playlists públicas dele');
 const beforePrivate=reads;await sections.loadProfileSections('stranger',false,false);assert.equal(reads,beforePrivate,'não consulta secções de perfis privados');
 
 const saves=[];let savingFailure=null;

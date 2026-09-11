@@ -8,6 +8,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
 import { BrilhoInteligente, EstrelaInteligente } from '../components/BrilhoInteligente';
 import { useSaved } from '../state/saved';
+import type { DiscoveryContext } from '../lib/discoveryControl';
 import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 
@@ -290,11 +291,12 @@ export function Separadores<T extends string>({ opcoes, valor, aoMudar }: {
   </View>;
 }
 
-export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo }: {
+export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto }: {
   titulo: string; nota?: string; tracks: Track[];
-  onPlay: (track: Track, fila: Track[]) => void; onMore?: (track: Track) => void;
+  onPlay: (track: Track, fila: Track[], discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void;
   /** Uma etiqueta por cima de cada capa ("New to you"). Só onde é uma promessa cumprida. */
   selo?: string;
+  contexto?: (track:Track)=>DiscoveryContext;
 }) {
   const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
   if (!tracks.length) return null;
@@ -322,8 +324,8 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo }: {
       contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
       {tracks.map((t) => (
         <P key={`${t.source}:${t.sourceId}`}
-          onPress={() => { if (arrastou.current) return; onPlay(t, tracks); }}
-          onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t); }) as any}
+          onPress={() => { if (arrastou.current) return; onPlay(t, tracks, contexto?.(t)); }}
+          onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t,contexto?.(t)); }) as any}
           style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
           <View>
             <Artwork track={t} size={148} />
@@ -331,6 +333,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo }: {
           </View>
           <Text numberOfLines={1} style={ui.shelfCardTitle}>{tituloDaFaixa(t)}</Text>
           <Text numberOfLines={1} style={ui.shelfCardArtista}>{displayArtist(t)}</Text>
+          {contexto?<Text numberOfLines={1} style={ui.discoveryReason}>{contexto(t).reason}</Text>:null}
         </P>
       ))}
     </ScrollView>
@@ -400,8 +403,8 @@ const LINHAS_INICIAIS = 200;
 const PASSO_DE_LINHAS = 200;
 const linhasVisiveisPorLista = new Map<string, number>();
 
-export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey }: {
-  tracks: Track[]; onPlay: (track: Track) => void; onMore?: (track: Track) => void; empty?: ReactNode;
+export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto }: {
+  tracks: Track[]; onPlay: (track: Track, discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
    * guardadas e não guardadas (pesquisa) — na tabela de Songs seria um
    * coração em todas as linhas. */
@@ -410,6 +413,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   plain?: boolean;
   /** Identidade persistente para não voltar às primeiras 200 linhas ao regressar. */
   listKey?: string;
+  contexto?: (track:Track)=>DiscoveryContext;
 }) {
   // Subscrito sempre (regras dos hooks); sem a badge o seletor devolve um
   // Set vazio estável, por isso a tabela não redesenha à toa.
@@ -434,8 +438,8 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
     return seguinte;
   });
   return <View style={[ui.table, plain && ui.tablePlain]}><View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}><Text numberOfLines={1} style={[ui.colHead, { width: 40 }]}>#</Text><Text numberOfLines={1} style={[ui.colHead, { flex: 1 }]}>Track</Text>{showTime && <Text numberOfLines={1} style={[ui.colHead, { width: LARGURA_DURACAO, textAlign: 'right' }]}>Duration</Text>}<View style={{ width: 42 }} /></View>
-    {visiveis.map((track, index) => <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track)}
-      onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track); }) as any}
+    {visiveis.map((track, index) => <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track,contexto?.(track))}
+      onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track,contexto?.(track)); }) as any}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
       <Text style={[ui.trackIndex, { width: 40 }]}>{index + 1}</Text>
       <View style={[ui.trackTitleCell, { flex: 1 }]}>
@@ -445,11 +449,12 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
             <Text numberOfLines={1} style={ui.trackSource}>{displayArtist(track)}</Text>
             {savedKeys.has(`${track.source}:${track.sourceId}`) && <Ionicons name="heart" size={10} color={COR.texto} />}
+            {contexto?<><Text style={ui.discoveryDot}>·</Text><Text numberOfLines={1} style={ui.discoveryReason}>{contexto(track).reason}</Text></>:null}
           </View>
         </View>
       </View>
       {showTime && <Text numberOfLines={1} style={[ui.trackMeta, { width: LARGURA_DURACAO, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
-      <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track)} /></P>)}
+      <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track,contexto?.(track))} /></P>)}
     {visiveis.length < tracks.length && <View style={{ alignItems: 'center', paddingVertical: ESP.xl, gap: ESP.sm }}>
       <Text style={{ color: desktop.dim }}>{visiveis.length} of {tracks.length} tracks shown</Text>
       <Button secondary onPress={mostrarMais}>Show next {Math.min(PASSO_DE_LINHAS, tracks.length - visiveis.length)}</Button>
@@ -549,6 +554,8 @@ export const ui = StyleSheet.create({
   trackTitleCell: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingHorizontal: ESP.sm, minWidth: 150 },
   trackTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any },
   trackSource: { ...TIPO.legenda, color: COR.textoMedio },
+  discoveryDot: { ...TIPO.legenda, color: COR.textoFraco },
+  discoveryReason: { ...TIPO.legenda, color: COR.textoFraco, flexShrink: 1 },
   trackMeta: { ...TIPO.legenda, color: COR.textoMedio, paddingHorizontal: ESP.sm },
   artFallback: { borderRadius: RAIO.ctrl, backgroundColor: COR.elevado, alignItems: 'center', justifyContent: 'center' },
 

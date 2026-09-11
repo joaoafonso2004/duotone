@@ -45,11 +45,12 @@ import { useRecomendacoes } from './src/state/recomendacoes';
 import { usePlaylists } from './src/state/playlists';
 import { iniciarPresenca } from './src/lib/presenceSync';
 import { useOuvirJuntos } from './src/state/ouvirJuntos';
-import { aquecerPerfil, limparCachePerfil } from './src/lib/cachePerfil';
+import { aquecerPerfilProprio, limparCachePerfil } from './src/lib/cachePerfil';
 import { sincronizarPreferencias } from './src/lib/prefsSync';
 import { CartazDaSemana } from './src/components/CartazDaSemana';
 import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
+import { carregarDiscoveryControl, useDiscoveryControl } from './src/state/discoveryControl';
 
 export default function App() {
   // O acento segue a capa a tocar quando esse modo esta escolhido. Aqui em
@@ -91,7 +92,7 @@ export default function App() {
     void useOuvirJuntos.getState().ligar(userId);
     // O perfil fica lido antes de alguem la tocar. Ao sair da conta a cache
     // e esquecida: os dados de quem sai nao podem aparecer a quem entra.
-    void aquecerPerfil(userId);
+    void aquecerPerfilProprio(userId);
     return () => {
       pararPresenca(); pararSocial(); pararPrefs(); pararEventos();
       useOuvirJuntos.getState().desligar();
@@ -123,6 +124,10 @@ export default function App() {
   useEffect(()=>useRecommendationFeedback.subscribe((next,prev)=>{
     if(next.revision!==prev.revision)refreshSuggestionPreferences();
   }),[]);
+  useEffect(()=>useDiscoveryControl.subscribe((next,prev)=>{
+    if(next.revision!==prev.revision)refreshSuggestionPreferences();
+  }),[]);
+  useEffect(()=>{void carregarDiscoveryControl(adjustmentUserId??null);},[adjustmentUserId]);
   useEffect(()=>{if(!userId)void loadRecommendationFeedback(null);},[userId]);
   useEffect(()=>{
     if(offline){supabase.auth.stopAutoRefresh();return;}

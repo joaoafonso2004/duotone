@@ -82,7 +82,7 @@ export function limparCachePerfil(): void {
  */
 const emCurso = new Map<string, Promise<void>>();
 
-export async function aquecerPerfil(userId: string): Promise<void> {
+export async function aquecerPerfilProprio(userId: string): Promise<void> {
   if (!userId || cache.has(userId)) return;
   const pendente = emCurso.get(userId);
   if (pendente) return pendente;

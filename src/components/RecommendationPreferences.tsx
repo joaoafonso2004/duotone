@@ -6,7 +6,7 @@ import { displayArtist } from '../lib/artistName';
 import type { Feedback } from '../lib/recommendationFeedback';
 import type { Track } from '../types';
 
-export function RecommendationPreferences({visible,track,onClose}:{visible:boolean;track?:Track|null;onClose:()=>void}) {
+export function RecommendationPreferences({visible,track,reason,onClose}:{visible:boolean;track?:Track|null;reason?:string|null;onClose:()=>void}) {
   const items=useRecommendationFeedback(s=>s.items),busy=useRecommendationFeedback(s=>s.busy),ready=useRecommendationFeedback(s=>s.ready);
   const [error,setError]=useState('');
   const [manage,setManage]=useState(false);
@@ -33,6 +33,7 @@ export function RecommendationPreferences({visible,track,onClose}:{visible:boole
   return <SocialModal visible={visible} title="Recommendations" onClose={onClose}>
     <ScrollView contentContainerStyle={{padding:24,gap:16}}>
       <Text style={s.muted}>Shape your suggestions, daily flow, radio and smart shuffle. Asking for more of an artist also brings in music around them, even if you have none of their songs saved. You can still search for and play these songs yourself.</Text>
+      {track&&reason?<View style={s.listRow}><View style={{flex:1,minWidth:0}}><Text style={s.muted}>Why this track</Text><Text style={s.text}>{reason}</Text></View></View>:null}
       {!!error&&<Text accessibilityRole="alert" style={s.error}>{error}</Text>}
       {choices.map(p=>{const selected=items.some(x=>x.kind===p.kind&&x.key===p.key);return <View key={p.kind} style={{gap:6}}>
         {p.kind!=='artist'&&<Text style={s.text}>{p.label}</Text>}

@@ -4,6 +4,9 @@ import vm from 'node:vm';
 import { EventEmitter } from 'node:events';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
+const raizDesktop = fs.readFileSync(new URL('../src/navigation/RootNavigator.web.tsx', import.meta.url), 'utf8');
+assert.match(raizDesktop, /useSincroniaDaSessao\(\)/,
+  'A shell do Windows tem de montar o seguidor do Jam; sem ele fica em Loading 0%');
 const handlers = new Map();
 const events = new Map();
 let startup = { openAtLogin: false, executableWillLaunchAtLogin: false };

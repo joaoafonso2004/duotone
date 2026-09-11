@@ -12,6 +12,7 @@ import { getLibrary } from './library';
 import { getFlowMix } from './plays';
 import { searchYouTube } from './youtube';
 import type { Track } from '../types';
+import { misturarPorFamiliaridade, type DiscoveryMode } from '../lib/discoveryControl';
 
 /**
  * De onde sai a música do rádio, por ordem de preferência.
@@ -24,13 +25,25 @@ import type { Track } from '../types';
 export async function fetchRadioTracks(
   seeds: Track[],
   exclude: Track[],
-  limit: number = RADIO_BATCH
+  limit: number = RADIO_BATCH,
+  mode: DiscoveryMode = 'balanced',
 ): Promise<Track[]> {
   if(useConnectivity.getState().offline)return [];
   await feedbackReady();
   const artists = seedArtists(seeds, displayArtist);
   const pool: Track[] = [];
-  const harvest = () => filterRadioCandidates(filterSuggestions(pool), exclude, trackKey, limit);
+  let library:Track[]=[];
+  try{library=await getLibrary();}catch{/* O rádio ainda pode sair do histórico. */}
+  const knownKeys=new Set(library.map(trackKey));
+  const harvest = () => {
+    // Filtra-se antes da proporção, mas sem truncar demasiado cedo: se o
+    // primeiro lote for todo conhecido, o modo Explore nunca chegaria às
+    // candidatas novas que estão logo a seguir.
+    const candidatas=filterRadioCandidates(filterSuggestions(pool),exclude,trackKey,Math.max(limit*4,limit));
+    const conhecidas=candidatas.filter((t)=>knownKeys.has(trackKey(t)));
+    const novas=candidatas.filter((t)=>!knownKeys.has(trackKey(t)));
+    return misturarPorFamiliaridade(conhecidas,novas,limit,mode,'radio');
+  };
 
   // 1. A própria biblioteca, pelos artistas que se estava a ouvir. Custo zero
   //    e é garantidamente música que ele gosta.
@@ -40,7 +53,6 @@ export async function fetchRadioTracks(
       // escrita "Juice WRLD" e a faixa na biblioteca "Juice Wrld", e o radio
       // saltava-a so por causa da grafia.
       const wanted = new Set(artists.map((a) => chaveDeArtista(a)));
-      const library = await getLibrary();
       pool.push(
         ...shuffleCandidates(
           library.filter((t) => wanted.has(chaveDeArtista(displayArtist(t))))

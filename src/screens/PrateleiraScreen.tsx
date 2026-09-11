@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../components/EmptyState';
@@ -17,6 +17,11 @@ import { hapticNotification } from '../lib/haptics';
 import { Alert } from 'react-native';
 import { MINI_PLAYER_HEIGHT } from '../theme';
 import type { Track } from '../types';
+import { useDiscoveryControl } from '../state/discoveryControl';
+import {
+  contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics,
+} from '../lib/discoveryControl';
+import { registar } from '../lib/eventos';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Prateleira'>;
 
@@ -41,9 +46,9 @@ export function PrateleiraScreen({ route }: Props) {
   // `useSyncExternalStore` num ciclo, e já foi assim que uma versão não
   // arrancou.
   const prateleiras = useRecomendacoes((s) => s);
-  const faixas = fonte.tipo === 'prateleira'
+  const faixas = useMemo(()=>fonte.tipo === 'prateleira'
     ? prateleiras[fonte.nome]
-    : prateleiras.misturas.find((m) => m.id === fonte.id)?.faixas ?? [];
+    : prateleiras.misturas.find((m) => m.id === fonte.id)?.faixas ?? [],[fonte,prateleiras]);
   const chegou = fonte.tipo === 'prateleira'
     ? prateleiras.prontas.includes(fonte.nome)
     : prateleiras.misturasProntas;
@@ -51,8 +56,22 @@ export function PrateleiraScreen({ route }: Props) {
   const playNext = usePlayer((s) => s.playNext);
   const addToQueue = usePlayer((s) => s.addToQueue);
   const markSaved = useSaved((s) => s.markSaved);
+  const savedKeys=useSaved((s)=>s.keys);
+  const discoveryMode=useDiscoveryControl((s)=>s.mode);
   const [aberta, setAberta] = useState<Track | null>(null);
   const [paraPlaylist, setParaPlaylist] = useState<Track | null>(null);
+  const contextoDe=useCallback((track:Track)=>fonte.tipo==='prateleira'
+    ?contextoDaPrateleira(fonte.nome,discoveryMode,savedKeys.has(`${track.source}:${track.sourceId}`))
+    :contextoDaMistura(fonte.id,titulo,discoveryMode,savedKeys.has(`${track.source}:${track.sourceId}`)),[fonte,discoveryMode,savedKeys,titulo]);
+  const impressao=useRef('');
+  useEffect(()=>{
+    if(!chegou||!faixas.length)return;
+    const contexto=contextoDe(faixas[0]);
+    const chave=`${contexto.surface}:${discoveryMode}:${faixas.length}`;
+    if(impressao.current===chave)return;
+    impressao.current=chave;
+    registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:faixas.length});
+  },[chegou,faixas,discoveryMode,contextoDe]);
 
   return (
     <Screen title={titulo} subtitle={chegou ? `${faixas.length} ${faixas.length === 1 ? 'song' : 'songs'}` : undefined}>
@@ -74,7 +93,8 @@ export function PrateleiraScreen({ route }: Props) {
             <TrackRow
               track={item}
               showSavedBadge
-              onPress={() => playTrack(item, faixas, true)}
+              contextLabel={contextoDe(item).reason}
+              onPress={() => playTrack(item, faixas, true, false, contextoDe(item))}
               onAction={() => setAberta(item)}
             />
           )}
@@ -83,6 +103,7 @@ export function PrateleiraScreen({ route }: Props) {
       <TrackActionsSheet
         visible={!!aberta}
         track={aberta}
+        discoveryContext={aberta?contextoDe(aberta):null}
         onClose={() => setAberta(null)}
         actions={[
           { icon: 'play-outline', label: 'Play next',
@@ -96,6 +117,7 @@ export function PrateleiraScreen({ route }: Props) {
               try {
                 markSaved(t, true);
                 await saveToLibrary(t);
+                registar('recomendacao_guardada',contextoParaAnalytics(contextoDe(t)));
                 hapticNotification();
               } catch (e: any) {
                 markSaved(t, false);

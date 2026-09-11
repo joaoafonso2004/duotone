@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { Track } from '../types';
+import type { DiscoveryContext } from '../lib/discoveryControl';
 
 /**
  * Navegação do desktop: as rotas e o contrato que as páginas partilham.
@@ -37,9 +38,9 @@ export type ShareTarget =
  * fila em que ela vive), mostrar um aviso, e abrir o menu de contexto.
  */
 export interface CommonPageProps {
-  play: (track: Track, queue?: Track[]) => void;
+  play: (track: Track, queue?: Track[], discoveryContext?: DiscoveryContext) => void;
   notify: (message: string) => void;
-  more: (track: Track) => void;
+  more: (track: Track, discoveryContext?: DiscoveryContext) => void;
 }
 
 export type NavegarFn = (route: Route) => void;

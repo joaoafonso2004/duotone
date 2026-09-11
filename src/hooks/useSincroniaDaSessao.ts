@@ -7,6 +7,7 @@ import { assinaturaDaSessao } from '../lib/jam';
 import { cachedAudioFile } from '../lib/youtubeCache';
 import { appEstaVisivel } from '../lib/appVisibility';
 import type { SessaoDeEscuta } from '../api/ouvirJuntos';
+import { registar } from '../lib/eventos';
 
 const AFINACAO_MS = 2000;
 const DESCANSO_APOS_SALTO_MS = 5000;
@@ -58,6 +59,8 @@ export function useSincroniaDaSessao(): void {
   const id = sessao?.id;
   const faixa = sessao?.track?.sourceId;
   const fonte = sessao?.track?.source;
+  const entradaComecouEm = useOuvirJuntos((s) => s.entradaComecouEm);
+  const origemDaEntrada = useOuvirJuntos((s) => s.origemDaEntrada);
   useEffect(() => {
     if (!id || !faixa) return;
     let saltouEm = 0, forasSeguidos = 0, saltosNestaFaixa = 0;
@@ -97,15 +100,26 @@ export function useSincroniaDaSessao(): void {
       const p = usePlayer.getState(), s = useOuvirJuntos.getState();
       if (s.sessao?.id !== id || s.sessao.track?.sourceId !== faixa) return;
       const mesma = p.current?.sourceId === faixa && p.current.source === fonte;
-      const pronta = mesma && (cachedAudioFile(faixa).exists || p.activeBackend !== 'resolving' && !p.buffering);
+      // No Windows não há ficheiro Expo local: `cachedAudioFile` devolve null.
+      // A prontidão vem do player HTML, e consultar `.exists` diretamente
+      // deitava abaixo justamente o seguidor que acabámos de montar no PC.
+      const ficheiro = cachedAudioFile(faixa);
+      const pronta = mesma && (!!ficheiro?.exists || p.activeBackend !== 'resolving' && !p.buffering);
       const percentagem = pronta ? 100 : Math.round((mesma ? p.downloadProgress ?? 0 : 0) * 100);
       const marca = String(pronta) + ':' + percentagem;
       if (marca === ultima) return;
       ultima = marca;
       void s.anunciarProntidao(pronta, percentagem);
+      if (pronta && entradaComecouEm) {
+        registar('tempo_ate_ready_ms', {
+          origem: origemDaEntrada ?? 'app',
+          duracao_ms: Math.max(0, Math.min(120_000, Date.now() - entradaComecouEm)),
+        });
+        useOuvirJuntos.setState({ entradaComecouEm: null, origemDaEntrada: null });
+      }
     };
     contar();
     const timer = setInterval(contar, 3000);
     return () => clearInterval(timer);
-  }, [id, faixa, fonte]);
+  }, [id, faixa, fonte, entradaComecouEm, origemDaEntrada]);
 }

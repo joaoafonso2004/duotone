@@ -18,7 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary } from '../api/library';
 import { useMusicSearch } from '../hooks/useMusicSearch';
-import { temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
+import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
 import { useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -47,6 +47,12 @@ import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptic
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
+import { DiscoveryControl } from '../components/DiscoveryControl';
+import { useDiscoveryControl } from '../state/discoveryControl';
+import {
+  contextoDaPrateleira, contextoParaAnalytics, type DiscoveryContext,
+} from '../lib/discoveryControl';
+import { registar } from '../lib/eventos';
 
 /** Quantas linhas por página na primeira secção. */
 const LINHAS_NA_LISTA = 3;
@@ -149,12 +155,15 @@ export function SearchScreen() {
   const current = usePlayer((s) => s.current);
   const refreshSaved = useSaved((s) => s.refresh);
   const markSaved = useSaved((s) => s.markSaved);
+  const savedKeys = useSaved((s) => s.keys);
+  const discoveryMode=useDiscoveryControl((s)=>s.mode);
 
   const [query, setQuery] = useState('');
   const [vista, setVista] = useState<'discover' | 'daily'>('discover');
   /** A folha dos tres artistas, para uma conta nova ter por onde comecar. */
   const [escolherAberto, setEscolherAberto] = useState(false);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
+  const [actionContext,setActionContext]=useState<DiscoveryContext|null>(null);
   const [playlistTrack, setPlaylistTrack] = useState<Track | null>(null);
   const [history, setHistory] = useState<string[]>([]);
   
@@ -211,6 +220,20 @@ export function SearchScreen() {
     void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
   });
   useEffect(() => { void recs.carregar(); }, [recs.carregar]);
+
+  const vistos=useRef(new Set<string>());
+  useEffect(()=>{
+    if(vista!=='discover')return;
+    for(const nome of ORDEM_DAS_PRATELEIRAS){
+      const data=recs[nome];
+      if(!recs.prontas.includes(nome)||!data.length)continue;
+      const contexto=contextoDaPrateleira(nome,discoveryMode,savedKeys.has(`${data[0].source}:${data[0].sourceId}`));
+      const chave=`${discoveryMode}:${nome}:${recs.carregadoEm}:${data.length}`;
+      if(vistos.current.has(chave))continue;
+      vistos.current.add(chave);
+      registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:data.length});
+    }
+  },[vista,discoveryMode,recs,recs.carregadoEm,recs.prontas,recs.descobrir,recs.nuncaLancado,recs.amigos,recs.ouvirDeNovo,recs.flow,recs.maisTocadas,recs.esquecidas,savedKeys]);
 
   useEffect(() => {
     getSearchHistory().then(setHistory);
@@ -297,6 +320,8 @@ export function SearchScreen() {
     // prateleiras da mesma forma leem-se como um rolo so, e a mudanca de forma
     // e o que diz "isto aqui e outra coisa" sem precisar de o escrever.
     const emLista = lista && chegou;
+    const contextoDe=(track:Track)=>contextoDaPrateleira(nome,discoveryMode,savedKeys.has(`${track.source}:${track.sourceId}`));
+    const abrirAcoes=(track:Track)=>{setActionTrack(track);setActionContext(contextoDe(track));};
     return (
       <View style={styles.recsSection}>
         <View style={styles.sectionHeader}>
@@ -331,8 +356,8 @@ export function SearchScreen() {
                     key={`${track.source}:${track.sourceId}`}
                     track={track}
                     mostrarDuracao={false}
-                    onPress={() => playTrack(track, data, true)}
-                    onAction={() => setActionTrack(track)}
+                    onPress={() => playTrack(track, data, true, false, contextoDe(track))}
+                    onAction={() => abrirAcoes(track)}
                   />
                 ))}
               </View>
@@ -353,8 +378,8 @@ export function SearchScreen() {
             {data.map((track) => (
               <Pressable
                 key={`${track.source}:${track.sourceId}`}
-                onPress={() => playTrack(track, data, true)}
-                onLongPress={() => { hapticSelection(); setActionTrack(track); }}
+                onPress={() => playTrack(track, data, true, false, contextoDe(track))}
+                onLongPress={() => { hapticSelection(); abrirAcoes(track); }}
                 delayLongPress={350}
                 style={({ pressed }) => [styles.cartaoLargo, pressed && { opacity: 0.8 }]}
               >
@@ -368,6 +393,7 @@ export function SearchScreen() {
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text numberOfLines={1} style={styles.cardTitle}>{track.title}</Text>
                   <Text numberOfLines={1} style={styles.cardArtist}>{displayArtist(track)}</Text>
+                  <Text numberOfLines={1} style={styles.discoveryReason}>{contextoDe(track).reason}</Text>
                 </View>
               </Pressable>
             ))}
@@ -381,10 +407,10 @@ export function SearchScreen() {
           {data.map((track) => (
             <Pressable
               key={`${track.source}:${track.sourceId}`}
-              onPress={() => playTrack(track, data, true)}
+              onPress={() => playTrack(track, data, true, false, contextoDe(track))}
               onLongPress={() => {
                 hapticSelection();
-                setActionTrack(track);
+                abrirAcoes(track);
               }}
               delayLongPress={350}
               style={({ pressed }) => [styles.recCard, { width: largura }, pressed && { opacity: 0.8 }]}
@@ -414,6 +440,7 @@ export function SearchScreen() {
               <Text numberOfLines={1} style={styles.cardArtist}>
                 {displayArtist(track)}
               </Text>
+              <Text numberOfLines={1} style={styles.discoveryReason}>{contextoDe(track).reason}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -536,6 +563,7 @@ export function SearchScreen() {
                 comeca onde sempre comecou -- e por isso que isto pode viver
                 no sitio mais caro do ecra sem custar nada nos dias em que
                 nao ha ninguem online. */}
+            <View style={{paddingHorizontal:spacing.xl,marginBottom:spacing.xl}}><DiscoveryControl /></View>
             <AmigosAOuvir />
             {/* A grelha de atalhos, a cabeca da pagina.
                 ------------------------------------------------------------
@@ -743,7 +771,8 @@ export function SearchScreen() {
       <TrackActionsSheet
         visible={!!actionTrack}
         track={actionTrack}
-        onClose={() => setActionTrack(null)}
+        discoveryContext={actionContext}
+        onClose={() => {setActionTrack(null);setActionContext(null);}}
         actions={[
           {
             icon: 'play-outline',
@@ -774,6 +803,7 @@ export function SearchScreen() {
                 // Otimista: o coração aparece no toque, não daqui a 300ms.
                 markSaved(t, true);
                 await saveToLibrary(t);
+                if(actionContext)registar('recomendacao_guardada',contextoParaAnalytics(actionContext));
                 hapticNotification();
               } catch (e: any) {
                 markSaved(t, false);
@@ -960,6 +990,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
   },
+  discoveryReason: { fontSize: 10, color: colors.textTertiary, marginTop: 2 },
   selo: {
     position: 'absolute',
     top: 6,

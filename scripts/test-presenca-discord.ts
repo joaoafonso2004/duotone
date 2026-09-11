@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import {
   presencaDaFaixa, presencaMudou, segredoDiscordDaSessao, sessaoDoSegredoDiscord,
 } from '../src/lib/presencaDoDiscord.ts';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { mudancaDeJam } = require('../electron/discord.cjs');
 import type { Track } from '../src/types.ts';
 
 const f = (extra: Partial<Track> = {}): Track => ({
@@ -94,6 +98,16 @@ verificar('alguem entrar no Jam justifica reenviar, para o tamanho da sala', () 
   const dois = presencaDaFaixa(f(), aTocar, titulo, artista, { sessao, membros: 2 });
   assert.equal(presencaMudou(um, dois), true);
   assert.equal(presencaMudou(dois, presencaDaFaixa(f(), aTocar, titulo, artista, { sessao, membros: 2 })), false);
+});
+
+verificar('entrar e sair de um Jam ultrapassa imediatamente o atraso do Discord', () => {
+  const normal = presencaDaFaixa(f(), aTocar, titulo, artista);
+  const jam = presencaDaFaixa(f(), aTocar, titulo, artista, { sessao, membros: 1 });
+  assert.equal(mudancaDeJam(normal, jam), true, 'o Join não pode esperar 15 segundos');
+  assert.equal(mudancaDeJam(jam, normal), true, 'o botão também sai já ao fechar o Jam');
+  assert.equal(mudancaDeJam(normal, presencaDaFaixa(f(), aTocar, titulo, artista)), false);
+  assert.equal(mudancaDeJam(jam, presencaDaFaixa(f(), aTocar, titulo, artista, { sessao, membros: 2 })), false,
+    'alterar só o tamanho da sala continua sujeito ao limitador');
 });
 
 verificar('o segredo de Join e reversivel mas so aceita UUIDs da Duotone', () => {

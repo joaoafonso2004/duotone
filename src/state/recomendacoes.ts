@@ -21,6 +21,8 @@ import { trackKey } from '../lib/shuffle';
 import { misturasPorDecada } from '../lib/decadas';
 import { misturasPorGenero } from '../lib/generos';
 import { anoDaFaixa, encherDoPartilhado, generoDaFaixa } from './catalogoDeFaixas';
+import { espacadasPorArtista, misturarPorFamiliaridade } from '../lib/discoveryControl';
+import { useDiscoveryControl } from './discoveryControl';
 
 /**
  * As prateleiras de recomendações, fora do ecrã que as mostra.
@@ -115,6 +117,42 @@ export type NomeDaPrateleira = typeof ORDEM_DAS_PRATELEIRAS[number];
 let emCurso: Promise<void> | null = null;
 let geracao = 0;
 let rawShelves:Partial<Record<'descobrir'|'nuncaLancado'|'amigos'|'ouvirDeNovo'|'flow'|'maisTocadas'|'esquecidas',Track[]>>={};
+let rawMixes:Mistura[]=[];
+let libraryKeys=new Set<string>();
+
+function arrumarPrateleiras(): Pick<Recomendacoes, NomeDaPrateleira | 'prontas'> {
+  const modo=useDiscoveryControl.getState().mode;
+  const filtradas = Object.fromEntries(
+    ORDEM_DAS_PRATELEIRAS.map((nome) => [nome, filterSuggestions(rawShelves[nome] ?? [])])
+  ) as Record<NomeDaPrateleira, Track[]>;
+  const unicas = semRepetidas(filtradas, ORDEM_DAS_PRATELEIRAS, trackKey);
+  const arrumadas = Object.fromEntries(ORDEM_DAS_PRATELEIRAS.map((nome) => {
+    let faixas=intercalarPorArtista(unicas[nome], artistPreferenceKey);
+    // O Flow é a única prateleira que mistura explicitamente música guardada
+    // e descoberta. As restantes já têm uma promessa própria (Rare Finds é
+    // sempre novo; Heavy Rotation é sempre familiar) que o controlo não deve
+    // desfigurar.
+    if(nome==='flow'){
+      const conhecidas=faixas.filter((t)=>libraryKeys.has(trackKey(t)));
+      const novas=faixas.filter((t)=>!libraryKeys.has(trackKey(t)));
+      faixas=misturarPorFamiliaridade(conhecidas,novas,faixas.length,modo,'flow');
+    }
+    return [nome,espacadasPorArtista(faixas,artistPreferenceKey,7)];
+  })) as Record<NomeDaPrateleira, Track[]>;
+  return {...arrumadas,prontas:ORDEM_DAS_PRATELEIRAS.filter((nome)=>rawShelves[nome]!==undefined)};
+}
+
+function arrumarMisturas():Mistura[]{
+  const modo=useDiscoveryControl.getState().mode;
+  return rawMixes.map((mistura)=>{
+    const filtradas=filterSuggestions(mistura.faixas);
+    const conhecidas=filtradas.filter((t)=>libraryKeys.has(trackKey(t)));
+    const novas=filtradas.filter((t)=>!libraryKeys.has(trackKey(t)));
+    const tipo=mistura.id.startsWith('radio:')?'radio':'mix';
+    const faixas=misturarPorFamiliaridade(conhecidas,novas,filtradas.length,modo,tipo);
+    return {...mistura,faixas:espacadasPorArtista(faixas,artistPreferenceKey,7)};
+  });
+}
 /**
  * Quantas vezes se carregou no refrescar nesta sessão.
  *
@@ -142,6 +180,8 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
   limpar: () => {
     geracao++;
     rawShelves={};
+    rawMixes=[];
+    libraryKeys=new Set();
     emCurso = null;
     // Trocar de conta recomeça também as voltas: são um estado da sessão de
     // quem estava a usar a app, e não da app.
@@ -190,22 +230,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
      * Recalcular a partir dos originais e o que torna o resultado sempre o
      * mesmo. Sao seis listas de catorze; o custo nao se mede.
      */
-    const republicar = () => {
-      const filtradas = Object.fromEntries(
-        ORDEM_DAS_PRATELEIRAS.map((nome) => [nome, filterSuggestions(rawShelves[nome] ?? [])])
-      ) as Record<NomeDaPrateleira, Track[]>;
-      // Primeiro decide-se QUEM fica com cada faixa (entre prateleiras), e só
-      // depois a ordem DENTRO de cada uma. Pela ordem contrária, o dedupe
-      // desfazia a intercalação a seguir a ela ser feita.
-      const unicas = semRepetidas(filtradas, ORDEM_DAS_PRATELEIRAS, trackKey);
-      const arrumadas = Object.fromEntries(
-        ORDEM_DAS_PRATELEIRAS.map((nome) => [nome, intercalarPorArtista(unicas[nome], artistPreferenceKey)])
-      ) as Record<NomeDaPrateleira, Track[]>;
-      set({
-        ...arrumadas,
-        prontas: ORDEM_DAS_PRATELEIRAS.filter((nome) => rawShelves[nome] !== undefined),
-      });
-    };
+    const republicar = () => set(arrumarPrateleiras());
 
     const publicar = <T,>(p: Promise<T[]>, campo: (v: T[]) => Partial<Recomendacoes>) =>
       p.then((v) => {
@@ -234,6 +259,8 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
       // misturas saem só com a biblioteca em vez de não saírem.
       getLibrary()
         .then(async (lib) => {
+          libraryKeys=new Set(lib.map(trackKey));
+          set(arrumarPrateleiras());
           // A biblioteca primeiro: é dela que saem as âncoras, e chamar a
           // descoberta sem ela procurava vizinhos de ninguém.
           const [artistas, vizinhas] = await Promise.all([
@@ -295,7 +322,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
             artistas.map((a) => [chaveDeArtista(a.name), a.plays]),
           );
 
-          set({
+          rawMixes=[
             // O deslocamento vem do DIA. Do acaso mudaria as playlists de
             // sítio a cada regresso à pesquisa, e uma prateleira que se mexe
             // sozinha é pior do que uma que não muda nunca.
@@ -304,7 +331,6 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
             // prateleira nova atrás de seis iguais não se descobre. Todas na
             // mesma lista para a navegação as encontrar pelo id, e o ecrã
             // separa-as pelo prefixo `estilo:`.
-            misturas: [
               ...misturasDeEstilo(estilos, lib, artistPreferenceKey, baralhada, vizinhas),
               // As radios usam o MESMO mapa de vizinhos: nao custam rede
               // nenhuma. O que as separa das misturas e a proporcao -- tres
@@ -327,7 +353,9 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
               ...misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
                 chaveDeArtista, baralhada,
                 Math.floor(Date.now() / 86_400_000) + voltasDeRefresco, vizinhas),
-            ],
+          ];
+          set({
+            misturas: arrumarMisturas(),
             misturasProntas: true,
           });
         })
@@ -378,5 +406,5 @@ export const temRecomendacoes = (r: Recomendacoes): boolean =>
 
 /** Aplica uma alteração sem refazer os pedidos nem alterar a fila manual. */
 export function refreshSuggestionPreferences():void {
-  useRecomendacoes.setState(Object.fromEntries(Object.entries(rawShelves).map(([key,tracks])=>[key,filterSuggestions(tracks)])));
+  useRecomendacoes.setState({...arrumarPrateleiras(),misturas:arrumarMisturas()});
 }
