@@ -1,5 +1,6 @@
 import { seguirSessao } from '../lib/seguirSessao';
 import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { correccaoNecessaria } from '../lib/sincronizacao';
@@ -96,7 +97,11 @@ export function useSincroniaDaSessao(): void {
     if (!id || !faixa) return;
     let ultima: string | null = null;
     const contar = () => {
-      if (!appEstaVisivel()) return;
+      // No iPhone, em segundo plano, os temporizadores param de qualquer
+      // maneira. No PC não: a música continua com a janela minimizada, e
+      // calar-se ali deixava os outros a vê-lo em "Loading" o Jam inteiro. O
+      // pedido só sai quando o estado muda, por isso não custa nada.
+      if (Platform.OS !== 'web' && !appEstaVisivel()) return;
       const p = usePlayer.getState(), s = useOuvirJuntos.getState();
       if (s.sessao?.id !== id || s.sessao.track?.sourceId !== faixa) return;
       const mesma = p.current?.sourceId === faixa && p.current.source === fonte;

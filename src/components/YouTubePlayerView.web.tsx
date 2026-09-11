@@ -6,8 +6,31 @@ import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar, type TipoFalha,
 } from '../lib/playbackDiagnostics';
 import { baterSessao } from '../lib/sessionSync';
+import { velocidadeNaSessao } from '../lib/jam';
 import { usePlayer } from '../state/player';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
 import type { Track } from '../types';
+
+/**
+ * A velocidade a que o motor anda AGORA: a escolhida, ou 1x dentro de um Jam.
+ *
+ * O iPhone já fazia isto e o PC não: um PC com a velocidade guardada em 1,1x
+ * tocava o Jam a 1,1x, e a posição da sessão -- que é tempo de parede --
+ * fugia-lhe um segundo a cada dez. Ver `velocidadeNaSessao`.
+ */
+function velocidadeDoMotor(): number {
+  return velocidadeNaSessao(usePlayer.getState().playbackRate, !!useOuvirJuntos.getState().sessao);
+}
+
+/** O player do IFrame está neste vídeo? Sem maneira de saber, assume-se que sim. */
+function estaNoVideo(player: any, sourceId: string): boolean {
+  try {
+    const id = player?.getVideoData?.()?.video_id;
+    return !id || id === sourceId;
+  } catch {
+    return true;
+  }
+}
 
 declare global {
   interface Window {
@@ -200,7 +223,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             // anuncia — 0,3 a 2 saem exatos. So o 0,2 e que ele prende em
             // 0,25, e por isso a barra nao desce abaixo disso.
             try {
-              event.target.setPlaybackRate?.(usePlayer.getState().playbackRate);
+              event.target.setPlaybackRate?.(velocidadeDoMotor());
             } catch {}
             const initialPos = usePlayer.getState().positionMs;
             if (initialPos > 1500) {
@@ -266,6 +289,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           onStateChange: (event: any) => {
             const s = event.data;
             if (s === 1 || s === 2) arrancouRef.current = true;
+            // A tocar, em pausa ou em espera (5): o vídeo desta faixa está
+            // carregado. Sem isto o `activeBackend` ficava em 'resolving' para
+            // sempre no PC -- só o leitor do iPhone o mudava --, e o Jam via o PC
+            // eternamente em "Loading · 0%" e nunca lhe corrigia o desvio.
+            //
+            // Só se o evento for do vídeo DESTA faixa, quando o player o sabe
+            // dizer: ao trocar de música, a pausa do vídeo anterior pode chegar
+            // depois de a faixa nova ter começado a carregar. Não é blindado --
+            // o IFrame às vezes já responde com o id novo --, e aí vale a
+            // correção do desvio, que agora também corre no PC.
+            if ((s === 1 || s === 2 || s === 5) && estaNoVideo(event.target, faixaRef.current.sourceId)) {
+              state._setActiveBackend('webview');
+            }
             if (s === 1) state._onYtStateChange('playing');
             else if (s === 2) state._onYtStateChange('paused');
             else if (s === 0) state._onYtStateChange('ended');
@@ -355,7 +391,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     try { p.loadVideoById(track.sourceId); } catch {}
   }, [track.sourceId, armarVigia]);
 
-  const playbackRate = usePlayer((s) => s.playbackRate);
+  const velocidadeEscolhida = usePlayer((s) => s.playbackRate);
+  // Entrar e sair de um Jam também muda a velocidade do motor: a 1x lá dentro,
+  // e de volta à escolhida à saída.
+  const emJam = useOuvirJuntos((s) => !!s.sessao);
+  const playbackRate = velocidadeNaSessao(velocidadeEscolhida, emJam);
   useEffect(() => {
     // O `playerRef` pode ainda ser null (o IFrame monta-se depois). Antes havia
     // aqui um `if (!p) return` que abortava o efeito inteiro — e como ele so
