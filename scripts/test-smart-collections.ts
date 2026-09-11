@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   activeSmartFilterCount, applySmartCollectionFilters, EMPTY_SMART_FILTERS,
-  SMART_COLLECTION_TEMPLATES, type SmartCollectionFilters,
+  SMART_COLLECTION_TEMPLATES, smartCollectionTemplates, type SmartCollectionFilters,
 } from '../src/lib/smartCollections.ts';
 import type { PlayCountEntry } from '../src/lib/playCounts.ts';
 import type { Track } from '../src/types.ts';
@@ -45,6 +45,22 @@ assert.deepEqual(ids(run({artist:'beyonce'})),['new'],'a pesquisa ignora acentos
 assert.deepEqual(ids(run({saved:'30d',listening:'never',duration:'short',artist:'bey'})),['new'],'os filtros combinam por interseção');
 assert.deepEqual(ids(tracks),['new','forgotten','rotation','download','unknown-date'],'o motor não altera a biblioteca');
 assert.equal(activeSmartFilterCount({...EMPTY_SMART_FILTERS,saved:'7d',downloadedOnly:true,artist:'Björk'}),3);
+
+// O artista como a lista o mostra. Uma faixa cujo `artist` é o canal tem de
+// aparecer quando se procura pelo nome que se vê.
+{
+  const doCanal={...track('canal',5,200,'LusiEntertainment'),title:'Juice WRLD - Lucid Dreams'};
+  const mostrado=(t:Track)=>t.sourceId==='canal'?'Juice WRLD':t.artist??'';
+  const porNome=(q:string,artistOf?:(t:Track)=>string)=>ids(applySmartCollectionFilters([doCanal],[],{...EMPTY_SMART_FILTERS,artist:q},{now,artistOf}));
+  assert.deepEqual(porNome('juice',mostrado),['canal'],'procura pelo artista mostrado, não só pelo canal');
+  assert.deepEqual(porNome('lusi',mostrado),['canal'],'o canal continua a servir');
+  assert.deepEqual(porNome('juice'),[],'sem artistOf fica só o canal, como antes');
+}
+
+// No PC não há downloads: os atalhos que dependem deles não aparecem.
+assert.equal(smartCollectionTemplates(true).length,SMART_COLLECTION_TEMPLATES.length);
+assert.ok(!smartCollectionTemplates(false).some(t=>t.filters.downloadedOnly),'sem downloads, nenhum atalho de downloads');
+assert.equal(smartCollectionTemplates(false).length,SMART_COLLECTION_TEMPLATES.length-1);
 
 for(const template of SMART_COLLECTION_TEMPLATES){
   assert.ok(activeSmartFilterCount(template.filters)>0,`${template.name} tem pelo menos uma regra`);

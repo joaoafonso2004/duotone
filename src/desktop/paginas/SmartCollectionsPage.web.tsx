@@ -2,12 +2,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSmartCollectionsData } from '../../hooks/useSmartCollections';
+import { displayArtist } from '../../lib/artistName';
 import {
   activeSmartFilterCount, applySmartCollectionFilters, EMPTY_SMART_FILTERS,
-  SMART_COLLECTION_TEMPLATES, type DurationRule, type ListeningRule,
+  smartCollectionTemplates, type DurationRule, type ListeningRule,
   type SavedRule, type SmartCollectionFilters,
 } from '../../lib/smartCollections';
-import { isAudioCached, useAudioCache } from '../../lib/youtubeCache';
 import { usePlayer } from '../../state/player';
 import { useTheme } from '../../state/theme';
 import type { CommonPageProps } from '../rotas';
@@ -31,13 +31,14 @@ export function SmartCollectionsPage({back,...props}:{back:()=>void}&CommonPageP
   const data=useSmartCollectionsData(false);
   const {tracks:likedTracks,history,loading,error,refresh}=data;
   const [filters,setFilters]=useState<SmartCollectionFilters>(EMPTY_SMART_FILTERS);
-  const cacheVersion=useAudioCache(s=>s.revision);
   const theme=useTheme(s=>s.theme);
   const shuffle=usePlayer(s=>s.shuffle);
   const smartShuffle=usePlayer(s=>s.shuffleInteligente);
+  // Sem `isDownloaded` nem filtro de dispositivo: no PC não há downloads (o
+  // player é o IFrame do YouTube) e um "Downloaded only" dava sempre zero.
   const tracks=useMemo(()=>applySmartCollectionFilters(likedTracks,history,filters,{
-    isDownloaded:track=>cacheVersion>=0&&track.source==='youtube'&&isAudioCached(track.sourceId),
-  }),[likedTracks,history,filters,cacheVersion]);
+    artistOf:displayArtist,
+  }),[likedTracks,history,filters]);
   const active=activeSmartFilterCount(filters);
   const set=<K extends keyof SmartCollectionFilters>(key:K,value:SmartCollectionFilters[K])=>setFilters(old=>({...old,[key]:value}));
 
@@ -53,7 +54,7 @@ export function SmartCollectionsPage({back,...props}:{back:()=>void}&CommonPageP
     <ContentScroll scrollKey="smart-collections">
       {!!error&&<Text accessibilityRole="alert" style={local.notice}>{error}</Text>}
       <Text style={local.sectionTitle}>Start with a collection</Text>
-      <View style={local.templates}>{SMART_COLLECTION_TEMPLATES.map(template=><P key={template.id} onPress={()=>setFilters(template.filters)} style={({hovered,focused}:any)=>[local.template,(hovered||focused)&&local.templateHover]}>
+      <View style={local.templates}>{smartCollectionTemplates(false).map(template=><P key={template.id} onPress={()=>setFilters(template.filters)} style={({hovered,focused}:any)=>[local.template,(hovered||focused)&&local.templateHover]}>
         <View style={[local.templateIcon,{backgroundColor:theme.soft}]}><Ionicons name={template.icon} size={21} color={theme.color}/></View>
         <Text style={local.templateName}>{template.name}</Text><Text style={local.templateDescription}>{template.description}</Text>
       </P>)}</View>
@@ -63,12 +64,14 @@ export function SmartCollectionsPage({back,...props}:{back:()=>void}&CommonPageP
         <Choices<SavedRule> title="Saved" value={filters.saved} onChange={value=>set('saved',value)} items={[{value:'any',label:'Any time'},{value:'7d',label:'Last 7 days'},{value:'30d',label:'Last 30 days'},{value:'older',label:'Older'}]}/>
         <Choices<ListeningRule> title="Listening" value={filters.listening} onChange={value=>set('listening',value)} items={[{value:'any',label:'Any'},{value:'never',label:'Never played'},{value:'forgotten',label:'Forgotten 60d'},{value:'frequent',label:'5+ plays'}]}/>
         <Choices<DurationRule> title="Duration" value={filters.duration} onChange={value=>set('duration',value)} items={[{value:'any',label:'Any'},{value:'short',label:'≤ 3 min'},{value:'medium',label:'3–5 min'},{value:'long',label:'5+ min'}]}/>
-        <View style={local.rule}><Text style={local.ruleTitle}>Device</Text><View style={local.chipRow}><Chip label="Downloaded only" selected={filters.downloadedOnly} onPress={()=>set('downloadedOnly',!filters.downloadedOnly)}/></View></View>
         <View style={local.rule}><Text style={local.ruleTitle}>Artist</Text><Field icon="search" placeholder="Filter by artist" value={filters.artist} onChangeText={value=>set('artist',value)} style={{minWidth:250}}/></View>
       </View>
 
       <View style={local.resultHeader}><View><Text style={local.resultTitle}>{tracks.length} {tracks.length===1?'song':'songs'}</Text><Text style={local.hint}>{active?`${active} active ${active===1?'filter':'filters'}`:'Your complete liked library'}</Text></View></View>
-      {loading?<View style={{height:260}}><Loading/></View>:<TrackTable plain listKey="smart-collections-results" tracks={tracks} onPlay={track=>props.play(track,tracks)} onMore={props.more} empty={<Empty icon="options-outline" title="No songs match" body="Remove a filter or choose another ready-made collection."/>}/>} 
+      {loading
+        ? <View style={{height:260}}><Loading/></View>
+        : <TrackTable plain listKey="smart-collections-results" tracks={tracks} onPlay={track=>props.play(track,tracks)} onMore={props.more} empty={<Empty icon="options-outline" title="No songs match" body="Remove a filter or choose another ready-made collection."/>}/>
+      }
     </ContentScroll>
   </Page>;
 }

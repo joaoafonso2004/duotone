@@ -43,6 +43,17 @@ function addedTime(track:Track):number|null {
   return Number.isFinite(value)?value:null;
 }
 
+/**
+ * Os atalhos que fazem sentido NESTE aparelho.
+ *
+ * No PC não há downloads -- o player é o IFrame oficial do YouTube --, e um
+ * "Offline ready" que dá sempre zero é uma opção sem efeito, que é pior do que
+ * não existir. Quem não tem downloads não vê os atalhos que dependem deles.
+ */
+export function smartCollectionTemplates(temDownloads:boolean):SmartCollectionTemplate[] {
+  return temDownloads ? SMART_COLLECTION_TEMPLATES : SMART_COLLECTION_TEMPLATES.filter(t=>!t.filters.downloadedOnly);
+}
+
 export function activeSmartFilterCount(filters:SmartCollectionFilters):number {
   return Number(filters.saved!=='any')+Number(filters.listening!=='any')+Number(filters.duration!=='any')
     +Number(filters.downloadedOnly)+Number(!!filters.artist.trim());
@@ -56,7 +67,17 @@ export function applySmartCollectionFilters(
   tracks:Track[],
   history:PlayCountEntry[],
   filters:SmartCollectionFilters,
-  options:{now?:number;isDownloaded?:(track:Track)=>boolean}={},
+  options:{
+    now?:number;
+    isDownloaded?:(track:Track)=>boolean;
+    /**
+     * O artista como a app o MOSTRA (`displayArtist`). O `track.artist` de uma
+     * faixa do YouTube é muitas vezes o canal, e procurar pelo nome que se vê
+     * na lista tem de encontrar essa faixa. Entra por parâmetro para isto
+     * continuar a correr em Node puro.
+     */
+    artistOf?:(track:Track)=>string;
+  }={},
 ):Track[]{
   const now=options.now??Date.now();
   const played=new Map(history.map(entry=>[keyOf(entry),entry]));
@@ -78,7 +99,7 @@ export function applySmartCollectionFilters(
     if(filters.duration==='medium'&&(duration===null||duration<=180||duration>300))return false;
     if(filters.duration==='long'&&(duration===null||duration<=300))return false;
     if(filters.downloadedOnly&&!options.isDownloaded?.(track))return false;
-    if(artist&&!normalize(track.artist??'').includes(artist))return false;
+    if(artist&&![track.artist??'',options.artistOf?.(track)??''].some(nome=>normalize(nome).includes(artist)))return false;
     return true;
   });
 

@@ -13,9 +13,10 @@ import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { useSmartCollectionsData } from '../hooks/useSmartCollections';
+import { displayArtist } from '../lib/artistName';
 import {
   activeSmartFilterCount, applySmartCollectionFilters, EMPTY_SMART_FILTERS,
-  SMART_COLLECTION_TEMPLATES, type DurationRule, type ListeningRule,
+  smartCollectionTemplates, type DurationRule, type ListeningRule,
   type SavedRule, type SmartCollectionFilters,
 } from '../lib/smartCollections';
 import { isAudioCached, useAudioCache } from '../lib/youtubeCache';
@@ -59,6 +60,7 @@ export function SmartCollectionsScreen(){
   const effectiveFilters=useMemo(()=>offline?{...filters,downloadedOnly:true}:filters,[filters,offline]);
   const tracks=useMemo(()=>applySmartCollectionFilters(likedTracks,history,effectiveFilters,{
     isDownloaded:track=>cacheVersion>=0&&track.source==='youtube'&&isAudioCached(track.sourceId),
+    artistOf:displayArtist,
   }),[likedTracks,history,effectiveFilters,cacheVersion]);
   const active=activeSmartFilterCount(effectiveFilters);
   const set=<K extends keyof SmartCollectionFilters>(key:K,value:SmartCollectionFilters[K])=>setFilters(old=>({...old,[key]:value}));
@@ -68,7 +70,7 @@ export function SmartCollectionsScreen(){
     {!!error&&<Text accessibilityRole="alert" style={styles.notice}>{error}</Text>}
     <Text style={styles.sectionTitle}>Start with a collection</Text>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.templates}>
-      {SMART_COLLECTION_TEMPLATES.map(template=><Pressable key={template.id} onPress={()=>setFilters(template.filters)} style={styles.template}>
+      {smartCollectionTemplates(true).map(template=><Pressable key={template.id} onPress={()=>setFilters(template.filters)} style={styles.template}>
         <View style={[styles.templateIcon,{backgroundColor:theme.soft}]}><Ionicons name={template.icon} size={20} color={theme.color}/></View>
         <Text style={styles.templateName}>{template.name}</Text>
         <Text style={styles.templateDescription}>{template.description}</Text>
@@ -96,7 +98,7 @@ export function SmartCollectionsScreen(){
         onPress={()=>playTrack(item,tracks,true)} onAction={()=>setActionTrack(item)}/>}/>
     }
     <TrackActionsSheet visible={!!actionTrack} track={actionTrack} onClose={()=>setActionTrack(null)} actions={[
-      {icon:'play-outline',label:'Tocar a seguir',requiresInternet:false,onPress:()=>{if(actionTrack)playNext(actionTrack);setActionTrack(null);}},
+      {icon:'play-outline',label:'Play next',requiresInternet:false,onPress:()=>{if(actionTrack)playNext(actionTrack);setActionTrack(null);}},
       {icon:'add-circle-outline',label:'Add to queue',requiresInternet:false,onPress:()=>{if(actionTrack)addToQueue(actionTrack);setActionTrack(null);}},
       {icon:'list-outline',label:'Add to playlist…',onPress:()=>{setPlaylistTrack(actionTrack);setActionTrack(null);}},
     ]}/>
