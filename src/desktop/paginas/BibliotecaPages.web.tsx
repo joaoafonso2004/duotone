@@ -160,7 +160,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
     </ContentScroll></Page>;
 }
 
-export function SongsPage({navigate,...props}: CommonPageProps & {navigate:NavegarFn}) {
+export function SongsPage(props: CommonPageProps) {
   const data = useLibraryData(getLikedSongs);
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = useState<'recent' | 'title' | 'artist' | 'duration'>('recent');
@@ -190,7 +190,7 @@ export function SongsPage({navigate,...props}: CommonPageProps & {navigate:Naveg
     void usePlayer.getState().tocarLista(filteredTracks, ligado, inteligente);
   };
 
-  return <><Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button secondary icon="options-outline" onPress={()=>navigate({name:'smart-collections'})}>Smart collections</Button><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{nomes[sortMode]}</Button></View>}>
+  return <><Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{nomes[sortMode]}</Button></View>}>
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search your library" value={query} onChangeText={setQuery} /></View>
       <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>

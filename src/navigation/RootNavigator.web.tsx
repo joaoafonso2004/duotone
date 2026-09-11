@@ -66,7 +66,6 @@ import { JanelaDoJam } from '../desktop/JanelaDoJam.web';
 import { ProfilePage, StatsPage } from '../desktop/paginas/ProfilePage.web';
 
 import { ArtistPage, ArtistsPage, MisturaPage, SearchPage, SongsPage } from '../desktop/paginas/BibliotecaPages.web';
-import { SmartCollectionsPage } from '../desktop/paginas/SmartCollectionsPage.web';
 
 import { invalidarCacheDaPlaylist, PlaylistPage, PlaylistsPage } from '../desktop/paginas/PlaylistPages.web';
 
@@ -516,8 +515,7 @@ function DesktopShell() {
   const common = { play, notify, more };
   let page: ReactNode;
   switch (route.name) {
-    case 'search': page = <SearchPage navigate={navigate} {...common} />; break; case 'songs': page = <SongsPage navigate={navigate} {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} />; break;
-    case 'smart-collections': page = <SmartCollectionsPage back={back} {...common}/>; break;
+    case 'search': page = <SearchPage navigate={navigate} {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} />; break;
     case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} back={back} share={openShareDialog} {...common} />; break;
     case 'mistura': page = <MisturaPage key={route.id} id={route.id} titulo={route.titulo} back={back} {...common} />; break;
     case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;

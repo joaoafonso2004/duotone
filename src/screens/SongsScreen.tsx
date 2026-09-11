@@ -189,11 +189,6 @@ export function SongsScreen() {
     >
       {offline&&<OfflineNotice compact/>}
       {!!loadError&&<Text accessibilityRole="alert" style={{color:colors.textSecondary,paddingHorizontal:spacing.xl,paddingBottom:12}}>{loadError}</Text>}
-      {!loading&&tracks.length>0&&<Pressable onPress={()=>navigation.navigate('SmartCollections')} style={styles.smartEntry}>
-        <View style={styles.smartEntryIcon}><Ionicons name="options-outline" size={20} color={theme.color}/></View>
-        <View style={{flex:1}}><Text style={styles.smartEntryTitle}>Smart Collections</Text><Text style={styles.smartEntryBody}>Combine live filters or start from a ready-made collection.</Text></View>
-        <Ionicons name="chevron-forward" size={18} color={colors.textTertiary}/>
-      </Pressable>}
       {loading ? (
         <SkeletonDeFaixas />
       ) : tracks.length === 0 ? (
@@ -476,10 +471,6 @@ export function SongsScreen() {
 }
 
 const styles = StyleSheet.create({
-  smartEntry:{marginHorizontal:spacing.xl,marginBottom:spacing.lg,padding:spacing.md,borderRadius:radii.lg,backgroundColor:colors.surface,borderWidth:StyleSheet.hairlineWidth,borderColor:colors.border,flexDirection:'row',alignItems:'center',gap:spacing.md},
-  smartEntryIcon:{width:38,height:38,borderRadius:19,backgroundColor:colors.accentSoft,alignItems:'center',justifyContent:'center'},
-  smartEntryTitle:{color:colors.text,fontSize:14,fontWeight:'700'},
-  smartEntryBody:{color:colors.textSecondary,fontSize:12,marginTop:2},
   filtersRow: {
     flexDirection: 'row',
     alignItems: 'center',

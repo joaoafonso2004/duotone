@@ -195,7 +195,6 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
   // ficar aceso, senao a barra dizia que se estava noutro sitio.
   const active = route.name === 'artist' ? 'artists'
     : route.name === 'mistura' ? 'search'
-    : route.name === 'smart-collections' ? 'songs'
     : route.name === 'playlist' || route.name === 'import' ? 'playlists' : route.name;
 
   const [name,setName]=useState('Profile');

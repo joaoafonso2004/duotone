@@ -84,7 +84,7 @@ export async function saveToLibrary(track: Track): Promise<string> {
       { onConflict: 'user_id,track_id', ignoreDuplicates: true }
     );
   if (error) throw error;
-  await changeCachedLikes(userId,old=>[{...track,id:trackId,addedAt:track.addedAt??new Date().toISOString()},...old.filter(t=>t.id!==trackId)]);
+  await changeCachedLikes(userId,old=>[{...track,id:trackId},...old.filter(t=>t.id!==trackId)]);
   return trackId;
 }
 
@@ -127,10 +127,7 @@ async function getLikedSongsForUser(userId: string): Promise<Track[]> {
       .select('added_at, tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds)')
       .eq('user_id',userId).order('added_at',{ascending:false}).order('track_id').range(offset,offset+999);
     if(error)throw error;
-    tracks.push(...(data??[]).filter((r:any)=>r.tracks).map((r:any)=>({
-      ...rowToTrack(r.tracks),
-      addedAt:typeof r.added_at==='string'?r.added_at:undefined,
-    })));
+    tracks.push(...(data??[]).map((r:any)=>r.tracks).filter(Boolean).map(rowToTrack));
     if(!data||data.length<1000)break;
   }
   await cacheLikedSongs(userId,tracks,revision);

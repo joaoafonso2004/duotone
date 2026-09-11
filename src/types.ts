@@ -13,8 +13,6 @@ export interface Track {
   album: string | null;
   artworkUrl: string | null;
   durationSeconds: number | null;
-  /** Quando entrou nas Liked Songs. Só existe nas leituras da biblioteca. */
-  addedAt?: string;
 }
 
 export interface Playlist {
