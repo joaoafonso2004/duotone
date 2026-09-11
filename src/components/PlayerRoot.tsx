@@ -1370,11 +1370,11 @@ export function PlayerRoot() {
           </View>
         </Animated.View>
 
-      {/* A faixa da sessão de escuta, mesmo por cima do leitor pequeno.
-          Fora do `Animated.View` do mini de propósito: ela existe mesmo quando
-          ainda não há faixa nenhuma a tocar -- entrar numa sessão e ficar à
-          espera que o anfitrião escolha é um estado normal, e nesse a barra é a
-          única coisa que diz o que se está a passar. */}
+      {/* Os avisos do Jam, por cima do leitor pequeno. A barra permanente que
+          aqui vivia saiu (11/9/2026): quem está e o que vem a seguir vêem-se no
+          botão do Jam do leitor grande. Ficou só o que o Jam tem para DIZER --
+          ver `soAvisos`. Sem faixa nenhuma a barra continua inteira, lá em
+          cima, porque aí é a única porta para o Jam. */}
       {!shouldHide && !expanded ? (
         <View
           pointerEvents="box-none"
@@ -1382,12 +1382,11 @@ export function PlayerRoot() {
             position: 'absolute',
             left: spacing.xl,
             right: spacing.xl,
-            // Encostada, sem folga: com os cantos de baixo direitos na barra,
-            // as duas leem-se como uma peca so.
-            bottom: miniBottom + (current ? MINI_PLAYER_HEIGHT : 0),
+            // Solta, com folga: um aviso que passa não é uma peça do leitor.
+            bottom: miniBottom + (current ? MINI_PLAYER_HEIGHT : 0) + spacing.sm,
           }}
         >
-          <BarraDaSessao aoAbrir={() => setSessaoAberta(true)} />
+          <BarraDaSessao soAvisos aoAbrir={() => setSessaoAberta(true)} />
         </View>
       ) : null}
       <FolhaDaSessao visivel={sessaoAberta} aoFechar={() => setSessaoAberta(false)} />

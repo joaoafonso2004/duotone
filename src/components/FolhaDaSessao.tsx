@@ -8,7 +8,7 @@ import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useSocial } from '../state/social';
-import { perfilEmCache } from '../lib/cachePerfil';
+import { usePessoasDaSessao } from '../hooks/usePessoasDaSessao';
 import { useTheme } from '../state/theme';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -55,18 +55,8 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
     (f) => !membros.some((m) => m.userId === f.friendId)
   );
 
-  const nomeDe = (id: string) =>
-    id === euId ? 'You' : amigos.find((f) => f.friendId === id)?.name ?? 'Someone';
-  // A nossa propria cara nao esta na lista de amigos -- e por isso aparecia a
-  // inicial do nome num circulo, ao lado das fotografias de toda a gente.
-  // Vem da cache do perfil, que ja e lida no arranque da app.
-  const avatarDe = (id: string) => {
-    if (id === euId) {
-      const meu = euId ? perfilEmCache(euId) : null;
-      return (meu?.perfil as any)?.profile?.avatar_url ?? null;
-    }
-    return amigos.find((f) => f.friendId === id)?.avatarUrl ?? null;
-  };
+  // O perfil de cada pessoa, a própria incluída -- ver `usePessoasDaSessao`.
+  const { nomeDe, avatarDe, rotuloDe } = usePessoasDaSessao();
 
   React.useEffect(() => { if (!visivel) setConvidados([]); }, [visivel]);
 
@@ -80,10 +70,7 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
           <View key={m.userId} style={styles.linha}>
             <FriendAvatar avatarUrl={avatarDe(m.userId)} name={nomeDe(m.userId)} size={38} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={styles.nome}>
-                {nomeDe(m.userId)}
-                {sessao?.hostId === m.userId ? ' · host' : ''}
-              </Text>
+              <Text numberOfLines={1} style={styles.nome}>{rotuloDe(m.userId)}</Text>
               {/* A espera tem de ser visível. No Duotone tocar uma faixa é
                   descarregá-la primeiro, e um amigo em silêncio há trinta
                   segundos parece avaria quando é só a rede dele. */}

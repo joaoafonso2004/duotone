@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { presentes } from '../lib/sessaoViva';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useSocial } from '../state/social';
+import { usePessoasDaSessao } from '../hooks/usePessoasDaSessao';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { Button, Dialog, Artwork, desktop } from './ui.web';
@@ -41,9 +42,8 @@ export function JanelaDoJam({ open, onClose, notify }: {
   const membros = presentes(todos, Date.now());
   const anfitriao = souAnfitriao();
   const podeAlternarAux = !!sessao?.auxDe || membros.some((m) => m.userId !== euId);
-  const nomeDe = (id: string) => id === euId
-    ? 'You'
-    : amigos.find((amigo) => amigo.friendId === id)?.name ?? 'Someone';
+  // O perfil de cada pessoa, a própria incluída -- ver `usePessoasDaSessao`.
+  const { nomeDe, avatarDe, rotuloDe } = usePessoasDaSessao();
   const porConvidar = amigos.filter((amigo) =>
     amigo.status === 'accepted' && !membros.some((membro) => membro.userId === amigo.friendId));
 
@@ -74,11 +74,10 @@ export function JanelaDoJam({ open, onClose, notify }: {
       <Text style={styles.section}>IN THE JAM</Text>
       <View style={styles.list}>
         {membros.map((membro) => {
-          const amigo = amigos.find((item) => item.friendId === membro.userId);
           return <View key={membro.userId} style={styles.row}>
-            <FriendAvatar avatarUrl={amigo?.avatarUrl ?? null} name={nomeDe(membro.userId)} size={36} />
+            <FriendAvatar avatarUrl={avatarDe(membro.userId)} name={nomeDe(membro.userId)} size={36} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={styles.title}>{nomeDe(membro.userId)}{sessao?.hostId === membro.userId ? ' · host' : ''}</Text>
+              <Text numberOfLines={1} style={styles.title}>{rotuloDe(membro.userId)}</Text>
               <Text style={styles.meta}>{membro.pronta ? 'Ready' : `Loading · ${membro.percentagem}%`}</Text>
             </View>
             <Ionicons name={membro.pronta ? 'checkmark-circle' : 'ellipsis-horizontal'} size={18}

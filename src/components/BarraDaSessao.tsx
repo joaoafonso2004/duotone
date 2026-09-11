@@ -2,8 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
-import { useSocial } from '../state/social';
-import { perfilEmCache } from '../lib/cachePerfil';
+import { usePessoasDaSessao } from '../hooks/usePessoasDaSessao';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
@@ -25,7 +24,7 @@ import { colors, radii, spacing, type } from '../theme';
  * linha, isso lê-se como avaria -- a app dele parece partida e ninguém percebe
  * porquê. Com ela, é só espera, e a espera vê-se.
  */
-export function BarraDaSessao({ aoAbrir, encostada = true }: {
+export function BarraDaSessao({ aoAbrir, encostada = true, soAvisos = false }: {
   aoAbrir?: () => void;
   /**
    * Encostada ao leitor mini (o caso normal) ou solta.
@@ -35,6 +34,16 @@ export function BarraDaSessao({ aoAbrir, encostada = true }: {
    * grande, onde nao ha mini nenhum por baixo -- fica um cartao inteiro.
    */
   encostada?: boolean;
+  /**
+   * Só aparece quando o Jam tem alguma coisa a dizer.
+   *
+   * Por cima do leitor pequeno a barra saiu (11/9/2026, a pedido do João): o
+   * botão do Jam dentro do leitor grande chega para saber quem está. Ficaram
+   * os avisos -- "Added · música", "Session ended", um erro --, porque sem
+   * eles um toque que junta à fila em vez de tocar lê-se como um toque que não
+   * fez nada. Aparecem, dizem, e vão-se.
+   */
+  soAvisos?: boolean;
 }) {
   const tema = useTheme((s) => s.theme);
   const sessao = useOuvirJuntos((s) => s.sessao);
@@ -45,8 +54,7 @@ export function BarraDaSessao({ aoAbrir, encostada = true }: {
   // -- erro fatal, na montagem, antes de haver ecra. Filtra-se aqui fora.
   const todos = useOuvirJuntos((s) => s.membros);
   const membros = presentes(todos, Date.now());
-  const euId = useOuvirJuntos((s) => s.euId);
-  const amigos = useSocial((s) => s.friends);
+  const { euId, nomeDe, avatarDe } = usePessoasDaSessao();
   const acabouSemAviso = useOuvirJuntos((s) => s.acabouSemAviso);
   const limparAviso = useOuvirJuntos((s) => s.limparAviso);
   // TODOS os hooks antes do primeiro `return`. Este estava lá em baixo, depois
@@ -63,6 +71,17 @@ export function BarraDaSessao({ aoAbrir, encostada = true }: {
     const t = setTimeout(limparAviso, 6000);
     return () => clearTimeout(t);
   }, [acabouSemAviso, limparAviso]);
+
+  // Os avisos de erro não tinham quem os apagasse: "Could not change the aux"
+  // ficava na barra até outro aviso o substituir. Os de sucesso já se apagavam
+  // sozinhos na store; este apanha os outros.
+  React.useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => {
+      if (useOuvirJuntos.getState().aviso === aviso) useOuvirJuntos.setState({ aviso: null });
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [aviso]);
 
   if (!sessao) {
     if (!acabouSemAviso) return null;
@@ -81,20 +100,8 @@ export function BarraDaSessao({ aoAbrir, encostada = true }: {
     );
   }
 
-  const nomeDe = (id: string) => {
-    if (id === euId) return 'you';
-    return amigos.find((f) => f.friendId === id)?.name ?? 'someone';
-  };
-  // A nossa propria cara nao esta na lista de amigos -- e por isso aparecia a
-  // inicial do nome num circulo, ao lado das fotografias de toda a gente.
-  // Vem da cache do perfil, que ja e lida no arranque da app.
-  const avatarDe = (id: string) => {
-    if (id === euId) {
-      const meu = euId ? perfilEmCache(euId) : null;
-      return (meu?.perfil as any)?.profile?.avatar_url ?? null;
-    }
-    return amigos.find((f) => f.friendId === id)?.avatarUrl ?? null;
-  };
+  // Por cima do leitor pequeno, sem nada para dizer, não há barra.
+  if (soAvisos && !aviso) return null;
 
   // A frase vive no `lib/sessaoViva.ts`: qual das verdades mostrar quando há
   // várias é uma decisão, e as decisões testam-se.
@@ -120,7 +127,7 @@ export function BarraDaSessao({ aoAbrir, encostada = true }: {
       style={[
         styles.barra,
         { backgroundColor: tema.soft, borderColor: tema.color },
-        encostada ? styles.encostada : styles.solta,
+        encostada && !soAvisos ? styles.encostada : styles.solta,
       ]}
     >
       <View style={styles.pilha}>
