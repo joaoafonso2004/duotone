@@ -6,7 +6,16 @@
  * provide an export named", e nao e o typecheck que apanha isso -- ele le o
  * modulo a serio. Ja aconteceu com o `setEqPadrao` no duplo das prefs.
  */
-export function recordPlayInSupabase(): Promise<void> {
+import type { Track } from '../../src/types.ts';
+import { controlo } from './controlo.ts';
+
+/** Regista no `controlo`: o teste afirma QUANDO uma reprodução conta. */
+export function recordPlayInSupabase(track: Track): Promise<void> {
+  controlo.contagens.plays.push(track.sourceId);
+  return Promise.resolve();
+}
+export function registarInicioDaFaixa(track: Track): Promise<void> {
+  controlo.contagens.inicios.push(track.sourceId);
   return Promise.resolve();
 }
 export function getTopArtists(): Promise<{ name: string; count: number }[]> {

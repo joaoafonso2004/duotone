@@ -52,9 +52,11 @@ export interface ListeningStats {
   totalPlays: number;
   uniqueTracks: number;
   uniqueArtists: number;
-  /** Estimativa: o `plays` regista o ARRANQUE de uma faixa, não o fim, por
-   * isso isto é um teto — quem salta a meio conta na mesma o tema inteiro.
-   * A UI tem de o dizer ("≈"), não fingir precisão que não existe. */
+  /** Estimativa: o `plays` regista uma faixa quando se ouve metade dela (ou
+   * quatro minutos), não quando acaba — quem para a 60% conta na mesma o tema
+   * inteiro. Os skips já não entram, mas continua a ser um teto. A UI tem de o
+   * dizer ("≈"), não fingir precisão que não existe. O histórico de antes da
+   * mudança ainda conta cada clique. */
   estimatedMinutes: number;
   topTracks: TopTrack[];
   topArtists: TopArtist[];

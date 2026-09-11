@@ -4,7 +4,7 @@ import {
 } from '../lib/tracker';
 import { ABAS_CURADAS, faixasDoArtista, trackerDoArtista } from './trackers';
 import { procurarNoYouTube } from './descoberta';
-import { getProfileRecentlyPlayed, getTopArtists } from './plays';
+import { getFaixasComecadas, getProfileRecentlyPlayed, getTopArtists } from './plays';
 import type { Track } from '../types';
 
 /**
@@ -132,10 +132,17 @@ export async function nuncaLancadas(
 
   // Sem histórico (sem rede, conta nova) segue-se com o resto: um crivo mais
   // curto é melhor do que prateleira nenhuma.
-  const recentes = await getProfileRecentlyPlayed(HISTORICO_RECENTE).catch(() => []);
+  const [recentes, comecadas] = await Promise.all([
+    getProfileRecentlyPlayed(HISTORICO_RECENTE).catch(() => []),
+    // As ouvidas só contam a partir de metade da faixa. As que se começaram e
+    // se saltaram vêm daqui -- e são justamente as que não podem voltar como
+    // novidade: saltar uma sugestão é a resposta mais clara que há.
+    getFaixasComecadas(HISTORICO_RECENTE).catch(() => []),
+  ]);
   const conhecidas: Conhecida[] = [
     ...biblioteca.map(conhecidaDaFaixa),
     ...recentes.map((r) => conhecidaDaFaixa({ ...r, artist: r.artist ?? null })),
+    ...comecadas.map(conhecidaDaFaixa),
     ...ocultadas.map((o) => ({ id: o.key, titulo: o.label, duracaoSegundos: null, artistas: [] })),
   ];
 

@@ -286,5 +286,54 @@ usePlayer.getState().playNext(faixa('x'));
 await assentar();
 eq('sem nada a tocar, "a seguir" é agora', atual(), 'x');
 
+// ===========================================================================
+console.log('\nquando uma reprodução conta');
+// ===========================================================================
+
+// A regra está testada em scripts/test-contagem-de-escuta.ts. Aqui prova-se a
+// LIGAÇÃO: que o `playTrack` já não conta no clique e que o `_setProgress` --
+// por onde passam os três motores -- conta no limiar. O `_setProgress` lê o
+// relógio a sério, por isso a faixa tem 2 s (limiar de 1 s) e as leituras vão
+// com o tempo real.
+const curta = (id: string): Track => ({ ...faixa(id), durationSeconds: 2 });
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const ler = (ms: number) => usePlayer.getState()._setProgress(ms, 2000);
+
+preparar();
+await usePlayer.getState().playTrack(curta('k1'), [curta('k1')]);
+usePlayer.getState()._setIsPlaying(true);
+eq('o clique já não conta', controlo.contagens.plays.length, 0);
+eq('mas o início fica registado', controlo.contagens.inicios.join(), 'k1');
+ler(0);
+await esperar(400); ler(400);
+eq('a 400 ms de 2 s ainda não conta', controlo.contagens.plays.length, 0);
+await esperar(700); ler(1100);
+eq('passada a metade, conta', controlo.contagens.plays.join(), 'k1');
+eq('nas duas contagens', controlo.contagens.locais.join(), 'k1');
+await esperar(500); ler(1600);
+eq('e uma vez só', controlo.contagens.plays.length, 1);
+
+preparar();
+await usePlayer.getState().playTrack(curta('k2'), [curta('k2')]);
+usePlayer.getState()._setIsPlaying(true);
+ler(0);
+await esperar(100); ler(1900);
+await esperar(100); ler(2000);
+eq('arrastar a barra até ao fim não conta', controlo.contagens.plays.length, 0);
+
+preparar({ current: null, queue: [], queueIndex: 0 });
+usePlayer.getState().adoptSession({ track: curta('k3'), queue: [curta('k3')], queueIndex: 0, positionMs: 1200 });
+usePlayer.getState()._setIsPlaying(true);
+ler(1200);
+await esperar(600); ler(1800);
+eq('um handoff a 60% já contou no outro dispositivo', controlo.contagens.plays.length, 0);
+
+preparar({ current: null, queue: [], queueIndex: 0 });
+usePlayer.getState().adoptSession({ track: curta('k4'), queue: [curta('k4')], queueIndex: 0, positionMs: 300 });
+usePlayer.getState()._setIsPlaying(true);
+ler(300);
+await esperar(900); ler(1200);
+eq('um handoff a 15% conta aqui quando passa a metade', controlo.contagens.plays.join(), 'k4');
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

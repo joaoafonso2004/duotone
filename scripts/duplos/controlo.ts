@@ -21,6 +21,11 @@ export interface Controlo {
   offline: boolean;
   /** Chamadas feitas, para o teste poder afirmar que NÃO se foi à rede. */
   chamadas: { candidatas: number; radio: number };
+  /**
+   * O que foi contado, por `sourceId`: no `plays`, no `user_play_counts`, e
+   * os inícios. Para o teste poder afirmar QUANDO uma reprodução conta.
+   */
+  contagens: { plays: string[]; locais: string[]; inicios: string[] };
 }
 
 export const controlo: Controlo = {
@@ -28,6 +33,7 @@ export const controlo: Controlo = {
   radio: [],
   offline: false,
   chamadas: { candidatas: 0, radio: 0 },
+  contagens: { plays: [], locais: [], inicios: [] },
 };
 
 export function reporControlo(): void {
@@ -35,4 +41,5 @@ export function reporControlo(): void {
   controlo.radio = [];
   controlo.offline = false;
   controlo.chamadas = { candidatas: 0, radio: 0 };
+  controlo.contagens = { plays: [], locais: [], inicios: [] };
 }

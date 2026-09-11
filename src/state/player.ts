@@ -6,8 +6,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware';
 import { temAudioNativo } from '../../modules/duotone-audio';
-import { recordPlayInSupabase } from '../api/plays';
+import { recordPlayInSupabase, registarInicioDaFaixa } from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
+import { avancarEscuta, novaEscuta, type Escuta } from '../lib/contagemDeEscuta';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import {
   A_CADA, deveSugerir, escolherSugestao, modoDeShuffle, posicaoDaSugestao, proximoModo,
@@ -93,6 +94,55 @@ function registarSaltoDeRecomendacao(positionMs:number):void{
     antes_30s:positionMs<30_000,
     posicao_s:Math.max(0,Math.round(positionMs/1000)),
   });
+}
+
+/**
+ * A escuta da faixa que está a tocar: quanto já se ouviu dela, e se já contou.
+ * Ver lib/contagemDeEscuta.ts.
+ *
+ * Em memória e não na store: muda a cada leitura da posição e nenhum ecrã a
+ * mostra. A `faixaDaEscuta` é a que CONTA, que nem sempre é a que toca -- uma
+ * cópia aprendida (`applyPlaybackAlternative`) ou a substituta de uma que
+ * falhou contam como a original, que é a que está na biblioteca.
+ */
+let escuta: Escuta | null = null;
+let faixaDaEscuta: Track | null = null;
+
+function comecarEscuta(conta: Track, chave: string, duracaoMs: number | null, jaOuvidoMs = 0): Escuta {
+  escuta = novaEscuta(chave, duracaoMs, jaOuvidoMs);
+  faixaDaEscuta = conta;
+  // O início fica registado à parte, porque deixou de haver outro registo
+  // dele: é por aqui que o Rare Finds não volta a oferecer como novidade uma
+  // música que se saltou.
+  registarInicioDaFaixa(conta).catch(() => {});
+  return escuta;
+}
+
+/** Cada leitura da posição, dos dois motores. Conta a faixa quando ela passa do limiar. */
+function medirEscuta(
+  s: { current: Track | null; playbackRate: number; isPlaying: boolean },
+  posicaoMs: number,
+  duracaoMs: number,
+): void {
+  const atual = s.current;
+  if (!atual) return;
+  const chave = trackKey(atual);
+  // Uma faixa que não se viu começar -- o handoff, a sessão restaurada no
+  // arranque, a seguinte depois de se remover a que tocava. O que já passou
+  // conta como ouvido: se foi noutro dispositivo, foi lá que contou.
+  const e = escuta && escuta.chave === chave
+    ? escuta
+    : comecarEscuta(atual, chave, atual.durationSeconds ? atual.durationSeconds * 1000 : duracaoMs || null, posicaoMs);
+  const r = avancarEscuta(e, {
+    posicaoMs, instante: Date.now(), ritmo: s.playbackRate, aTocar: s.isPlaying, duracaoMs,
+  });
+  escuta = r.escuta;
+  if (r.contar && faixaDaEscuta) {
+    // Local; alimenta o "Most played" e o perfil.
+    incrementPlayCount(faixaDaEscuta).catch(() => {});
+    // No Supabase, para as recomendações e para "A tua escuta".
+    recordPlayInSupabase(faixaDaEscuta).catch(() => {});
+  }
 }
 
 /** Erros de comandos ficam visíveis na barra e nunca caem em reprodução local. */
@@ -244,9 +294,10 @@ interface PlayerState {
   /** Remove da sessão uma fonte que não toca e avança sem esperar pelo rádio. */
   skipUnavailableTrack: (failedSourceId: string) => Promise<void>;
   /** Assume uma sessão vinda de outro dispositivo (handoff), a partir de uma
-   * posição. Deliberadamente NÃO conta a reprodução: já foi contada no
-   * dispositivo de origem, e contá-la outra vez inflacionava o "Most played"
-   * sempre que se trocasse de dispositivo. */
+   * posição. O que já passou conta como ouvido: se a origem passou do limiar,
+   * a reprodução já foi contada lá, e contá-la outra vez inflacionava o "Most
+   * played" sempre que se trocasse de dispositivo. Se não passou, conta aqui
+   * quando passar. Ver lib/contagemDeEscuta.ts. */
   adoptSession: (session: {
     track: Track;
     queue: Track[];
@@ -585,10 +636,6 @@ export const usePlayer = create<PlayerState>()(
     // Conta as faixas desde a ultima sugestao, para o shuffle inteligente
     // saber quando e a proxima. O `intercalarSugestao` poe isto a zero.
     set({ desdeASugestao: get().desdeASugestao + 1 });
-    // Conta esta reprodução (local; alimenta "Most played" no Perfil).
-    incrementPlayCount(track).catch(() => {});
-    // Conta esta reprodução no Supabase para recomendações.
-    recordPlayInSupabase(track).catch(() => {});
     const originalQueue = queue && queue.length > 0 ? queue : [track];
     const index = Math.max(
       0,
@@ -627,6 +674,11 @@ export const usePlayer = create<PlayerState>()(
       autoplayOnLoad: true,
       resumePositionMs: null,
     });
+    // A reprodução já não conta no clique: conta quando se ouve metade, ou
+    // quatro minutos, e quem mede é o `_setProgress`. Conta a `track` e não a
+    // `playableTrack`, porque a cópia aprendida conta como a original.
+    comecarEscuta(track, trackKey(playableTrack),
+      playableTrack.durationSeconds ? playableTrack.durationSeconds * 1000 : null);
 
     // O que ESTA faixa lembra. Sem registo volta ao padrao, de proposito: o
     // ajuste de uma musica nao pode pingar para a seguinte, senao ouvias tudo
@@ -658,6 +710,7 @@ export const usePlayer = create<PlayerState>()(
       return true;
     }
     let replaced = false;
+    const falhada = get().current;
     set((state) => {
       // A decisao vive em `lib/playerQueue.ts` e tem teste em Node puro: o que
       // sobra aqui e so escrever o resultado na store.
@@ -676,6 +729,13 @@ export const usePlayer = create<PlayerState>()(
         resumePositionMs: null,
       };
     });
+    // A substituta é a mesma música noutro upload: a escuta continua, e conta
+    // como a original. Sem isto o `_setProgress` via uma faixa nova e contava
+    // a substituta.
+    const substituta = get().current;
+    if (replaced && escuta && falhada && substituta && escuta.chave === trackKey(falhada)) {
+      escuta = { ...escuta, chave: trackKey(substituta), posicaoMs: null, instante: null };
+    }
     return replaced;
   },
 
@@ -717,6 +777,10 @@ export const usePlayer = create<PlayerState>()(
 
   adoptSession: ({ track, queue, queueIndex, positionMs }) => {
     if (ouvirJuntos()) return; // O handoff pessoal não substitui a sessão partilhada.
+    // A escuta recomeça no `_setProgress`, com o que já se ouviu no outro
+    // dispositivo como ouvido: se lá passou do limiar, já contou lá. Mesmo que
+    // seja a faixa que este tinha, é outra escuta.
+    escuta = null;
     const q = queue.length > 0 ? queue : [track];
     const index = Math.max(0, Math.min(queueIndex, q.length - 1));
     set({
@@ -1408,7 +1472,10 @@ export const usePlayer = create<PlayerState>()(
     set(passo(get().maquina, s === 'playing' ? 'a-tocar' : 'em-pausa'));
   },
 
-  _setProgress: (positionMs, durationMs) => set({ ...posicao(positionMs), durationMs }),
+  _setProgress: (positionMs, durationMs) => {
+    set({ ...posicao(positionMs), durationMs });
+    medirEscuta(get(), positionMs, durationMs);
+  },
 
   _setIsPlaying: (v) => set(passo(get().maquina, v ? 'quer-tocar' : 'quer-parar')),
 

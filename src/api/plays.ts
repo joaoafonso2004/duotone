@@ -24,9 +24,33 @@ function rowToTrack(row: any): Track {
   };
 }
 
+/**
+ * O `id` da faixa no catálogo, pedido uma vez por faixa.
+ *
+ * O início e a contagem pedem-no os dois, com minutos de intervalo: sem isto
+ * cada música ouvida eram duas idas ao `upsert_catalog_tracks`.
+ */
+const idsNoCatalogo = new Map<string, Promise<string>>();
+function idNoCatalogo(track: Track): Promise<string> {
+  const chave = `${track.source}:${track.sourceId}`;
+  let id = idsNoCatalogo.get(chave);
+  if (!id) {
+    id = upsertTrack(track);
+    idsNoCatalogo.set(chave, id);
+    // Uma falha não fica guardada: a próxima tentativa volta a pedir.
+    id.catch(() => { if (idsNoCatalogo.get(chave) === id) idsNoCatalogo.delete(chave); });
+    if (idsNoCatalogo.size > 200) idsNoCatalogo.delete(idsNoCatalogo.keys().next().value!);
+  }
+  return id;
+}
+
+/**
+ * Uma reprodução OUVIDA -- metade da faixa, ou quatro minutos. Quem decide o
+ * momento é o leitor (lib/contagemDeEscuta.ts); o clique já não conta.
+ */
 export async function recordPlayInSupabase(track: Track): Promise<void> {
   try {
-    const trackId = await upsertTrack(track);
+    const trackId = await idNoCatalogo(track);
     const userId = await currentUserId();
     const { error } = await supabase
       .from('plays')
@@ -35,6 +59,56 @@ export async function recordPlayInSupabase(track: Track): Promise<void> {
   } catch (err) {
     console.error('Error recording play in Supabase:', err);
   }
+}
+
+let avisouDoInicio = false;
+
+/**
+ * Uma faixa COMEÇADA, tenha ou não chegado a contar.
+ *
+ * Existe porque o `plays` deixou de receber o clique: sem isto, uma sugestão
+ * saltada aos dez segundos não ficava em registo nenhum e o Rare Finds
+ * voltava a oferecê-la como "New to you". Uma linha por faixa, com a última
+ * vez. Ver `supabase/contar-so-o-ouvido.sql`.
+ */
+export async function registarInicioDaFaixa(track: Track): Promise<void> {
+  try {
+    const trackId = await idNoCatalogo(track);
+    const userId = await currentUserId();
+    const { error } = await supabase.from('faixas_comecadas').upsert(
+      { user_id: userId, track_id: trackId, comecada_em: new Date().toISOString() },
+      { onConflict: 'user_id,track_id' },
+    );
+    // Sem a migração corrida a tabela não existe. Diz-se uma vez e não a cada
+    // música: o Rare Finds fica só com as ouvidas, que era o que tinha.
+    if (error && !avisouDoInicio) {
+      avisouDoInicio = true;
+      console.warn('Não foi possível registar o início da faixa:', error.message);
+    }
+  } catch {
+    // Sem sessão ou sem rede: é um "já a vi", não vale um erro.
+  }
+}
+
+/** As faixas começadas há menos tempo, da mais recente para a mais antiga. */
+export async function getFaixasComecadas(limite: number): Promise<{
+  source: Track['source']; sourceId: string; title: string; artist: string | null; durationSeconds: number | null;
+}[]> {
+  const userId = await currentUserId();
+  const { data, error } = await supabase
+    .from('faixas_comecadas')
+    .select('comecada_em, tracks!inner(source, source_id, title, artist, duration_seconds)')
+    .eq('user_id', userId)
+    .order('comecada_em', { ascending: false })
+    .limit(limite);
+  if (error) throw error;
+  return (data ?? [])
+    .map((row: any) => row.tracks)
+    .filter((t: any) => t && t.source && t.source_id)
+    .map((t: any) => ({
+      source: t.source, sourceId: t.source_id, title: t.title ?? '',
+      artist: t.artist ?? null, durationSeconds: t.duration_seconds ?? null,
+    }));
 }
 
 export async function getHeavyRotation(limit = 10): Promise<Track[]> {
