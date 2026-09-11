@@ -3,9 +3,9 @@ import { Image } from 'expo-image';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
-import { deviceLabel } from '../lib/handoff';
+import { deviceLabel, resumoDaFila } from '../lib/handoff';
 import { useHandoffSession } from '../lib/sessionSync';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
@@ -30,11 +30,21 @@ export function HandoffBanner() {
   const insets = useSafeAreaInsets();
   const theme = useTheme((s) => s.theme);
   const current = usePlayer((s) => s.current);
+  const aTocarAqui = usePlayer((s) => s.isPlaying && !!s.current);
   const expanded = usePlayer((s) => s.expanded);
   const { session, positionMs, dismiss, adopt } = useHandoffSession();
 
   // Com o Now Playing aberto o banner ficaria por baixo do overlay.
   if (!session || expanded) return null;
+
+  // O que se leva ao carregar: a fila do outro aparelho entra por cima da
+  // deste, e o que aqui estiver a tocar para. Dizê-lo ANTES é a diferença
+  // entre continuar e ser surpreendido.
+  const { proxima, depois } = resumoDaFila(session);
+  const aSeguir = [
+    aTocarAqui ? 'Replaces what’s playing here' : '',
+    proxima ? `Next: ${tituloDaFaixa(proxima)}${depois ? ` · ${depois} more` : ''}` : '',
+  ].filter(Boolean).join(' · ');
 
   const bottom =
     TAB_BAR_BASE + insets.bottom + 8 + (current ? MINI_PLAYER_HEIGHT + 10 : 0);
@@ -68,7 +78,7 @@ export function HandoffBanner() {
 
         <View style={styles.texts}>
           <Text style={[styles.eyebrow, { color: theme.color }]} numberOfLines={1}>
-            {session.isPlaying ? 'A tocar em' : 'Em pausa em'} {deviceLabel(session)}
+            {session.isPlaying ? 'Playing on' : 'Paused on'} {deviceLabel(session)}
             {durationMs > 0 ? ` · ${fmt(positionMs)}` : ''}
           </Text>
           <Text style={styles.title} numberOfLines={1}>
@@ -77,6 +87,9 @@ export function HandoffBanner() {
           <Text style={styles.artist} numberOfLines={1}>
             {displayArtist(session.track)}
           </Text>
+          {aSeguir ? (
+            <Text style={styles.aSeguir} numberOfLines={1}>{aSeguir}</Text>
+          ) : null}
         </View>
 
         {/*
@@ -89,14 +102,14 @@ export function HandoffBanner() {
         <View style={[styles.cta, { backgroundColor: theme.color }]}>
           <Ionicons name="play" size={14} color={theme.textColorOnGradient} />
           <Text style={[styles.ctaText, { color: theme.textColorOnGradient }]}>
-            Continuar aqui
+            Continue here
           </Text>
         </View>
 
         <Pressable
           onPress={dismiss}
           hitSlop={10}
-          accessibilityLabel="Dispensar"
+          accessibilityLabel="Dismiss"
           style={styles.close}
         >
           <Ionicons name="close" size={16} color={colors.textTertiary} />
@@ -149,6 +162,7 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
   title: { ...type.caption, color: colors.text, fontWeight: '700', marginTop: 1 },
   artist: { fontSize: 11, color: colors.textSecondary },
+  aSeguir: { fontSize: 10, color: colors.textTertiary, marginTop: 1 },
   cta: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -199,9 +199,26 @@ export function shouldOfferHandoff(
   return true;
 }
 
-/** Etiqueta curta para o banner: "iPhone", "PC", ou o nome guardado. */
+/** Etiqueta curta para o banner: o nome guardado, "PC", ou "phone". Em inglês, como a interface. */
 export function deviceLabel(session: RemoteSession): string {
   const name = (session.deviceName || '').trim();
   if (name) return name;
-  return session.deviceKind === 'desktop' ? 'PC' : 'outro dispositivo';
+  return session.deviceKind === 'desktop' ? 'PC' : 'phone';
+}
+
+/**
+ * O que vem a seguir na sessão do outro aparelho: a próxima faixa e quantas
+ * ficam depois dela.
+ *
+ * É o que o banner mostra antes de se carregar em "Continue here". Adotar traz
+ * a fila inteira, e sem isto só se sabia qual era a faixa atual -- o resto
+ * entrava às cegas por cima da fila deste aparelho. Conta a fila tal como
+ * viaja (recortada no `trimQueueForSync`), que é exatamente a que se adota.
+ */
+export function resumoDaFila(
+  session: Pick<RemoteSession, 'queue' | 'queueIndex'>,
+): { proxima: Track | null; depois: number } {
+  const i = Math.max(-1, Math.min(session.queueIndex, session.queue.length - 1));
+  const seguintes = session.queue.slice(i + 1);
+  return { proxima: seguintes[0] ?? null, depois: Math.max(0, seguintes.length - 1) };
 }

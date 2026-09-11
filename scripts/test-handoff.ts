@@ -3,6 +3,7 @@ import {
   instanteDaAmostra,
   isSessionFresh,
   pickHandoffSession,
+  resumoDaFila,
   shouldOfferHandoff,
   trimQueueForSync,
   SESSION_TTL_MS,
@@ -150,6 +151,20 @@ check(
   'mesmo sourceId noutra fonte ainda se oferece',
   shouldOfferHandoff(session({ track: track('a') }), { source: 'spotify', sourceId: 'a' })
 );
+
+console.log('\n-- a fila que vem com o handoff --');
+{
+  const fila = [track('a'), track('b'), track('c'), track('d')];
+  const r = resumoDaFila({ queue: fila, queueIndex: 0 });
+  check('a próxima é a que está a seguir à atual', r.proxima?.sourceId === 'b', r.proxima?.sourceId);
+  check('e contam-se as que ficam depois dela', r.depois === 2, String(r.depois));
+  const ultima = resumoDaFila({ queue: fila, queueIndex: 3 });
+  check('na última faixa não há próxima', ultima.proxima === null && ultima.depois === 0);
+  const vazia = resumoDaFila({ queue: [], queueIndex: 0 });
+  check('fila vazia: nada a mostrar', vazia.proxima === null && vazia.depois === 0);
+  const fora = resumoDaFila({ queue: fila, queueIndex: 9 });
+  check('um índice fora da fila não inventa uma próxima', fora.proxima === null && fora.depois === 0);
+}
 
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);
 process.exit(bad ? 1 : 0);

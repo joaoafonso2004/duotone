@@ -1,10 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
-import { displayArtist } from '../lib/artistName';
-import { deviceLabel } from '../lib/handoff';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { deviceLabel, resumoDaFila } from '../lib/handoff';
 import { useHandoffSession } from '../lib/sessionSync';
 import { desktop } from '../desktop/ui.web';
+import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 
 const P = Pressable as any;
@@ -21,9 +22,14 @@ function fmt(ms: number): string {
  */
 export function HandoffBanner() {
   const theme = useTheme((s) => s.theme);
+  const aTocarAqui = usePlayer((s) => s.isPlaying && !!s.current);
   const { session, positionMs, dismiss, adopt } = useHandoffSession();
 
   if (!session) return null;
+
+  // Ver o HandoffBanner.tsx: a fila do outro aparelho entra por cima da
+  // deste, e diz-se isso antes de se carregar.
+  const { proxima, depois } = resumoDaFila(session);
 
   const durationMs = (session.track.durationSeconds ?? 0) * 1000;
   const fraction = durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
@@ -45,11 +51,17 @@ export function HandoffBanner() {
 
         <View style={s.texts}>
           <Text numberOfLines={1} style={[s.eyebrow, { color: theme.color }]}>
-            {session.isPlaying ? 'A TOCAR EM' : 'EM PAUSA EM'} {deviceLabel(session).toUpperCase()}
+            {session.isPlaying ? 'PLAYING ON' : 'PAUSED ON'} {deviceLabel(session).toUpperCase()}
             {durationMs > 0 ? ` · ${fmt(positionMs)} / ${fmt(durationMs)}` : ''}
           </Text>
           <Text numberOfLines={1} style={s.title}>{session.track.title}</Text>
           <Text numberOfLines={1} style={s.artist}>{displayArtist(session.track)}</Text>
+          {proxima ? (
+            <Text numberOfLines={1} style={s.aSeguir}>
+              Next: {tituloDaFaixa(proxima)}{depois ? ` · ${depois} more` : ''}
+            </Text>
+          ) : null}
+          {aTocarAqui ? <Text numberOfLines={1} style={s.aSeguir}>Replaces what’s playing here</Text> : null}
         </View>
 
         <P
@@ -67,13 +79,13 @@ export function HandoffBanner() {
               escuro, ui.button em src/desktop/ui.web.tsx. */}
           <Ionicons name="play" size={13} color={theme.textColorOnGradient} />
           <Text style={[s.ctaText, { color: theme.textColorOnGradient }]}>
-            Continuar aqui
+            Continue here
           </Text>
         </P>
 
         <P
           onPress={dismiss}
-          accessibilityLabel="Dispensar"
+          accessibilityLabel="Dismiss"
           style={({ hovered }: any) => [s.close, hovered && s.closeHover]}
         >
           <Ionicons name="close" size={15} color={desktop.dim} />
@@ -108,6 +120,7 @@ const s = StyleSheet.create({
   eyebrow: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
   title: { color: desktop.text, fontSize: 13, fontWeight: '650' as any, marginTop: 3 },
   artist: { color: desktop.muted, fontSize: 11, marginTop: 2 },
+  aSeguir: { color: desktop.dim, fontSize: 10.5, marginTop: 3 },
   cta: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 32, paddingHorizontal: 13, borderRadius: 999, cursor: 'pointer' } as any,
   ctaHover: { opacity: 0.88 },
   pressed: { opacity: 0.72 },
