@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
+import { BotaoGuardar } from './BotaoGuardar';
 import { FriendAvatar } from './FriendAvatar';
 import { SocialIconButton } from './socialUI';
 import { Toque } from './Toque';
@@ -122,6 +123,8 @@ export function FaixaPartilhada({
         <Text numberOfLines={1} style={styles.faixaTitulo}>{tituloDaFaixa(faixa)}</Text>
         <Text numberOfLines={1} style={styles.faixaArtista}>{displayArtist(faixa)}</Text>
       </View>
+      {/* Guardar sem sair da conversa: tocar e reagir já se faziam aqui. */}
+      <BotaoGuardar track={faixa} tamanho={17} />
       <View style={styles.tocar}>
         <Ionicons name="play" size={11} color={colors.text} style={{ marginLeft: 1 }} />
       </View>

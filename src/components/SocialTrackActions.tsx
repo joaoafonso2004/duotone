@@ -4,8 +4,8 @@ import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { Track } from '../types';
 import { usePlayer } from '../state/player';
-import { useSaved } from '../state/saved';
-import { checkIsSaved, removeFromLibrary, saveToLibrary } from '../api/library';
+import { checkIsSaved } from '../api/library';
+import { alternarGuardada } from '../lib/guardarFaixa';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { SocialModal, socialStyles as s } from './socialUI';
@@ -80,10 +80,7 @@ export function SocialTrackActions({ track, onClose, onArtist }: {
     if (!track || busy) return;
     setBusy(true); setError('');
     try {
-      const r = await checkIsSaved(track.source, track.sourceId);
-      if (r.saved && r.trackId) await removeFromLibrary(r.trackId);
-      else await saveToLibrary(track);
-      useSaved.getState().markSaved(track, !r.saved);
+      await alternarGuardada(track);
       onClose();
     } catch (e: any) {
       setError(e?.message || 'Could not update your library.');
