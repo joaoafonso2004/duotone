@@ -22,6 +22,16 @@ import type { Track } from '../types';
  * `livePresence`: nada de estado preso a sobreviver a um processo morto. */
 export const SESSION_TTL_MS = 3 * 60 * 1000;
 
+/**
+ * Uma sessão EM PAUSA vive mais: meia hora.
+ *
+ * Com três minutos, pausar no telemóvel e sentar ao PC cinco minutos depois
+ * era não encontrar nada para continuar -- justamente o caso para que isto
+ * existe. Uma pausa não se estraga como uma reprodução (a posição não anda), e
+ * "estava aqui quando paraste" continua a ser verdade meia hora depois.
+ */
+export const SESSAO_PAUSADA_TTL_MS = 30 * 60 * 1000;
+
 /** Espaçamento entre escritas — impede uma rajada ao saltar faixas. */
 export const SESSION_DEBOUNCE_MS = 2500;
 
@@ -53,13 +63,34 @@ export interface RemoteSession {
   isPlaying: boolean;
   /**
    * ISO, e o instante a que a `positionMs` se refere -- NÃO o instante da
-   * escrita. Escrito pelo cliente (como no presence) — ver nota em
-   * `extrapolatedPositionMs` sobre desvio de relógios.
+   * escrita. Só se usa quando falta a `idadeMs`.
    */
   updatedAt: string;
+  /**
+   * A idade da amostra quando a sessão foi LIDA, medida pelo relógio do
+   * SERVIDOR. `null` sem a migração `supabase/handoff-ao-vivo.sql`: aí cai-se
+   * no `updatedAt` comparado com o relógio deste aparelho.
+   *
+   * **É isto que fecha o 0:00.** Comparar o carimbo de um aparelho com o
+   * relógio de outro só dá certo se os dois estiverem acertados, e não estão:
+   * medido a 11/9/2026, o PC do João andava 171 s atrasado. Para ele a posição
+   * do iPhone tinha sido gravada no futuro, não passava tempo nenhum, e o
+   * banner ficava parado no 0:00 do início da música.
+   */
+  idadeMs: number | null;
+  /** Quando foi lida, no relógio DESTE aparelho. Só entra por diferença. */
+  lidaEm: number;
+  /** A velocidade de reprodução: a 0,8× a posição anda 0,8 s por segundo. */
+  ritmo: number;
 }
 
 function freshnessMs(session: RemoteSession, now: number): number {
+  // Com a idade do servidor, o relógio deste aparelho só entra por diferença
+  // (quanto passou desde a leitura), e nenhum desvio entre os dois relógios
+  // chega à conta.
+  if (typeof session.idadeMs === 'number' && Number.isFinite(session.idadeMs)) {
+    return Math.max(0, session.idadeMs) + Math.max(0, now - session.lidaEm);
+  }
   const at = Date.parse(session.updatedAt ?? '');
   if (!Number.isFinite(at)) return Number.POSITIVE_INFINITY;
   // Negativo = relógio deste dispositivo atrasado face ao que escreveu;
@@ -68,7 +99,13 @@ function freshnessMs(session: RemoteSession, now: number): number {
 }
 
 export function isSessionFresh(session: RemoteSession, now: number = Date.now()): boolean {
-  return freshnessMs(session, now) <= SESSION_TTL_MS;
+  return freshnessMs(session, now) <= (session.isPlaying ? SESSION_TTL_MS : SESSAO_PAUSADA_TTL_MS);
+}
+
+/** A velocidade de uma sessão, dentro do que o leitor aceita. */
+function ritmoDe(session: Pick<RemoteSession, 'ritmo'>): number {
+  const r = session.ritmo;
+  return typeof r === 'number' && Number.isFinite(r) && r >= 0.25 && r <= 4 ? r : 1;
 }
 
 /**
@@ -101,10 +138,11 @@ export function pickHandoffSession(
  * vez de escrever mais vezes, avança-se a posição pelo tempo decorrido desde
  * a escrita — a barra de progresso anda sozinha e as escritas continuam raras.
  *
- * O `updatedAt` vem do relógio de quem escreveu, não do servidor: dois
- * dispositivos da mesma pessoa andam a segundos um do outro e o erro que
- * sobra é de segundos numa música — corrigível com um seek. Trocar isto por
- * tempo de servidor obrigava a um round-trip extra só para saber as horas.
+ * O tempo decorrido sai da `idadeMs`, medida pelo servidor, e não do
+ * `updatedAt` contra o relógio deste aparelho. Isto dizia que dois aparelhos
+ * da mesma pessoa andam a segundos um do outro; o PC do João andava a quase
+ * três minutos, e o banner mostrava 0:00 com a música a 0:53. O `updatedAt`
+ * fica só para quem ainda não correu a migração.
  */
 export function extrapolatedPositionMs(
   session: RemoteSession,
@@ -115,9 +153,10 @@ export function extrapolatedPositionMs(
   const base = Math.max(0, session.positionMs || 0);
   const durationMs = (session.track?.durationSeconds ?? 0) * 1000;
 
-  // Em pausa a posição está parada: não há nada para extrapolar.
+  // Em pausa a posição está parada: não há nada para extrapolar. A tocar,
+  // anda à velocidade do outro aparelho -- um slowed a 0,8× ficava à frente.
   const elapsed = session.isPlaying
-    ? Math.min(freshnessMs(session, now), SESSION_TTL_MS)
+    ? Math.min(freshnessMs(session, now), SESSION_TTL_MS) * ritmoDe(session)
     : 0;
 
   const projected = base + elapsed;
@@ -158,6 +197,50 @@ export function instanteDaAmostra(
 }
 
 /**
+ * Há quanto tempo a posição publicada era verdade -- uma DURAÇÃO, e não uma
+ * hora, e é essa a diferença que interessa.
+ *
+ * Uma duração medida num relógio só não sofre com o desvio entre aparelhos. O
+ * servidor subtrai-a à hora dele e fica com o carimbo na base de tempo que
+ * todos leem (ver `supabase/handoff-ao-vivo.sql`). Teto de dez minutos: uma
+ * amostra mais velha do que isso não é uma posição, é um palpite.
+ */
+export function idadeDaAmostra(
+  positionAt: number | null | undefined,
+  agora: number = Date.now(),
+): number {
+  if (typeof positionAt !== 'number' || !Number.isFinite(positionAt)) return 0;
+  return Math.round(Math.min(10 * 60 * 1000, Math.max(0, agora - positionAt)));
+}
+
+/** Uma leitura da posição de quem ESCREVE, para dar pelos saltos na barra. */
+export type LeituraDoEscritor = { posicaoMs: number; instante: number; ritmo: number };
+
+/**
+ * A posição saltou em vez de andar?
+ *
+ * Quem lê extrapola a partir da última escrita, e isso só aguenta enquanto a
+ * música anda ao ritmo previsto. Um salto na barra, ou mudar a velocidade,
+ * deixava o outro aparelho a mostrar um sítio que já não existe até ao
+ * batimento seguinte -- noventa segundos. Com isto publica-se logo.
+ *
+ * Só entre leituras seguidas (menos de 10 s): depois de uma pausa ou de o
+ * motor ter estado parado, a diferença para o relógio não é um salto.
+ */
+export function saltouNaBarra(
+  antes: LeituraDoEscritor | null,
+  agora: LeituraDoEscritor,
+  toleranciaMs = 3000,
+): boolean {
+  if (!antes) return false;
+  const passou = agora.instante - antes.instante;
+  if (!(passou >= 0 && passou < 10_000)) return false;
+  if (antes.ritmo !== agora.ritmo) return true;
+  const esperada = antes.posicaoMs + passou * agora.ritmo;
+  return Math.abs(agora.posicaoMs - esperada) > toleranciaMs;
+}
+
+/**
  * Recorta a fila para uma janela à volta da faixa atual e devolve o índice
  * corrigido, para o outro dispositivo continuar na faixa certa.
  */
@@ -186,9 +269,18 @@ export function trimQueueForSync(
  */
 export function shouldOfferHandoff(
   session: RemoteSession | null,
-  localTrack: { source: string; sourceId: string } | null | undefined
+  localTrack: { source: string; sourceId: string } | null | undefined,
+  /**
+   * Este aparelho está a tocar. Uma sessão em PAUSA noutro não se oferece por
+   * cima: vive meia hora (`SESSAO_PAUSADA_TTL_MS`), e com música a tocar aqui
+   * seria meia hora de um cartão a oferecer uma coisa que já se largou. Uma
+   * que está a TOCAR no outro continua a oferecer-se -- dois aparelhos a tocar
+   * é exatamente o momento de escolher um.
+   */
+  aTocarAqui = false,
 ): boolean {
   if (!session?.track) return false;
+  if (!session.isPlaying && aTocarAqui) return false;
   if (
     localTrack &&
     localTrack.source === session.track.source &&

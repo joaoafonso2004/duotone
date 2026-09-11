@@ -1,8 +1,9 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
 import { deviceLabel, resumoDaFila } from '../lib/handoff';
@@ -16,6 +17,25 @@ const TAB_BAR_BASE = 49;
 function fmt(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/**
+ * O ponto que diz "ao vivo": a faixa, a pausa e os saltos chegam pelo
+ * Realtime e o tempo anda ao segundo. Parado com o "reduzir movimento".
+ */
+function PontoAoVivo({ cor }: { cor: string }) {
+  const reduzido = useReducedMotion();
+  const brilho = React.useRef(new Animated.Value(1)).current;
+  React.useEffect(() => {
+    if (reduzido) { brilho.setValue(1); return; }
+    const ciclo = Animated.loop(Animated.sequence([
+      Animated.timing(brilho, { toValue: 0.35, duration: 800, useNativeDriver: true }),
+      Animated.timing(brilho, { toValue: 1, duration: 800, useNativeDriver: true }),
+    ]));
+    ciclo.start();
+    return () => ciclo.stop();
+  }, [reduzido, brilho]);
+  return <Animated.View style={[styles.aoVivo, { backgroundColor: cor, opacity: brilho }]} />;
 }
 
 /**
@@ -77,10 +97,13 @@ export function HandoffBanner() {
         ) : null}
 
         <View style={styles.texts}>
-          <Text style={[styles.eyebrow, { color: theme.color }]} numberOfLines={1}>
-            {session.isPlaying ? 'Playing on' : 'Paused on'} {deviceLabel(session)}
-            {durationMs > 0 ? ` · ${fmt(positionMs)}` : ''}
-          </Text>
+          <View style={styles.eyebrowRow}>
+            {session.isPlaying ? <PontoAoVivo cor={theme.color} /> : null}
+            <Text style={[styles.eyebrow, { color: theme.color }]} numberOfLines={1}>
+              {session.isPlaying ? 'Playing on' : 'Paused on'} {deviceLabel(session)}
+              {durationMs > 0 ? ` · ${fmt(positionMs)}` : ''}
+            </Text>
+          </View>
           <Text style={styles.title} numberOfLines={1}>
             {session.track.title}
           </Text>
@@ -159,7 +182,9 @@ const styles = StyleSheet.create({
   },
   art: { width: 34, height: 34, borderRadius: 6, backgroundColor: colors.surfaceHigh },
   texts: { flex: 1, minWidth: 0 },
-  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4 },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  aoVivo: { width: 6, height: 6, borderRadius: 3 },
+  eyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4, flexShrink: 1 },
   title: { ...type.caption, color: colors.text, fontWeight: '700', marginTop: 1 },
   artist: { fontSize: 11, color: colors.textSecondary },
   aSeguir: { fontSize: 10, color: colors.textTertiary, marginTop: 1 },

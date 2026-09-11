@@ -10,14 +10,17 @@ import { getDeviceId } from './deviceIdentity';
 import {
   extrapolatedPositionMs,
   pickHandoffSession,
+  saltouNaBarra,
   shouldOfferHandoff,
   SESSION_DEBOUNCE_MS,
   SESSION_HEARTBEAT_MS,
+  type LeituraDoEscritor,
   type RemoteSession,
 } from './handoff';
 
 import { usePlayer } from '../state/player';
 import { appEstaVisivel } from './appVisibility';
+import { supabase } from './supabase';
 
 /**
  * O motor do "continuar noutro dispositivo": escreve a sessão deste
@@ -59,6 +62,7 @@ function snapshot(): SessionSnapshot | null {
     positionMs: s.positionMs,
     positionAt: s.positionAt,
     isPlaying: s.isPlaying,
+    ritmo: s.playbackRate,
   };
 }
 
@@ -102,11 +106,19 @@ export function publishSession(): void {
  * src/lib/crossfade.ts.)
  *
  * Barato de chamar a cada segundo: é uma comparação de dois números, e só
- * escreve de 90 em 90 segundos.
+ * escreve de 90 em 90 segundos -- ou já, quando a posição salta (ver
+ * `saltouNaBarra`): quem lê extrapola, e depois de um salto na barra ficava a
+ * mostrar um sítio que já não existia até ao batimento seguinte.
  */
+let ultimaLeitura: LeituraDoEscritor | null = null;
 export function baterSessao(): void {
-  if (Date.now() - ultimaEscrita < SESSION_HEARTBEAT_MS) return;
-  if (!usePlayer.getState().isPlaying) return;
+  const s = usePlayer.getState();
+  const agora = Date.now();
+  const leitura = { posicaoMs: s.positionMs, instante: agora, ritmo: s.playbackRate };
+  if (s.isPlaying && s.current && saltouNaBarra(ultimaLeitura, leitura)) publishSession();
+  ultimaLeitura = s.isPlaying ? leitura : null;
+  if (agora - ultimaEscrita < SESSION_HEARTBEAT_MS) return;
+  if (!s.isPlaying) return;
   escrever();
 }
 
@@ -155,9 +167,14 @@ export async function takeOverSession(session: RemoteSession): Promise<void> {
 /**
  * A sessão de outro dispositivo que vale a pena oferecer, ou null.
  *
- * Faz polling em vez de Realtime: é uma peça a menos para partir, e como
- * também recarrega quando a app/janela volta a ficar ativa, o banner aparece
- * assim que abres o PC — que é o único momento em que isto interessa.
+ * **Ao vivo, pelo Realtime.** Era só polling de minuto a minuto, e isso fazia
+ * do banner uma fotografia: mudar de faixa, pausar ou saltar na barra no
+ * telemóvel levava até um minuto a chegar ao PC. Agora cada escrita do outro
+ * aparelho chega como um aviso e relê-se logo. O aviso não traz a idade da
+ * amostra medida pelo servidor, por isso não se usa o que ele traz: serve só
+ * de "relê agora". O polling fica como rede, para quando o Realtime cai ou a
+ * migração ainda não foi corrida -- e continua a recarregar quando a janela
+ * volta a ficar ativa.
  */
 export function useHandoffSession(): {
   session: RemoteSession | null;
@@ -169,6 +186,7 @@ export function useHandoffSession(): {
   const [myDeviceId, setMyDeviceId] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const currentTrack = usePlayer((s) => s.current);
+  const aTocarAqui = usePlayer((s) => s.isPlaying && !!s.current);
   const mounted = useRef(true);
 
   useEffect(() => {
@@ -195,8 +213,34 @@ export function useHandoffSession(): {
     return () => { clearInterval(id); sub.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar); };
   }, [refresh]);
 
+  // O Realtime: cada escrita de um aparelho desta conta é um "relê agora".
+  // Filtrado pelo utilizador no servidor, e a própria linha deste aparelho
+  // também chega -- relê-la custa um pedido pequeno e poupa um filtro que o
+  // Realtime não sabe fazer (`neq`). Várias escritas seguidas dão uma leitura.
+  useEffect(() => {
+    let parado = false;
+    let canal: ReturnType<typeof supabase.channel> | null = null;
+    let espera: ReturnType<typeof setTimeout> | null = null;
+    const agendar = () => {
+      if (espera) clearTimeout(espera);
+      espera = setTimeout(() => { espera = null; if (appEstaVisivel()) void refresh(); }, 400);
+    };
+    void supabase.auth.getSession().then(({ data }) => {
+      const uid = data.session?.user.id;
+      if (parado || !uid) return;
+      canal = supabase.channel(`player-sessions:${uid}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'player_sessions', filter: `user_id=eq.${uid}` }, agendar)
+        .subscribe();
+    });
+    return () => {
+      parado = true;
+      if (espera) clearTimeout(espera);
+      if (canal) void supabase.removeChannel(canal);
+    };
+  }, [refresh]);
+
   const picked = myDeviceId ? pickHandoffSession(sessions, myDeviceId) : null;
-  const visible = picked && !isDismissed(picked.deviceId) && shouldOfferHandoff(picked, currentTrack)
+  const visible = picked && !isDismissed(picked.deviceId) && shouldOfferHandoff(picked, currentTrack, aTocarAqui)
     ? picked
     : null;
 

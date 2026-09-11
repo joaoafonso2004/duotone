@@ -50,10 +50,23 @@ export function HandoffBanner() {
         ) : null}
 
         <View style={s.texts}>
-          <Text numberOfLines={1} style={[s.eyebrow, { color: theme.color }]}>
-            {session.isPlaying ? 'PLAYING ON' : 'PAUSED ON'} {deviceLabel(session).toUpperCase()}
-            {durationMs > 0 ? ` · ${fmt(positionMs)} / ${fmt(durationMs)}` : ''}
-          </Text>
+          <View style={s.eyebrowRow}>
+            {/* O ponto diz que isto é ao vivo, e não uma fotografia: a faixa, a
+                pausa e os saltos chegam pelo Realtime e o tempo anda ao
+                segundo. Inline e não no StyleSheet, para a regra de "reduzir
+                movimento" da casca (que procura o keyframe no `style`) o
+                apanhar. Em pausa não pulsa, porque não há nada a acontecer. */}
+            {session.isPlaying ? (
+              <View style={[s.aoVivo, { backgroundColor: theme.color }, {
+                animationName: 'duotone-respirar', animationDuration: '1.6s',
+                animationTimingFunction: 'ease-in-out', animationIterationCount: 'infinite',
+              } as any]} />
+            ) : null}
+            <Text numberOfLines={1} style={[s.eyebrow, { color: theme.color }]}>
+              {session.isPlaying ? 'PLAYING ON' : 'PAUSED ON'} {deviceLabel(session).toUpperCase()}
+              {durationMs > 0 ? ` · ${fmt(positionMs)} / ${fmt(durationMs)}` : ''}
+            </Text>
+          </View>
           <Text numberOfLines={1} style={s.title}>{session.track.title}</Text>
           <Text numberOfLines={1} style={s.artist}>{displayArtist(session.track)}</Text>
           {proxima ? (
@@ -117,7 +130,9 @@ const s = StyleSheet.create({
   iconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   art: { width: 38, height: 38, borderRadius: 6, backgroundColor: desktop.raised },
   texts: { minWidth: 170, maxWidth: 280 },
-  eyebrow: { fontSize: 9, fontWeight: '800', letterSpacing: 1 },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  aoVivo: { width: 6, height: 6, borderRadius: 3 },
+  eyebrow: { fontSize: 9, fontWeight: '800', letterSpacing: 1, flexShrink: 1 },
   title: { color: desktop.text, fontSize: 13, fontWeight: '650' as any, marginTop: 3 },
   artist: { color: desktop.muted, fontSize: 11, marginTop: 2 },
   aSeguir: { color: desktop.dim, fontSize: 10.5, marginTop: 3 },

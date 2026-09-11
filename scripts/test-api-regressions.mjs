@@ -410,3 +410,75 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   await assert.rejects(discovered.discoverContentLength('https://audio.test'),/too large/);
   console.log('Downloads: tamanho máximo, descoberta remota e cancelamento foram limitados.');
 }
+
+// "Continuar aqui" com e sem a migração handoff-ao-vivo.sql. Sem ela não há as
+// colunas novas nem a função de leitura, e um pedido com uma coluna que não
+// existe é recusado INTEIRO: o handoff tem de continuar a funcionar como antes.
+{
+  let migrada = false, falhaPassageira = false;
+  const upserts = [], leituras = [];
+  const linha = (extra = {}) => ({
+    device_id: 'iphone', device_name: 'iPhone', device_kind: 'ios',
+    track: { source: 'youtube', sourceId: 'a', title: 'A', durationSeconds: 200 },
+    queue: [], queue_index: 0, position_ms: 0, is_playing: true,
+    updated_at: new Date(Date.now() + 171_000).toISOString(), ...extra,
+  });
+  const consulta = () => {
+    const q = {
+      upsert: async (valores) => {
+        upserts.push('idade_da_amostra_ms' in valores ? 'com-idade' : 'sem-idade');
+        return !migrada && 'idade_da_amostra_ms' in valores
+          ? { error: { code: 'PGRST204', message: "Could not find the 'idade_da_amostra_ms' column" } }
+          : { error: null };
+      },
+      select: () => q, eq: () => q, neq: () => q, order: () => q,
+      limit: async () => { leituras.push('tabela'); return { data: [linha()], error: null }; },
+    };
+    return q;
+  };
+  const supabaseFalso = {
+    auth: { getUser: async () => ({ data: { user: { id: 'eu' } }, error: null }) },
+    from: () => consulta(),
+    rpc: async (nome) => {
+      leituras.push(nome);
+      if (falhaPassageira) return { data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } };
+      return migrada
+        ? { data: [linha({ idade_ms: 53_000, ritmo: 0.8 })], error: null }
+        : { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } };
+    },
+  };
+  const sessoes = () => ambiente(async () => {}, {
+    'src/lib/supabase.ts': { supabase: supabaseFalso },
+    'src/lib/deviceIdentity.ts': { getDeviceId: async () => 'pc', getDeviceName: async () => 'PC', deviceKind: () => 'desktop' },
+  }).carregar('src/api/playerSessions.ts');
+  const instantaneo = { track: linha().track, queue: [], queueIndex: 0, positionMs: 1000, positionAt: Date.now() - 800, isPlaying: true, ritmo: 1 };
+
+  const antiga = sessoes();
+  await antiga.writeSession(instantaneo);
+  assert.deepEqual(upserts, ['com-idade', 'sem-idade'], 'sem as colunas novas, volta a escrever como antes');
+  await antiga.writeSession(instantaneo);
+  assert.deepEqual(upserts.slice(2), ['sem-idade'], 'e lembra-se: não repete o pedido que vai falhar');
+  const lidas = await antiga.fetchOtherSessions();
+  assert.equal(lidas.length, 1, 'sem a função de leitura, lê a tabela');
+  assert.equal(lidas[0].idadeMs, null, 'e sem idade do servidor');
+  assert.deepEqual(leituras, ['sessoes_dos_outros_dispositivos', 'tabela']);
+  await antiga.fetchOtherSessions();
+  assert.deepEqual(leituras.slice(2), ['tabela'], 'não volta a perguntar pela função que não existe');
+
+  migrada = true; upserts.length = 0; leituras.length = 0;
+  const nova = sessoes();
+  await nova.writeSession(instantaneo);
+  assert.deepEqual(upserts, ['com-idade'], 'com a migração, um pedido só');
+  const [s] = await nova.fetchOtherSessions();
+  assert.equal(s.idadeMs, 53_000, 'a idade vem do servidor');
+  assert.equal(s.ritmo, 0.8, 'e a velocidade também');
+  assert.deepEqual(leituras, ['sessoes_dos_outros_dispositivos']);
+
+  falhaPassageira = true; leituras.length = 0;
+  await nova.fetchOtherSessions();
+  falhaPassageira = false;
+  await nova.fetchOtherSessions();
+  assert.deepEqual(leituras, ['sessoes_dos_outros_dispositivos', 'tabela', 'sessoes_dos_outros_dispositivos'],
+    'uma falha passageira não desliga a função para sempre');
+  console.log('Continuar aqui: com e sem a migração, a escrita e a leitura funcionam.');
+}

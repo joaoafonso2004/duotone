@@ -66,7 +66,5 @@ create trigger player_sessions_prune
   after insert or update on public.player_sessions
   for each row execute function public.prune_stale_player_sessions();
 
--- NOTA: o cliente faz polling (20s + ao ganhar foco), não usa Realtime — é
--- menos peça a partir e o banner aparece na mesma ao abrir a janela. Para
--- passar a Realtime mais tarde, basta descomentar:
--- alter publication supabase_realtime add table public.player_sessions;
+-- NOTA: o Realtime, a hora do servidor e a velocidade vieram depois, em
+-- handoff-ao-vivo.sql. Correr esse a seguir a este.

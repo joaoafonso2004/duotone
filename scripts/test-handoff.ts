@@ -1,11 +1,14 @@
 import {
   extrapolatedPositionMs,
+  idadeDaAmostra,
   instanteDaAmostra,
   isSessionFresh,
   pickHandoffSession,
   resumoDaFila,
+  saltouNaBarra,
   shouldOfferHandoff,
   trimQueueForSync,
+  SESSAO_PAUSADA_TTL_MS,
   SESSION_TTL_MS,
   type RemoteSession,
 } from '../src/lib/handoff.ts';
@@ -23,11 +26,14 @@ const track = (id: string, durationSeconds: number | null = 200): Track => ({
   album: null, artworkUrl: null, durationSeconds,
 });
 
+// Sem `idadeMs`: os casos de baixo são os de antes da migração, pelo
+// `updatedAt` contra o relógio de quem lê. Os da idade do servidor vêm no fim.
 const session = (over: Partial<RemoteSession> = {}): RemoteSession => ({
   deviceId: 'iphone', deviceName: 'iPhone', deviceKind: 'ios',
   track: track('a'), queue: [track('a')], queueIndex: 0,
   positionMs: 30_000, isPlaying: true,
   updatedAt: new Date(NOW - 10_000).toISOString(),
+  idadeMs: null, lidaEm: NOW, ritmo: 1,
   ...over,
 });
 
@@ -165,6 +171,66 @@ console.log('\n-- a fila que vem com o handoff --');
   const fora = resumoDaFila({ queue: fila, queueIndex: 9 });
   check('um índice fora da fila não inventa uma próxima', fora.proxima === null && fora.depois === 0);
 }
+
+console.log('\n-- a hora do servidor (o 0:00 de 11/9) --');
+{
+  // O caso real: o PC 171 s atrasado. Pelo relógio dele o carimbo do iPhone
+  // é do futuro, e a posição ficava no 0:00 com a música a 0:53.
+  const doIphone = session({
+    positionMs: 0,
+    updatedAt: new Date(NOW + 171_000 - 53_000).toISOString(),
+  });
+  check('sem a idade do servidor, o relógio atrasado parava a posição',
+    extrapolatedPositionMs(doIphone, NOW) === 0, String(extrapolatedPositionMs(doIphone, NOW)));
+  const comIdade = { ...doIphone, idadeMs: 50_000, lidaEm: NOW - 3_000 };
+  check('com a idade do servidor mostra 0:53',
+    extrapolatedPositionMs(comIdade, NOW) === 53_000, String(extrapolatedPositionMs(comIdade, NOW)));
+  check('e o carimbo do outro relógio deixa de entrar na conta',
+    extrapolatedPositionMs({ ...comIdade, updatedAt: 'nao-e-data' }, NOW) === 53_000);
+  check('a leitura envelhece com o relógio deste aparelho',
+    extrapolatedPositionMs(session({ positionMs: 10_000, idadeMs: 5_000, lidaEm: NOW - 20_000 }), NOW) === 35_000);
+  check('uma leitura "do futuro" deste aparelho não recua a posição',
+    extrapolatedPositionMs(session({ positionMs: 10_000, idadeMs: 5_000, lidaEm: NOW + 60_000 }), NOW) === 15_000);
+}
+
+console.log('\n-- a velocidade --');
+check('a 0,8x a posição anda 0,8 s por segundo',
+  extrapolatedPositionMs(session({ positionMs: 30_000, idadeMs: 10_000, ritmo: 0.8 }), NOW) === 38_000);
+check('a 1,5x anda 1,5 s por segundo',
+  extrapolatedPositionMs(session({ positionMs: 30_000, idadeMs: 10_000, ritmo: 1.5 }), NOW) === 45_000);
+check('um ritmo sem sentido vale 1',
+  extrapolatedPositionMs(session({ positionMs: 30_000, idadeMs: 10_000, ritmo: Number.NaN }), NOW) === 40_000
+  && extrapolatedPositionMs(session({ positionMs: 30_000, idadeMs: 10_000, ritmo: 0 }), NOW) === 40_000);
+
+console.log('\n-- pausas --');
+check('uma pausa de 20 minutos ainda se oferece',
+  isSessionFresh(session({ isPlaying: false, idadeMs: 20 * 60_000 }), NOW));
+check('uma pausa passa de prazo à meia hora',
+  !isSessionFresh(session({ isPlaying: false, idadeMs: SESSAO_PAUSADA_TTL_MS + 1000 }), NOW));
+check('a tocar continua a morrer aos três minutos (o telemóvel morreu)',
+  !isSessionFresh(session({ isPlaying: true, idadeMs: SESSION_TTL_MS + 1000 }), NOW));
+check('em pausa noutro, com música aqui, não se oferece',
+  !shouldOfferHandoff(session({ isPlaying: false }), track('b'), true));
+check('em pausa noutro, com isto parado, oferece-se',
+  shouldOfferHandoff(session({ isPlaying: false }), track('b'), false));
+check('a tocar noutro, com música aqui, continua a oferecer-se',
+  shouldOfferHandoff(session({ isPlaying: true }), track('b'), true));
+
+console.log('\n-- o que o escritor manda --');
+check('a idade da amostra é o que passou desde ela', idadeDaAmostra(NOW - 1_500, NOW) === 1_500);
+check('sem amostra, idade zero', idadeDaAmostra(undefined, NOW) === 0 && idadeDaAmostra(Number.NaN, NOW) === 0);
+check('uma amostra do futuro tem idade zero', idadeDaAmostra(NOW + 5_000, NOW) === 0);
+check('com teto de dez minutos', idadeDaAmostra(NOW - 60 * 60_000, NOW) === 10 * 60_000);
+
+const l = (posicaoMs: number, instante: number, ritmo = 1) => ({ posicaoMs, instante, ritmo });
+check('tocar normalmente não é um salto', !saltouNaBarra(l(10_000, NOW), l(11_000, NOW + 1_000)));
+check('o arredondamento do motor não é um salto', !saltouNaBarra(l(10_000, NOW), l(12_500, NOW + 1_000)));
+check('saltar 30 s na barra é', saltouNaBarra(l(10_000, NOW), l(41_000, NOW + 1_000)));
+check('voltar atrás é', saltouNaBarra(l(60_000, NOW), l(5_000, NOW + 1_000)));
+check('mudar a velocidade é', saltouNaBarra(l(10_000, NOW, 1), l(11_000, NOW + 1_000, 0.8)));
+check('a 0,8x, andar 0,8 s por segundo não é', !saltouNaBarra(l(10_000, NOW, 0.8), l(18_000, NOW + 10_000 - 1, 0.8)));
+check('depois de 10 s sem leituras não se compara', !saltouNaBarra(l(10_000, NOW), l(90_000, NOW + 12_000)));
+check('sem leitura anterior não há salto', !saltouNaBarra(null, l(10_000, NOW)));
 
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);
 process.exit(bad ? 1 : 0);
