@@ -41,6 +41,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SongsScreen } from '../screens/SongsScreen';
+import { SmartCollectionsScreen } from '../screens/SmartCollectionsScreen';
 import { SocialScreen } from '../screens/SocialScreen';
 import { useAuth } from '../state/auth';
 import { colors } from '../theme';
@@ -73,6 +74,7 @@ export type RootStackParamList = {
   ListeningStats: {userId?:string} | undefined;
   Retrospetiva: {ano?:number;userId?:string} | undefined;
   Downloads: undefined;
+  SmartCollections: undefined;
   FriendProfile: {userId:string};
   /** A pagina sobre ti e um amigo. Ver `screens/VocesOsDoisScreen.tsx`. */
   VocesOsDois: { userId: string; nome?: string };
@@ -317,6 +319,7 @@ export function RootNavigator() {
               {/* Sem withInternet: ver o que está guardado é justamente o que
                   tem de funcionar sem rede. */}
               <Stack.Screen name="Downloads" component={DownloadsScreen} />
+              <Stack.Screen name="SmartCollections" component={SmartCollectionsScreen} />
               <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
               <Stack.Screen name="VocesOsDois" component={OnlineVocesOsDois} />
               <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />

@@ -24,6 +24,7 @@ export type Route =
   /** Uma mistura que a app montou -- estilo, radio, decada ou playlist. Vive na
    *  store das recomendacoes e nao na base de dados, por isso viaja por id. */
   | { name: 'mistura'; id: string; titulo: string }
+  | { name: 'smart-collections' }
   | { name: 'import' }
   | { name: 'stats';userId?:string }
   | { name: 'spotify-import' };

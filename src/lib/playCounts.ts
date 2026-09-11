@@ -232,6 +232,16 @@ async function syncedEntries(): Promise<PlayCountEntry[]> {
   return Object.values(await serialized(syncUnsafe));
 }
 
+/** Histórico já disponível no dispositivo, sem rede nem sincronização. */
+export async function readCachedPlayCounts(): Promise<PlayCountEntry[]> {
+  return Object.values(await readMap());
+}
+
+/** Histórico completo, sincronizado quando existe uma sessão e rede. */
+export async function getAllPlayCounts(): Promise<PlayCountEntry[]> {
+  return syncedEntries();
+}
+
 export async function getMostPlayed(limit = 50): Promise<PlayCountEntry[]> {
   return (await syncedEntries())
     .sort((a, b) => b.count - a.count || b.lastPlayed - a.lastPlayed)
