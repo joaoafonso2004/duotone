@@ -1,6 +1,7 @@
-# Plano — as próximas cinco
+# Plano — as próximas seis
 
-Proposta de 11/9/2026, a partir do relatório. **Nada disto está implementado.**
+Proposta de 11/9/2026, a partir do relatório. **A 1 está feita, por testar;
+o resto não está implementado.**
 Cada secção diz o que já existe, o que muda, onde, e se precisa de SQL.
 
 | # | O quê | Onde | Tamanho | SQL novo | Depende de |
@@ -10,11 +11,13 @@ Cada secção diz o que já existe, o que muda, onde, e se precisa de SQL.
 | 3 | Atalhos físicos | iPhone + PC | médio | não | build do iPhone para testar |
 | 4 | Duotone Connect | iPhone + PC | médio | sim (1 tabela) | "continuar aqui" ao vivo |
 | 5 | Playlists partilhadas | iPhone + PC | grande | sim (2 tabelas, 3 funções) | decisões no fim |
+| 6 | Velocidade partilhada no Jam | iPhone + PC | médio | sim (1 coluna, 1 função, 2 alteradas) | duas contas e uma build do iPhone para testar |
 
 **A ordem é esta de propósito:** as duas primeiras são pequenas e sentem-se já;
 a 3 só se confirma com uma build do iPhone, por isso convém juntá-la a outra
 coisa que também precise de build; a 4 assenta no "continuar aqui" que acabou
-de ficar ao vivo; a 5 é a maior e depende de decisões tuas.
+de ficar ao vivo; a 5 é a maior e depende de decisões tuas. A 6 não depende de
+nenhuma, mas também só se prova com uma build do iPhone — junta-se bem à 3.
 
 ---
 
@@ -35,7 +38,7 @@ que têm limites dizem-nos. Exemplos:
 | Crossfade | "Not with repeat one or tracks under 2× the fade" · "iPhone only" |
 | Default speed / EQ | "Applies from the next track without its own setting" |
 | Autoplay radio | "Next songs come from your library, then Flow, then YouTube" |
-| Clear YouTube cache | "412 MB · 96 songs · downloads are not touched" |
+| Clear YouTube cache | "Frees 412 MB · also removes your 12 downloads" |
 | Keep screen awake | "On while Duotone is open" |
 | PO Token server | "Last test: reachable, 180 ms" |
 | Discord Rich Presence (PC) | "Connected" · "Discord is closed" · "Hidden: private listening is on" |
@@ -50,6 +53,17 @@ que têm limites dizem-nos. Exemplos:
 - Um teste percorre as opções dos dois ecrãs e falha se alguma não tiver quem
   a leia fora do próprio ecrã — a regra das Definições no CLAUDE.md, escrita
   como teste.
+
+**Estado (11/9).** Feito nos dois ecrãs, por testar
+(`lib/efeitoDasDefinicoes.ts`, `scripts/test-efeito-das-definicoes.ts`,
+`scripts/test-definicoes-com-efeito.mjs`). Ficaram de fora duas linhas da
+tabela: "Start with Windows", porque a escolha logo abaixo já o diz, e o widget,
+porque a app não sabe quando o iOS o redesenhou pela última vez.
+
+**Achado ao fazer isto:** o "Clear YouTube cache" apaga também os downloads
+explícitos (`clearDownloadedAudioCache` não poupa os fixados). O exemplo
+original desta tabela prometia o contrário; a linha agora diz a verdade.
+Decidido a 11/9: fica assim — limpar a cache apaga também os downloads.
 
 **SQL:** nenhum.
 
@@ -211,6 +225,79 @@ esperar para sempre.
 4. **Limite** de membros? *(proposta: 10)*
 5. Quando o dono **apaga**: desaparece para todos, ou passa para o membro mais
    antigo? *(proposta: desaparece, com aviso)*
+
+---
+
+## 6. Velocidade partilhada no Jam
+
+**Hoje.** Dentro de um Jam toda a gente ouve a 1×, à força
+(`velocidadeNaSessao`, em `lib/jam.ts`). A razão é real: a posição da sessão é
+"agora no servidor − `started_at`", tempo de parede, e isso só é a posição da
+música a 1×. Um ouvinte a 0,9× ficava cada vez mais atrasado. O defeito está no
+outro lado: a barra de velocidade continua lá durante o Jam, mexe-se, e não faz
+nada — exatamente o tipo de opção que a 1 veio acabar.
+
+**O que muda.** O Jam passa a ter UMA velocidade, a mesma para todos, e o tom
+acompanha como fora do Jam: slowed ou nightcore para a sala inteira.
+
+- **Quem muda:** o anfitrião, e os convidados se "Guests can control" estiver
+  ligado — as mesmas regras do play, pause e skip (`exigir_controlo`).
+- **Quem não pode vê a barra apagada, com o motivo por baixo:** "Only the host
+  can change the Jam speed". É a regra dos menus: o que não se pode agora fica
+  à vista a dizer porquê.
+- **Toda a gente vê a velocidade da sala** junto ao Jam ("Jam · 0.85×"), e um
+  aviso curto quando alguém a muda ("Rita set the speed to 0.8×").
+- **A tua velocidade volta ao sair**, como hoje.
+- **O equalizador fica pessoal:** não mexe no tempo, e cada um ouve nos seus
+  auscultadores.
+
+**Como se mantém em sincronia** (a parte que obrigava ao 1×):
+
+- `listening_sessions` ganha `playback_rate` (0,5 a 2; por omissão 1).
+- A posição passa a ser `(agora − started_at) × velocidade`. É uma
+  multiplicação num sítio só: `posicaoDaSessao`, em `lib/sincronizacao.ts`, é
+  por onde passam todas as posições do Jam no cliente.
+- **Mudar a velocidade a meio reancora o relógio, no servidor.** Função nova
+  `mudar_velocidade_da_sessao`: com a linha trancada (como o
+  `procurar_na_sessao`), calcula onde a música está com a velocidade antiga e
+  põe `started_at = agora − posição ÷ velocidade nova`. Ninguém salta: a
+  posição é a mesma antes e depois, só passa a andar a outro ritmo.
+- O `retomar_sessao` e o `procurar_na_sessao` passam a recuar o `started_at`
+  por `posição ÷ velocidade`. O `definir_faixa_da_sessao` fica igual, porque
+  começa do zero.
+- No cliente, o `velocidadeNaSessao` devolve a velocidade da sala em vez de 1,
+  e o `seguirSessao` distingue "mudou a velocidade" de "saltou": mudar aplica o
+  ritmo sem seek.
+- A correção fina (600 ms de tolerância) fica igual. Os dois motores já tocam
+  a qualquer velocidade ao certo (varispeed no iPhone, `preservesPitch = false`
+  no PC), por isso nada muda no áudio.
+- De caminho: a barra de tempo do Discord passa a contar com a velocidade. Hoje
+  já erra a 1,25× mesmo sem Jam (`presencaDoDiscord.ts` não a lê).
+
+**Compatibilidade.** Toda a gente no Jam precisa da versão nova: uma app antiga
+ignora a coluna, toca a 1× e perde a sincronia até atualizar. Entre ti e um
+amigo resolve-se com a atualização; guardar a versão de cada membro na base de
+dados só para isto seria peça a mais.
+
+**Peças.** `supabase/jam-velocidade.sql`; `lib/sincronizacao.ts` e
+`lib/jam.ts`; `api/ouvirJuntos.ts` e `state/ouvirJuntos.ts` (ler a coluna,
+anunciar a mudança); as barras de velocidade dos dois lados (quem pode mexer, e
+o motivo quando não pode). Testes: a conta da posição (contínua ao mudar de
+velocidade, retomar e saltar a 0,8×, nunca para lá do fim) e o
+`test-jam-store.ts`.
+
+**SQL:** sim — 1 coluna, 1 função nova, 2 alteradas.
+
+**Testar:** duas contas no mesmo Jam (cada membro é uma conta; o iPhone numa e
+o PC noutra chegam) e uma build do iPhone.
+
+### Decisões que são tuas
+
+1. **Faixa nova mantém a velocidade da sala**, ou volta a 1×? *(proposta:
+   mantém — é o "modo" do Jam; voltar a 1× a cada faixa obrigava a repor à mão)*
+2. **A velocidade guardada de uma faixa** (a tua música X a 0,8×) muda a sala
+   quando a pões a tocar? *(proposta: não — senão a velocidade mudava sozinha a
+   cada faixa, conforme quem a pôs)*
 
 ---
 
