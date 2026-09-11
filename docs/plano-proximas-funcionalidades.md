@@ -1,13 +1,13 @@
 # Plano — as próximas seis
 
-Proposta de 11/9/2026, a partir do relatório. **A 1 está feita, por testar;
-o resto não está implementado.**
+Proposta de 11/9/2026, a partir do relatório. **A 1 e a 2 estão feitas, por
+testar; o resto não está implementado.**
 Cada secção diz o que já existe, o que muda, onde, e se precisa de SQL.
 
 | # | O quê | Onde | Tamanho | SQL novo | Depende de |
 |---|---|---|---|---|---|
 | 1 | Definições que provam efeito | iPhone + PC | pequeno | não | — |
-| 2 | Higiene da biblioteca | iPhone + PC | médio | sim (1 função) | — |
+| 2 | Higiene da biblioteca | iPhone + PC | médio | sim (3 funções) | — |
 | 3 | Atalhos físicos | iPhone + PC | médio | não | build do iPhone para testar |
 | 4 | Duotone Connect | iPhone + PC | médio | sim (1 tabela) | "continuar aqui" ao vivo |
 | 5 | Playlists partilhadas | iPhone + PC | grande | sim (2 tabelas, 3 funções) | decisões no fim |
@@ -96,6 +96,35 @@ relatório. Corre quando pedes (Definições → Library check), nunca sozinho.
 passa as playlists da faixa que sai para a que fica e tira a que sai da
 biblioteca. Sem isso, um erro a meio deixava uma playlist a apontar para uma
 música que já não tens.
+
+**Estado (11/9).** Feito nos dois ecrãs, por testar com a conta real: falta
+correr o `supabase/higiene-da-biblioteca.sql` (sem ele os botões dizem "This
+needs a database update that is not installed yet."). As decisões vivem em
+`lib/higieneDaBiblioteca.ts`, testadas em Node; a rede e a base de dados em
+`api/higieneDaBiblioteca.ts`; a verificação e as ações, com o Undo, em
+`state/verificacaoDaBiblioteca.ts`. As funções SQL estão testadas em PGlite com
+a RLS ligada (`scripts/test-higiene-da-biblioteca-sql.mjs`). Verificado no PC
+num harness com Supabase falso e o YouTube verdadeiro: o oEmbed e as
+miniaturas passam o CORS, e um 404 de miniatura chega como 404.
+
+**O que ficou diferente do plano:**
+- Três funções SQL e não uma: `juntar_na_biblioteca`,
+  `desfazer_juntar_na_biblioteca` (o Undo, com datas e posições) e
+  `corrigir_capa`. Esta é `security definer`, porque o `tracks` é o catálogo
+  partilhado e os clientes não lhe escrevem; por isso não aceita URL nenhum —
+  só a miniatura do próprio vídeo, e só em faixas que a pessoa tem.
+- A chave dos duplicados não é a do Rare Finds: essa junta as versões de
+  propósito, e aqui juntar o ao vivo com o de estúdio era apagar um. Entram as
+  marcas de versão e as versões numeradas dos leaks (`[V2]`).
+- Em vez dos 10 s de pré-visualização, "Listen" toca a cópia no leitor normal,
+  o tempo que se quiser. Num Jam fica desligado: tocar ali era sugerir à sala.
+- "Find a copy" usa a pesquisa livre (sem quota), como a importação do
+  Spotify, e só aceita com confiança. Medido com pesquisas reais: um slowed e
+  um ao vivo dão "No safe copy found" em vez de levarem o de estúdio.
+- "Fix" não tem Undo — a capa antiga não carregava, e desfazer era voltar a
+  ela. As junções e as trocas têm.
+- Um vídeo morto que tem uma cópia viva guardada aparece só nos duplicados,
+  marcado "Doesn't play": o Merge já propõe ficar com a viva.
 
 ---
 
