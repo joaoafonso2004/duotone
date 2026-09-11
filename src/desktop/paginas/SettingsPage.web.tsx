@@ -30,9 +30,12 @@ import { COR, ESP } from '../tokens.web';
 import { Button, ContentScroll, desktop, Dialog, Field, Page } from '../ui.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
-import { PLANO } from '../../lib/equalizer';
+import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
 import { getDiscordRichPresence, setDiscordRichPresence } from '../../lib/prefs';
 import { newerVersion } from './comum.web';
+import { efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
+import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
+import { usePrivacidade } from '../../state/privacidade';
 
 export function SettingsPage({ notify }: { notify: (s: string) => void }) {
   const [recommendationsOpen,setRecommendationsOpen]=useState(false);
@@ -85,6 +88,33 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
     : sleepLeft <= 15 * 60 ? '15'
     : sleepLeft <= 30 * 60 ? '30'
     : sleepLeft <= 45 * 60 ? '45' : '60';
+
+  // O que cada opção está a fazer agora -- as frases vivem em
+  // lib/efeitoDasDefinicoes.ts, as mesmas do iPhone.
+  const atual = usePlayer((s) => s.current);
+  const rateDaFaixa = usePlayer((s) => s.playbackRate);
+  const ganhosDaFaixa = usePlayer((s) => s.eqGanhos);
+  const ajusteDaFaixa = usePlayer((s) => (s.current ? s.ajustesPorFaixa[chaveDaFaixa(s.current)] : undefined));
+  const radioActivo = usePlayer((s) => s.radioActive);
+  const estadoDoDiscord = useEstadoDoDiscord((s) => s.estado);
+  const privada = usePrivacidade((s) => s.privada);
+  const efeitos = {
+    discord: efeitoDoDiscord({ ligado: discordOn, privada, estado: estadoDoDiscord }),
+    radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
+    temporizador: efeitoDoTemporizador({ restanteS: sleepLeft, agora: new Date() }),
+    velocidade: efeitoDoPadrao({
+      tipo: 'velocidade', temFaixa: !!atual,
+      temAjusteProprio: !!ajusteDaFaixa && ajusteDaFaixa.rate !== null,
+      igualAoPadrao: Math.abs(rateDaFaixa - padraoRate) < 0.005,
+      valorDaFaixa: `${Number(rateDaFaixa.toFixed(2))}×`,
+    }),
+    equalizador: efeitoDoPadrao({
+      tipo: 'equalizador', temFaixa: !!atual,
+      temAjusteProprio: !!ajusteDaFaixa && ajusteDaFaixa.ganhos !== null,
+      igualAoPadrao: ganhosDaFaixa.length === padraoGanhos.length
+        && ganhosDaFaixa.every((g, i) => Math.abs(g - padraoGanhos[i]) < 0.05),
+    }),
+  };
 
   useEffect(() => {
     Promise.all([
@@ -215,7 +245,8 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
                 porque todos os participantes têm de usar a mesma aplicação. */}
             <ToggleLine label="Discord Rich Presence"
               description="Show what you are listening to on Discord. While you host a Jam, friends with Duotone can click Join and hear it in sync. Needs the Discord desktop app."
-              value={discordOn} onChange={(v)=>{setDiscordOn(v);void setDiscordRichPresence(v);avisarDiscord(v);}} />
+              value={discordOn} onChange={(v)=>{setDiscordOn(v);void setDiscordRichPresence(v);avisarDiscord(v);}}
+              efeito={efeitos.discord} />
             {startup?.available && <>
               <ToggleLine label="Start with Windows" description="Open Duotone automatically when you sign in to Windows."
                 value={startup.enabled} onChange={(v) => void changeStartup(v, startup.mode)} />
@@ -225,9 +256,9 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
           </SettingsCard>}
           <SettingsCard icon="play-circle-outline" title="Playback">
             <ToggleLine label="Show track duration" description="Display a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />
-            <ToggleLine label="Autoplay radio" description="When the queue ends, keep playing similar music instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} />
+            <ToggleLine label="Autoplay radio" description="When the queue ends, keep playing similar music instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} efeito={efeitos.radio} />
             <ToggleLine label="15-second rewind" description="Show a rewind control in the desktop player." value={rewind} onChange={(v) => { setRewindState(v); setShowRewindButton(v); usePlayer.getState().setShowRewindButton(v); }} />
-            <ChoiceLine label="Sleep timer" value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} />
+            <ChoiceLine label="Sleep timer" value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} efeito={efeitos.temporizador} />
             {/* Era um controlo de tres posicoes; passa a barra continua, de
                 0,25 a 2 em degraus de 0,1. O 0,25 e o minimo REAL: o IFrame
                 prende ai qualquer pedido mais baixo. */}
@@ -235,6 +266,7 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
               <View style={{ flex: 1, paddingRight: ESP.lg }}>
                 <Text style={styles.settingLabel}>Playback speed</Text>
                 <Text style={styles.settingDescription}>The default for tracks you have not set individually. Pitch follows the speed, so slowing down sounds slowed.</Text>
+                <Efeito texto={efeitos.velocidade} />
               </View>
               <View style={{ width: 260 }}>
                 <BarraVelocidade valor={padraoRate} aoMudar={(v) => setPlaybackRate(v, true)} />
@@ -250,6 +282,7 @@ export function SettingsPage({ notify }: { notify: (s: string) => void }) {
                 <View style={{ flex: 1, paddingRight: ESP.lg }}>
                   <Text style={styles.settingLabel}>Equaliser</Text>
                   <Text style={styles.settingDescription}>The default for tracks you have not set individually. The one playing only changes on the next track.</Text>
+                  <Efeito texto={efeitos.equalizador} />
                 </View>
                 <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
               </View>
@@ -310,6 +343,12 @@ export function SettingLine({ label, value }: { label: string; value: string }) 
 
 export function SettingAction({ label, onPress, danger = false }: { label: string; onPress: () => void; danger?: boolean }) { return <Pressable onPress={onPress} style={({ hovered }) => [styles.settingLine, hovered && styles.settingHover]}><Text style={[styles.settingLabel, danger && { color: desktop.danger }]}>{label}</Text><Ionicons name="chevron-forward" size={15} color={desktop.dim} /></Pressable>; }
 
-export function ToggleLine({ label, description, value, onChange }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void }) { return <View style={styles.settingLine}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text></View><Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ false: COR.elevado, true: COR.metalClaro }} thumbColor={COR.fundo} /></View>; }
+/**
+ * O que a opção está a fazer agora (lib/efeitoDasDefinicoes.ts), por baixo da
+ * descrição: a descrição diz a regra, isto diz o momento.
+ */
+export function Efeito({ texto }: { texto?: string | null }) { if (!texto) return null; return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 5 }}><View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: COR.texto, opacity: 0.6 }} /><Text style={{ color: COR.texto, fontSize: 11.5, flex: 1 }}>{texto}</Text></View>; }
 
-export function ChoiceLine({ label, description, value, choices, onChange }: { label: string; description?: string; value: string; choices: [string, string][]; onChange: (v: string) => void }) { return <View style={[styles.settingLine, { alignItems: 'flex-start' }]}><View style={{ flex: 1, marginTop: 8, paddingRight: ESP.md }}><Text style={styles.settingLabel}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}</View><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: desktop.text }]}>{text}</Text></Pressable>)}</View></View>; }
+export function ToggleLine({ label, description, value, onChange, efeito }: { label: string; description: string; value: boolean; onChange: (v: boolean) => void; efeito?: string | null }) { return <View style={styles.settingLine}><View style={{ flex: 1 }}><Text style={styles.settingLabel}>{label}</Text><Text style={styles.settingDescription}>{description}</Text><Efeito texto={efeito} /></View><Switch accessibilityLabel={label} value={value} onValueChange={onChange} trackColor={{ false: COR.elevado, true: COR.metalClaro }} thumbColor={COR.fundo} /></View>; }
+
+export function ChoiceLine({ label, description, value, choices, onChange, efeito }: { label: string; description?: string; value: string; choices: [string, string][]; onChange: (v: string) => void; efeito?: string | null }) { return <View style={[styles.settingLine, { alignItems: 'flex-start' }]}><View style={{ flex: 1, marginTop: 8, paddingRight: ESP.md }}><Text style={styles.settingLabel}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}<Efeito texto={efeito} /></View><View style={styles.smallSegment}>{choices.map(([id, text]) => <Pressable key={id} onPress={() => onChange(id)} style={[styles.smallSegmentItem, value === id && styles.smallSegmentActive]}><Text style={[styles.smallSegmentText, value === id && { color: desktop.text }]}>{text}</Text></Pressable>)}</View></View>; }

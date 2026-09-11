@@ -14,7 +14,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, STEEL } from '../state/theme';
 import { clearLibrary } from '../api/library';
 import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
-import { clearStreamMemo, clearVisitorData } from '../api/ytstream';
+import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstream';
+import {
+  efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
+  efeitoDoCrossfade, efeitoDoPadrao, efeitoDoPoToken, efeitoDoRadio, efeitoDoTemporizador,
+} from '../lib/efeitoDasDefinicoes';
+import { getLoudnessDb } from '../lib/loudnessCache';
+import { idsFixados } from '../lib/downloadsFixados';
 import { listPlaylists, getPlaylistTracks } from '../api/playlists';
 import { supabase } from '../lib/supabase';
 import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
@@ -46,12 +52,12 @@ import {
   getCrossfadeSegundos,
   setCrossfadeSegundos,
 } from '../lib/prefs';
-import { clearDownloadedAudioCache, formatCacheSize, getAudioCacheBytes } from '../lib/youtubeCache';
+import { clearDownloadedAudioCache, formatCacheSize, getAudioCacheBytes, isAudioCached } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
 import { Equalizador, ReporEqualizador } from '../components/Equalizador';
-import { PLANO } from '../lib/equalizer';
+import { chaveDaFaixa, PLANO } from '../lib/equalizer';
 import { usePlayer } from '../state/player';
 import { getLibrary } from '../api/library';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade';
@@ -109,6 +115,16 @@ export function SettingsScreen({ navigation }: Props) {
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   const sleepTimerTimeLeft = usePlayer((s) => s.sleepTimerTimeLeft);
   const setSleepTimer = usePlayer((s) => s.setSleepTimer);
+  // O que está a tocar AGORA, para cada opção dizer o efeito que tem nesta
+  // música -- ver lib/efeitoDasDefinicoes.ts.
+  const atual = usePlayer((s) => s.current);
+  const motor = usePlayer((s) => s.activeBackend);
+  const repeatUma = usePlayer((s) => s.repeatMode === 'one');
+  const rateDaFaixa = usePlayer((s) => s.playbackRate);
+  const ganhosDaFaixa = usePlayer((s) => s.eqGanhos);
+  const ajusteDaFaixa = usePlayer((s) => (s.current ? s.ajustesPorFaixa[chaveDaFaixa(s.current)] : undefined));
+  const radioActivo = usePlayer((s) => s.radioActive);
+  const [ultimoTestePot, setUltimoTestePot] = useState<{ ok: boolean; ms: number | null } | null>(null);
   const modo = useTheme((s) => s.mode);
   const setMode = useTheme((s) => s.setMode);
   // O que a capa a tocar está a dar agora. Serve de amostra na própria
@@ -266,13 +282,18 @@ export function SettingsScreen({ navigation }: Props) {
 
   const savePotServerUrl = async (v: string) => {
     setPotServerUrlState(v);
+    // Outro endereço: o último teste já não diz nada sobre ele.
+    setUltimoTestePot(null);
     await setPoTokenServerUrl(v);
   };
 
   const testPotServer = async () => {
     setTestingPotServer(true);
     try {
+      const inicio = Date.now();
       const ok = await pingPoTokenServer(potServerUrl);
+      // Fica escrito por baixo do botão, e não só no alerta que se fecha.
+      setUltimoTestePot({ ok, ms: ok ? Date.now() - inicio : null });
       hapticNotification();
       Alert.alert(
         ok ? 'Connected' : 'Not reachable',
@@ -350,6 +371,41 @@ export function SettingsScreen({ navigation }: Props) {
     }
   };
 
+  // O que cada opção está a fazer agora -- a linha por baixo de cada uma. As
+  // frases vivem em lib/efeitoDasDefinicoes.ts, testadas; aqui só se junta o
+  // estado que elas pedem.
+  const doYouTube = !!atual && atual.source === 'youtube';
+  const descarregadaAgora = doYouTube && isAudioCached(atual!.sourceId);
+  const streamAgora = doYouTube ? streamEmMemoria(atual!.sourceId, audioQuality) : null;
+  const efeitos = {
+    qualidade: efeitoDaQualidade({
+      escolha: audioQuality, motor: atual ? motor : null, descarregada: descarregadaAgora,
+      kbps: streamAgora?.kbps ?? null, codec: streamAgora?.codec ?? null,
+    }),
+    crossfade: efeitoDoCrossfade({ segundos: crossfade, repeatUma }),
+    velocidade: efeitoDoPadrao({
+      tipo: 'velocidade', temFaixa: !!atual,
+      temAjusteProprio: !!ajusteDaFaixa && ajusteDaFaixa.rate !== null,
+      igualAoPadrao: Math.abs(rateDaFaixa - padraoRate) < 0.005,
+      valorDaFaixa: `${Number(rateDaFaixa.toFixed(2))}×`,
+    }),
+    equalizador: efeitoDoPadrao({
+      tipo: 'equalizador', temFaixa: !!atual,
+      temAjusteProprio: !!ajusteDaFaixa && ajusteDaFaixa.ganhos !== null,
+      igualAoPadrao: ganhosDaFaixa.length === padraoGanhos.length
+        && ganhosDaFaixa.every((g, i) => Math.abs(g - padraoGanhos[i]) < 0.05),
+    }),
+    temporizador: efeitoDoTemporizador({ restanteS: sleepTimerTimeLeft, agora: new Date() }),
+    normalizacao: efeitoDaNormalizacao({
+      ligada: volumeNormalization, temFaixa: doYouTube,
+      loudnessDb: doYouTube ? getLoudnessDb(atual!.sourceId) : null,
+    }),
+    radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
+    ecra: efeitoDeManterOEcra(keepAwakeOn),
+    cache: efeitoDeLimparACache({ bytes: cacheBytes, downloads: idsFixados().filter(isAudioCached).length }),
+    poToken: efeitoDoPoToken({ url: potServerUrl, ultimoTeste: ultimoTestePot }),
+  };
+
   return (
     <Screen title="Settings" onBack={() => navigation.goBack()}>
       <RecommendationPreferences visible={recommendationsOpen} onClose={()=>setRecommendationsOpen(false)}/>
@@ -412,6 +468,7 @@ export function SettingsScreen({ navigation }: Props) {
               value={audioQuality === 'saver' ? 1 : 0}
               onChange={changeAudioQuality}
             />
+            <Efeito texto={efeitos.qualidade} />
 
             {/* Desligado de origem. A passagem só entra em mudanças
                 automáticas de faixa: num salto manual faria o botão parecer
@@ -423,34 +480,35 @@ export function SettingsScreen({ navigation }: Props) {
               value={DURACOES_DO_CROSSFADE.indexOf(crossfade)}
               onChange={changeCrossfade}
             />
+            <Efeito texto={efeitos.crossfade} />
 
             {/* Os tres presets viraram uma velocidade continua (0,5 a 2), e
                 agora numa barra em vez de botoes: de ponta a ponta eram trinta
                 toques. O valor vai escrito ao lado da propria barra. */}
-            <Label style={{ marginTop: spacing.md }}>Velocidade</Label>
+            <Label style={{ marginTop: spacing.md }}>Playback speed</Label>
             <BarraVelocidade
               valor={padraoRate}
               aoMudar={(v) => setPlaybackRate(v, true)}
             />
+            <Efeito texto={efeitos.velocidade} />
 
             {/* O equalizador base. Mesmo sitio e mesmo padrao da velocidade
                 logo acima -- as duas sao o que vale para as faixas que nao
-                tenham o seu, e nenhuma delas mexe na que esta a tocar. */}
+                tenham o seu, e nenhuma delas mexe na que esta a tocar. A
+                frase fixa que dizia isto passou a ser a linha de efeito, que
+                diz o mesmo sobre a musica que esta mesmo a tocar. */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }}>
-              <Label>Equalizador base</Label>
+              <Label>Equaliser</Label>
               <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
             </View>
-            <Text style={[type.caption, { marginBottom: spacing.sm }]}>
-              Aplica-se a todas as faixas que nao tenham equalizador proprio. A
-              que esta a tocar so muda na proxima.
-            </Text>
             <Equalizador
               ganhos={padraoGanhos}
               aoMudar={(novo) => setEqGanhos(novo, true)}
             />
+            <Efeito texto={efeitos.equalizador} />
 
             <Label style={{ marginTop: spacing.md }}>
-              Sleep Timer (Temporizador)
+              Sleep timer
               {sleepTimerTimeLeft > 0 && ` — ${formatTimeLeft(sleepTimerTimeLeft)}`}
             </Label>
             <SegmentedControl
@@ -472,6 +530,7 @@ export function SettingsScreen({ navigation }: Props) {
                 setSleepTimer(mins);
               }}
             />
+            <Efeito texto={efeitos.temporizador} />
           </Section>
 
           <Section title="Behavior">
@@ -486,12 +545,14 @@ export function SettingsScreen({ navigation }: Props) {
               onChange={toggleVolumeNormalization}
               style={{ marginTop: spacing.md }}
             />
+            <Efeito texto={efeitos.normalizacao} />
             <ToggleRow
               label="Autoplay radio at end of queue"
               value={autoplayRadio}
               onChange={toggleAutoplayRadio}
               style={{ marginTop: spacing.md }}
             />
+            <Efeito texto={efeitos.radio} />
             <ToggleRow
               label="Show rewind 15s button"
               value={showRewindButton}
@@ -517,6 +578,7 @@ export function SettingsScreen({ navigation }: Props) {
               onChange={toggleKeepAwake}
               style={{ marginTop: spacing.md }}
             />
+            <Efeito texto={efeitos.ecra} />
           </Section>
 
           <Section title="Car mode">
@@ -556,6 +618,9 @@ export function SettingsScreen({ navigation }: Props) {
               onPress={doClearCache}
               style={{ alignSelf: 'flex-start' }}
             />
+            {/* Apaga TODO o áudio guardado, os downloads feitos de propósito
+                incluídos -- e isso tem de se ler antes de carregar. */}
+            <Efeito texto={efeitos.cache} />
             {/* Identificar a biblioteca: o artista e o título vêm adivinhados
                 do título do vídeo do YouTube, e um catálogo a sério corrige-os
                 — incluindo a capa quadrada, sem as barras pretas. */}
@@ -653,6 +718,7 @@ export function SettingsScreen({ navigation }: Props) {
               onPress={testPotServer}
               style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
             />
+            <Efeito texto={efeitos.poToken} />
           </Section>
 
           <Section title="About">
@@ -756,6 +822,21 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * O que a opção de cima está a fazer agora (lib/efeitoDasDefinicoes.ts). Mais
+ * clara do que a legenda que explica a opção: esta é sobre o momento, aquela é
+ * sobre a regra.
+ */
+function Efeito({ texto }: { texto: string | null }) {
+  if (!texto) return null;
+  return (
+    <View style={styles.efeito} accessibilityRole="text">
+      <View style={styles.efeitoPonto} />
+      <Text style={[type.caption, { color: colors.text, flex: 1 }]}>{texto}</Text>
+    </View>
+  );
+}
+
 function Label({ children, style }: { children: React.ReactNode; style?: object }) {
   return <Text style={[type.caption, { marginBottom: spacing.sm }, style]}>{children}</Text>;
 }
@@ -799,6 +880,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 4,
   },
+  efeito: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.xs },
+  efeitoPonto: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.text, opacity: 0.6 },
   themesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

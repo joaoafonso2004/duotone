@@ -37,6 +37,7 @@ test-*.mjs
 !scripts/test-social-database.mjs
 !scripts/test-security-hardening.mjs
 !scripts/test-ouvir-juntos.mjs
+!scripts/test-definicoes-com-efeito.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

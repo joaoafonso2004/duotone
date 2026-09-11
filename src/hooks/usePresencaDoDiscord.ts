@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import { create } from 'zustand';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import {
   presencaDaFaixa, presencaMudou, type ActividadeDoDiscord,
@@ -29,6 +30,16 @@ import { usePlayer } from '../state/player';
  * O Discord fechado não é um erro: a ponte devolve `false`, isto desiste em
  * silêncio, e a música continua. Nada aqui pode partir a reprodução.
  */
+/**
+ * O que a ponte respondeu da última vez, para as Definições do PC dizerem se o
+ * Discord está mesmo a mostrar a música (lib/efeitoDasDefinicoes.ts). A ponte
+ * já devolvia se a presença pegou; ninguém guardava a resposta, e a opção
+ * ligada com o Discord fechado parecia partida.
+ */
+export const useEstadoDoDiscord = create<{ estado: 'a-mostrar' | 'sem-musica' | 'discord-fechado' | null }>(
+  () => ({ estado: null }),
+);
+
 export function usePresencaDoDiscord(ligado: boolean, appId: string): void {
   const ultima = useRef<ActividadeDoDiscord | null>(null);
 
@@ -42,6 +53,7 @@ export function usePresencaDoDiscord(ligado: boolean, appId: string): void {
     // presença fica no perfil até alguém a tirar.
     if (!ligado || !appId) {
       if (ultima.current) { ultima.current = null; void ponte(null, null).catch(() => {}); }
+      useEstadoDoDiscord.setState({ estado: null });
       return;
     }
 
@@ -65,7 +77,13 @@ export function usePresencaDoDiscord(ligado: boolean, appId: string): void {
       );
       if (!presencaMudou(ultima.current, actividade)) return;
       ultima.current = actividade;
-      void ponte(appId, actividade as unknown as Record<string, unknown> | null).catch(() => {});
+      void ponte(appId, actividade as unknown as Record<string, unknown> | null)
+        .then((pegou) => {
+          useEstadoDoDiscord.setState({
+            estado: !pegou ? 'discord-fechado' : actividade ? 'a-mostrar' : 'sem-musica',
+          });
+        })
+        .catch(() => useEstadoDoDiscord.setState({ estado: 'discord-fechado' }));
     };
 
     publicar();

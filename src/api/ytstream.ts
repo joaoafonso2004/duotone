@@ -163,6 +163,23 @@ export interface YtStream {
   /** Diferença em dB entre a loudness deste áudio e a referência do YouTube.
    * Alimenta a normalização de volume — ver lib/loudness.ts. */
   loudnessDb?: number | null;
+  /** O bitrate do formato escolhido, em kbps, e o codec ("AAC"). Só para as
+   * Definições dizerem o que está a tocar — ver lib/efeitoDasDefinicoes.ts. */
+  kbps?: number | null;
+  codec?: string | null;
+}
+
+/** O stream que se resolveu para este vídeo, se ainda estiver em memória. */
+export function streamEmMemoria(videoId: string, quality: 'high' | 'saver'): YtStream | null {
+  return memo.get(`${videoId}:${quality}`) ?? null;
+}
+
+/** "AAC" a partir de `audio/mp4; codecs="mp4a.40.2"`. */
+function codecDoMime(mime: unknown): string | null {
+  const m = String(mime ?? '');
+  if (/mp4a/i.test(m)) return 'AAC';
+  if (/opus/i.test(m)) return 'Opus';
+  return null;
 }
 
 // Cache em memória (por sessão) — os URLs expiram, não vale a pena persistir.
@@ -178,7 +195,7 @@ export function clearStreamMemo(): void {
 function pickMp4Audio(
   streamingData: any,
   preferLowBitrate: boolean
-): { url: string; contentLength: number | null } | null {
+): { url: string; contentLength: number | null; kbps: number | null; codec: string | null } | null {
   const formats: any[] = [
     ...(streamingData?.adaptiveFormats ?? []),
     ...(streamingData?.formats ?? []),
@@ -191,7 +208,13 @@ function pickMp4Audio(
       return preferLowBitrate ? bitA - bitB : bitB - bitA;
     });
   if (aac[0]?.url) {
-    return { url: aac[0].url, contentLength: Number(aac[0].contentLength) || null };
+    const bits = Number(aac[0].bitrate ?? aac[0].averageBitrate) || 0;
+    return {
+      url: aac[0].url,
+      contentLength: Number(aac[0].contentLength) || null,
+      kbps: bits ? bits / 1000 : null,
+      codec: codecDoMime(aac[0].mimeType),
+    };
   }
 
   // último recurso: progressivo muxed mp4 com URL direto
@@ -202,6 +225,8 @@ function pickMp4Audio(
   return {
     url: muxedMp4.url,
     contentLength: Number(muxedMp4.contentLength) || null,
+    kbps: null,
+    codec: codecDoMime(muxedMp4.mimeType),
   };
 }
 
@@ -267,6 +292,8 @@ export function streamFromPlayerResponse(
     contentLength: picked.contentLength,
     durationSeconds,
     loudnessDb,
+    kbps: picked.kbps,
+    codec: picked.codec,
   };
 }
 
