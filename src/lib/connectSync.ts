@@ -9,7 +9,7 @@ import { usePlayer } from '../state/player';
 import { appEstaVisivel } from './appVisibility';
 import { getDeviceId } from './deviceIdentity';
 import {
-  VALIDADE_DO_PEDIDO_MS, aparelhosDisponiveis, devoExecutar,
+  VALIDADE_DO_PEDIDO_MS, aparelhosDisponiveis, devoExecutar, podeExecutarNoArranque,
   type AparelhoDisponivel, type EstadoDoPedido, type Pedido, type TipoDePedido,
 } from './duotoneConnect';
 import { publishSessionNow, takeOverSession } from './sessionSync';
@@ -68,8 +68,17 @@ async function executar(pedido: Pedido): Promise<Resultado> {
   return { estado: 'feito' };
 }
 
-async function tratar(pedido: Pedido, meuAparelho: string): Promise<void> {
-  if (!devoExecutar(pedido, meuAparelho) || tratados.has(pedido.id)) return;
+async function tratar(pedido: Pedido, meuAparelho: string, noArranque = false): Promise<void> {
+  if (pedido.paraAparelho !== meuAparelho || tratados.has(pedido.id)) return;
+  // Uma ordem que sobrou de antes não põe música a tocar ao abrir a app: ver
+  // `podeExecutarNoArranque`. Responde-se na mesma, para quem mandou saber.
+  if (noArranque && !podeExecutarNoArranque(pedido.tipo)) {
+    tratados.add(pedido.id);
+    esquecerVelhos();
+    await responderPedido(pedido.id, 'recusado', 'Duotone was not open');
+    return;
+  }
+  if (!devoExecutar(pedido, meuAparelho)) return;
   tratados.add(pedido.id);
   esquecerVelhos();
   let resultado: Resultado;
@@ -102,16 +111,21 @@ export function useComandosDoAparelho(): void {
       if (parado || !meu) return;
       pararEscuta = ouvirPedidos(meu, (pedido) => { void tratar(pedido, meu); });
 
+      let primeiro = true;
       const varrer = () => {
         if (!appEstaVisivel()) return;
+        const arranque = primeiro;
+        primeiro = false;
         void pedidosParaMim(meu)
-          .then((pedidos) => { for (const pedido of pedidos) void tratar(pedido, meu); })
+          .then((pedidos) => { for (const pedido of pedidos) void tratar(pedido, meu, arranque); })
           .catch(() => { /* sem rede não há ordens; tenta-se outra vez a seguir */ });
       };
-      varrer();
+      // A limpeza ANTES do primeiro varrimento, e não depois: é ela que apaga
+      // as ordens velhas, e é do lado do servidor que o relógio está certo.
+      // Corria depois, e por isso nunca chegava a tempo de proteger o
+      // arranque. Falhar não custa -- o varrimento vai na mesma.
+      void limparPedidosVelhos().catch(() => {}).then(varrer);
       intervalo = setInterval(varrer, 20_000);
-      // De vez em quando limpa-se o que já não interessa. Falhar não custa.
-      void limparPedidosVelhos().catch(() => {});
     });
 
     return () => {
@@ -183,8 +197,19 @@ function esperarResposta(pedido: Pedido): Promise<EstadoDoPedido> {
  * aparecer apagado sem se ter de fechar e abrir o menu. Fechada, não gasta
  * nada -- é o mesmo cuidado do resto da app.
  */
+/**
+ * Os outros aparelhos desta conta, para quem quer listar.
+ *
+ * Devolve também as SESSÕES, e não só a lista: quem mostra a lista precisa
+ * delas para abrir o comando do aparelho que está a tocar -- o que toca lá, a
+ * posição, a fila. Antes o comando vivia só no banner do "continuar aqui",
+ * que se pode dispensar (e fica 15 min calado): fechava-se e não havia
+ * maneira nenhuma de o trazer de volta. Agora a porta é esta, e está sempre
+ * no mesmo sítio.
+ */
 export function useAparelhos(activo: boolean): {
   aparelhos: AparelhoDisponivel[];
+  sessaoDe: (deviceId: string) => RemoteSession | null;
   aCarregar: boolean;
   recarregar: () => void;
 } {
@@ -212,8 +237,14 @@ export function useAparelhos(activo: boolean): {
     return () => { vivo = false; clearInterval(id); };
   }, [activo, tique]);
 
+  const sessaoDe = useCallback(
+    (deviceId: string) => sessoes.find((x) => x.deviceId === deviceId) ?? null,
+    [sessoes],
+  );
+
   return {
     aparelhos: meu ? aparelhosDisponiveis(sessoes, meu) : [],
+    sessaoDe,
     aCarregar,
     recarregar,
   };

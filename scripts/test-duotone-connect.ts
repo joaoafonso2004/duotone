@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import {
   ACORDADO_MS, VALIDADE_DO_PEDIDO_MS, aparelhoQueToca, aparelhosDisponiveis, avisoDoPedido,
   devoExecutar, estaAcordado, estadoDoPedido, motivoDeNaoAlcancar, pedidoExpirou,
+  ESQUECER_APARELHO_MS, podeExecutarNoArranque,
   type Pedido,
 } from '../src/lib/duotoneConnect.ts';
 import { SESSAO_PAUSADA_TTL_MS, type RemoteSession } from '../src/lib/handoff.ts';
@@ -62,10 +63,12 @@ caso('o próprio aparelho nunca aparece na lista', () => {
   assert.deepEqual(lista.map((a) => a.deviceId), ['pc']);
 });
 caso('primeiro o que está acordado, e entre esses o que toca', () => {
+  // Nomes distintos de propósito: com o mesmo nome estes seriam o MESMO
+  // aparelho visto três vezes, e a lista colapsa-os (ver mais abaixo).
   const lista = aparelhosDisponiveis([
-    sessao({ deviceId: 'dormente', idadeMs: 20 * 60_000 }),
-    sessao({ deviceId: 'parado', idadeMs: 10_000 }),
-    sessao({ deviceId: 'a-tocar', idadeMs: 4_000, isPlaying: true }),
+    sessao({ deviceId: 'dormente', deviceName: 'Portátil', idadeMs: 20 * 60_000 }),
+    sessao({ deviceId: 'parado', deviceName: 'Torre', idadeMs: 10_000 }),
+    sessao({ deviceId: 'a-tocar', deviceName: 'Sala', idadeMs: 4_000, isPlaying: true }),
   ], 'eu', AGORA);
   assert.deepEqual(lista.map((a) => a.deviceId), ['a-tocar', 'parado', 'dormente']);
 });
@@ -130,6 +133,75 @@ caso('o que se diz a quem manda, em inglês e curto', () => {
     assert.ok(frase.length <= 64, frase);
     assert.ok(!/[ãõçáéíóú]/i.test(frase), frase);
   }
+});
+
+console.log('\numa linha por aparelho, e nao uma por instalacao');
+caso('sete fantasmas do mesmo iPhone dao UMA linha', () => {
+  // O caso real do Joao a 12/9: uma instalacao por versao, cada uma com o seu
+  // device_id e todas com o nome "iPhone".
+  const fantasmas = [1, 2, 3, 4, 5, 6, 7].map((i) => sessao({
+    deviceId: `iphone-${i}`, deviceKind: 'ios', idadeMs: i * 60 * 60_000,
+  }));
+  const lista = aparelhosDisponiveis(fantasmas, 'pc', AGORA);
+  assert.equal(lista.length, 1);
+  // Fica o mais recente, e diz porque nao da para o comandar.
+  assert.equal(lista[0].deviceId, 'iphone-1');
+  assert.equal(lista[0].motivo, motivoDeNaoAlcancar('ios'));
+});
+
+caso('com o verdadeiro acordado, os fantasmas desaparecem', () => {
+  const lista = aparelhosDisponiveis([
+    sessao({ deviceId: 'velho-a', deviceKind: 'ios', idadeMs: 3 * 60 * 60_000 }),
+    sessao({ deviceId: 'velho-b', deviceKind: 'ios', idadeMs: 20 * 60_000 }),
+    sessao({ deviceId: 'agora', deviceKind: 'ios', idadeMs: 3_000, isPlaying: true }),
+  ], 'pc', AGORA);
+  assert.equal(lista.length, 1);
+  assert.equal(lista[0].deviceId, 'agora');
+  assert.ok(lista[0].aTocar);
+});
+
+caso('dois aparelhos DIFERENTES continuam a ser dois', () => {
+  const lista = aparelhosDisponiveis([
+    sessao({ deviceId: 'pc-casa', deviceKind: 'desktop', deviceName: 'PC', idadeMs: 4_000 }),
+    sessao({ deviceId: 'telemovel', deviceKind: 'ios', idadeMs: 4_000 }),
+  ], 'outro', AGORA);
+  assert.equal(lista.length, 2);
+});
+
+caso('dois com o mesmo nome, ambos acordados, ficam ambos', () => {
+  // Nao se colapsa o que esta mesmo la: um deles responde a ordem.
+  const lista = aparelhosDisponiveis([
+    sessao({ deviceId: 'um', deviceKind: 'ios', idadeMs: 4_000 }),
+    sessao({ deviceId: 'dois', deviceKind: 'ios', idadeMs: 9_000 }),
+  ], 'pc', AGORA);
+  assert.equal(lista.length, 2);
+});
+
+caso('um aparelho que nunca mais abriu a app sai da lista', () => {
+  const velho = sessao({ deviceId: 'antigo', deviceKind: 'ios', idadeMs: ESQUECER_APARELHO_MS + 60_000 });
+  assert.equal(aparelhosDisponiveis([velho], 'pc', AGORA).length, 0);
+  const quase = sessao({ deviceId: 'antigo', deviceKind: 'ios', idadeMs: ESQUECER_APARELHO_MS - 60_000 });
+  assert.equal(aparelhosDisponiveis([quase], 'pc', AGORA).length, 1);
+});
+
+console.log('\nabrir a app nao pode por musica a tocar');
+caso('no arranque so passa o que nao arranca som', () => {
+  assert.ok(!podeExecutarNoArranque('assumir'));
+  assert.ok(!podeExecutarNoArranque('tocar-pausa'));
+  assert.ok(!podeExecutarNoArranque('seguinte'));
+  assert.ok(!podeExecutarNoArranque('anterior'));
+  assert.ok(podeExecutarNoArranque('pausar'));
+});
+
+caso('um assumir que ficou pendente NAO e executado ao abrir a app', () => {
+  // O caso real: mandado do PC com o iPhone fechado. Fresco pelo relogio (que
+  // e o que nao se pode usar para decidir isto) e para este aparelho.
+  const pedido: Pedido = {
+    id: 'p1', deAparelho: 'pc', paraAparelho: 'iphone', tipo: 'assumir',
+    criadoEm: AGORA - 5_000, estado: 'pendente', detalhe: null,
+  };
+  assert.ok(devoExecutar(pedido, 'iphone', AGORA), 'com a app aberta, executa-se');
+  assert.ok(!devoExecutar(pedido, 'iphone', AGORA, true), 'no arranque, nao');
 });
 
 if (falhas) {

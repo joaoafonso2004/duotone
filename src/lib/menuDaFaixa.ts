@@ -116,12 +116,24 @@ export interface AcaoDoMenu {
   indisponivel: string | null;
 }
 
+/**
+ * O menu do LEITOR e curto de proposito.
+ *
+ * Ali dentro so ficam as tres coisas que se fazem a uma musica enquanto ela
+ * toca: guardar, por numa playlist, partilhar. O resto saiu a pedido do Joao
+ * (12/9) e nenhuma delas fica sem porta: o nome do artista no proprio leitor
+ * ja abre a pagina dele, e o download e as recomendacoes vivem nos menus das
+ * listas, que e de onde se trata da biblioteca. Um menu de dez linhas por cima
+ * da capa e uma lista para ler, e ninguem esta ali para ler.
+ */
 function aplicaSe(id: IdDaAcao, c: ContextoDoMenu): boolean {
   switch (id) {
     case 'tocar-agora': return c.onde !== 'leitor';
     case 'tocar-a-seguir':
     case 'por-na-fila': return c.onde === 'lista';
-    case 'descarregar': return c.plataforma === 'ios' && c.podeDescarregar;
+    case 'ver-artista':
+    case 'recomendacoes': return c.onde !== 'leitor';
+    case 'descarregar': return c.plataforma === 'ios' && c.podeDescarregar && c.onde !== 'leitor';
     case 'tirar-da-playlist': return c.onde === 'lista' && !!c.playlist;
     case 'tirar-da-fila': return c.onde === 'fila' && !!c.fila;
     default: return true;

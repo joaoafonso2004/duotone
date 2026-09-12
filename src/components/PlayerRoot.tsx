@@ -1,5 +1,4 @@
 import { CapaReactiva } from './CapaReactiva';
-import { EscolhaDoDiaJaFeita, escolherDoDia, lerEscolhasDoDia } from '../api/escolhaDoDia';
 import { ModoCarro } from './ModoCarro';
 import { useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
@@ -54,7 +53,7 @@ import { QueueSheet } from './QueueSheet';
 import { PlayerControlRow } from './PlayerControlRow';
 import { accoesDoMenu, PlayerActionsSheet, type PlayerAction } from './PlayerActionsSheet';
 import { mandarComando, useAparelhos } from '../lib/connectSync';
-import { avisoDoPedido } from '../lib/duotoneConnect';
+import { avisoDoPedido, type TipoDePedido } from '../lib/duotoneConnect';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { menuDaFaixa, MOTIVOS, type IdDaAcao } from '../lib/menuDaFaixa';
 import { alternarDownload, estaDescarregada, podeDescarregar } from '../lib/descarregarFaixa';
@@ -65,7 +64,7 @@ import { EstrelaInteligente } from './BrilhoInteligente';
 import { EqualizadorSheet } from './EqualizadorSheet';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { navigationRef } from '../navigation/RootNavigator';
-import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
+import { endSession, publishSession, publishSessionNow, takeOverSession } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
 import {
   addAudioInterruptionListeners, addAudioOutputRemovedListener, addRemoteCommandListeners,
@@ -204,15 +203,14 @@ export function PlayerRoot() {
 
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
-  const [jaEscolheuHoje, setJaEscolheuHoje] = useState(false);
-  const sleepTimerTimeLeft = usePlayer((st) => st.sleepTimerTimeLeft);
-  const setSleepTimer = usePlayer((st) => st.setSleepTimer);
   const ancoraDasOpcoes = useRef<View>(null);
   const [ancora, setAncora] = useState<Ancora | null>(null);
   /** O menu tem duas páginas: as acções, e as durações do temporizador. */
-  const [paginaDoMenu, setPaginaDoMenu] = useState<'raiz' | 'sono' | 'aparelhos'>('raiz');
+  const [paginaDoMenu, setPaginaDoMenu] = useState<'raiz' | 'aparelhos' | 'comando'>('raiz');
+  // O aparelho cujo comando esta aberto (a terceira pagina do menu).
+  const [aComandar, setAComandar] = useState<string | null>(null);
   // Os outros aparelhos desta conta. Só vai à rede com a página aberta.
-  const { aparelhos, aCarregar: aProcurarAparelhos } = useAparelhos(paginaDoMenu === 'aparelhos');
+  const { aparelhos, sessaoDe, aCarregar: aProcurarAparelhos } = useAparelhos(paginaDoMenu === 'aparelhos');
   // Aqui em cima, antes de qualquer `return`: um hook depois de uma saída
   // antecipada muda a ordem dos hooks entre renderizações, e isso já pôs esta
   // app a não arrancar uma vez. O lint apanhou-o -- foi para isto que entrou.
@@ -222,9 +220,6 @@ export function PlayerRoot() {
   const abrirOpcoes = () => {
     hapticSelection();
     setPaginaDoMenu('raiz');
-    if (!offline) {
-      void lerEscolhasDoDia().then((e) => setJaEscolheuHoje(e.some((x) => x.souEu)));
-    }
     // Medido no ECRÃ, que é onde o menu se vai colocar. Se a medição falhar
     // não se abre nada: um menu no canto superior esquerdo, longe do botão
     // que se tocou, seria pior do que menu nenhum.
@@ -899,35 +894,13 @@ export function PlayerRoot() {
     } },
     /* Duotone Connect: mandar isto para outro aparelho teu. Fica aqui, ao pé
        do modo carro, porque as duas são a mesma pergunta -- "onde é que isto
-       vai tocar?" -- e não uma ação sobre a faixa. */
+       vai tocar?" -- e não uma ação sobre a faixa.
+
+       Estas duas são as únicas do grupo. A música do dia e o temporizador
+       saíram a pedido do João (12/9) -- o temporizador continua nas
+       Definições. */
     { label: 'Play on another device', icon: 'desktop-outline',
       onPress: () => setPaginaDoMenu('aparelhos') },
-    /* Uma musica por dia. Aqui e nao numa folha propria porque escolher e um
-       gesto sobre o que se esta a OUVIR -- e o que se esta a ouvir e isto. */
-    { label: jaEscolheuHoje ? 'Today’s pick is set' : 'Make this today’s pick', icon: jaEscolheuHoje ? 'checkmark-circle' : 'today-outline',
-      disabled: jaEscolheuHoje, motivo: !jaEscolheuHoje && offline ? MOTIVOS.semRede : null, onPress: () => {
-      const faixa = current;
-      if (!faixa) return;
-      fecharEEntao(() => {
-        void escolherDoDia(faixa)
-          .then(() => { setJaEscolheuHoje(true); hapticNotification(); })
-          .catch((e) => {
-            if (e instanceof EscolhaDoDiaJaFeita) {
-              setJaEscolheuHoje(true);
-              Alert.alert('Already picked', 'Your song for today is already set.');
-              return;
-            }
-            Alert.alert('Could not pick', 'Please try again in a moment.');
-          });
-      });
-    } },
-    // O `sleepTimerTimeLeft` está em SEGUNDOS -- o store guarda `restanteS`.
-    // Dividi-o por 60000 como se fossem milissegundos, e quinze minutos
-    // apareciam como "1 min": 900 sobre 60000 dá 0,015, que arredonda para um.
-    { label: sleepTimerTimeLeft > 0
-        ? `Sleep timer · ${Math.floor(sleepTimerTimeLeft / 60)}:${String(sleepTimerTimeLeft % 60).padStart(2, '0')}`
-        : 'Sleep timer',
-      icon: 'moon-outline', onPress: () => setPaginaDoMenu('sono') },
   ];
 
   /**
@@ -945,6 +918,15 @@ export function PlayerRoot() {
         nota: a.aTocar ? 'Playing now' : null,
         onPress: () => {
           const alvo = a;
+          // O que esta a TOCAR abre o comando; o resto recebe a musica. Mandar
+          // "assumir" a um aparelho que ja esta a tocar era passar-lhe a fila
+          // por cima do que ele tinha -- e o que se quer dali e mexer nele.
+          if (alvo.aTocar) {
+            hapticSelection();
+            setAComandar(alvo.deviceId);
+            setPaginaDoMenu('comando');
+            return;
+          }
           fecharEEntao(() => {
             void mandarComando(alvo.deviceId, 'assumir').then((estado) => {
               if (estado === 'feito') { hapticNotification(); return; }
@@ -961,17 +943,44 @@ export function PlayerRoot() {
         onPress: () => {},
       }];
 
-  /** A segunda página. Fica no mesmo menu em vez de abrir outro: o
-   *  temporizador é uma escolha DENTRO das opções, não um destino novo. */
-  const duracoesDoSono: PlayerAction[] = [
-    { label: 'Off', icon: 'close-circle-outline',
-      onPress: () => { setSleepTimer(0); fecharMenu(); } },
-    ...[15, 30, 45, 60].map((min) => ({
-      label: `${min} minutes`,
-      icon: 'moon-outline' as const,
-      onPress: () => { setSleepTimer(min); fecharMenu(); },
-    })),
-  ];
+  /**
+   * O comando do outro aparelho, como terceira pagina do mesmo menu.
+   *
+   * Esta aqui, e nao so no banner do "continuar aqui", porque o banner
+   * dispensa-se -- e depois de dispensado ficava 15 minutos calado, sem porta
+   * nenhuma para voltar. Daqui chega-se sempre, pelo mesmo caminho: as "...",
+   * "Play on another device", o aparelho que esta a tocar.
+   *
+   * Nao se finge nada localmente: o que se ve vem da sessao dele, que chega
+   * pelo Realtime. Uma ordem que nao chegue diz-se, em vez de se assumir.
+   */
+  const comandoDoMenu: PlayerAction[] = (() => {
+    const alvo = aparelhos.find((a) => a.deviceId === aComandar);
+    const sessao = aComandar ? sessaoDe(aComandar) : null;
+    if (!alvo || !sessao) {
+      return [{
+        label: 'That device is gone', icon: 'ellipse-outline', disabled: true,
+        motivo: 'Open Duotone there and try again', onPress: () => {},
+      }];
+    }
+    const ordenar = (tipo: TipoDePedido) => {
+      void mandarComando(alvo.deviceId, tipo).then((estado) => {
+        if (estado === 'feito') { hapticSelection(); return; }
+        Alert.alert('Duotone Connect', avisoDoPedido(estado, alvo.nome, tipo));
+      });
+    };
+    return [
+      { label: tituloDaFaixa(sessao.track), icon: 'musical-notes-outline', disabled: true,
+        nota: `${displayArtist(sessao.track)} \u00b7 on ${alvo.nome}`, onPress: () => {} },
+      { label: 'Previous', icon: 'play-skip-back-outline', inicioDeGrupo: true,
+        onPress: () => ordenar('anterior') },
+      { label: sessao.isPlaying ? 'Pause' : 'Play', icon: sessao.isPlaying ? 'pause-outline' : 'play-outline',
+        onPress: () => ordenar('tocar-pausa') },
+      { label: 'Next', icon: 'play-skip-forward-outline', onPress: () => ordenar('seguinte') },
+      { label: 'Continue here', icon: 'phone-portrait-outline', inicioDeGrupo: true,
+        onPress: () => { fecharEEntao(() => { void takeOverSession(sessao); }); } },
+    ];
+  })();
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -1656,7 +1665,7 @@ export function PlayerRoot() {
         ancora={ancora}
         aoFechar={() => setOptionsVisible(false)}
         aoFechado={() => { const fn = depoisDeFechar.current; depoisDeFechar.current = null; fn?.(); }}
-        accoes={paginaDoMenu === 'sono' ? duracoesDoSono : paginaDoMenu === 'aparelhos' ? aparelhosDoMenu : accoesDaFaixa}
+        accoes={paginaDoMenu === 'comando' ? comandoDoMenu : paginaDoMenu === 'aparelhos' ? aparelhosDoMenu : accoesDaFaixa}
       />
       <AddToPlaylistSheet
         visible={playlistOpen}

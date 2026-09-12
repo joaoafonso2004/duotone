@@ -86,19 +86,44 @@ export function motivoDeNaoAlcancar(tipo: DeviceKind): string {
 }
 
 /**
+ * Passado isto, um aparelho que nunca mais abriu a app sai da lista.
+ *
+ * Uma semana é muito mais do que a frescura de uma sessão (3 min a tocar,
+ * 30 min em pausa): isto não é sobre estar à escuta, é sobre ainda ser um
+ * aparelho teu. O servidor só apaga a linha aos 30 dias, e até lá ela
+ * aparecia na lista a dizer "Open Duotone on your iPhone" para sempre.
+ */
+export const ESQUECER_APARELHO_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
  * Os aparelhos a que vale a pena oferecer "Play on…", pela ordem em que fazem
  * sentido: primeiro o que está a tocar, depois o mais recente.
  *
  * Os que não estão acordados ENTRAM na lista, apagados e com o motivo à vista
  * -- é a regra dos menus: o que não se pode fazer agora diz porquê, em vez de
  * desaparecer e deixar a pessoa à procura.
+ *
+ * ## Uma linha por APARELHO, e não uma por instalação
+ *
+ * O `device:id` vive no AsyncStorage e morre com a app: um iPhone reinstalado
+ * é um aparelho novo para a base de dados. Para quem sideloada uma build por
+ * versão, isso enche a lista de si próprio -- a 12/9 o João tinha OITO linhas
+ * "iPhone", uma por instalação, e sete delas eram fantasmas que nunca mais vão
+ * responder a nada.
+ *
+ * Por isso agrupa-se por TIPO + NOME, que é exatamente o que a pessoa vê na
+ * lista -- duas linhas iguais no ecrã são indistinguíveis, escolher entre elas
+ * não é uma escolha. Dentro de um grupo: os acordados ficam todos (esses são
+ * reais e alcançáveis), e os adormecidos colapsam no mais recente -- ou
+ * desaparecem, se houver um acordado com o mesmo nome, porque aí são sombras
+ * do que está mesmo ali.
  */
 export function aparelhosDisponiveis(
   sessoes: readonly RemoteSession[],
   meuAparelho: string,
   agora: number = Date.now(),
 ): AparelhoDisponivel[] {
-  return sessoes
+  const vistos = sessoes
     .filter((s) => s.deviceId && s.deviceId !== meuAparelho)
     .map((s) => {
       const acordado = estaAcordado(s, agora);
@@ -112,6 +137,26 @@ export function aparelhosDisponiveis(
         frescura: freshnessMs(s, agora),
       };
     })
+    .filter((a) => a.frescura <= ESQUECER_APARELHO_MS);
+
+  // Um grupo por tipo+nome: é o que se vê na linha, e o que a pessoa usa para
+  // os distinguir.
+  const porNome = new Map<string, typeof vistos>();
+  for (const a of vistos) {
+    const chave = `${a.tipo}:${a.nome.trim().toLowerCase()}`;
+    const grupo = porNome.get(chave);
+    if (grupo) grupo.push(a); else porNome.set(chave, [a]);
+  }
+
+  const escolhidos: typeof vistos = [];
+  for (const grupo of porNome.values()) {
+    const acordados = grupo.filter((a) => a.acordado);
+    if (acordados.length) { escolhidos.push(...acordados); continue; }
+    // Nenhum acordado: fica o mais recente, a dizer porquê.
+    escolhidos.push(grupo.reduce((a, b) => (b.frescura < a.frescura ? b : a)));
+  }
+
+  return escolhidos
     .sort((a, b) => {
       if (a.acordado !== b.acordado) return a.acordado ? -1 : 1;
       if (a.aTocar !== b.aTocar) return a.aTocar ? -1 : 1;
@@ -127,6 +172,29 @@ export function aparelhoQueToca(
   agora: number = Date.now(),
 ): AparelhoDisponivel | null {
   return aparelhosDisponiveis(sessoes, meuAparelho, agora).find((a) => a.aTocar) ?? null;
+}
+
+/**
+ * Esta ordem pode ser executada no PRIMEIRO varrimento depois de a app abrir?
+ *
+ * Só se não puser música a tocar. O varrimento de arranque existe para apanhar
+ * o que foi pedido enquanto a app arrancava, mas apanha também o que ficou
+ * pendente de há bocado -- e a 12/9 era isso que fazia a app do João começar a
+ * tocar sozinha ao abrir: um "assumir" mandado do PC com o iPhone fechado
+ * ficava à espera e disparava na abertura seguinte.
+ *
+ * A validade de 30 s não chega para travar isso, e não chega por uma razão de
+ * fundo: compara o `criado_em` do SERVIDOR com o relógio DESTE aparelho, que é
+ * a comparação que o handoff já aprendeu a não fazer (o PC do João andava
+ * 171 s atrasado). Com o relógio atrás, uma ordem velha parece fresca.
+ *
+ * O caminho vivo não muda: o Realtime está ligado desde que a app monta, por
+ * isso uma ordem mandada com a app aberta chega e executa-se na mesma. Quem
+ * mandou vê "could not do that" em vez de ficar à espera -- e a resposta é
+ * verdade: a app não estava aberta.
+ */
+export function podeExecutarNoArranque(tipo: TipoDePedido): boolean {
+  return tipo === 'pausar';
 }
 
 export function pedidoExpirou(pedido: Pick<Pedido, 'criadoEm'>, agora: number = Date.now()): boolean {
@@ -145,8 +213,15 @@ export function estadoDoPedido(pedido: Pedido, agora: number = Date.now()): Esta
  * fica escrita na tabela, e sem o teto de validade um telemóvel que acorda
  * depois de uma hora começava a saltar faixas sozinho.
  */
-export function devoExecutar(pedido: Pedido, meuAparelho: string, agora: number = Date.now()): boolean {
-  return pedido.paraAparelho === meuAparelho && estadoDoPedido(pedido, agora) === 'pendente';
+export function devoExecutar(
+  pedido: Pedido,
+  meuAparelho: string,
+  agora: number = Date.now(),
+  noArranque = false,
+): boolean {
+  if (pedido.paraAparelho !== meuAparelho) return false;
+  if (estadoDoPedido(pedido, agora) !== 'pendente') return false;
+  return noArranque ? podeExecutarNoArranque(pedido.tipo) : true;
 }
 
 /** O que se diz a quem mandou, enquanto espera e no fim. */
