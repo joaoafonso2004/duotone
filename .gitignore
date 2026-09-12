@@ -50,3 +50,6 @@ docs/motion-docs.db
 # Videos e imagens de referencia largados na raiz (ex.: gravacoes do telemovel).
 IMG_*.mov
 IMG_*.MOV
+# O gerador do portal importa o da abertura para partilhar a geometria do logo,
+# e o Python deixa aqui o cache do modulo.
+scripts/__pycache__/
