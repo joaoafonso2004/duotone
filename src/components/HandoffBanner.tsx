@@ -1,12 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import React from 'react';
+import React, { useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
 import { deviceLabel, resumoDaFila } from '../lib/handoff';
+import { mandarComando } from '../lib/connectSync';
+import { avisoDoPedido, estaAcordado, type TipoDePedido } from '../lib/duotoneConnect';
 import { useHandoffSession } from '../lib/sessionSync';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
@@ -53,6 +55,8 @@ export function HandoffBanner() {
   const aTocarAqui = usePlayer((s) => s.isPlaying && !!s.current);
   const expanded = usePlayer((s) => s.expanded);
   const { session, positionMs, dismiss, adopt } = useHandoffSession();
+  const [aviso, setAviso] = useState('');
+  const [aMandar, setAMandar] = useState(false);
 
   // Com o Now Playing aberto o banner ficaria por baixo do overlay.
   if (!session || expanded) return null;
@@ -65,6 +69,23 @@ export function HandoffBanner() {
     aTocarAqui ? 'Replaces what’s playing here' : '',
     proxima ? `Next: ${tituloDaFaixa(proxima)}${depois ? ` · ${depois} more` : ''}` : '',
   ].filter(Boolean).join(' · ');
+
+  // Duotone Connect: comandar o aparelho que está a tocar, daqui. Só quando
+  // ele está mesmo à escuta -- um iPhone com a app fechada não recebe nada.
+  const comandavel = estaAcordado(session);
+
+  const comandar = (tipo: TipoDePedido) => {
+    hapticSelection();
+    setAMandar(true);
+    void mandarComando(session.deviceId, tipo).then((estado) => {
+      setAMandar(false);
+      // Correr bem vê-se no próprio banner, que muda pelo Realtime. Só se
+      // escreve alguma coisa quando corre mal.
+      if (estado === 'feito') { setAviso(''); return; }
+      setAviso(avisoDoPedido(estado, deviceLabel(session), tipo));
+      setTimeout(() => setAviso(''), 5000);
+    });
+  };
 
   const bottom =
     TAB_BAR_BASE + insets.bottom + 8 + (current ? MINI_PLAYER_HEIGHT + 10 : 0);
@@ -139,6 +160,32 @@ export function HandoffBanner() {
         </Pressable>
       </Pressable>
 
+      {/* Comandar à distância, numa linha própria: no cartão de cima não cabe
+          sem apertar o nome da música, e é ele que diz o que está a tocar. */}
+      {comandavel ? (
+        <View style={styles.remoto}>
+          {aviso ? (
+            <Text numberOfLines={1} style={[styles.aSeguir, { flex: 1 }]}>{aviso}</Text>
+          ) : (
+            <Text numberOfLines={1} style={[styles.aSeguir, { flex: 1 }]}>
+              Control {deviceLabel(session)} from here
+            </Text>
+          )}
+          <Pressable hitSlop={8} disabled={aMandar} accessibilityLabel={`Previous on ${deviceLabel(session)}`}
+            onPress={() => comandar('anterior')} style={styles.botaoRemoto}>
+            <Ionicons name="play-skip-back" size={15} color={colors.textSecondary} />
+          </Pressable>
+          <Pressable hitSlop={8} disabled={aMandar} accessibilityLabel={`${session.isPlaying ? 'Pause' : 'Play'} on ${deviceLabel(session)}`}
+            onPress={() => comandar('tocar-pausa')} style={styles.botaoRemoto}>
+            <Ionicons name={session.isPlaying ? 'pause' : 'play'} size={16} color={colors.text} />
+          </Pressable>
+          <Pressable hitSlop={8} disabled={aMandar} accessibilityLabel={`Next on ${deviceLabel(session)}`}
+            onPress={() => comandar('seguinte')} style={styles.botaoRemoto}>
+            <Ionicons name="play-skip-forward" size={15} color={colors.textSecondary} />
+          </Pressable>
+        </View>
+      ) : null}
+
       {/* Barra de progresso projetada — anda sozinha entre batimentos. */}
       <View style={styles.trackLine}>
         <View
@@ -188,6 +235,15 @@ const styles = StyleSheet.create({
   title: { ...type.caption, color: colors.text, fontWeight: '700', marginTop: 1 },
   artist: { fontSize: 11, color: colors.textSecondary },
   aSeguir: { fontSize: 10, color: colors.textTertiary, marginTop: 1 },
+  remoto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 10,
+    paddingBottom: 7,
+    marginTop: -2,
+  },
+  botaoRemoto: { width: 30, height: 26, alignItems: 'center', justifyContent: 'center' },
   cta: {
     flexDirection: 'row',
     alignItems: 'center',

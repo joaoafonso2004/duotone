@@ -39,6 +39,7 @@ test-*.mjs
 !scripts/test-ouvir-juntos.mjs
 !scripts/test-definicoes-com-efeito.mjs
 !scripts/test-higiene-da-biblioteca-sql.mjs
+!scripts/test-duotone-connect-sql.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

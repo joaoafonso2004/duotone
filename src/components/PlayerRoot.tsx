@@ -53,6 +53,8 @@ import {ArtworkLyricsCube} from './ArtworkLyricsCube';
 import { QueueSheet } from './QueueSheet';
 import { PlayerControlRow } from './PlayerControlRow';
 import { accoesDoMenu, PlayerActionsSheet, type PlayerAction } from './PlayerActionsSheet';
+import { mandarComando, useAparelhos } from '../lib/connectSync';
+import { avisoDoPedido } from '../lib/duotoneConnect';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { menuDaFaixa, MOTIVOS, type IdDaAcao } from '../lib/menuDaFaixa';
 import { alternarDownload, estaDescarregada, podeDescarregar } from '../lib/descarregarFaixa';
@@ -208,7 +210,9 @@ export function PlayerRoot() {
   const ancoraDasOpcoes = useRef<View>(null);
   const [ancora, setAncora] = useState<Ancora | null>(null);
   /** O menu tem duas páginas: as acções, e as durações do temporizador. */
-  const [paginaDoMenu, setPaginaDoMenu] = useState<'raiz' | 'sono'>('raiz');
+  const [paginaDoMenu, setPaginaDoMenu] = useState<'raiz' | 'sono' | 'aparelhos'>('raiz');
+  // Os outros aparelhos desta conta. Só vai à rede com a página aberta.
+  const { aparelhos, aCarregar: aProcurarAparelhos } = useAparelhos(paginaDoMenu === 'aparelhos');
   // Aqui em cima, antes de qualquer `return`: um hook depois de uma saída
   // antecipada muda a ordem dos hooks entre renderizações, e isso já pôs esta
   // app a não arrancar uma vez. O lint apanhou-o -- foi para isto que entrou.
@@ -893,6 +897,11 @@ export function PlayerRoot() {
     { label: 'Car mode', icon: 'car-sport-outline', inicioDeGrupo: true, onPress: () => {
       fecharEEntao(() => setModoCarro(true));
     } },
+    /* Duotone Connect: mandar isto para outro aparelho teu. Fica aqui, ao pé
+       do modo carro, porque as duas são a mesma pergunta -- "onde é que isto
+       vai tocar?" -- e não uma ação sobre a faixa. */
+    { label: 'Play on another device', icon: 'desktop-outline',
+      onPress: () => setPaginaDoMenu('aparelhos') },
     /* Uma musica por dia. Aqui e nao numa folha propria porque escolher e um
        gesto sobre o que se esta a OUVIR -- e o que se esta a ouvir e isto. */
     { label: jaEscolheuHoje ? 'Today’s pick is set' : 'Make this today’s pick', icon: jaEscolheuHoje ? 'checkmark-circle' : 'today-outline',
@@ -920,6 +929,37 @@ export function PlayerRoot() {
         : 'Sleep timer',
       icon: 'moon-outline', onPress: () => setPaginaDoMenu('sono') },
   ];
+
+  /**
+   * Os aparelhos, como página do mesmo menu.
+   *
+   * Os que não estão à escuta aparecem na mesma, apagados e a dizer porquê --
+   * a regra dos menus. Um iPhone com a app fechada não recebe ordem nenhuma, e
+   * esconder isso dava um aparelho que desaparecia sem explicação.
+   */
+  const aparelhosDoMenu: PlayerAction[] = aparelhos.length
+    ? aparelhos.map((a) => ({
+        label: a.nome,
+        icon: (a.tipo === 'desktop' ? 'desktop-outline' : 'phone-portrait-outline') as PlayerAction['icon'],
+        motivo: a.motivo,
+        nota: a.aTocar ? 'Playing now' : null,
+        onPress: () => {
+          const alvo = a;
+          fecharEEntao(() => {
+            void mandarComando(alvo.deviceId, 'assumir').then((estado) => {
+              if (estado === 'feito') { hapticNotification(); return; }
+              Alert.alert('Duotone Connect', avisoDoPedido(estado, alvo.nome, 'assumir'));
+            });
+          });
+        },
+      }))
+    : [{
+        label: aProcurarAparelhos ? 'Looking for devices…' : 'No other devices',
+        icon: 'ellipse-outline',
+        motivo: aProcurarAparelhos ? null : 'Open Duotone on your PC and try again',
+        disabled: true,
+        onPress: () => {},
+      }];
 
   /** A segunda página. Fica no mesmo menu em vez de abrir outro: o
    *  temporizador é uma escolha DENTRO das opções, não um destino novo. */
@@ -1616,7 +1656,7 @@ export function PlayerRoot() {
         ancora={ancora}
         aoFechar={() => setOptionsVisible(false)}
         aoFechado={() => { const fn = depoisDeFechar.current; depoisDeFechar.current = null; fn?.(); }}
-        accoes={paginaDoMenu === 'sono' ? duracoesDoSono : accoesDaFaixa}
+        accoes={paginaDoMenu === 'sono' ? duracoesDoSono : paginaDoMenu === 'aparelhos' ? aparelhosDoMenu : accoesDaFaixa}
       />
       <AddToPlaylistSheet
         visible={playlistOpen}

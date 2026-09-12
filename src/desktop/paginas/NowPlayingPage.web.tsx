@@ -11,6 +11,8 @@ import { chaveDaFaixa } from '../../lib/equalizer';
 import { FilaArrastavel } from '../FilaArrastavel.web';
 import { PainelEqualizador } from '../PainelEqualizador.web';
 import { GlitchArtwork } from '../glitch/GlitchArtwork.web';
+import { mandarComando, useAparelhos } from '../../lib/connectSync';
+import { avisoDoPedido } from '../../lib/duotoneConnect';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
 import { Artwork, Button, ContentScroll, Dialog, Empty, IconButton, Page, ui } from '../ui.web';
@@ -21,7 +23,7 @@ import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/
 
 /** A capa mantém o glitch; o gesto revela as letras na face adjacente. */
 export function NowPlayingPage({
-  more, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist, share,
+  more, notify, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist, share,
 }: CommonPageProps & {
   currentIsSaved: boolean;
   toggleSaveCurrent: () => void;
@@ -60,6 +62,10 @@ export function NowPlayingPage({
   // A preferencia e lida uma vez e depois vem por evento, como a opacidade dos
   // paineis: as Definicoes sao outro ecra e este fica montado.
   const [eqAberto, setEqAberto] = useState(false);
+  // Duotone Connect: mandar o que toca aqui para outro aparelho da conta.
+  const [aparelhosAberto, setAparelhosAberto] = useState(false);
+  const [aMandar, setAMandar] = useState<string | null>(null);
+  const { aparelhos, aCarregar: aProcurarAparelhos } = useAparelhos(aparelhosAberto);
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
   const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
   // O realce do nome do artista. Vive aqui e não no `style` do `Pressable`
@@ -161,6 +167,11 @@ export function NowPlayingPage({
                 label="Share this track"
                 onPress={() => share({ itemType: 'track', item: track, name: track.title })}
               />
+              <IconButton
+                name="desktop-outline"
+                label="Play on another device"
+                onPress={() => setAparelhosAberto(true)}
+              />
               <View style={styles.npAccoesDivisor} />
               <IconButton
                 name="options-outline"
@@ -199,6 +210,51 @@ export function NowPlayingPage({
           </View>
         </View>
       </ContentScroll>
+      {/* Os outros aparelhos desta conta. Os que não estão à escuta aparecem
+          na mesma, apagados e a dizer porquê -- a regra dos menus. */}
+      <Dialog open={aparelhosAberto} title="Play on another device" onClose={() => { if (!aMandar) setAparelhosAberto(false); }}>
+        {aparelhos.length ? (
+          <View style={{ gap: 6 }}>
+            {aparelhos.map((a) => (
+              <Pressable
+                key={a.deviceId}
+                disabled={!a.acordado || !!aMandar}
+                accessibilityState={{ disabled: !a.acordado }}
+                onPress={() => {
+                  setAMandar(a.deviceId);
+                  void mandarComando(a.deviceId, 'assumir').then((estado) => {
+                    setAMandar(null);
+                    notify(avisoDoPedido(estado, a.nome, 'assumir'));
+                    if (estado === 'feito') setAparelhosAberto(false);
+                  });
+                }}
+                style={({ hovered }: any) => [styles.destination, hovered && a.acordado && styles.settingHover, !a.acordado && ({ cursor: 'default' } as any)]}
+              >
+                <Ionicons
+                  name={a.tipo === 'desktop' ? 'desktop-outline' : 'phone-portrait-outline'}
+                  size={18}
+                  color={COR.texto}
+                  style={{ opacity: a.acordado ? 1 : 0.4 }}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.destinationText, { flex: 0 }, !a.acordado && { opacity: 0.4 }]}>{a.nome}</Text>
+                  {a.motivo || a.aTocar ? (
+                    <Text style={{ color: COR.textoFraco, fontSize: 11, marginTop: 2 }}>
+                      {aMandar === a.deviceId ? 'Sending…' : a.motivo ?? 'Playing now'}
+                    </Text>
+                  ) : null}
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <Empty
+            icon="desktop-outline"
+            title={aProcurarAparelhos ? 'Looking for devices…' : 'No other devices'}
+            body="Open Duotone on your iPhone or another PC with the same account, and it shows up here."
+          />
+        )}
+      </Dialog>
       <Dialog open={eqAberto} title="Equaliser" onClose={() => setEqAberto(false)} width={560}>
         <PainelEqualizador
           ganhos={eqGanhos}

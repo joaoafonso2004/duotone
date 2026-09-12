@@ -144,8 +144,11 @@ o que o iPhone estava a tocar. Desde a 2.6.5 é ao vivo e com a hora certa.
   suspende a app em segundo plano, e isso não se contorna (está no CLAUDE.md).
   Nesse caso o PC diz "Open Duotone on your iPhone".
 - **B — Comando à distância.** Enquanto o PC toca, o iPhone mostra "Playing on
-  PC" com tocar/pausa, seguinte, anterior e volume. Funciona porque o PC está
-  sempre acordado com a app aberta (ou na bandeja, se arranca com o Windows).
+  PC" com tocar/pausa, seguinte e anterior. Funciona porque o PC está sempre
+  acordado com a app aberta (ou na bandeja, se arranca com o Windows).
+  **O volume ficou de fora** (decisão do João, 12/9): a sessão não publica o
+  volume do outro aparelho, e um cursor a mostrar um valor inventado era pior
+  do que não existir.
 - **C — AirPlay.** Um botão no leitor do iPhone para mandar o som para colunas
   AirPlay, Apple TV e TVs com AirPlay 2.
 

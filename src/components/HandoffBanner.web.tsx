@@ -1,8 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { deviceLabel, resumoDaFila } from '../lib/handoff';
+import { mandarComando } from '../lib/connectSync';
+import { avisoDoPedido, estaAcordado, type TipoDePedido } from '../lib/duotoneConnect';
 import { useHandoffSession } from '../lib/sessionSync';
 import { desktop } from '../desktop/ui.web';
 import { usePlayer } from '../state/player';
@@ -24,8 +26,25 @@ export function HandoffBanner() {
   const theme = useTheme((s) => s.theme);
   const aTocarAqui = usePlayer((s) => s.isPlaying && !!s.current);
   const { session, positionMs, dismiss, adopt } = useHandoffSession();
+  // Duotone Connect: comandar o outro aparelho sem sair daqui. Só aparece se
+  // ele estiver mesmo à escuta -- ver `estaAcordado`.
+  const [aviso, setAviso] = useState('');
+  const [aMandar, setAMandar] = useState(false);
 
   if (!session) return null;
+
+  const comandavel = estaAcordado(session);
+  const comandar = (tipo: TipoDePedido) => {
+    setAMandar(true);
+    void mandarComando(session.deviceId, tipo).then((estado) => {
+      setAMandar(false);
+      // Só se diz alguma coisa quando corre mal: quando corre bem, o próprio
+      // banner muda (a faixa, a pausa) e isso é a confirmação.
+      if (estado === 'feito') { setAviso(''); return; }
+      setAviso(avisoDoPedido(estado, deviceLabel(session), tipo));
+      setTimeout(() => setAviso(''), 5000);
+    });
+  };
 
   // Ver o HandoffBanner.tsx: a fila do outro aparelho entra por cima da
   // deste, e diz-se isso antes de se carregar.
@@ -75,7 +94,31 @@ export function HandoffBanner() {
             </Text>
           ) : null}
           {aTocarAqui ? <Text numberOfLines={1} style={s.aSeguir}>Replaces what’s playing here</Text> : null}
+          {aviso ? <Text numberOfLines={2} style={[s.aSeguir, { color: desktop.muted }]}>{aviso}</Text> : null}
         </View>
+
+        {/* Comandar à distância. As ordens vão pela tabela de pedidos e o
+            aparelho do outro lado executa-as; o que se vê aqui volta pelo
+            Realtime da sessão, por isso não se finge nada localmente. */}
+        {comandavel ? (
+          <View style={s.remoto}>
+            <P accessibilityLabel={`Previous on ${deviceLabel(session)}`} disabled={aMandar}
+              onPress={() => comandar('anterior')}
+              style={({ hovered }: any) => [s.botaoRemoto, hovered && s.closeHover]}>
+              <Ionicons name="play-skip-back" size={14} color={desktop.muted} />
+            </P>
+            <P accessibilityLabel={`${session.isPlaying ? 'Pause' : 'Play'} on ${deviceLabel(session)}`} disabled={aMandar}
+              onPress={() => comandar('tocar-pausa')}
+              style={({ hovered }: any) => [s.botaoRemoto, hovered && s.closeHover]}>
+              <Ionicons name={session.isPlaying ? 'pause' : 'play'} size={15} color={desktop.text} />
+            </P>
+            <P accessibilityLabel={`Next on ${deviceLabel(session)}`} disabled={aMandar}
+              onPress={() => comandar('seguinte')}
+              style={({ hovered }: any) => [s.botaoRemoto, hovered && s.closeHover]}>
+              <Ionicons name="play-skip-forward" size={14} color={desktop.muted} />
+            </P>
+          </View>
+        ) : null}
 
         <P
           onPress={() => void adopt()}
@@ -141,6 +184,8 @@ const s = StyleSheet.create({
   pressed: { opacity: 0.72 },
   // A cor vem do tema, no sítio de uso.
   ctaText: { fontSize: 12, fontWeight: '700' },
+  remoto: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 2 },
+  botaoRemoto: { width: 28, height: 28, borderRadius: 6, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
   close: { width: 26, height: 26, borderRadius: 6, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
   closeHover: { backgroundColor: desktop.hover },
   trackLine: { height: 2, backgroundColor: 'rgba(255,255,255,.08)' },

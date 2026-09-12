@@ -5,6 +5,7 @@ import { refreshSuggestionPreferences } from './src/state/recomendacoes';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {useLyricsPrefetch} from './src/hooks/useLyricsPrefetch';
+import { useComandosDoAparelho } from './src/lib/connectSync';
 import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { UpdateSheet } from './src/components/UpdateSheet';
@@ -62,6 +63,9 @@ export default function App() {
   // E o widget do ecra inicial fica a par do que a app sabe (so no iOS).
   useEstadoDoWidget();
   useLyricsPrefetch();
+  // As ordens dos outros aparelhos desta conta (Duotone Connect): "passa
+  // para o PC", tocar/pausa, seguinte, volume. Nas duas plataformas.
+  useComandosDoAparelho();
   useEffect(startConnectivity,[]);
   const offline=useConnectivity(s=>s.offline);
   const sleepTimerEndsAt=usePlayer(s=>s.sleepTimerEndsAt);

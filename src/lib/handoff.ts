@@ -84,7 +84,13 @@ export interface RemoteSession {
   ritmo: number;
 }
 
-function freshnessMs(session: RemoteSession, now: number): number {
+/**
+ * Há quanto tempo esta sessão foi escrita. Exportada porque o Connect precisa
+ * dela para outra pergunta: o handoff quer saber se a sessão ainda VALE, e o
+ * Connect se o aparelho está ACORDADO para receber uma ordem -- e um telemóvel
+ * em pausa vale meia hora mas deixa de responder muito antes disso.
+ */
+export function freshnessMs(session: RemoteSession, now: number = Date.now()): number {
   // Com a idade do servidor, o relógio deste aparelho só entra por diferença
   // (quanto passou desde a leitura), e nenhum desvio entre os dois relógios
   // chega à conta.

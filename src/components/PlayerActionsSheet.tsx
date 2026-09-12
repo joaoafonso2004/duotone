@@ -19,6 +19,12 @@ export type PlayerAction = {
    */
   motivo?: string | null;
   /** Começa um grupo: um traço por cima separa-o do anterior. */
+  /**
+   * Uma segunda linha que NAO apaga a acao -- ao contrario do `motivo`, que
+   * quer dizer "nao da agora, e e por isto". Serve para dizer o estado de uma
+   * linha em que se PODE carregar ("Playing now", num aparelho do Connect).
+   */
+  nota?: string | null;
   inicioDeGrupo?: boolean;
 };
 
@@ -46,7 +52,7 @@ export function PlayerActionsContent({ title, actions }: { title: string; action
               key={action.label}
               acende
               accessibilityRole="button"
-              accessibilityLabel={action.motivo ? `${action.label}. ${action.motivo}` : action.label}
+              accessibilityLabel={action.motivo || action.nota ? `${action.label}. ${action.motivo || action.nota}` : action.label}
               accessibilityState={{ disabled: apagada }}
               disabled={apagada}
               onPress={() => { hapticSelection(); action.onPress(); }}
@@ -55,7 +61,9 @@ export function PlayerActionsContent({ title, actions }: { title: string; action
               <Ionicons name={action.icon} size={21} color={action.destructive ? colors.danger : colors.textSecondary} style={apagada && styles.disabled} />
               <View style={styles.label}>
                 <Text style={[type.body, action.destructive && { color: colors.danger }, apagada && styles.disabled]}>{action.label}</Text>
-                {action.motivo ? <Text style={[type.caption, styles.motivo]}>{action.motivo}</Text> : null}
+                {action.motivo || action.nota
+                  ? <Text style={[type.caption, styles.motivo]}>{action.motivo || action.nota}</Text>
+                  : null}
               </View>
             </Toque>
           );
