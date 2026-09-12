@@ -60,7 +60,7 @@ export const PORTAL = {
    * mesmo quadrado, senão a troca delas na saída vê-se).
    */
   larguraDoBuraco: 0.2,
-  alturaDoBuraco: 0.3681,
+  alturaDoBuraco: 0.3667,
   /** Quanto dura a ida ao ecrã. */
   zoomMs: 400,
   /**

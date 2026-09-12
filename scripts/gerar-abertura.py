@@ -41,9 +41,16 @@ RAIZ = Path(__file__).resolve().parent.parent
 LOGO = RAIZ / "logo_windows.png"
 SAIDA = RAIZ / "assets" / "abertura.webp"
 
-FPS = 60
-DURACAO = 1.0              # a animacao; a saida (fade) e feita pela app
-CANVAS = 720               # 240 pt a 3x no iPhone; o logo ocupa 2/3
+# 40 e nao 60, e 540 e nao 720, por causa do CUSTO DE DESCODIFICACAO no iPhone.
+# Cada fotograma e uma tela inteira: a 720 sao 1,98 MB para descodificar em
+# 16,7 ms (8,4 ms por MB) enquanto a thread de JS monta a app -- e a 12/9 a
+# animacao aparecia as pancadas no aparelho. A 540 e 40 fps sao 1,11 MB em
+# 25 ms: 22,5 ms por MB, 2,7x a folga. O logo fica com 1,31x de ampliacao num
+# iPhone de 393 pt (a tela mostra-se a 236 pt, 708 px a 3x), o que num gradiente
+# de metal nao se ve -- ao contrario do tremido.
+FPS = 40
+DURACAO = 1.0              # a animacao; a saida (o portal) e feita pela app
+CANVAS = 540               # o logo ocupa 2/3 dela (o portal copia esta conta)
 QUALIDADE = 80             # 47 dB depois de compor sobre o fundo: igual a vista
 SEGURAR_FIM_S = 8          # quanto tempo o ultimo fotograma fica no ficheiro
 BG = np.array([10, 10, 15], np.float64) / 255.0      # #0A0A0F, so para as previas

@@ -5,6 +5,7 @@ import {
   capaDoPerfil, capasDeFaixas, capasDePlaylists, imagensAAquecer,
 } from '../lib/aquecerImagens';
 import { perfilEmCache } from '../lib/cachePerfil';
+import { useAbertura } from '../state/abertura';
 import { useConnectivity } from '../state/connectivity';
 import { useRecomendacoes } from '../state/recomendacoes';
 
@@ -22,6 +23,16 @@ import { useRecomendacoes } from '../state/recomendacoes';
  *
  * Sem rede não faz nada, e falhar não diz nada a ninguém: uma capa que não
  * veio agora vem quando o ecrã a mostrar, como vinha antes.
+ *
+ * ## Mas espera que a animação saia da frente
+ *
+ * Pedir 24 capas é 24 idas à rede e 24 descodificações, e a abertura é um WebP
+ * animado que tem de descodificar um fotograma a cada 25 ms no mesmo aparelho.
+ * A 12/9 o João viu a animação às pancadas no iPhone -- e não o zoom da saída,
+ * que corre no driver nativo, longe disto. Esperar pelo `aFrente` não custa
+ * nada ao que isto vem fazer: ninguém chega a um separador antes de a abertura
+ * sair, porque ela tapa o ecrã e engole os toques. Sem abertura (menos
+ * movimento, app lançada em segundo plano) o `aFrente` é falso e pede-se logo.
  */
 
 /** O que já se pediu nesta sessão, para não repetir a cada aterragem. */
@@ -52,12 +63,14 @@ export function esquecerCapasAquecidas(): void {
 
 export function useAquecerCapas(userId: string | undefined): void {
   const offline = useConnectivity((s) => s.offline);
+  // Enquanto a abertura estiver à frente, isto não mexe: ver o cabeçalho.
+  const naAbertura = useAbertura((s) => s.aFrente);
 
   // A Pesquisa. As prateleiras aterram uma a uma (ver o `prontas` da store),
   // por isso subscreve-se em vez de se ler uma vez: quem chega tarde também é
   // aquecida, e o `pedidas` garante que ninguém é pedida duas vezes.
   useEffect(() => {
-    if (!userId || offline) return;
+    if (!userId || offline || naAbertura) return;
     const aquecer = () => {
       const r = useRecomendacoes.getState();
       pedir(imagensAAquecer([
@@ -73,12 +86,12 @@ export function useAquecerCapas(userId: string | undefined): void {
     };
     aquecer();
     return useRecomendacoes.subscribe(aquecer);
-  }, [userId, offline]);
+  }, [userId, offline, naAbertura]);
 
   // O perfil. O `aquecerPerfilProprio` (App.tsx) enche a cache no arranque;
   // isto espera por ela sem a ir buscar outra vez.
   useEffect(() => {
-    if (!userId || offline) return;
+    if (!userId || offline || naAbertura) return;
     let parado = false;
     const tentar = () => {
       if (parado) return true;
@@ -101,5 +114,5 @@ export function useAquecerCapas(userId: string | undefined): void {
       if (tentar() || ++tentativas >= 8) clearInterval(id);
     }, 1_000);
     return () => { parado = true; clearInterval(id); };
-  }, [userId, offline]);
+  }, [userId, offline, naAbertura]);
 }

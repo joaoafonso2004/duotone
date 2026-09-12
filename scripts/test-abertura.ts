@@ -40,7 +40,19 @@ check('é um WebP', b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1'
 check('é animado', (flags & 0x02) !== 0 && duracoes.length > 30, `${duracoes.length} fotogramas`);
 // Sem alfa via-se o quadrado da imagem por cima do fundo da app.
 check('tem transparência', (flags & 0x10) !== 0);
-check('é quadrado de 720', largura === 720 && altura === 720, `${largura}x${altura}`);
+check('é quadrado', largura === altura && largura > 0, `${largura}x${altura}`);
+// O CUSTO POR SEGUNDO, que é o que faz a animação andar às pancadas.
+//
+// Cada fotograma é uma tela inteira, e o iPhone tem de a descodificar dentro
+// da duração do fotograma enquanto a thread de JS monta a app. A 720 e 60 fps
+// eram 1,98 MB em 16,7 ms -- 119 MB/s -- e a 12/9 via-se: a animação tremia e
+// o zoom da saída, que corre no driver nativo, não. A 540 e 40 fps são 44 MB/s.
+// Se alguém regenerar o ficheiro maior ou mais rápido, é aqui que parte.
+const porFotogramaMb = (largura * altura * 4) / (1024 * 1024);
+const msPorFotograma = animacao / Math.max(1, duracoes.length - 1);
+const mbPorSegundo = porFotogramaMb / (msPorFotograma / 1000);
+check('a descodificação cabe no aparelho', mbPorSegundo <= 60,
+  `${mbPorSegundo.toFixed(0)} MB/s (${porFotogramaMb.toFixed(2)} MB a cada ${msPorFotograma.toFixed(0)} ms)`);
 // O `loop` do WebP é o número de voltas; 0 seria para sempre.
 check('toca uma vez', loop === 1, `loop = ${loop}`);
 // O último fotograma muda pela última vez aqui. Tem de ser antes de a app
@@ -50,7 +62,7 @@ check('a animação cabe no tempo da app', animacao <= ABERTURA.animacaoMs, `${a
 check('e não sobra muito tempo parado', animacao >= ABERTURA.animacaoMs - 150, `${animacao} ms`);
 // Se algum leitor ignorasse o loop, o recomeço ficava depois do teto.
 check('o fim fica parado para lá do teto', ultimo >= ABERTURA.tetoMs + ABERTURA.saidaMs, `${ultimo} ms`);
-check('não pesa mais de 1,5 MB', b.length <= 1.5 * 1024 * 1024, `${(b.length / 1024).toFixed(0)} KB`);
+check('não pesa mais de 1 MB', b.length <= 1024 * 1024, `${(b.length / 1024).toFixed(0)} KB`);
 check('a abertura sai antes do teto', ABERTURA.animacaoMs + ABERTURA.seguraMs < ABERTURA.tetoMs);
 
 
@@ -66,7 +78,11 @@ const ehPng = portal.toString('latin1', 1, 4) === 'PNG';
 check('o portal e um PNG', ehPng);
 const larguraPng = ehPng ? portal.readUInt32BE(16) : 0;
 const alturaPng = ehPng ? portal.readUInt32BE(20) : 0;
-check('e quadrado de 720, como o WebP', larguraPng === 720 && alturaPng === 720, `${larguraPng}x${alturaPng}`);
+// A MESMA tela do WebP, e nao um numero escrito aqui: as duas imagens entram
+// no mesmo quadrado na app e a saida troca-as. Quando o portal enchia a tela e
+// o WebP so ocupava 2/3 dela, o logo dava um salto de 1,5x na troca.
+check('esta na mesma tela do WebP', larguraPng === largura && alturaPng === altura,
+  `${larguraPng}x${alturaPng} contra ${largura}x${altura}`);
 check('tem alfa (senao nao ha vazio nenhum)', ehPng && portal[25] === 6, `tipo de cor ${portal[25]}`);
 
 // Quatro formatos: monitor, ultrawide, telemovel ao alto e janela pequena.
