@@ -201,6 +201,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const mount = () => {
       if (disposed || !window.YT?.Player) return;
       player = new window.YT.Player(hostId.current, {
+        // O mesmo player, servido do dominio sem cookies de publicidade. A app
+        // do PC fica horas aberta, e o embed normal ia deixando esse rasto
+        // dentro dela. O `main.cjs` ja procura o frame por
+        // `(youtube|youtube-nocookie).com`, por isso o equalizador e o tom
+        // continuam a chegar la dentro.
+        host: 'https://www.youtube-nocookie.com',
         height: '1',
         width: '1',
         videoId: faixaRef.current.sourceId,

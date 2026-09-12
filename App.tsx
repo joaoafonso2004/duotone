@@ -6,6 +6,7 @@ import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
 import {useLyricsPrefetch} from './src/hooks/useLyricsPrefetch';
 import { useComandosDoAparelho } from './src/lib/connectSync';
+import { esquecerCapasAquecidas, useAquecerCapas } from './src/hooks/useAquecerCapas';
 import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { UpdateSheet } from './src/components/UpdateSheet';
@@ -64,13 +65,17 @@ export default function App() {
   useEstadoDoWidget();
   useLyricsPrefetch();
   // As ordens dos outros aparelhos desta conta (Duotone Connect): "passa
-  // para o PC", tocar/pausa, seguinte, volume. Nas duas plataformas.
+  // para o PC", tocar/pausa, seguinte, anterior. Nas duas plataformas.
   useComandosDoAparelho();
   useEffect(startConnectivity,[]);
   const offline=useConnectivity(s=>s.offline);
   const sleepTimerEndsAt=usePlayer(s=>s.sleepTimerEndsAt);
   const init = useAuth((s) => s.init);
   const userId = useAuth((s) => s.session?.user.id);
+  // As capas da Pesquisa e do perfil, pedidas enquanto a abertura corre: os
+  // dados já vinham no arranque, as imagens é que esperavam pelo primeiro
+  // toque no separador.
+  useAquecerCapas(userId);
   const adjustmentUserId=useAuth(s=>s.session?.user.id??s.offlineUserId);
   const [preferencesReady,setPreferencesReady]=useState(false);
   useEffect(()=>{
@@ -104,6 +109,7 @@ export default function App() {
       pararPresenca(); pararSocial(); pararPrefs(); pararEventos();
       useOuvirJuntos.getState().desligar();
       limparCachePerfil();
+      esquecerCapasAquecidas();
       limparPerfisPublicos();
     };
   }, [userId,offline]);

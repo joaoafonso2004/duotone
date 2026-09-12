@@ -10,7 +10,10 @@ export const colors = {
 
   text: '#F5F5F7',
   textSecondary: 'rgba(245,245,247,0.58)',
-  textTertiary: 'rgba(245,245,247,0.34)',
+  // 34% dava 2,9 de contraste sobre a superficie (medido a 12/9, WCAG), e o
+  // minimo para texto normal e 4,5. A 48% da 4,7 e continua a ser o terceiro
+  // nivel, abaixo do secundario a 58%.
+  textTertiary: 'rgba(245,245,247,0.48)',
 
   accent: '#8B5CF6',
   accentAlt: '#EC4899',

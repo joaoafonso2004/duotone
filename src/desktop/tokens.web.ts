@@ -56,7 +56,13 @@ export const COR = {
   /** Texto, em três níveis. Mais do que três é indecisão. */
   texto: '#E9EAEE',
   textoMedio: '#9DA0AA',
-  textoFraco: '#5A5C66',
+  /**
+   * Medido a 12/9 com a regra WCAG: o `#5A5C66` dava 2,9 sobre o painel --
+   * abaixo do minimo de 4,5 para texto normal, e e nele que estao os tempos
+   * da barra e as legendas. O `#84868F` da 5,1 sobre o painel elevado e 5,6
+   * sobre o fundo, sem deixar de ser o tom mais apagado dos tres.
+   */
+  textoFraco: '#84868F',
   /** O "metal": o gradiente que substitui o roxo como destaque. */
   metalClaro: '#E9EAEE',
   metalEscuro: '#34363E',
