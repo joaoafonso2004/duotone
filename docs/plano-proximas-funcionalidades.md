@@ -1,14 +1,15 @@
 # Plano — as próximas cinco
 
-Proposta de 11/9/2026, a partir do relatório. **A 1 e a 2 estão feitas, por
-testar; o resto não está implementado.**
+Proposta de 11/9/2026, a partir do relatório. **A 1, a 2 e a 3 estão feitas
+(publicadas na 2.7.2); a 3 ainda espera pelo SQL. A 4 e a 5 não estão
+implementadas.**
 Cada secção diz o que já existe, o que muda, onde, e se precisa de SQL.
 
 | # | O quê | Onde | Tamanho | SQL novo | Depende de |
 |---|---|---|---|---|---|
 | 1 | Definições que provam efeito | iPhone + PC | pequeno | não | — |
 | 2 | Higiene da biblioteca | iPhone + PC | médio | sim (3 funções) | — |
-| 3 | Duotone Connect | iPhone + PC | médio | sim (1 tabela) | "continuar aqui" ao vivo |
+| 3 | Duotone Connect ✓ | iPhone + PC | médio | sim (1 tabela) | falta correr o SQL |
 | 4 | Playlists partilhadas | iPhone + PC | grande | sim (2 tabelas, 3 funções) | decisões no fim |
 | 5 | Velocidade partilhada no Jam | iPhone + PC | médio | sim (1 coluna, 1 função, 2 alteradas) | duas contas e uma build do iPhone para testar |
 
@@ -149,17 +150,29 @@ o que o iPhone estava a tocar. Desde a 2.6.5 é ao vivo e com a hora certa.
   **O volume ficou de fora** (decisão do João, 12/9): a sessão não publica o
   volume do outro aparelho, e um cursor a mostrar um valor inventado era pior
   do que não existir.
-- **C — AirPlay.** Um botão no leitor do iPhone para mandar o som para colunas
-  AirPlay, Apple TV e TVs com AirPlay 2.
+**Fica de fora, e porquê.**
 
-**Fica de fora, e porquê.** Consolas precisavam de uma app própria em cada
-uma. O Chromecast pede o SDK do Google, grande para o que dá. O CarPlay pede
-conta paga e autorização da Apple.
+- **AirPlay** (era a parte C): saiu a 12/9 -- o João não tem coluna AirPlay
+  nem Apple TV, e um botão que abre uma lista vazia é pior do que não existir.
+- **CarPlay**: pede o entitlement `com.apple.developer.carplay-audio`, que a
+  Apple atribui a pedido e pressupõe distribuição na App Store -- onde esta
+  app nunca vai. As voltas conhecidas também não servem, e isto foi medido a
+  12/9: o **TrollStore** (que instala com entitlements arbitrários) só vai até
+  ao iOS 17.0, e o primeiro **jailbreak** do iOS 26 só apanha A12/A13 nas
+  versões 26.0 e 26.0.1. O iPhone dele está na última versão. No carro fica o
+  Bluetooth, que já dá título, artista e os botões do volante.
+- **Consolas** precisavam de uma app própria em cada uma; o **Chromecast** pede
+  o SDK do Google, grande para o que dá.
 
 **SQL:** uma tabela `pedidos_ao_aparelho` (quem pede, para que aparelho, o quê,
 quando, estado), com RLS (só a própria conta) e Realtime. Um pedido expira ao
 fim de 30 s: se o PC estiver desligado, o iPhone diz que não chegou, em vez de
 esperar para sempre.
+
+**Estado (12/9).** Feita e publicada na 2.7.2: o "Play on another device" nos
+dois lados, e os comandos (anterior, tocar/pausa, seguinte) no banner do
+"continuar aqui". Falta correr o `supabase/duotone-connect.sql` -- sem ele a
+app não oferece nada disto -- e provar com os dois aparelhos ligados.
 
 ---
 
@@ -294,6 +307,6 @@ o PC noutra chegam) e uma build do iPhone.
 - Lógica pura em `lib/`, testada em Node como o resto (`scripts/test-*.ts`).
 - `npm run typecheck` e `npm test` antes de dar como feito.
 - O que é do PC vê-se aqui, no browser ou no Electron; o que é nativo do
-  iPhone (atalhos, widget, AirPlay) só com uma build.
+  iPhone (widget, módulos nativos) só com uma build.
 - Cada SQL num ficheiro novo em `supabase/`, para correr no SQL Editor, que
   funciona antes de correr sem partir nada — como o do "continuar aqui".
