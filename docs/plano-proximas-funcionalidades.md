@@ -1,4 +1,4 @@
-# Plano — as próximas seis
+# Plano — as próximas cinco
 
 Proposta de 11/9/2026, a partir do relatório. **A 1 e a 2 estão feitas, por
 testar; o resto não está implementado.**
@@ -8,16 +8,18 @@ Cada secção diz o que já existe, o que muda, onde, e se precisa de SQL.
 |---|---|---|---|---|---|
 | 1 | Definições que provam efeito | iPhone + PC | pequeno | não | — |
 | 2 | Higiene da biblioteca | iPhone + PC | médio | sim (3 funções) | — |
-| 3 | Atalhos físicos | iPhone + PC | médio | não | build do iPhone para testar |
-| 4 | Duotone Connect | iPhone + PC | médio | sim (1 tabela) | "continuar aqui" ao vivo |
-| 5 | Playlists partilhadas | iPhone + PC | grande | sim (2 tabelas, 3 funções) | decisões no fim |
-| 6 | Velocidade partilhada no Jam | iPhone + PC | médio | sim (1 coluna, 1 função, 2 alteradas) | duas contas e uma build do iPhone para testar |
+| 3 | Duotone Connect | iPhone + PC | médio | sim (1 tabela) | "continuar aqui" ao vivo |
+| 4 | Playlists partilhadas | iPhone + PC | grande | sim (2 tabelas, 3 funções) | decisões no fim |
+| 5 | Velocidade partilhada no Jam | iPhone + PC | médio | sim (1 coluna, 1 função, 2 alteradas) | duas contas e uma build do iPhone para testar |
+
+**Os atalhos físicos saíram** a 12/9, por decisão do João: eram a 3 (mais
+comandos na app Atalhos, botões no widget, atalhos globais no PC e Stream
+Deck). O cartão "Duotone Dial" saiu também do relatório.
 
 **A ordem é esta de propósito:** as duas primeiras são pequenas e sentem-se já;
-a 3 só se confirma com uma build do iPhone, por isso convém juntá-la a outra
-coisa que também precise de build; a 4 assenta no "continuar aqui" que acabou
-de ficar ao vivo; a 5 é a maior e depende de decisões tuas. A 6 não depende de
-nenhuma, mas também só se prova com uma build do iPhone — junta-se bem à 3.
+a 3 assenta no "continuar aqui", que acabou de ficar ao vivo; a 4 é a maior e
+depende de decisões tuas; a 5 não depende de nenhuma, mas só se prova com duas
+contas e uma build do iPhone.
 
 ---
 
@@ -128,53 +130,7 @@ miniaturas passam o CORS, e um 404 de miniatura chega como 404.
 
 ---
 
-## 3. Atalhos físicos
-
-**Hoje.**
-- iPhone: auscultadores, comandos Bluetooth e ecrã bloqueado fazem tocar,
-  pausa, seguinte e anterior. A Siri e a app Atalhos têm os mesmos quatro
-  comandos (`plugins/ios/AtalhosDoDuotone.swift`). O widget mostra, mas não
-  tem botões.
-- PC: as teclas multimédia fazem tocar, pausa, seguinte e anterior.
-
-**O que muda no iPhone.**
-- **Mais comandos para a app Atalhos** — só funções que já existem: guardar
-  a música que toca, mudar o shuffle, abrir o modo carro, temporizador de 30
-  minutos.
-- **Botão de Ação** (iPhone 15 Pro e seguintes) e **toque nas costas**: usam
-  esses comandos através da app Atalhos, sem mais nada.
-- **Botões no widget** (iOS 17): tocar/pausa, seguinte, guardar.
-- **Botão no Centro de Controlo** (iOS 18): tocar/pausa e guardar.
-
-**O que muda no PC.**
-- **Atalhos globais configuráveis**: guardar, shuffle, volume, abrir o Jam,
-  mostrar a janela. É por eles que um **Stream Deck** entra — a ação "Hotkey"
-  dele carrega nas teclas, sem plugin nenhum.
-- **Botões na miniatura da barra de tarefas** (anterior, tocar/pausa,
-  seguinte), como os leitores do Windows têm.
-
-**Conta de programador da Apple.** Nada disto precisa da conta paga: os
-comandos novos usam o mesmo mecanismo dos quatro que já tens, e os botões do
-widget usam o App Group que o widget já usa. Como saber que conta tens:
-entra em <https://developer.apple.com/account> com o Apple ID que metes no
-Sideloadly. Se aparecer "Apple Developer Program" com data de renovação, é
-paga (99 $/ano); se aparecer "Join the Apple Developer Program", é gratuita.
-Pelo que o `GUIA-IPA-GRATIS.md` descreve — reassinar de 7 em 7 dias — é quase
-de certeza a gratuita.
-
-A paga só faria diferença para: assinaturas de um ano em vez de 7 dias,
-CarPlay (e mesmo assim com autorização da Apple à parte), notificações push e
-TestFlight.
-
-**Nota.** O modo carro automático (ligar ao Bluetooth do carro → modo carro)
-pede o mesmo tipo de módulo nativo; se entrar, é aqui que faz sentido.
-
-**SQL:** nenhum. **Verificação:** o lado do PC testa-se aqui; o do iPhone só
-com uma build.
-
----
-
-## 4. Duotone Connect
+## 3. Duotone Connect
 
 **Hoje.** O "continuar aqui" PUXA: abres o PC e ele oferece-se para continuar
 o que o iPhone estava a tocar. Desde a 2.6.5 é ao vivo e com a hora certa.
@@ -204,7 +160,7 @@ esperar para sempre.
 
 ---
 
-## 5. Playlists partilhadas
+## 4. Playlists partilhadas
 
 ### Como vai funcionar
 
@@ -257,7 +213,7 @@ esperar para sempre.
 
 ---
 
-## 6. Velocidade partilhada no Jam
+## 5. Velocidade partilhada no Jam
 
 **Hoje.** Dentro de um Jam toda a gente ouve a 1×, à força
 (`velocidadeNaSessao`, em `lib/jam.ts`). A razão é real: a posição da sessão é
