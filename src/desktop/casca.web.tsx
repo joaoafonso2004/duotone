@@ -167,11 +167,6 @@ export function injectDesktopDocumentStyles() {
     .np-fila-linha:last-child { border-bottom: 0; }
     .np-fila-linha:hover { background-color: ${COR.hover}; }
     .np-fila-linha:active { cursor: grabbing; }
-
-    /* Modo limpo (segundo monitor): a capa desfocada faz de luz ambiente.
-       O filtro e a escala ficam aqui porque o react-native-web nao deixa
-       passar a propriedade filter no style de uma <Image>. */
-    .modo-limpo-ambiente { filter: blur(90px) saturate(150%); transform: scale(1.3); opacity: .30; }
   `;
   document.head.appendChild(style);
   document.title = 'Duotone';

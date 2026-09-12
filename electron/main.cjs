@@ -543,6 +543,15 @@ function createWindow() {
       win.webContents.toggleDevTools();
       event.preventDefault();
     }
+    // O modo limpo (F11) e a saida (Esc), ditos ao renderer a partir daqui.
+    //
+    // Porque nao chega o `keydown` da pagina: o leitor do PC e um iframe do
+    // YouTube, e com o foco la dentro as teclas nunca chegam ao nosso
+    // `window`. O evento NAO e consumido -- so se avisa --, para o Esc
+    // continuar a fechar dialogos e o resto da app a receber o que recebia.
+    if (input.type === 'keyDown' && (input.key === 'F11' || input.key === 'Escape')) {
+      win.webContents.send('modo-limpo:tecla', input.key);
+    }
   });
 
   win.webContents.on('will-navigate', (event, url) => {

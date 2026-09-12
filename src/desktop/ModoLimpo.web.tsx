@@ -2,7 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { create } from 'zustand';
-import { INACTIVIDADE_MS, posicaoDoClique, progressoDaFaixa, tamanhoDaCapa } from '../lib/modoLimpo';
+import {
+  INACTIVIDADE_MS, capaComBarras, molduraSemBarras, posicaoDoClique, progressoDaFaixa,
+  tamanhoDaCapa,
+} from '../lib/modoLimpo';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { usePlayer } from '../state/player';
 import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
@@ -11,8 +14,6 @@ import { formatTime } from './ui.web';
 
 const P = Pressable as any;
 const V = View as any;
-/** O react-native-web aceita `className`, os tipos do React Native nao. */
-const Img = Image as any;
 
 /**
  * Modo limpo: a app inteira sai do caminho e fica a capa, a barra e o logo.
@@ -88,11 +89,19 @@ export function ModoLimpo() {
       const d = document as any;
       if (!d.fullscreenElement && !d.webkitFullscreenElement) useModoLimpo.setState({ aberto: false });
     };
-    window.addEventListener('keydown', tecla);
+    // Na captura, para nenhum componente pelo caminho engolir a tecla.
+    window.addEventListener('keydown', tecla, true);
     document.addEventListener('fullscreenchange', mudouEcraInteiro);
+    // E pelo Electron, que as vê antes da página: com o foco dentro do iframe
+    // do YouTube (basta carregar em play) o `keydown` acima nunca chega.
+    const pararPonte = window.duotoneDesktop?.onTeclaDoModoLimpo?.((t) => {
+      if (t === 'F11') alternarModoLimpo();
+      else if (t === 'Escape' && useModoLimpo.getState().aberto) fecharModoLimpo();
+    });
     return () => {
-      window.removeEventListener('keydown', tecla);
+      window.removeEventListener('keydown', tecla, true);
       document.removeEventListener('fullscreenchange', mudouEcraInteiro);
+      pararPonte?.();
     };
   }, []);
 
@@ -106,6 +115,15 @@ function EcraLimpo() {
   const { width, height } = useWindowDimensions();
   const [quieto, setQuieto] = useState(false);
   const relogio = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Ao abrir, o foco vem para cá: se ficar dentro do iframe do YouTube, as
+  // teclas (o Esc, sobretudo) vão parar lá e não a esta página.
+  const ecra = useRef<any>(null);
+  useEffect(() => {
+    window.focus?.();
+    const el = ecra.current;
+    if (el && typeof el.focus === 'function') el.focus({ preventScroll: true });
+  }, []);
 
   const acordar = useCallback(() => {
     setQuieto(false);
@@ -134,6 +152,7 @@ function EcraLimpo() {
   );
 
   const lado = tamanhoDaCapa(width, height);
+  const moldura = molduraSemBarras(lado);
   const ratio = progressoDaFaixa(p.positionMs, p.durationMs);
   const aparece = (visivel: boolean) =>
     ({ opacity: visivel ? 1 : 0, transition: 'opacity .45s cubic-bezier(.4,0,.2,1)' } as any);
@@ -157,15 +176,32 @@ function EcraLimpo() {
   };
 
   return (
-    <V style={[estilos.fundo, { cursor: quieto ? 'none' : 'default' }]}>
-      {/* A luz ambiente é a própria capa, desfocada. Sem cor inventada: o que
-          está por trás do ecrã é o disco que está a tocar. */}
+    <V ref={ecra} {...({ tabIndex: -1 } as any)} style={[estilos.fundo, { cursor: quieto ? 'none' : 'default' }]}>
+      {/* O fundo é o da app, desfocado e escuro -- não a capa.
+          A capa esticada por trás enchia o ecrã de cor e roubava a atenção à
+          própria capa, que é o que se quer ver; num segundo monitor isso é o
+          contrário de "limpo". O `filter` vai no style, como no fundo da
+          casca (estilos.web.ts), que faz exatamente o mesmo com 8px. */}
+      <Image
+        source={require('../../assets/wallpaper.png')}
+        resizeMode="cover"
+        style={[StyleSheet.absoluteFill, estilos.fundoDaApp]}
+      />
+      {/* Um veu por cima: o wallpaper tem zonas quentes e, conforme a forma da
+          janela, era uma delas que enchia o ecra. Assim o fundo e escuro
+          sempre, e o que fica da imagem e so textura. */}
+      <View style={[StyleSheet.absoluteFill, estilos.veu]} pointerEvents="none" />
+
+      {/* A cor vem da capa, mas SO como halo por tras dela -- nao como fundo.
+          A capa esticada a encher o ecra roubava a atencao aquilo que se quer
+          ver; um halo de 1,6x, muito desfocado e a 22%, deixa o ecra escuro e
+          da-lhe a cor do disco que esta a tocar. */}
       {faixa?.artworkUrl ? (
-        <Img
-          key={faixa.artworkUrl}
+        <Image
+          key={`halo:${faixa.artworkUrl}`}
           source={{ uri: faixa.artworkUrl }}
-          className="modo-limpo-ambiente"
-          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+          style={[estilos.halo, { width: lado * 1.85, height: lado * 1.85 }]}
         />
       ) : null}
 
@@ -177,6 +213,27 @@ function EcraLimpo() {
         <Ionicons name="contract-outline" size={20} color={COR.textoMedio} />
       </Pressable>
 
+      {/* Duas texturas geradas em Python (scripts/gerar-fundo-limpo.py), e as
+          duas por baixo do conteudo:
+
+          - a VINHETA escurece os cantos e puxa o olho para a capa. Vai
+            esticada de proposito: assim o escuro entra o mesmo de todos os
+            lados, seja qual for o formato do monitor;
+          - o GRAO quebra o banding. Um fundo escuro muito desfocado num
+            monitor grande mostra degraus, porque 8 bits nao chegam para um
+            gradiente tao lento; um ruido de 1 px por cima e o que o olho le
+            como passagem continua. */}
+      <Image
+        source={require('../../assets/vinheta-limpa.png')}
+        resizeMode="stretch"
+        style={[StyleSheet.absoluteFill, estilos.textura]}
+      />
+      <Image
+        source={require('../../assets/grao-limpo.png')}
+        resizeMode="repeat"
+        style={[StyleSheet.absoluteFill, estilos.textura]}
+      />
+
       <View style={estilos.centro}>
         <Pressable
           accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'}
@@ -184,7 +241,25 @@ function EcraLimpo() {
           style={{ cursor: quieto ? 'none' : 'pointer' } as any}
         >
           {faixa?.artworkUrl ? (
-            <Image source={{ uri: faixa.artworkUrl }} style={[estilos.capa, { width: lado, height: lado }]} />
+            // As miniaturas 4:3 do YouTube trazem barras pretas em cima e em
+            // baixo. Aqui a capa e grande e as barras viam-se logo, por isso a
+            // imagem e ampliada ate o conteudo encher o quadrado e o resto sai
+            // pelos cantos (`molduraSemBarras`, com conta e teste).
+            <View style={[estilos.capa, estilos.recorte, { width: lado, height: lado }]}>
+              {capaComBarras(faixa.artworkUrl) ? (
+                <Image
+                  source={{ uri: faixa.artworkUrl }}
+                  resizeMode="cover"
+                  style={{
+                    position: 'absolute',
+                    width: moldura.largura, height: moldura.altura,
+                    left: moldura.esquerda, top: moldura.topo,
+                  }}
+                />
+              ) : (
+                <Image source={{ uri: faixa.artworkUrl }} resizeMode="cover" style={{ width: lado, height: lado }} />
+              )}
+            </View>
           ) : (
             <View style={[estilos.capa, estilos.semCapa, { width: lado, height: lado }]}>
               <Ionicons name="musical-note" size={Math.round(lado * 0.18)} color={COR.textoFraco} />
@@ -253,6 +328,20 @@ const estilos = StyleSheet.create({
     // inteiro e os controlos iam-lhe parar em cima numa janela baixa.
     paddingBottom: 60,
   },
+  // Muito desfocado e muito escuro: fica textura, não imagem. A capa é a
+  // única coisa com cor no ecrã.
+  fundoDaApp: { filter: 'blur(34px) brightness(22%) saturate(70%)', transform: [{ scale: 1.1 }] } as any,
+  veu: { backgroundColor: 'rgba(6,6,8,0.55)' },
+  // O `pointerEvents` no estilo e coisa da web: os tipos do React Native nao
+  // o conhecem, e sem ele estas camadas apanhavam os cliques da capa.
+  textura: { pointerEvents: 'none' } as any,
+  halo: {
+    position: 'absolute',
+    pointerEvents: 'none',
+    borderRadius: 999,
+    opacity: 0.34,
+    filter: 'blur(120px) saturate(210%)',
+  } as any,
   centro: { alignItems: 'center' },
   // A borda é a mesma do Now Playing: sobre a luz ambiente (a própria capa
   // desfocada) uma capa escura ficava sem contorno nenhum.
@@ -261,6 +350,9 @@ const estilos = StyleSheet.create({
     borderColor: 'rgba(233,234,238,.14)', boxShadow: '0 40px 120px rgba(0,0,0,.65)',
   } as any,
   semCapa: { alignItems: 'center', justifyContent: 'center' },
+  // O que fica de fora da moldura tem de ser cortado: e isso que tira as
+  // barras pretas do ecra.
+  recorte: { overflow: 'hidden' },
 
   identidade: { height: 48, justifyContent: 'center', alignItems: 'center', gap: 3, maxWidth: 560 },
   titulo: { fontFamily: FONT.display, fontSize: 19, fontWeight: '650' as any, color: COR.texto, textAlign: 'center' },

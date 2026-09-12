@@ -50,6 +50,9 @@ declare global {
       /** Faz o tom acompanhar a velocidade em vez de o browser esticar o
        * tempo — e o time-stretch que estraga a camara lenta. */
       naoEsticarOTempo?: () => Promise<{ ok: boolean; antes?: boolean; agora?: boolean }>;
+      /** F11 e Esc, apanhados pelo processo principal (o iframe do YouTube
+       *  engole as teclas quando tem o foco). Devolve o cancelamento. */
+      onTeclaDoModoLimpo?(listener: (tecla: string) => void): () => void;
       showContextMenu(items: { id: string; label: string; enabled?: boolean }[]): void;
       onContextMenuSelection(listener: (id: string) => void): () => void;
     };

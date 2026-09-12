@@ -5,8 +5,8 @@
  */
 import assert from 'node:assert/strict';
 import {
-  ALTURA_RESERVADA, CAPA_MAXIMA, CAPA_MINIMA, INACTIVIDADE_MS, estaQuieto, posicaoDoClique,
-  progressoDaFaixa, tamanhoDaCapa,
+  ALTURA_RESERVADA, CAPA_MAXIMA, CAPA_MINIMA, INACTIVIDADE_MS, capaComBarras, estaQuieto,
+  molduraSemBarras, posicaoDoClique, progressoDaFaixa, tamanhoDaCapa,
 } from '../src/lib/modoLimpo.ts';
 
 let falhas = 0;
@@ -50,6 +50,29 @@ caso('antes do tempo continua à vista; depois desaparece', () => {
 });
 caso('o atraso é meio-termo: nem meio segundo nem dez', () => {
   assert.ok(INACTIVIDADE_MS >= 1500 && INACTIVIDADE_MS <= 5000);
+});
+
+console.log('\nas barras pretas das miniaturas do YouTube');
+caso('as de 4:3 tem barras; as de 16:9 e as do catalogo nao', () => {
+  assert.ok(capaComBarras('https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg'));
+  assert.ok(capaComBarras('https://i.ytimg.com/vi/abcdefghijk/default.jpg'));
+  assert.ok(capaComBarras('https://i.ytimg.com/vi/abcdefghijk/sddefault.jpg'));
+  assert.ok(!capaComBarras('https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg'));
+  assert.ok(!capaComBarras('https://i.ytimg.com/vi/abcdefghijk/maxresdefault.jpg'));
+  assert.ok(!capaComBarras('https://cdn.deezer.example/capa-quadrada.jpg'));
+  assert.ok(!capaComBarras(null));
+});
+caso('recortadas, as barras ficam mesmo de fora do quadrado', () => {
+  const lado = 360;
+  const { largura, altura, esquerda, topo } = molduraSemBarras(lado);
+  // O conteudo sao 270 das 360 linhas da miniatura: esticado, tem de dar
+  // exatamente o lado do quadrado.
+  const conteudo = altura * (270 / 360);
+  assert.ok(Math.abs(conteudo - lado) < 0.001, `${conteudo} != ${lado}`);
+  // E a barra de cima tem de acabar acima da moldura, senao ainda se ve.
+  const fimDaBarraDeCima = topo + altura * (45 / 360);
+  assert.ok(fimDaBarraDeCima <= 0.001, `a barra ainda se ve: ${fimDaBarraDeCima}`);
+  assert.ok(largura >= lado && esquerda <= 0, 'na horizontal corta-se pelos lados');
 });
 
 console.log('\na barra');

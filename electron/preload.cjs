@@ -61,6 +61,12 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
     while (juncoesPendentes.length) listener(juncoesPendentes.shift());
     return () => listenersDeJuncao.delete(listener);
   },
+  /** F11 e Esc, apanhados pelo processo principal -- ver o main.cjs. */
+  onTeclaDoModoLimpo: (listener) => {
+    const handler = (_event, tecla) => listener(String(tecla));
+    ipcRenderer.on('modo-limpo:tecla', handler);
+    return () => ipcRenderer.removeListener('modo-limpo:tecla', handler);
+  },
   showContextMenu: (items) => ipcRenderer.send('context-menu', items),
   onContextMenuSelection: (listener) => {
     const handler = (_event, id) => listener(String(id));

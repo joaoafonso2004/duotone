@@ -61,3 +61,32 @@ export function posicaoDoClique(clientX: number, esquerda: number, largura: numb
   if (!Number.isFinite(clientX) || !(largura > 0)) return 0;
   return Math.min(1, Math.max(0, (clientX - esquerda) / largura));
 }
+
+/**
+ * A miniatura tem barras pretas?
+ *
+ * As do YouTube em 4:3 -- `default`, `hqdefault`, `sddefault` -- sao uma
+ * moldura 4:3 com o video 16:9 la dentro, e sobram duas faixas pretas. Numa
+ * capa quadrada isso ve-se logo. As de 16:9 (`mqdefault`, `maxresdefault`) nao
+ * as tem, e as capas quadradas do catalogo tambem nao.
+ */
+export function capaComBarras(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return /\/(?:default|hqdefault|sddefault)\.(?:jpg|webp)(?:[?#]|$)/i.test(url);
+}
+
+/**
+ * Onde por a imagem para as barras ficarem DE FORA de um quadrado de `lado`.
+ *
+ * A conta: o conteudo ocupa 270 das 360 linhas da miniatura, por isso a imagem
+ * tem de ser desenhada a 4/3 da altura do quadrado para o conteudo ficar com o
+ * lado todo -- e a largura acompanha (16/9 do lado). O resto sai pelos
+ * cantos, e e por isso que quem a usa precisa de `overflow: hidden`.
+ */
+export function molduraSemBarras(lado: number): {
+  largura: number; altura: number; esquerda: number; topo: number;
+} {
+  const altura = (lado * 4) / 3;
+  const largura = (lado * 16) / 9;
+  return { largura, altura, esquerda: (lado - largura) / 2, topo: (lado - altura) / 2 };
+}
