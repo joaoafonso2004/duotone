@@ -6,8 +6,6 @@ import { CAPA_FLUTUANTE, deslocamentoDaCamada } from '../lib/capaFlutuante3D';
 type Props = {
   size: number;
   enabled: boolean;
-  showLyrics: boolean;
-  turning: boolean;
   children: React.ReactNode;
 };
 
@@ -24,12 +22,14 @@ const CURVA = Easing.bezier(0.45, 0, 0.55, 1);
  * subida/descida contínua. Separar as duas transformações é o que impede o
  * gesto horizontal das letras de lutar com a flutuação.
  */
-export function CapaFlutuante3D({ size, enabled, showLyrics, turning, children }: Props) {
+export function CapaFlutuante3D({ size, enabled, children }: Props) {
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const flutuar = useRef(new Animated.Value(0)).current;
-  const pose = useRef(new Animated.Value(enabled && !showLyrics ? 1 : 0)).current;
-  const mostrarPose = enabled && !showLyrics && !turning;
+  // A pose pertence ao cubo inteiro, não apenas à capa. Mantê-la durante o
+  // swipe evita uma segunda animação a lutar com o dedo e deixa a face das
+  // letras com exatamente a mesma perspetiva, profundidade e flutuação.
+  const pose = useRef(new Animated.Value(enabled ? 1 : 0)).current;
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => setForeground(state === 'active'));
@@ -38,14 +38,14 @@ export function CapaFlutuante3D({ size, enabled, showLyrics, turning, children }
 
   useEffect(() => {
     const animacao = Animated.timing(pose, {
-      toValue: mostrarPose ? 1 : 0,
-      duration: mostrarPose ? 320 : 180,
+      toValue: enabled ? 1 : 0,
+      duration: enabled ? 320 : 180,
       easing: CURVA,
       useNativeDriver: true,
     });
     animacao.start();
     return () => animacao.stop();
-  }, [mostrarPose, pose]);
+  }, [enabled, pose]);
 
   useEffect(() => {
     flutuar.stopAnimation();

@@ -66,6 +66,7 @@ async function run() {
   assert.deepEqual(writes, [['pref:artworkStyleIOS', 'simple']], 'só se grava a escolha mais recente');
 
   const player = fs.readFileSync(path.join(root, 'src/components/PlayerRoot.tsx'), 'utf8');
+  const capa3D = fs.readFileSync(path.join(root, 'src/components/CapaFlutuante3D.tsx'), 'utf8');
   const lyrics = fs.readFileSync(path.join(root, 'src/components/LyricsView.tsx'), 'utf8');
   const iosGlitch = [
     'src/components/CapaReactiva.ios.tsx',
@@ -74,10 +75,14 @@ async function run() {
   ];
   for (const file of iosGlitch) assert.equal(fs.existsSync(path.join(root, file)), false, `${file} foi removido`);
   assert.match(player, /<CapaFlutuante3D/);
+  assert.doesNotMatch(player, /<CapaFlutuante3D[^>]*(?:showLyrics|turning)=/,
+    'a pose exterior não muda quando o cubo roda para as letras');
+  assert.doesNotMatch(capa3D, /enabled\s*&&\s*!showLyrics|!turning/,
+    'capa e letras conservam a mesma pose 3D durante todo o swipe');
   assert.match(lyrics, /if\(manual\|\|!synced\)return;/,
     'a face escondida continua sincronizada; visible só bloqueia interação');
 
-  console.log('Capa flutuante: pose subtil, migração, preferência e letras em andamento passaram.');
+  console.log('Capa flutuante: pose subtil e contínua na capa e nas letras, migração e preferência passaram.');
 }
 
 run().catch(error => { console.error(error); process.exitCode = 1; });
