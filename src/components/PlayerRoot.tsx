@@ -1,6 +1,7 @@
-import { CapaReactiva } from './CapaReactiva';
+import { CapaDaFaixa } from './CapaDaFaixa';
+import { CapaFlutuante3D } from './CapaFlutuante3D';
 import { ModoCarro } from './ModoCarro';
-import { useCapaIOS } from '../state/capaIOS';
+import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
 import { Toque } from './Toque';
 import { TextoQueCabe } from './TextoQueCabe';
@@ -122,6 +123,12 @@ export function PlayerRoot() {
   const insets = useSafeAreaInsets();
   const { width: W, height: H, fontScale } = useWindowDimensions();
   const theme = useTheme((s) => s.theme);
+  const estiloDaCapa = useCapaIOS((s) => s.style);
+  const estiloDaCapaCarregado = useCapaIOS((s) => s.loaded);
+
+  useEffect(() => {
+    if (Platform.OS === 'ios') void loadCapaIOS();
+  }, []);
 
   const current = usePlayer((s) => s.current);
   const queue = usePlayer((s) => s.queue);
@@ -736,6 +743,7 @@ export function PlayerRoot() {
   const TAB_H = TAB_BAR_BASE + insets.bottom;
   const miniBottom = TAB_H + 8;
   const fraction = durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
+  const capaFlutuante = Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'floating';
 
   // Capa: mini (quadrado 48px, no mini-player) <-> expandido (quadrado GRANDE
   // centrado). Antes era 16:9 (herança do vídeo) — agora que é só áudio, a
@@ -1529,7 +1537,7 @@ export function PlayerRoot() {
               top: vidFull.y + RECUO_DA_SOMBRA,
               width: Math.max(0, vidFull.w - RECUO_DA_SOMBRA * 2),
               height: Math.max(0, vidFull.h - RECUO_DA_SOMBRA * 2),
-              opacity: Animated.multiply(
+              opacity: capaFlutuante && !showLyrics ? 0 : Animated.multiply(
                 sombraAnim,
                 Animated.multiply(
                   visibilityAnim,
@@ -1614,8 +1622,10 @@ export function PlayerRoot() {
               fundo do cubo --, e isso lia-se como uma moldura à volta da capa
               (13/9). O véu vive DENTRO da face do cubo, que recorta com o raio:
               a capa fica opaca e não há borda que se possa ver. */}
-          {expanded && <View><ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} aoTocar={Platform.OS === 'ios' ? useCapaIOS.getState().toggle : undefined}
-            front={<>{artSource?<CapaReactiva uri={artSource} size={vidFull.w} active={isPlaying && !buffering && !showLyrics && !capaARodar} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} /></>} /></View>}
+          {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante} showLyrics={showLyrics} turning={capaARodar}>
+            <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar}
+              front={<>{artSource?<CapaDaFaixa uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} /><View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} /></>} />
+          </CapaFlutuante3D>}
 
           {/* No modo mini, tocar no vídeo expande */}
           {!expanded ? (
@@ -1876,6 +1886,11 @@ const styles = StyleSheet.create({
     shadowRadius: 22,
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
+  },
+  arestaDaCapa: {
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.13)',
   },
   artworkWrap: {
     alignItems: 'center',

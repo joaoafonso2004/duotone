@@ -65,6 +65,7 @@ const SO_NATIVO = [
   'src/components/TransitionView.tsx',
   'src/components/ProgressBar.tsx',
   'src/components/TextoQueCabe.tsx',
+  'src/components/CapaFlutuante3D.tsx',
   'src/navigation/RootNavigator.tsx',
 ];
 

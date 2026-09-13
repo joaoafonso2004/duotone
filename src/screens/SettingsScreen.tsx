@@ -77,7 +77,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
 export function SettingsScreen({ navigation }: Props) {
   const offline=useOfflineMode();
-  const coverMode = useCapaIOS(s => s.mode);
+  const coverStyle = useCapaIOS(s => s.style);
   const [carroMantemEcra, setCarroMantemEcraState] = useState(true);
   useEffect(() => {
     let vivo = true;
@@ -632,10 +632,10 @@ export function SettingsScreen({ navigation }: Props) {
             </Text>
           </Section>
 
-          {Platform.OS === 'ios' && <Section title="Artwork effect">
-            <SegmentedControl options={['Reactive', 'Static', 'Off']} value={['reactive', 'static', 'off'].indexOf(coverMode)}
-              onChange={index => useCapaIOS.getState().setMode((['reactive', 'static', 'off'] as const)[index])} />
-            <Text style={[type.caption, { marginTop: spacing.sm }]}>Tap the artwork to switch between Reactive and Static. This preference only affects iPhone.</Text>
+          {Platform.OS === 'ios' && <Section title="Artwork style">
+            <SegmentedControl options={['Floating 3D', 'Simple']} value={coverStyle === 'floating' ? 0 : 1}
+              onChange={index => useCapaIOS.getState().setStyle(index === 0 ? 'floating' : 'simple')} />
+            <Text style={[type.caption, { marginTop: spacing.sm }]}>Floating 3D adds depth and a subtle continuous rise and fall. Lyrics always settle flat for natural scrolling.</Text>
           </Section>}
 
           <Section title="Data">
