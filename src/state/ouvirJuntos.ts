@@ -15,6 +15,7 @@ import { appEstaVisivel } from '../lib/appVisibility';
 import { supabase } from '../lib/supabase';
 import { candidatasParaDescoberta } from '../api/descoberta';
 import { chaveDeArtista } from '../lib/artistName';
+import { porSemear } from '../lib/jam';
 import { trackKey } from '../lib/shuffle';
 import { registar } from '../lib/eventos';
 import type { Track } from '../types';
@@ -417,8 +418,12 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   semearFila: async (tracks) => {
     const s = get().sessao;
     if (!s || !tracks.length) return;
+    // Só o que ainda não está lá: ver `porSemear`. Sem isto, tocar três
+    // músicas do mesmo álbum punha o álbum três vezes na fila de toda a gente.
+    const novas = porSemear(tracks, { fila: get().fila, track: s.track ?? null }, trackKey);
+    if (!novas.length) return;
     try {
-      const entraram = await juntarMuitasAFila(s.id, tracks);
+      const entraram = await juntarMuitasAFila(s.id, novas);
       if (get().sessao?.id !== s.id) return;
       await get().actualizar();
       if (entraram <= 0) return;

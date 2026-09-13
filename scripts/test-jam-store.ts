@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { registarOuvirJuntos, usePlayer } from '../src/state/player.ts';
 import type { Track } from '../src/types.ts';
-import { proximaFaixa, decisaoDeControlo, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, type PonteJam } from '../src/lib/jam.ts';
+import { proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, type PonteJam } from '../src/lib/jam.ts';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
 import type { SessaoDeEscuta } from '../src/api/ouvirJuntos.ts';
@@ -351,4 +351,33 @@ await usePlayer.getState().playTrack(actual, [actual, escolhida]);
 assert.equal(usePlayer.getState().proximaFaixa(), escolhida);
 await usePlayer.getState().next();
 assert.equal(usePlayer.getState().current?.sourceId, escolhida.sourceId, 'a audição individual continua a avançar');
+// ------------------------------------------ a fila do jam nao se repete --
+//
+// Dentro de um jam, tocar numa musica semeia o RESTO da lista de onde ela veio.
+// Tocar tres musicas do mesmo album semeava o album tres vezes, e a lista do
+// jam do Joao ficou com as mesmas trinta musicas vezes sem conta (13/9).
+{
+  const chave = (t: Track) => `${t.source}:${t.sourceId}`;
+  const album = ['a', 'b', 'c', 'd'].map(faixa);
+  const sessao = { fila: [{ track: album[1] }], track: album[0] };
+
+  assert.deepEqual(
+    porSemear(album, sessao, chave).map((t) => t.sourceId),
+    ['c', 'd'],
+    'nao se semeia o que ja esta na fila nem a que esta a tocar',
+  );
+  assert.deepEqual(porSemear(album, { fila: [], track: null }, chave).length, 4,
+    'numa fila vazia entra tudo');
+  assert.deepEqual(
+    porSemear([album[0], album[0], album[1]], { fila: [], track: null }, chave).map((t) => t.sourceId),
+    ['a', 'b'],
+    'a mesma musica duas vezes na lista entra uma so',
+  );
+  assert.deepEqual(porSemear(album, null, chave), [], 'sem sessao nao se semeia nada');
+  // Semear duas vezes seguidas nao acrescenta nada da segunda vez.
+  const primeira = porSemear(album, { fila: [], track: null }, chave);
+  const depois = { fila: primeira.map((track) => ({ track })), track: null };
+  assert.deepEqual(porSemear(album, depois, chave), [], 'a segunda semeadura nao repete');
+}
+
 console.log('Jam: fila, permissões, shuffle, comandos, falhas, pausa e fecho verificados.');

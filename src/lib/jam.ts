@@ -30,6 +30,40 @@ export function velocidadeNaSessao(escolhida: number, emSessao: boolean): number
   return emSessao ? 1 : escolhida;
 }
 
+/**
+ * O que desta lista ainda NÃO está na fila partilhada.
+ *
+ * Dentro de um jam, tocar numa música semeia o RESTO da lista de onde ela veio
+ * (ver o `playTrack`): é o que impede a sessão de parar no fim da primeira. Só
+ * que tocar três músicas do mesmo álbum semeava o álbum três vezes, e a fila de
+ * toda a gente enchia-se das mesmas trinta -- foi o que o João viu a 13/9,
+ * com a lista do jam a não acabar mais.
+ *
+ * A faixa que está A TOCAR também conta como "já lá está": ela acabou de ser
+ * anunciada e não volta para o fim da fila. E a lista também se limpa a si
+ * própria -- a mesma música duas vezes numa playlist entra uma só.
+ *
+ * A chave entra por parâmetro (o `trackKey`) para este ficheiro continuar sem
+ * imports de runtime, como o `lib/radio.ts`.
+ */
+export function porSemear(
+  tracks: readonly Track[],
+  sessao: { fila: readonly { track: Track }[]; track: Track | null } | null,
+  chave: (t: Track) => string,
+): Track[] {
+  if (!sessao) return [];
+  const jaLa = new Set(sessao.fila.map((i) => chave(i.track)));
+  if (sessao.track) jaLa.add(chave(sessao.track));
+  const saida: Track[] = [];
+  for (const t of tracks) {
+    const k = chave(t);
+    if (jaLa.has(k)) continue;
+    jaLa.add(k);
+    saida.push(t);
+  }
+  return saida;
+}
+
 export function decisaoDeControlo(
   sessao: { anfitriao: boolean; convidadosControlam: boolean } | null,
 ): 'local' | 'anunciar' | 'sugerir' {
