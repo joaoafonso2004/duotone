@@ -38,12 +38,34 @@ export type PerfilEmCache = {
 
 const cache = new Map<string, PerfilEmCache>();
 
+/**
+ * Quem quer saber quando um perfil chega à cache.
+ *
+ * O navegador do iPhone monta TODAS as páginas no arranque (`lazy: false`), e o
+ * perfil montava antes de o aquecimento acabar: lia a cache vazia uma vez, e
+ * nunca mais olhava. O aquecimento aterrava na cache e ninguém o pintava -- o
+ * perfil só carregava ao tocar no separador (13/9).
+ */
+const ouvintes = new Set<(userId: string) => void>();
+
+export function ouvirPerfis(fn: (userId: string) => void): () => void {
+  ouvintes.add(fn);
+  return () => { ouvintes.delete(fn); };
+}
+
+function avisar(userId: string): void {
+  for (const fn of ouvintes) {
+    try { fn(userId); } catch { /* um ouvinte partido não cala os outros */ }
+  }
+}
+
 export function perfilEmCache(userId: string): PerfilEmCache | null {
   return cache.get(userId) ?? null;
 }
 
 export function guardarPerfil(userId: string, dados: PerfilEmCache): void {
   cache.set(userId, dados);
+  avisar(userId);
 }
 
 /**
@@ -108,6 +130,7 @@ async function lerParaCache(userId: string): Promise<void> {
         : { playlistIds: [], moment: null },
       highlightsLidos: r.highlights.status === 'fulfilled',
     });
+    avisar(userId);
   } catch {
     // Idem.
   }

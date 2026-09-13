@@ -15,7 +15,7 @@ import type { ProfilePlayEntry } from '../../api/plays';
 import type { Track } from '../../types';
 import { desktop } from '../ui.web';
 import { styles } from '../estilos.web';
-import { faixasEmCache, lerFaixas } from '../../lib/cacheDaBiblioteca';
+import { faixasEmCache, lerFaixas, ouvirFaixas } from '../../lib/cacheDaBiblioteca';
 
 /**
  * A cache subiu para `lib/cacheDaBiblioteca.ts`.
@@ -57,6 +57,12 @@ export function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
       setLoading(false);
     }
   }, [loader]);
+
+  // O que o arranque aquece depois de a página montar: pinta-se logo.
+  useEffect(() => ouvirFaixas((leitor, faixas) => {
+    if (leitor !== loader) return;
+    setTracks(faixas); setLoading(false); setError(null);
+  }), [loader]);
 
   const refresh = useCallback(() => ler(true), [ler]);
 

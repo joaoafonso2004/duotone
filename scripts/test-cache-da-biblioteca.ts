@@ -10,7 +10,7 @@
  */
 import assert from 'node:assert/strict';
 import {
-  VALIDADE_DA_BIBLIOTECA_MS, esquecerBiblioteca, faixasEmCache, guardarFaixas, lerFaixas,
+  VALIDADE_DA_BIBLIOTECA_MS, esquecerBiblioteca, faixasEmCache, guardarFaixas, lerFaixas, ouvirFaixas,
 } from '../src/lib/cacheDaBiblioteca.ts';
 import type { Track } from '../src/types.ts';
 
@@ -135,6 +135,30 @@ await caso('depois da mudanca, a leitura seguinte guarda outra vez', async () =>
   esquecerBiblioteca();
   await lerFaixas(leitor);
   assert.equal(faixasEmCache(leitor)?.[0].sourceId, 'v2', 'a cache volta a funcionar');
+});
+
+console.log('\nquem ja esta montado recebe a lista');
+
+await caso('guardar avisa quem ouve, com o leitor certo, e parar cala', async () => {
+  esquecerBiblioteca();
+  const a = async () => [faixa('a')];
+  const b = async () => [faixa('b')];
+  const recebidos: string[] = [];
+  const parar = ouvirFaixas((leitor, faixas) => { if (leitor === a) recebidos.push(faixas[0].sourceId); });
+  await lerFaixas(a);
+  await lerFaixas(b);
+  parar();
+  await lerFaixas(a, { forcar: true });
+  assert.deepEqual(recebidos, ['a'], 'so a lista dele, e so enquanto ouvia');
+});
+
+await caso('um ouvinte que rebenta nao estraga a leitura', async () => {
+  esquecerBiblioteca();
+  const a = async () => [faixa('a')];
+  const parar = ouvirFaixas(() => { throw new Error('partido'); });
+  assert.equal((await lerFaixas(a)).length, 1);
+  assert.equal(faixasEmCache(a)?.length, 1, 'e fica guardada na mesma');
+  parar();
 });
 
 console.log('\nao trocar de conta não sobra nada');

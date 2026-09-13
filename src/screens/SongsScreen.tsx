@@ -3,7 +3,7 @@ import { OfflineNotice } from '../components/OfflineNotice';
 import { useAuth } from '../state/auth';
 import { isAudioCached,useAudioCache } from '../lib/youtubeCache';
 import { readLikedSongsCache } from '../lib/likedSongsCache';
-import { faixasEmCache, lerFaixas } from '../lib/cacheDaBiblioteca';
+import { faixasEmCache, lerFaixas, ouvirFaixas } from '../lib/cacheDaBiblioteca';
 import { displayArtist } from '../lib/artistName';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -98,6 +98,11 @@ export function SongsScreen() {
     }
   },[offline,userId]);
   useFocusEffect(useCallback(()=>{void load();return()=>{generation.current++;};},[load]));
+  // O que o aquecimento traz com o separador já montado: pinta-se logo.
+  useEffect(()=>ouvirFaixas((leitor,items)=>{
+    if(leitor!==getLikedSongs||!userId)return;
+    setTracks(items);setLoading(false);
+  }),[userId]);
   useEffect(()=>{if(offline){setSelectMode(false);setSelectedIds(new Set());setPlaylistMultipleOpen(false);}},[offline]);
 
   const toggleSelection = (trackId: string) => {

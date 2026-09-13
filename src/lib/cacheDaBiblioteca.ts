@@ -47,6 +47,22 @@ const emCurso = new Map<LeitorDeFaixas, Promise<Track[]>>();
  */
 let geracao = 0;
 
+/**
+ * Quem quer saber quando uma lista chega.
+ *
+ * O navegador do iPhone monta as páginas todas no arranque (`lazy: false`), e
+ * os Artists e as Songs montavam ANTES de o aquecimento acabar: liam a cache
+ * vazia, e o que o aquecimento trazia ficava por usar até se tocar no
+ * separador (13/9). Com isto a lista entra logo na página que já lá está.
+ */
+type OuvinteDeFaixas = (leitor: LeitorDeFaixas, faixas: Track[]) => void;
+const ouvintes = new Set<OuvinteDeFaixas>();
+
+export function ouvirFaixas(fn: OuvinteDeFaixas): () => void {
+  ouvintes.add(fn);
+  return () => { ouvintes.delete(fn); };
+}
+
 /** O que está guardado e ainda vale, ou `null`. Não vai à rede. */
 export function faixasEmCache(leitor: LeitorDeFaixas, agora: number = Date.now()): Track[] | null {
   const entrada = guardado.get(leitor);
@@ -56,6 +72,9 @@ export function faixasEmCache(leitor: LeitorDeFaixas, agora: number = Date.now()
 
 export function guardarFaixas(leitor: LeitorDeFaixas, faixas: Track[], agora: number = Date.now()): void {
   guardado.set(leitor, { em: agora, faixas });
+  for (const fn of ouvintes) {
+    try { fn(leitor, faixas); } catch { /* um ouvinte partido não cala os outros */ }
+  }
 }
 
 /**

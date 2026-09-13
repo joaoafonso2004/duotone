@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
-import { faixasEmCache, lerFaixas } from '../lib/cacheDaBiblioteca';
+import { faixasEmCache, lerFaixas, ouvirFaixas } from '../lib/cacheDaBiblioteca';
 import { agruparPorArtista, chaveDeArtista } from '../lib/artistName';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import { ordenarArtistas } from '../lib/ordenacao';
@@ -66,6 +66,12 @@ export function ArtistsScreen() {
     }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [userId]));
+  // O que o aquecimento traz com a página já montada: pinta-se logo, em vez de
+  // esperar pelo foco (o navegador monta tudo no arranque).
+  useEffect(() => ouvirFaixas((leitor, items) => {
+    if (leitor !== getLibrary || !userId) return;
+    setTracks(items); setLoading(false); void garantirCatalogo(items);
+  }), [userId]);
   const catalogVersion = useCatalogoDeFaixas(s => s.versao);
   const artists = useMemo<ArtistGroup[]>(() => {
     // A versão invalida a projeção quando o catálogo confirma metadados.

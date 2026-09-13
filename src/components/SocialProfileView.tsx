@@ -18,7 +18,7 @@ import { naoLidasPorAmigo } from '../lib/social';
 import { ArtworkCollage } from './ArtworkCollage';
 import { ProfileEditor } from './ProfileEditor';
 import { ProfileHero } from './ProfileHero';
-import { guardarPerfil, perfilEmCache } from '../lib/cachePerfil';
+import { guardarPerfil, ouvirPerfis, perfilEmCache } from '../lib/cachePerfil';
 import { SkeletonDoPerfil } from './Skeleton';
 import { ProfilePlaylistPicker } from './ProfilePlaylistPicker';
 import { SocialTrackActions } from './SocialTrackActions';
@@ -129,6 +129,20 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
     setProfile(null);setHighlights({playlistIds:[],moment:null});
     setMost([]);setRecent([]);setPlaylists([]);setGuardadas(new Set());
   },[userId]);
+  // O que o aquecimento traz com o ecra ja montado (ver `ouvirPerfis`). So se
+  // pinta se nao houver perfil nenhum a vista: o que ja la esta e mais novo.
+  const perfilNoEcra=useRef(false);
+  useEffect(()=>{perfilNoEcra.current=!!profile;},[profile]);
+  useEffect(()=>ouvirPerfis((id)=>{
+    if(id!==userId||perfilNoEcra.current)return;
+    const guardado=perfilEmCache(userId);
+    if(!guardado)return;
+    setProfile(guardado.perfil as any);
+    setMost(guardado.most as any);setRecent(guardado.recent as any);
+    setPlaylists(guardado.playlists as any);setGuardadas(guardado.guardadas);
+    setHighlights(guardado.highlights as any);setHighlightsLoaded(guardado.highlightsLidos);
+    setLoading(false);
+  }),[userId]);
   const jaLido=useRef<string|null>(null);
   useEffect(()=>{
     if(!active)return;
