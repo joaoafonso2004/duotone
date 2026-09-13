@@ -1075,7 +1075,13 @@ export const usePlayer = create<PlayerState>()(
 
   prev: async () => {
     if (ouvirJuntos()) {
-      await get().seekTo(0);
+      // A mesma regra de sempre primeiro: passados 3 s, "anterior" recomeça.
+      if (get().positionMs > 3000) { await get().seekTo(0); return; }
+      let recuou = false;
+      await comandarJam(async s => { recuou = await s.recuar(); });
+      // Sem percurso (entrou a meio) ou sem licença para mandar: recomeça,
+      // que era o que fazia sempre.
+      if (!recuou) await get().seekTo(0);
       return;
     }
     const { queue, queueIndex, repeatMode, playTrack, positionMs, seekTo } = get();

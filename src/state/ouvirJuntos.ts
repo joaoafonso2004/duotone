@@ -15,7 +15,7 @@ import { appEstaVisivel } from '../lib/appVisibility';
 import { supabase } from '../lib/supabase';
 import { candidatasParaDescoberta } from '../api/descoberta';
 import { chaveDeArtista } from '../lib/artistName';
-import { porSemear } from '../lib/jam';
+import { anteriorDaSessao, percursoDaSessao, porSemear } from '../lib/jam';
 import { trackKey } from '../lib/shuffle';
 import { registar } from '../lib/eventos';
 import type { Track } from '../types';
@@ -537,6 +537,22 @@ export function limparOuvirJuntos(): void {
 export { membroDaLinha };
 
 // A ponte existe mesmo com o player vazio e durante o primeiro render.
+/**
+ * O percurso desta sessão, para o "anterior" (ver `percursoDaSessao`).
+ *
+ * Em módulo e não no estado: não se desenha nada com isto, e pô-lo no estado
+ * fazia redesenhar meia app a cada mudança de faixa. Uma subscrição única
+ * apanha TODOS os caminhos por onde a faixa da sessão muda -- o realtime, a
+ * releitura, o próprio comando -- em vez de haver quatro sítios a lembrar-se.
+ */
+let percurso: Track[] = [];
+useOuvirJuntos.subscribe((agora, antes) => {
+  if (agora.sessao?.id !== antes.sessao?.id) { percurso = []; return; }
+  percurso = percursoDaSessao(
+    percurso, antes.sessao?.track ?? null, agora.sessao?.track ?? null, trackKey,
+  );
+});
+
 registarOuvirJuntos(() => {
   const s = useOuvirJuntos.getState();
   if (!s.sessao) return null;
@@ -572,6 +588,22 @@ registarOuvirJuntos(() => {
         return;
       }
       await actual.avancarPelaFila();
+    },
+    recuar: async () => {
+      if (!aindaAqui()) return false;
+      const actual = useOuvirJuntos.getState();
+      // A mesma licença do "seguinte" à mão: recuar muda o que TODA a gente
+      // ouve. Sem ela, o botão recomeça a faixa, como recomeçava antes.
+      if (!actual.possoControlar()) return false;
+      const anterior = anteriorDaSessao(percurso);
+      if (!anterior) return false;
+      // A que estava a tocar volta para a FRENTE da fila: quem recua quer ouvir
+      // a de trás, não perder esta.
+      const atual = actual.sessao?.track ?? null;
+      if (atual) await actual.sugerir(atual, true);
+      if (!aindaAqui()) return false;
+      await useOuvirJuntos.getState().anunciarFaixa(anterior);
+      return true;
     },
     sairAoFechar: () => {
       if (fecho) return fecho;

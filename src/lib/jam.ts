@@ -135,6 +135,41 @@ export function baralhada<T>(lista: readonly T[], rng: () => number = Math.rando
 }
 
 /** A ponte é registada pela store da sessão, antes dos efeitos React. */
+/**
+ * O percurso da sessão: o que ela já tocou, para o "anterior" ter para onde ir.
+ *
+ * A fila partilhada só anda para a frente -- um item é consumido quando começa
+ * a tocar --, por isso dentro de um jam o botão "anterior" não tinha nada para
+ * onde voltar e limitava-se a recomeçar a faixa (o João deu por isso a 13/9).
+ * O percurso é do CLIENTE e vive em memória: quem entra a meio não tem passado
+ * nenhum, e aí "anterior" volta a ser "recomeçar", que é a verdade.
+ *
+ * A regra que o mantém coerente é esta: se a faixa que ENTRA já está no
+ * percurso, não se avançou, RECUOU-SE -- e o percurso corta ali. Sem isso,
+ * carregar em "anterior" duas vezes andava para trás e para a frente entre as
+ * mesmas duas músicas, porque o recuo também é uma mudança de faixa e
+ * entrava no histórico como se fosse caminho novo.
+ */
+export function percursoDaSessao(
+  percurso: readonly Track[],
+  saiu: Track | null,
+  entrou: Track | null,
+  chave: (t: Track) => string,
+): Track[] {
+  if (!entrou) return [...percurso];
+  const k = chave(entrou);
+  const jaAndado = percurso.findIndex((t) => chave(t) === k);
+  // Recuou: o percurso acaba onde se voltou a estar.
+  if (jaAndado >= 0) return percurso.slice(0, jaAndado);
+  if (!saiu || chave(saiu) === k) return [...percurso];
+  return [...percurso, saiu];
+}
+
+/** Para onde o "anterior" leva, ou `null` se não há passado nesta sessão. */
+export function anteriorDaSessao(percurso: readonly Track[]): Track | null {
+  return percurso.length ? percurso[percurso.length - 1] : null;
+}
+
 export type PonteJam = {
   sessao: { id: string };
   fila: readonly { track: Track }[];
@@ -149,6 +184,8 @@ export type PonteJam = {
   alternarPausa: () => Promise<void>;
   procurar: (ms: number) => Promise<void>;
   avancar: (automatico: boolean) => Promise<void>;
+  /** Volta à anterior do percurso. `false` = não havia para onde ir. */
+  recuar: () => Promise<boolean>;
   sairAoFechar: () => Promise<boolean>;
   avisarErro: () => void;
 };

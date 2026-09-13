@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { registarOuvirJuntos, usePlayer } from '../src/state/player.ts';
 import type { Track } from '../src/types.ts';
-import { proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, type PonteJam } from '../src/lib/jam.ts';
+import { anteriorDaSessao, percursoDaSessao, proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, type PonteJam } from '../src/lib/jam.ts';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
 import type { SessaoDeEscuta } from '../src/api/ouvirJuntos.ts';
@@ -11,10 +11,11 @@ const faixa = (sourceId: string): Track => ({ source: 'youtube', sourceId,
 const actual = faixa('actual'), escolhida = faixa('escolhida');
 let sugeridas: Track[] = [], anunciadas: Track[] = [], pausas = 0, saltos: number[] = [];
 let semeadas: Track[][] = [];
-let avancos = 0, erros = 0, saidas = 0;
+let avancos = 0, erros = 0, saidas = 0, recuos = 0, recuoPossivel = true;
 let ponte: PonteJam | null;
 const limpar = () => {
   sugeridas = []; anunciadas = []; pausas = 0; saltos = []; avancos = 0; erros = 0; saidas = 0;
+  recuos = 0; recuoPossivel = true;
   semeadas = [];
   ponte = {
     sessao: { id: 'jam' }, fila: [{ track: escolhida }], anfitriao: false, convidadosControlam: false,
@@ -23,6 +24,7 @@ const limpar = () => {
     semearFila: async ts => { semeadas.push([...ts]); },
     alternarPausa: async () => { pausas++; }, procurar: async ms => { saltos.push(ms); },
     avancar: async automatico => { if (ponte && (automatico ? ponte.anfitriao : decisaoDeControlo(ponte) === 'anunciar')) avancos++; },
+    recuar: async () => { if (!recuoPossivel) return false; recuos++; return true; },
     sairAoFechar: async () => { saidas++; ponte = null; return true; }, avisarErro: () => { erros++; },
   };
   usePlayer.setState({ current: actual, queue: [actual, faixa('local')], queueIndex: 0,
@@ -379,5 +381,70 @@ assert.equal(usePlayer.getState().current?.sourceId, escolhida.sourceId, 'a audi
   const depois = { fila: primeira.map((track) => ({ track })), track: null };
   assert.deepEqual(porSemear(album, depois, chave), [], 'a segunda semeadura nao repete');
 }
+
+// ------------------------------------ anterior dentro de um jam (13/9) --
+//
+// A fila partilhada so anda para a frente, por isso "anterior" limitava-se a
+// recomecar a faixa. Agora ha percurso -- e as regras que o mantem coerente
+// sao estas.
+{
+  const chave = (t: Track) => `${t.source}:${t.sourceId}`;
+  const [a, b, c] = ['a', 'b', 'c'].map(faixa);
+
+  let p: Track[] = [];
+  p = percursoDaSessao(p, null, a, chave);          // entra a primeira
+  assert.deepEqual(p.map((t) => t.sourceId), []);
+  p = percursoDaSessao(p, a, b, chave);             // andou para a frente
+  assert.deepEqual(p.map((t) => t.sourceId), ['a']);
+  p = percursoDaSessao(p, b, c, chave);
+  assert.deepEqual(p.map((t) => t.sourceId), ['a', 'b']);
+  assert.equal(anteriorDaSessao(p)?.sourceId, 'b');
+
+  // RECUAR corta o percurso onde se voltou a estar -- sem isto, carregar duas
+  // vezes em "anterior" andava para tras e para a frente entre duas musicas.
+  p = percursoDaSessao(p, c, b, chave);
+  assert.deepEqual(p.map((t) => t.sourceId), ['a']);
+  assert.equal(anteriorDaSessao(p)?.sourceId, 'a');
+  p = percursoDaSessao(p, b, a, chave);
+  assert.deepEqual(p.map((t) => t.sourceId), []);
+  assert.equal(anteriorDaSessao(p), null, 'sem passado, "anterior" e recomecar');
+
+  // A mesma faixa reanunciada nao entra no percurso.
+  assert.deepEqual(percursoDaSessao([a], b, b, chave).map((t) => t.sourceId), ['a']);
+}
+
+// E o botao: com menos de 3 s recua; passados 3 s recomeca, como em todo o
+// lado; e sem percurso (ou sem licenca) recomeca tambem.
+//
+// A ponte volta a ser ligada: o bloco acima desligou-a de proposito, para ver
+// a audicao a solo.
+registarOuvirJuntos(() => ponte);
+limpar();
+usePlayer.setState({ positionMs: 500 });
+await usePlayer.getState().prev();
+assert.equal(recuos, 1, 'no jam, "anterior" pede o recuo a sessao');
+assert.deepEqual(saltos, [], 'e nao recomeca a faixa');
+
+// O recomeco e um SALTO na sessao, e saltar precisa de licenca -- daqui para
+// baixo e o anfitriao a carregar no botao.
+limpar(); ponte!.anfitriao = true;
+usePlayer.setState({ positionMs: 9_000 });
+await usePlayer.getState().prev();
+assert.equal(recuos, 0, 'passados 3 s nem se chega a pedir');
+assert.deepEqual(saltos, [0], 'recomeca a que esta a tocar');
+
+limpar(); ponte!.anfitriao = true;
+recuoPossivel = false;
+usePlayer.setState({ positionMs: 500 });
+await usePlayer.getState().prev();
+assert.deepEqual(saltos, [0], 'sem para onde recuar, recomeca');
+
+// E um convidado sem licenca nao mexe na sessao de ninguem: nem recua nem
+// recomeca, como ja acontecia antes disto.
+limpar();
+recuoPossivel = false;
+usePlayer.setState({ positionMs: 500 });
+await usePlayer.getState().prev();
+assert.deepEqual(saltos, [], 'sem licenca, o botao nao mexe na sessao');
 
 console.log('Jam: fila, permissões, shuffle, comandos, falhas, pausa e fecho verificados.');
