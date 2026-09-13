@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
-import { precisaDeEmpurrao } from '../lib/arranqueTravado';
+import { paradoDesdeAgora, precisaDeEmpurrao } from '../lib/arranqueTravado';
 
 /** De quanto em quanto tempo se olha para o relógio da faixa. */
 const OLHAR_MS = 1000;
@@ -47,11 +47,14 @@ export function useArranqueTravado(): void {
       // limpos.
       if (p.current?.sourceId !== faixa || p.current.source !== fonte) return;
 
-      if (p.positionMs !== ultimaPosicao) {
-        ultimaPosicao = p.positionMs;
-        paradoDesde = Date.now();
-        return;
-      }
+      // O cronómetro só corre com a faixa PRONTA -- ver `paradoDesdeAgora`.
+      // Contava desde que a faixa foi escolhida, e o download entrava como
+      // tempo parado: mal ela ficava pronta, o empurrão mandava-a para os 0:00.
+      const pronta = p.activeBackend !== 'resolving' && !p.buffering;
+      const mexeu = p.positionMs !== ultimaPosicao;
+      ultimaPosicao = p.positionMs;
+      paradoDesde = paradoDesdeAgora({ pronta, mexeu, paradoDesde, agora: Date.now() });
+      if (mexeu) return;
 
       // Numa sessão quem manda é a sessão; sozinho, não há ninguém a dizer que
       // se devia estar em pausa, e a intenção do utilizador é a única
@@ -63,7 +66,7 @@ export function useArranqueTravado(): void {
       if (!precisaDeEmpurrao({
         autorizadoATocar: sessao ? sessao.aTocar : true,
         querTocar: p.isPlaying,
-        pronta: p.activeBackend !== 'resolving' && !p.buffering,
+        pronta,
         posicaoMs: p.positionMs,
         paradoMs: Date.now() - paradoDesde,
         empurroesDados: empurroes,

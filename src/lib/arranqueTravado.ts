@@ -77,6 +77,27 @@ export type EstadoDoArranque = {
  * faixa, buffer vazio, rede -- e tem quem trate dela no `fimDeFaixa.ts`.
  * Empurrar aqui seria dois watchdogs a saltar sobre o mesmo sintoma.
  */
+/**
+ * Desde quando se conta o tempo parado.
+ *
+ * Só conta com a faixa PRONTA. Contava desde que a faixa foi escolhida, e o
+ * download inteiro entrava na conta: a posição fica nos 0:00 enquanto o
+ * ficheiro vem, e no instante em que a faixa ficava pronta já "estava parada"
+ * há dez segundos. O empurrão disparava com a música a arrancar e mandava-a
+ * para os 0:00 -- o "acaba o download, toca um segundo e recomeça" que o João
+ * apanhou a 13/9, e só quando o download passava dos 2,5 s.
+ *
+ * Mexer também recomeça a contagem: só está parado o que está no mesmo sítio.
+ */
+export function paradoDesdeAgora(e: {
+  pronta: boolean;
+  mexeu: boolean;
+  paradoDesde: number;
+  agora: number;
+}): number {
+  return !e.pronta || e.mexeu ? e.agora : e.paradoDesde;
+}
+
 export function precisaDeEmpurrao(e: EstadoDoArranque): boolean {
   if (!e.autorizadoATocar || !e.querTocar || !e.pronta) return false;
   if (e.empurroesDados >= EMPURROES_POR_FAIXA) return false;

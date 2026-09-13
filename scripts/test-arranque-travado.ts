@@ -5,7 +5,7 @@
 // dar seeks numa música que estava a tocar bem.
 import assert from 'node:assert/strict';
 import {
-  precisaDeEmpurrao, PARADO_DEMAIS_MS, EMPURROES_POR_FAIXA,
+  paradoDesdeAgora, precisaDeEmpurrao, PARADO_DEMAIS_MS, EMPURROES_POR_FAIXA,
 } from '../src/lib/arranqueTravado.ts';
 
 const base = {
@@ -56,6 +56,33 @@ verificar('desiste ao fim de três, e não fica a saltar para sempre', () => {
   }
   assert.equal(precisaDeEmpurrao({ ...base, empurroesDados: EMPURROES_POR_FAIXA }), false);
   assert.equal(precisaDeEmpurrao({ ...base, empurroesDados: 99 }), false);
+});
+
+// ------------------------------------------ o download nao conta (13/9) --
+//
+// "Acaba o download, toca um segundo e recomeca": o cronometro corria o
+// download inteiro, e mal a faixa ficava pronta ja estava "parada" ha 10 s.
+verificar('o download inteiro nao conta como tempo parado', () => {
+  let desde = 0;
+  // Dez segundos a descarregar: nos 0:00 e ainda nao pronta.
+  for (let t = 1000; t <= 10_000; t += 1000) {
+    desde = paradoDesdeAgora({ pronta: false, mexeu: false, paradoDesde: desde, agora: t });
+  }
+  // Fica pronta aos 10 s: nao pode estar ja parada ha 10 s.
+  desde = paradoDesdeAgora({ pronta: true, mexeu: false, paradoDesde: desde, agora: 10_000 });
+  assert.equal(precisaDeEmpurrao({ ...base, paradoMs: 10_000 - desde }), false);
+});
+
+verificar('pronta e parada a serio continua a ser apanhada', () => {
+  let desde = paradoDesdeAgora({ pronta: false, mexeu: false, paradoDesde: 0, agora: 10_000 });
+  desde = paradoDesdeAgora({ pronta: true, mexeu: false, paradoDesde: desde, agora: 11_000 });
+  desde = paradoDesdeAgora({ pronta: true, mexeu: false, paradoDesde: desde, agora: 14_000 });
+  assert.equal(precisaDeEmpurrao({ ...base, paradoMs: 14_000 - desde }), true,
+    '4 s pronta e sem mexer ainda e o encravamento que isto existe para apanhar');
+});
+
+verificar('mexer recomeca a contagem', () => {
+  assert.equal(paradoDesdeAgora({ pronta: true, mexeu: true, paradoDesde: 0, agora: 9000 }), 9000);
 });
 
 if (falhas > 0) {
