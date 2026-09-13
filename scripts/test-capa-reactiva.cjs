@@ -67,6 +67,7 @@ async function run() {
 
   const player = fs.readFileSync(path.join(root, 'src/components/PlayerRoot.tsx'), 'utf8');
   const capa3D = fs.readFileSync(path.join(root, 'src/components/CapaFlutuante3D.tsx'), 'utf8');
+  const settings = fs.readFileSync(path.join(root, 'src/screens/SettingsScreen.tsx'), 'utf8');
   const lyrics = fs.readFileSync(path.join(root, 'src/components/LyricsView.tsx'), 'utf8');
   const iosGlitch = [
     'src/components/CapaReactiva.ios.tsx',
@@ -79,6 +80,10 @@ async function run() {
     'a pose exterior não muda quando o cubo roda para as letras');
   assert.doesNotMatch(capa3D, /enabled\s*&&\s*!showLyrics|!turning/,
     'capa e letras conservam a mesma pose 3D durante todo o swipe');
+  assert.match(settings, /Artwork and lyrics keep the same 3D pose\./,
+    'as Definições descrevem a pose 3D que as letras realmente mantêm');
+  assert.doesNotMatch(settings, /Lyrics always settle flat/,
+    'a explicação antiga não contradiz o efeito atual');
   assert.match(lyrics, /if\(manual\|\|!synced\)return;/,
     'a face escondida continua sincronizada; visible só bloqueia interação');
 

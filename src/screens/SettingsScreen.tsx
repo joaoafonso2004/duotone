@@ -635,7 +635,7 @@ export function SettingsScreen({ navigation }: Props) {
           {Platform.OS === 'ios' && <Section title="Artwork style">
             <SegmentedControl options={['Floating 3D', 'Simple']} value={coverStyle === 'floating' ? 0 : 1}
               onChange={index => useCapaIOS.getState().setStyle(index === 0 ? 'floating' : 'simple')} />
-            <Text style={[type.caption, { marginTop: spacing.sm }]}>Floating 3D adds depth and a subtle continuous rise and fall. Lyrics always settle flat for natural scrolling.</Text>
+            <Text style={[type.caption, { marginTop: spacing.sm }]}>Floating 3D adds depth and a subtle continuous rise and fall. Artwork and lyrics keep the same 3D pose.</Text>
           </Section>}
 
           <Section title="Data">
