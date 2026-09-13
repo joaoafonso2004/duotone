@@ -57,6 +57,28 @@ async function run() {
   assert.ok(c.rotateX < ref.rotateX && c.rotateY < ref.rotateY && Math.abs(c.rotateZ) < Math.abs(ref.rotateZ),
     'roda um pouco menos do que a referência: a face tem de dominar');
   assert.ok(c.perspectiva > ref.perspectiva, 'e com a perspetiva um pouco mais longe');
+  // À deriva (13/9): a caixa inclina-se devagar, sem nunca passar da referência.
+  const d = c.deriva;
+  assert.ok(d.rotateX > 0 && d.rotateX <= 2 && d.rotateY > 0 && d.rotateY <= 2, 'a deriva inclina no máximo 2°');
+  assert.ok(c.rotateX + d.rotateX < ref.rotateX && c.rotateY + d.rotateY < ref.rotateY,
+    'nem no extremo da deriva a caixa roda mais do que a referência');
+  const longeDeInteiro = (x) => Math.abs(x - Math.round(x)) > 0.2;
+  assert.ok(longeDeInteiro(d.cicloMs / c.cicloMs) && longeDeInteiro(c.cicloMs / d.cicloMs),
+    'o ciclo da deriva não é múltiplo do da flutuação: a combinação quase não se repete');
+  // A onda que as move. A flutuação da 2.9.3 saltava do ponto mais alto para o
+  // meio a cada ciclo; uma onda que acaba onde começa não tem por onde saltar.
+  const seno = regra.ondaSeno();
+  assert.equal(seno.outputRange[0], 0, 'a onda começa no repouso: arrancar e parar não saltam');
+  assert.equal(seno.outputRange.at(-1), seno.outputRange[0], 'e acaba onde começa: um ciclo encaixa no seguinte');
+  assert.equal(regra.ondaSeno(16, 0.25).outputRange.at(-1), regra.ondaSeno(16, 0.25).outputRange[0], 'o cosseno também');
+  let pior = 0;
+  for (let i = 0; i <= 1000; i++) {
+    const t = i / 1000, s = Math.min(seno.inputRange.length - 2, Math.floor(t * (seno.inputRange.length - 1)));
+    const f = (t - seno.inputRange[s]) / (seno.inputRange[s + 1] - seno.inputRange[s]);
+    const v = seno.outputRange[s] + (seno.outputRange[s + 1] - seno.outputRange[s]) * f;
+    pior = Math.max(pior, Math.abs(v - Math.sin(2 * Math.PI * t)));
+  }
+  assert.ok(pior <= 0.02, `as amostras seguem o seno (desvio de ${(pior * 100).toFixed(1)}% da amplitude)`);
   assert.ok(regra.areaDaFace(c) >= regra.areaDaFace(ref),
     `a face ocupa pelo menos a área que ocupa na referência (${regra.areaDaFace(c).toFixed(3)})`);
   const desvio = regra.desvioDaFaceDeTras(c);
@@ -140,6 +162,13 @@ async function run() {
   assert.doesNotMatch(capa3D, /blurRadius|MaskedView/,
     'sem luz circular: a cor do fundo vem da capa desfocada do leitor');
   assert.match(player, /capa3d-vinheta\.png/, 'com a capa 3D, o fundo leva a vinheta centrada na capa');
+  // O loop repõe o valor com que o Animated.Value foi criado no início de cada
+  // volta: uma ida e volta em sequência, nascida a 0,5, saltava do topo para o meio.
+  assert.doesNotMatch(capa3D, /Animated\.loop\(\s*Animated\.sequence/,
+    'a flutuação não é uma sequência de ida e volta dentro de um loop');
+  assert.doesNotMatch(capa3D, /new Animated\.Value\(0\.5\)/, 'as fases nascem no repouso, a 0');
+  assert.match(capa3D, /ondaSeno/, 'a onda sai das amostras do lib');
+  assert.match(capa3D, /c\.deriva\.rotateX/, 'a caixa inclina-se à deriva');
   assert.doesNotMatch(player, /<CapaFlutuante3D[^>]*(?:showLyrics|turning)=/,
     'a pose exterior não muda quando o cubo roda para as letras');
   assert.doesNotMatch(capa3D, /enabled\s*&&\s*!showLyrics|!turning/,

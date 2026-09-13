@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, Easing, Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
+import { CAPA_FLUTUANTE, ondaSeno } from '../lib/capaFlutuante3D';
 
 // Os materiais saem de scripts/gerar-materiais-da-capa.py.
 const GRAO: ImageSourcePropType = require('../../assets/capa3d-grao.png');
@@ -9,25 +9,39 @@ const SOMBRA_AMBIENTE: ImageSourcePropType = require('../../assets/capa3d-sombra
 const SOMBRA_DE_CONTACTO: ImageSourcePropType = require('../../assets/capa3d-sombra-contacto.png');
 
 const CURVA = Easing.bezier(0.45, 0, 0.55, 1);
+const SENO = ondaSeno();
+const COSSENO = ondaSeno(16, 0.25);
+
+type Onda = { inputRange: number[]; outputRange: number[] };
+const vezes = (onda: Onda, fator: number, soma = 0) => ({
+  inputRange: onda.inputRange,
+  outputRange: onda.outputRange.map((v) => v * fator + soma),
+});
 
 /**
  * A pose inteira, por esta ordem -- a mesma de `projetar` no lib, que é o que o
  * teste confere contra a referência. Cada face da caixa começa a sua lista de
  * transformações por aqui.
+ *
+ * A deriva entra ANTES dos ângulos da referência: é a caixa a inclinar-se no ar
+ * vista de frente, e não um desvio dos ângulos medidos. Em repouso vale zero, e
+ * a pose fica exatamente a do lib.
  */
-function criarPostura(pose: Animated.Value, flutuar: Animated.Value, size: number) {
+function criarPostura(pose: Animated.Value, flutuar: Animated.Value, derivar: Animated.Value, size: number) {
   const c = CAPA_FLUTUANTE;
   const ate = (fim: number) => pose.interpolate({ inputRange: [0, 1], outputRange: [0, fim] });
   const angulo = (graus: number) => pose.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${graus}deg`] });
-  // flutuar a 0 é a capa em cima, a 1 em baixo.
-  const noAr = Animated.multiply(
-    flutuar.interpolate({ inputRange: [0, 1], outputRange: [-c.amplitude, c.amplitude] }),
-    pose,
-  );
+  // Positivo é para baixo. Uma volta de seno por ciclo, a começar e a acabar no meio.
+  const noAr = Animated.multiply(flutuar.interpolate(vezes(SENO, c.amplitude)), pose);
+  const inclinar = (onda: Onda, graus: number) => Animated.multiply(derivar.interpolate(onda), pose)
+    .interpolate({ inputRange: [-1, 1], outputRange: [`${-graus}deg`, `${graus}deg`] });
   return [
     { perspective: c.perspectiva * size },
     { translateX: ate(c.deslocacaoX * size) },
     { translateY: Animated.add(ate(c.deslocacaoY * size), noAr) },
+    // Seno num eixo e cosseno no outro: a inclinação dá a volta, em vez de ir e vir.
+    { rotateX: inclinar(COSSENO, c.deriva.rotateX) },
+    { rotateY: inclinar(SENO, c.deriva.rotateY) },
     { rotateX: angulo(c.rotateX) },
     { rotateY: angulo(c.rotateY) },
     { rotateZ: angulo(c.rotateZ) },
@@ -69,7 +83,9 @@ type Props = {
 export function CapaFlutuante3D({ size, enabled, children }: Props) {
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
-  const flutuar = useRef(new Animated.Value(0.5)).current;
+  // Fases de 0 a 1, uma volta por ciclo. O 0 é o repouso: a meio e sem inclinação.
+  const flutuar = useRef(new Animated.Value(0)).current;
+  const derivar = useRef(new Animated.Value(0)).current;
   const pose = useRef(new Animated.Value(enabled ? 1 : 0)).current;
 
   useEffect(() => {
@@ -88,29 +104,39 @@ export function CapaFlutuante3D({ size, enabled, children }: Props) {
     return () => animacao.stop();
   }, [enabled, pose]);
 
-  // A flutuação: muito subtil, parada com Reduzir movimento e em segundo plano.
+  // A flutuação e a deriva: muito subtis, paradas com Reduzir movimento e em
+  // segundo plano.
+  //
+  // Cada uma é UMA animação de 0 a 1 em ciclo, e a onda sai da interpolação.
+  // Não pode ser uma sequência de ida e volta dentro de um loop: o loop repõe, no
+  // início de cada volta, o valor com que o Animated.Value foi CRIADO. A
+  // flutuação antiga nascia a 0,5 e acabava cada volta em 0 (o ponto mais alto),
+  // e a capa saltava do topo para o meio a cada 4,6 s (2.9.3). Aqui a fase nasce
+  // e recomeça em 0, e a onda vale o mesmo em 0 e em 1.
   useEffect(() => {
     flutuar.stopAnimation();
-    if (!enabled || reduced || !foreground) {
-      flutuar.setValue(0.5);
-      return;
-    }
+    derivar.stopAnimation();
     flutuar.setValue(0);
-    const metade = CAPA_FLUTUANTE.cicloMs / 2;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(flutuar, { toValue: 1, duration: metade, easing: CURVA, useNativeDriver: true }),
-        Animated.timing(flutuar, { toValue: 0, duration: metade, easing: CURVA, useNativeDriver: true }),
-      ]),
+    derivar.setValue(0);
+    if (!enabled || reduced || !foreground) return;
+    const flutuacao = Animated.loop(
+      Animated.timing(flutuar, { toValue: 1, duration: CAPA_FLUTUANTE.cicloMs, easing: Easing.linear, useNativeDriver: true }),
     );
-    loop.start();
-    return () => loop.stop();
-  }, [enabled, foreground, flutuar, reduced]);
+    const deriva = Animated.loop(
+      Animated.timing(derivar, { toValue: 1, duration: CAPA_FLUTUANTE.deriva.cicloMs, easing: Easing.linear, useNativeDriver: true }),
+    );
+    flutuacao.start();
+    deriva.start();
+    return () => {
+      flutuacao.stop();
+      deriva.stop();
+    };
+  }, [enabled, foreground, flutuar, derivar, reduced]);
 
   const c = CAPA_FLUTUANTE;
   // Estáveis entre renders: o leitor volta a desenhar a cada segundo da música,
   // e refazer as interpolações a cada vez era religar o grafo nativo por nada.
-  const postura = useMemo(() => criarPostura(pose, flutuar, size), [pose, flutuar, size]);
+  const postura = useMemo(() => criarPostura(pose, flutuar, derivar, size), [pose, flutuar, derivar, size]);
   const pose3D = useMemo<PoseDaCapa3D | null>(
     () => (enabled
       ? { postura, pose, espessura: c.espessura * size, grao: { fonte: GRAO, opacidade: c.grao.opacidade } }
@@ -119,19 +145,21 @@ export function CapaFlutuante3D({ size, enabled, children }: Props) {
   );
   const sombras = useMemo(() => {
     const a = c.sombraAmbiente, k = c.sombraDeContacto;
+    // 0 com a capa no ponto mais alto, 1 no mais baixo.
+    const baixo = flutuar.interpolate(vezes(SENO, 0.5, 0.5));
     return {
       ambiente: {
         left: a.x * size, top: a.y * size, width: a.largura * size, height: a.altura * size,
-        opacity: Animated.multiply(pose, flutuar.interpolate({ inputRange: [0, 1], outputRange: [a.opacidade * 0.85, a.opacidade] })),
-        transform: [{ scaleX: flutuar.interpolate({ inputRange: [0, 1], outputRange: [1.04, 1] }) }],
+        opacity: Animated.multiply(pose, baixo.interpolate({ inputRange: [0, 1], outputRange: [a.opacidade * 0.85, a.opacidade] })),
+        transform: [{ scaleX: baixo.interpolate({ inputRange: [0, 1], outputRange: [1.04, 1] }) }],
       },
       // Mais clara e mais pequena quando a capa sobe: é isso que vende a altura.
       contacto: {
         left: k.x * size, top: k.y * size, width: k.largura * size, height: k.altura * size,
-        opacity: Animated.multiply(pose, flutuar.interpolate({ inputRange: [0, 1], outputRange: [k.opacidade * 0.55, k.opacidade] })),
+        opacity: Animated.multiply(pose, baixo.interpolate({ inputRange: [0, 1], outputRange: [k.opacidade * 0.55, k.opacidade] })),
         transform: [
           { rotate: `${k.rotacao}deg` },
-          { scale: flutuar.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
+          { scale: baixo.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
         ],
       },
     };

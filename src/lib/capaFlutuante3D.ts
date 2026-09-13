@@ -64,10 +64,19 @@ export const POSE_DA_REFERENCIA = {
 } as const;
 
 export const CAPA_FLUTUANTE = {
-  /** Distância para cada lado do centro: seis pontos no percurso inteiro. */
-  amplitude: 3,
-  /** Uma subida e uma descida completas, sem pausa nas extremidades. */
+  /**
+   * Distância para cada lado do centro: quatro pontos no percurso inteiro. Era
+   * 3; desceu quando a deriva entrou, porque as duas juntas já dão movimento.
+   */
+  amplitude: 2,
+  /** Uma subida e uma descida completas, numa onda de seno. */
   cicloMs: 4600,
+  /**
+   * À deriva (13/9): a caixa inclina-se devagar no ar, em graus, a dar a volta
+   * (seno num eixo, cosseno no outro). O ciclo não é múltiplo do da flutuação, e
+   * por isso a combinação das duas quase não se repete.
+   */
+  deriva: { rotateX: 1, rotateY: 1.5, cicloMs: 7300 },
   /** Em lados da capa. */
   perspectiva: 6.3,
   /** Em lados: a silhueta na referência está um pouco à direita e acima. */
@@ -96,6 +105,27 @@ export const CAPA_FLUTUANTE = {
   sombraDeContacto: { opacidade: 0.75, x: 0.09, y: 0.845, largura: 0.92, altura: 0.195, rotacao: 7.3 },
 } as const;
 
+/**
+ * Uma volta de seno em amostras, pronta para o `interpolate` de uma fase de 0 a 1.
+ *
+ * Começa e acaba no mesmo valor, por isso um ciclo encaixa no seguinte sem
+ * salto; com `deslocamento` 0 começa em 0 (o repouso), e com 0,25 é o cosseno.
+ * Dezasseis segmentos chegam: o maior desvio para o seno verdadeiro é ~2% da
+ * amplitude (0,04 pt em 2 pt). O Animated não tem seno, e é por isto que a onda
+ * vive em amostras em vez de numa curva de easing de ida e volta.
+ */
+export function ondaSeno(segmentos = 16, deslocamento = 0) {
+  const inputRange: number[] = [];
+  const outputRange: number[] = [];
+  for (let i = 0; i <= segmentos; i++) {
+    const t = i / segmentos;
+    inputRange.push(t);
+    // O arredondamento tira o -0 e os 1e-16 que impediam o fim de ser igual ao início.
+    outputRange.push(Math.round(Math.sin(2 * Math.PI * (t + deslocamento)) * 1e6) / 1e6 + 0);
+  }
+  return { inputRange, outputRange };
+}
+
 export type PoseDaCapa = {
   perspectiva: number;
   deslocacaoX: number;
@@ -112,7 +142,9 @@ const rad = (graus: number) => (graus * Math.PI) / 180;
  * Onde um ponto da capa aparece no ecrã, em lados da capa e com a origem no
  * centro. Pela ordem da lista de transformações do componente: perspetiva,
  * deslocação, rotateX, rotateY, rotateZ, escala e, por fim, a profundidade `z`
- * (que a escala não afeta, como no React Native e no CSS).
+ * (que a escala não afeta, como no React Native e no CSS). A deriva, que o
+ * componente põe entre a deslocação e os ângulos, vale zero em repouso e fica
+ * de fora.
  */
 export function projetar(x: number, y: number, z: number, p: PoseDaCapa): [number, number] {
   let px = x * p.scale;
