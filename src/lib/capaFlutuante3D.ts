@@ -213,6 +213,24 @@ export function geometriaDaLateral(qual: Lateral, lado: number, espessura: numbe
 }
 
 /**
+ * Onde fica cada mosaico do grão para cobrir `largura` × `altura`, em pontos.
+ *
+ * O grão é repetido À MÃO, uma imagem por mosaico: o modo `repeat` da Image do
+ * React Native não repetia no iPhone (2.9.2) e desenhava um mosaico só, no canto
+ * de cima à esquerda da face. O que passa da borda corta-se pela vista de fora.
+ */
+export function mosaicoDoGrao(largura: number, altura: number, lado: number = CAPA_FLUTUANTE.grao.ladoPt) {
+  const mosaicos: { x: number; y: number }[] = [];
+  if (!(largura > 0) || !(altura > 0) || !(lado > 0)) return mosaicos;
+  const colunas = Math.ceil(largura / lado);
+  const linhas = Math.ceil(altura / lado);
+  for (let j = 0; j < linhas; j++) {
+    for (let i = 0; i < colunas; i++) mosaicos.push({ x: i * lado, y: j * lado });
+  }
+  return mosaicos;
+}
+
+/**
  * Migração do antigo efeito do iPhone.
  *
  * Quem tinha o glitch desligado ou estático fica com a capa simples; quem o

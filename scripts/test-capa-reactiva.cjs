@@ -126,6 +126,14 @@ async function run() {
   assert.match(cubo, /-direction\*180/, 'no 3D a caixa vira 180° inteira, com as letras no verso');
   assert.match(cubo, /LATERAIS\.map/, 'as laterais viram com a face');
   assert.match(cubo, /GraoDaFace/, 'o grão de pedra está nas faces, e não só nas laterais');
+  // O modo repeat da Image não repetia no iPhone: a 2.9.2 mostrava um mosaico só,
+  // no canto de cima à esquerda. O grão é repetido à mão.
+  assert.doesNotMatch(cubo, /resizeMode=["']repeat/, 'o grão não depende do repeat da Image');
+  const mosaicosDaLateral = regra.mosaicoDoGrao(370, 29, 60);
+  assert.equal(mosaicosDaLateral.length, 7, 'uma lateral de 370 × 29 pt leva sete mosaicos');
+  assert.deepEqual(mosaicosDaLateral.at(-1), { x: 360, y: 0 }, 'o último mosaico chega ao fim da lateral');
+  assert.equal(regra.mosaicoDoGrao(370, 370, 60).length, 49, 'uma face de 370 pt fica coberta até ao canto de baixo à direita');
+  assert.deepEqual(regra.mosaicoDoGrao(0, 370, 60), [], 'sem tamanho, sem mosaicos');
   assert.match(player, /pose3D=\{pose3D\}/, 'o cubo recebe a pose da capa 3D');
   assert.doesNotMatch(capa3D, /shadowOffset|shadowRadius/,
     'as sombras são difusas no fundo, e não um drop-shadow preso à capa');
