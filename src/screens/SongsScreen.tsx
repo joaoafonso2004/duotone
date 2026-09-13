@@ -3,6 +3,7 @@ import { OfflineNotice } from '../components/OfflineNotice';
 import { useAuth } from '../state/auth';
 import { isAudioCached,useAudioCache } from '../lib/youtubeCache';
 import { readLikedSongsCache } from '../lib/likedSongsCache';
+import { faixasEmCache, lerFaixas } from '../lib/cacheDaBiblioteca';
 import { displayArtist } from '../lib/artistName';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -74,12 +75,23 @@ export function SongsScreen() {
     const run=++generation.current;
     setLoadError('');
     if(!userId){setTracks([]);setLoading(false);return;}
-    const cached=await readLikedSongsCache(userId);
-    if(run!==generation.current)return;
-    setTracks(cached);setLoading(false);
+    // O que o arranque aqueceu, se estiver quente: pinta SEM esperar sequer
+    // pelo disco. Ver `hooks/useAquecerSeccoes.ts`.
+    const aquecidas=faixasEmCache(getLikedSongs);
+    if(aquecidas){setTracks(aquecidas);setLoading(false);}
+    else {
+      // Senão o ficheiro: é local, sobrevive a fechar a app e serve offline,
+      // que a memória não faz.
+      const cached=await readLikedSongsCache(userId);
+      if(run!==generation.current)return;
+      setTracks(cached);setLoading(false);
+    }
     if(offline)return;
     try {
-      const result=await getLikedSongs();
+      // Pela cache partilhada: duas visitas seguidas ao separador deixam de ser
+      // duas consultas. Gostar de uma música limpa-a (ver `markSaved`), por
+      // isso isto nunca mostra uma lista velha.
+      const result=await lerFaixas(getLikedSongs);
       if(run===generation.current)setTracks(result);
     }catch{
       if(run===generation.current)setLoadError('Could not refresh your liked songs. Your last saved list is shown.');

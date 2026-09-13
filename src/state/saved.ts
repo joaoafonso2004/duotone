@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { getLibraryKeys } from '../api/library';
 import type { Track } from '../types';
+import { esquecerBiblioteca } from '../lib/cacheDaBiblioteca';
 
 /**
  * Que faixas é que já estão guardadas, em memória.
@@ -42,6 +43,10 @@ export const useSaved = create<SavedState>()((set, get) => ({
   },
 
   markSaved: (track, saved) => {
+    // A biblioteca mudou: a lista guardada deixou de ser verdade. Isto é o
+    // sítio porque TODOS os caminhos de guardar/tirar passam por aqui -- é a
+    // regra que já existia para os corações se acenderem.
+    esquecerBiblioteca();
     const key = savedKey(track);
     set((s) => {
       if (s.keys.has(key) === saved) return s;

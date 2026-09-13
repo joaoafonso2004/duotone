@@ -37,6 +37,16 @@ const guardado = new Map<LeitorDeFaixas, { em: number; faixas: Track[] }>();
  *  aquecimento e uma página) não podem dar duas consultas. */
 const emCurso = new Map<LeitorDeFaixas, Promise<Track[]>>();
 
+/**
+ * Sobe a cada invalidação, e é o que impede uma lista VELHA de aterrar depois.
+ *
+ * Sem isto: pede-se a lista, gosta-se de uma música enquanto ela vem, a
+ * resposta chega e guarda-se -- sem a música nova, e por meia hora. É a mesma
+ * armadilha do contador de geração das listas do iPhone, e a resposta é a
+ * mesma: quem chega fora do seu tempo não escreve.
+ */
+let geracao = 0;
+
 /** O que está guardado e ainda vale, ou `null`. Não vai à rede. */
 export function faixasEmCache(leitor: LeitorDeFaixas, agora: number = Date.now()): Track[] | null {
   const entrada = guardado.get(leitor);
@@ -48,10 +58,18 @@ export function guardarFaixas(leitor: LeitorDeFaixas, faixas: Track[], agora: nu
   guardado.set(leitor, { em: agora, faixas });
 }
 
-/** Esquece tudo. Ao trocar de sessão, a biblioteca é de outra pessoa. */
+/**
+ * Esquece tudo.
+ *
+ * Ao trocar de sessão (a biblioteca é de outra pessoa) e sempre que a
+ * biblioteca MUDA -- gostar de uma música, tirar outra. Quem guarda passa pelo
+ * `markSaved` da store das guardadas, e é de lá que isto é chamado: sem isso, a
+ * lista das gostadas ficava meia hora sem a música que se acabou de guardar.
+ */
 export function esquecerBiblioteca(): void {
   guardado.clear();
   emCurso.clear();
+  geracao++;
 }
 
 /**
@@ -71,9 +89,13 @@ export async function lerFaixas(
   const jaVem = emCurso.get(leitor);
   if (jaVem) return jaVem;
 
+  const daMinha = geracao;
   const pedido = leitor()
     .then((faixas) => {
-      guardarFaixas(leitor, faixas);
+      // Só se guarda o que ainda é verdade: se a biblioteca mudou enquanto isto
+      // vinha, esta lista já nasceu velha. Devolve-se a quem pediu (é o que ele
+      // tem) mas não se guarda para os outros.
+      if (daMinha === geracao) guardarFaixas(leitor, faixas);
       return faixas;
     })
     .finally(() => {

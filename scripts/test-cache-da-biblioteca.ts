@@ -102,6 +102,41 @@ await caso('uma falha não guarda nada, e tenta outra vez a seguir', async () =>
   assert.equal((await lerFaixas(leitor)).length, 1);
 });
 
+console.log('\numa lista velha nunca aterra por cima');
+
+await caso('mudar a biblioteca a meio de uma leitura nao a deixa guardar', async () => {
+  esquecerBiblioteca();
+  let resolver: (v: Track[]) => void = () => {};
+  const leitor = () => new Promise<Track[]>((r) => { resolver = r; });
+  const pedido = lerFaixas(leitor);
+  // Gostou-se de uma musica enquanto a lista vinha.
+  esquecerBiblioteca();
+  resolver([faixa('sem-a-nova')]);
+  await pedido;
+  assert.equal(faixasEmCache(leitor), null,
+    'a lista pedida antes da mudanca nao pode ficar guardada meia hora');
+});
+
+await caso('quem pediu recebe na mesma o que veio', async () => {
+  esquecerBiblioteca();
+  let resolver: (v: Track[]) => void = () => {};
+  const leitor = () => new Promise<Track[]>((r) => { resolver = r; });
+  const pedido = lerFaixas(leitor);
+  esquecerBiblioteca();
+  resolver([faixa('a')]);
+  assert.deepEqual((await pedido).map((t) => t.sourceId), ['a']);
+});
+
+await caso('depois da mudanca, a leitura seguinte guarda outra vez', async () => {
+  esquecerBiblioteca();
+  let idas = 0;
+  const leitor = async () => { idas++; return [faixa('v' + idas)]; };
+  await lerFaixas(leitor);
+  esquecerBiblioteca();
+  await lerFaixas(leitor);
+  assert.equal(faixasEmCache(leitor)?.[0].sourceId, 'v2', 'a cache volta a funcionar');
+});
+
 console.log('\nao trocar de conta não sobra nada');
 
 await caso('esquecer apaga tudo', async () => {
