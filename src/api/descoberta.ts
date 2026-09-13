@@ -25,6 +25,7 @@ import { trackKey } from '../lib/shuffle';
 import {
   aEvitar, chegam, lerHistorico, registarSemana, TENTATIVAS_SEM_REPETIR,
 } from '../lib/descobertasMostradas';
+import { diaDe, misturaGuardada } from '../lib/misturaDoDia';
 import type { Track } from '../types';
 
 /**
@@ -458,8 +459,11 @@ export async function flowDoDia(limite: number, biblioteca: readonly Track[]): P
   const favoritos = await getHeavyRotation(quantosFavoritos).catch(() => [] as Track[]);
 
   const jaLa = new Set(favoritos.map((t) => trackKey(t)));
-  const novas = await candidatasParaDescoberta(biblioteca, jaLa, new Set())
-    .catch(() => [] as Track[]);
+  // Pelo `descobrirNovas`, e não direto ao `candidatasParaDescoberta`: é ele que
+  // leva o gosto do Spotify e as sementes. Direto, uma conta nova (sem
+  // histórico nem biblioteca) recebia um flow vazio -- justamente quem vive de
+  // uma playlist que se faz sozinha.
+  const novas = await descobrirNovas(Math.max(12, limite - favoritos.length), biblioteca, jaLa);
 
   // Intercaladas e não em bloco: as novas ao fundo eram as que ninguém via.
   const saida: Track[] = [];
@@ -473,6 +477,30 @@ export async function flowDoDia(limite: number, biblioteca: readonly Track[]): P
   }
   while (saida.length < limite && iNovas < novas.length) saida.push(novas[iNovas++]);
   return filterSuggestions(saida);
+}
+
+/** Uma chave só, reescrita todos os dias, como a da semana. */
+const CHAVE_DA_MISTURA_DO_DIA = 'mistura-do-dia:v1';
+
+/**
+ * A Daily mix: o `flowDoDia`, mas a MESMA durante o dia inteiro -- ver
+ * `lib/misturaDoDia.ts`. No `yt_cache`, que é por utilizador: a mix é a mesma
+ * no iPhone e no PC. `forcar` refaz a de hoje.
+ */
+export async function misturaDoDia(
+  limite: number,
+  biblioteca: readonly Track[],
+  forcar = false,
+): Promise<Track[]> {
+  const dia = diaDe();
+  if (!forcar) {
+    const guardada = misturaGuardada<Track>(await cacheGet<unknown>(CHAVE_DA_MISTURA_DO_DIA, 2 * DIA_MS), dia);
+    if (guardada) return guardada;
+  }
+  const faixas = await flowDoDia(limite, biblioteca);
+  // Vazia não se guarda: seria fixar o silêncio o dia inteiro.
+  if (faixas.length > 0) await cacheSet(CHAVE_DA_MISTURA_DO_DIA, { dia, faixas });
+  return faixas;
 }
 
 /**

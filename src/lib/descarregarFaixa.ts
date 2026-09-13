@@ -1,8 +1,10 @@
 import { resolveYouTubeStream } from '../api/ytstream';
 import { useConnectivity } from '../state/connectivity';
+import { usePlayer } from '../state/player';
 import type { Track } from '../types';
+import { faixasParaGuardar } from './misturaDoDia';
 import { getAudioQuality } from './prefs';
-import { downloadProgressiveAudio, isAudioCached, removeDownloadedAudio } from './youtubeCache';
+import { DOWNLOAD_ABORTED, downloadProgressiveAudio, isAudioCached, removeDownloadedAudio } from './youtubeCache';
 
 /**
  * Descarregar uma faixa para ouvir sem rede, a partir de qualquer menu.
@@ -48,4 +50,50 @@ export async function alternarDownload(track: Track): Promise<void> {
   } catch (err) {
     console.warn('[Download] Falha ao descarregar faixa:', err);
   }
+}
+
+/**
+ * Deixa descarregadas, em segundo plano, as primeiras músicas de uma lista que
+ * se vai ouvir -- a Daily mix (`lib/misturaDoDia.ts`). Uma de cada vez, com a
+ * prioridade mais baixa da fila, e nunca em dados móveis.
+ *
+ * **Pára quando o leitor está a preparar uma música.** A fila de downloads não
+ * interrompe ninguém: sem isto, carregar numa música que não está em disco
+ * esperava pelo fim do ficheiro da mix que estivesse a meio. Não conta como
+ * guardada, e não se tenta outra vez nesta passagem.
+ *
+ * Não são downloads EXPLÍCITOS: não ficam fixados, e a limpeza da cache no
+ * arranque leva-os como leva o resto. Devolve quantas ficaram em disco.
+ */
+export async function guardarEmSegundoPlano(faixas: readonly Track[]): Promise<number> {
+  const deveParar = () => {
+    const rede = useConnectivity.getState();
+    const leitor = usePlayer.getState();
+    return rede.offline || rede.dadosMoveis || leitor.activeBackend === 'resolving' || leitor.buffering;
+  };
+  let guardadas = 0;
+  for (const track of faixasParaGuardar(faixas, isAudioCached, useConnectivity.getState())) {
+    if (useConnectivity.getState().offline || useConnectivity.getState().dadosMoveis) break;
+    if (isAudioCached(track.sourceId) || deveParar()) continue;
+    try {
+      const quality = await getAudioQuality();
+      const stream = await resolveYouTubeStream(track.sourceId, quality);
+      if (stream.isHls || deveParar()) continue;
+      await downloadProgressiveAudio(
+        track.sourceId,
+        stream.url,
+        stream.contentLength,
+        track.durationSeconds || stream.durationSeconds || null,
+        {
+          prioridade: 'adiantar',
+          shouldAbort: deveParar,
+          renewUrl: async () => (await resolveYouTubeStream(track.sourceId, quality, true)).url,
+        },
+      );
+      guardadas++;
+    } catch (err: any) {
+      if (err?.message !== DOWNLOAD_ABORTED) console.warn('[Daily mix] Falha ao guardar faixa:', err);
+    }
+  }
+  return guardadas;
 }

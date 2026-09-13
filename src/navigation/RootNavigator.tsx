@@ -95,7 +95,9 @@ export type RootStackParamList = {
     titulo: string;
     fonte:
       | { tipo: 'prateleira'; nome: NomeDaPrateleira }
-      | { tipo: 'mistura'; id: string };
+      | { tipo: 'mistura'; id: string }
+      /** A Daily mix do iPhone. Ver `state/misturaDoDia.ts`. */
+      | { tipo: 'doDia' };
   };
 };
 

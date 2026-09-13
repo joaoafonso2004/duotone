@@ -9,6 +9,7 @@ import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useRecomendacoes } from '../state/recomendacoes';
+import { useMisturaDoDia } from '../state/misturaDoDia';
 import { usePlayer } from '../state/player';
 import { useSaved } from '../state/saved';
 import { MINI_PLAYER_HEIGHT } from '../theme';
@@ -41,18 +42,26 @@ export function PrateleiraScreen({ route }: Props) {
   // `useSyncExternalStore` num ciclo, e já foi assim que uma versão não
   // arrancou.
   const prateleiras = useRecomendacoes((s) => s);
-  const faixas = useMemo(()=>fonte.tipo === 'prateleira'
+  // A Daily mix vive numa store própria (state/misturaDoDia.ts).
+  const misturaDoDia = useMisturaDoDia((s) => s.faixas);
+  const misturaDoDiaPronta = useMisturaDoDia((s) => s.estado === 'pronto');
+  const faixas = useMemo(()=>fonte.tipo === 'doDia'
+    ? misturaDoDia
+    : fonte.tipo === 'prateleira'
     ? prateleiras[fonte.nome]
-    : prateleiras.misturas.find((m) => m.id === fonte.id)?.faixas ?? [],[fonte,prateleiras]);
-  const chegou = fonte.tipo === 'prateleira'
+    : prateleiras.misturas.find((m) => m.id === fonte.id)?.faixas ?? [],[fonte,prateleiras,misturaDoDia]);
+  const chegou = fonte.tipo === 'doDia'
+    ? misturaDoDiaPronta
+    : fonte.tipo === 'prateleira'
     ? prateleiras.prontas.includes(fonte.nome)
     : prateleiras.misturasProntas;
   const playTrack = usePlayer((s) => s.playTrack);
   const savedKeys=useSaved((s)=>s.keys);
   const [aberta, setAberta] = useState<Track | null>(null);
-  const contextoDe=useCallback((track:Track)=>fonte.tipo==='prateleira'
-    ?contextoDaPrateleira(fonte.nome,savedKeys.has(`${track.source}:${track.sourceId}`))
-    :contextoDaMistura(fonte.id,titulo,savedKeys.has(`${track.source}:${track.sourceId}`)),[fonte,savedKeys,titulo]);
+  // A Daily mix conta como o flow: é o mesmo `flowDoDia`, guardado por dia.
+  const contextoDe=useCallback((track:Track)=>fonte.tipo==='mistura'
+    ?contextoDaMistura(fonte.id,titulo,savedKeys.has(`${track.source}:${track.sourceId}`))
+    :contextoDaPrateleira(fonte.tipo==='prateleira'?fonte.nome:'flow',savedKeys.has(`${track.source}:${track.sourceId}`)),[fonte,savedKeys,titulo]);
   const impressao=useRef('');
   useEffect(()=>{
     if(!chegou||!faixas.length)return;

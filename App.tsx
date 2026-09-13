@@ -47,6 +47,7 @@ import { useTheme } from './src/state/theme';
 import { useAcompanharCapa } from './src/hooks/useAcompanharCapa';
 import { useEstadoDoWidget } from './src/hooks/useEstadoDoWidget';
 import { useRecomendacoes } from './src/state/recomendacoes';
+import { useMisturaDoDia } from './src/state/misturaDoDia';
 import { usePlaylists } from './src/state/playlists';
 import { iniciarPresenca } from './src/lib/presenceSync';
 import { useOuvirJuntos } from './src/state/ouvirJuntos';
@@ -134,7 +135,7 @@ export default function App() {
     if (!userId||offline) return;
     let active=true;
     void loadRecommendationFeedback(userId).then(()=>{if(active)void useRecomendacoes.getState().carregar();});
-    return () => {active=false;useRecomendacoes.getState().limpar();};
+    return () => {active=false;useRecomendacoes.getState().limpar();useMisturaDoDia.getState().limpar();};
   }, [userId,offline]);
 
   /**

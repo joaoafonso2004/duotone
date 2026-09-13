@@ -9,3 +9,4 @@ import type { Track } from '../types';
 export function podeDescarregar(_track: Track): boolean { return false; }
 export function estaDescarregada(_track: Track): boolean { return false; }
 export async function alternarDownload(_track: Track): Promise<void> {}
+export async function guardarEmSegundoPlano(_faixas: readonly Track[]): Promise<number> { return 0; }
