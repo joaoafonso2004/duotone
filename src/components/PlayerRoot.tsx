@@ -3,6 +3,7 @@ import { ModoCarro } from './ModoCarro';
 import { useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
 import { Toque } from './Toque';
+import { TextoQueCabe } from './TextoQueCabe';
 import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade';
 import { BarraDaSessao } from './BarraDaSessao';
 import { FolhaDaSessao } from './FolhaDaSessao';
@@ -14,7 +15,7 @@ import { readLikedSongsCache } from '../lib/likedSongsCache';
 import { useAuth } from '../state/auth';
 import { closePlayerSmoothly, confirmaSwipe } from '../lib/closePlayer';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa, tituloNoLeitor } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -46,7 +47,7 @@ import { useTheme } from '../state/theme';
 import { contextoParaAnalytics } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
-import { ProgressBar } from './ProgressBar';
+import { ProgressBar, TOQUE_DA_BARRA } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
 import {ArtworkLyricsCube} from './ArtworkLyricsCube';
 import { QueueSheet } from './QueueSheet';
@@ -615,6 +616,9 @@ export function PlayerRoot() {
 
   const [showLyrics, setShowLyrics] = useState(false);
   const [modoCarro, setModoCarro] = useState(false);
+  // A largura da linha do título, entre o coração e as reticências. O título
+  // e o artista desvanecem contra ela (ver TextoQueCabe).
+  const [larguraDoTitulo, setLarguraDoTitulo] = useState(0);
   useEffect(() => {
     setShowLyrics(false);
   }, [current?.sourceId]);
@@ -1098,88 +1102,103 @@ export function PlayerRoot() {
           bounces={false}
           showsVerticalScrollIndicator={false}
         >
-          {/* Grupo Principal: Título + Ações, Barra de Progresso e Controlos de Reprodução */}
-          <View style={styles.mainControlsGroup}>
-            {/* O título pode ocupar duas linhas; o coração tem um alvo fixo. */}
-            <View style={styles.titleRow}>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Pressable
-                  onLongPress={handleTitleLongPress}
-                  delayLongPress={500}
-                  style={({ pressed }) => [{ opacity: pressed ? 0.75 : 1 }]}
-                >
-                  <Text style={styles.trackTitle} numberOfLines={2}>
-                    {/* O mesmo título que as listas mostram. O player era o
-                        único sítio da app a mostrar o título CRU do YouTube --
-                        com o nome do artista à frente e o [Official Video]
-                        atrás, por cima do artista repetido na linha de baixo. */}
-                    {tituloDaFaixa(current)}
-                  </Text>
-                </Pressable>
-                {downloadProgress != null ? (
-                  <Text numberOfLines={1} style={styles.trackArtist}>
-                    {`Downloading… ${Math.round(downloadProgress * 100)}%`}
-                  </Text>
-                ) : (
-                  // O nome do artista leva à página dele, como em todo o resto
-                  // da app. `alignSelf` para a área de toque acabar no fim do
-                  // nome e não atravessar a largura toda -- um alvo invisível a
-                  // ocupar a linha inteira apanha toques que não eram para ele.
-                  <Toque
-                    escala={ESCALA.cartao}
-                    onPress={abrirArtista}
-                    disabled={!temArtista}
-                    hitSlop={8}
-                    accessibilityRole={temArtista ? 'link' : undefined}
-                    accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
-                    style={{ alignSelf: 'flex-start', maxWidth: '100%' }}
-                  >
-                    <Text numberOfLines={1} style={styles.trackArtist}>
-                      {nomeDoArtista}
-                    </Text>
-                  </Toque>
-                )}
-              </View>
-              {/* As reticências vivem aqui e não no cabeçalho.
-                  No canto superior direito estavam no ponto mais longe do
-                  polegar de quem segura o telemóvel, e longe daquilo sobre
-                  que agem. Ao lado do título estão nas duas coisas. */}
-              <View ref={ancoraDasOpcoes} collapsable={false}>
-                <Toque
-                  escala={ESCALA.botao}
-                  onPress={abrirOpcoes}
-                  style={styles.actionsBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Track options"
-                >
-                  <Ionicons name="ellipsis-horizontal" size={20} color={colors.text} />
-                </Toque>
-              </View>
-            </View>
+          {/* O corpo reparte a folga por TRÊS espaçadores iguais: por cima do
+              título, entre o artista e a barra, e entre o play e o Queue/EQ.
+              Com o `space-between` eram duas folgas e nada por cima do título,
+              que ficava colado aos pontos do cubo com um vazio por baixo do
+              artista (13/9). Os espaçadores descontam o que não se vê -- a
+              margem dos pontos e o toque invisível da barra --, para os três
+              espaços que se VEEM serem iguais. Medido na preview: 45/44/45 pt. */}
+          <View style={[styles.folga, styles.folgaDeCima]} />
 
-            {/* Barra de Progresso */}
-            <View style={{ marginTop: spacing.xs }}>
-              <ProgressBar
-                positionMs={positionMs}
-                durationMs={durationMs}
-                onSeek={seekTo}
-                onScrubbingChange={setScrubbing}
+          {/* O título ao centro, entre o coração e as reticências, os dois sem
+              círculo e com o mesmo alvo -- é essa simetria que o deixa mesmo ao
+              centro do ecrã. Uma linha só: o que não cabe desvanece, e tocar
+              dá-lhe uma volta (TextoQueCabe). O toque longo continua a copiar. */}
+          <View style={styles.titleRow}>
+            <Toque
+              escala={ESCALA.icone}
+              onPress={saveCurrentToLibrary}
+              style={styles.ladoDoTitulo}
+              accessibilityRole="button"
+              accessibilityLabel={saved ? 'Remove from Library' : 'Save to Library'}
+            >
+              <StateIcon
+                pulsar={saved}
+                name={saved ? 'heart' : 'heart-outline'}
+                size={22}
+                color={saved ? theme.color : colors.text}
               />
+            </Toque>
+            <View
+              style={styles.textosDoTitulo}
+              onLayout={(e) => {
+                const w = e.nativeEvent.layout.width;
+                setLarguraDoTitulo((antes) => (Math.abs(antes - w) > 0.5 ? w : antes));
+              }}
+            >
+              {/* Sem nada entre parênteses no fim: aqui não se distingue a
+                  versão, e as listas continuam a mostrá-la (tituloNoLeitor). */}
+              <TextoQueCabe
+                rola
+                texto={tituloNoLeitor(current)}
+                style={styles.trackTitle}
+                larguraDisponivel={larguraDoTitulo}
+                onLongPress={handleTitleLongPress}
+              />
+              {downloadProgress != null ? (
+                <Text numberOfLines={1} style={[styles.trackArtist, styles.artistaDoTitulo]}>
+                  {`Downloading… ${Math.round(downloadProgress * 100)}%`}
+                </Text>
+              ) : (
+                // O nome do artista leva à página dele, como em todo o resto
+                // da app. A caixa encolhe à medida do nome para o toque acabar
+                // onde ele acaba -- um alvo invisível a ocupar a linha inteira
+                // apanha toques que não eram para ele.
+                <Toque
+                  escala={ESCALA.cartao}
+                  onPress={abrirArtista}
+                  disabled={!temArtista}
+                  hitSlop={8}
+                  accessibilityRole={temArtista ? 'link' : undefined}
+                  accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
+                  style={styles.artistaDoTitulo}
+                >
+                  <TextoQueCabe
+                    texto={nomeDoArtista}
+                    style={styles.trackArtist}
+                    larguraDisponivel={larguraDoTitulo}
+                  />
+                </Toque>
+              )}
+            </View>
+            {/* As reticências vivem aqui e não no cabeçalho: no canto de cima
+                estavam no ponto mais longe do polegar, e longe daquilo sobre que
+                agem. */}
+            <View ref={ancoraDasOpcoes} collapsable={false}>
+              <Toque
+                escala={ESCALA.icone}
+                onPress={abrirOpcoes}
+                style={styles.ladoDoTitulo}
+                accessibilityRole="button"
+                accessibilityLabel="Track options"
+              >
+                <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
+              </Toque>
             </View>
           </View>
 
-          {/* Controlos: shuffle · anterior · play · seguinte · repeat
-              ---------------------------------------------------------------
-              SAIU do grupo de cima, e é essa a correcção do espaço.
+          <View style={[styles.folga, styles.folgaAntesDaBarra]} />
 
-              O corpo reparte-se com `space-between`. Com DOIS filhos --
-              identidade+transporte em cima, Queue/EQ em baixo -- toda a folga
-              do ecrã caía numa fenda só, e era o buraco que se via entre o
-              repeat e o Queue/EQ. Com TRÊS, a mesma folga divide-se em duas:
-              uma acima do transporte, onde uma pausa faz sentido, e outra
-              abaixo. Não se ganha nem se perde altura -- muda quem fica com
-              ela. */}
+          {/* A barra vive com os controlos, a 20 pt da fila de botões: é do
+              transporte que ela fala, e colada ao título deixava-o sem ar. */}
           <View style={styles.controls}>
+            <ProgressBar
+              positionMs={positionMs}
+              durationMs={durationMs}
+              onSeek={seekTo}
+              onScrubbingChange={setScrubbing}
+            />
               <PlayerControlRow>
               {/* Três estados: apagado, ligado, e inteligente — este último
                   com uma estrelinha ao canto, que é como o Spotify o mostra e
@@ -1313,6 +1332,8 @@ export function PlayerRoot() {
               </Toque>
               </PlayerControlRow>
           </View>
+
+          <View style={styles.folga} />
 
           {/* Grupo de Rodapé: Botão Recuar & Botões Utilitários (Fila & Equalizador) */}
           <View style={styles.bottomGroup}>
@@ -1728,36 +1749,38 @@ const styles = StyleSheet.create({
     /**
      * O corpo ocupa o que sobra e reparte-o.
      *
-     * O `flexGrow` com o `space-between` perdeu-se num refactor, e sem eles o
-     * conteúdo empilha-se todo em cima: a capa, o título, os controlos e o
-     * Queue/EQ ficavam colados uns aos outros com um terço do ecrã vazio por
-     * baixo. Num `ScrollView` é o `contentContainerStyle` que precisa do
+     * O `flexGrow` perdeu-se num refactor, e sem ele os espaçadores não têm o
+     * que repartir: a capa, o título, os controlos e o Queue/EQ ficavam
+     * colados uns aos outros com um terço do ecrã vazio por baixo. Num `ScrollView` é o `contentContainerStyle` que precisa do
      * `flexGrow: 1` -- o `flex: 1` aqui não faz nada, porque o contentor de
      * conteúdo não tem altura própria para dividir.
      */
     flexGrow: 1,
-    /**
-     * Continua a repartir, mas agora por TRÊS: identidade, transporte, e o
-     * Queue/EQ. Com dois filhos, toda a folga do ecrã ia para uma fenda só --
-     * o buraco entre o repeat e o Queue/EQ. Com três, divide-se em duas, e uma
-     * delas cai onde uma pausa faz sentido: por cima dos controlos.
-     */
-    justifyContent: 'space-between',
     paddingHorizontal: spacing.xl,
-    // Oito e não dezasseis: por cima já vêm os 8 da caixa da capa e os pontos
-    // do cubo. Eram quatro margens somadas às cegas entre a capa e o título.
-    paddingTop: spacing.sm,
   },
-  mainControlsGroup: {
-    width: '100%',
-    gap: spacing.md,
+  /**
+   * Os três espaços do corpo: por cima do título, entre o artista e a barra, e
+   * entre o play e o Queue/EQ. Crescem por igual; o mínimo é o que impede um
+   * ecrã pequeno (ou o texto aumentado) de os colar.
+   */
+  folga: {
+    flexGrow: 1,
+    minHeight: spacing.lg,
+  },
+  // Os pontos do cubo trazem 7 de margem por baixo. Descontam-se, e mais um,
+  // para o espaço que se VÊ entre os pontos e o título ser igual aos outros.
+  folgaDeCima: {
+    marginTop: -8,
+  },
+  // O espaço que se vê começa na pista, não nos 12 de toque invisível por cima.
+  folgaAntesDaBarra: {
+    marginBottom: -TOQUE_DA_BARRA,
   },
   bottomGroup: {
     width: '100%',
     alignItems: 'center',
-    // Sem `marginTop`: a separação do transporte passou a vir da folga que o
-    // `space-between` reparte. Somar uma margem a essa folga era pedir duas
-    // vezes o mesmo espaço.
+    // Sem `marginTop`: a separação do transporte vem do espaçador de baixo
+    // (`folga`). Somar-lhe uma margem era pedir duas vezes o mesmo espaço.
   },
   utilityIconBtn: {
     width: 48,
@@ -1894,45 +1917,46 @@ const styles = StyleSheet.create({
     backgroundColor: colors.textTertiary,
     opacity: 0.5,
   },
-  actionsBtn: {
+  // O coração e as reticências: o mesmo alvo dos dois lados, sem círculo.
+  ladoDoTitulo: {
     width: 44,
     height: 44,
     flexShrink: 0,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.035)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  textosDoTitulo: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+  },
+  artistaDoTitulo: {
+    marginTop: 4,
+    alignSelf: 'center',
+    maxWidth: '100%',
   },
   actionsBtnActive: {
     backgroundColor: 'rgba(255,255,255,0.05)',
     borderColor: colors.border,
   },
+  // Mais pequeno do que os 27 de antes: ao centro e numa linha só, um título
+  // grande enchia a caixa e desvanecia quase sempre.
   trackTitle: {
-    fontSize: 27,
+    fontSize: 22,
     fontWeight: '700',
     color: colors.text,
-    letterSpacing: -0.6,
+    letterSpacing: -0.4,
   },
   trackArtist: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '500',
     color: colors.textSecondary,
-    marginTop: 4,
   },
   controls: {
     width: '100%',
-    /**
-     * O mínimo de ar por cima do transporte.
-     *
-     * A folga a sério vem do `space-between`, mas num ecrã pequeno -- ou com o
-     * texto aumentado, onde o título ocupa duas linhas -- não sobra folga
-     * nenhuma para repartir, e sem isto a fila de botões encostava-se à barra
-     * de progresso. Antes eram os `gap: spacing.md` do grupo a dar este ar; ao
-     * sair do grupo, o transporte passa a trazê-lo consigo.
-     */
-    marginTop: spacing.lg,
+    // Da pista aos tempos e dos tempos à fila de botões. O ar por cima vem do
+    // espaçador, que tem mínimo -- já não é preciso uma margem aqui.
+    gap: 20,
   },
   repeatOneBadge: {
     position: 'absolute',

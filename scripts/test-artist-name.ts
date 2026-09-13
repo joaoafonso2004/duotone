@@ -7,6 +7,7 @@ import {
   chaveDeArtista,
   displayArtist,
   tituloDaFaixa,
+  tituloNoLeitor,
   extractArtist,
   limparPrefixoDeUpload,
   ladosPorConfirmar,
@@ -257,6 +258,21 @@ eq('título sem traço não se toca', tituloDaFaixa(yt('Uma Música Sem Traço')
 eq('o Spotify não passa por isto',
   tituloDaFaixa({ source: 'spotify', title: 'Drake - Passionfruit', artist: 'Drake' }),
   'Drake - Passionfruit');
+
+// --- O título no Now Playing: sem nenhum parêntese no fim ---
+eq('o que vem entre parênteses no fim sai',
+  tituloNoLeitor(yt('TESLA (Slowed electro mix)')), 'TESLA');
+eq('o feat também sai, e a marca com ele',
+  tituloNoLeitor(yt('Seether - Broken (feat. Amy Lee) (Official Audio)')), 'Broken');
+eq('parênteses e parênteses retos seguidos',
+  tituloNoLeitor(yt('Song (Slowed) [Reverb]')), 'Song');
+eq('um parêntese a meio do título fica',
+  tituloNoLeitor(yt('Song (Remix) Pt. 2')), 'Song (Remix) Pt. 2');
+eq('um título que é só parênteses fica como estava',
+  tituloNoLeitor(yt('(Intro)')), '(Intro)');
+// As listas não mudam: é lá que se distingue a versão.
+eq('as listas continuam com a versão',
+  tituloDaFaixa(yt('TESLA (Slowed electro mix)')), 'TESLA (Slowed electro mix)');
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

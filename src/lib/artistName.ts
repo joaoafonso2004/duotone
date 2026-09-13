@@ -584,6 +584,31 @@ export function tituloDaFaixa(
   return texto || bruto;
 }
 
+/**
+ * O título no Now Playing do iPhone: o `tituloDaFaixa` sem NENHUM parêntese no
+ * fim.
+ *
+ * Mais agressivo do que as listas, de propósito (decisão do João a 13/9): ali o
+ * título está ao centro, numa linha só, e o `(Slowed electro mix)` ou o
+ * `(feat. X)` tiravam-lhe o ar. As listas, a fila e os menus continuam com o
+ * `tituloDaFaixa`, que é onde se distingue a versão. Só sai o que está NO FIM
+ * (`Song (Remix) Pt. 2` fica inteiro), e um título que seja só parênteses fica
+ * como estava.
+ */
+export function tituloNoLeitor(
+  t: { source?: string; title: string; artist: string | null },
+  vocabulario: Vocabulario = vocabularioAprendido(),
+): string {
+  const titulo = tituloDaFaixa(t, vocabulario);
+  let texto = titulo;
+  for (let i = 0; i < 4; i++) {
+    const antes = texto;
+    texto = texto.replace(/\s*[([][^()[\]]*[)\]]\s*$/, '').trim();
+    if (texto === antes) break;
+  }
+  return texto || titulo;
+}
+
 // ------------------------------------------------------- o agrupamento -----
 
 export type GrupoDeArtista<T> = {

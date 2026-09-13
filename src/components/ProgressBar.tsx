@@ -13,6 +13,13 @@ interface Props {
   onScrubbingChange?: (scrubbing: boolean) => void;
 }
 
+/**
+ * A área de toque invisível por cima e por baixo da pista. Exportada porque o
+ * Now Playing a desconta: o espaço que se VÊ entre o artista e a barra começa
+ * na pista, não na caixa.
+ */
+export const TOQUE_DA_BARRA = 12;
+
 function fmt(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const m = Math.floor(total / 60);
@@ -135,7 +142,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   hit: {
-    paddingVertical: 12,
+    paddingVertical: TOQUE_DA_BARRA,
     justifyContent: 'center',
   },
   // A caixa que da a largura e onde o botao se posiciona. Sem altura
