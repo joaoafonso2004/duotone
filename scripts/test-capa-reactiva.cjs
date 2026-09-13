@@ -34,13 +34,21 @@ async function run() {
 
   assert.ok(c.amplitude >= 2 && c.amplitude <= 4, 'a flutuação fica entre dois e quatro pontos');
   assert.ok(c.cicloMs >= 4000 && c.cicloMs <= 5500, 'o ciclo é lento, mas não parece parado');
-  assert.ok(Math.abs(c.rotateX) <= 8 && Math.abs(c.rotateY) <= 12, 'a inclinação não vira uma demonstração 3D');
-  assert.ok(c.rotateZ >= 6 && c.rotateZ <= 10, 'a diagonal continua próxima da referência');
-  assert.ok(c.scale >= 0.88 && c.scale <= 0.94, 'a capa encolhe o suficiente para a profundidade caber');
-  assert.ok(c.camadas >= 8, 'a aresta tem lâminas suficientes para não parecer uma escada num Retina');
-  const primeira = regra.deslocamentoDaCamada(1), ultima = regra.deslocamentoDaCamada(c.camadas);
-  assert.ok(primeira.x < 0 && primeira.y > 0, 'a profundidade nasce para a esquerda e para baixo');
-  assert.deepEqual(ultima, { x: -c.profundidade * 0.72, y: c.profundidade });
+  // A pose vem da screenshot de referência (NOSTYLIST): os quatro cantos da face
+  // têm de continuar onde lá estão. Mexer num ângulo "a olho" parte isto.
+  for (const [canto, [ax, ay]] of Object.entries(regra.CANTOS_DA_REFERENCIA)) {
+    const [x, y] = regra.projetarCanto(canto, c);
+    assert.ok(Math.hypot(x - ax, y - ay) <= 0.012,
+      `o canto ${canto} afastou-se da referência: (${x.toFixed(3)}, ${y.toFixed(3)}) contra (${ax}, ${ay})`);
+  }
+  const desvio = regra.desvioDaFaceDeTras(c);
+  assert.ok(desvio.x < 0 && desvio.y > 0, 'veem-se a aresta esquerda e a de baixo, como na referência');
+  assert.ok(c.espessura > 0.03 && c.espessura <= 0.08, 'um objeto FINO: a espessura fica entre 3% e 8% do lado');
+  assert.ok(c.fatias >= 10, 'a espessura tem fatias suficientes para não mostrar degraus num Retina');
+  assert.ok(c.raio <= 10, 'cantos quase retos, como na referência');
+  assert.ok(c.scale >= 0.85 && c.scale <= 0.94, 'a capa encolhe o suficiente para a espessura e a sombra caberem');
+  assert.ok(regra.profundidadeDaFatia(0, c.fatias, 10) === -10 && regra.profundidadeDaFatia(c.fatias - 1, c.fatias, 10) < 0,
+    'a fatia do fundo está à espessura inteira, e nenhuma fica no plano da face');
 
   // Uma leitura antiga do disco não pode desfazer a escolha feita no ecrã.
   const writes = [];
@@ -76,6 +84,10 @@ async function run() {
   ];
   for (const file of iosGlitch) assert.equal(fs.existsSync(path.join(root, file)), false, `${file} foi removido`);
   assert.match(player, /<CapaFlutuante3D/);
+  assert.match(player, /opacity: capaFlutuante \? 0 :/,
+    'a sombra plana da capa desliga-se com a capa 3D, também do lado das letras');
+  assert.match(capa3D, /profundidadeDaFatia/,
+    'a espessura são fatias em profundidade real, e não placas deslocadas em 2D');
   assert.doesNotMatch(player, /<CapaFlutuante3D[^>]*(?:showLyrics|turning)=/,
     'a pose exterior não muda quando o cubo roda para as letras');
   assert.doesNotMatch(capa3D, /enabled\s*&&\s*!showLyrics|!turning/,

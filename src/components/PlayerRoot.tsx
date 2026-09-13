@@ -1,5 +1,6 @@
 import { CapaDaFaixa } from './CapaDaFaixa';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
+import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
 import { ModoCarro } from './ModoCarro';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
@@ -1537,7 +1538,10 @@ export function PlayerRoot() {
               top: vidFull.y + RECUO_DA_SOMBRA,
               width: Math.max(0, vidFull.w - RECUO_DA_SOMBRA * 2),
               height: Math.max(0, vidFull.h - RECUO_DA_SOMBRA * 2),
-              opacity: capaFlutuante && !showLyrics ? 0 : Animated.multiply(
+              // Com a capa 3D a sombra é dela (a fatia do fundo). Esta placa é
+              // plana e não roda: por trás das letras via-se como um quadrado
+              // escuro desfasado da capa inclinada.
+              opacity: capaFlutuante ? 0 : Animated.multiply(
                 sombraAnim,
                 Animated.multiply(
                   visibilityAnim,
@@ -1623,8 +1627,8 @@ export function PlayerRoot() {
               (13/9). O véu vive DENTRO da face do cubo, que recorta com o raio:
               a capa fica opaca e não há borda que se possa ver. */}
           {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante}>
-            <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar}
-              front={<>{artSource?<CapaDaFaixa uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} /><View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} /></>} />
+            <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
+              front={<>{artSource?<CapaDaFaixa uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} /><View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa, capaFlutuante && { borderRadius: CAPA_FLUTUANTE.raio }]} /></>} />
           </CapaFlutuante3D>}
 
           {/* No modo mini, tocar no vídeo expande */}

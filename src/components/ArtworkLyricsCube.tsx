@@ -18,12 +18,18 @@ type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;s
    * Opcional: quem nao a passar nao paga nada, e e por isso que a pagina do PC
    * fica exactamente como estava.
    */
-  aoRodar?:(aRodar:boolean)=>void};
+  aoRodar?:(aRodar:boolean)=>void;
+  /**
+   * O raio das faces. A capa 3D do iPhone usa cantos quase retos
+   * (lib/capaFlutuante3D.ts): num objeto com espessura, um canto largo lê-se
+   * como plástico. Sem ele fica o de sempre.
+   */
+  raio?:number};
 // Translação Z equivalente, também nos motores nativos que só expõem X e Y.
 const depth=(z:number)=>[{rotateY:'90deg'},{translateX:-z},{rotateY:'-90deg'}];
 
 /** Duas faces do mesmo cubo. O motor de áudio vive fora destas transformações. */
-export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar}:Props){
+export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20}:Props){
   const reduced=useReducedMotion();
   const progress=useRef(new Animated.Value(showLyrics?1:0)).current;
   const [direction,setDirection]=useState(1);
@@ -130,11 +136,11 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       if(['ArrowLeft','ArrowRight','Enter',' '].includes(event.key)){event.preventDefault();onChange(!showLyrics);}
       else if(event.key==='Escape'&&showLyrics){event.preventDefault();onChange(false);}
     }}:{})} style={[{width:size,height:size},Platform.OS==='web'&&({touchAction:'pan-y',userSelect:'none'} as any)]}>
-    <Animated.View pointerEvents="none" aria-hidden={showLyrics} accessibilityElementsHidden={showLyrics} importantForAccessibility={showLyrics?'no-hide-descendants':'auto'} style={[styles.face,frontStyle]}>
+    <Animated.View pointerEvents="none" aria-hidden={showLyrics} accessibilityElementsHidden={showLyrics} importantForAccessibility={showLyrics?'no-hide-descendants':'auto'} style={[styles.face,{borderRadius:raio},frontStyle]}>
       {front}
       <Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0,0.35]})}]} />
     </Animated.View>
-    <Animated.View pointerEvents={showLyrics&&!moving?'auto':'none'} aria-hidden={!showLyrics} accessibilityElementsHidden={!showLyrics} importantForAccessibility={showLyrics?'auto':'no-hide-descendants'} style={[styles.face,lyricsStyle]}>
+    <Animated.View pointerEvents={showLyrics&&!moving?'auto':'none'} aria-hidden={!showLyrics} accessibilityElementsHidden={!showLyrics} importantForAccessibility={showLyrics?'auto':'no-hide-descendants'} style={[styles.face,{borderRadius:raio},lyricsStyle]}>
       {artwork?<Image source={{uri:artwork}} blurRadius={28} style={[StyleSheet.absoluteFill,{opacity:0.6,transform:[{scale:1.12}]}]} />:null}
       <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(8,8,15,0.5)'}]} />
       <LyricsView track={track} visible={showLyrics&&!moving} />
