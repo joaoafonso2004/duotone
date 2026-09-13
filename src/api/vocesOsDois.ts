@@ -1,4 +1,8 @@
 import { supabase } from '../lib/supabase';
+import { getSocialProfileTracks, type ProfileTrack } from './profiles';
+import { haMisturaDosDois, misturaDosDois } from '../lib/misturaDosDois';
+import { trackKey } from '../lib/shuffle';
+import type { Track } from '../types';
 
 /**
  * "Vocês os dois": os números sobre ti e um amigo.
@@ -83,4 +87,24 @@ export async function lerVocesOsDois(amigoId: string): Promise<VocesOsDois | nul
 /** Há aqui alguma coisa para mostrar? */
 export function valeAPena(d: VocesOsDois | null): boolean {
   return !!d && (d.artistasEmComum > 0 || !!d.eleTraria || !!d.tuTrarias || !!d.divide);
+}
+
+/**
+ * A mistura dos dois, para ouvir a dois -- ver `lib/misturaDosDois.ts`.
+ *
+ * As mais ouvidas de cada um, duas páginas de vinte, pelo mesmo caminho do
+ * perfil: quem o tem fechado não entra, e aí não há mistura. Falhar é lista
+ * vazia, e o botão simplesmente não aparece.
+ */
+export async function lerMisturaDosDois(meuId: string, amigoId: string): Promise<Track[]> {
+  const maisOuvidas = async (id: string): Promise<ProfileTrack[]> => {
+    const [primeira, segunda] = await Promise.all([
+      getSocialProfileTracks(id).catch(() => [] as ProfileTrack[]),
+      getSocialProfileTracks(id, false, 20).catch(() => [] as ProfileTrack[]),
+    ]);
+    return [...primeira, ...segunda];
+  };
+  const [minhas, dele] = await Promise.all([maisOuvidas(meuId), maisOuvidas(amigoId)]);
+  const mistura = misturaDosDois(minhas, dele, trackKey);
+  return haMisturaDosDois(mistura, minhas.length, dele.length) ? mistura : [];
 }

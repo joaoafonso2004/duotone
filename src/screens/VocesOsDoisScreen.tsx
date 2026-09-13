@@ -5,11 +5,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { lerVocesOsDois, valeAPena, type VocesOsDois } from '../api/vocesOsDois';
+import { lerMisturaDosDois, lerVocesOsDois, valeAPena, type VocesOsDois } from '../api/vocesOsDois';
 import { EmptyState } from '../components/EmptyState';
+import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useTheme } from '../state/theme';
+import { useAuth } from '../state/auth';
+import { usePlayer } from '../state/player';
+import { contextoDaPrateleira } from '../lib/contextoDaDescoberta';
+import type { Track } from '../types';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VocesOsDois'>;
@@ -23,6 +28,10 @@ type Props = NativeStackScreenProps<RootStackParamList, 'VocesOsDois'>;
  * Aqui a percentagem é o ecrã, e o resto são as frases que ela não diz: em que
  * é que concordam, o que é que um traria ao outro, e -- a melhor -- qual é a
  * música que um põe a tocar sem parar e o outro nunca ouviu na vida.
+ *
+ * O botão "Play a mix of you two" não muda isto: a percentagem continua a ser o
+ * ecrã, e o botão é para quem quer OUVIR o que os números dizem -- primeiro o
+ * que os dois ouvem, depois um de cada lado, à vez (lib/misturaDosDois.ts).
  *
  * É feito para ser mostrado a outra pessoa. Por isso os números são grandes e
  * são poucos: cinco coisas que se leem de pé, e não um relatório.
@@ -47,6 +56,24 @@ export function VocesOsDoisScreen({ route, navigation }: Props) {
       .finally(() => { if (vivo) setACarregar(false); });
     return () => { vivo = false; };
   }, [userId]);
+
+  // A mistura dos dois: lê-se ao lado dos números, e o botão só aparece quando
+  // há música dos dois que chegue (lib/misturaDosDois.ts).
+  const meuId = useAuth((s) => s.session?.user?.id);
+  const playTrack = usePlayer((s) => s.playTrack);
+  const [misturaDosDois, setMisturaDosDois] = useState<Track[]>([]);
+  useEffect(() => {
+    // Ao navegar diretamente de um amigo para outro (ou ao sair da conta),
+    // não deixes o botão antigo tocar a mistura da pessoa anterior enquanto a
+    // nova leitura ainda está em curso.
+    setMisturaDosDois([]);
+    if (!meuId) return;
+    let vivo = true;
+    void lerMisturaDosDois(meuId, userId)
+      .then((m) => { if (vivo) setMisturaDosDois(m); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [meuId, userId]);
 
   const primeiro = nome?.split(' ')[0] || nome || 'them';
 
@@ -89,6 +116,13 @@ export function VocesOsDoisScreen({ route, navigation }: Props) {
               </Text>
             )}
           </View>
+
+          {misturaDosDois.length > 0 && (
+            <PillButton
+              label={`Play a mix of you two · ${misturaDosDois.length} songs`}
+              onPress={() => playTrack(misturaDosDois[0], misturaDosDois, true, false, contextoDaPrateleira('amigos'))}
+            />
+          )}
 
           {dados!.obsessao && (
             <Linha
