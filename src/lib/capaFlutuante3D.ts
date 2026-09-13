@@ -74,10 +74,14 @@ export const CAPA_FLUTUANTE = {
   rotateY: 25.5,
   rotateZ: -6.1,
   scale: 0.93,
-  /** Em lados. Fina: o bordo visível fica com ~1,6% do lado. */
-  espessura: 0.042,
-  /** Fatias da espessura. Com menos, o bordo mostrava degraus num Retina. */
-  fatias: 14,
+  /**
+   * Em lados. Escolhida pelo bordo VISÍVEL da foto: 3,5% do lado na aresta de
+   * baixo e 3,1% na esquerda. Com 4,2% (a versão anterior) ficava com metade --
+   * rodar menos do que a referência estreita o bordo, e isso compensa-se aqui.
+   */
+  espessura: 0.078,
+  /** Fatias da espessura, a ~1,3 pt umas das outras: com menos, o bordo mostrava degraus. */
+  fatias: 20,
   /** Cantos quase retos: num objeto com espessura, um canto largo lê-se como plástico. */
   raio: 6,
   /** A luz que a capa deixa no fundo: ela própria, desfocada. */

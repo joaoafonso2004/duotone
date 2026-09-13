@@ -61,7 +61,12 @@ async function run() {
     `a face ocupa pelo menos a área que ocupa na referência (${regra.areaDaFace(c).toFixed(3)})`);
   const desvio = regra.desvioDaFaceDeTras(c);
   assert.ok(desvio.x < 0 && desvio.y > 0, 'veem-se a aresta esquerda e a de baixo, como na referência');
-  assert.ok(c.espessura >= 0.03 && c.espessura <= 0.06, 'um objeto FINO: a espessura fica entre 3% e 6% do lado');
+  // A espessura VISÍVEL é a da foto: ~3,5% do lado na aresta de baixo e ~3,1% na
+  // esquerda (medidas na referência em alta resolução, 13/9).
+  const bordoDeBaixo = regra.projetar(0, 0.5, -c.espessura, c)[1] - regra.projetar(0, 0.5, 0, c)[1];
+  const bordoEsquerdo = regra.projetar(-0.5, 0, 0, c)[0] - regra.projetar(-0.5, 0, -c.espessura, c)[0];
+  assert.ok(Math.abs(bordoDeBaixo - 0.035) <= 0.005 && Math.abs(bordoEsquerdo - 0.031) <= 0.005,
+    `a espessura visível é a da referência (baixo ${(bordoDeBaixo * 100).toFixed(1)}%, esquerda ${(bordoEsquerdo * 100).toFixed(1)}%)`);
   assert.ok(c.fatias >= 10, 'a espessura tem fatias suficientes para não mostrar degraus num Retina');
   assert.ok(c.raio <= 10, 'cantos quase retos, como na referência');
   assert.ok(c.scale >= 0.85 && c.scale <= 0.94, 'a capa encolhe o suficiente para a espessura e a sombra caberem');
