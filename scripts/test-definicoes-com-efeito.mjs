@@ -72,6 +72,8 @@ const TABELA = [
     leitores: [['src/navigation/RootNavigator.web.tsx', /duotone:panel-opacity/]] },
   { opcao: 'Start with Windows', escreve: [],
     leitores: [['electron/main.cjs', /setLoginItemSettings/]] },
+  { opcao: 'Import from Spotify', escreve: [],
+    leitores: [['src/api/plays.ts', /getGostoDoSpotify\(/]] },
 ];
 
 let falhas = 0;

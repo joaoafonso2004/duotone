@@ -3,7 +3,8 @@ import { upsertTrack } from './library';
 import type { Track } from '../types';
 
 import { artistasParaRecomendar, HISTORICO_QUE_CHEGA } from '../lib/artistasSemente';
-import { getArtistasSemente } from '../lib/prefs';
+import { juntarComOSpotify } from '../lib/gostoDoSpotify';
+import { getArtistasSemente, getGostoDoSpotify } from '../lib/prefs';
 import { chaveDeArtista } from '../lib/artistName';
 async function currentUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
@@ -193,6 +194,13 @@ export interface TopArtist {
   plays: number;
   /** URL de uma thumbnail qualquer de uma faixa deste artista (para avatar). */
   artworkUrl: string | null;
+  /**
+   * Confirmado FORA da biblioteca: veio do gosto do Spotify ou foi escolhido no
+   * primeiro dia. A descoberta não lhe aplica o crivo dos nomes lidos de
+   * títulos (ver `escolherAlvos`), porque o nome não saiu de título nenhum.
+   * Só `artistasParaRecomendacoes` o preenche.
+   */
+  externo?: boolean;
 }
 
 export async function getTopArtists(limit = 8): Promise<TopArtist[]> {
@@ -261,15 +269,32 @@ export async function getRecentTopArtist(): Promise<string | null> {
  * -- a regra e o porquê vivem no `lib/artistasSemente.ts`, testados à parte.
  */
 export async function artistasParaRecomendacoes(limite: number): Promise<TopArtist[]> {
-  const historico = await getTopArtists(limite);
-  // Só se vai às preferências quando o histórico não chega: quem já ouve não
-  // paga uma leitura por causa de uma escolha que fez há meses.
-  if (historico.length >= HISTORICO_QUE_CHEGA) return historico;
-  const sementes = await getArtistasSemente().catch(() => [] as string[]);
-  if (!sementes.length) return historico;
-  // A capa vem do histórico quando o artista já lá está; uma semente ainda não
-  // tem nenhuma, e quem a mostra sabe desenhar sem ela.
+  const [historico, gosto] = await Promise.all([
+    getTopArtists(limite),
+    getGostoDoSpotify().catch(() => null),
+  ]);
+  // O gosto do Spotify SOMA-SE ao histórico -- a regra e o porquê vivem no
+  // `lib/gostoDoSpotify.ts`. Não vai para o `plays`: o perfil e as
+  // estatísticas continuam a dizer só o que se ouviu aqui.
+  const doSpotify = new Set((gosto?.artistas ?? []).map((a) => chaveDeArtista(a.name)));
+  const juntos = gosto?.artistas.length
+    ? juntarComOSpotify(historico, gosto.artistas, chaveDeArtista, Math.max(limite, HISTORICO_QUE_CHEGA))
+    : historico;
+  // A capa vem do histórico quando o artista já lá está; um artista só do
+  // Spotify ou uma semente ainda não tem nenhuma, e quem a mostra sabe
+  // desenhar sem ela.
   const capas = new Map(historico.map((a) => [chaveDeArtista(a.name), a.artworkUrl]));
-  return artistasParaRecomendar(historico, sementes, chaveDeArtista, Math.max(HISTORICO_QUE_CHEGA, limite))
-    .map((a) => ({ name: a.name, plays: a.plays, artworkUrl: capas.get(chaveDeArtista(a.name)) ?? null }));
+  const comOrigem = (externos: ReadonlySet<string>) => (a: { name: string; plays: number }): TopArtist => {
+    const k = chaveDeArtista(a.name);
+    return { name: a.name, plays: a.plays, artworkUrl: capas.get(k) ?? null, externo: externos.has(k) };
+  };
+
+  // Só se vai às sementes quando o que há não chega: quem já ouve (aqui ou no
+  // Spotify) não paga uma leitura por causa de uma escolha que fez há meses.
+  if (juntos.length >= HISTORICO_QUE_CHEGA) return juntos.map(comOrigem(doSpotify));
+  const sementes = await getArtistasSemente().catch(() => [] as string[]);
+  if (!sementes.length) return juntos.map(comOrigem(doSpotify));
+  const externos = new Set([...doSpotify, ...sementes.map(chaveDeArtista)]);
+  return artistasParaRecomendar(juntos, sementes, chaveDeArtista, Math.max(HISTORICO_QUE_CHEGA, limite))
+    .map(comOrigem(externos));
 }

@@ -1,8 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { procurarArtistas } from '../api/catalogo';
+import { ErroDoSpotify, importarGostoDoSpotify, spotifyDisponivel } from '../api/spotifyConta';
+import { mensagemDoSpotify } from '../lib/gostoDoSpotify';
 import { jaChegam, SEMENTES_PEDIDAS } from '../lib/artistasSemente';
 import { hapticSelection } from '../lib/haptics';
 import { getArtistasSemente, setArtistasSemente } from '../lib/prefs';
@@ -87,6 +89,23 @@ export function EscolherArtistas({
     }
   };
 
+  // O atalho de quem chega do Spotify: em vez de escolher três artistas, lê os
+  // que já ouve lá. Chega por si -- não obriga a escolher mais nenhum.
+  const [aLerSpotify, setALerSpotify] = useState(false);
+  const importarDoSpotify = async () => {
+    setALerSpotify(true);
+    try {
+      await importarGostoDoSpotify();
+      aoGuardar();
+      aoFechar();
+    } catch (e) {
+      const texto = mensagemDoSpotify(e instanceof ErroDoSpotify ? e.tipo : 'rede');
+      if (texto) Alert.alert('Spotify', texto);
+    } finally {
+      setALerSpotify(false);
+    }
+  };
+
   const faltam = Math.max(0, SEMENTES_PEDIDAS - escolhidos.length);
 
   return (
@@ -98,6 +117,15 @@ export function EscolherArtistas({
             ? `Pick ${faltam} more and the app has something to go on.`
             : `${escolhidos.length} picked. You can always add more later.`}
         </Text>
+
+        {spotifyDisponivel() && (
+          <PillButton
+            label={aLerSpotify ? 'Reading Spotify…' : 'Use my Spotify instead'}
+            loading={aLerSpotify}
+            disabled={aLerSpotify}
+            onPress={() => void importarDoSpotify()}
+          />
+        )}
 
         <Input
           icon="search"

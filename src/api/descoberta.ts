@@ -112,10 +112,15 @@ export async function candidatasParaDescoberta(
    * obrigava-os todos a desembrulhar uma coisa que não pediram.
    */
   porAncora?: Map<string, Track[]>,
+  /**
+   * Artistas confirmados FORA da biblioteca (gosto do Spotify, escolhas do
+   * primeiro dia), da chave para o nome escrito. Ver `escolherAlvos`.
+   */
+  externos?: ReadonlyMap<string, string>,
 ): Promise<Track[]> {
   if(useConnectivity.getState().offline)return [];
   await feedbackReady();
-  const { alvos, afinidade } = await escolherAlvos(contexto, quantosAlvos, escutas);
+  const { alvos, afinidade } = await escolherAlvos(contexto, quantosAlvos, escutas, externos);
   if (alvos.length === 0) return [];
 
   // O que ele já tem fica de fora: é isso que separa descobrir de repetir.
@@ -401,17 +406,19 @@ export async function descobrirNovas(
   // Sem isto, sessenta faixas guardadas há um ano pesavam o mesmo que o
   // artista que ele anda a ouvir todos os dias.
   const escutas = new Map<string, number>();
+  const externos = new Map<string, string>();
   try {
-    // Pelo ponto unico: sem historico, as sementes do primeiro dia servem de
-    // retrato -- senao a descoberta nao tinha ancoras nenhumas.
+    // Pelo ponto unico: sem historico, o gosto do Spotify e as sementes do
+    // primeiro dia servem de retrato -- senao a descoberta nao tinha ancoras.
     for (const a of await artistasParaRecomendacoes(20)) {
       const k = chaveDeArtista(a.name);
       if (k && a.plays > 0) escutas.set(k, a.plays);
+      if (k && a.externo) externos.set(k, a.name);
     }
   } catch {
     // sem histórico: fica o retrato da biblioteca, como era
   }
-  return candidatasParaDescoberta(contexto, new Set(), jaSugeridas, limite, 4, escutas)
+  return candidatasParaDescoberta(contexto, new Set(), jaSugeridas, limite, 4, escutas, undefined, externos)
     .catch(() => [] as Track[]);
 }
 
@@ -463,13 +470,18 @@ async function escolherAlvos(
   contexto: readonly Track[],
   quantosAlvos: number = ALVOS,
   escutas?: ReadonlyMap<string, number>,
+  externos?: ReadonlyMap<string, string>,
 ): Promise<{ alvos: Alvo[]; afinidade: Map<string, number> }> {
   const vazio = { alvos: [] as Alvo[], afinidade: new Map<string, number>() };
 
   const doContexto = contexto
     .map((t) => ({ artista: displayArtist(t) }))
     .filter((f) => f.artista && f.artista !== 'Unknown artist');
-  if (doContexto.length === 0) return vazio;
+  // Uma biblioteca vazia só cala a descoberta se também não houver escutas.
+  // Calava sempre, e quem chegava sem nada guardado -- mas com o gosto do
+  // Spotify lido, ou três artistas escolhidos -- não recebia descoberta
+  // nenhuma: exatamente quem mais precisa dela.
+  if (doContexto.length === 0 && !escutas?.size) return vazio;
 
   const retrato = retratoDoContexto(doContexto, chaveDeArtista);
 
@@ -491,6 +503,11 @@ async function escolherAlvos(
   for (const t of contexto) {
     const nome = displayArtist(t);
     if (nome) nomePorChave.set(chaveDeArtista(nome), nome);
+  }
+  // Os de fora trazem o nome escrito como a fonte o escreve; sem isto
+  // procurava-se pela chave ("juice wrld"), que resulta, mas por acaso.
+  for (const [k, nome] of externos ?? []) {
+    if (!nomePorChave.has(k)) nomePorChave.set(k, nome);
   }
 
   let vizinhos: ReturnType<typeof artistasVizinhos> = [];
@@ -522,6 +539,15 @@ async function escolherAlvos(
     apenasDeConfianca([...retrato], ([k]) => k, confianca),
   );
   vizinhos = apenasDeConfianca(vizinhos, (v) => v.chave, confianca);
+  // Os confirmados FORA da biblioteca não passam por este crivo. Ele existe
+  // para nomes lidos de TÍTULOS (o `999`), e estes não saíram de título
+  // nenhum: vêm da API do Spotify ou de uma escolha feita no catálogo. Com uma
+  // biblioteca pequena, o crivo tirava-os todos -- e sobrava a descoberta a
+  // partir de um ou dois artistas, sempre os mesmos.
+  for (const k of externos?.keys() ?? []) {
+    const peso = retrato.get(k);
+    if (peso !== undefined && !retratoFiavel.has(k)) retratoFiavel.set(k, peso);
+  }
   if (retratoFiavel.size === 0 && vizinhos.length === 0) return vazio;
 
   // A afinidade é indexada pela chave do CATÁLOGO, que é a que o

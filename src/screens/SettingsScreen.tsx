@@ -17,8 +17,13 @@ import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
 import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstream';
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
-  efeitoDoCrossfade, efeitoDoPadrao, efeitoDoPoToken, efeitoDoRadio, efeitoDoTemporizador,
+  efeitoDoCrossfade, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken, efeitoDoRadio,
+  efeitoDoTemporizador,
 } from '../lib/efeitoDasDefinicoes';
+import { ErroDoSpotify, importarGostoDoSpotify, spotifyDisponivel } from '../api/spotifyConta';
+import { mensagemDoSpotify, type GostoDoSpotify } from '../lib/gostoDoSpotify';
+import { getGostoDoSpotify } from '../lib/prefs';
+import { useRecomendacoes } from '../state/recomendacoes';
 import { getLoudnessDb } from '../lib/loudnessCache';
 import { idsFixados } from '../lib/downloadsFixados';
 import { listPlaylists, getPlaylistTracks } from '../api/playlists';
@@ -81,6 +86,31 @@ export function SettingsScreen({ navigation }: Props) {
   }, []);
   useEffect(() => { if (Platform.OS === 'ios') void loadCapaIOS(); }, []);
   const [recommendationsOpen,setRecommendationsOpen]=useState(false);
+  // O gosto lido do Spotify (api/spotifyConta.ts). Só no iPhone, e só com o
+  // Client ID na build -- sem ele a linha nem aparece.
+  const [gostoDoSpotify, setGostoDoSpotifyNoEcra] = useState<GostoDoSpotify | null>(null);
+  const [aLerSpotify, setALerSpotify] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    void getGostoDoSpotify().then((g) => { if (vivo) setGostoDoSpotifyNoEcra(g); }).catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+  const importarDoSpotify = async () => {
+    setALerSpotify(true);
+    try {
+      const lido = await importarGostoDoSpotify();
+      setGostoDoSpotifyNoEcra(lido);
+      hapticNotification();
+      // Refaz as prateleiras JÁ: a descoberta da semana estava calculada sem
+      // este gosto, e sem forçar ficava assim até à semana seguinte.
+      void useRecomendacoes.getState().carregar(true);
+    } catch (e) {
+      const texto = mensagemDoSpotify(e instanceof ErroDoSpotify ? e.tipo : 'rede');
+      if (texto) Alert.alert('Spotify', texto);
+    } finally {
+      setALerSpotify(false);
+    }
+  };
   const insets = useSafeAreaInsets();
   const session = useAuth((s) => s.session);
   const signOut = useAuth((s) => s.signOut);
@@ -398,6 +428,9 @@ export function SettingsScreen({ navigation }: Props) {
     ecra: efeitoDeManterOEcra(keepAwakeOn),
     cache: efeitoDeLimparACache({ bytes: cacheBytes, downloads: idsFixados().filter(isAudioCached).length }),
     poToken: efeitoDoPoToken({ url: potServerUrl, ultimoTeste: ultimoTestePot }),
+    spotify: efeitoDoGostoDoSpotify({
+      artistas: gostoDoSpotify?.artistas.length ?? 0, lidoEm: gostoDoSpotify?.lidoEm ?? null, agora: Date.now(),
+    }),
   };
 
   return (
@@ -418,6 +451,20 @@ export function SettingsScreen({ navigation }: Props) {
           <Section title="Recommendations">
             <Text style={type.caption}>{offline?'Connect to the internet to change your recommendation preferences.':'Review songs you have hidden and artists you want to hear less often.'}</Text>
             <PillButton label="Manage preferences" disabled={offline} onPress={()=>setRecommendationsOpen(true)}/>
+            {spotifyDisponivel() && (
+              <>
+                <Text style={type.caption}>
+                  Read the artists you listen to most on Spotify, so recommendations start from your real taste.
+                </Text>
+                <PillButton
+                  label={aLerSpotify ? 'Reading Spotify…' : gostoDoSpotify ? 'Update from Spotify' : 'Import from Spotify'}
+                  loading={aLerSpotify}
+                  disabled={offline || aLerSpotify}
+                  onPress={() => void importarDoSpotify()}
+                />
+                <Efeito texto={efeitos.spotify} />
+              </>
+            )}
           </Section>
           <Section title="Theme">
             <Label>Accent</Label>

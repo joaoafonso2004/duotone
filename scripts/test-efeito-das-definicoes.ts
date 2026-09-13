@@ -6,8 +6,8 @@
 import assert from 'node:assert/strict';
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
-  efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoPoToken, efeitoDoRadio,
-  efeitoDoTemporizador, tamanho,
+  efeitoDoCrossfade, efeitoDoDiscord, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken,
+  efeitoDoRadio, efeitoDoTemporizador, tamanho,
 } from '../src/lib/efeitoDasDefinicoes.ts';
 
 let falhas = 0;
@@ -105,6 +105,17 @@ caso('o Discord: a escuta privada cala-o, e isso diz-se', () => {
   assert.match(efeitoDoDiscord({ ligado: true, privada: false, estado: 'a-mostrar' })!, /Showing/);
 });
 
+console.log('\no gosto do Spotify diz de onde partem as recomendações');
+caso('sem leitura, diz que partem do que se ouve na app', () => {
+  assert.match(efeitoDoGostoDoSpotify({ artistas: 0, lidoEm: null, agora: 0 }), /what you play in Duotone/);
+});
+caso('com leitura, quantos artistas e há quanto tempo', () => {
+  const dia = 86_400_000;
+  assert.equal(efeitoDoGostoDoSpotify({ artistas: 30, lidoEm: 10 * dia, agora: 10 * dia + 5 }), '30 artists from your Spotify · read today');
+  assert.match(efeitoDoGostoDoSpotify({ artistas: 12, lidoEm: 0, agora: dia + 1 }), /yesterday/);
+  assert.match(efeitoDoGostoDoSpotify({ artistas: 12, lidoEm: 0, agora: 9 * dia }), /9 days ago/);
+});
+
 console.log('\ntodas curtas e em inglês');
 caso('nenhuma frase passa de 80 caracteres nem traz português', () => {
   const PT = /[ãõçáéíóúâêô]|música|faixa|descarreg|ligad/i;
@@ -117,6 +128,8 @@ caso('nenhuma frase passa de 80 caracteres nem traz português', () => {
     efeitoDoRadio({ ligado: true, aTocarRadio: true }),
     efeitoDeLimparACache({ bytes: 999 * 1024 * 1024 * 1024, downloads: 1234 }),
     efeitoDoDiscord({ ligado: true, privada: false, estado: 'discord-fechado' }),
+    efeitoDoGostoDoSpotify({ artistas: 0, lidoEm: null, agora: 0 }),
+    efeitoDoGostoDoSpotify({ artistas: 30, lidoEm: 0, agora: 999 * 86_400_000 }),
   ].filter((f): f is string => !!f);
   for (const f of frases) {
     assert.ok(f.length <= 80, `${f.length}: ${f}`);

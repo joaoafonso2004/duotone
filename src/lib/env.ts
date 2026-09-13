@@ -25,4 +25,7 @@ export const ENV = {
     process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
   ),
   YOUTUBE_API_KEY: req('EXPO_PUBLIC_YOUTUBE_API_KEY', process.env.EXPO_PUBLIC_YOUTUBE_API_KEY),
+  // Opcional: sem ele a importação do gosto do Spotify não aparece, e o resto
+  // da app não dá por nada -- por isso não passa pelo `req`, que avisava.
+  SPOTIFY_CLIENT_ID: process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID ?? '',
 };

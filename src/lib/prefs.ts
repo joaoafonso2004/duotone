@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { GostoDoSpotify } from './gostoDoSpotify';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from './crossfade';
 import { arredondar as arredondarRate, daPreferenciaAntiga } from './playbackRate';
 import {
@@ -40,6 +41,8 @@ const KEY_DISCORD_APP = 'pref:discordAppId';
 const KEY_ESCUTA_PRIVADA = 'pref:escutaPrivada';
 /** Os artistas escolhidos no primeiro dia. Ver `getArtistasSemente`. */
 const KEY_SEMENTES = 'pref:artistasSemente';
+/** O gosto lido do Spotify. Ver `getGostoDoSpotify`. */
+const KEY_GOSTO_SPOTIFY = 'pref:gostoDoSpotify';
 
 export type YtViewMode = 'video' | 'photo';
 export type AudioQuality = 'high' | 'saver';
@@ -488,6 +491,31 @@ export async function getArtistasSemente(): Promise<string[]> {
 }
 export async function setArtistasSemente(nomes: readonly string[]): Promise<void> {
   await AsyncStorage.setItem(KEY_SEMENTES, JSON.stringify(nomes.slice(0, 12)));
+}
+
+/**
+ * O gosto lido do Spotify (`api/spotifyConta.ts`), já com os pesos calculados.
+ *
+ * Num `pref:` como as sementes, e pela mesma razão: viaja para a conta pelo
+ * `lib/prefsSync`, e importar no iPhone chega para o PC recomendar igual.
+ */
+export async function getGostoDoSpotify(): Promise<GostoDoSpotify | null> {
+  try {
+    const guardado = await AsyncStorage.getItem(KEY_GOSTO_SPOTIFY);
+    if (!guardado) return null;
+    const lido = JSON.parse(guardado);
+    if (!lido || !Array.isArray(lido.artistas) || typeof lido.lidoEm !== 'number') return null;
+    const artistas = lido.artistas.filter(
+      (a: any) => a && typeof a.name === 'string' && a.name.trim() && typeof a.plays === 'number' && a.plays > 0,
+    );
+    return { artistas, lidoEm: lido.lidoEm };
+  } catch {
+    return null;
+  }
+}
+export async function setGostoDoSpotify(gosto: GostoDoSpotify | null): Promise<void> {
+  if (!gosto) await AsyncStorage.removeItem(KEY_GOSTO_SPOTIFY);
+  else await AsyncStorage.setItem(KEY_GOSTO_SPOTIFY, JSON.stringify(gosto));
 }
 
 export type OrdemDosArtistas = 'az' | 'played_most';

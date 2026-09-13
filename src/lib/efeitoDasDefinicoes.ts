@@ -138,6 +138,18 @@ export function efeitoDeLimparACache(e: { bytes: number; downloads: number }): s
     : `Frees ${tamanho(e.bytes)} · songs download again when you play them`;
 }
 
+/**
+ * O gosto lido do Spotify: quantos artistas, e há quanto tempo. Sem leitura,
+ * diz de onde é que as recomendações partem -- que é a pergunta de quem abre
+ * isto por não gostar do que lhe aparece.
+ */
+export function efeitoDoGostoDoSpotify(e: { artistas: number; lidoEm: number | null; agora: number }): string {
+  if (e.lidoEm === null || e.artistas <= 0) return 'Recommendations start from what you play in Duotone';
+  const dias = Math.floor((e.agora - e.lidoEm) / 86_400_000);
+  const quando = dias <= 0 ? 'today' : dias === 1 ? 'yesterday' : `${dias} days ago`;
+  return `${e.artistas} artists from your Spotify · read ${quando}`;
+}
+
 /** O servidor de PO Token, pelo último teste. */
 export function efeitoDoPoToken(e: {
   url: string;
