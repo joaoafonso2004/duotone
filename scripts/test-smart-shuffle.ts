@@ -1,10 +1,16 @@
 import {
   A_CADA,
+  chavesDaSugestao,
+  chavesRecentesDoSmartShuffle,
+  DIAS_SEM_REPETIR,
   deveSugerir,
   escolherSugestao,
+  foiSugeridaRecentemente,
+  lerHistoricoDoSmartShuffle,
   modoDeShuffle,
   posicaoDaSugestao,
   proximoModo,
+  registarNoHistoricoDoSmartShuffle,
   rotuloDoModo,
   type ModoDeShuffle,
 } from '../src/lib/smartShuffle.ts';
@@ -74,6 +80,23 @@ eq('sem nada que sirva devolve null',
 eq('sem candidatas devolve null', escolherSugestao([], chave, new Set(), new Set()), null);
 eq('uma chave vazia e ignorada',
   escolherSugestao([{ k: '' }, { k: 'b' }], chave, new Set(), new Set())?.k, 'b');
+
+console.log('\na memória entre dias e uploads');
+const DIA = 24 * 60 * 60 * 1000;
+const AGORA = Date.UTC(2026, 8, 13, 12);
+const maskOffA = chavesDaSugestao('youtube:video-a', 'future', 'mask off');
+const maskOffB = chavesDaSugestao('youtube:video-b', 'future', 'mask off');
+const historico = registarNoHistoricoDoSmartShuffle([], [maskOffA], AGORA);
+check('guarda o upload e a identidade da música', historico[0]?.chaves.length === 2,
+  historico[0]?.chaves.join(','));
+const aos29Dias = chavesRecentesDoSmartShuffle(historico, AGORA + 29 * DIA);
+check('outro upload da mesma música fica bloqueado durante 30 dias',
+  foiSugeridaRecentemente(maskOffB, aos29Dias));
+const aos31Dias = chavesRecentesDoSmartShuffle(historico, AGORA + 31 * DIA);
+check('depois da janela pode voltar', !foiSugeridaRecentemente(maskOffB, aos31Dias));
+eq('a janela está presa a 30 dias', DIAS_SEM_REPETIR, 30);
+check('persistência estragada não entra no histórico',
+  lerHistoricoDoSmartShuffle([{ em: 'ontem', chaves: ['x'] }, null], AGORA).length === 0);
 
 console.log('\na fila depois de a sugestao entrar');
 // REGRESSAO. O `next()` lia a fila ANTES de mandar intercalar a sugestao e

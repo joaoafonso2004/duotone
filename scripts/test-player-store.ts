@@ -19,6 +19,7 @@ import { ATRASO_DA_SUGESTAO_MS, usePlayer } from '../src/state/player.ts';
 import { trackKey } from '../src/lib/shuffle.ts';
 import { controlo, reporControlo } from './duplos/controlo.ts';
 import { guardadas } from './duplos/prefs.ts';
+import { guardado as armazenamento } from './duplos/async-storage.ts';
 import type { Track } from '../src/types.ts';
 
 let mau = 0;
@@ -110,6 +111,11 @@ preparar({
   shuffle: true, shuffleInteligente: true, desdeASugestao: 4,
   shuffleOrder: fila('a', 'b', 'c', 'd').map(trackKey),
 });
+// Esta reprodução já existia antes da versão com memória própria. A primeira
+// consulta ao Smart Shuffle tem de a trazer do histórico da conta.
+controlo.recentes = [{
+  ...faixa('march-antiga'), title: 'Future - March Madness (Official Audio)', artist: 'Future', lastPlayed: Date.now(),
+}];
 controlo.candidatas = [faixa('nova')];
 await usePlayer.getState().next();
 
@@ -172,6 +178,27 @@ eq('sem candidatas, o contador volta a zero e espera', usePlayer.getState().desd
 // Zero pela mesma razao do caso acima: a reposicao passou a ser a ultima coisa
 // a acontecer. O que importa e que NAO fique alto -- senao cada mudanca de
 // faixa ia a rede, e essa tem quota diaria.
+
+// REGRESSAO: o histórico antigo só guardava `youtube:sourceId`. A mesma música
+// noutro upload passava por nova e podia aparecer todos os dias.
+const maskOff = (id: string): Track => ({
+  ...faixa(id), title: `Future - Mask Off (${id === 'mask-a' ? 'Official Video' : 'Official Audio'})`, artist: 'Future',
+});
+preparar({ shuffle: true, shuffleInteligente: true });
+controlo.candidatas = [maskOff('mask-a')];
+eq('a primeira Mask Off pode entrar', await usePlayer.getState().semearSugestoes(), 1);
+check('a sugestão ficou persistida fora da sessão da fila',
+  armazenamento.has('smart-shuffle:historico:v1:utilizador-de-teste'));
+preparar({ shuffle: true, shuffleInteligente: true });
+controlo.candidatas = [maskOff('mask-b')];
+eq('outro upload de Mask Off fica bloqueado', await usePlayer.getState().semearSugestoes(), 0);
+check('e não foi escondido na fila com outro id', !ids().includes('mask-b'), ids().join(','));
+preparar({ shuffle: true, shuffleInteligente: true });
+controlo.candidatas = [{
+  ...faixa('march-nova'), title: 'Future - March Madness (Official Video)', artist: 'Future',
+}];
+eq('o histórico anterior à atualização também bloqueia outro upload',
+  await usePlayer.getState().semearSugestoes(), 0);
 
 // ===========================================================================
 console.log('\no play a partir de uma lista');

@@ -25,6 +25,10 @@ export function getHeavyRotation(): Promise<Map<string, number>> {
   return Promise.resolve(new Map());
 }
 
+export function getProfileRecentlyPlayed(): Promise<(Track & { lastPlayed?: number })[]> {
+  return Promise.resolve(controlo.recentes);
+}
+
 /** O ponto unico dos artistas com que se recomenda. Vazio, como os outros. */
 export function artistasParaRecomendacoes(): Promise<{ name: string; plays: number; artworkUrl: string | null }[]> {
   return Promise.resolve([]);

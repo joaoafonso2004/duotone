@@ -7,18 +7,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware';
 import { temAudioNativo } from '../../modules/duotone-audio';
-import { recordPlayInSupabase, registarInicioDaFaixa } from '../api/plays';
+import {
+  artistasParaRecomendacoes, getProfileRecentlyPlayed, recordPlayInSupabase, registarInicioDaFaixa,
+} from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
 import { avancarEscuta, novaEscuta, type Escuta } from '../lib/contagemDeEscuta';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import {
-  A_CADA, deveSugerir, escolherSugestao, modoDeShuffle, posicaoDaSugestao, proximoModo,
+  A_CADA, chavesDaSugestao, chavesRecentesDoSmartShuffle, deveSugerir,
+  escolherSugestao, foiSugeridaRecentemente, JANELA_SEM_REPETIR_MS,
+  lerHistoricoDoSmartShuffle, modoDeShuffle, posicaoDaSugestao, proximoModo,
+  registarNoHistoricoDoSmartShuffle, type SugestaoNoHistorico,
 } from '../lib/smartShuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
 import { candidatasParaDescoberta } from '../api/descoberta';
-import { artistasParaRecomendacoes } from '../api/plays';
-import { chaveDeArtista } from '../lib/artistName';
+import { chaveDeArtista, displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { normalizar as normalizarTitulo } from '../lib/catalogoDaFaixa';
 import {
   setShuffle as persistShuffle, setShuffleInteligente as persistShuffleInteligente,
   setPlaybackRate as persistPlaybackRate, setEqPadrao as persistEqPadrao,
@@ -206,8 +211,8 @@ interface PlayerState {
   shuffleInteligente: boolean;
   /** Faixas normais tocadas desde a última sugestão. */
   desdeASugestao: number;
-  /** Chaves do que já foi sugerido nesta sessão: repetir uma sugestão é pior
-   * do que não sugerir nada. */
+  /** IDs que marcam na fila o que veio do Smart Shuffle. A memória de 30 dias,
+   * incluindo artista+título, vive separada mais abaixo. */
   sugeridas: string[];
   /** Rádio: quando a fila acaba, continuar com música parecida em vez de
    * ficar em silêncio. Preferência do utilizador (Definições). */
@@ -532,6 +537,104 @@ let playRequestId = 0;
  */
 const POR_SUGESTAO = 30;
 const ALVOS_DA_SUGESTAO = 4;
+
+/**
+ * Memória do Smart Shuffle, separada da fila.
+ *
+ * `sugeridas` continua a marcar com uma estrela as faixas que ESTA fila
+ * recebeu. Esta é a memória de recomendação propriamente dita: dura 30 dias,
+ * é por conta e reconhece a mesma música noutro upload do YouTube.
+ */
+const CHAVE_DO_HISTORICO = 'smart-shuffle:historico:v1';
+const historicosDoSmartShuffle = new Map<string, SugestaoNoHistorico[]>();
+const leiturasDoSmartShuffle = new Map<string, Promise<SugestaoNoHistorico[]>>();
+const escritasDoSmartShuffle = new Map<string, Promise<void>>();
+let historicoSemConta: SugestaoNoHistorico[] = [];
+let smartShuffleInFlight = false;
+
+function donoDoSmartShuffle(): string | null {
+  const auth = useAuth.getState();
+  return auth.session?.user.id ?? auth.offlineUserId;
+}
+
+function chavesDaFaixaSugerida(
+  track: Pick<Track, 'source' | 'sourceId' | 'title' | 'artist'>,
+): string[] {
+  const artista = chaveDeArtista(displayArtist(track)) ?? '';
+  const titulo = normalizarTitulo(tituloDaFaixa(track));
+  return chavesDaSugestao(trackKey(track), artista, titulo);
+}
+
+async function lerHistoricoGuardado(dono: string | null): Promise<SugestaoNoHistorico[]> {
+  if (!dono) {
+    historicoSemConta = lerHistoricoDoSmartShuffle(historicoSemConta);
+    return historicoSemConta;
+  }
+  const emMemoria = historicosDoSmartShuffle.get(dono);
+  if (emMemoria) return emMemoria;
+  const emCurso = leiturasDoSmartShuffle.get(dono);
+  if (emCurso) return emCurso;
+
+  const leitura = AsyncStorage.getItem(`${CHAVE_DO_HISTORICO}:${dono}`).then((raw) => {
+    let valor: unknown = [];
+    try { valor = raw ? JSON.parse(raw) : []; } catch { /* começa vazio */ }
+    const historico = lerHistoricoDoSmartShuffle(valor);
+    historicosDoSmartShuffle.set(dono, historico);
+    return historico;
+  }).catch(() => {
+    const historico: SugestaoNoHistorico[] = [];
+    historicosDoSmartShuffle.set(dono, historico);
+    return historico;
+  }).finally(() => leiturasDoSmartShuffle.delete(dono));
+  leiturasDoSmartShuffle.set(dono, leitura);
+  return leitura;
+}
+
+async function registarSugestoesGuardadas(dono: string | null, tracks: readonly Track[]): Promise<void> {
+  if (tracks.length === 0) return;
+  const lido = await lerHistoricoGuardado(dono);
+  const atual = dono ? (historicosDoSmartShuffle.get(dono) ?? lido) : historicoSemConta;
+  const historico = registarNoHistoricoDoSmartShuffle(atual, tracks.map(chavesDaFaixaSugerida));
+  if (!dono) { historicoSemConta = historico; return; }
+  historicosDoSmartShuffle.set(dono, historico);
+
+  const anterior = escritasDoSmartShuffle.get(dono) ?? Promise.resolve();
+  const escrita = anterior.catch(() => {}).then(() =>
+    AsyncStorage.setItem(`${CHAVE_DO_HISTORICO}:${dono}`, JSON.stringify(historico)));
+  escritasDoSmartShuffle.set(dono, escrita);
+  await escrita.catch(() => {});
+}
+
+/**
+ * Traz o passado que já existia antes desta versão. Depois desta primeira
+ * leitura, cada sugestão fica também na memória local no instante em que entra
+ * na fila — mesmo que seja saltada antes de contar como reprodução.
+ */
+const escutasRecentesPorConta = new Map<string, { ate: number; pedido: Promise<Set<string>> }>();
+async function chavesDasEscutasRecentes(dono: string | null): Promise<Set<string>> {
+  if (!dono || useConnectivity.getState().offline) return new Set();
+  const agora = Date.now();
+  const guardada = escutasRecentesPorConta.get(dono);
+  if (guardada && guardada.ate > agora) return guardada.pedido;
+  const pedido = getProfileRecentlyPlayed(300).then((faixas) => {
+    const chaves = new Set<string>();
+    for (const faixa of faixas) {
+      if (!faixa.lastPlayed || faixa.lastPlayed < agora - JANELA_SEM_REPETIR_MS) continue;
+      for (const chave of chavesDaFaixaSugerida(faixa)) chaves.add(chave);
+    }
+    return chaves;
+  }).catch(() => new Set<string>());
+  escutasRecentesPorConta.set(dono, { ate: agora + 30 * 60 * 1000, pedido });
+  return pedido;
+}
+
+async function chavesBloqueadasNoSmartShuffle(dono: string | null): Promise<Set<string>> {
+  const [guardado, escutadas] = await Promise.all([
+    lerHistoricoGuardado(dono),
+    chavesDasEscutasRecentes(dono),
+  ]);
+  return new Set([...chavesRecentesDoSmartShuffle(guardado), ...escutadas]);
+}
 
 /**
  * O retrato do que se ouve, para os alvos nao virem so das ultimas tres faixas.
@@ -1296,13 +1399,21 @@ export const usePlayer = create<PlayerState>()(
    */
   semearSugestoes: async () => {
     const { queue, queueIndex, sugeridas } = get();
-    if (queue.length === 0) return 0;
+    if (queue.length === 0 || smartShuffleInFlight) return 0;
+    smartShuffleInFlight = true;
+    const dono = donoDoSmartShuffle();
     try {
       const contexto = radioSeeds(queue, queueIndex);
       if (contexto.length === 0) return 0;
       const naFila = new Set(queue.map((t) => trackKey(t)));
+      const [bloqueadas, escutas] = await Promise.all([
+        chavesBloqueadasNoSmartShuffle(dono),
+        retratoDeEscutas(),
+      ]);
+      // A mesma música noutro upload também conta como já estando na fila.
+      for (const t of queue) for (const chave of chavesDaFaixaSugerida(t)) bloqueadas.add(chave);
       const candidatas = await candidatasParaDescoberta(
-        contexto, naFila, new Set(sugeridas),
+        contexto, naFila, new Set([...sugeridas, ...bloqueadas]),
         // Mais fundo e mais largo, e e isto que corrige o "aparecem sempre as
         // mesmas".
         //
@@ -1316,16 +1427,19 @@ export const usePlayer = create<PlayerState>()(
         // Quatro alvos e o que a descoberta ja usa, e o retrato das escutas
         // faz os alvos representarem o que se ouve E NAO so o que esta a dar
         // agora.
-        POR_SUGESTAO, ALVOS_DA_SUGESTAO, await retratoDeEscutas(),
+        POR_SUGESTAO, ALVOS_DA_SUGESTAO, escutas,
       );
-      if(useConnectivity.getState().offline||get().queue!==queue||!get().shuffleInteligente)return 0;
+      if(useConnectivity.getState().offline||get().queue!==queue||!get().shuffleInteligente
+        ||donoDoSmartShuffle()!==dono)return 0;
       if (candidatas.length === 0) return 0;
 
-      const filtradas=filterSuggestions(candidatas);
+      const filtradas=filterSuggestions(candidatas)
+        .filter((t) => !foiSugeridaRecentemente(chavesDaFaixaSugerida(t), bloqueadas));
       const quantas = Math.min(3, filtradas.length);
       let fila = [...get().queue];
       let ordem = [...get().shuffleOrder];
       const novas: string[] = [];
+      const escolhidas: Track[] = [];
       const base = get().queueIndex;
       // O mesmo ritmo das sugestões uma a uma: uma a cada `A_CADA` faixas.
       const intervalo=A_CADA;
@@ -1334,7 +1448,9 @@ export const usePlayer = create<PlayerState>()(
       for (let i = 0; i < quantas; i++) {
         const t = filtradas[i];
         const chave = trackKey(t);
-        if (!chave || fila.some((q) => trackKey(q) === chave)) continue;
+        const identidades = chavesDaFaixaSugerida(t);
+        if (!chave || fila.some((q) => trackKey(q) === chave)
+          || foiSugeridaRecentemente(identidades, bloqueadas)) continue;
         const posicao = Math.min(base + 1 + (i + 1) * intervalo, fila.length);
         fila = [...fila.slice(0, posicao), t, ...fila.slice(posicao)];
         if (ordem.length > 0) {
@@ -1344,6 +1460,8 @@ export const usePlayer = create<PlayerState>()(
           ordem = [...ordem.slice(0, alvo), chave, ...ordem.slice(alvo)];
         }
         novas.push(chave);
+        escolhidas.push(t);
+        for (const identidade of identidades) bloqueadas.add(identidade);
         contextosDaFila.set(chave,contextoDaSugestao);
       }
       if (novas.length === 0) return 0;
@@ -1354,10 +1472,13 @@ export const usePlayer = create<PlayerState>()(
         sugeridas: [...sugeridas, ...novas].slice(-200),
         desdeASugestao: 0,
       });
+      await registarSugestoesGuardadas(dono, escolhidas);
       registar('recomendacao_mostrada',{...contextoParaAnalytics(contextoDaSugestao),quantidade:novas.length});
       return novas.length;
     } catch {
       return 0;
+    } finally {
+      smartShuffleInFlight = false;
     }
   },
 
@@ -1371,15 +1492,22 @@ export const usePlayer = create<PlayerState>()(
    */
   intercalarSugestao: async () => {
     const { queue, queueIndex, sugeridas } = get();
-    if (queue.length === 0) return false;
+    if (queue.length === 0 || smartShuffleInFlight) return false;
+    smartShuffleInFlight = true;
+    const dono = donoDoSmartShuffle();
     try {
       // O CONTEXTO sao as ultimas ouvidas e nao so a atual: numa fila variada
       // a ultima faixa pode nao representar o que se esteve a ouvir.
       const contexto = radioSeeds(queue, queueIndex);
       if (contexto.length === 0) return false;
       const naFila = new Set(queue.map((t) => trackKey(t)));
+      const [bloqueadas, escutas] = await Promise.all([
+        chavesBloqueadasNoSmartShuffle(dono),
+        retratoDeEscutas(),
+      ]);
+      for (const t of queue) for (const chave of chavesDaFaixaSugerida(t)) bloqueadas.add(chave);
       const candidatas = await candidatasParaDescoberta(
-        contexto, naFila, new Set(sugeridas),
+        contexto, naFila, new Set([...sugeridas, ...bloqueadas]),
         // Mais fundo e mais largo, e e isto que corrige o "aparecem sempre as
         // mesmas".
         //
@@ -1393,11 +1521,14 @@ export const usePlayer = create<PlayerState>()(
         // Quatro alvos e o que a descoberta ja usa, e o retrato das escutas
         // faz os alvos representarem o que se ouve E NAO so o que esta a dar
         // agora.
-        POR_SUGESTAO, ALVOS_DA_SUGESTAO, await retratoDeEscutas(),
+        POR_SUGESTAO, ALVOS_DA_SUGESTAO, escutas,
       );
-      if(useConnectivity.getState().offline||!get().shuffleInteligente)return false;
+      if(useConnectivity.getState().offline||!get().shuffleInteligente
+        ||donoDoSmartShuffle()!==dono)return false;
       const escolhida = escolherSugestao(
-        filterSuggestions(candidatas), (t) => trackKey(t), naFila, new Set(sugeridas),
+        filterSuggestions(candidatas)
+          .filter((t) => !foiSugeridaRecentemente(chavesDaFaixaSugerida(t), bloqueadas)),
+        (t) => trackKey(t), naFila, new Set(sugeridas),
       );
       if (!escolhida) return false;
 
@@ -1411,7 +1542,9 @@ export const usePlayer = create<PlayerState>()(
       const indiceAgora = get().queueIndex;
       if (filaAgora.length === 0) return false;
       // Entretanto pode ter entrado por outro caminho.
-      if (filaAgora.some((t) => trackKey(t) === trackKey(escolhida))) return false;
+      const identidadesDaEscolhida = chavesDaFaixaSugerida(escolhida);
+      if (filaAgora.some((t) => trackKey(t) === trackKey(escolhida)
+        || chavesDaFaixaSugerida(t).some((chave) => identidadesDaEscolhida.includes(chave)))) return false;
 
       const posicao = posicaoDaSugestao(filaAgora.length, indiceAgora);
       const nova = [...filaAgora.slice(0, posicao), escolhida, ...filaAgora.slice(posicao)];
@@ -1444,6 +1577,7 @@ export const usePlayer = create<PlayerState>()(
         sugeridas: [...sugeridas, chave].slice(-200),
         desdeASugestao: 0,
       });
+      await registarSugestoesGuardadas(dono, [escolhida]);
       registar('recomendacao_mostrada',{
         ...contextoParaAnalytics(contextoDoSmartShuffle()),
         quantidade:1,
@@ -1451,6 +1585,8 @@ export const usePlayer = create<PlayerState>()(
       return true;
     } catch {
       return false;
+    } finally {
+      smartShuffleInFlight = false;
     }
   },
   setShowRewindButton: (v) => set({ showRewindButton: v }),

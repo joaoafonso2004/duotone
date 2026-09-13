@@ -24,6 +24,80 @@ export type ModoDeShuffle = 'off' | 'normal' | 'inteligente';
  */
 export const A_CADA = 4;
 
+/** Uma música sugerida não volta durante este período, mesmo noutro upload. */
+export const DIAS_SEM_REPETIR = 30;
+export const JANELA_SEM_REPETIR_MS = DIAS_SEM_REPETIR * 24 * 60 * 60 * 1000;
+/** Teto local: cobre até uso contínuo durante a janela sem inchar o storage. */
+export const LIMITE_DO_HISTORICO = 4000;
+
+export type SugestaoNoHistorico = { em: number; chaves: string[] };
+
+/**
+ * As duas identidades que interessam: o upload exato e a música.
+ *
+ * A segunda recebe artista e título já normalizados pelo chamador. É ela que
+ * faz `Future - Mask Off (Official Video)` e outro upload de `Mask Off`
+ * contarem como a mesma sugestão.
+ */
+export function chavesDaSugestao(
+  upload: string,
+  artista: string,
+  titulo: string,
+): string[] {
+  const chaves = upload ? [upload] : [];
+  if (artista && titulo) chaves.push(`musica:${artista}|${titulo}`);
+  return [...new Set(chaves)];
+}
+
+/** Lê apenas entradas válidas e ainda dentro da janela de 30 dias. */
+export function lerHistoricoDoSmartShuffle(
+  valor: unknown,
+  agora: number = Date.now(),
+): SugestaoNoHistorico[] {
+  if (!Array.isArray(valor)) return [];
+  return valor
+    .filter((item): item is { em: number; chaves: unknown[] } =>
+      !!item && Number.isFinite(item.em) && Array.isArray(item.chaves)
+      && item.em >= agora - JANELA_SEM_REPETIR_MS && item.em <= agora + 24 * 60 * 60 * 1000)
+    .map((item) => ({
+      em: item.em,
+      chaves: [...new Set(item.chaves.filter((k): k is string => typeof k === 'string' && !!k))].slice(0, 3),
+    }))
+    .filter((item) => item.chaves.length > 0)
+    .sort((a, b) => b.em - a.em)
+    .slice(0, LIMITE_DO_HISTORICO);
+}
+
+export function chavesRecentesDoSmartShuffle(
+  historico: readonly SugestaoNoHistorico[],
+  agora: number = Date.now(),
+): Set<string> {
+  const recentes = new Set<string>();
+  for (const item of lerHistoricoDoSmartShuffle(historico, agora)) {
+    for (const chave of item.chaves) recentes.add(chave);
+  }
+  return recentes;
+}
+
+/** Acrescenta as sugestões que entraram e poda as que já podem voltar. */
+export function registarNoHistoricoDoSmartShuffle(
+  historico: readonly SugestaoNoHistorico[],
+  sugestoes: readonly (readonly string[])[],
+  agora: number = Date.now(),
+): SugestaoNoHistorico[] {
+  const novas = sugestoes
+    .map((chaves) => ({ em: agora, chaves: [...new Set(chaves.filter(Boolean))].slice(0, 3) }))
+    .filter((item) => item.chaves.length > 0);
+  return lerHistoricoDoSmartShuffle([...novas, ...historico], agora);
+}
+
+export function foiSugeridaRecentemente(
+  chaves: readonly string[],
+  recentes: ReadonlySet<string>,
+): boolean {
+  return chaves.some((chave) => recentes.has(chave));
+}
+
 /** O ciclo do botão: off → normal → inteligente → off. */
 export function proximoModo(actual: ModoDeShuffle): ModoDeShuffle {
   if (actual === 'off') return 'normal';

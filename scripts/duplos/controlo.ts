@@ -17,6 +17,8 @@ export interface Controlo {
   candidatas: Track[];
   /** O que o rádio devolve no fim da fila. */
   radio: Track[];
+  /** O histórico remoto que existia antes desta versão. */
+  recentes: (Track & { lastPlayed?: number })[];
   /** Está sem rede? */
   offline: boolean;
   /** Chamadas feitas, para o teste poder afirmar que NÃO se foi à rede. */
@@ -31,6 +33,7 @@ export interface Controlo {
 export const controlo: Controlo = {
   candidatas: [],
   radio: [],
+  recentes: [],
   offline: false,
   chamadas: { candidatas: 0, radio: 0 },
   contagens: { plays: [], locais: [], inicios: [] },
@@ -39,6 +42,7 @@ export const controlo: Controlo = {
 export function reporControlo(): void {
   controlo.candidatas = [];
   controlo.radio = [];
+  controlo.recentes = [];
   controlo.offline = false;
   controlo.chamadas = { candidatas: 0, radio: 0 };
   controlo.contagens = { plays: [], locais: [], inicios: [] };
