@@ -1,4 +1,5 @@
 import { proximaFaixa, decisaoDeControlo, restoDaLista, baralhada, type PonteJam } from '../lib/jam';
+import { faixasParaAdiantar } from '../lib/adiantarFaixas';
 import {ensureLyrics} from './lyrics';
 import { useConnectivity } from './connectivity';
 import { filterSuggestions } from './recommendationFeedback';
@@ -363,6 +364,9 @@ interface PlayerState {
   peekNextTrack: () => Track | null;
   /** Única decisão pública: fila Jam durante a sessão, fila pessoal fora dela. */
   proximaFaixa: () => Track | null;
+  /** As próximas `quantas` faixas a ter prontas, a começar pela `proximaFaixa`
+   * e pela ordem em que vão tocar. Ver lib/adiantarFaixas.ts. */
+  proximasFaixas: (quantas: number) => Track[];
 
   /** As faixas que vêm a seguir, pela ordem em que vão MESMO tocar, com o
    * índice real na fila (para remover/reordenar). Com shuffle ligado isto
@@ -1212,6 +1216,15 @@ export const usePlayer = create<PlayerState>()(
   },
 
   proximaFaixa: () => proximaFaixa(ouvirJuntos(), get().peekNextTrack),
+
+  proximasFaixas: (quantas) => {
+    // Numa sessão manda a fila partilhada; fora dela, a pessoal com o shuffle.
+    const sessao = ouvirJuntos();
+    const seguintes = sessao
+      ? sessao.fila.map((item) => item.track)
+      : get().upcomingQueue().map((u) => u.track);
+    return faixasParaAdiantar(get().proximaFaixa(), seguintes, get().current?.sourceId ?? null, quantas);
+  },
 
   peekNextTrack: () => {
     const { queue, queueIndex, repeatMode, shuffle, shuffleOrder } = get();

@@ -76,6 +76,20 @@ await verificar('a faixa seguinte não fica presa atrás de uma gravação de fu
   assert.deepEqual(ordem, ['seguinte'], 'o crossfade ficaria à espera da gravação de fundo');
 });
 
+await verificar('adiantar as faixas depois da seguinte fica atrás de tudo', async () => {
+  let bilhete = await pedirVez('reproducao');
+  const ordem: string[] = [];
+  const guardar = (nome: string) => (b: number) => { ordem.push(nome); bilhete = b; };
+  void pedirVez('adiantar').then(guardar('adiantar'));
+  void pedirVez('explicito').then(guardar('explicito'));
+  void pedirVez('seguinte').then(guardar('seguinte'));
+  await passo();
+
+  for (let i = 0; i < 3; i++) { largarVez(bilhete); await passo(); }
+  assert.deepEqual(ordem, ['seguinte', 'explicito', 'adiantar'],
+    'um adiantamento por conta passou à frente de algo que alguém pediu');
+});
+
 await verificar('entre iguais, quem pediu primeiro entra primeiro', async () => {
   let bilhete = await pedirVez('reproducao');
   const ordem: number[] = [];

@@ -23,10 +23,12 @@
  *   tempo, por isso vem antes de qualquer gravação de fundo.
  * - `explicito`: o utilizador mandou guardar. Importante, mas ninguém está do
  *   outro lado à espera que o som comece.
+ * - `adiantar`: as faixas depois da seguinte, preparadas por conta (ver
+ *   `lib/adiantarFaixas.ts`). Ninguém pediu nada, por isso ficam atrás de tudo.
  */
-export type Prioridade = 'reproducao' | 'seguinte' | 'explicito';
+export type Prioridade = 'reproducao' | 'seguinte' | 'explicito' | 'adiantar';
 
-const ORDEM: Record<Prioridade, number> = { reproducao: 0, seguinte: 1, explicito: 2 };
+const ORDEM: Record<Prioridade, number> = { reproducao: 0, seguinte: 1, explicito: 2, adiantar: 3 };
 
 const MAX_SIMULTANEOS = 1;
 

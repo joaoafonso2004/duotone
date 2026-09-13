@@ -21,6 +21,8 @@ import { getAudioQuality } from '../lib/prefs';
 import { targetVolume } from '../lib/loudness';
 import { getLoudnessDb, rememberLoudnessDb } from '../lib/loudnessCache';
 import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED } from '../lib/youtubeCache';
+import { quantasAdiantar } from '../lib/adiantarFaixas';
+import type { Prioridade } from '../lib/filaDeDownloads';
 import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
 import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar,
@@ -44,6 +46,50 @@ import { useArranqueTravado } from '../hooks/useArranqueTravado';
  */
 const PRAZO_DA_RESOLUCAO_MS = 40_000;
 const RESOLUCAO_DEMOROU = 'resolucao sem resposta';
+
+/**
+ * Os adiantamentos a decorrer, por faixa.
+ *
+ * Vivem fora do componente porque sobrevivem à troca de faixa: avançar uma
+ * música faz da que era a segunda a primeira, e se ela já vinha a descarregar
+ * tem de CONTINUAR -- recomeçar do zero era deitar fora o que o adiantamento
+ * veio ganhar. O que deixa de servir é marcado `abandonado`, que o download
+ * consulta entre pedaços para largar a vaga.
+ */
+type Adiantamento = { abandonado: boolean; pronto: Promise<void> };
+const aAdiantar = new Map<string, Adiantamento>();
+
+/** Resolve e descarrega uma faixa por conta. Nunca rejeita: falhar aqui é só
+ * não ganhar tempo, e a reprodução tenta por si quando chegar a vez dela. */
+async function adiantarFaixa(
+  faixa: Track,
+  prioridade: Extract<Prioridade, 'seguinte' | 'adiantar'>,
+  abandonada: () => boolean,
+): Promise<void> {
+  try {
+    const quality = await getAudioQuality();
+    const stream = await resolveYouTubeStream(faixa.sourceId, quality);
+    if (abandonada()) return;
+    // A loudness fica conhecida antes de tocar, por isso a normalização já se
+    // aplica no primeiro segundo dela.
+    rememberLoudnessDb(faixa.sourceId, stream?.loudnessDb);
+    if (!stream || stream.isHls) return;
+    const duracao = faixa.durationSeconds || stream.durationSeconds || null;
+    const uriLocal = await downloadProgressiveAudio(faixa.sourceId, stream.url, stream.contentLength, duracao, {
+      prioridade,
+      shouldAbort: abandonada,
+      renewUrl: async () => (await resolveYouTubeStream(faixa.sourceId, quality, true)).url,
+    });
+    // Com o ficheiro em disco e tempo de sobra até esta faixa tocar, fica-se a
+    // saber onde a MÚSICA dela acaba -- que raramente é onde o ficheiro acaba.
+    // É o que impede o crossfade de cruzar a seguinte com o silêncio do fim.
+    if (!abandonada() && uriLocal) void analisarFimDaFaixa(faixa.sourceId, uriLocal, duracao);
+  } catch (err: any) {
+    if (err?.message !== DOWNLOAD_ABORTED) {
+      console.warn('[Smart Cache] Falha ao adiantar música:', err);
+    }
+  }
+}
 import { displayArtist } from '../lib/artistName';
 import { aplicarEqualizadorNativo, ligarAudioNativo, aplicarVelocidadeNativa } from '../../modules/duotone-audio';
 import type { Track } from '../types';
@@ -1469,66 +1515,54 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
   },[closeGain,closing,backend,player]);
 
-  // O Smart Cache segue a mesma decisão da reprodução. Uma sugestão que chega
-  // depois do primeiro timer volta a disparar o efeito e cancela a antiga.
+  // O Smart Cache adianta as PRÓXIMAS faixas -- três em Wi-Fi, duas em dados
+  // móveis (lib/adiantarFaixas.ts) -- uma de cada vez e sempre atrás da que
+  // toca. Só a seguinte era adiantada, e saltar duas de seguida era esperar
+  // pelo download (13/9). A primeira continua a ser a da mesma decisão da
+  // reprodução, com a prioridade que o crossfade precisa.
   useEffect(() => {
     if (backend !== 'native') return;
 
+    const lista = usePlayer
+      .getState()
+      .proximasFaixas(quantasAdiantar(useConnectivity.getState().dadosMoveis))
+      .filter((faixa) => faixa.sourceId !== track.sourceId);
+    // Já, e não daqui a cinco segundos. A fila só deixa passar um download de
+    // cada vez e não interrompe ninguém: um adiantamento que deixou de servir
+    // tem de largar a vaga ANTES de a faixa escolhida a pedir. A que está a
+    // tocar fica de fora do abandono -- se vinha a ser adiantada, a reprodução
+    // está à espera desse mesmo download, e abandoná-lo fazia-o recomeçar.
+    const servem = new Set([track.sourceId, ...lista.map((faixa) => faixa.sourceId)]);
+    for (const [id, pedido] of aAdiantar) pedido.abandonado = !servem.has(id);
+
     let cancelled = false;
     const timer = setTimeout(async () => {
-      const nextTrack = usePlayer.getState().proximaFaixa();
-      if (!nextTrack || nextTrack.source !== 'youtube') return;
-      // Fila de uma faixa só, ou repeat "one": não há nada para adiantar.
-      if (nextTrack.sourceId === track.sourceId) return;
-
-      const file = cachedAudioFile(nextTrack.sourceId);
-      if (file.exists||useConnectivity.getState().offline) return; // já descarregado ou sem rede
-
-      try {
-        const quality = await getAudioQuality();
-        const stream = await resolveYouTubeStream(nextTrack.sourceId, quality);
-        if (cancelled) return;
-        // A faixa seguinte fica com a loudness conhecida antes de tocar, por
-        // isso a normalização já se aplica no primeiro segundo dela.
-        rememberLoudnessDb(nextTrack.sourceId, stream?.loudnessDb);
-        if (stream && !stream.isHls) {
-          // Descarregar localmente em segundo plano; aborta se a faixa mudar
-          const uriLocal = await downloadProgressiveAudio(
-            nextTrack.sourceId,
-            stream.url,
-            stream.contentLength,
-            nextTrack.durationSeconds || stream.durationSeconds || null,
-            {
-              // O crossfade precisa desta pronta a tempo, por isso vem antes de
-              // qualquer gravacao de fundo -- mas nunca a frente do que toca.
-              prioridade: 'seguinte',
-              shouldAbort: () => cancelled,
-              renewUrl: async () =>
-                (await resolveYouTubeStream(nextTrack.sourceId, quality, true)).url,
-            }
-          );
-          // Com o ficheiro em disco e tempo de sobra até esta faixa tocar,
-          // fica-se a saber onde a MÚSICA dela acaba -- que raramente é onde o
-          // ficheiro acaba. É o que impede o crossfade de cruzar a seguinte
-          // com o silêncio gravado no fim desta.
-          if (!cancelled && uriLocal) {
-            void analisarFimDaFaixa(
-              nextTrack.sourceId,
-              uriLocal,
-              nextTrack.durationSeconds || stream.durationSeconds || null,
-            );
-          }
+      for (const [i, faixa] of lista.entries()) {
+        if (cancelled || useConnectivity.getState().offline) return;
+        if (cachedAudioFile(faixa.sourceId).exists) continue;
+        // Uma que já vinha a descarregar de antes continua, não recomeça.
+        const jaVem = aAdiantar.get(faixa.sourceId);
+        if (jaVem) {
+          await jaVem.pronto;
+          continue;
         }
-      } catch (err: any) {
-        if (err?.message !== DOWNLOAD_ABORTED) {
-          console.warn('[Smart Cache] Falha ao pré-carregar música seguinte:', err);
-        }
+        const pedido: Adiantamento = { abandonado: false, pronto: Promise.resolve() };
+        aAdiantar.set(faixa.sourceId, pedido);
+        pedido.pronto = adiantarFaixa(faixa, i === 0 ? 'seguinte' : 'adiantar', () => pedido.abandonado)
+          .finally(() => {
+            if (aAdiantar.get(faixa.sourceId) === pedido) aAdiantar.delete(faixa.sourceId);
+          });
+        await pedido.pronto;
       }
     }, 5000);
 
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      // Fechar o leitor larga tudo. Numa troca de faixa o efeito seguinte corre
+      // logo a seguir, no mesmo ciclo, e devolve o que ainda serve antes de
+      // algum download chegar a consultar isto entre dois pedaços.
+      for (const pedido of aAdiantar.values()) pedido.abandonado = true;
     };
   }, [track.sourceId, backend, queue, queueIndex, shuffle, percursoDoShuffle, repeatMode, sessaoJam, filaJam]);
 

@@ -2,12 +2,14 @@ import { AppState,Platform } from 'react-native';
 import { create } from 'zustand';
 import type { NetInfoState } from '@react-native-community/netinfo';
 
-type State={offline:boolean;checking:boolean;revision:number};
-export const useConnectivity=create<State>(()=>({offline:Platform.OS==='ios',checking:Platform.OS==='ios',revision:0}));
+/** `dadosMoveis`: a ligação é a rede do telemóvel, que se paga. Decide quantas
+ * faixas o Smart Cache adianta (lib/adiantarFaixas.ts). */
+type State={offline:boolean;checking:boolean;revision:number;dadosMoveis:boolean};
+export const useConnectivity=create<State>(()=>({offline:Platform.OS==='ios',checking:Platform.OS==='ios',revision:0,dadosMoveis:false}));
 const netInfo=()=>require('@react-native-community/netinfo').default as typeof import('@react-native-community/netinfo').default;
 const receive=(state:NetInfoState)=>{
   const offline=state.isConnected!==true||state.isInternetReachable!==true;
-  useConnectivity.setState(s=>({offline,checking:state.isConnected!==false&&state.isInternetReachable===null,revision:s.revision+(s.offline&&!offline?1:0)}));
+  useConnectivity.setState(s=>({offline,checking:state.isConnected!==false&&state.isInternetReachable===null,revision:s.revision+(s.offline&&!offline?1:0),dadosMoveis:state.type==='cellular'}));
 };
 export async function refreshConnectivity():Promise<void>{
   if(Platform.OS!=='ios')return;

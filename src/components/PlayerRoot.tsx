@@ -141,7 +141,6 @@ export function PlayerRoot() {
   const error = usePlayer((s) => s.error);
   const maquina = usePlayer((s) => s.maquina);
   const activeBackend = usePlayer((s) => s.activeBackend);
-  const downloadProgress = usePlayer((s) => s.downloadProgress);
 
   const playTrack = usePlayer((s) => s.playTrack);
   const togglePlay = usePlayer((s) => s.togglePlay);
@@ -1146,31 +1145,31 @@ export function PlayerRoot() {
                 larguraDisponivel={larguraDoTitulo}
                 onLongPress={handleTitleLongPress}
               />
-              {downloadProgress != null ? (
-                <Text numberOfLines={1} style={[styles.trackArtist, styles.artistaDoTitulo]}>
-                  {`Downloading… ${Math.round(downloadProgress * 100)}%`}
-                </Text>
-              ) : (
-                // O nome do artista leva à página dele, como em todo o resto
-                // da app. A caixa encolhe à medida do nome para o toque acabar
-                // onde ele acaba -- um alvo invisível a ocupar a linha inteira
-                // apanha toques que não eram para ele.
-                <Toque
-                  escala={ESCALA.cartao}
-                  onPress={abrirArtista}
-                  disabled={!temArtista}
-                  hitSlop={8}
-                  accessibilityRole={temArtista ? 'link' : undefined}
-                  accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
-                  style={styles.artistaDoTitulo}
-                >
-                  <TextoQueCabe
-                    texto={nomeDoArtista}
-                    style={styles.trackArtist}
-                    larguraDisponivel={larguraDoTitulo}
-                  />
-                </Toque>
-              )}
+              {/* O nome do artista leva à página dele, como em todo o resto da
+                  app. A caixa encolhe à medida do nome para o toque acabar onde
+                  ele acaba -- um alvo invisível a ocupar a linha inteira apanha
+                  toques que não eram para ele.
+
+                  E fica SEMPRE o artista: aqui aparecia "Downloading… 42%"
+                  enquanto a faixa descarregava. Era verdade, e era a pior
+                  maneira de o dizer -- quem desistiu da app por isso (13/9)
+                  lia que tinha de fazer download de cada música. Que a faixa
+                  ainda não está pronta já o diz a capa, a respirar. */}
+              <Toque
+                escala={ESCALA.cartao}
+                onPress={abrirArtista}
+                disabled={!temArtista}
+                hitSlop={8}
+                accessibilityRole={temArtista ? 'link' : undefined}
+                accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
+                style={styles.artistaDoTitulo}
+              >
+                <TextoQueCabe
+                  texto={nomeDoArtista}
+                  style={styles.trackArtist}
+                  larguraDisponivel={larguraDoTitulo}
+                />
+              </Toque>
             </View>
             {/* As reticências vivem aqui e não no cabeçalho: no canto de cima
                 estavam no ponto mais longe do polegar, e longe daquilo sobre que
@@ -1432,10 +1431,9 @@ export function PlayerRoot() {
               >
                 {tituloDaFaixa(current)}
               </Text>
+              {/* O artista, e não "Downloading…": ver a nota no leitor grande. */}
               <Text numberOfLines={1} style={[type.caption, { fontSize: 11 }]}>
-                {downloadProgress != null
-                  ? `Downloading… ${Math.round(downloadProgress * 100)}%`
-                  : displayArtist(current)}
+                {displayArtist(current)}
               </Text>
             </View>
 
