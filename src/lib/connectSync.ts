@@ -3,13 +3,14 @@ import {
   limparPedidosVelhos, mandarPedido, ouvirPedidos, ouvirResposta, pedidosParaMim, responderPedido,
   verPedido,
 } from '../api/comandosDeAparelho';
-import { fetchOtherSessions } from '../api/playerSessions';
+import { esquecerSessoes, fetchOtherSessions } from '../api/playerSessions';
 import type { RemoteSession } from './handoff';
 import { usePlayer } from '../state/player';
 import { appEstaVisivel } from './appVisibility';
 import { getDeviceId } from './deviceIdentity';
 import {
-  VALIDADE_DO_PEDIDO_MS, aparelhosDisponiveis, devoExecutar, podeExecutarNoArranque,
+  VALIDADE_DO_PEDIDO_MS, aparelhosDisponiveis, devoExecutar, fantasmasDeSessoes,
+  podeExecutarNoArranque,
   type AparelhoDisponivel, type EstadoDoPedido, type Pedido, type TipoDePedido,
 } from './duotoneConnect';
 import { publishSessionNow, takeOverSession } from './sessionSync';
@@ -31,6 +32,9 @@ import { publishSessionNow, takeOverSession } from './sessionSync';
  * faixas.
  */
 const tratados = new Set<string>();
+
+/** Linhas de sessão que já se mandou apagar nesta sessão da app. */
+const esquecidos = new Set<string>();
 
 function esquecerVelhos(): void {
   // Um teto simples: a lista só cresce enquanto a app está aberta, e cada
@@ -228,7 +232,20 @@ export function useAparelhos(activo: boolean): {
     const ler = () => {
       setACarregar(true);
       void fetchOtherSessions()
-        .then((rows) => { if (vivo) setSessoes(rows); })
+        .then((rows) => {
+          if (!vivo) return;
+          setSessoes(rows);
+          // E apaga-se o que a lista deixou de fora. Só aqui, com a lista
+          // aberta: é o único momento em que isto interessa a alguém, e
+          // assim não se anda a mexer na tabela por tudo e por nada.
+          void getDeviceId().then((meu) => {
+            if (!meu) return;
+            const fantasmas = fantasmasDeSessoes(rows, meu).filter((id) => !esquecidos.has(id));
+            if (!fantasmas.length) return;
+            for (const id of fantasmas) esquecidos.add(id);
+            void esquecerSessoes(fantasmas).catch(() => {});
+          });
+        })
         .catch(() => { /* sem rede fica a lista que havia */ })
         .finally(() => { if (vivo) setACarregar(false); });
     };

@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import {
   ACORDADO_MS, VALIDADE_DO_PEDIDO_MS, aparelhoQueToca, aparelhosDisponiveis, avisoDoPedido,
   devoExecutar, estaAcordado, estadoDoPedido, motivoDeNaoAlcancar, pedidoExpirou,
-  ESQUECER_APARELHO_MS, podeExecutarNoArranque,
+  ESQUECER_APARELHO_MS, fantasmasDeSessoes, podeExecutarNoArranque,
   type Pedido,
 } from '../src/lib/duotoneConnect.ts';
 import { SESSAO_PAUSADA_TTL_MS, type RemoteSession } from '../src/lib/handoff.ts';
@@ -182,6 +182,32 @@ caso('um aparelho que nunca mais abriu a app sai da lista', () => {
   assert.equal(aparelhosDisponiveis([velho], 'pc', AGORA).length, 0);
   const quase = sessao({ deviceId: 'antigo', deviceKind: 'ios', idadeMs: ESQUECER_APARELHO_MS - 60_000 });
   assert.equal(aparelhosDisponiveis([quase], 'pc', AGORA).length, 1);
+});
+
+caso('os que a lista esconde sao os que se podem apagar', () => {
+  const sessoes = [
+    sessao({ deviceId: 'pc', deviceKind: 'desktop', idadeMs: 4_000 }),
+    sessao({ deviceId: 'agora', deviceKind: 'ios', idadeMs: 3_000, isPlaying: true }),
+    sessao({ deviceId: 'fantasma-1', deviceKind: 'ios', idadeMs: 2 * 60 * 60_000 }),
+    sessao({ deviceId: 'fantasma-2', deviceKind: 'ios', idadeMs: 5 * 60 * 60_000 }),
+    sessao({ deviceId: 'eu', deviceKind: 'ios', idadeMs: 1_000 }),
+  ];
+  const lista = aparelhosDisponiveis(sessoes, 'eu', AGORA).map((a) => a.deviceId);
+  const apagar = fantasmasDeSessoes(sessoes, 'eu', AGORA);
+  assert.deepEqual(apagar.sort(), ['fantasma-1', 'fantasma-2']);
+  // O proprio aparelho NUNCA entra: apagar a propria linha era desaparecer do
+  // "continuar aqui" dos outros.
+  assert.ok(!apagar.includes('eu'));
+  // E o que se apaga e exatamente o que a lista nao mostra.
+  assert.equal(apagar.some((id) => lista.includes(id)), false);
+});
+
+caso('sem fantasmas nao se apaga nada', () => {
+  const sessoes = [
+    sessao({ deviceId: 'pc', deviceKind: 'desktop', idadeMs: 4_000 }),
+    sessao({ deviceId: 'telemovel', deviceKind: 'ios', idadeMs: 9_000 }),
+  ];
+  assert.deepEqual(fantasmasDeSessoes(sessoes, 'eu', AGORA), []);
 });
 
 console.log('\nabrir a app nao pode por musica a tocar');

@@ -89,17 +89,25 @@ export function ModoLimpo() {
       const d = document as any;
       if (!d.fullscreenElement && !d.webkitFullscreenElement) useModoLimpo.setState({ aberto: false });
     };
-    // Na captura, para nenhum componente pelo caminho engolir a tecla.
-    window.addEventListener('keydown', tecla, true);
     document.addEventListener('fullscreenchange', mudouEcraInteiro);
-    // E pelo Electron, que as vê antes da página: com o foco dentro do iframe
-    // do YouTube (basta carregar em play) o `keydown` acima nunca chega.
+    // O Electron vê as teclas antes da página: com o foco dentro do iframe do
+    // YouTube (basta carregar em play) o `keydown` da página nunca chega.
     const pararPonte = window.duotoneDesktop?.onTeclaDoModoLimpo?.((t) => {
       if (t === 'F11') alternarModoLimpo();
       else if (t === 'Escape' && useModoLimpo.getState().aberto) fecharModoLimpo();
     });
+    // UMA PORTA SÓ. A ponte não consome a tecla (de propósito: o Esc tem de
+    // continuar a fechar diálogos), por isso com ela ligada o `keydown` da
+    // página era a MESMA tecla contada duas vezes -- o F11 abria e fechava no
+    // mesmo instante e parecia não fazer nada. Só se notava conforme o FOCO:
+    // dentro do iframe do YouTube a página não recebe a tecla e funcionava;
+    // depois de tocar em qualquer coisa da app, deixava de funcionar. Foi
+    // assim que apareceu ao João a 13/9.
+    //
+    // Na captura, para nenhum componente pelo caminho engolir a tecla.
+    if (!pararPonte) window.addEventListener('keydown', tecla, true);
     return () => {
-      window.removeEventListener('keydown', tecla, true);
+      if (!pararPonte) window.removeEventListener('keydown', tecla, true);
       document.removeEventListener('fullscreenchange', mudouEcraInteiro);
       pararPonte?.();
     };

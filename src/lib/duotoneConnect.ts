@@ -165,6 +165,31 @@ export function aparelhosDisponiveis(
     .map(({ frescura: _frescura, ...aparelho }) => aparelho);
 }
 
+/**
+ * As linhas de sessão que a lista deixou de fora -- as que se podem apagar.
+ *
+ * É a mesma decisão do `aparelhosDisponiveis`, vista pelo outro lado: o que
+ * ela esconde é o que aqui se devolve. Esconder chegava para a lista ficar
+ * limpa, mas as linhas continuavam na base de dados -- e como o `device:id`
+ * morre a cada reinstalação, cada build sideloaded deixa mais uma. O servidor
+ * só as apaga aos 30 dias.
+ *
+ * Apaga-se **só o que já não se mostra**, que é a fronteira honesta: uma linha
+ * escondida não serve para nada a ninguém. Se um segundo aparelho a sério
+ * tiver o mesmo nome e estiver adormecido, perde a linha até voltar a abrir a
+ * app -- e ao abrir escreve-a outra vez.
+ */
+export function fantasmasDeSessoes(
+  sessoes: readonly RemoteSession[],
+  meuAparelho: string,
+  agora: number = Date.now(),
+): string[] {
+  const ficam = new Set(aparelhosDisponiveis(sessoes, meuAparelho, agora).map((a) => a.deviceId));
+  return sessoes
+    .filter((s) => s.deviceId && s.deviceId !== meuAparelho && !ficam.has(s.deviceId))
+    .map((s) => s.deviceId);
+}
+
 /** O aparelho que está a tocar, se houver um -- é a quem se manda o comando. */
 export function aparelhoQueToca(
   sessoes: readonly RemoteSession[],

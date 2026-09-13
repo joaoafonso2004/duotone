@@ -4,6 +4,7 @@
  * Correr: node --experimental-strip-types scripts/test-modo-limpo.ts
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   ALTURA_RESERVADA, CAPA_MAXIMA, CAPA_MINIMA, INACTIVIDADE_MS, capaComBarras, estaQuieto,
   molduraSemBarras, posicaoDoClique, progressoDaFaixa, tamanhoDaCapa,
@@ -91,6 +92,29 @@ caso('carregar na barra dá o sítio, e fora dela dá as pontas', () => {
   assert.equal(posicaoDoClique(50, 100, 800), 0, 'antes do início');
   assert.equal(posicaoDoClique(5000, 100, 800), 1, 'depois do fim');
   assert.equal(posicaoDoClique(500, 100, 0), 0, 'uma barra sem largura não parte nada');
+});
+
+// ------------------------------------------------------- a tecla, uma vez --
+//
+// Isto le o ficheiro como TEXTO: o `ModoLimpo.web.tsx` importa o React e o
+// react-native-web e nao abre em Node puro, como o `tokens.web.ts` do teste do
+// contraste.
+console.log('\no F11 conta uma vez, nao duas');
+const fonte = readFileSync(new URL('../src/desktop/ModoLimpo.web.tsx', import.meta.url), 'utf8');
+caso('o keydown da pagina so entra quando NAO ha ponte do Electron', () => {
+  // A ponte (`before-input-event`) nao consome a tecla, de proposito: o Esc
+  // tem de continuar a fechar dialogos. Com as duas portas ligadas, o F11 era
+  // a mesma tecla contada duas vezes -- abria e fechava no mesmo instante, e
+  // so funcionava com o foco dentro do iframe do YouTube, que e o unico sitio
+  // onde a pagina nao ve a tecla. Apanhado a 13/9.
+  assert.ok(
+    /if \(!pararPonte\) window\.addEventListener\('keydown'/.test(fonte),
+    'o listener de teclas tem de estar preso ao `if (!pararPonte)`',
+  );
+  assert.ok(
+    !/^\s*window\.addEventListener\('keydown'/m.test(fonte),
+    'nao pode haver um listener de teclas sem guarda',
+  );
 });
 
 if (falhas) {

@@ -130,6 +130,29 @@ export async function deleteOwnSession(): Promise<void> {
  * atravessar a rede, e o segundo filtro protege quem chame a lógica pura
  * com dados de outra origem.
  */
+/**
+ * Apaga linhas de sessão de OUTROS aparelhos desta conta.
+ *
+ * Só as que a lista já não mostra (ver `fantasmasDeSessoes`): sombras de
+ * instalações antigas do mesmo aparelho, que nunca mais vão responder a nada.
+ * A política é `for all using (auth.uid() = user_id)`, por isso um aparelho
+ * pode apagar a linha de outro -- são todas da mesma pessoa.
+ *
+ * Falhar não diz nada a ninguém: a lista já as escondia, e o servidor apaga-as
+ * de qualquer maneira aos 30 dias.
+ */
+export async function esquecerSessoes(deviceIds: readonly string[]): Promise<void> {
+  if (!deviceIds.length) return;
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth?.user?.id;
+  if (!uid) return;
+  await supabase
+    .from('player_sessions')
+    .delete()
+    .eq('user_id', uid)
+    .in('device_id', deviceIds as string[]);
+}
+
 export async function fetchOtherSessions(): Promise<RemoteSession[]> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
