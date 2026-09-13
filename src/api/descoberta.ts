@@ -22,6 +22,9 @@ import { pareceMusica } from '../lib/musica';
 import { fetchYouTubePlaylistById, searchYouTubePlaylists } from './youtube';
 import { pickBest } from '../lib/trackMatch';
 import { trackKey } from '../lib/shuffle';
+import {
+  aEvitar, chegam, lerHistorico, registarSemana, TENTATIVAS_SEM_REPETIR,
+} from '../lib/descobertasMostradas';
 import type { Track } from '../types';
 
 /**
@@ -348,6 +351,8 @@ export function semanaDe(agora: number = Date.now()): number {
 /** Uma chave só, reescrita todas as semanas, em vez de uma por semana: a
  *  cache é por utilizador e não vale a pena deixar lá o histórico todo. */
 const CHAVE_DA_SEMANA = 'descobertas:semana:v1';
+/** O que se mostrou nas semanas anteriores. Ver `lib/descobertasMostradas.ts`. */
+const CHAVE_DAS_MOSTRADAS = 'descobertas:mostradas:v1';
 
 /**
  * A descoberta, mas a MESMA durante sete dias.
@@ -365,6 +370,11 @@ const CHAVE_DA_SEMANA = 'descobertas:semana:v1';
  *
  * `forcar` existe para o botão de refrescar: sem ele, carregar em refrescar não
  * fazia nada a esta prateleira, que é a mais visível da página.
+ *
+ * **E a semana seguinte não repete a anterior.** A escolha dos vizinhos é
+ * estável, e com o mesmo gosto voltavam as mesmas faixas semana após semana. O
+ * que se mostrou nas últimas semanas fica de fora, apertando primeiro e
+ * alargando se não chegar -- ver `lib/descobertasMostradas.ts`.
  */
 export async function descobertasDaSemana(
   limite: number,
@@ -380,9 +390,20 @@ export async function descobertasDaSemana(
     );
     if (guardado?.semana === semana && guardado.faixas?.length) return guardado.faixas;
   }
-  const faixas = await descobrirNovas(limite, biblioteca, jaSugeridas);
+  const historico = lerHistorico(await cacheGet<unknown>(CHAVE_DAS_MOSTRADAS, 60 * DIA_MS));
+  let faixas: Track[] = [];
+  for (const semanas of TENTATIVAS_SEM_REPETIR) {
+    const evitar = new Set([...jaSugeridas, ...aEvitar(historico, semana, semanas)]);
+    faixas = await descobrirNovas(limite, biblioteca, evitar);
+    // Quem ouve poucos artistas tem poucos vizinhos: excluir um mês inteiro
+    // deixava-o sem prateleira. Se não chega, alarga-se a janela.
+    if (chegam(faixas.length, limite)) break;
+  }
   // Uma lista vazia não se guarda: seria fixar o silêncio durante uma semana.
-  if (faixas.length > 0) await cacheSet(CHAVE_DA_SEMANA, { semana, faixas });
+  if (faixas.length > 0) {
+    await cacheSet(CHAVE_DA_SEMANA, { semana, faixas });
+    await cacheSet(CHAVE_DAS_MOSTRADAS, registarSemana(historico, semana, faixas.map(trackKey)));
+  }
   return faixas;
 }
 
