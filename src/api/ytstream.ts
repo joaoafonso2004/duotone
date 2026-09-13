@@ -319,6 +319,28 @@ type InnerTubeClient = {
 const VD_KEY = 'yt_visitor_data';
 const VD_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
 let visitorDataCache: string | null = null;
+/**
+ * Adianta o que a primeira música depois de abrir a app pagava sozinha.
+ *
+ * O `visitorData` fica em disco 24 h, mas o PO Token vive em MEMÓRIA e morre
+ * com a app -- e obtê-lo é a WebView do BotGuard a ficar pronta (até 12 s) e
+ * a cunhar (até 15 s). O iOS mata a app com frequência, por isso isto calhava
+ * muitas vezes à primeira música: a respiração a durar e o download a não
+ * começar (13/9).
+ *
+ * É exatamente a mesma chamada que a cascata faz, só que antes. Se a resposta
+ * do InnerTube trouxer outro `visitorData`, a cache só não é aproveitada; se
+ * isto falhar, a música faz o que sempre fez.
+ */
+export async function aquecerResolvedor(): Promise<void> {
+  try {
+    const visitorData = await getVisitorData();
+    if (visitorData) await fetchGvsPoToken(visitorData);
+  } catch {
+    // Uma conveniência que falha não aparece em lado nenhum.
+  }
+}
+
 async function getVisitorData(): Promise<string | null> {
   if (visitorDataCache) return visitorDataCache;
   // Tentar AsyncStorage primeiro (evita pedido de rede no primeiro arranque)

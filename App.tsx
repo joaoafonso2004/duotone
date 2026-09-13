@@ -8,6 +8,7 @@ import {useLyricsPrefetch} from './src/hooks/useLyricsPrefetch';
 import { useComandosDoAparelho } from './src/lib/connectSync';
 import { esquecerCapasAquecidas, useAquecerCapas } from './src/hooks/useAquecerCapas';
 import { useAquecerSeccoes } from './src/hooks/useAquecerSeccoes';
+import { useAquecerResolvedor } from './src/hooks/useAquecerResolvedor';
 import { esquecerBiblioteca } from './src/lib/cacheDaBiblioteca';
 import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -81,6 +82,8 @@ export default function App() {
   // E as secções: Songs, Artists e Playlists deixam de começar a carregar
   // ao primeiro toque no separador.
   useAquecerSeccoes(userId);
+  // E o PO Token, que a primeira música depois de abrir a app pagava sozinha.
+  useAquecerResolvedor(userId);
   const adjustmentUserId=useAuth(s=>s.session?.user.id??s.offlineUserId);
   const [preferencesReady,setPreferencesReady]=useState(false);
   useEffect(()=>{

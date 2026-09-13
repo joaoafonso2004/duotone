@@ -30,6 +30,15 @@ interface PoTokenSession {
 // token a cada música; o servidor já os mantém válidos horas.
 const memo = new Map<string, PoTokenSession>();
 
+/**
+ * O token que está a ser cunhado, por binding.
+ *
+ * Existe por causa do aquecimento no arranque (`aquecerResolvedor`): se a
+ * primeira música for pedida enquanto ele ainda cunha, espera pelo MESMO
+ * token em vez de pôr a WebView do BotGuard a cunhar outro ao lado.
+ */
+const aCunhar = new Map<string, Promise<string | null>>();
+
 function normalizeBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, '');
 }
@@ -61,6 +70,14 @@ export async function fetchGvsPoToken(contentBinding: string): Promise<string | 
   const cached = memo.get(contentBinding);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached.poToken;
 
+  const jaVem = aCunhar.get(contentBinding);
+  if (jaVem) return jaVem;
+  const pedido = obterPoToken(contentBinding).finally(() => { aCunhar.delete(contentBinding); });
+  aCunhar.set(contentBinding, pedido);
+  return pedido;
+}
+
+async function obterPoToken(contentBinding: string): Promise<string | null> {
   const onDevice = await mintPoTokenOnDevice(contentBinding);
   if (onDevice) {
     // O minter on-device não devolve validade — alinhar com o TTL de sessão
