@@ -200,6 +200,9 @@ export function PlayerRoot() {
 
   // Opacidade da capa: "respira" (fade in/out) enquanto a música carrega.
   const pulse = useRef(new Animated.Value(1)).current;
+  // A capa GRANDE respira escurecendo (ver o comentário junto do cubo): o
+  // mesmo `pulse`, lido ao contrário -- 0,4 de opacidade vira 0,6 de véu preto.
+  const escurecerCapa = pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.6, 0] });
 
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
@@ -1587,8 +1590,13 @@ export function PlayerRoot() {
               ficava parada e nada dizia que alguma coisa estava a acontecer.
               E o mesmo valor e a mesma animacao, so que aplicada aqui
               tambem. */}
-          {expanded && <Animated.View style={{ opacity: pulse }}><ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} aoTocar={Platform.OS === 'ios' ? useCapaIOS.getState().toggle : undefined}
-            front={artSource?<CapaReactiva uri={artSource} size={vidFull.w} active={isPlaying && !buffering && !showLyrics && !capaARodar} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />} /></Animated.View>}
+          {/* Respira ESCURECENDO, e não ficando transparente. A 40% de opacidade
+              via-se o que estava por trás -- a sombra da capa, com fundo preto, e o
+              fundo do cubo --, e isso lia-se como uma moldura à volta da capa
+              (13/9). O véu vive DENTRO da face do cubo, que recorta com o raio:
+              a capa fica opaca e não há borda que se possa ver. */}
+          {expanded && <View><ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} aoTocar={Platform.OS === 'ios' ? useCapaIOS.getState().toggle : undefined}
+            front={<>{artSource?<CapaReactiva uri={artSource} size={vidFull.w} active={isPlaying && !buffering && !showLyrics && !capaARodar} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} /></>} /></View>}
 
           {/* No modo mini, tocar no vídeo expande */}
           {!expanded ? (
