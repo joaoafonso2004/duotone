@@ -15,48 +15,38 @@ import type { ProfilePlayEntry } from '../../api/plays';
 import type { Track } from '../../types';
 import { desktop } from '../ui.web';
 import { styles } from '../estilos.web';
+import { faixasEmCache, lerFaixas } from '../../lib/cacheDaBiblioteca';
 
 /**
- * O que já se leu da biblioteca, por leitor.
+ * A cache subiu para `lib/cacheDaBiblioteca.ts`.
  *
- * **Porque é que isto existe.** O `useLibraryData` ia buscar a biblioteca
- * inteira ao servidor a cada montagem — e as páginas Artists, Liked Songs e
- * Playlists montam-se todas as vezes que se clica no separador. Ou seja: cada
- * ida aos Artists eram duas consultas ao Supabase (as gostadas mais as faixas
- * de todas as playlists, com junção) e uma espera com o ecrã vazio, para
- * mostrar exatamente o que já lá estava um segundo antes.
- *
- * Guarda-se por leitor porque são dois — a biblioteca alargada e só as
- * gostadas — e não são a mesma lista.
+ * Era daqui, e funcionava -- mas o arranque precisa de a encher antes de
+ * alguém tocar num separador, e o `App.tsx` é partilhado com o iPhone: não
+ * pode importar um ficheiro `.web`. O iPhone tinha o mesmo problema e cache
+ * nenhuma. Aqui fica só o gancho de React à volta dela.
  */
-const cache = new Map<unknown, { em: number; faixas: Track[] }>();
-/** Meia hora. A biblioteca muda quando ELE a muda, e nessas alturas o evento
- * `duotone:refresh-library` já força a releitura. */
-const VALIDADE_MS = 30 * 60 * 1000;
-
-/** Esquece o que está guardado. Serve para quando a sessão muda. */
-export function esquecerBiblioteca(): void {
-  cache.clear();
-}
+export { esquecerBiblioteca } from '../../lib/cacheDaBiblioteca';
 
 export function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
-  const guardado = cache.get(loader);
-  const fresco = guardado && Date.now() - guardado.em < VALIDADE_MS;
-  const [tracks, setTracks] = useState<Track[]>(fresco ? guardado!.faixas : []);
-  const [loading, setLoading] = useState(!fresco);
+  // O que o arranque já aqueceu (ver `hooks/useAquecerSeccoes.ts`): com isto na
+  // mão a página abre desenhada, sem passar pelo estado de espera.
+  const guardadas = faixasEmCache(loader);
+  const [tracks, setTracks] = useState<Track[]>(guardadas ?? []);
+  const [loading, setLoading] = useState(!guardadas);
   const [error, setError] = useState<string | null>(null);
 
   const ler = useCallback(async (forcar: boolean) => {
-    const actual = cache.get(loader);
-    if (!forcar && actual && Date.now() - actual.em < VALIDADE_MS) {
-      // Já se sabe a resposta: mostra-se sem passar pelo estado de espera.
-      setTracks(actual.faixas); setLoading(false); setError(null);
-      return;
+    if (!forcar) {
+      const actual = faixasEmCache(loader);
+      if (actual) {
+        // Já se sabe a resposta: mostra-se sem passar pelo estado de espera.
+        setTracks(actual); setLoading(false); setError(null);
+        return;
+      }
     }
     setLoading(true);
     try {
-      const faixas = await loader();
-      cache.set(loader, { em: Date.now(), faixas });
+      const faixas = await lerFaixas(loader, { forcar });
       setTracks(faixas); setError(null);
       // Os metadados que faltarem vêm aos poucos, e o que já estiver resolvido
       // na tabela partilhada chega de graça.

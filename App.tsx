@@ -7,6 +7,8 @@ import React, { useEffect, useState } from 'react';
 import {useLyricsPrefetch} from './src/hooks/useLyricsPrefetch';
 import { useComandosDoAparelho } from './src/lib/connectSync';
 import { esquecerCapasAquecidas, useAquecerCapas } from './src/hooks/useAquecerCapas';
+import { useAquecerSeccoes } from './src/hooks/useAquecerSeccoes';
+import { esquecerBiblioteca } from './src/lib/cacheDaBiblioteca';
 import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { UpdateSheet } from './src/components/UpdateSheet';
@@ -76,6 +78,9 @@ export default function App() {
   // dados já vinham no arranque, as imagens é que esperavam pelo primeiro
   // toque no separador.
   useAquecerCapas(userId);
+  // E as secções: Songs, Artists e Playlists deixam de começar a carregar
+  // ao primeiro toque no separador.
+  useAquecerSeccoes(userId);
   const adjustmentUserId=useAuth(s=>s.session?.user.id??s.offlineUserId);
   const [preferencesReady,setPreferencesReady]=useState(false);
   useEffect(()=>{
@@ -116,7 +121,11 @@ export default function App() {
 
   // O relatório do Library check é da biblioteca de quem sai. Só a conta o
   // apaga: com o efeito de cima, uma quebra de rede levava-o a meio.
-  useEffect(() => () => limparVerificacao(), [userId]);
+  //
+  // A cache da biblioteca sai pela mesma porta e pela mesma razão: a lista de
+  // quem sai não pode aparecer a quem entra, mas ficar sem rede um instante
+  // não pode deitá-la fora -- é quando ela mais serve.
+  useEffect(() => () => { limparVerificacao(); esquecerBiblioteca(); }, [userId]);
 
   useEffect(() => {
     if (!userId||offline) return;

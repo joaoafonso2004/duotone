@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
+import { faixasEmCache, lerFaixas } from '../lib/cacheDaBiblioteca';
 import { agruparPorArtista, chaveDeArtista } from '../lib/artistName';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import { ordenarArtistas } from '../lib/ordenacao';
@@ -27,8 +28,12 @@ export function ArtistsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const userId = useAuth(s => s.session?.user.id);
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(true);
+  // O que o arranque já aqueceu (`hooks/useAquecerSeccoes.ts`): com a biblioteca
+  // na mão, os Artists abrem desenhados em vez de mostrarem o esqueleto para
+  // desenhar, um segundo depois, a mesma lista de sempre.
+  const aquecidas = faixasEmCache(getLibrary);
+  const [tracks, setTracks] = useState<Track[]>(aquecidas ?? []);
+  const [loading, setLoading] = useState(!aquecidas);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [ranking, setRanking] = useState<Map<string, number>>(new Map());
@@ -53,7 +58,9 @@ export function ArtistsScreen() {
   useFocusEffect(useCallback(() => {
     let alive = true;
     if (!userId) { setTracks([]); setLoading(false); return; }
-    void getLibrary().then(items => {
+    // Pela cache: a biblioteca muda quando ELE a muda, e até lá duas visitas
+    // seguidas ao separador não são duas consultas ao Supabase.
+    void lerFaixas(getLibrary).then(items => {
       if (!alive) return;
       setTracks(items); void garantirCatalogo(items);
     }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
