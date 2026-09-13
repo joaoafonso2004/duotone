@@ -4,6 +4,9 @@ import {Animated,Image,PanResponder,Platform,StyleSheet,View} from 'react-native
 import {useReducedMotion} from '../hooks/useReducedMotion';
 import type {Track} from '../types';
 import {LyricsView} from './LyricsView';
+import {LinearGradient} from 'expo-linear-gradient';
+import {geometriaDaLateral,LATERAIS,type Lateral} from '../lib/capaFlutuante3D';
+import type {PoseDaCapa3D} from './CapaFlutuante3D';
 
 type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;showLyrics:boolean;onChange:(open:boolean)=>void;
   /**
@@ -24,12 +27,51 @@ type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;s
    * (lib/capaFlutuante3D.ts): num objeto com espessura, um canto largo lê-se
    * como plástico. Sem ele fica o de sempre.
    */
-  raio?:number};
+  raio?:number;
+  /**
+   * A pose da capa 3D do iPhone (CapaFlutuante3D). Com ela, o cubo desenha-se
+   * como uma CAIXA de seis faces -- a capa, as letras no verso e quatro laterais
+   * com a própria capa -- e o gesto vira a caixa inteira 180° em vez de rodar um
+   * cubo de 90°. Sem ela (o PC, o modo Simple) fica exatamente como era.
+   */
+  pose3D?:PoseDaCapa3D|null};
 // Translação Z equivalente, também nos motores nativos que só expõem X e Y.
 const depth=(z:number)=>[{rotateY:'90deg'},{translateX:-z},{rotateY:'-90deg'}];
 
+/**
+ * Uma lateral da caixa 3D: a faixa da capa junto àquela borda, espelhada para a
+ * borda continuar pela aresta, com o grão por cima e um véu que escurece para
+ * trás. Vira com a face: começa pela mesma pose e o mesmo pivô.
+ */
+function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:number;pose3D:PoseDaCapa3D;
+  virar:Animated.AnimatedInterpolation<string>|string;artwork?:string|null}){
+  const t=pose3D.espessura;
+  const g=geometriaDaLateral(lado,size,t);
+  const colocar=lado==='esquerda'?[{translateX:-size/2},{rotateY:'-90deg'}]
+    :lado==='direita'?[{translateX:size/2},{rotateY:'90deg'}]
+    :lado==='cima'?[{translateY:-size/2},{rotateX:'90deg'}]
+    :[{translateY:size/2},{rotateX:'-90deg'}];
+  const veu:[string,string]=[`rgba(0,0,0,${g.veu.frente})`,`rgba(0,0,0,${g.veu.tras})`];
+  return <Animated.View pointerEvents="none" style={{position:'absolute',left:g.left,top:g.top,width:g.largura,height:g.altura,
+    overflow:'hidden',backfaceVisibility:'hidden',opacity:pose3D.pose,
+    transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar]}}>
+    <View style={{width:g.largura,height:g.altura,overflow:'hidden',transform:[g.espelho==='x'?{scaleX:-1}:{scaleY:-1}]}}>
+      {artwork?<Image source={{uri:artwork}} style={{position:'absolute',left:g.imagem.x,top:g.imagem.y,width:size,height:size}} />:null}
+    </View>
+    <Image source={pose3D.grao.fonte} resizeMode="repeat" style={[StyleSheet.absoluteFill,{opacity:pose3D.grao.opacidade}]} />
+    <LinearGradient colors={veu} start={g.degrade.start} end={g.degrade.end} style={StyleSheet.absoluteFill} />
+  </Animated.View>;
+}
+
+/** O grão de pedra por cima de uma face. Não apanha toques: as letras continuam a deslizar. */
+function GraoDaFace({pose3D}:{pose3D:PoseDaCapa3D}){
+  return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <Image source={pose3D.grao.fonte} resizeMode="repeat" style={[StyleSheet.absoluteFill,{opacity:pose3D.grao.opacidade}]} />
+  </View>;
+}
+
 /** Duas faces do mesmo cubo. O motor de áudio vive fora destas transformações. */
-export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20}:Props){
+export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20,pose3D}:Props){
   const reduced=useReducedMotion();
   const progress=useRef(new Animated.Value(showLyrics?1:0)).current;
   const [direction,setDirection]=useState(1);
@@ -125,6 +167,14 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
   const base=[{perspective:size*3},...depth(-radius),{rotateY:rotation}];
   const frontStyle=reduced?{opacity:showLyrics?0:1}:{transform:[...base,...depth(radius)]};
   const lyricsStyle=reduced?{opacity:showLyrics?1:0}:{transform:[...base,{rotateY:`${direction*90}deg`},...depth(radius)]};
+  // A caixa 3D VIRA inteira: 180° à volta do plano médio da espessura, com as
+  // letras no verso, e pousa na mesma pose. O pivô é o meio da espessura --
+  // senão a caixa avançava para quem vê a meio da volta.
+  const espessura=pose3D?.espessura??0;
+  const virar=progress.interpolate({inputRange:[0,1],outputRange:['0deg',`${-direction*180}deg`]});
+  const pivo=pose3D?[...pose3D.postura,...depth(-espessura/2),{rotateY:virar}]:[];
+  const frontStyle3D=pose3D?(reduced?{opacity:showLyrics?0:1,transform:[...pose3D.postura]}:{transform:[...pivo,...depth(espessura/2)]}):null;
+  const lyricsStyle3D=pose3D?(reduced?{opacity:showLyrics?1:0,transform:[...pose3D.postura]}:{transform:[...pivo,...depth(-espessura/2),{rotateY:'180deg'}]}):null;
   return <View ref={cubeRef} {...(Platform.OS==='web'?{}:responder.panHandlers)} testID="artwork-lyrics-cube"
     accessible={!showLyrics} accessibilityLabel={showLyrics?'Lyrics':'Album artwork'}
     role={Platform.OS==='web'?'group':undefined} accessibilityRole={Platform.OS==='web'?undefined:'adjustable'}
@@ -136,14 +186,17 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       if(['ArrowLeft','ArrowRight','Enter',' '].includes(event.key)){event.preventDefault();onChange(!showLyrics);}
       else if(event.key==='Escape'&&showLyrics){event.preventDefault();onChange(false);}
     }}:{})} style={[{width:size,height:size},Platform.OS==='web'&&({touchAction:'pan-y',userSelect:'none'} as any)]}>
-    <Animated.View pointerEvents="none" aria-hidden={showLyrics} accessibilityElementsHidden={showLyrics} importantForAccessibility={showLyrics?'no-hide-descendants':'auto'} style={[styles.face,{borderRadius:raio},frontStyle]}>
+    {pose3D?LATERAIS.map((l)=><LateralDaCaixa key={l.lado} lado={l.lado} size={size} pose3D={pose3D} virar={reduced?'0deg':virar} artwork={artwork} />):null}
+    <Animated.View pointerEvents="none" aria-hidden={showLyrics} accessibilityElementsHidden={showLyrics} importantForAccessibility={showLyrics?'no-hide-descendants':'auto'} style={[styles.face,{borderRadius:raio},frontStyle3D??frontStyle]}>
       {front}
+      {pose3D?<GraoDaFace pose3D={pose3D} />:null}
       <Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0,0.35]})}]} />
     </Animated.View>
-    <Animated.View pointerEvents={showLyrics&&!moving?'auto':'none'} aria-hidden={!showLyrics} accessibilityElementsHidden={!showLyrics} importantForAccessibility={showLyrics?'auto':'no-hide-descendants'} style={[styles.face,{borderRadius:raio},lyricsStyle]}>
+    <Animated.View pointerEvents={showLyrics&&!moving?'auto':'none'} aria-hidden={!showLyrics} accessibilityElementsHidden={!showLyrics} importantForAccessibility={showLyrics?'auto':'no-hide-descendants'} style={[styles.face,{borderRadius:raio},lyricsStyle3D??lyricsStyle]}>
       {artwork?<Image source={{uri:artwork}} blurRadius={28} style={[StyleSheet.absoluteFill,{opacity:0.6,transform:[{scale:1.12}]}]} />:null}
       <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(8,8,15,0.5)'}]} />
       <LyricsView track={track} visible={showLyrics&&!moving} />
+      {pose3D?<GraoDaFace pose3D={pose3D} />:null}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.4,0]})}]} />
     </Animated.View>
   </View>;

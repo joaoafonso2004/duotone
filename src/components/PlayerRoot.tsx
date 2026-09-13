@@ -94,6 +94,8 @@ const APP_NAME = 'Duotone';
  * que lhe foi guardado.
  */
 const AR_ACIMA_DA_CAPA = 20;
+/** A vinheta do fundo com a capa 3D. Sai de scripts/gerar-materiais-da-capa.py. */
+const VINHETA_DA_CAPA_3D = require('../../assets/capa3d-vinheta.png');
 
 /**
  * O que se reserva por baixo da capa para os controlos, antes de a encolher.
@@ -1028,12 +1030,30 @@ export function PlayerRoot() {
             onError={onArtError}
           />
         ) : null}
-        <LinearGradient
-          colors={['rgba(10,10,15,0.30)', 'rgba(10,10,15,0.72)', colors.bg]}
-          locations={[0, 0.55, 1]}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
+        {capaFlutuante ? (
+          // Com a capa 3D, o véu de cima para baixo dá lugar a uma vinheta
+          // centrada na capa: mais leve atrás dela, para a cor da capa se ver no
+          // fundo, e escura nos cantos. Em baixo continua escuro para os
+          // controlos. Ver lib/capaFlutuante3D.ts.
+          <>
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <Image source={VINHETA_DA_CAPA_3D} style={StyleSheet.absoluteFill} contentFit="fill" />
+            </View>
+            <LinearGradient
+              colors={['rgba(10,10,15,0)', 'rgba(10,10,15,0.75)', colors.bg]}
+              locations={[0.55, 0.78, 1]}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+          </>
+        ) : (
+          <LinearGradient
+            colors={['rgba(10,10,15,0.30)', 'rgba(10,10,15,0.72)', colors.bg]}
+            locations={[0, 0.55, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        )}
 
         {/* cabeçalho — o arrasto para fechar agora é da página toda */}
         <View
@@ -1626,9 +1646,11 @@ export function PlayerRoot() {
               fundo do cubo --, e isso lia-se como uma moldura à volta da capa
               (13/9). O véu vive DENTRO da face do cubo, que recorta com o raio:
               a capa fica opaca e não há borda que se possa ver. */}
-          {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante} artwork={artSource}>
+          {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante}>
+            {(pose3D) => (
             <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
-              front={<>{artSource?<CapaDaFaixa uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} /><View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa, capaFlutuante && { borderRadius: CAPA_FLUTUANTE.raio }]} /></>} />
+              front={<>{artSource?<CapaDaFaixa uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} /><View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa, capaFlutuante && { borderRadius: CAPA_FLUTUANTE.raio }]} /></>} pose3D={pose3D} />
+            )}
           </CapaFlutuante3D>}
 
           {/* No modo mini, tocar no vídeo expande */}

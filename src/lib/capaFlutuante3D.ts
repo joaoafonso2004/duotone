@@ -1,5 +1,5 @@
 /**
- * A pose da capa flutuante do Now Playing do iPhone.
+ * A capa flutuante do Now Playing do iPhone: a pose, a caixa e o ambiente.
  *
  * ## De onde vêm os números
  *
@@ -14,27 +14,30 @@
  *
  * Decisão do João (13/9): a face tem de dominar. A pose usada tem os ângulos a
  * 85% dos da referência e a perspetiva 30% mais longe; a escala e a posição
- * foram reajustadas aos cantos. Resultado: os cantos ficam a ~3% do lado da
- * referência, e a face ocupa 66% da caixa contra 63% lá. O teste
- * (`test-capa-reactiva.cjs`) prende as duas coisas: perto da referência, e nunca
- * mais rodada do que ela.
+ * foram reajustadas aos cantos. O teste (`test-capa-reactiva.cjs`) prende as
+ * duas coisas: perto da referência, e nunca mais rodada do que ela.
  *
- * - **Vê-se a aresta ESQUERDA e a de BAIXO**, como na referência. Com
- *   `rotateY` negativo -- a primeira versão -- via-se o lado contrário.
+ * ## Uma caixa, e não uma imagem rodada
  *
- * ## A espessura
+ * Seis faces: a face (a capa), o verso (as letras) e quatro laterais INTEIRAS
+ * que levam a própria capa -- a borda da imagem continua pela aresta, como uma
+ * impressão que dá a volta, e um véu escurece-a para trás. Inteiras porque só
+ * assim fecham nos cantos: com cantos arredondados e laterais mais curtas, os
+ * cantos ficavam escuros (13/9). Numa caixa convexa com as faces de trás
+ * escondidas, cada face aparece quando está virada para quem vê, também a meio
+ * da volta para as letras.
  *
  * O React Native não extruda vistas, e no iPhone uma vista com transformação 3D
- * ACHATA o que tem dentro antes de rodar. Placas deslocadas em 2D dentro da
- * vista que roda davam uma cópia desfasada da capa, e não uma aresta. Aqui são
- * `fatias` do mesmo retângulo arredondado, IRMÃS da face, cada uma com a pose
- * inteira e deslocada em Z pelo truque do cubo das letras.
+ * ACHATA o que tem dentro antes de rodar. Por isso cada face é IRMÃ das outras
+ * e leva a pose inteira; nunca dentro de uma vista que roda.
  *
  * ## O ambiente
  *
- * Uma capa rodada em cima de um fundo parece colada. O que a põe NO espaço é a
- * luz e a sombra no plano do fundo, não presas à capa: a própria capa desfocada
- * como luz ambiente, e uma sombra larga que se dissolve (`luz`, `sombra`).
+ * A cor do fundo é a da capa, porque o fundo do leitor já é a capa desfocada;
+ * com a capa 3D, o véu dá lugar a uma vinheta centrada nela. As sombras vivem no
+ * plano do fundo, não presas à capa: uma larga e ténue, e uma de contacto logo
+ * abaixo da aresta. O grão de pedra é o material, igual para todas as capas.
+ * Os PNGs saem de `scripts/gerar-materiais-da-capa.py`.
  */
 
 export type EstiloDaCapaIOS = 'floating' | 'simple';
@@ -76,18 +79,21 @@ export const CAPA_FLUTUANTE = {
   scale: 0.93,
   /**
    * Em lados. Escolhida pelo bordo VISÍVEL da foto: 3,5% do lado na aresta de
-   * baixo e 3,1% na esquerda. Com 4,2% (a versão anterior) ficava com metade --
-   * rodar menos do que a referência estreita o bordo, e isso compensa-se aqui.
+   * baixo e 3,1% na esquerda. Rodar menos do que a referência estreita o bordo,
+   * e isso compensa-se aqui.
    */
   espessura: 0.078,
-  /** Fatias da espessura, a ~1,3 pt umas das outras: com menos, o bordo mostrava degraus. */
-  fatias: 20,
-  /** Cantos quase retos: num objeto com espessura, um canto largo lê-se como plástico. */
-  raio: 6,
-  /** A luz que a capa deixa no fundo: ela própria, desfocada. */
-  luz: { opacidade: 0.5, desfoque: 60 },
-  /** A sombra no fundo: larga, difusa, e mais clara quando a capa sobe. */
-  sombra: { opacidade: 0.7 },
+  /** Cantos quase vivos: é o que deixa as laterais inteiras fechar a caixa. */
+  raio: 2,
+  /** O grão de pedra: 60 pt por mosaico, por cima de todas as faces. */
+  grao: { opacidade: 0.42, ladoPt: 60 },
+  /** Em lados da caixa da capa. Larga e ténue: a profundidade. */
+  sombraAmbiente: { opacidade: 0.45, x: -0.1, y: 0.72, largura: 1.3, altura: 0.5 },
+  /**
+   * Em lados. Pequena e escura logo abaixo da aresta de baixo, que desce ~7°
+   * para a direita. A caixa inclui a margem do desfoque que vem no PNG.
+   */
+  sombraDeContacto: { opacidade: 0.75, x: 0.09, y: 0.845, largura: 0.92, altura: 0.195, rotacao: 7.3 },
 } as const;
 
 export type PoseDaCapa = {
@@ -158,21 +164,52 @@ export function desvioDaFaceDeTras(p: PoseDaCapa & { espessura: number }): { x: 
   return { x: x / 4, y: y / 4 };
 }
 
-/** A profundidade de uma fatia, em pontos: 0 é a do fundo, e nenhuma fica na face. */
-export function profundidadeDaFatia(indice: number, fatias: number, espessura: number): number {
-  return -espessura * (1 - indice / fatias);
-}
+export type Lateral = 'esquerda' | 'direita' | 'cima' | 'baixo';
 
 /**
- * As cores de uma fatia, em diagonal: claras em cima à esquerda, escuras em
- * baixo à direita -- o bordo esquerdo apanha mais luz do que o de baixo, como na
- * referência. Cinzentos médios e não pretos: um bordo preto lia-se como um
- * painel colado à interface.
+ * As quatro laterais e o véu de cada uma, da face (`frente`) para trás (`tras`).
+ * A esquerda apanha mais luz do que a de baixo, como na referência.
  */
-export function tonsDaFatia(indice: number, fatias: number): [string, string, string] {
-  const tom = Math.round(14 + (indice / fatias) * 30);
-  const rgb = (v: number) => `rgb(${v},${v},${v + 1})`;
-  return [rgb(tom + 16), rgb(tom + 3), rgb(Math.max(6, tom - 8))];
+export const LATERAIS: readonly { lado: Lateral; frente: number; tras: number }[] = [
+  { lado: 'esquerda', frente: 0.12, tras: 0.45 },
+  { lado: 'direita', frente: 0.35, tras: 0.65 },
+  { lado: 'cima', frente: 0.2, tras: 0.5 },
+  { lado: 'baixo', frente: 0.3, tras: 0.6 },
+];
+
+type Ponto = { x: number; y: number };
+
+/**
+ * Onde fica uma lateral e que faixa da capa leva, em pontos, para uma capa de
+ * lado `lado` e espessura `espessura`.
+ *
+ * - Comprimento INTEIRO (o lado da capa): é o que fecha a caixa nos cantos.
+ * - `imagem` é onde pôr a capa (lado × lado) dentro da faixa para ela mostrar a
+ *   borda certa; `espelho` diz em que eixo a faixa vira, para a borda da imagem
+ *   ficar junto à face e continuar pela aresta.
+ * - `degrade` escurece da face (clara) para trás (escura).
+ */
+export function geometriaDaLateral(qual: Lateral, lado: number, espessura: number) {
+  const vertical = qual === 'esquerda' || qual === 'direita';
+  const largura = vertical ? espessura : lado;
+  const altura = vertical ? lado : espessura;
+  const veu = LATERAIS.find((l) => l.lado === qual) ?? LATERAIS[0];
+  const degrade: { start: Ponto; end: Ponto } = {
+    esquerda: { start: { x: 1, y: 0.5 }, end: { x: 0, y: 0.5 } },
+    direita: { start: { x: 0, y: 0.5 }, end: { x: 1, y: 0.5 } },
+    cima: { start: { x: 0.5, y: 1 }, end: { x: 0.5, y: 0 } },
+    baixo: { start: { x: 0.5, y: 0 }, end: { x: 0.5, y: 1 } },
+  }[qual];
+  return {
+    largura,
+    altura,
+    left: (lado - largura) / 2,
+    top: (lado - altura) / 2,
+    imagem: { x: qual === 'direita' ? -(lado - espessura) : 0, y: qual === 'baixo' ? -(lado - espessura) : 0 },
+    espelho: (vertical ? 'x' : 'y') as 'x' | 'y',
+    degrade,
+    veu: { frente: veu.frente, tras: veu.tras },
+  };
 }
 
 /**

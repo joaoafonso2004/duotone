@@ -1,73 +1,72 @@
-import MaskedView from '@react-native-masked-view/masked-view';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, AppState, Easing, StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, AppState, Easing, Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { CAPA_FLUTUANTE, profundidadeDaFatia, tonsDaFatia } from '../lib/capaFlutuante3D';
+import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
+
+// Os materiais saem de scripts/gerar-materiais-da-capa.py.
+const GRAO: ImageSourcePropType = require('../../assets/capa3d-grao.png');
+const SOMBRA_AMBIENTE: ImageSourcePropType = require('../../assets/capa3d-sombra-ambiente.png');
+const SOMBRA_DE_CONTACTO: ImageSourcePropType = require('../../assets/capa3d-sombra-contacto.png');
+
+const CURVA = Easing.bezier(0.45, 0, 0.55, 1);
+
+/**
+ * A pose inteira, por esta ordem -- a mesma de `projetar` no lib, que é o que o
+ * teste confere contra a referência. Cada face da caixa começa a sua lista de
+ * transformações por aqui.
+ */
+function criarPostura(pose: Animated.Value, flutuar: Animated.Value, size: number) {
+  const c = CAPA_FLUTUANTE;
+  const ate = (fim: number) => pose.interpolate({ inputRange: [0, 1], outputRange: [0, fim] });
+  const angulo = (graus: number) => pose.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${graus}deg`] });
+  // flutuar a 0 é a capa em cima, a 1 em baixo.
+  const noAr = Animated.multiply(
+    flutuar.interpolate({ inputRange: [0, 1], outputRange: [-c.amplitude, c.amplitude] }),
+    pose,
+  );
+  return [
+    { perspective: c.perspectiva * size },
+    { translateX: ate(c.deslocacaoX * size) },
+    { translateY: Animated.add(ate(c.deslocacaoY * size), noAr) },
+    { rotateX: angulo(c.rotateX) },
+    { rotateY: angulo(c.rotateY) },
+    { rotateZ: angulo(c.rotateZ) },
+    { scale: pose.interpolate({ inputRange: [0, 1], outputRange: [1, c.scale] }) },
+  ];
+}
+
+/** O que o cubo capa/letras precisa para se desenhar como caixa. */
+export type PoseDaCapa3D = {
+  postura: ReturnType<typeof criarPostura>;
+  /** 0 = plana, 1 = em 3D: a opacidade das laterais. */
+  pose: Animated.Value;
+  /** Em pontos. */
+  espessura: number;
+  grao: { fonte: ImageSourcePropType; opacidade: number };
+};
 
 type Props = {
   size: number;
   enabled: boolean;
-  /** A capa, para a luz que ela deixa no fundo. Sem ela, fica só a sombra. */
-  artwork?: string | null;
-  children: React.ReactNode;
+  /**
+   * O cubo capa/letras. Recebe a pose quando o 3D está ligado, e desenha-se
+   * então como caixa (ver `ArtworkLyricsCube`); sem ela, é o cubo de sempre.
+   */
+  children: (pose3D: PoseDaCapa3D | null) => React.ReactNode;
 };
-
-/** Da mais funda para a mais perto da face: é por esta ordem que se desenham. */
-const FATIAS = Array.from({ length: CAPA_FLUTUANTE.fatias }, (_, i) => i);
-const CURVA = Easing.bezier(0.45, 0, 0.55, 1);
-/** Translação em Z pelo truque do cubo das letras: os motores nativos só expõem X e Y. */
-const profundidade = (z: number) => [{ rotateY: '90deg' }, { translateX: -z }, { rotateY: '-90deg' }];
-/** Acende no meio e apaga-se nas pontas: a máscara da luz e da sombra. */
-const RAMPA = ['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,1)', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0)'] as const;
-const PARAGENS = [0, 0.22, 0.5, 0.78, 1] as const;
-
-type EstiloAnimado = React.ComponentProps<typeof Animated.View>['style'];
-
-/**
- * Uma mancha sem bordos: duas rampas cruzadas como máscara (horizontal por fora,
- * vertical por dentro). É o que deixa a luz e a sombra DISSOLVER-SE no fundo,
- * em vez de terminarem num retângulo.
- */
-function Difusa({ style, children }: { style: EstiloAnimado; children: React.ReactNode }) {
-  return (
-    <Animated.View pointerEvents="none" style={style}>
-      <MaskedView
-        style={StyleSheet.absoluteFill}
-        maskElement={<LinearGradient colors={RAMPA} locations={PARAGENS} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={StyleSheet.absoluteFill} />}
-      >
-        <MaskedView
-          style={StyleSheet.absoluteFill}
-          maskElement={<LinearGradient colors={RAMPA} locations={PARAGENS} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={StyleSheet.absoluteFill} />}
-        >
-          {children}
-        </MaskedView>
-      </MaskedView>
-    </Animated.View>
-  );
-}
 
 /**
  * A capa como um objeto fino suspenso no ar -- ver `lib/capaFlutuante3D.ts`.
  *
- * Por ordem, de trás para a frente, todas irmãs:
+ * Isto desenha o que vive no PLANO DO FUNDO -- a sombra larga e a de contacto,
+ * que se dissolvem nele e respiram com a flutuação -- e entrega a pose ao cubo.
+ * A caixa (face, verso e laterais) é o cubo que a desenha, porque é ele que tem
+ * o gesto: virar para as letras roda a caixa inteira.
  *
- * 1. **a luz**: a própria capa desfocada, no plano do fundo, a sair por trás e
- *    sobretudo por baixo dela. É o que faz a capa pertencer à página em vez de
- *    estar colada por cima;
- * 2. **a sombra**: larga e difusa, também no plano do fundo, mais clara e mais
- *    aberta quando a capa sobe. Não é um drop-shadow preso à capa -- esse
- *    recortava-a do fundo;
- * 3. **as fatias da espessura**, com a mesma pose da face;
- * 4. **a face**, que é o cubo capa/letras, sem mudar nada dentro dele. A arte
- *    não é tocada: só rodada.
- *
- * Irmãs, e não umas dentro das outras: no iPhone uma vista com transformação 3D
- * achata o que tem dentro antes de rodar, e uma fatia lá dentro deixava de ter
- * profundidade nenhuma. A pose não muda no swipe para as letras.
+ * Nada aqui fica à volta do cubo numa vista que roda: no iPhone isso achatava
+ * as faces antes de rodar, e a caixa perdia a profundidade.
  */
-export function CapaFlutuante3D({ size, enabled, artwork, children }: Props) {
+export function CapaFlutuante3D({ size, enabled, children }: Props) {
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   const flutuar = useRef(new Animated.Value(0.5)).current;
@@ -109,102 +108,49 @@ export function CapaFlutuante3D({ size, enabled, artwork, children }: Props) {
   }, [enabled, foreground, flutuar, reduced]);
 
   const c = CAPA_FLUTUANTE;
-  const ate = (fim: number) => pose.interpolate({ inputRange: [0, 1], outputRange: [0, fim] });
-  const angulo = (graus: number) => pose.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${graus}deg`] });
-  // flutuar a 0 é a capa em cima, a 1 em baixo.
-  const noAr = Animated.multiply(
-    flutuar.interpolate({ inputRange: [0, 1], outputRange: [-c.amplitude, c.amplitude] }),
-    pose,
+  // Estáveis entre renders: o leitor volta a desenhar a cada segundo da música,
+  // e refazer as interpolações a cada vez era religar o grafo nativo por nada.
+  const postura = useMemo(() => criarPostura(pose, flutuar, size), [pose, flutuar, size]);
+  const pose3D = useMemo<PoseDaCapa3D | null>(
+    () => (enabled
+      ? { postura, pose, espessura: c.espessura * size, grao: { fonte: GRAO, opacidade: c.grao.opacidade } }
+      : null),
+    [enabled, postura, pose, size, c.espessura, c.grao.opacidade],
   );
-  // A pose inteira, por esta ordem -- a mesma de `projetar` no lib, que é o que
-  // o teste confere contra a referência.
-  const postura = [
-    { perspective: c.perspectiva * size },
-    { translateX: ate(c.deslocacaoX * size) },
-    { translateY: Animated.add(ate(c.deslocacaoY * size), noAr) },
-    { rotateX: angulo(c.rotateX) },
-    { rotateY: angulo(c.rotateY) },
-    { rotateZ: angulo(c.rotateZ) },
-    { scale: pose.interpolate({ inputRange: [0, 1], outputRange: [1, c.scale] }) },
-  ];
-  const espessura = c.espessura * size;
+  const sombras = useMemo(() => {
+    const a = c.sombraAmbiente, k = c.sombraDeContacto;
+    return {
+      ambiente: {
+        left: a.x * size, top: a.y * size, width: a.largura * size, height: a.altura * size,
+        opacity: Animated.multiply(pose, flutuar.interpolate({ inputRange: [0, 1], outputRange: [a.opacidade * 0.85, a.opacidade] })),
+        transform: [{ scaleX: flutuar.interpolate({ inputRange: [0, 1], outputRange: [1.04, 1] }) }],
+      },
+      // Mais clara e mais pequena quando a capa sobe: é isso que vende a altura.
+      contacto: {
+        left: k.x * size, top: k.y * size, width: k.largura * size, height: k.altura * size,
+        opacity: Animated.multiply(pose, flutuar.interpolate({ inputRange: [0, 1], outputRange: [k.opacidade * 0.55, k.opacidade] })),
+        transform: [
+          { rotate: `${k.rotacao}deg` },
+          { scale: flutuar.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
+        ],
+      },
+    };
+  }, [pose, flutuar, size, c.sombraAmbiente, c.sombraDeContacto]);
 
   return (
     <View style={{ width: size, height: size, overflow: 'visible' }}>
-      {/* A luz: a capa desfocada, um véu claro por baixo dela para o fundo nunca
-          ficar preto chapado, e bordos que se dissolvem. Não passa muito da
-          caixa: por cima está o cabeçalho e por baixo o título. */}
-      <Difusa
-        style={{
-          position: 'absolute',
-          left: -size * 0.2,
-          top: -size * 0.08,
-          width: size * 1.4,
-          height: size * 1.2,
-          opacity: Animated.multiply(pose, c.luz.opacidade),
-        }}
-      >
-        <View style={[StyleSheet.absoluteFill, styles.veuDeLuz]} />
-        {artwork ? (
-          <Image
-            source={{ uri: artwork }}
-            blurRadius={c.luz.desfoque}
-            contentFit="cover"
-            style={[StyleSheet.absoluteFill, styles.luzDaCapa]}
-          />
-        ) : null}
-      </Difusa>
-
-      {/* A sombra, no fundo, por baixo do bordo mais baixo da capa. */}
-      <Difusa
-        style={{
-          position: 'absolute',
-          left: size * 0.03,
-          top: size * 0.78,
-          width: size * 1.04,
-          height: size * 0.34,
-          opacity: Animated.multiply(
-            pose,
-            flutuar.interpolate({ inputRange: [0, 1], outputRange: [c.sombra.opacidade * 0.78, c.sombra.opacidade] }),
-          ),
-          transform: [{ scaleX: flutuar.interpolate({ inputRange: [0, 1], outputRange: [1.06, 1] }) }],
-        }}
-      >
-        <View style={[StyleSheet.absoluteFill, styles.sombra]} />
-      </Difusa>
-
-      {FATIAS.map((indice) => (
-        <Animated.View
-          key={indice}
-          pointerEvents="none"
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              borderRadius: c.raio,
-              overflow: 'hidden',
-              opacity: pose,
-              transform: [...postura, ...profundidade(profundidadeDaFatia(indice, c.fatias, espessura))],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={tonsDaFatia(indice, c.fatias)}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-      ))}
-
-      <Animated.View style={[StyleSheet.absoluteFill, { transform: postura }]}>
-        {children}
+      <Animated.View pointerEvents="none" style={[styles.sombra, sombras.ambiente]}>
+        <Image source={SOMBRA_AMBIENTE} resizeMode="stretch" style={styles.cheia} />
       </Animated.View>
+      <Animated.View pointerEvents="none" style={[styles.sombra, sombras.contacto]}>
+        <Image source={SOMBRA_DE_CONTACTO} resizeMode="stretch" style={styles.cheia} />
+      </Animated.View>
+      {children(pose3D)}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  veuDeLuz: { backgroundColor: 'rgba(255,255,255,0.07)' },
-  luzDaCapa: { opacity: 0.75 },
-  sombra: { backgroundColor: '#000' },
+  sombra: { position: 'absolute' },
+  cheia: { width: '100%', height: '100%' },
 });

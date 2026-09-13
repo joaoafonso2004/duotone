@@ -67,11 +67,24 @@ async function run() {
   const bordoEsquerdo = regra.projetar(-0.5, 0, 0, c)[0] - regra.projetar(-0.5, 0, -c.espessura, c)[0];
   assert.ok(Math.abs(bordoDeBaixo - 0.035) <= 0.005 && Math.abs(bordoEsquerdo - 0.031) <= 0.005,
     `a espessura visível é a da referência (baixo ${(bordoDeBaixo * 100).toFixed(1)}%, esquerda ${(bordoEsquerdo * 100).toFixed(1)}%)`);
-  assert.ok(c.fatias >= 10, 'a espessura tem fatias suficientes para não mostrar degraus num Retina');
-  assert.ok(c.raio <= 10, 'cantos quase retos, como na referência');
+  assert.ok(c.raio <= 3, 'cantos quase vivos: a caixa fecha nos cantos, sem buracos escuros');
   assert.ok(c.scale >= 0.85 && c.scale <= 0.94, 'a capa encolhe o suficiente para a espessura e a sombra caberem');
-  assert.ok(regra.profundidadeDaFatia(0, c.fatias, 10) === -10 && regra.profundidadeDaFatia(c.fatias - 1, c.fatias, 10) < 0,
-    'a fatia do fundo está à espessura inteira, e nenhuma fica no plano da face');
+  // A espessura são as quatro laterais INTEIRAS: com a face e o verso fecham uma
+  // caixa, e os cantos ficam com a cor da capa (13/9).
+  for (const l of regra.LATERAIS) {
+    const g = regra.geometriaDaLateral(l.lado, 300, 20);
+    const vertical = l.lado === 'esquerda' || l.lado === 'direita';
+    assert.deepEqual([g.largura, g.altura], vertical ? [20, 300] : [300, 20], `a lateral ${l.lado} tem o comprimento inteiro`);
+    assert.ok(l.tras > l.frente, `a lateral ${l.lado} escurece para trás`);
+  }
+  const veuDe = (lado) => regra.LATERAIS.find((l) => l.lado === lado);
+  assert.ok(veuDe('esquerda').frente < veuDe('baixo').frente, 'a esquerda apanha mais luz do que a de baixo');
+  // Os materiais existem e têm o tamanho que o código assume.
+  const tamanhoDoPng = (f) => { const b = fs.readFileSync(path.join(root, f)); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
+  assert.deepEqual(tamanhoDoPng('assets/capa3d-grao@3x.png'), [180, 180], 'o grão tem 60 pt a 3x');
+  for (const f of ['assets/capa3d-sombra-ambiente.png', 'assets/capa3d-sombra-contacto.png', 'assets/capa3d-vinheta.png']) {
+    assert.ok(fs.existsSync(path.join(root, f)), `${f} existe`);
+  }
 
   // Uma leitura antiga do disco não pode desfazer a escolha feita no ecrã.
   const writes = [];
@@ -109,16 +122,16 @@ async function run() {
   assert.match(player, /<CapaFlutuante3D/);
   assert.match(player, /opacity: capaFlutuante \? 0 :/,
     'a sombra plana da capa desliga-se com a capa 3D, também do lado das letras');
-  assert.match(capa3D, /profundidadeDaFatia/,
-    'a espessura são fatias em profundidade real, e não placas deslocadas em 2D');
-  assert.match(capa3D, /blurRadius=\{c\.luz\.desfoque\}/,
-    'a luz ambiente é a própria capa desfocada, no fundo');
+  const cubo = fs.readFileSync(path.join(root, 'src/components/ArtworkLyricsCube.tsx'), 'utf8');
+  assert.match(cubo, /-direction\*180/, 'no 3D a caixa vira 180° inteira, com as letras no verso');
+  assert.match(cubo, /LATERAIS\.map/, 'as laterais viram com a face');
+  assert.match(cubo, /GraoDaFace/, 'o grão de pedra está nas faces, e não só nas laterais');
+  assert.match(player, /pose3D=\{pose3D\}/, 'o cubo recebe a pose da capa 3D');
   assert.doesNotMatch(capa3D, /shadowOffset|shadowRadius/,
-    'a sombra é difusa no fundo, e não um drop-shadow preso à capa');
-  assert.ok(c.luz.opacidade > 0 && c.luz.opacidade <= 0.6 && c.sombra.opacidade <= 0.8,
-    'a luz e a sombra integram a capa no fundo sem a transformar num holofote');
-  assert.match(player, /<CapaFlutuante3D[^>]*artwork=\{artSource\}/,
-    'a capa chega ao componente para a luz ambiente');
+    'as sombras são difusas no fundo, e não um drop-shadow preso à capa');
+  assert.doesNotMatch(capa3D, /blurRadius|MaskedView/,
+    'sem luz circular: a cor do fundo vem da capa desfocada do leitor');
+  assert.match(player, /capa3d-vinheta\.png/, 'com a capa 3D, o fundo leva a vinheta centrada na capa');
   assert.doesNotMatch(player, /<CapaFlutuante3D[^>]*(?:showLyrics|turning)=/,
     'a pose exterior não muda quando o cubo roda para as letras');
   assert.doesNotMatch(capa3D, /enabled\s*&&\s*!showLyrics|!turning/,
