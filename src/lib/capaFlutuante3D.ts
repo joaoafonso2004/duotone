@@ -3,64 +3,87 @@
  *
  * ## De onde vêm os números
  *
- * Da screenshot de referência (NOSTYLIST, 13/9), e não do olho. Nela, dentro do
- * quadrado da capa, os cantos da face estão em `CANTOS_DA_REFERENCIA`. A pose
- * abaixo foi PROCURADA para os pôr ali, com a mesma matemática de transformações
- * do React Native (a mesma do CSS), e confirmada num browser a medir os cantos
- * projetados: 0,4% do lado de erro médio. O `test-capa-reactiva.cjs` volta a
- * projetá-los, e falha se alguém mexer num ângulo e a capa deixar de ser aquela.
+ * Da screenshot de referência (NOSTYLIST, 13/9), medida em alta resolução
+ * (941×1672), e não do olho. O quadrado da capa sai do layout do PlayerRoot
+ * (os pontos do cubo estão 11 pt por baixo dele); dentro dele, os cantos da face
+ * estão em `CANTOS_DA_REFERENCIA`. A pose que os põe lá EXATAMENTE foi procurada
+ * com a mesma matemática de transformações do React Native (a do CSS) e fica em
+ * `POSE_DA_REFERENCIA`.
  *
- * - **Quase sem perspetiva** (`perspectiva` em lados da capa). A referência é
- *   praticamente um paralelogramo: a inclinação vem das rotações, não da fuga.
- *   Com perspetiva a sério (8 lados) os cantos afastavam-se três vezes mais.
+ * ## Um pouco menos do que a referência, de propósito
+ *
+ * Decisão do João (13/9): a face tem de dominar. A pose usada tem os ângulos a
+ * 85% dos da referência e a perspetiva 30% mais longe; a escala e a posição
+ * foram reajustadas aos cantos. Resultado: os cantos ficam a ~3% do lado da
+ * referência, e a face ocupa 66% da caixa contra 63% lá. O teste
+ * (`test-capa-reactiva.cjs`) prende as duas coisas: perto da referência, e nunca
+ * mais rodada do que ela.
+ *
  * - **Vê-se a aresta ESQUERDA e a de BAIXO**, como na referência. Com
- *   `rotateY` negativo -- o que estava antes -- via-se o lado contrário.
+ *   `rotateY` negativo -- a primeira versão -- via-se o lado contrário.
  *
  * ## A espessura
  *
  * O React Native não extruda vistas, e no iPhone uma vista com transformação 3D
  * ACHATA o que tem dentro antes de rodar. Placas deslocadas em 2D dentro da
- * vista que roda (a versão anterior) davam uma cópia desfasada da capa, e não
- * uma aresta. Aqui são `fatias` do mesmo retângulo arredondado, IRMÃS da face,
- * cada uma com a pose inteira e deslocada em Z pelo truque do cubo das letras:
- * juntas formam o bordo com a perspetiva certa, cantos incluídos.
+ * vista que roda davam uma cópia desfasada da capa, e não uma aresta. Aqui são
+ * `fatias` do mesmo retângulo arredondado, IRMÃS da face, cada uma com a pose
+ * inteira e deslocada em Z pelo truque do cubo das letras.
  *
- * Números fora do componente para se poderem afinar sem espalhar ângulos pelo
- * JSX -- e verificar que a flutuação continua subtil.
+ * ## O ambiente
+ *
+ * Uma capa rodada em cima de um fundo parece colada. O que a põe NO espaço é a
+ * luz e a sombra no plano do fundo, não presas à capa: a própria capa desfocada
+ * como luz ambiente, e uma sombra larga que se dissolve (`luz`, `sombra`).
  */
 
 export type EstiloDaCapaIOS = 'floating' | 'simple';
 
 /** Onde estão os cantos da face na referência, em frações do quadrado da capa. */
 export const CANTOS_DA_REFERENCIA = {
-  TL: [0.08, 0.08],
-  TR: [0.87, 0.24],
-  BR: [0.95, 0.98],
-  BL: [0.16, 0.84],
+  TL: [0.062, -0.029],
+  TR: [0.836, 0.182],
+  BR: [0.995, 0.933],
+  BL: [0.138, 0.801],
 } as const;
 
 export type Canto = keyof typeof CANTOS_DA_REFERENCIA;
+
+/** A pose que reproduz a referência ao pormenor (1% do lado). A usada roda menos. */
+export const POSE_DA_REFERENCIA = {
+  perspectiva: 4.865,
+  deslocacaoX: 0.027,
+  deslocacaoY: -0.042,
+  rotateX: 38.2,
+  rotateY: 30,
+  rotateZ: -9.1,
+  scale: 0.96,
+} as const;
 
 export const CAPA_FLUTUANTE = {
   /** Distância para cada lado do centro: seis pontos no percurso inteiro. */
   amplitude: 3,
   /** Uma subida e uma descida completas, sem pausa nas extremidades. */
   cicloMs: 4600,
-  /** Em lados da capa. Quase ortográfica, como a referência. */
-  perspectiva: 40,
-  /** O centro da silhueta na referência está um pouco à direita e abaixo. Em lados. */
-  deslocacaoX: 0.017,
-  deslocacaoY: 0.033,
-  rotateX: 34.7,
-  rotateY: 26.7,
-  rotateZ: -5.85,
-  scale: 0.888,
-  /** Em lados: o bordo visível fica com ~2,5% do lado, o da referência. */
-  espessura: 0.06,
+  /** Em lados da capa. */
+  perspectiva: 6.3,
+  /** Em lados: a silhueta na referência está um pouco à direita e acima. */
+  deslocacaoX: 0.022,
+  deslocacaoY: -0.039,
+  rotateX: 32.5,
+  rotateY: 25.5,
+  rotateZ: -6.1,
+  scale: 0.93,
+  /** Em lados. Fina: o bordo visível fica com ~1,6% do lado. */
+  espessura: 0.042,
   /** Fatias da espessura. Com menos, o bordo mostrava degraus num Retina. */
   fatias: 14,
   /** Cantos quase retos: num objeto com espessura, um canto largo lê-se como plástico. */
   raio: 6,
+  /** A luz que a capa deixa no fundo: ela própria, desfocada. */
+  luz: { opacidade: 0.5, desfoque: 60 },
+  /** A sombra no fundo: larga, difusa, e mais clara quando a capa sobe. */
+  sombra: { opacidade: 0.7 },
 } as const;
 
 export type PoseDaCapa = {
@@ -108,6 +131,17 @@ export function projetarCanto(canto: Canto, p: PoseDaCapa): [number, number] {
   return [px + 0.5, py + 0.5];
 }
 
+/** A área da face projetada, em frações da área da caixa: quanto a face domina. */
+export function areaDaFace(p: PoseDaCapa): number {
+  const pontos = (['TL', 'TR', 'BR', 'BL'] as const).map((k) => projetarCanto(k, p));
+  let dobro = 0;
+  pontos.forEach(([x, y], i) => {
+    const [x2, y2] = pontos[(i + 1) % pontos.length];
+    dobro += x * y2 - x2 * y;
+  });
+  return Math.abs(dobro) / 2;
+}
+
 /** Para onde vai a face de trás: diz que arestas se veem. Em lados. */
 export function desvioDaFaceDeTras(p: PoseDaCapa & { espessura: number }): { x: number; y: number } {
   let x = 0, y = 0;
@@ -127,13 +161,14 @@ export function profundidadeDaFatia(indice: number, fatias: number, espessura: n
 
 /**
  * As cores de uma fatia, em diagonal: claras em cima à esquerda, escuras em
- * baixo à direita. É isso que faz o bordo esquerdo apanhar mais luz do que o de
- * baixo, como na referência. As do fundo são mais escuras.
+ * baixo à direita -- o bordo esquerdo apanha mais luz do que o de baixo, como na
+ * referência. Cinzentos médios e não pretos: um bordo preto lia-se como um
+ * painel colado à interface.
  */
 export function tonsDaFatia(indice: number, fatias: number): [string, string, string] {
-  const tom = Math.round(10 + (indice / fatias) * 26);
+  const tom = Math.round(14 + (indice / fatias) * 30);
   const rgb = (v: number) => `rgb(${v},${v},${v + 1})`;
-  return [rgb(tom + 14), rgb(tom), rgb(Math.max(4, tom - 8))];
+  return [rgb(tom + 16), rgb(tom + 3), rgb(Math.max(6, tom - 8))];
 }
 
 /**

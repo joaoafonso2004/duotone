@@ -34,16 +34,34 @@ async function run() {
 
   assert.ok(c.amplitude >= 2 && c.amplitude <= 4, 'a flutuação fica entre dois e quatro pontos');
   assert.ok(c.cicloMs >= 4000 && c.cicloMs <= 5500, 'o ciclo é lento, mas não parece parado');
-  // A pose vem da screenshot de referência (NOSTYLIST): os quatro cantos da face
-  // têm de continuar onde lá estão. Mexer num ângulo "a olho" parte isto.
+  // A pose vem da screenshot de referência (NOSTYLIST, medida em alta resolução):
+  // os cantos da face ficam perto de onde lá estão. Perto e não em cima: a face
+  // roda um pouco MENOS do que na referência, para dominar (decisão de 13/9).
+  // O canto de cima à direita é o que mais se afasta: é onde se nota rodar menos.
+  let somaDosDesvios = 0;
   for (const [canto, [ax, ay]] of Object.entries(regra.CANTOS_DA_REFERENCIA)) {
     const [x, y] = regra.projetarCanto(canto, c);
-    assert.ok(Math.hypot(x - ax, y - ay) <= 0.012,
+    const desvioDoCanto = Math.hypot(x - ax, y - ay);
+    somaDosDesvios += desvioDoCanto ** 2;
+    assert.ok(desvioDoCanto <= 0.05,
       `o canto ${canto} afastou-se da referência: (${x.toFixed(3)}, ${y.toFixed(3)}) contra (${ax}, ${ay})`);
   }
+  assert.ok(Math.sqrt(somaDosDesvios / 4) <= 0.035, 'em média, os cantos ficam a menos de 3,5% do lado da referência');
+  // A pose de referência reproduz mesmo a screenshot -- senão a comparação acima
+  // não diz nada.
+  for (const [canto, [ax, ay]] of Object.entries(regra.CANTOS_DA_REFERENCIA)) {
+    const [x, y] = regra.projetarCanto(canto, regra.POSE_DA_REFERENCIA);
+    assert.ok(Math.hypot(x - ax, y - ay) <= 0.02, `a pose de referência não reproduz o canto ${canto}`);
+  }
+  const ref = regra.POSE_DA_REFERENCIA;
+  assert.ok(c.rotateX < ref.rotateX && c.rotateY < ref.rotateY && Math.abs(c.rotateZ) < Math.abs(ref.rotateZ),
+    'roda um pouco menos do que a referência: a face tem de dominar');
+  assert.ok(c.perspectiva > ref.perspectiva, 'e com a perspetiva um pouco mais longe');
+  assert.ok(regra.areaDaFace(c) >= regra.areaDaFace(ref),
+    `a face ocupa pelo menos a área que ocupa na referência (${regra.areaDaFace(c).toFixed(3)})`);
   const desvio = regra.desvioDaFaceDeTras(c);
   assert.ok(desvio.x < 0 && desvio.y > 0, 'veem-se a aresta esquerda e a de baixo, como na referência');
-  assert.ok(c.espessura > 0.03 && c.espessura <= 0.08, 'um objeto FINO: a espessura fica entre 3% e 8% do lado');
+  assert.ok(c.espessura >= 0.03 && c.espessura <= 0.06, 'um objeto FINO: a espessura fica entre 3% e 6% do lado');
   assert.ok(c.fatias >= 10, 'a espessura tem fatias suficientes para não mostrar degraus num Retina');
   assert.ok(c.raio <= 10, 'cantos quase retos, como na referência');
   assert.ok(c.scale >= 0.85 && c.scale <= 0.94, 'a capa encolhe o suficiente para a espessura e a sombra caberem');
@@ -88,6 +106,14 @@ async function run() {
     'a sombra plana da capa desliga-se com a capa 3D, também do lado das letras');
   assert.match(capa3D, /profundidadeDaFatia/,
     'a espessura são fatias em profundidade real, e não placas deslocadas em 2D');
+  assert.match(capa3D, /blurRadius=\{c\.luz\.desfoque\}/,
+    'a luz ambiente é a própria capa desfocada, no fundo');
+  assert.doesNotMatch(capa3D, /shadowOffset|shadowRadius/,
+    'a sombra é difusa no fundo, e não um drop-shadow preso à capa');
+  assert.ok(c.luz.opacidade > 0 && c.luz.opacidade <= 0.6 && c.sombra.opacidade <= 0.8,
+    'a luz e a sombra integram a capa no fundo sem a transformar num holofote');
+  assert.match(player, /<CapaFlutuante3D[^>]*artwork=\{artSource\}/,
+    'a capa chega ao componente para a luz ambiente');
   assert.doesNotMatch(player, /<CapaFlutuante3D[^>]*(?:showLyrics|turning)=/,
     'a pose exterior não muda quando o cubo roda para as letras');
   assert.doesNotMatch(capa3D, /enabled\s*&&\s*!showLyrics|!turning/,

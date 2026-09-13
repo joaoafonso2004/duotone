@@ -1626,7 +1626,7 @@ export function PlayerRoot() {
               fundo do cubo --, e isso lia-se como uma moldura à volta da capa
               (13/9). O véu vive DENTRO da face do cubo, que recorta com o raio:
               a capa fica opaca e não há borda que se possa ver. */}
-          {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante}>
+          {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante} artwork={artSource}>
             <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
               front={<>{artSource?<CapaDaFaixa uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} /><View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa, capaFlutuante && { borderRadius: CAPA_FLUTUANTE.raio }]} /></>} />
           </CapaFlutuante3D>}
