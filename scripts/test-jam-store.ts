@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { registarOuvirJuntos, usePlayer } from '../src/state/player.ts';
 import type { Track } from '../src/types.ts';
-import { anteriorDaSessao, percursoDaSessao, proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, type PonteJam } from '../src/lib/jam.ts';
+import { anteriorDaSessao, efeitoDaAutoFila, percursoDaSessao, proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, type PonteJam } from '../src/lib/jam.ts';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
 import type { SessaoDeEscuta } from '../src/api/ouvirJuntos.ts';
@@ -19,7 +19,7 @@ const limpar = () => {
   semeadas = [];
   ponte = {
     sessao: { id: 'jam' }, fila: [{ track: escolhida }], anfitriao: false, convidadosControlam: false,
-    temFaixa: true,
+    temFaixa: true, semearAoTocar: true,
     sugerir: async t => { sugeridas.push(t); }, anunciarFaixa: async t => { anunciadas.push(t); },
     semearFila: async ts => { semeadas.push([...ts]); },
     alternarPausa: async () => { pausas++; }, procurar: async ms => { saltos.push(ms); },
@@ -446,5 +446,32 @@ recuoPossivel = false;
 usePlayer.setState({ positionMs: 500 });
 await usePlayer.getState().prev();
 assert.deepEqual(saltos, [], 'sem licenca, o botao nao mexe na sessao');
+
+// ------------------------ o interruptor da fila automatica (13/9) ------
+//
+// "ele adiciona sozinho sem eu poder escolher": tocar numa musica levava o
+// resto da lista atras, para a fila de toda a gente, e nao havia como dizer
+// que nao.
+limpar(); ponte!.anfitriao = true;
+await usePlayer.getState().playTrack(actual, [actual, escolhida, faixa('terceira')]);
+assert.equal(semeadas.length, 1, 'ligado, a lista vai atras da faixa');
+
+limpar(); ponte!.anfitriao = true; ponte!.semearAoTocar = false;
+await usePlayer.getState().playTrack(actual, [actual, escolhida, faixa('terceira')]);
+assert.deepEqual(anunciadas.map((t) => t.sourceId), ['actual'], 'a faixa tocada e anunciada na mesma');
+assert.deepEqual(semeadas, [], 'desligado, so entra a que se tocou');
+
+// Dar play numa LISTA continua a por a lista: isso e o pedido, nao um
+// acrescento da app.
+limpar(); ponte!.anfitriao = true; ponte!.semearAoTocar = false; ponte!.temFaixa = true;
+await usePlayer.getState().tocarLista([actual, escolhida], false);
+assert.equal(semeadas.length, 1, 'o Play de uma lista poe a lista, com ou sem interruptor');
+
+// E a frase de baixo diz o que esta a fazer AGORA, e muda com quem le.
+assert.match(efeitoDaAutoFila(true, true), /runs low/);
+assert.match(efeitoDaAutoFila(true, false), /rest of the list/);
+assert.match(efeitoDaAutoFila(false, true), /Only the songs you pick/);
+assert.ok(efeitoDaAutoFila(false, true) === efeitoDaAutoFila(false, false),
+  'desligado promete o mesmo a toda a gente');
 
 console.log('Jam: fila, permissões, shuffle, comandos, falhas, pausa e fecho verificados.');

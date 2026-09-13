@@ -604,6 +604,11 @@ export const usePlayer = create<PlayerState>()(
         // A lista vai atrás da faixa. Dar play num álbum dentro do jam tem de
         // dar o álbum, senão a sessão pára no fim da primeira música à espera
         // que alguém acrescente a seguinte à mão.
+        //
+        // Isto é o gesto AUTOMÁTICO, e é o que o interruptor do painel do Jam
+        // desliga: tocar numa música passa a pôr essa e mais nada. Dar play
+        // numa LISTA continua a pôr a lista -- isso é o pedido.
+        if (!s.semearAoTocar) return;
         const resto = restoDaLista(queue, track);
         if (resto.length) await s.semearFila(resto);
       });

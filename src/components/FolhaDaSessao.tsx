@@ -15,6 +15,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
 import { presentes } from '../lib/sessaoViva';
 import { colors, radii, spacing, type } from '../theme';
+import { efeitoDaAutoFila } from '../lib/jam';
 
 /**
  * Quem está, o que vem a seguir, e quem manda.
@@ -27,6 +28,8 @@ import { colors, radii, spacing, type } from '../theme';
 export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFechar: () => void }) {
   const tema = useTheme((s) => s.theme);
   const sessao = useOuvirJuntos((s) => s.sessao);
+  const autoFila = useOuvirJuntos((s) => s.autoFila);
+  const definirAutoFila = useOuvirJuntos((s) => s.definirAutoFila);
   // NUNCA chamar uma funcao dentro do selector: devolveria um array novo a
   // cada leitura, e o zustand le a store pelo `useSyncExternalStore`, que
   // exige um valor ESTAVEL. Com um valor novo de cada vez o React 18 atira
@@ -85,6 +88,22 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
             />
           </View>
         ))}
+
+        {/* A fila automática é de QUEM A LIGA, e não da sessão: fica fora do
+            `anfitriao` de propósito, porque governa os gestos de cada um.
+            Dar play numa LISTA continua a pôr a lista na fila com isto
+            desligado -- isso é o pedido, não um acrescento. */}
+        <View style={styles.permissao}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.nome}>Queue the whole list</Text>
+            <Text style={styles.estado}>{efeitoDaAutoFila(autoFila, anfitriao)}</Text>
+          </View>
+          <Switch
+            value={autoFila}
+            onValueChange={(v) => { hapticSelection(); definirAutoFila(v); }}
+            trackColor={{ true: tema.color, false: colors.surfaceHigh }}
+          />
+        </View>
 
         {anfitriao ? (
           <View style={styles.permissao}>

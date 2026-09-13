@@ -19,6 +19,7 @@ const KEY_SEARCH_HISTORY = 'pref:searchHistory';
 const MAX_SEARCH_HISTORY = 10;
 const KEY_POT_SERVER_URL = 'pref:potServerUrl';
 const KEY_AUTOPLAY_RADIO = 'pref:autoplayRadio';
+const KEY_JAM_AUTO_FILA = 'pref:jamAutoFila';
 const KEY_VOLUME_NORMALIZATION = 'pref:volumeNormalization';
 const KEY_SOUND_PRESET = 'pref:soundPreset';
 // Substituiu o KEY_SOUND_PRESET; a chave velha so e lida para migrar.
@@ -85,6 +86,26 @@ export async function setShuffle(v: boolean): Promise<void> {
 
 /** Rádio no fim da fila. Ligado por omissão — é o ponto da funcionalidade,
  * e as duas primeiras fontes (biblioteca e histórico) não gastam quota. */
+/**
+ * Dentro de um jam, a app enche a fila partilhada sozinha.
+ *
+ * Ligado (o que sempre fez): tocar numa música de uma lista manda o RESTO da
+ * lista para a fila de toda a gente, e o anfitrião vê a fila encher-se de
+ * parecidas quando ela está a acabar. Desligado: só entra o que alguém
+ * escolher, uma música de cada vez.
+ *
+ * Existe porque isto nunca foi uma escolha de ninguém -- a 13/9 o João deu com
+ * a lista do jam cheia de músicas que não tinha posto lá. É por PESSOA e não
+ * por sessão: manda nos gestos de quem a liga, e o enchimento automático só
+ * corre no anfitrião.
+ */
+export async function getJamAutoFila(): Promise<boolean> {
+  return getBool(KEY_JAM_AUTO_FILA, true);
+}
+export async function setJamAutoFila(v: boolean): Promise<void> {
+  await setBool(KEY_JAM_AUTO_FILA, v);
+}
+
 export async function getAutoplayRadio(): Promise<boolean> {
   return getBool(KEY_AUTOPLAY_RADIO, true);
 }

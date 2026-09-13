@@ -170,6 +170,20 @@ export function anteriorDaSessao(percurso: readonly Track[]): Track | null {
   return percurso.length ? percurso[percurso.length - 1] : null;
 }
 
+/**
+ * O que o interruptor "Queue the whole list" está a fazer AGORA.
+ *
+ * A regra das Definições também vale aqui: a linha de baixo diz o momento, e
+ * não a regra. E muda com quem lê -- o enchimento automático só corre no
+ * anfitrião, por isso só a ele se promete.
+ */
+export function efeitoDaAutoFila(ligado: boolean, anfitriao: boolean): string {
+  if (!ligado) return 'Only the songs you pick go in.';
+  return anfitriao
+    ? 'Playing from a list adds the rest, and the Jam adds more when the queue runs low.'
+    : 'Playing a song from a list adds the rest of the list.';
+}
+
 export type PonteJam = {
   sessao: { id: string };
   fila: readonly { track: Track }[];
@@ -177,6 +191,14 @@ export type PonteJam = {
   convidadosControlam: boolean;
   /** A sessão tem alguma coisa a dar. Decide se o Play de uma lista interrompe. */
   temFaixa: boolean;
+  /**
+   * Tocar numa música leva o resto da lista atrás.
+   *
+   * Isto é o gesto AUTOMÁTICO. Dar play numa lista inteira continua a pôr a
+   * lista na fila com o interruptor desligado -- isso é o pedido, não um
+   * acrescento.
+   */
+  semearAoTocar: boolean;
   /** `aSeguir` poe no topo da fila partilhada em vez do fundo. */
   sugerir: (track: Track, aSeguir?: boolean) => Promise<void>;
   semearFila: (tracks: readonly Track[]) => Promise<void>;

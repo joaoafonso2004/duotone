@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import { candidatasParaDescoberta } from '../api/descoberta';
 import { chaveDeArtista } from '../lib/artistName';
 import { anteriorDaSessao, percursoDaSessao, porSemear } from '../lib/jam';
+import { getJamAutoFila, setJamAutoFila } from '../lib/prefs';
 import { trackKey } from '../lib/shuffle';
 import { registar } from '../lib/eventos';
 import type { Track } from '../types';
@@ -107,6 +108,14 @@ type Estado = {
   avancarPelaFila: () => Promise<boolean>;
   /** Enche a fila partilhada quando ela esta a acabar. So o anfitriao. */
   encherSeSecar: () => Promise<void>;
+  /**
+   * A app põe músicas na fila partilhada sem ninguém pedir?
+   *
+   * Por PESSOA (vem das preferências, não da sessão): manda nos gestos de quem
+   * a liga. Ver `getJamAutoFila`.
+   */
+  autoFila: boolean;
+  definirAutoFila: (v: boolean) => void;
   actualizar: () => Promise<void>;
 };
 
@@ -139,6 +148,9 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   sessao: null,
   membros: [],
   fila: [],
+  // Ligado por omissao, que e o que a app sempre fez. A leitura verdadeira
+  // chega logo a seguir, do AsyncStorage.
+  autoFila: true,
   relogio: null,
   euId: null,
   entradaComecouEm: null,
@@ -472,8 +484,15 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
    * O que entra sai do RETRATO DA SALA -- a media do gosto de quem esta la
    * dentro, e nao a fila pessoal de ninguem. Ver `supabase/retrato-da-sessao.sql`.
    */
+  definirAutoFila: (v) => {
+    set({ autoFila: v });
+    void setJamAutoFila(v);
+  },
+
   encherSeSecar: async () => {
     const s = get().sessao;
+    // Desligado o interruptor, a fila só tem o que alguém lá pos.
+    if (!get().autoFila) return;
     if (!s || !get().souAnfitriao() || aEncher) return;
     if (get().fila.length >= MINIMO_NA_FILA) return;
     aEncher = true;
@@ -545,6 +564,10 @@ export { membroDaLinha };
  * apanha TODOS os caminhos por onde a faixa da sessão muda -- o realtime, a
  * releitura, o próprio comando -- em vez de haver quatro sítios a lembrar-se.
  */
+// A preferencia e lida uma vez, no arranque: e por pessoa e nao por sessao,
+// por isso nao tem de esperar por nenhuma.
+void getJamAutoFila().then((v) => useOuvirJuntos.setState({ autoFila: v }));
+
 let percurso: Track[] = [];
 useOuvirJuntos.subscribe((agora, antes) => {
   if (agora.sessao?.id !== antes.sessao?.id) { percurso = []; return; }
@@ -562,6 +585,7 @@ registarOuvirJuntos(() => {
     sessao: s.sessao, fila: s.fila,
     anfitriao: s.souAnfitriao(), convidadosControlam: s.sessao.convidadosControlam,
     temFaixa: !!s.sessao.track,
+    semearAoTocar: s.autoFila,
     sugerir: s.sugerir, semearFila: s.semearFila, anunciarFaixa: s.anunciarFaixa,
     alternarPausa: async () => {
       if (!aindaAqui()) return;

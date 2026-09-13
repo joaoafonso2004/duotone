@@ -9,6 +9,7 @@ import { FriendAvatar } from '../components/FriendAvatar';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { Button, Dialog, Artwork, desktop } from './ui.web';
 import { COR, ESP, FONT, RAIO, TIPO } from './tokens.web';
+import { efeitoDaAutoFila } from '../lib/jam';
 
 /**
  * O Jam do Windows.
@@ -23,6 +24,8 @@ export function JanelaDoJam({ open, onClose, notify }: {
   notify: (message: string) => void;
 }) {
   const sessao = useOuvirJuntos((s) => s.sessao);
+  const autoFila = useOuvirJuntos((s) => s.autoFila);
+  const definirAutoFila = useOuvirJuntos((s) => s.definirAutoFila);
   const todos = useOuvirJuntos((s) => s.membros);
   const fila = useOuvirJuntos((s) => s.fila);
   const euId = useOuvirJuntos((s) => s.euId);
@@ -84,6 +87,17 @@ export function JanelaDoJam({ open, onClose, notify }: {
               color={membro.pronta ? COR.ok : COR.textoFraco} />
           </View>;
         })}
+      </View>
+
+      {/* A fila automática é de QUEM A LIGA, e não da sessão: está fora do
+          `anfitriao` de propósito, porque governa os gestos de cada um. */}
+      <Text style={styles.section}>QUEUE</Text>
+      <View style={styles.setting}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Queue the whole list</Text>
+          <Text style={styles.meta}>{efeitoDaAutoFila(autoFila, anfitriao)}</Text>
+        </View>
+        <Switch value={autoFila} onValueChange={definirAutoFila} />
       </View>
 
       {anfitriao ? <>
