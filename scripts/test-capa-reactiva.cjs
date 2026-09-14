@@ -156,6 +156,33 @@ async function run() {
   assert.deepEqual(mosaicosDaLateral.at(-1), { x: 360, y: 0 }, 'o último mosaico chega ao fim da lateral');
   assert.equal(regra.mosaicoDoGrao(370, 370, 60).length, 49, 'uma face de 370 pt fica coberta até ao canto de baixo à direita');
   assert.deepEqual(regra.mosaicoDoGrao(0, 370, 60), [], 'sem tamanho, sem mosaicos');
+  // A opacidade do grão vem no PNG, e não como opacidade de grupo por cima de
+  // dezenas de mosaicos; o que é estático na caixa é rasterizado.
+  const alfaMaximoDoPng = (f) => {
+    const b = fs.readFileSync(path.join(root, f));
+    const largura = b.readUInt32BE(16), altura = b.readUInt32BE(20);
+    const idat = [];
+    for (let o = 8; o < b.length;) {
+      const n = b.readUInt32BE(o);
+      if (b.toString('ascii', o + 4, o + 8) === 'IDAT') idat.push(b.subarray(o + 8, o + 8 + n));
+      o += 12 + n;
+    }
+    const cru = require('node:zlib').inflateSync(Buffer.concat(idat));
+    let maximo = 0;
+    for (let y = 0; y < altura; y++) {
+      const linha = y * (largura * 4 + 1);
+      assert.equal(cru[linha], 0, 'o gerador escreve as linhas sem filtro');
+      for (let x = 0; x < largura; x++) maximo = Math.max(maximo, cru[linha + 1 + x * 4 + 3]);
+    }
+    return maximo;
+  };
+  assert.equal(alfaMaximoDoPng('assets/capa3d-grao@3x.png'), Math.round(150 * c.grao.opacidade), 'a opacidade do grão está no PNG');
+  assert.doesNotMatch(cubo, /opacity:pose3D\.grao/, 'e não se aplica outra vez por cima');
+  assert.match(cubo, /shouldRasterizeIOS/, 'o que é estático na caixa é rasterizado');
+  const corpoDoLeitor = player.slice(player.indexOf('export function PlayerRoot'), player.indexOf('function BarraDoLeitor'));
+  assert.ok(corpoDoLeitor.length > 1000, 'o corpo do PlayerRoot foi encontrado');
+  assert.doesNotMatch(corpoDoLeitor, /usePlayer\(\(s\) => s\.positionMs\)/, 'o leitor não redesenha a cada posição: só a barra a lê');
+  assert.match(player, /function BarraDoLeitor[\s\S]*usePlayer\(\(s\) => s\.positionMs\)/, 'a barra lê-a ela própria');
   assert.match(player, /pose3D=\{pose3D\}/, 'o cubo recebe a pose da capa 3D');
   assert.doesNotMatch(capa3D, /shadowOffset|shadowRadius/,
     'as sombras são difusas no fundo, e não um drop-shadow preso à capa');

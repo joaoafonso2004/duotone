@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { podeCrossfade, deveComecarCrossfade, volumesDoCrossfade, acaoAoInterromper, fimEfectivo } from '../src/lib/crossfade.ts';
+import { podeCrossfade, deveComecarCrossfade, volumesDoCrossfade, acaoAoInterromper, fimEfectivo, intervaloDaPosicao } from '../src/lib/crossfade.ts';
 
 const base = {
   duracaoDoFade: 6,
@@ -104,4 +104,39 @@ console.log('Crossfade: condições, momento, curva de igual potência e interru
   // Uma analise absurda nunca pode empurrar a passagem para depois do ficheiro.
   assert.equal(fimEfectivo({ ...base, fimMusicalSegundos: 9999 }), 200);
   console.log('Crossfade: a passagem conta do fim da musica quando ele e conhecido.');
+}
+
+// --- o ritmo da posição ---
+{
+  const ritmo = {
+    aPassar: false, seguintePronta: true, ativa: false,
+    posicaoSegundos: 60 as number | null, duracaoSegundos: 200 as number | null, fimMusicalSegundos: null as number | null, duracaoDoFade: 6,
+  };
+  assert.equal(intervaloDaPosicao({ ...ritmo, aPassar: true }), 0.25, 'durante a passagem, a curva não se pode ouvir aos degraus');
+  assert.equal(intervaloDaPosicao({ ...ritmo, ativa: true }), 0.5, 'com a app à frente e a seguinte pronta, fica como estava');
+  assert.equal(intervaloDaPosicao({ ...ritmo, seguintePronta: false, ativa: true }), 1);
+  assert.equal(intervaloDaPosicao({ ...ritmo, seguintePronta: false }), 2);
+  assert.equal(intervaloDaPosicao(ritmo), 2, 'com o ecrã bloqueado e longe do fim, de 2 em 2 s mesmo com a seguinte pronta');
+  assert.equal(intervaloDaPosicao({ ...ritmo, posicaoSegundos: 185 }), 2, 'faltam 15 s: ainda não');
+  assert.equal(intervaloDaPosicao({ ...ritmo, posicaoSegundos: 186 }), 0.5, 'faltam 14 s, o fade mais a antecedência: acelera');
+  assert.equal(intervaloDaPosicao({ ...ritmo, posicaoSegundos: 180, fimMusicalSegundos: 192 }), 0.5, 'conta do fim da música, não do ficheiro');
+  assert.equal(intervaloDaPosicao({ ...ritmo, duracaoSegundos: null }), 0.5, 'sem duração, o ritmo rápido de sempre');
+  assert.equal(intervaloDaPosicao({ ...ritmo, posicaoSegundos: null }), 0.5, 'sem posição, também');
+
+  // Simula o motor com o ecrã bloqueado: a posição chega ao ritmo que a função
+  // pede, e a passagem tem de começar no máximo uma leitura rápida depois do
+  // instante certo -- a mesma precisão de quando o ritmo era sempre 0,5 s.
+  for (const velocidade of [0.5, 1, 1.5, 2]) {
+    for (let inicio = 100; inicio < 104; inicio += 0.37) {
+      let t = inicio;
+      let faltava: number | null = null;
+      while (t < 200) {
+        if (deveComecarCrossfade({ ...base, posicaoSegundos: t })) { faltava = 200 - t; break; }
+        t += intervaloDaPosicao({ ...ritmo, posicaoSegundos: t }) * velocidade;
+      }
+      assert.ok(faltava !== null && faltava > 6 - 0.5 * velocidade - 1e-9,
+        `a ${velocidade}× a passagem começa a tempo (faltavam ${faltava?.toFixed(2)} s)`);
+    }
+  }
+  console.log('Ritmo da posição: 2 s com o ecrã bloqueado, rápido perto do fim, e a passagem começa a tempo.');
 }

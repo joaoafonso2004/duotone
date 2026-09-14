@@ -4,7 +4,24 @@ import { usePlayer } from '../state/player';
 import type { Track } from '../types';
 import { faixasParaGuardar } from './misturaDoDia';
 import { getAudioQuality } from './prefs';
-import { DOWNLOAD_ABORTED, downloadProgressiveAudio, isAudioCached, removeDownloadedAudio } from './youtubeCache';
+import { DOWNLOAD_ABORTED, downloadProgressiveAudio, isAudioCached, removeDownloadedAudio, verificarCancelamentos } from './youtubeCache';
+
+/**
+ * Os cancelamentos destes downloads dependem da rede e do leitor (ver os
+ * `shouldAbort` abaixo). Quando um dos dois muda, pergunta-se logo a quem está à
+ * espera da rede, em vez de esperar pela verificação periódica
+ * (`verificarCancelamentos`, em youtubeCache.ts). Liga-se da primeira vez que é
+ * preciso, e não ao importar: nesse instante as lojas podem ainda não existir.
+ */
+let vigiasLigadas = false;
+function ligarVigias(): void {
+  if (vigiasLigadas) return;
+  vigiasLigadas = true;
+  useConnectivity.subscribe(() => verificarCancelamentos());
+  usePlayer.subscribe((s, p) => {
+    if (s.activeBackend !== p.activeBackend || s.buffering !== p.buffering) verificarCancelamentos();
+  });
+}
 
 /**
  * Descarregar uma faixa para ouvir sem rede, a partir de qualquer menu.
@@ -28,6 +45,7 @@ export function estaDescarregada(track: Track): boolean {
 /** Descarrega, ou tira o download se já lá estiver. Falhar não interrompe nada. */
 export async function alternarDownload(track: Track): Promise<void> {
   if (!podeDescarregar(track)) return;
+  ligarVigias();
   if (isAudioCached(track.sourceId)) {
     removeDownloadedAudio(track.sourceId);
     return;
@@ -66,6 +84,7 @@ export async function alternarDownload(track: Track): Promise<void> {
  * arranque leva-os como leva o resto. Devolve quantas ficaram em disco.
  */
 export async function guardarEmSegundoPlano(faixas: readonly Track[]): Promise<number> {
+  ligarVigias();
   const deveParar = () => {
     const rede = useConnectivity.getState();
     const leitor = usePlayer.getState();

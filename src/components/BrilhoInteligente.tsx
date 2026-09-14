@@ -108,7 +108,10 @@ function Campo({ largura, altura, deslocamento }: {
  * usa trata do recorte: o botão leva `overflow: 'hidden'` e é o raio dele que
  * decide a forma, o que dispensa escrever o mesmo raio em dois sítios.
  */
-export function BrilhoInteligente() {
+export function BrilhoInteligente({ ativo = true }: {
+  /** Falso quando não se vê (ver `BrilhoDoEcra`): o campo pára onde está. */
+  ativo?: boolean;
+} = {}) {
   const parado = useMovimentoReduzido();
   const desliza = useRef(new Animated.Value(0)).current;
   const [medida, setMedida] = useState({ largura: 0, altura: 0 });
@@ -117,18 +120,39 @@ export function BrilhoInteligente() {
   useEffect(() => {
     // Sem medida ainda não há distância nenhuma para percorrer.
     if (NA_WEB || parado || largura <= 0) return;
-    desliza.setValue(0);
-    const ciclo = Animated.loop(
-      Animated.timing(desliza, {
-        toValue: -largura,
-        duration: SEGUNDOS * 1000,
-        easing: Easing.linear,
-        useNativeDriver: DRIVER_NATIVO,
-      }),
-    );
-    ciclo.start();
-    return () => ciclo.stop();
-  }, [desliza, largura, parado]);
+    // Parado quando não se vê: fica onde estava.
+    if (!ativo) {
+      desliza.stopAnimation();
+      return;
+    }
+    let vivo = true;
+    let animacao: Animated.CompositeAnimation | null = null;
+    const volta = (duracaoMs: number) => Animated.timing(desliza, {
+      toValue: -largura,
+      duration: duracaoMs,
+      easing: Easing.linear,
+      useNativeDriver: DRIVER_NATIVO,
+    });
+    // Retoma DE ONDE FICOU: acaba a volta que ia a meio e só depois entra no
+    // ciclo. Recomeçar do zero via-se como um salto quando a página voltava a
+    // aparecer, por exemplo por baixo do leitor a fechar.
+    desliza.stopAnimation((onde) => {
+      if (!vivo) return;
+      const falta = Math.max(0, Math.min(1, (largura + onde) / largura));
+      const primeira = volta(falta * SEGUNDOS * 1000);
+      animacao = primeira;
+      primeira.start(({ finished }) => {
+        if (!finished || !vivo) return;
+        desliza.setValue(0);
+        animacao = Animated.loop(volta(SEGUNDOS * 1000));
+        animacao.start();
+      });
+    });
+    return () => {
+      vivo = false;
+      animacao?.stop();
+    };
+  }, [desliza, largura, parado, ativo]);
 
   // A camada tem o DOBRO da largura e leva o campo duas vezes: é isso que
   // torna o regresso ao princípio invisível.
@@ -187,8 +211,10 @@ export function BrilhoInteligente() {
  * Aqui não cabem partículas — a 7 px seriam sujidade. Fica um ponto a
  * respirar, que é o mesmo sinal na versão que cabe.
  */
-export function EstrelaInteligente({ tamanho = 11, cor = '#E8B84B' }: {
+export function EstrelaInteligente({ tamanho = 11, cor = '#E8B84B', animar = true }: {
   tamanho?: number; cor?: string;
+  /** Falso quando não se vê -- no botão de shuffle do leitor fechado: o pulso pára onde está. */
+  animar?: boolean;
 }) {
   const parado = useMovimentoReduzido();
   const pulso = useRef(new Animated.Value(1)).current;
@@ -196,13 +222,14 @@ export function EstrelaInteligente({ tamanho = 11, cor = '#E8B84B' }: {
   useEffect(() => {
     if (NA_WEB) return;
     if (parado) { pulso.setValue(0.9); return; }
+    if (!animar) { pulso.stopAnimation(); return; }
     const ciclo = Animated.loop(Animated.sequence([
       Animated.timing(pulso, { toValue: 0.55, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: DRIVER_NATIVO }),
       Animated.timing(pulso, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: DRIVER_NATIVO }),
     ]));
     ciclo.start();
     return () => ciclo.stop();
-  }, [pulso, parado]);
+  }, [pulso, parado, animar]);
 
   const base = {
     width: tamanho, height: tamanho, borderRadius: tamanho / 2, backgroundColor: cor,

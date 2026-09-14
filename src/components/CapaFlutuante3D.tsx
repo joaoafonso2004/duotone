@@ -56,7 +56,8 @@ export type PoseDaCapa3D = {
   pose: Animated.Value;
   /** Em pontos. */
   espessura: number;
-  grao: { fonte: ImageSourcePropType; opacidade: number };
+  /** A opacidade já vem no PNG (scripts/gerar-materiais-da-capa.py). */
+  grao: { fonte: ImageSourcePropType };
 };
 
 type Props = {
@@ -139,9 +140,9 @@ export function CapaFlutuante3D({ size, enabled, children }: Props) {
   const postura = useMemo(() => criarPostura(pose, flutuar, derivar, size), [pose, flutuar, derivar, size]);
   const pose3D = useMemo<PoseDaCapa3D | null>(
     () => (enabled
-      ? { postura, pose, espessura: c.espessura * size, grao: { fonte: GRAO, opacidade: c.grao.opacidade } }
+      ? { postura, pose, espessura: c.espessura * size, grao: { fonte: GRAO } }
       : null),
-    [enabled, postura, pose, size, c.espessura, c.grao.opacidade],
+    [enabled, postura, pose, size, c.espessura],
   );
   const sombras = useMemo(() => {
     const a = c.sombraAmbiente, k = c.sombraDeContacto;

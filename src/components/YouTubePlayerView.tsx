@@ -13,6 +13,7 @@ import { baterSessao } from '../lib/sessionSync';
 import { urlsDaCapa } from '../lib/capaDoEcraBloqueado';
 import {
   deveComecarCrossfade, podeCrossfade, volumesDoCrossfade,
+  intervaloDaPosicao,
 } from '../lib/crossfade';
 import { acaoDoWatchdog, DESISTIR_MS, duracaoParaDetetarOFim, fimPorFaltaDeDados } from '../lib/fimDeFaixa';
 import { definirCapaDoEcraBloqueado, temCapaNativa } from '../../modules/duotone-remote-commands';
@@ -20,7 +21,7 @@ import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
 import { targetVolume } from '../lib/loudness';
 import { getLoudnessDb, rememberLoudnessDb } from '../lib/loudnessCache';
-import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED } from '../lib/youtubeCache';
+import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED, verificarCancelamentos } from '../lib/youtubeCache';
 import { quantasAdiantar } from '../lib/adiantarFaixas';
 import type { Prioridade } from '../lib/filaDeDownloads';
 import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
@@ -271,6 +272,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      verificarCancelamentos();
     };
   }, []);
 
@@ -352,6 +354,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
    * entregues ao motor em espera, do lado nativo.
    */
   const seguinteRef = useRef<{ sourceId: string; pronta: boolean; rate: number } | null>(null);
+  /** Onde ia a faixa no último `timeUpdate`: o ritmo da posição precisa de saber quanto falta. */
+  const pontoDaPosicaoRef = useRef<{ sourceId: string; posicao: number; duracao: number | null } | null>(null);
+  /** O último ritmo escrito, e em que motor e faixa: não se repete a mesma escrita a cada evento. */
+  const intervaloAplicadoRef = useRef<{ motor: unknown; sourceId: string; passo: number } | null>(null);
   const aPrepararRef = useRef(false);
 
   /**
@@ -515,25 +521,31 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   /**
    * Quantas vezes por segundo queremos saber a posição.
    *
-   * É a única decisão sobre o ritmo dos eventos de tempo, e está toda aqui:
+   * É a única decisão sobre o ritmo dos eventos de tempo, e a regra vive em
+   * `intervaloDaPosicao` (src/lib/crossfade.ts, testada). Com o ecrã bloqueado,
+   * o ritmo rápido da faixa seguinte pronta só vale perto do fim: valia a
+   * música inteira, e eram quatro vezes mais travessias nativo -> JS com o
+   * telemóvel no bolso.
    *
-   *  - durante uma passagem, 0,25 s, para a curva não se ouvir aos degraus;
-   *  - com a faixa seguinte já preparada, 0,5 s, para não se perder o
-   *    instante de começar (a 2 s podia começar quase no fim do fade, e a
-   *    música que sai caía de repente);
-   *  - de resto, 1 s à frente e 2 s atrás -- em background não há barra de
-   *    progresso para animar e é metade das travessias nativo -> JS.
+   * Corre também a cada `timeUpdate` (é aí que se sabe quanto falta), e só
+   * escreve no motor quando o ritmo muda.
    */
   const reporIntervaloDeTempo = () => {
-    const passo = passagemRef.current
-      ? 0.25
-      : seguinteRef.current?.pronta
-        ? 0.5
-        : AppState.currentState === 'active'
-          ? 1
-          : 2;
+    const ponto = pontoDaPosicaoRef.current?.sourceId === track.sourceId ? pontoDaPosicaoRef.current : null;
+    const passo = intervaloDaPosicao({
+      aPassar: !!passagemRef.current,
+      seguintePronta: !!seguinteRef.current?.pronta,
+      ativa: AppState.currentState === 'active',
+      posicaoSegundos: ponto?.posicao ?? null,
+      duracaoSegundos: ponto?.duracao ?? null,
+      fimMusicalSegundos: fimMusicalGuardado(track.sourceId),
+      duracaoDoFade: usePlayer.getState().crossfadeSegundos,
+    });
+    const aplicado = intervaloAplicadoRef.current;
+    if (aplicado && aplicado.motor === player && aplicado.sourceId === track.sourceId && aplicado.passo === passo) return;
     try {
       player.timeUpdateEventInterval = passo;
+      intervaloAplicadoRef.current = { motor: player, sourceId: track.sourceId, passo };
     } catch {
       // motor já libertado — ignorar
     }
@@ -784,6 +796,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       seguinteRef.current = null;
       passagemRef.current = null;
       runIdRef.current++;
+      verificarCancelamentos();
       const entra = motorEmEspera;
       const sai = player;
       streamRef.current = undefined;
@@ -836,6 +849,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
     seguinteRef.current = null;
     const myRun = ++runIdRef.current;
+    // O download da faixa que sai cancela já, e não na verificação seguinte.
+    verificarCancelamentos();
     nativeTrackIdRef.current = null;
     streamRef.current = undefined;
     downloadTriedRef.current = false;
@@ -1241,6 +1256,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // YouTube que reportam o dobro, e com um deles a passagem começaria a
     // meio da música.
     const duracaoFiavel = track.durationSeconds || streamRef.current?.durationSeconds || null;
+    // O ritmo dos eventos depende de quanto falta -- ver `reporIntervaloDeTempo`.
+    pontoDaPosicaoRef.current = { sourceId: track.sourceId, posicao: currentTime, duracao: duracaoFiavel };
+    reporIntervaloDeTempo();
     if (passagemRef.current) {
       if (duracaoFiavel) avancarPassagem(currentTime, duracaoFiavel);
     } else if (!usePlayer.getState().closing) {
@@ -1534,6 +1552,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // está à espera desse mesmo download, e abandoná-lo fazia-o recomeçar.
     const servem = new Set([track.sourceId, ...lista.map((faixa) => faixa.sourceId)]);
     for (const [id, pedido] of aAdiantar) pedido.abandonado = !servem.has(id);
+    verificarCancelamentos();
 
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -1563,6 +1582,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // logo a seguir, no mesmo ciclo, e devolve o que ainda serve antes de
       // algum download chegar a consultar isto entre dois pedaços.
       for (const pedido of aAdiantar.values()) pedido.abandonado = true;
+      verificarCancelamentos();
     };
   }, [track.sourceId, backend, queue, queueIndex, shuffle, percursoDoShuffle, repeatMode, sessaoJam, filaJam]);
 

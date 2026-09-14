@@ -42,6 +42,10 @@ const depth=(z:number)=>[{rotateY:'90deg'},{translateX:-z},{rotateY:'-90deg'}];
  * Uma lateral da caixa 3D: a faixa da capa junto àquela borda, espelhada para a
  * borda continuar pela aresta, com o grão por cima e um véu que escurece para
  * trás. Vira com a face: começa pela mesma pose e o mesmo pivô.
+ *
+ * É rasterizada: o conteúdo não muda, e assim a GPU compõe um bitmap por
+ * fotograma da flutuação em vez de recorte, degradê e mosaicos. A transformação
+ * 3D continua a animar por cima dele.
  */
 function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:number;pose3D:PoseDaCapa3D;
   virar:Animated.AnimatedInterpolation<string>|string;artwork?:string|null}){
@@ -52,13 +56,13 @@ function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:numb
     :lado==='cima'?[{translateY:-size/2},{rotateX:'90deg'}]
     :[{translateY:size/2},{rotateX:'-90deg'}];
   const veu:[string,string]=[`rgba(0,0,0,${g.veu.frente})`,`rgba(0,0,0,${g.veu.tras})`];
-  return <Animated.View pointerEvents="none" style={{position:'absolute',left:g.left,top:g.top,width:g.largura,height:g.altura,
+  return <Animated.View pointerEvents="none" shouldRasterizeIOS style={{position:'absolute',left:g.left,top:g.top,width:g.largura,height:g.altura,
     overflow:'hidden',backfaceVisibility:'hidden',opacity:pose3D.pose,
     transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar]}}>
     <View style={{width:g.largura,height:g.altura,overflow:'hidden',transform:[g.espelho==='x'?{scaleX:-1}:{scaleY:-1}]}}>
       {artwork?<Image source={{uri:artwork}} style={{position:'absolute',left:g.imagem.x,top:g.imagem.y,width:size,height:size}} />:null}
     </View>
-    <GraoDaFace pose3D={pose3D} largura={g.largura} altura={g.altura} />
+    <GraoDaFace pose3D={pose3D} largura={g.largura} altura={g.altura} rasterizar={false} />
     <LinearGradient colors={veu} start={g.degrade.start} end={g.degrade.end} style={StyleSheet.absoluteFill} />
   </Animated.View>;
 }
@@ -68,11 +72,16 @@ function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:numb
  * mosaico (`mosaicoDoGrao`). O modo `repeat` da Image não repetia no iPhone --
  * a 2.9.2 mostrava um mosaico só, no canto de cima à esquerda (13/9). Não apanha
  * toques: as letras continuam a deslizar.
+ *
+ * A opacidade (42%) já vem no PNG, e o conjunto é rasterizado: é estático, e a
+ * GPU compõe UMA imagem por face em vez de dezenas de mosaicos com opacidade de
+ * grupo -- que obrigava a desenhar à parte a cada fotograma da flutuação. Dentro
+ * de uma lateral não se rasteriza outra vez: a lateral inteira já o é.
  */
-function GraoDaFace({pose3D,largura,altura}:{pose3D:PoseDaCapa3D;largura:number;altura:number}){
+function GraoDaFace({pose3D,largura,altura,rasterizar=true}:{pose3D:PoseDaCapa3D;largura:number;altura:number;rasterizar?:boolean}){
   const lado=CAPA_FLUTUANTE.grao.ladoPt;
   const mosaicos=useMemo(()=>mosaicoDoGrao(largura,altura,lado),[largura,altura,lado]);
-  return <View pointerEvents="none" style={[StyleSheet.absoluteFill,{overflow:'hidden',opacity:pose3D.grao.opacidade}]}>
+  return <View pointerEvents="none" shouldRasterizeIOS={rasterizar} style={[StyleSheet.absoluteFill,{overflow:'hidden'}]}>
     {mosaicos.map(({x,y})=><Image key={`${x}:${y}`} source={pose3D.grao.fonte} style={{position:'absolute',left:x,top:y,width:lado,height:lado}} />)}
   </View>;
 }

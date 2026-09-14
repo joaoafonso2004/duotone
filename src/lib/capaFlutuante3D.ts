@@ -94,7 +94,11 @@ export const CAPA_FLUTUANTE = {
   espessura: 0.078,
   /** Cantos quase vivos: é o que deixa as laterais inteiras fechar a caixa. */
   raio: 2,
-  /** O grão de pedra: 60 pt por mosaico, por cima de todas as faces. */
+  /**
+   * O grão de pedra: 60 pt por mosaico, por cima de todas as faces. A opacidade
+   * vai DENTRO do PNG (scripts/gerar-materiais-da-capa.py), e o teste confere
+   * que é esta.
+   */
   grao: { opacidade: 0.42, ladoPt: 60 },
   /** Em lados da caixa da capa. Larga e ténue: a profundidade. */
   sombraAmbiente: { opacidade: 0.45, x: -0.1, y: 0.72, largura: 1.3, altura: 0.5 },

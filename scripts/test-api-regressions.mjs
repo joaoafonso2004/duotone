@@ -408,6 +408,17 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   await assert.rejects(excessive.downloadProgressiveAudio('x','https://audio.test',10,null,{shouldAbort:()=>true}),/download aborted/);
   const discovered=ambiente(async()=>({headers:{get:name=>name==='content-range'?'bytes 0-1/999999999':null}}),stubs).carregar('src/lib/youtubeCache.ts');
   await assert.rejects(discovered.discoverContentLength('https://audio.test'),/too large/);
+  // Quem muda aquilo de que o cancelamento depende avisa, e o pedido à espera da
+  // rede pára no instante -- sem esperar pela verificação periódica de 1 s.
+  let parar=false;
+  const pendurado=ambiente((_url,{signal})=>new Promise((_resolve,reject)=>{signal.addEventListener('abort',()=>reject(Error('aborted')));}),stubs).carregar('src/lib/youtubeCache.ts');
+  const inicio=Date.now();
+  const aDescarregar=assert.rejects(pendurado.downloadProgressiveAudio('y','https://audio.test',10,null,{shouldAbort:()=>parar}),/download aborted/);
+  await new Promise((r)=>setTimeout(r,30));
+  parar=true;
+  pendurado.verificarCancelamentos();
+  await aDescarregar;
+  assert.ok(Date.now()-inicio<500,'o aviso cancela o pedido logo, sem esperar pelo relógio');
   console.log('Downloads: tamanho máximo, descoberta remota e cancelamento foram limitados.');
 }
 

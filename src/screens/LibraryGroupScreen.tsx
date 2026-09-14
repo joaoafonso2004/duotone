@@ -10,7 +10,7 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { searchYouTube, searchYouTubePlaylists } from '../api/youtube';
-import { BrilhoInteligente } from '../components/BrilhoInteligente';
+import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { EmptyState } from '../components/EmptyState';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
@@ -140,7 +140,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
           shuffleLigado && !shuffleInteligente && { borderColor: theme.color, backgroundColor: theme.soft },
         ]}
       >
-        {shuffleInteligente && <BrilhoInteligente />}
+        {shuffleInteligente && <BrilhoDoEcra />}
         <Ionicons name="shuffle" size={20} color={shuffleLigado && !shuffleInteligente ? theme.color : colors.text} />
       </Pressable>
     </>

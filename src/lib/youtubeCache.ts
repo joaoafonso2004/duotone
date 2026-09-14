@@ -58,6 +58,33 @@ const CHUNK_BYTES = 1_000_000;
 const MIN_CHUNK_BYTES = 131_072; // 128KB — abaixo disto não compensa
 const CHUNK_PACING_MS = 0;
 const MAX_ATTEMPTS_PER_CHUNK = 4;
+
+/**
+ * De quanto em quanto tempo um pedido à espera da rede volta a perguntar se deve
+ * parar, SE ninguém avisar antes. Era de 100 em 100 ms: dez acordares por
+ * segundo da thread de JS durante cada download, e o Smart Cache adianta até
+ * três músicas e a Daily mix doze. Quem muda aquilo de que um `shouldAbort`
+ * depende chama `verificarCancelamentos`, e o pedido pára no instante; este
+ * relógio fica só como rede de segurança.
+ */
+const VERIFICAR_CANCELAMENTO_MS = 1_000;
+const verificacoesDeCancelamento = new Set<() => void>();
+
+/** Pergunta JÁ a todos os pedidos à espera da rede se devem parar. */
+export function verificarCancelamentos(): void {
+  for (const verificar of [...verificacoesDeCancelamento]) verificar();
+}
+
+function vigiarCancelamento(controller: AbortController, shouldAbort?: () => boolean): () => void {
+  if (!shouldAbort) return () => {};
+  const verificar = () => { if (shouldAbort()) controller.abort(); };
+  verificacoesDeCancelamento.add(verificar);
+  const relogio = setInterval(verificar, VERIFICAR_CANCELAMENTO_MS);
+  return () => {
+    verificacoesDeCancelamento.delete(verificar);
+    clearInterval(relogio);
+  };
+}
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_AUDIO_BYTES = 256 * 1024 * 1024;
 
@@ -247,7 +274,7 @@ export async function discoverContentLength(url: string, shouldAbort?: () => boo
   if (shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  const cancel = shouldAbort ? setInterval(() => { if (shouldAbort()) controller.abort(); }, 100) : undefined;
+  const pararDeVigiar = vigiarCancelamento(controller, shouldAbort);
   try {
     const res = await fetch(url, { headers: { Range: 'bytes=0-1' }, signal: controller.signal });
     const range = res.headers.get('content-range'); // "bytes 0-1/4406875"
@@ -261,7 +288,7 @@ export async function discoverContentLength(url: string, shouldAbort?: () => boo
     throw error;
   } finally {
     clearTimeout(timeout);
-    if (cancel) clearInterval(cancel);
+    pararDeVigiar();
   }
 }
 
@@ -287,7 +314,7 @@ export async function fetchChunkWithRetry(
     if (attempt > 0) await sleep(800 * 2 ** (attempt - 1)); // 800ms, 1.6s, 3.2s
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
-    const cancel=shouldAbort?setInterval(()=>{if(shouldAbort())controller.abort();},100):undefined;
+    const pararDeVigiar=vigiarCancelamento(controller,shouldAbort);
     try{
       const res=await fetch(current,{headers:{Range:`bytes=${start}-${end}`},signal:controller.signal});
       if (res.status === 206 || res.status === 200) {
@@ -304,7 +331,7 @@ export async function fetchChunkWithRetry(
       if(shouldAbort?.())throw new Error(DOWNLOAD_ABORTED);
       if(attempt===MAX_ATTEMPTS_PER_CHUNK-1)throw e;
       continue;
-    }finally{clearTimeout(timeout);if(cancel)clearInterval(cancel);}
+    }finally{clearTimeout(timeout);pararDeVigiar();}
     // O URL do googlevideo está ligado ao IP que o pediu e tem validade. Em
     // 4G o IP muda (troca de célula, reconexão) e o URL que estava em cache
     // morre — e o retry repetia-o ús 4 vezes, dando sempre 403. Pedimos um

@@ -44,7 +44,7 @@ export type ContextoDoCrossfade = {
 };
 
 /** Onde a passagem deve estar terminada. */
-export function fimEfectivo(c: ContextoDoCrossfade): number {
+export function fimEfectivo(c: Pick<ContextoDoCrossfade, 'duracaoSegundos' | 'fimMusicalSegundos'>): number {
   const d = c.duracaoSegundos ?? 0;
   const fim = c.fimMusicalSegundos;
   if (fim == null || !Number.isFinite(fim) || fim <= 0) return d;
@@ -80,6 +80,54 @@ export function deveComecarCrossfade(c: ContextoDoCrossfade): boolean {
   if (c.posicaoSegundos <= 0) return false;
   const falta = fimEfectivo(c) - c.posicaoSegundos;
   return falta <= c.duracaoDoFade;
+}
+
+/**
+ * Com quanta antecedência, em segundos de MÚSICA, o ritmo da posição acelera
+ * antes de a passagem poder começar. Com o ecrã bloqueado a posição chega de 2
+ * em 2 s, e a 2× isso são 4 s de música: oito deixam sempre pelo menos uma
+ * leitura rápida antes da janela da passagem.
+ */
+export const ANTECEDENCIA_DO_RITMO_S = 8;
+
+export type ContextoDoRitmo = {
+  /** Há uma passagem a decorrer. */
+  aPassar: boolean;
+  /** A faixa seguinte já está carregada no motor em espera. */
+  seguintePronta: boolean;
+  /** A app está à frente: há barra de progresso e letras para mexer. */
+  ativa: boolean;
+  posicaoSegundos: number | null;
+  duracaoSegundos: number | null;
+  fimMusicalSegundos?: number | null;
+  duracaoDoFade: number;
+};
+
+/**
+ * De quanto em quanto tempo o motor manda a posição, em segundos.
+ *
+ *  - durante uma passagem, 0,25 s, para a curva não se ouvir aos degraus;
+ *  - com a faixa seguinte pronta, 0,5 s, para não se perder o instante de
+ *    começar a passagem -- mas com o ecrã bloqueado SÓ perto do fim. A seguinte
+ *    fica pronta logo no início de cada música, e o 0,5 s valia daí até ao fim:
+ *    com o telemóvel no bolso eram quatro vezes mais travessias nativo -> JS do
+ *    que os 2 s de sempre, durante a música inteira;
+ *  - de resto, 1 s à frente e 2 s atrás.
+ *
+ * Sem saber onde a faixa vai ou onde acaba, fica o ritmo rápido: é o de sempre.
+ */
+export function intervaloDaPosicao(c: ContextoDoRitmo): number {
+  if (c.aPassar) return 0.25;
+  if (c.seguintePronta && (c.ativa || pertoDaPassagem(c))) return 0.5;
+  return c.ativa ? 1 : 2;
+}
+
+function pertoDaPassagem(c: ContextoDoRitmo): boolean {
+  const d = c.duracaoSegundos;
+  const p = c.posicaoSegundos;
+  if (d == null || !Number.isFinite(d) || d <= 0 || p == null || !Number.isFinite(p)) return true;
+  const fade = Math.max(0, c.duracaoDoFade || 0);
+  return fimEfectivo({ duracaoSegundos: d, fimMusicalSegundos: c.fimMusicalSegundos }) - p <= fade + ANTECEDENCIA_DO_RITMO_S;
 }
 
 /**

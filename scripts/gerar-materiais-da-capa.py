@@ -6,7 +6,8 @@ isso o que a preview desenhava no browser sai daqui como PNG -- com os MESMOS
 números da preview de 13/9:
 
   capa3d-grao@3x.png          grão de pedra, 180 px = 60 pt em mosaico (a mesma
-                              semente e o mesmo algoritmo da preview)
+                              semente e o mesmo algoritmo da preview), já com
+                              a opacidade de 42%
   capa3d-sombra-ambiente.png  sombra larga, queda radial 0,9 -> 0,45 -> 0
   capa3d-sombra-contacto.png  sombra de contacto, 1 -> 0,6 -> 0, já com o
                               desfoque (a vista fica maior para ele caber)
@@ -25,6 +26,11 @@ from pathlib import Path
 import numpy as np
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
+
+# A opacidade do grão (CAPA_FLUTUANTE.grao.opacidade) vai DENTRO do PNG. Aplicada
+# por cima, era opacidade de grupo sobre dezenas de mosaicos, e o iPhone
+# desenhava-a à parte a cada fotograma da flutuação.
+OPACIDADE_DO_GRAO = 0.42
 
 
 def escrever_png(caminho: Path, rgba: np.ndarray) -> None:
@@ -70,7 +76,7 @@ def grao(lado: int = 180, grelha: int = 34, semente: int = 20260913) -> np.ndarr
             tom = 255 if d > 0 else 0
             if r() < 0.003:
                 tom, alfa = 255, 150
-            img[y, x] = (tom, tom, tom, int(round(alfa)))
+            img[y, x] = (tom, tom, tom, int(round(alfa * OPACIDADE_DO_GRAO)))
     return img
 
 

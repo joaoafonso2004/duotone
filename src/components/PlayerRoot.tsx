@@ -145,8 +145,6 @@ export function PlayerRoot() {
   const toggleShuffle = usePlayer((s) => s.toggleShuffle);
   const shuffleInteligente = usePlayer((s) => s.shuffleInteligente);
   const showRewindButton = usePlayer((s) => s.showRewindButton);
-  const positionMs = usePlayer((s) => s.positionMs);
-  const durationMs = usePlayer((s) => s.durationMs);
   const buffering = usePlayer((s) => s.buffering);
   const error = usePlayer((s) => s.error);
   const maquina = usePlayer((s) => s.maquina);
@@ -745,7 +743,6 @@ export function PlayerRoot() {
     queueIndex >= queue.length - 1;
   const TAB_H = TAB_BAR_BASE + insets.bottom;
   const miniBottom = TAB_H + 8;
-  const fraction = durationMs > 0 ? Math.min(1, positionMs / durationMs) : 0;
   const capaFlutuante = Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'floating';
 
   // Capa: mini (quadrado 48px, no mini-player) <-> expandido (quadrado GRANDE
@@ -1221,12 +1218,7 @@ export function PlayerRoot() {
           {/* A barra vive com os controlos, a 20 pt da fila de botões: é do
               transporte que ela fala, e colada ao título deixava-o sem ar. */}
           <View style={styles.controls}>
-            <ProgressBar
-              positionMs={positionMs}
-              durationMs={durationMs}
-              onSeek={seekTo}
-              onScrubbingChange={setScrubbing}
-            />
+            <BarraDoLeitor onSeek={seekTo} onScrubbingChange={setScrubbing} />
               <PlayerControlRow>
               {/* Três estados: apagado, ligado, e inteligente — este último
                   com uma estrelinha ao canto, que é como o Spotify o mostra e
@@ -1261,7 +1253,7 @@ export function PlayerRoot() {
                 />
                 {shuffleInteligente && (
                   <View style={{ position: 'absolute', top: 5, right: 4 }}>
-                    <EstrelaInteligente tamanho={7} cor={theme.color} />
+                    <EstrelaInteligente tamanho={7} cor={theme.color} animar={expanded} />
                   </View>
                 )}
               </Toque>
@@ -1369,7 +1361,7 @@ export function PlayerRoot() {
               <Toque
                 escala={ESCALA.icone}
                 hitSlop={14}
-                onPress={() => seekTo(Math.max(0, positionMs - 15000))}
+                onPress={() => seekTo(Math.max(0, usePlayer.getState().positionMs - 15000))}
                 accessibilityLabel="Rewind 15 seconds"
                 style={{ alignSelf: 'center', marginBottom: spacing.md }}
               >
@@ -1503,9 +1495,7 @@ export function PlayerRoot() {
 
           {/* linha de progresso fina */}
           <View style={styles.miniTrack} pointerEvents="none">
-            <View
-              style={[styles.miniTrackFill, { width: `${fraction * 100}%` }]}
-            />
+            <PreenchimentoDoMini />
           </View>
         </Animated.View>
 
@@ -1775,6 +1765,24 @@ export function PlayerRoot() {
       />
     </View>
   );
+}
+
+/**
+ * A barra do leitor lê a posição ELA PRÓPRIA. A posição muda a cada evento do
+ * motor (até duas vezes por segundo), e lida no `PlayerRoot` redesenhava o
+ * leitor inteiro -- capa 3D, letras, controlos --, também com o leitor fechado
+ * e com o ecrã bloqueado.
+ */
+function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'onSeek' | 'onScrubbingChange'>) {
+  const positionMs = usePlayer((s) => s.positionMs);
+  const durationMs = usePlayer((s) => s.durationMs);
+  return <ProgressBar positionMs={positionMs} durationMs={durationMs} {...props} />;
+}
+
+/** A linha fina do mini-player, pela mesma razão. */
+function PreenchimentoDoMini() {
+  const fraction = usePlayer((s) => (s.durationMs > 0 ? Math.min(1, s.positionMs / s.durationMs) : 0));
+  return <View style={[styles.miniTrackFill, { width: `${fraction * 100}%` }]} />;
 }
 
 const styles = StyleSheet.create({

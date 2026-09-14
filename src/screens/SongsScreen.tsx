@@ -32,7 +32,7 @@ import { Input } from '../components/Input';
 import { useSaved } from '../state/saved';
 import { hapticSelection } from '../lib/haptics';
 import { usePlayer } from '../state/player';
-import { BrilhoInteligente } from '../components/BrilhoInteligente';
+import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -287,7 +287,7 @@ export function SongsScreen() {
                 {/* O MODO vem do leitor: um so sitio decide se o shuffle e
                     inteligente, e este botao mostra-o e respeita-o. O brilho
                     nao leva tamanho -- estica-se por este botao. */}
-                {inteligente && <BrilhoInteligente />}
+                {inteligente && <BrilhoDoEcra />}
                 <Ionicons
                   name="shuffle"
                   size={20}

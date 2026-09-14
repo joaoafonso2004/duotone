@@ -51,7 +51,7 @@ import { useTheme } from '../state/theme';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { useAuth } from '../state/auth';
-import { BrilhoInteligente } from '../components/BrilhoInteligente';
+import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type, gradients, radii } from '../theme';
 import { getOrdemDaPlaylist, setOrdemDaPlaylist, type OrdemDaPlaylist } from '../lib/prefs';
 import type { Playlist, PlaylistTrack, Track } from '../types';
@@ -416,7 +416,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               onPress={() => { hapticSelection(); alternarShuffle(); }}
             >
               {/* O MODO vem do leitor — ver o comentario gemeo no PC. */}
-              {inteligente && <BrilhoInteligente />}
+              {inteligente && <BrilhoDoEcra />}
               <Ionicons
                 name="shuffle"
                 size={20}

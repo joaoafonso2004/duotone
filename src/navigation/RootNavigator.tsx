@@ -18,7 +18,6 @@ import {
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { BarraDeSeparadores } from './BarraDeSeparadores';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
@@ -292,18 +291,17 @@ export function RootNavigator() {
         {session || offlineUserId ? (
           <View style={{ flex: 1 }}>
             {/* Imagem de fundo abstrata global (renderizada apenas uma vez na app inteira) */}
+            {/* O desfoque vem na PRÓPRIA imagem, calculado uma vez quando ela
+                carrega. Era um BlurView de ecrã inteiro por cima dela: um
+                desfoque ao vivo que o iPhone recalculava sempre que alguma
+                coisa mexia no ecrã (a capa a flutuar, as listas a deslizar), e
+                que quase não se via -- está tapado a 88% pela camada preta. */}
             <Image
               source={require('../../assets/login_bg.png')}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={300}
-            />
-
-            {/* Camada de desfoque (blur) */}
-            <BlurView
-              intensity={20}
-              tint="dark"
-              style={StyleSheet.absoluteFill}
+              blurRadius={12}
             />
 
             {/* Camada preta semi-transparente para alto contraste e legibilidade */}
