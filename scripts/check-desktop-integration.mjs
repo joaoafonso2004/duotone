@@ -56,7 +56,8 @@ const contexto = vm.createContext({
   // RELATIVO nao resolve a partir deste script. O modulo do Discord entra como
   // duplo: esta verificacao e sobre a casca do Electron, e nao sobre o socket
   // do Discord, que tem os seus proprios testes.
-  require: (id) => id === './discord.cjs' ? {
+  // O módulo da atualização é puro (sem `electron`): entra o verdadeiro.
+  require: (id) => id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './discord.cjs' ? {
     DISCORD_APP_ID: '1547625164328538133',
     definirPresenca: () => Promise.resolve(false),
     prepararDiscord: () => { preparacoesDiscord++; return Promise.resolve(true); },
@@ -130,6 +131,8 @@ assert.equal(janela.visivel, true, 'O modo janela abre no início de sessão');
 handlers.get('startup:set')(evento(), false, 'tray');
 assert.equal(startup.openAtLogin, false);
 assert.throws(() => handlers.get('startup:set')({ sender: {}, senderFrame: {} }, true, 'window'));
+// Instalar uma atualização corre um .exe: só a janela principal o pode pedir.
+await assert.rejects(handlers.get('atualizacao:instalar')({ sender: {}, senderFrame: {} }), /invalido/);
 const notificar = handlers.get('notification:message');
 notificar(evento(), { id: '1', title: 'Ana', body: 'Partilhou uma música.' });
 assert.equal(avisos.length, 1);

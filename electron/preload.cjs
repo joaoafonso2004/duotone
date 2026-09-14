@@ -67,6 +67,16 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
     ipcRenderer.on('modo-limpo:tecla', handler);
     return () => ipcRenderer.removeListener('modo-limpo:tecla', handler);
   },
+  /** Descarrega e instala a versão nova. De onde e o quê decide o processo
+   * principal (electron/atualizacao.cjs); daqui só vai o pedido. Com `ok`, a app
+   * fecha-se sozinha e o instalador volta a abri-la. */
+  instalarAtualizacao: () => ipcRenderer.invoke('atualizacao:instalar'),
+  /** O progresso do download, de 0 a 1. */
+  onProgressoDaAtualizacao: (listener) => {
+    const handler = (_event, progresso) => listener(Math.max(0, Math.min(1, Number(progresso) || 0)));
+    ipcRenderer.on('atualizacao:progresso', handler);
+    return () => ipcRenderer.removeListener('atualizacao:progresso', handler);
+  },
   showContextMenu: (items) => ipcRenderer.send('context-menu', items),
   onContextMenuSelection: (listener) => {
     const handler = (_event, id) => listener(String(id));

@@ -94,7 +94,10 @@ async function wasDismissed(platform: UpdatePlatform, version: string): Promise<
  * Devolve os dados da atualização se houver uma mais recente, ou null.
  * Nunca atira: uma falha de rede no arranque não pode impedir a app de abrir.
  */
-export async function checkForUpdate(): Promise<UpdateInfo | null> {
+export async function checkForUpdate(
+  /** O "Check for updates" das Definições: um pedido explícito passa por cima do "Not now". */
+  opcoes: { ignorarDispensa?: boolean } = {},
+): Promise<UpdateInfo | null> {
   const platform = currentPlatform();
   if (!platform) return null;
 
@@ -109,7 +112,7 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
     if (!release?.version || !release.asset) return null;
 
     if (compareVersions(release.version, APP_VERSION) <= 0) return null;
-    if (await wasDismissed(platform, release.version)) return null;
+    if (!opcoes.ignorarDispensa && await wasDismissed(platform, release.version)) return null;
 
     return {
       platform,

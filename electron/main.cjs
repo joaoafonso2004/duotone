@@ -56,6 +56,8 @@ protocol.registerSchemesAsPrivileged([{
 
 const http = require('node:http');
 const fs = require('node:fs');
+const { spawn } = require('node:child_process');
+const atualizacao = require('./atualizacao.cjs');
 
 const STARTUP_ARGS = ['--duotone-auto-start'];
 function startupMode() {
@@ -708,6 +710,56 @@ ipcMain.handle('discord:presenca', async (event, clientId, actividade) => {
   } catch {
     return false;
   }
+});
+
+/**
+ * "Update now" no aviso de versão nova. Ver electron/atualizacao.cjs.
+ *
+ * Do renderer não vem NADA: nem URL, nem versão. Este lado lê o versions.json,
+ * escolhe o instalador pelo crivo do módulo, descarrega-o com progresso, e só
+ * com o tamanho certo é que fecha a app e deixa o instalador correr. Um segundo
+ * clique enquanto isto anda recebe a mesma promessa, não outro download.
+ */
+let atualizacaoEmCurso = null;
+ipcMain.handle('atualizacao:instalar', async (event) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  if (!app.isPackaged || process.platform !== 'win32') {
+    return { ok: false, erro: 'Updates install from the installed Windows app.' };
+  }
+  if (atualizacaoEmCurso) return atualizacaoEmCurso;
+  const remetente = event.sender;
+  atualizacaoEmCurso = (async () => {
+    try {
+      const resposta = await net.fetch(atualizacao.VERSOES_URL, { cache: 'no-store' });
+      if (!resposta.ok) throw new Error(`versions.json HTTP ${resposta.status}`);
+      const alvo = atualizacao.escolherInstalador(await resposta.json(), app.getVersion());
+      if (!alvo) return { ok: false, erro: 'No newer version is available.' };
+      const pasta = path.join(app.getPath('temp'), 'duotone-atualizacao');
+      fs.mkdirSync(pasta, { recursive: true });
+      const instalador = path.join(pasta, `Duotone-Setup-${alvo.versao}.exe`);
+      await atualizacao.descarregar({
+        fetch: (url) => net.fetch(url), url: alvo.url, destino: instalador, tamanho: alvo.tamanho, fs,
+        aoProgresso: (progresso) => { if (!remetente.isDestroyed()) remetente.send('atualizacao:progresso', progresso); },
+      });
+      const comando = atualizacao.comandoDoInstalador({
+        instalador,
+        executavel: process.execPath,
+        // Instalação "para todos" (Program Files): o instalador precisa de administrador.
+        elevar: !atualizacao.podeEscreverEm(fs, path.dirname(process.execPath)),
+      });
+      spawn(comando.ficheiro, comando.argumentos, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      // Fechar a SÉRIO: sem o `isQuitting` o X só escondia para o tabuleiro, e o
+      // instalador encontrava a app aberta.
+      setTimeout(() => { isQuitting = true; app.quit(); }, 400);
+      return { ok: true, versao: alvo.versao };
+    } catch (erro) {
+      console.warn('Atualizacao falhou:', erro);
+      return { ok: false, erro: 'Could not download the update. Check your connection and try again.' };
+    } finally {
+      setTimeout(() => { atualizacaoEmCurso = null; }, 0);
+    }
+  })();
+  return atualizacaoEmCurso;
 });
 
 ipcMain.on('window:minimize', (event) => { if (daJanelaPrincipal(event)) mainWindow.minimize(); });

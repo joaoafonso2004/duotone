@@ -12,6 +12,7 @@ import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { Pressable, Switch, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_VERSION, BUILD_ID } from '../../lib/buildInfo';
+import { EVENTO_PROCURAR_ATUALIZACAO } from '../../lib/avisoDeVersao';
 import { historico, limparHistorico, relatorio, resumo, rotulo as rotuloDaFalha } from '../../lib/playbackDiagnostics';
 import {
   getGlitchMode, setGlitchMode, type GlitchMode,
@@ -219,9 +220,13 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     }
   };
 
+  // Na app instalada, o aviso de versão instala sozinho ("Update now"); no
+  // browser não há ponte, e fica o download pelo site.
+  const instalaNaApp = typeof window !== 'undefined' && !!window.duotoneDesktop?.instalarAtualizacao;
   const checkForUpdates = async () => {
     if (update) {
-      window.open(update.url, '_blank', 'noopener,noreferrer');
+      if (instalaNaApp) window.dispatchEvent(new CustomEvent(EVENTO_PROCURAR_ATUALIZACAO));
+      else window.open(update.url, '_blank', 'noopener,noreferrer');
       return;
     }
 
@@ -247,6 +252,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
       if (newerVersion(version, APP_VERSION) && trustedUrl) {
         setUpdate({ version, url });
         notify(`Duotone ${version} is available.`);
+        if (instalaNaApp) window.dispatchEvent(new CustomEvent(EVENTO_PROCURAR_ATUALIZACAO));
       } else {
         notify(`Duotone ${APP_VERSION} is up to date.`);
       }
@@ -376,7 +382,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
             <SettingLine label="Version" value={APP_VERSION} />
             <SettingLine label="Build" value={BUILD_ID} />
             <SettingAction
-              label={update ? `Download Duotone ${update.version}` : checkingUpdate ? 'Checking for updates…' : 'Check for updates'}
+              label={update ? `${instalaNaApp ? 'Update to' : 'Download'} Duotone ${update.version}` : checkingUpdate ? 'Checking for updates…' : 'Check for updates'}
               onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
             />
             <SettingAction danger label="Delete account permanently" onPress={() => setDeleteConfirm(true)} />

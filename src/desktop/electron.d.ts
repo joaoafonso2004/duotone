@@ -50,6 +50,11 @@ declare global {
       /** Faz o tom acompanhar a velocidade em vez de o browser esticar o
        * tempo — e o time-stretch que estraga a camara lenta. */
       naoEsticarOTempo?: () => Promise<{ ok: boolean; antes?: boolean; agora?: boolean }>;
+      /** "Update now": descarrega e instala a versão nova (electron/atualizacao.cjs).
+       *  Com `ok`, a app fecha-se e o instalador volta a abri-la. */
+      instalarAtualizacao?: () => Promise<{ ok: boolean; versao?: string; erro?: string }>;
+      /** O progresso do download, de 0 a 1. Devolve o cancelamento. */
+      onProgressoDaAtualizacao?: (listener: (progresso: number) => void) => () => void;
       /** F11 e Esc, apanhados pelo processo principal (o iframe do YouTube
        *  engole as teclas quando tem o foco). Devolve o cancelamento. */
       onTeclaDoModoLimpo?(listener: (tecla: string) => void): () => void;
