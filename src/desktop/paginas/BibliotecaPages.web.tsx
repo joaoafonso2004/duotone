@@ -110,12 +110,16 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       naBiblioteca.length || (results.length && !loading) ? <>
         {naBiblioteca.length ? <>
           <Text style={styles.sectionTitle}>In your library</Text>
-          <TrackTable tracks={naBiblioteca} onPlay={(t) => play(t, naBiblioteca)} onMore={more} />
+          <TrackTable tracks={naBiblioteca} onPlay={(t) => play(t, naBiblioteca, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
         </> : null}
         {loading ? <View style={{ height: 200 }}><Loading /></View>
           : results.length ? <>
             {naBiblioteca.length ? <Text style={[styles.sectionTitle, { marginTop: 24 }]}>On YouTube</Text> : null}
-            <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, results)} onMore={more} />
+            {/* Só a faixa escolhida, NUNCA os resultados: são o que o YouTube
+                casou com o texto, não uma lista de ninguém. Procurar "6:30" e
+                ter o shuffle ligado dava um temporizador de 7 h a seguir (14/9).
+                O rádio continua a partir desta, pelo gosto de quem ouve. */}
+            <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, undefined, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
           </> : null}
       </>
       : loading ? <View style={{ height: 320 }}><Loading /></View>
@@ -183,7 +187,7 @@ export function SongsPage(props: CommonPageProps) {
   // tocasse E alternasse, o que se ve no botao seria o que NAO se ia ouvir.
   const playAll = () => {
     if (!filteredTracks.length) return;
-    void usePlayer.getState().tocarLista(filteredTracks, ligado, inteligente);
+    void usePlayer.getState().tocarLista(filteredTracks, ligado, inteligente, { tipo: 'guardadas', nome: 'Liked Songs' });
   };
 
   return <><Page title="Liked Songs" subtitle="Only the tracks you saved with the heart button." action={<View style={{ flexDirection: 'row', gap: 8 }}><Button icon="play" onPress={playAll}>Play all</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{nomes[sortMode]}</Button></View>}>
@@ -192,7 +196,7 @@ export function SongsPage(props: CommonPageProps) {
       <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>
       <IconButton name="refresh" label="Refresh library" onPress={data.refresh} />
     </View>
-    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable plain listKey="songs" tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks)} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
+    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable plain listKey="songs" tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
   </Page><Dialog open={sortOpen} title="Sort liked songs" onClose={() => setSortOpen(false)}><View style={{ gap: 8 }}>{(Object.keys(nomes) as Array<keyof typeof nomes>).map((modo) => <Button key={modo} secondary={sortMode !== modo} onPress={() => { setSortMode(modo); setSortOpen(false); }}>{nomes[modo]}</Button>)}</View></Dialog></>;
 }
 
@@ -276,7 +280,7 @@ export function MisturaPage({ id, titulo, back, ...props }: {
     subtitle={faixas.length ? `${faixas.length} ${faixas.length === 1 ? 'song' : 'songs'} · put together for you` : undefined}
     action={<View style={{ flexDirection: 'row', gap: 8 }}>
       {faixas.length ? <>
-        <Button icon="play" onPress={() => void tocarLista(faixas, ligado, inteligente)}>Play</Button>
+        <Button icon="play" onPress={() => void tocarLista(faixas, ligado, inteligente, { tipo: 'mistura', nome: mistura?.nome ?? titulo, id })}>Play</Button>
         <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>
           {inteligente ? 'Smart shuffle' : 'Shuffle'}
         </Button>
@@ -288,7 +292,7 @@ export function MisturaPage({ id, titulo, back, ...props }: {
         : !mistura ? <Empty icon="sparkles-outline" title="This mix is gone"
             body="Mixes are rebuilt as you listen. Go back to Search and pick one of the current ones." />
         : <TrackTable listKey={`mistura:${id}`} tracks={faixas} contexto={contexto}
-            onPlay={(t,c) => props.play(t, faixas,c)} onMore={props.more} />}
+            onPlay={(t,c) => props.play(t, faixas, c, { tipo: 'mistura', nome: mistura.nome, id })} onMore={props.more} />}
     </ContentScroll>
   </Page>;
 }
@@ -402,11 +406,11 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
   const playAll = () => {
     if (!tracks.length) return;
-    void usePlayer.getState().tocarLista(tracks, ligado, inteligente);
+    void usePlayer.getState().tocarLista(tracks, ligado, inteligente, { tipo: 'artista', nome: name });
   };
   const tocarAlbum = () => {
     if (!faixasDoAlbum.length) return;
-    props.play(faixasDoAlbum[0], faixasDoAlbum);
+    props.play(faixasDoAlbum[0], faixasDoAlbum, undefined, { tipo: 'album', nome: albumAberto?.title ?? '' });
     setAlbumAberto(null);
   };
 
@@ -439,11 +443,11 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
           </Pressable>)}
         </View>
 
-        {separador === 'library' && <TrackTable plain tracks={tracks} onPlay={(t) => props.play(t, tracks)} onMore={props.more}
+        {separador === 'library' && <TrackTable plain tracks={tracks} onPlay={(t) => props.play(t, tracks, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
           empty={<Empty icon="heart-outline" title="Nothing saved" body="Save a track by this artist and it will appear here." />} />}
 
         {separador === 'tracks' && (aDescobrir ? <View style={{ height: 280 }}><Loading /></View> :
-          <TrackTable plain showSavedBadge tracks={outrasSemRepetir} onPlay={(t) => props.play(t, outrasSemRepetir)} onMore={props.more}
+          <TrackTable plain showSavedBadge tracks={outrasSemRepetir} onPlay={(t) => props.play(t, outrasSemRepetir, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
             empty={<Empty icon="search-outline" title="No other tracks found" body="No verified additional tracks by this artist were found on YouTube." />} />)}
 
         {separador === 'albums' && (aDescobrir ? <View style={{ height: 280 }}><Loading /></View> : albuns.length ?
@@ -468,7 +472,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
           <Text style={artistStyles.albumDialogMeta}>{faixasDoAlbum.length} {faixasDoAlbum.length === 1 ? 'track' : 'tracks'}</Text>
         </View>
         <ScrollView style={artistStyles.albumDialogList}>
-          <TrackTable plain tracks={faixasDoAlbum} onPlay={(t) => props.play(t, faixasDoAlbum)} onMore={props.more} />
+          <TrackTable plain tracks={faixasDoAlbum} onPlay={(t) => props.play(t, faixasDoAlbum, undefined, { tipo: 'album', nome: albumAberto?.title ?? '' })} onMore={props.more} />
         </ScrollView>
       </>}
     </Dialog>

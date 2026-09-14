@@ -741,7 +741,9 @@ export function SearchScreen() {
                 }
                 onPress={() => {
                   Keyboard.dismiss();
-                  playTrack(item, results, true);
+                  // Só a faixa escolhida, nunca os resultados: ver o mesmo
+                  // sítio no BibliotecaPages.web.tsx. O rádio continua daqui.
+                  playTrack(item, undefined, true);
                 }}
                 onAction={() => setActionTrack(item)}
                 actionIcon="add-circle-outline"

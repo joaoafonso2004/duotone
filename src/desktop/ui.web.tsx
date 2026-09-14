@@ -9,6 +9,7 @@ import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
 import { BrilhoInteligente, EstrelaInteligente } from '../components/BrilhoInteligente';
 import { useSaved } from '../state/saved';
 import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 
@@ -113,7 +114,7 @@ export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput
     </P>}</View>;
 });
 
-export function Page({ title, subtitle, action, children }: { title: string; subtitle?: string; action?: ReactNode; children: ReactNode }) {
+export function Page({ title, subtitle, action, children }: { title: string; subtitle?: ReactNode; action?: ReactNode; children: ReactNode }) {
   return <View style={ui.page}><View style={ui.pageHeader}><View style={{ flex: 1 }}><Text style={ui.eyebrow}>DUOTONE</Text><Text style={ui.title}>{title}</Text>{subtitle && <Text style={ui.subtitle}>{subtitle}</Text>}</View>{action}</View>{children}</View>;
 }
 
@@ -293,7 +294,7 @@ export function Separadores<T extends string>({ opcoes, valor, aoMudar }: {
 
 export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto }: {
   titulo: string; nota?: string; tracks: Track[];
-  onPlay: (track: Track, fila: Track[], discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void;
+  onPlay: (track: Track, fila: Track[], discoveryContext?: DiscoveryContext, origem?: OrigemDaFila) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void;
   /** Uma etiqueta por cima de cada capa ("New to you"). Só onde é uma promessa cumprida. */
   selo?: string;
   contexto?: (track:Track)=>DiscoveryContext;
@@ -324,7 +325,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto }: 
       contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
       {tracks.map((t) => (
         <P key={`${t.source}:${t.sourceId}`}
-          onPress={() => { if (arrastou.current) return; onPlay(t, tracks, contexto?.(t)); }}
+          onPress={() => { if (arrastou.current) return; onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo }); }}
           onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t,contexto?.(t)); }) as any}
           style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
           <View>

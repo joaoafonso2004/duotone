@@ -82,6 +82,23 @@ export function filterRadioCandidates(
   return out;
 }
 
+/**
+ * Fora o que não é música, menos o que ele guardou.
+ *
+ * O rádio também vai ao Flow e à pesquisa do YouTube, e a pesquisa devolve
+ * VÍDEOS: um "6 Hour Timer" de 7 h passava por faixa. O que está na biblioteca
+ * passa sempre -- foi ele que o escolheu, mesmo que dure vinte minutos. O
+ * critério (`pareceMusica`) entra por parâmetro pela mesma razão que o
+ * `artistOf`: este módulo não importa nada em runtime.
+ */
+export function onlyPlausibleMusic(
+  candidates: Track[],
+  isKnown: (t: Track) => boolean,
+  looksLikeMusic: (t: Track) => boolean
+): Track[] {
+  return candidates.filter((t) => isKnown(t) || looksLikeMusic(t));
+}
+
 /** Baralha sem enviesamento, para dois arranques do rádio não darem o mesmo. */
 export function shuffleCandidates(tracks: Track[], rng: () => number = Math.random): Track[] {
   const out = tracks.slice();

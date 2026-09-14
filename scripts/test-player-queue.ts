@@ -138,10 +138,14 @@ console.log('\npersistencia da sessao');
 const guardada = sessaoParaGuardar({
   current: fila3[0], queue: fila3, queueIndex: 1, positionMs: 4200, durationMs: 200000,
   sugeridas: ['youtube:s1'], desdeASugestao: 2,
+  origemDaFila: { tipo: 'playlist', nome: 'Chill Vibes', id: 'p1' }, doRadio: ['youtube:r1'],
   isPlaying: true, shuffle: true, repeatMode: 'all',
 } as any);
-check('guarda os sete campos', Object.keys(guardada).sort().join() ===
-  'current,desdeASugestao,durationMs,positionMs,queue,queueIndex,sugeridas');
+check('guarda os nove campos', Object.keys(guardada).sort().join() ===
+  'current,desdeASugestao,doRadio,durationMs,origemDaFila,positionMs,queue,queueIndex,sugeridas');
+// O "From Chill Vibes" do Now Playing: a sessao volta ao abrir, a frase tambem.
+check('guarda de onde veio a fila', guardada.origemDaFila?.nome === 'Chill Vibes');
+check('guarda o que foi o radio a meter', guardada.doRadio.join() === 'youtube:r1');
 // Repeat e shuffle vivem nas prefs; a sessao e outra coisa.
 check('NAO guarda o isPlaying', !('isPlaying' in guardada));
 check('NAO guarda shuffle nem repeat',

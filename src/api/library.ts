@@ -209,17 +209,26 @@ export async function getLibrary(): Promise<Track[]> {
  */
 export async function getLibraryKeys(): Promise<Set<string>> {
   const userId = await currentUserId();
-  const { data, error } = await supabase
-    .from('library_tracks')
-    .select('tracks (source, source_id)')
-    .eq('user_id', userId);
-  if (error) throw error;
-  return new Set(
-    (data ?? [])
-      .map((r: any) => r.tracks)
-      .filter(Boolean)
-      .map((t: any) => `${t.source}:${t.source_id}`)
-  );
+  // ÀS PÁGINAS, como o `getLikedSongsForUser`: o PostgREST corta em 1000 linhas
+  // por pedido, e isto lia uma só. Com 2700 guardadas, 1700 ficavam de fora de
+  // tudo o que pergunta "esta já a tens" -- o Discover sugeria-as e o coração
+  // da pesquisa não acendia.
+  const chaves = new Set<string>();
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase
+      .from('library_tracks')
+      .select('tracks (source, source_id)')
+      .eq('user_id', userId)
+      .order('track_id')
+      .range(offset, offset + 999);
+    if (error) throw error;
+    for (const r of data ?? []) {
+      const t = (r as any).tracks;
+      if (t) chaves.add(`${t.source}:${t.source_id}`);
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return chaves;
 }
 
 /** Ids (da BD) das faixas guardadas — para mostrar o estado "guardada". */

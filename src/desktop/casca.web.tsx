@@ -120,6 +120,13 @@ export function injectDesktopDocumentStyles() {
          deixa passar classes nossas. */
       *[style*="duotone-atravessar"], *[style*="duotone-respirar"] { animation: none !important; opacity: .5 !important; }
     }
+    /* A bolinha das mensagens por ler (BolinhaDeAviso). Cresce e acende devagar,
+       em vez de piscar: chama o olho sem ser um alarme. Com menos movimento a
+       bolinha nem recebe a animacao -- decide-o o proprio componente. */
+    @keyframes duotone-aviso-respirar {
+      0%, 100% { transform: scale(.85); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+      50%      { transform: scale(1.2);  box-shadow: 0 0 8px 3px rgba(239, 68, 68, .6); }
+    }
     @keyframes pulse {
       0% { opacity: 0.6; }
       50% { opacity: 1; }
@@ -229,7 +236,27 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
 export function NavItem({ label, icon, active, badge, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void }) {
   const theme = useTheme((s) => s.theme);
   const P = Pressable as any;
-  return <P className="nav-item-animate" onPress={onPress} style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : desktop.muted} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', marginRight: 4 }} />}</P>;
+  return <P className="nav-item-animate" onPress={onPress} style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : desktop.muted} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <BolinhaDeAviso />}</P>;
+}
+
+/**
+ * A bolinha das mensagens por ler. Respira, em tamanho e em brilho, porque
+ * parada passava despercebida: os amigos do João não davam pelas mensagens
+ * (14/9). O keyframe vive no CSS global desta casca, como os outros -- o
+ * `Animated` não mexe em nada sob o react-native-web. Com menos movimento fica
+ * parada, mas com o brilho: tem de continuar a ver-se.
+ */
+function BolinhaDeAviso() {
+  const quieto = useReducedMotion();
+  return <View accessibilityLabel="Unread" style={[
+    { width: 8, height: 8, borderRadius: 4, backgroundColor: '#EF4444', marginRight: 4 },
+    (quieto
+      ? { boxShadow: '0 0 6px 2px rgba(239, 68, 68, 0.5)' }
+      : {
+        animationName: 'duotone-aviso-respirar', animationDuration: '2.4s',
+        animationTimingFunction: 'ease-in-out', animationIterationCount: 'infinite',
+      }) as any,
+  ]} />;
 }
 
 export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLigado = false, onAviso }: {

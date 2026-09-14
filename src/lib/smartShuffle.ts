@@ -33,6 +33,13 @@ export const LIMITE_DO_HISTORICO = 4000;
 export type SugestaoNoHistorico = { em: number; chaves: string[] };
 
 /**
+ * Chaves guardadas por sugestão. Eram 3 (o upload e uma identidade); a
+ * identidade da música passou a ter variantes -- ver lib/identidadeDaMusica.ts
+ * -- e cortar a 3 deitava fora as que apanham outro upload.
+ */
+export const MAX_CHAVES_POR_SUGESTAO = 12;
+
+/**
  * As duas identidades que interessam: o upload exato e a música.
  *
  * A segunda recebe artista e título já normalizados pelo chamador. É ela que
@@ -61,7 +68,8 @@ export function lerHistoricoDoSmartShuffle(
       && item.em >= agora - JANELA_SEM_REPETIR_MS && item.em <= agora + 24 * 60 * 60 * 1000)
     .map((item) => ({
       em: item.em,
-      chaves: [...new Set(item.chaves.filter((k): k is string => typeof k === 'string' && !!k))].slice(0, 3),
+      chaves: [...new Set(item.chaves.filter((k): k is string => typeof k === 'string' && !!k))]
+        .slice(0, MAX_CHAVES_POR_SUGESTAO),
     }))
     .filter((item) => item.chaves.length > 0)
     .sort((a, b) => b.em - a.em)
@@ -86,9 +94,32 @@ export function registarNoHistoricoDoSmartShuffle(
   agora: number = Date.now(),
 ): SugestaoNoHistorico[] {
   const novas = sugestoes
-    .map((chaves) => ({ em: agora, chaves: [...new Set(chaves.filter(Boolean))].slice(0, 3) }))
+    .map((chaves) => ({ em: agora, chaves: [...new Set(chaves.filter(Boolean))].slice(0, MAX_CHAVES_POR_SUGESTAO) }))
     .filter((item) => item.chaves.length > 0);
   return lerHistoricoDoSmartShuffle([...novas, ...historico], agora);
+}
+
+/**
+ * Junta a memória deste aparelho com a que veio da conta.
+ *
+ * A mesma entrada (mesmo instante, mesmas chaves) vinda dos dois lados conta
+ * uma vez; o resto soma-se. O que vier estragado da conta é deitado fora pelo
+ * `lerHistoricoDoSmartShuffle`, como o que vem estragado do armazenamento.
+ */
+export function juntarHistoricos(
+  a: unknown,
+  b: unknown,
+  agora: number = Date.now(),
+): SugestaoNoHistorico[] {
+  const vistas = new Set<string>();
+  const juntas: SugestaoNoHistorico[] = [];
+  for (const item of [...lerHistoricoDoSmartShuffle(a, agora), ...lerHistoricoDoSmartShuffle(b, agora)]) {
+    const id = `${item.em}|${item.chaves.join('|')}`;
+    if (vistas.has(id)) continue;
+    vistas.add(id);
+    juntas.push(item);
+  }
+  return lerHistoricoDoSmartShuffle(juntas, agora);
 }
 
 export function foiSugeridaRecentemente(

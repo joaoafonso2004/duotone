@@ -20,6 +20,8 @@ import { trackKey } from '../src/lib/shuffle.ts';
 import { controlo, reporControlo } from './duplos/controlo.ts';
 import { guardadas } from './duplos/prefs.ts';
 import { guardado as armazenamento } from './duplos/async-storage.ts';
+import { naConta } from './duplos/cache.ts';
+import { esquecerBiblioteca } from '../src/lib/cacheDaBiblioteca.ts';
 import type { Track } from '../src/types.ts';
 
 let mau = 0;
@@ -200,6 +202,41 @@ controlo.candidatas = [{
 eq('o histórico anterior à atualização também bloqueia outro upload',
   await usePlayer.getState().semearSugestoes(), 0);
 
+// REGRESSAO (14/9): sugeria músicas já favoritas. A exclusão comparava só o
+// upload, e a leitura das guardadas parava nas 1000 linhas. A favorita está
+// aqui noutro upload, com o título escrito de outra maneira.
+esquecerBiblioteca();
+preparar({ shuffle: true, shuffleInteligente: true });
+controlo.biblioteca = [{ ...faixa('lucid-topic'), title: 'Lucid Dreams', artist: 'Juice WRLD - Topic' }];
+controlo.candidatas = [{
+  ...faixa('lucid-video'), title: 'Juice WRLD - Lucid Dreams (Official Music Video)', artist: 'Juice WRLD',
+}];
+eq('uma favorita noutro upload não é sugerida', await usePlayer.getState().semearSugestoes(), 0);
+preparar({ shuffle: true, shuffleInteligente: true });
+controlo.candidatas = [{ ...faixa('robbery'), title: 'Juice WRLD - Robbery (Official Video)', artist: 'Juice WRLD' }];
+eq('mas uma do mesmo artista que ele não tem entra', await usePlayer.getState().semearSugestoes(), 1);
+esquecerBiblioteca();
+
+// REGRESSAO (14/9): a memória dos 30 dias vivia só no aparelho. Uma sugestão
+// saltada não conta como escuta e voltava no outro. O "PC" aqui é uma conta
+// sem nada em memória, e a sugestão do "iPhone" está na conta.
+preparar({ shuffle: true, shuffleInteligente: true });
+controlo.sessao = 'conta-com-dois-aparelhos';
+naConta.set('smart-shuffle:historico:v1', [{ em: Date.now(), chaves: ['youtube:do-iphone'] }]);
+controlo.candidatas = [faixa('do-iphone')];
+eq('uma sugestão feita noutro aparelho não volta', await usePlayer.getState().semearSugestoes(), 0);
+preparar({ shuffle: true, shuffleInteligente: true });
+controlo.sessao = 'conta-com-dois-aparelhos';
+controlo.candidatas = [faixa('nova-no-pc')];
+eq('uma sugestão nova entra', await usePlayer.getState().semearSugestoes(), 1);
+await assentar();
+{
+  const guardadaNaConta = JSON.stringify(naConta.get('smart-shuffle:historico:v1'));
+  check('e sobe para a conta sem apagar a do outro aparelho',
+    guardadaNaConta.includes('youtube:nova-no-pc') && guardadaNaConta.includes('youtube:do-iphone'),
+    guardadaNaConta);
+}
+
 // ===========================================================================
 console.log('\no play a partir de uma lista');
 // ===========================================================================
@@ -361,6 +398,25 @@ usePlayer.getState()._setIsPlaying(true);
 ler(300);
 await esperar(900); ler(1200);
 eq('um handoff a 15% conta aqui quando passa a metade', controlo.contagens.plays.join(), 'k4');
+
+// ===========================================================================
+console.log('\no padrão que chega de outro aparelho');
+// ===========================================================================
+
+// REGRESSAO (14/9): a velocidade das Definições não passava do iPhone para o
+// PC. Com uma faixa carregada, a chegada de uma edição só gravava a memória.
+preparar({
+  playbackRate: 1.3, padraoRate: 1,
+  ajustesPorFaixa: { 'youtube:a': { rate: 1.3, ganhos: null, visto: 1 } },
+});
+usePlayer.getState()._carregarPadrao({
+  'youtube:a': { rate: 1.3, ganhos: null, visto: 1 },
+  'padrao:global': { rate: 0.8, ganhos: null, visto: 2 },
+});
+eq('a velocidade padrão chega', usePlayer.getState().padraoRate, 0.8);
+eq('a faixa que toca não muda a meio', usePlayer.getState().playbackRate, 1.3);
+usePlayer.getState()._carregarPadrao({ 'youtube:a': { rate: 1.3, ganhos: null, visto: 1 } });
+eq('sem padrão na conta, fica o que já cá estava', usePlayer.getState().padraoRate, 0.8);
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

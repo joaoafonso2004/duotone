@@ -19,6 +19,10 @@ export interface Controlo {
   radio: Track[];
   /** O histórico remoto que existia antes desta versão. */
   recentes: (Track & { lastPlayed?: number })[];
+  /** A biblioteca (guardadas e playlists) que o `getLibrary` devolve. */
+  biblioteca: Track[];
+  /** Uma conta com sessão, ou null para a conta local sem rede do costume. */
+  sessao: string | null;
   /** Está sem rede? */
   offline: boolean;
   /** Chamadas feitas, para o teste poder afirmar que NÃO se foi à rede. */
@@ -34,6 +38,8 @@ export const controlo: Controlo = {
   candidatas: [],
   radio: [],
   recentes: [],
+  biblioteca: [],
+  sessao: null,
   offline: false,
   chamadas: { candidatas: 0, radio: 0 },
   contagens: { plays: [], locais: [], inicios: [] },
@@ -43,6 +49,8 @@ export function reporControlo(): void {
   controlo.candidatas = [];
   controlo.radio = [];
   controlo.recentes = [];
+  controlo.biblioteca = [];
+  controlo.sessao = null;
   controlo.offline = false;
   controlo.chamadas = { candidatas: 0, radio: 0 };
   controlo.contagens = { plays: [], locais: [], inicios: [] };

@@ -6,6 +6,7 @@ import {
   deveSugerir,
   escolherSugestao,
   foiSugeridaRecentemente,
+  juntarHistoricos,
   lerHistoricoDoSmartShuffle,
   modoDeShuffle,
   posicaoDaSugestao,
@@ -97,6 +98,15 @@ check('depois da janela pode voltar', !foiSugeridaRecentemente(maskOffB, aos31Di
 eq('a janela está presa a 30 dias', DIAS_SEM_REPETIR, 30);
 check('persistência estragada não entra no histórico',
   lerHistoricoDoSmartShuffle([{ em: 'ontem', chaves: ['x'] }, null], AGORA).length === 0);
+
+// A memória que vem da conta: o que o outro aparelho sugeriu tem de somar.
+const doIphone = registarNoHistoricoDoSmartShuffle([], [maskOffA], AGORA - DIA);
+const doPc = registarNoHistoricoDoSmartShuffle([], [chavesDaSugestao('youtube:outra', 'artista', 'outra')], AGORA);
+const juntos = juntarHistoricos(doIphone, doPc, AGORA);
+eq('juntar dois aparelhos fica com as duas', juntos.length, 2);
+eq('a mais recente primeiro', juntos[0]?.chaves[0], 'youtube:outra');
+eq('juntar outra vez o mesmo não duplica', juntarHistoricos(juntos, doPc, AGORA).length, 2);
+eq('o que vem estragado da conta não parte nada', juntarHistoricos(doPc, { lixo: true }, AGORA).length, 1);
 
 console.log('\na fila depois de a sugestao entrar');
 // REGRESSAO. O `next()` lia a fila ANTES de mandar intercalar a sugestao e

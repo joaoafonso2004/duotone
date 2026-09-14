@@ -14,16 +14,20 @@ import { incrementPlayCount } from '../lib/playCounts';
 import { avancarEscuta, novaEscuta, type Escuta } from '../lib/contagemDeEscuta';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import {
-  A_CADA, chavesDaSugestao, chavesRecentesDoSmartShuffle, deveSugerir,
+  A_CADA, chavesRecentesDoSmartShuffle, deveSugerir,
   escolherSugestao, foiSugeridaRecentemente, JANELA_SEM_REPETIR_MS,
   lerHistoricoDoSmartShuffle, modoDeShuffle, posicaoDaSugestao, proximoModo,
-  registarNoHistoricoDoSmartShuffle, type SugestaoNoHistorico,
+  juntarHistoricos, registarNoHistoricoDoSmartShuffle, type SugestaoNoHistorico,
 } from '../lib/smartShuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
+import { comecaListaNova, origemAoTocar, type OrigemDaFila } from '../lib/origemDaFila';
 import { candidatasParaDescoberta } from '../api/descoberta';
-import { chaveDeArtista, displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { normalizar as normalizarTitulo } from '../lib/catalogoDaFaixa';
+import { getLibrary } from '../api/library';
+import { cacheGet, cacheSet } from '../api/cache';
+import { lerFaixas } from '../lib/cacheDaBiblioteca';
+import { chavesDaMusica } from '../lib/identidadeDaMusica';
+import { chaveDeArtista } from '../lib/artistName';
 import {
   setShuffle as persistShuffle, setShuffleInteligente as persistShuffleInteligente,
   setPlaybackRate as persistPlaybackRate, setEqPadrao as persistEqPadrao,
@@ -214,6 +218,11 @@ interface PlayerState {
   /** IDs que marcam na fila o que veio do Smart Shuffle. A memória de 30 dias,
    * incluindo artista+título, vive separada mais abaixo. */
   sugeridas: string[];
+  /** De onde veio a fila que toca ("From Chill Vibes" no Now Playing do PC).
+   * Só muda quando começa uma lista nova -- ver lib/origemDaFila.ts. */
+  origemDaFila: OrigemDaFila | null;
+  /** Chaves das faixas que o rádio acrescentou: essas não vieram da origem. */
+  doRadio: string[];
   /** Rádio: quando a fila acaba, continuar com música parecida em vez de
    * ficar em silêncio. Preferência do utilizador (Definições). */
   autoplayRadio: boolean;
@@ -276,6 +285,8 @@ interface PlayerState {
    */
   setEqGanhos: (g: number[], comoPadrao?: boolean) => void;
   _carregarAjustes: (m: MemoriaDeAjustes, ganhos: number[], rate: number) => void;
+  /** O padrão que chegou de outro aparelho, sem mexer na faixa que toca. */
+  _carregarPadrao: (m: MemoriaDeAjustes) => void;
   /** Progresso (0..1) do download da faixa atual, ou null se não está a descarregar. */
   downloadProgress: number | null;
   /** false quando a faixa vem do restauro da sessão anterior — o player
@@ -293,7 +304,9 @@ interface PlayerState {
    * fila andar, e nao querem que um toque seja reinterpretado. Tudo o resto e,
    * por definicao, alguem a tocar numa musica.
    */
-  playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean, interno?: boolean, discoveryContext?: DiscoveryContext) => Promise<void>;
+  /** `origem`: de onde vem a lista (`null` = de lado nenhum; sem nada dito,
+   * só uma lista nova a apaga). Ver lib/origemDaFila.ts. */
+  playTrack: (track: Track, queue?: Track[], shouldExpand?: boolean, interno?: boolean, discoveryContext?: DiscoveryContext, origem?: OrigemDaFila | null) => Promise<void>;
   /** Troca apenas a fonte da faixa atual depois de um vídeo indisponível.
    * Não conta uma segunda reprodução e mantém a posição da faixa na fila. */
   replaceUnavailableTrack: (failedSourceId: string, replacement: Track) => boolean;
@@ -316,7 +329,7 @@ interface PlayerState {
    * sugestões — é o mesmo modo do botão do leitor, para não haver dois
    * "inteligentes" diferentes na app.
    */
-  playShuffled: (tracks: Track[], inteligente?: boolean) => Promise<void>;
+  playShuffled: (tracks: Track[], inteligente?: boolean, origem?: OrigemDaFila | null) => Promise<void>;
   /**
    * O botão Play de uma LISTA -- Songs, uma playlist, as guardadas.
    *
@@ -328,7 +341,7 @@ interface PlayerState {
    *
    * Fora de um jam não muda nada: é o que os botões já faziam.
    */
-  tocarLista: (tracks: Track[], aleatorio: boolean, inteligente?: boolean) => Promise<void>;
+  tocarLista: (tracks: Track[], aleatorio: boolean, inteligente?: boolean, origem?: OrigemDaFila | null) => Promise<void>;
   playNext: (track: Track) => void;
   addToQueue: (track: Track) => void;
   togglePlay: () => Promise<void>;
@@ -557,12 +570,11 @@ function donoDoSmartShuffle(): string | null {
   return auth.session?.user.id ?? auth.offlineUserId;
 }
 
+/** O upload, a chave antiga e as variantes da música. Ver lib/identidadeDaMusica.ts. */
 function chavesDaFaixaSugerida(
   track: Pick<Track, 'source' | 'sourceId' | 'title' | 'artist'>,
 ): string[] {
-  const artista = chaveDeArtista(displayArtist(track)) ?? '';
-  const titulo = normalizarTitulo(tituloDaFaixa(track));
-  return chavesDaSugestao(trackKey(track), artista, titulo);
+  return chavesDaMusica(track);
 }
 
 async function lerHistoricoGuardado(dono: string | null): Promise<SugestaoNoHistorico[]> {
@@ -597,12 +609,86 @@ async function registarSugestoesGuardadas(dono: string | null, tracks: readonly 
   const historico = registarNoHistoricoDoSmartShuffle(atual, tracks.map(chavesDaFaixaSugerida));
   if (!dono) { historicoSemConta = historico; return; }
   historicosDoSmartShuffle.set(dono, historico);
+  await gravarHistoricoLocal(dono, historico);
+  enviarHistoricoParaAConta(dono, historico);
+}
 
+function gravarHistoricoLocal(dono: string, historico: SugestaoNoHistorico[]): Promise<void> {
   const anterior = escritasDoSmartShuffle.get(dono) ?? Promise.resolve();
   const escrita = anterior.catch(() => {}).then(() =>
     AsyncStorage.setItem(`${CHAVE_DO_HISTORICO}:${dono}`, JSON.stringify(historico)));
   escritasDoSmartShuffle.set(dono, escrita);
-  await escrita.catch(() => {});
+  return escrita.catch(() => {});
+}
+
+/**
+ * A memória também viaja pela CONTA, e não só pelo aparelho.
+ *
+ * Vivia só no AsyncStorage, e uma sugestão saltada não conta como escuta (só a
+ * metade ouvida conta): saltada no iPhone, voltava no PC no dia seguinte. Era o
+ * "recomenda-me músicas repetidas" do João a 14/9, com a memória de 30 dias já
+ * feita. Vai para o `yt_cache` da conta (uma linha por pessoa, com RLS), junta-se
+ * SEMPRE com o que lá está antes de escrever, e é best-effort: sem rede fica a
+ * memória local, que era o que havia.
+ */
+const CADA_QUANTO_REVER_A_CONTA_MS = 10 * 60 * 1000;
+const contaLidaEm = new Map<string, number>();
+const enviosParaAConta = new Map<string, Promise<void>>();
+
+function contaComRede(dono: string): boolean {
+  return useAuth.getState().session?.user.id === dono && !useConnectivity.getState().offline;
+}
+
+/** Em fila por conta: dois envios em paralelo liam a mesma versão e um apagava o outro. */
+function enviarHistoricoParaAConta(dono: string, historico: SugestaoNoHistorico[]): void {
+  if (!contaComRede(dono)) return;
+  const anterior = enviosParaAConta.get(dono) ?? Promise.resolve();
+  const envio = anterior.catch(() => {}).then(async () => {
+    const naConta = await cacheGet<unknown>(CHAVE_DO_HISTORICO, JANELA_SEM_REPETIR_MS);
+    await cacheSet(CHAVE_DO_HISTORICO, juntarHistoricos(historico, naConta));
+  });
+  enviosParaAConta.set(dono, envio);
+  envio.catch(() => {});
+}
+
+async function trazerHistoricoDaConta(dono: string | null): Promise<void> {
+  if (!dono || !contaComRede(dono)) return;
+  const agora = Date.now();
+  if ((contaLidaEm.get(dono) ?? 0) > agora - CADA_QUANTO_REVER_A_CONTA_MS) return;
+  contaLidaEm.set(dono, agora);
+  const naConta = await cacheGet<unknown>(CHAVE_DO_HISTORICO, JANELA_SEM_REPETIR_MS);
+  if (!naConta) return;
+  const local = await lerHistoricoGuardado(dono);
+  const junto = juntarHistoricos(historicosDoSmartShuffle.get(dono) ?? local, naConta);
+  historicosDoSmartShuffle.set(dono, junto);
+  await gravarHistoricoLocal(dono, junto);
+}
+
+/**
+ * A biblioteca dele (guardadas e playlists) como identidades de MÚSICA.
+ *
+ * O Smart Shuffle é para descobrir, e sugeria músicas já favoritas (João, 14/9)
+ * por duas razões: a exclusão da descoberta compara só o upload -- outro vídeo
+ * da mesma música passava -- e o `getLibraryKeys` lia só as primeiras 1000
+ * linhas. Aqui entra o upload E o `artista|título`, pelo mesmo
+ * `chavesDaFaixaSugerida` da memória dos 30 dias. A lista vem da cache da
+ * biblioteca (meia hora) e as chaves calculam-se uma vez por lista. Falhar não
+ * impede a sugestão.
+ */
+const identidadesDaBiblioteca = new WeakMap<Track[], Set<string>>();
+async function chavesDaBiblioteca(): Promise<Set<string>> {
+  try {
+    const faixas = await lerFaixas(getLibrary);
+    let chaves = identidadesDaBiblioteca.get(faixas);
+    if (!chaves) {
+      chaves = new Set();
+      for (const f of faixas) for (const k of chavesDaFaixaSugerida(f)) chaves.add(k);
+      identidadesDaBiblioteca.set(faixas, chaves);
+    }
+    return chaves;
+  } catch {
+    return new Set();
+  }
 }
 
 /**
@@ -629,11 +715,14 @@ async function chavesDasEscutasRecentes(dono: string | null): Promise<Set<string
 }
 
 async function chavesBloqueadasNoSmartShuffle(dono: string | null): Promise<Set<string>> {
-  const [guardado, escutadas] = await Promise.all([
-    lerHistoricoGuardado(dono),
+  const [, escutadas, daBiblioteca] = await Promise.all([
+    trazerHistoricoDaConta(dono),
     chavesDasEscutasRecentes(dono),
+    chavesDaBiblioteca(),
   ]);
-  return new Set([...chavesRecentesDoSmartShuffle(guardado), ...escutadas]);
+  // Lido DEPOIS da conta: é ela que traz o que o outro aparelho sugeriu.
+  const guardado = await lerHistoricoGuardado(dono);
+  return new Set([...chavesRecentesDoSmartShuffle(guardado), ...escutadas, ...daBiblioteca]);
 }
 
 /**
@@ -673,6 +762,8 @@ export const usePlayer = create<PlayerState>()(
   shuffleInteligente: false,
   desdeASugestao: 0,
   sugeridas: [],
+  origemDaFila: null,
+  doRadio: [],
   autoplayRadio: true,
   radioActive: false,
   volumeNormalization: true,
@@ -698,7 +789,7 @@ export const usePlayer = create<PlayerState>()(
   _yt: null,
   activeBackend: 'resolving',
 
-  playTrack: async (track, queue, shouldExpand, interno = false, discoveryContext) => {
+  playTrack: async (track, queue, shouldExpand, interno = false, discoveryContext, origem) => {
     if (!interno && ouvirJuntos()) {
       contextosDaFila.clear();
       contextoAtual=null;
@@ -722,6 +813,11 @@ export const usePlayer = create<PlayerState>()(
       return;
     }
     const anterior=get().current;
+    // De onde vem a fila, decidido AGORA: o `queue` que chegou comparado com o
+    // da store antes dos awaits, que a podem mudar. Ver lib/origemDaFila.ts.
+    const chamada={interno,mesmaFila:!!queue&&queue===get().queue};
+    const origemSeguinte=origemAoTocar(get().origemDaFila,origem,chamada);
+    const listaNova=comecaListaNova(origem,chamada);
     // `applyPlaybackAlternative` e o download podem demorar. O backend da
     // faixa anterior tem de se calar no proprio gesto, antes desses awaits;
     // esperar pelo efeito do componente deixava a capa nova com o som velho.
@@ -772,6 +868,9 @@ export const usePlayer = create<PlayerState>()(
       current: playableTrack,
       queue: q,
       queueIndex: index,
+      origemDaFila: origemSeguinte,
+      // Numa lista nova, as marcas do rádio da anterior deixam de valer.
+      ...(listaNova ? { doRadio: [] } : {}),
       error: null,
       ...posicao(0),
       durationMs: (playableTrack.durationSeconds ?? 0) * 1000,
@@ -912,10 +1011,13 @@ export const usePlayer = create<PlayerState>()(
       // no onReady do IFrame. Preencher os dois é o que faz o handoff cair
       // no segundo certo nas duas plataformas.
       resumePositionMs: positionMs > 1500 ? positionMs : null,
+      // A sessão de outro aparelho não traz de onde veio a fila.
+      origemDaFila: null,
+      doRadio: [],
     });
   },
 
-  tocarLista: async (tracks, aleatorio, inteligente = false) => {
+  tocarLista: async (tracks, aleatorio, inteligente = false, origem) => {
     if (tracks.length === 0) return;
     if (ouvirJuntos()) {
       const lista = aleatorio ? baralhada(tracks) : tracks;
@@ -935,11 +1037,11 @@ export const usePlayer = create<PlayerState>()(
       });
       return;
     }
-    if (aleatorio) { await get().playShuffled(tracks, inteligente); return; }
-    await get().playTrack(tracks[0], tracks, true);
+    if (aleatorio) { await get().playShuffled(tracks, inteligente, origem ?? null); return; }
+    await get().playTrack(tracks[0], tracks, true, false, undefined, origem ?? null);
   },
 
-  playShuffled: async (tracks, inteligente = false) => {
+  playShuffled: async (tracks, inteligente = false, origem = null) => {
     if (tracks.length === 0) return;
     if (ouvirJuntos()) {
       await get().playTrack(tracks[Math.floor(Math.random() * tracks.length)], tracks, true);
@@ -964,7 +1066,7 @@ export const usePlayer = create<PlayerState>()(
     });
     persistShuffle(true).catch(() => {});
     persistShuffleInteligente(inteligente).catch(() => {});
-    await get().playTrack(tracks[start], tracks, true, true);
+    await get().playTrack(tracks[start], tracks, true, true, undefined, origem);
     // SEMEAR AQUI, e depois do `playTrack`. O botão da barra inferior
     // (`toggleShuffle`) já semeava, mas este caminho -- o Play das Liked
     // Songs e das playlists -- não: montava uma fila nova por cima da que
@@ -1284,6 +1386,8 @@ export const usePlayer = create<PlayerState>()(
       set({
         queue: merged,
         radioActive: true,
+        // Estas não vieram da lista: o Now Playing diz "From Radio" nelas.
+        doRadio: [...live.doRadio, ...tracks.map((t) => trackKey(t))].slice(-200),
         shuffleOrder: live.shuffle
           ? reconcileOrder(live.shuffleOrder, merged, live.queueIndex)
           : [],
@@ -1722,6 +1826,31 @@ export const usePlayer = create<PlayerState>()(
     if(ganhosMudaram)void aplicarEqNoMotor(aplicar.ganhos);
   },
 
+  /**
+   * O padrão (velocidade e EQ das Definições) que chegou de outro aparelho,
+   * SEM mexer na faixa que toca.
+   *
+   * O App.tsx só chamava o `_carregarAjustes` quando o ajuste da faixa ATUAL
+   * mudava; no resto gravava a memória e deixava o `padraoRate` como estava.
+   * Como há quase sempre uma faixa carregada (a sessão restaura-a), a velocidade
+   * padrão escolhida no iPhone nunca chegava ao PC, e os dois ecrãs de
+   * Definições mostravam números diferentes (João, 14/9). A faixa que toca não
+   * muda a meio: o padrão vale a partir da seguinte, como no próprio aparelho.
+   */
+  _carregarPadrao: (m) => {
+    const doServidor = padraoGuardado(m);
+    if (!doServidor) { set({ ajustesPorFaixa: m }); return; }
+    const r = arredondarRate(doServidor.rate ?? get().padraoRate);
+    const g = normalizarGanhos(doServidor.ganhos ?? get().padraoGanhos);
+    const mudou = r !== get().padraoRate || g.some((v, i) => v !== get().padraoGanhos[i]);
+    set({ ajustesPorFaixa: m, padraoRate: r, padraoGanhos: g });
+    // Na preferência também: é dela que o arranque seguinte e as Definições leem.
+    if (mudou) {
+      persistPlaybackRate(r).catch(() => {});
+      persistEqPadrao(g).catch(() => {});
+    }
+  },
+
   setPlaybackRate: (rate, comoPadrao = false) => {
     const v = arredondarRate(rate);
     if (comoPadrao) {
@@ -1847,6 +1976,10 @@ export const usePlayer = create<PlayerState>()(
           // primeira vez depois da atualizacao.
           sugeridas: persisted.sugeridas ?? current.sugeridas,
           desdeASugestao: persisted.desdeASugestao ?? current.desdeASugestao,
+          // O mesmo cuidado para os campos do "From ...": sem o `??` a lista
+          // do radio chegava `undefined` e o primeiro `includes` partia.
+          origemDaFila: persisted.origemDaFila ?? current.origemDaFila,
+          doRadio: persisted.doRadio ?? current.doRadio,
           ...restoredPlaybackState(persisted.positionMs),
           // A posição guardada é verdade AGORA: a sessão volta em pausa,
           // portanto não andou nada desde que foi gravada. Sem este carimbo

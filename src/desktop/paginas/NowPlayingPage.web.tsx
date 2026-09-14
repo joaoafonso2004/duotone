@@ -7,6 +7,9 @@ import {
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
 } from '../../lib/prefs';
 import { usePlayer } from '../../state/player';
+import { useOuvirJuntos } from '../../state/ouvirJuntos';
+import { rotuloDaOrigem } from '../../lib/origemDaFila';
+import { trackKey } from '../../lib/shuffle';
 import { chaveDaFaixa } from '../../lib/equalizer';
 import { FilaArrastavel } from '../FilaArrastavel.web';
 import { PainelEqualizador } from '../PainelEqualizador.web';
@@ -140,6 +143,12 @@ export function NowPlayingPage({
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   const eqAtivo = usePlayer((s) => s.eqAtivo);
   const ajustesPorFaixa = usePlayer((s) => s.ajustesPorFaixa);
+  // De onde vem o que toca ("From Chill Vibes"). Ver lib/origemDaFila.ts.
+  const origemDaFila = usePlayer((s) => s.origemDaFila);
+  const doRadio = usePlayer((s) => s.doRadio);
+  const sugeridas = usePlayer((s) => s.sugeridas);
+  // Num jam manda a fila partilhada, e a origem pessoal não diz nada sobre ela.
+  const emJam = useOuvirJuntos((s) => !!s.sessao);
   const [showLyrics,setShowLyrics]=useState(false);
   useEffect(()=>setShowLyrics(false),[current?.source,current?.sourceId]);
   const { width } = useWindowDimensions();
@@ -208,9 +217,32 @@ export function NowPlayingPage({
   // o CANAL. A guarda é a mesma do iOS: sem nome não há para onde ir.
   const nomeDoArtista = displayArtist(track);
   const temArtista = !!nomeDoArtista && nomeDoArtista !== 'Unknown artist';
+  // "From Chill Vibes". A chave da faixa ATUAL decide se foi a app a metê-la
+  // (rádio, Smart Shuffle): essas não vieram da lista e não o podem dizer.
+  const chaveAtual = trackKey(track);
+  const origem = emJam ? null : rotuloDaOrigem(origemDaFila, {
+    sugerida: sugeridas.includes(chaveAtual),
+    doRadio: doRadio.includes(chaveAtual),
+  });
+  const alvo = origem?.alvo ?? null;
+  const irParaOrigem = !alvo ? undefined
+    : alvo.tipo === 'playlist' && alvo.id ? () => navigate({ name: 'playlist', id: alvo.id!, title: alvo.nome })
+    : alvo.tipo === 'mistura' && alvo.id ? () => navigate({ name: 'mistura', id: alvo.id!, titulo: alvo.nome })
+    : alvo.tipo === 'artista' ? () => navigate({ name: 'artist', value: alvo.nome })
+    : alvo.tipo === 'guardadas' ? () => navigate({ name: 'songs' })
+    : undefined;
 
   return (
-    <Page title="Now Playing" action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}>
+    <Page title="Now Playing"
+      subtitle={origem ? <>
+        {`${origem.antes} `}
+        <Text
+          onPress={irParaOrigem}
+          accessibilityRole={irParaOrigem ? 'link' : undefined}
+          style={[{ color: COR.texto, fontWeight: '600' }, irParaOrigem && ({ cursor: 'pointer' } as any)]}
+        >{origem.nome}</Text>
+      </> : undefined}
+      action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}>
       <ContentScroll>
         <View style={[styles.npGrelha, estreito && { flexDirection: 'column' }]}>
           <View style={[styles.npLado, { width: ladoCapa }]}>

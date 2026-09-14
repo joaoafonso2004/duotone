@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { Track } from '../types';
 import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 
 /**
  * Navegação do desktop: as rotas e o contrato que as páginas partilham.
@@ -40,7 +41,8 @@ export type ShareTarget =
  * fila em que ela vive), mostrar um aviso, e abrir o menu de contexto.
  */
 export interface CommonPageProps {
-  play: (track: Track, queue?: Track[], discoveryContext?: DiscoveryContext) => void;
+  /** `origem`: de onde vem a lista, para o Now Playing dizer "From ...". Ver lib/origemDaFila.ts. */
+  play: (track: Track, queue?: Track[], discoveryContext?: DiscoveryContext, origem?: OrigemDaFila) => void;
   notify: (message: string) => void;
   /**
    * O menu da faixa (lib/menuDaFaixa.ts). Com `origem.fila`, abriu numa linha

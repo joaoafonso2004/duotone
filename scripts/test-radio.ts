@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { pareceMusica } from '../src/lib/musica.ts';
 import {
   filterRadioCandidates,
+  onlyPlausibleMusic,
   radioSeeds,
   seedArtists,
   shouldExtendWithRadio,
@@ -71,6 +74,20 @@ check('fica com os restantes', limpos.map((t) => t.sourceId).join() === '5,7', l
 check('respeita o limite', filterRadioCandidates(candidatos, [], keyOf, 1).length === 1);
 check('sem candidatos devolve vazio', filterRadioCandidates([], fila, keyOf, 10).length === 0);
 
+// --- so musica --------------------------------------------------------------
+// O caso de 14/9: um temporizador de 7 h na fila de um amigo do Joao.
+const temporizador = { ...yt('t', '6 Hour 30 minute Timer + 1 Hour Loud Alarm'), durationSeconds: 27000 };
+const longaGuardada = { ...yt('g', 'Artista - Tema de vinte minutos'), durationSeconds: 1200 };
+const guardadas = new Set([keyOf(longaGuardada)]);
+const soMusica = onlyPlausibleMusic(
+  [yt('m', 'Air - La Femme'), temporizador, longaGuardada],
+  (t) => guardadas.has(keyOf(t)),
+  pareceMusica,
+);
+check('o radio deixa cair o que nao e musica', !soMusica.some((t) => t.sourceId === 't'));
+check('o que ele guardou passa, mesmo longo', soMusica.some((t) => t.sourceId === 'g'));
+check('a musica normal passa', soMusica.some((t) => t.sourceId === 'm'));
+
 // --- baralhar ---------------------------------------------------------------
 let seed = 42;
 const rng = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
@@ -86,6 +103,19 @@ check('nao entra com repeat all', !shouldExtendWithRadio(true, true, 0, 'all'));
 check('nao entra com repeat one', !shouldExtendWithRadio(true, true, 0, 'one'));
 check('nao entra desligado', !shouldExtendWithRadio(false, true, 0, 'off'));
 check('nao entra sem nada a tocar', !shouldExtendWithRadio(true, false, 0, 'off'));
+
+// --- a pesquisa nao enche a fila ----------------------------------------------
+// Tocar um resultado punha os resultados TODOS na fila, e com o shuffle ligado
+// a seguir vinha o que o YouTube casou com o texto. Le-se o codigo como texto:
+// os ecras importam React Native e nao abrem em Node.
+const ecrasDePesquisa: Record<string, RegExp> = {
+  'desktop/paginas/BibliotecaPages.web.tsx': /\bplay\(\s*\w+\s*,\s*results\b/,
+  'screens/SearchScreen.tsx': /\bplayTrack\(\s*\w+\s*,\s*results\b/,
+};
+for (const [ficheiro, proibido] of Object.entries(ecrasDePesquisa)) {
+  const fonte = readFileSync(new URL(`../src/${ficheiro}`, import.meta.url), 'utf8');
+  check(`${ficheiro}: tocar um resultado nao poe os resultados na fila`, !proibido.test(fonte));
+}
 
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);
 process.exit(bad ? 1 : 0);

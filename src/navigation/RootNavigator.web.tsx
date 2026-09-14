@@ -8,6 +8,7 @@ import { addTracksToPlaylist, createPlaylist, deletePlaylist, getPlaylistTracks,
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
 import { getLibrary, getLikedSongs, removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
 import { fetchYouTubePlaylist, searchYouTube } from '../api/youtube';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { useSaved } from '../state/saved';
@@ -287,8 +288,8 @@ function DesktopShell() {
     }
     setJamOpen(true);
   }, [notify]);
-  const play = useCallback((track: Track, queue?: Track[], discoveryContext?:DiscoveryContext) => {
-    usePlayer.getState().playTrack(track, queue, false, false, discoveryContext);
+  const play = useCallback((track: Track, queue?: Track[], discoveryContext?:DiscoveryContext, origem?: OrigemDaFila) => {
+    usePlayer.getState().playTrack(track, queue, false, false, discoveryContext, origem);
   }, []);
 
   useEffect(() => {

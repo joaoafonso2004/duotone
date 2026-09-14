@@ -94,8 +94,10 @@ export default function App() {
     return startTrackAdjustmentSync(adjustmentUserId,values=>{
       const p=usePlayer.getState(),key=p.current?chaveDaFaixa(p.current):null;
       // Um polling sem alterações não aplica a meio da música um novo padrão
-      // escolhido nas Definições para as faixas seguintes.
-      if(!key||JSON.stringify(p.ajustesPorFaixa[key])===JSON.stringify(values[key]))usePlayer.setState({ajustesPorFaixa:values});
+      // escolhido nas Definições para as faixas seguintes -- mas o PADRÃO em si
+      // tem de chegar: sem isto a velocidade das Definições nunca passava de um
+      // aparelho para o outro. Ver `_carregarPadrao`.
+      if(!key||JSON.stringify(p.ajustesPorFaixa[key])===JSON.stringify(values[key]))p._carregarPadrao(values);
       else p._carregarAjustes(values,p.padraoGanhos,p.padraoRate);
     });
   },[adjustmentUserId,preferencesReady]);

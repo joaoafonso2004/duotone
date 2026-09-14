@@ -1,8 +1,10 @@
 import { useConnectivity } from '../state/connectivity';
 import { feedbackReady,filterSuggestions } from '../state/recommendationFeedback';
 import { chaveDeArtista, displayArtist } from '../lib/artistName';
+import { pareceMusica } from '../lib/musica';
 import {
   filterRadioCandidates,
+  onlyPlausibleMusic,
   RADIO_BATCH,
   seedArtists,
   shuffleCandidates,
@@ -38,7 +40,9 @@ export async function fetchRadioTracks(
     // Filtra-se antes da proporção, mas sem truncar demasiado cedo: se o
     // primeiro lote for todo conhecido, as três novas por cada tua nunca
     // chegariam às candidatas novas que estão logo a seguir.
-    const candidatas=filterRadioCandidates(filterSuggestions(pool),exclude,trackKey,Math.max(limit*4,limit));
+    // E antes disso, fora o que não é música (ver `onlyPlausibleMusic`).
+    const musica=onlyPlausibleMusic(filterSuggestions(pool),(t)=>knownKeys.has(trackKey(t)),pareceMusica);
+    const candidatas=filterRadioCandidates(musica,exclude,trackKey,Math.max(limit*4,limit));
     const conhecidas=candidatas.filter((t)=>knownKeys.has(trackKey(t)));
     const novas=candidatas.filter((t)=>!knownKeys.has(trackKey(t)));
     return misturarPorFamiliaridade(conhecidas,novas,limit,'radio');

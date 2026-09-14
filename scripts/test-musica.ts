@@ -31,6 +31,9 @@ nao('duas horas', { title: 'Best of 2 hours mix', durationSeconds: 500 });
 nao('gameplay', { title: 'GTA gameplay with music', durationSeconds: 400 });
 nao('um trailer', { title: 'Official Trailer', durationSeconds: 120 });
 nao('titulo vazio', { title: '   ', durationSeconds: 200 });
+// O caso real de 14/9: estava na fila de um amigo do Joao, vindo da pesquisa.
+nao('um temporizador de 7 horas', { title: '6 Hour 30 minute Timer + 1 Hour Loud Alarm', durationSeconds: 27000 });
+nao('o mesmo temporizador sem duracao', { title: '6 Hour 30 minute Timer + 1 Hour Loud Alarm', durationSeconds: null });
 
 console.log('\nos limites fazem sentido');
 check('o minimo corta clipes mas nao musicas curtas', MINIMO_S >= 45 && MINIMO_S <= 90, String(MINIMO_S));

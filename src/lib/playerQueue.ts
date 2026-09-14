@@ -14,6 +14,7 @@
  */
 
 import type { Track } from '../types';
+import type { OrigemDaFila } from './origemDaFila';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -231,6 +232,10 @@ export type SessaoGuardada = {
   sugeridas: string[];
   /** Faixas tocadas desde a última sugestão. */
   desdeASugestao: number;
+  /** De onde veio esta fila: o "From Chill Vibes" volta com a sessão. */
+  origemDaFila: OrigemDaFila | null;
+  /** Quais destas faixas foi o rádio a acrescentar -- essas não vieram da origem. */
+  doRadio: string[];
 };
 
 /**
@@ -257,5 +262,7 @@ export function sessaoParaGuardar<T extends SessaoGuardada>(s: T): SessaoGuardad
     durationMs: s.durationMs,
     sugeridas: s.sugeridas,
     desdeASugestao: s.desdeASugestao,
+    origemDaFila: s.origemDaFila,
+    doRadio: s.doRadio,
   };
 }

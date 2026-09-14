@@ -155,6 +155,30 @@ const todas=await playlistApi.getPlaylistTracks('copia');
 assert.equal(todas.length,1006);assert.equal(todas.at(-1).id,'t-1005');
 console.log('Playlists: erros preservados, RPC de guardar/remover e leitura acima de 1000 faixas passaram.');
 
+// Regressão 14/9: as chaves das guardadas liam uma página só. Com 2694, as
+// últimas 1694 não contavam para "esta já a tens" (Discover, Smart Shuffle).
+const linhasGuardadas=Array.from({length:2694},(_,i)=>({tracks:{source:'youtube',source_id:`g-${i}`}}));
+const bibliotecaApi=ambiente(async()=>{}, {
+  'src/lib/likedSongsCache.ts':{cacheLikedSongs:async()=>{},changeCachedLikes:async()=>{},likedCacheRevision:()=>0},
+  'src/api/artistNames.ts':{confirmarArtistasEmSegundoPlano:()=>{}},
+  'src/lib/supabase.ts':{supabase:{
+    auth:{getUser:async()=>({data:{user:{id:'eu'}},error:null})},
+    from:()=>{
+      let from=0,to=999;
+      const query={
+        select:()=>query,eq:()=>query,order:()=>query,
+        range:(start,end)=>{from=start;to=end;return query;},
+        then:(resolve,reject)=>Promise.resolve({data:linhasGuardadas.slice(from,to+1),error:null}).then(resolve,reject),
+      };
+      return query;
+    },
+  }},
+}).carregar('src/api/library.ts');
+const chavesGuardadas=await bibliotecaApi.getLibraryKeys();
+assert.equal(chavesGuardadas.size,2694,'As guardadas acima das 1000 também contam');
+assert.ok(chavesGuardadas.has('youtube:g-2693'));
+console.log('Biblioteca: as chaves das guardadas passam as 1000 linhas.');
+
 // Regressão 1.5.9: uma coluna social em falta escondia toda a biblioteca.
 let playlistError={code:'42703',message:'column playlists.visible_on_profile does not exist'};
 let playlistReads=[];

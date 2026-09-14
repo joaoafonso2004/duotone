@@ -57,6 +57,10 @@ const DUPLOS = new Map([
   ['src/lib/prefs', 'prefs.ts'],
   ['src/lib/playbackAlternatives', 'playbackAlternatives.ts'],
   ['src/lib/eventos', 'eventos.ts'],
+  // A biblioteca e o `yt_cache` da conta: o Smart Shuffle não sugere o que ele
+  // já guardou, e a memória dele passa de um aparelho para o outro.
+  ['src/api/library', 'library.ts'],
+  ['src/api/cache', 'cache.ts'],
   ['modules/duotone-audio', 'duotone-audio.ts'],
 ]);
 
