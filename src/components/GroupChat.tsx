@@ -80,7 +80,9 @@ export function GroupEmptyState({group}:{group:ChatGroup}) {
  * mas desaparece quando a mesma pessoa fala de seguida: repetir o avatar e o
  * nome em cada linha era o que fazia o grupo parecer uma lista de recibos.
  */
-export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[],myId,aReagir=false,onReagir,onAbrirReacoes,onFecharReacoes,onProfile,onTrack,onPlaylist}:{message:SharedItem;own:boolean;showSender?:boolean;playlist?:Playlist;
+export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[],myId,aReagir=false,onReagir,onAbrirReacoes,onFecharReacoes,onProfile,onTrack,onPlaylist,citacao,onResponder,destacada=false}:{message:SharedItem;own:boolean;showSender?:boolean;playlist?:Playlist;
+  /** A citação, quando esta mensagem responde a outra. Ver RespostaNaConversa. */
+  citacao?:React.ReactNode;onResponder?:()=>void;destacada?:boolean;
   reactions?:Reaction[];myId?:string;aReagir?:boolean;
   onReagir?:(emoji:string|null)=>void;onAbrirReacoes?:()=>void;onFecharReacoes?:()=>void;
   onProfile:(id:string)=>void;onTrack:(track:Track)=>void;onPlaylist:(id:string)=>void}) {
@@ -91,10 +93,11 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
       <Text numberOfLines={1} style={[s.muted,{fontWeight:'600',color:colors.text,flexShrink:1}]}>{m.sender.name}</Text>
       {own&&<Text style={[s.muted,{fontSize:11}]}>You</Text>}
     </Pressable>}
-    <MessageBubble own={own} aberto={aReagir} onAbrir={()=>onAbrirReacoes?.()}
-      rotulo={`Message from ${m.sender.name}. Hold to react`}
+    <MessageBubble own={own} aberto={aReagir} onAbrir={()=>onAbrirReacoes?.()} onResponder={onResponder}
+      rotulo={`Message from ${m.sender.name}. Hold to react or reply`}
       style={{padding:12,gap:10,borderRadius:18,borderTopLeftRadius:!own&&showSender?6:18,borderTopRightRadius:own&&showSender?6:18,
-        backgroundColor:own?colors.surfaceHigh:colors.surface,borderWidth:1,borderColor:own?colors.borderStrong:colors.border}}>
+        backgroundColor:own?colors.surfaceHigh:colors.surface,borderWidth:1,borderColor:destacada?colors.accent:own?colors.borderStrong:colors.border}}>
+      {citacao}
       {!!m.message&&<Text selectable style={[s.text,{lineHeight:22}]}>{m.message}</Text>}
       {m.trackData&&<Pressable accessibilityRole="button" accessibilityLabel={`Open ${m.trackData.title}`}
         onPress={()=>onTrack(m.trackData!)} style={({pressed})=>[s.row,{padding:10,gap:10,minWidth:190,borderRadius:12,backgroundColor:colors.bg,opacity:pressed?0.7:1}]}>
@@ -109,11 +112,13 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
       <Text style={[s.muted,{fontSize:10,lineHeight:13,alignSelf:'flex-end'}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
     </MessageBubble>
     <ReactionRow reactions={reactions} myId={myId} own={own} aberto={aReagir}
-      onEscolher={emoji=>onReagir?.(emoji)} onFechar={()=>onFecharReacoes?.()}/>
+      onEscolher={emoji=>onReagir?.(emoji)} onFechar={()=>onFecharReacoes?.()} onResponder={onResponder}/>
   </View>;
 }
 
-export function GroupComposer({value,onChange,onSend,busy}:{value:string;onChange:(text:string)=>void;onSend:()=>void;busy:boolean}) {
+export function GroupComposer({value,onChange,onSend,busy,campoRef}:{value:string;onChange:(text:string)=>void;onSend:()=>void;busy:boolean;
+  /** Para responder a uma mensagem abrir logo o teclado. */
+  campoRef?:React.RefObject<TextInput|null>}) {
   const theme=useTheme(s=>s.theme),web=Platform.OS==='web',disabled=busy||!value.trim();
   const aoCarregarTecla=(e:any)=>{
     const evento=e?.nativeEvent??e;
@@ -122,7 +127,7 @@ export function GroupComposer({value,onChange,onSend,busy}:{value:string;onChang
     if(!disabled)onSend();
   };
   return <View style={[s.row,{alignItems:'flex-end',gap:8,padding:6,borderRadius:web?radii.lg:28,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.borderStrong}]}>
-    <TextInput accessibilityLabel="Message" placeholder="Message the group…" placeholderTextColor={colors.textSecondary}
+    <TextInput ref={campoRef} accessibilityLabel="Message" placeholder="Message the group…" placeholderTextColor={colors.textSecondary}
       value={value} onChangeText={onChange} multiline numberOfLines={1} maxLength={4000} editable={!busy}
       {...({onKeyDown:aoCarregarTecla} as any)}
       style={[s.text,{flex:1,minWidth:0,minHeight:44,maxHeight:110,paddingHorizontal:12,paddingVertical:12}]}/>

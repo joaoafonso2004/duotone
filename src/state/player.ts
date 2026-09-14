@@ -223,6 +223,9 @@ interface PlayerState {
   origemDaFila: OrigemDaFila | null;
   /** Chaves das faixas que o rádio acrescentou: essas não vieram da origem. */
   doRadio: string[];
+  /** O último next/prev, para o "Recuo subtil" da capa saber o sentido
+   * (lib/transicaoDaCapa.ts). Não se persiste: é sobre o instante. */
+  saltoDaFaixa: { direcao: 1 | -1; em: number } | null;
   /** Rádio: quando a fila acaba, continuar com música parecida em vez de
    * ficar em silêncio. Preferência do utilizador (Definições). */
   autoplayRadio: boolean;
@@ -764,6 +767,7 @@ export const usePlayer = create<PlayerState>()(
   sugeridas: [],
   origemDaFila: null,
   doRadio: [],
+  saltoDaFaixa: null,
   autoplayRadio: true,
   radioActive: false,
   volumeNormalization: true,
@@ -1174,6 +1178,8 @@ export const usePlayer = create<PlayerState>()(
   },
 
   next: async (manual = true) => {
+    // O sentido da capa: seguinte vem da direita. Antes do jam, para lá valer também.
+    set({ saltoDaFaixa: { direcao: 1, em: Date.now() } });
     if (ouvirJuntos()) { await comandarJam(s => s.avancar(false)); return; }
     if (get().queue.length === 0) return;
     if(manual)registarSaltoDeRecomendacao(get().positionMs);
@@ -1288,6 +1294,9 @@ export const usePlayer = create<PlayerState>()(
   },
 
   prev: async () => {
+    // O sentido da capa: anterior vem da esquerda. Um "anterior" que só recomeça
+    // a faixa não muda a capa, e a marca caduca sozinha (`janelaDoSaltoMs`).
+    set({ saltoDaFaixa: { direcao: -1, em: Date.now() } });
     if (ouvirJuntos()) {
       // A mesma regra de sempre primeiro: passados 3 s, "anterior" recomeça.
       if (get().positionMs > 3000) { await get().seekTo(0); return; }

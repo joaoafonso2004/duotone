@@ -5,6 +5,7 @@ import type { Track } from '../types';
 import { AMIGOS_A_CONSULTAR, favoritasDosAmigos, type EscutaDeAmigo, type FavoritaDeAmigo } from '../lib/favoritasDosAmigos';
 import { getSocialProfileTracks } from './profiles';
 import { trackKey } from '../lib/shuffle';
+import { faltaAColunaDeResposta } from '../lib/respostas';
 export interface Friendship {
   friendId: string;
   username: string;
@@ -84,6 +85,8 @@ export interface SharedItem {
   trackData: Track | null;
   message: string | null;
   createdAt: string;
+  /** A mensagem a que esta responde (supabase/responder-mensagens.sql). */
+  replyToId?: string | null;
 }
 
 /** Dados sociais são entrada não confiável, mesmo depois da validação SQL:
@@ -225,7 +228,9 @@ export async function shareItem(
   friendId: string | readonly string[],
   itemType: 'playlist' | 'track',
   item: any,
-  message?: string
+  message?: string,
+  /** O id da mensagem a que isto responde. */
+  respostaA?: string | null,
 ): Promise<void> {
   const currentUid = await currentUserId();
 
@@ -248,9 +253,16 @@ export async function shareItem(
     comum.track_data = item;
   }
 
-  const linhas = destinatarios.map((id) => ({ ...comum, recipient_id: id }));
+  const linhas = destinatarios.map((id) => ({
+    ...comum, recipient_id: id, ...(respostaA ? { reply_to_id: respostaA } : {}),
+  }));
 
-  const { error } = await supabase.from('shared_items').insert(linhas);
+  let { error } = await supabase.from('shared_items').insert(linhas);
+  // Sem a migração das respostas a coluna não existe: a mensagem vai na mesma,
+  // só sem a citação. Perdê-la por causa de um extra era pior.
+  if (error && respostaA && faltaAColunaDeResposta(error)) {
+    ({ error } = await supabase.from('shared_items').insert(linhas.map(({ reply_to_id: _, ...linha }: any) => linha)));
+  }
   if (error) {
     throw new Error(destinatarios.length > 1
       ? 'Could not share with everyone.'
@@ -300,6 +312,7 @@ export async function getInboxItems(): Promise<SharedItem[]> {
       trackData,
       message: r.item_type === 'track' && !trackData && !r.message ? 'This shared track is unavailable.' : r.message,
       createdAt: r.created_at,
+      replyToId: r.reply_to_id ?? null,
     };
   });
 }
@@ -345,7 +358,7 @@ async function getConversationMessages(target:{p_friend?:string;p_group?:string}
     const p=map.get(r.sender_id);
     const trackData=r.item_type==='track'?sharedTrack(r.track_data):null;
     return {id:r.id,groupId:r.group_id??null,sender:{id:r.sender_id,name:p?.name||'Utilizador',username:p?.username||'',avatarUrl:p?.avatar_url||null},
-      itemType:r.item_type,playlistId:r.playlist_id,sessionId:r.session_id??null,trackData,message:r.item_type==='track'&&!trackData&&!r.message?'This shared track is unavailable.':r.message,createdAt:r.created_at};
+      itemType:r.item_type,playlistId:r.playlist_id,sessionId:r.session_id??null,trackData,message:r.item_type==='track'&&!trackData&&!r.message?'This shared track is unavailable.':r.message,createdAt:r.created_at,replyToId:r.reply_to_id??null};
   });
 }
 
@@ -484,12 +497,41 @@ export function getGroupMessages(groupId:string,before?:MessageCursor):Promise<S
   return getConversationMessages({p_group:groupId},before);
 }
 
+/**
+ * As originais citadas que ficaram fora da página carregada (a conversa vem às
+ * 100). Uma consulta por conjunto; o RLS só devolve as que se podem ler, e as
+ * outras ficam simplesmente de fora do mapa.
+ */
+export async function getMensagensCitadas(ids: readonly string[]): Promise<Map<string, SharedItem>> {
+  const unicos = Array.from(new Set(ids.filter(Boolean)));
+  const mapa = new Map<string, SharedItem>();
+  if (!unicos.length) return mapa;
+  const { data, error } = await supabase.from('shared_items').select('*').in('id', unicos);
+  if (error) throw error;
+  if (!data?.length) return mapa;
+  const perfis = await getPublicProfiles(Array.from(new Set<string>(data.map((r: any) => r.sender_id))));
+  const porId = new Map(perfis.map((p) => [p.id, p]));
+  for (const r of data as any[]) {
+    const p = porId.get(r.sender_id);
+    const trackData = r.item_type === 'track' ? sharedTrack(r.track_data) : null;
+    mapa.set(r.id, {
+      id: r.id, groupId: r.group_id ?? null,
+      sender: { id: r.sender_id, name: p?.name || 'Utilizador', username: p?.username || '', avatarUrl: p?.avatar_url || null },
+      itemType: r.item_type, playlistId: r.playlist_id, sessionId: r.session_id ?? null, trackData,
+      message: r.message, createdAt: r.created_at, replyToId: r.reply_to_id ?? null,
+    });
+  }
+  return mapa;
+}
+
 /** Partilha (ou escreve) num grupo. */
 export async function shareComGrupo(
   groupId: string,
   itemType: 'playlist' | 'track',
   item: any,
   message?: string,
+  /** O id da mensagem a que isto responde. */
+  respostaA?: string | null,
 ): Promise<void> {
   const currentUid = await currentUserId();
 
@@ -504,8 +546,14 @@ export async function shareComGrupo(
   };
   if (itemType === 'playlist') payload.playlist_id = item.id;
   else payload.track_data = item;
+  if (respostaA) payload.reply_to_id = respostaA;
 
-  const { error } = await supabase.from('shared_items').insert(payload);
+  let { error } = await supabase.from('shared_items').insert(payload);
+  // A mesma rede do `shareItem`: sem a migração, vai sem a citação.
+  if (error && respostaA && faltaAColunaDeResposta(error)) {
+    const { reply_to_id: _, ...semResposta } = payload;
+    ({ error } = await supabase.from('shared_items').insert(semResposta));
+  }
   if (error) throw new Error('Could not send to this group.');
 }
 

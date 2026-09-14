@@ -1,7 +1,7 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import { ActivityIndicator,FlatList,Image,Platform,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { acceptFriendRequest,acrescentarAoGrupo,criarGrupo,declineOrRemoveFriendship,getChatMessages,getGroupMessages,apagarConversa, sairDoGrupo,searchProfiles,sendFriendRequest,getReactions,setReaction,shareComGrupo,shareItem,type Reaction,type SharedItem } from '../api/social';
+import { acceptFriendRequest,acrescentarAoGrupo,criarGrupo,declineOrRemoveFriendship,getChatMessages,getGroupMessages,apagarConversa, sairDoGrupo,searchProfiles,sendFriendRequest,getReactions,getMensagensCitadas,setReaction,shareComGrupo,shareItem,type Reaction,type SharedItem } from '../api/social';
 import type { PublicProfile } from '../api/profiles';
 import { useSocial } from '../state/social';
 import { useAuth } from '../state/auth';
@@ -19,6 +19,8 @@ import { AvatarDeConversa,SocialButton,SocialModal,SocialIconButton,socialStyles
 import { SocialTrackActions } from './SocialTrackActions';
 import { SharedPlaylistCard } from './SharedPlaylistCard';
 import { MessageBubble,ReactionRow } from './ReactionRow';
+import { BarraDeResposta,CitacaoDaResposta } from './RespostaNaConversa';
+import { acharOriginal,citadasPorCarregar,excertoDaMensagem,quemECitado } from '../lib/respostas';
 import { getPlaylistPreviews } from '../api/playlists';
 import { GroupAvatar,GroupChatHeader,GroupComposer,GroupDetails,GroupEmptyState,GroupMessage } from './GroupChat';
 import { ConviteDeSessao } from './ConviteDeSessao';
@@ -58,6 +60,17 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const [playlistsDoChat,setPlaylistsDoChat]=useState<Map<string,Playlist>>(new Map());
   const [reacoes,setReacoes]=useState<Map<string,Reaction[]>>(new Map());
   const [aReagir,setAReagir]=useState<string|null>(null);
+  /**
+   * A mensagem a que se está a responder. Por conversa: mudar de conversa larga
+   * a resposta, senão ela ia citar uma mensagem de outra pessoa.
+   */
+  const [aResponder,setAResponder]=useState<SharedItem|null>(null);
+  /** A original para onde se acabou de saltar, acesa um instante. */
+  const [destacada,setDestacada]=useState<string|null>(null);
+  const lista=useRef<FlatList<SharedItem>>(null);
+  const campo=useRef<TextInput>(null);
+  /** Originais mais antigas do que a página carregada, pedidas à parte. */
+  const [citadasFora,setCitadasFora]=useState<{ids:string;mapa:Map<string,SharedItem>}>({ids:'',mapa:new Map()});
   const idsDasMensagens=messages.map(m=>m.id).join(',');
   const recarregarReacoes=useCallback(async()=>{
     if(!idsDasMensagens){setReacoes(new Map());return;}
@@ -91,13 +104,51 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
     void getPlaylistPreviews(idsDePlaylist.split(',')).then(m=>{if(vivo)setPlaylistsDoChat(m);});
     return()=>{vivo=false;};
   },[idsDePlaylist]);
+  // As originais que ficaram fora da página (a conversa vem às 100): pedem-se
+  // à parte, para a citação dizer o que era em vez de aparecer vazia.
+  const idsCitadosFora=citadasPorCarregar(messages).join(',');
+  useEffect(()=>{
+    if(!idsCitadosFora)return;
+    let vivo=true;
+    void getMensagensCitadas(idsCitadosFora.split(','))
+      .then(mapa=>{if(vivo)setCitadasFora({ids:idsCitadosFora,mapa});})
+      .catch(()=>{if(vivo)setCitadasFora({ids:idsCitadosFora,mapa:new Map()});});
+    return()=>{vivo=false;};
+  },[idsCitadosFora]);
+  const excerto=(m:SharedItem)=>excertoDaMensagem(m,{
+    faixa:m.trackData?{titulo:tituloDaFaixa(m.trackData),artista:displayArtist(m.trackData)}:null,
+    playlist:m.playlistId?playlistsDoChat.get(m.playlistId)?.name??null:null,
+  });
+  const irParaAMensagem=(id:string)=>{
+    const indice=ordered.findIndex(x=>x.id===id);
+    if(indice<0)return;
+    lista.current?.scrollToIndex({index:indice,animated:true,viewPosition:0.5});
+    setDestacada(id);
+    setTimeout(()=>setDestacada(d=>d===id?null:d),1400);
+  };
+  const responderA=(m:SharedItem)=>{
+    setAReagir(null);setAResponder(m);
+    // Como no Instagram: responder abre o teclado.
+    setTimeout(()=>campo.current?.focus(),60);
+  };
+  const citacao=(m:SharedItem)=>{
+    if(!m.replyToId)return null;
+    const carregada=acharOriginal(messages,m.replyToId);
+    const original=carregada??citadasFora.mapa.get(m.replyToId)??null;
+    // Enquanto a original de fora ainda vem a caminho, não se diz que se perdeu.
+    if(!original&&citadasFora.ids!==idsCitadosFora)return null;
+    return <CitacaoDaResposta accent={accent}
+      autor={original?quemECitado(original.sender.id,myId,original.sender.name):null}
+      excerto={original?excerto(original):null}
+      onPress={carregada?()=>irParaAMensagem(carregada.id):undefined}/>;
+  };
   /** Mensagens seguidas da mesma pessoa, dentro de cinco minutos, ficam sem o cabeçalho repetido. */
   const seguida=(m:SharedItem,index:number)=>{const antes=ordered[index+1];return !!antes&&antes.sender.id===m.sender.id&&new Date(m.createdAt).getTime()-new Date(antes.createdAt).getTime()<300000;};
   const setDraft=(text:string)=>useSocial.setState(x=>({drafts:{...x.drafts,[key]:text}}));
   const open=(kind:'friend'|'group',id:string)=>useSocial.setState({conversation:{kind,id}});
   const run=async(action:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await action();await social.refresh();}catch(e:any){setError(e.message || 'That did not go through.');}finally{setBusy(false);}};
   useEffect(()=>{if(initialFriend)open('friend',initialFriend);else if(initialGroup)open('group',initialGroup);},[initialFriend,initialGroup]);
-  useEffect(()=>{setGroupDetails(null);},[key]);
+  useEffect(()=>{setGroupDetails(null);setAResponder(null);setDestacada(null);},[key]);
   useEffect(()=>{
     let active=true;
     if(query.trim().length<2){setResults([]);return;}
@@ -141,7 +192,10 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const send=async()=>{
     const text=draft.trim();if(!conversation||!text||busy)return;
     await run(async()=>{
-      if(conversation.kind==='group')await shareComGrupo(conversation.id,'track',null,text);else await shareItem(conversation.id,'track',null,text);
+      const respostaA=aResponder?.id??null;
+      if(conversation.kind==='group')await shareComGrupo(conversation.id,'track',null,text,respostaA);else await shareItem(conversation.id,'track',null,text,respostaA);
+      // Só depois de enviar: se falhar, a resposta continua armada com o texto.
+      setAResponder(null);
       // Limpar o que foi enviado e MAIS NADA.
       //
       // A guarda que estava aqui comparava a string inteira com o rascunho
@@ -298,7 +352,12 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         {web&&!group&&<View style={s.row}><Text numberOfLines={1} style={[s.title,{flex:1}]}>{title}</Text><SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/></View>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={accent}/>}
         {group&&!chatLoading&&!messages.length&&!error?<View style={{flex:1,justifyContent:'center'}}><GroupEmptyState group={group}/></View>:
-        <FlatList inverted ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{gap:group?6:12,paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>group?<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
+        <FlatList ref={lista} inverted onScrollToIndexFailed={info=>{
+          // A original ainda não foi medida (fora do que a lista desenhou):
+          // aproxima-se pela altura média e tenta-se outra vez.
+          lista.current?.scrollToOffset({offset:info.averageItemLength*info.index,animated:true});
+          setTimeout(()=>lista.current?.scrollToIndex({index:info.index,animated:true,viewPosition:0.5}),250);
+        }} ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{gap:group?6:12,paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>group?<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} citacao={citacao(m)} onResponder={()=>responderA(m)} destacada={destacada===m.id} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
           reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>:<View style={{flexDirection:'row',alignItems:'flex-end',gap:6,alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%'}}>
           {/* A cara de quem falou, ao lado do balao. So do lado dele: a nossa
               propria cara ao lado de cada coisa que escrevemos nao diz nada a
@@ -308,7 +367,8 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
           </Pressable>:null}
           <View style={{flexShrink:1,gap:5}}>
           <MessageBubble own={m.sender.id===myId} aberto={aReagir===m.id} onAbrir={()=>setAReagir(a=>a===m.id?null:m.id)}
-            rotulo={`Message from ${m.sender.name}. Hold to react`}
+            onResponder={()=>responderA(m)}
+            rotulo={`Message from ${m.sender.name}. Hold to react or reply`}
             style={{
               // `theme.soft` e nao `accent` puro. O accent e escolhido pelo
               // utilizador e pode ser CLARO -- o do Joao e branco -- e um balao
@@ -317,13 +377,14 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
               // superficies (ver os botoes Queue e EQ no leitor): fica sempre
               // escuro, tinge na cor certa, e o texto continua a ser o normal.
               backgroundColor:m.sender.id===myId?tema.soft:colors.surface,
-              borderWidth:m.sender.id===myId?1:0,
+              borderWidth:m.sender.id===myId||destacada===m.id?1:0,
               borderColor:accent,
               paddingHorizontal:12,paddingVertical:9,borderRadius:18,gap:7,
               // O canto cortado do lado de quem fala: e a pista que se le sem
               // pensar, mesmo com um balao a ocupar quase a largura toda.
               [m.sender.id===myId?'borderBottomRightRadius':'borderBottomLeftRadius']:6,
             }}>
+          {citacao(m)}
           {m.itemType==='sessao'&&m.sessionId?<ConviteDeSessao id={m.sessionId} mensagem={m.message}/>:null}
           {!!m.message&&m.itemType!=='sessao'&&<View style={{flexDirection:'row',alignItems:'flex-end',gap:8,flexWrap:'wrap'}}>
             <Text selectable style={[s.text,{flexShrink:1}]}>{m.message}</Text>
@@ -337,11 +398,15 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
           {!m.message||m.itemType==='sessao'?<Text style={[s.muted,{fontSize:10.5,alignSelf:'flex-end',opacity:0.7}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>:null}
           </MessageBubble>
           <ReactionRow reactions={reacoes.get(m.id)??[]} myId={myId} own={m.sender.id===myId}
-            aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}/>
+            aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}
+            onResponder={()=>responderA(m)}/>
           </View>
         </View>}/>}
-        {group?<GroupComposer value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:
-          <View style={s.row}><TextInput accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}
+        {aResponder&&<BarraDeResposta accent={accent} excerto={excerto(aResponder)}
+          titulo={aResponder.sender.id===myId?'Replying to yourself':`Replying to ${aResponder.sender.name}`}
+          onCancelar={()=>setAResponder(null)}/>}
+        {group?<GroupComposer campoRef={campo} value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:
+          <View style={s.row}><TextInput ref={campo} accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}
             {...({onKeyDown:(e:any)=>{const evento=e?.nativeEvent??e;if(!web||evento?.key!=='Enter'||evento?.shiftKey||evento?.isComposing)return;e.preventDefault?.();evento.preventDefault?.();if(!busy&&draft.trim())void send();}} as any)}/><SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>}
       </View></View>;
 

@@ -1,7 +1,9 @@
-import { CapaDaFaixa } from './CapaDaFaixa';
+import { CapaComTransicao } from './CapaComTransicao';
+import { sentidoDaTransicao, type Sentido } from '../lib/transicaoDaCapa';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
 import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
 import { useMontagemDaCapa } from '../hooks/useMontagemDaCapa';
+import { capaGrande, marcarSemCapaGrande } from '../state/capasGrandes';
 import { partilharRelatorioDoArranque } from '../lib/partilharRelatorioDoArranque';
 import { ModoCarro } from './ModoCarro';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
@@ -636,22 +638,19 @@ export function PlayerRoot() {
   // i.ytimg.com tem versões grandes por videoId. Começamos na maxresdefault
   // (1280px) e, se não existir, caímos na hqdefault (existe sempre). Faz a
   // capa ficar nítida como no Demus.
+  // A escolha, e a memória de quem não tem maxres, vivem em state/capasGrandes:
+  // é o mesmo sítio que as PRÉ-CARREGA para as próximas faixas, e por isso a
+  // capa já está na cache quando se carrega em seguinte (14/9).
   const [artUri, setArtUri] = useState<string | null>(null);
   useEffect(() => {
-    const active = current;
-    if (!active) {
-      setArtUri(null);
-    } else if (active.source === 'youtube') {
-      setArtUri(`https://i.ytimg.com/vi/${active.sourceId}/maxresdefault.jpg`);
-    } else {
-      setArtUri(active.artworkUrl ?? null);
-    }
+    setArtUri(current ? capaGrande(current) : null);
   }, [current?.sourceId]);
 
   const onArtError = () => {
     const active = current;
     if (active && active.source === 'youtube' && artUri?.includes('maxresdefault')) {
-      setArtUri(`https://i.ytimg.com/vi/${active.sourceId}/hqdefault.jpg`);
+      marcarSemCapaGrande(active.sourceId);
+      setArtUri(capaGrande(active));
     }
   };
   const artSource = artUri ?? current?.artworkUrl;
@@ -722,6 +721,18 @@ export function PlayerRoot() {
     current?.sourceId ?? null,
     Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'floating' && expanded,
   );
+
+  // O "Recuo subtil" do skip (lib/transicaoDaCapa.ts). O sentido lê-se UMA vez
+  // por faixa, no instante em que ela chega: o `saltoDaFaixa` diz se foi um next
+  // ou um prev -- e não se subscreve, que redesenhava o leitor por nada.
+  const transicaoDaCapa = useRef<{ chave: string; sentido: Sentido } | null>(null);
+  const chaveDaCapa = current ? `${current.source}:${current.sourceId}` : null;
+  if (chaveDaCapa && transicaoDaCapa.current?.chave !== chaveDaCapa) {
+    transicaoDaCapa.current = {
+      chave: chaveDaCapa,
+      sentido: sentidoDaTransicao(usePlayer.getState().saltoDaFaixa, Date.now()),
+    };
+  }
 
   // Sem faixa não há leitor -- mas pode haver SESSÃO. Entrar numa sessão e
   // ficar à espera que o anfitrião escolha a primeira música é um estado
@@ -1663,10 +1674,10 @@ export function PlayerRoot() {
               fundo do cubo --, e isso lia-se como uma moldura à volta da capa
               (13/9). O véu vive DENTRO da face do cubo, que recorta com o raio:
               a capa fica opaca e não há borda que se possa ver. */}
-          {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante} montagem={montagem}>
+          {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante} montagem={montagem} transicao={transicaoDaCapa.current}>
             {(pose3D) => (
             <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
-              front={<>{artSource?<CapaDaFaixa uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
+              front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
             )}
           </CapaFlutuante3D>}
 

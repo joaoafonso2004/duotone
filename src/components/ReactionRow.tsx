@@ -1,44 +1,87 @@
 import React,{useRef,useState} from 'react';
-import {Platform,Pressable,Text,TextInput,View} from 'react-native';
+import {Animated,PanResponder,Platform,Pressable,Text,TextInput,View} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type {Reaction} from '../api/social';
+import {hapticSelection} from '../lib/haptics';
 import {colors,radii} from './socialTokens';
 import {socialStyles as s} from './socialUI';
 
 /** As primeiras da fila. As restantes vêm do teclado do sistema, pelo `+`. */
 const RAPIDAS=['❤️','😂','🔥','😮','😢','👍'];
 
+/** Quanto se arrasta para a esquerda até a resposta ficar armada, e o máximo. */
+const LIMIAR_DA_RESPOSTA=56;
+const ARRASTO_MAXIMO=72;
+
 /**
- * O balão de uma mensagem, com as duas formas de chegar às reações.
+ * O balão de uma mensagem, com as maneiras de chegar às reações e à resposta.
  *
- * No telemóvel premir sem largar; no PC um botão que aparece ao passar o
- * rato, porque segurar o botão do rato numa mensagem não é gesto que alguém
- * faça. O estado do rato vive aqui e não no `style` do Pressable: o
+ * No telemóvel premir sem largar abre as reações (e o "Reply"); deslizar para a
+ * ESQUERDA responde. Para a esquerda e não para a direita como no Instagram: a
+ * direita é o gesto de voltar do chat (`SocialModal`, na fase de captura), e os
+ * dois no mesmo sentido disputavam o dedo. No PC, dois botões que aparecem ao
+ * passar o rato, porque segurar o botão do rato numa mensagem não é gesto que
+ * alguém faça. O estado do rato vive aqui e não no `style` do Pressable: o
  * React Native Web só passa `hovered` ao `style`, nunca à função dos filhos.
  *
  * O balão NÃO leva `accessibilityRole="button"`. Uma mensagem não é um
  * controlo -- e com esse papel o React Native Web escreve um `<button>`, o
  * que punha o botão das reações dentro de outro botão: HTML inválido, e um
  * leitor de ecrã a anunciar um controlo dentro de outro. O que se opera aqui
- * é o botão das reações; o balão só reconhece um gesto longo.
+ * são os botões; o balão só reconhece gestos.
+ *
+ * O arrasto vive num `Animated.View` à VOLTA do Pressable, e não no Pressable:
+ * espalhar os `panHandlers` no próprio Pressable substituía os dele e matava o
+ * toque longo.
  */
-export function MessageBubble({own,aberto,onAbrir,style,children,rotulo}:{
-  own:boolean; aberto:boolean; onAbrir:()=>void; style:any; rotulo:string; children:React.ReactNode;
+export function MessageBubble({own,aberto,onAbrir,onResponder,style,children,rotulo}:{
+  own:boolean; aberto:boolean; onAbrir:()=>void; onResponder?:()=>void; style:any; rotulo:string; children:React.ReactNode;
 }) {
   const [sobre,setSobre]=useState(false);
   const web=Platform.OS==='web';
-  return <Pressable delayLongPress={280} onLongPress={onAbrir}
-    onHoverIn={()=>setSobre(true)} onHoverOut={()=>setSobre(false)}
-    accessibilityLabel={rotulo} style={style}>
-    {web&&(sobre||aberto)&&<Pressable accessibilityRole="button" accessibilityLabel="React to this message"
-      onPress={onAbrir} style={({pressed}:any)=>[{position:'absolute',top:-10,zIndex:2,
-        right:own?undefined:-10,left:own?-10:undefined,
-        width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',
-        backgroundColor:colors.surfaceHigh,borderWidth:1,borderColor:colors.borderStrong},pressed&&{opacity:0.7}]}>
-      <Ionicons name="happy-outline" size={14} color={colors.textSecondary}/>
-    </Pressable>}
-    {children}
-  </Pressable>;
+  const arrasto=useRef(new Animated.Value(0)).current;
+  const responder=useRef(onResponder);responder.current=onResponder;
+  const armada=useRef(false);
+  const voltar=()=>{armada.current=false;Animated.spring(arrasto,{toValue:0,useNativeDriver:true,bounciness:6}).start();};
+  const gesto=useRef(PanResponder.create({
+    // Só claramente horizontal e para a esquerda: um scroll da conversa nunca
+    // passa neste crivo, e a direita fica para o gesto de voltar.
+    onMoveShouldSetPanResponder:(_e,g)=>!!responder.current&&g.dx<-12&&Math.abs(g.dx)>Math.abs(g.dy)*2,
+    onPanResponderMove:(_e,g)=>{
+      const x=Math.max(-ARRASTO_MAXIMO,Math.min(0,g.dx));
+      arrasto.setValue(x);
+      const agora=x<=-LIMIAR_DA_RESPOSTA;
+      // O toque diz que largar agora responde, como no Instagram.
+      if(agora!==armada.current){armada.current=agora;if(agora)hapticSelection();}
+    },
+    onPanResponderRelease:()=>{if(armada.current)responder.current?.();voltar();},
+    onPanResponderTerminate:voltar,
+  })).current;
+  const icone=arrasto.interpolate({inputRange:[-LIMIAR_DA_RESPOSTA,0],outputRange:[1,0],extrapolate:'clamp'});
+  const botao=({pressed}:any)=>[{width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',
+    backgroundColor:colors.surfaceHigh,borderWidth:1,borderColor:colors.borderStrong},pressed&&{opacity:0.7}];
+  return <Animated.View {...(web?{}:gesto.panHandlers)} style={{transform:[{translateX:arrasto}],maxWidth:'100%'}}>
+    {!web&&onResponder?<Animated.View pointerEvents="none" style={{position:'absolute',right:-34,top:0,bottom:0,justifyContent:'center',opacity:icone}}>
+      <Ionicons name="arrow-undo" size={18} color={colors.textSecondary}/>
+    </Animated.View>:null}
+    <Pressable delayLongPress={280} onLongPress={onAbrir}
+      onHoverIn={()=>setSobre(true)} onHoverOut={()=>setSobre(false)}
+      accessibilityLabel={rotulo}
+      accessibilityActions={onResponder?[{name:'reply',label:'Reply'}]:undefined}
+      onAccessibilityAction={e=>{if(e.nativeEvent.actionName==='reply')onResponder?.();}}
+      style={style}>
+      {web&&(sobre||aberto)&&<View style={{position:'absolute',top:-10,zIndex:2,flexDirection:'row',gap:4,
+        right:own?undefined:-10,left:own?-10:undefined}}>
+        {onResponder&&<Pressable accessibilityRole="button" accessibilityLabel="Reply to this message" onPress={onResponder} style={botao}>
+          <Ionicons name="arrow-undo-outline" size={14} color={colors.textSecondary}/>
+        </Pressable>}
+        <Pressable accessibilityRole="button" accessibilityLabel="React to this message" onPress={onAbrir} style={botao}>
+          <Ionicons name="happy-outline" size={14} color={colors.textSecondary}/>
+        </Pressable>
+      </View>}
+      {children}
+    </Pressable>
+  </Animated.View>;
 }
 
 /**
@@ -46,9 +89,10 @@ export function MessageBubble({own,aberto,onAbrir,style,children,rotulo}:{
  *
  * Uma por pessoa: tocar noutro emoji troca, tocar no mesmo tira. É a regra
  * que a chave primária da tabela já impõe, repetida aqui para o toque fazer
- * o que parece.
+ * o que parece. O painel leva também o "Reply": premir sem largar é o gesto que
+ * toda a gente tenta primeiro, e tem de chegar à resposta.
  */
-export function ReactionRow({reactions,myId,own,aberto,onEscolher,onFechar}:{
+export function ReactionRow({reactions,myId,own,aberto,onEscolher,onFechar,onResponder}:{
   reactions:Reaction[];
   myId?:string;
   /** Alinha com o balão: as minhas mensagens estão encostadas à direita. */
@@ -56,6 +100,7 @@ export function ReactionRow({reactions,myId,own,aberto,onEscolher,onFechar}:{
   aberto:boolean;
   onEscolher:(emoji:string|null)=>void;
   onFechar:()=>void;
+  onResponder?:()=>void;
 }) {
   const [outro,setOutro]=useState('');
   const campo=useRef<TextInput>(null);
@@ -75,6 +120,13 @@ export function ReactionRow({reactions,myId,own,aberto,onEscolher,onFechar}:{
   return <View style={{alignSelf:own?'flex-end':'flex-start',gap:6,maxWidth:'100%'}}>
     {aberto&&<View style={[s.row,{gap:2,padding:4,borderRadius:radii.pill,backgroundColor:colors.surfaceHigh,
       borderWidth:1,borderColor:colors.borderStrong,flexWrap:'wrap'}]}>
+      {onResponder&&<Pressable accessibilityRole="button" accessibilityLabel="Reply to this message"
+        onPress={()=>{onFechar();onResponder();}}
+        style={({pressed,hovered}:any)=>[s.row,{height:36,gap:5,paddingHorizontal:10,borderRadius:18,alignItems:'center'},
+          (pressed||hovered)&&{backgroundColor:colors.surfacePressed}]}>
+        <Ionicons name="arrow-undo-outline" size={17} color={colors.text}/>
+        <Text style={[s.text,{fontSize:14}]}>Reply</Text>
+      </Pressable>}
       {RAPIDAS.map(e=><Pressable key={e} accessibilityRole="button" accessibilityLabel={`React with ${e}`}
         onPress={()=>onEscolher(minha===e?null:e)}
         style={({pressed,hovered}:any)=>[{width:36,height:36,borderRadius:18,alignItems:'center',justifyContent:'center'},

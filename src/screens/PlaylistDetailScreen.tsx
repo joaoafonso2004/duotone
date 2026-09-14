@@ -32,7 +32,11 @@ import {
   removeTrackFromPlaylist,
   renamePlaylist,
   setPlaylistOrder,
+  copiasGuardadas,
+  savePlaylistCopy,
 } from '../api/playlists';
+import { usePlaylists } from '../state/playlists';
+import { estadoDoGuardar, mensagemDeFalhaAoGuardar } from '../lib/guardarPlaylist';
 import { BottomSheet } from '../components/BottomSheet';
 import { CabecalhoDaPlaylist } from '../components/CabecalhoDaPlaylist';
 import { ConfirmSheet } from '../components/ConfirmSheet';
@@ -239,6 +243,36 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     }
   }, [id]);
 
+  /**
+   * Guardar a playlist de outra pessoa (a que chegou pelo chat, 14/9): fica uma
+   * cópia tua. Ver lib/guardarPlaylist.ts -- a mesma regra do PC.
+   */
+  const [copias,setCopias]=useState<Set<string>|null>(null);
+  const [aGuardar,setAGuardar]=useState(false);
+  const donoCarregado=details?.id===id?details.ownerId:null;
+  useEffect(()=>{
+    if(!donoCarregado||!userId||donoCarregado===userId){setCopias(null);return;}
+    let vivo=true;
+    void copiasGuardadas().then(c=>{if(vivo)setCopias(c);}).catch(()=>{if(vivo)setCopias(new Set());});
+    return()=>{vivo=false;};
+  },[id,donoCarregado,userId]);
+  const estadoGuardar=estadoDoGuardar({id,donoId:donoCarregado,eu:userId,copias});
+  const guardar=async()=>{
+    if(aGuardar)return;
+    setAGuardar(true);
+    try{
+      // Guardar outra vez devolve a cópia que já existe: é assim que o "Open
+      // copy" sabe para onde ir.
+      const copia=await savePlaylistCopy(id);
+      const jaTinha=estadoGuardar==='abrir-copia';
+      setCopias(c=>new Set([...(c??[]),id]));
+      void usePlaylists.getState().carregar(true);
+      if(jaTinha)navigation.push('PlaylistDetail',{id:copia,name:`${name} (Shared)`});
+      else hapticNotification();
+    }catch(e:any){Alert.alert('Could not save',mensagemDeFalhaAoGuardar(e));}
+    finally{setAGuardar(false);}
+  };
+
   useFocusEffect(
     useCallback(() => {
       if (!editMode) load();
@@ -435,6 +469,22 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             >
               <Ionicons name="add" size={22} color={theme.color} />
               <Text style={[styles.toolbarLabel, { color: theme.color }]}>Add tracks</Text>
+            </Pressable>}
+
+            {estadoGuardar!=='escondido'&&<Pressable
+              style={styles.toolbarItem}
+              disabled={aGuardar}
+              accessibilityRole="button"
+              accessibilityLabel={estadoGuardar==='abrir-copia'?'Open your copy of this playlist':'Save this playlist to your playlists'}
+              onPress={() => {
+                hapticSelection();
+                void guardar();
+              }}
+            >
+              <Ionicons name={estadoGuardar==='abrir-copia'?'checkmark-circle':'add-circle-outline'} size={20} color={theme.color} />
+              <Text style={[styles.toolbarLabel, { color: theme.color }]}>
+                {estadoGuardar==='abrir-copia'?'Open copy':aGuardar?'Saving…':'Save'}
+              </Text>
             </Pressable>}
 
             <Pressable

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, Easing, Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { CAPA_FLUTUANTE, ondaSeno } from '../lib/capaFlutuante3D';
+import { RECUO, recuoDaCapa, type Sentido } from '../lib/transicaoDaCapa';
 import type { MontagemDaCapa } from '../hooks/useMontagemDaCapa';
 
 // Os materiais saem de scripts/gerar-materiais-da-capa.py.
@@ -31,6 +32,7 @@ const vezes = (onda: Onda, fator: number, soma = 0) => ({
 function criarPostura(
   pose: Animated.Value, flutuar: Animated.Value, derivar: Animated.Value, size: number,
   voo: Animated.Value, assentar: Animated.Value,
+  recuoX: Animated.Value, recuoZ: Animated.Value,
 ) {
   const c = CAPA_FLUTUANTE;
   const ate = (fim: number) => pose.interpolate({ inputRange: [0, 1], outputRange: [0, fim] });
@@ -42,7 +44,8 @@ function criarPostura(
     .interpolate({ inputRange: [-1, 1], outputRange: [`${-graus}deg`, `${graus}deg`] });
   return [
     { perspective: c.perspectiva * size },
-    { translateX: ate(c.deslocacaoX * size) },
+    // O desvio do "Recuo subtil" no sentido do skip (lib/transicaoDaCapa.ts).
+    { translateX: Animated.add(ate(c.deslocacaoX * size), recuoX) },
     { translateY: Animated.add(Animated.add(ate(c.deslocacaoY * size), noAr), assentar) },
     // Seno num eixo e cosseno no outro: a inclinação dá a volta, em vez de ir e vir.
     { rotateX: inclinar(COSSENO, c.deriva.rotateX) },
@@ -51,6 +54,12 @@ function criarPostura(
     { rotateY: angulo(c.rotateY) },
     { rotateZ: angulo(c.rotateZ) },
     { scale: pose.interpolate({ inputRange: [0, 1], outputRange: [1, c.scale] }) },
+    // O recuo, ao longo do eixo da PRÓPRIA caixa (depois dos ângulos): a mesma
+    // translação Z do cubo, feita com X e duas rotações porque os motores nativos
+    // só expõem X e Y. Aqui e não numa vista à volta, que achatava as faces.
+    { rotateY: '90deg' },
+    { translateX: Animated.multiply(recuoZ, -1) },
+    { rotateY: '-90deg' },
   ];
 }
 
@@ -76,6 +85,11 @@ type Props = {
    */
   /** A capa a montar-se com o download (ver `useMontagemDaCapa`). */
   montagem?: MontagemDaCapa | null;
+  /**
+   * A faixa que está na capa e o sentido com que chegou. Mudar a `chave` faz o
+   * "Recuo subtil" (lib/transicaoDaCapa.ts); a primeira não, que é abrir o leitor.
+   */
+  transicao?: { chave: string; sentido: Sentido } | null;
   children: (pose3D: PoseDaCapa3D | null) => React.ReactNode;
 };
 
@@ -90,7 +104,7 @@ type Props = {
  * Nada aqui fica à volta do cubo numa vista que roda: no iPhone isso achatava
  * as faces antes de rodar, e a caixa perdia a profundidade.
  */
-export function CapaFlutuante3D({ size, enabled, montagem = null, children }: Props) {
+export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = null, children }: Props) {
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   // Fases de 0 a 1, uma volta por ciclo. O 0 é o repouso: a meio e sem inclinação.
@@ -102,6 +116,35 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, children }: Pr
   const voo = montagem?.voo ?? semMontagem.um;
   const assentar = montagem?.assentar ?? semMontagem.zero;
   const aterrar = montagem?.aterrar ?? semMontagem.um;
+  // O "Recuo subtil": em repouso valem zero, e a pose é exatamente a do lib.
+  const recuoX = useRef(new Animated.Value(0)).current;
+  const recuoZ = useRef(new Animated.Value(0)).current;
+  const chaveAnterior = useRef(transicao?.chave ?? null);
+
+  // Uma faixa nova na capa: recua, desvia-se no sentido do skip e volta com uma
+  // mola. A primeira chave é abrir o leitor, e isso não é um skip.
+  useEffect(() => {
+    const chave = transicao?.chave ?? null;
+    if (chave === chaveAnterior.current) return;
+    chaveAnterior.current = chave;
+    const recuo = recuoDaCapa({
+      lado: size, sentido: transicao?.sentido ?? 0, capa3D: enabled, reduzirMovimento: reduced,
+    });
+    if (!recuo || !foreground) return;
+    const ida = { duration: RECUO.idaMs, easing: Easing.out(Easing.quad), useNativeDriver: true };
+    const volta = { toValue: 0, ...RECUO.mola, useNativeDriver: true };
+    const animacao = Animated.sequence([
+      Animated.parallel([
+        Animated.timing(recuoZ, { toValue: recuo.profundidade, ...ida }),
+        Animated.timing(recuoX, { toValue: recuo.desvio, ...ida }),
+      ]),
+      Animated.parallel([Animated.spring(recuoZ, volta), Animated.spring(recuoX, volta)]),
+    ]);
+    animacao.start();
+    // Skips seguidos: a próxima parte de onde esta ficou, sem saltar.
+    return () => animacao.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transicao?.chave]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => setForeground(state === 'active'));
@@ -152,8 +195,8 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, children }: Pr
   // Estáveis entre renders: o leitor volta a desenhar a cada segundo da música,
   // e refazer as interpolações a cada vez era religar o grafo nativo por nada.
   const postura = useMemo(
-    () => criarPostura(pose, flutuar, derivar, size, voo, assentar),
-    [pose, flutuar, derivar, size, voo, assentar],
+    () => criarPostura(pose, flutuar, derivar, size, voo, assentar, recuoX, recuoZ),
+    [pose, flutuar, derivar, size, voo, assentar, recuoX, recuoZ],
   );
   const pose3D = useMemo<PoseDaCapa3D | null>(
     () => (enabled
