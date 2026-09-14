@@ -95,6 +95,13 @@ export const CAPA_FLUTUANTE = {
   /** Cantos quase vivos: é o que deixa as laterais inteiras fechar a caixa. */
   raio: 2,
   /**
+   * Em pontos: quanto as laterais ficam para dentro da face. A borda da face é
+   * suavizada e deixava ver o fundo claro numa linha à volta da caixa (as
+   * "arestas esbranquiçadas", 14/9); com as laterais um pouco para dentro, é a
+   * lateral escura que fica por trás dessa borda.
+   */
+  recuoDasLaterais: 0.75,
+  /**
    * O grão de pedra: 60 pt por mosaico, por cima de todas as faces. A opacidade
    * vai DENTRO do PNG (scripts/gerar-materiais-da-capa.py), e o teste confere
    * que é esta.

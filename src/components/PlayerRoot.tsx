@@ -1639,7 +1639,7 @@ export function PlayerRoot() {
           {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante}>
             {(pose3D) => (
             <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
-              front={<>{artSource?<CapaDaFaixa uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} /><View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa, capaFlutuante && { borderRadius: CAPA_FLUTUANTE.raio }]} /></>} pose3D={pose3D} />
+              front={<>{artSource?<CapaDaFaixa uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
             )}
           </CapaFlutuante3D>}
 
@@ -1921,6 +1921,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
   },
+  // O fio claro é só da capa plana (Simple). Na caixa 3D desenhava uma linha
+  // branca à volta da face, que se lia como arestas esbranquiçadas (14/9).
   arestaDaCapa: {
     borderRadius: 20,
     borderWidth: StyleSheet.hairlineWidth,

@@ -338,11 +338,18 @@ const estilos = StyleSheet.create({
   },
   // Muito desfocado e muito escuro: fica textura, não imagem. A capa é a
   // única coisa com cor no ecrã.
-  fundoDaApp: { filter: 'blur(34px) brightness(22%) saturate(70%)', transform: [{ scale: 1.1 }] } as any,
+  //
+  // O `width`/`height` de 100% não é redundante com o `absoluteFill`: no
+  // react-native-web uma <Image> com `require` leva o tamanho do PNG, e o
+  // `absoluteFill` não o desfaz (não define largura nem altura).
+  fundoDaApp: { width: '100%', height: '100%', filter: 'blur(34px) brightness(22%) saturate(70%)', transform: [{ scale: 1.1 }] } as any,
   veu: { backgroundColor: 'rgba(6,6,8,0.55)' },
   // O `pointerEvents` no estilo e coisa da web: os tipos do React Native nao
   // o conhecem, e sem ele estas camadas apanhavam os cliques da capa.
-  textura: { pointerEvents: 'none' } as any,
+  // E o tamanho, pela razão do `fundoDaApp`: sem ele o grão ficava num quadrado
+  // de 256 px no canto e a vinheta num retângulo de 960x540 -- os "quadrados de
+  // fundo" do F11 (14/9).
+  textura: { width: '100%', height: '100%', pointerEvents: 'none' } as any,
   halo: {
     position: 'absolute',
     pointerEvents: 'none',

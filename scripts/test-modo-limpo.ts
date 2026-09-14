@@ -117,6 +117,15 @@ caso('o keydown da pagina so entra quando NAO ha ponte do Electron', () => {
   );
 });
 
+console.log('\nas texturas enchem o ecra');
+caso('o grao, a vinheta e o fundo nao ficam do tamanho do PNG', () => {
+  // No react-native-web uma <Image> com `require` leva a largura e a altura do
+  // PNG, e o `absoluteFill` nao as desfaz. O grao ficava num quadrado de 256 px
+  // no canto e a vinheta num retangulo de 960x540 (14/9).
+  assert.ok(/textura: \{ width: '100%', height: '100%'/.test(fonte), 'a textura tem de ter 100% de largura e altura');
+  assert.ok(/fundoDaApp: \{ width: '100%', height: '100%'/.test(fonte), 'o fundo desfocado tambem');
+});
+
 if (falhas) {
   console.error(`\n  ${falhas} caso(s) falharam.\n`);
   process.exit(1);

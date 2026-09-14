@@ -147,7 +147,17 @@ async function run() {
   const cubo = fs.readFileSync(path.join(root, 'src/components/ArtworkLyricsCube.tsx'), 'utf8');
   assert.match(cubo, /-direction\*180/, 'no 3D a caixa vira 180° inteira, com as letras no verso');
   assert.match(cubo, /LATERAIS\.map/, 'as laterais viram com a face');
-  assert.match(cubo, /GraoDaFace/, 'o grão de pedra está nas faces, e não só nas laterais');
+  assert.match(cubo, /GraoDaFace/, 'o grão de pedra está na face e no verso');
+  // As arestas não podem ficar esbranquiçadas (14/9): sem grão nas laterais (de
+  // lado lia-se como névoa clara), sem o fio claro da capa plana na caixa 3D, e
+  // as laterais um pouco para dentro da face, para a emenda não mostrar o fundo.
+  const lateral = cubo.match(/function LateralDaCaixa[\s\S]*?\r?\n\}\r?\n/);
+  assert.ok(lateral, 'a lateral existe');
+  assert.doesNotMatch(lateral[0], /GraoDaFace/, 'as laterais não levam grão');
+  assert.match(lateral[0], /recuoDasLaterais/, 'as laterais ficam para dentro da face');
+  assert.ok(c.recuoDasLaterais > 0 && c.recuoDasLaterais <= 1.5, 'o recuo é de uma fração de ponto');
+  assert.match(player, /\{!capaFlutuante && <View pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, styles\.arestaDaCapa\]\} \/>\}/,
+    'o fio claro da capa só existe na capa plana');
   // O modo repeat da Image não repetia no iPhone: a 2.9.2 mostrava um mosaico só,
   // no canto de cima à esquerda. O grão é repetido à mão.
   assert.doesNotMatch(cubo, /resizeMode=["']repeat/, 'o grão não depende do repeat da Image');
