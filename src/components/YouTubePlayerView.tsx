@@ -25,6 +25,7 @@ import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED, verificarC
 import { quantasAdiantar } from '../lib/adiantarFaixas';
 import type { Prioridade } from '../lib/filaDeDownloads';
 import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
+import { comecarArranque, marcarResolver } from '../lib/arranqueDaFaixa';
 import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar,
   sinalDoErro, type TipoFalha,
@@ -849,6 +850,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
     seguinteRef.current = null;
     const myRun = ++runIdRef.current;
+    comecarArranque(track.sourceId);
     // O download da faixa que sai cancela já, e não na verificação seguinte.
     verificarCancelamentos();
     nativeTrackIdRef.current = null;
@@ -1001,6 +1003,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // rede está mesmo mal, ou encravou. Falhar aqui dá uma mensagem e
         // devolve o controlo -- não fazer nada deixa a app à espera para
         // sempre.
+        marcarResolver(track.sourceId, { inicio: true });
         stream = await Promise.race([
           resolveYouTubeStream(track.sourceId, quality),
           new Promise<never>((_, rejeitar) =>
@@ -1010,6 +1013,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
       if (!alive()) return;
       streamRef.current = stream;
+      marcarResolver(track.sourceId, { fim: true, cliente: stream.client ?? null });
       // Guardar a loudness ANTES de aplicar o teto: da próxima vez a faixa
       // toca do ficheiro local e já não passa por aqui.
       rememberLoudnessDb(track.sourceId, stream.loudnessDb);
@@ -1064,6 +1068,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       descarregarRef.current.ativo = false;
       if (alive()) {
         const errMsg = e?.message ?? 'unknown';
+        marcarResolver(track.sourceId, { erro: errMsg });
         setDownloadProgress(null);
         if (errMsg === DOWNLOAD_ABORTED) return; // cancelamento silencioso, não é erro
 

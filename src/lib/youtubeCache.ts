@@ -305,6 +305,7 @@ export async function fetchChunkWithRetry(
   renewUrl?: () => Promise<string | null>,
   shouldAbort?: () => boolean,
   expectedTotal?: number,
+  registo?: { tentativas: number; ultimoHttp: number | null; urlRenovado: boolean },
 ): Promise<{ bytes: Uint8Array; url: string }> {
   let lastStatus = 0;
   let current = url;
@@ -312,11 +313,13 @@ export async function fetchChunkWithRetry(
   for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_CHUNK; attempt++) {
     if (shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
     if (attempt > 0) await sleep(800 * 2 ** (attempt - 1)); // 800ms, 1.6s, 3.2s
+    if (registo) registo.tentativas = attempt + 1;
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
     const pararDeVigiar=vigiarCancelamento(controller,shouldAbort);
     try{
       const res=await fetch(current,{headers:{Range:`bytes=${start}-${end}`},signal:controller.signal});
+      if(registo)registo.ultimoHttp=res.status;
       if (res.status === 206 || res.status === 200) {
         if (expectedTotal === undefined) throw new Error('Total do audio em falta');
         // Nao chega verificar o TAMANHO: pedir 4-7 e receber "bytes 0-3/8" da
@@ -348,6 +351,7 @@ export async function fetchChunkWithRetry(
         ]).catch(() => null);
         if (fresh) {
           current = fresh;
+          if (registo) registo.urlRenovado = true;
           continue;
         }
       }
@@ -394,6 +398,55 @@ const emCurso = new Map<string, Promise<string>>();
 /** So para testes: esquece o que esta a meio. */
 export function limparDownloadsEmCurso(): void {
   emCurso.clear();
+  downloads.clear();
+}
+
+/**
+ * O que se sabe de cada download em curso -- para a capa 3D se montar ao ritmo
+ * dos bocados (`useMontagemDaCapa`) e para o relatório de uma faixa presa
+ * (`relatorioDoArranque.ts`). Por faixa, seja quem for que o pediu: uma faixa que
+ * o Smart Cache já estava a adiantar mostra o progresso desse download.
+ *
+ * `na-fila` é à espera de vaga (`filaDeDownloads`, uma de cada vez); é aí que
+ * uma faixa fica parada quando um download de fundo encrava.
+ */
+export type EstadoDoDownload = {
+  videoId: string;
+  prioridade: Prioridade;
+  fase: 'na-fila' | 'a-descarregar';
+  pedidoEm: number;
+  inicioEm: number | null;
+  bytes: number;
+  total: number | null;
+  bocados: number;
+  bocadoBytes: number;
+  ultimoBocadoEm: number | null;
+  /** Tentativas no bocado em curso (volta a 0 a cada bocado que chega). */
+  tentativas: number;
+  ultimoHttp: number | null;
+  urlRenovado: boolean;
+};
+
+const downloads = new Map<string, EstadoDoDownload>();
+const ouvintesDosDownloads = new Set<() => void>();
+
+function avisarDownloads(): void {
+  for (const ouvir of [...ouvintesDosDownloads]) ouvir();
+}
+
+export function estadoDoDownload(videoId: string): EstadoDoDownload | null {
+  const estado = downloads.get(videoId);
+  return estado ? { ...estado } : null;
+}
+
+export function downloadsEmCurso(): EstadoDoDownload[] {
+  return [...downloads.values()].map((estado) => ({ ...estado }));
+}
+
+/** Chamado quando um download entra na fila, começa, recebe um bocado ou acaba. */
+export function ouvirDownloads(ouvir: () => void): () => void {
+  ouvintesDosDownloads.add(ouvir);
+  return () => { ouvintesDosDownloads.delete(ouvir); };
 }
 
 /** Descarrega áudio progressivo por pedaços para armazenamento local e corrige os metadados de duração. */
@@ -436,15 +489,32 @@ export async function downloadProgressiveAudio(
   }
 
   const meu = (async () => {
-    const bilhete = await pedirVez(opts.prioridade ?? 'explicito');
+    const registo: EstadoDoDownload = {
+      videoId, prioridade: opts.prioridade ?? 'explicito', fase: 'na-fila', pedidoEm: Date.now(), inicioEm: null,
+      bytes: 0, total: knownLength, bocados: 0, bocadoBytes: CHUNK_BYTES, ultimoBocadoEm: null,
+      tentativas: 0, ultimoHttp: null, urlRenovado: false,
+    };
+    downloads.set(videoId, registo);
+    avisarDownloads();
     try {
-      // Entre pedir a vez e chega-la, a faixa pode ter mudado ou outro job pode
-      // ter descarregado esta mesma.
-      if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
-      if (dest.exists) return dest.uri;
-      return await descarregarAgora(videoId, url, knownLength, durationSeconds, opts, dest);
+      const bilhete = await pedirVez(opts.prioridade ?? 'explicito');
+      try {
+        // Entre pedir a vez e chega-la, a faixa pode ter mudado ou outro job pode
+        // ter descarregado esta mesma.
+        if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+        if (dest.exists) return dest.uri;
+        registo.fase = 'a-descarregar';
+        registo.inicioEm = Date.now();
+        avisarDownloads();
+        return await descarregarAgora(videoId, url, knownLength, durationSeconds, opts, dest, registo);
+      } finally {
+        largarVez(bilhete);
+      }
     } finally {
-      largarVez(bilhete);
+      if (downloads.get(videoId) === registo) {
+        downloads.delete(videoId);
+        avisarDownloads();
+      }
     }
   })();
 
@@ -464,13 +534,15 @@ async function descarregarAgora(
   knownLength: number | null,
   durationSeconds: number | null,
   opts: DownloadOptions,
-  dest: any
+  dest: any,
+  registo?: EstadoDoDownload
 ): Promise<string> {
 
   let currentUrl = url;
   let chunkSize = CHUNK_BYTES;
   const total = knownLength ?? (await discoverContentLength(url, opts.shouldAbort));
   if (!Number.isSafeInteger(total) || total<=0 || total>MAX_AUDIO_BYTES) throw new Error('Audio file is too large to download safely.');
+  if (registo) { registo.total = total; avisarDownloads(); }
   if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
   const combined = new Uint8Array(total);
   let offset = 0;
@@ -482,7 +554,7 @@ async function descarregarAgora(
     const end = Math.min(offset + chunkSize, total) - 1;
     let part: Uint8Array;
     try {
-      const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl, opts.shouldAbort, total);
+      const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl, opts.shouldAbort, total, registo);
       part = got.bytes;
       currentUrl = got.url; // se foi renovado, os chunks seguintes usam o novo
     } catch (e) {
@@ -505,6 +577,14 @@ async function descarregarAgora(
     combined.set(part, offset);
     offset = end + 1;
     opts.onProgress?.(Math.min(1, offset / total));
+    if (registo) {
+      registo.bytes = offset;
+      registo.bocados += 1;
+      registo.bocadoBytes = chunkSize;
+      registo.ultimoBocadoEm = Date.now();
+      registo.tentativas = 0;
+      avisarDownloads();
+    }
   }
   if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
 

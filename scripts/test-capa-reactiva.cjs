@@ -148,6 +148,9 @@ async function run() {
   assert.match(cubo, /-direction\*180/, 'no 3D a caixa vira 180° inteira, com as letras no verso');
   assert.match(cubo, /LATERAIS\.map/, 'as laterais viram com a face');
   assert.match(cubo, /GraoDaFace/, 'o grão de pedra está na face e no verso');
+  // A montagem com o download (14/9): as laterais e a face chegam ao sítio.
+  assert.match(cubo, /chegar\(m,grupo,/, 'as laterais montam-se com o download');
+  assert.match(cubo, /chegar\(m,2,/, 'a face também');
   // As arestas não podem ficar esbranquiçadas (14/9): sem grão nas laterais (de
   // lado lia-se como névoa clara), sem o fio claro da capa plana na caixa 3D, e
   // as laterais um pouco para dentro da face, para a emenda não mostrar o fundo.

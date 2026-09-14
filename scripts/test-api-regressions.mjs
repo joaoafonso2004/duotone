@@ -419,6 +419,23 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   pendurado.verificarCancelamentos();
   await aDescarregar;
   assert.ok(Date.now()-inicio<500,'o aviso cancela o pedido logo, sem esperar pelo relógio');
+  // O registo dos downloads (para a capa se montar e para o relatório de preso):
+  // quem tem a vaga descarrega, quem chega depois fica na fila, e sai ao acabar.
+  let pararTodos=false;
+  const fila=ambiente((_url,{signal})=>new Promise((_resolve,reject)=>{signal.addEventListener('abort',()=>reject(Error('aborted')));}),stubs).carregar('src/lib/youtubeCache.ts');
+  const primeiro=assert.rejects(fila.downloadProgressiveAudio('a','https://audio.test',10,null,{prioridade:'adiantar',shouldAbort:()=>pararTodos}),/download aborted/);
+  const segundo=assert.rejects(fila.downloadProgressiveAudio('b','https://audio.test',10,null,{prioridade:'reproducao',shouldAbort:()=>pararTodos}),/download aborted/);
+  await new Promise((r)=>setTimeout(r,30));
+  assert.equal(fila.estadoDoDownload('a')?.fase,'a-descarregar','quem tem a vaga descarrega');
+  assert.equal(fila.estadoDoDownload('a')?.prioridade,'adiantar');
+  assert.equal(fila.estadoDoDownload('a')?.ultimoHttp,null,'o pedido ainda não respondeu');
+  assert.equal(fila.estadoDoDownload('b')?.fase,'na-fila','quem chega depois fica na fila, e o registo diz');
+  assert.equal(fila.downloadsEmCurso().length,2);
+  pararTodos=true;
+  fila.verificarCancelamentos();
+  await primeiro;
+  await segundo;
+  assert.equal(fila.downloadsEmCurso().length,0,'acabado, sai do registo');
   console.log('Downloads: tamanho máximo, descoberta remota e cancelamento foram limitados.');
 }
 

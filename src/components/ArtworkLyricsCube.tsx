@@ -7,6 +7,7 @@ import {LyricsView} from './LyricsView';
 import {LinearGradient} from 'expo-linear-gradient';
 import {CAPA_FLUTUANTE,geometriaDaLateral,LATERAIS,mosaicoDoGrao,type Lateral} from '../lib/capaFlutuante3D';
 import type {PoseDaCapa3D} from './CapaFlutuante3D';
+import type {MontagemDaCapa} from '../hooks/useMontagemDaCapa';
 
 type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;showLyrics:boolean;onChange:(open:boolean)=>void;
   /**
@@ -38,6 +39,13 @@ type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;s
 // Translação Z equivalente, também nos motores nativos que só expõem X e Y.
 const depth=(z:number)=>[{rotateY:'90deg'},{translateX:-z},{rotateY:'-90deg'}];
 
+/** Onde está uma peça da montagem (0 longe, 1 no sítio), com o recuo se for a que está presa. */
+const posicaoDaPeca=(m:MontagemDaCapa,i:number)=>m.proxima===i?Animated.subtract(m.pecas[i],m.recuo):m.pecas[i];
+/** A peça a chegar ao sítio ao longo da sua normal: a `distancia` quando está longe, 0 no sítio. */
+const chegar=(m:MontagemDaCapa|null,i:number,distancia:number)=>m
+  ?[{rotateY:'90deg'},{translateX:posicaoDaPeca(m,i).interpolate({inputRange:[0,1],outputRange:[-distancia,0]})},{rotateY:'-90deg'}]
+  :[];
+
 /**
  * Uma lateral da caixa 3D: a faixa da capa junto àquela borda, espelhada para a
  * borda continuar pela aresta, com um véu que escurece para trás. Vira com a
@@ -62,9 +70,12 @@ function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:numb
     :lado==='cima'?[{translateY:-meio},{rotateX:'90deg'}]
     :[{translateY:meio},{rotateX:'-90deg'}];
   const veu:[string,string]=[`rgba(0,0,0,${g.veu.frente})`,`rgba(0,0,0,${g.veu.tras})`];
+  const m=pose3D.montagem;
+  // A esquerda (e a direita, escondida) encaixa com o 1.º bocado; a de baixo (e a de cima) com o 2.º.
+  const grupo=lado==='esquerda'||lado==='direita'?0:1;
   return <Animated.View pointerEvents="none" shouldRasterizeIOS style={{position:'absolute',left:g.left,top:g.top,width:g.largura,height:g.altura,
-    overflow:'hidden',backfaceVisibility:'hidden',opacity:pose3D.pose,
-    transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar]}}>
+    overflow:'hidden',backfaceVisibility:'hidden',opacity:m?Animated.multiply(pose3D.pose,m.opacidades[grupo]):pose3D.pose,
+    transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar,...chegar(m,grupo,0.26*size)]}}>
     <View style={{width:g.largura,height:g.altura,overflow:'hidden',transform:[g.espelho==='x'?{scaleX:-1}:{scaleY:-1}]}}>
       {artwork?<Image source={{uri:artwork}} style={{position:'absolute',left:g.imagem.x,top:g.imagem.y,width:size,height:size}} />:null}
     </View>
@@ -193,7 +204,12 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
   const espessura=pose3D?.espessura??0;
   const virar=progress.interpolate({inputRange:[0,1],outputRange:['0deg',`${-direction*180}deg`]});
   const pivo=pose3D?[...pose3D.postura,...depth(-espessura/2),{rotateY:virar}]:[];
-  const frontStyle3D=pose3D?(reduced?{opacity:showLyrics?0:1,transform:[...pose3D.postura]}:{transform:[...pivo,...depth(espessura/2)]}):null;
+  // A montagem com o download (useMontagemDaCapa): a face chega ao sítio ao longo
+  // da normal e só pousa com a faixa pronta. O verso não se monta: quem está a
+  // ler as letras não pode perdê-las a cada música.
+  const m=pose3D?.montagem??null;
+  const transformDaFace=pose3D?(reduced?[...pose3D.postura]:[...pivo,...depth(espessura/2)]):[];
+  const frontStyle3D=pose3D?(reduced?{opacity:showLyrics?0:(m?m.opacidades[2]:1),transform:[...pose3D.postura]}:{opacity:m?m.opacidades[2]:1,transform:[...transformDaFace,...chegar(m,2,0.5*size)]}):null;
   const lyricsStyle3D=pose3D?(reduced?{opacity:showLyrics?1:0,transform:[...pose3D.postura]}:{transform:[...pivo,...depth(-espessura/2),{rotateY:'180deg'}]}):null;
   return <View ref={cubeRef} {...(Platform.OS==='web'?{}:responder.panHandlers)} testID="artwork-lyrics-cube"
     accessible={!showLyrics} accessibilityLabel={showLyrics?'Lyrics':'Album artwork'}
@@ -207,6 +223,15 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       else if(event.key==='Escape'&&showLyrics){event.preventDefault();onChange(false);}
     }}:{})} style={[{width:size,height:size},Platform.OS==='web'&&({touchAction:'pan-y',userSelect:'none'} as any)]}>
     {pose3D?LATERAIS.map((l)=><LateralDaCaixa key={l.lado} lado={l.lado} size={size} pose3D={pose3D} virar={reduced?'0deg':virar} artwork={artwork} />):null}
+    {/* O lugar da face antes de ela pousar, e a luz que lhe dá a volta enquanto
+        ainda não há download. Ver lib/montagemDaCapa.ts. */}
+    {m?<Animated.View pointerEvents="none" style={[styles.fantasma,{borderRadius:raio,opacity:m.contorno,transform:transformDaFace}]} />:null}
+    {m?<Animated.View pointerEvents="none" style={[styles.espera,{transform:transformDaFace}]}>
+      <Animated.View style={[styles.luz,{opacity:m.luz.opacidade,transform:[
+        {translateX:m.luz.fase.interpolate({inputRange:[0,0.25,0.5,0.75,1],outputRange:[0,size,size,0,0]})},
+        {translateY:m.luz.fase.interpolate({inputRange:[0,0.25,0.5,0.75,1],outputRange:[0,0,size,size,0]})},
+      ]}]} />
+    </Animated.View>:null}
     <Animated.View pointerEvents="none" aria-hidden={showLyrics} accessibilityElementsHidden={showLyrics} importantForAccessibility={showLyrics?'no-hide-descendants':'auto'} style={[styles.face,{borderRadius:raio},frontStyle3D??frontStyle]}>
       {front}
       {pose3D?<GraoDaFace pose3D={pose3D} largura={size} altura={size} />:null}
@@ -223,4 +248,7 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
 }
 const styles=StyleSheet.create({
   face:{position:'absolute',top:0,bottom:0,left:0,right:0,backgroundColor:'#16161d',borderRadius:20,overflow:'hidden',backfaceVisibility:'hidden'},
+  fantasma:{position:'absolute',top:0,bottom:0,left:0,right:0,borderWidth:1,borderColor:'rgba(255,255,255,0.9)',backgroundColor:'rgba(255,255,255,0.05)',backfaceVisibility:'hidden'},
+  espera:{position:'absolute',top:0,bottom:0,left:0,right:0,backfaceVisibility:'hidden'},
+  luz:{position:'absolute',left:-3.5,top:-3.5,width:7,height:7,borderRadius:3.5,backgroundColor:'#fff',shadowColor:'#fff',shadowOpacity:0.8,shadowRadius:6,shadowOffset:{width:0,height:0}},
 });

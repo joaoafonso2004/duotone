@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, Easing, Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { CAPA_FLUTUANTE, ondaSeno } from '../lib/capaFlutuante3D';
+import type { MontagemDaCapa } from '../hooks/useMontagemDaCapa';
 
 // Os materiais saem de scripts/gerar-materiais-da-capa.py.
 const GRAO: ImageSourcePropType = require('../../assets/capa3d-grao.png');
@@ -27,18 +28,22 @@ const vezes = (onda: Onda, fator: number, soma = 0) => ({
  * vista de frente, e não um desvio dos ângulos medidos. Em repouso vale zero, e
  * a pose fica exatamente a do lib.
  */
-function criarPostura(pose: Animated.Value, flutuar: Animated.Value, derivar: Animated.Value, size: number) {
+function criarPostura(
+  pose: Animated.Value, flutuar: Animated.Value, derivar: Animated.Value, size: number,
+  voo: Animated.Value, assentar: Animated.Value,
+) {
   const c = CAPA_FLUTUANTE;
   const ate = (fim: number) => pose.interpolate({ inputRange: [0, 1], outputRange: [0, fim] });
   const angulo = (graus: number) => pose.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${graus}deg`] });
   // Positivo é para baixo. Uma volta de seno por ciclo, a começar e a acabar no meio.
-  const noAr = Animated.multiply(flutuar.interpolate(vezes(SENO, c.amplitude)), pose);
-  const inclinar = (onda: Onda, graus: number) => Animated.multiply(derivar.interpolate(onda), pose)
+  // A montar-se não flutua: `voo` sobe de 0 para 1 quando a caixa fica montada.
+  const noAr = Animated.multiply(Animated.multiply(flutuar.interpolate(vezes(SENO, c.amplitude)), pose), voo);
+  const inclinar = (onda: Onda, graus: number) => Animated.multiply(Animated.multiply(derivar.interpolate(onda), pose), voo)
     .interpolate({ inputRange: [-1, 1], outputRange: [`${-graus}deg`, `${graus}deg`] });
   return [
     { perspective: c.perspectiva * size },
     { translateX: ate(c.deslocacaoX * size) },
-    { translateY: Animated.add(ate(c.deslocacaoY * size), noAr) },
+    { translateY: Animated.add(Animated.add(ate(c.deslocacaoY * size), noAr), assentar) },
     // Seno num eixo e cosseno no outro: a inclinação dá a volta, em vez de ir e vir.
     { rotateX: inclinar(COSSENO, c.deriva.rotateX) },
     { rotateY: inclinar(SENO, c.deriva.rotateY) },
@@ -58,6 +63,8 @@ export type PoseDaCapa3D = {
   espessura: number;
   /** A opacidade já vem no PNG (scripts/gerar-materiais-da-capa.py). */
   grao: { fonte: ImageSourcePropType };
+  /** A montagem com o download (null fora do leitor do iPhone). */
+  montagem: MontagemDaCapa | null;
 };
 
 type Props = {
@@ -67,6 +74,8 @@ type Props = {
    * O cubo capa/letras. Recebe a pose quando o 3D está ligado, e desenha-se
    * então como caixa (ver `ArtworkLyricsCube`); sem ela, é o cubo de sempre.
    */
+  /** A capa a montar-se com o download (ver `useMontagemDaCapa`). */
+  montagem?: MontagemDaCapa | null;
   children: (pose3D: PoseDaCapa3D | null) => React.ReactNode;
 };
 
@@ -81,13 +90,18 @@ type Props = {
  * Nada aqui fica à volta do cubo numa vista que roda: no iPhone isso achatava
  * as faces antes de rodar, e a caixa perdia a profundidade.
  */
-export function CapaFlutuante3D({ size, enabled, children }: Props) {
+export function CapaFlutuante3D({ size, enabled, montagem = null, children }: Props) {
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   // Fases de 0 a 1, uma volta por ciclo. O 0 é o repouso: a meio e sem inclinação.
   const flutuar = useRef(new Animated.Value(0)).current;
   const derivar = useRef(new Animated.Value(0)).current;
   const pose = useRef(new Animated.Value(enabled ? 1 : 0)).current;
+  // Sem montagem, a caixa está montada e flutua.
+  const semMontagem = useRef({ um: new Animated.Value(1), zero: new Animated.Value(0) }).current;
+  const voo = montagem?.voo ?? semMontagem.um;
+  const assentar = montagem?.assentar ?? semMontagem.zero;
+  const aterrar = montagem?.aterrar ?? semMontagem.um;
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => setForeground(state === 'active'));
@@ -137,12 +151,15 @@ export function CapaFlutuante3D({ size, enabled, children }: Props) {
   const c = CAPA_FLUTUANTE;
   // Estáveis entre renders: o leitor volta a desenhar a cada segundo da música,
   // e refazer as interpolações a cada vez era religar o grafo nativo por nada.
-  const postura = useMemo(() => criarPostura(pose, flutuar, derivar, size), [pose, flutuar, derivar, size]);
+  const postura = useMemo(
+    () => criarPostura(pose, flutuar, derivar, size, voo, assentar),
+    [pose, flutuar, derivar, size, voo, assentar],
+  );
   const pose3D = useMemo<PoseDaCapa3D | null>(
     () => (enabled
-      ? { postura, pose, espessura: c.espessura * size, grao: { fonte: GRAO } }
+      ? { postura, pose, espessura: c.espessura * size, grao: { fonte: GRAO }, montagem }
       : null),
-    [enabled, postura, pose, size, c.espessura],
+    [enabled, postura, pose, size, c.espessura, montagem],
   );
   const sombras = useMemo(() => {
     const a = c.sombraAmbiente, k = c.sombraDeContacto;
@@ -151,20 +168,21 @@ export function CapaFlutuante3D({ size, enabled, children }: Props) {
     return {
       ambiente: {
         left: a.x * size, top: a.y * size, width: a.largura * size, height: a.altura * size,
-        opacity: Animated.multiply(pose, baixo.interpolate({ inputRange: [0, 1], outputRange: [a.opacidade * 0.85, a.opacidade] })),
+        // As sombras escurecem com a montagem: o objeto aterra.
+        opacity: Animated.multiply(Animated.multiply(pose, aterrar), baixo.interpolate({ inputRange: [0, 1], outputRange: [a.opacidade * 0.85, a.opacidade] })),
         transform: [{ scaleX: baixo.interpolate({ inputRange: [0, 1], outputRange: [1.04, 1] }) }],
       },
       // Mais clara e mais pequena quando a capa sobe: é isso que vende a altura.
       contacto: {
         left: k.x * size, top: k.y * size, width: k.largura * size, height: k.altura * size,
-        opacity: Animated.multiply(pose, baixo.interpolate({ inputRange: [0, 1], outputRange: [k.opacidade * 0.55, k.opacidade] })),
+        opacity: Animated.multiply(Animated.multiply(pose, aterrar), baixo.interpolate({ inputRange: [0, 1], outputRange: [k.opacidade * 0.55, k.opacidade] })),
         transform: [
           { rotate: `${k.rotacao}deg` },
           { scale: baixo.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
         ],
       },
     };
-  }, [pose, flutuar, size, c.sombraAmbiente, c.sombraDeContacto]);
+  }, [pose, flutuar, size, aterrar, c.sombraAmbiente, c.sombraDeContacto]);
 
   return (
     <View style={{ width: size, height: size, overflow: 'visible' }}>

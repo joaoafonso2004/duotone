@@ -1,6 +1,8 @@
 import { CapaDaFaixa } from './CapaDaFaixa';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
 import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
+import { useMontagemDaCapa } from '../hooks/useMontagemDaCapa';
+import { partilharRelatorioDoArranque } from '../lib/partilharRelatorioDoArranque';
 import { ModoCarro } from './ModoCarro';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import {StateIcon} from './StateIcon';
@@ -713,6 +715,14 @@ export function PlayerRoot() {
     return () => clearTimeout(id);
   }, [error, erroTemporario, setError]);
 
+  // A capa 3D a montar-se com o download, e o botão do relatório quando o
+  // arranque fica preso (lib/montagemDaCapa.ts). Antes do `if (!current)`: é um
+  // hook. A deteção corre também no Simple; as animações só com a capa 3D à vista.
+  const montagem = useMontagemDaCapa(
+    current?.sourceId ?? null,
+    Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'floating' && expanded,
+  );
+
   // Sem faixa não há leitor -- mas pode haver SESSÃO. Entrar numa sessão e
   // ficar à espera que o anfitrião escolha a primeira música é um estado
   // normal, e nesse a barra é a única coisa no ecrã que explica o que se passa.
@@ -1106,6 +1116,8 @@ export function PlayerRoot() {
               key={String(paraAsLetras)}
               hitSlop={10}
               onPress={() => setShowLyrics(paraAsLetras)}
+              disabled={!!montagem.preso}
+              style={montagem.preso ? styles.pontoEscondido : undefined}
               accessibilityLabel={paraAsLetras ? 'Ver as letras' : 'Ver a capa'}
             >
               <View
@@ -1116,6 +1128,21 @@ export function PlayerRoot() {
               />
             </Pressable>
           ))}
+          {/* Preso a arrancar: no lugar dos pontos, o botão que guarda o que
+              estava a acontecer (lib/relatorioDoArranque.ts). Só existe
+              enquanto está preso. */}
+          {montagem.preso ? (
+            <Toque
+              escala={ESCALA.icone}
+              onPress={() => { void partilharRelatorioDoArranque(montagem.preso); }}
+              style={styles.botaoDoRelatorio}
+              accessibilityRole="button"
+              accessibilityLabel="Save a report about why this song is stuck"
+            >
+              <Ionicons name="document-text-outline" size={13} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.textoDoRelatorio}>Save report</Text>
+            </Toque>
+          ) : null}
         </View>
 
         <ScrollView
@@ -1636,7 +1663,7 @@ export function PlayerRoot() {
               fundo do cubo --, e isso lia-se como uma moldura à volta da capa
               (13/9). O véu vive DENTRO da face do cubo, que recorta com o raio:
               a capa fica opaca e não há borda que se possa ver. */}
-          {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante}>
+          {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante} montagem={montagem}>
             {(pose3D) => (
             <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
               front={<>{artSource?<CapaDaFaixa uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
@@ -1966,6 +1993,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.textTertiary,
     opacity: 0.5,
   },
+  pontoEscondido: { opacity: 0 },
+  // O botão do relatório, no lugar dos pontos. Absoluto para não mexer no espaço
+  // entre a capa e o título quando aparece.
+  botaoDoRelatorio: {
+    position: 'absolute',
+    top: -9,
+    height: 24,
+    paddingHorizontal: 11,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  textoDoRelatorio: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '600' },
   // O coração e as reticências: o mesmo alvo dos dois lados, sem círculo.
   ladoDoTitulo: {
     width: 44,
