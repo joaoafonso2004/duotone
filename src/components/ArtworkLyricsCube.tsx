@@ -1,6 +1,7 @@
 import {acceptsCubeSwipe,cubeDirection,cubeProgress,cubeDestination} from '../lib/lyricsCubeGesture';
 import React, {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {Animated,Image,PanResponder,Platform,StyleSheet,View} from 'react-native';
+import { Image as ImagemDaCapa } from 'expo-image';
 import {useReducedMotion} from '../hooks/useReducedMotion';
 import type {Track} from '../types';
 import {LyricsView} from './LyricsView';
@@ -77,7 +78,7 @@ function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:numb
     overflow:'hidden',backfaceVisibility:'hidden',opacity:m?Animated.multiply(pose3D.pose,m.opacidades[grupo]):pose3D.pose,
     transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar,...chegar(m,grupo,0.26*size)]}}>
     <View style={{width:g.largura,height:g.altura,overflow:'hidden',transform:[g.espelho==='x'?{scaleX:-1}:{scaleY:-1}]}}>
-      {artwork?<Image source={{uri:artwork}} style={{position:'absolute',left:g.imagem.x,top:g.imagem.y,width:size,height:size}} />:null}
+      {artwork?<ImagemDaCapa source={{uri:artwork}} cachePolicy="memory-disk" contentFit="cover" style={{position:'absolute',left:g.imagem.x,top:g.imagem.y,width:size,height:size}} />:null}
     </View>
     <LinearGradient colors={veu} start={g.degrade.start} end={g.degrade.end} style={StyleSheet.absoluteFill} />
   </Animated.View>;
@@ -238,7 +239,7 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       <Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0,0.35]})}]} />
     </Animated.View>
     <Animated.View pointerEvents={showLyrics&&!moving?'auto':'none'} aria-hidden={!showLyrics} accessibilityElementsHidden={!showLyrics} importantForAccessibility={showLyrics?'auto':'no-hide-descendants'} style={[styles.face,{borderRadius:raio},lyricsStyle3D??lyricsStyle]}>
-      {artwork?<Image source={{uri:artwork}} blurRadius={28} style={[StyleSheet.absoluteFill,{opacity:0.6,transform:[{scale:1.12}]}]} />:null}
+      {artwork?<ImagemDaCapa source={{uri:artwork}} cachePolicy="memory-disk" contentFit="cover" blurRadius={28} style={[StyleSheet.absoluteFill,{opacity:0.6,transform:[{scale:1.12}]}]} />:null}
       <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(8,8,15,0.5)'}]} />
       <LyricsView track={track} visible={showLyrics&&!moving} />
       {pose3D?<GraoDaFace pose3D={pose3D} largura={size} altura={size} />:null}

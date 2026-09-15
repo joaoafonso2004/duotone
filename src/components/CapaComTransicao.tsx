@@ -1,5 +1,6 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Animated, Easing, Image, StyleSheet, View } from 'react-native';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Image } from 'expo-image';
 import { capaDePartida, RECUO } from '../lib/transicaoDaCapa';
 
 /**
@@ -42,24 +43,18 @@ export function CapaComTransicao({ uri, onError }: { uri: string; onError: () =>
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // A imagem nova pode demorar (sem pré-carregamento), mas a antiga é de OUTRA
-  // música: ao fim de um instante cruza-se na mesma.
-  useEffect(() => {
-    if (!partida) return;
-    const espera = setTimeout(cruzar, RECUO.esperaMaximaMs);
-    return () => clearTimeout(espera);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partida]);
-
   return (
     <View style={StyleSheet.absoluteFill}>
-      {partida ? <Image source={{ uri: partida }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
+      {partida ? <Image source={{ uri: partida }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" /> : null}
       <Animated.View style={[StyleSheet.absoluteFill, { opacity: nova }]}>
         <Image
           source={{ uri }}
           style={StyleSheet.absoluteFill}
-          resizeMode="cover"
-          onLoad={() => { mostrada.current = uri; cruzar(); }}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          // Só destapar quando foi DESENHADA: o timeout de 700 ms revelava
+          // uma face vazia numa rede lenta, mesmo com a capa anterior pronta.
+          onDisplay={() => { mostrada.current = uri; cruzar(); }}
           onError={onError}
         />
       </Animated.View>

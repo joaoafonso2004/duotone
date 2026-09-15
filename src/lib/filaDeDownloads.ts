@@ -44,7 +44,7 @@ let aDescarregar = 0;
 let proximoBilhete = 1;
 /** As vagas em curso, e o relógio que as recupera se ninguém as largar. */
 const vagas = new Map<number, ReturnType<typeof setTimeout>>();
-const emEspera: { ordem: number; entrar: () => void }[] = [];
+const emEspera: { ordem: number; entrar: () => void; deixarDeOuvir: () => void }[] = [];
 
 function ocupar(): number {
   const bilhete = proximoBilhete++;
@@ -64,10 +64,24 @@ function libertar(): void {
 }
 
 /** Devolve o bilhete da vaga. Tem de ser entregue ao `largarVez`. */
-export function pedirVez(prioridade: Prioridade): Promise<number> {
+export function pedirVez(prioridade: Prioridade, signal?: AbortSignal): Promise<number> {
+  if (signal?.aborted) return Promise.reject(new Error('download aborted'));
   if (aDescarregar < MAX_SIMULTANEOS) return Promise.resolve(ocupar());
-  return new Promise((resolver) => {
-    emEspera.push({ ordem: ORDEM[prioridade], entrar: () => resolver(ocupar()) });
+  return new Promise((resolver, rejeitar) => {
+    const cancelar = () => {
+      const indice = emEspera.indexOf(pedido);
+      if (indice < 0) return; // já recebeu a vaga; quem a recebeu é que a larga
+      emEspera.splice(indice, 1);
+      pedido.deixarDeOuvir();
+      rejeitar(new Error('download aborted'));
+    };
+    const pedido = {
+      ordem: ORDEM[prioridade],
+      entrar: () => { pedido.deixarDeOuvir(); resolver(ocupar()); },
+      deixarDeOuvir: () => signal?.removeEventListener('abort', cancelar),
+    };
+    signal?.addEventListener('abort', cancelar);
+    emEspera.push(pedido);
     // O sort do JS é estável: entre iguais, quem pediu primeiro entra primeiro.
     emEspera.sort((a, b) => a.ordem - b.ordem);
   });
@@ -96,6 +110,7 @@ export function limparFila(): void {
   for (const relogio of vagas.values()) clearTimeout(relogio);
   vagas.clear();
   aDescarregar = 0;
+  for (const pedido of emEspera) pedido.deixarDeOuvir();
   emEspera.length = 0;
 }
 

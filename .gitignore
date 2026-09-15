@@ -41,6 +41,9 @@ test-*.mjs
 !scripts/test-higiene-da-biblioteca-sql.mjs
 !scripts/test-duotone-connect-sql.mjs
 !scripts/test-limpar-fantasmas-sql.mjs
+!scripts/test-download-esperas.mjs
+!scripts/test-pot-esperas.mjs
+!scripts/test-smart-cache-cancelamento.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

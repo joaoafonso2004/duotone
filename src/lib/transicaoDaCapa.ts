@@ -23,8 +23,6 @@ export const RECUO = {
   mola: { speed: 14, bounciness: 5 },
   /** A capa nova por cima da antiga. */
   cruzarMs: 260,
-  /** Quanto se espera pela imagem nova antes de cruzar na mesma -- a antiga é de OUTRA música. */
-  esperaMaximaMs: 700,
   /** Um next/prev só dá sentido à transição se a faixa mudou até este tempo depois. */
   janelaDoSaltoMs: 2500,
   /** A capa que saiu só serve de partida se saiu há tão pouco (abrir o leitor mais tarde não cruza). */

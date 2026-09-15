@@ -9,6 +9,7 @@ import { useComandosDoAparelho } from './src/lib/connectSync';
 import { esquecerCapasAquecidas, useAquecerCapas } from './src/hooks/useAquecerCapas';
 import { useAquecerSeccoes } from './src/hooks/useAquecerSeccoes';
 import { useAquecerResolvedor } from './src/hooks/useAquecerResolvedor';
+import { acompanharDownloads } from './src/state/capasGrandes';
 import { esquecerBiblioteca } from './src/lib/cacheDaBiblioteca';
 import { AppState } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -165,6 +166,7 @@ export default function App() {
   },[offline]);
 
   useEffect(() => {
+    acompanharDownloads(); // também os downloads feitos antes de abrir o leitor
     init();
     // Hidrata preferências persistidas no arranque da app.
     loadPrefsCache();

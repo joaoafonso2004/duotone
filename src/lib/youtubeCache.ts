@@ -75,18 +75,42 @@ export function verificarCancelamentos(): void {
   for (const verificar of [...verificacoesDeCancelamento]) verificar();
 }
 
-function vigiarCancelamento(controller: AbortController, shouldAbort?: () => boolean): () => void {
-  if (!shouldAbort) return () => {};
-  const verificar = () => { if (shouldAbort()) controller.abort(); };
-  verificacoesDeCancelamento.add(verificar);
-  const relogio = setInterval(verificar, VERIFICAR_CANCELAMENTO_MS);
-  return () => {
-    verificacoesDeCancelamento.delete(verificar);
-    clearInterval(relogio);
-  };
-}
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_AUDIO_BYTES = 256 * 1024 * 1024;
+
+/**
+ * Abortar a rede não chega: a Promise do fetch/corpo pode nunca assentar.
+ * A espera também rejeita, para o finally largar a vaga sem esperar 4 minutos.
+ * Vale ainda para renewUrl e para quem espera por outro download; nesse caso
+ * cancela-se só a espera, nunca o trabalho partilhado de quem ainda o quer.
+ */
+async function esperarDownload<T>(
+  operacao: (signal: AbortSignal) => Promise<T>,
+  shouldAbort?: () => boolean,
+  prazoMs: number | null = REQUEST_TIMEOUT_MS,
+): Promise<T> {
+  if (shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+  const controller = new AbortController();
+  let interromper!: (erro: Error) => void;
+  const interrupcao = new Promise<never>((_, rejeitar) => {
+    interromper = (erro) => { rejeitar(erro); controller.abort(); };
+  });
+  const verificar = () => {
+    if (shouldAbort?.()) interromper(new Error(DOWNLOAD_ABORTED));
+  };
+  const prazo = prazoMs === null ? null : setTimeout(
+    () => interromper(new Error('Download sem resposta dentro do prazo')), prazoMs,
+  );
+  const vigia = shouldAbort ? setInterval(verificar, VERIFICAR_CANCELAMENTO_MS) : null;
+  if (shouldAbort) verificacoesDeCancelamento.add(verificar);
+  try {
+    return await Promise.race([operacao(controller.signal), interrupcao]);
+  } finally {
+    if (prazo !== null) clearTimeout(prazo);
+    if (vigia !== null) clearInterval(vigia);
+    verificacoesDeCancelamento.delete(verificar);
+  }
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -271,12 +295,10 @@ export function pruneAudioCacheLRU(protectedIds: string[] = []): void {
 
 /** Descobre o tamanho total do ficheiro via Content-Range, quando a API não o deu. */
 export async function discoverContentLength(url: string, shouldAbort?: () => boolean): Promise<number> {
-  if (shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  const pararDeVigiar = vigiarCancelamento(controller, shouldAbort);
   try {
-    const res = await fetch(url, { headers: { Range: 'bytes=0-1' }, signal: controller.signal });
+    const res = await esperarDownload(
+      (signal) => fetch(url, { headers: { Range: 'bytes=0-1' }, signal }), shouldAbort,
+    );
     const range = res.headers.get('content-range'); // "bytes 0-1/4406875"
     const total = range ? Number(range.split('/')[1]) : NaN;
     if (!Number.isSafeInteger(total) || total <= 0 || total > MAX_AUDIO_BYTES) {
@@ -286,9 +308,6 @@ export async function discoverContentLength(url: string, shouldAbort?: () => boo
   } catch (error) {
     if (shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
     throw error;
-  } finally {
-    clearTimeout(timeout);
-    pararDeVigiar();
   }
 }
 
@@ -312,29 +331,29 @@ export async function fetchChunkWithRetry(
   let renewed = false;
   for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_CHUNK; attempt++) {
     if (shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
-    if (attempt > 0) await sleep(800 * 2 ** (attempt - 1)); // 800ms, 1.6s, 3.2s
+    if (attempt > 0) await esperarDownload(() => sleep(800 * 2 ** (attempt - 1)), shouldAbort); // 800ms, 1.6s, 3.2s
     if (registo) registo.tentativas = attempt + 1;
-    const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
-    const pararDeVigiar=vigiarCancelamento(controller,shouldAbort);
     try{
-      const res=await fetch(current,{headers:{Range:`bytes=${start}-${end}`},signal:controller.signal});
-      if(registo)registo.ultimoHttp=res.status;
-      if (res.status === 206 || res.status === 200) {
-        if (expectedTotal === undefined) throw new Error('Total do audio em falta');
-        // Nao chega verificar o TAMANHO: pedir 4-7 e receber "bytes 0-3/8" da
-        // 4 bytes certinhos no offset errado, e o ficheiro fica corrompido sem
-        // um unico erro pelo caminho.
-        validarRespostaParcial(res, start, end, expectedTotal);
-        return { bytes: new Uint8Array(await res.arrayBuffer()), url: current };
-      }
-      lastStatus = res.status;
+      const resposta = await esperarDownload(async (signal) => {
+        const res = await fetch(current, { headers: { Range: `bytes=${start}-${end}` }, signal });
+        if (signal.aborted) throw new Error(DOWNLOAD_ABORTED);
+        if (registo) registo.ultimoHttp = res.status;
+        if (res.status === 206 || res.status === 200) {
+          if (expectedTotal === undefined) throw new Error('Total do audio em falta');
+          // O tamanho certo no offset errado também corrompe o ficheiro.
+          validarRespostaParcial(res, start, end, expectedTotal);
+          return { status: res.status, bytes: new Uint8Array(await res.arrayBuffer()) };
+        }
+        return { status: res.status, bytes: null };
+      }, shouldAbort);
+      if (resposta.bytes) return { bytes: resposta.bytes, url: current };
+      lastStatus = resposta.status;
     }
     catch(e){
-      if(shouldAbort?.())throw new Error(DOWNLOAD_ABORTED);
+      if(shouldAbort?.() || (e instanceof Error && e.message === DOWNLOAD_ABORTED))throw new Error(DOWNLOAD_ABORTED);
       if(attempt===MAX_ATTEMPTS_PER_CHUNK-1)throw e;
       continue;
-    }finally{clearTimeout(timeout);pararDeVigiar();}
+    }
     // O URL do googlevideo está ligado ao IP que o pediu e tem validade. Em
     // 4G o IP muda (troca de célula, reconexão) e o URL que estava em cache
     // morre — e o retry repetia-o ús 4 vezes, dando sempre 403. Pedimos um
@@ -342,13 +361,13 @@ export async function fetchChunkWithRetry(
     if (isDeadUrlStatus(lastStatus)) {
       if (renewUrl && !renewed) {
         renewed = true;
-        // Com prazo: era esta a chamada que podia pendurar para sempre e
-        // deixar a vaga da fila presa -- e com ela toda a app parada em 0:00
-        // até alguém reiniciar.
-        const fresh = await Promise.race([
-          renewUrl(),
-          new Promise<null>((r) => setTimeout(() => r(null), REQUEST_TIMEOUT_MS)),
-        ]).catch(() => null);
+        // O prazo já existia, mas o cancelamento acabava antes deste await:
+        // um skip durante a renovação prendia a vaga até aos 30 segundos.
+        const fresh = await esperarDownload(() => renewUrl(), shouldAbort).catch((erro) => {
+          if (shouldAbort?.() || (erro instanceof Error && erro.message === DOWNLOAD_ABORTED)) throw new Error(DOWNLOAD_ABORTED);
+          return null;
+        });
+        if (shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
         if (fresh) {
           current = fresh;
           if (registo) registo.urlRenovado = true;
@@ -365,7 +384,7 @@ export async function fetchChunkWithRetry(
 }
 
 export interface DownloadOptions {
-  /** Consultado entre chunks — devolve true para abortar (faixa trocada,
+  /** Consultado durante as esperas e entre chunks — true aborta (faixa trocada,
    * componente desmontado). Sem isto, saltar 5 faixas deixava 5 downloads
    * completos a competir pela rede em segundo plano. */
   shouldAbort?: () => boolean;
@@ -479,7 +498,9 @@ export async function downloadProgressiveAudio(
   const jaAnda = emCurso.get(videoId);
   if (jaAnda) {
     try {
-      return await jaAnda;
+      const uri = await esperarDownload(() => jaAnda, opts.shouldAbort, null);
+      if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+      return uri;
     } catch (e: any) {
       if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
       if (dest.exists) return dest.uri;
@@ -497,7 +518,11 @@ export async function downloadProgressiveAudio(
     downloads.set(videoId, registo);
     avisarDownloads();
     try {
-      const bilhete = await pedirVez(opts.prioridade ?? 'explicito');
+      // O sinal retira o pedido da fila; só desistir da Promise deixaria um
+      // pedido fantasma a ocupar uma vaga quando chegasse a sua vez.
+      const bilhete = await esperarDownload(
+        (signal) => pedirVez(opts.prioridade ?? 'explicito', signal), opts.shouldAbort, null,
+      );
       try {
         // Entre pedir a vez e chega-la, a faixa pode ter mudado ou outro job pode
         // ter descarregado esta mesma.

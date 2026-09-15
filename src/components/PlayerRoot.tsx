@@ -3,7 +3,7 @@ import { sentidoDaTransicao, type Sentido } from '../lib/transicaoDaCapa';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
 import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
 import { useMontagemDaCapa } from '../hooks/useMontagemDaCapa';
-import { capaGrande, marcarSemCapaGrande } from '../state/capasGrandes';
+import { capaGrande, marcarSemCapaGrande, ouvirCapasGrandes, preCarregarCapasGrandes } from '../state/capasGrandes';
 import { partilharRelatorioDoArranque } from '../lib/partilharRelatorioDoArranque';
 import { ModoCarro } from './ModoCarro';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
@@ -25,7 +25,7 @@ import { displayArtist, tituloDaFaixa, tituloNoLeitor } from '../lib/artistName'
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Alert,
   Animated,
@@ -641,19 +641,19 @@ export function PlayerRoot() {
   // A escolha, e a memória de quem não tem maxres, vivem em state/capasGrandes:
   // é o mesmo sítio que as PRÉ-CARREGA para as próximas faixas, e por isso a
   // capa já está na cache quando se carrega em seguinte (14/9).
-  const [artUri, setArtUri] = useState<string | null>(null);
+  // Derivada da faixa NO render: setState num efeito mostrava primeiro a capa
+  // antiga no cubo novo, perdendo a transição e revelando o fundo cinzento.
+  const artSource = useSyncExternalStore(ouvirCapasGrandes, () => current ? capaGrande(current) : null);
   useEffect(() => {
-    setArtUri(current ? capaGrande(current) : null);
-  }, [current?.sourceId]);
+    if (current && !offline) preCarregarCapasGrandes([current]);
+  }, [current?.source, current?.sourceId, current?.artworkUrl, offline]);
 
   const onArtError = () => {
     const active = current;
-    if (active && active.source === 'youtube' && artUri?.includes('maxresdefault')) {
+    if (active && active.source === 'youtube' && artSource?.includes('maxresdefault')) {
       marcarSemCapaGrande(active.sourceId);
-      setArtUri(capaGrande(active));
     }
   };
-  const artSource = artUri ?? current?.artworkUrl;
 
   const onToggleShuffle = () => {
     toggleShuffle();

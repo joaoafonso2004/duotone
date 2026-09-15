@@ -35,8 +35,8 @@ eq('parte da capa que acabou de sair', capaDePartida({ uri: 'a', em: 1000 }, 'b'
 eq('a mesma capa não cruza consigo', capaDePartida({ uri: 'a', em: 1000 }, 'a', 1100), null);
 eq('abrir o leitor muito depois não cruza', capaDePartida({ uri: 'a', em: 0 }, 'b', RECUO.memoriaDaCapaMs + 1), null);
 eq('sem capa anterior não cruza', capaDePartida(null, 'b', 1), null);
-// A imagem nova pode demorar, mas a antiga é de outra música: não pode ficar.
-check('não espera pela imagem nova para sempre', RECUO.esperaMaximaMs <= 1000);
+// A espera pela imagem e o cruzamento só após onDisplay são exercitados com
+// o componente real em test-capas-com-audio.cjs, incluindo uma imagem lenta.
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

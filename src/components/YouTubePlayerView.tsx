@@ -23,7 +23,7 @@ import { targetVolume } from '../lib/loudness';
 import { getLoudnessDb, rememberLoudnessDb } from '../lib/loudnessCache';
 import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED, verificarCancelamentos } from '../lib/youtubeCache';
 import { quantasAdiantar } from '../lib/adiantarFaixas';
-import { acompanharDownloads, preCarregarCapasGrandes } from '../state/capasGrandes';
+import { preCarregarCapasGrandes } from '../state/capasGrandes';
 import type { Prioridade } from '../lib/filaDeDownloads';
 import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
 import { comecarArranque, marcarResolver } from '../lib/arranqueDaFaixa';
@@ -274,6 +274,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      // Desmontar abandona tudo. A limpeza do efeito do Smart Cache também
+      // corre ao recalcular a fila; abortar aí matava a faixa a ser adotada.
+      for (const pedido of aAdiantar.values()) pedido.abandonado = true;
       verificarCancelamentos();
     };
   }, []);
@@ -1539,32 +1542,31 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
   },[closeGain,closing,backend,player]);
 
-  // A capa grande vem com qualquer download de áudio (state/capasGrandes).
-  useEffect(() => { acompanharDownloads(); }, []);
-
   // O Smart Cache adianta as PRÓXIMAS faixas -- três em Wi-Fi, duas em dados
   // móveis (lib/adiantarFaixas.ts) -- uma de cada vez e sempre atrás da que
   // toca. Só a seguinte era adiantada, e saltar duas de seguida era esperar
   // pelo download (13/9). A primeira continua a ser a da mesma decisão da
   // reprodução, com a prioridade que o crossfade precisa.
   useEffect(() => {
-    if (backend !== 'native') return;
-
     const lista = usePlayer
       .getState()
       .proximasFaixas(quantasAdiantar(useConnectivity.getState().dadosMoveis))
       .filter((faixa) => faixa.sourceId !== track.sourceId);
-    // As capas grandes vêm com elas, e já: são leves ao pé do áudio, e sem isto
-    // o skip mostrava o leitor sem capa até a imagem de 1280 px chegar (14/9).
-    if (!useConnectivity.getState().offline) preCarregarCapasGrandes(lista);
     // Já, e não daqui a cinco segundos. A fila só deixa passar um download de
     // cada vez e não interrompe ninguém: um adiantamento que deixou de servir
     // tem de largar a vaga ANTES de a faixa escolhida a pedir. A que está a
     // tocar fica de fora do abandono -- se vinha a ser adiantada, a reprodução
     // está à espera desse mesmo download, e abandoná-lo fazia-o recomeçar.
-    const servem = new Set([track.sourceId, ...lista.map((faixa) => faixa.sourceId)]);
+    // Mesmo a resolver: a atual pode adotar o seu adiantamento, mas os outros
+    // têm de largar a vaga para ela. Depois de pronta, volta-se a adiantar.
+    const servem = new Set([track.sourceId, ...(backend === 'native' ? lista.map((faixa) => faixa.sourceId) : [])]);
     for (const [id, pedido] of aAdiantar) pedido.abandonado = !servem.has(id);
     verificarCancelamentos();
+    if (backend !== 'native') return;
+
+    // As capas grandes vêm com elas, e já: são leves ao pé do áudio, e sem isto
+    // o skip mostrava o leitor sem capa até a imagem de 1280 px chegar (14/9).
+    if (!useConnectivity.getState().offline) preCarregarCapasGrandes(lista);
 
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -1590,11 +1592,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     return () => {
       cancelled = true;
       clearTimeout(timer);
-      // Fechar o leitor larga tudo. Numa troca de faixa o efeito seguinte corre
-      // logo a seguir, no mesmo ciclo, e devolve o que ainda serve antes de
-      // algum download chegar a consultar isto entre dois pedaços.
-      for (const pedido of aAdiantar.values()) pedido.abandonado = true;
-      verificarCancelamentos();
+      // O setup seguinte decide o que deixou de servir. Um abort() aqui não
+      // pode ser desfeito ao repor abandonado=false na faixa que passou a tocar.
     };
   }, [track.sourceId, backend, queue, queueIndex, shuffle, percursoDoShuffle, repeatMode, sessaoJam, filaJam]);
 

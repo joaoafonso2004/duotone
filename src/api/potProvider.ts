@@ -86,18 +86,31 @@ async function obterPoToken(contentBinding: string): Promise<string | null> {
     return onDevice;
   }
 
-  const baseUrl = normalizeBaseUrl(await getPoTokenServerUrl());
-  if (!baseUrl) return null;
-
+  // Só o fallback externo: a cunhagem on-device já tem os seus limites. O
+  // prazo inclui preferências + fetch + corpo JSON, e termina a espera mesmo
+  // se o transporte ignorar abort. Sem isto, aCunhar prendia todas as faixas
+  // com o mesmo binding a uma promessa que nunca mais acabava.
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const res = await fetch(`${baseUrl}/get_pot`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content_binding: contentBinding }),
-    });
-    if (!res.ok) return null;
-
-    const data = await res.json();
+    const data = await Promise.race([
+      (async () => {
+        const baseUrl = normalizeBaseUrl(await getPoTokenServerUrl());
+        if (!baseUrl || controller.signal.aborted) return null;
+        const res = await fetch(`${baseUrl}/get_pot`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content_binding: contentBinding }),
+          signal: controller.signal,
+        });
+        if (!res.ok || controller.signal.aborted) return null;
+        return res.json();
+      })(),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => { resolve(null); controller.abort(); }, 10_000);
+      }),
+    ]);
+    // Uma resposta tardia da corrida perdida nunca escreve na memória.
     const poToken: string | undefined = data?.poToken;
     if (!poToken) return null;
 
@@ -109,6 +122,8 @@ async function obterPoToken(contentBinding: string): Promise<string | null> {
     return poToken;
   } catch {
     return null;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
   }
 }
 
