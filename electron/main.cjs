@@ -730,9 +730,19 @@ ipcMain.handle('atualizacao:instalar', async (event) => {
   const remetente = event.sender;
   atualizacaoEmCurso = (async () => {
     try {
-      const resposta = await net.fetch(atualizacao.VERSOES_URL, { cache: 'no-store' });
-      if (!resposta.ok) throw new Error(`versions.json HTTP ${resposta.status}`);
-      const alvo = atualizacao.escolherInstalador(await resposta.json(), app.getVersion());
+      const controlador = new AbortController();
+      const relogio = setTimeout(() => controlador.abort(), 15_000);
+      let versoes;
+      try {
+        const resposta = await net.fetch(atualizacao.VERSOES_URL, {
+          cache: 'no-store', signal: controlador.signal,
+        });
+        if (!resposta.ok) throw new Error(`versions.json HTTP ${resposta.status}`);
+        versoes = await resposta.json();
+      } finally {
+        clearTimeout(relogio);
+      }
+      const alvo = atualizacao.escolherInstalador(versoes, app.getVersion());
       if (!alvo) return { ok: false, erro: 'No newer version is available.' };
       const pasta = path.join(app.getPath('temp'), 'duotone-atualizacao');
       fs.mkdirSync(pasta, { recursive: true });

@@ -26,6 +26,8 @@ assert.equal(a.escolherInstalador(comAsset({ url: url.replace('https:', 'http:')
 assert.equal(a.escolherInstalador(comAsset({ url: 'https://github.com/outra-pessoa/duotone/releases/download/v1/Duotone-Setup.exe' }), '3.2.0'), null, 'Outro repositório não');
 assert.equal(a.escolherInstalador(comAsset({ url: 'https://github.com/joaoafonso2004/duotone/releases/download/../../../outra/x.exe' }), '3.2.0'), null, 'Um caminho com .. não sai do repositório');
 assert.equal(a.escolherInstalador(comAsset({ url: url.replace('.exe', '.zip') }), '3.2.0'), null, 'Só um .exe');
+assert.equal(a.escolherInstalador(comAsset({ url: url.replace('win-v3.3.0', 'win-v3.2.0') }), '3.2.0'), null, 'A tag do instalador tem de ser a versão anunciada');
+assert.equal(a.escolherInstalador(comAsset({ url: url.replace('Duotone-Setup.exe', 'outro.exe') }), '3.2.0'), null, 'Só corre o instalador publicado pelo workflow');
 assert.equal(a.escolherInstalador(comAsset({ size: undefined }), '3.2.0'), null, 'Sem tamanho não se pode confirmar o download');
 assert.equal(a.escolherInstalador(comAsset({ size: 12 }), '3.2.0'), null, 'Um tamanho absurdo não');
 assert.equal(a.escolherInstalador(versoes({ ...bom, version: '3.3' }), '3.2.0'), null, 'Uma versão mal escrita não');
@@ -74,10 +76,42 @@ try {
     url, destino: path.join(pasta, '404.exe'), tamanho: bytes.length, fs,
   }), /HTTP 404/);
 
+  const preso = path.join(pasta, 'preso.exe');
+  await assert.rejects(a.descarregar({
+    fetch: async () => new Promise(() => {}),
+    url, destino: preso, tamanho: bytes.length, fs, timeoutSemDadosMs: 20,
+  }), /tempo/i, 'Um servidor que nunca responde liberta o botão');
+  assert.equal(fs.existsSync(`${preso}.parcial`), false, 'A espera presa não deixa um parcial');
+
+  const parado = path.join(pasta, 'parado.exe');
+  await assert.rejects(a.descarregar({
+    fetch: async () => new Response(new ReadableStream({
+      start(controller) { controller.enqueue(bytes.slice(0, 10)); }
+    })),
+    url, destino: parado, tamanho: bytes.length, fs, timeoutSemDadosMs: 20,
+  }), /tempo/i, 'Um download que para a meio também liberta o botão');
+  assert.equal(fs.existsSync(`${parado}.parcial`), false, 'O download parado apaga o parcial');
+
+  // Se uma instalação falhou depois de descarregar, uma nova tentativa da
+  // mesma versão substitui o ficheiro antigo em vez de falhar no rename.
+  const repetido = path.join(pasta, 'repetido.exe');
+  fs.writeFileSync(repetido, Buffer.from('antigo'));
+  await a.descarregar({
+    fetch: async () => new Response(new Blob([bytes]).stream()),
+    url, destino: repetido, tamanho: bytes.length, fs,
+  });
+  assert.equal(fs.statSync(repetido).size, bytes.length, 'Uma nova tentativa substitui o instalador anterior');
+
   assert.equal(a.podeEscreverEm(fs, pasta), true);
   assert.equal(a.podeEscreverEm(fs, path.join(pasta, 'nao-existe')), false);
 } finally {
   fs.rmSync(pasta, { recursive: true, force: true });
 }
+
+// O botão das Definições tem de ler a entrada Windows do mesmo versions.json
+// que o aviso automático. `/releases/latest` mistura tags `ios-v*` e `win-v*`.
+const settings = fs.readFileSync(new URL('../src/desktop/paginas/SettingsPage.web.tsx', import.meta.url), 'utf8');
+assert.doesNotMatch(settings, /repos\/joaoafonso2004\/duotone\/releases\/latest/, 'As Definições não confundem a última release de iOS com a de Windows');
+assert.match(settings, /checkForUpdate/, 'As Definições usam a fonte de versões por plataforma');
 
 console.log('Atualização do Windows: versão, origem do instalador, comando, download e tamanho verificados.');

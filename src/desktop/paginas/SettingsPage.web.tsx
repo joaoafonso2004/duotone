@@ -13,6 +13,7 @@ import { Pressable, Switch, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_VERSION, BUILD_ID } from '../../lib/buildInfo';
 import { EVENTO_PROCURAR_ATUALIZACAO } from '../../lib/avisoDeVersao';
+import { checkForUpdate, PORTFOLIO_URL } from '../../lib/updates';
 import { historico, limparHistorico, relatorio, resumo, rotulo as rotuloDaFalha } from '../../lib/playbackDiagnostics';
 import {
   getGlitchMode, setGlitchMode, type GlitchMode,
@@ -33,7 +34,6 @@ import { BarraVelocidade } from '../BarraVelocidade.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
 import { getDiscordRichPresence, setDiscordRichPresence } from '../../lib/prefs';
-import { newerVersion } from './comum.web';
 import { efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
 import { usePrivacidade } from '../../state/privacidade';
@@ -91,7 +91,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   // existe so para o ecra se redesenhar depois de o limpar.
   const [, setLimpezas] = useState(0);
   const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const [update, setUpdate] = useState<{ version: string; url: string } | null>(null);
+  const [update, setUpdate] = useState<{ version: string } | null>(null);
 
   const [glitch, setGlitch] = useState<GlitchMode>('reactive');
   const [effectIntensity, setEffectIntensityState] = useState<EffectIntensity>('normal');
@@ -224,35 +224,22 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   // browser não há ponte, e fica o download pelo site.
   const instalaNaApp = typeof window !== 'undefined' && !!window.duotoneDesktop?.instalarAtualizacao;
   const checkForUpdates = async () => {
+    if (!instalaNaApp) {
+      window.open(PORTFOLIO_URL, '_blank', 'noopener,noreferrer');
+      return;
+    }
     if (update) {
-      if (instalaNaApp) window.dispatchEvent(new CustomEvent(EVENTO_PROCURAR_ATUALIZACAO));
-      else window.open(update.url, '_blank', 'noopener,noreferrer');
+      window.dispatchEvent(new CustomEvent(EVENTO_PROCURAR_ATUALIZACAO));
       return;
     }
 
     setCheckingUpdate(true);
     try {
-      const response = await fetch('https://api.github.com/repos/joaoafonso2004/duotone/releases/latest', {
-        headers: { Accept: 'application/vnd.github+json' },
-      });
-      if (response.status === 404) {
-        notify('No published Windows update is available yet.');
-        return;
-      }
-      if (!response.ok) throw new Error(`GitHub returned ${response.status}`);
-
-      const release = await response.json();
-      const version = String(release.tag_name || '').replace(/^v/i, '');
-      const asset = Array.isArray(release.assets)
-        ? release.assets.find((item: any) => /Duotone.*Setup.*\.exe$/i.test(String(item.name || '')))
-        : null;
-      const url = String(asset?.browser_download_url || release.html_url || '');
-      const trustedUrl = url.startsWith('https://github.com/joaoafonso2004/duotone/');
-
-      if (newerVersion(version, APP_VERSION) && trustedUrl) {
-        setUpdate({ version, url });
-        notify(`Duotone ${version} is available.`);
-        if (instalaNaApp) window.dispatchEvent(new CustomEvent(EVENTO_PROCURAR_ATUALIZACAO));
+      const release = await checkForUpdate({ ignorarDispensa: true, atirarErro: true });
+      if (release?.platform === 'windows') {
+        setUpdate({ version: release.latest });
+        notify(`Duotone ${release.latest} is available.`);
+        window.dispatchEvent(new CustomEvent(EVENTO_PROCURAR_ATUALIZACAO));
       } else {
         notify(`Duotone ${APP_VERSION} is up to date.`);
       }

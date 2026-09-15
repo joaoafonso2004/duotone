@@ -23,6 +23,7 @@ const path = require('node:path');
 
 const VERSOES_URL = 'https://joaoafonso.vercel.app/ota/versions.json';
 const CAMINHO_DOS_INSTALADORES = '/joaoafonso2004/duotone/releases/download/';
+const TIMEOUT_SEM_DADOS_MS = 45_000;
 
 function compararVersoes(a, b) {
   const partes = (v) => String(v).replace(/^v/, '').split('-')[0].split('.').map((n) => parseInt(n, 10) || 0);
@@ -47,8 +48,9 @@ function escolherInstalador(versoes, versaoAtual) {
   let url;
   try { url = new URL(asset.url); } catch { return null; }
   // O `URL` já resolveu os `..`: o caminho que se compara é o verdadeiro.
+  const caminhoEsperado = `${CAMINHO_DOS_INSTALADORES}win-v${windows.version}/Duotone-Setup.exe`;
   if (url.protocol !== 'https:' || url.hostname !== 'github.com'
-    || !url.pathname.startsWith(CAMINHO_DOS_INSTALADORES) || !/\.exe$/i.test(url.pathname)) return null;
+    || url.pathname !== caminhoEsperado) return null;
   const tamanho = Number(asset.size);
   if (!Number.isInteger(tamanho) || tamanho < 1_000_000 || tamanho > 2_000_000_000) return null;
   return { versao: windows.version, url: url.href, tamanho };
@@ -59,30 +61,68 @@ function escolherInstalador(versoes, versaoAtual) {
  * `.parcial` e só o renomeia com o tamanho CERTO: um instalador cortado a meio
  * nunca chega a ter o nome que se vai correr.
  */
-async function descarregar({ fetch, url, destino, tamanho, fs, aoProgresso = () => {} }) {
-  const resposta = await fetch(url);
-  if (!resposta.ok || !resposta.body) throw new Error(`HTTP ${resposta.status}`);
+function comPrazo(promessa, timeoutMs, aoEsgotar) {
+  let relogio;
+  return new Promise((resolve, reject) => {
+    relogio = setTimeout(() => {
+      try { aoEsgotar?.(); } catch { /* o prazo continua a valer */ }
+      reject(new Error('Tempo esgotado sem receber dados.'));
+    }, timeoutMs);
+    Promise.resolve(promessa).then(resolve, reject).finally(() => clearTimeout(relogio));
+  });
+}
+
+async function descarregar({
+  fetch, url, destino, tamanho, fs, aoProgresso = () => {},
+  timeoutSemDadosMs = TIMEOUT_SEM_DADOS_MS,
+}) {
   const parcial = `${destino}.parcial`;
-  const ficheiro = fs.createWriteStream(parcial);
+  const controlador = new AbortController();
+  let ficheiro = null;
+  let leitor = null;
   let recebidos = 0;
   let ultimoPasso = -1;
   try {
-    const leitor = resposta.body.getReader();
+    const resposta = await comPrazo(
+      fetch(url, { signal: controlador.signal }),
+      timeoutSemDadosMs,
+      () => controlador.abort(),
+    );
+    if (!resposta.ok || !resposta.body) throw new Error(`HTTP ${resposta.status}`);
+    fs.rmSync(parcial, { force: true });
+    ficheiro = fs.createWriteStream(parcial);
+    const erroDoFicheiro = new Promise((_, reject) => ficheiro.once('error', reject));
+    leitor = resposta.body.getReader();
     for (;;) {
-      const { done, value } = await leitor.read();
+      const { done, value } = await Promise.race([
+        comPrazo(leitor.read(), timeoutSemDadosMs, () => controlador.abort()),
+        erroDoFicheiro,
+      ]);
       if (done) break;
       recebidos += value.byteLength;
       if (recebidos > tamanho) throw new Error('Maior do que o anunciado.');
-      if (!ficheiro.write(Buffer.from(value))) await new Promise((r) => ficheiro.once('drain', r));
+      if (!ficheiro.write(Buffer.from(value))) {
+        await Promise.race([new Promise((resolve) => ficheiro.once('drain', resolve)), erroDoFicheiro]);
+      }
       const passo = Math.floor((recebidos / tamanho) * 100);
       if (passo !== ultimoPasso) { ultimoPasso = passo; aoProgresso(recebidos / tamanho); }
     }
-    await new Promise((resolve, reject) => { ficheiro.once('error', reject); ficheiro.end(resolve); });
+    await Promise.race([new Promise((resolve) => ficheiro.end(resolve)), erroDoFicheiro]);
     if (recebidos !== tamanho) throw new Error('Tamanho diferente do anunciado.');
+    // Uma instalação anterior pode ter descarregado a mesma versão e falhado
+    // já depois disso. A nova tentativa substitui-a só depois de estar inteira.
+    fs.rmSync(destino, { force: true });
     fs.renameSync(parcial, destino);
     return destino;
   } catch (erro) {
-    ficheiro.destroy();
+    controlador.abort();
+    if (leitor) void leitor.cancel().catch(() => {});
+    if (ficheiro && !ficheiro.closed) {
+      await new Promise((resolve) => {
+        ficheiro.once('close', resolve);
+        ficheiro.destroy();
+      });
+    }
     try { fs.rmSync(parcial, { force: true }); } catch { /* já não existe */ }
     throw erro;
   }

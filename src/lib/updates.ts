@@ -96,7 +96,7 @@ async function wasDismissed(platform: UpdatePlatform, version: string): Promise<
  */
 export async function checkForUpdate(
   /** O "Check for updates" das Definições: um pedido explícito passa por cima do "Not now". */
-  opcoes: { ignorarDispensa?: boolean } = {},
+  opcoes: { ignorarDispensa?: boolean; atirarErro?: boolean } = {},
 ): Promise<UpdateInfo | null> {
   const platform = currentPlatform();
   if (!platform) return null;
@@ -104,10 +104,17 @@ export async function checkForUpdate(
   try {
     // cache: 'no-store' porque a CDN serve o ficheiro com cache longa e sem
     // isto a app podia ficar dias a ver uma versão já substituída.
-    const res = await fetch(VERSIONS_URL, { cache: 'no-store' });
-    if (!res.ok) return null;
+    const controlador = new AbortController();
+    const relogio = setTimeout(() => controlador.abort(), 15_000);
+    let data: any;
+    try {
+      const res = await fetch(VERSIONS_URL, { cache: 'no-store', signal: controlador.signal });
+      if (!res.ok) throw new Error(`versions.json HTTP ${res.status}`);
+      data = await res.json();
+    } finally {
+      clearTimeout(relogio);
+    }
 
-    const data = await res.json();
     const release: PlatformRelease | null = data?.apps?.[APP_ID]?.[platform] ?? null;
     if (!release?.version || !release.asset) return null;
 
@@ -121,7 +128,8 @@ export async function checkForUpdate(
       notes: (release.notes ?? '').trim(),
       install: release.install,
     };
-  } catch {
+  } catch (erro) {
+    if (opcoes.atirarErro) throw erro;
     return null;
   }
 }
