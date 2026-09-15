@@ -751,13 +751,7 @@ ipcMain.handle('atualizacao:instalar', async (event) => {
         fetch: (url) => net.fetch(url), url: alvo.url, destino: instalador, tamanho: alvo.tamanho, fs,
         aoProgresso: (progresso) => { if (!remetente.isDestroyed()) remetente.send('atualizacao:progresso', progresso); },
       });
-      const comando = atualizacao.comandoDoInstalador({
-        instalador,
-        executavel: process.execPath,
-        // Instalação "para todos" (Program Files): o instalador precisa de administrador.
-        elevar: !atualizacao.podeEscreverEm(fs, path.dirname(process.execPath)),
-      });
-      spawn(comando.ficheiro, comando.argumentos, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+      await atualizacao.lancarInstalador({ spawn, instalador });
       // Fechar a SÉRIO: sem o `isQuitting` o X só escondia para o tabuleiro, e o
       // instalador encontrava a app aberta.
       setTimeout(() => { isQuitting = true; app.quit(); }, 400);

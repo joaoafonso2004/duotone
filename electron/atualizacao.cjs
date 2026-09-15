@@ -12,15 +12,12 @@
  * Porque é que a instalação silenciosa serve: o instalador do electron-builder
  * (assisted, `oneClick: false`) lê do registo o modo e a pasta da instalação
  * anterior (`initMultiUser` em templates/nsis/assistedInstaller.nsh), por isso
- * `/S --updated` instala por cima no mesmo sítio, e `--force-run` reabre a app
- * no fim (installSection.nsh). Numa instalação "para todos" a pasta é de
- * administrador, e aí pede-se elevação (UAC).
+ * `/S --updated` instala por cima no mesmo sítio, pede elevação quando precisa,
+ * fecha a app anterior e `--force-run` reabre-a no fim (installSection.nsh).
  *
  * Sem `require('electron')`: o `fetch` e o `fs` entram por parâmetro, e é isso
  * que deixa testar isto em Node puro (scripts/test-atualizacao-windows.mjs).
  */
-const path = require('node:path');
-
 const VERSOES_URL = 'https://joaoafonso.vercel.app/ota/versions.json';
 const CAMINHO_DOS_INSTALADORES = '/joaoafonso2004/duotone/releases/download/';
 const TIMEOUT_SEM_DADOS_MS = 45_000;
@@ -129,50 +126,29 @@ async function descarregar({
 }
 
 /**
- * Se a pasta da app aceita escrita SEM elevação. Testa-se escrevendo: no
- * Windows o `accessSync` só olha para o atributo de só-leitura, e diz que
- * sim ao Program Files.
+ * O NSIS já sabe fechar a app, pedir UAC quando precisa e reabri-la no fim.
+ * Esperar pelo evento `spawn` confirma que o Windows criou o processo antes de
+ * a app fechar; se falhar, a promessa rejeita e a app continua aberta.
  */
-function podeEscreverEm(fs, pasta) {
-  const teste = path.join(pasta, `.duotone-escrita-${process.pid}`);
-  try {
-    fs.writeFileSync(teste, '');
-    fs.rmSync(teste, { force: true });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const aspas = (texto) => `'${String(texto).replace(/'/g, "''")}'`;
-
-/**
- * O que corre depois de a app fechar: espera um instante, corre o instalador em
- * silêncio e espera por ele. O instalador reabre a app (`--force-run`); se ele
- * nem chegar a correr (UAC recusado) ou falhar, reabre-se a app como estava --
- * ninguém fica sem Duotone por ter carregado num botão.
- *
- * Vai em `-EncodedCommand` para nenhum caminho com aspas ou espaços partir a
- * linha de comandos.
- */
-function comandoDoInstalador({ instalador, executavel, elevar }) {
-  const script = [
-    "$ErrorActionPreference = 'Stop'",
-    'Start-Sleep -Milliseconds 1500',
-    'try {',
-    `  $p = Start-Process -FilePath ${aspas(instalador)} -ArgumentList '/S','--updated','--force-run'${elevar ? ' -Verb RunAs' : ''} -Wait -PassThru`,
-    `  if ($p.ExitCode -ne 0) { Start-Process -FilePath ${aspas(executavel)} }`,
-    '} catch {',
-    `  Start-Process -FilePath ${aspas(executavel)}`,
-    '}',
-  ].join('\n');
-  return {
-    ficheiro: 'powershell.exe',
-    argumentos: [
-      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
-      '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64'),
-    ],
-  };
+function lancarInstalador({ spawn, instalador }) {
+  return new Promise((resolve, reject) => {
+    let processo;
+    try {
+      processo = spawn(instalador, ['/S', '--updated', '--force-run'], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+    } catch (erro) {
+      reject(erro);
+      return;
+    }
+    processo.once('error', reject);
+    processo.once('spawn', () => {
+      processo.unref();
+      resolve();
+    });
+  });
 }
 
 module.exports = {
@@ -180,6 +156,5 @@ module.exports = {
   compararVersoes,
   escolherInstalador,
   descarregar,
-  podeEscreverEm,
-  comandoDoInstalador,
+  lancarInstalador,
 };

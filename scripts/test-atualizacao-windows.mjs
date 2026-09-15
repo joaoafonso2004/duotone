@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { EventEmitter } from 'node:events';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -33,17 +34,36 @@ assert.equal(a.escolherInstalador(comAsset({ size: 12 }), '3.2.0'), null, 'Um ta
 assert.equal(a.escolherInstalador(versoes({ ...bom, version: '3.3' }), '3.2.0'), null, 'Uma versão mal escrita não');
 assert.equal(a.escolherInstalador(null, '3.2.0'), null);
 
-// ---------------------------------------------------------------- o comando --
-const decifrar = (comando) => Buffer.from(comando.argumentos.at(-1), 'base64').toString('utf16le');
-const semAdmin = decifrar(a.comandoDoInstalador({
-  instalador: 'C:\\Temp\\Duotone-Setup-3.3.0.exe', executavel: "C:\\Users\\O'Brien\\Duotone\\Duotone.exe", elevar: false,
-}));
-assert.match(semAdmin, /-ArgumentList '\/S','--updated','--force-run'/, 'Silencioso, como atualização, e reabre no fim');
-assert.doesNotMatch(semAdmin, /RunAs/, 'Uma instalação só para o utilizador não pede administrador');
-assert.match(semAdmin, /O''Brien/, 'Uma aspa num caminho não parte o comando');
-assert.match(semAdmin, /catch \{\s+Start-Process -FilePath 'C:\\Users/, 'Se o instalador nem correr, a app volta a abrir');
-const comAdmin = decifrar(a.comandoDoInstalador({ instalador: 'C:\\x.exe', executavel: 'C:\\y.exe', elevar: true }));
-assert.match(comAdmin, /-Verb RunAs/, 'Uma instalação para todos pede administrador');
+// -------------------------------------------------------- lançar o instalador --
+// O PowerShell intermédio chegou a fechar a app mas não arrancou o NSIS no PC
+// real. O instalador do electron-builder já trata de fechar, elevar e reabrir.
+const chamadas = [];
+const processo = new EventEmitter();
+let desligado = false;
+processo.unref = () => { desligado = true; };
+const lancamento = a.lancarInstalador({
+  instalador: 'C:\\Temp\\Duotone-Setup-3.3.0.exe',
+  spawn: (...args) => {
+    chamadas.push(args);
+    queueMicrotask(() => processo.emit('spawn'));
+    return processo;
+  },
+});
+await lancamento;
+assert.deepEqual(chamadas[0][0], 'C:\\Temp\\Duotone-Setup-3.3.0.exe', 'Corre o instalador diretamente');
+assert.deepEqual(chamadas[0][1], ['/S', '--updated', '--force-run'], 'Silencioso, como atualização, e o NSIS reabre no fim');
+assert.deepEqual(chamadas[0][2], { detached: true, stdio: 'ignore', windowsHide: true });
+assert.equal(desligado, true, 'O instalador sobrevive ao fecho da app');
+
+const processoFalhado = new EventEmitter();
+processoFalhado.unref = () => {};
+await assert.rejects(a.lancarInstalador({
+  instalador: 'C:\\nao-existe.exe',
+  spawn: () => {
+    queueMicrotask(() => processoFalhado.emit('error', new Error('não abriu')));
+    return processoFalhado;
+  },
+}), /não abriu/, 'Se o Windows nem criar o instalador, a app não se fecha');
 
 // ---------------------------------------------------------------- o download --
 const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'duotone-atualizacao-'));
@@ -102,8 +122,6 @@ try {
   });
   assert.equal(fs.statSync(repetido).size, bytes.length, 'Uma nova tentativa substitui o instalador anterior');
 
-  assert.equal(a.podeEscreverEm(fs, pasta), true);
-  assert.equal(a.podeEscreverEm(fs, path.join(pasta, 'nao-existe')), false);
 } finally {
   fs.rmSync(pasta, { recursive: true, force: true });
 }
