@@ -1,6 +1,7 @@
 import {
   classificar,
   consolidar,
+  deveAvisarArranquePreso,
   sinalDoErro,
   historico,
   limparHistorico,
@@ -18,6 +19,14 @@ const check = (label: string, cond: boolean, extra = '') => {
   if (!cond) bad++;
   console.log(`  ${cond ? 'ok   ' : 'FALHA'} ${label}${extra ? '  -> ' + extra : ''}`);
 };
+
+console.log('\nvigia do arranque no Windows');
+check('uma faixa restaurada em pausa não é declarada presa',
+  deveAvisarArranquePreso(false, false) === false);
+check('uma faixa que se pediu para tocar e não arrancou é avisada',
+  deveAvisarArranquePreso(true, false) === true);
+check('uma faixa que já arrancou não é avisada',
+  deveAvisarArranquePreso(true, true) === false);
 
 console.log('\nclassificacao a partir de sinais estruturados');
 check('rede em baixo ganha a tudo o resto',

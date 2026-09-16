@@ -72,9 +72,11 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const [notifications, setNotifications] = useState(true);
   const [startup, setStartup] = useState<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean } | null>(null);
   const [savingStartup, setSavingStartup] = useState(false);
+  const [closeToTray, setCloseToTray] = useState(true);
   useEffect(() => {
     void getNotificationsEnabled().then(setNotifications);
     void window.duotoneDesktop?.getStartup?.().then(setStartup).catch(() => {});
+    void window.duotoneDesktop?.getCloseToTray?.().then(setCloseToTray).catch(() => {});
   }, []);
   const changeStartup = async (enabled: boolean, mode: 'window' | 'tray') => {
     if (savingStartup || !window.duotoneDesktop?.setStartup) return;
@@ -82,6 +84,15 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     try { setStartup(await window.duotoneDesktop.setStartup(enabled, mode)); }
     catch (e: any) { notify(e?.message || 'Could not change Windows startup.'); }
     finally { setSavingStartup(false); }
+  };
+  const changeCloseToTray = async (enabled: boolean) => {
+    const anterior = closeToTray;
+    setCloseToTray(enabled);
+    try { await window.duotoneDesktop?.setCloseToTray?.(enabled); }
+    catch (e: any) {
+      setCloseToTray(anterior);
+      notify(e?.message || 'Could not change the Close button behaviour.');
+    }
   };
   const [duration, setDurationState] = useState(true);
   const [rewind, setRewindState] = useState(false);
@@ -290,6 +301,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
           {window.duotoneDesktop?.notifyMessage && <SettingsCard icon="desktop-outline" title="Windows">
             <ToggleLine label="Message notifications" description="Show a Windows notification when a message arrives while you are away."
               value={notifications} onChange={(v) => { setNotifications(v); void setNotificationsEnabled(v); }} />
+            {window.duotoneDesktop?.setCloseToTray && <ToggleLine
+              label="Close button minimizes to tray"
+              description="Keep Duotone playing in the system tray when you close the window. When off, Close exits the app."
+              value={closeToTray} onChange={(v) => void changeCloseToTray(v)} />}
             {/* Desligada de origem: publica o que se ouve. A aplicação oficial
                 fica embutida; pedir um client id a cada pessoa impedia o Join,
                 porque todos os participantes têm de usar a mesma aplicação. */}

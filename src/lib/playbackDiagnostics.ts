@@ -185,6 +185,17 @@ export type Recuperacao = {
   alternativa: boolean;
 };
 
+/**
+ * O watchdog só representa uma falha quando havia uma tentativa de tocar.
+ *
+ * No Windows a sessão é restaurada em pausa. O IFrame fica corretamente em
+ * `CUED`, mas antes o temporizador era armado na montagem e, 15 segundos
+ * depois, tratava esse estado quieto como uma faixa presa.
+ */
+export function deveAvisarArranquePreso(querTocar: boolean, arrancou: boolean): boolean {
+  return querTocar && !arrancou;
+}
+
 export function recuperacao(tipo: TipoFalha): Recuperacao {
   switch (tipo) {
     // Sem rede não se salta NADA. Saltar aqui percorria a fila toda em

@@ -3,7 +3,8 @@ import { searchYouTube } from '../api/youtube';
 import { pickBest } from '../lib/trackMatch';
 import { rememberPlaybackAlternative } from '../lib/playbackAlternatives';
 import {
-  classificar, mensagem as mensagemDaFalha, recuperacao, registar, type TipoFalha,
+  classificar, deveAvisarArranquePreso, mensagem as mensagemDaFalha,
+  recuperacao, registar, type TipoFalha,
 } from '../lib/playbackDiagnostics';
 import { baterSessao } from '../lib/sessionSync';
 import { velocidadeNaSessao } from '../lib/jam';
@@ -140,6 +141,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const prontoRef = useRef(false);
   const arrancouRef = useRef(false);
   const primeiraRef = useRef(true);
+  const querTocar = usePlayer((s) => s.isPlaying);
 
   // Ao restaurar a janela, não esperar pelos cinco segundos do ritmo de
   // background para atualizar a barra e a posição da sessão.
@@ -164,8 +166,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     clearTimeout(vigiaRef.current);
     arrancouRef.current = false;
     vigiaRef.current = setTimeout(() => {
-      if (arrancouRef.current) return;
       const state = usePlayer.getState();
+      if (!deveAvisarArranquePreso(state.isPlaying, arrancouRef.current)) return;
       state._setBuffering(false);
       // Nunca arrancou: se nem o embed ficou pronto, o mais provável é a rede.
       const tipo: TipoFalha = prontoRef.current ? 'tempo-esgotado' : 'sem-rede';
@@ -182,6 +184,16 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }, 15000);
   }, []);
 
+  // Uma sessão restaurada em pausa não está a tentar arrancar. A vigia nasce
+  // quando há intenção real de tocar (incluindo um Play posterior) e também é
+  // renovada quando se muda de faixa durante a reprodução.
+  useEffect(() => {
+    clearTimeout(vigiaRef.current);
+    arrancouRef.current = false;
+    if (querTocar) armarVigia();
+    return () => clearTimeout(vigiaRef.current);
+  }, [querTocar, track.sourceId, armarVigia]);
+
   /**
    * O player nasce UMA vez e fica.
    *
@@ -195,8 +207,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     let player: any;
     let disposed = false;
     const state = usePlayer.getState();
-
-    armarVigia();
 
     const mount = () => {
       if (disposed || !window.YT?.Player) return;
@@ -308,7 +318,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             if ((s === 1 || s === 2 || s === 5) && estaNoVideo(event.target, faixaRef.current.sourceId)) {
               state._setActiveBackend('webview');
             }
-            if (s === 1) state._onYtStateChange('playing');
+            if (s === 1) {
+              clearTimeout(vigiaRef.current);
+              state.setError(null);
+              state._onYtStateChange('playing');
+            }
             else if (s === 2) state._onYtStateChange('paused');
             else if (s === 0) state._onYtStateChange('ended');
             if (s === 3) state._setBuffering(true);
@@ -380,7 +394,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       try { player?.mute?.(); } catch {}
       try { player?.destroy?.(); } catch {}
     };
-  }, [armarVigia]);
+  }, []);
 
   /**
    * Trocar de faixa no player que já existe.
@@ -393,9 +407,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const p = playerRef.current;
     if (!p?.loadVideoById) return;
     usePlayer.getState()._setBuffering(true);
-    armarVigia();
     try { p.loadVideoById(track.sourceId); } catch {}
-  }, [track.sourceId, armarVigia]);
+  }, [track.sourceId]);
 
   const velocidadeEscolhida = usePlayer((s) => s.playbackRate);
   // Entrar e sair de um Jam também muda a velocidade do motor: a 1x lá dentro,

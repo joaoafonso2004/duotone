@@ -17,6 +17,7 @@ const externos = [];
 const captura = {};
 let aoJuntarDiscord = null;
 let preparacoesDiscord = 0;
+let saidas = 0;
 class Janela extends EventEmitter {
   constructor(options) {
     super(); janela = this;
@@ -31,7 +32,7 @@ class Janela extends EventEmitter {
     this.webContents = wc;
   }
   loadURL(url) { this.webContents.url = url; this.webContents.mainFrame.url = url; }
-  show() { this.visivel = true; } focus() { this.focada = true; }
+  show() { this.visivel = true; } hide() { this.visivel = false; } focus() { this.focada = true; }
   isFocused() { return this.focada; } isMinimized() { return this.minimizada; }
   restore() { this.minimizada = false; }
 }
@@ -43,7 +44,7 @@ class Aviso extends EventEmitter {
 }
 const electron = {
   app: { isPackaged: true, requestSingleInstanceLock: () => true, on: (event, fn) => events.set(event, fn),
-    whenReady: () => ({ then() {} }), getPath: () => 'qa', quit() {},
+    whenReady: () => ({ then() {} }), getPath: () => 'qa', quit() { saidas++; },
     getLoginItemSettings: () => startup, setLoginItemSettings: (settings) => { startup = { ...settings, executableWillLaunchAtLogin: settings.openAtLogin }; } },
   BrowserWindow: Janela, Notification: Aviso, protocol: { registerSchemesAsPrivileged() {} },
   shell: { openExternal: (url) => externos.push(url) },
@@ -131,6 +132,20 @@ assert.equal(janela.visivel, true, 'O modo janela abre no início de sessão');
 handlers.get('startup:set')(evento(), false, 'tray');
 assert.equal(startup.openAtLogin, false);
 assert.throws(() => handlers.get('startup:set')({ sender: {}, senderFrame: {} }, true, 'window'));
+assert.equal(handlers.get('window:close-to-tray:get')(evento()), true,
+  'Por omissão o X mantém a música no tabuleiro');
+janela.visivel = true;
+let impediuFecho = false;
+janela.emit('close', { preventDefault: () => { impediuFecho = true; } });
+assert.equal(impediuFecho, true);
+assert.equal(janela.visivel, false, 'Com a opção ligada o X esconde a janela');
+assert.equal(handlers.get('window:close-to-tray:set')(evento(), false), false);
+janela.visivel = true;
+impediuFecho = false;
+janela.emit('close', { preventDefault: () => { impediuFecho = true; } });
+assert.equal(impediuFecho, false, 'Com a opção desligada o X deixa fechar a janela');
+assert.equal(saidas, 0, 'O window-all-closed é que termina a app depois de a janela fechar');
+assert.throws(() => handlers.get('window:close-to-tray:set')({ sender: {}, senderFrame: {} }, true));
 // Instalar uma atualização corre um .exe: só a janela principal o pode pedir.
 await assert.rejects(handlers.get('atualizacao:instalar')({ sender: {}, senderFrame: {} }), /invalido/);
 const notificar = handlers.get('notification:message');

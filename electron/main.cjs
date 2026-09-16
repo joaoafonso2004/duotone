@@ -75,6 +75,27 @@ function daJanelaPrincipal(event) {
   return mainWindow && event.sender === mainWindow.webContents
     && event.senderFrame === mainWindow.webContents.mainFrame;
 }
+
+function fecharMinimiza() {
+  try {
+    const guardado = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'windows-window.json'), 'utf8'));
+    return typeof guardado.closeToTray === 'boolean' ? guardado.closeToTray : true;
+  } catch { return true; }
+}
+
+ipcMain.handle('window:close-to-tray:get', (event) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido inválido.');
+  return fecharMinimiza();
+});
+ipcMain.handle('window:close-to-tray:set', (event, enabled) => {
+  if (!daJanelaPrincipal(event) || typeof enabled !== 'boolean') throw new Error('Pedido inválido.');
+  fs.writeFileSync(
+    path.join(app.getPath('userData'), 'windows-window.json'),
+    JSON.stringify({ closeToTray: enabled }),
+  );
+  return enabled;
+});
+
 ipcMain.handle('startup:get', (event) => daJanelaPrincipal(event) ? getStartup() : null);
 ipcMain.handle('startup:set', (event, enabled, mode) => {
   if (!daJanelaPrincipal(event) || typeof enabled !== 'boolean' || !['window', 'tray'].includes(mode)) throw new Error('Pedido inválido.');
@@ -528,7 +549,7 @@ function createWindow() {
   win.on('maximize', () => sendWindowState(win));
   win.on('unmaximize', () => sendWindowState(win));
   win.on('close', (event) => {
-    if (!isQuitting) {
+    if (!isQuitting && fecharMinimiza()) {
       event.preventDefault();
       win.hide();
     }

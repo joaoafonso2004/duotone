@@ -38,6 +38,8 @@ declare global {
       minimize(): void;
       toggleMaximize(): void;
       close(): void;
+      getCloseToTray?: () => Promise<boolean>;
+      setCloseToTray?: (enabled: boolean) => Promise<boolean>;
       isMaximized(): Promise<boolean>;
       onMaximizedChange(listener: (maximized: boolean) => void): () => void;
       /** Aplica os ganhos do equalizador dentro do frame do YouTube.

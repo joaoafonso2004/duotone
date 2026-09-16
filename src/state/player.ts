@@ -88,6 +88,38 @@ const posicao = (ms: number) => ({ positionMs: ms, positionAt: Date.now() });
  */
 export const ATRASO_DA_SUGESTAO_MS = 2000;
 
+/**
+ * O percurso aleatório representa músicas, não uploads. Uma playlist pode ter
+ * o videoclipe e o Official Audio do mesmo tema; ambos continuam visíveis na
+ * fila, mas só um entra em cada volta do shuffle. A faixa atual ganha sempre,
+ * para reconciliar uma fila já em reprodução sem a fazer saltar.
+ */
+function filaSemMusicasRepetidas(queue: Track[], currentIndex: number): Track[] {
+  const indices = queue[currentIndex]
+    ? [currentIndex, ...queue.map((_, i) => i).filter((i) => i !== currentIndex)]
+    : queue.map((_, i) => i);
+  const vistas = new Set<string>();
+  const unicas: Track[] = [];
+  for (const index of indices) {
+    const track = queue[index];
+    const chaves = chavesDaMusica(track);
+    if (chaves.some((chave) => vistas.has(chave))) continue;
+    unicas.push(track);
+    for (const chave of chaves) vistas.add(chave);
+  }
+  return unicas;
+}
+
+function novaOrdemDoShuffle(queue: Track[], currentIndex: number): string[] {
+  return shuffleKeys(filaSemMusicasRepetidas(queue, currentIndex), 0);
+}
+
+function reconciliarOrdemDoShuffle(
+  order: string[], queue: Track[], currentIndex: number,
+): string[] {
+  return reconcileOrder(order, filaSemMusicasRepetidas(queue, currentIndex), 0);
+}
+
 /** Registada sincronamente pela store Jam, sem depender da montagem do player. */
 let ouvirJuntos: () => PonteJam | null = () => null;
 export function registarOuvirJuntos(fn: typeof ouvirJuntos): void { ouvirJuntos = fn; }
@@ -965,7 +997,7 @@ export const usePlayer = create<PlayerState>()(
 
     const { alvo, fila, ordem } = saltoAposFalha(
       { ...state, shuffleOrder: state.shuffle ? state._ensureShuffleOrder() : state.shuffleOrder },
-      { trackKey, stepIndex, shuffleKeys },
+      { trackKey, stepIndex, shuffleKeys: novaOrdemDoShuffle },
     );
     if (ordem !== state.shuffleOrder) set({ shuffleOrder: ordem });
 
@@ -1009,7 +1041,7 @@ export const usePlayer = create<PlayerState>()(
       activeBackend: 'resolving',
       downloadProgress: null,
       autoplayOnLoad: true,
-      shuffleOrder: get().shuffle ? reconcileOrder(get().shuffleOrder, q, index) : [],
+      shuffleOrder: get().shuffle ? reconciliarOrdemDoShuffle(get().shuffleOrder, q, index) : [],
       // Os dois motores retomam por caminhos diferentes: o nativo consome o
       // `resumePositionMs` no beginPlayback, o do desktop lê o `positionMs`
       // no onReady do IFrame. Preencher os dois é o que faz o handoff cair
@@ -1272,7 +1304,7 @@ export const usePlayer = create<PlayerState>()(
       // Percurso esgotado: com repeat "all" baralha-se outra vez (como a
       // Spotify) em vez de repetir a mesma ordem.
       if (repeatMode === 'all') {
-        const fresh = shuffleKeys(queue, queueIndex);
+        const fresh = novaOrdemDoShuffle(queue, queueIndex);
         set({ shuffleOrder: fresh });
         const first = stepIndex(fresh, queue, queueIndex, 1);
         if (first !== null) {
@@ -1398,7 +1430,7 @@ export const usePlayer = create<PlayerState>()(
         // Estas não vieram da lista: o Now Playing diz "From Radio" nelas.
         doRadio: [...live.doRadio, ...tracks.map((t) => trackKey(t))].slice(-200),
         shuffleOrder: live.shuffle
-          ? reconcileOrder(live.shuffleOrder, merged, live.queueIndex)
+          ? reconciliarOrdemDoShuffle(live.shuffleOrder, merged, live.queueIndex)
           : [],
       });
       registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:tracks.length});
@@ -1426,7 +1458,7 @@ export const usePlayer = create<PlayerState>()(
 
   _ensureShuffleOrder: () => {
     const { queue, queueIndex, shuffleOrder } = get();
-    const order = reconcileOrder(shuffleOrder, queue, queueIndex);
+    const order = reconciliarOrdemDoShuffle(shuffleOrder, queue, queueIndex);
     set({ shuffleOrder: order });
     return order;
   },
@@ -1487,7 +1519,7 @@ export const usePlayer = create<PlayerState>()(
   setShuffle: (v) =>
     set((s) => ({
       shuffle: v,
-      shuffleOrder: v ? shuffleKeys(s.queue, s.queueIndex) : [],
+      shuffleOrder: v ? novaOrdemDoShuffle(s.queue, s.queueIndex) : [],
     })),
   /** O botão cicla off → normal → inteligente → off. */
   toggleShuffle: () => {

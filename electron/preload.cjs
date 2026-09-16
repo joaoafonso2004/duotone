@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   minimize: () => ipcRenderer.send('window:minimize'),
   toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
   close: () => ipcRenderer.send('window:close'),
+  getCloseToTray: () => ipcRenderer.invoke('window:close-to-tray:get'),
+  setCloseToTray: (enabled) => ipcRenderer.invoke('window:close-to-tray:set', enabled),
   isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
   onMaximizedChange: (listener) => {
     const handler = (_event, value) => listener(Boolean(value));

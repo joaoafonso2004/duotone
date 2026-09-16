@@ -22,6 +22,7 @@ import { guardadas } from './duplos/prefs.ts';
 import { guardado as armazenamento } from './duplos/async-storage.ts';
 import { naConta } from './duplos/cache.ts';
 import { esquecerBiblioteca } from '../src/lib/cacheDaBiblioteca.ts';
+import { tituloDeIdentidade } from '../src/lib/identidadeDaMusica.ts';
 import type { Track } from '../src/types.ts';
 
 let mau = 0;
@@ -99,6 +100,30 @@ check('as faixas do rádio ficaram na fila', ids().includes('r2'));
 preparar({ queueIndex: 3, current: faixa('d'), repeatMode: 'all' });
 await usePlayer.getState().next();
 eq('repeat all volta ao princípio', atual(), 'a');
+
+// A ordem por sourceId não chega: uma playlist pode ter o videoclipe e o
+// Official Audio da mesma música. Eram uploads diferentes e, por isso, o
+// shuffle tocava o mesmo tema duas vezes antes de acabar os outros.
+{
+  const originais = Array.from({ length: 10 }, (_, i): Track => ({
+    ...faixa(`tema-${i}-video`), title: `Tema ${i} (Official Video)`, artist: 'Artista',
+  }));
+  const copia0: Track = { ...faixa('tema-0-audio'), title: 'Tema 0 (Official Audio)', artist: 'Artista' };
+  const copia1: Track = { ...faixa('tema-1-audio'), title: 'Tema 1 (Official Audio)', artist: 'Artista' };
+  const comCopias = [originais[0], copia0, originais[1], copia1, ...originais.slice(2)];
+  preparar({
+    current: comCopias[0], queue: comCopias, queueIndex: 0,
+    shuffle: true, shuffleOrder: comCopias.map(trackKey), autoplayRadio: false,
+  });
+  const ouvidas: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const faixaAtual = usePlayer.getState().current;
+    if (faixaAtual) ouvidas.push(tituloDeIdentidade(faixaAtual.title));
+    if (i < 9) await usePlayer.getState().next();
+  }
+  check('dez saltos de shuffle não repetem a mesma música noutro upload',
+    new Set(ouvidas).size === 10, ouvidas.join(', '));
+}
 
 // ===========================================================================
 console.log('\no shuffle inteligente');
