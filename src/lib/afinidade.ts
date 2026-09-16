@@ -28,6 +28,11 @@ export type FaixaComArtista = { artista: string; playlistId?: string | null };
 /** Quantos artistas do retrato se usam. Mais do que isto e a semelhança
  * dilui-se: uma biblioteca grande acabaria por "parecer-se" com tudo. */
 export const ARTISTAS_DO_RETRATO = 8;
+/** As primeiras faixas do contexto valem inteiras: na biblioteca são as
+ * gostadas mais recentes. */
+export const RECENTES_DO_RETRATO = 60;
+/** O que vem depois conta, mas menos. Ver `retratoDoContexto`. */
+export const PESO_DAS_ANTIGAS = 0.25;
 
 /**
  * O retrato do contexto: que artistas o compõem e com que peso.
@@ -41,13 +46,18 @@ export function retratoDoContexto(
   chave: (nome: string) => string,
 ): Map<string, number> {
   const contagem = new Map<string, { nome: string; n: number }>();
-  for (const f of faixas) {
+  // **A biblioteca inteira, com as mais recentes a pesar mais.** Era só um
+  // corte das primeiras 60: um favorito antigo que não estivesse numa playlist
+  // desaparecia do retrato (auditoria de 16/9). As antigas contam a um quarto,
+  // para quarenta faixas guardadas há anos não passarem à frente do presente.
+  faixas.forEach((f, i) => {
     const k = chave(f.artista);
-    if (!k) continue;
+    if (!k) return;
+    const peso = i < RECENTES_DO_RETRATO ? 1 : PESO_DAS_ANTIGAS;
     const actual = contagem.get(k);
-    if (actual) actual.n += 1;
-    else contagem.set(k, { nome: f.artista, n: 1 });
-  }
+    if (actual) actual.n += peso;
+    else contagem.set(k, { nome: f.artista, n: peso });
+  });
   const ordenado = [...contagem.entries()]
     .sort((a, b) => b[1].n - a[1].n)
     .slice(0, ARTISTAS_DO_RETRATO);
@@ -97,6 +107,14 @@ export function vizinhosPorPlaylist(
 export type ArtistaPontuado = { chave: string; pontos: number };
 
 /**
+ * A co-ocorrencia ajuda, mas o conjunto inteiro dos vizinhos nunca pode pesar
+ * mais de metade do retrato. Sem este teto, uma unica playlist com muitos
+ * artistas criava dezenas de bilhetes para o mesmo sorteio e afastava quase
+ * sempre o artista que a pessoa estava realmente a ouvir.
+ */
+const FRACAO_MAXIMA_DOS_VIZINHOS = 0.5;
+
+/**
  * Os artistas a quem vale a pena ir buscar sugestões.
  *
  * Soma, para cada vizinho, o peso do artista do retrato que lhe chegou. Um
@@ -126,10 +144,9 @@ export function artistasVizinhos(
 /**
  * Por onde procurar a seguir: uma mistura dos vizinhos e dos próprios.
  *
- * **Porque não só os vizinhos.** Uma biblioteca sem playlists não tem
- * co-ocorrência nenhuma, e aí a lista de vizinhos vem vazia — o modo ficaria
- * mudo, que foi exatamente o defeito anterior. Os artistas do retrato entram
- * como rede de segurança: procurar por eles ainda traz faixas que não tens.
+ * Os artistas do retrato têm o peso principal. Os vizinhos acrescentam
+ * exploração, mas o conjunto inteiro deles fica limitado a metade do retrato;
+ * criar muitas ligações numa playlist não cria peso ilimitado no sorteio.
  *
  * A ordem é aleatória com viés, e não a melhor primeiro: sugerir sempre pelo
  * topo dava sempre as mesmas sugestões.
@@ -140,10 +157,17 @@ export function alvosDeProcura(
   quantos: number,
   aleatorio: () => number = Math.random,
 ): string[] {
+  const doRetrato: ArtistaPontuado[] = [...retrato]
+    .map(([chave, peso]) => ({ chave, pontos: Math.max(peso, 0) }));
+  const pesoDoRetrato = doRetrato.reduce((s, a) => s + a.pontos, 0);
+  const pesoDosVizinhos = vizinhos.reduce((s, a) => s + Math.max(a.pontos, 0), 0);
+  const tetoDosVizinhos = pesoDoRetrato * FRACAO_MAXIMA_DOS_VIZINHOS;
+  const escalaDosVizinhos = pesoDoRetrato > 0 && pesoDosVizinhos > tetoDosVizinhos
+    ? tetoDosVizinhos / pesoDosVizinhos
+    : 1;
   const candidatos: ArtistaPontuado[] = [
-    ...vizinhos,
-    // Metade do peso: preferem-se os vizinhos, mas nunca se fica sem nada.
-    ...[...retrato].map(([chave, peso]) => ({ chave, pontos: peso * 0.5 })),
+    ...doRetrato,
+    ...vizinhos.map(({ chave, pontos }) => ({ chave, pontos: pontos * escalaDosVizinhos })),
   ];
   if (candidatos.length === 0) return [];
 

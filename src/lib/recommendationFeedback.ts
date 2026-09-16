@@ -78,11 +78,12 @@ export function ajustarSugestoes<T>(
   prefs: readonly Feedback[],
   trackKey: (t: T) => string,
   artistKey: (t: T) => string,
+  learnedWeight: (artistKey: string) => number = () => 1,
 ): T[] {
   const blocked = new Set(prefs.filter((p) => p.kind === 'track').map((p) => p.key));
   const less = new Set(prefs.filter((p) => p.kind === 'artist').map((p) => p.key));
   const more = new Set(prefs.filter((p) => p.kind === 'artist_more').map((p) => p.key));
-  const preferido: T[] = [], normal: T[] = [], reduced: T[] = [];
+  const preferido: T[] = [], normal: T[] = [], aprendida: T[] = [], reduced: T[] = [];
   // No máximo uma candidata por artista reduzido, depois das alternativas.
   // As restantes não regressam só por faltarem alternativas.
   const allowed = tracks.filter((t) => !blocked.has(trackKey(t)));
@@ -90,9 +91,12 @@ export function ajustarSugestoes<T>(
   for (const t of allowed) {
     const k = artistKey(t);
     if (more.has(k)) { preferido.push(t); continue; }
-    if (!less.has(k)) { normal.push(t); continue; }
+    if (!less.has(k)) {
+      (learnedWeight(k) < 1 ? aprendida : normal).push(t);
+      continue;
+    }
     const n = kept.get(k) ?? 0;
     if (n < 1) { reduced.push(t); kept.set(k, n + 1); }
   }
-  return [...preferido, ...normal, ...reduced];
+  return [...preferido, ...normal, ...aprendida, ...reduced];
 }

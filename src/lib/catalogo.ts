@@ -119,8 +119,29 @@ export function ordenarPorGosto(
   excluir: ReadonlySet<string> = new Set(),
   chave: (nome: string) => string = chaveDeCatalogo,
 ): ArtistaDoCatalogo[] {
+  return pontuarPorGosto(listas, afinidade, excluir, chave).map((x) => x.artista);
+}
+
+/** O mesmo que `ordenarPorGosto`, mas com as duas parcelas à vista: a escolha
+ * final do Smart Shuffle precisa delas, e não só da ordem. */
+export type ArtistaPontuadoNoCatalogo = {
+  artista: ArtistaDoCatalogo;
+  /** Posição na lista do catálogo, a contar de 0. */
+  posicao: number;
+  /** A parcela do gosto, 0 a 1. */
+  gosto: number;
+  /** Catálogo + gosto, 0 a 2. */
+  pontos: number;
+};
+
+export function pontuarPorGosto(
+  listas: readonly (readonly ArtistaDoCatalogo[])[],
+  afinidade: ReadonlyMap<string, number>,
+  excluir: ReadonlySet<string> = new Set(),
+  chave: (nome: string) => string = chaveDeCatalogo,
+): ArtistaPontuadoNoCatalogo[] {
   const maiorAfinidade = Math.max(0, ...afinidade.values());
-  const melhor = new Map<string, { artista: ArtistaDoCatalogo; pontos: number }>();
+  const melhor = new Map<string, ArtistaPontuadoNoCatalogo>();
 
   for (const lista of listas) {
     lista.forEach((a, i) => {
@@ -133,13 +154,13 @@ export function ordenarPorGosto(
       // Aparecer nas listas de dois artistas diferentes não soma: vale a
       // melhor posição. Somar premiava quem é semelhante de toda a gente.
       const actual = melhor.get(k);
-      if (!actual || pontos > actual.pontos) melhor.set(k, { artista: a, pontos });
+      if (!actual || pontos > actual.pontos) {
+        melhor.set(k, { artista: a, posicao: i, gosto: doGosto, pontos });
+      }
     });
   }
 
-  return [...melhor.values()]
-    .sort((a, b) => b.pontos - a.pontos)
-    .map((x) => x.artista);
+  return [...melhor.values()].sort((a, b) => b.pontos - a.pontos);
 }
 
 /**

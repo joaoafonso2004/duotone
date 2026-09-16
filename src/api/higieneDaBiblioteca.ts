@@ -9,6 +9,7 @@ import {
   type AjudantesDaHigiene, type Disponibilidade,
 } from '../lib/higieneDaBiblioteca';
 import { upsertTrack } from './library';
+import { esquecerAfinidade } from './afinidade';
 import { searchYouTubeFreeWithChannel } from './ytSearchFree';
 import type { Track } from '../types';
 
@@ -117,6 +118,8 @@ function erroDaFuncao(error: { code?: string; message?: string }): Error {
 export async function juntar(fica: string, sai: string): Promise<Juncao> {
   const { data, error } = await supabase.rpc('juntar_na_biblioteca', { p_fica: fica, p_sai: sai });
   if (error) throw erroDaFuncao(error);
+  // A junção reescreve as playlists: a co-ocorrência lida antes já não vale.
+  esquecerAfinidade();
   return { fica, sai, registo: data };
 }
 
@@ -125,6 +128,7 @@ export async function desfazerJuncao(j: Juncao): Promise<void> {
     p_fica: j.fica, p_sai: j.sai, p_registo: j.registo,
   });
   if (error) throw erroDaFuncao(error);
+  esquecerAfinidade();
 }
 
 /** Trocar um vídeo morto pela cópia: a cópia entra no catálogo e fica no lugar dele. */

@@ -96,6 +96,33 @@ export function chavesDaMusica(track: FaixaParaIdentificar): string[] {
 const compacto = (s: string) => s.replace(/\s+/g, '');
 
 /**
+ * As chaves de uma lista inteira, calculadas uma vez por lista. A cache da
+ * biblioteca devolve o MESMO array enquanto vale, e o Smart Shuffle e a
+ * descoberta pedem isto a cada sugestão.
+ */
+const chavesPorLista = new WeakMap<readonly FaixaParaIdentificar[], Set<string>>();
+export function chavesDeTodas(faixas: readonly FaixaParaIdentificar[]): Set<string> {
+  let chaves = chavesPorLista.get(faixas);
+  if (!chaves) {
+    chaves = new Set();
+    for (const f of faixas) for (const k of chavesDaMusica(f)) chaves.add(k);
+    chavesPorLista.set(faixas, chaves);
+  }
+  return chaves;
+}
+
+/**
+ * As chaves de uma faixa do catálogo (título e artista, sem vídeo), sem a do
+ * upload -- que aqui não existe. Servem para saltar, ANTES de pesquisar no
+ * YouTube, uma música que a pessoa já tem ou já recebeu.
+ */
+export function chavesDoCatalogo(faixa: { titulo: string; artista: string }): string[] {
+  const falsa: FaixaParaIdentificar = { source: 'youtube', sourceId: '', title: faixa.titulo, artist: faixa.artista };
+  const upload = trackKey(falsa);
+  return chavesDaMusica(falsa).filter((k) => k !== upload);
+}
+
+/**
  * O título sem o nome do artista à frente, quando o upload não pôs hífen:
  * `Juice WRLD "Righteous"` dá "juice wrld righteous". Compara sem espaços, para
  * "blink 182 all the small things" largar o artista "blink182". Só corta em

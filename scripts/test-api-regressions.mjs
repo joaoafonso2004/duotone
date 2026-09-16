@@ -534,3 +534,556 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
     'uma falha passageira não desliga a função para sempre');
   console.log('Continuar aqui: com e sem a migração, a escrita e a leitura funcionam.');
 }
+
+// Perfil pessoal de ponta a ponta: plays + Spotify/sementes -> crivo real de
+// confiança -> âncoras consultadas no catálogo. A rede é o único duplo aqui.
+{
+  let historico = [
+    { artist: 'Juice WRLD', play_count: 10 },
+    { artist: '999', play_count: 90 }, // Contagem não prova um nome extraído.
+  ];
+  let consultas = [];
+  const mundo = ambiente(() => { throw Error('Este teste não usa rede'); }, {
+    'src/lib/supabase.ts': { supabase: { rpc: async (nome) => {
+      assert.equal(nome, 'get_top_artists');
+      return { data: historico, error: null };
+    } } },
+    'src/lib/prefs.ts': {
+      getGostoDoSpotify: async () => ({ artistas: [{ name: 'Horizonte Novo', plays: 20 }], lidoEm: Date.now() }),
+      getArtistasSemente: async () => ['Aurora Inicial'],
+    },
+    'src/state/connectivity.ts': { useConnectivity: { getState: () => ({ offline: false }) } },
+    'src/state/recommendationFeedback.ts': {
+      artistasPreferidos: () => [], artistWeight: () => 1, feedbackReady: async () => {},
+      filterSuggestions: (faixas) => [...faixas], trackIsSuppressed: () => false,
+    },
+    'src/api/library.ts': { getLibraryKeys: async () => new Set() },
+    'src/api/afinidade.ts': { paresDeArtistaEPlaylist: async () => ({ pares: [], faixas: [] }) },
+    'src/api/catalogo.ts': {
+      vizinhancaDe: async (nome) => {
+        consultas.push(nome);
+        return {
+          artista: { id: `proprio-${nome}`, nome, fas: 100 },
+          semelhantes: [{ id: nome, nome: `Vizinho de ${nome}`, fas: 100 }],
+        };
+      },
+      topDoArtista: async (id) => [{ titulo: 'Luz do Dia', artista: `Vizinho de ${id}`, duracaoS: 180 }],
+    },
+    'src/api/ytSearchFree.ts': { searchYouTubeFreeWithChannel: async (query) => {
+      const artista = query.slice(0, -' Luz do Dia'.length);
+      return [{ channel: `${artista} - Topic`, track: {
+        source: 'youtube', sourceId: `video-${artista}`, title: 'Luz do Dia', artist: artista,
+        durationSeconds: 180, album: null, artworkUrl: null,
+      } }];
+    } },
+    'src/api/youtube.ts': {},
+  });
+  const descoberta = mundo.carregar('src/api/descoberta.ts');
+  const contexto = [{ source: 'youtube', sourceId: 'atual', title: 'Lucid Dreams',
+    artist: 'Juice WRLD - Topic', durationSeconds: 180, album: null, artworkUrl: null }];
+  const validarAncoras = (rotulo) => {
+    assert.ok(consultas.includes('Horizonte Novo'), `${rotulo}: Spotify preserva o nome e passa o crivo`);
+    assert.ok(consultas.includes('Aurora Inicial'), `${rotulo}: escolha inicial passa o crivo`);
+    assert.ok(!consultas.includes('999'), `${rotulo}: histórico não ganha confiança externa`);
+  };
+  const weekly = await descoberta.descobrirNovas(30, contexto);
+  validarAncoras('Weekly');
+  assert.ok(weekly.some(t => t.artist === 'Vizinho de Horizonte Novo'));
+  consultas = [];
+  const mixes = await descoberta.descobertasPorAncora(
+    contexto, ['999', 'Juice WRLD', 'Horizonte Novo', 'Aurora Inicial'],
+  );
+  validarAncoras('Misturas');
+  assert.deepEqual(consultas, ['Juice WRLD', 'Horizonte Novo', 'Aurora Inicial'],
+    'Misturas: só as âncoras pedidas pela página, pela ordem dela, sem o nome suspeito');
+  assert.deepEqual([...mixes.ancoras], ['Juice WRLD', 'Horizonte Novo', 'Aurora Inicial'],
+    'Misturas: o remendo do YouTube só recebe as âncoras que passaram o crivo');
+  assert.ok(mixes.vizinhas.get('horizonte novo')?.length, 'Misturas: o mapa contém música da âncora do Spotify');
+  assert.ok(mixes.vizinhas.get('aurora inicial')?.length, 'Misturas: o mapa contém música da escolha inicial');
+  consultas = [];
+  const soDuas = await descoberta.descobertasPorAncora(
+    contexto, ['Juice WRLD', 'Horizonte Novo', 'Aurora Inicial'], 2,
+  );
+  assert.deepEqual(consultas, ['Juice WRLD', 'Horizonte Novo'], 'Misturas: não passa do número de misturas pedido');
+  assert.deepEqual([...soDuas.ancoras], ['Juice WRLD', 'Horizonte Novo']);
+
+  // Conta nova: sem biblioteca nem plays, só o perfil importado e as sementes.
+  historico = []; consultas = [];
+  const coldStart = await descoberta.descobertasPorAncora([], ['Horizonte Novo', 'Aurora Inicial']);
+  validarAncoras('Conta nova');
+  assert.ok(coldStart.vizinhas.get('horizonte novo')?.length);
+  assert.ok(coldStart.vizinhas.get('aurora inicial')?.length);
+  console.log('Perfil de recomendações: Weekly e misturas preservam Spotify/sementes, inclusive numa conta nova, sem confiar em nomes suspeitos.');
+}
+
+// Novidade é da faixa, não obrigatoriamente do artista. O mesmo artista que
+// serve de âncora pode ter música que a pessoa ainda não guardou nem ouviu.
+{
+  const procuradas = [];
+  const faixaDoCatalogo = (titulo, artista) => ({ titulo, artista, duracaoS: 180 });
+  const ids = new Map([
+    ['Aurora Azul Faixa Atual', 'actual'],
+    ['Aurora Azul Faixa Guardada', 'guardada'],
+    ['Aurora Azul Faixa Já Sugerida', 'sugerida'],
+    ['Aurora Azul Faixa Nova', 'nova-da-aurora'],
+    ['Banda Próxima Faixa Vizinha', 'nova-vizinha'],
+  ]);
+  const mundo = ambiente(() => { throw Error('Este teste não usa rede'); }, {
+    'src/state/connectivity.ts': { useConnectivity: { getState: () => ({ offline: false }) } },
+    'src/state/recommendationFeedback.ts': {
+      artistasPreferidos: () => [], artistWeight: () => 1, feedbackReady: async () => {},
+      filterSuggestions: (faixas) => [...faixas], trackIsSuppressed: () => false,
+    },
+    'src/api/library.ts': { getLibraryKeys: async () => new Set(['youtube:guardada']) },
+    'src/api/plays.ts': { getHeavyRotation: async () => [] },
+    'src/api/perfilDeRecomendacoes.ts': {
+      lerPerfilDeRecomendacoes: async () => ({ escutas: new Map(), externos: new Map() }),
+    },
+    'src/api/afinidade.ts': { paresDeArtistaEPlaylist: async () => ({ pares: [], faixas: [] }) },
+    'src/api/catalogo.ts': {
+      vizinhancaDe: async (nome) => nome === 'Aurora Azul' ? {
+        artista: { id: 1, nome: 'Aurora Azul', fas: 1000 },
+        semelhantes: [{ id: 2, nome: 'Banda Próxima', fas: 500 }],
+      } : null,
+      topDoArtista: async (id) => {
+        procuradas.push(id);
+        return id === 1 ? [
+          faixaDoCatalogo('Faixa Atual', 'Aurora Azul'),
+          faixaDoCatalogo('Faixa Guardada', 'Aurora Azul'),
+          faixaDoCatalogo('Faixa Já Sugerida', 'Aurora Azul'),
+          faixaDoCatalogo('Faixa Nova', 'Aurora Azul'),
+        ] : [faixaDoCatalogo('Faixa Vizinha', 'Banda Próxima')];
+      },
+    },
+    'src/api/ytSearchFree.ts': { searchYouTubeFreeWithChannel: async (query) => {
+      const id = ids.get(query);
+      return id ? [{ channel: `${query.split(' Faixa')[0]} - Topic`, track: {
+        source: 'youtube', sourceId: id, title: query.slice(query.indexOf('Faixa')),
+        artist: query.split(' Faixa')[0], durationSeconds: 180, album: null, artworkUrl: null,
+      } }] : [];
+    } },
+    'src/api/youtube.ts': {},
+  });
+  const descoberta = mundo.carregar('src/api/descoberta.ts');
+  const contexto = [{ source: 'youtube', sourceId: 'actual', title: 'Faixa Atual',
+    artist: 'Aurora Azul - Topic', durationSeconds: 180, album: null, artworkUrl: null }];
+  const candidatas = await descoberta.candidatasParaDescoberta(
+    contexto, new Set(['youtube:actual']), new Set(['youtube:sugerida']), 10, 1,
+    new Map([['aurora azul', 100]]),
+  );
+  assert.ok(procuradas.includes(1), 'consulta também o catálogo do artista conhecido');
+  assert.ok(candidatas.some((t) => t.sourceId === 'nova-da-aurora'),
+    'uma faixa nova do artista conhecido pode ser recomendada');
+  assert.ok(candidatas.some((t) => t.sourceId === 'nova-vizinha'),
+    'os artistas relacionados continuam presentes');
+  assert.ok(!candidatas.some((t) => ['actual', 'guardada', 'sugerida'].includes(t.sourceId)),
+    'fila, biblioteca e histórico de sugestões continuam excluídos por faixa');
+  console.log('Descoberta por faixa: aceita música nova de um artista conhecido sem repetir fila, biblioteca ou sugestões anteriores.');
+}
+
+// Numa sessão, o que está a tocar escolhe as âncoras. O perfil global continua
+// a ajudar a ordenar os semelhantes do catálogo, sem mudar o ambiente atual.
+{
+  const ancorasConsultadas = [];
+  const topsConsultados = [];
+  const mundo = ambiente(() => { throw Error('Este teste não usa rede'); }, {
+    'src/state/connectivity.ts': { useConnectivity: { getState: () => ({ offline: false }) } },
+    'src/state/recommendationFeedback.ts': {
+      artistasPreferidos: () => [], artistWeight: () => 1, feedbackReady: async () => {},
+      filterSuggestions: (faixas) => [...faixas], trackIsSuppressed: () => false,
+    },
+    'src/api/library.ts': { getLibraryKeys: async () => new Set() },
+    'src/api/plays.ts': { getHeavyRotation: async () => [] },
+    'src/api/perfilDeRecomendacoes.ts': {
+      lerPerfilDeRecomendacoes: async () => ({ escutas: new Map(), externos: new Map() }),
+    },
+    'src/api/afinidade.ts': { paresDeArtistaEPlaylist: async () => ({ pares: [], faixas: [] }) },
+    'src/api/catalogo.ts': {
+      vizinhancaDe: async (nome) => {
+        ancorasConsultadas.push(nome);
+        return nome === 'Aurora Atual' ? {
+          artista: { id: 1, nome: 'Aurora Atual', fas: 100 },
+          semelhantes: [
+            { id: 2, nome: 'Horizonte Global', fas: 100 },
+            { id: 3, nome: 'Vizinho Neutro', fas: 100 },
+          ],
+        } : {
+          artista: { id: 2, nome: 'Horizonte Global', fas: 100 },
+          semelhantes: [{ id: 4, nome: 'Outro Global', fas: 100 }],
+        };
+      },
+      topDoArtista: async (id) => {
+        topsConsultados.push(id);
+        const artista = id === 2 ? 'Horizonte Global' : id === 1 ? 'Aurora Atual' : 'Vizinho Neutro';
+        return [{ titulo: `Faixa ${id}`, artista, duracaoS: 180 }];
+      },
+    },
+    'src/api/ytSearchFree.ts': { searchYouTubeFreeWithChannel: async (query) => [{
+      channel: `${query.split(' Faixa')[0]} - Topic`,
+      track: {
+        source: 'youtube', sourceId: `video-${query}`, title: query,
+        artist: query.split(' Faixa')[0], durationSeconds: 180, album: null, artworkUrl: null,
+      },
+    }] },
+    'src/api/youtube.ts': {},
+  });
+  const descoberta = mundo.carregar('src/api/descoberta.ts');
+  const contexto = [{ source: 'youtube', sourceId: 'atual', title: 'Canção Atual',
+    artist: 'Aurora Atual - Topic', durationSeconds: 180, album: null, artworkUrl: null }];
+  await descoberta.candidatasParaDescoberta(
+    contexto, new Set(['youtube:atual']), new Set(), 10, 4,
+    new Map([['horizonte global', 100]]), undefined,
+    new Map([['horizonte global', 'Horizonte Global']]), true,
+  );
+  assert.deepEqual(ancorasConsultadas, ['Aurora Atual'],
+    'numa sessão, o perfil global não substitui o contexto como âncora');
+  assert.equal(topsConsultados[0], 2,
+    'o perfil global continua a ordenar os semelhantes da âncora atual');
+  console.log('Contexto da sessão: escolhe as âncoras; perfil global e playlists ficam como apoio à ordenação.');
+}
+
+// As quotas de duas âncoras podem estar certas e, ainda assim, a primeira
+// dominar o início inteiro da lista. As candidatas têm de alternar entre os
+// lados do gosto antes de repetir uma âncora.
+{
+  const ladoDoNome = (nome) => /(?:^| )B(?: |$)/.test(nome) ? 'B' : 'A';
+  const mundo = ambiente(() => { throw Error('Este teste não usa rede'); }, {
+    'src/state/connectivity.ts': { useConnectivity: { getState: () => ({ offline: false }) } },
+    'src/state/recommendationFeedback.ts': {
+      artistasPreferidos: () => [], artistWeight: () => 1, feedbackReady: async () => {},
+      filterSuggestions: (faixas) => [...faixas], trackIsSuppressed: () => false,
+    },
+    'src/api/library.ts': { getLibraryKeys: async () => new Set() },
+    'src/api/plays.ts': { getHeavyRotation: async () => [] },
+    'src/api/perfilDeRecomendacoes.ts': {
+      lerPerfilDeRecomendacoes: async () => ({ escutas: new Map(), externos: new Map() }),
+    },
+    'src/api/afinidade.ts': { paresDeArtistaEPlaylist: async () => ({ pares: [], faixas: [] }) },
+    'src/api/catalogo.ts': {
+      vizinhancaDe: async (nome) => {
+        const lado = ladoDoNome(nome);
+        return {
+          artista: { id: `${lado}-proprio`, nome: `Ancora ${lado}`, fas: 100 },
+          semelhantes: Array.from({ length: 5 }, (_, i) => ({
+            id: `${lado}-${i}`, nome: `${lado} Vizinho ${i}`, fas: 100 - i,
+          })),
+        };
+      },
+      topDoArtista: async (id) => {
+        const lado = String(id).startsWith('A') ? 'A' : 'B';
+        const artista = String(id).endsWith('proprio') ? `Ancora ${lado}` : `${lado} Vizinho ${String(id).slice(2)}`;
+        return [{ titulo: `Tema ${id}`, artista, duracaoS: 180 }];
+      },
+    },
+    'src/api/ytSearchFree.ts': { searchYouTubeFreeWithChannel: async (query) => {
+      const onde = query.lastIndexOf(' Tema ');
+      const artista = query.slice(0, onde);
+      const titulo = query.slice(onde + 1);
+      const lado = ladoDoNome(artista);
+      return [{ channel: `${artista} - Topic`, track: {
+        source: 'youtube', sourceId: `${lado}:${titulo}`, title: titulo, artist: artista,
+        durationSeconds: 180, album: null, artworkUrl: null,
+      } }];
+    } },
+    'src/api/youtube.ts': {},
+  });
+  const descoberta = mundo.carregar('src/api/descoberta.ts');
+  const contexto = ['A', 'B'].map((lado) => ({
+    source: 'youtube', sourceId: `actual-${lado}`, title: `Atual ${lado}`,
+    artist: `Ancora ${lado} - Topic`, durationSeconds: 180, album: null, artworkUrl: null,
+  }));
+  const candidatas = await descoberta.candidatasParaDescoberta(
+    contexto, new Set(contexto.map((t) => `youtube:${t.sourceId}`)), new Set(),
+    10, 2, undefined, undefined, undefined, true,
+  );
+  const primeirosLados = candidatas.slice(0, 3).map((t) => t.sourceId.split(':')[0]);
+  assert.equal(new Set(primeirosLados).size, 2,
+    'as primeiras três candidatas incluem as duas âncoras de igual peso');
+  const todosOsLados = candidatas.map((t) => t.sourceId.split(':')[0]);
+  assert.equal(todosOsLados.filter((lado) => lado === 'A').length, 5,
+    'intercalar não reduz a quota da âncora A');
+  assert.equal(todosOsLados.filter((lado) => lado === 'B').length, 5,
+    'intercalar não reduz a quota da âncora B');
+  console.log('Diversidade das âncoras: as primeiras candidatas alternam os lados do contexto.');
+}
+
+// O preenchimento das misturas por playlists do YouTube não pode transformar
+// o primeiro resultado da pesquisa em afinidade. Cada vídeo tem de pertencer
+// a um vizinho confirmado e de corresponder a uma faixa concreta do catálogo.
+{
+  const item = (videoId, title, channel) => ({ videoId, title, channel, thumbnail: null });
+  const playlists = {
+    'playlist-com-valida': [
+      item('fora-do-gosto', 'Orquestra Distante - Valsa da Noite', 'Orquestra Distante - Topic'),
+      item('versao-errada', 'Banda Próxima - Luz Compatível (Live)', 'Banda Próxima - Topic'),
+      item('validada', 'Banda Próxima - Luz Compatível', 'Banda Próxima - Topic'),
+    ],
+    'playlist-sem-validas': [
+      item('outra-fora', 'Orquestra Distante - Outra Valsa', 'Orquestra Distante - Topic'),
+    ],
+  };
+  const mundo = ambiente(() => { throw Error('Este teste não usa rede'); }, {
+    'src/state/connectivity.ts': { useConnectivity: { getState: () => ({ offline: false }) } },
+    'src/state/recommendationFeedback.ts': {
+      artistasPreferidos: () => [], artistWeight: () => 1, feedbackReady: async () => {},
+      filterSuggestions: (faixas) => [...faixas], trackIsSuppressed: () => false,
+    },
+    'src/api/library.ts': { getLibraryKeys: async () => new Set() },
+    'src/api/plays.ts': { getHeavyRotation: async () => [] },
+    'src/api/perfilDeRecomendacoes.ts': {
+      lerPerfilDeRecomendacoes: async () => ({ escutas: new Map(), externos: new Map() }),
+    },
+    'src/api/afinidade.ts': { paresDeArtistaEPlaylist: async () => ({ pares: [], faixas: [] }) },
+    'src/api/catalogo.ts': {
+      vizinhancaDe: async (nome) => ({
+        artista: { id: nome, nome, fas: 100 },
+        semelhantes: [{ id: 2, nome: 'Banda Próxima', fas: 100 }],
+      }),
+      topDoArtista: async (id) => id === 2
+        ? [{ titulo: 'Luz Compatível', artista: 'Banda Próxima', duracaoS: 203 }]
+        : [],
+    },
+    'src/api/ytSearchFree.ts': { searchYouTubeFreeWithChannel: async () => [] },
+    'src/api/youtube.ts': {
+      searchYouTubePlaylists: async (query) => [{
+        id: query.startsWith('Aurora Azul') ? 'playlist-com-valida' : 'playlist-sem-validas',
+      }],
+      fetchYouTubePlaylistById: async (id) => ({ items: playlists[id] ?? [] }),
+    },
+  });
+  const descoberta = mundo.carregar('src/api/descoberta.ts');
+  const nomes = mundo.carregar('src/lib/artistName.ts');
+
+  const vizinhas = new Map();
+  await descoberta.taparBuracosComOYouTube(['Aurora Azul'], vizinhas, nomes.chaveDeArtista);
+  assert.deepEqual(
+    [...vizinhas.get('aurora azul')].map((t) => t.sourceId),
+    ['validada'],
+    'só entra a gravação de um artista relacionado que o catálogo e o pickBest confirmam',
+  );
+  assert.equal(vizinhas.get('aurora azul')[0].durationSeconds, 203,
+    'a duração vem do catálogo em vez de ficar desconhecida');
+
+  const curta = new Map([['bruma lenta', [{
+    source: 'youtube', sourceId: 'ja-validada', title: 'Faixa válida', artist: 'Vizinho',
+    durationSeconds: 180, album: null, artworkUrl: null,
+  }]]]);
+  await descoberta.taparBuracosComOYouTube(['Bruma Lenta'], curta, nomes.chaveDeArtista);
+  assert.deepEqual(curta.get('bruma lenta').map((t) => t.sourceId), ['ja-validada'],
+    'sem candidatas validadas, conserva a mistura mais curta');
+  console.log('Misturas da Search: playlists do YouTube só acrescentam faixas com afinidade, identidade e duração confirmadas.');
+}
+
+{
+  // Afinidade: a cache é da conta, esquece-se quando uma playlist muda, uma
+  // leitura velha não fica guardada e a leitura vai às páginas.
+  let conta = 'conta-A', leituras = 0, paginas = [], suspender = null;
+  const linhasDe = (id, n) => Array.from({ length: n }, (_, i) => ({
+    playlist_id: `${id}-lista`,
+    tracks: { source: 'youtube', title: `Faixa ${i}`, artist: `Artista ${id}` },
+  }));
+  let linhas = linhasDe('conta-A', 1);
+  const mundo = ambiente(async () => {}, {
+    'src/lib/supabase.ts': { supabase: {
+      auth: {
+        getSession: async () => ({ data: { session: { user: { id: conta } } } }),
+        getUser: async () => ({ data: { user: { id: conta } }, error: null }),
+      },
+      rpc: async () => ({ data: 'copia', error: null }),
+      from: () => {
+        let inicio = 0, fim = 999, dono = null, apagar = false;
+        const q = {
+          select: () => q, order: () => q, match: () => q,
+          delete: () => { apagar = true; return q; },
+          eq: (coluna, valor) => { if (coluna === 'playlists.owner_id') dono = valor; return q; },
+          range: (a, b) => { inicio = a; fim = b; return q; },
+          then: (ok, falha) => {
+            if (apagar) return Promise.resolve({ error: null }).then(ok, falha);
+            leituras++; paginas.push([dono, inicio, fim]);
+            const resposta = { data: linhas.filter((l) => l.playlist_id.startsWith(dono)).slice(inicio, fim + 1), error: null };
+            const espera = suspender ?? Promise.resolve();
+            return espera.then(() => resposta).then(ok, falha);
+          },
+        };
+        return q;
+      },
+    } },
+  });
+  const afinidade = mundo.carregar('src/api/afinidade.ts');
+  const playlists = mundo.carregar('src/api/playlists.ts');
+
+  const deA = await afinidade.paresDeArtistaEPlaylist();
+  await afinidade.paresDeArtistaEPlaylist();
+  assert.equal(leituras, 1, 'a mesma conta usa a cache');
+  assert.equal(deA.pares[0].playlistId, 'conta-A-lista');
+
+  conta = 'conta-B'; linhas = linhasDe('conta-B', 1);
+  const deB = await afinidade.paresDeArtistaEPlaylist();
+  assert.equal(leituras, 2, 'outra conta não recebe a cache da anterior');
+  assert.equal(deB.pares[0].playlistId, 'conta-B-lista');
+  assert.equal(paginas.at(-1)[0], 'conta-B', 'a consulta filtra pela conta atual');
+
+  await playlists.removeTrackFromPlaylist('conta-B-lista', 'faixa');
+  await afinidade.paresDeArtistaEPlaylist();
+  assert.equal(leituras, 3, 'mexer numa playlist obriga a reler a afinidade');
+
+  let soltar;
+  suspender = new Promise((r) => { soltar = r; });
+  afinidade.esquecerAfinidade();
+  const velha = afinidade.paresDeArtistaEPlaylist();
+  await new Promise((r) => setTimeout(r, 0));
+  afinidade.esquecerAfinidade();
+  soltar(); suspender = null;
+  assert.equal((await velha).pares.length, 1, 'quem pediu recebe a leitura');
+  await afinidade.paresDeArtistaEPlaylist();
+  assert.equal(leituras, 5, 'uma leitura anterior à mudança não fica guardada');
+
+  linhas = linhasDe('conta-B', 1001); paginas = [];
+  afinidade.esquecerAfinidade();
+  const grande = await afinidade.paresDeArtistaEPlaylist();
+  assert.equal(grande.pares.length, 1001, 'passa do corte de 1000 linhas do PostgREST');
+  assert.deepEqual(paginas.map(([, a, b]) => `${a}-${b}`), ['0-999', '1000-1999']);
+  console.log('Afinidade: cache por conta, esquecida quando as playlists mudam, e lida às páginas.');
+}
+
+{
+  // Misturas: cada âncora leva a própria e dois semelhantes, e pára de
+  // pesquisar quando já tem as faixas que chegam.
+  let pesquisas = 0;
+  const tops = [];
+  const mundo = ambiente(() => { throw Error('Este teste não usa rede'); }, {
+    'src/lib/supabase.ts': { supabase: { rpc: async () => ({ data: [], error: null }) } },
+    'src/lib/prefs.ts': { getGostoDoSpotify: async () => null, getArtistasSemente: async () => [] },
+    'src/state/connectivity.ts': { useConnectivity: { getState: () => ({ offline: false }) } },
+    'src/state/recommendationFeedback.ts': {
+      artistasPreferidos: () => [], artistWeight: () => 1, feedbackReady: async () => {},
+      filterSuggestions: (faixas) => [...faixas], trackIsSuppressed: () => false,
+    },
+    'src/api/library.ts': { getLibraryKeys: async () => new Set() },
+    'src/api/afinidade.ts': { paresDeArtistaEPlaylist: async () => ({ pares: [], faixas: [] }) },
+    'src/api/catalogo.ts': {
+      vizinhancaDe: async (nome) => ({
+        artista: { id: nome, nome, fas: 100 },
+        semelhantes: Array.from({ length: 5 }, (_, i) => ({ id: `${nome}-${i}`, nome: `${nome} Vizinho ${i}`, fas: 100 })),
+      }),
+      topDoArtista: async (id, n) => {
+        tops.push(id);
+        return Array.from({ length: n }, (_, i) => ({ titulo: `Tema ${i}`, artista: `Autor ${tops.length}`, duracaoS: 180 }));
+      },
+    },
+    'src/api/ytSearchFree.ts': { searchYouTubeFreeWithChannel: async (query) => {
+      pesquisas++;
+      const [, artista, titulo] = query.match(/^(Autor \d+) (.*)$/);
+      return [{ channel: `${artista} - Topic`, track: {
+        source: 'youtube', sourceId: `v-${pesquisas}`, title: titulo, artist: artista,
+        durationSeconds: 180, album: null, artworkUrl: null,
+      } }];
+    } },
+    'src/api/youtube.ts': {},
+  });
+  const descoberta = mundo.carregar('src/api/descoberta.ts');
+  const contexto = [0, 1, 2].map((i) => ({ source: 'youtube', sourceId: `a${i}`, title: `Faixa ${i}`,
+    artist: 'Aurora Azul - Topic', durationSeconds: 180, album: null, artworkUrl: null }));
+  const r = await descoberta.descobertasPorAncora(contexto, ['Aurora Azul']);
+  assert.equal(tops.length, 3, 'a própria âncora e dois semelhantes');
+  assert.equal(r.vizinhas.get('aurora azul')?.length, 8, 'fica com as faixas que chegam para não ir à rede');
+  assert.ok(pesquisas < 15, `deixa de pesquisar quando a âncora chega (${pesquisas} de 15)`);
+
+  // A proveniência chega ao Smart Shuffle: de que âncora, se é da própria,
+  // que posição no Deezer e que faixa do top.
+  const proveniencias = new Map();
+  const sugestoes = await descoberta.candidatasParaDescoberta(
+    contexto, new Set(), new Set(), 30, 1, undefined, undefined, undefined, true, proveniencias,
+  );
+  assert.ok(sugestoes.length > 0);
+  assert.ok(sugestoes.every((t) => proveniencias.has(`${t.source}:${t.sourceId}`)),
+    'cada sugestão devolvida leva a sua proveniência');
+  const todas = [...proveniencias.values()];
+  assert.ok(todas.every((p) => p.ancora === 'aurora azul'));
+  const proprias = todas.filter((p) => p.propria);
+  assert.ok(proprias.length > 0 && proprias.every((p) => p.posicaoNoCatalogo === 0),
+    'as faixas da própria âncora vêm na posição 0');
+  assert.ok(todas.some((p) => !p.propria && p.posicaoNoCatalogo >= 1), 'os semelhantes trazem a posição no Deezer');
+  assert.deepEqual([...new Set(proprias.map((p) => p.ronda))].sort(), [0, 1, 2, 3, 4],
+    'a ronda é a posição da faixa no top do artista');
+  console.log('Misturas: âncoras da página, três artistas por âncora e pesquisas até chegar.');
+}
+
+{
+  // Perfil e catálogo: a confiança lê a biblioteca inteira, e o top do Deezer
+  // é lido mais fundo, saltando antes da pesquisa o que a pessoa já tem, já
+  // recebeu ou já viu nas semanas anteriores.
+  const procuradas = [];
+  const consultas = [];
+  let biblioteca = [];
+  const mundo = ambiente(() => { throw Error('Este teste não usa rede'); }, {
+    'src/lib/supabase.ts': { supabase: { rpc: async () => ({ data: [], error: null }) } },
+    'src/lib/prefs.ts': { getGostoDoSpotify: async () => null, getArtistasSemente: async () => [] },
+    'src/state/connectivity.ts': { useConnectivity: { getState: () => ({ offline: false }) } },
+    'src/state/recommendationFeedback.ts': {
+      artistasPreferidos: () => [], artistWeight: () => 1, feedbackReady: async () => {},
+      filterSuggestions: (faixas) => [...faixas], trackIsSuppressed: () => false,
+    },
+    'src/api/library.ts': {
+      getLibrary: async () => biblioteca,
+      getLibraryKeys: async () => new Set(biblioteca.map((t) => `${t.source}:${t.sourceId}`)),
+    },
+    // Uma faixa oficial de outra banda: a confiança não fica vazia (vazia,
+    // deixava passar tudo e o teste não provava nada).
+    'src/api/afinidade.ts': { paresDeArtistaEPlaylist: async () => ({
+      pares: [], faixas: [{ source: 'youtube', title: 'Outra', artist: 'Outra Banda - Topic' }],
+    }) },
+    'src/api/catalogo.ts': {
+      vizinhancaDe: async (nome) => { consultas.push(nome); return { artista: { id: nome, nome, fas: 100 }, semelhantes: [] }; },
+      topDoArtista: async (id, n) => Array.from({ length: n }, (_, i) => ({ titulo: `Tema ${i}`, artista: id, duracaoS: 180 })),
+    },
+    'src/api/ytSearchFree.ts': { searchYouTubeFreeWithChannel: async (query) => {
+      procuradas.push(query);
+      const i = query.indexOf(' Tema ');
+      const artista = query.slice(0, i), titulo = query.slice(i + 1);
+      return [{ channel: `${artista} - Topic`, track: {
+        source: 'youtube', sourceId: `v-${titulo}`, title: titulo, artist: artista,
+        durationSeconds: 180, album: null, artworkUrl: null,
+      } }];
+    } },
+    'src/api/youtube.ts': {},
+  });
+  const descoberta = mundo.carregar('src/api/descoberta.ts');
+  const identidade = mundo.carregar('src/lib/identidadeDaMusica.ts');
+  const video = (id, title, artist) => ({ source: 'youtube', sourceId: id, title, artist,
+    durationSeconds: 180, album: null, artworkUrl: null });
+  const aTocar = video('a0', 'Aurora Azul - Canção 0', 'Aurora Azul Oficial');
+  // Três músicas nas gostadas, com um canal que não é oficial, e as cinco
+  // primeiras do top já guardadas.
+  biblioteca = [
+    aTocar, video('a1', 'Aurora Azul - Canção 1', 'Aurora Azul Oficial'),
+    video('a2', 'Aurora Azul - Canção 2', 'Aurora Azul Oficial'),
+    ...[0, 1, 2, 3, 4].map((i) => video(`t${i}`, `Aurora Azul - Tema ${i}`, 'Aurora Azul Oficial')),
+  ];
+  const numeros = () => procuradas.map((q) => Number(q.split(' Tema ')[1]));
+
+  const jaRecebida = new Set(identidade.chavesDoCatalogo({ titulo: 'Tema 5', artista: 'Aurora Azul' }));
+  const sessao = await descoberta.candidatasParaDescoberta(
+    [aTocar], new Set(), jaRecebida, 5, 1, undefined, undefined, undefined, true,
+  );
+  assert.ok(consultas.includes('Aurora Azul'),
+    'no Smart Shuffle, a música que toca serve de âncora pela confiança da biblioteca inteira');
+  assert.deepEqual(numeros(), [6, 7, 8, 9, 10],
+    'salta o que já tem e o que já recebeu antes de pesquisar, e desce no top');
+  assert.equal(sessao.length, 5);
+
+  procuradas.length = 0;
+  const semana1 = await descoberta.descobertasDaSemana(5, biblioteca, true);
+  assert.deepEqual(numeros(), [5, 6, 7, 8, 9]);
+  assert.equal(semana1.length, 5);
+  const historico = mundo.cache.get('descobertas:mostradas:v1');
+  assert.ok(historico[0].chaves.some((k) => k.startsWith('musica2:')),
+    'a semana guarda as chaves da música, não só o upload');
+  // A semana seguinte: a lista desta passa a ser a da semana anterior.
+  historico[0].semana -= 1;
+  procuradas.length = 0;
+  await descoberta.descobertasDaSemana(5, biblioteca, true);
+  assert.deepEqual(numeros(), [10, 11, 12, 13, 14],
+    'a semana seguinte não gasta pesquisas com as da anterior e traz outras');
+  console.log('Perfil e catálogo: confiança pela biblioteca inteira, top mais fundo e sem pesquisar o que já se tem ou já se viu.');
+}

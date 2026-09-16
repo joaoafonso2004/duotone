@@ -2,6 +2,7 @@ import {
   alvosDeProcura,
   ARTISTAS_DO_RETRATO,
   artistasVizinhos,
+  RECENTES_DO_RETRATO,
   retratoDoContexto,
   vizinhosPorPlaylist,
   type FaixaComArtista,
@@ -40,6 +41,23 @@ check('nao passa do teto de artistas',
     Array.from({ length: 30 }, (_, i) => f(`Artista ${i}`)), chaveDeArtista,
   ).size === ARTISTAS_DO_RETRATO);
 eq('sem faixas da um retrato vazio', retratoDoContexto([], chaveDeArtista).size, 0);
+
+// A biblioteca inteira: as mais recentes valem inteiras, as antigas a um
+// quarto. Um favorito antigo que não está em playlists deixava de existir.
+{
+  const recentes = Array.from({ length: RECENTES_DO_RETRATO }, (_, i) => f(`Recente ${i % 8}`));
+  const comAntigo = [...recentes, ...Array.from({ length: 40 }, () => f('Favorito Antigo'))];
+  const r = retratoDoContexto(comAntigo, chaveDeArtista);
+  check('um favorito antigo, fora das primeiras 60, entra no retrato', r.has('favorito antigo'));
+  const pouco = retratoDoContexto(
+    [f('Novo'), f('Novo'), ...Array.from({ length: RECENTES_DO_RETRATO - 2 }, () => f('Outro')),
+      f('Velho'), f('Velho'), f('Velho'), f('Velho')],
+    chaveDeArtista,
+  );
+  check('duas recentes pesam mais do que quatro antigas',
+    pouco.has('velho') && (pouco.get('novo') ?? 0) > pouco.get('velho')!,
+    `${pouco.get('novo')} vs ${pouco.get('velho')}`);
+}
 
 console.log('\nquem anda com quem');
 const biblioteca = [
@@ -96,6 +114,27 @@ eq('sem retrato nem vizinhos nao rebenta',
   alvosDeProcura(new Map(), [], 3, semSorte).length, 0);
 check('pedir mais do que existe nao repete nem rebenta',
   alvosDeProcura(retrato2, pontuados, 99, Math.random).length <= 1 + pontuados.length);
+
+// Uma playlist heterogenea nao pode ganhar so por criar dezenas de arestas.
+// Percorre pontos uniformes do intervalo para medir a probabilidade ponderada
+// sem depender de aleatoriedade no teste.
+const playlistHeterogenea = Array.from({ length: 60 }, (_, i) => f(`Mistura ${i}`, 'heterogenea'));
+const retratoDaSessao = new Map([['mistura 0', 1]]);
+const vizinhosDaMistura = artistasVizinhos(
+  retratoDaSessao,
+  vizinhosPorPlaylist(playlistHeterogenea, chaveDeArtista),
+);
+let escolhasForaDoContexto = 0;
+const amostras = 1_000;
+for (let i = 0; i < amostras; i++) {
+  const [escolhido] = alvosDeProcura(
+    retratoDaSessao, vizinhosDaMistura, 1, () => (i + 0.5) / amostras,
+  );
+  if (escolhido !== 'mistura 0') escolhasForaDoContexto++;
+}
+check('o conjunto dos vizinhos nunca pesa mais de metade do contexto',
+  escolhasForaDoContexto <= Math.ceil(amostras / 3),
+  `${(escolhasForaDoContexto / amostras * 100).toFixed(1)}% fora do contexto`);
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

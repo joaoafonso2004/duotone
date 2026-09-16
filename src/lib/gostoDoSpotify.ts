@@ -21,8 +21,11 @@
  *   agora. Dentro de cada lista, o primeiro vale mais do que o último.
  * - **O maior peso é `PESO_MAXIMO`**, uma escala de escutas: para quem ainda
  *   não ouviu nada na app o Spotify manda; para quem ouve todos os dias, as
- *   escutas a sério passam-lhe à frente sozinhas. Não há data de validade -- a
- *   mesma ideia das sementes (`lib/artistasSemente.ts`).
+ *   escutas a sério passam-lhe à frente sozinhas.
+ * - **Envelhece** (`pesoPelaIdade`): inteiro no primeiro mês depois de lido,
+ *   depois perde metade a cada 90 dias, e nunca desce de um quarto. O "último
+ *   mês" do Spotify de há um ano já não é o presente, mas anos de escuta não
+ *   deixam de dizer quem ele é. Atualizar é carregar outra vez no botão.
  * - **Soma-se ao histórico, não o substitui.** Um artista que ele ouve lá E cá
  *   é duas vezes gosto. E nada disto vai para o `plays`: as estatísticas e o
  *   perfil continuam a dizer só o que se ouviu na app.
@@ -44,6 +47,28 @@ export const PESO_DAS_LISTAS = { curto: 1, medio: 0.7, longo: 0.4 } as const;
 
 /** Quanto conta cada aparição nas últimas músicas ouvidas. */
 export const PESO_DE_UMA_RECENTE = 0.15;
+
+const DIA_MS = 24 * 60 * 60 * 1000;
+/** Até aqui o gosto lido vale inteiro. */
+export const GOSTO_FRESCO_MS = 30 * DIA_MS;
+/** Depois, perde metade a cada tanto. */
+export const MEIA_VIDA_DO_GOSTO_MS = 90 * DIA_MS;
+/** E nunca desce daqui: continua a contar como gosto de longo prazo. */
+export const PESO_MINIMO_DO_GOSTO = 0.25;
+
+export function pesoPelaIdade(lidoEm: number, agora: number): number {
+  const idade = agora - lidoEm;
+  if (!Number.isFinite(idade) || idade <= GOSTO_FRESCO_MS) return 1;
+  const peso = 0.5 ** ((idade - GOSTO_FRESCO_MS) / MEIA_VIDA_DO_GOSTO_MS);
+  return Math.max(PESO_MINIMO_DO_GOSTO, peso);
+}
+
+/** O gosto com a idade aplicada. Ninguém desce de uma escuta: continua a ser
+ * um artista que veio do Spotify, e é isso que o livra do crivo dos títulos. */
+export function envelhecerGosto(gosto: GostoDoSpotify, agora: number): ArtistaDoSpotify[] {
+  const peso = pesoPelaIdade(gosto.lidoEm, agora);
+  return gosto.artistas.map((a) => ({ name: a.name, plays: Math.max(1, Math.round(a.plays * peso)) }));
+}
 
 export function gostoAPartirDoSpotify(
   listas: {
@@ -112,18 +137,46 @@ export function juntarComOSpotify<T extends { name: string; plays: number }>(
   return [...porChave.values()].sort((a, b) => b.plays - a.plays).slice(0, limite);
 }
 
-export type FalhaDoSpotify = 'sem-configuracao' | 'cancelado' | 'sem-acesso' | 'rede' | 'vazio';
+export type FalhaDoSpotify =
+  | 'sem-configuracao' | 'cancelado' | 'nao-registado' | 'sem-acesso' | 'rede' | 'vazio';
+
+/**
+ * O erro que o Spotify devolve no regresso da autorização (`error`) ou na
+ * troca do código. Carregar em "Cancelar" no Spotify chega como
+ * `access_denied`: é um cancelamento, não uma recusa. Um endereço de regresso
+ * ou um Client ID errados são configuração da app, não da conta.
+ */
+export function falhaDaAutorizacao(erro: string | null | undefined): FalhaDoSpotify {
+  const texto = erro ?? '';
+  if (/access_denied/i.test(texto)) return 'cancelado';
+  if (/invalid_client|redirect|unsupported_response_type|invalid_scope/i.test(texto)) return 'sem-configuracao';
+  return 'sem-acesso';
+}
+
+/**
+ * Uma resposta da API. **O modo de desenvolvimento diz no CORPO porque é que
+ * recusa** ("User not registered in the Developer Dashboard"): a conta não está
+ * na lista da app. Sem esse texto, um 401/403 é uma recusa genérica.
+ */
+export function falhaDaApi(estado: number, corpo: string): FalhaDoSpotify | null {
+  if (estado >= 200 && estado < 300) return null;
+  if (estado === 403 && /not registered/i.test(corpo)) return 'nao-registado';
+  if (estado === 401 || estado === 403) return 'sem-acesso';
+  return 'rede';
+}
 
 /**
  * O que se diz quando a leitura não dá. Cancelar não é erro e não diz nada.
  *
- * O `sem-acesso` é quase sempre o modo de desenvolvimento do Spotify: só as
- * contas acrescentadas à mão no painel da app podem entrar.
+ * O `nao-registado` é o modo de desenvolvimento do Spotify: só entram as contas
+ * acrescentadas à mão no painel da app (no máximo cinco). Não há nada que a
+ * app possa fazer por essa pessoa -- quem gere a app tem de a acrescentar.
  */
 export function mensagemDoSpotify(tipo: FalhaDoSpotify): string | null {
   switch (tipo) {
     case 'cancelado': return null;
     case 'sem-configuracao': return 'Spotify is not set up in this version of the app.';
+    case 'nao-registado': return "This Spotify account isn't allowed yet. Ask to be added.";
     case 'sem-acesso': return 'Spotify refused. Your account may need to be added to the app.';
     case 'vazio': return 'Your Spotify has no listening history to read yet.';
     case 'rede': return 'Could not reach Spotify. Try again.';

@@ -2,7 +2,9 @@ import * as AuthSession from 'expo-auth-session';
 import { Platform } from 'react-native';
 import { chaveDeArtista } from '../lib/artistName';
 import { ENV } from '../lib/env';
-import { gostoAPartirDoSpotify, type FalhaDoSpotify, type GostoDoSpotify } from '../lib/gostoDoSpotify';
+import {
+  falhaDaApi, falhaDaAutorizacao, gostoAPartirDoSpotify, type FalhaDoSpotify, type GostoDoSpotify,
+} from '../lib/gostoDoSpotify';
 import { setGostoDoSpotify } from '../lib/prefs';
 
 /**
@@ -16,8 +18,9 @@ import { setGostoDoSpotify } from '../lib/prefs';
  * - **Só no iPhone.** O endereço de regresso é o esquema `duotone://`, que o
  *   Electron não trata. O gosto viaja para o PC pelas preferências.
  * - **Modo de desenvolvimento do Spotify**: só entram as contas acrescentadas
- *   à mão no painel da app (developer.spotify.com). As outras levam 403, e é
- *   isso que o `sem-acesso` diz.
+ *   à mão no painel da app (developer.spotify.com, no máximo cinco). As outras
+ *   fazem login mas levam 403 "User not registered" na API: é o
+ *   `nao-registado`. Ver `falhaDaApi`.
  */
 
 const DESCOBERTA = {
@@ -53,7 +56,8 @@ export async function importarGostoDoSpotify(): Promise<GostoDoSpotify> {
   });
   const resposta = await pedido.promptAsync(DESCOBERTA);
   if (resposta.type === 'error') {
-    throw new ErroDoSpotify('sem-acesso', resposta.params?.error ?? resposta.error?.message);
+    const erro = resposta.params?.error ?? resposta.error?.message;
+    throw new ErroDoSpotify(falhaDaAutorizacao(erro), erro);
   }
   if (resposta.type !== 'success' || !resposta.params.code) throw new ErroDoSpotify('cancelado');
 
@@ -65,7 +69,8 @@ export async function importarGostoDoSpotify(): Promise<GostoDoSpotify> {
     );
     token = trocado.accessToken;
   } catch (e: any) {
-    throw new ErroDoSpotify('sem-acesso', e?.message);
+    const erro = `${e?.code ?? ''} ${e?.message ?? ''}`.trim();
+    throw new ErroDoSpotify(falhaDaAutorizacao(erro), erro);
   }
 
   const [curto, medio, longo, recentes] = await Promise.all([
@@ -87,9 +92,10 @@ async function lerDoSpotify(caminho: string, token: string): Promise<any> {
   } catch (e: any) {
     throw new ErroDoSpotify('rede', e?.message);
   }
-  // 403 em modo de desenvolvimento: a conta não está na lista da app.
-  if (r.status === 401 || r.status === 403) throw new ErroDoSpotify('sem-acesso', `HTTP ${r.status}`);
-  if (!r.ok) throw new ErroDoSpotify('rede', `HTTP ${r.status}`);
+  // O corpo diz porquê: em modo de desenvolvimento, que a conta não está na lista.
+  const corpo = r.ok ? '' : await r.text().catch(() => '');
+  const falha = falhaDaApi(r.status, corpo);
+  if (falha) throw new ErroDoSpotify(falha, `HTTP ${r.status} ${corpo.slice(0, 200)}`);
   return r.json();
 }
 

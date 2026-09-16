@@ -3,7 +3,7 @@ import { upsertTrack } from './library';
 import type { Track } from '../types';
 
 import { artistasParaRecomendar, HISTORICO_QUE_CHEGA } from '../lib/artistasSemente';
-import { juntarComOSpotify } from '../lib/gostoDoSpotify';
+import { envelhecerGosto, juntarComOSpotify } from '../lib/gostoDoSpotify';
 import { getArtistasSemente, getGostoDoSpotify } from '../lib/prefs';
 import { chaveDeArtista } from '../lib/artistName';
 async function currentUserId(): Promise<string> {
@@ -278,7 +278,8 @@ export async function artistasParaRecomendacoes(limite: number): Promise<TopArti
   // estatísticas continuam a dizer só o que se ouviu aqui.
   const doSpotify = new Set((gosto?.artistas ?? []).map((a) => chaveDeArtista(a.name)));
   const juntos = gosto?.artistas.length
-    ? juntarComOSpotify(historico, gosto.artistas, chaveDeArtista, Math.max(limite, HISTORICO_QUE_CHEGA))
+    // Com a idade da leitura: um gosto lido há um ano já não é o presente.
+    ? juntarComOSpotify(historico, envelhecerGosto(gosto, Date.now()), chaveDeArtista, Math.max(limite, HISTORICO_QUE_CHEGA))
     : historico;
   // A capa vem do histórico quando o artista já lá está; um artista só do
   // Spotify ou uma semente ainda não tem nenhuma, e quem a mostra sabe

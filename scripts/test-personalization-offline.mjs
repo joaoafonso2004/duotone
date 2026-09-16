@@ -114,5 +114,71 @@ failWrite=true;await assert.rejects(feedback.setRecommendationFeedback(preferenc
 assert.equal(feedback.filterSuggestions([track('one')]).length,0,'uma gravação falhada não mostra um falso sucesso');
 failWrite=false;await feedback.setRecommendationFeedback(preference,false);
 assert.equal(feedback.filterSuggestions([track('one')]).length,1);
+feedback.aprenderComSaltoDeRecomendacao(track('s1','Aurora Azul'));
+feedback.aprenderComSaltoDeRecomendacao(track('s2','Aurora Azul'));
+assert.equal(feedback.artistWeight('Aurora Azul'),1,'dois skips não bastam para aprender aversão');
+feedback.aprenderComSaltoDeRecomendacao(track('s3','Aurora Azul'));
+assert.equal(feedback.artistWeight('Aurora Azul'),.5,'três músicas distintas reduzem gradualmente o artista');
+assert.equal(feedback.filterSuggestions([track('a','Aurora Azul'),track('b','Outro')]).map(t=>t.id).join(','),'b,a',
+  'uma alternativa sem rejeições passa à frente');
+await feedback.loadRecommendationFeedback('B');
+assert.equal(feedback.artistWeight('Aurora Azul'),1,'a aprendizagem não atravessa contas');
+await feedback.loadRecommendationFeedback('A');
+assert.equal(feedback.artistWeight('Aurora Azul'),.5,'a aprendizagem sobrevive ao reinício da conta');
+feedback.aprenderComEscutaDeRecomendacao(track('ouvida','Aurora Azul'));
+assert.equal(feedback.artistWeight('Aurora Azul'),1,'uma escuta substancial alivia o sinal implícito');
 await feedback.loadRecommendationFeedback(null);assert.equal(feedback.useRecommendationFeedback.getState().items.length,0);
-console.log('Offline e personalização: reconexão, dados móveis, conta local, paginação, cache após logout/unlike e preferências passaram.');
+
+// Dois aparelhos com a mesma conta: o que um aprende com os skips chega ao
+// outro pela conta, e o perdão de uma escuta não é desfeito ao juntar.
+{
+  // A `yt_cache` tem RLS por pessoa: o duplo separa as linhas pela conta.
+  const naConta=new Map();let offline=false,escritas=0,conta='A';
+  const aparelho=()=>{
+    const disco=new Map();
+    const load=environment({
+      'react-native':native,'@react-native-community/netinfo':{default:net},
+      '@react-native-async-storage/async-storage':{getItem:async k=>disco.get(k)??null,setItem:async(k,v)=>{disco.set(k,v);},removeItem:async k=>{disco.delete(k);}},
+      'src/lib/supabase.ts':{supabase:{from:()=>{const q={select:()=>q,eq:()=>q,order:()=>q,range:()=>q,then:fn=>Promise.resolve(fn({data:[],error:null}))};return q;}}},
+      'src/state/connectivity.ts':{useConnectivity:{getState:()=>({offline})}},
+      'src/api/cache.ts':{cacheGet:async k=>naConta.has(`${conta}:${k}`)?JSON.parse(naConta.get(`${conta}:${k}`)):null,cacheSet:async(k,v)=>{escritas++;naConta.set(`${conta}:${k}`,JSON.stringify(v));}},
+    });
+    return {estado:load('src/state/recommendationFeedback.ts'),disco};
+  };
+  const esperar=()=>new Promise(r=>setTimeout(r,0));
+  const iphone=aparelho(),pc=aparelho();
+  await iphone.estado.loadRecommendationFeedback('A');
+  for(const id of ['s1','s2','s3'])iphone.estado.aprenderComSaltoDeRecomendacao(track(id,'Aurora Azul'));
+  await iphone.estado.aprendizagemEnviada();
+  assert.equal(iphone.estado.artistWeight('Aurora Azul'),.5);
+  assert.ok(naConta.size===1,'a aprendizagem foi para a conta');
+
+  await pc.estado.loadRecommendationFeedback('A');
+  await esperar();await esperar();
+  assert.equal(pc.estado.artistWeight('Aurora Azul'),.5,'os skips do iPhone ensinam o PC');
+
+  pc.estado.aprenderComEscutaDeRecomendacao(track('ouvida','Aurora Azul'));
+  await pc.estado.aprendizagemEnviada();
+  assert.equal(pc.estado.artistWeight('Aurora Azul'),1);
+  await iphone.estado.loadRecommendationFeedback('A');
+  await esperar();await esperar();
+  assert.equal(iphone.estado.artistWeight('Aurora Azul'),1,'a escuta no PC perdoa também no iPhone');
+  iphone.estado.aprenderComSaltoDeRecomendacao(track('s4','Outro Artista'));
+  await iphone.estado.aprendizagemEnviada();
+  assert.equal(pc.estado.artistWeight('Aurora Azul'),1,'e nenhuma junção ressuscita a faixa perdoada');
+  assert.equal(iphone.estado.artistWeight('Aurora Azul'),1);
+
+  offline=true;const antes=escritas;
+  iphone.estado.aprenderComSaltoDeRecomendacao(track('s5','Outro Artista'));
+  await iphone.estado.aprendizagemEnviada();
+  assert.equal(escritas,antes,'sem rede fica no aparelho');
+  offline=false;
+  iphone.estado.aprenderComSaltoDeRecomendacao(track('s6','Outro Artista'));
+  await iphone.estado.aprendizagemEnviada();
+  await pc.estado.loadRecommendationFeedback('A');await esperar();await esperar();
+  assert.equal(pc.estado.artistWeight('Outro Artista'),.5,'o que ficou sem rede segue no envio seguinte');
+  conta='B';
+  await pc.estado.loadRecommendationFeedback('B');await esperar();await esperar();
+  assert.equal(pc.estado.artistWeight('Outro Artista'),1,'outra conta não herda a aprendizagem');
+}
+console.log('Offline e personalização: reconexão, dados móveis, conta local, paginação, cache após logout/unlike, preferências e aprendizagem entre aparelhos passaram.');

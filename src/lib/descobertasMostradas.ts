@@ -23,8 +23,9 @@ export const SEMANAS_SEM_REPETIR = 4;
 /** Das mais apertadas para as mais largas; a última (0) não exclui nada. */
 export const TENTATIVAS_SEM_REPETIR = [SEMANAS_SEM_REPETIR, 1, 0] as const;
 
-/** Teto por semana: uma prateleira são 30, e isto vive numa linha da cache. */
-export const CHAVES_POR_SEMANA = 100;
+/** Teto por semana: uma prateleira são 30, e isto vive numa linha da cache.
+ * Cada faixa leva o upload e as chaves da música (umas quatro). */
+export const CHAVES_POR_SEMANA = 200;
 
 export type HistoricoDeDescobertas = { semana: number; chaves: string[] }[];
 

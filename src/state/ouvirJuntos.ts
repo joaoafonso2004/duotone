@@ -518,6 +518,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
       if (actual) jaLa.add(trackKey(actual));
       const novas = await candidatasParaDescoberta(
         contexto, jaLa, new Set<string>(), POR_ENCHIMENTO, ALVOS_DA_SALA, escutas,
+        undefined, undefined, true,
       );
       if (!novas.length || get().sessao?.id !== s.id) return;
       const entraram = await juntarMuitasAFila(s.id, novas);

@@ -23,6 +23,7 @@ import { guardado as armazenamento } from './duplos/async-storage.ts';
 import { naConta } from './duplos/cache.ts';
 import { esquecerBiblioteca } from '../src/lib/cacheDaBiblioteca.ts';
 import { tituloDeIdentidade } from '../src/lib/identidadeDaMusica.ts';
+import { chaveDeArtista, displayArtist } from '../src/lib/artistName.ts';
 import type { Track } from '../src/types.ts';
 
 let mau = 0;
@@ -68,6 +69,7 @@ function preparar(over: Record<string, unknown> = {}) {
     current: q[0], queue: q, queueIndex: 0,
     shuffle: false, shuffleInteligente: false, shuffleOrder: [],
     repeatMode: 'off', desdeASugestao: 0, sugeridas: [],
+    escutasDaSessao: null,
     autoplayRadio: true, radioActive: false,
     positionMs: 0, durationMs: 180_000, error: null,
     ...over,
@@ -82,6 +84,45 @@ preparar();
 await usePlayer.getState().next();
 eq('next avança para a faixa seguinte', atual(), 'b');
 eq('e o índice acompanha', usePlayer.getState().queueIndex, 1);
+
+// Aprender rejeições exige uma recomendação, som confirmado, gesto manual e
+// menos de 30 s. Falhas e fins automáticos passam pelo player sem virar gosto.
+{
+  const contexto = { surface: 'smart_shuffle', reasonCode: 'session_discovery', reason: 'teste' } as const;
+  const q = fila('sugerida', 'seguinte');
+  preparar();
+  await usePlayer.getState().playTrack(q[0], q, false, false, contexto);
+  usePlayer.getState()._onYtStateChange('playing');
+  usePlayer.getState()._setProgress(12_000, 180_000);
+  await usePlayer.getState().next();
+  eq('skip precoce de uma recomendação com som alimenta a aprendizagem', controlo.aprendizagem.saltos.join(), 'sugerida');
+
+  preparar();
+  await usePlayer.getState().playTrack(q[0], q, false, false, contexto);
+  await usePlayer.getState().next();
+  eq('sem primeiro som, o skip não é tratado como gosto', controlo.aprendizagem.saltos.length, 0);
+
+  preparar();
+  await usePlayer.getState().playTrack(q[0], q, false, false, contexto);
+  usePlayer.getState()._onYtStateChange('playing');
+  usePlayer.getState()._setProgress(12_000, 180_000);
+  await usePlayer.getState().next(false);
+  eq('fim ou avanço automático não é uma rejeição', controlo.aprendizagem.saltos.length, 0);
+
+  preparar();
+  await usePlayer.getState().playTrack(q[0], q, false, false, contexto);
+  usePlayer.getState()._onYtStateChange('playing');
+  usePlayer.getState()._setProgress(45_000, 180_000);
+  await usePlayer.getState().next();
+  eq('passados 30 s, saltar já não é rejeição', controlo.aprendizagem.saltos.length, 0);
+
+  preparar();
+  await usePlayer.getState().playTrack(q[0], q);
+  usePlayer.getState()._onYtStateChange('playing');
+  usePlayer.getState()._setProgress(12_000, 180_000);
+  await usePlayer.getState().next();
+  eq('saltar uma faixa que não foi recomendada não ensina nada', controlo.aprendizagem.saltos.length, 0);
+}
 
 preparar({ queueIndex: 3, current: faixa('d') });
 await usePlayer.getState().next();
@@ -263,6 +304,249 @@ await assentar();
 }
 
 // ===========================================================================
+console.log('\na escolha do Smart Shuffle: pontuação e mínimo de confiança');
+{
+  const longe = { ancora: 'alguem', propria: false, posicaoNoCatalogo: 15, pontos: 1.9, ronda: 0 };
+  preparar({ shuffle: true, shuffleInteligente: true });
+  controlo.candidatas = [faixa('longe')];
+  controlo.proveniencias.set('longe', longe);
+  eq('um semelhante além do 10.º não entra na preparação', await usePlayer.getState().semearSugestoes(), 0);
+  // Outra faixa: a anterior pode já estar na memória dos 30 dias.
+  preparar({ shuffle: true, shuffleInteligente: true });
+  controlo.candidatas = [faixa('longe-outra')];
+  controlo.proveniencias.set('longe-outra', longe);
+  eq('nem nas inserções seguintes', await usePlayer.getState().intercalarSugestao(), false);
+  check('e a fila fica só com a lista', !ids().includes('longe-outra'), ids().join(','));
+
+  const doAtual = chaveDeArtista(displayArtist(faixa('a')));
+  preparar({ shuffle: true, shuffleInteligente: true });
+  controlo.candidatas = [faixa('de-outro'), faixa('do-atual')];
+  controlo.proveniencias.set('de-outro', { ancora: 'outra pessoa', propria: false, posicaoNoCatalogo: 1, pontos: 2, ronda: 0 });
+  controlo.proveniencias.set('do-atual', { ancora: doAtual, propria: false, posicaoNoCatalogo: 3, pontos: 1, ronda: 0 });
+  eq('a sugestão parte da música que está a tocar', await usePlayer.getState().intercalarSugestao(), true);
+  eq('e é essa que entra a seguir, mesmo com menos pontos', ids()[1], 'do-atual');
+}
+
+// ===========================================================================
+console.log('\no contexto real do Smart Shuffle');
+// A fila física B,C,D não é o percurso ouvido B,F,D. Testa as chamadas reais
+// à descoberta, não só um helper com a mesma implementação que a store.
+{
+  preparar({ autoplayRadio: false });
+  const q = fila('a', 'b', 'c', 'd', 'e', 'f');
+  await usePlayer.getState().playTrack(q[1], q);
+  usePlayer.setState({ shuffle: true, shuffleOrder: ['b', 'f', 'd', 'a', 'c', 'e'].map(id => trackKey(faixa(id))) });
+  usePlayer.getState()._onYtStateChange('playing');
+  await usePlayer.getState().next();
+  usePlayer.getState()._onYtStateChange('playing');
+  await usePlayer.getState().next();
+  usePlayer.getState()._onYtStateChange('playing');
+  usePlayer.setState({ shuffleInteligente: true, desdeASugestao: 0 });
+  const contexto = () => controlo.contextosDaDescoberta.at(-1)?.map(t => t.sourceId).join(',');
+  await usePlayer.getState().semearSugestoes();
+  eq('semear segue as últimas reproduções confirmadas B → F → D', contexto(), 'd,f,b');
+  await usePlayer.getState().intercalarSugestao();
+  eq('intercalar usa o mesmo contexto real', contexto(), 'd,f,b');
+
+  // Alterar a fila não altera retroativamente o que se ouviu.
+  usePlayer.getState().moveQueueItem(0, 5);
+  await usePlayer.getState().semearSugestoes();
+  eq('reordenar a fila mantém o contexto ouvido', contexto(), 'd,f,b');
+
+  // Um salto manual no Up next não é um recuo por shuffleOrder. E uma faixa
+  // abandonada antes de o motor confirmar som não entra no histórico.
+  usePlayer.setState({ shuffleInteligente: false });
+  await usePlayer.getState().playTrack(q[2], usePlayer.getState().queue);
+  await usePlayer.getState().playTrack(q[0], usePlayer.getState().queue);
+  usePlayer.getState()._onYtStateChange('playing');
+  usePlayer.getState()._onYtStateChange('paused');
+  usePlayer.getState()._onYtStateChange('playing');
+  usePlayer.setState({ shuffleInteligente: true });
+  await usePlayer.getState().semearSugestoes();
+  eq('salto manual ignora C sem som e pausa/retoma não duplica A', contexto(), 'a,d,f');
+
+  // No início só se conhece a faixa escolhida. Não adivinhar o passado pela
+  // posição na nova lista; inclui também handoff e sessão restaurada.
+  const outra = fila('x', 'y', 'z');
+  await usePlayer.getState().playTrack(outra[2], outra);
+  await usePlayer.getState().semearSugestoes();
+  eq('nova lista começa só pela faixa escolhida, mesmo no índice 2', contexto(), 'z');
+  usePlayer.getState()._onYtStateChange('playing');
+  const remota = fila('r', 's', 't');
+  usePlayer.getState().adoptSession({ track: remota[2], queue: remota, queueIndex: 2, positionMs: 50_000 });
+  await usePlayer.getState().intercalarSugestao();
+  eq('handoff não inventa as músicas anteriores do outro aparelho', contexto(), 't');
+  usePlayer.getState()._onYtStateChange('playing');
+  await usePlayer.getState().playTrack(remota[0], usePlayer.getState().queue);
+  usePlayer.getState()._onYtStateChange('playing');
+  controlo.sessao = 'outra-conta';
+  await usePlayer.getState().semearSugestoes();
+  eq('mudar de conta não reutiliza as escutas da anterior', contexto(), 'r');
+  await usePlayer.getState().close();
+  eq('fechar o player limpa a memória da sessão', usePlayer.getState().escutasDaSessao, null);
+}
+
+console.log('\no perfil que chega à descoberta');
+{
+  preparar({ shuffle: true, shuffleInteligente: true });
+  controlo.artistasDoPerfil = [
+    { name: 'Horizonte Novo', plays: 100, externo: true, artworkUrl: null },
+    { name: 'Aurora Inicial', plays: 1, externo: true, artworkUrl: null },
+    { name: '999', plays: 90, externo: false, artworkUrl: null },
+  ];
+  for (const acao of ['semearSugestoes', 'intercalarSugestao'] as const) {
+    await usePlayer.getState()[acao]();
+    const perfil = controlo.perfisDaDescoberta.at(-1);
+    eq(`${acao}: preserva o nome e confiança do Spotify`, perfil?.externos?.get('horizonte novo'), 'Horizonte Novo');
+    eq(`${acao}: preserva a escolha inicial`, perfil?.externos?.get('aurora inicial'), 'Aurora Inicial');
+    eq(`${acao}: mantém o peso do perfil`, perfil?.escutas?.get('horizonte novo'), 100);
+    check(`${acao}: histórico não recebe confiança externa`, !perfil?.externos?.has('999'));
+    check(`${acao}: marca a descoberta como contexto de sessão`, perfil?.contextoDaSessao === true);
+  }
+  controlo.falharPerfil = true;
+  const anteriores = controlo.chamadas.candidatas;
+  await usePlayer.getState().semearSugestoes();
+  eq('sem perfil continua a descobrir pelo contexto', controlo.chamadas.candidatas, anteriores + 1);
+  eq('falha do perfil não reutiliza artistas externos anteriores', controlo.perfisDaDescoberta.at(-1)?.externos?.size ?? 0, 0);
+}
+
+console.log('\nas recomendações que chegam atrasadas');
+{
+  const adiar = () => {
+    let entregar!: (faixas: Track[]) => void;
+    const resposta = new Promise<Track[]>(resolve => { entregar = resolve; });
+    controlo.candidatasPendentes.push(resposta);
+    return entregar;
+  };
+  const comecar = async (id: string) => {
+    preparar({ shuffle: true, shuffleInteligente: true, autoplayRadio: false });
+    const q = fila(`${id}-a`, `${id}-b`, `${id}-c`);
+    await usePlayer.getState().playTrack(q[0], q);
+    usePlayer.setState({ shuffleOrder: q.map(trackKey), desdeASugestao: 0 });
+    return q;
+  };
+
+  for (const acao of ['semearSugestoes', 'intercalarSugestao'] as const) {
+    for (const mudanca of ['lista', 'handoff', 'fecho', 'modo'] as const) {
+      const q = await comecar(`${acao}-${mudanca}`);
+      const entregar = adiar();
+      const pendente = usePlayer.getState()[acao]();
+      await assentar();
+      eq(`${acao}/${mudanca}: pedido chegou à descoberta`, controlo.chamadas.candidatas, 1);
+      const nova = fila(`${acao}-${mudanca}-nova`);
+      if (mudanca === 'lista') await usePlayer.getState().playTrack(nova[0], nova);
+      if (mudanca === 'handoff') usePlayer.getState().adoptSession({ track: nova[0], queue: nova, queueIndex: 0, positionMs: 1000 });
+      if (mudanca === 'fecho') {
+        await usePlayer.getState().close();
+        await usePlayer.getState().playTrack(q[0], q);
+      }
+      if (mudanca === 'modo') {
+        usePlayer.getState().setShuffle(false);
+        usePlayer.getState().setShuffle(true);
+      }
+      const antes = ids().join(',');
+      const atrasada = faixa(`${acao}-${mudanca}-atrasada`);
+      entregar([atrasada]);
+      eq(`${acao}/${mudanca}: resposta antiga é descartada`, Boolean(await pendente), false);
+      eq(`${acao}/${mudanca}: a fila atual fica intacta`, ids().join(','), antes);
+      check(`${acao}/${mudanca}: não marca a faixa como sugerida`, !usePlayer.getState().sugeridas.includes(trackKey(atrasada)));
+    }
+
+    // Avançar e reordenar dentro da mesma sessão continua a aceitar a resposta.
+    await comecar(`${acao}-continua`);
+    const entregar = adiar();
+    const pendente = usePlayer.getState()[acao]();
+    await assentar();
+    await usePlayer.getState().next();
+    usePlayer.getState().moveQueueItem(0, 2);
+    const aTocar = atual();
+    const nova = faixa(`${acao}-sugestao-valida`);
+    entregar([nova]);
+    eq(`${acao}: next e reordenação na mesma lista aceitam a sugestão`, Boolean(await pendente), true);
+    check(`${acao}: sugestão válida fica na fila`, ids().includes(nova.sourceId));
+    eq(`${acao}: chegada da sugestão não interrompe a reprodução`, atual(), aTocar);
+
+    await comecar(`${acao}-duplicado`);
+    const entregarDuplicada = adiar();
+    const duplicada = usePlayer.getState()[acao]();
+    await assentar();
+    const candidata = faixa(`${acao}-mesma-musica`);
+    usePlayer.getState().addToQueue({ ...candidata, sourceId: `${acao}-outro-upload` });
+    entregarDuplicada([candidata]);
+    eq(`${acao}: relê identidades acrescentadas à fila durante a procura`, Boolean(await duplicada), false);
+    check(`${acao}: não insere outra cópia da música entretanto acrescentada`, !ids().includes(candidata.sourceId));
+  }
+
+  // O gesto de mudar de lista vem antes da resolução da fonte. Invalidar no
+  // gesto e na instalação evita aceitar pedidos feitos durante essa espera.
+  await comecar('fonte-em-resolucao');
+  const entregarAntesDoGesto = adiar();
+  const antesDoGesto = usePlayer.getState().intercalarSugestao();
+  await assentar();
+  let resolverFonte!: (faixa: Track) => void;
+  controlo.alternativaPendente = new Promise(resolve => { resolverFonte = resolve; });
+  const outraFonte = fila('fonte-nova');
+  const troca = usePlayer.getState().playTrack(outraFonte[0], outraFonte);
+  entregarAntesDoGesto([faixa('resultado-anterior-ao-gesto')]);
+  eq('mudar de lista invalida logo, antes de a fonte nova resolver', await antesDoGesto, false);
+  const entregarDurante = adiar();
+  const durante = usePlayer.getState().intercalarSugestao();
+  await assentar();
+  resolverFonte(outraFonte[0]);
+  await troca;
+  controlo.alternativaPendente = null;
+  entregarDurante([faixa('resultado-durante-a-troca')]);
+  eq('instalar a lista descarta pedidos feitos durante a resolução', await durante, false);
+  eq('a nova lista não recebe resultados do intervalo de troca', ids().join(','), 'fonte-nova');
+
+  // Uma procura abandonada não bloqueia a lista nova; o finally antigo não
+  // pode libertar a vaga ocupada pelo pedido novo e permitir uma terceira ida.
+  await comecar('pedido-antigo');
+  const entregarAntiga = adiar();
+  const antiga = usePlayer.getState().intercalarSugestao();
+  await assentar();
+  const novaFila = fila('pedido-novo-a', 'pedido-novo-b');
+  await usePlayer.getState().playTrack(novaFila[0], novaFila);
+  const entregarNova = adiar();
+  const nova = usePlayer.getState().intercalarSugestao();
+  await assentar();
+  eq('lista nova começa a procurar sem esperar pela resposta antiga', controlo.chamadas.candidatas, 2);
+  entregarAntiga([faixa('resultado-da-lista-antiga')]);
+  eq('resposta antiga é descartada enquanto a nova está pendente', await antiga, false);
+  const terceira = usePlayer.getState().intercalarSugestao();
+  await assentar();
+  eq('finally antigo não liberta o pedido novo ainda em curso', controlo.chamadas.candidatas, 2);
+  entregarNova([faixa('resultado-da-lista-nova')]);
+  eq('pedido da lista nova consegue inserir', await nova, true);
+  eq('não começa uma terceira procura concorrente', await terceira, false);
+  check('só entra o resultado da lista nova', ids().includes('resultado-da-lista-nova') && !ids().includes('resultado-da-lista-antiga'));
+
+  // O next agenda a descoberta 2 s depois: tanto o timer como o seu callback
+  // de falha pertencem à sessão que os criou.
+  await comecar('timer-antigo');
+  usePlayer.setState({ desdeASugestao: 4 });
+  await usePlayer.getState().next();
+  const aposTimer = fila('outra-lista-antes-do-timer');
+  await usePlayer.getState().playTrack(aposTimer[0], aposTimer);
+  usePlayer.setState({ desdeASugestao: 7 });
+  await esperarUmTique();
+  eq('timer da lista antiga não inicia uma procura na nova', controlo.chamadas.candidatas, 0);
+  eq('timer antigo não apaga o contador da nova lista', usePlayer.getState().desdeASugestao, 7);
+
+  await comecar('timer-com-resposta');
+  const entregarTimer = adiar();
+  usePlayer.setState({ desdeASugestao: 4 });
+  await usePlayer.getState().next();
+  await esperarUmTique();
+  eq('pedido agendado começou na lista original', controlo.chamadas.candidatas, 1);
+  const aposPedido = fila('outra-lista-durante-o-pedido');
+  await usePlayer.getState().playTrack(aposPedido[0], aposPedido);
+  usePlayer.setState({ desdeASugestao: 7 });
+  entregarTimer([]);
+  await assentar();
+  eq('conclusão tardia não apaga o contador da nova lista', usePlayer.getState().desdeASugestao, 7);
+}
+
 console.log('\no play a partir de uma lista');
 // ===========================================================================
 
@@ -389,7 +673,8 @@ const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const ler = (ms: number) => usePlayer.getState()._setProgress(ms, 2000);
 
 preparar();
-await usePlayer.getState().playTrack(curta('k1'), [curta('k1')]);
+await usePlayer.getState().playTrack(curta('k1'), [curta('k1')], false, false,
+  { surface: 'smart_shuffle', reasonCode: 'session_discovery', reason: 'teste' });
 usePlayer.getState()._setIsPlaying(true);
 eq('o clique já não conta', controlo.contagens.plays.length, 0);
 eq('mas o início fica registado', controlo.contagens.inicios.join(), 'k1');
@@ -399,6 +684,7 @@ eq('a 400 ms de 2 s ainda não conta', controlo.contagens.plays.length, 0);
 await esperar(700); ler(1100);
 eq('passada a metade, conta', controlo.contagens.plays.join(), 'k1');
 eq('nas duas contagens', controlo.contagens.locais.join(), 'k1');
+eq('e a recomendação ouvida alivia a aprendizagem', controlo.aprendizagem.escutas.join(), 'k1');
 await esperar(500); ler(1600);
 eq('e uma vez só', controlo.contagens.plays.length, 1);
 

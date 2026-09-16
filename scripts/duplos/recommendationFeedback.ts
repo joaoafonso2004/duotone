@@ -17,3 +17,11 @@ export function feedbackReady(): Promise<void> {
 export function artistWeight(): number {
   return 1;
 }
+import type { Track } from '../../src/types.ts';
+import { controlo } from './controlo.ts';
+export function aprenderComSaltoDeRecomendacao(track: Track): void {
+  controlo.aprendizagem.saltos.push(track.sourceId);
+}
+export function aprenderComEscutaDeRecomendacao(track: Track): void {
+  controlo.aprendizagem.escutas.push(track.sourceId);
+}

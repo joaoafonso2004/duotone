@@ -3,6 +3,8 @@ import { trackKey, upsertTrack, upsertTracks } from './library';
 import type { Playlist, PlaylistTrack, Track } from '../types';
 import { missingProfilePlaylistColumns } from '../lib/profileSchema';
 import { planearMerge } from '../lib/playlistMerge';
+// Quem mexe nas playlists muda a co-ocorrência: a descoberta tem de a reler.
+import { esquecerAfinidade } from './afinidade';
 
 async function currentUserId(): Promise<string> {
   const { data, error } = await supabase.auth.getUser();
@@ -132,6 +134,7 @@ export async function copiasGuardadas(): Promise<Set<string>> {
 export async function savePlaylistCopy(sourceId: string): Promise<string> {
   const {data,error}=await supabase.rpc('set_profile_playlist_copy',{p_source_id:sourceId,p_save:true});
   if(error)throw error;
+  esquecerAfinidade();
   if(!data)throw new Error('Could not save this playlist.');
   return data as string;
 }
@@ -140,6 +143,7 @@ export async function savePlaylistCopy(sourceId: string): Promise<string> {
 export async function unsavePlaylistCopy(sourceId: string): Promise<void> {
   const { error } = await supabase.rpc('set_profile_playlist_copy',{p_source_id:sourceId,p_save:false});
   if (error) throw error;
+  esquecerAfinidade();
 }
 
 /** Identidade e dono da playlist autorizada pela RLS, para abrir em modo de leitura. */
@@ -185,6 +189,7 @@ export async function deletePlaylist(id: string): Promise<void> {
     .eq('id', id)
     .eq('owner_id', userId);
   if (error) throw error;
+  esquecerAfinidade();
 }
 
 export async function getPlaylistTracks(
@@ -239,6 +244,7 @@ export async function addTrackToPlaylist(
       { onConflict: 'playlist_id,track_id', ignoreDuplicates: true }
     );
   if (error) throw error;
+  esquecerAfinidade();
 }
 
 export async function removeTrackFromPlaylist(
@@ -250,6 +256,7 @@ export async function removeTrackFromPlaylist(
     .delete()
     .match({ playlist_id: playlistId, track_id: trackId });
   if (error) throw error;
+  esquecerAfinidade();
 }
 
 /** Persiste uma nova ordem (lista completa de track ids, já ordenada). */
@@ -312,19 +319,24 @@ export async function addTracksToPlaylist(
   }
   if (rows.length === 0) return;
 
-  // 3) Inserir em lotes, avisando o chamador a cada um.
+  // 3) Inserir em lotes, avisando o chamador a cada um. Um lote a meio pode
+  //    falhar depois de outros entrarem, por isso a afinidade esquece-se sempre.
   const CHUNK = 500;
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    const lote = rows.slice(i, i + CHUNK);
-    const { error } = await supabase
-      .from('playlist_tracks')
-      .upsert(lote, { onConflict: 'playlist_id,track_id', ignoreDuplicates: true });
-    if (error) throw error;
-    const feito = Math.min(i + lote.length, rows.length);
-    onProgress?.(
-      Math.round(total * 0.5 + (feito / Math.max(rows.length, 1)) * total * 0.5),
-      total
-    );
+  try {
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const lote = rows.slice(i, i + CHUNK);
+      const { error } = await supabase
+        .from('playlist_tracks')
+        .upsert(lote, { onConflict: 'playlist_id,track_id', ignoreDuplicates: true });
+      if (error) throw error;
+      const feito = Math.min(i + lote.length, rows.length);
+      onProgress?.(
+        Math.round(total * 0.5 + (feito / Math.max(rows.length, 1)) * total * 0.5),
+        total
+      );
+    }
+  } finally {
+    esquecerAfinidade();
   }
 }
 

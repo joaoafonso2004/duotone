@@ -11,7 +11,7 @@ import {
 import type { Track } from '../types';
 import { semRepetidas } from '../lib/prateleirasSemRepetidas';
 import { intercalarPorArtista } from '../lib/intercalarPorArtista';
-import { CANDIDATOS, misturasDaBiblioteca, radiosDeArtista, type Mistura } from '../lib/misturas';
+import { CANDIDATOS, MISTURAS, misturasDaBiblioteca, radiosDeArtista, type Mistura } from '../lib/misturas';
 import { agruparPorEstilo, CANDIDATOS_A_ESTILO, misturasDeEstilo } from '../lib/estilos';
 import { vizinhosPorArtista } from '../api/catalogo';
 import { baralhada } from '../lib/jam';
@@ -252,29 +252,31 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
       // coisas que a descoberta já vai buscar. Falham por si, como as
       // prateleiras: sem elas a secção não aparece e as vizinhas nem dão por
       // isso.
-      // As descobertas por âncora correm ao lado das outras: se falharem, as
-      // misturas saem só com a biblioteca em vez de não saírem.
+      // Se as descobertas por âncora falharem, as misturas saem só com a
+      // biblioteca em vez de não saírem.
       getLibrary()
         .then(async (lib) => {
           libraryKeys=new Set(lib.map(trackKey));
           set(arrumarPrateleiras());
-          // A biblioteca primeiro: é dela que saem as âncoras, e chamar a
-          // descoberta sem ela procurava vizinhos de ninguém.
-          const [artistas, vizinhas] = await Promise.all([
-            // Pelo ponto unico: numa conta nova entram as sementes do
-            // primeiro dia, senao estas tres prateleiras nasciam vazias.
-            artistasParaRecomendacoes(CANDIDATOS),
-            descobertasPorAncora(lib).catch(() => new Map<string, Track[]>()),
-          ]);
+          // Pelo ponto unico: numa conta nova entram as sementes do
+          // primeiro dia, senao estas tres prateleiras nasciam vazias.
+          const artistas = await artistasParaRecomendacoes(CANDIDATOS);
+          // As descobertas são para os artistas que a página vai MOSTRAR, pela
+          // mesma rotação do dia que o `misturasDaBiblioteca` usa. Eram âncoras
+          // sorteadas à parte, e metade das misturas ia ao YouTube (auditoria
+          // de 16/9). As rádios escolhem entre estas, porque só aceitam quem
+          // tem vizinhos.
+          const deslocamento = Math.floor(Date.now() / 86_400_000) + voltasDeRefresco;
+          const pelaOrdemDoDia = artistas.map((_, n) => artistas[(deslocamento + n) % artistas.length].name);
+          const { vizinhas, ancoras } = await descobertasPorAncora(lib, pelaOrdemDoDia, MISTURAS)
+            .catch(() => ({ vizinhas: new Map<string, Track[]>(), ancoras: [] as string[] }));
           // A rede, e só para quem precisa: o catálogo é a fonte, o YouTube é
-          // o remendo de quem ficou curto. Nunca corre para os que já têm
-          // vizinhos que cheguem.
-          await taparBuracosComOYouTube(
-            artistas.slice(0, CANDIDATOS).map((a) => a.name), vizinhas, chaveDeArtista
-          ).catch(() => {});
-          return [lib, artistas, vizinhas] as const;
+          // o remendo das âncoras que ficaram curtas. Nunca corre para um nome
+          // que não passou o crivo, nem para quem já tem vizinhos que cheguem.
+          await taparBuracosComOYouTube(ancoras, vizinhas, chaveDeArtista).catch(() => {});
+          return [lib, artistas, vizinhas, deslocamento] as const;
         })
-        .then(async ([lib, artistas, vizinhas]) => {
+        .then(async ([lib, artistas, vizinhas, deslocamento]) => {
           if (atual !== geracao) return;
           /**
            * Os ESTILOS, que é a segunda forma de misturar.
@@ -348,8 +350,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
               ...misturasPorDecada(lib, anoDaFaixa, trackKey,
                 (t) => escutasPorArtista.get(artistPreferenceKey(t)) ?? 0, baralhada),
               ...misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
-                chaveDeArtista, baralhada,
-                Math.floor(Date.now() / 86_400_000) + voltasDeRefresco, vizinhas),
+                chaveDeArtista, baralhada, deslocamento, vizinhas),
           ];
           set({
             misturas: arrumarMisturas(),

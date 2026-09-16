@@ -12,6 +12,7 @@ import {
   addTrackToPlaylist,
   addTracksToPlaylist,
   createPlaylist,
+  removeTrackFromPlaylist,
 } from '../api/playlists';
 import { supabase } from '../lib/supabase';
 import { usePlaylists } from '../state/playlists';
@@ -109,13 +110,9 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
           .maybeSingle();
 
         if (trackData) {
-          const { error } = await supabase
-            .from('playlist_tracks')
-            .delete()
-            .match({ playlist_id: playlistId, track_id: trackData.id });
-          
-          if (error) throw error;
-          
+          // Pela API, que é quem avisa a descoberta de que a playlist mudou.
+          await removeTrackFromPlaylist(playlistId, trackData.id);
+
           setActivePlaylistIds((prev) => {
             const next = new Set(prev);
             next.delete(playlistId);

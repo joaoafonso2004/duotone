@@ -7,6 +7,7 @@
  * modulo a serio. Ja aconteceu com o `setEqPadrao` no duplo das prefs.
  */
 import type { Track } from '../../src/types.ts';
+import type { TopArtist } from '../../src/api/plays.ts';
 import { controlo } from './controlo.ts';
 
 /** Regista no `controlo`: o teste afirma QUANDO uma reprodução conta. */
@@ -29,7 +30,7 @@ export function getProfileRecentlyPlayed(): Promise<(Track & { lastPlayed?: numb
   return Promise.resolve(controlo.recentes);
 }
 
-/** O ponto unico dos artistas com que se recomenda. Vazio, como os outros. */
-export function artistasParaRecomendacoes(): Promise<{ name: string; plays: number; artworkUrl: string | null }[]> {
-  return Promise.resolve([]);
+/** O perfil agregado: controla dados/falha sem substituir a sua conversão. */
+export function artistasParaRecomendacoes(): Promise<TopArtist[]> {
+  return controlo.falharPerfil ? Promise.reject(new Error('Perfil indisponível')) : Promise.resolve(controlo.artistasDoPerfil);
 }

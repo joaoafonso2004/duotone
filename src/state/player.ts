@@ -2,13 +2,15 @@ import { proximaFaixa, decisaoDeControlo, restoDaLista, baralhada, type PonteJam
 import { faixasParaAdiantar } from '../lib/adiantarFaixas';
 import {ensureLyrics} from './lyrics';
 import { useConnectivity } from './connectivity';
-import { filterSuggestions } from './recommendationFeedback';
+import {
+  aprenderComEscutaDeRecomendacao,aprenderComSaltoDeRecomendacao,filterSuggestions,
+} from './recommendationFeedback';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { persist, type PersistStorage, type StorageValue } from 'zustand/middleware';
 import { temAudioNativo } from '../../modules/duotone-audio';
 import {
-  artistasParaRecomendacoes, getProfileRecentlyPlayed, recordPlayInSupabase, registarInicioDaFaixa,
+  getProfileRecentlyPlayed, recordPlayInSupabase, registarInicioDaFaixa,
 } from '../api/plays';
 import { incrementPlayCount } from '../lib/playCounts';
 import { avancarEscuta, novaEscuta, type Escuta } from '../lib/contagemDeEscuta';
@@ -23,11 +25,15 @@ import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
 import { comecaListaNova, origemAoTocar, type OrigemDaFila } from '../lib/origemDaFila';
 import { candidatasParaDescoberta } from '../api/descoberta';
+import { lerPerfilDeRecomendacoes } from '../api/perfilDeRecomendacoes';
 import { getLibrary } from '../api/library';
 import { cacheGet, cacheSet } from '../api/cache';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
-import { chavesDaMusica } from '../lib/identidadeDaMusica';
-import { chaveDeArtista } from '../lib/artistName';
+import { chavesDaMusica, chavesDeTodas } from '../lib/identidadeDaMusica';
+import { chaveDeArtista, displayArtist } from '../lib/artistName';
+import {
+  intervaloDosPontos, ordenarParaInserir, type Proveniencia,
+} from '../lib/escolhaDaSugestao';
 import {
   setShuffle as persistShuffle, setShuffleInteligente as persistShuffleInteligente,
   setPlaybackRate as persistPlaybackRate, setEqPadrao as persistEqPadrao,
@@ -129,13 +135,16 @@ let contextosDaFila=new Map<string,DiscoveryContext>();
 let contextoAtual:DiscoveryContext|null=null;
 export function contextoDaRecomendacaoAtual():DiscoveryContext|null{return contextoAtual;}
 
-function registarSaltoDeRecomendacao(positionMs:number):void{
+function registarSaltoDeRecomendacao(positionMs:number,track:Track|null,confirmada:boolean):void{
   if(!contextoAtual)return;
   registar('recomendacao_saltada',{
     ...contextoParaAnalytics(contextoAtual),
     antes_30s:positionMs<30_000,
     posicao_s:Math.max(0,Math.round(positionMs/1000)),
   });
+  // Uma falha antes do primeiro som não é gosto, e um skip isolado também não:
+  // o estado de feedback só reduz após três músicas distintas deste artista.
+  if(confirmada&&track&&positionMs<30_000)aprenderComSaltoDeRecomendacao(track);
 }
 
 /**
@@ -184,6 +193,7 @@ function medirEscuta(
     incrementPlayCount(faixaDaEscuta).catch(() => {});
     // No Supabase, para as recomendações e para "A tua escuta".
     recordPlayInSupabase(faixaDaEscuta).catch(() => {});
+    if(contextoAtual)aprenderComEscutaDeRecomendacao(faixaDaEscuta);
   }
 }
 
@@ -247,6 +257,9 @@ interface PlayerState {
   shuffleInteligente: boolean;
   /** Faixas normais tocadas desde a última sugestão. */
   desdeASugestao: number;
+  /** Últimas faixas com reprodução confirmada, da mais recente para trás.
+   * Só nesta sessão/lista e conta; não se persiste nem se infere da fila. */
+  escutasDaSessao: { dono: string | null; faixas: Track[] } | null;
   /** IDs que marcam na fila o que veio do Smart Shuffle. A memória de 30 dias,
    * incluindo artista+título, vive separada mais abaixo. */
   sugeridas: string[];
@@ -598,11 +611,70 @@ const historicosDoSmartShuffle = new Map<string, SugestaoNoHistorico[]>();
 const leiturasDoSmartShuffle = new Map<string, Promise<SugestaoNoHistorico[]>>();
 const escritasDoSmartShuffle = new Map<string, Promise<void>>();
 let historicoSemConta: SugestaoNoHistorico[] = [];
-let smartShuffleInFlight = false;
+type SessaoDoSmartShuffle = { geracao: number; dono: string | null };
+let geracaoDoSmartShuffle = 0;
+let pedidoDoSmartShuffle: SessaoDoSmartShuffle | null = null;
+
+/** Uma lista nova abandona as respostas antigas e pode procurar de imediato.
+ * O finally antigo só pode libertar o seu próprio pedido, nunca o novo. */
+function invalidarPedidosDoSmartShuffle(): void {
+  geracaoDoSmartShuffle++;
+  pedidoDoSmartShuffle = null;
+}
 
 function donoDoSmartShuffle(): string | null {
   const auth = useAuth.getState();
   return auth.session?.user.id ?? auth.offlineUserId;
+}
+
+function sessaoDoSmartShuffle(): SessaoDoSmartShuffle {
+  return { geracao: geracaoDoSmartShuffle, dono: donoDoSmartShuffle() };
+}
+
+function sessaoDoSmartShuffleValida(sessao: SessaoDoSmartShuffle): boolean {
+  const s = usePlayer.getState();
+  return sessao.geracao === geracaoDoSmartShuffle && sessao.dono === donoDoSmartShuffle()
+    && s.shuffle && s.shuffleInteligente && !!s.current && s.queue.length > 0
+    && !useConnectivity.getState().offline && !ouvirJuntos();
+}
+
+function iniciarPedidoDoSmartShuffle(): SessaoDoSmartShuffle | null {
+  if (pedidoDoSmartShuffle && sessaoDoSmartShuffleValida(pedidoDoSmartShuffle)) return null;
+  const pedido = sessaoDoSmartShuffle();
+  if (!sessaoDoSmartShuffleValida(pedido)) return null;
+  pedidoDoSmartShuffle = pedido;
+  return pedido;
+}
+
+/** A escolhida dá o contexto inicial; as anteriores só entram se deram som.
+ * A posição na fila e o shuffleOrder dizem o que pode tocar, não o que tocou. */
+function contextoParaSmartShuffle(s: Pick<PlayerState, 'current' | 'escutasDaSessao'>): Track[] {
+  if (!s.current) return [];
+  const ouvidas = s.escutasDaSessao?.dono === donoDoSmartShuffle() ? s.escutasDaSessao.faixas : [];
+  const atual = trackKey(s.current);
+  return [s.current, ...ouvidas.filter(t => trackKey(t) !== atual)].slice(0, 3);
+}
+
+/**
+ * As candidatas do Smart Shuffle pela ordem de entrada, só as de confiança.
+ * A âncora da música que está a tocar vem primeiro. Ver lib/escolhaDaSugestao.ts.
+ */
+function ordenarSugestoes(
+  candidatas: readonly Track[],
+  proveniencias: ReadonlyMap<string, Proveniencia>,
+  contexto: readonly Track[],
+): Track[] {
+  const ancoras = contexto.map((t) => chaveDeArtista(displayArtist(t)));
+  // As preferências explícitas continuam a mandar: o `filterSuggestions`
+  // reparte por grupos sem mexer na ordem dentro de cada um.
+  return filterSuggestions(
+    ordenarParaInserir(candidatas, (t) => proveniencias.get(trackKey(t)), ancoras),
+  );
+}
+
+/** Sem conteúdo pessoal: a origem e os pontos em intervalos. */
+function proveniencaParaAnalytics(p: Proveniencia | undefined): Record<string, string> {
+  return p ? { origem: p.propria ? 'propria' : 'semelhante', pontos: intervaloDosPontos(p.pontos) } : {};
 }
 
 /** O upload, a chave antiga e as variantes da música. Ver lib/identidadeDaMusica.ts. */
@@ -710,17 +782,10 @@ async function trazerHistoricoDaConta(dono: string | null): Promise<void> {
  * biblioteca (meia hora) e as chaves calculam-se uma vez por lista. Falhar não
  * impede a sugestão.
  */
-const identidadesDaBiblioteca = new WeakMap<Track[], Set<string>>();
 async function chavesDaBiblioteca(): Promise<Set<string>> {
   try {
-    const faixas = await lerFaixas(getLibrary);
-    let chaves = identidadesDaBiblioteca.get(faixas);
-    if (!chaves) {
-      chaves = new Set();
-      for (const f of faixas) for (const k of chavesDaFaixaSugerida(f)) chaves.add(k);
-      identidadesDaBiblioteca.set(faixas, chaves);
-    }
-    return chaves;
+    // A mesma cache que a descoberta usa para saltar músicas antes de pesquisar.
+    return chavesDeTodas(await lerFaixas(getLibrary));
   } catch {
     return new Set();
   }
@@ -760,25 +825,6 @@ async function chavesBloqueadasNoSmartShuffle(dono: string | null): Promise<Set<
   return new Set([...chavesRecentesDoSmartShuffle(guardado), ...escutadas, ...daBiblioteca]);
 }
 
-/**
- * O retrato do que se ouve, para os alvos nao virem so das ultimas tres faixas.
- *
- * Falha em silencio: sem historico devolve `undefined` e o `escolherAlvos`
- * volta a olhar so para o contexto, que e o que fazia antes.
- */
-async function retratoDeEscutas(): Promise<Map<string, number> | undefined> {
-  try {
-    const mapa = new Map<string, number>();
-    for (const a of await artistasParaRecomendacoes(20)) {
-      const k = chaveDeArtista(a.name);
-      if (k) mapa.set(k, Math.max(mapa.get(k) ?? 0, a.plays));
-    }
-    return mapa.size ? mapa : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 export const usePlayer = create<PlayerState>()(
   persist(
     (set, get) => ({
@@ -796,6 +842,7 @@ export const usePlayer = create<PlayerState>()(
   shuffleOrder: [],
   shuffleInteligente: false,
   desdeASugestao: 0,
+  escutasDaSessao: null,
   sugeridas: [],
   origemDaFila: null,
   doRadio: [],
@@ -854,12 +901,14 @@ export const usePlayer = create<PlayerState>()(
     const chamada={interno,mesmaFila:!!queue&&queue===get().queue};
     const origemSeguinte=origemAoTocar(get().origemDaFila,origem,chamada);
     const listaNova=comecaListaNova(origem,chamada);
+    if (listaNova) invalidarPedidosDoSmartShuffle();
     // `applyPlaybackAlternative` e o download podem demorar. O backend da
     // faixa anterior tem de se calar no proprio gesto, antes desses awaits;
     // esperar pelo efeito do componente deixava a capa nova com o som velho.
     pauseMountedSourceBeforeChange(anterior, track, get()._yt);
     if(!interno){
-      if(contextoAtual&&anterior&&trackKey(anterior)!==trackKey(track))registarSaltoDeRecomendacao(get().positionMs);
+      if(contextoAtual&&anterior&&trackKey(anterior)!==trackKey(track))
+        registarSaltoDeRecomendacao(get().positionMs,anterior,get().playbackConfirmed);
       contextosDaFila.clear();
       if(discoveryContext){
         for(const item of queue?.length?queue:[track])contextosDaFila.set(trackKey(item),discoveryContext);
@@ -893,6 +942,9 @@ export const usePlayer = create<PlayerState>()(
     // só neste dispositivo não pode trocar a faixa por baixo da sincronização.
     const playableTrack = ouvirJuntos() ? track : await applyPlaybackAlternative(track).catch(() => track);
     if (requestId !== playRequestId) return;
+    // Durante a resolução ainda se via a fila antiga. Uma procura iniciada
+    // nesse intervalo também não pertence à lista que vai ser instalada.
+    if (listaNova) invalidarPedidosDoSmartShuffle();
     // Ao escolher de novo a faixa restaurada do arranque, o sourceId nao
     // muda e o YouTubePlayerView nao remonta. Guardar os controlos existentes
     // permite reiniciar esse mesmo player depois de atualizar o estado.
@@ -906,7 +958,7 @@ export const usePlayer = create<PlayerState>()(
       queueIndex: index,
       origemDaFila: origemSeguinte,
       // Numa lista nova, as marcas do rádio da anterior deixam de valer.
-      ...(listaNova ? { doRadio: [] } : {}),
+      ...(listaNova ? { doRadio: [], escutasDaSessao: null } : {}),
       error: null,
       ...posicao(0),
       durationMs: (playableTrack.durationSeconds ?? 0) * 1000,
@@ -1024,6 +1076,7 @@ export const usePlayer = create<PlayerState>()(
 
   adoptSession: ({ track, queue, queueIndex, positionMs }) => {
     if (ouvirJuntos()) return; // O handoff pessoal não substitui a sessão partilhada.
+    invalidarPedidosDoSmartShuffle();
     // A escuta recomeça no `_setProgress`, com o que já se ouviu no outro
     // dispositivo como ouvido: se lá passou do limiar, já contou lá. Mesmo que
     // seja a faixa que este tinha, é outra escuta.
@@ -1050,6 +1103,7 @@ export const usePlayer = create<PlayerState>()(
       // A sessão de outro aparelho não traz de onde veio a fila.
       origemDaFila: null,
       doRadio: [],
+      escutasDaSessao: null,
     });
   },
 
@@ -1137,10 +1191,12 @@ export const usePlayer = create<PlayerState>()(
     if (ouvirJuntos()) { void comandarJam(s => s.sugerir(track)); return; }
     const { queue } = get();
     if (queue.length === 0) {
+      invalidarPedidosDoSmartShuffle();
       set({
         current: track,
         queue: [track],
         queueIndex: 0,
+        escutasDaSessao: null,
         ...passo(get().maquina, 'faixa-escolhida'),
         ...posicao(0),
         durationMs: (track.durationSeconds ?? 0) * 1000,
@@ -1214,7 +1270,7 @@ export const usePlayer = create<PlayerState>()(
     set({ saltoDaFaixa: { direcao: 1, em: Date.now() } });
     if (ouvirJuntos()) { await comandarJam(s => s.avancar(false)); return; }
     if (get().queue.length === 0) return;
-    if(manual)registarSaltoDeRecomendacao(get().positionMs);
+    if(manual)registarSaltoDeRecomendacao(get().positionMs,get().current,get().playbackConfirmed);
 
     // SHUFFLE INTELIGENTE: de quatro em quatro faixas entra uma que nao esta
     // na fila, relacionada com o que se anda a ouvir. Sai daqui e nao do
@@ -1249,9 +1305,11 @@ export const usePlayer = create<PlayerState>()(
       //
       // Dois segundos nao custam nada a uma descoberta que so vai tocar dali a
       // umas faixas, e custam tudo se estiverem a travar o botao de seguinte.
+      const sessaoDaSugestao = sessaoDoSmartShuffle();
       setTimeout(() => {
+        if (!sessaoDoSmartShuffleValida(sessaoDaSugestao)) return;
         void get().intercalarSugestao().then((entrou) => {
-          if (!entrou) set({ desdeASugestao: 0 });
+          if (!entrou && sessaoDoSmartShuffleValida(sessaoDaSugestao)) set({ desdeASugestao: 0 });
         });
       }, ATRASO_DA_SUGESTAO_MS);
     }
@@ -1377,6 +1435,7 @@ export const usePlayer = create<PlayerState>()(
 
   close: async () => {
     if (!await get().prepararFecho()) return;
+    invalidarPedidosDoSmartShuffle();
     ++playRequestId; // Respostas de uma resolução antiga não reabrem o player.
     // Parar o áudio ANTES de desmontar o player (com staysActiveInBackground
     // a media podia continuar a tocar mesmo depois de fechar o ecrã).
@@ -1386,6 +1445,7 @@ export const usePlayer = create<PlayerState>()(
       current: null,
       queue: [],
       queueIndex: 0,
+      escutasDaSessao: null,
       ...passo(get().maquina, 'parou-tudo'),
       expanded: false,
       ...posicao(0),
@@ -1516,11 +1576,13 @@ export const usePlayer = create<PlayerState>()(
     })),
   // Ligar o shuffle gera o percurso de raiz (com a faixa atual à cabeça);
   // desligar deita-o fora, para a próxima vez começar limpo.
-  setShuffle: (v) =>
+  setShuffle: (v) => {
+    if (!v) invalidarPedidosDoSmartShuffle();
     set((s) => ({
       shuffle: v,
       shuffleOrder: v ? novaOrdemDoShuffle(s.queue, s.queueIndex) : [],
-    })),
+    }));
+  },
   /** O botão cicla off → normal → inteligente → off. */
   toggleShuffle: () => {
     const seguinte = proximoModo(modoDeShuffle(get().shuffle, get().shuffleInteligente));
@@ -1543,20 +1605,23 @@ export const usePlayer = create<PlayerState>()(
    * depois.
    */
   semearSugestoes: async () => {
-    const { queue, queueIndex, sugeridas } = get();
-    if (queue.length === 0 || smartShuffleInFlight) return 0;
-    smartShuffleInFlight = true;
-    const dono = donoDoSmartShuffle();
+    const { queue, sugeridas } = get();
+    if (queue.length === 0) return 0;
+    const pedido = iniciarPedidoDoSmartShuffle();
+    if (!pedido) return 0;
+    const { dono } = pedido;
     try {
-      const contexto = radioSeeds(queue, queueIndex);
+      const contexto = contextoParaSmartShuffle(get());
       if (contexto.length === 0) return 0;
       const naFila = new Set(queue.map((t) => trackKey(t)));
-      const [bloqueadas, escutas] = await Promise.all([
+      const [bloqueadas, perfil] = await Promise.all([
         chavesBloqueadasNoSmartShuffle(dono),
-        retratoDeEscutas(),
+        lerPerfilDeRecomendacoes(),
       ]);
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return 0;
       // A mesma música noutro upload também conta como já estando na fila.
       for (const t of queue) for (const chave of chavesDaFaixaSugerida(t)) bloqueadas.add(chave);
+      const proveniencias = new Map<string, Proveniencia>();
       const candidatas = await candidatasParaDescoberta(
         contexto, naFila, new Set([...sugeridas, ...bloqueadas]),
         // Mais fundo e mais largo, e e isto que corrige o "aparecem sempre as
@@ -1569,16 +1634,17 @@ export const usePlayer = create<PlayerState>()(
         // se escolhe era sempre a mesma meia duzia. O `sugeridas` evitava o
         // repetido exacto; nao evitava o poco ser raso.
         //
-        // Quatro alvos e o que a descoberta ja usa, e o retrato das escutas
-        // faz os alvos representarem o que se ouve E NAO so o que esta a dar
-        // agora.
-        POR_SUGESTAO, ALVOS_DA_SUGESTAO, escutas,
+        // Quatro alvos e o que a descoberta ja usa. Nesta sessao, as faixas
+        // realmente ouvidas escolhem as ancoras; o perfil global ajuda a
+        // ordenar os semelhantes sem trocar o ambiente actual.
+        POR_SUGESTAO, ALVOS_DA_SUGESTAO, perfil.escutas, undefined, perfil.externos, true,
+        proveniencias,
       );
-      if(useConnectivity.getState().offline||get().queue!==queue||!get().shuffleInteligente
-        ||donoDoSmartShuffle()!==dono)return 0;
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return 0;
       if (candidatas.length === 0) return 0;
 
-      const filtradas=filterSuggestions(candidatas)
+      // Pela pontuação e só as de confiança: sem nenhuma, não entra nada.
+      const filtradas=ordenarSugestoes(candidatas, proveniencias, contexto)
         .filter((t) => !foiSugeridaRecentemente(chavesDaFaixaSugerida(t), bloqueadas));
       const quantas = Math.min(3, filtradas.length);
       let fila = [...get().queue];
@@ -1594,7 +1660,8 @@ export const usePlayer = create<PlayerState>()(
         const t = filtradas[i];
         const chave = trackKey(t);
         const identidades = chavesDaFaixaSugerida(t);
-        if (!chave || fila.some((q) => trackKey(q) === chave)
+        if (!chave || fila.some((q) => trackKey(q) === chave
+          || chavesDaFaixaSugerida(q).some(k => identidades.includes(k)))
           || foiSugeridaRecentemente(identidades, bloqueadas)) continue;
         const posicao = Math.min(base + 1 + (i + 1) * intervalo, fila.length);
         fila = [...fila.slice(0, posicao), t, ...fila.slice(posicao)];
@@ -1618,39 +1685,46 @@ export const usePlayer = create<PlayerState>()(
         desdeASugestao: 0,
       });
       await registarSugestoesGuardadas(dono, escolhidas);
-      registar('recomendacao_mostrada',{...contextoParaAnalytics(contextoDaSugestao),quantidade:novas.length});
+      registar('recomendacao_mostrada',{
+        ...contextoParaAnalytics(contextoDaSugestao),
+        quantidade:novas.length,
+        ...proveniencaParaAnalytics(proveniencias.get(novas[0])),
+      });
       return novas.length;
     } catch {
       return 0;
     } finally {
-      smartShuffleInFlight = false;
+      if (pedidoDoSmartShuffle === pedido) pedidoDoSmartShuffle = null;
     }
   },
 
   /**
    * Mete na fila uma faixa relacionada e toca-a. Devolve se conseguiu.
    *
-   * As candidatas vêm do mesmo sítio que o rádio (`api/radio.ts`), que já sabe
+   * As candidatas vêm da descoberta (`api/descoberta.ts`), que já sabe
    * partir das últimas ouvidas e excluir o que já lá está. Falhar aqui NÃO é
    * um erro: quem falha volta ao shuffle normal e o utilizador nem dá por
    * isso — uma funcionalidade de descoberta não pode partir a reprodução.
    */
   intercalarSugestao: async () => {
-    const { queue, queueIndex, sugeridas } = get();
-    if (queue.length === 0 || smartShuffleInFlight) return false;
-    smartShuffleInFlight = true;
-    const dono = donoDoSmartShuffle();
+    const { queue, sugeridas } = get();
+    if (queue.length === 0) return false;
+    const pedido = iniciarPedidoDoSmartShuffle();
+    if (!pedido) return false;
+    const { dono } = pedido;
     try {
-      // O CONTEXTO sao as ultimas ouvidas e nao so a atual: numa fila variada
-      // a ultima faixa pode nao representar o que se esteve a ouvir.
-      const contexto = radioSeeds(queue, queueIndex);
+      // A atual e as últimas confirmadas pelo motor, mesmo com shuffle,
+      // saltos manuais ou a fila reordenada entretanto.
+      const contexto = contextoParaSmartShuffle(get());
       if (contexto.length === 0) return false;
       const naFila = new Set(queue.map((t) => trackKey(t)));
-      const [bloqueadas, escutas] = await Promise.all([
+      const [bloqueadas, perfil] = await Promise.all([
         chavesBloqueadasNoSmartShuffle(dono),
-        retratoDeEscutas(),
+        lerPerfilDeRecomendacoes(),
       ]);
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return false;
       for (const t of queue) for (const chave of chavesDaFaixaSugerida(t)) bloqueadas.add(chave);
+      const proveniencias = new Map<string, Proveniencia>();
       const candidatas = await candidatasParaDescoberta(
         contexto, naFila, new Set([...sugeridas, ...bloqueadas]),
         // Mais fundo e mais largo, e e isto que corrige o "aparecem sempre as
@@ -1663,26 +1737,22 @@ export const usePlayer = create<PlayerState>()(
         // se escolhe era sempre a mesma meia duzia. O `sugeridas` evitava o
         // repetido exacto; nao evitava o poco ser raso.
         //
-        // Quatro alvos e o que a descoberta ja usa, e o retrato das escutas
-        // faz os alvos representarem o que se ouve E NAO so o que esta a dar
-        // agora.
-        POR_SUGESTAO, ALVOS_DA_SUGESTAO, escutas,
+        // Quatro alvos e o que a descoberta ja usa. Nesta sessao, as faixas
+        // realmente ouvidas escolhem as ancoras; o perfil global ajuda a
+        // ordenar os semelhantes sem trocar o ambiente actual.
+        POR_SUGESTAO, ALVOS_DA_SUGESTAO, perfil.escutas, undefined, perfil.externos, true,
+        proveniencias,
       );
-      if(useConnectivity.getState().offline||!get().shuffleInteligente
-        ||donoDoSmartShuffle()!==dono)return false;
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return false;
       const escolhida = escolherSugestao(
-        filterSuggestions(candidatas)
+        ordenarSugestoes(candidatas, proveniencias, contexto)
           .filter((t) => !foiSugeridaRecentemente(chavesDaFaixaSugerida(t), bloqueadas)),
         (t) => trackKey(t), naFila, new Set(sugeridas),
       );
       if (!escolhida) return false;
 
-      // A fila de AGORA, e nao a de quando esta procura comecou.
-      //
-      // Isto deixou de correr antes de a faixa mudar (ver o `next`), por isso
-      // quando chega aqui a fila ja avancou. Insistir na copia antiga ou
-      // desistir por ela ter mudado era, nos dois casos, transformar uma ida a
-      // rede num desperdicio.
+      // A fila atual, mas apenas da mesma sessão: next e reordenação podem
+      // tê-la mudado; uma lista nova já teria invalidado o pedido acima.
       const filaAgora = get().queue;
       const indiceAgora = get().queueIndex;
       if (filaAgora.length === 0) return false;
@@ -1726,12 +1796,13 @@ export const usePlayer = create<PlayerState>()(
       registar('recomendacao_mostrada',{
         ...contextoParaAnalytics(contextoDoSmartShuffle()),
         quantidade:1,
+        ...proveniencaParaAnalytics(proveniencias.get(chave)),
       });
       return true;
     } catch {
       return false;
     } finally {
-      smartShuffleInFlight = false;
+      if (pedidoDoSmartShuffle === pedido) pedidoDoSmartShuffle = null;
     }
   },
   setShowRewindButton: (v) => set({ showRewindButton: v }),
@@ -1775,6 +1846,9 @@ export const usePlayer = create<PlayerState>()(
     // Confirmacao DO MOTOR: mexe na fase, nunca na intencao. Uma confirmacao
     // atrasada ressuscitava a reproducao depois de o utilizador pausar.
     set(passo(get().maquina, s === 'playing' ? 'a-tocar' : 'em-pausa'));
+    if (s === 'playing' && get().isPlaying && !get().closing) {
+      set({ escutasDaSessao: { dono: donoDoSmartShuffle(), faixas: contextoParaSmartShuffle(get()) } });
+    }
   },
 
   _setProgress: (positionMs, durationMs) => {
@@ -1975,7 +2049,8 @@ export const usePlayer = create<PlayerState>()(
     let newIndex = queueIndex;
     if (index === queueIndex) {
       if (newQueue.length === 0) {
-        set({ current: null, queue: [], queueIndex: 0, ...passo(get().maquina, 'parou-tudo') });
+        invalidarPedidosDoSmartShuffle();
+        set({ current: null, queue: [], queueIndex: 0, escutasDaSessao: null, ...passo(get().maquina, 'parou-tudo') });
         return;
       }
       newIndex = Math.min(queueIndex, newQueue.length - 1);
@@ -2008,9 +2083,12 @@ export const usePlayer = create<PlayerState>()(
       // utilizador carregar em play.
       merge: (persisted: any, current) => {
         if (!persisted?.current) return current;
+        invalidarPedidosDoSmartShuffle();
         return {
           ...current,
           ...persisted,
+          // Sem histórico confirmado deste arranque, a atual é a única semente.
+          escutasDaSessao: null,
           // Uma sessao gravada por uma versao anterior nao tem estes dois
           // campos. Sem o `??`, o `sugeridas` chegava `undefined` e a lista da
           // fila rebentava no primeiro `includes` -- a app parte ao ABRIR, na

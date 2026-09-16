@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import {
   ARTISTAS_DO_SPOTIFY, PESO_MAXIMO, gostoAPartirDoSpotify, juntarComOSpotify, mensagemDoSpotify,
+  envelhecerGosto, falhaDaApi, falhaDaAutorizacao, GOSTO_FRESCO_MS, MEIA_VIDA_DO_GOSTO_MS, PESO_MINIMO_DO_GOSTO, pesoPelaIdade,
   type FalhaDoSpotify,
 } from '../src/lib/gostoDoSpotify.ts';
 
@@ -85,11 +86,57 @@ caso('respeita o limite e não mexe no histórico que recebeu', () => {
   assert.equal(historico[0].plays, 5);
 });
 
+console.log('\na idade do gosto');
+
+caso('inteiro no primeiro mês, metade 90 dias depois, nunca abaixo de um quarto', () => {
+  const lido = Date.UTC(2026, 0, 1);
+  assert.equal(pesoPelaIdade(lido, lido), 1);
+  assert.equal(pesoPelaIdade(lido, lido + GOSTO_FRESCO_MS), 1);
+  assert.ok(Math.abs(pesoPelaIdade(lido, lido + GOSTO_FRESCO_MS + MEIA_VIDA_DO_GOSTO_MS) - 0.5) < 1e-9);
+  assert.equal(pesoPelaIdade(lido, lido + 5 * 365 * 86_400_000), PESO_MINIMO_DO_GOSTO);
+});
+
+caso('um gosto antigo pesa menos, mas nenhum artista desaparece', () => {
+  const lido = Date.UTC(2026, 0, 1);
+  const gosto = { artistas: [{ name: 'Topo', plays: 20 }, { name: 'Fundo', plays: 1 }], lidoEm: lido };
+  assert.deepEqual(envelhecerGosto(gosto, lido).map((a) => a.plays), [20, 1]);
+  const velho = envelhecerGosto(gosto, lido + 2 * 365 * 86_400_000);
+  assert.deepEqual(velho.map((a) => a.plays), [5, 1]);
+  assert.equal(gosto.artistas[0].plays, 20, 'não mexe no gosto guardado');
+});
+
+caso('com o gosto antigo, o que se ouve agora passa à frente mais cedo', () => {
+  const lido = Date.UTC(2026, 0, 1);
+  const gosto = { artistas: [{ name: 'Do Spotify', plays: 20 }], lidoEm: lido };
+  const agora = [{ name: 'Deste mês', plays: 12 }];
+  assert.equal(juntarComOSpotify(agora, envelhecerGosto(gosto, lido), chave, 5)[0].name, 'Do Spotify');
+  assert.equal(juntarComOSpotify(agora, envelhecerGosto(gosto, lido + 365 * 86_400_000), chave, 5)[0].name, 'Deste mês');
+});
+
 console.log('\nas mensagens');
+
+caso('uma conta fora da lista da app diz isso, e não "recusou"', () => {
+  // O corpo que o Spotify manda em modo de desenvolvimento.
+  const corpo = '{"error":{"status":403,"message":"User not registered in the Developer Dashboard"}}';
+  assert.equal(falhaDaApi(403, corpo), 'nao-registado');
+  assert.equal(falhaDaApi(403, '{"error":{"status":403,"message":"Forbidden"}}'), 'sem-acesso');
+  assert.equal(falhaDaApi(401, ''), 'sem-acesso');
+  assert.equal(falhaDaApi(500, ''), 'rede');
+  assert.equal(falhaDaApi(200, ''), null);
+  assert.notEqual(mensagemDoSpotify('nao-registado'), mensagemDoSpotify('sem-acesso'));
+});
+
+caso('carregar em Cancelar no Spotify é cancelar; configuração errada é da app', () => {
+  assert.equal(falhaDaAutorizacao('access_denied'), 'cancelado');
+  assert.equal(falhaDaAutorizacao('invalid_client'), 'sem-configuracao');
+  assert.equal(falhaDaAutorizacao('invalid_grant Invalid redirect URI'), 'sem-configuracao');
+  assert.equal(falhaDaAutorizacao('server_error'), 'sem-acesso');
+  assert.equal(falhaDaAutorizacao(undefined), 'sem-acesso');
+});
 
 caso('cancelar não diz nada; o resto é curto e sem jargão', () => {
   assert.equal(mensagemDoSpotify('cancelado'), null);
-  for (const tipo of ['sem-configuracao', 'sem-acesso', 'rede', 'vazio'] as FalhaDoSpotify[]) {
+  for (const tipo of ['sem-configuracao', 'nao-registado', 'sem-acesso', 'rede', 'vazio'] as FalhaDoSpotify[]) {
     const m = mensagemDoSpotify(tipo)!;
     assert.ok(m.length <= 64, `${m.length}: ${m}`);
     assert.ok(!/token|oauth|pkce|403|http|client/i.test(m), m);
