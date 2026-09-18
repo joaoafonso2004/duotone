@@ -124,6 +124,39 @@ eq('e o índice acompanha', usePlayer.getState().queueIndex, 1);
   eq('saltar uma faixa que não foi recomendada não ensina nada', controlo.aprendizagem.saltos.length, 0);
 }
 
+// A paciência que se pede (relatório premium, §1.1): seguinte ou outra música
+// antes do primeiro som. Com som, ou num avanço automático, não conta.
+{
+  const saltos = () => controlo.eventos.filter((e) => e.nome === 'saltou_antes_do_som').map((e) => e.dados.gesto);
+  const q = fila('p1', 'p2', 'p3');
+  preparar();
+  await usePlayer.getState().playTrack(q[0], q);
+  await usePlayer.getState().next();
+  eq('seguinte antes do som conta', saltos().join(), 'seguinte');
+  eq('com o tempo que se esperou', typeof controlo.eventos.find((e) => e.nome === 'saltou_antes_do_som')?.dados.ms, 'number');
+
+  preparar();
+  await usePlayer.getState().playTrack(q[0], q);
+  usePlayer.getState()._onYtStateChange('playing');
+  await usePlayer.getState().next();
+  eq('com som já não conta', saltos().length, 0);
+
+  preparar();
+  await usePlayer.getState().playTrack(q[0], q);
+  await usePlayer.getState().next(false);
+  eq('um avanço automático não conta', saltos().length, 0);
+
+  preparar();
+  await usePlayer.getState().playTrack(q[0], q);
+  await usePlayer.getState().playTrack(faixa('outra'), [faixa('outra')]);
+  eq('escolher outra música antes do som conta', saltos().join(), 'outra');
+
+  preparar();
+  await usePlayer.getState().playTrack(q[0], q);
+  await usePlayer.getState().playTrack(q[0], q);
+  eq('voltar a tocar a mesma não conta', saltos().length, 0);
+}
+
 preparar({ queueIndex: 3, current: faixa('d') });
 await usePlayer.getState().next();
 eq('no fim da fila, sem rádio, a faixa NÃO muda', atual(), 'd');

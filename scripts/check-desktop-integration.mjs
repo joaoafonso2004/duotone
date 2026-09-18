@@ -18,6 +18,13 @@ const captura = {};
 let aoJuntarDiscord = null;
 let preparacoesDiscord = 0;
 let saidas = 0;
+// A saúde (electron/saude.cjs) tem o seu teste; aqui é um duplo que decide se
+// se recarrega, para se ver que a janela obedece.
+const saudeDupla = { recarregar: true, registos: [], ler: () => ({ incidentes: [], processoComecouEm: 1 }) };
+saudeDupla.rendererMorreu = (d) => { saudeDupla.registos.push(['renderer', d.reason]); return saudeDupla.recarregar; };
+saudeDupla.janelaPresa = () => saudeDupla.registos.push(['presa']);
+saudeDupla.processoFilhoMorreu = (d) => saudeDupla.registos.push(['filho', d.type]);
+saudeDupla.erroDoPrincipal = (_e, onde) => saudeDupla.registos.push(['principal', onde]);
 class Janela extends EventEmitter {
   constructor(options) {
     super(); janela = this;
@@ -29,9 +36,12 @@ class Janela extends EventEmitter {
     wc.setWindowOpenHandler = (fn) => { wc.openHandler = fn; };
     wc.getURL = () => wc.url || '';
     wc.isLoadingMainFrame = () => false;
+    wc.recargas = 0;
+    wc.reload = () => { wc.recargas++; };
     this.webContents = wc;
   }
   loadURL(url) { this.webContents.url = url; this.webContents.mainFrame.url = url; }
+  isDestroyed() { return false; }
   show() { this.visivel = true; } hide() { this.visivel = false; } focus() { this.focada = true; }
   isFocused() { return this.focada; } isMinimized() { return this.minimizada; }
   restore() { this.minimizada = false; }
@@ -44,9 +54,10 @@ class Aviso extends EventEmitter {
 }
 const electron = {
   app: { isPackaged: true, requestSingleInstanceLock: () => true, on: (event, fn) => events.set(event, fn),
-    whenReady: () => ({ then() {} }), getPath: () => 'qa', quit() { saidas++; },
+    whenReady: () => ({ then() {} }), getPath: () => 'qa', getVersion: () => '9.9.9', quit() { saidas++; },
     getLoginItemSettings: () => startup, setLoginItemSettings: (settings) => { startup = { ...settings, executableWillLaunchAtLogin: settings.openAtLogin }; } },
   BrowserWindow: Janela, Notification: Aviso, protocol: { registerSchemesAsPrivileged() {} },
+  crashReporter: { start: (opcoes) => { captura.crashReporter = opcoes; } },
   shell: { openExternal: (url) => externos.push(url) },
   session: { defaultSession: {} },
   Menu: { buildFromTemplate: () => ({ popup() {} }) },
@@ -58,7 +69,7 @@ const contexto = vm.createContext({
   // duplo: esta verificacao e sobre a casca do Electron, e nao sobre o socket
   // do Discord, que tem os seus proprios testes.
   // O módulo da atualização é puro (sem `electron`): entra o verdadeiro.
-  require: (id) => id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './discord.cjs' ? {
+  require: (id) => id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './discord.cjs' ? {
     DISCORD_APP_ID: '1547625164328538133',
     definirPresenca: () => Promise.resolve(false),
     prepararDiscord: () => { preparacoesDiscord++; return Promise.resolve(true); },
@@ -69,13 +80,32 @@ const contexto = vm.createContext({
     writeFileSync: (_path, data) => { guardado = data; },
   } : require(id),
   __dirname: new URL('../electron/', import.meta.url).pathname, console,
-  process: { platform: 'win32', execPath: 'C:/Duotone/Duotone.exe', argv: ['--duotone-auto-start'], env: {} },
+  process: {
+    platform: 'win32', execPath: 'C:/Duotone/Duotone.exe', argv: ['--duotone-auto-start'], env: {},
+    on: (evento, fn) => { captura[`processo:${evento}`] = fn; },
+  },
   captura,
   URL, setTimeout, clearTimeout,
 });
 vm.runInContext(fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8'), contexto);
 vm.runInContext('createWindow()', contexto);
 assert.equal(janela.options.webPreferences.webSecurity, true);
+// A saúde: Crashpad sem envio, e a página que morre volta a abrir (se a saúde deixar).
+assert.equal(captura.crashReporter.uploadToServer, false, 'os dumps não saem do PC');
+assert.equal(captura.saude.pastaDosDumps, 'qa');
+janela.webContents.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 });
+assert.equal(janela.webContents.recargas, 1, 'a página que morreu volta a abrir');
+saudeDupla.recarregar = false;
+janela.webContents.emit('render-process-gone', {}, { reason: 'crashed', exitCode: 1 });
+assert.equal(janela.webContents.recargas, 1, 'em ciclo, não se recarrega');
+janela.emit('unresponsive');
+captura['processo:uncaughtException'](new Error('x'));
+captura['processo:unhandledRejection']('y');
+events.get('child-process-gone')({}, { type: 'GPU', reason: 'crashed' });
+assert.deepEqual(saudeDupla.registos, [
+  ['renderer', 'crashed'], ['renderer', 'crashed'], ['presa'],
+  ['principal', 'uncaughtException'], ['principal', 'unhandledRejection'], ['filho', 'GPU'],
+]);
 assert.equal(janela.options.webPreferences.contextIsolation, true);
 assert.equal(janela.options.webPreferences.sandbox, true);
 let bloqueado = false;
@@ -115,6 +145,9 @@ assert.equal(Object.keys(fonteCapturada).length, 0, 'Um frame externo não pode 
 captura.display({ frame: janela.webContents.mainFrame }, (value) => { fonteCapturada = value; });
 assert.equal(fonteCapturada.enableLocalEcho, true);
 const evento = () => ({ sender: janela.webContents, senderFrame: janela.webContents.mainFrame });
+assert.deepEqual(handlers.get('saude:ler')(evento()), { incidentes: [], processoComecouEm: 1 });
+assert.throws(() => handlers.get('saude:ler')({ sender: janela.webContents, senderFrame: { url: 'https://www.youtube-nocookie.com' } }),
+  'o iframe do YouTube não lê a saúde da app');
 janela.emit('ready-to-show');
 assert.equal(janela.visivel, false, 'O arranque automático no tabuleiro não abre a janela');
 aoJuntarDiscord('duotone-jam:123e4567-e89b-42d3-a456-426614174000');

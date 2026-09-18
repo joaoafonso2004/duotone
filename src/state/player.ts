@@ -135,6 +135,21 @@ let contextosDaFila=new Map<string,DiscoveryContext>();
 let contextoAtual:DiscoveryContext|null=null;
 export function contextoDaRecomendacaoAtual():DiscoveryContext|null{return contextoAtual;}
 
+/**
+ * Quando se pediu a faixa atual. Serve o `saltou_antes_do_som`: carregar em
+ * seguinte (ou noutra música) antes de a faixa dar som mede a paciência que a
+ * app pede a quem ouve (relatório premium, §1.1).
+ */
+let faixaPedida:{chave:string;em:number}|null=null;
+function registarSaltoAntesDoSom(track:Track|null,confirmada:boolean,gesto:'seguinte'|'outra'):void{
+  // A faixa atual pode ter chegado sem `playTrack` (handoff, sessão restaurada):
+  // aí não se sabe desde quando se espera, e não se mede.
+  if(confirmada||!track||faixaPedida?.chave!==trackKey(track))return;
+  const ms=Date.now()-faixaPedida.em;
+  if(ms<0||ms>600_000)return;
+  registar('saltou_antes_do_som',{ms,gesto});
+}
+
 function registarSaltoDeRecomendacao(positionMs:number,track:Track|null,confirmada:boolean):void{
   if(!contextoAtual)return;
   registar('recomendacao_saltada',{
@@ -907,6 +922,8 @@ export const usePlayer = create<PlayerState>()(
     // esperar pelo efeito do componente deixava a capa nova com o som velho.
     pauseMountedSourceBeforeChange(anterior, track, get()._yt);
     if(!interno){
+      if(anterior&&trackKey(anterior)!==trackKey(track))
+        registarSaltoAntesDoSom(anterior,get().playbackConfirmed,'outra');
       if(contextoAtual&&anterior&&trackKey(anterior)!==trackKey(track))
         registarSaltoDeRecomendacao(get().positionMs,anterior,get().playbackConfirmed);
       contextosDaFila.clear();
@@ -922,6 +939,7 @@ export const usePlayer = create<PlayerState>()(
     void ensureLyrics(track);
     const requestId = ++playRequestId;
     set({closing:false,closeGain:1,playbackConfirmed:false});
+    faixaPedida={chave:trackKey(track),em:Date.now()};
     get()._yt?.setVolume?.(get().volume);
     // Fast path dentro do gesto do utilizador: importante para a faixa
     // restaurada, cujo iframe ja existe e pode estar sujeito a autoplay.
@@ -1270,7 +1288,10 @@ export const usePlayer = create<PlayerState>()(
     set({ saltoDaFaixa: { direcao: 1, em: Date.now() } });
     if (ouvirJuntos()) { await comandarJam(s => s.avancar(false)); return; }
     if (get().queue.length === 0) return;
-    if(manual)registarSaltoDeRecomendacao(get().positionMs,get().current,get().playbackConfirmed);
+    if(manual){
+      registarSaltoAntesDoSom(get().current,get().playbackConfirmed,'seguinte');
+      registarSaltoDeRecomendacao(get().positionMs,get().current,get().playbackConfirmed);
+    }
 
     // SHUFFLE INTELIGENTE: de quatro em quatro faixas entra uma que nao esta
     // na fila, relacionada com o que se anda a ouvir. Sai daqui e nao do

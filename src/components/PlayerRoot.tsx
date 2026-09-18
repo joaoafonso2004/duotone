@@ -78,7 +78,8 @@ import {
 } from '../../modules/duotone-remote-commands';
 import { addIntentListener } from '../../modules/duotone-intents';
 import { accaoParaComando } from '../lib/comandosDaSiri';
-import { deveRetomar } from '../lib/interrupcaoDeAudio';
+import { descreverSaida, deveRetomar, type Saida } from '../lib/interrupcaoDeAudio';
+import { registarNaSessaoDeAudio } from '../lib/playbackDiagnostics';
 import { apresentarErro } from '../lib/erroDeReproducao';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { limparOrigem, origemValida, type RectanguloDaCapa } from '../state/origemDaCapa';
@@ -412,31 +413,59 @@ export function PlayerRoot() {
   //
   // Guarda-se a intenção do instante em que a interrupção COMEÇOU: quando ela
   // acaba já não se sabe, porque a intenção entretanto caiu por nossa mão.
-  const tocavaAntesDaInterrupcao = useRef(false);
+  // Guarda-se também por onde saía o som: o fim compara-a com a de então (ver
+  // `deveRetomar`).
+  const interrupcao = useRef<{
+    tocavaAntes: boolean;
+    saidaAntes: Saida | null;
+    saidaRemovidaAMeio: boolean;
+  } | null>(null);
   useEffect(
-    () =>
-      addAudioInterruptionListeners(
-        () => {
+    () => {
+      // Voltar a tocar, seja por que porta for, fecha o episódio: uma
+      // interrupção que nunca teve fim (há chamadas VoIP que não o avisam)
+      // não pode decidir nada horas depois.
+      const largar = usePlayer.subscribe((s, antes) => {
+        if (s.isPlaying && !antes.isPlaying) interrupcao.current = null;
+      });
+      const deixarDeOuvir = addAudioInterruptionListeners(
+        (saida) => {
           const st = usePlayer.getState();
-          tocavaAntesDaInterrupcao.current = st.isPlaying;
+          interrupcao.current = { tocavaAntes: st.isPlaying, saidaAntes: saida, saidaRemovidaAMeio: false };
+          registarNaSessaoDeAudio(
+            `interrupted while ${st.isPlaying ? 'playing' : 'paused'} (output ${descreverSaida(saida)})`,
+          );
           // O som já está cortado; isto só faz a UI dizer a verdade -- e põe o
           // `wantsPlayRef` a falso, que é o que impede o watchdog de ver uma
           // posição parada e julgar que o stream encravou.
           st.pausePlayback();
         },
-        (oSistemaPede) => {
+        (oSistemaPede, saida) => {
+          const i = interrupcao.current;
+          interrupcao.current = null;
           const retomar = deveRetomar({
-            tocavaAntes: tocavaAntesDaInterrupcao.current,
+            tocavaAntes: i?.tocavaAntes ?? false,
             oSistemaPede,
+            saidaAntes: i?.saidaAntes,
+            saidaDepois: saida,
+            saidaRemovidaAMeio: i?.saidaRemovidaAMeio,
           });
-          tocavaAntesDaInterrupcao.current = false;
           const st = usePlayer.getState();
+          registarNaSessaoDeAudio(
+            `audio returned, system ${oSistemaPede ? 'asks' : 'does not ask'} to resume `
+            + `(output ${descreverSaida(saida)}) -> ${retomar && !st.isPlaying ? 'resumed' : 'stays paused'}`,
+          );
           // O `isPlaying` na condição não é zelo a mais: se a pessoa carregou
           // em play durante a interrupção, já está a tocar e o toggle
           // pausava-a.
           if (retomar && !st.isPlaying) void st.togglePlay();
         }
-      ),
+      );
+      return () => {
+        largar();
+        deixarDeOuvir();
+      };
+    },
     []
   );
 
@@ -450,10 +479,14 @@ export function PlayerRoot() {
     () =>
       addAudioOutputRemovedListener(() => {
         const st = usePlayer.getState();
-        // A interrupção guarda a intenção para poder retomar; aqui limpa-se de
-        // propósito. Sem isto, uma chamada que acabasse logo a seguir lia um
-        // `tocavaAntes` velho e punha a tocar sem ninguém ter pedido.
-        tocavaAntesDaInterrupcao.current = false;
+        // A meio de uma chamada isto NÃO apaga a intenção: com AirPods o iOS
+        // troca de perfil e diz que a saída desapareceu, e a música nunca mais
+        // voltava (16/9). Quem decide no fim é a comparação das saídas; o
+        // aviso só conta num binário que não as traz.
+        if (interrupcao.current) interrupcao.current.saidaRemovidaAMeio = true;
+        registarNaSessaoDeAudio(
+          `output removed${interrupcao.current ? ' during an interruption' : ''}`,
+        );
         if (st.isPlaying) st.pausePlayback();
       }),
     []

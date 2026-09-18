@@ -40,14 +40,26 @@ export function addRemoteCommandListeners(
  * Sem o módulo nativo isto é um no-op, como o resto do ficheiro: a app fica
  * como estava, com a interrupção a passar despercebida.
  */
+/** Por onde sai o som. Um binário anterior não a manda: vem `null`. */
+export type SaidaDeAudio = { tipo: string; nome: string };
+
+function lerSaida(valor: unknown): SaidaDeAudio | null {
+  const s = valor as { tipo?: unknown; nome?: unknown } | null | undefined;
+  return s && typeof s.tipo === 'string' && s.tipo
+    ? { tipo: s.tipo, nome: typeof s.nome === 'string' ? s.nome : '' }
+    : null;
+}
+
 export function addAudioInterruptionListeners(
-  onInterrompida: () => void,
-  onDevolvida: (deveRetomar: boolean) => void
+  onInterrompida: (saida: SaidaDeAudio | null) => void,
+  onDevolvida: (deveRetomar: boolean, saida: SaidaDeAudio | null) => void
 ): () => void {
   if (!native) return () => {};
-  const a = native.addListener('onAudioInterrupted', onInterrompida);
-  const b = native.addListener('onAudioResumable', (e: { deveRetomar?: boolean }) =>
-    onDevolvida(!!e?.deveRetomar)
+  const a = native.addListener('onAudioInterrupted', (e: { saida?: unknown } | undefined) =>
+    onInterrompida(lerSaida(e?.saida))
+  );
+  const b = native.addListener('onAudioResumable', (e: { deveRetomar?: boolean; saida?: unknown }) =>
+    onDevolvida(!!e?.deveRetomar, lerSaida(e?.saida))
   );
   return () => {
     a.remove();

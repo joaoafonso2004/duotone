@@ -52,6 +52,8 @@ import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
 import { getDiscordRichPresence } from '../lib/prefs';
 import { sessaoDoSegredoDiscord } from '../lib/presencaDoDiscord';
 import { registar } from '../lib/eventos';
+import { BarreiraDeErros } from '../components/BarreiraDeErros';
+import { anotarEcra } from '../state/saudeDaApp';
 import { contextoParaAnalytics, type DiscoveryContext } from '../lib/contextoDaDescoberta';
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
 import { useConnectivity } from '../state/connectivity';
@@ -114,6 +116,8 @@ function DesktopShell() {
   // ser interpretados como sugestões para o Jam.
   useSincroniaDaSessao();
   const [route, setRoute] = useState<Route>({ name: 'search' }); const history = useRef<Route[]>([]); const [toast, setToast] = useState('');
+  // Só o nome da página: os parâmetros (ids, nomes de artistas) são conteúdo.
+  useEffect(() => { anotarEcra(route.name); }, [route.name]);
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   const [jamOpen, setJamOpen] = useState(false);
   const abrirSocial = useCallback((conversation?:{friendId?:string;groupId?:string}) => { setNowPlayingOpen(false); setRoute({ name: 'social',...conversation }); }, []);
@@ -610,7 +614,7 @@ function DesktopShell() {
   // Definicoes. Era `rgba(18,18,24)` a martelo, fora de qualquer paleta.
   const bgStyle = { backgroundColor: `rgba(12, 12, 16, ${panelOpacity})` };
 
-  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><View style={styles.main}><V style={[styles.sidebar, bgStyle]} className="glass-panel"><Sidebar route={route} navigate={navigate} /></V><V style={[styles.content, bgStyle]} className="glass-panel"><TransitionView transitionKey={JSON.stringify(route)}>{page}</TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></View>}</V></View><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><ModoLimpo />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, bgStyle]} className="glass-panel"><View style={styles.sidebar}><Sidebar route={route} navigate={navigate} /></View><View style={styles.content}><TransitionView transitionKey={JSON.stringify(route)}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><ModoLimpo />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* CUSTOM ACTIONS DIALOG */}

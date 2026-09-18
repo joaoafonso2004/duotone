@@ -7,7 +7,8 @@ import { fixMp4Duration } from './mp4Fixer';
 import { validarRespostaParcial } from './audioRange';
 import { largarVez, pedirVez, type Prioridade } from './filaDeDownloads';
 import { escolherParaApagar, type FicheiroEmCache } from './limpezaDoCache';
-import { publicarAudio } from './publicarDownload';
+import { AUDIO_INCOMPLETO, publicarAudio } from './publicarDownload';
+import { criarMp4AoVivo } from './mp4AoVivo';
 
 let File: any;
 let Paths: any;
@@ -57,6 +58,12 @@ export async function invalidateStaleAudioCache(): Promise<void> {
 const CHUNK_BYTES = 1_000_000;
 const MIN_CHUNK_BYTES = 131_072; // 128KB — abaixo disto não compensa
 const CHUNK_PACING_MS = 0;
+/**
+ * O primeiro pedido de quem toca enquanto descarrega (`transmitirAudio`). A
+ * cabeça do m4a tem poucos KB e o AVPlayer começa com uns segundos de som:
+ * esperar por 1 MB inteiro num 4G fraco era esperar segundos a mais.
+ */
+const PRIMEIRO_BOCADO_A_TOCAR = 262_144;
 const MAX_ATTEMPTS_PER_CHUNK = 4;
 
 /**
@@ -468,6 +475,52 @@ export function ouvirDownloads(ouvir: () => void): () => void {
   return () => { ouvintesDosDownloads.delete(ouvir); };
 }
 
+/**
+ * O resumo de um download que chegou a começar, para o evento
+ * `download_terminado` (ver `state/medicoes.ts`). Sem o id da faixa: é uma
+ * medição, não um histórico.
+ */
+export type FimDeDownload = {
+  resultado: 'ok' | 'falhou' | 'cancelado' | 'nao-publicado';
+  modo: 'ficheiro' | 'stream';
+  prioridade: Prioridade;
+  msNaFila: number;
+  msADescarregar: number;
+  bocados: number;
+  bytes: number;
+  urlRenovado: boolean;
+};
+
+const ouvintesDoFim = new Set<(fim: FimDeDownload) => void>();
+
+export function ouvirFimDosDownloads(ouvir: (fim: FimDeDownload) => void): () => void {
+  ouvintesDoFim.add(ouvir);
+  return () => { ouvintesDoFim.delete(ouvir); };
+}
+
+function resultadoDoErro(erro: unknown): FimDeDownload['resultado'] {
+  return erro instanceof Error && erro.message === DOWNLOAD_ABORTED ? 'cancelado' : 'falhou';
+}
+
+function avisarFim(registo: EstadoDoDownload, resultado: FimDeDownload['resultado'], modo: FimDeDownload['modo']): void {
+  // Um pedido que nunca saiu da fila não mediu nada.
+  if (registo.inicioEm === null) return;
+  const agora = Date.now();
+  const fim: FimDeDownload = {
+    resultado,
+    modo,
+    prioridade: registo.prioridade,
+    msNaFila: Math.max(0, registo.inicioEm - registo.pedidoEm),
+    msADescarregar: Math.max(0, agora - registo.inicioEm),
+    bocados: registo.bocados,
+    bytes: registo.bytes,
+    urlRenovado: registo.urlRenovado,
+  };
+  for (const ouvir of [...ouvintesDoFim]) {
+    try { ouvir(fim); } catch { /* quem mede não parte o download */ }
+  }
+}
+
 /** Descarrega áudio progressivo por pedaços para armazenamento local e corrige os metadados de duração. */
 export async function downloadProgressiveAudio(
   videoId: string,
@@ -517,6 +570,7 @@ export async function downloadProgressiveAudio(
     };
     downloads.set(videoId, registo);
     avisarDownloads();
+    let resultado: FimDeDownload['resultado'] = 'ok';
     try {
       // O sinal retira o pedido da fila; só desistir da Promise deixaria um
       // pedido fantasma a ocupar uma vaga quando chegasse a sua vez.
@@ -535,11 +589,15 @@ export async function downloadProgressiveAudio(
       } finally {
         largarVez(bilhete);
       }
+    } catch (erro) {
+      resultado = resultadoDoErro(erro);
+      throw erro;
     } finally {
       if (downloads.get(videoId) === registo) {
         downloads.delete(videoId);
         avisarDownloads();
       }
+      avisarFim(registo, resultado, 'ficheiro');
     }
   })();
 
@@ -553,30 +611,43 @@ export async function downloadProgressiveAudio(
   }
 }
 
-async function descarregarAgora(
-  videoId: string,
+/** O tamanho do ficheiro, já conferido contra o teto. */
+async function totalDoAudio(
   url: string,
   knownLength: number | null,
-  durationSeconds: number | null,
   opts: DownloadOptions,
-  dest: any,
-  registo?: EstadoDoDownload
-): Promise<string> {
-
-  let currentUrl = url;
-  let chunkSize = CHUNK_BYTES;
+  registo?: EstadoDoDownload,
+): Promise<number> {
   const total = knownLength ?? (await discoverContentLength(url, opts.shouldAbort));
   if (!Number.isSafeInteger(total) || total<=0 || total>MAX_AUDIO_BYTES) throw new Error('Audio file is too large to download safely.');
   if (registo) { registo.total = total; avisarDownloads(); }
   if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
-  const combined = new Uint8Array(total);
+  return total;
+}
+
+/**
+ * Pede o ficheiro aos bocados, por ordem, e entrega cada um a `receber`.
+ * Partilhado pelo download de sempre e pelo que toca enquanto descarrega:
+ * as renovações, o encolher depois de um 403 e o cancelamento são os mesmos.
+ */
+async function pedirBocados(
+  url: string,
+  total: number,
+  opts: DownloadOptions,
+  registo: EstadoDoDownload | undefined,
+  receber: (bocado: Uint8Array, offset: number) => void,
+  primeiroBocado: number = CHUNK_BYTES,
+): Promise<void> {
+  let currentUrl = url;
+  let chunkSize = CHUNK_BYTES;
   let offset = 0;
   let first = true;
   while (offset < total) {
     if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
     if (!first) await sleep(CHUNK_PACING_MS);
+    const pedido = first ? Math.min(chunkSize, primeiroBocado) : chunkSize;
     first = false;
-    const end = Math.min(offset + chunkSize, total) - 1;
+    const end = Math.min(offset + pedido, total) - 1;
     let part: Uint8Array;
     try {
       const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl, opts.shouldAbort, total, registo);
@@ -597,9 +668,7 @@ async function descarregarAgora(
     if (part.length !== expected) {
       throw new Error(`Chunk incompleto (${part.length}/${expected} bytes) @${offset}`);
     }
-    // Escreve diretamente no buffer final — sem parts[] intermédio, que
-    // duplicava o pico de RAM (2× o ficheiro; ~220MB num mix de 2h).
-    combined.set(part, offset);
+    receber(part, offset);
     offset = end + 1;
     opts.onProgress?.(Math.min(1, offset / total));
     if (registo) {
@@ -611,6 +680,22 @@ async function descarregarAgora(
       avisarDownloads();
     }
   }
+}
+
+async function descarregarAgora(
+  videoId: string,
+  url: string,
+  knownLength: number | null,
+  durationSeconds: number | null,
+  opts: DownloadOptions,
+  dest: any,
+  registo?: EstadoDoDownload
+): Promise<string> {
+  const total = await totalDoAudio(url, knownLength, opts, registo);
+  const combined = new Uint8Array(total);
+  // Escreve diretamente no buffer final — sem parts[] intermédio, que
+  // duplicava o pico de RAM (2× o ficheiro; ~220MB num mix de 2h).
+  await pedirBocados(url, total, opts, registo, (part, offset) => combined.set(part, offset));
   if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
 
   // Corrige a duração no contentor MP4 (m4a) antes de gravar em disco: zera
@@ -635,4 +720,253 @@ async function descarregarAgora(
   });
   cachedIdsIndex?.add(videoId);changed();
   return uri;
+}
+
+// ------------------------------------------------------------
+// Tocar enquanto descarrega
+// ------------------------------------------------------------
+
+/**
+ * A ponte para o módulo nativo que serve o ficheiro ao AVPlayer à medida que
+ * ele cresce (`modules/duotone-stream`). Entra por parâmetro: os testes dão uma
+ * de mentira, e a app a verdadeira.
+ */
+export type LigacaoAoMotor = {
+  /** Abre uma sessão sobre o `.part` e devolve a uri a dar ao motor. */
+  abrir(sessao: string, caminho: string, total: number): string;
+  /** Já há `disponiveis` bytes no disco, a contar do início. */
+  cresceu(sessao: string, disponiveis: number): void;
+  /** O ficheiro está todo no disco. */
+  concluir(sessao: string): void;
+  /** Esquece a sessão; os pedidos do motor por responder falham. */
+  fechar(sessao: string): void;
+};
+
+export type Transmissao =
+  | { tipo: 'ficheiro'; uri: string }
+  | {
+      tipo: 'stream';
+      uri: string;
+      sessao: string;
+      /**
+       * O ficheiro já na cache quando o download acabar; `null` se não se
+       * publicou (ver `mp4AoVivo`). Rejeita se o download falhar a meio.
+       */
+      ficheiro: Promise<string | null>;
+      /** Larga o lado nativo. Quem toca chama-o quando deixa de tocar isto. */
+      fechar: () => void;
+    };
+
+function nomeDoParcial(videoId: string): string {
+  return `${PREFIX}${videoId}-${Date.now()}-${Math.random().toString(36).slice(2)}.part`;
+}
+
+/**
+ * Descarrega como o `downloadProgressiveAudio`, mas escreve para o disco à
+ * medida que os bocados chegam e entrega o `.part` a crescer ao AVPlayer: o som
+ * começa com o primeiro bocado em vez de esperar pelo ficheiro inteiro.
+ *
+ * Resolve quando os primeiros bytes (a cabeça já corrigida, ver `mp4AoVivo`)
+ * estão em disco. Se a faixa já está descarregada, ou se já anda um download
+ * dela (o Smart Cache adiantou-a), devolve `ficheiro`, como o caminho antigo.
+ * Se o módulo nativo recusar a sessão, o download segue na mesma e devolve o
+ * ficheiro no fim: nunca é pior do que dantes.
+ *
+ * Ocupa a MESMA vaga da fila e aparece no MESMO registo (`estadoDoDownload`),
+ * e quem pedir esta faixa entretanto espera por ele (`emCurso`).
+ */
+export async function transmitirAudio(
+  videoId: string,
+  url: string,
+  knownLength: number | null,
+  durationSeconds: number | null,
+  ligacao: LigacaoAoMotor,
+  opts: DownloadOptions = {},
+): Promise<Transmissao> {
+  const dest = cachedAudioFile(videoId);
+  if (dest.exists) return { tipo: 'ficheiro', uri: dest.uri };
+  if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+  if (emCurso.has(videoId)) {
+    return { tipo: 'ficheiro', uri: await downloadProgressiveAudio(videoId, url, knownLength, durationSeconds, opts) };
+  }
+
+  const sessao = `${videoId.replace(/[^A-Za-z0-9_-]/g, '')}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  let fechada = false;
+  const fechar = () => {
+    if (fechada) return;
+    fechada = true;
+    try { ligacao.fechar(sessao); } catch { /* sem módulo, nada a largar */ }
+  };
+
+  let entregue = false;
+  let entregar!: (t: Transmissao) => void;
+  let recusar!: (erro: unknown) => void;
+  const arranque = new Promise<Transmissao>((sim, nao) => { entregar = sim; recusar = nao; });
+
+  // O que fica no `emCurso` para quem se juntar (ver mais abaixo).
+  let partilhado: Promise<string> | null = null;
+  const meu = (async (): Promise<string | null> => {
+    const registo: EstadoDoDownload = {
+      videoId, prioridade: opts.prioridade ?? 'reproducao', fase: 'na-fila', pedidoEm: Date.now(), inicioEm: null,
+      bytes: 0, total: knownLength, bocados: 0, bocadoBytes: CHUNK_BYTES, ultimoBocadoEm: null,
+      tentativas: 0, ultimoHttp: null, urlRenovado: false,
+    };
+    downloads.set(videoId, registo);
+    avisarDownloads();
+    let resultado: FimDeDownload['resultado'] = 'ok';
+    try {
+      const bilhete = await esperarDownload(
+        (signal) => pedirVez(opts.prioridade ?? 'reproducao', signal), opts.shouldAbort, null,
+      );
+      try {
+        if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+        if (dest.exists) return dest.uri;
+        registo.fase = 'a-descarregar';
+        registo.inicioEm = Date.now();
+        avisarDownloads();
+        const publicado = await transmitirAgora(videoId, url, knownLength, durationSeconds, opts, dest, registo, ligacao, sessao, (uri) => {
+          if (entregue) return;
+          entregue = true;
+          entregar({ tipo: 'stream', uri, sessao, ficheiro: meu, fechar });
+        });
+        if (publicado === null) resultado = 'nao-publicado';
+        return publicado;
+      } finally {
+        largarVez(bilhete);
+      }
+    } catch (erro) {
+      resultado = resultadoDoErro(erro);
+      throw erro;
+    } finally {
+      if (downloads.get(videoId) === registo) {
+        downloads.delete(videoId);
+        avisarDownloads();
+      }
+      avisarFim(registo, resultado, 'stream');
+      // Sai do `emCurso` ANTES de assentar: quem reage ao fim deste (a rede de
+      // segurança do leitor, depois de um download falhado a meio) tem de
+      // começar um download novo, e não juntar-se a este que já acabou.
+      if (partilhado && emCurso.get(videoId) === partilhado) emCurso.delete(videoId);
+    }
+  })();
+
+  // Para quem se juntar: um ficheiro que não se publicou é, para eles, um
+  // download abandonado -- e aí descarregam-no pelo caminho antigo.
+  const juntar = meu.then((uri) => {
+    if (uri === null) throw new Error(DOWNLOAD_ABORTED);
+    return uri;
+  });
+  juntar.catch(() => {});
+  partilhado = juntar;
+  emCurso.set(videoId, juntar);
+
+  meu.then(
+    (uri) => {
+      if (entregue) return;
+      // Acabou sem nunca ter aberto a torneira ao motor.
+      entregue = true;
+      fechar();
+      if (uri) { entregar({ tipo: 'ficheiro', uri }); return; }
+      downloadProgressiveAudio(videoId, url, knownLength, durationSeconds, opts)
+        .then((u) => entregar({ tipo: 'ficheiro', uri: u }), recusar);
+    },
+    (erro) => {
+      if (entregue) return;
+      entregue = true;
+      fechar();
+      recusar(erro);
+    },
+  );
+  return arranque;
+}
+
+async function transmitirAgora(
+  videoId: string,
+  url: string,
+  knownLength: number | null,
+  durationSeconds: number | null,
+  opts: DownloadOptions,
+  dest: any,
+  registo: EstadoDoDownload,
+  ligacao: LigacaoAoMotor,
+  sessao: string,
+  aoArrancar: (uri: string) => void,
+): Promise<string | null> {
+  const total = await totalDoAudio(url, knownLength, opts, registo);
+  const parcial = new File(audioDir(), nomeDoParcial(videoId));
+  let publicado = false;
+  let escrita: any = null;
+  try {
+    parcial.create();
+    escrita = parcial.open('w');
+    let uriDoMotor: string | null = null;
+    try {
+      uriDoMotor = ligacao.abrir(sessao, parcial.uri, total);
+    } catch {
+      // Sem sessão nativa o download continua: no fim há ficheiro na mesma.
+    }
+
+    const remendo = criarMp4AoVivo(durationSeconds);
+    let escritos = 0;
+    const escrever = (dados: Uint8Array) => {
+      if (!dados.length) return;
+      escrita.writeBytes(dados);
+      escritos += dados.length;
+      if (!uriDoMotor) return;
+      try { ligacao.cresceu(sessao, escritos); } catch { /* o motor espera pelo fim */ }
+      aoArrancar(uriDoMotor);
+    };
+    await pedirBocados(url, total, opts, registo, (bocado) => escrever(remendo.receber(bocado)), PRIMEIRO_BOCADO_A_TOCAR);
+    const { resto, exato } = remendo.acabar();
+    escrever(resto);
+    escrita.close();
+    escrita = null;
+    if (escritos !== total || parcial.size !== total) throw new Error(AUDIO_INCOMPLETO);
+    if (uriDoMotor) {
+      try { ligacao.concluir(sessao); } catch { /* idem */ }
+    }
+    if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+    // Não se publica o que não ficou igual ao do caminho antigo. O motor
+    // continua a ler o que já abriu: apagar um ficheiro aberto não o tira a
+    // quem o tem aberto.
+    if (!exato) return null;
+    if (dest.exists) return dest.uri;
+    parcial.moveSync(dest);
+    publicado = true;
+    cachedIdsIndex?.add(videoId);changed();
+    return dest.uri;
+  } finally {
+    if (escrita) {
+      try { escrita.close(); } catch { /* já fechada */ }
+    }
+    // Pela bandeira e não pelo `exists`: depois do moveSync o objeto aponta
+    // para o destino (ver publicarDownload.ts).
+    if (!publicado) {
+      try { if (parcial.exists) parcial.delete(); } catch { /* lixo, não erro */ }
+    }
+  }
+}
+
+/** Um `.part` com mais do que isto é de um download que a app não acabou. */
+const PARCIAL_ESQUECIDO_MS = 30 * 60 * 1000;
+
+/**
+ * Apaga os `.part` que ficaram de downloads interrompidos (a app fechada a
+ * meio de uma música que tocava enquanto descarregava). O caminho antigo
+ * escrevia o `.part` e mudava-lhe o nome no mesmo instante; este vive o
+ * download inteiro. A idade vem do nome, e um recente nunca se apaga: pode
+ * estar a ser escrito.
+ */
+export function limparParciaisEsquecidos(agora: number = Date.now()): void {
+  if (Platform.OS === 'web') return;
+  try {
+    for (const entry of audioDir().list()) {
+      if (!(entry instanceof File) || !entry.name.startsWith(PREFIX) || !entry.name.endsWith('.part')) continue;
+      const criado = Number(/-(\d{12,})-[a-z0-9]*\.part$/.exec(entry.name)?.[1]);
+      if (Number.isFinite(criado) && agora - criado < PARCIAL_ESQUECIDO_MS) continue;
+      try { entry.delete(); } catch { /* em uso: fica para a próxima */ }
+    }
+  } catch {
+    // oportunista, como a limpeza da cache
+  }
 }

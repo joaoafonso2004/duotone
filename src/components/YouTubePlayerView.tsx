@@ -21,7 +21,13 @@ import { getLastBotGuardError } from '../lib/botguardBridge';
 import { getAudioQuality } from '../lib/prefs';
 import { targetVolume } from '../lib/loudness';
 import { getLoudnessDb, rememberLoudnessDb } from '../lib/loudnessCache';
-import { cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED, verificarCancelamentos } from '../lib/youtubeCache';
+import {
+  cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED, transmitirAudio, verificarCancelamentos,
+  type DownloadOptions,
+} from '../lib/youtubeCache';
+import { primeiraNota, type OrigemDoSom } from '../lib/tocarEnquantoDescarrega';
+import { anotarTransmissao, ligacaoParaTransmitir } from '../state/saudeDoStream';
+import { diagnosticoDoStream } from '../../modules/duotone-stream';
 import { quantasAdiantar } from '../lib/adiantarFaixas';
 import { preCarregarCapasGrandes } from '../state/capasGrandes';
 import type { Prioridade } from '../lib/filaDeDownloads';
@@ -29,7 +35,7 @@ import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
 import { comecarArranque, marcarResolver } from '../lib/arranqueDaFaixa';
 import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar,
-  sinalDoErro, type TipoFalha,
+  registarNoStream, sinalDoErro, type TipoFalha,
 } from '../lib/playbackDiagnostics';
 import { usePlayer } from '../state/player';
 import { useSaudeDaReproducao } from '../state/saudeDaReproducao';
@@ -482,6 +488,31 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const descarregarRef = useRef({ ativo: false, at: Date.now() });
   const wantsPlayRef = useRef(true);
 
+  /**
+   * A faixa que toca enquanto descarrega, quando é o caso (`transmitirAudio`).
+   * Fecha-se ao trocar de faixa, ao desmontar e quando o motor passa para o
+   * ficheiro: é o que larga a sessão do lado nativo.
+   */
+  const transmissaoRef = useRef<{
+    sessao: string;
+    fechar: () => void;
+    run: number;
+    /** O motor já deu som por aqui. */
+    tocou: boolean;
+    /** Foi o download que falhou a meio: a culpa é da rede, não do motor. */
+    downloadFalhou: boolean;
+    /** A rede de segurança já está a passar isto para o ficheiro. */
+    socorrida: boolean;
+  } | null>(null);
+  const fecharTransmissao = () => {
+    const t = transmissaoRef.current;
+    transmissaoRef.current = null;
+    t?.fechar();
+  };
+
+  /** Quando se pediu a faixa e de onde veio o som: o evento `primeira_nota`. */
+  const primeiraNotaRef = useRef<{ run: number; pedidaEm: number; origem: OrigemDoSom | null } | null>(null);
+
   // [duration-debug] log único por faixa do player.duration (o valor que o
   // expo-video envia para o Lock Screen) — remover depois de validar.
 
@@ -801,6 +832,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       seguinteRef.current = null;
       passagemRef.current = null;
       runIdRef.current++;
+      fecharTransmissao();
+      primeiraNotaRef.current = null;
       verificarCancelamentos();
       const entra = motorEmEspera;
       const sai = player;
@@ -854,6 +887,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
     seguinteRef.current = null;
     const myRun = ++runIdRef.current;
+    fecharTransmissao();
+    primeiraNotaRef.current = { run: myRun, pedidaEm: Date.now(), origem: null };
     comecarArranque(track.sourceId);
     // O download da faixa que sai cancela já, e não na verificação seguinte.
     verificarCancelamentos();
@@ -894,6 +929,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
       nativeTrackIdRef.current = null;
       seguinteRef.current = null;
+      fecharTransmissao();
       for (const p of [motorA, motorB]) {
         try {
           p.pause();
@@ -918,7 +954,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // restauro de sessão: com autoplayOnLoad=false (app reaberta com fila
     // restaurada) prepara o áudio, retoma a posição guardada e fica em pausa
     // até o utilizador carregar em play.
-    const beginPlayback = () => {
+    const beginPlayback = (origem: OrigemDoSom) => {
       const st = usePlayer.getState();
       const resumeMs = st.resumePositionMs;
       if (resumeMs && resumeMs > 1500) {
@@ -929,6 +965,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         }
       }
       const autoplay = st.autoplayOnLoad;
+      // Uma sessão restaurada em pausa não mede nada: o som vem quando a
+      // pessoa carregar em play, não quando a faixa ficou pronta.
+      const nota = primeiraNotaRef.current;
+      if (nota && nota.run === runId) {
+        if (autoplay) nota.origem = origem;
+        else primeiraNotaRef.current = null;
+      }
       applyCeiling();
       usePlayer.setState({ resumePositionMs: null });
       lastProgressRef.current = { time: 0, at: Date.now() };
@@ -963,7 +1006,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           metadata: metadadosDoEcraBloqueado(track),
         }, { desistir: () => !alive() });
         if (!alive()) return;
-        beginPlayback();
+        beginPlayback('cache');
         return;
       } catch (err) {
         console.warn('Erro a reproduzir ficheiro local em cache, tentando rede:', err);
@@ -978,6 +1021,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
     // Fora do try para ficar acessível no catch (diagnóstico do cliente/token).
     let stream: YtStream | undefined;
+    /** Quando começou a resolução, para o evento `resolvedor`. */
+    let resolverDesde: number | null = null;
     try {
       const quality = await getAudioQuality();
       if (!alive()) return;
@@ -1008,6 +1053,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // devolve o controlo -- não fazer nada deixa a app à espera para
         // sempre.
         marcarResolver(track.sourceId, { inicio: true });
+        resolverDesde = Date.now();
         stream = await Promise.race([
           resolveYouTubeStream(track.sourceId, quality),
           new Promise<never>((_, rejeitar) =>
@@ -1018,42 +1064,90 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (!alive()) return;
       streamRef.current = stream;
       marcarResolver(track.sourceId, { fim: true, cliente: stream.client ?? null });
+      if (resolverDesde !== null) {
+        registarEvento('resolvedor', {
+          ok: true,
+          cliente: String(stream.client ?? '?').slice(0, 24),
+          recurso: !!stream.resolverNote,
+          ms: Date.now() - resolverDesde,
+        });
+      }
       // Guardar a loudness ANTES de aplicar o teto: da próxima vez a faixa
       // toca do ficheiro local e já não passa por aqui.
       rememberLoudnessDb(track.sourceId, stream.loudnessDb);
       applyCeiling();
 
-      // Descarrega primeiro se for progressive (comportamento antigo e fiável).
+      // O progressivo passa SEMPRE pelo disco (entregar o URL remoto ao
+      // AVPlayer falha). Com o módulo `duotone-stream`, o motor começa a ler
+      // o ficheiro enquanto ele chega; sem ele, espera-se pelo ficheiro todo.
       let playableUri = stream.url;
+      let origem: OrigemDoSom = stream.isHls ? 'hls' : 'ficheiro';
       if (!stream.isHls) {
         downloadTriedRef.current = true;
         descarregarRef.current = { ativo: true, at: Date.now() };
-        playableUri = await downloadProgressiveAudio(
-          track.sourceId,
-          stream.url,
-          stream.contentLength,
-          track.durationSeconds || stream.durationSeconds || null,
-          {
-            // Esta e a faixa que o utilizador esta a ouvir: ninguem a ultrapassa.
-            prioridade: 'reproducao',
-            // Aborta entre chunks se o utilizador trocar de faixa — sem isto,
-            // saltar várias faixas deixava vários downloads completos a
-            // competir pela rede.
-            shouldAbort: () => !alive(),
-            onProgress: (f) => {
-              // Cada byte que chega adia o watchdog: lento nao e encravado.
-              descarregarRef.current.at = Date.now();
-              if (alive()) setDownloadProgress(f);
-            },
-            // Se o CDN matar o URL a meio (403), pede um fresco em vez de
-            // repetir o morto — ver fetchChunkWithRetry.
-            renewUrl: async () =>
-              (await resolveYouTubeStream(track.sourceId, quality, true)).url,
+        const duracao = track.durationSeconds || stream.durationSeconds || null;
+        const opcoes: DownloadOptions = {
+          // Esta e a faixa que o utilizador esta a ouvir: ninguem a ultrapassa.
+          prioridade: 'reproducao',
+          // Aborta entre chunks se o utilizador trocar de faixa — sem isto,
+          // saltar várias faixas deixava vários downloads completos a
+          // competir pela rede.
+          shouldAbort: () => !alive(),
+          onProgress: (f) => {
+            // Cada byte que chega adia o watchdog: lento nao e encravado.
+            descarregarRef.current.at = Date.now();
+            if (alive()) setDownloadProgress(f);
+          },
+          // Se o CDN matar o URL a meio (403), pede um fresco em vez de
+          // repetir o morto — ver fetchChunkWithRetry.
+          renewUrl: async () =>
+            (await resolveYouTubeStream(track.sourceId, quality, true)).url,
+        };
+        const ligacao = ligacaoParaTransmitir();
+        const t = ligacao
+          ? await transmitirAudio(track.sourceId, stream.url, stream.contentLength, duracao, ligacao, opcoes)
+          : { tipo: 'ficheiro' as const, uri: await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength, duracao, opcoes) };
+        if (t.tipo === 'stream') {
+          if (!alive()) {
+            t.fechar();
+            return;
           }
-        );
-        descarregarRef.current.ativo = false;
-        if (!alive()) return;
-        setDownloadProgress(null);
+          origem = 'stream';
+          playableUri = t.uri;
+          transmissaoRef.current = {
+            sessao: t.sessao, fechar: t.fechar, run: runId, tocou: false, downloadFalhou: false, socorrida: false,
+          };
+          const estaTransmissao = transmissaoRef.current;
+          const minha = () => alive() && transmissaoRef.current === estaTransmissao;
+          t.ficheiro.then(
+            () => {
+              if (!minha()) return;
+              descarregarRef.current.ativo = false;
+              setDownloadProgress(null);
+              // Com o ficheiro inteiro no disco, o watchdog volta a poder
+              // trocar para ele se o stream não andar -- e o relógio dele
+              // recomeça: o motor precisa de um instante para ler o fim.
+              downloadTriedRef.current = false;
+              lastProgressRef.current = { time: lastProgressRef.current.time, at: Date.now() };
+            },
+            (erro) => {
+              if (!minha()) return;
+              descarregarRef.current.ativo = false;
+              setDownloadProgress(null);
+              if (erro?.message === DOWNLOAD_ABORTED) return;
+              // O som já começou com o que chegou; o resto vem pelo caminho
+              // antigo, que tem as suas próprias tentativas e mensagens.
+              estaTransmissao.downloadFalhou = true;
+              downloadTriedRef.current = false;
+              void fallbackRef.current();
+            },
+          );
+        } else {
+          playableUri = t.uri;
+          descarregarRef.current.ativo = false;
+          if (!alive()) return;
+          setDownloadProgress(null);
+        }
       }
 
       await trocarFonte(motorActivo(), {
@@ -1062,7 +1156,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         metadata: metadadosDoEcraBloqueado(track),
       }, { desistir: () => !alive() });
       if (!alive()) return;
-      beginPlayback();
+      beginPlayback(origem);
       // A extração passou. Só aqui, e não no ramo da cache: uma faixa já
       // guardada toca do ficheiro e não prova nada sobre o YouTube.
       useSaudeDaReproducao.getState().observar({ tipo: 'nativo' });
@@ -1103,6 +1197,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // O anel acima vive neste telemóvel; a analítica é o que diz, no SQL
         // Editor, se a porta se fechou a mais alguém. Só a etiqueta do tipo.
         registarEvento('faixa_falhou', { tipo, fase: 'resolver' });
+        // Só se a falha foi na resolução (o `stream` ainda não existe).
+        if (resolverDesde !== null && !stream) {
+          registarEvento('resolvedor', { ok: false, tipo, ms: Date.now() - resolverDesde });
+        }
         useSaudeDaReproducao.getState().observar({ tipo: 'falha', falha: tipo, videoId: track.sourceId });
 
         // Uma frase, sem build id, sem nome de cliente e sem estado do PO
@@ -1138,10 +1236,30 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // `true` se assumiu o caso (arrancou o download ou desistiu p/ embed).
   const runDownloadFallback = async (): Promise<boolean> => {
     const stream = streamRef.current;
-    if (!stream || stream.isHls || downloadTriedRef.current) return false;
+    if (!stream || stream.isHls) return false;
+    // A tocar enquanto descarregava: pode passar-se para o ficheiro a qualquer
+    // momento, mesmo com o download ainda a correr -- o de baixo junta-se a
+    // ele, ou devolve logo o ficheiro que ele publicou. Uma segunda chamada
+    // durante a passagem não pode mandar ninguém para o embed.
+    const transmissao = transmissaoRef.current;
+    if (transmissao?.socorrida) return true;
+    if (!transmissao && downloadTriedRef.current) return false;
+    if (transmissao) transmissao.socorrida = true;
     downloadTriedRef.current = true;
     const myRun = runIdRef.current;
     const resumeAt = motorActivo().currentTime;
+    // Se não foi a rede a falhar, foi o motor que não aguentou o stream -- e
+    // isso conta para o desligar.
+    if (transmissao) {
+      if (!transmissao.downloadFalhou) anotarTransmissao('falhou');
+      registarNoStream(
+        `${track.sourceId}: ${transmissao.downloadFalhou ? 'download failed mid-stream' : 'player stuck on the stream'}`
+        + `, switching to the file (played: ${transmissao.tocou}) ${diagnosticoDoStream(transmissao.sessao).slice(0, 600)}`,
+      );
+    }
+    const largarTransmissao = () => {
+      if (transmissao && transmissaoRef.current === transmissao) fecharTransmissao();
+    };
     try {
       const uri = await downloadProgressiveAudio(
         track.sourceId,
@@ -1166,18 +1284,26 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         metadata: metadadosDoEcraBloqueado(track),
       }, { desistir: () => !isMountedRef.current || myRun !== runIdRef.current });
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
+      largarTransmissao();
       nativeTrackIdRef.current = track.sourceId;
       try {
         if (resumeAt > 1) motorActivo().currentTime = resumeAt;
       } catch {
         // ignorar — recomeça do início se o seek falhar
       }
-      motorActivo().play();
-      fadeIn();
+      // Quem pausou continua em pausa: a troca pode vir de um download que
+      // falhou com a música parada, e não só do watchdog (que só corre a tocar).
+      if (wantsPlayRef.current) {
+        motorActivo().play();
+        fadeIn();
+      } else {
+        motorActivo().volume = ceilingRef.current;
+      }
     } catch (e: any) {
       setDownloadProgress(null);
       if (!isMountedRef.current || myRun !== runIdRef.current) return true;
       if (e?.message === DOWNLOAD_ABORTED) return true;
+      largarTransmissao();
       // Era aqui que o 403 ao fim de ~1 MB (a porta fechada, ago 2026) caía no
       // embed: com o `[build ...]` no ecrã e sem entrar no relatório. Passa
       // pelo mesmo caminho do resolver -- classificar, registar, uma frase.
@@ -1243,6 +1369,20 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
     // O áudio começou mesmo → deixa de estar "a carregar" (pára o pulsar).
     if (currentTime > 0) setBuffering(false);
+    if (currentTime > 0) {
+      const nota = primeiraNotaRef.current;
+      if (nota?.origem && nota.run === runIdRef.current) {
+        primeiraNotaRef.current = null;
+        const medida = primeiraNota(nota.pedidaEm, Date.now(), nota.origem);
+        if (medida) registarEvento('primeira_nota', medida);
+      }
+      const t = transmissaoRef.current;
+      if (t && !t.tocou && t.run === runIdRef.current) {
+        t.tocou = true;
+        anotarTransmissao('tocou');
+        registarNoStream(`${track.sourceId}: first sound while downloading ${diagnosticoDoStream(t.sessao).slice(0, 600)}`);
+      }
+    }
     if(currentTime>0&&player.playing&&!usePlayer.getState().playbackConfirmed)onStateChange('playing');
 
     // [duration-debug] player.duration é exatamente o que o expo-video publica

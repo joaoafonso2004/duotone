@@ -38,6 +38,7 @@ import {
   loadCachedAudioIndex,
   migrateAudioCacheToDocuments,
   pruneAudioCacheLRU,
+  limparParciaisEsquecidos,
 } from './src/lib/youtubeCache';
 import { retireBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { useAuth } from './src/state/auth';
@@ -61,6 +62,14 @@ import { iniciarSocial } from './src/state/social';
 import { garantirPrivacidade } from './src/state/privacidade';
 import { limparPerfisPublicos } from './src/state/perfisPublicos';
 import { limparVerificacao } from './src/state/verificacaoDaBiblioteca';
+import { instalarSaudeDaApp } from './src/state/saudeDaApp';
+import { ligarMedicoes } from './src/state/medicoes';
+import { BarreiraDeErros } from './src/components/BarreiraDeErros';
+
+// Antes de qualquer ecrã: o handler global dos erros, o que ficou da abertura
+// anterior e o relógio do arranque. Ver `state/saudeDaApp.ts`.
+instalarSaudeDaApp();
+ligarMedicoes();
 
 export default function App() {
   // O acento segue a capa a tocar quando esse modo esta escolhido. Aqui em
@@ -183,6 +192,8 @@ export default function App() {
       .then(() => {
       // Índice em memória dos downloads (badges "offline" nas listas).
       loadCachedAudioIndex();
+      // O que ficou a meio de tocar enquanto descarregava, noutra sessão.
+      limparParciaisEsquecidos();
       // Pruning LRU do cache de áudio — só no arranque, nunca durante a
       // reprodução, e protegendo a fila restaurada da sessão anterior.
       const prune = () =>
@@ -275,7 +286,11 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
-      <RootNavigator />
+      {/* A última rede: cada ecrã tem a sua (ver os navegadores), esta apanha
+          o que rebenta fora deles. */}
+      <BarreiraDeErros onde="app">
+        <RootNavigator />
+      </BarreiraDeErros>
       {/* O cartaz de sexta-feira. Vive AQUI, ao lado do `UpdateSheet`, porque
           e a outra coisa nesta app que se poe a frente de alguem sem lhe ser
           pedida -- e as duas tem de sobreviver a mudanca de separador. Ele

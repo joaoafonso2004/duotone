@@ -23,7 +23,8 @@ function minimoDe(tipo: string, versao: number): number {
   return versao ? 32 : 20; // mvhd, mdhd
 }
 
-export function validarEstruturaMp4(buffer: Uint8Array): void {
+/** Devolve quantas boxes contou: o `mp4AoVivo` soma-lhes as do resto do ficheiro. */
+export function validarEstruturaMp4(buffer: Uint8Array): number {
   const vista = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
   let boxes = 0;
 
@@ -72,4 +73,5 @@ export function validarEstruturaMp4(buffer: Uint8Array): void {
   };
 
   percorrer(0, buffer.length, 0);
+  return boxes;
 }

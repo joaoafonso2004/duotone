@@ -8,6 +8,11 @@ import {
   mensagem,
   recuperacao,
   registar,
+  registarNaSessaoDeAudio,
+  registarNoStream,
+  historicoDoStream,
+  registarNaSaudeDaApp,
+  historicoDaSaudeDaApp,
   relatorio,
   resumo,
   rotulo,
@@ -181,6 +186,49 @@ for (let i = 0; i < 200; i++) {
   registar({ quando: base + i, videoId: `v${i}`, titulo: 't', fase: 'resolver', tipo: 'desconhecido', detalhe: '' });
 }
 check('o anel tem teto', historico().length === 60, String(historico().length));
+
+// A sessão de áudio (chamadas, auscultadores) vai no relatório, à parte das
+// falhas: não pode aparecer como "falha" nas Definições.
+registarNaSessaoDeAudio('interrupted (output BluetoothA2DPOutput)', base);
+registarNaSessaoDeAudio('resumable, system asks to resume (output BluetoothHFP) -> resumed', base + 1000);
+{
+  const comAudio = relatorio({ versao: '1', build: 'b', plataforma: 'ios', gerado: 'x' }, []);
+  check('o relatório sem falhas mostra a sessão de áudio',
+    comAudio.includes('No failures recorded') && comAudio.includes('audio session') && comAudio.includes('-> resumed'));
+  check('e a sessão de áudio não conta como falha', historico().length === 60);
+}
+
+// Tocar enquanto descarrega: a linha de estado e o que se passou, à parte das
+// falhas e da sessão de áudio. O PC não passa o estado e não tem a secção.
+{
+  const ctx = { versao: '1', build: 'b', plataforma: 'ios', gerado: 'x' };
+  check('sem estado nem eventos não há secção do stream', !relatorio(ctx, []).includes('play while downloading'));
+  const soEstado = relatorio({ ...ctx, stream: 'on' }, [], []);
+  check('o estado aparece mesmo sem eventos nem sessão de áudio',
+    soEstado.includes('--- play while downloading: on, oldest first ---') && !soEstado.includes('audio session'));
+  registarNoStream('first sound after 812 ms (stream)', base);
+  const comStream = relatorio({ ...ctx, stream: 'on' }, [], []);
+  check('os eventos do stream vão no relatório', comStream.includes('first sound after 812 ms (stream)'));
+  check('e não contam como falha', historico().length === 60);
+  for (let i = 0; i < 30; i++) registarNoStream(`evento ${i}`, base + i);
+  check('o anel do stream tem teto', historicoDoStream().length === 20);
+}
+
+// A saúde da app: à parte, por ordem de quando aconteceu (um crash da
+// abertura anterior chega depois dos erros desta), e não conta como falha.
+{
+  const ctx = { versao: '1', build: 'b', plataforma: 'ios', gerado: 'x' };
+  check('sem incidentes não há secção da saúde', !relatorio(ctx, [], [], []).includes('app health'));
+  registarNaSaudeDaApp('erro-js · ecra:Search', base + 5000);
+  registarNaSaudeDaApp('sessao-interrompida · v3.5.0', base);
+  const r = relatorio(ctx, [], [], [], historicoDaSaudeDaApp());
+  const iSecao = r.indexOf('--- app health (errors, crashes, hangs), oldest first ---');
+  check('a secção da saúde aparece', iSecao > 0);
+  check('por ordem de quando aconteceu', r.indexOf('sessao-interrompida') < r.indexOf('erro-js'));
+  check('e não conta como falha', historico().length === 60);
+  for (let i = 0; i < 30; i++) registarNaSaudeDaApp(`x ${i}`, base + i);
+  check('o anel da saúde tem teto', historicoDaSaudeDaApp().length === 20);
+}
 check('guarda os MAIS RECENTES', historico()[historico().length - 1].videoId === 'v199');
 limparHistorico();
 

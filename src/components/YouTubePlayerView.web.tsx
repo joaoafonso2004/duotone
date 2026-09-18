@@ -10,6 +10,8 @@ import { baterSessao } from '../lib/sessionSync';
 import { velocidadeNaSessao } from '../lib/jam';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { registar as registarEvento } from '../lib/eventos';
+import { primeiraNota } from '../lib/tocarEnquantoDescarrega';
 import type { Track } from '../types';
 
 /**
@@ -141,6 +143,14 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const prontoRef = useRef(false);
   const arrancouRef = useRef(false);
   const primeiraRef = useRef(true);
+  /**
+   * Quando se pediu a faixa atual, para o `primeira_nota` do PC. Uma sessão
+   * restaurada em pausa não mede: o som vem quando alguém carregar em play.
+   */
+  const notaRef = useRef<{ id: string; em: number } | null>(null);
+  useEffect(() => {
+    notaRef.current = usePlayer.getState().autoplayOnLoad ? { id: track.sourceId, em: Date.now() } : null;
+  }, [track.sourceId]);
   const querTocar = usePlayer((s) => s.isPlaying);
 
   // Ao restaurar a janela, não esperar pelos cinco segundos do ritmo de
@@ -319,6 +329,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               state._setActiveBackend('webview');
             }
             if (s === 1) {
+              const nota = notaRef.current;
+              if (nota && nota.id === faixaRef.current.sourceId && estaNoVideo(event.target, nota.id)) {
+                notaRef.current = null;
+                const medida = primeiraNota(nota.em, Date.now(), 'embed');
+                if (medida) registarEvento('primeira_nota', medida);
+              }
               clearTimeout(vigiaRef.current);
               state.setError(null);
               state._onYtStateChange('playing');

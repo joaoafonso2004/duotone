@@ -305,6 +305,62 @@ export function historico(): readonly Evento[] {
 
 export function limparHistorico(): void {
   eventos.length = 0;
+  sessaoDeAudio.length = 0;
+  doStream.length = 0;
+  daSaude.length = 0;
+}
+
+/**
+ * O que o iOS fez à sessão de áudio: chamadas, alarmes, auscultadores. Não são
+ * falhas e por isso vivem à parte (as Definições contam o anel de cima como
+ * falhas), mas vão no mesmo relatório: é por aqui que se vê se uma chamada
+ * devolveu o áudio e se a app o retomou.
+ */
+export type EventoDaSessaoDeAudio = { quando: number; texto: string };
+const MAX_DA_SESSAO = 30;
+const sessaoDeAudio: EventoDaSessaoDeAudio[] = [];
+
+export function registarNaSessaoDeAudio(texto: string, quando: number = Date.now()): void {
+  sessaoDeAudio.push({ quando, texto });
+  if (sessaoDeAudio.length > MAX_DA_SESSAO) sessaoDeAudio.splice(0, sessaoDeAudio.length - MAX_DA_SESSAO);
+}
+
+export function historicoDaSessaoDeAudio(): readonly EventoDaSessaoDeAudio[] {
+  return sessaoDeAudio;
+}
+
+/**
+ * Tocar enquanto descarrega (só iPhone): de onde veio o primeiro som, quanto
+ * demorou e o que o AVPlayer pediu ao módulo nativo. Também não são falhas.
+ * É o único sítio onde se vê, no aparelho, se o caminho novo se porta bem.
+ */
+const MAX_DO_STREAM = 20;
+const doStream: EventoDaSessaoDeAudio[] = [];
+
+export function registarNoStream(texto: string, quando: number = Date.now()): void {
+  doStream.push({ quando, texto });
+  if (doStream.length > MAX_DO_STREAM) doStream.splice(0, doStream.length - MAX_DO_STREAM);
+}
+
+export function historicoDoStream(): readonly EventoDaSessaoDeAudio[] {
+  return doStream;
+}
+
+/**
+ * A saúde da app (lib/saudeDaApp.ts): erros de JS, crashes da abertura
+ * anterior, bloqueios. Também não contam como falhas de reprodução, mas quem
+ * manda um relatório por a música ter parado quer vê-los ao lado.
+ */
+const MAX_DA_SAUDE = 20;
+const daSaude: EventoDaSessaoDeAudio[] = [];
+
+export function registarNaSaudeDaApp(texto: string, quando: number = Date.now()): void {
+  daSaude.push({ quando, texto });
+  if (daSaude.length > MAX_DA_SAUDE) daSaude.splice(0, daSaude.length - MAX_DA_SAUDE);
+}
+
+export function historicoDaSaudeDaApp(): readonly EventoDaSessaoDeAudio[] {
+  return daSaude;
 }
 
 /** Quantas vezes cada tipo apareceu. É o que torna um padrão visível: seis
@@ -321,13 +377,21 @@ export type Contexto = {
   plataforma: string;
   /** ISO, injetado para o relatório ser determinístico em teste. */
   gerado: string;
+  /** O estado do tocar enquanto descarrega; só o iPhone o passa. */
+  stream?: string;
 };
 
 /**
  * Texto simples, não JSON: isto é para ser colado numa mensagem ou aberto no
  * Bloco de Notas, não consumido por uma máquina.
  */
-export function relatorio(ctx: Contexto, lista: readonly Evento[] = eventos): string {
+export function relatorio(
+  ctx: Contexto,
+  lista: readonly Evento[] = eventos,
+  audio: readonly EventoDaSessaoDeAudio[] = sessaoDeAudio,
+  stream: readonly EventoDaSessaoDeAudio[] = doStream,
+  saude: readonly EventoDaSessaoDeAudio[] = daSaude,
+): string {
   const linhas: string[] = [];
   // Em ingles como o resto da UI do desktop — o botao que o gera diz "Export
   // playback report", e um ficheiro em portugues a seguir a isso e a mesma
@@ -338,8 +402,23 @@ export function relatorio(ctx: Contexto, lista: readonly Evento[] = eventos): st
   linhas.push(`platform:  ${ctx.plataforma}`);
   linhas.push('');
 
+  const secao = (titulo: string, lista: readonly EventoDaSessaoDeAudio[]) => {
+    linhas.push('');
+    linhas.push(`--- ${titulo}, oldest first ---`);
+    for (const e of lista) {
+      linhas.push(`[${new Date(e.quando).toISOString().slice(11, 19)}] ${e.texto}`);
+    }
+  };
+  const secaoDeAudio = () => {
+    if (audio.length) secao('audio session (calls, alarms, headphones)', audio);
+    if (ctx.stream !== undefined || stream.length) secao(`play while downloading: ${ctx.stream ?? 'unknown'}`, stream);
+    // A hora diz quando aconteceu, e um crash da abertura anterior é de antes.
+    if (saude.length) secao('app health (errors, crashes, hangs)', [...saude].sort((a, b) => a.quando - b.quando));
+  };
+
   if (!lista.length) {
     linhas.push('No failures recorded this session.');
+    secaoDeAudio();
     return linhas.join('\n');
   }
 
@@ -355,5 +434,6 @@ export function relatorio(ctx: Contexto, lista: readonly Evento[] = eventos): st
     linhas.push(`[${hora}] ${e.tipo} (${e.fase}) ${e.videoId} — ${e.titulo}`);
     if (e.detalhe) linhas.push(`           ${e.detalhe}`);
   }
+  secaoDeAudio();
   return linhas.join('\n');
 }

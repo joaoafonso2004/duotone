@@ -16,6 +16,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useRef, useState } from 'react';
 import { Image, PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import { YouTubePlayerView } from '../components/YouTubePlayerView';
+import { BarreiraDeErros } from '../components/BarreiraDeErros';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { useAuth } from '../state/auth';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
@@ -331,8 +332,9 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     window.addEventListener('touchend', stop);
   };
 
-  return <V style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]} className="glass-panel">
-    <YouTubePlayerView track={p.current} />
+  return <V style={[styles.player,{opacity:p.closeGain*Math.max(0.2,1-dragX/swipeWidth.current),transform:[{translateX:reducedMotion?0:dragX+(1-p.closeGain)*180}]}]}>
+    {/* O motor: se rebentar, volta a montar sozinho e retoma a faixa. */}
+    <BarreiraDeErros onde="leitor" discreta><YouTubePlayerView track={p.current} /></BarreiraDeErros>
     <View style={styles.playerTrack} {...dragClose.panHandlers} onLayout={e=>{swipeWidth.current=e.nativeEvent.layout.width;}}>
       <Pressable
         style={styles.playerTrackLink}

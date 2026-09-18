@@ -1,9 +1,31 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, session, shell, Tray, globalShortcut, Notification } = require('electron');
+const { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, net, protocol, session, shell, Tray, globalShortcut, Notification } = require('electron');
 const {
   DISCORD_APP_ID, definirPresenca, prepararDiscord, ouvirJuncao, fecharDiscord,
 } = require('./discord.cjs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const { criarSaude } = require('./saude.cjs');
+
+// Os crashes nativos ficam no disco (Crashpad) e não vão para servidor
+// nenhum: `electron/saude.cjs` só conta os novos, e o renderer manda a
+// contagem para a analítica. Tem de arrancar antes de tudo o resto.
+crashReporter.start({ uploadToServer: false, compress: true });
+const saude = criarSaude({
+  pastaDeDados: app.getPath('userData'),
+  pastaDosDumps: app.getPath('crashDumps'),
+  versao: app.getVersion(),
+});
+// Sem estes ouvintes uma exceção do processo principal abria uma caixa de
+// erro e não deixava rasto; com eles fica registada e a app segue.
+process.on('uncaughtException', (erro) => {
+  console.error('Exceção no processo principal:', erro);
+  saude.erroDoPrincipal(erro, 'uncaughtException');
+});
+process.on('unhandledRejection', (erro) => {
+  console.error('Promessa rejeitada no processo principal:', erro);
+  saude.erroDoPrincipal(erro, 'unhandledRejection');
+});
+app.on('child-process-gone', (_event, detalhes) => saude.processoFilhoMorreu(detalhes));
 
 const isDev = !app.isPackaged;
 let mainWindow = null;
@@ -555,6 +577,12 @@ function createWindow() {
     }
   });
   win.on('closed', () => { if (mainWindow === win) mainWindow = null; });
+  // A página morreu (crash, falta de memória): regista e volta a abrir, em
+  // vez de deixar a janela em branco. Em ciclo, para -- ver saude.cjs.
+  win.webContents.on('render-process-gone', (_event, detalhes) => {
+    if (saude.rendererMorreu(detalhes) && !win.isDestroyed()) win.webContents.reload();
+  });
+  win.on('unresponsive', () => saude.janelaPresa());
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) shell.openExternal(url);
     return { action: 'deny' };
@@ -588,6 +616,11 @@ function createWindow() {
   else win.loadURL(`http://localhost:${SERVER_PORT}/index.html`);
   mainWindow = win;
 }
+
+ipcMain.handle('saude:ler', (event) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido inválido.');
+  return saude.ler();
+});
 
 ipcMain.handle('player:preservar-tom', async (event) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido inválido.');

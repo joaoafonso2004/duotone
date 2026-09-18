@@ -6,6 +6,8 @@ import { useConnectivity } from '../state/connectivity';
 import { useSocial } from '../state/social';
 import { naoLidasPorAmigo } from '../lib/social';
 import { FriendProfileScreen } from '../screens/FriendProfileScreen';
+import { BarreiraDeErros } from '../components/BarreiraDeErros';
+import { anotarEcra } from '../state/saudeDaApp';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   DarkTheme,
@@ -130,6 +132,14 @@ const Tab = createMaterialTopTabNavigator<TabsParamList>();
 
 const stackScreenOptions = { headerShown: false } as const;
 
+/**
+ * Cada ecrã leva a sua barreira de erros: um que rebente mostra "Reload" e os
+ * outros (e o leitor, que vive fora deles) continuam. Ver `BarreiraDeErros`.
+ */
+function envolverEcra({ route, children }: { route: { name: string }; children: React.ReactElement }) {
+  return <BarreiraDeErros onde={`ecra:${route.name}`}>{children}</BarreiraDeErros>;
+}
+
 // Cada tab com navegação para ecrãs de detalhe recebe o seu próprio stack
 // aninhado. Assim, ao abrir um álbum/artista/playlist a tab bar de baixo
 // continua visível (o React Navigation mantém-na renderizada à volta de
@@ -137,7 +147,7 @@ const stackScreenOptions = { headerShown: false } as const;
 // no stack raiz, o que escondia a barra por completo.
 function PlaylistsStack() {
   return (
-    <Stack.Navigator screenOptions={stackScreenOptions}>
+    <Stack.Navigator screenOptions={stackScreenOptions} screenLayout={envolverEcra}>
       <Stack.Screen name="Playlists" component={OnlinePlaylists} />
       <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />
       <Stack.Screen name="ImportYouTube" component={OnlineImportYouTube} />
@@ -147,7 +157,7 @@ function PlaylistsStack() {
 
 function ArtistsStack() {
   return (
-    <Stack.Navigator screenOptions={stackScreenOptions}>
+    <Stack.Navigator screenOptions={stackScreenOptions} screenLayout={envolverEcra}>
       <Stack.Screen name="Artists" component={OnlineArtists} />
       <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
     </Stack.Navigator>
@@ -173,6 +183,7 @@ function Tabs() {
 
   return (
     <Tab.Navigator
+      screenLayout={envolverEcra}
       initialRouteName={useConnectivity.getState().offline ? 'Songs' : 'Search'}
       tabBarPosition="bottom"
       tabBar={(props) => <BarraDeSeparadores {...props} />}
@@ -286,7 +297,13 @@ export function RootNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navTheme} ref={navigationRef} linking={linking}>
+    <NavigationContainer
+      theme={navTheme}
+      ref={navigationRef}
+      linking={linking}
+      onReady={() => anotarEcra(navigationRef.getCurrentRoute()?.name)}
+      onStateChange={() => anotarEcra(navigationRef.getCurrentRoute()?.name)}
+    >
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         {session || offlineUserId ? (
           <View style={{ flex: 1 }}>
@@ -312,7 +329,7 @@ export function RootNavigator() {
               ]}
             />
 
-            <Stack.Navigator screenOptions={stackScreenOptions}>
+            <Stack.Navigator screenOptions={stackScreenOptions} screenLayout={envolverEcra}>
               <Stack.Screen name="Tabs" component={Tabs} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
               <Stack.Screen name="ListeningStats" component={OnlineListeningStats} />
@@ -327,7 +344,11 @@ export function RootNavigator() {
               <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
               <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />
             </Stack.Navigator>
-            <PlayerRoot />
+            {/* O leitor contém o motor: se rebentar, volta a montar sozinho
+                (e a faixa retoma), sem aviso por cima da app. */}
+            <BarreiraDeErros onde="leitor" discreta>
+              <PlayerRoot />
+            </BarreiraDeErros>
             {/* "A tocar no PC — continuar aqui". Fica por cima do mini-player. */}
             <HandoffBanner />
             <NotificationBanner onOpen={openNotification} />

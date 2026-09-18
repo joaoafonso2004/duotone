@@ -45,6 +45,9 @@ test-*.mjs
 !scripts/test-pot-esperas.mjs
 !scripts/test-smart-cache-cancelamento.mjs
 !scripts/test-top-artists-recency.mjs
+!scripts/test-mp4-ao-vivo.mjs
+!scripts/test-transmitir-audio.mjs
+!scripts/test-saude-electron.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

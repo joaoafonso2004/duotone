@@ -35,6 +35,10 @@ declare global {
       ) => Promise<boolean>;
       /** Entrega o segredo de um clique no botão nativo "Juntar-se". */
       onDiscordJoin?: (listener: (secret: string) => void) => () => void;
+      /** A saúde do processo principal (electron/saude.cjs): os incidentes
+       *  guardados desde a última leitura (e apagados ao ler) e quando o
+       *  processo começou, para medir o arranque a frio. */
+      lerSaude?: () => Promise<{ incidentes: unknown[]; processoComecouEm: number | null }>;
       minimize(): void;
       toggleMaximize(): void;
       close(): void;

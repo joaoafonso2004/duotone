@@ -145,17 +145,34 @@ public class DuotoneRemoteCommandsModule: Module {
       let tipo = AVAudioSession.InterruptionType(rawValue: cru)
     else { return }
 
+    // A saida vai nos dois eventos: o JS compara a do principio com a do fim
+    // para nao mandar para o altifalante quem perdeu os auscultadores a meio.
     switch tipo {
     case .began:
-      sendEvent("onAudioInterrupted")
+      sendEvent("onAudioInterrupted", ["saida": saidaAtual()])
     case .ended:
       let opcoes = AVAudioSession.InterruptionOptions(
         rawValue: info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
       )
-      sendEvent("onAudioResumable", ["deveRetomar": opcoes.contains(.shouldResume)])
+      sendEvent("onAudioResumable", [
+        "deveRetomar": opcoes.contains(.shouldResume),
+        "saida": saidaAtual(),
+      ])
     @unknown default:
       break
     }
+  }
+
+  /**
+   * Por onde sai o som agora: o `portType` em bruto e o nome do aparelho.
+   * Numa chamada com AirPods o tipo passa de A2DP a mãos-livres e o nome
+   * fica igual -- e e isso que deixa o JS perceber que o aparelho nao saiu.
+   */
+  private func saidaAtual() -> [String: String] {
+    guard let porta = AVAudioSession.sharedInstance().currentRoute.outputs.first else {
+      return [:]
+    }
+    return ["tipo": porta.portType.rawValue, "nome": porta.portName]
   }
 
   /**

@@ -50,7 +50,22 @@ export type NomeDeEvento =
   | 'recomendacao_guardada'
   | 'recomendacao_saltada'
   /** O indicador do leitor ligou ou desligou a escuta privada. */
-  | 'escuta_privada_alterada';
+  | 'escuta_privada_alterada'
+  // --- a app a ver-se a si própria (ver lib/saudeDaApp.ts) ---
+  /** Uma exceção de JS: num ecrã (que mostrou "Reload"), global ou fatal. */
+  | 'erro_js'
+  /** A app morreu: crash nativo, sessão interrompida à frente, renderer do PC. */
+  | 'crash'
+  /** A app ficou presa (MetricKit no iPhone, `unresponsive` no PC). */
+  | 'bloqueio'
+  /** Do início do processo até a abertura sair: o arranque a frio. */
+  | 'arranque'
+  /** Quanto demorou a resolução do YouTube, e com que cliente. */
+  | 'resolvedor'
+  /** Um download acabou (bem, mal ou cancelado): tempo, bocados, tamanho. */
+  | 'download_terminado'
+  /** Carregou em seguinte (ou noutra música) antes de a faixa dar som. */
+  | 'saltou_antes_do_som';
 
 type Evento = { nome: NomeDeEvento; dados: Record<string, string | number | boolean>; em: string };
 
@@ -61,6 +76,15 @@ const MAXIMO = 200;
 
 let utilizador: string | null = null;
 let porEnviar: Evento[] = [];
+/**
+ * O que aconteceu antes de a sessão ser lida: o arranque, os crashes da
+ * abertura anterior. Entram na conta que abrir a seguir, e morrem com a app
+ * se ninguém entrar.
+ */
+const ANTES_DA_CONTA = 20;
+let antesDaConta: Evento[] = [];
+/** Depois de uma saída de conta já não se guarda nada: seria de outra pessoa. */
+let jaHouveConta = false;
 let aEnviar = false;
 let desligar: (() => void) | null = null;
 
@@ -91,8 +115,12 @@ async function enviar(): Promise<void> {
 
 /** Regista um acontecimento. Nunca lança, e nunca espera. */
 export function registar(nome: NomeDeEvento, dados: Record<string, string | number | boolean> = {}): void {
-  if (!utilizador) return;
-  porEnviar.push({ nome, dados, em: new Date().toISOString() });
+  const evento = { nome, dados, em: new Date().toISOString() };
+  if (!utilizador) {
+    if (!jaHouveConta) antesDaConta = [...antesDaConta, evento].slice(-ANTES_DA_CONTA);
+    return;
+  }
+  porEnviar.push(evento);
   if (porEnviar.length > MAXIMO) porEnviar = porEnviar.slice(-MAXIMO);
   if (porEnviar.length >= LOTE) void enviar();
 }
@@ -100,6 +128,9 @@ export function registar(nome: NomeDeEvento, dados: Record<string, string | numb
 /** Liga a medição a uma sessão. Devolve o `parar`. */
 export function iniciarEventos(userId: string): () => void {
   utilizador = userId;
+  jaHouveConta = true;
+  porEnviar = [...porEnviar, ...antesDaConta];
+  antesDaConta = [];
   registar('app_aberta');
 
   const aoMudarDeEstado = (estado: string) => { if (estado !== 'active') void enviar(); };

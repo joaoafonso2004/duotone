@@ -127,7 +127,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
       : vista === 'dia' ? <MusicasDoDia play={play} notify={notify} />
       : temRecomendacoes(recs) ? <>
-          <Shelf titulo="Discover weekly" nota="music you don't have yet, based on what you listen to. The same list all week." tracks={descobrir} onPlay={play} onMore={more} contexto={contextoPrateleira('descobrir')} />
+          <Shelf grelha titulo="Discover weekly" nota="music you don't have yet, based on what you listen to. The same list all week." tracks={descobrir} onPlay={play} onMore={more} contexto={contextoPrateleira('descobrir')} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
           <Shelf titulo="Rare finds" nota="unreleased songs from your artists that you haven't saved, played or hidden" selo="New to you" tracks={nuncaLancado} onPlay={play} onMore={more} contexto={contextoPrateleira('nuncaLancado')} />

@@ -51,6 +51,8 @@ export interface Controlo {
   contagens: { plays: string[]; locais: string[]; inicios: string[] };
   /** Sinais enviados pelo player à aprendizagem implícita. */
   aprendizagem: { saltos: string[]; escutas: string[] };
+  /** Os eventos de analítica, para os casos que medem (o resto ignora-os). */
+  eventos: { nome: string; dados: Record<string, unknown> }[];
 }
 
 export const controlo: Controlo = {
@@ -70,6 +72,7 @@ export const controlo: Controlo = {
   chamadas: { candidatas: 0, radio: 0 },
   contagens: { plays: [], locais: [], inicios: [] },
   aprendizagem: { saltos: [], escutas: [] },
+  eventos: [],
 };
 
 export function reporControlo(): void {
@@ -89,4 +92,5 @@ export function reporControlo(): void {
   controlo.chamadas = { candidatas: 0, radio: 0 };
   controlo.contagens = { plays: [], locais: [], inicios: [] };
   controlo.aprendizagem = { saltos: [], escutas: [] };
+  controlo.eventos = [];
 }

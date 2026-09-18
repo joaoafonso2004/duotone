@@ -1,6 +1,7 @@
 import { Platform, Share } from 'react-native';
 import { APP_VERSION, BUILD_ID } from './buildInfo';
 import { relatorio } from './playbackDiagnostics';
+import { estadoDoStream } from '../state/saudeDoStream';
 
 /**
  * O relatório de reprodução, pela folha de partilha do iPhone.
@@ -20,6 +21,7 @@ export async function partilharRelatorioDeReproducao(): Promise<void> {
     build: BUILD_ID,
     plataforma: `${Platform.OS} ${String(Platform.Version)}`,
     gerado: new Date().toISOString(),
+    stream: estadoDoStream(),
   });
   await Share.share({ title: 'Duotone playback report', message: texto });
 }

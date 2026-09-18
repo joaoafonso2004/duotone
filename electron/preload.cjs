@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
     ipcRenderer.on('notification:open', handler);
     return () => ipcRenderer.removeListener('notification:open', handler);
   },
+  /** Os incidentes do processo principal (electron/saude.cjs); ler apaga-os. */
+  lerSaude: () => ipcRenderer.invoke('saude:ler'),
   minimize: () => ipcRenderer.send('window:minimize'),
   toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
   close: () => ipcRenderer.send('window:close'),

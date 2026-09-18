@@ -12,6 +12,7 @@ import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 import type { OrigemDaFila } from '../lib/origemDaFila';
 import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
+import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
 
 /**
  * Largura da coluna de duracao, no cabecalho E na celula.
@@ -160,8 +161,23 @@ export function formatTime(seconds: number | null) {
 }
 
 export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
-  return track.artworkUrl ? <Image source={{ uri: track.artworkUrl }} style={{ width: size, height: size, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado }} /> :
-    <View style={[ui.artFallback, { width: size, height: size }]}><Ionicons name="musical-note" size={Math.max(16, size * .35)} color={desktop.dim} /></View>;
+  // Sem `artworkUrl` há quase sempre capa na mesma: uma faixa do YouTube tem a
+  // miniatura no próprio id. O quadrado vazio ficava para quem não tem nenhuma.
+  const capa = track.artworkUrl
+    ?? (track.source === 'youtube' && track.sourceId ? `https://i.ytimg.com/vi/${track.sourceId}/mqdefault.jpg` : null);
+  if (!capa) return <View style={[ui.artFallback, { width: size, height: size }]}><Ionicons name="musical-note" size={Math.max(16, size * .35)} color={desktop.dim} /></View>;
+  const quadro = { width: size, height: size, borderRadius: RAIO.ctrl, backgroundColor: COR.elevado };
+  // As miniaturas 4:3 do YouTube (`hqdefault` e companhia) trazem o vídeo 16:9
+  // lá dentro com duas faixas pretas, que num quadrado se viam por cima e por
+  // baixo de cada capa. Amplia-se até o conteúdo encher o quadrado -- a mesma
+  // conta do modo limpo. Num canal "- Topic" o que fica é a capa do álbum.
+  if (capaComBarras(capa)) {
+    const m = molduraSemBarras(size);
+    return <View style={[quadro, { overflow: 'hidden' }]}>
+      <Image source={{ uri: capa }} style={{ position: 'absolute', width: m.largura, height: m.altura, left: m.esquerda, top: m.topo }} />
+    </View>;
+  }
+  return <Image source={{ uri: capa }} style={quadro} />;
 }
 
 /**
@@ -292,16 +308,63 @@ export function Separadores<T extends string>({ opcoes, valor, aoMudar }: {
   </View>;
 }
 
-export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto }: {
+/** O lado mínimo de uma capa na grelha; o real estica para a linha acabar na borda. */
+const CAPA_MINIMA_DA_GRELHA = 150;
+
+export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, grelha }: {
   titulo: string; nota?: string; tracks: Track[];
   onPlay: (track: Track, fila: Track[], discoveryContext?: DiscoveryContext, origem?: OrigemDaFila) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void;
   /** Uma etiqueta por cima de cada capa ("New to you"). Só onde é uma promessa cumprida. */
   selo?: string;
   contexto?: (track:Track)=>DiscoveryContext;
+  /**
+   * A prateleira principal em GRELHA, e não em carrossel: todas as faixas à
+   * vista, em linhas de capas que enchem a largura.
+   *
+   * Uma página de descoberta vive de haver muito por onde escolher (o João, a
+   * 18/9: "quero que os users tenham muita seleção disponível"), e num
+   * carrossel quase tudo fica escondido atrás de uma seta. A 1920x1080 são nove
+   * capas por linha. Mudar a forma da primeira prateleira é também o que diz
+   * "isto aqui é outra coisa" -- a decisão que o telemóvel já tinha tomado com
+   * a lista do `renderRecommendationSection`.
+   */
+  grelha?: boolean;
 }) {
   const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
+  const [larguraDaGrelha, setLarguraDaGrelha] = useState(0);
   if (!tracks.length) return null;
   const rola = podeEsquerda || podeDireita;
+  if (grelha) {
+    // Quantas cabem com o lado mínimo, e depois o lado estica para a linha
+    // acabar na borda -- sem sobra à direita a qualquer largura.
+    const colunas = larguraDaGrelha > 0
+      ? Math.max(2, Math.floor((larguraDaGrelha + ESP.lg) / (CAPA_MINIMA_DA_GRELHA + ESP.lg)))
+      : 8;
+    const lado = larguraDaGrelha > 0
+      ? Math.floor((larguraDaGrelha - ESP.lg * (colunas - 1)) / colunas)
+      : CAPA_MINIMA_DA_GRELHA;
+    return <View style={{ marginBottom: ESP.xxl }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: ESP.md }}>
+        <Text style={ui.shelfTitle}>{titulo}</Text>
+        {nota ? <Text style={ui.shelfNota}>{nota}</Text> : null}
+      </View>
+      <View style={ui.grelhaDeCapas} onLayout={(e) => setLarguraDaGrelha(e.nativeEvent.layout.width)}>
+        {tracks.map((t) => (
+          <P key={`${t.source}:${t.sourceId}`}
+            onPress={() => onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo })}
+            onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t, contexto?.(t)); }) as any}
+            style={({ hovered, pressed }: any) => [ui.shelfCard, { width: lado }, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
+            <View>
+              <Artwork track={t} size={lado} />
+              {selo ? <View style={ui.shelfSelo} pointerEvents="none"><Text style={ui.shelfSeloTexto}>{selo}</Text></View> : null}
+            </View>
+            <Text numberOfLines={1} style={ui.shelfCardTitle}>{tituloDaFaixa(t)}</Text>
+            <Text numberOfLines={1} style={ui.shelfCardArtista}>{displayArtist(t)}</Text>
+          </P>
+        ))}
+      </View>
+    </View>;
+  }
   return <View style={{ marginBottom: ESP.xxl }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: ESP.md }}>
       <Text style={ui.shelfTitle}>{titulo}</Text>
@@ -334,7 +397,6 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto }: 
           </View>
           <Text numberOfLines={1} style={ui.shelfCardTitle}>{tituloDaFaixa(t)}</Text>
           <Text numberOfLines={1} style={ui.shelfCardArtista}>{displayArtist(t)}</Text>
-          {contexto?<Text numberOfLines={1} style={ui.discoveryReason}>{contexto(t).reason}</Text>:null}
         </P>
       ))}
     </ScrollView>
@@ -568,12 +630,23 @@ export const ui = StyleSheet.create({
   shelfTitle: { ...TIPO.titulo, color: COR.texto },
   shelfNota: { ...TIPO.legenda, color: COR.textoFraco },
   shelfCard: { width: 148, borderRadius: RAIO.cartao, gap: 2 },
-  shelfCardHover: { opacity: .82 },
+  // Antes era `opacity: .82`: passar o rato APAGAVA a capa. Agora aproxima-se
+  // e acende, que é o que um cartão faz quando responde.
+  shelfCardHover: { transform: [{ translateY: -3 }], filter: 'brightness(1.08)' } as any,
+
+  /**
+   * A lista da prateleira principal. Duas colunas em qualquer largura útil, e
+   * a hierarquia é a da música: capa, título, artista, e por fim o motivo --
+   * que fica à direita, apagado, porque é a última coisa que alguém lê.
+   */
+  grelhaDeCapas: { flexDirection: 'row', flexWrap: 'wrap', columnGap: ESP.lg, rowGap: ESP.xl } as any,
+  // Sem borda e mais pequeno: cinco capas com uma etiqueta de contorno claro
+  // liam-se como cinco autocolantes, e o que interessa na prateleira é a capa.
   shelfSelo: {
-    position: 'absolute', top: ESP.sm, left: ESP.sm, paddingHorizontal: 7, paddingVertical: 3,
-    borderRadius: 999, backgroundColor: 'rgba(6,6,8,0.78)', borderWidth: 1, borderColor: COR.linha,
+    position: 'absolute', top: 6, left: 6, paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: RAIO.ctrl, backgroundColor: 'rgba(6,6,8,0.62)',
   },
-  shelfSeloTexto: { fontFamily: FONT.mono, fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: COR.texto },
+  shelfSeloTexto: { fontFamily: FONT.mono, fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', color: COR.textoMedio },
   separadores: {
     flexDirection: 'row', alignSelf: 'flex-start', gap: 2, padding: 3, marginBottom: ESP.lg,
     borderRadius: RAIO.pilula, backgroundColor: COR.elevado, borderWidth: 1, borderColor: COR.linhaSuave,
