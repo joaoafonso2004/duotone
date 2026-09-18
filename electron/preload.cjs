@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   },
   /** Os incidentes do processo principal (electron/saude.cjs); ler apaga-os. */
   lerSaude: () => ipcRenderer.invoke('saude:ler'),
+  /** Segundos sem rato nem teclado no sistema inteiro (presença dos amigos). */
+  segundosSemInteracao: () => ipcRenderer.invoke('sistema:segundos-sem-interacao'),
   minimize: () => ipcRenderer.send('window:minimize'),
   toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
   close: () => ipcRenderer.send('window:close'),

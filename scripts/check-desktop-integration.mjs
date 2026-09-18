@@ -58,6 +58,7 @@ const electron = {
     getLoginItemSettings: () => startup, setLoginItemSettings: (settings) => { startup = { ...settings, executableWillLaunchAtLogin: settings.openAtLogin }; } },
   BrowserWindow: Janela, Notification: Aviso, protocol: { registerSchemesAsPrivileged() {} },
   crashReporter: { start: (opcoes) => { captura.crashReporter = opcoes; } },
+  powerMonitor: { getSystemIdleTime: () => 42 },
   shell: { openExternal: (url) => externos.push(url) },
   session: { defaultSession: {} },
   Menu: { buildFromTemplate: () => ({ popup() {} }) },
@@ -148,6 +149,9 @@ const evento = () => ({ sender: janela.webContents, senderFrame: janela.webConte
 assert.deepEqual(handlers.get('saude:ler')(evento()), { incidentes: [], processoComecouEm: 1 });
 assert.throws(() => handlers.get('saude:ler')({ sender: janela.webContents, senderFrame: { url: 'https://www.youtube-nocookie.com' } }),
   'o iframe do YouTube não lê a saúde da app');
+assert.equal(handlers.get('sistema:segundos-sem-interacao')(evento()), 42, 'a presença lê a inatividade do sistema');
+assert.throws(() => handlers.get('sistema:segundos-sem-interacao')({ sender: janela.webContents, senderFrame: { url: 'https://www.youtube-nocookie.com' } }),
+  'o iframe do YouTube não lê a inatividade');
 janela.emit('ready-to-show');
 assert.equal(janela.visivel, false, 'O arranque automático no tabuleiro não abre a janela');
 aoJuntarDiscord('duotone-jam:123e4567-e89b-42d3-a456-426614174000');

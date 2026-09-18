@@ -39,6 +39,9 @@ declare global {
        *  guardados desde a última leitura (e apagados ao ler) e quando o
        *  processo começou, para medir o arranque a frio. */
       lerSaude?: () => Promise<{ incidentes: unknown[]; processoComecouEm: number | null }>;
+      /** Segundos desde o último toque no rato ou no teclado do sistema
+       *  inteiro (`powerMonitor.getSystemIdleTime`). Ver lib/presencaAtiva.ts. */
+      segundosSemInteracao?: () => Promise<number>;
       minimize(): void;
       toggleMaximize(): void;
       close(): void;

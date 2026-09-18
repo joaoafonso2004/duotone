@@ -1,5 +1,7 @@
 import { AppState, Platform } from 'react-native';
 import { appEstaVisivel } from './appVisibility';
+import { segundosSemInteracao } from './inatividadeDoSistema';
+import { contaComoAtivo } from './presencaAtiva';
 import * as Crypto from 'expo-crypto';
 import { supabase } from './supabase';
 import { getDeviceId } from './deviceIdentity';
@@ -31,10 +33,19 @@ export function iniciarPresenca(userId: string): () => void {
     // que a pessoa estava activa, sem sequer olhar para a janela. Bastava ter
     // o Duotone aberto e minimizado -- ou o portatil fechado -- para aparecer
     // "Online now" aos amigos durante horas, mesmo com o telemovel desligado.
-    const ativo = appEstaVisivel();
+    // No PC, com musica a tocar, conta tambem quem esta a usar o computador
+    // noutra app (18/9): ver `lib/presencaAtiva.ts`.
+    const visivel = appEstaVisivel();
+    const aTocar = !!s.current && s.isPlaying;
     fila = fila.catch(() => {}).then(async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session?.user.id !== userId) return;
+      const ativo = contaComoAtivo({
+        visivel, aTocar, computador: Platform.OS === 'web',
+        // So se pergunta quando pode mudar a resposta: com a janela a vista ou
+        // sem musica, a inatividade nao decide nada.
+        inativoS: !visivel && aTocar && Platform.OS === 'web' ? await segundosSemInteracao() : null,
+      });
       // A escuta privada decide-se na hora do ENVIO e não na da chamada: um
       // envio que estava na fila quando a pessoa a ligou já sai sem a faixa.
       // E espera-se pela preferência -- no arranque, publicar primeiro e ler

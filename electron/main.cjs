@@ -1,4 +1,4 @@
-const { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, net, protocol, session, shell, Tray, globalShortcut, Notification } = require('electron');
+const { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, net, powerMonitor, protocol, session, shell, Tray, globalShortcut, Notification } = require('electron');
 const {
   DISCORD_APP_ID, definirPresenca, prepararDiscord, ouvirJuncao, fecharDiscord,
 } = require('./discord.cjs');
@@ -620,6 +620,15 @@ function createWindow() {
 ipcMain.handle('saude:ler', (event) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido inválido.');
   return saude.ler();
+});
+
+// Há quanto tempo ninguém mexe no rato nem no teclado -- do sistema inteiro, e
+// não só desta janela. É o que deixa a presença dizer "online" a quem ouve
+// música com outra app à frente (ver src/lib/presencaAtiva.ts). Só o número:
+// nada sobre o que se está a fazer nas outras apps.
+ipcMain.handle('sistema:segundos-sem-interacao', (event) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido inválido.');
+  return powerMonitor.getSystemIdleTime();
 });
 
 ipcMain.handle('player:preservar-tom', async (event) => {
