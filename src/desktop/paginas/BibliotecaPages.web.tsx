@@ -28,6 +28,7 @@ import { usePlayer } from '../../state/player';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../../state/recomendacoes';
 import { useSaved } from '../../state/saved';
 import type { Track } from '../../types';
+import { crescer, faltaMostrar, PRIMEIRO_LOTE, quantosMostrar } from '../../lib/grelhaQueCresce';
 import { styles } from '../estilos.web';
 import {
   Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, marcar, Page,
@@ -226,6 +227,10 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
     () => ordenarArtistas(agruparPorArtista(data.tracks.map(comCatalogo)), ranking, favoritos),
     [data.tracks, ranking, versaoDoCatalogo, favoritos],
   );
+  // A grelha monta por lotes: com centenas de artistas, montar tudo de uma vez
+  // era mandar buscar centenas de capas no mesmo fotograma e a app inteira
+  // engasgava-se ao abrir o separador. Ver `lib/grelhaQueCresce.ts`.
+  const [pedidos, setPedidos] = useState(PRIMEIRO_LOTE);
   const filteredArtists = useMemo(() => {
     // O mesmo comparador do telemóvel: procurar por `juice` dava listas
     // diferentes nas duas plataformas, porque aqui era um pedaço da chave
@@ -233,13 +238,23 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
     const q = query.trim();
     return q ? artists.filter((artist) => correspondeAPesquisa(q, artist.nome)) : artists;
   }, [artists, query]);
+  // Uma pesquisa nova começa outra vez no primeiro lote: o que interessa está
+  // em cima, e quem procurou não quer ver setecentos cartões.
+  useEffect(() => { setPedidos(PRIMEIRO_LOTE); }, [query]);
+  const aMostrar = quantosMostrar(pedidos, filteredArtists.length);
+  const visiveis = useMemo(() => filteredArtists.slice(0, aMostrar), [filteredArtists, aMostrar]);
+  const mostrarMais = useCallback(() => setPedidos((n) => {
+    // Sem isto, um evento de scroll por pixel redesenhava a página toda.
+    if (!faltaMostrar(n, filteredArtists.length)) return n;
+    return crescer(quantosMostrar(n, filteredArtists.length), filteredArtists.length);
+  }), [filteredArtists.length]);
 
   return <Page title="Artists" subtitle={`${artists.length} artists in your library`}>
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search artists" value={query} onChangeText={setQuery} /></View>
       <Text style={styles.songsResultCount}>{query ? `${filteredArtists.length} of ` : ''}{artists.length} {artists.length === 1 ? 'artist' : 'artists'}</Text>
     </View>
-    <ContentScroll scrollKey="artists">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : filteredArtists.length ? <View style={styles.playlistGrid}>{filteredArtists.map(({ nome, chave, faixas }) => { const favorito = favoritos.has(chave); return (
+    <ContentScroll scrollKey="artists" aoChegarAoFim={mostrarMais}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : filteredArtists.length ? <View style={styles.playlistGrid}>{visiveis.map(({ nome, chave, faixas }) => { const favorito = favoritos.has(chave); return (
       <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })}
         {...marcar('cartao')} style={styles.playlistCard}>
         <View style={styles.playlistArt}>

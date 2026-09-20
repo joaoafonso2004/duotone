@@ -14,6 +14,7 @@ import type { OrigemDaFila } from '../lib/origemDaFila';
 import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
+import { pertoDoFim } from '../lib/grelhaQueCresce';
 
 /**
  * Largura da coluna de duracao, no cabecalho E na celula.
@@ -160,11 +161,21 @@ export function Page({ title, subtitle, action, children }: { title: string; sub
 const posicoesDeScroll = new Map<string, number>();
 
 /** Mantém a posição quando uma rota desktop desmonta para abrir o leitor. */
-export function ContentScroll({ children, scrollKey }: { children: ReactNode; scrollKey?: string }) {
+export function ContentScroll({ children, scrollKey, aoChegarAoFim }: {
+  children: ReactNode; scrollKey?: string;
+  /**
+   * Chamado quando falta menos de uma margem para o fim -- é por aqui que uma
+   * grelha longa vai montando o resto (ver `lib/grelhaQueCresce.ts`). Dispara
+   * também quando o conteúdo muda de tamanho: uma grelha mais curta do que a
+   * janela está sempre no fim e nunca receberia um evento de scroll.
+   */
+  aoChegarAoFim?: () => void;
+}) {
   const ref = useRef<any>(null);
   const dizerQueRolou = React.useContext(ContextoDoRolo);
   const rolado = useRef(false);
   const alturaVisivel = useRef(0);
+  const ultimoY = useRef(0);
   const restaurado = useRef(!scrollKey);
   useEffect(() => { restaurado.current = !scrollKey; }, [scrollKey]);
   const tentarRestaurar = (alturaConteudo: number) => {
@@ -182,10 +193,17 @@ export function ContentScroll({ children, scrollKey }: { children: ReactNode; sc
     contentContainerStyle={ui.scrollContent}
     scrollEventThrottle={100}
     onLayout={(e) => { alturaVisivel.current = e.nativeEvent.layout.height; }}
-    onContentSizeChange={(_w, h) => tentarRestaurar(h)}
+    onContentSizeChange={(_w, h) => {
+      tentarRestaurar(h);
+      if (pertoDoFim(ultimoY.current, alturaVisivel.current, h)) aoChegarAoFim?.();
+    }}
     onScroll={(e) => {
       const y = e.nativeEvent.contentOffset.y;
+      ultimoY.current = y;
       if (scrollKey) posicoesDeScroll.set(scrollKey, y);
+      if (pertoDoFim(y, e.nativeEvent.layoutMeasurement.height, e.nativeEvent.contentSize.height)) {
+        aoChegarAoFim?.();
+      }
       // Só quando MUDA: um `setState` por evento de scroll redesenhava a
       // página inteira a cada pixel.
       const agora = y > 8;

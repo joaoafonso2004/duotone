@@ -96,7 +96,16 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="calha"]:hover [data-dt~="pega"] {
       transform: translate(-50%, -50%) scale(1);
     }
-    [data-dt~="vidro"]{backdrop-filter:blur(28px) saturate(140%);-webkit-backdrop-filter:blur(28px) saturate(140%);will-change:transform,filter;transform:translateZ(0)}
+    /* Aqui vivia o "vidro": um backdrop-filter de 28px na superficie inteira.
+       Nunca chegou a correr (vinha por className, que o RNW deita fora), e
+       quando passou a correr, na 3.7.1, a app ficou pesada -- um
+       backdrop-filter do tamanho da janela refaz-se a cada pintura, e esta
+       janela tem sempre alguma coisa a mexer. Nao faz falta: o que esta por
+       tras e o wallpaper, que ja leva um blur ESTATICO no proprio estilo da
+       imagem (backgroundImage, em estilos.web.ts), calculado uma vez. O blur
+       da imagem subiu de 8 para 16 px para o que se ve atraves do painel
+       ficar onde estava. E a mesma decisao que o iPhone ja tinha tomado --
+       ver "Aquecimento e bateria" no CLAUDE.md. */
     /* O cintilar do modo inteligente.
        Em CSS e nao com o Animated do React Native: sob react-native-web o
        Animated nao mexeu nos pontos -- medido no browser, a opacidade ficava
@@ -180,7 +189,11 @@ export function injectDesktopDocumentStyles() {
 
     /* As linhas de uma lista entram umas atras das outras -- so as primeiras:
        escalonar duzentas seria uma lista a montar-se durante dois segundos. */
-    [data-dt~="fila"]{ animation: dt-linha var(--dt-normal) var(--dt-curva) both; }
+    /* Só as PRIMEIRAS. A regra apanhava todas, e uma biblioteca de milhares
+       de faixas arrancava com milhares de animacoes no mesmo fotograma -- para
+       nada, porque da decima segunda para baixo ninguem as ve. */
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(-n+12),
+    [data-dt~="fila"]:first-child{ animation: dt-linha var(--dt-normal) var(--dt-curva) both; }
     @keyframes dt-linha{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform:none; } }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(2){ animation-delay: 15ms }
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(3){ animation-delay: 30ms }

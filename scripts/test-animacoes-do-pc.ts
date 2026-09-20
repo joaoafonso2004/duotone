@@ -120,10 +120,26 @@ caso('o realce que desliza acompanha também a ALTURA', () => {
     assert.ok(bloco.includes(prop), `a pílula/realce não transita ${prop}: ${bloco}`);
   }
 });
-caso('o vidro da janela é uma marca, não uma classe', () => {
-  assert.match(CASCA, /\[data-dt~="vidro"\]\{backdrop-filter/);
+caso('nada de backdrop-filter na superfície da janela', () => {
+  // Um backdrop-filter do tamanho da janela refaz-se a cada pintura, e esta
+  // janela tem sempre alguma coisa a mexer. O desfoque do fundo é estático e
+  // vive no estilo da imagem.
+  assert.ok(!/backdrop-filters*:/.test(CASCA), 'voltou o backdrop-filter à superfície');
+  const estilos = readFileSync('src/desktop/estilos.web.ts', 'utf8');
+  assert.match(estilos, /backgroundImage:[\s\S]{0,400}?filter: 'blur\((\d+)px\) brightness/,
+    'o fundo deixou de trazer o desfoque dele');
+});
+caso('os nomes de classe antigos não voltaram', () => {
   assert.ok(!CASCA.includes('glass-panel'), 'sobrou o nome antigo do vidro');
   assert.ok(!/slider-(container|fill|thumb)/.test(CASCA), 'sobraram as classes antigas da barra');
+});
+caso('só as primeiras linhas de uma lista é que entram a animar', () => {
+  // Uma biblioteca de milhares de faixas arrancava com milhares de animações
+  // no mesmo fotograma, e da décima segunda para baixo ninguém as vê.
+  const m = CASCA.match(/([^\n]*)\{ animation: dt-linha /);
+  assert.ok(m, 'a animação de entrada das linhas desapareceu');
+  assert.ok(/nth-child\(-n\+\d+\)|first-child/.test(m[1]),
+    `a animação apanha TODAS as linhas: ${m[1].trim()}`);
 });
 
 console.log('\nquem pediu menos movimento continua servido');

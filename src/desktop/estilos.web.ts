@@ -22,7 +22,7 @@ export const styles = StyleSheet.create({
     position: 'absolute', top: -20, left: -20, right: -20, bottom: -20,
     width: 'calc(100% + 40px)' as any, height: 'calc(100% + 40px)' as any,
     resizeMode: 'cover', zIndex: 0, pointerEvents: 'none',
-    filter: 'blur(8px) brightness(45%)',
+    filter: 'blur(16px) brightness(45%)',
   } as any,
   // Barra de titulo sem cor propria: e o fundo que se ve, e so uma linha a
   // separa da area de conteudo.
@@ -43,7 +43,7 @@ export const styles = StyleSheet.create({
   navHover: { backgroundColor: 'rgba(233,234,238,0.04)' }, navActive: { backgroundColor: 'rgba(233,234,238,0.07)' },
   /** O realce que atravessa entre os separadores da barra lateral. Absoluto,
    * para o texto não se mexer enquanto ele anda. */
-  navRealce: { position: 'absolute', left: 0, right: 0, top: 0, borderRadius: RAIO.cartao } as any, navText: { ...TIPO.corpo, color: COR.textoMedio, fontWeight: '500' as any, flex: 1 }, navTextActive: { color: desktop.text, fontWeight: '650' as any }, navDivider: { height: 1, backgroundColor: desktop.border, marginVertical: 14, marginHorizontal: 8 },
+  navRealce: { position: 'absolute', left: ESP.md, right: ESP.md, top: 0, borderRadius: RAIO.cartao } as any, navText: { ...TIPO.corpo, color: COR.textoMedio, fontWeight: '500' as any, flex: 1 }, navTextActive: { color: desktop.text, fontWeight: '650' as any }, navDivider: { height: 1, backgroundColor: desktop.border, marginVertical: 14, marginHorizontal: 8 },
   account: { minHeight: 67, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.03)', flexDirection: 'row', alignItems: 'center', gap: 10 }, avatar: { width: 31, height: 31, borderRadius: 9, backgroundColor: '#3D315E', alignItems: 'center', justifyContent: 'center' }, avatarText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '800' }, accountName: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '650' as any }, accountEmail: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10, marginTop: 2 }, content: { flex: 1, minWidth: 0, overflow: 'hidden' } as any,
   auth: { flex: 1, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, authGlow: { position: 'absolute', width: 900, height: 900, borderRadius: 450, backgroundColor: 'rgba(233,234,238,.045)', top: -480 }, authCard: { width: 440, maxWidth: 'calc(100vw - 48px)' as any, padding: ESP.xxl, borderRadius: RAIO.superficie, backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha, boxShadow: '0 30px 100px rgba(0,0,0,.55)' } as any, authLogo: { flexDirection: 'row', gap: 5, marginBottom: 25 }, authTitle: { ...TIPO.titulo, color: COR.texto, fontSize: 28, fontWeight: '700' as any }, authBody: { ...TIPO.corpo, color: COR.textoMedio, lineHeight: 21, marginTop: ESP.sm, marginBottom: ESP.xl }, segment: { height: 38, padding: 3, borderRadius: 8, backgroundColor: desktop.bg, flexDirection: 'row', marginBottom: 18 }, segmentItem: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 6 }, segmentActive: { backgroundColor: desktop.raised }, segmentText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '600' }, error: { fontFamily: FONT.body, color: '#FF858A', fontSize: 12, lineHeight: 17 }, authFoot: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10, marginTop: 20 },
   // A 48 como o título e as prateleiras. Estavam a 38 a martelo, e o seletor
