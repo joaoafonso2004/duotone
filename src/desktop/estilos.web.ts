@@ -55,12 +55,11 @@ export const styles = StyleSheet.create({
   cardGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: ESP.xl }, mediaCard: { width: 190, padding: ESP.md, borderRadius: RAIO.cartao, borderWidth: 1, borderColor: 'transparent' }, cardHover: { backgroundColor: desktop.raised, borderColor: desktop.border, transform: [{ translateY: -2 }] }, cardTitle: { fontFamily: FONT.display, color: desktop.text, fontSize: 13, fontWeight: '650' as any, marginTop: 11 }, cardMeta: { fontFamily: FONT.body, color: desktop.dim, fontSize: 11, marginTop: 4 },
   playlistGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: ESP.xxl, rowGap: ESP.xxl },
   playlistCard: { width: 200 },
-  playlistCardHover: { opacity: .88, transform: [{ translateY: -3 }] },
   playlistArt: { width: 200, height: 200, borderRadius: 14, backgroundColor: desktop.raised, borderWidth: 1, borderColor: COR.linhaSuave, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', boxShadow: '0 15px 36px rgba(0,0,0,.22)' } as any,
   // A estrela dos favoritos, no canto da capa do artista. Fundo escuro porque
   // ela pousa em cima da capa, que pode ser clara.
-  estrelaDoArtista: { position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(6,6,8,0.66)' } as any,
-  estrelaDoArtistaHover: { backgroundColor: 'rgba(6,6,8,0.88)' },
+  coracaoDoArtista: { position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(6,6,8,0.66)' } as any,
+  coracaoDoArtistaHover: { backgroundColor: 'rgba(6,6,8,0.88)' },
   playlistArtRow: { flex: 1, width: '100%', flexDirection: 'row' },
   playlistArtCell: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: COR.elevado },
   playlistTitle: { fontFamily: FONT.display, color: desktop.text, fontSize: 14, fontWeight: '650' as any, marginTop: ESP.md },

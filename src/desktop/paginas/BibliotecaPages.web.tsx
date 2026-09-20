@@ -30,7 +30,7 @@ import { useSaved } from '../../state/saved';
 import type { Track } from '../../types';
 import { styles } from '../estilos.web';
 import {
-  Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, Page,
+  Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, marcar, Page,
   PrateleiraDeMisturas, Separadores, Shelf, TrackTable,
 } from '../ui.web';
 import { MusicasDoDia } from '../MusicasDoDia.web';
@@ -239,32 +239,38 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search artists" value={query} onChangeText={setQuery} /></View>
       <Text style={styles.songsResultCount}>{query ? `${filteredArtists.length} of ` : ''}{artists.length} {artists.length === 1 ? 'artist' : 'artists'}</Text>
     </View>
-    <ContentScroll scrollKey="artists">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : filteredArtists.length ? <View style={styles.playlistGrid}>{filteredArtists.map(({ nome, chave, faixas }) => (
+    <ContentScroll scrollKey="artists">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : filteredArtists.length ? <View style={styles.playlistGrid}>{filteredArtists.map(({ nome, chave, faixas }) => { const favorito = favoritos.has(chave); return (
       <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })}
-        style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.playlistCardHover]}>
-        {({ hovered, focused }: any) => <>
-          <View style={styles.playlistArt}>
-            <Artwork track={faixas[0]} size={200} />
-            {/* A estrela fica SEMPRE à vista em quem é favorito, e só com o
-                rato por cima nos outros: uma estrela apagada em cada cartão
-                era ruído numa página de setecentos artistas. */}
-            {favoritos.has(chave) || hovered || focused ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: favoritos.has(chave) }}
-                accessibilityLabel={favoritos.has(chave) ? `Unfavourite ${nome}` : `Favourite ${nome}`}
-                onPress={(e: any) => { e?.stopPropagation?.(); alternarFavorito(chave); }}
-                style={({ hovered: h }: any) => [styles.estrelaDoArtista, h && styles.estrelaDoArtistaHover]}>
-                <Ionicons name={favoritos.has(chave) ? 'star' : 'star-outline'} size={16}
-                  color={favoritos.has(chave) ? desktop.accent : COR.texto} />
-              </Pressable>
-            ) : null}
-          </View>
-          <Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text>
-          <Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text>
-        </>}
+        {...marcar('cartao')} style={styles.playlistCard}>
+        <View style={styles.playlistArt}>
+          <Artwork track={faixas[0]} size={200} />
+          {/* É o MESMO coração das músicas, e não uma estrela: guardar é o
+              mesmo gesto em toda a app.
+
+              Está sempre montado, e quem o mostra é o CSS (`coracaoDoCartao`,
+              com `fixo` em quem já é favorito). Esteve montado à condição,
+              pelo `hovered` do cartão -- e o `hovered` do react-native-web CAI
+              ao entrar num filho que também é Pressable. Não é acidente: o
+              `Pressable` pede `contain: true` ao `useHover`, e um filho que
+              entra atira um evento `react-gui:hover:lock` que o pai ouve e
+              trata como uma saída. O coração desmontava-se debaixo do rato --
+              favoritar um artista era impossível. O `:hover` do CSS é
+              hierárquico e não tem esse problema. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: favorito }}
+            accessibilityLabel={favorito ? `Unfavourite ${nome}` : `Favourite ${nome}`}
+            onPress={(e: any) => { e?.stopPropagation?.(); alternarFavorito(chave); }}
+            {...(favorito ? marcar('coracaoDoCartao', 'fixo') : marcar('coracaoDoCartao'))}
+            style={({ hovered: h }: any) => [styles.coracaoDoArtista, h && styles.coracaoDoArtistaHover]}>
+            <Ionicons name={favorito ? 'heart' : 'heart-outline'} size={16}
+              color={favorito ? desktop.accent : COR.texto} />
+          </Pressable>
+        </View>
+        <Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text>
+        <Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text>
       </Pressable>
-    ))}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
+    ); })}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
   </Page>;
 }
 

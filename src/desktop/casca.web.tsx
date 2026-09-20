@@ -223,6 +223,24 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="campo"]:focus-within{ border-color: rgba(233,234,238,.30);
       box-shadow: 0 0 0 3px rgba(233,234,238,.08); background-color: ${COR.hover}; }
 
+    /* Os cartoes das grelhas (artistas, playlists) levantam-se e acendem --
+       nunca apagam. O hover vivia no "hovered" do react-native-web, que CAI ao
+       entrar num filho que tambem e Pressable (o "contain" do useHover -- ver
+       o coracao dos artistas): com o rato no coracao, o cartao descia outra
+       vez. O ":hover" do CSS e hierarquico e nao tem isso. */
+    [data-dt~="cartao"]{ transition: transform var(--dt-rapido) var(--dt-curva),
+                         filter var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="cartao"]:hover, [data-dt~="cartao"]:focus-visible{
+      transform: translateY(-3px); filter: brightness(1.08); }
+
+    /* O coracao de favoritar um artista: so com o rato no cartao, e SEMPRE em
+       quem ja e favorito (o "fixo"). Um coracao apagado em cada um dos
+       setecentos cartoes era ruido. */
+    [data-dt~="coracaoDoCartao"]{ opacity:0; transition: opacity var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="cartao"]:hover [data-dt~="coracaoDoCartao"],
+    [data-dt~="cartao"]:focus-within [data-dt~="coracaoDoCartao"],
+    [data-dt~="coracaoDoCartao"][data-dt~="fixo"]{ opacity:1; }
+
     /* A pilula dos separadores e o realce da barra lateral deslizam. */
     [data-dt~="desliza"]{ transition: transform var(--dt-normal) var(--dt-curva),
                           width var(--dt-normal) var(--dt-curva),
@@ -238,7 +256,9 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"], [data-dt~="coracao"],
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
-      [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"]{ transition: none !important; }
+      [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
+      [data-dt~="cartao"], [data-dt~="coracaoDoCartao"]{ transition: none !important; }
+      [data-dt~="cartao"]:hover{ transform: none !important; }
       [data-dt~="premir"]:active{ transform: none !important; }
     }
   `;
