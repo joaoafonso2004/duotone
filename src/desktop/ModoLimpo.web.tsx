@@ -10,7 +10,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { usePlayer } from '../state/player';
 import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import { COR, ESP, FONT } from './tokens.web';
-import { formatTime } from './ui.web';
+import { formatTime, marcar } from './ui.web';
 
 const P = Pressable as any;
 const V = View as any;
@@ -282,9 +282,9 @@ function EcraLimpo() {
 
         <View style={[estilos.barraLinha, { width: lado }]}>
           <Text style={estilos.tempo}>{formatTime(p.positionMs / 1000)}</Text>
-          <P onMouseDown={arrastarNaBarra} style={estilos.barraAlvo} className="slider-container">
-            <V style={estilos.barra}><V style={[estilos.barraCheia, { width: `${ratio * 100}%` }]} className="slider-fill" /></V>
-            <V className="slider-thumb" style={{ left: `${ratio * 100}%` }} />
+          <P onMouseDown={arrastarNaBarra} style={estilos.barraAlvo} {...marcar('calha')}>
+            <V style={estilos.barra}><V style={[estilos.barraCheia, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V>
+            <V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} />
           </P>
           <Text style={estilos.tempo}>{formatTime(p.durationMs / 1000)}</Text>
         </View>

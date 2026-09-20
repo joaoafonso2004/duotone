@@ -4,7 +4,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { useVisibilidade } from '../hooks/useVisibilidade';
 import { avisoDaTroca } from '../lib/visibilidade';
 import { definirPrivacidade, usePrivacidade } from '../state/privacidade';
-import { desktop, ui } from './ui.web';
+import { desktop, marcar, ui } from './ui.web';
 
 const P = Pressable as any;
 
@@ -69,7 +69,7 @@ export function IndicadorDeVisibilidade({ discordLigado, onJam, onAviso }: {
     : partes.map(([p, ms, atraso = 0]) => `${p} ${ms}ms ${CURVA} ${atraso}ms`).join(', ');
 
   return <P
-    className="control-btn-animate"
+    {...marcar('premir')}
     onPress={carregar}
     accessibilityRole="button"
     accessibilityLabel={texto}

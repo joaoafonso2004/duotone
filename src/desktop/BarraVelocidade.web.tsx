@@ -5,10 +5,12 @@ import {
   PASSO_FINO, PASSO_LARGO, RATE_MAXIMO, RATE_MINIMO,
 } from '../lib/playbackRate';
 import { COR, ESP, RAIO, TIPO } from './tokens.web';
+import { marcar } from './ui.web';
 
 /** O react-native-web renderiza uma View como <div>, mas os tipos do RN nao
- * conhecem `className`, `onKeyDown`, `role` nem `tabIndex`. E o mesmo truque
- * que o resto do desktop ja usa (o `P`/`V` do RootNavigator). */
+ * conhecem `onKeyDown`, `role` nem `tabIndex`. E o mesmo truque que o resto do
+ * desktop ja usa (o `P`/`V` do RootNavigator). As marcas do CSS entram pelo
+ * `marcar` -- nunca por classe, ver o comentario dele no ui.web.tsx. */
 const V = View as any;
 
 /**
@@ -90,16 +92,16 @@ export function BarraVelocidade({
           }}
           onMouseDown={arrastar}
           onTouchStart={arrastar}
-          className="slider-container"
+          {...marcar('calha')}
           style={{ flex: 1, height: 22, justifyContent: 'center', cursor: 'pointer' } as any}
         >
           <View style={{ height: 3, backgroundColor: COR.elevado, borderRadius: RAIO.pilula, overflow: 'hidden' }}>
             <V
-              className="slider-fill"
+              {...marcar('cheio')}
               style={{ height: 3, width: `${fraccao * 100}%`, backgroundColor: COR.texto, borderRadius: RAIO.pilula }}
             />
           </View>
-          <V className="slider-thumb" style={{ left: `${fraccao * 100}%` }} />
+          <V {...marcar('pega')} style={{ left: `${fraccao * 100}%` }} />
           {/* A marca do 1x: sem ela nao se encontra o normal a olho. */}
           <V
               pointerEvents="none"

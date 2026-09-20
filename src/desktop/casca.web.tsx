@@ -24,7 +24,7 @@ import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
 import { COR, FONT, FONTES } from './tokens.web';
-import { Artwork, desktop, formatTime, IconButton, ui } from './ui.web';
+import { Artwork, desktop, formatTime, IconButton, ui, marcar } from './ui.web';
 import { PRIMARY, type Route } from './rotas';
 import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade.web';
 
@@ -79,9 +79,9 @@ export function injectDesktopDocumentStyles() {
     ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:#30303b;border:3px solid transparent;border-radius:8px;background-clip:padding-box}
     ::-webkit-scrollbar-thumb:hover{background:#494857;border:3px solid transparent;background-clip:padding-box}
     [data-focusable="true"]:focus-visible{outline:2px solid var(--accent-color, #E9EAEE)!important;outline-offset:-2px}
-    .slider-container { position: relative; }
-    .slider-container:hover .slider-fill { background: var(--accent-color, #E9EAEE)!important; }
-    .slider-thumb {
+    [data-dt~="calha"] { position: relative; }
+    [data-dt~="calha"]:hover [data-dt~="cheio"] { background: var(--accent-color, #E9EAEE)!important; }
+    [data-dt~="pega"] {
       position: absolute;
       top: 50%;
       width: 12px;
@@ -93,10 +93,10 @@ export function injectDesktopDocumentStyles() {
       box-shadow: 0 2px 6px rgba(0,0,0,0.4);
       pointer-events: none;
     }
-    .slider-container:hover .slider-thumb {
+    [data-dt~="calha"]:hover [data-dt~="pega"] {
       transform: translate(-50%, -50%) scale(1);
     }
-    .glass-panel{backdrop-filter:blur(28px) saturate(140%);-webkit-backdrop-filter:blur(28px) saturate(140%);will-change:transform,filter;transform:translateZ(0)}
+    [data-dt~="vidro"]{backdrop-filter:blur(28px) saturate(140%);-webkit-backdrop-filter:blur(28px) saturate(140%);will-change:transform,filter;transform:translateZ(0)}
     /* O cintilar do modo inteligente.
        Em CSS e nao com o Animated do React Native: sob react-native-web o
        Animated nao mexeu nos pontos -- medido no browser, a opacidade ficava
@@ -133,38 +133,12 @@ export function injectDesktopDocumentStyles() {
       50% { opacity: 1; }
       100% { opacity: 0.6; }
     }
-    .control-btn-animate {
-      transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), background-color 0.2s, opacity 0.2s!important;
-      cursor: pointer;
-    }
-    .control-btn-animate:hover {
-      transform: scale(1.1);
-    }
-    .control-btn-animate:active {
-      transform: scale(0.93);
-    }
-    .btn-animate {
-      transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), background-color 0.2s, box-shadow 0.2s!important;
-      cursor: pointer;
-    }
-    .btn-animate:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(155, 123, 255, 0.2);
-    }
-    .btn-animate:active {
-      transform: translateY(1px) scale(0.98);
-    }
-    .nav-item-animate {
-      transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), background-color 0.2s, opacity 0.2s!important;
-      cursor: pointer;
-    }
-    .nav-item-animate:hover {
-      transform: translateX(4px);
-    }
-    .nav-item-animate:active {
-      transform: scale(0.97) translateX(2px);
-    }
-    
+    /* Aqui viviam as regras .btn-animate, .control-btn-animate e
+       .nav-item-animate. Sairam a 20/9: nunca chegaram a aplicar-se, porque o
+       className nao passa em componentes RN (ver o marca, no ui.web.tsx), e o
+       que faziam esta agora no [data-dt~="premir"] -- sem o brilho roxo que
+       uma delas ainda trazia da identidade antiga. */
+
     /* A fila do Now Playing e um <div> e nao um Pressable por causa do
        arrastar-para-reordenar (a API de drag do DOM nao passa pelo RNW). O
        hover fica em CSS pela mesma razao. */
@@ -188,7 +162,7 @@ export function injectDesktopDocumentStyles() {
          180 ms  o que entra (linhas, dialogos, titulos)
          260 ms  o que atravessa o ecra (paginas, avisos)
 
-       As regras ficam sempre com dois seletores (.dt-fila .dt-mais) e nunca
+       As regras ficam sempre com dois seletores ([data-dt~="fila"] [data-dt~="mais"]) e nunca
        com um: o react-native-web tambem escreve classes de uma so, e num
        empate ganha quem vier depois na folha -- que nao esta na nossa mao.
        ===================================================================== */
@@ -198,80 +172,74 @@ export function injectDesktopDocumentStyles() {
     }
 
     /* Carregar num botao encolhe-o 3%. */
-    .dt-premir{ transition: transform var(--dt-rapido) var(--dt-curva),
+    [data-dt~="premir"]{ transition: transform var(--dt-rapido) var(--dt-curva),
       background-color var(--dt-rapido) var(--dt-curva),
       border-color var(--dt-rapido) var(--dt-curva),
       box-shadow var(--dt-normal) var(--dt-curva); }
-    .dt-premir:active{ transform: scale(.97); }
-
-    /* Uma pagina nova entra a subir. A key da rota e que a faz repetir. */
-    .dt-pagina{ animation: dt-entrar var(--dt-lento) var(--dt-curva) both; }
-    @keyframes dt-entrar{ from{ opacity:0; transform: translateY(10px); } to{ opacity:1; transform:none; } }
+    [data-dt~="premir"]:active{ transform: scale(.97); }
 
     /* As linhas de uma lista entram umas atras das outras -- so as primeiras:
        escalonar duzentas seria uma lista a montar-se durante dois segundos. */
-    .dt-fila{ animation: dt-linha var(--dt-normal) var(--dt-curva) both; }
+    [data-dt~="fila"]{ animation: dt-linha var(--dt-normal) var(--dt-curva) both; }
     @keyframes dt-linha{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform:none; } }
-    .dt-lista .dt-fila:nth-child(2){ animation-delay: 15ms }
-    .dt-lista .dt-fila:nth-child(3){ animation-delay: 30ms }
-    .dt-lista .dt-fila:nth-child(4){ animation-delay: 45ms }
-    .dt-lista .dt-fila:nth-child(5){ animation-delay: 60ms }
-    .dt-lista .dt-fila:nth-child(6){ animation-delay: 75ms }
-    .dt-lista .dt-fila:nth-child(7){ animation-delay: 90ms }
-    .dt-lista .dt-fila:nth-child(8){ animation-delay: 105ms }
-    .dt-lista .dt-fila:nth-child(9){ animation-delay: 120ms }
-    .dt-lista .dt-fila:nth-child(10){ animation-delay: 135ms }
-    .dt-lista .dt-fila:nth-child(n+11){ animation-delay: 150ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(2){ animation-delay: 15ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(3){ animation-delay: 30ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(4){ animation-delay: 45ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(5){ animation-delay: 60ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(6){ animation-delay: 75ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(7){ animation-delay: 90ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(8){ animation-delay: 105ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(9){ animation-delay: 120ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(10){ animation-delay: 135ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(n+11){ animation-delay: 150ms }
 
     /* Na linha onde esta o rato: o numero da lugar ao play, e o "..." aparece. */
-    .dt-fila .dt-numero{ transition: opacity var(--dt-rapido) var(--dt-curva); }
-    .dt-fila .dt-toca{ opacity:0; transform: scale(.82);
+    [data-dt~="fila"] [data-dt~="numero"]{ transition: opacity var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="fila"] [data-dt~="toca"]{ opacity:0; transform: scale(.82);
       transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-rapido) var(--dt-curva); }
-    .dt-fila .dt-mais{ opacity:0; transition: opacity var(--dt-rapido) var(--dt-curva); }
-    .dt-fila:hover .dt-numero, .dt-fila:focus-within .dt-numero{ opacity:0; }
-    .dt-fila:hover .dt-toca, .dt-fila:focus-within .dt-toca{ opacity:1; transform:none; }
-    .dt-fila:hover .dt-mais, .dt-fila:focus-within .dt-mais{ opacity:1; }
+    [data-dt~="fila"] [data-dt~="mais"]{ opacity:0; transition: opacity var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="fila"]:hover [data-dt~="numero"], [data-dt~="fila"]:focus-within [data-dt~="numero"]{ opacity:0; }
+    [data-dt~="fila"]:hover [data-dt~="toca"], [data-dt~="fila"]:focus-within [data-dt~="toca"]{ opacity:1; transform:none; }
+    [data-dt~="fila"]:hover [data-dt~="mais"], [data-dt~="fila"]:focus-within [data-dt~="mais"]{ opacity:1; }
     /* A que esta a tocar nao esconde as barrinhas nem mostra o numero. */
-    .dt-fila .dt-barras .dt-barra{ animation: dt-pular 900ms ease-in-out infinite; }
-    .dt-fila .dt-barras .dt-barra:nth-child(2){ animation-delay: 150ms }
-    .dt-fila .dt-barras .dt-barra:nth-child(3){ animation-delay: 300ms }
+    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: dt-pular 900ms ease-in-out infinite; }
+    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(2){ animation-delay: 150ms }
+    [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(3){ animation-delay: 300ms }
     @keyframes dt-pular{ 0%,100%{ height:4px } 50%{ height:13px } }
 
     /* Dialogos: o veu escurece e a caixa cresce a partir do centro. */
-    .dt-veu{ animation: dt-aparecer var(--dt-normal) var(--dt-curva) both; }
+    [data-dt~="veu"]{ animation: dt-aparecer var(--dt-normal) var(--dt-curva) both; }
     @keyframes dt-aparecer{ from{ opacity:0 } to{ opacity:1 } }
-    .dt-dialogo{ animation: dt-dialogo var(--dt-normal) var(--dt-curva) both; }
+    [data-dt~="dialogo"]{ animation: dt-dialogo var(--dt-normal) var(--dt-curva) both; }
     @keyframes dt-dialogo{ from{ opacity:0; transform: translateY(8px) scale(.97); } to{ opacity:1; transform:none; } }
 
     /* O aviso sobe do fundo. */
-    .dt-aviso{ animation: dt-subir var(--dt-lento) var(--dt-curva) both; }
+    [data-dt~="aviso"]{ animation: dt-subir var(--dt-lento) var(--dt-curva) both; }
     @keyframes dt-subir{ from{ opacity:0; transform: translateY(120%); } to{ opacity:1; transform:none; } }
 
     /* O campo de pesquisa acende uma borda e um halo -- sem cor nova. */
-    .dt-campo{ transition: border-color var(--dt-normal) var(--dt-curva),
+    [data-dt~="campo"]{ transition: border-color var(--dt-normal) var(--dt-curva),
       box-shadow var(--dt-normal) var(--dt-curva), background-color var(--dt-normal) var(--dt-curva); }
-    .dt-campo:focus-within{ border-color: rgba(233,234,238,.30);
+    [data-dt~="campo"]:focus-within{ border-color: rgba(233,234,238,.30);
       box-shadow: 0 0 0 3px rgba(233,234,238,.08); background-color: ${COR.hover}; }
 
     /* A pilula dos separadores e o realce da barra lateral deslizam. */
-    .dt-desliza{ transition: transform var(--dt-normal) var(--dt-curva), width var(--dt-normal) var(--dt-curva); }
+    [data-dt~="desliza"]{ transition: transform var(--dt-normal) var(--dt-curva),
+                          width var(--dt-normal) var(--dt-curva),
+                          height var(--dt-normal) var(--dt-curva); }
 
     /* Guardar: o coracao bate uma vez e abre um anel. */
-    .dt-coracao{ animation: dt-bater 420ms var(--dt-curva); }
+    [data-dt~="coracao"]{ animation: dt-bater 420ms var(--dt-curva); }
     @keyframes dt-bater{ 0%{ transform: scale(.6) } 45%{ transform: scale(1.28) } 70%{ transform: scale(.94) } 100%{ transform:none } }
-
-    /* Arrastar na fila levanta a linha. */
-    .dt-agarrada{ transform: scale(1.02) translateY(-2px);
-      box-shadow: 0 16px 34px rgba(0,0,0,.5); background-color: ${COR.hover}; }
 
     /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
-      .dt-pagina, .dt-fila, .dt-dialogo, .dt-veu, .dt-aviso, .dt-coracao,
-      .dt-fila .dt-barras .dt-barra{ animation: none !important; }
-      .dt-premir, .dt-desliza, .dt-campo, .dt-fila .dt-toca,
-      .dt-fila .dt-mais, .dt-fila .dt-numero{ transition: none !important; }
-      .dt-premir:active{ transform: none !important; }
+      [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"], [data-dt~="coracao"],
+      [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: none !important; }
+      [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
+      [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"]{ transition: none !important; }
+      [data-dt~="premir"]:active{ transform: none !important; }
     }
   `;
   document.head.appendChild(style);
@@ -333,7 +301,7 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
 
   return <View style={styles.sidebar}>
     <ScrollView contentContainerStyle={styles.sidebarContent}>
-      {realce?<View pointerEvents="none" {...{className:'dt-desliza'}}
+      {realce?<View pointerEvents="none" {...marcar('desliza')}
         style={[styles.navRealce,{height:realce.altura,transform:[{translateY:realce.y}],backgroundColor:tema.soft}]}/>:null}
       <Text style={styles.navLabel}>DISCOVER</Text>
       {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
@@ -352,7 +320,7 @@ export function NavItem({ label, icon, active, badge, onPress, aoMedir, semFundo
   semFundo?: boolean }) {
   const theme = useTheme((s) => s.theme);
   const P = Pressable as any;
-  return <P className="nav-item-animate" onPress={onPress}
+  return <P {...marcar('premir')} onPress={onPress}
     onLayout={(e: any) => aoMedir?.(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
     style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && !semFundo && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : desktop.muted} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <BolinhaDeAviso />}</P>;
 }
@@ -463,7 +431,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       {/* A classe só existe quando está guardada: é a entrada dela que faz o
           coração bater uma vez. Sai quando se desguarda, e volta a entrar na
           próxima -- sem estado nenhum a mais. */}
-      <View style={styles.playerSave} {...(currentIsSaved ? { className: 'dt-coracao' } : {})}>
+      <View style={styles.playerSave} {...(currentIsSaved ? marcar('coracao') : {})}>
         <IconButton
           name={currentIsSaved ? 'heart' : 'heart-outline'}
           label={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'}
@@ -492,7 +460,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       </View>
       <View style={styles.progressRow}>
         <Text style={styles.timeText}>{formatTime(p.positionMs / 1000)}</Text>
-        <P onMouseDown={startDragProgress} onTouchStart={startDragProgress} style={styles.progressHit} className="slider-container"><V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${ratio * 100}%` }} /></P>
+        <P onMouseDown={startDragProgress} onTouchStart={startDragProgress} style={styles.progressHit} {...marcar('calha')}><V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} /></P>
         <Text style={styles.timeText}>{formatTime(p.durationMs / 1000)}</Text>
       </View>
     </View>
@@ -501,7 +469,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       {/* Quem vê o que está a tocar, ao lado do botão que abre o Jam. */}
       <IndicadorDeVisibilidade discordLigado={discordLigado} onJam={onJam} onAviso={onAviso} />
       <IconButton name={jam ? 'people' : 'people-outline'} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam} />
-      <V style={styles.volumeRow} className="slider-container"><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={alternarSilencio} accessibilityRole="button" accessibilityLabel={p.volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} className="slider-fill" /></V><V className="slider-thumb" style={{ left: `${p.volume}%` }} /></P></V>
+      <V style={styles.volumeRow} {...marcar('calha')}><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={alternarSilencio} accessibilityRole="button" accessibilityLabel={p.volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${p.volume}%` }} /></P></V>
       <IconButton name="close" label="Close player" onPress={()=>void closePlayerSmoothly()} />
     </View>
   </V>;

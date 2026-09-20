@@ -40,6 +40,21 @@ const EMPTY_KEYS: ReadonlySet<string> = new Set();
  *
  * Ecras novos devem importar de `tokens.web.ts` diretamente; isto e a ponte.
  */
+/**
+ * Marca um elemento para o CSS global do PC (ver `casca.web.tsx`).
+ *
+ * **NUNCA `className`.** O react-native-web desta versão deita fora o
+ * `className` de qualquer componente RN -- medido a 20/9 num ecrã de ensaio:
+ * o atributo não chega ao DOM, e com ele morreram em silêncio o vidro da
+ * janela, o ponto da barra de progresso e as animações todas que eu tinha
+ * acabado de escrever. O `dataSet` passa (`data-dt="..."`), e é por isso que
+ * os seletores do CSS são `[data-dt~="..."]`.
+ *
+ * Há um teste que falha se voltar a aparecer um `className` num componente RN,
+ * e se uma marca existir só de um dos lados (`scripts/test-animacoes-do-pc.ts`).
+ */
+export const marcar = (...nomes: string[]) => ({ dataSet: { dt: nomes.join(' ') } } as any);
+
 export const desktop = {
   bg: COR.fundo, panel: COR.painel, raised: COR.elevado, hover: COR.hover,
   border: COR.linha, text: COR.texto, muted: COR.textoMedio, dim: COR.textoFraco,
@@ -61,7 +76,7 @@ export function IconButton({ name, label, onPress, active = false, danger = fals
    */
   marca?: string;
 }) {
-  return <P className="control-btn-animate dt-premir" accessibilityLabel={label} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
+  return <P {...marcar('premir')} accessibilityLabel={label} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
   ]}>
     <StateIcon name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} />
@@ -85,7 +100,7 @@ export function Button({ children, onPress, icon, iconNode, secondary = false, d
    * de se pintar de primário e passava a competir com o `Play`. */
   marcado?: boolean;
 }) {
-  return <P className="btn-animate dt-premir" disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
+  return <P {...marcar('premir')} disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.button, secondary && ui.buttonSecondary, marcado && ui.buttonMarcado, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
     pressed && ui.pressed, disabled && ui.disabled,
     brilho && { overflow: 'hidden' as const },
@@ -107,7 +122,7 @@ export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput
   // So nas lupas: um X num campo de mensagem nao quer dizer nada, e este
   // componente serve os dois. Aparece so quando ha o que limpar.
   const limpavel = icon === 'search' && !!rest.value && !!(rest as any).onChangeText;
-  return <View style={ui.fieldWrap} {...{ className: 'dt-campo' }}>{icon && <Ionicons name={icon} size={18} color={desktop.dim} />}<TextInput
+  return <View style={ui.fieldWrap} {...marcar('campo')}>{icon && <Ionicons name={icon} size={18} color={desktop.dim} />}<TextInput
     ref={ref} placeholderTextColor={desktop.dim} selectionColor={desktop.accent} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyDown={handleKeyDown} style={[ui.field, style]} />
     {limpavel && <P accessibilityRole="button" accessibilityLabel="Clear search"
       onPress={() => { (rest as any).onChangeText?.(''); (ref as any)?.current?.focus?.(); }}
@@ -337,7 +352,7 @@ export function Separadores<T extends string>({ opcoes, valor, aoMudar }: {
   const [medidas, setMedidas] = useState<Record<string, { x: number; largura: number }>>({});
   const aqui = medidas[valor];
   return <View accessibilityRole={'tablist' as any} style={ui.separadores}>
-    {aqui ? <View pointerEvents="none" {...{ className: 'dt-desliza' }}
+    {aqui ? <View pointerEvents="none" {...marcar('desliza')}
       style={[ui.separadorPilula, { width: aqui.largura, transform: [{ translateX: aqui.x }] }]} /> : null}
     {opcoes.map(([v, rotulo]) => {
       const activo = v === valor;
@@ -549,26 +564,26 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
     if (listKey) linhasVisiveisPorLista.set(listKey, seguinte);
     return seguinte;
   });
-  return <View style={[ui.table, plain && ui.tablePlain]} {...{ className: 'dt-lista' }}><View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}><Text numberOfLines={1} style={[ui.colHead, { width: 40 }]}>#</Text><Text numberOfLines={1} style={[ui.colHead, { flex: 1 }]}>Track</Text>{showTime && <Text numberOfLines={1} style={[ui.colHead, { width: LARGURA_DURACAO, textAlign: 'right' }]}>Duration</Text>}<View style={{ width: 42 }} /></View>
+  return <View style={[ui.table, plain && ui.tablePlain]} {...marcar('lista')}><View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}><Text numberOfLines={1} style={[ui.colHead, { width: 40 }]}>#</Text><Text numberOfLines={1} style={[ui.colHead, { flex: 1 }]}>Track</Text>{showTime && <Text numberOfLines={1} style={[ui.colHead, { width: LARGURA_DURACAO, textAlign: 'right' }]}>Duration</Text>}<View style={{ width: 42 }} /></View>
     {visiveis.map((track, index) => {
       const aTocar = !!atual && atual.source === track.source && atual.sourceId === track.sourceId;
       return <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track,contexto?.(track))}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track,contexto?.(track)); }) as any}
-      {...{ className: 'dt-fila' }}
+      {...marcar('fila')}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
       {/* O número, o ▶ e as barrinhas ocupam o MESMO lugar: quem troca entre
           eles é o CSS (`dt-fila`), porque uma troca feita em JS obrigava a um
           estado de hover por linha -- duzentas linhas, duzentos estados. */}
       <View style={ui.celaDoNumero}>
         {aTocar ? (
-          <View style={ui.barrasATocar} {...{ className: 'dt-barras' }}>
-            <View style={ui.barraATocar} {...{ className: 'dt-barra' }} />
-            <View style={ui.barraATocar} {...{ className: 'dt-barra' }} />
-            <View style={ui.barraATocar} {...{ className: 'dt-barra' }} />
+          <View style={ui.barrasATocar} {...marcar('barras')}>
+            <View style={ui.barraATocar} {...marcar('barra')} />
+            <View style={ui.barraATocar} {...marcar('barra')} />
+            <View style={ui.barraATocar} {...marcar('barra')} />
           </View>
         ) : <>
-          <Text style={ui.trackIndex} {...{ className: 'dt-numero' }}>{index + 1}</Text>
-          <View style={ui.setaDeTocar} pointerEvents="none" {...{ className: 'dt-toca' }}>
+          <Text style={ui.trackIndex} {...marcar('numero')}>{index + 1}</Text>
+          <View style={ui.setaDeTocar} pointerEvents="none" {...marcar('toca')}>
             <Ionicons name="play" size={13} color={COR.texto} />
           </View>
         </>}
@@ -585,7 +600,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
         </View>
       </View>
       {showTime && <Text numberOfLines={1} style={[ui.trackMeta, { width: LARGURA_DURACAO, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
-      <View {...{ className: 'dt-mais' }}>
+      <View {...marcar('mais')}>
         <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track,contexto?.(track))} />
       </View></P>;
     })}
@@ -599,7 +614,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
 export function Dialog({ open, title, children, onClose, width = 460 }: { open: boolean; title: string; children: ReactNode; onClose: () => void; width?: number }) {
   useEffect(() => { if (!open) return; const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, [open, onClose]);
   if (!open) return null;
-  return <View style={ui.dialogLayer} {...{ className: 'dt-veu' }}><P style={StyleSheet.absoluteFill} onPress={onClose} /><View style={[ui.dialog, { width, maxWidth: 'calc(100vw - 48px)' as any }]} {...{ className: 'dt-dialogo' }}><View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><IconButton name="close" label="Close dialog" onPress={onClose} /></View>{children}</View></View>;
+  return <View style={ui.dialogLayer} {...marcar('veu')}><P style={StyleSheet.absoluteFill} onPress={onClose} /><View style={[ui.dialog, { width, maxWidth: 'calc(100vw - 48px)' as any }]} {...marcar('dialogo')}><View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><IconButton name="close" label="Close dialog" onPress={onClose} /></View>{children}</View></View>;
 }
 
 export function Toast({ message, onDone }: { message: string; onDone: () => void }) {
@@ -614,7 +629,7 @@ export function Toast({ message, onDone }: { message: string; onDone: () => void
   const information = /looking|checking|available/.test(lower);
   const icon = warning ? 'alert-circle' : information ? 'information-circle' : 'checkmark-circle';
   const colour = warning ? COR.aviso : information ? COR.metalClaro : COR.ok;
-  return <View style={ui.toast} {...{ className: 'dt-aviso' }}><Ionicons name={icon} size={18} color={colour} /><Text style={ui.toastText}>{message}</Text></View>;
+  return <View style={ui.toast} {...marcar('aviso')}><Ionicons name={icon} size={18} color={colour} /><Text style={ui.toastText}>{message}</Text></View>;
 }
 
 /**
