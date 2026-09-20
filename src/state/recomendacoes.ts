@@ -2,7 +2,7 @@ import { artistPreferenceKey,feedbackReady,filterSuggestions,useRecommendationFe
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import { getLibrary } from '../api/library';
-import { descobertasDaSemana, descobertasPorAncora, flowDoDia, taparBuracosComOYouTube } from '../api/descoberta';
+import { descobertasDoDia, descobertasPorAncora, flowDoDia, taparBuracosComOYouTube } from '../api/descoberta';
 import { nuncaLancadas } from '../api/naoLancado';
 import { favoritasDeAmigos } from '../api/social';
 import {
@@ -92,6 +92,16 @@ type Recomendacoes = {
  * devolver menos do que isto -- e nesse caso subir o número não muda nada.
  */
 const POR_PRATELEIRA = 30;
+
+/**
+ * A prateleira da descoberta pede MAIS do que as outras.
+ *
+ * As outras leem da base de dados e devolvem o que se lhes pedir; esta procura
+ * cada faixa no YouTube e só aceita as que casam com confiança, por isso o que
+ * chega ao ecrã é sempre menos do que o pedido -- o João viu dezasseis (20/9).
+ * Pedir quarenta é a folga para a prateleira chegar às trinta.
+ */
+const DESCOBERTAS_POR_DIA = 40;
 
 /**
  * A ordem em que as prateleiras se veem -- e, por consequencia, quem fica com
@@ -359,12 +369,12 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
         })
         .catch(() => { if (atual === geracao) set({ misturasProntas: true }); }),
       getLibrary().then((lib) => Promise.all([
-        // A MESMA lista durante sete dias -- ver `descobertasDaSemana`. Era
+        // Uma lista NOVA todos os dias -- ver `descobertasDoDia`. Era
         // refeita a cada arranque, e uma lista que muda todos os dias nunca
         // chega a ser ouvida até ao fim. O `forcar` vem do botão de
         // refrescar: sem ele, refrescar não mexia justamente na prateleira
         // mais visível da página.
-        publicar(descobertasDaSemana(POR_PRATELEIRA, lib, forcar, jaVistas), (descobrir) => ({ descobrir })),
+        publicar(descobertasDoDia(DESCOBERTAS_POR_DIA, lib, forcar, jaVistas), (descobrir) => ({ descobrir })),
         // O "Daily flow" só se vê na biblioteca do Windows. No telemóvel saiu
         // da pesquisa, e ir buscá-lo na mesma era pagar uma ida à rede -- que
         // fala com o catálogo, não é barata -- por uma prateleira que ninguém

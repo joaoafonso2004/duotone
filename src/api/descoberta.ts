@@ -27,7 +27,7 @@ import { fetchYouTubePlaylistById, searchYouTubePlaylists } from './youtube';
 import { pickBest } from '../lib/trackMatch';
 import { trackKey } from '../lib/shuffle';
 import {
-  aEvitar, chegam, lerHistorico, registarSemana, TENTATIVAS_SEM_REPETIR,
+  aEvitar, chegam, lerHistorico, registarDia, TENTATIVAS_SEM_REPETIR,
 } from '../lib/descobertasMostradas';
 import { diaDe, misturaGuardada } from '../lib/misturaDoDia';
 import type { Track } from '../types';
@@ -457,21 +457,15 @@ export async function procurarNoYouTube(
  * Parte de mais artistas do que o shuffle (que só precisa de uma sugestão de
  * cada vez) porque uma prateleira com duas coisas não é uma prateleira.
  */
-/** O número da semana desde a época, em UTC. Muda à meia-noite de quinta para
- *  sexta em UTC -- a época caiu numa quinta-feira -- e isso não tem
- *  importância nenhuma: o que conta é mudar UMA vez por semana. */
-export function semanaDe(agora: number = Date.now()): number {
-  return Math.floor(agora / (7 * 86_400_000));
-}
-
-/** Uma chave só, reescrita todas as semanas, em vez de uma por semana: a
- *  cache é por utilizador e não vale a pena deixar lá o histórico todo. */
-const CHAVE_DA_SEMANA = 'descobertas:semana:v1';
-/** O que se mostrou nas semanas anteriores. Ver `lib/descobertasMostradas.ts`. */
-const CHAVE_DAS_MOSTRADAS = 'descobertas:mostradas:v1';
+/** Uma chave só, reescrita todos os dias, em vez de uma por dia: a cache é por
+ *  utilizador e não vale a pena deixar lá o histórico todo. A `v2` no nome
+ *  deixa para trás a lista semanal da versão anterior. */
+const CHAVE_DO_DIA = 'descobertas:dia:v2';
+/** O que se mostrou nos dias anteriores. Ver `lib/descobertasMostradas.ts`. */
+const CHAVE_DAS_MOSTRADAS = 'descobertas:mostradas:v2';
 
 /**
- * A descoberta, mas a MESMA durante sete dias.
+ * A descoberta do DIA: uma lista nova todos os dias, sem carregar em nada.
  *
  * **Porque é que isto muda alguma coisa.** A lista era refeita a cada arranque
  * da app: abrias, via-se meia dúzia, fechava-se, e no dia seguinte era outra
@@ -492,40 +486,50 @@ const CHAVE_DAS_MOSTRADAS = 'descobertas:mostradas:v1';
  * que se mostrou nas últimas semanas fica de fora, apertando primeiro e
  * alargando se não chegar -- ver `lib/descobertasMostradas.ts`.
  */
-export async function descobertasDaSemana(
+export async function descobertasDoDia(
   limite: number,
   biblioteca: readonly Track[],
   forcar = false,
   /** Só serve a refrescar: ver o `descobrirNovas`. */
   jaSugeridas: ReadonlySet<string> = new Set(),
 ): Promise<Track[]> {
-  const semana = semanaDe();
+  const dia = diaDe();
   if (!forcar) {
-    const guardado = await cacheGet<{ semana: number; faixas: Track[] }>(
-      CHAVE_DA_SEMANA, 8 * DIA_MS,
-    );
-    if (guardado?.semana === semana && guardado.faixas?.length) return guardado.faixas;
+    const guardado = await cacheGet<{ dia: number; faixas: Track[] }>(CHAVE_DO_DIA, 2 * DIA_MS);
+    if (guardado?.dia === dia && guardado.faixas?.length) return guardado.faixas;
   }
   const historico = lerHistorico(await cacheGet<unknown>(CHAVE_DAS_MOSTRADAS, 60 * DIA_MS));
   let faixas: Track[] = [];
-  for (const semanas of TENTATIVAS_SEM_REPETIR) {
-    const evitar = new Set([...jaSugeridas, ...aEvitar(historico, semana, semanas)]);
-    faixas = await descobrirNovas(limite, biblioteca, evitar);
+  for (const dias of TENTATIVAS_SEM_REPETIR) {
+    const evitar = new Set([...jaSugeridas, ...aEvitar(historico, dia, dias)]);
+    faixas = await descobrirNovas(limite, biblioteca, evitar, ALVOS_DA_PRATELEIRA);
     // Quem ouve poucos artistas tem poucos vizinhos: excluir um mês inteiro
     // deixava-o sem prateleira. Se não chega, alarga-se a janela.
     if (chegam(faixas.length, limite)) break;
   }
-  // Uma lista vazia não se guarda: seria fixar o silêncio durante uma semana.
+  // Uma lista vazia não se guarda: seria fixar o silêncio durante um dia.
   if (faixas.length > 0) {
-    await cacheSet(CHAVE_DA_SEMANA, { semana, faixas });
-    // Com as chaves da MÚSICA, e não só do upload: é por elas que a semana
+    await cacheSet(CHAVE_DO_DIA, { dia, faixas });
+    // Com as chaves da MÚSICA, e não só do upload: é por elas que o dia
     // seguinte salta estas antes de pesquisar e desce no top do artista.
-    await cacheSet(CHAVE_DAS_MOSTRADAS, registarSemana(
-      historico, semana, faixas.flatMap((t) => [trackKey(t), ...chavesDoCatalogo({ titulo: t.title, artista: t.artist ?? '' })]),
+    await cacheSet(CHAVE_DAS_MOSTRADAS, registarDia(
+      historico, dia, faixas.flatMap((t) => [trackKey(t), ...chavesDoCatalogo({ titulo: t.title, artista: t.artist ?? '' })]),
     ));
   }
   return faixas;
 }
+
+/**
+ * Quantos artistas da pessoa servem de ponto de partida à PRATELEIRA.
+ *
+ * Eram os mesmos quatro do Smart Shuffle, que só precisa de uma sugestão de
+ * cada vez. Numa prateleira isso dava poucas faixas -- cada alvo traz um
+ * punhado de vizinhos e nem toda a pesquisa devolve um vídeo em que se
+ * confie, por isso o que chega ao ecrã é sempre menos do que o pedido. Seis
+ * alargam o leque sem multiplicar as pesquisas: quem reparte o `limite` pelos
+ * alvos é o `repartir`.
+ */
+const ALVOS_DA_PRATELEIRA = 6;
 
 export async function descobrirNovas(
   limite: number,
@@ -540,6 +544,7 @@ export async function descobrirNovas(
    * ecrã, o refrescar devolve outras.
    */
   jaSugeridas: ReadonlySet<string> = new Set(),
+  alvos = 4,
 ): Promise<Track[]> {
   // A biblioteca TODA: as 60 mais recentes valem inteiras e as outras a um
   // quarto (`retratoDoContexto`). O corte seco deixava de fora os favoritos
@@ -550,7 +555,7 @@ export async function descobrirNovas(
   // Sem isto, sessenta faixas guardadas há um ano pesavam o mesmo que o
   // artista que ele anda a ouvir todos os dias.
   const { escutas, externos } = await lerPerfilDeRecomendacoes();
-  return candidatasParaDescoberta(contexto, new Set(), jaSugeridas, limite, 4, escutas, undefined, externos)
+  return candidatasParaDescoberta(contexto, new Set(), jaSugeridas, limite, alvos, escutas, undefined, externos)
     .catch(() => [] as Track[]);
 }
 

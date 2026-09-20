@@ -7,6 +7,7 @@ import type { Track } from '../types';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { LIMIAR_ARRASTO_PX } from '../lib/reorder';
 import { BrilhoInteligente, EstrelaInteligente } from '../components/BrilhoInteligente';
+import { usePlayer } from '../state/player';
 import { useSaved } from '../state/saved';
 import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 import type { OrigemDaFila } from '../lib/origemDaFila';
@@ -60,7 +61,7 @@ export function IconButton({ name, label, onPress, active = false, danger = fals
    */
   marca?: string;
 }) {
-  return <P className="control-btn-animate" accessibilityLabel={label} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
+  return <P className="control-btn-animate dt-premir" accessibilityLabel={label} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.iconButton, (hovered || focused) && ui.iconButtonHover, pressed && ui.pressed, active && ui.active,
   ]}>
     <StateIcon name={name} size={19} color={danger ? desktop.danger : active ? desktop.accent : desktop.muted} />
@@ -84,7 +85,7 @@ export function Button({ children, onPress, icon, iconNode, secondary = false, d
    * de se pintar de primário e passava a competir com o `Play`. */
   marcado?: boolean;
 }) {
-  return <P className="btn-animate" disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
+  return <P className="btn-animate dt-premir" disabled={disabled} onPress={onPress} style={({ hovered, pressed, focused }: any) => [
     ui.button, secondary && ui.buttonSecondary, marcado && ui.buttonMarcado, danger && ui.buttonDanger, (hovered || focused) && ui.buttonHover,
     pressed && ui.pressed, disabled && ui.disabled,
     brilho && { overflow: 'hidden' as const },
@@ -106,7 +107,7 @@ export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput
   // So nas lupas: um X num campo de mensagem nao quer dizer nada, e este
   // componente serve os dois. Aparece so quando ha o que limpar.
   const limpavel = icon === 'search' && !!rest.value && !!(rest as any).onChangeText;
-  return <View style={ui.fieldWrap}>{icon && <Ionicons name={icon} size={18} color={desktop.dim} />}<TextInput
+  return <View style={ui.fieldWrap} {...{ className: 'dt-campo' }}>{icon && <Ionicons name={icon} size={18} color={desktop.dim} />}<TextInput
     ref={ref} placeholderTextColor={desktop.dim} selectionColor={desktop.accent} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyDown={handleKeyDown} style={[ui.field, style]} />
     {limpavel && <P accessibilityRole="button" accessibilityLabel="Clear search"
       onPress={() => { (rest as any).onChangeText?.(''); (ref as any)?.current?.focus?.(); }}
@@ -115,8 +116,30 @@ export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput
     </P>}</View>;
 });
 
+/**
+ * Quem rolou a página, dito pelo `ContentScroll` ao `Page` que o contém.
+ *
+ * Por contexto e não por prop: os dois são irmãos na árvore (o `Page` desenha
+ * o cabeçalho e recebe o scroll como filho), e passar isto à mão obrigava as
+ * doze páginas a reencaminhar um estado que não é delas.
+ */
+const ContextoDoRolo = React.createContext<((rolado: boolean) => void) | null>(null);
+
 export function Page({ title, subtitle, action, children }: { title: string; subtitle?: ReactNode; action?: ReactNode; children: ReactNode }) {
-  return <View style={ui.page}><View style={ui.pageHeader}><View style={{ flex: 1 }}><Text style={ui.eyebrow}>DUOTONE</Text><Text style={ui.title}>{title}</Text>{subtitle && <Text style={ui.subtitle}>{subtitle}</Text>}</View>{action}</View>{children}</View>;
+  // Ao rolar, o cabeçalho encolhe e o subtítulo sai, em vez de o título
+  // desaparecer pelo topo (preview de 20/9). O conteúdo ganha o espaço.
+  const [rolado, setRolado] = useState(false);
+  return <View style={ui.page}>
+    <View style={[ui.pageHeader, rolado && ui.pageHeaderCurto]}>
+      <View style={{ flex: 1 }}>
+        <Text style={ui.eyebrow}>DUOTONE</Text>
+        <Text style={[ui.title, rolado && ui.tituloCurto]}>{title}</Text>
+        {subtitle && <Text style={[ui.subtitle, rolado && ui.subtituloEscondido]}>{subtitle}</Text>}
+      </View>
+      {action}
+    </View>
+    <ContextoDoRolo.Provider value={setRolado}>{children}</ContextoDoRolo.Provider>
+  </View>;
 }
 
 const posicoesDeScroll = new Map<string, number>();
@@ -124,6 +147,8 @@ const posicoesDeScroll = new Map<string, number>();
 /** Mantém a posição quando uma rota desktop desmonta para abrir o leitor. */
 export function ContentScroll({ children, scrollKey }: { children: ReactNode; scrollKey?: string }) {
   const ref = useRef<any>(null);
+  const dizerQueRolou = React.useContext(ContextoDoRolo);
+  const rolado = useRef(false);
   const alturaVisivel = useRef(0);
   const restaurado = useRef(!scrollKey);
   useEffect(() => { restaurado.current = !scrollKey; }, [scrollKey]);
@@ -143,7 +168,14 @@ export function ContentScroll({ children, scrollKey }: { children: ReactNode; sc
     scrollEventThrottle={100}
     onLayout={(e) => { alturaVisivel.current = e.nativeEvent.layout.height; }}
     onContentSizeChange={(_w, h) => tentarRestaurar(h)}
-    onScroll={(e) => { if (scrollKey) posicoesDeScroll.set(scrollKey, e.nativeEvent.contentOffset.y); }}>
+    onScroll={(e) => {
+      const y = e.nativeEvent.contentOffset.y;
+      if (scrollKey) posicoesDeScroll.set(scrollKey, y);
+      // Só quando MUDA: um `setState` por evento de scroll redesenhava a
+      // página inteira a cada pixel.
+      const agora = y > 8;
+      if (agora !== rolado.current) { rolado.current = agora; dizerQueRolou?.(agora); }
+    }}>
     {children}
   </ScrollView>;
 }
@@ -297,11 +329,24 @@ function SetaDaPrateleira({ sentido, activa, aoCarregar }: {
 export function Separadores<T extends string>({ opcoes, valor, aoMudar }: {
   opcoes: readonly (readonly [T, string])[]; valor: T; aoMudar: (v: T) => void;
 }) {
+  // A pílula DESLIZA de um separador para o outro em vez de acender no novo e
+  // apagar no velho. Para isso é preciso saber onde eles estão: cada um diz a
+  // sua posição no `onLayout`, e a pílula é uma vista à parte por baixo deles.
+  // Sem medidas ainda (primeira renderização), não se desenha nada -- uma
+  // pílula em 0,0 a saltar para o sítio certo era pior do que não a ter.
+  const [medidas, setMedidas] = useState<Record<string, { x: number; largura: number }>>({});
+  const aqui = medidas[valor];
   return <View accessibilityRole={'tablist' as any} style={ui.separadores}>
+    {aqui ? <View pointerEvents="none" {...{ className: 'dt-desliza' }}
+      style={[ui.separadorPilula, { width: aqui.largura, transform: [{ translateX: aqui.x }] }]} /> : null}
     {opcoes.map(([v, rotulo]) => {
       const activo = v === valor;
       return <P key={v} accessibilityRole="tab" accessibilityState={{ selected: activo }} onPress={() => aoMudar(v)}
-        style={({ hovered }: any) => [ui.separador, activo ? ui.separadorActivo : hovered && ui.separadorHover]}>
+        onLayout={(e: any) => {
+          const { x, width } = e.nativeEvent.layout;
+          setMedidas((m) => (m[v]?.x === x && m[v]?.largura === width ? m : { ...m, [v]: { x, largura: width } }));
+        }}
+        style={({ hovered }: any) => [ui.separador, !activo && hovered && ui.separadorHover]}>
         <Text style={[ui.separadorTexto, activo && ui.separadorTextoActivo]}>{rotulo}</Text>
       </P>;
     })}
@@ -492,6 +537,10 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   // telemovel (TrackRow); aqui a coluna aparecia sempre. Cache sincrono, como
   // no mobile: aplica-se na proxima renderizacao da tabela.
   const showTime = isShowTrackDurationSync();
+  // A faixa que toca ganha a cor de destaque e as barrinhas no lugar do
+  // número. Só o `current` interessa: ler a posição aqui redesenhava a lista
+  // inteira a cada segundo.
+  const atual = usePlayer((st) => st.current);
   if (!tracks.length) return <>{empty}</>;
   const artworkSize = plain ? 48 : 40;
   const visiveis = tracks.slice(0, limite);
@@ -500,15 +549,34 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
     if (listKey) linhasVisiveisPorLista.set(listKey, seguinte);
     return seguinte;
   });
-  return <View style={[ui.table, plain && ui.tablePlain]}><View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}><Text numberOfLines={1} style={[ui.colHead, { width: 40 }]}>#</Text><Text numberOfLines={1} style={[ui.colHead, { flex: 1 }]}>Track</Text>{showTime && <Text numberOfLines={1} style={[ui.colHead, { width: LARGURA_DURACAO, textAlign: 'right' }]}>Duration</Text>}<View style={{ width: 42 }} /></View>
-    {visiveis.map((track, index) => <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track,contexto?.(track))}
+  return <View style={[ui.table, plain && ui.tablePlain]} {...{ className: 'dt-lista' }}><View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}><Text numberOfLines={1} style={[ui.colHead, { width: 40 }]}>#</Text><Text numberOfLines={1} style={[ui.colHead, { flex: 1 }]}>Track</Text>{showTime && <Text numberOfLines={1} style={[ui.colHead, { width: LARGURA_DURACAO, textAlign: 'right' }]}>Duration</Text>}<View style={{ width: 42 }} /></View>
+    {visiveis.map((track, index) => {
+      const aTocar = !!atual && atual.source === track.source && atual.sourceId === track.sourceId;
+      return <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track,contexto?.(track))}
       onContextMenu={((event: any) => { event.preventDefault(); onMore?.(track,contexto?.(track)); }) as any}
+      {...{ className: 'dt-fila' }}
       style={({ hovered, pressed, focused }: any) => [ui.trackRow, plain && ui.trackRowPlain, (hovered || focused) && ui.trackHover, pressed && ui.pressed]}>
-      <Text style={[ui.trackIndex, { width: 40 }]}>{index + 1}</Text>
+      {/* O número, o ▶ e as barrinhas ocupam o MESMO lugar: quem troca entre
+          eles é o CSS (`dt-fila`), porque uma troca feita em JS obrigava a um
+          estado de hover por linha -- duzentas linhas, duzentos estados. */}
+      <View style={ui.celaDoNumero}>
+        {aTocar ? (
+          <View style={ui.barrasATocar} {...{ className: 'dt-barras' }}>
+            <View style={ui.barraATocar} {...{ className: 'dt-barra' }} />
+            <View style={ui.barraATocar} {...{ className: 'dt-barra' }} />
+            <View style={ui.barraATocar} {...{ className: 'dt-barra' }} />
+          </View>
+        ) : <>
+          <Text style={ui.trackIndex} {...{ className: 'dt-numero' }}>{index + 1}</Text>
+          <View style={ui.setaDeTocar} pointerEvents="none" {...{ className: 'dt-toca' }}>
+            <Ionicons name="play" size={13} color={COR.texto} />
+          </View>
+        </>}
+      </View>
       <View style={[ui.trackTitleCell, { flex: 1 }]}>
         <Artwork track={track} size={artworkSize} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={ui.trackTitle}>{tituloDaFaixa(track)}</Text>
+          <Text numberOfLines={1} style={[ui.trackTitle, aTocar && ui.trackTitleATocar]}>{tituloDaFaixa(track)}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
             <Text numberOfLines={1} style={ui.trackSource}>{displayArtist(track)}</Text>
             {savedKeys.has(`${track.source}:${track.sourceId}`) && <Ionicons name="heart" size={10} color={COR.texto} />}
@@ -517,7 +585,10 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
         </View>
       </View>
       {showTime && <Text numberOfLines={1} style={[ui.trackMeta, { width: LARGURA_DURACAO, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
-      <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track,contexto?.(track))} /></P>)}
+      <View {...{ className: 'dt-mais' }}>
+        <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track,contexto?.(track))} />
+      </View></P>;
+    })}
     {visiveis.length < tracks.length && <View style={{ alignItems: 'center', paddingVertical: ESP.xl, gap: ESP.sm }}>
       <Text style={{ color: desktop.dim }}>{visiveis.length} of {tracks.length} tracks shown</Text>
       <Button secondary onPress={mostrarMais}>Show next {Math.min(PASSO_DE_LINHAS, tracks.length - visiveis.length)}</Button>
@@ -528,7 +599,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
 export function Dialog({ open, title, children, onClose, width = 460 }: { open: boolean; title: string; children: ReactNode; onClose: () => void; width?: number }) {
   useEffect(() => { if (!open) return; const fn = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', fn); return () => window.removeEventListener('keydown', fn); }, [open, onClose]);
   if (!open) return null;
-  return <View style={ui.dialogLayer}><P style={StyleSheet.absoluteFill} onPress={onClose} /><View style={[ui.dialog, { width, maxWidth: 'calc(100vw - 48px)' as any }]}><View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><IconButton name="close" label="Close dialog" onPress={onClose} /></View>{children}</View></View>;
+  return <View style={ui.dialogLayer} {...{ className: 'dt-veu' }}><P style={StyleSheet.absoluteFill} onPress={onClose} /><View style={[ui.dialog, { width, maxWidth: 'calc(100vw - 48px)' as any }]} {...{ className: 'dt-dialogo' }}><View style={ui.dialogHeader}><Text style={ui.dialogTitle}>{title}</Text><IconButton name="close" label="Close dialog" onPress={onClose} /></View>{children}</View></View>;
 }
 
 export function Toast({ message, onDone }: { message: string; onDone: () => void }) {
@@ -543,7 +614,7 @@ export function Toast({ message, onDone }: { message: string; onDone: () => void
   const information = /looking|checking|available/.test(lower);
   const icon = warning ? 'alert-circle' : information ? 'information-circle' : 'checkmark-circle';
   const colour = warning ? COR.aviso : information ? COR.metalClaro : COR.ok;
-  return <View style={ui.toast}><Ionicons name={icon} size={18} color={colour} /><Text style={ui.toastText}>{message}</Text></View>;
+  return <View style={ui.toast} {...{ className: 'dt-aviso' }}><Ionicons name={icon} size={18} color={colour} /><Text style={ui.toastText}>{message}</Text></View>;
 }
 
 /**
@@ -561,7 +632,17 @@ export function Toast({ message, onDone }: { message: string; onDone: () => void
  */
 export const ui = StyleSheet.create({
   page: { flex: 1, minWidth: 0 },
-  pageHeader: { minHeight: 128, paddingHorizontal: ESP.xxxl, paddingTop: ESP.xxl, paddingBottom: ESP.xl, flexDirection: 'row', alignItems: 'flex-end', gap: ESP.xl },
+  pageHeader: {
+    minHeight: 128, paddingHorizontal: ESP.xxxl, paddingTop: ESP.xxl, paddingBottom: ESP.xl,
+    flexDirection: 'row', alignItems: 'flex-end', gap: ESP.xl,
+    // O react-native-web deixa passar as propriedades de transição do CSS; a
+    // curva é a mesma do resto do PC (ver a `casca.web.tsx`).
+    transitionProperty: 'min-height, padding-top, padding-bottom',
+    transitionDuration: '180ms', transitionTimingFunction: 'cubic-bezier(.22,1,.36,1)',
+  } as any,
+  pageHeaderCurto: { minHeight: 74, paddingTop: ESP.lg, paddingBottom: ESP.md },
+  tituloCurto: { fontSize: 20 },
+  subtituloEscondido: { opacity: 0, maxHeight: 0, marginTop: 0, overflow: 'hidden' } as any,
   // A sobrancelha usa a mono: e uma etiqueta, nao prosa.
   eyebrow: { ...TIPO.micro, color: COR.textoFraco, marginBottom: ESP.sm },
   title: { ...TIPO.display, color: COR.texto, lineHeight: 40 },
@@ -611,9 +692,17 @@ export const ui = StyleSheet.create({
   // Altura unica em toda a app. Havia 62, 52 e 38 conforme o ecra, o que se
   // lia como tres aplicacoes diferentes.
   trackRow: { minHeight: LINHA_LISTA, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COR.linhaSuave },
-  trackRowPlain: { minHeight: 68, paddingHorizontal: ESP.sm },
+  // Era 68: uma lista de músicas com linhas de altura de cartão. Com 56 cabem
+  // mais três no ecrã e a coluna continua a respirar.
+  trackRowPlain: { minHeight: 56, paddingHorizontal: ESP.sm, borderRadius: RAIO.cartao, borderBottomWidth: 0 },
   trackHover: { backgroundColor: COR.hover },
   trackIndex: { ...TIPO.numero, color: COR.textoFraco, textAlign: 'center' },
+  /** O lugar onde o número, o ▶ e as barrinhas se sobrepõem. */
+  celaDoNumero: { width: 40, alignItems: 'center', justifyContent: 'center' },
+  setaDeTocar: { position: 'absolute', alignItems: 'center', justifyContent: 'center' } as any,
+  barrasATocar: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 14 },
+  barraATocar: { width: 2, height: 4, borderRadius: 1, backgroundColor: COR.metalClaro },
+  trackTitleATocar: { color: COR.metalClaro },
   trackTitleCell: { flexDirection: 'row', alignItems: 'center', gap: ESP.md, paddingHorizontal: ESP.sm, minWidth: 150 },
   trackTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '500' as any },
   trackSource: { ...TIPO.legenda, color: COR.textoMedio },
@@ -654,6 +743,9 @@ export const ui = StyleSheet.create({
   separador: { minHeight: 30, justifyContent: 'center', paddingHorizontal: ESP.md, borderRadius: RAIO.pilula },
   separadorHover: { backgroundColor: COR.linhaSuave },
   separadorActivo: { backgroundColor: COR.hover },
+  /** A pílula que anda por baixo dos separadores. Absoluta, para o texto não
+   * se mexer enquanto ela atravessa. */
+  separadorPilula: { position: 'absolute', top: 0, bottom: 0, left: 0, borderRadius: RAIO.pilula, backgroundColor: COR.hover } as any,
   separadorTexto: { ...TIPO.legenda, color: COR.textoMedio },
   separadorTextoActivo: { color: COR.texto, fontWeight: '600' as any },
   shelfSeta: {

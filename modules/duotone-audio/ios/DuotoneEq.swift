@@ -54,13 +54,16 @@ enum DuotoneEq {
     .highshelf,
   ]
   static let q: Float = 1
+  /** O mesmo `GANHO_MAXIMO` do `lib/equalizer.ts` -- o teste do EQ nativo le
+   * este ficheiro e falha se os dois numeros divergirem. */
+  static let ganhoMaximo: Float = 24
   static var numeroDeBandas: Int { frequencias.count }
 
   static func normalizar(_ db: [Double]) -> [Float] {
     (0..<numeroDeBandas).map { i in
       let v = i < db.count ? db[i] : 0
       guard v.isFinite else { return 0 }
-      return Float(max(-12, min(12, v)))
+      return max(-ganhoMaximo, min(ganhoMaximo, Float(v)))
     }
   }
 

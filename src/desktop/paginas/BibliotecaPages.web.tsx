@@ -18,6 +18,7 @@ import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist } from '../../lib/artistName';
+import { useArtistasFavoritos } from '../../state/artistasFavoritos';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
 import { ordenarArtistas, ordenarFaixas } from '../../lib/ordenacao';
 import { useAuth } from '../../state/auth';
@@ -127,7 +128,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
       : vista === 'dia' ? <MusicasDoDia play={play} notify={notify} />
       : temRecomendacoes(recs) ? <>
-          <Shelf grelha titulo="Discover weekly" nota="music you don't have yet, based on what you listen to. The same list all week." tracks={descobrir} onPlay={play} onMore={more} contexto={contextoPrateleira('descobrir')} />
+          <Shelf grelha titulo="Discover daily" nota="music you don't have yet, based on what you listen to. A new set every day." tracks={descobrir} onPlay={play} onMore={more} contexto={contextoPrateleira('descobrir')} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
           <Shelf titulo="Rare finds" nota="unreleased songs from your artists that you haven't saved, played or hidden" selo="New to you" tracks={nuncaLancado} onPlay={play} onMore={more} contexto={contextoPrateleira('nuncaLancado')} />
@@ -218,9 +219,12 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
   // Agrupado por CHAVE canonica e nao pelo nome mostrado -- era isso que punha
   // `Juice WRLD`, `juice wrld` e `JUICE WRLD` em tres cartoes diferentes.
   const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
+  const favoritos = useArtistasFavoritos((s) => s.chaves);
+  const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
+  useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
   const artists = useMemo(
-    () => ordenarArtistas(agruparPorArtista(data.tracks.map(comCatalogo)), ranking),
-    [data.tracks, ranking, versaoDoCatalogo],
+    () => ordenarArtistas(agruparPorArtista(data.tracks.map(comCatalogo)), ranking, favoritos),
+    [data.tracks, ranking, versaoDoCatalogo, favoritos],
   );
   const filteredArtists = useMemo(() => {
     // O mesmo comparador do telemóvel: procurar por `juice` dava listas
@@ -235,7 +239,32 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search artists" value={query} onChangeText={setQuery} /></View>
       <Text style={styles.songsResultCount}>{query ? `${filteredArtists.length} of ` : ''}{artists.length} {artists.length === 1 ? 'artist' : 'artists'}</Text>
     </View>
-    <ContentScroll scrollKey="artists">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : filteredArtists.length ? <View style={styles.playlistGrid}>{filteredArtists.map(({ nome, chave, faixas }) => <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })} style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.playlistCardHover]}><View style={styles.playlistArt}><Artwork track={faixas[0]} size={200} /></View><Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text><Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
+    <ContentScroll scrollKey="artists">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : filteredArtists.length ? <View style={styles.playlistGrid}>{filteredArtists.map(({ nome, chave, faixas }) => (
+      <Pressable key={chave} onPress={() => navigate({ name: 'artist', value: nome })}
+        style={({ hovered, focused }) => [styles.playlistCard, (hovered || focused) && styles.playlistCardHover]}>
+        {({ hovered, focused }: any) => <>
+          <View style={styles.playlistArt}>
+            <Artwork track={faixas[0]} size={200} />
+            {/* A estrela fica SEMPRE à vista em quem é favorito, e só com o
+                rato por cima nos outros: uma estrela apagada em cada cartão
+                era ruído numa página de setecentos artistas. */}
+            {favoritos.has(chave) || hovered || focused ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: favoritos.has(chave) }}
+                accessibilityLabel={favoritos.has(chave) ? `Unfavourite ${nome}` : `Favourite ${nome}`}
+                onPress={(e: any) => { e?.stopPropagation?.(); alternarFavorito(chave); }}
+                style={({ hovered: h }: any) => [styles.estrelaDoArtista, h && styles.estrelaDoArtistaHover]}>
+                <Ionicons name={favoritos.has(chave) ? 'star' : 'star-outline'} size={16}
+                  color={favoritos.has(chave) ? desktop.accent : COR.texto} />
+              </Pressable>
+            ) : null}
+          </View>
+          <Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text>
+          <Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text>
+        </>}
+      </Pressable>
+    ))}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
   </Page>;
 }
 

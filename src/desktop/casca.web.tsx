@@ -175,6 +175,104 @@ export function injectDesktopDocumentStyles() {
     .np-fila-linha:last-child { border-bottom: 0; }
     .np-fila-linha:hover { background-color: ${COR.hover}; }
     .np-fila-linha:active { cursor: grabbing; }
+
+    /* =====================================================================
+       O MOVIMENTO DO PC (20/9)
+
+       Em CSS e nao no Animated, pela razao de sempre neste ficheiro: sob o
+       react-native-web o Animated nao mexe em transicoes de layout, e uma
+       classe global apanha milhares de linhas sem um listener por componente.
+
+       Tres tempos e UMA curva, para tudo parecer a mesma app:
+         120 ms  o que responde ao dedo (carregar, passar o rato)
+         180 ms  o que entra (linhas, dialogos, titulos)
+         260 ms  o que atravessa o ecra (paginas, avisos)
+
+       As regras ficam sempre com dois seletores (.dt-fila .dt-mais) e nunca
+       com um: o react-native-web tambem escreve classes de uma so, e num
+       empate ganha quem vier depois na folha -- que nao esta na nossa mao.
+       ===================================================================== */
+    :root{
+      --dt-curva: cubic-bezier(.22, 1, .36, 1);
+      --dt-rapido: 120ms; --dt-normal: 180ms; --dt-lento: 260ms;
+    }
+
+    /* Carregar num botao encolhe-o 3%. */
+    .dt-premir{ transition: transform var(--dt-rapido) var(--dt-curva),
+      background-color var(--dt-rapido) var(--dt-curva),
+      border-color var(--dt-rapido) var(--dt-curva),
+      box-shadow var(--dt-normal) var(--dt-curva); }
+    .dt-premir:active{ transform: scale(.97); }
+
+    /* Uma pagina nova entra a subir. A key da rota e que a faz repetir. */
+    .dt-pagina{ animation: dt-entrar var(--dt-lento) var(--dt-curva) both; }
+    @keyframes dt-entrar{ from{ opacity:0; transform: translateY(10px); } to{ opacity:1; transform:none; } }
+
+    /* As linhas de uma lista entram umas atras das outras -- so as primeiras:
+       escalonar duzentas seria uma lista a montar-se durante dois segundos. */
+    .dt-fila{ animation: dt-linha var(--dt-normal) var(--dt-curva) both; }
+    @keyframes dt-linha{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform:none; } }
+    .dt-lista .dt-fila:nth-child(2){ animation-delay: 15ms }
+    .dt-lista .dt-fila:nth-child(3){ animation-delay: 30ms }
+    .dt-lista .dt-fila:nth-child(4){ animation-delay: 45ms }
+    .dt-lista .dt-fila:nth-child(5){ animation-delay: 60ms }
+    .dt-lista .dt-fila:nth-child(6){ animation-delay: 75ms }
+    .dt-lista .dt-fila:nth-child(7){ animation-delay: 90ms }
+    .dt-lista .dt-fila:nth-child(8){ animation-delay: 105ms }
+    .dt-lista .dt-fila:nth-child(9){ animation-delay: 120ms }
+    .dt-lista .dt-fila:nth-child(10){ animation-delay: 135ms }
+    .dt-lista .dt-fila:nth-child(n+11){ animation-delay: 150ms }
+
+    /* Na linha onde esta o rato: o numero da lugar ao play, e o "..." aparece. */
+    .dt-fila .dt-numero{ transition: opacity var(--dt-rapido) var(--dt-curva); }
+    .dt-fila .dt-toca{ opacity:0; transform: scale(.82);
+      transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-rapido) var(--dt-curva); }
+    .dt-fila .dt-mais{ opacity:0; transition: opacity var(--dt-rapido) var(--dt-curva); }
+    .dt-fila:hover .dt-numero, .dt-fila:focus-within .dt-numero{ opacity:0; }
+    .dt-fila:hover .dt-toca, .dt-fila:focus-within .dt-toca{ opacity:1; transform:none; }
+    .dt-fila:hover .dt-mais, .dt-fila:focus-within .dt-mais{ opacity:1; }
+    /* A que esta a tocar nao esconde as barrinhas nem mostra o numero. */
+    .dt-fila .dt-barras .dt-barra{ animation: dt-pular 900ms ease-in-out infinite; }
+    .dt-fila .dt-barras .dt-barra:nth-child(2){ animation-delay: 150ms }
+    .dt-fila .dt-barras .dt-barra:nth-child(3){ animation-delay: 300ms }
+    @keyframes dt-pular{ 0%,100%{ height:4px } 50%{ height:13px } }
+
+    /* Dialogos: o veu escurece e a caixa cresce a partir do centro. */
+    .dt-veu{ animation: dt-aparecer var(--dt-normal) var(--dt-curva) both; }
+    @keyframes dt-aparecer{ from{ opacity:0 } to{ opacity:1 } }
+    .dt-dialogo{ animation: dt-dialogo var(--dt-normal) var(--dt-curva) both; }
+    @keyframes dt-dialogo{ from{ opacity:0; transform: translateY(8px) scale(.97); } to{ opacity:1; transform:none; } }
+
+    /* O aviso sobe do fundo. */
+    .dt-aviso{ animation: dt-subir var(--dt-lento) var(--dt-curva) both; }
+    @keyframes dt-subir{ from{ opacity:0; transform: translateY(120%); } to{ opacity:1; transform:none; } }
+
+    /* O campo de pesquisa acende uma borda e um halo -- sem cor nova. */
+    .dt-campo{ transition: border-color var(--dt-normal) var(--dt-curva),
+      box-shadow var(--dt-normal) var(--dt-curva), background-color var(--dt-normal) var(--dt-curva); }
+    .dt-campo:focus-within{ border-color: rgba(233,234,238,.30);
+      box-shadow: 0 0 0 3px rgba(233,234,238,.08); background-color: ${COR.hover}; }
+
+    /* A pilula dos separadores e o realce da barra lateral deslizam. */
+    .dt-desliza{ transition: transform var(--dt-normal) var(--dt-curva), width var(--dt-normal) var(--dt-curva); }
+
+    /* Guardar: o coracao bate uma vez e abre um anel. */
+    .dt-coracao{ animation: dt-bater 420ms var(--dt-curva); }
+    @keyframes dt-bater{ 0%{ transform: scale(.6) } 45%{ transform: scale(1.28) } 70%{ transform: scale(.94) } 100%{ transform:none } }
+
+    /* Arrastar na fila levanta a linha. */
+    .dt-agarrada{ transform: scale(1.02) translateY(-2px);
+      box-shadow: 0 16px 34px rgba(0,0,0,.5); background-color: ${COR.hover}; }
+
+    /* Quem pediu menos movimento no Windows nao leva nada disto. O estado
+       final e o mesmo: aqui so morre o caminho ate la. */
+    @media (prefers-reduced-motion: reduce){
+      .dt-pagina, .dt-fila, .dt-dialogo, .dt-veu, .dt-aviso, .dt-coracao,
+      .dt-fila .dt-barras .dt-barra{ animation: none !important; }
+      .dt-premir, .dt-desliza, .dt-campo, .dt-fila .dt-toca,
+      .dt-fila .dt-mais, .dt-fila .dt-numero{ transition: none !important; }
+      .dt-premir:active{ transform: none !important; }
+    }
   `;
   document.head.appendChild(style);
   document.title = 'Duotone';
@@ -200,6 +298,7 @@ export function TitleBar() {
 
 export function Sidebar({ route, navigate }: { route: Route; navigate: (route: Route) => void }) {
   const session = useAuth((s) => s.session);
+  const tema = useTheme((s) => s.theme);
   // Uma mistura abre-se a partir da Pesquisa: e ai que o separador tem de
   // ficar aceso, senao a barra dizia que se estava noutro sitio.
   const active = route.name === 'artist' ? 'artists'
@@ -222,22 +321,40 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
   },[session?.user.id,profileVersion]);
   const avatarDisplay=<FriendAvatar avatarUrl={publicAvatar} name={name} size={31}/>;
 
+  // O realce ATRAVESSA de um separador para o outro em vez de acender no novo
+  // e apagar no velho (preview de 20/9). Para isso é preciso saber onde eles
+  // estão: cada um diz a sua posição no `onLayout`. Enquanto não disser, o
+  // próprio item pinta-se -- um realce em 0,0 a saltar para o sítio certo era
+  // pior do que não o ter.
+  const [lugares,setLugares]=useState<Record<string,{y:number;altura:number}>>({});
+  const medir=(id:string)=>(y:number,altura:number)=>setLugares((m)=>(
+    m[id]?.y===y&&m[id]?.altura===altura?m:{...m,[id]:{y,altura}}));
+  const realce=lugares[active as string];
+
   return <View style={styles.sidebar}>
     <ScrollView contentContainerStyle={styles.sidebarContent}>
+      {realce?<View pointerEvents="none" {...{className:'dt-desliza'}}
+        style={[styles.navRealce,{height:realce.altura,transform:[{translateY:realce.y}],backgroundColor:tema.soft}]}/>:null}
       <Text style={styles.navLabel}>DISCOVER</Text>
-      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
+      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
       <View style={styles.navDivider} /><Text style={styles.navLabel}>ACCOUNT</Text>
-      <NavItem label="Profile" icon="person-circle-outline" active={active === 'profile'} onPress={() => navigate({ name: 'profile' })} />
-      <NavItem label="Settings" icon="settings-outline" active={active === 'settings'} onPress={() => navigate({ name: 'settings' })} />
+      <NavItem label="Profile" icon="person-circle-outline" active={active === 'profile'} semFundo={!!realce} aoMedir={medir('profile')} onPress={() => navigate({ name: 'profile' })} />
+      <NavItem label="Settings" icon="settings-outline" active={active === 'settings'} semFundo={!!realce} aoMedir={medir('settings')} onPress={() => navigate({ name: 'settings' })} />
     </ScrollView>
     <Pressable onPress={() => navigate({ name: 'profile' })} style={({ hovered }) => [styles.account, hovered && styles.navHover]}>{avatarDisplay}<View style={{ flex: 1 }}><Text numberOfLines={1} style={styles.accountName}>{name}</Text><Text numberOfLines={1} style={styles.accountEmail}>{session?.user.email}</Text></View><Ionicons name="chevron-forward" size={14} color={desktop.dim} /></Pressable>
   </View>;
 }
 
-export function NavItem({ label, icon, active, badge, onPress }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void }) {
+export function NavItem({ label, icon, active, badge, onPress, aoMedir, semFundo }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
+  /** Onde é que este item está, para o realce saber para onde atravessar. */
+  aoMedir?: (y: number, altura: number) => void;
+  /** O realce já cobre este item: não se pinta duas vezes. */
+  semFundo?: boolean }) {
   const theme = useTheme((s) => s.theme);
   const P = Pressable as any;
-  return <P className="nav-item-animate" onPress={onPress} style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : desktop.muted} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <BolinhaDeAviso />}</P>;
+  return <P className="nav-item-animate" onPress={onPress}
+    onLayout={(e: any) => aoMedir?.(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
+    style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && !semFundo && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : desktop.muted} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <BolinhaDeAviso />}</P>;
 }
 
 /**
@@ -343,7 +460,10 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
         <Artwork track={p.current} size={52} />
         <Text numberOfLines={1} style={styles.playerTitle}>{p.current.title}</Text>
       </Pressable>
-      <View style={styles.playerSave}>
+      {/* A classe só existe quando está guardada: é a entrada dela que faz o
+          coração bater uma vez. Sai quando se desguarda, e volta a entrar na
+          próxima -- sem estado nenhum a mais. */}
+      <View style={styles.playerSave} {...(currentIsSaved ? { className: 'dt-coracao' } : {})}>
         <IconButton
           name={currentIsSaved ? 'heart' : 'heart-outline'}
           label={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'}

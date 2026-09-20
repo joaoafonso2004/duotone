@@ -45,6 +45,8 @@ await db.exec(`
 // Duas vezes: tem de se poder voltar a correr.
 await db.exec(ler('higiene-da-biblioteca.sql'));
 await db.exec(ler('higiene-da-biblioteca.sql'));
+await db.exec(ler('remover-no-library-check.sql'));
+await db.exec(ler('remover-no-library-check.sql'));
 
 /** Estado de partida, sempre o mesmo: cada caso começa daqui. */
 async function repor() {
@@ -162,6 +164,71 @@ await caso('uma faixa que não é do YouTube fica como está', async () => {
 await caso('é mesmo precisa: a app não pode escrever no catálogo diretamente', async () => {
   await repor(); await como(1);
   await assert.rejects(q(`update public.tracks set artwork_url='x' where id=$1`, [tid(2)]), /permission denied/);
+});
+
+console.log('\nremover');
+await caso('sai da biblioteca e de todas as playlists de quem pede', async () => {
+  await repor(); await como(1);
+  const { rows } = await q(`select public.remover_da_biblioteca($1) as r`, [tid(2)]);
+  const r = rows[0].r;
+  await admin();
+  assert.deepEqual(await biblioteca(uid(1)), [], 'saiu da biblioteca');
+  assert.deepEqual(await playlist(pid(1)), [], 'saiu da playlist que só a tinha a ela');
+  assert.deepEqual(await playlist(pid(2)), ['1#1'], 'a outra música da playlist fica');
+  assert.equal(r.playlists.length, 2, 'o registo traz as duas playlists');
+  assert.equal(new Date(r.guardada_em).toISOString().slice(0, 10), '2026-01-01');
+});
+await caso('a faixa continua no catálogo partilhado', async () => {
+  await repor(); await como(1);
+  await q(`select public.remover_da_biblioteca($1)`, [tid(2)]);
+  await admin();
+  const { rows } = await q(`select count(*)::int as n from public.tracks where id=$1`, [tid(2)]);
+  assert.equal(rows[0].n, 1);
+});
+await caso('não toca na biblioteca nem nas playlists de outra pessoa', async () => {
+  await repor(); await como(1);
+  await q(`select public.remover_da_biblioteca($1)`, [tid(2)]);
+  await admin();
+  assert.deepEqual(await biblioteca(uid(2)), ['2@2026-01-05']);
+  assert.deepEqual(await playlist(pid(3)), ['2#0']);
+});
+await caso('o Undo põe a data e as posições como estavam', async () => {
+  await repor(); await como(1);
+  const { rows } = await q(`select public.remover_da_biblioteca($1) as r`, [tid(2)]);
+  await q(`select public.desfazer_remover_da_biblioteca($1,$2)`, [tid(2), rows[0].r]);
+  await admin();
+  assert.deepEqual(await biblioteca(uid(1)), ['2@2026-01-01']);
+  assert.deepEqual(await playlist(pid(1)), ['2#3']);
+  assert.deepEqual(await playlist(pid(2)), ['1#1', '2#5']);
+});
+await caso('desfazer duas vezes não duplica nada', async () => {
+  await repor(); await como(1);
+  const { rows } = await q(`select public.remover_da_biblioteca($1) as r`, [tid(2)]);
+  await q(`select public.desfazer_remover_da_biblioteca($1,$2)`, [tid(2), rows[0].r]);
+  await q(`select public.desfazer_remover_da_biblioteca($1,$2)`, [tid(2), rows[0].r]);
+  await admin();
+  assert.deepEqual(await biblioteca(uid(1)), ['2@2026-01-01']);
+  assert.deepEqual(await playlist(pid(2)), ['1#1', '2#5']);
+});
+await caso('uma playlist de outra pessoa no registo não é tocada pelo Undo', async () => {
+  await repor(); await como(1);
+  const forjado = { guardada_em: null, playlists: [{ playlist: pid(3), posicao: 9, adicionada_em: '2026-02-04' }] };
+  await q(`select public.desfazer_remover_da_biblioteca($1,$2)`, [tid(1), JSON.stringify(forjado)]);
+  await admin();
+  assert.deepEqual(await playlist(pid(3)), ['2#0'], 'a playlist do utilizador 2 ficou igual');
+});
+await caso('remover o que já não está em lado nenhum não é erro', async () => {
+  await repor(); await como(1);
+  const { rows } = await q(`select public.remover_da_biblioteca($1) as r`, [tid(3)]);
+  assert.equal(rows[0].r.guardada_em, null);
+  assert.deepEqual(rows[0].r.playlists, []);
+});
+await caso('sem sessão não remove nada', async () => {
+  await repor();
+  await db.exec(`reset role; set role authenticated; select set_config('request.jwt.claim.sub','',false);`);
+  await assert.rejects(q(`select public.remover_da_biblioteca($1)`, [tid(2)]), /Sem sessão/);
+  await admin();
+  assert.deepEqual(await biblioteca(uid(1)), ['2@2026-01-01']);
 });
 
 if (falhas) {

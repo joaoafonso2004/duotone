@@ -61,6 +61,7 @@ import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
 import { garantirPrivacidade } from './src/state/privacidade';
 import { limparPerfisPublicos } from './src/state/perfisPublicos';
+import { useArtistasFavoritos } from './src/state/artistasFavoritos';
 import { limparVerificacao } from './src/state/verificacaoDaBiblioteca';
 import { instalarSaudeDaApp } from './src/state/saudeDaApp';
 import { ligarMedicoes } from './src/state/medicoes';
@@ -141,7 +142,10 @@ export default function App() {
   // A cache da biblioteca sai pela mesma porta e pela mesma razão: a lista de
   // quem sai não pode aparecer a quem entra, mas ficar sem rede um instante
   // não pode deitá-la fora -- é quando ela mais serve.
-  useEffect(() => () => { limparVerificacao(); esquecerBiblioteca(); }, [userId]);
+  // Os artistas favoritos vão atrás: são as chaves da biblioteca de quem sai.
+  useEffect(() => () => {
+    limparVerificacao(); esquecerBiblioteca(); useArtistasFavoritos.getState().esquecer();
+  }, [userId]);
 
   useEffect(() => {
     if (!userId||offline) return;

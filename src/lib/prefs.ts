@@ -41,6 +41,8 @@ const KEY_DISCORD_APP = 'pref:discordAppId';
 const KEY_ESCUTA_PRIVADA = 'pref:escutaPrivada';
 /** Os artistas escolhidos no primeiro dia. Ver `getArtistasSemente`. */
 const KEY_SEMENTES = 'pref:artistasSemente';
+/** Os artistas favoritos, pela chave canonica. Ver `getArtistasFavoritos`. */
+const KEY_ARTISTAS_FAVORITOS = 'pref:artistasFavoritos';
 /** O gosto lido do Spotify. Ver `getGostoDoSpotify`. */
 const KEY_GOSTO_SPOTIFY = 'pref:gostoDoSpotify';
 
@@ -491,6 +493,31 @@ export async function getArtistasSemente(): Promise<string[]> {
 }
 export async function setArtistasSemente(nomes: readonly string[]): Promise<void> {
   await AsyncStorage.setItem(KEY_SEMENTES, JSON.stringify(nomes.slice(0, 12)));
+}
+
+/**
+ * Os artistas favoritos, que sobem ao topo da página dos Artists.
+ *
+ * Guarda-se a CHAVE canónica (`chaveDeArtista`) e não o nome mostrado: é por
+ * ela que a página agrupa, e é ela que faz `Juice WRLD` e `juice wrld` serem o
+ * mesmo artista. Guardar o nome punha a estrela num dos cartões e não no
+ * outro, conforme a grafia da faixa que ficou à frente.
+ *
+ * Num `pref:` como as sementes: viaja para a conta pelo `lib/prefsSync`, e
+ * quem favorita no iPhone encontra-os no topo no PC.
+ */
+export async function getArtistasFavoritos(): Promise<string[]> {
+  try {
+    const guardado = await AsyncStorage.getItem(KEY_ARTISTAS_FAVORITOS);
+    if (!guardado) return [];
+    const lido = JSON.parse(guardado);
+    return Array.isArray(lido) ? lido.filter((c): c is string => typeof c === 'string' && !!c.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+export async function setArtistasFavoritos(chaves: readonly string[]): Promise<void> {
+  await AsyncStorage.setItem(KEY_ARTISTAS_FAVORITOS, JSON.stringify([...new Set(chaves)]));
 }
 
 /**

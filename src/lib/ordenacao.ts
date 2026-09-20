@@ -63,8 +63,15 @@ export type GrupoOrdenavel = { nome: string; chave: string; faixas: readonly unk
 export function ordenarArtistas<T extends GrupoOrdenavel>(
   grupos: readonly T[],
   ranking: ReadonlyMap<string, number> = new Map(),
+  favoritos: ReadonlySet<string> = new Set(),
 ): T[] {
   return [...grupos].sort((a, b) => {
+    // Os favoritos ficam ACIMA de tudo, e entre eles vale a ordem do costume.
+    // Favoritar existe para os pôr à mão: um favorito abaixo de alguém que se
+    // ouviu mais nesta semana não servia de nada.
+    const fa = favoritos.has(a.chave) ? 0 : 1;
+    const fb = favoritos.has(b.chave) ? 0 : 1;
+    if (fa !== fb) return fa - fb;
     const ra = ranking.get(a.chave) ?? Infinity;
     const rb = ranking.get(b.chave) ?? Infinity;
     if (ra !== rb) return ra - rb;

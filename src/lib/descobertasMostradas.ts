@@ -1,49 +1,52 @@
 /**
- * O que o "Discover new" já mostrou, para a semana seguinte não o repetir.
+ * O que o "Discover" já mostrou, para o dia seguinte não o repetir.
  *
- * A lista é a MESMA durante sete dias, de propósito (`descobertasDaSemana`). O
- * defeito era a semana seguinte: a escolha dos vizinhos é estável, e com o
- * mesmo gosto voltavam as mesmas faixas -- "aparecem-me sempre as mesmas
- * músicas", a queixa de um amigo do João (13/9).
+ * **Era por SEMANA e passou a ser por DIA (20/9).** A lista ficava a mesma
+ * durante sete dias de propósito, e o João deu com o defeito do outro lado:
+ * *"ficam sempre as mesmas, não atualizam, sou obrigado a clicar no refresh"*.
+ * Uma página de descoberta que só muda à sexta-feira obriga a carregar num
+ * botão para fazer o que ela promete.
  *
- * - **Guardam-se as últimas `SEMANAS_SEM_REPETIR` semanas**, por chave de faixa.
- *   A semana corrente não conta para ela própria: refrescar dentro da semana já
- *   tem o que está no ecrã para não repetir.
+ * - **Guardam-se os últimos `DIAS_SEM_REPETIR` dias**, por chave de faixa. O
+ *   dia corrente não conta para ele próprio: refrescar dentro do dia já tem o
+ *   que está no ecrã para não repetir (`jaSugeridas`).
  * - **Aperta-se e, se não chegar, alarga-se** (`TENTATIVAS_SEM_REPETIR`): quem
  *   ouve poucos artistas tem poucos vizinhos, e excluir um mês inteiro deixava-o
  *   com a prateleira vazia. Uma prateleira repetida é melhor do que nenhuma.
- * - **Só se regista a lista que ficou**: refrescar três vezes na mesma semana
- *   não pode tirar noventa faixas às semanas seguintes.
+ * - **Só se regista a lista que ficou**: refrescar três vezes no mesmo dia não
+ *   pode tirar noventa faixas aos dias seguintes -- a entrada do dia é
+ *   SUBSTITUÍDA, não somada.
  *
  * Sem imports de runtime: testado em Node puro (scripts/test-descobertas-mostradas.ts).
  */
 
-export const SEMANAS_SEM_REPETIR = 4;
+/** Um mês de memória. Era `SEMANAS_SEM_REPETIR = 4`, o mesmo tempo. */
+export const DIAS_SEM_REPETIR = 28;
 
 /** Das mais apertadas para as mais largas; a última (0) não exclui nada. */
-export const TENTATIVAS_SEM_REPETIR = [SEMANAS_SEM_REPETIR, 1, 0] as const;
+export const TENTATIVAS_SEM_REPETIR = [DIAS_SEM_REPETIR, 7, 0] as const;
 
-/** Teto por semana: uma prateleira são 30, e isto vive numa linha da cache.
- * Cada faixa leva o upload e as chaves da música (umas quatro). */
-export const CHAVES_POR_SEMANA = 200;
+/** Teto por dia: uma prateleira são umas dezenas de faixas, e cada uma leva o
+ * upload e as chaves da música (umas quatro). Isto vive numa linha da cache. */
+export const CHAVES_POR_DIA = 200;
 
-export type HistoricoDeDescobertas = { semana: number; chaves: string[] }[];
+export type HistoricoDeDescobertas = { dia: number; chaves: string[] }[];
 
 /** Aceita o que vier da cache e devolve só o que tem a forma certa. */
 export function lerHistorico(valor: unknown): HistoricoDeDescobertas {
   if (!Array.isArray(valor)) return [];
   return valor
-    .filter((s): s is { semana: number; chaves: unknown[] } =>
-      !!s && typeof s.semana === 'number' && Array.isArray(s.chaves))
-    .map((s) => ({ semana: s.semana, chaves: s.chaves.filter((k): k is string => typeof k === 'string' && !!k) }));
+    .filter((s): s is { dia: number; chaves: unknown[] } =>
+      !!s && typeof s.dia === 'number' && Array.isArray(s.chaves))
+    .map((s) => ({ dia: s.dia, chaves: s.chaves.filter((k): k is string => typeof k === 'string' && !!k) }));
 }
 
-/** As chaves mostradas nas `semanas` anteriores à atual (a atual não conta). */
-export function aEvitar(historico: HistoricoDeDescobertas, semanaAtual: number, semanas: number): Set<string> {
+/** As chaves mostradas nos `dias` anteriores ao atual (o atual não conta). */
+export function aEvitar(historico: HistoricoDeDescobertas, diaAtual: number, dias: number): Set<string> {
   const evitar = new Set<string>();
-  for (const s of historico) {
-    if (s.semana < semanaAtual && s.semana >= semanaAtual - semanas) {
-      for (const k of s.chaves) evitar.add(k);
+  for (const d of historico) {
+    if (d.dia < diaAtual && d.dia >= diaAtual - dias) {
+      for (const k of d.chaves) evitar.add(k);
     }
   }
   return evitar;
@@ -55,15 +58,15 @@ export function chegam(obtidas: number, pedidas: number): boolean {
 }
 
 /**
- * O histórico com a lista desta semana. Substitui a da mesma semana (é a lista
- * que ficou) e esquece o que já saiu da janela.
+ * O histórico com a lista de hoje. Substitui a do mesmo dia (é a lista que
+ * ficou) e esquece o que já saiu da janela.
  */
-export function registarSemana(
+export function registarDia(
   historico: HistoricoDeDescobertas,
-  semana: number,
+  dia: number,
   chaves: readonly string[],
 ): HistoricoDeDescobertas {
-  const desta = { semana, chaves: [...new Set(chaves.filter(Boolean))].slice(0, CHAVES_POR_SEMANA) };
-  return [desta, ...historico.filter((s) => s.semana !== semana && s.semana >= semana - SEMANAS_SEM_REPETIR)]
-    .sort((a, b) => b.semana - a.semana);
+  const deHoje = { dia, chaves: [...new Set(chaves.filter(Boolean))].slice(0, CHAVES_POR_DIA) };
+  return [deHoje, ...historico.filter((d) => d.dia !== dia && d.dia >= dia - DIAS_SEM_REPETIR)]
+    .sort((a, b) => b.dia - a.dia);
 }

@@ -1073,17 +1073,17 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   assert.equal(sessao.length, 5);
 
   procuradas.length = 0;
-  const semana1 = await descoberta.descobertasDaSemana(5, biblioteca, true);
+  const hoje = await descoberta.descobertasDoDia(5, biblioteca, true);
   assert.deepEqual(numeros(), [5, 6, 7, 8, 9]);
-  assert.equal(semana1.length, 5);
-  const historico = mundo.cache.get('descobertas:mostradas:v1');
+  assert.equal(hoje.length, 5);
+  const historico = mundo.cache.get('descobertas:mostradas:v2');
   assert.ok(historico[0].chaves.some((k) => k.startsWith('musica2:')),
-    'a semana guarda as chaves da música, não só o upload');
-  // A semana seguinte: a lista desta passa a ser a da semana anterior.
-  historico[0].semana -= 1;
+    'o dia guarda as chaves da música, não só o upload');
+  // O dia seguinte: a lista de hoje passa a ser a de ontem.
+  historico[0].dia -= 1;
   procuradas.length = 0;
-  await descoberta.descobertasDaSemana(5, biblioteca, true);
+  await descoberta.descobertasDoDia(5, biblioteca, true);
   assert.deepEqual(numeros(), [10, 11, 12, 13, 14],
-    'a semana seguinte não gasta pesquisas com as da anterior e traz outras');
+    'o dia seguinte não gasta pesquisas com as do anterior e traz outras');
   console.log('Perfil e catálogo: confiança pela biblioteca inteira, top mais fundo e sem pesquisar o que já se tem ou já se viu.');
 }

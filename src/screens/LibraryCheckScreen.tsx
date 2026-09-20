@@ -18,9 +18,10 @@ import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import {
-  CHAVE_DO_DESFAZER, chaveDaCapa, chaveDaIndisponivel, chaveDoGrupo, corrigirCapaDe, desfazerUltima,
-  juntarGrupo, pararVerificacao, procurarCopiaPara, substituirPelaCopia, useVerificacaoDaBiblioteca,
-  verificarBiblioteca, type Indisponivel,
+  CHAVE_DE_REMOVER_TODAS, CHAVE_DO_DESFAZER, chaveDaCapa, chaveDaIndisponivel, chaveDoGrupo,
+  corrigirCapaDe, desfazerUltima, juntarGrupo, pararVerificacao, procurarCopiaPara,
+  removerIndisponivel, removerTodasAsIndisponiveis, substituirPelaCopia,
+  useVerificacaoDaBiblioteca, verificarBiblioteca, type Indisponivel,
 } from '../state/verificacaoDaBiblioteca';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -97,8 +98,27 @@ export function LibraryCheckScreen({ navigation }: Props) {
 
         {v.indisponiveis.length ? (
           <>
-            <Text style={styles.seccao}>NO LONGER PLAYS</Text>
+            <View style={styles.tituloDaSeccao}>
+              <Text style={[styles.seccao, { flex: 1 }]}>NO LONGER PLAYS</Text>
+              {/* Antes dizia "remove it yourself": quem tinha cinco ia a cada
+                  uma, em cada playlist onde estivesse (o João, a 20/9). O
+                  "Undo" apanha a remoção inteira. */}
+              {pendentes.indisponiveis ? (
+                <PillButton
+                  label={`Remove all ${pendentes.indisponiveis}`}
+                  variant="ghost"
+                  small
+                  disabled={offline || !!v.aTratar}
+                  loading={v.aTratar === CHAVE_DE_REMOVER_TODAS}
+                  onPress={() => { hapticSelection(); void removerTodasAsIndisponiveis(); }}
+                />
+              ) : null}
+            </View>
+            <Text style={[type.caption, styles.explicacao]}>
+              Remove takes the song out of your library and your playlists.
+            </Text>
             {v.indisponiveis.map((i) => <LinhaIndisponivel key={chaveDaIndisponivel(i)} item={i} />)}
+            <ErroNaLinha chave={CHAVE_DE_REMOVER_TODAS} />
           </>
         ) : null}
 
@@ -246,13 +266,19 @@ function LinhaIndisponivel({ item }: { item: Indisponivel }) {
           <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>{tituloDaFaixa(item.faixa)}</Text>
           <Text numberOfLines={1} style={type.caption}>{motivoDaIndisponivel(item.motivo)}</Text>
         </View>
-        {feito ? <Feito rotulo={feito} /> : item.copia === undefined ? (
-          <PillButton label="Find a copy" variant="ghost" small disabled={offline} loading={aTratar}
-            onPress={() => { hapticSelection(); void procurarCopiaPara(item); }} />
-        ) : null}
+        {feito ? <Feito rotulo={feito} /> : (
+          <View style={styles.acoesDaLinha}>
+            {item.copia === undefined ? (
+              <PillButton label="Find a copy" variant="ghost" small disabled={offline} loading={aTratar}
+                onPress={() => { hapticSelection(); void procurarCopiaPara(item); }} />
+            ) : null}
+            <PillButton label="Remove" variant="ghost" small disabled={offline} loading={aTratar}
+              onPress={() => { hapticSelection(); void removerIndisponivel(item); }} />
+          </View>
+        )}
       </View>
       {!feito && item.copia === null ? (
-        <Text style={[type.caption, styles.semCopia]}>No safe copy found. Try again later, or remove it yourself.</Text>
+        <Text style={[type.caption, styles.semCopia]}>No safe copy found. Try again later, or remove it.</Text>
       ) : null}
       {!feito && item.copia ? (
         <>
@@ -308,6 +334,10 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
   },
   explicacao: { marginHorizontal: spacing.md, marginBottom: spacing.sm, lineHeight: 18 },
+  /** O título da secção e o "Remove all" na mesma linha; o título já traz as
+   * margens, por isso aqui só se alinham. */
+  tituloDaSeccao: { flexDirection: 'row', alignItems: 'flex-end', marginRight: spacing.md },
+  acoesDaLinha: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   cartao: {
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,

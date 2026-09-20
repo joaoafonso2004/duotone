@@ -1,8 +1,8 @@
 import { Platform } from 'react-native';
 import { create } from 'zustand';
 import {
-  ajudantes, corrigirCapa, desfazerJuncao, disponibilidade, estadoDoUrl, juntar,
-  procurarCopia, substituir, type Juncao,
+  ajudantes, corrigirCapa, desfazerJuncao, desfazerRemocao, disponibilidade, estadoDoUrl,
+  juntar, procurarCopia, remover, substituir, type Juncao, type Remocao,
 } from '../api/higieneDaBiblioteca';
 import { getLibrary, getLikedSongs } from '../api/library';
 import {
@@ -31,6 +31,18 @@ export type Indisponivel = {
 
 export type CapaPartida = { faixa: Track; nova: string };
 
+/**
+ * Uma coisa feita que ainda se pode desfazer. Juntar e trocar movem a música
+ * para outra; remover tira-a das listas. O "Undo" é o mesmo botão para as
+ * duas, e o "Remove all" guarda várias numa só.
+ */
+export type Desfeita =
+  | { tipo: 'juncao'; juncao: Juncao }
+  | { tipo: 'remocao'; remocao: Remocao };
+
+/** O id da faixa que SAIU das listas, seja qual for a ação. */
+const saiuNa = (d: Desfeita) => (d.tipo === 'juncao' ? d.juncao.sai : d.remocao.faixa);
+
 type Estado = {
   fase: 'parada' | 'a-verificar' | 'feita';
   progresso: { feitas: number; total: number } | null;
@@ -52,7 +64,7 @@ type Estado = {
    * chaves que ela marcou. Corrigir uma capa não a apaga: não tem "Undo" seu, e
    * não pode levar o da junção de antes.
    */
-  ultima: { chave: string; rotulo: string; juncoes: Juncao[]; marcadas: string[] } | null;
+  ultima: { chave: string; rotulo: string; feitas: Desfeita[]; marcadas: string[] } | null;
   erro: string | null;
   /** O problema cuja ação falhou -- o erro diz-se na linha dele, não lá em cima. */
   erroEm: string | null;
@@ -198,21 +210,21 @@ async function tratar(chave: string, fn: () => Promise<void>): Promise<void> {
 /** "Merged “Get Lucky”": o "Undo" diz o que desfaz. */
 const comNome = (rotulo: string, t: Track) => `${rotulo} “${ajudantes.titulo(t)}”`;
 
-function resolver(chave: string, rotulo: string, juncoes: Juncao[], nome?: string): void {
+function resolver(chave: string, rotulo: string, feitas: Desfeita[], nome?: string, chaves: string[] = [chave]): void {
   set((s) => {
     // O que saiu da biblioteca deixa de ser problema nas outras listas: a capa
     // de uma faixa que já lá não está não se corrige, e o botão dela ia falhar.
-    const saiu = new Set(juncoes.map((j) => j.sai));
+    const saiu = new Set(feitas.map(saiuNa));
     const tocaEm = (t: Track) => !!t.id && saiu.has(t.id);
     const marcadas = [...new Set([
-      chave,
+      ...chaves,
       ...s.duplicados.filter((g) => g.faixas.some(tocaEm)).map(chaveDoGrupo),
       ...s.indisponiveis.filter((i) => tocaEm(i.faixa)).map(chaveDaIndisponivel),
       ...s.capas.filter((c) => tocaEm(c.faixa)).map(chaveDaCapa),
     ])].filter((k) => !s.resolvidos[k]);
     return {
       resolvidos: { ...s.resolvidos, ...Object.fromEntries(marcadas.map((k) => [k, rotulo])) },
-      ultima: juncoes.length ? { chave, rotulo: nome ?? rotulo, juncoes, marcadas } : s.ultima,
+      ultima: feitas.length ? { chave, rotulo: nome ?? rotulo, feitas, marcadas } : s.ultima,
     };
   });
   avisarQueMudou();
@@ -238,7 +250,7 @@ export function juntarGrupo(grupo: GrupoDeDuplicados, fica: Track): Promise<void
       throw e;
     }
     set((s) => ({ ficou: { ...s.ficou, [chave]: fica.id! } }));
-    resolver(chave, 'Merged', feitas, comNome('Merged', fica));
+    resolver(chave, 'Merged', feitas.map((juncao) => ({ tipo: 'juncao', juncao })), comNome('Merged', fica));
   });
 }
 
@@ -257,7 +269,60 @@ export function substituirPelaCopia(item: Indisponivel): Promise<void> {
   const chave = chaveDaIndisponivel(item);
   return tratar(chave, async () => {
     if (!item.copia) throw new Error('Find a copy first.');
-    resolver(chave, 'Replaced', [await substituir(item.faixa, item.copia)], comNome('Replaced', item.faixa));
+    resolver(chave, 'Replaced', [{ tipo: 'juncao', juncao: await substituir(item.faixa, item.copia) }],
+      comNome('Replaced', item.faixa));
+  });
+}
+
+/**
+ * Tirar uma música que já não toca da biblioteca e das playlists.
+ *
+ * O Library check encontrava-as e dizia "remove it yourself" (o João, a 20/9):
+ * quem tinha cinco ia a cada uma, em cada playlist onde estivesse. Tem "Undo"
+ * como as outras ações, porque tirar é o único destes botões que não se
+ * desfaz sozinho com um "Check again".
+ */
+export function removerIndisponivel(item: Indisponivel): Promise<void> {
+  const chave = chaveDaIndisponivel(item);
+  return tratar(chave, async () => {
+    if (!item.faixa.id) throw new Error('This song is not in your library.');
+    resolver(chave, 'Removed', [{ tipo: 'remocao', remocao: await remover(item.faixa.id) }],
+      comNome('Removed', item.faixa));
+  });
+}
+
+/** A chave do "Remove all", para o ecrã saber qual é o botão a trabalhar. */
+export const CHAVE_DE_REMOVER_TODAS = 'remover-todas';
+
+/**
+ * Todas as que já não tocam, de uma vez.
+ *
+ * Uma a uma, e o que já saiu FICA saído se a seguinte falhar -- ao contrário
+ * do juntar, onde meio grupo junto era pior do que nenhum. Aqui cada remoção
+ * vale por si, e o que se perdia era obrigar a repetir as que já tinham
+ * corrido bem. O "Undo" apanha todas as que passaram.
+ */
+export function removerTodasAsIndisponiveis(): Promise<void> {
+  return tratar(CHAVE_DE_REMOVER_TODAS, async () => {
+    const st = get();
+    const alvos = st.indisponiveis.filter((i) => !st.resolvidos[chaveDaIndisponivel(i)] && i.faixa.id);
+    if (!alvos.length) return;
+    const feitas: Desfeita[] = [];
+    const chaves: string[] = [];
+    let falha: unknown = null;
+    for (const item of alvos) {
+      try {
+        feitas.push({ tipo: 'remocao', remocao: await remover(item.faixa.id!) });
+        chaves.push(chaveDaIndisponivel(item));
+      } catch (e) { falha = e; break; }
+    }
+    if (feitas.length) {
+      const nome = feitas.length === 1
+        ? comNome('Removed', alvos[0].faixa)
+        : `Removed ${feitas.length} songs`;
+      resolver(CHAVE_DE_REMOVER_TODAS, 'Removed', feitas, nome, chaves);
+    }
+    if (falha) throw falha;
   });
 }
 
@@ -273,12 +338,15 @@ export function corrigirCapaDe(item: CapaPartida): Promise<void> {
   });
 }
 
-/** Desfaz a última junção ou troca, pela ordem inversa. */
+/** Desfaz a última junção, troca ou remoção, pela ordem inversa. */
 export function desfazerUltima(): Promise<void> {
   const ultima = get().ultima;
   if (!ultima) return Promise.resolve();
   return tratar(CHAVE_DO_DESFAZER, async () => {
-    for (const j of [...ultima.juncoes].reverse()) await desfazerJuncao(j);
+    for (const d of [...ultima.feitas].reverse()) {
+      if (d.tipo === 'juncao') await desfazerJuncao(d.juncao);
+      else await desfazerRemocao(d.remocao);
+    }
     set((s) => {
       const resolvidos = { ...s.resolvidos };
       for (const k of ultima.marcadas) delete resolvidos[k];

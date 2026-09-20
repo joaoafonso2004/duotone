@@ -45,4 +45,22 @@ assert.deepEqual(
   ['alfa', 'Ómega'],
 );
 
+// Os favoritos vêm à frente de tudo, mesmo de quem se ouve mais: favoritar é
+// para os ter à mão. Entre eles vale a ordem do costume.
+const favoritos = new Set(['pequeno']);
+assert.deepEqual(
+  ordenarArtistas(grupos, ranking, favoritos).map((x) => x.nome),
+  ['Pequeno', 'Ouvido', 'Grande'],
+);
+assert.deepEqual(
+  ordenarArtistas(grupos, ranking, new Set(['pequeno', 'grande'])).map((x) => x.nome),
+  ['Grande', 'Pequeno', 'Ouvido'],
+  'dois favoritos ordenam-se entre si pelo peso na biblioteca',
+);
+// Favoritar alguém que não está na lista não muda nada nem parte nada.
+assert.deepEqual(
+  ordenarArtistas(grupos, ranking, new Set(['ninguem'])).map((x) => x.nome),
+  ['Ouvido', 'Grande', 'Pequeno'],
+);
+
 console.log('Ordenação: mesma regra de texto, faixas e artistas nas duas plataformas.');

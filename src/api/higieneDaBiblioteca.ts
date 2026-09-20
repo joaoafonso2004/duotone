@@ -138,6 +138,31 @@ export async function substituir(morta: Track, copia: Track): Promise<Juncao> {
   return juntar(id, morta.id);
 }
 
+/** O que o "Undo" precisa para pôr uma remoção como estava. */
+export type Remocao = { faixa: string; registo: unknown };
+
+/**
+ * Tirar uma música morta da biblioteca E das playlists de quem pede.
+ *
+ * Fica no catálogo `tracks`, que é partilhado: "remover" é sair das listas
+ * desta pessoa. Ver `supabase/remover-no-library-check.sql`.
+ */
+export async function remover(trackId: string): Promise<Remocao> {
+  const { data, error } = await supabase.rpc('remover_da_biblioteca', { p_track: trackId });
+  if (error) throw erroDaFuncao(error);
+  // Saiu das playlists: a co-ocorrência lida antes já não vale.
+  esquecerAfinidade();
+  return { faixa: trackId, registo: data };
+}
+
+export async function desfazerRemocao(r: Remocao): Promise<void> {
+  const { error } = await supabase.rpc('desfazer_remover_da_biblioteca', {
+    p_track: r.faixa, p_registo: r.registo,
+  });
+  if (error) throw erroDaFuncao(error);
+  esquecerAfinidade();
+}
+
 /** A capa passa a ser a miniatura do próprio vídeo. Devolve o URL novo. */
 export async function corrigirCapa(trackId: string): Promise<string | null> {
   const { data, error } = await supabase.rpc('corrigir_capa', { p_track: trackId });

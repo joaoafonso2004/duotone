@@ -9,9 +9,10 @@ import { comCatalogo } from '../../state/catalogoDeFaixas';
 import { useConnectivity } from '../../state/connectivity';
 import { useOuvirJuntos } from '../../state/ouvirJuntos';
 import {
-  CHAVE_DO_DESFAZER, chaveDaCapa, chaveDaIndisponivel, chaveDoGrupo, corrigirCapaDe, desfazerUltima,
-  juntarGrupo, pararVerificacao, procurarCopiaPara, substituirPelaCopia, useVerificacaoDaBiblioteca,
-  verificarBiblioteca, type Indisponivel,
+  CHAVE_DE_REMOVER_TODAS, CHAVE_DO_DESFAZER, chaveDaCapa, chaveDaIndisponivel, chaveDoGrupo,
+  corrigirCapaDe, desfazerUltima, juntarGrupo, pararVerificacao, procurarCopiaPara,
+  removerIndisponivel, removerTodasAsIndisponiveis, substituirPelaCopia,
+  useVerificacaoDaBiblioteca, verificarBiblioteca, type Indisponivel,
 } from '../../state/verificacaoDaBiblioteca';
 import type { Track } from '../../types';
 import { COR, ESP, RAIO, TIPO } from '../tokens.web';
@@ -79,8 +80,29 @@ export function LibraryCheckPage({ back, play }: { back: () => void; play: (trac
 
         {v.indisponiveis.length ? (
           <>
-            <Text style={s.seccao}>NO LONGER PLAYS</Text>
+            <View style={s.tituloDaSeccao}>
+              <Text style={[s.seccao, { flex: 1 }]}>NO LONGER PLAYS</Text>
+              {/* Tirar uma a uma, em cada playlist onde estivesse, era o que
+                  o ecrã pedia antes: "remove it yourself". O "Undo" apanha a
+                  remoção inteira, por isso o botão não pergunta nada. */}
+              {pendentes.indisponiveis ? (
+                <Button
+                  secondary
+                  icon="trash-outline"
+                  disabled={offline || !!v.aTratar}
+                  onPress={() => void removerTodasAsIndisponiveis()}
+                >
+                  {v.aTratar === CHAVE_DE_REMOVER_TODAS ? 'Removing…'
+                    : `Remove all ${pendentes.indisponiveis}`}
+                </Button>
+              ) : null}
+            </View>
+            <Text style={s.explicacao}>
+              Remove takes the song out of your library and your playlists. It stays in the app's
+              shared catalogue, so nobody else loses it.
+            </Text>
             {v.indisponiveis.map((i) => <Morta key={chaveDaIndisponivel(i)} item={i} offline={offline} play={play} />)}
+            <ErroNaLinha chave={CHAVE_DE_REMOVER_TODAS} />
           </>
         ) : null}
 
@@ -208,14 +230,20 @@ function Morta({ item, offline, play }: { item: Indisponivel; offline: boolean; 
           <Text numberOfLines={1} style={s.titulo}>{tituloDaFaixa(item.faixa)}</Text>
           <Text numberOfLines={1} style={s.meta}>{motivoDaIndisponivel(item.motivo)}</Text>
         </View>
-        {feito ? <Feito rotulo={feito} /> : item.copia === undefined ? (
-          <Button secondary disabled={offline || aTratar} onPress={() => void procurarCopiaPara(item)}>
-            {aTratar ? 'Searching…' : 'Find a copy'}
-          </Button>
-        ) : null}
+        {feito ? <Feito rotulo={feito} /> : (
+          <View style={s.acoesDaLinha}>
+            {item.copia === undefined ? (
+              <Button secondary disabled={offline || aTratar} onPress={() => void procurarCopiaPara(item)}>
+                {aTratar ? 'Searching…' : 'Find a copy'}
+              </Button>
+            ) : null}
+            <Button secondary icon="trash-outline" disabled={offline || aTratar}
+              onPress={() => void removerIndisponivel(item)}>Remove</Button>
+          </View>
+        )}
       </View>
       {!feito && item.copia === null ? (
-        <Text style={[s.meta, s.semCopia]}>No safe copy found. Try again later, or remove it yourself.</Text>
+        <Text style={[s.meta, s.semCopia]}>No safe copy found. Try again later, or remove it.</Text>
       ) : null}
       {!feito && item.copia ? (
         <>
@@ -253,6 +281,8 @@ const s = StyleSheet.create({
   },
   seccao: { ...TIPO.micro, color: COR.textoFraco, marginTop: ESP.lg, marginBottom: ESP.sm },
   explicacao: { ...TIPO.legenda, color: COR.textoMedio, marginBottom: ESP.md, maxWidth: 640 },
+  tituloDaSeccao: { flexDirection: 'row', alignItems: 'center', gap: ESP.md },
+  acoesDaLinha: { flexDirection: 'row', alignItems: 'center', gap: ESP.sm },
   cartao: {
     marginBottom: ESP.md, borderRadius: RAIO.cartao, overflow: 'hidden',
     borderWidth: 1, borderColor: COR.linhaSuave, backgroundColor: COR.painel,

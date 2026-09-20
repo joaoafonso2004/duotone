@@ -10,8 +10,9 @@
  * Isto apanha o que mais provavelmente estaria errado e passaria despercebido:
  * um sinal trocado nos coeficientes ou na actualizacao do estado.
  */
+import { readFileSync } from 'node:fs';
 import {
-  BANDAS, compensacaoDb, PERFIS, respostaDb, TIPOS, type TipoDeBanda,
+  BANDAS, compensacaoDb, GANHO_MAXIMO, PERFIS, respostaDb, TIPOS, type TipoDeBanda,
 } from '../src/lib/equalizer.ts';
 
 const TAXA = 48000;
@@ -183,6 +184,16 @@ check('os canais ficam ligados e a imagem stereo nao anda',
 // Flat nem instala o tap no iOS e usa ratio 1 no Web Audio: o limiter existe
 // apenas para proteger o headroom criado por uma curva ativa.
 check('o caminho Flat continua a ser bypass', PERFIS.find((p) => p.id === 'flat')!.ganhos.every((g) => g === 0));
+
+// O limite vive em dois sitios (TypeScript e Swift) porque o tap nativo nao
+// importa o lib/equalizer.ts. Divergirem seria meio curso da barra a nao fazer
+// nada no iPhone, sem erro nenhum -- e isso daqui nao se ve a compilar.
+const swift = readFileSync(new URL('../modules/duotone-audio/ios/DuotoneEq.swift', import.meta.url), 'utf8');
+const limiteNativo = swift.match(/ganhoMaximo: Float = ([0-9.]+)/)?.[1];
+check('o limite do Swift e o mesmo do GANHO_MAXIMO', Number(limiteNativo) === GANHO_MAXIMO,
+  `swift=${limiteNativo} ts=${GANHO_MAXIMO}`);
+check('e e por ele que o Swift prende os ganhos',
+  /max\(-ganhoMaximo, min\(ganhoMaximo,/.test(swift));
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

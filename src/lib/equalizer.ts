@@ -29,8 +29,22 @@ export const ETIQUETAS_BANDAS: readonly string[] = [
   'BASS', 'SUB', 'PUNCH', 'WARM', 'BODY', 'MIDS', 'PRES', 'CLEAR', 'AIR', 'TREBLE',
 ];
 
-/** O limite em dB para cada lado. */
-export const GANHO_MAXIMO = 12;
+/**
+ * O limite em dB para cada lado.
+ *
+ * Eram 12 e passaram a 24 a pedido do Joao (20/9). Nao e so o numero no ecra:
+ * o iOS prendia os ganhos a 12 dentro do Swift (`DuotoneEq.normalizar`) e por
+ * isso metade do curso da barra nao faria nada -- ha um teste que le o Swift e
+ * falha se os dois limites deixarem de bater certo.
+ *
+ * O que 24 dB custa, e que nao se pode prometer: a partir de certo ponto o
+ * reforco empurra os picos para alem da saida digital, e quem os segura e o
+ * limiter (-0,1 dBFS). Ele evita o estalo, nao evita que a musica soe
+ * comprimida. Por isso o master NAO e atenuado para dar espaco: baixar tudo
+ * para caber e o que faz um "bass boost" soar so a volume mais baixo (ver
+ * `compensacaoDb`).
+ */
+export const GANHO_MAXIMO = 24;
 
 export type Ganhos = number[];
 

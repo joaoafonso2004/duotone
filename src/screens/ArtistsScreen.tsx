@@ -19,10 +19,12 @@ import { Screen } from '../components/Screen';
 import { SkeletonDeArtistas } from '../components/Skeleton';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
+import { hapticSelection } from '../lib/haptics';
+import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
 
-interface ArtistGroup { name: string; artworkUrl: string | null; count: number }
+interface ArtistGroup { name: string; chave: string; artworkUrl: string | null; count: number }
 export function ArtistsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
@@ -73,13 +75,17 @@ export function ArtistsScreen() {
     setTracks(items); setLoading(false); void garantirCatalogo(items);
   }), [userId]);
   const catalogVersion = useCatalogoDeFaixas(s => s.versao);
+  const favoritos = useArtistasFavoritos(s => s.chaves);
+  const alternarFavorito = useArtistasFavoritos(s => s.alternar);
+  useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
   const artists = useMemo<ArtistGroup[]>(() => {
     // A versão invalida a projeção quando o catálogo confirma metadados.
     void catalogVersion;
-    return ordenarArtistas(agruparPorArtista(tracks.map(comCatalogo)), ranking).map(g => ({
-      name: g.nome, artworkUrl: g.faixas.find(t => t.artworkUrl)?.artworkUrl ?? null, count: g.faixas.length,
+    return ordenarArtistas(agruparPorArtista(tracks.map(comCatalogo)), ranking, favoritos).map(g => ({
+      name: g.nome, chave: g.chave,
+      artworkUrl: g.faixas.find(t => t.artworkUrl)?.artworkUrl ?? null, count: g.faixas.length,
     }));
-  }, [tracks, catalogVersion, ranking]);
+  }, [tracks, catalogVersion, ranking, favoritos]);
   // Memorizado: sem isto, cada tecla da pesquisa varria os 753 artistas outra vez.
   const repeated = useMemo(
     () => artists.filter(a => ranking.has(chaveDeArtista(a.name))).slice(0, 10),
@@ -87,8 +93,15 @@ export function ArtistsScreen() {
   );
   const filtered = useMemo(() => {
     const found = artists.filter(a => correspondeAPesquisa(searchQuery.trim(), a.name));
-    return order === 'az' ? found.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })) : found;
-  }, [artists, searchQuery, order]);
+    if (order !== 'az') return found;
+    // Alfabético continua a pôr os favoritos primeiro: favoritar é para os ter
+    // à mão, e uma ordem que os ignorasse desfazia o gesto.
+    return [...found].sort((a, b) => {
+      const fa = favoritos.has(a.chave) ? 0 : 1;
+      const fb = favoritos.has(b.chave) ? 0 : 1;
+      return fa !== fb ? fa - fb : a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    });
+  }, [artists, searchQuery, order, favoritos]);
   const cardWidth = (width - spacing.xl * 2 - 24) / 3;
   const renderArtist = (artist: ArtistGroup, shelf = false) => {
     const side = shelf ? 86 : Math.min(120, cardWidth);
@@ -98,6 +111,20 @@ export function ArtistsScreen() {
       {artist.artworkUrl ? <Image source={{ uri: artist.artworkUrl }} contentFit="cover"
         style={{ width: side, height: side, borderRadius: side / 2, backgroundColor: colors.surfaceHigh }} />
         : <View style={[styles.fallback, { width: side, height: side, borderRadius: side / 2 }]}><Ionicons name="person" size={30} color={colors.textTertiary} /></View>}
+      {/* Na prateleira de cima não: são círculos de 86 e já dizem quem se
+          ouve mais. A estrela vive na grelha, que é a lista toda. */}
+      {!shelf && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: favoritos.has(artist.chave) }}
+          accessibilityLabel={favoritos.has(artist.chave) ? `Unfavourite ${artist.name}` : `Favourite ${artist.name}`}
+          hitSlop={8}
+          onPress={() => { hapticSelection(); alternarFavorito(artist.chave); }}
+          style={[styles.estrela, { left: (cardWidth + side) / 2 - 30 }]}>
+          <Ionicons name={favoritos.has(artist.chave) ? 'star' : 'star-outline'} size={15}
+            color={favoritos.has(artist.chave) ? colors.accent : colors.textSecondary} />
+        </Pressable>
+      )}
       <Text numberOfLines={2} style={styles.name}>{artist.name}</Text>
       {!shelf && <Text style={type.caption}>{artist.count} {artist.count === 1 ? 'song' : 'songs'}</Text>}
     </Pressable>;
@@ -133,6 +160,12 @@ export function ArtistsScreen() {
 }
 const styles = StyleSheet.create({
   card: { alignItems: 'center', gap: 5, marginBottom: 20 },
+  /** A estrela encostada à direita do círculo do artista; o `left` é
+   * calculado na linha, porque o lado do cartão muda com a largura do ecrã. */
+  estrela: {
+    position: 'absolute', top: -2, width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceHigh,
+  },
   name: { ...type.body, fontSize: 14, fontWeight: '600', textAlign: 'center' },
   fallback: { backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
   search: { paddingHorizontal: spacing.xl, marginBottom: spacing.md },
