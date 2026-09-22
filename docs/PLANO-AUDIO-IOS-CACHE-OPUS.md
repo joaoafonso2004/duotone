@@ -12,9 +12,13 @@ O plano foi escrito antes de se perceber o que se passava no iPhone. O que acont
 - **O "tocar enquanto descarrega" funciona no aparelho.** Ficou confirmado: primeiro som com 262 KB de 2,9 MB. O que o acompanhou foram arranques longos e uma música a saltar sozinha para a seguinte, sem rasto nenhum no relatório.
 - **O cliente da cascata devolve o itag 251 com URL direto.** Era uma dúvida em aberto na secção 3 deste plano; está respondida.
 
-**O que já foi implementado e lançado (3.7.4), e que este plano não previa:** renovação do URL com identidade nova quando o CDN corta; HLS como degrau antes do embed; um 403 deixa de ser classificado como falta de rede; o estado do PO Token no relatório; EQ a ±20 dB.
+**O que já foi implementado e lançado, e que este plano não previa:**
 
-**O que mudou por decisão do dono (22/9, à noite):** o **stream ficou DESLIGADO** (`LIGADO`, em `lib/tocarEnquantoDescarrega.ts`) — volta-se a descarregar primeiro e a tocar depois — e o relatório passou a ter a secção **"queue decisions"**, que regista quem deu uma faixa por acabada e em que segundo.
+- **3.7.4** — renovação do URL com identidade nova quando o CDN corta; HLS como degrau antes do embed; um 403 deixa de ser classificado como falta de rede; o estado do PO Token no relatório; EQ a ±20 dB.
+- **3.7.5** — o **stream DESLIGADO** (`LIGADO`, em `lib/tocarEnquantoDescarrega.ts`), por decisão do dono: volta-se a descarregar primeiro e a tocar depois, "porque nunca encrava". E a secção **"queue decisions"** do relatório, que regista quem deu uma faixa por acabada e em que segundo.
+- **3.7.6** — a velocidade deixava de responder a partir do segundo ajuste e a pausa não pausava. Nada disto vinha deste plano, mas a lição interessa-lhe: o módulo nativo e o expo-video estavam os dois a mandar na taxa do AVPlayer, e a vigia do expo-video repunha o valor anterior. **Duas coisas a escrever no mesmo sítio do leitor, e uma delas sem saber da outra, é o defeito** — vale para a velocidade, vale para o tap do EQ por item e vale para qualquer coisa que a secção 3 venha a acrescentar ao lado do expo-video.
+
+**O que continua por explicar:** a música que saltou sozinha para a seguinte. O registo que a apanha existe desde a 3.7.5, mas ainda não houve um relatório com ela lá dentro. Enquanto isso não acontecer, não se pode dizer que foi do stream — pode ser dele, e pode ser de qualquer um dos três caminhos que dão uma faixa por acabada.
 
 **Consequências para este plano:**
 
@@ -325,6 +329,14 @@ O modo ficheiro chama o mesmo parser/writer até EOF. O resultado inteiro e o re
 9. Desligar Opus impede novas seleções, mas não apaga ficheiros. Para rollback completo, incluir os novos nomes na limpeza antes de ativar o codec; um binário muito antigo pode ignorá-los e exigir recuperação AAC online. Não prometer offline em versão incompatível quando só existe Opus.
 
 ### EQ e normalização
+
+> **A lição da 3.7.6, que vale aqui (22/9).** A velocidade partiu-se porque
+> duas coisas escreviam na taxa do mesmo AVPlayer -- o módulo nativo e a vigia
+> do expo-video -- e cada uma achava que mandava. Qualquer coisa que esta
+> secção acrescente ao lado do expo-video (um asset diferente, um tap
+> reinstalado, um item construído por nós) tem de responder à mesma pergunta
+> antes de ser escrita: **quem mais mexe nisto, e o que é que essa outra parte
+> faz quando encontra um valor que não reconhece?**
 
 O EQ recebe áudio descodificado através do `MTAudioProcessingTap`, pelo que não se prevê um DSP diferente por codec. Isso não confirma o formato concreto entregue ao tap. O Swift atual lê taxa/canais e processa buffers como Float32; no protótipo, registar ASBD e validar formato, bits, interleaving e canais. Se o formato não for suportado, usar bypass seguro em vez de reinterpretar buffers. Preparar isto fora da callback de processamento, sem alocações/bloqueios em tempo real. Confirmar o efeito audível nos dois motores usados pelo crossfade e preservar os ajustes locais existentes.
 
