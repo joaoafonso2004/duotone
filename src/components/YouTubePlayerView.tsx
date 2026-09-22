@@ -5,7 +5,7 @@ import { useVideoPlayer } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import { AppState, StyleSheet } from 'react-native';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
-import { resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
+import { criarRenovacao, resolveYouTubeHls, resolveYouTubeStream, streamFromPlayerResponse, type YtStream } from '../api/ytstream';
 import { BUILD_ID } from '../lib/buildInfo';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 import { registar as registarEvento } from '../lib/eventos';
@@ -87,7 +87,7 @@ async function adiantarFaixa(
     const uriLocal = await downloadProgressiveAudio(faixa.sourceId, stream.url, stream.contentLength, duracao, {
       prioridade,
       shouldAbort: abandonada,
-      renewUrl: async () => (await resolveYouTubeStream(faixa.sourceId, quality, true)).url,
+      renewUrl: criarRenovacao(faixa.sourceId, quality),
     });
     // Com o ficheiro em disco e tempo de sobra até esta faixa tocar, fica-se a
     // saber onde a MÚSICA dela acaba -- que raramente é onde o ficheiro acaba.
@@ -501,6 +501,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     tocou: boolean;
     /** Foi o download que falhou a meio: a culpa é da rede, não do motor. */
     downloadFalhou: boolean;
+    /** O erro com que esse download falhou (um 403 do CDN salta o ficheiro). */
+    erroDoDownload: unknown;
     /** A rede de segurança já está a passar isto para o ficheiro. */
     socorrida: boolean;
   } | null>(null);
@@ -941,6 +943,63 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     };
   }, [motorA, motorB]);
 
+  /**
+   * O degrau antes do embed: o HLS do mesmo vídeo, no motor nativo.
+   *
+   * A 22/9 o iPhone do João levava 403 do CDN aos ~1 MB em todas as músicas
+   * (o teto de quem não tem PO Token válido), o recurso do ficheiro batia no
+   * mesmo corte e a faixa ia para o embed -- que parava aos 29 s, com o ecrã
+   * bloqueado ou não, e ficava parado de vez. O HLS não tem esse teto (ver
+   * `resolveYouTubeHls`): toca no motor nativo, com segundo plano e ecrã
+   * bloqueado, mas sem ficheiro para ouvir sem rede e sem equalizador. Só se
+   * ele falhar é que se vai ao embed.
+   *
+   * Resolve e põe a fonte no motor ativo; play e estado são de quem chama,
+   * porque o arranque e a troca a meio da faixa não são iguais. Devolve
+   * também onde o motor ia ANTES da troca: a resolução leva um instante, e o
+   * stream pode ter continuado a tocar o que já tinha chegado.
+   * Devolve `null` se não houver HLS, se o motor o recusar ou se a faixa já
+   * não for esta.
+   */
+  const abrirHls = async (ainda: () => boolean): Promise<{ hls: YtStream; ia: number } | null> => {
+    let hls: YtStream;
+    let ia = 0;
+    try {
+      hls = await resolveYouTubeHls(track.sourceId, await getAudioQuality());
+      if (!ainda()) return null;
+      try {
+        ia = motorActivo().currentTime || 0;
+      } catch {
+        // motor sem fonte — começa do início
+      }
+      await trocarFonte(motorActivo(), {
+        uri: hls.url,
+        contentType: 'hls',
+        metadata: metadadosDoEcraBloqueado(track),
+      }, { desistir: () => !ainda() });
+    } catch (e: any) {
+      if (ainda()) {
+        registar({
+          quando: Date.now(),
+          videoId: track.sourceId,
+          titulo: track.title,
+          fase: 'hls',
+          tipo: classificar(sinalDoErro(e)),
+          detalhe: `build=${BUILD_ID} :: ${e?.message ?? 'unknown'}`,
+        });
+      }
+      return null;
+    }
+    if (!ainda()) return null;
+    streamRef.current = hls;
+    // Daqui já não há ficheiro para onde o watchdog fugir: o seguinte é o embed.
+    downloadTriedRef.current = true;
+    descarregarRef.current = { ativo: false, at: Date.now() };
+    rememberLoudnessDb(track.sourceId, hls.loudnessDb);
+    applyCeiling();
+    return { hls, ia };
+  };
+
   // Chamado pelo YtStreamHarvester (fase 1) com o que conseguiu capturar, ou
   // `null` se não capturou nada dentro do timeout.
   const proceedWithPlayerResponse = async (harvested: HarvestResult | null, runId: number) => {
@@ -1099,9 +1158,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             if (alive()) setDownloadProgress(f);
           },
           // Se o CDN matar o URL a meio (403), pede um fresco em vez de
-          // repetir o morto — ver fetchChunkWithRetry.
-          renewUrl: async () =>
-            (await resolveYouTubeStream(track.sourceId, quality, true)).url,
+          // repetir o morto — ver fetchChunkWithRetry e `criarRenovacao`.
+          renewUrl: criarRenovacao(track.sourceId, quality),
         };
         const ligacao = ligacaoParaTransmitir();
         const t = ligacao
@@ -1115,7 +1173,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           origem = 'stream';
           playableUri = t.uri;
           transmissaoRef.current = {
-            sessao: t.sessao, fechar: t.fechar, run: runId, tocou: false, downloadFalhou: false, socorrida: false,
+            sessao: t.sessao, fechar: t.fechar, run: runId, tocou: false, downloadFalhou: false, erroDoDownload: null,
+            socorrida: false,
           };
           const estaTransmissao = transmissaoRef.current;
           const minha = () => alive() && transmissaoRef.current === estaTransmissao;
@@ -1138,6 +1197,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               // O som já começou com o que chegou; o resto vem pelo caminho
               // antigo, que tem as suas próprias tentativas e mensagens.
               estaTransmissao.downloadFalhou = true;
+              estaTransmissao.erroDoDownload = erro;
               downloadTriedRef.current = false;
               void fallbackRef.current();
             },
@@ -1201,6 +1261,20 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         if (resolverDesde !== null && !stream) {
           registarEvento('resolvedor', { ok: false, tipo, ms: Date.now() - resolverDesde });
         }
+        const plano = recuperacao(tipo);
+        // O HLS antes do embed (ver `abrirHls`). Quem vai saltar (o vídeo
+        // morreu) e quem está sem rede não chegam aqui.
+        if (plano.embed && await abrirHls(alive)) {
+          registarEvento('caiu_no_hls', { motivo: tipo, fase: 'resolver' });
+          // Um stream que tenha chegado a abrir já não serve a ninguém.
+          fecharTransmissao();
+          beginPlayback('hls');
+          // Toca no motor nativo, com o ecrã bloqueado: o aviso de que a música
+          // vai parar deixa de ser verdade.
+          useSaudeDaReproducao.getState().observar({ tipo: 'nativo' });
+          return;
+        }
+        if (!alive()) return;
         useSaudeDaReproducao.getState().observar({ tipo: 'falha', falha: tipo, videoId: track.sourceId });
 
         // Uma frase, sem build id, sem nome de cliente e sem estado do PO
@@ -1208,7 +1282,6 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // antes só cabia truncado.
         setError(mensagemDaFalha(tipo));
 
-        const plano = recuperacao(tipo);
         if (plano.saltar) {
           if (!endedRef.current) {
             endedRef.current = true;
@@ -1260,7 +1333,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const largarTransmissao = () => {
       if (transmissao && transmissaoRef.current === transmissao) fecharTransmissao();
     };
+    const ainda = () => isMountedRef.current && myRun === runIdRef.current;
+    // O download do stream levou 403 do CDN, e já com as renovações todas
+    // (ver `criarRenovacao`). Descarregar o ficheiro outra vez desde o início
+    // batia no mesmo corte -- a 22/9 eram mais uns segundos parado antes do
+    // embed. Vai-se direto ao HLS.
+    const cortado = !!transmissao?.downloadFalhou
+      && classificar(sinalDoErro(transmissao.erroDoDownload)) === 'bloqueio-bot';
     try {
+      if (cortado) throw transmissao!.erroDoDownload;
       const uri = await downloadProgressiveAudio(
         track.sourceId,
         stream.url,
@@ -1268,12 +1349,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         track.durationSeconds || stream.durationSeconds || null,
         {
           prioridade: 'reproducao',
-          shouldAbort: () => !isMountedRef.current || myRun !== runIdRef.current,
+          shouldAbort: () => !ainda(),
           onProgress: (f) => {
-            if (isMountedRef.current && myRun === runIdRef.current) setDownloadProgress(f);
+            if (ainda()) setDownloadProgress(f);
           },
-          renewUrl: async () =>
-            (await resolveYouTubeStream(track.sourceId, await getAudioQuality(), true)).url,
+          renewUrl: criarRenovacao(track.sourceId, await getAudioQuality()),
         }
       );
       setDownloadProgress(null);
@@ -1301,20 +1381,59 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
     } catch (e: any) {
       setDownloadProgress(null);
-      if (!isMountedRef.current || myRun !== runIdRef.current) return true;
+      if (!ainda()) return true;
       if (e?.message === DOWNLOAD_ABORTED) return true;
-      largarTransmissao();
       // Era aqui que o 403 ao fim de ~1 MB (a porta fechada, ago 2026) caía no
       // embed: com o `[build ...]` no ecrã e sem entrar no relatório. Passa
       // pelo mesmo caminho do resolver -- classificar, registar, uma frase.
       const tipo = classificar(sinalDoErro(e));
+      // O PO Token entra no detalhe: sem ele, o relatório de 22/9 não dizia se
+      // o corte era de um token que falhou ou de um que nem chegou a existir.
+      const potInfo = stream.hasPoToken
+        ? 'pot=yes'
+        : `pot=no (${getLastBotGuardError() ?? 'n/a'})`;
+      const detalhe = `build=${BUILD_ID} client=${stream.client ?? '?'} ${potInfo} :: ${e?.message ?? 'unknown'}`
+        + (cortado ? ' (stream)' : '');
+
+      // O HLS antes do embed (ver `abrirHls`). O stream, se ainda estiver a
+      // tocar o que chegou, continua até a fonte mudar.
+      if (recuperacao(tipo).embed) {
+        const aberto = await abrirHls(ainda);
+        if (!ainda()) return true;
+        if (aberto) {
+          largarTransmissao();
+          nativeTrackIdRef.current = track.sourceId;
+          const retomarEm = aberto.ia > 1 ? aberto.ia : resumeAt;
+          try {
+            if (retomarEm > 1) motorActivo().currentTime = retomarEm;
+          } catch {
+            // ignorar — recomeça do início se o seek falhar
+          }
+          lastProgressRef.current = { time: lastProgressRef.current.time, at: Date.now() };
+          if (wantsPlayRef.current) {
+            motorActivo().play();
+            fadeIn();
+          } else {
+            motorActivo().volume = ceilingRef.current;
+          }
+          registar({
+            quando: Date.now(), videoId: track.sourceId, titulo: track.title,
+            fase: 'download', tipo, detalhe: `${detalhe} -> HLS`,
+          });
+          registarEvento('caiu_no_hls', { motivo: tipo, fase: 'download' });
+          useSaudeDaReproducao.getState().observar({ tipo: 'nativo' });
+          return true;
+        }
+      }
+
+      largarTransmissao();
       registar({
         quando: Date.now(),
         videoId: track.sourceId,
         titulo: track.title,
         fase: 'download',
         tipo,
-        detalhe: `build=${BUILD_ID} client=${stream.client ?? '?'} :: ${e?.message ?? 'unknown'}`,
+        detalhe: `${detalhe} -> embed`,
       });
       registarEvento('caiu_no_embed', { motivo: tipo, fase: 'download' });
       useSaudeDaReproducao.getState().observar({ tipo: 'falha', falha: tipo, videoId: track.sourceId });

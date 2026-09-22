@@ -26,3 +26,8 @@ export function setEqPadrao(ganhos: readonly number[]): Promise<void> {
   guardadas.eqPadrao = [...ganhos];
   return Promise.resolve();
 }
+
+/** Lido pelo `api/potProvider.ts` (o servidor externo): em Node não há nenhum. */
+export function getPoTokenServerUrl(): Promise<string> {
+  return Promise.resolve('');
+}

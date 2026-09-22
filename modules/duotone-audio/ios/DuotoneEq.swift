@@ -56,7 +56,7 @@ enum DuotoneEq {
   static let q: Float = 1
   /** O mesmo `GANHO_MAXIMO` do `lib/equalizer.ts` -- o teste do EQ nativo le
    * este ficheiro e falha se os dois numeros divergirem. */
-  static let ganhoMaximo: Float = 24
+  static let ganhoMaximo: Float = 20
   static var numeroDeBandas: Int { frequencias.count }
 
   static func normalizar(_ db: [Double]) -> [Float] {

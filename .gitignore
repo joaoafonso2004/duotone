@@ -48,6 +48,7 @@ test-*.mjs
 !scripts/test-mp4-ao-vivo.mjs
 !scripts/test-transmitir-audio.mjs
 !scripts/test-saude-electron.mjs
+!scripts/test-renovacao-e-hls.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

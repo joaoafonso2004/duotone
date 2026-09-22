@@ -27,6 +27,8 @@ export type NomeDeEvento =
   | 'primeira_nota'
   | 'faixa_falhou'
   | 'caiu_no_embed'
+  /** O download progressivo foi cortado e a faixa passou para o HLS. */
+  | 'caiu_no_hls'
   | 'fim_encravado'
   | 'entrega_falhada'
   | 'trocou_para_ficheiro'

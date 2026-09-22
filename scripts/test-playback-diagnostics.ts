@@ -103,6 +103,16 @@ const erroComHttp: any = new Error('CDN rejected the URL (HTTP 403)');
 erroComHttp.http = 403;
 check('le o http pendurado no Error', classificar(sinalDoErro(erroComHttp)) === 'bloqueio-bot');
 check('erro simples cai no texto', classificar(sinalDoErro(new Error('video privado'))) === 'indisponivel');
+// 22/9: "Chunk download failed" contem "load failed", e o 403 do CDN ao ~1 MB
+// aparecia no relatorio do iPhone como "no connection".
+check('o 403 do download nao e falta de rede, mesmo so com a mensagem',
+  classificar({ mensagem: 'Chunk download failed (HTTP 403) at byte 1131072' }) !== 'sem-rede');
+const erroDoBocado: any = new Error('Chunk download failed (HTTP 403) at byte 1131072');
+erroDoBocado.http = 403;
+check('o 403 do download e bloqueio, e vai ao recurso',
+  classificar(sinalDoErro(erroDoBocado)) === 'bloqueio-bot' && recuperacao('bloqueio-bot').embed === true);
+check('o "Load failed" do fetch do iOS continua a ser falta de rede',
+  classificar({ mensagem: 'TypeError: Load failed' }) === 'sem-rede');
 check('extra sobrepoe-se ao Error',
   classificar(sinalDoErro(new Error('seja o que for'), { offline: true })) === 'sem-rede');
 check('null nao rebenta', classificar(sinalDoErro(null)) === 'desconhecido');

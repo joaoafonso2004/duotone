@@ -1,4 +1,4 @@
-import { resolveYouTubeStream } from '../api/ytstream';
+import { criarRenovacao, resolveYouTubeStream } from '../api/ytstream';
 import { useConnectivity } from '../state/connectivity';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
@@ -62,7 +62,7 @@ export async function alternarDownload(track: Track): Promise<void> {
       {
         prioridade: 'explicito',
         shouldAbort: () => useConnectivity.getState().offline,
-        renewUrl: async () => (await resolveYouTubeStream(track.sourceId, quality, true)).url,
+        renewUrl: criarRenovacao(track.sourceId, quality),
       },
     );
   } catch (err) {
@@ -106,7 +106,7 @@ export async function guardarEmSegundoPlano(faixas: readonly Track[]): Promise<n
         {
           prioridade: 'adiantar',
           shouldAbort: deveParar,
-          renewUrl: async () => (await resolveYouTubeStream(track.sourceId, quality, true)).url,
+          renewUrl: criarRenovacao(track.sourceId, quality),
         },
       );
       guardadas++;

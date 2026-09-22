@@ -387,7 +387,11 @@ export async function fetchChunkWithRetry(
       break;
     }
   }
-  throw new Error(`Chunk download failed (HTTP ${lastStatus}) at byte ${start}`);
+  // O HTTP vai pendurado no erro: e ele que o `classificar` le primeiro. So com
+  // a mensagem, um 403 chegou a ser lido como falta de rede.
+  const erro: any = new Error(`Chunk download failed (HTTP ${lastStatus}) at byte ${start}`);
+  if (lastStatus > 0) erro.http = lastStatus;
+  throw erro;
 }
 
 export interface DownloadOptions {

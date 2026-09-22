@@ -357,18 +357,7 @@ async function getVisitorData(): Promise<string | null> {
     // Se o AsyncStorage falhar, continua para o pedido de rede
   }
   try {
-    const res = await fetch(`${VISITOR_ENDPOINT}?key=${WEB_KEY}&prettyPrint=false`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Origin: 'https://www.youtube.com' },
-      body: JSON.stringify({
-        context: {
-          client: { clientName: 'WEB', clientVersion: '2.20260114.08.00', hl: 'en', gl: 'US' },
-        },
-      }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    visitorDataCache = data?.responseContext?.visitorData ?? null;
+    visitorDataCache = await pedirVisitorData();
     if (visitorDataCache) {
       AsyncStorage.setItem(
         VD_KEY,
@@ -379,6 +368,112 @@ async function getVisitorData(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** Um `visitorData` acabado de pedir, sem cache nenhuma. */
+async function pedirVisitorData(): Promise<string | null> {
+  const res = await fetch(`${VISITOR_ENDPOINT}?key=${WEB_KEY}&prettyPrint=false`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: 'https://www.youtube.com' },
+    body: JSON.stringify({
+      context: {
+        client: { clientName: 'WEB', clientVersion: '2.20260114.08.00', hl: 'en', gl: 'US' },
+      },
+    }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data?.responseContext?.visitorData ?? null;
+}
+
+/**
+ * Renovar o URL de uma faixa cujo download o CDN cortou a meio (403).
+ *
+ * A renovação de sempre (`resolveYouTubeStream(..., true)`) pedia um URL novo
+ * com a MESMA identidade: o mesmo `visitorData` (24 h em disco) e o mesmo PO
+ * Token. A 22/9 o iPhone do João levava 403 aos 1 012 144 bytes em todas as
+ * músicas pelo VISIONOS -- o número exato dos clientes que precisam de PO
+ * Token --, enquanto no PC, na MESMA rede Wi-Fi e com identidade nova, o
+ * VISIONOS descarregava tudo: sem PO Token, com um PO Token inválido e com o
+ * User-Agent do iOS. Repetir a identidade dava sempre o mesmo corte.
+ *
+ * Por isso as renovações alternam: a primeira pede o áudio com uma identidade
+ * NOVA -- `visitorData` acabado de pedir e sem PO Token, que o VISIONOS não
+ * precisa --, a seguinte faz a renovação de sempre (que é a que resolve um
+ * URL morto por troca de IP no 4G, com o token), e assim por diante. A
+ * identidade nova NÃO substitui a da app: é só desta renovação, para não
+ * obrigar as faixas seguintes a cunhar outro PO Token.
+ *
+ * Uma renovação que só consiga HLS devolve `null`: um manifesto não serve a
+ * quem está a pedir bytes de um ficheiro.
+ */
+export function criarRenovacao(
+  videoId: string,
+  quality: 'high' | 'saver' = 'high',
+): () => Promise<string | null> {
+  let vezes = 0;
+  return async () => {
+    vezes += 1;
+    if (vezes % 2 === 1) {
+      try {
+        const identidade = await pedirVisitorData();
+        const data = await requestPlayer(videoId, VISIONOS_CLIENT, identidade);
+        const stream = streamFromPlayerResponse(data, quality);
+        if (!stream.isHls) {
+          const status = await probeMediaUrl(stream.url);
+          if (status === 200 || status === 206) return stream.url;
+        }
+      } catch {
+        // Segue para a renovação de sempre.
+      }
+    }
+    const stream = await resolveYouTubeStream(videoId, quality, true);
+    return stream.isHls ? null : stream.url;
+  };
+}
+
+/**
+ * O HLS do vídeo, para quando o download progressivo é cortado.
+ *
+ * O HLS não sofre do teto de ~1 MB (ver a ORDEM na cascata, mais abaixo), e
+ * a 22/9 passou inteiro no PC onde o progressivo do IOS e do ANDROID_VR
+ * parava. Toca no motor nativo -- segundo plano e ecrã bloqueado funcionam --,
+ * mas não deixa ficheiro para ouvir sem rede e fica sem equalizador (o tap
+ * precisa das faixas do asset). É o degrau antes do embed, que para com o
+ * ecrã bloqueado.
+ */
+export async function resolveYouTubeHls(
+  videoId: string,
+  quality: 'high' | 'saver' = 'high',
+): Promise<YtStream> {
+  const visitorData = await getVisitorData();
+  const erros: string[] = [];
+  for (const client of [VISIONOS_CLIENT, IOS_CLIENT]) {
+    try {
+      const data = await requestPlayer(videoId, client, visitorData);
+      const status = data?.playabilityStatus?.status;
+      if (status && status !== 'OK') {
+        const erro: any = new Error(data?.playabilityStatus?.reason || `Not playable (${status})`);
+        erro.statusPlayability = status;
+        throw erro;
+      }
+      const master = data?.streamingData?.hlsManifestUrl;
+      if (!master) throw new Error('No HLS manifest');
+      const url = (await pickAudioOnlyHls(master, quality === 'saver')) ?? master;
+      return {
+        url,
+        isHls: true,
+        expiresAt: Date.now() + 5 * 60 * 60 * 1000,
+        contentLength: null,
+        durationSeconds: Number(data?.videoDetails?.lengthSeconds) || null,
+        loudnessDb: readLoudnessDb(data),
+        client: client.clientName + (visitorData ? '+vd' : '') + '/hls',
+      };
+    } catch (e: any) {
+      erros.push(`${client.clientName}: ${e?.message ?? String(e)}`);
+    }
+  }
+  throw new Error(`HLS: ${erros.join(' | ')}`);
 }
 
 /** Faz um pedido /player com um cliente específico e devolve a resposta JSON

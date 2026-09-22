@@ -60,7 +60,10 @@ export type Sinal = {
 /** Reconhece "indisponível" em PT e EN. O `reason` do YouTube vem no idioma
  * do pedido, por isso uma lista só em inglês falhava metade das vezes. */
 const TEXTO: [RegExp, TipoFalha][] = [
-  [/offline|sem liga|network request failed|load failed|fetch failed|err_internet/i, 'sem-rede'],
+  // `\bload failed` e nao `load failed`: "Chunk DOWNLOAD FAILED (HTTP 403)"
+  // contem "load failed", e um 403 do CDN aparecia como "no connection" --
+  // sem ir ao embed nem contar para o aviso do bloqueio (22/9).
+  [/offline|sem liga|network request failed|\bload failed|fetch failed|err_internet/i, 'sem-rede'],
   [/idade|age.?restrict|confirm your age|sign in to confirm/i, 'restrito-idade'],
   [/pa[ií]s|regi[aã]o|region|not available in your country|geo/i, 'restrito-regiao'],
   [/bot|login_required|inicia sess[aã]o|sign in|403/i, 'bloqueio-bot'],
