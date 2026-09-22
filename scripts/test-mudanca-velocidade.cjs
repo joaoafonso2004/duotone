@@ -25,7 +25,54 @@ motor.atualizarVelocidadeDoMotor(p,0.9,()=>false);assert.deepEqual(p.calls,[],'n
 motor.tocarNaVelocidade(p,0.9);assert.deepEqual(p.calls,[['play',0.899999976]]);
 p=fakePlayer();let received;
 motor.atualizarVelocidadeDoMotor(p,0.85,(player,value)=>{received={player,value};return true;});
-assert.equal(received.player,p);assert.equal(received.value,0.85);assert.deepEqual(p.calls,[],'native path does not also call Expo setter');
+assert.equal(received.player,p);assert.equal(received.value,0.85);
+// 22/9: the native path ALSO writes expo-video's own property. Without it,
+// expo-video's rate watcher put the previous speed back -- see below.
+assert.deepEqual(p.calls,[['rate',0.85]],'native path keeps expo-video in step');
+p=fakePlayer(0.85);
+motor.atualizarVelocidadeDoMotor(p,0.85,()=>true);
+assert.deepEqual(p.calls,[],'and writes nothing when it is already in step');
+p=fakePlayer(1,false);
+motor.atualizarVelocidadeDoMotor(p,0.85,()=>true);
+assert.deepEqual(p.calls,[],'a paused player is never written to: that setter plays');
+
+// The real thing this protects, modelled on expo-video's own Swift:
+//
+//  - the native module changes the live rate and writes `defaultRate` AFTER;
+//  - expo-video observes the rate and, when `defaultRate` does not match the
+//    value it holds, adopts `defaultRate` and writes it into the player
+//    (node_modules/expo-video/ios/VideoPlayer.swift, onRateChanged);
+//  - so it used to put the PREVIOUS speed back, and a rate other than zero is
+//    playing, which is why pause stopped pausing.
+function leitorComoNoIPhone(inicial=1){
+ const estado={taxa:inicial,defaultRate:inicial,guardadaPeloExpo:inicial,pausado:false};
+ const kvo=()=>{ // expo-video's onRateChanged
+  if(estado.defaultRate===estado.guardadaPeloExpo)return;
+  estado.guardadaPeloExpo=estado.defaultRate;
+  // didSet: writes the adopted value into the player. A non-zero rate plays.
+  estado.defaultRate=estado.guardadaPeloExpo;
+  if(estado.taxa!==estado.guardadaPeloExpo){estado.taxa=estado.guardadaPeloExpo;estado.pausado=false;}
+ };
+ const player={get playbackRate(){return estado.guardadaPeloExpo;},
+  set playbackRate(v){estado.guardadaPeloExpo=v;if(estado.defaultRate!==v)estado.defaultRate=v;
+   if(estado.taxa!==v){estado.taxa=v;estado.pausado=false;}},
+  get playing(){return !estado.pausado;},play(){estado.pausado=false;}};
+ const nativo=(_p,v)=>{ // modules/duotone-audio, aplicarVelocidade
+  if(!estado.pausado){estado.taxa=v;kvo();}
+  estado.defaultRate=v;return true;};
+ const pausar=()=>{estado.pausado=true;estado.taxa=0;kvo();};
+ return {estado,player,nativo,pausar};
+}
+const iphone=leitorComoNoIPhone();
+motor.atualizarVelocidadeDoMotor(iphone.player,0.9,iphone.nativo);
+assert.equal(iphone.estado.taxa,0.9,'first change: 0.9');
+motor.atualizarVelocidadeDoMotor(iphone.player,1.1,iphone.nativo);
+assert.equal(iphone.estado.taxa,1.1,'second change is NOT one step behind');
+motor.atualizarVelocidadeDoMotor(iphone.player,0.7,iphone.nativo);
+assert.equal(iphone.estado.taxa,0.7,'third change either');
+iphone.pausar();
+assert.equal(iphone.estado.pausado,true,'and pause still pauses');
+assert.equal(iphone.estado.taxa,0,'the player really stops');
 motor.atualizarVelocidadeDoMotor(p,NaN,()=>false);assert.deepEqual(p.calls,[]);
 const bridge=module=>load('modules/duotone-audio/index.ts',{expo:{requireOptionalNativeModule:()=>module}});
 assert.equal(bridge(null).aplicarVelocidadeNativa(p,1),false);
