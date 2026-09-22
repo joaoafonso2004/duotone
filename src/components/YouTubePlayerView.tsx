@@ -35,7 +35,7 @@ import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
 import { comecarArranque, marcarResolver } from '../lib/arranqueDaFaixa';
 import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar,
-  registarNoStream, sinalDoErro, type TipoFalha,
+  registarNaFila, registarNoStream, sinalDoErro, type TipoFalha,
 } from '../lib/playbackDiagnostics';
 import { usePlayer } from '../state/player';
 import { useSaudeDaReproducao } from '../state/saudeDaReproducao';
@@ -751,6 +751,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // motor sem fonte — ignorar
     }
     endedRef.current = true;
+    registarNaFila(
+      `${track.sourceId}: crossfade handed over at ${lastProgressRef.current.time.toFixed(1)}s`
+      + ` of ${track.durationSeconds ?? streamRef.current?.durationSeconds ?? '?'}s`,
+    );
     // A partir daqui a fila TEM de avançar. Se não avançar, quem entrou
     // fica a tocar sem ninguém a saber -- ver o ouvinte do motor em espera.
     entregaRef.current = { deQual: track.sourceId, quando: Date.now() };
@@ -1458,6 +1462,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       player.play();
       return;
     }
+    registarNaFila(
+      `${track.sourceId}: silent end at ${lastProgressRef.current.time.toFixed(1)}s`
+      + ` of ${track.durationSeconds ?? streamRef.current?.durationSeconds ?? '?'}s`,
+    );
     endedRef.current = true;
     onStateChange('ended');
   };
@@ -1586,6 +1594,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         terminarPassagem();
         return;
       }
+      registarNaFila(
+        `${track.sourceId}: engine reported the end at ${lastProgressRef.current.time.toFixed(1)}s`
+        + ` of ${track.durationSeconds ?? streamRef.current?.durationSeconds ?? '?'}s`,
+      );
       if (repeatMode === 'one') {
         player.currentTime = 0;
         player.play();

@@ -13,6 +13,25 @@
  * Sem imports: `scripts/test-tocar-enquanto-descarrega.ts` corre isto em Node.
  */
 
+/**
+ * O interruptor do caminho novo, e está DESLIGADO (22/9).
+ *
+ * Decisão do João, com a app dele a tocar pelo stream: "antes não dava estes
+ * problemas, a app baixava a música e tocava, se calhar prefiro essa approach
+ * porque nunca encrava". O stream em si portava-se -- o relatório mostra o som
+ * a começar com 262 KB de 2,9 MB --, mas com ele ligado apareceram uma música
+ * a saltar sozinha para a seguinte e arranques longos, e nenhum deles deixava
+ * rasto no relatório.
+ *
+ * O preço é conhecido e é o de sempre: cada faixa nova espera pelo ficheiro
+ * inteiro antes do primeiro som. É o que a app fazia até 17/9.
+ *
+ * Ligar outra vez é pôr isto a `true` -- o caminho continua todo escrito e
+ * testado. Antes disso convém ler a secção "queue decisions" do relatório, que
+ * passou a registar quem deu a faixa por acabada.
+ */
+export const LIGADO = false;
+
 export type SaudeDoStream = { falhasSeguidas: number; desligadoAte: number };
 
 export const SAUDE_INICIAL: SaudeDoStream = { falhasSeguidas: 0, desligadoAte: 0 };
@@ -58,7 +77,14 @@ export function lerSaude(texto: string | null): SaudeDoStream {
 }
 
 /** Uma linha para o relatório de reprodução. */
-export function descreverSaude(s: SaudeDoStream, agora: number, temModulo: boolean): string {
+export function descreverSaude(
+  s: SaudeDoStream,
+  agora: number,
+  temModulo: boolean,
+  /** Por parâmetro para o teste poder ver as duas posições do interruptor. */
+  ligado: boolean = LIGADO,
+): string {
+  if (!ligado) return 'off (turned off in this build)';
   if (!temModulo) return 'off (this build has no streaming module)';
   if (!podeTransmitir(s, agora)) {
     return `off after repeated player failures, back on ${new Date(s.desligadoAte).toISOString().slice(0, 16)}Z`;

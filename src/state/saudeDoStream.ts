@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ligacaoAoMotor } from '../../modules/duotone-stream';
 import type { LigacaoAoMotor } from '../lib/youtubeCache';
 import {
-  SAUDE_INICIAL, depoisDeTransmitir, descreverSaude, lerSaude, podeTransmitir,
+  LIGADO, SAUDE_INICIAL, depoisDeTransmitir, descreverSaude, lerSaude, podeTransmitir,
   type SaudeDoStream,
 } from '../lib/tocarEnquantoDescarrega';
 
@@ -29,6 +29,8 @@ function ler(): void {
  * ainda não leu o disco e deixa tentar -- uma faixa a mais, no pior caso.
  */
 export function ligacaoParaTransmitir(): LigacaoAoMotor | null {
+  // Desligado à mão (ver `LIGADO`): descarrega-se primeiro e toca-se depois.
+  if (!LIGADO) return null;
   ler();
   if (!ligacaoAoMotor) return null;
   return podeTransmitir(saude, Date.now()) ? ligacaoAoMotor : null;

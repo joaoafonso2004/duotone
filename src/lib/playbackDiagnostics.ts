@@ -311,6 +311,7 @@ export function limparHistorico(): void {
   sessaoDeAudio.length = 0;
   doStream.length = 0;
   daSaude.length = 0;
+  daFila.length = 0;
 }
 
 /**
@@ -347,6 +348,27 @@ export function registarNoStream(texto: string, quando: number = Date.now()): vo
 
 export function historicoDoStream(): readonly EventoDaSessaoDeAudio[] {
   return doStream;
+}
+
+/**
+ * Quando a app decide sozinha que uma faixa acabou.
+ *
+ * A 22/9 uma música saltou para a seguinte a meio e o relatório não tinha nada
+ * para mostrar: um salto destes não é uma falha -- é a app a dar a faixa por
+ * terminada -- e por isso não entra no anel das falhas. Sem rasto nenhum, a
+ * única forma de o perceber era adivinhar. Fica a posição e a duração, que é
+ * o que distingue um fim a sério de um salto a meio.
+ */
+const MAX_DA_FILA = 20;
+const daFila: EventoDaSessaoDeAudio[] = [];
+
+export function registarNaFila(texto: string, quando: number = Date.now()): void {
+  daFila.push({ quando, texto });
+  if (daFila.length > MAX_DA_FILA) daFila.splice(0, daFila.length - MAX_DA_FILA);
+}
+
+export function historicoDaFila(): readonly EventoDaSessaoDeAudio[] {
+  return daFila;
 }
 
 /**
@@ -394,6 +416,7 @@ export function relatorio(
   audio: readonly EventoDaSessaoDeAudio[] = sessaoDeAudio,
   stream: readonly EventoDaSessaoDeAudio[] = doStream,
   saude: readonly EventoDaSessaoDeAudio[] = daSaude,
+  fila: readonly EventoDaSessaoDeAudio[] = daFila,
 ): string {
   const linhas: string[] = [];
   // Em ingles como o resto da UI do desktop — o botao que o gera diz "Export
@@ -415,6 +438,7 @@ export function relatorio(
   const secaoDeAudio = () => {
     if (audio.length) secao('audio session (calls, alarms, headphones)', audio);
     if (ctx.stream !== undefined || stream.length) secao(`play while downloading: ${ctx.stream ?? 'unknown'}`, stream);
+    if (fila.length) secao('queue decisions (track ended, skipped)', fila);
     // A hora diz quando aconteceu, e um crash da abertura anterior é de antes.
     if (saude.length) secao('app health (errors, crashes, hangs)', [...saude].sort((a, b) => a.quando - b.quando));
   };
