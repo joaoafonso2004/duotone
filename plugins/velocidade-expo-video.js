@@ -3,24 +3,19 @@ const path = require('node:path');
 const { withDangerousMod } = require('expo/config-plugins');
 
 /**
- * Dois remendos ao VideoPlayer.swift do expo-video, os dois pela mesma razão:
- * a velocidade desta app é mudada pelo módulo nativo (`modules/duotone-audio`,
- * `aplicarVelocidade`), e o expo-video não pode desfazer o que ele fez.
+ * Dois remendos ao VideoPlayer.swift do expo-video: o setter da velocidade só
+ * escreve o que é mesmo diferente (22/9), e a vigia da taxa deixa de ADOTAR o
+ * defaultRate (23/9).
  *
- * 1. O setter só escreve no AVPlayer o que é mesmo diferente (22/9).
- *
- * 2. A vigia da taxa deixa de ADOTAR o `defaultRate` (23/9). A regra do
- *    expo-video é: se o `defaultRate` do AVPlayer não bate com o valor que ele
- *    guardou, alguém mudou a velocidade nos controlos nativos do vídeo -- e ele
- *    adota esse valor e ESCREVE-O no leitor. Esta app não mostra controlos
- *    nativos nenhuns (não há VideoView), por isso a regra nunca serve e só
- *    estraga: o módulo nativo aplica a velocidade num bloco na thread
- *    principal, e numa janela entre dois toques o `defaultRate` e o valor do
- *    expo-video discordam. A vigia acordava aí e repunha a velocidade ANTERIOR
- *    ("fica um clique atrás") -- e, como uma pausa é uma mudança de taxa,
- *    escrevia uma taxa diferente de zero no leitor em pausa, que no
- *    AVFoundation É tocar ("carrego na pausa e continua a tocar"). O ramo do
- *    iOS < 16 fica como estava: lá o módulo nativo não mexe na velocidade.
+ * ATENÇÃO -- NÃO CHEGAM AO IPHONE. No SDK 57 o ExpoVideo vem PRÉ-COMPILADO
+ * (`[Expo-precompiled] ExpoVideo` no log do pod install): o binário não é
+ * construído a partir do node_modules, e este remendo ao código-fonte fica
+ * de fora. Descobriu-se a 23/9, com uma build que dependia dele: a segunda
+ * mudança de velocidade ficava na primeira. A app tem de estar certa SEM ele
+ * (ver src/lib/velocidadeDoMotor.ts e o modelo em
+ * scripts/test-mudanca-velocidade.cjs, que corre com a adoção ligada). Fica
+ * aqui porque não faz mal e passa a valer se o ExpoVideo voltar a compilar do
+ * código-fonte -- e o teste confere que ainda se aplica à versão instalada.
  */
 const before = `      if #available(iOS 16.0, tvOS 16.0, *) {
         ref.defaultRate = playbackRate

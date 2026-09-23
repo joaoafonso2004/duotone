@@ -20,15 +20,18 @@ motor.atualizarVelocidadeDoMotor(p,0.8,()=>false);
 assert.equal(p.playing,false);assert.deepEqual(p.calls,[],'old binary must not unpause on rate change');
 motor.tocarNaVelocidade(p,0.8);
 assert.deepEqual(p.calls,[['rate',0.8],['play',0.8]],'resume starts at the chosen rate');
+p=fakePlayer(0.9,false);motor.tocarNaVelocidade(p,0.9);
+assert.deepEqual(p.calls,[['rate',0.9],['play',0.9]],'from a stop it writes even an equal value (defaultRate may differ)');
 p=fakePlayer(0.899999976);
 motor.atualizarVelocidadeDoMotor(p,0.9,()=>false);assert.deepEqual(p.calls,[],'native Float tolerance');
 motor.tocarNaVelocidade(p,0.9);assert.deepEqual(p.calls,[['play',0.899999976]]);
 p=fakePlayer();let received;
 motor.atualizarVelocidadeDoMotor(p,0.85,(player,value)=>{received={player,value};return true;});
 assert.equal(received.player,p);assert.equal(received.value,0.85);
-// 23/9: with the native module there is ONE writer -- expo-video's property is
-// not touched (the model below shows why two writers went one step behind).
-assert.deepEqual(p.calls,[],'the native path is the only writer');
+// expo-video's own property is written too: its watcher adopts any
+// defaultRate it does not hold, and it ships precompiled, so the rule cannot be
+// patched out (see the model below).
+assert.deepEqual(p.calls,[['rate',0.85]],'native path keeps expo-video in step');
 p=fakePlayer(0.85);
 motor.atualizarVelocidadeDoMotor(p,0.85,()=>true);
 assert.deepEqual(p.calls,[],'and writes nothing when it is already in step');
@@ -36,114 +39,103 @@ p=fakePlayer(1,false);
 motor.atualizarVelocidadeDoMotor(p,0.85,()=>true);
 assert.deepEqual(p.calls,[],'a paused player is never written to: that setter plays');
 
-// The real thing this protects, modelled on the iPhone -- and with the part the
-// 22/9 model left out: the native module does NOT apply the speed right away.
-// `aplicarVelocidade` queues a block on the main thread
-// (modules/duotone-audio/ios/DuotoneAudioModule.swift), while JS writes happen
-// on the JS thread immediately. In that block:
-//  - with the player playing, the live rate changes first (playImmediately)
-//    and `defaultRate` is written AFTER -- so the rate watcher runs in between;
-//  - paused, only `defaultRate` is written.
-// expo-video's watcher (node_modules/expo-video/ios/VideoPlayer.swift,
-// onRateChanged), when not patched, ADOPTS `defaultRate` whenever it differs
-// from the value expo-video holds, and writes it into the player -- and a rate
-// other than zero is playing.
-function leitorComoNoIPhone({inicial=1,adota,blocoUsaOUltimo,jsEscreveNoExpo}){
- const estado={taxa:inicial,defaultRate:inicial,guardadaPeloExpo:inicial,pausado:false};
- const fila=[];let pedida=inicial;
- const escreverPeloExpo=v=>{ // patched setter: only what differs
-  estado.guardadaPeloExpo=v;
-  if(estado.defaultRate!==v)estado.defaultRate=v;
-  if(estado.taxa!==v){estado.taxa=v;estado.pausado=false;kvo();}
+// The real thing this protects, modelled on the iPhone, driven through the
+// REAL src/lib/velocidadeDoMotor.ts:
+//  - the native module (modules/duotone-audio, aplicarVelocidade) does not
+//    apply the speed right away: it queues a block on the main thread, and
+//    JS writes to expo-video happen immediately. In the block, with the player
+//    playing, the live rate changes first and `defaultRate` AFTER -- so the
+//    rate watcher runs in between; paused, only `defaultRate` is written.
+//  - expo-video's watcher (node_modules/expo-video/ios/VideoPlayer.swift,
+//    onRateChanged) ADOPTS `defaultRate` when it differs from the value it
+//    holds, and writes it into the player -- a rate other than zero is playing.
+//    It only fires when the rate really changes. expo-video comes PRECOMPILED
+//    in SDK 57, so the plugin patch that would remove this never ships: the
+//    model runs with adoption ON, which is the phone, and OFF, in case it ever
+//    builds from source.
+function leitorComoNoIPhone({adota=true,blocoUsaOUltimo=true}={}){
+ const e={taxa:1,defaultRate:1,expo:1,pausado:false};
+ const fila=[];let pedida=1;
+ const setter=v=>{ // expo-video's setter as shipped: writes both
+  e.expo=v;e.defaultRate=v;
+  if(e.taxa!==v){e.taxa=v;e.pausado=false;kvo();}
  };
- const kvo=()=>{
-  if(!adota||estado.defaultRate===estado.guardadaPeloExpo)return;
-  escreverPeloExpo(estado.defaultRate);
- };
+ const kvo=()=>{if(adota&&e.defaultRate!==e.expo)setter(e.defaultRate);};
  const aplicar=nova=>{
-  if(estado.taxa===0){if(estado.defaultRate!==nova)estado.defaultRate=nova;return;}
-  if(estado.taxa!==nova){estado.taxa=nova;kvo();}
-  if(estado.defaultRate!==nova)estado.defaultRate=nova;
+  if(e.taxa===0){e.defaultRate=nova;return;}
+  if(e.taxa!==nova){e.taxa=nova;kvo();}
+  e.defaultRate=nova;
  };
  const nativo=(_p,v)=>{pedida=v;const minha=v;fila.push(()=>aplicar(blocoUsaOUltimo?pedida:minha));return true;};
- const player={get playbackRate(){return estado.guardadaPeloExpo;},
-  set playbackRate(v){escreverPeloExpo(v);},
-  get playing(){return !estado.pausado;},
-  play(){estado.pausado=false;if(estado.taxa===0){estado.taxa=estado.defaultRate;kvo();}}};
- const pausar=()=>{estado.pausado=true;estado.taxa=0;kvo();};
+ const player={get playbackRate(){return e.expo;},set playbackRate(v){setter(v);},
+  get playing(){return !e.pausado;},
+  play(){e.pausado=false;if(e.taxa===0){e.taxa=e.defaultRate;kvo();}}};
+ const pausar=()=>{e.pausado=true;if(e.taxa!==0){e.taxa=0;kvo();}};
  const correrFila=()=>{while(fila.length)fila.shift()();};
- // What atualizarVelocidadeDoMotor did on 22/9 (two writers), for the replay below.
- const mudarComoEm22=v=>{nativo(player,v);if(player.playing&&Math.abs(player.playbackRate-v)>0.001)player.playbackRate=v;};
- return {estado,player,nativo,pausar,correrFila,fila,mudarComoEm22};
+ return {e,player,nativo,pausar,correrFila,fila};
 }
 
-// First: the model reproduces what João saw on 23/9 with the 22/9 code --
-// two quick changes before the main thread runs the blocks.
+// The model reproduces both things João saw.
 {
- const velho=leitorComoNoIPhone({adota:true,blocoUsaOUltimo:false,jsEscreveNoExpo:true});
- velho.mudarComoEm22(0.9);velho.mudarComoEm22(1.1);velho.correrFila();
- assert.equal(velho.estado.taxa,0.9,'the model reproduces "one click behind" (asked 1.1, got 0.9)');
- velho.pausar();
- assert.equal(velho.estado.pausado,false,'and reproduces "pause keeps playing"');
-}
-// And why the build patch is not optional: with one writer but expo-video still
-// adopting, pause breaks EVERY time (its own value never moves).
-{
- const semPatch=leitorComoNoIPhone({adota:true,blocoUsaOUltimo:true});
- motor.atualizarVelocidadeDoMotor(semPatch.player,0.9,semPatch.nativo);semPatch.correrFila();
- semPatch.pausar();
- assert.equal(semPatch.estado.pausado,false,'without the patch the adoption still unpauses');
-}
-
-// Now the real fix: one writer, the block applies the LAST request, no adoption.
-const novo=()=>leitorComoNoIPhone({adota:false,blocoUsaOUltimo:true});
-{
- const iphone=novo();
- motor.atualizarVelocidadeDoMotor(iphone.player,0.9,iphone.nativo);iphone.correrFila();
- assert.equal(iphone.estado.taxa,0.9,'first change: 0.9');
- motor.atualizarVelocidadeDoMotor(iphone.player,1.1,iphone.nativo);iphone.correrFila();
- assert.equal(iphone.estado.taxa,1.1,'second change is NOT one step behind');
- motor.atualizarVelocidadeDoMotor(iphone.player,0.7,iphone.nativo);iphone.correrFila();
- assert.equal(iphone.estado.taxa,0.7,'third change either');
- iphone.pausar();
- assert.equal(iphone.estado.pausado,true,'and pause still pauses');
- assert.equal(iphone.estado.taxa,0,'the player really stops');
+ // 22/9 code: two writers, but each queued block applied its OWN value.
+ const l=leitorComoNoIPhone({blocoUsaOUltimo:false});
+ motor.atualizarVelocidadeDoMotor(l.player,0.9,l.nativo);
+ motor.atualizarVelocidadeDoMotor(l.player,1.1,l.nativo);
+ l.correrFila();
+ assert.equal(l.e.taxa,0.9,'reproduces "one click behind" (asked 1.1, got 0.9)');
+ l.pausar();
+ assert.equal(l.e.pausado,false,'and "pause keeps playing"');
 }
 {
- const iphone=novo();
- for(const v of [0.9,1.1,0.7])motor.atualizarVelocidadeDoMotor(iphone.player,v,iphone.nativo);
- iphone.correrFila();
- assert.equal(iphone.estado.taxa,0.7,'three quick taps before the main thread runs: the last one wins');
- iphone.pausar();assert.equal(iphone.estado.taxa,0,'and pause pauses');
- motor.tocarNaVelocidade(iphone.player,0.7,iphone.nativo);iphone.correrFila();
- assert.equal(iphone.estado.taxa,0.7,'resume at the chosen speed');
+ // Build 69c03bf (23/9): one writer, relying on a patch that never shipped.
+ const l=leitorComoNoIPhone();
+ const soNativo=v=>l.nativo(l.player,v);
+ soNativo(0.9);l.correrFila();
+ soNativo(1.1);l.correrFila();
+ assert.equal(l.e.taxa,0.9,'reproduces "the second change keeps the previous speed"');
 }
 {
- // A block still queued from a speed change must not undo an explicit play at
- // another speed (a crossfade into a track with its own speed).
- const iphone=novo();
- motor.atualizarVelocidadeDoMotor(iphone.player,0.8,iphone.nativo);
- motor.tocarNaVelocidade(iphone.player,1.3,iphone.nativo);
- iphone.correrFila();
- assert.equal(iphone.estado.taxa,1.3,'a queued block does not undo an explicit play');
+ // The trap found while fixing it: a speed changed while PAUSED goes only to
+ // the native module; an explicit play must still write expo-video, even when
+ // expo-video happens to hold the same (older) value already.
+ const l=leitorComoNoIPhone();
+ motor.atualizarVelocidadeDoMotor(l.player,0.9,l.nativo);l.correrFila();
+ l.pausar();
+ motor.atualizarVelocidadeDoMotor(l.player,0.5,l.nativo);l.correrFila();
+ motor.tocarNaVelocidade(l.player,0.9,l.nativo);l.correrFila();
+ assert.equal(l.e.taxa,0.9,'plays at the speed asked');
+ l.pausar();
+ assert.equal(l.e.taxa,0,'and the next pause pauses');
 }
-// Any interleaving of taps, pauses, plays and main-thread runs ends where the
-// user left it. Deterministic pseudo-random, so a failure is reproducible.
 {
- let semente=12345;const acaso=()=>(semente=(semente*1103515245+12345)%2147483648)/2147483648;
+ const l=leitorComoNoIPhone();
+ for(const v of [0.9,1.1,0.7]){motor.atualizarVelocidadeDoMotor(l.player,v,l.nativo);l.correrFila();}
+ assert.equal(l.e.taxa,0.7,'0.9, 1.1, 0.7: each change lands');
+ for(const v of [0.9,1.1,0.7])motor.atualizarVelocidadeDoMotor(l.player,v,l.nativo);
+ l.correrFila();
+ assert.equal(l.e.taxa,0.7,'three quick taps before the main thread runs: the last one wins');
+ l.pausar();assert.equal(l.e.taxa,0,'pause pauses');
+}
+// Any interleaving of taps, pauses, plays and main-thread blocks ends where the
+// user left it, and a pause afterwards pauses. Deterministic pseudo-random, so
+// a failure is reproducible.
+for(const adota of [true,false]){
+ let semente=7;const acaso=()=>(semente=(semente*1103515245+12345)%2147483648)/2147483648;
  const VALORES=[0.5,0.7,0.9,1,1.1,1.3,1.5,2];
- for(let volta=0;volta<3000;volta++){
-  const iphone=novo();let pausado=false,ultima=1;
-  for(let passo=0;passo<12;passo++){
+ for(let volta=0;volta<5000;volta++){
+  const l=leitorComoNoIPhone({adota});let pausado=false,ultima=1;
+  for(let passo=0;passo<14;passo++){
    const r=acaso();
-   if(r<0.45){ultima=VALORES[Math.floor(acaso()*VALORES.length)];motor.atualizarVelocidadeDoMotor(iphone.player,ultima,iphone.nativo);}
-   else if(r<0.6){iphone.pausar();pausado=true;}
-   else if(r<0.72){motor.tocarNaVelocidade(iphone.player,ultima,iphone.nativo);pausado=false;}
-   else if(iphone.fila.length)iphone.fila.shift()();
+   if(r<0.45){ultima=VALORES[Math.floor(acaso()*VALORES.length)];motor.atualizarVelocidadeDoMotor(l.player,ultima,l.nativo);}
+   else if(r<0.6){l.pausar();pausado=true;}
+   else if(r<0.72){motor.tocarNaVelocidade(l.player,ultima,l.nativo);pausado=false;}
+   else if(l.fila.length)l.fila.shift()();
   }
-  iphone.correrFila();
-  if(pausado)assert.equal(iphone.estado.taxa,0,`volta ${volta}: paused must be paused`);
-  else assert.equal(iphone.estado.taxa,ultima,`volta ${volta}: playing at the last speed asked`);
+  l.correrFila();
+  if(pausado)assert.equal(l.e.taxa,0,`adota=${adota} volta ${volta}: paused must be paused`);
+  else assert.equal(l.e.taxa,ultima,`adota=${adota} volta ${volta}: playing at the last speed asked`);
+  l.pausar();
+  assert.equal(l.e.taxa,0,`adota=${adota} volta ${volta}: and a pause afterwards pauses`);
  }
 }
 motor.atualizarVelocidadeDoMotor(p,NaN,()=>false);assert.deepEqual(p.calls,[]);
