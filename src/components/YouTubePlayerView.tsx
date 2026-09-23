@@ -796,7 +796,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // equalizador, e veio calculada do `prepararSeguinte`. Com a da que sai,
       // quem entra tocava o fade inteiro à velocidade errada e saltava de tom
       // no instante da troca.
-      tocarNaVelocidade(motorEmEspera,seguinteRef.current?.rate ?? st.playbackRate);
+      tocarNaVelocidade(motorEmEspera,seguinteRef.current?.rate ?? st.playbackRate,aplicarVelocidadeNativa);
     } catch {
       abortarPassagem();
     }
@@ -866,7 +866,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
       try {
         entra.volume = ceilingRef.current;
-        tocarNaVelocidade(entra,usePlayer.getState().playbackRate);
+        tocarNaVelocidade(entra,usePlayer.getState().playbackRate,aplicarVelocidadeNativa);
         // O `playingChange` do motor que entra ainda não tem ouvinte: só
         // passa a ter no render seguinte a esta troca. Sem isto a UI ficava
         // a dizer "em pausa" com a música a tocar, até ao primeiro
@@ -1044,7 +1044,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       nativeTrackIdRef.current = track.sourceId;
       wantsPlayRef.current = autoplay;
       if (autoplay) {
-        tocarNaVelocidade(motorActivo(),velocidadeNaSessao(st.playbackRate,!!useOuvirJuntos.getState().sessao));
+        tocarNaVelocidade(motorActivo(),velocidadeNaSessao(st.playbackRate,!!useOuvirJuntos.getState().sessao),aplicarVelocidadeNativa);
         fadeIn();
       } else {
         // Garantia explícita de pausa: nada abaixo pode arrancar o playback
@@ -1982,7 +1982,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           // introduzia uma segunda mudança audível ao retomar. Jam mantém 1x.
           tocarNaVelocidade(player,velocidadeNaSessao(
             usePlayer.getState().playbackRate,!!useOuvirJuntos.getState().sessao
-          ));
+          ),aplicarVelocidadeNativa);
           // Passagem suspensa: os dois motores voltam juntos, de onde iam.
           if (passagemRef.current) {
             try {

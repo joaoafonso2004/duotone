@@ -80,6 +80,13 @@ public class DuotoneAudioModule: Module {
   private var mantemTom = false
 
   /**
+   * A ÚLTIMA velocidade pedida para cada leitor (ver `aplicarVelocidade`).
+   * Escrita na thread do JS, lida na principal: daí o cadeado.
+   */
+  private var velocidadePedida: [ObjectIdentifier: Float] = [:]
+  private let cadeadoDaVelocidade = NSLock()
+
+  /**
    * O nivel da cauda de um ficheiro local, em blocos.
    *
    * Devolve o RMS de cada bloco em dBFS, do mais antigo para o mais recente.
@@ -232,8 +239,22 @@ public class DuotoneAudioModule: Module {
       guard #available(iOS 16.0, tvOS 16.0, *) else { return false }
       guard velocidade.isFinite, velocidade >= 0.5, velocidade <= 2 else { return false }
       let p = referencia.ref
-      let nova = Float(velocidade)
+      let chave = ObjectIdentifier(p)
+      // O bloco de baixo corre MAIS TARDE, na thread principal. Com dois
+      // toques seguidos (0,9 e logo 1,1) os dois blocos ficam na fila, e se
+      // cada um aplicasse o valor com que foi criado, quem corresse por
+      // último punha a velocidade a meio do caminho -- ou, com outra escrita
+      // da taxa pelo meio, a ANTERIOR: era o "fica um clique atrás" que
+      // sobreviveu à 3.7.6 (João, 23/9). Guarda-se o pedido já, e cada bloco
+      // aplica o ÚLTIMO; o segundo bloco encontra a taxa certa e não faz nada.
+      cadeadoDaVelocidade.lock()
+      velocidadePedida[chave] = Float(velocidade)
+      cadeadoDaVelocidade.unlock()
       DispatchQueue.main.async {
+        self.cadeadoDaVelocidade.lock()
+        let pedida = self.velocidadePedida[chave]
+        self.cadeadoDaVelocidade.unlock()
+        guard let nova = pedida else { return }
         // O estado REAL é lido aqui: uma pausa pode ter chegado desde o JS.
         //
         // A ORDEM IMPORTA, e estava ao contrário. O `defaultRate` vinha antes

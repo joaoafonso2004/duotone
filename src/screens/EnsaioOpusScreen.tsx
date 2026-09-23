@@ -127,8 +127,7 @@ export function EnsaioOpusScreen({ navigation }: Props) {
       anotar(`file ${f.nomeEmDisco} (${destino.size} bytes)`);
       await leitor.replaceAsync({ uri: destino.uri, metadata: { title: `Opus test · ${f.nome}`, artist: 'Duotone' } });
       aplicarEqualizadorNativo(leitor, bass ? BASS : FLAT, compensacaoLinear(bass ? BASS : FLAT));
-      aplicarVelocidadeNativa(leitor, velocidade);
-      tocarNaVelocidade(leitor, velocidade);
+      tocarNaVelocidade(leitor, velocidade, aplicarVelocidadeNativa);
     } catch (e: any) {
       anotar(`failed to open: ${e?.message ?? e}`);
       medir((m) => ({ ...m, estado: 'error', erro: String(e?.message ?? e) }));
