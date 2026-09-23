@@ -39,6 +39,7 @@ import {
   setPlaybackRate as persistPlaybackRate, setEqPadrao as persistEqPadrao,
 } from '../lib/prefs';
 import { queueTrackAdjustment } from './trackAdjustments';
+import { registarNaVelocidade } from '../lib/playbackDiagnostics';
 import { movido } from '../lib/arrastarFila';
 import { useAuth } from './auth';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
@@ -1952,6 +1953,10 @@ export const usePlayer = create<PlayerState>()(
       ? ajusteAoTocar(m, chaveDaFaixa(faixa), { rate: r, ganhos: g })
       : { rate: r, ganhos: g };
     const ganhosMudaram=aplicar.ganhos.some((v,i)=>v!==get().eqGanhos[i]);
+    const velocidadeNova = arredondarRate(aplicar.rate);
+    if (velocidadeNova !== get().playbackRate) {
+      registarNaVelocidade(`sync changed it: ${get().playbackRate} -> ${velocidadeNova} (track adjustment from the account)`);
+    }
     set({
       ajustesPorFaixa: m,
       padraoGanhos: g,
@@ -2003,6 +2008,7 @@ export const usePlayer = create<PlayerState>()(
       persistPlaybackRate(v).catch(() => {});
       guardarOPadrao(v, get().padraoGanhos);
     } else {
+      registarNaVelocidade(`asked ${v} (was ${get().playbackRate})`);
       if (get().playbackRate === v) return;
       set({ playbackRate: v });
       lembrarDaFaixa();

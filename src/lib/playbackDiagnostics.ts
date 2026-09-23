@@ -372,6 +372,22 @@ export function historicoDaFila(): readonly EventoDaSessaoDeAudio[] {
 }
 
 /**
+ * A velocidade, passo a passo (23/9): o que se pediu na barra, o que a
+ * sincronização dos ajustes mudou, o que o motor aplicou, o que o expo-video
+ * mudou sozinho, e o que o AVPlayer tinha MESMO 0,4 s e 2 s depois (lido no
+ * módulo nativo). Existe porque duas correções do "fica um clique atrás"
+ * passaram nos testes e falharam no iPhone -- o próximo passo tem de sair do
+ * que o telemóvel fez, não de um modelo.
+ */
+const MAX_DA_VELOCIDADE = 60;
+const daVelocidade: EventoDaSessaoDeAudio[] = [];
+
+export function registarNaVelocidade(texto: string, quando: number = Date.now()): void {
+  daVelocidade.push({ quando, texto });
+  if (daVelocidade.length > MAX_DA_VELOCIDADE) daVelocidade.splice(0, daVelocidade.length - MAX_DA_VELOCIDADE);
+}
+
+/**
  * A saúde da app (lib/saudeDaApp.ts): erros de JS, crashes da abertura
  * anterior, bloqueios. Também não contam como falhas de reprodução, mas quem
  * manda um relatório por a música ter parado quer vê-los ao lado.
@@ -419,6 +435,7 @@ export function relatorio(
   stream: readonly EventoDaSessaoDeAudio[] = doStream,
   saude: readonly EventoDaSessaoDeAudio[] = daSaude,
   fila: readonly EventoDaSessaoDeAudio[] = daFila,
+  velocidade: readonly EventoDaSessaoDeAudio[] = daVelocidade,
 ): string {
   const linhas: string[] = [];
   // Em ingles como o resto da UI do desktop — o botao que o gera diz "Export
@@ -442,6 +459,7 @@ export function relatorio(
     if (audio.length) secao('audio session (calls, alarms, headphones)', audio);
     if (ctx.stream !== undefined || stream.length) secao(`play while downloading: ${ctx.stream ?? 'unknown'}`, stream);
     if (fila.length) secao('queue decisions (track ended, skipped)', fila);
+    if (velocidade.length) secao('speed (asked, synced, applied, what the player really had)', velocidade);
     // A hora diz quando aconteceu, e um crash da abertura anterior é de antes.
     if (saude.length) secao('app health (errors, crashes, hangs)', [...saude].sort((a, b) => a.quando - b.quando));
   };

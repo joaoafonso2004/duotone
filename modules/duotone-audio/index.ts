@@ -83,6 +83,14 @@ export async function analisarCaudaNativa(
   }
 }
 
+/** O que o AVPlayer tem mesmo (taxa, defaultRate, estado), para o relatório. */
+export function estadoDaVelocidadeNativa(player: unknown): string {
+  try {
+    const t = nativo?.estadoDaVelocidade?.(player);
+    return typeof t === 'string' ? t : 'native=n/a';
+  } catch { return 'native=error'; }
+}
+
 /** Change speed on the existing player without restarting its audio graph.
  * Older binaries return false so the caller can use expo-video's fallback. */
 export function aplicarVelocidadeNativa(player: unknown, velocidade: number): boolean {

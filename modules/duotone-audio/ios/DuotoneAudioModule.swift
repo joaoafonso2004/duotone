@@ -308,6 +308,19 @@ public class DuotoneAudioModule: Module {
      * já ao item que está a tocar, o que custa UM corte no momento em que se
      * muda o interruptor -- e nenhum a partir daí.
      */
+    /**
+     * O que o AVPlayer tem MESMO, para o relatório de reprodução (secção
+     * "speed"). Só leitura, e só para diagnóstico: a taxa, o `defaultRate` e o
+     * estado (0 pausado, 1 à espera, 2 a tocar).
+     */
+    Function("estadoDaVelocidade") { (referencia: SharedRef<AVPlayer>) -> String in
+      let p = referencia.ref
+      var texto = String(format: "rate=%.3f", p.rate)
+      if #available(iOS 16.0, tvOS 16.0, *) { texto += String(format: " default=%.3f", p.defaultRate) }
+      texto += " status=\(p.timeControlStatus.rawValue)"
+      return texto
+    }
+
     Function("definirTomDaVelocidade") { (mantemTom: Bool) in
       DispatchQueue.main.async { [weak self] in
         guard let self else { return }

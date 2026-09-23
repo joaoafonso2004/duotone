@@ -98,7 +98,16 @@ async function adiantarFaixa(
   }
 }
 import { displayArtist } from '../lib/artistName';
-import { aplicarEqualizadorNativo, ligarAudioNativo, aplicarVelocidadeNativa } from '../../modules/duotone-audio';
+import { aplicarEqualizadorNativo, ligarAudioNativo, aplicarVelocidadeNativa, estadoDaVelocidadeNativa } from '../../modules/duotone-audio';
+import { registarNaVelocidade } from '../lib/playbackDiagnostics';
+
+/** Para a secção "speed" do relatório: o que o expo-video diz e o que o AVPlayer tem mesmo. */
+function fotoDaVelocidade(m: any): string {
+  let expo = '?';
+  let aTocar = '?';
+  try { expo = Number(m.playbackRate).toFixed(2); aTocar = String(m.playing); } catch { /* motor largado */ }
+  return `expo=${expo} playing=${aTocar} ${estadoDaVelocidadeNativa(m)}`;
+}
 import type { Track } from '../types';
 import { type HarvestResult } from './YtStreamHarvester';
 
@@ -455,7 +464,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // durante uma alteração com áudio disponível. Não reinstala o tap do EQ.
   useEffect(() => {
     if (backend !== 'native') return;
+    registarNaVelocidade(`engine applies ${playbackRate} | before: ${fotoDaVelocidade(player)}`);
     atualizarVelocidadeDoMotor(player,playbackRate,aplicarVelocidadeNativa);
+    registarNaVelocidade(`right after: ${fotoDaVelocidade(player)}`);
+    // Sem limpar ao mudar outra vez: é justamente o que acontece entre dois
+    // toques seguidos que o relatório tem de mostrar.
+    setTimeout(() => registarNaVelocidade(`+0.4 s after ${playbackRate}: ${fotoDaVelocidade(player)}`), 400);
+    setTimeout(() => registarNaVelocidade(`+2 s after ${playbackRate}: ${fotoDaVelocidade(player)}`), 2000);
   }, [backend, player, playbackRate]);
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
@@ -1707,7 +1722,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
     }
   });
-  useEventListener(player, 'playbackRateChange', ({ playbackRate }) => {
+  useEventListener(player, 'playbackRateChange', ({ playbackRate, oldPlaybackRate }) => {
+    // Inclui as mudanças que o expo-video faz SOZINHO (a "adoção" do defaultRate).
+    registarNaVelocidade(`expo-video changed its rate ${oldPlaybackRate} -> ${playbackRate} | ${fotoDaVelocidade(player)}`);
     if (backend === 'native' && nativeTrackIdRef.current === track.sourceId && playbackRate === 0.07) {
       player.playbackRate = 1.0;
       prev();
@@ -1983,6 +2000,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           tocarNaVelocidade(player,velocidadeNaSessao(
             usePlayer.getState().playbackRate,!!useOuvirJuntos.getState().sessao
           ),aplicarVelocidadeNativa);
+          registarNaVelocidade(`play | ${fotoDaVelocidade(player)}`);
+          setTimeout(() => registarNaVelocidade(`+0.5 s after play: ${fotoDaVelocidade(player)}`), 500);
           // Passagem suspensa: os dois motores voltam juntos, de onde iam.
           if (passagemRef.current) {
             try {
@@ -1995,6 +2014,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         pause: () => {
           wantsPlayRef.current = false;
           player.pause();
+          registarNaVelocidade(`pause | ${fotoDaVelocidade(player)}`);
+          setTimeout(() => registarNaVelocidade(`+0.5 s after pause: ${fotoDaVelocidade(player)}`), 500);
           // `suspender`: quem pausa quer voltar, e a passagem continua de
           // onde ia. Parar o motor que sai já congela a curva, porque é o
           // `timeUpdate` dele que a faz andar.
