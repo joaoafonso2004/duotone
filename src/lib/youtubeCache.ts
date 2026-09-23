@@ -9,6 +9,8 @@ import { largarVez, pedirVez, type Prioridade } from './filaDeDownloads';
 import { escolherParaApagar, type FicheiroEmCache } from './limpezaDoCache';
 import { AUDIO_INCOMPLETO, publicarAudio } from './publicarDownload';
 import { criarMp4AoVivo } from './mp4AoVivo';
+import { PREFIXO_OPUS } from './codecDeAudio';
+import { converterWebmParaMp4, pareceWebm } from './converterOpus';
 
 let File: any;
 let Paths: any;
@@ -137,10 +139,66 @@ function audioDir(): any {
   return Paths.document;
 }
 
-/** Áudio descarregado desta faixa (ver audioDir para o porquê da pasta). */
+/** O ficheiro AAC desta faixa (o de sempre). */
+function ficheiroAac(videoId: string): any {
+  return new File(audioDir(), `${PREFIX}${videoId}.m4a`);
+}
+
+/**
+ * O ficheiro Opus desta faixa: os pacotes do itag 251 dentro de um MP4 (ver
+ * `lib/converterOpus.ts`). Prefixo próprio para as duas versões nunca se
+ * confundirem, e para a de AAC não ter de mudar de nome (`CACHE_VERSION` fica
+ * onde está). Entrega 3 do docs/PLANO-AUDIO-IOS-CACHE-OPUS.md.
+ */
+function ficheiroOpus(videoId: string): any {
+  return new File(audioDir(), `${PREFIXO_OPUS}${videoId}.m4a`);
+}
+
+/**
+ * Áudio descarregado desta faixa (ver audioDir para o porquê da pasta): o que
+ * existir, e o AAC quando existem os dois -- é o que se sabe que toca. Sem
+ * nenhum, o caminho do AAC (`exists` a false). Uma faixa só tem Opus E AAC se
+ * o motor recusou o Opus a meio, e aí quem recua apaga o Opus
+ * (`removerOpusDaFaixa`).
+ */
 export function cachedAudioFile(videoId: string): any {
   if (Platform.OS === 'web') return null;
-  return new File(audioDir(), `${PREFIX}${videoId}.m4a`);
+  const aac = ficheiroAac(videoId);
+  if (aac.exists) return aac;
+  const opus = ficheiroOpus(videoId);
+  return opus.exists ? opus : aac;
+}
+
+/** A faixa está em disco em Opus (e não em AAC)? */
+export function temOpusEmDisco(videoId: string): boolean {
+  if (Platform.OS === 'web') return false;
+  return !ficheiroAac(videoId).exists && ficheiroOpus(videoId).exists;
+}
+
+/** O motor recusou o Opus desta faixa: apaga-o, para a próxima tentativa ir ao AAC. */
+export function removerOpusDaFaixa(videoId: string): void {
+  if (Platform.OS === 'web') return;
+  try {
+    const f = ficheiroOpus(videoId);
+    if (f.exists) f.delete();
+  } catch {
+    // em uso -- o próximo arranque trata dele pela limpeza
+  }
+  if (!ficheiroAac(videoId).exists) cachedIdsIndex?.delete(videoId);
+  changed();
+}
+
+/** O id de um ficheiro acabado da cache (AAC ou Opus), ou `null` (um `.part`, outro ficheiro). */
+function idDoFicheiro(nome: string): string | null {
+  if (!nome.endsWith('.m4a')) return null;
+  if (nome.startsWith(PREFIX)) return nome.slice(PREFIX.length, -'.m4a'.length);
+  if (nome.startsWith(PREFIXO_OPUS)) return nome.slice(PREFIXO_OPUS.length, -'.m4a'.length);
+  return null;
+}
+
+/** Qualquer ficheiro de áudio da app, acabado ou a meio. */
+function eDaCache(nome: string): boolean {
+  return nome.startsWith(PREFIX) || nome.startsWith(PREFIXO_OPUS);
 }
 
 /** Move para document o que ficou na pasta cache de versões anteriores, para
@@ -181,9 +239,8 @@ export function loadCachedAudioIndex(): void {
   try {
     const ids = new Set<string>();
     for (const entry of audioDir().list()) {
-      if (entry instanceof File && entry.name.startsWith(PREFIX) && entry.name.endsWith('.m4a') && entry.size>0) {
-        ids.add(entry.name.slice(PREFIX.length).replace(/\.m4a$/, ''));
-      }
+      const id = entry instanceof File && entry.size > 0 ? idDoFicheiro(entry.name) : null;
+      if (id) ids.add(id);
     }
     cachedIdsIndex = ids;changed();
   } catch {
@@ -205,7 +262,7 @@ export function getAudioCacheBytes(): number {
   try {
     let total = 0;
     for (const entry of audioDir().list()) {
-      if (entry instanceof File && entry.name.startsWith(PREFIX)) total += entry.size ?? 0;
+      if (entry instanceof File && eDaCache(entry.name)) total += entry.size ?? 0;
     }
     return total;
   } catch {
@@ -217,17 +274,20 @@ export function getAudioCacheBytes(): number {
 export function listarDescarregados(): FicheiroEmCache[] {
   if (Platform.OS === 'web') return [];
   try {
-    const out: FicheiroEmCache[] = [];
+    // Uma entrada por FAIXA: com AAC e Opus em disco, somam-se os dois.
+    const porId = new Map<string, FicheiroEmCache>();
     for (const entry of audioDir().list()) {
-      if (!(entry instanceof File) || !entry.name.startsWith(PREFIX)) continue;
-      if (!entry.name.endsWith('.m4a')) continue; // .part de um download a decorrer
-      out.push({
-        id: entry.name.slice(PREFIX.length).replace(/\.m4a$/, ''),
-        bytes: entry.size ?? 0,
-        modificadoEm: (entry as any).modificationTime ?? 0,
-      });
+      if (!(entry instanceof File)) continue;
+      const id = idDoFicheiro(entry.name); // um .part de um download a decorrer fica de fora
+      if (!id) continue;
+      const bytes = entry.size ?? 0;
+      const modificadoEm = (entry as any).modificationTime ?? 0;
+      const antes = porId.get(id);
+      porId.set(id, antes
+        ? { id, bytes: antes.bytes + bytes, modificadoEm: Math.max(antes.modificadoEm, modificadoEm) }
+        : { id, bytes, modificadoEm });
     }
-    return out;
+    return [...porId.values()];
   } catch {
     return [];
   }
@@ -252,8 +312,9 @@ export function isAudioCached(videoId: string): boolean {
 /** Apaga o áudio descarregado de UMA faixa ("Remover download"). */
 export function removeDownloadedAudio(videoId: string): void {
   if (Platform.OS === 'web') return;
-  const f = cachedAudioFile(videoId);
-  if (f && f.exists) f.delete();
+  for (const f of [ficheiroAac(videoId), ficheiroOpus(videoId)]) {
+    if (f.exists) f.delete();
+  }
   cachedIdsIndex?.delete(videoId);changed();
 }
 
@@ -261,7 +322,7 @@ export function removeDownloadedAudio(videoId: string): void {
 export function clearDownloadedAudioCache(): void {
   if (Platform.OS === 'web') return;
   for (const entry of audioDir().list()) {
-    if (entry instanceof File && entry.name.startsWith(PREFIX)) {
+    if (entry instanceof File && eDaCache(entry.name)) {
       entry.delete();
     }
   }
@@ -285,9 +346,9 @@ export function pruneAudioCacheLRU(protectedIds: string[] = []): void {
     if (aApagar.size === 0) return;
 
     for (const entry of audioDir().list()) {
-      if (!(entry instanceof File) || !entry.name.startsWith(PREFIX)) continue;
-      const id = entry.name.slice(PREFIX.length).replace(/\.m4a$/, '');
-      if (!aApagar.has(id)) continue;
+      if (!(entry instanceof File)) continue;
+      const id = idDoFicheiro(entry.name);
+      if (!id || !aApagar.has(id)) continue;
       try {
         entry.delete();
         cachedIdsIndex?.delete(id);changed();
@@ -560,7 +621,8 @@ export async function downloadProgressiveAudio(
       return uri;
     } catch (e: any) {
       if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
-      if (dest.exists) return dest.uri;
+      const jaHa = cachedAudioFile(videoId);
+      if (jaHa.exists) return jaHa.uri;
       if (e?.message !== DOWNLOAD_ABORTED) throw e;
       // Abandonado por quem o comecou. Segue-se para o caminho normal.
     }
@@ -585,7 +647,8 @@ export async function downloadProgressiveAudio(
         // Entre pedir a vez e chega-la, a faixa pode ter mudado ou outro job pode
         // ter descarregado esta mesma.
         if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
-        if (dest.exists) return dest.uri;
+        const jaHa = cachedAudioFile(videoId);
+        if (jaHa.exists) return jaHa.uri;
         registo.fase = 'a-descarregar';
         registo.inicioEm = Date.now();
         avisarDownloads();
@@ -702,6 +765,25 @@ async function descarregarAgora(
   await pedirBocados(url, total, opts, registo, (part, offset) => combined.set(part, offset));
   if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
 
+  // Opus (o itag 251 vem em WebM, que o AVPlayer não abre): os mesmos pacotes
+  // passam para um MP4 escrito já com a duração só nos fragmentos -- por isso
+  // NÃO passa pelo mp4Fixer. Um WebM que não se sabe converter atira
+  // (`OPUS_INVALIDO`) e não se publica nada: quem pediu volta ao AAC.
+  if (pareceWebm(combined)) {
+    const { mp4 } = converterWebmParaMp4(combined);
+    const parcialOpus = new File(audioDir(), nomeDoParcial(videoId));
+    const uriOpus = publicarAudio({
+      parcial: parcialOpus,
+      destino: ficheiroOpus(videoId),
+      dados: mp4,
+      total: mp4.length,
+      abortado: opts.shouldAbort,
+      erroDeAborto: DOWNLOAD_ABORTED,
+    });
+    cachedIdsIndex?.add(videoId);changed();
+    return uriOpus;
+  }
+
   // Corrige a duração no contentor MP4 (m4a) antes de gravar em disco: zera
   // os cabeçalhos do moov para o AVPlayer deixar de somar moov + fragmentos
   // (ver mp4Fixer.ts). Não precisa da duração real para isso, por isso corre
@@ -716,7 +798,7 @@ async function descarregarAgora(
   const parcial = new File(audioDir(), `${PREFIX}${videoId}-${Date.now()}-${Math.random().toString(36).slice(2)}.part`);
   const uri = publicarAudio({
     parcial,
-    destino: dest,
+    destino: ficheiroAac(videoId),
     dados: combined,
     total,
     abortado: opts.shouldAbort,

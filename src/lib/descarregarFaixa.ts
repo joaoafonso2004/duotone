@@ -1,4 +1,3 @@
-import { criarRenovacao, resolveYouTubeStream } from '../api/ytstream';
 import { useConnectivity } from '../state/connectivity';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
@@ -9,8 +8,9 @@ import {
 } from './downloadsFixados';
 import { faixasParaGuardar } from './misturaDoDia';
 import { getAudioQuality } from './prefs';
+import { resolverEDescarregar } from './resolverEDescarregar';
 import {
-  clearDownloadedAudioCache, DOWNLOAD_ABORTED, downloadProgressiveAudio, isAudioCached,
+  clearDownloadedAudioCache, DOWNLOAD_ABORTED, isAudioCached,
   removeDownloadedAudio, useAudioCache, verificarCancelamentos,
 } from './youtubeCache';
 
@@ -100,16 +100,8 @@ const acoes = criarAcoesDeDownload({
     ligarVigias();
     const quality = await getAudioQuality();
     if (parar()) throw new Error(DOWNLOAD_ABORTED);
-    const stream = await resolveYouTubeStream(track.sourceId, quality);
     // Só há HLS: não há ficheiro para guardar. Fica em falta, e a lista diz.
-    if (stream.isHls) return;
-    await downloadProgressiveAudio(
-      track.sourceId,
-      stream.url,
-      stream.contentLength,
-      track.durationSeconds || stream.durationSeconds || null,
-      { prioridade: 'explicito', shouldAbort: parar, renewUrl: criarRenovacao(track.sourceId, quality) },
-    );
+    await resolverEDescarregar(track.sourceId, quality, track.durationSeconds, { prioridade: 'explicito', shouldAbort: parar });
   },
   apagarFicheiro: removeDownloadedAudio,
   apagarTudo: clearDownloadedAudioCache,
@@ -170,20 +162,11 @@ export async function guardarEmSegundoPlano(faixas: readonly Track[]): Promise<n
     if (isAudioCached(track.sourceId) || deveParar()) continue;
     try {
       const quality = await getAudioQuality();
-      const stream = await resolveYouTubeStream(track.sourceId, quality);
-      if (stream.isHls || deveParar()) continue;
-      await downloadProgressiveAudio(
-        track.sourceId,
-        stream.url,
-        stream.contentLength,
-        track.durationSeconds || stream.durationSeconds || null,
-        {
-          prioridade: 'adiantar',
-          shouldAbort: deveParar,
-          renewUrl: criarRenovacao(track.sourceId, quality),
-        },
-      );
-      guardadas++;
+      const { uri } = await resolverEDescarregar(track.sourceId, quality, track.durationSeconds, {
+        prioridade: 'adiantar',
+        shouldAbort: deveParar,
+      });
+      if (uri) guardadas++;
     } catch (err: any) {
       if (err?.message !== DOWNLOAD_ABORTED) console.warn('[Daily mix] Falha ao guardar faixa:', err);
     }

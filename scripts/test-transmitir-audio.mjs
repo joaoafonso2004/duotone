@@ -445,6 +445,72 @@ await check('os .part esquecidos saem; os recentes e os .m4a ficam', async () =>
   ]);
 });
 
+// ---- Opus (entrega 3 do plano de áudio) ------------------------------------
+// O itag 251 chega em WebM; a cache converte-o para MP4 e guarda-o com o
+// prefixo `yt-opus-v1-`, ao lado do AAC de sempre (`yt-audio-`).
+const webm = new Uint8Array(readFileSync(path.join(root, 'scripts/fixtures/opus-4s.webm')));
+const DOC = 'file:///document/';
+
+await check('um WebM descarregado vira MP4 com o prefixo do Opus, e o AAC não é tocado', async () => {
+  const h = harness({ ficheiro: webm });
+  const d = observe(h.cache.downloadProgressiveAudio('abc', 'https://audio.test/abc', webm.length, 4, {}));
+  await h.andar(40);
+  assert.equal(d.state, 'fulfilled', String(d.error));
+  assert.equal(d.value, `${DOC}yt-opus-v1-abc.m4a`);
+  assert.ok(!h.disk.has(`${DOC}yt-audio-abc.m4a`));
+  const mp4 = h.disk.get(d.value);
+  assert.equal(String.fromCharCode(...mp4.slice(4, 8)), 'ftyp', 'o que ficou em disco é um MP4');
+  assert.deepEqual(h.partes(), [], 'sem .part esquecido');
+  assert.equal(h.cache.isAudioCached('abc'), true);
+  assert.equal(h.cache.temOpusEmDisco('abc'), true);
+  assert.equal(h.cache.cachedAudioFile('abc').uri, d.value);
+});
+
+await check('um WebM que não se converte atira OPUS_INVALIDO e não publica nada', async () => {
+  const estragado = webm.slice();
+  estragado.fill(0xff, 200, 400); // parte a cabeça (as Tracks)
+  const h = harness({ ficheiro: estragado });
+  const d = observe(h.cache.downloadProgressiveAudio('abc', 'https://audio.test/abc', estragado.length, 4, {}));
+  await h.andar(40);
+  assert.equal(d.state, 'rejected');
+  assert.match(String(d.error?.message), /WebM\/Opus inválido/);
+  assert.deepEqual([...h.disk.keys()].filter((k) => k.endsWith('.m4a')), []);
+  assert.deepEqual(h.partes(), []);
+});
+
+await check('as duas versões da mesma faixa: uma linha, o AAC primeiro, e sair é sair das duas', async () => {
+  const h = harness();
+  h.disk.set(`${DOC}yt-audio-a.m4a`, new Uint8Array(10));
+  h.disk.set(`${DOC}yt-opus-v1-a.m4a`, new Uint8Array(5));
+  h.disk.set(`${DOC}yt-opus-v1-b.m4a`, new Uint8Array(7));
+  h.cache.loadCachedAudioIndex();
+  const lista = h.cache.listarDescarregados().sort((x, y) => x.id.localeCompare(y.id));
+  // JSON: os arrays vêm do contexto do vm, e o deepEqual estrito compara os protótipos.
+  assert.deepEqual(JSON.parse(JSON.stringify(lista.map((f) => [f.id, f.bytes]))), [['a', 15], ['b', 7]]);
+  assert.equal(h.cache.getAudioCacheBytes(), 22);
+  assert.equal(h.cache.cachedAudioFile('a').uri, `${DOC}yt-audio-a.m4a`, 'com as duas, toca o AAC');
+  assert.equal(h.cache.temOpusEmDisco('a'), false);
+  assert.equal(h.cache.temOpusEmDisco('b'), true);
+  h.cache.removerOpusDaFaixa('b');
+  assert.equal(h.cache.isAudioCached('b'), false, 'recusado o Opus, a faixa deixa de estar em disco');
+  h.cache.removeDownloadedAudio('a');
+  assert.deepEqual([...h.disk.keys()], []);
+});
+
+await check('a limpeza e o "Clear cache" veem as duas versões', async () => {
+  const h = harness();
+  h.disk.set(`${DOC}yt-audio-a.m4a`, new Uint8Array(10));
+  h.disk.set(`${DOC}yt-opus-v1-a.m4a`, new Uint8Array(10));
+  h.disk.set(`${DOC}yt-opus-v1-b.m4a`, new Uint8Array(10));
+  h.cache.pruneAudioCacheLRU(['b']);
+  // 30 bytes cabem nos 500 MB: nada sai. Com o teto a sério não se chega aqui
+  // num teste, por isso o que se prova é que o "Clear cache" as leva todas.
+  assert.equal(h.disk.size, 3);
+  h.disk.set(`${DOC}yt-opus-v1-c-123-x.part`, new Uint8Array(1));
+  h.cache.clearDownloadedAudioCache();
+  assert.deepEqual([...h.disk.keys()], []);
+});
+
 if (failures) {
   console.error(`\n${failures} caso(s) do tocar enquanto descarrega falharam.`);
   process.exitCode = 1;

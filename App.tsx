@@ -66,12 +66,16 @@ import { useArtistasFavoritos } from './src/state/artistasFavoritos';
 import { limparVerificacao } from './src/state/verificacaoDaBiblioteca';
 import { instalarSaudeDaApp } from './src/state/saudeDaApp';
 import { ligarMedicoes } from './src/state/medicoes';
+import { instalarEscolhaDoCodec } from './src/state/saudeDoOpus';
 import { BarreiraDeErros } from './src/components/BarreiraDeErros';
 
 // Antes de qualquer ecrã: o handler global dos erros, o que ficou da abertura
 // anterior e o relógio do arranque. Ver `state/saudeDaApp.ts`.
 instalarSaudeDaApp();
 ligarMedicoes();
+// Quem decide se o iPhone pede Opus ou AAC (lib/codecDeAudio.ts). Até ler o
+// disco, AAC.
+void instalarEscolhaDoCodec();
 
 export default function App() {
   // O acento segue a capa a tocar quando esse modo esta escolhido. Aqui em

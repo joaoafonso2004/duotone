@@ -119,6 +119,8 @@ const TESTES = [
   `${TS} scripts/test-downloads-explicitos.ts`,
   `${DUPLOS} scripts/test-downloads-acoes.ts`,
   `${TS} scripts/test-ensaio-opus.mjs`,
+  `${RESOLVER} scripts/test-webm-opus.ts`,
+  `${DUPLOS} scripts/test-escolha-codec.ts`,
   `${TS} scripts/test-efeito-das-definicoes.ts`,
   'scripts/test-definicoes-com-efeito.mjs',
   `${TS} scripts/test-higiene-da-biblioteca.ts`,

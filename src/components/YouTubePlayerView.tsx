@@ -22,9 +22,12 @@ import { getAudioQuality } from '../lib/prefs';
 import { targetVolume } from '../lib/loudness';
 import { getLoudnessDb, rememberLoudnessDb } from '../lib/loudnessCache';
 import {
-  cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED, transmitirAudio, verificarCancelamentos,
-  type DownloadOptions,
+  cachedAudioFile, downloadProgressiveAudio, DOWNLOAD_ABORTED, removerOpusDaFaixa, temOpusEmDisco, transmitirAudio,
+  verificarCancelamentos, type DownloadOptions,
 } from '../lib/youtubeCache';
+import { evitarOpusPara } from '../lib/codecDeAudio';
+import { eConversaoDoOpus, resolverEDescarregar } from '../lib/resolverEDescarregar';
+import { anotarOpus, opusProvado } from '../state/saudeDoOpus';
 import { primeiraNota, type OrigemDoSom } from '../lib/tocarEnquantoDescarrega';
 import { anotarTransmissao, ligacaoParaTransmitir } from '../state/saudeDoStream';
 import { diagnosticoDoStream } from '../../modules/duotone-stream';
@@ -77,18 +80,13 @@ async function adiantarFaixa(
 ): Promise<void> {
   try {
     const quality = await getAudioQuality();
-    const stream = await resolveYouTubeStream(faixa.sourceId, quality);
-    if (abandonada()) return;
-    // A loudness fica conhecida antes de tocar, por isso a normalização já se
-    // aplica no primeiro segundo dela.
-    rememberLoudnessDb(faixa.sourceId, stream?.loudnessDb);
-    if (!stream || stream.isHls) return;
+    const { uri: uriLocal, stream } = await resolverEDescarregar(
+      faixa.sourceId, quality, faixa.durationSeconds, { prioridade, shouldAbort: abandonada },
+      // A loudness fica conhecida antes de tocar, por isso a normalização já
+      // se aplica no primeiro segundo dela.
+      (s) => rememberLoudnessDb(faixa.sourceId, s?.loudnessDb),
+    );
     const duracao = faixa.durationSeconds || stream.durationSeconds || null;
-    const uriLocal = await downloadProgressiveAudio(faixa.sourceId, stream.url, stream.contentLength, duracao, {
-      prioridade,
-      shouldAbort: abandonada,
-      renewUrl: criarRenovacao(faixa.sourceId, quality),
-    });
     // Com o ficheiro em disco e tempo de sobra até esta faixa tocar, fica-se a
     // saber onde a MÚSICA dela acaba -- que raramente é onde o ficheiro acaba.
     // É o que impede o crossfade de cruzar a seguinte com o silêncio do fim.
@@ -648,6 +646,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
     const ficheiro = cachedAudioFile(seguinte.sourceId);
     if (!ficheiro.exists) return;
+    // Um Opus que ainda não tocou neste telemóvel não entra numa passagem: se
+    // o AVPlayer o recusar, a recusa acontece no motor em ESPERA, onde nada a
+    // vê nem recua (lib/saudeDoOpus.ts). Entra pelo caminho normal, que recua.
+    if (temOpusEmDisco(seguinte.sourceId) && !opusProvado()) return;
 
     // O que ESTA faixa lembra. O equalizador e a velocidade são por faixa, e
     // sem registo voltam ao padrão -- é o mesmo cálculo que o `playTrack` faz.
@@ -1073,6 +1075,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         return;
       } catch (err) {
         console.warn('Erro a reproduzir ficheiro local em cache, tentando rede:', err);
+        // Um Opus que nem abriu: a rede, a seguir, tem de ir buscar o AAC --
+        // sem isto voltava a dar o mesmo ficheiro.
+        if (temOpusEmDisco(track.sourceId)) recusarOpus('abrir');
       }
     }
 
@@ -1163,12 +1168,34 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           },
           // Se o CDN matar o URL a meio (403), pede um fresco em vez de
           // repetir o morto — ver fetchChunkWithRetry e `criarRenovacao`.
-          renewUrl: criarRenovacao(track.sourceId, quality),
+          renewUrl: criarRenovacao(track.sourceId, quality, stream.formato ?? 'aac'),
         };
-        const ligacao = ligacaoParaTransmitir();
+        // O Opus chega em WebM e só vira MP4 com o ficheiro inteiro: não há
+        // como o dar ao motor enquanto chega.
+        const ligacao = stream.formato === 'opus' ? null : ligacaoParaTransmitir();
+        const s = stream;
+        const descarregarComRecuo = async (): Promise<string> => {
+          try {
+            return await downloadProgressiveAudio(track.sourceId, s.url, s.contentLength, duracao, opcoes);
+          } catch (erro) {
+            // O WebM do Opus não se converteu: esta faixa passa a AAC e
+            // descarrega-se outra vez, já em AAC.
+            if (!eConversaoDoOpus(erro) || !alive()) throw erro;
+            evitarOpusPara(track.sourceId);
+            registarEvento('opus_recusado', { motivo: 'conversao' });
+            const aac = await resolveYouTubeStream(track.sourceId, quality, false, 'aac');
+            if (!alive()) throw new Error(DOWNLOAD_ABORTED);
+            stream = aac;
+            streamRef.current = aac;
+            if (aac.isHls) throw erro;
+            return downloadProgressiveAudio(track.sourceId, aac.url, aac.contentLength, duracao, {
+              ...opcoes, renewUrl: criarRenovacao(track.sourceId, quality, 'aac'),
+            });
+          }
+        };
         const t = ligacao
           ? await transmitirAudio(track.sourceId, stream.url, stream.contentLength, duracao, ligacao, opcoes)
-          : { tipo: 'ficheiro' as const, uri: await downloadProgressiveAudio(track.sourceId, stream.url, stream.contentLength, duracao, opcoes) };
+          : { tipo: 'ficheiro' as const, uri: await descarregarComRecuo() };
         if (t.tipo === 'stream') {
           if (!alive()) {
             t.fechar();
@@ -1307,11 +1334,82 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   };
   proceedRef.current = proceedWithPlayerResponse;
 
+  /**
+   * O motor não tocou o Opus desta faixa (entrega 3 do plano): conta para o
+   * desligar (lib/saudeDoOpus.ts), fica AAC até a app fechar, e o ficheiro
+   * Opus sai do disco para ninguém o voltar a dar ao motor.
+   */
+  const recusarOpus = (motivo: 'abrir' | 'reproduzir') => {
+    anotarOpus('recusou');
+    evitarOpusPara(track.sourceId);
+    removerOpusDaFaixa(track.sourceId);
+    registarEvento('opus_recusado', { motivo });
+  };
+
+  /**
+   * Recuar do Opus para o AAC com a faixa a tocar: descarrega o AAC e troca a
+   * fonte na mesma posição, como a rede de segurança faz. `false` se não
+   * houver AAC para onde ir -- aí segue o caminho de sempre (HLS, embed).
+   */
+  const recuoDoOpusRef = useRef<number | null>(null);
+  const recuarDoOpus = async (): Promise<boolean> => {
+    const myRun = runIdRef.current;
+    recuoDoOpusRef.current = myRun;
+    recusarOpus('reproduzir');
+    const ainda = () => isMountedRef.current && myRun === runIdRef.current;
+    const resumeAt = motorActivo().currentTime;
+    try {
+      const quality = await getAudioQuality();
+      const { uri, stream: aac } = await resolverEDescarregar(track.sourceId, quality, track.durationSeconds, {
+        prioridade: 'reproducao',
+        shouldAbort: () => !ainda(),
+        onProgress: (fr) => { if (ainda()) setDownloadProgress(fr); },
+      });
+      setDownloadProgress(null);
+      if (!ainda()) return true;
+      if (!uri) return false;
+      streamRef.current = aac;
+      downloadTriedRef.current = true;
+      await trocarFonte(motorActivo(), {
+        uri,
+        contentType: 'progressive',
+        metadata: metadadosDoEcraBloqueado(track),
+      }, { desistir: () => !ainda() });
+      if (!ainda()) return true;
+      nativeTrackIdRef.current = track.sourceId;
+      try {
+        if (resumeAt > 1) motorActivo().currentTime = resumeAt;
+      } catch {
+        // ignorar — recomeça do início se o seek falhar
+      }
+      lastProgressRef.current = { time: lastProgressRef.current.time, at: Date.now() };
+      if (wantsPlayRef.current) {
+        motorActivo().play();
+        fadeIn();
+      } else {
+        motorActivo().volume = ceilingRef.current;
+      }
+      return true;
+    } catch (e: any) {
+      setDownloadProgress(null);
+      if (!ainda() || e?.message === DOWNLOAD_ABORTED) return true;
+      return false;
+    } finally {
+      if (recuoDoOpusRef.current === myRun) recuoDoOpusRef.current = null;
+    }
+  };
+
   // Rede de segurança: troca o streaming direto (que pode ESTANCAR em músicas
   // longas no 4G) pelo download do ficheiro inteiro aos pedaços — que provei
   // descarregar sem estancar. Retoma na posição atual (não recomeça). Devolve
   // `true` se assumiu o caso (arrancou o download ou desistiu p/ embed).
   const runDownloadFallback = async (): Promise<boolean> => {
+    // O motor recusou um Opus (erro do AVPlayer ou o watchdog a ver a posição
+    // presa): recua-se para o AAC ANTES de tudo o resto -- descarregar outra
+    // vez devolvia o mesmo ficheiro, e sem stream em memória (tocou da cache)
+    // a regra de baixo mandava a faixa para o embed.
+    if (recuoDoOpusRef.current === runIdRef.current) return true;
+    if (temOpusEmDisco(track.sourceId)) return recuarDoOpus();
     const stream = streamRef.current;
     if (!stream || stream.isHls) return false;
     // A tocar enquanto descarregava: pode passar-se para o ficheiro a qualquer
@@ -1357,7 +1455,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           onProgress: (f) => {
             if (ainda()) setDownloadProgress(f);
           },
-          renewUrl: criarRenovacao(track.sourceId, await getAudioQuality()),
+          renewUrl: criarRenovacao(track.sourceId, await getAudioQuality(), stream.formato ?? 'aac'),
         }
       );
       setDownloadProgress(null);
@@ -1502,6 +1600,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         primeiraNotaRef.current = null;
         const medida = primeiraNota(nota.pedidaEm, Date.now(), nota.origem);
         if (medida) registarEvento('primeira_nota', medida);
+        // Um Opus a tocar é a prova de que este iPhone o toca (lib/saudeDoOpus.ts).
+        if (nota.origem !== 'hls' && temOpusEmDisco(track.sourceId)) anotarOpus('tocou');
       }
       const t = transmissaoRef.current;
       if (t && !t.tocou && t.run === runIdRef.current) {

@@ -29,6 +29,8 @@ export type NomeDeEvento =
   | 'caiu_no_embed'
   /** O download progressivo foi cortado e a faixa passou para o HLS. */
   | 'caiu_no_hls'
+  /** O motor recusou o Opus de uma faixa, ou o WebM não se converteu: recuou para AAC. */
+  | 'opus_recusado'
   | 'fim_encravado'
   | 'entrega_falhada'
   | 'trocou_para_ficheiro'

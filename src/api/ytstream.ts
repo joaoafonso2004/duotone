@@ -74,6 +74,7 @@ import { fetchGvsPoToken } from './potProvider';
 import { readLoudnessDb } from '../lib/loudness';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { classificar, consolidar, sinalDoErro, type TipoFalha } from '../lib/playbackDiagnostics';
+import { codecPreferido, type Codec } from '../lib/codecDeAudio';
 
 const PLAYER_ENDPOINT = 'https://www.youtube.com/youtubei/v1/player';
 const VISITOR_ENDPOINT = 'https://www.youtube.com/youtubei/v1/visitor_id';
@@ -167,11 +168,19 @@ export interface YtStream {
    * Definições dizerem o que está a tocar — ver lib/efeitoDasDefinicoes.ts. */
   kbps?: number | null;
   codec?: string | null;
+  /**
+   * O que vem no ficheiro: `aac` (m4a, o de sempre) ou `opus` (WebM do itag
+   * 251, que o `youtubeCache` converte para MP4). Sem valor é AAC.
+   */
+  formato?: Codec;
 }
 
 /** O stream que se resolveu para este vídeo, se ainda estiver em memória. */
 export function streamEmMemoria(videoId: string, quality: 'high' | 'saver'): YtStream | null {
-  return memo.get(`${videoId}:${quality}`) ?? null;
+  const preferido = codecPreferido(videoId, quality);
+  return memo.get(`${videoId}:${quality}:${preferido}`)
+    ?? memo.get(`${videoId}:${quality}:${preferido === 'opus' ? 'aac' : 'opus'}`)
+    ?? null;
 }
 
 /** "AAC" a partir de `audio/mp4; codecs="mp4a.40.2"`. */
@@ -190,16 +199,40 @@ export function clearStreamMemo(): void {
   memo.clear();
 }
 
-/** Melhor áudio mp4/AAC com URL direto (o AVPlayer não toca webm/opus).
- * `preferLowBitrate` poupa dados (modo "Data saver" das Definições). */
+/** Melhor áudio mp4/AAC com URL direto (o AVPlayer não toca webm).
+ * `preferLowBitrate` poupa dados (modo "Data saver" das Definições).
+ *
+ * Com `querOpus` (e sem poupar dados) vem primeiro o Opus com URL direto --
+ * o itag 251 se existir, senão o Opus de maior bitrate --, em WebM: o
+ * `youtubeCache` converte-o para MP4 antes de o motor lhe tocar
+ * (`lib/converterOpus.ts`). Sem Opus direto fica o AAC, como sempre: não se
+ * reordena a cascata nem se decifra assinatura para ir buscar Opus. */
 function pickMp4Audio(
   streamingData: any,
-  preferLowBitrate: boolean
-): { url: string; contentLength: number | null; kbps: number | null; codec: string | null } | null {
+  preferLowBitrate: boolean,
+  querOpus = false,
+): { url: string; contentLength: number | null; kbps: number | null; codec: string | null; formato: Codec } | null {
   const formats: any[] = [
     ...(streamingData?.adaptiveFormats ?? []),
     ...(streamingData?.formats ?? []),
   ];
+  if (querOpus && !preferLowBitrate) {
+    const mime = (f: any) => String(f.mimeType ?? '');
+    const opus = formats
+      .filter((f) => f.url && mime(f).startsWith('audio/webm') && /opus/i.test(mime(f)))
+      .sort((a, b) => (b.itag === 251 ? 1 : 0) - (a.itag === 251 ? 1 : 0)
+        || (b.bitrate ?? b.averageBitrate ?? 0) - (a.bitrate ?? a.averageBitrate ?? 0));
+    if (opus[0]?.url) {
+      const bits = Number(opus[0].bitrate ?? opus[0].averageBitrate) || 0;
+      return {
+        url: opus[0].url,
+        contentLength: Number(opus[0].contentLength) || null,
+        kbps: bits ? bits / 1000 : null,
+        codec: codecDoMime(opus[0].mimeType),
+        formato: 'opus',
+      };
+    }
+  }
   const aac = formats
     .filter((f) => f.url && String(f.mimeType ?? '').startsWith('audio/mp4'))
     .sort((a, b) => {
@@ -214,6 +247,7 @@ function pickMp4Audio(
       contentLength: Number(aac[0].contentLength) || null,
       kbps: bits ? bits / 1000 : null,
       codec: codecDoMime(aac[0].mimeType),
+      formato: 'aac',
     };
   }
 
@@ -227,6 +261,7 @@ function pickMp4Audio(
     contentLength: Number(muxedMp4.contentLength) || null,
     kbps: null,
     codec: codecDoMime(muxedMp4.mimeType),
+    formato: 'aac',
   };
 }
 
@@ -236,7 +271,9 @@ function pickMp4Audio(
  * assinada com o token de origem dela — ver YtStreamHarvester.tsx). */
 export function streamFromPlayerResponse(
   data: any,
-  quality: 'high' | 'saver' = 'high'
+  quality: 'high' | 'saver' = 'high',
+  /** Que codec pedir. Sem Opus direto na resposta, vem AAC na mesma. */
+  codec: Codec = 'aac',
 ): YtStream {
   const status = data?.playabilityStatus?.status;
   if (status && status !== 'OK') {
@@ -267,7 +304,7 @@ export function streamFromPlayerResponse(
   // Com progressivo a faixa demora mais uns segundos a começar (descarrega
   // antes de tocar), mas fica guardada e toca sem rede daí em diante — e não
   // gasta dados duas vezes, que num telemóvel em 4G também conta.
-  const picked = pickMp4Audio(sd, quality === 'saver');
+  const picked = pickMp4Audio(sd, quality === 'saver', codec === 'opus');
 
   if (!picked) {
     // Sem áudio progressívo, o HLS ainda salva a reprodução (mas sem offline).
@@ -294,6 +331,7 @@ export function streamFromPlayerResponse(
     loudnessDb,
     kbps: picked.kbps,
     codec: picked.codec,
+    formato: picked.formato,
   };
 }
 
@@ -410,6 +448,13 @@ async function pedirVisitorData(): Promise<string | null> {
 export function criarRenovacao(
   videoId: string,
   quality: 'high' | 'saver' = 'high',
+  /**
+   * O formato do download que se está a renovar (`stream.formato`). Os bocados
+   * novos continuam os antigos no MESMO ficheiro: um URL de AAC a meio de um
+   * WebM dava um ficheiro com dois formatos colados. Se a renovação só
+   * conseguir o outro, devolve `null` e o download falha às claras.
+   */
+  formato: Codec = codecPreferido(videoId, quality),
 ): () => Promise<string | null> {
   let vezes = 0;
   return async () => {
@@ -418,8 +463,8 @@ export function criarRenovacao(
       try {
         const identidade = await pedirVisitorData();
         const data = await requestPlayer(videoId, VISIONOS_CLIENT, identidade);
-        const stream = streamFromPlayerResponse(data, quality);
-        if (!stream.isHls) {
+        const stream = streamFromPlayerResponse(data, quality, formato);
+        if (!stream.isHls && (stream.formato ?? 'aac') === formato) {
           const status = await probeMediaUrl(stream.url);
           if (status === 200 || status === 206) return stream.url;
         }
@@ -427,8 +472,8 @@ export function criarRenovacao(
         // Segue para a renovação de sempre.
       }
     }
-    const stream = await resolveYouTubeStream(videoId, quality, true);
-    return stream.isHls ? null : stream.url;
+    const stream = await resolveYouTubeStream(videoId, quality, true, formato);
+    return stream.isHls || (stream.formato ?? 'aac') !== formato ? null : stream.url;
   };
 }
 
@@ -592,9 +637,12 @@ export async function resolveYouTubeStream(
   /** Ignora o memo e resolve de novo. Usado quando o CDN rejeita o URL que
    * está em cache (403): o memo guarda-o até 5h e sem isto a faixa ficava
    * presa a um URL morto durante todo esse tempo. */
-  forceRefresh = false
+  forceRefresh = false,
+  /** Força o codec. Sem ele decide o `codecPreferido` (lib/codecDeAudio.ts). */
+  codecForcado?: Codec,
 ): Promise<YtStream> {
-  const cacheKey = `${videoId}:${quality}`;
+  const codec = codecForcado ?? codecPreferido(videoId, quality);
+  const cacheKey = `${videoId}:${quality}:${codec}`;
   if (forceRefresh) memo.delete(cacheKey);
   const cached = forceRefresh ? undefined : memo.get(cacheKey);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
@@ -622,7 +670,7 @@ export async function resolveYouTubeStream(
   for (const client of [VISIONOS_CLIENT, IOS_CLIENT, ANDROID_VR_CLIENT, ANDROID_CLIENT]) {
     try {
       const data = await requestPlayer(videoId, client, visitorData);
-      const stream = streamFromPlayerResponse(data, quality);
+      const stream = streamFromPlayerResponse(data, quality, codec);
       if (stream.isHls) {
         const audioOnly = await pickAudioOnlyHls(stream.url, quality === 'saver');
         if (audioOnly) stream.url = audioOnly;
@@ -690,7 +738,7 @@ export async function resolveYouTubeStream(
     erro.tipoConsolidado = consolidar([...tipos, classificar(sinalDoErro(e))]);
     throw erro;
   });
-  const stream = streamFromPlayerResponse(data, quality);
+  const stream = streamFromPlayerResponse(data, quality, codec);
   stream.client = 'IOS';
   stream.resolverNote = errors.join(' | ');
 

@@ -404,6 +404,8 @@ export type Contexto = {
   gerado: string;
   /** O estado do tocar enquanto descarrega; só o iPhone o passa. */
   stream?: string;
+  /** Se o iPhone pede Opus (lib/saudeDoOpus.ts); só o iPhone o passa. */
+  opus?: string;
 };
 
 /**
@@ -426,6 +428,7 @@ export function relatorio(
   linhas.push(`generated: ${ctx.gerado}`);
   linhas.push(`version:   ${ctx.versao} (build ${ctx.build})`);
   linhas.push(`platform:  ${ctx.plataforma}`);
+  if (ctx.opus !== undefined) linhas.push(`opus:      ${ctx.opus}`);
   linhas.push('');
 
   const secao = (titulo: string, lista: readonly EventoDaSessaoDeAudio[]) => {
