@@ -27,6 +27,13 @@ jobs:
           # construir as notas da versão -- o checkout traz 1 commit por defeito.
           fetch-depth: 0
 
+      # O checkout de uma tag reescreve-a como tag SIMPLES (actions/checkout,
+      # problema conhecido), e aí o passo das notas não via a mensagem da tag
+      # anotada: a ios-v3.7.7 saiu com a lista de commits em vez das notas
+      # escritas para ela. Buscar as tags outra vez, à força, repõe as anotadas.
+      - name: Repor as tags anotadas
+        run: git fetch --force --tags origin
+
       - name: Calcular SHA e versão
         id: vars
         run: |
@@ -165,8 +172,10 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           ls -lh "$NAME"
 
+      # Também nos releases: a 23/9 a ios-v3.7.7 publicou-se DUAS vezes sem o
+      # .ipa anexado, e sem artefacto o ficheiro compilado perdia-se com o
+      # runner -- restava compilar tudo outra vez.
       - name: Publicar .ipa como artefacto
-        if: steps.vars.outputs.release != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Duotone-ipa-${{ steps.vars.outputs.short_sha }}
@@ -232,13 +241,26 @@ jobs:
           ASSET: ${{ steps.pack.outputs.name }}
           VERSION: ${{ steps.vars.outputs.version }}
           NOTES: ${{ steps.notes.outputs.body }}
+        # O ficheiro sobe num passo à parte e CONFIRMA-SE que lá está. A 23/9 o
+        # `gh release create TAG ficheiro` publicou a ios-v3.7.7 duas vezes sem
+        # o .ipa e sem erro nenhum, e o portfólio anunciou uma versão que não
+        # se podia descarregar. Agora uma release sem o ficheiro parte a build.
         run: |
+          set -euo pipefail
           gh release create "$TAG" \
-            "$ASSET" \
             --title "Duotone iOS $VERSION" \
             --notes "$NOTES" \
             --verify-tag
-          echo "Publicado $TAG."
+          gh release upload "$TAG" "$ASSET" --clobber
+          for i in 1 2 3 4 5 6; do
+            if gh release view "$TAG" --json assets --jq '.assets[].name' | grep -qx "$ASSET"; then
+              echo "Publicado $TAG, com $ASSET."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::A release $TAG ficou sem $ASSET."
+          exit 1
 
       # Um release criado com o GITHUB_TOKEN não dispara o evento
       # `release: published` -- é uma proteção do GitHub contra workflows
