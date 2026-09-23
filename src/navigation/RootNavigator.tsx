@@ -31,6 +31,7 @@ import { AuthScreen } from '../screens/AuthScreen';
 import { ImportYouTubeScreen } from '../screens/ImportYouTubeScreen';
 import { ListeningStatsScreen } from '../screens/ListeningStatsScreen';
 import { DownloadsScreen } from '../screens/DownloadsScreen';
+import { EnsaioOpusScreen } from '../screens/EnsaioOpusScreen';
 import { LibraryCheckScreen } from '../screens/LibraryCheckScreen';
 import { RetrospetivaScreen } from '../screens/RetrospetivaScreen';
 import { LibraryGroupScreen } from '../screens/LibraryGroupScreen';
@@ -75,6 +76,8 @@ export type RootStackParamList = {
   ListeningStats: {userId?:string} | undefined;
   Retrospetiva: {ano?:number;userId?:string} | undefined;
   Downloads: undefined;
+  /** Ensaio do Opus (lib/ensaioOpus.ts). Só do ramo plano-audio. */
+  EnsaioOpus: undefined;
   /** O Library check. Ver `screens/LibraryCheckScreen.tsx`. */
   LibraryCheck: undefined;
   FriendProfile: {userId:string};
@@ -337,6 +340,7 @@ export function RootNavigator() {
               {/* Sem withInternet: ver o que está guardado é justamente o que
                   tem de funcionar sem rede. */}
               <Stack.Screen name="Downloads" component={DownloadsScreen} />
+              <Stack.Screen name="EnsaioOpus" component={EnsaioOpusScreen} />
               <Stack.Screen name="LibraryCheck" component={LibraryCheckScreen} />
               <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
               <Stack.Screen name="VocesOsDois" component={OnlineVocesOsDois} />

@@ -14,7 +14,7 @@ function caso(nome: string, fn: () => void): void {
 
 const base: ContextoDoMenu = {
   plataforma: 'ios', onde: 'lista', semRede: false, tocaSemRede: false,
-  guardada: false, podeDescarregar: true, descarregada: false, temArtista: true,
+  guardada: false, podeDescarregar: true, download: 'nenhum', temArtista: true,
 };
 const menu = (over: Partial<ContextoDoMenu> = {}) => menuDaFaixa({ ...base, ...over });
 const ids = (over: Partial<ContextoDoMenu> = {}) => menu(over).map((a) => a.id);
@@ -116,7 +116,13 @@ caso('sem rede toca-se o que está descarregado, e o resto diz porquê', () => {
 });
 caso('sem rede o artista e tirar um download continuam a funcionar', () => {
   assert.equal(achar('ver-artista', { semRede: true }).indisponivel, null);
-  assert.equal(achar('descarregar', { semRede: true, descarregada: true }).indisponivel, null);
+  assert.equal(achar('descarregar', { semRede: true, download: 'descarregada' }).indisponivel, null);
+  assert.equal(achar('descarregar', { semRede: true, download: 'a-descarregar' }).indisponivel, null);
+});
+caso('sem rede, "Download" de uma faixa que já está em disco só a guarda', () => {
+  // Tocou antes e ficou em cache: guardá-la não precisa de rede nenhuma.
+  assert.equal(achar('descarregar', { semRede: true, tocaSemRede: true }).indisponivel, null);
+  assert.equal(achar('descarregar', { semRede: true, tocaSemRede: true }).rotulo, 'Download');
 });
 caso('dentro de um Jam, tirar da fila fica à vista e diz porquê', () => {
   const a = achar('tirar-da-fila', { onde: 'fila', fila: { emJam: true, mudou: false } });
@@ -143,8 +149,13 @@ caso('enquanto não se sabe, não se adivinha', () => {
   assert.equal(a.indisponivel, MOTIVOS.aVerificar);
 });
 caso('o download diz o que vai fazer', () => {
-  assert.equal(achar('descarregar', { descarregada: false }).rotulo, 'Download');
-  assert.equal(achar('descarregar', { descarregada: true }).rotulo, 'Remove download');
+  assert.equal(achar('descarregar', { download: 'nenhum' }).rotulo, 'Download');
+  assert.equal(achar('descarregar', { download: 'descarregada' }).rotulo, 'Remove download');
+  assert.equal(achar('descarregar', { download: 'a-descarregar' }).rotulo, 'Cancel download');
+});
+caso('uma faixa que só TOCOU não diz "Remove download"', () => {
+  // Estar em disco (tocaSemRede) não é ter sido descarregada: era o defeito.
+  assert.equal(achar('descarregar', { tocaSemRede: true, download: 'nenhum' }).rotulo, 'Download');
 });
 
 if (falhas) {

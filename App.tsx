@@ -30,7 +30,7 @@ import {
   loadPrefsCache,
 } from './src/lib/prefs';
 import { activateKeepAwakeAsync } from 'expo-keep-awake';
-import { carregarFixados, idsFixados } from './src/lib/downloadsFixados';
+import { carregarFixados, idsProtegidos, podeLimpar } from './src/lib/downloadsFixados';
 import { loadLoudnessCache } from './src/lib/loudnessCache';
 import { supabase } from './src/lib/supabase';
 import {
@@ -39,6 +39,7 @@ import {
   migrateAudioCacheToDocuments,
   pruneAudioCacheLRU,
   limparParciaisEsquecidos,
+  listarDescarregados,
 } from './src/lib/youtubeCache';
 import { retireBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { useAuth } from './src/state/auth';
@@ -190,9 +191,11 @@ export default function App() {
       // precisa de espaço — era por isso que os downloads desapareciam.
       // Passaram para Documents; isto muda de sítio o que já estava lá.
       .then(() => migrateAudioCacheToDocuments())
-      // Os fixados TÊM de estar em memória antes da limpeza: sem eles, ela só
-      // protegeria a fila e apagava o que foi guardado de propósito.
-      .then(() => carregarFixados())
+      // Os downloads pedidos TÊM de estar em memória antes da limpeza: sem
+      // eles, ela só protegeria a fila e apagava o que foi guardado de
+      // propósito. Na primeira abertura desta versão, o que já está em disco
+      // fica uma semana protegido (lib/downloadsExplicitos.ts).
+      .then(() => carregarFixados(() => listarDescarregados().map((f) => f.id)))
       .then(() => {
       // Índice em memória dos downloads (badges "offline" nas listas).
       loadCachedAudioIndex();
@@ -200,11 +203,14 @@ export default function App() {
       limparParciaisEsquecidos();
       // Pruning LRU do cache de áudio — só no arranque, nunca durante a
       // reprodução, e protegendo a fila restaurada da sessão anterior.
-      const prune = () =>
+      // Sem os pedidos lidos não se sabe o que proteger: fica para a próxima.
+      const prune = () => {
+        if (!podeLimpar()) return;
         pruneAudioCacheLRU([
           ...usePlayer.getState().queue.map((t) => t.sourceId),
-          ...idsFixados(),
+          ...idsProtegidos(),
         ]);
+      };
       if (usePlayer.persist.hasHydrated()) {if(!useConnectivity.getState().offline)prune();}
       else usePlayer.persist.onFinishHydration(()=>{if(!useConnectivity.getState().offline)prune();});
     });

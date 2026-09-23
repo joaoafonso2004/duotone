@@ -7,7 +7,7 @@ import { usePlayer } from '../state/player';
 import { checkIsSaved } from '../api/library';
 import { alternarGuardada } from '../lib/guardarFaixa';
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
-import { alternarDownload, estaDescarregada, podeDescarregar } from '../lib/descarregarFaixa';
+import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede, useRevisaoDosDownloads } from '../lib/descarregarFaixa';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { useConnectivity } from '../state/connectivity';
 import { ShareFriendSheet } from './ShareFriendSheet';
@@ -115,10 +115,10 @@ export function SocialTrackActions({ track, onClose, onArtist }: {
     plataforma: Platform.OS === 'web' ? 'pc' : 'ios',
     onde: 'lista',
     semRede: offline,
-    tocaSemRede: estaDescarregada(track),
+    tocaSemRede: tocaSemRede(track),
     guardada,
     podeDescarregar: podeDescarregar(track),
-    descarregada: estaDescarregada(track),
+    download: downloadNoMenuDe(track),
     temArtista: !!nomeDoArtista && nomeDoArtista !== 'Unknown artist',
   }) : [];
   const fazer = (id: IdDaAcao) => {

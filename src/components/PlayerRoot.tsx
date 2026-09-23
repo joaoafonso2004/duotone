@@ -63,7 +63,7 @@ import { mandarComando, useAparelhos } from '../lib/connectSync';
 import { avisoDoPedido, type TipoDePedido } from '../lib/duotoneConnect';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { menuDaFaixa, MOTIVOS, type IdDaAcao } from '../lib/menuDaFaixa';
-import { alternarDownload, estaDescarregada, podeDescarregar } from '../lib/descarregarFaixa';
+import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede } from '../lib/descarregarFaixa';
 import { MenuFlutuante, type Ancora } from './MenuFlutuante';
 import { EqualizerIcon } from './EqualizerIcon';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
@@ -934,10 +934,10 @@ export function PlayerRoot() {
     plataforma: 'ios',
     onde: 'leitor',
     semRede: offline,
-    tocaSemRede: estaDescarregada(current),
+    tocaSemRede: tocaSemRede(current),
     guardada: saved,
     podeDescarregar: podeDescarregar(current),
-    descarregada: estaDescarregada(current),
+    download: downloadNoMenuDe(current),
     temArtista,
   });
   const fazerNaFaixa = (id: IdDaAcao) => {

@@ -271,7 +271,7 @@ export function clearDownloadedAudioCache(): void {
 // Limite do cache de áudio. Pruning LRU corre APENAS no arranque da app —
 // nunca durante a reprodução (o pruning em pleno playback já causou crashes
 // no passado; ver histórico do smart cache).
-const MAX_CACHE_BYTES = 500 * 1024 * 1024;
+export const MAX_CACHE_BYTES = 500 * 1024 * 1024;
 
 /** Remove os ficheiros menos recentes até o cache caber em MAX_CACHE_BYTES.
  * `protectedIds` (fila atual restaurada) nunca são apagados. */

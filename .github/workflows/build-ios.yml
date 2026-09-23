@@ -89,6 +89,32 @@ jobs:
       - name: Validar TypeScript e regressões
         run: npm run typecheck && npm test
 
+      # Ensaio do Opus (docs/PLANO-AUDIO-IOS-CACHE-OPUS.md, entrega 2) -- SÓ no
+      # ramo plano-audio; sai antes de se juntar ao main. O ffmpeg não escreve
+      # Opus em CAF e o cookie da Apple não está documentado, por isso o CAF do
+      # ensaio é o do afconvert, aqui, antes do bundle. Aproveita-se para ver se
+      # o macOS descodifica os ficheiros MP4 (é um indício, não a prova: a
+      # prova é o iPhone). Nunca parte a build.
+      - name: Ensaio Opus - CAF pelo afconvert e leitura no macOS
+        continue-on-error: true
+        run: |
+          node scripts/gerar-ensaio-opus.mjs --so-wav "$RUNNER_TEMP/fonte.wav"
+          if afconvert -f caff -d opus -b 128000 "$RUNNER_TEMP/fonte.wav" "$RUNNER_TEMP/opus.caf"; then
+            cp "$RUNNER_TEMP/opus.caf" assets/ensaio-opus/opus.caf
+            printf '{\n  "caf": "afconvert"\n}\n' > assets/ensaio-opus/origem.json
+          else
+            echo "::warning::o afconvert não escreveu Opus em CAF; o ensaio fica sem CAF"
+          fi
+          for f in assets/ensaio-opus/*.m4a assets/ensaio-opus/opus.caf; do
+            echo "== $f"
+            afinfo "$f" || true
+            if afconvert -f WAVE -d LEI16 "$f" "$RUNNER_TEMP/descodificado.wav"; then
+              afinfo "$RUNNER_TEMP/descodificado.wav" | grep -i "duration" || true
+            else
+              echo "::warning::o macOS não descodificou $f"
+            fi
+          done
+
       # O .env não vai no repositório; vem do secret ENV_FILE
       # (Settings -> Secrets and variables -> Actions)
       - name: Criar .env a partir do secret

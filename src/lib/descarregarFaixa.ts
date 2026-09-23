@@ -2,9 +2,17 @@ import { criarRenovacao, resolveYouTubeStream } from '../api/ytstream';
 import { useConnectivity } from '../state/connectivity';
 import { usePlayer } from '../state/player';
 import type { Track } from '../types';
+import { criarAcoesDeDownload } from './acoesDeDownload';
+import { downloadNoMenu, situacaoDoDownload, type DownloadNoMenu, type SituacaoDoDownload } from './downloadsExplicitos';
+import {
+  esquecerPedido, esquecerTodos, marcarADescarregar, registarPedido, temPedido, useDownloadsFixados,
+} from './downloadsFixados';
 import { faixasParaGuardar } from './misturaDoDia';
 import { getAudioQuality } from './prefs';
-import { DOWNLOAD_ABORTED, downloadProgressiveAudio, isAudioCached, removeDownloadedAudio, verificarCancelamentos } from './youtubeCache';
+import {
+  clearDownloadedAudioCache, DOWNLOAD_ABORTED, downloadProgressiveAudio, isAudioCached,
+  removeDownloadedAudio, useAudioCache, verificarCancelamentos,
+} from './youtubeCache';
 
 /**
  * Os cancelamentos destes downloads dependem da rede e do leitor (ver os
@@ -38,36 +46,102 @@ export function podeDescarregar(track: Track): boolean {
   return track.source === 'youtube' && !!track.sourceId;
 }
 
-export function estaDescarregada(track: Track): boolean {
+/**
+ * Toca sem rede: o ficheiro está em disco, venha de onde vier (um download,
+ * uma música que já tocou, o Smart Cache). NÃO quer dizer que foi descarregada
+ * de propósito -- isso é a `situacaoDoDownloadDe`.
+ */
+export function tocaSemRede(track: Track): boolean {
   return podeDescarregar(track) && isAudioCached(track.sourceId);
 }
 
-/** Descarrega, ou tira o download se já lá estiver. Falhar não interrompe nada. */
-export async function alternarDownload(track: Track): Promise<void> {
-  if (!podeDescarregar(track)) return;
-  ligarVigias();
-  if (isAudioCached(track.sourceId)) {
-    removeDownloadedAudio(track.sourceId);
-    return;
-  }
-  try {
+/** O download PEDIDO desta faixa (ver lib/downloadsExplicitos.ts). */
+export function situacaoDoDownloadDe(track: Track): SituacaoDoDownload {
+  if (!podeDescarregar(track)) return 'nenhum';
+  const s = useDownloadsFixados.getState();
+  return situacaoDoDownload({
+    pedido: track.sourceId in s.registo.pedidos,
+    emDisco: isAudioCached(track.sourceId),
+    aDescarregar: s.aDescarregar.has(track.sourceId),
+  });
+}
+
+export function downloadNoMenuDe(track: Track): DownloadNoMenu {
+  return downloadNoMenu(situacaoDoDownloadDe(track));
+}
+
+/**
+ * Para quem desenha: volta a desenhar quando muda um pedido, um download a
+ * andar ou o disco. O que se mostra lê-se a seguir com as funções de cima.
+ */
+export function useRevisaoDosDownloads(): void {
+  useDownloadsFixados((s) => s.registo.pedidos);
+  useDownloadsFixados((s) => s.aDescarregar);
+  useAudioCache((s) => s.revision);
+}
+
+/** A faixa foi descarregada de propósito e está em disco -- o ↓ das listas. */
+export function useDescarregadaDeProposito(track: Track): boolean {
+  const pedida = useDownloadsFixados((s) => podeDescarregar(track) && track.sourceId in s.registo.pedidos);
+  // O seletor devolve o booleano, e não a revisão: um download de OUTRA faixa
+  // não volta a desenhar as linhas todas de uma lista.
+  return useAudioCache((s) => s.revision >= 0 && pedida && isAudioCached(track.sourceId));
+}
+
+const acoes = criarAcoesDeDownload({
+  registar: (t) => registarPedido(t),
+  esquecer: esquecerPedido,
+  esquecerTodos,
+  temPedido,
+  emDisco: isAudioCached,
+  marcarADescarregar,
+  semRede: () => useConnectivity.getState().offline,
+  async descarregar(track, parar) {
+    ligarVigias();
     const quality = await getAudioQuality();
+    if (parar()) throw new Error(DOWNLOAD_ABORTED);
     const stream = await resolveYouTubeStream(track.sourceId, quality);
+    // Só há HLS: não há ficheiro para guardar. Fica em falta, e a lista diz.
     if (stream.isHls) return;
     await downloadProgressiveAudio(
       track.sourceId,
       stream.url,
       stream.contentLength,
       track.durationSeconds || stream.durationSeconds || null,
-      {
-        prioridade: 'explicito',
-        shouldAbort: () => useConnectivity.getState().offline,
-        renewUrl: criarRenovacao(track.sourceId, quality),
-      },
+      { prioridade: 'explicito', shouldAbort: parar, renewUrl: criarRenovacao(track.sourceId, quality) },
     );
-  } catch (err) {
-    console.warn('[Download] Falha ao descarregar faixa:', err);
-  }
+  },
+  apagarFicheiro: removeDownloadedAudio,
+  apagarTudo: clearDownloadedAudioCache,
+  avisarCancelamentos: verificarCancelamentos,
+  foiCancelado: (e) => e instanceof Error && e.message === DOWNLOAD_ABORTED,
+  avisar: (msg, e) => console.warn(msg, e),
+});
+
+/** "Download" num menu, ou "Remove download"/"Cancel download". Falhar não interrompe nada. */
+export async function alternarDownload(track: Track): Promise<void> {
+  if (!podeDescarregar(track)) return;
+  await acoes.alternar(track, situacaoDoDownloadDe(track));
+}
+
+/** Pede o download (idempotente). Para o "Retry" da lista de Downloads. */
+export async function pedirDownload(track: Track): Promise<void> {
+  if (!podeDescarregar(track)) return;
+  await acoes.pedir(track);
+}
+
+/** Tira o pedido e apaga o ficheiro desta faixa. */
+export async function tirarDownload(videoId: string): Promise<void> {
+  await acoes.tirar(videoId);
+}
+
+/**
+ * O "Clear YouTube cache" e o "Remover tudo" dos Downloads: todo o áudio, os
+ * downloads pedidos incluídos (decisão do João a 11/9), a proteção da
+ * migração, e os downloads pedidos que estejam a meio.
+ */
+export async function limparTodosOsDownloads(): Promise<void> {
+  await acoes.limparTudo();
 }
 
 /**

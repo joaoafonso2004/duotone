@@ -11,7 +11,7 @@ import type { Track } from '../types';
 import { contextoParaAnalytics, type DiscoveryContext } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
 import { menuDaFaixa, type AcaoDoMenu, type IdDaAcao } from '../lib/menuDaFaixa';
-import { alternarDownload, estaDescarregada, podeDescarregar } from '../lib/descarregarFaixa';
+import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede, useRevisaoDosDownloads } from '../lib/descarregarFaixa';
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { savedKey, useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
@@ -62,6 +62,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], disco
   const [paraPlaylist, setParaPlaylist] = React.useState<Track | null>(null);
   const lida = useSaved((s) => s.loaded);
   const naLoja = useSaved((s) => (track ? s.keys.has(savedKey(track)) : false));
+  useRevisaoDosDownloads();
 
   React.useEffect(() => { if (visible && track) garantirGuardadas(); }, [visible, track]);
 
@@ -70,10 +71,10 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], disco
     plataforma: 'ios',
     onde: 'lista',
     semRede: offline,
-    tocaSemRede: estaDescarregada(track),
+    tocaSemRede: tocaSemRede(track),
     guardada: lida ? naLoja : null,
     podeDescarregar: podeDescarregar(track),
-    descarregada: estaDescarregada(track),
+    download: downloadNoMenuDe(track),
     temArtista: !!nomeDoArtista && nomeDoArtista !== 'Unknown artist',
     playlist: playlist ? { podeEditar: playlist.podeEditar } : null,
   }) : [];

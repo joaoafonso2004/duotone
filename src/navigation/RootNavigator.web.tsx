@@ -482,7 +482,7 @@ function DesktopShell() {
     tocaSemRede: false,
     guardada: isSaved,
     podeDescarregar: false,
-    descarregada: false,
+    download: 'nenhum',
     temArtista: !!nomeDoArtistaDoMenu && nomeDoArtistaDoMenu !== 'Unknown artist',
     playlist: route.name === 'playlist' && !nowPlayingOpen && trackMenuFila === null ? { podeEditar: true } : null,
     fila: trackMenuFila !== null ? { emJam, mudou: filaMudou } : null,

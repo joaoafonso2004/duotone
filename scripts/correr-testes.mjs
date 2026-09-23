@@ -1,0 +1,161 @@
+/**
+ * Corre a suite inteira, um teste de cada vez, e para no primeiro que falhar
+ * -- o mesmo que a cadeia de `&&` que vivia no `npm test`.
+ *
+ * Saiu do package.json porque o cmd.exe não aceita linhas acima de 8191
+ * caracteres, e a cadeia ia em 8138 (22/9). Acima disso o CI da build de
+ * Windows falhava com "The command line is too long" sem correr teste nenhum.
+ * Teste novo: acrescenta-o a esta lista, e mais nada.
+ *
+ * Cada entrada são os argumentos do `node`, separados por espaços.
+ * Correr: npm test   (ou: node scripts/correr-testes.mjs)
+ */
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const TS = '--experimental-strip-types';
+const RESOLVER = `${TS} --import ./scripts/registar-resolver.mjs`;
+const DUPLOS = `${TS} --import ./scripts/registar-duplos.mjs`;
+
+const TESTES = [
+  'scripts/test-capas-com-audio.cjs',
+  'scripts/test-download-esperas.mjs',
+  'scripts/test-transmitir-audio.mjs',
+  'scripts/test-pot-esperas.mjs',
+  'scripts/test-smart-cache-cancelamento.mjs',
+  'scripts/test-folhas.cjs',
+  'scripts/test-capa-reactiva.cjs',
+  'scripts/test-mudanca-velocidade.cjs',
+  'scripts/test-notifications.cjs',
+  'scripts/test-security-hardening.mjs',
+  'scripts/test-mp4fixer.mjs',
+  'scripts/test-mp4-ao-vivo.mjs',
+  `${TS} scripts/test-audio-range.ts`,
+  `${TS} scripts/test-publicar-download.ts`,
+  `${TS} scripts/test-limpeza-cache.ts`,
+  `${RESOLVER} scripts/test-comandos-siri.ts`,
+  `${RESOLVER} scripts/test-erro-de-reproducao.ts`,
+  `${TS} scripts/test-fila-downloads.ts`,
+  `${TS} scripts/test-adiantar-faixas.ts`,
+  `${TS} scripts/test-auth-storage.ts`,
+  `${TS} scripts/test-pesquisa-paginada.ts`,
+  `${TS} scripts/test-artist-name.ts`,
+  `${TS} scripts/test-titulo-que-rola.ts`,
+  `${TS} scripts/test-spotify-csv.ts`,
+  `${RESOLVER} scripts/test-cor-da-capa.ts`,
+  `${RESOLVER} scripts/test-widget.ts`,
+  `${RESOLVER} scripts/test-spotify-import.ts`,
+  `${TS} scripts/test-track-match.ts`,
+  `${TS} scripts/test-capa.ts`,
+  `${TS} scripts/test-capa-grande.ts`,
+  `${TS} scripts/test-respostas.ts`,
+  `${TS} scripts/test-guardar-playlist.ts`,
+  `${TS} scripts/test-transicao-da-capa.ts`,
+  `${TS} scripts/test-aviso-de-versao.ts`,
+  `${TS} scripts/test-capa-do-perfil.ts`,
+  `${TS} scripts/test-prefs-sync.ts`,
+  `${RESOLVER} scripts/test-catalogo-faixa.ts`,
+  `${RESOLVER} scripts/test-tracker.ts`,
+  `${RESOLVER} scripts/test-pesquisa-local.ts`,
+  `${TS} scripts/test-fim-de-faixa.ts`,
+  `${TS} scripts/test-interrupcao-de-audio.ts`,
+  `${TS} scripts/test-fim-da-faixa.ts`,
+  `${TS} scripts/test-crossfade.ts`,
+  `${TS} scripts/test-montagem-da-capa.ts`,
+  `${TS} scripts/test-troca-de-fonte.ts`,
+  `${TS} scripts/test-relogio-partilhado.ts`,
+  `${TS} scripts/test-sessao-viva.ts`,
+  `${TS} scripts/test-driver-de-animacao.ts`,
+  `${TS} scripts/test-ordenacao.ts`,
+  `${TS} scripts/test-search-query.ts`,
+  `${TS} scripts/test-handoff.ts`,
+  `${RESOLVER} scripts/test-duotone-connect.ts`,
+  `${TS} scripts/test-player-lifecycle.ts`,
+  `${DUPLOS} scripts/test-player-store.ts`,
+  `${TS} scripts/test-shuffle.ts`,
+  `${TS} scripts/test-radio.ts`,
+  `${TS} scripts/test-origem-da-fila.ts`,
+  `${TS} scripts/test-loudness.ts`,
+  `${TS} scripts/test-listening-stats.ts`,
+  `${RESOLVER} scripts/test-retrospetiva.ts`,
+  `${TS} scripts/test-playback-diagnostics.ts`,
+  'scripts/test-renovacao-e-hls.mjs',
+  `${TS} scripts/test-tocar-enquanto-descarrega.ts`,
+  `${TS} scripts/test-saude-da-app.ts`,
+  `${TS} scripts/test-saude-da-reproducao.ts`,
+  `${TS} scripts/test-player-queue.ts`,
+  `${TS} scripts/test-playback-machine.ts`,
+  `${TS} scripts/test-reorder.ts`,
+  `${TS} scripts/test-arrastar-fila.ts`,
+  `${TS} scripts/test-arranque-travado.ts`,
+  `${TS} scripts/test-abertura.ts`,
+  `${TS} scripts/test-modo-limpo.ts`,
+  `${TS} scripts/test-animacoes-do-pc.ts`,
+  `${TS} scripts/test-grelha-que-cresce.ts`,
+  `${TS} scripts/test-prateleiras.ts`,
+  `${TS} scripts/test-intercalar.ts`,
+  `${TS} scripts/test-misturas.ts`,
+  `${TS} scripts/test-estilos.ts`,
+  `${TS} scripts/test-contraste.ts`,
+  `${TS} scripts/test-aquecer-imagens.ts`,
+  `${TS} scripts/test-cache-da-biblioteca.ts`,
+  `${TS} scripts/test-cache-do-perfil.ts`,
+  `${TS} scripts/test-favoritas-dos-amigos.ts`,
+  `${TS} scripts/test-mistura-dos-dois.ts`,
+  `${TS} scripts/test-ordem-das-conversas.ts`,
+  `${TS} scripts/test-presenca-discord.ts`,
+  `${TS} scripts/test-visibilidade.ts`,
+  `${TS} scripts/test-artistas-semente.ts`,
+  `${TS} scripts/test-gosto-do-spotify.ts`,
+  `${TS} scripts/test-descobertas-mostradas.ts`,
+  `${TS} scripts/test-mistura-do-dia.ts`,
+  `${TS} scripts/test-decadas.ts`,
+  `${TS} scripts/test-preferencias.ts`,
+  `${TS} scripts/test-generos.ts`,
+  `${TS} scripts/test-escolhas-do-dia.ts`,
+  `${TS} scripts/test-sexta-feira.ts`,
+  `${TS} scripts/test-rascunho.ts`,
+  `${TS} scripts/test-menu-da-faixa.ts`,
+  `${TS} scripts/test-downloads-explicitos.ts`,
+  `${DUPLOS} scripts/test-downloads-acoes.ts`,
+  `${TS} scripts/test-ensaio-opus.mjs`,
+  `${TS} scripts/test-efeito-das-definicoes.ts`,
+  'scripts/test-definicoes-com-efeito.mjs',
+  `${TS} scripts/test-higiene-da-biblioteca.ts`,
+  'scripts/test-higiene-da-biblioteca-sql.mjs',
+  'scripts/test-duotone-connect-sql.mjs',
+  'scripts/test-limpar-fantasmas-sql.mjs',
+  `${TS} scripts/test-contagem-de-escuta.ts`,
+  `${TS} scripts/test-playback-rate.ts`,
+  `${TS} scripts/test-equalizer.ts`,
+  `${TS} scripts/test-eq-nativo.ts`,
+  `${TS} scripts/test-smart-shuffle.ts`,
+  `${TS} scripts/test-escolha-da-sugestao.ts`,
+  `${RESOLVER} scripts/test-identidade-da-musica.ts`,
+  `${TS} scripts/test-afinidade.ts`,
+  `${TS} scripts/test-musica.ts`,
+  `${TS} scripts/test-catalogo.ts`,
+  `${TS} scripts/test-alvos.ts`,
+  `${TS} scripts/test-social.ts`,
+  `${TS} scripts/test-presenca-ativa.ts`,
+  'scripts/test-api-regressions.mjs',
+  'scripts/check-desktop-integration.mjs',
+  'scripts/test-saude-electron.mjs',
+  'scripts/test-atualizacao-windows.mjs',
+  'scripts/test-social-presence.mjs',
+  'scripts/test-social-database.mjs',
+  `${DUPLOS} scripts/test-jam-store.ts`,
+  'scripts/test-ouvir-juntos.mjs',
+  'scripts/test-personalization-offline.mjs',
+];
+
+const raiz = fileURLToPath(new URL('..', import.meta.url));
+const inicio = Date.now();
+for (const [i, teste] of TESTES.entries()) {
+  const r = spawnSync(process.execPath, teste.split(' '), { cwd: raiz, stdio: 'inherit' });
+  if (r.status !== 0) {
+    console.error(`\n✗ Falhou (${i + 1}/${TESTES.length}): node ${teste}`);
+    process.exit(r.status ?? 1);
+  }
+}
+console.log(`\n✓ ${TESTES.length} testes passaram em ${Math.round((Date.now() - inicio) / 1000)} s.`);

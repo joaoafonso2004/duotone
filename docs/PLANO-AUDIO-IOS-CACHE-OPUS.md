@@ -2,6 +2,13 @@
 
 Data: 22/09/2026. Base analisada: `joaoafonso2004/duotone`, branch `windows-version`, commit `27a3637`, incluindo o estado local de trabalho. Este documento é um plano; não implementa alterações nem afirma validação no aparelho.
 
+## Estado a 23/09/2026 (ramo `plano-audio`)
+
+- **Antes de tudo:** a lista de testes saiu do `package.json` para `scripts/correr-testes.mjs` — o `npm test` estava a 53 caracteres do limite do cmd.exe, e esta entrega acrescenta três testes.
+- **Entrega 1 — feita, falta o aparelho.** Pedido de download separado da cache física (`lib/downloadsExplicitos.ts`, `lib/downloadsFixados.ts`, `lib/acoesDeDownload.ts`); menus com `Download` / `Cancel download` / `Remove download`; "Download" sobre uma faixa em cache só a guarda, sem rede; lista de Downloads a partir dos pedidos, com a cache numa linha à parte; o cadeado saiu; migração com 7 dias de proteção; "Clear cache" centralizado. Testes: `test-downloads-explicitos.ts`, `test-downloads-acoes.ts`. Por fazer, e de propósito: não se impede que um adiantamento do Smart Cache já a meio publique depois de um "Clear cache" — seria mexer no caminho da reprodução, e o que ele publica é só cache.
+- **Entrega 2 — preparada, falta o aparelho.** Quatro ficheiros de ensaio e um ecrã interno (ver a secção do ensaio no CLAUDE.md). O CAF é o `afconvert` do CI que o escreve.
+- **Entrega 3 — não começou.** Depende do resultado da 2 no iPhone.
+
 ## Revisão de 22/09/2026, à noite (depois do trabalho no aparelho)
 
 O plano foi escrito antes de se perceber o que se passava no iPhone. O que aconteceu nesse mesmo dia muda-lhe a ordem e corta-lhe trabalho. Nada do que está escrito abaixo foi apagado; o que deixou de valer está assinalado no sítio.

@@ -27,6 +27,7 @@
  * Tudo em inglês, como o resto da interface. Sem imports de runtime:
  * `scripts/test-menu-da-faixa.ts` corre em Node puro.
  */
+import type { DownloadNoMenu } from './downloadsExplicitos';
 
 export type IdDaAcao =
   | 'tocar-agora'
@@ -68,6 +69,7 @@ export type IconeDoMenu =
   | 'share-social-outline'
   | 'arrow-down-circle-outline'
   | 'checkmark-circle'
+  | 'close-circle-outline'
   | 'options-outline'
   | 'trash-outline';
 
@@ -98,7 +100,11 @@ export interface ContextoDoMenu {
   guardada: boolean | null;
   /** Faixa do YouTube, no iPhone. */
   podeDescarregar: boolean;
-  descarregada: boolean;
+  /**
+   * O download PEDIDO (lib/downloadsExplicitos.ts), não o ficheiro em disco:
+   * uma faixa que só tocou também está em disco, e não foi descarregada.
+   */
+  download: DownloadNoMenu;
   /** Um nome de artista a sério, e não o "Unknown artist" do `displayArtist`. */
   temArtista: boolean;
   /** Presente quando o menu abriu dentro de uma playlist. */
@@ -158,10 +164,12 @@ function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
     case 'por-em-playlist': return acao('Add to playlist…', 'albums-outline', semRede);
     case 'ver-artista': return acao('View artist', 'mic-outline', c.temArtista ? null : MOTIVOS.semArtista);
     case 'partilhar': return acao('Share with friends or groups…', 'share-social-outline', semRede);
-    // Tirar um download não precisa de rede; fazê-lo sim.
-    case 'descarregar': return c.descarregada
-      ? acao('Remove download', 'checkmark-circle', null)
-      : acao('Download', 'arrow-down-circle-outline', semRede);
+    // Tirar um download não precisa de rede; fazê-lo sim -- a não ser que o
+    // ficheiro já esteja em disco (tocou antes): aí "Download" só o guarda.
+    case 'descarregar':
+      if (c.download === 'descarregada') return acao('Remove download', 'checkmark-circle', null);
+      if (c.download === 'a-descarregar') return acao('Cancel download', 'close-circle-outline', null);
+      return acao('Download', 'arrow-down-circle-outline', c.tocaSemRede ? null : semRede);
     case 'recomendacoes': return acao('Recommendations…', 'options-outline', semRede);
     case 'tirar-da-playlist': return acao('Remove from this playlist', 'trash-outline',
       c.playlist && !c.playlist.podeEditar ? MOTIVOS.soODono : semRede, true);

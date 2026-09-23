@@ -25,7 +25,9 @@ import { mensagemDoSpotify, type GostoDoSpotify } from '../lib/gostoDoSpotify';
 import { getGostoDoSpotify } from '../lib/prefs';
 import { useRecomendacoes } from '../state/recomendacoes';
 import { getLoudnessDb } from '../lib/loudnessCache';
-import { idsFixados } from '../lib/downloadsFixados';
+import { limparTodosOsDownloads } from '../lib/descarregarFaixa';
+import { ENSAIO_OPUS_LIGADO } from '../lib/ensaioOpus';
+import { idsPedidos } from '../lib/downloadsFixados';
 import { listPlaylists, getPlaylistTracks } from '../api/playlists';
 import { supabase } from '../lib/supabase';
 import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
@@ -57,7 +59,7 @@ import {
   getCrossfadeSegundos,
   setCrossfadeSegundos,
 } from '../lib/prefs';
-import { clearDownloadedAudioCache, formatCacheSize, getAudioCacheBytes, isAudioCached } from '../lib/youtubeCache';
+import { formatCacheSize, getAudioCacheBytes, isAudioCached } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
@@ -292,8 +294,10 @@ export function SettingsScreen({ navigation }: Props) {
     }
   };
 
-  const doClearCache = () => {
-    clearDownloadedAudioCache();
+  const doClearCache = async () => {
+    // Todo o áudio, os downloads pedidos incluídos, e os que estão a meio
+    // (ver o efeito por baixo do botão, que o diz antes de carregar).
+    await limparTodosOsDownloads();
     clearStreamMemo();
     clearPoTokenMemo();
     // O visitorData sobrevivia ao "Clear cache" (24h no AsyncStorage). Se a
@@ -426,7 +430,7 @@ export function SettingsScreen({ navigation }: Props) {
     }),
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
     ecra: efeitoDeManterOEcra(keepAwakeOn),
-    cache: efeitoDeLimparACache({ bytes: cacheBytes, downloads: idsFixados().filter(isAudioCached).length }),
+    cache: efeitoDeLimparACache({ bytes: cacheBytes, downloads: idsPedidos().filter(isAudioCached).length }),
     poToken: efeitoDoPoToken({ url: potServerUrl, ultimoTeste: ultimoTestePot }),
     spotify: efeitoDoGostoDoSpotify({
       artistas: gostoDoSpotify?.artistas.length ?? 0, lidoEm: gostoDoSpotify?.lidoEm ?? null, agora: Date.now(),
@@ -726,6 +730,16 @@ export function SettingsScreen({ navigation }: Props) {
               onPress={() => { void partilharRelatorioDeReproducao().catch(() => {}); }}
               style={{ alignSelf: 'flex-start' }}
             />
+            {/* Interno, só do ramo plano-audio (lib/ensaioOpus.ts). */}
+            {ENSAIO_OPUS_LIGADO && (
+              <PillButton
+                label="Opus test (internal)"
+                variant="ghost"
+                small
+                onPress={() => navigation.navigate('EnsaioOpus')}
+                style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
+              />
+            )}
             {falhasDaSessao.length > 0 && (
               <PillButton
                 label="Clear recorded failures"

@@ -20,7 +20,7 @@ import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
-import { alternarDownload, estaDescarregada, podeDescarregar } from '../lib/descarregarFaixa';
+import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede, useRevisaoDosDownloads } from '../lib/descarregarFaixa';
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { savedKey, useSaved } from '../state/saved';
 
@@ -273,10 +273,10 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
     plataforma: 'ios',
     onde: selection.atual ? 'leitor' : 'fila',
     semRede: offline,
-    tocaSemRede: estaDescarregada(selection.track),
+    tocaSemRede: tocaSemRede(selection.track),
     guardada: lida ? naLoja : null,
     podeDescarregar: podeDescarregar(selection.track),
-    descarregada: estaDescarregada(selection.track),
+    download: downloadNoMenuDe(selection.track),
     temArtista: !!nomeDoArtista && nomeDoArtista !== 'Unknown artist',
     fila: { emJam: emSessao, mudou: !emSessao && !canRemove },
   }) : [];

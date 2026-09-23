@@ -1,3 +1,4 @@
+import type { DownloadNoMenu, SituacaoDoDownload } from './downloadsExplicitos';
 import type { Track } from '../types';
 
 /**
@@ -7,6 +8,13 @@ import type { Track } from '../types';
  * o extrator do iPhone para o bundle do PC.
  */
 export function podeDescarregar(_track: Track): boolean { return false; }
-export function estaDescarregada(_track: Track): boolean { return false; }
+export function tocaSemRede(_track: Track): boolean { return false; }
+export function situacaoDoDownloadDe(_track: Track): SituacaoDoDownload { return 'nenhum'; }
+export function downloadNoMenuDe(_track: Track): DownloadNoMenu { return 'nenhum'; }
+export function useRevisaoDosDownloads(): void {}
+export function useDescarregadaDeProposito(_track: Track): boolean { return false; }
 export async function alternarDownload(_track: Track): Promise<void> {}
+export async function pedirDownload(_track: Track): Promise<void> {}
+export async function tirarDownload(_videoId: string): Promise<void> {}
+export async function limparTodosOsDownloads(): Promise<void> {}
 export async function guardarEmSegundoPlano(_faixas: readonly Track[]): Promise<number> { return 0; }

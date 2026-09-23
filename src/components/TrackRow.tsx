@@ -9,7 +9,7 @@ import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { guardarOrigem } from '../state/origemDaCapa';
 import { hapticImpact, hapticSelection } from '../lib/haptics';
 import { isShowTrackDurationSync } from '../lib/prefs';
-import { isAudioCached } from '../lib/youtubeCache';
+import { useDescarregadaDeProposito } from '../lib/descarregarFaixa';
 import { colors, radii, spacing, type } from '../theme';
 import { useSaved } from '../state/saved';
 import { useTheme } from '../state/theme';
@@ -92,6 +92,9 @@ function TrackRowComponent({
   const saved = useSaved((s) =>
     showSavedBadge ? s.keys.has(`${track.source}:${track.sourceId}`) : false
   );
+  // Só o que foi descarregado DE PROPÓSITO: uma música que tocou também está
+  // em disco, e não é por isso que foi descarregada (lib/downloadsExplicitos.ts).
+  const descarregada = useDescarregadaDeProposito(track);
 
   return (
     // `acende` e nao escala: uma linha de lista inteira a encolher le-se
@@ -162,8 +165,8 @@ function TrackRowComponent({
           {tituloDaFaixa(track)}
         </Text>
         <View style={styles.metaRow}>
-          {track.source === 'youtube' && isAudioCached(track.sourceId) ? (
-            // Disponível offline (áudio já descarregado no cache local)
+          {descarregada ? (
+            // Descarregada de propósito (e já em disco)
             <Ionicons name="arrow-down-circle" size={12} color={colors.textSecondary} />
           ) : null}
           {saved ? (

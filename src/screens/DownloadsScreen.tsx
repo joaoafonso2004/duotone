@@ -1,21 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
+import { useOfflineMode } from '../hooks/useOfflineMode';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { limparTodosOsDownloads, pedirDownload, tirarDownload } from '../lib/descarregarFaixa';
+import {
+  faixaDoPedido, pedidosPorOrdem, situacaoDoDownload, type SituacaoDoDownload,
+} from '../lib/downloadsExplicitos';
+import { useDownloadsFixados } from '../lib/downloadsFixados';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
-import {
-  alternarFixado, esquecerFixado, useDownloadsFixados,
-} from '../lib/downloadsFixados';
-import type { FicheiroEmCache } from '../lib/limpezaDoCache';
-import {
-  clearDownloadedAudioCache, formatCacheSize, listarDescarregados,
-  removeDownloadedAudio, useAudioCache,
-} from '../lib/youtubeCache';
+import { formatCacheSize, listarDescarregados, MAX_CACHE_BYTES, useAudioCache } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
@@ -24,78 +24,109 @@ import type { Track } from '../types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Downloads'>;
 
-/** O mesmo teto que a limpeza automática usa (youtubeCache.ts). */
-const LIMITE_BYTES = 500 * 1024 * 1024;
-
-interface Descarregado extends FicheiroEmCache {
-  faixa: Track | null;
+interface Linha {
+  id: string;
+  faixa: Track;
+  situacao: SituacaoDoDownload;
+  bytes: number;
 }
 
 /**
- * O que está guardado neste telemóvel.
+ * Os downloads pedidos neste telemóvel, e à parte a cache.
  *
- * Antes disto o offline era invisível: dava para descarregar uma faixa e para
- * limpar tudo de uma vez, mas não para ver o que lá estava, quanto ocupava, ou
- * impedir que a limpeza automática o levasse. Descarregar um álbum para uma
- * viagem e encontrá-lo apagado à chegada era possível — e silencioso.
+ * Mostrava os FICHEIROS em disco -- incluindo cada música que só tinha tocado
+ * -- e para um download não ser apagado era preciso fixá-lo com o cadeado. Agora
+ * a lista são os downloads que alguém pediu (lib/downloadsExplicitos.ts): todos
+ * ficam protegidos da limpeza, sem segundo passo. O que tocou e ficou em disco
+ * é a cache, numa linha só, e sai sozinho acima do limite.
+ *
+ * Os títulos vêm da cópia guardada com o pedido, por isso a lista mostra-se sem
+ * rede e mostra faixas que já saíram da biblioteca. Só os pedidos que vieram
+ * dos fixados antigos (que guardavam só o id) vão buscar o título à biblioteca.
  */
 export function DownloadsScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const tema = useTheme((s) => s.theme);
+  const offline = useOfflineMode();
   const playTrack = usePlayer((s) => s.playTrack);
-  const fixados = useDownloadsFixados((s) => s.ids);
-  // Muda sempre que o cache muda (download novo, remoção, limpeza).
+  const registo = useDownloadsFixados((s) => s.registo);
+  const aDescarregar = useDownloadsFixados((s) => s.aDescarregar);
+  // Muda sempre que o disco muda (download novo, remoção, limpeza).
   const revisao = useAudioCache((s) => s.revision);
 
-  const [itens, setItens] = useState<Descarregado[] | null>(null);
+  const ficheiros = useMemo(() => {
+    const porId = new Map<string, number>();
+    for (const f of listarDescarregados()) porId.set(f.id, f.bytes);
+    return porId;
+    // `revisao` é a razão de reler o disco.
+  }, [revisao]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const carregar = useCallback(async () => {
-    const ficheiros = listarDescarregados();
-    // Os metadados vêm da biblioteca; um ficheiro de uma faixa que já saiu de
-    // lá continua a ocupar espaço e tem de aparecer na mesma, com o id à vista
-    // em vez de um título que não temos.
-    const porId = new Map<string, Track>();
-    try {
-      for (const t of await getLibrary()) {
-        if (t.source === 'youtube') porId.set(t.sourceId, t);
-      }
-    } catch {
-      // Sem rede fica a lista sem títulos, que continua a ser útil.
-    }
-    setItens(ficheiros.map((f) => ({ ...f, faixa: porId.get(f.id) ?? null })));
-  }, []);
+  // Os títulos dos pedidos sem cópia (fixados antigos) vêm da biblioteca.
+  const semCopia = useMemo(
+    () => Object.keys(registo.pedidos).filter((id) => !registo.pedidos[id].faixa).join(','),
+    [registo],
+  );
+  const [daBiblioteca, setDaBiblioteca] = useState<Map<string, Track> | null>(null);
+  useEffect(() => {
+    if (!semCopia) return;
+    let vivo = true;
+    getLibrary()
+      .then((todas) => {
+        const porId = new Map<string, Track>();
+        for (const t of todas) if (t.source === 'youtube') porId.set(t.sourceId, t);
+        if (vivo) setDaBiblioteca(porId);
+      })
+      .catch(() => { /* sem rede fica o id, que continua a tocar */ });
+    return () => { vivo = false; };
+  }, [semCopia]);
 
-  useEffect(() => { void carregar(); }, [carregar, revisao]);
-
-  const { total, ordenados } = useMemo(() => {
-    const lista = itens ?? [];
-    let bytes = 0;
-    for (const i of lista) bytes += i.bytes;
-    // Os fixados primeiro, e dentro de cada grupo os mais recentes à frente.
-    const ordenados = [...lista].sort((a, b) => {
-      const fa = fixados.has(a.id) ? 0 : 1;
-      const fb = fixados.has(b.id) ? 0 : 1;
-      if (fa !== fb) return fa - fb;
-      return b.modificadoEm - a.modificadoEm;
+  const { linhas, bytesDosDownloads, emFalta, cache, protegidasAte, protegidas } = useMemo(() => {
+    const linhas: Linha[] = pedidosPorOrdem(registo).map((id) => {
+      const p = registo.pedidos[id];
+      return {
+        id,
+        faixa: p.faixa ? faixaDoPedido(id, p) : (daBiblioteca?.get(id) ?? faixaDoPedido(id, p)),
+        situacao: situacaoDoDownload({ pedido: true, emDisco: ficheiros.has(id), aDescarregar: aDescarregar.has(id) }),
+        bytes: ficheiros.get(id) ?? 0,
+      };
     });
-    return { total: bytes, ordenados };
-  }, [itens, fixados]);
+    let bytesDosDownloads = 0;
+    for (const l of linhas) bytesDosDownloads += l.bytes;
+    let cacheBytes = 0;
+    let cacheFaixas = 0;
+    for (const [id, bytes] of ficheiros) {
+      if (id in registo.pedidos) continue;
+      cacheBytes += bytes;
+      cacheFaixas++;
+    }
+    const m = registo.migracao;
+    const agora = Date.now();
+    const protegidas = m && agora < m.ate ? m.ids.filter((id) => ficheiros.has(id) && !(id in registo.pedidos)).length : 0;
+    return {
+      linhas,
+      bytesDosDownloads,
+      emFalta: linhas.filter((l) => l.situacao === 'em-falta'),
+      cache: { bytes: cacheBytes, faixas: cacheFaixas },
+      protegidasAte: m?.ate ?? 0,
+      protegidas,
+    };
+  }, [registo, aDescarregar, ficheiros, daBiblioteca]);
 
-  const percentagem = Math.min(100, Math.round((total / LIMITE_BYTES) * 100));
-  const bytesFixados = ordenados.reduce((s, i) => (fixados.has(i.id) ? s + i.bytes : s), 0);
+  const total = bytesDosDownloads + cache.bytes;
+  const percentagem = Math.min(100, Math.round((total / MAX_CACHE_BYTES) * 100));
+  const nada = linhas.length === 0 && cache.faixas === 0;
 
-  const remover = (item: Descarregado) => {
+  const remover = (l: Linha) => {
     Alert.alert(
       'Remover download',
-      item.faixa ? `"${item.faixa.title}" deixa de estar disponível offline.` : 'Este ficheiro é apagado do telemóvel.',
+      `"${l.faixa.title}" deixa de estar disponível offline.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Remover',
           style: 'destructive',
           onPress: () => {
-            removeDownloadedAudio(item.id);
-            void esquecerFixado(item.id);
+            void tirarDownload(l.id);
             hapticNotification();
           },
         },
@@ -105,16 +136,15 @@ export function DownloadsScreen({ navigation }: Props) {
 
   const limparTudo = () => {
     Alert.alert(
-      'Remover todos os downloads',
-      'Todas as faixas guardadas neste telemóvel são apagadas, incluindo as fixadas.',
+      'Remover tudo',
+      'Todos os downloads e toda a cache deste telemóvel são apagados.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Remover tudo',
           style: 'destructive',
           onPress: () => {
-            clearDownloadedAudioCache();
-            for (const id of [...fixados]) void esquecerFixado(id);
+            void limparTodosOsDownloads();
             hapticNotification();
           },
         },
@@ -122,24 +152,37 @@ export function DownloadsScreen({ navigation }: Props) {
     );
   };
 
+  // Um de cada vez: cada um resolve o stream antes de pedir vaga na fila, e
+  // cinquenta resoluções ao mesmo tempo seriam cinquenta pedidos ao YouTube.
+  const descarregarEmFalta = async () => {
+    hapticSelection();
+    for (const l of emFalta) {
+      if (useDownloadsFixados.getState().registo.pedidos[l.id] === undefined) continue;
+      await pedirDownload(l.faixa);
+    }
+  };
+
+  const tocar = (l: Linha) => {
+    if (l.situacao !== 'descarregada' && offline) return;
+    void playTrack(l.faixa, [l.faixa], true);
+  };
+
   return (
     <Screen title="Downloads" onBack={() => navigation.goBack()}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl }}>
-        {itens === null ? (
-          <ActivityIndicator color={colors.text} style={{ marginTop: 64 }} />
-        ) : itens.length === 0 ? (
+        {nada ? (
           <EmptyState
             icon="arrow-down-circle-outline"
             title="Nada guardado ainda"
-            subtitle="As faixas que descarregares aparecem aqui e ficam a tocar sem rede."
+            subtitle="Carrega em Download no menu de uma faixa. Fica neste telemóvel e toca sem rede."
           />
         ) : (
           <>
             <View style={styles.resumo}>
-              <Text style={styles.resumoValor}>{formatCacheSize(total)}</Text>
+              <Text style={styles.resumoValor}>{formatCacheSize(bytesDosDownloads)}</Text>
               <Text style={type.caption}>
-                {itens.length} {itens.length === 1 ? 'faixa guardada' : 'faixas guardadas'}
-                {bytesFixados > 0 ? ` · ${formatCacheSize(bytesFixados)} fixados` : ''}
+                {linhas.length} {linhas.length === 1 ? 'download' : 'downloads'}
+                {emFalta.length > 0 ? ` · ${emFalta.length} por descarregar` : ''}
               </Text>
               <View style={styles.barra}>
                 <View style={[styles.barraCheia, { width: `${percentagem}%`, backgroundColor: tema.color }]} />
@@ -147,50 +190,69 @@ export function DownloadsScreen({ navigation }: Props) {
               <Text style={[type.micro, { color: colors.textTertiary }]}>
                 {/* Dizer o limite é o que torna a limpeza automática previsível
                     em vez de misteriosa. */}
-                {percentagem}% de {formatCacheSize(LIMITE_BYTES)} — acima disto, as mais antigas
-                saem sozinhas. As fixadas nunca saem.
+                Cache: {formatCacheSize(cache.bytes)} de {cache.faixas} {cache.faixas === 1 ? 'música que tocou' : 'músicas que tocaram'}.
+                {' '}Acima de {formatCacheSize(MAX_CACHE_BYTES)} no total, as mais antigas da cache saem
+                sozinhas. Os downloads nunca saem.
               </Text>
+              {protegidas > 0 ? (
+                <Text style={[type.micro, { color: colors.textTertiary }]}>
+                  {protegidas} {protegidas === 1 ? 'faixa que já estava guardada fica protegida' : 'faixas que já estavam guardadas ficam protegidas'}
+                  {' '}até {new Date(protegidasAte).toLocaleDateString()}. Para manter alguma, carrega em
+                  Download no menu dela — não gasta rede.
+                </Text>
+              ) : null}
             </View>
 
-            {ordenados.map((item) => {
-              const fixado = fixados.has(item.id);
+            {emFalta.length > 0 && !offline ? (
+              <Pressable onPress={() => void descarregarEmFalta()} style={({ pressed }) => [styles.acao, pressed && { opacity: 0.7 }]}>
+                <Ionicons name="refresh" size={16} color={tema.color} />
+                <Text style={[type.body, { color: tema.color, fontWeight: '600' }]}>
+                  Descarregar {emFalta.length === 1 ? 'a que falta' : `as ${emFalta.length} que faltam`}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {linhas.length === 0 ? (
+              <Text style={[type.caption, styles.semDownloads]}>
+                Ainda não pediste nenhum download. Carrega em Download no menu de uma faixa.
+              </Text>
+            ) : null}
+
+            {linhas.map((l) => {
+              const capa = capaParaLista(l.faixa.artworkUrl)
+                ?? `https://i.ytimg.com/vi/${l.id}/mqdefault.jpg`;
+              const detalhe = l.situacao === 'descarregada'
+                ? formatCacheSize(l.bytes)
+                : l.situacao === 'a-descarregar' ? 'A descarregar…' : 'Por descarregar';
               return (
-                <View key={item.id} style={styles.linha}>
-                  <Pressable
-                    onPress={() => item.faixa && playTrack(item.faixa, [item.faixa], true)}
-                    style={styles.parteTocavel}
-                  >
-                    {item.faixa?.artworkUrl ? (
-                      <Image source={{ uri: item.faixa.artworkUrl }} style={styles.capa} contentFit="cover" />
-                    ) : (
-                      <View style={[styles.capa, styles.semCapa]}>
-                        <Ionicons name="musical-notes" size={16} color={colors.textTertiary} />
-                      </View>
-                    )}
+                <View key={l.id} style={styles.linha}>
+                  <Pressable onPress={() => tocar(l)} style={styles.parteTocavel}>
+                    <Image source={{ uri: capa }} style={styles.capa} contentFit="cover" />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
-                        {item.faixa?.title ?? 'Faixa fora da biblioteca'}
+                        {l.faixa.title}
                       </Text>
                       <Text numberOfLines={1} style={type.caption}>
-                        {item.faixa?.artist ?? item.id} · {formatCacheSize(item.bytes)}
+                        {l.faixa.artist ? `${l.faixa.artist} · ` : ''}{detalhe}
                       </Text>
                     </View>
                   </Pressable>
 
-                  <Pressable
-                    onPress={() => { void alternarFixado(item.id); hapticSelection(); }}
-                    hitSlop={8}
-                    accessibilityLabel={fixado ? 'Desafixar' : 'Fixar para nunca ser apagada'}
-                    style={styles.botao}
-                  >
-                    <Ionicons
-                      name={fixado ? 'lock-closed' : 'lock-open-outline'}
-                      size={18}
-                      color={fixado ? tema.color : colors.textTertiary}
-                    />
-                  </Pressable>
+                  {l.situacao === 'a-descarregar' ? (
+                    <ActivityIndicator size="small" color={colors.textTertiary} style={styles.botao} />
+                  ) : l.situacao === 'em-falta' ? (
+                    <Pressable
+                      onPress={() => { hapticSelection(); void pedirDownload(l.faixa); }}
+                      disabled={offline}
+                      hitSlop={8}
+                      accessibilityLabel="Descarregar outra vez"
+                      style={[styles.botao, offline && { opacity: 0.4 }]}
+                    >
+                      <Ionicons name="refresh" size={18} color={colors.textTertiary} />
+                    </Pressable>
+                  ) : null}
 
-                  <Pressable onPress={() => remover(item)} hitSlop={8} accessibilityLabel="Remover download" style={styles.botao}>
+                  <Pressable onPress={() => remover(l)} hitSlop={8} accessibilityLabel="Remover download" style={styles.botao}>
                     <Ionicons name="trash-outline" size={18} color={colors.textTertiary} />
                   </Pressable>
                 </View>
@@ -199,7 +261,7 @@ export function DownloadsScreen({ navigation }: Props) {
 
             <Pressable onPress={limparTudo} style={({ pressed }) => [styles.limpar, pressed && { opacity: 0.7 }]}>
               <Text style={[type.body, { color: colors.danger, fontWeight: '600' }]}>
-                Remover todos os downloads
+                Remover tudo
               </Text>
             </Pressable>
           </>
@@ -228,6 +290,15 @@ const styles = StyleSheet.create({
   },
   barraCheia: { height: '100%', borderRadius: 2 },
 
+  acao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+  },
+  semDownloads: { marginHorizontal: spacing.md, marginBottom: spacing.md },
+
   linha: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -237,7 +308,6 @@ const styles = StyleSheet.create({
   },
   parteTocavel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md, minWidth: 0 },
   capa: { width: 44, height: 44, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh },
-  semCapa: { alignItems: 'center', justifyContent: 'center' },
   botao: { padding: 6 },
 
   limpar: {

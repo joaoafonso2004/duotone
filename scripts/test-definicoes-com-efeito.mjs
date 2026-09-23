@@ -120,7 +120,7 @@ for (const { opcao, leitores } of TABELA) {
 console.log('\no PC não oferece o que só o resolver nativo lê');
 caso('sem qualidade, PO Token, normalização nem limpar caches', () => {
   const pc = ler(ECRAS.pc);
-  for (const morto of ['setAudioQuality', 'setPoTokenServerUrl', 'setVolumeNormalization', 'setCrossfadeSegundos', 'clearDownloadedAudioCache', 'clearStreamMemo']) {
+  for (const morto of ['setAudioQuality', 'setPoTokenServerUrl', 'setVolumeNormalization', 'setCrossfadeSegundos', 'clearDownloadedAudioCache', 'limparTodosOsDownloads', 'clearStreamMemo']) {
     assert.ok(!new RegExp(`\\b${morto}\\b`).test(pc), `${morto} no desktop seria uma opção morta`);
   }
 });
