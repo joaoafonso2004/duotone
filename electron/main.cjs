@@ -255,27 +255,15 @@ function startLocalServer() {
  * unica via e o Electron.
  *
  * Quando o renderer chama `getDisplayMedia`, este handler responde com o
- * WebFrameMain do YouTube no campo `audio` — captura SO daquele frame, nao do
- * ecra nem do sistema — e com `enableLocalEcho: true`, que e o que mantem o
- * som a sair pelas colunas enquanto e capturado. Sem PO Token e sem desligar a
- * webSecurity.
+ * WebFrameMain da APP no campo `audio` — que leva o som dos iframes do YouTube,
+ * e nao o do ecra nem o do sistema — e com `enableLocalEcho: true`, que e o que
+ * mantem o som a sair pelas colunas enquanto e capturado. Sem PO Token e sem
+ * desligar a webSecurity. (Era o frame do YouTube; com os dois players do
+ * crossfade passou a ser o da app, que apanha os dois.)
  *
  * Nao se devolve `video`: o efeito precisa do sinal, nao de pixeis, e capturar
  * imagem era trabalho de GPU para deitar fora.
  */
-function frameDoYouTube(raiz) {
-  if (!raiz) return raiz;
-  try {
-    for (const frame of raiz.framesInSubtree || []) {
-      let anfitriao = '';
-      try { anfitriao = new URL(frame.url).hostname; } catch { continue; }
-      if (/(^|\.)(youtube|youtube-nocookie)\.com$/.test(anfitriao)) return frame;
-    }
-  } catch {}
-  // Sem iframe do YouTube (ainda nao ha faixa) o frame da propria app serve:
-  // a captura fica viva e passa a ter sinal assim que o player montar.
-  return raiz;
-}
 
 function configurarCaptura(ses) {
   ses.setDisplayMediaRequestHandler((request, callback) => {
@@ -283,7 +271,11 @@ function configurarCaptura(ses) {
       callback({});
       return;
     }
-    callback({ audio: frameDoYouTube(request.frame), enableLocalEcho: true });
+    // O frame da APP, e não o do YouTube (24/9): com o crossfade há dois
+    // players e eles trocam de papel a cada passagem -- preso a um, o efeito
+    // deixava de reagir depois da primeira. O frame da app leva o som dos
+    // iframes todos (medido: é por isso que não havia corrida com a montagem).
+    callback({ audio: request.frame, enableLocalEcho: true });
   }, { useSystemPicker: false });
 
   // A app AUTO-APROVA o pedido de captura. E dito ao utilizador nas Definicoes
@@ -423,16 +415,26 @@ const eqAplicar = (ganhos, compensacao) => `(async () => {
   return { ok: true, margem: margem };
 })()`;
 
-function frameDoYouTubeParaEq(raiz) {
-  if (!raiz) return null;
+/**
+ * Os frames do YouTube da janela. Com o crossfade do PC (24/9) são DOIS -- o
+ * ativo e o que prepara a seguinte --, e o equalizador e o tom têm de estar nos
+ * dois: senão a faixa que entra soava sem EQ até à troca, e com o tempo
+ * esticado.
+ */
+function framesDoYouTube(raiz) {
+  const frames = [];
+  if (!raiz) return frames;
   try {
     for (const frame of raiz.framesInSubtree || []) {
       let anfitriao = '';
       try { anfitriao = new URL(frame.url).hostname; } catch { continue; }
-      if (/(^|\.)(youtube|youtube-nocookie)\.com$/.test(anfitriao)) return frame;
+      if (/(^|\.)(youtube|youtube-nocookie)\.com$/.test(anfitriao)) frames.push(frame);
     }
   } catch {}
-  return null;
+  return frames;
+}
+function frameDoYouTubeParaEq(raiz) {
+  return framesDoYouTube(raiz)[0] || null;
 }
 
 /**
@@ -467,14 +469,19 @@ const PRESERVAR_TOM = `(() => {
 async function pararDeEsticarOTempo(win, tentativas = 8) {
   if (!win || win.isDestroyed()) return { ok: false, porque: 'sem janela' };
   for (let i = 0; i < tentativas; i++) {
-    const frame = frameDoYouTubeParaEq(win.webContents.mainFrame);
-    if (frame) {
-      try {
-        const r = await frame.executeJavaScript(PRESERVAR_TOM);
-        if (r && r.ok) return r;
-      } catch (e) {
-        if (i === tentativas - 1) return { ok: false, porque: e && e.message };
+    const frames = framesDoYouTube(win.webContents.mainFrame);
+    if (frames.length) {
+      // Em todos (o crossfade tem dois); vale o primeiro que respondeu com vídeo.
+      let resposta = null;
+      for (const frame of frames) {
+        try {
+          const r = await frame.executeJavaScript(PRESERVAR_TOM);
+          if (r && r.ok && !resposta) resposta = r;
+        } catch (e) {
+          if (i === tentativas - 1 && !resposta) resposta = { ok: false, porque: e && e.message };
+        }
       }
+      if (resposta && (resposta.ok || i === tentativas - 1)) return resposta;
     }
     await new Promise((r) => setTimeout(r, 400));
     if (win.isDestroyed()) return { ok: false, porque: 'janela fechada' };
@@ -491,15 +498,23 @@ async function pararDeEsticarOTempo(win, tentativas = 8) {
  */
 async function aplicarEqualizador(win, ganhos, compensacao) {
   if (!win || win.isDestroyed()) return { ok: false, porque: 'sem janela' };
-  const frame = frameDoYouTubeParaEq(win.webContents.mainFrame);
-  if (!frame) return { ok: false, porque: 'sem frame do YouTube' };
-  try {
-    const instalado = await frame.executeJavaScript(EQ_INSTALAR);
-    if (!instalado || !instalado.ok) return { ok: false, porque: (instalado && instalado.porque) || 'nao instalou' };
-    return await frame.executeJavaScript(eqAplicar(ganhos, compensacao));
-  } catch (e) {
-    return { ok: false, porque: e && e.message };
+  const frames = framesDoYouTube(win.webContents.mainFrame);
+  if (!frames.length) return { ok: false, porque: 'sem frame do YouTube' };
+  // Em todos os frames (o crossfade tem dois). Diz-se "ok" se pegou em algum:
+  // o que prepara a seguinte pode ainda não ter vídeo nenhum.
+  let resultado = null;
+  for (const frame of frames) {
+    try {
+      const instalado = await frame.executeJavaScript(EQ_INSTALAR);
+      const r = instalado && instalado.ok
+        ? await frame.executeJavaScript(eqAplicar(ganhos, compensacao))
+        : { ok: false, porque: (instalado && instalado.porque) || 'nao instalou' };
+      if (!resultado || (r && r.ok && !resultado.ok)) resultado = r;
+    } catch (e) {
+      if (!resultado) resultado = { ok: false, porque: e && e.message };
+    }
   }
+  return resultado || { ok: false, porque: 'sem frame do YouTube' };
 }
 
 function sendWindowState(win) {
@@ -846,6 +861,14 @@ ipcMain.handle('saude:ler', (event) => {
 ipcMain.handle('sistema:segundos-sem-interacao', (event) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido inválido.');
   return powerMonitor.getSystemIdleTime();
+});
+
+// Crossfade com a janela no tabuleiro: perto do fim, os temporizadores da
+// página não podem ser estrangulados (a curva andava a degraus de um segundo).
+// Só enquanto a página o pede; ela devolve-o depois da passagem.
+ipcMain.on('player:nao-estrangular', (event, sim) => {
+  if (!daJanelaPrincipal(event) || typeof sim !== 'boolean') return;
+  try { mainWindow.webContents.setBackgroundThrottling(!sim); } catch {}
 });
 
 ipcMain.handle('player:preservar-tom', async (event) => {

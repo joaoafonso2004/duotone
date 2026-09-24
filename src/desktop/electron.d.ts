@@ -75,6 +75,8 @@ declare global {
       /** Faz o tom acompanhar a velocidade em vez de o browser esticar o
        * tempo — e o time-stretch que estraga a camara lenta. */
       naoEsticarOTempo?: () => Promise<{ ok: boolean; antes?: boolean; agora?: boolean }>;
+      /** Durante o crossfade com a janela escondida: sem estrangular os temporizadores. */
+      naoEstrangular?: (sim: boolean) => void;
       /** "Update now": descarrega e instala a versão nova (electron/atualizacao.cjs).
        *  Com `ok`, a app fecha-se e o instalador volta a abri-la. */
       instalarAtualizacao?: () => Promise<{ ok: boolean; versao?: string; erro?: string }>;

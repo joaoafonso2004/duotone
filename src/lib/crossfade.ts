@@ -83,6 +83,35 @@ export function deveComecarCrossfade(c: ContextoDoCrossfade): boolean {
 }
 
 /**
+ * No PC o segundo motor é outro IFrame do YouTube, e um IFrame precisa de tempo
+ * para carregar um vídeo (e às vezes de mostrar um anúncio antes). A seguinte
+ * prepara-se, calada, com esta antecedência antes de a passagem começar.
+ */
+export const ANTECEDENCIA_DO_PC_S = 15;
+
+/**
+ * É altura de carregar a seguinte no motor em espera? Só quando a passagem vai
+ * mesmo acontecer (as mesmas condições do `podeCrossfade`), e só uma vez --
+ * `seguinteCarregada` diz que já está.
+ */
+export function devePrepararSeguinte(c: ContextoDoCrossfade, antecedencia: number): boolean {
+  if (c.aDecorrer || c.seguinteCarregada || !podeCrossfade(c)) return false;
+  if (c.posicaoSegundos <= 0) return false;
+  return fimEfectivo(c) - c.posicaoSegundos <= c.duracaoDoFade + antecedencia;
+}
+
+/**
+ * Quanto da passagem já decorreu, lido da POSIÇÃO da faixa que sai. Negativo
+ * quando a posição saiu da janela da passagem -- um seek para trás a meio: aí
+ * a passagem já não tem razão de ser e aborta-se.
+ */
+export function decorridoDaPassagem(
+  c: Pick<ContextoDoCrossfade, 'duracaoSegundos' | 'fimMusicalSegundos' | 'posicaoSegundos' | 'duracaoDoFade'>,
+): number {
+  return c.duracaoDoFade - (fimEfectivo(c) - c.posicaoSegundos);
+}
+
+/**
  * Com quanta antecedência, em segundos de MÚSICA, o ritmo da posição acelera
  * antes de a passagem poder começar. Com o ecrã bloqueado a posição chega de 2
  * em 2 s, e a 2× isso são 4 s de música: oito deixam sempre pelo menos uma

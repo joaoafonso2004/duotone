@@ -33,7 +33,7 @@ const TABELA = [
   { opcao: 'Audio quality', escreve: ['setAudioQuality'],
     leitores: [['src/components/YouTubePlayerView.tsx', /getAudioQuality\(/]] },
   { opcao: 'Crossfade', escreve: ['setCrossfadeSegundos'],
-    leitores: [['src/components/YouTubePlayerView.tsx', /st\.crossfadeSegundos/]] },
+    leitores: [['src/components/YouTubePlayerView.tsx', /st\.crossfadeSegundos/], ['src/components/YouTubePlayerView.web.tsx', /st\.crossfadeSegundos/]] },
   { opcao: 'Playback speed (default)', escreve: [],
     leitores: [['src/state/player.ts', /rate: st\.padraoRate/]] },
   { opcao: 'Equaliser (default)', escreve: [],
@@ -120,7 +120,7 @@ for (const { opcao, leitores } of TABELA) {
 console.log('\no PC não oferece o que só o resolver nativo lê');
 caso('sem qualidade, PO Token, normalização nem limpar caches', () => {
   const pc = ler(ECRAS.pc);
-  for (const morto of ['setAudioQuality', 'setPoTokenServerUrl', 'setVolumeNormalization', 'setCrossfadeSegundos', 'clearDownloadedAudioCache', 'limparTodosOsDownloads', 'clearStreamMemo']) {
+  for (const morto of ['setAudioQuality', 'setPoTokenServerUrl', 'setVolumeNormalization', 'clearDownloadedAudioCache', 'limparTodosOsDownloads', 'clearStreamMemo']) {
     assert.ok(!new RegExp(`\\b${morto}\\b`).test(pc), `${morto} no desktop seria uma opção morta`);
   }
 });

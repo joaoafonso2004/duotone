@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { podeCrossfade, deveComecarCrossfade, volumesDoCrossfade, acaoAoInterromper, fimEfectivo, intervaloDaPosicao } from '../src/lib/crossfade.ts';
+import { podeCrossfade, deveComecarCrossfade, volumesDoCrossfade, acaoAoInterromper, fimEfectivo, intervaloDaPosicao, devePrepararSeguinte, decorridoDaPassagem, ANTECEDENCIA_DO_PC_S } from '../src/lib/crossfade.ts';
 
 const base = {
   duracaoDoFade: 6,
@@ -139,4 +139,23 @@ console.log('Crossfade: condições, momento, curva de igual potência e interru
     }
   }
   console.log('Ritmo da posição: 2 s com o ecrã bloqueado, rápido perto do fim, e a passagem começa a tempo.');
+}
+
+// --- o PC: preparar a seguinte no segundo IFrame, e o decorrido pela posição ---
+{
+  const pc = { ...base, seguinteCarregada: false };
+  assert.equal(devePrepararSeguinte({ ...pc, posicaoSegundos: 100 }, ANTECEDENCIA_DO_PC_S), false, 'longe do fim não se carrega nada');
+  assert.equal(devePrepararSeguinte({ ...pc, posicaoSegundos: 200 - 6 - 15 }, ANTECEDENCIA_DO_PC_S), true, 'fade + antecedência antes do fim');
+  assert.equal(devePrepararSeguinte({ ...pc, posicaoSegundos: 190, seguinteCarregada: true }, ANTECEDENCIA_DO_PC_S), false, 'uma vez só');
+  assert.equal(devePrepararSeguinte({ ...pc, posicaoSegundos: 190, duracaoDoFade: 0 }, ANTECEDENCIA_DO_PC_S), false, 'desligado não gasta um segundo player');
+  assert.equal(devePrepararSeguinte({ ...pc, posicaoSegundos: 190, repeatUma: true }, ANTECEDENCIA_DO_PC_S), false);
+  assert.equal(devePrepararSeguinte({ ...pc, posicaoSegundos: 190, temFaixaSeguinte: false }, ANTECEDENCIA_DO_PC_S), false);
+  assert.equal(devePrepararSeguinte({ ...pc, posicaoSegundos: 190, aDecorrer: true }, ANTECEDENCIA_DO_PC_S), false);
+  assert.equal(devePrepararSeguinte({ ...pc, posicaoSegundos: 0, duracaoSegundos: 14 }, ANTECEDENCIA_DO_PC_S), false, 'no instante zero não');
+  assert.equal(decorridoDaPassagem({ ...base, posicaoSegundos: 194 }), 0, 'começa a 6 s do fim');
+  assert.equal(decorridoDaPassagem({ ...base, posicaoSegundos: 197 }), 3);
+  assert.equal(decorridoDaPassagem({ ...base, posicaoSegundos: 200 }), 6);
+  assert.ok(decorridoDaPassagem({ ...base, posicaoSegundos: 120 }) < 0, 'um seek para trás sai da janela');
+  assert.equal(decorridoDaPassagem({ ...base, posicaoSegundos: 190, fimMusicalSegundos: 196 }), 0, 'conta do fim da música quando é conhecido');
+  console.log('Crossfade no PC: preparar a seguinte a tempo e o decorrido pela posição passaram.');
 }

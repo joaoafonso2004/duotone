@@ -34,8 +34,9 @@ import { BarraVelocidade } from '../BarraVelocidade.web';
 import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
-import { getDiscordRichPresence, setDiscordRichPresence } from '../../lib/prefs';
-import { efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
+import { getDiscordRichPresence, setCrossfadeSegundos, setDiscordRichPresence } from '../../lib/prefs';
+import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
+import { efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
 import { usePrivacidade } from '../../state/privacidade';
 import { getLibrary } from '../../api/library';
@@ -138,12 +139,15 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const ganhosDaFaixa = usePlayer((s) => s.eqGanhos);
   const ajusteDaFaixa = usePlayer((s) => (s.current ? s.ajustesPorFaixa[chaveDaFaixa(s.current)] : undefined));
   const radioActivo = usePlayer((s) => s.radioActive);
+  const crossfade = usePlayer((s) => s.crossfadeSegundos);
+  const repeatUma = usePlayer((s) => s.repeatMode === 'one');
   const estadoDoDiscord = useEstadoDoDiscord((s) => s.estado);
   const privada = usePrivacidade((s) => s.privada);
   const efeitos = {
     discord: efeitoDoDiscord({ ligado: discordOn, privada, estado: estadoDoDiscord }),
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
     temporizador: efeitoDoTemporizador({ restanteS: sleepLeft, agora: new Date() }),
+    crossfade: efeitoDoCrossfade({ segundos: crossfade, repeatUma }),
     velocidade: efeitoDoPadrao({
       tipo: 'velocidade', temFaixa: !!atual,
       temAjusteProprio: !!ajusteDaFaixa && ajusteDaFaixa.rate !== null,
@@ -327,6 +331,13 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
             <ToggleLine label="Show track duration" description="Display a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />
             <ToggleLine label="Autoplay radio" description="When the queue ends, keep playing similar music instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} efeito={efeitos.radio} />
             <ToggleLine label="15-second rewind" description="Show a rewind control in the desktop player." value={rewind} onChange={(v) => { setRewindState(v); setShowRewindButton(v); usePlayer.getState().setShowRewindButton(v); }} />
+            {/* O crossfade do PC (24/9): um segundo player do YouTube prepara a
+                seguinte, calado, e os volumes cruzam-se no fim -- ver o
+                YouTubePlayerView.web.tsx. Desligado de origem, como no iPhone. */}
+            <ChoiceLine label="Crossfade" description="Blend the end of a song into the next one."
+              value={String(crossfade)} choices={DURACOES_DO_CROSSFADE.map((d) => [String(d), d === 0 ? 'Off' : `${d} s`] as [string, string])}
+              onChange={(v) => { const d = Number(v) as DuracaoDoCrossfade; usePlayer.setState({ crossfadeSegundos: d }); void setCrossfadeSegundos(d); }}
+              efeito={efeitos.crossfade} />
             <ChoiceLine label="Sleep timer" value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} efeito={efeitos.temporizador} />
             {/* Era um controlo de tres posicoes; passa a barra continua, de
                 0,25 a 2 em degraus de 0,1. O 0,25 e o minimo REAL: o IFrame

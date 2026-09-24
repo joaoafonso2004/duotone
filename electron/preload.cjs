@@ -49,6 +49,9 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
    * browser estica o tempo para manter o tom, e a camara lenta enche-se de
    * artefactos. */
   naoEsticarOTempo: () => ipcRenderer.invoke('player:preservar-tom'),
+  /** Crossfade no tabuleiro: perto do fim o Chromium não pode estrangular os
+   * temporizadores, senão a curva anda a degraus de um segundo. */
+  naoEstrangular: (sim) => ipcRenderer.send('player:nao-estrangular', sim),
   /** Pesquisa no YouTube pelo processo principal, que nao tem CORS. Feita
    * no renderer, o preflight leva 403 e a chamada morre antes da resposta. */
   pesquisarNoYouTube: (pedido) => ipcRenderer.invoke('yt:pesquisa', pedido),
