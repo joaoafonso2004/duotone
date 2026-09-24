@@ -20,7 +20,7 @@ import { extrapolatedPositionMs } from '../../lib/handoff';
 import { takeOverSession } from '../../lib/sessionSync';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { Artwork, Button, ContentScroll, Dialog, Empty, IconButton, Page, ui } from '../ui.web';
+import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, IconButton, Page, ui } from '../ui.web';
 import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
 import type { Track } from '../../types';
 import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
@@ -116,6 +116,28 @@ function ComandoDoAparelho({ nome, sessao, tique, aoVoltar, aoOrdenar, aoTrazer 
 }
 
 /** A capa mantém o glitch; o gesto revela as letras na face adjacente. */
+/**
+ * Um botão da linha de ações do Now Playing: só o ícone, sem caixa. Acende ao
+ * passar o rato; `ativo` acende-o de vez (o coração cheio) e `ponto` põe um
+ * ponto por baixo (o som mexido). Ver a linha de ações mais abaixo.
+ */
+function AcaoDoLeitor({ rotulo, onPress, ativo = false, ponto = false, children }: {
+  rotulo: string; onPress: () => void; ativo?: boolean; ponto?: boolean;
+  children: (cor: string) => React.ReactNode;
+}) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={rotulo} onPress={onPress}
+      style={({ pressed }: any) => [{ width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17 }, pressed && ui.pressed]}>
+      {({ hovered, focused }: any) => (
+        <>
+          {children(ativo || ponto || hovered || focused ? COR.texto : desktop.muted)}
+          {ponto ? <View style={{ position: 'absolute', bottom: 1, width: 4, height: 4, borderRadius: 2, backgroundColor: COR.texto }} /> : null}
+        </>
+      )}
+    </Pressable>
+  );
+}
+
 export function NowPlayingPage({
   more, notify, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist, share,
 }: CommonPageProps & {
@@ -281,47 +303,47 @@ export function NowPlayingPage({
               </Pressable>
             </View>
 
-            {/* Primeiro o que se faz A ESTA FAIXA; depois da linha, o que e uma
-                definicao de reproducao e vale para todas. */}
-            <View style={styles.npAccoes}>
-              <IconButton
-                name={currentIsSaved ? 'heart' : 'heart-outline'}
-                label={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'}
-                onPress={toggleSaveCurrent}
-                active={currentIsSaved}
-              />
-              <IconButton
-                name="albums-outline"
-                label="Add to playlist"
-                onPress={() => aoAdicionarAPlaylist(track)}
-              />
-              <IconButton
-                name="share-social-outline"
-                label="Share this track"
-                onPress={() => share({ itemType: 'track', item: track, name: track.title })}
-              />
-              <IconButton
-                name="desktop-outline"
-                label="Play on another device"
-                onPress={() => setAparelhosAberto(true)}
-              />
-              <View style={styles.npAccoesDivisor} />
-              {/* O mini leitor (electron/miniLeitor.cjs): sem ícone na barra do
-                  leitor, que já tem que chegue -- abre-se daqui, do tabuleiro ou
-                  por um atalho que alguém crie. */}
-              {window.duotoneDesktop?.alternarMiniLeitor ? (
-                <IconButton
-                  name="browsers-outline"
-                  label="Mini player"
-                  onPress={() => window.duotoneDesktop?.alternarMiniLeitor?.()}
-                />
-              ) : null}
-              <IconButton
-                name="options-outline"
-                label="Equaliser and speed"
-                onPress={() => setEqAberto(true)}
-                active={!eqGanhos.every((g) => g === 0) || playbackRate !== 1}
-              />
+            {/* Como o João desenhou (24/9): sem caixas, só ícones. À esquerda o
+                que se faz A ESTA FAIXA; à direita o que é da reprodução (onde
+                toca, o mini leitor, o som). Ligado não pinta fundo: o coração
+                enche-se, e o som ganha um ponto por baixo. */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: ESP.lg }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <AcaoDoLeitor rotulo={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'} ativo={currentIsSaved} onPress={toggleSaveCurrent}>
+                  {(cor) => <Ionicons name={currentIsSaved ? 'heart' : 'heart-outline'} size={20} color={cor} />}
+                </AcaoDoLeitor>
+                <AcaoDoLeitor rotulo="Add to playlist" onPress={() => aoAdicionarAPlaylist(track)}>
+                  {(cor) => (
+                    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={cor} strokeWidth={1.7} strokeLinecap="round" aria-hidden="true">
+                      <path d="M3 6h13M3 11h13M3 16h8M18 13.5v7M14.5 17h7" />
+                    </svg>
+                  )}
+                </AcaoDoLeitor>
+                <AcaoDoLeitor rotulo="Share this track" onPress={() => share({ itemType: 'track', item: track, name: track.title })}>
+                  {(cor) => <Ionicons name="share-social-outline" size={19} color={cor} />}
+                </AcaoDoLeitor>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <AcaoDoLeitor rotulo="Play on another device" onPress={() => setAparelhosAberto(true)}>
+                  {(cor) => <Ionicons name="desktop-outline" size={19} color={cor} />}
+                </AcaoDoLeitor>
+                {/* O mini leitor (electron/miniLeitor.cjs): sem ícone na barra
+                    do leitor, que já tem que chegue -- abre-se daqui, do
+                    tabuleiro ou por um atalho que alguém crie. */}
+                {window.duotoneDesktop?.alternarMiniLeitor ? (
+                  <AcaoDoLeitor rotulo="Mini player" onPress={() => window.duotoneDesktop?.alternarMiniLeitor?.()}>
+                    {(cor) => (
+                      <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={cor} strokeWidth={1.7} strokeLinejoin="round" aria-hidden="true">
+                        <rect x="3" y="4.5" width="18" height="15" rx="2" />
+                        <rect x="12" y="12" width="6.5" height="5" rx="1" fill={cor} stroke="none" />
+                      </svg>
+                    )}
+                  </AcaoDoLeitor>
+                ) : null}
+                <AcaoDoLeitor rotulo="Equaliser and speed" ponto={!eqGanhos.every((g) => g === 0) || playbackRate !== 1} onPress={() => setEqAberto(true)}>
+                  {(cor) => <Ionicons name="options-outline" size={20} color={cor} />}
+                </AcaoDoLeitor>
+              </View>
             </View>
           </View>
 
