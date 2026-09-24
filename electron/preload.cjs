@@ -89,6 +89,31 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
     ipcRenderer.on('context-menu:selected', handler);
     return () => ipcRenderer.removeListener('context-menu:selected', handler);
   },
+  /** Atalhos globais (electron/atalhos.cjs): nenhum por omissão. */
+  lerAtalhos: () => ipcRenderer.invoke('atalhos:ler'),
+  /** `tecla` = { code, ctrlKey, altKey, shiftKey, metaKey } do keydown, ou null para tirar. */
+  definirAtalho: (acao, tecla) => ipcRenderer.invoke('atalhos:definir', acao, tecla),
+  aGravarAtalho: (sim) => ipcRenderer.invoke('atalhos:a-gravar', sim),
+  onAtalho: (listener) => {
+    const handler = (_event, acao) => listener(String(acao));
+    ipcRenderer.on('atalho', handler);
+    return () => ipcRenderer.removeListener('atalho', handler);
+  },
+  /** Mini leitor (electron/miniLeitor.cjs): esta janela publica o resumo e recebe os comandos. */
+  alternarMiniLeitor: () => ipcRenderer.send('mini:alternar'),
+  miniLeitorAberto: () => ipcRenderer.invoke('mini:esta-aberto'),
+  onMiniLeitorAberto: (listener) => {
+    const handler = (_event, aberto) => listener(Boolean(aberto));
+    ipcRenderer.on('mini:aberto', handler);
+    return () => ipcRenderer.removeListener('mini:aberto', handler);
+  },
+  publicarNoMiniLeitor: (resumo) => ipcRenderer.send('mini:estado', resumo),
+  onComandoDoMiniLeitor: (listener) => {
+    const handler = (_event, comando) => listener(comando);
+    ipcRenderer.on('mini:comando', handler);
+    return () => ipcRenderer.removeListener('mini:comando', handler);
+  },
+  miniLeitorNoModoLimpo: (ligado) => ipcRenderer.send('mini:modo-limpo', ligado),
   onMediaKeyPlayPause: (listener) => {
     const handler = () => listener();
     ipcRenderer.on('media:play-pause', handler);

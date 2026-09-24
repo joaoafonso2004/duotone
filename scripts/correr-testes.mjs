@@ -129,6 +129,8 @@ const TESTES = [
   `${TS} scripts/test-higiene-da-biblioteca.ts`,
   'scripts/test-higiene-da-biblioteca-sql.mjs',
   'scripts/test-escritas-atomicas-sql.mjs',
+  'scripts/test-atalhos.mjs',
+  'scripts/test-mini-leitor.mjs',
   'scripts/test-duotone-connect-sql.mjs',
   'scripts/test-limpar-fantasmas-sql.mjs',
   `${TS} scripts/test-contagem-de-escuta.ts`,

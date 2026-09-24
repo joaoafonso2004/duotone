@@ -69,8 +69,9 @@ const contexto = vm.createContext({
   // RELATIVO nao resolve a partir deste script. O modulo do Discord entra como
   // duplo: esta verificacao e sobre a casca do Electron, e nao sobre o socket
   // do Discord, que tem os seus proprios testes.
-  // O módulo da atualização é puro (sem `electron`): entra o verdadeiro.
-  require: (id) => id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './discord.cjs' ? {
+  // Os módulos da atualização, dos atalhos e do mini leitor são puros (sem
+  // `electron`): entram os verdadeiros.
+  require: (id) => id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './discord.cjs' ? {
     DISCORD_APP_ID: '1547625164328538133',
     definirPresenca: () => Promise.resolve(false),
     prepararDiscord: () => { preparacoesDiscord++; return Promise.resolve(true); },
@@ -185,6 +186,17 @@ assert.equal(saidas, 0, 'O window-all-closed é que termina a app depois de a ja
 assert.throws(() => handlers.get('window:close-to-tray:set')({ sender: {}, senderFrame: {} }, true));
 // Instalar uma atualização corre um .exe: só a janela principal o pode pedir.
 await assert.rejects(handlers.get('atualizacao:instalar')({ sender: {}, senderFrame: {} }), /invalido/);
+// Atalhos globais e mini leitor (24/9): só a janela principal mexe nos atalhos,
+// e nada vem por omissão.
+const doIframe = { sender: janela.webContents, senderFrame: { url: 'https://www.youtube-nocookie.com' } };
+assert.throws(() => handlers.get('atalhos:ler')(doIframe), /inválido/);
+assert.throws(() => handlers.get('atalhos:definir')(doIframe, 'seguinte', { code: 'KeyN', ctrlKey: true, altKey: true }), /inválido/);
+assert.throws(() => handlers.get('atalhos:a-gravar')(evento(), 'sim'), /inválido/);
+assert.deepEqual(handlers.get('atalhos:ler')(evento()).atalhos, {}, 'nenhum atalho vem posto');
+assert.equal(handlers.get('atalhos:definir')(evento(), 'formatar', { code: 'KeyF', ctrlKey: true, altKey: true }).erro, 'acao-desconhecida');
+assert.equal(handlers.get('atalhos:definir')(evento(), 'seguinte', { code: 'KeyN' }).erro, 'sem-modificador',
+  'uma tecla sozinha não pode ser atalho global');
+assert.equal(handlers.get('mini:esta-aberto')(doIframe), false, 'o iframe não pergunta pelo mini');
 const notificar = handlers.get('notification:message');
 notificar(evento(), { id: '1', title: 'Ana', body: 'Partilhou uma música.' });
 assert.equal(avisos.length, 1);

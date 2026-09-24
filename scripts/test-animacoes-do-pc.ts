@@ -44,11 +44,12 @@ const FICHEIROS = ficheirosDoPc('src');
 const CASCA = readFileSync('src/desktop/casca.web.tsx', 'utf8');
 
 /**
- * O único sítio onde o `className` é legítimo: a fila do Now Playing é um
- * `<div>` do DOM (precisa de `onPointerDown` e de captura do ponteiro), e num
- * elemento a sério o atributo passa.
+ * Os sítios onde o `className` é legítimo, porque são `<div>` do DOM e num
+ * elemento a sério o atributo passa: a fila do Now Playing (precisa de
+ * `onPointerDown` e de captura do ponteiro) e a janela do mini leitor (24/9:
+ * precisa do `-webkit-app-region` para se arrastar e de hover em CSS).
  */
-const COM_LICENCA = new Set(['src/desktop/FilaArrastavel.web.tsx']);
+const COM_LICENCA = new Set(['src/desktop/FilaArrastavel.web.tsx', 'src/janelaMini.web.tsx']);
 
 console.log('\no className não passa em componentes RN');
 caso('nenhum ficheiro do PC lhe volta a tocar', () => {

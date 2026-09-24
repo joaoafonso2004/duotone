@@ -12,7 +12,23 @@ declare module 'react-native' {
 }
 
 declare global {
+  /** O que a janela principal manda ao mini leitor (validado no electron/miniLeitor.cjs). */
+  interface ResumoDoMiniLeitor {
+    titulo: string | null;
+    artista: string | null;
+    capa: string | null;
+    aTocar: boolean;
+    guardada: boolean;
+    posicaoMs: number;
+    duracaoMs: number;
+  }
   interface Window {
+    /** Só na janela do mini leitor (electron/preloadMini.cjs). */
+    duotoneMini?: {
+      onEstado: (listener: (resumo: ResumoDoMiniLeitor) => void) => () => void;
+      onTamanho: (listener: (expandido: boolean) => void) => () => void;
+      comando: (comando: { tipo: string; ms?: number }) => void;
+    };
     duotoneDesktop?: {
       platform: string;
       /** Id público da aplicação oficial Duotone no Discord. */
@@ -67,6 +83,21 @@ declare global {
       /** F11 e Esc, apanhados pelo processo principal (o iframe do YouTube
        *  engole as teclas quando tem o foco). Devolve o cancelamento. */
       onTeclaDoModoLimpo?(listener: (tecla: string) => void): () => void;
+      /** Atalhos globais (electron/atalhos.cjs). `presos`: gravados mas recusados pelo Windows. */
+      lerAtalhos?: () => Promise<{ atalhos: Record<string, string>; presos: string[] }>;
+      definirAtalho?: (
+        acao: string,
+        tecla: { code: string; ctrlKey: boolean; altKey: boolean; shiftKey: boolean; metaKey: boolean } | null,
+      ) => Promise<{ ok: boolean; erro?: string; outra?: string; accelerator?: string; atalhos?: Record<string, string>; presos?: string[]; aviso?: string | null }>;
+      aGravarAtalho?: (sim: boolean) => Promise<boolean>;
+      onAtalho?: (listener: (acao: string) => void) => () => void;
+      /** Mini leitor (electron/miniLeitor.cjs). */
+      alternarMiniLeitor?: () => void;
+      miniLeitorAberto?: () => Promise<boolean>;
+      onMiniLeitorAberto?: (listener: (aberto: boolean) => void) => () => void;
+      publicarNoMiniLeitor?: (resumo: ResumoDoMiniLeitor) => void;
+      onComandoDoMiniLeitor?: (listener: (comando: { tipo: string; ms?: number }) => void) => () => void;
+      miniLeitorNoModoLimpo?: (ligado: boolean) => void;
       showContextMenu(items: { id: string; label: string; enabled?: boolean }[]): void;
       onContextMenuSelection(listener: (id: string) => void): () => void;
     };

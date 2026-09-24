@@ -81,6 +81,7 @@ import { ImportPage } from '../desktop/paginas/ImportPage.web';
 import { NowPlayingPage } from '../desktop/paginas/NowPlayingPage.web';
 
 import { injectDesktopDocumentStyles, PlayerBar, Sidebar, TitleBar } from '../desktop/casca.web';
+import { usePonteDoLeitor } from '../desktop/usePonteDoLeitor.web';
 import { ModoLimpo } from '../desktop/ModoLimpo.web';
 import { PRIMARY, type CommonPageProps, type Route, type ShareTarget } from '../desktop/rotas';
 import {
@@ -357,6 +358,9 @@ function DesktopShell() {
     else if (hadTrackRef.current) void endSession();
     hadTrackRef.current = !!currentTrack;
   }, [currentTrack, isPlayingState, queueIndex]);
+
+  // Atalhos globais e mini leitor (desktop/usePonteDoLeitor.web.ts).
+  usePonteDoLeitor({ guardarAtual: () => void toggleSaveCurrent(), abrirPesquisa: () => navigate({ name: 'search' }) });
 
   // Media Session Keyboard API sync + Electron hardware keys integration
   useEffect(() => {

@@ -31,6 +31,7 @@ import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
 import { Button, ContentScroll, desktop, Dialog, Field, Page } from '../ui.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
+import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
 import { getDiscordRichPresence, setDiscordRichPresence } from '../../lib/prefs';
@@ -318,6 +319,9 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               <ChoiceLine label="When Windows starts" value={startup.mode} choices={[[ 'tray', 'System tray' ], [ 'window', 'Open window' ]]}
                 onChange={(v) => void changeStartup(startup.enabled, v as 'window' | 'tray')} />
             </>}
+          </SettingsCard>}
+          {window.duotoneDesktop?.lerAtalhos && <SettingsCard icon="keypad-outline" title="Keyboard shortcuts">
+            <AtalhosDoTeclado />
           </SettingsCard>}
           <SettingsCard icon="play-circle-outline" title="Playback">
             <ToggleLine label="Show track duration" description="Display a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />

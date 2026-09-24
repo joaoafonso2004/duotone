@@ -306,6 +306,16 @@ export function NowPlayingPage({
                 onPress={() => setAparelhosAberto(true)}
               />
               <View style={styles.npAccoesDivisor} />
+              {/* O mini leitor (electron/miniLeitor.cjs): sem ícone na barra do
+                  leitor, que já tem que chegue -- abre-se daqui, do tabuleiro ou
+                  por um atalho que alguém crie. */}
+              {window.duotoneDesktop?.alternarMiniLeitor ? (
+                <IconButton
+                  name="browsers-outline"
+                  label="Mini player"
+                  onPress={() => window.duotoneDesktop?.alternarMiniLeitor?.()}
+                />
+              ) : null}
               <IconButton
                 name="options-outline"
                 label="Equaliser and speed"

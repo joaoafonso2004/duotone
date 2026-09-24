@@ -1,4 +1,4 @@
-const { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, net, powerMonitor, protocol, session, shell, Tray, globalShortcut, Notification } = require('electron');
+const { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, net, powerMonitor, protocol, screen, session, shell, Tray, globalShortcut, Notification } = require('electron');
 const {
   DISCORD_APP_ID, definirPresenca, prepararDiscord, ouvirJuncao, fecharDiscord,
 } = require('./discord.cjs');
@@ -80,6 +80,8 @@ const http = require('node:http');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const atualizacao = require('./atualizacao.cjs');
+const atalhos = require('./atalhos.cjs');
+const mini = require('./miniLeitor.cjs');
 
 const STARTUP_ARGS = ['--duotone-auto-start'];
 function startupMode() {
@@ -504,6 +506,217 @@ function sendWindowState(win) {
   win.webContents.send('window:maximized', win.isMaximized());
 }
 
+// ---------------------------------------------------------------------------
+// Atalhos globais (electron/atalhos.cjs). NENHUM vem posto: cada um cria-se nas
+// Definições. Este processo é o dono -- guarda em atalhos.json, regista, e da
+// página só aceita o id da ação e a tecla, validados do lado de cá. As teclas
+// multimédia ficam onde estavam (registadas no arranque, à parte).
+// ---------------------------------------------------------------------------
+const ficheiroDosAtalhos = () => path.join(app.getPath('userData'), 'atalhos.json');
+function lerFicheiroDosAtalhos() {
+  try { return atalhos.lerAtalhos(JSON.parse(fs.readFileSync(ficheiroDosAtalhos(), 'utf8'))); } catch { return {}; }
+}
+/** acao -> accelerator, só os que o Windows aceitou. */
+let atalhosRegistados = {};
+let aGravarAtalho = false;
+
+function executarAtalho(acao) {
+  if (acao === 'mostrar-janela') {
+    if (mainWindow && mainWindow.isVisible() && mainWindow.isFocused()) mainWindow.hide();
+    else mostrarJanelaPrincipal();
+    return;
+  }
+  if (acao === 'mini-leitor') { alternarMiniLeitor(); return; }
+  if (acao === 'pesquisar') mostrarJanelaPrincipal();
+  if (mainWindow) mainWindow.webContents.send('atalho', acao);
+}
+function retirarAtalhos() {
+  for (const accel of Object.values(atalhosRegistados)) {
+    try { globalShortcut.unregister(accel); } catch {}
+  }
+  atalhosRegistados = {};
+}
+function registarAtalhos() {
+  retirarAtalhos();
+  if (aGravarAtalho) return;
+  for (const [acao, accel] of Object.entries(lerFicheiroDosAtalhos())) {
+    let ok = false;
+    try { ok = globalShortcut.register(accel, () => executarAtalho(acao)); } catch {}
+    if (ok) atalhosRegistados[acao] = accel;
+  }
+}
+function estadoDosAtalhos() {
+  const guardados = lerFicheiroDosAtalhos();
+  return {
+    atalhos: guardados,
+    // Gravados mas recusados pelo Windows (outra app ficou com a tecla depois).
+    presos: aGravarAtalho ? [] : Object.keys(guardados).filter((a) => atalhosRegistados[a] !== guardados[a]),
+  };
+}
+
+ipcMain.handle('atalhos:ler', (event) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido inválido.');
+  return estadoDosAtalhos();
+});
+// A página manda a TECLA carregada (code + modificadores); a conversão para
+// accelerator e a validação são daqui (atalhos.doEvento + atalhos.definir).
+ipcMain.handle('atalhos:definir', (event, acao, tecla) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido inválido.');
+  const texto = tecla === null ? null : atalhos.doEvento(tecla && typeof tecla === 'object' ? {
+    code: String(tecla.code || ''), ctrlKey: !!tecla.ctrlKey, altKey: !!tecla.altKey,
+    shiftKey: !!tecla.shiftKey, metaKey: !!tecla.metaKey,
+  } : null);
+  if (tecla !== null && !texto) return { ok: false, erro: 'invalido' };
+  const r = atalhos.definir(lerFicheiroDosAtalhos(), acao, texto);
+  if (!r.ok) return r;
+  const antigo = atalhosRegistados[acao];
+  if (r.accelerator && antigo !== r.accelerator) {
+    let ok = false;
+    try { ok = globalShortcut.register(r.accelerator, () => executarAtalho(acao)); } catch {}
+    if (!ok) return { ok: false, erro: 'em-uso-noutra-app', accelerator: r.accelerator };
+    if (antigo) { try { globalShortcut.unregister(antigo); } catch {} }
+    atalhosRegistados[acao] = r.accelerator;
+  } else if (!r.accelerator && antigo) {
+    try { globalShortcut.unregister(antigo); } catch {}
+    delete atalhosRegistados[acao];
+  }
+  fs.writeFileSync(ficheiroDosAtalhos(), JSON.stringify(r.atalhos));
+  return { ok: true, ...estadoDosAtalhos(), aviso: r.accelerator ? atalhos.avisoDeAltGr(r.accelerator) : null };
+});
+// Enquanto se grava, os atalhos saem: senão a tecla era apanhada pelo sistema
+// e nunca chegava à página que a está a gravar.
+ipcMain.handle('atalhos:a-gravar', (event, sim) => {
+  if (!daJanelaPrincipal(event) || typeof sim !== 'boolean') throw new Error('Pedido inválido.');
+  aGravarAtalho = sim;
+  if (sim) retirarAtalhos(); else registarAtalhos();
+  return true;
+});
+
+// ---------------------------------------------------------------------------
+// Mini leitor (electron/miniLeitor.cjs): uma janela pequena, sempre por cima,
+// que é um COMANDO À DISTÂNCIA -- a música continua na janela principal, onde
+// vive o IFrame do YouTube. Não tem sessão nem store: recebe um resumo da
+// janela principal e manda comandos de uma lista fechada.
+// ---------------------------------------------------------------------------
+let miniJanela = null;
+let miniExpandido = false;
+let ultimoResumo = null;
+let miniEscondidoPeloModoLimpo = false;
+const ficheiroDoMini = () => path.join(app.getPath('userData'), 'mini-leitor.json');
+function lerMini() {
+  try { return JSON.parse(fs.readFileSync(ficheiroDoMini(), 'utf8')); } catch { return {}; }
+}
+function gravarMini(dados) {
+  try { fs.writeFileSync(ficheiroDoMini(), JSON.stringify(dados)); } catch {}
+}
+const areasDosMonitores = () => screen.getAllDisplays().map((d) => d.workArea);
+const miniAberto = () => !!miniJanela && !miniJanela.isDestroyed();
+function daJanelaMini(event) {
+  return miniAberto() && event.sender === miniJanela.webContents && event.senderFrame === miniJanela.webContents.mainFrame;
+}
+function avisarPrincipalDoMini() {
+  if (mainWindow) mainWindow.webContents.send('mini:aberto', miniAberto());
+}
+function alternarMiniLeitor() {
+  if (miniAberto()) miniJanela.close();
+  else abrirMiniLeitor();
+}
+function abrirMiniLeitor() {
+  if (miniAberto()) { miniJanela.showInactive(); return; }
+  miniExpandido = false;
+  const tamanho = mini.TAMANHOS.compacto;
+  const pos = mini.ondeAbrir(lerMini(), tamanho, areasDosMonitores(), screen.getPrimaryDisplay().workArea);
+  const win = new BrowserWindow({
+    ...tamanho,
+    ...pos,
+    title: 'Duotone mini player',
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    icon: path.join(__dirname, '..', 'logo_windows.png'),
+    webPreferences: {
+      preload: path.join(__dirname, 'preloadMini.cjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true,
+    },
+  });
+  win.setAlwaysOnTop(true, 'floating');
+  win.once('ready-to-show', () => { if (!miniEscondidoPeloModoLimpo) win.showInactive(); });
+  // Largado perto de uma borda, encosta; e fica lembrado neste monitor.
+  win.on('moved', () => {
+    if (win.isDestroyed()) return;
+    const b = win.getBounds();
+    const area = mini.areaDe(b, b, areasDosMonitores());
+    if (!area) return;
+    const p = mini.encostar(b, b, area);
+    if (p.x !== b.x || p.y !== b.y) win.setPosition(p.x, p.y);
+    gravarMini(mini.lembrar(lerMini(), p, area));
+  });
+  win.on('closed', () => {
+    if (miniJanela === win) miniJanela = null;
+    avisarPrincipalDoMini();
+  });
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', (event) => event.preventDefault());
+  const base = isDev ? (process.env.DUOTONE_DEV_URL || 'http://localhost:8081') : `http://localhost:${SERVER_PORT}/index.html`;
+  win.loadURL(`${base}?janela=mini`);
+  miniJanela = win;
+  avisarPrincipalDoMini();
+}
+function redimensionarMini(expandir) {
+  if (!miniAberto() || miniExpandido === expandir) return;
+  const de = miniExpandido ? mini.TAMANHOS.expandido : mini.TAMANHOS.compacto;
+  const para = expandir ? mini.TAMANHOS.expandido : mini.TAMANHOS.compacto;
+  const b = miniJanela.getBounds();
+  const area = mini.areaDe(b, de, areasDosMonitores());
+  if (!area) return;
+  const p = mini.mudarDeTamanho(b, de, para, area);
+  miniJanela.setBounds({ ...p, ...para });
+  miniExpandido = expandir;
+  miniJanela.webContents.send('mini:tamanho', expandir);
+}
+
+ipcMain.on('mini:estado', (event, resumo) => {
+  if (!daJanelaPrincipal(event)) return;
+  const r = mini.resumoValido(resumo);
+  if (!r) return;
+  ultimoResumo = r;
+  if (miniAberto()) miniJanela.webContents.send('mini:estado', r);
+});
+ipcMain.on('mini:pronto', (event) => {
+  if (!daJanelaMini(event)) return;
+  if (ultimoResumo) miniJanela.webContents.send('mini:estado', ultimoResumo);
+  miniJanela.webContents.send('mini:tamanho', miniExpandido);
+  avisarPrincipalDoMini();
+});
+ipcMain.on('mini:comando', (event, comando) => {
+  if (!daJanelaMini(event)) return;
+  const c = mini.comandoValido(comando);
+  if (!c) return;
+  if (c.tipo === 'fechar') { miniJanela.close(); return; }
+  if (c.tipo === 'abrir-duotone') { mostrarJanelaPrincipal(); return; }
+  if (c.tipo === 'expandir' || c.tipo === 'encolher') { redimensionarMini(c.tipo === 'expandir'); return; }
+  if (mainWindow) mainWindow.webContents.send('mini:comando', c);
+});
+ipcMain.on('mini:alternar', (event) => { if (daJanelaPrincipal(event)) alternarMiniLeitor(); });
+ipcMain.handle('mini:esta-aberto', (event) => (daJanelaPrincipal(event) ? miniAberto() : false));
+// O modo limpo (F11) é ecrã inteiro com a capa e mais nada: o mini sai da frente.
+ipcMain.on('mini:modo-limpo', (event, ligado) => {
+  if (!daJanelaPrincipal(event) || typeof ligado !== 'boolean') return;
+  miniEscondidoPeloModoLimpo = ligado;
+  if (!miniAberto()) return;
+  if (ligado) miniJanela.hide(); else miniJanela.showInactive();
+});
+
 function createTray() {
   const iconPath = path.join(__dirname, '..', 'logo_windows.png');
   tray = new Tray(iconPath);
@@ -517,6 +730,7 @@ function createTray() {
         }
       }
     },
+    { label: 'Mini player', click: () => alternarMiniLeitor() },
     { type: 'separator' },
     {
       label: 'Quit',
@@ -576,7 +790,10 @@ function createWindow() {
       win.hide();
     }
   });
-  win.on('closed', () => { if (mainWindow === win) mainWindow = null; });
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+    if (miniAberto()) miniJanela.close();
+  });
   // A página morreu (crash, falta de memória): regista e volta a abrir, em
   // vez de deixar a janela em branco. Em ciclo, para -- ver saude.cjs.
   win.webContents.on('render-process-gone', (_event, detalhes) => {
@@ -904,6 +1121,8 @@ app.whenReady().then(async () => {
   } catch (e) {
     console.error('Could not register global shortcuts:', e);
   }
+  // Os que a pessoa criou nas Definições (nenhum por omissão).
+  registarAtalhos();
 
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
