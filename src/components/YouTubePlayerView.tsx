@@ -811,6 +811,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // equalizador, e veio calculada do `prepararSeguinte`. Com a da que sai,
       // quem entra tocava o fade inteiro à velocidade errada e saltava de tom
       // no instante da troca.
+      registarNaVelocidade(`play at track start/crossfade (motorEmEspera) | ${fotoDaVelocidade(motorEmEspera)}`);
       tocarNaVelocidade(motorEmEspera,seguinteRef.current?.rate ?? st.playbackRate,aplicarVelocidadeNativa);
     } catch {
       abortarPassagem();
@@ -881,6 +882,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
       try {
         entra.volume = ceilingRef.current;
+        registarNaVelocidade(`play at track start/crossfade (entra) | ${fotoDaVelocidade(entra)}`);
         tocarNaVelocidade(entra,usePlayer.getState().playbackRate,aplicarVelocidadeNativa);
         // O `playingChange` do motor que entra ainda não tem ouvinte: só
         // passa a ter no render seguinte a esta troca. Sem isto a UI ficava
@@ -1059,6 +1061,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       nativeTrackIdRef.current = track.sourceId;
       wantsPlayRef.current = autoplay;
       if (autoplay) {
+        registarNaVelocidade(`play at track start/crossfade (motorActivo()) | ${fotoDaVelocidade(motorActivo())}`);
         tocarNaVelocidade(motorActivo(),velocidadeNaSessao(st.playbackRate,!!useOuvirJuntos.getState().sessao),aplicarVelocidadeNativa);
         fadeIn();
       } else {
@@ -1399,6 +1402,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
       lastProgressRef.current = { time: lastProgressRef.current.time, at: Date.now() };
       if (wantsPlayRef.current) {
+        registarNaVelocidade(`play from recovery path #1 | ${fotoDaVelocidade(motorActivo())}`);
         motorActivo().play();
         fadeIn();
       } else {
@@ -1491,6 +1495,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // Quem pausou continua em pausa: a troca pode vir de um download que
       // falhou com a música parada, e não só do watchdog (que só corre a tocar).
       if (wantsPlayRef.current) {
+        registarNaVelocidade(`play from recovery path #2 | ${fotoDaVelocidade(motorActivo())}`);
         motorActivo().play();
         fadeIn();
       } else {
@@ -1528,6 +1533,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           }
           lastProgressRef.current = { time: lastProgressRef.current.time, at: Date.now() };
           if (wantsPlayRef.current) {
+            registarNaVelocidade(`play from recovery path #3 | ${fotoDaVelocidade(motorActivo())}`);
             motorActivo().play();
             fadeIn();
           } else {
@@ -1571,6 +1577,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (endedRef.current || usePlayer.getState().closing) return;
     if (nativeTrackIdRef.current !== track.sourceId) return;
     if (repeatMode === 'one') {
+      registarNaVelocidade(`play from repeat-one (silent end) | ${fotoDaVelocidade(player)}`);
       player.currentTime = 0;
       player.play();
       return;
@@ -1585,6 +1592,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   // Eventos do player nativo -> store
   useEventListener(player, 'playingChange', ({ isPlaying }) => {
+    registarNaVelocidade(`engine playingChange -> ${isPlaying} (wants play: ${wantsPlayRef.current}) | ${fotoDaVelocidade(player)}`);
     // Mudar de ritmo faz o expo-video reconstruir os alvos do Now Playing e
     // voltar a ligar os saltos de ±10 s. Reafirmar aqui, não por relógio.
     reafirmarComandosDeFaixa();
@@ -1714,6 +1722,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         + ` of ${track.durationSeconds ?? streamRef.current?.durationSeconds ?? '?'}s`,
       );
       if (repeatMode === 'one') {
+        registarNaVelocidade(`play from repeat-one (end) | ${fotoDaVelocidade(player)}`);
         player.currentTime = 0;
         player.play();
       } else if (!endedRef.current) {
@@ -2004,6 +2013,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           setTimeout(() => registarNaVelocidade(`+0.5 s after play: ${fotoDaVelocidade(player)}`), 500);
           // Passagem suspensa: os dois motores voltam juntos, de onde iam.
           if (passagemRef.current) {
+            registarNaVelocidade(`play resumes a suspended crossfade | ${fotoDaVelocidade(motorEmEspera)}`);
             try {
               motorEmEspera.play();
             } catch {

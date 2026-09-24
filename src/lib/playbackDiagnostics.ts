@@ -379,7 +379,7 @@ export function historicoDaFila(): readonly EventoDaSessaoDeAudio[] {
  * passaram nos testes e falharam no iPhone -- o próximo passo tem de sair do
  * que o telemóvel fez, não de um modelo.
  */
-const MAX_DA_VELOCIDADE = 60;
+const MAX_DA_VELOCIDADE = 150;
 const daVelocidade: EventoDaSessaoDeAudio[] = [];
 
 export function registarNaVelocidade(texto: string, quando: number = Date.now()): void {

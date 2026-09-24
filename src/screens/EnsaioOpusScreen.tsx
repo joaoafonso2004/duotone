@@ -5,7 +5,10 @@ import { useVideoPlayer } from 'expo-video';
 import React, { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { aplicarEqualizadorNativo, aplicarVelocidadeNativa, ligarAudioNativo } from '../../modules/duotone-audio';
+import {
+  aplicarEqualizadorNativo, aplicarVelocidadeNativa, definirTomDaVelocidade, estadoDaVelocidadeNativa, ligarAudioNativo,
+} from '../../modules/duotone-audio';
+import { registarNaVelocidade } from '../lib/playbackDiagnostics';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
 import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
@@ -32,6 +35,26 @@ const FONTES: Record<IdDoEnsaio, number> = {
 const CAF_DO_AFCONVERT = (require('../../assets/ensaio-opus/origem.json') as { caf: string }).caf === 'afconvert';
 
 const FLAT = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+/**
+ * O laboratório da velocidade (24/9). O "fica um clique atrás" acontece
+ * também AQUI, num leitor sem loja, sem sincronização e sem PC -- por isso é
+ * entre o JS, o módulo nativo e o AVPlayer. Os números que o relatório lê
+ * (rate, defaultRate) dizem a velocidade certa; o que se OUVE é que chega
+ * atrasado. Cada interruptor isola uma causa, e o ouvido decide:
+ *  - Keep pitch: sem varispeed a cadeia de áudio não é refeita a cada mudança;
+ *  - Seek after change: um salto para a mesma posição força o AVPlayer a
+ *    refazer o que já tinha preparado;
+ *  - Writer: quem escreve a velocidade (os dois, só o módulo, só o expo-video).
+ */
+type Escritor = 'ambos' | 'nativo' | 'expo';
+const VELOCIDADES = [0.5, 0.7, 0.9, 1, 1.1, 1.5, 2];
+
+function fotoDoLeitor(m: any): string {
+  let expo = '?';
+  try { expo = Number(m.playbackRate).toFixed(2); } catch { /* largado */ }
+  return `expo=${expo} ${estadoDaVelocidadeNativa(m)}`;
+}
 const BASS = PERFIS.find((p) => p.id === 'bass')?.ganhos ?? FLAT;
 
 /**
@@ -64,6 +87,9 @@ export function EnsaioOpusScreen({ navigation }: Props) {
   const [aTocar, setATocar] = useState(false);
   const [velocidade, setVelocidade] = useState(1);
   const [bass, setBass] = useState(false);
+  const [manterTom, setManterTom] = useState(false);
+  const [sacudir, setSacudir] = useState(false);
+  const [escritor, setEscritor] = useState<Escritor>('ambos');
   const [registo, setRegisto] = useState<string[]>([]);
   const pedidoEm = useRef(0);
   const atualRef = useRef<IdDoEnsaio | null>(null);
@@ -106,6 +132,7 @@ export function EnsaioOpusScreen({ navigation }: Props) {
     return () => {
       for (const s of subs) s.remove();
       leitor.pause();
+      definirTomDaVelocidade(false);
     };
   }, [leitor]);
 
@@ -136,8 +163,22 @@ export function EnsaioOpusScreen({ navigation }: Props) {
 
   const mudarVelocidade = (v: number) => {
     setVelocidade(v);
-    atualizarVelocidadeDoMotor(leitor, v, aplicarVelocidadeNativa);
-    anotar(`speed ${v}×`);
+    const regras = `writer=${escritor} keepPitch=${manterTom} seek=${sacudir}`;
+    const linha = (t: string) => { anotar(t); registarNaVelocidade(`lab: ${t}`); };
+    linha(`asked ${v} (${regras}) | before: ${fotoDoLeitor(leitor)}`);
+    if (escritor === 'ambos') atualizarVelocidadeDoMotor(leitor, v, aplicarVelocidadeNativa);
+    else if (escritor === 'nativo') aplicarVelocidadeNativa(leitor, v);
+    else if (leitor.playing) leitor.playbackRate = v;
+    if (sacudir) setTimeout(() => { try { leitor.currentTime = leitor.currentTime; } catch { /* sem fonte */ } }, 150);
+    setTimeout(() => linha(`+0.4 s after ${v}: ${fotoDoLeitor(leitor)}`), 400);
+    setTimeout(() => linha(`+2 s after ${v}: ${fotoDoLeitor(leitor)}`), 2000);
+  };
+  const mudarTom = () => {
+    const novo = !manterTom;
+    setManterTom(novo);
+    definirTomDaVelocidade(novo);
+    try { leitor.preservesPitch = novo; } catch { /* sem fonte */ }
+    anotar(`keep pitch ${novo ? 'on' : 'off'}`);
   };
   const mudarEq = () => {
     const ganhos = bass ? FLAT : BASS;
@@ -156,10 +197,10 @@ export function EnsaioOpusScreen({ navigation }: Props) {
 
   const partilhar = () => {
     void Share.share({
-      message: textoDoResultado({
+      message: `${textoDoResultado({
         ios: String(Platform.Version), build: BUILD_ID, versao: APP_VERSION,
         cafDoAfconvert: CAF_DO_AFCONVERT, resultados,
-      }),
+      })}\n## Speed lab (last file)\n${registo.join('\n')}\n`,
     }).catch(() => {});
   };
 
@@ -212,10 +253,29 @@ export function EnsaioOpusScreen({ navigation }: Props) {
               <PillButton small variant="ghost" label="27 s" onPress={() => irPara(27)} />
             </View>
             <View style={styles.fila}>
-              {[0.5, 1, 2].map((v) => (
+              {VELOCIDADES.map((v) => (
                 <PillButton key={v} small variant={velocidade === v ? 'primary' : 'ghost'} label={`${v}×`} onPress={() => mudarVelocidade(v)} />
               ))}
               <PillButton small variant={bass ? 'primary' : 'ghost'} label="Bass boost" onPress={mudarEq} />
+            </View>
+            <Text style={[type.caption, { marginTop: spacing.sm }]}>
+              Speed lab: change the speed a few times in a row and listen whether it lands on the one you tapped
+              or on the one before. Then flip one switch at a time and try again.
+            </Text>
+            <View style={styles.fila}>
+              <PillButton small variant={manterTom ? 'primary' : 'ghost'} label="Keep pitch" onPress={mudarTom} />
+              <PillButton small variant={sacudir ? 'primary' : 'ghost'} label="Seek after change" onPress={() => setSacudir(!sacudir)} />
+            </View>
+            <View style={styles.fila}>
+              {(['ambos', 'nativo', 'expo'] as const).map((e) => (
+                <PillButton
+                  key={e}
+                  small
+                  variant={escritor === e ? 'primary' : 'ghost'}
+                  label={e === 'ambos' ? 'Both writers' : e === 'nativo' ? 'Native only' : 'expo only'}
+                  onPress={() => setEscritor(e)}
+                />
+              ))}
             </View>
 
             {VERIFICACOES.map((v) => {

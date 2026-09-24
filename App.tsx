@@ -67,6 +67,7 @@ import { limparVerificacao } from './src/state/verificacaoDaBiblioteca';
 import { instalarSaudeDaApp } from './src/state/saudeDaApp';
 import { ligarMedicoes } from './src/state/medicoes';
 import { instalarEscolhaDoCodec } from './src/state/saudeDoOpus';
+import { vigiarOLeitor } from './src/state/vigiaDoLeitor';
 import { BarreiraDeErros } from './src/components/BarreiraDeErros';
 
 // Antes de qualquer ecrã: o handler global dos erros, o que ficou da abertura
@@ -76,6 +77,8 @@ ligarMedicoes();
 // Quem decide se o iPhone pede Opus ou AAC (lib/codecDeAudio.ts). Até ler o
 // disco, AAC.
 void instalarEscolhaDoCodec();
+// O que muda na loja do leitor, para a secção "speed" do relatório.
+vigiarOLeitor();
 
 export default function App() {
   // O acento segue a capa a tocar quando esse modo esta escolhido. Aqui em
