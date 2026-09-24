@@ -1,5 +1,6 @@
 import { proximaFaixa, decisaoDeControlo, restoDaLista, baralhada, type PonteJam } from '../lib/jam';
 import { faixasParaAdiantar } from '../lib/adiantarFaixas';
+import { juntarSessao, partirSessao, SUFIXO_DA_FILA } from '../lib/sessaoPartida';
 import {ensureLyrics} from './lyrics';
 import { useConnectivity } from './connectivity';
 import {
@@ -486,14 +487,21 @@ interface PlayerState {
 // só escrevesse no disco de três em três. Este storage adia também a própria
 // serialização: durante o intervalo guarda apenas a referência para o retrato
 // mais recente.
+//
+// E a fila vive noutra chave (lib/sessaoPartida.ts): a posição muda a cada
+// segundo, e a fila inteira ia atrás dela para o disco de três em três.
 function deferredJsonStorage(): PersistStorage<any> {
   let pendingName: string | null = null;
   let pendingValue: StorageValue<any> | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  /** A fila da última escrita que chegou ao disco (referência, não conteúdo). */
+  let filaNoDisco: unknown = undefined;
   return {
     getItem: async (name: string) => {
-      const raw = await AsyncStorage.getItem(name);
-      return raw ? JSON.parse(raw) : null;
+      const [raw, fila] = await Promise.all([
+        AsyncStorage.getItem(name), AsyncStorage.getItem(name + SUFIXO_DA_FILA),
+      ]);
+      return juntarSessao(raw, fila) as StorageValue<any> | null;
     },
     setItem: (name: string, value: StorageValue<any>) => {
       pendingName = name;
@@ -506,8 +514,13 @@ function deferredJsonStorage(): PersistStorage<any> {
           pendingName = null;
           pendingValue = null;
           if (key && v != null) {
-            // Só aqui — uma vez por janela — se percorre e serializa a fila.
-            AsyncStorage.setItem(key, JSON.stringify(v)).catch(() => {});
+            // Só aqui — uma vez por janela — se serializa, e a fila só se
+            // ela mudou. Fila primeiro: a sessão nunca aponta para uma fila
+            // que ainda não está no disco.
+            const partes = partirSessao(v as any, filaNoDisco);
+            const fila = partes.fila == null ? Promise.resolve()
+              : AsyncStorage.setItem(key + SUFIXO_DA_FILA, partes.fila).then(() => { filaNoDisco = partes.filaEscrita; });
+            fila.then(() => AsyncStorage.setItem(key, partes.sessao)).catch(() => {});
           }
         }, 3000);
       }
@@ -519,7 +532,8 @@ function deferredJsonStorage(): PersistStorage<any> {
         if (timer) clearTimeout(timer);
         timer = null;
       }
-      return AsyncStorage.removeItem(name);
+      filaNoDisco = undefined;
+      return AsyncStorage.multiRemove([name, name + SUFIXO_DA_FILA]);
     },
   };
 }

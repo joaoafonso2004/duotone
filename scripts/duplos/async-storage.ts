@@ -11,6 +11,7 @@ const AsyncStorage = {
   getItem: (k: string) => Promise.resolve(memoria.has(k) ? memoria.get(k)! : null),
   setItem: (k: string, v: string) => { memoria.set(k, v); return Promise.resolve(); },
   removeItem: (k: string) => { memoria.delete(k); return Promise.resolve(); },
+  multiRemove: (ks: string[]) => { for (const k of ks) memoria.delete(k); return Promise.resolve(); },
   clear: () => { memoria.clear(); return Promise.resolve(); },
 };
 
