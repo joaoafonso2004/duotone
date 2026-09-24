@@ -708,6 +708,9 @@ export function PlayerRoot() {
     if (!current) return;
     const wasSaved = saved;
     setSaved(!wasSaved); // otimista
+    // O conjunto global também, já: é dele que vem a marca de "já guardada"
+    // nas listas e na pesquisa, que ficavam à espera do servidor.
+    useSaved.getState().markSaved(current, !wasSaved);
     try {
       if (wasSaved) {
         let idToRemove = dbTrackId;
@@ -727,11 +730,9 @@ export function PlayerRoot() {
         const contexto=contextoDaRecomendacaoAtual();
         if(contexto)registar('recomendacao_guardada',contextoParaAnalytics(contexto));
       }
-      // Manter o conjunto global em sincronia: é dele que vem a marca de
-      // "já guardada" nos resultados de pesquisa.
-      useSaved.getState().markSaved(current, !wasSaved);
     } catch (e: any) {
       setSaved(wasSaved);
+      useSaved.getState().markSaved(current, wasSaved);
       Alert.alert('Error', e?.message ?? 'Could not update library.');
     }
   };

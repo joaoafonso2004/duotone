@@ -18,6 +18,10 @@ export async function lerAjustesRemotos(userId:string):Promise<MemoriaDeAjustes>
   return result;
 }
 
+/** `undefined` até se saber; `false` se a base de dados não tem a função. */
+let funcaoDoAjuste:boolean|undefined;
+const funcaoEmFalta=(e:{code?:string})=>e.code==='PGRST202'||e.code==='42883';
+
 /** Inserir sem substituir; atualizar só se a edição for mais recente.
  * Dois pedidos fora de ordem nunca fazem regressar um preset antigo.
  * Repor 1×/Flat é uma escolha explícita: conservar a data impede que um
@@ -27,6 +31,16 @@ export async function guardarAjusteRemoto(userId:string,chave:string,ajuste:Ajus
   const at=chave.indexOf(':');if(at<1||at===chave.length-1)throw Error('Invalid track');
   const value={user_id:userId,source:chave.slice(0,at),source_id:chave.slice(at+1),
     rate:ajuste.rate,gains:ajuste.ganhos,seen_at:new Date(ajuste.visto).toISOString()};
+  // Um só comando, com a mesma regra (supabase/escritas-atomicas.sql). A
+  // função escreve pela sessão (auth.uid()), e quem chama passa sempre o
+  // utilizador da sessão. Sem a migração, os dois pedidos de sempre.
+  if(funcaoDoAjuste!==false){
+    const {error}=await supabase.rpc('guardar_ajuste_da_faixa',{p_source:value.source,p_source_id:value.source_id,
+      p_rate:value.rate,p_gains:value.gains,p_seen_at:value.seen_at});
+    if(!error){funcaoDoAjuste=true;return;}
+    if(!funcaoEmFalta(error))throw error;
+    funcaoDoAjuste=false;
+  }
   const inserted=await supabase.from('user_track_adjustments').upsert(value,{onConflict:'user_id,source,source_id',ignoreDuplicates:true});
   if(inserted.error)throw inserted.error;
   const updated=await supabase.from('user_track_adjustments').update(value)

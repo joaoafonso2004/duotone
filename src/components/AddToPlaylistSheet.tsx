@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -38,6 +38,15 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const [activePlaylistIds, setActivePlaylistIds] = useState<Set<string>>(new Set());
+  /** O id da faixa no catálogo, lido ao abrir: tirar não volta a perguntá-lo. */
+  const trackIdRef = useRef<string | null>(null);
+  /** Playlists com uma mudança a caminho do servidor: um segundo toque espera. */
+  const aMudar = useRef(new Set<string>());
+  const marcar = (playlistId: string, dentro: boolean) => setActivePlaylistIds((prev) => {
+    const next = new Set(prev);
+    if (dentro) next.add(playlistId); else next.delete(playlistId);
+    return next;
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,6 +60,7 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
       setPlaylists(allPl);
 
       // If we have a single track, check which playlists it belongs to
+      trackIdRef.current = null;
       if (track) {
         const { data: trackData } = await supabase
           .from('tracks')
@@ -59,6 +69,7 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
           .maybeSingle();
 
         if (trackData) {
+          trackIdRef.current = trackData.id;
           const { data: ptData } = await supabase
             .from('playlist_tracks')
             .select('playlist_id')
@@ -97,43 +108,36 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
       return;
     }
 
-    if (!track) return;
+    if (!track || aMudar.current.has(playlistId)) return;
     const isAdded = activePlaylistIds.has(playlistId);
-
+    // Otimista (24/9): a marca muda no toque e volta atrás se o servidor
+    // recusar. Esperava pelo pedido, e para tirar ainda voltava a perguntar o
+    // id da faixa que já se tinha lido ao abrir a folha.
+    aMudar.current.add(playlistId);
+    marcar(playlistId, !isAdded);
+    hapticNotification();
     try {
       if (isAdded) {
-        // Remove track from playlist
-        const { data: trackData } = await supabase
-          .from('tracks')
-          .select('id')
-          .match({ source: track.source, source_id: track.sourceId })
-          .maybeSingle();
-
-        if (trackData) {
-          // Pela API, que é quem avisa a descoberta de que a playlist mudou.
-          await removeTrackFromPlaylist(playlistId, trackData.id);
-
-          setActivePlaylistIds((prev) => {
-            const next = new Set(prev);
-            next.delete(playlistId);
-            return next;
-          });
-          hapticNotification();
-          onDone?.();
+        let trackId = trackIdRef.current;
+        if (!trackId) {
+          const { data: trackData } = await supabase
+            .from('tracks')
+            .select('id')
+            .match({ source: track.source, source_id: track.sourceId })
+            .maybeSingle();
+          trackId = trackData?.id ?? null;
         }
+        // Pela API, que é quem avisa a descoberta de que a playlist mudou.
+        if (trackId) await removeTrackFromPlaylist(playlistId, trackId);
       } else {
-        // Add track to playlist
-        await addTrackToPlaylist(playlistId, track);
-        setActivePlaylistIds((prev) => {
-          const next = new Set(prev);
-          next.add(playlistId);
-          return next;
-        });
-        hapticNotification();
-        onDone?.();
+        trackIdRef.current = await addTrackToPlaylist(playlistId, track);
       }
+      onDone?.();
     } catch (e: any) {
+      marcar(playlistId, isAdded);
       Alert.alert('Error', e?.message ?? 'Could not update playlist.');
+    } finally {
+      aMudar.current.delete(playlistId);
     }
   };
 

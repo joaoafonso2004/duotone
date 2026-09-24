@@ -231,12 +231,13 @@ async function nextPosition(playlistId: string): Promise<number> {
   return (data?.position ?? -1) + 1;
 }
 
+/** Devolve o id da faixa no catálogo, para quem a quiser tirar depois sem o perguntar. */
 export async function addTrackToPlaylist(
   playlistId: string,
   track: Track
-): Promise<void> {
-  const trackId = await upsertTrack(track);
-  const position = await nextPosition(playlistId);
+): Promise<string> {
+  // Os dois pedidos não dependem um do outro: em paralelo, uma ida à rede a menos.
+  const [trackId, position] = await Promise.all([upsertTrack(track), nextPosition(playlistId)]);
   const { error } = await supabase
     .from('playlist_tracks')
     .upsert(
@@ -245,6 +246,7 @@ export async function addTrackToPlaylist(
     );
   if (error) throw error;
   esquecerAfinidade();
+  return trackId;
 }
 
 export async function removeTrackFromPlaylist(

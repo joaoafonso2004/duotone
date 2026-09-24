@@ -40,6 +40,7 @@ test-*.mjs
 !scripts/test-definicoes-com-efeito.mjs
 !scripts/test-ensaio-opus.mjs
 !scripts/test-higiene-da-biblioteca-sql.mjs
+!scripts/test-escritas-atomicas-sql.mjs
 !scripts/test-duotone-connect-sql.mjs
 !scripts/test-limpar-fantasmas-sql.mjs
 !scripts/test-download-esperas.mjs

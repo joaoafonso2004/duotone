@@ -226,27 +226,36 @@ function DesktopShell() {
     return () => window.removeEventListener('duotone:refresh-library', checkCurrentSaved);
   }, [checkCurrentSaved]);
 
+  // Otimista (24/9): o coração muda no clique, e só volta atrás se o servidor
+  // recusar. Esperava por três idas à rede -- perguntar, gravar e reler --
+  // antes de mexer. É o que o coração do iPhone já fazia.
+  const aGuardarAtual = useRef(false);
   const toggleSaveCurrent = async () => {
-    if (!currentTrack) return;
+    if (!currentTrack || aGuardarAtual.current) return;
+    aGuardarAtual.current = true;
+    const faixa = currentTrack;
+    const tirar = currentIsSaved;
+    setCurrentIsSaved(!tirar);
+    useSaved.getState().markSaved(faixa, !tirar);
     try {
-      const { saved, trackId } = await checkIsSaved(currentTrack.source, currentTrack.sourceId);
-      if (saved) {
-        const idToRemove = trackId || currentTrack.id;
-        if (idToRemove) {
-          await removeFromLibrary(idToRemove);
-          useSaved.getState().markSaved(currentTrack, false);
-          notify('Removed from library.');
-        }
+      if (tirar) {
+        const { trackId } = await checkIsSaved(faixa.source, faixa.sourceId);
+        const idToRemove = trackId || faixa.id;
+        if (idToRemove) await removeFromLibrary(idToRemove);
+        notify('Removed from library.');
       } else {
-        await saveToLibrary(currentTrack);
-        useSaved.getState().markSaved(currentTrack, true);
+        await saveToLibrary(faixa);
         const contexto=contextoDaRecomendacaoAtual();
         if(contexto)registar('recomendacao_guardada',contextoParaAnalytics(contexto));
         notify('Saved to library.');
       }
       window.dispatchEvent(new Event('duotone:refresh-library'));
     } catch (e: any) {
+      setCurrentIsSaved(tirar);
+      useSaved.getState().markSaved(faixa, tirar);
       notify(e?.message || 'Could not update library.');
+    } finally {
+      aGuardarAtual.current = false;
     }
   };
 
@@ -436,19 +445,21 @@ function DesktopShell() {
     if (!trackMenu) return;
     setTrackMenuOpen(false);
     const idToRemove = savedTrackId || trackMenu.id;
+    const tirar = !!(isSaved && idToRemove);
+    // Otimista: os corações das listas mudam já; voltam atrás se falhar.
+    useSaved.getState().markSaved(trackMenu, !tirar);
     try {
-      if (isSaved && idToRemove) {
-        await removeFromLibrary(idToRemove);
-        useSaved.getState().markSaved(trackMenu, false);
+      if (tirar) {
+        await removeFromLibrary(idToRemove!);
         notify('Removed from library.');
       } else {
         await saveToLibrary(trackMenu);
-        useSaved.getState().markSaved(trackMenu, true);
         if(trackMenuContext)registar('recomendacao_guardada',contextoParaAnalytics(trackMenuContext));
         notify('Saved to library.');
       }
       window.dispatchEvent(new Event('duotone:refresh-library'));
     } catch (e: any) {
+      useSaved.getState().markSaved(trackMenu, tirar);
       notify(e?.message || 'Could not update library.');
     }
   };

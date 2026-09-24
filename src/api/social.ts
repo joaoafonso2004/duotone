@@ -426,17 +426,33 @@ export async function criarGrupo(
   const limpo = nome.trim();
   if (!limpo) throw new Error('The group needs a name.');
 
+  // O grupo e os membros numa transação (supabase/escritas-atomicas.sql): se
+  // um falhar, não fica nada. O erro do Postgres diz o que se passou -- a
+  // politica que barrou, a coluna que falta. Sem ele fica-se com um "nao foi
+  // possivel" seco e a adivinhar, que foi exatamente o que aconteceu aqui uma vez.
+  const { data: id, error: erroDaFuncao } = await supabase.rpc('criar_grupo', { p_nome: limpo, p_membros: membros });
+  if (!erroDaFuncao) {
+    if (id) return id as string;
+    throw new Error('Could not create the group.');
+  }
+  if (erroDaFuncao && erroDaFuncao.code !== 'PGRST202' && erroDaFuncao.code !== '42883') {
+    throw new Error(detalhe('Could not create the group.', erroDaFuncao));
+  }
+  const todos = Array.from(new Set([currentUid, ...membros].filter(Boolean)));
+  return criarGrupoAMao(limpo, currentUid, todos);
+}
+
+/**
+ * O caminho antigo, para uma base de dados sem supabase/escritas-atomicas.sql:
+ * dois INSERT, e o grupo apagado à mão se o segundo falhar.
+ */
+async function criarGrupoAMao(limpo: string, currentUid: string, todos: string[]): Promise<string> {
   const { data, error } = await supabase
     .from('chat_groups')
     .insert({ name: limpo, created_by: currentUid })
     .select('id')
     .single();
-  // O erro do Postgres diz o que se passou -- a politica que barrou, a
-  // coluna que falta. Sem ele fica-se com um "nao foi possivel" seco e a
-  // adivinhar, que foi exatamente o que aconteceu aqui uma vez.
   if (error || !data) throw new Error(detalhe('Could not create the group.', error));
-
-  const todos = Array.from(new Set([currentUid, ...membros].filter(Boolean)));
   const { error: erroMembros } = await supabase
     .from('chat_group_members')
     .insert(todos.map((id) => ({ group_id: data.id, user_id: id })));

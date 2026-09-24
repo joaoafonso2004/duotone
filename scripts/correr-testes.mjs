@@ -126,6 +126,7 @@ const TESTES = [
   'scripts/test-definicoes-com-efeito.mjs',
   `${TS} scripts/test-higiene-da-biblioteca.ts`,
   'scripts/test-higiene-da-biblioteca-sql.mjs',
+  'scripts/test-escritas-atomicas-sql.mjs',
   'scripts/test-duotone-connect-sql.mjs',
   'scripts/test-limpar-fantasmas-sql.mjs',
   `${TS} scripts/test-contagem-de-escuta.ts`,
