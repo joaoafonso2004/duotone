@@ -21,7 +21,8 @@ import React, { useEffect, useState, type ComponentType } from 'react';
 const CSS = `
 html, body, #root { margin: 0; height: 100%; background: transparent; overflow: hidden; }
 * { box-sizing: border-box; }
-.mini { height: 100%; border-radius: 14px; background: #14141C; border: 1px solid rgba(255,255,255,0.08);
+#root > div { width: 100%; height: 100%; }
+.mini { width: 100%; height: 100%; border-radius: 14px; background: #14141C; border: 1px solid rgba(255,255,255,0.08);
   color: #F5F5F7; font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; position: relative;
   overflow: hidden; user-select: none; }
 .mini:hover { background: #1b1b25; border-color: rgba(255,255,255,0.14); }
@@ -42,7 +43,15 @@ button:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 1px; }
 .barra { -webkit-app-region: no-drag; height: 12px; display: flex; align-items: center; cursor: pointer; }
 .barra > div { position: relative; height: 4px; width: 100%; border-radius: 2px; background: rgba(255,255,255,0.14); }
 .barra > div > div { height: 4px; border-radius: 2px; background: #F5F5F7; }
-.tempo { font-size: 11px; color: rgba(245,245,247,0.55); font-variant-numeric: tabular-nums; }
+.tempo { font-size: 11px; color: rgba(245,245,247,0.55); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.controlos { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.canto { position: absolute; top: 4px; right: 6px; gap: 2px; }
+.canto button { width: 22px; height: 22px; border-radius: 11px; color: rgba(245,245,247,0.7); }
+.canto button:hover { color: #F5F5F7; }
+.moldura { position: relative; flex-shrink: 0; }
+.moldura .so-hover { position: absolute; inset: 0; align-items: center; justify-content: center; }
+.sobre-a-capa { width: 30px; height: 30px; border-radius: 15px; background: rgba(10,10,15,0.65); }
+.sobre-a-capa:hover { background: rgba(10,10,15,0.85); }
 `;
 
 type Resumo = ResumoDoMiniLeitor;
@@ -104,10 +113,19 @@ function MiniLeitor() {
       onClick={() => mandar('guardar')} style={{ width: 30, height: 30 }}>{icone.coracao(!!r?.guardada)}</button>
   );
 
+  // Abrir o Duotone e fechar: pequenos, no canto, só com o rato por cima.
+  const canto = (
+    <div className="canto so-hover">
+      <button aria-label="Open Duotone" onClick={() => mandar('abrir-duotone')}>{icone.abrir}</button>
+      <button aria-label="Close mini player" onClick={() => mandar('fechar')}>{icone.fechar}</button>
+    </div>
+  );
+
   if (expandido) {
     return (
-      <div className="mini" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-        <div className="capa" style={{ width: 240, height: 240, ...capa, boxShadow: '0 0 60px rgba(111,122,140,0.35)' }} />
+      <div className="mini" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+        {canto}
+        <div className="capa" style={{ width: 224, height: 224, ...capa, boxShadow: '0 0 60px rgba(111,122,140,0.35)' }} />
         <div style={{ width: '100%', textAlign: 'center', minWidth: 0 }}>
           <div className="titulo" style={{ fontSize: 16 }}>{r?.titulo ?? 'Nothing playing'}</div>
           <div className="artista" style={{ fontSize: 13 }}>{r?.artista ?? ''}</div>
@@ -131,9 +149,19 @@ function MiniLeitor() {
     );
   }
 
+  // Compacto: a disposição NÃO muda com o rato (João, 24/9: com dois grupos a
+  // trocar havia dois botões de pausa e tudo mudava de sítio). Os controlos
+  // ficam; o rato só troca o artista pelo tempo, põe o expandir por cima da
+  // capa e acende o canto.
   return (
     <div className="mini" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12 }}>
-      <div className="capa" style={{ width: 64, height: 64, ...capa }} />
+      {canto}
+      <div className="moldura">
+        <div className="capa" style={{ width: 64, height: 64, ...capa }} />
+        <div className="so-hover">
+          <button className="sobre-a-capa" aria-label="Expand" onClick={() => mandar('expandir')}>{icone.expandir}</button>
+        </div>
+      </div>
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div className="titulo">{r?.titulo ?? 'Nothing playing'}</div>
         <div className="artista sem-hover">{r?.artista ?? ''}</div>
@@ -145,17 +173,11 @@ function MiniLeitor() {
           </div>
         </div>
       </div>
-      <div className="sem-hover" style={{ alignItems: 'center', gap: 2, display: 'flex' }}>
-        <button aria-label="Previous" onClick={() => mandar('anterior')} style={{ width: 32, height: 32 }}>{icone.anterior}</button>
-        {tocarOuPausa}
-        <button aria-label="Next" onClick={() => mandar('seguinte')} style={{ width: 32, height: 32 }}>{icone.seguinte}</button>
-      </div>
-      <div className="so-hover" style={{ alignItems: 'center', gap: 0 }}>
+      <div className="controlos">
         {coracao}
+        <button aria-label="Previous" onClick={() => mandar('anterior')} style={{ width: 30, height: 30 }}>{icone.anterior}</button>
         {tocarOuPausa}
-        <button aria-label="Expand" onClick={() => mandar('expandir')} style={{ width: 30, height: 30 }}>{icone.expandir}</button>
-        <button aria-label="Open Duotone" onClick={() => mandar('abrir-duotone')} style={{ width: 30, height: 30 }}>{icone.abrir}</button>
-        <button aria-label="Close mini player" onClick={() => mandar('fechar')} style={{ width: 30, height: 30 }}>{icone.fechar}</button>
+        <button aria-label="Next" onClick={() => mandar('seguinte')} style={{ width: 30, height: 30 }}>{icone.seguinte}</button>
       </div>
       <div className="linha sem-hover"><div style={{ width: `${fracao * 100}%` }} /></div>
     </div>

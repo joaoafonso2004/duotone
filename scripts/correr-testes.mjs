@@ -131,6 +131,7 @@ const TESTES = [
   'scripts/test-escritas-atomicas-sql.mjs',
   'scripts/test-atalhos.mjs',
   'scripts/test-mini-leitor.mjs',
+  'scripts/test-pares-de-plataforma.mjs',
   'scripts/test-duotone-connect-sql.mjs',
   'scripts/test-limpar-fantasmas-sql.mjs',
   `${TS} scripts/test-contagem-de-escuta.ts`,

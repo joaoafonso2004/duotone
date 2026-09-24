@@ -8,6 +8,8 @@ import {
 } from '../lib/playbackDiagnostics';
 import { baterSessao } from '../lib/sessionSync';
 import { velocidadeNaSessao } from '../lib/jam';
+import { aoTocar, chaveDaFaixa } from '../lib/equalizer';
+import { arredondar as arredondarRate } from '../lib/playbackRate';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { registar as registarEvento } from '../lib/eventos';
@@ -27,6 +29,18 @@ import {
  */
 function velocidadeDoMotor(): number {
   return velocidadeNaSessao(usePlayer.getState().playbackRate, !!useOuvirJuntos.getState().sessao);
+}
+
+/**
+ * A velocidade com que uma faixa VAI tocar: a dela, se tiver ajuste guardado,
+ * senão o padrão -- a mesma conta que a loja faz no `playTrack`. A preparada
+ * do crossfade entrava à velocidade da que saía e mudava de repente na troca
+ * (João, 24/9).
+ */
+function velocidadeDaFaixa(t: Track): number {
+  const st = usePlayer.getState();
+  const r = aoTocar(st.ajustesPorFaixa, chaveDaFaixa(t), { rate: st.padraoRate, ganhos: st.padraoGanhos }).rate;
+  return velocidadeNaSessao(arredondarRate(r), !!useOuvirJuntos.getState().sessao);
 }
 
 /** O player do IFrame está neste vídeo? Sem maneira de saber, assume-se que sim. */
@@ -173,7 +187,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const esperaRef = useRef<any>(null);
   const aCriarEsperaRef = useRef(false);
   /** A faixa carregada no player em espera; `pronta` quando já está parada no 0, calada. */
-  const seguinteRef = useRef<{ sourceId: string; pronta: boolean } | null>(null);
+  const seguinteRef = useRef<{ sourceId: string; pronta: boolean; rate: number } | null>(null);
   /** Há uma passagem a decorrer (duração do fade dela). */
   const passagemRef = useRef<{ fade: number } | null>(null);
   /** A passagem acabou e pediu o `ended`; à espera que a loja mude de faixa. */
@@ -283,7 +297,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     try {
       espera.mute?.();
       espera.setVolume?.(0);
-      espera.setPlaybackRate?.(velocidadeDoMotor());
+      espera.setPlaybackRate?.(prep.rate);
       espera.loadVideoById(prep.sourceId);
     } catch {
       seguinteRef.current = null;
@@ -375,7 +389,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (entregaRef.current || !st.isPlaying) return null;
 
     if (seguinte && !seguinteRef.current && devePrepararSeguinte(c, ANTECEDENCIA_DO_PC_S)) {
-      seguinteRef.current = { sourceId: seguinte.sourceId, pronta: false };
+      seguinteRef.current = { sourceId: seguinte.sourceId, pronta: false, rate: velocidadeDaFaixa(seguinte) };
       if (esperaRef.current) carregarNaEspera(); else garantirEspera();
     }
     if (deveComecarCrossfade(c)) {
@@ -384,7 +398,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         const espera = esperaRef.current;
         espera.setVolume(0);
         espera.unMute();
-        espera.setPlaybackRate?.(velocidadeDoMotor());
+        // A velocidade DELA, e não a da que sai.
+        espera.setPlaybackRate?.(seguinteRef.current?.rate ?? velocidadeDoMotor());
         espera.playVideo();
       } catch {
         abortarPassagem(true);
@@ -412,6 +427,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (prep && !prep.pronta && s === 1 && estaNoVideo(event.target, prep.sourceId)) {
         try { event.target.pauseVideo(); event.target.seekTo(0, true); } catch {}
         prep.pronta = true;
+        // O tom acompanha a velocidade também na que entra (o processo
+        // principal trata dos dois frames). Sem isto, com velocidade própria,
+        // ela entrava esticada e o tom mudava no instante da troca.
+        void window.duotoneDesktop?.naoEsticarOTempo?.();
       }
       return;
     }

@@ -331,29 +331,55 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
   const medir=(id:string)=>(y:number,altura:number)=>setLugares((m)=>(
     m[id]?.y===y&&m[id]?.altura===altura?m:{...m,[id]:{y,altura}}));
   const realce=lugares[active as string];
+  // O `onLayout` do react-native-web só dispara quando o item muda de TAMANHO
+  // (é um ResizeObserver), e não quando muda de SÍTIO. Uma fonte que chega
+  // depois empurra os itens uns pixéis e o realce ficava onde estava --
+  // descentrado do texto, e com o hover a desenhar uma segunda caixa ao lado
+  // (João, 24/9). Volta-se a medir quando as fontes acabam de carregar, quando
+  // a janela muda de tamanho e quando muda o separador ativo.
+  const [medicao,setMedicao]=useState(0);
+  useEffect(()=>{
+    const outraVez=()=>setMedicao((n)=>n+1);
+    const fontes:any=typeof document!=='undefined'?(document as any).fonts:null;
+    fontes?.addEventListener?.('loadingdone',outraVez);
+    void fontes?.ready?.then?.(outraVez);
+    window.addEventListener('resize',outraVez);
+    return()=>{fontes?.removeEventListener?.('loadingdone',outraVez);window.removeEventListener('resize',outraVez);};
+  },[]);
+  useEffect(()=>{setMedicao((n)=>n+1);},[active]);
 
   return <View style={styles.sidebar}>
     <ScrollView contentContainerStyle={styles.sidebarContent}>
       {realce?<View pointerEvents="none" {...marcar('desliza')}
         style={[styles.navRealce,{height:realce.altura,transform:[{translateY:realce.y}],backgroundColor:tema.soft}]}/>:null}
       <Text style={styles.navLabel}>DISCOVER</Text>
-      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
+      {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} medicao={medicao} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
       <View style={styles.navDivider} /><Text style={styles.navLabel}>ACCOUNT</Text>
-      <NavItem label="Profile" icon="person-circle-outline" active={active === 'profile'} semFundo={!!realce} aoMedir={medir('profile')} onPress={() => navigate({ name: 'profile' })} />
-      <NavItem label="Settings" icon="settings-outline" active={active === 'settings'} semFundo={!!realce} aoMedir={medir('settings')} onPress={() => navigate({ name: 'settings' })} />
+      <NavItem label="Profile" icon="person-circle-outline" active={active === 'profile'} semFundo={!!realce} medicao={medicao} aoMedir={medir('profile')} onPress={() => navigate({ name: 'profile' })} />
+      <NavItem label="Settings" icon="settings-outline" active={active === 'settings'} semFundo={!!realce} medicao={medicao} aoMedir={medir('settings')} onPress={() => navigate({ name: 'settings' })} />
     </ScrollView>
     <Pressable onPress={() => navigate({ name: 'profile' })} style={({ hovered }) => [styles.account, hovered && styles.navHover]}>{avatarDisplay}<View style={{ flex: 1 }}><Text numberOfLines={1} style={styles.accountName}>{name}</Text><Text numberOfLines={1} style={styles.accountEmail}>{session?.user.email}</Text></View><Ionicons name="chevron-forward" size={14} color={desktop.dim} /></Pressable>
   </View>;
 }
 
-export function NavItem({ label, icon, active, badge, onPress, aoMedir, semFundo }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
+export function NavItem({ label, icon, active, badge, onPress, aoMedir, semFundo, medicao }: { label: string; icon: keyof typeof Ionicons.glyphMap; active: boolean; badge?: boolean; onPress: () => void;
+  /** Muda para pedir outra medição (ver `medicao` na barra lateral). */
+  medicao?: number;
   /** Onde é que este item está, para o realce saber para onde atravessar. */
   aoMedir?: (y: number, altura: number) => void;
   /** O realce já cobre este item: não se pinta duas vezes. */
   semFundo?: boolean }) {
   const theme = useTheme((s) => s.theme);
   const P = Pressable as any;
-  return <P {...marcar('premir')} onPress={onPress}
+  // No react-native-web a ref é o elemento do DOM: o `offsetTop` é relativo
+  // ao mesmo pai onde o realce (absoluto) se posiciona.
+  const ref = useRef<any>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (el && typeof el.offsetTop === 'number') aoMedir?.(el.offsetTop, el.offsetHeight);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [medicao]);
+  return <P ref={ref} {...marcar('premir')} onPress={onPress}
     onLayout={(e: any) => aoMedir?.(e.nativeEvent.layout.y, e.nativeEvent.layout.height)}
     style={({ hovered, focused, pressed }: any) => [styles.navItem, (hovered || focused) && styles.navHover, active && !semFundo && { backgroundColor: theme.soft }, pressed && ui.pressed]}><Ionicons name={icon} size={19} color={active ? theme.color : desktop.muted} /><Text style={[styles.navText, active && styles.navTextActive, active && { color: theme.color }]}>{label}</Text>{badge && <BolinhaDeAviso />}</P>;
 }
