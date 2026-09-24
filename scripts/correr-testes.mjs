@@ -49,6 +49,8 @@ const TESTES = [
   `${TS} scripts/test-capa.ts`,
   `${TS} scripts/test-capa-grande.ts`,
   `${TS} scripts/test-sessao-partida.ts`,
+  `${TS} scripts/test-fila-sem-rede.ts`,
+  `${TS} scripts/test-escutas-pendentes.ts`,
   `${TS} scripts/test-respostas.ts`,
   `${TS} scripts/test-guardar-playlist.ts`,
   `${TS} scripts/test-transicao-da-capa.ts`,

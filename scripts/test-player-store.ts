@@ -15,7 +15,7 @@
  *   DUOTONE_DUPLOS=1 node --experimental-strip-types \
  *     --import ./scripts/registar-resolver.mjs scripts/test-player-store.ts
  */
-import { ATRASO_DA_SUGESTAO_MS, usePlayer } from '../src/state/player.ts';
+import { ATRASO_DA_SUGESTAO_MS, definirPodeTocarSemRede, usePlayer } from '../src/state/player.ts';
 import { trackKey } from '../src/lib/shuffle.ts';
 import { controlo, reporControlo } from './duplos/controlo.ts';
 import { guardadas } from './duplos/prefs.ts';
@@ -761,6 +761,31 @@ eq('a velocidade padrão chega', usePlayer.getState().padraoRate, 0.8);
 eq('a faixa que toca não muda a meio', usePlayer.getState().playbackRate, 1.3);
 usePlayer.getState()._carregarPadrao({ 'youtube:a': { rate: 1.3, ganhos: null, visto: 1 } });
 eq('sem padrão na conta, fica o que já cá estava', usePlayer.getState().padraoRate, 0.8);
+
+// ===========================================================================
+console.log('\nsem rede, a fila só pára no que está no telemóvel');
+// ===========================================================================
+// No telemóvel estão a 'a' e a 'd' (docs/PLANO-OFFLINE-SOCIAL-DESCOBERTA-PC.md).
+definirPodeTocarSemRede((t) => t.sourceId === 'a' || t.sourceId === 'd');
+preparar();
+controlo.offline = true;
+await usePlayer.getState().next();
+eq('next salta a b e a c', atual(), 'd');
+eq('no fim da fila, sem mais nada no telemóvel, não há seguinte', usePlayer.getState().peekNextTrack()?.sourceId ?? null, null);
+await usePlayer.getState().prev();
+eq('prev volta pela mesma regra', atual(), 'a');
+eq('a seguinte a pré-carregar (crossfade) também salta', usePlayer.getState().peekNextTrack()?.sourceId, 'd');
+controlo.offline = false;
+eq('com rede volta a ser a seguinte', usePlayer.getState().peekNextTrack()?.sourceId, 'b');
+preparar({ current: faixa('b'), queueIndex: 1, isPlaying: false });
+controlo.offline = true;
+eq('sessão restaurada numa faixa fora do telemóvel muda', usePlayer.getState().ajustarSessaoSemRede(), true);
+eq('para a primeira da fila que está no telemóvel', atual(), 'd');
+eq('e o índice acompanha', usePlayer.getState().queueIndex, 3);
+eq('e não volta a mexer se já está numa que toca', usePlayer.getState().ajustarSessaoSemRede(), false);
+preparar({ current: faixa('b'), queueIndex: 1, isPlaying: false });
+eq('com rede, a sessão restaurada fica onde estava', usePlayer.getState().ajustarSessaoSemRede(), false);
+definirPodeTocarSemRede(null);
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

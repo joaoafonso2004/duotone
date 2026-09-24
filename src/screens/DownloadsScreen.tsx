@@ -15,7 +15,9 @@ import {
 } from '../lib/downloadsExplicitos';
 import { useDownloadsFixados } from '../lib/downloadsFixados';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
+import { readLikedSongsCache } from '../lib/likedSongsCache';
 import { formatCacheSize, listarDescarregados, MAX_CACHE_BYTES, useAudioCache } from '../lib/youtubeCache';
+import { useAuth } from '../state/auth';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
@@ -49,6 +51,8 @@ export function DownloadsScreen({ navigation }: Props) {
   const tema = useTheme((s) => s.theme);
   const offline = useOfflineMode();
   const playTrack = usePlayer((s) => s.playTrack);
+  const playShuffled = usePlayer((s) => s.playShuffled);
+  const userId = useAuth((s) => s.session?.user.id ?? s.offlineUserId);
   const registo = useDownloadsFixados((s) => s.registo);
   const aDescarregar = useDownloadsFixados((s) => s.aDescarregar);
   // Muda sempre que o disco muda (download novo, remoção, limpeza).
@@ -79,6 +83,21 @@ export function DownloadsScreen({ navigation }: Props) {
       .catch(() => { /* sem rede fica o id, que continua a tocar */ });
     return () => { vivo = false; };
   }, [semCopia]);
+
+  // As gostadas que estão no telemóvel sem terem sido pedidas (tocaram e
+  // ficaram na cache). A lista das gostadas vem da cópia em disco, por isso
+  // também aparece sem rede -- que é quando esta secção serve.
+  const [gostadas, setGostadas] = useState<Track[]>([]);
+  useEffect(() => {
+    if (!userId) return;
+    let vivo = true;
+    readLikedSongsCache(userId).then((t) => { if (vivo) setGostadas(t); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [userId]);
+  const tambemAqui = useMemo(
+    () => gostadas.filter((t) => t.source === 'youtube' && ficheiros.has(t.sourceId) && !(t.sourceId in registo.pedidos)),
+    [gostadas, ficheiros, registo],
+  );
 
   const { linhas, bytesDosDownloads, emFalta, cache, protegidasAte, protegidas } = useMemo(() => {
     const linhas: Linha[] = pedidosPorOrdem(registo).map((id) => {
@@ -115,6 +134,17 @@ export function DownloadsScreen({ navigation }: Props) {
   const total = bytesDosDownloads + cache.bytes;
   const percentagem = Math.min(100, Math.round((total / MAX_CACHE_BYTES) * 100));
   const nada = linhas.length === 0 && cache.faixas === 0;
+  const linhaDaGostada = (t: Track) => (
+    <View key={t.sourceId} style={styles.linha}>
+      <Pressable onPress={() => tocar(t)} style={styles.parteTocavel}>
+        <Image source={{ uri: capaParaLista(t.artworkUrl) ?? `https://i.ytimg.com/vi/${t.sourceId}/mqdefault.jpg` }} style={styles.capa} contentFit="cover" />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>{t.title}</Text>
+          <Text numberOfLines={1} style={type.caption}>{t.artist ? `${t.artist} · ` : ''}Na cache</Text>
+        </View>
+      </Pressable>
+    </View>
+  );
 
   const remover = (l: Linha) => {
     Alert.alert(
@@ -162,9 +192,24 @@ export function DownloadsScreen({ navigation }: Props) {
     }
   };
 
-  const tocar = (l: Linha) => {
-    if (l.situacao !== 'descarregada' && offline) return;
-    void playTrack(l.faixa, [l.faixa], true);
+  // Tudo o que toca sem rede: os downloads que estão no disco e, a seguir, as
+  // gostadas que ficaram na cache. É a fila de "Tocar" e "Aleatório", e a de
+  // quem toca numa linha -- sem rede, a fila já só pára no que está aqui
+  // (lib/filaSemRede.ts), mas assim nem entra o resto.
+  const tocaveis = useMemo(
+    () => [...linhas.filter((l) => l.situacao === 'descarregada').map((l) => l.faixa), ...tambemAqui],
+    [linhas, tambemAqui],
+  );
+  const tocar = (faixa: Track) => {
+    const dentro = tocaveis.some((t) => t.sourceId === faixa.sourceId);
+    if (!dentro && offline) return;
+    void playTrack(faixa, dentro ? tocaveis : [faixa], true);
+  };
+  const tocarTudo = (baralhar: boolean) => {
+    if (!tocaveis.length) return;
+    hapticSelection();
+    if (baralhar) void playShuffled(tocaveis);
+    else void playTrack(tocaveis[0], tocaveis, true);
   };
 
   return (
@@ -203,6 +248,21 @@ export function DownloadsScreen({ navigation }: Props) {
               ) : null}
             </View>
 
+            {tocaveis.length > 0 ? (
+              <View style={styles.tocarTudo}>
+                <Pressable onPress={() => tocarTudo(false)} style={({ pressed }) => [styles.botaoGrande, { backgroundColor: tema.color }, pressed && { opacity: 0.8 }]}
+                  accessibilityRole="button" accessibilityLabel="Tocar tudo o que está neste telemóvel">
+                  <Ionicons name="play" size={18} color="#fff" />
+                  <Text style={[type.body, { color: '#fff', fontWeight: '700' }]}>Tocar</Text>
+                </Pressable>
+                <Pressable onPress={() => tocarTudo(true)} style={({ pressed }) => [styles.botaoGrande, styles.botaoSecundario, pressed && { opacity: 0.8 }]}
+                  accessibilityRole="button" accessibilityLabel="Tocar por ordem aleatória">
+                  <Ionicons name="shuffle" size={18} color={colors.text} />
+                  <Text style={[type.body, { fontWeight: '700' }]}>Aleatório</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             {emFalta.length > 0 && !offline ? (
               <Pressable onPress={() => void descarregarEmFalta()} style={({ pressed }) => [styles.acao, pressed && { opacity: 0.7 }]}>
                 <Ionicons name="refresh" size={16} color={tema.color} />
@@ -226,7 +286,7 @@ export function DownloadsScreen({ navigation }: Props) {
                 : l.situacao === 'a-descarregar' ? 'A descarregar…' : 'Por descarregar';
               return (
                 <View key={l.id} style={styles.linha}>
-                  <Pressable onPress={() => tocar(l)} style={styles.parteTocavel}>
+                  <Pressable onPress={() => tocar(l.faixa)} style={styles.parteTocavel}>
                     <Image source={{ uri: capa }} style={styles.capa} contentFit="cover" />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
@@ -258,6 +318,15 @@ export function DownloadsScreen({ navigation }: Props) {
                 </View>
               );
             })}
+
+            {tambemAqui.length > 0 ? (
+              <>
+                <Text style={[type.caption, styles.seccao]}>
+                  TAMBÉM NESTE TELEMÓVEL · {tambemAqui.length} {tambemAqui.length === 1 ? 'gostada que ficou na cache' : 'gostadas que ficaram na cache'}
+                </Text>
+                {tambemAqui.map(linhaDaGostada)}
+              </>
+            ) : null}
 
             <Pressable onPress={limparTudo} style={({ pressed }) => [styles.limpar, pressed && { opacity: 0.7 }]}>
               <Text style={[type.body, { color: colors.danger, fontWeight: '600' }]}>
@@ -298,6 +367,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   semDownloads: { marginHorizontal: spacing.md, marginBottom: spacing.md },
+  tocarTudo: { flexDirection: 'row', gap: spacing.sm, marginHorizontal: spacing.md, marginBottom: spacing.lg },
+  botaoGrande: {
+    flex: 1, height: 44, borderRadius: radii.pill ?? 22, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+  },
+  botaoSecundario: { backgroundColor: colors.surface },
+  seccao: { marginHorizontal: spacing.md, marginTop: spacing.lg, marginBottom: spacing.sm, letterSpacing: 0.5 },
 
   linha: {
     flexDirection: 'row',

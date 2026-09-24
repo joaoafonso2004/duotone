@@ -1,6 +1,7 @@
 import { proximaFaixa, decisaoDeControlo, restoDaLista, baralhada, type PonteJam } from '../lib/jam';
 import { faixasParaAdiantar } from '../lib/adiantarFaixas';
 import { juntarSessao, partirSessao, SUFIXO_DA_FILA } from '../lib/sessaoPartida';
+import { passoLinear, primeiraTocavelAoRestaurar, saltarAteTocavel } from '../lib/filaSemRede';
 import {ensureLyrics} from './lyrics';
 import { useConnectivity } from './connectivity';
 import {
@@ -208,8 +209,14 @@ function medirEscuta(
   if (r.contar && faixaDaEscuta) {
     // Local; alimenta o "Most played" e o perfil.
     incrementPlayCount(faixaDaEscuta).catch(() => {});
-    // No Supabase, para as recomendações e para "A tua escuta".
-    recordPlayInSupabase(faixaDaEscuta).catch(() => {});
+    // No Supabase, para as recomendações e para "A tua escuta". Sem rede,
+    // fica guardada com a hora de agora e segue quando a rede voltar.
+    const faixa = faixaDaEscuta;
+    const em = new Date();
+    const comecouEm = new Date(em.getTime() - posicaoMs / Math.max(0.25, s.playbackRate || 1));
+    recordPlayInSupabase(faixa)
+      .then((correu) => { if (correu === false) guardarEscutaPorEnviar?.(faixa, em, comecouEm); })
+      .catch(() => {});
     if(contextoAtual)aprenderComEscutaDeRecomendacao(faixaDaEscuta);
   }
 }
@@ -447,6 +454,9 @@ interface PlayerState {
   peekNextTrack: () => Track | null;
   /** Única decisão pública: fila Jam durante a sessão, fila pessoal fora dela. */
   proximaFaixa: () => Track | null;
+  /** Sessão restaurada sem rede cuja faixa não está no telemóvel: passa, em
+   * pausa, para a primeira da fila que está. Devolve se mudou. */
+  ajustarSessaoSemRede: () => boolean;
   /** As próximas `quantas` faixas a ter prontas, a começar pela `proximaFaixa`
    * e pela ordem em que vão tocar. Ver lib/adiantarFaixas.ts. */
   proximasFaixas: (quantas: number) => Track[];
@@ -479,6 +489,22 @@ interface PlayerState {
   _setBuffering: (v: boolean) => void;
   activeBackend: 'resolving' | 'native' | 'webview';
   _setActiveBackend: (backend: 'resolving' | 'native' | 'webview') => void;
+}
+
+// Sem rede, a fila só pára no que está no telemóvel (lib/filaSemRede.ts). Quem
+// sabe o que está no disco é o `tocaSemRede` do lib/descarregarFaixa.ts, que
+// arrasta a cache de áudio -- por isso entra por aqui, ligado no App.tsx só no
+// iPhone. Sem ligação (PC, testes), ou com rede, pode-se tocar tudo.
+let podeTocarSemRede: ((t: Track) => boolean) | null = null;
+/** Guarda uma escuta que não chegou ao Supabase (state/escutasPorEnviar.ts, ligado no App.tsx). */
+let guardarEscutaPorEnviar: ((t: Track, em: Date, comecouEm: Date) => void) | null = null;
+export function definirGuardarEscutaPorEnviar(f: ((t: Track, em: Date, comecouEm: Date) => void) | null): void {
+  guardarEscutaPorEnviar = f;
+}
+export function definirPodeTocarSemRede(f: ((t: Track) => boolean) | null): void { podeTocarSemRede = f; }
+function podeTocarAgora(t: Track): boolean {
+  if (!podeTocarSemRede || !useConnectivity.getState().offline) return true;
+  return podeTocarSemRede(t);
 }
 
 // O middleware `persist` chama o storage em CADA `set`, incluindo o progresso.
@@ -1390,7 +1416,7 @@ export const usePlayer = create<PlayerState>()(
     // de 20, ouvir as 20 sem repetição era praticamente impossível.
     if (shuffle && queue.length > 1) {
       const order = get()._ensureShuffleOrder();
-      const target = stepIndex(order, queue, queueIndex, 1);
+      const target = saltarAteTocavel(queue, queueIndex, (i) => stepIndex(order, queue, i, 1), podeTocarAgora);
       if (target !== null) {
         await playTrack(queue[target], queue, false, true);
         return;
@@ -1400,7 +1426,7 @@ export const usePlayer = create<PlayerState>()(
       if (repeatMode === 'all') {
         const fresh = novaOrdemDoShuffle(queue, queueIndex);
         set({ shuffleOrder: fresh });
-        const first = stepIndex(fresh, queue, queueIndex, 1);
+        const first = saltarAteTocavel(queue, queueIndex, (i) => stepIndex(fresh, queue, i, 1), podeTocarAgora);
         if (first !== null) {
           await playTrack(queue[first], queue, false, true);
           return;
@@ -1410,13 +1436,11 @@ export const usePlayer = create<PlayerState>()(
       return;
     }
 
-    if (queueIndex + 1 < queue.length) {
-      await playTrack(queue[queueIndex + 1], queue, false, true);
-    } else if (repeatMode === 'all') {
-      await playTrack(queue[0], queue, false, true);
-    } else {
-      await stopOrRadio();
-    }
+    // Sem rede, passa por cima do que não está no telemóvel (com rede, é a
+    // seguinte, e com repeat "all" dá a volta).
+    const alvo = saltarAteTocavel(queue, queueIndex, passoLinear(queue.length, 1, repeatMode === 'all'), podeTocarAgora);
+    if (alvo !== null) await playTrack(queue[alvo], queue, false, true);
+    else await stopOrRadio();
   },
 
   prev: async () => {
@@ -1444,23 +1468,22 @@ export const usePlayer = create<PlayerState>()(
     // enquanto a ordem era sorteada a cada salto.
     if (get().shuffle && queue.length > 1) {
       const order = get()._ensureShuffleOrder();
-      const target = stepIndex(order, queue, queueIndex, -1);
+      const target = saltarAteTocavel(queue, queueIndex, (i) => stepIndex(order, queue, i, -1), podeTocarAgora);
       if (target !== null) {
         await playTrack(queue[target], queue, false, true);
         return;
       }
       if (repeatMode === 'all') {
-        const lastKey = order[order.length - 1];
-        const last = queue.findIndex((t) => trackKey(t) === lastKey);
-        if (last >= 0) await playTrack(queue[last], queue, false, true);
+        // A última do percurso que se possa tocar (com rede, é a última).
+        for (let k = order.length - 1; k >= 0; k--) {
+          const i = queue.findIndex((t) => trackKey(t) === order[k]);
+          if (i >= 0 && podeTocarAgora(queue[i])) { await playTrack(queue[i], queue, false, true); return; }
+        }
       }
       return;
     }
-    if (queueIndex - 1 >= 0) {
-      await playTrack(queue[queueIndex - 1], queue, false, true);
-    } else if (repeatMode === 'all' && queue.length > 0) {
-      await playTrack(queue[queue.length - 1], queue, false, true);
-    }
+    const alvo = saltarAteTocavel(queue, queueIndex, passoLinear(queue.length, -1, repeatMode === 'all'), podeTocarAgora);
+    if (alvo !== null) await playTrack(queue[alvo], queue, false, true);
   },
 
   prepararFecho: async () => {
@@ -1581,15 +1604,27 @@ export const usePlayer = create<PlayerState>()(
       // se adivinha — gerar aqui daria uma ordem diferente da que o `next()`
       // vai usar, e pré-carregava-se a faixa errada.
       if (shuffleOrder.length === 0) return null;
-      const target = stepIndex(shuffleOrder, queue, queueIndex, 1);
+      const target = saltarAteTocavel(queue, queueIndex, (i) => stepIndex(shuffleOrder, queue, i, 1), podeTocarAgora);
       // Fim do percurso com repeat "all": vai baralhar outra vez, é
       // imprevisível por definição. Melhor não pré-carregar nada.
       return target !== null ? queue[target] : null;
     }
 
-    if (queueIndex + 1 < queue.length) return queue[queueIndex + 1];
-    if (repeatMode === 'all') return queue[0];
-    return null;
+    const alvo = saltarAteTocavel(queue, queueIndex, passoLinear(queue.length, 1, repeatMode === 'all'), podeTocarAgora);
+    return alvo !== null ? queue[alvo] : null;
+  },
+
+  ajustarSessaoSemRede: () => {
+    const { queue, queueIndex, current, isPlaying } = get();
+    if (isPlaying || !current || !podeTocarSemRede || !useConnectivity.getState().offline) return false;
+    const i = primeiraTocavelAoRestaurar(queue, queueIndex, podeTocarAgora);
+    if (i === null) return false;
+    const faixa = queue[i];
+    set({
+      current: faixa, queueIndex: i, positionMs: 0, resumePositionMs: null, error: null,
+      durationMs: Math.max(0, (faixa.durationSeconds ?? 0) * 1000),
+    });
+    return true;
   },
 
   seekTo: async (ms, interno = false) => {

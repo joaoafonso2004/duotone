@@ -389,6 +389,9 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
           renderItem={({ item: entry, index }) => {
             const item = entry.track;
             const realIndex = entry.index;
+            // Sem rede, a fila passa por cima do que não está no telemóvel
+            // (lib/filaSemRede.ts): a linha fica, apagada, para se ver porquê.
+            const foraDoTelemovel = offline && !tocaSemRede(item);
 
             return (
               <LinhaArrastavel
@@ -427,10 +430,12 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
                     <EstrelaInteligente tamanho={7} />
                   </View>
                 )}
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, opacity: foraDoTelemovel ? 0.4 : 1 }}
+                  accessibilityHint={foraDoTelemovel ? 'Not on this phone' : undefined}>
                   <TrackRow
                     track={item}
                     onPress={() => {
+                      if (foraDoTelemovel) return;
                       playTrack(item, queue);
                     }}
                     onLongPress={canReorder ? () => comecarArrasto(index) : undefined}

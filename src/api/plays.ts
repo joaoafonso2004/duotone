@@ -49,7 +49,7 @@ function idNoCatalogo(track: Track): Promise<string> {
  * Uma reprodução OUVIDA -- metade da faixa, ou quatro minutos. Quem decide o
  * momento é o leitor (lib/contagemDeEscuta.ts); o clique já não conta.
  */
-export async function recordPlayInSupabase(track: Track): Promise<void> {
+export async function recordPlayInSupabase(track: Track): Promise<boolean> {
   try {
     const trackId = await idNoCatalogo(track);
     const userId = await currentUserId();
@@ -57,8 +57,32 @@ export async function recordPlayInSupabase(track: Track): Promise<void> {
       .from('plays')
       .insert({ user_id: userId, track_id: trackId });
     if (error) console.error('Error recording play in Supabase:', error);
+    return !error;
   } catch (err) {
     console.error('Error recording play in Supabase:', err);
+    return false;
+  }
+}
+
+/**
+ * Escutas que ficaram por enviar (sem rede), com a hora a que foram ouvidas:
+ * o `played_at` por omissão seria a hora do envio. Tudo ou nada, num insert --
+ * quem chama só as tira da fila se correu (lib/escutasPendentes.ts).
+ */
+export async function enviarEscutasAtrasadas(
+  escutas: readonly { faixa: Track; em: string }[],
+): Promise<boolean> {
+  if (!escutas.length) return true;
+  try {
+    const userId = await currentUserId();
+    const ids = await Promise.all(escutas.map((e) => idNoCatalogo(e.faixa)));
+    const { error } = await supabase.from('plays').insert(
+      escutas.map((e, i) => ({ user_id: userId, track_id: ids[i], played_at: e.em })),
+    );
+    if (error) console.error('Error sending delayed plays:', error);
+    return !error;
+  } catch {
+    return false;
   }
 }
 

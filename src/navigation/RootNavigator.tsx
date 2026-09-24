@@ -23,7 +23,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
-import { Animated, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { Animated, Platform, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
@@ -267,6 +267,30 @@ async function openNotification(target: NotificationTarget) {
   navigationRef.navigate('Tabs',{screen:'Social',params:{openChatWithFriendId:target.friendId,openGroupId:target.groupId}});
 }
 
+/**
+ * Arrancar sem rede abre os Downloads (entrega 1 do
+ * docs/PLANO-OFFLINE-SOCIAL-DESCOBERTA-PC.md): é o que se pode ouvir. Só no
+ * ARRANQUE, uma vez -- perder a rede a meio do uso não muda de ecrã debaixo do
+ * dedo (decisão do João a 24/9). O estado da rede pode chegar um instante
+ * depois de a navegação estar pronta, por isso fica-se à escuta 3 s.
+ */
+let jaVerificouArranqueSemRede = false;
+function abrirDownloadsSeArrancouSemRede(): void {
+  if (jaVerificouArranqueSemRede || Platform.OS !== 'ios') return;
+  jaVerificouArranqueSemRede = true;
+  const abrir = (): boolean => {
+    const a = useAuth.getState();
+    if (!(a.session || a.offlineUserId) || !useConnectivity.getState().offline) return false;
+    // Só por cima dos separadores: um link que abriu outra coisa manda.
+    if (!navigationRef.isReady() || (navigationRef.getRootState()?.routes.length ?? 0) > 1) return true;
+    navigationRef.navigate('Downloads');
+    return true;
+  };
+  if (abrir()) return;
+  const parar = useConnectivity.subscribe(() => { if (abrir()) parar(); });
+  setTimeout(parar, 3000);
+}
+
 export function RootNavigator() {
   const session = useAuth((s) => s.session);
   const offlineUserId=useAuth(s=>s.offlineUserId);
@@ -304,7 +328,7 @@ export function RootNavigator() {
       theme={navTheme}
       ref={navigationRef}
       linking={linking}
-      onReady={() => anotarEcra(navigationRef.getCurrentRoute()?.name)}
+      onReady={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); abrirDownloadsSeArrancouSemRede(); }}
       onStateChange={() => anotarEcra(navigationRef.getCurrentRoute()?.name)}
     >
       <View style={{ flex: 1, backgroundColor: colors.bg }}>

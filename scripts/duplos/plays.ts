@@ -11,9 +11,9 @@ import type { TopArtist } from '../../src/api/plays.ts';
 import { controlo } from './controlo.ts';
 
 /** Regista no `controlo`: o teste afirma QUANDO uma reprodução conta. */
-export function recordPlayInSupabase(track: Track): Promise<void> {
+export function recordPlayInSupabase(track: Track): Promise<boolean> {
   controlo.contagens.plays.push(track.sourceId);
-  return Promise.resolve();
+  return Promise.resolve(true);
 }
 export function registarInicioDaFaixa(track: Track): Promise<void> {
   controlo.contagens.inicios.push(track.sourceId);

@@ -11,7 +11,7 @@ import { useAquecerSeccoes } from './src/hooks/useAquecerSeccoes';
 import { useAquecerResolvedor } from './src/hooks/useAquecerResolvedor';
 import { acompanharDownloads } from './src/state/capasGrandes';
 import { esquecerBiblioteca } from './src/lib/cacheDaBiblioteca';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { UpdateSheet } from './src/components/UpdateSheet';
 import { RootNavigator } from './src/navigation/RootNavigator';
@@ -45,7 +45,9 @@ import { retireBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { useAuth } from './src/state/auth';
 import {chaveDaFaixa} from './src/lib/equalizer';
 import { startTrackAdjustmentSync } from './src/state/trackAdjustments';
-import { usePlayer } from './src/state/player';
+import { definirGuardarEscutaPorEnviar, definirPodeTocarSemRede, usePlayer } from './src/state/player';
+import { guardarEscutaPorEnviar, instalarEnvioDeEscutas } from './src/state/escutasPorEnviar';
+import { tocaSemRede } from './src/lib/descarregarFaixa';
 import { useTheme } from './src/state/theme';
 import { useAcompanharCapa } from './src/hooks/useAcompanharCapa';
 import { useEstadoDoWidget } from './src/hooks/useEstadoDoWidget';
@@ -79,6 +81,12 @@ ligarMedicoes();
 void instalarEscolhaDoCodec();
 // O que muda na loja do leitor, para a secção "speed" do relatório.
 vigiarOLeitor();
+// Modo offline (docs/PLANO-OFFLINE-SOCIAL-DESCOBERTA-PC.md, entrega 1): as
+// escutas sem rede ficam guardadas e seguem quando ela volta; e no iPhone a
+// fila sem rede só pára no que está no telemóvel.
+definirGuardarEscutaPorEnviar(guardarEscutaPorEnviar);
+instalarEnvioDeEscutas();
+if (Platform.OS === 'ios') definirPodeTocarSemRede(tocaSemRede);
 
 export default function App() {
   // O acento segue a capa a tocar quando esse modo esta escolhido. Aqui em
@@ -206,6 +214,12 @@ export default function App() {
       .then(() => {
       // Índice em memória dos downloads (badges "offline" nas listas).
       loadCachedAudioIndex();
+      // Arranque sem rede com a sessão restaurada numa faixa que não está no
+      // telemóvel: passa, em pausa, para a primeira da fila que está. Só depois
+      // do índice, que é o que diz o que está no disco.
+      const ajustarSemRede = () => { usePlayer.getState().ajustarSessaoSemRede(); };
+      if (usePlayer.persist.hasHydrated()) ajustarSemRede();
+      else usePlayer.persist.onFinishHydration(ajustarSemRede);
       // O que ficou a meio de tocar enquanto descarregava, noutra sessão.
       limparParciaisEsquecidos();
       // Pruning LRU do cache de áudio — só no arranque, nunca durante a
