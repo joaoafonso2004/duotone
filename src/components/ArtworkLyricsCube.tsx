@@ -9,6 +9,7 @@ import {LinearGradient} from 'expo-linear-gradient';
 import {CAPA_FLUTUANTE,geometriaDaLateral,LATERAIS,mosaicoDoGrao,type Lateral} from '../lib/capaFlutuante3D';
 import type {PoseDaCapa3D} from './CapaFlutuante3D';
 import type {MontagemDaCapa} from '../hooks/useMontagemDaCapa';
+import {desfoqueLeve} from '../lib/capaGrande';
 
 type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;showLyrics:boolean;onChange:(open:boolean)=>void;
   /**
@@ -209,6 +210,8 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
   // da normal e só pousa com a faixa pronta. O verso não se monta: quem está a
   // ler as letras não pode perdê-las a cada música.
   const m=pose3D?.montagem??null;
+  // O verso desfoca a miniatura pequena, não a capa grande (ver desfoqueLeve).
+  const verso=desfoqueLeve(artwork,28);
   const transformDaFace=pose3D?(reduced?[...pose3D.postura]:[...pivo,...depth(espessura/2)]):[];
   const frontStyle3D=pose3D?(reduced?{opacity:showLyrics?0:(m?m.opacidades[2]:1),transform:[...pose3D.postura]}:{opacity:m?m.opacidades[2]:1,transform:[...transformDaFace,...chegar(m,2,0.5*size)]}):null;
   const lyricsStyle3D=pose3D?(reduced?{opacity:showLyrics?1:0,transform:[...pose3D.postura]}:{transform:[...pivo,...depth(-espessura/2),{rotateY:'180deg'}]}):null;
@@ -239,9 +242,10 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       <Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0,0.35]})}]} />
     </Animated.View>
     <Animated.View pointerEvents={showLyrics&&!moving?'auto':'none'} aria-hidden={!showLyrics} accessibilityElementsHidden={!showLyrics} importantForAccessibility={showLyrics?'auto':'no-hide-descendants'} style={[styles.face,{borderRadius:raio},lyricsStyle3D??lyricsStyle]}>
-      {artwork?<ImagemDaCapa source={{uri:artwork}} cachePolicy="memory-disk" contentFit="cover" blurRadius={28} style={[StyleSheet.absoluteFill,{opacity:0.6,transform:[{scale:1.12}]}]} />:null}
+      {verso?<ImagemDaCapa source={{uri:verso.uri}} cachePolicy="memory-disk" contentFit="cover" blurRadius={verso.raio} style={[StyleSheet.absoluteFill,{opacity:0.6,transform:[{scale:1.12}]}]} />:null}
       <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(8,8,15,0.5)'}]} />
-      <LyricsView track={track} visible={showLyrics&&!moving} />
+      {/* As letras recomeçam por faixa; o cubo à volta delas fica montado. */}
+      <LyricsView key={`${track.source}:${track.sourceId}`} track={track} visible={showLyrics&&!moving} />
       {pose3D?<GraoDaFace pose3D={pose3D} largura={size} altura={size} />:null}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.4,0]})}]} />
     </Animated.View>

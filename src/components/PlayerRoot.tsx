@@ -3,6 +3,7 @@ import { sentidoDaTransicao, type Sentido } from '../lib/transicaoDaCapa';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
 import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
 import { useMontagemDaCapa } from '../hooks/useMontagemDaCapa';
+import { desfoqueLeve } from '../lib/capaGrande';
 import { capaGrande, marcarSemCapaGrande, ouvirCapasGrandes, preCarregarCapasGrandes } from '../state/capasGrandes';
 import { partilharRelatorioDoArranque } from '../lib/partilharRelatorioDoArranque';
 import { ModoCarro } from './ModoCarro';
@@ -681,6 +682,8 @@ export function PlayerRoot() {
     if (current && !offline) preCarregarCapasGrandes([current]);
   }, [current?.source, current?.sourceId, current?.artworkUrl, offline]);
 
+  const fundo = desfoqueLeve(artSource, 64);
+
   const onArtError = () => {
     const active = current;
     if (active && active.source === 'youtube' && artSource?.includes('maxresdefault')) {
@@ -1071,14 +1074,16 @@ export function PlayerRoot() {
           },
         ]}
       >
-        {artSource ? (
+        {fundo ? (
+          // Desfocado a partir da miniatura pequena (desfoqueLeve): o mesmo
+          // fundo, sem desfocar 1280 px no instante do skip. Sem onError: a
+          // falha da maxres é a capa da frente que a diz.
           <Image
-            source={{ uri: artSource }}
+            source={{ uri: fundo.uri }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            blurRadius={64}
+            blurRadius={fundo.raio}
             transition={450}
-            onError={onArtError}
           />
         ) : null}
         {capaFlutuante ? (
@@ -1707,10 +1712,16 @@ export function PlayerRoot() {
               fundo do cubo --, e isso lia-se como uma moldura à volta da capa
               (13/9). O véu vive DENTRO da face do cubo, que recorta com o raio:
               a capa fica opaca e não há borda que se possa ver. */}
+          {/* O cubo NÃO remonta por faixa (24/9): remontava, e cada skip
+              construía outra vez as quatro laterais, os mosaicos do grão das
+              duas faces e o verso desfocado, e o iPhone rasterizava tudo de
+              novo -- no mesmo instante do "Recuo subtil", que engasgava. Só o
+              que é da faixa leva a `key`: a capa da frente (CapaComTransicao
+              lembra a anterior ao desmontar) e as letras (dentro do cubo). */}
           {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante} montagem={montagem} transicao={transicaoDaCapa.current}>
             {(pose3D) => (
-            <ArtworkLyricsCube key={`${current.source}:${current.sourceId}`} track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
-              front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
+            <ArtworkLyricsCube track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
+              front={<>{artSource?<CapaComTransicao key={`${current.source}:${current.sourceId}`} uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
             )}
           </CapaFlutuante3D>}
 

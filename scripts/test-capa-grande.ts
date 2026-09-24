@@ -1,10 +1,10 @@
-import { capaDeRecurso, capaGrandeDaFaixa } from '../src/lib/capaGrande.ts';
+import { capaDeRecurso, capaGrandeDaFaixa, desfoqueLeve } from '../src/lib/capaGrande.ts';
 
 let mau = 0;
 const eq = (rotulo: string, veio: unknown, esperado: unknown) => {
-  const ok = veio === esperado;
+  const ok = JSON.stringify(veio) === JSON.stringify(esperado);
   if (!ok) mau++;
-  console.log(`  ${ok ? 'ok   ' : 'FALHA'} ${rotulo}${ok ? '' : `  -> esperado ${esperado}, veio ${veio}`}`);
+  console.log(`  ${ok ? 'ok   ' : 'FALHA'} ${rotulo}${ok ? '' : `  -> esperado ${JSON.stringify(esperado)}, veio ${JSON.stringify(veio)}`}`);
 };
 
 const yt = { source: 'youtube', sourceId: 'abc123', artworkUrl: 'https://i.ytimg.com/vi/abc123/hqdefault.jpg' };
@@ -21,6 +21,14 @@ eq('sem capa nenhuma não inventa', capaGrandeDaFaixa({ source: 'spotify', sourc
 console.log('\na de recurso');
 eq('no YouTube é a hqdefault', capaDeRecurso(yt), 'https://i.ytimg.com/vi/abc123/hqdefault.jpg');
 eq('fora dele é a mesma da faixa', capaDeRecurso({ source: 'spotify', sourceId: 'x', artworkUrl: 'https://img/x.jpg' }), 'https://img/x.jpg');
+
+console.log('\no desfoque');
+eq('a maxres desfoca-se pela mqdefault, com 1/4 do raio', desfoqueLeve('https://i.ytimg.com/vi/abc123/maxresdefault.jpg', 64), { uri: 'https://i.ytimg.com/vi/abc123/mqdefault.jpg', raio: 16 });
+eq('a hqdefault também, na proporção dela', desfoqueLeve('https://i.ytimg.com/vi/abc123/hqdefault.jpg', 28), { uri: 'https://i.ytimg.com/vi/abc123/mqdefault.jpg', raio: 19 });
+eq('a mqdefault fica igual', desfoqueLeve('https://i.ytimg.com/vi/abc123/mqdefault.jpg', 28), { uri: 'https://i.ytimg.com/vi/abc123/mqdefault.jpg', raio: 28 });
+eq('fora do YouTube não mexe', desfoqueLeve('https://img/x.jpg', 64), { uri: 'https://img/x.jpg', raio: 64 });
+eq('sem capa, nada', desfoqueLeve(null, 64), null);
+eq('nunca raio zero', desfoqueLeve('https://i.ytimg.com/vi/abc123/maxresdefault.jpg', 1)?.raio, 1);
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

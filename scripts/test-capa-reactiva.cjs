@@ -220,6 +220,16 @@ async function run() {
   assert.match(lyrics, /if\(manual\|\|!synced\)return;/,
     'a face escondida continua sincronizada; visible só bloqueia interação');
 
+  // O skip não reconstrói a caixa (24/9): laterais, grão e verso ficam montados.
+  assert.doesNotMatch(player, /<ArtworkLyricsCube key=/,
+    'o cubo do iPhone não remonta por faixa -- remontar engasgava o Recuo subtil');
+  assert.match(player, /<CapaComTransicao key=\{`\$\{current\.source\}:\$\{current\.sourceId\}`\}/,
+    'a capa da frente continua a ser uma instância por faixa: é ao desmontar que lembra a anterior');
+  assert.match(cubo, /<LyricsView key=\{`\$\{track\.source\}:\$\{track\.sourceId\}`\}/,
+    'as letras recomeçam por faixa dentro do cubo');
+  assert.doesNotMatch(player + cubo, /blurRadius=\{(28|64)\}/,
+    'os desfoques partem da miniatura pequena (desfoqueLeve), não da capa de 1280 px');
+
   console.log('Capa flutuante: pose subtil e contínua na capa e nas letras, migração e preferência passaram.');
 }
 
