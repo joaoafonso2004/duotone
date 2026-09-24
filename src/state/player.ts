@@ -962,6 +962,12 @@ export const usePlayer = create<PlayerState>()(
     // faixa anterior tem de se calar no proprio gesto, antes desses awaits;
     // esperar pelo efeito do componente deixava a capa nova com o som velho.
     pauseMountedSourceBeforeChange(anterior, track, get()._yt);
+    // Tocar numa música abre o leitor (iPhone), no próprio gesto e antes das
+    // esperas, para a animação arrancar logo. As listas pedem-no com o
+    // `shouldExpand`; a linha que o fazia saiu por engano num commit do
+    // equalizador do PC (be71db0), e desde aí ficava só a barra de baixo
+    // (João, 24/9). No PC o `expanded` não é lido.
+    if (shouldExpand && !get().expanded) set({ expanded: true });
     if(!interno){
       if(anterior&&trackKey(anterior)!==trackKey(track))
         registarSaltoAntesDoSom(anterior,get().playbackConfirmed,'outra');

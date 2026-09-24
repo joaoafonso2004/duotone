@@ -664,8 +664,22 @@ function abrirMiniLeitor() {
       webSecurity: true,
     },
   });
-  win.setAlwaysOnTop(true, 'floating');
-  win.once('ready-to-show', () => { if (!miniEscondidoPeloModoLimpo) win.showInactive(); });
+  // Por cima de TUDO, jogos em ecrã inteiro incluídos (João, 24/9). No Windows
+  // as janelas "sempre por cima" disputam o topo: quando um jogo (ou outra app
+  // topmost) ganha o foco, sobe por cima do mini. Por isso ele reafirma-se no
+  // nível mais alto quando perde o foco e a cada 2 s, com `moveTop`, que NÃO
+  // tira o foco ao jogo. Um jogo em ecrã inteiro EXCLUSIVO (DirectX a tomar o
+  // ecrã) não deixa ninguém desenhar por cima -- só o modo "sem margens"
+  // (borderless/windowed fullscreen), que é o que a maioria usa.
+  const manterPorCima = () => {
+    if (win.isDestroyed() || !win.isVisible()) return;
+    try { win.setAlwaysOnTop(true, 'screen-saver'); win.moveTop(); } catch {}
+  };
+  manterPorCima();
+  win.on('blur', manterPorCima);
+  const vigiaDoTopo = setInterval(manterPorCima, 2000);
+  win.on('closed', () => clearInterval(vigiaDoTopo));
+  win.once('ready-to-show', () => { if (!miniEscondidoPeloModoLimpo) { win.showInactive(); manterPorCima(); } });
   // Largado perto de uma borda, encosta; e fica lembrado neste monitor.
   win.on('moved', () => {
     if (win.isDestroyed()) return;

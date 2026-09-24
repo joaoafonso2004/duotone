@@ -18,6 +18,14 @@ import { useModoLimpo } from './ModoLimpo.web';
 
 type Opcoes = { guardarAtual: () => void; abrirPesquisa: () => void };
 
+/**
+ * O mini leitor está aberto? O motor (YouTubePlayerView.web.tsx) pergunta-o
+ * para ler a posição a cada segundo mesmo com a janela no tabuleiro -- a 5 s o
+ * mini andava desviado da app.
+ */
+let miniAberto = false;
+export function miniLeitorEstaAberto(): boolean { return miniAberto; }
+
 const PASSO_DO_VOLUME = 10;
 const SALTO_MS = 10_000;
 
@@ -74,6 +82,7 @@ export function usePonteDoLeitor(opcoes: Opcoes): void {
       });
     };
     const ligar = (aberto: boolean) => {
+      miniAberto = aberto;
       sairDoLeitor?.(); sairDasGuardadas?.();
       sairDoLeitor = null; sairDasGuardadas = null;
       if (!aberto) return;

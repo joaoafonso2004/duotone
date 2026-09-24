@@ -14,6 +14,7 @@ import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { registar as registarEvento } from '../lib/eventos';
 import { primeiraNota } from '../lib/tocarEnquantoDescarrega';
+import { miniLeitorEstaAberto } from '../desktop/usePonteDoLeitor.web';
 import type { Track } from '../types';
 import {
   ANTECEDENCIA_DO_PC_S, decorridoDaPassagem, deveComecarCrossfade, devePrepararSeguinte, podeCrossfade,
@@ -599,7 +600,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
               // coincide com o player nativo. Perto do fim de uma faixa com
               // crossfade, o ritmo é o da passagem.
               const ritmo = cuidarDaPassagemRef.current(position, duration);
-              progressoRef.current = setTimeout(atualizarProgresso, ritmo ?? (document.hidden ? 5000 : 1000));
+              // Com o mini leitor aberto a posição é lida a cada segundo mesmo
+              // no tabuleiro: é ele que a mostra.
+              const escondida = document.hidden && !miniLeitorEstaAberto();
+              progressoRef.current = setTimeout(atualizarProgresso, ritmo ?? (escondida ? 5000 : 1000));
             };
             atualizarProgressoRef.current = atualizarProgresso;
             atualizarProgresso();

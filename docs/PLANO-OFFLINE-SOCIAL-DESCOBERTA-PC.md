@@ -408,7 +408,7 @@ listados nas notas.
 
 ## Decisões
 
-Tomadas a 24/9: offline só no arranque; colaborativas como recomendado; "Why this?" retirado; Release Radar sem aviso; "Ouvir com" passa a ser um modo SEGUIR, num só sentido e sem pedido (a secção 5 tem de ser reescrita). Playlists inteligentes retiradas; Last.fm fica (importar o gosto + scrobbling). Mini leitor aprovado como na pré-visualização. No modo seguir, o amigo VÊ quem o segue (e pode desligar nas Definições). Nada em aberto.
+Tomadas a 24/9: offline -- a app NUNCA abre sozinha nos Downloads (mudou depois da 3.8.1, que os abria até com rede); colaborativas como recomendado; "Why this?" retirado; Release Radar sem aviso; "Ouvir com" passa a ser um modo SEGUIR, num só sentido e sem pedido (a secção 5 tem de ser reescrita). Playlists inteligentes retiradas; Last.fm fica (importar o gosto + scrobbling). Mini leitor aprovado como na pré-visualização. No modo seguir, o amigo VÊ quem o segue (e pode desligar nas Definições). Nada em aberto.
 
 ### O texto original das decisões
 

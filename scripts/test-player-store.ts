@@ -763,6 +763,19 @@ usePlayer.getState()._carregarPadrao({ 'youtube:a': { rate: 1.3, ganhos: null, v
 eq('sem padrão na conta, fica o que já cá estava', usePlayer.getState().padraoRate, 0.8);
 
 // ===========================================================================
+console.log('\ntocar numa música abre o leitor');
+// ===========================================================================
+preparar({ expanded: false });
+await usePlayer.getState().playTrack(faixa('c'), undefined, true);
+eq('uma lista que pede (shouldExpand) abre o leitor', usePlayer.getState().expanded, true);
+preparar({ expanded: false });
+await usePlayer.getState().next();
+eq('o seguinte não abre nada', usePlayer.getState().expanded, false);
+preparar({ expanded: false });
+await usePlayer.getState().playTrack(faixa('c'));
+eq('sem o pedido fica fechado', usePlayer.getState().expanded, false);
+
+// ===========================================================================
 console.log('\nsem rede, a fila só pára no que está no telemóvel');
 // ===========================================================================
 // No telemóvel estão a 'a' e a 'd' (docs/PLANO-OFFLINE-SOCIAL-DESCOBERTA-PC.md).

@@ -127,6 +127,21 @@ let emCurso: Promise<void> | null = null;
 let geracao = 0;
 let rawShelves:Partial<Record<'descobrir'|'nuncaLancado'|'amigos'|'ouvirDeNovo'|'flow'|'maisTocadas'|'esquecidas',Track[]>>={};
 let rawMixes:Mistura[]=[];
+
+/**
+ * Uma espera de rede com PRAZO: passado o tempo, segue com o `recurso`.
+ *
+ * As playlists da Pesquisa esperavam por quatro idas à rede seguidas
+ * (descoberta, YouTube, vizinhos, metadados) sem prazo nenhum, e uma que
+ * pendurasse deixava "Playlists", "Your styles" e "Radio" em esqueleto para
+ * sempre no iPhone (João, 24/9). O pedido que chegar tarde é ignorado.
+ */
+function comPrazo<T>(p: Promise<T>, ms: number, recurso: T): Promise<T> {
+  return new Promise((resolver) => {
+    const t = setTimeout(() => resolver(recurso), ms);
+    p.then((v) => { clearTimeout(t); resolver(v); }, () => { clearTimeout(t); resolver(recurso); });
+  });
+}
 let libraryKeys=new Set<string>();
 
 function arrumarPrateleiras(): Pick<Recomendacoes, NomeDaPrateleira | 'prontas'> {
@@ -270,7 +285,15 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
           set(arrumarPrateleiras());
           // Pelo ponto unico: numa conta nova entram as sementes do
           // primeiro dia, senao estas tres prateleiras nasciam vazias.
-          const artistas = await artistasParaRecomendacoes(CANDIDATOS);
+          const artistas = await comPrazo(artistasParaRecomendacoes(CANDIDATOS), 15_000, []);
+          const deslocamentoCedo = Math.floor(Date.now() / 86_400_000) + voltasDeRefresco;
+          // As playlists só da biblioteca, JÁ: a página não fica em esqueleto à
+          // espera da rede. Quando as descobertas chegarem, são substituídas.
+          if (atual === geracao && !useRecomendacoes.getState().misturasProntas) {
+            rawMixes = misturasDaBiblioteca(artistas, lib, artistPreferenceKey,
+              chaveDeArtista, baralhada, deslocamentoCedo, new Map());
+            set({ misturas: arrumarMisturas(), misturasProntas: true });
+          }
           // As descobertas são para os artistas que a página vai MOSTRAR, pela
           // mesma rotação do dia que o `misturasDaBiblioteca` usa. Eram âncoras
           // sorteadas à parte, e metade das misturas ia ao YouTube (auditoria
@@ -278,12 +301,12 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
           // tem vizinhos.
           const deslocamento = Math.floor(Date.now() / 86_400_000) + voltasDeRefresco;
           const pelaOrdemDoDia = artistas.map((_, n) => artistas[(deslocamento + n) % artistas.length].name);
-          const { vizinhas, ancoras } = await descobertasPorAncora(lib, pelaOrdemDoDia, MISTURAS)
-            .catch(() => ({ vizinhas: new Map<string, Track[]>(), ancoras: [] as string[] }));
+          const { vizinhas, ancoras } = await comPrazo(descobertasPorAncora(lib, pelaOrdemDoDia, MISTURAS),
+            30_000, { vizinhas: new Map<string, Track[]>(), ancoras: [] as string[] });
           // A rede, e só para quem precisa: o catálogo é a fonte, o YouTube é
           // o remendo das âncoras que ficaram curtas. Nunca corre para um nome
           // que não passou o crivo, nem para quem já tem vizinhos que cheguem.
-          await taparBuracosComOYouTube(ancoras, vizinhas, chaveDeArtista).catch(() => {});
+          await comPrazo(taparBuracosComOYouTube(ancoras, vizinhas, chaveDeArtista), 20_000, undefined);
           return [lib, artistas, vizinhas, deslocamento] as const;
         })
         .then(async ([lib, artistas, vizinhas, deslocamento]) => {
@@ -300,9 +323,9 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
            * com a cache quente isto não custa uma ida à rede. Falha por si: sem
            * vizinhanças não há grupos, e a secção simplesmente não aparece.
            */
-          const vizinhosPorChave = await vizinhosPorArtista(
+          const vizinhosPorChave = await comPrazo(vizinhosPorArtista(
             artistas.slice(0, CANDIDATOS_A_ESTILO).map((a) => a.name),
-          ).catch(() => new Map<string, string[]>());
+          ), 15_000, new Map<string, string[]>());
           if (atual !== geracao) return;
           const estilos = agruparPorEstilo(
             artistas.map((a) => ({ nome: a.name, escutas: a.plays })),
@@ -325,7 +348,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
            * pela quantidade, que é a resposta honesta -- "a década de que tens
            * mais música".
            */
-          await encherDoPartilhado(lib).catch(() => {});
+          await comPrazo(encherDoPartilhado(lib), 15_000, undefined);
           if (atual !== geracao) return;
           const escutasPorArtista = new Map(
             artistas.map((a) => [chaveDeArtista(a.name), a.plays]),

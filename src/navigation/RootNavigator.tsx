@@ -267,30 +267,6 @@ async function openNotification(target: NotificationTarget) {
   navigationRef.navigate('Tabs',{screen:'Social',params:{openChatWithFriendId:target.friendId,openGroupId:target.groupId}});
 }
 
-/**
- * Arrancar sem rede abre os Downloads (entrega 1 do
- * docs/PLANO-OFFLINE-SOCIAL-DESCOBERTA-PC.md): é o que se pode ouvir. Só no
- * ARRANQUE, uma vez -- perder a rede a meio do uso não muda de ecrã debaixo do
- * dedo (decisão do João a 24/9). O estado da rede pode chegar um instante
- * depois de a navegação estar pronta, por isso fica-se à escuta 3 s.
- */
-let jaVerificouArranqueSemRede = false;
-function abrirDownloadsSeArrancouSemRede(): void {
-  if (jaVerificouArranqueSemRede || Platform.OS !== 'ios') return;
-  jaVerificouArranqueSemRede = true;
-  const abrir = (): boolean => {
-    const a = useAuth.getState();
-    if (!(a.session || a.offlineUserId) || !useConnectivity.getState().offline) return false;
-    // Só por cima dos separadores: um link que abriu outra coisa manda.
-    if (!navigationRef.isReady() || (navigationRef.getRootState()?.routes.length ?? 0) > 1) return true;
-    navigationRef.navigate('Downloads');
-    return true;
-  };
-  if (abrir()) return;
-  const parar = useConnectivity.subscribe(() => { if (abrir()) parar(); });
-  setTimeout(parar, 3000);
-}
-
 export function RootNavigator() {
   const session = useAuth((s) => s.session);
   const offlineUserId=useAuth(s=>s.offlineUserId);
@@ -328,7 +304,10 @@ export function RootNavigator() {
       theme={navTheme}
       ref={navigationRef}
       linking={linking}
-      onReady={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); abrirDownloadsSeArrancouSemRede(); }}
+      // NUNCA abre sozinha nos Downloads (João, 24/9): a 3.8.1 fazia-o com e sem
+      // rede, porque o estado da rede chega depois da navegação. Os Downloads
+      // estão onde sempre estiveram, e sem rede as Songs já só mostram o que toca.
+      onReady={() => anotarEcra(navigationRef.getCurrentRoute()?.name)}
       onStateChange={() => anotarEcra(navigationRef.getCurrentRoute()?.name)}
     >
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
