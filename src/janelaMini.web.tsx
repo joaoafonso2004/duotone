@@ -10,8 +10,9 @@ import React, { useEffect, useState, type ComponentType } from 'react';
  * endereço traz `?janela=mini`, e ela só conhece o resumo que recebe e os
  * comandos que manda (electron/preloadMini.cjs → electron/miniLeitor.cjs).
  *
- * Arrasta-se pela CAPA e só por ela: no Windows uma zona de arrasto não recebe
- * eventos do rato, e com a janela toda a arrastar o hover deixava de existir.
+ * Arrasta-se pela BARRINHA do topo e só por ela (era pela capa; o João
+ * preferiu a barrinha a 24/9): no Windows uma zona de arrasto não recebe eventos
+ * do rato, e com a janela toda a arrastar o hover deixava de existir.
  *
  * É DOM à mão e não React Native: precisa do `-webkit-app-region` para se
  * arrastar pela capa, e o `hovered` do RNW cai ao entrar num botão filho (ver
@@ -32,7 +33,14 @@ button:hover { background: rgba(255,255,255,0.08); }
 button:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 1px; }
 .play { background: #F5F5F7; color: #0A0A0F; }
 .play:hover { background: #ffffff; }
-.capa { border-radius: 8px; background: #2a2a36 center / cover no-repeat; flex-shrink: 0; -webkit-app-region: drag; cursor: grab; }
+.capa { border-radius: 8px; background: #2a2a36 center / cover no-repeat; flex-shrink: 0; }
+/* Arrasta-se pela BARRINHA do topo (João, 24/9), e só por ela: no Windows uma
+   zona de arrasto não recebe eventos do rato. Os botões do canto ficam por cima
+   (são no-drag), e a pega fica ao centro da janela. */
+.arrasto { position: absolute; top: 0; left: 0; right: 0; height: 14px; -webkit-app-region: drag;
+  display: flex; align-items: center; justify-content: center; cursor: grab; z-index: 1; }
+.arrasto::after { content: ''; width: 32px; height: 4px; border-radius: 2px; background: rgba(245,245,247,0.16); }
+.mini:hover .arrasto::after { background: rgba(245,245,247,0.32); }
 .titulo { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .artista { font-size: 12.5px; color: rgba(245,245,247,0.6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .so-hover { display: none; }
@@ -45,7 +53,7 @@ button:focus-visible { outline: 2px solid #8B5CF6; outline-offset: 1px; }
 .barra > div > div { height: 4px; border-radius: 2px; background: #F5F5F7; }
 .tempo { font-size: 11px; color: rgba(245,245,247,0.55); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .controlos { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-.canto { position: absolute; top: 4px; right: 6px; gap: 2px; }
+.canto { position: absolute; top: 4px; right: 6px; gap: 2px; z-index: 2; }
 .canto button { width: 22px; height: 22px; border-radius: 11px; color: rgba(245,245,247,0.7); }
 .canto button:hover { color: #F5F5F7; }
 .moldura { position: relative; flex-shrink: 0; }
@@ -64,6 +72,7 @@ const icone = {
   coracao: (cheio: boolean) => <svg width="16" height="16" viewBox="0 0 24 24" fill={cheio ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" /></svg>,
   expandir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" /></svg>,
   encolher: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" /></svg>,
+  esconder: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M8 14h8" /></svg>,
   abrir: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18" /></svg>,
   fechar: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>,
 };
@@ -77,6 +86,8 @@ function MiniLeitor() {
   const ponte = window.duotoneMini;
   const [r, setR] = useState<Resumo | null>(null);
   const [expandido, setExpandido] = useState(false);
+  /** A janela principal está à vista? O botão ao lado do X mostra-a ou esconde-a. */
+  const [janelaVisivel, setJanelaVisivel] = useState(true);
   // A posição anda sozinha entre resumos (chegam a 2 Hz), para a barra não saltar.
   const [agora, setAgora] = useState(() => Date.now());
   const [recebidoEm, setRecebidoEm] = useState(() => Date.now());
@@ -85,7 +96,8 @@ function MiniLeitor() {
     if (!ponte) return;
     const sair = ponte.onEstado((novo) => { setR(novo); setRecebidoEm(Date.now()); });
     const sairTamanho = ponte.onTamanho(setExpandido);
-    return () => { sair(); sairTamanho(); };
+    const sairJanela = ponte.onJanela?.(setJanelaVisivel);
+    return () => { sair(); sairTamanho(); sairJanela?.(); };
   }, [ponte]);
   useEffect(() => {
     if (!r?.aTocar) return;
@@ -116,7 +128,8 @@ function MiniLeitor() {
   // Abrir o Duotone e fechar: pequenos, no canto, só com o rato por cima.
   const canto = (
     <div className="canto so-hover">
-      <button aria-label="Open Duotone" onClick={() => mandar('abrir-duotone')}>{icone.abrir}</button>
+      <button aria-label={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'} title={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'}
+        onClick={() => mandar('alternar-duotone')}>{janelaVisivel ? icone.esconder : icone.abrir}</button>
       <button aria-label="Close mini player" onClick={() => mandar('fechar')}>{icone.fechar}</button>
     </div>
   );
@@ -124,6 +137,7 @@ function MiniLeitor() {
   if (expandido) {
     return (
       <div className="mini" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+        <div className="arrasto" />
         {canto}
         <div className="capa" style={{ width: 224, height: 224, ...capa, boxShadow: '0 0 60px rgba(111,122,140,0.35)' }} />
         <div style={{ width: '100%', textAlign: 'center', minWidth: 0 }}>
@@ -155,7 +169,8 @@ function MiniLeitor() {
   // capa e acende o canto.
   return (
     <div className="mini" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12 }}>
-      {canto}
+      <div className="arrasto" />
+        {canto}
       <div className="moldura">
         <div className="capa" style={{ width: 64, height: 64, ...capa }} />
         <div className="so-hover">

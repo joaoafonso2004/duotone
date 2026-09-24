@@ -20,5 +20,11 @@ contextBridge.exposeInMainWorld('duotoneMini', Object.freeze({
     ipcRenderer.on('mini:tamanho', handler);
     return () => ipcRenderer.removeListener('mini:tamanho', handler);
   },
+  /** A janela principal está à vista? (o botão ao lado do X é um interruptor) */
+  onJanela: (listener) => {
+    const handler = (_event, visivel) => listener(Boolean(visivel));
+    ipcRenderer.on('mini:janela', handler);
+    return () => ipcRenderer.removeListener('mini:janela', handler);
+  },
   comando: (comando) => ipcRenderer.send('mini:comando', comando),
 }));

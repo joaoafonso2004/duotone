@@ -67,6 +67,7 @@ caso('encostado em cima à esquerda cresce para baixo e para a direita', () => {
 console.log('\nentre as janelas');
 caso('só passam comandos da lista, e o seek é um número com juízo', () => {
   assert.deepEqual(m.comandoValido({ tipo: 'seguinte', extra: 'x' }), { tipo: 'seguinte' });
+  assert.deepEqual(m.comandoValido({ tipo: 'alternar-duotone' }), { tipo: 'alternar-duotone' }, 'o botão ao lado do X mostra e esconde a app');
   assert.deepEqual(m.comandoValido({ tipo: 'procurar', ms: 61234.6 }), { tipo: 'procurar', ms: 61235 });
   assert.equal(m.comandoValido({ tipo: 'procurar', ms: -1 }), null);
   assert.equal(m.comandoValido({ tipo: 'eval' }), null);

@@ -721,8 +721,16 @@ ipcMain.on('mini:estado', (event, resumo) => {
   ultimoResumo = r;
   if (miniAberto()) miniJanela.webContents.send('mini:estado', r);
 });
+/** Diz ao mini se a janela principal está à vista, para o botão mostrar o que faz. */
+function avisarMiniDaJanela() {
+  if (!miniAberto()) return;
+  const visivel = !!mainWindow && mainWindow.isVisible() && !mainWindow.isMinimized();
+  miniJanela.webContents.send('mini:janela', visivel);
+}
+
 ipcMain.on('mini:pronto', (event) => {
   if (!daJanelaMini(event)) return;
+  avisarMiniDaJanela();
   if (ultimoResumo) miniJanela.webContents.send('mini:estado', ultimoResumo);
   miniJanela.webContents.send('mini:tamanho', miniExpandido);
   avisarPrincipalDoMini();
@@ -733,6 +741,13 @@ ipcMain.on('mini:comando', (event, comando) => {
   if (!c) return;
   if (c.tipo === 'fechar') { miniJanela.close(); return; }
   if (c.tipo === 'abrir-duotone') { mostrarJanelaPrincipal(); return; }
+  // O botão ao lado do X é um interruptor (João, 24/9): à vista, a janela vai
+  // para o tabuleiro (a música continua); escondida, volta.
+  if (c.tipo === 'alternar-duotone') {
+    if (mainWindow && mainWindow.isVisible() && !mainWindow.isMinimized()) mainWindow.hide();
+    else mostrarJanelaPrincipal();
+    return;
+  }
   if (c.tipo === 'expandir' || c.tipo === 'encolher') { redimensionarMini(c.tipo === 'expandir'); return; }
   if (mainWindow) mainWindow.webContents.send('mini:comando', c);
 });
@@ -812,6 +827,7 @@ function createWindow() {
   });
   win.webContents.once('did-finish-load', entregarJuncoesPendentes);
   win.on('maximize', () => sendWindowState(win));
+  for (const evento of ['show', 'hide', 'minimize', 'restore']) win.on(evento, () => avisarMiniDaJanela());
   win.on('unmaximize', () => sendWindowState(win));
   win.on('close', (event) => {
     if (!isQuitting && fecharMinimiza()) {

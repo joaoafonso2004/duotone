@@ -103,7 +103,7 @@ function lembrar(guardado, pos, area) {
 }
 
 /** Os comandos que a janela do mini pode mandar: uma lista fechada. */
-const COMANDOS = Object.freeze(['tocar-pausa', 'seguinte', 'anterior', 'guardar', 'procurar', 'expandir', 'encolher', 'fechar', 'abrir-duotone']);
+const COMANDOS = Object.freeze(['tocar-pausa', 'seguinte', 'anterior', 'guardar', 'procurar', 'expandir', 'encolher', 'fechar', 'abrir-duotone', 'alternar-duotone']);
 
 function comandoValido(c) {
   if (!c || typeof c !== 'object' || !COMANDOS.includes(c.tipo)) return null;

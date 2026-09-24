@@ -27,6 +27,7 @@ declare global {
     duotoneMini?: {
       onEstado: (listener: (resumo: ResumoDoMiniLeitor) => void) => () => void;
       onTamanho: (listener: (expandido: boolean) => void) => () => void;
+      onJanela?: (listener: (visivel: boolean) => void) => () => void;
       comando: (comando: { tipo: string; ms?: number }) => void;
     };
     duotoneDesktop?: {
