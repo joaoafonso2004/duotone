@@ -12,7 +12,7 @@ import {
 import { trackKey } from '../lib/shuffle';
 import { getLibrary } from './library';
 import { getFlowMix } from './plays';
-import { searchYouTube } from './youtube';
+import { pesquisarFaixas } from './search';
 import type { Track } from '../types';
 import { misturarPorFamiliaridade } from '../lib/contextoDaDescoberta';
 
@@ -77,10 +77,10 @@ export async function fetchRadioTracks(
   if (harvest().length >= limit) return harvest();
 
   // 3. Último recurso: pesquisa no YouTube pelo artista mais recente. Uma só
-  //    pesquisa, e o `searchYouTube` já guarda em cache 7 dias.
+  //    pesquisa, pela livre primeiro (a Data API só se ela falhar).
   if (artists[0]) {
     try {
-      pool.push(...(await searchYouTube(artists[0])));
+      pool.push(...(await pesquisarFaixas(artists[0])));
     } catch {
       // sem rede ou sem quota — o rádio simplesmente não arranca
     }

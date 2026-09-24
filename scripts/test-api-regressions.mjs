@@ -66,6 +66,12 @@ cancelada.abort();
 await pesquisa.pesquisarMusica('texto apagado', cancelada.signal);
 assert.equal(livres, 2, 'Um pedido já cancelado nem começa');
 assert.equal(pagas, 1, 'Um pedido cancelado não gasta quota');
+falhar = false;
+assert.deepEqual(await pesquisa.pesquisarFaixas('rádio'), [], 'A rádio e o PC pesquisam pela livre');
+assert.equal(pagas, 1, 'e sem gastar quota quando ela responde');
+falhar = true;
+assert.deepEqual(await pesquisa.pesquisarFaixas('rádio sem livre'), ['alternativa'], 'A Data API só quando a livre falha');
+falhar = false;
 
 let pedidos = 0, offline = true;
 const rede = ambiente(async () => { pedidos++; if (offline) throw Error('Sem rede'); return resposta({ data: [] }); });

@@ -35,6 +35,18 @@ export async function pesquisarMusica(query: string, signal?: AbortSignal): Prom
   return { faixas: await searchYouTube(query), continuacao: null };
 }
 
+/**
+ * Só as faixas, pelo mesmo caminho: livre primeiro, Data API se a livre falhar.
+ *
+ * A Data API é UMA chave para toda a gente que usa a app, com 10.000 unidades
+ * por dia e 100 por pesquisa -- cem pesquisas por dia, somadas entre todos.
+ * A rádio, a alternativa de uma faixa que falha no PC e a página de um artista
+ * iam direto a ela (24/9); esgotada a quota, paravam as três ao mesmo tempo.
+ */
+export async function pesquisarFaixas(query: string, signal?: AbortSignal): Promise<Track[]> {
+  return (await pesquisarMusica(query, signal)).faixas;
+}
+
 /** A página seguinte da pesquisa livre. A Data API não pagina. */
 export async function pesquisarMaisMusica(
   continuacao: string,

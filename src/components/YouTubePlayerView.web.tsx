@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { searchYouTube } from '../api/youtube';
+import { pesquisarFaixas } from '../api/search';
 import { pickBest } from '../lib/trackMatch';
 import { rememberPlaybackAlternative } from '../lib/playbackAlternatives';
 import {
@@ -88,7 +88,7 @@ async function recoverUnavailableVideo(track: Track, tipo: TipoFalha) {
     // O título original é a consulta mais restrita possível. A escolha não é
     // simplesmente o primeiro resultado: reutiliza a pontuação do importador,
     // que penaliza live, remix, slowed, karaoke, instrumental, etc.
-    const candidates = (await searchYouTube(run.original.title))
+    const candidates = (await pesquisarFaixas(run.original.title))
       .filter((candidate) => !run.failedIds.has(candidate.sourceId));
     const match = pickBest(
       candidates.map((candidate) => ({

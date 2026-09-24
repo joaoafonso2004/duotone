@@ -11,9 +11,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getLikedSongs } from '../../api/library';
 import {
-  fetchYouTubePlaylistById, searchYouTube, searchYouTubePlaylists,
+  fetchYouTubePlaylistById, searchYouTubePlaylists,
   type YtRecommendedPlaylist,
 } from '../../api/youtube';
+import { pesquisarFaixas } from '../../api/search';
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
@@ -381,7 +382,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     };
 
     Promise.all([
-      searchYouTube(`${name} music`),
+      pesquisarFaixas(`${name} music`),
       searchYouTubePlaylists(`${name} album`, 12),
     ]).then(([resultados, playlists]) => {
       if (cancelado) return;
