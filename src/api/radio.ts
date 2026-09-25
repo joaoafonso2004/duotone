@@ -4,6 +4,7 @@ import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import { pareceMusica } from '../lib/musica';
 import {
   filterRadioCandidates,
+  limitarMesmoArtista,
   onlyPlausibleMusic,
   RADIO_BATCH,
   seedArtists,
@@ -15,14 +16,21 @@ import { getFlowMix } from './plays';
 import { pesquisarFaixas } from './search';
 import type { Track } from '../types';
 import { misturarPorFamiliaridade } from '../lib/contextoDaDescoberta';
+import { candidatasParaDescoberta } from './descoberta';
+import { lerPerfilDeRecomendacoes } from './perfilDeRecomendacoes';
 
 /**
  * De onde sai a música do rádio, por ordem de preferência.
  *
- * A ordem é por CUSTO, não por qualidade: a pesquisa da YouTube Data API
- * gasta 100 unidades das 10.000 diárias, por isso só se lá vai quando as
- * fontes gratuitas não chegam. As duas primeiras também são melhores
- * recomendações — são música que o utilizador já escolheu.
+ * 1. A biblioteca, pelos mesmos artistas. 2. Os SEMELHANTES do catálogo (a
+ * descoberta do Smart Shuffle, estrita: parte só do que está a tocar). 3. Uma
+ * pesquisa pelo artista. 4. Só no fim, o Flow geral do perfil.
+ *
+ * **O Flow era a segunda fonte, e era ele que fazia a fila "nunca ser
+ * parecida"** (João, 25/9: "se clico em Morad deve ser desse género"). O Flow
+ * são as favoritas de sempre mais 30% ao acaso do catálogo -- o gosto geral, e
+ * não o da música em que se clicou. Quem tinha poucas do Morad recebia isso
+ * logo a seguir à primeira.
  */
 export async function fetchRadioTracks(
   seeds: Track[],
@@ -42,7 +50,10 @@ export async function fetchRadioTracks(
     // chegariam às candidatas novas que estão logo a seguir.
     // E antes disso, fora o que não é música (ver `onlyPlausibleMusic`).
     const musica=onlyPlausibleMusic(filterSuggestions(pool),(t)=>knownKeys.has(trackKey(t)),pareceMusica);
-    const candidatas=filterRadioCandidates(musica,exclude,trackKey,Math.max(limit*4,limit));
+    // O mesmo artista é tempero: no máximo um quarto do lote. O resto vem de
+    // artistas com um tom parecido (ver `limitarMesmoArtista`).
+    const variadas=limitarMesmoArtista(musica,artists,displayArtist,chaveDeArtista,limit);
+    const candidatas=filterRadioCandidates(variadas,exclude,trackKey,Math.max(limit*4,limit));
     const conhecidas=candidatas.filter((t)=>knownKeys.has(trackKey(t)));
     const novas=candidatas.filter((t)=>!knownKeys.has(trackKey(t)));
     return misturarPorFamiliaridade(conhecidas,novas,limit,'radio');
@@ -65,25 +76,42 @@ export async function fetchRadioTracks(
       // biblioteca indisponível — seguir para a fonte seguinte
     }
   }
-  if (harvest().length >= limit) return harvest();
+  // Não se pára aqui mesmo com a biblioteca cheia dele: sem os semelhantes o
+  // lote era só o mesmo artista.
 
-  // 2. Flow do Dia (histórico de reproduções no Supabase). Não gasta quota do
-  //    YouTube — é a mesma heurística que alimenta a Pesquisa.
+  // 2. Os semelhantes do catálogo: artistas parecidos com o que está a tocar,
+  //    e músicas do próprio que ele ainda não tem. Estrito: parte SÓ das
+  //    sementes (o perfil ordena, não escolhe), e cada artista é confirmado
+  //    pelas músicas dele (ver `vizinhancaConfirmada`).
   try {
-    pool.push(...shuffleCandidates(await getFlowMix(limit * 3)));
+    const perfil = await lerPerfilDeRecomendacoes().catch(() => null);
+    const jaLa = new Set([...exclude, ...pool].map(trackKey));
+    pool.push(...await candidatasParaDescoberta(
+      seeds.slice(0, 3), jaLa, new Set(), limit * 2, 3,
+      perfil?.escutas, undefined, perfil?.externos, 'estrito',
+    ));
   } catch {
-    // a RPC pode não existir na base de dados — degradar em silêncio
+    // sem catálogo: segue para a pesquisa
   }
   if (harvest().length >= limit) return harvest();
 
-  // 3. Último recurso: pesquisa no YouTube pelo artista mais recente. Uma só
-  //    pesquisa, pela livre primeiro (a Data API só se ela falhar).
+  // 3. Uma pesquisa pelo artista que está a tocar. Uma só, pela livre
+  //    primeiro (a Data API só se ela falhar).
   if (artists[0]) {
     try {
       pool.push(...(await pesquisarFaixas(artists[0])));
     } catch {
-      // sem rede ou sem quota — o rádio simplesmente não arranca
+      // sem rede ou sem quota — segue
     }
+  }
+  if (harvest().length >= limit) return harvest();
+
+  // 4. Último recurso: o Flow do perfil. É o gosto GERAL, e não o desta
+  //    música -- mas uma fila que continua é melhor do que o silêncio.
+  try {
+    pool.push(...shuffleCandidates(await getFlowMix(limit * 3)));
+  } catch {
+    // a RPC pode não existir na base de dados — degradar em silêncio
   }
 
   return harvest();

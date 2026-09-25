@@ -679,6 +679,22 @@ function abrirMiniLeitor() {
   win.on('blur', manterPorCima);
   const vigiaDoTopo = setInterval(manterPorCima, 2000);
   win.on('closed', () => clearInterval(vigiaDoTopo));
+  // O rato está em cima do mini? Quem o sabe de certeza é o processo principal:
+  // a página só recebe o `mouseleave` quando o Windows o manda, e numa janela
+  // que nunca tem o foco (o mini abre com `showInactive`) isso falhava -- a
+  // barra abria e não voltava a recolher (João, 25/9). Com o rato na barrinha
+  // de arrastar, a janela anda com ele, por isso arrastar não conta como sair.
+  let ratoDentro = null;
+  const vigiaDoRato = setInterval(() => {
+    if (win.isDestroyed() || !win.isVisible()) return;
+    const p = screen.getCursorScreenPoint();
+    const b = win.getBounds();
+    const dentro = p.x >= b.x && p.x < b.x + b.width && p.y >= b.y && p.y < b.y + b.height;
+    if (dentro === ratoDentro) return;
+    ratoDentro = dentro;
+    win.webContents.send('mini:rato', dentro);
+  }, 120);
+  win.on('closed', () => clearInterval(vigiaDoRato));
   win.once('ready-to-show', () => { if (!miniEscondidoPeloModoLimpo) { win.showInactive(); manterPorCima(); } });
   // Largado perto de uma borda, encosta; e fica lembrado neste monitor.
   win.on('moved', () => {

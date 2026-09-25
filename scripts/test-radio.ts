@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { pareceMusica } from '../src/lib/musica.ts';
 import {
   filterRadioCandidates,
+  limitarMesmoArtista,
   onlyPlausibleMusic,
   radioSeeds,
   seedArtists,
@@ -115,6 +116,22 @@ const ecrasDePesquisa: Record<string, RegExp> = {
 for (const [ficheiro, proibido] of Object.entries(ecrasDePesquisa)) {
   const fonte = readFileSync(new URL(`../src/${ficheiro}`, import.meta.url), 'utf8');
   check(`${ficheiro}: tocar um resultado nao poe os resultados na fila`, !proibido.test(fonte));
+}
+
+// O mesmo artista é tempero: clicar em Morad dá artistas com um tom parecido,
+// e não um lote só de Morad (João, 25/9).
+{
+  const chave = (n: string) => n.toLowerCase();
+  const lote = [
+    yt('m1', 'Morad - A'), yt('m2', 'Morad - B'), yt('m3', 'Morad - C'), yt('m4', 'Morad - D'),
+    yt('b1', 'Beny Jr - E'), yt('m5', 'Morad - F'), yt('j1', 'JUL - G'), yt('k1', 'Kidd Keo - H'),
+  ];
+  const ficou = limitarMesmoArtista(lote, ['Morad'], artistOf, chave, 8);
+  const deMorad = ficou.filter((t) => artistOf(t) === 'Morad').length;
+  check('num lote de 8, no máximo 2 do mesmo artista', deMorad === 2, String(deMorad));
+  check('os outros artistas ficam todos, pela mesma ordem',
+    ficou.filter((t) => artistOf(t) !== 'Morad').map((t) => t.sourceId).join() === 'b1,j1,k1');
+  check('a primeira do artista escolhido continua à frente', ficou[0].sourceId === 'm1');
 }
 
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);

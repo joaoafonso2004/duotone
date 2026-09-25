@@ -164,16 +164,20 @@ function MiniLeitor() {
         recolher(250);
       }
     };
-    // Sair da janela recolhe. Pela barrinha de arrastar do topo o rato também
-    // "sai" (é uma zona do sistema, sem eventos): aí espera mais, para quem vai
-    // pegar nela ter tempo.
+    // Sair da janela recolhe. Quem diz que o rato saiu é o processo principal
+    // (`onRato`): o `mouseleave` da página falhava numa janela sem foco, e a
+    // barra ficava aberta de vez. Arrastar pela barrinha não conta como sair
+    // (a janela anda com o rato). Sem essa ponte (uma versão antiga do
+    // processo principal) fica o `mouseleave`, com mais tempo para a barrinha.
+    const sairDaJanela = ponte?.onRato?.((dentro) => { if (!dentro) recolher(250); });
     const sair = () => recolher(ultimoY >= 0 && ultimoY < 18 ? 1500 : 250);
     document.addEventListener('mousemove', mover);
-    document.documentElement.addEventListener('mouseleave', sair);
+    if (!sairDaJanela) document.documentElement.addEventListener('mouseleave', sair);
     ignorar(true);
     return () => {
       document.removeEventListener('mousemove', mover);
-      document.documentElement.removeEventListener('mouseleave', sair);
+      sairDaJanela?.();
+      if (!sairDaJanela) document.documentElement.removeEventListener('mouseleave', sair);
       if (fecho.current) clearTimeout(fecho.current);
     };
   }, [expandido, ponte]);

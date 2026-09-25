@@ -30,6 +30,7 @@ declare global {
       onJanela?: (listener: (visivel: boolean) => void) => () => void;
       onAncora?: (listener: (ancora: 'cima' | 'baixo') => void) => () => void;
       ignorarRato?: (sim: boolean) => void;
+      onRato?: (listener: (dentro: boolean) => void) => () => void;
       comando: (comando: { tipo: string; ms?: number }) => void;
     };
     duotoneDesktop?: {

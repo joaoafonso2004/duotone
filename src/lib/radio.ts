@@ -116,6 +116,35 @@ export function shuffleCandidates(tracks: Track[], rng: () => number = Math.rand
  * `queue.length - queueIndex - 1`) — daí vir de fora, do `upcomingQueue()`.
  * Com repeat ligado a fila nunca acaba, e o rádio não tem que se meter.
  */
+/**
+ * Quantas faixas de um lote do rádio podem ser dos artistas que se estava a
+ * ouvir: um quarto. O resto é de artistas com um tom parecido (João, 25/9:
+ * "não tem de ser tudo Morad só porque cliquei em Morad"). Quem tinha muitas
+ * músicas dele na biblioteca recebia um lote só dele -- era a primeira fonte.
+ */
+export const PARTE_DO_MESMO_ARTISTA = 0.25;
+
+/**
+ * Tira de `faixas` as que passam da parte do mesmo artista, mantendo a ordem.
+ * `artistaDe` e `chave` entram por parâmetro: este ficheiro não importa nada.
+ */
+export function limitarMesmoArtista<T>(
+  faixas: readonly T[],
+  sementes: readonly string[],
+  artistaDe: (t: T) => string,
+  chave: (nome: string) => string,
+  limite: number,
+): T[] {
+  const deles = new Set(sementes.map(chave).filter(Boolean));
+  const maximo = Math.max(1, Math.ceil(limite * PARTE_DO_MESMO_ARTISTA));
+  let usados = 0;
+  return faixas.filter((t) => {
+    if (!deles.has(chave(artistaDe(t)))) return true;
+    usados++;
+    return usados <= maximo;
+  });
+}
+
 export function shouldExtendWithRadio(
   enabled: boolean,
   hasCurrent: boolean,

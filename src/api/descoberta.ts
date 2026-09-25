@@ -744,9 +744,16 @@ async function escolherAlvos(
     provasPorChave.set(k, doArtista);
   }
   const provasDe = (k: string) => [...(provasPorChave.get(k) ?? [])];
-  const retratoFiavel = new Map(
-    apenasDeConfianca([...retrato], ([k]) => k, confianca),
-  );
+  // No modo ESTRITO (Smart Shuffle e rádio) o retrato é só o que está a tocar
+  // -- música que a pessoa escolheu --, e dispensa o crivo dos nomes: esse
+  // existe para nomes lidos de títulos (o `999`), e aqui quem decide se o nome
+  // é mesmo aquele artista é a `vizinhancaConfirmada`, com as músicas dele como
+  // prova. Sem isto, um artista com uma música só na biblioteca (o Morad de
+  // quem acabou de o descobrir na pesquisa) nunca servia de âncora, e o rádio
+  // ia buscar o perfil geral (25/9).
+  const retratoFiavel = contextoDaSessao === 'estrito'
+    ? new Map(retrato)
+    : new Map(apenasDeConfianca([...retrato], ([k]) => k, confianca));
   const apoioFiavel = new Map(
     apenasDeConfianca([...apoioDoPerfil], ([k]) => k, confianca),
   );

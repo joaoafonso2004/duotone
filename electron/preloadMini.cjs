@@ -32,6 +32,12 @@ contextBridge.exposeInMainWorld('duotoneMini', Object.freeze({
     ipcRenderer.on('mini:ancora', handler);
     return () => ipcRenderer.removeListener('mini:ancora', handler);
   },
+  /** O rato está em cima da janela do mini? (o processo principal é que sabe) */
+  onRato: (listener) => {
+    const handler = (_event, dentro) => listener(Boolean(dentro));
+    ipcRenderer.on('mini:rato', handler);
+    return () => ipcRenderer.removeListener('mini:rato', handler);
+  },
   /** Deixar o rato passar pela parte transparente (a barra recolhida). */
   ignorarRato: (sim) => ipcRenderer.send('mini:ignorar-rato', sim === true),
   comando: (comando) => ipcRenderer.send('mini:comando', comando),

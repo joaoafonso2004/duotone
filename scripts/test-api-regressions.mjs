@@ -836,15 +836,17 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
     new Map([['horizonte global', 100]]), undefined,
     new Map([['horizonte global', 'Horizonte Global']]), 'estrito',
   );
-  assert.equal(estrito.length, 0, 'estrito e sem âncora no contexto: nenhuma candidata');
-  assert.deepEqual(ancorasConsultadas, [], 'e o perfil geral nem chega a ser consultado');
+  void estrito;
+  assert.deepEqual(ancorasConsultadas, ['Canal Qualquer'],
+    'estrito: o que está a tocar é a âncora (o catálogo confirma quem é), e o perfil geral nunca');
+  ancorasConsultadas.length = 0;
   await comBiblioteca.candidatasParaDescoberta(
     semConfianca, new Set(), new Set(), 10, 4,
     new Map([['horizonte global', 100]]), undefined,
     new Map([['horizonte global', 'Horizonte Global']]), true,
   );
   assert.deepEqual(ancorasConsultadas, ['Horizonte Global'], 'o Jam continua a poder partir do perfil');
-  console.log('Smart Shuffle estrito: sem âncora no que está a tocar, não sugere nada.');
+  console.log('Smart Shuffle estrito: a âncora é sempre o que está a tocar, nunca o perfil geral.');
 }
 
 // As quotas de duas âncoras podem estar certas e, ainda assim, a primeira
