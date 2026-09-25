@@ -28,6 +28,8 @@ declare global {
       onEstado: (listener: (resumo: ResumoDoMiniLeitor) => void) => () => void;
       onTamanho: (listener: (expandido: boolean) => void) => () => void;
       onJanela?: (listener: (visivel: boolean) => void) => () => void;
+      onAncora?: (listener: (ancora: 'cima' | 'baixo') => void) => () => void;
+      ignorarRato?: (sim: boolean) => void;
       comando: (comando: { tipo: string; ms?: number }) => void;
     };
     duotoneDesktop?: {

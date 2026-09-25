@@ -15,7 +15,7 @@ import type { Track } from '../types';
  * tirava à Heavy Rotation as músicas que as duas têm em comum -- que são quase
  * todas. Aqui vive à parte, e ninguém tira nada a ninguém.
  *
- * Carrega no arranque (`useAquecerSeccoes`, só no iPhone) e, com a lista na
+ * Carrega no arranque (`useAquecerSeccoes`, nas duas plataformas) e, com a lista na
  * mão, deixa as primeiras descarregadas em segundo plano.
  */
 

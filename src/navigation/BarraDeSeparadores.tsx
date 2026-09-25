@@ -9,7 +9,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { ESTADO, SEPARADOR_ACTIVO } from '../lib/movimento';
 import { useNotifications } from '../state/notifications';
 import { useTheme } from '../state/theme';
-import { colors, type } from '../theme';
+import { colors, type, ESCALA_MAXIMA } from '../theme';
 import { hapticSelection } from '../lib/haptics';
 
 const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -142,7 +142,7 @@ export function BarraDeSeparadores({ state, navigation }: MaterialTopTabBarProps
                 />
                 {route.name === 'Profile' && hasNotification && <View style={styles.ponto} />}
               </SeparadorActivo>
-              <Text numberOfLines={1} style={[styles.nome, { color: cor }]}>{route.name}</Text>
+              <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.fixa} style={[styles.nome, { color: cor }]}>{route.name}</Text>
             </Pressable>
           );
         })}

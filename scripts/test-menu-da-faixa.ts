@@ -140,9 +140,9 @@ caso('sem artista conhecido o "View artist" diz porquê', () => {
 });
 
 console.log('\no guardar diz o que vai fazer');
-caso('guardada diz "Remove from library", por guardar diz "Save to library"', () => {
-  assert.equal(achar('guardar', { guardada: true }).rotulo, 'Remove from library');
-  assert.equal(achar('guardar', { guardada: false }).rotulo, 'Save to library');
+caso('guardada diz "Remove from Liked Songs", por guardar diz "Add to Liked Songs"', () => {
+  assert.equal(achar('guardar', { guardada: true }).rotulo, 'Remove from Liked Songs');
+  assert.equal(achar('guardar', { guardada: false }).rotulo, 'Add to Liked Songs');
 });
 caso('enquanto não se sabe, não se adivinha', () => {
   const a = achar('guardar', { guardada: null });

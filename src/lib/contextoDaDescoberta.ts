@@ -149,6 +149,28 @@ export function contextoDaPrateleira(
   }
 }
 
+/**
+ * O motivo de uma prateleira, dito UMA vez, ao lado do título.
+ *
+ * O motivo é o mesmo em todas as faixas da prateleira. Escrito por baixo de
+ * cada cartão era a mesma frase dezasseis vezes, cortada a meio ("A
+ * new-to-you find from one..."); o PC já o tinha tirado dos cartões, e o
+ * iPhone ficou com ele até 25/9. As duas plataformas leem daqui.
+ */
+export function notaDaPrateleira(nome: RecommendationShelf): string {
+  switch (nome) {
+    // Curtas: no iPhone a nota cabe numa linha por baixo do título, e no PC vai
+    // ao lado dele.
+    case 'descobrir': return 'new to you, from what you listen to · a new set every day';
+    case 'nuncaLancado': return 'unreleased songs from your artists';
+    case 'amigos': return 'popular with your Duotone friends';
+    case 'ouvirDeNovo': return 'played recently';
+    case 'flow': return 'based on your listening';
+    case 'maisTocadas': return 'your most played';
+    case 'esquecidas': return 'not played in a while';
+  }
+}
+
 function nomeSemSufixo(nome: string): string {
   return nome.replace(/\s+(?:mix|radio)$/i, '').trim();
 }

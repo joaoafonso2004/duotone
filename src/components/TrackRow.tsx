@@ -10,7 +10,7 @@ import { guardarOrigem } from '../state/origemDaCapa';
 import { hapticImpact, hapticSelection } from '../lib/haptics';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { useDescarregadaDeProposito } from '../lib/descarregarFaixa';
-import { colors, radii, spacing, type } from '../theme';
+import { colors, radii, spacing, type, ESCALA_MAXIMA } from '../theme';
 import { useSaved } from '../state/saved';
 import { useTheme } from '../state/theme';
 import type { Track } from '../types';
@@ -160,6 +160,7 @@ function TrackRowComponent({
       <View style={styles.meta}>
         <Text
           numberOfLines={1}
+          maxFontSizeMultiplier={ESCALA_MAXIMA.lista}
           style={[type.body, { fontWeight: '600' }, active && { color: theme.color }]}
         >
           {tituloDaFaixa(track)}
@@ -174,7 +175,7 @@ function TrackRowComponent({
             <Ionicons name="heart" size={11} color={theme.color} />
           ) : null}
           {track.artist ? (
-            <Text numberOfLines={1} style={[type.caption, { flexShrink: 1 }]}>
+            <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={[type.caption, { flexShrink: 1 }]}>
               {displayArtist(track)}
             </Text>
           ) : null}
@@ -184,7 +185,7 @@ function TrackRowComponent({
       </View>
 
       {mostrarDuracao && isShowTrackDurationSync() ? (
-        <Text style={styles.duration}>{formatDuration(track.durationSeconds)}</Text>
+        <Text maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.duration}>{formatDuration(track.durationSeconds)}</Text>
       ) : null}
 
       {!selectMode && onAction ? (

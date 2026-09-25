@@ -363,6 +363,31 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
             <Text style={styles.irParaSessao}>Manage</Text>
           </Pressable>
         )}
+        {/* Tirar tudo o que vem a seguir. Num Jam a fila é de todos, e não se
+            limpa daqui. Pede confirmação: não há volta atrás. */}
+        {!emSessao && upNext.length > 0 && (
+          <Pressable
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Clear the queue"
+            onPress={() => Alert.alert(
+              'Clear the queue',
+              `Remove the ${upNext.length} ${upNext.length === 1 ? 'song' : 'songs'} coming up next? The current song keeps playing.`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Clear',
+                  style: 'destructive',
+                  onPress: () => {
+                    if (usePlayer.getState().limparProximas() > 0) hapticNotification();
+                  },
+                },
+              ],
+            )}
+          >
+            <Text style={styles.irParaSessao}>Clear</Text>
+          </Pressable>
+        )}
       </View>
 
       {upNext.length > 0 ? (

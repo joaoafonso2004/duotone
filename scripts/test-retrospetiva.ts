@@ -1,7 +1,7 @@
 // Retrospetiva do ano, a partir do histórico que já existe.
 import assert from 'node:assert/strict';
 import {
-  anosComReproducoes, calcularRetrospetiva, descreverHora,
+  anosComReproducoes, calcularRetrospetiva, descreverHora, fraseDoAno,
 } from '../src/lib/retrospetiva.ts';
 import type { PlayRow } from '../src/lib/listeningStats.ts';
 
@@ -48,7 +48,7 @@ verificar('só conta as reproduções do ano pedido', () => {
 
 verificar('o mês maior é o que tem mais reproduções', () => {
   const r = calcularRetrospetiva(historico, 2026);
-  assert.equal(r.mesMaior?.nome, 'fevereiro');
+  assert.equal(r.mesMaior?.nome, 'February');
   assert.equal(r.mesMaior?.reproducoes, 4);
 });
 
@@ -95,9 +95,13 @@ verificar('datas inválidas não rebentam nem contam', () => {
 });
 
 verificar('a hora é escrita como se diz', () => {
-  assert.equal(descreverHora(0), 'à meia-noite');
-  assert.equal(descreverHora(12), 'ao meio-dia');
-  assert.equal(descreverHora(23), 'às 23h');
+  assert.equal(descreverHora(0), 'at midnight');
+  assert.equal(descreverHora(12), 'at noon');
+  assert.equal(descreverHora(23), 'at 11 pm');
+  assert.equal(descreverHora(9), 'at 9 am');
+  assert.equal(fraseDoAno('February', 23), 'February was your month, and you mostly listen at 11 pm.');
+  assert.equal(fraseDoAno('February', null), 'February was your month.');
+  assert.equal(fraseDoAno(null, 0), 'You mostly listen at midnight.');
 });
 
 if (falhas > 0) { console.error(`\n${falhas} teste(s) falharam`); process.exit(1); }

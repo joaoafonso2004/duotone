@@ -23,12 +23,14 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MaterialTopTabNavigationProp } from '@react-navigation/material-top-tabs';
 import type { RootStackParamList, TabsParamList } from '../navigation/RootNavigator';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { useSaved } from '../state/saved';
 import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { AmigosAOuvir } from '../components/AmigosAOuvir';
 import { EscolhasDoDia } from '../components/EscolhasDoDia';
+import { CartaoDaMisturaDoDia } from '../components/CartaoDaMisturaDoDia';
 import { EscolherArtistas } from '../components/EscolherArtistas';
 import { PillButton } from '../components/PillButton';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
@@ -43,10 +45,10 @@ import { TrackRow } from '../components/TrackRow';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
 import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptics';
 import { usePlayer } from '../state/player';
-import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
+import { colors, ESCALA_MAXIMA, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 import {
-  contextoDaPrateleira, contextoParaAnalytics, type DiscoveryContext,
+  contextoDaPrateleira, contextoParaAnalytics, notaDaPrateleira, type DiscoveryContext,
 } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
 
@@ -280,7 +282,7 @@ export function SearchScreen() {
                   t.artworkUrl ? (
                     <Image
                       key={i}
-                      source={{ uri: t.artworkUrl }}
+                      source={{ uri: capaParaLista(t.artworkUrl)! }}
                       style={{ width: '50%', height: '50%' }}
                       contentFit="cover"
                       transition={200}
@@ -290,8 +292,8 @@ export function SearchScreen() {
                   )
                 ))}
               </View>
-              <Text numberOfLines={1} style={styles.cardTitle}>{m.nome}</Text>
-              <Text numberOfLines={1} style={styles.cardArtist}>{m.faixas.length} songs</Text>
+              <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardTitle}>{m.nome}</Text>
+              <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardArtist}>{m.faixas.length} songs</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -315,8 +317,13 @@ export function SearchScreen() {
     const abrirAcoes=(track:Track)=>{setActionTrack(track);setActionContext(contextoDe(track));};
     return (
       <View style={styles.recsSection}>
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { flex: 1 }]}>{title}</Text>
+        <View style={[styles.sectionHeader, { alignItems: 'flex-start' }]}>
+          {/* O motivo vai aqui, uma vez, e não por baixo de cada cartão: era a
+              mesma frase em todos, cortada a meio. Ver `notaDaPrateleira`. */}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            <Text numberOfLines={1} style={styles.sectionNota}>{notaDaPrateleira(nome)}</Text>
+          </View>
           {chegou && data.length > (emLista ? LINHAS_NA_LISTA : 0) && (
             <Pressable
               hitSlop={10}
@@ -324,7 +331,9 @@ export function SearchScreen() {
                 titulo: title, fonte: { tipo: 'prateleira', nome },
               })}
             >
-              <Text style={styles.verTudo}>See all</Text>
+              {/* Na linha do título, e não ao meio das duas linhas do
+                  cabeçalho. */}
+              <Text style={[styles.verTudo, { paddingTop: 3 }]}>See all</Text>
             </Pressable>
           )}
         </View>
@@ -375,16 +384,15 @@ export function SearchScreen() {
                 style={({ pressed }) => [styles.cartaoLargo, pressed && { opacity: 0.8 }]}
               >
                 {track.artworkUrl ? (
-                  <Image source={{ uri: track.artworkUrl }} style={styles.capaLarga} contentFit="cover" transition={200} />
+                  <Image source={{ uri: capaParaLista(track.artworkUrl)! }} style={styles.capaLarga} contentFit="cover" transition={200} />
                 ) : (
                   <View style={[styles.capaLarga, styles.artFallback]}>
                     <Ionicons name="musical-note" size={20} color={colors.textTertiary} />
                   </View>
                 )}
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text numberOfLines={1} style={styles.cardTitle}>{track.title}</Text>
-                  <Text numberOfLines={1} style={styles.cardArtist}>{displayArtist(track)}</Text>
-                  <Text numberOfLines={1} style={styles.discoveryReason}>{contextoDe(track).reason}</Text>
+                  <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardTitle}>{tituloDaFaixa(track)}</Text>
+                  <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardArtist}>{displayArtist(track)}</Text>
                 </View>
               </Pressable>
             ))}
@@ -409,7 +417,9 @@ export function SearchScreen() {
               <View>
                 {track.artworkUrl ? (
                   <Image
-                    source={{ uri: track.artworkUrl }}
+                    // A mqdefault: a hqdefault traz o vídeo 16:9 com duas faixas
+                    // pretas, que num quadrado se viam por baixo da capa.
+                    source={{ uri: capaParaLista(track.artworkUrl)! }}
                     style={[styles.cardArt, { width: largura, height: largura }]}
                     contentFit="cover"
                     transition={200}
@@ -425,13 +435,12 @@ export function SearchScreen() {
                   </View>
                 ) : null}
               </View>
-              <Text numberOfLines={1} style={styles.cardTitle}>
-                {track.title}
+              <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardTitle}>
+                {tituloDaFaixa(track)}
               </Text>
-              <Text numberOfLines={1} style={styles.cardArtist}>
+              <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.cardArtist}>
                 {displayArtist(track)}
               </Text>
-              <Text numberOfLines={1} style={styles.discoveryReason}>{contextoDe(track).reason}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -575,7 +584,7 @@ export function SearchScreen() {
                   <View style={[styles.atalhoCapa, styles.atalhoCoracao]}>
                     <Ionicons name="heart" size={20} color={colors.text} />
                   </View>
-                  <Text numberOfLines={2} style={styles.atalhoNome}>Liked songs</Text>
+                  <Text numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.atalhoNome}>Liked Songs</Text>
                 </Pressable>
                 {atalhos.map((m) => (
                   <Pressable
@@ -590,7 +599,7 @@ export function SearchScreen() {
                         t.artworkUrl ? (
                           <Image
                             key={i}
-                            source={{ uri: t.artworkUrl }}
+                            source={{ uri: capaParaLista(t.artworkUrl)! }}
                             style={{ width: '50%', height: '50%' }}
                             contentFit="cover"
                             transition={200}
@@ -600,11 +609,19 @@ export function SearchScreen() {
                         )
                       ))}
                     </View>
-                    <Text numberOfLines={2} style={styles.atalhoNome}>{m.nome}</Text>
+                    <Text numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.atalhoNome}>{m.nome}</Text>
                   </Pressable>
                 ))}
               </View>
             )}
+            {/* A Daily mix, logo a seguir aos atalhos: é a lista que se toca
+                sem escolher nada, e morava escondida no fundo do separador das
+                Playlists. Some quando não há mix para mostrar. */}
+            <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.md }}>
+              <CartaoDaMisturaDoDia
+                aoAbrir={() => navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' } })}
+              />
+            </View>
             {/* Sem porteiro global: cada prateleira mostra o SEU esqueleto e
                 entra quando chega. O que estava aqui escondia as tres rapidas
                 -- consultas diretas a base de dados -- atras da descoberta,
@@ -928,7 +945,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
   },
-  discoveryReason: { fontSize: 10, color: colors.textTertiary, marginTop: 2 },
+  sectionNota: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
   selo: {
     position: 'absolute',
     top: 6,

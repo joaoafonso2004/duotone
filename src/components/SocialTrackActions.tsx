@@ -14,9 +14,10 @@ import { ShareFriendSheet } from './ShareFriendSheet';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { SocialModal, socialStyles as s } from './socialUI';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { spacing } from '../theme';
 import { colors, radii, type } from './socialTokens';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 
 /**
  * O que se pode fazer a uma música vista no perfil de outra pessoa.
@@ -150,12 +151,12 @@ export function SocialTrackActions({ track, onClose, onArtist }: {
             borderBottomColor: colors.border,
           }]}>
             {track.artworkUrl
-              ? <Image source={{ uri: track.artworkUrl }} style={{ width: 48, height: 48, borderRadius: radii.sm }} />
+              ? <Image source={{ uri: capaParaLista(track.artworkUrl)! }} style={{ width: 48, height: 48, borderRadius: radii.sm }} />
               : <View style={{ width: 48, height: 48, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh, alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="musical-notes" size={20} color={colors.textTertiary} />
                 </View>}
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={[type.body, { fontWeight: '700' }]}>{track.title}</Text>
+              <Text numberOfLines={1} style={[type.body, { fontWeight: '700' }]}>{tituloDaFaixa(track)}</Text>
               <Text numberOfLines={1} style={type.caption}>{displayArtist(track)}</Text>
             </View>
           </View>

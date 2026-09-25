@@ -21,6 +21,14 @@ function ambiente(fetch, substituicoes = {}) {
     },
     ...substituicoes,
   };
+  // Os duplos do catálogo só escrevem a `vizinhancaDe`. A descoberta chama a
+  // `vizinhancaConfirmada` (confirma o artista pelas músicas dele); num duplo
+  // o artista devolvido já é "o certo", por isso ela é a mesma coisa.
+  const duploDoCatalogo = stubs['src/api/catalogo.ts'];
+  if (duploDoCatalogo?.vizinhancaDe) {
+    duploDoCatalogo.vizinhancaConfirmada ??= (nome) => duploDoCatalogo.vizinhancaDe(nome);
+    duploDoCatalogo.vizinhancaJaDecidida ??= () => undefined;
+  }
   function carregar(relativo) {
     const nome = relativo.replaceAll('\\', '/');
     if (stubs[nome]) return stubs[nome];
@@ -83,6 +91,65 @@ await Promise.all([catalogo.vizinhancaDe('Artista ausente'), catalogo.vizinhanca
 assert.equal(pedidos, 2, 'Consultas simultâneas partilham o mesmo pedido');
 await catalogo.vizinhancaDe('Artista ausente');
 assert.equal(pedidos, 2, 'O resultado negativo vem da cache');
+
+// QUEM é o artista: entre homónimos, só serve o que tem no catálogo uma das
+// músicas da biblioteca (`vizinhancaConfirmada`). Os números são os do Deezer a
+// 25/9: a banda Cold tem 27 747 fãs, o rapper 16; o Juice WRLD 2,5 milhões e o
+// homónimo 22.
+{
+  const pedidosAoDeezer = [];
+  const deezer = ambiente(async (endereco) => {
+    const url = new URL(endereco);
+    pedidosAoDeezer.push(url.pathname + url.search);
+    const q = url.searchParams.get('q') ?? '';
+    if (url.pathname === '/search/artist') {
+      const porNome = {
+        Cold: [{ id: 10, name: 'Cold', nb_fan: 27747 }, { id: 11, name: 'Cold', nb_fan: 16 }],
+        Ryan: [{ id: 20, name: 'Ryan', nb_fan: 3026 }, { id: 21, name: 'Ryan', nb_fan: 4 }],
+        'Juice WRLD': [{ id: 30, name: 'Juice WRLD', nb_fan: 2505035 }, { id: 31, name: 'Juice WRLD', nb_fan: 22 }],
+      };
+      return resposta({ data: porNome[q] ?? [] });
+    }
+    if (url.pathname === '/search') {
+      // O rapper Cold tem "Frozen Heart"; ninguém chamado Ryan tem "DESACATO";
+      // os leaks do Juice WRLD não estão no catálogo.
+      if (q === 'Cold Frozen Heart') return resposta({ data: [{ title: 'Frozen Heart', artist: { id: 11, name: 'Cold' } }] });
+      if (q === 'Ryan DESACATO') return resposta({ data: [{ title: 'DESACATO', artist: { id: 99, name: 'Luuky' } }] });
+      return resposta({ data: [] });
+    }
+    const rel = url.pathname.match(/^\/artist\/(\d+)\/related$/);
+    if (rel) return resposta({ data: [{ id: 1000 + Number(rel[1]), name: `Vizinho de ${rel[1]}` }] });
+    throw Error(`Pedido inesperado: ${endereco}`);
+  });
+  const cat = deezer.carregar('src/api/catalogo.ts');
+
+  const cold = await cat.vizinhancaConfirmada('Cold', ['Cold Hearted', 'Frozen Heart']);
+  assert.equal(cold?.artista.id, 11, 'o Cold certo é o que tem a música, não o de mais fãs');
+  assert.equal(cold?.semelhantes[0].nome, 'Vizinho de 11');
+  assert.equal(cat.vizinhancaJaDecidida('Cold')?.artista.id, 11, 'e a decisão fica para as misturas');
+
+  assert.equal(await cat.vizinhancaConfirmada('Ryan', ['DESACATO']), null,
+    'um canal cujo homónimo não tem a música não é âncora de nada');
+  assert.equal(cat.vizinhancaJaDecidida('Ryan'), null);
+  const antes = pedidosAoDeezer.length;
+  assert.equal(await cat.vizinhancaConfirmada('Ryan', ['DESACATO']), null);
+  assert.equal(pedidosAoDeezer.length, antes, 'a negativa vem da cache');
+
+  const juice = await cat.vizinhancaConfirmada('Juice WRLD', ['Porridge', 'Cuffed']);
+  assert.equal(juice?.artista.id, 30, 'sem prova, um nome inequívoco (2,5 milhões contra 22) passa');
+
+  assert.equal(cat.vizinhancaJaDecidida('Nunca Pedido'), undefined);
+  assert.equal((await cat.vizinhancaConfirmada('Cold', []))?.artista.id, 10,
+    'sem provas (Spotify, sementes) é a resolução de sempre');
+
+  const puro = deezer.carregar('src/lib/catalogo.ts');
+  assert.equal(puro.tituloProva('NOSTYLIST', 'nostylist'), true);
+  assert.equal(puro.tituloProva('Frozen Heart (Remastered)', 'Frozen Heart'), true);
+  assert.equal(puro.tituloProva('Skyfall', 'Sky'), true, 'três letras já contam como contidas');
+  assert.equal(puro.tituloProva('Up', 'Upside'), false, 'menos de três só conta igual');
+  assert.equal(puro.candidatoInequivoco([{ id: 1, nome: 'Cold', fas: 27747 }, { id: 2, nome: 'Cold', fas: 16 }]), null);
+  console.log('Quem é o artista: o homónimo só serve com a música dele no catálogo; um nome enorme e inequívoco passa sem prova.');
+}
 
 let idasAoCatalogo = 0;
 const completo = ambiente(async (endereco) => {
@@ -746,6 +813,38 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   assert.equal(topsConsultados[0], 2,
     'o perfil global continua a ordenar os semelhantes da âncora atual');
   console.log('Contexto da sessão: escolhe as âncoras; perfil global e playlists ficam como apoio à ordenação.');
+
+  // O Smart Shuffle é ESTRITO: se o artista do que está a tocar não serve de
+  // âncora, não há candidatas. Com `true` (o Jam) cai no perfil geral -- que
+  // era de onde vinham as sugestões sem nada a ver com a música (25/9).
+  // A biblioteca confirma OUTRO artista (um canal Topic), e o canal do que está
+  // a tocar só aparece uma vez: não passa o crivo dos nomes.
+  const comBiblioteca = ambiente(() => { throw Error('Este teste não usa rede'); }, {
+    ...Object.fromEntries(['src/state/connectivity.ts', 'src/state/recommendationFeedback.ts',
+      'src/api/library.ts', 'src/api/plays.ts', 'src/api/perfilDeRecomendacoes.ts',
+      'src/api/catalogo.ts', 'src/api/ytSearchFree.ts', 'src/api/youtube.ts']
+      .map((m) => [m, mundo.carregar(m)])),
+    'src/api/afinidade.ts': { paresDeArtistaEPlaylist: async () => ({
+      pares: [], faixas: [{ source: 'youtube', title: 'Outra', artist: 'Outra Banda - Topic' }],
+    }) },
+  }).carregar('src/api/descoberta.ts');
+  const semConfianca = [{ source: 'youtube', sourceId: 'canal', title: 'Canção Qualquer',
+    artist: 'Canal Qualquer', durationSeconds: 180, album: null, artworkUrl: null }];
+  ancorasConsultadas.length = 0;
+  const estrito = await comBiblioteca.candidatasParaDescoberta(
+    semConfianca, new Set(), new Set(), 10, 4,
+    new Map([['horizonte global', 100]]), undefined,
+    new Map([['horizonte global', 'Horizonte Global']]), 'estrito',
+  );
+  assert.equal(estrito.length, 0, 'estrito e sem âncora no contexto: nenhuma candidata');
+  assert.deepEqual(ancorasConsultadas, [], 'e o perfil geral nem chega a ser consultado');
+  await comBiblioteca.candidatasParaDescoberta(
+    semConfianca, new Set(), new Set(), 10, 4,
+    new Map([['horizonte global', 100]]), undefined,
+    new Map([['horizonte global', 'Horizonte Global']]), true,
+  );
+  assert.deepEqual(ancorasConsultadas, ['Horizonte Global'], 'o Jam continua a poder partir do perfil');
+  console.log('Smart Shuffle estrito: sem âncora no que está a tocar, não sugere nada.');
 }
 
 // As quotas de duas âncoras podem estar certas e, ainda assim, a primeira

@@ -93,6 +93,17 @@ function mudarDeTamanho(pos, de, para, area) {
   return prender({ x, y }, para, area);
 }
 
+/**
+ * Para que lado da janela a BARRA recolhida se encosta (25/9: o mini é uma
+ * barra fina que abre com o rato por cima). A janela não muda de tamanho --
+ * isso aos solavancos no Windows --, muda o cartão lá dentro, e tem de crescer
+ * para longe da borda do ecrã: encostado em baixo abre para cima.
+ */
+function ancoraDoMini(pos, tamanho, area) {
+  if (!area) return 'baixo';
+  return pos.y + tamanho.height / 2 > area.y + area.height / 2 ? 'baixo' : 'cima';
+}
+
 /** O que se grava depois de mexer: a posição, por monitor. */
 function lembrar(guardado, pos, area) {
   const base = guardado && typeof guardado === 'object' ? guardado : {};
@@ -133,5 +144,5 @@ function resumoValido(r) {
 
 module.exports = {
   TAMANHOS, MARGEM, chaveDoMonitor, posicaoInicial, areaDe, prender, encostar, ondeAbrir, mudarDeTamanho,
-  lembrar, COMANDOS, comandoValido, resumoValido,
+  ancoraDoMini, lembrar, COMANDOS, comandoValido, resumoValido,
 };

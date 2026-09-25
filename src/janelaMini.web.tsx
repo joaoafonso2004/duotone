@@ -1,4 +1,4 @@
-import React, { useEffect, useState, type ComponentType } from 'react';
+import React, { useEffect, useRef, useState, type ComponentType } from 'react';
 
 /**
  * A janela do mini leitor do PC (entrega 2b do
@@ -20,6 +20,35 @@ import React, { useEffect, useState, type ComponentType } from 'react';
  */
 
 const CSS = `
+/* A barra (25/9): recolhida é uma barra fina; com o rato por cima abre para o
+   cartão, e ao sair volta a recolher. A JANELA não muda de tamanho (isso no
+   Windows é aos solavancos): anima o cartão lá dentro, encostado ao lado de
+   onde o ecrã acaba (a \`ancora\` que o processo principal manda). */
+.palco { position: relative; width: 100%; height: 100%; }
+/* .mini.cartao: a regra .mini (altura 100%) vem depois e ganhava. */
+.mini.cartao { position: absolute; left: 0; right: 0; height: 44px; display: flex; align-items: center; gap: 10px;
+  padding: 6px 8px 6px 6px;
+  transition: height 260ms cubic-bezier(.22,1,.36,1), padding 260ms cubic-bezier(.22,1,.36,1), gap 260ms cubic-bezier(.22,1,.36,1),
+    background-color .2s, border-color .2s; }
+.cartao.baixo { bottom: 0; } .cartao.cima { top: 0; }
+.mini.cartao.aberto { height: 88px; padding: 12px; gap: 12px; background: #1b1b25; border-color: rgba(255,255,255,0.14); }
+.cartao .capa { width: 32px; height: 32px; border-radius: 6px;
+  transition: width 260ms cubic-bezier(.22,1,.36,1), height 260ms cubic-bezier(.22,1,.36,1), border-radius 260ms; }
+.cartao.aberto .capa { width: 64px; height: 64px; border-radius: 8px; }
+.cartao .detalhe { max-height: 0; opacity: 0; overflow: hidden; transition: max-height 260ms cubic-bezier(.22,1,.36,1), opacity 160ms; }
+.cartao.aberto .detalhe { max-height: 40px; opacity: 1; transition-delay: 0s, 80ms; }
+.cartao .extra { width: 0; opacity: 0; overflow: hidden; pointer-events: none;
+  transition: width 260ms cubic-bezier(.22,1,.36,1), opacity 160ms; }
+.cartao.aberto .extra { width: 30px; opacity: 1; pointer-events: auto; }
+.cartao .play { width: 30px; height: 30px; border-radius: 15px;
+  transition: width 260ms cubic-bezier(.22,1,.36,1), height 260ms cubic-bezier(.22,1,.36,1), background .2s; }
+.cartao.aberto .play { width: 38px; height: 38px; border-radius: 19px; }
+.cartao .so-aberto { opacity: 0; pointer-events: none; transition: opacity 160ms; }
+.cartao.aberto .so-aberto { opacity: 1; pointer-events: auto; transition-delay: 100ms; }
+.cartao .so-fechado { transition: opacity 160ms; }
+.cartao.aberto .so-fechado { opacity: 0; }
+.cartao .sobre-a-capa { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+@media (prefers-reduced-motion: reduce) { .cartao, .cartao * { transition: none !important; } }
 html, body, #root { margin: 0; height: 100%; background: transparent; overflow: hidden; }
 * { box-sizing: border-box; }
 #root > div { width: 100%; height: 100%; }
@@ -91,14 +120,63 @@ function MiniLeitor() {
   // A posição anda sozinha entre resumos (chegam a 2 Hz), para a barra não saltar.
   const [agora, setAgora] = useState(() => Date.now());
   const [recebidoEm, setRecebidoEm] = useState(() => Date.now());
+  // A barra: aberta com o rato por cima, e de que lado da janela se encosta.
+  const [aberto, setAberto] = useState(false);
+  const [ancora, setAncora] = useState<'cima' | 'baixo'>('baixo');
+  const cartaoRef = useRef<HTMLDivElement>(null);
+  const ignorando = useRef<boolean | null>(null);
+  const fecho = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!ponte) return;
     const sair = ponte.onEstado((novo) => { setR(novo); setRecebidoEm(Date.now()); });
     const sairTamanho = ponte.onTamanho(setExpandido);
     const sairJanela = ponte.onJanela?.(setJanelaVisivel);
-    return () => { sair(); sairTamanho(); sairJanela?.(); };
+    const sairAncora = ponte.onAncora?.(setAncora);
+    return () => { sair(); sairTamanho(); sairJanela?.(); sairAncora?.(); };
   }, [ponte]);
+
+  // O rato. Com a barra recolhida, a parte transparente da janela deixa passar
+  // os cliques para o que está por baixo (`ignorarRato`), mas os MOVIMENTOS
+  // continuam a chegar: é por eles que se sabe quando o rato entra na barra.
+  useEffect(() => {
+    const ignorar = (sim: boolean) => {
+      if (ignorando.current === sim) return;
+      ignorando.current = sim;
+      ponte?.ignorarRato?.(sim);
+    };
+    if (expandido) { ignorar(false); return; }
+    const recolher = (depois: number) => {
+      if (fecho.current) clearTimeout(fecho.current);
+      fecho.current = setTimeout(() => { setAberto(false); ignorar(true); }, depois);
+    };
+    let ultimoY = -1;
+    const mover = (e: MouseEvent) => {
+      ultimoY = e.clientY;
+      const c = cartaoRef.current?.getBoundingClientRect();
+      const dentro = !!c && e.clientX >= c.left && e.clientX <= c.right && e.clientY >= c.top && e.clientY <= c.bottom;
+      if (dentro) {
+        if (fecho.current) { clearTimeout(fecho.current); fecho.current = null; }
+        ignorar(false);
+        setAberto(true);
+      } else {
+        ignorar(true);
+        recolher(250);
+      }
+    };
+    // Sair da janela recolhe. Pela barrinha de arrastar do topo o rato também
+    // "sai" (é uma zona do sistema, sem eventos): aí espera mais, para quem vai
+    // pegar nela ter tempo.
+    const sair = () => recolher(ultimoY >= 0 && ultimoY < 18 ? 1500 : 250);
+    document.addEventListener('mousemove', mover);
+    document.documentElement.addEventListener('mouseleave', sair);
+    ignorar(true);
+    return () => {
+      document.removeEventListener('mousemove', mover);
+      document.documentElement.removeEventListener('mouseleave', sair);
+      if (fecho.current) clearTimeout(fecho.current);
+    };
+  }, [expandido, ponte]);
   useEffect(() => {
     if (!r?.aTocar) return;
     const t = setInterval(() => setAgora(Date.now()), 250);
@@ -121,7 +199,7 @@ function MiniLeitor() {
     </button>
   );
   const coracao = (
-    <button aria-label={r?.guardada ? 'Remove from library' : 'Save to library'} aria-pressed={!!r?.guardada}
+    <button aria-label={r?.guardada ? 'Remove from Liked Songs' : 'Add to Liked Songs'} aria-pressed={!!r?.guardada}
       onClick={() => mandar('guardar')} style={{ width: 30, height: 30 }}>{icone.coracao(!!r?.guardada)}</button>
   );
 
@@ -163,38 +241,45 @@ function MiniLeitor() {
     );
   }
 
-  // Compacto: a disposição NÃO muda com o rato (João, 24/9: com dois grupos a
-  // trocar havia dois botões de pausa e tudo mudava de sítio). Os controlos
-  // ficam; o rato só troca o artista pelo tempo, põe o expandir por cima da
-  // capa e acende o canto.
+  // A barra (25/9, pedido do João): recolhida mostra a capa pequena, o título
+  // e o tocar/pausa; com o rato por cima abre para o cartão de sempre (a mesma
+  // disposição, que NÃO muda com o rato -- decidido a 24/9 --, só aparecem o
+  // coração, o anterior, o seguinte, o tempo e o canto).
   return (
-    <div className="mini" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12 }}>
-      <div className="arrasto" />
-        {canto}
-      <div className="moldura">
-        <div className="capa" style={{ width: 64, height: 64, ...capa }} />
-        <div className="so-hover">
-          <button className="sobre-a-capa" aria-label="Expand" onClick={() => mandar('expandir')}>{icone.expandir}</button>
+    <div className="palco">
+      <div ref={cartaoRef} className={`mini cartao ${ancora} ${aberto ? 'aberto' : ''}`}>
+        {aberto ? <div className="arrasto" /> : null}
+        <div className="canto so-aberto" style={{ display: 'flex' }}>
+          <button aria-label={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'} title={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'}
+            onClick={() => mandar('alternar-duotone')}>{janelaVisivel ? icone.esconder : icone.abrir}</button>
+          <button aria-label="Close mini player" onClick={() => mandar('fechar')}>{icone.fechar}</button>
         </div>
-      </div>
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div className="titulo">{r?.titulo ?? 'Nothing playing'}</div>
-        <div className="artista sem-hover">{r?.artista ?? ''}</div>
-        <div className="so-hover" style={{ flexDirection: 'column', gap: 4 }}>
-          <span className="tempo">{tempo(posicao)} / {tempo(duracao)}</span>
-          <div className="barra" style={{ height: 8 }} onClick={procurar} role="slider" aria-label="Seek"
-            aria-valuemin={0} aria-valuemax={Math.round(duracao / 1000)} aria-valuenow={Math.round(posicao / 1000)}>
-            <div><div style={{ width: `${fracao * 100}%` }} /></div>
+        <div className="moldura">
+          <div className="capa" style={capa} />
+          <div className="sobre-a-capa so-aberto">
+            <button className="sobre-a-capa" aria-label="Expand" onClick={() => mandar('expandir')}>{icone.expandir}</button>
           </div>
         </div>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div className="titulo">{r?.titulo ?? 'Nothing playing'}</div>
+          <div className="detalhe" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="tempo">{tempo(posicao)} / {tempo(duracao)}</span>
+            <div className="barra" style={{ height: 8 }} onClick={procurar} role="slider" aria-label="Seek"
+              aria-valuemin={0} aria-valuemax={Math.round(duracao / 1000)} aria-valuenow={Math.round(posicao / 1000)}>
+              <div><div style={{ width: `${fracao * 100}%` }} /></div>
+            </div>
+          </div>
+        </div>
+        <div className="controlos">
+          <div className="extra">{coracao}</div>
+          <div className="extra"><button aria-label="Previous" onClick={() => mandar('anterior')} style={{ width: 30, height: 30 }}>{icone.anterior}</button></div>
+          <button className="play" aria-label={r?.aTocar ? 'Pause' : 'Play'} onClick={() => mandar('tocar-pausa')}>
+            {r?.aTocar ? icone.pausa : icone.tocar}
+          </button>
+          <div className="extra"><button aria-label="Next" onClick={() => mandar('seguinte')} style={{ width: 30, height: 30 }}>{icone.seguinte}</button></div>
+        </div>
+        <div className="linha so-fechado"><div style={{ width: `${fracao * 100}%` }} /></div>
       </div>
-      <div className="controlos">
-        {coracao}
-        <button aria-label="Previous" onClick={() => mandar('anterior')} style={{ width: 30, height: 30 }}>{icone.anterior}</button>
-        {tocarOuPausa}
-        <button aria-label="Next" onClick={() => mandar('seguinte')} style={{ width: 30, height: 30 }}>{icone.seguinte}</button>
-      </div>
-      <div className="linha sem-hover"><div style={{ width: `${fracao * 100}%` }} /></div>
     </div>
   );
 }

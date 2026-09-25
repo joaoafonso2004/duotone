@@ -159,8 +159,8 @@ function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
     case 'tocar-a-seguir': return acao('Play next', 'play-forward-outline', tocar);
     case 'por-na-fila': return acao('Add to queue', 'list-outline', tocar);
     case 'guardar': return c.guardada
-      ? acao('Remove from library', 'heart', semRede)
-      : acao('Save to library', 'heart-outline', semRede ?? (c.guardada === null ? MOTIVOS.aVerificar : null));
+      ? acao('Remove from Liked Songs', 'heart', semRede)
+      : acao('Add to Liked Songs', 'heart-outline', semRede ?? (c.guardada === null ? MOTIVOS.aVerificar : null));
     case 'por-em-playlist': return acao('Add to playlist…', 'albums-outline', semRede);
     case 'ver-artista': return acao('View artist', 'mic-outline', c.temArtista ? null : MOTIVOS.semArtista);
     case 'partilhar': return acao('Share with friends or groups…', 'share-social-outline', semRede);

@@ -26,7 +26,7 @@ export function BotaoGuardar({ track, tamanho = 18 }: { track: Track; tamanho?: 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={guardada ? 'Remove from library' : 'Save to library'}
+      accessibilityLabel={guardada ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
       accessibilityState={{ busy: aGuardar, selected: guardada }}
       hitSlop={10}
       disabled={aGuardar}

@@ -8,6 +8,7 @@ import { getLibrary } from '../api/library';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import { useOfflineMode } from '../hooks/useOfflineMode';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { limparTodosOsDownloads, pedirDownload, tirarDownload } from '../lib/descarregarFaixa';
 import {
@@ -131,16 +132,14 @@ export function DownloadsScreen({ navigation }: Props) {
     };
   }, [registo, aDescarregar, ficheiros, daBiblioteca]);
 
-  const total = bytesDosDownloads + cache.bytes;
-  const percentagem = Math.min(100, Math.round((total / MAX_CACHE_BYTES) * 100));
   const nada = linhas.length === 0 && cache.faixas === 0;
   const linhaDaGostada = (t: Track) => (
     <View key={t.sourceId} style={styles.linha}>
       <Pressable onPress={() => tocar(t)} style={styles.parteTocavel}>
         <Image source={{ uri: capaParaLista(t.artworkUrl) ?? `https://i.ytimg.com/vi/${t.sourceId}/mqdefault.jpg` }} style={styles.capa} contentFit="cover" />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>{t.title}</Text>
-          <Text numberOfLines={1} style={type.caption}>{t.artist ? `${t.artist} · ` : ''}Na cache</Text>
+          <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>{tituloDaFaixa(t)}</Text>
+          <Text numberOfLines={1} style={type.caption}>{displayArtist(t)} · In cache</Text>
         </View>
       </Pressable>
     </View>
@@ -148,12 +147,12 @@ export function DownloadsScreen({ navigation }: Props) {
 
   const remover = (l: Linha) => {
     Alert.alert(
-      'Remover download',
-      `"${l.faixa.title}" deixa de estar disponível offline.`,
+      'Remove download',
+      `"${tituloDaFaixa(l.faixa)}" will no longer play offline.`,
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Remover',
+          text: 'Remove',
           style: 'destructive',
           onPress: () => {
             void tirarDownload(l.id);
@@ -166,12 +165,12 @@ export function DownloadsScreen({ navigation }: Props) {
 
   const limparTudo = () => {
     Alert.alert(
-      'Remover tudo',
-      'Todos os downloads e toda a cache deste telemóvel são apagados.',
+      'Remove all',
+      'All downloads and the whole cache on this phone will be deleted.',
       [
-        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Remover tudo',
+          text: 'Remove all',
           style: 'destructive',
           onPress: () => {
             void limparTodosOsDownloads();
@@ -218,47 +217,35 @@ export function DownloadsScreen({ navigation }: Props) {
         {nada ? (
           <EmptyState
             icon="arrow-down-circle-outline"
-            title="Nada guardado ainda"
-            subtitle="Carrega em Download no menu de uma faixa. Fica neste telemóvel e toca sem rede."
+            title="Nothing saved yet"
+            subtitle="Tap Download in a track's menu. It stays on this phone and plays without internet."
           />
         ) : (
           <>
-            <View style={styles.resumo}>
-              <Text style={styles.resumoValor}>{formatCacheSize(bytesDosDownloads)}</Text>
-              <Text style={type.caption}>
-                {linhas.length} {linhas.length === 1 ? 'download' : 'downloads'}
-                {emFalta.length > 0 ? ` · ${emFalta.length} por descarregar` : ''}
-              </Text>
-              <View style={styles.barra}>
-                <View style={[styles.barraCheia, { width: `${percentagem}%`, backgroundColor: tema.color }]} />
-              </View>
-              <Text style={[type.micro, { color: colors.textTertiary }]}>
-                {/* Dizer o limite é o que torna a limpeza automática previsível
-                    em vez de misteriosa. */}
-                Cache: {formatCacheSize(cache.bytes)} de {cache.faixas} {cache.faixas === 1 ? 'música que tocou' : 'músicas que tocaram'}.
-                {' '}Acima de {formatCacheSize(MAX_CACHE_BYTES)} no total, as mais antigas da cache saem
-                sozinhas. Os downloads nunca saem.
-              </Text>
-              {protegidas > 0 ? (
-                <Text style={[type.micro, { color: colors.textTertiary }]}>
-                  {protegidas} {protegidas === 1 ? 'faixa que já estava guardada fica protegida' : 'faixas que já estavam guardadas ficam protegidas'}
-                  {' '}até {new Date(protegidasAte).toLocaleDateString()}. Para manter alguma, carrega em
-                  Download no menu dela — não gasta rede.
-                </Text>
-              ) : null}
-            </View>
+            {/* Uma linha: quantos e quanto ocupam. Era um cartão com um "—"
+                enorme por cima de "0 downloads", uma barra que misturava os
+                downloads (que nunca saem) com a cache, e um parágrafo em
+                maiúsculas. A explicação da cache passou para o fundo. */}
+            <Text style={styles.resumo}>
+              {linhas.length} {linhas.length === 1 ? 'download' : 'downloads'}
+              {bytesDosDownloads > 0 ? ` · ${formatCacheSize(bytesDosDownloads)}` : ''}
+              {emFalta.length > 0 ? ` · ${emFalta.length} not downloaded` : ''}
+            </Text>
 
             {tocaveis.length > 0 ? (
               <View style={styles.tocarTudo}>
+                {/* O texto leva a cor que o tema diz para ir em cima da cor
+                    dele. Era branco fixo, e com o tema claro o "Play" ficava
+                    branco sobre branco -- parecia desligado. */}
                 <Pressable onPress={() => tocarTudo(false)} style={({ pressed }) => [styles.botaoGrande, { backgroundColor: tema.color }, pressed && { opacity: 0.8 }]}
-                  accessibilityRole="button" accessibilityLabel="Tocar tudo o que está neste telemóvel">
-                  <Ionicons name="play" size={18} color="#fff" />
-                  <Text style={[type.body, { color: '#fff', fontWeight: '700' }]}>Tocar</Text>
+                  accessibilityRole="button" accessibilityLabel="Play everything on this phone">
+                  <Ionicons name="play" size={18} color={tema.textColorOnGradient} />
+                  <Text style={[type.body, { color: tema.textColorOnGradient, fontWeight: '700' }]}>Play</Text>
                 </Pressable>
                 <Pressable onPress={() => tocarTudo(true)} style={({ pressed }) => [styles.botaoGrande, styles.botaoSecundario, pressed && { opacity: 0.8 }]}
-                  accessibilityRole="button" accessibilityLabel="Tocar por ordem aleatória">
+                  accessibilityRole="button" accessibilityLabel="Shuffle everything on this phone">
                   <Ionicons name="shuffle" size={18} color={colors.text} />
-                  <Text style={[type.body, { fontWeight: '700' }]}>Aleatório</Text>
+                  <Text style={[type.body, { fontWeight: '700' }]}>Shuffle</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -267,14 +254,14 @@ export function DownloadsScreen({ navigation }: Props) {
               <Pressable onPress={() => void descarregarEmFalta()} style={({ pressed }) => [styles.acao, pressed && { opacity: 0.7 }]}>
                 <Ionicons name="refresh" size={16} color={tema.color} />
                 <Text style={[type.body, { color: tema.color, fontWeight: '600' }]}>
-                  Descarregar {emFalta.length === 1 ? 'a que falta' : `as ${emFalta.length} que faltam`}
+                  {emFalta.length === 1 ? 'Download the missing one' : `Download the ${emFalta.length} missing`}
                 </Text>
               </Pressable>
             ) : null}
 
             {linhas.length === 0 ? (
               <Text style={[type.caption, styles.semDownloads]}>
-                Ainda não pediste nenhum download. Carrega em Download no menu de uma faixa.
+                No downloads yet. Tap Download in a track's menu.
               </Text>
             ) : null}
 
@@ -283,17 +270,17 @@ export function DownloadsScreen({ navigation }: Props) {
                 ?? `https://i.ytimg.com/vi/${l.id}/mqdefault.jpg`;
               const detalhe = l.situacao === 'descarregada'
                 ? formatCacheSize(l.bytes)
-                : l.situacao === 'a-descarregar' ? 'A descarregar…' : 'Por descarregar';
+                : l.situacao === 'a-descarregar' ? 'Downloading…' : 'Not downloaded';
               return (
                 <View key={l.id} style={styles.linha}>
                   <Pressable onPress={() => tocar(l.faixa)} style={styles.parteTocavel}>
                     <Image source={{ uri: capa }} style={styles.capa} contentFit="cover" />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
-                        {l.faixa.title}
+                        {tituloDaFaixa(l.faixa)}
                       </Text>
                       <Text numberOfLines={1} style={type.caption}>
-                        {l.faixa.artist ? `${l.faixa.artist} · ` : ''}{detalhe}
+                        {displayArtist(l.faixa)} · {detalhe}
                       </Text>
                     </View>
                   </Pressable>
@@ -305,14 +292,14 @@ export function DownloadsScreen({ navigation }: Props) {
                       onPress={() => { hapticSelection(); void pedirDownload(l.faixa); }}
                       disabled={offline}
                       hitSlop={8}
-                      accessibilityLabel="Descarregar outra vez"
+                      accessibilityLabel="Download again"
                       style={[styles.botao, offline && { opacity: 0.4 }]}
                     >
                       <Ionicons name="refresh" size={18} color={colors.textTertiary} />
                     </Pressable>
                   ) : null}
 
-                  <Pressable onPress={() => remover(l)} hitSlop={8} accessibilityLabel="Remover download" style={styles.botao}>
+                  <Pressable onPress={() => remover(l)} hitSlop={8} accessibilityLabel="Remove download" style={styles.botao}>
                     <Ionicons name="trash-outline" size={18} color={colors.textTertiary} />
                   </Pressable>
                 </View>
@@ -322,15 +309,32 @@ export function DownloadsScreen({ navigation }: Props) {
             {tambemAqui.length > 0 ? (
               <>
                 <Text style={[type.caption, styles.seccao]}>
-                  TAMBÉM NESTE TELEMÓVEL · {tambemAqui.length} {tambemAqui.length === 1 ? 'gostada que ficou na cache' : 'gostadas que ficaram na cache'}
+                  ALSO ON THIS PHONE · {tambemAqui.length} liked {tambemAqui.length === 1 ? 'song' : 'songs'} in the cache
                 </Text>
                 {tambemAqui.map(linhaDaGostada)}
               </>
             ) : null}
 
+            <View style={styles.rodape}>
+              {/* Dizer o limite é o que torna a limpeza automática previsível
+                  em vez de misteriosa. */}
+              <Text style={styles.notaDoFundo}>
+                Cache: {formatCacheSize(cache.bytes)} from {cache.faixas} played {cache.faixas === 1 ? 'song' : 'songs'}.
+                {' '}Above {formatCacheSize(MAX_CACHE_BYTES)} in total, the oldest cached songs are removed
+                automatically. Downloads are never removed.
+              </Text>
+              {protegidas > 0 ? (
+                <Text style={styles.notaDoFundo}>
+                  {protegidas} {protegidas === 1 ? 'song you already had stays protected' : 'songs you already had stay protected'}
+                  {' '}until {new Date(protegidasAte).toLocaleDateString()}. To keep one, tap Download in its
+                  menu — it uses no data.
+                </Text>
+              ) : null}
+            </View>
+
             <Pressable onPress={limparTudo} style={({ pressed }) => [styles.limpar, pressed && { opacity: 0.7 }]}>
               <Text style={[type.body, { color: colors.danger, fontWeight: '600' }]}>
-                Remover tudo
+                Remove all
               </Text>
             </Pressable>
           </>
@@ -342,22 +346,12 @@ export function DownloadsScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   resumo: {
+    ...type.body,
+    fontWeight: '600',
+    color: colors.text,
     marginHorizontal: spacing.md,
-    marginBottom: spacing.lg,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    gap: 6,
+    marginBottom: spacing.md,
   },
-  resumoValor: { fontSize: 26, fontWeight: '800', color: colors.text },
-  barra: {
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.surfaceHigh,
-    overflow: 'hidden',
-    marginTop: 4,
-  },
-  barraCheia: { height: '100%', borderRadius: 2 },
 
   acao: {
     flexDirection: 'row',
@@ -385,6 +379,9 @@ const styles = StyleSheet.create({
   parteTocavel: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.md, minWidth: 0 },
   capa: { width: 44, height: 44, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh },
   botao: { padding: 6 },
+
+  rodape: { marginHorizontal: spacing.md, marginTop: spacing.xl, gap: spacing.sm },
+  notaDoFundo: { ...type.caption, color: colors.textTertiary },
 
   limpar: {
     marginTop: spacing.lg,

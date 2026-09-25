@@ -147,7 +147,7 @@ export function SongsScreen() {
       // separadores ficam montados).
       useSaved.getState().refresh();
       load();
-      Alert.alert('Removed', 'Selected tracks removed from library.');
+      Alert.alert('Removed', 'Selected songs removed from your Liked Songs.');
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Could not remove tracks.');
     }
@@ -184,7 +184,7 @@ export function SongsScreen() {
 
   return (
     <Screen
-      title="Songs"
+      title="Liked Songs"
       subtitle={`${tracks.length} ${offline?'downloaded':'saved'} ${tracks.length === 1 ? 'song' : 'songs'}`}
       right={
         tracks.length > 0 ? (
@@ -237,7 +237,7 @@ export function SongsScreen() {
             <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
               <Input
                 icon="search"
-                placeholder="Search saved songs"
+                placeholder="Search your Liked Songs"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 onClear={() => setSearchQuery('')}

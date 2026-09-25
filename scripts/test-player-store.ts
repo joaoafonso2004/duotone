@@ -434,7 +434,7 @@ console.log('\no perfil que chega à descoberta');
     eq(`${acao}: preserva a escolha inicial`, perfil?.externos?.get('aurora inicial'), 'Aurora Inicial');
     eq(`${acao}: mantém o peso do perfil`, perfil?.escutas?.get('horizonte novo'), 100);
     check(`${acao}: histórico não recebe confiança externa`, !perfil?.externos?.has('999'));
-    check(`${acao}: marca a descoberta como contexto de sessão`, perfil?.contextoDaSessao === true);
+    check(`${acao}: marca a descoberta como contexto de sessão, estrito`, perfil?.contextoDaSessao === 'estrito');
   }
   controlo.falharPerfil = true;
   const anteriores = controlo.chamadas.candidatas;
@@ -799,6 +799,31 @@ eq('e não volta a mexer se já está numa que toca', usePlayer.getState().ajust
 preparar({ current: faixa('b'), queueIndex: 1, isPlaying: false });
 eq('com rede, a sessão restaurada fica onde estava', usePlayer.getState().ajustarSessaoSemRede(), false);
 definirPodeTocarSemRede(null);
+
+// ===========================================================================
+console.log('\nlimpar o que vem a seguir (o "Clear" do Up next)');
+// ===========================================================================
+preparar({ current: faixa('b'), queueIndex: 1, autoplayRadio: false });
+eq('saem as duas que faltavam', usePlayer.getState().limparProximas(), 2);
+eq('fica a que já tocou e a que toca', ids().join(), 'a,b');
+eq('a que toca continua a tocar', atual(), 'b');
+eq('e o índice não mexe', usePlayer.getState().queueIndex, 1);
+eq('já não há seguinte', usePlayer.getState().peekNextTrack(), null);
+eq('limpar outra vez não faz nada', usePlayer.getState().limparProximas(), 0);
+{
+  // Com shuffle, "a seguir" é o percurso: c já tocou (vem antes no percurso),
+  // por isso fica, mesmo estando DEPOIS da atual na fila.
+  const q = fila('a', 'b', 'c', 'd');
+  preparar({
+    current: q[1], queue: q, queueIndex: 1, shuffle: true, autoplayRadio: false,
+    shuffleOrder: [trackKey(q[2]), trackKey(q[1]), trackKey(q[3]), trackKey(q[0])],
+  });
+  eq('com shuffle saem as que faltam no percurso', usePlayer.getState().limparProximas(), 2);
+  eq('a que já tocou no percurso fica', ids().join(), 'b,c');
+  eq('a atual continua a ser a mesma', atual(), 'b');
+  eq('e o índice aponta para ela', usePlayer.getState().queue[usePlayer.getState().queueIndex].sourceId, 'b');
+  eq('e não sobra nada a seguir', usePlayer.getState().upcomingQueue().length, 0);
+}
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

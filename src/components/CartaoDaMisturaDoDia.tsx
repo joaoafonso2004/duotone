@@ -18,7 +18,7 @@ function capaDe(t: Track): string {
 }
 
 /**
- * A Daily mix no topo das Playlists: tocar no cartão abre a lista, o botão toca-a.
+ * A Daily mix no topo da Pesquisa: tocar no cartão abre a lista, o botão toca-a.
  *
  * Existe para quem ouve "uma playlist que se atualiza sozinha" e não quer
  * escolher nada: um toque e está a tocar. Some quando não há mix para mostrar,

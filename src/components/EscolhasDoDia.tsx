@@ -15,6 +15,7 @@ import type { Track } from '../types';
 import { colors, radii, spacing, type } from '../theme';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 
 /**
  * A vista própria das músicas do dia.
@@ -126,7 +127,7 @@ function LinhaDaEscolha({ escolha: e, fila, cor, tocar }: {
       style={styles.linha}
     >
       {e.track.artworkUrl ? (
-        <Image source={{ uri: e.track.artworkUrl }} style={styles.capa} contentFit="cover" transition={150} />
+        <Image source={{ uri: capaParaLista(e.track.artworkUrl)! }} style={styles.capa} contentFit="cover" transition={150} />
       ) : (
         <View style={[styles.capa, styles.capaVazia]}>
           <Ionicons name="musical-note" size={22} color={colors.textTertiary} />

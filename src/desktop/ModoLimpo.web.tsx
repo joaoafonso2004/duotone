@@ -3,14 +3,15 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { create } from 'zustand';
 import {
-  INACTIVIDADE_MS, capaComBarras, molduraSemBarras, posicaoDoClique, progressoDaFaixa,
+  INACTIVIDADE_MS, capaComBarras, molduraSemBarras, progressoDaFaixa,
   tamanhoDaCapa,
 } from '../lib/modoLimpo';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { usePlayer } from '../state/player';
+import { useShallow } from 'zustand/react/shallow';
 import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import { COR, ESP, FONT } from './tokens.web';
-import { formatTime, marcar } from './ui.web';
+import { formatTime, marcar, useProcurarAoLargar } from './ui.web';
 
 const P = Pressable as any;
 const V = View as any;
@@ -117,8 +118,31 @@ export function ModoLimpo() {
   return <EcraLimpo />;
 }
 
+/** A barra e os tempos: a única parte do modo limpo que lê a posição. */
+function BarraDoModoLimpo({ lado }: { lado: number }) {
+  const positionMs = usePlayer((s) => s.positionMs);
+  const durationMs = usePlayer((s) => s.durationMs);
+  const { arrasto, comecar } = useProcurarAoLargar();
+  const ratio = arrasto ?? progressoDaFaixa(positionMs, durationMs);
+  return (
+    <View style={[estilos.barraLinha, { width: lado }]}>
+      <Text style={estilos.tempo}>{formatTime(arrasto !== null ? (arrasto * durationMs) / 1000 : positionMs / 1000)}</Text>
+      <P onMouseDown={comecar} style={estilos.barraAlvo} {...marcar('calha')}>
+        <V style={estilos.barra}><V style={[estilos.barraCheia, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V>
+        <V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} />
+      </P>
+      <Text style={estilos.tempo}>{formatTime(durationMs / 1000)}</Text>
+    </View>
+  );
+}
+
 function EcraLimpo() {
-  const p = usePlayer();
+  // Sem a posição: essa vive na `BarraDoModoLimpo`. Com o `usePlayer()` sem
+  // seletor o ecrã inteiro redesenhava-se a cada segundo (auditoria, §1.5).
+  const p = usePlayer(useShallow((s) => ({
+    current: s.current, isPlaying: s.isPlaying, buffering: s.buffering,
+    prev: s.prev, next: s.next, togglePlay: s.togglePlay,
+  })));
   const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
   const { width, height } = useWindowDimensions();
   const [quieto, setQuieto] = useState(false);
@@ -161,27 +185,9 @@ function EcraLimpo() {
 
   const lado = tamanhoDaCapa(width, height);
   const moldura = molduraSemBarras(lado);
-  const ratio = progressoDaFaixa(p.positionMs, p.durationMs);
   const aparece = (visivel: boolean) =>
     ({ opacity: visivel ? 1 : 0, transition: 'opacity .45s cubic-bezier(.4,0,.2,1)' } as any);
 
-  const arrastarNaBarra = (evento: any) => {
-    evento.preventDefault?.();
-    const alvo = evento.currentTarget;
-    const mover = (e: any) => {
-      const r = alvo.getBoundingClientRect();
-      const x = e.clientX ?? e.touches?.[0]?.clientX;
-      if (x === undefined) return;
-      p.seekTo(posicaoDoClique(x, r.left, r.width) * p.durationMs);
-    };
-    mover(evento);
-    const parar = () => {
-      window.removeEventListener('mousemove', mover);
-      window.removeEventListener('mouseup', parar);
-    };
-    window.addEventListener('mousemove', mover);
-    window.addEventListener('mouseup', parar);
-  };
 
   return (
     <V ref={ecra} {...({ tabIndex: -1 } as any)} style={[estilos.fundo, { cursor: quieto ? 'none' : 'default' }]}>
@@ -280,14 +286,7 @@ function EcraLimpo() {
           <Text numberOfLines={1} style={estilos.artista}>{faixa ? displayArtist(faixa) : ''}</Text>
         </View>
 
-        <View style={[estilos.barraLinha, { width: lado }]}>
-          <Text style={estilos.tempo}>{formatTime(p.positionMs / 1000)}</Text>
-          <P onMouseDown={arrastarNaBarra} style={estilos.barraAlvo} {...marcar('calha')}>
-            <V style={estilos.barra}><V style={[estilos.barraCheia, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V>
-            <V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} />
-          </P>
-          <Text style={estilos.tempo}>{formatTime(p.durationMs / 1000)}</Text>
-        </View>
+        <BarraDoModoLimpo lado={lado} />
 
         <View style={[estilos.controlos, aparece(!quieto)]}>
           <Botao nome="play-skip-back" rotulo="Previous" aoCarregar={p.prev} />

@@ -689,6 +689,7 @@ function abrirMiniLeitor() {
     const p = mini.encostar(b, b, area);
     if (p.x !== b.x || p.y !== b.y) win.setPosition(p.x, p.y);
     gravarMini(mini.lembrar(lerMini(), p, area));
+    avisarAncoraDoMini();
   });
   win.on('closed', () => {
     if (miniJanela === win) miniJanela = null;
@@ -701,6 +702,12 @@ function abrirMiniLeitor() {
   miniJanela = win;
   avisarPrincipalDoMini();
 }
+/** Para que lado a barra recolhida se encosta (ver `ancoraDoMini`). */
+function avisarAncoraDoMini() {
+  if (!miniAberto()) return;
+  const b = miniJanela.getBounds();
+  miniJanela.webContents.send('mini:ancora', mini.ancoraDoMini(b, b, mini.areaDe(b, b, areasDosMonitores())));
+}
 function redimensionarMini(expandir) {
   if (!miniAberto() || miniExpandido === expandir) return;
   const de = miniExpandido ? mini.TAMANHOS.expandido : mini.TAMANHOS.compacto;
@@ -711,7 +718,10 @@ function redimensionarMini(expandir) {
   const p = mini.mudarDeTamanho(b, de, para, area);
   miniJanela.setBounds({ ...p, ...para });
   miniExpandido = expandir;
+  // O grande não recolhe: recebe o rato em toda a parte.
+  if (expandir) miniJanela.setIgnoreMouseEvents(false);
   miniJanela.webContents.send('mini:tamanho', expandir);
+  avisarAncoraDoMini();
 }
 
 ipcMain.on('mini:estado', (event, resumo) => {
@@ -733,7 +743,15 @@ ipcMain.on('mini:pronto', (event) => {
   avisarMiniDaJanela();
   if (ultimoResumo) miniJanela.webContents.send('mini:estado', ultimoResumo);
   miniJanela.webContents.send('mini:tamanho', miniExpandido);
+  avisarAncoraDoMini();
   avisarPrincipalDoMini();
+});
+// Com a barra recolhida, a parte transparente da janela deixa passar o rato
+// para o que está por baixo. `forward` continua a mandar os movimentos à
+// página: é por eles que ela sabe quando o rato chega à barra.
+ipcMain.on('mini:ignorar-rato', (event, sim) => {
+  if (!daJanelaMini(event) || typeof sim !== 'boolean') return;
+  miniJanela.setIgnoreMouseEvents(sim && !miniExpandido, { forward: true });
 });
 ipcMain.on('mini:comando', (event, comando) => {
   if (!daJanelaMini(event)) return;

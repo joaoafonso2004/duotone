@@ -106,3 +106,20 @@ export const shadows = {
 
 /** Altura do mini-player (usada para paddings de listas) */
 export const MINI_PLAYER_HEIGHT = 64;
+
+/**
+ * Até onde o texto acompanha o "Tamanho do texto" do iOS.
+ *
+ * Sem limite nenhum, o texto crescia até ao tamanho máximo de acessibilidade
+ * (mais de 3x) dentro de caixas de altura FIXA -- a barra dos separadores e
+ * os cartões de 120 pt da Pesquisa
+ * -- e saía delas ou era cortado. Os limites deixam-no crescer até onde a caixa
+ * aguenta; o resto do texto (parágrafos, definições) cresce à vontade.
+ * Por confirmar num iPhone com o texto no máximo (25/9).
+ */
+export const ESCALA_MAXIMA = {
+  /** Caixas de altura fixa: a barra dos separadores. */
+  fixa: 1.2,
+  /** Linhas de lista e cartões: podem crescer um pouco mais. */
+  lista: 1.4,
+} as const;

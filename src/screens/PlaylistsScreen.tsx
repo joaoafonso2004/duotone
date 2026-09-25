@@ -20,7 +20,6 @@ import {
   importSharedPlaylist,
 } from '../api/playlists';
 import { ArtworkCollage } from '../components/ArtworkCollage';
-import { CartaoDaMisturaDoDia } from '../components/CartaoDaMisturaDoDia';
 import { BottomSheet } from '../components/BottomSheet';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
@@ -146,8 +145,6 @@ export function PlaylistsScreen() {
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
   // A Daily mix abre no ecrã das prateleiras, que é uma vista sobre a store --
   // ver `state/misturaDoDia.ts`.
-  const abrirMisturaDoDia = () =>
-    navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' } });
 
   return (
     <Screen
@@ -169,10 +166,6 @@ export function PlaylistsScreen() {
         <SkeletonDePlaylists lado={cardSize} />
       ) : playlists.length === 0 && loadError ? null : playlists.length === 0 ? (
         <>
-        {/* Quem ainda não tem playlists é quem mais precisa da que se faz sozinha. */}
-        <View style={{ paddingHorizontal: spacing.xl, paddingTop: spacing.sm }}>
-          <CartaoDaMisturaDoDia aoAbrir={abrirMisturaDoDia} />
-        </View>
         <EmptyState
           icon="albums-outline"
           title="No playlists yet"
@@ -198,11 +191,6 @@ export function PlaylistsScreen() {
           data={playlists}
           keyExtractor={(p) => p.id}
           numColumns={2}
-          ListHeaderComponent={
-            <View style={{ paddingHorizontal: spacing.xl }}>
-              <CartaoDaMisturaDoDia aoAbrir={abrirMisturaDoDia} />
-            </View>
-          }
           columnWrapperStyle={{ gap: spacing.lg, paddingHorizontal: spacing.xl }}
           contentContainerStyle={{
             gap: spacing.lg,

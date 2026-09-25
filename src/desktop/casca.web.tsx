@@ -21,10 +21,12 @@ import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { useAuth } from '../state/auth';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { usePlayer } from '../state/player';
+import { useShallow } from 'zustand/react/shallow';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useTheme } from '../state/theme';
 import { styles } from './estilos.web';
 import { COR, FONT, FONTES } from './tokens.web';
-import { Artwork, desktop, formatTime, IconButton, ui, marcar } from './ui.web';
+import { Artwork, desktop, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
 import { PRIMARY, type Route } from './rotas';
 import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade.web';
 
@@ -151,13 +153,22 @@ export function injectDesktopDocumentStyles() {
     /* A fila do Now Playing e um <div> e nao um Pressable por causa do
        arrastar-para-reordenar (a API de drag do DOM nao passa pelo RNW). O
        hover fica em CSS pela mesma razao. */
-    .np-fila-linha {
-      border-bottom: 1px solid ${COR.linhaSuave};
-      transition: background-color .18s;
-    }
-    .np-fila-linha:last-child { border-bottom: 0; }
+    .np-fila-linha { transition: background-color .18s; }
     .np-fila-linha:hover { background-color: ${COR.hover}; }
     .np-fila-linha:active { cursor: grabbing; }
+    /* A capa da linha mostra o ▶ ao passar o rato; a pega e o "…" aparecem. */
+    .np-fila-capa { position: relative; flex: none; border-radius: 5px; overflow: hidden; }
+    .np-fila-tocar { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.5); opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva); }
+    .np-fila-linha:hover .np-fila-tocar { opacity: 1; }
+    .np-fila-pega, .np-fila-mais { opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva); display: flex; }
+    .np-fila-linha:hover .np-fila-pega, .np-fila-linha:hover .np-fila-mais, .np-fila-pega-viva { opacity: 1; }
+    .np-fila-mais { background: none; border: 0; padding: 6px; border-radius: 6px; cursor: pointer; }
+    .np-fila-mais:hover { background: ${COR.hover}; }
+    .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }
+    /* O fundo do Now Playing: a capa nova entra por cima da anterior. */
+    [data-dt~="np-fundo"]{ animation: dt-np-fundo 700ms ease both; }
+    @keyframes dt-np-fundo{ from{ opacity:0 } to{ opacity:1 } }
 
     /* =====================================================================
        O MOVIMENTO DO PC (20/9)
@@ -214,6 +225,12 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="fila"]:hover [data-dt~="numero"], [data-dt~="fila"]:focus-within [data-dt~="numero"]{ opacity:0; }
     [data-dt~="fila"]:hover [data-dt~="toca"], [data-dt~="fila"]:focus-within [data-dt~="toca"]{ opacity:1; transform:none; }
     [data-dt~="fila"]:hover [data-dt~="mais"], [data-dt~="fila"]:focus-within [data-dt~="mais"]{ opacity:1; }
+    /* A linha acende pelo CSS e não só pelo \`hovered\` do RNW: o rato em cima
+       do artista ou do "..." (Pressables dentro dela) fazia-a apagar-se. */
+    [data-dt~="lista"] [data-dt~="fila"]:hover{ background-color: ${COR.hover}; }
+    /* O artista de uma linha é um link para a página dele. */
+    [data-dt~="fila"] [data-dt~="artista"]{ transition: color var(--dt-rapido) var(--dt-curva); cursor: pointer; }
+    [data-dt~="fila"] [data-dt~="artista"]:hover{ color: ${COR.texto}; text-decoration: underline; }
     /* A que esta a tocar nao esconde as barrinhas nem mostra o numero. */
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: dt-pular 900ms ease-in-out infinite; }
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(2){ animation-delay: 150ms }
@@ -404,13 +421,38 @@ function BolinhaDeAviso() {
   ]} />;
 }
 
+/**
+ * A barra de progresso do leitor, e a única parte dele que lê a posição.
+ * Arrastar só procura ao largar -- ver `useProcurarAoLargar`.
+ */
+function BarraDeProgresso() {
+  const positionMs = usePlayer((s) => s.positionMs);
+  const durationMs = usePlayer((s) => s.durationMs);
+  const { arrasto, comecar } = useProcurarAoLargar();
+  const ratio = arrasto ?? (durationMs ? Math.min(1, positionMs / durationMs) : 0);
+  return <View style={styles.progressRow}>
+    <Text style={styles.timeText}>{formatTime(arrasto !== null ? (arrasto * durationMs) / 1000 : positionMs / 1000)}</Text>
+    <P onMouseDown={comecar} onTouchStart={comecar} style={styles.progressHit} {...marcar('calha')}><V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} /></P>
+    <Text style={styles.timeText}>{formatTime(durationMs / 1000)}</Text>
+  </View>;
+}
+
 export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLigado = false, onAviso }: {
   currentIsSaved: boolean; toggleSaveCurrent: () => void; onJam: () => void;
   /** O Discord está a publicar -- quem sabe é a casca, que tem a preferência. */
   discordLigado?: boolean;
   onAviso?: (mensagem: string) => void;
 }) {
-  const p = usePlayer(); const ratio = p.durationMs ? Math.min(1, p.positionMs / p.durationMs) : 0;
+  // Só o que a barra desenha, e NUNCA a posição: o `usePlayer()` sem seletor
+  // redesenhava a barra inteira a cada `_setProgress` (auditoria de 17/9, §1.5).
+  // A posição vive na `BarraDeProgresso`, que é a única que precisa dela.
+  const p = usePlayer(useShallow((s) => ({
+    current: s.current, closeGain: s.closeGain, volume: s.volume, setVolume: s.setVolume,
+    shuffle: s.shuffle, shuffleInteligente: s.shuffleInteligente, toggleShuffle: s.toggleShuffle,
+    prev: s.prev, next: s.next, showRewindButton: s.showRewindButton, isPlaying: s.isPlaying,
+    buffering: s.buffering, togglePlay: s.togglePlay, repeatMode: s.repeatMode,
+    cycleRepeat: s.cycleRepeat, error: s.error, seekTo: s.seekTo,
+  })));
   const jam = useOuvirJuntos((s) => s.sessao);
   const [dragX,setDragX]=useState(0);
   const swipeWidth=useRef(360),swiping=useRef(false);
@@ -429,29 +471,6 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     p.setVolume(p.volume > 0 ? 0 : volumeAudivel.current || 80);
   };
   if (!p.current) return null;
-
-  const startDragProgress = (mouseDownEvent: any) => {
-    mouseDownEvent.preventDefault();
-    const target = mouseDownEvent.currentTarget;
-    const update = (moveEvent: any) => {
-      const rect = target.getBoundingClientRect();
-      const clientX = moveEvent.clientX ?? moveEvent.touches?.[0]?.clientX;
-      if (clientX === undefined) return;
-      const r = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
-      p.seekTo(r * p.durationMs);
-    };
-    update(mouseDownEvent);
-    const stop = () => {
-      window.removeEventListener('mousemove', update);
-      window.removeEventListener('mouseup', stop);
-      window.removeEventListener('touchmove', update);
-      window.removeEventListener('touchend', stop);
-    };
-    window.addEventListener('mousemove', update);
-    window.addEventListener('mouseup', stop);
-    window.addEventListener('touchmove', update);
-    window.addEventListener('touchend', stop);
-  };
 
   const startDragVolume = (mouseDownEvent: any) => {
     mouseDownEvent.preventDefault();
@@ -485,7 +504,12 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
         onPress={() => {if(!swiping.current)window.dispatchEvent(new CustomEvent('duotone:navigate', { detail: { name: 'now-playing' } }));}}
       >
         <Artwork track={p.current} size={52} />
-        <Text numberOfLines={1} style={styles.playerTitle}>{p.current.title}</Text>
+        {/* O título limpo e o artista, como em todas as listas: aqui ia o
+            título cru do upload, sem artista nenhum. */}
+        <View style={{ minWidth: 0, flexShrink: 1 }}>
+          <Text numberOfLines={1} style={styles.playerTitle}>{tituloDaFaixa(p.current)}</Text>
+          <Text numberOfLines={1} style={styles.playerArtista}>{displayArtist(p.current)}</Text>
+        </View>
       </Pressable>
       {/* A classe só existe quando está guardada: é a entrada dela que faz o
           coração bater uma vez. Sai quando se desguarda, e volta a entrar na
@@ -493,7 +517,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       <View style={styles.playerSave} {...(currentIsSaved ? marcar('coracao') : {})}>
         <IconButton
           name={currentIsSaved ? 'heart' : 'heart-outline'}
-          label={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'}
+          label={currentIsSaved ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
           onPress={toggleSaveCurrent}
           active={currentIsSaved}
         />
@@ -503,7 +527,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       <View style={styles.playerControls}>
         <IconButton name="shuffle" label={rotuloDoModo(modoDeShuffle(p.shuffle, p.shuffleInteligente))} active={p.shuffle} estrela={p.shuffleInteligente} onPress={p.toggleShuffle} />
         <IconButton name="play-skip-back" label="Previous" onPress={p.prev} />
-        {p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, p.positionMs - 15000))} />}
+        {p.showRewindButton && <IconButton name="play-back" label="Rewind 15 seconds" onPress={() => p.seekTo(Math.max(0, usePlayer.getState().positionMs - 15000))} />}
         <Pressable accessibilityLabel={p.isPlaying ? 'Pause' : 'Play'} onPress={p.togglePlay} style={({ hovered, pressed }) => [styles.playButton, hovered && { transform: [{ scale: 1.05 }] }, pressed && { transform: [{ scale: .97 }] }]}><Ionicons name={p.buffering ? 'hourglass-outline' : p.isPlaying ? 'pause' : 'play'} size={19} color="#111117" /></Pressable>
         <IconButton name="play-skip-forward" label="Next" onPress={p.next} />
         {/* O icone e o MESMO nos dois modos: o `repeat` e o `repeat-outline`
@@ -517,11 +541,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
           onPress={p.cycleRepeat}
         />
       </View>
-      <View style={styles.progressRow}>
-        <Text style={styles.timeText}>{formatTime(p.positionMs / 1000)}</Text>
-        <P onMouseDown={startDragProgress} onTouchStart={startDragProgress} style={styles.progressHit} {...marcar('calha')}><V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} /></P>
-        <Text style={styles.timeText}>{formatTime(p.durationMs / 1000)}</Text>
-      </View>
+      <BarraDeProgresso />
     </View>
     <View style={styles.playerRight}>
       {p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}

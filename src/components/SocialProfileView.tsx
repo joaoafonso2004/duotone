@@ -10,7 +10,7 @@ import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
 import { useProfileMedia } from '../lib/profileMedia';
 import { ultimaAtividade } from '../lib/socialPresence';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { colors, radii, SOCIAL_GUTTER } from './socialTokens';
 import { useTheme } from '../state/theme';
 import { useSocialBottomPadding } from './useSocialBottomPadding';
@@ -219,7 +219,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
       <View style={{width:44,height:44,borderRadius:radii.sm,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
         {entry.artworkUrl?<Image source={{uri:entry.artworkUrl}} style={{width:44,height:44}}/>:<Ionicons name="musical-notes" color={colors.textSecondary} size={22}/>}
       </View>
-      <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.text}>{entry.title}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(entry)}</Text></View>
+      <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.text}>{tituloDaFaixa(entry)}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(entry)}</Text></View>
       {/* Nas mais tocadas o número é a contagem e diz alguma coisa. Nas
           recentes mostrava-se a data, que numa lista do que se ouviu há pouco
           não acrescenta nada e rouba a linha ao título. */}
@@ -302,7 +302,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
             <View style={s.row}>
               <Pressable accessibilityRole="button" accessibilityLabel={`Play ${highlights.moment.title}`} onPress={()=>void usePlayer.getState().playTrack(highlights.moment!,[highlights.moment!])} style={[s.row,{flex:1,minWidth:0}]}>
                 {highlights.moment.artworkUrl?<Image source={{uri:highlights.moment.artworkUrl}} style={{width:56,height:56,borderRadius:radii.sm}}/>:<Ionicons name="musical-notes" size={40} color={accent}/>}
-                <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={s.text}>{highlights.moment.title}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(highlights.moment)}</Text></View>
+                <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={s.text}>{tituloDaFaixa(highlights.moment)}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(highlights.moment)}</Text></View>
                 <Ionicons name="play-circle" size={32} color={accent}/>
               </Pressable>
               {own&&(aTirarMoment

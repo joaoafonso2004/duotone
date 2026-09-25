@@ -2,7 +2,8 @@ import { cacheGet, cacheSet, DIA_MS } from './cache';
 import { chaveDeArtista } from '../lib/artistName';
 import { escolher, type Candidato, type FaixaLocal } from '../lib/catalogoDaFaixa';
 import {
-  candidatosPlausiveis, chaveDeCatalogo, type ArtistaDoCatalogo,
+  candidatoInequivoco, candidatosPlausiveis, candidatosProvados, chaveDeCatalogo,
+  PROVAS_POR_ARTISTA, tituloProva, type ArtistaDoCatalogo,
 } from '../lib/catalogo';
 
 /**
@@ -199,6 +200,100 @@ async function consultarVizinhanca(nome: string): Promise<Vizinhanca | null> {
 }
 
 /**
+ * Este nome é um artista -- e é O artista que esta pessoa ouve?
+ *
+ * A `vizinhancaDe` responde à primeira pergunta e fica com o homónimo de mais
+ * fãs. Chega para nomes grandes e inequívocos, e falha exatamente no gosto dos
+ * amigos do João: o rapper "Cold" virava a banda de nu-metal Cold, o canal
+ * "Ryan" um grupo de rock argentino, e o Smart Shuffle trazia os semelhantes
+ * DESSES -- o "música horrível que nem faz sentido" de 25/9. Aqui o homónimo
+ * só serve se tiver no catálogo uma das músicas que a pessoa guardou dele
+ * (`provas`, títulos já limpos). Sem prova, só um nome inequívoco passa
+ * (`candidatoInequivoco`); o resto não é âncora de nada.
+ *
+ * Sem provas (artistas do Spotify ou das escolhas do primeiro dia, que não têm
+ * faixas na biblioteca) é a `vizinhancaDe` de sempre: esses nomes vieram de uma
+ * fonte que já sabe quem é quem.
+ *
+ * A decisão fica em cache 30 dias; a negativa só 7 -- a biblioteca cresce, e a
+ * próxima música guardada pode ser a prova que faltava.
+ */
+const confirmadasEmCurso = new Map<string, Promise<Vizinhanca | null>>();
+/** O que já se decidiu nesta sessão, para quem precisa da mesma resposta. */
+const decididas = new Map<string, Vizinhanca | null>();
+const VALIDADE_DA_NEGATIVA = 7 * DIA_MS;
+
+export function vizinhancaConfirmada(nome: string, provas: readonly string[]): Promise<Vizinhanca | null> {
+  if (provas.length === 0) return vizinhancaDe(nome);
+  const chave = chaveDeCatalogo(nome);
+  const pendente = confirmadasEmCurso.get(chave);
+  if (pendente) return pendente;
+  const pedido = consultarConfirmada(nome, provas)
+    .then((v) => { decididas.set(chave, v); return v; })
+    .finally(() => confirmadasEmCurso.delete(chave));
+  confirmadasEmCurso.set(chave, pedido);
+  return pedido;
+}
+
+/**
+ * A resposta da `vizinhancaConfirmada` para este nome, se já foi dada nesta
+ * sessão (`undefined` se não). As misturas usam-na para não voltarem a ir ao
+ * homónimo por outro caminho.
+ */
+export function vizinhancaJaDecidida(nome: string): Vizinhanca | null | undefined {
+  const chave = chaveDeCatalogo(nome);
+  return decididas.has(chave) ? decididas.get(chave)! : undefined;
+}
+
+async function consultarConfirmada(nome: string, provas: readonly string[]): Promise<Vizinhanca | null> {
+  const limpo = (nome ?? '').trim();
+  if (!limpo) return null;
+  const chaveCache = `deezer:confirmada:v1:${chaveDeCatalogo(limpo)}`;
+  const guardado = await cacheGet<Vizinhanca | { nao: true; em: number }>(chaveCache, VALIDADE);
+  if (guardado) {
+    if (!('nao' in guardado)) return guardado;
+    if (Date.now() - (guardado.em ?? 0) < VALIDADE_DA_NEGATIVA) return null;
+  }
+
+  const busca = await pedir<{ data?: any[] }>(
+    `/search/artist?q=${encodeURIComponent(limpo)}&limit=8`,
+  );
+  if (!busca || !Array.isArray(busca.data)) throw new Error('Catalogue unavailable.');
+  const candidatos = candidatosPlausiveis(limpo, busca.data.map(paraArtista));
+
+  // Quem tem, no catálogo, uma das músicas dele. A pesquisa avançada
+  // (`artist:"..." track:"..."`) não devolve nada nesta API -- medido a 25/9
+  // --, por isso vai a pesquisa simples e o título confere-se aqui.
+  const donos = new Set<number>();
+  if (candidatos.length > 0) {
+    for (const titulo of provas.slice(0, PROVAS_POR_ARTISTA)) {
+      const r = await pedir<{ data?: any[] }>(
+        `/search?q=${encodeURIComponent(`${limpo} ${titulo}`)}&limit=10`,
+      );
+      if (!r || !Array.isArray(r.data)) throw new Error('Catalogue unavailable.');
+      for (const f of r.data) {
+        if (typeof f?.artist?.id === 'number' && tituloProva(f?.title ?? '', titulo)) donos.add(f.artist.id);
+      }
+      if (candidatos.some((c) => donos.has(c.id))) break;
+    }
+  }
+
+  const provados = candidatosProvados(candidatos, donos);
+  const inequivoco = provados.length === 0 ? candidatoInequivoco(candidatos) : null;
+  for (const candidato of provados.length > 0 ? provados : inequivoco ? [inequivoco] : []) {
+    const rel = await pedir<{ data?: any[] }>(`/artist/${candidato.id}/related?limit=25`);
+    if (!rel || !Array.isArray(rel.data)) throw new Error('Catalogue unavailable.');
+    const semelhantes = rel.data.map(paraArtista).filter((a) => a.nome);
+    if (semelhantes.length === 0) continue;
+    const achado: Vizinhanca = { artista: candidato, semelhantes };
+    await cacheSet(chaveCache, achado);
+    return achado;
+  }
+  await cacheSet(chaveCache, { nao: true, em: Date.now() });
+  return null;
+}
+
+/**
  * Confirma uma grafia corrigida pelo catálogo com a música exata desse artista.
  * Ex.: o Deezer sugere 2hollis para Zhollis, mas só aceitamos a sugestão se
  * houver também uma faixa chamada «poster boy», com o mesmo id de artista.
@@ -222,7 +317,10 @@ async function consultarArtistaDaFaixa(titulo: string, nome: string, chave: stri
   if (!busca || !Array.isArray(busca.data)) throw new Error('Catalogue unavailable.');
   const confirmados = new Set<string>();
   for (const candidato of busca.data) {
-    const query = `artist:"${String(candidato.name).replace(/"/g, '')}" track:"${titulo.replace(/"/g, '')}"`;
+    // Pesquisa simples: a avançada (`artist:"..." track:"..."`) devolve sempre
+    // zero nesta API (medido a 25/9), e esta confirmação nunca acontecia. A
+    // prova continua a ser o id do artista e o título exato, logo abaixo.
+    const query = `${String(candidato.name)} ${titulo}`;
     const faixas = await pedir<{ data?: any[] }>(`/search?q=${encodeURIComponent(query)}&limit=10`);
     if (!faixas || !Array.isArray(faixas.data)) throw new Error('Catalogue unavailable.');
     const exata = faixas.data.some((f) => f.artist?.id === candidato.id

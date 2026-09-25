@@ -26,6 +26,7 @@ import { hapticSelection } from '../lib/haptics';
 import { agruparPorArtista, chaveDeArtista } from '../lib/artistName';
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
 
@@ -181,7 +182,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         renderItem={({ item }) => activeTab === 'youtube_albums' ? <Pressable accessibilityRole="button"
           onPress={() => { setSelectedYtPlaylistId(item.id); setSelectedYtPlaylistTitle(item.title); setSelectedYtPlaylistArtwork(item.artworkUrl); }}
           style={({ pressed }) => [styles.albumRow, pressed && { backgroundColor: colors.surfacePressed }]}>
-          {item.artworkUrl ? <Image source={{ uri: item.artworkUrl }} style={styles.albumArt} /> :
+          {item.artworkUrl ? <Image source={{ uri: capaParaLista(item.artworkUrl)! }} style={styles.albumArt} /> :
             <View style={[styles.albumArt, styles.albumArtFallback]}><Ionicons name="albums-outline" size={20} color={colors.textTertiary} /></View>}
           <View style={{ flex: 1, gap: 2 }}><Text numberOfLines={1} style={[typography.body, { fontWeight: '600' }]}>{item.title}</Text>
             <Text numberOfLines={1} style={typography.caption}>{item.channelTitle || 'YouTube'}</Text></View>

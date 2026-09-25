@@ -94,6 +94,69 @@ export function candidatosPlausiveis(
 }
 
 /**
+ * Quantas músicas da biblioteca se usam, no máximo, para provar QUEM é um
+ * artista. Cada uma é uma pesquisa ao catálogo (em cache 30 dias); para-se na
+ * primeira que prove.
+ */
+export const PROVAS_POR_ARTISTA = 4;
+
+/**
+ * Uma faixa do catálogo é a música da biblioteca que se usou como prova?
+ *
+ * Contém, e não igual: o catálogo escreve "NOSTYLIST" e a biblioteca pode ter
+ * "NOSTYLIST (sped up)" já limpo para "NOSTYLIST", ou o contrário. Títulos de
+ * menos de três letras só contam iguais -- "Sky" dentro de "Skyfall" seria uma
+ * prova de nada.
+ */
+export function tituloProva(tituloDoCatalogo: string, prova: string): boolean {
+  const a = chaveDeCatalogo(tituloDoCatalogo).replace(/ /g, '');
+  const b = chaveDeCatalogo(prova).replace(/ /g, '');
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length < 3 || b.length < 3) return false;
+  return a.includes(b) || b.includes(a);
+}
+
+/**
+ * Qual dos homónimos é o artista que esta pessoa ouve: o que tem, no catálogo,
+ * uma das músicas que ela guardou dele.
+ *
+ * **O nome não chega, e a audiência também não.** Escolher o homónimo com mais
+ * fãs fazia do rapper "Cold" a banda de nu-metal Cold (Staind, Seether), do
+ * canal "Ryan" um grupo de rock argentino e do canal "Timeless" um pop alemão
+ * -- e o Smart Shuffle ia buscar os semelhantes DESSES (medido no Deezer a
+ * 25/9). Os artistas a sério passam todos: a música deles está lá.
+ *
+ * `donos` são os ids de artista das faixas do catálogo que casaram com as
+ * provas. Devolve os candidatos provados, por audiência; vazio quando nenhum o
+ * é -- e aí o nome não serve de âncora.
+ */
+export function candidatosProvados(
+  candidatos: readonly ArtistaDoCatalogo[],
+  donos: ReadonlySet<number>,
+): ArtistaDoCatalogo[] {
+  return candidatos.filter((c) => donos.has(c.id));
+}
+
+/**
+ * Sem prova nenhuma, um nome só serve se for inequívoco: um artista enorme e
+ * os homónimos dele com nada. É o caso de quem só tem LEAKS de um artista
+ * (músicas que o catálogo não tem, e que por isso não provam nada): "Juice
+ * WRLD" tem 2,5 milhões de fãs e o homónimo 22. O rapper "Cold" (a banda tem
+ * 27 mil) e o canal "Ryan" (3 mil) não passam. `candidatos` vem por audiência.
+ */
+export function candidatoInequivoco(
+  candidatos: readonly ArtistaDoCatalogo[],
+): ArtistaDoCatalogo | null {
+  const [primeiro, segundo] = candidatos;
+  if (!primeiro || primeiro.fas < FAS_DE_UM_NOME_INEQUIVOCO) return null;
+  if (segundo && primeiro.fas < segundo.fas * VANTAGEM_DE_UM_NOME_INEQUIVOCO) return null;
+  return primeiro;
+}
+export const FAS_DE_UM_NOME_INEQUIVOCO = 100_000;
+export const VANTAGEM_DE_UM_NOME_INEQUIVOCO = 1000;
+
+/**
  * Os semelhantes que o catálogo deu, reordenados pelo gosto de quem ouve.
  *
  * O catálogo sabe quem se parece com quem **em geral**; a biblioteca da pessoa

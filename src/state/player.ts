@@ -447,6 +447,15 @@ interface PlayerState {
   reordenarProximas: (de: number, para: number) => void;
   moveQueueItem: (fromIndex: number, toIndex: number) => void;
   removeFromQueue: (index: number) => void;
+  /**
+   * Tira TUDO o que vem a seguir (o "Clear" do Up next), e só isso: a faixa
+   * que toca e as que já tocaram ficam, para o "anterior" continuar a ter
+   * para onde voltar. Com shuffle, "a seguir" é o percurso que falta, não a
+   * ordem da fila. Num Jam não faz nada -- a fila é de todos. Devolve quantas
+   * saíram. Com o rádio automático ligado, a fila volta a encher-se com ele:
+   * é o que acontece a qualquer fila que chega ao fim.
+   */
+  limparProximas: () => number;
 
   seekTo: (ms: number, interno?: boolean) => Promise<void>;
 
@@ -1714,7 +1723,7 @@ export const usePlayer = create<PlayerState>()(
         // Quatro alvos e o que a descoberta ja usa. Nesta sessao, as faixas
         // realmente ouvidas escolhem as ancoras; o perfil global ajuda a
         // ordenar os semelhantes sem trocar o ambiente actual.
-        POR_SUGESTAO, ALVOS_DA_SUGESTAO, perfil.escutas, undefined, perfil.externos, true,
+        POR_SUGESTAO, ALVOS_DA_SUGESTAO, perfil.escutas, undefined, perfil.externos, 'estrito',
         proveniencias,
       );
       if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return 0;
@@ -1817,7 +1826,7 @@ export const usePlayer = create<PlayerState>()(
         // Quatro alvos e o que a descoberta ja usa. Nesta sessao, as faixas
         // realmente ouvidas escolhem as ancoras; o perfil global ajuda a
         // ordenar os semelhantes sem trocar o ambiente actual.
-        POR_SUGESTAO, ALVOS_DA_SUGESTAO, perfil.escutas, undefined, perfil.externos, true,
+        POR_SUGESTAO, ALVOS_DA_SUGESTAO, perfil.escutas, undefined, perfil.externos, 'estrito',
         proveniencias,
       );
       if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return false;
@@ -2118,6 +2127,19 @@ export const usePlayer = create<PlayerState>()(
     }
 
     set({ queue: newQueue, queueIndex: newIndex });
+  },
+
+  limparProximas: () => {
+    if (ouvirJuntos()) return 0;
+    const proximas = get().upcomingQueue();
+    if (proximas.length === 0) return 0;
+    const sai = new Set(proximas.map((p) => p.index));
+    const { queue, queueIndex, shuffle } = get();
+    const antes = [...sai].filter((i) => i < queueIndex).length;
+    set({ queue: queue.filter((_, i) => !sai.has(i)), queueIndex: queueIndex - antes });
+    // O percurso do shuffle guarda chaves; as que saíram deixam de ter faixa.
+    if (shuffle) get()._ensureShuffleOrder();
+    return proximas.length;
   },
 
   removeFromQueue: (index) => {

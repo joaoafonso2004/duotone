@@ -1,6 +1,6 @@
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { RecommendationPreferences } from './RecommendationPreferences';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React from 'react';
@@ -19,6 +19,7 @@ import { navigationRef } from '../navigation/RootNavigator';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 
 /** Uma linha de um menu que NÃO é de uma faixa -- as opções de uma playlist. */
 export interface SheetAction {
@@ -115,7 +116,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], disco
           <View style={styles.header}>
             {track.artworkUrl ? (
               <Image
-                source={{ uri: track.artworkUrl }}
+                source={{ uri: capaParaLista(track.artworkUrl)! }}
                 style={styles.art}
                 contentFit="cover"
               />
@@ -130,7 +131,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], disco
             )}
             <View style={{ flex: 1, gap: 3 }}>
               <Text numberOfLines={1} style={[type.headline]}>
-                {track.title}
+                {tituloDaFaixa(track)}
               </Text>
               {track.artist ? (
                 <Text numberOfLines={1} style={type.caption}>

@@ -86,7 +86,7 @@ export function HandoffBanner() {
               {durationMs > 0 ? ` · ${fmt(positionMs)} / ${fmt(durationMs)}` : ''}
             </Text>
           </View>
-          <Text numberOfLines={1} style={s.title}>{session.track.title}</Text>
+          <Text numberOfLines={1} style={s.title}>{tituloDaFaixa(session.track)}</Text>
           <Text numberOfLines={1} style={s.artist}>{displayArtist(session.track)}</Text>
           {proxima ? (
             <Text numberOfLines={1} style={s.aSeguir}>

@@ -1,5 +1,5 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -59,6 +59,7 @@ import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type, gradients, radii } from '../theme';
 import { getOrdemDaPlaylist, setOrdemDaPlaylist, type OrdemDaPlaylist } from '../lib/prefs';
 import type { Playlist, PlaylistTrack, Track } from '../types';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
@@ -593,7 +594,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               <View style={styles.editRow}>
                 <View style={{ flex: 1 }}>
                   <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
-                    {item.title}
+                    {tituloDaFaixa(item)}
                   </Text>
                   <Text numberOfLines={1} style={type.caption}>
                     {displayArtist(item)}
@@ -870,7 +871,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                       />
                       {item.artworkUrl ? (
                         <Image
-                          source={{ uri: item.artworkUrl }}
+                          source={{ uri: capaParaLista(item.artworkUrl)! }}
                           style={styles.modalItemArt}
                           contentFit="cover"
                         />
@@ -881,7 +882,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                       )}
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
-                          {item.title}
+                          {tituloDaFaixa(item)}
                         </Text>
                         <Text numberOfLines={1} style={type.caption}>
                           {displayArtist(item)}

@@ -36,6 +36,18 @@ caso('uma posição guardada fora do ecrã é trazida para dentro', () => {
   assert.deepEqual(m.ondeAbrir(g, compacto, [principal], principal), { x: 1920 - 360, y: 1032 - 88 });
 });
 
+console.log('\na barra recolhida');
+caso('encostado em baixo, a barra fica em baixo e abre para cima', () => {
+  const pos = m.posicaoInicial(principal, compacto);
+  assert.equal(m.ancoraDoMini(pos, compacto, principal), 'baixo');
+});
+caso('encostado em cima, abre para baixo', () => {
+  assert.equal(m.ancoraDoMini({ x: 100, y: 16 }, compacto, principal), 'cima');
+});
+caso('sem área conhecida, em baixo', () => {
+  assert.equal(m.ancoraDoMini({ x: 0, y: 0 }, compacto, null), 'baixo');
+});
+
 console.log('\nmexer');
 caso('perto de uma borda encosta à margem', () => {
   assert.deepEqual(m.encostar({ x: 1920 - 360 - 16 - 7, y: 400 }, compacto, principal), { x: 1920 - 360 - 16, y: 400 });

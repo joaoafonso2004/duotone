@@ -5,7 +5,7 @@ import {LinearGradient} from 'expo-linear-gradient';
 import type {ChatGroup,Reaction,SharedItem} from '../api/social';
 import type {Playlist,Track} from '../types';
 import {useTheme} from '../state/theme';
-import {displayArtist} from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import {BotaoGuardar} from './BotaoGuardar';
 import {FriendAvatar} from './FriendAvatar';
 import {colors,radii} from './socialTokens';
@@ -103,7 +103,7 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
         onPress={()=>onTrack(m.trackData!)} style={({pressed})=>[s.row,{padding:10,gap:10,minWidth:190,borderRadius:12,backgroundColor:colors.bg,opacity:pressed?0.7:1}]}>
         {m.trackData.artworkUrl?<Image source={{uri:m.trackData.artworkUrl}} style={{width:48,height:48,borderRadius:8}}/>:
           <View style={{width:48,height:48,borderRadius:8,backgroundColor:colors.surfaceHigh,alignItems:'center',justifyContent:'center'}}><Ionicons name="musical-notes-outline" size={22} color={colors.textSecondary}/></View>}
-        <View style={{flex:1,minWidth:0,gap:3}}><Text numberOfLines={2} style={[s.text,{fontWeight:'600'}]}>{m.trackData.title}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(m.trackData)}</Text></View>
+        <View style={{flex:1,minWidth:0,gap:3}}><Text numberOfLines={2} style={[s.text,{fontWeight:'600'}]}>{tituloDaFaixa(m.trackData)}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(m.trackData)}</Text></View>
         {/* Guardar sem sair da conversa -- o mesmo coração da conversa a dois. */}
         <BotaoGuardar track={m.trackData}/>
         <Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>

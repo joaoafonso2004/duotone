@@ -89,7 +89,8 @@ function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const MONTHS_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+// A interface é em inglês (as abreviaturas eram as portuguesas: Fev, Abr...).
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function trackKey(r: PlayRow): string {
   return `${r.source}:${r.sourceId}`;
@@ -205,7 +206,7 @@ export function computeStats(
       label:
         period === '30d'
           ? key.slice(8) // dia do mês
-          : MONTHS_PT[Number(key.slice(5, 7)) - 1] ?? key,
+          : MONTHS[Number(key.slice(5, 7)) - 1] ?? key,
       plays,
     }));
 

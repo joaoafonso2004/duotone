@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
 import { getLibrary, getLikedSongs } from '../api/library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { useConnectivity } from '../state/connectivity';
@@ -46,8 +45,9 @@ export function useAquecerSeccoes(userId: string | undefined): void {
     void lerFaixas(getLibrary).catch(() => {});
     void lerFaixas(getLikedSongs).catch(() => {});
     void usePlaylists.getState().carregar();
-    // A Daily mix mora no topo das Playlists do iPhone, e é a lista que se toca
-    // sem escolher nada: tem de estar pronta antes de alguém lá chegar.
-    if (Platform.OS === 'ios') void useMisturaDoDia.getState().carregar();
+    // A Daily mix mora no topo da Pesquisa, nas duas plataformas, e é a lista
+    // que se toca sem escolher nada: tem de estar pronta antes de alguém lá
+    // chegar. No PC o `guardarEmSegundoPlano` não faz nada (não há downloads).
+    void useMisturaDoDia.getState().carregar();
   }, [userId, offline, naAbertura]);
 }

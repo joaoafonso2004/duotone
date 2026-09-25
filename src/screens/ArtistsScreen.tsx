@@ -23,6 +23,7 @@ import { hapticSelection } from '../lib/haptics';
 import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 
 interface ArtistGroup { name: string; chave: string; artworkUrl: string | null; count: number }
 export function ArtistsScreen() {
@@ -108,7 +109,7 @@ export function ArtistsScreen() {
     return <Pressable accessibilityRole="button" accessibilityLabel={`${artist.name}, ${artist.count} songs`}
       onPress={() => navigation.navigate('LibraryGroup', { type: 'artist', name: artist.name })}
       style={({ pressed }) => [styles.card, { width: shelf ? 94 : cardWidth, opacity: pressed ? 0.6 : 1 }]}>
-      {artist.artworkUrl ? <Image source={{ uri: artist.artworkUrl }} contentFit="cover"
+      {artist.artworkUrl ? <Image source={{ uri: capaParaLista(artist.artworkUrl)! }} contentFit="cover"
         style={{ width: side, height: side, borderRadius: side / 2, backgroundColor: colors.surfaceHigh }} />
         : <View style={[styles.fallback, { width: side, height: side, borderRadius: side / 2 }]}><Ionicons name="person" size={30} color={colors.textTertiary} /></View>}
       {/* Na prateleira de cima não: são círculos de 86 e já dizem quem se

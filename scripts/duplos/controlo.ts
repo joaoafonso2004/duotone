@@ -30,7 +30,7 @@ export interface Controlo {
   perfisDaDescoberta: {
     escutas?: ReadonlyMap<string, number>;
     externos?: ReadonlyMap<string, string>;
-    contextoDaSessao?: boolean;
+    contextoDaSessao?: boolean | 'estrito';
   }[];
   /** O que o rádio devolve no fim da fila. */
   radio: Track[];

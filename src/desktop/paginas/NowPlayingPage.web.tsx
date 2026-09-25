@@ -1,7 +1,7 @@
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
   getGlitchMode, type GlitchMode,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
@@ -20,7 +20,10 @@ import { extrapolatedPositionMs } from '../../lib/handoff';
 import { takeOverSession } from '../../lib/sessionSync';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, IconButton, Page, ui } from '../ui.web';
+import { Artwork, Button, desktop, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
+import { desfoqueLeve } from '../../lib/capaGrande';
+import { disposicaoDoLeitor, fimDaFila } from '../../lib/leitorDoPc';
+import { pertoDoFim } from '../../lib/grelhaQueCresce';
 import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
 import type { Track } from '../../types';
 import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
@@ -138,6 +141,63 @@ function AcaoDoLeitor({ rotulo, onPress, ativo = false, ponto = false, children 
   );
 }
 
+/**
+ * Os dois pontos por baixo da capa: o primeiro é a capa, o segundo as letras.
+ * Carregar num leva a essa face; o arrasto continua a funcionar.
+ */
+function PontosDaCapa({ letras, aoMudar }: { letras: boolean; aoMudar: (v: boolean) => void }) {
+  return (
+    <View style={styles.npPontos} accessibilityRole="tablist">
+      {[false, true].map((sao) => (
+        <Pressable key={String(sao)} accessibilityRole="tab"
+          accessibilityLabel={sao ? 'Lyrics' : 'Artwork'}
+          accessibilityState={{ selected: letras === sao }}
+          onPress={() => aoMudar(sao)}
+          style={styles.npPontoAlvo}>
+          <View style={[styles.npPonto, letras === sao && styles.npPontoAtivo]} />
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * O fundo do leitor do iPhone, no PC: a PRÓPRIA capa muito desfocada e
+ * escurecida, com um véu por cima (mais forte do lado da fila e em baixo, para
+ * tudo se ler com uma capa clara). Escolhido pelo João a 25/9 depois de ver uma
+ * cor lisa e uma mancha à volta da capa ("uma cor estática").
+ *
+ * **Parte da miniatura pequena** (`desfoqueLeve`, a mesma do iPhone): desfocar
+ * a capa grande era trabalho à toa. E é um `filter` numa IMAGEM parada, não um
+ * `backdrop-filter` -- esse refaz-se a cada pintura e foi o que deixou a 3.7.1
+ * pesada (ver o CLAUDE.md, "O movimento do PC").
+ *
+ * Ao mudar de faixa, a capa nova entra POR CIMA da anterior (`np-fundo`, 700
+ * ms), e a de baixo só sai depois: nunca se vê o fundo vazio a meio.
+ */
+function FundoDaCapa({ uri }: { uri: string | null }) {
+  const fonte = desfoqueLeve(uri, 64)?.uri ?? null;
+  const [camadas, setCamadas] = useState<string[]>(() => (fonte ? [fonte] : []));
+  useEffect(() => {
+    if (!fonte) { setCamadas([]); return; }
+    setCamadas((c) => (c[c.length - 1] === fonte ? c : [...c.slice(-1), fonte]));
+    const t = setTimeout(() => setCamadas((c) => c.slice(-1)), 900);
+    return () => clearTimeout(t);
+  }, [fonte]);
+  return (
+    <View pointerEvents="none" style={styles.npFundo}>
+      {camadas.map((c, i) => (
+        <View key={c} style={[styles.npFundoCapa, { backgroundImage: `url("${c}")` } as any]}
+          {...(i === camadas.length - 1 && camadas.length > 1 ? marcar('np-fundo') : {})} />
+      ))}
+      <View style={styles.npFundoVeu} />
+    </View>
+  );
+}
+
+/** Linhas da fila montadas de cada vez. */
+const LINHAS_DA_FILA = 100;
+
 export function NowPlayingPage({
   more, notify, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist, share,
 }: CommonPageProps & {
@@ -172,8 +232,24 @@ export function NowPlayingPage({
   // Num jam manda a fila partilhada, e a origem pessoal não diz nada sobre ela.
   const emJam = useOuvirJuntos((s) => !!s.sessao);
   const [showLyrics,setShowLyrics]=useState(false);
+  // Quantas linhas da fila estão montadas. A fila inteira podia ser a
+  // biblioteca toda (um "Play all" de 2700 faixas), e cada linha é um nó
+  // arrastável; montam-se às centenas, como na tabela das listas.
+  const [linhasDaFila, setLinhasDaFila] = useState(LINHAS_DA_FILA);
+  // O "Clear" pede um segundo clique: tirar quarenta faixas por engano não
+  // tem volta atrás.
+  const [aConfirmarLimpar, setAConfirmarLimpar] = useState(false);
+  useEffect(() => {
+    if (!aConfirmarLimpar) return;
+    const t = setTimeout(() => setAConfirmarLimpar(false), 4000);
+    return () => clearTimeout(t);
+  }, [aConfirmarLimpar]);
   useEffect(()=>setShowLyrics(false),[current?.source,current?.sourceId]);
-  const { width } = useWindowDimensions();
+  // A capa mede-se pela ÁREA da página (a janela menos a lateral e o leitor),
+  // e não pela janela: é essa que tem de caber. Ver lib/leitorDoPc.ts.
+  const [area, setArea] = useState({ largura: 0, altura: 0 });
+  const repeatMode = usePlayer((s) => s.repeatMode);
+  const autoplayRadio = usePlayer((s) => s.autoplayRadio);
   // Uma vez por render: este ecrã redesenha a cada segundo (posição) e a
   // lista percorre a fila toda.
   const upNext = useMemo(
@@ -231,10 +307,10 @@ export function NowPlayingPage({
   const track = useMemo(() => (current ? comCatalogo(current) : current), [current, versaoDoCatalogo]);
   useEffect(() => { if (current) void garantirCatalogo([current]); }, [current]);
   if (!track) {
-    return <Page title="Now Playing" subtitle="Nothing is playing right now." action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
+    return <Page title="Now Playing" action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
   }
-  const estreito = width < 1180;
-  const ladoCapa = estreito ? 300 : width >= 1420 ? 420 : 384;
+  const { duasColunas, lado: ladoCapa } = disposicaoDoLeitor(area.largura || 1192, area.altura || 788);
+  const notaDoFim = fimDaFila({ emJam, repeatMode, autoplayRadio, vazia: upNext.length === 0 });
   // O artista sai do `displayArtist` e não do campo `artist`, que no YouTube é
   // o CANAL. A guarda é a mesma do iOS: sem nome não há para onde ir.
   const nomeDoArtista = displayArtist(track);
@@ -254,127 +330,180 @@ export function NowPlayingPage({
     : alvo.tipo === 'guardadas' ? () => navigate({ name: 'songs' })
     : undefined;
 
+  // A capa + o que vive por baixo dela. Numa janela larga fica parada à
+  // esquerda enquanto a fila rola ao lado; numa estreita, tudo rola junto.
+  const coluna = (
+    <View style={[styles.npLado, { width: ladoCapa }]}>
+      <ArtworkLyricsCube key={`${track.source}:${track.sourceId}`} track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
+        front={<GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
+      {/* As letras: dois pontos por baixo da capa, como no iPhone (decidido
+          com o João a 25/9). Arrastar a capa continua a funcionar; os pontos
+          são a porta que se vê -- até aqui só havia o arrasto. */}
+      <PontosDaCapa letras={showLyrics} aoMudar={setShowLyrics} />
+      {/* A identidade primeiro: o nome da faixa e, por baixo, o artista.
+          O artista sai do `displayArtist` e nao do campo `artist`, que no
+          YouTube e o CANAL -- e abria a pagina de um canal de uploads. */}
+      <View style={styles.npIdentidade}>
+        <Text numberOfLines={2} style={styles.npTitulo}>{tituloDaFaixa(track)}</Text>
+        <Pressable
+          accessibilityRole={temArtista ? 'link' : undefined}
+          accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
+          disabled={!temArtista}
+          onHoverIn={() => setSobreOArtista(true)}
+          onHoverOut={() => setSobreOArtista(false)}
+          onFocus={() => setNoArtista(true)}
+          onBlur={() => setNoArtista(false)}
+          onPress={() => navigate({ name: 'artist', value: nomeDoArtista })}
+          style={[styles.npArtistaAlvo, !temArtista && styles.npArtistaAlvoInerte]}
+        >
+          <Text style={[
+            styles.npArtista,
+            temArtista && (sobreOArtista || noArtista) && styles.npArtistaHover,
+          ]}>
+            {nomeDoArtista}
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Os seis ícones juntos, separados por um fio: à esquerda o que se faz
+          A ESTA FAIXA, à direita o que é da reprodução (onde toca, o mini
+          leitor, o som). Estavam atirados para as duas pontas da capa. */}
+      <View style={styles.npIcones}>
+        <AcaoDoLeitor rotulo={currentIsSaved ? 'Remove from Liked Songs' : 'Add to Liked Songs'} ativo={currentIsSaved} onPress={toggleSaveCurrent}>
+          {(cor) => <Ionicons name={currentIsSaved ? 'heart' : 'heart-outline'} size={20} color={cor} />}
+        </AcaoDoLeitor>
+        <AcaoDoLeitor rotulo="Add to playlist" onPress={() => aoAdicionarAPlaylist(track)}>
+          {(cor) => (
+            <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={cor} strokeWidth={1.7} strokeLinecap="round" aria-hidden="true">
+              <path d="M3 6h13M3 11h13M3 16h8M18 13.5v7M14.5 17h7" />
+            </svg>
+          )}
+        </AcaoDoLeitor>
+        <AcaoDoLeitor rotulo="Share this track" onPress={() => share({ itemType: 'track', item: track, name: track.title })}>
+          {(cor) => <Ionicons name="share-social-outline" size={19} color={cor} />}
+        </AcaoDoLeitor>
+        <View style={styles.npIconesFio} />
+        <AcaoDoLeitor rotulo="Play on another device" onPress={() => setAparelhosAberto(true)}>
+          {(cor) => <Ionicons name="desktop-outline" size={19} color={cor} />}
+        </AcaoDoLeitor>
+        {/* O mini leitor (electron/miniLeitor.cjs): sem ícone na barra
+            do leitor, que já tem que chegue -- abre-se daqui, do
+            tabuleiro ou por um atalho que alguém crie. */}
+        {window.duotoneDesktop?.alternarMiniLeitor ? (
+          <AcaoDoLeitor rotulo="Mini player" onPress={() => window.duotoneDesktop?.alternarMiniLeitor?.()}>
+            {(cor) => (
+              <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={cor} strokeWidth={1.7} strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="4.5" width="18" height="15" rx="2" />
+                <rect x="12" y="12" width="6.5" height="5" rx="1" fill={cor} stroke="none" />
+              </svg>
+            )}
+          </AcaoDoLeitor>
+        ) : null}
+        <AcaoDoLeitor rotulo="Equaliser and speed" ponto={!eqGanhos.every((g) => g === 0) || playbackRate !== 1} onPress={() => setEqAberto(true)}>
+          {(cor) => <Ionicons name="options-outline" size={20} color={cor} />}
+        </AcaoDoLeitor>
+      </View>
+    </View>
+  );
+
+  const cabecaDaFila = (
+    <View style={styles.npFilaCabeca}>
+      <Text style={styles.npFilaHeading}>Up next</Text>
+      <Text style={styles.npFilaContagem}>{upNext.length}</Text>
+      <View style={{ flex: 1 }} />
+      {/* Num Jam a fila é de todos: não se limpa daqui. */}
+      {!emJam && upNext.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={aConfirmarLimpar ? `Confirm: clear ${upNext.length} tracks from the queue` : 'Clear the queue'}
+          onPress={() => {
+            if (!aConfirmarLimpar) { setAConfirmarLimpar(true); return; }
+            setAConfirmarLimpar(false);
+            const sairam = usePlayer.getState().limparProximas();
+            if (sairam > 0) notify(`Cleared ${sairam} ${sairam === 1 ? 'track' : 'tracks'} from the queue.`);
+          }}
+          style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: COR.hover }]}
+        >
+          <Text style={[styles.npFilaLimparTexto, aConfirmarLimpar && { color: COR.aviso }]}>
+            {aConfirmarLimpar ? `Clear ${upNext.length}?` : 'Clear'}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+
+  /* A ordem que vai MESMO tocar: com shuffle ligado não é a ordem natural da
+     fila, e esta lista mentia. Arrastar para reordenar fica desligado nesse
+     caso -- mover uma lista baralhada não corresponde a nada. */
+  const linhas = (
+    <>
+      <FilaArrastavel
+        entradas={upNext.slice(0, linhasDaFila)}
+        podeArrastar={!shuffle}
+        aoTocar={(t) => playTrack(t, queue)}
+        aoMenu={(t, indiceReal) => more(t, undefined, { fila: indiceReal })}
+        aoMover={(de, para) => moveQueueItem(de, para)}
+      />
+      {/* O que acontece quando a fila acabar. Só com ela toda montada. */}
+      {notaDoFim && upNext.length <= linhasDaFila ? (
+        <Text style={styles.npFilaFim}>{notaDoFim}</Text>
+      ) : null}
+    </>
+  );
+  // Mais cem quando falta pouco para o fim: sem botão, como a grelha dos
+  // Artists (lib/grelhaQueCresce.ts).
+  const aoRolarAFila = (e: any) => {
+    const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+    if (upNext.length > linhasDaFila && pertoDoFim(contentOffset.y, layoutMeasurement.height, contentSize.height)) {
+      setLinhasDaFila((n) => n + LINHAS_DA_FILA);
+    }
+  };
+
   return (
-    <Page title="Now Playing"
-      subtitle={origem ? <>
-        {`${origem.antes} `}
-        <Text
-          onPress={irParaOrigem}
-          accessibilityRole={irParaOrigem ? 'link' : undefined}
-          style={[{ color: COR.texto, fontWeight: '600' }, irParaOrigem && ({ cursor: 'pointer' } as any)]}
-        >{origem.nome}</Text>
-      </> : undefined}
-      action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}>
-      <ContentScroll>
-        <View style={[styles.npGrelha, estreito && { flexDirection: 'column' }]}>
-          <View style={[styles.npLado, { width: ladoCapa }]}>
-            <ArtworkLyricsCube key={`${track.source}:${track.sourceId}`} track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
-              front={<GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
-            {/* A identidade primeiro: o nome da faixa e, por baixo, o artista.
-                O artista sai do `displayArtist` e nao do campo `artist`, que no
-                YouTube e o CANAL -- e abria a pagina de um canal de uploads. */}
-            <View style={styles.npIdentidade}>
-              <Text style={styles.npTitulo}>{tituloDaFaixa(track)}</Text>
-              {/* O nome leva à página do artista, como no telemóvel. E TEM de
-                  se ver que leva: o realce é no `<Text>` e o cursor é
-                  explícito -- ver o `npArtistaAlvo`.
+    <View style={styles.npPagina} onLayout={(e) => {
+      const { width: largura, height: altura } = e.nativeEvent.layout;
+      setArea((a) => (Math.abs(a.largura - largura) > 1 || Math.abs(a.altura - altura) > 1 ? { largura, altura } : a));
+    }}>
+      {/* O fundo do iPhone: a própria capa, muito desfocada, com um véu. */}
+      <FundoDaCapa uri={track.artworkUrl} />
 
-                  Sem artista não é botão nenhum, que é a mesma guarda do
-                  `PlayerRoot.tsx` no iOS: o `displayArtist` devolve "Unknown
-                  artist" quando não consegue extrair nada, e um link para
-                  isso leva a uma página vazia. */}
-              <Pressable
-                accessibilityRole={temArtista ? 'link' : undefined}
-                accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
-                disabled={!temArtista}
-                onHoverIn={() => setSobreOArtista(true)}
-                onHoverOut={() => setSobreOArtista(false)}
-                onFocus={() => setNoArtista(true)}
-                onBlur={() => setNoArtista(false)}
-                onPress={() => navigate({ name: 'artist', value: nomeDoArtista })}
-                style={[styles.npArtistaAlvo, !temArtista && styles.npArtistaAlvoInerte]}
-              >
-                <Text style={[
-                  styles.npArtista,
-                  temArtista && (sobreOArtista || noArtista) && styles.npArtistaHover,
-                ]}>
-                  {nomeDoArtista}
-                </Text>
-              </Pressable>
-            </View>
-
-            {/* Como o João desenhou (24/9): sem caixas, só ícones. À esquerda o
-                que se faz A ESTA FAIXA; à direita o que é da reprodução (onde
-                toca, o mini leitor, o som). Ligado não pinta fundo: o coração
-                enche-se, e o som ganha um ponto por baixo. */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: ESP.lg }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <AcaoDoLeitor rotulo={currentIsSaved ? 'Remove from Saved Songs' : 'Save to Saved Songs'} ativo={currentIsSaved} onPress={toggleSaveCurrent}>
-                  {(cor) => <Ionicons name={currentIsSaved ? 'heart' : 'heart-outline'} size={20} color={cor} />}
-                </AcaoDoLeitor>
-                <AcaoDoLeitor rotulo="Add to playlist" onPress={() => aoAdicionarAPlaylist(track)}>
-                  {(cor) => (
-                    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={cor} strokeWidth={1.7} strokeLinecap="round" aria-hidden="true">
-                      <path d="M3 6h13M3 11h13M3 16h8M18 13.5v7M14.5 17h7" />
-                    </svg>
-                  )}
-                </AcaoDoLeitor>
-                <AcaoDoLeitor rotulo="Share this track" onPress={() => share({ itemType: 'track', item: track, name: track.title })}>
-                  {(cor) => <Ionicons name="share-social-outline" size={19} color={cor} />}
-                </AcaoDoLeitor>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                <AcaoDoLeitor rotulo="Play on another device" onPress={() => setAparelhosAberto(true)}>
-                  {(cor) => <Ionicons name="desktop-outline" size={19} color={cor} />}
-                </AcaoDoLeitor>
-                {/* O mini leitor (electron/miniLeitor.cjs): sem ícone na barra
-                    do leitor, que já tem que chegue -- abre-se daqui, do
-                    tabuleiro ou por um atalho que alguém crie. */}
-                {window.duotoneDesktop?.alternarMiniLeitor ? (
-                  <AcaoDoLeitor rotulo="Mini player" onPress={() => window.duotoneDesktop?.alternarMiniLeitor?.()}>
-                    {(cor) => (
-                      <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={cor} strokeWidth={1.7} strokeLinejoin="round" aria-hidden="true">
-                        <rect x="3" y="4.5" width="18" height="15" rx="2" />
-                        <rect x="12" y="12" width="6.5" height="5" rx="1" fill={cor} stroke="none" />
-                      </svg>
-                    )}
-                  </AcaoDoLeitor>
-                ) : null}
-                <AcaoDoLeitor rotulo="Equaliser and speed" ponto={!eqGanhos.every((g) => g === 0) || playbackRate !== 1} onPress={() => setEqAberto(true)}>
-                  {(cor) => <Ionicons name="options-outline" size={20} color={cor} />}
-                </AcaoDoLeitor>
-              </View>
-            </View>
+      <View style={styles.npTopo}>
+        <IconButton name="arrow-back" label="Back" onPress={back} />
+        {origem ? (
+          <View style={styles.npOrigem}>
+            <Text style={ui.eyebrow}>{origem.antes}</Text>
+            <Text
+              onPress={irParaOrigem}
+              accessibilityRole={irParaOrigem ? 'link' : undefined}
+              numberOfLines={1}
+              style={[styles.npOrigemNome, irParaOrigem && ({ cursor: 'pointer' } as any)]}
+            >{origem.nome}</Text>
           </View>
+        ) : null}
+      </View>
 
+      {duasColunas ? (
+        <View style={styles.npGrelha}>
+          {coluna}
+          {/* A fila rola sozinha; a capa fica onde está. */}
           <View style={styles.npFila}>
-            <View style={styles.npFilaCabeca}>
-              <View>
-                <Text style={ui.eyebrow}>QUEUE</Text>
-                <Text style={styles.npFilaHeading}>Up next</Text>
-              </View>
-              <Text style={styles.npFilaContagem}>{upNext.length} tracks</Text>
-            </View>
-            {/* A ordem que vai MESMO tocar: com shuffle ligado não é a ordem
-                natural da fila, e esta lista mentia. Arrastar para
-                reordenar fica desligado nesse caso — mover uma lista
-                baralhada não corresponde a nada. */}
-            <FilaArrastavel
-              entradas={upNext.slice(0, 8)}
-              podeArrastar={!shuffle}
-              aoTocar={(t) => playTrack(t, queue)}
-              aoMenu={(t, indiceReal) => more(t, undefined, { fila: indiceReal })}
-              aoMover={(de, para) => moveQueueItem(de, para)}
-            />
-            {upNext.length === 0 && (
-              <Text style={styles.npFilaVazia}>Queue ends after this track.</Text>
-            )}
-            {upNext.length > 8 && (
-              <Text style={styles.npFilaVazia}>{`View ${upNext.length - 8} more tracks in the queue`}</Text>
-            )}
+            {cabecaDaFila}
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: ESP.xl }}
+              scrollEventThrottle={100} onScroll={aoRolarAFila}>
+              {linhas}
+            </ScrollView>
           </View>
         </View>
-      </ContentScroll>
+      ) : (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.npEstreito}
+          scrollEventThrottle={100} onScroll={aoRolarAFila}>
+          {coluna}
+          <View style={{ marginTop: ESP.xxl }}>
+            {cabecaDaFila}
+            {linhas}
+          </View>
+        </ScrollView>
+      )}
       {/* Os outros aparelhos desta conta. Os que não estão à escuta aparecem
           na mesma, apagados e a dizer porquê -- a regra dos menus. */}
       <Dialog
@@ -460,6 +589,6 @@ export function NowPlayingPage({
           lembrado={!!ajustesPorFaixa[chaveDaFaixa(track)]}
         />
       </Dialog>
-    </Page>
+    </View>
   );
 }

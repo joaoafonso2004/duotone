@@ -26,11 +26,13 @@ import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { tituloDaFaixa, displayArtist } from '../lib/artistName';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ListeningStats'>;
 
 const PERIODS: StatsPeriod[] = ['30d', '6m', 'all'];
-const PERIOD_LABELS = ['30 dias', '6 meses', 'Sempre'];
+const PERIOD_LABELS = ['30 days', '6 months', 'All time'];
 
 export function ListeningStatsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
@@ -99,8 +101,8 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
           >
             <Ionicons name="sparkles" size={18} color={theme.color} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[type.body, { fontWeight: '700' }]}>Retrospetiva</Text>
-              <Text style={type.caption}>O ano em revista, mês a mês</Text>
+              <Text style={[type.body, { fontWeight: '700' }]}>Year in review</Text>
+              <Text style={type.caption}>Your year, month by month</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
           </Pressable>
@@ -111,13 +113,15 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
         ) : result?.unavailable ? (
           <EmptyState
             icon="cloud-offline-outline"
-            title="No listening history yet"
-            subtitle="A base de dados não devolveu o histórico. Corre supabase/listening-stats.sql no SQL Editor."
+            title="Stats unavailable"
+            // O pormenor (falta a política de SELECT do `plays`, ver o
+            // CLAUDE.md) é para quem mantém a app, não para quem a usa.
+            subtitle="Your listening history couldn't be loaded. Try again later."
           />
         ) : !stats || stats.totalPlays === 0 ? (
           <EmptyState
             icon="stats-chart-outline"
-            title="Ainda sem dados"
+            title="Nothing to show yet"
             subtitle="Play a few tracks and your stats will show up here."
           />
         ) : (
@@ -130,7 +134,7 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
               style={styles.hero}
             >
               <Text style={[styles.heroLabel, { color: theme.textColorOnGradient }]}>
-                TEMPO OUVIDO
+                TIME LISTENED
               </Text>
               <Text style={[styles.heroValue, { color: theme.textColorOnGradient }]}>
                 ≈ {formatListeningTime(stats.estimatedMinutes)}
@@ -138,32 +142,32 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
               <Text style={[styles.heroNote, { color: theme.textColorOnGradient }]}>
                 {/* Honestidade: o histórico regista o arranque de cada faixa,
                     não o fim. Quem salta a meio conta o tema inteiro. */}
-                estimativa a partir de {stats.totalPlays} reproduções
+                estimated from {stats.totalPlays} plays
               </Text>
             </LinearGradient>
 
             <View style={styles.grid}>
-              <Cell label="Faixas" value={String(stats.uniqueTracks)} />
-              <Cell label="Artistas" value={String(stats.uniqueArtists)} />
+              <Cell label="Tracks" value={String(stats.uniqueTracks)} />
+              <Cell label="Artists" value={String(stats.uniqueArtists)} />
               <Cell
-                label="Dias seguidos"
+                label="Day streak"
                 value={stats.streakDays > 0 ? String(stats.streakDays) : '—'}
               />
               <Cell
-                label="Melhor dia"
+                label="Best day"
                 value={stats.busiestDay ? `${stats.busiestDay.plays}` : '—'}
                 hint={stats.busiestDay ? formatDay(stats.busiestDay.key) : undefined}
               />
             </View>
 
             {stats.timeline.length > 1 && (
-              <Section title="ATIVIDADE">
+              <Section title="ACTIVITY">
                 <Timeline buckets={stats.timeline} color={theme.color} />
               </Section>
             )}
 
             {stats.topTracks.length > 0 && (
-              <Section title="MAIS OUVIDAS">
+              <Section title="MOST PLAYED">
                 {stats.topTracks.map((t, i) => (
                   <Pressable
                     key={t.key}
@@ -172,7 +176,7 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
                   >
                     <Text style={[styles.rank, { color: theme.color }]}>{i + 1}</Text>
                     {t.artworkUrl ? (
-                      <Image source={{ uri: t.artworkUrl }} style={styles.art} contentFit="cover" />
+                      <Image source={{ uri: capaParaLista(t.artworkUrl)! }} style={styles.art} contentFit="cover" />
                     ) : (
                       <View style={[styles.art, styles.artFallback]}>
                         <Ionicons name="musical-notes" size={16} color={colors.textTertiary} />
@@ -180,10 +184,10 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
                     )}
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
-                        {t.title}
+                        {tituloDaFaixa(t)}
                       </Text>
                       <Text numberOfLines={1} style={type.caption}>
-                        {t.artist ?? 'Artista desconhecido'}
+                        {displayArtist(t)}
                       </Text>
                     </View>
                     <Text style={styles.count}>{t.plays}×</Text>
@@ -193,7 +197,7 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
             )}
 
             {stats.topArtists.length > 0 && (
-              <Section title="OS TEUS ARTISTAS">
+              <Section title="TOP ARTISTS">
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -202,7 +206,7 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
                   {stats.topArtists.map((a) => (
                     <View key={a.name} style={{ alignItems: 'center', width: 84 }}>
                       {a.artworkUrl ? (
-                        <Image source={{ uri: a.artworkUrl }} style={styles.artistArt} />
+                        <Image source={{ uri: capaParaLista(a.artworkUrl)! }} style={styles.artistArt} />
                       ) : (
                         <View style={[styles.artistArt, styles.artFallback]}>
                           <Ionicons name="person" size={22} color={colors.textTertiary} />
@@ -220,8 +224,8 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
 
             {result?.truncated && (
               <Text style={styles.footnote}>
-                Histórico muito longo — os números cobrem as reproduções mais
-                recentes, não a totalidade.
+                Your history is long — these numbers cover the most recent
+                plays, not everything.
               </Text>
             )}
           </>

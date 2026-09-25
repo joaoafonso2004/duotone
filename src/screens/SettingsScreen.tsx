@@ -694,7 +694,7 @@ export function SettingsScreen({ navigation }: Props) {
               style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
             />
             <PillButton
-              label="Clear library"
+              label="Clear Liked Songs"
               disabled={offline}
               variant="danger"
               small
@@ -845,9 +845,9 @@ export function SettingsScreen({ navigation }: Props) {
 
       <ConfirmSheet
         visible={clearLibraryOpen}
-        title="Clear library"
-        message="All saved songs will be permanently removed from your library. Playlists are not affected. This cannot be undone."
-        confirmLabel="Clear library"
+        title="Clear Liked Songs"
+        message="All your Liked Songs will be permanently removed. Playlists are not affected. This cannot be undone."
+        confirmLabel="Clear Liked Songs"
         destructive
         loading={clearingLibrary}
         onClose={() => setClearLibraryOpen(false)}

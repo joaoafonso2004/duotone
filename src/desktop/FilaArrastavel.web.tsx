@@ -5,7 +5,8 @@ import type { Track } from '../types';
 import { comecouAArrastar, deslize, indiceAlvo } from '../lib/reorder';
 import { styles } from './estilos.web';
 import { COR, ESP } from './tokens.web';
-import { Artwork } from './ui.web';
+import { Artwork, formatTime, ui } from './ui.web';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { EstrelaInteligente } from '../components/BrilhoInteligente';
 import { trackKey } from '../lib/shuffle';
 import { usePlayer } from '../state/player';
@@ -156,7 +157,7 @@ export function FilaArrastavel({
               aoMenu(entrada.track, entrada.index);
             }}
             style={{
-              minHeight: 64,
+              minHeight: 56,
               padding: `0 ${ESP.sm}px`,
               display: 'flex',
               alignItems: 'center',
@@ -172,22 +173,48 @@ export function FilaArrastavel({
               transition: arrastada ? 'none' : `transform ${DESLIZE_MS}ms ease`,
               position: 'relative',
               zIndex: arrastada ? 2 : 1,
-              borderRadius: arrastada ? 8 : undefined,
-              background: arrastada ? COR.elevado : i === 0 ? COR.metalSuave : 'transparent',
+              borderRadius: 8,
+              // A primeira já não vai pintada: com a fila inteira à vista, a
+              // linha acesa lia-se como "a que está a tocar", e essa é a capa.
+              background: arrastada ? COR.elevado : undefined,
               boxShadow: arrastada ? '0 10px 28px rgba(0,0,0,.55)' : undefined,
-              borderLeft: i === 0 && !arrastada ? `2px solid ${COR.texto}` : '2px solid transparent',
             } as any}
           >
-            <Artwork track={entrada.track} size={44} />
-            <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              {/* As que vieram do shuffle inteligente ficam marcadas: sem isto
-                  a fila enche-se de musicas que nao te lembras de ter posto. */}
-              {sugeridas.includes(trackKey(entrada.track)) ? <EstrelaInteligente tamanho={6} /> : null}
-              <Text numberOfLines={1} style={styles.npFilaTitulo}>{entrada.track.title}</Text>
+            {/* Ao passar o rato a capa mostra o ▶ (tocar esta), como nas
+                outras listas. Em CSS (`np-fila-*`): isto é um <div> a sério. */}
+            <div className="np-fila-capa">
+              <Artwork track={entrada.track} size={40} />
+              <span className="np-fila-tocar" aria-hidden="true">
+                <Ionicons name="play" size={14} color="#fff" />
+              </span>
+            </div>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {/* As que vieram do shuffle inteligente ficam marcadas: sem isto
+                    a fila enche-se de musicas que nao te lembras de ter posto. */}
+                {sugeridas.includes(trackKey(entrada.track)) ? <EstrelaInteligente tamanho={6} /> : null}
+                {/* O titulo limpo e o artista, como em todas as listas: aqui
+                    aparecia o titulo cru do upload e o canal nao aparecia. */}
+                <Text numberOfLines={1} style={[styles.npFilaTitulo, { flex: 1 }]}>{tituloDaFaixa(entrada.track)}</Text>
+              </View>
+              <Text numberOfLines={1} style={ui.trackSource}>{displayArtist(entrada.track)}</Text>
             </View>
+            <Text style={styles.npFilaDuracao}>{formatTime(entrada.track.durationSeconds)}</Text>
+            {/* A pega e o "…" só aparecem com o rato em cima (ou arrastada). */}
             {podeArrastar && (
-              <Ionicons name="reorder-two-outline" size={16} color={arrastada ? COR.texto : COR.textoFraco} />
+              <span className={arrastada ? 'np-fila-pega np-fila-pega-viva' : 'np-fila-pega'} aria-hidden="true">
+                <Ionicons name="reorder-two-outline" size={16} color={arrastada ? COR.texto : COR.textoFraco} />
+              </span>
             )}
+            <button
+              type="button"
+              className="np-fila-mais"
+              aria-label={`Options for ${tituloDaFaixa(entrada.track)}`}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); aoMenu(entrada.track, entrada.index); }}
+            >
+              <Ionicons name="ellipsis-horizontal" size={16} color={COR.textoMedio} />
+            </button>
           </div>
         );
       })}

@@ -3,7 +3,7 @@ import { ActivityIndicator,Text,TextInput,View } from 'react-native';
 import { getLibrary } from '../api/library';
 import type { ProfileHighlights } from '../api/profiles';
 import type { Playlist,Track } from '../types';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { SocialButton,socialStyles as s } from './socialUI';
 import { colors } from './socialTokens';
 
@@ -28,7 +28,7 @@ export function ProfileHighlightsEditor({value,onChange,playlists,disabled}:{val
     </SocialButton>;})}
     <Text style={s.label}>Song of the moment</Text>
     <Text style={s.muted}>A song you choose for your friends to discover on your profile.</Text>
-    {value.moment&&<Text style={s.text}>{value.moment.title} · {displayArtist(value.moment)}</Text>}
+    {value.moment&&<Text style={s.text}>{tituloDaFaixa(value.moment)} · {displayArtist(value.moment)}</Text>}
     <View style={[s.row,{flexWrap:'wrap'}]}>
       <SocialButton disabled={disabled} onPress={()=>setChoosing(!choosing)}>{choosing?'Close song picker':value.moment?'Change song':'Choose from your library'}</SocialButton>
       {value.moment&&<SocialButton quiet disabled={disabled} onPress={()=>onChange({...value,moment:null})}>Remove song</SocialButton>}
@@ -36,7 +36,7 @@ export function ProfileHighlightsEditor({value,onChange,playlists,disabled}:{val
     {choosing&&<View style={{gap:8}}>
       <TextInput accessibilityLabel="Find a song for your profile" editable={!disabled} style={s.input} value={query} onChangeText={setQuery} placeholder="Search your songs" placeholderTextColor={colors.textSecondary}/>
       {loading?<ActivityIndicator color={colors.text}/>:error?<Text style={s.error}>{error}</Text>:<>
-        {matches.slice(0,8).map(t=><SocialButton quiet key={t.id} disabled={disabled} onPress={()=>{onChange({...value,moment:t});setChoosing(false);}}>{t.title} · {displayArtist(t)}</SocialButton>)}
+        {matches.slice(0,8).map(t=><SocialButton quiet key={t.id} disabled={disabled} onPress={()=>{onChange({...value,moment:t});setChoosing(false);}}>{tituloDaFaixa(t)} · {displayArtist(t)}</SocialButton>)}
         {!matches.length&&<Text style={s.muted}>No matching songs in your library.</Text>}
         {matches.length>8&&<Text style={s.muted}>Type a name to narrow down your songs.</Text>}
       </>}

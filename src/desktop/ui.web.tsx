@@ -141,14 +141,23 @@ export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput
  */
 const ContextoDoRolo = React.createContext<((rolado: boolean) => void) | null>(null);
 
-export function Page({ title, subtitle, action, children }: { title: string; subtitle?: ReactNode; action?: ReactNode; children: ReactNode }) {
+/**
+ * O cabeçalho de uma página do PC: título, e por baixo um subtítulo SÓ quando
+ * traz um dado ("64 songs", "From Chill") ou explica uma ferramenta.
+ *
+ * Levava por cima de todos os títulos a sobrancelha "DUOTONE", que a barra de
+ * título da janela já diz, e subtítulos que explicavam o óbvio ("Only the
+ * tracks you saved with the heart button."). Saíram a 25/9: o título ganha a
+ * hierarquia sozinho. `eyebrow` fica para quando disser alguma coisa.
+ */
+export function Page({ title, subtitle, eyebrow, action, children }: { title: string; subtitle?: ReactNode; eyebrow?: string; action?: ReactNode; children: ReactNode }) {
   // Ao rolar, o cabeçalho encolhe e o subtítulo sai, em vez de o título
   // desaparecer pelo topo (preview de 20/9). O conteúdo ganha o espaço.
   const [rolado, setRolado] = useState(false);
   return <View style={ui.page}>
     <View style={[ui.pageHeader, rolado && ui.pageHeaderCurto]}>
       <View style={{ flex: 1 }}>
-        <Text style={ui.eyebrow}>DUOTONE</Text>
+        {eyebrow ? <Text style={ui.eyebrow}>{eyebrow}</Text> : null}
         <Text style={[ui.title, rolado && ui.tituloCurto]}>{title}</Text>
         {subtitle && <Text style={[ui.subtitle, rolado && ui.subtituloEscondido]}>{subtitle}</Text>}
       </View>
@@ -540,11 +549,99 @@ export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir }: {
   </View>;
 }
 
+/**
+ * Arrastar uma barra de progresso, e procurar SÓ ao largar.
+ *
+ * Procurava a cada `mousemove`: no IFrame do YouTube era um seek por cada
+ * pixel, e dentro de um Jam cada um era um `procurar` ao servidor -- a sala
+ * inteira saltava enquanto alguém arrastava. Enquanto se arrasta, `arrasto`
+ * diz a proporção debaixo do rato, para a barra e o tempo mostrarem onde vai
+ * ficar; ao largar há um seek e um só. Serve a barra do leitor e o modo limpo.
+ */
+export function useProcurarAoLargar(): { arrasto: number | null; comecar: (evento: any) => void } {
+  const [arrasto, setArrasto] = useState<number | null>(null);
+  const comecar = (evento: any) => {
+    evento.preventDefault?.();
+    const alvo = evento.currentTarget;
+    let ultimo = 0;
+    const proporcao = (e: any) => {
+      const r = alvo.getBoundingClientRect();
+      const x = e.clientX ?? e.touches?.[0]?.clientX ?? e.changedTouches?.[0]?.clientX;
+      if (x === undefined || !r.width) return null;
+      return Math.min(1, Math.max(0, (x - r.left) / r.width));
+    };
+    const mover = (e: any) => {
+      const r = proporcao(e);
+      if (r === null) return;
+      ultimo = r;
+      setArrasto(r);
+    };
+    const largar = (e: any) => {
+      window.removeEventListener('mousemove', mover);
+      window.removeEventListener('mouseup', largar);
+      window.removeEventListener('touchmove', mover);
+      window.removeEventListener('touchend', largar);
+      const r = proporcao(e) ?? ultimo;
+      const { durationMs, seekTo } = usePlayer.getState();
+      void seekTo(r * durationMs);
+      setArrasto(null);
+    };
+    mover(evento);
+    window.addEventListener('mousemove', mover);
+    window.addEventListener('mouseup', largar);
+    window.addEventListener('touchmove', mover);
+    window.addEventListener('touchend', largar);
+  };
+  return { arrasto, comecar };
+}
+
 const LINHAS_INICIAIS = 200;
 const PASSO_DE_LINHAS = 200;
 const linhasVisiveisPorLista = new Map<string, number>();
 
-export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto }: {
+/**
+ * O artista numa coluna, e o nome leva à página dele -- como o nome no leitor.
+ * Sem artista ("Unknown artist") não é link nenhum, como no Now Playing.
+ * O realce do hover é CSS (`artista`): um `hovered` do RNW aqui dentro fazia a
+ * linha perder o dela (ver o CLAUDE.md, "O movimento do PC").
+ */
+function ArtistaDaLinha({ track }: { track: Track }) {
+  const nome = displayArtist(track);
+  const temArtista = !!nome && nome !== 'Unknown artist';
+  return <View style={[ui.colunaDoArtista, { paddingHorizontal: ESP.sm }]}>
+    {temArtista
+      ? <P accessibilityRole="link" accessibilityLabel={`View ${nome}`} style={{ alignSelf: 'flex-start', maxWidth: '100%' } as any}
+          onPress={() => window.dispatchEvent(new CustomEvent('duotone:navigate', { detail: { name: 'artist', value: nome } }))}>
+          <Text numberOfLines={1} style={ui.trackSource} {...marcar('artista')}>{nome}</Text>
+        </P>
+      : <Text numberOfLines={1} style={ui.trackSource}>{nome}</Text>}
+  </View>;
+}
+
+/** As colunas por que uma tabela se pode ordenar carregando no cabeçalho. */
+export type ColunaOrdenavel = 'title' | 'artist' | 'duration';
+
+/** A partir desta largura o artista ganha coluna própria (e deixa de ir por baixo do título). */
+const LARGURA_PARA_COLUNA_DO_ARTISTA = 760;
+
+/**
+ * O título de uma coluna. Com `aoOrdenar`, carrega-se nele para ordenar; outra
+ * vez, e volta à ordem da lista. A coluna ativa diz-se pela cor e por uma seta.
+ */
+function CabecaDeColuna({ rotulo, estilo, ativa, aoOrdenar, alinhar }: {
+  rotulo: string; estilo: any; ativa?: boolean; aoOrdenar?: () => void; alinhar?: 'right';
+}) {
+  if (!aoOrdenar) return <Text numberOfLines={1} style={[ui.colHead, estilo, alinhar && { textAlign: alinhar }]}>{rotulo}</Text>;
+  return <P onPress={aoOrdenar} accessibilityRole="button"
+    accessibilityLabel={ativa ? `Sorted by ${rotulo.toLowerCase()}. Restore the list order` : `Sort by ${rotulo.toLowerCase()}`}
+    style={[estilo, { flexDirection: 'row', alignItems: 'center', justifyContent: alinhar === 'right' ? 'flex-end' : 'flex-start', gap: 4, cursor: 'pointer' } as any]}
+    {...marcar('premir')}>
+    <Text numberOfLines={1} style={[ui.colHead, ativa && { color: COR.texto }, { paddingHorizontal: 0 }]}>{rotulo}</Text>
+    {ativa ? <Ionicons name="chevron-down" size={11} color={COR.texto} /> : null}
+  </P>;
+}
+
+export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true }: {
   tracks: Track[]; onPlay: (track: Track, discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
    * guardadas e não guardadas (pesquisa) — na tabela de Songs seria um
@@ -555,7 +652,22 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   /** Identidade persistente para não voltar às primeiras 200 linhas ao regressar. */
   listKey?: string;
   contexto?: (track:Track)=>DiscoveryContext;
+  /**
+   * Ordenar pelo cabeçalho. `modo` é a coluna ativa (ou nenhuma: a ordem da
+   * lista). Substitui o botão "Sort" das Liked Songs, que abria um diálogo
+   * para uma escolha que numa tabela se faz no próprio título da coluna.
+   */
+  ordenacao?: { modo: ColunaOrdenavel | null; aoMudar: (modo: ColunaOrdenavel | null) => void };
+  /** Na página de um artista a coluna diria o mesmo nome em todas as linhas. */
+  colunaDoArtista?: boolean;
 }) {
+  // A coluna do artista só existe com largura para ela; numa janela estreita
+  // o artista volta a ir por baixo do título.
+  const [largura, setLargura] = useState(0);
+  const comArtista = colunaDoArtista && largura >= LARGURA_PARA_COLUNA_DO_ARTISTA;
+  const ordenarPor = (coluna: ColunaOrdenavel) => ordenacao
+    ? () => ordenacao.aoMudar(ordenacao.modo === coluna ? null : coluna)
+    : undefined;
   // Subscrito sempre (regras dos hooks); sem a badge o seletor devolve um
   // Set vazio estável, por isso a tabela não redesenha à toa.
   const savedKeys = useSaved((s) => (showSavedBadge ? s.keys : EMPTY_KEYS));
@@ -575,14 +687,24 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   // inteira a cada segundo.
   const atual = usePlayer((st) => st.current);
   if (!tracks.length) return <>{empty}</>;
-  const artworkSize = plain ? 48 : 40;
+  // 40 e não 48: as linhas passaram de 56 para 52 (25/9), e uma biblioteca de
+  // milhares de faixas lê-se melhor com mais linhas à vista.
+  const artworkSize = 40;
   const visiveis = tracks.slice(0, limite);
   const mostrarMais = () => setLimite((atual) => {
     const seguinte = Math.min(tracks.length, atual + PASSO_DE_LINHAS);
     if (listKey) linhasVisiveisPorLista.set(listKey, seguinte);
     return seguinte;
   });
-  return <View style={[ui.table, plain && ui.tablePlain]} {...marcar('lista')}><View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}><Text numberOfLines={1} style={[ui.colHead, { width: 40 }]}>#</Text><Text numberOfLines={1} style={[ui.colHead, { flex: 1 }]}>Track</Text>{showTime && <Text numberOfLines={1} style={[ui.colHead, { width: LARGURA_DURACAO, textAlign: 'right' }]}>Duration</Text>}<View style={{ width: 42 }} /></View>
+  return <View style={[ui.table, plain && ui.tablePlain]} {...marcar('lista')}
+    onLayout={(e) => { const w = e.nativeEvent.layout.width; setLargura((antes) => (Math.abs(antes - w) > 1 ? w : antes)); }}>
+    <View style={[ui.tableHeader, plain && ui.tableHeaderPlain]}>
+      <Text numberOfLines={1} style={[ui.colHead, { width: 40, textAlign: 'center' }]}>#</Text>
+      <CabecaDeColuna rotulo="Title" estilo={[ui.colunaDoTitulo, { paddingLeft: ESP.sm }]} ativa={ordenacao?.modo === 'title'} aoOrdenar={ordenarPor('title')} />
+      {comArtista && <CabecaDeColuna rotulo="Artist" estilo={[ui.colunaDoArtista, { paddingHorizontal: ESP.sm }]} ativa={ordenacao?.modo === 'artist'} aoOrdenar={ordenarPor('artist')} />}
+      {showTime && <CabecaDeColuna rotulo="Duration" estilo={{ width: LARGURA_DURACAO, paddingHorizontal: ESP.sm }} alinhar="right" ativa={ordenacao?.modo === 'duration'} aoOrdenar={ordenarPor('duration')} />}
+      <View style={{ width: 42 }} />
+    </View>
     {visiveis.map((track, index) => {
       const aTocar = !!atual && atual.source === track.source && atual.sourceId === track.sourceId;
       return <P key={`${track.source}:${track.sourceId}`} onPress={() => onPlay(track,contexto?.(track))}
@@ -606,17 +728,18 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
           </View>
         </>}
       </View>
-      <View style={[ui.trackTitleCell, { flex: 1 }]}>
+      <View style={[ui.trackTitleCell, ui.colunaDoTitulo]}>
         <Artwork track={track} size={artworkSize} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={[ui.trackTitle, aTocar && ui.trackTitleATocar]}>{tituloDaFaixa(track)}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
-            <Text numberOfLines={1} style={ui.trackSource}>{displayArtist(track)}</Text>
+          {(!comArtista || contexto || savedKeys.has(`${track.source}:${track.sourceId}`)) && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
+            {!comArtista && <Text numberOfLines={1} style={ui.trackSource}>{displayArtist(track)}</Text>}
             {savedKeys.has(`${track.source}:${track.sourceId}`) && <Ionicons name="heart" size={10} color={COR.texto} />}
-            {contexto?<><Text style={ui.discoveryDot}>·</Text><Text numberOfLines={1} style={ui.discoveryReason}>{contexto(track).reason}</Text></>:null}
-          </View>
+            {contexto?<>{!comArtista && <Text style={ui.discoveryDot}>·</Text>}<Text numberOfLines={1} style={ui.discoveryReason}>{contexto(track).reason}</Text></>:null}
+          </View>}
         </View>
       </View>
+      {comArtista && <ArtistaDaLinha track={track} />}
       {showTime && <Text numberOfLines={1} style={[ui.trackMeta, { width: LARGURA_DURACAO, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
       <View {...marcar('mais')}>
         <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track,contexto?.(track))} />
@@ -666,7 +789,7 @@ export function Toast({ message, onDone }: { message: string; onDone: () => void
 export const ui = StyleSheet.create({
   page: { flex: 1, minWidth: 0 },
   pageHeader: {
-    minHeight: 128, paddingHorizontal: ESP.xxxl, paddingTop: ESP.xxl, paddingBottom: ESP.xl,
+    minHeight: 108, paddingHorizontal: ESP.xxxl, paddingTop: ESP.xxl, paddingBottom: ESP.xl,
     flexDirection: 'row', alignItems: 'flex-end', gap: ESP.xl,
     // O react-native-web deixa passar as propriedades de transição do CSS; a
     // curva é a mesma do resto do PC (ver a `casca.web.tsx`).
@@ -727,7 +850,10 @@ export const ui = StyleSheet.create({
   trackRow: { minHeight: LINHA_LISTA, paddingHorizontal: ESP.md, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COR.linhaSuave },
   // Era 68: uma lista de músicas com linhas de altura de cartão. Com 56 cabem
   // mais três no ecrã e a coluna continua a respirar.
-  trackRowPlain: { minHeight: 56, paddingHorizontal: ESP.sm, borderRadius: RAIO.cartao, borderBottomWidth: 0 },
+  trackRowPlain: { minHeight: 52, paddingHorizontal: ESP.sm, borderRadius: RAIO.cartao, borderBottomWidth: 0 },
+  // O título leva o espaço que sobra; o artista um pouco mais de metade dele.
+  colunaDoTitulo: { flex: 1, minWidth: 0 },
+  colunaDoArtista: { flex: 0.6, minWidth: 0 },
   trackHover: { backgroundColor: COR.hover },
   trackIndex: { ...TIPO.numero, color: COR.textoFraco, textAlign: 'center' },
   /** O lugar onde o número, o ▶ e as barrinhas se sobrepõem. */

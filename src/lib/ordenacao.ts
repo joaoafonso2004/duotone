@@ -29,7 +29,16 @@ export type OrdemDeFaixas = 'title' | 'artist' | 'duration';
 export function ordenarFaixas<T extends { title: string; artist: string | null; durationSeconds?: number | null }>(
   faixas: readonly T[],
   modo: OrdemDeFaixas,
+  /**
+   * O texto por que se ordena, quando não é o campo cru: a lista mostra o
+   * título limpo e o artista a sério (`tituloDaFaixa`/`displayArtist`), e
+   * ordenar pelo `title` do upload punha "Juice WRLD - X" nos J com o ecrã a
+   * dizer "X". Por parâmetro para este ficheiro continuar sem imports.
+   */
+  texto: { titulo?: (t: T) => string; artista?: (t: T) => string } = {},
 ): T[] {
+  const titulo = texto.titulo ?? ((t: T) => t.title);
+  const artista = texto.artista ?? ((t: T) => t.artist ?? '');
   const copia = [...faixas];
   if (modo === 'duration') {
     // Sem duração conhecida vai para o fim, e não para a frente como faria um
@@ -37,14 +46,14 @@ export function ordenarFaixas<T extends { title: string; artist: string | null; 
     return copia.sort((a, b) => {
       const x = a.durationSeconds ?? Infinity;
       const y = b.durationSeconds ?? Infinity;
-      return x !== y ? x - y : compararTexto(a.title, b.title);
+      return x !== y ? x - y : compararTexto(titulo(a), titulo(b));
     });
   }
   if (modo === 'artist') {
     return copia.sort((a, b) =>
-      compararTexto(a.artist ?? '', b.artist ?? '') || compararTexto(a.title, b.title));
+      compararTexto(artista(a), artista(b)) || compararTexto(titulo(a), titulo(b)));
   }
-  return copia.sort((a, b) => compararTexto(a.title, b.title));
+  return copia.sort((a, b) => compararTexto(titulo(a), titulo(b)));
 }
 
 export type GrupoOrdenavel = { nome: string; chave: string; faixas: readonly unknown[] };

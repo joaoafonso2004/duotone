@@ -3,6 +3,7 @@ import { Text, View } from 'react-native';
 import { styles } from './estilos.web';
 import { ESP } from './tokens.web';
 import { Button, desktop } from './ui.web';
+import { pausarAtalhosDaJanela } from './useAtalhosDaJanela.web';
 
 /**
  * Os atalhos globais nas Definições do PC (entrega 2a do
@@ -54,6 +55,7 @@ export function AtalhosDoTeclado() {
 
   const parar = useCallback(() => {
     setAGravar(null);
+    pausarAtalhosDaJanela(false);
     void ponte?.aGravarAtalho?.(false);
   }, [ponte]);
 
@@ -84,13 +86,16 @@ export function AtalhosDoTeclado() {
   }, [aGravar, ponte, parar]);
 
   // Sair da página a meio de uma gravação repõe os atalhos.
-  useEffect(() => () => { void ponte?.aGravarAtalho?.(false); }, [ponte]);
+  useEffect(() => () => { pausarAtalhosDaJanela(false); void ponte?.aGravarAtalho?.(false); }, [ponte]);
 
   if (!ponte?.lerAtalhos) return null;
 
   const gravar = (acao: string) => {
     setMensagem(null);
     setAGravar(acao);
+    // A tecla que se grava não pode ser comida por um atalho da janela (o
+    // Espaço, as setas): ver desktop/useAtalhosDaJanela.web.ts.
+    pausarAtalhosDaJanela(true);
     void ponte.aGravarAtalho?.(true);
   };
   const tirar = (acao: string) => {
@@ -105,6 +110,13 @@ export function AtalhosDoTeclado() {
       <View style={styles.settingLine}>
         <Text style={[styles.settingDescription, { marginTop: 0 }]}>
           Shortcuts work in every app, even with Duotone in the tray. None are set until you set one.
+        </Text>
+      </View>
+      {/* Os da janela (lib/atalhosDaJanela.ts) não se configuram, mas têm de
+          se poder descobrir -- é aqui que alguém os vem procurar. */}
+      <View style={styles.settingLine}>
+        <Text style={[styles.settingDescription, { marginTop: 0 }]}>
+          Inside the Duotone window: Space play/pause · Ctrl+F search · Ctrl+L like · ← → 10 seconds · Ctrl+← → previous/next.
         </Text>
       </View>
       {ACOES.map((a) => {

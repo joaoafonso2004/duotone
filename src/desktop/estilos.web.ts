@@ -95,7 +95,7 @@ export const styles = StyleSheet.create({
     marginLeft: ESP.sm, marginRight: ESP.sm,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: ESP.lg, zIndex: 25,
-  }, playerTrack: { width: '30%', minWidth: 210, maxWidth: 390, flexDirection: 'row', alignItems: 'center', gap: ESP.xs }, playerTrackLink: { maxWidth: 'calc(100% - 42px)' as any, minWidth: 0, flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: ESP.md }, playerSave: { flexShrink: 0 }, playerTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' as any, minWidth: 0, flexShrink: 1 }, playerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', maxWidth: 760 }, playerControls: { flexDirection: 'row', alignItems: 'center', gap: 6 }, playButton: { width: 35, height: 35, borderRadius: 18, backgroundColor: desktop.text, alignItems: 'center', justifyContent: 'center', marginHorizontal: 5 }, progressRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 3 }, timeText: { ...TIPO.numero, width: 42, color: COR.textoFraco, fontSize: 11, textAlign: 'center' }, progressHit: { flex: 1, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, progressTrack: { height: 3, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, progressFill: { height: 3, backgroundColor: desktop.text, borderRadius: 2 }, playerRight: { width: '30%', minWidth: 120, maxWidth: 390, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }, playerError: { fontFamily: FONT.body, color: desktop.danger, fontSize: 10, maxWidth: 220 },
+  }, playerTrack: { width: '30%', minWidth: 210, maxWidth: 390, flexDirection: 'row', alignItems: 'center', gap: ESP.xs }, playerTrackLink: { maxWidth: 'calc(100% - 42px)' as any, minWidth: 0, flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: ESP.md }, playerSave: { flexShrink: 0 }, playerTitle: { ...TIPO.corpo, color: COR.texto, fontWeight: '600' as any, minWidth: 0, flexShrink: 1 }, playerArtista: { ...TIPO.corpo, fontSize: 12, color: COR.textoMedio, marginTop: 1 }, playerCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', maxWidth: 760 }, playerControls: { flexDirection: 'row', alignItems: 'center', gap: 6 }, playButton: { width: 35, height: 35, borderRadius: 18, backgroundColor: desktop.text, alignItems: 'center', justifyContent: 'center', marginHorizontal: 5 }, progressRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 3 }, timeText: { ...TIPO.numero, width: 42, color: COR.textoFraco, fontSize: 11, textAlign: 'center' }, progressHit: { flex: 1, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, progressTrack: { height: 3, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, progressFill: { height: 3, backgroundColor: desktop.text, borderRadius: 2 }, playerRight: { width: '30%', minWidth: 120, maxWidth: 390, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }, playerError: { fontFamily: FONT.body, color: desktop.danger, fontSize: 10, maxWidth: 220 },
   volumeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginRight: 16 }, volumeHit: { width: 90, height: 14, justifyContent: 'center', cursor: 'pointer' } as any, volumeTrack: { height: 4, backgroundColor: '#353540', borderRadius: 2, overflow: 'hidden' }, volumeFill: { height: 4, backgroundColor: '#A09DA9', borderRadius: 2 },
 
   // ---------------------------------------------------------------- social --
@@ -162,8 +162,35 @@ export const styles = StyleSheet.create({
   // Tudo sai dos tokens. O que substitui: raios de 12, 18 e 20, superficies
   // marteladas fora da paleta (#101016, #14141d, rgba(255,255,255,.02)),
   // fontes de 9, 10, 12, 16 e 22 px e pesos 500/600/700/800.
-  npGrelha: { flexDirection: 'row', alignItems: 'flex-start', gap: 64, paddingTop: ESP.sm, paddingBottom: ESP.xxl },
+  // O Now Playing ("A+", 25/9): a página inteira é dele, sem cabeçalho de
+  // página. Ver lib/leitorDoPc.ts para as medidas.
+  npPagina: { flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' },
+  npTopo: { height: 56, flexDirection: 'row', alignItems: 'center', gap: ESP.sm, paddingHorizontal: 32 },
+  npOrigem: { flexDirection: 'row', alignItems: 'baseline', gap: ESP.sm, minWidth: 0, flexShrink: 1 },
+  npOrigemNome: { ...TIPO.corpo, fontSize: 13, color: COR.texto, fontWeight: '600' as any },
+  npGrelha: { flex: 1, minHeight: 0, flexDirection: 'row', alignItems: 'stretch', gap: 64, paddingHorizontal: 40, paddingTop: ESP.xs },
+  npEstreito: { paddingHorizontal: 40, paddingTop: ESP.xs, paddingBottom: ESP.xxl },
   npLado: { flexShrink: 0 },
+  // O fundo: a capa desfocada e um véu. `inset` negativo e escala para o
+  // desfoque não mostrar as bordas claras da imagem.
+  npFundo: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' },
+  npFundoCapa: {
+    position: 'absolute', top: -80, left: -80, right: -80, bottom: -80,
+    backgroundSize: 'cover', backgroundPosition: 'center',
+    filter: 'blur(70px) saturate(1.2) brightness(.62)', transform: [{ scale: 1.1 }],
+  } as any,
+  npFundoVeu: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundImage: 'linear-gradient(90deg,rgba(6,6,8,.30) 0%,rgba(6,6,8,.42) 45%,rgba(6,6,8,.72) 68%,rgba(6,6,8,.82) 100%),'
+      + 'linear-gradient(180deg,rgba(6,6,8,0) 55%,rgba(6,6,8,.85) 100%)',
+  } as any,
+  // Os dois pontos por baixo da capa (capa / letras), como no iPhone.
+  npPontos: { flexDirection: 'row', justifyContent: 'center', gap: 2, marginTop: ESP.sm },
+  npPontoAlvo: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } as any,
+  npPonto: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(233,234,238,.28)' },
+  npPontoAtivo: { backgroundColor: COR.texto },
+  npIcones: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: ESP.md, marginLeft: -8 },
+  npIconesFio: { width: 1, height: 18, backgroundColor: COR.linha, marginHorizontal: 10 },
   npArtworkFrame: { borderRadius: RAIO.superficie, borderWidth: 1, borderColor: 'rgba(233,234,238,.14)', boxShadow: '0 26px 70px rgba(0,0,0,.46), 0 1px 0 rgba(255,255,255,.06)' } as any,
   npVisualControls: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: ESP.sm, marginTop: ESP.md },
   npVisualGroup: { flexDirection: 'row', alignItems: 'center', gap: 3 },
@@ -175,8 +202,8 @@ export const styles = StyleSheet.create({
   /** Nome e artista, um por linha. Estiveram na mesma linha dos ícones, onde o
    * título competia por largura com quatro botões e era cortado a meio -- e o
    * artista não aparecia como texto em lado nenhum. */
-  npIdentidade: { marginTop: ESP.xl, paddingHorizontal: ESP.xs, gap: 2 },
-  npArtista: { ...TIPO.corpo, color: COR.textoMedio },
+  npIdentidade: { marginTop: ESP.sm, gap: 2 },
+  npArtista: { ...TIPO.corpo, fontSize: 16, color: COR.textoMedio },
   npArtistaHover: { color: COR.texto, textDecorationLine: 'underline' as const },
   /**
    * O ALVO do toque, que é outra coisa que o texto.
@@ -198,13 +225,17 @@ export const styles = StyleSheet.create({
   /** Separa o que é definição de reprodução do que é acção sobre a faixa. */
   npAccoesDivisor: { width: 1, height: 20, backgroundColor: COR.linha, marginHorizontal: ESP.sm },
   npTitleRow: { flexDirection: 'row', alignItems: 'center', gap: ESP.lg, marginTop: ESP.xl, paddingHorizontal: ESP.xs },
-  npTitulo: { fontFamily: FONT.display, color: COR.texto, fontSize: 28, fontWeight: '700' as any, letterSpacing: -.45, lineHeight: 34, flex: 1 },
+  npTitulo: { fontFamily: FONT.display, color: COR.texto, fontSize: 30, fontWeight: '700' as any, letterSpacing: -.5, lineHeight: 36 },
   // A fila e uma coluna editorial aberta, nao outra caixa dentro da pagina.
   // As linhas e o destaque da proxima faixa chegam para lhe dar estrutura.
-  npFila: { flex: 1, minWidth: 300 },
-  npFilaCabeca: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: ESP.sm, paddingBottom: ESP.md, borderBottomWidth: 1, borderBottomColor: COR.linha },
-  npFilaHeading: { ...TIPO.titulo, color: COR.texto, marginTop: 2 },
+  npFila: { flex: 1, minWidth: 300, minHeight: 0 },
+  npFilaCabeca: { flexDirection: 'row', alignItems: 'baseline', gap: ESP.md, paddingHorizontal: ESP.sm, paddingTop: ESP.sm, paddingBottom: ESP.md },
+  npFilaHeading: { ...TIPO.seccao, fontSize: 18, color: COR.texto },
   npFilaContagem: { ...TIPO.numero, color: COR.textoFraco },
+  npFilaLimpar: { paddingHorizontal: ESP.sm, paddingVertical: 4, borderRadius: 6 },
+  npFilaLimparTexto: { ...TIPO.corpo, fontSize: 13, color: COR.textoMedio, fontWeight: '600' as any },
   npFilaTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '550' as any },
+  npFilaDuracao: { ...TIPO.numero, color: COR.textoFraco, marginLeft: ESP.sm },
+  npFilaFim: { ...TIPO.legenda, color: COR.textoFraco, marginTop: ESP.sm, marginHorizontal: ESP.sm, paddingTop: ESP.md, borderTopWidth: 1, borderTopColor: COR.linhaSuave },
   npFilaVazia: { ...TIPO.legenda, color: COR.textoFraco, textAlign: 'center', paddingVertical: ESP.xl, borderTopWidth: 1, borderTopColor: COR.linhaSuave },
 });

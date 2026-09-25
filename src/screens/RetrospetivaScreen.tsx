@@ -9,12 +9,14 @@ import { fetchRetrospetiva, type ResultadoRetrospetiva } from '../api/retrospeti
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import { formatListeningTime } from '../lib/listeningStats';
-import { descreverHora } from '../lib/retrospetiva';
+import { fraseDoAno } from '../lib/retrospetiva';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { tituloDaFaixa, displayArtist } from '../lib/artistName';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Retrospetiva'>;
 
@@ -68,7 +70,7 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
   const maiorMes = Math.max(1, ...(r?.base.timeline ?? []).map((b) => b.plays));
 
   return (
-    <Screen title="Retrospetiva" onBack={() => navigation.goBack()}>
+    <Screen title="Year in review" onBack={() => navigation.goBack()}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl }}>
         {(resultado?.anos.length ?? 0) > 1 && (
           <ScrollView
@@ -96,14 +98,14 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
         ) : resultado?.unavailable ? (
           <EmptyState
             icon="cloud-offline-outline"
-            title="Sem histórico"
-            subtitle="A base de dados não devolveu o histórico. Corre supabase/listening-stats.sql no SQL Editor."
+            title="Stats unavailable"
+            subtitle="Your listening history couldn't be loaded. Try again later."
           />
         ) : !r || !r.temDados ? (
           <EmptyState
             icon="sparkles-outline"
-            title="Ainda não há ano para contar"
-            subtitle="Ouve música durante uns dias e a tua retrospetiva aparece aqui."
+            title="No year to tell yet"
+            subtitle="Listen for a few days and your year in review shows up here."
           />
         ) : (
           <>
@@ -115,38 +117,36 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
             >
               <Text style={[styles.heroAno, { color: tema.textColorOnGradient }]}>{r.ano}</Text>
               <Text style={[styles.heroTempo, { color: tema.textColorOnGradient }]}>
-                ≈ {formatListeningTime(r.base.estimatedMinutes)} de música
+                ≈ {formatListeningTime(r.base.estimatedMinutes)} of music
               </Text>
               {/* A mesma honestidade do ecrã de estatísticas: o histórico regista
                   o arranque de cada faixa, não o fim. */}
               <Text style={[styles.heroNota, { color: tema.textColorOnGradient }]}>
-                estimativa a partir de {r.base.totalPlays} reproduções
+                estimated from {r.base.totalPlays} plays
               </Text>
             </LinearGradient>
 
             {(r.mesMaior || r.horaPreferida) && (
               <View style={styles.frase}>
                 <Text style={styles.fraseTexto}>
-                  {r.mesMaior ? `${maiuscula(r.mesMaior.nome)} foi o teu mês` : 'Ouves sobretudo'}
-                  {r.mesMaior && r.horaPreferida ? ', e ouves sobretudo ' : ' '}
-                  {r.horaPreferida ? descreverHora(r.horaPreferida.hora) : ''}.
+                  {fraseDoAno(r.mesMaior?.nome ?? null, r.horaPreferida?.hora ?? null)}
                 </Text>
               </View>
             )}
 
             <View style={styles.grelha}>
-              <Celula rotulo="Reproduções" valor={String(r.base.totalPlays)} />
-              <Celula rotulo="Faixas" valor={String(r.base.uniqueTracks)} />
-              <Celula rotulo="Artistas" valor={String(r.base.uniqueArtists)} />
+              <Celula rotulo="Plays" valor={String(r.base.totalPlays)} />
+              <Celula rotulo="Tracks" valor={String(r.base.uniqueTracks)} />
+              <Celula rotulo="Artists" valor={String(r.base.uniqueArtists)} />
               <Celula
-                rotulo="Conheceste"
+                rotulo="Discovered"
                 valor={String(r.artistasDescobertos)}
-                dica={r.artistasDescobertos === 1 ? 'artista novo' : 'artistas novos'}
+                dica={r.artistasDescobertos === 1 ? 'new artist' : 'new artists'}
               />
             </View>
 
             {faixaDoAno && (
-              <Seccao titulo="A FAIXA DO ANO">
+              <Seccao titulo="TRACK OF THE YEAR">
                 <Pressable onPress={() => tocar(faixaDoAno)} style={styles.destaque}>
                   {faixaDoAno.artworkUrl ? (
                     <Image source={{ uri: faixaDoAno.artworkUrl }} style={styles.capaGrande} contentFit="cover" />
@@ -156,10 +156,10 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
                     </View>
                   )}
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text numberOfLines={2} style={[type.title, { fontWeight: '800' }]}>{faixaDoAno.title}</Text>
-                    <Text numberOfLines={1} style={type.caption}>{faixaDoAno.artist ?? 'Artista desconhecido'}</Text>
+                    <Text numberOfLines={2} style={[type.title, { fontWeight: '800' }]}>{tituloDaFaixa(faixaDoAno)}</Text>
+                    <Text numberOfLines={1} style={type.caption}>{displayArtist(faixaDoAno)}</Text>
                     <Text style={[styles.contagem, { color: tema.color }]}>
-                      {faixaDoAno.plays} {faixaDoAno.plays === 1 ? 'vez' : 'vezes'}
+                      {faixaDoAno.plays} {faixaDoAno.plays === 1 ? 'play' : 'plays'}
                     </Text>
                   </View>
                 </Pressable>
@@ -167,7 +167,7 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
             )}
 
             {artistaDoAno && (
-              <Seccao titulo="O ARTISTA DO ANO">
+              <Seccao titulo="ARTIST OF THE YEAR">
                 <View style={styles.destaque}>
                   {artistaDoAno.artworkUrl ? (
                     <Image source={{ uri: artistaDoAno.artworkUrl }} style={styles.capaRedonda} contentFit="cover" />
@@ -179,7 +179,7 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text numberOfLines={2} style={[type.title, { fontWeight: '800' }]}>{artistaDoAno.name}</Text>
                     <Text style={[styles.contagem, { color: tema.color }]}>
-                      {artistaDoAno.plays} reproduções
+                      {artistaDoAno.plays} {artistaDoAno.plays === 1 ? 'play' : 'plays'}
                     </Text>
                   </View>
                 </View>
@@ -187,7 +187,7 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
             )}
 
             {r.base.timeline.length > 1 && (
-              <Seccao titulo="O ANO, MÊS A MÊS">
+              <Seccao titulo="MONTH BY MONTH">
                 <View style={styles.grafico}>
                   {r.base.timeline.map((b) => (
                     <View key={b.key} style={styles.coluna}>
@@ -205,7 +205,7 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
             )}
 
             {r.base.topTracks.length > 1 && (
-              <Seccao titulo="AS MAIS OUVIDAS">
+              <Seccao titulo="MOST PLAYED">
                 {r.base.topTracks.slice(0, 5).map((t, i) => (
                   <Pressable
                     key={t.key}
@@ -214,15 +214,15 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
                   >
                     <Text style={[styles.posicao, { color: tema.color }]}>{i + 1}</Text>
                     {t.artworkUrl ? (
-                      <Image source={{ uri: t.artworkUrl }} style={styles.capa} contentFit="cover" />
+                      <Image source={{ uri: capaParaLista(t.artworkUrl)! }} style={styles.capa} contentFit="cover" />
                     ) : (
                       <View style={[styles.capa, styles.semCapa]}>
                         <Ionicons name="musical-notes" size={16} color={colors.textTertiary} />
                       </View>
                     )}
                     <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>{t.title}</Text>
-                      <Text numberOfLines={1} style={type.caption}>{t.artist ?? 'Artista desconhecido'}</Text>
+                      <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>{tituloDaFaixa(t)}</Text>
+                      <Text numberOfLines={1} style={type.caption}>{displayArtist(t)}</Text>
                     </View>
                     <Text style={styles.vezes}>{t.plays}×</Text>
                   </Pressable>
@@ -232,7 +232,7 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
 
             {resultado?.truncated && (
               <Text style={styles.aviso}>
-                O histórico é grande demais para ser lido por inteiro — estes números são um mínimo.
+                Your history is too long to read in full — these numbers are a minimum.
               </Text>
             )}
           </>
@@ -242,7 +242,6 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
   );
 }
 
-const maiuscula = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function Celula({ rotulo, valor, dica }: { rotulo: string; valor: string; dica?: string }) {
   return (

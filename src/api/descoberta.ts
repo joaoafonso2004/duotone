@@ -8,10 +8,12 @@ import { chavesDeTodas, chavesDoCatalogo } from '../lib/identidadeDaMusica';
 import { getHeavyRotation } from './plays';
 import { lerPerfilDeRecomendacoes } from './perfilDeRecomendacoes';
 import { paresDeArtistaEPlaylist } from './afinidade';
-import { topDoArtista, vizinhancaDe, type FaixaDoCatalogo } from './catalogo';
+import {
+  topDoArtista, vizinhancaConfirmada, vizinhancaDe, vizinhancaJaDecidida, type FaixaDoCatalogo,
+} from './catalogo';
 import { searchYouTubeFreeWithChannel } from './ytSearchFree';
 import {
-  apenasDeConfianca, chaveDeArtista, displayArtist, nomesDeConfianca,
+  apenasDeConfianca, chaveDeArtista, displayArtist, nomesDeConfianca, tituloNoLeitor,
   type FaixaParaAprender,
   extractArtist,
 } from '../lib/artistName';
@@ -19,7 +21,7 @@ import {
   alvosDeProcura, artistasVizinhos, retratoDoContexto, vizinhosPorPlaylist,
 } from '../lib/afinidade';
 import {
-  chaveDeCatalogo, pontuarPorGosto, repartir, type ArtistaDoCatalogo,
+  chaveDeCatalogo, pontuarPorGosto, PROVAS_POR_ARTISTA, repartir, type ArtistaDoCatalogo,
 } from '../lib/catalogo';
 import type { Proveniencia } from '../lib/escolhaDaSugestao';
 import { pareceMusica } from '../lib/musica';
@@ -75,7 +77,12 @@ import type { Track } from '../types';
  * O peso nao e decoracao: e ele que decide quantos lugares da prateleira
  * cabem a cada lado do gosto. Ver `repartir`.
  */
-type Alvo = { nome: string; peso: number };
+/**
+ * Um artista de onde partir. `provas`: títulos de músicas dele na biblioteca,
+ * que é por onde o catálogo confirma que é ESTE artista e não um homónimo (ver
+ * `vizinhancaConfirmada`). Vazio para quem veio de fora (Spotify, sementes).
+ */
+type Alvo = { nome: string; peso: number; provas?: string[] };
 
 /** Uma faixa a procurar, com a âncora e a proveniência que a acompanham até ao
  * leitor. Ver `lib/escolhaDaSugestao.ts`. */
@@ -159,8 +166,12 @@ export async function candidatasParaDescoberta(
   /**
    * Numa sessao de reproducao, so o contexto actual fornece ancoras. O perfil
    * global e as playlists continuam a ordenar os semelhantes do catalogo.
+   * `'estrito'` (o Smart Shuffle): se nenhum artista do que está a tocar servir
+   * de âncora, não há candidatas -- em vez de partir do perfil geral, que era
+   * de onde vinham as sugestões sem nada a ver com a música (25/9). O Jam
+   * continua com `true`: aí uma fila que seca é pior.
    */
-  contextoDaSessao = false,
+  contextoDaSessao: boolean | 'estrito' = false,
   /**
    * Se vier, recebe a proveniência de cada faixa devolvida, pela `trackKey`.
    * É o Smart Shuffle que a usa para escolher e para não inserir nada sem
@@ -286,8 +297,9 @@ async function faixasParaProcurar(
   // a ligação entre um vizinho e o artista que o trouxe perde-se aqui mesmo.
   const ancoras: string[] = [];
   for (const alvo of alvos) {
-    const vizinhanca = await vizinhancaDe(alvo.nome).catch(() => null);
-    if (!vizinhanca) continue; // não é um artista, ou o catálogo não respondeu
+    // Confirmado pelas músicas dele: o homónimo com mais fãs já não serve.
+    const vizinhanca = await vizinhancaConfirmada(alvo.nome, alvo.provas ?? []).catch(() => null);
+    if (!vizinhanca) continue; // não é um artista, não é ESTE artista, ou o catálogo não respondeu
     // A âncora vem primeiro porque é a aproximação mais segura ao gosto. Antes
     // ficava explicitamente excluída e uma faixa nova do artista preferido nem
     // chegava a ser procurada. A chave impede uma resposta estranha do
@@ -635,7 +647,7 @@ async function escolherAlvos(
   quantosAlvos: number = ALVOS,
   escutas?: ReadonlyMap<string, number>,
   externos?: ReadonlyMap<string, string>,
-  contextoDaSessao = false,
+  contextoDaSessao: boolean | 'estrito' = false,
   /**
    * Âncoras escolhidas por quem chama, por ordem de prioridade: as misturas
    * já sabem que artistas vão mostrar. Passam pelo mesmo crivo de confiança
@@ -718,6 +730,20 @@ async function escolherAlvos(
   // passa por artista em qualquer verificação feita ao nome. Só a biblioteca
   // dele sabe que aquilo nunca foi música que alguém ouviu. Ver `lib/alvos.ts`.
   const confianca = nomesDeConfianca(cruas);
+  // As músicas de cada artista na biblioteca, pelo título que o catálogo
+  // escreveria: é com elas que se prova QUEM ele é (`vizinhancaConfirmada`).
+  const provasPorChave = new Map<string, Set<string>>();
+  for (const f of cruas) {
+    const nome = displayArtist(f);
+    if (!nome || nome === 'Unknown artist') continue;
+    const k = chaveDeArtista(nome);
+    const titulo = tituloNoLeitor(f);
+    if (!k || !titulo) continue;
+    const doArtista = provasPorChave.get(k) ?? new Set<string>();
+    if (doArtista.size < PROVAS_POR_ARTISTA * 2) doArtista.add(titulo);
+    provasPorChave.set(k, doArtista);
+  }
+  const provasDe = (k: string) => [...(provasPorChave.get(k) ?? [])];
   const retratoFiavel = new Map(
     apenasDeConfianca([...retrato], ([k]) => k, confianca),
   );
@@ -788,16 +814,18 @@ async function escolherAlvos(
       const k = chaveDeArtista(nome);
       if (!k || vistos.has(k) || !fiaveis(k)) continue;
       vistos.add(k);
-      alvos.push({ nome, peso: pesoDe(k) });
+      alvos.push({ nome, peso: pesoDe(k), provas: provasDe(k) });
     }
     return { alvos, afinidade };
   }
-  const soContexto = contextoDaSessao && retratoFiavel.size > 0;
+  // Estrito e sem nenhum artista do que está a tocar em que se confie: nada.
+  if (contextoDaSessao === 'estrito' && retratoFiavel.size === 0) return vazio;
+  const soContexto = !!contextoDaSessao && retratoFiavel.size > 0;
   const retratoParaAlvos = soContexto
     ? retratoFiavel
     : new Map([...retratoFiavel, ...apoioFiavel]);
   const alvos = alvosDeProcura(retratoParaAlvos, soContexto ? [] : vizinhos, quantosAlvos)
-    .map((chave) => ({ nome: nomePorChave.get(chave) ?? chave, peso: pesoDe(chave) }))
+    .map((chave) => ({ nome: nomePorChave.get(chave) ?? chave, peso: pesoDe(chave), provas: provasDe(chave) }))
     .filter((a) => a.nome);
   return { alvos, afinidade };
 }
@@ -914,7 +942,10 @@ export async function taparBuracosComOYouTube(
       const primeira = achadas[0];
       if (!primeira) continue;
       const lista = await fetchYouTubePlaylistById(primeira.id);
-      const vizinhanca = await vizinhancaDe(nome);
+      // A decisão da descoberta, se já houve: sem isto, este caminho ia outra
+      // vez ao homónimo de mais fãs que a `vizinhancaConfirmada` recusou.
+      const decidida = vizinhancaJaDecidida(nome);
+      const vizinhanca = decidida !== undefined ? decidida : await vizinhancaDe(nome);
       if (!vizinhanca) continue;
 
       // O nome extraído não chega para provar afinidade: a única lista

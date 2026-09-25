@@ -13,6 +13,7 @@ import { useHandoffSession } from '../lib/sessionSync';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 
 const TAB_BAR_BASE = 49;
 
@@ -114,7 +115,7 @@ export function HandoffBanner() {
         </View>
 
         {session.track.artworkUrl ? (
-          <Image source={{ uri: session.track.artworkUrl }} style={styles.art} contentFit="cover" />
+          <Image source={{ uri: capaParaLista(session.track.artworkUrl)! }} style={styles.art} contentFit="cover" />
         ) : null}
 
         <View style={styles.texts}>
@@ -126,7 +127,7 @@ export function HandoffBanner() {
             </Text>
           </View>
           <Text style={styles.title} numberOfLines={1}>
-            {session.track.title}
+            {tituloDaFaixa(session.track)}
           </Text>
           <Text style={styles.artist} numberOfLines={1}>
             {displayArtist(session.track)}

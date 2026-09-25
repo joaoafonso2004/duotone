@@ -267,7 +267,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   };
 
   return (
-    <Page title="Settings" subtitle="Desktop playback, appearance, and account preferences.">
+    <Page title="Settings">
       <RecommendationPreferences visible={recommendationsOpen} onClose={()=>setRecommendationsOpen(false)}/>
       <ContentScroll>
         <View style={styles.settingsGrid}>

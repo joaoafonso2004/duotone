@@ -289,6 +289,11 @@ verificar('nenhum selector chama uma função ou constrói um valor novo', () =>
 
   for (const f of ficheirosDeCodigo(raiz)) {
     readFileSync(f, 'utf8').split('\n').forEach((linha, i) => {
+      // O `useShallow` existe precisamente para isto: compara o objeto novo
+      // campo a campo e devolve o anterior quando nada mudou. É a forma certa
+      // de ler vários campos sem subscrever a store inteira (o `usePlayer()`
+      // sem seletor da barra do leitor do PC, auditoria de 17/9, §1.5).
+      if (linha.includes('useShallow(')) return;
       if (chama.test(linha) || constroi.test(linha)) {
         culpados.push(`${f.slice(raiz.length + 1).replace(/\\/g, '/')}:${i + 1}`);
       }

@@ -3,7 +3,7 @@ import { RecommendationPreferences } from '../components/RecommendationPreferenc
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { addTracksToPlaylist, createPlaylist, deletePlaylist, getPlaylistTracks, importSharedPlaylist, removeTrackFromPlaylist, renamePlaylist } from '../api/playlists';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
 import { getLibrary, getLikedSongs, removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
@@ -82,6 +82,7 @@ import { NowPlayingPage } from '../desktop/paginas/NowPlayingPage.web';
 
 import { injectDesktopDocumentStyles, PlayerBar, Sidebar, TitleBar } from '../desktop/casca.web';
 import { usePonteDoLeitor } from '../desktop/usePonteDoLeitor.web';
+import { useAtalhosDaJanela } from '../desktop/useAtalhosDaJanela.web';
 import { ModoLimpo } from '../desktop/ModoLimpo.web';
 import { PRIMARY, type CommonPageProps, type Route, type ShareTarget } from '../desktop/rotas';
 import {
@@ -243,12 +244,12 @@ function DesktopShell() {
         const { trackId } = await checkIsSaved(faixa.source, faixa.sourceId);
         const idToRemove = trackId || faixa.id;
         if (idToRemove) await removeFromLibrary(idToRemove);
-        notify('Removed from library.');
+        notify('Removed from Liked Songs.');
       } else {
         await saveToLibrary(faixa);
         const contexto=contextoDaRecomendacaoAtual();
         if(contexto)registar('recomendacao_guardada',contextoParaAnalytics(contexto));
-        notify('Saved to library.');
+        notify('Added to Liked Songs.');
       }
       window.dispatchEvent(new Event('duotone:refresh-library'));
     } catch (e: any) {
@@ -361,6 +362,16 @@ function DesktopShell() {
 
   // Atalhos globais e mini leitor (desktop/usePonteDoLeitor.web.ts).
   usePonteDoLeitor({ guardarAtual: () => void toggleSaveCurrent(), abrirPesquisa: () => navigate({ name: 'search' }) });
+  // Os atalhos DENTRO da janela (Espaço, Ctrl+F, Ctrl+L, setas), que não são
+  // os globais: ver lib/atalhosDaJanela.ts. A pesquisa ganha o foco depois de
+  // montar -- é ela que ouve o `duotone:focus-search`.
+  useAtalhosDaJanela({
+    gostar: () => void toggleSaveCurrent(),
+    pesquisar: () => {
+      navigate({ name: 'search' });
+      setTimeout(() => window.dispatchEvent(new Event('duotone:focus-search')), 80);
+    },
+  });
 
   // Media Session Keyboard API sync + Electron hardware keys integration
   useEffect(() => {
@@ -455,11 +466,11 @@ function DesktopShell() {
     try {
       if (tirar) {
         await removeFromLibrary(idToRemove!);
-        notify('Removed from library.');
+        notify('Removed from Liked Songs.');
       } else {
         await saveToLibrary(trackMenu);
         if(trackMenuContext)registar('recomendacao_guardada',contextoParaAnalytics(trackMenuContext));
-        notify('Saved to library.');
+        notify('Added to Liked Songs.');
       }
       window.dispatchEvent(new Event('duotone:refresh-library'));
     } catch (e: any) {
@@ -639,7 +650,7 @@ function DesktopShell() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: desktop.border }}>
             <Artwork track={trackMenu} size={48} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 14, fontWeight: '700' }}>{trackMenu.title}</Text>
+              <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 14, fontWeight: '700' }}>{tituloDaFaixa(trackMenu)}</Text>
               <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 12 }}>{displayArtist(trackMenu)}</Text>
             </View>
           </View>

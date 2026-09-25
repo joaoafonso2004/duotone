@@ -13,7 +13,7 @@ export function candidatasParaDescoberta(
   contexto: readonly Track[], _naFila?: ReadonlySet<string>, _sugeridas?: ReadonlySet<string>,
   _quantas?: number, _alvos?: number, escutas?: ReadonlyMap<string, number>,
   _porAncora?: Map<string, Track[]>, externos?: ReadonlyMap<string, string>,
-  contextoDaSessao?: boolean,
+  contextoDaSessao?: boolean | 'estrito',
   proveniencias?: Map<string, Proveniencia>,
 ): Promise<Track[]> {
   controlo.chamadas.candidatas++;

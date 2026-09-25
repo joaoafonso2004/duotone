@@ -1,5 +1,5 @@
 import { SocialProfileView } from '../../components/SocialProfileView';
-import { displayArtist } from '../../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 /**
  * Perfil e "A tua escuta".
  *
@@ -65,10 +65,10 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
       <Text style={[styles.smallSegmentText, period === value && { color: desktop.text }]}>{label}</Text>
     </P>))}</View>;
 
-  return <Page title={userId&&userId!==ownId?"Listening stats":"Your listening"} subtitle="How much you played, and what." action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}<Button secondary icon="arrow-back" onPress={back}>Profile</Button></View>}>
+  return <Page title={userId&&userId!==ownId?"Listening stats":"Your listening"} action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}<Button secondary icon="arrow-back" onPress={back}>Profile</Button></View>}>
     <ContentScroll>
       {loading ? <View style={{ height: 320 }}><Loading /></View>
-        : result?.unavailable ? <Empty icon="cloud-offline-outline" title="History unavailable" body="The database returned no history. Run supabase/listening-stats.sql in the SQL Editor." />
+        : result?.unavailable ? <Empty icon="cloud-offline-outline" title="Stats unavailable" body="Your listening history couldn't be loaded. Try again later." />
         : !stats || stats.totalPlays === 0 ? <Empty icon="stats-chart-outline" title="Nothing to show yet" body="Play some music and your statistics will appear here." />
         : <>
           <V style={[styles.statsHero, { backgroundImage: `linear-gradient(135deg, ${theme.gradient[0]}, ${theme.gradient[1]})` } as any]}>
@@ -95,8 +95,8 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
                   <Text style={[styles.statsRank, { color: theme.color }]}>{i + 1}</Text>
                   {t.artworkUrl ? <Image source={{ uri: t.artworkUrl }} style={{ width: 38, height: 38, borderRadius: 5 }} /> : <View style={{ width: 38, height: 38, borderRadius: 5, backgroundColor: desktop.raised }} />}
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 12, fontWeight: '600' }}>{t.title}</Text>
-                    <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 10, marginTop: 2 }}>{t.artist ?? 'Unknown artist'}</Text>
+                    <Text numberOfLines={1} style={{ color: desktop.text, fontSize: 12, fontWeight: '600' }}>{tituloDaFaixa(t)}</Text>
+                    <Text numberOfLines={1} style={{ color: desktop.muted, fontSize: 10, marginTop: 2 }}>{displayArtist(t)}</Text>
                   </View>
                   <Text style={{ color: desktop.muted, fontSize: 11, fontWeight: '700' }}>{t.plays}x</Text>
                 </P>))}

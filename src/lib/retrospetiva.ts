@@ -12,9 +12,10 @@
  */
 import { computeStats, type ListeningStats, type PlayRow } from './listeningStats';
 
-const MESES_PT = [
-  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+// A interface é em inglês, como o resto da app.
+const MESES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
 export interface Retrospetiva {
@@ -86,7 +87,7 @@ export function calcularRetrospetiva(rows: PlayRow[], ano: number): Retrospetiva
   let mesMaior: Retrospetiva['mesMaior'] = null;
   for (const [mes, reproducoes] of porMes) {
     if (!mesMaior || reproducoes > mesMaior.reproducoes) {
-      mesMaior = { mes, nome: MESES_PT[mes]!, reproducoes };
+      mesMaior = { mes, nome: MESES[mes]!, reproducoes };
     }
   }
 
@@ -112,9 +113,22 @@ export function calcularRetrospetiva(rows: PlayRow[], ano: number): Retrospetiva
   };
 }
 
-/** "às 23h", "à meia-noite", "ao meio-dia". */
+/** "at 11 pm", "at midnight", "at noon". */
 export function descreverHora(hora: number): string {
-  if (hora === 0) return 'à meia-noite';
-  if (hora === 12) return 'ao meio-dia';
-  return `às ${hora}h`;
+  if (hora === 0) return 'at midnight';
+  if (hora === 12) return 'at noon';
+  return `at ${hora % 12} ${hora < 12 ? 'am' : 'pm'}`;
+}
+
+/**
+ * A frase do topo: o mês que foi teu e a hora a que ouves.
+ *
+ * Montada aqui, e não em três pedaços no ecrã: com só o mês saía
+ * "Fevereiro foi o teu mês ." (o espaço antes do ponto vinha do pedaço do meio).
+ */
+export function fraseDoAno(mes: string | null, hora: number | null): string {
+  if (mes && hora !== null) return `${mes} was your month, and you mostly listen ${descreverHora(hora)}.`;
+  if (mes) return `${mes} was your month.`;
+  if (hora !== null) return `You mostly listen ${descreverHora(hora)}.`;
+  return '';
 }

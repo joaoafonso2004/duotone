@@ -26,5 +26,13 @@ contextBridge.exposeInMainWorld('duotoneMini', Object.freeze({
     ipcRenderer.on('mini:janela', handler);
     return () => ipcRenderer.removeListener('mini:janela', handler);
   },
+  /** Para que lado da janela a barra recolhida se encosta: 'cima' ou 'baixo'. */
+  onAncora: (listener) => {
+    const handler = (_event, ancora) => listener(ancora === 'cima' ? 'cima' : 'baixo');
+    ipcRenderer.on('mini:ancora', handler);
+    return () => ipcRenderer.removeListener('mini:ancora', handler);
+  },
+  /** Deixar o rato passar pela parte transparente (a barra recolhida). */
+  ignorarRato: (sim) => ipcRenderer.send('mini:ignorar-rato', sim === true),
   comando: (comando) => ipcRenderer.send('mini:comando', comando),
 }));
