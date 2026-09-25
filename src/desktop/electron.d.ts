@@ -28,7 +28,9 @@ declare global {
       onEstado: (listener: (resumo: ResumoDoMiniLeitor) => void) => () => void;
       onTamanho: (listener: (expandido: boolean) => void) => () => void;
       onJanela?: (listener: (visivel: boolean) => void) => () => void;
-      onAncora?: (listener: (ancora: 'cima' | 'baixo') => void) => () => void;
+      onAncora?: (listener: (vertical: 'cima' | 'baixo', horizontal: 'esquerda' | 'direita') => void) => () => void;
+      onEscala?: (listener: (escala: number) => void) => () => void;
+      pega?: (fase: 'inicio' | 'mover' | 'fim') => void;
       ignorarRato?: (sim: boolean) => void;
       onRato?: (listener: (dentro: boolean) => void) => () => void;
       comando: (comando: { tipo: string; ms?: number }) => void;

@@ -48,6 +48,31 @@ caso('sem área conhecida, em baixo', () => {
   assert.equal(m.ancoraDoMini({ x: 0, y: 0 }, compacto, null), 'baixo');
 });
 
+console.log('\no tamanho (a pega)');
+caso('a escala tem limites', () => {
+  assert.equal(m.escalaValida(0.2), m.ESCALA_MINIMA);
+  assert.equal(m.escalaValida(9), m.ESCALA_MAXIMA);
+  assert.equal(m.escalaValida('x'), 1);
+});
+caso('tudo cresce na mesma proporção', () => {
+  assert.deepEqual(m.comEscala(compacto, 1.5), { width: 540, height: 132 });
+});
+caso('em baixo à direita, o canto de baixo à direita fica parado', () => {
+  const pos = m.posicaoInicial(principal, compacto);
+  const lados = m.ladosFixos(pos, compacto, principal);
+  assert.deepEqual(lados, { direita: true, baixo: true });
+  const fixo = { x: pos.x + compacto.width, y: pos.y + compacto.height };
+  const r = m.arrastarPega(fixo, { x: fixo.x - 540, y: 0 }, compacto, lados);
+  assert.equal(r.escala, 1.5);
+  assert.deepEqual(r.bounds, { x: fixo.x - 540, y: fixo.y - 132, width: 540, height: 132 });
+});
+caso('encostado à esquerda e em cima, cresce para a direita e para baixo', () => {
+  const lados = m.ladosFixos({ x: 20, y: 20 }, compacto, principal);
+  const r = m.arrastarPega({ x: 20, y: 20 }, { x: 20 + 288, y: 0 }, compacto, lados);
+  assert.equal(r.escala, 0.8);
+  assert.deepEqual(r.bounds, { x: 20, y: 20, width: 288, height: 70 });
+});
+
 console.log('\nmexer');
 caso('perto de uma borda encosta à margem', () => {
   assert.deepEqual(m.encostar({ x: 1920 - 360 - 16 - 7, y: 400 }, compacto, principal), { x: 1920 - 360 - 16, y: 400 });

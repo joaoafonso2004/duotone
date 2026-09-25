@@ -825,5 +825,27 @@ eq('limpar outra vez não faz nada', usePlayer.getState().limparProximas(), 0);
   eq('e não sobra nada a seguir', usePlayer.getState().upcomingQueue().length, 0);
 }
 
+// ===========================================================================
+console.log('\narrastar no Up next (o PC e o iPhone passam posições do que se VÊ)');
+// ===========================================================================
+{
+  // Com shuffle o Up next é o percurso, e era por isso que o PC não deixava
+  // arrastar (João, 25/9). Mover mexe no percurso; a fila fica como estava.
+  const q = fila('a', 'b', 'c', 'd', 'e');
+  preparar({
+    current: q[0], queue: q, queueIndex: 0, shuffle: true, autoplayRadio: false,
+    shuffleOrder: [trackKey(q[0]), trackKey(q[3]), trackKey(q[1]), trackKey(q[4]), trackKey(q[2])],
+  });
+  const vistas = () => usePlayer.getState().upcomingQueue().map((p) => p.track.sourceId).join();
+  eq('com shuffle, o Up next segue o percurso', vistas(), 'd,b,e,c');
+  usePlayer.getState().reordenarProximas(3, 0);
+  eq('arrastar a última para o topo', vistas(), 'c,d,b,e');
+  eq('a fila em si não mexe', ids().join(), 'a,b,c,d,e');
+  eq('a seguinte passa a ser a arrastada', usePlayer.getState().peekNextTrack()?.sourceId, 'c');
+  preparar({ current: faixa('a'), queueIndex: 0, shuffle: false, autoplayRadio: false });
+  usePlayer.getState().reordenarProximas(0, 2);
+  eq('sem shuffle mexe na própria fila', ids().join(), 'a,c,d,b');
+}
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

@@ -218,7 +218,7 @@ export function NowPlayingPage({
   const shuffleOrder = usePlayer((s) => s.shuffleOrder);
   const upcomingQueue = usePlayer((s) => s.upcomingQueue);
   const playTrack = usePlayer((s) => s.playTrack);
-  const moveQueueItem = usePlayer((s) => s.moveQueueItem);
+  const reordenarProximas = usePlayer((s) => s.reordenarProximas);
   const eqGanhos = usePlayer((s) => s.eqGanhos);
   const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   const playbackRate = usePlayer((s) => s.playbackRate);
@@ -433,16 +433,19 @@ export function NowPlayingPage({
   );
 
   /* A ordem que vai MESMO tocar: com shuffle ligado não é a ordem natural da
-     fila, e esta lista mentia. Arrastar para reordenar fica desligado nesse
-     caso -- mover uma lista baralhada não corresponde a nada. */
+     fila, e esta lista mentia. Arrastar mexe nessa ordem (reordenarProximas). */
   const linhas = (
     <>
       <FilaArrastavel
         entradas={upNext.slice(0, linhasDaFila)}
-        podeArrastar={!shuffle}
+        // Arrasta-se também com shuffle ligado (João, 25/9: "não dá para
+        // arrastar"): era `!shuffle`, e o PC usava o `moveQueueItem`, que só
+        // sabe a ordem da fila. O `reordenarProximas` mexe no percurso do
+        // shuffle -- é o que o iPhone já fazia.
+        podeArrastar={!emJam}
         aoTocar={(t) => playTrack(t, queue)}
         aoMenu={(t, indiceReal) => more(t, undefined, { fila: indiceReal })}
-        aoMover={(de, para) => moveQueueItem(de, para)}
+        aoMover={(de, para) => reordenarProximas(de, para)}
       />
       {/* O que acontece quando a fila acabar. Só com ela toda montada. */}
       {notaDoFim && upNext.length <= linhasDaFila ? (

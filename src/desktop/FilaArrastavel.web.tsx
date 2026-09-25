@@ -53,13 +53,17 @@ export function FilaArrastavel({
   aoMover,
 }: {
   entradas: Entrada[];
-  /** Com shuffle ligado não se reordena: mover uma lista baralhada não
-   * corresponde a nada na fila real. */
+  /** Num Jam a fila é de todos: não se reordena daqui. */
   podeArrastar: boolean;
   aoTocar: (track: Track) => void;
   /** O índice REAL na fila, para o menu poder tirar a faixa certa. */
   aoMenu: (track: Track, indiceReal: number) => void;
-  aoMover: (deReal: number, paraReal: number) => void;
+  /**
+   * Posições no que se VÊ (o "Up next"), e não índices da fila: com shuffle a
+   * ordem vive no percurso, e é o `reordenarProximas` da store que sabe onde
+   * mexer -- o mesmo que o iPhone já usava.
+   */
+  aoMover: (deVisivel: number, paraVisivel: number) => void;
 }) {
   const sugeridas = usePlayer((s) => s.sugeridas);
   const [arrasto, setArrasto] = useState<Arrasto | null>(null);
@@ -136,7 +140,7 @@ export function FilaArrastavel({
                 ignorarClique.current = true;
                 const destino = indiceAlvo(a.deVisivel, a.dy, a.altura, entradas.length);
                 if (destino !== a.deVisivel) {
-                  aoMover(a.deReal, entradas[destino].index);
+                  aoMover(a.deVisivel, destino);
                 }
               }
               guardar(null);

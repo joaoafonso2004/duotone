@@ -26,9 +26,12 @@ contextBridge.exposeInMainWorld('duotoneMini', Object.freeze({
     ipcRenderer.on('mini:janela', handler);
     return () => ipcRenderer.removeListener('mini:janela', handler);
   },
-  /** Para que lado da janela a barra recolhida se encosta: 'cima' ou 'baixo'. */
+  /** Para que lados a janela está encostada: a barra recolhida e a pega do tamanho. */
   onAncora: (listener) => {
-    const handler = (_event, ancora) => listener(ancora === 'cima' ? 'cima' : 'baixo');
+    const handler = (_event, a) => listener(
+      a && a.vertical === 'cima' ? 'cima' : 'baixo',
+      a && a.horizontal === 'esquerda' ? 'esquerda' : 'direita',
+    );
     ipcRenderer.on('mini:ancora', handler);
     return () => ipcRenderer.removeListener('mini:ancora', handler);
   },
@@ -38,6 +41,14 @@ contextBridge.exposeInMainWorld('duotoneMini', Object.freeze({
     ipcRenderer.on('mini:rato', handler);
     return () => ipcRenderer.removeListener('mini:rato', handler);
   },
+  /** A escala do mini (o tamanho que se lhe deu pela pega). */
+  onEscala: (listener) => {
+    const handler = (_event, e) => listener(Number(e) || 1);
+    ipcRenderer.on('mini:escala', handler);
+    return () => ipcRenderer.removeListener('mini:escala', handler);
+  },
+  /** A pega do tamanho: 'inicio', 'mover', 'fim'. O rato lê-o o processo principal. */
+  pega: (fase) => ipcRenderer.send('mini:pega', fase),
   /** Deixar o rato passar pela parte transparente (a barra recolhida). */
   ignorarRato: (sim) => ipcRenderer.send('mini:ignorar-rato', sim === true),
   comando: (comando) => ipcRenderer.send('mini:comando', comando),

@@ -104,6 +104,56 @@ function ancoraDoMini(pos, tamanho, area) {
   return pos.y + tamanho.height / 2 > area.y + area.height / 2 ? 'baixo' : 'cima';
 }
 
+/**
+ * O TAMANHO do mini é uma escala sobre o desenho de base (25/9: "ajustado em
+ * tamanho sem ficar tudo desformatado"). Tudo cresce na mesma proporção -- a
+ * página desenha-se sempre a 360x88 (ou 320x400) e é ampliada --, por isso a
+ * disposição nunca muda com o tamanho.
+ */
+const ESCALA_MINIMA = 0.8;
+const ESCALA_MAXIMA = 1.8;
+
+function escalaValida(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 1;
+  return Math.round(Math.min(ESCALA_MAXIMA, Math.max(ESCALA_MINIMA, n)) * 100) / 100;
+}
+
+function comEscala(tamanho, escala) {
+  return { width: Math.round(tamanho.width * escala), height: Math.round(tamanho.height * escala) };
+}
+
+/**
+ * Os lados que ficam PARADOS a mudar de tamanho: os mais perto das bordas do
+ * ecrã. Um mini em baixo à direita cresce para cima e para a esquerda (a pega
+ * fica no canto oposto, o de cima à esquerda).
+ */
+function ladosFixos(pos, tamanho, area) {
+  if (!area) return { direita: true, baixo: true };
+  return {
+    direita: pos.x + tamanho.width / 2 > area.x + area.width / 2,
+    baixo: pos.y + tamanho.height / 2 > area.y + area.height / 2,
+  };
+}
+
+/**
+ * Arrastar a pega: a escala sai da LARGURA entre o canto parado e o rato (a
+ * altura segue a proporção). `fixo` é o canto parado em coordenadas de ecrã.
+ */
+function arrastarPega(fixo, rato, base, lados) {
+  const largura = lados.direita ? fixo.x - rato.x : rato.x - fixo.x;
+  const escala = escalaValida(largura / base.width);
+  const t = comEscala(base, escala);
+  return {
+    escala,
+    bounds: {
+      x: lados.direita ? fixo.x - t.width : fixo.x,
+      y: lados.baixo ? fixo.y - t.height : fixo.y,
+      ...t,
+    },
+  };
+}
+
 /** O que se grava depois de mexer: a posição, por monitor. */
 function lembrar(guardado, pos, area) {
   const base = guardado && typeof guardado === 'object' ? guardado : {};
@@ -145,4 +195,5 @@ function resumoValido(r) {
 module.exports = {
   TAMANHOS, MARGEM, chaveDoMonitor, posicaoInicial, areaDe, prender, encostar, ondeAbrir, mudarDeTamanho,
   ancoraDoMini, lembrar, COMANDOS, comandoValido, resumoValido,
+  ESCALA_MINIMA, ESCALA_MAXIMA, escalaValida, comEscala, ladosFixos, arrastarPega,
 };

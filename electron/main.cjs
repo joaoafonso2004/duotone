@@ -624,7 +624,14 @@ function lerMini() {
 function gravarMini(dados) {
   try { fs.writeFileSync(ficheiroDoMini(), JSON.stringify(dados)); } catch {}
 }
-const areasDosMonitores = () => screen.getAllDisplays().map((d) => d.workArea);
+// O ecrã INTEIRO de cada monitor, e não a área de trabalho: o mini pode ficar
+// por cima da barra de tarefas (João, 25/9). Onde abre pela primeira vez
+// continua a ser acima dela (`ondeAbrir` recebe a área de trabalho principal).
+const areasDosMonitores = () => screen.getAllDisplays().map((d) => d.bounds);
+/** O tamanho do mini agora: o desenho de base (compacto ou grande) vezes a escala. */
+let miniEscala = 1;
+const tamanhoDoMini = (expandido) =>
+  mini.comEscala(expandido ? mini.TAMANHOS.expandido : mini.TAMANHOS.compacto, miniEscala);
 const miniAberto = () => !!miniJanela && !miniJanela.isDestroyed();
 function daJanelaMini(event) {
   return miniAberto() && event.sender === miniJanela.webContents && event.senderFrame === miniJanela.webContents.mainFrame;
@@ -639,7 +646,8 @@ function alternarMiniLeitor() {
 function abrirMiniLeitor() {
   if (miniAberto()) { miniJanela.showInactive(); return; }
   miniExpandido = false;
-  const tamanho = mini.TAMANHOS.compacto;
+  miniEscala = mini.escalaValida(lerMini().escala ?? 1);
+  const tamanho = tamanhoDoMini(false);
   const pos = mini.ondeAbrir(lerMini(), tamanho, areasDosMonitores(), screen.getPrimaryDisplay().workArea);
   const win = new BrowserWindow({
     ...tamanho,
@@ -722,12 +730,17 @@ function abrirMiniLeitor() {
 function avisarAncoraDoMini() {
   if (!miniAberto()) return;
   const b = miniJanela.getBounds();
-  miniJanela.webContents.send('mini:ancora', mini.ancoraDoMini(b, b, mini.areaDe(b, b, areasDosMonitores())));
+  const area = mini.areaDe(b, b, areasDosMonitores());
+  const lados = mini.ladosFixos(b, b, area);
+  miniJanela.webContents.send('mini:ancora', {
+    vertical: mini.ancoraDoMini(b, b, area),
+    horizontal: lados.direita ? 'direita' : 'esquerda',
+  });
 }
 function redimensionarMini(expandir) {
   if (!miniAberto() || miniExpandido === expandir) return;
-  const de = miniExpandido ? mini.TAMANHOS.expandido : mini.TAMANHOS.compacto;
-  const para = expandir ? mini.TAMANHOS.expandido : mini.TAMANHOS.compacto;
+  const de = tamanhoDoMini(miniExpandido);
+  const para = tamanhoDoMini(expandir);
   const b = miniJanela.getBounds();
   const area = mini.areaDe(b, de, areasDosMonitores());
   if (!area) return;
@@ -759,8 +772,38 @@ ipcMain.on('mini:pronto', (event) => {
   avisarMiniDaJanela();
   if (ultimoResumo) miniJanela.webContents.send('mini:estado', ultimoResumo);
   miniJanela.webContents.send('mini:tamanho', miniExpandido);
+  miniJanela.webContents.send('mini:escala', miniEscala);
   avisarAncoraDoMini();
   avisarPrincipalDoMini();
+});
+// A pega do tamanho. A página só diz a FASE; onde está o rato sabe-o o
+// processo principal (a janela muda debaixo dele enquanto se arrasta, e as
+// coordenadas da página deixavam de querer dizer alguma coisa).
+let pegaDoMini = null;
+ipcMain.on('mini:pega', (event, fase) => {
+  if (!daJanelaMini(event) || !['inicio', 'mover', 'fim'].includes(fase)) return;
+  const base = miniExpandido ? mini.TAMANHOS.expandido : mini.TAMANHOS.compacto;
+  if (fase === 'inicio') {
+    const b = miniJanela.getBounds();
+    const lados = mini.ladosFixos(b, b, mini.areaDe(b, b, areasDosMonitores()));
+    pegaDoMini = {
+      lados,
+      fixo: { x: lados.direita ? b.x + b.width : b.x, y: lados.baixo ? b.y + b.height : b.y },
+    };
+    return;
+  }
+  if (!pegaDoMini) return;
+  const r = mini.arrastarPega(pegaDoMini.fixo, screen.getCursorScreenPoint(), base, pegaDoMini.lados);
+  if (r.escala !== miniEscala) {
+    miniEscala = r.escala;
+    miniJanela.setBounds(r.bounds);
+    miniJanela.webContents.send('mini:escala', miniEscala);
+  }
+  if (fase === 'fim') {
+    pegaDoMini = null;
+    gravarMini({ ...lerMini(), escala: miniEscala });
+    avisarAncoraDoMini();
+  }
 });
 // Com a barra recolhida, a parte transparente da janela deixa passar o rato
 // para o que está por baixo. `forward` continua a mandar os movimentos à

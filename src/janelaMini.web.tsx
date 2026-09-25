@@ -49,6 +49,13 @@ const CSS = `
 .cartao.aberto .so-fechado { opacity: 0; }
 .cartao .sobre-a-capa { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 @media (prefers-reduced-motion: reduce) { .cartao, .cartao * { transition: none !important; } }
+/* A pega do tamanho: no canto que MEXE (o oposto ao que está encostado ao
+   ecrã). Arrastá-la amplia o mini todo na mesma proporção. */
+.pega { position: absolute; width: 16px; height: 16px; z-index: 3; -webkit-app-region: no-drag;
+  display: flex; align-items: center; justify-content: center; color: rgba(245,245,247,0.45); opacity: 0;
+  transition: opacity 160ms; }
+.pega:hover { color: rgba(245,245,247,0.9); }
+.cartao.aberto .pega, .mini.grande .pega { opacity: 1; transition-delay: 100ms; }
 html, body, #root { margin: 0; height: 100%; background: transparent; overflow: hidden; }
 * { box-sizing: border-box; }
 #root > div { width: 100%; height: 100%; }
@@ -123,6 +130,12 @@ function MiniLeitor() {
   // A barra: aberta com o rato por cima, e de que lado da janela se encosta.
   const [aberto, setAberto] = useState(false);
   const [ancora, setAncora] = useState<'cima' | 'baixo'>('baixo');
+  /** O lado do ecrã a que está encostado (a pega fica no outro). */
+  const [lado, setLado] = useState<'esquerda' | 'direita'>('direita');
+  /** O tamanho dado pela pega: tudo se desenha à escala 1 e é ampliado. */
+  const [escala, setEscala] = useState(1);
+  const aPegar = useRef(false);
+  const pedido = useRef<number | null>(null);
   const cartaoRef = useRef<HTMLDivElement>(null);
   const ignorando = useRef<boolean | null>(null);
   const fecho = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,8 +145,9 @@ function MiniLeitor() {
     const sair = ponte.onEstado((novo) => { setR(novo); setRecebidoEm(Date.now()); });
     const sairTamanho = ponte.onTamanho(setExpandido);
     const sairJanela = ponte.onJanela?.(setJanelaVisivel);
-    const sairAncora = ponte.onAncora?.(setAncora);
-    return () => { sair(); sairTamanho(); sairJanela?.(); sairAncora?.(); };
+    const sairAncora = ponte.onAncora?.((v, h) => { setAncora(v); setLado(h); });
+    const sairEscala = ponte.onEscala?.(setEscala);
+    return () => { sair(); sairTamanho(); sairJanela?.(); sairAncora?.(); sairEscala?.(); };
   }, [ponte]);
 
   // O rato. Com a barra recolhida, a parte transparente da janela deixa passar
@@ -147,6 +161,7 @@ function MiniLeitor() {
     };
     if (expandido) { ignorar(false); return; }
     const recolher = (depois: number) => {
+      if (aPegar.current) return;
       if (fecho.current) clearTimeout(fecho.current);
       fecho.current = setTimeout(() => { setAberto(false); ignorar(true); }, depois);
     };
@@ -188,6 +203,46 @@ function MiniLeitor() {
   }, [r?.aTocar]);
 
   const mandar = (tipo: string, ms?: number) => ponte?.comando(ms === undefined ? { tipo } : { tipo, ms });
+  // A pega mexe no canto oposto ao que está encostado ao ecrã. No compacto o
+  // cartão está encostado em baixo (ou em cima), e a pega vai ao lado de cima
+  // (ou de baixo) DELE. A página só diz a fase; o rato lê-o o processo
+  // principal, porque a janela muda debaixo dele.
+  const pegaEmCima = ancora === 'baixo';
+  const pegaAEsquerda = lado === 'direita';
+  const pega = ponte?.pega ? (
+    <div className="pega" aria-hidden="true"
+      style={{
+        [pegaEmCima ? 'top' : 'bottom']: 1, [pegaAEsquerda ? 'left' : 'right']: 1,
+        cursor: pegaEmCima === pegaAEsquerda ? 'nwse-resize' : 'nesw-resize',
+      }}
+      onPointerDown={(e) => {
+        e.preventDefault(); e.stopPropagation();
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+        aPegar.current = true;
+        ponte.pega?.('inicio');
+      }}
+      onPointerMove={() => {
+        if (!aPegar.current || pedido.current !== null) return;
+        pedido.current = requestAnimationFrame(() => { pedido.current = null; ponte.pega?.('mover'); });
+      }}
+      onPointerUp={(e) => {
+        if (!aPegar.current) return;
+        try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+        aPegar.current = false;
+        ponte.pega?.('fim');
+      }}>
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"
+        style={{ transform: `scale(${pegaAEsquerda ? -1 : 1}, ${pegaEmCima ? -1 : 1})` }}>
+        <path d="M9 1L1 9M9 5L5 9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+    </div>
+  ) : null;
+  // O canto (esconder/fechar) sai do caminho quando a pega vai para o canto
+  // de cima à direita.
+  const cantoAfastado = pegaEmCima && !pegaAEsquerda;
+  const escalado = (base: { w: number; h: number }, filho: React.ReactNode) => (
+    <div style={{ width: base.w, height: base.h, transform: `scale(${escala})`, transformOrigin: '0 0' }}>{filho}</div>
+  );
   const duracao = r?.duracaoMs ?? 0;
   const posicao = r ? Math.min(duracao || Infinity, r.posicaoMs + (r.aTocar ? Math.max(0, agora - recebidoEm) : 0)) : 0;
   const fracao = duracao > 0 ? Math.min(1, posicao / duracao) : 0;
@@ -209,7 +264,7 @@ function MiniLeitor() {
 
   // Abrir o Duotone e fechar: pequenos, no canto, só com o rato por cima.
   const canto = (
-    <div className="canto so-hover">
+    <div className="canto so-hover" style={cantoAfastado ? { right: 24 } : undefined}>
       <button aria-label={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'} title={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'}
         onClick={() => mandar('alternar-duotone')}>{janelaVisivel ? icone.esconder : icone.abrir}</button>
       <button aria-label="Close mini player" onClick={() => mandar('fechar')}>{icone.fechar}</button>
@@ -217,9 +272,10 @@ function MiniLeitor() {
   );
 
   if (expandido) {
-    return (
-      <div className="mini" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+    return escalado({ w: 320, h: 400 }, (
+      <div className="mini grande" style={{ padding: 20, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
         <div className="arrasto" />
+        {pega}
         {canto}
         <div className="capa" style={{ width: 224, height: 224, ...capa, boxShadow: '0 0 60px rgba(111,122,140,0.35)' }} />
         <div style={{ width: '100%', textAlign: 'center', minWidth: 0 }}>
@@ -242,18 +298,19 @@ function MiniLeitor() {
           <button aria-label="Shrink" onClick={() => mandar('encolher')} style={{ width: 32, height: 32 }}>{icone.encolher}</button>
         </div>
       </div>
-    );
+    ));
   }
 
   // A barra (25/9, pedido do João): recolhida mostra a capa pequena, o título
   // e o tocar/pausa; com o rato por cima abre para o cartão de sempre (a mesma
   // disposição, que NÃO muda com o rato -- decidido a 24/9 --, só aparecem o
   // coração, o anterior, o seguinte, o tempo e o canto).
-  return (
+  return escalado({ w: 360, h: 88 }, (
     <div className="palco">
       <div ref={cartaoRef} className={`mini cartao ${ancora} ${aberto ? 'aberto' : ''}`}>
         {aberto ? <div className="arrasto" /> : null}
-        <div className="canto so-aberto" style={{ display: 'flex' }}>
+        {pega}
+        <div className="canto so-aberto" style={{ display: 'flex', ...(cantoAfastado ? { right: 24 } : null) }}>
           <button aria-label={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'} title={janelaVisivel ? 'Hide Duotone' : 'Open Duotone'}
             onClick={() => mandar('alternar-duotone')}>{janelaVisivel ? icone.esconder : icone.abrir}</button>
           <button aria-label="Close mini player" onClick={() => mandar('fechar')}>{icone.fechar}</button>
@@ -285,7 +342,7 @@ function MiniLeitor() {
         <div className="linha so-fechado"><div style={{ width: `${fracao * 100}%` }} /></div>
       </div>
     </div>
-  );
+  ));
 }
 
 function RaizDoMini() {
