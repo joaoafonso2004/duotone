@@ -90,6 +90,11 @@ for (const f of FICHEIROS) {
   for (const m of s.matchAll(/marcar\(([^)]*)\)/g)) {
     for (const nome of m[1].matchAll(/'([^']+)'/g)) usadas.add(nome[1]);
   }
+  // Um elemento do DOM a sério (um <img>, um <div>) leva o atributo direto:
+  // o `dataSet` é do RNW e num elemento do DOM não chega a lado nenhum.
+  for (const m of s.matchAll(/data-dt="([^"]+)"/g)) {
+    for (const nome of m[1].split(/\s+/)) if (/^[a-z][a-z0-9-]*$/.test(nome)) usadas.add(nome);
+  }
 }
 /** As marcas que o CSS global espera. */
 const noCss = new Set<string>();

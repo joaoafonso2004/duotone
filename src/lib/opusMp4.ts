@@ -4,7 +4,7 @@
  *
  * O layout copia o do muxer do ffmpeg (`-movflags
  * +frag_keyframe+empty_moov+default_base_moof`), que é o do ficheiro de ensaio
- * `assets/ensaio-opus/opus-fmp4.m4a`: `ftyp`, um `moov` sem amostras, e
+ * o ficheiro do ensaio do Opus (retirado ao juntar ao main, 26/9): `ftyp`, um `moov` sem amostras, e
  * fragmentos `moof` + `mdat`. Duas diferenças de propósito:
  *
  * - **mvhd/tkhd/mdhd com a duração a ZERO**, e sem `mehd`. É a lição do

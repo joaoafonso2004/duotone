@@ -34,9 +34,9 @@ import { BarraVelocidade } from '../BarraVelocidade.web';
 import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
-import { getDiscordRichPresence, setCrossfadeSegundos, setDiscordRichPresence } from '../../lib/prefs';
+import { getDiscordRichPresence, setCrossfadeSegundos, setDiscordRichPresence, setIntensidadeDoSmartShuffle } from '../../lib/prefs';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
-import { efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
+import { efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
 import { usePrivacidade } from '../../state/privacidade';
 import { getLibrary } from '../../api/library';
@@ -141,9 +141,12 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const radioActivo = usePlayer((s) => s.radioActive);
   const crossfade = usePlayer((s) => s.crossfadeSegundos);
   const repeatUma = usePlayer((s) => s.repeatMode === 'one');
+  const intensidadeSmart = usePlayer((s) => s.intensidadeSmartShuffle);
+  const smartLigado = usePlayer((s) => s.shuffle && s.shuffleInteligente);
   const estadoDoDiscord = useEstadoDoDiscord((s) => s.estado);
   const privada = usePrivacidade((s) => s.privada);
   const efeitos = {
+    smart: efeitoDoSmartShuffle({ intensidade: intensidadeSmart, ligado: smartLigado }),
     discord: efeitoDoDiscord({ ligado: discordOn, privada, estado: estadoDoDiscord }),
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
     temporizador: efeitoDoTemporizador({ restanteS: sleepLeft, agora: new Date() }),
@@ -334,6 +337,11 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
             {/* O crossfade do PC (24/9): um segundo player do YouTube prepara a
                 seguinte, calado, e os volumes cruzam-se no fim -- ver o
                 YouTubePlayerView.web.tsx. Desligado de origem, como no iPhone. */}
+            {/* Quantas músicas novas o Smart Shuffle mete (26/9). */}
+            <ChoiceLine label="Smart shuffle" description="How many new songs it adds to what you're playing."
+              value={intensidadeSmart} choices={[['poucas', 'Few'], ['normal', 'Some'], ['muitas', 'Lots']]}
+              onChange={(v) => { const i = v as 'poucas' | 'normal' | 'muitas'; usePlayer.setState({ intensidadeSmartShuffle: i }); void setIntensidadeDoSmartShuffle(i); }}
+              efeito={efeitos.smart} />
             <ChoiceLine label="Crossfade" description="Blend the end of a song into the next one."
               value={String(crossfade)} choices={DURACOES_DO_CROSSFADE.map((d) => [String(d), d === 0 ? 'Off' : `${d} s`] as [string, string])}
               onChange={(v) => { const d = Number(v) as DuracaoDoCrossfade; usePlayer.setState({ crossfadeSegundos: d }); void setCrossfadeSegundos(d); }}

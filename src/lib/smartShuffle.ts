@@ -150,6 +150,18 @@ export function modoDeShuffle(ligado: boolean, inteligente: boolean): ModoDeShuf
  * sessão com uma música que não é tua dá a impressão de que a playlist está
  * errada.
  */
+/**
+ * Quantas músicas novas o Smart Shuffle mete (26/9, pedido do João: "se
+ * recomenda muitas músicas novas ou poucas"). É o intervalo entre sugestões:
+ * poucas = uma em cada seis, normal = uma em cada quatro (`A_CADA`), muitas =
+ * uma em cada duas.
+ */
+export type IntensidadeDoSmartShuffle = 'poucas' | 'normal' | 'muitas';
+export const INTENSIDADES: readonly IntensidadeDoSmartShuffle[] = ['poucas', 'normal', 'muitas'];
+export function intervaloDaIntensidade(i: IntensidadeDoSmartShuffle | null | undefined): number {
+  return i === 'poucas' ? 6 : i === 'muitas' ? 2 : A_CADA;
+}
+
 export function deveSugerir(
   modo: ModoDeShuffle,
   desdeAUltima: number,

@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
-  efeitoDoCrossfade, efeitoDoDiscord, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken,
+  efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoDiscord, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken,
   efeitoDoRadio, efeitoDoTemporizador, tamanho,
 } from '../src/lib/efeitoDasDefinicoes.ts';
 
@@ -33,6 +33,10 @@ caso('sem nada a tocar, diz o que a escolha faz', () => {
 
 console.log('\no crossfade com os limites dele');
 caso('desligado não diz nada', () => assert.equal(efeitoDoCrossfade({ segundos: 0, repeatUma: false }), null));
+caso('a intensidade do Smart Shuffle diz o ritmo', () => {
+  assert.equal(efeitoDoSmartShuffle({ intensidade: 'muitas', ligado: true }), 'About 1 new song in every 2');
+  assert.match(efeitoDoSmartShuffle({ intensidade: 'poucas', ligado: false }), /every 6 · turn on smart shuffle/);
+});
 caso('com repeat de uma faixa está parado, e diz porquê', () => {
   assert.match(efeitoDoCrossfade({ segundos: 6, repeatUma: true })!, /repeat one/);
 });

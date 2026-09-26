@@ -496,6 +496,31 @@ export async function setArtistasSemente(nomes: readonly string[]): Promise<void
 }
 
 /**
+ * O questionário da primeira vez já foi feito (ou saltado) nesta CONTA (26/9).
+ * É um `pref:`, por isso viaja pelo `lib/prefsSync`: quem respondeu no iPhone
+ * não o vê outra vez no PC.
+ */
+const KEY_BOAS_VINDAS = 'pref:boasVindas';
+
+/** A intensidade do Smart Shuffle (26/9). Ver `intervaloDaIntensidade`. */
+const KEY_INTENSIDADE_SMART = 'pref:smartShuffleIntensidade';
+export async function getIntensidadeDoSmartShuffle(): Promise<'poucas' | 'normal' | 'muitas'> {
+  try {
+    const v = await AsyncStorage.getItem(KEY_INTENSIDADE_SMART);
+    return v === 'poucas' || v === 'muitas' ? v : 'normal';
+  } catch { return 'normal'; }
+}
+export async function setIntensidadeDoSmartShuffle(v: 'poucas' | 'normal' | 'muitas'): Promise<void> {
+  await AsyncStorage.setItem(KEY_INTENSIDADE_SMART, v);
+}
+export async function getBoasVindasFeitas(): Promise<boolean> {
+  try { return (await AsyncStorage.getItem(KEY_BOAS_VINDAS)) === 'feito'; } catch { return false; }
+}
+export async function setBoasVindasFeitas(): Promise<void> {
+  await AsyncStorage.setItem(KEY_BOAS_VINDAS, 'feito');
+}
+
+/**
  * Os artistas favoritos, que sobem ao topo da página dos Artists.
  *
  * Guarda-se a CHAVE canónica (`chaveDeArtista`) e não o nome mostrado: é por

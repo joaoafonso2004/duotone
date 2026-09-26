@@ -84,6 +84,7 @@ import { injectDesktopDocumentStyles, PlayerBar, Sidebar, TitleBar } from '../de
 import { usePonteDoLeitor } from '../desktop/usePonteDoLeitor.web';
 import { useAtalhosDaJanela } from '../desktop/useAtalhosDaJanela.web';
 import { ModoLimpo } from '../desktop/ModoLimpo.web';
+import { BoasVindasPc } from '../desktop/BoasVindasPc.web';
 import { PRIMARY, type CommonPageProps, type Route, type ShareTarget } from '../desktop/rotas';
 import {
   memberSince, newerVersion, playEntryToTrack,
@@ -640,7 +641,7 @@ function DesktopShell() {
   // Definicoes. Era `rgba(18,18,24)` a martelo, fora de qualquer paleta.
   const bgStyle = { backgroundColor: `rgba(12, 12, 16, ${panelOpacity})` };
 
-  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, bgStyle]}><View style={styles.sidebar}><Sidebar route={route} navigate={navigate} /></View><View style={styles.content}><TransitionView transitionKey={JSON.stringify(route)}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><ModoLimpo />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, bgStyle]}><View style={styles.sidebar}><Sidebar route={route} navigate={navigate} /></View><View style={styles.content}><TransitionView transitionKey={JSON.stringify(route)}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* CUSTOM ACTIONS DIALOG */}

@@ -10,8 +10,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
 import { ESCALA } from '../lib/movimento';
 import type { RootStackParamList } from '../navigation/RootNavigator';
-import { useOuvirJuntos } from '../state/ouvirJuntos';
-import { usePlayer } from '../state/player';
+import { ouvirComAmigo } from '../state/ouvirComAmigo';
 import { useSocial } from '../state/social';
 import { colors, spacing, type } from '../theme';
 
@@ -98,24 +97,9 @@ export function AmigosAOuvir() {
     const amigo = aOuvir.find((a) => a.friendId === friendId);
     if (!amigo) return;
     hapticSelection();
-    const sessao = sessoes.get(friendId);
-    if (sessao) {
-      try {
-        await useOuvirJuntos.getState().juntarSe(sessao, 'friend_presence');
-        return;
-      } catch {
-        // A sessao pode ter acabado entre a leitura e o toque. Cai para a
-        // musica, que e melhor do que nao acontecer nada.
-      }
-    }
-    // A presenca traz uma faixa MAGRA (sem album -- ver o whitelist do
-    // `publish_social_presence`). O leitor quer um Track inteiro, e o album
-    // e a unica coisa que falta.
-    const { source, sourceId, title, artist, artworkUrl, durationSeconds } = amigo.currentlyPlaying;
-    void usePlayer.getState().playTrack(
-      { source, sourceId, title, artist, artworkUrl, durationSeconds, album: null },
-      undefined, true,
-    );
+    // A mesma porta do PC (state/ouvirComAmigo.ts): a sessão dele se houver,
+    // senão a música dele -- na posição dele, quando a presença a traz.
+    await ouvirComAmigo(amigo, sessoes.get(friendId));
   }, [aOuvir, sessoes]);
 
   if (aOuvir.length === 0) return null;

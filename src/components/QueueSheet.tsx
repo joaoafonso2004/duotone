@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert, Animated, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinhaArrastavel } from './LinhaArrastavel';
+import { DeslizarParaTirar } from './DeslizarParaTirar';
 import { chavesEstaveis, destinoDoArrasto, offsetDoDeslize, velocidadeDoDeslize } from '../lib/arrastarFila';
 import { TRACK_ROW_HEIGHT } from './TrackRow';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -440,6 +441,17 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
                 aoCancelar={terminarArrasto}
               >
               {(pega) => (
+              // Deslizar para a esquerda tira a música da fila (26/9). Num Jam
+              // a fila é de todos, e com uma linha pegada o dedo é do arrasto.
+              <DeslizarParaTirar
+                ativo={!emSessao && arrastar === null}
+                aoTirar={() => {
+                  const agora = usePlayer.getState();
+                  if (useOuvirJuntos.getState().sessao || agora.queueIndex === realIndex
+                    || agora.queue[realIndex] !== item) return;
+                  removeFromQueue(realIndex);
+                }}
+              >
               <View
                 style={styles.queueItemRow}
                 onLayout={index === 0 ? (e) => {
@@ -459,6 +471,8 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
                   accessibilityHint={foraDoTelemovel ? 'Not on this phone' : undefined}>
                   <TrackRow
                     track={item}
+                    // Por extenso, e não só a estrela de 7 pt (26/9).
+                    contextLabel={sugeridas.includes(trackKey(item)) ? 'Smart shuffle pick' : undefined}
                     onPress={() => {
                       if (foraDoTelemovel) return;
                       playTrack(item, queue);
@@ -505,6 +519,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
                   </Pressable>
                 </View>
               </View>
+              </DeslizarParaTirar>
               )}
               </LinhaArrastavel>
             );

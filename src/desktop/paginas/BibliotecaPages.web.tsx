@@ -8,6 +8,7 @@ import { useRecommendationFeedback } from '../../state/recommendationFeedback';
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FILTROS_DE_VERSAO, filtrosComResultados, versaoPassa, type FiltroDeVersao } from '../../lib/filtroDeVersao';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { getLikedSongs } from '../../api/library';
 import {
@@ -104,6 +105,12 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
   });
   const run = (q = query) => { setQuery(q); pesquisarAgora(); };
   const semPesquisa = query.trim().length < 2;
+  // O filtro por versão (26/9): só aparecem os que têm resultados, e volta a
+  // "All" a cada pesquisa nova. Ver lib/filtroDeVersao.ts.
+  const [versao, setVersao] = useState<FiltroDeVersao>('todas');
+  useEffect(() => { setVersao('todas'); }, [query]);
+  const filtrosDaVersao = useMemo(() => filtrosComResultados(results.map((r) => r.title)), [results]);
+  const resultadosVisiveis = useMemo(() => results.filter((r) => versaoPassa(r.title, versao)), [results, versao]);
   return <Page title="Search"
     action={vista === 'descobrir' ? <IconButton name="refresh" label="Refresh recommendations"
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} /> : undefined}>
@@ -122,11 +129,16 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
         {loading ? <View style={{ height: 200 }}><Loading /></View>
           : results.length ? <>
             {naBiblioteca.length ? <Text style={[styles.sectionTitle, { marginTop: 24 }]}>On YouTube</Text> : null}
+            {filtrosDaVersao.length > 2 ? <View style={[styles.chips, { marginBottom: 12 }]}>{FILTROS_DE_VERSAO.filter((f) => filtrosDaVersao.includes(f.id)).map((f) => (
+              <Pressable key={f.id} onPress={() => setVersao(f.id)} accessibilityRole="button" accessibilityState={{ selected: versao === f.id }}
+                style={({ hovered }) => [styles.chip, hovered && styles.chipHover, versao === f.id && { backgroundColor: desktop.text }]}>
+                <Text style={[styles.chipText, versao === f.id && { color: desktop.bg }]}>{f.nome}</Text>
+              </Pressable>))}</View> : null}
             {/* Só a faixa escolhida, NUNCA os resultados: são o que o YouTube
                 casou com o texto, não uma lista de ninguém. Procurar "6:30" e
                 ter o shuffle ligado dava um temporizador de 7 h a seguir (14/9).
                 O rádio continua a partir desta, pelo gosto de quem ouve. */}
-            <TrackTable tracks={results} showSavedBadge onPlay={(t) => play(t, undefined, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
+            <TrackTable tracks={resultadosVisiveis} showSavedBadge onPlay={(t) => play(t, undefined, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
           </> : null}
       </>
       : loading ? <View style={{ height: 320 }}><Loading /></View>

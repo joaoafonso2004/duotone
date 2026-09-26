@@ -18,7 +18,7 @@ import { incrementPlayCount } from '../lib/playCounts';
 import { avancarEscuta, novaEscuta, type Escuta } from '../lib/contagemDeEscuta';
 import { reconcileOrder, shuffleKeys, stepIndex, trackKey, upcomingIndexes } from '../lib/shuffle';
 import {
-  A_CADA, chavesRecentesDoSmartShuffle, deveSugerir,
+  chavesRecentesDoSmartShuffle, deveSugerir, intervaloDaIntensidade, type IntensidadeDoSmartShuffle,
   escolherSugestao, foiSugeridaRecentemente, JANELA_SEM_REPETIR_MS,
   lerHistoricoDoSmartShuffle, modoDeShuffle, posicaoDaSugestao, proximoModo,
   juntarHistoricos, registarNoHistoricoDoSmartShuffle, type SugestaoNoHistorico,
@@ -41,7 +41,7 @@ import {
   setPlaybackRate as persistPlaybackRate, setEqPadrao as persistEqPadrao,
 } from '../lib/prefs';
 import { queueTrackAdjustment } from './trackAdjustments';
-import { registarNaVelocidade } from '../lib/playbackDiagnostics';
+import { registarNaFila, registarNaVelocidade } from '../lib/playbackDiagnostics';
 import { movido } from '../lib/arrastarFila';
 import { useAuth } from './auth';
 import { applyPlaybackAlternative } from '../lib/playbackAlternatives';
@@ -307,6 +307,8 @@ interface PlayerState {
   /** Segundos de passagem entre faixas. 0 desliga. Vive aqui e nao so nas
    * preferencias porque o player le-o a cada tique, dentro de um intervalo. */
   crossfadeSegundos: number;
+  /** Quantas músicas novas o Smart Shuffle mete (Definições, 26/9). */
+  intensidadeSmartShuffle: IntensidadeDoSmartShuffle;
   /** mostrar o botão de recuar 15s no player expandido (preferência das Definições) */
   showRewindButton: boolean;
   positionMs: number;
@@ -916,6 +918,7 @@ export const usePlayer = create<PlayerState>()(
   radioActive: false,
   volumeNormalization: true,
   crossfadeSegundos: 0,
+  intensidadeSmartShuffle: 'normal',
   showRewindButton: false,
   positionMs: 0,
   positionAt: Date.now(),
@@ -1356,7 +1359,7 @@ export const usePlayer = create<PlayerState>()(
     //
     // Se a rede falhar nao acontece nada: cai no shuffle normal. Uma
     // funcionalidade de descoberta nao pode partir a reproducao.
-    if (deveSugerir(modoDeShuffle(get().shuffle, get().shuffleInteligente), get().desdeASugestao)) {
+    if (deveSugerir(modoDeShuffle(get().shuffle, get().shuffleInteligente), get().desdeASugestao, intervaloDaIntensidade(get().intensidadeSmartShuffle))) {
       // NAO SE ESPERA POR ISTO. Era `await`, e era a resposta a pergunta "porque
       // e que o botao de seguinte demora": a sugestao e uma ida a rede -- duas
       // consultas ao Supabase mais uma pesquisa no YouTube -- e acontecia de
@@ -1727,7 +1730,11 @@ export const usePlayer = create<PlayerState>()(
         proveniencias,
       );
       if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return 0;
-      if (candidatas.length === 0) return 0;
+      if (candidatas.length === 0) {
+        // Sem rasto, um Smart Shuffle que não sugere nada parecia avariado (26/9).
+        registarNaFila(`smart shuffle: nothing to suggest for ${contexto.map((t) => displayArtist(t)).join(', ')}`);
+        return 0;
+      }
 
       // Pela pontuação e só as de confiança: sem nenhuma, não entra nada.
       const filtradas=ordenarSugestoes(candidatas, proveniencias, contexto)
@@ -1738,8 +1745,8 @@ export const usePlayer = create<PlayerState>()(
       const novas: string[] = [];
       const escolhidas: Track[] = [];
       const base = get().queueIndex;
-      // O mesmo ritmo das sugestões uma a uma: uma a cada `A_CADA` faixas.
-      const intervalo=A_CADA;
+      // O mesmo ritmo das sugestões uma a uma: o da intensidade escolhida.
+      const intervalo=intervaloDaIntensidade(get().intensidadeSmartShuffle);
       const contextoDaSugestao=contextoDoSmartShuffle();
 
       for (let i = 0; i < quantas; i++) {
@@ -1762,7 +1769,11 @@ export const usePlayer = create<PlayerState>()(
         for (const identidade of identidades) bloqueadas.add(identidade);
         contextosDaFila.set(chave,contextoDaSugestao);
       }
-      if (novas.length === 0) return 0;
+      if (novas.length === 0) {
+        registarNaFila(`smart shuffle: ${candidatas.length} found, all already suggested or in the queue`);
+        return 0;
+      }
+      registarNaFila(`smart shuffle: +${novas.length} (${escolhidas.map((t) => displayArtist(t)).join(', ')})`);
 
       set({
         queue: fila,
@@ -1835,7 +1846,11 @@ export const usePlayer = create<PlayerState>()(
           .filter((t) => !foiSugeridaRecentemente(chavesDaFaixaSugerida(t), bloqueadas)),
         (t) => trackKey(t), naFila, new Set(sugeridas),
       );
-      if (!escolhida) return false;
+      if (!escolhida) {
+        registarNaFila(`smart shuffle: nothing new for ${contexto.map((t) => displayArtist(t)).join(', ')} (${candidatas.length} found)`);
+        return false;
+      }
+      registarNaFila(`smart shuffle: +1 (${displayArtist(escolhida)})`);
 
       // A fila atual, mas apenas da mesma sessão: next e reordenação podem
       // tê-la mudado; uma lista nova já teria invalidado o pedido acima.
@@ -1885,7 +1900,8 @@ export const usePlayer = create<PlayerState>()(
         ...proveniencaParaAnalytics(proveniencias.get(chave)),
       });
       return true;
-    } catch {
+    } catch (e: any) {
+      registarNaFila(`smart shuffle: failed (${String(e?.message ?? e).slice(0, 80)})`);
       return false;
     } finally {
       if (pedidoDoSmartShuffle === pedido) pedidoDoSmartShuffle = null;

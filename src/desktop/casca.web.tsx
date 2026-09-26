@@ -29,6 +29,8 @@ import { COR, FONT, FONTES } from './tokens.web';
 import { Artwork, desktop, formatTime, IconButton, ui, marcar, useProcurarAoLargar } from './ui.web';
 import { PRIMARY, type Route } from './rotas';
 import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade.web';
+import { AmigosNaLateral } from './AmigosNaLateral.web';
+import { ProgressoDaImportacao } from './ProgressoDaImportacao.web';
 
 const P = Pressable as any;
 const V = View as any;
@@ -169,6 +171,14 @@ export function injectDesktopDocumentStyles() {
     /* O fundo do Now Playing: a capa nova entra por cima da anterior. */
     [data-dt~="np-fundo"]{ animation: dt-np-fundo 700ms ease both; }
     @keyframes dt-np-fundo{ from{ opacity:0 } to{ opacity:1 } }
+    /* A troca de música no Now Playing (26/9): a capa nova entra por cima da
+       que sai, e o título vem logo atrás. */
+    [data-dt~="np-capa-entra"]{ animation: dt-np-capa-entra 460ms cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes dt-np-capa-entra{ from{ opacity:0; transform: scale(.975) } to{ opacity:1; transform: none } }
+    [data-dt~="np-capa-sai"]{ animation: dt-np-capa-sai 600ms ease both; }
+    @keyframes dt-np-capa-sai{ from{ opacity:1 } to{ opacity:0 } }
+    [data-dt~="np-texto-entra"]{ animation: dt-np-texto-entra 380ms cubic-bezier(.2,.8,.2,1) 90ms both; }
+    @keyframes dt-np-texto-entra{ from{ opacity:0; transform: translateY(6px) } to{ opacity:1; transform: none } }
 
     /* =====================================================================
        O MOVIMENTO DO PC (20/9)
@@ -231,6 +241,13 @@ export function injectDesktopDocumentStyles() {
     /* O artista de uma linha é um link para a página dele. */
     [data-dt~="fila"] [data-dt~="artista"]{ transition: color var(--dt-rapido) var(--dt-curva); cursor: pointer; }
     [data-dt~="fila"] [data-dt~="artista"]:hover{ color: ${COR.texto}; text-decoration: underline; }
+    /* Os amigos na lateral (AmigosNaLateral.web.tsx): a linha acende e o ▶
+       aparece pelo CSS -- o hover do RNW caía com o rato no próprio ▶. */
+    [data-dt~="amigo"]{ transition: background-color var(--dt-rapido) var(--dt-curva); cursor: pointer; }
+    [data-dt~="amigo"]:hover{ background-color: ${COR.hover}; }
+    [data-dt~="amigo-ouvir"]{ opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="amigo"]:hover [data-dt~="amigo-ouvir"], [data-dt~="amigo-ouvir"]:focus-visible{ opacity: 1; }
+    [data-dt~="amigo-ouvir"]:hover{ transform: scale(1.08); }
     /* A que esta a tocar nao esconde as barrinhas nem mostra o numero. */
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: dt-pular 900ms ease-in-out infinite; }
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(2){ animation-delay: 150ms }
@@ -371,11 +388,15 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
         style={[styles.navRealce,{height:realce.altura,transform:[{translateY:realce.y}],backgroundColor:tema.soft}]}/>:null}
       <Text style={styles.navLabel}>DISCOVER</Text>
       {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} medicao={medicao} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
-      <View style={styles.navDivider} /><Text style={styles.navLabel}>ACCOUNT</Text>
-      <NavItem label="Profile" icon="person-circle-outline" active={active === 'profile'} semFundo={!!realce} medicao={medicao} aoMedir={medir('profile')} onPress={() => navigate({ name: 'profile' })} />
-      <NavItem label="Settings" icon="settings-outline" active={active === 'settings'} semFundo={!!realce} medicao={medicao} aoMedir={medir('settings')} onPress={() => navigate({ name: 'settings' })} />
     </ScrollView>
-    <Pressable onPress={() => navigate({ name: 'profile' })} style={({ hovered }) => [styles.account, hovered && styles.navHover]}>{avatarDisplay}<View style={{ flex: 1 }}><Text numberOfLines={1} style={styles.accountName}>{name}</Text><Text numberOfLines={1} style={styles.accountEmail}>{session?.user.email}</Text></View><Ionicons name="chevron-forward" size={14} color={desktop.dim} /></Pressable>
+    {/* O perfil é a linha com a tua cara (o item "Profile" repetia-a) e as
+        Definições são a roda dentada nela (26/9, decidido com o João). */}
+    <View style={styles.accountRow}>
+      <Pressable accessibilityLabel="Profile" onPress={() => navigate({ name: 'profile' })} style={({ hovered }) => [styles.account, styles.accountPerfil, (hovered || active === 'profile') && styles.navHover]}>{avatarDisplay}<View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.accountName}>{name}</Text><Text numberOfLines={1} style={styles.accountEmail}>{session?.user.email}</Text></View></Pressable>
+      <Pressable accessibilityLabel="Settings" onPress={() => navigate({ name: 'settings' })} style={({ hovered }) => [styles.accountDefinicoes, (hovered || active === 'settings') && styles.navHover]}><Ionicons name="settings-outline" size={17} color={active === 'settings' ? desktop.text : desktop.muted} /></Pressable>
+    </View>
+    <ProgressoDaImportacao />
+    <AmigosNaLateral navigate={navigate} />
   </View>;
 }
 

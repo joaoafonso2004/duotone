@@ -54,7 +54,16 @@ export function iniciarPresenca(userId: string): () => void {
       const privada = usePrivacidade.getState().privada;
       const { error } = await supabase.rpc('publish_social_presence', {
         p_device_id: await dispositivo, p_session_id: sessao, p_sequence: seq,
-        p_active: ativo && !encerrar, p_track: encerrar || privada ? null : faixa, p_end: encerrar,
+        p_active: ativo && !encerrar, p_end: encerrar,
+        // A posição e a velocidade viajam com a faixa (26/9): a barra de
+        // progresso dos amigos no PC. Lidas na hora do ENVIO, que é a hora que
+        // o servidor carimba. Sem a migração presenca-com-posicao.sql o
+        // servidor deita-as fora e fica tudo como antes.
+        p_track: encerrar || privada || !faixa ? null : {
+          ...faixa,
+          positionMs: Math.max(0, Math.round(usePlayer.getState().positionMs || 0)),
+          rate: usePlayer.getState().playbackRate || 1,
+        },
       });
       if (error) console.warn('Não foi possível publicar a presença:', error.message);
     });
@@ -71,6 +80,9 @@ export function iniciarPresenca(userId: string): () => void {
     if (s.current !== p.current || s.isPlaying !== p.isPlaying || s.playbackConfirmed !== p.playbackConfirmed || s.buffering !== p.buffering || s.error !== p.error) changed();
     // O avanço vem do timeUpdate nativo, que também serve o sleep timer com
     // o ecrã bloqueado. Não depender só de setInterval para o batimento iOS.
+    // Uma ida na barra ou outra velocidade publicam já: sem isso o progresso
+    // dos amigos mostrava um sítio que já não existia até ao batimento seguinte.
+    else if(!terminado&&s.isPlaying&&(s.playbackRate!==p.playbackRate||Math.abs((s.positionMs-p.positionMs)-(s.positionAt-p.positionAt)*(s.playbackRate||1))>4000))changed();
     else if(!terminado&&s.positionMs!==p.positionMs&&s.isPlaying&&Date.now()-lastPublished>=PRESENCE_PUBLISH_MS)void publicar();
   });
   // Ligar a privada tem de tirar a faixa JÁ, e não no próximo batimento: são

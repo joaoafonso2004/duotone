@@ -1,6 +1,6 @@
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import {
   getGlitchMode, type GlitchMode,
@@ -22,6 +22,7 @@ import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
 import { Artwork, Button, desktop, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
 import { desfoqueLeve } from '../../lib/capaGrande';
+import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
 import { disposicaoDoLeitor, fimDaFila } from '../../lib/leitorDoPc';
 import { pertoDoFim } from '../../lib/grelhaQueCresce';
 import type { CommonPageProps, NavegarFn, ShareTarget } from '../rotas';
@@ -306,6 +307,24 @@ export function NowPlayingPage({
   const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
   const track = useMemo(() => (current ? comCatalogo(current) : current), [current, versaoDoCatalogo]);
   useEffect(() => { if (current) void garantirCatalogo([current]); }, [current]);
+  // A capa grande (maxres) e não a miniatura das listas: esticada a 500 px via-se
+  // desfocada. A seguinte é pedida já, para o skip não esperar por ela.
+  const capaGrande = useCapaGrande(track ?? { source: '', sourceId: '', artworkUrl: null });
+  // A capa da música que acabou de sair, para desaparecer por baixo da nova.
+  const faixaAtual = track ? `${track.source}:${track.sourceId}` : '';
+  const ultimaCapa = useRef<{ chave: string; uri: string } | null>(null);
+  const [capaQueSai, setCapaQueSai] = useState<{ chave: string; uri: string } | null>(null);
+  useEffect(() => {
+    const antes = ultimaCapa.current;
+    if (antes && antes.chave !== faixaAtual) {
+      setCapaQueSai(antes);
+      const t = setTimeout(() => setCapaQueSai(null), 650);
+      return () => clearTimeout(t);
+    }
+  }, [faixaAtual]);
+  useEffect(() => { if (faixaAtual && capaGrande) ultimaCapa.current = { chave: faixaAtual, uri: capaGrande }; }, [faixaAtual, capaGrande]);
+  const seguinte = upNext[0]?.track;
+  useEffect(() => { preCarregarCapaGrande(seguinte ? comCatalogo(seguinte) : null); }, [seguinte?.sourceId]);
   if (!track) {
     return <Page title="Now Playing" action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
   }
@@ -334,8 +353,23 @@ export function NowPlayingPage({
   // esquerda enquanto a fila rola ao lado; numa estreita, tudo rola junto.
   const coluna = (
     <View style={[styles.npLado, { width: ladoCapa }]}>
-      <ArtworkLyricsCube key={`${track.source}:${track.sourceId}`} track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
-        front={<GlitchArtwork uri={track.artworkUrl} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
+      {/* Mudar de música é uma passagem, não um corte (26/9, pedido do João):
+          a capa anterior fica por baixo a desaparecer enquanto a nova entra
+          por cima, e o título entra logo a seguir. As animações vivem no CSS
+          da casca (`np-capa-*`, `np-texto-entra`). */}
+      <View style={{ width: ladoCapa, height: ladoCapa }}>
+        {capaQueSai ? (
+          // Um <img> a sério e não a <Image> do RNW: essa só desenha depois de
+          // voltar a carregar a imagem (mesmo em cache), e a passagem já tinha
+          // acabado -- ficava um buraco em vez da capa anterior.
+          <img key={`sai:${capaQueSai.chave}`} data-dt="np-capa-sai" src={capaQueSai.uri} alt=""
+            style={{ position: 'absolute', width: ladoCapa, height: ladoCapa, borderRadius: 14, objectFit: 'cover' }} />
+        ) : null}
+        <View key={`entra:${faixaAtual}`} {...marcar('np-capa-entra')}>
+          <ArtworkLyricsCube track={track} size={ladoCapa} artwork={track.artworkUrl} showLyrics={showLyrics} onChange={setShowLyrics}
+            front={<GlitchArtwork uri={capaGrande} lado={ladoCapa} modo={glitch} intensidade={effectIntensity} />} />
+        </View>
+      </View>
       {/* As letras: dois pontos por baixo da capa, como no iPhone (decidido
           com o João a 25/9). Arrastar a capa continua a funcionar; os pontos
           são a porta que se vê -- até aqui só havia o arrasto. */}
@@ -343,7 +377,7 @@ export function NowPlayingPage({
       {/* A identidade primeiro: o nome da faixa e, por baixo, o artista.
           O artista sai do `displayArtist` e nao do campo `artist`, que no
           YouTube e o CANAL -- e abria a pagina de um canal de uploads. */}
-      <View style={styles.npIdentidade}>
+      <View key={`texto:${faixaAtual}`} {...marcar('np-texto-entra')} style={styles.npIdentidade}>
         <Text numberOfLines={2} style={styles.npTitulo}>{tituloDaFaixa(track)}</Text>
         <Pressable
           accessibilityRole={temArtista ? 'link' : undefined}
@@ -470,18 +504,33 @@ export function NowPlayingPage({
       {/* O fundo do iPhone: a própria capa, muito desfocada, com um véu. */}
       <FundoDaCapa uri={track.artworkUrl} />
 
+      {/* O topo (26/9, o João achou o "FROM" em letra técnica feio): o voltar
+          num círculo discreto e a origem em duas linhas, como os leitores de
+          música fazem -- "Playing from" pequeno por cima, a lista por baixo, e
+          uma seta quando dá para a abrir. */}
       <View style={styles.npTopo}>
-        <IconButton name="arrow-back" label="Back" onPress={back} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={back}
+          style={({ hovered }: any) => [styles.npVoltar, hovered && styles.npVoltarHover]}>
+          <Ionicons name="chevron-back" size={18} color={COR.texto} />
+        </Pressable>
         {origem ? (
-          <View style={styles.npOrigem}>
-            <Text style={ui.eyebrow}>{origem.antes}</Text>
-            <Text
-              onPress={irParaOrigem}
-              accessibilityRole={irParaOrigem ? 'link' : undefined}
-              numberOfLines={1}
-              style={[styles.npOrigemNome, irParaOrigem && ({ cursor: 'pointer' } as any)]}
-            >{origem.nome}</Text>
-          </View>
+          <Pressable
+            onPress={irParaOrigem}
+            disabled={!irParaOrigem}
+            accessibilityRole={irParaOrigem ? 'link' : undefined}
+            accessibilityLabel={`${origem.antes} ${origem.nome}`}
+            style={styles.npOrigem}
+          >
+            {({ hovered }: any) => (
+              <>
+                <Text style={styles.npOrigemAntes}>{origem.antes === 'From' ? 'Playing from' : origem.antes.replace(/^From/, 'Playing from')}</Text>
+                <View style={styles.npOrigemLinha}>
+                  <Text numberOfLines={1} style={[styles.npOrigemNome, irParaOrigem && hovered && styles.npOrigemNomeHover]}>{origem.nome}</Text>
+                  {irParaOrigem ? <Ionicons name="chevron-forward" size={13} color={hovered ? COR.texto : COR.textoMedio} /> : null}
+                </View>
+              </>
+            )}
+          </Pressable>
         ) : null}
       </View>
 

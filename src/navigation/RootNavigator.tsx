@@ -31,7 +31,6 @@ import { AuthScreen } from '../screens/AuthScreen';
 import { ImportYouTubeScreen } from '../screens/ImportYouTubeScreen';
 import { ListeningStatsScreen } from '../screens/ListeningStatsScreen';
 import { DownloadsScreen } from '../screens/DownloadsScreen';
-import { EnsaioOpusScreen } from '../screens/EnsaioOpusScreen';
 import { LibraryCheckScreen } from '../screens/LibraryCheckScreen';
 import { RetrospetivaScreen } from '../screens/RetrospetivaScreen';
 import { LibraryGroupScreen } from '../screens/LibraryGroupScreen';
@@ -52,6 +51,8 @@ import { useNotifications } from '../state/notifications';
 import { useInAppNotifications } from '../hooks/useInAppNotifications';
 import { NotificationBanner } from '../components/NotificationBanner';
 import { AvisoDaReproducao } from '../components/AvisoDaReproducao';
+import { ProgressoDaImportacao } from '../components/ProgressoDaImportacao';
+import { BoasVindas } from '../components/BoasVindas';
 import { usePlayer } from '../state/player';
 import { closeNotificationOverlays } from '../lib/notificationOverlays';
 import type { NotificationTarget } from '../lib/inAppNotifications';
@@ -76,8 +77,6 @@ export type RootStackParamList = {
   ListeningStats: {userId?:string} | undefined;
   Retrospetiva: {ano?:number;userId?:string} | undefined;
   Downloads: undefined;
-  /** Ensaio do Opus (lib/ensaioOpus.ts). Só do ramo plano-audio. */
-  EnsaioOpus: undefined;
   /** O Library check. Ver `screens/LibraryCheckScreen.tsx`. */
   LibraryCheck: undefined;
   FriendProfile: {userId:string};
@@ -343,7 +342,6 @@ export function RootNavigator() {
               {/* Sem withInternet: ver o que está guardado é justamente o que
                   tem de funcionar sem rede. */}
               <Stack.Screen name="Downloads" component={DownloadsScreen} />
-              <Stack.Screen name="EnsaioOpus" component={EnsaioOpusScreen} />
               <Stack.Screen name="LibraryCheck" component={LibraryCheckScreen} />
               <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
               <Stack.Screen name="VocesOsDois" component={OnlineVocesOsDois} />
@@ -362,6 +360,10 @@ export function RootNavigator() {
             {/* "A música vai parar quando o ecrã bloquear": a extração do
                 YouTube está bloqueada. Ver lib/saudeDaReproducao.ts. */}
             <AvisoDaReproducao />
+            {/* As playlists a entrar por link, em segundo plano (26/9). */}
+            <ProgressoDaImportacao />
+            {/* O questionário da primeira vez (26/9): uma vez por conta. */}
+            <BoasVindas />
             {/* REATIVADO (ago 2026). A condição que este comentário previa
                 aconteceu: o ANDROID_VR já NÃO resolve áudio sem PO Token. O
                 CDN corta em ~1MB cumulativos por vídeo/IP — medido no 4G do

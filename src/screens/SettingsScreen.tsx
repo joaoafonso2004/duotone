@@ -17,7 +17,7 @@ import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
 import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstream';
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
-  efeitoDoCrossfade, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken, efeitoDoRadio,
+  efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken, efeitoDoRadio,
   efeitoDoTemporizador,
 } from '../lib/efeitoDasDefinicoes';
 import { ErroDoSpotify, importarGostoDoSpotify, spotifyDisponivel } from '../api/spotifyConta';
@@ -26,7 +26,6 @@ import { getGostoDoSpotify } from '../lib/prefs';
 import { useRecomendacoes } from '../state/recomendacoes';
 import { getLoudnessDb } from '../lib/loudnessCache';
 import { limparTodosOsDownloads } from '../lib/descarregarFaixa';
-import { ENSAIO_OPUS_LIGADO } from '../lib/ensaioOpus';
 import { idsPedidos } from '../lib/downloadsFixados';
 import { listPlaylists, getPlaylistTracks } from '../api/playlists';
 import { supabase } from '../lib/supabase';
@@ -58,6 +57,7 @@ import {
   type AudioQuality,
   getCrossfadeSegundos,
   setCrossfadeSegundos,
+  setIntensidadeDoSmartShuffle,
 } from '../lib/prefs';
 import { formatCacheSize, getAudioCacheBytes, isAudioCached } from '../lib/youtubeCache';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -152,6 +152,8 @@ export function SettingsScreen({ navigation }: Props) {
   const atual = usePlayer((s) => s.current);
   const motor = usePlayer((s) => s.activeBackend);
   const repeatUma = usePlayer((s) => s.repeatMode === 'one');
+  const intensidadeSmart = usePlayer((s) => s.intensidadeSmartShuffle);
+  const smartLigado = usePlayer((s) => s.shuffle && s.shuffleInteligente);
   const rateDaFaixa = usePlayer((s) => s.playbackRate);
   const ganhosDaFaixa = usePlayer((s) => s.eqGanhos);
   const ajusteDaFaixa = usePlayer((s) => (s.current ? s.ajustesPorFaixa[chaveDaFaixa(s.current)] : undefined));
@@ -406,6 +408,7 @@ export function SettingsScreen({ navigation }: Props) {
   const descarregadaAgora = doYouTube && isAudioCached(atual!.sourceId);
   const streamAgora = doYouTube ? streamEmMemoria(atual!.sourceId, audioQuality) : null;
   const efeitos = {
+    smart: efeitoDoSmartShuffle({ intensidade: intensidadeSmart, ligado: smartLigado }),
     qualidade: efeitoDaQualidade({
       escolha: audioQuality, motor: atual ? motor : null, descarregada: descarregadaAgora,
       kbps: streamAgora?.kbps ?? null, codec: streamAgora?.codec ?? null,
@@ -519,6 +522,19 @@ export function SettingsScreen({ navigation }: Props) {
                 automáticas de faixa: num salto manual faria o botão parecer
                 lento. E fica de fora quando a duração da faixa não é de
                 confiança, porque sem ela não se sabe onde é o fim. */}
+            {/* Quantas músicas novas o Smart Shuffle mete (26/9). */}
+            <Label style={{ marginTop: spacing.md }}>Smart shuffle</Label>
+            <SegmentedControl
+              options={['Few', 'Some', 'Lots']}
+              value={['poucas', 'normal', 'muitas'].indexOf(intensidadeSmart)}
+              onChange={(i: number) => {
+                const v = (['poucas', 'normal', 'muitas'] as const)[i] ?? 'normal';
+                usePlayer.setState({ intensidadeSmartShuffle: v });
+                void setIntensidadeDoSmartShuffle(v);
+              }}
+            />
+            <Efeito texto={efeitos.smart} />
+
             <Label style={{ marginTop: spacing.md }}>Crossfade</Label>
             <SegmentedControl
               options={['Off', '3s', '6s', '9s']}
@@ -730,16 +746,6 @@ export function SettingsScreen({ navigation }: Props) {
               onPress={() => { void partilharRelatorioDeReproducao().catch(() => {}); }}
               style={{ alignSelf: 'flex-start' }}
             />
-            {/* Interno, só do ramo plano-audio (lib/ensaioOpus.ts). */}
-            {ENSAIO_OPUS_LIGADO && (
-              <PillButton
-                label="Opus test (internal)"
-                variant="ghost"
-                small
-                onPress={() => navigation.navigate('EnsaioOpus')}
-                style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-              />
-            )}
             {falhasDaSessao.length > 0 && (
               <PillButton
                 label="Clear recorded failures"

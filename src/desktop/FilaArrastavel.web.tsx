@@ -201,7 +201,14 @@ export function FilaArrastavel({
                     aparecia o titulo cru do upload e o canal nao aparecia. */}
                 <Text numberOfLines={1} style={[styles.npFilaTitulo, { flex: 1 }]}>{tituloDaFaixa(entrada.track)}</Text>
               </View>
-              <Text numberOfLines={1} style={ui.trackSource}>{displayArtist(entrada.track)}</Text>
+              {/* A estrela sozinha (6 px) não se via: numa fila de 50 as
+                  sugestões pareciam não existir (João, 26/9). Dizem-no por
+                  extenso, na cor da estrela. */}
+              <Text numberOfLines={1} style={ui.trackSource}>
+                {sugeridas.includes(trackKey(entrada.track))
+                  ? <><Text style={{ color: '#E8B84B' }}>Smart shuffle</Text>{` · ${displayArtist(entrada.track)}`}</>
+                  : displayArtist(entrada.track)}
+              </Text>
             </View>
             <Text style={styles.npFilaDuracao}>{formatTime(entrada.track.durationSeconds)}</Text>
             {/* A pega e o "…" só aparecem com o rato em cima (ou arrastada). */}

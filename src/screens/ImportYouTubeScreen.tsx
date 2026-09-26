@@ -20,6 +20,8 @@ import {
   createPlaylist,
 } from '../api/playlists';
 import { fetchYouTubePlaylist, YtPlaylistImport } from '../api/youtube';
+import { lerLink } from '../lib/linkDePlaylist';
+import { useImportacoes } from '../state/importacoes';
 import { extractArtist } from '../lib/artistName';
 import { ArtworkCollage } from '../components/ArtworkCollage';
 import { BottomSheet } from '../components/BottomSheet';
@@ -55,6 +57,15 @@ export function ImportYouTubeScreen({ navigation }: Props) {
     setLoading(true);
     setData(null);
     Keyboard.dismiss();
+    // Um link do Spotify importa-se em segundo plano (state/importacoes.ts),
+    // com a barra de progresso no topo: são dezenas de pesquisas, e ninguém
+    // tem de ficar a olhar para este ecrã enquanto correm.
+    if (lerLink(url)?.tipo === 'spotify') {
+      setLoading(false);
+      useImportacoes.getState().importar(url);
+      navigation.goBack();
+      return;
+    }
     try {
       const result = await fetchYouTubePlaylist(url);
       setData(result);
@@ -132,8 +143,8 @@ export function ImportYouTubeScreen({ navigation }: Props) {
 
   return (
     <Screen
-      title="Import from YouTube"
-      subtitle="Metadata only — playback stays on YouTube"
+      title="Import a playlist"
+      subtitle="From YouTube or Spotify"
       onBack={() => navigation.goBack()}
     >
       <KeyboardAvoidingView
@@ -144,7 +155,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
       <View style={styles.inputRow}>
         <Input
           icon="link-outline"
-          placeholder="Paste a YouTube playlist link…"
+          placeholder="Paste a YouTube or Spotify playlist link…"
           value={url}
           onChangeText={setUrl}
           onClear={() => setUrl('')}
@@ -169,7 +180,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
         <EmptyState
           icon="logo-youtube"
           title="Paste a playlist link"
-          subtitle={'Anything with "list=" works — e.g.\nyoutube.com/playlist?list=PL…'}
+          subtitle={'A YouTube link with "list=", or a public\nSpotify playlist (first 100 songs).'}
         />
       ) : (
         <>

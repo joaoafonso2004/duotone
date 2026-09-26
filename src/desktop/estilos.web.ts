@@ -44,7 +44,10 @@ export const styles = StyleSheet.create({
   /** O realce que atravessa entre os separadores da barra lateral. Absoluto,
    * para o texto não se mexer enquanto ele anda. */
   navRealce: { position: 'absolute', left: ESP.md, right: ESP.md, top: 0, borderRadius: RAIO.cartao } as any, navText: { ...TIPO.corpo, color: COR.textoMedio, fontWeight: '500' as any, flex: 1 }, navTextActive: { color: desktop.text, fontWeight: '650' as any }, navDivider: { height: 1, backgroundColor: desktop.border, marginVertical: 14, marginHorizontal: 8 },
-  account: { minHeight: 67, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.03)', flexDirection: 'row', alignItems: 'center', gap: 10 }, avatar: { width: 31, height: 31, borderRadius: 9, backgroundColor: '#3D315E', alignItems: 'center', justifyContent: 'center' }, avatarText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '800' }, accountName: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '650' as any }, accountEmail: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10, marginTop: 2 }, content: { flex: 1, minWidth: 0, overflow: 'hidden' } as any,
+  account: { minHeight: 67, paddingHorizontal: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.03)', flexDirection: 'row', alignItems: 'center', gap: 10 },
+  accountRow: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingRight: 10, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.03)' },
+  accountPerfil: { flex: 1, minWidth: 0, borderTopWidth: 0, borderRadius: 8, marginLeft: 4, paddingHorizontal: 10 },
+  accountDefinicoes: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }, avatar: { width: 31, height: 31, borderRadius: 9, backgroundColor: '#3D315E', alignItems: 'center', justifyContent: 'center' }, avatarText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '800' }, accountName: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '650' as any }, accountEmail: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10, marginTop: 2 }, content: { flex: 1, minWidth: 0, overflow: 'hidden' } as any,
   auth: { flex: 1, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, authGlow: { position: 'absolute', width: 900, height: 900, borderRadius: 450, backgroundColor: 'rgba(233,234,238,.045)', top: -480 }, authCard: { width: 440, maxWidth: 'calc(100vw - 48px)' as any, padding: ESP.xxl, borderRadius: RAIO.superficie, backgroundColor: COR.painel, borderWidth: 1, borderColor: COR.linha, boxShadow: '0 30px 100px rgba(0,0,0,.55)' } as any, authLogo: { flexDirection: 'row', gap: 5, marginBottom: 25 }, authTitle: { ...TIPO.titulo, color: COR.texto, fontSize: 28, fontWeight: '700' as any }, authBody: { ...TIPO.corpo, color: COR.textoMedio, lineHeight: 21, marginTop: ESP.sm, marginBottom: ESP.xl }, segment: { height: 38, padding: 3, borderRadius: 8, backgroundColor: desktop.bg, flexDirection: 'row', marginBottom: 18 }, segmentItem: { flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 6 }, segmentActive: { backgroundColor: desktop.raised }, segmentText: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '600' }, error: { fontFamily: FONT.body, color: '#FF858A', fontSize: 12, lineHeight: 17 }, authFoot: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10, marginTop: 20 },
   // A 48 como o título e as prateleiras. Estavam a 38 a martelo, e o seletor
   // Discover / Songs of the day, que fica entre os dois, não tinha margem
@@ -165,9 +168,14 @@ export const styles = StyleSheet.create({
   // O Now Playing ("A+", 25/9): a página inteira é dele, sem cabeçalho de
   // página. Ver lib/leitorDoPc.ts para as medidas.
   npPagina: { flex: 1, minWidth: 0, position: 'relative', overflow: 'hidden' },
-  npTopo: { height: 56, flexDirection: 'row', alignItems: 'center', gap: ESP.sm, paddingHorizontal: 32 },
-  npOrigem: { flexDirection: 'row', alignItems: 'baseline', gap: ESP.sm, minWidth: 0, flexShrink: 1 },
-  npOrigemNome: { ...TIPO.corpo, fontSize: 13, color: COR.texto, fontWeight: '600' as any },
+  npTopo: { height: 68, flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 32 },
+  npVoltar: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(233,234,238,0.06)', transition: 'background-color 160ms ease' } as any,
+  npVoltarHover: { backgroundColor: 'rgba(233,234,238,0.12)' },
+  npOrigem: { minWidth: 0, flexShrink: 1, gap: 1 },
+  npOrigemAntes: { ...TIPO.corpo, fontSize: 11.5, color: COR.textoFraco, letterSpacing: 0.2 },
+  npOrigemLinha: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 },
+  npOrigemNome: { ...TIPO.corpo, fontSize: 14.5, color: COR.texto, fontWeight: '600' as any, flexShrink: 1 },
+  npOrigemNomeHover: { textDecorationLine: 'underline' },
   npGrelha: { flex: 1, minHeight: 0, flexDirection: 'row', alignItems: 'stretch', gap: 64, paddingHorizontal: 40, paddingTop: ESP.xs },
   npEstreito: { paddingHorizontal: 40, paddingTop: ESP.xs, paddingBottom: ESP.xxl },
   npLado: { flexShrink: 0 },

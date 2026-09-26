@@ -1065,7 +1065,32 @@ const CAMINHOS_DO_CATALOGO = [
   // O album, para o genero e o ano. Sem esta linha o Windows ficava sem os
   // dois, em silencio, como ja aconteceu com a descoberta inteira.
   /^\/album\/\d{1,20}$/,
+  // Os artistas em alta, para o questionario da primeira vez (26/9).
+  /^\/chart\/0\/artists\?limit=\d{1,3}$/,
 ];
+
+/**
+ * A pagina de embed de uma playlist PUBLICA do Spotify (26/9), para a
+ * importacao por link (src/lib/linkDePlaylist.ts). No renderer e cross-origin
+ * e o Spotify nao manda `Access-Control-Allow-Origin`. Do renderer vem so o id
+ * da playlist (22 caracteres), e o endereco e fixo deste lado: nunca um proxy.
+ */
+ipcMain.handle('spotify:embed', async (event, id) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  if (typeof id !== 'string' || !/^[A-Za-z0-9]{22}$/.test(id)) throw new Error('Playlist invalida.');
+  const controlador = new AbortController();
+  const relogio = setTimeout(() => controlador.abort(), 15000);
+  try {
+    const resposta = await net.fetch(`https://open.spotify.com/embed/playlist/${id}`, {
+      signal: controlador.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36' },
+    });
+    if (!resposta.ok) return null;
+    return await resposta.text();
+  } finally {
+    clearTimeout(relogio);
+  }
+});
 
 /**
  * O catalogo tem de sair do processo principal, pela MESMA razao que a

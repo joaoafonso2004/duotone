@@ -2,6 +2,7 @@ import { useRecommendationFeedback } from '../state/recommendationFeedback';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React, { useEffect, useRef, useState } from 'react';
+import { FILTROS_DE_VERSAO, filtrosComResultados, versaoPassa, type FiltroDeVersao } from '../lib/filtroDeVersao';
 import {
   ActivityIndicator,
   Alert,
@@ -209,6 +210,9 @@ export function SearchScreen() {
 
   const jaChegou = (nome: NomeDaPrateleira) => prontas.includes(nome);
   const loadingRecs = recs.estado === 'a-carregar';
+  // O filtro por versão (26/9), o mesmo do PC (lib/filtroDeVersao.ts).
+  const [versao, setVersao] = useState<FiltroDeVersao>('todas');
+  useEffect(() => { setVersao('todas'); }, [query]);
   const { results, naBiblioteca, loading, errorMsg, pesquisarAgora } = useMusicSearch(query, (q) => {
     void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
   });
@@ -715,15 +719,16 @@ export function SearchScreen() {
           </Pressable>
         ) : (
           <FlatList
-            data={results}
+            data={results.filter((r) => versaoPassa(r.title, versao))}
             keyExtractor={(t) => `${t.source}:${t.sourceId}`}
             contentContainerStyle={{ paddingBottom: bottomPad }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             /* O que já é teu vem PRIMEIRO, e sem esperar pela rede. A procura
                ao YouTube continua por baixo, e é a mesma de sempre. */
-            ListHeaderComponent={naBiblioteca.length > 0 ? (
+            ListHeaderComponent={naBiblioteca.length > 0 || filtrosComResultados(results.map((r) => r.title)).length > 2 ? (
               <View>
+                {naBiblioteca.length > 0 ? <>
                 <View style={[styles.sectionHeader, { marginBottom: spacing.sm }]}>
                   <Ionicons name="heart" size={18} color={colors.text} />
                   <Text style={styles.sectionTitle}>In your library</Text>
@@ -746,6 +751,26 @@ export function SearchScreen() {
                     <Text style={styles.sectionTitle}>On YouTube</Text>
                   </View>
                 )}
+                </> : null}
+                {(() => {
+                  const filtros = filtrosComResultados(results.map((r) => r.title));
+                  if (filtros.length <= 2) return null;
+                  return (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled"
+                      contentContainerStyle={{ gap: 8, paddingHorizontal: spacing.xl, paddingBottom: spacing.md }}>
+                      {FILTROS_DE_VERSAO.filter((f) => filtros.includes(f.id)).map((f) => {
+                        const sel = versao === f.id;
+                        return (
+                          <Pressable key={f.id} onPress={() => setVersao(f.id)} accessibilityRole="button" accessibilityState={{ selected: sel }}
+                            style={{ paddingHorizontal: 14, height: 32, borderRadius: 16, justifyContent: 'center',
+                              backgroundColor: sel ? colors.text : colors.surface, borderWidth: 1, borderColor: sel ? colors.text : colors.border }}>
+                            <Text style={{ fontSize: 13, fontWeight: '600', color: sel ? colors.bg : colors.text }}>{f.nome}</Text>
+                          </Pressable>
+                        );
+                      })}
+                    </ScrollView>
+                  );
+                })()}
               </View>
             ) : null}
             renderItem={({ item }) => (

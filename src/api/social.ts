@@ -25,6 +25,9 @@ export interface Friendship {
     durationSeconds: number | null;
     isPlaying: boolean;
     updatedAt: string;
+    /** Onde ia no `updatedAt` (hora do servidor), e a que velocidade (26/9). */
+    positionMs?: number;
+    rate?: number;
   } | null;
 }
 

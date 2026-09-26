@@ -35,6 +35,8 @@ let queued = false;
 let rawFriends: Friendship[] = [];
 let presences: Record<string, SocialPresence> = {};
 let clockOffset = 0;
+/** A hora do servidor, pelo desvio medido na leitura da presença. */
+export const agoraNoServidor = () => Date.now() + clockOffset;
 let available = false;
 const friendsNow = (now: number) => rawFriends.map((friend) => {
   if (!available) return friend;

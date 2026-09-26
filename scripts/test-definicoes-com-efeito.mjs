@@ -32,6 +32,8 @@ const ECRAS = {
 const TABELA = [
   { opcao: 'Audio quality', escreve: ['setAudioQuality'],
     leitores: [['src/components/YouTubePlayerView.tsx', /getAudioQuality\(/]] },
+  { opcao: 'Smart shuffle', escreve: ['setIntensidadeDoSmartShuffle'],
+    leitores: [['src/state/player.ts', /intervaloDaIntensidade\(get\(\)\.intensidadeSmartShuffle\)/]] },
   { opcao: 'Crossfade', escreve: ['setCrossfadeSegundos'],
     leitores: [['src/components/YouTubePlayerView.tsx', /st\.crossfadeSegundos/], ['src/components/YouTubePlayerView.web.tsx', /st\.crossfadeSegundos/]] },
   { opcao: 'Playback speed (default)', escreve: [],

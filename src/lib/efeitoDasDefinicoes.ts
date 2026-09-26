@@ -56,6 +56,15 @@ export function efeitoDaQualidade(e: {
  * O crossfade, com os limites que ele tem. O "repeat one" desliga-o de todo
  * (`podeCrossfade` em lib/crossfade.ts), e só entra em mudanças automáticas.
  */
+/**
+ * A intensidade do Smart Shuffle (26/9): diz o ritmo em músicas, e lembra que
+ * só vale com o modo inteligente ligado.
+ */
+export function efeitoDoSmartShuffle(e: { intensidade: 'poucas' | 'normal' | 'muitas'; ligado: boolean }): string {
+  const ritmo = e.intensidade === 'poucas' ? 'About 1 new song in every 6' : e.intensidade === 'muitas' ? 'About 1 new song in every 2' : 'About 1 new song in every 4';
+  return e.ligado ? ritmo : `${ritmo} · turn on smart shuffle in the player`;
+}
+
 export function efeitoDoCrossfade(e: { segundos: number; repeatUma: boolean }): string | null {
   if (!(e.segundos > 0)) return null;
   if (e.repeatUma) return 'Paused while repeat one is on';

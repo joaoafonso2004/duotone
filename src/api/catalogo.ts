@@ -530,6 +530,18 @@ export async function vizinhosPorArtista(
  * novo a acrescentar a ponte do Electron. Ordena por audiencia, que e o que
  * poe o artista a serio a frente do homonimo com mil fas.
  */
+/**
+ * Os artistas mais ouvidos no catálogo agora, para o questionário da primeira
+ * vez ter caras à escolha antes de alguém escrever (26/9). Um pedido só.
+ */
+export async function artistasEmAlta(quantos = 18): Promise<{ nome: string; capa: string | null }[]> {
+  const r = await pedir<{ data?: any[] }>(`/chart/0/artists?limit=${Math.min(50, Math.max(1, quantos))}`);
+  return (r?.data ?? [])
+    .filter((a) => a?.name)
+    .slice(0, quantos)
+    .map((a) => ({ nome: String(a.name), capa: a.picture_medium ?? a.picture ?? null }));
+}
+
 export async function procurarArtistas(
   nome: string,
   quantos = 12,

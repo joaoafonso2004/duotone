@@ -60,6 +60,9 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
    * deita-a fora, o que deixava a descoberta toda vazia no Windows. Leva o
    * CAMINHO; o endereco e a lista de formas validas vivem do outro lado. */
   pedirAoCatalogo: (caminho) => ipcRenderer.invoke('catalogo:pedir', caminho),
+  /** A pagina de embed de uma playlist publica do Spotify, pelo processo
+   * principal (sem CORS). Leva so o id; o endereco vive do outro lado. */
+  lerEmbedDoSpotify: (id) => ipcRenderer.invoke('spotify:embed', id),
   /** Mostra no Discord o que esta a tocar. `null` na actividade limpa; `null`
    * no id desliga. Devolve se o Discord esta do outro lado -- fechado e o caso
    * normal, e devolve false sem estragar nada. */
