@@ -66,6 +66,8 @@ const TABELA = [
     leitores: [['src/desktop/paginas/NowPlayingPage.web.tsx', /duotone:glitch-mode/]] },
   { opcao: 'Effect intensity', escreve: ['setEffectIntensity'],
     leitores: [['src/desktop/paginas/NowPlayingPage.web.tsx', /duotone:effect-intensity/]] },
+  { opcao: 'Now Playing colour', escreve: ['setCorNaJanela'],
+    leitores: [['src/navigation/RootNavigator.web.tsx', /getCorNaJanela\(/]] },
   { opcao: 'Accent', escreve: [],
     leitores: [['src/state/theme.ts', /mode === 'cover'/]] },
   { opcao: 'Artwork style (iPhone)', escreve: [],

@@ -51,7 +51,8 @@ import { useAuth } from '../state/auth';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { usePresencaDoDiscord } from '../hooks/usePresencaDoDiscord';
 import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
-import { getDiscordRichPresence } from '../lib/prefs';
+import { getCorNaJanela, getDiscordRichPresence, type CorDoLeitor } from '../lib/prefs';
+import { FundoDaCapa } from '../desktop/FundoDaCapa.web';
 import { sessaoDoSegredoDiscord } from '../lib/presencaDoDiscord';
 import { registar } from '../lib/eventos';
 import { BarreiraDeErros } from '../components/BarreiraDeErros';
@@ -331,6 +332,16 @@ function DesktopShell() {
 
   // Rádio: abastece a fila antes de ela acabar (ver useAutoplayRadio).
   useAutoplayRadio();
+
+  // A cor da capa na janela toda enquanto o Now Playing está aberto (26/9).
+  // As Definições avisam por evento, como a opacidade.
+  const [corDoLeitor, setCorDoLeitor] = useState<CorDoLeitor>('janela');
+  useEffect(() => {
+    void getCorNaJanela().then(setCorDoLeitor);
+    const mudou = (e: any) => { if (e.detail === 'janela' || e.detail === 'pagina') setCorDoLeitor(e.detail); };
+    window.addEventListener('duotone:cor-na-janela', mudou);
+    return () => window.removeEventListener('duotone:cor-na-janela', mudou);
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem('pref:panelOpacity').then((val) => {
@@ -635,6 +646,10 @@ function DesktopShell() {
     }
   };
 
+  // Com a cor na janela, o painel fica transparente para ela passar por baixo
+  // da lateral e da barra de título; a página deixa de pintar a sua.
+  const leitorAberto = nowPlayingOpen || route.name === 'now-playing';
+  const corNaJanela = corDoLeitor === 'janela' && leitorAberto && !!currentTrack;
   const common = { play, notify, more };
   let page: ReactNode;
   switch (route.name) {
@@ -646,14 +661,14 @@ function DesktopShell() {
     case 'library-check': page = <LibraryCheckPage back={back} play={play} />; break;
     case 'social': page = <SocialPage navigate={navigate} friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} notify={notify} play={play} more={more} />; break;
     case 'friend-profile': page = <ProfilePage userId={route.userId} navigate={navigate} notify={notify} back={back} />; break;
-    case 'now-playing': page = <NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} />; break;
+    case 'now-playing': page = <NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} />; break;
   }
 
   // Painel dos tokens, com a opacidade que o utilizador escolher nas
   // Definicoes. Era `rgba(18,18,24)` a martelo, fora de qualquer paleta.
   const bgStyle = { backgroundColor: `rgba(12, 12, 16, ${panelOpacity})` };
 
-  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, bgStyle]}><View style={styles.sidebar}><Sidebar route={route} navigate={navigate} /></View><View style={styles.content}><TransitionView transitionKey={JSON.stringify(route)}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, corNaJanela ? { backgroundColor: 'transparent' } : bgStyle]}><View style={styles.sidebar}><Sidebar route={route} navigate={navigate} /></View><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransitionView transitionKey={JSON.stringify(route)}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransitionView></View>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* CUSTOM ACTIONS DIALOG */}

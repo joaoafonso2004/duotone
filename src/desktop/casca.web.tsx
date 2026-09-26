@@ -30,6 +30,7 @@ import { Artwork, desktop, formatTime, IconButton, ui, marcar, useProcurarAoLarg
 import { PRIMARY, type Route } from './rotas';
 import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade.web';
 import { AmigosNaLateral } from './AmigosNaLateral.web';
+import { AtalhosNaLateral } from './AtalhosNaLateral.web';
 import { ProgressoDaImportacao } from './ProgressoDaImportacao.web';
 
 const P = Pressable as any;
@@ -170,6 +171,8 @@ export function injectDesktopDocumentStyles() {
     .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }
     /* O fundo do Now Playing: a capa nova entra por cima da anterior. */
     [data-dt~="np-fundo"]{ animation: dt-np-fundo 700ms ease both; }
+    /* A cor da capa a encher a janela ao abrir o Now Playing (26/9). */
+    [data-dt~="janela-cor"]{ animation: dt-np-fundo 450ms ease both; }
     @keyframes dt-np-fundo{ from{ opacity:0 } to{ opacity:1 } }
     /* A troca de música no Now Playing (26/9): a capa nova entra por cima da
        que sai, e o título vem logo atrás. */
@@ -248,6 +251,12 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="amigo-ouvir"]{ opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva), transform var(--dt-rapido) var(--dt-curva); }
     [data-dt~="amigo"]:hover [data-dt~="amigo-ouvir"], [data-dt~="amigo-ouvir"]:focus-visible{ opacity: 1; }
     [data-dt~="amigo-ouvir"]:hover{ transform: scale(1.08); }
+    /* Os atalhos fixados (26/9): o × só com o rato na linha. */
+    [data-dt~="atalho"]{ transition: background-color var(--dt-rapido) var(--dt-curva); cursor: pointer; }
+    [data-dt~="atalho"]:hover{ background-color: ${COR.hover}; }
+    [data-dt~="atalho-tirar"]{ opacity: 0; transition: opacity var(--dt-rapido) var(--dt-curva), background-color var(--dt-rapido) var(--dt-curva); }
+    [data-dt~="atalho"]:hover [data-dt~="atalho-tirar"], [data-dt~="atalho-tirar"]:focus-visible{ opacity: 1; }
+    [data-dt~="atalho-tirar"]:hover{ background-color: rgba(233,234,238,0.10); }
     /* A que esta a tocar nao esconde as barrinhas nem mostra o numero. */
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: dt-pular 900ms ease-in-out infinite; }
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(2){ animation-delay: 150ms }
@@ -383,7 +392,8 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
   useEffect(()=>{setMedicao((n)=>n+1);},[active]);
 
   return <View style={styles.sidebar}>
-    <ScrollView contentContainerStyle={styles.sidebarContent}>
+    {/* Do tamanho do que tem: o espaço de baixo é dos atalhos. */}
+    <ScrollView style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={styles.sidebarContent}>
       {realce?<View pointerEvents="none" {...marcar('desliza')}
         style={[styles.navRealce,{height:realce.altura,transform:[{translateY:realce.y}],backgroundColor:tema.soft}]}/>:null}
       <Text style={styles.navLabel}>DISCOVER</Text>
@@ -397,6 +407,8 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
     </View>
     <ProgressoDaImportacao />
     <AmigosNaLateral navigate={navigate} />
+    {/* O espaço que sobrava por baixo: é do utilizador (26/9). */}
+    <AtalhosNaLateral navigate={navigate} />
   </View>;
 }
 

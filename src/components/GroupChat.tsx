@@ -129,7 +129,7 @@ export function GroupComposer({value,onChange,onSend,busy,campoRef}:{value:strin
   return <View style={[s.row,{alignItems:'flex-end',gap:8,padding:6,borderRadius:web?radii.lg:28,backgroundColor:colors.surface,borderWidth:1,borderColor:colors.borderStrong}]}>
     <TextInput ref={campoRef} accessibilityLabel="Message" placeholder="Message the group…" placeholderTextColor={colors.textSecondary}
       value={value} onChangeText={onChange} multiline numberOfLines={1} maxLength={4000} editable={!busy}
-      {...({onKeyDown:aoCarregarTecla} as any)}
+      onKeyPress={aoCarregarTecla}
       style={[s.text,{flex:1,minWidth:0,minHeight:44,maxHeight:110,paddingHorizontal:12,paddingVertical:12}]}/>
     <Pressable accessibilityRole="button" accessibilityLabel="Send message" accessibilityState={{disabled,busy}} disabled={disabled} onPress={onSend}
       style={({pressed})=>({width:44,height:44,borderRadius:22,overflow:'hidden',alignItems:'center',justifyContent:'center',

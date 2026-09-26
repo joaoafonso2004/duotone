@@ -14,7 +14,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_VERSION, BUILD_ID } from '../../lib/buildInfo';
 import { EVENTO_PROCURAR_ATUALIZACAO } from '../../lib/avisoDeVersao';
 import { checkForUpdate, PORTFOLIO_URL } from '../../lib/updates';
-import { historico, limparHistorico, relatorio, resumo, rotulo as rotuloDaFalha } from '../../lib/playbackDiagnostics';
+import { relatorio } from '../../lib/playbackDiagnostics';
 import {
   getGlitchMode, setGlitchMode, type GlitchMode,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
@@ -34,7 +34,7 @@ import { BarraVelocidade } from '../BarraVelocidade.web';
 import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
-import { getDiscordRichPresence, setCrossfadeSegundos, setDiscordRichPresence, setIntensidadeDoSmartShuffle } from '../../lib/prefs';
+import { getCorNaJanela, getDiscordRichPresence, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
 import { efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
@@ -100,9 +100,16 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const [rewind, setRewindState] = useState(false);
    const [opacity, setOpacity] = useState('0.72');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  // O historico de falhas vive num anel de modulo, fora do React. Este contador
-  // existe so para o ecra se redesenhar depois de o limpar.
-  const [, setLimpezas] = useState(0);
+  const [seccao, setSeccao] = useState<IdDaSeccao>(seccaoAberta);
+  const [estreita, setEstreita] = useState(false);
+  const [corDoLeitor, setCorDoLeitorState] = useState<CorDoLeitor>('janela');
+  useEffect(() => { void getCorNaJanela().then(setCorDoLeitorState); }, []);
+  const mudarCorDoLeitor = (v: string) => {
+    const cor = v === 'pagina' ? 'pagina' : 'janela';
+    setCorDoLeitorState(cor);
+    void setCorNaJanela(cor);
+    window.dispatchEvent(new CustomEvent('duotone:cor-na-janela', { detail: cor }));
+  };
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [update, setUpdate] = useState<{ version: string } | null>(null);
 
@@ -206,7 +213,6 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   // viver aqui — que e onde serve para alguma coisa: um ficheiro que se abre,
   // se le e se cola numa mensagem. Antes disto ia tudo para `console.warn`,
   // que num executavel instalado nao e lido por ninguem.
-  const falhas = historico();
   const exportarRelatorio = () => {
     const texto = relatorio({
       versao: APP_VERSION,
@@ -223,7 +229,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     a.remove();
     // Revogar so depois do clique: revogar antes cancela a propria transferencia.
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    notify(falhas.length ? 'Playback report saved.' : 'No failures this session — empty report saved.');
+    notify('Playback report saved.');
   };
 
   const runDeleteAccount = async () => {
@@ -269,149 +275,165 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     }
   };
 
+  // Arrumadas a 26/9 (pedido do João): as cartas empilhadas à esquerda, com
+  // metade do ecrã vazio à direita, davam uma página comprida e sem ordem.
+  // Agora é uma coluna ao centro, com as secções à esquerda dela e UMA secção
+  // de cada vez à direita. Saíram o "Build", o "Application", a contagem de
+  // falhas e o "Clear recorded failures" (coisas de quem mantém a app); o
+  // relatório ficou, numa linha do About.
+  const temWindows = !!window.duotoneDesktop?.notifyMessage;
+  const temAtalhos = !!window.duotoneDesktop?.lerAtalhos;
+  const seccoes = SECCOES.filter((s) => (s.id !== 'windows' || temWindows) && (s.id !== 'atalhos' || temAtalhos));
+  const aberta = seccoes.some((s) => s.id === seccao) ? seccao : 'reproducao';
+  const escolher = (id: IdDaSeccao) => { seccaoAberta = id; setSeccao(id); };
+
   return (
-    <Page title="Settings">
+    <View style={{ flex: 1, minWidth: 0 }}>
       <RecommendationPreferences visible={recommendationsOpen} onClose={()=>setRecommendationsOpen(false)}/>
       <ContentScroll>
-        <View style={styles.settingsGrid}>
-          <SettingsCard icon="options-outline" title="Recommendations">
-            <Text style={{color:desktop.muted,marginBottom:16}}>Review hidden songs and artists you want to hear less often.</Text>
-            <Button secondary onPress={()=>setRecommendationsOpen(true)}>Manage preferences</Button>
-          </SettingsCard>
-          {/* A biblioteca: o artista e o título vêm adivinhados do título do
-              vídeo, e um catálogo a sério corrige-os; o Library check trata
-              dos duplicados, dos vídeos que já não tocam e das capas partidas.
-              Nenhum dos dois corre sozinho. */}
-          <SettingsCard icon="library-outline" title="Library">
-            <View style={styles.settingLine}>
-              <View style={{ flex: 1, paddingRight: ESP.lg }}>
-                <Text style={styles.settingLabel}>Identify library</Text>
-                <Text style={styles.settingDescription}>
-                  {progresso
-                    ? `Identifying ${progresso.feitas} of ${progresso.total}…`
-                    : resumoDoCatalogo
-                      ?? 'Match your library against a music catalogue to fix artist names, titles and cover art.'}
-                </Text>
-              </View>
-              <Button secondary disabled={offline && !aIdentificar}
-                onPress={aIdentificar ? () => { pararIdentificacao.current = true; } : () => void identificarBiblioteca()}>
-                {aIdentificar ? 'Stop' : 'Identify'}
-              </Button>
+        <View style={styles.definicoes} onLayout={(e) => { const w = e.nativeEvent.layout.width; setEstreita((antes) => (w < 820) !== antes ? w < 820 : antes); }}>
+          <Text style={styles.definicoesTitulo}>Settings</Text>
+          {/* Numa janela estreita o índice passa para cima, em linha: ao lado
+              deixava o painel com duzentos e poucos píxeis. */}
+          <View style={[styles.definicoesCorpo, estreita && { flexDirection: 'column', alignItems: 'stretch', gap: ESP.lg }]}>
+            <View style={[styles.definicoesIndice, estreita && styles.definicoesIndiceEmLinha]}>
+              {seccoes.map((s) => (
+                <Pressable key={s.id} onPress={() => escolher(s.id)} accessibilityRole="tab" accessibilityState={{ selected: aberta === s.id }}
+                  style={({ hovered }: any) => [styles.definicoesItem, hovered && styles.definicoesItemHover, aberta === s.id && styles.definicoesItemAtivo]}>
+                  <Ionicons name={s.icone} size={17} color={aberta === s.id ? COR.texto : desktop.dim} />
+                  <Text style={[styles.definicoesItemTexto, aberta === s.id && { color: COR.texto }]}>{s.nome}</Text>
+                </Pressable>
+              ))}
             </View>
-            <View style={styles.settingLine}>
-              <View style={{ flex: 1, paddingRight: ESP.lg }}>
-                <Text style={styles.settingLabel}>Library check</Text>
-                <Text style={styles.settingDescription}>Find songs saved twice, videos that no longer play and covers that don't load. Nothing changes until you choose.</Text>
-              </View>
-              <Button secondary onPress={() => navigate({ name: 'library-check' })}>Open</Button>
-            </View>
-          </SettingsCard>
-          {window.duotoneDesktop?.notifyMessage && <SettingsCard icon="desktop-outline" title="Windows">
-            <ToggleLine label="Message notifications" description="Show a Windows notification when a message arrives while you are away."
-              value={notifications} onChange={(v) => { setNotifications(v); void setNotificationsEnabled(v); }} />
-            {window.duotoneDesktop?.setCloseToTray && <ToggleLine
-              label="Close button minimizes to tray"
-              description="Keep Duotone playing in the system tray when you close the window. When off, Close exits the app."
-              value={closeToTray} onChange={(v) => void changeCloseToTray(v)} />}
-            {/* Desligada de origem: publica o que se ouve. A aplicação oficial
-                fica embutida; pedir um client id a cada pessoa impedia o Join,
-                porque todos os participantes têm de usar a mesma aplicação. */}
-            <ToggleLine label="Discord Rich Presence"
-              description="Show what you are listening to on Discord. While you host a Jam, friends with Duotone can click Join and hear it in sync. Needs the Discord desktop app."
-              value={discordOn} onChange={(v)=>{setDiscordOn(v);void setDiscordRichPresence(v);avisarDiscord(v);}}
-              efeito={efeitos.discord} />
-            {startup?.available && <>
-              <ToggleLine label="Start with Windows" description="Open Duotone automatically when you sign in to Windows."
-                value={startup.enabled} onChange={(v) => void changeStartup(v, startup.mode)} />
-              <ChoiceLine label="When Windows starts" value={startup.mode} choices={[[ 'tray', 'System tray' ], [ 'window', 'Open window' ]]}
-                onChange={(v) => void changeStartup(startup.enabled, v as 'window' | 'tray')} />
-            </>}
-          </SettingsCard>}
-          {window.duotoneDesktop?.lerAtalhos && <SettingsCard icon="keypad-outline" title="Keyboard shortcuts">
-            <AtalhosDoTeclado />
-          </SettingsCard>}
-          <SettingsCard icon="play-circle-outline" title="Playback">
-            <ToggleLine label="Show track duration" description="Display a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />
-            <ToggleLine label="Autoplay radio" description="When the queue ends, keep playing similar music instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} efeito={efeitos.radio} />
-            <ToggleLine label="15-second rewind" description="Show a rewind control in the desktop player." value={rewind} onChange={(v) => { setRewindState(v); setShowRewindButton(v); usePlayer.getState().setShowRewindButton(v); }} />
-            {/* O crossfade do PC (24/9): um segundo player do YouTube prepara a
-                seguinte, calado, e os volumes cruzam-se no fim -- ver o
-                YouTubePlayerView.web.tsx. Desligado de origem, como no iPhone. */}
-            {/* Quantas músicas novas o Smart Shuffle mete (26/9). */}
-            <ChoiceLine label="Smart shuffle" description="How many new songs it adds to what you're playing."
-              value={intensidadeSmart} choices={[['poucas', 'Few'], ['normal', 'Some'], ['muitas', 'Lots']]}
-              onChange={(v) => { const i = v as 'poucas' | 'normal' | 'muitas'; usePlayer.setState({ intensidadeSmartShuffle: i }); void setIntensidadeDoSmartShuffle(i); }}
-              efeito={efeitos.smart} />
-            <ChoiceLine label="Crossfade" description="Blend the end of a song into the next one."
-              value={String(crossfade)} choices={DURACOES_DO_CROSSFADE.map((d) => [String(d), d === 0 ? 'Off' : `${d} s`] as [string, string])}
-              onChange={(v) => { const d = Number(v) as DuracaoDoCrossfade; usePlayer.setState({ crossfadeSegundos: d }); void setCrossfadeSegundos(d); }}
-              efeito={efeitos.crossfade} />
-            <ChoiceLine label="Sleep timer" value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} efeito={efeitos.temporizador} />
-            {/* Era um controlo de tres posicoes; passa a barra continua, de
-                0,25 a 2 em degraus de 0,1. O 0,25 e o minimo REAL: o IFrame
-                prende ai qualquer pedido mais baixo. */}
-            <View style={styles.settingLine}>
-              <View style={{ flex: 1, paddingRight: ESP.lg }}>
-                <Text style={styles.settingLabel}>Playback speed</Text>
-                <Text style={styles.settingDescription}>The default for tracks you have not set individually. Pitch follows the speed, so slowing down sounds slowed.</Text>
-                <Efeito texto={efeitos.velocidade} />
-              </View>
-              <View style={{ width: 260 }}>
-                <BarraVelocidade valor={padraoRate} aoMudar={(v) => setPlaybackRate(v, true)} />
-              </View>
-            </View>
-
-            {/* O equalizador base, ao lado da velocidade: as duas sao o que
-                vale para as faixas que nao tenham o seu, e nenhuma delas mexe
-                na que esta a tocar. As mesmas bandas do Now Playing, para nao
-                haver dois equalizadores diferentes na mesma app. */}
-            <View style={[styles.settingLine, { flexDirection: 'column', alignItems: 'stretch', gap: ESP.md }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <View style={{ flex: 1, paddingRight: ESP.lg }}>
-                  <Text style={styles.settingLabel}>Equaliser</Text>
-                  <Text style={styles.settingDescription}>The default for tracks you have not set individually. The one playing only changes on the next track.</Text>
-                  <Efeito texto={efeitos.equalizador} />
+            <View style={styles.definicoesPainel}>
+              {aberta === 'reproducao' && <SettingsCard title="Playback">
+                {/* Quantas músicas novas o Smart Shuffle mete (26/9). */}
+                <ChoiceLine label="Smart shuffle" description="How many new songs it adds to what you're playing."
+                  value={intensidadeSmart} choices={[['poucas', 'Few'], ['normal', 'Some'], ['muitas', 'Lots']]}
+                  onChange={(v) => { const i = v as 'poucas' | 'normal' | 'muitas'; usePlayer.setState({ intensidadeSmartShuffle: i }); void setIntensidadeDoSmartShuffle(i); }}
+                  efeito={efeitos.smart} />
+                {/* O crossfade do PC (24/9): um segundo player do YouTube prepara a
+                    seguinte, calado, e os volumes cruzam-se no fim -- ver o
+                    YouTubePlayerView.web.tsx. Desligado de origem, como no iPhone. */}
+                <ChoiceLine label="Crossfade" description="Blend the end of a song into the next one."
+                  value={String(crossfade)} choices={DURACOES_DO_CROSSFADE.map((d) => [String(d), d === 0 ? 'Off' : `${d} s`] as [string, string])}
+                  onChange={(v) => { const d = Number(v) as DuracaoDoCrossfade; usePlayer.setState({ crossfadeSegundos: d }); void setCrossfadeSegundos(d); }}
+                  efeito={efeitos.crossfade} />
+                <ToggleLine label="Autoplay similar music" description="When the queue ends, keep playing music like it instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} efeito={efeitos.radio} />
+                <ChoiceLine label="Sleep timer" value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} efeito={efeitos.temporizador} />
+                <View style={[styles.settingLine, { flexDirection: 'column', alignItems: 'stretch', gap: ESP.md }]}>
+                  <View>
+                    <Text style={styles.settingLabel}>Playback speed</Text>
+                    <Text style={styles.settingDescription}>For songs you haven't set on their own. Pitch follows the speed, so slower sounds slowed.</Text>
+                    <Efeito texto={efeitos.velocidade} />
+                  </View>
+                  <BarraVelocidade valor={padraoRate} aoMudar={(v) => setPlaybackRate(v, true)} />
                 </View>
-                <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
-              </View>
-              <BandasDoEqualizador ganhos={padraoGanhos} aoMudarGanhos={(g) => setEqGanhos(g, true)} />
+              </SettingsCard>}
+
+              {/* O equalizador base: vale para as faixas que não tenham o seu, e
+                  não mexe na que está a tocar. As mesmas bandas do Now Playing. */}
+              {aberta === 'som' && <SettingsCard title="Sound">
+                <View style={[styles.settingLine, { flexDirection: 'column', alignItems: 'stretch', gap: ESP.md }]}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ flex: 1, paddingRight: ESP.lg }}>
+                      <Text style={styles.settingLabel}>Equaliser</Text>
+                      <Text style={styles.settingDescription}>For songs you haven't set on their own. The one playing changes on the next song.</Text>
+                      <Efeito texto={efeitos.equalizador} />
+                    </View>
+                    <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
+                  </View>
+                  <BandasDoEqualizador ganhos={padraoGanhos} aoMudarGanhos={(g) => setEqGanhos(g, true)} />
+                </View>
+              </SettingsCard>}
+
+              {aberta === 'aspeto' && <SettingsCard title="Appearance">
+                {/* A captura de audio e dita aqui, nao escondida: e o que permite
+                    o efeito reagir ao som, e desligar a opcao desliga-a mesmo. */}
+                <ChoiceLine label="Now Playing effect" description="Reactive follows the music. Static freezes it. Off shows the plain artwork." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
+                {glitch !== 'off' && <ChoiceLine label="Effect strength" value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />}
+                {/* A cor da capa a encher a janela (26/9); a de origem. */}
+                <ChoiceLine label="Now Playing colour" description="Let the artwork's colour fill the whole window, or keep it inside the page." value={corDoLeitor} choices={[['janela', 'Whole window'], ['pagina', 'Page only']]} onChange={mudarCorDoLeitor} />
+                <ChoiceLine label="Accent" value={modo} choices={[['steel', 'Steel'], ['cover', 'Follow the cover']]} onChange={(v) => void setMode(v as any)} />
+                <ChoiceLine label="Window" value={opacity} choices={[['0.95', 'Solid'], ['0.72', 'Default'], ['0.55', 'Translucent'], ['0.35', 'Clear']]} onChange={changeOpacity} />
+                <ToggleLine label="Song length in lists" description="Show a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />
+                <ToggleLine label="15-second rewind" description="Show a rewind button in the player." value={rewind} onChange={(v) => { setRewindState(v); setShowRewindButton(v); usePlayer.getState().setShowRewindButton(v); }} />
+              </SettingsCard>}
+
+              {aberta === 'windows' && <SettingsCard title="Windows">
+                <ToggleLine label="Message notifications" description="Show a Windows notification when a message arrives while you are away."
+                  value={notifications} onChange={(v) => { setNotifications(v); void setNotificationsEnabled(v); }} />
+                {window.duotoneDesktop?.setCloseToTray && <ToggleLine
+                  label="Close to tray"
+                  description="Keep playing in the system tray when you close the window."
+                  value={closeToTray} onChange={(v) => void changeCloseToTray(v)} />}
+                {startup?.available && <>
+                  <ToggleLine label="Start with Windows" description="Open Duotone when you sign in to Windows."
+                    value={startup.enabled} onChange={(v) => void changeStartup(v, startup.mode)} />
+                  {startup.enabled && <ChoiceLine label="Start in" value={startup.mode} choices={[[ 'tray', 'System tray' ], [ 'window', 'Window' ]]}
+                    onChange={(v) => void changeStartup(startup.enabled, v as 'window' | 'tray')} />}
+                </>}
+                {/* Desligada de origem: publica o que se ouve. A aplicação oficial
+                    fica embutida; pedir um client id a cada pessoa impedia o Join,
+                    porque todos os participantes têm de usar a mesma aplicação. */}
+                <ToggleLine label="Discord status"
+                  description="Show what you're listening to on Discord. Friends can join your Jam from there."
+                  value={discordOn} onChange={(v)=>{setDiscordOn(v);void setDiscordRichPresence(v);avisarDiscord(v);}}
+                  efeito={efeitos.discord} />
+              </SettingsCard>}
+
+              {aberta === 'atalhos' && <SettingsCard title="Keyboard shortcuts">
+                <AtalhosDoTeclado />
+              </SettingsCard>}
+
+              {/* A biblioteca: o artista e o título vêm adivinhados do título do
+                  vídeo, e um catálogo a sério corrige-os; o Library check trata
+                  dos duplicados, dos vídeos que já não tocam e das capas partidas.
+                  Nenhum dos dois corre sozinho. */}
+              {aberta === 'biblioteca' && <SettingsCard title="Library">
+                <View style={styles.settingLine}>
+                  <View style={{ flex: 1, paddingRight: ESP.lg }}>
+                    <Text style={styles.settingLabel}>Recommendations</Text>
+                    <Text style={styles.settingDescription}>Songs you hid and artists you want to hear less often.</Text>
+                  </View>
+                  <Button secondary onPress={() => setRecommendationsOpen(true)}>Manage</Button>
+                </View>
+                <View style={styles.settingLine}>
+                  <View style={{ flex: 1, paddingRight: ESP.lg }}>
+                    <Text style={styles.settingLabel}>Identify library</Text>
+                    <Text style={styles.settingDescription}>
+                      {progresso
+                        ? `Identifying ${progresso.feitas} of ${progresso.total}…`
+                        : resumoDoCatalogo
+                          ?? 'Fix artist names, titles and covers with a music catalogue.'}
+                    </Text>
+                  </View>
+                  <Button secondary disabled={offline && !aIdentificar}
+                    onPress={aIdentificar ? () => { pararIdentificacao.current = true; } : () => void identificarBiblioteca()}>
+                    {aIdentificar ? 'Stop' : 'Identify'}
+                  </Button>
+                </View>
+                <View style={styles.settingLine}>
+                  <View style={{ flex: 1, paddingRight: ESP.lg }}>
+                    <Text style={styles.settingLabel}>Library check</Text>
+                    <Text style={styles.settingDescription}>Find songs saved twice, videos that no longer play and covers that don't load.</Text>
+                  </View>
+                  <Button secondary onPress={() => navigate({ name: 'library-check' })}>Open</Button>
+                </View>
+              </SettingsCard>}
+
+              {aberta === 'sobre' && <SettingsCard title="About">
+                {/* Vem do buildInfo.ts, que a CI reescreve a cada build (build-windows.yml). */}
+                <SettingLine label="Version" value={APP_VERSION} />
+                <SettingAction
+                  label={update ? `${instalaNaApp ? 'Update to' : 'Download'} Duotone ${update.version}` : checkingUpdate ? 'Checking for updates…' : 'Check for updates'}
+                  onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
+                />
+                <SettingAction label="Save playback report" description="If a song won't play, send this so it can be fixed." onPress={exportarRelatorio} />
+                <SettingAction danger label="Delete account permanently" onPress={() => setDeleteConfirm(true)} />
+              </SettingsCard>}
             </View>
-          </SettingsCard>
-          
-          <SettingsCard icon="desktop-outline" title="Appearance & Visuals">
-            {/* A captura de audio e dita aqui, nao escondida: e o que permite
-                o efeito reagir ao som, e desligar a opcao desliga-a mesmo. */}
-            <ChoiceLine label="Effect intensity" description="Adjust the visual strength without changing beat detection." value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />
-            <ChoiceLine label="Effect mode" description="Reactive follows the music. Static freezes the selected style. Off shows the plain artwork and stops audio capture." value={glitch} choices={[['reactive', 'Reactive'], ['static', 'Static'], ['off', 'Off']]} onChange={changeGlitch} />
-            <ChoiceLine label="Accent" value={modo} choices={[['steel', 'Steel'], ['cover', 'Follow the cover']]} onChange={(v) => void setMode(v as any)} />
-            <ChoiceLine label="Glass Transparency" value={opacity} choices={[['0.95', 'Solid'], ['0.72', 'Default'], ['0.55', 'Translucent'], ['0.35', 'Neon blur']]} onChange={changeOpacity} />
-          </SettingsCard>
-
-          <SettingsCard icon="pulse-outline" title="Playback diagnostics">
-            <SettingLine
-              label="Failures this session"
-              value={falhas.length
-                ? `${falhas.length} — ${Object.entries(resumo(falhas)).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${n}× ${rotuloDaFalha(t as any)}`).join(', ')}`
-                : 'None'}
-            />
-            <SettingAction label="Export playback report" onPress={exportarRelatorio} />
-            {falhas.length > 0 && (
-              <SettingAction label="Clear recorded failures" onPress={() => { limparHistorico(); notify('Cleared.'); setLimpezas((n) => n + 1); }} />
-            )}
-          </SettingsCard>
-
-          <SettingsCard icon="information-circle-outline" title="About">
-            <SettingLine label="Application" value="Duotone for Windows" />
-            {/* Vem do buildInfo.ts, que a CI reescreve a cada build (build-windows.yml).
-                Escrito à mão ficava preso no 1.0.0 mesmo em builds mais recentes. */}
-            <SettingLine label="Version" value={APP_VERSION} />
-            <SettingLine label="Build" value={BUILD_ID} />
-            <SettingAction
-              label={update ? `${instalaNaApp ? 'Update to' : 'Download'} Duotone ${update.version}` : checkingUpdate ? 'Checking for updates…' : 'Check for updates'}
-              onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
-            />
-            <SettingAction danger label="Delete account permanently" onPress={() => setDeleteConfirm(true)} />
-          </SettingsCard>
+          </View>
         </View>
       </ContentScroll>
       <Dialog open={deleteConfirm} title="Delete account permanently?" onClose={() => setDeleteConfirm(false)}>
@@ -421,15 +443,28 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
           <Button danger onPress={runDeleteAccount}>Delete Account</Button>
         </View>
       </Dialog>
-    </Page>
+    </View>
   );
 }
 
-export function SettingsCard({ icon, title, children }: { icon: keyof typeof Ionicons.glyphMap; title: string; children: ReactNode }) { return <View style={styles.settingsCard}><View style={styles.settingsCardTitle}><Ionicons name={icon} size={19} color={desktop.accent} /><Text style={styles.sectionTitle}>{title}</Text></View>{children}</View>; }
+type IdDaSeccao = 'reproducao' | 'som' | 'aspeto' | 'windows' | 'atalhos' | 'biblioteca' | 'sobre';
+const SECCOES: { id: IdDaSeccao; nome: string; icone: keyof typeof Ionicons.glyphMap }[] = [
+  { id: 'reproducao', nome: 'Playback', icone: 'play-circle-outline' },
+  { id: 'som', nome: 'Sound', icone: 'options-outline' },
+  { id: 'aspeto', nome: 'Appearance', icone: 'color-palette-outline' },
+  { id: 'windows', nome: 'Windows', icone: 'desktop-outline' },
+  { id: 'atalhos', nome: 'Shortcuts', icone: 'keypad-outline' },
+  { id: 'biblioteca', nome: 'Library', icone: 'library-outline' },
+  { id: 'sobre', nome: 'About', icone: 'information-circle-outline' },
+];
+/** A secção aberta sobrevive a sair e voltar às Definições. */
+let seccaoAberta: IdDaSeccao = 'reproducao';
 
-export function SettingLine({ label, value }: { label: string; value: string }) { return <View style={styles.settingLine}><Text style={styles.settingLabel}>{label}</Text><Text numberOfLines={1} style={styles.settingValue}>{value}</Text></View>; }
+export function SettingsCard({ title, children }: { icon?: keyof typeof Ionicons.glyphMap; title: string; children: ReactNode }) { return <View style={styles.settingsCard}><View style={styles.settingsCardTitle}><Text style={styles.sectionTitle}>{title}</Text></View>{children}</View>; }
 
-export function SettingAction({ label, onPress, danger = false }: { label: string; onPress: () => void; danger?: boolean }) { return <Pressable onPress={onPress} style={({ hovered }) => [styles.settingLine, hovered && styles.settingHover]}><Text style={[styles.settingLabel, danger && { color: desktop.danger }]}>{label}</Text><Ionicons name="chevron-forward" size={15} color={desktop.dim} /></Pressable>; }
+export function SettingLine({ label, value }: { label: string; value: string }) { return <View style={styles.settingLine}><Text style={[styles.settingLabel, { flex: 1 }]}>{label}</Text><Text numberOfLines={1} style={styles.settingValue}>{value}</Text></View>; }
+
+export function SettingAction({ label, description, onPress, danger = false }: { label: string; description?: string; onPress: () => void; danger?: boolean }) { return <Pressable onPress={onPress} style={({ hovered }) => [styles.settingLine, hovered && styles.settingHover]}><View style={{ flex: 1 }}><Text style={[styles.settingLabel, danger && { color: desktop.danger }]}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}</View><Ionicons name="chevron-forward" size={15} color={desktop.dim} /></Pressable>; }
 
 /**
  * O que a opção está a fazer agora (lib/efeitoDasDefinicoes.ts), por baixo da

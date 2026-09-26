@@ -110,10 +110,11 @@ export function Button({ children, onPress, icon, iconNode, secondary = false, d
 
 export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput> & { icon?: keyof typeof Ionicons.glyphMap }>(function Field(props, ref) {
   const { icon, style, onSubmitEditing, ...rest } = props;
+  // Pelo `onKeyPress`: o RNW põe o seu próprio `onKeyDown` por cima e este
+  // nunca corria (o Esc não limpava). O Enter não passa por aqui: o RNW já
+  // chama o `onSubmitEditing` num campo de uma linha, e chamá-lo também aqui
+  // submetia duas vezes.
   const handleKeyDown = (e: any) => {
-    if (e.key === 'Enter' || e.keyCode === 13) {
-      onSubmitEditing?.(e);
-    }
     // Limpar com Escape, que e o que se carrega sem pensar num campo destes.
     if (e.key === 'Escape' && rest.value) {
       e.preventDefault?.();
@@ -124,7 +125,7 @@ export const Field = React.forwardRef<any, React.ComponentProps<typeof TextInput
   // componente serve os dois. Aparece so quando ha o que limpar.
   const limpavel = icon === 'search' && !!rest.value && !!(rest as any).onChangeText;
   return <View style={ui.fieldWrap} {...marcar('campo')}>{icon && <Ionicons name={icon} size={18} color={desktop.dim} />}<TextInput
-    ref={ref} placeholderTextColor={desktop.dim} selectionColor={desktop.accent} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyDown={handleKeyDown} style={[ui.field, style]} />
+    ref={ref} placeholderTextColor={desktop.dim} selectionColor={desktop.accent} onSubmitEditing={onSubmitEditing} {...(rest as any)} onKeyPress={handleKeyDown} style={[ui.field, style]} />
     {limpavel && <P accessibilityRole="button" accessibilityLabel="Clear search"
       onPress={() => { (rest as any).onChangeText?.(''); (ref as any)?.current?.focus?.(); }}
       style={({ hovered }: any) => [ui.fieldLimpar, hovered && { backgroundColor: COR.hover }]}>
@@ -641,6 +642,34 @@ function CabecaDeColuna({ rotulo, estilo, ativa, aoOrdenar, alinhar }: {
   </P>;
 }
 
+/**
+ * As linhas seguintes montam-se sozinhas quando o fim da lista se aproxima
+ * (26/9: o João não queria carregar em "Show next 200"). É uma sentinela no
+ * fim da tabela vigiada por um IntersectionObserver com 800 px de antecedência:
+ * funciona dentro de qualquer scroll, sem a tabela saber qual é. A `key` muda a
+ * cada lote, por isso uma sentinela que continue à vista depois de o lote
+ * entrar (lista curta, janela alta) volta a disparar.
+ */
+function CarregarAoChegar({ aoChegar }: { aoChegar: () => void }) {
+  const ref = useRef<View>(null);
+  const aoChegarRef = useRef(aoChegar);
+  aoChegarRef.current = aoChegar;
+  useEffect(() => {
+    const no = ref.current as unknown as Element | null;
+    if (!no || typeof IntersectionObserver === 'undefined') return;
+    // A raiz é o scroll mais próximo: com a janela como raiz, a margem não
+    // passa o recorte do scroll e só disparava com a sentinela já à vista.
+    let raiz: Element | null = no.parentElement;
+    while (raiz && !/(auto|scroll)/.test(getComputedStyle(raiz).overflowY)) raiz = raiz.parentElement;
+    const vigia = new IntersectionObserver((entradas) => {
+      if (entradas.some((e) => e.isIntersecting)) { vigia.disconnect(); aoChegarRef.current(); }
+    }, { root: raiz, rootMargin: '0px 0px 800px 0px' });
+    vigia.observe(no);
+    return () => vigia.disconnect();
+  }, []);
+  return <View ref={ref} style={{ height: 1 }} />;
+}
+
 export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true }: {
   tracks: Track[]; onPlay: (track: Track, discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
@@ -745,10 +774,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
         <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track,contexto?.(track))} />
       </View></P>;
     })}
-    {visiveis.length < tracks.length && <View style={{ alignItems: 'center', paddingVertical: ESP.xl, gap: ESP.sm }}>
-      <Text style={{ color: desktop.dim }}>{visiveis.length} of {tracks.length} tracks shown</Text>
-      <Button secondary onPress={mostrarMais}>Show next {Math.min(PASSO_DE_LINHAS, tracks.length - visiveis.length)}</Button>
-    </View>}
+    {visiveis.length < tracks.length && <CarregarAoChegar key={visiveis.length} aoChegar={mostrarMais} />}
   </View>;
 }
 

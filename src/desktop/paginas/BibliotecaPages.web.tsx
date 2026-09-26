@@ -39,6 +39,7 @@ import {
 } from '../ui.web';
 import { MusicasDoDia } from '../MusicasDoDia.web';
 import { useMisturaDoDia } from '../../state/misturaDoDia';
+import { BotaoDeFixar } from '../AtalhosNaLateral.web';
 import type { CommonPageProps, NavegarFn, Route } from '../rotas';
 import { COR, ESP, FONT, RAIO, TIPO } from '../tokens.web';
 import { useLibraryData } from './comum.web';
@@ -501,6 +502,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <View style={styles.detailHeroActions}>
               <Button icon="play" onPress={playAll} disabled={!tracks.length}>Play</Button>
               <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!tracks.length}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
+              <BotaoDeFixar atalho={{ tipo: 'artista', nome: name, capa: tracks[0]?.artworkUrl ?? null }} />
             </View>
           </View>
         </View>

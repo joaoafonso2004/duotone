@@ -412,7 +412,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
           onCancelar={()=>setAResponder(null)}/>}
         {group?<GroupComposer campoRef={campo} value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:
           <View style={s.row}><TextInput ref={campo} accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}
-            {...({onKeyDown:(e:any)=>{const evento=e?.nativeEvent??e;if(!web||evento?.key!=='Enter'||evento?.shiftKey||evento?.isComposing)return;e.preventDefault?.();evento.preventDefault?.();if(!busy&&draft.trim())void send();}} as any)}/><SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>}
+            {...({onKeyPress:(e:any)=>{const evento=e?.nativeEvent??e;if(!web||evento?.key!=='Enter'||evento?.shiftKey||evento?.isComposing)return;e.preventDefault?.();evento.preventDefault?.();if(!busy&&draft.trim())void send();}} as any)}/><SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>}
       </View></View>;
 
   return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>

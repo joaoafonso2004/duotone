@@ -26,6 +26,10 @@ export function getHeavyRotation(): Promise<Map<string, number>> {
   return Promise.resolve(new Map());
 }
 
+export function getEscutasRecentes(): Promise<{ track: Track; em: number }[]> {
+  return Promise.resolve([]);
+}
+
 export function getProfileRecentlyPlayed(): Promise<(Track & { lastPlayed?: number })[]> {
   return Promise.resolve(controlo.recentes);
 }

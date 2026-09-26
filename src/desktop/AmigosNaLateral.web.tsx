@@ -23,6 +23,8 @@ import { marcar } from './ui.web';
  * `hovered` do RNW: é clicável dentro de uma linha clicável, e o hover do pai
  * cai quando o rato entra no filho (ver "O movimento do PC" no CLAUDE.md).
  */
+const tempo = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
 export function AmigosNaLateral({ navigate }: { navigate: (r: Route) => void }) {
   const amigos = useSocial((s) => s.friends);
   const { visiveis, resto, online } = useMemo(() => amigosNaLateral(amigos), [amigos]);
@@ -78,9 +80,15 @@ export function AmigosNaLateral({ navigate }: { navigate: (r: Route) => void }) 
               <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 11.5, marginTop: 1, color: faixa ? COR.textoMedio : COR.textoFraco }}>
                 {faixa ? `${tituloDaFaixa(faixa)} · ${displayArtist(faixa)}` : 'Online'}
               </Text>
+              {/* O fio com os tempos (opção B da preview de 26/9, escolhida
+                  pelo João): o que já passou, a barra e a duração. */}
               {onde ? (
-                <View style={{ height: 2, borderRadius: 1, backgroundColor: 'rgba(233,234,238,0.14)', marginTop: 5, overflow: 'hidden' }}>
-                  <View style={{ height: 2, width: `${Math.round(onde.fracao * 1000) / 10}%`, backgroundColor: COR.texto, transition: 'width 1s linear' } as any} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                  <Text style={{ fontFamily: FONT.mono, fontSize: 9.5, color: COR.textoFraco }}>{tempo(onde.ms / 1000)}</Text>
+                  <View style={{ flex: 1, height: 2, borderRadius: 1, backgroundColor: 'rgba(233,234,238,0.14)', overflow: 'hidden' }}>
+                    <View style={{ height: 2, width: `${Math.round(onde.fracao * 1000) / 10}%`, backgroundColor: COR.texto, transition: 'width 1s linear' } as any} />
+                  </View>
+                  <Text style={{ fontFamily: FONT.mono, fontSize: 9.5, color: COR.textoFraco }}>{tempo(faixa?.durationSeconds ?? 0)}</Text>
                 </View>
               ) : null}
             </View>

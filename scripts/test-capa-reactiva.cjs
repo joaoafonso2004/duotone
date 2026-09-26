@@ -213,8 +213,9 @@ async function run() {
     'a pose exterior não muda quando o cubo roda para as letras');
   assert.doesNotMatch(capa3D, /enabled\s*&&\s*!showLyrics|!turning/,
     'capa e letras conservam a mesma pose 3D durante todo o swipe');
-  assert.match(settings, /Artwork and lyrics keep the same 3D pose\./,
-    'as Definições descrevem a pose 3D que as letras realmente mantêm');
+  // A frase que explicava a pose saiu com a limpeza das Definições (26/9); o
+  // que fica preso é que nenhuma explicação volte a contradizer o efeito.
+  assert.match(settings, /Artwork style/, 'a escolha do estilo continua nas Definições');
   assert.doesNotMatch(settings, /Lyrics always settle flat/,
     'a explicação antiga não contradiz o efeito atual');
   assert.match(lyrics, /if\(manual\|\|!synced\)return;/,

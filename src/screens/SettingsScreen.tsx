@@ -6,18 +6,18 @@ import { useOfflineMode } from '../hooks/useOfflineMode';
 import { removeOwnProfileMedia } from '../lib/profileMedia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, {useEffect, useState, useRef } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View, Share, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, STEEL } from '../state/theme';
 import { clearLibrary } from '../api/library';
-import { clearPoTokenMemo, pingPoTokenServer } from '../api/potProvider';
+import { clearPoTokenMemo } from '../api/potProvider';
 import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstream';
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
-  efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoPoToken, efeitoDoRadio,
+  efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoRadio,
   efeitoDoTemporizador,
 } from '../lib/efeitoDasDefinicoes';
 import { ErroDoSpotify, importarGostoDoSpotify, spotifyDisponivel } from '../api/spotifyConta';
@@ -27,11 +27,9 @@ import { useRecomendacoes } from '../state/recomendacoes';
 import { getLoudnessDb } from '../lib/loudnessCache';
 import { limparTodosOsDownloads } from '../lib/descarregarFaixa';
 import { idsPedidos } from '../lib/downloadsFixados';
-import { listPlaylists, getPlaylistTracks } from '../api/playlists';
 import { supabase } from '../lib/supabase';
-import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
+import { APP_VERSION } from '../lib/buildInfo';
 import { ConfirmSheet } from '../components/ConfirmSheet';
-import { Input } from '../components/Input';
 import { PillButton } from '../components/PillButton';
 import { Screen } from '../components/Screen';
 import { SegmentedControl } from '../components/SegmentedControl';
@@ -39,7 +37,6 @@ import { hapticNotification, hapticSelection } from '../lib/haptics';
 import {
   getAudioQuality,
   getHapticsEnabled,
-  getPoTokenServerUrl,
   getShowTrackDuration,
   setAudioQuality,
   setAutoplayRadio as persistAutoplayRadio,
@@ -50,7 +47,6 @@ import {
   setVolumeNormalization as persistVolumeNormalization,
   setHapticsEnabled,
   setHapticsEnabledCache,
-  setPoTokenServerUrl,
   setShowRewindButton as persistShowRewindButton,
   setShowTrackDuration as persistShowTrackDuration,
   setShowTrackDurationCache,
@@ -69,10 +65,8 @@ import { usePlayer } from '../state/player';
 import { getLibrary } from '../api/library';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade';
 import { resumoDoVarrimento, varrerCatalogo } from '../state/catalogoDeFaixas';
-import { historico, limparHistorico, resumo, rotulo as rotuloDaFalha, type TipoFalha } from '../lib/playbackDiagnostics';
 import { partilharRelatorioDeReproducao } from '../lib/relatorioDeReproducao';
 import { colors, radii, spacing, type } from '../theme';
-import { widgetDisponivel } from '../../modules/duotone-widget';
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
@@ -158,7 +152,6 @@ export function SettingsScreen({ navigation }: Props) {
   const ganhosDaFaixa = usePlayer((s) => s.eqGanhos);
   const ajusteDaFaixa = usePlayer((s) => (s.current ? s.ajustesPorFaixa[chaveDaFaixa(s.current)] : undefined));
   const radioActivo = usePlayer((s) => s.radioActive);
-  const [ultimoTestePot, setUltimoTestePot] = useState<{ ok: boolean; ms: number | null } | null>(null);
   const modo = useTheme((s) => s.mode);
   const setMode = useTheme((s) => s.setMode);
   // O que a capa a tocar está a dar agora. Serve de amostra na própria
@@ -179,29 +172,19 @@ export function SettingsScreen({ navigation }: Props) {
   const [progresso, setProgresso] = useState<{ feitas: number; total: number } | null>(null);
   const [resumoDoCatalogo, setResumoDoCatalogo] = useState<string | null>(null);
   const pararIdentificacao = useRef(false);
-  const [widgetPronto, setWidgetPronto] = useState<boolean | null>(null);
 
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [clearLibraryOpen, setClearLibraryOpen] = useState(false);
   const [clearingLibrary, setClearingLibrary] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
-  const [exportingPlaylists, setExportingPlaylists] = useState(false);
-  // O anel de falhas vive fora do React; isto só serve para redesenhar depois
-  // de o limpar.
-  const [, setLimpezasDoRelatorio] = useState(0);
-  const falhasDaSessao = historico();
 
-  const [potServerUrl, setPotServerUrlState] = useState('');
-  const [testingPotServer, setTestingPotServer] = useState(false);
 
   useEffect(() => {
     getAudioQuality().then(setAudioQualityState);
     getCrossfadeSegundos().then(setCrossfadeState);
     getShowTrackDuration().then(setShowDuration);
     getHapticsEnabled().then(setHapticsOn);
-    getPoTokenServerUrl().then(setPotServerUrlState);
-    if (Platform.OS === 'ios') setWidgetPronto(widgetDisponivel());
 
     // Só reflete o estado — quem o aplica no arranque é o App.tsx.
     getKeepAwake().then(setKeepAwakeOn);
@@ -310,32 +293,6 @@ export function SettingsScreen({ navigation }: Props) {
     Alert.alert('Cache cleared', 'Downloaded YouTube audio and resolved streams were cleared.');
   };
 
-  const savePotServerUrl = async (v: string) => {
-    setPotServerUrlState(v);
-    // Outro endereço: o último teste já não diz nada sobre ele.
-    setUltimoTestePot(null);
-    await setPoTokenServerUrl(v);
-  };
-
-  const testPotServer = async () => {
-    setTestingPotServer(true);
-    try {
-      const inicio = Date.now();
-      const ok = await pingPoTokenServer(potServerUrl);
-      // Fica escrito por baixo do botão, e não só no alerta que se fecha.
-      setUltimoTestePot({ ok, ms: ok ? Date.now() - inicio : null });
-      hapticNotification();
-      Alert.alert(
-        ok ? 'Connected' : 'Not reachable',
-        ok
-          ? 'The PO Token server responded.'
-          : 'Could not reach the PO Token server at that URL. Check the address and that your phone is on the same network.'
-      );
-    } finally {
-      setTestingPotServer(false);
-    }
-  };
-
   const doClearLibrary = async () => {
     setClearingLibrary(true);
     try {
@@ -347,40 +304,6 @@ export function SettingsScreen({ navigation }: Props) {
       Alert.alert('Error', e?.message ?? 'Could not clear the library.');
     } finally {
       setClearingLibrary(false);
-    }
-  };
-
-  const doExportPlaylists = async () => {
-    setExportingPlaylists(true);
-    try {
-      const playlists = await listPlaylists();
-      const exportData = [];
-      for (const pl of playlists) {
-        const tracks = await getPlaylistTracks(pl.id);
-        exportData.push({
-          name: pl.name,
-          createdAt: pl.createdAt,
-          tracks: tracks.map((t) => ({
-            source: t.source,
-            sourceId: t.sourceId,
-            title: t.title,
-            artist: t.artist,
-            album: t.album,
-            artworkUrl: t.artworkUrl,
-            durationSeconds: t.durationSeconds,
-          })),
-        });
-      }
-      const json = JSON.stringify(exportData, null, 2);
-      hapticNotification();
-      await Share.share({
-        title: 'Duotone Playlists Export',
-        message: json,
-      });
-    } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not export playlists.');
-    } finally {
-      setExportingPlaylists(false);
     }
   };
 
@@ -434,7 +357,6 @@ export function SettingsScreen({ navigation }: Props) {
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
     ecra: efeitoDeManterOEcra(keepAwakeOn),
     cache: efeitoDeLimparACache({ bytes: cacheBytes, downloads: idsPedidos().filter(isAudioCached).length }),
-    poToken: efeitoDoPoToken({ url: potServerUrl, ultimoTeste: ultimoTestePot }),
     spotify: efeitoDoGostoDoSpotify({
       artistas: gostoDoSpotify?.artistas.length ?? 0, lidoEm: gostoDoSpotify?.lidoEm ?? null, agora: Date.now(),
     }),
@@ -455,25 +377,107 @@ export function SettingsScreen({ navigation }: Props) {
             gap: spacing.xl,
           }}
         >
-          <Section title="Recommendations">
-            <Text style={type.caption}>{offline?'Connect to the internet to change your recommendation preferences.':'Review songs you have hidden and artists you want to hear less often.'}</Text>
-            <PillButton label="Manage preferences" disabled={offline} onPress={()=>setRecommendationsOpen(true)}/>
-            {spotifyDisponivel() && (
-              <>
-                <Text style={type.caption}>
-                  Read the artists you listen to most on Spotify, so recommendations start from your real taste.
-                </Text>
-                <PillButton
-                  label={aLerSpotify ? 'Reading Spotify…' : gostoDoSpotify ? 'Update from Spotify' : 'Import from Spotify'}
-                  loading={aLerSpotify}
-                  disabled={offline || aLerSpotify}
-                  onPress={() => void importarDoSpotify()}
-                />
-                <Efeito texto={efeitos.spotify} />
-              </>
-            )}
+          {/* Arrumadas a 26/9 (pedido do João): o que se usa, e mais nada.
+              Saíram o PO Token, o "Build", o estado do widget, a contagem de
+              falhas e a exportação em JSON -- coisas de quem mantém a app. O
+              relatório de reprodução fica, numa linha, no About: é o que se
+              manda quando uma música não toca. */}
+          <Section title="Playback">
+            <Label>Smart shuffle</Label>
+            <SegmentedControl
+              options={['Few', 'Some', 'Lots']}
+              value={['poucas', 'normal', 'muitas'].indexOf(intensidadeSmart)}
+              onChange={(i: number) => {
+                const v = (['poucas', 'normal', 'muitas'] as const)[i] ?? 'normal';
+                usePlayer.setState({ intensidadeSmartShuffle: v });
+                void setIntensidadeDoSmartShuffle(v);
+              }}
+            />
+            <Efeito texto={efeitos.smart} />
+
+            {/* Desligado de origem. A passagem só entra em mudanças
+                automáticas de faixa: num salto manual faria o botão parecer
+                lento. */}
+            <Label style={{ marginTop: spacing.md }}>Crossfade</Label>
+            <SegmentedControl
+              options={['Off', '3s', '6s', '9s']}
+              value={DURACOES_DO_CROSSFADE.indexOf(crossfade)}
+              onChange={changeCrossfade}
+            />
+            <Efeito texto={efeitos.crossfade} />
+
+            <Label style={{ marginTop: spacing.md }}>Playback speed</Label>
+            <BarraVelocidade
+              valor={padraoRate}
+              aoMudar={(v) => setPlaybackRate(v, true)}
+            />
+            <Efeito texto={efeitos.velocidade} />
+
+            <Label style={{ marginTop: spacing.md }}>
+              Sleep timer
+              {sleepTimerTimeLeft > 0 && ` — ${formatTimeLeft(sleepTimerTimeLeft)}`}
+            </Label>
+            <SegmentedControl
+              options={['Off', '15m', '30m', '45m', '60m']}
+              value={
+                sleepTimerTimeLeft === 0
+                  ? 0
+                  : sleepTimerTimeLeft <= 15 * 60
+                  ? 1
+                  : sleepTimerTimeLeft <= 30 * 60
+                  ? 2
+                  : sleepTimerTimeLeft <= 45 * 60
+                  ? 3
+                  : 4
+              }
+              onChange={(i) => {
+                hapticSelection();
+                const mins = [0, 15, 30, 45, 60][i];
+                setSleepTimer(mins);
+              }}
+            />
+            <Efeito texto={efeitos.temporizador} />
+
+            <ToggleRow
+              label="Autoplay similar music"
+              value={autoplayRadio}
+              onChange={toggleAutoplayRadio}
+              style={{ marginTop: spacing.md }}
+            />
+            <Efeito texto={efeitos.radio} />
           </Section>
-          <Section title="Theme">
+
+          <Section title="Sound">
+            <Label>Audio quality</Label>
+            <SegmentedControl
+              options={['High', 'Data saver']}
+              value={audioQuality === 'saver' ? 1 : 0}
+              onChange={changeAudioQuality}
+            />
+            <Efeito texto={efeitos.qualidade} />
+
+            <ToggleRow
+              label="Even out volume"
+              value={volumeNormalization}
+              onChange={toggleVolumeNormalization}
+              style={{ marginTop: spacing.md }}
+            />
+            <Efeito texto={efeitos.normalizacao} />
+
+            {/* O equalizador base: vale para as faixas que não tenham o seu,
+                e não mexe na que está a tocar. */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }}>
+              <Label>Equaliser</Label>
+              <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
+            </View>
+            <Equalizador
+              ganhos={padraoGanhos}
+              aoMudar={(novo) => setEqGanhos(novo, true)}
+            />
+            <Efeito texto={efeitos.equalizador} />
+          </Section>
+
+          <Section title="Appearance">
             <Label>Accent</Label>
             <View style={styles.themesGrid}>
               {([
@@ -503,334 +507,151 @@ export function SettingsScreen({ navigation }: Props) {
                 );
               })}
             </View>
-            <Text style={type.caption}>
-              Steel is the app's own colour. Cover follows the artwork of whatever is playing,
-              and falls back to Steel when a cover has no colour to give.
-            </Text>
-          </Section>
+            <Text style={type.caption}>Cover follows the artwork of whatever is playing.</Text>
 
-          <Section title="Playback">
-            <Label>Audio quality</Label>
-            <SegmentedControl
-              options={['High', 'Data saver']}
-              value={audioQuality === 'saver' ? 1 : 0}
-              onChange={changeAudioQuality}
-            />
-            <Efeito texto={efeitos.qualidade} />
+            {Platform.OS === 'ios' && <>
+              <Label style={{ marginTop: spacing.md }}>Artwork style</Label>
+              <SegmentedControl options={['Floating 3D', 'Simple']} value={coverStyle === 'floating' ? 0 : 1}
+                onChange={index => useCapaIOS.getState().setStyle(index === 0 ? 'floating' : 'simple')} />
+            </>}
 
-            {/* Desligado de origem. A passagem só entra em mudanças
-                automáticas de faixa: num salto manual faria o botão parecer
-                lento. E fica de fora quando a duração da faixa não é de
-                confiança, porque sem ela não se sabe onde é o fim. */}
-            {/* Quantas músicas novas o Smart Shuffle mete (26/9). */}
-            <Label style={{ marginTop: spacing.md }}>Smart shuffle</Label>
-            <SegmentedControl
-              options={['Few', 'Some', 'Lots']}
-              value={['poucas', 'normal', 'muitas'].indexOf(intensidadeSmart)}
-              onChange={(i: number) => {
-                const v = (['poucas', 'normal', 'muitas'] as const)[i] ?? 'normal';
-                usePlayer.setState({ intensidadeSmartShuffle: v });
-                void setIntensidadeDoSmartShuffle(v);
-              }}
-            />
-            <Efeito texto={efeitos.smart} />
-
-            <Label style={{ marginTop: spacing.md }}>Crossfade</Label>
-            <SegmentedControl
-              options={['Off', '3s', '6s', '9s']}
-              value={DURACOES_DO_CROSSFADE.indexOf(crossfade)}
-              onChange={changeCrossfade}
-            />
-            <Efeito texto={efeitos.crossfade} />
-
-            {/* Os tres presets viraram uma velocidade continua (0,5 a 2), e
-                agora numa barra em vez de botoes: de ponta a ponta eram trinta
-                toques. O valor vai escrito ao lado da propria barra. */}
-            <Label style={{ marginTop: spacing.md }}>Playback speed</Label>
-            <BarraVelocidade
-              valor={padraoRate}
-              aoMudar={(v) => setPlaybackRate(v, true)}
-            />
-            <Efeito texto={efeitos.velocidade} />
-
-            {/* O equalizador base. Mesmo sitio e mesmo padrao da velocidade
-                logo acima -- as duas sao o que vale para as faixas que nao
-                tenham o seu, e nenhuma delas mexe na que esta a tocar. A
-                frase fixa que dizia isto passou a ser a linha de efeito, que
-                diz o mesmo sobre a musica que esta mesmo a tocar. */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }}>
-              <Label>Equaliser</Label>
-              <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
-            </View>
-            <Equalizador
-              ganhos={padraoGanhos}
-              aoMudar={(novo) => setEqGanhos(novo, true)}
-            />
-            <Efeito texto={efeitos.equalizador} />
-
-            <Label style={{ marginTop: spacing.md }}>
-              Sleep timer
-              {sleepTimerTimeLeft > 0 && ` — ${formatTimeLeft(sleepTimerTimeLeft)}`}
-            </Label>
-            <SegmentedControl
-              options={['Off', '15m', '30m', '45m', '60m']}
-              value={
-                sleepTimerTimeLeft === 0
-                  ? 0
-                  : sleepTimerTimeLeft <= 15 * 60
-                  ? 1
-                  : sleepTimerTimeLeft <= 30 * 60
-                  ? 2
-                  : sleepTimerTimeLeft <= 45 * 60
-                  ? 3
-                  : 4
-              }
-              onChange={(i) => {
-                hapticSelection();
-                const mins = [0, 15, 30, 45, 60][i];
-                setSleepTimer(mins);
-              }}
-            />
-            <Efeito texto={efeitos.temporizador} />
-          </Section>
-
-          <Section title="Behavior">
             <ToggleRow
-              label="Show track duration in lists"
+              label="Show song length in lists"
               value={showDuration}
               onChange={toggleShowDuration}
-            />
-            <ToggleRow
-              label="Normalize volume between tracks"
-              value={volumeNormalization}
-              onChange={toggleVolumeNormalization}
               style={{ marginTop: spacing.md }}
             />
-            <Efeito texto={efeitos.normalizacao} />
             <ToggleRow
-              label="Autoplay radio at end of queue"
-              value={autoplayRadio}
-              onChange={toggleAutoplayRadio}
-              style={{ marginTop: spacing.md }}
-            />
-            <Efeito texto={efeitos.radio} />
-            <ToggleRow
-              label="Show rewind 15s button"
+              label="Show 15-second rewind"
               value={showRewindButton}
               onChange={toggleShowRewind}
-              style={{ marginTop: spacing.md }}
+              style={{ marginTop: spacing.sm }}
             />
+          </Section>
+
+          <Section title="General">
             <ToggleRow
-              label="In-app notifications"
+              label="Message banners"
               value={notificationsOn}
               onChange={toggleNotifications}
-              style={{ marginTop: spacing.md }}
             />
-            <Text style={{color:colors.textSecondary,fontSize:12,marginTop:8}}>Show banners at the top while Duotone is open. No notifications outside the app.</Text>
             <ToggleRow
               label="Haptic feedback"
               value={hapticsOn}
               onChange={toggleHaptics}
-              style={{ marginTop: spacing.md }}
+              style={{ marginTop: spacing.sm }}
             />
             <ToggleRow
               label="Keep screen awake"
               value={keepAwakeOn}
               onChange={toggleKeepAwake}
-              style={{ marginTop: spacing.md }}
+              style={{ marginTop: spacing.sm }}
             />
             <Efeito texto={efeitos.ecra} />
+            <ToggleRow label="Keep screen on in car mode" value={carroMantemEcra}
+              onChange={(v) => { setCarroMantemEcraState(v); void setCarroMantemEcra(v).catch(() => {}); }}
+              style={{ marginTop: spacing.sm }} />
           </Section>
 
-          <Section title="Car mode">
-            <ToggleRow label="Keep the screen on" value={carroMantemEcra}
-              onChange={(v) => { setCarroMantemEcraState(v); void setCarroMantemEcra(v).catch(() => {}); }} />
-            <Text style={[type.caption, { marginTop: spacing.sm }]}>
-              Car mode lives in the now playing menu. With this off, the screen dims as
-              usual — better for battery, but you have to wake the phone to skip a song.
-              This is separate from “Keep screen on” above.
-            </Text>
-          </Section>
-
-          {Platform.OS === 'ios' && <Section title="Artwork style">
-            <SegmentedControl options={['Floating 3D', 'Simple']} value={coverStyle === 'floating' ? 0 : 1}
-              onChange={index => useCapaIOS.getState().setStyle(index === 0 ? 'floating' : 'simple')} />
-            <Text style={[type.caption, { marginTop: spacing.sm }]}>Floating 3D adds depth and a subtle continuous rise and fall. Artwork and lyrics keep the same 3D pose.</Text>
-          </Section>}
-
-          <Section title="Data">
-            {offline&&<Text style={type.caption}>Offline · library changes and playlist exports need internet.</Text>}
-            <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
-              YouTube audio is downloaded locally so it can keep playing with the
-              screen locked. Clearing the cache frees that space; songs
-              re-download next time you play them.
-            </Text>
-            <PillButton
-              label={`Downloads (${formatCacheSize(cacheBytes)})`}
-              variant="ghost"
-              small
-              onPress={() => navigation.navigate('Downloads')}
-              style={{ alignSelf: 'flex-start', marginBottom: spacing.sm }}
-            />
-            <PillButton
-              label="Clear YouTube cache"
-              variant="ghost"
-              small
-              onPress={doClearCache}
-              style={{ alignSelf: 'flex-start' }}
-            />
-            {/* Apaga TODO o áudio guardado, os downloads feitos de propósito
-                incluídos -- e isso tem de se ler antes de carregar. */}
-            <Efeito texto={efeitos.cache} />
-            {/* Identificar a biblioteca: o artista e o título vêm adivinhados
-                do título do vídeo do YouTube, e um catálogo a sério corrige-os
-                — incluindo a capa quadrada, sem as barras pretas. */}
-            <Text style={[type.caption, { lineHeight: 18, marginTop: spacing.lg, marginBottom: spacing.sm }]}>
+          <Section title="Library">
+            <Text style={type.caption}>{offline ? 'Connect to the internet to change your recommendations.' : 'Songs you hid and artists you want to hear less often.'}</Text>
+            <View style={styles.botoes}>
+              <PillButton label="Manage recommendations" variant="ghost" small disabled={offline}
+                onPress={() => setRecommendationsOpen(true)} />
+              {spotifyDisponivel() && (
+                <PillButton
+                  label={aLerSpotify ? 'Reading Spotify…' : gostoDoSpotify ? 'Update from Spotify' : 'Import from Spotify'}
+                  variant="ghost"
+                  small
+                  loading={aLerSpotify}
+                  disabled={offline || aLerSpotify}
+                  onPress={() => void importarDoSpotify()}
+                />
+              )}
+            </View>
+            {spotifyDisponivel() && <Efeito texto={efeitos.spotify} />}
+            <Text style={[type.caption, { marginTop: spacing.lg }]}>
               {progresso
                 ? `Identifying ${progresso.feitas} of ${progresso.total}…`
                 : resumoDoCatalogo
-                  ?? 'Match your library against a music catalogue to fix artist names, titles and cover art.'}
+                  ?? 'Fix artist names, titles and covers with a music catalogue, or find duplicates and songs that no longer play.'}
             </Text>
-            <PillButton
-              label={aIdentificar ? 'Stop' : 'Identify library'}
-              disabled={offline}
-              variant="ghost"
-              small
-              loading={aIdentificar && !progresso}
-              onPress={aIdentificar ? () => { pararIdentificacao.current = true; } : identificarBiblioteca}
-              style={{ alignSelf: 'flex-start' }}
-            />
-            {/* O Library check: duplicados, vídeos que já não tocam e capas
-                partidas. Só corre quando se abre e se carrega. */}
-            <PillButton
-              label="Library check"
-              variant="ghost"
-              small
-              onPress={() => navigation.navigate('LibraryCheck')}
-              style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-            />
-            <PillButton
-              label="Clear Liked Songs"
-              disabled={offline}
-              variant="danger"
-              small
-              onPress={() => setClearLibraryOpen(true)}
-              style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-            />
-            <PillButton
-              label="Export playlists (JSON)"
-              disabled={offline}
-              variant="ghost"
-              small
-              loading={exportingPlaylists}
-              onPress={doExportPlaylists}
-              style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-            />
-          </Section>
-
-          {/* O relatório que o PC já exportava. No telemóvel vai pela folha de
-              partilha: quem precisa dele é quem o vai mandar a alguém. */}
-          <Section title="Playback diagnostics">
-            <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
-              {falhasDaSessao.length
-                ? `${falhasDaSessao.length} ${falhasDaSessao.length === 1 ? 'failure' : 'failures'} this session: ${
-                  Object.entries(resumo(falhasDaSessao)).sort((a, b) => b[1] - a[1])
-                    .map(([t, n]) => `${n}× ${rotuloDaFalha(t as TipoFalha)}`).join(', ')}.`
-                : 'No playback failures this session.'}
-              {' '}The report has the technical detail. Send it when music stops playing.
-            </Text>
-            <PillButton
-              label="Share playback report"
-              variant="ghost"
-              small
-              onPress={() => { void partilharRelatorioDeReproducao().catch(() => {}); }}
-              style={{ alignSelf: 'flex-start' }}
-            />
-            {falhasDaSessao.length > 0 && (
+            <View style={styles.botoes}>
               <PillButton
-                label="Clear recorded failures"
+                label={aIdentificar ? 'Stop' : 'Identify library'}
+                disabled={offline}
                 variant="ghost"
                 small
-                onPress={() => { limparHistorico(); hapticSelection(); setLimpezasDoRelatorio((n) => n + 1); }}
-                style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
+                loading={aIdentificar && !progresso}
+                onPress={aIdentificar ? () => { pararIdentificacao.current = true; } : identificarBiblioteca}
               />
-            )}
+              <PillButton label="Library check" variant="ghost" small onPress={() => navigation.navigate('LibraryCheck')} />
+            </View>
           </Section>
 
-          {/* O texto dizia que sem PO Token as faixas paravam aos 20-30 s. Deixou
-              de ser verdade com o cliente VISIONOS (ago 2026): o servidor é só
-              uma rede de segurança, a seguir ao BotGuard do próprio aparelho, e
-              o token fica preso ao IP de quem o gerou -- em dados móveis o do
-              servidor não serve. Ver `api/potProvider.ts`. */}
-          <Section title="Advanced">
-            <Text style={[type.caption, { lineHeight: 18, marginBottom: spacing.sm }]}>
-              Playback needs no setup. This is only a fallback for when YouTube
-              blocks the usual way in: the address of a PO Token server
-              (bgutil-ytdlp-pot-provider). Its tokens only work on the same
-              internet connection as the server, so it helps at home, not on
-              mobile data.
+          <Section title="Storage">
+            <Text style={type.caption}>
+              Songs are kept on the phone so they play with the screen locked.
             </Text>
-            <Input
-              placeholder="http://192.168.1.10:4416"
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-              value={potServerUrl}
-              onChangeText={savePotServerUrl}
-              onClear={() => savePotServerUrl('')}
-            />
-            <PillButton
-              label="Test connection"
-              variant="ghost"
-              small
-              loading={testingPotServer}
-              disabled={offline||!potServerUrl.trim()}
-              onPress={testPotServer}
-              style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-            />
-            <Efeito texto={efeitos.poToken} />
-          </Section>
-
-          <Section title="About">
-            <Row label="Version" value={APP_VERSION} />
-            <Row label="Build" value={BUILD_ID} />
-            {Platform.OS === 'ios' && (
-              <Row
-                label="Home Screen widget"
-                value={widgetPronto === null ? 'Checking…' : widgetPronto ? 'Ready' : 'App Group unavailable'}
-              />
-            )}
+            <View style={styles.botoes}>
+              <PillButton label={`Downloads (${formatCacheSize(cacheBytes)})`} variant="ghost" small
+                onPress={() => navigation.navigate('Downloads')} />
+              <PillButton label="Clear cache" variant="ghost" small onPress={doClearCache} />
+            </View>
+            {/* Apaga TODO o áudio guardado, os downloads feitos de propósito
+                incluídos -- e isso tem de se ler antes de carregar. */}
+            <Efeito texto={efeitos.cache} />
           </Section>
 
           <Section title="Account">
             {offline&&<Text style={type.caption}>Offline · connect to manage your account.</Text>}
             <Row label="Email" value={session?.user?.email ?? '—'} />
-            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm, flexWrap: 'wrap' }}>
+            <View style={styles.botoes}>
               <PillButton
                 label="Reset password"
-              disabled={offline}
+                disabled={offline}
                 variant="ghost"
                 small
                 loading={resettingPw}
                 onPress={doResetPassword}
-                style={{ alignSelf: 'flex-start' }}
               />
               <PillButton
                 label="Sign out"
-                variant="danger"
+                variant="ghost"
                 small
                 onPress={() => setSignOutOpen(true)}
-                style={{ alignSelf: 'flex-start' }}
+              />
+            </View>
+            <View style={styles.botoes}>
+              <PillButton
+                label="Clear Liked Songs"
+                disabled={offline}
+                variant="danger"
+                small
+                onPress={() => setClearLibraryOpen(true)}
               />
               <PillButton
                 label="Delete account"
-              disabled={offline}
+                disabled={offline}
                 variant="danger"
                 small
                 onPress={() => setDeleteAccountOpen(true)}
-                style={{ alignSelf: 'flex-start' }}
               />
             </View>
+          </Section>
+
+          <Section title="About">
+            <Row label="Version" value={APP_VERSION} />
+            {/* O relatório vai pela folha de partilha: quem precisa dele é quem
+                o vai mandar a alguém. */}
+            <PillButton
+              label="Send playback report"
+              variant="ghost"
+              small
+              onPress={() => { void partilharRelatorioDeReproducao().catch(() => {}); }}
+              style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
+            />
+            <Text style={[type.caption, { marginTop: spacing.xs }]}>If a song won't play, send this so it can be fixed.</Text>
           </Section>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -950,6 +771,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 4,
   },
+  botoes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
   efeito: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.xs },
   efeitoPonto: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.text, opacity: 0.6 },
   themesGrid: {

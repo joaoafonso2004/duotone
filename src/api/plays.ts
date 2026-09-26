@@ -142,6 +142,30 @@ export async function getHeavyRotation(limit = 10): Promise<Track[]> {
   return (data ?? []).map(rowToTrack);
 }
 
+/**
+ * As escutas dos últimos `dias`, a mais recente primeiro, com a hora. É o que a
+ * Daily mix usa para dar mais do que se ouviu ontem (`lib/misturaDoDia.ts`).
+ * Lê o `plays` direto (a política de SELECT de `listening-stats.sql`); um
+ * teto de linhas chega -- é para pesar artistas, não para contar tudo.
+ */
+export async function getEscutasRecentes(dias = 7, limite = 600): Promise<{ track: Track; em: number }[]> {
+  const userId = await currentUserId();
+  const desde = new Date(Date.now() - dias * 86_400_000).toISOString();
+  const { data, error } = await supabase
+    .from('plays')
+    .select('played_at, tracks!inner(id, source, source_id, title, artist, album, artwork_url, duration_seconds)')
+    .eq('user_id', userId)
+    .gte('played_at', desde)
+    .order('played_at', { ascending: false })
+    .limit(limite);
+  if (error) throw error;
+  return (data ?? []).flatMap((row: any) => {
+    const t = Array.isArray(row.tracks) ? row.tracks[0] : row.tracks;
+    const em = Date.parse(row.played_at);
+    return t && Number.isFinite(em) ? [{ track: rowToTrack(t), em }] : [];
+  });
+}
+
 export async function getForgottenFavorites(limit = 10): Promise<Track[]> {
   const { data, error } = await supabase.rpc('get_forgotten_favorites', { limit_val: limit });
   if (error) throw error;

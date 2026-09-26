@@ -21,7 +21,7 @@ import { takeOverSession } from '../../lib/sessionSync';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
 import { Artwork, Button, desktop, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
-import { desfoqueLeve } from '../../lib/capaGrande';
+import { FundoDaCapa } from '../FundoDaCapa.web';
 import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
 import { disposicaoDoLeitor, fimDaFila } from '../../lib/leitorDoPc';
 import { pertoDoFim } from '../../lib/grelhaQueCresce';
@@ -162,46 +162,14 @@ function PontosDaCapa({ letras, aoMudar }: { letras: boolean; aoMudar: (v: boole
   );
 }
 
-/**
- * O fundo do leitor do iPhone, no PC: a PRÓPRIA capa muito desfocada e
- * escurecida, com um véu por cima (mais forte do lado da fila e em baixo, para
- * tudo se ler com uma capa clara). Escolhido pelo João a 25/9 depois de ver uma
- * cor lisa e uma mancha à volta da capa ("uma cor estática").
- *
- * **Parte da miniatura pequena** (`desfoqueLeve`, a mesma do iPhone): desfocar
- * a capa grande era trabalho à toa. E é um `filter` numa IMAGEM parada, não um
- * `backdrop-filter` -- esse refaz-se a cada pintura e foi o que deixou a 3.7.1
- * pesada (ver o CLAUDE.md, "O movimento do PC").
- *
- * Ao mudar de faixa, a capa nova entra POR CIMA da anterior (`np-fundo`, 700
- * ms), e a de baixo só sai depois: nunca se vê o fundo vazio a meio.
- */
-function FundoDaCapa({ uri }: { uri: string | null }) {
-  const fonte = desfoqueLeve(uri, 64)?.uri ?? null;
-  const [camadas, setCamadas] = useState<string[]>(() => (fonte ? [fonte] : []));
-  useEffect(() => {
-    if (!fonte) { setCamadas([]); return; }
-    setCamadas((c) => (c[c.length - 1] === fonte ? c : [...c.slice(-1), fonte]));
-    const t = setTimeout(() => setCamadas((c) => c.slice(-1)), 900);
-    return () => clearTimeout(t);
-  }, [fonte]);
-  return (
-    <View pointerEvents="none" style={styles.npFundo}>
-      {camadas.map((c, i) => (
-        <View key={c} style={[styles.npFundoCapa, { backgroundImage: `url("${c}")` } as any]}
-          {...(i === camadas.length - 1 && camadas.length > 1 ? marcar('np-fundo') : {})} />
-      ))}
-      <View style={styles.npFundoVeu} />
-    </View>
-  );
-}
-
 /** Linhas da fila montadas de cada vez. */
 const LINHAS_DA_FILA = 100;
 
 export function NowPlayingPage({
-  more, notify, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist, share,
+  more, notify, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist, share, fundoNaJanela = false,
 }: CommonPageProps & {
+  /** A casca já pinta a cor da capa na janela inteira (`pref:corNaJanela`). */
+  fundoNaJanela?: boolean;
   currentIsSaved: boolean;
   toggleSaveCurrent: () => void;
   navigate: NavegarFn;
@@ -501,8 +469,9 @@ export function NowPlayingPage({
       const { width: largura, height: altura } = e.nativeEvent.layout;
       setArea((a) => (Math.abs(a.largura - largura) > 1 || Math.abs(a.altura - altura) > 1 ? { largura, altura } : a));
     }}>
-      {/* O fundo do iPhone: a própria capa, muito desfocada, com um véu. */}
-      <FundoDaCapa uri={track.artworkUrl} />
+      {/* O fundo do iPhone: a própria capa, muito desfocada, com um véu. Com a
+          cor na janela toda, quem a desenha é a casca, por baixo de tudo. */}
+      {!fundoNaJanela && <FundoDaCapa uri={track.artworkUrl} />}
 
       {/* O topo (26/9, o João achou o "FROM" em letra técnica feio): o voltar
           num círculo discreto e a origem em duas linhas, como os leitores de

@@ -43,6 +43,10 @@ const KEY_ESCUTA_PRIVADA = 'pref:escutaPrivada';
 const KEY_SEMENTES = 'pref:artistasSemente';
 /** Os artistas favoritos, pela chave canonica. Ver `getArtistasFavoritos`. */
 const KEY_ARTISTAS_FAVORITOS = 'pref:artistasFavoritos';
+/** A cor da capa do Now Playing do PC: na janela toda ou só na página. */
+const KEY_COR_NA_JANELA = 'pref:corNaJanela';
+/** Os atalhos fixados na lateral do PC (`lib/atalhosDaLateral.ts`). */
+const KEY_ATALHOS_DA_LATERAL = 'pref:atalhosDaLateral';
 /** O gosto lido do Spotify. Ver `getGostoDoSpotify`. */
 const KEY_GOSTO_SPOTIFY = 'pref:gostoDoSpotify';
 
@@ -629,4 +633,28 @@ export async function getCarroMantemEcra(): Promise<boolean> {
 }
 export async function setCarroMantemEcra(v: boolean): Promise<void> {
   await AsyncStorage.setItem('pref:carroMantemEcra', v ? '1' : '0');
+}
+
+/**
+ * A cor da capa no Now Playing do PC (26/9, pedido do João): `janela` enche a
+ * janela inteira -- lateral, barra de título e leitor --, `pagina` fica só na
+ * página, como era. A janela é o de origem.
+ */
+export type CorDoLeitor = 'janela' | 'pagina';
+export async function getCorNaJanela(): Promise<CorDoLeitor> {
+  try { return (await AsyncStorage.getItem(KEY_COR_NA_JANELA)) === 'pagina' ? 'pagina' : 'janela'; } catch { return 'janela'; }
+}
+export async function setCorNaJanela(v: CorDoLeitor): Promise<void> {
+  await AsyncStorage.setItem(KEY_COR_NA_JANELA, v);
+}
+
+/** Os atalhos da lateral do PC, crus: quem os valida é `lerAtalhos`. */
+export async function getAtalhosDaLateral(): Promise<unknown> {
+  try {
+    const bruto = await AsyncStorage.getItem(KEY_ATALHOS_DA_LATERAL);
+    return bruto ? JSON.parse(bruto) : [];
+  } catch { return []; }
+}
+export async function setAtalhosDaLateral(lista: readonly unknown[]): Promise<void> {
+  await AsyncStorage.setItem(KEY_ATALHOS_DA_LATERAL, JSON.stringify(lista));
 }

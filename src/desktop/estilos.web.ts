@@ -91,6 +91,18 @@ export const styles = StyleSheet.create({
   statsHero: { borderRadius: 12, padding: 22, marginBottom: 18 }, statsHeroLabel: { fontFamily: FONT.mono, color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 1.5, opacity: .85 }, statsHeroValue: { fontFamily: FONT.display, color: '#FFF', fontSize: 38, fontWeight: '800', marginTop: 6, letterSpacing: -.5 }, statsHeroNote: { fontFamily: FONT.body, color: '#FFF', fontSize: 11, marginTop: 4, opacity: .8 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 26 }, statsCell: { flexGrow: 1, flexBasis: 150, borderRadius: 10, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.panel, padding: 16 }, statsCellValue: { fontFamily: FONT.display, color: desktop.text, fontSize: 24, fontWeight: '800' },
   statsChart: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 140, marginTop: 10 }, statsRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 7, cursor: 'pointer' } as any, statsRank: { fontFamily: FONT.mono, width: 18, textAlign: 'center', fontSize: 12, fontWeight: '800' },
+  // As Definições (26/9): uma coluna ao centro, o índice das secções à
+  // esquerda dela e a secção aberta à direita.
+  definicoes: { width: '100%' as any, maxWidth: 980, alignSelf: 'center', paddingHorizontal: ESP.xxxl, paddingTop: ESP.xl, paddingBottom: ESP.xxxl },
+  definicoesTitulo: { ...TIPO.display, color: COR.texto, lineHeight: 40, marginBottom: ESP.xl },
+  definicoesCorpo: { flexDirection: 'row', alignItems: 'flex-start', gap: ESP.xxl },
+  definicoesIndice: { width: 196, gap: 2, position: 'sticky' as any, top: 0 },
+  definicoesIndiceEmLinha: { width: 'auto' as any, position: 'relative' as any, flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  definicoesItem: { height: 40, borderRadius: 8, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', gap: 11 },
+  definicoesItemHover: { backgroundColor: 'rgba(233,234,238,0.04)' },
+  definicoesItemAtivo: { backgroundColor: 'rgba(233,234,238,0.08)' },
+  definicoesItemTexto: { fontFamily: FONT.body, color: desktop.muted, fontSize: 13.5, fontWeight: '600' as any },
+  definicoesPainel: { flex: 1, minWidth: 0 },
   settingsGrid: { flexDirection: 'column', alignItems: 'stretch', gap: ESP.lg, maxWidth: 720 }, settingsCard: { width: '100%' as any, maxWidth: 720, borderRadius: 10, borderWidth: 1, borderColor: desktop.border, backgroundColor: desktop.panel, overflow: 'hidden' }, settingsCardTitle: { height: 53, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 9, borderBottomWidth: 1, borderBottomColor: desktop.border }, settingLine: { minHeight: 52, paddingHorizontal: 17, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: desktop.border, flexDirection: 'row', alignItems: 'center', gap: 12 }, settingHover: { backgroundColor: desktop.hover }, settingLabel: { fontFamily: FONT.body, color: desktop.text, fontSize: 12, fontWeight: '550' as any }, settingValue: { fontFamily: FONT.body, color: desktop.muted, fontSize: 12, textAlign: 'right', maxWidth: 230 }, settingDescription: { fontFamily: FONT.body, color: desktop.dim, fontSize: 10, marginTop: 4 }, smallSegment: { padding: 3, backgroundColor: desktop.bg, borderRadius: 7, flexDirection: 'row' }, smallSegmentItem: { minHeight: 30, paddingHorizontal: 10, borderRadius: 5, alignItems: 'center', justifyContent: 'center' }, smallSegmentActive: { backgroundColor: desktop.hover }, smallSegmentText: { fontFamily: FONT.mono, color: desktop.dim, fontSize: 10 },
   player: {
     height: 72, backgroundColor: 'transparent',
@@ -186,6 +198,15 @@ export const styles = StyleSheet.create({
     position: 'absolute', top: -80, left: -80, right: -80, bottom: -80,
     backgroundSize: 'cover', backgroundPosition: 'center',
     filter: 'blur(70px) saturate(1.2) brightness(.62)', transform: [{ scale: 1.1 }],
+  } as any,
+  // A cor da capa na janela inteira (26/9): por baixo da barra de título, da
+  // lateral e do leitor. O véu escurece a lateral (os primeiros ~240 px) para
+  // o texto se ler, e o lado da fila e o fundo como no Now Playing.
+  janelaCor: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden' } as any,
+  janelaCorVeu: {
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    backgroundImage: 'linear-gradient(90deg,rgba(6,6,8,.46) 0px,rgba(6,6,8,.40) 240px,rgba(6,6,8,.30) 34%,rgba(6,6,8,.46) 55%,rgba(6,6,8,.72) 72%,rgba(6,6,8,.82) 100%),'
+      + 'linear-gradient(180deg,rgba(6,6,8,.18) 0px,rgba(6,6,8,0) 90px,rgba(6,6,8,0) 58%,rgba(6,6,8,.86) 100%)',
   } as any,
   npFundoVeu: {
     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
