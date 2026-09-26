@@ -39,6 +39,14 @@ verificar('uma faixa que ARRANCOU não se empurra', () => {
   assert.equal(precisaDeEmpurrao({ ...base, posicaoMs: 999 }), true, 'ainda no arranque');
 });
 
+verificar('se o MOTOR já passou do primeiro segundo, não se volta ao 0', () => {
+  // 26/9: a store ficava nos 0:00 com a música a tocar no motor, e a rede
+  // mandava-a para o início três vezes ("chega aos dois segundos e recomeça").
+  assert.equal(precisaDeEmpurrao({ ...base, posicaoDoMotorMs: 2000 }), false);
+  assert.equal(precisaDeEmpurrao({ ...base, posicaoDoMotorMs: 500 }), true, 'o motor também está no arranque');
+  assert.equal(precisaDeEmpurrao({ ...base, posicaoDoMotorMs: null }), true, 'sem leitura do motor fica como era');
+});
+
 verificar('em pausa não se empurra nada', () => {
   assert.equal(precisaDeEmpurrao({ ...base, autorizadoATocar: false }), false,
     'quem manda diz pausa: parado é o que se espera');

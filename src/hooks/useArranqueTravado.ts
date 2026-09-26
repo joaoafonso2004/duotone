@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { paradoDesdeAgora, precisaDeEmpurrao } from '../lib/arranqueTravado';
+import { registarNaFila } from '../lib/playbackDiagnostics';
 
 /** De quanto em quanto tempo se olha para o relógio da faixa. */
 const OLHAR_MS = 1000;
@@ -39,7 +40,7 @@ export function useArranqueTravado(): void {
     if (!faixa) return;
     // Os contadores vivem na volta do efeito e recomeçam a cada faixa: três
     // tentativas SÃO por faixa, e não três para toda a sessão de audição.
-    let empurroes = 0, ultimaPosicao = -1, paradoDesde = Date.now();
+    let empurroes = 0, ultimaPosicao = -1, ultimaDoMotor: number | null = null, paradoDesde = Date.now();
 
     const vigia = setInterval(() => {
       const p = usePlayer.getState();
@@ -51,8 +52,13 @@ export function useArranqueTravado(): void {
       // Contava desde que a faixa foi escolhida, e o download entrava como
       // tempo parado: mal ela ficava pronta, o empurrão mandava-a para os 0:00.
       const pronta = p.activeBackend !== 'resolving' && !p.buffering;
-      const mexeu = p.positionMs !== ultimaPosicao;
+      // O motor conta como relógio também: se ele anda, a música anda, mesmo
+      // que a store ainda não o saiba (ver `posicaoDoMotorMs`).
+      let doMotor: number | null = null;
+      try { doMotor = p._yt?.posicaoDoMotorMs?.() ?? null; } catch { doMotor = null; }
+      const mexeu = p.positionMs !== ultimaPosicao || (doMotor != null && doMotor !== ultimaDoMotor);
       ultimaPosicao = p.positionMs;
+      ultimaDoMotor = doMotor;
       paradoDesde = paradoDesdeAgora({ pronta, mexeu, paradoDesde, agora: Date.now() });
       if (mexeu) return;
 
@@ -70,9 +76,17 @@ export function useArranqueTravado(): void {
         posicaoMs: p.positionMs,
         paradoMs: Date.now() - paradoDesde,
         empurroesDados: empurroes,
+        posicaoDoMotorMs: doMotor,
       })) return;
 
       empurroes++;
+      // No relatório (queue decisions): estes recomeços não deixavam rasto.
+      registarNaFila(
+        `${faixa}: start looked stuck, back to 0 (push ${empurroes}/3;`
+        + ` store ${(p.positionMs / 1000).toFixed(1)}s,`
+        + ` engine ${doMotor == null ? '?' : (doMotor / 1000).toFixed(1) + 's'},`
+        + ` still for ${((Date.now() - paradoDesde) / 1000).toFixed(1)}s)`,
+      );
       paradoDesde = Date.now();
       const alvo = sessao ? Math.max(0, useOuvirJuntos.getState().posicaoAgora() ?? 0) : 0;
       void p.seekTo(alvo, true).then(() => {

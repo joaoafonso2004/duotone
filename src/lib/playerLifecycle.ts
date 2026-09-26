@@ -8,6 +8,12 @@ export interface PlaybackControls {
   pause: () => void;
   seek: (ms: number) => void;
   setVolume?: (volume: number) => void;
+  /**
+   * Onde o MOTOR vai, lido nele e não na store (só o do iPhone o tem).
+   * `null` sem fonte ou com outra faixa carregada. É o que a rede do arranque
+   * travado usa para confirmar que está mesmo parado antes de voltar ao 0.
+   */
+  posicaoDoMotorMs?: () => number | null;
 }
 
 export interface PlaybackSource {

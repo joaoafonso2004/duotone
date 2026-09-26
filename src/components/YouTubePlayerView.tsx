@@ -1,4 +1,4 @@
-import { atualizarVelocidadeDoMotor, tocarNaVelocidade } from '../lib/velocidadeDoMotor';
+import { atualizarVelocidadeDoMotor, corrigirVelocidadeQueFicouAtras, tocarNaVelocidade } from '../lib/velocidadeDoMotor';
 import { useConnectivity } from '../state/connectivity';
 import { useEventListener } from 'expo';
 import { useVideoPlayer } from 'expo-video';
@@ -471,6 +471,24 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // toques seguidos que o relatório tem de mostrar.
     setTimeout(() => registarNaVelocidade(`+0.4 s after ${playbackRate}: ${fotoDaVelocidade(player)}`), 400);
     setTimeout(() => registarNaVelocidade(`+2 s after ${playbackRate}: ${fotoDaVelocidade(player)}`), 2000);
+    // E confirma-se, em vez de se confiar: depois de um crossfade o expo-video
+    // chegou a repor sozinho a velocidade anterior e a ficar lá (relatório de
+    // 26/9) -- ver `corrigirVelocidadeQueFicouAtras`. Só enquanto este pedido
+    // for o último e este motor o ativo; num jam a velocidade é da sessão.
+    const confirmar = (ms: number) => setTimeout(() => {
+      if (usePlayer.getState().playbackRate !== playbackRate || motorActivo() !== player) return;
+      if (useOuvirJuntos.getState().sessao) return;
+      const antes = fotoDaVelocidade(player);
+      try {
+        if (corrigirVelocidadeQueFicouAtras(player, playbackRate, aplicarVelocidadeNativa)) {
+          registarNaVelocidade(`+${ms / 1000} s: engine was not at ${playbackRate}, applied again | before: ${antes} | after: ${fotoDaVelocidade(player)}`);
+        }
+      } catch {
+        // motor largado -- ignorar
+      }
+    }, ms);
+    const verificacoes = [confirmar(600), confirmar(1500)];
+    return () => verificacoes.forEach(clearTimeout);
   }, [backend, player, playbackRate]);
 
   // Guardado num ref para o efeito de arranque poder chamar a versão mais
@@ -2042,6 +2060,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           // desapareceu -- e a faixa atual continua.
           abortarPassagem();
           player.currentTime = ms / 1000;
+        },
+        posicaoDoMotorMs: () => {
+          // A faixa da STORE, não a do closure: este registo não se refaz a
+          // cada faixa, e com a de quando foi feito dava sempre `null`.
+          if (!nativeTrackIdRef.current || nativeTrackIdRef.current !== usePlayer.getState().current?.sourceId) return null;
+          try {
+            const t = motorActivo().currentTime;
+            return Number.isFinite(t) ? t * 1000 : null;
+          } catch {
+            return null;
+          }
         },
       });
     } else {

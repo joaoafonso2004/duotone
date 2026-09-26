@@ -67,6 +67,13 @@ export type EstadoDoArranque = {
   paradoMs: number;
   /** Quantos empurrões já se deram nesta faixa. */
   empurroesDados: number;
+  /**
+   * A posição lida no PRÓPRIO motor, quando se sabe (26/9). A da store vem
+   * dos eventos de tempo e pode ficar para trás; se o motor já passou do
+   * primeiro segundo, a música arrancou -- e voltar ao 0 era o "chega aos
+   * dois segundos e recomeça, várias vezes" do João.
+   */
+  posicaoDoMotorMs?: number | null;
 };
 
 /**
@@ -102,5 +109,6 @@ export function precisaDeEmpurrao(e: EstadoDoArranque): boolean {
   if (!e.autorizadoATocar || !e.querTocar || !e.pronta) return false;
   if (e.empurroesDados >= EMPURROES_POR_FAIXA) return false;
   if (e.posicaoMs > 1000) return false;
+  if (e.posicaoDoMotorMs != null && e.posicaoDoMotorMs > 1000) return false;
   return e.paradoMs >= PARADO_DEMAIS_MS;
 }

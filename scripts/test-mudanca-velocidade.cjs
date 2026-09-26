@@ -116,6 +116,28 @@ function leitorComoNoIPhone({adota=true,blocoUsaOUltimo=true}={}){
  assert.equal(l.e.taxa,0.7,'three quick taps before the main thread runs: the last one wins');
  l.pausar();assert.equal(l.e.taxa,0,'pause pauses');
 }
+// João's report of 26/9: after a crossfade, something outside our code put the
+// PREVIOUS speed back right after each change (expo 0.8 -> 1.2 -> 0.8, and then
+// 0.9 -> 1.2). The check a moment later has to put the asked one back, and must
+// never start a paused player.
+{
+ const l=leitorComoNoIPhone();
+ motor.atualizarVelocidadeDoMotor(l.player,0.8,l.nativo);l.correrFila();
+ motor.atualizarVelocidadeDoMotor(l.player,1.2,l.nativo);l.correrFila();
+ l.e.defaultRate=0.8;l.e.taxa=0.8;l.e.expo=0.8; // the stale write, as in the report
+ assert.equal(motor.corrigirVelocidadeQueFicouAtras(l.player,1.2,l.nativo),true,'sees it is behind');
+ l.correrFila();
+ assert.equal(l.e.taxa,1.2,'and the player ends at the speed asked');
+ assert.equal(motor.corrigirVelocidadeQueFicouAtras(l.player,1.2,l.nativo),false,'nothing to do once right');
+ l.e.expo=1.2;l.e.taxa=1.2;l.e.defaultRate=0.9; // "asked 0.9, stayed at 1.2"
+ assert.equal(motor.corrigirVelocidadeQueFicouAtras(l.player,0.9,l.nativo),true);
+ l.correrFila();
+ assert.equal(l.e.taxa,0.9,'the second case lands too');
+ l.pausar();
+ assert.equal(motor.corrigirVelocidadeQueFicouAtras(l.player,1.5,l.nativo),false,'a paused player is left alone');
+ l.correrFila();
+ assert.equal(l.e.taxa,0,'and stays paused');
+}
 // Any interleaving of taps, pauses, plays and main-thread blocks ends where the
 // user left it, and a pause afterwards pauses. Deterministic pseudo-random, so
 // a failure is reproducible.

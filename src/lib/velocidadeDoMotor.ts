@@ -42,6 +42,27 @@ export function atualizarVelocidadeDoMotor(player: MotorComVelocidade, rate: num
 }
 
 /**
+ * The check after a change (26/9): if the player is PLAYING at another speed
+ * than the one asked, apply it again. Returns whether it had to.
+ *
+ * João's report of 26/9 (build 3.8.2), right after a crossfade had swapped the
+ * two engines: asked 1.2, expo-video went 0.8 -> 1.2 -> 0.8 by itself and
+ * stayed at 0.8; asked 0.9, it went to 0.9 and back to 1.2 -- "one click
+ * behind" again, on every change until the app restarted. Who wrote the old
+ * value back is not proven (none of our writes explains it), but the wrong
+ * state is STABLE and visible in expo-video's own value, so it is checked and
+ * put right instead of trusted. A paused player is never touched: the setter
+ * starts playback.
+ */
+export function corrigirVelocidadeQueFicouAtras(player: MotorComVelocidade, rate: number, nativo: PonteNativa): boolean {
+  const value = arredondar(rate);
+  if (!player.playing || !diferente(player.playbackRate, value)) return false;
+  nativo(player, value);
+  player.playbackRate = value;
+  return true;
+}
+
+/**
  * An explicit play uses the requested rate from its first audible sample.
  *
  * From a stop it ALWAYS writes expo-video's property, even when expo-video
