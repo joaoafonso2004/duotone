@@ -100,12 +100,14 @@ export const useSocial = create<SocialState>((set, get) => ({
 const INBOX_ERROR = 'Could not update messages or friend requests. Retrying while the app is open.';
 let accountId='';
 let refreshInbox: () => Promise<void> = async () => {};
+// The Windows taskbar needs a fresh inbox even while the main window is hidden.
+const canReadInbox = () => appEstaVisivel() || (Platform.OS === 'web' && !!window.duotoneDesktop);
 
 /** Messages and requests must not wait for presence, groups or profile queries.
  * Both the Social UI and notifications observe this same successful snapshot. */
 function createInboxRefresh(userId: string, gen: number) {
   return serialRefresh(async () => {
-    if (gen !== generation || !appEstaVisivel()) return;
+    if (gen !== generation || !canReadInbox()) return;
     const [inbox, friendships, local, remote] = await Promise.allSettled([
       getInboxItems(), getFriendships(), getChatsVistos(userId), lerConversasVistas(),
     ]);
@@ -143,7 +145,7 @@ export function iniciarSocial(userId: string): () => void {
   };
   const refreshMessages = () => {
     if (gen !== generation) return;
-    if (!appEstaVisivel()) { dirty=true; return; }
+    if (!canReadInbox()) { dirty=true; return; }
     void inboxRefresh();
     refresh();
   };
@@ -172,7 +174,7 @@ export function iniciarSocial(userId: string): () => void {
   const recovery = setInterval(() => { if (appEstaVisivel()) refresh(); }, 120000);
   // Foreground-only recovery even when the SQL Realtime publication is absent.
   // This reads the inbox, requests and read markers, not all Social metadata.
-  const inboxRecovery = setInterval(() => { if (appEstaVisivel()) void inboxRefresh(); }, 15000);
+  const inboxRecovery = setInterval(() => { if (canReadInbox()) void inboxRefresh(); }, 15000);
   const acordar=()=>{
     if(!appEstaVisivel())return;
     const now=Date.now()+clockOffset;

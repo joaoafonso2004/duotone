@@ -528,8 +528,8 @@ export async function setBoasVindasFeitas(): Promise<void> {
  * mesmo artista. Guardar o nome punha a estrela num dos cartões e não no
  * outro, conforme a grafia da faixa que ficou à frente.
  *
- * Num `pref:` como as sementes: viaja para a conta pelo `lib/prefsSync`, e
- * quem favorita no iPhone encontra-os no topo no PC.
+ * Cache antiga, lida apenas na migração. A store `artistasFavoritos` guarda
+ * agora por conta e sincroniza cada alteração e remoção imediatamente.
  */
 export async function getArtistasFavoritos(): Promise<string[]> {
   try {

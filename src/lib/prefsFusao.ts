@@ -13,6 +13,8 @@ export const DE_FORA = new Set([
   'pref:ajustesPorFaixa',
   'pref:searchHistory',
   'pref:chatsVistos',
+  // Sincronização imediata por artista, incluindo remoções.
+  'pref:artistasFavoritos',
   // É do APARELHO e não da pessoa: um endereço local não serve no outro.
   'pref:potServerUrl',
 ]);

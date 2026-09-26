@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNotifications } from '../state/notifications';
 import { useTheme } from '../state/theme';
 import type { NotificationTarget } from '../lib/inAppNotifications';
+import { FriendAvatar } from './FriendAvatar';
 
 export function NotificationBanner({onOpen}: {onOpen: (target: NotificationTarget) => void}) {
   const item = useNotifications(s => s.banners[0]);
@@ -24,16 +25,20 @@ export function NotificationBanner({onOpen}: {onOpen: (target: NotificationTarge
     return () => { alive=false; clearTimeout(timer); };
   }, [item]);
   if (!item) return null;
-  const banner = <View pointerEvents="box-none" style={[styles.host,{top:insets.top+8}]}>
+  const open = () => { useNotifications.getState().dismiss(item.id); onOpen(item.target); };
+  const banner = <View pointerEvents="box-none" style={[styles.host,{top:insets.top+8},Platform.OS === 'web' && styles.desktopHost]}>
     <View style={styles.card}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${item.title}. ${item.body}. Open Social`}
-        onPress={() => { useNotifications.getState().dismiss(item.id); onOpen(item.target); }}
+        onPress={open}
         style={({pressed}) => [styles.content,pressed && {opacity:0.7}]}>
-        <View style={styles.icon}><Ionicons name={item.kind === 'request' ? 'person-add-outline' : 'chatbubble-outline'} size={21} color={accent}/></View>
+        <FriendAvatar avatarUrl={item.avatarUrl ?? null} name={item.title} size={40}/>
         <View style={styles.text}><Text style={styles.brand}>DUOTONE</Text>
           <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
           <Text style={styles.body} numberOfLines={2}>{item.body}</Text></View>
       </Pressable>
+      {Platform.OS === 'web' && <Pressable accessibilityRole="button" onPress={open} style={styles.reply}>
+        <Text style={{color:accent,fontWeight:'700',fontSize:13}}>{item.kind === 'message' ? 'Reply' : 'View'}</Text>
+      </Pressable>}
       <Pressable accessibilityRole="button" accessibilityLabel="Dismiss notification"
         onPress={() => useNotifications.getState().dismiss(item.id)} style={styles.close}>
         <Ionicons name="close" size={20} color="#AAAAB4"/>
@@ -45,6 +50,8 @@ export function NotificationBanner({onOpen}: {onOpen: (target: NotificationTarge
 }
 const styles = StyleSheet.create({
   host:{position:'absolute',left:12,right:12,zIndex:10000,elevation:30,alignItems:'center'},
+  desktopHost:{left:'auto',right:20,top:48,width:420,maxWidth:'94%',alignItems:'flex-end'},
+  reply:{paddingHorizontal:12,minHeight:44,justifyContent:'center'},
   card:{width:'100%',maxWidth:520,flexDirection:'row',alignItems:'center',backgroundColor:'#1C1C23',
     borderWidth:1,borderColor:'#36363F',borderRadius:20,shadowColor:'#000',shadowOpacity:0.3,shadowRadius:16,shadowOffset:{width:0,height:6}},
   content:{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',gap:12,padding:14},

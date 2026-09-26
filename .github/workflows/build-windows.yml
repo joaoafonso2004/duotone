@@ -36,6 +36,11 @@ jobs:
           # construir as notas da versão -- o checkout traz 1 commit por defeito.
           fetch-depth: 0
 
+      # checkout can turn annotated tags into lightweight tags. Restore their
+      # messages so the published release uses the platform-specific notes.
+      - name: Repor as tags anotadas
+        run: git fetch --force --tags origin
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22

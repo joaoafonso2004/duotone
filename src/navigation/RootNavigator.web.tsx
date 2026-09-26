@@ -14,6 +14,8 @@ import { FriendAvatar } from '../components/FriendAvatar';
 import { useSaved } from '../state/saved';
 import { useRecomendacoes } from '../state/recomendacoes';
 import { useDesktopNotifications } from '../hooks/useDesktopNotifications';
+import { useSocial } from '../state/social';
+import { NotificationBanner } from '../components/NotificationBanner';
 import { fetchListeningStats, type StatsResult } from '../api/listeningStats';
 import { formatListeningTime, type StatsPeriod, type TimelineBucket } from '../lib/listeningStats';
 import { HandoffBanner } from '../components/HandoffBanner';
@@ -123,8 +125,18 @@ function DesktopShell() {
   useEffect(() => { anotarEcra(route.name); }, [route.name]);
   const [nowPlayingOpen, setNowPlayingOpen] = useState(false);
   const [jamOpen, setJamOpen] = useState(false);
-  const abrirSocial = useCallback((conversation?:{friendId?:string;groupId?:string}) => { setNowPlayingOpen(false); setRoute({ name: 'social',...conversation }); }, []);
-  useDesktopNotifications(abrirSocial);
+  const abrirSocial = useCallback((conversation?:{friendId?:string;groupId?:string}) => {
+    // Also select directly: the route can already have this friendId while
+    // SocialHub is displaying a different conversation opened from its list.
+    if (conversation?.groupId) useSocial.setState({conversation:{kind:'group',id:conversation.groupId}});
+    else if (conversation?.friendId) useSocial.setState({conversation:{kind:'friend',id:conversation.friendId}});
+    setJamOpen(false); setNowPlayingOpen(false); setRoute({ name: 'social',...conversation });
+  }, []);
+  useDesktopNotifications(abrirSocial, () => {
+    if (route.name !== 'social' || nowPlayingOpen || jamOpen) return null;
+    const conversation = useSocial.getState().conversation;
+    return conversation ? (conversation.kind === 'group' ? `group:${conversation.id}` : conversation.id) : null;
+  });
   /**
    * A presenca do Discord vive na casca, e nao numa pagina.
    *
@@ -632,7 +644,7 @@ function DesktopShell() {
     case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;
     case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} navigate={navigate} />; break;
     case 'library-check': page = <LibraryCheckPage back={back} play={play} />; break;
-    case 'social': page = <SocialPage navigate={navigate} friendId={route.friendId} groupId={route.groupId} notify={notify} play={play} more={more} />; break;
+    case 'social': page = <SocialPage navigate={navigate} friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} notify={notify} play={play} more={more} />; break;
     case 'friend-profile': page = <ProfilePage userId={route.userId} navigate={navigate} notify={notify} back={back} />; break;
     case 'now-playing': page = <NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} />; break;
   }
@@ -641,7 +653,7 @@ function DesktopShell() {
   // Definicoes. Era `rgba(18,18,24)` a martelo, fora de qualquer paleta.
   const bgStyle = { backgroundColor: `rgba(12, 12, 16, ${panelOpacity})` };
 
-  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, bgStyle]}><View style={styles.sidebar}><Sidebar route={route} navigate={navigate} /></View><View style={styles.content}><TransitionView transitionKey={JSON.stringify(route)}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <View style={[styles.root, { backgroundColor: 'transparent' }]}><ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, bgStyle]}><View style={styles.sidebar}><Sidebar route={route} navigate={navigate} /></View><View style={styles.content}><TransitionView transitionKey={JSON.stringify(route)}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransitionView>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* CUSTOM ACTIONS DIALOG */}

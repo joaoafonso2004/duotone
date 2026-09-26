@@ -9,6 +9,7 @@ import { Artwork, formatTime, ui } from './ui.web';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { EstrelaInteligente } from '../components/BrilhoInteligente';
 import { trackKey } from '../lib/shuffle';
+import { chavesEstaveis } from '../lib/arrastarFila';
 import { usePlayer } from '../state/player';
 
 /**
@@ -43,6 +44,8 @@ type Arrasto = {
   dy: number;
   /** Só passa a `true` depois do limiar — abaixo dele isto é um clique. */
   ativo: boolean;
+  aPousar?: boolean;
+  assinatura: string;
 };
 
 export function FilaArrastavel({
@@ -68,6 +71,14 @@ export function FilaArrastavel({
   const sugeridas = usePlayer((s) => s.sugeridas);
   const [arrasto, setArrasto] = useState<Arrasto | null>(null);
   const ref = useRef<Arrasto | null>(null);
+  const [aConfirmar, setAConfirmar] = useState(false);
+  const pousarTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const frame = useRef(0);
+  const chaves = chavesEstaveis(entradas.map(e => trackKey(e.track)));
+  const assinatura = entradas.map(e => `${trackKey(e.track)}:${e.index}`).join('|');
+  const atuais = useRef({ assinatura, aoMover });
+  atuais.current = { assinatura, aoMover };
+  useEffect(() => () => { if (pousarTimer.current) clearTimeout(pousarTimer.current); cancelAnimationFrame(frame.current); }, []);
   // Depois de arrastar, o `click` ainda chega; sem isto largar a faixa punha-a
   // a tocar.
   const ignorarClique = useRef(false);
@@ -80,6 +91,10 @@ export function FilaArrastavel({
   const alvo = arrasto?.ativo
     ? indiceAlvo(arrasto.deVisivel, arrasto.dy, arrasto.altura, entradas.length)
     : -1;
+
+  useEffect(() => {
+    if (ref.current && ref.current.assinatura !== assinatura) guardar(null);
+  }, [assinatura, guardar]);
 
   // Escape desiste. Um arrasto sem saída é a maneira mais rápida de estragar
   // uma fila sem querer.
@@ -104,10 +119,11 @@ export function FilaArrastavel({
 
         return (
           <div
-            key={`${entrada.track.source}:${entrada.track.sourceId}:${entrada.index}`}
+            key={chaves[i]}
             className="np-fila-linha"
+            onDragStart={e => e.preventDefault()}
             onPointerDown={(e: any) => {
-              if (!podeArrastar || e.button !== 0) return;
+              if (!podeArrastar || e.button !== 0 || ref.current?.aPousar || aConfirmar) return;
               // Gesto novo comeca sempre limpo. Sem isto, cancelar um arrasto
               // com Escape deixava a bandeira levantada e o clique SEGUINTE era
               // engolido — era preciso clicar duas vezes para tocar uma faixa.
@@ -122,11 +138,12 @@ export function FilaArrastavel({
                 altura: e.currentTarget.offsetHeight || 64,
                 dy: 0,
                 ativo: false,
+                assinatura,
               });
             }}
             onPointerMove={(e: any) => {
               const a = ref.current;
-              if (!a || a.deVisivel !== i) return;
+              if (!a || a.aPousar || a.deVisivel !== i) return;
               const dy = e.clientY - a.inicioY;
               // Abaixo do limiar ainda pode ser um clique — não mexer em nada.
               if (!a.ativo && !comecouAArrastar(dy)) return;
@@ -135,13 +152,24 @@ export function FilaArrastavel({
             onPointerUp={(e: any) => {
               const a = ref.current;
               try { e.currentTarget.releasePointerCapture?.(e.pointerId); } catch {}
-              if (!a || a.deVisivel !== i) return;
+              if (!a || a.aPousar || a.deVisivel !== i) return;
               if (a.ativo) {
                 ignorarClique.current = true;
                 const destino = indiceAlvo(a.deVisivel, a.dy, a.altura, entradas.length);
-                if (destino !== a.deVisivel) {
-                  aoMover(a.deVisivel, destino);
-                }
+                // Land in the open slot first. Only then change DOM order,
+                // removing every transform without a second CSS transition.
+                const pousada = { ...a, dy: (destino - a.deVisivel) * a.altura, aPousar: true };
+                guardar(pousada);
+                pousarTimer.current = setTimeout(() => {
+                  if (ref.current !== pousada || atuais.current.assinatura !== a.assinatura) return;
+                  setAConfirmar(true);
+                  guardar(null);
+                  if (destino !== a.deVisivel) atuais.current.aoMover(a.deVisivel, destino);
+                  frame.current = requestAnimationFrame(() => {
+                    frame.current = requestAnimationFrame(() => setAConfirmar(false));
+                  });
+                }, DESLIZE_MS + 20);
+                return;
               }
               guardar(null);
             }}
@@ -174,7 +202,7 @@ export function FilaArrastavel({
               touchAction: 'none',
               transform: y ? `translateY(${y}px)` : undefined,
               // A linha arrastada segue o rato sem atraso; as outras deslizam.
-              transition: arrastada ? 'none' : `transform ${DESLIZE_MS}ms ease`,
+              transition: aConfirmar || (arrastada && !arrasto?.aPousar) ? 'none' : `transform ${DESLIZE_MS}ms ease`,
               position: 'relative',
               zIndex: arrastada ? 2 : 1,
               borderRadius: 8,

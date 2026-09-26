@@ -42,6 +42,7 @@ declare global {
       getStartup?: () => Promise<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean }>;
       setStartup?: (enabled: boolean, mode: 'window' | 'tray') => Promise<{ enabled: boolean; mode: 'window' | 'tray'; available: boolean }>;
       notifyMessage?: (message: { id: string; title: string; body: string;friendId?:string;groupId?:string }) => void;
+      setUnreadMessages?: (count: number, attention: boolean) => void;
       onNotificationClick?: (listener: (conversation?:{friendId?:string;groupId?:string}) => void) => () => void;
       pesquisarNoYouTube?: (pedido: { query?: string; clientVersion: string; params?: string; continuation?: string }) => Promise<any>;
       /** Um GET ao catálogo pelo processo principal, que não tem CORS. Leva só

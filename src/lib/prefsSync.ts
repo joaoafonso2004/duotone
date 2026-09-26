@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState } from 'react-native';
 import { supabase } from './supabase';
+import { updateAccountPrefs } from './accountPrefs';
 import { chavesAEscrever, DE_FORA, PREFIXO } from './prefsFusao';
 
 /**
@@ -43,15 +44,14 @@ async function lerLocais(): Promise<Record<string, string>> {
 
 async function enviar(): Promise<void> {
   if (!utilizador) return;
+  const userId = utilizador;
   const saco = await lerLocais();
   const retrato = JSON.stringify(saco);
   // Nada mudou desde a última vez: não se gasta rede a repetir.
   if (retrato === ultimoEnviado || retrato === '{}') return;
   try {
-    const { error } = await supabase.from('user_prefs')
-      .upsert({ user_id: utilizador, prefs: saco, updated_at: new Date().toISOString() },
-        { onConflict: 'user_id' });
-    if (!error) ultimoEnviado = retrato;
+    await updateAccountPrefs(userId, current => ({ ...current, ...saco }));
+    if (utilizador === userId) ultimoEnviado = retrato;
   } catch {
     // Sem rede: fica para a próxima vez que a app for para segundo plano.
   }

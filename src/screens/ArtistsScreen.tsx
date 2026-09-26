@@ -21,6 +21,7 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
 import { hapticSelection } from '../lib/haptics';
 import { useArtistasFavoritos } from '../state/artistasFavoritos';
+import { ArtistFavoritesSyncStatus } from '../components/ArtistFavoritesSyncStatus';
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
@@ -142,6 +143,7 @@ export function ArtistsScreen() {
         keyboardShouldPersistTaps="handled" initialNumToRender={15} windowSize={7}
         columnWrapperStyle={{ gap: 12 }} contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32 }}
         ListHeaderComponent={<>
+          <ArtistFavoritesSyncStatus />
           {!searchQuery.trim() && repeated.length > 0 && <View style={styles.shelf}>
             <Text style={type.title}>On repeat</Text>
             <FlatList horizontal data={repeated} keyExtractor={a => chaveDeArtista(a.name)} showsHorizontalScrollIndicator={false}

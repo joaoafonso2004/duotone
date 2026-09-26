@@ -3,7 +3,7 @@ import type { Friendship, SharedItem } from '../api/social';
 export type NotificationTarget = { friendId?: string; groupId?: string };
 export type InAppNotification = {
   id: string; conversationKey: string; title: string; body: string;
-  target: NotificationTarget; kind: 'message' | 'request'; createdAt: string;
+  target: NotificationTarget; kind: 'message' | 'request'; createdAt: string; avatarUrl?: string | null;
 };
 export type InboxSnapshot = {
   accountId: string; received?: SharedItem[]; friends?: Friendship[];
@@ -31,7 +31,7 @@ export function createNotificationJournal(userId: string) {
         if (!messagesReady || item.sender.id === userId) continue;
         const target = item.groupId ? {groupId:item.groupId} : {friendId:item.sender.id};
         result.push({id:item.id, conversationKey:conversationKey(target), target, kind:'message',
-          createdAt:item.createdAt, title:item.sender.name || item.sender.username || 'Duotone',
+          createdAt:item.createdAt, title:item.sender.name || item.sender.username || 'Duotone', avatarUrl:item.sender.avatarUrl,
           body:item.message || (item.itemType === 'sessao' ? 'Invited you to listen together'
             : item.itemType === 'playlist' ? 'Shared a playlist with you'
             : item.trackData?.title ? `Shared ${item.trackData.title}` : 'Shared a song with you')});
@@ -55,7 +55,7 @@ export function createNotificationJournal(userId: string) {
       for (const friend of pending) {
         if (!friendsReady || requests.has(friend.friendId)) continue;
         result.push({id:`request:${friend.friendId}`, conversationKey:`request:${friend.friendId}`,
-          target:{}, kind:'request', createdAt:'', title:friend.name || friend.username,
+          target:{}, kind:'request', createdAt:'', title:friend.name || friend.username, avatarUrl:friend.avatarUrl,
           body:'Sent you a friend request'});
       }
       requests = new Set(pending.map(f => f.friendId));

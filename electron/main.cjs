@@ -1,4 +1,5 @@
-const { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, net, powerMonitor, protocol, screen, session, shell, Tray, globalShortcut, Notification } = require('electron');
+const { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, screen, session, shell, Tray, globalShortcut, Notification } = require('electron');
+const { setMessageAttention } = require('./messageBadge.cjs');
 const {
   DISCORD_APP_ID, definirPresenca, prepararDiscord, ouvirJuncao, fecharDiscord,
 } = require('./discord.cjs');
@@ -131,6 +132,14 @@ ipcMain.handle('startup:set', (event, enabled, mode) => {
 
 // Só a janela principal pode pedir notificações; o iframe do YouTube não pode.
 const notificacoes = new Map();
+ipcMain.on('notification:unread', (event, count, attention) => {
+  if (!daJanelaPrincipal(event)) return;
+  setMessageAttention(mainWindow, nativeImage, count, attention, process.platform);
+  if (count === 0) {
+    for (const notification of notificacoes.values()) notification.close();
+    notificacoes.clear();
+  }
+});
 ipcMain.on('notification:message', (event, message) => {
   if (!daJanelaPrincipal(event) || !Notification.isSupported() || mainWindow.isFocused()) return;
   if (!message || typeof message.id !== 'string' || typeof message.title !== 'string' || typeof message.body !== 'string') return;
@@ -904,6 +913,7 @@ function createWindow() {
   });
   win.webContents.once('did-finish-load', entregarJuncoesPendentes);
   win.on('maximize', () => sendWindowState(win));
+  win.on('focus', () => win.flashFrame(false));
   for (const evento of ['show', 'hide', 'minimize', 'restore']) win.on(evento, () => avisarMiniDaJanela());
   win.on('unmaximize', () => sendWindowState(win));
   win.on('close', (event) => {

@@ -21,6 +21,7 @@ import { getTopArtists } from '../../api/plays';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist, tituloDaFaixa } from '../../lib/artistName';
 import { useArtistasFavoritos } from '../../state/artistasFavoritos';
+import { ArtistFavoritesSyncStatus } from '../../components/ArtistFavoritesSyncStatus';
 import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../../state/catalogoDeFaixas';
 import { ordenarArtistas, ordenarFaixas } from '../../lib/ordenacao';
 import { useAuth } from '../../state/auth';
@@ -272,6 +273,7 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
   }), [filteredArtists.length]);
 
   return <Page title="Artists" subtitle={`${artists.length} ${artists.length === 1 ? 'artist' : 'artists'}`}>
+    <ArtistFavoritesSyncStatus />
     <View style={styles.songsToolbar}>
       <View style={styles.songsSearch}><Field icon="search" placeholder="Search artists" value={query} onChangeText={setQuery} /></View>
       <Text style={styles.songsResultCount}>{query ? `${filteredArtists.length} of ` : ''}{artists.length} {artists.length === 1 ? 'artist' : 'artists'}</Text>
