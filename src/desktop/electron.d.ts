@@ -12,6 +12,19 @@ declare module 'react-native' {
 }
 
 declare global {
+  /** O que o `diagnostico:recursos` do processo principal devolve. */
+  interface RecursosDaApp {
+    processos: { tipo: string; nome: string; cpu: number; memoriaMB: number; privadaMB: number }[];
+    youtube: ({ altura: number; largura: number; aTocar: boolean } | null)[];
+    janela: 'visivel' | 'minimizada' | 'escondida';
+    /** A última amostra de um minuto com a janela escondida ou minimizada. */
+    escondida: {
+      em: string;
+      janela: 'minimizada' | 'escondida';
+      processos: { tipo: string; nome: string; cpu: number; memoriaMB: number; privadaMB: number }[];
+      youtube: ({ altura: number; largura: number; aTocar: boolean } | null)[];
+    } | null;
+  }
   /** O que a janela principal manda ao mini leitor (validado no electron/miniLeitor.cjs). */
   interface ResumoDoMiniLeitor {
     titulo: string | null;
@@ -51,6 +64,10 @@ declare global {
        * o que o `api/catalogo.ts` já sabe ler. */
       pedirAoCatalogo?: (caminho: string) => Promise<any>;
       lerEmbedDoSpotify?: (id: string) => Promise<string | null>;
+      /** Larga as caches de memória do Blink que já não se usam. */
+      aliviarMemoria?: () => void;
+      /** Recursos por processo e o vídeo do YouTube, para o relatório. */
+      lerRecursos?: () => Promise<RecursosDaApp | null>;
       /** A presença do Discord, pelo socket local dele. `null` na actividade
        * limpa; `null` no id desliga. Devolve se o Discord respondeu. */
       definirPresencaNoDiscord?: (
@@ -88,6 +105,9 @@ declare global {
       /** "Update now": descarrega e instala a versão nova (electron/atualizacao.cjs).
        *  Com `ok`, a app fecha-se e o instalador volta a abri-la. */
       instalarAtualizacao?: () => Promise<{ ok: boolean; versao?: string; erro?: string }>;
+      /** A atualização do Windows é automática: sem aviso, instala ao abrir. */
+      atualizacaoAutomatica?: boolean;
+      procurarAtualizacao?: () => Promise<{ estado: 'atual' | 'pronta' | 'desistiu' | 'erro'; versao?: string } | null>;
       /** O progresso do download, de 0 a 1. Devolve o cancelamento. */
       onProgressoDaAtualizacao?: (listener: (progresso: number) => void) => () => void;
       /** F11 e Esc, apanhados pelo processo principal (o iframe do YouTube

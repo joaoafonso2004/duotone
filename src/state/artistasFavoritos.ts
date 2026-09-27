@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { appEstaVisivel } from '../lib/appVisibility';
 import { getArtistasFavoritos } from '../lib/prefs';
 import { updateAccountPrefs } from '../lib/accountPrefs';
 import { ArtistFavoritesSync, applyFavoriteEdits, readFavorites, type FavoritesSnapshot } from '../lib/artistFavoritesSync';
@@ -62,7 +63,9 @@ export function iniciarArtistasFavoritos(userId: string): () => void {
   sync = instance;
   const refresh = () => { if (alive) void instance.sync(); };
   const app = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
-  const timer = setInterval(refresh, 15000); // Fallback if user_prefs has no Realtime publication.
+  // Fallback if user_prefs has no Realtime publication. Only with the app in
+  // front: minimized it was a request every 15 s for nothing (27/9, app weight).
+  const timer = setInterval(() => { if (appEstaVisivel()) refresh(); }, 15000);
   const channel = supabase.channel(`artist-favorites:${userId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'user_prefs', filter: `user_id=eq.${userId}` }, refresh)
     .subscribe(status => { if (status === 'SUBSCRIBED') refresh(); });

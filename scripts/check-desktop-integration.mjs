@@ -10,7 +10,10 @@ assert.match(raizDesktop, /useSincroniaDaSessao\(\)/,
 const handlers = new Map();
 const events = new Map();
 let startup = { openAtLogin: false, executableWillLaunchAtLogin: false };
-let guardado = null;
+// Quem já escolheu o tabuleiro: é esse o caso que o arranque escondido prova.
+// Sem ficheiro nenhum, a primeira abertura liga o arranque a abrir a janela
+// (`arranqueComWindows.cjs`, testado à parte).
+let guardado = JSON.stringify({ mode: 'tray', decidido: true });
 let janela;
 const avisos = [];
 const externos = [];
@@ -69,9 +72,10 @@ const contexto = vm.createContext({
   // RELATIVO nao resolve a partir deste script. O modulo do Discord entra como
   // duplo: esta verificacao e sobre a casca do Electron, e nao sobre o socket
   // do Discord, que tem os seus proprios testes.
-  // Os módulos da atualização, dos atalhos e do mini leitor são puros (sem
+  // Os módulos da atualização, dos atalhos, do mini leitor e do arranque com o
+  // Windows são puros (sem
   // `electron`): entram os verdadeiros.
-  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './discord.cjs' ? {
+  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './discord.cjs' ? {
     DISCORD_APP_ID: '1547625164328538133',
     definirPresenca: () => Promise.resolve(false),
     prepararDiscord: () => { preparacoesDiscord++; return Promise.resolve(true); },

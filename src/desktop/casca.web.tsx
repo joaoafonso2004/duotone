@@ -201,7 +201,8 @@ export function injectDesktopDocumentStyles() {
        ===================================================================== */
     :root{
       --dt-curva: cubic-bezier(.22, 1, .36, 1);
-      --dt-rapido: 120ms; --dt-normal: 180ms; --dt-lento: 260ms;
+      /* Mais curtos a 27/9: a app tem de parecer instantânea. */
+      --dt-rapido: 110ms; --dt-normal: 150ms; --dt-lento: 220ms;
     }
 
     /* Carregar num botao encolhe-o 3%. */
@@ -219,16 +220,40 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="lista"] [data-dt~="fila"]:nth-child(-n+12),
     [data-dt~="fila"]:first-child{ animation: dt-linha var(--dt-normal) var(--dt-curva) both; }
     @keyframes dt-linha{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform:none; } }
-    [data-dt~="lista"] [data-dt~="fila"]:nth-child(2){ animation-delay: 15ms }
-    [data-dt~="lista"] [data-dt~="fila"]:nth-child(3){ animation-delay: 30ms }
-    [data-dt~="lista"] [data-dt~="fila"]:nth-child(4){ animation-delay: 45ms }
-    [data-dt~="lista"] [data-dt~="fila"]:nth-child(5){ animation-delay: 60ms }
-    [data-dt~="lista"] [data-dt~="fila"]:nth-child(6){ animation-delay: 75ms }
-    [data-dt~="lista"] [data-dt~="fila"]:nth-child(7){ animation-delay: 90ms }
-    [data-dt~="lista"] [data-dt~="fila"]:nth-child(8){ animation-delay: 105ms }
-    [data-dt~="lista"] [data-dt~="fila"]:nth-child(9){ animation-delay: 120ms }
-    [data-dt~="lista"] [data-dt~="fila"]:nth-child(10){ animation-delay: 135ms }
-    [data-dt~="lista"] [data-dt~="fila"]:nth-child(n+11){ animation-delay: 150ms }
+
+    /* A passagem entre páginas (27/9): 150 ms em CSS, que o compositor corre
+       mesmo com a thread a montar a página nova (ver TransicaoDePagina). Com
+       "backwards" e não "both": depois de entrar não fica nada preso -- um
+       transform que ficasse fazia da página o contentor dos "fixed" dela. */
+    [data-dt~="pagina"]{ animation: dt-pagina var(--dt-normal) var(--dt-curva) backwards; }
+    @keyframes dt-pagina{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform:none; } }
+    /* Os cartões das grelhas e das prateleiras entram em cascata curta, os
+       doze primeiros. "backwards" pela mesma razão: o hover manda no transform. */
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(-n+12){ animation: dt-linha 160ms var(--dt-curva) backwards; }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(2){ animation-delay: 12ms }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(3){ animation-delay: 24ms }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(4){ animation-delay: 36ms }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(5){ animation-delay: 48ms }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(6){ animation-delay: 60ms }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(7){ animation-delay: 72ms }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(8){ animation-delay: 84ms }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(9){ animation-delay: 96ms }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(10){ animation-delay: 108ms }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(11){ animation-delay: 120ms }
+    [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(12){ animation-delay: 132ms }
+    /* O "Loading…" só aparece se a espera passar de um quarto de segundo:
+       uma troca rápida não pisca um spinner. */
+    [data-dt~="carregar"]{ animation: dt-aparecer 150ms ease 250ms backwards; }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(2){ animation-delay: 10ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(3){ animation-delay: 20ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(4){ animation-delay: 30ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(5){ animation-delay: 40ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(6){ animation-delay: 50ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(7){ animation-delay: 60ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(8){ animation-delay: 70ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(9){ animation-delay: 80ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(10){ animation-delay: 90ms }
+    [data-dt~="lista"] [data-dt~="fila"]:nth-child(n+11){ animation-delay: 100ms }
 
     /* Na linha onde esta o rato: o numero da lugar ao play, e o "..." aparece. */
     [data-dt~="fila"] [data-dt~="numero"]{ transition: opacity var(--dt-rapido) var(--dt-curva); }
@@ -261,6 +286,8 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: dt-pular 900ms ease-in-out infinite; }
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(2){ animation-delay: 150ms }
     [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]:nth-child(3){ animation-delay: 300ms }
+    /* Em pausa, as barras ficam quietas e baixas (27/9). */
+    [data-dt~="fila"] [data-dt~="barras"][data-dt~="parado"] [data-dt~="barra"]{ animation: none; height: 4px; }
     @keyframes dt-pular{ 0%,100%{ height:4px } 50%{ height:13px } }
 
     /* Dialogos: o veu escurece e a caixa cresce a partir do centro. */
@@ -310,6 +337,7 @@ export function injectDesktopDocumentStyles() {
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
       [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"], [data-dt~="coracao"],
+      [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="carregar"],
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],

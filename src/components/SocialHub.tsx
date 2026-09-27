@@ -354,7 +354,26 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
       {web&&groupHeader}
       <View style={{flex:1,minHeight:0,padding:web?24:16,gap:12}}>
         {!web&&<FundoDaApp/>}
-        {web&&!group&&<View style={s.row}><Text numberOfLines={1} style={[s.title,{flex:1}]}>{title}</Text><SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/></View>}
+        {/* No PC a conversa só dizia o nome (João, 26/9: "devia ter a imagem dele em cima").
+            A cara com a bolinha de online, o nome e, por baixo, o estado ou o que está a
+            ouvir -- o mesmo que o CabecalhoDoAmigo dá no iPhone. Clicar abre o perfil. */}
+        {web&&!group&&<View style={s.row}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`View ${title}`} disabled={!friend} onPress={()=>friend&&onProfile(friend.friendId)}
+            style={{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',gap:12}}>
+            <View>
+              <FriendAvatar avatarUrl={friend?.avatarUrl??null} name={title} size={40}/>
+              {friend?.online?<View style={{position:'absolute',right:-1,bottom:-1,width:12,height:12,borderRadius:6,backgroundColor:'#3ECF6E',borderWidth:2,borderColor:colors.bg}}/>:null}
+            </View>
+            <View style={{flex:1,minWidth:0}}>
+              <Text numberOfLines={1} style={s.title}>{title}</Text>
+              {friend?<Text numberOfLines={1} style={[s.muted,friend.currentlyPlaying&&{color:accent}]}>
+                {friend.currentlyPlaying?`♫ ${tituloDaFaixa(friend.currentlyPlaying)} · ${displayArtist(friend.currentlyPlaying)}`
+                  :friend.online?'Online now':ultimaAtividade(friend.lastSeenAt,social.now)}
+              </Text>:null}
+            </View>
+          </Pressable>
+          <SocialIconButton label="Back to chats" icon={split?'close':'chevron-back'} onPress={closeChat}/>
+        </View>}
         {!!error&&<Text style={s.error}>{error}</Text>}{chatLoading&&<ActivityIndicator color={accent}/>}
         {group&&!chatLoading&&!messages.length&&!error?<View style={{flex:1,justifyContent:'center'}}><GroupEmptyState group={group}/></View>:
         <FlatList ref={lista} inverted onScrollToIndexFailed={info=>{

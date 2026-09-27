@@ -3,7 +3,7 @@ import { Image, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { COR, RAIO } from '../tokens.web';
 import type { EffectIntensity, GlitchMode } from '../../lib/prefs';
-import { criarRenderer, detetarRecorte, type Recorte } from './renderer.web';
+import { criarRenderer, recorteDaCapa, type Recorte } from './renderer.web';
 import { iniciarCaptura, type Captura } from './beat.web';
 
 /**
@@ -41,7 +41,7 @@ for (let i = 0; i < ESPETRO_ESTATICO.length; i++) {
  *
  * Sem isto, a capa tinha DOIS enquadramentos e trocava de um para o outro
  * a meio do gesto: o canvas corta as barras que o YouTube embrulhou na
- * thumbnail (ver `detetarRecorte`), a `<Image>` simples nao. Arrastar as
+ * thumbnail (ver `recorteDaCapa`), a `<Image>` simples nao. Arrastar as
  * letras de volta punha `modo` a 'off' antes de o cubo acabar de rodar, e o
  * que se via era a capa a ganhar barras pretas e a perde-las outra vez.
  *
@@ -94,7 +94,7 @@ export function GlitchArtwork({ uri, lado, modo, intensidade }: { uri: string | 
       if (!vivo) return;
       const largura = imagem.naturalWidth || 1;
       const altura = imagem.naturalHeight || 1;
-      const medido = { ...detetarRecorte(imagem, largura, altura), largura, altura };
+      const medido = { ...recorteDaCapa(largura, altura), largura, altura };
       recortes.set(uri, medido);
       setRecorte(medido);
     };

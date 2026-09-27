@@ -15,6 +15,7 @@ import { APP_VERSION, BUILD_ID } from '../../lib/buildInfo';
 import { EVENTO_PROCURAR_ATUALIZACAO } from '../../lib/avisoDeVersao';
 import { checkForUpdate, PORTFOLIO_URL } from '../../lib/updates';
 import { relatorio } from '../../lib/playbackDiagnostics';
+import { textoDosRecursos } from '../../lib/recursosDaApp';
 import {
   getGlitchMode, setGlitchMode, type GlitchMode,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
@@ -213,13 +214,17 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   // viver aqui — que e onde serve para alguma coisa: um ficheiro que se abre,
   // se le e se cola numa mensagem. Antes disto ia tudo para `console.warn`,
   // que num executavel instalado nao e lido por ninguem.
-  const exportarRelatorio = () => {
+  const exportarRelatorio = async () => {
+    // Os recursos de cada processo (27/9): demora 2 s, porque o CPU é medido
+    // entre duas leituras. Sem ponte (browser) o relatório sai sem eles.
+    const recursos = await window.duotoneDesktop?.lerRecursos?.().catch(() => null);
+    const secaoDosRecursos = textoDosRecursos(recursos ?? null);
     const texto = relatorio({
       versao: APP_VERSION,
       build: BUILD_ID,
       plataforma: `windows (${navigator.userAgent.includes('Electron') ? 'app' : 'browser'})`,
       gerado: new Date().toISOString(),
-    });
+    }) + (secaoDosRecursos ? `\n\n${secaoDosRecursos}\n` : '');
     const url = URL.createObjectURL(new Blob([texto], { type: 'text/plain;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
@@ -249,6 +254,21 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   // browser não há ponte, e fica o download pelo site.
   const instalaNaApp = typeof window !== 'undefined' && !!window.duotoneDesktop?.instalarAtualizacao;
   const checkForUpdates = async () => {
+    // A app instalada atualiza-se sozinha (27/9): procurar agora só adianta o
+    // download, e a versão nova entra na próxima vez que o Duotone abrir.
+    const ponte = window.duotoneDesktop;
+    if (ponte?.procurarAtualizacao) {
+      setCheckingUpdate(true);
+      try {
+        const r = await ponte.procurarAtualizacao();
+        if (r?.estado === 'pronta') notify(`Duotone ${r.versao} is ready. It installs the next time you open Duotone.`);
+        else if (r?.estado === 'atual') notify(`Duotone ${APP_VERSION} is up to date.`);
+        else notify('Could not check for updates. Check your connection and try again.');
+      } finally {
+        setCheckingUpdate(false);
+      }
+      return;
+    }
     if (!instalaNaApp) {
       window.open(PORTFOLIO_URL, '_blank', 'noopener,noreferrer');
       return;
@@ -425,11 +445,12 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               {aberta === 'sobre' && <SettingsCard title="About">
                 {/* Vem do buildInfo.ts, que a CI reescreve a cada build (build-windows.yml). */}
                 <SettingLine label="Version" value={APP_VERSION} />
+                {window.duotoneDesktop?.atualizacaoAutomatica ? <Text style={[styles.settingDescription, { paddingHorizontal: 17, paddingBottom: 10, marginTop: 0 }]}>Updates download by themselves and install the next time Duotone opens.</Text> : null}
                 <SettingAction
                   label={update ? `${instalaNaApp ? 'Update to' : 'Download'} Duotone ${update.version}` : checkingUpdate ? 'Checking for updates…' : 'Check for updates'}
                   onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
                 />
-                <SettingAction label="Save playback report" description="If a song won't play, send this so it can be fixed." onPress={exportarRelatorio} />
+                <SettingAction label="Save playback report" description="If a song won't play, or Duotone feels heavy, send this so it can be fixed." onPress={() => { notify('Preparing the report…'); void exportarRelatorio(); }} />
                 <SettingAction danger label="Delete account permanently" onPress={() => setDeleteConfirm(true)} />
               </SettingsCard>}
             </View>

@@ -35,114 +35,30 @@ export type GlitchRenderer = {
 export type Recorte = { x: number; y: number; lado: number };
 
 /**
- * Deteta margens que ja fazem parte da thumbnail (letterbox/pillarbox).
+ * O quadrado da capa dentro da miniatura, pela GEOMETRIA: uma conta com a
+ * largura e a altura, e mais nada.
  *
- * O `cover` normal resolve uma imagem 16:9, mas nao resolve um quadrado que o
- * YouTube tenha colocado DENTRO de um thumbnail 4:3/16:9 com barras pretas ou
- * cinzentas. Amostramos a capa uma vez a baixa resolucao, procuramos pares de
- * faixas quase uniformes nas extremidades e devolvemos um recorte quadrado da
- * zona util. Em caso de duvida ou CORS, fica o cover centrado habitual.
+ * Era uma deteção por píxeis (procurava faixas quase uniformes nas bordas) e
+ * falhava nas capas escuras: o fundo preto da própria capa lia-se como barra e
+ * a capa aparecia ampliada, cortada nas bordas (João, 27/9, a do "NEED" do
+ * Playboi Carti). A conta é a das listas (`molduraSemBarras`, em
+ * `lib/modoLimpo.ts`):
+ *
+ * - **4:3** (`hqdefault`, `sddefault`, `default`): o vídeo 16:9 vem com barras
+ *   em cima e em baixo; a capa é o quadrado do meio da faixa 16:9.
+ * - **O resto** (a `maxresdefault` 16:9, as capas quadradas do catálogo): o
+ *   quadrado do meio.
+ *
+ * Não lê a imagem: sem canvas e sem `getImageData` por capa.
  */
-export function detetarRecorte(imagem: TexImageSource, largura: number, altura: number): Recorte {
-  const ladoBase = Math.min(largura, altura);
-  const base: Recorte = {
-    x: (largura - ladoBase) / 2,
-    y: (altura - ladoBase) / 2,
-    lado: ladoBase,
-  };
-
-  try {
-    const maximo = 112;
-    const escala = Math.min(1, maximo / Math.max(largura, altura));
-    const w = Math.max(8, Math.round(largura * escala));
-    const h = Math.max(8, Math.round(altura * escala));
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return base;
-    ctx.drawImage(imagem as any, 0, 0, w, h);
-    const dados = ctx.getImageData(0, 0, w, h).data;
-
-    const lado = Math.min(w, h);
-    const x0 = Math.floor((w - lado) / 2);
-    const y0 = Math.floor((h - lado) / 2);
-    const limite = Math.max(2, Math.floor(lado * 0.24));
-
-    const detalheLinha = (horizontal: boolean, fixa: number) => {
-      let soma = 0;
-      let n = 0;
-      for (let i = 1; i < lado; i++) {
-        const ax = horizontal ? x0 + i - 1 : fixa;
-        const ay = horizontal ? fixa : y0 + i - 1;
-        const bx = horizontal ? x0 + i : fixa;
-        const by = horizontal ? fixa : y0 + i;
-        const a = (ay * w + ax) * 4;
-        const b = (by * w + bx) * 4;
-        soma += Math.abs(dados[a] - dados[b])
-          + Math.abs(dados[a + 1] - dados[b + 1])
-          + Math.abs(dados[a + 2] - dados[b + 2]);
-        n += 3;
-      }
-      return soma / Math.max(1, n);
-    };
-
-    const linhas = new Float32Array(lado);
-    const colunas = new Float32Array(lado);
-    for (let i = 0; i < lado; i++) {
-      linhas[i] = detalheLinha(true, y0 + i);
-      colunas[i] = detalheLinha(false, x0 + i);
-    }
-
-    // Tres linhas detalhadas seguidas evitam confundir um risco isolado na
-    // barra (ou o proprio glitch gravado na thumbnail) com o inicio da capa.
-    const margem = (valores: Float32Array, inverter: boolean) => {
-      // O limiar e relativo a propria margem. Capas muito escuras como esta
-      // podem ter detalhe medio < 2 mesmo ja dentro da imagem; o antigo valor
-      // fixo 7 nunca encontrava a transicao do lado inferior/direito.
-      let detalheMargem = 0;
-      const amostrasMargem = Math.min(6, lado);
-      for (let i = 0; i < amostrasMargem; i++) {
-        detalheMargem += valores[inverter ? lado - 1 - i : i];
-      }
-      detalheMargem /= amostrasMargem;
-      const limiarDetalhe = Math.max(0.9, detalheMargem * 1.65);
-      for (let i = 1; i < limite - 2; i++) {
-        const a = inverter ? lado - 1 - i : i;
-        const b = inverter ? a - 1 : a + 1;
-        const c = inverter ? a - 2 : a + 2;
-        if (valores[a] > limiarDetalhe && valores[b] > limiarDetalhe && valores[c] > limiarDetalhe) return i;
-      }
-      return 0;
-    };
-
-    let topo = margem(linhas, false);
-    let fundo = margem(linhas, true);
-    let esquerda = margem(colunas, false);
-    let direita = margem(colunas, true);
-
-    // Margens embutidas surgem aos pares. Esta regra impede que um ceu liso
-    // apenas no topo de uma fotografia seja interpretado como letterbox.
-    const minimoMargem = Math.max(2, Math.floor(lado * 0.025));
-    if (topo < minimoMargem || fundo < minimoMargem) topo = fundo = 0;
-    if (esquerda < minimoMargem || direita < minimoMargem) esquerda = direita = 0;
-    if (!topo && !esquerda) return base;
-
-    const utilX = x0 + esquerda;
-    const utilY = y0 + topo;
-    const utilW = lado - esquerda - direita;
-    const utilH = lado - topo - fundo;
-    const utilLado = Math.max(1, Math.min(utilW, utilH));
-    const recorteX = utilX + (utilW - utilLado) / 2;
-    const recorteY = utilY + (utilH - utilLado) / 2;
-    return {
-      x: recorteX / escala,
-      y: recorteY / escala,
-      lado: utilLado / escala,
-    };
-  } catch {
-    return base;
+export function recorteDaCapa(largura: number, altura: number): Recorte {
+  if (!(largura > 0) || !(altura > 0)) return { x: 0, y: 0, lado: Math.max(1, Math.min(largura, altura)) };
+  if (Math.abs(largura / altura - 4 / 3) < 0.02) {
+    const faixa = (largura * 9) / 16;
+    return { x: (largura - faixa) / 2, y: (altura - faixa) / 2, lado: faixa };
   }
+  const lado = Math.min(largura, altura);
+  return { x: (largura - lado) / 2, y: (altura - lado) / 2, lado };
 }
 
 function compilar(gl: WebGLRenderingContext, tipo: number, fonte: string): WebGLShader | null {
@@ -268,7 +184,7 @@ export function criarRenderer(
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imagem as any);
         const larg = (imagem as any).naturalWidth || (imagem as any).width || 1;
         const alt = (imagem as any).naturalHeight || (imagem as any).height || 1;
-        const recorte = detetarRecorte(imagem, larg, alt);
+        const recorte = recorteDaCapa(larg, alt);
         const escalaX = recorte.lado / larg;
         const escalaY = recorte.lado / alt;
         gl.uniform2f(uEscala, escalaX, escalaY);

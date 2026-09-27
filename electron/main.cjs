@@ -83,18 +83,38 @@ const { spawn } = require('node:child_process');
 const atualizacao = require('./atualizacao.cjs');
 const atalhos = require('./atalhos.cjs');
 const mini = require('./miniLeitor.cjs');
+const { arranqueAoAbrir, escolhaDaPessoa, MODO_DE_ORIGEM } = require('./arranqueComWindows.cjs');
 
 const STARTUP_ARGS = ['--duotone-auto-start'];
 function startupMode() {
   try {
     const guardado = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'windows-startup.json'), 'utf8'));
     return guardado.mode === 'window' ? 'window' : 'tray';
-  } catch { return 'tray'; }
+  } catch { return MODO_DE_ORIGEM; }
 }
 function getStartup() {
   const available = process.platform === 'win32' && app.isPackaged;
   const settings = available ? app.getLoginItemSettings({ path: process.execPath, args: STARTUP_ARGS }) : null;
   return { available, enabled: !!settings?.openAtLogin && settings.executableWillLaunchAtLogin !== false, mode: startupMode() };
+}
+/**
+ * "Start with Windows" ligado de origem, na primeira abertura da app instalada
+ * (27/9) -- a regra e o porquê em `arranqueComWindows.cjs`. Uma vez só: depois
+ * manda a escolha da pessoa.
+ */
+function aplicarArranqueDeOrigem() {
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  const ficheiro = path.join(app.getPath('userData'), 'windows-startup.json');
+  let guardado = null;
+  try { guardado = JSON.parse(fs.readFileSync(ficheiro, 'utf8')); } catch { guardado = null; }
+  const { ligar, gravar } = arranqueAoAbrir(guardado);
+  if (!ligar) return;
+  try {
+    app.setLoginItemSettings({ openAtLogin: true, path: process.execPath, args: STARTUP_ARGS });
+    fs.writeFileSync(ficheiro, JSON.stringify(gravar));
+  } catch (erro) {
+    console.warn('[arranque] não foi possível ligar o arranque com o Windows', erro);
+  }
 }
 function daJanelaPrincipal(event) {
   return mainWindow && event.sender === mainWindow.webContents
@@ -125,7 +145,7 @@ ipcMain.handle('startup:get', (event) => daJanelaPrincipal(event) ? getStartup()
 ipcMain.handle('startup:set', (event, enabled, mode) => {
   if (!daJanelaPrincipal(event) || typeof enabled !== 'boolean' || !['window', 'tray'].includes(mode)) throw new Error('Pedido inválido.');
   if (!getStartup().available) throw new Error('Disponível na aplicação instalada no Windows.');
-  fs.writeFileSync(path.join(app.getPath('userData'), 'windows-startup.json'), JSON.stringify({ mode }));
+  fs.writeFileSync(path.join(app.getPath('userData'), 'windows-startup.json'), JSON.stringify(escolhaDaPessoa(mode)));
   app.setLoginItemSettings({ openAtLogin: enabled, path: process.execPath, args: STARTUP_ARGS });
   return getStartup();
 });
@@ -983,6 +1003,62 @@ ipcMain.handle('sistema:segundos-sem-interacao', (event) => {
 // Crossfade com a janela no tabuleiro: perto do fim, os temporizadores da
 // página não podem ser estrangulados (a curva andava a degraus de um segundo).
 // Só enquanto a página o pede; ela devolve-o depois da passagem.
+/**
+ * Os recursos da app, para o relatório de reprodução (27/9: o João viu 700 MB e
+ * 10% de CPU no Gestor de Tarefas e não se sabia de que processo). Duas leituras
+ * a 2 s uma da outra, porque o CPU de cada processo é "desde a última leitura".
+ * Mais o que o leitor do YouTube está a descodificar: é pelo tamanho do vídeo
+ * que se vê se ele escolheu a qualidade mínima (o leitor tem 1x1 px).
+ */
+const VIDEO_DO_YOUTUBE = `(() => {
+  const v = document.querySelector('video');
+  return v ? { altura: v.videoHeight, largura: v.videoWidth, aTocar: !v.paused } : null;
+})()`;
+const processosAgora = () => app.getAppMetrics().map((m) => ({
+  tipo: m.type,
+  nome: m.name || m.serviceName || '',
+  cpu: Math.round((m.cpu?.percentCPUUsage || 0) * 10) / 10,
+  memoriaMB: Math.round((m.memory?.workingSetSize || 0) / 1024),
+  privadaMB: Math.round((m.memory?.privateBytes || 0) / 1024),
+}));
+const estadoDaJanela = () => (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible() ? 'escondida'
+  : mainWindow.isMinimized() ? 'minimizada' : 'visivel');
+async function videosDoYouTube() {
+  const youtube = [];
+  if (!mainWindow || mainWindow.isDestroyed()) return youtube;
+  for (const frame of framesDoYouTube(mainWindow.webContents.mainFrame)) {
+    try { youtube.push(await frame.executeJavaScript(VIDEO_DO_YOUTUBE)); } catch { youtube.push(null); }
+  }
+  return youtube;
+}
+/**
+ * O relatório só se tira com a janela à vista, e o que interessa medir é
+ * também a app no tabuleiro. De minuto a minuto, com a janela escondida ou
+ * minimizada, guarda-se uma amostra: o CPU de cada processo é a MÉDIA desse
+ * minuto (é "desde a última leitura"). Uma leitura por minuto não custa nada.
+ */
+let amostraEscondida = null;
+function amostrarAoMinuto() {
+  const vigia = setTimeout(() => {
+    try {
+      const estado = estadoDaJanela();
+      if (estado === 'visivel') app.getAppMetrics();
+      else {
+        const processos = processosAgora();
+        void videosDoYouTube().then((youtube) => { amostraEscondida = { em: new Date().toISOString(), janela: estado, processos, youtube }; });
+      }
+    } catch {}
+    amostrarAoMinuto();
+  }, 60_000);
+  vigia.unref?.();
+}
+ipcMain.handle('diagnostico:recursos', async (event) => {
+  if (!daJanelaPrincipal(event)) return null;
+  app.getAppMetrics();
+  await new Promise((r) => setTimeout(r, 2000));
+  return { processos: processosAgora(), youtube: await videosDoYouTube(), janela: estadoDaJanela(), escondida: amostraEscondida };
+});
+
 ipcMain.on('player:nao-estrangular', (event, sim) => {
   if (!daJanelaPrincipal(event) || typeof sim !== 'boolean') return;
   try { mainWindow.webContents.setBackgroundThrottling(!sim); } catch {}
@@ -1211,6 +1287,110 @@ ipcMain.handle('atualizacao:instalar', async (event) => {
   return atualizacaoEmCurso;
 });
 
+/**
+ * Atualizar sem perguntar (27/9). Em segundo plano, 30 s depois de abrir e de
+ * 6 em 6 horas, o processo principal lê o versions.json e, havendo versão mais
+ * nova, descarrega o instalador para `userData/atualizacao` e deixa um
+ * `pendente.json`. Na abertura seguinte, antes de haver janela, instala-o em
+ * silêncio e a app reabre já atualizada. As regras (e o limite de tentativas)
+ * vivem em `electron/atualizacao.cjs`.
+ */
+const pastaDaAtualizacao = () => path.join(app.getPath('userData'), 'atualizacao');
+const ficheiroPendente = () => path.join(pastaDaAtualizacao(), 'pendente.json');
+function lerPendente() {
+  try { return JSON.parse(fs.readFileSync(ficheiroPendente(), 'utf8')); } catch { return null; }
+}
+function gravarPendente(valor) {
+  fs.mkdirSync(pastaDaAtualizacao(), { recursive: true });
+  fs.writeFileSync(ficheiroPendente(), JSON.stringify(valor));
+}
+const tamanhoDe = (caminho) => { try { return fs.statSync(caminho).size; } catch { return -1; } };
+function apagarInstaladores(manter) {
+  try {
+    for (const nome of fs.readdirSync(pastaDaAtualizacao())) {
+      if (!/^Duotone-Setup-.*\.exe(\.parcial)?$/.test(nome)) continue;
+      const caminho = path.join(pastaDaAtualizacao(), nome);
+      if (caminho !== manter) fs.rmSync(caminho, { force: true });
+    }
+  } catch {}
+}
+
+/** Na abertura: devolve true quando o instalador arrancou e a app vai fechar. */
+async function instalarPendenteAoAbrir() {
+  if (!app.isPackaged || process.platform !== 'win32') return false;
+  const pendente = lerPendente();
+  const decisao = atualizacao.decidirAoAbrir(pendente, app.getVersion(), pendente && pendente.caminho ? tamanhoDe(pendente.caminho) : -1);
+  try {
+    if (decisao === 'limpar') {
+      apagarInstaladores(null);
+      fs.rmSync(ficheiroPendente(), { force: true });
+      return false;
+    }
+    if (decisao === 'desistir') {
+      apagarInstaladores(null);
+      gravarPendente({ versao: pendente.versao, desistiu: true });
+      return false;
+    }
+    if (decisao !== 'instalar') return false;
+    // A tentativa conta ANTES de correr: se o instalador falhar e a app voltar
+    // a abrir na mesma versão, é esta contagem que a deixa desistir.
+    gravarPendente({ ...pendente, tentativas: (Number(pendente.tentativas) || 0) + 1 });
+    await atualizacao.lancarInstalador({ spawn, instalador: pendente.caminho });
+    isQuitting = true;
+    app.quit();
+    return true;
+  } catch (erro) {
+    console.warn('[atualizacao] não foi possível instalar ao abrir', erro);
+    return false;
+  }
+}
+
+let procuraEmCurso = null;
+/** Em segundo plano: 'atual' | 'pronta' | 'desistiu' | 'erro', e a versão. */
+function procurarAtualizacao() {
+  if (!app.isPackaged || process.platform !== 'win32') return Promise.resolve({ estado: 'atual' });
+  if (procuraEmCurso) return procuraEmCurso;
+  procuraEmCurso = (async () => {
+    try {
+      const controlador = new AbortController();
+      const relogio = setTimeout(() => controlador.abort(), 15_000);
+      let versoes;
+      try {
+        const resposta = await net.fetch(atualizacao.VERSOES_URL, { cache: 'no-store', signal: controlador.signal });
+        if (!resposta.ok) throw new Error(`versions.json HTTP ${resposta.status}`);
+        versoes = await resposta.json();
+      } finally {
+        clearTimeout(relogio);
+      }
+      const alvo = atualizacao.escolherInstalador(versoes, app.getVersion());
+      if (!alvo) return { estado: 'atual' };
+      const pendente = lerPendente();
+      const instalador = path.join(pastaDaAtualizacao(), `Duotone-Setup-${alvo.versao}.exe`);
+      if (!atualizacao.precisaDeDescarregar(alvo, pendente, tamanhoDe(instalador))) {
+        return { estado: pendente && pendente.desistiu && pendente.versao === alvo.versao ? 'desistiu' : 'pronta', versao: alvo.versao };
+      }
+      fs.mkdirSync(pastaDaAtualizacao(), { recursive: true });
+      await atualizacao.descarregar({ fetch: (u) => net.fetch(u), url: alvo.url, destino: instalador, tamanho: alvo.tamanho, fs });
+      apagarInstaladores(instalador);
+      gravarPendente({ versao: alvo.versao, caminho: instalador, tamanho: alvo.tamanho, tentativas: 0 });
+      return { estado: 'pronta', versao: alvo.versao };
+    } catch (erro) {
+      console.warn('[atualizacao] procura em segundo plano falhou', erro);
+      return { estado: 'erro' };
+    } finally {
+      setTimeout(() => { procuraEmCurso = null; }, 0);
+    }
+  })();
+  return procuraEmCurso;
+}
+function procurarDeTempoATempo(atrasoMs) {
+  const vigia = setTimeout(() => {
+    void procurarAtualizacao().finally(() => procurarDeTempoATempo(6 * 60 * 60_000));
+  }, atrasoMs);
+  vigia.unref?.();
+}
+ipcMain.handle('atualizacao:procurar', (event) => (daJanelaPrincipal(event) ? procurarAtualizacao() : null));
+
 ipcMain.on('window:minimize', (event) => { if (daJanelaPrincipal(event)) mainWindow.minimize(); });
 ipcMain.on('window:toggle-maximize', (event) => {
   if (!daJanelaPrincipal(event)) return;
@@ -1251,6 +1431,12 @@ app.whenReady().then(async () => {
     app.setAsDefaultProtocolClient(ESQUEMA_DISCORD);
   }
   Menu.setApplicationMenu(null);
+  aplicarArranqueDeOrigem();
+  // Uma versão nova descarregada da última vez instala-se AGORA, antes de
+  // haver janela, e a app reabre já atualizada (27/9).
+  if (await instalarPendenteAoAbrir()) return;
+  if (app.isPackaged && process.platform === 'win32') procurarDeTempoATempo(30_000);
+  if (typeof app.getAppMetrics === 'function') amostrarAoMinuto();
   // A janela so abre depois de o servidor estar mesmo de pe. Se a porta
   // estiver ocupada, e melhor nao abrir de todo do que carregar o que quer
   // que esteja la a responder.

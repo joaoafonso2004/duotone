@@ -227,7 +227,7 @@ export function Empty({ icon, title, body, action }: { icon: keyof typeof Ionico
   return <View style={ui.empty}><View style={ui.emptyIcon}><Ionicons name={icon} size={30} color={desktop.accent} /></View><Text style={ui.emptyTitle}>{title}</Text><Text style={ui.emptyBody}>{body}</Text>{action}</View>;
 }
 
-export function Loading() { return <View style={ui.loading}><ActivityIndicator color={desktop.accent} /><Text style={ui.loadingText}>Loading…</Text></View>; }
+export function Loading() { return <View style={ui.loading} {...marcar('carregar')}><ActivityIndicator color={desktop.accent} /><Text style={ui.loadingText}>Loading…</Text></View>; }
 
 export function formatTime(seconds: number | null) {
   if (!seconds) return '—';
@@ -596,8 +596,14 @@ export function useProcurarAoLargar(): { arrasto: number | null; comecar: (event
   return { arrasto, comecar };
 }
 
-const LINHAS_INICIAIS = 200;
-const PASSO_DE_LINHAS = 200;
+/**
+ * Quantas linhas uma tabela monta de início, e quantas mais de cada vez que o
+ * fim se aproxima (`CarregarAoChegar`). Eram 200 e 200, com um botão; com as
+ * seguintes a chegar sozinhas, abrir as Liked Songs só precisa de encher o
+ * ecrã -- montar 200 linhas era o que fazia a aba demorar a aparecer (27/9).
+ */
+const LINHAS_INICIAIS = 60;
+const PASSO_DE_LINHAS = 120;
 const linhasVisiveisPorLista = new Map<string, number>();
 
 /**
@@ -643,6 +649,20 @@ function CabecaDeColuna({ rotulo, estilo, ativa, aoOrdenar, alinhar }: {
 }
 
 /**
+ * As barrinhas da faixa que toca, no lugar do número. Param com a música em
+ * pausa (27/9: continuavam a mexer-se). Componente à parte para só ELAS
+ * redesenharem ao tocar/pausar, e não a tabela inteira.
+ */
+function BarrasATocar() {
+  const aTocar = usePlayer((st) => st.isPlaying);
+  return <View style={ui.barrasATocar} {...(aTocar ? marcar('barras') : marcar('barras', 'parado'))}>
+    <View style={ui.barraATocar} {...marcar('barra')} />
+    <View style={ui.barraATocar} {...marcar('barra')} />
+    <View style={ui.barraATocar} {...marcar('barra')} />
+  </View>;
+}
+
+/**
  * As linhas seguintes montam-se sozinhas quando o fim da lista se aproxima
  * (26/9: o João não queria carregar em "Show next 200"). É uma sentinela no
  * fim da tabela vigiada por um IntersectionObserver com 800 px de antecedência:
@@ -678,7 +698,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   showSavedBadge?: boolean;
   /** Lista aberta, sem o aspeto de uma caixa dentro da página. */
   plain?: boolean;
-  /** Identidade persistente para não voltar às primeiras 200 linhas ao regressar. */
+  /** Identidade persistente para não voltar às primeiras linhas ao regressar. */
   listKey?: string;
   contexto?: (track:Track)=>DiscoveryContext;
   /**
@@ -745,11 +765,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
           estado de hover por linha -- duzentas linhas, duzentos estados. */}
       <View style={ui.celaDoNumero}>
         {aTocar ? (
-          <View style={ui.barrasATocar} {...marcar('barras')}>
-            <View style={ui.barraATocar} {...marcar('barra')} />
-            <View style={ui.barraATocar} {...marcar('barra')} />
-            <View style={ui.barraATocar} {...marcar('barra')} />
-          </View>
+          <BarrasATocar />
         ) : <>
           <Text style={ui.trackIndex} {...marcar('numero')}>{index + 1}</Text>
           <View style={ui.setaDeTocar} pointerEvents="none" {...marcar('toca')}>

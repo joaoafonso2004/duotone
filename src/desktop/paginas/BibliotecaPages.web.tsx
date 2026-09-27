@@ -226,6 +226,21 @@ export function SongsPage(props: CommonPageProps) {
   </Page></>;
 }
 
+/** O ranking dos artistas pelo histórico, entre visitas à página. */
+let rankingGuardado: { conta: string | undefined; mapa: Map<string, number>; em: number } | null = null;
+/**
+ * O agrupamento da biblioteca por artista, entre visitas: aprende o vocabulário
+ * da biblioteca inteira e percorre-a toda, e só muda quando a biblioteca (a
+ * mesma lista da cache) ou o catálogo mudam.
+ */
+let gruposGuardados: { faixas: readonly Track[]; versao: unknown; grupos: ReturnType<typeof agruparPorArtista<Track>> } | null = null;
+function gruposDaBiblioteca(faixas: readonly Track[], versao: unknown) {
+  if (gruposGuardados && gruposGuardados.faixas === faixas && gruposGuardados.versao === versao) return gruposGuardados.grupos;
+  const grupos = agruparPorArtista(faixas.map(comCatalogo));
+  gruposGuardados = { faixas, versao, grupos };
+  return grupos;
+}
+
 export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) {
   const data = useLibraryData();
   const [query, setQuery] = useState('');
@@ -233,14 +248,24 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
   // artistas nao procura pelo nome, procura por quem ouve. O ranking vem do
   // historico (get_top_artists); quem nao aparece la ordena-se pelo numero de
   // faixas na biblioteca, que e o melhor sinal que sobra.
-  const [ranking, setRanking] = useState<Map<string, number>>(new Map());
+  // Guardado entre visitas (27/9): pedido de novo a cada abertura, chegava
+  // depois da grelha e reordenava-a à frente dos olhos. Agora a segunda
+  // abertura já sai na ordem certa, e o pedido só se repete passados 5 min.
+  const conta = useAuth((st) => st.session?.user.id);
+  const [ranking, setRanking] = useState<Map<string, number>>(() => { const g = rankingGuardado; return g && g.conta === conta ? g.mapa : new Map(); });
   useEffect(() => {
+    const g = rankingGuardado;
+    if (g && g.conta === conta && Date.now() - g.em < 5 * 60_000) return;
     getTopArtists(200)
       // Pela chave canonica e nao por toLowerCase(): o ranking vem do
       // historico, onde o mesmo artista pode estar escrito de outra maneira.
-      .then((tops) => setRanking(new Map(tops.map((a, i) => [chaveDeArtista(a.name), i]))))
+      .then((tops) => {
+        const mapa = new Map(tops.map((a, i) => [chaveDeArtista(a.name), i] as [string, number]));
+        rankingGuardado = { conta, mapa, em: Date.now() };
+        setRanking(mapa);
+      })
       .catch(() => {});
-  }, []);
+  }, [conta]);
   // Agrupado por CHAVE canonica e nao pelo nome mostrado -- era isso que punha
   // `Juice WRLD`, `juice wrld` e `JUICE WRLD` em tres cartoes diferentes.
   const versaoDoCatalogo = useCatalogoDeFaixas((s) => s.versao);
@@ -248,7 +273,7 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
   const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
   useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
   const artists = useMemo(
-    () => ordenarArtistas(agruparPorArtista(data.tracks.map(comCatalogo)), ranking, favoritos),
+    () => ordenarArtistas(gruposDaBiblioteca(data.tracks, versaoDoCatalogo), ranking, favoritos),
     [data.tracks, ranking, versaoDoCatalogo, favoritos],
   );
   // A grelha monta por lotes: com centenas de artistas, montar tudo de uma vez

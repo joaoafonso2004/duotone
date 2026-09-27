@@ -123,6 +123,8 @@ const TESTES = [
   `${TS} scripts/test-descobertas-mostradas.ts`,
   `${TS} scripts/test-mistura-do-dia.ts`,
   `${TS} scripts/test-atalhos-da-lateral.ts`,
+  `${TS} scripts/test-recursos-da-app.ts`,
+  'scripts/test-arranque-com-windows.mjs',
   `${TS} scripts/test-decadas.ts`,
   `${TS} scripts/test-preferencias.ts`,
   `${TS} scripts/test-generos.ts`,

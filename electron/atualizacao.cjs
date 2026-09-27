@@ -151,7 +151,50 @@ function lancarInstalador({ spawn, instalador }) {
   });
 }
 
+/**
+ * Atualizar SEM perguntar (27/9, João: "não quero que avise e peça para
+ * instalar; a próxima vez que ligar já liga atualizado"). Em segundo plano, o
+ * processo principal descarrega a versão nova e deixa um `pendente.json` com
+ * a versão, o caminho e o tamanho. Na abertura SEGUINTE, antes de haver
+ * janela, isto decide o que fazer com ele:
+ *
+ * - `instalar`: corre o instalador em silêncio e a app fecha; o NSIS reabre-a
+ *   já na versão nova (`--force-run`).
+ * - `limpar`: a versão pendente já não é mais nova (já se instalou, ou havia
+ *   outra) ou o ficheiro não tem o tamanho certo. Apaga-se tudo.
+ * - `desistir`: já se tentou instalar esta versão DUAS vezes e a app continua
+ *   na antiga. Não se tenta outra vez -- senão um instalador que falhe deixava
+ *   a app a fechar-se a cada abertura, sem nunca abrir. Fica marcado, e o
+ *   segundo plano não a volta a descarregar.
+ * - `nada`.
+ */
+const TENTATIVAS_DE_INSTALACAO = 2;
+function decidirAoAbrir(pendente, versaoAtual, tamanhoNoDisco) {
+  if (!pendente || typeof pendente !== 'object' || typeof pendente.versao !== 'string') return 'nada';
+  if (pendente.desistiu) return 'nada';
+  if (compararVersoes(pendente.versao, versaoAtual) <= 0) return 'limpar';
+  if (typeof pendente.caminho !== 'string' || !Number.isInteger(pendente.tamanho) || tamanhoNoDisco !== pendente.tamanho) return 'limpar';
+  if ((Number(pendente.tentativas) || 0) >= TENTATIVAS_DE_INSTALACAO) return 'desistir';
+  return 'instalar';
+}
+
+/**
+ * Em segundo plano: vale a pena descarregar `alvo`? Não quando já está
+ * descarregado e inteiro, nem quando se desistiu dessa versão.
+ */
+function precisaDeDescarregar(alvo, pendente, tamanhoNoDisco) {
+  if (!alvo) return false;
+  if (pendente && pendente.versao === alvo.versao) {
+    if (pendente.desistiu) return false;
+    if (tamanhoNoDisco === alvo.tamanho) return false;
+  }
+  return true;
+}
+
 module.exports = {
+  TENTATIVAS_DE_INSTALACAO,
+  decidirAoAbrir,
+  precisaDeDescarregar,
   VERSOES_URL,
   compararVersoes,
   escolherInstalador,

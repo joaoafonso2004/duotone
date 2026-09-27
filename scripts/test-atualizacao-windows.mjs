@@ -132,4 +132,30 @@ const settings = fs.readFileSync(new URL('../src/desktop/paginas/SettingsPage.we
 assert.doesNotMatch(settings, /repos\/joaoafonso2004\/duotone\/releases\/latest/, 'As Definições não confundem a última release de iOS com a de Windows');
 assert.match(settings, /checkForUpdate/, 'As Definições usam a fonte de versões por plataforma');
 
+// Atualizar sem perguntar (27/9): o que fazer, ao abrir, com o que ficou
+// descarregado em segundo plano.
+const pend = (extra = {}) => ({ versao: '3.9.0', caminho: 'C:/x/Duotone-Setup-3.9.0.exe', tamanho: 115820376, tentativas: 0, ...extra });
+assert.equal(a.decidirAoAbrir(null, '3.8.9', -1), 'nada', 'Sem nada pendente, abre normalmente');
+assert.equal(a.decidirAoAbrir(pend(), '3.8.9', 115820376), 'instalar', 'Uma versão mais nova e inteira instala antes de abrir');
+assert.equal(a.decidirAoAbrir(pend(), '3.9.0', 115820376), 'limpar', 'Já instalada: apaga-se o que ficou');
+assert.equal(a.decidirAoAbrir(pend(), '3.8.9', 1234), 'limpar', 'Um ficheiro cortado nunca corre');
+assert.equal(a.decidirAoAbrir(pend({ tentativas: 1 }), '3.8.9', 115820376), 'instalar', 'Uma falha ainda tenta outra vez');
+assert.equal(a.decidirAoAbrir(pend({ tentativas: a.TENTATIVAS_DE_INSTALACAO }), '3.8.9', 115820376), 'desistir',
+  'Depois de duas tentativas desiste: um instalador que falhe não pode impedir a app de abrir');
+assert.equal(a.decidirAoAbrir({ versao: '3.9.0', desistiu: true }, '3.8.9', -1), 'nada');
+const alvo = { versao: '3.9.0', url, tamanho: 115820376 };
+assert.equal(a.precisaDeDescarregar(alvo, null, -1), true);
+assert.equal(a.precisaDeDescarregar(alvo, pend(), 115820376), false, 'Já descarregada e inteira: não se volta a descarregar');
+assert.equal(a.precisaDeDescarregar(alvo, pend(), 10), true, 'Cortada: descarrega outra vez');
+assert.equal(a.precisaDeDescarregar(alvo, { versao: '3.9.0', desistiu: true }, -1), false, 'Da versão desistida não se volta a descarregar');
+assert.equal(a.precisaDeDescarregar({ ...alvo, versao: '3.9.1' }, { versao: '3.9.0', desistiu: true }, -1), true, 'Uma versão mais nova volta a tentar');
+assert.equal(a.precisaDeDescarregar(null, null, -1), false);
+
+// O processo principal usa as duas regras e já não mostra o aviso no Windows.
+const main = fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8');
+assert.match(main, /decidirAoAbrir\(/, 'o main.cjs não instala o que ficou pendente');
+assert.match(main, /precisaDeDescarregar\(/, 'o main.cjs não descarrega em segundo plano');
+const aviso = fs.readFileSync(new URL('../src/components/UpdateSheet.tsx', import.meta.url), 'utf8');
+assert.match(aviso, /atualizacaoAutomatica/, 'o aviso de versão não sabe que no Windows a atualização é automática');
+
 console.log('Atualização do Windows: versão, origem do instalador, comando, download e tamanho verificados.');

@@ -59,8 +59,14 @@ export function iniciarPresenca(userId: string): () => void {
         // progresso dos amigos no PC. Lidas na hora do ENVIO, que é a hora que
         // o servidor carimba. Sem a migração presenca-com-posicao.sql o
         // servidor deita-as fora e fica tudo como antes.
+        // A duração vai SEMPRE que o motor a sabe (27/9): muitas faixas do
+        // YouTube (pesquisa, Smart Shuffle) chegam sem `durationSeconds`, e
+        // sem duração a barra dos amigos não sabe que fração encher -- a do
+        // amigo do João ia com `durationSeconds: null` e não aparecia.
         p_track: encerrar || privada || !faixa ? null : {
           ...faixa,
+          durationSeconds: faixa.durationSeconds
+            ?? (usePlayer.getState().durationMs > 0 ? Math.round(usePlayer.getState().durationMs / 1000) : null),
           positionMs: Math.max(0, Math.round(usePlayer.getState().positionMs || 0)),
           rate: usePlayer.getState().playbackRate || 1,
         },

@@ -286,6 +286,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const largarSeguinte = useCallback(() => {
     if (!seguinteRef.current && !passagemRef.current) return;
     abortarPassagem(false);
+    // Parada de vez, e não só em pausa: uma música carregada que já não vai
+    // tocar é memória presa no processo do YouTube (27/9, RAM da app).
+    try { esperaRef.current?.stopVideo?.(); } catch {}
     seguinteRef.current = null;
     entregaRef.current = null;
   }, [abortarPassagem]);
@@ -686,7 +689,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       passagemRef.current = null;
       entregaRef.current = null;
       notaRef.current = null;
-      try { sai?.pauseVideo?.(); sai?.mute?.(); sai?.setVolume?.(0); } catch {}
+      // A que sai PARA (e larga o que tinha carregado), em vez de ficar em
+      // pausa com a música inteira na memória até à passagem seguinte. Os
+      // eventos do player em espera só contam quando ele começa a tocar, por
+      // isso o "parado" não se confunde com "pronto".
+      try { sai?.mute?.(); sai?.setVolume?.(0); sai?.stopVideo?.(); } catch {}
       try {
         espera.unMute();
         espera.setVolume(state.volume);

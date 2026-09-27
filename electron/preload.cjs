@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
 // O clique pode chegar enquanto a página ainda está no login. Guardá-lo aqui
 // faz com que não se perca antes de o React montar o listener depois do login.
@@ -64,6 +64,12 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   /** A pagina de embed de uma playlist publica do Spotify, pelo processo
    * principal (sem CORS). Leva so o id; o endereco vive do outro lado. */
   lerEmbedDoSpotify: (id) => ipcRenderer.invoke('spotify:embed', id),
+  /** Larga as caches de memória do Blink (imagens descodificadas e afins) que
+   * já não estão a ser usadas. Chamado com a janela escondida há algum tempo. */
+  aliviarMemoria: () => { try { webFrame.clearCache(); } catch {} },
+  /** Os recursos de cada processo e a qualidade do vídeo do YouTube, para o
+   * relatório de reprodução (27/9: a RAM e o CPU da app). */
+  lerRecursos: () => ipcRenderer.invoke('diagnostico:recursos'),
   /** Mostra no Discord o que esta a tocar. `null` na actividade limpa; `null`
    * no id desliga. Devolve se o Discord esta do outro lado -- fechado e o caso
    * normal, e devolve false sem estragar nada. */
@@ -84,6 +90,11 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
    * principal (electron/atualizacao.cjs); daqui só vai o pedido. Com `ok`, a app
    * fecha-se sozinha e o instalador volta a abri-la. */
   instalarAtualizacao: () => ipcRenderer.invoke('atualizacao:instalar'),
+  /** No Windows a atualização é automática (27/9): descarrega em segundo
+   * plano e instala na abertura seguinte. O aviso de versão não aparece. */
+  atualizacaoAutomatica: true,
+  /** Procura agora (o "Check for updates"): 'atual' | 'pronta' | 'desistiu' | 'erro'. */
+  procurarAtualizacao: () => ipcRenderer.invoke('atualizacao:procurar'),
   /** O progresso do download, de 0 a 1. */
   onProgressoDaAtualizacao: (listener) => {
     const handler = (_event, progresso) => listener(Math.max(0, Math.min(1, Number(progresso) || 0)));

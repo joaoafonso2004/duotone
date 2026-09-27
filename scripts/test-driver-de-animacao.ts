@@ -62,7 +62,6 @@ const SO_NATIVO = [
   'src/components/PlayerRoot.tsx',
   'src/components/Toque.tsx',
   'src/components/StateIcon.tsx',
-  'src/components/TransitionView.tsx',
   'src/components/ProgressBar.tsx',
   'src/components/TextoQueCabe.tsx',
   'src/components/CapaFlutuante3D.tsx',
