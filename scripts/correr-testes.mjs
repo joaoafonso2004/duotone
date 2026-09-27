@@ -22,6 +22,8 @@ const TESTES = [
   'scripts/test-download-esperas.mjs',
   'scripts/test-transmitir-audio.mjs',
   'scripts/test-pot-esperas.mjs',
+  'scripts/test-resolucao-partilhada.mjs',
+  'scripts/test-corpo-audio.mjs',
   'scripts/test-smart-cache-cancelamento.mjs',
   'scripts/test-folhas.cjs',
   'scripts/test-capa-reactiva.cjs',

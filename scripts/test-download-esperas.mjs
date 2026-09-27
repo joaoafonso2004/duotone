@@ -86,7 +86,10 @@ function harness(fetchImpl) {
   }
   const dir = (uri) => ({ uri, list: () => [...disk.keys()].filter((key) => key.startsWith(`${uri}/`)).map((key) => new File({ uri }, key.slice(uri.length + 1))) });
   const stubs = {
-    'react-native': { Platform: { OS: 'ios' } },
+    'react-native': {
+      Platform: { OS: 'ios' },
+      AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) },
+    },
     '@react-native-async-storage/async-storage': { getItem: async () => null, setItem: async () => {} },
     'expo-file-system': { File, Paths: { document: dir('file:///document'), cache: dir('file:///cache') } },
     zustand: { create: (init) => {
@@ -389,6 +392,127 @@ await check('403 a meio recupera com URL novo e conserva o mesmo Range', async (
   ]);
   assert.deepEqual(result.value.bytes, audio.slice(8));
   assert.equal(h.time.pending(), 0, 'a renovação resolveu mas deixou o timeout de 30s vivo');
+});
+
+await check('corpo lido por fragmentos publica exatamente o áudio de vários pedidos Range', async () => {
+  const original = new Uint8Array(1_000_017);
+  new DataView(original.buffer).setUint32(0, original.length);
+  original.set([109, 100, 97, 116], 4); // mdat, preservado pelo fixer
+  for (let i = 8; i < original.length; i++) original[i] = i % 251;
+  const ranges = [];
+  let libertacoes = 0;
+  const h = harness(async (url, opts) => {
+    const [, de, ate] = /bytes=(\d+)-(\d+)/.exec(opts.headers.Range);
+    const start = Number(de), end = Number(ate);
+    ranges.push([start, end]);
+    let posicao = start;
+    return { ...response({ start, end, total: original.length }), body: { getReader: () => ({
+      read: async () => {
+        if (posicao > end) return { done: true };
+        const fim = Math.min(end + 1, posicao + 65_537);
+        const value = original.slice(posicao, fim);
+        posicao = fim;
+        return { done: false, value };
+      },
+      cancel: async () => { assert.fail('não deve cancelar uma leitura completa'); },
+      releaseLock: () => { libertacoes++; },
+    }) } };
+  });
+  const pedido = observe(h.cache.downloadProgressiveAudio('inteira', 'https://audio.test/inteira', original.length, null));
+  // Entre dois Range o downloader cede um turno (sleep(0)). Deixar também
+  // esse turno correr depois das microtarefas de todos os fragmentos.
+  for (let passo = 0; passo < 20 && pedido.state === 'pending'; passo++) await h.time.advance(1);
+  assert.equal(pedido.state, 'fulfilled');
+  assert.deepEqual(ranges, [[0, 999_999], [1_000_000, 1_000_016]]);
+  assert.deepEqual(h.disk.get(pedido.value), original);
+  assert.equal(libertacoes, 2);
+  assert.equal(h.time.pending(), 0);
+});
+
+await check('corpo parado cancela o pedido e repete o mesmo Range sem publicar bytes parciais', async () => {
+  const calls = [];
+  let tarde, cancelamentos = 0, libertacoes = 0;
+  const h = harness(async (url, opts) => {
+    calls.push({ range: opts.headers.Range, signal: opts.signal });
+    if (calls.length > 1) return response();
+    let leituras = 0;
+    return { ...response(), body: { getReader: () => ({
+      read: () => ++leituras === 1
+        ? Promise.resolve({ done: false, value: audio.slice(0, 4) })
+        : new Promise(r => { tarde = r; }),
+      cancel: () => { cancelamentos++; return new Promise(() => {}); },
+      releaseLock: () => { libertacoes++; },
+    }) } };
+  });
+  const pedido = observe(h.download('corpo-parado', { prioridade: 'reproducao' }));
+  await h.time.advance(9999);
+  assert.equal(pedido.state, 'pending');
+  assert.equal(h.disk.size, 0);
+  await h.time.advance(1);
+  assert.equal(calls[0].signal.aborted, true);
+  assert.equal(cancelamentos, 1);
+  assert.equal(libertacoes, 1);
+  await h.time.advance(800);
+  assert.equal(pedido.state, 'fulfilled');
+  assert.deepEqual(calls.map(c => c.range), ['bytes=0-15', 'bytes=0-15']);
+  assert.deepEqual(h.disk.get(pedido.value), audio);
+  tarde({ done: false, value: Uint8Array.from([99, 99]) });
+  await drain();
+  assert.deepEqual(h.disk.get(pedido.value), audio, 'a resposta tardia não altera o ficheiro');
+  assert.equal(h.queue.estadoDaFila().aDescarregar, 0);
+  assert.equal(h.time.pending(), 0);
+});
+
+await check('skip durante read pendurado liberta já a vaga para outro áudio', async () => {
+  let cancelar = false, sinal, cancelamentos = 0;
+  const h = harness(async (url, opts) => {
+    if (url.endsWith('/nova')) return response();
+    sinal = opts.signal;
+    return { ...response(), body: { getReader: () => ({
+      read: () => new Promise(() => {}),
+      cancel: async () => { cancelamentos++; },
+      releaseLock: () => {},
+    }) } };
+  });
+  const velha = observe(h.download('velha', { prioridade: 'seguinte', shouldAbort: () => cancelar }));
+  await drain();
+  const nova = observe(h.download('nova', { prioridade: 'reproducao' }));
+  cancelar = true;
+  h.cache.verificarCancelamentos();
+  await drain();
+  rejectedAsAbort(velha, h.cache);
+  assert.equal(sinal.aborted, true);
+  assert.equal(cancelamentos, 1);
+  assert.equal(nova.state, 'fulfilled');
+  assert.equal(h.disk.size, 1, 'só a nova faixa é publicada');
+  assert.equal(h.queue.estadoDaFila().aDescarregar, 0);
+  assert.equal(h.time.pending(), 0);
+});
+
+await check('bytes a chegar não prolongam o prazo total de 30 s da tentativa', async () => {
+  let chamadas = 0, sinal;
+  const leituras = [];
+  const h = harness(async (url, opts) => {
+    if (++chamadas > 1) return response();
+    sinal = opts.signal;
+    return { ...response(), body: { getReader: () => ({
+      read: () => new Promise(r => leituras.push(r)),
+      cancel: async () => {}, releaseLock: () => {},
+    }) } };
+  });
+  const pedido = observe(h.download('lenta'));
+  for (let i = 0; i < 3; i++) {
+    await h.time.advance(9000);
+    leituras[i]({ done: false, value: audio.slice(i * 4, i * 4 + 4) });
+  }
+  await h.time.advance(2999);
+  assert.equal(sinal.aborted, false);
+  await h.time.advance(1);
+  assert.equal(sinal.aborted, true);
+  await h.time.advance(800);
+  assert.equal(pedido.state, 'fulfilled');
+  assert.equal(chamadas, 2);
+  assert.equal(h.time.pending(), 0);
 });
 
 // Skips seguidos (27/9, João: "dava skips seguidos e a app não descarregava a

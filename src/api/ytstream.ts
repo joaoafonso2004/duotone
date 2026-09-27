@@ -193,10 +193,18 @@ function codecDoMime(mime: unknown): string | null {
 
 // Cache em memória (por sessão) — os URLs expiram, não vale a pena persistir.
 const memo = new Map<string, YtStream>();
+// O leitor adota a resolução que o Smart Cache já começou. Só se partilha
+// trabalho da mesma faixa, qualidade e codec; renovar um URL continua a
+// ignorar tanto a cache como a resolução anterior.
+const resolucoesEmCurso = new Map<string, Promise<YtStream>>();
+const PRAZO_DA_RESOLUCAO_PARTILHADA_MS = 40_000;
 
 /** Limpa o cache de URLs resolvidos (usado pelo "Clear cache" das Definições). */
 export function clearStreamMemo(): void {
   memo.clear();
+  // Os consumidores existentes podem terminar, mas o resultado anterior à
+  // limpeza já não pode voltar a povoar a cache.
+  resolucoesEmCurso.clear();
 }
 
 /** Melhor áudio mp4/AAC com URL direto (o AVPlayer não toca webm).
@@ -647,6 +655,38 @@ export async function resolveYouTubeStream(
   const cached = forceRefresh ? undefined : memo.get(cacheKey);
   if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
 
+  const emCurso = resolucoesEmCurso.get(cacheKey);
+  if (!forceRefresh && emCurso) return emCurso;
+
+  // O prazo pertence ao trabalho partilhado, não a quem o começou. Um
+  // adiantamento que deixa de interessar (ou cujo prazo local termina) não
+  // cancela a resolução de que o leitor ainda precisa. Uma Promise pendurada
+  // sai do mapa ao fim de 40 s, para nunca prender as tentativas seguintes.
+  let prazo: ReturnType<typeof setTimeout> | undefined;
+  const pedido = Promise.race([
+    resolverStreamSemMemo(videoId, quality, codec),
+    new Promise<never>((_, rejeitar) => {
+      prazo = setTimeout(() => rejeitar(new Error('resolucao sem resposta')), PRAZO_DA_RESOLUCAO_PARTILHADA_MS);
+    }),
+  ]).then((stream) => {
+    // Uma resposta antiga não substitui uma renovação, nem publica depois
+    // de perder a corrida contra o prazo ou contra uma limpeza da cache.
+    if (resolucoesEmCurso.get(cacheKey) === pedido) memo.set(cacheKey, stream);
+    return stream;
+  }).finally(() => {
+    clearTimeout(prazo);
+    if (resolucoesEmCurso.get(cacheKey) === pedido) resolucoesEmCurso.delete(cacheKey);
+  });
+  resolucoesEmCurso.set(cacheKey, pedido);
+  return pedido;
+}
+
+async function resolverStreamSemMemo(
+  videoId: string,
+  quality: 'high' | 'saver',
+  codec: Codec,
+): Promise<YtStream> {
+
   const errors: string[] = [];
   // O `catch` da cascata so guardava a MENSAGEM de cada cliente e toda a
   // estrutura morria ai. Sem isto, quatro 403 e quatro UNPLAYABLE acabavam na
@@ -705,7 +745,6 @@ export async function resolveYouTubeStream(
       }
       stream.client = client.clientName + (visitorData ? '+vd' : '');
       if (errors.length) stream.resolverNote = errors.join(' | ');
-      memo.set(cacheKey, stream);
       return stream;
     } catch (e: any) {
       errors.push(`${client.clientName}: ${e?.message ?? String(e)}`);
@@ -754,6 +793,5 @@ export async function resolveYouTubeStream(
     }
   }
 
-  memo.set(cacheKey, stream);
   return stream;
 }

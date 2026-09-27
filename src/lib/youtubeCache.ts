@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 export const useAudioCache=create<{revision:number}>(()=>({revision:0}));
 const changed=()=>useAudioCache.setState(s=>({revision:s.revision+1}));
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixMp4Duration } from './mp4Fixer';
 import { validarRespostaParcial } from './audioRange';
@@ -11,6 +11,7 @@ import { AUDIO_INCOMPLETO, publicarAudio } from './publicarDownload';
 import { criarMp4AoVivo } from './mp4AoVivo';
 import { PREFIXO_OPUS } from './codecDeAudio';
 import { converterWebmParaMp4, pareceWebm } from './converterOpus';
+import { lerCorpoDoAudio } from './lerCorpoDoAudio';
 
 let File: any;
 let Paths: any;
@@ -434,7 +435,14 @@ export async function fetchChunkWithRetry(
             if (expectedTotal === undefined) throw new Error('Total do audio em falta');
             // O tamanho certo no offset errado também corrompe o ficheiro.
             validarRespostaParcial(res, start, end, expectedTotal);
-            return { status: res.status, bytes: new Uint8Array(await res.arrayBuffer()) };
+            const bytes = await lerCorpoDoAudio(res, end - start + 1, pedido, {
+              observarAtividade: (avisar) => {
+                avisar(AppState.currentState === 'active');
+                const sub = AppState.addEventListener('change', (estado) => avisar(estado === 'active'));
+                return () => sub.remove();
+              },
+            });
+            return { status: res.status, bytes };
           }
           return { status: res.status, bytes: null };
         } finally {

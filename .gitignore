@@ -48,6 +48,8 @@ test-*.mjs
 !scripts/test-limpar-fantasmas-sql.mjs
 !scripts/test-download-esperas.mjs
 !scripts/test-pot-esperas.mjs
+!scripts/test-resolucao-partilhada.mjs
+!scripts/test-corpo-audio.mjs
 !scripts/test-smart-cache-cancelamento.mjs
 !scripts/test-top-artists-recency.mjs
 !scripts/test-mp4-ao-vivo.mjs
