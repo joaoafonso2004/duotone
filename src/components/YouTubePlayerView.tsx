@@ -97,7 +97,8 @@ async function adiantarFaixa(
     }
   }
 }
-import { displayArtist } from '../lib/artistName';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { anotarPrimeiroSom } from '../state/tempoAteAoSom';
 import { aplicarEqualizadorNativo, ligarAudioNativo, aplicarVelocidadeNativa, estadoDaVelocidadeNativa } from '../../modules/duotone-audio';
 import { registarNaVelocidade } from '../lib/playbackDiagnostics';
 
@@ -1640,7 +1641,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (nota?.origem && nota.run === runIdRef.current) {
         primeiraNotaRef.current = null;
         const medida = primeiraNota(nota.pedidaEm, Date.now(), nota.origem);
-        if (medida) registarEvento('primeira_nota', medida);
+        if (medida) {
+          registarEvento('primeira_nota', medida);
+          // O mesmo número, com as fases, no relatório do aparelho (27/9).
+          anotarPrimeiroSom(track.sourceId, tituloDaFaixa(track), medida.origem, medida.ms);
+        }
         // Um Opus a tocar é a prova de que este iPhone o toca (lib/saudeDoOpus.ts).
         if (nota.origem !== 'hls' && temOpusEmDisco(track.sourceId)) anotarOpus('tocou');
       }
@@ -1984,6 +1989,11 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (!useConnectivity.getState().offline) preCarregarCapasGrandes(lista);
 
     let cancelled = false;
+    // Um segundo depois de a atual tocar, e não cinco (27/9, "nenhum skip
+    // espera"): quem passa recomendações salta aos 2-3 s, e com cinco a
+    // seguinte ainda não tinha começado a descarregar. A atual já está toda em
+    // disco quando o motor é o nativo, por isso não se lhe tira nada; e um
+    // adiantamento que deixa de servir larga a vaga no skip seguinte.
     const timer = setTimeout(async () => {
       for (const [i, faixa] of lista.entries()) {
         if (cancelled || useConnectivity.getState().offline) return;
@@ -2002,7 +2012,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           });
         await pedido.pronto;
       }
-    }, 5000);
+    }, 1000);
 
     return () => {
       cancelled = true;

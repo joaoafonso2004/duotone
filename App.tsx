@@ -69,6 +69,7 @@ import { iniciarArtistasFavoritos, useArtistasFavoritos } from './src/state/arti
 import { limparVerificacao } from './src/state/verificacaoDaBiblioteca';
 import { instalarSaudeDaApp } from './src/state/saudeDaApp';
 import { ligarMedicoes } from './src/state/medicoes';
+import { ligarTempoAteAoSom } from './src/state/tempoAteAoSom';
 import { instalarEscolhaDoCodec } from './src/state/saudeDoOpus';
 import { vigiarOLeitor } from './src/state/vigiaDoLeitor';
 import { BarreiraDeErros } from './src/components/BarreiraDeErros';
@@ -77,6 +78,8 @@ import { BarreiraDeErros } from './src/components/BarreiraDeErros';
 // anterior e o relógio do arranque. Ver `state/saudeDaApp.ts`.
 instalarSaudeDaApp();
 ligarMedicoes();
+// O tempo do pedido ao primeiro som, para o relatório (27/9).
+ligarTempoAteAoSom();
 // Quem decide se o iPhone pede Opus ou AAC (lib/codecDeAudio.ts). Até ler o
 // disco, AAC.
 void instalarEscolhaDoCodec();

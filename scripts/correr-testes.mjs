@@ -124,6 +124,7 @@ const TESTES = [
   `${TS} scripts/test-mistura-do-dia.ts`,
   `${TS} scripts/test-atalhos-da-lateral.ts`,
   `${TS} scripts/test-recursos-da-app.ts`,
+  `${TS} scripts/test-tempo-ate-ao-som.ts`,
   'scripts/test-arranque-com-windows.mjs',
   `${TS} scripts/test-decadas.ts`,
   `${TS} scripts/test-preferencias.ts`,

@@ -3,6 +3,8 @@ import { APP_VERSION, BUILD_ID } from './buildInfo';
 import { relatorio } from './playbackDiagnostics';
 import { estadoDoStream } from '../state/saudeDoStream';
 import { estadoDoOpus } from '../state/saudeDoOpus';
+import { arranquesMedidos } from '../state/tempoAteAoSom';
+import { textoDoTempoAteAoSom } from './tempoAteAoSom';
 
 /**
  * O relatório de reprodução, pela folha de partilha do iPhone.
@@ -24,6 +26,6 @@ export async function partilharRelatorioDeReproducao(): Promise<void> {
     gerado: new Date().toISOString(),
     stream: estadoDoStream(),
     opus: estadoDoOpus(),
-  });
+  }) + `\n\n${textoDoTempoAteAoSom(arranquesMedidos())}\n`;
   await Share.share({ title: 'Duotone playback report', message: texto });
 }
