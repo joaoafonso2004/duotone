@@ -439,6 +439,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
       <View style={ui.grelhaDeCapas} onLayout={(e) => setLarguraDaGrelha(e.nativeEvent.layout.width)}>
         {tracks.map((t) => (
           <P key={`${t.source}:${t.sourceId}`}
+            {...marcar('cartao')}
             onPress={() => onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo })}
             onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t, contexto?.(t)); }) as any}
             style={({ hovered, pressed }: any) => [ui.shelfCard, { width: lado }, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
@@ -476,6 +477,7 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
       contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
       {tracks.map((t) => (
         <P key={`${t.source}:${t.sourceId}`}
+          {...marcar('cartao')}
           onPress={() => { if (arrastou.current) return; onPlay(t, tracks, contexto?.(t), { tipo: 'prateleira', nome: titulo }); }}
           onContextMenu={((e: any) => { e.preventDefault(); onMore?.(t,contexto?.(t)); }) as any}
           style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
@@ -530,6 +532,7 @@ export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir }: {
       contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
       {misturas.map((m) => (
         <P key={m.id}
+          {...marcar('cartao')}
           onPress={() => { if (arrastou.current) return; aoAbrir(m); }}
           style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
           <View style={ui.mosaico}>
