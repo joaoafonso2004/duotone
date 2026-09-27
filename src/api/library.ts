@@ -1,5 +1,7 @@
 import { cacheLikedSongs,changeCachedLikes,likedCacheRevision } from '../lib/likedSongsCache';
 import { supabase } from '../lib/supabase';
+import { tipoDaLista } from '../lib/cacheDaBiblioteca';
+import { idDaConta } from '../lib/idDaConta';
 import { confirmarArtistasEmSegundoPlano } from './artistNames';
 import type { Track } from '../types';
 
@@ -69,9 +71,9 @@ export async function upsertTracks(
 }
 
 export async function currentUserId(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) throw new Error('Session expired');
-  return data.user.id;
+  const id = await idDaConta();
+  if (!id) throw new Error('Session expired');
+  return id;
 }
 
 export async function saveToLibrary(track: Track): Promise<string> {
@@ -264,3 +266,8 @@ export async function checkIsSaved(source: string, sourceId: string): Promise<{ 
     return { saved: false, trackId: null };
   }
 }
+
+// Para um gosto mudar a lista guardada em vez de a deitar fora
+// (`ajustarGostada`, lib/cacheDaBiblioteca.ts).
+tipoDaLista(getLikedSongs, 'gostadas');
+tipoDaLista(getLibrary, 'alargada');

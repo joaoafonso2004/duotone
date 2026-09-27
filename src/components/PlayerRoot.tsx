@@ -2,7 +2,8 @@ import { CapaComTransicao } from './CapaComTransicao';
 import { sentidoDaTransicao, type Sentido } from '../lib/transicaoDaCapa';
 import { CapaFlutuante3D } from './CapaFlutuante3D';
 import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
-import { useMontagemDaCapa } from '../hooks/useMontagemDaCapa';
+import { useMontagemDaCapa, type MontagemDaCapa } from '../hooks/useMontagemDaCapa';
+import type { Track } from '../types';
 import { desfoqueLeve } from '../lib/capaGrande';
 import { capaGrande, marcarSemCapaGrande, ouvirCapasGrandes, preCarregarCapasGrandes } from '../state/capasGrandes';
 import { partilharRelatorioDoArranque } from '../lib/partilharRelatorioDoArranque';
@@ -26,7 +27,7 @@ import { displayArtist, tituloDaFaixa, tituloNoLeitor } from '../lib/artistName'
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Alert,
   Animated,
@@ -154,7 +155,6 @@ export function PlayerRoot() {
   const buffering = usePlayer((s) => s.buffering);
   const error = usePlayer((s) => s.error);
   const maquina = usePlayer((s) => s.maquina);
-  const activeBackend = usePlayer((s) => s.activeBackend);
 
   const playTrack = usePlayer((s) => s.playTrack);
   const togglePlay = usePlayer((s) => s.togglePlay);
@@ -216,7 +216,9 @@ export function PlayerRoot() {
   const pulse = useRef(new Animated.Value(1)).current;
   // A capa GRANDE respira escurecendo (ver o comentário junto do cubo): o
   // mesmo `pulse`, lido ao contrário -- 0,4 de opacidade vira 0,6 de véu preto.
-  const escurecerCapa = pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.6, 0] });
+  // Memorizada: uma interpolação nova a cada render é um nó nativo novo, e
+  // uma prop nova para a capa memorizada (`CapaDoLeitor`).
+  const escurecerCapa = useMemo(() => pulse.interpolate({ inputRange: [0.4, 1], outputRange: [0.6, 0] }), [pulse]);
 
   const [playlistOpen, setPlaylistOpen] = useState(false);
   const [optionsVisible, setOptionsVisible] = useState(false);
@@ -684,12 +686,12 @@ export function PlayerRoot() {
 
   const fundo = desfoqueLeve(artSource, 64);
 
-  const onArtError = () => {
+  const onArtError = useCallback(() => {
     const active = current;
     if (active && active.source === 'youtube' && artSource?.includes('maxresdefault')) {
       marcarSemCapaGrande(active.sourceId);
     }
-  };
+  }, [current, artSource]);
 
   const onToggleShuffle = () => {
     toggleShuffle();
@@ -1719,12 +1721,14 @@ export function PlayerRoot() {
               novo -- no mesmo instante do "Recuo subtil", que engasgava. Só o
               que é da faixa leva a `key`: a capa da frente (CapaComTransicao
               lembra a anterior ao desmontar) e as letras (dentro do cubo). */}
-          {expanded && <CapaFlutuante3D size={vidFull.w} enabled={capaFlutuante} montagem={montagem} transicao={transicaoDaCapa.current}>
-            {(pose3D) => (
-            <ArtworkLyricsCube track={current} size={vidFull.w} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
-              front={<>{artSource?<CapaComTransicao key={`${current.source}:${current.sourceId}`} uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
-            )}
-          </CapaFlutuante3D>}
+          {expanded && (
+            <CapaDoLeitor
+              track={current} size={vidFull.w} capaFlutuante={capaFlutuante} montagem={montagem}
+              transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
+              setShowLyrics={setShowLyrics} setCapaARodar={setCapaARodar} onArtError={onArtError}
+              escurecerCapa={escurecerCapa}
+            />
+          )}
 
           {/* No modo mini, tocar no vídeo expande */}
           {!expanded ? (
@@ -1859,11 +1863,53 @@ export function PlayerRoot() {
 function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'onSeek' | 'onScrubbingChange'>) {
   const positionMs = usePlayer((s) => s.positionMs);
   const durationMs = usePlayer((s) => s.durationMs);
-  return <ProgressBar positionMs={positionMs} durationMs={durationMs} {...props} />;
+  const ritmo = usePlayer((s) => s.playbackRate);
+  // Desliza só com o leitor ABERTO e a app à frente: fechado, ninguém a vê, e
+  // uma animação a correr mantinha o ecrã a redesenhar-se (lib/barraSuave.ts).
+  const aVista = usePlayer((s) => s.isPlaying && s.expanded) && AppState.currentState === 'active';
+  return <ProgressBar positionMs={positionMs} durationMs={durationMs} aTocar={aVista} ritmo={ritmo} {...props} />;
 }
+
+/**
+ * A capa (e as letras) do leitor aberto, fora do corpo do `PlayerRoot` (27/9).
+ *
+ * O `PlayerRoot` redesenha-se a cada mudança do estado da faixa -- a carregar,
+ * a tocar, erro, a fila --, várias vezes em cada skip. Com a capa lá dentro, o
+ * cubo inteiro (seis faces, o grão, as letras) era reconciliado de cada vez, no
+ * mesmo instante do recuo da capa. Memorizada, só se redesenha quando muda o
+ * que ela mostra: as props têm de ficar ESTÁVEIS (`useCallback`, `useMemo`).
+ */
+const CapaDoLeitor = React.memo(function CapaDoLeitor({
+  track, size, capaFlutuante, montagem, transicao, artSource, showLyrics, setShowLyrics, setCapaARodar,
+  onArtError, escurecerCapa,
+}: {
+  track: Track;
+  size: number;
+  capaFlutuante: boolean;
+  montagem: MontagemDaCapa;
+  transicao: { chave: string; sentido: Sentido } | null;
+  artSource: string | null;
+  showLyrics: boolean;
+  setShowLyrics: (v: boolean) => void;
+  setCapaARodar: (v: boolean) => void;
+  onArtError: () => void;
+  escurecerCapa: Animated.AnimatedInterpolation<number>;
+}) {
+  return (
+    <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao}>
+      {(pose3D) => (
+        <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
+          front={<>{artSource?<CapaComTransicao key={`${track.source}:${track.sourceId}`} uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
+      )}
+    </CapaFlutuante3D>
+  );
+});
 
 /** A linha fina do mini-player, pela mesma razão. */
 function PreenchimentoDoMini() {
+  // Aos saltos de propósito: numa linha de 2 px avança menos de um píxel por
+  // segundo, e uma animação contínua mantinha o ecrã a redesenhar-se sempre
+  // que há música -- que é o que o aquecimento de 13/9 ensinou a evitar.
   const fraction = usePlayer((s) => (s.durationMs > 0 ? Math.min(1, s.positionMs / s.durationMs) : 0));
   return <View style={[styles.miniTrackFill, { width: `${fraction * 100}%` }]} />;
 }

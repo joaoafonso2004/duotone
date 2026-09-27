@@ -7,7 +7,8 @@
 // que nunca é largada calar a app até alguém a reiniciar.
 import assert from 'node:assert/strict';
 import {
-  estadoDaFila, forcarPrazoDasVagas, largarVez, limparFila, pedirVez,
+  cederSePreciso, deveCeder, estadoDaFila, forcarPrazoDasVagas, largarVez, limparFila,
+  MAX_BYTES_PARA_CEDER, pedirVez,
 } from '../src/lib/filaDeDownloads.ts';
 
 let falhas = 0;
@@ -143,6 +144,47 @@ await verificar('largar duas vezes o mesmo bilhete conta uma', async () => {
   largarVez(bilhete);
   largarVez(bilhete);
   assert.equal(estadoDaFila().aDescarregar, 0);
+});
+
+// A reprodução passa à frente ENTRE BOCADOS (27/9): quem tem a vaga larga-a,
+// fica com o que já descarregou, e volta atrás da música escolhida.
+await verificar('um download explícito cede a vaga à reprodução entre bocados', async () => {
+  const explicito = await pedirVez('explicito');
+  let tocou = false;
+  const reproducao = pedirVez('reproducao').then((b) => { tocou = true; return b; });
+  await passo();
+  assert.equal(tocou, false, 'ainda ninguém cedeu');
+  assert.equal(deveCeder('explicito', 5_000_000), true);
+  let continuou = false;
+  const depois = cederSePreciso(explicito, 'explicito', 5_000_000).then((b) => { continuou = true; return b; });
+  await passo();
+  assert.equal(tocou, true, 'a reprodução entrou');
+  assert.equal(continuou, false, 'e o explícito espera por ela');
+  assert.equal(estadoDaFila().aDescarregar, 1, 'continua a ser um de cada vez');
+  largarVez(await reproducao);
+  const novo = await depois;
+  assert.equal(continuou, true, 'quando a música acaba, o explícito continua');
+  largarVez(novo);
+  assert.equal(estadoDaFila().aDescarregar, 0);
+});
+
+await verificar('sem reprodução à espera, ninguém cede', async () => {
+  const bilhete = await pedirVez('explicito');
+  void pedirVez('adiantar');
+  await passo();
+  assert.equal(deveCeder('explicito', 1000), false, 'um adiantamento à espera não passa à frente');
+  assert.equal(await cederSePreciso(bilhete, 'explicito', 1000), bilhete);
+});
+
+await verificar('a reprodução nunca cede, e um ficheiro grande também não', async () => {
+  const bilhete = await pedirVez('reproducao');
+  void pedirVez('reproducao');
+  await passo();
+  assert.equal(deveCeder('reproducao', 1000), false, 'a música que toca não cede a outra');
+  assert.equal(deveCeder('explicito', MAX_BYTES_PARA_CEDER + 1), false,
+    'em pausa ficava em memória, ao lado do da música escolhida');
+  assert.equal(deveCeder('seguinte', MAX_BYTES_PARA_CEDER), true, 'até ao tecto, cede');
+  largarVez(bilhete);
 });
 
 if (falhas > 0) {

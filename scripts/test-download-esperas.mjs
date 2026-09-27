@@ -429,6 +429,41 @@ await check('corpo lido por fragmentos publica exatamente o áudio de vários pe
   assert.equal(h.time.pending(), 0);
 });
 
+// 27/9: a música escolhida já não espera pelo fim do ficheiro de outra. Um
+// download explícito a meio cede a vaga ENTRE BOCADOS, fica com o que tem, e
+// continua do mesmo sítio quando a música acaba de descarregar.
+await check('a reprodução passa à frente de um download explícito entre bocados', async () => {
+  const original = new Uint8Array(2_500_000);
+  new DataView(original.buffer).setUint32(0, original.length);
+  original.set([109, 100, 97, 116], 4);
+  for (let i = 8; i < original.length; i++) original[i] = i % 241;
+  const pedidos = [];
+  const h = harness(async (url, opts) => {
+    const [, de, ate] = /bytes=(\d+)-(\d+)/.exec(opts.headers.Range);
+    const start = Number(de), end = Number(ate);
+    const id = url.split('/').at(-1);
+    pedidos.push(`${id}@${start}`);
+    if (id === 'grande') {
+      return response({ start, end, total: original.length, body: async () => original.slice(start, end + 1).buffer });
+    }
+    return response();
+  });
+  const explicito = observe(h.cache.downloadProgressiveAudio('grande', 'https://audio.test/grande', original.length, null, { prioridade: 'explicito' }));
+  await drain();
+  assert.deepEqual(pedidos, ['grande@0'], 'o explícito já vai no primeiro bocado');
+  const musica = observe(h.download('escolhida', { prioridade: 'reproducao' }));
+  await drain();
+  assert.equal(h.queue.estadoDaFila().emEspera, 1, 'a música escolhida está à espera da vaga');
+  for (let passo = 0; passo < 40 && (explicito.state === 'pending' || musica.state === 'pending'); passo++) await h.time.advance(1);
+  assert.equal(musica.state, 'fulfilled', 'a música escolhida descarregou');
+  assert.equal(explicito.state, 'fulfilled', 'e o explícito acabou depois dela');
+  assert.deepEqual(pedidos, ['grande@0', 'escolhida@0', 'grande@1000000', 'grande@2000000'],
+    'a música entrou entre dois bocados do explícito, que continuou do mesmo sítio');
+  assert.deepEqual(h.disk.get(explicito.value), original, 'o ficheiro do explícito está inteiro');
+  assert.equal(h.queue.estadoDaFila().aDescarregar, 0);
+  assert.equal(h.time.pending(), 0);
+});
+
 await check('corpo parado cancela o pedido e repete o mesmo Range sem publicar bytes parciais', async () => {
   const calls = [];
   let tarde, cancelamentos = 0, libertacoes = 0;

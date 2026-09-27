@@ -10,7 +10,8 @@
  */
 import assert from 'node:assert/strict';
 import {
-  VALIDADE_DA_BIBLIOTECA_MS, esquecerBiblioteca, faixasEmCache, guardarFaixas, lerFaixas, ouvirFaixas,
+  VALIDADE_DA_BIBLIOTECA_MS, ajustarGostada, esquecerBiblioteca, faixasEmCache, guardarFaixas, lerFaixas,
+  ouvirFaixas, tipoDaLista,
 } from '../src/lib/cacheDaBiblioteca.ts';
 import type { Track } from '../src/types.ts';
 
@@ -169,6 +170,72 @@ await caso('esquecer apaga tudo', async () => {
   await lerFaixas(leitor);
   esquecerBiblioteca();
   assert.equal(faixasEmCache(leitor), null, 'a biblioteca de quem sai não aparece a quem entra');
+});
+
+console.log('\num gosto muda a lista em vez de a reler toda (27/9)');
+
+await caso('gostar põe a faixa à frente nas duas listas, sem ir à rede', async () => {
+  esquecerBiblioteca();
+  let leituras = 0;
+  const gostadas = async () => { leituras++; return [faixa('a'), faixa('b')]; };
+  const alargada = async () => { leituras++; return [faixa('a'), faixa('b'), faixa('p')]; };
+  tipoDaLista(gostadas, 'gostadas');
+  tipoDaLista(alargada, 'alargada');
+  await lerFaixas(gostadas);
+  await lerFaixas(alargada);
+  const ouvidas: string[] = [];
+  const parar = ouvirFaixas((_l, f) => ouvidas.push(f.map((t) => t.sourceId).join()));
+  ajustarGostada(faixa('p'), true);
+  parar();
+  assert.equal((await lerFaixas(gostadas)).map((t) => t.sourceId).join(), 'p,a,b', 'entra à frente das gostadas');
+  assert.equal((await lerFaixas(alargada)).map((t) => t.sourceId).join(), 'p,a,b', 'e sobe na alargada, sem ficar duas vezes');
+  assert.equal(leituras, 2, 'nenhuma releitura depois do gosto');
+  assert.deepEqual(ouvidas.sort(), ['p,a,b', 'p,a,b'], 'as páginas montadas recebem a lista nova');
+});
+
+await caso('tirar sai das gostadas; a alargada relê-se (pode estar numa playlist)', async () => {
+  esquecerBiblioteca();
+  let lidasAlargada = 0;
+  const gostadas = async () => [faixa('a'), faixa('b')];
+  const alargada = async () => { lidasAlargada++; return [faixa('a'), faixa('b')]; };
+  tipoDaLista(gostadas, 'gostadas');
+  tipoDaLista(alargada, 'alargada');
+  await lerFaixas(gostadas);
+  await lerFaixas(alargada);
+  ajustarGostada(faixa('a'), false);
+  assert.equal(faixasEmCache(gostadas)?.map((t) => t.sourceId).join(), 'b');
+  assert.equal(faixasEmCache(alargada), null, 'a alargada foi esquecida');
+  await lerFaixas(alargada);
+  assert.equal(lidasAlargada, 2);
+});
+
+await caso('o gosto não estende a validade, e uma leitura em curso não o apaga', async () => {
+  esquecerBiblioteca();
+  const gostadas = async () => [faixa('a')];
+  tipoDaLista(gostadas, 'gostadas');
+  guardarFaixas(gostadas, [faixa('a')], AGORA);
+  ajustarGostada(faixa('n'), true);
+  assert.equal(faixasEmCache(gostadas, AGORA + VALIDADE_DA_BIBLIOTECA_MS + 1), null,
+    'o que mudou noutro aparelho chega na mesma ao fim da meia hora');
+
+  esquecerBiblioteca();
+  let soltar!: (f: Track[]) => void;
+  const lenta = () => new Promise<Track[]>((r) => { soltar = r; });
+  tipoDaLista(lenta, 'gostadas');
+  guardarFaixas(lenta, [faixa('a')]);
+  const antiga = lerFaixas(lenta, { forcar: true });
+  ajustarGostada(faixa('n'), true);
+  soltar([faixa('a')]);
+  await antiga;
+  assert.equal(faixasEmCache(lenta)?.map((t) => t.sourceId).join(), 'n,a', 'a resposta velha não apagou o gosto');
+});
+
+await caso('uma lista sem tipo é esquecida, como antes', async () => {
+  esquecerBiblioteca();
+  const outra = async () => [faixa('a')];
+  await lerFaixas(outra);
+  ajustarGostada(faixa('n'), true);
+  assert.equal(faixasEmCache(outra), null);
 });
 
 if (falhas) {

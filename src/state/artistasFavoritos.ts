@@ -2,12 +2,21 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
-import { appEstaVisivel } from '../lib/appVisibility';
 import { getArtistasFavoritos } from '../lib/prefs';
 import { updateAccountPrefs } from '../lib/accountPrefs';
 import { ArtistFavoritesSync, applyFavoriteEdits, readFavorites, type FavoritesSnapshot } from '../lib/artistFavoritesSync';
 
 const REMOTE_KEY = 'artist_favorites_v1';
+/**
+ * No máximo uma ida à conta a cada dois minutos, quando não há nada por enviar.
+ *
+ * Sem edições, sincronizar é LER a linha inteira do `user_prefs` (o
+ * `updateAccountPrefs` lê todas as preferências da conta para mudar uma). Era
+ * de 15 em 15 s com a app à frente, e a cada foco da janela do PC: um dos
+ * suspeitos do egress que o Supabase cobrou a 27/9. Uma edição continua a sair
+ * logo (o `edit` chama o `sync`), e um aviso do Realtime lê sempre.
+ */
+const RELER_NO_MAXIMO_MS = 2 * 60 * 1000;
 let sync: ArtistFavoritesSync | null = null;
 interface Favoritos {
   chaves: Set<string>;
@@ -61,19 +70,29 @@ export function iniciarArtistasFavoritos(userId: string): () => void {
     status: estado => { if (alive) useArtistasFavoritos.setState({ estado }); },
   });
   sync = instance;
-  const refresh = () => { if (alive) void instance.sync(); };
+  let ultimaLeitura = 0;
+  const reler = (sempre: boolean) => {
+    if (!alive) return;
+    const agora = Date.now();
+    // Uma edição que ficou por enviar (sem rede, erro) não espera pelo prazo.
+    const emDia = useArtistasFavoritos.getState().estado === 'saved';
+    if (!sempre && emDia && agora - ultimaLeitura < RELER_NO_MAXIMO_MS) return;
+    ultimaLeitura = agora;
+    void instance.sync();
+  };
+  const refresh = () => reler(false);
+  // Sem polling: ao abrir, ao voltar à frente, ao voltar a rede, no foco da
+  // janela do PC -- no máximo de dois em dois minutos -- e com o Realtime, se
+  // o `user_prefs` estiver publicado (os ficheiros de supabase/ não o publicam).
   const app = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
-  // Fallback if user_prefs has no Realtime publication. Only with the app in
-  // front: minimized it was a request every 15 s for nothing (27/9, app weight).
-  const timer = setInterval(() => { if (appEstaVisivel()) refresh(); }, 15000);
   const channel = supabase.channel(`artist-favorites:${userId}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'user_prefs', filter: `user_id=eq.${userId}` }, refresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'user_prefs', filter: `user_id=eq.${userId}` }, () => reler(true))
     .subscribe(status => { if (status === 'SUBSCRIBED') refresh(); });
   if (Platform.OS === 'web') { window.addEventListener('online', refresh); window.addEventListener('focus', refresh); }
   refresh();
   return () => {
     alive = false; instance.stop(); if (sync === instance) sync = null;
-    clearInterval(timer); app.remove(); void supabase.removeChannel(channel);
+    app.remove(); void supabase.removeChannel(channel);
     if (Platform.OS === 'web') { window.removeEventListener('online', refresh); window.removeEventListener('focus', refresh); }
     useArtistasFavoritos.getState().esquecer();
   };

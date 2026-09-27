@@ -1,4 +1,6 @@
-import { fundirVistos, naoLidasPorAmigo, totalNaoLidas } from '../src/lib/social.ts';
+import {
+  FOLGA_DAS_NOVAS_MS, fundirRecebidas, fundirVistos, marcaDasNovas, naoLidasPorAmigo, totalNaoLidas,
+} from '../src/lib/social.ts';
 
 let mau = 0;
 const check = (rotulo: string, ok: boolean, extra = '') => {
@@ -71,6 +73,27 @@ check('fundir: nao altera o mapa que recebe', (() => {
   const local = { amigo: LIDO_CEDO };
   fundirVistos(local, { amigo: LIDO_TARDE });
   return local.amigo === LIDO_CEDO;
+})());
+
+// A inbox às novas (27/9).
+const m = (id: string, createdAt: string) => ({ id, createdAt });
+check('novas: sem mensagens, lê-se tudo', marcaDasNovas([]) === null);
+check('novas: pede-se da mais recente, com folga para trás',
+  marcaDasNovas([m('a', '2026-09-27T10:00:00.000Z'), m('b', '2026-09-27T12:00:00.000Z')])
+    === new Date(Date.parse('2026-09-27T12:00:00.000Z') - FOLGA_DAS_NOVAS_MS).toISOString());
+check('novas: uma data por perceber não estraga a marca',
+  marcaDasNovas([m('a', 'nao-e-data'), m('b', '2026-09-27T12:00:00.000Z')]) !== null);
+check('fundir recebidas: a mesma mensagem conta uma vez, e a nova ganha', (() => {
+  const juntas = fundirRecebidas([{ ...m('a', '2026-09-27T10:00:00Z'), v: 1 }], [{ ...m('a', '2026-09-27T10:00:00Z'), v: 2 }]);
+  return juntas.length === 1 && juntas[0].v === 2;
+})());
+check('fundir recebidas: da mais recente para a mais antiga',
+  fundirRecebidas([m('a', '2026-09-27T10:00:00Z'), m('c', '2026-09-27T08:00:00Z')], [m('b', '2026-09-27T11:00:00Z')])
+    .map((r) => r.id).join() === 'b,a,c');
+check('fundir recebidas: não mexe nas listas que recebe', (() => {
+  const antigas = [m('a', '2026-09-27T10:00:00Z')];
+  fundirRecebidas(antigas, [m('b', '2026-09-27T11:00:00Z')]);
+  return antigas.length === 1;
 })());
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);

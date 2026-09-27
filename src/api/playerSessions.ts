@@ -1,5 +1,6 @@
 import { getDeviceId, getDeviceName, deviceKind } from '../lib/deviceIdentity';
 import { idadeDaAmostra, instanteDaAmostra, trimQueueForSync, type RemoteSession } from '../lib/handoff';
+import { idDaConta } from '../lib/idDaConta';
 import { supabase } from '../lib/supabase';
 import type { Track } from '../types';
 
@@ -34,6 +35,17 @@ export interface SessionSnapshot {
  */
 let colunasNovas: boolean | null = null;
 let leituraPeloServidor: boolean | null = null;
+/** Se existe a leitura leve (supabase/handoff-leve.sql). `null` = ainda não se perguntou. */
+let leituraLeve: boolean | null = null;
+
+/**
+ * Se a base de dados já tem a migração `handoff-leve.sql`: com ela a
+ * `player_sessions` saiu do Realtime e quem avisa é a `player_sessions_avisos`.
+ * `null` enquanto não se fez a primeira leitura leve.
+ */
+export function temAvisosLeves(): boolean | null {
+  return leituraLeve;
+}
 
 /** Os códigos de "isso não existe": coluna (PGRST204) e função (PGRST202, 42883). */
 function naoExiste(error: { code?: string } | null | undefined): boolean {
@@ -62,15 +74,15 @@ function rowToSession(row: any, lidaEm: number): RemoteSession {
  * batimento não pode partir a reprodução. */
 export async function writeSession(snapshot: SessionSnapshot): Promise<void> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const uid = await idDaConta();
+    if (!uid) return;
 
     const [deviceId, deviceName] = await Promise.all([getDeviceId(), getDeviceName()]);
     const trimmed = trimQueueForSync(snapshot.queue, snapshot.queueIndex);
     const agora = Date.now();
 
     const linha = {
-      user_id: user.id,
+      user_id: uid,
       device_id: deviceId,
       device_name: deviceName,
       device_kind: deviceKind(),
@@ -105,13 +117,13 @@ export async function writeSession(snapshot: SessionSnapshot): Promise<void> {
 /** Apaga a sessão deste dispositivo (terminar sessão / limpar o player). */
 export async function deleteOwnSession(): Promise<void> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    const uid = await idDaConta();
+    if (!uid) return;
     const deviceId = await getDeviceId();
     await supabase
       .from('player_sessions')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', uid)
       .eq('device_id', deviceId);
   } catch {
     // silently fail
@@ -143,8 +155,7 @@ export async function deleteOwnSession(): Promise<void> {
  */
 export async function esquecerSessoes(deviceIds: readonly string[]): Promise<void> {
   if (!deviceIds.length) return;
-  const { data: auth } = await supabase.auth.getUser();
-  const uid = auth?.user?.id;
+  const uid = await idDaConta();
   if (!uid) return;
   await supabase
     .from('player_sessions')
@@ -155,8 +166,8 @@ export async function esquecerSessoes(deviceIds: readonly string[]): Promise<voi
 
 export async function fetchOtherSessions(): Promise<RemoteSession[]> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const uid = await idDaConta();
+    if (!uid) return [];
 
     const deviceId = await getDeviceId();
 
@@ -174,7 +185,7 @@ export async function fetchOtherSessions(): Promise<RemoteSession[]> {
     const { data, error } = await supabase
       .from('player_sessions')
       .select('device_id, device_name, device_kind, track, queue, queue_index, position_ms, is_playing, updated_at')
-      .eq('user_id', user.id)
+      .eq('user_id', uid)
       .neq('device_id', deviceId)
       .order('updated_at', { ascending: false })
       .limit(8);
@@ -185,4 +196,47 @@ export async function fetchOtherSessions(): Promise<RemoteSession[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * As sessões dos outros aparelhos SEM a fila (27/9). É o que o banner e a
+ * lista de aparelhos leem, e leem muitas vezes: a cada aviso do Realtime e de
+ * minuto a minuto. A fila (até ~96 faixas por aparelho) só faz falta a quem
+ * assume a reprodução, e esse lê-a à parte (`completarSessao`).
+ *
+ * Sem a migração supabase/handoff-leve.sql é a leitura de sempre, com a fila.
+ */
+export async function fetchOtherSessionsLeves(): Promise<RemoteSession[]> {
+  if (leituraLeve !== false) {
+    try {
+      const uid = await idDaConta();
+      if (!uid) return [];
+      const deviceId = await getDeviceId();
+      const { data, error } = await supabase.rpc('sessoes_dos_outros_dispositivos_leves', { p_device_id: deviceId });
+      const lidaEm = Date.now();
+      if (!error && Array.isArray(data)) {
+        leituraLeve = true;
+        return data.map((row) => ({
+          ...rowToSession(row, lidaEm),
+          filaPorLer: true,
+          resumo: { proxima: row.proxima ?? null, depois: Math.max(0, Number(row.depois) || 0) },
+        }));
+      }
+      if (naoExiste(error)) leituraLeve = false;
+    } catch {
+      // Cai na leitura de sempre.
+    }
+  }
+  return fetchOtherSessions();
+}
+
+/**
+ * A sessão com a fila, para a adotar. Uma leitura leve traz a fila vazia, e
+ * sem isto o "Continue here" punha só a faixa atual. Se a leitura falhar,
+ * fica a que se tinha: adotar só a faixa é melhor do que não adotar nada.
+ */
+export async function completarSessao(sessao: RemoteSession): Promise<RemoteSession> {
+  if (!sessao.filaPorLer) return sessao;
+  const completas = await fetchOtherSessions();
+  return completas.find((s) => s.deviceId === sessao.deviceId) ?? sessao;
 }

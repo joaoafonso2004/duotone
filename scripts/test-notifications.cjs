@@ -108,7 +108,7 @@ async function main() {
   // Actual Social store: inbox delivery survives metadata failure, a second
   // event during a query is read, recovery pauses when hidden, and late results
   // cannot replace data after changing account.
-  let visible=true,inboxCalls=0,resolveFirst,resolveStale, failInbox=false;
+  let visible=true,inboxCalls=0,resolveFirst,resolveStale, failInbox=false;const desdes=[];
   const intervals=new Map(),handlers=new Map();
   const channel={on(_,filter,cb){handlers.set(filter.table,cb);return this;},subscribe(){return this;}};
   const create=fn=>{
@@ -120,7 +120,7 @@ async function main() {
   const socialModule=load('src/state/social.ts',{
     zustand:{create},'react-native':{AppState:{addEventListener:()=>({remove(){}})},Platform:{OS:'ios'}},
     '../api/social':{
-      getInboxItems:()=>{inboxCalls++;if(failInbox)return Promise.reject(Error('network'));
+      getInboxItems:(desde)=>{desdes.push(desde??null);inboxCalls++;if(failInbox)return Promise.reject(Error('network'));
         if(inboxCalls===1)return new Promise(r=>{resolveFirst=r;});
         if(inboxCalls===4)return new Promise(r=>{resolveStale=r;});
         return Promise.resolve([msg(String(inboxCalls))]);},
@@ -132,20 +132,30 @@ async function main() {
     '../lib/socialPresence':{estadoDaPresenca:()=>({})},'../lib/social':load('src/lib/social.ts'),
     '../lib/profileMedia':{clearProfileMediaCache(){}},'../api/profiles':{getSocialConversations:async()=>[]},
     '../lib/appVisibility':{appEstaVisivel:()=>visible},'../lib/inAppNotifications':core,
+    '../lib/recuperacaoDaInbox':load('src/lib/recuperacaoDaInbox.ts'),
   },{setInterval:(cb,ms)=>{intervals.set(ms,cb);return ms;},clearInterval:id=>intervals.delete(id),
     console:{warn(){}}});
   const stop=socialModule.iniciarSocial('me');await flush();
+  // Without Realtime (this channel never reports SUBSCRIBED) the recovery reads
+  // once a minute: four 15-second ticks (src/lib/recuperacaoDaInbox.ts).
+  const tiques=n=>{for(let i=0;i<n;i++)intervals.get(15000)();};
   handlers.get('shared_items')();resolveFirst([msg('initial')]);await flush();
   assert.equal(inboxCalls,2,'events during a fetch cause a follow-up read');
   assert.equal(socialModule.useSocial.getState().received[0].id,'2','metadata failure does not block inbox');
   visible=false;intervals.get(15000)();await flush();assert.equal(inboxCalls,2,'no recovery while backgrounded');
-  visible=true;intervals.get(15000)();await flush();assert.equal(inboxCalls,3,'15-second recovery');
-  failInbox=true;intervals.get(15000)();await flush();
+  visible=true;tiques(2);await flush();assert.equal(inboxCalls,2,'not every 15 seconds');
+  tiques(1);await flush();assert.equal(inboxCalls,3,'one-minute recovery without Realtime');
+  // The first read is whole; a change that is not an INSERT asks for a whole
+  // one too; after that only what arrived since the newest message is read.
+  assert.deepEqual(desdes.slice(0,2),[null,null],'first read and non-INSERT event read everything');
+  assert.equal(typeof desdes[2],'string','recovery reads only the new messages');
+  assert.deepEqual(socialModule.useSocial.getState().received.map(m=>m.id),['3','2'],'new messages are merged, not replacing the list');
+  failInbox=true;tiques(4);await flush();
   assert.equal(socialModule.useSocial.getState().inboxError,true);
   assert.equal(socialModule.useSocial.getState().received[0].id,'3','failed queries preserve messages');
   failInbox=false;
   // Force one unresolved query across cleanup, independent of the call count.
-  inboxCalls=3;intervals.get(15000)();await flush();stop();resolveStale([msg('old-account')]);await flush();
+  inboxCalls=3;tiques(4);await flush();stop();resolveStale([msg('old-account')]);await flush();
   assert.equal(socialModule.useSocial.getState().inboxSnapshot,null,'late query after account cleanup ignored');
   assert.equal(intervals.size,0,'all recovery timers removed');
   console.log('Notification regression tests passed (journal, delivery lifecycle, coalescing, recovery, modal navigation).');

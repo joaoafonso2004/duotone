@@ -84,3 +84,49 @@ export function fundirVistos(local: ChatsVistos, remoto: ChatsVistos): ChatsVist
   }
   return juntos;
 }
+
+/**
+ * A inbox lê-se às NOVAS (27/9).
+ *
+ * O `getInboxItems` trazia sempre todas as mensagens recebidas e não
+ * arquivadas -- as das conversas nunca se arquivam, por isso a lista só
+ * cresce --, e relia-a a cada mensagem nova. Era uma das fontes do egress que
+ * o Supabase cobrou. Agora a leitura inteira é rara (ao entrar, de dez em dez
+ * minutos, quando uma mensagem é apagada ou arquivada ou uma amizade muda), e
+ * no resto pede-se só o que chegou depois da mais recente que já se tem.
+ *
+ * A lista continua inteira em memória: "uma conversa nunca aberta conta tudo
+ * o que lá está" (`naoLidasPorAmigo`) continua verdade.
+ */
+
+/**
+ * A folga para trás da marca. Uma mensagem pode ficar gravada com uma hora
+ * anterior à da mais recente que já se leu (a transação dela acabou depois);
+ * pedir de um pouco antes e juntar pelo id apanha-a sem a repetir.
+ */
+export const FOLGA_DAS_NOVAS_MS = 2 * 60 * 1000;
+
+/** A partir de quando se pedem as novas, ou `null` para ler tudo. */
+export function marcaDasNovas(recebidas: readonly { createdAt: string }[]): string | null {
+  let maior = -Infinity;
+  for (const r of recebidas) {
+    const t = Date.parse(r.createdAt);
+    if (Number.isFinite(t) && t > maior) maior = t;
+  }
+  return Number.isFinite(maior) ? new Date(maior - FOLGA_DAS_NOVAS_MS).toISOString() : null;
+}
+
+/**
+ * Junta as novas às que já se tinham: a mesma mensagem conta uma vez (a nova
+ * ganha) e a ordem é a de sempre, da mais recente para a mais antiga.
+ */
+export function fundirRecebidas<T extends { id: string; createdAt: string }>(
+  antigas: readonly T[],
+  novas: readonly T[],
+): T[] {
+  const porId = new Map<string, T>();
+  for (const r of antigas) porId.set(r.id, r);
+  for (const r of novas) porId.set(r.id, r);
+  return [...porId.values()].sort((a, b) =>
+    (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0) || b.id.localeCompare(a.id));
+}

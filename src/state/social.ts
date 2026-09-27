@@ -4,11 +4,12 @@ import { getFriendships, getGrupos, getInboxItems, lerConversasVistas, marcarCon
 import { getChatsVistos, marcarChatVisto } from '../lib/prefs';
 import { supabase } from '../lib/supabase';
 import { estadoDaPresenca, type SocialPresence } from '../lib/socialPresence';
-import { fundirVistos } from '../lib/social';
+import { fundirRecebidas, fundirVistos, marcaDasNovas } from '../lib/social';
 import { clearProfileMediaCache } from '../lib/profileMedia';
 import { getSocialConversations,type PublicProfile } from '../api/profiles';
 import { appEstaVisivel } from '../lib/appVisibility';
 import { serialRefresh, type InboxSnapshot } from '../lib/inAppNotifications';
+import { deveRelerAInbox, TIQUE_DA_INBOX_MS } from '../lib/recuperacaoDaInbox';
 
 interface SocialState {
   inboxSnapshot: InboxSnapshot | null;
@@ -102,24 +103,49 @@ let accountId='';
 let refreshInbox: () => Promise<void> = async () => {};
 // The Windows taskbar needs a fresh inbox even while the main window is hidden.
 const canReadInbox = () => appEstaVisivel() || (Platform.OS === 'web' && !!window.duotoneDesktop);
+/** Tiques da recuperação desde a última leitura da inbox, viesse ela de onde viesse. */
+let tiquesDaInbox = 0;
+/**
+ * A inbox lê-se às NOVAS (27/9, `marcaDasNovas` em lib/social.ts). Inteira só
+ * ao entrar, de dez em dez minutos, e quando uma mensagem é apagada ou
+ * arquivada ou uma amizade muda -- o que as novas não apanham.
+ */
+let inboxInteiraPedida = true;
+let ultimaInboxInteira = 0;
+const INBOX_INTEIRA_MS = 10 * 60 * 1000;
 
 /** Messages and requests must not wait for presence, groups or profile queries.
  * Both the Social UI and notifications observe this same successful snapshot. */
 function createInboxRefresh(userId: string, gen: number) {
   return serialRefresh(async () => {
     if (gen !== generation || !canReadInbox()) return;
+    tiquesDaInbox = 0;
+    const atual = useSocial.getState();
+    const base = atual.inboxSnapshot?.accountId === userId ? atual.received : null;
+    const inteira = !base || inboxInteiraPedida || Date.now() - ultimaInboxInteira >= INBOX_INTEIRA_MS;
+    // Pedida ANTES de ler: um aviso que chegue durante a leitura volta a pedi-la.
+    inboxInteiraPedida = false;
     const [inbox, friendships, local, remote] = await Promise.allSettled([
-      getInboxItems(), getFriendships(), getChatsVistos(userId), lerConversasVistas(),
+      getInboxItems(inteira || !base ? null : marcaDasNovas(base)),
+      // Os pedidos de amizade chegam por aviso, e esse pede a leitura inteira.
+      inteira ? getFriendships() : Promise.resolve(null),
+      getChatsVistos(userId), lerConversasVistas(),
     ]);
     if (gen !== generation) return;
     const seen = fundirVistos(useSocial.getState().seen, fundirVistos(
       local.status === 'fulfilled' ? local.value : {}, remote.status === 'fulfilled' ? remote.value : {}));
     const snapshot: InboxSnapshot = {accountId:userId};
-    if (inbox.status === 'fulfilled') snapshot.received = inbox.value;
-    if (friendships.status === 'fulfilled') {
-      snapshot.friends = friendships.value;
-      if (rawFriends.some(f => f.status === 'accepted' && !friendships.value.some(n => n.friendId === f.friendId && n.status === 'accepted'))) clearProfileMediaCache();
-      rawFriends = friendships.value;
+    if (inbox.status === 'fulfilled') {
+      snapshot.received = inteira || !base ? inbox.value : fundirRecebidas(base, inbox.value);
+      if (inteira) ultimaInboxInteira = Date.now();
+    } else if (inteira) {
+      inboxInteiraPedida = true;
+    }
+    const amizades = friendships.status === 'fulfilled' ? friendships.value : null;
+    if (amizades) {
+      snapshot.friends = amizades;
+      if (rawFriends.some(f => f.status === 'accepted' && !amizades.some(n => n.friendId === f.friendId && n.status === 'accepted'))) clearProfileMediaCache();
+      rawFriends = amizades;
     }
     const inboxError = inbox.status === 'rejected' || friendships.status === 'rejected';
     useSocial.setState({inboxError, error:inboxError ? INBOX_ERROR : useSocial.getState().error === INBOX_ERROR ? null : useSocial.getState().error, seen, friends:friendsNow(Date.now()+clockOffset),
@@ -149,6 +175,18 @@ export function iniciarSocial(userId: string): () => void {
     void inboxRefresh();
     refresh();
   };
+  /** O canal está `SUBSCRIBED`: as mensagens novas chegam por ele. */
+  let aoVivo = false;
+  tiquesDaInbox = 0;
+  inboxInteiraPedida = true;
+  ultimaInboxInteira = 0;
+  // Uma mensagem nova lê-se às novas; apagada, arquivada ou uma amizade mudada,
+  // só a leitura inteira a apanha.
+  const aoMudarMensagens = (evento?: { eventType?: string }) => {
+    if (evento?.eventType !== 'INSERT') inboxInteiraPedida = true;
+    refreshMessages();
+  };
+  const aoMudarAmizades = () => { inboxInteiraPedida = true; refreshMessages(); };
   const channel = supabase.channel(`social:${userId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'social_presence' }, (event) => {
       if (gen !== generation) return;
@@ -159,22 +197,34 @@ export function iniciarSocial(userId: string): () => void {
         else dirty=true;
       }
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, refreshMessages)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_items' }, refreshMessages)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, aoMudarAmizades)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_items' }, aoMudarMensagens)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, ()=>{useSocial.setState(s=>({profileVersion:s.profileVersion+1}));refresh();})
-    .subscribe((status) => { if (status === 'SUBSCRIBED') refreshMessages(); });
+    .subscribe((status) => { aoVivo = status === 'SUBSCRIBED'; if (aoVivo) refreshMessages(); });
   const tick = setInterval(() => {
     if(!appEstaVisivel())return;
     const now = Date.now() + clockOffset;
     useSocial.setState({ now, friends: friendsNow(now) });
   }, 30000);
   // Realtime é o caminho normal. A consulta periódica é só recuperação de uma
-  // quebra silenciosa, por isso dois minutos chegam e evitam duas leituras
-  // sociais completas por minuto enquanto nada muda.
-  const recovery = setInterval(() => { if (appEstaVisivel()) refresh(); }, 120000);
-  // Foreground-only recovery even when the SQL Realtime publication is absent.
-  // This reads the inbox, requests and read markers, not all Social metadata.
-  const inboxRecovery = setInterval(() => { if (canReadInbox()) void inboxRefresh(); }, 15000);
+  // quebra silenciosa: de dois em dois minutos sem ele, de dez em dez com ele
+  // (27/9: cada uma relê também a inbox inteira, e um PC com a janela à vista
+  // fazia isto o dia todo).
+  let voltasAoVivo = 0;
+  const recovery = setInterval(() => {
+    if (!appEstaVisivel()) return;
+    if (aoVivo && ++voltasAoVivo % 5 !== 0) return;
+    refresh();
+  }, 120000);
+  // Só a rede para quando o Realtime cai: de minuto a minuto sem ele, de cinco
+  // em cinco com ele e a app à frente, e nunca com ele e a app escondida
+  // (lib/recuperacaoDaInbox.ts). Era de 15 em 15 s, também no tabuleiro do PC.
+  const inboxRecovery = setInterval(() => {
+    tiquesDaInbox++;
+    if (deveRelerAInbox({ aoVivo, visivel: appEstaVisivel(), podeLer: canReadInbox(), tiques: tiquesDaInbox })) {
+      void inboxRefresh();
+    }
+  }, TIQUE_DA_INBOX_MS);
   const acordar=()=>{
     if(!appEstaVisivel())return;
     const now=Date.now()+clockOffset;

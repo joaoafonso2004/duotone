@@ -12,14 +12,27 @@ import { isShowTrackDurationSync } from '../lib/prefs';
 import { useDescarregadaDeProposito } from '../lib/descarregarFaixa';
 import { colors, radii, spacing, type, ESCALA_MAXIMA } from '../theme';
 import { useSaved } from '../state/saved';
+import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import type { Track } from '../types';
 
 interface Props {
   track: Track;
   active?: boolean;
-  onPress: () => void;
-  onAction?: () => void;
+  /**
+   * Acende a linha quando ESTA faixa é a que toca, lendo-o a própria linha
+   * (27/9). As listas calculavam o `active` com o `current` da store, e por
+   * isso cada skip redesenhava o ecrã e todas as linhas montadas -- com as abas
+   * todas montadas (`lazy: false`), no instante do skip. Assim só mudam as
+   * duas linhas que mudam de facto.
+   */
+  acompanharATocar?: boolean;
+  /**
+   * Recebem a faixa, para a lista poder passar uma função ESTÁVEL em vez de
+   * uma nova por linha e por render -- que desfazia o `React.memo`.
+   */
+  onPress: (track: Track) => void;
+  onAction?: (track: Track) => void;
   actionIcon?: keyof typeof Ionicons.glyphMap;
   selectMode?: boolean;
   selected?: boolean;
@@ -68,6 +81,7 @@ function formatDuration(s: number | null): string {
 function TrackRowComponent({
   track,
   active,
+  acompanharATocar = false,
   onPress,
   onAction,
   actionIcon = 'ellipsis-horizontal',
@@ -81,6 +95,10 @@ function TrackRowComponent({
   contextLabel,
 }: Props) {
   const theme = useTheme((s) => s.theme);
+  const aTocar = usePlayer((s) =>
+    acompanharATocar && !!s.current && s.current.source === track.source && s.current.sourceId === track.sourceId,
+  );
+  const ativo = !!active || aTocar;
   /** A moldura da capa desta linha, para o player saber de onde a fazer voar. */
   const capa = useRef<View>(null);
   // Sem as barras pretas do 4:3 -- ver capaDoEcraBloqueado.ts. É também o que
@@ -111,20 +129,20 @@ function TrackRowComponent({
         capa.current?.measureInWindow((x, y, largura, altura) => {
           guardarOrigem({ x, y, largura, altura, uri: capaUri });
         });
-        onPress();
+        onPress(track);
       }}
       onLongPress={
         onLongPress ??
         (!selectMode && onAction
           ? () => {
               hapticSelection();
-              onAction();
+              onAction(track);
             }
           : undefined)
       }
       delayLongPress={delayLongPress ?? 350}
       onPressOut={onPressOut}
-      style={[styles.row, active && { backgroundColor: theme.soft }]}
+      style={[styles.row, ativo && { backgroundColor: theme.soft }]}
     >
       {selectMode && (
         <View style={styles.checkboxContainer}>
@@ -161,7 +179,7 @@ function TrackRowComponent({
         <Text
           numberOfLines={1}
           maxFontSizeMultiplier={ESCALA_MAXIMA.lista}
-          style={[type.body, { fontWeight: '600' }, active && { color: theme.color }]}
+          style={[type.body, { fontWeight: '600' }, ativo && { color: theme.color }]}
         >
           {tituloDaFaixa(track)}
         </Text>
@@ -193,7 +211,7 @@ function TrackRowComponent({
           escala={ESCALA.icone}
           onPress={() => {
             hapticImpact();
-            onAction();
+            onAction(track);
           }}
           hitSlop={10}
           style={styles.actionBtn}

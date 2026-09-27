@@ -37,6 +37,8 @@ import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 
+const chaveDaLinha = (t: Track) => t.id ?? `${t.source}:${t.sourceId}`;
+
 export function SongsScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
@@ -46,7 +48,6 @@ export function SongsScreen() {
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const ligado = usePlayer((s) => s.shuffle);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
-  const current = usePlayer((s) => s.current);
 
   const offline=useOfflineMode();
   const userId=useAuth(s=>s.session?.user.id??s.offlineUserId);
@@ -105,7 +106,7 @@ export function SongsScreen() {
   }),[userId]);
   useEffect(()=>{if(offline){setSelectMode(false);setSelectedIds(new Set());setPlaylistMultipleOpen(false);}},[offline]);
 
-  const toggleSelection = (trackId: string) => {
+  const toggleSelection = useCallback((trackId: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(trackId)) {
@@ -115,7 +116,7 @@ export function SongsScreen() {
       }
       return next;
     });
-  };
+  }, []);
 
   const confirmRemoveMultiple = () => {
     if (selectedIds.size === 0) return;
@@ -181,6 +182,26 @@ export function SongsScreen() {
   }, [filteredTracks, sortBy]);
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + (selectMode ? 80 : 32);
+  const conteudoDaLista = useMemo(() => ({ paddingBottom: bottomPad }), [bottomPad]);
+
+  // Estáveis (27/9): com o `React.memo` do TrackRow, uma linha só se redesenha
+  // quando muda o que ela mostra. O `current` já não passa por aqui -- cada
+  // linha sabe se é a que toca (`acompanharATocar`), e um skip deixou de
+  // redesenhar a lista inteira.
+  const aoTocarNaLinha = useCallback((item: Track) => {
+    if (selectMode) toggleSelection(item.id ?? `${item.source}:${item.sourceId}`);
+    else playTrack(item, sortedTracks, true);
+  }, [selectMode, toggleSelection, playTrack, sortedTracks]);
+  const desenharLinha = useCallback(({ item }: { item: Track }) => (
+    <TrackRow
+      track={item}
+      acompanharATocar={!selectMode}
+      selectMode={selectMode}
+      selected={selectedIds.has(item.id ?? `${item.source}:${item.sourceId}`)}
+      onPress={aoTocarNaLinha}
+      onAction={setActionTrack}
+    />
+  ), [selectMode, selectedIds, aoTocarNaLinha]);
 
   return (
     <Screen
@@ -337,37 +358,15 @@ export function SongsScreen() {
 
           <FlatList
             data={sortedTracks}
-            keyExtractor={(t) => t.id ?? `${t.source}:${t.sourceId}`}
+            keyExtractor={chaveDaLinha}
             initialNumToRender={12}
             maxToRenderPerBatch={10}
             updateCellsBatchingPeriod={50}
             windowSize={7}
             removeClippedSubviews
             getItemLayout={getTrackRowLayout}
-            contentContainerStyle={{ paddingBottom: bottomPad }}
-            renderItem={({ item }) => {
-              const itemId = item.id ?? `${item.source}:${item.sourceId}`;
-              return (
-                <TrackRow
-                  track={item}
-                  active={
-                    !selectMode &&
-                    current?.source === item.source &&
-                    current?.sourceId === item.sourceId
-                  }
-                  selectMode={selectMode}
-                  selected={selectedIds.has(itemId)}
-                  onPress={() => {
-                    if (selectMode) {
-                      toggleSelection(itemId);
-                    } else {
-                      playTrack(item, sortedTracks, true);
-                    }
-                  }}
-                  onAction={() => setActionTrack(item)}
-                />
-              );
-            }}
+            contentContainerStyle={conteudoDaLista}
+            renderItem={desenharLinha}
           />
         </View>
       )}

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import {
+  completarSessao,
   deleteOwnSession,
-  fetchOtherSessions,
+  fetchOtherSessionsLeves,
+  temAvisosLeves,
   writeSession,
   type SessionSnapshot,
 } from '../api/playerSessions';
@@ -148,7 +150,10 @@ export function endSession(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /** Assume a reprodução de outro dispositivo, a partir da posição projetada. */
-export async function takeOverSession(session: RemoteSession): Promise<void> {
+export async function takeOverSession(lida: RemoteSession): Promise<void> {
+  // O banner e a lista de aparelhos leem as sessões SEM a fila (27/9, ver
+  // supabase/handoff-leve.sql): a fila lê-se aqui, só para a adotar.
+  const session = await completarSessao(lida);
   const positionMs = extrapolatedPositionMs(session);
   usePlayer.getState().adoptSession({
     track: session.track,
@@ -195,9 +200,15 @@ export function useHandoffSession(): {
     return () => { mounted.current = false; };
   }, []);
 
-  const refresh = useCallback(async () => {
-    const rows = await fetchOtherSessions();
-    if (mounted.current) setSessions(rows);
+  /** A primeira leitura: é ela que diz por que tabela chegam os avisos. */
+  const primeira = useRef<Promise<void> | null>(null);
+  const refresh = useCallback(() => {
+    const leitura = (async () => {
+      const rows = await fetchOtherSessionsLeves();
+      if (mounted.current) setSessions(rows);
+    })();
+    primeira.current ??= leitura;
+    return leitura;
   }, []);
 
   useEffect(() => {
@@ -213,10 +224,10 @@ export function useHandoffSession(): {
     return () => { clearInterval(id); sub.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar); };
   }, [refresh]);
 
-  // O Realtime: cada escrita de um aparelho desta conta é um "relê agora".
-  // Filtrado pelo utilizador no servidor, e a própria linha deste aparelho
-  // também chega -- relê-la custa um pedido pequeno e poupa um filtro que o
-  // Realtime não sabe fazer (`neq`). Várias escritas seguidas dão uma leitura.
+  // O Realtime: cada escrita de OUTRO aparelho desta conta é um "relê agora".
+  // Filtrado pelo utilizador no servidor; a linha deste aparelho também chega
+  // (o Realtime não sabe filtrar por `neq`) e é deitada fora aqui. Várias
+  // escritas seguidas dão uma leitura.
   useEffect(() => {
     let parado = false;
     let canal: ReturnType<typeof supabase.channel> | null = null;
@@ -225,13 +236,28 @@ export function useHandoffSession(): {
       if (espera) clearTimeout(espera);
       espera = setTimeout(() => { espera = null; if (appEstaVisivel()) void refresh(); }, 400);
     };
-    void supabase.auth.getSession().then(({ data }) => {
+    void (async () => {
+      const [{ data }, meu] = await Promise.all([supabase.auth.getSession(), getDeviceId()]);
       const uid = data.session?.user.id;
       if (parado || !uid) return;
+      // Com a migração handoff-leve.sql a `player_sessions` sai do Realtime, e
+      // avisa-se pela `player_sessions_avisos`: uma linha pequena por aparelho
+      // em vez da linha inteira, com a fila, a cada batimento. Qual das duas,
+      // di-lo a primeira leitura leve: subscrever uma tabela que não está no
+      // Realtime pode deixar o canal em erro, a tentar entrar outra vez.
+      await (primeira.current ?? refresh()).catch(() => {});
+      if (parado) return;
+      const tabela = temAvisosLeves() ? 'player_sessions_avisos' : 'player_sessions';
       canal = supabase.channel(`player-sessions:${uid}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'player_sessions', filter: `user_id=eq.${uid}` }, agendar)
+        .on('postgres_changes', { event: '*', schema: 'public', table: tabela, filter: `user_id=eq.${uid}` }, (mudanca: any) => {
+          // As escritas DESTE aparelho também chegam, e relê-las era uma
+          // leitura por batimento para nada.
+          const aparelho = mudanca?.new?.device_id ?? mudanca?.old?.device_id;
+          if (aparelho && aparelho === meu) return;
+          agendar();
+        })
         .subscribe();
-    });
+    })();
     return () => {
       parado = true;
       if (espera) clearTimeout(espera);

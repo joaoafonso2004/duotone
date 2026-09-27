@@ -35,7 +35,6 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const { type, name } = route.params;
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
-  const current = usePlayer((s) => s.current);
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,7 +187,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
             <Text numberOfLines={1} style={typography.caption}>{item.channelTitle || 'YouTube'}</Text></View>
           <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
         </Pressable> : <TrackRow track={item} showSavedBadge={activeTab === 'youtube_tracks'}
-          active={current?.source === item.source && current?.sourceId === item.sourceId}
+          acompanharATocar
           onPress={() => playTrack(item, activeTab === 'library' ? tracks : otherTracks, true)} onAction={() => setActionTrack(item)} />}
       />
 

@@ -76,7 +76,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const ligado = usePlayer((s) => s.shuffle);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
-  const current = usePlayer((s) => s.current);
 
   const [name, setName] = useState(route.params.name);
   const [tracks, setTracks] = useState<PlaylistTrack[]>([]);
@@ -222,6 +221,12 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     () => sortedTracks.filter((t) => correspondeAPesquisa(playlistSearchQuery, t.title, displayArtist(t))),
     [sortedTracks, playlistSearchQuery],
   );
+
+  // Estável (27/9): a linha recebe a faixa, e o `React.memo` do TrackRow deixa
+  // de se desfazer a cada render. Quem acende a que toca é a própria linha.
+  const aoTocarNaLinha = useCallback((item: Track) => {
+    playTrack(item, visibleTracks, true);
+  }, [playTrack, visibleTracks]);
 
   /** O "Remove from this playlist" do menu: pede a confirmação que já havia. */
   const tirarDaPlaylist = useCallback((track: Track) => {
@@ -623,12 +628,9 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             ) : (
               <TrackRow
                 track={item}
-                active={
-                  current?.source === item.source &&
-                  current?.sourceId === item.sourceId
-                }
-                onPress={() => playTrack(item, visibleTracks, true)}
-                onAction={() => setActionTrack(item)}
+                acompanharATocar
+                onPress={aoTocarNaLinha}
+                onAction={setActionTrack}
               />
             )
           }

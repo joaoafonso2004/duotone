@@ -174,6 +174,11 @@ const TESTES = [
   `${DUPLOS} scripts/test-jam-store.ts`,
   'scripts/test-ouvir-juntos.mjs',
   'scripts/test-personalization-offline.mjs',
+  'scripts/test-handoff-leve-sql.mjs',
+  `${TS} scripts/test-recuperacao-da-inbox.ts`,
+  `${TS} scripts/test-fade-de-entrada.ts`,
+  'scripts/test-linhas-da-lista.mjs',
+  `${TS} scripts/test-barra-suave.ts`,
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

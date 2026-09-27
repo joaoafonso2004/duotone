@@ -5,7 +5,7 @@ import { AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fixMp4Duration } from './mp4Fixer';
 import { validarRespostaParcial } from './audioRange';
-import { largarVez, pedirVez, type Prioridade } from './filaDeDownloads';
+import { cederSePreciso, deveCeder, largarVez, pedirVez, type Prioridade } from './filaDeDownloads';
 import { escolherParaApagar, type FicheiroEmCache } from './limpezaDoCache';
 import { AUDIO_INCOMPLETO, publicarAudio } from './publicarDownload';
 import { criarMp4AoVivo } from './mp4AoVivo';
@@ -503,6 +503,11 @@ export interface DownloadOptions {
   renewUrl?: () => Promise<string | null>;
   /** Quem fica a frente na fila. Ver `Prioridade`. */
   prioridade?: Prioridade;
+  /**
+   * Interno: corre entre dois bocados, com o tamanho do ficheiro. É por aqui
+   * que um download que não é da reprodução lhe cede a vaga (`cederSePreciso`).
+   */
+  entreBocados?: (totalBytes: number) => Promise<void>;
 }
 
 
@@ -675,9 +680,22 @@ export async function downloadProgressiveAudio(
     try {
       // O sinal retira o pedido da fila; só desistir da Promise deixaria um
       // pedido fantasma a ocupar uma vaga quando chegasse a sua vez.
-      const bilhete = await esperarDownload(
-        (signal) => pedirVez(opts.prioridade ?? 'explicito', signal), opts.shouldAbort, null,
+      const prioridade = opts.prioridade ?? 'explicito';
+      let bilhete = await esperarDownload(
+        (signal) => pedirVez(prioridade, signal), opts.shouldAbort, null,
       );
+      // Entre bocados, a música que a pessoa escolheu passa à frente: este
+      // larga a vaga, fica com o que já tem, e continua quando ela acabar.
+      const entreBocados = async (totalBytes: number) => {
+        if (!deveCeder(prioridade, totalBytes)) return;
+        registo.fase = 'na-fila';
+        avisarDownloads();
+        bilhete = await esperarDownload(
+          (signal) => cederSePreciso(bilhete, prioridade, totalBytes, signal), opts.shouldAbort, null,
+        );
+        registo.fase = 'a-descarregar';
+        avisarDownloads();
+      };
       try {
         // Entre pedir a vez e chega-la, a faixa pode ter mudado ou outro job pode
         // ter descarregado esta mesma.
@@ -687,7 +705,7 @@ export async function downloadProgressiveAudio(
         registo.fase = 'a-descarregar';
         registo.inicioEm = Date.now();
         avisarDownloads();
-        return await descarregarAgora(videoId, url, knownLength, durationSeconds, opts, dest, registo);
+        return await descarregarAgora(videoId, url, knownLength, durationSeconds, { ...opts, entreBocados }, dest, registo);
       } finally {
         largarVez(bilhete);
       }
@@ -747,6 +765,10 @@ async function pedirBocados(
   while (offset < total) {
     if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
     if (!first) await sleep(CHUNK_PACING_MS);
+    if (!first && opts.entreBocados) {
+      await opts.entreBocados(total);
+      if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+    }
     const pedido = first ? Math.min(chunkSize, primeiroBocado) : chunkSize;
     first = false;
     const end = Math.min(offset + pedido, total) - 1;

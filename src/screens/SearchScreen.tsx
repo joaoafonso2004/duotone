@@ -149,7 +149,6 @@ export function SearchScreen() {
   const separadores = useNavigation<MaterialTopTabNavigationProp<TabsParamList>>();
   const insets = useSafeAreaInsets();
   const playTrack = usePlayer((s) => s.playTrack);
-  const current = usePlayer((s) => s.current);
   const refreshSaved = useSaved((s) => s.refresh);
   const savedKeys = useSaved((s) => s.keys);
 
@@ -737,7 +736,7 @@ export function SearchScreen() {
                   <TrackRow
                     key={`local:${t.source}:${t.sourceId}`}
                     track={t}
-                    active={current?.source === t.source && current?.sourceId === t.sourceId}
+                    acompanharATocar
                     onPress={() => {
                       Keyboard.dismiss();
                       playTrack(t, naBiblioteca, true);
@@ -777,10 +776,7 @@ export function SearchScreen() {
               <TrackRow
                 track={item}
                 showSavedBadge
-                active={
-                  current?.source === item.source &&
-                  current?.sourceId === item.sourceId
-                }
+                acompanharATocar
                 onPress={() => {
                   Keyboard.dismiss();
                   // Só a faixa escolhida, nunca os resultados: ver o mesmo

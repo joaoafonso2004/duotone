@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { idDaConta } from '../lib/idDaConta';
 import { upsertTrack } from './library';
 import type { Track } from '../types';
 
@@ -7,9 +8,9 @@ import { envelhecerGosto, juntarComOSpotify } from '../lib/gostoDoSpotify';
 import { getArtistasSemente, getGostoDoSpotify } from '../lib/prefs';
 import { chaveDeArtista } from '../lib/artistName';
 async function currentUserId(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) throw new Error('Session expired');
-  return data.user.id;
+  const id = await idDaConta();
+  if (!id) throw new Error('Session expired');
+  return id;
 }
 
 function rowToTrack(row: any): Track {

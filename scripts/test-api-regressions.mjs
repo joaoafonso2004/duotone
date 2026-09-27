@@ -197,7 +197,7 @@ const pedidosPlaylist=[];
 const playlistApi=ambiente(async()=>{}, {
   'src/api/library.ts':{},
   'src/lib/supabase.ts':{supabase:{
-    auth:{getUser:async()=>({data:{user:{id:'eu'}},error:null})},
+    auth:{getUser:async()=>({data:{user:{id:'eu'}},error:null}), getSession: async () => ({ data: { session: { user: { id: 'eu' } } } })},
     rpc:async(nome,args)=>{pedidosPlaylist.push([nome,args]);return {data:rpcPlaylist,error:erroPlaylist};},
     from:(table)=>{
       let from=0,to=999,single=false;
@@ -235,7 +235,7 @@ const bibliotecaApi=ambiente(async()=>{}, {
   'src/lib/likedSongsCache.ts':{cacheLikedSongs:async()=>{},changeCachedLikes:async()=>{},likedCacheRevision:()=>0},
   'src/api/artistNames.ts':{confirmarArtistasEmSegundoPlano:()=>{}},
   'src/lib/supabase.ts':{supabase:{
-    auth:{getUser:async()=>({data:{user:{id:'eu'}},error:null})},
+    auth:{getUser:async()=>({data:{user:{id:'eu'}},error:null}), getSession: async () => ({ data: { session: { user: { id: 'eu' } } } })},
     from:()=>{
       let from=0,to=999;
       const query={
@@ -257,7 +257,7 @@ let playlistError={code:'42703',message:'column playlists.visible_on_profile doe
 let playlistReads=[];
 const profileEnv=ambiente(async()=>{}, {
   'src/api/library.ts':{},
-  'src/lib/supabase.ts':{supabase:{auth:{getUser:async()=>({data:{user:{id:'owner'}}})},from:()=>{
+  'src/lib/supabase.ts':{supabase:{auth:{getUser:async()=>({data:{user:{id:'owner'}}}), getSession: async () => ({ data: { session: { user: { id: 'owner' } } } })},from:()=>{
     let fields='';const query={select:s=>{fields=s;return query;},eq:(key,value)=>{assert.equal(key,'owner_id');assert.equal(value,'owner');return query;},order:()=>query,
       then:fn=>{playlistReads.push(fields);return Promise.resolve(fn(fields.includes('visible_on_profile')&&playlistError?{error:playlistError}:{data:[{id:'original',name:'A minha playlist',playlist_tracks:[{position:0,tracks:{artwork_url:'cover'}}],visible_on_profile:true,copied_from:null}]}));}};
     return query;
@@ -562,7 +562,7 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
     return q;
   };
   const supabaseFalso = {
-    auth: { getUser: async () => ({ data: { user: { id: 'eu' } }, error: null }) },
+    auth: { getUser: async () => ({ data: { user: { id: 'eu' } }, error: null }), getSession: async () => ({ data: { session: { user: { id: 'eu' } } } }) },
     from: () => consulta(),
     rpc: async (nome) => {
       leituras.push(nome);
@@ -606,6 +606,62 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   assert.deepEqual(leituras, ['sessoes_dos_outros_dispositivos', 'tabela', 'sessoes_dos_outros_dispositivos'],
     'uma falha passageira não desliga a função para sempre');
   console.log('Continuar aqui: com e sem a migração, a escrita e a leitura funcionam.');
+}
+
+// A leitura LEVE do handoff (27/9, supabase/handoff-leve.sql): o banner e a
+// lista de aparelhos leem sem a fila, e quem adota lê-a nesse momento. Sem a
+// migração é a leitura de sempre, e não se volta a perguntar pela função.
+{
+  let leve = true;
+  const rpcs = [];
+  const fila = [{ sourceId: 'a' }, { sourceId: 'b' }, { sourceId: 'c' }];
+  const base = {
+    device_id: 'iphone', device_name: 'iPhone', device_kind: 'ios',
+    track: { source: 'youtube', sourceId: 'a', title: 'A' }, queue_index: 0,
+    position_ms: 1000, is_playing: true, updated_at: new Date().toISOString(), ritmo: 1, idade_ms: 500,
+  };
+  const supabaseFalso = {
+    auth: { getSession: async () => ({ data: { session: { user: { id: 'eu' } } } }) },
+    from: () => { throw new Error('não devia ler a tabela'); },
+    rpc: async (nome) => {
+      rpcs.push(nome);
+      if (nome === 'sessoes_dos_outros_dispositivos_leves') {
+        return leve
+          ? { data: [{ ...base, proxima: { sourceId: 'b' }, depois: 1 }], error: null }
+          : { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } };
+      }
+      return { data: [{ ...base, queue: fila }], error: null };
+    },
+  };
+  const api = () => ambiente(async () => {}, {
+    'src/lib/supabase.ts': { supabase: supabaseFalso },
+    'src/lib/deviceIdentity.ts': { getDeviceId: async () => 'pc', getDeviceName: async () => 'PC', deviceKind: () => 'desktop' },
+  }).carregar('src/api/playerSessions.ts');
+
+  const nova = api();
+  const [s] = await nova.fetchOtherSessionsLeves();
+  // Objetos do módulo vêm de outro contexto do vm: compara-se pelo conteúdo.
+  assert.equal(s.queue.length, 0, 'a leitura leve não traz a fila');
+  assert.equal(s.filaPorLer, true);
+  assert.equal(JSON.stringify(s.resumo), JSON.stringify({ proxima: { sourceId: 'b' }, depois: 1 }), 'traz o que o banner mostra dela');
+  assert.equal(nova.temAvisosLeves(), true, 'e diz que os avisos são os pequenos');
+  const completa = await nova.completarSessao(s);
+  assert.deepEqual(completa.queue, fila, 'quem adota lê a fila nesse momento');
+  assert.deepEqual(rpcs, ['sessoes_dos_outros_dispositivos_leves', 'sessoes_dos_outros_dispositivos']);
+  rpcs.length = 0;
+  assert.equal(await nova.completarSessao(completa), completa, 'uma sessão com fila não se volta a ler');
+  assert.deepEqual(rpcs, []);
+
+  leve = false;
+  const antiga = api();
+  const [t] = await antiga.fetchOtherSessionsLeves();
+  assert.deepEqual(t.queue, fila, 'sem a migração, a leitura de sempre');
+  assert.equal(t.filaPorLer, undefined);
+  assert.equal(antiga.temAvisosLeves(), false, 'e os avisos continuam a ser os da tabela');
+  rpcs.length = 0;
+  await antiga.fetchOtherSessionsLeves();
+  assert.deepEqual(rpcs, ['sessoes_dos_outros_dispositivos'], 'não volta a perguntar pela função que não existe');
+  console.log('Continuar aqui, leve: sem a fila no banner, com ela ao adotar, e sem a migração como antes.');
 }
 
 // Perfil pessoal de ponta a ponta: plays + Spotify/sementes -> crivo real de
@@ -994,7 +1050,7 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
     'src/lib/supabase.ts': { supabase: {
       auth: {
         getSession: async () => ({ data: { session: { user: { id: conta } } } }),
-        getUser: async () => ({ data: { user: { id: conta } }, error: null }),
+        getUser: async () => ({ data: { user: { id: conta } }, error: null }), getSession: async () => ({ data: { session: { user: { id: conta } } } }),
       },
       rpc: async () => ({ data: 'copia', error: null }),
       from: () => {

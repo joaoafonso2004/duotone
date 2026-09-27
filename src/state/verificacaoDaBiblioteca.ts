@@ -12,6 +12,7 @@ import {
 import { comCatalogo, encherDoPartilhado } from './catalogoDeFaixas';
 import { usePlaylists } from './playlists';
 import { useSaved } from './saved';
+import { esquecerBiblioteca } from '../lib/cacheDaBiblioteca';
 import type { Track } from '../types';
 
 /**
@@ -97,6 +98,9 @@ const get = useVerificacaoDaBiblioteca.getState;
 
 /** A biblioteca mudou: quem a mostra relê. */
 function avisarQueMudou(): void {
+  // Juntar e remover mudam faixas e playlists de uma vez: a lista guardada
+  // deixa de valer, e quem ouvir o aviso relê-a do servidor.
+  esquecerBiblioteca();
   void useSaved.getState().refresh();
   // A cache das Liked Songs (a que se vê sem rede) acompanha.
   void getLikedSongs().catch(() => {});

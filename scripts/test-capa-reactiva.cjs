@@ -224,8 +224,11 @@ async function run() {
   // O skip não reconstrói a caixa (24/9): laterais, grão e verso ficam montados.
   assert.doesNotMatch(player, /<ArtworkLyricsCube key=/,
     'o cubo do iPhone não remonta por faixa -- remontar engasgava o Recuo subtil');
-  assert.match(player, /<CapaComTransicao key=\{`\$\{current\.source\}:\$\{current\.sourceId\}`\}/,
+  // Dentro da `CapaDoLeitor` (27/9) a faixa chama-se `track`; a regra é a mesma.
+  assert.match(player, /<CapaComTransicao key=\{`\$\{(current|track)\.source\}:\$\{\1\.sourceId\}`\}/,
     'a capa da frente continua a ser uma instância por faixa: é ao desmontar que lembra a anterior');
+  assert.match(player, /const CapaDoLeitor = React\.memo\(/,
+    'a capa do leitor é memorizada: os redesenhos do PlayerRoot num skip não reconciliam o cubo');
   assert.match(cubo, /<LyricsView key=\{`\$\{track\.source\}:\$\{track\.sourceId\}`\}/,
     'as letras recomeçam por faixa dentro do cubo');
   assert.doesNotMatch(player + cubo, /blurRadius=\{(28|64)\}/,

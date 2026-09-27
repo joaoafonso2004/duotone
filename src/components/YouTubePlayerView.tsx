@@ -48,6 +48,7 @@ import { trocarFonte } from '../lib/trocaDeFonte';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { velocidadeNaSessao } from '../lib/jam';
 import { useArranqueTravado } from '../hooks/useArranqueTravado';
+import { entraSemFade, type FimNatural } from '../lib/fadeDeEntrada';
 
 /**
  * Quanto se espera por uma resolucao antes de a dar por perdida.
@@ -509,6 +510,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // Evita disparar "ended" mais do que uma vez por faixa (ver bug da duração
   // a dobrar mais abaixo).
   const endedRef = useRef(false);
+  /** A última faixa que acabou SOZINHA: a seguinte entra sem fade-in (lib/fadeDeEntrada.ts). */
+  const fimNaturalRef = useRef<FimNatural | null>(null);
   // Watchdog de stream que não avança (músicas longas no 4G: o AVPlayer nem
   // sequer ARRANCA o progressivo). `lastProgressRef` = última posição vista +
   // quando; `wantsPlayRef` = a app tenciona estar a tocar (não foi pausada
@@ -1075,6 +1078,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     const beginPlayback = (origem: OrigemDoSom) => {
       const st = usePlayer.getState();
       const resumeMs = st.resumePositionMs;
+      // Consome-se aqui, seja qual for o caminho: um fim antigo não decide
+      // pela faixa a seguir a esta.
+      const semFade = entraSemFade(fimNaturalRef.current, track.sourceId, Date.now(), resumeMs);
+      fimNaturalRef.current = null;
       if (resumeMs && resumeMs > 1500) {
         try {
           motorActivo().currentTime = resumeMs / 1000;
@@ -1099,7 +1106,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       if (autoplay) {
         registarNaVelocidade(`play at track start/crossfade (motorActivo()) | ${fotoDaVelocidade(motorActivo())}`);
         tocarNaVelocidade(motorActivo(),velocidadeNaSessao(st.playbackRate,!!useOuvirJuntos.getState().sessao),aplicarVelocidadeNativa);
-        fadeIn();
+        if (semFade) {
+          // A anterior acabou sozinha: a música entra inteira, como no álbum.
+          if (fadeIntervalRef.current) { clearInterval(fadeIntervalRef.current); fadeIntervalRef.current = null; }
+          motorActivo().volume = ceilingRef.current;
+        } else {
+          fadeIn();
+        }
       } else {
         // Garantia explícita de pausa: nada abaixo pode arrancar o playback
         // (o efeito da velocidade também preserva a pausa).
@@ -1623,6 +1636,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       + ` of ${track.durationSeconds ?? streamRef.current?.durationSeconds ?? '?'}s`,
     );
     endedRef.current = true;
+    fimNaturalRef.current = { de: track.sourceId, em: Date.now() };
     onStateChange('ended');
   };
 
@@ -1767,6 +1781,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         player.play();
       } else if (!endedRef.current) {
         endedRef.current = true;
+        fimNaturalRef.current = { de: track.sourceId, em: Date.now() };
         onStateChange('ended');
       }
     }

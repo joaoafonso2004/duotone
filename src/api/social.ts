@@ -1,5 +1,6 @@
 import { getPublicProfiles, searchPublicProfiles } from './profiles';
 import { supabase } from '../lib/supabase';
+import { idDaConta } from '../lib/idDaConta';
 import type { Track } from '../types';
 
 import { AMIGOS_A_CONSULTAR, favoritasDosAmigos, type EscutaDeAmigo, type FavoritaDeAmigo } from '../lib/favoritasDosAmigos';
@@ -114,9 +115,9 @@ export function sharedTrack(value: unknown): Track | null {
 }
 
 async function currentUserId(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) throw new Error('Session expired');
-  return data.user.id;
+  const id = await idDaConta();
+  if (!id) throw new Error('Session expired');
+  return id;
 }
 
 export async function sendFriendRequest(targetUserId: string): Promise<void> {
@@ -273,18 +274,23 @@ export async function shareItem(
   }
 }
 
-export async function getInboxItems(): Promise<SharedItem[]> {
+/**
+ * `desde`: só as que chegaram depois (ISO). Sem ele, todas -- ver
+ * `marcaDasNovas` em lib/social.ts: a leitura inteira passou a ser rara (27/9).
+ */
+export async function getInboxItems(desde: string | null = null): Promise<SharedItem[]> {
   const currentUid = await currentUserId();
 
   // Carregar os itens em que o destinatário é o utilizador atual.
   // Itens arquivados (removidos da inbox) ficam de fora — mas continuam
   // a existir na conversa (getChatMessages não filtra por archived_at).
-  const { data, error } = await supabase
+  let consulta = supabase
     .from('shared_items')
     .select('*')
     .neq('sender_id', currentUid)
-    .is('archived_at', null)
-    .order('created_at', { ascending: false });
+    .is('archived_at', null);
+  if (desde) consulta = consulta.gt('created_at', desde);
+  const { data, error } = await consulta.order('created_at', { ascending: false });
 
   if (error) throw error;
   if (!data || data.length === 0) return [];

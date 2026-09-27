@@ -82,6 +82,15 @@ export interface RemoteSession {
   lidaEm: number;
   /** A velocidade de reprodução: a 0,8× a posição anda 0,8 s por segundo. */
   ritmo: number;
+  /**
+   * `true` quando a sessão veio pela leitura LEVE (`fetchOtherSessionsLeves`):
+   * a `queue` vem vazia, e quem a for adotar tem de a ler primeiro. A fila
+   * viajava em cada leitura do banner e da lista de aparelhos, e cada uma são
+   * até ~96 faixas -- ver supabase/handoff-leve.sql.
+   */
+  filaPorLer?: boolean;
+  /** O que o banner mostra da fila, calculado no servidor na leitura leve. */
+  resumo?: { proxima: Track | null; depois: number };
 }
 
 /**
@@ -314,8 +323,10 @@ export function deviceLabel(session: RemoteSession): string {
  * viaja (recortada no `trimQueueForSync`), que é exatamente a que se adota.
  */
 export function resumoDaFila(
-  session: Pick<RemoteSession, 'queue' | 'queueIndex'>,
+  session: Pick<RemoteSession, 'queue' | 'queueIndex' | 'resumo'>,
 ): { proxima: Track | null; depois: number } {
+  // Pela leitura leve a fila não vem, e o resumo vem feito pelo servidor.
+  if (session.resumo) return session.resumo;
   const i = Math.max(-1, Math.min(session.queueIndex, session.queue.length - 1));
   const seguintes = session.queue.slice(i + 1);
   return { proxima: seguintes[0] ?? null, depois: Math.max(0, seguintes.length - 1) };

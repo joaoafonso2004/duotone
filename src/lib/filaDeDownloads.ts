@@ -5,10 +5,14 @@
  * (até 256 MiB, o tecto do downloader), por isso dois em paralelo podiam pedir
  * meio giga num telemóvel. Serializar é o que baixa esse tecto para um.
  *
- * Não há preempção: um download explícito já a meio não é interrompido para dar
- * lugar à reprodução. Interrompê-lo seria fazer falhar uma coisa que o
- * utilizador pediu de propósito — e ele espera pelo fim de UM ficheiro, não de
- * uma fila. Quem chega primeiro acaba; a ordem só decide quem entra a seguir.
+ * A reprodução passa à frente ENTRE BOCADOS (27/9, `cederSePreciso`). Um
+ * download explícito (ou um adiantamento) a meio não falha nem recomeça:
+ * larga a vaga entre dois bocados, fica com o que já tem, e volta para a fila
+ * atrás da música que a pessoa escolheu. Antes a música esperava pelo fim do
+ * ficheiro de outra -- numa playlist a descarregar, um toque podia esperar
+ * segundos por uma faixa que ninguém estava a ouvir. Só não cede um ficheiro
+ * grande (`MAX_BYTES_PARA_CEDER`): em pausa continua em memória, e dois
+ * grandes ao mesmo tempo era o que este tecto veio evitar.
  *
  * E a fila NÃO PODE ENCRAVAR. Uma vaga que nunca é largada cala a app inteira
  * até alguém a reiniciar: as faixas já descarregadas tocam, as outras ficam
@@ -98,6 +102,41 @@ export function largarVez(bilhete: number): void {
   clearTimeout(relogio);
   vagas.delete(bilhete);
   libertar();
+}
+
+/**
+ * Acima disto um download não cede a vaga: o que já descarregou fica em memória
+ * durante a pausa, e com a música escolhida a descarregar ao lado seriam dois
+ * ficheiros inteiros ao mesmo tempo. 48 MB é quase uma hora de AAC a 128 kbps.
+ */
+export const MAX_BYTES_PARA_CEDER = 48 * 1024 * 1024;
+
+/** Se um download com esta prioridade e este tamanho cede a vaga agora. */
+export function deveCeder(prioridade: Prioridade, totalBytes: number | null): boolean {
+  if (prioridade === 'reproducao' || !reproducaoAEspera()) return false;
+  return !(totalBytes != null && totalBytes > MAX_BYTES_PARA_CEDER);
+}
+
+/** A reprodução está à espera de vaga. */
+export function reproducaoAEspera(): boolean {
+  return emEspera.some((p) => p.ordem === ORDEM.reproducao);
+}
+
+/**
+ * Chamado entre dois bocados por quem tem a vaga. Se a REPRODUÇÃO está à espera
+ * e este download não é dela (e não é grande), larga a vaga -- que vai direita
+ * a ela, a primeira da fila -- e volta a pedir a sua, atrás. Devolve o bilhete
+ * com que o download continua: o mesmo, ou o novo depois da espera.
+ */
+export async function cederSePreciso(
+  bilhete: number,
+  prioridade: Prioridade,
+  totalBytes: number | null,
+  signal?: AbortSignal,
+): Promise<number> {
+  if (!deveCeder(prioridade, totalBytes)) return bilhete;
+  largarVez(bilhete);
+  return pedirVez(prioridade, signal);
 }
 
 /** Só para testes e diagnóstico. */

@@ -68,15 +68,19 @@ export function useLibraryData(loader: () => Promise<Track[]> = getLibrary) {
 
   useEffect(() => {
     void ler(false);
-    const forcar = () => { void ler(true); };
+    // O aviso não obriga a reler (27/9): um gosto já mudou a lista guardada
+    // (`ajustarGostada`) e chega aqui pelo `ouvirFaixas`; quem muda mais do
+    // que isso (Library check) esquece a lista antes de avisar, e aí relê-se.
+    // Obrigar era a biblioteca inteira pela rede a cada coração.
+    const reler = () => { void ler(false); };
     // Os nomes dos artistas confirmam-se em segundo plano, depois da lista ja
     // estar no ecra. Quando isso acontece basta voltar a desenhar -- referencia
     // nova, mesmas faixas -- e nao ir outra vez ao servidor.
     const redesenhar = () => setTracks((f) => (f.length ? [...f] : f));
-    window.addEventListener('duotone:refresh-library', forcar);
+    window.addEventListener('duotone:refresh-library', reler);
     window.addEventListener('duotone:artistas-confirmados', redesenhar);
     return () => {
-      window.removeEventListener('duotone:refresh-library', forcar);
+      window.removeEventListener('duotone:refresh-library', reler);
       window.removeEventListener('duotone:artistas-confirmados', redesenhar);
     };
   }, [ler]);

@@ -92,6 +92,46 @@ export function esquecerBiblioteca(): void {
 }
 
 /**
+ * Que lista é cada leitor, para um gosto a poder mudar em vez de a deitar fora.
+ * Quem os define (`api/library.ts`) regista-os; um leitor sem tipo é esquecido.
+ */
+export type TipoDaLista = 'gostadas' | 'alargada';
+const tipos = new Map<LeitorDeFaixas, TipoDaLista>();
+
+export function tipoDaLista(leitor: LeitorDeFaixas, tipo: TipoDaLista): void {
+  tipos.set(leitor, tipo);
+}
+
+/**
+ * Um gosto MUDA a lista guardada em vez de a deitar fora (27/9).
+ *
+ * Deitava fora (`esquecerBiblioteca`), e a página seguinte relia a biblioteca
+ * inteira -- as gostadas e as faixas de todas as playlists, às páginas de 1000
+ * --, vários MB por cada coração. Era uma das fontes do egress que o Supabase
+ * cobrou.
+ *
+ * - Gostar: a faixa entra à frente nas duas listas (é a mais recente).
+ * - Tirar: sai das gostadas. A alargada é ESQUECIDA, porque a faixa pode estar
+ *   numa playlist e continuar lá -- daqui não se sabe.
+ *
+ * A validade continua a contar de quando a lista foi LIDA: o que muda noutro
+ * aparelho chega na mesma ao fim da meia hora. E uma leitura em curso nasceu
+ * antes do gosto: a geração sobe e ela não se guarda.
+ */
+export function ajustarGostada(faixa: Track, gostada: boolean): void {
+  geracao++;
+  emCurso.clear();
+  const chave = `${faixa.source}:${faixa.sourceId}`;
+  for (const [leitor, entrada] of [...guardado]) {
+    const tipo = tipos.get(leitor);
+    const semEla = entrada.faixas.filter((t) => `${t.source}:${t.sourceId}` !== chave);
+    if (gostada && tipo) guardarFaixas(leitor, [faixa, ...semEla], entrada.em);
+    else if (!gostada && tipo === 'gostadas') guardarFaixas(leitor, semEla, entrada.em);
+    else guardado.delete(leitor);
+  }
+}
+
+/**
  * A lista, da cache se ela valer, do servidor se não.
  *
  * `forcar` salta a cache mas continua a partilhar a leitura em curso: quem

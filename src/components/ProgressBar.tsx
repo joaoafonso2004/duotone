@@ -1,12 +1,54 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { BARRA_A_ARRASTAR, BOTAO_DA_BARRA, ESTADO, SOLTAR } from '../lib/movimento';
 import { colors } from '../theme';
+import { proximoTrajeto, type Trajeto } from '../lib/barraSuave';
+
+/**
+ * A fração da música como um valor animado no lado NATIVO (27/9,
+ * lib/barraSuave.ts): cada posição que chega lança uma animação linear até
+ * onde a música vai estar daqui a um segundo, por isso a barra desliza em vez
+ * de saltar de segundo em segundo. Com `fixa` (o dedo na barra) não mexe.
+ */
+export function useFracaoSuave(
+  positionMs: number,
+  durationMs: number,
+  aTocar: boolean,
+  ritmo: number,
+  fixa: number | null = null,
+): Animated.Value {
+  const valor = useRef(new Animated.Value(0)).current;
+  const trajeto = useRef<Trajeto | null>(null);
+  useEffect(() => {
+    if (fixa != null) {
+      valor.stopAnimation();
+      valor.setValue(fixa);
+      trajeto.current = null;
+      return;
+    }
+    const { trajeto: novo, saltar } = proximoTrajeto({
+      anterior: trajeto.current, agora: Date.now(), posicaoMs: positionMs, duracaoMs: durationMs, aTocar, ritmo,
+    });
+    trajeto.current = novo;
+    valor.stopAnimation();
+    if (saltar) valor.setValue(novo.de);
+    if (novo.duracao > 0) {
+      Animated.timing(valor, {
+        toValue: novo.para, duration: novo.duracao, easing: Easing.linear, useNativeDriver: true,
+      }).start();
+    }
+  }, [positionMs, durationMs, aTocar, ritmo, fixa, valor]);
+  return valor;
+}
 
 interface Props {
   positionMs: number;
   durationMs: number;
+  /** A tocar: a barra desliza entre as posições que chegam. Parada, fica onde está. */
+  aTocar?: boolean;
+  /** A velocidade de reprodução, para a barra andar ao ritmo da música. */
+  ritmo?: number;
   onSeek?: (ms: number) => void;
   /** Avisa quando o utilizador começa/pára de arrastar (para desativar o
    *  scroll da página por baixo, que ficava a competir com o gesto). */
@@ -27,7 +69,7 @@ function fmt(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function ProgressBar({ positionMs, durationMs, onSeek, onScrubbingChange }: Props) {
+export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1, onSeek, onScrubbingChange }: Props) {
   const [width, setWidth] = useState(0);
   const reduzido = useReducedMotion();
   /**
@@ -86,6 +128,11 @@ export function ProgressBar({ positionMs, durationMs, onSeek, onScrubbingChange 
   const shownMs = dragging ? fraction * durationMs : positionMs;
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
+  const fracaoAnimada = useFracaoSuave(positionMs, durationMs, aTocar, ritmo, dragFraction);
+  // Por transformação, que anima no lado nativo: a largura (`width: x%`) é
+  // layout e só mudava quando a posição chegava.
+  const avancoDoPreenchimento = fracaoAnimada.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] });
+  const avancoDoBotao = fracaoAnimada.interpolate({ inputRange: [0, 1], outputRange: [0, width] });
 
   useEffect(() => {
     // Agarrar e imediato; largar e que volta com mola. Mesma assimetria do
@@ -113,13 +160,12 @@ export function ProgressBar({ positionMs, durationMs, onSeek, onScrubbingChange 
             `scaleY`, e se o botao vivesse la dentro engordava com ela. */}
         <View style={styles.pista} onLayout={onLayout}>
           <Animated.View style={[styles.track, { transform: [{ scaleY: espessura }] }]}>
-            <View style={[styles.fill, { width: `${fraction * 100}%` }]} />
+            <Animated.View style={[styles.fill, { width, transform: [{ translateX: avancoDoPreenchimento }] }]} />
           </Animated.View>
           <Animated.View
             style={[
               styles.knob,
-              { left: `${fraction * 100}%` },
-              { transform: [{ scale: tamanhoDoBotao }] },
+              { transform: [{ translateX: avancoDoBotao }, { scale: tamanhoDoBotao }] },
             ]}
           />
         </View>
@@ -153,6 +199,8 @@ const styles = StyleSheet.create({
   track: {
     height: 4,
     borderRadius: 2,
+    // O preenchimento anda por `translateX` a partir de fora da pista.
+    overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.14)',
     justifyContent: 'center',
   },
@@ -169,6 +217,7 @@ const styles = StyleSheet.create({
   // volta do centro, por isso ele nao se desloca ao crescer.
   knob: {
     position: 'absolute',
+    left: 0,
     width: BOTAO_DA_BARRA.grande,
     height: BOTAO_DA_BARRA.grande,
     borderRadius: BOTAO_DA_BARRA.grande / 2,

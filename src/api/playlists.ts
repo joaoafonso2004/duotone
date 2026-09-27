@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { idDaConta } from '../lib/idDaConta';
 import { trackKey, upsertTrack, upsertTracks } from './library';
 import type { Playlist, PlaylistTrack, Track } from '../types';
 import { missingProfilePlaylistColumns } from '../lib/profileSchema';
@@ -7,9 +8,9 @@ import { planearMerge } from '../lib/playlistMerge';
 import { esquecerAfinidade } from './afinidade';
 
 async function currentUserId(): Promise<string> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data.user) throw new Error('Session expired');
-  return data.user.id;
+  const id = await idDaConta();
+  if (!id) throw new Error('Session expired');
+  return id;
 }
 
 export async function listPlaylists(): Promise<Playlist[]> {

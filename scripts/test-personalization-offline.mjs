@@ -65,7 +65,7 @@ let databaseRows=Array.from({length:1005},(_,i)=>({tracks:{id:`id${i}`,source:'y
 let pageCount=0;
 const library=environment({...base,
   'src/api/artistNames.ts':{confirmarArtistasEmSegundoPlano:()=>{}},
-  'src/lib/supabase.ts':{supabase:{auth:{getUser:async()=>({data:{user:{id:'C'}}})},from:()=>{
+  'src/lib/supabase.ts':{supabase:{auth:{getUser:async()=>({data:{user:{id:'C'}}}), getSession: async () => ({ data: { session: { user: { id: 'C' } } } })},from:()=>{
     let start=0,end=999;const query={select:()=>query,eq:()=>query,order:()=>query,range:(a,b)=>{start=a;end=b;return query;},then:fn=>{pageCount++;return Promise.resolve(fn({data:databaseRows.slice(start,end+1),error:null}));}};return query;
   }}},
 })('src/api/library.ts');

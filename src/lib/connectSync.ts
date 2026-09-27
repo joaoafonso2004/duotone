@@ -3,7 +3,7 @@ import {
   limparPedidosVelhos, mandarPedido, ouvirPedidos, ouvirResposta, pedidosParaMim, responderPedido,
   verPedido,
 } from '../api/comandosDeAparelho';
-import { esquecerSessoes, fetchOtherSessions } from '../api/playerSessions';
+import { esquecerSessoes, fetchOtherSessions, fetchOtherSessionsLeves } from '../api/playerSessions';
 import type { RemoteSession } from './handoff';
 import { usePlayer } from '../state/player';
 import { appEstaVisivel } from './appVisibility';
@@ -231,7 +231,9 @@ export function useAparelhos(activo: boolean): {
     let vivo = true;
     const ler = () => {
       setACarregar(true);
-      void fetchOtherSessions()
+      // Sem as filas: a lista e o comando só mostram o que toca, e o
+      // "Continue here" lê a fila ao adotar (takeOverSession).
+      void fetchOtherSessionsLeves()
         .then((rows) => {
           if (!vivo) return;
           setSessoes(rows);
