@@ -81,7 +81,10 @@ const s = (ms: number | null) => (ms === null ? '-' : `${(ms / 1000).toFixed(1)}
 
 /** A secção do relatório de reprodução. */
 export function textoDoTempoAteAoSom(lista: readonly Arranque[]): string {
-  const linhas = ['== time to first sound =='];
+  // Medido no primeiro avanço da posição, que chega de segundo a segundo:
+  // cada tempo pode passar do real até 1 s (revisão do Codex). Os que
+  // falharam e as passagens do crossfade não entram.
+  const linhas = ['== time to first sound ==', '(measured at the first position update: each time can be up to 1 s high; failed starts and crossfades are not included)'];
   if (!lista.length) {
     linhas.push('no songs measured yet (play and skip a few songs, then save the report)');
     return linhas.join('\n');

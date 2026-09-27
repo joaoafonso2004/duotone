@@ -58,6 +58,12 @@ import { useArranqueTravado } from '../hooks/useArranqueTravado';
  */
 const PRAZO_DA_RESOLUCAO_MS = 40_000;
 const RESOLUCAO_DEMOROU = 'resolucao sem resposta';
+/**
+ * O recurso ao HLS também tem prazo (27/9, revisão do Codex): o `abrirHls` esperava pela
+ * resolução sem limite nenhum, e uma que nunca assentasse deixava a faixa presa sem
+ * chegar ao embed -- e o watchdog da posição só vigia o motor nativo, não esta fase.
+ */
+const PRAZO_DO_HLS_MS = 20_000;
 
 /**
  * Os adiantamentos a decorrer, por faixa.
@@ -1007,7 +1013,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     let hls: YtStream;
     let ia = 0;
     try {
-      hls = await resolveYouTubeHls(track.sourceId, await getAudioQuality());
+      const qualidade = await getAudioQuality();
+      let prazo: ReturnType<typeof setTimeout> | undefined;
+      try {
+        hls = await Promise.race([
+          resolveYouTubeHls(track.sourceId, qualidade),
+          new Promise<never>((_, rejeitar) => {
+            prazo = setTimeout(() => rejeitar(new Error(RESOLUCAO_DEMOROU)), PRAZO_DO_HLS_MS);
+          }),
+        ]);
+      } finally {
+        clearTimeout(prazo);
+      }
       if (!ainda()) return null;
       try {
         ia = motorActivo().currentTime || 0;
@@ -1644,7 +1661,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         if (medida) {
           registarEvento('primeira_nota', medida);
           // O mesmo número, com as fases, no relatório do aparelho (27/9).
-          anotarPrimeiroSom(track.sourceId, tituloDaFaixa(track), medida.origem, medida.ms);
+          anotarPrimeiroSom(track.sourceId, tituloDaFaixa(track), medida.origem, medida.ms, nota.pedidaEm);
         }
         // Um Opus a tocar é a prova de que este iPhone o toca (lib/saudeDoOpus.ts).
         if (nota.origem !== 'hls' && temOpusEmDisco(track.sourceId)) anotarOpus('tocou');
@@ -1967,11 +1984,19 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // toca. Só a seguinte era adiantada, e saltar duas de seguida era esperar
   // pelo download (13/9). A primeira continua a ser a da mesma decisão da
   // reprodução, com a prioridade que o crossfade precisa.
+  // Os dados móveis entram nas dependências (27/9, revisão do Codex): uma lista
+  // começada em Wi-Fi continuava a adiantar três faixas depois de passar para
+  // dados móveis.
+  const emDadosMoveis = useConnectivity((st) => st.dadosMoveis);
   useEffect(() => {
     const lista = usePlayer
       .getState()
-      .proximasFaixas(quantasAdiantar(useConnectivity.getState().dadosMoveis))
+      .proximasFaixas(quantasAdiantar(emDadosMoveis))
       .filter((faixa) => faixa.sourceId !== track.sourceId);
+    // A tocar por HLS o motor é o nativo, mas o som vem da REDE e não de um
+    // ficheiro: adiantar as seguintes competia com a própria faixa que toca
+    // (27/9, revisão do Codex). Aí só a atual serve, e nada se adianta.
+    const remota = backend === 'native' && !!streamRef.current?.isHls;
     // Já, e não daqui a cinco segundos. A fila só deixa passar um download de
     // cada vez e não interrompe ninguém: um adiantamento que deixou de servir
     // tem de largar a vaga ANTES de a faixa escolhida a pedir. A que está a
@@ -1979,10 +2004,10 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // está à espera desse mesmo download, e abandoná-lo fazia-o recomeçar.
     // Mesmo a resolver: a atual pode adotar o seu adiantamento, mas os outros
     // têm de largar a vaga para ela. Depois de pronta, volta-se a adiantar.
-    const servem = new Set([track.sourceId, ...(backend === 'native' ? lista.map((faixa) => faixa.sourceId) : [])]);
+    const servem = new Set([track.sourceId, ...(backend === 'native' && !remota ? lista.map((faixa) => faixa.sourceId) : [])]);
     for (const [id, pedido] of aAdiantar) pedido.abandonado = !servem.has(id);
     verificarCancelamentos();
-    if (backend !== 'native') return;
+    if (backend !== 'native' || remota) return;
 
     // As capas grandes vêm com elas, e já: são leves ao pé do áudio, e sem isto
     // o skip mostrava o leitor sem capa até a imagem de 1280 px chegar (14/9).
@@ -2020,7 +2045,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // O setup seguinte decide o que deixou de servir. Um abort() aqui não
       // pode ser desfeito ao repor abandonado=false na faixa que passou a tocar.
     };
-  }, [track.sourceId, backend, queue, queueIndex, shuffle, percursoDoShuffle, repeatMode, sessaoJam, filaJam]);
+  }, [track.sourceId, backend, queue, queueIndex, shuffle, percursoDoShuffle, repeatMode, sessaoJam, filaJam, emDadosMoveis]);
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
   useEffect(() => {

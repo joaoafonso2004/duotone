@@ -16,7 +16,7 @@
 // engolia os seeks. Não fica. Quem entra por último nunca é cancelado, e ao
 // terminar limpa-a sempre. O defeito é o outro, e é este que está aqui.
 import assert from 'node:assert/strict';
-import { limparCadeia, trocarFonte } from '../src/lib/trocaDeFonte.ts';
+import { limparCadeia, TROCA_SEM_RESPOSTA, trocarFonte } from '../src/lib/trocaDeFonte.ts';
 
 let falhas = 0;
 async function verificar(nome: string, fn: () => Promise<void> | void) {
@@ -159,14 +159,17 @@ await verificar('serializado, fica a ÚLTIMA fonte pedida', async () => {
 
 // ---- e que a serialização não cria um encravamento novo -------------------
 
-await verificar('uma troca que nunca volta não tranca a seguinte', async () => {
-  const m = new MotorFalso();
-  limparCadeia(m);
-  let entrou = false;
-  const presa = { replaceAsync: () => new Promise<void>(() => {}) };
-  void trocarFonte(presa, 'nunca-volta', { prazoMs: 30 });
-  await trocarFonte(presa, 'a-seguir', { prazoMs: 30 }).then(() => { entrou = true; });
-  assert.equal(entrou, true, 'a cadeia ficou trancada -- trocámos um encravamento por outro');
+await verificar('uma troca que nunca volta não tranca a seguinte, e diz que falhou', async () => {
+  const pedidas: unknown[] = [];
+  const presa = { replaceAsync: (f: unknown) => { pedidas.push(f); return new Promise<void>(() => {}); } };
+  const resultado = (p: Promise<void>) => p.then(() => 'ok', (e: Error) => e.message);
+  const primeira = resultado(trocarFonte(presa, 'nunca-volta', { prazoMs: 30 }));
+  const segunda = resultado(trocarFonte(presa, 'a-seguir', { prazoMs: 30 }));
+  // Quem chamou não pode julgar que a fonte mudou: começava a tocar (ou
+  // marcava a seguinte do crossfade como pronta) com a troca por fazer.
+  assert.equal(await primeira, TROCA_SEM_RESPOSTA, 'o prazo devolveu sucesso a uma troca que nunca voltou');
+  assert.equal(await segunda, TROCA_SEM_RESPOSTA);
+  assert.deepEqual(pedidas, ['nunca-volta', 'a-seguir'], 'a cadeia ficou trancada -- trocámos um encravamento por outro');
 });
 
 await verificar('uma troca que já não interessa é saltada', async () => {

@@ -50,7 +50,14 @@
  * para sempre -- trocaríamos um encravamento por outro. Ao fim do prazo
  * desiste-se de a esperar e a seguinte avança. A troca abandonada pode ainda
  * assentar mais tarde; é menos mau do que a fila parar.
+ *
+ * **E quem chamou fica a saber que FALHOU** (27/9, revisão do Codex): o prazo
+ * resolvia como se a troca tivesse corrido bem, e quem chamou começava a tocar
+ * -- ou marcava a seguinte do crossfade como pronta -- com a fonte por trocar.
+ * Agora rejeita com `TROCA_SEM_RESPOSTA`, e todos os que chamam já tratam um
+ * erro como falha (recurso pela rede, HLS, embed; a seguinte fica não pronta).
  */
+export const TROCA_SEM_RESPOSTA = 'troca de fonte sem resposta';
 
 /** Quanto se espera por uma troca antes de deixar a seguinte passar. */
 export const PRAZO_DA_TROCA_MS = 20_000;
@@ -94,10 +101,17 @@ export async function trocarFonte(
     // troca antiga não pode impedir a seguinte de acontecer.
     await anterior.catch(() => {});
     if (desistir?.()) return;
-    await Promise.race([
-      motor.replaceAsync(fonte).then(() => undefined),
-      new Promise<void>((resolver) => setTimeout(resolver, prazoMs)),
-    ]);
+    let prazo: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        motor.replaceAsync(fonte).then(() => undefined),
+        new Promise<never>((_, rejeitar) => {
+          prazo = setTimeout(() => rejeitar(new Error(TROCA_SEM_RESPOSTA)), prazoMs);
+        }),
+      ]);
+    } finally {
+      clearTimeout(prazo);
+    }
   })();
 
   // A cadeia guarda uma versão que NUNCA rejeita, senão um erro aqui deixava

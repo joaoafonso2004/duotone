@@ -30,6 +30,7 @@ function leitor(atual, proximas, adiantadas) {
   }]));
   const contexto = {
     backend: 'native', track: { sourceId: atual }, proximas,
+    emDadosMoveis: false, streamRef: { current: undefined },
     aAdiantar: pedidos, isMountedRef: { current: true },
     usePlayer: { getState: () => ({ proximasFaixas: () => contexto.proximas.map(sourceId => ({ sourceId })) }) },
     useConnectivity: { getState: () => ({ dadosMoveis: false, offline: false }) },
@@ -50,7 +51,8 @@ function leitor(atual, proximas, adiantadas) {
   let limpar = contexto.smartCache();
   return {
     pedidos, timers,
-    render(atual, proximas, backend) {
+    render(atual, proximas, backend, hls = false) {
+      contexto.streamRef = { current: hls ? { isHls: true } : undefined };
       contexto.track = { sourceId: atual };
       contexto.proximas = proximas;
       contexto.backend = backend;
@@ -72,6 +74,15 @@ caso('A → B adota B sem abortar o pedido entre cleanup e setup', () => {
   l.render('b', ['c', 'd'], 'native');
   assert.equal(l.pedidos.get('b').controller.signal.aborted, false, 'abortar é irreversível, mesmo que o setup reponha abandonado=false');
   assert.equal(l.pedidos.get('c').controller.signal.aborted, false, 'a próxima continua a servir enquanto o motor está pronto');
+});
+
+caso('a tocar por HLS (som da rede), larga as outras e não adianta nada', () => {
+  const l = leitor('a', ['b', 'c'], ['b', 'c']);
+  l.render('b', ['c', 'd'], 'native', true);
+  assert.equal(l.pedidos.get('b').abandonado, false, 'a que toca continua a servir');
+  assert.equal(l.pedidos.get('c').abandonado, true, 'adiantar a seguinte competia com o HLS que está a tocar');
+  assert.equal(l.pedidos.get('c').controller.signal.aborted, true);
+  assert.equal(l.timers.size, 0, 'não agendou adiantamento nenhum');
 });
 
 caso('resolver B preserva B e larga C para a faixa atual poder começar', () => {

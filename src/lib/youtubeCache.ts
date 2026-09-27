@@ -752,7 +752,11 @@ async function pedirBocados(
       // rejeita pedidos GRANDES de propósito. Já renovámos o URL sem
       // sucesso, por isso a hipótese seguinte é o tamanho — encolher e
       // repetir o MESMO offset, até ao mínimo, antes de desistir.
-      if (e instanceof Error && e.message !== DOWNLOAD_ABORTED && chunkSize > MIN_CHUNK_BYTES) {
+      // SÓ quando o servidor RECUSOU (há código HTTP no erro). Encolhia com
+      // qualquer erro, e numa rede que não respondia eram 4 tentativas vezes
+      // 3 tamanhos -- ~113 s nos 0:00 (27/9, revisão do Codex).
+      const recusado = typeof (e as any)?.http === 'number' && (e as any).http >= 400;
+      if (e instanceof Error && e.message !== DOWNLOAD_ABORTED && recusado && chunkSize > MIN_CHUNK_BYTES) {
         chunkSize = Math.max(MIN_CHUNK_BYTES, Math.floor(chunkSize / 4));
         continue;
       }

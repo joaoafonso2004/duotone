@@ -36,15 +36,33 @@ export async function resolverEDescarregar(
     );
   };
 
-  const stream = await resolveYouTubeStream(videoId, quality);
+  const stream = await comPrazoDeResolucao(resolveYouTubeStream(videoId, quality));
   try {
     return { uri: await descarregar(stream), stream };
   } catch (erro) {
     if (!eConversaoDoOpus(erro) || opts.shouldAbort?.()) throw erro;
     evitarOpusPara(videoId);
-    const aac = await resolveYouTubeStream(videoId, quality, false, 'aac');
+    const aac = await comPrazoDeResolucao(resolveYouTubeStream(videoId, quality, false, 'aac'));
     return { uri: await descarregar(aac), stream: aac };
   }
+}
+
+/**
+ * Quanto uma resolução pode demorar aqui (27/9, revisão do Codex). O leitor
+ * já prendia a SUA resolução a 40 s, mas esta função serve também os
+ * adiantamentos do Smart Cache e os caminhos de recuperação, e aí esperava sem
+ * limite: um adiantamento pendurado segurava a preparação das seguintes.
+ */
+export const PRAZO_DA_RESOLUCAO_MS = 30_000;
+export const RESOLUCAO_SEM_RESPOSTA = 'resolucao sem resposta';
+function comPrazoDeResolucao<T>(p: Promise<T>): Promise<T> {
+  let prazo: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    p,
+    new Promise<never>((_, rejeitar) => {
+      prazo = setTimeout(() => rejeitar(new Error(RESOLUCAO_SEM_RESPOSTA)), PRAZO_DA_RESOLUCAO_MS);
+    }),
+  ]).finally(() => clearTimeout(prazo));
 }
 
 /** O WebM do Opus não se converteu (e não foi a rede nem um cancelamento). */
