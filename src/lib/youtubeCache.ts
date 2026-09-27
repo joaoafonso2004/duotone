@@ -85,6 +85,15 @@ export function verificarCancelamentos(): void {
 }
 
 const REQUEST_TIMEOUT_MS = 30_000;
+/**
+ * Quanto se espera pela RESPOSTA do servidor (os cabeçalhos) de um bocado,
+ * antes de o dar por morto e tentar outra vez (27/9). O prazo de 30 s cobria
+ * o pedido inteiro, e um pedido que nunca respondia prendia a faixa nos 0:00
+ * durante 30 s -- o "skips seguidos e fica presa, só reiniciando" do João. O
+ * CDN do YouTube responde em menos de um segundo; 8 s sem resposta é um pedido
+ * morto. O corpo continua com os 30 s: um bocado de 1 MB em 3G demora.
+ */
+const PRAZO_DA_RESPOSTA_MS = 8_000;
 const MAX_AUDIO_BYTES = 256 * 1024 * 1024;
 
 /**
@@ -403,16 +412,34 @@ export async function fetchChunkWithRetry(
     if (registo) registo.tentativas = attempt + 1;
     try{
       const resposta = await esperarDownload(async (signal) => {
-        const res = await fetch(current, { headers: { Range: `bytes=${start}-${end}` }, signal });
-        if (signal.aborted) throw new Error(DOWNLOAD_ABORTED);
-        if (registo) registo.ultimoHttp = res.status;
-        if (res.status === 206 || res.status === 200) {
-          if (expectedTotal === undefined) throw new Error('Total do audio em falta');
-          // O tamanho certo no offset errado também corrompe o ficheiro.
-          validarRespostaParcial(res, start, end, expectedTotal);
-          return { status: res.status, bytes: new Uint8Array(await res.arrayBuffer()) };
+        // Um controlador próprio, ligado ao da espera: se o servidor não
+        // responder a tempo, este pedido é CANCELADO (não fica a descarregar
+        // por baixo da tentativa seguinte).
+        // A ligação ao cancelamento dura o pedido INTEIRO (cabeçalhos e corpo):
+        // um skip a meio do corpo tem de o cortar.
+        const pedido = new AbortController();
+        let semResposta: ReturnType<typeof setTimeout> | undefined;
+        const largar = () => { clearTimeout(semResposta); pedido.abort(); };
+        signal.addEventListener('abort', largar);
+        try {
+          const res = await Promise.race([
+            fetch(current, { headers: { Range: `bytes=${start}-${end}` }, signal: pedido.signal }),
+            new Promise<never>((_, rejeitar) => {
+              semResposta = setTimeout(() => { pedido.abort(); rejeitar(new Error('Sem resposta do servidor')); }, PRAZO_DA_RESPOSTA_MS);
+            }),
+          ]).finally(() => clearTimeout(semResposta));
+          if (signal.aborted) throw new Error(DOWNLOAD_ABORTED);
+          if (registo) registo.ultimoHttp = res.status;
+          if (res.status === 206 || res.status === 200) {
+            if (expectedTotal === undefined) throw new Error('Total do audio em falta');
+            // O tamanho certo no offset errado também corrompe o ficheiro.
+            validarRespostaParcial(res, start, end, expectedTotal);
+            return { status: res.status, bytes: new Uint8Array(await res.arrayBuffer()) };
+          }
+          return { status: res.status, bytes: null };
+        } finally {
+          signal.removeEventListener('abort', largar);
         }
-        return { status: res.status, bytes: null };
       }, shouldAbort);
       if (resposta.bytes) return { bytes: resposta.bytes, url: current };
       lastStatus = resposta.status;

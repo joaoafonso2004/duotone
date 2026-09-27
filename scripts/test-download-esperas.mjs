@@ -391,6 +391,100 @@ await check('403 a meio recupera com URL novo e conserva o mesmo Range', async (
   assert.equal(h.time.pending(), 0, 'a renovação resolveu mas deixou o timeout de 30s vivo');
 });
 
+// Skips seguidos (27/9, João: "dava skips seguidos e a app não descarregava a
+// música e ficava presa, só reiniciando"). A sequência que um utilizador faz a
+// passar músicas, com o Smart Cache a adiantar as três seguintes 1 s depois de
+// cada uma ficar pronta, e uma rede má: pedidos que nunca respondem (nem ao
+// abort), corpos pendurados e respostas lentas. Depois da tempestade a rede
+// fica boa, e a música em que se parou TEM de tocar em pouco tempo -- não aos
+// quatro minutos da recuperação da vaga, que é o "só reiniciando".
+function aleatorio(semente) {
+  let a = semente >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+async function tempestade(semente) {
+  const r = aleatorio(semente);
+  let redeBoa = false;
+  let H;
+  const comportamento = new Map();
+  const h = H = harness((url) => {
+    const x = redeBoa ? 1 : r();
+    if (!comportamento.has(url)) comportamento.set(url, x < 0.06 ? 'sem-resposta' : x < 0.12 ? 'corpo-preso' : redeBoa ? 'bom' : 'lento');
+    if (x < 0.06) { tempestade.penduradas = (tempestade.penduradas || 0) + 1; return new Promise(() => {}); } // nunca responde, nem ao abort
+    if (x < 0.12) { tempestade.penduradas = (tempestade.penduradas || 0) + 1; return Promise.resolve(response({ body: () => new Promise(() => {}) })); } // corpo pendurado
+    const atraso = redeBoa ? 300 : 200 + Math.floor(r() * 4000);
+    return new Promise((ok) => H.time.setTimeout(() => ok(response()), atraso));
+  });
+  const N = 24;
+  const id = (i) => `t${i}`;
+  let atual = 0;
+  const adiantar = new Map(); // id -> { abandonado }
+  const tocar = (i) => {
+    const pedido = observe(h.download(id(i), { prioridade: 'reproducao', shouldAbort: () => atual !== i }));
+    pedido.i = i;
+    return pedido;
+  };
+  const smartCache = (i) => {
+    const servem = new Set([i, i + 1, i + 2, i + 3].filter((k) => k < N).map(id));
+    for (const [k, p] of adiantar) p.abandonado = !servem.has(k);
+    h.cache.verificarCancelamentos();
+  };
+  // Quando a atual fica pronta, 1 s depois adianta as seguintes, uma de cada vez.
+  const aoFicarPronta = (i) => h.time.setTimeout(async () => {
+    for (let k = i + 1; k <= i + 3 && k < N; k++) {
+      if (atual !== i) return;
+      if (h.cache.isAudioCached?.(id(k)) || adiantar.has(id(k))) continue;
+      const p = { abandonado: false };
+      adiantar.set(id(k), p);
+      try { await h.download(id(k), { prioridade: k === i + 1 ? 'seguinte' : 'adiantar', shouldAbort: () => p.abandonado }); }
+      catch { /* falhar a adiantar é só não ganhar tempo */ }
+      finally { if (adiantar.get(id(k)) === p) adiantar.delete(id(k)); }
+    }
+  }, 1000);
+  let pedido = tocar(0);
+  smartCache(0);
+  const vigiarPronta = (p) => { p.promise ??= null; };
+  vigiarPronta(pedido);
+  const passos = 6 + Math.floor(r() * 10);
+  for (let s = 0; s < passos; s++) {
+    await h.time.advance(300 + Math.floor(r() * 2700));
+    if (pedido.state === 'fulfilled' && !pedido.avisou) { pedido.avisou = true; aoFicarPronta(pedido.i); }
+    atual++;
+    h.cache.verificarCancelamentos(); // o leitor, ao trocar de faixa
+    pedido = tocar(atual);
+    smartCache(atual);
+  }
+  // O pedido da que fica sai ainda com a rede má: é aí que se encrava.
+  await h.time.advance(500);
+  redeBoa = true;
+  // A que ficou tem de tocar depressa: nunca à espera dos 4 min da vaga.
+  let espera = 0;
+  for (; espera < 300 && pedido.state === 'pending'; espera++) await h.time.advance(1000);
+  tempestade.esperas = [...(tempestade.esperas || []), espera];
+  tempestade.porTipo = tempestade.porTipo || {};
+  const tipo = comportamento.get(`https://audio.test/${id(atual)}`) ?? 'nenhum';
+  tempestade.porTipo[tipo] = Math.max(tempestade.porTipo[tipo] || 0, espera);
+  const primeiro = comportamento.get(`https://audio.test/${id(atual)}`) ?? 'nenhum';
+  tempestade.finais = { ...(tempestade.finais || {}), [primeiro]: ((tempestade.finais || {})[primeiro] || 0) + 1 };
+  return { estado: pedido.state, erro: pedido.error?.message, fila: h.queue.estadoDaFila(), semente, passos };
+}
+await check('skips seguidos com rede má: a música em que se parou toca sem reiniciar', async () => {
+  const presas = [];
+  for (let semente = 1; semente <= 300; semente++) {
+    const res = await tempestade(semente);
+    if (res.estado !== 'fulfilled') presas.push(res);
+  }
+  const e = [...tempestade.esperas].sort((a, b) => a - b);
+  if (process.env.DIAG) console.log('    pior espera por tipo (s):', JSON.stringify(tempestade.porTipo), 'finais:', JSON.stringify(tempestade.finais), 'mediana', e[150], 'p95', e[285], 'max', e.at(-1));
+  assert.deepEqual(presas.slice(0, 3), [], `${presas.length}/300 sequências ficaram presas; primeiras: ${JSON.stringify(presas.slice(0, 3))}`);
+  // Um pedido que nunca responde é dado por morto aos 8 s (PRAZO_DA_RESPOSTA_MS)
+  // e tenta-se outro: eram os 30 s do pedido inteiro, e era aí que se reiniciava.
+  assert.ok((tempestade.porTipo['sem-resposta'] ?? 0) <= 12, `sem resposta demorou ${tempestade.porTipo['sem-resposta']} s a recuperar`);
+  // Um corpo que pára a meio continua com os 30 s (o fetch do React Native só
+  // entrega o corpo inteiro; ver os bytes a chegar pedia trocar de fetch).
+  assert.ok(e.at(-1) <= 35, `a pior espera foi ${e.at(-1)} s`);
+});
+
 if (failures) {
   console.error(`\n${failures} teste(s) de esperas falharam (sem aguardar relógios reais).`);
   process.exitCode = 1;
