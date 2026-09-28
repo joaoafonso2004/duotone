@@ -1358,7 +1358,7 @@ ipcMain.handle('atualizacao:instalar', async (event) => {
       fs.mkdirSync(pasta, { recursive: true });
       const instalador = path.join(pasta, `Duotone-Setup-${alvo.versao}.exe`);
       await atualizacao.descarregar({
-        fetch: (url) => net.fetch(url), url: alvo.url, destino: instalador, tamanho: alvo.tamanho, fs,
+        fetch: (url, opcoes) => net.fetch(url, opcoes), url: alvo.url, destino: instalador, tamanho: alvo.tamanho, fs,
         aoProgresso: (progresso) => { if (!remetente.isDestroyed()) remetente.send('atualizacao:progresso', progresso); },
       });
       await atualizacao.lancarInstalador({ spawn, instalador });
@@ -1377,8 +1377,8 @@ ipcMain.handle('atualizacao:instalar', async (event) => {
 });
 
 /**
- * Atualizar sem perguntar (27/9). Em segundo plano, 30 s depois de abrir e de
- * 6 em 6 horas, o processo principal lê o versions.json e, havendo versão mais
+ * Atualizar sem perguntar. Em segundo plano, 5 s depois de abrir e de
+ * 15 em 15 minutos, o processo principal lê o versions.json e, havendo versão mais
  * nova, descarrega o instalador para `userData/atualizacao` e deixa um
  * `pendente.json`. Na abertura seguinte, antes de haver janela, instala-o em
  * silêncio e a app reabre já atualizada. As regras (e o limite de tentativas)
@@ -1459,7 +1459,7 @@ function procurarAtualizacao() {
         return { estado: pendente && pendente.desistiu && pendente.versao === alvo.versao ? 'desistiu' : 'pronta', versao: alvo.versao };
       }
       fs.mkdirSync(pastaDaAtualizacao(), { recursive: true });
-      await atualizacao.descarregar({ fetch: (u) => net.fetch(u), url: alvo.url, destino: instalador, tamanho: alvo.tamanho, fs });
+      await atualizacao.descarregar({ fetch: (u, opcoes) => net.fetch(u, opcoes), url: alvo.url, destino: instalador, tamanho: alvo.tamanho, fs });
       apagarInstaladores(instalador);
       gravarPendente({ versao: alvo.versao, caminho: instalador, tamanho: alvo.tamanho, tentativas: 0 });
       return { estado: 'pronta', versao: alvo.versao };
@@ -1472,13 +1472,23 @@ function procurarAtualizacao() {
   })();
   return procuraEmCurso;
 }
-function procurarDeTempoATempo(atrasoMs) {
-  const vigia = setTimeout(() => {
-    void procurarAtualizacao().finally(() => procurarDeTempoATempo(6 * 60 * 60_000));
-  }, atrasoMs);
-  vigia.unref?.();
+let procuraAutomatica = null;
+function retomarProcuraDeAtualizacoes() { procuraAutomatica?.retomar(); }
+function aoFocarParaAtualizar(_event, win) {
+  if (win === mainWindow) retomarProcuraDeAtualizacoes();
 }
-ipcMain.handle('atualizacao:procurar', (event) => (daJanelaPrincipal(event) ? procurarAtualizacao() : null));
+function iniciarProcuraDeAtualizacoes() {
+  if (!app.isPackaged || process.platform !== 'win32' || procuraAutomatica) return;
+  procuraAutomatica = atualizacao.criarProcuraAutomatica({ procurar: procurarAtualizacao });
+  procuraAutomatica.iniciar();
+  // A rede pode não estar pronta no login do Windows. O relógio repete após
+  // erro e acordar o PC/voltar do tabuleiro antecipa a verificação, sem instalar
+  // a meio da música nem fazer um pedido por cada Alt+Tab.
+  powerMonitor.on('resume', retomarProcuraDeAtualizacoes);
+  app.on('browser-window-focus', aoFocarParaAtualizar);
+}
+ipcMain.handle('atualizacao:procurar', (event) => (daJanelaPrincipal(event)
+  ? (procuraAutomatica ? procuraAutomatica.verificar() : procurarAtualizacao()) : null));
 
 ipcMain.on('window:minimize', (event) => { if (daJanelaPrincipal(event)) mainWindow.minimize(); });
 ipcMain.on('window:toggle-maximize', (event) => {
@@ -1501,6 +1511,9 @@ ipcMain.on('context-menu', (event, items) => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  procuraAutomatica?.parar();
+  powerMonitor.removeListener?.('resume', retomarProcuraDeAtualizacoes);
+  app.removeListener?.('browser-window-focus', aoFocarParaAtualizar);
   // Fecha o socket do Discord a sair. Sem isto, a ultima faixa ficava colada
   // ao perfil ate o proprio Discord dar pela ligacao morta.
   fecharDiscord();
@@ -1524,7 +1537,7 @@ app.whenReady().then(async () => {
   // Uma versão nova descarregada da última vez instala-se AGORA, antes de
   // haver janela, e a app reabre já atualizada (27/9).
   if (await instalarPendenteAoAbrir()) return;
-  if (app.isPackaged && process.platform === 'win32') procurarDeTempoATempo(30_000);
+  iniciarProcuraDeAtualizacoes();
   if (typeof app.getAppMetrics === 'function') amostrarAoMinuto();
   // A janela so abre depois de o servidor estar mesmo de pe. Se a porta
   // estiver ocupada, e melhor nao abrir de todo do que carregar o que quer

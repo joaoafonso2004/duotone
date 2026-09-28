@@ -191,7 +191,60 @@ function precisaDeDescarregar(alvo, pendente, tamanhoNoDisco) {
   return true;
 }
 
+/**
+ * Uma procura partilhada pelo relógio, pelo regresso à app e pelo About.
+ * Esperar seis horas mesmo depois de falhar deixava a procura manual como
+ * único caminho útil. Os temporizadores entram por parâmetro para ensaiar
+ * arranque sem rede, suspensão e cliques concorrentes sem esperar tempo real.
+ */
+function criarProcuraAutomatica({ procurar, agora = Date.now, agendar = setTimeout, cancelar = clearTimeout }) {
+  let ativa = false;
+  let vigia = null;
+  let marcadaPara = Infinity;
+  let ultima = agora();
+  let emCurso = null;
+
+  function marcar(atraso) {
+    if (!ativa || emCurso) return;
+    const instante = agora() + atraso;
+    // Eventos de foco repetidos não empurram a próxima procura para a frente.
+    if (vigia !== null && marcadaPara <= instante) return;
+    if (vigia !== null) cancelar(vigia);
+    marcadaPara = instante;
+    vigia = agendar(() => { vigia = null; marcadaPara = Infinity; void verificar(); }, atraso);
+    vigia.unref?.();
+  }
+
+  function verificar() {
+    if (emCurso) return emCurso;
+    if (!ativa) return Promise.resolve({ estado: 'atual' });
+    if (vigia !== null) cancelar(vigia);
+    vigia = null;
+    marcadaPara = Infinity;
+    emCurso = Promise.resolve().then(procurar).catch(() => ({ estado: 'erro' })).then((resultado) => {
+      ultima = agora();
+      emCurso = null;
+      marcar(resultado?.estado === 'erro' ? 60_000 : 15 * 60_000);
+      return resultado;
+    });
+    return emCurso;
+  }
+
+  return {
+    iniciar() { if (!ativa) { ativa = true; marcar(5_000); } },
+    verificar,
+    retomar() { if (agora() - ultima >= 60_000) marcar(1_000); },
+    parar() {
+      ativa = false;
+      if (vigia !== null) cancelar(vigia);
+      vigia = null;
+      marcadaPara = Infinity;
+    },
+  };
+}
+
 module.exports = {
+  criarProcuraAutomatica,
   TENTATIVAS_DE_INSTALACAO,
   decidirAoAbrir,
   precisaDeDescarregar,

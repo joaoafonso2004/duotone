@@ -61,7 +61,8 @@ const electron = {
     getLoginItemSettings: () => startup, setLoginItemSettings: (settings) => { startup = { ...settings, executableWillLaunchAtLogin: settings.openAtLogin }; } },
   BrowserWindow: Janela, Notification: Aviso, protocol: { registerSchemesAsPrivileged() {} },
   crashReporter: { start: (opcoes) => { captura.crashReporter = opcoes; } },
-  powerMonitor: { getSystemIdleTime: () => 42 },
+  powerMonitor: Object.assign(new EventEmitter(), { getSystemIdleTime: () => 42 }),
+  net: { fetch: async () => { captura.pedidosDeAtualizacao = (captura.pedidosDeAtualizacao || 0) + 1; return { ok: true, json: async () => ({ apps: {} }) }; } },
   shell: { openExternal: (url) => externos.push(url) },
   session: { defaultSession: {} },
   Menu: { buildFromTemplate: () => ({ popup() {} }) },
@@ -91,7 +92,7 @@ const contexto = vm.createContext({
     on: (evento, fn) => { captura[`processo:${evento}`] = fn; },
   },
   captura,
-  URL, setTimeout, clearTimeout,
+  URL, AbortController, setTimeout, clearTimeout,
 });
 vm.runInContext(fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8'), contexto);
 vm.runInContext('createWindow()', contexto);
@@ -217,3 +218,31 @@ assert.equal(events.get('sent')[0], 'notification:open');
 notificar(evento(), { id: '2', title: 'Ana', body: 'Já estás na app' });
 assert.equal(avisos.length, 1, 'Não interrompe a janela que já tem foco');
 console.log('Integração Electron: origem exata, permissões, captura, arranque, notificações e isolamento IPC passaram.');
+
+// O processo principal liga a procura automática aos eventos reais do
+// Electron. O relógio é ensaiado com tempo virtual no teste da atualização.
+vm.runInContext(`
+  atualizacao.criarProcuraAutomatica = ({ procurar }) => ({
+    iniciar() { captura.iniciosDaProcura = (captura.iniciosDaProcura || 0) + 1; },
+    retomar() { captura.retomasDaProcura = (captura.retomasDaProcura || 0) + 1; },
+    verificar: procurar,
+    parar() { captura.procuraParada = true; },
+  });
+  iniciarProcuraDeAtualizacoes();
+  iniciarProcuraDeAtualizacoes();
+`, contexto);
+assert.equal(captura.iniciosDaProcura, 1, 'A procura automática arranca uma vez');
+electron.powerMonitor.emit('resume');
+assert.equal(captura.retomasDaProcura, 1, 'Acordar o PC reativa a procura');
+events.get('browser-window-focus')({}, {});
+assert.equal(captura.retomasDaProcura, 1, 'Focar o mini leitor não dispara outra procura');
+events.get('browser-window-focus')({}, janela);
+assert.equal(captura.retomasDaProcura, 2, 'Focar a janela principal antecipa a procura');
+assert.equal(await handlers.get('atualizacao:procurar')({ sender: {}, senderFrame: {} }), null);
+assert.equal(captura.pedidosDeAtualizacao, undefined, 'Um remetente inválido não pede o manifesto');
+assert.equal((await handlers.get('atualizacao:procurar')(evento())).estado, 'atual');
+assert.equal(captura.pedidosDeAtualizacao, 1, 'O About continua ligado à mesma procura real');
+events.get('before-quit')();
+assert.equal(captura.procuraParada, true);
+assert.equal(electron.powerMonitor.listenerCount('resume'), 0, 'Sair desliga o ouvinte de suspensão');
+console.log('Procura automática Electron: arranque, retoma, foco, About e saída passaram.');

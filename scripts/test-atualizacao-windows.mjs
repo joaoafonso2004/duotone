@@ -158,4 +158,112 @@ assert.match(main, /precisaDeDescarregar\(/, 'o main.cjs não descarrega em segu
 const aviso = fs.readFileSync(new URL('../src/components/UpdateSheet.tsx', import.meta.url), 'utf8');
 assert.match(aviso, /atualizacaoAutomatica/, 'o aviso de versão não sabe que no Windows a atualização é automática');
 
-console.log('Atualização do Windows: versão, origem do instalador, comando, download e tamanho verificados.');
+// Relógio virtual: as atualizações chegam sem abrir as Definições, mesmo
+// quando a app arrancou sem rede ou a versão saiu depois da primeira procura.
+function relogioDaProcura(procurar) {
+  let agora = 0;
+  let id = 0;
+  const tarefas = new Map();
+  const fila = a.criarProcuraAutomatica({
+    procurar, agora: () => agora,
+    agendar: (fn, atraso) => { const chave = ++id; tarefas.set(chave, { fn, em: agora + atraso }); return chave; },
+    cancelar: (chave) => tarefas.delete(chave),
+  });
+  const assentar = async () => { for (let i = 0; i < 12; i++) await Promise.resolve(); };
+  return {
+    fila, tarefas, assentar,
+    async andar(ms) {
+      const fim = agora + ms;
+      for (;;) {
+        const proxima = [...tarefas].sort((a, b) => a[1].em - b[1].em)[0];
+        if (!proxima || proxima[1].em > fim) break;
+        agora = proxima[1].em;
+        tarefas.delete(proxima[0]);
+        proxima[1].fn();
+        await assentar();
+      }
+      agora = fim;
+      await assentar();
+    },
+  };
+}
+
+{
+  let chamadas = 0;
+  let publicada = false;
+  let pronta = false;
+  const r = relogioDaProcura(async () => {
+    chamadas++;
+    if (publicada) pronta = true;
+    return { estado: publicada ? 'pronta' : 'atual' };
+  });
+  r.fila.iniciar();
+  r.fila.iniciar();
+  await r.andar(4_999);
+  assert.equal(chamadas, 0, 'O arranque da janela não espera pela rede');
+  await r.andar(1);
+  assert.equal(chamadas, 1, 'Procura sozinha cinco segundos depois de abrir');
+  publicada = true;
+  await r.andar(15 * 60_000);
+  assert.equal(pronta, true, 'Uma versão publicada depois do arranque chega sem visitar o About');
+  assert.equal(chamadas, 2);
+  assert.equal(r.tarefas.size, 1, 'Só há um relógio, mesmo com iniciar repetido');
+  r.fila.parar();
+}
+
+for (const atira of [false, true]) {
+  let chamadas = 0;
+  const r = relogioDaProcura(async () => {
+    chamadas++;
+    if (chamadas > 1) return { estado: 'pronta' };
+    if (atira) throw Error('sem rede');
+    return { estado: 'erro' };
+  });
+  r.fila.iniciar();
+  await r.andar(5_000);
+  await r.andar(59_999);
+  assert.equal(chamadas, 1);
+  await r.andar(1);
+  assert.equal(chamadas, 2, 'Arrancar sem rede repete ao fim de um minuto, não seis horas');
+  r.fila.parar();
+}
+
+{
+  let chamadas = 0;
+  const r = relogioDaProcura(async () => { chamadas++; return { estado: 'atual' }; });
+  r.fila.iniciar();
+  await r.andar(5_000);
+  r.fila.retomar();
+  await r.andar(60_000);
+  assert.equal(chamadas, 1, 'Foco logo após a procura não repete pedidos');
+  r.fila.retomar();
+  await r.andar(500);
+  r.fila.retomar();
+  await r.andar(500);
+  assert.equal(chamadas, 2, 'Voltar à app/acordar o PC antecipa o relógio; foco repetido não o adia');
+  await r.fila.verificar();
+  assert.equal(chamadas, 3, 'O botão manual continua a verificar imediatamente');
+  assert.equal(r.tarefas.size, 1, 'A procura manual também substitui o relógio anterior');
+  r.fila.parar();
+  await r.andar(24 * 60 * 60_000);
+  assert.equal(chamadas, 3, 'Fechar a app cancela o relógio');
+}
+
+{
+  let concluir;
+  let chamadas = 0;
+  const r = relogioDaProcura(() => { chamadas++; return new Promise((resolve) => { concluir = resolve; }); });
+  r.fila.iniciar();
+  await r.andar(5_000);
+  await r.andar(120_000);
+  r.fila.retomar();
+  const manual = r.fila.verificar();
+  assert.equal(manual, r.fila.verificar(), 'Cliques e procura automática partilham o download em curso');
+  assert.equal(chamadas, 1);
+  r.fila.parar();
+  concluir({ estado: 'pronta', versao: '4.0.6' });
+  assert.equal((await manual).estado, 'pronta');
+  assert.equal(r.tarefas.size, 0, 'Um resultado tardio não rearma a procura depois de sair');
+}
+
+console.log('Atualização do Windows: versão, origem, download, instalação e procura automática verificados.');
