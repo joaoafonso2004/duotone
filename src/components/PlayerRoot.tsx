@@ -14,6 +14,8 @@ import { Toque } from './Toque';
 import { TextoQueCabe } from './TextoQueCabe';
 import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade';
 import { BarraDaSessao } from './BarraDaSessao';
+import { BarraDeSeguir } from './BarraDeSeguir';
+import { useSeguirAmigo } from '../state/seguirAmigo';
 import { FolhaDaSessao } from './FolhaDaSessao';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useSincroniaDaSessao } from '../hooks/useSincroniaDaSessao';
@@ -155,6 +157,8 @@ export function PlayerRoot() {
   const buffering = usePlayer((s) => s.buffering);
   const error = usePlayer((s) => s.error);
   const maquina = usePlayer((s) => s.maquina);
+  // A seguir um amigo ("Listen along"): o topo do leitor aberto di-lo, no lugar da marca.
+  const seguindoAlguem = useSeguirAmigo((s) => !!s.seguindo);
 
   const playTrack = usePlayer((s) => s.playTrack);
   const togglePlay = usePlayer((s) => s.togglePlay);
@@ -1126,14 +1130,18 @@ export function PlayerRoot() {
               da largura), por isso a caixa também é quadrada -- numa caixa
               larga o `contain` encolhia-a até não se ver. */}
           <View style={styles.headerCenter}>
-            <Image
-              source={require('../../assets/auth-logo.png')}
-              style={{ width: 22, height: 22 }}
-              contentFit="contain"
-            />
-            <Text style={styles.brandName}>
-              {APP_NAME.toUpperCase()}
-            </Text>
+            {seguindoAlguem ? <BarraDeSeguir compacta /> : (
+              <>
+                <Image
+                  source={require('../../assets/auth-logo.png')}
+                  style={{ width: 22, height: 22 }}
+                  contentFit="contain"
+                />
+                <Text style={styles.brandName}>
+                  {APP_NAME.toUpperCase()}
+                </Text>
+              </>
+            )}
           </View>
           {/* Fechar volta ao canto, e as opções ficam em baixo.
               São gestos diferentes: fechar é sair do ecrã e vive na moldura,
@@ -1592,8 +1600,11 @@ export function PlayerRoot() {
             right: spacing.xl,
             // Solta, com folga: um aviso que passa não é uma peça do leitor.
             bottom: miniBottom + (current ? MINI_PLAYER_HEIGHT : 0) + spacing.sm,
+            gap: 6,
           }}
         >
+          {/* "Listening along with X · Leave": seguir alguém é um modo, e vê-se. */}
+          <BarraDeSeguir />
           <BarraDaSessao soAvisos aoAbrir={() => setSessaoAberta(true)} />
         </View>
       ) : null}

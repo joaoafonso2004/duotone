@@ -7,6 +7,7 @@ import { TRACK_ROW_HEIGHT } from './TrackRow';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePlayer } from '../state/player';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { useSeguirAmigo } from '../state/seguirAmigo';
 import { colors, spacing, type, radii } from '../theme';
 import { BottomSheet, BottomSheetFlatList } from './BottomSheet';
 import { TrackRow } from './TrackRow';
@@ -84,7 +85,13 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
   );
   // A mesma forma que o `upcomingQueue` devolve, para a lista abaixo nao ter
   // de saber de onde vieram as faixas.
-  const upNext = emSessao
+  // A seguir um amigo ("Listen along"): as próximas DELE, só para ler -- quem
+  // manda na fila é ele, e tocar numa delas daqui não faz nada.
+  const seguido = useSeguirAmigo((s) => s.seguindo);
+  const proximasDele = useSeguirAmigo((s) => s.aSeguir);
+  const upNext = seguido
+    ? proximasDele.map((t, n) => ({ track: t, index: n }))
+    : emSessao
     ? filaDaSessao.map((i, n) => ({ track: i.track, index: n }))
     : upNextLocal;
 
@@ -95,7 +102,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
   // Numa sessao a ordem e de toda a gente: mexer nela daqui, sem as regras de
   // quem pode o que, era dar controlo por uma porta lateral. Tira-se e
   // reordena-se na folha da sessao, que sabe dessas regras.
-  const canReorder = !emSessao;
+  const canReorder = !emSessao && !seguido;
   // Dizer de onde vêm as faixas: se a fila acabou e o rádio a estendeu, o
   // utilizador tem de perceber porque é que continua a tocar.
   const radioActive = usePlayer((s) => s.radioActive);
@@ -474,7 +481,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
                     // Por extenso, e não só a estrela de 7 pt (26/9).
                     contextLabel={sugeridas.includes(trackKey(item)) ? 'Smart shuffle pick' : undefined}
                     onPress={() => {
-                      if (foraDoTelemovel) return;
+                      if (foraDoTelemovel || seguido) return;
                       playTrack(item, queue);
                     }}
                     onLongPress={canReorder ? () => comecarArrasto(index) : undefined}

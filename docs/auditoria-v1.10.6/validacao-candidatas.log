@@ -1,0 +1,19 @@
+fixMp4Duration(buf, duração real):
+  ok - mvhd.duration = 0
+  ok - mvhd.timescale intacto
+  ok - tkhd.duration = 0
+  ok - mdhd.duration = 0
+  ok - mehd.fragment_duration = duração real
+  ok - edts neutralizado para free
+  ok - sidx neutralizado para free
+  ok - moof/mdat intocados
+fixMp4Duration(buf, null):
+  ok - mvhd.duration = 0 mesmo sem duração conhecida
+  ok - mehd neutralizado (sem duração para lá escrever)
+  ok - sidx neutralizado
+robustez:
+  ok - não lança em lixo aleatório
+  ok - não lança em buffer vazio
+
+Todos os testes passaram.
+Candidatas: ranges, parser, preservação de bytes e migração/logout passaram em isolamento. Integração nativa pendente.

@@ -244,11 +244,11 @@ export function mensagem(tipo: TipoFalha): string {
     case 'restrito-regiao':
       return 'Not available in your country. Looking for another copy…';
     case 'bloqueio-bot':
-      return 'YouTube is throttling this device. Retrying another way…';
+      return 'Streaming is being throttled. Retrying another way…';
     case 'sem-formato':
       return 'No usable audio for this track. Retrying another way…';
     case 'cdn-recusou':
-      return 'YouTube refused the audio link. Retrying another way…';
+      return 'The audio link was refused. Retrying another way…';
     case 'tempo-esgotado':
       return 'This track did not start. Retrying another way…';
     case 'desconhecido':
@@ -268,7 +268,7 @@ export function rotulo(tipo: TipoFalha): string {
     case 'embed-bloqueado': return 'embedding blocked';
     case 'restrito-idade': return 'age-restricted';
     case 'restrito-regiao': return 'blocked in your country';
-    case 'bloqueio-bot': return 'throttled by YouTube';
+    case 'bloqueio-bot': return 'throttled';
     case 'sem-formato': return 'no usable audio';
     case 'cdn-recusou': return 'link refused';
     case 'tempo-esgotado': return 'never started';

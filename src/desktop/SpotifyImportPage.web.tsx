@@ -311,7 +311,7 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
 
           {phase === 'parsed' && (
             <View style={s.actions}>
-              <Button onPress={run}>Search {rows.length} tracks on YouTube</Button>
+              <Button onPress={run}>Find {rows.length} tracks</Button>
             </View>
           )}
 

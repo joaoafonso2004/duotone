@@ -172,9 +172,9 @@ export function veredictoDoExtrator(tipo: string | null | undefined): Disponibil
 /** A frase de cada uma, para a linha da lista. */
 export function motivoDaIndisponivel(d: Disponibilidade): string {
   switch (d) {
-    case 'removida': return 'Removed or made private on YouTube';
-    case 'bloqueada': return 'The owner blocks playback outside YouTube';
-    case 'restrita-idade': return 'Age-restricted on YouTube';
+    case 'removida': return 'Removed or made private';
+    case 'bloqueada': return 'The owner blocks playback in other apps';
+    case 'restrita-idade': return 'Age-restricted';
     case 'restrita-regiao': return 'Not available in your country';
     default: return '';
   }

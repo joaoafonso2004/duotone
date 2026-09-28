@@ -1,6 +1,5 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import {useReducedMotion} from '../hooks/useReducedMotion';
-import {StateIcon} from '../components/StateIcon';
 import { OfflineNotice,withInternet } from '../components/OfflineNotice';
 import { useConnectivity } from '../state/connectivity';
 import { useSocial } from '../state/social';
@@ -8,7 +7,6 @@ import { naoLidasPorAmigo } from '../lib/social';
 import { FriendProfileScreen } from '../screens/FriendProfileScreen';
 import { BarreiraDeErros } from '../components/BarreiraDeErros';
 import { anotarEcra } from '../state/saudeDaApp';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   DarkTheme,
   LinkingOptions,
@@ -23,7 +21,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
-import { Animated, Platform, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';

@@ -1,52 +1,27 @@
 import { TransicaoDePagina } from '../desktop/TransicaoDePagina.web';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { ReactNode, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from 'react-native';
+import React, { ReactNode, startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { addTracksToPlaylist, createPlaylist, deletePlaylist, getPlaylistTracks, importSharedPlaylist, removeTrackFromPlaylist, renamePlaylist } from '../api/playlists';
-import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
-import { getLibrary, getLikedSongs, removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
-import { fetchYouTubePlaylist, searchYouTube } from '../api/youtube';
+import { addTracksToPlaylist, removeTrackFromPlaylist } from '../api/playlists';
+import { removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
 import type { OrigemDaFila } from '../lib/origemDaFila';
-import { YouTubePlayerView } from '../components/YouTubePlayerView';
-import { FriendAvatar } from '../components/FriendAvatar';
 import { useSaved } from '../state/saved';
 import { useRecomendacoes } from '../state/recomendacoes';
 import { useDesktopNotifications } from '../hooks/useDesktopNotifications';
 import { useSocial } from '../state/social';
 import { NotificationBanner } from '../components/NotificationBanner';
-import { fetchListeningStats, type StatsResult } from '../api/listeningStats';
-import { formatListeningTime, type StatsPeriod, type TimelineBucket } from '../lib/listeningStats';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
-import { Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, formatTime, IconButton, Loading, Page, Shelf, Toast, TrackTable, ui } from '../desktop/ui.web';
-import { COR, ESP, FONT, FONTES, LINHA_LISTA, RAIO, TIPO } from '../desktop/tokens.web';
+import { Artwork, Button, desktop, Dialog, Empty, Field, Loading, Toast } from '../desktop/ui.web';
+import { COR } from '../desktop/tokens.web';
 import { styles } from '../desktop/estilos.web';
-import { GlitchArtwork } from '../desktop/glitch/GlitchArtwork.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
 import {
-  getEffectIntensity, getGlitchMode,
-  setEffectIntensity, setGlitchMode,
-  type EffectIntensity, type GlitchMode,
-  getShowRewindButton, getShowTrackDuration,
-  setShowRewindButton, setShowTrackDuration, setShowTrackDurationCache,
-  setAutoplayRadio as persistAutoplayRadio
-} from '../lib/prefs';
-import {
-  getProfilePlayStats, getProfileMostPlayed, getProfileRecentlyPlayed, getTopArtists,
-  getHeavyRotation, getForgottenFavorites,
-  type ProfilePlayEntry, type DbPlayStats,
-} from '../api/plays';
-import {
-  acceptFriendRequest, archiveInboxItem, declineOrRemoveFriendship,
-  getFriendCount, getFriendships, getInboxItems, searchProfiles,
-  shareComGrupo, getGrupos, type ChatGroup, shareItem, sendFriendRequest, getChatMessages, type Friendship, type SharedItem
+  getFriendships, shareComGrupo, getGrupos, type ChatGroup, shareItem, type Friendship,
 } from '../api/social';
-import { APP_VERSION, BUILD_ID } from '../lib/buildInfo';
-import { historico, limparHistorico, relatorio, resumo } from '../lib/playbackDiagnostics';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../state/auth';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { usePresencaDoDiscord } from '../hooks/usePresencaDoDiscord';
@@ -88,18 +63,14 @@ import { usePonteDoLeitor } from '../desktop/usePonteDoLeitor.web';
 import { useAtalhosDaJanela } from '../desktop/useAtalhosDaJanela.web';
 import { ModoLimpo } from '../desktop/ModoLimpo.web';
 import { BoasVindasPc } from '../desktop/BoasVindasPc.web';
-import { PRIMARY, type CommonPageProps, type Route, type ShareTarget } from '../desktop/rotas';
-import {
-  memberSince, newerVersion, playEntryToTrack,
-  PlaylistArtwork, relativeTime, useLibraryData,
-} from '../desktop/paginas/comum.web';
-const P = Pressable as any;
+import { type Route, type ShareTarget } from '../desktop/rotas';
 const V = View as any;
 
 function AuthDesktop() {
   const signIn = useAuth((s) => s.signIn); const signUp = useAuth((s) => s.signUp);
   const [mode, setMode] = useState<'signin' | 'signup'>('signin'); const [identifier, setIdentifier] = useState(''); const [email, setEmail] = useState(''); const [username, setUsername] = useState(''); const [password, setPassword] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
-  const submit = async () => { setBusy(true); setError(null); const message = mode === 'signin' ? await signIn(identifier, password) : await signUp(email, password, username); setError(message); setBusy(false); };
+  // `finally`: um pedido que atire (rede a cair a meio) deixava o botão preso em "Please wait…".
+  const submit = async () => { setBusy(true); setError(null); try { const message = mode === 'signin' ? await signIn(identifier, password) : await signUp(email, password, username); setError(message); } catch { setError('Could not reach Duotone. Check your connection and try again.'); } finally { setBusy(false); } };
   return <View style={styles.auth}><View style={styles.authGlow} /><View style={styles.authCard}><View style={[styles.authLogo, { alignItems: 'center', gap: 12, flexDirection: 'row' }]}><Image source={require('../../assets/auth-logo.png')} style={{ width: 44, height: 44 }} resizeMode="contain" /></View><Text style={styles.authTitle}>Your music, in one place.</Text><Text style={styles.authBody}>Sign in to your Duotone library and continue listening across devices.</Text><View style={styles.segment}><Pressable onPress={() => setMode('signin')} style={[styles.segmentItem, mode === 'signin' && styles.segmentActive]}><Text style={styles.segmentText}>Sign in</Text></Pressable><Pressable onPress={() => setMode('signup')} style={[styles.segmentItem, mode === 'signup' && styles.segmentActive]}><Text style={styles.segmentText}>Create account</Text></Pressable></View>
     <View style={{ gap: 12 }}>{mode === 'signin' ? <Field icon="mail-outline" placeholder="Email" value={identifier} onChangeText={setIdentifier} onSubmitEditing={submit} keyboardType="email-address" /> : <><Field icon="person-outline" placeholder="Username" value={username} onChangeText={setUsername} /><Field icon="mail-outline" placeholder="Email" value={email} onChangeText={setEmail} keyboardType="email-address" /></>}<Field icon="lock-closed-outline" placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry onSubmitEditing={submit} />{error && <Text style={styles.error}>{error}</Text>}<Button onPress={submit} disabled={busy}>{busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}</Button></View></View><Text style={styles.authFoot}>Duotone for Windows</Text></View>;
 }

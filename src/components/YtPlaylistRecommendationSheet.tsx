@@ -153,7 +153,7 @@ export function YtPlaylistRecommendationSheet({
             {loadedTitle ?? playlistTitle ?? 'Playlist'}
           </Text>
           <Text style={type.caption}>
-            {isInternalPlaylist ? 'Playlist partilhada' : 'YouTube Recommendation'}
+            {isInternalPlaylist ? 'Playlist partilhada' : 'Recommendation'}
           </Text>
         </View>
       </View>

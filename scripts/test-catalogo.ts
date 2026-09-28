@@ -1,6 +1,8 @@
 import {
   candidatosPlausiveis,
   chaveDeCatalogo,
+  eFotoVazia,
+  fotoEntre,
   ordenarPorGosto,
   repartir,
   type ArtistaDoCatalogo,
@@ -157,6 +159,21 @@ const muitos = repartir([10, 1, 1, 1, 1], 6);
 eq('com muitos artistas e poucos lugares o total fecha', soma(muitos), 6);
 check('e ninguem fica a zero quando ha lugares para todos',
   muitos.every((x) => x >= 1), muitos.join());
+
+// A foto do artista (27/9): só um homónimo exato, o de mais fãs, e nunca a imagem vazia.
+const VAZIA = 'https://e-cdns-images.dzcdn.net/images/artist//1000x1000-000000-80-0-0.jpg';
+const COM = (id: string) => `https://e-cdns-images.dzcdn.net/images/artist/${id}/1000x1000-000000-80-0-0.jpg`;
+check('a imagem vazia do catálogo não conta como foto', eFotoVazia(VAZIA) && eFotoVazia(null) && eFotoVazia(''));
+check('uma imagem a sério conta', !eFotoVazia(COM('abc123')));
+eq('entre homónimos exatos fica o de mais fãs',
+  fotoEntre([{ name: 'Nate Sib', nb_fan: 12, picture_xl: COM('pequeno') }, { name: 'nate sib', nb_fan: 5000, picture_xl: COM('grande') }], 'nate sib'),
+  COM('grande'));
+eq('um nome só parecido não serve',
+  fotoEntre([{ name: 'Nate Sibley Band', nb_fan: 90000, picture_xl: COM('outro') }], 'nate sib'), null);
+eq('o de mais fãs sem foto cede ao seguinte que a tem',
+  fotoEntre([{ name: 'Nate Sib', nb_fan: 9000, picture_xl: VAZIA, picture_big: VAZIA }, { name: 'Nate Sib', nb_fan: 10, picture_big: COM('b') }], 'Nate Sib'),
+  COM('b'));
+eq('sem resultados, sem foto', fotoEntre([], '2hollis'), null);
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

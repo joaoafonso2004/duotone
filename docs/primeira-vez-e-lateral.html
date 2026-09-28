@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Primeira vez e lateral</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fundo:#060608;--elevado:#14141A;--hover:#1C1C24;
+  --linha:rgba(233,234,238,.10);--linhaSuave:rgba(233,234,238,.055);
+  --texto:#E9EAEE;--medio:#9DA0AA;--fraco:#84868F;--online:#3ECF6E;
+  --display:"Archivo",system-ui,sans-serif;--body:"Public Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--texto);font-family:var(--body)}
+.pagina{max-width:1180px;margin:0 auto;padding:40px 16px 80px}
+h1{font-family:var(--display);font-size:30px;letter-spacing:-.5px;margin:0 0 8px}
+.intro{color:var(--medio);font-size:15px;line-height:1.6;max-width:800px;margin:0 0 20px}
+h2{font-family:var(--display);font-size:20px;margin:48px 0 6px}
+.nota{color:var(--medio);font-size:14px;line-height:1.6;max-width:840px;margin:0 0 16px}
+.nota b{color:var(--texto);font-weight:600}
+.lado{display:flex;gap:20px;flex-wrap:wrap}
+.lado>div{flex:1;min-width:300px}
+.rot{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--fraco);margin:0 0 8px 2px}
+/* ---------- lateral do PC (igual à da tua screenshot) ---------- */
+.lat{width:260px;height:640px;border:1px solid var(--linha);border-radius:14px;background:rgba(12,12,16,.9);display:flex;flex-direction:column;overflow:hidden;position:relative}
+.nav{padding:28px 14px 8px;display:flex;flex-direction:column;gap:2px}
+.sec{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--fraco);padding:10px 12px 10px}
+.item{display:flex;align-items:center;gap:12px;height:38px;padding:0 12px;border-radius:8px;font-size:14.5px;color:var(--medio)}
+.item.on{background:rgba(233,234,238,.07);color:var(--texto);font-weight:600}
+.item.risca{text-decoration:line-through;opacity:.45}
+.ic{width:17px;height:17px;border:1.6px solid currentColor;border-radius:5px;opacity:.9}
+.div{height:1px;background:var(--linhaSuave);margin:12px 14px}
+.conta{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--linhaSuave)}
+.conta .av{width:30px;height:30px;border-radius:50%;background-size:cover;background-position:center;flex:none}
+.conta .n{font-size:12.5px;font-weight:600}.conta .e{font-family:var(--mono);font-size:10px;color:#6b6d77;margin-top:2px}
+.conta .eng{margin-left:auto;width:28px;height:28px;border-radius:7px;display:grid;place-items:center;color:var(--medio);font-size:15px}
+.conta .eng:hover{background:var(--hover);color:var(--texto)}
+.chev{margin-left:auto;color:#6b6d77;font-size:12px}
+/* amigos */
+.amigos{padding:14px 14px 8px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.amigos .cab{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--fraco);padding:0 6px 8px}
+.am{display:flex;align-items:center;gap:10px;padding:7px 6px;border-radius:8px;cursor:pointer}
+.am:hover{background:var(--hover)}
+.am .f{position:relative;width:32px;height:32px;flex:none}
+.am .f i{display:block;width:32px;height:32px;border-radius:50%;background-size:cover;background-position:center}
+.am .f b{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:50%;background:var(--online);border:2px solid #0c0c10}
+.am .f b.aus{background:transparent;border:2px solid #6b6d77}
+.am .tx{min-width:0;flex:1}
+.am .nm{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.am .mu{font-size:11.5px;color:var(--medio);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.am .pb{height:2px;border-radius:1px;background:rgba(233,234,238,.14);margin-top:5px;overflow:hidden}
+.am .pb i{display:block;height:100%;background:var(--texto);width:0}
+.am .ouvir{opacity:0;width:26px;height:26px;border-radius:50%;background:var(--texto);color:#111;display:grid;place-items:center;font-size:10px;flex:none;transition:opacity .15s}
+.am:hover .ouvir{opacity:1}
+.am.parado .mu{color:var(--fraco)}
+/* ---------- questionário ---------- */
+.ecra{border:1px solid var(--linha);border-radius:14px;background:var(--fundo);position:relative;overflow:hidden}
+.pc{height:600px;display:grid;place-items:center;background:radial-gradient(900px 600px at 70% 10%,#1b1320 0%,transparent 60%),var(--fundo)}
+.tel{width:360px;height:740px;border-radius:44px;border:10px solid #1a1a20;margin:0 auto;background:var(--fundo);position:relative;overflow:hidden}
+.q{width:100%;max-width:640px;padding:28px 32px;display:flex;flex-direction:column;height:100%}
+.pc .q{height:auto;background:rgba(12,12,16,.92);border:1px solid var(--linha);border-radius:18px;max-height:540px}
+.tel .q{padding:54px 20px 24px}
+.qtopo{display:flex;align-items:center;justify-content:space-between}
+.passos{display:flex;gap:6px}.passos i{width:22px;height:4px;border-radius:2px;background:rgba(233,234,238,.15)}.passos i.on{background:var(--texto)}
+.saltar{font-size:13px;font-weight:600;color:var(--medio);cursor:pointer;padding:6px 10px;border-radius:8px}
+.saltar:hover{color:var(--texto);background:var(--hover)}
+.qt{font-family:var(--display);font-size:26px;font-weight:700;letter-spacing:-.4px;margin:22px 0 6px}
+.tel .qt{font-size:24px}
+.qs{font-size:14px;color:var(--medio);margin:0 0 16px}
+.busca{height:42px;border:1px solid var(--linha);border-radius:10px;display:flex;align-items:center;gap:10px;padding:0 14px;color:var(--fraco);font-size:14px;margin-bottom:16px}
+.grelhaA{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+.tel .grelhaA{grid-template-columns:repeat(3,1fr);gap:12px}
+.art{display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;font-size:12px;font-weight:600;text-align:center}
+.art i{position:relative;width:88px;height:88px;border-radius:50%;background-size:cover;background-position:center;outline:2px solid transparent;outline-offset:3px;transition:outline-color .15s,transform .15s}
+.tel .art i{width:86px;height:86px}
+.art.sel i{outline-color:var(--texto)}
+.art.sel i:after{content:"✓";position:absolute;right:-2px;bottom:-2px;width:24px;height:24px;border-radius:50%;background:var(--texto);color:#111;display:grid;place-items:center;font-size:13px;font-weight:700}
+.listaM{display:flex;flex-direction:column;gap:2px}
+.mus{display:flex;align-items:center;gap:12px;height:54px;padding:0 10px;border-radius:8px;cursor:pointer}
+.mus:hover{background:var(--hover)}
+.mus .c{width:40px;height:40px;border-radius:5px;flex:none}
+.mus .t{font-size:14px;font-weight:600}.mus .a{font-size:12px;color:var(--medio);margin-top:2px}
+.mus .v{margin-left:auto;width:22px;height:22px;border-radius:50%;border:1.6px solid var(--fraco);display:grid;place-items:center;font-size:12px;color:#111}
+.mus.sel .v{background:var(--texto);border-color:var(--texto)}
+.qfim{margin-top:auto;padding-top:18px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.conta3{font-size:13px;color:var(--medio)}
+.btn{height:42px;padding:0 22px;border-radius:21px;background:var(--texto);color:#111;font-weight:700;font-size:14px;display:grid;place-items:center;cursor:pointer;transition:opacity .15s}
+.btn.off{opacity:.3;pointer-events:none}
+.tel .qfim{flex-direction:column;align-items:stretch}.tel .btn{height:50px;border-radius:25px}
+.fontes{display:flex;flex-direction:column;gap:10px}
+.fonte{display:flex;align-items:center;gap:14px;height:64px;padding:0 16px;border:1px solid var(--linha);border-radius:12px;cursor:pointer;font-size:15px;font-weight:600}
+.fonte:hover{background:var(--hover)}
+.fonte .lg{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:15px;font-weight:800;color:#111;flex:none}
+.fonte small{display:block;font-size:12px;font-weight:400;color:var(--medio);margin-top:2px}
+.colar{display:flex;gap:10px;margin-bottom:12px}.colar .busca{flex:1;margin:0;color:var(--texto)}
+.achada{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--linha);border-radius:10px;margin-bottom:8px}
+.achada .c{width:44px;height:44px;border-radius:6px;flex:none}
+.achada .t{font-size:14px;font-weight:600}.achada .a{font-size:12px;color:var(--medio);margin-top:2px}
+.achada .ok{margin-left:auto;font-size:12px;color:var(--online);font-weight:600}
+.dica{font-size:12.5px;color:var(--fraco);line-height:1.5;margin-top:8px}
+.btn2{height:42px;padding:0 18px;border-radius:21px;border:1px solid var(--linha);color:var(--texto);font-weight:600;font-size:14px;display:grid;place-items:center;cursor:pointer}
+.g1{background:linear-gradient(135deg,#3a0d12,#c21f2d)}.g2{background:linear-gradient(135deg,#0f2a3a,#2f8fb0)}
+.g3{background:linear-gradient(135deg,#221a3d,#7a5bd6)}.g4{background:linear-gradient(135deg,#2b2412,#c9962b)}
+.g5{background:linear-gradient(135deg,#0f2e22,#2fae7a)}.g6{background:linear-gradient(135deg,#2e0f28,#c23f9a)}
+</style>
+</head>
+<body>
+<div class="pagina">
+<h1>Primeira vez na app, e a lateral do PC</h1>
+<p class="intro">Duas coisas nesta página: o questionário curto da primeira entrada (PC e iPhone) e a lateral do PC sem o "Profile" repetido, com os teus amigos no espaço vazio. As fotos e capas são de exemplo. Tudo o que é clicável aqui mexe: escolhe artistas e músicas, passa o rato pelos amigos.</p>
+
+<h2>1 · A lateral do PC</h2>
+<p class="nota"><b>O que recomendo:</b> tirar o item "Profile" e ficar só a linha com a tua cara, que é o sítio onde toda a gente procura o perfil (Spotify, Discord). As "Settings" passam para uma roda dentada nessa linha, e o rótulo "ACCOUNT" desaparece com elas. A navegação fica só com as cinco páginas. Por baixo, no espaço que hoje está vazio, os amigos que estão na app: quem está a ouvir mostra a música e o progresso; quem está só online diz "Online". Com o rato numa linha aparece o ▶ para ouvires com ele; clicar no nome abre a conversa.</p>
+<div class="lado">
+  <div><p class="rot">HOJE</p>
+    <div class="lat">
+      <div class="nav"><div class="sec">DISCOVER</div>
+        <div class="item on"><span class="ic"></span>Search</div><div class="item"><span class="ic"></span>Liked Songs</div><div class="item"><span class="ic"></span>Artists</div><div class="item"><span class="ic"></span>Playlists</div><div class="item"><span class="ic"></span>Social</div>
+        <div class="div"></div><div class="sec">ACCOUNT</div>
+        <div class="item risca"><span class="ic"></span>Profile</div><div class="item"><span class="ic"></span>Settings</div></div>
+      <div class="conta" style="margin-top:8px"><span class="av" style="background-image:url(https://picsum.photos/seed/duo-joao/80)"></span><div><div class="n">joao</div><div class="e">jonyrsafonso@…</div></div><span class="chev">›</span></div>
+    </div></div>
+  <div><p class="rot">PROPOSTA</p>
+    <div class="lat">
+      <div class="nav"><div class="sec">DISCOVER</div>
+        <div class="item on"><span class="ic"></span>Search</div><div class="item"><span class="ic"></span>Liked Songs</div><div class="item"><span class="ic"></span>Artists</div><div class="item"><span class="ic"></span>Playlists</div><div class="item"><span class="ic"></span>Social</div></div>
+      <div class="conta" style="margin-top:8px"><span class="av" style="background-image:url(https://picsum.photos/seed/duo-joao/80)"></span><div><div class="n">joao</div><div class="e">jonyrsafonso@…</div></div><span class="eng" title="Settings">⚙</span></div>
+      <div class="amigos" data-amigos><div class="cab"><span>FRIENDS</span><span>3 ONLINE</span></div></div>
+    </div></div>
+</div>
+
+<h2>2 · O questionário da primeira vez</h2>
+<p class="nota">Aparece <b>uma vez</b>, a quem entra pela primeira vez, no iPhone ou no PC (e não volta no outro aparelho: fica guardado na conta). Começa por perguntar <b>onde ouvias antes</b>. Spotify: colas o link de uma playlist e ela vem (até 100 músicas por playlist, só públicas; as Liked Songs do Spotify passam primeiro para uma playlist). YouTube: o mesmo, com o link da playlist do YouTube. Quem importa salta os artistas e as músicas, porque a biblioteca já fica cheia; a importação continua em segundo plano. Sempre com "Skip" no canto. <b>Artistas</b> ficam como sementes das recomendações (o que o "Escolhe três artistas" do iPhone já faz hoje). <b>Músicas</b> vão para as tuas Liked Songs, e é isso que enche logo a biblioteca, a Daily mix e o rádio. Quem saltar entra na app como hoje.</p>
+<div class="lado">
+  <div style="flex:2"><p class="rot">PC</p>
+    <div class="ecra pc"><div class="q" data-q></div></div></div>
+  <div style="flex:1;min-width:380px"><p class="rot">IPHONE</p>
+    <div class="tel"><div class="q" data-q></div></div></div>
+</div>
+</div>
+<script>
+const AMIGOS=[
+  {n:'Tiago',m:'Lucid Dreams · Juice WRLD',p:.72,d:239,f:'duo-tiago'},
+  {n:'Inês',m:'Canção do Mar · Dulce Pontes',p:.12,d:210,f:'duo-ines'},
+  {n:'Rui',m:'Online',f:'duo-rui',parado:1},
+];
+document.querySelectorAll('[data-amigos]').forEach(c=>{for(const a of AMIGOS){const el=document.createElement('div');el.className='am'+(a.parado?' parado':'');
+  el.innerHTML=`<span class="f"><i style="background-image:url(https://picsum.photos/seed/${a.f}/80)"></i><b></b></span><div class="tx"><div class="nm">${a.n}</div><div class="mu">${a.m}</div>${a.parado?'':'<div class="pb"><i></i></div>'}</div>${a.parado?'':'<span class="ouvir" title="Listen along">▶</span>'}`;
+  el._a={...a};c.appendChild(el);}});
+function tique(){document.querySelectorAll('.am').forEach(el=>{const a=el._a;if(a.parado)return;a.p+=1/a.d;if(a.p>1)a.p=0;el.querySelector('.pb i').style.width=(a.p*100).toFixed(1)+'%';});}
+tique();setInterval(tique,1000);
+
+const ARTISTAS=['Morad','Juice WRLD','Dillaz','Travis Scott','Bispo','Drake','Carti','Dulce Pontes','Lil Uzi Vert','Teto'];
+const MUSICAS=[['Lucid Dreams','Juice WRLD','g3'],['Mask Off','Future','g6'],['Nana','Bispo','g4'],['One Dance','Drake','g2'],['Poured','Lil Uzi Vert','g1'],['Canção do Mar','Dulce Pontes','g5']];
+function montar(q,telemovel){
+  let passo=-2,fonte=null,importadas=[];const selA=new Set(),selM=new Set();
+  const topo=()=>`<div class="qtopo"><div class="passos">${[-2,0,1,2].map(i=>`<i class="${i<=Math.max(passo,-2)?'on':''}"></i>`).join('')}</div><span class="saltar" data-saltar>Skip</span></div>`;
+  function desenhar(){
+    if(passo===-2){
+      q.innerHTML=topo()+`<div class="qt">Where did you listen before?</div><p class="qs">Bring your playlists with you. Takes a minute.</p><div class="fontes">
+        <div class="fonte" data-fonte="Spotify"><span class="lg" style="background:#1ed760">S</span><div>Spotify<small>Paste a playlist link</small></div></div>
+        <div class="fonte" data-fonte="YouTube"><span class="lg" style="background:#ff3b30;color:#fff">▶</span><div>YouTube or YouTube Music<small>Paste a playlist link</small></div></div>
+        <div class="fonte" data-fonte="nada"><span class="lg" style="background:var(--elevado);color:var(--texto)">+</span><div>I'm starting fresh<small>Pick a few artists and songs instead</small></div></div></div>`;
+    }else if(passo===-1){
+      const exemplo=fonte==='Spotify'?'https://open.spotify.com/playlist/…':'https://youtube.com/playlist?list=…';
+      q.innerHTML=topo()+`<div class="qt">Paste your ${fonte} playlists</div><p class="qs">One link at a time. Add as many as you want.</p><div class="colar"><div class="busca">${exemplo}</div><span class="btn2" data-colar>Add</span></div>${importadas.map(([t,n,g])=>`<div class="achada"><span class="c ${g}"></span><div><div class="t">${t}</div><div class="a">${n} songs</div></div><span class="ok">✓ Added</span></div>`).join('')}${fonte==='Spotify'?'<div class="dica">Up to 100 songs per playlist, public playlists only. Your Liked Songs are private in Spotify: select them all, add them to a new playlist, and paste that link.</div>':''}<div class="qfim"><span class="conta3">${importadas.length?importadas.length+' to import':''}</span><span class="btn ${importadas.length?'':'off'}" data-importar>Import and continue</span></div>`;
+    }else if(passo===0){
+      const n=telemovel?9:10;
+      q.innerHTML=topo()+`<div class="qt">Pick 3 artists you love</div><p class="qs">We use them to fill your recommendations from day one.</p><div class="busca">⌕ Search artists</div><div class="grelhaA">${ARTISTAS.slice(0,n).map((a,i)=>`<div class="art ${selA.has(a)?'sel':''}" data-a="${a}"><i style="background-image:url(https://picsum.photos/seed/duo-art-${i}/120)"></i>${a}</div>`).join('')}</div><div class="qfim"><span class="conta3">${Math.min(selA.size,3)} of 3</span><span class="btn ${selA.size>=3?'':'off'}" data-seg>Next</span></div>`;
+    }else if(passo===1){
+      q.innerHTML=topo()+`<div class="qt">And 3 songs</div><p class="qs">They go straight to your Liked Songs.</p><div class="busca">⌕ Search songs</div><div class="listaM">${MUSICAS.slice(0,telemovel?5:6).map(([t,a,g])=>`<div class="mus ${selM.has(t)?'sel':''}" data-m="${t}"><span class="c ${g}"></span><div><div class="t">${t}</div><div class="a">${a}</div></div><span class="v">${selM.has(t)?'✓':''}</span></div>`).join('')}</div><div class="qfim"><span class="conta3">${Math.min(selM.size,3)} of 3</span><span class="btn ${selM.size>=3?'':'off'}" data-seg>Next</span></div>`;
+    }else{
+      const msg=importadas.length?`Your ${importadas.length} playlists are coming in. Keep listening, we'll let you know when they're done.`:`Your Daily mix and recommendations are being made with ${[...selA].slice(0,3).join(', ')||'your picks'}.`;
+      q.innerHTML=topo().replace('Skip','')+`<div style="margin:auto 0;text-align:center"><div class="qt" style="margin-top:0">You're all set</div><p class="qs">${msg}</p><span class="btn" style="margin:18px auto 0;width:max-content" data-rec>Start listening</span></div>`;
+    }
+  }
+  q.addEventListener('click',e=>{
+    const a=e.target.closest('[data-a]'),m=e.target.closest('[data-m]');
+    const f=e.target.closest('[data-fonte]');
+    if(f){fonte=f.dataset.fonte;passo=fonte==='nada'?0:-1;desenhar();return;}
+    if(e.target.closest('[data-colar]')){const ex=[['Rap PT 2026',87,'g4'],['Late night',64,'g3'],['Gym',100,'g1']];if(importadas.length<3)importadas.push(ex[importadas.length]);desenhar();return;}
+    if(e.target.closest('[data-importar]')){passo=2;desenhar();return;}
+    if(a){const v=a.dataset.a;selA.has(v)?selA.delete(v):selA.add(v);desenhar();}
+    else if(m){const v=m.dataset.m;selM.has(v)?selM.delete(v):selM.add(v);desenhar();}
+    else if(e.target.closest('[data-seg]')){passo++;desenhar();}
+    else if(e.target.closest('[data-saltar]')){passo=2;desenhar();}
+    else if(e.target.closest('[data-rec]')){passo=-2;fonte=null;importadas=[];selA.clear();selM.clear();desenhar();}
+  });
+  desenhar();
+}
+document.querySelectorAll('[data-q]').forEach((q,i)=>montar(q,i===1));
+</script>
+</body>
+</html>

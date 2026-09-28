@@ -4,8 +4,9 @@
 // watchdog que salta de mais é pior do que não haver nenhum, porque passa a
 // dar seeks numa música que estava a tocar bem.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
-  paradoDesdeAgora, precisaDeEmpurrao, PARADO_DEMAIS_MS, EMPURROES_POR_FAIXA,
+  paradoDesdeAgora, precisaDeEmpurrao, PARADO_DEMAIS_MS, EMPURROES_POR_FAIXA, MOTOR_PARADO_MS,
 } from '../src/lib/arranqueTravado.ts';
 
 const base = {
@@ -91,6 +92,48 @@ verificar('pronta e parada a serio continua a ser apanhada', () => {
 
 verificar('mexer recomeca a contagem', () => {
   assert.equal(paradoDesdeAgora({ pronta: true, mexeu: true, paradoDesde: 0, agora: 9000 }), 9000);
+});
+
+verificar('com o MOTOR parado de certeza, empurra-se ao fim de um segundo', () => {
+  // 27/9: a seguinte já no telemóvel, depois de uma faixa acabar sozinha. O
+  // motor aceitou o play e ficou parado (pronto, sem esperar por dados), e a
+  // rede só o apanhava aos 2,5 s -- 3 s nos 0:00 com o intervalo de 1 s.
+  assert.equal(precisaDeEmpurrao({ ...base, motorParado: true, paradoMs: MOTOR_PARADO_MS }), true);
+  assert.equal(precisaDeEmpurrao({ ...base, motorParado: true, paradoMs: MOTOR_PARADO_MS - 1 }), false);
+  assert.equal(precisaDeEmpurrao({ ...base, motorParado: false, paradoMs: MOTOR_PARADO_MS }), false,
+    'à espera de dados continua a ter os 2,5 s de um soluço de rede');
+  assert.equal(precisaDeEmpurrao({ ...base, motorParado: true, querTocar: false, paradoMs: 10_000 }), false,
+    'em pausa de propósito ninguém empurra');
+  assert.equal(precisaDeEmpurrao({ ...base, motorParado: true, posicaoDoMotorMs: 2000 }), false,
+    'parado a meio da música não é um arranque');
+});
+
+verificar('depois de uma faixa acabar sozinha, a seguinte leva um seek antes do play', () => {
+  const motor = readFileSync(new URL('../src/components/YouTubePlayerView.tsx', import.meta.url), 'utf8');
+  assert.match(motor, /if \(\(vemDeUmFim \|\| vinhaViva\) && !\(resumeMs && resumeMs > 1500\)\) \{\s*try \{\s*motorActivo\(\)\.currentTime = 0;/,
+    'o remédio do encravamento aplica-se já, sem esperar pela rede');
+  // E antes da ordem de tocar, que é o que o remédio à mão faz: seek, depois play.
+  const seek = motor.indexOf('motorActivo().currentTime = 0;');
+  const play = motor.indexOf('tocarNaVelocidade(motorActivo(),', seek);
+  assert.ok(seek > 0 && play > seek, 'o seek vem antes do play do arranque');
+  // O motor diz quando está parado de certeza, e a rede usa-o.
+  assert.match(motor, /motorParado: \(\) => \{/);
+  const rede = readFileSync(new URL('../src/hooks/useArranqueTravado.ts', import.meta.url), 'utf8');
+  assert.match(rede, /motorParado,\s*\}\)\) return;/);
+});
+
+verificar('na troca, a que sai fica a tocar calada até a nova estar pronta', () => {
+  // 27/9: com o ecrã bloqueado a meio do download, o download acabava e a
+  // música não começava -- o iOS só deixa começar quem já está a tocar.
+  const motor = readFileSync(new URL('../src/components/YouTubePlayerView.tsx', import.meta.url), 'utf8');
+  assert.match(motor, /silenciarParaTrocar: \(\) => \{\s*if \(manterVivoCalado\(player\)\)/, 'o motor do iPhone sabe calar em vez de pausar');
+  assert.match(motor, /if \(!manterVivoCalado\(player\)\) \{\s*try \{\s*player\.pause\(\);/, 'o efeito da faixa nova também');
+  assert.match(motor, /const vinhaViva = !!mantidoVivoRef\.current;\s*mantidoVivoRef\.current = null;/, 'o arranque da nova consome-o');
+  assert.match(motor, /pause: \(\) => \{\s*wantsPlayRef\.current = false;\s*mantidoVivoRef\.current = null;/, 'uma pausa a sério acaba com ele');
+  assert.match(motor, /if \(backend !== 'native'\) \{\s*try \{ motorActivo\(\)\.pause\(\);/, 'caído no embed, a calada pára');
+  assert.match(motor, /const MANTER_VIVO_MS = 90_000;/, 'e tem prazo');
+  const vida = readFileSync(new URL('../src/lib/playerLifecycle.ts', import.meta.url), 'utf8');
+  assert.match(vida, /if \(controls\.silenciarParaTrocar\) controls\.silenciarParaTrocar\(\);\s*else controls\.pause\(\);/);
 });
 
 if (falhas > 0) {

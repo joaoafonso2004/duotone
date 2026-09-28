@@ -1,0 +1,1394 @@
+
+> duotone@1.5.8 pretest
+> node --experimental-strip-types scripts/test-list-features.ts
+
+Pesquisa sem acentos e merge sem repetidos passaram.
+(node:24700) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-list-features.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+> duotone@1.5.8 test
+> node scripts/test-security-hardening.mjs && node scripts/test-mp4fixer.mjs && node --experimental-strip-types scripts/test-artist-name.ts && node --experimental-strip-types scripts/test-spotify-csv.ts && node --experimental-strip-types --import ./scripts/registar-resolver.mjs scripts/test-cor-da-capa.ts && node --experimental-strip-types --import ./scripts/registar-resolver.mjs scripts/test-widget.ts && node --experimental-strip-types --import ./scripts/registar-resolver.mjs scripts/test-spotify-import.ts && node --experimental-strip-types scripts/test-track-match.ts && node --experimental-strip-types scripts/test-capa.ts && node --experimental-strip-types scripts/test-capa-do-perfil.ts && node --experimental-strip-types scripts/test-prefs-sync.ts && node --experimental-strip-types --import ./scripts/registar-resolver.mjs scripts/test-catalogo-faixa.ts && node --experimental-strip-types --import ./scripts/registar-resolver.mjs scripts/test-tracker.ts && node --experimental-strip-types --import ./scripts/registar-resolver.mjs scripts/test-pesquisa-local.ts && node --experimental-strip-types scripts/test-fim-de-faixa.ts && node --experimental-strip-types scripts/test-interrupcao-de-audio.ts && node --experimental-strip-types scripts/test-crossfade.ts && node --experimental-strip-types scripts/test-ordenacao.ts && node --experimental-strip-types scripts/test-search-query.ts && node --experimental-strip-types scripts/test-handoff.ts && node --experimental-strip-types scripts/test-player-lifecycle.ts && node --experimental-strip-types --import ./scripts/registar-duplos.mjs scripts/test-player-store.ts && node --experimental-strip-types scripts/test-shuffle.ts && node --experimental-strip-types scripts/test-radio.ts && node --experimental-strip-types scripts/test-loudness.ts && node --experimental-strip-types scripts/test-listening-stats.ts && node --experimental-strip-types scripts/test-playback-diagnostics.ts && node --experimental-strip-types scripts/test-player-queue.ts && node --experimental-strip-types scripts/test-playback-machine.ts && node --experimental-strip-types scripts/test-reorder.ts && node --experimental-strip-types scripts/test-playback-rate.ts && node --experimental-strip-types scripts/test-equalizer.ts && node --experimental-strip-types scripts/test-eq-nativo.ts && node --experimental-strip-types scripts/test-smart-shuffle.ts && node --experimental-strip-types scripts/test-afinidade.ts && node --experimental-strip-types scripts/test-musica.ts && node --experimental-strip-types scripts/test-catalogo.ts && node --experimental-strip-types scripts/test-alvos.ts && node --experimental-strip-types scripts/test-social.ts && node scripts/test-api-regressions.mjs && node scripts/check-desktop-integration.mjs && node scripts/test-social-presence.mjs && node scripts/test-social-database.mjs && node scripts/test-personalization-offline.mjs
+
+Segurança: playlists, mensagens, catálogo, cache, email, login por username, reações e contagens idempotentes passaram.
+fixMp4Duration(buf, duração real):
+  ok - mvhd.duration = 0
+  ok - mvhd.timescale intacto
+  ok - tkhd.duration = 0
+  ok - mdhd.duration = 0
+  ok - mehd.fragment_duration = duração real
+  ok - edts neutralizado para free
+  ok - sidx neutralizado para free
+  ok - moof/mdat intocados
+fixMp4Duration(buf, null):
+  ok - mvhd.duration = 0 mesmo sem duração conhecida
+  ok - mehd neutralizado (sem duração para lá escrever)
+  ok - sidx neutralizado
+robustez:
+  ok - não lança em lixo aleatório
+  ok - não lança em buffer vazio
+
+Todos os testes passaram.
+
+a chave que agrupa
+  ok    ignora maiusculas
+  ok    ignora acentos
+  ok    ignora pontuacao
+  ok    a virgula nao parte o nome
+  ok    A$AP e ASAP sao o mesmo
+  ok    vazio nao rebenta
+  ok    NAO junta artistas diferentes
+
+colaboracoes: fica o principal
+  ok    & corta
+  ok    x corta
+  ok    feat corta
+  ok    a virgula NAO corta
+  ok    um x no meio de uma palavra nao corta
+  ok    um & sem espacos nao corta
+
+prefixos de quem faz upload
+  ok    (LEAK)
+  ok    [FREE]
+  ok    NEW solto
+  ok    dois seguidos
+  ok    um titulo normal fica igual
+  ok    nao devolve vazio
+
+as 17 faixas reais da biblioteca
+  ok    ha UM so grupo de Juice WRLD  -> 1 grupos
+  ok    e escreve-se Juice WRLD
+  ok    com as seis faixas dele  -> 6
+  ok    o uploader Xan-Wrld999 NAO vira artista
+  ok    o caso exato da screenshot encontra Juice WRLD
+  ok    o (LEAK) x colaboracao junta-se ao Lil Tjay  -> 1 grupos, 2 faixas
+  ok    titulo ao contrario, com o vocabulario
+  ok    e SEM vocabulario nao se inventa
+
+os nomes ficam escritos como deve ser
+  ok    do VEVO sai o nome separado
+  ok    o - Topic manda
+  ok    minusculas no titulo sao corrigidas
+  ok    maiusculas tambem
+
+o que NAO se deve fazer
+  ok    Drake e Drakeo ficam separados
+  ok    nenhum grupo tem o nome vazio
+  ok    as faixas nao se perdem no agrupamento  -> 18 de 18
+  ok    nao ha duas chaves iguais
+  ok    sem pistas, fica o canal
+  ok    um hifen de Remix nao inventa um artista
+  ok    Artista-Musica sem espacos funciona para nomes compostos
+  ok    Artista-Musica sem espacos funciona quando o canal confirma um nome curto
+
+o Spotify nao passa pela extracao
+  ok    o artista do Spotify e fiavel
+  ok    mas a colaboracao continua a cortar-se
+
+compatibilidade: quem chama sem vocabulario continua a funcionar
+  ok    dois argumentos ainda chegam
+  ok    displayArtist com um argumento
+  ok    nada de nada da null
+  ok    canonizar sem vocabulario da null
+
+titulos ao contrario com sufixo de versao
+  ok    destroca o titulo apesar do (Perfectly Slowed)
+  ok    e com dois sufixos colados
+  ok    e com parentesis rectos
+  ok    a ordem normal continua a dar o artista
+  ok    e um artista desconhecido de ambos os lados nao se troca
+
+o vocabulario que a app usa por omissao
+  ok    antes de aprender fica o que o titulo diz
+  ok    depois de aprender, sem lhe passar nada, ja acerta
+  ok    uma leitura vazia nao desaprende
+
+confirmacao automatica pelo catalogo
+  ok    versoes repetidas nao confirmam um artista
+  ok    canal oficial dispensa catalogo
+  ok    Spotify dispensa catalogo
+  ok    destroca sem canais oficiais
+  ok    agrupamento usa a mesma confirmacao
+  ok    as recomendacoes confiam no artista confirmado
+  ok    as versoes nao transformam a musica em artista
+  ok    confirmacao da faixa corrige tambem a grafia
+  ok    dois artistas confirmados preservam a ordem
+  ok    número de faixa sai do artista
+  ok    número de faixa com ponto e espaço
+  ok    marca de vídeo denuncia o lado errado
+  ok    marca em português também conta
+  ok    parêntese por fechar não é artista
+  ok    título normal continua igual
+  ok    tira o artista e a marca do fim
+  ok    a marca sozinha entre parênteses também sai
+  ok    número de faixa e marca ao mesmo tempo
+  ok    o feat fica, a marca sai
+  ok    as versões ficam
+  ok    sem marcas fica só o título
+  ok    título sem traço não se toca
+  ok    o Spotify não passa por isto
+
+  Todos os casos passaram.
+
+  ok    lê as 3 linhas  -> 3
+  ok    o BOM não estraga o cabeçalho  -> Hello, Goodbye
+  ok    vírgula dentro do título preservada
+  ok    aspas escapadas  -> She Said "Yes"
+  ok    duração lida  -> 205000
+  ok    primeiro de vários artistas  -> Artist One
+  ok    uri preservado
+  ok    deteta colunas pelo nome, não pela posição  -> Creep
+  ok    duração certa com colunas extra
+  ok    ignora linhas sem título ou artista  -> skipped=2
+  ok    aceita a linha válida
+  ok    duração não numérica vira null
+  ok    ms convertido para segundos
+  ok    lê cabeçalhos em português  -> linhas=1
+  ok    título português  -> Moonlight
+  ok    artista português  -> Juice WRLD
+  ok    álbum acentuado  -> Moonlight
+  ok    duração portuguesa  -> 178515
+  ok    não confunde artista com artista do álbum
+  ok    acentos decompostos também batem
+  ok    deteta colunas pelo conteúdo  -> linhas=2
+  ok    título por conteúdo  -> Kein Titel
+  ok    artista por conteúdo  -> Ein Künstler
+  ok    álbum por conteúdo  -> Ein Album
+  ok    duração por conteúdo, não o nº da faixa  -> 198000
+  ok    sinaliza colunas irreconhecíveis
+  ok    ficheiro vazio não rebenta
+  ok    ficheiro vazio é sinalizado
+  ok    só cabeçalho não rebenta
+  ok    só cabeçalho conhecido não é erro
+
+  Todos os casos passaram.
+(node:16856) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-cor-da-capa.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok    descodifica um blurhash válido  -> 16
+  ok    as células são cores válidas
+  ok    a mesma capa dá as mesmas células
+  ok    e o mesmo tema
+  ok    hash inválido "" devolve null
+  ok    hash inválido "x" devolve null
+  ok    hash inválido "LEHV6nWB" devolve null
+  ok    hash inválido "!!!!!!!!!!!!" devolve null
+  ok    hash inválido "LEHV6nWB2yk8" devolve null
+  ok    cor escura {"r":20,"g":10,"b":40} passa a legível  -> 4.57
+  ok    cor escura {"r":5,"g":5,"b":5} passa a legível  -> 4.60
+  ok    cor escura {"r":40,"g":0,"b":0} passa a legível  -> 4.56
+  ok    cor escura {"r":10,"g":30,"b":10} passa a legível  -> 4.91
+  ok    cor escura {"r":0,"g":0,"b":60} passa a legível  -> 4.57
+  ok    cor já legível fica na mesma
+  ok    clarear mantém o canal dominante  -> {"r":244,"g":0,"b":0}
+  ok    escolhe a célula com cor, não a cinzenta  -> {"r":200,"g":40,"b":40}
+  ok    capa a preto e branco não inventa cor
+  ok    e o tema dela é null
+  ok    sem células, null
+  ok    o véu segue a mesma regra
+  ok    entre dois do mesmo tom, ganha o mais visível
+  ok    o tema tem o nome do modo  -> cover
+  ok    a cor é hexadecimal  -> #DB4949
+  ok    o gradiente tem dois tons  -> #DB4949 #3E0F0F
+  ok    e os dois são diferentes
+  ok    o soft é translúcido  -> rgba(219,73,73,0.16)
+  ok    texto legível sobre #FAF03C  -> 16.47 com #0B0B0E
+  ok    texto legível sobre #6B6BEC  -> 4.62 com #0B0B0E
+  ok    texto legível sobre #DB4949  -> 4.74 com #0B0B0E
+  ok    texto legível sobre #28C878  -> 9.01 com #0B0B0E
+  ok    contraste garantido em toda a gama de cores
+  ok    luminância do preto é 0
+  ok    luminância do branco é 1
+  ok    contraste preto/branco é 21
+  ok    cinzento não tem saturação
+  ok    vermelho puro satura a 1
+  ok    lê hexadecimal
+  ok    hexadecimal inválido dá preto
+  ok    t=0 é a partida
+  ok    t=1 é o destino
+  ok    fora do intervalo fica preso às pontas
+  ok    a passagem avança sempre no mesmo sentido
+  ok    o meio do caminho não é cinzento  -> {"r":188,"g":0,"b":188}
+  ok    a mistura de temas começa no steel  -> #E9EAEE
+  ok    e acaba na cor da capa  -> #DB4949
+  ok    o texto por cima nunca fica a meio tom
+  ok    "violet" passa a steel
+  ok    "blue" passa a steel
+  ok    "orange" passa a steel
+  ok    "green" passa a steel
+  ok    "pink" passa a steel
+  ok    "red" passa a steel
+  ok    "mono" passa a steel
+  ok    "lilás" passa a steel
+  ok    "" passa a steel
+  ok    "null" passa a steel
+  ok    "undefined" passa a steel
+  ok    steel continua steel
+  ok    cover é respeitado
+Véu: perde a opacidade sem perder o tom.
+
+  Todos os casos passaram.
+(node:26104) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-widget.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok    só quem está a ouvir
+  ok    offline não entra
+  ok    sem música não entra
+  ok    pedido por aceitar não entra
+  ok    a ordem não depende da chegada  -> Amigo a, Amigo b, Amigo c
+  ok    e é por nome
+  ok    nomes iguais desempatam pelo id
+  ok    nunca mais de 3
+  ok    sem nome usa o utilizador
+  ok    sem nome nem utilizador não fica vazio
+  ok    o artista vem limpo  -> Artista
+  ok    a faixa entra quando toca
+  ok    o artista da faixa vem limpo  -> Artista
+  ok    a cor passa
+  ok    o relógio passa
+  ok    em pausa não há faixa
+  ok    mas os amigos continuam lá
+  ok    sem nada, o estado é válido
+  ok    o primeiro estado escreve-se sempre
+  ok    o mesmo estado não se reescreve
+  ok    só um minuto de relógio não conta
+  ok    um retrato com cinco minutos é renovado
+  ok    outra cor conta
+  ok    outra faixa conta
+  ok    um amigo que fica fora não força redesenho
+  ok    uma linha visível diferente conta
+
+  Todos os casos passaram.
+(node:23168) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-spotify-import.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok    processa todas as linhas  -> 5
+  ok    todas confiantes  -> 5
+  ok    uma pesquisa por faixa  -> 5
+  ok    sem resultados vira "em falta"
+  ok    sem resultados não conta como confiante
+  ok    continua depois de um erro  -> 3
+  ok    a que falhou fica em falta
+  ok    as outras entram na mesma
+  ok    correspondência fraca vai para revisão
+  ok    correspondência fraca não entra sozinha
+  ok    guarda alternativas  -> 2
+  ok    a escolhida não se repete nas alternativas
+  ok    exata entra apesar do canal desconhecido
+  ok    progresso é monótono  -> 3,5
+  ok    progresso acaba no total
+  ok    contagem de confiantes certa  -> 5
+  ok    cancelar interrompe cedo  -> 3/30
+  ok    retoma devolve tudo  -> 5
+  ok    retoma só pesquisa o que falta  -> 2
+  ok    pesquisa sempre em baixo pára a importação  -> YouTube search is not responding, so no tracks can be matched. Check your connection and try again.
+  ok    pára cedo, não percorre as 60 faixas  -> 18
+  ok    falhas alternadas não param nada  -> 30
+
+  Todos os casos passaram.
+  ok    cópias da mesma gravação não vão a revisão  -> score=130
+  ok    karaoke com a mesma duração não conta como cópia  -> b=80 a=75
+  ok    versão sem bateria não ganha  -> Daft Punk - Instant Crush (Official Audio)
+  ok    e a escolha certa é confiante
+  ok    durações diferentes não são a mesma gravação
+  ok    single sem álbum repetido  -> ["Lil Mosey Blueberry Faygo"]
+  ok    álbum entra como segunda tentativa  -> ["EDEN sex","EDEN sex i think you think too much of me"]
+  ok    primeira consulta é artista + título  -> EDEN sex
+  ok    segunda consulta acrescenta o álbum  -> EDEN sex i think you think too much of me
+  ok    sem álbum, só uma consulta
+  ok    reedição sai do título
+  ok    remaster sem ano sai
+  ok    ano à frente sai
+  ok    bonus track sai
+  ok    sufixo de versão sai da comparação
+  ok    mas um travessão a sério fica
+  ok    pedir estúdio não aceita ao vivo sozinha
+  ok    pedir ao vivo não aceita estúdio sozinho
+  ok    pedir ao vivo aceita ao vivo  -> score=97
+  ok    pedir estúdio não aceita acústica sozinha
+  ok    pedir acústica não aceita estúdio sozinho
+  ok    pedir acústica aceita acústica  -> score=142
+  ok    pedir estúdio não aceita remix sozinha
+  ok    pedir remix não aceita estúdio sozinho
+  ok    pedir remix aceita remix  -> score=107
+  ok    pedir estúdio não aceita instrumental sozinha
+  ok    pedir instrumental não aceita estúdio sozinho
+  ok    pedir instrumental aceita instrumental  -> score=92
+  ok    pedir estúdio não aceita acelerada sozinha
+  ok    pedir acelerada não aceita estúdio sozinho
+  ok    pedir acelerada aceita acelerada  -> score=87
+  ok    pedir estúdio não aceita demo sozinha
+  ok    pedir demo não aceita estúdio sozinho
+  ok    pedir demo aceita demo  -> score=142
+  ok    título que é só o sufixo fica intacto
+  ok    sem sufixo não muda nada
+  ok    o sufixo já não tira pontos  -> 127 vs 127
+  ok    e a faixa entra sozinha
+  ok    ao vivo não passa como a gravação de estúdio  -> score=82
+  ok    apóstrofo não parte a palavra  -> score=127
+  ok    ao vivo entra quando é o ao vivo que se pede  -> score=82
+  ok    acústica entra quando é a acústica que se pede  -> score=130
+  ok    sem candidatos não rebenta
+
+  Todos os casos passaram.
+Capa do Lock Screen: subida de resolução, deduplicação, fontes externas e host falso passaram.
+(node:12860) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-capa.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Capa do perfil: cobre a caixa, mantém o rácio, ancora ao topo nas duas plataformas.
+Degradê da capa: monótono, opaco antes da aresta e com chegada suave.
+Cabeçalho no PC: a altura acompanha a largura, com mínimo e teto.
+Zoom do recorte: encolhe nos dois eixos, mantém o rácio e destrava o movimento lateral.
+Teto do zoom: sai da resolução de cada imagem, com mínimo de 1 e teto absoluto.
+(node:26684) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-capa-do-perfil.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Preferências na conta: enche o que falta e nunca sobrepõe o que já cá está.
+(node:26896) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-prefs-sync.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:2788) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-catalogo-faixa.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Catálogo da faixa: título, duração, e a recusa dos títulos genéricos passaram.
+(node:11396) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-tracker.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+os tempos da folha
+  ok    minutos e segundos
+  ok    com horas
+  ok    espaços à volta não estorvam
+  ok    o que ninguém sabe vem a interrogações
+  ok    um traço não é um tempo
+  ok    vazio não é um tempo
+  ok    nem um número solto
+  ok    nem outra coisa qualquer
+
+os títulos
+  ok    a estrela do destaque sai
+  ok    a versão FICA
+  ok    sem estrela fica igual
+  ok    o que não for texto dá vazio
+
+a resposta da aba
+  ok    a linha sem título é deitada fora
+  ok    a era vem colada à faixa
+  ok    o título vem limpo
+  ok    a duração vem em segundos
+  ok    o produtor vem separado
+  ok    e o resto da ficha também
+  ok    uma resposta vazia não rebenta
+  ok    nem uma resposta que não é uma resposta
+
+o que já se tem
+  ok    o nome verdadeiro aparece dentro do lixo do YouTube
+  ok    e igual também conta
+  ok    outra faixa não conta
+  ok    título curto sozinho não chega
+  ok    título curto com a duração a confirmar já chega
+  ok    título curto sem durações não conta
+
+o que falta ouvir
+  ok    tira o que já se tem
+  ok    e mantém a ordem da comunidade
+  ok    sem biblioteca, falta tudo
+  ok    sem tracker, não falta nada
+
+o que se manda procurar
+  ok    com versão, a versão chega
+  ok    sem versão, junta-se a era para desambiguar
+
+as iniciais da era
+  ok    duas palavras dão duas letras
+  ok    as de ligação não contam
+  ok    uma palavra dá as duas primeiras letras
+  ok    a pontuação não estorva
+  ok    sendo a única palavra, a de ligação vale
+  ok    sem era, não se inventa
+
+as capas de cada era
+  ok    a era lançada herda a capa da tua faixa
+  ok    a era que nunca saiu fica sem capa
+  ok    sem biblioteca não há capas
+
+a porta do que vem do YouTube
+  ok    a faixa certa passa
+  ok    um type beat com o nome do artista NÃO passa
+  ok    nem em minúsculas e entre chavetas
+  ok    nem um instrumental
+  ok    outra música com a duração a calhar NÃO passa
+  ok    a duração fora da tolerância não passa
+  ok    sem duração do lado do YouTube não passa
+  ok    sem duração no tracker também não
+  ok    a marca de versão não impede o encontro
+
+  Todos os casos passaram.
+
+(node:13640) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-pesquisa-local.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+a pontuação
+  ok    título igual vale tudo
+  ok    acentos e caixa não contam
+  ok    título que começa pela pesquisa vale mais do que o que só a contém
+  ok    nada a ver dá zero
+  ok    pesquisa vazia dá zero
+  ok    o álbum também conta, por último
+
+um artista certo vale mais do que um título por acaso
+  ok    artista exacto ganha a título que só contém
+
+a ordem dos resultados
+  ok    as que não respondem ficam de fora
+  ok    a igual vem primeiro
+  ok    depois a que começa pela pesquisa
+  ok    e por fim a que só a contém
+
+entre iguais, fica a ordem que vinha
+  ok    a mais recente mantém-se à frente
+
+os limites
+  ok    não devolve a biblioteca toda
+  ok    e respeita um limite dado
+  ok    pesquisa vazia não devolve nada
+  ok    biblioteca vazia não rebenta
+  ok    artista nulo não rebenta
+
+  Todos os casos passaram.
+
+Watchdog do relógio: só trata de paragens a meio; o fim é do statusChange.
+Fim sem dados: buffer vazio no fim, pausa, buffer a meio e motor a tocar passaram.
+Duração para detetar o fim: a conhecida ganha, o motor é o último recurso, e errar por excesso só perde a deteção.
+(node:22364) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-fim-de-faixa.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Interrupção de áudio: só se retoma o que estava a tocar e o sistema devolve.
+(node:3328) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-interrupcao-de-audio.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Crossfade: condições, momento, curva de igual potência e interrupções passaram.
+(node:13076) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-crossfade.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Ordenação: mesma regra de texto, faixas e artistas nas duas plataformas.
+(node:26388) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-ordenacao.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok    query curta ganha segunda tentativa  -> ["EDEN sex","EDEN sex music"]
+  ok    a primeira é a do utilizador, intacta  -> EDEN sex
+  ok    a segunda acrescenta contexto musical  -> EDEN sex music
+  ok    não repete quando já diz "music"
+  ok    não repete quando já diz "song"
+  ok    "audio" não conta como contexto  -> ["EDEN sex official audio","EDEN sex official audio music"]
+  ok    query longa não é repetida  -> 1
+  ok    limite é 5 palavras
+  ok    6 palavras já não repete
+  ok    query vazia não gera pesquisas
+  ok    só espaços não gera pesquisas
+  ok    espaços à volta são limpos  -> eden
+
+  Todos os casos passaram.
+  ok    sessão recente é fresca
+  ok    sessão para lá do TTL não é fresca
+  ok    updatedAt inválido não é fresco
+  ok    escrita "no futuro" conta como fresca
+  ok    sem sessões não há handoff
+  ok    ignora o próprio dispositivo
+  ok    ignora sessões velhas
+  ok    a tocar ganha a mais recente em pausa  -> iphone
+  ok    entre duas a tocar ganha a mais recente  -> iphone
+  ok    posição avança com o tempo decorrido
+  ok    em pausa a posição fica onde estava
+  ok    nunca passa da duração da faixa
+  ok    duração desconhecida não impede a extrapolação
+  ok    relógio adiantado não recua a posição
+  ok    sem amostra, vale agora
+  ok    amostra inválida vale agora
+  ok    o carimbo é o da amostra
+  ok    nunca no futuro
+  ok    a posição não perde o atraso do escritor  -> 80000
+  ok    a fila não viaja inteira  -> 96
+  ok    o índice aponta para a faixa certa  -> t300
+  ok    no início não recua abaixo de zero
+  ok    no fim aponta para a última  -> t499
+  ok    fila vazia degrada em silêncio
+  ok    índice fora de alcance é preso ao fim
+  ok    sem sessao nao se oferece nada
+  ok    com o player parado oferece-se
+  ok    a tocar outra coisa oferece-se
+  ok    ja a tocar a mesma faixa nao se oferece
+  ok    mesmo sourceId noutra fonte ainda se oferece
+
+  Todos os casos passaram.
+  ok    reconhece a mesma fonte restaurada
+  ok    não confunde providers diferentes
+  ok    a faixa já montada reutiliza os controlos
+  ok    reinicia antes de tocar  -> seek:0,play
+  ok    uma faixa diferente não reutiliza o iframe
+  ok    não enviou comandos à faixa errada
+  ok    controlos reutilizados não deixam o player em buffering
+  ok    play antes do onReady fica pendente
+  ok    play pendente limpa o erro anterior
+  ok    play com iframe pronto não fica em buffering
+  ok    play com iframe pronto envia comando  -> play
+  ok    pause atualiza o estado imediatamente
+  ok    pause envia comando ao iframe  -> pause
+  ok    sessão restaurada abre em pausa
+  ok    sessão restaurada guarda a posição  -> 42000
+  ok    posição quase no início não é retomada
+  ok    posição inválida não é retomada
+
+  Todos os casos passaram.
+(node:3740) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/Utilizador/Desktop/duotone-main/scripts/test-player-store.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to C:\Users\Utilizador\Desktop\duotone-main\package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+o caminho normal
+  ok    next avança para a faixa seguinte
+  ok    e o índice acompanha
+  ok    no fim da fila, sem rádio, a faixa NÃO muda
+  ok    e foi mesmo perguntar ao rádio  -> 1
+  ok    com rádio, a fila estende-se e avança
+  ok    as faixas do rádio ficaram na fila
+  ok    repeat all volta ao princípio
+
+o shuffle inteligente
+  ok    a sugestão fica na fila  -> a,nova,b,c,d
+  ok    e é ela que toca a seguir
+  ok    o contador da sugestão foi reposto
+  ok    cedo demais não sugere nada
+  ok    e nem foi à rede
+  ok    shuffle normal nunca sugere
+  ok    sem rede não entra sugestão nenhuma
+  ok    mas a fila avança na mesma  -> b
+  ok    sem candidatas, o contador volta a zero e espera
+
+o play a partir de uma lista
+  ok    o smart shuffle semeia ao tocar de uma lista  -> x,y,z,w,n1,n2,n3
+  ok    e o modo ficou guardado
+  ok    o shuffle normal não semeia  -> x,y,z,w
+  ok    e o modo também ficou guardado
+
+a posição e o instante a que ela se refere
+  ok    a posição é a que se mandou
+  ok    e traz o instante em que era verdade  -> 1788706917757
+  ok    mudar de faixa carimba a posição de novo
+
+  Todos os casos passaram.
+
+  ok    a ordem cobre a fila toda  -> 5
+  ok    sem repetições
+  ok    a faixa atual vem à cabeça  -> youtube:c
+  ok    fila vazia dá ordem vazia
+  ok    fila de uma faixa
+  ok    passo 1 avança  -> 4
+  ok    passo 2 avança  -> 1
+  ok    passo 3 avança  -> 3
+  ok    passo 4 avança  -> 0
+  ok    percorre as 5 faixas sem repetir  -> 2,4,1,3,0
+  ok    no fim da ordem devolve null
+  ok    anterior volta pelo mesmo caminho  -> 2
+  ok    no início da ordem devolve null
+  ok    mesma fila preserva a ordem
+  ok    fila nova gera ordem nova  -> youtube:y,youtube:z,youtube:x
+  ok    faixa acrescentada entra no fim  -> youtube:c,youtube:e,youtube:b,youtube:d,youtube:a,youtube:f
+  ok    faixa removida sai da ordem  -> youtube:e,youtube:b,youtube:d,youtube:a
+  ok    ordem com lixo é limpa
+  ok    fila vazia dá ordem vazia
+  ok    ordem vazia não avança
+  ok    faixa atual fora da ordem recomeça do topo  -> 1
+  ok    chave inclui a fonte
+  ok    fontes diferentes não colidem
+  ok    up next segue a ordem do shuffle  -> 4,1,3,0
+  ok    na ultima nao ha proximas  -> 0
+  ok    sem ordem nao ha lista
+  ok    chaves fora da fila sao ignoradas
+  ok    20 faixas tocam todas uma vez  -> 20 unicas em 20
+  ok    a ordem esgota-se no fim
+
+  Todos os casos passaram.
+  ok    semeia com as ultimas ouvidas  -> 3
+  ok    a mais recente vem primeiro  -> 4
+  ok    no inicio da fila nao inventa
+  ok    fila vazia nao semeia
+  ok    indice fora de alcance e preso
+  ok    extrai o artista do titulo  -> Bjork,Massive Attack,Portishead
+  ok    tres sementes, tres artistas  -> Bjork,Massive Attack,Portishead
+  ok    artistas repetidos contam uma vez
+  ok    faixas sem artista nao semeiam
+  ok    nao repete o que ja esta na fila
+  ok    nao repete candidatos duplicados
+  ok    deixa cair fontes que nao sao YouTube
+  ok    fica com os restantes  -> 5,7
+  ok    respeita o limite
+  ok    sem candidatos devolve vazio
+  ok    baralhar preserva as faixas
+  ok    baralhar nao muta a entrada
+  ok    entra quando a fila acaba
+  ok    nao entra com faixas por tocar
+  ok    nao entra com repeat all
+  ok    nao entra com repeat one
+  ok    nao entra desligado
+  ok    nao entra sem nada a tocar
+
+  Todos os casos passaram.
+  ok    na referencia nao mexe
+  ok    6 dB acima desce para ~metade  -> 0.5011872336272722
+  ok    20 dB acima desce para 0.1... mas o chao segura  -> 0.15
+  ok    3 dB acima atenua um pouco  -> 0.7079457843841379
+  ok    faixa mais baixa nao e amplificada  -> 1
+  ok    faixa muito mais baixa tambem nao
+  ok    sem valor nao mexe
+  ok    undefined nao mexe
+  ok    NaN nao mexe
+  ok    Infinity nao mexe  -> 1
+  ok    -Infinity nao mexe
+  ok    valor disparatado nao emudece
+  ok    nunca passa de 1
+  ok    desligado devolve sempre 1
+  ok    ligado aplica o ganho
+  ok    desligado sem valor tambem e 1
+  ok    le o loudnessDb da resposta
+  ok    resposta vazia da null
+  ok    undefined da null
+  ok    campo em falta da null
+  ok    valor nao numerico da null
+  ok    zero e um valor valido
+
+  Todos os casos passaram.
+  ok    30d comeca ha 30 dias
+  ok    sempre nao tem inicio
+  ok    6m e mais atras que 30d
+  ok    conta so o que esta na janela  -> 5
+  ok    faixas distintas  -> 3
+  ok    artistas distintos  -> 2
+  ok    minutos estimados  -> 15
+  ok    "sempre" apanha as antigas  -> 6
+  ok    faixa mais tocada a cabeca  -> a
+  ok    com a contagem certa  -> 3
+  ok    artista mais ouvido a cabeca  -> Artista A
+  ok    artista com 4 reproducoes  -> 4
+  ok    Unknown artist nao conta como artista
+  ok    artista sem nome nao conta
+  ok    artistas agrupam sem olhar a maiusculas
+  ok    recupera a capa de outra reproducao
+  ok    dia mais cheio identificado  -> 2
+  ok    serie de tres dias
+  ok    um buraco corta a serie
+  ok    serie viva se o ultimo dia foi ontem
+  ok    serie morta se parou ha tres dias
+  ok    sem dias nao ha serie
+  ok    30d agrupa por dia  -> 4
+  ok    a linha vem por ordem
+  ok    6m agrupa por mes  -> 2
+  ok    meses tem etiqueta legivel  -> Mai
+  ok    sem dados nao rebenta
+  ok    sem dados nao ha primeiro play
+  ok    datas invalidas sao ignoradas
+  ok    duracao em falta nao vira NaN
+  ok    horas e minutos  -> 12 h 34 min
+  ok    so minutos  -> 45 min
+  ok    horas certas  -> 2 h
+  ok    zero mostra traco
+
+  Todos os casos passaram.
+
+classificacao a partir de sinais estruturados
+  ok    rede em baixo ganha a tudo o resto
+  ok    http 0 e falta de rede
+  ok    101 e embed proibido
+  ok    150 e embed proibido
+  ok    100 e indisponivel
+  ok    2 (id invalido) e indisponivel
+  ok    5 nao diz nada, fica desconhecido
+  ok    UNPLAYABLE e indisponivel
+  ok    AGE_VERIFICATION_REQUIRED e idade
+  ok    LOGIN_REQUIRED sem pistas e bloqueio de bot
+  ok    LOGIN_REQUIRED com razao de idade e idade
+  ok    403 e bloqueio de bot
+  ok    429 e bloqueio de bot
+  ok    404 e indisponivel
+  ok    503 e o CDN a recusar
+  ok    OK explicito nao e falha estruturada, cai no texto
+
+o sinal estruturado ganha sempre ao texto
+  ok    status vence mensagem enganadora
+  ok    codigo do embed vence mensagem
+
+texto localizado — o bug original
+  ok    "Vídeo privado" (PT) e indisponivel
+  ok    "Este vídeo foi removido" (PT) e indisponivel
+  ok    "Não disponível no teu país" (PT) e regiao
+  ok    "restrição de idade" (PT) e idade
+  ok    "Sem ligação à internet" (PT) e falta de rede
+  ok    ingles continua a funcionar
+  ok    nada reconhecivel fica desconhecido
+
+recuperacao
+  ok    sem rede NAO salta a faixa
+  ok    sem rede nao tenta embed
+  ok    indisponivel procura outra copia
+  ok    embed bloqueado procura outra copia
+  ok    bloqueio de bot vai ao embed
+  ok    bloqueio de bot NAO salta
+  ok    idade salta e nao procura copia
+  ok    sem formato vai ao embed
+
+sinal a partir do Error do resolver
+  ok    le o statusPlayability pendurado no Error
+  ok    le o http pendurado no Error
+  ok    erro simples cai no texto
+  ok    extra sobrepoe-se ao Error
+  ok    null nao rebenta
+
+consolidar o veredito da cascata
+  ok    sem sinais e desconhecido
+  ok    todos sem rede -> sem rede
+  ok    um sem-rede no meio nao manda
+  ok    indisponivel ganha a bloqueio-bot
+  ok    idade ganha a indisponivel
+  ok    bloqueio-bot ganha a cdn-recusou
+  ok    so desconhecidos ficam desconhecidos
+  ok    quatro 403 -> embed, nao saltar
+  ok    quatro UNPLAYABLE -> saltar, nao embed
+
+mensagens ao utilizador
+  ok    nenhuma mensagem tem jargao tecnico
+  ok    todas cabem na barra do leitor (<= 64 chars)
+  ok    ha uma mensagem por tipo
+
+nomes legiveis dos tipos
+  ok    cada tipo tem nome legivel
+  ok    nenhum rotulo e um identificador
+  ok    os nomes sao todos diferentes
+
+registo e relatorio
+  ok    comeca vazio
+  ok    guarda os tres
+  ok    resume por tipo  -> {"bloqueio-bot":2,"indisponivel":1}
+  ok    o relatorio TEM o detalhe tecnico
+  ok    o relatorio tem o build
+  ok    o relatorio conta as falhas
+  ok    e mantem o identificador ao lado
+  ok    o relatorio poe os eventos por ordem
+  ok    as horas sao legiveis
+  ok    relatorio vazio nao mente
+  ok    o anel tem teto  -> 60
+  ok    guarda os MAIS RECENTES
+
+  Todos os casos passaram.
+
+
+substituir por uma copia que toca
+  ok    devolve substituicao
+  ok    so o sourceId muda
+  ok    titulo e do ORIGINAL, nao da copia
+  ok    duracao vem da copia quando ela a sabe
+  ok    a fila e trocada no mesmo indice
+  ok    as outras posicoes ficam
+  ok    sem duracao na copia, mantem a do original
+  ok    nao substitui se a faixa atual ja mudou
+  ok    nao substitui sem faixa atual
+
+substituir mantem o percurso do shuffle
+  ok    a chave e trocada NO MESMO LUGAR  -> youtube:c,youtube:zzz,youtube:a
+  ok    nao deixa a mesma chave duas vezes no percurso  -> youtube:c,youtube:a
+
+saltar a faixa que nao toca
+  ok    vai para a seguinte
+  ok    a morta sai da fila
+  ok    ultima faixa sem repeat: nao ha alvo
+  ok    a chave da morta sai do percurso ao acabar
+  ok    ultima com repeat all volta ao principio
+  ok    fila de uma so, com repeat all, nao se repete a si propria
+  ok    e fica vazia
+
+saltar com shuffle ligado
+  ok    segue o PERCURSO, nao o indice da fila  -> c
+  ok    fim do percurso com repeat all da ordem nova e alvo
+  ok    a ordem foi refeita
+
+sleep timer — prazo absoluto, nunca contador
+  ok    30 min viram um instante de fim
+  ok    e 1800 segundos
+  ok    zero minutos desliga
+  ok    negativo desliga
+  ok    sem prazo nao ha conta
+  ok    sem prazo nao termina
+  ok    a meio conta bem
+  ok    no fim termina
+  ok    suspensa e acordada depois do prazo, termina na mesma
+  ok    e nunca da segundos negativos
+
+persistencia da sessao
+  ok    guarda os sete campos
+  ok    NAO guarda o isPlaying
+  ok    NAO guarda shuffle nem repeat
+  ok    guarda as sugeridas
+  ok    guarda o contador ate a proxima sugestao
+
+  Todos os casos passaram.
+
+
+ponto de partida
+  ok    comeca parado e sem faixa
+  ok    e nao mostra ampulheta
+
+o percurso normal
+  ok    escolher uma faixa poe a resolver
+  ok    e ja conta como a tocar para a UI
+  ok    com ampulheta
+  ok    com o motor pronto fica a tocar
+  ok    e a ampulheta desaparece
+
+sem faixa, nada acontece
+  ok    "motor-pronto" e ignorado sem faixa
+  ok    "a-encher" e ignorado sem faixa
+  ok    "a-tocar" e ignorado sem faixa
+  ok    "em-pausa" e ignorado sem faixa
+  ok    "quer-tocar" e ignorado sem faixa
+  ok    "quer-parar" e ignorado sem faixa
+  ok    "falhou" e ignorado sem faixa
+  ok    e nunca ha ampulheta sem faixa
+
+a intencao e de quem manda: o utilizador
+  ok    confirmacao atrasada do motor NAO desfaz a pausa  -> parar/pronto
+  ok    e a UI mostra parado
+  ok    confirmacao atrasada de pausa NAO desfaz o play  -> tocar/pronto
+
+trocar de faixa mantem quem estava a ouvir a ouvir
+  ok    a faixa seguinte volta a resolver
+  ok    e continua com intencao de tocar
+  ok    o botao continua em "a tocar" durante a resolucao
+
+falhar
+  ok    a fase fica em falhou
+  ok    a intencao CAI ao falhar
+  ok    nao ha ampulheta sobre um erro
+  ok    nem botao de pausa
+  ok    o helper diz que falhou
+  ok    carregar em play depois da falha e nova tentativa
+  ok    encher depois de falhar e ignorado
+
+fechar o leitor
+  ok    volta ao inicio
+  ok    sem ampulheta agarrada
+
+invariantes, em todos os estados alcancaveis
+  ok    8 estados alcancaveis, nenhum contraditorio
+  ok    o espaco de estados continua pequeno  -> 8
+
+  Todos os casos passaram.
+
+
+para onde a linha vai
+  ok    sem arrastar fica onde esta
+  ok    uma linha para baixo
+  ok    uma linha para cima
+  ok    tres linhas para baixo
+  ok    a 40% da linha ainda nao troca
+  ok    a 60% ja trocou
+  ok    a -40% ainda nao troca
+  ok    a -60% ja trocou
+
+nao se sai da lista
+  ok    nao passa do fim
+  ok    nao passa do principio
+  ok    lista de um so nao mexe
+  ok    altura zero nao rebenta
+  ok    lista vazia nao rebenta
+
+a pre-visualizacao: quem desliza, e para onde
+  ok    a arrastada nao "desliza" (esta a ser levada)
+  ok    quem fica no meio sobe
+  ok    quem esta fora fica quieto
+  ok    para cima, o meio desce
+  ok    para cima, fora fica quieto
+  ok    sem destino novo, ninguem desliza
+
+o que se ve tem de ser o que acontece
+  ok    a previsao bate certo com o resultado em todos os 25 casos
+
+reordenar
+  ok    mover para baixo
+  ok    mover para cima
+  ok    mover para o mesmo sitio nao mexe
+  ok    indice invalido devolve copia intacta
+  ok    nao mexe no original
+
+clicar nao e arrastar
+  ok    um pixel nao e arrasto
+  ok    tres pixeis ainda nao
+  ok    quatro pixeis ja e
+  ok    para cima conta na mesma
+
+  Todos os casos passaram.
+
+
+o intervalo
+  ok    comeca em 0.5
+  ok    acaba em 2
+  ok    o arrasto anda 0.05
+  ok    o teclado anda 0.01
+  ok    shift anda 0.1
+
+arredondar
+  ok    um valor exato fica igual
+  ok    arredonda a centesima
+  ok    abaixo do minimo prende em 0.5
+  ok    acima do maximo prende em 2
+  ok    NaN volta ao normal
+  ok    Infinity tambem
+  ok    um valor antigo abaixo de 0.5 sobe para o minimo
+  ok    com o passo grosso, 1.37 cai em 1.35
+  ok    com o passo grosso, 1.38 sobe para 1.4
+  ok    o minimo e um degrau grosso
+  ok    0.55 e um degrau grosso
+
+sem lixo de virgula flutuante
+  ok    os 151 valores sao centesimas exatas
+  ok    nenhum passa dos limites
+  ok    somar de 0.01 em 0.01 do minimo ao maximo nao acumula erro
+
+a barra
+  ok    o minimo esta na ponta esquerda
+  ok    o maximo esta na ponta direita
+  ok    o meio da barra da 1.25
+  ok    fraccao 0 da o minimo
+  ok    fraccao 1 da o maximo
+  ok    fora dos limites nao rebenta
+  ok    NaN na fraccao nao rebenta
+  ok    a escala e linear
+  ok    o 1x fica a um terco
+  ok    arrastar so da degraus de 0.05
+  ok    ida e volta pela barra nao perde um degrau grosso
+
+as setas do teclado
+  ok    sobe 0.01
+  ok    desce 0.01
+  ok    shift sobe 0.1
+  ok    por omissao anda o passo do arrasto
+  ok    no minimo, descer nao passa disso
+  ok    no maximo, subir nao passa disso
+  ok    do 1.03 com shift vai para 1.1
+
+como se escreve
+  ok    o normal e so 1x
+  ok    o minimo e 0.5x
+  ok    2 nao leva casa decimal
+  ok    1.5 nao leva o zero a mais
+  ok    1.05 mostra as duas casas
+  ok    0.87 mostra as duas casas
+  ok    1.1 mostra so uma casa
+  ok    nunca sai um zero pendurado
+  ok    eNormal so no 1
+
+migrar os tres presets antigos
+  ok    slowed vira 0.8 — continua lento
+  ok    fast vira 1.4
+  ok    normal fica 1
+  ok    sem preferencia guardada fica 1
+  ok    lixo na preferencia fica 1
+  ok    tudo o que migra cai dentro do intervalo novo
+
+  Todos os casos passaram.
+
+
+as bandas
+  ok    sao dez
+  ok    as pontas sao shelves de bass e treble
+  ok    a UI usa nomes perceptivos em vez de frequencias
+
+normalizar
+  ok    o plano sao dez zeros
+  ok    o default e sempre uma copia plana
+  ok    prende no maximo
+  ok    prende no minimo
+  ok    arredonda a uma casa
+  ok    faltas viram zero
+  ok    lixo vira zero
+  ok    null nao rebenta
+  ok    sobras sao ignoradas
+
+os perfis sao para MUSICA
+  ok    ha seis
+  ok    todos tem dez bandas
+  ok    nenhum passa dos limites
+  ok    o flat e mesmo plano
+  ok    bass e bright nao cortam nenhuma banda
+  ok    o bass boost pesa em baixo e nao em cima
+  ok    o bright faz o contrario
+  ok    nao ha FPS Competition nem coisas de jogo
+  ok    ids unicos
+  ok    id desconhecido nao rebenta
+
+reconhecer o perfil a partir dos ganhos
+  ok    reconhece o bass boost
+  ok    o plano e o flat
+  ok    uma curva a mao nao e perfil nenhum
+
+a resposta em frequencia
+  ok    o plano nao mexe em nada
+  ok    o low-shelf chega aos subgraves e desaparece nos medios  -> 30:6.0 1k:0.0
+  ok    o high-shelf chega ao ar e desaparece nos medios  -> 16k:5.8 1k:0.0
+  ok    o pico da curva e medido
+
+o bass boost tem de se OUVIR como bass boost
+  ok    levanta onde os graves se ouvem em colunas pequenas (60-200 Hz)  -> 60:4.9 80:4.5 100:4.0 150:2.3 200:1.1
+  ok    medios e agudos ficam no volume original  -> 500:0.1 1000:0.0 4000:0.0 16000:0.0
+
+o reforco de agudos também tem de ser aditivo
+  ok    levanta detalhe e ar entre 4 e 16 kHz  -> 4000:1.8 8000:2.2 12000:3.1 16000:3.5
+  ok    nao transforma bright num simples corte global  -> 8k:2.2 1k:0.1
+
+sem atenuacao global
+  ok    o plano nao precisa de margem
+  ok    uma curva so a cortar tambem nao
+  ok    a compatibilidade nunca AUMENTA o volume
+  ok    o multiplicador de compatibilidade e valido
+  ok    nenhum perfil baixa o master
+  ok    sem atenuacao, o bass boost levanta os graves  -> 4.9
+  ok    sem atenuacao, o bright levanta os agudos  -> 2.2
+  ok    e o bass nao baixa onde a curva nao mexe
+
+memoria por faixa
+  ok    a chave e fonte:id
+  ok    normal e plano nao deixa registo
+  ok    so a velocidade ja e registo
+  ok    guarda a velocidade
+  ok    e nao guarda ganhos planos
+  ok    so o EQ tambem e registo
+  ok    e nao guarda a velocidade normal
+  ok    voltar ao normal APAGA a entrada
+
+aplicar ao tocar
+  ok    devolve o que estava guardado
+  ok    e os ganhos guardados
+  ok    faixa sem registo volta ao padrao
+  ok    e diz que nao era lembrada
+  ok    registo so de velocidade nao inventa EQ
+
+os ajustes NAO pingam de uma faixa para a seguinte
+  ok    a faixa com registo vem lenta
+  ok    a seguinte volta ao padrao e nao herda
+  ok    e tambem nao herda o EQ
+  ok    o padrao das Definicoes e que manda nas faixas sem registo
+
+o teto de faixas lembradas
+  ok    nao passa do teto  -> 300
+  ok    as que ficam sao as MAIS RECENTES
+  ok    podar uma memoria pequena nao mexe nela
+
+reafinar um perfil nao pode deixar o que estava guardado orfao
+  ok    a curva antiga do bass boost vira a nova  -> 5,0,1.5,0,0,0,0,0,0,0
+  ok    e passa a ser reconhecida como perfil
+  ok    um perfil ATUAL nao e tocado
+  ok    uma curva a mao fica como esta
+  ok    o plano fica plano
+  ok    a persistencia ja devolve a curva migrada
+
+ler a persistencia sem confiar nela
+  ok    vazio da vazio
+  ok    json partido da vazio
+  ok    um array nao e memoria
+  ok    entradas sem nada sao deitadas fora
+  ok    ganhos fora dos limites sao presos
+  ok    rate invalido nao passa
+  ok    ida e volta pela persistencia mantem tudo  -> {"youtube:z":{"rate":0.7,"ganhos":[-2,-1,0,2,3.5,3.5,2,1,0,-
+
+  Todos os casos passaram.
+
+
+os coeficientes do Swift dao a curva do PC
+  ok    Flat: a curva bate certo em todas as frequencias
+  ok    Bass boost: a curva bate certo em todas as frequencias
+  ok    Vocal: a curva bate certo em todas as frequencias
+  ok    Warm: a curva bate certo em todas as frequencias
+  ok    Bright: a curva bate certo em todas as frequencias
+  ok    Late night: a curva bate certo em todas as frequencias
+
+a recorrencia (forma direta II transposta) esta certa
+  ok    Bass boost: o filtro a correr da o que a curva promete
+  ok    Vocal: o filtro a correr da o que a curva promete
+  ok    Warm: o filtro a correr da o que a curva promete
+  ok    Bright: o filtro a correr da o que a curva promete
+  ok    Late night: o filtro a correr da o que a curva promete
+
+o bass boost e aditivo, sem baixar o master
+  ok    os graves sobem quase 5 dB  -> 4.92
+  ok    a margem e unidade e nao rouba esse reforco  -> 4.92
+  ok    os medios continuam no volume original  -> 0.02
+
+o limiter protege picos sem mexer no Flat
+  ok    nenhum canal passa de -0,1 dBFS  -> 0.9885530946569389
+  ok    os canais ficam ligados e a imagem stereo nao anda
+  ok    o caminho Flat continua a ser bypass
+
+  Todos os casos passaram.
+
+
+o ciclo do botao
+  ok    off vai para normal
+  ok    normal vai para inteligente
+  ok    inteligente volta a off
+  ok    tres carregadelas voltam ao inicio
+
+o modo a partir do estado guardado
+  ok    desligado
+  ok    inteligente sem shuffle nao conta
+  ok    ligado e normal
+  ok    ligado e inteligente
+
+quando e que entra uma sugestao
+  ok    nunca com o shuffle desligado
+  ok    nunca com o shuffle normal
+  ok    nao na primeira faixa
+  ok    nem a meio do intervalo
+  ok    sim ao fim do intervalo
+  ok    e continua a valer se passar
+  ok    intervalo zero nao rebenta
+  ok    intervalo negativo tambem nao
+  ok    o intervalo esta entre 3 e 6  -> 4
+
+onde entra
+  ok    logo a seguir a atual
+  ok    no inicio da fila
+  ok    no fim da fila entra depois da ultima
+  ok    um indice alem do fim e preso
+  ok    um indice negativo e preso
+  ok    fila vazia nao rebenta
+
+escolher a sugestao
+  ok    a primeira que serve
+  ok    salta as que ja estao na fila
+  ok    salta as ja sugeridas
+  ok    sem nada que sirva devolve null
+  ok    sem candidatas devolve null
+  ok    uma chave vazia e ignorada
+
+a fila depois de a sugestao entrar
+  ok    com a fila de ANTES a sugestao perde-se
+  ok    com a fila relida a sugestao e a proxima a tocar
+
+os rotulos
+  ok    cada modo tem rotulo proprio
+  ok    nenhum rotulo e um identificador  -> Shuffle off | Shuffle | Smart shuffle — mixes in new tracks
+
+  Todos os casos passaram.
+
+
+o retrato do contexto
+  ok    as grafias diferentes contam como um
+  ok    o mais ouvido pesa mais
+  ok    e o que aparece uma vez pesa menos que os outros
+  ok    o peso cresce mais devagar que a contagem  -> 2.00
+  ok    nao passa do teto de artistas
+  ok    sem faixas da um retrato vazio
+
+quem anda com quem
+  ok    quem partilha playlist fica ligado
+  ok    duas playlists juntas pesam mais do que uma
+  ok    quem nunca partilhou playlist NAO fica ligado
+  ok    faixas sem playlist nao criam ligacoes
+  ok    uma playlist enorme e ignorada
+  ok    uma playlist de um so artista nao liga nada
+
+os artistas vizinhos
+  ok    encontra quem anda com o do retrato
+  ok    quem esta NO retrato nao entra
+  ok    quem partilha mais playlists vem a frente  -> lil peep,xxxtentacion
+  ok    sem vizinhos devolve lista vazia
+  ok    um artista puxado por dois do retrato lidera  -> lil peep:1.63
+
+por onde procurar
+  ok    devolve alvos  -> lil peep,xxxtentacion,juice wrld
+  ok    nao repete
+  ok    sem vizinhos usa os proprios artistas do retrato  -> juice wrld
+  ok    sem retrato nem vizinhos nao rebenta
+  ok    pedir mais do que existe nao repete nem rebenta
+
+  Todos os casos passaram.
+
+
+musica passa
+  ok    uma faixa normal
+  ok    sem duracao conhecida passa na mesma
+  ok    um remix e musica
+  ok    um mix de generos e musica
+  ok    uma versao ao vivo e musica
+  ok    no limite de baixo
+  ok    no limite de cima
+
+video nao passa
+  ok    curto de mais
+  ok    longo de mais
+  ok    uma reacao
+  ok    uma entrevista
+  ok    um podcast
+  ok    um album inteiro
+  ok    uma hora de loop
+  ok    duas horas
+  ok    gameplay
+  ok    um trailer
+  ok    titulo vazio
+
+os limites fazem sentido
+  ok    o minimo corta clipes mas nao musicas curtas  -> 60
+  ok    o maximo corta sets mas nao musicas longas  -> 900
+
+  Todos os casos passaram.
+
+
+a chave com que se casa um nome a um artista do catalogo
+  ok    o & e o e sao a mesma coisa
+  ok    o "and" tambem
+  ok    o "the" inicial nao conta
+  ok    maiusculas nao contam
+  ok    acentos nao contam
+  ok    o $ e um s
+  ok    a virgula nao parte o nome
+  ok    artistas diferentes continuam diferentes
+  ok    um nome que so tem ligacoes nao fica vazio
+  ok    nome vazio da chave vazia
+
+qual dos homonimos e o artista
+  ok    escolhe o de mais audiencia entre os que casam
+  ok    quem nao casa pelo nome nao entra
+  ok    e devolve os dois, por ordem
+  ok    a banda verdadeira vem a frente do homonimo
+  ok    e as participacoes ficam de fora
+  ok    sem candidatos nao rebenta
+  ok    procurar por nada nao casa com nada
+  ok    nenhum casa -> nenhum sai
+
+o catalogo propoe, o gosto escolhe
+  ok    sem afinidade fica a ordem do catalogo
+  ok    e ate ao fim
+  ok    quem ele ja anda a ouvir sobe
+  ok    mas os outros nao desaparecem
+  ok    quem esta na exclusao sai  -> Trippie Redd,Bispo
+  ok    e sobram os outros
+  ok    com afinidades quase iguais o catalogo desempata
+  ok    e o outro vem logo atras
+  ok    quem o catalogo poe em 1o mas ele nao ouve nao desaparece
+  ok    o 1o do segundo alvo bate o 2o do primeiro  -> Trippie Redd,Bispo,Future,YNW Melly,9 Miller,Lil Tecca
+  ok    e o rap portugues nao fica de fora do top  -> Trippie Redd,Bispo,Future
+  ok    ninguem se perde pelo caminho
+  ok    quem aparece nas duas listas aparece uma vez
+  ok    e fica com a melhor posicao que teve
+  ok    lista vazia devolve vazia
+
+como se repartem os lugares da prateleira
+  ok    reparte 12 entre 9 e 3 na proporcao
+  ok    e nao perde nem inventa lugares
+  ok    quem ele ouve mais leva mais  -> 9,3
+  ok    quem ele ouve pouco leva sempre pelo menos um  -> 11,1
+  ok    e o total continua certo
+  ok    com menos lugares que artistas nao se corta ninguem para dar dois a outro
+  ok    total certo mesmo apertado
+  ok    um artista so leva tudo
+  ok    sem artistas nao rebenta
+  ok    sem lugares da tudo a zero
+  ok    sem pesos reparte por igual
+  ok    com muitos artistas e poucos lugares o total fecha
+  ok    e ninguem fica a zero quando ha lugares para todos  -> 2,1,1,1,1
+
+  Todos os casos passaram.
+
+
+um canal oficial confirma o nome
+  ok    uma so faixa de um canal - Topic ja chega  -> juice wrld
+  ok    e um VEVO tambem  -> post malone
+
+sem canal oficial, e preciso peso
+  ok    uma faixa de um canal qualquer NAO chega
+  ok    3 faixas distintas ja chegam  -> juice wrld
+  ok    a mesma faixa repetida conta UMA vez
+
+o caso real: o 999
+  ok    o Juice WRLD e de confianca
+  ok    e o "999" NAO e  -> juice wrld
+
+a filtragem dos candidatos
+  ok    so passam os de confianca
+  ok    sem informacao nenhuma nao se filtra
+  ok    com informacao, nenhum de confianca -> nenhum sai
+  ok    sem candidatos nao rebenta
+
+nao rebenta com dados estranhos
+  ok    biblioteca vazia
+  ok    titulo vazio nao cria artista nenhum
+  ok    sem canal nao rebenta
+  ok    artista vindo do Spotify e de confianca  -> post malone
+
+  Todos os casos passaram.
+
+
+o que substitui a aba Inbox
+  ok    uma conversa nunca aberta conta tudo
+  ok    e a do outro tambem
+  ok    o total e a soma
+  ok    so conta o que chegou DEPOIS de abrir
+  ok    quem nao foi aberto nao e afectado
+  ok    depois de abrir tudo nao sobra nada
+  ok    e quem esta a zero nem aparece no mapa
+  ok    a mensagem do proprio instante da abertura fica lida
+
+nao esconde nada por engano
+  ok    data ilegivel na marca conta na mesma
+  ok    data ilegivel na mensagem conta na mesma
+
+nao rebenta
+  ok    sem nada recebido
+  ok    sem remetente e ignorado
+  ok    total de um mapa vazio
+  ok    fundir: a conta esta a frente do aparelho
+  ok    fundir: o aparelho esta a frente da conta
+  ok    fundir: conversa que so existe na conta entra
+  ok    fundir: conversa que so existe no aparelho fica
+  ok    fundir: data por perceber nao apaga a marca boa
+  ok    fundir: grupos usam a mesma chave
+  ok    fundir: nao altera o mapa que recebe
+
+  Todos os casos passaram.
+
+Pesquisa, cache, identificação automática e datas do histórico: todos os casos passaram.
+Playlists: erros preservados, RPC de guardar/remover e leitura acima de 1000 faixas passaram.
+Perfil: biblioteca anterior à migração, falhas independentes e edição sem apagar destaques passaram.
+Letras: identificação, seleção, tempos, erros, pré-carregamento e cache offline passaram.
+Ajustes: dois aparelhos, reset, offline/reinício, edição concorrente e logout passaram.
+Cubo: gesto horizontal, ambos os sentidos, cancelamento e velocidade passaram.
+Social: conteúdo não fiável é filtrado e o arquivo usa a RPC limitada ao destinatário.
+Catálogo: escrita individual e em lote passam exclusivamente pela RPC validada.
+applyDeltas error: resposta perdida undefined
+Contagens: retry idempotente e paginação acima de 1000 linhas passaram.
+Downloads: tamanho máximo, descoberta remota e cancelamento foram limitados.
+Integração Electron: origem exata, permissões, captura, arranque, notificações e isolamento IPC passaram.
+Presença, expiração, recorte, direção do gesto, fade, mute, cancelamento, fusão de ajustes e arrasto do recorte passaram.
+Destaques: limite, visibilidade, gravação atómica e isolamento das preferências passaram.
+Marca de leitura: por conta, isolada entre utilizadores e idempotente na dupla aplicação.
+Catálogo de faixas: leitura partilhada, escrita só a acrescentar.
+SQL Social: dupla aplicação, aceitação, privacidade, estatísticas, dispositivos, ordem de eventos, grupos, ajustes por faixa, playlists no perfil e Storage passaram.
+Offline e personalização: reconexão, dados móveis, conta local, paginação, cache após logout/unlike e preferências passaram.
+npm notice
+npm notice New minor version of npm available! 11.6.2 -> 11.19.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.19.1
+npm notice To update run: npm install -g npm@11.19.1
+npm notice

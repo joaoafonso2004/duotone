@@ -12,26 +12,18 @@ import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
  * `plays` regista o ARRANQUE de cada faixa e não o fim, por isso quem salta a
  * meio conta o tema inteiro. Ver `lib/listeningStats.ts`.
  */
-import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, Pressable, Text, View } from 'react-native';
 import { fetchListeningStats, type StatsResult } from '../../api/listeningStats';
 import { formatListeningTime, type StatsPeriod, type TimelineBucket } from '../../lib/listeningStats';
-import {
-  getProfilePlayStats, getProfileMostPlayed, getProfileRecentlyPlayed, type ProfilePlayEntry, type DbPlayStats,
-} from '../../api/plays';
-import { getFriendCount } from '../../api/social';
-import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../state/auth';
-import { usePlayer } from '../../state/player';
 import { useTheme } from '../../state/theme';
 import type { Track } from '../../types';
 import type { Route } from '../rotas';
 import { styles } from '../estilos.web';
 import {
-  Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, Page,
+  Button, ContentScroll, desktop, Empty, Loading, Page,
 } from '../ui.web';
-import { memberSince, playEntryToTrack, relativeTime } from './comum.web';
 
 const P = Pressable as any;
 const V = View as any;

@@ -56,6 +56,8 @@ export function useArranqueTravado(): void {
       // que a store ainda não o saiba (ver `posicaoDoMotorMs`).
       let doMotor: number | null = null;
       try { doMotor = p._yt?.posicaoDoMotorMs?.() ?? null; } catch { doMotor = null; }
+      let motorParado = false;
+      try { motorParado = p._yt?.motorParado?.() ?? false; } catch { motorParado = false; }
       const mexeu = p.positionMs !== ultimaPosicao || (doMotor != null && doMotor !== ultimaDoMotor);
       ultimaPosicao = p.positionMs;
       ultimaDoMotor = doMotor;
@@ -77,6 +79,7 @@ export function useArranqueTravado(): void {
         paradoMs: Date.now() - paradoDesde,
         empurroesDados: empurroes,
         posicaoDoMotorMs: doMotor,
+        motorParado,
       })) return;
 
       empurroes++;

@@ -4,6 +4,7 @@ import { escolher, type Candidato, type FaixaLocal } from '../lib/catalogoDaFaix
 import {
   candidatoInequivoco, candidatosPlausiveis, candidatosProvados, chaveDeCatalogo,
   PROVAS_POR_ARTISTA, tituloProva, type ArtistaDoCatalogo,
+  eFotoVazia, fotoEntre,
 } from '../lib/catalogo';
 
 /**
@@ -556,4 +557,35 @@ export async function procurarArtistas(
     .sort((a, b) => (b?.nb_fan ?? 0) - (a?.nb_fan ?? 0))
     .slice(0, quantos)
     .map((a) => ({ nome: String(a.name), capa: a.picture_medium ?? a.picture ?? null }));
+}
+
+/**
+ * A foto de um artista, para a página dele (27/9). Ver `fotoEntre` em
+ * lib/catalogo.ts. Se o artista já foi decidido com as músicas da biblioteca
+ * como prova (`vizinhancaJaDecidida`), é a foto DESSE; senão, a do homónimo
+ * exato com mais fãs. Fica em memória durante a sessão; uma falta (rede, sem
+ * foto) não fica, para a próxima visita tentar outra vez. Não passa pelo
+ * Supabase: é um pedido ao catálogo e mais nada.
+ */
+const fotos = new Map<string, Promise<string | null>>();
+
+export function fotoDoArtista(nome: string): Promise<string | null> {
+  const chave = chaveDeCatalogo(nome ?? '');
+  if (!chave) return Promise.resolve(null);
+  const jaVem = fotos.get(chave);
+  if (jaVem) return jaVem;
+  const pedido = (async () => {
+    const decidida = vizinhancaJaDecidida(nome);
+    if (decidida?.artista?.id) {
+      const a = await pedir<any>(`/artist/${decidida.artista.id}`);
+      for (const url of [a?.picture_xl, a?.picture_big, a?.picture_medium]) {
+        if (!eFotoVazia(url)) return url as string;
+      }
+    }
+    const r = await pedir<{ data?: any[] }>(`/search/artist?q=${encodeURIComponent(nome.trim())}&limit=8`);
+    return fotoEntre(r?.data ?? [], nome);
+  })().catch(() => null);
+  fotos.set(chave, pedido);
+  void pedido.then((url) => { if (!url) fotos.delete(chave); });
+  return pedido;
 }

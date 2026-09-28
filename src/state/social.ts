@@ -38,6 +38,40 @@ let presences: Record<string, SocialPresence> = {};
 let clockOffset = 0;
 /** A hora do servidor, pelo desvio medido na leitura da presença. */
 export const agoraNoServidor = () => Date.now() + clockOffset;
+
+/**
+ * A presença CRUA de um amigo, e quem quer saber quando muda (27/9, "Listen
+ * along", `state/seguirAmigo.ts`). A lista dos amigos só mostra a música de
+ * quem está online -- e um iPhone a tocar no bolso não conta como online --,
+ * mas para SEGUIR alguém interessa a música que ele publica, esteja à frente
+ * ou não. E a lista só se redesenha com a app à vista; quem segue precisa de
+ * saber também com o ecrã bloqueado.
+ */
+type OuvinteDaPresenca = (p: SocialPresence) => void;
+const ouvintesDaPresenca = new Set<OuvinteDaPresenca>();
+export function ouvirPresencas(fn: OuvinteDaPresenca): () => void {
+  ouvintesDaPresenca.add(fn);
+  return () => { ouvintesDaPresenca.delete(fn); };
+}
+export function presencaDe(userId: string): SocialPresence | undefined {
+  return presences[userId];
+}
+function guardarPresenca(p: SocialPresence): boolean {
+  if (presences[p.user_id] && Date.parse(p.updated_at) < Date.parse(presences[p.user_id].updated_at)) return false;
+  presences[p.user_id] = p;
+  for (const fn of ouvintesDaPresenca) {
+    try { fn(p); } catch { /* um ouvinte partido não cala os outros */ }
+  }
+  return true;
+}
+/** Relê só as presenças (um pedido pequeno): a rede de quem segue, se o Realtime calar. */
+export async function relerPresencas(): Promise<void> {
+  const presence = await supabase.rpc('get_social_presence');
+  if (presence.error || !presence.data) return;
+  available = true;
+  clockOffset = Date.parse(presence.data.serverTime) - Date.now();
+  for (const p of presence.data.items as SocialPresence[]) guardarPresenca(p);
+}
 let available = false;
 const friendsNow = (now: number) => rawFriends.map((friend) => {
   if (!available) return friend;
@@ -68,9 +102,7 @@ export const useSocial = create<SocialState>((set, get) => ({
         if (!presence.error && presence.data) {
           available = true;
           clockOffset = Date.parse(presence.data.serverTime) - Date.now();
-          for (const p of presence.data.items as SocialPresence[]) {
-            if (!presences[p.user_id] || Date.parse(p.updated_at) >= Date.parse(presences[p.user_id].updated_at)) presences[p.user_id] = p;
-          }
+          for (const p of presence.data.items as SocialPresence[]) guardarPresenca(p);
         }
         const now = Date.now() + clockOffset;
         set({ contacts,friends: friendsNow(now), groups, activity, now, loading: false,
@@ -191,8 +223,7 @@ export function iniciarSocial(userId: string): () => void {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'social_presence' }, (event) => {
       if (gen !== generation) return;
       const p = event.new as SocialPresence;
-      if (p.user_id && (!presences[p.user_id] || Date.parse(p.updated_at) >= Date.parse(presences[p.user_id].updated_at))) {
-        presences[p.user_id] = p;
+      if (p.user_id && guardarPresenca(p)) {
         if(appEstaVisivel())useSocial.setState({ friends: friendsNow(Date.now() + clockOffset) });
         else dirty=true;
       }

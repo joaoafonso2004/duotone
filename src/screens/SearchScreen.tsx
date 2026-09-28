@@ -459,7 +459,7 @@ export function SearchScreen() {
   // recomendacoes: antes disso nao ha nada para refrescar, e o botao chegava
   // ao ecra antes daquilo que ele refresca.
   return (
-    <Screen title="Search" subtitle="Find tracks on YouTube"
+    <Screen title="Search" subtitle="Find any song"
       right={vista === 'discover' && temRecomendacoes(recs) ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Refresh recommendations"
           hitSlop={12} disabled={loadingRecs} onPress={() => void recs.carregar(true)}
@@ -474,7 +474,7 @@ export function SearchScreen() {
         <View style={styles.controls}>
           <Input
             icon="search"
-            placeholder="Search YouTube…"
+            placeholder="Songs, artists…"
             value={query}
             onChangeText={setQuery}
             onClear={() => setQuery('')}
@@ -712,7 +712,7 @@ export function SearchScreen() {
               subtitle={
                 query.trim().length >= 2
                   ? 'Try a different search term.'
-                  : 'Search YouTube and play tracks as native audio.'
+                  : 'Search for any song.'
               }
             />
           </Pressable>
@@ -747,7 +747,7 @@ export function SearchScreen() {
                 {results.length > 0 && (
                   <View style={[styles.sectionHeader, { marginTop: spacing.lg, marginBottom: spacing.sm }]}>
                     <Ionicons name="logo-youtube" size={18} color={colors.text} />
-                    <Text style={styles.sectionTitle}>On YouTube</Text>
+                    <Text style={styles.sectionTitle}>More results</Text>
                   </View>
                 )}
                 </> : null}

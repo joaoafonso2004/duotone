@@ -8,6 +8,13 @@ import { endSession } from '../lib/sessionSync';
 import { terminarPresenca } from '../lib/presenceSync';
 
 let authGeneration=0;
+/**
+ * O que tem de parar antes de a sessão ir -- o leitor (27/9). Registado pelo
+ * App.tsx, e não importado daqui: esta loja fica sem o leitor atrás, como a
+ * `test-personalization-offline.mjs` a carrega.
+ */
+let antesDeSair: () => Promise<void> = async () => {};
+export function registarAntesDeSair(fn: () => Promise<void>): void { antesDeSair = fn; }
 let unsubscribeAuth:(()=>void)|undefined;
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_TIME_MS = 60 * 1000; // 60 segundos de bloqueio
@@ -105,7 +112,7 @@ export const useAuth = create<AuthState>((set) => ({
         const lockoutTime = parseInt(lockoutStr, 10);
         if (now < lockoutTime) {
           const secondsLeft = Math.ceil((lockoutTime - now) / 1000);
-          return `Demasiadas tentativas falhadas. Tente novamente em ${secondsLeft} segundos.`;
+          return `Too many failed attempts. Try again in ${secondsLeft} seconds.`;
         }
       }
     } catch {
@@ -163,6 +170,11 @@ export const useAuth = create<AuthState>((set) => ({
 
   signOut: async () => {
     authGeneration++;
+    // O leitor é da conta que sai: parado e sem fila antes de a sessão ir, senão
+    // quem entra a seguir encontrava a música e a fila de outra pessoa (27/9).
+    // Aqui, e não em cada botão: "apagar conta" saía sem o fechar, no iPhone e
+    // no PC, e o PC chegou a ficar sem porta nenhuma para sair.
+    await antesDeSair().catch(() => {});
     // Antes do signOut, enquanto ainda há JWT para a RLS deixar apagar: uma
     // sessão órfã ficava a oferecer handoff no outro dispositivo até expirar.
     if(!useConnectivity.getState().offline){await endSession();await terminarPresenca();}

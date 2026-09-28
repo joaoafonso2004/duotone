@@ -290,7 +290,7 @@ export function SettingsScreen({ navigation }: Props) {
     clearVisitorData();
     setCacheBytes(getAudioCacheBytes());
     hapticNotification();
-    Alert.alert('Cache cleared', 'Downloaded YouTube audio and resolved streams were cleared.');
+    Alert.alert('Cache cleared', 'Downloaded songs and saved links were cleared.');
   };
 
   const doClearLibrary = async () => {
@@ -665,7 +665,7 @@ export function SettingsScreen({ navigation }: Props) {
         onClose={() => setSignOutOpen(false)}
         onConfirm={() => {
           setSignOutOpen(false);
-          usePlayer.getState().close();
+          // O signOut fecha o leitor (state/auth.ts).
           signOut();
         }}
       />

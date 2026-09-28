@@ -1,0 +1,6 @@
+REPRODUZIDO A03: mvhd truncado altera 4 bytes do mdat irmão: 32,33,34,35
+REPRODUZIDO A02: pedido 4-7 aceita Content-Range 0-3/8.
+REPRODUZIDO A04: escrita interrompida deixa 1 byte; tentativa seguinte aceita o ficheiro sem rede.
+REPRODUZIDO A04: LRU não distingue download explícito de cache preditivo.
+REPRODUZIDO A05 (lógica): confirmação em-pausa preserva intenção; mudança de rota precisa de evento próprio.
+5 reproduções confirmadas. Não demonstram exploração remota nem medições em hardware.

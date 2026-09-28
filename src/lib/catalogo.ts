@@ -284,3 +284,39 @@ export function repartir(pesos: readonly number[], total: number): number[] {
   }
   return saida;
 }
+
+/**
+ * A imagem vazia do catálogo: um artista sem foto vem com um URL na mesma, com
+ * o identificador da imagem em branco (`.../images/artist//1000x1000-...`).
+ * Mostrá-la era trocar a nota musical por um quadrado cinzento.
+ */
+export function eFotoVazia(url: unknown): boolean {
+  return typeof url !== 'string' || !url.trim() || /\/images\/artist\/\//.test(url);
+}
+
+/**
+ * A FOTO de um artista entre os resultados de uma pesquisa (27/9).
+ *
+ * A página de um artista usava a capa da primeira música dele na biblioteca, e
+ * quem não tinha nenhuma via uma nota musical. Só serve um homónimo EXATO
+ * (pela `chaveDeCatalogo`), e entre vários o de mais fãs -- a mesma regra que
+ * põe o artista a sério à frente do homónimo de mil fãs. Sem foto, nenhuma.
+ */
+export function fotoEntre(
+  resultados: readonly {
+    name?: unknown; nb_fan?: unknown; picture_xl?: unknown; picture_big?: unknown; picture_medium?: unknown;
+  }[],
+  nome: string,
+): string | null {
+  const chave = chaveDeCatalogo(nome);
+  if (!chave) return null;
+  const iguais = resultados
+    .filter((a) => typeof a?.name === 'string' && chaveDeCatalogo(a.name) === chave)
+    .sort((a, b) => (Number(b?.nb_fan) || 0) - (Number(a?.nb_fan) || 0));
+  for (const a of iguais) {
+    for (const url of [a.picture_xl, a.picture_big, a.picture_medium]) {
+      if (!eFotoVazia(url)) return url as string;
+    }
+  }
+  return null;
+}

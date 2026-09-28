@@ -38,6 +38,14 @@
 export const PARADO_DEMAIS_MS = 2500;
 
 /**
+ * Quanto tempo parado antes de se empurrar, quando o MOTOR diz que está parado
+ * (pronto, sem tocar nem esperar por dados). Aí não há soluço de rede a
+ * esperar: ninguém o vai pôr a andar. Era o caso da música seguinte já no
+ * telemóvel, depois de uma faixa acabar sozinha (27/9): 3 s nos 0:00.
+ */
+export const MOTOR_PARADO_MS = 1000;
+
+/**
  * Quantas vezes se tenta na mesma faixa.
  *
  * Três. Se três seeks não arrancaram, o problema não é este e insistir passa a
@@ -74,6 +82,8 @@ export type EstadoDoArranque = {
    * dois segundos e recomeça, várias vezes" do João.
    */
   posicaoDoMotorMs?: number | null;
+  /** O motor diz que está parado de certeza (`motorParado` dos controlos). */
+  motorParado?: boolean;
 };
 
 /**
@@ -110,5 +120,5 @@ export function precisaDeEmpurrao(e: EstadoDoArranque): boolean {
   if (e.empurroesDados >= EMPURROES_POR_FAIXA) return false;
   if (e.posicaoMs > 1000) return false;
   if (e.posicaoDoMotorMs != null && e.posicaoDoMotorMs > 1000) return false;
-  return e.paradoMs >= PARADO_DEMAIS_MS;
+  return e.paradoMs >= (e.motorParado ? MOTOR_PARADO_MS : PARADO_DEMAIS_MS);
 }

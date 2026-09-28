@@ -43,7 +43,7 @@ import {
   listarDescarregados,
 } from './src/lib/youtubeCache';
 import { retireBackgroundInboxCheck } from './src/lib/backgroundInbox';
-import { useAuth } from './src/state/auth';
+import { registarAntesDeSair, useAuth } from './src/state/auth';
 import {chaveDaFaixa} from './src/lib/equalizer';
 import { startTrackAdjustmentSync } from './src/state/trackAdjustments';
 import { definirGuardarEscutaPorEnviar, definirPodeTocarSemRede, usePlayer } from './src/state/player';
@@ -57,6 +57,7 @@ import { useMisturaDoDia } from './src/state/misturaDoDia';
 import { usePlaylists } from './src/state/playlists';
 import { iniciarPresenca } from './src/lib/presenceSync';
 import { useOuvirJuntos } from './src/state/ouvirJuntos';
+import { useSeguirAmigo } from './src/state/seguirAmigo';
 import { aquecerPerfilProprio, limparCachePerfil } from './src/lib/cachePerfil';
 import { sincronizarPreferencias } from './src/lib/prefsSync';
 import { CartazDaSemana } from './src/components/CartazDaSemana';
@@ -67,6 +68,7 @@ import { garantirPrivacidade } from './src/state/privacidade';
 import { limparPerfisPublicos } from './src/state/perfisPublicos';
 import { iniciarArtistasFavoritos, useArtistasFavoritos } from './src/state/artistasFavoritos';
 import { limparVerificacao } from './src/state/verificacaoDaBiblioteca';
+import { useSaved } from './src/state/saved';
 import { instalarSaudeDaApp } from './src/state/saudeDaApp';
 import { ligarMedicoes } from './src/state/medicoes';
 import { ligarTempoAteAoSom } from './src/state/tempoAteAoSom';
@@ -91,6 +93,9 @@ vigiarOLeitor();
 definirGuardarEscutaPorEnviar(guardarEscutaPorEnviar);
 instalarEnvioDeEscutas();
 if (Platform.OS === 'ios') definirPodeTocarSemRede(tocaSemRede);
+// Sair da conta leva a música e a fila de quem sai (state/auth.ts), por todas as
+// portas: "Sign out" e "apagar conta", nas duas plataformas.
+registarAntesDeSair(() => usePlayer.getState().close());
 
 export default function App() {
   // O acento segue a capa a tocar quando esse modo esta escolhido. Aqui em
@@ -99,14 +104,15 @@ export default function App() {
   // E o widget do ecra inicial fica a par do que a app sabe (so no iOS).
   useEstadoDoWidget();
   useLyricsPrefetch();
-  // As ordens dos outros aparelhos desta conta (Duotone Connect): "passa
-  // para o PC", tocar/pausa, seguinte, anterior. Nas duas plataformas.
-  useComandosDoAparelho();
   useEffect(startConnectivity,[]);
   const offline=useConnectivity(s=>s.offline);
   const sleepTimerEndsAt=usePlayer(s=>s.sleepTimerEndsAt);
   const init = useAuth((s) => s.init);
   const userId = useAuth((s) => s.session?.user.id);
+  // As ordens dos outros aparelhos desta conta (Duotone Connect): "passa
+  // para o PC", tocar/pausa, seguinte, anterior. Nas duas plataformas, e só
+  // com conta -- sem ela não há ordens para ler (lib/connectSync.ts).
+  useComandosDoAparelho(userId);
   // As capas da Pesquisa e do perfil, pedidas enquanto a abertura corre: os
   // dados já vinham no arranque, as imagens é que esperavam pelo primeiro
   // toque no separador.
@@ -169,6 +175,11 @@ export default function App() {
   // Os artistas favoritos vão atrás: são as chaves da biblioteca de quem sai.
   useEffect(() => () => {
     limparVerificacao(); esquecerBiblioteca();
+    // E os corações "já guardada", que também decidem o questionário da
+    // primeira vez (state/saved.ts).
+    useSaved.getState().limpar();
+    // Seguir um amigo é da conta que o seguiu (state/seguirAmigo.ts).
+    useSeguirAmigo.getState().parar(null);
   }, [userId]);
 
   useEffect(() => {
@@ -299,16 +310,24 @@ export default function App() {
   // Sem isto, o token expira em background e as queries (com RLS) voltam
   // vazias ao regressar — "perdia" biblioteca/artistas até reiniciar. Ao
   // voltar a "active" força-se a renovação; em background pára-se o ticker.
+  //
+  // MENOS com música a tocar (27/9): aí o JS continua a correr no iPhone, e
+  // com o ticker parado o token morria ao fim de uma hora de ecrã bloqueado.
+  // Com ele morria o Realtime -- e é por lá que chegam as ordens do PC
+  // ("Controlling iPhone" não fazia nada) e o resto do que é ao vivo. No PC
+  // os temporizadores correm sempre (tabuleiro incluído), e renova-se sempre.
   useEffect(() => {
-    if(!useConnectivity.getState().offline)supabase.auth.startAutoRefresh();
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active'&&!useConnectivity.getState().offline) {
-        supabase.auth.startAutoRefresh();
-      } else {
-        supabase.auth.stopAutoRefresh();
-      }
-    });
-    return () => sub.remove();
+    const aplicar = () => {
+      const precisa = Platform.OS === 'web'
+        || AppState.currentState === 'active'
+        || usePlayer.getState().isPlaying;
+      if (precisa && !useConnectivity.getState().offline) supabase.auth.startAutoRefresh();
+      else supabase.auth.stopAutoRefresh();
+    };
+    aplicar();
+    const sub = AppState.addEventListener('change', aplicar);
+    const pararDeOuvir = usePlayer.subscribe((s, p) => { if (s.isPlaying !== p.isPlaying) aplicar(); });
+    return () => { sub.remove(); pararDeOuvir(); };
   }, []);
 
   // O relógio do sleep timer só existe quando há um timer armado. Antes a app

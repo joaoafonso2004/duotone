@@ -18,7 +18,7 @@
  *    "7" deitaria a presença toda abaixo.
  *  - `large_image`: 300 caracteres. Um URL de miniatura do YouTube tem uns
  *    cinquenta, mas quem vier de outra fonte pode não ter.
- *  - botões: dois, com etiqueta até 32.
+ *  - botões: dois, com etiqueta até 32 (a app não manda nenhum: ver o fim).
  *
  * Sem imports de runtime: `scripts/test-presenca-discord.ts` corre em Node
  * puro, como o resto da lógica desta app.
@@ -43,7 +43,6 @@ export type ActividadeDoDiscord = {
 const MAX_TEXTO = 128;
 const MIN_TEXTO = 2;
 const MAX_IMAGEM = 300;
-const MAX_ETIQUETA = 32;
 const PREFIXO_JAM = 'duotone-jam:';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -153,17 +152,13 @@ export function presencaDaFaixa(
     actividade.instance = true;
   }
 
-  // Num Jam, o botão do YouTube sai. O Discord recusa segredo e botões juntos
-  // -- `5005 "secrets cannot currently be sent with buttons"`, confirmado ao
-  // vivo contra o cliente a 10/9/2026 -- e a recusa é da actividade INTEIRA:
-  // o perfil ficava vazio e sem "Juntar-se", justamente durante o Jam.
-  if (!segredo && faixa.source === 'youtube' && faixa.sourceId) {
-    actividade.buttons = [{
-      label: 'Listen on YouTube'.slice(0, MAX_ETIQUETA),
-      url: `https://www.youtube.com/watch?v=${faixa.sourceId}`,
-    }];
-  }
-
+  // Sem botões nenhuns (27/9, João): o único que se quer é o de juntar-se a
+  // um Jam, e esse é o nativo do Discord, que vem do segredo acima. Havia um
+  // botão para abrir a faixa no vídeo de origem, fora do Jam -- dizia a toda a
+  // gente de onde vem o som.
+  // E num Jam nem podia haver: o Discord recusa segredo e botões juntos
+  // (`5005 "secrets cannot currently be sent with buttons"`, confirmado ao vivo
+  // a 10/9/2026), e a recusa é da actividade INTEIRA.
   return actividade;
 }
 

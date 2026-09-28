@@ -8,6 +8,7 @@ import {
 } from '../../lib/prefs';
 import { usePlayer } from '../../state/player';
 import { useOuvirJuntos } from '../../state/ouvirJuntos';
+import { useSeguirAmigo } from '../../state/seguirAmigo';
 import { rotuloDaOrigem } from '../../lib/origemDaFila';
 import { trackKey } from '../../lib/shuffle';
 import { chaveDaFaixa } from '../../lib/equalizer';
@@ -200,6 +201,13 @@ export function NowPlayingPage({
   const sugeridas = usePlayer((s) => s.sugeridas);
   // Num jam manda a fila partilhada, e a origem pessoal não diz nada sobre ela.
   const emJam = useOuvirJuntos((s) => !!s.sessao);
+  // E a fila que vai tocar é a partilhada: a pessoal não decide nada numa
+  // sessão (é consumida a do Jam no fim de cada música). O PC mostrava a
+  // pessoal -- "Up next 0" com o Jam cheio (João, 27/9). O iPhone já fazia isto.
+  const filaDaSessao = useOuvirJuntos((s) => s.fila);
+  // A seguir um amigo ("Listen along"): as próximas DELE, só para ler.
+  const seguido = useSeguirAmigo((s) => s.seguindo);
+  const proximasDele = useSeguirAmigo((s) => s.aSeguir);
   const [showLyrics,setShowLyrics]=useState(false);
   // Quantas linhas da fila estão montadas. A fila inteira podia ser a
   // biblioteca toda (um "Play all" de 2700 faixas), e cada linha é um nó
@@ -222,8 +230,10 @@ export function NowPlayingPage({
   // Uma vez por render: este ecrã redesenha a cada segundo (posição) e a
   // lista percorre a fila toda.
   const upNext = useMemo(
-    () => upcomingQueue(),
-    [queue, queueIndex, shuffle, shuffleOrder, upcomingQueue]
+    () => (seguido
+      ? proximasDele.map((t, n) => ({ track: t, index: n }))
+      : emJam ? filaDaSessao.map((i, n) => ({ track: i.track, index: n })) : upcomingQueue()),
+    [seguido, proximasDele, emJam, filaDaSessao, queue, queueIndex, shuffle, shuffleOrder, upcomingQueue]
   );
 
   // A preferencia e lida uma vez e depois vem por evento, como a opacidade dos
@@ -297,7 +307,7 @@ export function NowPlayingPage({
     return <Page title="Now Playing" action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
   }
   const { duasColunas, lado: ladoCapa } = disposicaoDoLeitor(area.largura || 1192, area.altura || 788);
-  const notaDoFim = fimDaFila({ emJam, repeatMode, autoplayRadio, vazia: upNext.length === 0 });
+  const notaDoFim = fimDaFila({ emJam: emJam || !!seguido, repeatMode, autoplayRadio, vazia: upNext.length === 0 });
   // O artista sai do `displayArtist` e não do campo `artist`, que no YouTube é
   // o CANAL. A guarda é a mesma do iOS: sem nome não há para onde ir.
   const nomeDoArtista = displayArtist(track);
@@ -414,7 +424,7 @@ export function NowPlayingPage({
       <Text style={styles.npFilaContagem}>{upNext.length}</Text>
       <View style={{ flex: 1 }} />
       {/* Num Jam a fila é de todos: não se limpa daqui. */}
-      {!emJam && upNext.length > 0 ? (
+      {!emJam && !seguido && upNext.length > 0 ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={aConfirmarLimpar ? `Confirm: clear ${upNext.length} tracks from the queue` : 'Clear the queue'}
@@ -444,9 +454,12 @@ export function NowPlayingPage({
         // arrastar"): era `!shuffle`, e o PC usava o `moveQueueItem`, que só
         // sabe a ordem da fila. O `reordenarProximas` mexe no percurso do
         // shuffle -- é o que o iPhone já fazia.
-        podeArrastar={!emJam}
-        aoTocar={(t) => playTrack(t, queue)}
-        aoMenu={(t, indiceReal) => more(t, undefined, { fila: indiceReal })}
+        podeArrastar={!emJam && !seguido}
+        // A seguir alguém, a fila é dele: tocar numa daqui não faz nada.
+        aoTocar={(t) => { if (!seguido) void playTrack(t, queue); }}
+        // Num Jam o índice não é o da fila pessoal: o menu não o leva (tirar e
+        // reordenar faz-se no painel do Jam, que sabe quem pode o quê).
+        aoMenu={(t, indiceReal) => (emJam ? more(t) : more(t, undefined, { fila: indiceReal }))}
         aoMover={(de, para) => reordenarProximas(de, para)}
       />
       {/* O que acontece quando a fila acabar. Só com ela toda montada. */}

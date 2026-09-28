@@ -1131,6 +1131,33 @@ ipcMain.handle('yt:pesquisa', async (event, pedido) => {
 });
 
 /**
+ * As cancoes do YouTube Music, com a marca de explicita (27/9,
+ * src/lib/cancoesDoYtMusic.ts): a importacao de playlists usa-a para nao trazer
+ * versoes censuradas. Mesma regra do `yt:pesquisa`: do renderer so vem a
+ * pergunta; o endereco, o cliente e o filtro (so cancoes) ficam deste lado.
+ */
+const FILTRO_CANCOES = 'EgWKAQIIAWoKEAkQBRAKEAMQBA==';
+ipcMain.handle('ytmusic:pesquisa', async (event, pedido) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  const query = pedido && typeof pedido.query === 'string' ? pedido.query.trim().slice(0, 300) : '';
+  if (!query) throw new Error('Pesquisa vazia.');
+  // A versao do cliente vive no cancoesDoYtMusic.ts; aqui so se valida a forma.
+  const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
+    ? pedido.clientVersion : '1.20260914.01.00';
+  const res = await net.fetch('https://music.youtube.com/youtubei/v1/search?prettyPrint=false', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      context: { client: { clientName: 'WEB_REMIX', clientVersion: versao, hl: 'en', gl: 'US' } },
+      query,
+      params: FILTRO_CANCOES,
+    }),
+  });
+  if (!res.ok) throw new Error('YouTube Music HTTP ' + res.status);
+  return res.json();
+});
+
+/**
  * As unicas formas de caminho que o catalogo aceita.
  *
  * Sao exactamente as que o `src/api/catalogo.ts` pede, e nada mais. Mesma

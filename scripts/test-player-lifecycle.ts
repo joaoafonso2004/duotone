@@ -40,6 +40,19 @@ check(
 );
 check('o corte acontece antes da resolução da nova faixa', calls.join(',') === 'pause', calls.join(','));
 
+// 27/9: o motor do iPhone cala a que sai e deixa-a a TOCAR até a nova estar
+// pronta -- com o ecrã bloqueado, o iOS só deixa começar quem já toca.
+calls.length = 0;
+const doIphone: PlaybackControls = { ...controls, silenciarParaTrocar: () => calls.push('silenciar') };
+check(
+  'com o motor do iPhone, mudar de faixa cala em vez de pausar',
+  pauseMountedSourceBeforeChange(source('abc'), source('xyz'), doIphone) && calls.join(',') === 'silenciar',
+  calls.join(','),
+);
+calls.length = 0;
+pauseMountedSourceBeforeChange(source('abc'), source('abc'), doIphone);
+check('a mesma fonte continua sem receber nada', calls.length === 0, calls.join(','));
+
 calls.length = 0;
 check(
   'repetir a mesma fonte não a pausa antes de reiniciar',

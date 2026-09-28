@@ -181,7 +181,7 @@ export async function importSpotifyCsv(options: ImportOptions): Promise<Imported
     });
 
     if (falhasSeguidas >= MAX_FALHAS_SEGUIDAS) {
-      throw new Error('YouTube search is not responding, so no tracks can be matched. Check your connection and try again.');
+      throw new Error('Search is not responding, so no tracks can be matched. Check your connection and try again.');
     }
 
     // Sem pausa entre lotes o ritmo é constante e destaca-se; e não há

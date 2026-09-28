@@ -133,6 +133,13 @@ function reconciliarOrdemDoShuffle(
 let ouvirJuntos: () => PonteJam | null = () => null;
 export function registarOuvirJuntos(fn: typeof ouvirJuntos): void { ouvirJuntos = fn; }
 
+/**
+ * A seguir um amigo ("Listen along", state/seguirAmigo.ts): quem manda na
+ * música seguinte é ele. Registada por quem segue, sem a store o importar.
+ */
+let seguindoAmigo: () => boolean = () => false;
+export function registarSeguirAmigo(fn: typeof seguindoAmigo): void { seguindoAmigo = fn; }
+
 /** Contexto sem conteúdo: acompanha a fila apenas em memória. */
 let contextosDaFila=new Map<string,DiscoveryContext>();
 let contextoAtual:DiscoveryContext|null=null;
@@ -1539,7 +1546,7 @@ export const usePlayer = create<PlayerState>()(
   setVolumeNormalization: (v) => set({ volumeNormalization: v }),
 
   extendQueueWithRadio: async () => {
-    if (ouvirJuntos()) return false;
+    if (ouvirJuntos() || seguindoAmigo()) return false;
     const { autoplayRadio, current, queue, queueIndex, repeatMode } = get();
     if (
       !shouldExtendWithRadio(autoplayRadio, !!current, get().upcomingQueue().length, repeatMode)
@@ -1934,6 +1941,9 @@ export const usePlayer = create<PlayerState>()(
 
   _onYtStateChange: (s) => {
     if (get().closing && s === 'ended') return;
+    // A seguir um amigo, o fim desta não avança a fila: a seguinte é a dele,
+    // e chega pela presença (state/seguirAmigo.ts).
+    if (s === 'ended' && seguindoAmigo()) return;
     if (s === 'ended') {
       if (ouvirJuntos()) { void comandarJam(jam => jam.avancar(true)); return; }
       const { repeatMode, _yt } = get();

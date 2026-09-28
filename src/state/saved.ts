@@ -27,6 +27,13 @@ interface SavedState {
    * vez de esperar pelo servidor. */
   markSaved: (track: Pick<Track, 'source' | 'sourceId'> & Partial<Track>, saved: boolean) => void;
   isSaved: (track: Pick<Track, 'source' | 'sourceId'>) => boolean;
+  /**
+   * Esquece tudo -- ao mudar de conta (App.tsx). As guardadas de quem sai não
+   * são de quem entra, e o `loaded` também decide o questionário da primeira
+   * vez (state/boasVindas.ts): com as dez guardadas da conta anterior, uma conta
+   * nova no mesmo aparelho era dada como "já usa a app" e nunca o via.
+   */
+  limpar: () => void;
 }
 
 export const useSaved = create<SavedState>()((set, get) => ({
@@ -61,4 +68,6 @@ export const useSaved = create<SavedState>()((set, get) => ({
   },
 
   isSaved: (track) => get().keys.has(savedKey(track)),
+
+  limpar: () => set({ keys: new Set(), loaded: false }),
 }));

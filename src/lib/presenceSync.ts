@@ -7,6 +7,8 @@ import { supabase } from './supabase';
 import { getDeviceId } from './deviceIdentity';
 import { usePlayer } from '../state/player';
 import { garantirPrivacidade, usePrivacidade } from '../state/privacidade';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { proximasParaAPresenca } from './seguirAmigo';
 
 let terminarAtual: (() => Promise<void>) | null = null;
 // O servidor mantém cada publicação válida por 120 s. Setenta e cinco deixa
@@ -69,6 +71,11 @@ export function iniciarPresenca(userId: string): () => void {
             ?? (usePlayer.getState().durationMs > 0 ? Math.round(usePlayer.getState().durationMs / 1000) : null),
           positionMs: Math.max(0, Math.round(usePlayer.getState().positionMs || 0)),
           rate: usePlayer.getState().playbackRate || 1,
+          // As próximas, para o Up next de quem te segue (27/9, "Listen along";
+          // supabase/presenca-com-fila.sql). Num Jam, as da fila partilhada.
+          aSeguir: proximasParaAPresenca(useOuvirJuntos.getState().sessao
+            ? useOuvirJuntos.getState().fila.map((i) => i.track)
+            : usePlayer.getState().upcomingQueue().map((e) => e.track)),
         },
       });
       if (error) console.warn('Não foi possível publicar a presença:', error.message);
@@ -84,6 +91,8 @@ export function iniciarPresenca(userId: string): () => void {
   };
   const unsubscribe = usePlayer.subscribe((s, p) => {
     if (s.current !== p.current || s.isPlaying !== p.isPlaying || s.playbackConfirmed !== p.playbackConfirmed || s.buffering !== p.buffering || s.error !== p.error) changed();
+    // A fila mudou (quem te segue vê as próximas): publica com o mesmo atraso.
+    else if (!terminado && s.isPlaying && (s.queue !== p.queue || s.shuffleOrder !== p.shuffleOrder)) changed();
     // O avanço vem do timeUpdate nativo, que também serve o sleep timer com
     // o ecrã bloqueado. Não depender só de setInterval para o batimento iOS.
     // Uma ida na barra ou outra velocidade publicam já: sem isso o progresso

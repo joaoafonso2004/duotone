@@ -1,0 +1,1103 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "@bacons/apple-targets": {
+      "name": "@bacons/apple-targets",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "@bacons/xcode",
+        "@expo/prebuild-config",
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@bacons/apple-targets"
+      ],
+      "fixAvailable": false
+    },
+    "@bacons/xcode": {
+      "name": "@bacons/xcode",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@expo/plist",
+        "uuid"
+      ],
+      "effects": [
+        "@bacons/apple-targets"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/@bacons/xcode"
+      ],
+      "fixAvailable": false
+    },
+    "@expo/cli": {
+      "name": "@expo/cli",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@expo/config",
+        "@expo/config-plugins",
+        "@expo/inline-modules",
+        "@expo/log-box",
+        "@expo/metro-config",
+        "@expo/prebuild-config",
+        "@expo/router-server",
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo/node_modules/@expo/cli"
+      ],
+      "fixAvailable": true
+    },
+    "@expo/config": {
+      "name": "@expo/config",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@expo/config-plugins"
+      ],
+      "effects": [
+        "@expo/local-build-cache-provider"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/@bacons/apple-targets/node_modules/@expo/config",
+        "node_modules/@expo/config"
+      ],
+      "fixAvailable": true
+    },
+    "@expo/config-plugins": {
+      "name": "@expo/config-plugins",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "xcode"
+      ],
+      "effects": [
+        "@expo/cli",
+        "@expo/config",
+        "@expo/inline-modules",
+        "@expo/prebuild-config",
+        "expo"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/@bacons/apple-targets/node_modules/@expo/config-plugins",
+        "node_modules/@expo/config-plugins"
+      ],
+      "fixAvailable": false
+    },
+    "@expo/dom-webview": {
+      "name": "@expo/dom-webview",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@expo/dom-webview"
+      ],
+      "fixAvailable": true
+    },
+    "@expo/inline-modules": {
+      "name": "@expo/inline-modules",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@expo/config-plugins"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@expo/inline-modules"
+      ],
+      "fixAvailable": true
+    },
+    "@expo/local-build-cache-provider": {
+      "name": "@expo/local-build-cache-provider",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@expo/config"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@expo/local-build-cache-provider"
+      ],
+      "fixAvailable": true
+    },
+    "@expo/log-box": {
+      "name": "@expo/log-box",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@expo/dom-webview",
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@expo/log-box"
+      ],
+      "fixAvailable": true
+    },
+    "@expo/metro-config": {
+      "name": "@expo/metro-config",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@expo/config",
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@expo/metro-config"
+      ],
+      "fixAvailable": true
+    },
+    "@expo/metro-runtime": {
+      "name": "@expo/metro-runtime",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "@expo/log-box",
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@expo/metro-runtime"
+      ],
+      "fixAvailable": false
+    },
+    "@expo/plist": {
+      "name": "@expo/plist",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@xmldom/xmldom"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@bacons/xcode/node_modules/@expo/plist"
+      ],
+      "fixAvailable": true
+    },
+    "@expo/prebuild-config": {
+      "name": "@expo/prebuild-config",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@expo/config",
+        "@expo/config-plugins",
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@bacons/apple-targets/node_modules/@expo/prebuild-config",
+        "node_modules/@expo/prebuild-config"
+      ],
+      "fixAvailable": true
+    },
+    "@expo/router-server": {
+      "name": "@expo/router-server",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@expo/metro-runtime",
+        "expo",
+        "expo-constants",
+        "expo-font"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo/node_modules/@expo/cli/node_modules/@expo/router-server"
+      ],
+      "fixAvailable": true
+    },
+    "@expo/vector-icons": {
+      "name": "@expo/vector-icons",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo-font"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@expo/vector-icons"
+      ],
+      "fixAvailable": false
+    },
+    "@react-navigation/bottom-tabs": {
+      "name": "@react-navigation/bottom-tabs",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "@react-navigation/elements",
+        "@react-navigation/native"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@react-navigation/bottom-tabs"
+      ],
+      "fixAvailable": false
+    },
+    "@react-navigation/core": {
+      "name": "@react-navigation/core",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "query-string"
+      ],
+      "effects": [
+        "@react-navigation/native"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/@react-navigation/core"
+      ],
+      "fixAvailable": false
+    },
+    "@react-navigation/elements": {
+      "name": "@react-navigation/elements",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "@react-navigation/native"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@react-navigation/elements"
+      ],
+      "fixAvailable": true
+    },
+    "@react-navigation/native": {
+      "name": "@react-navigation/native",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "@react-navigation/core"
+      ],
+      "effects": [
+        "@react-navigation/bottom-tabs",
+        "@react-navigation/elements",
+        "@react-navigation/native-stack"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/@react-navigation/native"
+      ],
+      "fixAvailable": false
+    },
+    "@react-navigation/native-stack": {
+      "name": "@react-navigation/native-stack",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "@react-navigation/elements",
+        "@react-navigation/native"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/@react-navigation/native-stack"
+      ],
+      "fixAvailable": false
+    },
+    "@xmldom/xmldom": {
+      "name": "@xmldom/xmldom",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1117097,
+          "name": "@xmldom/xmldom",
+          "dependency": "@xmldom/xmldom",
+          "title": "xmldom: XML injection via unsafe CDATA serialization allows attacker-controlled markup insertion",
+          "url": "https://github.com/advisories/GHSA-wh4c-j3r5-mjhp",
+          "severity": "high",
+          "cwe": [
+            "CWE-91"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
+          },
+          "range": "<0.8.12"
+        },
+        {
+          "source": 1117894,
+          "name": "@xmldom/xmldom",
+          "dependency": "@xmldom/xmldom",
+          "title": "xmldom: Uncontrolled recursion in XML serialization leads to DoS",
+          "url": "https://github.com/advisories/GHSA-2v35-w6hq-6mfw",
+          "severity": "high",
+          "cwe": [
+            "CWE-674"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": "<0.8.13"
+        },
+        {
+          "source": 1117897,
+          "name": "@xmldom/xmldom",
+          "dependency": "@xmldom/xmldom",
+          "title": "xmldom has XML injection through unvalidated DocumentType serialization",
+          "url": "https://github.com/advisories/GHSA-f6ww-3ggp-fr8h",
+          "severity": "high",
+          "cwe": [
+            "CWE-91"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": "<0.8.13"
+        },
+        {
+          "source": 1117900,
+          "name": "@xmldom/xmldom",
+          "dependency": "@xmldom/xmldom",
+          "title": "xmldom has XML node injection through unvalidated processing instruction serialization",
+          "url": "https://github.com/advisories/GHSA-x6wf-f3px-wcqx",
+          "severity": "high",
+          "cwe": [
+            "CWE-91"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": "<0.8.13"
+        },
+        {
+          "source": 1117903,
+          "name": "@xmldom/xmldom",
+          "dependency": "@xmldom/xmldom",
+          "title": "xmldom has XML node injection through unvalidated comment serialization",
+          "url": "https://github.com/advisories/GHSA-j759-j44w-7fr8",
+          "severity": "high",
+          "cwe": [
+            "CWE-91"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": "<0.8.13"
+        },
+        {
+          "source": 1158518,
+          "name": "@xmldom/xmldom",
+          "dependency": "@xmldom/xmldom",
+          "title": "xmldom: XML fragment injection via invalid EntityReference.nodeName during requireWellFormed serialization",
+          "url": "https://github.com/advisories/GHSA-6gmq-8vp8-gcm6",
+          "severity": "moderate",
+          "cwe": [
+            "CWE-116"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": ">=0.7.0 <=0.8.14"
+        }
+      ],
+      "effects": [
+        "@expo/plist"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/@bacons/xcode/node_modules/@xmldom/xmldom"
+      ],
+      "fixAvailable": true
+    },
+    "babel-preset-expo": {
+      "name": "babel-preset-expo",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/babel-preset-expo"
+      ],
+      "fixAvailable": true
+    },
+    "decode-uri-component": {
+      "name": "decode-uri-component",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1147955,
+          "name": "decode-uri-component",
+          "dependency": "decode-uri-component",
+          "title": "decode-uri-component: Denial of service via exponential decoding of malformed percent-encoded input",
+          "url": "https://github.com/advisories/GHSA-vcc3-ghjq-m6fr",
+          "severity": "moderate",
+          "cwe": [
+            "CWE-400",
+            "CWE-405",
+            "CWE-407",
+            "CWE-1176"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": "<=0.4.2"
+        }
+      ],
+      "effects": [
+        "query-string"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/decode-uri-component"
+      ],
+      "fixAvailable": false
+    },
+    "expo": {
+      "name": "expo",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "@expo/cli",
+        "@expo/config",
+        "@expo/config-plugins",
+        "@expo/dom-webview",
+        "@expo/local-build-cache-provider",
+        "@expo/log-box",
+        "@expo/metro-config",
+        "@expo/metro-runtime",
+        "babel-preset-expo",
+        "expo-asset",
+        "expo-constants",
+        "expo-file-system",
+        "expo-font",
+        "expo-keep-awake"
+      ],
+      "effects": [
+        "@expo/dom-webview",
+        "@expo/log-box",
+        "@expo/metro-config",
+        "@expo/metro-runtime",
+        "@expo/router-server",
+        "babel-preset-expo",
+        "expo-application",
+        "expo-asset",
+        "expo-background-task",
+        "expo-blur",
+        "expo-brightness",
+        "expo-build-properties",
+        "expo-clipboard",
+        "expo-constants",
+        "expo-crypto",
+        "expo-dev-client",
+        "expo-dev-launcher",
+        "expo-dev-menu",
+        "expo-dev-menu-interface",
+        "expo-file-system",
+        "expo-font",
+        "expo-haptics",
+        "expo-image",
+        "expo-image-loader",
+        "expo-image-manipulator",
+        "expo-image-picker",
+        "expo-keep-awake",
+        "expo-linear-gradient",
+        "expo-manifests",
+        "expo-notifications",
+        "expo-secure-store",
+        "expo-status-bar",
+        "expo-task-manager",
+        "expo-updates-interface",
+        "expo-video",
+        "expo-web-browser"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/expo"
+      ],
+      "fixAvailable": false
+    },
+    "expo-application": {
+      "name": "expo-application",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo"
+      ],
+      "effects": [
+        "expo-auth-session"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-application"
+      ],
+      "fixAvailable": false
+    },
+    "expo-asset": {
+      "name": "expo-asset",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo",
+        "expo-constants"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-asset"
+      ],
+      "fixAvailable": true
+    },
+    "expo-auth-session": {
+      "name": "expo-auth-session",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo-application",
+        "expo-constants",
+        "expo-crypto",
+        "expo-linking",
+        "expo-web-browser"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-auth-session"
+      ],
+      "fixAvailable": false
+    },
+    "expo-background-task": {
+      "name": "expo-background-task",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo",
+        "expo-task-manager"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-background-task"
+      ],
+      "fixAvailable": false
+    },
+    "expo-blur": {
+      "name": "expo-blur",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-blur"
+      ],
+      "fixAvailable": false
+    },
+    "expo-brightness": {
+      "name": "expo-brightness",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-brightness"
+      ],
+      "fixAvailable": false
+    },
+    "expo-build-properties": {
+      "name": "expo-build-properties",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-build-properties"
+      ],
+      "fixAvailable": false
+    },
+    "expo-clipboard": {
+      "name": "expo-clipboard",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-clipboard"
+      ],
+      "fixAvailable": false
+    },
+    "expo-constants": {
+      "name": "expo-constants",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo"
+      ],
+      "effects": [
+        "expo-linking"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-constants"
+      ],
+      "fixAvailable": false
+    },
+    "expo-crypto": {
+      "name": "expo-crypto",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-crypto"
+      ],
+      "fixAvailable": false
+    },
+    "expo-dev-client": {
+      "name": "expo-dev-client",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo",
+        "expo-dev-launcher",
+        "expo-dev-menu",
+        "expo-dev-menu-interface",
+        "expo-manifests",
+        "expo-updates-interface"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-dev-client"
+      ],
+      "fixAvailable": false
+    },
+    "expo-dev-launcher": {
+      "name": "expo-dev-launcher",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo",
+        "expo-dev-menu",
+        "expo-manifests"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-dev-launcher"
+      ],
+      "fixAvailable": true
+    },
+    "expo-dev-menu": {
+      "name": "expo-dev-menu",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo",
+        "expo-dev-menu-interface"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-dev-menu"
+      ],
+      "fixAvailable": true
+    },
+    "expo-dev-menu-interface": {
+      "name": "expo-dev-menu-interface",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-dev-menu-interface"
+      ],
+      "fixAvailable": true
+    },
+    "expo-file-system": {
+      "name": "expo-file-system",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-file-system"
+      ],
+      "fixAvailable": false
+    },
+    "expo-font": {
+      "name": "expo-font",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo"
+      ],
+      "effects": [
+        "@expo/vector-icons"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-font"
+      ],
+      "fixAvailable": false
+    },
+    "expo-haptics": {
+      "name": "expo-haptics",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-haptics"
+      ],
+      "fixAvailable": false
+    },
+    "expo-image": {
+      "name": "expo-image",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-image"
+      ],
+      "fixAvailable": false
+    },
+    "expo-image-loader": {
+      "name": "expo-image-loader",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-image-loader"
+      ],
+      "fixAvailable": true
+    },
+    "expo-image-manipulator": {
+      "name": "expo-image-manipulator",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo",
+        "expo-image-loader"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-image-manipulator"
+      ],
+      "fixAvailable": false
+    },
+    "expo-image-picker": {
+      "name": "expo-image-picker",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo",
+        "expo-image-loader"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-image-picker"
+      ],
+      "fixAvailable": false
+    },
+    "expo-keep-awake": {
+      "name": "expo-keep-awake",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-keep-awake"
+      ],
+      "fixAvailable": false
+    },
+    "expo-linear-gradient": {
+      "name": "expo-linear-gradient",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-linear-gradient"
+      ],
+      "fixAvailable": false
+    },
+    "expo-linking": {
+      "name": "expo-linking",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo-constants"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-linking"
+      ],
+      "fixAvailable": false
+    },
+    "expo-manifests": {
+      "name": "expo-manifests",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-manifests"
+      ],
+      "fixAvailable": true
+    },
+    "expo-notifications": {
+      "name": "expo-notifications",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo",
+        "expo-application",
+        "expo-constants"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-notifications"
+      ],
+      "fixAvailable": false
+    },
+    "expo-secure-store": {
+      "name": "expo-secure-store",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-secure-store"
+      ],
+      "fixAvailable": false
+    },
+    "expo-status-bar": {
+      "name": "expo-status-bar",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-status-bar"
+      ],
+      "fixAvailable": false
+    },
+    "expo-task-manager": {
+      "name": "expo-task-manager",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-task-manager"
+      ],
+      "fixAvailable": false
+    },
+    "expo-updates-interface": {
+      "name": "expo-updates-interface",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-updates-interface"
+      ],
+      "fixAvailable": true
+    },
+    "expo-video": {
+      "name": "expo-video",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-video"
+      ],
+      "fixAvailable": false
+    },
+    "expo-web-browser": {
+      "name": "expo-web-browser",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "expo"
+      ],
+      "effects": [],
+      "range": "",
+      "nodes": [
+        "node_modules/expo-web-browser"
+      ],
+      "fixAvailable": false
+    },
+    "query-string": {
+      "name": "query-string",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "decode-uri-component"
+      ],
+      "effects": [
+        "@react-navigation/core"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/query-string"
+      ],
+      "fixAvailable": false
+    },
+    "uuid": {
+      "name": "uuid",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1119441,
+          "name": "uuid",
+          "dependency": "uuid",
+          "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+          "url": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+          "severity": "moderate",
+          "cwe": [
+            "CWE-787",
+            "CWE-1285"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:H/A:N"
+          },
+          "range": "<11.1.1"
+        }
+      ],
+      "effects": [
+        "@bacons/xcode",
+        "xcode"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/@bacons/xcode/node_modules/uuid",
+        "node_modules/uuid"
+      ],
+      "fixAvailable": false
+    },
+    "xcode": {
+      "name": "xcode",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "uuid"
+      ],
+      "effects": [
+        "@expo/config-plugins"
+      ],
+      "range": "",
+      "nodes": [
+        "node_modules/xcode"
+      ],
+      "fixAvailable": false
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 58,
+      "high": 1,
+      "critical": 0,
+      "total": 59
+    },
+    "dependencies": {
+      "prod": 628,
+      "dev": 278,
+      "optional": 37,
+      "peer": 18,
+      "peerOptional": 0,
+      "total": 918
+    }
+  }
+}

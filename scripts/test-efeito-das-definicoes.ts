@@ -17,8 +17,8 @@ function caso(nome: string, fn: () => void): void {
 }
 
 console.log('\na qualidade diz o que está a tocar, e não só o que se pediu');
-caso('do player do YouTube, a escolha não manda', () => {
-  assert.match(efeitoDaQualidade({ escolha: 'high', motor: 'webview', descarregada: false, kbps: 128, codec: 'AAC' }), /YouTube picks/);
+caso('do player de recurso, a escolha não manda', () => {
+  assert.match(efeitoDaQualidade({ escolha: 'high', motor: 'webview', descarregada: false, kbps: 128, codec: 'AAC' }), /quality is automatic/);
 });
 caso('de um download não gasta dados', () => {
   assert.match(efeitoDaQualidade({ escolha: 'saver', motor: 'native', descarregada: true, kbps: null, codec: null }), /download/);
@@ -78,7 +78,7 @@ caso('uma descarregada antes da normalização toca a 100%, e diz porquê', () =
 });
 caso('desligada não diz nada', () => assert.equal(efeitoDaNormalizacao({ ligada: false, temFaixa: true, loudnessDb: 3 }), null));
 caso('o rádio diz de onde vêm as músicas, pela ordem da cascata', () => {
-  assert.match(efeitoDoRadio({ ligado: true, aTocarRadio: false }), /library first, then Flow, then YouTube/);
+  assert.match(efeitoDoRadio({ ligado: true, aTocarRadio: false }), /library first, then similar artists/);
   assert.match(efeitoDoRadio({ ligado: true, aTocarRadio: true }), /playing now/);
   assert.match(efeitoDoRadio({ ligado: false, aTocarRadio: false }), /stops/);
 });

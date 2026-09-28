@@ -57,6 +57,9 @@ test-*.mjs
 !scripts/test-saude-electron.mjs
 !scripts/test-renovacao-e-hls.mjs
 !scripts/test-arranque-com-windows.mjs
+!scripts/test-sair-da-conta.mjs
+!scripts/test-sem-youtube-na-interface.mjs
+!scripts/test-presenca-com-fila-sql.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

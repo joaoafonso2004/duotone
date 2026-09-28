@@ -104,9 +104,15 @@ async function tratar(pedido: Pedido, meuAparelho: string, noArranque = false): 
  * leitura a cada 20 s (rede de segurança, e é ela que apanha o que foi pedido
  * enquanto a app arrancava). O `tratados` garante que executar duas vezes não
  * acontece.
+ *
+ * Só com conta (28/9): sem sessão a RLS devolve sempre vazio, e o ecrã de login
+ * fazia um pedido de 20 em 20 s (~180 por hora, egress) e um 401 do
+ * `limpar_pedidos_ao_aparelho` a cada abertura. Mudar de conta recomeça tudo,
+ * com o primeiro varrimento outra vez a só deixar passar o `pausar`.
  */
-export function useComandosDoAparelho(): void {
+export function useComandosDoAparelho(userId: string | null | undefined): void {
   useEffect(() => {
+    if (!userId) return;
     let parado = false;
     let pararEscuta: () => void = () => {};
     let intervalo: ReturnType<typeof setInterval> | null = null;
@@ -137,7 +143,7 @@ export function useComandosDoAparelho(): void {
       pararEscuta();
       if (intervalo) clearInterval(intervalo);
     };
-  }, []);
+  }, [userId]);
 }
 
 /**

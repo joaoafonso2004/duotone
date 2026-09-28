@@ -18,7 +18,6 @@ import { COR, ESP, FONT, TIPO } from './tokens.web';
 import { Dialog, Field, IconButton, marcar } from './ui.web';
 
 // Sem tipos instalados para o react-dom; só se usa o portal.
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
 
 /**

@@ -78,6 +78,7 @@ const TESTES = [
   `${TS} scripts/test-search-query.ts`,
   `${TS} scripts/test-handoff.ts`,
   `${RESOLVER} scripts/test-duotone-connect.ts`,
+  `${TS} scripts/test-connect-sem-sessao.ts`,
   `${TS} scripts/test-player-lifecycle.ts`,
   `${DUPLOS} scripts/test-player-store.ts`,
   `${TS} scripts/test-shuffle.ts`,
@@ -101,6 +102,7 @@ const TESTES = [
   `${TS} scripts/test-posicao-do-amigo.ts`,
   `${TS} scripts/test-amigos-na-lateral.ts`,
   `${TS} scripts/test-boas-vindas.ts`,
+  `${DUPLOS} scripts/test-guardadas-por-conta.ts`,
   `${RESOLVER} scripts/test-filtro-de-versao.ts`,
   'scripts/test-presenca-com-posicao-sql.mjs',
   `${TS} scripts/test-abertura.ts`,
@@ -141,6 +143,7 @@ const TESTES = [
   `${DUPLOS} scripts/test-escolha-codec.ts`,
   `${TS} scripts/test-efeito-das-definicoes.ts`,
   'scripts/test-definicoes-com-efeito.mjs',
+  'scripts/test-sair-da-conta.mjs',
   `${TS} scripts/test-higiene-da-biblioteca.ts`,
   'scripts/test-higiene-da-biblioteca-sql.mjs',
   'scripts/test-escritas-atomicas-sql.mjs',
@@ -179,6 +182,9 @@ const TESTES = [
   `${TS} scripts/test-fade-de-entrada.ts`,
   'scripts/test-linhas-da-lista.mjs',
   `${TS} scripts/test-barra-suave.ts`,
+  'scripts/test-sem-youtube-na-interface.mjs',
+  `${TS} scripts/test-seguir-amigo.ts`,
+  'scripts/test-presenca-com-fila-sql.mjs',
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

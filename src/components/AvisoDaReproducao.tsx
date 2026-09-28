@@ -11,7 +11,7 @@ import { useTheme } from '../state/theme';
 import { colors } from '../theme';
 
 const TITULO = 'Music will stop when the screen locks';
-const CORPO = 'YouTube is blocking audio on this network. Downloaded songs still play normally.';
+const CORPO = 'Streaming is blocked on this network right now. Downloaded songs still play normally.';
 
 /**
  * O aviso de que a extração está bloqueada, só no iPhone.

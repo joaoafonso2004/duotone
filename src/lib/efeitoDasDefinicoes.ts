@@ -44,12 +44,12 @@ export function efeitoDaQualidade(e: {
   kbps: number | null;
   codec: string | null;
 }): string {
-  if (e.motor === 'webview') return 'Now playing through YouTube’s player · YouTube picks the quality';
+  if (e.motor === 'webview') return 'Now playing through the backup player · quality is automatic';
   if (e.motor === 'native' && e.descarregada) return 'Now playing from a download · no data used';
   if (e.motor === 'native' && e.kbps) return `Now playing: ${Math.round(e.kbps)} kbps${e.codec ? ` ${e.codec}` : ''}`;
   return e.escolha === 'saver'
     ? 'Picks the lowest bitrate to save mobile data'
-    : 'Picks the highest bitrate YouTube offers';
+    : 'Picks the highest bitrate available';
 }
 
 /**
@@ -113,7 +113,7 @@ export function efeitoDaNormalizacao(e: {
   loudnessDb: number | null;
 }): string | null {
   if (!e.ligada) return null;
-  if (!e.temFaixa) return 'Only lowers songs louder than YouTube’s reference';
+  if (!e.temFaixa) return 'Only lowers songs louder than the reference level';
   if (e.loudnessDb === null || !Number.isFinite(e.loudnessDb)) return 'No loudness data for this song · plays at full volume';
   if (e.loudnessDb <= 0.05) return 'This song: unchanged · it is not louder than the reference';
   return `This song: −${e.loudnessDb.toFixed(1)} dB`;
@@ -122,8 +122,8 @@ export function efeitoDaNormalizacao(e: {
 /** O rádio, e de onde vêm as músicas -- a cascata de api/radio.ts, por ordem. */
 export function efeitoDoRadio(e: { ligado: boolean; aTocarRadio: boolean }): string {
   if (!e.ligado) return 'The queue stops at its last song';
-  if (e.aTocarRadio) return 'Radio is playing now · from your library, then Flow, then YouTube';
-  return 'When the queue ends: your library first, then Flow, then YouTube';
+  if (e.aTocarRadio) return 'Radio is playing now · from your library, then similar artists';
+  return 'When the queue ends: your library first, then similar artists';
 }
 
 // ---------------------------------------------------------------------------

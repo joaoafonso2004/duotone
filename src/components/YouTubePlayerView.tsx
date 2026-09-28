@@ -47,8 +47,9 @@ import { arredondar as arredondarRate } from '../lib/playbackRate';
 import { trocarFonte } from '../lib/trocaDeFonte';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { velocidadeNaSessao } from '../lib/jam';
+import { ritmoDeQuemSigo, useSeguirAmigo } from '../state/seguirAmigo';
 import { useArranqueTravado } from '../hooks/useArranqueTravado';
-import { entraSemFade, type FimNatural } from '../lib/fadeDeEntrada';
+import { entraSemFade, JANELA_DO_FIM_NATURAL_MS, type FimNatural } from '../lib/fadeDeEntrada';
 
 /**
  * Quanto se espera por uma resolucao antes de a dar por perdida.
@@ -65,6 +66,13 @@ const RESOLUCAO_DEMOROU = 'resolucao sem resposta';
  * chegar ao embed -- e o watchdog da posição só vigia o motor nativo, não esta fase.
  */
 const PRAZO_DO_HLS_MS = 20_000;
+
+/**
+ * Quanto tempo a faixa que sai fica a tocar calada à espera da nova (ver
+ * `mantidoVivoRef`). Cobre a resolução (40 s no pior caso) e um download
+ * normal; passado isto pára de vez, como parava antes.
+ */
+const MANTER_VIVO_MS = 90_000;
 
 /**
  * Os adiantamentos a decorrer, por faixa.
@@ -267,7 +275,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const filaJam = useOuvirJuntos(s => s.fila);
   // Acompanhado anda-se a 1x, e a preferência fica guardada à espera. A conta
   // da posição de uma sessão é tempo de parede -- ver `velocidadeNaSessao`.
-  const playbackRate = velocidadeNaSessao(velocidadeEscolhida, !!sessaoJam);
+  // A seguir um amigo, anda-se à velocidade DELE (state/seguirAmigo.ts).
+  const ritmoSeguido = useSeguirAmigo((s) => s.ritmo);
+  const playbackRate = ritmoSeguido ?? velocidadeNaSessao(velocidadeEscolhida, !!sessaoJam);
   // Só para as dependências do pré-carregamento: ligar/desligar o shuffle a
   // meio de uma faixa muda qual é a faixa seguinte.
   const shuffle = usePlayer((s) => s.shuffle);
@@ -512,6 +522,18 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   const endedRef = useRef(false);
   /** A última faixa que acabou SOZINHA: a seguinte entra sem fade-in (lib/fadeDeEntrada.ts). */
   const fimNaturalRef = useRef<FimNatural | null>(null);
+  /**
+   * A faixa que SAI continua a tocar, calada, até a nova estar pronta (27/9).
+   *
+   * Com o ecrã bloqueado o iOS só deixa começar a tocar uma app que JÁ está a
+   * tocar. Pausar a que sai durante o download tirava essa licença: o download
+   * acabava, o `play()` era recusado, e só desbloquear e carregar em pausa e
+   * play a punha a tocar (João, 27/9). Um "Next" mandado do PC para o iPhone
+   * bloqueado caía no mesmo buraco. Assim a sessão de áudio nunca pára: a
+   * faixa nova entra no lugar de uma que toca. Tem prazo (`MANTER_VIVO_MS`),
+   * e cai sempre que se sai do motor nativo ou alguém pausa.
+   */
+  const mantidoVivoRef = useRef<{ desde: number } | null>(null);
   // Watchdog de stream que não avança (músicas longas no 4G: o AVPlayer nem
   // sequer ARRANCA o progressivo). `lastProgressRef` = última posição vista +
   // quando; `wantsPlayRef` = a app tenciona estar a tocar (não foi pausada
@@ -595,6 +617,36 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       }
       player.volume = vol;
     }, 100);
+  };
+
+  /**
+   * Cala a faixa que sai e deixa-a a TOCAR (ver `mantidoVivoRef`). Devolve se
+   * ficou: parada, pausa-se como sempre. Tem prazo: passado `MANTER_VIVO_MS`
+   * ainda sem faixa nova, pára de vez.
+   */
+  const manterVivoCalado = (m: typeof player): boolean => {
+    try {
+      if (!m.playing) return false;
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      }
+      m.volume = 0;
+      if (!mantidoVivoRef.current) {
+        const vivo = { desde: Date.now() };
+        mantidoVivoRef.current = vivo;
+        registarNaVelocidade(`keep playing muted until the next track is ready | ${fotoDaVelocidade(m)}`);
+        setTimeout(() => {
+          if (mantidoVivoRef.current !== vivo) return;
+          mantidoVivoRef.current = null;
+          try { m.pause(); } catch { /* motor largado */ }
+          registarNaVelocidade(`muted keep-alive ran out after ${MANTER_VIVO_MS / 1000}s`);
+        }, MANTER_VIVO_MS);
+      }
+      return true;
+    } catch {
+      return false;
+    }
   };
 
   /**
@@ -903,6 +955,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       applyCeiling();
       usePlayer.setState({ resumePositionMs: null });
       nativeTrackIdRef.current = track.sourceId;
+      // A que entra já está a tocar: a que sai pode parar a sério.
+      mantidoVivoRef.current = null;
       try {
         sai.pause();
       } catch {
@@ -958,11 +1012,14 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       fadeIntervalRef.current = null;
     }
     // Silenciar JÁ a faixa anterior enquanto a nova resolve (senão continuava
-    // a tocar de fundo durante a resolução da nova).
-    try {
-      player.pause();
-    } catch {
-      // player pode ainda não ter fonte — ignorar
+    // a tocar de fundo durante a resolução da nova). Calada e a TOCAR, se
+    // estava a tocar: ver `mantidoVivoRef`.
+    if (!manterVivoCalado(player)) {
+      try {
+        player.pause();
+      } catch {
+        // player pode ainda não ter fonte — ignorar
+      }
     }
     setBackend('resolving');
     // FASE 1 (harvest) DESLIGADA. O player web do YouTube passou a SABR: o
@@ -1081,7 +1138,25 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // Consome-se aqui, seja qual for o caminho: um fim antigo não decide
       // pela faixa a seguir a esta.
       const semFade = entraSemFade(fimNaturalRef.current, track.sourceId, Date.now(), resumeMs);
+      // O encravamento conhecido (lib/arranqueTravado.ts): um AVPlayer que
+      // acabou de tocar um item até ao fim e recebe outro por baixo aceita o
+      // `play()` e não anda -- e o que o cura é um seek. Aplica-se já, em vez
+      // de esperar que a rede o apanhe. Com a seguinte no telemóvel eram 3 s
+      // nos 0:00 (27/9). Um seek ao 0 de um item acabado de carregar não custa.
+      const vemDeUmFim = !!fimNaturalRef.current
+        && Date.now() - fimNaturalRef.current.em <= JANELA_DO_FIM_NATURAL_MS;
       fimNaturalRef.current = null;
+      // A que saiu ficou a tocar calada (`mantidoVivoRef`): a nova entrou no
+      // lugar dela JÁ a tocar, sem som, e andou uns instantes. Volta ao 0.
+      const vinhaViva = !!mantidoVivoRef.current;
+      mantidoVivoRef.current = null;
+      if ((vemDeUmFim || vinhaViva) && !(resumeMs && resumeMs > 1500)) {
+        try {
+          motorActivo().currentTime = 0;
+        } catch {
+          // motor sem fonte -- a rede do arranque travado continua lá
+        }
+      }
       if (resumeMs && resumeMs > 1500) {
         try {
           motorActivo().currentTime = resumeMs / 1000;
@@ -1105,7 +1180,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       wantsPlayRef.current = autoplay;
       if (autoplay) {
         registarNaVelocidade(`play at track start/crossfade (motorActivo()) | ${fotoDaVelocidade(motorActivo())}`);
-        tocarNaVelocidade(motorActivo(),velocidadeNaSessao(st.playbackRate,!!useOuvirJuntos.getState().sessao),aplicarVelocidadeNativa);
+        tocarNaVelocidade(motorActivo(),(ritmoDeQuemSigo() ?? velocidadeNaSessao(st.playbackRate,!!useOuvirJuntos.getState().sessao)),aplicarVelocidadeNativa);
         if (semFade) {
           // A anterior acabou sozinha: a música entra inteira, como no álbum.
           if (fadeIntervalRef.current) { clearInterval(fadeIntervalRef.current); fadeIntervalRef.current = null; }
@@ -1763,6 +1838,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   });
   useEventListener(player, 'playToEnd', () => {
     if(usePlayer.getState().closing)return;
+    // A que sai, calada, chegou ao fim antes de a nova estar pronta: dá a
+    // volta, para a app não deixar de estar a tocar (ver `mantidoVivoRef`).
+    if (mantidoVivoRef.current && backend === 'resolving') {
+      try {
+        player.currentTime = 0;
+        player.play();
+      } catch {
+        // motor sem fonte — ignorar
+      }
+      return;
+    }
     if (backend === 'native' && nativeTrackIdRef.current === track.sourceId) {
       if (passagemRef.current) {
         // O áudio que sai acabou antes de a curva fechar -- a duração
@@ -1893,6 +1979,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     }
     onStateChange('ended');
   });
+
+  // A faixa nova saiu do "a resolver" sem passar pelo arranque do motor
+  // nativo (caiu no embed, ou o HLS tocou por conta própria): a que ficou a
+  // tocar calada já não serve a ninguém. No embed pára de vez.
+  useEffect(() => {
+    if (backend === 'resolving' || !mantidoVivoRef.current) return;
+    mantidoVivoRef.current = null;
+    if (backend !== 'native') {
+      try { motorActivo().pause(); } catch { /* motor sem fonte */ }
+    }
+  }, [backend]);
 
   // No embed (webview) a reprodução é do próprio YouTube — deixa de fazer
   // sentido o estado "a carregar" (pára o pulsar da capa).
@@ -2074,7 +2171,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           lastProgressRef.current = { time: lastProgressRef.current.time, at: Date.now() };
           // Configura antes de tocar: começar a 1x e corrigir logo depois
           // introduzia uma segunda mudança audível ao retomar. Jam mantém 1x.
-          tocarNaVelocidade(player,velocidadeNaSessao(
+          tocarNaVelocidade(player,ritmoDeQuemSigo() ?? velocidadeNaSessao(
             usePlayer.getState().playbackRate,!!useOuvirJuntos.getState().sessao
           ),aplicarVelocidadeNativa);
           registarNaVelocidade(`play | ${fotoDaVelocidade(player)}`);
@@ -2089,8 +2186,23 @@ export function YouTubePlayerView({ track }: { track: Track }) {
             }
           }
         },
+        silenciarParaTrocar: () => {
+          if (manterVivoCalado(player)) {
+            // Uma passagem a meio: a que entrava cala-se já, como na pausa.
+            if (passagemRef.current) {
+              try { motorEmEspera.pause(); } catch { /* motor sem fonte */ }
+            }
+            return;
+          }
+          wantsPlayRef.current = false;
+          player.pause();
+          if (passagemRef.current) {
+            try { motorEmEspera.pause(); } catch { /* motor sem fonte */ }
+          }
+        },
         pause: () => {
           wantsPlayRef.current = false;
+          mantidoVivoRef.current = null;
           player.pause();
           registarNaVelocidade(`pause | ${fotoDaVelocidade(player)}`);
           setTimeout(() => registarNaVelocidade(`+0.5 s after pause: ${fotoDaVelocidade(player)}`), 500);
@@ -2110,6 +2222,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           // desapareceu -- e a faixa atual continua.
           abortarPassagem();
           player.currentTime = ms / 1000;
+        },
+        motorParado: () => {
+          // Pronto e sem tocar: não está à espera de dados, ninguém o vai pôr
+          // a andar. Com outra faixa carregada, não se sabe.
+          if (!nativeTrackIdRef.current || nativeTrackIdRef.current !== usePlayer.getState().current?.sourceId) return false;
+          try {
+            const m = motorActivo();
+            return !m.playing && m.status === 'readyToPlay';
+          } catch {
+            return false;
+          }
         },
         posicaoDoMotorMs: () => {
           // A faixa da STORE, não a do closure: este registo não se refaz a

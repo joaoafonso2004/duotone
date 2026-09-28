@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Now Playing: troca de música</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--fundo:#060608;--hover:#1C1C24;--linha:rgba(233,234,238,.10);--texto:#E9EAEE;--medio:#9DA0AA;--fraco:#84868F;
+  --display:"Archivo",system-ui,sans-serif;--body:"Public Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--texto);font-family:var(--body)}
+.pagina{max-width:1180px;margin:0 auto;padding:36px 16px 60px}
+h1{font-family:var(--display);font-size:28px;margin:0 0 8px}
+.intro{color:var(--medio);font-size:15px;line-height:1.6;margin:0 0 18px;max-width:820px}
+.ctrl{display:flex;gap:10px;align-items:center;margin:0 0 16px}
+.btn{height:38px;padding:0 18px;border-radius:19px;background:var(--texto);color:#111;font-weight:700;font-size:14px;border:0;cursor:pointer}
+.btn2{background:transparent;color:var(--texto);border:1px solid var(--linha)}
+.nota{font-size:13px;color:var(--fraco)}
+.janela{position:relative;height:640px;border-radius:14px;border:1px solid rgba(255,255,255,.08);overflow:hidden;background:var(--fundo)}
+/* o fundo: a capa muito desfocada, como no Now Playing */
+.fundo{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(70px) saturate(1.2) brightness(.62)}
+.fundo.entra{animation:fundo 700ms ease both}
+@keyframes fundo{from{opacity:0}to{opacity:1}}
+.veu{position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,6,8,.15),rgba(6,6,8,.55) 55%,rgba(6,6,8,.8)),linear-gradient(0deg,rgba(6,6,8,.75),transparent 45%)}
+/* o topo novo */
+.topo{position:absolute;top:0;left:0;right:0;height:68px;display:flex;align-items:center;gap:14px;padding:0 32px}
+.voltar{width:34px;height:34px;border-radius:17px;display:grid;place-items:center;background:rgba(233,234,238,.06);cursor:pointer;transition:background-color 160ms}
+.voltar:hover{background:rgba(233,234,238,.12)}
+.origem{display:flex;flex-direction:column;gap:1px;cursor:pointer}
+.origem .antes{font-size:11.5px;color:var(--fraco);letter-spacing:.2px}
+.origem .nome{font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:4px}
+.origem:hover .nome span{text-decoration:underline}
+.grelha{position:absolute;top:68px;left:32px;right:32px;bottom:24px;display:flex;gap:56px}
+.lado{width:420px}
+.caixa{position:relative;width:420px;height:420px}
+.caixa img{position:absolute;inset:0;width:420px;height:420px;object-fit:cover;border-radius:14px}
+/* AS ANIMAÇÕES, iguais às do casca.web.tsx */
+.entra{animation:capaEntra 460ms cubic-bezier(.2,.8,.2,1) both}
+@keyframes capaEntra{from{opacity:0;transform:scale(.975)}to{opacity:1;transform:none}}
+.sai{animation:capaSai 600ms ease both}
+@keyframes capaSai{from{opacity:1}to{opacity:0}}
+.texto.entra2{animation:textoEntra 380ms cubic-bezier(.2,.8,.2,1) 90ms both}
+@keyframes textoEntra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.pontos{display:flex;gap:6px;justify-content:center;margin:12px 0 18px}.pontos i{width:6px;height:6px;border-radius:3px;background:rgba(233,234,238,.3)}.pontos i:first-child{background:var(--texto)}
+.titulo{font-family:var(--display);font-size:30px;font-weight:700;letter-spacing:-.5px}
+.artista{font-size:16px;color:var(--medio);margin-top:4px}
+.fila{flex:1;min-width:0}
+.fila h3{font-family:var(--display);font-size:18px;margin:14px 0 10px}
+.linha{display:flex;align-items:center;gap:12px;height:56px;padding:0 8px;border-radius:8px}
+.linha img{width:40px;height:40px;border-radius:5px;object-fit:cover}
+.linha .t{font-size:14px;font-weight:600}.linha .a{font-size:12px;color:var(--medio);margin-top:2px}
+.linha .d{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--fraco)}
+.smart{color:#E8B84B}
+</style>
+</head>
+<body>
+<div class="pagina">
+<h1>Now Playing do PC: troca de música e o topo novo</h1>
+<p class="intro">A mesma animação que está no código, com os mesmos tempos: a capa nova aparece por cima da anterior (460 ms), a anterior desaparece por baixo (600 ms), o título entra logo a seguir e o fundo desfocado muda devagar. No topo, o voltar num círculo discreto e a origem em duas linhas. Na fila, uma sugestão do Smart Shuffle passa a dizer "Smart shuffle" em vez de uma estrela minúscula.</p>
+<div class="ctrl"><button class="btn" id="seg">Next song</button><button class="btn btn2" id="auto">Auto: off</button><span class="nota">As capas são as miniaturas reais do YouTube de cada música.</span></div>
+<div class="janela">
+  <div id="fundos"></div>
+  <div class="veu"></div>
+  <div class="topo">
+    <div class="voltar" title="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E9EAEE" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+    <div class="origem"><div class="antes">Playing from</div><div class="nome"><span>Liked Songs</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9DA0AA" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div></div>
+  </div>
+  <div class="grelha">
+    <div class="lado">
+      <div class="caixa" id="caixa"></div>
+      <div class="pontos"><i></i><i></i></div>
+      <div class="texto" id="texto"></div>
+    </div>
+    <div class="fila"><h3>Up next</h3><div id="fila"></div></div>
+  </div>
+</div>
+</div>
+<script>
+const M=[['mzB1VGEGcSU','Lucid Dreams','Juice WRLD','3:59'],['xpVfcZ0ZcFM','One Dance','Drake','2:54'],['xFYQQPAOz7Y','Mask Off','Future','3:24'],['K5KAc5CoCuk','HIGHEST IN THE ROOM','Travis Scott','2:55'],['UceaB4D0jpo','Sicko Mode','Travis Scott','5:12']];
+const capa=(id,q='maxresdefault')=>`https://i.ytimg.com/vi/${id}/${q}.jpg`;
+let i=0;
+function desenhar(anterior){
+  const [id,t,a]=M[i];
+  const caixa=document.getElementById('caixa');
+  caixa.innerHTML=(anterior!=null?`<img class="sai" src="${capa(M[anterior][0])}">`:'')+`<img class="${anterior!=null?'entra':''}" src="${capa(id)}">`;
+  const tx=document.getElementById('texto');
+  tx.className='texto'+(anterior!=null?' entra2':'');void tx.offsetWidth;
+  tx.innerHTML=`<div class="titulo">${t}</div><div class="artista">${a}</div>`;
+  const f=document.getElementById('fundos');
+  f.insertAdjacentHTML('beforeend',`<div class="fundo ${anterior!=null?'entra':''}" style="background-image:url(${capa(id,'mqdefault')})"></div>`);
+  while(f.children.length>2)f.firstElementChild.remove();
+  document.getElementById('fila').innerHTML=[1,2,3,4].map((k)=>{const [q,tt,aa,d]=M[(i+k)%M.length];const s=k===3;return `<div class="linha"><img src="${capa(q,'mqdefault')}"><div><div class="t">${tt}</div><div class="a">${s?'<span class="smart">Smart shuffle</span> · ':''}${aa}</div></div><div class="d">${d}</div></div>`}).join('');
+  setTimeout(()=>{const s=caixa.querySelector('.sai');if(s)s.remove();},650);
+}
+desenhar(null);
+document.getElementById('seg').onclick=()=>{const a=i;i=(i+1)%M.length;desenhar(a);};
+let t=null;document.getElementById('auto').onclick=(e)=>{if(t){clearInterval(t);t=null;e.target.textContent='Auto: off';}else{t=setInterval(()=>document.getElementById('seg').click(),2500);e.target.textContent='Auto: on';}};
+</script>
+</body>
+</html>

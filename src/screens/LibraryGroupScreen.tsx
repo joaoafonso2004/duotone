@@ -9,6 +9,7 @@ import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
+import { fotoDoArtista } from '../api/catalogo';
 import { searchYouTube, searchYouTubePlaylists } from '../api/youtube';
 import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { EmptyState } from '../components/EmptyState';
@@ -92,6 +93,16 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       .finally(() => { if (alive) setLoadingYtAlbums(false); });
     return () => { alive = false; };
   }, [type, name]);
+  // A FOTO do artista vem do catálogo (27/9, `fotoDoArtista`). Era a capa da
+  // primeira música dele na biblioteca, e quem não tinha nenhuma via uma nota.
+  const [foto, setFoto] = useState<string | null>(null);
+  useEffect(() => {
+    if (type !== 'artist' || !name) return;
+    let vivo = true;
+    setFoto(null);
+    void fotoDoArtista(name).then((url) => { if (vivo) setFoto(url); });
+    return () => { vivo = false; };
+  }, [type, name]);
   const otherTracks = useMemo(() => {
     const ids = new Set(tracks.map(t => `${t.source}:${t.sourceId}`));
     return ytTracks.filter(t => !ids.has(`${t.source}:${t.sourceId}`));
@@ -145,17 +156,23 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       </Pressable>
     </>
   );
+  // A foto do catálogo; sem ela, a capa de uma música dele -- da biblioteca e,
+  // se lá não houver nenhuma, das que se encontraram fora dela.
+  const capaDoArtista = foto
+    ?? tracks.find((t) => t.artworkUrl)?.artworkUrl
+    ?? ytTracks.find((t) => t.artworkUrl)?.artworkUrl
+    ?? null;
   const total = tracks.length && tracks.every(t => (t.durationSeconds ?? 0) > 0)
     ? tracks.reduce((sum, t) => sum + t.durationSeconds!, 0) : null;
   const header = <>
-    {type === 'artist' ? <CabecalhoDaPlaylist artista nome={name} artworks={tracks.flatMap(t => t.artworkUrl ? [t.artworkUrl] : []).slice(0, 1)}
+    {type === 'artist' ? <CabecalhoDaPlaylist artista nome={name} artworks={capaDoArtista ? [capaDoArtista] : []}
       faixas={tracks.length} duracaoSegundos={total}
       accoes={tracks.length ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
         <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true)} />
       </View> : null}
     {type === 'artist' && <View style={styles.tabsContainer}>
       {([
-        ['library', 'In your library'], ['youtube_tracks', 'On YouTube'], ['youtube_albums', 'Albums'],
+        ['library', 'In your library'], ['youtube_tracks', 'More songs'], ['youtube_albums', 'Albums'],
       ] as const).map(([tab, label]) => <Pressable key={tab} accessibilityRole="tab" accessibilityState={{ selected: activeTab === tab }}
         style={[styles.tabChip, activeTab === tab && styles.tabChipActive]} onPress={() => setActiveTab(tab)}>
         <Text style={[styles.tabLabel, activeTab === tab && { color: colors.text }]}>{label}</Text>
@@ -177,14 +194,14 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         ListEmptyComponent={waiting ? <ActivityIndicator color={theme.color} style={{ marginTop: 32 }} /> :
           <EmptyState icon={activeTab === 'youtube_albums' ? 'albums-outline' : 'musical-notes-outline'}
             title={activeTab === 'library' ? 'Nothing here' : activeTab === 'youtube_albums' ? 'No albums found' : 'No tracks found'}
-            subtitle={activeTab === 'library' ? 'These songs may have been removed from your library.' : 'No results for this artist on YouTube.'} />}
+            subtitle={activeTab === 'library' ? 'These songs may have been removed from your library.' : 'No other songs found for this artist.'} />}
         renderItem={({ item }) => activeTab === 'youtube_albums' ? <Pressable accessibilityRole="button"
           onPress={() => { setSelectedYtPlaylistId(item.id); setSelectedYtPlaylistTitle(item.title); setSelectedYtPlaylistArtwork(item.artworkUrl); }}
           style={({ pressed }) => [styles.albumRow, pressed && { backgroundColor: colors.surfacePressed }]}>
           {item.artworkUrl ? <Image source={{ uri: capaParaLista(item.artworkUrl)! }} style={styles.albumArt} /> :
             <View style={[styles.albumArt, styles.albumArtFallback]}><Ionicons name="albums-outline" size={20} color={colors.textTertiary} /></View>}
           <View style={{ flex: 1, gap: 2 }}><Text numberOfLines={1} style={[typography.body, { fontWeight: '600' }]}>{item.title}</Text>
-            <Text numberOfLines={1} style={typography.caption}>{item.channelTitle || 'YouTube'}</Text></View>
+            <Text numberOfLines={1} style={typography.caption}>{item.channelTitle || 'Album'}</Text></View>
           <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
         </Pressable> : <TrackRow track={item} showSavedBadge={activeTab === 'youtube_tracks'}
           acompanharATocar

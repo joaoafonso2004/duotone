@@ -20,6 +20,7 @@ import { BarreiraDeErros } from '../components/BarreiraDeErros';
 import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { useAuth } from '../state/auth';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { useSeguirAmigo } from '../state/seguirAmigo';
 import { usePlayer } from '../state/player';
 import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -498,6 +499,41 @@ function BarraDeProgresso() {
   </View>;
 }
 
+/**
+ * "With X ×" ao lado do botão do Jam (27/9, "Listen along",
+ * state/seguirAmigo.ts): seguir alguém é um modo -- o leitor deixa de obedecer
+ * à tua fila --, e sem isto lia-se como a app a escolher músicas sozinha. O ×
+ * deixa de o seguir. Quando é ele que sai, diz-se uns segundos.
+ */
+function SeguirNaBarra() {
+  const seguindo = useSeguirAmigo((s) => s.seguindo);
+  const aviso = useSeguirAmigo((s) => s.aviso);
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => useSeguirAmigo.getState().limparAviso(), 6000);
+    return () => clearTimeout(t);
+  }, [aviso]);
+  if (!seguindo) {
+    return aviso ? <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 11, color: COR.textoMedio, maxWidth: 200, marginRight: 8 }}>{aviso}</Text> : null;
+  }
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Listening along with ${seguindo.nome}. Leave`}
+      onPress={() => useSeguirAmigo.getState().parar(null)}
+      style={({ hovered }: any) => ({
+        flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: 200, marginRight: 8,
+        paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1,
+        borderColor: COR.linha, backgroundColor: hovered ? COR.hover : COR.metalSuave,
+      })}
+    >
+      <Ionicons name="headset" size={13} color={COR.texto} />
+      <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 12, fontWeight: '600', color: COR.texto, flexShrink: 1 }}>With {seguindo.nome}</Text>
+      <Ionicons name="close" size={13} color={COR.textoMedio} />
+    </Pressable>
+  );
+}
+
 export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLigado = false, onAviso }: {
   currentIsSaved: boolean; toggleSaveCurrent: () => void; onJam: () => void;
   /** O Discord está a publicar -- quem sabe é a casca, que tem a preferência. */
@@ -606,6 +642,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     </View>
     <View style={styles.playerRight}>
       {p.error && <Text numberOfLines={1} style={styles.playerError}>{p.error}</Text>}
+      <SeguirNaBarra />
       {/* Quem vê o que está a tocar, ao lado do botão que abre o Jam. */}
       <IndicadorDeVisibilidade discordLigado={discordLigado} onJam={onJam} onAviso={onAviso} />
       <IconButton name={jam ? 'people' : 'people-outline'} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam} />

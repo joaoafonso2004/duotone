@@ -56,6 +56,9 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   /** Pesquisa no YouTube pelo processo principal, que nao tem CORS. Feita
    * no renderer, o preflight leva 403 e a chamada morre antes da resposta. */
   pesquisarNoYouTube: (pedido) => ipcRenderer.invoke('yt:pesquisa', pedido),
+  /** As cancoes do YouTube Music (com a marca de explicita), pela mesma razao.
+   * Leva so a pergunta; o endereco e o filtro vivem do outro lado. */
+  pesquisarCancoes: (pedido) => ipcRenderer.invoke('ytmusic:pesquisa', pedido),
   /** O catalogo (Deezer) pelo processo principal, pela mesma razao: no
    * renderer a resposta vem sem `Access-Control-Allow-Origin` e o browser
    * deita-a fora, o que deixava a descoberta toda vazia no Windows. Leva o

@@ -65,9 +65,12 @@ verificar('sem duracao conhecida tambem nao ha barra', () => {
   assert.equal(p.timestamps, undefined);
 });
 
-verificar('o botao aponta para a faixa', () => {
+verificar('fora de um Jam nao ha botao nenhum, nem link para o YouTube', () => {
+  // 27/9, Joao: so o "juntar-se" de um Jam, e esse e o nativo do Discord.
   const p = presencaDaFaixa(f(), aTocar, titulo, artista)!;
-  assert.deepEqual(p.buttons, [{ label: 'Listen on YouTube', url: 'https://www.youtube.com/watch?v=abc123' }]);
+  assert.equal(p.buttons, undefined);
+  assert.equal(p.secrets, undefined, 'e sem Jam nao ha juntar-se');
+  assert.ok(!JSON.stringify(p).includes('youtube.com/watch'), 'nenhum link para o video');
 });
 
 verificar('um Jam publica party e segredo para o botao nativo Juntar-se', () => {

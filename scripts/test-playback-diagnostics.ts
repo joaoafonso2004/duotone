@@ -179,7 +179,7 @@ check('resume por tipo', r['bloqueio-bot'] === 2 && r['indisponivel'] === 1, JSO
 const texto = relatorio({ versao: '1.4.1', build: 'abc123', plataforma: 'ios', gerado: '2026-08-29T14:31:00Z' });
 check('o relatorio TEM o detalhe tecnico', texto.includes('client=IOS pot=no') && texto.includes('http=403'));
 check('o relatorio tem o build', texto.includes('abc123'));
-check('o relatorio conta as falhas', texto.includes('2x throttled by YouTube'));
+check('o relatorio conta as falhas', texto.includes('2x throttled'));
 // O identificador interno fica no relatorio (serve para mim), mas acompanhado
 // do nome legivel — na UI so aparece o nome.
 check('e mantem o identificador ao lado', texto.includes('(bloqueio-bot)'));

@@ -10,6 +10,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FILTROS_DE_VERSAO, filtrosComResultados, versaoPassa, type FiltroDeVersao } from '../../lib/filtroDeVersao';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { fotoDoArtista } from '../../api/catalogo';
 import { getLikedSongs } from '../../api/library';
 import {
   fetchYouTubePlaylistById, searchYouTubePlaylists,
@@ -130,7 +131,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
         </> : null}
         {loading ? <View style={{ height: 200 }}><Loading /></View>
           : results.length ? <>
-            {naBiblioteca.length ? <Text style={[styles.sectionTitle, { marginTop: 24 }]}>On YouTube</Text> : null}
+            {naBiblioteca.length ? <Text style={[styles.sectionTitle, { marginTop: 24 }]}>More results</Text> : null}
             {filtrosDaVersao.length > 2 ? <View style={[styles.chips, { marginBottom: 12 }]}>{FILTROS_DE_VERSAO.filter((f) => filtrosDaVersao.includes(f.id)).map((f) => (
               <Pressable key={f.id} onPress={() => setVersao(f.id)} accessibilityRole="button" accessibilityState={{ selected: versao === f.id }}
                 style={({ hovered }) => [styles.chip, hovered && styles.chipHover, versao === f.id && { backgroundColor: desktop.text }]}>
@@ -181,7 +182,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       : <Empty icon={recsCarregadas ? 'search-outline' : 'sparkles-outline'}
           title={recsCarregadas ? 'Nothing to recommend yet' : 'Preparing recommendations…'}
           body={recsCarregadas
-            ? hasFeedback?'No suggestions match your current preferences. Review them in Settings → Recommendations, or search for music above.':'Listen to a few tracks and this page will learn what you enjoy. Until then, search the YouTube catalogue above.'
+            ? hasFeedback?'No suggestions match your current preferences. Review them in Settings → Recommendations, or search for music above.':'Listen to a few tracks and this page will learn what you enjoy. Until then, search for any song above.'
             : 'One moment.'} />}
     </ContentScroll></Page>;
 }
@@ -408,6 +409,13 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const [aCarregarAlbum, setACarregarAlbum] = useState(false);
   const [aGuardarAlbum, setAGuardarAlbum] = useState(false);
   const pedidoDeAlbum = useRef(0);
+  const [foto, setFoto] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    setFoto(null);
+    void fotoDoArtista(name).then((url) => { if (vivo) setFoto(url); });
+    return () => { vivo = false; };
+  }, [name]);
   // Pela chave e nao pelo nome: a pagina tem de trazer as faixas das TRES
   // grafias, senao o cartao dizia 5 faixas e a pagina abria com 2.
   const tracks = useMemo(() => {
@@ -518,8 +526,12 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     <Page title="Artist" action={<Button secondary icon="arrow-back" onPress={back}>Back to artists</Button>}>
       <ContentScroll scrollKey={`artist:${chaveDeArtista(name)}`}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <>
         <View style={styles.detailHero}>
-          <View style={[styles.detailHeroArt, !tracks[0] && artistStyles.heroFallback]}>{tracks[0] ? <Artwork track={tracks[0]} size={176} /> :
-            <Ionicons name="person" size={48} color={desktop.dim} />}</View>
+          {/* A foto do catálogo (27/9, `fotoDoArtista`); sem ela, uma música dele. */}
+          <View style={[styles.detailHeroArt, !foto && !tracks[0] && !outras[0] && artistStyles.heroFallback]}>{foto
+            ? <Image source={{ uri: foto }} style={{ width: 176, height: 176 }} />
+            : tracks[0] ? <Artwork track={tracks[0]} size={176} />
+            : outras[0] ? <Artwork track={outras[0]} size={176} />
+            : <Ionicons name="person" size={48} color={desktop.dim} />}</View>
           <View style={styles.detailHeroBody}>
             <Text style={styles.detailHeroEyebrow}>ARTIST</Text>
             <Text numberOfLines={2} style={styles.detailHeroTitle}>{name}</Text>
@@ -549,7 +561,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
 
         {separador === 'tracks' && (aDescobrir ? <View style={{ height: 280 }}><Loading /></View> :
           <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasSemRepetir} onPlay={(t) => props.play(t, outrasSemRepetir, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
-            empty={<Empty icon="search-outline" title="No other tracks found" body="No verified additional tracks by this artist were found on YouTube." />} />)}
+            empty={<Empty icon="search-outline" title="No other tracks found" body="No other songs by this artist were found." />} />)}
 
         {separador === 'albums' && (aDescobrir ? <View style={{ height: 280 }}><Loading /></View> : albuns.length ?
           <View style={artistStyles.albumGrid}>{albuns.map((album) => <Pressable key={album.id} onPress={() => void abrirAlbum(album)}
@@ -557,9 +569,9 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             {album.artworkUrl ? <Image source={{ uri: album.artworkUrl }} style={artistStyles.albumArt} /> :
               <View style={[artistStyles.albumArt, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={34} color={desktop.dim} /></View>}
             <Text numberOfLines={2} style={artistStyles.albumTitle}>{album.title}</Text>
-            <Text numberOfLines={1} style={artistStyles.albumMeta}>{album.channelTitle || 'YouTube'}</Text>
+            <Text numberOfLines={1} style={artistStyles.albumMeta}>{album.channelTitle || 'Album'}</Text>
           </Pressable>)}</View> :
-          <Empty icon="albums-outline" title="No albums found" body="No verified albums by this artist were found on YouTube." />)}
+          <Empty icon="albums-outline" title="No albums found" body="No albums by this artist were found." />)}
       </>}</ContentScroll>
     </Page>
 

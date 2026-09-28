@@ -39,7 +39,7 @@ function Barra({ style }: { style?: ViewStyle }) {
 /** Uma linha com a forma de uma faixa: capa, título e artista. */
 export function SkeletonDeFaixas({ linhas = 8 }: { linhas?: number }) {
   return (
-    <View accessibilityLabel="A carregar" style={{ paddingHorizontal: spacing.xl }}>
+    <View accessibilityLabel="Loading" style={{ paddingHorizontal: spacing.xl }}>
       {Array.from({ length: linhas }).map((_, i) => (
         <View key={i} style={styles.linha}>
           <Barra style={styles.capa} />
@@ -85,7 +85,7 @@ export function SkeletonDePrateleira({ cartoes = 4, largura = 120 }: {
 /** A grelha redonda dos artistas. */
 export function SkeletonDeArtistas({ linhas = 6 }: { linhas?: number }) {
   return (
-    <View accessibilityLabel="A carregar" style={{ paddingHorizontal: spacing.xl }}>
+    <View accessibilityLabel="Loading" style={{ paddingHorizontal: spacing.xl }}>
       {Array.from({ length: linhas }).map((_, i) => (
         <View key={i} style={styles.linha}>
           <Barra style={styles.redondo} />
@@ -103,7 +103,7 @@ export function SkeletonDeArtistas({ linhas = 6 }: { linhas?: number }) {
  */
 export function SkeletonDePlaylists({ lado, linhas = 3 }: { lado: number; linhas?: number }) {
   return (
-    <View accessibilityLabel="A carregar" style={styles.grelha}>
+    <View accessibilityLabel="Loading" style={styles.grelha}>
       {Array.from({ length: linhas * 2 }).map((_, i) => (
         <View key={i} style={{ width: lado, gap: spacing.sm }}>
           <Barra style={{ width: lado, height: lado, borderRadius: radii.lg }} />
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
  */
 export function SkeletonDeConversas({ linhas = 6 }: { linhas?: number }) {
   return (
-    <View accessibilityLabel="A carregar">
+    <View accessibilityLabel="Loading">
       {Array.from({ length: linhas }).map((_, i) => (
         <View key={i} style={styles.conversa}>
           <Barra style={styles.avatarGrande} />
@@ -183,7 +183,7 @@ export function SkeletonDeConversas({ linhas = 6 }: { linhas?: number }) {
  */
 export function SkeletonDoPerfil() {
   return (
-    <View accessibilityLabel="A carregar" style={{ gap: spacing.xl }}>
+    <View accessibilityLabel="Loading" style={{ gap: spacing.xl }}>
       <View style={{ gap: spacing.md }}>
         <Barra style={{ height: 132, borderRadius: radii.lg }} />
         <View style={{ paddingHorizontal: spacing.xl, gap: 9 }}>

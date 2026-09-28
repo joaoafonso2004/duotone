@@ -30,7 +30,7 @@ import { usePlayer } from '../../state/player';
 import { useTheme } from '../../state/theme';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { Button, ContentScroll, desktop, Dialog, Field, Page } from '../ui.web';
+import { Button, ContentScroll, desktop, Dialog } from '../ui.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
 import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
@@ -101,6 +101,23 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const [rewind, setRewindState] = useState(false);
    const [opacity, setOpacity] = useState('0.72');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  // A conta (27/9): o "Sign out", o "Reset password" e o email viviam no perfil
+  // antigo e sumiram quando ele passou a ser o SocialProfileView (3/9) -- o PC
+  // ficou sem porta para sair da conta. Agora é a secção Account, como no iPhone.
+  const email = useAuth((s) => s.session?.user?.email ?? null);
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
+  const [aRepor, setARepor] = useState(false);
+  const resetPassword = async () => {
+    setARepor(true);
+    try {
+      const erro = await useAuth.getState().resetPassword();
+      notify(erro ?? 'We sent a password reset link to your email.');
+    } catch {
+      notify('Could not send the reset email. Please try again.');
+    } finally {
+      setARepor(false);
+    }
+  };
   const [seccao, setSeccao] = useState<IdDaSeccao>(seccaoAberta);
   const [estreita, setEstreita] = useState(false);
   const [corDoLeitor, setCorDoLeitorState] = useState<CorDoLeitor>('janela');
@@ -451,7 +468,16 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
                 />
                 <SettingAction label="Save playback report" description="If a song won't play, or Duotone feels heavy, send this so it can be fixed." onPress={() => { notify('Preparing the report…'); void exportarRelatorio(); }} />
-                <SettingAction danger label="Delete account permanently" onPress={() => setDeleteConfirm(true)} />
+              </SettingsCard>}
+
+              {/* As mesmas três coisas da secção Account do iPhone, e o apagar a
+                  conta, que vivia no About. Sem rede, como lá, ficam apagadas. */}
+              {aberta === 'conta' && <SettingsCard title="Account">
+                {offline ? <Text style={[styles.settingDescription, { paddingHorizontal: 17, paddingTop: 10, marginTop: 0 }]}>Offline · connect to manage your account.</Text> : null}
+                <SettingLine label="Email" value={email ?? '—'} />
+                <SettingAction label={aRepor ? 'Sending…' : 'Reset password'} description="We'll email you a link to choose a new one." disabled={offline || aRepor} onPress={() => void resetPassword()} />
+                <SettingAction label="Sign out" description="Stops the music and clears the queue on this computer." onPress={() => setSignOutConfirm(true)} />
+                <SettingAction danger label="Delete account" disabled={offline} onPress={() => setDeleteConfirm(true)} />
               </SettingsCard>}
             </View>
           </View>
@@ -461,14 +487,21 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
         <Text style={styles.dialogBody}>Your account and all profile data will be permanently deleted. This cannot be undone.</Text>
         <View style={styles.dialogActions}>
           <Button secondary onPress={() => setDeleteConfirm(false)}>Cancel</Button>
-          <Button danger onPress={runDeleteAccount}>Delete Account</Button>
+          <Button danger onPress={runDeleteAccount}>Delete account</Button>
+        </View>
+      </Dialog>
+      <Dialog open={signOutConfirm} title="Sign out?" onClose={() => setSignOutConfirm(false)}>
+        {email ? <Text style={styles.dialogBody}>{email}</Text> : null}
+        <View style={styles.dialogActions}>
+          <Button secondary onPress={() => setSignOutConfirm(false)}>Cancel</Button>
+          <Button danger onPress={() => { setSignOutConfirm(false); void useAuth.getState().signOut(); }}>Sign out</Button>
         </View>
       </Dialog>
     </View>
   );
 }
 
-type IdDaSeccao = 'reproducao' | 'som' | 'aspeto' | 'windows' | 'atalhos' | 'biblioteca' | 'sobre';
+type IdDaSeccao = 'reproducao' | 'som' | 'aspeto' | 'windows' | 'atalhos' | 'biblioteca' | 'conta' | 'sobre';
 const SECCOES: { id: IdDaSeccao; nome: string; icone: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'reproducao', nome: 'Playback', icone: 'play-circle-outline' },
   { id: 'som', nome: 'Sound', icone: 'options-outline' },
@@ -476,6 +509,7 @@ const SECCOES: { id: IdDaSeccao; nome: string; icone: keyof typeof Ionicons.glyp
   { id: 'windows', nome: 'Windows', icone: 'desktop-outline' },
   { id: 'atalhos', nome: 'Shortcuts', icone: 'keypad-outline' },
   { id: 'biblioteca', nome: 'Library', icone: 'library-outline' },
+  { id: 'conta', nome: 'Account', icone: 'person-circle-outline' },
   { id: 'sobre', nome: 'About', icone: 'information-circle-outline' },
 ];
 /** A secção aberta sobrevive a sair e voltar às Definições. */
@@ -485,7 +519,7 @@ export function SettingsCard({ title, children }: { icon?: keyof typeof Ionicons
 
 export function SettingLine({ label, value }: { label: string; value: string }) { return <View style={styles.settingLine}><Text style={[styles.settingLabel, { flex: 1 }]}>{label}</Text><Text numberOfLines={1} style={styles.settingValue}>{value}</Text></View>; }
 
-export function SettingAction({ label, description, onPress, danger = false }: { label: string; description?: string; onPress: () => void; danger?: boolean }) { return <Pressable onPress={onPress} style={({ hovered }) => [styles.settingLine, hovered && styles.settingHover]}><View style={{ flex: 1 }}><Text style={[styles.settingLabel, danger && { color: desktop.danger }]}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}</View><Ionicons name="chevron-forward" size={15} color={desktop.dim} /></Pressable>; }
+export function SettingAction({ label, description, onPress, danger = false, disabled = false }: { label: string; description?: string; onPress: () => void; danger?: boolean; disabled?: boolean }) { return <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled }} style={({ hovered }) => [styles.settingLine, hovered && !disabled && styles.settingHover, disabled && { opacity: 0.45 }]}><View style={{ flex: 1 }}><Text style={[styles.settingLabel, danger && { color: desktop.danger }]}>{label}</Text>{description ? <Text style={styles.settingDescription}>{description}</Text> : null}</View><Ionicons name="chevron-forward" size={15} color={desktop.dim} /></Pressable>; }
 
 /**
  * O que a opção está a fazer agora (lib/efeitoDasDefinicoes.ts), por baixo da

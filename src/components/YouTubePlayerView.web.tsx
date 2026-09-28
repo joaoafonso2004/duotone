@@ -8,6 +8,7 @@ import {
 } from '../lib/playbackDiagnostics';
 import { baterSessao } from '../lib/sessionSync';
 import { velocidadeNaSessao } from '../lib/jam';
+import { ritmoDeQuemSigo, useSeguirAmigo } from '../state/seguirAmigo';
 import { aoTocar, chaveDaFaixa } from '../lib/equalizer';
 import { arredondar as arredondarRate } from '../lib/playbackRate';
 import { usePlayer } from '../state/player';
@@ -29,7 +30,8 @@ import {
  * fugia-lhe um segundo a cada dez. Ver `velocidadeNaSessao`.
  */
 function velocidadeDoMotor(): number {
-  return velocidadeNaSessao(usePlayer.getState().playbackRate, !!useOuvirJuntos.getState().sessao);
+  // A seguir um amigo, à velocidade dele (state/seguirAmigo.ts).
+  return ritmoDeQuemSigo() ?? velocidadeNaSessao(usePlayer.getState().playbackRate, !!useOuvirJuntos.getState().sessao);
 }
 
 /**
@@ -41,7 +43,7 @@ function velocidadeDoMotor(): number {
 function velocidadeDaFaixa(t: Track): number {
   const st = usePlayer.getState();
   const r = aoTocar(st.ajustesPorFaixa, chaveDaFaixa(t), { rate: st.padraoRate, ganhos: st.padraoGanhos }).rate;
-  return velocidadeNaSessao(arredondarRate(r), !!useOuvirJuntos.getState().sessao);
+  return ritmoDeQuemSigo() ?? velocidadeNaSessao(arredondarRate(r), !!useOuvirJuntos.getState().sessao);
 }
 
 /** O player do IFrame está neste vídeo? Sem maneira de saber, assume-se que sim. */
@@ -725,7 +727,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // Entrar e sair de um Jam também muda a velocidade do motor: a 1x lá dentro,
   // e de volta à escolhida à saída.
   const emJam = useOuvirJuntos((s) => !!s.sessao);
-  const playbackRate = velocidadeNaSessao(velocidadeEscolhida, emJam);
+  const ritmoSeguido = useSeguirAmigo((s) => s.ritmo);
+  const playbackRate = ritmoSeguido ?? velocidadeNaSessao(velocidadeEscolhida, emJam);
   useEffect(() => {
     // O ativo pode ainda ser null (o IFrame monta-se depois). Antes havia
     // aqui um `if (!p) return` que abortava o efeito inteiro — e como ele so

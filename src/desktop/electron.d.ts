@@ -58,6 +58,8 @@ declare global {
       setUnreadMessages?: (count: number, attention: boolean) => void;
       onNotificationClick?: (listener: (conversation?:{friendId?:string;groupId?:string}) => void) => () => void;
       pesquisarNoYouTube?: (pedido: { query?: string; clientVersion: string; params?: string; continuation?: string }) => Promise<any>;
+      /** As canções do YouTube Music, com a marca de explícita (lib/cancoesDoYtMusic.ts). */
+      pesquisarCancoes?: (pedido: { query: string; clientVersion: string }) => Promise<any>;
       /** Um GET ao catálogo pelo processo principal, que não tem CORS. Leva só
        * o caminho (`/artist/123/related?limit=25`); o endereço e as formas que
        * passam vivem no `electron/main.cjs`. Devolve `null` num HTTP mau, que é

@@ -14,6 +14,20 @@ export interface PlaybackControls {
    * travado usa para confirmar que está mesmo parado antes de voltar ao 0.
    */
   posicaoDoMotorMs?: () => number | null;
+  /**
+   * O motor está PARADO de certeza: pronto, sem estar a tocar nem à espera de
+   * dados. É o que deixa a rede do arranque travado agir ao fim de um segundo
+   * em vez de dois e meio (ver `MOTOR_PARADO_MS`).
+   */
+  motorParado?: () => boolean;
+  /**
+   * Na troca de faixa, em vez de pausar: a que sai continua a TOCAR, calada,
+   * até a nova estar pronta (27/9, só o motor do iPhone o tem). Com o ecrã
+   * bloqueado o iOS só deixa começar a tocar quem JÁ está a tocar, e a pausa
+   * durante o download tirava essa licença: o download acabava e a música não
+   * começava. Sem isto, pausa-se como sempre.
+   */
+  silenciarParaTrocar?: () => void;
 }
 
 export interface PlaybackSource {
@@ -55,7 +69,8 @@ export function pauseMountedSourceBeforeChange(
   controls: PlaybackControls | null
 ): boolean {
   if (!controls || !current || samePlaybackSource(current, requested)) return false;
-  controls.pause();
+  if (controls.silenciarParaTrocar) controls.silenciarParaTrocar();
+  else controls.pause();
   return true;
 }
 
