@@ -79,10 +79,13 @@ export function AmigosNaLateral({ navigate }: { navigate: (r: Route) => void }) 
                 {faixa ? `${tituloDaFaixa(faixa)} · ${displayArtist(faixa)}` : 'Online'}
               </Text>
               {/* Só o fio (27/9: o João experimentou com os tempos e preferiu
-                  sem eles). */}
+                  sem eles). Anda por `scaleX` e não por `width` (28/9): com
+                  uma posição nova por segundo a transição nunca pára, e a
+                  largura refazia o layout a cada fotograma -- ~450 vezes por
+                  segundo com 8 amigos, medido; a escala fica no compositor. */}
               {onde ? (
                 <View style={{ height: 2, borderRadius: 1, backgroundColor: 'rgba(233,234,238,0.14)', marginTop: 5, overflow: 'hidden' }}>
-                  <View style={{ height: 2, width: `${Math.round(onde.fracao * 1000) / 10}%`, backgroundColor: COR.texto, transition: 'width 1s linear' } as any} />
+                  <View style={{ height: 2, width: '100%', transform: [{ scaleX: Math.round(onde.fracao * 1000) / 1000 }], transformOrigin: 'left', backgroundColor: COR.texto, transition: 'transform 1s linear' } as any} />
                 </View>
               ) : null}
             </View>

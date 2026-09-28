@@ -135,6 +135,15 @@ caso('nada de backdrop-filter na superfície da janela', () => {
   assert.match(estilos, /backgroundImage:[\s\S]{0,400}?filter: 'blur\((\d+)px\) brightness/,
     'o fundo deixou de trazer o desfoque dele');
 });
+caso('a barra dos amigos anda por escala, não por largura', () => {
+  // Recebe uma posição por segundo com uma transição de 1 s: nunca pára. Com
+  // `width` o layout refazia-se a cada fotograma (~450 vezes por segundo com 8
+  // amigos, medido a 28/9); o `scaleX` fica no compositor.
+  const amigos = readFileSync('src/desktop/AmigosNaLateral.web.tsx', 'utf8');
+  assert.ok(!/transition: 'width/.test(amigos), 'a barra dos amigos voltou a animar a largura');
+  assert.match(amigos, /scaleX: [^\n]*transformOrigin: 'left'[^\n]*transition: 'transform 1s linear'/,
+    'a escala tem de crescer da esquerda e com a mesma transição de 1 s');
+});
 caso('os nomes de classe antigos não voltaram', () => {
   assert.ok(!CASCA.includes('glass-panel'), 'sobrou o nome antigo do vidro');
   assert.ok(!/slider-(container|fill|thumb)/.test(CASCA), 'sobraram as classes antigas da barra');
