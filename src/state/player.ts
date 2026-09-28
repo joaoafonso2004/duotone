@@ -425,6 +425,8 @@ interface PlayerState {
   tocarLista: (tracks: Track[], aleatorio: boolean, inteligente?: boolean, origem?: OrigemDaFila | null) => Promise<void>;
   playNext: (track: Track) => void;
   addToQueue: (track: Track) => void;
+  /** Uma lista inteira no fim da fila, de uma vez (o "Add to queue" de uma playlist, 28/9). */
+  addManyToQueue: (tracks: Track[]) => void;
   togglePlay: () => Promise<void>;
   _sincronizarPausa: (aTocar: boolean) => void;
   /** Como o `_sincronizarPausa`, mas sem a guarda da intenção. Ver lá. */
@@ -888,15 +890,28 @@ async function chavesDasEscutasRecentes(dono: string | null): Promise<Set<string
   return pedido;
 }
 
+/**
+ * As músicas descobertas nos últimos 30 dias -- pelo Smart Shuffle ou pelo
+ * rádio (28/9) -- como identidades. Falhar dá o conjunto vazio: a memória
+ * nunca pode impedir a música de continuar.
+ */
+async function chavesDasDescobertasRecentes(dono: string | null): Promise<Set<string>> {
+  try {
+    await trazerHistoricoDaConta(dono);
+    // Lido DEPOIS da conta: é ela que traz o que o outro aparelho sugeriu.
+    return chavesRecentesDoSmartShuffle(await lerHistoricoGuardado(dono));
+  } catch {
+    return new Set();
+  }
+}
+
 async function chavesBloqueadasNoSmartShuffle(dono: string | null): Promise<Set<string>> {
-  const [, escutadas, daBiblioteca] = await Promise.all([
-    trazerHistoricoDaConta(dono),
+  const [descobertas, escutadas, daBiblioteca] = await Promise.all([
+    chavesDasDescobertasRecentes(dono),
     chavesDasEscutasRecentes(dono),
     chavesDaBiblioteca(),
   ]);
-  // Lido DEPOIS da conta: é ela que traz o que o outro aparelho sugeriu.
-  const guardado = await lerHistoricoGuardado(dono);
-  return new Set([...chavesRecentesDoSmartShuffle(guardado), ...escutadas, ...daBiblioteca]);
+  return new Set([...descobertas, ...escutadas, ...daBiblioteca]);
 }
 
 export const usePlayer = create<PlayerState>()(
@@ -1290,6 +1305,17 @@ export const usePlayer = create<PlayerState>()(
     set({ queue: [...queue, track] });
   },
 
+  addManyToQueue: (tracks) => {
+    if (tracks.length === 0) return;
+    // Num Jam cada uma é uma sugestão, pela ordem da lista.
+    if (ouvirJuntos()) { void comandarJam(async (s) => { for (const t of tracks) await s.sugerir(t); }); return; }
+    // Com a fila vazia, a primeira entra como o `addToQueue` a poria (pronta, sem
+    // tocar); as outras juntam-se num `set` só -- uma a uma eram N escritas.
+    let aJuntar = tracks;
+    if (get().queue.length === 0) { get().addToQueue(tracks[0]); aJuntar = tracks.slice(1); }
+    if (aJuntar.length > 0) set({ queue: [...get().queue, ...aJuntar] });
+  },
+
   _sincronizarPausa: (aTocar) => {
     set({ autoplayOnLoad: aTocar });
     const { isPlaying, _yt } = get();
@@ -1558,7 +1584,11 @@ export const usePlayer = create<PlayerState>()(
     if (radioInFlight) return false;
     radioInFlight = true;
     try {
-      const tracks = filterSuggestions(await fetchRadioTracks(radioSeeds(queue, queueIndex), queue));
+      // A mesma memória de 30 dias do Smart Shuffle (28/9): sem ela o rádio
+      // repunha sempre as mesmas novas no fim de cada lista.
+      const dono = donoDoSmartShuffle();
+      const jaDescobertas = await chavesDasDescobertasRecentes(dono);
+      const tracks = filterSuggestions(await fetchRadioTracks(radioSeeds(queue, queueIndex), queue, undefined, jaDescobertas));
       if(useConnectivity.getState().offline||get().queue!==queue||!get().autoplayRadio)return false;
       if (tracks.length === 0) return false;
 
@@ -1578,6 +1608,11 @@ export const usePlayer = create<PlayerState>()(
           : [],
       });
       registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:tracks.length});
+      // As novas (fora da biblioteca) entram na memória, como uma sugestão do
+      // Smart Shuffle: nem ele nem o rádio as trazem outra vez durante 30 dias.
+      const daBiblioteca = await chavesDaBiblioteca();
+      await registarSugestoesGuardadas(dono, tracks.filter((t) =>
+        !chavesDaFaixaSugerida(t).some((chave) => daBiblioteca.has(chave))));
       return true;
     } catch {
       return false;

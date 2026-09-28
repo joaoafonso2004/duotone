@@ -5,11 +5,14 @@ import { pareceMusica } from '../lib/musica';
 import {
   filterRadioCandidates,
   limitarMesmoArtista,
+  loteSemRepetir,
   onlyPlausibleMusic,
   RADIO_BATCH,
   seedArtists,
   shuffleCandidates,
 } from '../lib/radio';
+import { chavesDaMusica } from '../lib/identidadeDaMusica';
+import { foiSugeridaRecentemente } from '../lib/smartShuffle';
 import { trackKey } from '../lib/shuffle';
 import { getLibrary } from './library';
 import { getFlowMix } from './plays';
@@ -31,11 +34,16 @@ import { lerPerfilDeRecomendacoes } from './perfilDeRecomendacoes';
  * são as favoritas de sempre mais 30% ao acaso do catálogo -- o gosto geral, e
  * não o da música em que se clicou. Quem tinha poucas do Morad recebia isso
  * logo a seguir à primeira.
+ *
+ * `jaDescobertas`: as identidades das músicas descobertas nos últimos 30 dias
+ * (a memória do Smart Shuffle, que o rádio também passou a alimentar -- 28/9).
+ * Sem elas o rádio repunha sempre as mesmas novas; ver `loteSemRepetir`.
  */
 export async function fetchRadioTracks(
   seeds: Track[],
   exclude: Track[],
   limit: number = RADIO_BATCH,
+  jaDescobertas: ReadonlySet<string> = new Set(),
 ): Promise<Track[]> {
   if(useConnectivity.getState().offline)return [];
   await feedbackReady();
@@ -44,7 +52,10 @@ export async function fetchRadioTracks(
   let library:Track[]=[];
   try{library=await getLibrary();}catch{/* O rádio ainda pode sair do histórico. */}
   const knownKeys=new Set(library.map(trackKey));
-  const harvest = () => {
+  const jaDescoberta=(t:Track)=>foiSugeridaRecentemente(chavesDaMusica(t),jaDescobertas);
+  // `comRepetidas` só no fim: antes disso, faltarem novas é razão para ir à
+  // fonte seguinte, e não para repetir.
+  const harvest = (comRepetidas = false) => {
     // Filtra-se antes da proporção, mas sem truncar demasiado cedo: se o
     // primeiro lote for todo conhecido, as três novas por cada tua nunca
     // chegariam às candidatas novas que estão logo a seguir.
@@ -56,7 +67,8 @@ export async function fetchRadioTracks(
     const candidatas=filterRadioCandidates(variadas,exclude,trackKey,Math.max(limit*4,limit));
     const conhecidas=candidatas.filter((t)=>knownKeys.has(trackKey(t)));
     const novas=candidatas.filter((t)=>!knownKeys.has(trackKey(t)));
-    return misturarPorFamiliaridade(conhecidas,novas,limit,'radio');
+    return loteSemRepetir(conhecidas,novas,jaDescoberta,limit,comRepetidas,
+      (c,n,l)=>misturarPorFamiliaridade(c,n,l,'radio'));
   };
 
   // 1. A própria biblioteca, pelos artistas que se estava a ouvir. Custo zero
@@ -86,8 +98,10 @@ export async function fetchRadioTracks(
   try {
     const perfil = await lerPerfilDeRecomendacoes().catch(() => null);
     const jaLa = new Set([...exclude, ...pool].map(trackKey));
+    // Com a memória, como no Smart Shuffle: a descoberta salta-as ANTES de
+    // pesquisar e vai mais fundo no catálogo em vez de devolver as de sempre.
     pool.push(...await candidatasParaDescoberta(
-      seeds.slice(0, 3), jaLa, new Set(), limit * 2, 3,
+      seeds.slice(0, 3), jaLa, jaDescobertas, limit * 2, 3,
       perfil?.escutas, undefined, perfil?.externos, 'estrito',
     ));
   } catch {
@@ -114,5 +128,5 @@ export async function fetchRadioTracks(
     // a RPC pode não existir na base de dados — degradar em silêncio
   }
 
-  return harvest();
+  return harvest(true);
 }

@@ -33,17 +33,40 @@ const native = {
   Animated: {Value: class {setValue() {}}}, FlatList:'FlatList', View:'View', Text:'Text', Pressable:'Pressable',
   Alert: {alert: (...args) => calls.push(['alert', ...args])}, StyleSheet: {create: s=>s, hairlineWidth:1},
 };
+// Os módulos puros entram a sério (o menu e o arrasto são o que se testa aqui).
+const carregar = (ficheiro, duplos = {}) => {
+  const code = ts.transpileModule(fs.readFileSync(root + '/' + ficheiro, 'utf8'),
+    {compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText;
+  const exp = {};
+  vm.runInNewContext(code, {exports:exp,require:name=>{assert.ok(name in duplos, ficheiro+': import sem duplo: '+name);return duplos[name];},setTimeout,clearTimeout,setInterval,clearInterval});
+  return exp;
+};
+const arrastarFila = carregar('src/lib/arrastarFila.ts');
+const menuDaFaixa = carregar('src/lib/menuDaFaixa.ts');
+const seguir = { seguindo: null, aSeguir: [] };
+const useSeguirAmigo = selector => selector(seguir);
+// O arrasto é o hook partilhado com a edição de uma playlist, e entra a sério.
+const useArrastarLista = carregar('src/hooks/useArrastarLista.ts', {
+  react: React, 'react-native': native, '../lib/arrastarFila': arrastarFila,
+  '../components/TrackRow': {TRACK_ROW_HEIGHT:68}, '../lib/haptics': {hapticSelection(){}},
+});
 const mocks = {
   react: React, 'react-native': native, './LinhaArrastavel': {LinhaArrastavel:'DragRow'},
-  '../lib/arrastarFila': {destinoDoArrasto:(de,dy,h,n)=>Math.max(0,Math.min(n-1,de+Math.round(dy/h))),velocidadeDoDeslize:()=>0},
+  '../hooks/useArrastarLista': useArrastarLista,
+  './DeslizarParaTirar': {DeslizarParaTirar:'Swipe'},
+  '../lib/arrastarFila': arrastarFila, '../lib/menuDaFaixa': menuDaFaixa,
   './TrackRow': {TrackRow:'TrackRow',TRACK_ROW_HEIGHT:68}, '@expo/vector-icons/Ionicons':'Icon',
-  '../state/player': {usePlayer}, '../state/ouvirJuntos':{useOuvirJuntos},
-  '../theme':{colors:{},spacing:{},type:{},radii:{}}, './BottomSheet':{BottomSheet:'BottomSheet'},
+  '../state/player': {usePlayer}, '../state/ouvirJuntos':{useOuvirJuntos}, '../state/seguirAmigo':{useSeguirAmigo},
+  '../theme':{colors:{},spacing:{},type:{},radii:{}}, './BottomSheet':{BottomSheet:'BottomSheet',BottomSheetFlatList:'FlatList'},
   './BrilhoInteligente':{EstrelaInteligente:'Star'}, '../lib/shuffle':{trackKey:t=>t.sourceId},
-  '../lib/haptics':{hapticSelection(){}}, '../lib/artistName':{tituloDaFaixa:t=>t.title},
+  '../lib/haptics':{hapticSelection(){},hapticNotification(){}}, '../lib/artistName':{tituloDaFaixa:t=>t.title,displayArtist:t=>t.artist},
   '../hooks/useOfflineMode':{useOfflineMode:()=>offline},
-  './PlayerActionsSheet':{PlayerActionsContent:'Actions'}, './AddToPlaylistSheet':{AddToPlaylistSheet:'Playlist'},
-  './ShareFriendSheet':{ShareFriendSheet:'Share'},
+  './PlayerActionsSheet':{PlayerActionsContent:'Actions',accoesDoMenu:(menu,fazer)=>menu.map(a=>({label:a.rotulo,motivo:a.indisponivel,onPress:()=>fazer(a.id)}))},
+  './AddToPlaylistSheet':{AddToPlaylistSheet:'Playlist'}, './ShareFriendSheet':{ShareFriendSheet:'Share'},
+  './RecommendationPreferences':{RecommendationPreferences:'Recs'},
+  '../lib/descarregarFaixa':{alternarDownload(){},downloadNoMenuDe:()=>null,podeDescarregar:()=>false,tocaSemRede:()=>true,useRevisaoDosDownloads:()=>0},
+  '../lib/guardarFaixa':{alternarGuardada:async()=>{},garantirGuardadas(){}},
+  '../state/saved':{savedKey:t=>t.source+':'+t.sourceId,useSaved:sel=>sel({loaded:true,keys:new Set()})},
 };
 const code = ts.transpileModule(fs.readFileSync(root+'/src/components/QueueSheet.tsx','utf8'),
   {compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText;
@@ -52,7 +75,8 @@ vm.runInNewContext(code, {exports:exportsObject,require:name=>{
   assert.ok(name in mocks, 'Import sem duplo: '+name);return mocks[name];
 },setTimeout,clearTimeout,setInterval,clearInterval});
 const render = () => {cursor=0;return exportsObject.QueueSheet({visible:true,onClose(){},onOpenSession(){calls.push(['manage']);}});};
-function nodes(node) { if(!node || typeof node!=='object')return [];return [node,...(node.props?.children||[]).flat(Infinity).flatMap(nodes)]; }
+// Um filho que é função (a pega do `LinhaArrastavel`) desenha-se com a pega vazia.
+function nodes(node) { if(typeof node==='function')return nodes(node(undefined));if(!node || typeof node!=='object')return [];return [node,...(node.props?.children||[]).flat(Infinity).flatMap(nodes)]; }
 const find = (tree,type,predicate=()=>true) => nodes(tree).find(n=>n.type===type&&predicate(n.props));
 const entry = (tree,index=0) => {const list=find(tree,'FlatList'); return list.props.renderItem({item:list.props.data[index],index});};
 function openEntry() { const row=entry(render());find(row,'Pressable').props.onPress();return render(); }
@@ -63,11 +87,11 @@ reset();
 let tree=openEntry();
 assert.equal(calls.length,0,'Os três pontos não tocam nem removem');
 assert.equal(find(tree,'Actions').props.title,'B');
-action(tree,'Add to playlist').onPress();tree=render();
+action(tree,'Add to playlist…').onPress();tree=render();
 assert.equal(find(tree,'Playlist').props.track,b,'A playlist recebe a faixa da linha, não a atual');
 assert.equal(find(tree,'Playlist').props.visible,true);
 find(tree,'Playlist').props.onClose();tree=render();
-action(tree,'Partilhar com um amigo').onPress();tree=render();
+action(tree,'Share with friends or groups…').onPress();tree=render();
 assert.equal(find(tree,'Share').props.item,b);
 assert.equal(find(tree,'Share').props.visible,true);
 
@@ -76,18 +100,18 @@ assert.deepEqual(calls,[['remove',1]]);
 
 reset();tree=openEntry();store.queue=[a,c,b];action(tree,'Remove from queue').onPress();
 assert.equal(calls.length,0,'Uma fila substituída não remove por índice antigo');
-assert.equal(action(render(),'Remove from queue').disabled,true);
+assert.ok(action(render(),'Remove from queue').motivo,'fica à vista, apagada, a dizer porquê');
 
 reset();tree=openEntry();store.queueIndex=1;action(tree,'Remove from queue').onPress();
 assert.equal(calls.length,0,'A entrada que entretanto começou a tocar não é removida');
 
 reset();tree=openEntry();session={id:'jam'};action(tree,'Remove from queue').onPress();
 assert.equal(calls.length,0,'Entrar num Jam revoga a remoção local pendente');
-assert.equal(action(render(),'Remove from queue'),undefined);
+assert.ok(action(render(),'Remove from queue').motivo,'num Jam fica apagada, com o motivo');
 action(render(),'Manage Jam queue').onPress();assert.deepEqual(calls,[['manage']]);
 
-reset();offline=true;tree=openEntry();action(tree,'Add to playlist').onPress();
-assert.equal(calls[0][0],'alert');assert.equal(find(render(),'Playlist').props.visible,false);
+reset();offline=true;tree=openEntry();
+assert.ok(action(tree,'Add to playlist…').motivo,'sem rede fica apagada, a dizer porquê');
 
 reset();let row=entry(render());find(row,'TrackRow').props.onPress();
 assert.equal(calls[0][0],'play');assert.equal(calls[0][1],b);

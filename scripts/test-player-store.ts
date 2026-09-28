@@ -680,6 +680,38 @@ eq('com o rádio já na fila, a pedida passa-lhe à frente', ids().join(), 'a,b,
 await usePlayer.getState().next();
 eq('e toca antes dele', atual(), 'x');
 
+// O rádio e a memória de 30 dias (28/9): sem ela repunha sempre as mesmas
+// novas no fim de cada lista -- "deaf note" e "Drunk And Nasty" dias a fio,
+// sugeridas uma só vez pelo Smart Shuffle.
+{
+  esquecerBiblioteca();
+  preparar({ queueIndex: 3, current: faixa('d') });
+  controlo.biblioteca = [faixa('radio-tua')];
+  controlo.radio = fila('radio-nova', 'radio-tua');
+  await usePlayer.getState().extendQueueWithRadio();
+  eq('o rádio estende a fila', ids().join(), 'a,b,c,d,radio-nova,radio-tua');
+  const memoria = armazenamento.get('smart-shuffle:historico:v1:utilizador-de-teste') ?? '';
+  check('a nova do rádio entra na memória', memoria.includes('youtube:radio-nova'));
+  check('a da biblioteca não', !memoria.includes('youtube:radio-tua'));
+
+  // Outra lista, outro fim: o rádio tem de saber o que já trouxe.
+  esquecerBiblioteca();
+  preparar({ queueIndex: 3, current: faixa('d') });
+  controlo.radio = fila('radio-outra');
+  await usePlayer.getState().extendQueueWithRadio();
+  check('o rádio recebe a memória de 30 dias', !!controlo.radioJaDescobertas?.has('youtube:radio-nova'),
+    JSON.stringify([...(controlo.radioJaDescobertas ?? [])].slice(0, 4)));
+}
+
+// O "Add to queue" de uma playlist inteira (28/9): de uma vez, no fim.
+preparar();
+usePlayer.getState().addManyToQueue(fila('x', 'y'));
+eq('uma playlist inteira entra no fim da fila, pela ordem', ids().join(), 'a,b,c,d,x,y');
+eq('e o que toca não muda', atual(), 'a');
+preparar({ current: null, queue: [], queueIndex: 0 });
+usePlayer.getState().addManyToQueue(fila('x', 'y'));
+eq('com a fila vazia fica pronta na primeira, e as outras atrás', `${atual()}|${ids().join()}`, 'x|x,y');
+
 preparar({ shuffle: true });
 usePlayer.getState()._ensureShuffleOrder();
 usePlayer.getState().playNext(faixa('x'));

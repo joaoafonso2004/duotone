@@ -14,7 +14,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
   KeyboardAvoidingView,
   Platform,
@@ -42,7 +41,6 @@ import { CabecalhoDaPlaylist } from '../components/CabecalhoDaPlaylist';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
-import { PromptSheet } from '../components/PromptSheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Screen } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -56,10 +54,18 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { usePlayer } from '../state/player';
 import { useAuth } from '../state/auth';
 import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
-import { colors, MINI_PLAYER_HEIGHT, spacing, type, gradients, radii } from '../theme';
+import { colors, MINI_PLAYER_HEIGHT, spacing, type, radii } from '../theme';
 import { getOrdemDaPlaylist, setOrdemDaPlaylist, type OrdemDaPlaylist } from '../lib/prefs';
 import type { Playlist, PlaylistTrack, Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { ArtworkCollage } from '../components/ArtworkCollage';
+import { LinhaArrastavel } from '../components/LinhaArrastavel';
+import { DeslizarParaTirar } from '../components/DeslizarParaTirar';
+import { useArrastarLista } from '../hooks/useArrastarLista';
+import {
+  comecarRascunho, desfazerTirada, haAlgoParaGravar, moverNoRascunho, planoDeGravacao, tirarDoRascunho,
+  type Rascunho,
+} from '../lib/edicaoDaPlaylist';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
@@ -80,12 +86,21 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const [name, setName] = useState(route.params.name);
   const [tracks, setTracks] = useState<PlaylistTrack[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editMode, setEditMode] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  /**
+   * A edição (28/9): o nome, a ordem e o que sai, num rascunho até ao Save.
+   * `null` = não se está a editar. Ver lib/edicaoDaPlaylist.ts.
+   */
+  const [rascunho, setRascunho] = useState<Rascunho<PlaylistTrack> | null>(null);
+  const editMode = rascunho !== null;
+  // Vindo do "Edit playlist" do toque longo nas Playlists: abre já a editar.
+  const pedidoDeEdicao = useRef(!!route.params.editar);
+  // A pesquisa vive numa lupa na barra de cima (28/9): sempre à mão numa
+  // playlist longa, sem empurrar a capa para baixo.
+  const [procurarAberto, setProcurarAberto] = useState(false);
+  const [partilharAberto, setPartilharAberto] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [removeFor, setRemoveFor] = useState<PlaylistTrack | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
@@ -286,44 +301,64 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     }, [load, editMode])
   );
 
-  const move = (index: number, dir: -1 | 1) => {
-    const j = index + dir;
-    if (j < 0 || j >= tracks.length) return;
-    const next = [...tracks];
-    [next[index], next[j]] = [next[j], next[index]];
-    setTracks(next);
-    setDirty(true);
+  // ---- Editar (28/9): o nome e a ordem num só sítio, com o gesto da fila ----
+
+  const abrirEdicao = () => {
+    if (!canEdit) return;
     hapticSelection();
+    // A ordem que se edita é a da playlist: com outra ordenação à vista, o que
+    // se arrasta não seria o que se grava.
+    setSortMode('default');
+    setPlaylistSearchQuery('');
+    setProcurarAberto(false);
+    setRascunho(comecarRascunho(name, tracks));
   };
 
-  const finishEdit = async () => {
-    setEditMode(false);
-    if (!dirty) return;
-    try {
-      await setPlaylistOrder(
-        id,
-        tracks.map((t) => t.id)
-      );
-      setDirty(false);
-    } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not save the new order.');
-      load();
-    }
-  };
+  // Vindo do toque longo nas Playlists: abre na edição quando a playlist chega.
+  useEffect(() => {
+    if (!pedidoDeEdicao.current || loading || details?.id !== id) return;
+    pedidoDeEdicao.current = false;
+    if (canEdit) abrirEdicao();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, details, id, canEdit]);
 
-  const doRename = async (newName: string) => {
+  const cancelarEdicao = () => { hapticSelection(); setRascunho(null); };
+
+  const planoDaEdicao = rascunho ? planoDeGravacao(rascunho, name, tracks, (t) => t.id) : null;
+  const podeGravar = !!planoDaEdicao && haAlgoParaGravar(planoDaEdicao) && !busy;
+
+  /** Grava só o que mudou: o nome, as que saem e a ordem das que ficam. */
+  const gravarEdicao = async () => {
+    if (!rascunho || !planoDaEdicao) return;
+    if (!haAlgoParaGravar(planoDaEdicao)) { setRascunho(null); return; }
+    const plano = planoDaEdicao;
     setBusy(true);
     try {
-      await renamePlaylist(id, newName);
+      if (plano.nome) { await renamePlaylist(id, plano.nome); setName(plano.nome); }
+      for (const idDaLinha of plano.tirar) await removeTrackFromPlaylist(id, idDaLinha);
+      if (plano.ordem) await setPlaylistOrder(id, plano.ordem);
       hapticNotification();
-      setName(newName);
-      setRenameOpen(false);
+      setTracks(rascunho.faixas);
+      setRascunho(null);
+      // A grelha das Playlists mostra o nome, a contagem e as capas.
+      void usePlaylists.getState().carregar(true);
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not rename.');
+      Alert.alert('Error', e?.message ?? 'Could not save the playlist.');
+      setRascunho(null);
+      void load();
     } finally {
       setBusy(false);
     }
   };
+
+  // O arrasto é o da fila (hooks/useArrastarLista): a pega ≡, o toque longo e
+  // o deslize nas bordas. As chaves são as linhas da playlist, que são únicas.
+  const chavesDaEdicao = useMemo(() => (rascunho ? rascunho.faixas.map((t) => t.id) : []), [rascunho]);
+  const arrasto = useArrastarLista({
+    chaves: chavesDaEdicao,
+    aoReordenar: (de, para) => setRascunho((r) => (r ? moverNoRascunho(r, de, para) : r)),
+  });
+  const semAcao = useCallback(() => {}, []);
 
   const doDelete = async () => {
     setBusy(true);
@@ -493,6 +528,20 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               </Text>
             </Pressable>}
 
+            {/* Partilhar é o que mais se faz a uma playlist, e estava escondido no
+                More (28/9). O More passou para o ••• da barra de cima. */}
+            <Pressable
+              style={styles.toolbarItem}
+              accessibilityRole="button"
+              onPress={() => {
+                hapticSelection();
+                setPartilharAberto(true);
+              }}
+            >
+              <Ionicons name="share-social-outline" size={19} color={colors.text} />
+              <Text style={styles.toolbarLabel}>Share</Text>
+            </Pressable>
+
             <Pressable
               style={styles.toolbarItem}
               onPress={() => {
@@ -506,52 +555,108 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
             {canEdit&&<Pressable
               style={styles.toolbarItem}
-              onPress={() => {
-                hapticSelection();
-                setSortMode('default');
-                setEditMode(true);
-              }}
+              accessibilityRole="button"
+              onPress={abrirEdicao}
             >
               <Ionicons name="pencil" size={16} color={colors.text} />
               <Text style={styles.toolbarLabel}>Edit</Text>
             </Pressable>}
-
-            <Pressable
-              style={styles.toolbarItem}
-              onPress={() => {
-                hapticSelection();
-                setOptionsOpen(true);
-              }}
-            >
-              <Ionicons name="ellipsis-horizontal" size={18} color={colors.text} />
-              <Text style={styles.toolbarLabel}>More</Text>
-            </Pressable>
           </View>
         </>
+  ) : null;
+
+  /** A quem são os menus da playlist: as capas, o nome e quantas tem. */
+  const cabecalhoDoMenu = {
+    titulo: name,
+    subtitulo: `${tracks.length} ${tracks.length === 1 ? 'song' : 'songs'}`,
+    capas: capasDaPlaylist,
+  };
+
+  const alternarPesquisa = () => {
+    hapticSelection();
+    if (procurarAberto) { setProcurarAberto(false); setPlaylistSearchQuery(''); }
+    else setProcurarAberto(true);
+  };
+
+  /** O nome, editável, em cima da lista da edição. Elemento e não função: ver `cabecalhoDaLista`. */
+  const cabecalhoDaEdicao = rascunho ? (
+    <>
+      <View style={styles.cartaoDoNome}>
+        <ArtworkCollage artworks={capasDaPlaylist} size={56} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rotuloDoNome}>NAME</Text>
+          <TextInput
+            value={rascunho.nome}
+            onChangeText={(nome) => setRascunho((r) => (r ? { ...r, nome } : r))}
+            placeholder="Playlist name"
+            placeholderTextColor={colors.textTertiary}
+            style={styles.campoDoNome}
+            returnKeyType="done"
+            accessibilityLabel="Playlist name"
+          />
+        </View>
+      </View>
+      <Text style={styles.dicaDaEdicao}>Drag ≡ to reorder · Swipe left to remove</Text>
+    </>
   ) : null;
 
   return (
     <Screen
       /* O nome saiu do cabecalho generico e passou para o `CabecalhoDaPlaylist`,
          que e onde ele pode ser grande e ter a capa por cima. Aqui em cima fica
-         so a moldura -- voltar, e o Done quando se esta a editar. */
+         a moldura: voltar, a lupa e o ••• (28/9) -- e, a editar, Cancel e Save. */
       topLeft={
-        <View style={styles.molduraDeCima}>
-          <Pressable hitSlop={10} onPress={() => navigation.goBack()} style={{ marginLeft: -8 }}>
-            <Ionicons name="chevron-back" size={26} color={colors.text} />
-          </Pressable>
-          {editMode ? (
-            <Pressable hitSlop={10} onPress={finishEdit} style={{ padding: 4 }}>
-              <Text style={[type.body, { fontWeight: '600', color: theme.color }]}>
-                Done
-              </Text>
+        editMode ? (
+          <View style={styles.molduraDeCima}>
+            <Pressable hitSlop={10} onPress={cancelarEdicao} disabled={busy} accessibilityRole="button">
+              <Text style={[type.body, { color: colors.textSecondary }]}>Cancel</Text>
             </Pressable>
-          ) : null}
-        </View>
+            <Text style={[type.body, { fontWeight: '700' }]}>Edit playlist</Text>
+            <Pressable
+              hitSlop={10}
+              onPress={() => void gravarEdicao()}
+              disabled={!podeGravar}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !podeGravar }}
+            >
+              {busy ? <ActivityIndicator size="small" color={theme.color} /> : (
+                <Text style={[type.body, { fontWeight: '700', color: podeGravar ? theme.color : colors.textTertiary }]}>Save</Text>
+              )}
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.molduraDeCima}>
+            <Pressable hitSlop={10} onPress={() => navigation.goBack()} style={{ marginLeft: -8 }} accessibilityLabel="Back">
+              <Ionicons name="chevron-back" size={26} color={colors.text} />
+            </Pressable>
+            <View style={styles.acoesDeCima}>
+              {tracks.length > 0 ? (
+                <Pressable
+                  hitSlop={8}
+                  onPress={alternarPesquisa}
+                  accessibilityRole="button"
+                  accessibilityLabel={procurarAberto ? 'Close search' : 'Search this playlist'}
+                  style={styles.botaoDeCima}
+                >
+                  <Ionicons name={procurarAberto ? 'close' : 'search'} size={21} color={colors.text} />
+                </Pressable>
+              ) : null}
+              <Pressable
+                hitSlop={8}
+                onPress={() => { hapticSelection(); setOptionsOpen(true); }}
+                accessibilityRole="button"
+                accessibilityLabel="More options"
+                style={styles.botaoDeCima}
+              >
+                <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
+              </Pressable>
+            </View>
+          </View>
+        )
       }
     >
 
-      {tracks.length > 0 && !editMode ? (
+      {procurarAberto && !editMode && tracks.length > 0 ? (
         <View style={styles.playlistSearchBox}>
           <Input
             icon="search"
@@ -559,12 +664,66 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             value={playlistSearchQuery}
             onChangeText={setPlaylistSearchQuery}
             onClear={() => setPlaylistSearchQuery('')}
+            autoFocus
           />
         </View>
       ) : null}
 
       {loadError ? <View style={{padding:24,gap:12}}><Text style={{color:colors.danger}}>{loadError}</Text><Pressable onPress={()=>void load()}><Text style={{color:theme.color}}>Try again</Text></Pressable></View> : loading ? (
         <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
+      ) : rascunho ? (
+        // A edição (28/9): arrasta-se pela pega ou com meio segundo de dedo
+        // parado, como na fila, e desliza-se para tirar. Nada vai ao servidor
+        // antes do Save. A moldura mede-se no ecrã para o deslize nas bordas.
+        <View ref={arrasto.molduraRef} collapsable={false} style={{ flex: 1 }}>
+          <FlatList
+            ref={arrasto.listaRef}
+            data={rascunho.faixas}
+            keyExtractor={(t) => t.id}
+            keyboardShouldPersistTaps="handled"
+            scrollEnabled={arrasto.arrastar === null}
+            scrollEventThrottle={16}
+            onScroll={arrasto.aoRolar}
+            onContentSizeChange={arrasto.aoMudarTamanho}
+            ListHeaderComponent={cabecalhoDaEdicao}
+            contentContainerStyle={{ paddingBottom: bottomPad }}
+            renderItem={({ item, index }) => (
+              <LinhaArrastavel {...arrasto.propsDaLinha(index)} podeArrastar>
+                {(pega) => (
+                  <DeslizarParaTirar
+                    ativo={arrasto.arrastar === null}
+                    aoTirar={() => {
+                      hapticSelection();
+                      setRascunho((r) => (r ? tirarDoRascunho(r, index) : r));
+                    }}
+                  >
+                    <View
+                      style={styles.linhaDeEdicao}
+                      onLayout={index === 0 ? (e) => arrasto.medirLinha(e.nativeEvent.layout.height) : undefined}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <TrackRow
+                          track={item}
+                          onPress={semAcao}
+                          onLongPress={() => arrasto.comecarArrasto(index)}
+                          delayLongPress={500}
+                          onPressOut={() => arrasto.aoLevantar(index)}
+                        />
+                      </View>
+                      <View {...(pega ?? {})} accessibilityLabel={`Reorder ${tituloDaFaixa(item)}`} style={styles.pega}>
+                        <Ionicons
+                          name="reorder-three-outline"
+                          size={22}
+                          color={arrasto.arrastar === index ? colors.text : colors.textTertiary}
+                        />
+                      </View>
+                    </View>
+                  </DeslizarParaTirar>
+                )}
+              </LinhaArrastavel>
+            )}
+          />
+        </View>
       ) : tracks.length === 0 ? (
         <EmptyState
           icon="musical-notes-outline"
@@ -575,7 +734,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         <EmptyState icon="search-outline" title="No songs found" subtitle={`No track matches "${playlistSearchQuery}".`} />
       ) : (
         <FlatList
-          data={editMode ? tracks : visibleTracks}
+          data={visibleTracks}
           keyExtractor={(t) => t.id}
           initialNumToRender={12}
           maxToRenderPerBatch={10}
@@ -594,94 +753,61 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
            */
           ListHeaderComponent={cabecalhoDaLista}
           contentContainerStyle={{ paddingBottom: bottomPad }}
-          renderItem={({ item, index }) =>
-            editMode ? (
-              <View style={styles.editRow}>
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
-                    {tituloDaFaixa(item)}
-                  </Text>
-                  <Text numberOfLines={1} style={type.caption}>
-                    {displayArtist(item)}
-                  </Text>
-                </View>
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => move(index, -1)}
-                  disabled={index === 0}
-                  style={index === 0 && { opacity: 0.25 }}
-                >
-                  <Ionicons name="chevron-up" size={22} color={colors.text} />
-                </Pressable>
-                <Pressable
-                  hitSlop={8}
-                  onPress={() => move(index, 1)}
-                  disabled={index === tracks.length - 1}
-                  style={index === tracks.length - 1 && { opacity: 0.25 }}
-                >
-                  <Ionicons name="chevron-down" size={22} color={colors.text} />
-                </Pressable>
-                <Pressable hitSlop={8} onPress={() => setRemoveFor(item)}>
-                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
-                </Pressable>
-              </View>
-            ) : (
-              <TrackRow
-                track={item}
-                acompanharATocar
-                onPress={aoTocarNaLinha}
-                onAction={setActionTrack}
-              />
-            )
-          }
+          renderItem={({ item }) => (
+            <TrackRow
+              track={item}
+              acompanharATocar
+              onPress={aoTocarNaLinha}
+              onAction={setActionTrack}
+            />
+          )}
         />
       )}
 
-      {/* opções da playlist */}
+      {/* O aviso de que há músicas para sair, e o Undo (28/9). Nada sai antes do Save. */}
+      {rascunho && rascunho.tiradas.length > 0 ? (
+        <View style={[styles.desfazer, { bottom: 49 + insets.bottom + MINI_PLAYER_HEIGHT + 12 }]}>
+          <Text style={[type.body, { flex: 1 }]}>
+            {rascunho.tiradas.length === 1 ? '1 song will be removed' : `${rascunho.tiradas.length} songs will be removed`}
+          </Text>
+          <Pressable
+            hitSlop={10}
+            accessibilityRole="button"
+            onPress={() => { hapticSelection(); setRascunho((r) => (r ? desfazerTirada(r) : r)); }}
+          >
+            <Text style={[type.body, { fontWeight: '700', color: theme.color }]}>Undo</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* O Share da barra (28/9): as duas maneiras de partilhar. */}
+      <TrackActionsSheet
+        visible={partilharAberto}
+        track={null}
+        cabecalho={cabecalhoDoMenu}
+        onClose={() => setPartilharAberto(false)}
+        actions={[
+          { icon: 'people-outline', label: 'Share with a friend…', onPress: () => { setPartilharAberto(false); setShareFriendOpen(true); } },
+          { icon: 'share-social-outline', label: 'QR code / Copy link', onPress: () => { setPartilharAberto(false); setShareOpen(true); } },
+        ]}
+      />
+
+      {/* O ••• de cima: o mesmo menu do toque longo nas Playlists, menos o tocar.
+          O Rename saiu (28/9): o nome edita-se no Edit, com a ordem. */}
       <TrackActionsSheet
         visible={optionsOpen}
         track={null}
+        cabecalho={cabecalhoDoMenu}
         onClose={() => setOptionsOpen(false)}
         actions={[
-          {
-            icon: 'people-outline' as const,
-            label: 'Partilhar com amigo…',
-            onPress: () => {
-              setOptionsOpen(false);
-              setShareFriendOpen(true);
-            },
-          },
-          {
-            icon: 'share-social-outline' as const,
-            label: 'QR Code / Copy link',
-            onPress: () => {
-              setOptionsOpen(false);
-              setShareOpen(true);
-            },
-          },
-          {
-            icon: 'git-merge-outline' as const,
-            label: 'Merge another playlist…',
-            onPress: () => { void abrirMerge(); },
-          },
-          {
-            icon: 'pencil-outline' as const,
-            label: 'Rename playlist',
-            onPress: () => {
-              setOptionsOpen(false);
-              setRenameOpen(true);
-            },
-          },
-          {
-            icon: 'trash-outline' as const,
-            label: 'Delete playlist',
-            destructive: true,
-            onPress: () => {
-              setOptionsOpen(false);
-              setDeleteOpen(true);
-            },
-          },
-        ].filter(action=>canEdit||(action.icon!=='git-merge-outline'&&action.icon!=='pencil-outline'&&action.icon!=='trash-outline'))}
+          { icon: 'people-outline', label: 'Share with a friend…', onPress: () => { setOptionsOpen(false); setShareFriendOpen(true); } },
+          { icon: 'share-social-outline', label: 'QR code / Copy link', onPress: () => { setOptionsOpen(false); setShareOpen(true); } },
+          ...(canEdit ? [
+            { icon: 'pencil-outline' as const, label: 'Edit playlist', onPress: () => { setOptionsOpen(false); abrirEdicao(); } },
+            { icon: 'git-merge-outline' as const, label: 'Merge another playlist…', onPress: () => { void abrirMerge(); } },
+            { icon: 'trash-outline' as const, label: 'Delete playlist', destructive: true, onPress: () => { setOptionsOpen(false); setDeleteOpen(true); } },
+          ] : []),
+        ]}
       />
 
       <BottomSheet visible={mergeOpen} onClose={() => !busy && setMergeOpen(false)}>
@@ -711,16 +837,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         playlistName={name}
       />
 
-      <PromptSheet
-        visible={renameOpen}
-        title="Rename playlist"
-        placeholder="Playlist name"
-        initialValue={name}
-        submitLabel="Rename"
-        loading={busy}
-        onClose={() => setRenameOpen(false)}
-        onSubmit={doRename}
-      />
 
       <ConfirmSheet
         visible={deleteOpen}
@@ -1046,11 +1162,75 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
-  editRow: {
+  /** A barra de cima fora da edição: a lupa e o •••, com alvos de dedo a sério. */
+  acoesDeCima: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.lg,
+    gap: spacing.xs,
+    marginRight: -8,
+  },
+  botaoDeCima: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // A edição (28/9): o nome em cima, num cartão como o da maqueta.
+  cartaoDoNome: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginHorizontal: spacing.xl,
+    marginTop: spacing.xs,
+    padding: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  rotuloDoNome: {
+    ...type.micro,
+    color: colors.textTertiary,
+    letterSpacing: 0.8,
+  },
+  campoDoNome: {
+    ...type.title,
+    color: colors.text,
+    paddingVertical: 2,
+  },
+  dicaDaEdicao: {
+    ...type.caption,
+    color: colors.textTertiary,
     paddingHorizontal: spacing.xl,
-    paddingVertical: 10,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  // As linhas da edição são as da fila: a faixa, e a pega à direita.
+  linhaDeEdicao: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.bg,
+    paddingRight: spacing.lg,
+  },
+  // Um alvo de dedo e nao so um desenho, como a pega da fila.
+  pega: {
+    width: 36,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  desfazer: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surfaceHigh,
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
   },
 });

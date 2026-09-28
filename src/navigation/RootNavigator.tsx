@@ -81,7 +81,8 @@ export type RootStackParamList = {
   /** A pagina sobre ti e um amigo. Ver `screens/VocesOsDoisScreen.tsx`. */
   VocesOsDois: { userId: string; nome?: string };
   Playlists: undefined;
-  PlaylistDetail: { id: string; name: string };
+  /** `editar`: abre já na edição (o "Edit playlist" do toque longo, 28/9). */
+  PlaylistDetail: { id: string; name: string; editar?: boolean };
   ImportYouTube: undefined;
   Artists: undefined;
   LibraryGroup: { type: 'album' | 'artist'; name: string };

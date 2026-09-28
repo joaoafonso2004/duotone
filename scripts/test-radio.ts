@@ -3,6 +3,7 @@ import { pareceMusica } from '../src/lib/musica.ts';
 import {
   filterRadioCandidates,
   limitarMesmoArtista,
+  loteSemRepetir,
   onlyPlausibleMusic,
   radioSeeds,
   seedArtists,
@@ -132,6 +133,36 @@ for (const [ficheiro, proibido] of Object.entries(ecrasDePesquisa)) {
   check('os outros artistas ficam todos, pela mesma ordem',
     ficou.filter((t) => artistOf(t) !== 'Morad').map((t) => t.sourceId).join() === 'b1,j1,k1');
   check('a primeira do artista escolhido continua à frente', ficou[0].sourceId === 'm1');
+}
+
+// O rádio não repõe as mesmas novas (28/9): "deaf note" e "Drunk And Nasty"
+// voltavam no fim de cada lista, sugeridas uma só vez pelo Smart Shuffle.
+{
+  // Uma nova por cada conhecida, para se ver quem ocupa os lugares das novas.
+  const alternar = (c: readonly string[], n: readonly string[], l: number) => {
+    const s: string[] = [];
+    for (let i = 0; s.length < l && (i < c.length || i < n.length); i++) {
+      if (i < c.length && s.length < l) s.push(c[i]);
+      if (i < n.length && s.length < l) s.push(n[i]);
+    }
+    return s;
+  };
+  const ja = new Set(['deaf note', 'drunk and nasty']);
+  const jaDescoberta = (t: string) => ja.has(t);
+  const tuas = ['tua1', 'tua2', 'tua3'];
+  const novas = ['deaf note', 'nova1', 'drunk and nasty', 'nova2'];
+
+  const lote = loteSemRepetir(tuas, novas, jaDescoberta, 6, false, alternar);
+  check('as já descobertas saem do lote', !lote.some(jaDescoberta), lote.join());
+  check('as frescas ocupam os lugares das novas', lote.join() === 'tua1,nova1,tua2,nova2,tua3', lote.join());
+
+  const semNovas = loteSemRepetir(['tua1'], ['deaf note', 'drunk and nasty'], jaDescoberta, 3, true, alternar);
+  check('no fim, sem mais nada, repete antes de ficar em silêncio',
+    semNovas.join() === 'tua1,deaf note,drunk and nasty', semNovas.join());
+  const antesDoFim = loteSemRepetir(['tua1'], ['deaf note'], jaDescoberta, 3, false, alternar);
+  check('antes do fim, faltar novas é ir à fonte seguinte, não repetir', antesDoFim.join() === 'tua1', antesDoFim.join());
+  const cheio = loteSemRepetir(tuas, ['nova1', 'deaf note'], jaDescoberta, 4, true, alternar);
+  check('com o lote cheio não entra repetida nenhuma', !cheio.some(jaDescoberta), cheio.join());
 }
 
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);

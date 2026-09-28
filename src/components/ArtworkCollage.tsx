@@ -3,15 +3,23 @@ import { Image } from 'expo-image';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { colors, radii } from '../theme';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 
-/** Colagem 2x2 com as capas das primeiras faixas da playlist. */
+/**
+ * Colagem 2x2 com as capas das primeiras faixas da playlist.
+ *
+ * Pelo `capaParaLista` (28/9): as capas do YouTube vêm como `hqdefault`, 4:3
+ * com as barras pretas DENTRO da imagem, e cortar para quadrado não as tira --
+ * cada quarto do mosaico tinha uma faixa preta. As listas já as tiravam assim.
+ */
 export function ArtworkCollage({
-  artworks,
+  artworks: capas,
   size,
 }: {
   artworks: string[];
   size: number;
 }) {
+  const artworks = capas.map(capaParaLista).filter((u): u is string => !!u);
   if (artworks.length === 0) {
     return (
       <View

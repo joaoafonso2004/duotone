@@ -20,6 +20,7 @@ import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { ArtworkCollage } from './ArtworkCollage';
 
 /** Uma linha de um menu que NÃO é de uma faixa -- as opções de uma playlist. */
 export interface SheetAction {
@@ -39,6 +40,11 @@ interface Props {
    * `menuDaFaixa`, iguais aos do leitor, da fila e do PC.
    */
   actions?: SheetAction[];
+  /**
+   * Só com `track` nulo: A QUEM é o menu (28/9). Com doze cartões de playlist
+   * iguais é fácil tocar no errado, e o menu não dizia de qual era.
+   */
+  cabecalho?: { titulo: string; subtitulo?: string; capas: string[] } | null;
   discoveryContext?: DiscoveryContext | null;
   /** Aberto dentro de uma playlist: acrescenta "Remove from this playlist". */
   playlist?: { podeEditar: boolean; aoTirar: (track: Track) => void } | null;
@@ -55,7 +61,7 @@ interface Props {
  * todos pedem este e passam só o que é deles: a playlist onde está, e o que
  * reler depois de guardar.
  */
-export function TrackActionsSheet({ visible, track, onClose, actions = [], discoveryContext, playlist, aoMudarBiblioteca }: Props) {
+export function TrackActionsSheet({ visible, track, onClose, actions = [], cabecalho, discoveryContext, playlist, aoMudarBiblioteca }: Props) {
   const offline = useOfflineMode();
   const { height } = useWindowDimensions();
   const [recommendationTrack, setRecommendationTrack] = React.useState<Track | null>(null);
@@ -138,6 +144,14 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], disco
                   {nomeDoArtista}
                 </Text>
               ) : null}
+            </View>
+          </View>
+        ) : cabecalho ? (
+          <View style={styles.header}>
+            <ArtworkCollage artworks={cabecalho.capas} size={44} />
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text numberOfLines={1} style={[type.headline]}>{cabecalho.titulo}</Text>
+              {cabecalho.subtitulo ? <Text numberOfLines={1} style={type.caption}>{cabecalho.subtitulo}</Text> : null}
             </View>
           </View>
         ) : null}

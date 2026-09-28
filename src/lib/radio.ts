@@ -145,6 +145,30 @@ export function limitarMesmoArtista<T>(
   });
 }
 
+/**
+ * O lote do rádio sem repetir descobertas (28/9).
+ *
+ * O rádio tira as novas da MESMA descoberta do Smart Shuffle e, sem memória,
+ * voltava a pôr sempre as primeiras dela: o João ouviu "deaf note" e "Drunk And
+ * Nasty" dias a fio, sugeridas uma só vez pelo Smart Shuffle e depois repostas
+ * pelo rádio no fim de cada lista. As novas já descobertas nos últimos 30 dias
+ * (`jaDescoberta`) saem da mistura; só entram, no fim, se sem elas o lote não
+ * chegasse ao `limite` e `comRepetidas` -- uma fila que continua é melhor do
+ * que o silêncio. As conhecidas (a biblioteca dele) não passam por aqui.
+ */
+export function loteSemRepetir<T>(
+  conhecidas: readonly T[],
+  novas: readonly T[],
+  jaDescoberta: (t: T) => boolean,
+  limite: number,
+  comRepetidas: boolean,
+  misturar: (conhecidas: readonly T[], novas: readonly T[], limite: number) => T[],
+): T[] {
+  const lote = misturar(conhecidas, novas.filter((t) => !jaDescoberta(t)), limite);
+  if (!comRepetidas || lote.length >= limite) return lote;
+  return [...lote, ...novas.filter(jaDescoberta).slice(0, limite - lote.length)];
+}
+
 export function shouldExtendWithRadio(
   enabled: boolean,
   hasCurrent: boolean,

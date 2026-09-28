@@ -34,6 +34,8 @@ export interface Controlo {
   }[];
   /** O que o rádio devolve no fim da fila. */
   radio: Track[];
+  /** A memória das descobertas que o rádio recebeu na última chamada (28/9). */
+  radioJaDescobertas: ReadonlySet<string> | null;
   /** O histórico remoto que existia antes desta versão. */
   recentes: (Track & { lastPlayed?: number })[];
   /** A biblioteca (guardadas e playlists) que o `getLibrary` devolve. */
@@ -65,6 +67,7 @@ export const controlo: Controlo = {
   falharPerfil: false,
   perfisDaDescoberta: [],
   radio: [],
+  radioJaDescobertas: null,
   recentes: [],
   biblioteca: [],
   sessao: null,
@@ -85,6 +88,7 @@ export function reporControlo(): void {
   controlo.falharPerfil = false;
   controlo.perfisDaDescoberta = [];
   controlo.radio = [];
+  controlo.radioJaDescobertas = null;
   controlo.recentes = [];
   controlo.biblioteca = [];
   controlo.sessao = null;

@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   createPlaylist,
   deletePlaylist,
-  renamePlaylist,
+  getPlaylistTracks,
   importSharedPlaylist,
 } from '../api/playlists';
 import { ArtworkCollage } from '../components/ArtworkCollage';
@@ -29,6 +29,9 @@ import { Screen } from '../components/Screen';
 import { SkeletonDePlaylists } from '../components/Skeleton';
 import { SocialButton } from '../components/socialUI';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
+import { ShareFriendSheet } from '../components/ShareFriendSheet';
+import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
+import { usePlayer } from '../state/player';
 import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
@@ -57,7 +60,9 @@ export function PlaylistsScreen() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<Playlist | null>(null);
-  const [renameFor, setRenameFor] = useState<Playlist | null>(null);
+  // As duas partilhas do toque longo (28/9): estavam só no More de dentro.
+  const [partilharCom, setPartilharCom] = useState<Playlist | null>(null);
+  const [qrDe, setQrDe] = useState<Playlist | null>(null);
   const [deleteFor, setDeleteFor] = useState<Playlist | null>(null);
   const [importSharedOpen, setImportSharedOpen] = useState(false);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -111,18 +116,20 @@ export function PlaylistsScreen() {
     }
   };
 
-  const doRename = async (name: string) => {
-    if (!renameFor) return;
-    setBusy(true);
+  /**
+   * Tocar, baralhar ou pôr na fila sem abrir a playlist (o toque longo, 28/9).
+   * As faixas vêm pela ordem da playlist; o modo de shuffle é o do leitor.
+   */
+  const usarPlaylist = async (p: Playlist, modo: 'tocar' | 'baralhar' | 'fila') => {
     try {
-      await renamePlaylist(renameFor.id, name);
-      hapticNotification();
-      setRenameFor(null);
-      load();
+      const faixas = await getPlaylistTracks(p.id);
+      if (faixas.length === 0) return;
+      const leitor = usePlayer.getState();
+      if (modo === 'fila') { leitor.addManyToQueue(faixas); hapticNotification(); return; }
+      if (modo === 'baralhar') await leitor.playShuffled(faixas, leitor.shuffleInteligente);
+      else await leitor.tocarLista(faixas, leitor.shuffle, leitor.shuffleInteligente);
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not rename the playlist.');
-    } finally {
-      setBusy(false);
+      Alert.alert('Error', e?.message ?? 'Could not load the playlist.');
     }
   };
 
@@ -239,19 +246,33 @@ export function PlaylistsScreen() {
         />
       )}
 
-      {/* opções da playlist (long-press ou •••) */}
+      {/* O toque longo (e o •••), 28/9: tocar sem abrir, partilhar, editar o
+          nome e a ordem juntos (o Rename passou a ser o Edit) e apagar. Com o
+          nome e as capas em cima -- com doze cartões iguais tocava-se no errado. */}
       <TrackActionsSheet
         visible={!!optionsFor}
         track={null}
         onClose={() => setOptionsFor(null)}
+        cabecalho={optionsFor ? {
+          titulo: optionsFor.name,
+          subtitulo: `${optionsFor.trackCount} ${optionsFor.trackCount === 1 ? 'song' : 'songs'}`,
+          capas: optionsFor.artworks,
+        } : null}
         actions={[
+          ...(optionsFor && optionsFor.trackCount > 0 ? [
+            { icon: 'play-outline' as const, label: 'Play', onPress: () => { const p = optionsFor; setOptionsFor(null); if (p) void usarPlaylist(p, 'tocar'); } },
+            { icon: 'shuffle' as const, label: 'Shuffle', onPress: () => { const p = optionsFor; setOptionsFor(null); if (p) void usarPlaylist(p, 'baralhar'); } },
+            { icon: 'list-outline' as const, label: 'Add to queue', onPress: () => { const p = optionsFor; setOptionsFor(null); if (p) void usarPlaylist(p, 'fila'); } },
+          ] : []),
+          { icon: 'people-outline', label: 'Share with a friend…', onPress: () => { const p = optionsFor; setOptionsFor(null); setPartilharCom(p); } },
+          { icon: 'share-social-outline', label: 'QR code / Copy link', onPress: () => { const p = optionsFor; setOptionsFor(null); setQrDe(p); } },
           {
             icon: 'pencil-outline',
-            label: 'Rename playlist',
+            label: 'Edit playlist',
             onPress: () => {
               const p = optionsFor;
               setOptionsFor(null);
-              setRenameFor(p);
+              if (p) navigation.navigate('PlaylistDetail', { id: p.id, name: p.name, editar: true });
             },
           },
           {
@@ -265,6 +286,20 @@ export function PlaylistsScreen() {
             },
           },
         ]}
+      />
+
+      <ShareFriendSheet
+        visible={!!partilharCom}
+        itemType="playlist"
+        item={partilharCom ? { id: partilharCom.id } : null}
+        onClose={() => setPartilharCom(null)}
+      />
+
+      <YtPlaylistShareSheet
+        visible={!!qrDe}
+        onClose={() => setQrDe(null)}
+        playlistId={qrDe?.id ?? ''}
+        playlistName={qrDe?.name ?? ''}
       />
 
       <PromptSheet
@@ -287,16 +322,6 @@ export function PlaylistsScreen() {
         onSubmit={doImportShared}
       />
 
-      <PromptSheet
-        visible={!!renameFor}
-        title="Rename playlist"
-        placeholder="Playlist name"
-        initialValue={renameFor?.name}
-        submitLabel="Rename"
-        loading={busy}
-        onClose={() => setRenameFor(null)}
-        onSubmit={doRename}
-      />
 
       <ConfirmSheet
         visible={!!deleteFor}

@@ -1,0 +1,291 @@
+<title>Playlist no iPhone</title>
+<style>
+  :root {
+    /* A página à volta: segue o tema de quem vê. */
+    --ground: #F1F1F4; --ink: #15151B; --muted: #585a66; --panel: #FFFFFF; --line: rgba(20,20,30,.12);
+    --chip: #E4E4EA; --chipOn: #15151B; --chipOnInk: #FFFFFF; --frame: #1a1a1f;
+    /* O ecrã da app: sempre as cores reais da Duotone (src/theme). */
+    --bg: #0A0A0F; --surface: #14141C; --high: #1D1D28; --pressed: #242433;
+    --border: rgba(255,255,255,.08); --border2: rgba(255,255,255,.14);
+    --text: #F5F5F7; --t2: rgba(245,245,247,.58); --t3: rgba(245,245,247,.48);
+    --danger: #FF453A; --sheet: #1C1D27;
+    --sys: -apple-system, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { color-scheme: dark; --ground: #050507; --ink: #F5F5F7; --muted: rgba(245,245,247,.62); --panel: #14141C; --line: rgba(255,255,255,.1); --chip: #14141C; --chipOn: #F5F5F7; --chipOnInk: #0A0A0F; --frame: #1a1a1f; }
+  }
+  :root[data-theme="dark"] { color-scheme: dark; --ground: #050507; --ink: #F5F5F7; --muted: rgba(245,245,247,.62); --panel: #14141C; --line: rgba(255,255,255,.1); --chip: #14141C; --chipOn: #F5F5F7; --chipOnInk: #0A0A0F; --frame: #1a1a1f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--sys); }
+  .pagina { padding-inline: 16px; padding-block: 24px 48px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 700; text-wrap: balance; text-align: center; }
+  .sub { color: var(--muted); font-size: 14px; margin: -8px 0 0; text-align: center; max-width: 60ch; line-height: 1.45; }
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .tab { background: var(--chip); border: 1px solid var(--line); color: var(--muted); padding: 9px 14px; border-radius: 999px; font: 600 13px var(--sys); cursor: pointer; }
+  .tab.on { color: var(--chipOnInk); background: var(--chipOn); border-color: var(--chipOn); }
+  .tab:focus-visible, .alt button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .palco { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; justify-content: center; width: 100%; }
+  .nota { width: 100%; max-width: 360px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; font-size: 14px; line-height: 1.5; color: var(--muted); }
+  .nota b { color: var(--ink); font-weight: 600; }
+  .nota ol { margin: 8px 0 0; padding-left: 20px; } .nota li { margin: 6px 0; }
+  .alt { display: flex; gap: 6px; margin-bottom: 12px; }
+  .alt button { flex: 1; background: var(--chip); color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 8px; font: 600 13px var(--sys); cursor: pointer; }
+  .alt button.on { color: var(--chipOnInk); border-color: var(--chipOn); background: var(--chipOn); }
+
+
+  /* o telemóvel */
+  .fone { width: 390px; max-width: 100%; height: 844px; border-radius: 52px; background: var(--bg); color: var(--text); position: relative; overflow: hidden;
+          border: 10px solid var(--frame); box-shadow: 0 30px 80px rgba(0,0,0,.35); flex: none; }
+  @media (max-width: 460px) { .fone { height: 760px; border-width: 6px; border-radius: 36px; } .estado { padding: 0 22px 0 28px; } }
+  .ecra { position: absolute; inset: 0; display: flex; flex-direction: column; }
+  .estado { height: 54px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 30px 0 38px; font-weight: 600; font-size: 16px; }
+  .ilha { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 124px; height: 35px; background: #000; border-radius: 20px; }
+  .rolo { flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+  .rolo::-webkit-scrollbar { display: none; }
+  .barra { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 16px 0 14px; flex: none; }
+  .ico { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 18px; color: var(--text); cursor: pointer; }
+  .ico:active { background: var(--pressed); }
+  svg { display: block; }
+
+  .capa { border-radius: 6px; flex: none; }
+  .mosaico { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border-radius: 12px; background: #000; }
+  .mosaico > div { aspect-ratio: 1; position: relative; }
+  .comBarras > div::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 26%; background: #000; }
+  .comBarras > div::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 8%; background: #000; z-index: 1; }
+
+  .heroi { display: flex; flex-direction: column; align-items: center; padding: 8px 20px 0; }
+  .heroi h2 { font-size: 34px; font-weight: 800; margin: 18px 0 4px; letter-spacing: -.5px; }
+  .meta { color: var(--t2); font-size: 15px; }
+  .acoes { display: flex; gap: 24px; align-items: center; justify-content: center; margin: 22px 0 18px; }
+  .play { width: 68px; height: 68px; border-radius: 34px; background: linear-gradient(135deg, #d9dbe3, #7d808c); display: grid; place-items: center; }
+  .shuffle { width: 54px; height: 54px; border-radius: 27px; border: 1px solid var(--border2); background: var(--surface); display: grid; place-items: center; }
+  .ferramentas { margin: 0 20px 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; display: flex; padding: 12px 0; }
+  .ferramentas div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--t2); cursor: pointer; }
+  .ferramentas div.acento { color: var(--text); }
+  .pesquisa { margin: 4px 20px 14px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; gap: 10px; padding: 0 14px; color: var(--t3); font-size: 16px; }
+
+  .linha { height: 68px; display: flex; align-items: center; gap: 14px; padding: 0 20px; position: relative; background: var(--bg); }
+  .linha .txt { flex: 1; min-width: 0; }
+  .linha .t { font-size: 16px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .linha .a { font-size: 13.5px; color: var(--t2); margin-top: 2px; }
+  .linha .dur { color: var(--t2); font-size: 14px; font-variant-numeric: tabular-nums; }
+
+  .mini { position: absolute; left: 12px; right: 12px; bottom: 96px; height: 64px; border-radius: 16px; background: #1a1b24; border: 1px solid var(--border); display: flex; align-items: center; gap: 12px; padding: 0 16px 0 8px; }
+  .mini .t { font-weight: 600; font-size: 15px; } .mini .a { color: var(--t2); font-size: 13px; }
+  .separadores { position: absolute; left: 0; right: 0; bottom: 0; height: 88px; background: rgba(10,10,15,.94); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding-top: 12px; font-size: 10.5px; letter-spacing: .6px; font-weight: 600; color: var(--t3); }
+  .separadores div { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .separadores .on { color: var(--text); }
+
+  /* folha de baixo */
+  .veu { position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+  .folha { position: absolute; left: 0; right: 0; bottom: 0; background: var(--sheet); border-radius: 28px 28px 0 0; padding: 10px 18px 38px; }
+  .pega { width: 40px; height: 5px; border-radius: 3px; background: rgba(255,255,255,.22); margin: 0 auto 14px; }
+  .cabecaFolha { display: flex; align-items: center; gap: 14px; padding: 4px 6px 14px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+  .opcao { display: flex; align-items: center; gap: 18px; padding: 14px 6px; font-size: 17.5px; font-weight: 500; border-radius: 12px; cursor: pointer; }
+  .opcao:active { background: var(--pressed); }
+  .opcao.perigo { color: var(--danger); }
+  .opcao .nova { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--bg); background: var(--text); padding: 2px 7px; border-radius: 6px; letter-spacing: .3px; }
+  .grelha { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 4px 20px; }
+  .cartao .mosaico { border-radius: 14px; }
+  .cartao .n { font-size: 17px; font-weight: 600; margin-top: 10px; display: flex; justify-content: space-between; }
+  .cartao .c { color: var(--t2); font-size: 13.5px; margin-top: 2px; }
+
+  /* editar */
+  .topoEditar { height: 50px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; flex: none; }
+  .topoEditar .cancelar { color: var(--t2); font-size: 16px; cursor: pointer; }
+  .topoEditar .titulo { font-weight: 700; font-size: 16px; }
+  .topoEditar .guardar { font-size: 16px; font-weight: 700; color: var(--text); cursor: pointer; }
+  .topoEditar .guardar.parado { color: var(--t3); }
+  .nome { margin: 6px 20px 8px; display: flex; gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 12px; }
+  .nome label { font-size: 11px; font-weight: 700; letter-spacing: .8px; color: var(--t3); text-transform: uppercase; }
+  .nome input { width: 100%; background: transparent; border: 0; outline: 0; color: var(--text); font: 700 20px var(--sys); padding: 2px 0 0; }
+  .dica { color: var(--t3); font-size: 12.5px; padding: 6px 20px 10px; display: flex; gap: 14px; }
+  .listaEditar { position: relative; }
+  .linhaEd { position: absolute; left: 0; right: 0; height: 68px; transition: transform .18s ease; touch-action: pan-y; }
+  .linhaEd.pegada { transition: none; z-index: 5; }
+  .linhaEd.pegada .corpo { background: var(--high); box-shadow: 0 10px 30px rgba(0,0,0,.5); border-radius: 12px; }
+  .linhaEd .fundo { position: absolute; inset: 0; background: var(--danger); display: flex; justify-content: flex-end; align-items: center; padding-right: 24px; font-weight: 700; font-size: 15px; cursor: pointer; }
+  .linhaEd .corpo { position: absolute; inset: 0; display: flex; align-items: center; gap: 14px; padding: 0 12px 0 20px; background: var(--bg); transition: transform .2s ease; }
+  .linhaEd .corpo.solto { transition: none; }
+  .linhaEd .grip { width: 44px; height: 44px; display: grid; place-items: center; color: var(--t2); cursor: grab; touch-action: none; }
+  .snack { position: absolute; left: 16px; right: 16px; bottom: 30px; background: #2a2b36; border-radius: 14px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; font-size: 14.5px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  .snack b { cursor: pointer; }
+  .toast { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); background: #2a2b36; padding: 10px 16px; border-radius: 12px; font-size: 14px; white-space: nowrap; box-shadow: 0 10px 30px rgba(0,0,0,.5); opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; }
+  .toast.on { opacity: 1; }
+</style>
+<div class="pagina">
+  <h1>Playlist no iPhone — propostas</h1>
+  <p class="sub">Três partes, pela ordem do que pediste. Toca nas coisas: o menu, a pesquisa e a edição funcionam (arrastar pela ≡ e deslizar para a esquerda para tirar).</p>
+  <div class="tabs" id="tabs">
+    <button class="tab on" data-t="menu">1 · Toque longo numa playlist</button>
+    <button class="tab" data-t="pagina">2 · Página da playlist</button>
+    <button class="tab" data-t="editar">3 · Editar (nome + ordem)</button>
+  </div>
+  <div class="palco">
+    <div class="fone"><div class="ecra" id="ecra"></div><div class="ilha"></div><div class="toast" id="toast"></div></div>
+    <div class="nota" id="nota"></div>
+  </div>
+
+</div>
+<script>
+const FAIXAS = [
+  ['trauma','2:12',['#6f8a78','#1b241d']], ['jeans','3:02',['#8a7d74','#2a211c']], ['3','2:48',['#8d97a6','#3a4250']],
+  ['crush','2:40',['#3c5a86','#10182a']], ['poster boy x MY JEALOUSY','2:19',['#7a3fa0','#1a0f24']], ['POSTER BOY x Asa Mitaka | Yoru','2:31',['#b0445c','#2a0d15']],
+  ['poster boy (Perfectly Slowed)','3:10',['#5b6d8f','#141a26']], ['poster boy (slowed + reverb)','3:05',['#48507a','#10121f']], ['forfeit','2:27',['#9a8a5a','#231f12']],
+  ['lie','2:05',['#6a6f78','#16181c']], ['cliche','2:36',['#8a5a5a','#241414']], ['crush (live)','2:44',['#3f6f6a','#0f1c1a']], ['gold','2:57',['#c2a24a','#2c230c']],
+];
+const cor = (c) => `linear-gradient(145deg, ${c[0]}, ${c[1]})`;
+const I = {
+  back: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+  search: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>',
+  more: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+  play: '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>',
+  playO: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M8 5.5v13l11-6.5z"/></svg>',
+  shuffle: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h3.5c3 0 4 10 7 10H21M3 17h3.5c1.4 0 2.3-2 3.1-4M13.5 7H21M18 4l3 3-3 3M18 14l3 3-3 3"/></svg>',
+  queue: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h11M4 12h11M4 17h7M18 14v6M15 17h6"/></svg>',
+  people: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.6 5.5-4.6s4.9 1.6 5.5 4.6"/><circle cx="16.5" cy="9" r="2.6"/><path d="M16 14.4c2.4 0 4 1.4 4.5 4.1"/></svg>',
+  share: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="18" cy="5.5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="18.5" r="2.5"/><path d="M8.2 10.9l7.6-4.2M8.2 13.1l7.6 4.2"/></svg>',
+  pencil: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4L16 5l3 3L8 19z"/></svg>',
+  trash: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>',
+  add: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  sort: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v16M4 16l4 4 4-4M16 20V4M12 8l4-4 4 4"/></svg>',
+  grip: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>',
+  dots: '<svg width="20" height="20" viewBox="0 0 24 24" fill="var(--t2)"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+};
+const mosaico = (lado, barras, i0 = 0) => `<div class="mosaico ${barras ? 'comBarras' : ''}" style="width:${typeof lado === 'number' ? lado + 'px' : lado}">${[0,1,2,3].map(i => `<div style="background:${cor(FAIXAS[(i0 + i) % FAIXAS.length][2])}"></div>`).join('')}</div>`;
+const linha = (f) => `<div class="linha"><div class="capa" style="width:48px;height:48px;background:${cor(f[2])}"></div><div class="txt"><div class="t">${f[0]}</div><div class="a">2hollis</div></div><div class="dur">${f[1]}</div>${I.dots}</div>`;
+const estado = '<div class="estado"><span>01:52</span><span style="font-size:13px">▮▮▮ ◠ ▭</span></div>';
+const baixo = `<div class="mini"><div class="capa" style="width:48px;height:48px;background:${cor(['#2c5b6a','#0c1a1f'])}"></div><div style="flex:1"><div class="t">@ MEH</div><div class="a">Playboi Carti</div></div>${I.play}</div>
+  <div class="separadores"><div>SEARCH</div><div>SONGS</div><div>ARTISTS</div><div class="on">PLAYLISTS</div><div>PROFILE</div></div>`;
+const toast = (t) => { const el = document.getElementById('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast.h); toast.h = setTimeout(() => el.classList.remove('on'), 1800); };
+
+/* ---------- 1. toque longo ---------- */
+function menu() {
+  const cartao = (n, c, i0) => `<div class="cartao">${mosaico('100%', false, i0)}<div class="n"><span>${n}</span>${I.dots}</div><div class="c">${c}</div></div>`;
+  const op = (ic, t, onde, extra = '') => `<div class="opcao ${extra}" onclick="toast('${onde}')">${ic}<span>${t}</span>${extra === 'nova' ? '<span class="nova">NEW</span>' : ''}</div>`;
+  ecra.innerHTML = `${estado}<div style="padding:4px 20px 12px"><div style="font-size:34px;font-weight:800">Playlists</div><div style="color:var(--t2);font-size:15px">12 playlists</div></div>
+    <div class="grelha">${cartao('Whole Lotta Red','24 tracks',6)}${cartao('2hollis','13 tracks',0)}${cartao('Edit','1 track',3)}${cartao('tue é um demónio','5 tracks',9)}</div>
+    ${baixo}<div class="veu"></div>
+    <div class="folha"><div class="pega"></div>
+      <div class="cabecaFolha">${mosaico(52, false)}<div><div style="font-weight:700;font-size:17px">2hollis</div><div style="color:var(--t2);font-size:14px">13 songs · 34 min</div></div></div>
+      ${op(I.playO,'Play','Toca a playlist')}${op(I.shuffle,'Shuffle','Toca baralhada, com o modo de shuffle que tens')}
+      ${op(I.queue,'Add to queue','Mete as 13 no fim da fila')}
+      ${op(I.people,'Share with a friend…','Abre a lista de amigos (o mesmo do More)')}
+      ${op(I.share,'QR code / Copy link','Abre o QR code e o link')}
+      ${op(I.pencil,'Edit playlist','Abre o modo de edição: nome e ordem juntos')}
+      ${op(I.trash,'Delete playlist','Pede confirmação, como agora','perigo')}
+    </div>`;
+  nota.innerHTML = `<b>Toque longo (e o ••• do cartão)</b>
+    <ol><li><b>Share with a friend</b> e <b>QR code / Copy link</b> passam a estar aqui, como no More da página.</li>
+    <li><b>Play</b>, <b>Shuffle</b> e <b>Add to queue</b>, sem ter de abrir a playlist.</li>
+    <li><b>Rename</b> dá lugar a <b>Edit playlist</b>, que abre a edição com o nome e a ordem juntos (parte 3).</li>
+    <li>Em cima, a playlist a que o menu se refere: com doze cartões iguais, é fácil tocar no errado.</li>
+    <li>Playlists de outras pessoas: sem Edit nem Delete (como já é no More).</li></ol>`;
+}
+
+/* ---------- 2. página ---------- */
+let versao = 'proposta', aProcurar = false;
+function pagina() {
+  const agora = versao === 'agora';
+  const topo = agora
+    ? `<div class="barra"><div class="ico">${I.back}</div><div></div></div><div class="pesquisa">${I.search}<span>Search this playlist</span></div>`
+    : `<div class="barra"><div class="ico">${I.back}</div><div style="display:flex;gap:4px"><div class="ico" onclick="aProcurar=!aProcurar;pagina()">${I.search}</div><div class="ico" onclick="toast('O More de agora: partilhar, juntar, apagar')">${I.more}</div></div></div>
+       ${aProcurar ? `<div class="pesquisa" style="color:var(--text)">${I.search}<span style="color:var(--t3)">Search this playlist</span></div>` : ''}`;
+  const ferramentas = agora
+    ? `<div class="ferramentas"><div class="acento">${I.add}Add tracks</div><div>${I.sort}Sort</div><div>${I.pencil}Edit</div><div>${I.more}More</div></div>`
+    : `<div class="ferramentas"><div class="acento">${I.add}Add tracks</div><div onclick="toast('Partilhar com um amigo ou copiar o link')">${I.share}Share</div><div>${I.sort}Sort</div><div onclick="document.querySelector('[data-t=editar]').click()">${I.pencil}Edit</div></div>`;
+  ecra.innerHTML = `${estado}${topo}<div class="rolo">
+    <div class="heroi">${mosaico(236, agora)}<h2>2hollis</h2><div class="meta">13 songs · 34 min</div></div>
+    <div class="acoes"><div class="play" style="color:#111">${I.play}</div><div class="shuffle">${I.shuffle}</div></div>
+    ${ferramentas}${FAIXAS.map(linha).join('')}<div style="height:180px"></div></div>${baixo}`;
+  nota.innerHTML = `<div class="alt"><button class="${agora ? 'on' : ''}" onclick="versao='agora';pagina();">Agora</button><button class="${agora ? '' : 'on'}" onclick="versao='proposta';pagina();">Proposta</button></div>
+    <b>A minha opinião:</b> a estrutura está certa e é a do resto da app (capa → play/shuffle → ferramentas → lista). Não a mudava. Mudava quatro coisas:
+    <ol><li><b>As faixas pretas no mosaico são um defeito</b>, não um estilo: as capas do YouTube trazem as barras dentro da imagem. As listas já as tiram; o mosaico não. Correção pequena.</li>
+    <li><b>A pesquisa sobe para uma lupa na barra de cima</b> (toca nela). Continua sempre à mão numa playlist longa, que era a razão de estar fixa, mas deixa de empurrar a capa ~60 pt para baixo.</li>
+    <li><b>O More vai para o ••• de cima</b> e o lugar dele na barra fica para o <b>Share</b>, que é o que mais se faz a uma playlist e hoje está escondido.</li>
+    <li><b>Edit</b> abre a edição nova (nome + ordem), e o Rename sai do More.</li></ol>
+    E um detalhe do teu ecrã: o More diz <b>"Partilhar com amigo…"</b> em português; passa a <b>"Share with a friend…"</b>.`;
+}
+
+/* ---------- 3. editar ---------- */
+const ALT = 68;
+let lista = [], tiradas = [], nome = '2hollis', mudou = false;
+function editar(recomecar = true) {
+  if (recomecar) { lista = FAIXAS.map((f, i) => ({ f, id: i })); tiradas = []; nome = '2hollis'; mudou = false; }
+  ecra.innerHTML = `${estado}<div class="topoEditar"><span class="cancelar" onclick="editar();toast('Nada mudou')">Cancel</span><span class="titulo">Edit playlist</span><span class="guardar ${mudou ? '' : 'parado'}" onclick="guardar()">Save</span></div>
+    <div class="rolo" id="rolo"><div class="nome">${mosaico(56, false)}<div style="flex:1"><label>Name</label><input id="nomeIn" value="${nome}"></div></div>
+    <div class="dica"><span>≡ arrasta para mudar a ordem</span><span>← desliza para tirar</span></div>
+    <div class="listaEditar" id="le" style="height:${lista.length * ALT}px"></div><div style="height:120px"></div></div>
+    ${tiradas.length ? `<div class="snack"><span>${tiradas.length === 1 ? '1 song' : tiradas.length + ' songs'} will be removed</span><b onclick="desfazer()">Undo</b></div>` : ''}`;
+  document.getElementById('nomeIn').oninput = (e) => { nome = e.target.value; marcar(); };
+  desenharLinhas();
+  nota.innerHTML = `<b>Editar: o nome e a ordem num só sítio</b>, com o mesmo gesto da fila.
+    <ol><li><b>O nome é editável em cima</b>: o Rename deixa de ser uma coisa à parte.</li>
+    <li><b>≡ para arrastar</b>, como a fila (e meio segundo de dedo parado na linha também pega). As setas ↑↓ saem.</li>
+    <li><b>Deslizar para a esquerda tira</b>, como na fila. Sem uma confirmação por música: nada é apagado até carregares em <b>Save</b>, e há <b>Undo</b>.</li>
+    <li><b>Cancel</b> deita tudo fora; <b>Save</b> só acende quando mudou alguma coisa, e grava nome, ordem e o que saiu de uma vez.</li>
+    <li>As linhas têm capa, como no resto da app (hoje só têm texto).</li></ol>`;
+}
+function marcar() { if (!mudou) { mudou = true; document.querySelector('.guardar').classList.remove('parado'); } }
+function guardar() { if (!mudou) return; toast(`Saved · ${nome}${tiradas.length ? ` · ${tiradas.length} removed` : ''}`); editar(); }
+function desfazer() { const t = tiradas.pop(); if (t) lista.splice(t.onde, 0, t.item); editar(false); }
+function desenharLinhas() {
+  const le = document.getElementById('le');
+  le.style.height = lista.length * ALT + 'px';
+  le.innerHTML = lista.map((x, i) => `<div class="linhaEd" data-i="${i}" style="transform:translateY(${i * ALT}px)">
+    <div class="fundo" onclick="tirar(${i})">Remove</div>
+    <div class="corpo"><div class="capa" style="width:48px;height:48px;background:${cor(x.f[2])}"></div><div class="txt" style="flex:1;min-width:0"><div class="t" style="font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.f[0]}</div><div class="a" style="font-size:13.5px;color:var(--t2);margin-top:2px">2hollis</div></div><div class="grip">${I.grip}</div></div></div>`).join('');
+  le.querySelectorAll('.linhaEd').forEach(ligarLinha);
+}
+function tirar(i) { tiradas.push({ item: lista[i], onde: i }); lista.splice(i, 1); marcar(); editar(false); }
+function ligarLinha(el) {
+  const i = +el.dataset.i, corpo = el.querySelector('.corpo'), grip = el.querySelector('.grip');
+  // arrastar pela pega (ou toque longo na linha)
+  const pegar = (e) => {
+    e.preventDefault(); el.classList.add('pegada');
+    const y0 = e.clientY, linhas = [...document.querySelectorAll('.linhaEd')];
+    let alvo = i;
+    const mover = (ev) => {
+      const dy = ev.clientY - y0;
+      el.style.transform = `translateY(${i * ALT + dy}px)`;
+      alvo = Math.max(0, Math.min(lista.length - 1, Math.round((i * ALT + dy) / ALT)));
+      linhas.forEach((o, j) => { if (o === el) return; let p = j; if (i < alvo && j > i && j <= alvo) p = j - 1; if (i > alvo && j < i && j >= alvo) p = j + 1; o.style.transform = `translateY(${p * ALT}px)`; });
+    };
+    const largar = () => {
+      window.removeEventListener('pointermove', mover); window.removeEventListener('pointerup', largar);
+      if (alvo !== i) { const [x] = lista.splice(i, 1); lista.splice(alvo, 0, x); marcar(); }
+      desenharLinhas();
+    };
+    window.addEventListener('pointermove', mover); window.addEventListener('pointerup', largar);
+  };
+  grip.addEventListener('pointerdown', pegar);
+  // deslizar para tirar (e toque longo = pegar)
+  corpo.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.grip')) return;
+    const x0 = e.clientX, y0 = e.clientY; let dx = 0, horizontal = null;
+    const longo = setTimeout(() => { if (horizontal === null) { cancelar(); pegar(e); } }, 500);
+    const mover = (ev) => {
+      const mx = ev.clientX - x0, my = ev.clientY - y0;
+      if (horizontal === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) { horizontal = Math.abs(mx) > Math.abs(my); clearTimeout(longo); }
+      if (!horizontal) return;
+      dx = Math.min(0, mx); corpo.classList.add('solto'); corpo.style.transform = `translateX(${dx}px)`;
+    };
+    const cancelar = () => { window.removeEventListener('pointermove', mover); window.removeEventListener('pointerup', largar); };
+    const largar = () => {
+      clearTimeout(longo); cancelar(); corpo.classList.remove('solto');
+      if (dx < -170) tirar(i); else corpo.style.transform = dx < -60 ? 'translateX(-104px)' : '';
+    };
+    window.addEventListener('pointermove', mover); window.addEventListener('pointerup', largar);
+  });
+}
+
+/* ---------- separadores ---------- */
+const ecra = document.getElementById('ecra'), nota = document.getElementById('nota');
+const VISTAS = { menu, pagina, editar };
+document.getElementById('tabs').addEventListener('click', (e) => {
+  const t = e.target.closest('.tab'); if (!t) return;
+  document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b === t));
+  VISTAS[t.dataset.t]();
+});
+menu();
+</script>
