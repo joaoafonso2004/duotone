@@ -9,6 +9,15 @@ const BASE = 'https://www.googleapis.com/youtube/v3';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SEARCH_TTL = 7 * DAY_MS; // pesquisa: cache 7 dias
 const PLAYLIST_TTL = 1 * DAY_MS; // playlists: cache 1 dia
+/**
+ * Quantas páginas de 50 se leem de uma playlist: 100 = 5000 vídeos, o máximo que
+ * o YouTube deixa ter numa playlist (28/9). Eram 4 (200 vídeos) e o resto ficava
+ * de fora sem aviso -- a lista de gostos de um amigo do João tinha milhares.
+ * Cada página custa 1 das 10 000 unidades diárias da chave (partilhada): uma
+ * playlist de 5000 são 100. A chave da cache passou a v2 para uma playlist já
+ * lida com o teto antigo não continuar cortada durante o dia da cache.
+ */
+const PAGINAS_DE_PLAYLIST = 100;
 
 // ------------------------------------------------------------
 // Helpers
@@ -170,7 +179,7 @@ export async function fetchYouTubePlaylist(
   const id = extractPlaylistId(url.trim());
   if (!id) throw new Error('Invalid playlist link. It must contain "list=".');
 
-  const key = `playlist:v1:${id}`;
+  const key = `playlist:v2:${id}`;
   const cached = await cacheGet<YtPlaylistImport>(key, PLAYLIST_TTL);
   if (cached) return cached;
 
@@ -180,10 +189,10 @@ export async function fetchYouTubePlaylist(
     meta.items?.[0]?.snippet?.title ?? 'YouTube playlist'
   );
 
-  // Itens (paginado, máx. ~200 vídeos)
+  // Itens (paginado, até `PAGINAS_DE_PLAYLIST` x 50 vídeos)
   const items: YtPlaylistItem[] = [];
   let pageToken: string | undefined;
-  for (let page = 0; page < 4; page++) {
+  for (let page = 0; page < PAGINAS_DE_PLAYLIST; page++) {
     const res = await yfetch('/playlistItems', {
       part: 'snippet',
       playlistId: id,
@@ -260,7 +269,7 @@ export async function searchYouTubePlaylists(
 }
 
 export async function fetchYouTubePlaylistById(id: string): Promise<YtPlaylistImport> {
-  const key = `playlist:v1:${id}`;
+  const key = `playlist:v2:${id}`;
   const cached = await cacheGet<YtPlaylistImport>(key, PLAYLIST_TTL);
   if (cached) return cached;
 
@@ -270,10 +279,10 @@ export async function fetchYouTubePlaylistById(id: string): Promise<YtPlaylistIm
     meta.items?.[0]?.snippet?.title ?? 'YouTube playlist'
   );
 
-  // Itens (paginado, máx. ~200 vídeos)
+  // Itens (paginado, até `PAGINAS_DE_PLAYLIST` x 50 vídeos)
   const items: YtPlaylistItem[] = [];
   let pageToken: string | undefined;
-  for (let page = 0; page < 4; page++) {
+  for (let page = 0; page < PAGINAS_DE_PLAYLIST; page++) {
     const res = await yfetch('/playlistItems', {
       part: 'snippet',
       playlistId: id,

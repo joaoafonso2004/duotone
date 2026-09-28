@@ -106,6 +106,7 @@ const TESTES = [
   `${DUPLOS} scripts/test-guardadas-por-conta.ts`,
   `${TS} scripts/test-edicao-da-playlist.ts`,
   `${TS} scripts/test-menus-de-playlist.ts`,
+  `${TS} scripts/test-importar-playlist-youtube.ts`,
   `${RESOLVER} scripts/test-filtro-de-versao.ts`,
   'scripts/test-presenca-com-posicao-sql.mjs',
   `${TS} scripts/test-abertura.ts`,
