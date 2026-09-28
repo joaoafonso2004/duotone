@@ -1,0 +1,376 @@
+{
+ "contents": {
+  "twoColumnWatchNextResults": {
+   "playlist": {
+    "playlist": {
+     "title": "Mix - Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)",
+     "playlistId": "RDdQw4w9WgXcQ",
+     "isInfinite": true,
+     "contents": [
+      {
+       "playlistPanelVideoRenderer": {
+        "videoId": "dQw4w9WgXcQ",
+        "title": {
+         "accessibility": {
+          "accessibilityData": {
+           "label": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster) 3 minutes, 34 seconds"
+          }
+         },
+         "simpleText": "Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)"
+        },
+        "shortBylineText": {
+         "runs": [
+          {
+           "text": "Rick Astley",
+           "navigationEndpoint": {
+            "clickTrackingParams": "CJsBEMggGAAiEwjl7ajiw5GXAxUfBr8EHYKOILfKAQT9CQlc",
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "url": "/channel/UCuAXFkgsw1L7xaCfnd5JJOw",
+              "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+              "rootVe": 3611,
+              "apiUrl": "/youtubei/v1/browse"
+             }
+            },
+            "browseEndpoint": {
+             "browseId": "UCuAXFkgsw1L7xaCfnd5JJOw",
+             "canonicalBaseUrl": "/channel/UCuAXFkgsw1L7xaCfnd5JJOw"
+            }
+           }
+          }
+         ]
+        },
+        "longBylineText": {
+         "runs": [
+          {
+           "text": "Rick Astley",
+           "navigationEndpoint": {
+            "clickTrackingParams": "CJsBEMggGAAiEwjl7ajiw5GXAxUfBr8EHYKOILfKAQT9CQlc",
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "url": "/channel/UCuAXFkgsw1L7xaCfnd5JJOw",
+              "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+              "rootVe": 3611,
+              "apiUrl": "/youtubei/v1/browse"
+             }
+            },
+            "browseEndpoint": {
+             "browseId": "UCuAXFkgsw1L7xaCfnd5JJOw",
+             "canonicalBaseUrl": "/channel/UCuAXFkgsw1L7xaCfnd5JJOw"
+            }
+           }
+          }
+         ]
+        },
+        "lengthText": {
+         "accessibility": {
+          "accessibilityData": {
+           "label": "3 minutes, 34 seconds"
+          }
+         },
+         "simpleText": "3:34"
+        },
+        "thumbnail": {
+         "thumbnails": [
+          {
+           "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg?sqp=-oaymwEmCKgBEF5IWvKriqkDGQgBFQAAAAAYASUAAMhCPQCAokN4AbgC8xg=&rs=AOn4CLDqNTi-g2v1_0JjVhLuyU7cFO41qQ",
+           "width": 168,
+           "height": 94
+          },
+          {
+           "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg?sqp=-oaymwEmCMQBEG5IWvKriqkDGQgBFQAAAAAYASUAAMhCPQCAokN4AbgC8xg=&rs=AOn4CLAxTcYya5ouzy0yxbrqFZ1ANNMikg",
+           "width": 196,
+           "height": 110
+          },
+          {
+           "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg?sqp=-oaymwEnCPYBEIoBSFryq4qpAxkIARUAAAAAGAElAADIQj0AgKJDeAG4AvMY&rs=AOn4CLAqfe6ureRctw5t3tNF1FNN2jpfdw",
+           "width": 246,
+           "height": 138
+          },
+          {
+           "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAAAAGAElAADIQj0AgKJDeAG4AvMY&rs=AOn4CLAnIwPKva5RfiBTpr-YLupLt97QzA",
+           "width": 336,
+           "height": 188
+          }
+         ]
+        }
+       }
+      },
+      {
+       "playlistPanelVideoRenderer": {
+        "videoId": "yPYZpwSpKmA",
+        "title": {
+         "accessibility": {
+          "accessibilityData": {
+           "label": "Rick Astley - Together Forever (Official Video) [4K Remaster] 3 minutes, 24 seconds"
+          }
+         },
+         "simpleText": "Rick Astley - Together Forever (Official Video) [4K Remaster]"
+        },
+        "shortBylineText": {
+         "runs": [
+          {
+           "text": "Rick Astley",
+           "navigationEndpoint": {
+            "clickTrackingParams": "CJkBEMggGAEiEwjl7ajiw5GXAxUfBr8EHYKOILfKAQT9CQlc",
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "url": "/channel/UCuAXFkgsw1L7xaCfnd5JJOw",
+              "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+              "rootVe": 3611,
+              "apiUrl": "/youtubei/v1/browse"
+             }
+            },
+            "browseEndpoint": {
+             "browseId": "UCuAXFkgsw1L7xaCfnd5JJOw",
+             "canonicalBaseUrl": "/channel/UCuAXFkgsw1L7xaCfnd5JJOw"
+            }
+           }
+          }
+         ]
+        },
+        "longBylineText": {
+         "runs": [
+          {
+           "text": "Rick Astley",
+           "navigationEndpoint": {
+            "clickTrackingParams": "CJkBEMggGAEiEwjl7ajiw5GXAxUfBr8EHYKOILfKAQT9CQlc",
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "url": "/channel/UCuAXFkgsw1L7xaCfnd5JJOw",
+              "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+              "rootVe": 3611,
+              "apiUrl": "/youtubei/v1/browse"
+             }
+            },
+            "browseEndpoint": {
+             "browseId": "UCuAXFkgsw1L7xaCfnd5JJOw",
+             "canonicalBaseUrl": "/channel/UCuAXFkgsw1L7xaCfnd5JJOw"
+            }
+           }
+          }
+         ]
+        },
+        "lengthText": {
+         "accessibility": {
+          "accessibilityData": {
+           "label": "3 minutes, 24 seconds"
+          }
+         },
+         "simpleText": "3:24"
+        },
+        "thumbnail": {
+         "thumbnails": [
+          {
+           "url": "https://i.ytimg.com/vi/yPYZpwSpKmA/hqdefault.jpg?sqp=-oaymwEmCKgBEF5IWvKriqkDGQgBFQAAAAAYASUAAMhCPQCAokN4AbgC8xg=&rs=AOn4CLBky3SncTLO6YG55bnZ9kpRznPx4Q",
+           "width": 168,
+           "height": 94
+          },
+          {
+           "url": "https://i.ytimg.com/vi/yPYZpwSpKmA/hqdefault.jpg?sqp=-oaymwEmCMQBEG5IWvKriqkDGQgBFQAAAAAYASUAAMhCPQCAokN4AbgC8xg=&rs=AOn4CLC6LNGkHtOzhkotucMbwrcf-GCOAg",
+           "width": 196,
+           "height": 110
+          },
+          {
+           "url": "https://i.ytimg.com/vi/yPYZpwSpKmA/hqdefault.jpg?sqp=-oaymwEnCPYBEIoBSFryq4qpAxkIARUAAAAAGAElAADIQj0AgKJDeAG4AvMY&rs=AOn4CLDYqI_vGzLMU12a_GNBLhB7TXeuZA",
+           "width": 246,
+           "height": 138
+          },
+          {
+           "url": "https://i.ytimg.com/vi/yPYZpwSpKmA/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAAAAGAElAADIQj0AgKJDeAG4AvMY&rs=AOn4CLC-VJhIx-GT2NyB1YyJibnFEXz54A",
+           "width": 336,
+           "height": 188
+          }
+         ]
+        }
+       }
+      },
+      {
+       "playlistPanelVideoRenderer": {
+        "videoId": "djV11Xbc914",
+        "title": {
+         "accessibility": {
+          "accessibilityData": {
+           "label": "a-ha - Take On Me (Official Video) [4K] 4 minutes, 4 seconds"
+          }
+         },
+         "simpleText": "a-ha - Take On Me (Official Video) [4K]"
+        },
+        "shortBylineText": {
+         "runs": [
+          {
+           "text": "a-ha",
+           "navigationEndpoint": {
+            "clickTrackingParams": "CJcBEMggGAIiEwjl7ajiw5GXAxUfBr8EHYKOILfKAQT9CQlc",
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "url": "/channel/UCeEi1My3KTXHT0SG1JkR9gA",
+              "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+              "rootVe": 3611,
+              "apiUrl": "/youtubei/v1/browse"
+             }
+            },
+            "browseEndpoint": {
+             "browseId": "UCeEi1My3KTXHT0SG1JkR9gA",
+             "canonicalBaseUrl": "/channel/UCeEi1My3KTXHT0SG1JkR9gA"
+            }
+           }
+          }
+         ]
+        },
+        "longBylineText": {
+         "runs": [
+          {
+           "text": "a-ha",
+           "navigationEndpoint": {
+            "clickTrackingParams": "CJcBEMggGAIiEwjl7ajiw5GXAxUfBr8EHYKOILfKAQT9CQlc",
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "url": "/channel/UCeEi1My3KTXHT0SG1JkR9gA",
+              "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+              "rootVe": 3611,
+              "apiUrl": "/youtubei/v1/browse"
+             }
+            },
+            "browseEndpoint": {
+             "browseId": "UCeEi1My3KTXHT0SG1JkR9gA",
+             "canonicalBaseUrl": "/channel/UCeEi1My3KTXHT0SG1JkR9gA"
+            }
+           }
+          }
+         ]
+        },
+        "lengthText": {
+         "accessibility": {
+          "accessibilityData": {
+           "label": "4 minutes, 4 seconds"
+          }
+         },
+         "simpleText": "4:04"
+        },
+        "thumbnail": {
+         "thumbnails": [
+          {
+           "url": "https://i.ytimg.com/vi/djV11Xbc914/hqdefault.jpg?sqp=-oaymwEmCKgBEF5IWvKriqkDGQgBFQAAAAAYASUAAMhCPQCAokN4AbgC8xg=&rs=AOn4CLBgu5IjDy0I03L7J_SigUbEk6bvRA",
+           "width": 168,
+           "height": 94
+          },
+          {
+           "url": "https://i.ytimg.com/vi/djV11Xbc914/hqdefault.jpg?sqp=-oaymwEmCMQBEG5IWvKriqkDGQgBFQAAAAAYASUAAMhCPQCAokN4AbgC8xg=&rs=AOn4CLDJ0TdfxOYB_PLGBcPW29E5G14OwQ",
+           "width": 196,
+           "height": 110
+          },
+          {
+           "url": "https://i.ytimg.com/vi/djV11Xbc914/hqdefault.jpg?sqp=-oaymwEnCPYBEIoBSFryq4qpAxkIARUAAAAAGAElAADIQj0AgKJDeAG4AvMY&rs=AOn4CLCTHHOn83bth59qSk01bwUySIwC8Q",
+           "width": 246,
+           "height": 138
+          },
+          {
+           "url": "https://i.ytimg.com/vi/djV11Xbc914/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAAAAGAElAADIQj0AgKJDeAG4AvMY&rs=AOn4CLAHoQoo8N7kPjMLKG_dIvA7CBkoEw",
+           "width": 336,
+           "height": 188
+          }
+         ]
+        }
+       }
+      },
+      {
+       "playlistPanelVideoRenderer": {
+        "videoId": "aGCdLKXNF3w",
+        "title": {
+         "accessibility": {
+          "accessibilityData": {
+           "label": "Tears For Fears - Everybody Wants To Rule The World (Official Music Video) 4 minutes, 51 seconds"
+          }
+         },
+         "simpleText": "Tears For Fears - Everybody Wants To Rule The World (Official Music Video)"
+        },
+        "shortBylineText": {
+         "runs": [
+          {
+           "text": "Tears For Fears",
+           "navigationEndpoint": {
+            "clickTrackingParams": "CJUBEMggGAMiEwjl7ajiw5GXAxUfBr8EHYKOILfKAQT9CQlc",
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "url": "/channel/UCyH3IAelkUFM0u6Iacx22lA",
+              "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+              "rootVe": 3611,
+              "apiUrl": "/youtubei/v1/browse"
+             }
+            },
+            "browseEndpoint": {
+             "browseId": "UCyH3IAelkUFM0u6Iacx22lA",
+             "canonicalBaseUrl": "/channel/UCyH3IAelkUFM0u6Iacx22lA"
+            }
+           }
+          }
+         ]
+        },
+        "longBylineText": {
+         "runs": [
+          {
+           "text": "Tears For Fears",
+           "navigationEndpoint": {
+            "clickTrackingParams": "CJUBEMggGAMiEwjl7ajiw5GXAxUfBr8EHYKOILfKAQT9CQlc",
+            "commandMetadata": {
+             "webCommandMetadata": {
+              "url": "/channel/UCyH3IAelkUFM0u6Iacx22lA",
+              "webPageType": "WEB_PAGE_TYPE_CHANNEL",
+              "rootVe": 3611,
+              "apiUrl": "/youtubei/v1/browse"
+             }
+            },
+            "browseEndpoint": {
+             "browseId": "UCyH3IAelkUFM0u6Iacx22lA",
+             "canonicalBaseUrl": "/channel/UCyH3IAelkUFM0u6Iacx22lA"
+            }
+           }
+          }
+         ]
+        },
+        "lengthText": {
+         "accessibility": {
+          "accessibilityData": {
+           "label": "4 minutes, 51 seconds"
+          }
+         },
+         "simpleText": "4:51"
+        },
+        "thumbnail": {
+         "thumbnails": [
+          {
+           "url": "https://i.ytimg.com/vi/aGCdLKXNF3w/hqdefault.jpg?sqp=-oaymwEmCKgBEF5IWvKriqkDGQgBFQAAAAAYASUAAMhCPQCAokN4AbgC8xg=&rs=AOn4CLBKCickvKWc-qC-lOkUYPSeslmnRA",
+           "width": 168,
+           "height": 94
+          },
+          {
+           "url": "https://i.ytimg.com/vi/aGCdLKXNF3w/hqdefault.jpg?sqp=-oaymwEmCMQBEG5IWvKriqkDGQgBFQAAAAAYASUAAMhCPQCAokN4AbgC8xg=&rs=AOn4CLDWkOqTSz01J0xioxpXoGtv2N5qyg",
+           "width": 196,
+           "height": 110
+          },
+          {
+           "url": "https://i.ytimg.com/vi/aGCdLKXNF3w/hqdefault.jpg?sqp=-oaymwEnCPYBEIoBSFryq4qpAxkIARUAAAAAGAElAADIQj0AgKJDeAG4AvMY&rs=AOn4CLCYJAkqkFFMT4Ds2IAzba5i6qhZiw",
+           "width": 246,
+           "height": 138
+          },
+          {
+           "url": "https://i.ytimg.com/vi/aGCdLKXNF3w/hqdefault.jpg?sqp=-oaymwEnCNACELwBSFryq4qpAxkIARUAAAAAGAElAADIQj0AgKJDeAG4AvMY&rs=AOn4CLDP2mTjPm9AVBeVqi-l_W0rr8ZvlA",
+           "width": 336,
+           "height": 188
+          }
+         ]
+        }
+       }
+      },
+      {
+       "automixPreviewVideoRenderer": {
+        "content": {}
+       }
+      }
+     ]
+    }
+   }
+  }
+ }
+}

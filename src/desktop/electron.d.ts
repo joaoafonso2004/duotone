@@ -60,6 +60,10 @@ declare global {
       pesquisarNoYouTube?: (pedido: { query?: string; clientVersion: string; params?: string; continuation?: string }) => Promise<any>;
       /** As canções do YouTube Music, com a marca de explícita (lib/cancoesDoYtMusic.ts). */
       pesquisarCancoes?: (pedido: { query: string; clientVersion: string }) => Promise<any>;
+      /** O `next` do InnerTube para um Mix (`RD...`), pelo processo principal (28/9). */
+      lerMixDoYouTube?: (pedido: { playlistId: string; clientVersion: string }) => Promise<any>;
+      /** A página de um artista no YouTube Music, para os álbuns (lib/albunsDoArtista.ts, 28/9). */
+      lerArtistaDoYtMusic?: (pedido: { browseId: string; clientVersion: string }) => Promise<any>;
       /** Um GET ao catálogo pelo processo principal, que não tem CORS. Leva só
        * o caminho (`/artist/123/related?limit=25`); o endereço e as formas que
        * passam vivem no `electron/main.cjs`. Devolve `null` num HTTP mau, que é

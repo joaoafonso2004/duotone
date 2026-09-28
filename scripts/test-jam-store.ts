@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { registarOuvirJuntos, usePlayer } from '../src/state/player.ts';
 import type { Track } from '../src/types.ts';
-import { anteriorDaSessao, efeitoDaAutoFila, percursoDaSessao, proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, type PonteJam } from '../src/lib/jam.ts';
+import { anteriorDaSessao, efeitoDaAutoFila, percursoDaSessao, proximaFaixa, decisaoDeControlo, porSemear, restoDaLista, velocidadeNaSessao, assinaturaDaSessao, baralhada, semOApagado, escolherSessao, passouParaMim, type PonteJam } from '../src/lib/jam.ts';
+import { readFileSync } from 'node:fs';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
 import type { SessaoDeEscuta } from '../src/api/ouvirJuntos.ts';
@@ -473,5 +474,59 @@ assert.match(efeitoDaAutoFila(true, false), /rest of the list/);
 assert.match(efeitoDaAutoFila(false, true), /Only the songs you pick/);
 assert.ok(efeitoDaAutoFila(false, true) === efeitoDaAutoFila(false, false),
   'desligado promete o mesmo a toda a gente');
+
+// As que já tocaram saem do Up next (28/9): o item sai da fila com um DELETE
+// quando começa a tocar, e um DELETE não chega a uma subscrição com filtro.
+{
+  const fila = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  assert.deepEqual(semOApagado(fila, 'a').map((i) => i.id), ['b', 'c'], 'a que começou a tocar sai');
+  assert.equal(semOApagado(fila, 'de-outra-sessao'), fila, 'um DELETE de outra sessão não mexe (nem cria lista nova)');
+  assert.equal(semOApagado(fila, undefined), fila, 'sem chave no evento não se mexe');
+  const store = readFileSync(new URL('../src/state/ouvirJuntos.ts', import.meta.url), 'utf8');
+  assert.match(store, /\{ event: 'DELETE', schema: 'public', table: 'listening_queue' \}/,
+    'a store ouve os DELETE da fila SEM filtro -- com filtro nunca chegam');
+}
+
+// Com dois Jams abertos, fica o que se escolheu agora e sai-se do outro (28/9):
+// entrar num Jam não tirava ninguém do anterior, e a app ligava-se ao primeiro
+// que viesse -- um amigo via a fila de um Jam velho dentro do do João.
+{
+  const velho = { id: 'velho', entrouEm: 1_000 }, novo = { id: 'novo', entrouEm: 2_000 };
+  assert.deepEqual(escolherSessao([velho, novo], 'novo'), { escolhida: novo, sobras: [velho] }, 'o que se acabou de entrar');
+  assert.deepEqual(escolherSessao([novo, velho], 'velho'), { escolhida: velho, sobras: [novo] },
+    'voltar a entrar num Jam antigo também manda (a hora de entrada não muda)');
+  assert.deepEqual(escolherSessao([velho, novo]), { escolhida: novo, sobras: [velho] },
+    'ao abrir a app, o último em que se entrou -- e não o primeiro que a base devolve');
+  assert.deepEqual(escolherSessao([velho, novo], 'ja-acabou'), { escolhida: novo, sobras: [velho] });
+  assert.deepEqual(escolherSessao([]), { escolhida: null, sobras: [] });
+  const store = readFileSync(new URL('../src/state/ouvirJuntos.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(store, /escolherSessao\(await minhasSessoesAbertas\(userId\), preferida\)/, 'o ligar escolhe entre todos');
+  assert.match(store, /for \(const resto of sobras\) void sair\(resto\.id\)/, 'e sai dos restos');
+  assert.match(store, /await entrar\(sessao\);\n\s+const euId = get\(\)\.euId;\n\s+if \(euId\) await get\(\)\.ligar\(euId, sessao\);/,
+    'entrar liga ao Jam em que se entrou');
+  assert.match(store, /if \(euId\) await get\(\)\.ligar\(euId, id\);/, 'abrir liga ao Jam que se abriu');
+}
+
+// O anfitrião sai e a Jam continua (28/9, supabase/jam-passa-o-anfitriao.sql;
+// o SQL está preso no test-jam-passa-o-anfitriao-sql.mjs). Aqui: quem fica
+// com ela é avisado, e os botões só dizem "End" a quem sai sozinho.
+{
+  const antes = { id: 's', hostId: 'ana' };
+  assert.equal(passouParaMim(antes, { id: 's', hostId: 'eu' }, 'eu'), true, 'passou para mim');
+  assert.equal(passouParaMim(antes, { id: 's', hostId: 'rui' }, 'eu'), false, 'passou para outro');
+  assert.equal(passouParaMim(antes, { id: 's', hostId: 'ana' }, 'ana'), false, 'já era meu');
+  assert.equal(passouParaMim(null, { id: 's', hostId: 'eu' }, 'eu'), false, 'abrir ou entrar não é herdar');
+  assert.equal(passouParaMim(antes, { id: 'outra', hostId: 'eu' }, 'eu'), false, 'outra sessão não é herdar');
+  const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const store = ler('src/state/ouvirJuntos.ts');
+  assert.match(store, /passouParaMim\(antes\.sessao, agora\.sessao, agora\.euId\)/, 'a store avisa quem herda');
+  assert.ok(!store.includes('confirmarFechoDaSessao'),
+    'fechar o leitor já não pergunta "End Jam for everyone?": a Jam continua sem quem sai');
+  for (const f of ['src/components/FolhaDaSessao.tsx', 'src/desktop/JanelaDoJam.web.tsx']) {
+    const src = ler(f);
+    assert.match(src, /const acabaComigo = anfitriao && !todos\.some\(\(m\) => m\.userId !== euId\);/, `${f}: "End" só sozinho`);
+    assert.ok(!/anfitriao \? 'End/.test(src), `${f}: voltou o "End" a qualquer anfitrião`);
+  }
+}
 
 console.log('Jam: fila, permissões, shuffle, comandos, falhas, pausa e fecho verificados.');

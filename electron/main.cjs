@@ -1158,6 +1158,68 @@ ipcMain.handle('ytmusic:pesquisa', async (event, pedido) => {
 });
 
 /**
+ * A pagina de um artista no YouTube Music (28/9, src/lib/albunsDoArtista.ts): os
+ * albuns da pagina de artista vem do canal DELE, e nao de uma pesquisa pelo nome
+ * (que trazia os de um homonimo). Mesma regra do `ytmusic:pesquisa`: do renderer
+ * so vem o canal, com a forma de um canal (`UC` + 22), e a versao do cliente.
+ */
+ipcMain.handle('ytmusic:artista', async (event, pedido) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  const browseId = pedido && typeof pedido.browseId === 'string' ? pedido.browseId : '';
+  if (!/^UC[\w-]{22}$/.test(browseId)) throw new Error('Canal invalido.');
+  const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
+    ? pedido.clientVersion : '1.20260914.01.00';
+  const controlador = new AbortController();
+  const relogio = setTimeout(() => controlador.abort(), 15000);
+  try {
+    const res = await net.fetch('https://music.youtube.com/youtubei/v1/browse?prettyPrint=false', {
+      method: 'POST',
+      signal: controlador.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        context: { client: { clientName: 'WEB_REMIX', clientVersion: versao, hl: 'en', gl: 'US' } },
+        browseId,
+      }),
+    });
+    if (!res.ok) throw new Error('YouTube Music HTTP ' + res.status);
+    return res.json();
+  } finally {
+    clearTimeout(relogio);
+  }
+});
+
+/**
+ * As musicas de um Mix do YouTube (28/9, src/lib/mixDoYouTube.ts): o `next` do
+ * InnerTube, pela mesma razao do `yt:pesquisa` -- a janela nao pode pedir a
+ * outro site. O ENDERECO vive deste lado; do renderer so vem o id da lista, que
+ * tem de ter a forma de um Mix (`RD...`), e a versao do cliente.
+ */
+ipcMain.handle('yt:mix', async (event, pedido) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  const playlistId = pedido && typeof pedido.playlistId === 'string' ? pedido.playlistId : '';
+  if (!/^RD[\w-]{2,80}$/.test(playlistId)) throw new Error('Mix invalido.');
+  const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
+    ? pedido.clientVersion : '2.20260114.08.00';
+  const controlador = new AbortController();
+  const relogio = setTimeout(() => controlador.abort(), 15000);
+  try {
+    const res = await net.fetch('https://www.youtube.com/youtubei/v1/next?prettyPrint=false', {
+      method: 'POST',
+      signal: controlador.signal,
+      headers: { 'Content-Type': 'application/json', 'X-YouTube-Client-Name': '1', 'X-YouTube-Client-Version': versao },
+      body: JSON.stringify({
+        context: { client: { clientName: 'WEB', clientVersion: versao, hl: 'en', gl: 'US' } },
+        playlistId,
+      }),
+    });
+    if (!res.ok) throw new Error('YouTube HTTP ' + res.status);
+    return res.json();
+  } finally {
+    clearTimeout(relogio);
+  }
+});
+
+/**
  * As unicas formas de caminho que o catalogo aceita.
  *
  * Sao exactamente as que o `src/api/catalogo.ts` pede, e nada mais. Mesma

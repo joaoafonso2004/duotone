@@ -10,7 +10,8 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { fotoDoArtista } from '../api/catalogo';
-import { searchYouTube, searchYouTubePlaylists } from '../api/youtube';
+import { albunsDoArtista } from '../api/albunsDoArtista';
+import { pesquisarFaixas } from '../api/search';
 import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { EmptyState } from '../components/EmptyState';
 import { PillButton } from '../components/PillButton';
@@ -24,7 +25,7 @@ import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '../theme';
 import { useTheme } from '../state/theme';
 import { hapticSelection } from '../lib/haptics';
-import { agruparPorArtista, chaveDeArtista } from '../lib/artistName';
+import { agruparPorArtista, chaveDeArtista, displayArtist } from '../lib/artistName';
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
@@ -85,14 +86,30 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (type !== 'artist' || !name) return;
     let alive = true;
-    setLoadingYtTracks(true); setLoadingYtAlbums(true);
-    setYtTracks([]); setYtAlbums([]);
-    void searchYouTube(name).then(res => { if (alive) setYtTracks(res); }).catch(() => {})
+    setLoadingYtTracks(true);
+    setYtTracks([]);
+    // Como no PC: só entra o que é deste artista, e pela pesquisa sem quota.
+    // Era a `searchYouTube` crua, que trazia os homónimos (28/9).
+    const alvo = chaveDeArtista(name);
+    void pesquisarFaixas(`${name} music`)
+      .then(res => { if (alive) setYtTracks(res.filter((t) => chaveDeArtista(displayArtist(t)) === alvo)); })
+      .catch(() => {})
       .finally(() => { if (alive) setLoadingYtTracks(false); });
-    void searchYouTubePlaylists(name + ' album').then(res => { if (alive) setYtAlbums(res); }).catch(() => {})
-      .finally(() => { if (alive) setLoadingYtAlbums(false); });
     return () => { alive = false; };
   }, [type, name]);
+  // Os álbuns vêm do canal do artista no YouTube Music, escolhido pelas músicas
+  // dele na biblioteca (28/9, `albunsDoArtista`): pelo nome vinham os de um
+  // homónimo. Por isso espera que a biblioteca seja lida.
+  const provas = tracks.slice(0, 3).map((t) => t.sourceId).join(',');
+  useEffect(() => {
+    if (type !== 'artist' || !name || loading) return;
+    let alive = true;
+    setLoadingYtAlbums(true);
+    void albunsDoArtista(name, tracks).then(res => { if (alive) setYtAlbums(res); })
+      .finally(() => { if (alive) setLoadingYtAlbums(false); });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `provas` resume as faixas que contam
+  }, [type, name, loading, provas]);
   // A FOTO do artista vem do catálogo (27/9, `fotoDoArtista`). Era a capa da
   // primeira música dele na biblioteca, e quem não tinha nenhuma via uma nota.
   const [foto, setFoto] = useState<string | null>(null);

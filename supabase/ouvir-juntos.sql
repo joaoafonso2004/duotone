@@ -296,6 +296,8 @@ begin
   delete from public.listening_members
     where session_id = p_session and user_id = uid;
 
+  -- (28/9: SUBSTITUÍDO pelo jam-passa-o-anfitriao.sql -- agora a Jam passa a
+  -- quem lá está, por decisão do João. O que se segue é o raciocínio antigo.)
   -- O anfitrião a sair FECHA a sessão. A alternativa -- passar a outra pessoa
   -- -- parece simpática e é pior: quem ficasse passava a mandar na reprodução
   -- de gente que aceitou ouvir com OUTRA pessoa. Acabar é honesto, e voltar a

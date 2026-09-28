@@ -211,3 +211,54 @@ export type PonteJam = {
   sairAoFechar: () => Promise<boolean>;
   avisarErro: () => void;
 };
+
+/**
+ * A fila partilhada sem o item que o servidor acabou de apagar (28/9).
+ *
+ * Um item sai da fila com um DELETE quando começa a tocar (ou quando alguém o
+ * tira), e o Supabase NÃO entrega um DELETE a uma subscrição com filtro (só com
+ * `replica identity full`). A store ouvia a `listening_queue` com o filtro da
+ * sessão, por isso via as entradas e nunca as saídas: as que já tinham tocado
+ * ficavam no Up next, e a que tocava também (João, 28/9). O DELETE sem filtro
+ * chega a toda a gente só com a chave -- e a chave basta: tira-se daqui sem
+ * reler nada. A mesma lista (a mesma referência) quando não era desta sessão.
+ */
+export function semOApagado<T extends { id: string }>(fila: T[], idApagado: unknown): T[] {
+  if (typeof idApagado !== 'string' || !fila.some((i) => i.id === idApagado)) return fila;
+  return fila.filter((i) => i.id !== idApagado);
+}
+
+/**
+ * De todos os Jams abertos de que se é membro, em qual se está (28/9).
+ *
+ * Entrar num Jam não tirava ninguém do anterior, e um Jam só acaba quando o
+ * anfitrião carrega em sair -- fechar a app deixava-o aberto para sempre. Com
+ * dois abertos, a app ligava-se ao PRIMEIRO que a base de dados devolvesse, que
+ * costumava ser o mais antigo: um amigo do João entrou no Jam dele e via a fila
+ * de um Jam velho, com as sugestões do Smart Shuffle que lá tinha semeado.
+ *
+ * Manda o Jam em que se acabou de entrar (ou que se abriu); sem esse, o último
+ * em que se entrou. Os outros são restos, e quem chama sai deles.
+ */
+export function escolherSessao<T extends { id: string; entrouEm: number }>(
+  abertas: readonly T[],
+  preferida?: string | null,
+): { escolhida: T | null; sobras: T[] } {
+  const escolhida = (preferida ? abertas.find((s) => s.id === preferida) : undefined)
+    ?? abertas.reduce<T | null>((melhor, s) => (!melhor || s.entrouEm > melhor.entrouEm ? s : melhor), null);
+  return { escolhida, sobras: abertas.filter((s) => s !== escolhida) };
+}
+
+/**
+ * A Jam passou para mim (28/9, `supabase/jam-passa-o-anfitriao.sql`): o
+ * anfitrião saiu e o servidor escolheu-me. A mesma sessão, outro anfitrião, e
+ * esse sou eu -- é quando se avisa, porque passo a ser eu a avançar a fila.
+ */
+export function passouParaMim(
+  antes: { id: string; hostId: string } | null,
+  agora: { id: string; hostId: string } | null,
+  euId: string | null,
+): boolean {
+  return !!antes && !!agora && !!euId && antes.id === agora.id
+    && antes.hostId !== agora.hostId && agora.hostId === euId;
+}

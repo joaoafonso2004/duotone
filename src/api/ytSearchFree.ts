@@ -20,7 +20,7 @@ import type { Track } from '../types';
 const ENDPOINT = 'https://www.youtube.com/youtubei/v1/search';
 
 /** Igual ao que o ytstream.ts usa; atualizar os dois ao mesmo tempo. */
-const CLIENT = {
+export const CLIENT = {
   clientName: 'WEB',
   clientVersion: '2.20260114.08.00',
   hl: 'en',

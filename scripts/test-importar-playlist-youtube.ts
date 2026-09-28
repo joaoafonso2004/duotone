@@ -12,4 +12,8 @@ assert.equal((yt.match(/for \(let page = 0; page < PAGINAS_DE_PLAYLIST; page\+\+
 assert.ok(!/page < 4;/.test(yt), 'voltou o teto das 200');
 assert.ok(!yt.includes('`playlist:v1:'), 'a cache antiga (cortada nas 200) voltaria a servir');
 
+// Um Mix (`RD...`) não é uma playlist para a API (404): as duas entradas
+// encaminham-no para o leitor do InnerTube (28/9, lib/mixDoYouTube.ts).
+assert.equal((yt.match(/if \(eMix\(id\)\) \{/g) ?? []).length, 2, 'as duas leituras reconhecem um Mix');
+
 console.log('Importar playlist do YouTube: passou.');

@@ -107,6 +107,8 @@ const TESTES = [
   `${TS} scripts/test-edicao-da-playlist.ts`,
   `${TS} scripts/test-menus-de-playlist.ts`,
   `${TS} scripts/test-importar-playlist-youtube.ts`,
+  `${TS} scripts/test-mix-do-youtube.ts`,
+  `${TS} scripts/test-albuns-do-artista.ts`,
   `${RESOLVER} scripts/test-filtro-de-versao.ts`,
   'scripts/test-presenca-com-posicao-sql.mjs',
   `${TS} scripts/test-abertura.ts`,
@@ -189,6 +191,7 @@ const TESTES = [
   'scripts/test-sem-youtube-na-interface.mjs',
   `${TS} scripts/test-seguir-amigo.ts`,
   'scripts/test-presenca-com-fila-sql.mjs',
+  'scripts/test-jam-passa-o-anfitriao-sql.mjs',
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

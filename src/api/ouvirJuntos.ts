@@ -246,14 +246,20 @@ export async function lerMembros(sessao: string): Promise<MembroDaSessao[]> {
  * Serve o arranque da app: fechar e reabrir não é sair de uma sessão, e
  * encontrar-se outra vez lá dentro é o comportamento certo.
  */
-export async function minhaSessaoAberta(userId: string): Promise<SessaoDeEscuta | null> {
+/**
+ * TODOS os Jams abertos de que se é membro, com a hora a que se entrou. Pode
+ * haver mais do que um (ver `escolherSessao` em lib/jam.ts): devolver só o
+ * primeiro ligava a app a um Jam velho.
+ */
+export async function minhasSessoesAbertas(userId: string): Promise<{ id: string; sessao: SessaoDeEscuta; entrouEm: number }[]> {
   const { data } = await supabase
-    .from('listening_members').select('session_id').eq('user_id', userId);
-  for (const linha of data ?? []) {
-    const s = await lerSessao((linha as any).session_id);
-    if (s && !s.acabouEm) return s;
+    .from('listening_members').select('session_id, joined_at').eq('user_id', userId);
+  const abertas: { id: string; sessao: SessaoDeEscuta; entrouEm: number }[] = [];
+  for (const linha of (data ?? []) as { session_id: string; joined_at: string | null }[]) {
+    const s = await lerSessao(linha.session_id);
+    if (s && !s.acabouEm) abertas.push({ id: s.id, sessao: s, entrouEm: instante(linha.joined_at) ?? 0 });
   }
-  return null;
+  return abertas;
 }
 
 // ---------------------------------------------------------------------------

@@ -3,6 +3,8 @@ import { ENV } from '../lib/env';
 import { extractArtist } from '../lib/artistName';
 import { searchAttempts } from '../lib/searchQuery';
 import type { Track, YtPlaylistItem } from '../types';
+import { eMix } from '../lib/mixDoYouTube';
+import { lerMixDoYouTube } from './youtubeMix';
 
 const BASE = 'https://www.googleapis.com/youtube/v3';
 
@@ -183,6 +185,15 @@ export async function fetchYouTubePlaylist(
   const cached = await cacheGet<YtPlaylistImport>(key, PLAYLIST_TTL);
   if (cached) return cached;
 
+  // Um Mix (`RD...`) não é uma playlist para a API, que responde 404: lê-se
+  // pelo InnerTube (28/9, lib/mixDoYouTube.ts). A primeira volta, ~25 músicas.
+  if (eMix(id)) {
+    const mix = await lerMixDoYouTube(id);
+    const doMix: YtPlaylistImport = { id, title: mix.titulo, items: mix.itens };
+    await cacheSet(key, doMix);
+    return doMix;
+  }
+
   // Nome da playlist
   const meta = await yfetch('/playlists', { part: 'snippet', id });
   const title = decodeEntities(
@@ -272,6 +283,15 @@ export async function fetchYouTubePlaylistById(id: string): Promise<YtPlaylistIm
   const key = `playlist:v2:${id}`;
   const cached = await cacheGet<YtPlaylistImport>(key, PLAYLIST_TTL);
   if (cached) return cached;
+
+  // Um Mix (`RD...`) não é uma playlist para a API, que responde 404: lê-se
+  // pelo InnerTube (28/9, lib/mixDoYouTube.ts). A primeira volta, ~25 músicas.
+  if (eMix(id)) {
+    const mix = await lerMixDoYouTube(id);
+    const doMix: YtPlaylistImport = { id, title: mix.titulo, items: mix.itens };
+    await cacheSet(key, doMix);
+    return doMix;
+  }
 
   // Nome da playlist
   const meta = await yfetch('/playlists', { part: 'snippet', id });

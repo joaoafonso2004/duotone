@@ -12,10 +12,8 @@ import { FILTROS_DE_VERSAO, filtrosComResultados, versaoPassa, type FiltroDeVers
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { fotoDoArtista } from '../../api/catalogo';
 import { getLikedSongs } from '../../api/library';
-import {
-  fetchYouTubePlaylistById, searchYouTubePlaylists,
-  type YtRecommendedPlaylist,
-} from '../../api/youtube';
+import { fetchYouTubePlaylistById, type YtRecommendedPlaylist } from '../../api/youtube';
+import { albunsDoArtista } from '../../api/albunsDoArtista';
 import { pesquisarFaixas } from '../../api/search';
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
@@ -433,22 +431,11 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     useSaved.getState().refresh();
 
     const alvo = chaveDeArtista(name);
-    const contemArtista = (texto: string | null | undefined) => {
-      const chave = chaveDeArtista(texto);
-      return !!alvo && (chave === alvo || chave.startsWith(`${alvo} `) || chave.includes(` ${alvo} `));
-    };
-
-    Promise.all([
-      pesquisarFaixas(`${name} music`),
-      searchYouTubePlaylists(`${name} album`, 12),
-    ]).then(([resultados, playlists]) => {
+    pesquisarFaixas(`${name} music`).then((resultados) => {
       if (cancelado) return;
       // Uma pesquisa por nome também devolve reações, covers e entrevistas.
       // Só entram resultados cujo artista extraído é realmente este artista.
       setOutras(resultados.filter((t) => chaveDeArtista(displayArtist(t)) === alvo));
-      // Nas playlists não há metadados de artista: exigimos que o nome apareça
-      // no título ou no canal, em vez de mostrar qualquer playlist do resultado.
-      setAlbuns(playlists.filter((p) => contemArtista(p.title) || contemArtista(p.channelTitle)));
     }).catch((e: any) => {
       if (!cancelado) props.notify(e?.message || 'Could not discover more from this artist.');
     }).finally(() => {
@@ -457,6 +444,25 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
 
     return () => { cancelado = true; };
   }, [name, props.notify]);
+
+  // Os álbuns vêm do canal do artista no YouTube Music, e quem diz qual é o
+  // canal são as músicas dele na biblioteca (28/9, `albunsDoArtista`): pelo
+  // nome vinham os de um homónimo (o Isak Danielson na página do Isak). Por
+  // isso espera pela biblioteca, e só volta a correr se as provas mudarem.
+  const [aProcurarAlbuns, setAProcurarAlbuns] = useState(true);
+  const provas = tracks.slice(0, 3).map((t) => t.sourceId).join(',');
+  useEffect(() => {
+    if (data.loading) return;
+    let cancelado = false;
+    setAProcurarAlbuns(true);
+    void albunsDoArtista(name, tracks).then((lista) => {
+      if (!cancelado) setAlbuns(lista);
+    }).finally(() => {
+      if (!cancelado) setAProcurarAlbuns(false);
+    });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `provas` resume as faixas que contam
+  }, [name, data.loading, provas]);
 
   const chavesDaBiblioteca = useMemo(
     () => new Set(tracks.map((t) => `${t.source}:${t.sourceId}`)),
@@ -563,7 +569,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
           <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasSemRepetir} onPlay={(t) => props.play(t, outrasSemRepetir, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
             empty={<Empty icon="search-outline" title="No other tracks found" body="No other songs by this artist were found." />} />)}
 
-        {separador === 'albums' && (aDescobrir ? <View style={{ height: 280 }}><Loading /></View> : albuns.length ?
+        {separador === 'albums' && (aProcurarAlbuns ? <View style={{ height: 280 }}><Loading /></View> : albuns.length ?
           <View style={artistStyles.albumGrid}>{albuns.map((album) => <Pressable key={album.id} onPress={() => void abrirAlbum(album)}
             style={({ hovered, focused }) => [artistStyles.albumCard, (hovered || focused) && artistStyles.albumCardHover]}>
             {album.artworkUrl ? <Image source={{ uri: album.artworkUrl }} style={artistStyles.albumArt} /> :

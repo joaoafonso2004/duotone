@@ -59,6 +59,10 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   /** As cancoes do YouTube Music (com a marca de explicita), pela mesma razao.
    * Leva so a pergunta; o endereco e o filtro vivem do outro lado. */
   pesquisarCancoes: (pedido) => ipcRenderer.invoke('ytmusic:pesquisa', pedido),
+  /** As musicas de um Mix do YouTube (`RD...`), pelo processo principal. Leva so o id. */
+  lerMixDoYouTube: (pedido) => ipcRenderer.invoke('yt:mix', pedido),
+  /** A pagina de um artista no YouTube Music (os albuns dele). Leva so o canal. */
+  lerArtistaDoYtMusic: (pedido) => ipcRenderer.invoke('ytmusic:artista', pedido),
   /** O catalogo (Deezer) pelo processo principal, pela mesma razao: no
    * renderer a resposta vem sem `Access-Control-Allow-Origin` e o browser
    * deita-a fora, o que deixava a descoberta toda vazia no Windows. Leva o

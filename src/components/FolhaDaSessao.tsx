@@ -49,6 +49,9 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
   const amigos = useSocial((s) => s.friends);
 
   const anfitriao = souAnfitriao();
+  // O anfitrião a sair só acaba a Jam se não ficar ninguém: com gente, passa-a
+  // (28/9, supabase/jam-passa-o-anfitriao.sql).
+  const acabaComigo = anfitriao && !todos.some((m) => m.userId !== euId);
   // Sozinho não há uma roda para passar. O interruptor aparecia activo mas o
   // resultado era indistinguível de uma falha; mantém-se a opção à vista para
   // explicar quando fica disponível. Se já estava ligada e a outra pessoa
@@ -253,12 +256,12 @@ export function FolhaDaSessao({ visivel, aoFechar }: { visivel: boolean; aoFecha
       <Toque
         escala={ESCALA.botao}
         onPress={() => { void abandonar().then(aoFechar).catch(() => useOuvirJuntos.setState({ aviso: 'Could not leave Jam. Please try again.' })); }}
-        accessibilityLabel={anfitriao ? 'End session' : 'Leave session'}
+        accessibilityLabel={acabaComigo ? 'End session' : 'Leave session'}
         style={styles.sair}
       >
         <Ionicons name="exit-outline" size={17} color={colors.danger} />
         <Text style={[type.body, { color: colors.danger, fontWeight: '600' }]}>
-          {anfitriao ? 'End session' : 'Leave'}
+          {acabaComigo ? 'End session' : 'Leave'}
         </Text>
       </Toque>
 

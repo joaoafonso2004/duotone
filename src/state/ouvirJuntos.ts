@@ -1,11 +1,10 @@
 import { registarOuvirJuntos, usePlayer } from './player';
-import { confirmarFechoDaSessao } from '../lib/confirmarFechoDaSessao';
 import { create } from 'zustand';
 import { AppState } from 'react-native';
 import {
   continuoNaSessao, convidar, criarSessao, definirFaixa, entrar, retratoDaSessao,
   juntarAFila, juntarMuitasAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
-  definirAux, minhaSessaoAberta, pausar, permitirControlo, relogioActualizado, retomar,
+  definirAux, minhasSessoesAbertas, pausar, permitirControlo, relogioActualizado, retomar,
   sair, sessaoDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
   type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta,
 } from '../api/ouvirJuntos';
@@ -15,7 +14,7 @@ import { appEstaVisivel } from '../lib/appVisibility';
 import { supabase } from '../lib/supabase';
 import { candidatasParaDescoberta } from '../api/descoberta';
 import { chaveDeArtista } from '../lib/artistName';
-import { anteriorDaSessao, percursoDaSessao, porSemear } from '../lib/jam';
+import { anteriorDaSessao, escolherSessao, passouParaMim, percursoDaSessao, porSemear, semOApagado } from '../lib/jam';
 import { getJamAutoFila, setJamAutoFila } from '../lib/prefs';
 import { trackKey } from '../lib/shuffle';
 import { registar } from '../lib/eventos';
@@ -75,7 +74,8 @@ type Estado = {
    */
   aviso: string | null;
 
-  ligar: (userId: string) => Promise<void>;
+  /** `preferida`: o Jam em que se acabou de entrar ou que se abriu. */
+  ligar: (userId: string, preferida?: string) => Promise<void>;
   desligar: () => void;
 
   abrir: (track: Track | null, amigos: readonly string[], mensagem?: string) => Promise<string>;
@@ -199,15 +199,21 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
 
   // -------------------------------------------------------------------------
 
-  ligar: async (userId) => {
+  ligar: async (userId, preferida) => {
     get().desligar();
     const minha = ++geracao;
     set({ euId: userId });
 
-    // Reabrir a app não é sair de uma sessão.
-    const sessao = await minhaSessaoAberta(userId);
+    // Reabrir a app não é sair de uma sessão. Mas só se está num Jam de cada
+    // vez: com mais do que um aberto, fica o que se escolheu agora (ou o último
+    // em que se entrou) e sai-se dos outros, que são restos (28/9, ver
+    // `escolherSessao`). Ligava-se ao primeiro que viesse, e um amigo via a
+    // fila de um Jam velho dentro do do João.
+    const { escolhida, sobras } = escolherSessao(await minhasSessoesAbertas(userId), preferida);
     if (minha !== geracao) return;
-    if (!sessao) return;
+    for (const resto of sobras) void sair(resto.id).catch(() => {});
+    if (!escolhida) return;
+    const sessao = escolhida.sessao;
 
     const [membros, fila, relogio] = await Promise.all([
       lerMembros(sessao.id),
@@ -246,6 +252,20 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
         () => {
           if (minha !== geracao) return;
           void lerFila(sessao.id).then((f) => { if (minha === geracao) set({ fila: f }); });
+        }
+      )
+      // As SAÍDAS da fila (28/9). Um DELETE não chega a uma subscrição com
+      // filtro (sem `replica identity full`), e é assim que um item sai quando
+      // começa a tocar: as tocadas ficavam no Up next. Sem filtro chega com a
+      // chave, de qualquer sessão; só a desta mexe na fila (ver `semOApagado`).
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'listening_queue' },
+        (evento) => {
+          if (minha !== geracao) return;
+          const fila = get().fila;
+          const sem = semOApagado(fila, (evento.old as { id?: unknown } | null)?.id);
+          if (sem !== fila) set({ fila: sem });
         }
       )
       .subscribe();
@@ -302,7 +322,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
       }
       if (amigos.length) await convidar(id, amigos, mensagem);
       const euId = get().euId;
-      if (euId) await get().ligar(euId);
+      if (euId) await get().ligar(euId, id);
       set({ entradaComecouEm: comecou, origemDaEntrada: 'app' });
       registar('jam_iniciado', { tem_faixa: !!track, convidados: amigos.length });
       return id;
@@ -317,7 +337,7 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     try {
       await entrar(sessao);
       const euId = get().euId;
-      if (euId) await get().ligar(euId);
+      if (euId) await get().ligar(euId, sessao);
       set({ entradaComecouEm: comecou, origemDaEntrada: origem });
       registar('jam_entrada_concluida', { origem });
     } catch (erro) {
@@ -571,6 +591,11 @@ void getJamAutoFila().then((v) => useOuvirJuntos.setState({ autoFila: v }));
 
 let percurso: Track[] = [];
 useOuvirJuntos.subscribe((agora, antes) => {
+  // O anfitrião saiu e a Jam passou para mim (28/9): diz-se, porque sou eu
+  // que passo a avançar a fila. Aqui apanha-se o realtime e as releituras.
+  if (passouParaMim(antes.sessao, agora.sessao, agora.euId)) {
+    useOuvirJuntos.setState({ aviso: 'You are now the Jam host' });
+  }
   if (agora.sessao?.id !== antes.sessao?.id) { percurso = []; return; }
   percurso = percursoDaSessao(
     percurso, antes.sessao?.track ?? null, agora.sessao?.track ?? null, trackKey,
@@ -633,7 +658,6 @@ registarOuvirJuntos(() => {
     sairAoFechar: () => {
       if (fecho) return fecho;
       const operacao = (async () => {
-        if (s.souAnfitriao() && !await confirmarFechoDaSessao()) return false;
         if (!aindaAqui()) return !useOuvirJuntos.getState().sessao;
         await useOuvirJuntos.getState().abandonar();
         return true;

@@ -44,6 +44,9 @@ export function JanelaDoJam({ open, onClose, notify }: {
 
   const membros = presentes(todos, Date.now());
   const anfitriao = souAnfitriao();
+  // O anfitrião a sair só acaba a Jam se não ficar ninguém: com gente, passa-a
+  // (28/9, supabase/jam-passa-o-anfitriao.sql).
+  const acabaComigo = anfitriao && !todos.some((m) => m.userId !== euId);
   const podeAlternarAux = !!sessao?.auxDe || membros.some((m) => m.userId !== euId);
   // O perfil de cada pessoa, a própria incluída -- ver `usePessoasDaSessao`.
   const { nomeDe, avatarDe, rotuloDe } = usePessoasDaSessao();
@@ -57,7 +60,7 @@ export function JanelaDoJam({ open, onClose, notify }: {
       await abandonar();
       onClose();
     } catch {
-      notify(anfitriao ? 'Could not end the Jam.' : 'Could not leave the Jam.');
+      notify(acabaComigo ? 'Could not end the Jam.' : 'Could not leave the Jam.');
     } finally {
       setBusy(false);
     }
@@ -142,7 +145,7 @@ export function JanelaDoJam({ open, onClose, notify }: {
 
     <View style={styles.actions}>
       <Button secondary onPress={onClose}>Keep listening</Button>
-      <Button danger disabled={busy} onPress={() => void sair()}>{busy ? 'Please wait…' : anfitriao ? 'End Jam' : 'Leave Jam'}</Button>
+      <Button danger disabled={busy} onPress={() => void sair()}>{busy ? 'Please wait…' : acabaComigo ? 'End Jam' : 'Leave Jam'}</Button>
     </View>
   </Dialog>;
 }
