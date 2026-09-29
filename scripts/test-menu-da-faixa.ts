@@ -91,14 +91,6 @@ caso('no PC não há download, e no iPhone só nas do YouTube', () => {
   assert.ok(ids({ podeDescarregar: true }).includes('descarregar'));
   assert.ok(!ids({ podeDescarregar: false }).includes('descarregar'));
 });
-caso('o cartão das Stories: no leitor do iPhone e em todos os menus do PC', () => {
-  assert.ok(ids({ onde: 'leitor' }).includes('story'));
-  assert.ok(!ids({ onde: 'lista' }).includes('story'), 'as folhas das listas do iPhone não');
-  assert.ok(ids({ plataforma: 'pc', podeDescarregar: false }).includes('story'));
-  assert.equal(achar('story', { onde: 'leitor', semRede: true }).indisponivel, null, 'sem rede também');
-  const tem = ids({ onde: 'leitor' });
-  assert.equal(tem.indexOf('story'), tem.indexOf('partilhar') + 1, 'logo a seguir a partilhar');
-});
 caso('tirar da playlist só dentro de uma playlist, e no fim', () => {
   assert.ok(!ids().includes('tirar-da-playlist'));
   const tem = ids({ playlist: { podeEditar: true } });

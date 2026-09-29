@@ -8,7 +8,7 @@ const resposta = JSON.parse(readFileSync(new URL('./fixtures/youtube-mix-next.js
 
 assert.equal(eMix('RDdQw4w9WgXcQ'), true, 'o Mix de um vídeo');
 assert.equal(eMix('RDMM'), true, 'o My Mix');
-assert.equal(eMix('RDCLAK5uy_kmPRjHDECIcuVwnKsx2Ng7fyNgFKWNJFs'), true, 'as listas do YouTube Music');
+assert.equal(eMix('RDCLAK5uy_kmPRjHDECIcuVwnKsx2Ng7fyNgFKWNJFs'), false, 'as listas editoriais do YouTube Music são playlists a sério (a API lê-as)');
 assert.equal(eMix('PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG'), false, 'uma playlist a sério vai pela API de sempre');
 assert.equal(eMix('RD'), false);
 assert.equal(eMix('RD"><script>'), false, 'só a forma de um id');

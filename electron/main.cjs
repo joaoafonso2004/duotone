@@ -1142,6 +1142,8 @@ const FILTROS_DO_YTMUSIC = {
   cancoes: 'EgWKAQIIAWoKEAkQBRAKEAMQBA==',
   artistas: 'EgWKAQIgAWoMEA4QChADEAQQCRAF',
   albuns: 'EgWKAQIYAWoMEA4QChADEAQQCRAF',
+  playlists: 'EgeKAQQoAEABagwQDhAKEAMQBBAJEAU=',
+  playlistsEditoriais: 'EgeKAQQoADgBagwQDhAKEAMQBBAJEAU=',
 };
 ipcMain.handle('ytmusic:pesquisa', async (event, pedido) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');

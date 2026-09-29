@@ -59,7 +59,7 @@ declare global {
       onNotificationClick?: (listener: (conversation?:{friendId?:string;groupId?:string}) => void) => () => void;
       pesquisarNoYouTube?: (pedido: { query?: string; clientVersion: string; params?: string; continuation?: string }) => Promise<any>;
       /** As canções do YouTube Music, com a marca de explícita (lib/cancoesDoYtMusic.ts). */
-      pesquisarCancoes?: (pedido: { query: string; clientVersion: string; tipo?: 'cancoes' | 'artistas' | 'albuns' }) => Promise<any>;
+      pesquisarCancoes?: (pedido: { query: string; clientVersion: string; tipo?: 'cancoes' | 'artistas' | 'albuns' | 'playlists' | 'playlistsEditoriais' }) => Promise<any>;
       /** O `next` do InnerTube para um Mix (`RD...`), pelo processo principal (28/9). */
       lerMixDoYouTube?: (pedido: { playlistId: string; clientVersion: string; videoId?: string }) => Promise<any>;
       /** A página de um artista no YouTube Music, para os álbuns (lib/albunsDoArtista.ts, 28/9). */

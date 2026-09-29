@@ -19,7 +19,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMusicSearch } from '../hooks/useMusicSearch';
 import { usePesquisaPorTipo, type SeparadorDaPesquisa } from '../hooks/usePesquisaPorTipo';
-import { legendaDoAlbumEncontrado, type AlbumEncontrado, type ArtistaEncontrado } from '../lib/pesquisaPorTipo';
+import { legendaDoAlbumEncontrado, separadorPedidoPelaPergunta, type ArtistaEncontrado } from '../lib/pesquisaPorTipo';
+
+/** Um álbum ou uma playlist na pesquisa por tipo: os dois abrem a mesma folha. */
+type ItemEmCapa = { id: string; titulo: string; legenda: string; capa: string | null };
 import { lembrarCanalDoArtista } from '../api/albunsDoArtista';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
@@ -225,7 +228,9 @@ export function SearchScreen() {
   const [tipo, setTipo] = useState<SeparadorDaPesquisa>('musicas');
   const tipoAtivo: SeparadorDaPesquisa = query.trim().length < 2 ? 'musicas' : tipo;
   const porTipo = usePesquisaPorTipo(query, tipoAtivo);
-  const [albumAberto, setAlbumAberto] = useState<AlbumEncontrado | null>(null);
+  const [albumAberto, setAlbumAberto] = useState<ItemEmCapa | null>(null);
+  // "drake playlist" abre as Playlists sozinho; "drake album", os Albums.
+  useEffect(() => { const pedido = separadorPedidoPelaPergunta(query); if (pedido) setTipo(pedido); }, [query]);
   // O artista abre pelo CANAL escolhido, sem adivinhar pelo nome (homónimos).
   const abrirArtista = (a: ArtistaEncontrado) => {
     Keyboard.dismiss();
@@ -523,7 +528,7 @@ export function SearchScreen() {
           ) : null}
           {query.trim().length >= 2 ? (
             <View style={styles.vistas} accessibilityRole="tablist">
-              {([['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums']] as const).map(([id, nome]) => (
+              {([['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums'], ['playlists', 'Playlists']] as const).map(([id, nome]) => (
                 <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: tipo === id }}
                   onPress={() => { hapticSelection(); setTipo(id); }}
                   style={[styles.vista, tipo === id && styles.vistaActiva]}>
@@ -536,16 +541,18 @@ export function SearchScreen() {
 
         {tipoAtivo !== 'musicas' ? (
           porTipo.loading ? <SkeletonDeFaixas /> : (
-            <FlatList<ArtistaEncontrado | AlbumEncontrado>
-              data={tipoAtivo === 'artistas' ? porTipo.artistas : porTipo.albuns}
+            <FlatList<ArtistaEncontrado | ItemEmCapa>
+              data={tipoAtivo === 'artistas' ? porTipo.artistas
+                : tipoAtivo === 'albuns' ? porTipo.albuns.map((a) => ({ id: a.id, titulo: a.titulo, legenda: legendaDoAlbumEncontrado(a), capa: a.capa }))
+                : porTipo.playlists}
               keyExtractor={(x) => ('canal' in x ? x.canal : x.id)}
               contentContainerStyle={{ paddingBottom: bottomPad, flexGrow: 1 }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               ListEmptyComponent={
                 <EmptyState
-                  icon={porTipo.falhou ? 'cloud-offline-outline' : tipoAtivo === 'artistas' ? 'person-outline' : 'albums-outline'}
-                  title={porTipo.falhou ? 'Search failed' : tipoAtivo === 'artistas' ? 'No artists found' : 'No albums found'}
+                  icon={porTipo.falhou ? 'cloud-offline-outline' : tipoAtivo === 'artistas' ? 'person-outline' : tipoAtivo === 'albuns' ? 'albums-outline' : 'list-outline'}
+                  title={porTipo.falhou ? 'Search failed' : tipoAtivo === 'artistas' ? 'No artists found' : tipoAtivo === 'albuns' ? 'No albums found' : 'No playlists found'}
                   subtitle={porTipo.falhou ? 'Check your connection and try again.' : 'Try a different search term.'}
                 />
               }
@@ -553,7 +560,7 @@ export function SearchScreen() {
                 <LinhaDoResultado redonda capa={item.foto} titulo={item.nome} legenda={item.legenda}
                   onPress={() => abrirArtista(item)} />
               ) : (
-                <LinhaDoResultado capa={item.capa} titulo={item.titulo} legenda={legendaDoAlbumEncontrado(item)}
+                <LinhaDoResultado capa={item.capa} titulo={item.titulo} legenda={item.legenda}
                   onPress={() => { Keyboard.dismiss(); setAlbumAberto(item); }} />
               ))}
             />

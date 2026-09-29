@@ -27,7 +27,7 @@ import { useAuth } from '../../state/auth';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
 import { usePesquisaPorTipo, type SeparadorDaPesquisa } from '../../hooks/usePesquisaPorTipo';
-import { legendaDoAlbumEncontrado, type AlbumEncontrado, type ArtistaEncontrado } from '../../lib/pesquisaPorTipo';
+import { legendaDoAlbumEncontrado, separadorPedidoPelaPergunta, type ArtistaEncontrado } from '../../lib/pesquisaPorTipo';
 import { usePlayer } from '../../state/player';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../../state/recomendacoes';
 import { useSaved } from '../../state/saved';
@@ -118,6 +118,8 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
   // Albums. Só aparece com texto, e só pede o separador que está à vista.
   const [tipo, setTipo] = useState<SeparadorDaPesquisa>('musicas');
   const tipoAtivo: SeparadorDaPesquisa = semPesquisa ? 'musicas' : tipo;
+  // "drake playlist" abre as Playlists sozinho; "drake album", os Albums.
+  useEffect(() => { const pedido = separadorPedidoPelaPergunta(query); if (pedido) setTipo(pedido); }, [query]);
   const porTipo = usePesquisaPorTipo(query, tipoAtivo);
   const { abrirAlbum, dialogoDoAlbum } = useDialogoDoAlbum({ play, notify, more });
   // O artista abre pelo CANAL escolhido, sem adivinhar pelo nome (homónimos).
@@ -129,12 +131,17 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
     {query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
     {semPesquisa && !loading ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['descobrir', 'Discover'], ['dia', 'Songs of the day']] as const}
       valor={vista} aoMudar={setVista} /></View> : null}
-    {!semPesquisa ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums']] as const}
+    {!semPesquisa ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums'], ['playlists', 'Playlists']] as const}
       valor={tipo} aoMudar={setTipo} /></View> : null}
     <ContentScroll>{
       tipoAtivo === 'artistas' ? <ResultadosDeArtistas artistas={porTipo.artistas} loading={porTipo.loading} falhou={porTipo.falhou} aoAbrir={abrirArtista} />
-      : tipoAtivo === 'albuns' ? <ResultadosDeAlbuns albuns={porTipo.albuns} loading={porTipo.loading} falhou={porTipo.falhou}
-          aoAbrir={(a) => void abrirAlbum({ id: a.id, title: a.titulo, artworkUrl: a.capa, channelTitle: legendaDoAlbumEncontrado(a) })} />
+      : tipoAtivo === 'albuns' || tipoAtivo === 'playlists' ? <ResultadosEmCapas loading={porTipo.loading} falhou={porTipo.falhou}
+          itens={tipoAtivo === 'albuns'
+            ? porTipo.albuns.map((a) => ({ id: a.id, titulo: a.titulo, legenda: legendaDoAlbumEncontrado(a), capa: a.capa }))
+            : porTipo.playlists}
+          icone={tipoAtivo === 'albuns' ? 'albums-outline' : 'list-outline'}
+          vazio={tipoAtivo === 'albuns' ? 'No albums found' : 'No playlists found'}
+          aoAbrir={(a) => void abrirAlbum({ id: a.id, title: a.titulo, artworkUrl: a.capa, channelTitle: a.legenda })} />
       :
       /* O que já é teu vem primeiro e não espera pela rede; o YouTube fica por
          baixo. Ver lib/pesquisaLocal.ts. */
@@ -221,21 +228,27 @@ function ResultadosDeArtistas({ artistas, loading, falhou, aoAbrir }: {
   </Pressable>)}</View>;
 }
 
-/** Os álbuns, EPs e singles da pesquisa por tipo; abrem o diálogo do álbum. */
-function ResultadosDeAlbuns({ albuns, loading, falhou, aoAbrir }: {
-  albuns: AlbumEncontrado[]; loading: boolean; falhou: boolean; aoAbrir: (a: AlbumEncontrado) => void;
+type ItemEmCapa = { id: string; titulo: string; legenda: string; capa: string | null };
+
+/**
+ * Os álbuns e as playlists da pesquisa por tipo, em grelha de capas. Os dois
+ * abrem o mesmo diálogo (tocar, ou guardar como playlist).
+ */
+function ResultadosEmCapas({ itens, loading, falhou, icone, vazio, aoAbrir }: {
+  itens: ItemEmCapa[]; loading: boolean; falhou: boolean; icone: 'albums-outline' | 'list-outline';
+  vazio: string; aoAbrir: (a: ItemEmCapa) => void;
 }) {
   if (loading) return <View style={{ height: 320 }}><Loading /></View>;
-  if (!albuns.length) return falhou
+  if (!itens.length) return falhou
     ? <Empty icon="cloud-offline-outline" title="Search failed" body="Check your connection and try again." />
-    : <Empty icon="albums-outline" title="No albums found" body="Try a different search term." />;
-  return <View style={artistStyles.albumGrid}>{albuns.map((a) => <Pressable key={a.id} onPress={() => aoAbrir(a)}
-    accessibilityRole="button" accessibilityLabel={`${a.titulo}, ${legendaDoAlbumEncontrado(a)}`}
+    : <Empty icon={icone} title={vazio} body="Try a different search term." />;
+  return <View style={artistStyles.albumGrid}>{itens.map((a) => <Pressable key={a.id} onPress={() => aoAbrir(a)}
+    accessibilityRole="button" accessibilityLabel={a.legenda ? `${a.titulo}, ${a.legenda}` : a.titulo}
     style={({ hovered, focused }: any) => [artistStyles.albumCard, (hovered || focused) && artistStyles.albumCardHover]}>
     {a.capa ? <Image source={{ uri: a.capa }} style={artistStyles.albumArt} />
-      : <View style={[artistStyles.albumArt, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={34} color={desktop.dim} /></View>}
+      : <View style={[artistStyles.albumArt, artistStyles.albumFallback]}><Ionicons name={icone} size={34} color={desktop.dim} /></View>}
     <Text numberOfLines={2} style={artistStyles.albumTitle}>{a.titulo}</Text>
-    <Text numberOfLines={1} style={artistStyles.albumMeta}>{legendaDoAlbumEncontrado(a)}</Text>
+    {a.legenda ? <Text numberOfLines={1} style={artistStyles.albumMeta}>{a.legenda}</Text> : null}
   </Pressable>)}</View>;
 }
 

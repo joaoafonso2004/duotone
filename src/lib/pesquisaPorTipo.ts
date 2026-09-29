@@ -13,13 +13,16 @@
  * com respostas reais (`scripts/test-pesquisa-por-tipo.ts`).
  */
 
-export type TipoDePesquisa = 'cancoes' | 'artistas' | 'albuns';
+export type TipoDePesquisa = 'cancoes' | 'artistas' | 'albuns' | 'playlists' | 'playlistsEditoriais';
 
 /** Os filtros da pesquisa do YouTube Music. Os mesmos no processo principal do PC. */
 export const FILTROS_DA_PESQUISA: Readonly<Record<TipoDePesquisa, string>> = {
   cancoes: 'EgWKAQIIAWoKEAkQBRAKEAMQBA==',
   artistas: 'EgWKAQIgAWoMEA4QChADEAQQCRAF',
   albuns: 'EgWKAQIYAWoMEA4QChADEAQQCRAF',
+  // As de pessoas ("chill Drake playlist") e as editoriais ("Presenting Drake").
+  playlists: 'EgeKAQQoAEABagwQDhAKEAMQBBAJEAU=',
+  playlistsEditoriais: 'EgeKAQQoADgBagwQDhAKEAMQBBAJEAU=',
 };
 
 export type ArtistaEncontrado = {
@@ -40,6 +43,17 @@ export type AlbumEncontrado = {
   artista: string;
   ano: string | null;
   capa: string | null;
+};
+
+export type PlaylistEncontrada = {
+  /** A playlist (`PL...` ou `RDCLAK5uy_...`), sem o `VL` da página. */
+  id: string;
+  titulo: string;
+  /** "Nabhan Noufal · 1.2M views", ou "95 songs" numa editorial. */
+  legenda: string;
+  capa: string | null;
+  /** Das listas editoriais do serviço, e não de uma pessoa. */
+  editorial: boolean;
 };
 
 const texto = (t: any): string =>
@@ -104,4 +118,82 @@ export function lerAlbunsDaPesquisa(resposta: unknown): AlbumEncontrado[] {
 /** A linha por baixo de um álbum encontrado: "EP · Isak · 2026". */
 export function legendaDoAlbumEncontrado(a: Pick<AlbumEncontrado, 'tipo' | 'artista' | 'ano'>): string {
   return [a.tipo, a.artista, a.ano].filter(Boolean).join(' · ');
+}
+
+/** As playlists de uma pesquisa com o filtro `playlists` ou `playlistsEditoriais`. */
+export function lerPlaylistsDaPesquisa(resposta: unknown, editorial: boolean): PlaylistEncontrada[] {
+  const fora: PlaylistEncontrada[] = [];
+  const vistos = new Set<string>();
+  for (const it of itens(resposta)) {
+    const pagina = it?.navigationEndpoint?.browseEndpoint?.browseId;
+    const id = typeof pagina === 'string' ? pagina.replace(/^VL/, '') : '';
+    if (!/^(PL|RDCLAK5uy_|OLAK5uy_)[\w-]{8,80}$/.test(id) || vistos.has(id)) continue;
+    const titulo = coluna(it, 0);
+    if (!titulo) continue;
+    // "Nabhan Noufal • 1.2M views" / "YouTube Music • 95 songs": o nome do
+    // serviço sai (a interface não diz de onde vem), e o "Playlist" também.
+    const resto = partes(coluna(it, 1)).filter((p) => !/^(playlist|youtube music|youtube)$/i.test(p));
+    vistos.add(id);
+    fora.push({ id, titulo, legenda: resto.join(' · '), capa: capaMedia(it), editorial });
+  }
+  return fora;
+}
+
+/** A capa com uns 600 px: as de 1200 são peso a mais para uma grelha. */
+function capaMedia(it: any): string | null {
+  const lista: any[] = it?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails ?? [];
+  const boa = lista.find((t) => typeof t?.url === 'string' && t.width >= 400) ?? lista[lista.length - 1];
+  return typeof boa?.url === 'string' ? boa.url : null;
+}
+
+/** As palavras que dizem o TIPO do que se procura, e não o que se procura. */
+const INTENCAO = /^(playlists?|mix(es)?|albu(m|ns|ms)|álbu(m|ns)|eps?|songs?|musicas?|músicas?|tracks?)$/i;
+
+/** Os termos a sério de uma pesquisa: "drake playlist" → ["drake"]. */
+export function termosDaPergunta(pergunta: string): string[] {
+  return pergunta.toLowerCase().split(/\s+/).map((p) => p.trim()).filter((p) => p && !INTENCAO.test(p));
+}
+
+/**
+ * Sem as palavras de intenção, para as pesquisas de artistas e álbuns:
+ * "drake playlist" nos álbuns dava os de toda a gente, porque "playlist" também
+ * contava. Se não sobrar nada, fica a pergunta como veio.
+ */
+export function perguntaSemIntencao(pergunta: string): string {
+  const sobra = pergunta.trim().split(/\s+/).filter((p) => p && !INTENCAO.test(p)).join(' ');
+  return sobra || pergunta.trim();
+}
+
+/**
+ * O separador que a própria pergunta pede: "drake playlist" abre as
+ * Playlists, "drake album" os Albums. `null` quando não diz.
+ */
+export function separadorPedidoPelaPergunta(pergunta: string): 'playlists' | 'albuns' | null {
+  const palavras = pergunta.toLowerCase().split(/\s+/);
+  if (palavras.some((p) => /^playlists?$/.test(p))) return 'playlists';
+  if (palavras.some((p) => /^(albu(m|ns|ms)|álbu(m|ns))$/.test(p))) return 'albuns';
+  return null;
+}
+
+/**
+ * As duas listas numa só. Primeiro as que têm os termos no título (de pessoas
+ * ou editoriais, pela ordem de cada uma, a editorial à frente: "Presenting
+ * Drake" é a do artista); depois as outras de pessoas, e só no fim as
+ * editoriais que não dizem nada da pergunta ("Feel-Good Hip Hop and R&B").
+ */
+export function juntarPlaylists(
+  pergunta: string, editoriais: readonly PlaylistEncontrada[], dePessoas: readonly PlaylistEncontrada[],
+): PlaylistEncontrada[] {
+  const termos = termosDaPergunta(pergunta);
+  const tem = (p: PlaylistEncontrada) => termos.length > 0 && termos.every((t) => p.titulo.toLowerCase().includes(t));
+  const vistos = new Set<string>();
+  const fora: PlaylistEncontrada[] = [];
+  const por = (lista: readonly PlaylistEncontrada[], passa: (p: PlaylistEncontrada) => boolean) => {
+    for (const p of lista) if (passa(p) && !vistos.has(p.id)) { vistos.add(p.id); fora.push(p); }
+  };
+  por(editoriais, tem);
+  por(dePessoas, tem);
+  por(dePessoas, () => true);
+  por(editoriais, () => true);
+  return fora;
 }

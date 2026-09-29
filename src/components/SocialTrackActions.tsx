@@ -18,7 +18,6 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { spacing } from '../theme';
 import { colors, radii, type } from './socialTokens';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
-import { useCartaoDaStory } from '../state/cartaoDaStory';
 
 /**
  * O que se pode fazer a uma música vista no perfil de outra pessoa.
@@ -135,7 +134,6 @@ export function SocialTrackActions({ track, onClose, onArtist }: {
       case 'por-em-playlist': setPlaylist(true); return;
       case 'ver-artista': eFechar(() => onArtist(nomeDoArtista)); return;
       case 'partilhar': setShare(true); return;
-      case 'story': eFechar(() => useCartaoDaStory.getState().abrir(track)); return;
       case 'descarregar': eFechar(() => void alternarDownload(track)); return;
       case 'recomendacoes': setRecomendacoes(true); return;
       default: return;

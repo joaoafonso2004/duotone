@@ -3,7 +3,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  FILTROS_DA_PESQUISA, legendaDoAlbumEncontrado, lerAlbunsDaPesquisa, lerArtistasDaPesquisa,
+  FILTROS_DA_PESQUISA, juntarPlaylists, legendaDoAlbumEncontrado, lerAlbunsDaPesquisa, lerArtistasDaPesquisa,
+  lerPlaylistsDaPesquisa, perguntaSemIntencao, separadorPedidoPelaPergunta, termosDaPergunta,
 } from '../src/lib/pesquisaPorTipo.ts';
 
 const ler = (n: string) => JSON.parse(readFileSync(new URL(`./fixtures/${n}`, import.meta.url), 'utf8'));
@@ -33,6 +34,41 @@ assert.equal(legendaDoAlbumEncontrado(jon), 'Album · Isak, Zigarro & Armando Te
 assert.ok(albuns.some((a) => a.tipo === 'Single') && albuns.some((a) => a.tipo === 'EP'));
 assert.ok(albuns.every((a) => /^OLAK5uy_/.test(a.id)));
 
+// ---- playlists ("drake playlist", 29/9): as de pessoas e as editoriais
+const dePessoas = lerPlaylistsDaPesquisa(ler('ytmusic-pesquisa-playlists-comunidade.json'), false);
+const editoriais = lerPlaylistsDaPesquisa(ler('ytmusic-pesquisa-playlists-editoriais.json'), true);
+assert.ok(dePessoas.length >= 10 && editoriais.length >= 10);
+assert.deepEqual(dePessoas[0], {
+  id: 'PLjTvFvVGHYJYKuneUbhCu83Q8r1tukonh', titulo: 'chill Drake playlist', legenda: 'Nabhan Noufal · 1.2M views',
+  capa: dePessoas[0]!.capa, editorial: false,
+});
+assert.ok(dePessoas[0]!.capa?.startsWith('https://'));
+const presenting = editoriais.find((p) => p.titulo === 'Presenting Drake')!;
+assert.ok(presenting && /^RDCLAK5uy_/.test(presenting.id) && presenting.editorial);
+assert.equal(presenting.legenda, '95 songs', 'o nome do serviço não aparece');
+for (const p of [...dePessoas, ...editoriais]) {
+  assert.ok(!/youtube/i.test(p.legenda), `legenda "${p.legenda}"`);
+  assert.ok(!p.id.startsWith('VL'), 'o id é o da playlist, sem o VL da página');
+}
+const juntas = juntarPlaylists('drake playlist', editoriais, dePessoas);
+assert.equal(juntas[0]!.titulo, 'Presenting Drake', 'a editorial do artista primeiro');
+const primeiraSemDrake = juntas.findIndex((p) => !/drake/i.test(p.titulo));
+assert.ok(primeiraSemDrake > 5 && juntas.slice(primeiraSemDrake).every((p) => !/drake/i.test(p.titulo)),
+  'as que dizem "drake" vêm todas antes das outras');
+assert.ok(juntas.findIndex((p) => p.titulo === 'Feel-Good Hip Hop and R&B') > juntas.findIndex((p) => p.titulo === 'chill Drake playlist'));
+assert.equal(new Set(juntas.map((p) => p.id)).size, juntas.length, 'sem repetidas');
+
+// ---- a intenção na pergunta
+assert.deepEqual(termosDaPergunta('Drake playlist'), ['drake']);
+assert.equal(perguntaSemIntencao('drake playlist'), 'drake');
+assert.equal(perguntaSemIntencao('the weeknd album'), 'the weeknd');
+assert.equal(perguntaSemIntencao('playlist'), 'playlist', 'sem nada a sobrar, fica como veio');
+assert.equal(separadorPedidoPelaPergunta('drake playlist'), 'playlists');
+assert.equal(separadorPedidoPelaPergunta('Playlists de verão'), 'playlists');
+assert.equal(separadorPedidoPelaPergunta('drake album'), 'albuns');
+assert.equal(separadorPedidoPelaPergunta('drake'), null);
+assert.equal(separadorPedidoPelaPergunta('playlistas'), null);
+
 assert.deepEqual(lerArtistasDaPesquisa({}), []);
 assert.deepEqual(lerAlbunsDaPesquisa(null), []);
 
@@ -49,6 +85,8 @@ for (const f of ['src/desktop/paginas/BibliotecaPages.web.tsx', 'src/screens/Sea
   const s = src(f);
   assert.match(s, /lembrarCanalDoArtista\(a\.nome, a\.canal\)/, `${f}: tocar num artista lembra o canal dele`);
   assert.match(s, /usePesquisaPorTipo\(/, `${f}: os separadores Songs / Artists / Albums`);
+  assert.match(s, /\['playlists', 'Playlists'\]/, `${f}: o separador das playlists`);
+  assert.match(s, /separadorPedidoPelaPergunta\(query\)/, `${f}: "drake playlist" abre as Playlists`);
 }
 
 console.log('Pesquisa por tipo: passou.');

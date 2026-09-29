@@ -29,8 +29,13 @@ export function novasDaVolta(jaLidas: readonly YtPlaylistItem[], resposta: unkno
 /** A forma de um id de Mix. Validada também no processo principal do PC. */
 export const FORMA_DO_MIX = /^RD[\w-]{2,80}$/;
 
+/**
+ * As listas editoriais do YouTube Music (`RDCLAK5uy_...`, "Presenting Drake")
+ * também começam por RD, mas são playlists a sério: a Data API lê-as inteiras
+ * (29/9: 91 músicas numa, onde o `next` do Mix só dava as primeiras voltas).
+ */
 export function eMix(idDaLista: string | null | undefined): boolean {
-  return !!idDaLista && FORMA_DO_MIX.test(idDaLista);
+  return !!idDaLista && FORMA_DO_MIX.test(idDaLista) && !idDaLista.startsWith('RDCLAK5uy_');
 }
 
 // O título do Mix vem como string simples; o das músicas em `simpleText` ou `runs`.

@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { pesquisarNoYtMusicCru } from '../api/ytMusic';
 import {
-  lerAlbunsDaPesquisa, lerArtistasDaPesquisa, type AlbumEncontrado, type ArtistaEncontrado,
+  juntarPlaylists, lerAlbunsDaPesquisa, lerArtistasDaPesquisa, lerPlaylistsDaPesquisa, perguntaSemIntencao,
+  type AlbumEncontrado, type ArtistaEncontrado, type PlaylistEncontrada,
 } from '../lib/pesquisaPorTipo';
 
 /** O separador de cima da pesquisa: as músicas são o `useMusicSearch` de sempre. */
-export type SeparadorDaPesquisa = 'musicas' | 'artistas' | 'albuns';
+export type SeparadorDaPesquisa = 'musicas' | 'artistas' | 'albuns' | 'playlists';
 
-type Resultado = { artistas: ArtistaEncontrado[]; albuns: AlbumEncontrado[] };
-const VAZIO: Resultado = { artistas: [], albuns: [] };
+type Resultado = { artistas: ArtistaEncontrado[]; albuns: AlbumEncontrado[]; playlists: PlaylistEncontrada[] };
+const VAZIO: Resultado = { artistas: [], albuns: [], playlists: [] };
 
 /**
  * Em memória, por tipo e texto: voltar ao separador (ou à mesma pesquisa) não
@@ -16,11 +17,26 @@ const VAZIO: Resultado = { artistas: [], albuns: [] };
  */
 const memoria = new Map<string, Promise<Resultado | null>>();
 
-function pedir(tipo: 'artistas' | 'albuns', q: string): Promise<Resultado | null> {
+async function pedirPlaylists(q: string): Promise<Resultado | null> {
+  // As de pessoas e as editoriais, em paralelo; basta uma responder.
+  const [dePessoas, editoriais] = await Promise.all([
+    pesquisarNoYtMusicCru(q, 'playlists'),
+    pesquisarNoYtMusicCru(q, 'playlistsEditoriais'),
+  ]);
+  if (!dePessoas && !editoriais) return null;
+  return {
+    ...VAZIO,
+    playlists: juntarPlaylists(q, lerPlaylistsDaPesquisa(editoriais, true), lerPlaylistsDaPesquisa(dePessoas, false)),
+  };
+}
+
+function pedir(tipo: Exclude<SeparadorDaPesquisa, 'musicas'>, q: string): Promise<Resultado | null> {
   const chave = `${tipo}:${q.toLowerCase()}`;
   let pedido = memoria.get(chave);
   if (!pedido) {
-    pedido = pesquisarNoYtMusicCru(q, tipo).then((r) => {
+    // "drake playlist" nos artistas e nos álbuns procura "drake": a palavra de
+    // intenção só baralhava (vinham os álbuns de toda a gente).
+    pedido = tipo === 'playlists' ? pedirPlaylists(q) : pesquisarNoYtMusicCru(perguntaSemIntencao(q), tipo).then((r) => {
       if (!r) return null;
       return tipo === 'artistas'
         ? { ...VAZIO, artistas: lerArtistasDaPesquisa(r) }
@@ -33,10 +49,11 @@ function pedir(tipo: 'artistas' | 'albuns', q: string): Promise<Resultado | null
 }
 
 /**
- * Os artistas e os álbuns de uma pesquisa (29/9, `lib/pesquisaPorTipo.ts`).
+ * Os artistas, os álbuns e as playlists de uma pesquisa (29/9,
+ * `lib/pesquisaPorTipo.ts`).
  *
  * Só pede o separador que está à vista: quem nunca sai das músicas não paga
- * nada. Um pedido por texto e tipo, sem chave nem quota (YouTube Music).
+ * nada. Sem chave nem quota (YouTube Music).
  */
 export function usePesquisaPorTipo(query: string, separador: SeparadorDaPesquisa) {
   const [resultado, setResultado] = useState<Resultado>(VAZIO);
