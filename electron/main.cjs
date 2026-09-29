@@ -1134,13 +1134,20 @@ ipcMain.handle('yt:pesquisa', async (event, pedido) => {
  * As cancoes do YouTube Music, com a marca de explicita (27/9,
  * src/lib/cancoesDoYtMusic.ts): a importacao de playlists usa-a para nao trazer
  * versoes censuradas. Mesma regra do `yt:pesquisa`: do renderer so vem a
- * pergunta; o endereco, o cliente e o filtro (so cancoes) ficam deste lado.
+ * pergunta; o endereco, o cliente e o filtro ficam deste lado. Desde 29/9 a
+ * pesquisa por tipo (src/lib/pesquisaPorTipo.ts) pede tambem artistas e albuns:
+ * vem o NOME do tipo, e o filtro escolhe-se aqui -- nunca um filtro qualquer.
  */
-const FILTRO_CANCOES = 'EgWKAQIIAWoKEAkQBRAKEAMQBA==';
+const FILTROS_DO_YTMUSIC = {
+  cancoes: 'EgWKAQIIAWoKEAkQBRAKEAMQBA==',
+  artistas: 'EgWKAQIgAWoMEA4QChADEAQQCRAF',
+  albuns: 'EgWKAQIYAWoMEA4QChADEAQQCRAF',
+};
 ipcMain.handle('ytmusic:pesquisa', async (event, pedido) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
   const query = pedido && typeof pedido.query === 'string' ? pedido.query.trim().slice(0, 300) : '';
   if (!query) throw new Error('Pesquisa vazia.');
+  const tipo = pedido && Object.prototype.hasOwnProperty.call(FILTROS_DO_YTMUSIC, pedido.tipo) ? pedido.tipo : 'cancoes';
   // A versao do cliente vive no cancoesDoYtMusic.ts; aqui so se valida a forma.
   const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
     ? pedido.clientVersion : '1.20260914.01.00';
@@ -1150,7 +1157,7 @@ ipcMain.handle('ytmusic:pesquisa', async (event, pedido) => {
     body: JSON.stringify({
       context: { client: { clientName: 'WEB_REMIX', clientVersion: versao, hl: 'en', gl: 'US' } },
       query,
-      params: FILTRO_CANCOES,
+      params: FILTROS_DO_YTMUSIC[tipo],
     }),
   });
   if (!res.ok) throw new Error('YouTube Music HTTP ' + res.status);
@@ -1161,12 +1168,15 @@ ipcMain.handle('ytmusic:pesquisa', async (event, pedido) => {
  * A pagina de um artista no YouTube Music (28/9, src/lib/albunsDoArtista.ts): os
  * albuns da pagina de artista vem do canal DELE, e nao de uma pesquisa pelo nome
  * (que trazia os de um homonimo). Mesma regra do `ytmusic:pesquisa`: do renderer
- * so vem o canal, com a forma de um canal (`UC` + 22), e a versao do cliente.
+ * so vem o canal (`UC` + 22) ou a lista com todas as musicas dele (`VLOLAK5uy_...`,
+ * 29/9, as "More tracks"), e a versao do cliente. Mais nada passa.
  */
 ipcMain.handle('ytmusic:artista', async (event, pedido) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
   const browseId = pedido && typeof pedido.browseId === 'string' ? pedido.browseId : '';
-  if (!/^UC[\w-]{22}$/.test(browseId)) throw new Error('Canal invalido.');
+  if (!/^UC[\w-]{22}$/.test(browseId) && !/^VL(OLAK5uy_|PL|RDCLAK5uy_)[\w-]{10,80}$/.test(browseId)) {
+    throw new Error('Pagina invalida.');
+  }
   const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
     ? pedido.clientVersion : '1.20260914.01.00';
   const controlador = new AbortController();
@@ -1198,6 +1208,9 @@ ipcMain.handle('yt:mix', async (event, pedido) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
   const playlistId = pedido && typeof pedido.playlistId === 'string' ? pedido.playlistId : '';
   if (!/^RD[\w-]{2,80}$/.test(playlistId)) throw new Error('Mix invalido.');
+  // As voltas seguintes pedem-se a partir de uma musica (29/9): so um id de video.
+  const videoId = pedido && typeof pedido.videoId === 'string' ? pedido.videoId : '';
+  if (videoId && !/^[\w-]{11}$/.test(videoId)) throw new Error('Video invalido.');
   const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
     ? pedido.clientVersion : '2.20260114.08.00';
   const controlador = new AbortController();
@@ -1210,6 +1223,7 @@ ipcMain.handle('yt:mix', async (event, pedido) => {
       body: JSON.stringify({
         context: { client: { clientName: 'WEB', clientVersion: versao, hl: 'en', gl: 'US' } },
         playlistId,
+        ...(videoId ? { videoId } : {}),
       }),
     });
     if (!res.ok) throw new Error('YouTube HTTP ' + res.status);

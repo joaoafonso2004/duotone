@@ -71,6 +71,7 @@ const TESTES = [
   `${TS} scripts/test-fim-da-faixa.ts`,
   `${TS} scripts/test-crossfade.ts`,
   `${TS} scripts/test-montagem-da-capa.ts`,
+  `${TS} scripts/test-recuo-do-encaixe.ts`,
   `${TS} scripts/test-troca-de-fonte.ts`,
   `${TS} scripts/test-relogio-partilhado.ts`,
   `${TS} scripts/test-sessao-viva.ts`,
@@ -192,6 +193,11 @@ const TESTES = [
   `${TS} scripts/test-seguir-amigo.ts`,
   'scripts/test-presenca-com-fila-sql.mjs',
   'scripts/test-jam-passa-o-anfitriao-sql.mjs',
+  `${TS} scripts/test-migracoes.ts`,
+  `${TS} scripts/test-deslizar-para-a-fila.ts`,
+  `${TS} scripts/test-pesquisa-por-tipo.ts`,
+  `${TS} scripts/test-cartao-da-story.ts`,
+  'scripts/test-estado-das-migracoes-sql.mjs',
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

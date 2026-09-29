@@ -35,6 +35,9 @@ await db.exec(ler('ouvir-juntos.sql'));
 await db.exec(ler('passa-o-aux.sql'));
 await db.exec(ler('jam-passa-o-anfitriao.sql'));
 await db.exec(ler('jam-passa-o-anfitriao.sql')); // correr duas vezes não parte nada
+await db.exec(ler('entrar-na-sessao-do-amigo.sql'));
+await db.exec(ler('fechar-jams-abandonadas.sql'));
+await db.exec(ler('fechar-jams-abandonadas.sql'));
 await db.exec('grant all on all tables in schema public to authenticated;');
 
 // Quatro contas, todas amigas da 1 (a primeira anfitriã).
@@ -133,5 +136,48 @@ await caso('ninguém chama a função interna para ficar com a Jam de outro', as
   assert.equal((await sessao(s)).host_id, uid(1));
 });
 
+// ---- As Jams abandonadas (supabase/fechar-jams-abandonadas.sql) ----------
+const envelhecer = async (s, horas) => {
+  await admin();
+  await q(`update public.listening_sessions set created_at = clock_timestamp() - ($2 || ' hours')::interval,
+             started_at = case when started_at is null then null else clock_timestamp() - ($2 || ' hours')::interval end
+           where id = $1`, [s, String(horas)]);
+  await q(`update public.listening_members set last_seen = clock_timestamp() - ($2 || ' hours')::interval where session_id = $1`, [s, String(horas)]);
+};
+const fechar = async (n) => { await como(n); return (await q(`select public.fechar_jams_abandonadas() as n`)).rows[0].n; };
+const amigosVeem = async (n) => { await como(n); return (await q(`select sessao from public.sessoes_dos_amigos()`)).rows.map((r) => r.sessao); };
+const fecharTodas = async () => { await admin(); await q(`update public.listening_sessions set ended_at = clock_timestamp() where ended_at is null`); };
+
+await caso('uma Jam sem sinal há mais de 3 h fecha-se; a viva fica', async () => {
+  await fecharTodas();
+  const velha = await abrir(1); await entrar(2, velha);
+  const viva = await abrir(3);
+  await envelhecer(velha, 4);
+  assert.deepEqual(await amigosVeem(2), [viva], 'o 2 é amigo do 1 e do 3: a do 1 está abandonada e não aparece');
+  assert.equal(await fechar(2), 1);
+  assert.notEqual((await sessao(velha)).ended_at, null);
+  assert.equal((await sessao(viva)).ended_at, null);
+});
+
+await caso('uma música nova conta como sinal, mesmo sem ninguém à vista', async () => {
+  await fecharTodas();
+  const s = await abrir(1); await entrar(2, s);
+  await envelhecer(s, 5);
+  await admin(); await q(`update public.listening_sessions set started_at = clock_timestamp() - interval '10 minutes' where id = $1`, [s]);
+  assert.equal(await fechar(2), 0);
+  assert.equal((await sessao(s)).ended_at, null);
+});
+
+await caso('a Jam viva de um amigo continua a aparecer', async () => {
+  await fecharTodas();
+  const s = await abrir(1);
+  assert.deepEqual(await amigosVeem(2), [s]);
+});
+
+await caso('ninguém chama por fora a regra do abandono', async () => {
+  await como(2);
+  await assert.rejects(q(`select public.jam_abandonada(s) from public.listening_sessions s limit 1`), /permission denied/);
+});
+
 if (falhas) { console.error(`\n${falhas} caso(s) falharam.`); process.exit(1); }
-console.log('Jam: o anfitrião sai e a Jam continua -- passou.');
+console.log('Jam: o anfitrião sai e a Jam continua, e as abandonadas fecham-se -- passou.');

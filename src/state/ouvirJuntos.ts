@@ -4,7 +4,7 @@ import { AppState } from 'react-native';
 import {
   continuoNaSessao, convidar, criarSessao, definirFaixa, entrar, retratoDaSessao,
   juntarAFila, juntarMuitasAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
-  definirAux, minhasSessoesAbertas, pausar, permitirControlo, relogioActualizado, retomar,
+  definirAux, fecharJamsAbandonadas, minhasSessoesAbertas, pausar, permitirControlo, relogioActualizado, retomar,
   sair, sessaoDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
   type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta,
 } from '../api/ouvirJuntos';
@@ -209,6 +209,10 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     // em que se entrou) e sai-se dos outros, que são restos (28/9, ver
     // `escolherSessao`). Ligava-se ao primeiro que viesse, e um amigo via a
     // fila de um Jam velho dentro do do João.
+    // Ao abrir a app, antes de procurar: uma Jam sem sinal há três horas fecha-se
+    // (supabase/fechar-jams-abandonadas.sql), e não se volta a ligar a ela.
+    if (!preferida) await fecharJamsAbandonadas();
+    if (minha !== geracao) return;
     const { escolhida, sobras } = escolherSessao(await minhasSessoesAbertas(userId), preferida);
     if (minha !== geracao) return;
     for (const resto of sobras) void sair(resto.id).catch(() => {});

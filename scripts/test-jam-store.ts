@@ -522,6 +522,11 @@ assert.ok(efeitoDaAutoFila(false, true) === efeitoDaAutoFila(false, false),
   assert.match(store, /passouParaMim\(antes\.sessao, agora\.sessao, agora\.euId\)/, 'a store avisa quem herda');
   assert.ok(!store.includes('confirmarFechoDaSessao'),
     'fechar o leitor já não pergunta "End Jam for everyone?": a Jam continua sem quem sai');
+  // O PC mostra os avisos da Jam no toast da app (29/9): não tinha onde.
+  const pc = ler('src/navigation/RootNavigator.web.tsx');
+  assert.match(pc, /useOuvirJuntos\.subscribe\(\(agora, antes\) => \{\n\s+if \(agora\.aviso && agora\.aviso !== antes\.aviso\) setToast\(agora\.aviso\);/,
+    'o PC mostra "You are now the Jam host" e os outros avisos');
+  assert.match(pc, /setToast\('The Jam ended\.'\)/, 'e diz quando a Jam acabou');
   for (const f of ['src/components/FolhaDaSessao.tsx', 'src/desktop/JanelaDoJam.web.tsx']) {
     const src = ler(f);
     assert.match(src, /const acabaComigo = anfitriao && !todos\.some\(\(m\) => m\.userId !== euId\);/, `${f}: "End" só sozinho`);

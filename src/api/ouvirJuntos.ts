@@ -247,6 +247,18 @@ export async function lerMembros(sessao: string): Promise<MembroDaSessao[]> {
  * encontrar-se outra vez lá dentro é o comportamento certo.
  */
 /**
+ * Fecha as Jams sem sinal há três horas (supabase/fechar-jams-abandonadas.sql).
+ * Sem a migração, ou sem rede, não faz nada: as Jams acabam como sempre.
+ */
+export async function fecharJamsAbandonadas(): Promise<void> {
+  try {
+    await supabase.rpc('fechar_jams_abandonadas');
+  } catch {
+    // Ninguém depende disto para ouvir música.
+  }
+}
+
+/**
  * TODOS os Jams abertos de que se é membro, com a hora a que se entrou. Pode
  * haver mais do que um (ver `escolherSessao` em lib/jam.ts): devolver só o
  * primeiro ligava a app a um Jam velho.

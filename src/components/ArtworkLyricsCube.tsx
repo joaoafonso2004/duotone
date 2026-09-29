@@ -73,11 +73,15 @@ function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:numb
     :[{translateY:meio},{rotateX:'-90deg'}];
   const veu:[string,string]=[`rgba(0,0,0,${g.veu.frente})`,`rgba(0,0,0,${g.veu.tras})`];
   const m=pose3D.montagem;
-  // A esquerda (e a direita, escondida) encaixa com o 1.º bocado; a de baixo (e a de cima) com o 2.º.
-  const grupo=lado==='esquerda'||lado==='direita'?0:1;
+  // A esquerda encaixa com o 1.º bocado e a de baixo com o 2.º. A de cima e a da
+  // direita FECHAM a caixa: sem a face, via-se o interior delas antes de a capa
+  // encaixar (João, 29/9). Aparecem no contacto, já no sítio, e a face tapa-as.
+  const fechaACaixa=lado==='direita'||lado==='cima';
+  const grupo=lado==='esquerda'?0:1;
   return <Animated.View pointerEvents="none" shouldRasterizeIOS style={{position:'absolute',left:g.left,top:g.top,width:g.largura,height:g.altura,
-    overflow:'hidden',backfaceVisibility:'hidden',opacity:m?Animated.multiply(pose3D.pose,m.opacidades[grupo]):pose3D.pose,
-    transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar,...chegar(m,grupo,0.26*size)]}}>
+    overflow:'hidden',backfaceVisibility:'hidden',
+    opacity:!m?pose3D.pose:fechaACaixa?Animated.multiply(pose3D.pose,m.fecho):Animated.multiply(pose3D.pose,m.opacidades[grupo]),
+    transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar,...(fechaACaixa?[]:chegar(m,grupo,0.26*size))]}}>
     <View style={{width:g.largura,height:g.altura,overflow:'hidden',transform:[g.espelho==='x'?{scaleX:-1}:{scaleY:-1}]}}>
       {artwork?<ImagemDaCapa source={{uri:artwork}} cachePolicy="memory-disk" contentFit="cover" style={{position:'absolute',left:g.imagem.x,top:g.imagem.y,width:size,height:size}} />:null}
     </View>

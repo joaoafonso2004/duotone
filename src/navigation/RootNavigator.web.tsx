@@ -36,6 +36,8 @@ import { contextoParaAnalytics, type DiscoveryContext } from '../lib/contextoDaD
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
 import { useConnectivity } from '../state/connectivity';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { useCartaoDaStory } from '../state/cartaoDaStory';
+import { CartaoDaStoryPc } from '../desktop/CartaoDaStory.web';
 import { usePrivacidade } from '../state/privacidade';
 import { usePlaylists } from '../state/playlists';
 import { useTheme } from '../state/theme';
@@ -319,6 +321,16 @@ function DesktopShell() {
     return () => { window.removeEventListener('mouseup', aoLargar); window.removeEventListener('mousedown', engolir); };
   }, [voltarPeloRato, avancar]);
   const notify = useCallback((s: string) => setToast(s), []);
+  // Os avisos da Jam (29/9): no iPhone aparecem na barra da sessão; o PC não
+  // tinha onde os mostrar -- "You are now the Jam host", "Added · ...", a Jam
+  // que acabou. Vão para o mesmo toast do resto da app.
+  useEffect(() => useOuvirJuntos.subscribe((agora, antes) => {
+    if (agora.aviso && agora.aviso !== antes.aviso) setToast(agora.aviso);
+    if (agora.acabouSemAviso && !antes.acabouSemAviso) {
+      setToast('The Jam ended.');
+      useOuvirJuntos.getState().limparAviso();
+    }
+  }), []);
   const fecharJam = useCallback(() => setJamOpen(false), []);
   const abrirJam = useCallback(async () => {
     const juntos = useOuvirJuntos.getState();
@@ -586,6 +598,7 @@ function DesktopShell() {
       // uploads em vez da do artista.
       case 'ver-artista': setTrackMenuOpen(false); navigate({ name: 'artist', value: nomeDoArtistaDoMenu }); return;
       case 'partilhar': setTrackMenuOpen(false); void openShareDialog({ itemType: 'track', item: t, name: t.title }); return;
+      case 'story': setTrackMenuOpen(false); useCartaoDaStory.getState().abrir(t); return;
       case 'recomendacoes': setTrackMenuOpen(false); setRecommendationTrack(t); setRecommendationContext(trackMenuContext); return;
       case 'tirar-da-playlist': void removeFromCurrentPlaylist(); return;
       case 'tirar-da-fila': {
@@ -737,6 +750,7 @@ function DesktopShell() {
       )}
     </Dialog>
 
+    <CartaoDaStoryPc notify={notify} />
     <RecommendationPreferences visible={!!recommendationTrack} track={recommendationTrack} reason={recommendationContext?.reason} onClose={()=>{setRecommendationTrack(null);setRecommendationContext(null);}}/>
     {/* PLAYLIST DIALOG */}
     <Dialog open={playlistDialog} title="Add to playlist" onClose={() => setPlaylistDialog(false)}>

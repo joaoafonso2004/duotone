@@ -6,6 +6,8 @@ import { useMontagemDaCapa, type MontagemDaCapa } from '../hooks/useMontagemDaCa
 import type { Track } from '../types';
 import { desfoqueLeve } from '../lib/capaGrande';
 import { capaGrande, marcarSemCapaGrande, ouvirCapasGrandes, preCarregarCapasGrandes } from '../state/capasGrandes';
+import { useCartaoDaStory } from '../state/cartaoDaStory';
+import { CartaoDaStory } from './CartaoDaStory';
 import { partilharRelatorioDoArranque } from '../lib/partilharRelatorioDoArranque';
 import { ModoCarro } from './ModoCarro';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
@@ -252,6 +254,7 @@ export function PlayerRoot() {
     });
   };
   const [partilhaAberta, setPartilhaAberta] = useState(false);
+  const storyFaixa = useCartaoDaStory((s) => s.faixa);
   const [recomendacoesAbertas, setRecomendacoesAbertas] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   /**
@@ -957,6 +960,7 @@ export function PlayerRoot() {
       case 'por-em-playlist': fecharEEntao(() => setPlaylistOpen(true)); return;
       case 'ver-artista': fecharEEntao(abrirArtista); return;
       case 'partilhar': fecharEEntao(() => setPartilhaAberta(true)); return;
+      case 'story': if (faixa) fecharEEntao(() => useCartaoDaStory.getState().abrir(faixa)); return;
       case 'descarregar': fecharMenu(); void alternarDownload(faixa); return;
       case 'recomendacoes': fecharEEntao(() => setRecomendacoesAbertas(true)); return;
       default: return;
@@ -1826,6 +1830,9 @@ export function PlayerRoot() {
 
       {/* ========================== MODO CARRO ========================== */}
       <ModoCarro visivel={modoCarro} aoFechar={() => setModoCarro(false)} />
+
+      {/* ===================== CARTÃO DAS STORIES ===================== */}
+      <CartaoDaStory visivel={!!storyFaixa} faixa={storyFaixa} aoFechar={useCartaoDaStory.getState().fechar} />
 
       {/* ===================== PARTILHAR COM UM AMIGO ===================== */}
       <ShareFriendSheet

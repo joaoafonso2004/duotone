@@ -1,0 +1,328 @@
+<title>Encaixe da capa</title>
+<style>
+/* Um ecrã de iPhone (o leitor aberto) ao centro; por baixo, as variantes e os controlos. Só escuro, como a app. */
+:root {
+  --fundo: #060608;
+  --app: #0A0A0F;
+  --texto: #F5F5F7;
+  --texto-medio: rgba(245, 245, 247, 0.62);
+  --texto-fraco: rgba(245, 245, 247, 0.42);
+  --fio: rgba(245, 245, 247, 0.12);
+  --realce: #8B5CF6;
+  --chip: rgba(245, 245, 247, 0.07);
+  --chip-ativo: rgba(139, 92, 246, 0.22);
+  --corpo: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  --titulo: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--fundo); color: var(--texto); font-family: var(--corpo);
+  padding-inline: 16px; padding-block: 24px 40px;
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+}
+h1 { font: 600 20px/1.2 var(--titulo); margin: 0; text-wrap: balance; text-align: center; }
+.sub { margin: -12px 0 0; color: var(--texto-medio); font-size: 14px; max-width: 390px; text-align: center; line-height: 1.45; }
+
+/* ---- o telemóvel ---- */
+.telefone {
+  position: relative; width: 100%; max-width: 390px; aspect-ratio: 390 / 780;
+  border-radius: 44px; overflow: hidden; background: var(--app);
+  box-shadow: 0 0 0 1px var(--fio), 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+.fundo-capa { position: absolute; inset: -40px; background-size: cover; background-position: center; filter: blur(46px) saturate(1.3) brightness(0.55); transform: scale(1.1); }
+.vinheta { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 42% at 50% 38%, rgba(10, 10, 15, 0) 0%, rgba(10, 10, 15, 0.55) 70%, rgba(10, 10, 15, 0.92) 100%), linear-gradient(to bottom, rgba(10, 10, 15, 0) 55%, rgba(10, 10, 15, 0.95) 88%); }
+.barra-topo { position: absolute; top: 54px; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; padding-inline: 22px; color: var(--texto-medio); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+.barra-topo b { color: var(--texto); font-weight: 600; letter-spacing: 0.04em; }
+
+.cena { position: absolute; left: 0; right: 0; top: 17%; height: 50%; display: flex; align-items: center; justify-content: center; }
+.sombra { position: absolute; left: 50%; top: 50%; width: 88%; height: 26%; transform: translate(-50%, 115%); background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0) 70%); filter: blur(10px); pointer-events: none; }
+.caixa { position: relative; transform-style: preserve-3d; }
+.caixa > div { position: absolute; left: 0; top: 0; background-size: var(--lado) var(--lado); backface-visibility: visible; }
+.face { border-radius: 2px; overflow: hidden; }
+.face::after { content: ""; position: absolute; inset: 0; border-radius: 2px; box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.08); }
+.lateral::after { content: ""; position: absolute; inset: 0; }
+.lat-esq::after { background: linear-gradient(to left, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.62)); }
+.lat-baixo::after { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.7)); }
+.lat-dir::after, .lat-cima::after { background: rgba(0, 0, 0, 0.5); }
+.contorno { position: absolute; left: 0; top: 0; border-radius: 3px; border: 1px solid rgba(245, 245, 247, 1); pointer-events: none; }
+.luz { position: absolute; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 65%); pointer-events: none; }
+
+.info { position: absolute; left: 0; right: 0; top: 71%; padding-inline: 26px; display: flex; flex-direction: column; gap: 14px; }
+.linha-titulo { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.linha-titulo .icone { width: 22px; height: 22px; color: var(--texto-medio); flex: none; }
+.nomes { text-align: center; min-width: 0; }
+.nomes .t { font: 700 21px/1.2 var(--titulo); }
+.nomes .a { color: var(--texto-medio); font-size: 15px; margin-top: 3px; }
+.progresso { height: 3px; border-radius: 2px; background: rgba(245, 245, 247, 0.18); position: relative; }
+.progresso i { position: absolute; left: 0; top: 0; bottom: 0; width: 6%; border-radius: 2px; background: var(--texto); }
+.tempos { display: flex; justify-content: space-between; color: var(--texto-fraco); font-size: 11px; font-variant-numeric: tabular-nums; margin-top: -8px; }
+.botoes { display: flex; justify-content: space-between; align-items: center; padding-inline: 18px; }
+.botoes svg { width: 26px; height: 26px; color: var(--texto); }
+.botoes .play { width: 64px; height: 64px; border-radius: 50%; background: var(--texto); display: grid; place-items: center; }
+.botoes .play svg { color: var(--app); width: 26px; height: 26px; }
+
+.estado { position: absolute; top: 12%; left: 0; right: 0; text-align: center; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--texto-fraco); font-variant-numeric: tabular-nums; }
+
+/* ---- controlos ---- */
+.painel { width: 100%; max-width: 390px; display: flex; flex-direction: column; gap: 12px; }
+.chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.chip { text-align: left; border: 1px solid var(--fio); background: var(--chip); color: var(--texto); border-radius: 14px; padding: 11px 12px; font: 600 14px/1.25 var(--corpo); cursor: pointer; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.chip span { color: var(--texto-medio); font-weight: 400; font-size: 12px; line-height: 1.35; }
+.chip[aria-pressed="true"] { background: var(--chip-ativo); border-color: var(--realce); }
+.chip:focus-visible, .acao:focus-visible { outline: 2px solid var(--realce); outline-offset: 2px; }
+.acoes { display: flex; gap: 8px; }
+.acao { flex: 1; border: 1px solid var(--fio); background: var(--chip); color: var(--texto); border-radius: 12px; padding: 11px; font: 600 14px var(--corpo); cursor: pointer; }
+.acao[aria-pressed="true"] { border-color: var(--realce); background: var(--chip-ativo); }
+.nota { color: var(--texto-fraco); font-size: 12px; line-height: 1.5; margin: 0; }
+</style>
+
+<h1>A capa encaixa e recua</h1>
+<p class="sub">A música acaba de descarregar, a face pousa na caixa e a caixa recua um pouco para trás antes de voltar a flutuar.</p>
+
+<div class="telefone" id="telefone">
+  <div class="fundo-capa" id="fundoCapa"></div>
+  <div class="vinheta"></div>
+  <div class="barra-topo"><span>A tocar de</span><b>Liked Songs</b><span>•••</span></div>
+  <div class="estado" id="estado">a preparar</div>
+  <div class="cena" id="cena">
+    <div class="sombra" id="sombra"></div>
+    <div class="caixa" id="caixa">
+      <div class="lateral lat-dir" id="latDir"></div>
+      <div class="lateral lat-cima" id="latCima"></div>
+      <div class="lateral lat-esq" id="latEsq"></div>
+      <div class="lateral lat-baixo" id="latBaixo"></div>
+      <div class="face" id="face"></div>
+      <div class="contorno" id="contorno"></div>
+      <div class="luz" id="luz"></div>
+    </div>
+  </div>
+  <div class="info">
+    <div class="linha-titulo">
+      <svg class="icone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
+      <div class="nomes"><div class="t">Telescópio</div><div class="a">Isak</div></div>
+      <svg class="icone" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+    </div>
+    <div class="progresso"><i></i></div>
+    <div class="tempos"><span>0:13</span><span>3:37</span></div>
+    <div class="botoes">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+      <div class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></div>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/></svg>
+    </div>
+  </div>
+</div>
+
+<div class="painel">
+  <div class="chips" role="group" aria-label="Variante do recuo">
+    <button class="chip" id="v-a" aria-pressed="true">A · Recuo<span>A face bate e empurra a caixa 5% do lado para trás; volta numa mola suave.</span></button>
+    <button class="chip" id="v-b" aria-pressed="false">B · Recuo e assentar<span>O mesmo empurrão, 4%, e desce 2 pt ao mesmo tempo, como se pousasse.</span></button>
+    <button class="chip" id="v-c" aria-pressed="false">C · Recuo marcado<span>Empurra 8%, com uma mola mais viva que passa um pouco à frente e volta.</span></button>
+    <button class="chip" id="v-hoje" aria-pressed="false">Hoje<span>A face abranda até parar e a caixa só assenta 2 pt.</span></button>
+  </div>
+  <div class="acoes">
+    <button class="acao" id="repetir">Ver outra vez</button>
+    <button class="acao" id="lento" aria-pressed="false">Câmara lenta</button>
+  </div>
+  <p class="nota">A montagem é a de hoje: um bocado de 1 MB encaixa a aresta esquerda, o seguinte a de baixo, e a face pousa quando a música fica pronta. O que muda é a face: chega a acelerar, e o recuo começa no fotograma em que ela toca na caixa. A preview repete sozinha.</p>
+</div>
+
+<script>
+(() => {
+  // A capa de exemplo, desenhada aqui (sem imagens de fora).
+  const capa = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+<defs>
+<radialGradient id="s" cx="38%" cy="34%" r="70%"><stop offset="0" stop-color="#ffb35c"/><stop offset=".35" stop-color="#e8573b"/><stop offset=".7" stop-color="#5b1f4a"/><stop offset="1" stop-color="#170b24"/></radialGradient>
+<linearGradient id="h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b0f2e" stop-opacity="0"/><stop offset="1" stop-color="#0b0716"/></linearGradient>
+<filter id="g"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .09 0"/></filter>
+</defs>
+<rect width="600" height="600" fill="url(#s)"/>
+<circle cx="228" cy="206" r="92" fill="#ffe1a8" opacity=".9"/>
+<path d="M0 430 C120 380 220 470 330 420 S520 360 600 400 V600 H0Z" fill="#2a1238"/>
+<path d="M0 480 C140 440 260 520 380 470 S540 430 600 460 V600 H0Z" fill="#12081f"/>
+<rect width="600" height="600" fill="url(#h)"/>
+<rect width="600" height="600" filter="url(#g)"/>
+<text x="44" y="508" font-family="Helvetica, Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="8" fill="#f5e6d0" opacity=".85">PESO MORTO</text>
+</svg>`);
+  const $ = (id) => document.getElementById(id);
+  const tel = $('telefone'), caixa = $('caixa'), face = $('face');
+  const latEsq = $('latEsq'), latBaixo = $('latBaixo'), latDir = $('latDir'), latCima = $('latCima');
+  const contorno = $('contorno'), luz = $('luz'), sombra = $('sombra'), estado = $('estado');
+  $('fundoCapa').style.backgroundImage = `url("${capa}")`;
+  [face, latEsq, latBaixo, latDir, latCima].forEach((el) => { el.style.backgroundImage = `url("${capa}")`; });
+
+  // Os números do lib/capaFlutuante3D.ts (CAPA_FLUTUANTE).
+  const POSE = { perspectiva: 6.3, dx: 0.022, dy: -0.039, rx: 32.5, ry: 25.5, rz: -6.1, escala: 0.93, espessura: 0.078 };
+  const FLUT = { amplitude: 2, ciclo: 4600, deriva: { rx: 1, ry: 1.5, ciclo: 7300 } };
+  // As variantes do recuo. profundidade: o ponto mais recuado, em lados;
+  // desce: quanto desce ao mesmo tempo, em pt; mola: rigidez e amortecimento.
+  const VARIANTES = {
+    a: { profundidade: 0.05, desce: 0, mola: { k: 260, c: 22 } },
+    b: { profundidade: 0.04, desce: 2, mola: { k: 230, c: 21 } },
+    c: { profundidade: 0.08, desce: 0, mola: { k: 300, c: 15 } },
+    hoje: null,
+  };
+  // A linha do tempo (ms), com as regras da app (lib/montagemDaCapa.ts): antes
+  // do download so o contorno e a luz; cada peca so se ve quando e a seguinte;
+  // entre bocados aproxima-se devagar (APROXIMAR_MS) ate 45% do caminho; o
+  // bocado encaixa-a em 420 ms (ENCAIXAR_MS) a partir de ONDE ESTA. A face, com
+  // recuo, chega em 380 ms a acelerar: bate.
+  const T = { download: 700, esquerda: 1400, baixo: 2100, face: 2800, encaixar: 420, bater: 380, aproximar: 5400, repetir: 7000 };
+
+  let variante = 'a', lento = false, L = 280;
+  const reduzido = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function medir() {
+    L = Math.round(Math.min(300, tel.clientWidth * 0.72));
+    const t = POSE.espessura * L;
+    caixa.style.width = caixa.style.height = L + 'px';
+    caixa.style.setProperty('--lado', L + 'px');
+    $('cena').style.perspective = POSE.perspectiva * L + 'px';
+    for (const el of [face, contorno]) { el.style.width = el.style.height = L + 'px'; }
+    // Laterais inteiras, com a faixa da capa junto à borda (espelhada).
+    latEsq.style.cssText += `width:${t}px;height:${L}px;transform-origin:left center;background-position:0 0;`;
+    latDir.style.cssText += `width:${t}px;height:${L}px;left:${L}px;transform-origin:left center;background-position:${-(L - t)}px 0;`;
+    latCima.style.cssText += `width:${L}px;height:${t}px;transform-origin:center top;background-position:0 0;`;
+    latBaixo.style.cssText += `width:${L}px;height:${t}px;top:${L}px;transform-origin:center top;background-position:0 ${-(L - t)}px;`;
+  }
+
+  const clamp = (x) => Math.max(0, Math.min(1, x));
+  const saida = (x) => 1 - Math.pow(1 - clamp(x), 3);
+  const quad = (x) => { x = clamp(x); return x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2; };
+
+  const entrar = (x) => { x = clamp(x); return x * x * x; };
+  const saidaSuave = (x) => { x = clamp(x); return 1 - (1 - x) * (1 - x); };
+
+  /**
+   * Onde esta uma peca e quanto se ve, como na app: invisivel ate ser a
+   * seguinte; depois aproxima-se devagar ate 45% e aparece ate 0,65; no
+   * encaixe vai DE ONDE ESTA ate ao sitio. Era o recomeco do zero no encaixe
+   * que fazia a aresta piscar.
+   */
+  function peca(t, visivelEm, encaixaEm, duracao, curva) {
+    if (t < visivelEm) return { valor: 0, opacidade: 0 };
+    const aproximar = (x) => 0.45 * saidaSuave((x - visivelEm) / T.aproximar);
+    const aparecer = (x) => Math.min(1, 0.15 + 0.45 * 1.1) * saida((x - visivelEm) / 1200);
+    if (t < encaixaEm) return { valor: aproximar(t), opacidade: aparecer(t) };
+    const v0 = aproximar(encaixaEm), o0 = aparecer(encaixaEm);
+    return {
+      valor: v0 + (1 - v0) * curva((t - encaixaEm) / duracao),
+      opacidade: o0 + (1 - o0) * saida((t - encaixaEm) / 250),
+    };
+  }
+
+  /**
+   * O recuo depois do contacto: uma mola que parte do sitio (0) com a
+   * velocidade que a face trazia. Um so movimento: a ida e a volta sao a
+   * mesma mola, sem costura. Normalizada: o ponto mais recuado vale 1.
+   */
+  function curvaDoImpulso({ k, c }) {
+    const dt = 0.0005, pts = [];
+    let x = 0, v = 1, pico = 0;
+    for (let i = 0; i <= 3200; i++) {
+      if (i % 2 === 0) pts.push(x);
+      pico = Math.max(pico, x);
+      const a = -k * x - c * v; v += a * dt; x += v * dt;
+    }
+    return (ms) => {
+      if (ms <= 0) return 0;
+      const j = Math.floor(ms);
+      if (j >= pts.length - 1) return pts[pts.length - 1] / pico;
+      return (pts[j] + (pts[j + 1] - pts[j]) * (ms - j)) / pico;
+    };
+  }
+  for (const v of Object.values(VARIANTES)) if (v) v._impulso = curvaDoImpulso(v.mola);
+
+  // Um relogio proprio: a camara lenta abranda tudo por igual, flutuacao incluida.
+  let relogio = 0, ultimo = null, inicio = 0;
+  function recomecar() { inicio = relogio; }
+
+  function quadro(agora) {
+    const dt = ultimo === null ? 0 : Math.min(50, agora - ultimo);
+    ultimo = agora;
+    relogio += dt * (lento ? 0.3 : 1);
+    let t = relogio - inicio;
+    if (reduzido) t = T.face + 2000;
+    if (t > T.repetir) { recomecar(); t = 0; }
+
+    const v = VARIANTES[variante];
+    // A aresta esquerda, a de baixo e a face: nunca recomecam do zero.
+    const esq = peca(t, T.download, T.esquerda, T.encaixar, saida);
+    const baixo = peca(t, T.esquerda, T.baixo, T.encaixar, saida);
+    // A face: hoje abranda ate parar; com recuo acelera e bate.
+    const duracaoFace = v ? T.bater : T.encaixar;
+    const fc = peca(t, T.baixo, T.face, duracaoFace, v ? entrar : saida);
+    const uFace = (t - T.face) / duracaoFace;
+    // O fim de cada volta da preview: tudo desvanece em vez de desaparecer de repente.
+    const volta = 1 - clamp((t - (T.repetir - 450)) / 450);
+
+    // O contacto: o instante em que a face chega. O recuo comeca neste fotograma.
+    const contacto = t - (T.face + duracaoFace);
+    const r = v ? v._impulso(contacto) : 0;
+    const recuoPx = v ? -v.profundidade * L * r : 0;
+    let assentar = 0;
+    if (v && v.desce) assentar = v.desce * r;
+    // "Hoje": assenta 2 pt 180 ms depois de pousar, e volta.
+    const tA = contacto - 180;
+    if (!v && tA > 0) assentar = tA < 180 ? 2 * quad(tA / 180) : 2 * (1 - quad((tA - 180) / 260));
+    // O voo: a flutuacao so comeca depois de montada, e entra devagar.
+    const voo = quad((contacto - 200) / 1100);
+
+    const noAr = Math.sin((relogio / FLUT.ciclo) * 2 * Math.PI) * FLUT.amplitude * voo;
+    const dRx = Math.cos((relogio / FLUT.deriva.ciclo) * 2 * Math.PI) * FLUT.deriva.rx * voo;
+    const dRy = Math.sin((relogio / FLUT.deriva.ciclo) * 2 * Math.PI) * FLUT.deriva.ry * voo;
+
+    caixa.style.transform =
+      `translate(${POSE.dx * L}px, ${POSE.dy * L + noAr + assentar}px) ` +
+      `rotateX(${dRx}deg) rotateY(${dRy}deg) rotateX(${POSE.rx}deg) rotateY(${POSE.ry}deg) rotateZ(${POSE.rz}deg) ` +
+      `scale(${POSE.escala}) translateZ(${recuoPx}px)`;
+
+    const D = 0.26 * L, DF = 0.5 * L;
+    latEsq.style.transform = `translateX(${-(1 - esq.valor) * D}px) rotateY(90deg)`;
+    latEsq.style.opacity = esq.opacidade * volta;
+    latBaixo.style.transform = `translateY(${(1 - baixo.valor) * D}px) rotateX(-90deg)`;
+    latBaixo.style.opacity = baixo.opacidade * volta;
+    // A de cima e a da direita fecham a caixa: sem a face, via-se o interior
+    // delas. Aparecem so no fotograma do contacto, que e quando a face as tapa.
+    const fecho = contacto >= 0 ? 1 : 0;
+    latDir.style.transform = 'rotateY(90deg)'; latDir.style.opacity = fecho * volta;
+    latCima.style.transform = 'rotateX(-90deg)'; latCima.style.opacity = fecho * volta;
+    face.style.transform = `translateZ(${(1 - fc.valor) * DF}px)`;
+    face.style.opacity = fc.opacidade * volta;
+
+    // O lugar da face e a luz, antes de haver download.
+    contorno.style.opacity = t < T.download ? 0.16 : t < T.face ? 0.13 : 0.13 * (1 - clamp((t - T.face) / 300));
+    const giro = ((relogio % 2200) / 2200) * 4;
+    const lado = Math.floor(giro), f = giro - lado;
+    const pos = [[f, 0], [1, f], [1 - f, 1], [0, 1 - f]][lado];
+    luz.style.transform = `translate(${pos[0] * L}px, ${pos[1] * L}px)`;
+    luz.style.opacity = 0.9 * (1 - clamp((t - T.download) / 250));
+
+    const aterrar = (esq.valor + baixo.valor + fc.valor) / 3;
+    sombra.style.opacity = (0.25 + 0.75 * aterrar) * (0.4 + 0.6 * volta);
+
+    estado.textContent = t < T.download ? 'a preparar'
+      : t < T.face ? `a descarregar · ${t < T.esquerda ? 0 : t < T.baixo ? 1 : 2} de 3 MB`
+      : contacto < 0 ? 'pronta · a encaixar'
+      : contacto < 600 && v ? 'encaixou · recua' : 'a tocar';
+    requestAnimationFrame(quadro);
+  }
+
+  const chips = { a: $('v-a'), b: $('v-b'), c: $('v-c'), hoje: $('v-hoje') };
+  for (const [nome, el] of Object.entries(chips)) {
+    el.addEventListener('click', () => {
+      variante = nome;
+      for (const [n, e] of Object.entries(chips)) e.setAttribute('aria-pressed', String(n === nome));
+      recomecar();
+    });
+  }
+  $('repetir').addEventListener('click', recomecar);
+  $('lento').addEventListener('click', (e) => { lento = !lento; e.currentTarget.setAttribute('aria-pressed', String(lento)); recomecar(); });
+  window.addEventListener('resize', medir);
+  medir();
+  requestAnimationFrame(quadro);
+})();
+</script>

@@ -1,4 +1,6 @@
 import { corpoDaPesquisa, lerCancoes, VERSAO_DO_CLIENTE, type CancaoDoYtMusic } from '../lib/cancoesDoYtMusic';
+import { FORMA_DA_LISTA, FORMA_DO_CANAL } from '../lib/albunsDoArtista';
+import { FILTROS_DA_PESQUISA, type TipoDePesquisa } from '../lib/pesquisaPorTipo';
 
 /**
  * Uma pesquisa de CANÇÕES no YouTube Music, com a marca de explícita (27/9).
@@ -17,31 +19,41 @@ export async function procurarCancoes(pergunta: string, sinal?: AbortSignal): Pr
 }
 
 /** A resposta inteira da pesquisa de canções, ou `null` se falhou. */
-export async function pesquisarCancoesCru(pergunta: string, sinal?: AbortSignal): Promise<unknown | null> {
+export function pesquisarCancoesCru(pergunta: string, sinal?: AbortSignal): Promise<unknown | null> {
+  return pesquisarNoYtMusicCru(pergunta, 'cancoes', sinal);
+}
+
+/**
+ * A resposta inteira de uma pesquisa do YouTube Music, de um tipo (29/9, a
+ * pesquisa por tipo: `lib/pesquisaPorTipo.ts`). No PC vai o NOME do tipo; o
+ * filtro escolhe-o o processo principal. `null` se falhou.
+ */
+export async function pesquisarNoYtMusicCru(pergunta: string, tipo: TipoDePesquisa, sinal?: AbortSignal): Promise<unknown | null> {
   const q = String(pergunta ?? '').trim();
   if (!q) return null;
   try {
     const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.pesquisarCancoes : undefined;
-    if (ponte) return await ponte({ query: q, clientVersion: VERSAO_DO_CLIENTE });
-    return await pedirAoYtMusic('search', corpoDaPesquisa(q), sinal);
+    if (ponte) return await ponte({ query: q, clientVersion: VERSAO_DO_CLIENTE, tipo });
+    return await pedirAoYtMusic('search', { ...corpoDaPesquisa(q), params: FILTROS_DA_PESQUISA[tipo] }, sinal);
   } catch {
     return null;
   }
 }
 
 /**
- * A página de um artista no YouTube Music (28/9, os álbuns da página de artista:
- * `lib/albunsDoArtista.ts`). No PC pelo processo principal (`ytmusic:artista`),
- * que só aceita a forma de um canal. `null` se falhou.
+ * Uma página do YouTube Music para a página de artista (`lib/albunsDoArtista.ts`):
+ * o canal de um artista (`UC...`, 28/9) ou a lista com todas as músicas dele
+ * (`VLOLAK5uy_...`, 29/9). No PC pelo processo principal (`ytmusic:artista`),
+ * que só aceita estas duas formas. `null` se falhou.
  */
-export async function lerCanalDoYtMusic(canal: string, sinal?: AbortSignal): Promise<unknown | null> {
-  if (!/^UC[\w-]{22}$/.test(canal)) return null;
+export async function lerNoYtMusic(browseId: string, sinal?: AbortSignal): Promise<unknown | null> {
+  if (!FORMA_DO_CANAL.test(browseId) && !FORMA_DA_LISTA.test(browseId)) return null;
   try {
     const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.lerArtistaDoYtMusic : undefined;
-    if (ponte) return await ponte({ browseId: canal, clientVersion: VERSAO_DO_CLIENTE });
+    if (ponte) return await ponte({ browseId, clientVersion: VERSAO_DO_CLIENTE });
     return await pedirAoYtMusic('browse', {
       context: { client: { clientName: 'WEB_REMIX', clientVersion: VERSAO_DO_CLIENTE, hl: 'en', gl: 'US' } },
-      browseId: canal,
+      browseId,
     }, sinal);
   } catch {
     return null;

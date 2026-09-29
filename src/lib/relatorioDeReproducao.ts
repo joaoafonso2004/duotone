@@ -5,6 +5,8 @@ import { estadoDoStream } from '../state/saudeDoStream';
 import { estadoDoOpus } from '../state/saudeDoOpus';
 import { arranquesMedidos } from '../state/tempoAteAoSom';
 import { textoDoTempoAteAoSom } from './tempoAteAoSom';
+import { textoDasMigracoes } from './migracoes';
+import { verificarMigracoes } from '../api/migracoes';
 
 /**
  * O relatório de reprodução, pela folha de partilha do iPhone.
@@ -26,6 +28,8 @@ export async function partilharRelatorioDeReproducao(): Promise<void> {
     gerado: new Date().toISOString(),
     stream: estadoDoStream(),
     opus: estadoDoOpus(),
-  }) + `\n\n${textoDoTempoAteAoSom(arranquesMedidos())}\n`;
+  }) + `\n\n${textoDoTempoAteAoSom(arranquesMedidos())}\n`
+    // Que SQL falta na base (29/9, lib/migracoes.ts): uma chamada, só aqui.
+    + `\n${textoDasMigracoes(await verificarMigracoes())}\n`;
   await Share.share({ title: 'Duotone playback report', message: texto });
 }

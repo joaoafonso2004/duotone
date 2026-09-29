@@ -21,7 +21,11 @@
  */
 
 export type ArtistaDaCancao = { nome: string; id: string };
-export type CancaoComArtistas = { videoId: string; titulo: string; artistas: ArtistaDaCancao[] };
+export type CancaoComArtistas = {
+  videoId: string; titulo: string; artistas: ArtistaDaCancao[];
+  /** Nas listas de um artista vem a duração; na pesquisa às vezes não. */
+  duracaoSec: number | null;
+};
 export type Prova = { videoId: string | null; titulo: string };
 
 export type AlbumDoArtista = {
@@ -70,9 +74,15 @@ export function lerCancoesComArtistas(resposta: unknown): CancaoComArtistas[] {
         artistas.push({ nome: r.text, id });
       }
     }
-    fora.push({ videoId, titulo, artistas });
+    const tempo = texto(it.fixedColumns?.[0]?.musicResponsiveListItemFixedColumnRenderer?.text).trim();
+    fora.push({ videoId, titulo, artistas, duracaoSec: segundos(tempo) });
   }
   return fora;
+}
+
+function segundos(texto: string): number | null {
+  const m = /^(?:(\d+):)?(\d{1,2}):(\d{2})$/.exec(texto);
+  return m ? Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3]) : null;
 }
 
 /** O título para comparar: sem acentos, sem maiúsculas, sem parênteses nem pontuação. */
@@ -170,4 +180,40 @@ export function lerAlbunsDoCanal(resposta: unknown): AlbumDoArtista[] {
 /** A linha por baixo do título do álbum: "EP · 2025". */
 export function legendaDoAlbum(a: Pick<AlbumDoArtista, 'tipo' | 'ano'>): string {
   return a.ano ? `${a.tipo} · ${a.ano}` : a.tipo;
+}
+
+/** A lista "todas as músicas" de um artista (`VLOLAK5uy_...`). Validada também no PC. */
+export const FORMA_DA_LISTA = /^VL(OLAK5uy_|PL|RDCLAK5uy_)[\w-]{10,80}$/;
+
+/**
+ * As músicas da página do canal (a prateleira "Top songs", 29/9) e a lista com
+ * TODAS as músicas dele, que é o "Show all" dessa prateleira. É daqui que vêm
+ * as "More tracks" da página de artista: do canal certo, e não de uma pesquisa
+ * pelo nome, que trazia as de um homónimo.
+ */
+export function lerMusicasDoCanal(resposta: unknown): { topo: CancaoComArtistas[]; todas: string | null } {
+  for (const prateleira of acharTodos(resposta, 'musicShelfRenderer')) {
+    const topo = lerCancoesComArtistas(prateleira);
+    if (!topo.length) continue;
+    const alvo = prateleira?.bottomEndpoint?.browseEndpoint?.browseId
+      ?? prateleira?.title?.runs?.[0]?.navigationEndpoint?.browseEndpoint?.browseId;
+    return { topo, todas: typeof alvo === 'string' && FORMA_DA_LISTA.test(alvo) ? alvo : null };
+  }
+  return { topo: [], todas: null };
+}
+
+/**
+ * O lançamento mais recente, para o destaque no topo da página do artista.
+ * O YouTube Music só dá o ANO, por isso é o do ano mais alto; entre dois do
+ * mesmo ano fica o álbum (os singles costumam sair antes do álbum que os traz),
+ * e entre iguais o primeiro da lista, que o YouTube Music ordena do mais novo.
+ */
+export function maisRecente(albuns: readonly AlbumDoArtista[]): AlbumDoArtista | null {
+  let melhor: AlbumDoArtista | null = null;
+  for (const a of albuns) {
+    if (!a.ano) continue;
+    if (!melhor || Number(a.ano) > Number(melhor.ano)
+      || (a.ano === melhor.ano && a.tipo === 'Album' && melhor.tipo !== 'Album')) melhor = a;
+  }
+  return melhor;
 }

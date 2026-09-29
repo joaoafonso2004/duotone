@@ -5,6 +5,7 @@ import {
   alvosDasPecas, estadoPreso, faseDoArranque,
   type FaseDoArranque, type LeituraDoDownload, type Preso,
 } from '../lib/montagemDaCapa';
+import { RECUO_DO_ENCAIXE, curvaDoRecuo } from '../lib/recuoDoEncaixe';
 import { cachedAudioFile, estadoDoDownload, ouvirDownloads } from '../lib/youtubeCache';
 import { usePlayer } from '../state/player';
 import { useReducedMotion } from './useReducedMotion';
@@ -28,8 +29,15 @@ export type MontagemDaCapa = {
   luz: { fase: Animated.Value; opacidade: Animated.AnimatedAddition<number> };
   /** 0 a montar, 1 a flutuar. */
   voo: Animated.Value;
-  /** O assentar da caixa quando fica montada, em pontos. */
-  assentar: Animated.Value;
+  /**
+   * O encaixe (29/9, lib/recuoDoEncaixe.ts): 0 até a face tocar na caixa, e
+   * corre até 1 ao longo do recuo. A capa tira daqui o quanto recua.
+   */
+  encaixe: Animated.Value;
+  /** Quanto a caixa desce durante o recuo, em pontos. */
+  assentar: Animated.AnimatedInterpolation<number>;
+  /** As laterais de cima e da direita: só aparecem no contacto. */
+  fecho: Animated.AnimatedInterpolation<number>;
   /** Quanto da caixa já está montada, para as sombras. */
   aterrar: Animated.AnimatedInterpolation<number>;
   preso: Preso;
@@ -54,7 +62,7 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
     pecas: [Animated.Value, Animated.Value, Animated.Value];
     opacidades: [Animated.Value, Animated.Value, Animated.Value];
     contorno: Animated.Value; luzFase: Animated.Value; luzBase: Animated.Value; luzPulso: Animated.Value;
-    respira: Animated.Value; recuoAtivo: Animated.Value; voo: Animated.Value; assentar: Animated.Value;
+    respira: Animated.Value; recuoAtivo: Animated.Value; voo: Animated.Value; encaixe: Animated.Value;
   } | null>(null);
   if (!valores.current) {
     // Montada por omissão: sem faixa, ou antes do primeiro efeito, a caixa está inteira.
@@ -70,7 +78,7 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
       respira: new Animated.Value(0),
       recuoAtivo: new Animated.Value(0),
       voo: new Animated.Value(1),
-      assentar: new Animated.Value(0),
+      encaixe: new Animated.Value(1),
     };
   }
   const a = valores.current;
@@ -78,8 +86,15 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
   const derivados = useMemo(() => {
     const pulso = a.respira.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.3, 0.9, 0.3] });
     const respiraDoRecuo = a.respira.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0.08, 0.14, 0.08] });
+    const curva = curvaDoRecuo();
     return {
       recuo: Animated.multiply(a.recuoAtivo, respiraDoRecuo),
+      assentar: a.encaixe.interpolate({
+        inputRange: curva.inputRange,
+        outputRange: curva.outputRange.map((y) => y * RECUO_DO_ENCAIXE.desce),
+      }),
+      // Sem a face, a caixa está aberta e via-se o interior destas duas.
+      fecho: a.encaixe.interpolate({ inputRange: [0, 0.001, 1], outputRange: [0, 1, 1] }),
       luzOpacidade: Animated.add(a.luzBase, Animated.multiply(a.luzPulso, pulso)),
       aterrar: Animated.divide(Animated.add(Animated.add(a.pecas[0], a.pecas[1]), a.pecas[2]), 3)
         .interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
@@ -139,7 +154,7 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
       a.pecas.forEach((p) => p.setValue(1));
       a.opacidades.forEach((o) => o.setValue(1));
       a.contorno.setValue(0); a.luzBase.setValue(0); a.luzPulso.setValue(0);
-      a.recuoAtivo.setValue(0); a.voo.setValue(1); a.assentar.setValue(0);
+      a.recuoAtivo.setValue(0); a.voo.setValue(1); a.encaixe.setValue(1);
       setPreso(null);
       setProxima(null);
       return pararTudo;
@@ -147,7 +162,7 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
 
     a.pecas.forEach((p) => p.setValue(0));
     a.opacidades.forEach((o) => o.setValue(0));
-    a.voo.setValue(0); a.assentar.setValue(0); a.recuoAtivo.setValue(0); a.luzPulso.setValue(0);
+    a.voo.setValue(0); a.encaixe.setValue(0); a.recuoAtivo.setValue(0); a.luzPulso.setValue(0);
     a.contorno.setValue(0);
     a.luzBase.setValue(0);
 
@@ -162,25 +177,34 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
     const terminar = () => {
       if (terminado) return;
       pararTudo();
+      // A face é a última a chegar: se as arestas ainda não encaixaram (uma música
+      // curta, ou pronta antes dos bocados), espera por elas.
+      const esperaDaFace = encaixadas[0] && encaixadas[1] ? 0 : 2 * 90;
       [0, 1, 2].forEach((i, k) => {
         emCurso[i]?.stop();
         if (quieto) { a.pecas[i].setValue(1); a.opacidades[i].setValue(1); return; }
-        Animated.timing(a.pecas[i], { toValue: 1, duration: ENCAIXAR_MS, delay: k * 90, easing: SAIDA, useNativeDriver: true }).start();
+        // A face chega a ACELERAR, de onde estava, e bate: é o contacto que
+        // empurra a caixa (lib/recuoDoEncaixe.ts). As arestas pousam como sempre.
+        Animated.timing(a.pecas[i], i === 2
+          ? { toValue: 1, duration: RECUO_DO_ENCAIXE.baterMs, delay: esperaDaFace, easing: Easing.in(Easing.cubic), useNativeDriver: true }
+          : { toValue: 1, duration: ENCAIXAR_MS, delay: k * 90, easing: SAIDA, useNativeDriver: true }).start();
         para(a.opacidades[i], 1, 250);
       });
       para(a.contorno, 0, 300); para(a.luzBase, 0, 250); para(a.luzPulso, 0, 250); para(a.recuoAtivo, 0, 250);
       if (quieto) {
         a.voo.setValue(1);
+        a.encaixe.setValue(1);
       } else {
-        // Montada: assenta 2 pt e volta a flutuar aos poucos.
+        // No fotograma do contacto: a caixa recua e desce numa mola, e volta a
+        // flutuar aos poucos. Uma curva só, percorrida pelo relógio.
+        const contacto = esperaDaFace + RECUO_DO_ENCAIXE.baterMs;
         Animated.sequence([
-          Animated.delay(ENCAIXAR_MS + 180),
-          Animated.timing(a.assentar, { toValue: 2, duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-          Animated.timing(a.assentar, { toValue: 0, duration: 260, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.delay(contacto),
+          Animated.timing(a.encaixe, { toValue: 1, duration: RECUO_DO_ENCAIXE.duracaoMs, easing: Easing.linear, useNativeDriver: true }),
         ]).start();
         Animated.sequence([
-          Animated.delay(ENCAIXAR_MS + 250),
-          Animated.timing(a.voo, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.delay(contacto + RECUO_DO_ENCAIXE.vooDepoisMs),
+          Animated.timing(a.voo, { toValue: 1, duration: RECUO_DO_ENCAIXE.vooMs, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
         ]).start();
       }
       setPreso(null);
@@ -289,7 +313,9 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
     contorno: a.contorno,
     luz: { fase: a.luzFase, opacidade: derivados.luzOpacidade },
     voo: a.voo,
-    assentar: a.assentar,
+    encaixe: a.encaixe,
+    assentar: derivados.assentar,
+    fecho: derivados.fecho,
     aterrar: derivados.aterrar,
     preso,
   }), [a, derivados, proxima, preso]);

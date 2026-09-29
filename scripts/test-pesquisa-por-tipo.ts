@@ -1,0 +1,54 @@
+// A pesquisa por tipo (lib/pesquisaPorTipo.ts, 29/9), contra respostas reais do
+// YouTube Music guardadas em scripts/fixtures/ytmusic-pesquisa-*.json.
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import {
+  FILTROS_DA_PESQUISA, legendaDoAlbumEncontrado, lerAlbunsDaPesquisa, lerArtistasDaPesquisa,
+} from '../src/lib/pesquisaPorTipo.ts';
+
+const ler = (n: string) => JSON.parse(readFileSync(new URL(`./fixtures/${n}`, import.meta.url), 'utf8'));
+const src = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+
+// ---- artistas: cada um com o CANAL, e os homónimos separados
+const artistas = lerArtistasDaPesquisa(ler('ytmusic-pesquisa-artistas.json'));
+assert.ok(artistas.length >= 5);
+assert.deepEqual(artistas[0], {
+  nome: 'Isak', canal: 'UCX24KmsuxFB4jacvMSd3G2Q', legenda: '1.6K subscribers', foto: artistas[0]!.foto,
+});
+assert.ok(artistas[0]!.foto?.startsWith('https://'));
+assert.equal(artistas[1]!.nome, 'Isak Danielson');
+assert.equal(artistas[1]!.canal, 'UC75RhrKQDnf2gCFLlvIPQqQ', 'o homónimo é OUTRO canal');
+assert.ok(artistas.every((a) => /^UC[\w-]{22}$/.test(a.canal) && !/artist/i.test(a.legenda)));
+assert.equal(new Set(artistas.map((a) => a.canal)).size, artistas.length);
+
+// ---- álbuns: a playlist que se abre, o tipo, os artistas e o ano
+const albuns = lerAlbunsDaPesquisa(ler('ytmusic-pesquisa-albuns.json'));
+assert.ok(albuns.length >= 5);
+const jon = albuns.find((a) => a.titulo === 'Jon')!;
+assert.equal(jon.id, 'OLAK5uy_kvspZFAwj0MApQuHl1hhe5ykH6i1dCGQ8');
+assert.equal(jon.tipo, 'Album');
+assert.equal(jon.artista, 'Isak, Zigarro & Armando Teles');
+assert.equal(jon.ano, '2026');
+assert.equal(legendaDoAlbumEncontrado(jon), 'Album · Isak, Zigarro & Armando Teles · 2026');
+assert.ok(albuns.some((a) => a.tipo === 'Single') && albuns.some((a) => a.tipo === 'EP'));
+assert.ok(albuns.every((a) => /^OLAK5uy_/.test(a.id)));
+
+assert.deepEqual(lerArtistasDaPesquisa({}), []);
+assert.deepEqual(lerAlbunsDaPesquisa(null), []);
+
+// ---- no PC, o processo principal só aceita estes três filtros, e por nome
+const main = src('electron/main.cjs');
+for (const [tipo, filtro] of Object.entries(FILTROS_DA_PESQUISA)) {
+  assert.ok(main.includes(`${tipo}: '${filtro}'`), `o main.cjs não tem o filtro de ${tipo} igual ao da app`);
+}
+assert.match(main, /FILTROS_DO_YTMUSIC\[tipo\]/, 'o filtro escolhe-se no processo principal, pelo nome');
+
+// ---- a página do artista abre pelo canal que a pesquisa deu
+assert.match(src('src/api/albunsDoArtista.ts'), /export function lembrarCanalDoArtista\(nome: string, canal: string\)/);
+for (const f of ['src/desktop/paginas/BibliotecaPages.web.tsx', 'src/screens/SearchScreen.tsx']) {
+  const s = src(f);
+  assert.match(s, /lembrarCanalDoArtista\(a\.nome, a\.canal\)/, `${f}: tocar num artista lembra o canal dele`);
+  assert.match(s, /usePesquisaPorTipo\(/, `${f}: os separadores Songs / Artists / Albums`);
+}
+
+console.log('Pesquisa por tipo: passou.');

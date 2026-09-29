@@ -16,6 +16,8 @@ import { EVENTO_PROCURAR_ATUALIZACAO } from '../../lib/avisoDeVersao';
 import { checkForUpdate, PORTFOLIO_URL } from '../../lib/updates';
 import { relatorio } from '../../lib/playbackDiagnostics';
 import { textoDosRecursos } from '../../lib/recursosDaApp';
+import { textoDasMigracoes } from '../../lib/migracoes';
+import { verificarMigracoes } from '../../api/migracoes';
 import {
   getGlitchMode, setGlitchMode, type GlitchMode,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
@@ -234,14 +236,18 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const exportarRelatorio = async () => {
     // Os recursos de cada processo (27/9): demora 2 s, porque o CPU é medido
     // entre duas leituras. Sem ponte (browser) o relatório sai sem eles.
-    const recursos = await window.duotoneDesktop?.lerRecursos?.().catch(() => null);
+    const [recursos, migracoes] = await Promise.all([
+      window.duotoneDesktop?.lerRecursos?.().catch(() => null),
+      // Que SQL falta na base (29/9, lib/migracoes.ts).
+      verificarMigracoes(),
+    ]);
     const secaoDosRecursos = textoDosRecursos(recursos ?? null);
     const texto = relatorio({
       versao: APP_VERSION,
       build: BUILD_ID,
       plataforma: `windows (${navigator.userAgent.includes('Electron') ? 'app' : 'browser'})`,
       gerado: new Date().toISOString(),
-    }) + (secaoDosRecursos ? `\n\n${secaoDosRecursos}\n` : '');
+    }) + (secaoDosRecursos ? `\n\n${secaoDosRecursos}\n` : '') + `\n${textoDasMigracoes(migracoes)}\n`;
     const url = URL.createObjectURL(new Blob([texto], { type: 'text/plain;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;

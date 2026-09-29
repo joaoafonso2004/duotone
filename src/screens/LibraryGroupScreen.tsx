@@ -10,7 +10,8 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { fotoDoArtista } from '../api/catalogo';
-import { albunsDoArtista } from '../api/albunsDoArtista';
+import { paginaDoArtista, type AlbumDaPagina, type PaginaDoArtista } from '../api/albunsDoArtista';
+import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { pesquisarFaixas } from '../api/search';
 import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { EmptyState } from '../components/EmptyState';
@@ -31,6 +32,21 @@ import type { Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
+
+/** O lançamento mais recente do artista, por cima dos separadores (29/9). */
+function UltimoLancamento({ album, onPress }: { album: AlbumDaPagina; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Latest release: ${album.title}`} onPress={onPress}
+    style={({ pressed }) => [styles.ultimo, pressed && { backgroundColor: colors.surfacePressed }]}>
+    {album.artworkUrl ? <Image source={{ uri: album.artworkUrl }} style={styles.ultimoCapa} contentFit="cover" />
+      : <View style={[styles.ultimoCapa, styles.albumArtFallback]}><Ionicons name="albums-outline" size={22} color={colors.textTertiary} /></View>}
+    <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+      <Text style={styles.ultimoRotulo}>LATEST RELEASE</Text>
+      <Text numberOfLines={1} style={[typography.body, { fontWeight: '700' }]}>{album.title}</Text>
+      <Text numberOfLines={1} style={typography.caption}>{album.channelTitle}</Text>
+    </View>
+    <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+  </Pressable>;
+}
 
 /** Detalhe de um álbum ou artista (vista sobre as faixas guardadas). */
 export function LibraryGroupScreen({ route, navigation }: Props) {
@@ -97,15 +113,18 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       .finally(() => { if (alive) setLoadingYtTracks(false); });
     return () => { alive = false; };
   }, [type, name]);
-  // Os álbuns vêm do canal do artista no YouTube Music, escolhido pelas músicas
-  // dele na biblioteca (28/9, `albunsDoArtista`): pelo nome vinham os de um
-  // homónimo. Por isso espera que a biblioteca seja lida.
+  // Os álbuns, o mais recente e as músicas vêm do canal do artista no YouTube
+  // Music, escolhido pelas músicas dele na biblioteca (28/9 e 29/9,
+  // `paginaDoArtista`): pelo nome vinham os de um homónimo. Por isso espera que
+  // a biblioteca seja lida.
+  const [pagina, setPagina] = useState<PaginaDoArtista | null>(null);
+  useEffect(() => { setPagina(null); }, [type, name]);
   const provas = tracks.slice(0, 3).map((t) => t.sourceId).join(',');
   useEffect(() => {
     if (type !== 'artist' || !name || loading) return;
     let alive = true;
     setLoadingYtAlbums(true);
-    void albunsDoArtista(name, tracks).then(res => { if (alive) setYtAlbums(res); })
+    void paginaDoArtista(name, tracks).then(res => { if (alive) { setPagina(res); setYtAlbums(res.albuns); } })
       .finally(() => { if (alive) setLoadingYtAlbums(false); });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `provas` resume as faixas que contam
@@ -120,10 +139,16 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     void fotoDoArtista(name).then((url) => { if (vivo) setFoto(url); });
     return () => { vivo = false; };
   }, [type, name]);
+  // As do canal primeiro; sem canal (ou sem lista), a pesquisa pelo nome.
+  const doCanal = pagina?.musicas.length ? pagina.musicas : null;
   const otherTracks = useMemo(() => {
     const ids = new Set(tracks.map(t => `${t.source}:${t.sourceId}`));
-    return ytTracks.filter(t => !ids.has(`${t.source}:${t.sourceId}`));
-  }, [ytTracks, tracks]);
+    return (doCanal ?? ytTracks).filter(t => !ids.has(`${t.source}:${t.sourceId}`));
+  }, [doCanal, ytTracks, tracks]);
+  const favoritos = useArtistasFavoritos((s) => s.chaves);
+  const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
+  useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
+  const favorito = favoritos.has(chaveDeArtista(name));
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
@@ -171,6 +196,16 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         {shuffleInteligente && <BrilhoDoEcra />}
         <Ionicons name="shuffle" size={20} color={shuffleLigado && !shuffleInteligente ? theme.color : colors.text} />
       </Pressable>
+      {/* Favoritar dentro da página (29/9): só se podia na lista dos artistas. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: favorito }}
+        accessibilityLabel={favorito ? `Unfavourite ${name}` : `Favourite ${name}`}
+        onPress={() => { hapticSelection(); alternarFavorito(chaveDeArtista(name)); }}
+        style={[styles.shuffleButton, favorito && { borderColor: theme.color, backgroundColor: theme.soft }]}
+      >
+        <Ionicons name={favorito ? 'heart' : 'heart-outline'} size={20} color={favorito ? theme.color : colors.text} />
+      </Pressable>
     </>
   );
   // A foto do catálogo; sem ela, a capa de uma música dele -- da biblioteca e,
@@ -187,6 +222,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       accoes={tracks.length ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
         <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true)} />
       </View> : null}
+    {type === 'artist' && pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente}
+      onPress={() => { const a = pagina.maisRecente!; setSelectedYtPlaylistId(a.id); setSelectedYtPlaylistTitle(a.title); setSelectedYtPlaylistArtwork(a.artworkUrl); }} /> : null}
     {type === 'artist' && <View style={styles.tabsContainer}>
       {([
         ['library', 'In your library'], ['youtube_tracks', 'More songs'], ['youtube_albums', 'Albums'],
@@ -196,7 +233,9 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       </Pressable>)}
     </View>}
   </>;
-  const waiting = loading || (activeTab === 'youtube_tracks' && loadingYtTracks) || (activeTab === 'youtube_albums' && loadingYtAlbums);
+  // As músicas do canal chegam com os álbuns; a pesquisa pelo nome é o recurso.
+  const waiting = loading || (activeTab === 'youtube_tracks' && (loadingYtAlbums || (!doCanal && loadingYtTracks)))
+    || (activeTab === 'youtube_albums' && loadingYtAlbums);
   const rows = activeTab === 'youtube_albums' ? ytAlbums : activeTab === 'youtube_tracks' ? otherTracks : tracks;
   return (
     <Screen title={type === 'album' ? name : undefined}
@@ -300,6 +339,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: colors.textSecondary,
+  },
+  ultimo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+    padding: spacing.sm,
+    paddingRight: spacing.md,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surface,
+  },
+  ultimoCapa: {
+    width: 56,
+    height: 56,
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceHigh,
+  },
+  ultimoRotulo: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    color: colors.textTertiary,
   },
   albumRow: {
     flexDirection: 'row',

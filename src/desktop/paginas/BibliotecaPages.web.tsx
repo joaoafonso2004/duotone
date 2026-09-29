@@ -13,7 +13,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { fotoDoArtista } from '../../api/catalogo';
 import { getLikedSongs } from '../../api/library';
 import { fetchYouTubePlaylistById, type YtRecommendedPlaylist } from '../../api/youtube';
-import { albunsDoArtista } from '../../api/albunsDoArtista';
+import { lembrarCanalDoArtista, paginaDoArtista, type AlbumDaPagina, type PaginaDoArtista } from '../../api/albunsDoArtista';
 import { pesquisarFaixas } from '../../api/search';
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
@@ -26,6 +26,8 @@ import { ordenarArtistas, ordenarFaixas } from '../../lib/ordenacao';
 import { useAuth } from '../../state/auth';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
+import { usePesquisaPorTipo, type SeparadorDaPesquisa } from '../../hooks/usePesquisaPorTipo';
+import { legendaDoAlbumEncontrado, type AlbumEncontrado, type ArtistaEncontrado } from '../../lib/pesquisaPorTipo';
 import { usePlayer } from '../../state/player';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../../state/recomendacoes';
 import { useSaved } from '../../state/saved';
@@ -112,14 +114,28 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
   useEffect(() => { setVersao('todas'); }, [query]);
   const filtrosDaVersao = useMemo(() => filtrosComResultados(results.map((r) => r.title)), [results]);
   const resultadosVisiveis = useMemo(() => results.filter((r) => versaoPassa(r.title, versao)), [results, versao]);
-  return <Page title="Search"
+  // A pesquisa por tipo (29/9, `lib/pesquisaPorTipo.ts`): Songs, Artists e
+  // Albums. Só aparece com texto, e só pede o separador que está à vista.
+  const [tipo, setTipo] = useState<SeparadorDaPesquisa>('musicas');
+  const tipoAtivo: SeparadorDaPesquisa = semPesquisa ? 'musicas' : tipo;
+  const porTipo = usePesquisaPorTipo(query, tipoAtivo);
+  const { abrirAlbum, dialogoDoAlbum } = useDialogoDoAlbum({ play, notify, more });
+  // O artista abre pelo CANAL escolhido, sem adivinhar pelo nome (homónimos).
+  const abrirArtista = (a: ArtistaEncontrado) => { lembrarCanalDoArtista(a.nome, a.canal); navigate({ name: 'artist', value: a.nome }); };
+  return <><Page title="Search"
     action={vista === 'descobrir' ? <IconButton name="refresh" label="Refresh recommendations"
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} /> : undefined}>
     <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
     {query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
     {semPesquisa && !loading ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['descobrir', 'Discover'], ['dia', 'Songs of the day']] as const}
       valor={vista} aoMudar={setVista} /></View> : null}
+    {!semPesquisa ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums']] as const}
+      valor={tipo} aoMudar={setTipo} /></View> : null}
     <ContentScroll>{
+      tipoAtivo === 'artistas' ? <ResultadosDeArtistas artistas={porTipo.artistas} loading={porTipo.loading} falhou={porTipo.falhou} aoAbrir={abrirArtista} />
+      : tipoAtivo === 'albuns' ? <ResultadosDeAlbuns albuns={porTipo.albuns} loading={porTipo.loading} falhou={porTipo.falhou}
+          aoAbrir={(a) => void abrirAlbum({ id: a.id, title: a.titulo, artworkUrl: a.capa, channelTitle: legendaDoAlbumEncontrado(a) })} />
+      :
       /* O que já é teu vem primeiro e não espera pela rede; o YouTube fica por
          baixo. Ver lib/pesquisaLocal.ts. */
       naBiblioteca.length || (results.length && !loading) ? <>
@@ -182,7 +198,45 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
           body={recsCarregadas
             ? hasFeedback?'No suggestions match your current preferences. Review them in Settings → Recommendations, or search for music above.':'Listen to a few tracks and this page will learn what you enjoy. Until then, search for any song above.'
             : 'One moment.'} />}
-    </ContentScroll></Page>;
+    </ContentScroll></Page>
+    {dialogoDoAlbum}
+  </>;
+}
+
+/** Os artistas da pesquisa por tipo: a foto redonda, o nome e a audiência. */
+function ResultadosDeArtistas({ artistas, loading, falhou, aoAbrir }: {
+  artistas: ArtistaEncontrado[]; loading: boolean; falhou: boolean; aoAbrir: (a: ArtistaEncontrado) => void;
+}) {
+  if (loading) return <View style={{ height: 320 }}><Loading /></View>;
+  if (!artistas.length) return falhou
+    ? <Empty icon="cloud-offline-outline" title="Search failed" body="Check your connection and try again." />
+    : <Empty icon="person-outline" title="No artists found" body="Try a different search term." />;
+  return <View style={artistStyles.albumGrid}>{artistas.map((a) => <Pressable key={a.canal} onPress={() => aoAbrir(a)}
+    accessibilityRole="button" accessibilityLabel={a.nome}
+    style={({ hovered, focused }: any) => [artistStyles.artistaCard, (hovered || focused) && artistStyles.albumCardHover]}>
+    {a.foto ? <Image source={{ uri: a.foto }} style={artistStyles.artistaFoto} />
+      : <View style={[artistStyles.artistaFoto, artistStyles.albumFallback]}><Ionicons name="person" size={40} color={desktop.dim} /></View>}
+    <Text numberOfLines={1} style={[artistStyles.albumTitle, { textAlign: 'center' }]}>{a.nome}</Text>
+    {a.legenda ? <Text numberOfLines={1} style={[artistStyles.albumMeta, { textAlign: 'center' }]}>{a.legenda}</Text> : null}
+  </Pressable>)}</View>;
+}
+
+/** Os álbuns, EPs e singles da pesquisa por tipo; abrem o diálogo do álbum. */
+function ResultadosDeAlbuns({ albuns, loading, falhou, aoAbrir }: {
+  albuns: AlbumEncontrado[]; loading: boolean; falhou: boolean; aoAbrir: (a: AlbumEncontrado) => void;
+}) {
+  if (loading) return <View style={{ height: 320 }}><Loading /></View>;
+  if (!albuns.length) return falhou
+    ? <Empty icon="cloud-offline-outline" title="Search failed" body="Check your connection and try again." />
+    : <Empty icon="albums-outline" title="No albums found" body="Try a different search term." />;
+  return <View style={artistStyles.albumGrid}>{albuns.map((a) => <Pressable key={a.id} onPress={() => aoAbrir(a)}
+    accessibilityRole="button" accessibilityLabel={`${a.titulo}, ${legendaDoAlbumEncontrado(a)}`}
+    style={({ hovered, focused }: any) => [artistStyles.albumCard, (hovered || focused) && artistStyles.albumCardHover]}>
+    {a.capa ? <Image source={{ uri: a.capa }} style={artistStyles.albumArt} />
+      : <View style={[artistStyles.albumArt, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={34} color={desktop.dim} /></View>}
+    <Text numberOfLines={2} style={artistStyles.albumTitle}>{a.titulo}</Text>
+    <Text numberOfLines={1} style={artistStyles.albumMeta}>{legendaDoAlbumEncontrado(a)}</Text>
+  </Pressable>)}</View>;
 }
 
 export function SongsPage(props: CommonPageProps) {
@@ -400,13 +454,15 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const data = useLibraryData();
   const [separador, setSeparador] = useState<'library' | 'tracks' | 'albums'>('library');
   const [outras, setOutras] = useState<Track[]>([]);
-  const [albuns, setAlbuns] = useState<YtRecommendedPlaylist[]>([]);
+  const [pagina, setPagina] = useState<PaginaDoArtista | null>(null);
+  const albuns = pagina?.albuns ?? [];
+  const favoritos = useArtistasFavoritos((s) => s.chaves);
+  const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
+  useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
+  const chaveDoArtista = chaveDeArtista(name);
+  const favorito = favoritos.has(chaveDoArtista);
   const [aDescobrir, setADescobrir] = useState(true);
-  const [albumAberto, setAlbumAberto] = useState<YtRecommendedPlaylist | null>(null);
-  const [faixasDoAlbum, setFaixasDoAlbum] = useState<Track[]>([]);
-  const [aCarregarAlbum, setACarregarAlbum] = useState(false);
-  const [aGuardarAlbum, setAGuardarAlbum] = useState(false);
-  const pedidoDeAlbum = useRef(0);
+  const { abrirAlbum, fecharAlbum, dialogoDoAlbum } = useDialogoDoAlbum(props);
   const [foto, setFoto] = useState<string | null>(null);
   useEffect(() => {
     let vivo = true;
@@ -425,9 +481,9 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     let cancelado = false;
     setADescobrir(true);
     setOutras([]);
-    setAlbuns([]);
+    setPagina(null);
     setSeparador('library');
-    setAlbumAberto(null);
+    fecharAlbum();
     useSaved.getState().refresh();
 
     const alvo = chaveDeArtista(name);
@@ -443,20 +499,21 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     });
 
     return () => { cancelado = true; };
-  }, [name, props.notify]);
+  }, [name, props.notify, fecharAlbum]);
 
-  // Os álbuns vêm do canal do artista no YouTube Music, e quem diz qual é o
-  // canal são as músicas dele na biblioteca (28/9, `albunsDoArtista`): pelo
-  // nome vinham os de um homónimo (o Isak Danielson na página do Isak). Por
-  // isso espera pela biblioteca, e só volta a correr se as provas mudarem.
+  // Os álbuns, o mais recente e as músicas vêm do canal do artista no YouTube
+  // Music, e quem diz qual é o canal são as músicas dele na biblioteca (28/9 e
+  // 29/9, `paginaDoArtista`): pelo nome vinham os de um homónimo (o Isak
+  // Danielson na página do Isak). Por isso espera pela biblioteca, e só volta a
+  // correr se as provas mudarem.
   const [aProcurarAlbuns, setAProcurarAlbuns] = useState(true);
   const provas = tracks.slice(0, 3).map((t) => t.sourceId).join(',');
   useEffect(() => {
     if (data.loading) return;
     let cancelado = false;
     setAProcurarAlbuns(true);
-    void albunsDoArtista(name, tracks).then((lista) => {
-      if (!cancelado) setAlbuns(lista);
+    void paginaDoArtista(name, tracks).then((p) => {
+      if (!cancelado) setPagina(p);
     }).finally(() => {
       if (!cancelado) setAProcurarAlbuns(false);
     });
@@ -468,10 +525,100 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     () => new Set(tracks.map((t) => `${t.source}:${t.sourceId}`)),
     [tracks],
   );
+  // As do canal primeiro; sem canal (ou sem lista), a pesquisa pelo nome.
+  const doCanal = pagina?.musicas.length ? pagina.musicas : null;
   const outrasSemRepetir = useMemo(
-    () => outras.filter((t) => !chavesDaBiblioteca.has(`${t.source}:${t.sourceId}`)),
-    [outras, chavesDaBiblioteca],
+    () => (doCanal ?? outras).filter((t) => !chavesDaBiblioteca.has(`${t.source}:${t.sourceId}`)),
+    [doCanal, outras, chavesDaBiblioteca],
   );
+  const aProcurarMusicas = aProcurarAlbuns || (!doCanal && aDescobrir);
+
+
+
+  const inteligente = usePlayer((s) => s.shuffleInteligente);
+  const ligado = usePlayer((s) => s.shuffle);
+  const alternarShuffle = usePlayer((s) => s.toggleShuffle);
+  const playAll = () => {
+    if (!tracks.length) return;
+    void usePlayer.getState().tocarLista(tracks, ligado, inteligente, { tipo: 'artista', nome: name });
+  };
+
+  return <>
+    <Page title="Artist" action={<Button secondary icon="arrow-back" onPress={back}>Back to artists</Button>}>
+      <ContentScroll scrollKey={`artist:${chaveDeArtista(name)}`}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <>
+        <View style={styles.detailHero}>
+          {/* A foto do catálogo (27/9, `fotoDoArtista`); sem ela, uma música dele. */}
+          <View style={[styles.detailHeroArt, !foto && !tracks[0] && !outras[0] && artistStyles.heroFallback]}>{foto
+            ? <Image source={{ uri: foto }} style={{ width: 176, height: 176 }} />
+            : tracks[0] ? <Artwork track={tracks[0]} size={176} />
+            : outras[0] ? <Artwork track={outras[0]} size={176} />
+            : <Ionicons name="person" size={48} color={desktop.dim} />}</View>
+          <View style={styles.detailHeroBody}>
+            <Text style={styles.detailHeroEyebrow}>ARTIST</Text>
+            <Text numberOfLines={2} style={styles.detailHeroTitle}>{name}</Text>
+            <Text style={styles.detailHeroMeta}>{tracks.length} saved {tracks.length === 1 ? 'track' : 'tracks'}</Text>
+            <View style={styles.detailHeroActions}>
+              <Button icon="play" onPress={playAll} disabled={!tracks.length}>Play</Button>
+              <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!tracks.length}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
+              {/* O mesmo coração dos cartões da página Artists (29/9): só lá se
+                  favoritava, e quem estava dentro do artista tinha de voltar atrás. */}
+              <IconButton name={favorito ? 'heart' : 'heart-outline'} active={favorito}
+                label={favorito ? `Unfavourite ${name}` : `Favourite ${name}`}
+                onPress={() => alternarFavorito(chaveDoArtista)} />
+              <BotaoDeFixar atalho={{ tipo: 'artista', nome: name, capa: tracks[0]?.artworkUrl ?? null }} />
+            </View>
+          </View>
+        </View>
+
+        {pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente} onPress={() => void abrirAlbum(pagina.maisRecente!)} /> : null}
+
+        <View style={artistStyles.tabs}>
+          {([
+            ['library', 'In your library', 'heart-outline'],
+            ['tracks', 'More tracks', 'musical-notes-outline'],
+            ['albums', 'Albums', 'albums-outline'],
+          ] as const).map(([id, label, icon]) => <Pressable key={id} onPress={() => setSeparador(id)}
+            style={({ hovered }) => [artistStyles.tab, separador === id && artistStyles.tabActive, hovered && artistStyles.tabHover]}>
+            <Ionicons name={icon} size={15} color={separador === id ? desktop.text : desktop.dim} />
+            <Text style={[artistStyles.tabText, separador === id && artistStyles.tabTextActive]}>{label}</Text>
+          </Pressable>)}
+        </View>
+
+        {separador === 'library' && <TrackTable plain colunaDoArtista={false} tracks={tracks} onPlay={(t) => props.play(t, tracks, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
+          empty={<Empty icon="heart-outline" title="Nothing saved" body="Save a track by this artist and it will appear here." />} />}
+
+        {separador === 'tracks' && (aProcurarMusicas ? <View style={{ height: 280 }}><Loading /></View> :
+          <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasSemRepetir} onPlay={(t) => props.play(t, outrasSemRepetir, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
+            empty={<Empty icon="search-outline" title="No other tracks found" body="No other songs by this artist were found." />} />)}
+
+        {separador === 'albums' && (aProcurarAlbuns ? <View style={{ height: 280 }}><Loading /></View> : albuns.length ?
+          <View style={artistStyles.albumGrid}>{albuns.map((album) => <Pressable key={album.id} onPress={() => void abrirAlbum(album)}
+            style={({ hovered, focused }) => [artistStyles.albumCard, (hovered || focused) && artistStyles.albumCardHover]}>
+            {album.artworkUrl ? <Image source={{ uri: album.artworkUrl }} style={artistStyles.albumArt} /> :
+              <View style={[artistStyles.albumArt, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={34} color={desktop.dim} /></View>}
+            <Text numberOfLines={2} style={artistStyles.albumTitle}>{album.title}</Text>
+            <Text numberOfLines={1} style={artistStyles.albumMeta}>{album.channelTitle || 'Album'}</Text>
+          </Pressable>)}</View> :
+          <Empty icon="albums-outline" title="No albums found" body="No albums by this artist were found." />)}
+      </>}</ContentScroll>
+    </Page>
+
+    {dialogoDoAlbum}
+  </>;
+}
+
+/**
+ * O diálogo de um álbum (a playlist `OLAK5uy_...`): tocar e guardar como
+ * playlist. Nasceu na página do artista e serve também os álbuns da pesquisa
+ * por tipo (29/9).
+ */
+function useDialogoDoAlbum(props: CommonPageProps) {
+  const [albumAberto, setAlbumAberto] = useState<YtRecommendedPlaylist | null>(null);
+  const [faixasDoAlbum, setFaixasDoAlbum] = useState<Track[]>([]);
+  const [aCarregarAlbum, setACarregarAlbum] = useState(false);
+  const [aGuardarAlbum, setAGuardarAlbum] = useState(false);
+  const pedidoDeAlbum = useRef(0);
+  const fecharAlbum = useCallback(() => { pedidoDeAlbum.current++; setAlbumAberto(null); }, []);
 
   const abrirAlbum = async (album: YtRecommendedPlaylist) => {
     const pedido = ++pedidoDeAlbum.current;
@@ -515,73 +662,14 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     }
   };
 
-  const inteligente = usePlayer((s) => s.shuffleInteligente);
-  const ligado = usePlayer((s) => s.shuffle);
-  const alternarShuffle = usePlayer((s) => s.toggleShuffle);
-  const playAll = () => {
-    if (!tracks.length) return;
-    void usePlayer.getState().tocarLista(tracks, ligado, inteligente, { tipo: 'artista', nome: name });
-  };
   const tocarAlbum = () => {
     if (!faixasDoAlbum.length) return;
     props.play(faixasDoAlbum[0], faixasDoAlbum, undefined, { tipo: 'album', nome: albumAberto?.title ?? '' });
     setAlbumAberto(null);
   };
 
-  return <>
-    <Page title="Artist" action={<Button secondary icon="arrow-back" onPress={back}>Back to artists</Button>}>
-      <ContentScroll scrollKey={`artist:${chaveDeArtista(name)}`}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <>
-        <View style={styles.detailHero}>
-          {/* A foto do catálogo (27/9, `fotoDoArtista`); sem ela, uma música dele. */}
-          <View style={[styles.detailHeroArt, !foto && !tracks[0] && !outras[0] && artistStyles.heroFallback]}>{foto
-            ? <Image source={{ uri: foto }} style={{ width: 176, height: 176 }} />
-            : tracks[0] ? <Artwork track={tracks[0]} size={176} />
-            : outras[0] ? <Artwork track={outras[0]} size={176} />
-            : <Ionicons name="person" size={48} color={desktop.dim} />}</View>
-          <View style={styles.detailHeroBody}>
-            <Text style={styles.detailHeroEyebrow}>ARTIST</Text>
-            <Text numberOfLines={2} style={styles.detailHeroTitle}>{name}</Text>
-            <Text style={styles.detailHeroMeta}>{tracks.length} saved {tracks.length === 1 ? 'track' : 'tracks'}</Text>
-            <View style={styles.detailHeroActions}>
-              <Button icon="play" onPress={playAll} disabled={!tracks.length}>Play</Button>
-              <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!tracks.length}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
-              <BotaoDeFixar atalho={{ tipo: 'artista', nome: name, capa: tracks[0]?.artworkUrl ?? null }} />
-            </View>
-          </View>
-        </View>
-
-        <View style={artistStyles.tabs}>
-          {([
-            ['library', 'In your library', 'heart-outline'],
-            ['tracks', 'More tracks', 'musical-notes-outline'],
-            ['albums', 'Albums', 'albums-outline'],
-          ] as const).map(([id, label, icon]) => <Pressable key={id} onPress={() => setSeparador(id)}
-            style={({ hovered }) => [artistStyles.tab, separador === id && artistStyles.tabActive, hovered && artistStyles.tabHover]}>
-            <Ionicons name={icon} size={15} color={separador === id ? desktop.text : desktop.dim} />
-            <Text style={[artistStyles.tabText, separador === id && artistStyles.tabTextActive]}>{label}</Text>
-          </Pressable>)}
-        </View>
-
-        {separador === 'library' && <TrackTable plain colunaDoArtista={false} tracks={tracks} onPlay={(t) => props.play(t, tracks, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
-          empty={<Empty icon="heart-outline" title="Nothing saved" body="Save a track by this artist and it will appear here." />} />}
-
-        {separador === 'tracks' && (aDescobrir ? <View style={{ height: 280 }}><Loading /></View> :
-          <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasSemRepetir} onPlay={(t) => props.play(t, outrasSemRepetir, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
-            empty={<Empty icon="search-outline" title="No other tracks found" body="No other songs by this artist were found." />} />)}
-
-        {separador === 'albums' && (aProcurarAlbuns ? <View style={{ height: 280 }}><Loading /></View> : albuns.length ?
-          <View style={artistStyles.albumGrid}>{albuns.map((album) => <Pressable key={album.id} onPress={() => void abrirAlbum(album)}
-            style={({ hovered, focused }) => [artistStyles.albumCard, (hovered || focused) && artistStyles.albumCardHover]}>
-            {album.artworkUrl ? <Image source={{ uri: album.artworkUrl }} style={artistStyles.albumArt} /> :
-              <View style={[artistStyles.albumArt, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={34} color={desktop.dim} /></View>}
-            <Text numberOfLines={2} style={artistStyles.albumTitle}>{album.title}</Text>
-            <Text numberOfLines={1} style={artistStyles.albumMeta}>{album.channelTitle || 'Album'}</Text>
-          </Pressable>)}</View> :
-          <Empty icon="albums-outline" title="No albums found" body="No albums by this artist were found." />)}
-      </>}</ContentScroll>
-    </Page>
-
-    <Dialog open={!!albumAberto} title={albumAberto?.title || 'Album'} onClose={() => { pedidoDeAlbum.current++; setAlbumAberto(null); }} width={720}>
+  const dialogoDoAlbum = <>
+    <Dialog open={!!albumAberto} title={albumAberto?.title || 'Album'} onClose={fecharAlbum} width={720}>
       {aCarregarAlbum ? <View style={{ height: 260 }}><Loading /></View> : <>
         <View style={artistStyles.albumDialogActions}>
           <Button icon="play" onPress={tocarAlbum} disabled={!faixasDoAlbum.length}>Play</Button>
@@ -596,10 +684,38 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
       </>}
     </Dialog>
   </>;
+  return { abrirAlbum, fecharAlbum, dialogoDoAlbum };
+}
+
+/**
+ * O lançamento mais recente do artista, por cima dos separadores (29/9). Vem do
+ * canal certo (`paginaDoArtista`); abre o mesmo diálogo dos álbuns.
+ */
+function UltimoLancamento({ album, onPress }: { album: AlbumDaPagina; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Latest release: ${album.title}`} onPress={onPress}
+    style={({ hovered, focused }: any) => [artistStyles.ultimo, (hovered || focused) && artistStyles.ultimoHover]}>
+    {album.artworkUrl ? <Image source={{ uri: album.artworkUrl }} style={artistStyles.ultimoCapa} />
+      : <View style={[artistStyles.ultimoCapa, artistStyles.albumFallback]}><Ionicons name="albums-outline" size={24} color={desktop.dim} /></View>}
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <Text style={artistStyles.ultimoRotulo}>LATEST RELEASE</Text>
+      <Text numberOfLines={1} style={artistStyles.ultimoTitulo}>{album.title}</Text>
+      <Text numberOfLines={1} style={artistStyles.albumMeta}>{album.channelTitle}</Text>
+    </View>
+    <Ionicons name="chevron-forward" size={18} color={COR.textoFraco} />
+  </Pressable>;
 }
 
 const artistStyles = StyleSheet.create({
   heroFallback: { alignItems: 'center', justifyContent: 'center' },
+  ultimo: {
+    flexDirection: 'row', alignItems: 'center', gap: ESP.lg, alignSelf: 'flex-start', minWidth: 320, maxWidth: 520,
+    padding: ESP.md, paddingRight: ESP.lg, marginBottom: ESP.xl, borderRadius: RAIO.superficie,
+    borderWidth: 1, borderColor: COR.linhaSuave, backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  ultimoHover: { backgroundColor: COR.hover },
+  ultimoCapa: { width: 64, height: 64, borderRadius: RAIO.cartao, backgroundColor: COR.elevado },
+  ultimoRotulo: { ...TIPO.legenda, color: COR.textoFraco, letterSpacing: 1.2, fontWeight: '700' as any },
+  ultimoTitulo: { fontFamily: FONT.display, color: COR.texto, fontSize: 16, lineHeight: 22, fontWeight: '650' as any, marginTop: 2 },
   tabs: {
     flexDirection: 'row', alignItems: 'center', gap: ESP.sm,
     paddingBottom: ESP.xl, marginBottom: ESP.lg, borderBottomWidth: 1, borderBottomColor: COR.linhaSuave,
@@ -614,6 +730,8 @@ const artistStyles = StyleSheet.create({
   tabTextActive: { color: COR.texto },
   albumGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: ESP.xxl, rowGap: ESP.xxl },
   albumCard: { width: 190 },
+  artistaCard: { width: 170, alignItems: 'center' },
+  artistaFoto: { width: 170, height: 170, borderRadius: 85, backgroundColor: COR.elevado },
   albumCardHover: { opacity: .88, transform: [{ translateY: -3 }] },
   albumArt: {
     width: 190, height: 190, borderRadius: RAIO.superficie, backgroundColor: COR.elevado,

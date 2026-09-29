@@ -12,6 +12,20 @@ import type { YtPlaylistItem } from '../types';
  * pede é o `api/youtubeMix.ts`. Sem imports de runtime: testável em Node.
  */
 
+/**
+ * Até onde se lê um Mix (29/9). A primeira volta são ~25; pedir outra a partir
+ * da última música traz a janela seguinte (umas 10 a 15 novas de cada vez). Um
+ * Mix não acaba, por isso há teto de músicas e de pedidos, e pára-se quando uma
+ * volta já não traz nada novo.
+ */
+export const MIX_ATE = { musicas: 100, pedidos: 8 } as const;
+
+/** As músicas de uma volta seguinte que ainda não estão na lista. */
+export function novasDaVolta(jaLidas: readonly YtPlaylistItem[], resposta: unknown): YtPlaylistItem[] {
+  const vistas = new Set(jaLidas.map((i) => i.videoId));
+  return (lerMixDaResposta(resposta)?.itens ?? []).filter((i) => !vistas.has(i.videoId));
+}
+
 /** A forma de um id de Mix. Validada também no processo principal do PC. */
 export const FORMA_DO_MIX = /^RD[\w-]{2,80}$/;
 

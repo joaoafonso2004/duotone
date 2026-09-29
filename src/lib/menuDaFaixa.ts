@@ -37,6 +37,7 @@ export type IdDaAcao =
   | 'por-em-playlist'
   | 'ver-artista'
   | 'partilhar'
+  | 'story'
   | 'descarregar'
   | 'recomendacoes'
   | 'tirar-da-playlist'
@@ -51,6 +52,7 @@ export const ORDEM: readonly IdDaAcao[] = [
   'por-em-playlist',
   'ver-artista',
   'partilhar',
+  'story',
   'descarregar',
   'recomendacoes',
   'tirar-da-playlist',
@@ -67,6 +69,7 @@ export type IconeDoMenu =
   | 'albums-outline'
   | 'mic-outline'
   | 'share-social-outline'
+  | 'image-outline'
   | 'arrow-down-circle-outline'
   | 'checkmark-circle'
   | 'close-circle-outline'
@@ -142,6 +145,10 @@ function aplicaSe(id: IdDaAcao, c: ContextoDoMenu): boolean {
     case 'descarregar': return c.plataforma === 'ios' && c.podeDescarregar && c.onde !== 'leitor';
     case 'tirar-da-playlist': return c.onde === 'lista' && !!c.playlist;
     case 'tirar-da-fila': return c.onde === 'fila' && !!c.fila;
+    // O cartão das Stories (29/9, lib/cartaoDaStory.ts). No iPhone só no
+    // leitor: é a música que está a tocar, e os menus das listas são folhas
+    // que teriam de fechar antes de abrir outra. No PC, em todos.
+    case 'story': return c.plataforma === 'pc' || c.onde === 'leitor';
     default: return true;
   }
 }
@@ -164,6 +171,8 @@ function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
     case 'por-em-playlist': return acao('Add to playlist…', 'albums-outline', semRede);
     case 'ver-artista': return acao('View artist', 'mic-outline', c.temArtista ? null : MOTIVOS.semArtista);
     case 'partilhar': return acao('Share with friends or groups…', 'share-social-outline', semRede);
+    // Não precisa de rede: o fundo é da app, e a capa já está na cache.
+    case 'story': return acao('Share to Stories', 'image-outline', null);
     // Tirar um download não precisa de rede; fazê-lo sim -- a não ser que o
     // ficheiro já esteja em disco (tocou antes): aí "Download" só o guarda.
     case 'descarregar':

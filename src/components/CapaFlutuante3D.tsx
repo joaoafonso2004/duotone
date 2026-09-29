@@ -3,6 +3,7 @@ import { Animated, AppState, Easing, Image, StyleSheet, View, type ImageSourcePr
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { CAPA_FLUTUANTE, ondaSeno } from '../lib/capaFlutuante3D';
 import { RECUO, recuoDaCapa, type Sentido } from '../lib/transicaoDaCapa';
+import { RECUO_DO_ENCAIXE, curvaDoRecuo } from '../lib/recuoDoEncaixe';
 import type { MontagemDaCapa } from '../hooks/useMontagemDaCapa';
 
 // Os materiais saem de scripts/gerar-materiais-da-capa.py.
@@ -15,6 +16,8 @@ const SENO = ondaSeno();
 const COSSENO = ondaSeno(16, 0.25);
 
 type Onda = { inputRange: number[]; outputRange: number[] };
+/** Um valor que anima: um `Animated.Value` ou o que sai de o somar e interpolar. */
+type Animado = Animated.Value | Animated.AnimatedInterpolation<number> | Animated.AnimatedAddition<number>;
 const vezes = (onda: Onda, fator: number, soma = 0) => ({
   inputRange: onda.inputRange,
   outputRange: onda.outputRange.map((v) => v * fator + soma),
@@ -31,8 +34,8 @@ const vezes = (onda: Onda, fator: number, soma = 0) => ({
  */
 function criarPostura(
   pose: Animated.Value, flutuar: Animated.Value, derivar: Animated.Value, size: number,
-  voo: Animated.Value, assentar: Animated.Value,
-  recuoX: Animated.Value, recuoZ: Animated.Value,
+  voo: Animated.Value, assentar: Animado,
+  recuoX: Animated.Value, recuoZ: Animado,
 ) {
   const c = CAPA_FLUTUANTE;
   const ate = (fim: number) => pose.interpolate({ inputRange: [0, 1], outputRange: [0, fim] });
@@ -115,10 +118,21 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
   const semMontagem = useRef({ um: new Animated.Value(1), zero: new Animated.Value(0) }).current;
   const voo = montagem?.voo ?? semMontagem.um;
   const assentar = montagem?.assentar ?? semMontagem.zero;
+  const encaixe = montagem?.encaixe ?? semMontagem.um;
   const aterrar = montagem?.aterrar ?? semMontagem.um;
   // O "Recuo subtil": em repouso valem zero, e a pose é exatamente a do lib.
   const recuoX = useRef(new Animated.Value(0)).current;
   const recuoZ = useRef(new Animated.Value(0)).current;
+  // O recuo do encaixe (lib/recuoDoEncaixe.ts): a face bate e a caixa recua ao
+  // longo do mesmo eixo do "Recuo subtil" -- os dois somam-se.
+  const recuoTotal = useMemo(() => {
+    const curva = curvaDoRecuo();
+    const recuoDoEncaixe = encaixe.interpolate({
+      inputRange: curva.inputRange,
+      outputRange: curva.outputRange.map((y) => -RECUO_DO_ENCAIXE.profundidade * size * y),
+    });
+    return Animated.add(recuoZ, recuoDoEncaixe);
+  }, [encaixe, recuoZ, size]);
   const chaveAnterior = useRef(transicao?.chave ?? null);
 
   // Uma faixa nova na capa: recua, desvia-se no sentido do skip e volta com uma
@@ -195,8 +209,8 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
   // Estáveis entre renders: o leitor volta a desenhar a cada segundo da música,
   // e refazer as interpolações a cada vez era religar o grafo nativo por nada.
   const postura = useMemo(
-    () => criarPostura(pose, flutuar, derivar, size, voo, assentar, recuoX, recuoZ),
-    [pose, flutuar, derivar, size, voo, assentar, recuoX, recuoZ],
+    () => criarPostura(pose, flutuar, derivar, size, voo, assentar, recuoX, recuoTotal),
+    [pose, flutuar, derivar, size, voo, assentar, recuoX, recuoTotal],
   );
   const pose3D = useMemo<PoseDaCapa3D | null>(
     () => (enabled

@@ -18,6 +18,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMusicSearch } from '../hooks/useMusicSearch';
+import { usePesquisaPorTipo, type SeparadorDaPesquisa } from '../hooks/usePesquisaPorTipo';
+import { legendaDoAlbumEncontrado, type AlbumEncontrado, type ArtistaEncontrado } from '../lib/pesquisaPorTipo';
+import { lembrarCanalDoArtista } from '../api/albunsDoArtista';
+import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
 import { useWindowDimensions } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -216,6 +220,18 @@ export function SearchScreen() {
     void addSearchHistoryEntry(q).then(setHistory).catch(() => {});
   });
   useEffect(() => { void recs.carregar(); }, [recs.carregar]);
+  // A pesquisa por tipo (29/9, `lib/pesquisaPorTipo.ts`), a mesma do PC: só
+  // com texto, e só pede o separador que está à vista.
+  const [tipo, setTipo] = useState<SeparadorDaPesquisa>('musicas');
+  const tipoAtivo: SeparadorDaPesquisa = query.trim().length < 2 ? 'musicas' : tipo;
+  const porTipo = usePesquisaPorTipo(query, tipoAtivo);
+  const [albumAberto, setAlbumAberto] = useState<AlbumEncontrado | null>(null);
+  // O artista abre pelo CANAL escolhido, sem adivinhar pelo nome (homónimos).
+  const abrirArtista = (a: ArtistaEncontrado) => {
+    Keyboard.dismiss();
+    lembrarCanalDoArtista(a.nome, a.canal);
+    navigation.navigate('LibraryGroup', { type: 'artist', name: a.nome });
+  };
 
   const vistos=useRef(new Set<string>());
   useEffect(()=>{
@@ -505,9 +521,44 @@ export function SearchScreen() {
               </Pressable>
             </View>
           ) : null}
+          {query.trim().length >= 2 ? (
+            <View style={styles.vistas} accessibilityRole="tablist">
+              {([['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums']] as const).map(([id, nome]) => (
+                <Pressable key={id} accessibilityRole="tab" accessibilityState={{ selected: tipo === id }}
+                  onPress={() => { hapticSelection(); setTipo(id); }}
+                  style={[styles.vista, tipo === id && styles.vistaActiva]}>
+                  <Text style={[styles.vistaTexto, tipo === id && styles.vistaTextoActivo]}>{nome}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
         </View>
 
-        {loading ? (
+        {tipoAtivo !== 'musicas' ? (
+          porTipo.loading ? <SkeletonDeFaixas /> : (
+            <FlatList<ArtistaEncontrado | AlbumEncontrado>
+              data={tipoAtivo === 'artistas' ? porTipo.artistas : porTipo.albuns}
+              keyExtractor={(x) => ('canal' in x ? x.canal : x.id)}
+              contentContainerStyle={{ paddingBottom: bottomPad, flexGrow: 1 }}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              ListEmptyComponent={
+                <EmptyState
+                  icon={porTipo.falhou ? 'cloud-offline-outline' : tipoAtivo === 'artistas' ? 'person-outline' : 'albums-outline'}
+                  title={porTipo.falhou ? 'Search failed' : tipoAtivo === 'artistas' ? 'No artists found' : 'No albums found'}
+                  subtitle={porTipo.falhou ? 'Check your connection and try again.' : 'Try a different search term.'}
+                />
+              }
+              renderItem={({ item }) => ('canal' in item ? (
+                <LinhaDoResultado redonda capa={item.foto} titulo={item.nome} legenda={item.legenda}
+                  onPress={() => abrirArtista(item)} />
+              ) : (
+                <LinhaDoResultado capa={item.capa} titulo={item.titulo} legenda={legendaDoAlbumEncontrado(item)}
+                  onPress={() => { Keyboard.dismiss(); setAlbumAberto(item); }} />
+              ))}
+            />
+          )
+        ) : loading ? (
           <SkeletonDeFaixas />
         ) : errorMsg ? (
           <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
@@ -840,12 +891,48 @@ export function SearchScreen() {
         item={playlistAPartilhar}
         onClose={() => setPlaylistAPartilhar(null)}
       />
+      {/* Um álbum da pesquisa abre a mesma folha dos álbuns da página do artista. */}
+      <YtPlaylistRecommendationSheet
+        visible={!!albumAberto}
+        playlistId={albumAberto?.id ?? null}
+        playlistTitle={albumAberto?.titulo ?? null}
+        playlistArtwork={albumAberto?.capa ?? null}
+        onClose={() => setAlbumAberto(null)}
+      />
 
     </Screen>
   );
 }
 
+/** Uma linha de artista (foto redonda) ou de álbum (capa quadrada) na pesquisa por tipo. */
+function LinhaDoResultado({ capa, titulo, legenda, redonda, onPress }: {
+  capa: string | null; titulo: string; legenda: string; redonda?: boolean; onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={legenda ? `${titulo}, ${legenda}` : titulo}
+      style={({ pressed }) => [styles.linhaPorTipo, pressed && { backgroundColor: colors.surface }]}>
+      {capa ? (
+        <Image source={{ uri: capa }} style={[styles.capaPorTipo, redonda && { borderRadius: 26 }]} contentFit="cover" />
+      ) : (
+        <View style={[styles.capaPorTipo, redonda && { borderRadius: 26 }, { alignItems: 'center', justifyContent: 'center' }]}>
+          <Ionicons name={redonda ? 'person' : 'albums-outline'} size={22} color={colors.textSecondary} />
+        </View>
+      )}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={[type.body, { fontWeight: '600' }]}>{titulo}</Text>
+        {legenda ? <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={[type.caption, { color: colors.textSecondary }]}>{legenda}</Text> : null}
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  linhaPorTipo: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingHorizontal: spacing.xl, paddingVertical: spacing.sm, minHeight: 68,
+  },
+  capaPorTipo: { width: 52, height: 52, borderRadius: radii.sm, backgroundColor: colors.surface },
   controls: {
     paddingHorizontal: spacing.xl,
     gap: spacing.md,
