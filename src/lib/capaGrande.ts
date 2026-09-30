@@ -13,18 +13,37 @@
 
 type FaixaComCapa = { source: string; sourceId: string; artworkUrl?: string | null };
 
-export function capaGrandeDaFaixa(t: FaixaComCapa, semMaxres: ReadonlySet<string>): string | null {
+/**
+ * As imagens que servem de capa grande, da melhor para a que existe sempre.
+ *
+ * **Só as 16:9, nunca as 4:3** (30/9). A `hqdefault` e a `sddefault` são 4:3:
+ * o YouTube encaixa o vídeo 16:9 nelas com uma faixa preta em cima e outra em
+ * baixo, e o recorte quadrado do leitor apanha-as -- era a capa com barras
+ * pretas que aparecia ao tocar numa música, antes de a `maxresdefault` chegar
+ * (e que ficava de vez nos vídeos sem ela). As 16:9 só têm barras dos lados
+ * numa capa quadrada, e o recorte ao centro deixa-as de fora.
+ *
+ * A `hq720` (1280x720) existe em muitos vídeos sem `maxres`; a `mqdefault`
+ * (320x180) existe sempre, e é a mesma das listas -- quase sempre já em cache.
+ */
+export function candidatasDaCapaGrande(t: FaixaComCapa): string[] {
   if (t.source === 'youtube' && t.sourceId) {
-    const tamanho = semMaxres.has(t.sourceId) ? 'hqdefault' : 'maxresdefault';
-    return `https://i.ytimg.com/vi/${t.sourceId}/${tamanho}.jpg`;
+    const base = `https://i.ytimg.com/vi/${t.sourceId}`;
+    return [`${base}/maxresdefault.jpg`, `${base}/hq720.jpg`, `${base}/mqdefault.jpg`];
   }
-  return t.artworkUrl ?? null;
+  return t.artworkUrl ? [t.artworkUrl] : [];
 }
 
-/** A que existe sempre, para quando a grande falha. */
+/** A melhor que ainda pode existir: a primeira que não falhou nesta sessão. */
+export function capaGrandeDaFaixa(t: FaixaComCapa, falhadas: ReadonlySet<string>): string | null {
+  const lista = candidatasDaCapaGrande(t);
+  return lista.find((u) => !falhadas.has(u)) ?? lista[lista.length - 1] ?? null;
+}
+
+/** A que existe sempre, para quando as grandes falham ou ainda não chegaram. */
 export function capaDeRecurso(t: FaixaComCapa): string | null {
-  if (t.source === 'youtube' && t.sourceId) return `https://i.ytimg.com/vi/${t.sourceId}/hqdefault.jpg`;
-  return t.artworkUrl ?? null;
+  const lista = candidatasDaCapaGrande(t);
+  return lista[lista.length - 1] ?? null;
 }
 
 /** Largura, em píxeis, de cada miniatura do YouTube. */
