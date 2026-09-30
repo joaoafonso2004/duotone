@@ -34,8 +34,16 @@ public class DuotoneRemoteCommandsModule: Module {
     Events(
       "onNextTrack", "onPreviousTrack",
       "onAudioInterrupted", "onAudioResumable",
-      "onAudioOutputRemoved"
+      "onAudioOutputRemoved", "onAudioOutputChanged"
     )
+
+    /**
+     * Por onde sai o som agora (ver `saidaAtual`). E o que o preset do carro
+     * le ao abrir a app ja dentro do carro, antes de haver mudanca nenhuma.
+     */
+    Function("saidaDeAudio") { () -> [String: String] in
+      return self.saidaAtual()
+    }
 
     /**
      * O sistema a tirar e a devolver o audio.
@@ -191,6 +199,11 @@ public class DuotoneRemoteCommandsModule: Module {
    * como no Spotify. Retomar e escolha de quem ouve, nao do sistema.
    */
   private func aoMudarRota(_ nota: Notification) {
+    // Qualquer mudanca, e nao so a saida que desapareceu: ligar o CarPlay ou o
+    // Bluetooth do carro tambem e uma, e e ela que poe o preset do carro
+    // (src/hooks/useModoCarro.ts). Este evento nao pausa nem toca nada.
+    sendEvent("onAudioOutputChanged", ["saida": saidaAtual()])
+
     guard
       let info = nota.userInfo,
       let cru = info[AVAudioSessionRouteChangeReasonKey] as? UInt,

@@ -1,13 +1,17 @@
 import {AdjustmentSyncStatus} from '../components/AdjustmentSyncStatus';
 import {SelectionPill} from '../components/SelectionPill';
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import {
-  BANDAS, ETIQUETAS_BANDAS, GANHO_MAXIMO, normalizar, perfilDe, PERFIS, PLANO, type Ganhos,
+  BANDAS, ETIQUETAS_BANDAS, GANHO_MAXIMO, normalizar, PERFIS, PLANO, type Ganhos,
 } from '../lib/equalizer';
+import {
+  criarPreset, limparNome, novoIdDePreset, podeGuardarComoPreset, presetDosGanhos, presetsVisiveis,
+} from '../lib/presetsDoEqualizador';
+import { mudarPresets, usePresets } from '../state/presets';
 import { BarraVelocidade } from './BarraVelocidade.web';
 import { COR, ESP, RAIO, TIPO } from './tokens.web';
-import { ui } from './ui.web';
+import { Button, Field, ui } from './ui.web';
 
 /**
  * O painel do equalizador: perfis, dez bandas e a velocidade.
@@ -22,7 +26,7 @@ import { ui } from './ui.web';
  */
 
 const ALTURA = 132;
-const pillPalette={fill:COR.metalSuave,text:COR.texto,muted:COR.textoMedio,border:COR.linhaSuave};
+export const pillPalette={fill:COR.metalSuave,text:COR.texto,muted:COR.textoMedio,border:COR.linhaSuave};
 
 function DeslizadorVertical({
   valor,
@@ -138,16 +142,22 @@ function DeslizadorVertical({
 export function BandasDoEqualizador({
   ganhos,
   aoMudarGanhos,
+  presets = PERFIS,
+  semPresets = false,
 }: {
   ganhos: Ganhos;
   aoMudarGanhos: (g: Ganhos) => void;
+  /** Os presets da fila; os da app se ninguém passar os da pessoa. */
+  presets?: readonly { id: string; nome: string; ganhos: readonly number[] }[];
+  /** Só as bandas: o editor de um preset (GestorDePresets.web.tsx). */
+  semPresets?: boolean;
 }) {
   const g = normalizar(ganhos);
-  const perfil = perfilDe(g);
+  const perfil = presetDosGanhos(presets, g);
   return (
     <View style={{ gap: ESP.sm }}>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: ESP.xs }}>
-        {PERFIS.map((p) => (
+      {semPresets ? null : <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: ESP.xs }}>
+        {presets.map((p) => (
           <SelectionPill
             palette={pillPalette}
             key={p.id}
@@ -156,8 +166,8 @@ export function BandasDoEqualizador({
             onPress={() => aoMudarGanhos(normalizar(p.ganhos))}
           />
         ))}
-      </View>
-      <View style={{ flexDirection: 'row', gap: 2, marginTop: ESP.sm }}>
+      </View>}
+      <View style={{ flexDirection: 'row', gap: 2, marginTop: semPresets ? 0 : ESP.sm }}>
         {BANDAS.map((hz, i) => (
           <DeslizadorVertical
             key={hz}
@@ -172,6 +182,21 @@ export function BandasDoEqualizador({
         ))}
       </View>
     </View>
+  );
+}
+
+/** Uma acção em texto pequeno, como o RESET ao lado. */
+function AccaoPequena({ rotulo, aoPremir }: { rotulo: string; aoPremir: () => void }) {
+  return (
+    <Pressable
+      onPress={aoPremir}
+      style={({ hovered }: any) => [
+        { minHeight: 24, paddingHorizontal: ESP.sm, borderRadius: RAIO.pilula, justifyContent: 'center' },
+        hovered && { backgroundColor: COR.hover },
+      ]}
+    >
+      <Text style={[TIPO.micro, { color: COR.texto }]}>{rotulo}</Text>
+    </Pressable>
   );
 }
 
@@ -207,8 +232,17 @@ export function PainelEqualizador({
   /** Esta faixa tem ajuste guardado? */
   lembrado: boolean;
 }) {
-  const g = normalizar(ganhos);
-  const perfil = perfilDe(g);
+  const memoria = usePresets((st) => st.memoria);
+  const presets = useMemo(() => presetsVisiveis(memoria), [memoria]);
+  // Guardar a curva como preset: o campo aparece no lugar da linha de baixo.
+  const [aGuardar, setAGuardar] = useState(false);
+  const [nome, setNome] = useState('');
+  const guardar = () => {
+    const limpo = limparNome(nome);
+    if (!limpo) return;
+    mudarPresets((m, agora) => criarPreset(m, novoIdDePreset(agora, Math.random()), limpo, ganhos, agora));
+    setAGuardar(false);
+  };
 
   return (
     <View style={{ gap: ESP.xl }}>
@@ -224,15 +258,31 @@ export function PainelEqualizador({
           {!activo && <Text style={[TIPO.micro, { color: COR.textoFraco }]}>WAITING FOR PLAYBACK</Text>}
         </View>
 
-        <BandasDoEqualizador ganhos={ganhos} aoMudarGanhos={aoMudarGanhos} />
+        <BandasDoEqualizador ganhos={ganhos} aoMudarGanhos={aoMudarGanhos} presets={presets} />
 
 <AdjustmentSyncStatus />
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: ESP.xs }}>
-          <Text style={[TIPO.micro, { color: COR.textoFraco }]}>
-            {lembrado ? 'SAVED FOR THIS TRACK' : 'DOUBLE-CLICK A BAND TO ZERO IT'}
-          </Text>
-          <ReporEqualizador aoRepor={() => aoMudarGanhos(PLANO.slice())} />
-        </View>
+        {aGuardar ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.sm, marginTop: ESP.xs }}>
+            <View style={{ flex: 1 }}>
+              <Field placeholder="Preset name" value={nome} onChangeText={setNome} autoFocus maxLength={30}
+                onSubmitEditing={guardar} />
+            </View>
+            <Button onPress={guardar} disabled={!limparNome(nome)}>Save</Button>
+            <Button secondary onPress={() => setAGuardar(false)}>Cancel</Button>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: ESP.xs }}>
+            <Text style={[TIPO.micro, { color: COR.textoFraco }]}>
+              {lembrado ? 'SAVED FOR THIS TRACK' : 'DOUBLE-CLICK A BAND TO ZERO IT'}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {podeGuardarComoPreset(memoria, ganhos) && (
+                <AccaoPequena rotulo="SAVE AS PRESET" aoPremir={() => { setNome(''); setAGuardar(true); }} />
+              )}
+              <ReporEqualizador aoRepor={() => aoMudarGanhos(PLANO.slice())} />
+            </View>
+          </View>
+        )}
       </View>
     </View>
   );

@@ -38,6 +38,7 @@ export const MIGRACOES: readonly Migracao[] = [
   { ficheiro: 'track-adjustments.sql', marca: 'tab:user_track_adjustments', efeito: 'Speed and EQ per song' },
   { ficheiro: 'eq-padrao-sincronizado.sql', marca: 'con:user_track_adjustments.user_track_adjustments_source_check~padrao', efeito: 'Default speed and EQ sync' },
   { ficheiro: 'escritas-atomicas.sql', marca: 'fn:guardar_ajuste_da_faixa', efeito: 'Group and adjustment writes in one trip' },
+  { ficheiro: 'eq-presets.sql', marca: 'tab:user_eq_presets', efeito: 'Equalizer presets sync' },
   { ficheiro: 'recommendation-feedback.sql', marca: 'tab:recommendation_feedback', efeito: 'Recommendation feedback' },
   { ficheiro: 'gosto-de-mais.sql', marca: 'con:recommendation_feedback.recommendation_feedback_kind_check~artist_more', efeito: 'More from this artist' },
   { ficheiro: 'search-history.sql', marca: 'tab:search_history', efeito: 'Search history' },

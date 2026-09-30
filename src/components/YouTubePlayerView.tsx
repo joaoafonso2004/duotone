@@ -40,7 +40,7 @@ import {
   classificar, mensagem as mensagemDaFalha, recuperacao, registar,
   registarNaFila, registarNoStream, sinalDoErro, type TipoFalha,
 } from '../lib/playbackDiagnostics';
-import { usePlayer } from '../state/player';
+import { ganhosEmVigor, usePlayer } from '../state/player';
 import { useSaudeDaReproducao } from '../state/saudeDaReproducao';
 import { aoTocar as ajusteAoTocar, chaveDaFaixa, compensacaoLinear } from '../lib/equalizer';
 import { arredondar as arredondarRate } from '../lib/playbackRate';
@@ -243,7 +243,8 @@ function metadadosDoEcraBloqueado(track: Track) {
 }
 
 export function YouTubePlayerView({ track }: { track: Track }) {
-  const eqGanhos = usePlayer((s) => s.eqGanhos);
+  // No carro, a curva do carro e não a da faixa (ver `carro` na store).
+  const eqGanhos = usePlayer(ganhosEmVigor);
   const registerYtControls = usePlayer((s) => s.registerYtControls);
   const onStateChange = usePlayer((s) => s._onYtStateChange);
   const setProgress = usePlayer((s) => s._setProgress);
@@ -777,7 +778,9 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         // O perfil DELA no motor DELA, antes de soar uma amostra. É isto que
         // faz a música que entra numa passagem já vir com o equalizador certo,
         // em vez de o apanhar de repente no fim do fade.
-        aplicarEqualizadorNativo(emEspera, ajuste.ganhos, compensacaoLinear(ajuste.ganhos));
+        // No carro, quem entra também leva a curva do carro, e não a sua.
+        const ganhosDaSeguinte = usePlayer.getState().carro?.ganhos ?? ajuste.ganhos;
+        aplicarEqualizadorNativo(emEspera, ganhosDaSeguinte, compensacaoLinear(ganhosDaSeguinte));
         seguinteRef.current.pronta = true;
         // Daqui até ao fim da faixa vale a pena saber a posição mais vezes.
         reporIntervaloDeTempo();

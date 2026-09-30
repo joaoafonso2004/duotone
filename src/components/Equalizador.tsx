@@ -1,8 +1,9 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
 import {
-  BANDAS, ETIQUETAS_BANDAS, GANHO_MAXIMO, normalizar, ondaDoEqualizador, perfilDe, PERFIS, PLANO,
+  BANDAS, ETIQUETAS_BANDAS, GANHO_MAXIMO, normalizar, ondaDoEqualizador, PERFIS, PLANO,
 } from '../lib/equalizer';
+import { presetDosGanhos } from '../lib/presetsDoEqualizador';
 import { hapticSelection } from '../lib/haptics';
 import { colors, radii, spacing, type } from '../theme';
 import { SelectionPill } from './SelectionPill';
@@ -295,6 +296,11 @@ function PerfilAMao() {
   );
 }
 
+/** Um preset como a fila o mostra. Os da app de origem, se ninguem passar
+ * outros; quem tem os da pessoa passa os visiveis (lib/presetsDoEqualizador.ts). */
+export type PresetNaFila = { id: string; nome: string; ganhos: readonly number[] };
+const DA_APP: readonly PresetNaFila[] = PERFIS;
+
 export function Equalizador({
   ganhos,
   aoMudar,
@@ -307,15 +313,22 @@ export function Equalizador({
   /** Quanto a fila de perfis pode sair para os lados, ate a borda de quem a
    *  contem: assim desliza ate ao fim em vez de ser cortada a meio de um. */
   sangria = 0,
+  /** Os presets da fila, pela ordem em que aparecem. */
+  presets = DA_APP,
+  /** Sem a fila de presets: so as bandas. E o editor de um preset, onde
+   *  escolher outro a meio seria trocar o que se esta a editar. */
+  semPresets = false,
 }: {
   ganhos: readonly number[];
   aoMudar: (ganhos: number[]) => void;
   nota?: string;
   moldura?: boolean;
   sangria?: number;
+  presets?: readonly PresetNaFila[];
+  semPresets?: boolean;
 }) {
   const g = normalizar(ganhos);
-  const perfil = perfilDe(g);
+  const perfil = presetDosGanhos(presets, g);
   const [largura, setLargura] = useState(0);
 
   // A fila de perfis desliza, e o escolhido tem de estar a vista: ao abrir
@@ -364,7 +377,7 @@ export function Equalizador({
         <Text style={[type.caption, { color: colors.textTertiary }]}>{nota}</Text>
       ) : null}
 
-      <ScrollView
+      {semPresets ? null : <ScrollView
         ref={filaRef}
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -378,7 +391,7 @@ export function Equalizador({
         scrollEventThrottle={32}
       >
         {!perfil && <PerfilAMao />}
-        {PERFIS.map((p) => (
+        {presets.map((p) => (
           <View
             key={p.id}
             onLayout={(e) => {
@@ -395,7 +408,7 @@ export function Equalizador({
             />
           </View>
         ))}
-      </ScrollView>
+      </ScrollView>}
 
       {moldura ? (
         <View style={{
@@ -441,5 +454,80 @@ export function ReporEqualizador({ aoRepor, desativado = false }: { aoRepor: () 
     </Pressable>
   );
 }
+
+/**
+ * Guardar a curva como preset: a mesma pilula do Reset, mas cheia -- e a acao
+ * que se oferece, e o "ligado" da app e a branco. So aparece quando a curva
+ * ainda nao e preset nenhum (`podeGuardarComoPreset`).
+ */
+export function BotaoGuardarPreset({ aoGuardar }: { aoGuardar: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Save as preset"
+      hitSlop={6}
+      onPress={() => { hapticSelection(); aoGuardar(); }}
+      style={({ pressed }) => ({
+        minHeight: 28,
+        paddingHorizontal: spacing.md,
+        justifyContent: 'center',
+        borderRadius: radii.pill,
+        borderWidth: 1,
+        borderColor: colors.text,
+        backgroundColor: colors.text,
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <Text style={{ fontSize: 12, fontWeight: '600', color: colors.bg }}>Save</Text>
+    </Pressable>
+  );
+}
+
+const LARGURA_DA_MINIATURA = 46;
+const ALTURA_DA_MINIATURA = 30;
+/** Na miniatura a escala e mais apertada do que nas bandas: com os ±20 dB
+ * inteiros, um perfil de ±5 era uma linha direita a 46 pontos de largura. */
+const ESCALA_DA_MINIATURA = 2.5;
+
+/**
+ * A forma de um preset em ponto pequeno, para as listas das Definicoes. A
+ * mesma onda das bandas (`ondaDoEqualizador`), com a escala apertada.
+ */
+export const MiniaturaDaCurva = memo(function MiniaturaDaCurva({ ganhos }: { ganhos: readonly number[] }) {
+  const ampliados = normalizar(ganhos).map((v) => Math.max(-GANHO_MAXIMO, Math.min(GANHO_MAXIMO, v * ESCALA_DA_MINIATURA)));
+  const w = LARGURA_DA_MINIATURA, h = ALTURA_DA_MINIATURA, meio = h / 2;
+  const y = ondaDoEqualizador(ampliados, w, h);
+  const pecas: React.ReactNode[] = [];
+  for (let x0 = 0; x0 < w; x0 += 2) {
+    const x1 = Math.min(w, x0 + 2);
+    const y0 = y(x0), y1 = y(x1);
+    const topo = y((x0 + x1) / 2);
+    if (Math.abs(topo - meio) >= 0.5) {
+      pecas.push(<View key={`a${x0}`} style={{
+        position: 'absolute', left: x0, width: x1 - x0, top: Math.min(topo, meio),
+        height: Math.abs(topo - meio), backgroundColor: COR_DA_AREA,
+      }} />);
+    }
+    const comprimento = Math.hypot(x1 - x0, y1 - y0) + 0.5;
+    pecas.push(<View key={`l${x0}`} style={{
+      position: 'absolute', left: (x0 + x1) / 2 - comprimento / 2, top: (y0 + y1) / 2 - 0.75,
+      width: comprimento, height: 1.5, borderRadius: 1, backgroundColor: colors.text,
+      transform: [{ rotate: `${Math.atan2(y1 - y0, x1 - x0)}rad` }],
+    }} />);
+  }
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{
+        width: w, height: h, borderRadius: radii.sm, overflow: 'hidden',
+        backgroundColor: colors.surface, borderWidth: 0.5, borderColor: colors.border,
+      }}
+    >
+      <View style={{ position: 'absolute', left: 0, right: 0, top: meio - 0.5, height: 1, backgroundColor: colors.border }} />
+      {pecas}
+    </View>
+  );
+}, (a, b) => a.ganhos.length === b.ganhos.length && a.ganhos.every((v, i) => v === b.ganhos[i]));
 
 export { PLANO, GANHO_MAXIMO };
