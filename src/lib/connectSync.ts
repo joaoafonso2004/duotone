@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import {
   limparPedidosVelhos, mandarPedido, ouvirPedidos, ouvirResposta, pedidosParaMim, responderPedido,
   verPedido,
@@ -101,9 +102,9 @@ async function tratar(pedido: Pedido, meuAparelho: string, noArranque = false): 
  * Fica à escuta das ordens para este aparelho. Montado uma vez, no `App.tsx`.
  *
  * Duas portas para a mesma ordem: o Realtime (chega num instante) e uma
- * leitura a cada 20 s (rede de segurança, e é ela que apanha o que foi pedido
- * enquanto a app arrancava). O `tratados` garante que executar duas vezes não
- * acontece.
+ * leitura ao arrancar, ao voltar à app e, só com o canal em baixo, a cada
+ * 20 s (é ela que apanha o que foi pedido enquanto a app arrancava). O
+ * `tratados` garante que executar duas vezes não acontece.
  *
  * Só com conta (28/9): sem sessão a RLS devolve sempre vazio, e o ecrã de login
  * fazia um pedido de 20 em 20 s (~180 por hora, egress) e um 401 do
@@ -116,31 +117,44 @@ export function useComandosDoAparelho(userId: string | null | undefined): void {
     let parado = false;
     let pararEscuta: () => void = () => {};
     let intervalo: ReturnType<typeof setInterval> | null = null;
+    let largarAoVoltar: () => void = () => {};
 
     void getDeviceId().then((meu) => {
       if (parado || !meu) return;
-      pararEscuta = ouvirPedidos(meu, (pedido) => { void tratar(pedido, meu); });
-
       let primeiro = true;
       const varrer = () => {
-        if (!appEstaVisivel()) return;
+        if (parado || !appEstaVisivel()) return;
         const arranque = primeiro;
         primeiro = false;
         void pedidosParaMim(meu)
           .then((pedidos) => { for (const pedido of pedidos) void tratar(pedido, meu, arranque); })
           .catch(() => { /* sem rede não há ordens; tenta-se outra vez a seguir */ });
       };
+      // Com o canal ligado, as ordens chegam por ele e o varrimento de 20 em
+      // 20 s não traz nada: uma ordem vale 30 s, e ou chega na hora ou já não
+      // serve. Eram ~180 pedidos por hora por aparelho aberto (30/9, egress).
+      // Varre-se ao ligar (o que foi pedido enquanto não havia canal), ao
+      // voltar à app, e de 20 em 20 s só enquanto o canal está em baixo.
+      let aoVivo = false;
+      pararEscuta = ouvirPedidos(meu, (pedido) => { void tratar(pedido, meu); }, (ligado) => {
+        const antes = aoVivo;
+        aoVivo = ligado;
+        if (ligado && !antes && !primeiro) varrer();
+      });
       // A limpeza ANTES do primeiro varrimento, e não depois: é ela que apaga
       // as ordens velhas, e é do lado do servidor que o relógio está certo.
       // Corria depois, e por isso nunca chegava a tempo de proteger o
       // arranque. Falhar não custa -- o varrimento vai na mesma.
       void limparPedidosVelhos().catch(() => {}).then(varrer);
-      intervalo = setInterval(varrer, 20_000);
+      intervalo = setInterval(() => { if (!aoVivo) varrer(); }, 20_000);
+      const aoVoltar = AppState.addEventListener('change', (estado) => { if (estado === 'active') varrer(); });
+      largarAoVoltar = () => aoVoltar.remove();
     });
 
     return () => {
       parado = true;
       pararEscuta();
+      largarAoVoltar();
       if (intervalo) clearInterval(intervalo);
     };
   }, [userId]);

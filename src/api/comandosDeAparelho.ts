@@ -125,7 +125,12 @@ export async function verPedido(id: string): Promise<Pedido | null> {
  * chegam as da própria conta -- as duas coisas juntas são o que faz um
  * aparelho nunca ver ordens que não lhe dizem respeito.
  */
-export function ouvirPedidos(meuAparelho: string, aoChegar: (pedido: Pedido) => void): () => void {
+export function ouvirPedidos(
+  meuAparelho: string,
+  aoChegar: (pedido: Pedido) => void,
+  /** `true` quando o canal fica `SUBSCRIBED`, `false` quando cai. */
+  aoMudarLigacao: (aoVivo: boolean) => void = () => {},
+): () => void {
   if (tabelaExiste === false || !meuAparelho) return () => {};
   const canal = supabase
     .channel(`pedidos:${meuAparelho}`)
@@ -134,7 +139,7 @@ export function ouvirPedidos(meuAparelho: string, aoChegar: (pedido: Pedido) => 
       { event: 'INSERT', schema: 'public', table: 'pedidos_ao_aparelho', filter: `para_aparelho=eq.${meuAparelho}` },
       (payload) => { try { aoChegar(linhaParaPedido(payload.new)); } catch { /* uma linha estranha não parte a escuta */ } },
     )
-    .subscribe();
+    .subscribe((estado) => aoMudarLigacao(estado === 'SUBSCRIBED'));
   return () => { void supabase.removeChannel(canal); };
 }
 

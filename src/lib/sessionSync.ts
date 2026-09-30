@@ -202,6 +202,8 @@ export function useHandoffSession(): {
 
   /** A primeira leitura: é ela que diz por que tabela chegam os avisos. */
   const primeira = useRef<Promise<void> | null>(null);
+  /** O canal dos avisos está `SUBSCRIBED`: as mudanças chegam por ele. */
+  const aoVivo = useRef(false);
   const refresh = useCallback(() => {
     const leitura = (async () => {
       const rows = await fetchOtherSessionsLeves();
@@ -213,10 +215,16 @@ export function useHandoffSession(): {
 
   useEffect(() => {
     if(appEstaVisivel())void refresh();
+    let voltas = 0;
     const id = setInterval(() => {
       // Em segundo plano não vale a pena gastar rede: ao voltar a "active"
       // o listener abaixo recarrega de imediato.
-      if (appEstaVisivel()) void refresh();
+      if (!appEstaVisivel()) return;
+      // Com o canal ligado, cada escrita de outro aparelho já avisa: a leitura
+      // periódica passa a ser de cinco em cinco minutos, só por segurança
+      // (30/9, egress).
+      if (aoVivo.current && ++voltas % 5 !== 0) return;
+      void refresh();
     }, POLL_MS);
     const acordar=()=>{if(appEstaVisivel())void refresh();};
     const sub = AppState.addEventListener('change', acordar);
@@ -231,6 +239,7 @@ export function useHandoffSession(): {
   useEffect(() => {
     let parado = false;
     let canal: ReturnType<typeof supabase.channel> | null = null;
+    let jaLigou = false;
     let espera: ReturnType<typeof setTimeout> | null = null;
     const agendar = () => {
       if (espera) clearTimeout(espera);
@@ -256,10 +265,18 @@ export function useHandoffSession(): {
           if (aparelho && aparelho === meu) return;
           agendar();
         })
-        .subscribe();
+        .subscribe((estado) => {
+          const antes = aoVivo.current;
+          aoVivo.current = estado === 'SUBSCRIBED';
+          // Voltou a ligar: o que mudou entretanto não veio por ele. A
+          // primeira ligação não, que a leitura do arranque acabou de correr.
+          if (aoVivo.current && !antes && jaLigou) agendar();
+          if (aoVivo.current) jaLigou = true;
+        });
     })();
     return () => {
       parado = true;
+      aoVivo.current = false;
       if (espera) clearTimeout(espera);
       if (canal) void supabase.removeChannel(canal);
     };

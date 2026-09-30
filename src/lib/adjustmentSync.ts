@@ -44,6 +44,13 @@ export class AdjustmentSync<V extends {visto:number}=AjusteDaFaixa> {
     this.writing=this.writing.catch(()=>{}).then(()=>this.deps.writeLocal(snapshot));
     return this.writing;
   }
+  /**
+   * O aparelho já tem esta versão (ou uma mais recente) da linha: é o eco da
+   * própria escrita a voltar pelo Realtime, e reler a tabela inteira por causa
+   * dele era pagar duas vezes a mesma edição (30/9, egress). O `seen_at` da
+   * linha é o `visto` de quem a escreveu, por isso comparar é exato.
+   */
+  jaSabe(key:string,visto:number):boolean{return Number.isFinite(visto)&&(this.values[key]?.visto??0)>=visto;}
   edit(key:string,value:V){
     if(this.stopped)return;
     // Relógio monotónico local, inclusive ao arrastar várias vezes no mesmo ms.
@@ -85,4 +92,15 @@ export class AdjustmentSync<V extends {visto:number}=AjusteDaFaixa> {
     }catch{if(!this.stopped)this.deps.status('error');}
   }
   stop(){this.stopped=true;}
+}
+
+/**
+ * Quando é que a leitura de recuperação vale a pena (30/9).
+ *
+ * Com o Realtime ligado as mudanças chegam sozinhas, e reler a tabela inteira
+ * de dois em dois minutos -- e a cada foco da janela do PC -- era egress sem
+ * nada de novo. Com ele, relê-se só passada a `janelaMs`; sem ele, sempre.
+ */
+export function precisaDeRecuperar(aoVivo:boolean,ultimaLeitura:number,agora:number,janelaMs:number):boolean{
+  return !aoVivo||agora-ultimaLeitura>=janelaMs;
 }

@@ -295,8 +295,10 @@ public class DuotoneAudioModule: Module {
      *
      * Chegou a achar-se que reamostrar obrigava o AVFoundation a voltar a
      * preparar a cadeia de áudio, e que era esse o corte ao mexer na
-     * velocidade. O corte de um segundo era outro -- a espera do buffer, ver
-     * `aplicarVelocidade` -- e não depende do algoritmo do tom.
+     * velocidade. O corte de um segundo era outra coisa -- a espera do buffer,
+     * ver `aplicarVelocidade`. Tirada essa, ficou um corte de uns 0,4 s (medido
+     * num vídeo a 30/9) que ninguém provou de onde vem: pode ser esta
+     * preparação, pode não ser.
      *
      * `.spectral` preserva o tom, e por isso a taxa de saída não muda e não há
      * nada a voltar a preparar. Em troca, estica o tempo.

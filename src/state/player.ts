@@ -373,7 +373,7 @@ interface PlayerState {
    * uma música a estourar as colunas. `ganhos` é o que se ouve: começa no
    * preset (`base`) e muda se se mexer no equalizador durante a viagem, sem
    * tocar no que cada faixa guardou. `null` fora do carro, ou sem preset.
-   * Quem o liga e desliga é o `hooks/useModoCarro.ts`.
+   * Quem o liga e desliga é o `state/carro.ts`.
    */
   carro: CarroNoLeitor | null;
   _definirCarro: (preset: { id: string; nome: string; ganhos: Ganhos } | null) => void;

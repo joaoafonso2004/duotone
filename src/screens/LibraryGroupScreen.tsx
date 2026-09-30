@@ -10,6 +10,7 @@ import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View }
 import { tocarMixDoArtista } from '../state/mixDoArtista';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
+import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { fotoDoArtista } from '../api/catalogo';
 import { paginaDoArtista, type AlbumDaPagina, type PaginaDoArtista } from '../api/albunsDoArtista';
 import { useArtistasFavoritos } from '../state/artistasFavoritos';
@@ -77,7 +78,9 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     try {
       // Marca as faixas do YouTube deste artista que já estão na biblioteca.
       useSaved.getState().refresh();
-      const all = await getLibrary();
+      // Da cache partilhada: cada página de artista relia a biblioteca
+      // inteira (30/9, egress).
+      const all = await lerFaixas(getLibrary);
       if (type === 'album') {
         setTracks(all.filter((t) => t.album === name));
       } else {

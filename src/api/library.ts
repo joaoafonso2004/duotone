@@ -1,6 +1,6 @@
 import { cacheLikedSongs,changeCachedLikes,likedCacheRevision } from '../lib/likedSongsCache';
 import { supabase } from '../lib/supabase';
-import { tipoDaLista } from '../lib/cacheDaBiblioteca';
+import { esquecerBiblioteca, lerFaixas, tipoDaLista } from '../lib/cacheDaBiblioteca';
 import { idDaConta } from '../lib/idDaConta';
 import { confirmarArtistasEmSegundoPlano } from './artistNames';
 import type { Track } from '../types';
@@ -108,6 +108,9 @@ export async function removeMultipleFromLibrary(trackIds: string[]): Promise<voi
     .eq('user_id', userId)
     .in('track_id', trackIds);
   if (error) throw error;
+  // Várias de uma vez não passam pelo `markSaved`: a lista em memória esquece-se
+  // aqui, senão os corações e as páginas ficavam meia hora com as que saíram.
+  esquecerBiblioteca();
   await changeCachedLikes(userId,old=>old.filter(t=>!t.id||!trackIds.includes(t.id)));
 }
 
@@ -119,6 +122,7 @@ export async function clearLibrary(): Promise<void> {
     .delete()
     .match({ user_id: userId });
   if (error) throw error;
+  esquecerBiblioteca();
   await changeCachedLikes(userId,()=>[]);
 }
 
@@ -208,29 +212,16 @@ export async function getLibrary(): Promise<Track[]> {
  * de pesquisa vêm do YouTube e ainda não existem na tabela `tracks`, por isso
  * não têm id nenhum por onde comparar. A chave da fonte é a única que serve
  * para dizer "esta já a tens".
+ *
+ * Saem das gostadas da cache partilhada (30/9). Liam-se do servidor, às
+ * páginas de 1000, a cada abertura da Pesquisa, de uma página de artista e a
+ * cada sugestão do Smart Shuffle -- a mesma lista que os Songs já tinham em
+ * memória. Um gosto neste aparelho muda-a na hora (`ajustarGostada`); o que se
+ * guarda noutro chega com a validade da cache.
  */
 export async function getLibraryKeys(): Promise<Set<string>> {
-  const userId = await currentUserId();
-  // ÀS PÁGINAS, como o `getLikedSongsForUser`: o PostgREST corta em 1000 linhas
-  // por pedido, e isto lia uma só. Com 2700 guardadas, 1700 ficavam de fora de
-  // tudo o que pergunta "esta já a tens" -- o Discover sugeria-as e o coração
-  // da pesquisa não acendia.
-  const chaves = new Set<string>();
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await supabase
-      .from('library_tracks')
-      .select('tracks (source, source_id)')
-      .eq('user_id', userId)
-      .order('track_id')
-      .range(offset, offset + 999);
-    if (error) throw error;
-    for (const r of data ?? []) {
-      const t = (r as any).tracks;
-      if (t) chaves.add(`${t.source}:${t.source_id}`);
-    }
-    if (!data || data.length < 1000) break;
-  }
-  return chaves;
+  const gostadas = await lerFaixas(getLikedSongs);
+  return new Set(gostadas.map(trackKey));
 }
 
 /** Ids (da BD) das faixas guardadas — para mostrar o estado "guardada". */

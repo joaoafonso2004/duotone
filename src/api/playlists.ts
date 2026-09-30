@@ -6,6 +6,18 @@ import { missingProfilePlaylistColumns } from '../lib/profileSchema';
 import { planearMerge } from '../lib/playlistMerge';
 // Quem mexe nas playlists muda a co-ocorrência: a descoberta tem de a reler.
 import { esquecerAfinidade } from './afinidade';
+import { esquecerAlargada } from '../lib/cacheDaBiblioteca';
+
+/**
+ * Uma playlist ganhou ou perdeu músicas: a co-ocorrência e a biblioteca
+ * alargada (gostadas + playlists) deixam de ser verdade. As páginas leem a
+ * alargada da cache partilhada (30/9); sem isto uma música posta numa
+ * playlist só aparecia nelas ao fim da validade.
+ */
+function mudouUmaPlaylist(): void {
+  esquecerAfinidade();
+  esquecerAlargada();
+}
 
 async function currentUserId(): Promise<string> {
   const id = await idDaConta();
@@ -13,35 +25,79 @@ async function currentUserId(): Promise<string> {
   return id;
 }
 
+/** Capas pedidas por playlist: mostram-se quatro, e algumas faixas não têm. */
+const CAPAS_POR_PLAYLIST = 8;
+const EMBUTIDO_LEVE = 'capas:playlist_tracks(position, tracks(artwork_url)), total:playlist_tracks(count)';
+const EMBUTIDO_PESADO = 'playlist_tracks (position, tracks (artwork_url))';
+
+function primeirasCapas(pts: any[] | undefined): string[] {
+  return [...(pts ?? [])]
+    .sort((a, b) => a.position - b.position)
+    .map((pt) => pt.tracks?.artwork_url)
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+/** Quantas faixas e as capas, venha a linha da leitura leve ou da de sempre. */
+function resumoDaPlaylist(row: any): Pick<Playlist, 'trackCount' | 'artworks'> {
+  if (Array.isArray(row.total)) {
+    return { trackCount: Number(row.total[0]?.count) || 0, artworks: primeirasCapas(row.capas) };
+  }
+  return { trackCount: (row.playlist_tracks ?? []).length, artworks: primeirasCapas(row.playlist_tracks) };
+}
+
+/**
+ * Playlists com a contagem e as primeiras capas (30/9).
+ *
+ * Vinham TODAS as faixas de TODAS as playlists -- posição e capa de cada uma --
+ * para as contar e mostrar quatro capas. A lista relê-se a cada música posta
+ * numa playlist, e com playlists importadas eram centenas de KB por leitura
+ * (egress). Agora vem a contagem e oito capas por playlist.
+ *
+ * Se o PostgREST recusar a forma leve (um erro `PGRST1..`/`PGRST2..`, do
+ * pedido e não dos dados), vai a de sempre: uma lista que pesa mais é melhor
+ * do que as playlists desaparecerem. Sem rede ou sem permissão não se repete
+ * nada. Uma coluna em falta volta como erro, para quem chama tentar sem ela.
+ */
+async function lerComResumo(
+  campos: string,
+  filtrar: (q: any) => any,
+): Promise<{ data: any[] | null; error: any }> {
+  const leve = await filtrar(supabase.from('playlists').select(`${campos}, ${EMBUTIDO_LEVE}`))
+    .order('position', { referencedTable: 'capas' })
+    .limit(CAPAS_POR_PLAYLIST, { referencedTable: 'capas' });
+  if (!formaRecusada(leve.error) || missingProfilePlaylistColumns(leve.error)) return leve;
+  return filtrar(supabase.from('playlists').select(`${campos}, ${EMBUTIDO_PESADO}`));
+}
+
+function formaRecusada(error: any): boolean {
+  return typeof error?.code === 'string' && /^PGRST[12]\d\d$/.test(error.code);
+}
+
+/** Só a forma de sempre corta nas 1000: é dessas que a contagem se confirma. */
+function cortadas(playlists: Playlist[], linhas: any[]): Playlist[] {
+  return playlists.filter((_, i) => !Array.isArray(linhas[i]?.total));
+}
+
 export async function listPlaylists(): Promise<Playlist[]> {
   const userId = await currentUserId();
-  const read=(fields:string)=>supabase.from('playlists').select(fields)
-    .eq('owner_id',userId).order('created_at',{ascending:false});
-  let { data, error } = await read('id, name, created_at, visible_on_profile, copied_from, playlist_tracks (position, tracks (artwork_url))');
+  const filtrar = (q: any) => q.eq('owner_id', userId).order('created_at', { ascending: false });
+  let lida = await lerComResumo('id, name, created_at, visible_on_profile, copied_from', filtrar);
   // A biblioteca já existia antes da partilha de perfis. Uma migração em falta
   // não pode fazê-la desaparecer; a leitura continua limitada ao próprio dono.
-  const legacy=missingProfilePlaylistColumns(error);
-  if(legacy)({data,error}=await read('id, name, created_at, playlist_tracks (position, tracks (artwork_url))'));
-  if (error) throw error;
+  const legacy = missingProfilePlaylistColumns(lida.error);
+  if (legacy) lida = await lerComResumo('id, name, created_at', filtrar);
+  if (lida.error) throw lida.error;
 
-  const playlists = (data ?? []).map((row: any) => {
-    const pts: any[] = [...(row.playlist_tracks ?? [])].sort(
-      (a, b) => a.position - b.position
-    );
-    return {
-      id: row.id,
-      name: row.name,
-      createdAt: row.created_at,
-      trackCount: pts.length,
-      artworks: pts
-        .map((pt) => pt.tracks?.artwork_url)
-        .filter(Boolean)
-        .slice(0, 4),
-      visibleOnProfile: legacy ? undefined : !!row.visible_on_profile,
-      copiedFrom: row.copied_from ?? null,
-    };
-  });
-  await corrigirContagensLimitadas(playlists);
+  const playlists = (lida.data ?? []).map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    ...resumoDaPlaylist(row),
+    visibleOnProfile: legacy ? undefined : !!row.visible_on_profile,
+    copiedFrom: row.copied_from ?? null,
+  }));
+  await corrigirContagensLimitadas(cortadas(playlists, lida.data ?? []));
   return playlists;
 }
 
@@ -84,27 +140,21 @@ export async function setPlaylistVisibility(id: string, visible: boolean): Promi
  * quem não pode ver.
  */
 export async function listProfilePlaylists(userId: string): Promise<Playlist[]> {
-  const { data, error } = await supabase
-    .from('playlists')
-    .select('id, name, created_at, playlist_tracks (position, tracks (artwork_url))')
+  const lida = await lerComResumo('id, name, created_at', (q) => q
     .eq('owner_id', userId)
     .eq('visible_on_profile', true)
-    .order('created_at', { ascending: false });
-  if (error) throw error;
+    .order('created_at', { ascending: false }));
+  if (lida.error) throw lida.error;
 
-  const playlists = (data ?? []).map((row: any) => {
-    const pts: any[] = [...(row.playlist_tracks ?? [])].sort((a, b) => a.position - b.position);
-    return {
-      id: row.id,
-      name: row.name,
-      createdAt: row.created_at,
-      trackCount: pts.length,
-      artworks: pts.map((pt) => pt.tracks?.artwork_url).filter(Boolean).slice(0, 4),
-      visibleOnProfile: true,
-      copiedFrom: null,
-    };
-  });
-  await corrigirContagensLimitadas(playlists);
+  const playlists = (lida.data ?? []).map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    ...resumoDaPlaylist(row),
+    visibleOnProfile: true,
+    copiedFrom: null,
+  }));
+  await corrigirContagensLimitadas(cortadas(playlists, lida.data ?? []));
   return playlists;
 }
 
@@ -135,7 +185,7 @@ export async function copiasGuardadas(): Promise<Set<string>> {
 export async function savePlaylistCopy(sourceId: string): Promise<string> {
   const {data,error}=await supabase.rpc('set_profile_playlist_copy',{p_source_id:sourceId,p_save:true});
   if(error)throw error;
-  esquecerAfinidade();
+  mudouUmaPlaylist();
   if(!data)throw new Error('Could not save this playlist.');
   return data as string;
 }
@@ -144,7 +194,7 @@ export async function savePlaylistCopy(sourceId: string): Promise<string> {
 export async function unsavePlaylistCopy(sourceId: string): Promise<void> {
   const { error } = await supabase.rpc('set_profile_playlist_copy',{p_source_id:sourceId,p_save:false});
   if (error) throw error;
-  esquecerAfinidade();
+  mudouUmaPlaylist();
 }
 
 /** Identidade e dono da playlist autorizada pela RLS, para abrir em modo de leitura. */
@@ -190,7 +240,7 @@ export async function deletePlaylist(id: string): Promise<void> {
     .eq('id', id)
     .eq('owner_id', userId);
   if (error) throw error;
-  esquecerAfinidade();
+  mudouUmaPlaylist();
 }
 
 export async function getPlaylistTracks(
@@ -246,7 +296,7 @@ export async function addTrackToPlaylist(
       { onConflict: 'playlist_id,track_id', ignoreDuplicates: true }
     );
   if (error) throw error;
-  esquecerAfinidade();
+  mudouUmaPlaylist();
   return trackId;
 }
 
@@ -259,7 +309,7 @@ export async function removeTrackFromPlaylist(
     .delete()
     .match({ playlist_id: playlistId, track_id: trackId });
   if (error) throw error;
-  esquecerAfinidade();
+  mudouUmaPlaylist();
 }
 
 /** Persiste uma nova ordem (lista completa de track ids, já ordenada). */
@@ -339,7 +389,7 @@ export async function addTracksToPlaylist(
       );
     }
   } finally {
-    esquecerAfinidade();
+    mudouUmaPlaylist();
   }
 }
 
@@ -375,22 +425,15 @@ export async function mergePlaylists(targetId: string, sourceId: string): Promis
 export async function getPlaylistPreviews(ids: string[]): Promise<Map<string, Playlist>> {
   const unicos = Array.from(new Set(ids.filter(Boolean)));
   if (!unicos.length) return new Map();
-  const { data, error } = await supabase
-    .from('playlists')
-    .select('id, name, created_at, playlist_tracks (position, tracks (artwork_url))')
-    .in('id', unicos);
-  if (error) return new Map();
-  const playlists = (data ?? []).map((row: any) => {
-    const pts: any[] = [...(row.playlist_tracks ?? [])].sort((a, b) => a.position - b.position);
-    return {
-      id: row.id,
-      name: row.name,
-      createdAt: row.created_at,
-      trackCount: pts.length,
-      artworks: pts.map((pt) => pt.tracks?.artwork_url).filter(Boolean).slice(0, 4),
-    } as Playlist;
-  });
-  await corrigirContagensLimitadas(playlists);
+  const lida = await lerComResumo('id, name, created_at', (q) => q.in('id', unicos));
+  if (lida.error) return new Map();
+  const playlists = (lida.data ?? []).map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    createdAt: row.created_at,
+    ...resumoDaPlaylist(row),
+  } as Playlist));
+  await corrigirContagensLimitadas(cortadas(playlists, lida.data ?? []));
   return new Map(playlists.map((playlist) => [playlist.id, playlist]));
 }
 
