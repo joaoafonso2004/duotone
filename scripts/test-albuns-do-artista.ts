@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   canalPelasProvas, canalSemProvas, chaveDoTitulo, FORMA_DA_CONTINUACAO, FORMA_DA_LISTA, legendaDoAlbum, lerAlbunsDoCanal,
-  lerCancoesComArtistas, lerMusicasDoCanal, lerPaginaDaPlaylist, lerRadioDoYtMusic, maisRecente, mixDoCanal,
+  fotoDoCanal, lerCancoesComArtistas, lerMusicasDoCanal, lerPaginaDaPlaylist, lerRadioDoYtMusic, maisRecente, mixDoCanal,
 } from '../src/lib/albunsDoArtista.ts';
 
 const ler = (nome: string) => JSON.parse(readFileSync(new URL(`./fixtures/${nome}`, import.meta.url), 'utf8'));
@@ -150,5 +150,30 @@ assert.match(ler_('electron/preload.cjs'), /lerRadioDoYtMusic: \(pedido\) => ipc
 // E há botão nas duas páginas de artista.
 assert.match(ler_('src/desktop/paginas/BibliotecaPages.web.tsx'), /tocarMixDoArtista\(name, \{ mix: pagina\.mix \}\)/);
 assert.match(ler_('src/screens/LibraryGroupScreen.tsx'), /tocarMixDoArtista\(name, \{ mix: pagina\.mix \}\)/);
+
+// ---- a foto do canal (30/9): a do Dave Blunts faltava, com o catálogo sem
+// foto. A redonda de primeiro plano primeiro; o fundo largo, pedido quadrado.
+const mini = (...lados: [number, number][]) => ({ musicThumbnailRenderer: { thumbnail: { thumbnails:
+  lados.map(([w, h]) => ({ url: `https://lh3.googleusercontent.com/abc=w${w}-h${h}-p-l90-rj`, width: w, height: h })) } } });
+assert.equal(fotoDoCanal({ header: { musicImmersiveHeaderRenderer: { thumbnail: mini([540, 225], [2880, 1200]) } } }),
+  'https://lh3.googleusercontent.com/abc=w600-h600-p-l90-rj', 'o fundo largo maior, pedido quadrado');
+assert.equal(fotoDoCanal({ header: { musicVisualHeaderRenderer: { thumbnail: mini([1440, 600]), foregroundThumbnail: mini([120, 120], [544, 544]) } } }),
+  'https://lh3.googleusercontent.com/abc=w600-h600-p-l90-rj', 'a de primeiro plano antes do fundo');
+assert.equal(fotoDoCanal({ header: { musicImmersiveHeaderRenderer: { thumbnail: { musicThumbnailRenderer: { thumbnail: { thumbnails: [
+  { url: 'https://yt3.googleusercontent.com/xyz', width: 900, height: 900 }] } } } } } }),
+  'https://yt3.googleusercontent.com/xyz', 'sem tamanho no URL, fica como veio');
+assert.equal(fotoDoCanal({ header: { musicImmersiveHeaderRenderer: { thumbnail: { musicThumbnailRenderer: { thumbnail: { thumbnails: [
+  { url: 'javascript:alert(1)', width: 900 }] } } } } } }), null, 'só https');
+assert.equal(fotoDoCanal(ler('ytmusic-canal-cabecalho.json')), null, 'um cabeçalho sem imagem não inventa uma');
+assert.equal(fotoDoCanal({}), null);
+// E as duas páginas usam-na quando o catálogo não tem foto, e tocam o artista todo.
+const pc = ler_('src/desktop/paginas/BibliotecaPages.web.tsx');
+const iphone = ler_('src/screens/LibraryGroupScreen.tsx');
+assert.match(pc, /const fotoDoCanal = foto \? null : pagina\?\.foto \?\? null;/);
+assert.match(iphone, /const capaDoArtista = foto\n\s+\?\? pagina\?\.foto/);
+assert.match(pc, /const todas = useMemo\(\(\) => \[\.\.\.tracks, \.\.\.outrasSemRepetir\]/, 'PC: guardadas e depois as outras');
+assert.match(pc, /tocarLista\(todas, ligado, inteligente, \{ tipo: 'artista', nome: name \}\)/);
+assert.match(iphone, /const todas = useMemo\(\(\) => \[\.\.\.tracks, \.\.\.otherTracks\]/, 'iPhone: guardadas e depois as outras');
+assert.match(iphone, /onPress=\{\(\) => void tocarLista\(todas, shuffleLigado, shuffleInteligente\)\}/);
 
 console.log('Álbuns do artista: passou.');

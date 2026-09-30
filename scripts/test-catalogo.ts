@@ -165,6 +165,7 @@ const VAZIA = 'https://e-cdns-images.dzcdn.net/images/artist//1000x1000-000000-8
 const COM = (id: string) => `https://e-cdns-images.dzcdn.net/images/artist/${id}/1000x1000-000000-80-0-0.jpg`;
 check('a imagem vazia do catálogo não conta como foto', eFotoVazia(VAZIA) && eFotoVazia(null) && eFotoVazia(''));
 check('uma imagem a sério conta', !eFotoVazia(COM('abc123')));
+check('o hash de um ficheiro vazio também é a silhueta por defeito (30/9)', eFotoVazia(COM('d41d8cd98f00b204e9800998ecf8427e')));
 eq('entre homónimos exatos fica o de mais fãs',
   fotoEntre([{ name: 'Nate Sib', nb_fan: 12, picture_xl: COM('pequeno') }, { name: 'nate sib', nb_fan: 5000, picture_xl: COM('grande') }], 'nate sib'),
   COM('grande'));

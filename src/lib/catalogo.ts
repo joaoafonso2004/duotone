@@ -287,11 +287,14 @@ export function repartir(pesos: readonly number[], total: number): number[] {
 
 /**
  * A imagem vazia do catálogo: um artista sem foto vem com um URL na mesma, com
- * o identificador da imagem em branco (`.../images/artist//1000x1000-...`).
- * Mostrá-la era trocar a nota musical por um quadrado cinzento.
+ * o identificador da imagem em branco (`.../images/artist//1000x1000-...`), ou
+ * com o hash de um ficheiro vazio (`d41d8cd9...`, o MD5 de nada). As duas dão
+ * a silhueta cinzenta por defeito, que parecia a página sem foto (30/9, a do
+ * Dave Blunts). Mostrá-la era trocar a foto do canal por um quadrado cinzento.
  */
 export function eFotoVazia(url: unknown): boolean {
-  return typeof url !== 'string' || !url.trim() || /\/images\/artist\/\//.test(url);
+  return typeof url !== 'string' || !url.trim()
+    || /\/images\/artist\/(\/|d41d8cd98f00b204e9800998ecf8427e\/)/.test(url);
 }
 
 /**

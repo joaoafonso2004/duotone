@@ -162,6 +162,9 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
    * era isso que fazia um "Play" desligar o shuffle para sempre.
    */
   const tocarLista = usePlayer((s) => s.tocarLista);
+  // O Play toca o artista, e não só o que se guardou dele (30/9): as guardadas
+  // primeiro, e depois as outras músicas que a página mostra.
+  const todas = useMemo(() => [...tracks, ...otherTracks], [tracks, otherTracks]);
   const shuffleLigado = usePlayer((s) => s.shuffle);
   const shuffleInteligente = usePlayer((s) => s.shuffleInteligente);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
@@ -178,12 +181,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   };
   const accoesDoArtista = (
     <>
-      {tracks.length ? <>
+      {todas.length ? <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${name}`}
         style={styles.playButton}
-        onPress={() => void tocarLista(tracks, shuffleLigado, shuffleInteligente)}
+        onPress={() => void tocarLista(todas, shuffleLigado, shuffleInteligente)}
       >
         <LinearGradient
           colors={theme.gradient}
@@ -233,9 +236,11 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       </Pressable>
     </>
   );
-  // A foto do catálogo; sem ela, a capa de uma música dele -- da biblioteca e,
-  // se lá não houver nenhuma, das que se encontraram fora dela.
+  // A foto do catálogo; sem ela, a do canal dele no YouTube Music (30/9); sem
+  // as duas, a capa de uma música dele -- da biblioteca e, se lá não houver
+  // nenhuma, das que se encontraram fora dela.
   const capaDoArtista = foto
+    ?? pagina?.foto
     ?? tracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? ytTracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? null;
@@ -244,7 +249,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const header = <>
     {type === 'artist' ? <CabecalhoDaPlaylist artista nome={name} artworks={capaDoArtista ? [capaDoArtista] : []}
       faixas={tracks.length} duracaoSegundos={total}
-      accoes={tracks.length || pagina?.mix ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
+      accoes={todas.length || pagina?.mix ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
         <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true)} />
       </View> : null}
     {type === 'artist' && pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente}

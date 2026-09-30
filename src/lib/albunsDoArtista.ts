@@ -81,6 +81,37 @@ export function mixDoCanal(resposta: unknown): MixDoArtista | null {
   return null;
 }
 
+/**
+ * A foto do artista, do cabeçalho do canal no YouTube Music (30/9).
+ *
+ * O canal é o que as músicas da biblioteca provaram ser o dele, por isso é a
+ * cara certa mesmo quando o catálogo não tem foto (ou tem a de um homónimo).
+ * Primeiro a redonda de primeiro plano (`musicVisualHeaderRenderer`), que já é
+ * quadrada; senão o fundo largo do cabeçalho grande, pedido quadrado ao
+ * servidor das imagens (`=w600-h600-p`, "p" corta para encher).
+ */
+export function fotoDoCanal(resposta: unknown): string | null {
+  const visuais = acharTodos(resposta, 'musicVisualHeaderRenderer');
+  const grandes = acharTodos(resposta, 'musicImmersiveHeaderRenderer');
+  const listas = [
+    ...visuais.map((c) => c?.foregroundThumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails),
+    ...grandes.map((c) => c?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails),
+    ...visuais.map((c) => c?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails),
+  ];
+  for (const lista of listas) {
+    if (!Array.isArray(lista)) continue;
+    const maior = lista
+      .filter((t) => typeof t?.url === 'string' && /^https:\/\//.test(t.url))
+      .sort((a, b) => (Number(b?.width) || 0) - (Number(a?.width) || 0))[0];
+    if (maior) return quadrada(maior.url);
+  }
+  return null;
+}
+
+function quadrada(url: string): string {
+  return /=w\d+-h\d+/.test(url) ? url.replace(/=w\d+-h\d+(-p)?/, '=w600-h600-p') : url;
+}
+
 /** As músicas do Mix de um artista, da resposta do `next` do YouTube Music. */
 export function lerRadioDoYtMusic(resposta: unknown): CancaoComArtistas[] {
   const fora: CancaoComArtistas[] = [];
