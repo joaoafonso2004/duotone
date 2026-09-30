@@ -15,6 +15,7 @@ import { chavesDaMusica } from '../lib/identidadeDaMusica';
 import { foiSugeridaRecentemente } from '../lib/smartShuffle';
 import { trackKey } from '../lib/shuffle';
 import { getLibrary } from './library';
+import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { getFlowMix } from './plays';
 import { pesquisarFaixas } from './search';
 import type { Track } from '../types';
@@ -50,7 +51,8 @@ export async function fetchRadioTracks(
   const artists = seedArtists(seeds, displayArtist);
   const pool: Track[] = [];
   let library:Track[]=[];
-  try{library=await getLibrary();}catch{/* O rádio ainda pode sair do histórico. */}
+  // Da cache partilhada: cada lote do rádio relia a biblioteca inteira (30/9).
+  try{library=await lerFaixas(getLibrary);}catch{/* O rádio ainda pode sair do histórico. */}
   const knownKeys=new Set(library.map(trackKey));
   const jaDescoberta=(t:Track)=>foiSugeridaRecentemente(chavesDaMusica(t),jaDescobertas);
   // `comRepetidas` só no fim: antes disso, faltarem novas é razão para ir à

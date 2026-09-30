@@ -1,6 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import { ActivityIndicator,Text,TextInput,View } from 'react-native';
 import { getLibrary } from '../api/library';
+import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import type { ProfileHighlights } from '../api/profiles';
 import type { Playlist,Track } from '../types';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -13,7 +14,7 @@ export function ProfileHighlightsEditor({value,onChange,playlists,disabled}:{val
   useEffect(()=>{
     if(!choosing)return;
     let active=true;setLoading(true);setError('');
-    getLibrary().then(t=>{if(active)setTracks(t);}).catch(()=>{if(active)setError('Could not load your songs. Close and try again.');}).finally(()=>{if(active)setLoading(false);});
+    lerFaixas(getLibrary).then(t=>{if(active)setTracks(t);}).catch(()=>{if(active)setError('Could not load your songs. Close and try again.');}).finally(()=>{if(active)setLoading(false);});
     return()=>{active=false;};
   },[choosing]);
   const visible=playlists.filter(p=>p.visibleOnProfile);

@@ -1,19 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { pesquisarMaisMusica, pesquisarMusica } from '../api/search';
 import { getLibrary } from '../api/library';
+import { faixasEmCache, lerFaixas } from '../lib/cacheDaBiblioteca';
 import { pesquisarNaBiblioteca } from '../lib/pesquisaLocal';
 import { comCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import type { Track } from '../types';
-
-/**
- * A biblioteca, para a pesquisa local não esperar pela rede.
- *
- * Vive fora do hook de propósito: a página da Pesquisa desmonta ao mudar de
- * separador, e sem isto voltar lá pedia a biblioteca outra vez. A validade é
- * curta porque guardar uma faixa e não a encontrar a seguir seria estranho.
- */
-let bibliotecaEmCache: { em: number; faixas: Track[] } | null = null;
-const VALIDADE_MS = 2 * 60 * 1000;
 
 /** Pesquisa partilhada; mudar ou apagar o texto invalida logo o pedido anterior. */
 export function useMusicSearch(query: string, onFound: (query: string) => void) {
@@ -24,16 +15,16 @@ export function useMusicSearch(query: string, onFound: (query: string) => void) 
    * já tens obrigava a sair dali e usar a caixa dos Songs. Agora responde de
    * imediato, funciona sem rede, e a procura ao YouTube continua por baixo.
    */
-  const [biblioteca, setBiblioteca] = useState<Track[]>(
-    () => (bibliotecaEmCache && Date.now() - bibliotecaEmCache.em < VALIDADE_MS
-      ? bibliotecaEmCache.faixas : []),
-  );
+  //
+  // A biblioteca vem da cache partilhada (lib/cacheDaBiblioteca.ts), a mesma
+  // dos Artists: tinha uma só dela, de 2 minutos, e cada volta à Pesquisa
+  // relia-a inteira (30/9, egress). Um gosto muda-a na hora, e uma playlist
+  // mexida esquece-a -- guardar e não encontrar a seguir não acontece.
+  const [biblioteca, setBiblioteca] = useState<Track[]>(() => faixasEmCache(getLibrary) ?? []);
   useEffect(() => {
-    if (bibliotecaEmCache && Date.now() - bibliotecaEmCache.em < VALIDADE_MS) return;
     let vivo = true;
-    getLibrary()
+    lerFaixas(getLibrary)
       .then((faixas) => {
-        bibliotecaEmCache = { em: Date.now(), faixas };
         if (vivo) setBiblioteca(faixas);
       })
       .catch(() => {

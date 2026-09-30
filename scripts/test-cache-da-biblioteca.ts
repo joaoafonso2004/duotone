@@ -10,7 +10,7 @@
  */
 import assert from 'node:assert/strict';
 import {
-  VALIDADE_DA_BIBLIOTECA_MS, ajustarGostada, esquecerBiblioteca, faixasEmCache, guardarFaixas, lerFaixas,
+  VALIDADE_DA_BIBLIOTECA_MS, ajustarGostada, esquecerAlargada, esquecerBiblioteca, faixasEmCache, guardarFaixas, lerFaixas,
   ouvirFaixas, tipoDaLista,
 } from '../src/lib/cacheDaBiblioteca.ts';
 import type { Track } from '../src/types.ts';
@@ -236,6 +236,34 @@ await caso('uma lista sem tipo é esquecida, como antes', async () => {
   await lerFaixas(outra);
   ajustarGostada(faixa('n'), true);
   assert.equal(faixasEmCache(outra), null);
+});
+
+console.log('\numa playlist mudada esquece só a alargada (30/9)');
+
+await caso('as gostadas ficam, a alargada e as sem tipo saem', async () => {
+  esquecerBiblioteca();
+  const gostadas = async () => [faixa('a')];
+  const alargada = async () => [faixa('a'), faixa('p')];
+  const semTipo = async () => [faixa('x')];
+  tipoDaLista(gostadas, 'gostadas');
+  tipoDaLista(alargada, 'alargada');
+  await lerFaixas(gostadas); await lerFaixas(alargada); await lerFaixas(semTipo);
+  esquecerAlargada();
+  assert.equal(faixasEmCache(gostadas)?.length, 1, 'reler as gostadas é o mais caro, e elas não mudaram');
+  assert.equal(faixasEmCache(alargada), null);
+  assert.equal(faixasEmCache(semTipo), null);
+});
+
+await caso('uma leitura da alargada em curso não guarda a lista velha', async () => {
+  esquecerBiblioteca();
+  let soltar: (f: Track[]) => void = () => {};
+  const alargada = () => new Promise<Track[]>((r) => { soltar = r; });
+  tipoDaLista(alargada, 'alargada');
+  const pedido = lerFaixas(alargada);
+  esquecerAlargada();
+  soltar([faixa('velha')]);
+  assert.equal((await pedido).length, 1, 'quem pediu recebe o que veio');
+  assert.equal(faixasEmCache(alargada), null, 'mas não fica guardada para os outros');
 });
 
 if (falhas) {

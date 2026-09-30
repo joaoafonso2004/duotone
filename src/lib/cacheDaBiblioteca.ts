@@ -103,6 +103,19 @@ export function tipoDaLista(leitor: LeitorDeFaixas, tipo: TipoDaLista): void {
 }
 
 /**
+ * Esquece só a biblioteca alargada: uma playlist mudou (30/9).
+ *
+ * Pôr ou tirar uma música de uma playlist muda a alargada e não as gostadas --
+ * e reler as gostadas é o mais caro das duas. Um leitor sem tipo também sai:
+ * daqui não se sabe o que ele lê.
+ */
+export function esquecerAlargada(): void {
+  geracao++;
+  for (const leitor of [...guardado.keys()]) if (tipos.get(leitor) !== 'gostadas') guardado.delete(leitor);
+  for (const leitor of [...emCurso.keys()]) if (tipos.get(leitor) !== 'gostadas') emCurso.delete(leitor);
+}
+
+/**
  * Um gosto MUDA a lista guardada em vez de a deitar fora (27/9).
  *
  * Deitava fora (`esquecerBiblioteca`), e a página seguinte relia a biblioteca

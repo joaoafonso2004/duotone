@@ -2,6 +2,7 @@ import { artistPreferenceKey,feedbackReady,filterSuggestions,useRecommendationFe
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import { getLibrary } from '../api/library';
+import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { descobertasDoDia, descobertasPorAncora, flowDoDia, taparBuracosComOYouTube } from '../api/descoberta';
 import { nuncaLancadas } from '../api/naoLancado';
 import { favoritasDeAmigos } from '../api/social';
@@ -279,7 +280,9 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
       // isso.
       // Se as descobertas por âncora falharem, as misturas saem só com a
       // biblioteca em vez de não saírem.
-      getLibrary()
+      // Da cache partilhada, como a de baixo: eram duas leituras da
+      // biblioteca inteira a cada carga desta página (30/9, egress).
+      lerFaixas(getLibrary)
         .then(async (lib) => {
           libraryKeys=new Set(lib.map(trackKey));
           set(arrumarPrateleiras());
@@ -391,7 +394,7 @@ export const useRecomendacoes = create<Recomendacoes>((set, get) => ({
           });
         })
         .catch(() => { if (atual === geracao) set({ misturasProntas: true }); }),
-      getLibrary().then((lib) => Promise.all([
+      lerFaixas(getLibrary).then((lib) => Promise.all([
         // Uma lista NOVA todos os dias -- ver `descobertasDoDia`. Era
         // refeita a cada arranque, e uma lista que muda todos os dias nunca
         // chega a ser ouvida até ao fim. O `forcar` vem do botão de

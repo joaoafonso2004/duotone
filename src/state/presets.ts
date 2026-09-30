@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform } from 'react-native';
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
-import { AdjustmentSync, type AdjustmentSnapshot } from '../lib/adjustmentSync';
+import { AdjustmentSync, precisaDeRecuperar, type AdjustmentSnapshot } from '../lib/adjustmentSync';
 import {
   daPersistenciaDePresets, fundirPresets, type LinhaDosPresets, type MemoriaDePresets,
 } from '../lib/presetsDoEqualizador';
@@ -55,6 +55,10 @@ export function iniciarPresets(userId: string): () => void {
   let parado = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let tabelaEmFalta = false;
+  /** O canal está `SUBSCRIBED`, e quando foi a última leitura inteira. */
+  let aoVivo = false;
+  let jaLigou = false;
+  let ultimaLeitura = 0;
   const chave = `eq-presets:v1:${userId}`;
   const online = () => !parado && !tabelaEmFalta && !useConnectivity.getState().offline
     && useAuth.getState().session?.user.id === userId && appEstaVisivel();
@@ -72,7 +76,9 @@ export function iniciarPresets(userId: string): () => void {
     writeLocal: async (s: AdjustmentSnapshot<LinhaDosPresets>) => { await AsyncStorage.setItem(chave, JSON.stringify(s)); },
     readRemote: async () => {
       try {
-        return await lerPresetsRemotos(userId);
+        const lidos = await lerPresetsRemotos(userId);
+        ultimaLeitura = Date.now();
+        return lidos;
       } catch (e) {
         if (semTabela(e)) tabelaEmFalta = true;
         throw e;
@@ -92,15 +98,36 @@ export function iniciarPresets(userId: string): () => void {
   for (const [k, l] of Object.entries(antesDeAbrir)) engine.edit(k, l);
   antesDeAbrir = {};
 
+  // Com o Realtime ligado, a tabela só se relê de dez em dez minutos, ou ao
+  // voltar à janela passados cinco -- como os ajustes por faixa (30/9, egress).
+  const recuperar = (janelaMs: number) => {
+    if (precisaDeRecuperar(aoVivo, ultimaLeitura, Date.now(), janelaMs)) flush();
+  };
+  const aoFocar = () => recuperar(5 * 60_000);
   const aoVoltarARede = useConnectivity.subscribe((s) => { if (!s.offline) flush(); });
-  const aoAbrir = AppState.addEventListener('change', (estado) => { if (estado === 'active') flush(); });
+  const aoAbrir = AppState.addEventListener('change', (estado) => {
+    if (estado !== 'active') return;
+    if (Platform.OS === 'web') aoFocar(); else flush();
+  });
   // Rede de segurança; quem avisa na hora é o Realtime.
-  const intervalo = setInterval(() => { if (online()) void engine.sync(); }, 120000);
+  const intervalo = setInterval(() => recuperar(10 * 60_000), 120000);
   const canal = supabase.channel(`eq-presets:${userId}`).on('postgres_changes',
-    { event: '*', schema: 'public', table: 'user_eq_presets', filter: `user_id=eq.${userId}` }, flush).subscribe();
+    { event: '*', schema: 'public', table: 'user_eq_presets', filter: `user_id=eq.${userId}` }, (payload) => {
+      // O eco da própria escrita não relê nada.
+      const linha = payload.new as { preset_id?: string; seen_at?: string } | null;
+      if (payload.eventType !== 'DELETE' && linha?.preset_id
+        && engine.jaSabe(linha.preset_id, Date.parse(linha.seen_at ?? ''))) return;
+      flush();
+    }).subscribe((estado) => {
+      const antes = aoVivo;
+      aoVivo = estado === 'SUBSCRIBED';
+      // Voltou a ligar: o que mudou entretanto não veio por ele.
+      if (aoVivo && !antes && jaLigou) flush();
+      if (aoVivo) jaLigou = true;
+    });
   if (Platform.OS === 'web') {
     window.addEventListener('online', flush);
-    window.addEventListener('focus', flush);
+    window.addEventListener('focus', aoFocar);
   }
   flush();
 
@@ -115,7 +142,7 @@ export function iniciarPresets(userId: string): () => void {
     void supabase.removeChannel(canal);
     if (Platform.OS === 'web') {
       window.removeEventListener('online', flush);
-      window.removeEventListener('focus', flush);
+      window.removeEventListener('focus', aoFocar);
     }
     // Os presets de quem sai não ficam à vista de quem entra.
     usePresets.setState({ memoria: {} });

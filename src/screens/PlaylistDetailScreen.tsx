@@ -21,6 +21,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getLibrary } from '../api/library';
+import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import {
   addTracksToPlaylist,
   deletePlaylist,
@@ -153,7 +154,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   useEffect(() => {
     if (addTracksOpen) {
       setLoadingLibrary(true);
-      getLibrary()
+      lerFaixas(getLibrary)
         .then((res) => {
           setLibraryTracks(res);
           const currentIds = new Set(tracks.map((t) => t.sourceId));

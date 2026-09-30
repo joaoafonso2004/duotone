@@ -258,7 +258,7 @@ let playlistReads=[];
 const profileEnv=ambiente(async()=>{}, {
   'src/api/library.ts':{},
   'src/lib/supabase.ts':{supabase:{auth:{getUser:async()=>({data:{user:{id:'owner'}}}), getSession: async () => ({ data: { session: { user: { id: 'owner' } } } })},from:()=>{
-    let fields='';const query={select:s=>{fields=s;return query;},eq:(key,value)=>{assert.equal(key,'owner_id');assert.equal(value,'owner');return query;},order:()=>query,
+    let fields='';const query={select:s=>{fields=s;return query;},eq:(key,value)=>{assert.equal(key,'owner_id');assert.equal(value,'owner');return query;},order:()=>query,limit:()=>query,
       then:fn=>{playlistReads.push(fields);return Promise.resolve(fn(fields.includes('visible_on_profile')&&playlistError?{error:playlistError}:{data:[{id:'original',name:'A minha playlist',playlist_tracks:[{position:0,tracks:{artwork_url:'cover'}}],visible_on_profile:true,copied_from:null}]}));}};
     return query;
   }}},
@@ -287,6 +287,7 @@ const countEnv=ambiente(async()=>{}, {
       select:(_fields,options)=>{head=!!options?.head;return query;},
       eq:()=>query,
       order:()=>query,
+      limit:()=>query,
       then:fn=>Promise.resolve(fn(table==='playlist_tracks'&&head
         ?{data:null,error:null,count:(pedidosDeContagem++,2000)}
         :{data:[{id:'grande',name:'Grande',created_at:'2026-01-01',visible_on_profile:true,
@@ -298,6 +299,58 @@ const countEnv=ambiente(async()=>{}, {
 const countPlaylists=countEnv.carregar('src/api/playlists.ts');
 const [grande]=await countPlaylists.listProfilePlaylists('amigo');
 assert.equal(grande.trackCount,2000);assert.equal(pedidosDeContagem,1);
+
+// 30/9 (egress): a lista das playlists pede a contagem e oito capas, e não as
+// faixas todas. Com a contagem do servidor não há pedido de confirmação; se o
+// PostgREST recusar a forma leve, vai a de sempre, e sem rede não repete.
+{
+  let lidas=[],contagens=0,recusa=null;
+  const leveEnv=ambiente(async()=>{}, {
+    'src/api/library.ts':{},
+    'src/lib/supabase.ts':{supabase:{auth:{getSession:async()=>({data:{session:{user:{id:'eu'}}}})},from:(table)=>{
+      let fields='',head=false;const limites=[],ordens=[];
+      const query={
+        select:(f,o)=>{fields=f;head=!!o?.head;return query;},
+        eq:()=>query,
+        order:(col,o)=>{ordens.push([col,o?.referencedTable??null]);return query;},
+        limit:(n,o)=>{limites.push([n,o?.referencedTable??null]);return query;},
+        then:(fn)=>{
+          if(table==='playlist_tracks'&&head){contagens++;return Promise.resolve(fn({data:null,error:null,count:5000}));}
+          lidas.push({fields,limites,ordens});
+          const leve=fields.includes('total:playlist_tracks(count)');
+          if(leve&&recusa)return Promise.resolve(fn({data:null,error:recusa}));
+          return Promise.resolve(fn(leve
+            ?{data:[{id:'importada',name:'Importada',created_at:'2026-09-01',visible_on_profile:false,copied_from:null,
+              total:[{count:5000}],capas:[{position:2,tracks:{artwork_url:'c'}},{position:0,tracks:{artwork_url:'a'}},{position:1,tracks:null}]}],error:null}
+            :{data:[{id:'importada',name:'Importada',created_at:'2026-09-01',visible_on_profile:false,copied_from:null,
+              playlist_tracks:[{position:0,tracks:{artwork_url:'a'}}]}],error:null}));
+        },
+      };
+      return query;
+    }}},
+  });
+  const api=leveEnv.carregar('src/api/playlists.ts');
+  const [p]=await api.listPlaylists();
+  assert.equal(p.trackCount,5000,'a contagem vem do servidor');
+  assert.equal(p.artworks.join(','),'a,c','as capas pela ordem da playlist, sem as que faltam');
+  assert.equal(contagens,0,'com a contagem do servidor não se confirma nada');
+  assert.equal(lidas.length,1);
+  assert.ok(!/playlist_tracks \(position/.test(lidas[0].fields),'não embute as faixas todas');
+  assert.deepEqual(lidas[0].limites,[[8,'capas']],'oito capas por playlist, não mais');
+  assert.ok(lidas[0].ordens.some(([c,t])=>c==='position'&&t==='capas'),'as capas pela posição');
+
+  lidas=[];recusa={code:'PGRST100',message:'failed to parse select parameter'};
+  const [antiga]=await api.listPlaylists();
+  assert.equal(lidas.length,2,'forma recusada: vai a de sempre');
+  assert.equal(antiga.trackCount,1);
+
+  for(const falha of [{code:'503',message:'offline'},{code:'42501',message:'permission denied'},{message:'Failed to fetch'}]){
+    lidas=[];recusa=falha;
+    await assert.rejects(api.listPlaylists());
+    assert.equal(lidas.length,1,'sem rede ou sem permissão não se repete o pedido');
+  }
+  console.log('Playlists: a lista pede a contagem e oito capas, e só cai na antiga se a forma for recusada.');
+}
 
 let reads=0,failedSection='highlights';
 const sections=ambiente(async()=>{}, {
@@ -400,6 +453,28 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   early.edit('youtube:one',value(1.3,10));read.resolve({values:{'youtube:one':value(0.8,100)},pending:{}});await early.sync();assert.equal(latest['youtube:one'].rate,1.3,'editar antes de a cache abrir conserva a intenção mais recente');
   for(const state of [a,b,restarted,stale])state.engine.stop();early.stop();
   console.log('Ajustes: dois aparelhos, reset, offline/reinício, edição concorrente e logout passaram.');
+}
+
+// 30/9 (egress): o eco da própria escrita não relê a tabela, e com o Realtime
+// ligado a leitura de recuperação espera pela janela.
+{
+  const {AdjustmentSync,precisaDeRecuperar}=ambiente(async()=>{}).carregar('src/lib/adjustmentSync.ts');
+  const value=(rate,visto)=>({rate,visto,ganhos:Array(10).fill(0)});
+  const remote={'youtube:outra':value(0.9,500)};
+  const engine=new AdjustmentSync({readLocal:async()=>({values:{},pending:{}}),writeLocal:async()=>{},
+    readRemote:async()=>structuredClone(remote),writeRemote:async(k,v)=>{remote[k]=v;},apply:()=>{},status:()=>{}});
+  engine.edit('youtube:minha',value(1.2,1000));await engine.sync();
+  assert.equal(engine.jaSabe('youtube:minha',1000),true,'o eco da própria escrita já é sabido');
+  assert.equal(engine.jaSabe('youtube:minha',2000),false,'uma mais recente, de outro aparelho, relê');
+  assert.equal(engine.jaSabe('youtube:outra',500),true,'o que veio numa leitura também é sabido');
+  assert.equal(engine.jaSabe('youtube:nova',1),false,'uma linha nunca vista relê');
+  assert.equal(engine.jaSabe('youtube:minha',Number.NaN),false,'uma data ilegível relê');
+  engine.stop();
+  assert.equal(precisaDeRecuperar(false,1000,1001,600000),true,'sem Realtime relê sempre');
+  assert.equal(precisaDeRecuperar(true,1000,1000+599999,600000),false,'com Realtime espera pela janela');
+  assert.equal(precisaDeRecuperar(true,1000,1000+600000,600000),true);
+  assert.equal(precisaDeRecuperar(true,0,1800000000000,300000),true,'sem leitura nenhuma ainda, relê');
+  console.log('Sincronização: o eco não relê, e com Realtime a recuperação espera pela janela.');
 }
 
 {

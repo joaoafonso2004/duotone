@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
+import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import { useOfflineMode } from '../hooks/useOfflineMode';
@@ -75,7 +76,7 @@ export function DownloadsScreen({ navigation }: Props) {
   useEffect(() => {
     if (!semCopia) return;
     let vivo = true;
-    getLibrary()
+    lerFaixas(getLibrary)
       .then((todas) => {
         const porId = new Map<string, Track>();
         for (const t of todas) if (t.source === 'youtube') porId.set(t.sourceId, t);
