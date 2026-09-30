@@ -84,11 +84,19 @@ export function requestPlay(controls: PlaybackControls | null) {
   };
 }
 
+/**
+ * A pausa leva o `autoplayOnLoad` atrás (30/9). Sem isso, uma pausa carregada
+ * enquanto a faixa ainda descarregava só chegava ao ecrã: quem arranca a faixa
+ * quando fica pronta (`YouTubePlayerView`, e o `onReady` no PC) lia o
+ * `autoplayOnLoad` que o `playTrack` tinha posto a verdadeiro, e a música
+ * começava a tocar com o botão em pausa -- "pausei e continuou a tocar".
+ */
 export function requestPause(controls: PlaybackControls | null) {
   controls?.pause();
   return {
     isPlaying: false,
     buffering: false,
+    autoplayOnLoad: false,
   };
 }
 

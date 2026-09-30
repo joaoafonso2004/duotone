@@ -2232,7 +2232,10 @@ export const usePlayer = create<PlayerState>()(
     const { isPlaying, _yt } = get();
     if (isPlaying) {
       _yt?.pause();
-      set(passo(get().maquina, 'quer-parar'));
+      // O mesmo do `requestPause`: com a faixa ainda a carregar, sem isto o
+      // temporizador ou uns auscultadores tirados pausavam o ecrã e a música
+      // arrancava na mesma quando ficasse pronta.
+      set({ autoplayOnLoad: false, ...passo(get().maquina, 'quer-parar') });
     }
   },
     }),

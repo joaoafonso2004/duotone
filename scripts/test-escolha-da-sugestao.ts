@@ -68,6 +68,22 @@ verificar('as de baixa confiança saem sem baralhar as outras', () => {
   assert.deepEqual(r, ['perto']);
 });
 
+verificar('as do próprio artista que toca só entram quando não há semelhantes', () => {
+  // O caso do relatório de 30/9: a própria âncora tem sempre os pontos mais
+  // altos, e por isso a sugestão era quase sempre uma faixa dela.
+  const r = ordenar([
+    ['propria', p({ ancora: 'a', propria: true, posicaoNoCatalogo: 0, pontos: 2 })],
+    ['semelhante', p({ ancora: 'a', posicaoNoCatalogo: 3, pontos: 1.2 })],
+    ['de-outra', p({ ancora: 'b', posicaoNoCatalogo: 2, pontos: 1 })],
+  ], ['a', 'b']);
+  assert.deepEqual(r, ['semelhante', 'de-outra', 'propria']);
+  assert.deepEqual(
+    ordenar([['so-propria', p({ propria: true, posicaoNoCatalogo: 0, pontos: 2 })]]),
+    ['so-propria'],
+    'sem mais nenhuma, a do próprio ainda serve',
+  );
+});
+
 verificar('pontos em intervalos para a analítica', () => {
   assert.equal(intervaloDosPontos(0.4), 'baixo');
   assert.equal(intervaloDosPontos(1.2), 'medio');
