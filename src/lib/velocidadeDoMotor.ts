@@ -11,8 +11,8 @@ const diferente = (a: number, b: number) => Math.abs(a-b) > 0.001;
 
 /**
  * A speed change is told to BOTH the native module (`modules/duotone-audio`,
- * `aplicarVelocidade`) and expo-video's own property. It went wrong three
- * times, so the reasons stay written down:
+ * `aplicarVelocidade`) and, when it still needs it, expo-video's own property.
+ * It went wrong four times, so the reasons stay written down:
  *
  * - expo-video watches the AVPlayer's rate and, when `defaultRate` does not
  *   match the value it holds, ADOPTS `defaultRate` and writes it back into the
@@ -23,17 +23,24 @@ const diferente = (a: number, b: number) => Math.abs(a-b) > 0.001;
  *   so the source patch in `plugins/velocidade-expo-video.js` never reaches
  *   the phone. Found on 23/9 after a build that relied on it: the second
  *   change stayed on the first one.
- * - So expo-video's value has to stay equal to `defaultRate`: this writes it
- *   here, now (22/9), and the native module applies the LAST request per
- *   player in its main-thread block (23/9) -- before that, a late block from
- *   an earlier tap put a stale value back ("one click behind").
+ * - So expo-video's value has to end equal to `defaultRate`.
+ * - The one-second gap on every change (30/9): expo-video's setter is a plain
+ *   `rate = x`, and on a playing AVPlayer that re-evaluates the buffer and
+ *   goes silent while it does. The native module used to queue its
+ *   `playImmediately` for the main thread, so the setter -- which runs right
+ *   away, on the JS thread -- always got there first. The native module now
+ *   applies the change synchronously and FIRST: buffer wait off,
+ *   `defaultRate`, then `playImmediately`. expo-video's watcher adopts the new
+ *   `defaultRate` inside that change, so by the time this function looks,
+ *   expo-video already holds the value and nothing slow is written.
  *
  * Never written to expo-video for a PAUSED player here: that setter starts
  * playback. The value chosen while paused reaches expo-video on the next
  * explicit play (`tocarNaVelocidade`).
  *
- * `scripts/test-mudanca-velocidade.cjs` models the iPhone -- the queued native
- * block and expo-video's adoption -- and replays thousands of interleavings.
+ * `scripts/test-mudanca-velocidade.cjs` models the iPhone -- expo-video's
+ * adoption and which writes wait for the buffer -- and replays thousands of
+ * interleavings.
  */
 export function atualizarVelocidadeDoMotor(player: MotorComVelocidade, rate: number, nativo: PonteNativa) {
   const value = arredondar(rate);
@@ -58,7 +65,9 @@ export function corrigirVelocidadeQueFicouAtras(player: MotorComVelocidade, rate
   const value = arredondar(rate);
   if (!player.playing || !diferente(player.playbackRate, value)) return false;
   nativo(player, value);
-  player.playbackRate = value;
+  // Usually already adopted inside the native change; writing it again would
+  // be expo-video's plain `rate = x`, the slow path.
+  if (diferente(player.playbackRate, value)) player.playbackRate = value;
   return true;
 }
 

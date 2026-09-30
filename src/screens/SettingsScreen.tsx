@@ -60,7 +60,7 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
 import { Equalizador, ReporEqualizador } from '../components/Equalizador';
-import { chaveDaFaixa, PLANO } from '../lib/equalizer';
+import { chaveDaFaixa, ePlano, PLANO } from '../lib/equalizer';
 import { usePlayer } from '../state/player';
 import { getLibrary } from '../api/library';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade';
@@ -468,11 +468,16 @@ export function SettingsScreen({ navigation }: Props) {
                 e não mexe na que está a tocar. */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }}>
               <Label>Equaliser</Label>
-              <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
+              <ReporEqualizador
+                desativado={ePlano(padraoGanhos)}
+                aoRepor={() => setEqGanhos(PLANO.slice(), true)}
+              />
             </View>
+            {/* A fila de perfis desliza ate a borda do cartao (padding lg). */}
             <Equalizador
               ganhos={padraoGanhos}
               aoMudar={(novo) => setEqGanhos(novo, true)}
+              sangria={spacing.lg}
             />
             <Efeito texto={efeitos.equalizador} />
           </Section>
