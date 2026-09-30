@@ -1,6 +1,6 @@
 import { chaveDeArtista, tituloNoLeitor } from '../lib/artistName';
 import {
-  canalPelasProvas, canalSemProvas, FORMA_DO_CANAL, legendaDoAlbum, lerAlbunsDoCanal, lerCancoesComArtistas, lerMusicasDoCanal,
+  canalPelasProvas, canalSemProvas, FORMA_DO_CANAL, fotoDoCanal, legendaDoAlbum, lerAlbunsDoCanal, lerCancoesComArtistas, lerMusicasDoCanal,
   maisRecente, mixDoCanal, type AlbumDoArtista, type CancaoComArtistas, type MixDoArtista, type Prova,
 } from '../lib/albunsDoArtista';
 import type { Track } from '../types';
@@ -21,9 +21,11 @@ export type PaginaDoArtista = {
   musicas: Track[];
   /** O botão "Mix" do canal (29/9): a rádio dele, que se toca pelo `lerRadioPeloYtMusic`. */
   mix: MixDoArtista | null;
+  /** A foto do canal (30/9, `fotoDoCanal`): quando o catálogo não tem a dele. */
+  foto: string | null;
 };
 
-const VAZIA: PaginaDoArtista = { albuns: [], maisRecente: null, musicas: [], mix: null };
+const VAZIA: PaginaDoArtista = { albuns: [], maisRecente: null, musicas: [], mix: null, foto: null };
 /** Em memória, por sessão: não vale uma escrita no Supabase por página aberta. */
 const memoria = new Map<string, Promise<PaginaDoArtista>>();
 
@@ -105,6 +107,7 @@ async function procurar(nome: string, alvo: string, provas: Prova[], escolhido: 
     maisRecente: recente ? albuns.find((a) => a.id === recente.id) ?? null : null,
     musicas: (daLista.length ? daLista : topo).map((c) => paraFaixa(c, nome)),
     mix: mixDoCanal(paginaDoCanal),
+    foto: fotoDoCanal(paginaDoCanal),
   };
 }
 

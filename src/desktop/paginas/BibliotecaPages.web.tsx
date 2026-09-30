@@ -629,18 +629,27 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     setAAbrirMix(false);
     if (!ok) props.notify('Could not load the mix.');
   };
+  // O Play do topo toca o artista, e não só o que se guardou dele (30/9): as
+  // guardadas primeiro, e depois as outras músicas que a página mostra. Tocava
+  // só as da biblioteca -- com uma guardada, era uma música e mais nada.
+  const todas = useMemo(() => [...tracks, ...outrasSemRepetir], [tracks, outrasSemRepetir]);
   const playAll = () => {
-    if (!tracks.length) return;
-    void usePlayer.getState().tocarLista(tracks, ligado, inteligente, { tipo: 'artista', nome: name });
+    if (!todas.length) return;
+    void usePlayer.getState().tocarLista(todas, ligado, inteligente, { tipo: 'artista', nome: name });
   };
+  // A foto do catálogo; sem ela, a do canal dele no YouTube Music (30/9).
+  const fotoDoCanal = foto ? null : pagina?.foto ?? null;
 
   return <>
     <Page title="Artist" action={<Button secondary icon="arrow-back" onPress={back}>Back to artists</Button>}>
       <ContentScroll scrollKey={`artist:${chaveDeArtista(name)}`}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <>
         <View style={styles.detailHero}>
-          {/* A foto do catálogo (27/9, `fotoDoArtista`); sem ela, uma música dele. */}
-          <View style={[styles.detailHeroArt, !foto && !tracks[0] && !outras[0] && artistStyles.heroFallback]}>{foto
+          {/* A foto do catálogo (27/9, `fotoDoArtista`); sem ela, a do canal
+              (sem Referer, como as outras do YouTube Music); sem as duas, uma
+              música dele. */}
+          <View style={[styles.detailHeroArt, !foto && !fotoDoCanal && !tracks[0] && !outras[0] && artistStyles.heroFallback]}>{foto
             ? <Image source={{ uri: foto }} style={{ width: 176, height: 176 }} />
+            : fotoDoCanal ? <CapaSemReferer uri={fotoDoCanal} lado={176} icone="person" />
             : tracks[0] ? <Artwork track={tracks[0]} size={176} />
             : outras[0] ? <Artwork track={outras[0]} size={176} />
             : <Ionicons name="person" size={48} color={desktop.dim} />}</View>
@@ -649,8 +658,8 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <Text numberOfLines={2} style={styles.detailHeroTitle}>{name}</Text>
             <Text style={styles.detailHeroMeta}>{tracks.length} saved {tracks.length === 1 ? 'track' : 'tracks'}</Text>
             <View style={styles.detailHeroActions}>
-              <Button icon="play" onPress={playAll} disabled={!tracks.length}>Play</Button>
-              <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!tracks.length}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
+              <Button icon="play" onPress={playAll} disabled={!todas.length}>Play</Button>
+              <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!todas.length}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
               {pagina?.mix ? <Button secondary icon="radio-outline" onPress={() => void tocarMix()} disabled={aAbrirMix}>{aAbrirMix ? 'Loading…' : 'Mix'}</Button> : null}
               {/* O mesmo coração dos cartões da página Artists (29/9): só lá se
                   favoritava, e quem estava dentro do artista tinha de voltar atrás. */}
