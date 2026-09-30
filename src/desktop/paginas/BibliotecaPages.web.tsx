@@ -14,6 +14,7 @@ import { fotoDoArtista } from '../../api/catalogo';
 import { getLikedSongs } from '../../api/library';
 import { fetchYouTubePlaylistById, type YtRecommendedPlaylist } from '../../api/youtube';
 import { lembrarCanalDoArtista, paginaDoArtista, type AlbumDaPagina, type PaginaDoArtista } from '../../api/albunsDoArtista';
+import { tocarMixDoArtista } from '../../state/mixDoArtista';
 import { pesquisarFaixas } from '../../api/search';
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
@@ -26,7 +27,7 @@ import { ordenarArtistas, ordenarFaixas } from '../../lib/ordenacao';
 import { useAuth } from '../../state/auth';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { useMusicSearch } from '../../hooks/useMusicSearch';
-import { usePesquisaPorTipo, type SeparadorDaPesquisa } from '../../hooks/usePesquisaPorTipo';
+import { useArtistaEmDestaque, usePesquisaPorTipo, type SeparadorDaPesquisa } from '../../hooks/usePesquisaPorTipo';
 import { legendaDoAlbumEncontrado, separadorPedidoPelaPergunta, type ArtistaEncontrado } from '../../lib/pesquisaPorTipo';
 import { usePlayer } from '../../state/player';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../../state/recomendacoes';
@@ -124,6 +125,17 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
   const { abrirAlbum, dialogoDoAlbum } = useDialogoDoAlbum({ play, notify, more });
   // O artista abre pelo CANAL escolhido, sem adivinhar pelo nome (homónimos).
   const abrirArtista = (a: ArtistaEncontrado) => { lembrarCanalDoArtista(a.nome, a.canal); navigate({ name: 'artist', value: a.nome }); };
+  // O artista em destaque (29/9): "drake" ou "drake playlist" põem o Drake no
+  // topo das Songs e das Playlists, com o Mix dele, como o YouTube faz.
+  const destaque = useArtistaEmDestaque(query, tipoAtivo === 'musicas' || tipoAtivo === 'playlists');
+  const [aAbrirMix, setAAbrirMix] = useState(false);
+  const tocarMixDoDestaque = async (a: ArtistaEncontrado) => {
+    if (aAbrirMix) return;
+    setAAbrirMix(true);
+    const ok = await tocarMixDoArtista(a.nome, { canal: a.canal }).catch(() => false);
+    setAAbrirMix(false);
+    if (!ok) notify('Could not load the mix.');
+  };
   return <><Page title="Search"
     action={vista === 'descobrir' ? <IconButton name="refresh" label="Refresh recommendations"
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} /> : undefined}>
@@ -133,7 +145,10 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       valor={vista} aoMudar={setVista} /></View> : null}
     {!semPesquisa ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums'], ['playlists', 'Playlists']] as const}
       valor={tipo} aoMudar={setTipo} /></View> : null}
-    <ContentScroll>{
+    <ContentScroll>
+      {destaque && (tipoAtivo === 'musicas' || tipoAtivo === 'playlists') ? <ArtistaEmDestaque artista={destaque}
+        aoAbrir={() => abrirArtista(destaque)} aoTocarMix={() => void tocarMixDoDestaque(destaque)} aAbrirMix={aAbrirMix} /> : null}
+      {
       tipoAtivo === 'artistas' ? <ResultadosDeArtistas artistas={porTipo.artistas} loading={porTipo.loading} falhou={porTipo.falhou} aoAbrir={abrirArtista} />
       : tipoAtivo === 'albuns' || tipoAtivo === 'playlists' ? <ResultadosEmCapas loading={porTipo.loading} falhou={porTipo.falhou}
           itens={tipoAtivo === 'albuns'
@@ -210,6 +225,34 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
   </>;
 }
 
+/**
+ * O artista em destaque no topo da pesquisa (29/9): a foto, o nome, a
+ * audiência, o Mix dele e a página. É o cartão que o YouTube mostra para
+ * "drake playlist" -- só quando a pergunta é mesmo o nome dele.
+ */
+function ArtistaEmDestaque({ artista, aoAbrir, aoTocarMix, aAbrirMix }: {
+  artista: ArtistaEncontrado; aoAbrir: () => void; aoTocarMix: () => void; aAbrirMix: boolean;
+}) {
+  // O cartão não é um botão: os botões estão lá dentro, e botão dentro de
+  // botão é HTML inválido. A foto e o nome abrem a página, como o "Open".
+  return <View style={artistStyles.destaque}>
+    <Pressable onPress={aoAbrir} accessibilityRole="link" accessibilityLabel={`Open ${artista.nome}`}
+      style={({ hovered, focused }: any) => [{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: ESP.xl },
+        (hovered || focused) && { opacity: 0.88 }]}>
+      <CapaSemReferer uri={artista.foto} lado={96} redonda icone="person" />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={artistStyles.ultimoRotulo}>ARTIST</Text>
+        <Text numberOfLines={1} style={artistStyles.destaqueNome}>{artista.nome}</Text>
+        {artista.legenda ? <Text numberOfLines={1} style={artistStyles.albumMeta}>{artista.legenda}</Text> : null}
+      </View>
+    </Pressable>
+    <View style={{ flexDirection: 'row', gap: ESP.sm }}>
+      <Button icon="radio-outline" onPress={aoTocarMix} disabled={aAbrirMix}>{aAbrirMix ? 'Loading…' : 'Mix'}</Button>
+      <Button secondary icon="person-outline" onPress={aoAbrir}>Open</Button>
+    </View>
+  </View>;
+}
+
 /** Os artistas da pesquisa por tipo: a foto redonda, o nome e a audiência. */
 function ResultadosDeArtistas({ artistas, loading, falhou, aoAbrir }: {
   artistas: ArtistaEncontrado[]; loading: boolean; falhou: boolean; aoAbrir: (a: ArtistaEncontrado) => void;
@@ -221,14 +264,41 @@ function ResultadosDeArtistas({ artistas, loading, falhou, aoAbrir }: {
   return <View style={artistStyles.albumGrid}>{artistas.map((a) => <Pressable key={a.canal} onPress={() => aoAbrir(a)}
     accessibilityRole="button" accessibilityLabel={a.nome}
     style={({ hovered, focused }: any) => [artistStyles.artistaCard, (hovered || focused) && artistStyles.albumCardHover]}>
-    {a.foto ? <Image source={{ uri: a.foto }} style={artistStyles.artistaFoto} />
-      : <View style={[artistStyles.artistaFoto, artistStyles.albumFallback]}><Ionicons name="person" size={40} color={desktop.dim} /></View>}
+    <CapaSemReferer uri={a.foto} lado={170} redonda icone="person" />
     <Text numberOfLines={1} style={[artistStyles.albumTitle, { textAlign: 'center' }]}>{a.nome}</Text>
     {a.legenda ? <Text numberOfLines={1} style={[artistStyles.albumMeta, { textAlign: 'center' }]}>{a.legenda}</Text> : null}
   </Pressable>)}</View>;
 }
 
 type ItemEmCapa = { id: string; titulo: string; legenda: string; capa: string | null };
+
+/**
+ * Uma capa ou foto do YouTube Music SEM `Referer` (29/9). O servidor das capas
+ * das playlists e das fotos dos artistas (yt3.ggpht.com,
+ * yt3.googleusercontent.com) responde 429 aos pedidos com o Referer da app ao
+ * fim de poucas imagens: via-se a primeira capa e as outras ficavam vazias. O
+ * mesmo pedido sem Referer dá 200 (medido no Chromium). O `Image` do
+ * react-native-web não deixa mudar a política, por isso é um `<img>` a sério.
+ * No iPhone não acontece: o expo-image pede pelo código nativo, sem Referer.
+ */
+function CapaSemReferer({ uri, lado, redonda, icone }: {
+  uri: string | null; lado: number; redonda?: boolean; icone: 'person' | 'albums-outline' | 'list-outline';
+}) {
+  const [falhou, setFalhou] = useState(false);
+  useEffect(() => { setFalhou(false); }, [uri]);
+  const raio = redonda ? lado / 2 : RAIO.superficie;
+  if (!uri || falhou) {
+    return <View style={[{ width: lado, height: lado, borderRadius: raio, backgroundColor: COR.elevado }, artistStyles.albumFallback]}>
+      <Ionicons name={icone} size={redonda ? 40 : 34} color={desktop.dim} />
+    </View>;
+  }
+  return <img src={uri} alt="" referrerPolicy="no-referrer" loading="lazy" decoding="async" draggable={false}
+    onError={() => setFalhou(true)}
+    style={{
+      width: lado, height: lado, borderRadius: raio, objectFit: 'cover', display: 'block', boxSizing: 'border-box',
+      backgroundColor: COR.elevado, border: redonda ? 'none' : `1px solid ${COR.linhaSuave}`,
+    }} />;
+}
 
 /**
  * Os álbuns e as playlists da pesquisa por tipo, em grelha de capas. Os dois
@@ -245,8 +315,7 @@ function ResultadosEmCapas({ itens, loading, falhou, icone, vazio, aoAbrir }: {
   return <View style={artistStyles.albumGrid}>{itens.map((a) => <Pressable key={a.id} onPress={() => aoAbrir(a)}
     accessibilityRole="button" accessibilityLabel={a.legenda ? `${a.titulo}, ${a.legenda}` : a.titulo}
     style={({ hovered, focused }: any) => [artistStyles.albumCard, (hovered || focused) && artistStyles.albumCardHover]}>
-    {a.capa ? <Image source={{ uri: a.capa }} style={artistStyles.albumArt} />
-      : <View style={[artistStyles.albumArt, artistStyles.albumFallback]}><Ionicons name={icone} size={34} color={desktop.dim} /></View>}
+    <CapaSemReferer uri={a.capa} lado={190} icone={icone} />
     <Text numberOfLines={2} style={artistStyles.albumTitle}>{a.titulo}</Text>
     {a.legenda ? <Text numberOfLines={1} style={artistStyles.albumMeta}>{a.legenda}</Text> : null}
   </Pressable>)}</View>;
@@ -551,6 +620,15 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const ligado = usePlayer((s) => s.shuffle);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
+  // O Mix do artista (29/9): a rádio do canal dele, 50 músicas dele e de parecidos.
+  const [aAbrirMix, setAAbrirMix] = useState(false);
+  const tocarMix = async () => {
+    if (!pagina?.mix || aAbrirMix) return;
+    setAAbrirMix(true);
+    const ok = await tocarMixDoArtista(name, { mix: pagina.mix }).catch(() => false);
+    setAAbrirMix(false);
+    if (!ok) props.notify('Could not load the mix.');
+  };
   const playAll = () => {
     if (!tracks.length) return;
     void usePlayer.getState().tocarLista(tracks, ligado, inteligente, { tipo: 'artista', nome: name });
@@ -573,6 +651,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <View style={styles.detailHeroActions}>
               <Button icon="play" onPress={playAll} disabled={!tracks.length}>Play</Button>
               <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!tracks.length}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
+              {pagina?.mix ? <Button secondary icon="radio-outline" onPress={() => void tocarMix()} disabled={aAbrirMix}>{aAbrirMix ? 'Loading…' : 'Mix'}</Button> : null}
               {/* O mesmo coração dos cartões da página Artists (29/9): só lá se
                   favoritava, e quem estava dentro do artista tinha de voltar atrás. */}
               <IconButton name={favorito ? 'heart' : 'heart-outline'} active={favorito}
@@ -726,6 +805,12 @@ const artistStyles = StyleSheet.create({
     borderWidth: 1, borderColor: COR.linhaSuave, backgroundColor: 'rgba(255,255,255,0.03)',
   },
   ultimoHover: { backgroundColor: COR.hover },
+  destaque: {
+    flexDirection: 'row', alignItems: 'center', gap: ESP.xl, padding: ESP.lg, paddingRight: ESP.xl,
+    marginBottom: ESP.xl, borderRadius: RAIO.superficie, borderWidth: 1, borderColor: COR.linhaSuave,
+    backgroundColor: 'rgba(255,255,255,0.03)', maxWidth: 760,
+  },
+  destaqueNome: { fontFamily: FONT.display, color: COR.texto, fontSize: 26, lineHeight: 32, fontWeight: '700' as any, marginTop: 2 },
   ultimoCapa: { width: 64, height: 64, borderRadius: RAIO.cartao, backgroundColor: COR.elevado },
   ultimoRotulo: { ...TIPO.legenda, color: COR.textoFraco, letterSpacing: 1.2, fontWeight: '700' as any },
   ultimoTitulo: { fontFamily: FONT.display, color: COR.texto, fontSize: 16, lineHeight: 22, fontWeight: '650' as any, marginTop: 2 },

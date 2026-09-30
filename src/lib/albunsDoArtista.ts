@@ -57,6 +57,80 @@ function acharTodos(o: unknown, chave: string, fora: any[] = [], fundo = 0): any
 }
 
 /** As canções de uma pesquisa do YouTube Music, com o CANAL de cada artista. */
+/**
+ * O Mix de um artista (29/9): o botão "Mix" do cabeçalho do canal no YouTube
+ * Music. É uma rádio (`RDEM...`) que começa num vídeo dele; lê-se pelo `next`
+ * do YouTube Music (o do youtube.com não a conhece) e traz 50 músicas, dele e
+ * de parecidos -- o mesmo que o botão faz lá.
+ */
+export type MixDoArtista = { playlistId: string; videoId: string; params: string | null };
+/** A forma do id do Mix e dos `params` dele. Validadas também no processo principal do PC. */
+export const FORMA_DO_MIX_DO_ARTISTA = /^RD[\w-]{2,80}$/;
+export const FORMA_DOS_PARAMS = /^[\w%=-]{1,40}$/;
+
+export function mixDoCanal(resposta: unknown): MixDoArtista | null {
+  for (const cabecalho of acharTodos(resposta, 'musicImmersiveHeaderRenderer').concat(acharTodos(resposta, 'musicVisualHeaderRenderer'))) {
+    const w = cabecalho?.startRadioButton?.buttonRenderer?.navigationEndpoint?.watchEndpoint;
+    const playlistId = w?.playlistId;
+    const videoId = w?.videoId;
+    if (typeof playlistId !== 'string' || !FORMA_DO_MIX_DO_ARTISTA.test(playlistId)) continue;
+    if (typeof videoId !== 'string' || !/^[\w-]{11}$/.test(videoId)) continue;
+    const params = typeof w.params === 'string' && FORMA_DOS_PARAMS.test(w.params) ? w.params : null;
+    return { playlistId, videoId, params };
+  }
+  return null;
+}
+
+/** As músicas do Mix de um artista, da resposta do `next` do YouTube Music. */
+export function lerRadioDoYtMusic(resposta: unknown): CancaoComArtistas[] {
+  const fora: CancaoComArtistas[] = [];
+  const vistos = new Set<string>();
+  for (const v of acharTodos(resposta, 'playlistPanelVideoRenderer')) {
+    const videoId = v?.videoId;
+    if (typeof videoId !== 'string' || !/^[\w-]{11}$/.test(videoId) || vistos.has(videoId)) continue;
+    const titulo = texto(v.title).trim();
+    if (!titulo) continue;
+    // "Holly Hood • O Dread Que Matou Golias • 2016": os artistas são os links
+    // para um canal; sem eles, a primeira parte da linha.
+    const runs: any[] = Array.isArray(v.longBylineText?.runs) ? v.longBylineText.runs : [];
+    const artistas: ArtistaDaCancao[] = [];
+    for (const r of runs) {
+      const id = r?.navigationEndpoint?.browseEndpoint?.browseId;
+      if (typeof id === 'string' && FORMA_DO_CANAL.test(id) && typeof r.text === 'string') artistas.push({ nome: r.text, id });
+    }
+    if (!artistas.length) {
+      const primeiro = texto(v.longBylineText).split('•')[0]?.trim();
+      if (primeiro) artistas.push({ nome: primeiro, id: '' });
+    }
+    vistos.add(videoId);
+    fora.push({ videoId, titulo, artistas, duracaoSec: segundos(texto(v.lengthText).trim()) });
+  }
+  return fora;
+}
+
+/** Um token de continuação do YouTube Music. Validado também no processo principal do PC. */
+export const FORMA_DA_CONTINUACAO = /^[\w%=-]{16,4000}$/;
+
+/**
+ * Uma página de uma playlist lida no YouTube Music (29/9): as listas
+ * editoriais (`RDCLAK5uy_...`, "Presenting Drake") leem-se por aqui, porque a
+ * Data API as devolve em páginas sem fim e com as mesmas músicas repetidas.
+ * Traz 100 músicas por página; `continuacao` é o token da seguinte, ou `null`.
+ */
+export function lerPaginaDaPlaylist(resposta: unknown): {
+  titulo: string | null; cancoes: CancaoComArtistas[]; continuacao: string | null;
+} {
+  const cabecalho = acharTodos(resposta, 'musicResponsiveHeaderRenderer')[0]
+    ?? acharTodos(resposta, 'musicDetailHeaderRenderer')[0];
+  const titulo = texto(cabecalho?.title).trim() || null;
+  let continuacao: string | null = null;
+  for (const c of acharTodos(resposta, 'continuationItemRenderer')) {
+    const token = c?.continuationEndpoint?.continuationCommand?.token;
+    if (typeof token === 'string' && FORMA_DA_CONTINUACAO.test(token)) { continuacao = token; break; }
+  }
+  return { titulo, cancoes: lerCancoesComArtistas(resposta), continuacao };
+}
+
 export function lerCancoesComArtistas(resposta: unknown): CancaoComArtistas[] {
   const fora: CancaoComArtistas[] = [];
   for (const it of acharTodos(resposta, 'musicResponsiveListItemRenderer')) {

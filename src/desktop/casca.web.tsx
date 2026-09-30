@@ -226,8 +226,12 @@ export function injectDesktopDocumentStyles() {
        mesmo com a thread a montar a página nova (ver TransicaoDePagina). Com
        "backwards" e não "both": depois de entrar não fica nada preso -- um
        transform que ficasse fazia da página o contentor dos "fixed" dela. */
-    [data-dt~="pagina"]{ animation: dt-pagina var(--dt-normal) var(--dt-curva) backwards; }
-    @keyframes dt-pagina{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform:none; } }
+    /* 30/9: 150 ms e 6 px não se viam ("só a aba da esquerda é smooth"). A
+       nova entra em 260 ms, a subir 14 px; a de agora esbate-se enquanto a
+       nova se prepara (a-sair) -- só a opacidade, pela razão do "fixed". */
+    [data-dt~="pagina"]{ animation: dt-pagina 260ms var(--dt-curva) backwards; }
+    @keyframes dt-pagina{ from{ opacity:0; transform: translateY(14px); } to{ opacity:1; transform:none; } }
+    [data-dt~="a-sair"]{ opacity:.35; transition: opacity 140ms ease-out; }
     /* Os cartões das grelhas e das prateleiras entram em cascata curta, os
        doze primeiros. "backwards" pela mesma razão: o hover manda no transform. */
     [data-dt~="pagina"] [data-dt~="cartao"]:nth-child(-n+12){ animation: dt-linha 160ms var(--dt-curva) backwards; }
@@ -342,7 +346,7 @@ export function injectDesktopDocumentStyles() {
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
-      [data-dt~="cartao"], [data-dt~="coracaoDoCartao"]{ transition: none !important; }
+      [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"]{ transition: none !important; }
       [data-dt~="cartao"]:hover{ transform: none !important; }
       [data-dt~="premir"]:active{ transform: none !important; }
     }

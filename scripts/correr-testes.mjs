@@ -196,6 +196,7 @@ const TESTES = [
   `${TS} scripts/test-migracoes.ts`,
   `${TS} scripts/test-deslizar-para-a-fila.ts`,
   `${TS} scripts/test-pesquisa-por-tipo.ts`,
+  `${TS} scripts/test-leitor-fecha-com-a-pagina.ts`,
   'scripts/test-estado-das-migracoes-sql.mjs',
 ];
 

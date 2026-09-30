@@ -165,6 +165,21 @@ export function perguntaSemIntencao(pergunta: string): string {
 }
 
 /**
+ * O artista em destaque no topo da pesquisa (29/9, como o YouTube faz com
+ * "drake playlist"): só se um dos três primeiros artistas for EXATAMENTE o que
+ * se procurou, sem as palavras de intenção. "drake playlist" -> Drake; "god's
+ * plan" não dá ninguém. A chave vem por parâmetro (a `chaveDeArtista`), para
+ * este ficheiro continuar sem imports.
+ */
+export function artistaEmDestaque(
+  pergunta: string, artistas: readonly ArtistaEncontrado[], chave: (nome: string) => string,
+): ArtistaEncontrado | null {
+  const alvo = chave(perguntaSemIntencao(pergunta));
+  if (!alvo) return null;
+  return artistas.slice(0, 3).find((a) => chave(a.nome) === alvo) ?? null;
+}
+
+/**
  * O separador que a própria pergunta pede: "drake playlist" abre as
  * Playlists, "drake album" os Albums. `null` quando não diz.
  */

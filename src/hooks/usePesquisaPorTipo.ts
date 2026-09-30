@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { pesquisarNoYtMusicCru } from '../api/ytMusic';
+import { chaveDeArtista } from '../lib/artistName';
 import {
-  juntarPlaylists, lerAlbunsDaPesquisa, lerArtistasDaPesquisa, lerPlaylistsDaPesquisa, perguntaSemIntencao,
+  artistaEmDestaque, juntarPlaylists, lerAlbunsDaPesquisa, lerArtistasDaPesquisa, lerPlaylistsDaPesquisa, perguntaSemIntencao,
   type AlbumEncontrado, type ArtistaEncontrado, type PlaylistEncontrada,
 } from '../lib/pesquisaPorTipo';
 
@@ -77,4 +78,27 @@ export function usePesquisaPorTipo(query: string, separador: SeparadorDaPesquisa
     return () => { atual = false; clearTimeout(timer); };
   }, [query, separador]);
   return { ...resultado, loading, falhou };
+}
+
+/**
+ * O artista em destaque no topo das Songs e das Playlists (29/9, como o
+ * YouTube faz com "drake playlist"): o cartão dele, com o Mix. Usa a MESMA
+ * pesquisa de artistas e a mesma memória do separador Artists, por isso ir lá
+ * a seguir não pede nada. `null` quando a pergunta não é o nome de um artista.
+ */
+export function useArtistaEmDestaque(query: string, ativo: boolean): ArtistaEncontrado | null {
+  const [artista, setArtista] = useState<ArtistaEncontrado | null>(null);
+  useEffect(() => {
+    const q = query.trim();
+    setArtista(null);
+    if (!ativo || q.length < 2) return;
+    let atual = true;
+    const timer = setTimeout(() => {
+      void pedir('artistas', q).then((r) => {
+        if (atual && r) setArtista(artistaEmDestaque(q, r.artistas, chaveDeArtista));
+      });
+    }, 350);
+    return () => { atual = false; clearTimeout(timer); };
+  }, [query, ativo]);
+  return artista;
 }

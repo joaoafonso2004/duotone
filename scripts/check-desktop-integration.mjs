@@ -129,6 +129,17 @@ vm.runInContext(`configurarCaptura({
   setPermissionRequestHandler(fn){captura.request=fn},
   setPermissionCheckHandler(fn){captura.check=fn}
 })`, contexto);
+// As capas do YouTube Music vão sem Referer (30/9): com ele, 429 ao fim de poucas.
+vm.runInContext(`imagensSemReferer({ webRequest: { onBeforeSendHeaders(filtro, fn){ captura.semReferer = { filtro, fn }; } } })`, contexto);
+assert.deepEqual([...captura.semReferer.filtro.urls].sort(), ['https://*.ggpht.com/*', 'https://*.googleusercontent.com/*'],
+  'só os servidores das capas e das fotos');
+let cabecalhosEnviados;
+captura.semReferer.fn({ requestHeaders: { Referer: 'http://localhost:18081/', Accept: 'image/*', 'User-Agent': 'x' } },
+  (r) => { cabecalhosEnviados = r.requestHeaders; });
+assert.equal(cabecalhosEnviados.Referer, undefined, 'o Referer sai');
+assert.equal(cabecalhosEnviados.Accept, 'image/*', 'o resto fica');
+assert.match(fs.readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8'),
+  /configurarCaptura\(session\.defaultSession\);\r?\n\s+imagensSemReferer\(session\.defaultSession\);/, 'ligado no arranque');
 let permitido;
 captura.request(janela.webContents, 'media', (value) => { permitido = value; }, { requestingUrl: 'https://evil.test' });
 assert.equal(permitido, false, 'Permissões de outra origem são negadas');

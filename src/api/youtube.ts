@@ -5,6 +5,7 @@ import { searchAttempts } from '../lib/searchQuery';
 import type { Track, YtPlaylistItem } from '../types';
 import { eMix } from '../lib/mixDoYouTube';
 import { lerMixDoYouTube } from './youtubeMix';
+import { lerPlaylistPeloYtMusic } from './ytMusic';
 
 const BASE = 'https://www.googleapis.com/youtube/v3';
 
@@ -181,57 +182,8 @@ export async function fetchYouTubePlaylist(
   const id = extractPlaylistId(url.trim());
   if (!id) throw new Error('Invalid playlist link. It must contain "list=".');
 
-  const key = `playlist:v2:${id}`;
-  const cached = await cacheGet<YtPlaylistImport>(key, PLAYLIST_TTL);
-  if (cached) return cached;
-
-  // Um Mix (`RD...`) não é uma playlist para a API, que responde 404: lê-se
-  // pelo InnerTube (28/9, lib/mixDoYouTube.ts). A primeira volta, ~25 músicas.
-  if (eMix(id)) {
-    const mix = await lerMixDoYouTube(id);
-    const doMix: YtPlaylistImport = { id, title: mix.titulo, items: mix.itens };
-    await cacheSet(key, doMix);
-    return doMix;
-  }
-
-  // Nome da playlist
-  const meta = await yfetch('/playlists', { part: 'snippet', id });
-  const title = decodeEntities(
-    meta.items?.[0]?.snippet?.title ?? 'YouTube playlist'
-  );
-
-  // Itens (paginado, até `PAGINAS_DE_PLAYLIST` x 50 vídeos)
-  const items: YtPlaylistItem[] = [];
-  let pageToken: string | undefined;
-  for (let page = 0; page < PAGINAS_DE_PLAYLIST; page++) {
-    const res = await yfetch('/playlistItems', {
-      part: 'snippet',
-      playlistId: id,
-      maxResults: '50',
-      ...(pageToken ? { pageToken } : {}),
-    });
-    for (const it of res.items ?? []) {
-      const sn = it.snippet;
-      const videoId = sn?.resourceId?.videoId;
-      const t = sn?.title ?? '';
-      if (!videoId || t === 'Private video' || t === 'Deleted video') continue;
-      items.push({
-        videoId,
-        title: decodeEntities(t),
-        channel: decodeEntities(
-          sn?.videoOwnerChannelTitle ?? sn?.channelTitle ?? ''
-        ),
-        thumbnail:
-          sn?.thumbnails?.high?.url ?? sn?.thumbnails?.medium?.url ?? null,
-      });
-    }
-    pageToken = res.nextPageToken;
-    if (!pageToken) break;
-  }
-
-  const result: YtPlaylistImport = { id, title, items };
-  await cacheSet(key, result);
-  return result;
+  // O mesmo caminho do id: a mesma cache, os Mix e as listas editoriais.
+  return fetchYouTubePlaylistById(id);
 }
 
 export interface YtRecommendedPlaylist {
@@ -280,9 +232,30 @@ export async function searchYouTubePlaylists(
 }
 
 export async function fetchYouTubePlaylistById(id: string): Promise<YtPlaylistImport> {
-  const key = `playlist:v2:${id}`;
-  const cached = await cacheGet<YtPlaylistImport>(key, PLAYLIST_TTL);
+  const editorial = id.startsWith('RDCLAK5uy_');
+  const key = `playlist:ytm:v1:${id}`;
+  const cached = await cacheGet<YtPlaylistImport>(key, PLAYLIST_TTL)
+    // A leitura antiga (Data API) continua a servir enquanto não caduca; a das
+    // editoriais não, porque vinha repetida e às voltas (ver abaixo).
+    ?? (editorial ? null : await cacheGet<YtPlaylistImport>(`playlist:v2:${id}`, PLAYLIST_TTL));
   if (cached) return cached;
+
+  // Pelo YouTube Music primeiro (30/9): grátis, e sem gastar a chave da Data
+  // API, que é UMA para toda a gente. A Data API fica para quando ele falha, ou
+  // não chega ao fim de uma lista de pessoas. Nas editoriais ("Presenting
+  // Drake") vale sempre o que ele trouxer: a Data API devolve-as em páginas sem
+  // fim com as mesmas músicas (29/9: 400 itens, 55 distintos em 8 páginas), e o
+  // diálogo ficava em "Loading...".
+  const lida = await lerPlaylistPeloYtMusic(id);
+  if (lida?.itens.length && (lida.completa || editorial)) {
+    // Os álbuns (`OLAK5uy_`) não trazem o nome na página: vai-se buscar só esse
+    // (1 unidade), e sem ele fica "Playlist" -- quem abriu já o sabe.
+    const titulo = lida.titulo ?? await yfetch('/playlists', { part: 'snippet', id })
+      .then((m) => decodeEntities(m.items?.[0]?.snippet?.title ?? '') || null).catch(() => null);
+    const daLista: YtPlaylistImport = { id, title: titulo ?? 'Playlist', items: lida.itens };
+    await cacheSet(key, daLista);
+    return daLista;
+  }
 
   // Um Mix (`RD...`) não é uma playlist para a API, que responde 404: lê-se
   // pelo InnerTube (28/9, lib/mixDoYouTube.ts). A primeira volta, ~25 músicas.
@@ -299,8 +272,11 @@ export async function fetchYouTubePlaylistById(id: string): Promise<YtPlaylistIm
     meta.items?.[0]?.snippet?.title ?? 'YouTube playlist'
   );
 
-  // Itens (paginado, até `PAGINAS_DE_PLAYLIST` x 50 vídeos)
+  // Itens (paginado, até `PAGINAS_DE_PLAYLIST` x 50 vídeos). Uma página que não
+  // traga nenhum vídeo novo acaba a leitura: há listas que a API devolve às
+  // voltas, sempre com um `nextPageToken`.
   const items: YtPlaylistItem[] = [];
+  const vistos = new Set<string>();
   let pageToken: string | undefined;
   for (let page = 0; page < PAGINAS_DE_PLAYLIST; page++) {
     const res = await yfetch('/playlistItems', {
@@ -309,11 +285,15 @@ export async function fetchYouTubePlaylistById(id: string): Promise<YtPlaylistIm
       maxResults: '50',
       ...(pageToken ? { pageToken } : {}),
     });
+    let novos = 0;
     for (const it of res.items ?? []) {
       const sn = it.snippet;
       const videoId = sn?.resourceId?.videoId;
       const t = sn?.title ?? '';
-      if (!videoId || t === 'Private video' || t === 'Deleted video') continue;
+      if (!videoId || vistos.has(videoId)) continue;
+      vistos.add(videoId);
+      novos++;
+      if (t === 'Private video' || t === 'Deleted video') continue;
       items.push({
         videoId,
         title: decodeEntities(t),
@@ -325,7 +305,7 @@ export async function fetchYouTubePlaylistById(id: string): Promise<YtPlaylistIm
       });
     }
     pageToken = res.nextPageToken;
-    if (!pageToken) break;
+    if (!pageToken || !novos) break;
   }
 
   const result: YtPlaylistImport = { id, title, items };

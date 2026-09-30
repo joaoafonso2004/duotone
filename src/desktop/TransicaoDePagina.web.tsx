@@ -4,7 +4,13 @@ import { marcar } from './ui.web';
 
 /**
  * A passagem entre páginas do PC (27/9, João: "a app deve parecer lightning
- * fast"). Era um `Animated` de 260 ms: no react-native-web isso é JavaScript a
+ * fast"; 30/9: "a única coisa smooth a mudar é a aba na esquerda").
+ *
+ * Duas metades, as duas em CSS (`pagina` e `a-sair`, na `casca.web.tsx`): a
+ * página de agora ESBATE-SE enquanto a nova se prepara (`aSair`, o pendente
+ * da transição do React que muda a rota) e a nova ENTRA a subir e a acender.
+ * A de agora só se esbate -- sem transform, que faria dela o contentor dos
+ * `fixed` que tenha dentro. Era um `Animated` de 260 ms: no react-native-web isso é JavaScript a
  * escrever estilos fotograma a fotograma, na MESMA thread que está a montar a
  * página nova -- por isso começava tarde e engasgava, e a página parecia
  * aparecer do nada. Agora é uma animação CSS (`pagina`, na `casca.web.tsx`):
@@ -16,7 +22,9 @@ import { marcar } from './ui.web';
  * (uma `key`) deitava fora o scroll e o estado de uma página que só mudou de
  * playlist.
  */
-export function TransicaoDePagina({ chave, children }: { chave: string; children: React.ReactNode }) {
+export function TransicaoDePagina({ chave, aSair = false, children }: {
+  chave: string; aSair?: boolean; children: React.ReactNode;
+}) {
   const ref = useRef<View>(null);
   const primeira = useRef(true);
   useLayoutEffect(() => {
@@ -27,5 +35,7 @@ export function TransicaoDePagina({ chave, children }: { chave: string; children
     void no.offsetHeight;
     no.style.animation = '';
   }, [chave]);
-  return <View ref={ref} style={{ flex: 1, minHeight: 0 }} {...marcar('pagina')}>{children}</View>;
+  return <View ref={ref} style={{ flex: 1, minHeight: 0 }} {...(aSair ? marcar('pagina', 'a-sair') : marcar('pagina'))}>
+    {children}
+  </View>;
 }

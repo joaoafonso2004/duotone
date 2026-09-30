@@ -294,6 +294,25 @@ function startLocalServer() {
  * imagem era trabalho de GPU para deitar fora.
  */
 
+/**
+ * As capas e as fotos do YouTube Music vao SEM Referer (30/9). O servidor delas
+ * (yt3.ggpht.com, yt3/lh3.googleusercontent.com) responde 429 "Too Many
+ * Requests" aos pedidos com o Referer da app (http://localhost:<porta>) ao fim
+ * de poucas imagens: numa grelha via-se a primeira capa e o resto vazio. O
+ * mesmo pedido sem Referer da 200 (medido no Chromium, 29/9). Aqui vale para
+ * TODAS as imagens da janela, tambem as do `Image` do react-native-web, que
+ * nao deixa mudar a politica. Um so ouvinte por sessao (o Electron substitui).
+ */
+const IMAGENS_DO_GOOGLE = ['https://*.googleusercontent.com/*', 'https://*.ggpht.com/*'];
+function imagensSemReferer(ses) {
+  ses.webRequest.onBeforeSendHeaders({ urls: IMAGENS_DO_GOOGLE }, (detalhes, responder) => {
+    const cabecalhos = { ...detalhes.requestHeaders };
+    delete cabecalhos.Referer;
+    delete cabecalhos.referer;
+    responder({ requestHeaders: cabecalhos });
+  });
+}
+
 function configurarCaptura(ses) {
   ses.setDisplayMediaRequestHandler((request, callback) => {
     if (!mainWindow || request.frame !== mainWindow.webContents.mainFrame || !origemDaApp(request.frame?.url)) {
@@ -1176,7 +1195,11 @@ ipcMain.handle('ytmusic:pesquisa', async (event, pedido) => {
 ipcMain.handle('ytmusic:artista', async (event, pedido) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
   const browseId = pedido && typeof pedido.browseId === 'string' ? pedido.browseId : '';
-  if (!/^UC[\w-]{22}$/.test(browseId) && !/^VL(OLAK5uy_|PL|RDCLAK5uy_)[\w-]{10,80}$/.test(browseId)) {
+  // Ou a pagina seguinte de uma lista (29/9, as editoriais "RDCLAK5uy_"): so a
+  // forma de um token de continuacao, a mesma do src/lib/albunsDoArtista.ts.
+  const continuation = pedido && typeof pedido.continuation === 'string' ? pedido.continuation : '';
+  if (continuation ? !/^[\w%=-]{16,4000}$/.test(continuation)
+    : !/^UC[\w-]{22}$/.test(browseId) && !/^VL(OLAK5uy_|PL|RDCLAK5uy_)[\w-]{10,80}$/.test(browseId)) {
     throw new Error('Pagina invalida.');
   }
   const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
@@ -1190,7 +1213,7 @@ ipcMain.handle('ytmusic:artista', async (event, pedido) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         context: { client: { clientName: 'WEB_REMIX', clientVersion: versao, hl: 'en', gl: 'US' } },
-        browseId,
+        ...(continuation ? { continuation } : { browseId }),
       }),
     });
     if (!res.ok) throw new Error('YouTube Music HTTP ' + res.status);
@@ -1206,6 +1229,40 @@ ipcMain.handle('ytmusic:artista', async (event, pedido) => {
  * outro site. O ENDERECO vive deste lado; do renderer so vem o id da lista, que
  * tem de ter a forma de um Mix (`RD...`), e a versao do cliente.
  */
+/**
+ * O Mix de um artista (29/9, src/lib/albunsDoArtista.ts): o `next` do YouTube
+ * Music, porque o do youtube.com nao conhece estas radios (`RDEM...`). Do
+ * renderer so vem a forma do id, do video de arranque e dos params do botao.
+ */
+ipcMain.handle('ytmusic:radio', async (event, pedido) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  const playlistId = pedido && typeof pedido.playlistId === 'string' ? pedido.playlistId : '';
+  const videoId = pedido && typeof pedido.videoId === 'string' ? pedido.videoId : '';
+  const params = pedido && typeof pedido.params === 'string' ? pedido.params : '';
+  if (!/^RD[\w-]{2,80}$/.test(playlistId) || !/^[\w-]{11}$/.test(videoId) || (params && !/^[\w%=-]{1,40}$/.test(params))) {
+    throw new Error('Mix invalido.');
+  }
+  const versao = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion)
+    ? pedido.clientVersion : '1.20260914.01.00';
+  const controlador = new AbortController();
+  const relogio = setTimeout(() => controlador.abort(), 15000);
+  try {
+    const res = await net.fetch('https://music.youtube.com/youtubei/v1/next?prettyPrint=false', {
+      method: 'POST',
+      signal: controlador.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        context: { client: { clientName: 'WEB_REMIX', clientVersion: versao, hl: 'en', gl: 'US' } },
+        playlistId, videoId, ...(params ? { params } : {}),
+      }),
+    });
+    if (!res.ok) throw new Error('YouTube Music HTTP ' + res.status);
+    return res.json();
+  } finally {
+    clearTimeout(relogio);
+  }
+});
+
 ipcMain.handle('yt:mix', async (event, pedido) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
   const playlistId = pedido && typeof pedido.playlistId === 'string' ? pedido.playlistId : '';
@@ -1572,6 +1629,7 @@ app.whenReady().then(async () => {
     }
   }
   configurarCaptura(session.defaultSession);
+  imagensSemReferer(session.defaultSession);
 
   createWindow();
   createTray();

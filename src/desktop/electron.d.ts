@@ -63,7 +63,9 @@ declare global {
       /** O `next` do InnerTube para um Mix (`RD...`), pelo processo principal (28/9). */
       lerMixDoYouTube?: (pedido: { playlistId: string; clientVersion: string; videoId?: string }) => Promise<any>;
       /** A página de um artista no YouTube Music, para os álbuns (lib/albunsDoArtista.ts, 28/9). */
-      lerArtistaDoYtMusic?: (pedido: { browseId: string; clientVersion: string }) => Promise<any>;
+      lerArtistaDoYtMusic?: (pedido: { browseId?: string; continuation?: string; clientVersion: string }) => Promise<any>;
+      /** O Mix de um artista (`RDEM...`), pelo `next` do YouTube Music (29/9). */
+      lerRadioDoYtMusic?: (pedido: { playlistId: string; videoId: string; params: string | null; clientVersion: string }) => Promise<any>;
       /** Um GET ao catálogo pelo processo principal, que não tem CORS. Leva só
        * o caminho (`/artist/123/related?limit=25`); o endereço e as formas que
        * passam vivem no `electron/main.cjs`. Devolve `null` num HTTP mau, que é

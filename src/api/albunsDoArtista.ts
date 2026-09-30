@@ -1,7 +1,7 @@
 import { chaveDeArtista, tituloNoLeitor } from '../lib/artistName';
 import {
-  canalPelasProvas, canalSemProvas, legendaDoAlbum, lerAlbunsDoCanal, lerCancoesComArtistas, lerMusicasDoCanal,
-  maisRecente, type AlbumDoArtista, type CancaoComArtistas, type Prova,
+  canalPelasProvas, canalSemProvas, FORMA_DO_CANAL, legendaDoAlbum, lerAlbunsDoCanal, lerCancoesComArtistas, lerMusicasDoCanal,
+  maisRecente, mixDoCanal, type AlbumDoArtista, type CancaoComArtistas, type MixDoArtista, type Prova,
 } from '../lib/albunsDoArtista';
 import type { Track } from '../types';
 import type { YtRecommendedPlaylist } from './youtube';
@@ -19,9 +19,11 @@ export type PaginaDoArtista = {
   maisRecente: AlbumDaPagina | null;
   /** As músicas dele, do canal certo: a lista "todas", ou as do topo se ela falhar. */
   musicas: Track[];
+  /** O botão "Mix" do canal (29/9): a rádio dele, que se toca pelo `lerRadioPeloYtMusic`. */
+  mix: MixDoArtista | null;
 };
 
-const VAZIA: PaginaDoArtista = { albuns: [], maisRecente: null, musicas: [] };
+const VAZIA: PaginaDoArtista = { albuns: [], maisRecente: null, musicas: [], mix: null };
 /** Em memória, por sessão: não vale uma escrita no Supabase por página aberta. */
 const memoria = new Map<string, Promise<PaginaDoArtista>>();
 
@@ -102,7 +104,21 @@ async function procurar(nome: string, alvo: string, provas: Prova[], escolhido: 
     albuns,
     maisRecente: recente ? albuns.find((a) => a.id === recente.id) ?? null : null,
     musicas: (daLista.length ? daLista : topo).map((c) => paraFaixa(c, nome)),
+    mix: mixDoCanal(paginaDoCanal),
   };
+}
+
+/** O Mix de um canal sem ler a página toda (o artista em destaque na pesquisa). */
+const mixesPorCanal = new Map<string, Promise<MixDoArtista | null>>();
+export function mixDoArtista(canal: string): Promise<MixDoArtista | null> {
+  if (!FORMA_DO_CANAL.test(canal)) return Promise.resolve(null);
+  let pedido = mixesPorCanal.get(canal);
+  if (!pedido) {
+    pedido = lerNoYtMusic(canal).then(mixDoCanal).catch(() => null);
+    mixesPorCanal.set(canal, pedido);
+    void pedido.then((m) => { if (!m) mixesPorCanal.delete(canal); });
+  }
+  return pedido;
 }
 
 function paraLista(a: AlbumDoArtista): AlbumDaPagina {

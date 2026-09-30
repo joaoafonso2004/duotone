@@ -6,7 +6,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { tocarMixDoArtista } from '../state/mixDoArtista';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { fotoDoArtista } from '../api/catalogo';
@@ -164,8 +165,20 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const shuffleLigado = usePlayer((s) => s.shuffle);
   const shuffleInteligente = usePlayer((s) => s.shuffleInteligente);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
+  // O Mix do artista (29/9): a rádio do canal dele, 50 músicas dele e de
+  // parecidos. Só aparece quando o canal a tem (`pagina.mix`).
+  const [aAbrirMix, setAAbrirMix] = useState(false);
+  const tocarMix = async () => {
+    if (!pagina?.mix || aAbrirMix) return;
+    hapticSelection();
+    setAAbrirMix(true);
+    const ok = await tocarMixDoArtista(name, { mix: pagina.mix }).catch(() => false);
+    setAAbrirMix(false);
+    if (!ok) Alert.alert('Mix', 'Could not load the mix. Check your connection and try again.');
+  };
   const accoesDoArtista = (
     <>
+      {tracks.length ? <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${name}`}
@@ -196,6 +209,18 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         {shuffleInteligente && <BrilhoDoEcra />}
         <Ionicons name="shuffle" size={20} color={shuffleLigado && !shuffleInteligente ? theme.color : colors.text} />
       </Pressable>
+      </> : null}
+      {pagina?.mix ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${name} Mix`}
+          accessibilityState={{ busy: aAbrirMix }}
+          onPress={() => void tocarMix()}
+          style={[styles.shuffleButton, aAbrirMix && { opacity: 0.5 }]}
+        >
+          {aAbrirMix ? <ActivityIndicator size="small" color={colors.text} /> : <Ionicons name="radio-outline" size={20} color={colors.text} />}
+        </Pressable>
+      ) : null}
       {/* Favoritar dentro da página (29/9): só se podia na lista dos artistas. */}
       <Pressable
         accessibilityRole="button"
@@ -219,7 +244,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const header = <>
     {type === 'artist' ? <CabecalhoDaPlaylist artista nome={name} artworks={capaDoArtista ? [capaDoArtista] : []}
       faixas={tracks.length} duracaoSegundos={total}
-      accoes={tracks.length ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
+      accoes={tracks.length || pagina?.mix ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
         <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true)} />
       </View> : null}
     {type === 'artist' && pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente}

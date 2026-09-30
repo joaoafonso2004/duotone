@@ -18,7 +18,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMusicSearch } from '../hooks/useMusicSearch';
-import { usePesquisaPorTipo, type SeparadorDaPesquisa } from '../hooks/usePesquisaPorTipo';
+import { useArtistaEmDestaque, usePesquisaPorTipo, type SeparadorDaPesquisa } from '../hooks/usePesquisaPorTipo';
+import { tocarMixDoArtista } from '../state/mixDoArtista';
 import { legendaDoAlbumEncontrado, separadorPedidoPelaPergunta, type ArtistaEncontrado } from '../lib/pesquisaPorTipo';
 
 /** Um álbum ou uma playlist na pesquisa por tipo: os dois abrem a mesma folha. */
@@ -237,6 +238,23 @@ export function SearchScreen() {
     lembrarCanalDoArtista(a.nome, a.canal);
     navigation.navigate('LibraryGroup', { type: 'artist', name: a.nome });
   };
+  // O artista em destaque (29/9): "drake" ou "drake playlist" põem o Drake no
+  // topo das Songs e das Playlists, com o Mix dele, como o YouTube faz.
+  const destaque = useArtistaEmDestaque(query, tipoAtivo === 'musicas' || tipoAtivo === 'playlists');
+  const [aAbrirMix, setAAbrirMix] = useState(false);
+  const tocarMixDoDestaque = async (a: ArtistaEncontrado) => {
+    if (aAbrirMix) return;
+    Keyboard.dismiss();
+    hapticSelection();
+    setAAbrirMix(true);
+    const ok = await tocarMixDoArtista(a.nome, { canal: a.canal }).catch(() => false);
+    setAAbrirMix(false);
+    if (!ok) Alert.alert('Mix', 'Could not load the mix. Check your connection and try again.');
+  };
+  const cartaoDoDestaque = destaque ? (
+    <ArtistaEmDestaque artista={destaque} aoAbrir={() => abrirArtista(destaque)}
+      aoTocarMix={() => void tocarMixDoDestaque(destaque)} aAbrirMix={aAbrirMix} />
+  ) : null;
 
   const vistos=useRef(new Set<string>());
   useEffect(()=>{
@@ -549,6 +567,7 @@ export function SearchScreen() {
               contentContainerStyle={{ paddingBottom: bottomPad, flexGrow: 1 }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
+              ListHeaderComponent={tipoAtivo === 'playlists' ? cartaoDoDestaque : null}
               ListEmptyComponent={
                 <EmptyState
                   icon={porTipo.falhou ? 'cloud-offline-outline' : tipoAtivo === 'artistas' ? 'person-outline' : tipoAtivo === 'albuns' ? 'albums-outline' : 'list-outline'}
@@ -783,8 +802,9 @@ export function SearchScreen() {
             keyboardDismissMode="on-drag"
             /* O que já é teu vem PRIMEIRO, e sem esperar pela rede. A procura
                ao YouTube continua por baixo, e é a mesma de sempre. */
-            ListHeaderComponent={naBiblioteca.length > 0 || filtrosComResultados(results.map((r) => r.title)).length > 2 ? (
+            ListHeaderComponent={cartaoDoDestaque || naBiblioteca.length > 0 || filtrosComResultados(results.map((r) => r.title)).length > 2 ? (
               <View>
+                {cartaoDoDestaque}
                 {naBiblioteca.length > 0 ? <>
                 <View style={[styles.sectionHeader, { marginBottom: spacing.sm }]}>
                   <Ionicons name="heart" size={18} color={colors.text} />
@@ -911,6 +931,40 @@ export function SearchScreen() {
   );
 }
 
+/**
+ * O artista em destaque no topo da pesquisa (29/9): a foto, o nome, o Mix e a
+ * página. É o cartão que o YouTube mostra para "drake playlist" -- só quando a
+ * pergunta é mesmo o nome dele.
+ */
+function ArtistaEmDestaque({ artista, aoAbrir, aoTocarMix, aAbrirMix }: {
+  artista: ArtistaEncontrado; aoAbrir: () => void; aoTocarMix: () => void; aAbrirMix: boolean;
+}) {
+  return (
+    <View style={styles.destaque}>
+      <Pressable onPress={aoAbrir} accessibilityRole="button" accessibilityLabel={`Open ${artista.nome}`}
+        style={({ pressed }) => [styles.destaqueArtista, pressed && { opacity: 0.7 }]}>
+        {artista.foto ? (
+          <Image source={{ uri: artista.foto }} style={styles.destaqueFoto} contentFit="cover" />
+        ) : (
+          <View style={[styles.destaqueFoto, { alignItems: 'center', justifyContent: 'center' }]}>
+            <Ionicons name="person" size={28} color={colors.textSecondary} />
+          </View>
+        )}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[type.micro, { color: colors.textSecondary }]} maxFontSizeMultiplier={ESCALA_MAXIMA.lista}>ARTIST</Text>
+          <Text numberOfLines={1} style={styles.destaqueNome} maxFontSizeMultiplier={ESCALA_MAXIMA.lista}>{artista.nome}</Text>
+          {artista.legenda ? <Text numberOfLines={1} style={[type.caption, { color: colors.textSecondary }]} maxFontSizeMultiplier={ESCALA_MAXIMA.lista}>{artista.legenda}</Text> : null}
+        </View>
+      </Pressable>
+      <Pressable onPress={aoTocarMix} disabled={aAbrirMix} accessibilityRole="button" accessibilityLabel={`${artista.nome} Mix`}
+        accessibilityState={{ busy: aAbrirMix }} style={({ pressed }) => [styles.destaqueMix, (pressed || aAbrirMix) && { opacity: 0.6 }]}>
+        {aAbrirMix ? <ActivityIndicator size="small" color={colors.bg} /> : <Ionicons name="radio-outline" size={16} color={colors.bg} />}
+        <Text style={styles.destaqueMixTexto} maxFontSizeMultiplier={ESCALA_MAXIMA.lista}>Mix</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 /** Uma linha de artista (foto redonda) ou de álbum (capa quadrada) na pesquisa por tipo. */
 function LinhaDoResultado({ capa, titulo, legenda, redonda, onPress }: {
   capa: string | null; titulo: string; legenda: string; redonda?: boolean; onPress: () => void;
@@ -935,6 +989,18 @@ function LinhaDoResultado({ capa, titulo, legenda, redonda, onPress }: {
 }
 
 const styles = StyleSheet.create({
+  destaque: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.xl, marginBottom: spacing.lg,
+    padding: spacing.md, borderRadius: radii.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
+  },
+  destaqueArtista: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  destaqueFoto: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.surfaceHigh },
+  destaqueNome: { ...type.body, fontSize: 19, fontWeight: '700', color: colors.text },
+  destaqueMix: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 14,
+    borderRadius: 18, backgroundColor: colors.text,
+  },
+  destaqueMixTexto: { fontSize: 14, fontWeight: '700', color: colors.bg },
   linhaPorTipo: {
     flexDirection: 'row', alignItems: 'center', gap: spacing.md,
     paddingHorizontal: spacing.xl, paddingVertical: spacing.sm, minHeight: 68,

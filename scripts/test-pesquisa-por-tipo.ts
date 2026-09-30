@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  FILTROS_DA_PESQUISA, juntarPlaylists, legendaDoAlbumEncontrado, lerAlbunsDaPesquisa, lerArtistasDaPesquisa,
+  artistaEmDestaque, FILTROS_DA_PESQUISA, juntarPlaylists, legendaDoAlbumEncontrado, lerAlbunsDaPesquisa, lerArtistasDaPesquisa,
   lerPlaylistsDaPesquisa, perguntaSemIntencao, separadorPedidoPelaPergunta, termosDaPergunta,
 } from '../src/lib/pesquisaPorTipo.ts';
 
@@ -69,6 +69,15 @@ assert.equal(separadorPedidoPelaPergunta('drake album'), 'albuns');
 assert.equal(separadorPedidoPelaPergunta('drake'), null);
 assert.equal(separadorPedidoPelaPergunta('playlistas'), null);
 
+// ---- o artista em destaque: só quando a pergunta é o nome dele
+const chave = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9$]/g, '');
+assert.equal(artistaEmDestaque('isak', artistas, chave)?.canal, 'UCX24KmsuxFB4jacvMSd3G2Q');
+assert.equal(artistaEmDestaque('Isak playlist', artistas, chave)?.nome, 'Isak', 'as palavras de intenção não contam');
+assert.equal(artistaEmDestaque('isak danielson', artistas, chave)?.nome, 'Isak Danielson', 'o homónimo certo');
+assert.equal(artistaEmDestaque('isak telescopio', artistas, chave), null, 'uma música não é um artista');
+assert.equal(artistaEmDestaque('', artistas, chave), null);
+assert.equal(artistaEmDestaque('isak', [], chave), null);
+
 assert.deepEqual(lerArtistasDaPesquisa({}), []);
 assert.deepEqual(lerAlbunsDaPesquisa(null), []);
 
@@ -87,6 +96,15 @@ for (const f of ['src/desktop/paginas/BibliotecaPages.web.tsx', 'src/screens/Sea
   assert.match(s, /usePesquisaPorTipo\(/, `${f}: os separadores Songs / Artists / Albums`);
   assert.match(s, /\['playlists', 'Playlists'\]/, `${f}: o separador das playlists`);
   assert.match(s, /separadorPedidoPelaPergunta\(query\)/, `${f}: "drake playlist" abre as Playlists`);
+  assert.match(s, /useArtistaEmDestaque\(query, tipoAtivo === 'musicas' \|\| tipoAtivo === 'playlists'\)/, `${f}: o artista em destaque`);
+  assert.match(s, /tocarMixDoArtista\(a\.nome, \{ canal: a\.canal \}\)/, `${f}: o Mix do artista em destaque`);
 }
+
+// ---- no PC, as capas e as fotos vão SEM Referer: com ele, o servidor das
+// capas (yt3.*) responde 429 ao fim de poucas e a grelha fica vazia (29/9).
+const pc = src('src/desktop/paginas/BibliotecaPages.web.tsx');
+assert.match(pc, /<img src=\{uri\} alt="" referrerPolicy="no-referrer"/);
+assert.match(pc, /<CapaSemReferer uri=\{a\.foto\} lado=\{170\} redonda/, 'as fotos dos artistas');
+assert.match(pc, /<CapaSemReferer uri=\{a\.capa\} lado=\{190\}/, 'as capas dos álbuns e das playlists');
 
 console.log('Pesquisa por tipo: passou.');

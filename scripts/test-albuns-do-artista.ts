@@ -5,8 +5,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  canalPelasProvas, canalSemProvas, chaveDoTitulo, FORMA_DA_LISTA, legendaDoAlbum, lerAlbunsDoCanal,
-  lerCancoesComArtistas, lerMusicasDoCanal, maisRecente,
+  canalPelasProvas, canalSemProvas, chaveDoTitulo, FORMA_DA_CONTINUACAO, FORMA_DA_LISTA, legendaDoAlbum, lerAlbunsDoCanal,
+  lerCancoesComArtistas, lerMusicasDoCanal, lerPaginaDaPlaylist, lerRadioDoYtMusic, maisRecente, mixDoCanal,
 } from '../src/lib/albunsDoArtista.ts';
 
 const ler = (nome: string) => JSON.parse(readFileSync(new URL(`./fixtures/${nome}`, import.meta.url), 'utf8'));
@@ -108,7 +108,47 @@ assert.ok(!ler_('src/screens/LibraryGroupScreen.tsx').includes('searchYouTube(')
 
 // ---- no PC, pelo processo principal, que só aceita um canal ou a lista dele
 const main = ler_('electron/main.cjs');
-assert.match(main, /ipcMain\.handle\('ytmusic:artista'[\s\S]{0,200}daJanelaPrincipal\(event\)[\s\S]{0,200}\/\^UC\[\\w-\]\{22\}\$\/\.test\(browseId\) && !\/\^VL\(OLAK5uy_\|PL\|RDCLAK5uy_\)\[\\w-\]\{10,80\}\$\/\.test\(browseId\)/);
+assert.match(main, /ipcMain\.handle\('ytmusic:artista'[\s\S]{0,200}daJanelaPrincipal\(event\)[\s\S]{0,500}!\/\^UC\[\\w-\]\{22\}\$\/\.test\(browseId\) && !\/\^VL\(OLAK5uy_\|PL\|RDCLAK5uy_\)\[\\w-\]\{10,80\}\$\/\.test\(browseId\)/);
 assert.match(ler_('electron/preload.cjs'), /lerArtistaDoYtMusic: \(pedido\) => ipcRenderer\.invoke\('ytmusic:artista', pedido\)/);
+
+// ---- as listas editoriais (29/9): a página traz o título, as músicas e o
+// token da seguinte. Resposta real ("All-Time Hip Hop Hits", 281 músicas),
+// recortada às primeiras seis.
+const editorial = lerPaginaDaPlaylist(ler('ytmusic-playlist-editorial.json'));
+assert.equal(editorial.titulo, 'All-Time Hip Hop Hits');
+assert.equal(editorial.cancoes.length, 6);
+assert.equal(editorial.cancoes[0]!.titulo, "God's Plan");
+assert.deepEqual(editorial.cancoes[0]!.artistas.map((a) => a.nome), ['Drake']);
+assert.ok(editorial.cancoes.every((c) => c.duracaoSec && c.duracaoSec > 60), 'com a duração');
+assert.ok(editorial.continuacao && FORMA_DA_CONTINUACAO.test(editorial.continuacao), 'e a página seguinte');
+assert.equal(lerPaginaDaPlaylist({}).continuacao, null);
+assert.equal(lerPaginaDaPlaylist({}).titulo, null);
+assert.ok(!FORMA_DA_CONTINUACAO.test('"><script>'), 'só a forma de um token');
+const ytm = ler_('src/api/ytMusic.ts');
+assert.match(ytm, /const PAGINAS_DA_PLAYLIST = 50;/, 'até 5000 músicas, o teto da Data API');
+assert.match(ytm, /if \(!pagina\.continuacao\) \{ completa = true; break; \}\n\s+if \(!novas\) break;/,
+  'acabar a lista é "completa"; uma página sem novas desiste (as editoriais repetem a primeira)');
+
+// ---- o Mix do artista (29/9): o botão "Mix" do canal, lido pelo `next` do
+// YouTube Music. Respostas reais recortadas (o canal do Isak e o Mix dele).
+assert.deepEqual(mixDoCanal(ler('ytmusic-canal-cabecalho.json')),
+  { playlistId: 'RDEMkbiSANKWVlisYendXhQ6WQ', videoId: 'A3CLMCcesms', params: 'wAEB' },
+  'o Mix, e não o Shuffle (RDAO) que está ao lado');
+assert.equal(mixDoCanal({}), null);
+assert.equal(mixDoCanal({ header: { musicImmersiveHeaderRenderer: { startRadioButton: { buttonRenderer: { navigationEndpoint: {
+  watchEndpoint: { videoId: 'A3CLMCcesms', playlistId: '"><script>' } } } } } } }), null, 'só a forma de um Mix');
+const radio = lerRadioDoYtMusic(ler('ytmusic-mix-do-artista.json'));
+assert.equal(radio.length, 6, 'sem a repetida');
+assert.deepEqual(radio[0], { videoId: 'A3CLMCcesms', titulo: 'Fácil', artistas: [{ nome: 'Holly Hood', id: radio[0]!.artistas[0]!.id }], duracaoSec: 207 });
+assert.ok(/^UC[\w-]{22}$/.test(radio[0]!.artistas[0]!.id), 'o artista é o canal');
+assert.deepEqual(radio[1]!.artistas.map((a) => a.nome), ['Isak', 'Zigarro', 'Armando Teles'], 'uma colaboração são três');
+assert.deepEqual(lerRadioDoYtMusic({}), []);
+// No PC o `next` do YouTube Music vai pelo processo principal, só com a forma.
+assert.match(main, /ipcMain\.handle\('ytmusic:radio'[\s\S]{0,200}daJanelaPrincipal\(event\)[\s\S]{0,600}\/\^RD\[\\w-\]\{2,80\}\$\/\.test\(playlistId\) \|\| !\/\^\[\\w-\]\{11\}\$\/\.test\(videoId\)/);
+assert.match(main, /music\.youtube\.com\/youtubei\/v1\/next/);
+assert.match(ler_('electron/preload.cjs'), /lerRadioDoYtMusic: \(pedido\) => ipcRenderer\.invoke\('ytmusic:radio', pedido\)/);
+// E há botão nas duas páginas de artista.
+assert.match(ler_('src/desktop/paginas/BibliotecaPages.web.tsx'), /tocarMixDoArtista\(name, \{ mix: pagina\.mix \}\)/);
+assert.match(ler_('src/screens/LibraryGroupScreen.tsx'), /tocarMixDoArtista\(name, \{ mix: pagina\.mix \}\)/);
 
 console.log('Álbuns do artista: passou.');

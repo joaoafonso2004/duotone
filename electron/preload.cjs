@@ -63,6 +63,8 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
   lerMixDoYouTube: (pedido) => ipcRenderer.invoke('yt:mix', pedido),
   /** A pagina de um artista no YouTube Music (os albuns dele). Leva so o canal. */
   lerArtistaDoYtMusic: (pedido) => ipcRenderer.invoke('ytmusic:artista', pedido),
+  /** O Mix de um artista (a radio do canal no YouTube Music). Leva so o id, o video e os params. */
+  lerRadioDoYtMusic: (pedido) => ipcRenderer.invoke('ytmusic:radio', pedido),
   /** O catalogo (Deezer) pelo processo principal, pela mesma razao: no
    * renderer a resposta vem sem `Access-Control-Allow-Origin` e o browser
    * deita-a fora, o que deixava a descoberta toda vazia no Windows. Leva o

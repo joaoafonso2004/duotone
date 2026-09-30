@@ -1,7 +1,7 @@
 import { TransicaoDePagina } from '../desktop/TransicaoDePagina.web';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { ReactNode, startTransition, useCallback, useEffect, useRef, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { addTracksToPlaylist, removeTrackFromPlaylist } from '../api/playlists';
@@ -105,17 +105,31 @@ function DesktopShell() {
   // React pode chamar mais de uma vez.
   const rotaRef = useRef<Route>(route);
   const [rotaDaLateral, setRotaDaLateral] = useState<Route>(route);
-  const mudarRota = useCallback((next: Route) => {
+  // Enquanto a página nova se prepara, a de agora esbate-se (30/9, a passagem
+  // entre páginas do `TransicaoDePagina`): o "pendente" da transição diz quando.
+  const [aMudarDePagina, startTransition] = useTransition();
+  // `fecharLeitor`: o Now Playing fecha DENTRO da mesma transição (30/9). Fechado
+  // à parte, fechava logo e a página nova só chegava depois: durante um ou dois
+  // fotogramas via-se a de ANTES por baixo dele (Artists -> Now Playing -> Liked
+  // Songs mostrava os Artists antes das Liked Songs).
+  const mudarRota = useCallback((next: Route, { fecharLeitor = false } = {}) => {
     rotaRef.current = next;
     setRotaDaLateral(next);
-    startTransition(() => setRoute(next));
+    startTransition(() => {
+      setRoute(next);
+      if (fecharLeitor) setNowPlayingOpen(false);
+    });
   }, []);
   const abrirSocial = useCallback((conversation?:{friendId?:string;groupId?:string}) => {
     // Also select directly: the route can already have this friendId while
     // SocialHub is displaying a different conversation opened from its list.
     if (conversation?.groupId) useSocial.setState({conversation:{kind:'group',id:conversation.groupId}});
     else if (conversation?.friendId) useSocial.setState({conversation:{kind:'friend',id:conversation.friendId}});
-    setJamOpen(false); setNowPlayingOpen(false); mudarRota({ name: 'social',...conversation });
+    setJamOpen(false);
+    const next: Route = { name: 'social', ...conversation };
+    // Já na conversa: não há página nova à espera, o leitor fecha já.
+    if (JSON.stringify(rotaRef.current) === JSON.stringify(next)) { setNowPlayingOpen(false); return; }
+    mudarRota(next, { fecharLeitor: true });
   }, [mudarRota]);
   useDesktopNotifications(abrirSocial, () => {
     if (route.name !== 'social' || nowPlayingOpen || jamOpen) return null;
@@ -276,14 +290,13 @@ function DesktopShell() {
       setNowPlayingOpen(true);
       return;
     }
-    setNowPlayingOpen(false);
     // Carregar duas vezes no mesmo sítio não é navegar. Sem isto o histórico
     // enchia-se de repetições e o voltar ficava a pedir cliques para não sair
-    // do mesmo ecrã.
+    // do mesmo ecrã. Com o leitor aberto, fecha-o e mostra a página de baixo.
     const atual = rotaRef.current;
-    if (JSON.stringify(atual) === JSON.stringify(next)) return;
+    if (JSON.stringify(atual) === JSON.stringify(next)) { setNowPlayingOpen(false); return; }
     history.current.push(atual);
-    mudarRota(next);
+    mudarRota(next, { fecharLeitor: true });
   }, [mudarRota]);
   const back = useCallback(() => {
     if (nowPlayingOpen) { setNowPlayingOpen(false); futuro.current.push('leitor'); return; }
@@ -300,9 +313,8 @@ function DesktopShell() {
     const seguinte = futuro.current.pop();
     if (!seguinte) return;
     if (seguinte === 'leitor') { setNowPlayingOpen(true); return; }
-    setNowPlayingOpen(false);
     history.current.push(rotaRef.current);
-    mudarRota(seguinte);
+    mudarRota(seguinte, { fecharLeitor: true });
   }, [mudarRota]);
   // Os botões laterais do rato (3 = trás, 4 = frente). No `mouseup` e com
   // `preventDefault`: é aí que o Chromium faria a navegação dele, e a janela
@@ -708,7 +720,7 @@ function DesktopShell() {
   // Definicoes. Era `rgba(18,18,24)` a martelo, fora de qualquer paleta.
   const bgStyle = { backgroundColor: `rgba(12, 12, 16, ${panelOpacity})` };
 
-  return <View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, corNaJanela ? { backgroundColor: 'transparent' } : bgStyle]}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} /></View><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, corNaJanela ? { backgroundColor: 'transparent' } : bgStyle]}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} /></View><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* CUSTOM ACTIONS DIALOG */}
