@@ -41,11 +41,13 @@ assert.deepEqual(p.calls,[],'a paused player is never written to: that setter pl
 
 // The real thing this protects, modelled on the iPhone, driven through the
 // REAL src/lib/velocidadeDoMotor.ts:
-//  - the native module (modules/duotone-audio, aplicarVelocidade) does not
-//    apply the speed right away: it queues a block on the main thread, and
-//    JS writes to expo-video happen immediately. In the block, with the player
-//    playing, the live rate changes first and `defaultRate` AFTER -- so the
-//    rate watcher runs in between; paused, only `defaultRate` is written.
+//  - the native module (modules/duotone-audio, aplicarVelocidade) applies the
+//    change synchronously, on the JS thread, BEFORE the JS looks at expo-video:
+//    buffer wait off, `defaultRate`, then `playImmediately`. Paused, only
+//    `defaultRate` is written. Until 30/9 it queued a block for the main
+//    thread instead (`sincrono:false` keeps that model, to reproduce the old
+//    bugs): with the player playing the live rate changed first and
+//    `defaultRate` AFTER, and JS writes to expo-video landed before the block.
 //  - expo-video's watcher (node_modules/expo-video/ios/VideoPlayer.swift,
 //    onRateChanged) ADOPTS `defaultRate` when it differs from the value it
 //    holds, and writes it into the player -- a rate other than zero is playing.
@@ -53,24 +55,39 @@ assert.deepEqual(p.calls,[],'a paused player is never written to: that setter pl
 //    in SDK 57, so the plugin patch that would remove this never ships: the
 //    model runs with adoption ON, which is the phone, and OFF, in case it ever
 //    builds from source.
-function leitorComoNoIPhone({adota=true,blocoUsaOUltimo=true}={}){
- const e={taxa:1,defaultRate:1,expo:1,pausado:false};
+//  - a plain `rate = x` on a PLAYING AVPlayer, with the buffer wait on,
+//    re-evaluates the buffer and goes silent meanwhile: that is the one-second
+//    gap (`cortes`). `playImmediately`, or any write with the wait off, is not.
+//    The native module turns the wait back on once the player stops playing.
+function leitorComoNoIPhone({adota=true,blocoUsaOUltimo=true,sincrono=true}={}){
+ const e={taxa:1,defaultRate:1,expo:1,pausado:false,espera:true,cortes:0};
  const fila=[];let pedida=1;
- const setter=v=>{ // expo-video's setter as shipped: writes both
-  e.expo=v;e.defaultRate=v;
-  if(e.taxa!==v){e.taxa=v;e.pausado=false;kvo();}
+ const escreverTaxa=(v,imediato)=>{
+  if(e.taxa===v)return;
+  if(!imediato&&e.espera&&e.taxa!==0)e.cortes++;
+  e.taxa=v;e.pausado=false;kvo();
  };
+ const setter=v=>{e.expo=v;e.defaultRate=v;escreverTaxa(v,false);}; // expo-video's setter as shipped
  const kvo=()=>{if(adota&&e.defaultRate!==e.expo)setter(e.defaultRate);};
  const aplicar=nova=>{
   if(e.taxa===0){e.defaultRate=nova;return;}
-  if(e.taxa!==nova){e.taxa=nova;kvo();}
+  e.espera=false;
+  e.defaultRate=nova;
+  escreverTaxa(nova,true);
+ };
+ const aplicarNoBloco=nova=>{ // before 30/9
+  if(e.taxa===0){e.defaultRate=nova;return;}
+  if(e.taxa!==nova)escreverTaxa(nova,true);
   e.defaultRate=nova;
  };
- const nativo=(_p,v)=>{pedida=v;const minha=v;fila.push(()=>aplicar(blocoUsaOUltimo?pedida:minha));return true;};
+ const nativo=(_p,v)=>{
+  if(sincrono){aplicar(v);return true;}
+  pedida=v;const minha=v;fila.push(()=>aplicarNoBloco(blocoUsaOUltimo?pedida:minha));return true;
+ };
  const player={get playbackRate(){return e.expo;},set playbackRate(v){setter(v);},
   get playing(){return !e.pausado;},
   play(){e.pausado=false;if(e.taxa===0){e.taxa=e.defaultRate;kvo();}}};
- const pausar=()=>{e.pausado=true;if(e.taxa!==0){e.taxa=0;kvo();}};
+ const pausar=()=>{e.pausado=true;if(e.taxa!==0){e.taxa=0;kvo();}e.espera=true;};
  const correrFila=()=>{while(fila.length)fila.shift()();};
  return {e,player,nativo,pausar,correrFila,fila};
 }
@@ -78,7 +95,7 @@ function leitorComoNoIPhone({adota=true,blocoUsaOUltimo=true}={}){
 // The model reproduces both things João saw.
 {
  // 22/9 code: two writers, but each queued block applied its OWN value.
- const l=leitorComoNoIPhone({blocoUsaOUltimo:false});
+ const l=leitorComoNoIPhone({blocoUsaOUltimo:false,sincrono:false});
  motor.atualizarVelocidadeDoMotor(l.player,0.9,l.nativo);
  motor.atualizarVelocidadeDoMotor(l.player,1.1,l.nativo);
  l.correrFila();
@@ -88,11 +105,31 @@ function leitorComoNoIPhone({adota=true,blocoUsaOUltimo=true}={}){
 }
 {
  // Build 69c03bf (23/9): one writer, relying on a patch that never shipped.
- const l=leitorComoNoIPhone();
+ const l=leitorComoNoIPhone({sincrono:false});
  const soNativo=v=>l.nativo(l.player,v);
  soNativo(0.9);l.correrFila();
  soNativo(1.1);l.correrFila();
  assert.equal(l.e.taxa,0.9,'reproduces "the second change keeps the previous speed"');
+}
+{
+ // 30/9, the gap: with the native block queued, expo-video's plain `rate = x`
+ // always got to the player first, on every change while playing.
+ const velho=leitorComoNoIPhone({sincrono:false});
+ for(const v of [1.25,0.8])motor.atualizarVelocidadeDoMotor(velho.player,v,velho.nativo);
+ velho.correrFila();
+ assert.equal(velho.e.cortes,2,'reproduces the one-second gap on each change');
+ const l=leitorComoNoIPhone();
+ for(const v of [1.25,0.8,2,1]){
+  motor.atualizarVelocidadeDoMotor(l.player,v,l.nativo);
+  assert.equal(l.e.taxa,v,'each change lands at once');
+  assert.equal(l.e.expo,v,'and expo-video adopts it inside the change');
+ }
+ assert.equal(l.e.cortes,0,'no change while playing takes the waiting path');
+ l.pausar();
+ assert.equal(l.e.espera,true,'the buffer wait is back once paused');
+ motor.tocarNaVelocidade(l.player,1,l.nativo);
+ motor.atualizarVelocidadeDoMotor(l.player,1.5,l.nativo);
+ assert.equal(l.e.cortes,0,'and the next change after a resume is quiet too');
 }
 {
  // The trap found while fixing it: a speed changed while PAUSED goes only to
@@ -154,6 +191,7 @@ for(const adota of [true,false]){
    else if(l.fila.length)l.fila.shift()();
   }
   l.correrFila();
+  assert.equal(l.e.cortes,0,`adota=${adota} volta ${volta}: no change while playing waits for the buffer`);
   if(pausado)assert.equal(l.e.taxa,0,`adota=${adota} volta ${volta}: paused must be paused`);
   else assert.equal(l.e.taxa,ultima,`adota=${adota} volta ${volta}: playing at the last speed asked`);
   l.pausar();
@@ -225,6 +263,11 @@ assert.match(patched,/else if newRate != 0 && newRate != playbackRate \{\n      
 assert.equal(outside(patched),outside(original));
 const swift=fs.readFileSync(path.join(root,'modules/duotone-audio/ios/DuotoneAudioModule.swift'),'utf8');
 const corpo=swift.slice(swift.indexOf('Function("aplicarVelocidade")'),swift.indexOf('Function("definirTomDaVelocidade")'));
-assert.match(corpo,/velocidadePedida\[chave\] = Float\(velocidade\)/,'the request is stored before the block is queued');
-assert.match(corpo,/DispatchQueue\.main\.async \{[\s\S]*?let pedida = self\.velocidadePedida\[chave\][\s\S]*?guard let nova = pedida/,'the queued block applies the LAST request');
+const aplicarSwift=corpo.slice(0,corpo.indexOf('Function("estadoDaVelocidade")'));
+assert.doesNotMatch(aplicarSwift,/DispatchQueue/,'applied now, on the JS thread, before expo-video is looked at');
+assert.match(aplicarSwift,/guard p\.rate != 0 else \{\s*if p\.defaultRate != nova \{ p\.defaultRate = nova \}\s*return true/,'paused: only defaultRate');
+assert.match(aplicarSwift,/self\.semEsperar\(p\) \{\s*if p\.defaultRate != nova \{ p\.defaultRate = nova \}\s*if abs\(p\.rate - nova\) > 0\.001 \{ p\.playImmediately\(atRate: nova\) \}/,
+ 'playing: buffer wait off, defaultRate first, then playImmediately');
+const semEsperar=swift.slice(swift.indexOf('private func semEsperar'),swift.indexOf('private func reporEspera'));
+assert.match(semEsperar,/automaticallyWaitsToMinimizeStalling = false[\s\S]*mudar\(\)[\s\S]*p\.observe\(\\\.timeControlStatus/,'the wait goes off before the change, and its watcher is armed after it');
 console.log('Speed change: slider gestures, cancellation, optional native bridge, pause/resume, Float values and Expo patch passed.');

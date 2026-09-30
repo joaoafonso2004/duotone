@@ -8,7 +8,7 @@ import { removeOwnProfileMedia } from '../../lib/profileMedia';
  * que ALGUÉM a lê fora deste ecrã.
  */
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { ReactNode, useEffect, useRef, useState } from 'react';
+import React, { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Switch, Text, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_VERSION, BUILD_ID } from '../../lib/buildInfo';
@@ -36,6 +36,9 @@ import { Button, ContentScroll, desktop, Dialog } from '../ui.web';
 import { BarraVelocidade } from '../BarraVelocidade.web';
 import { AtalhosDoTeclado } from '../AtalhosDoTeclado.web';
 import { BandasDoEqualizador, ReporEqualizador } from '../PainelEqualizador.web';
+import { GestorDePresets } from '../GestorDePresets.web';
+import { presetsVisiveis } from '../../lib/presetsDoEqualizador';
+import { usePresets } from '../../state/presets';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
 import { getCorNaJanela, getDiscordRichPresence, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
@@ -147,6 +150,8 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   const avisarDiscord=(on:boolean)=>
     window.dispatchEvent(new CustomEvent('duotone:discord',{detail:{on}}));
   const padraoGanhos = usePlayer((s) => s.padraoGanhos);
+  const memoriaDosPresets = usePresets((s) => s.memoria);
+  const presetsNaFila = useMemo(() => presetsVisiveis(memoriaDosPresets), [memoriaDosPresets]);
   const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   const setPlaybackRate = usePlayer((s) => s.setPlaybackRate);
   // Vem já carregado da store (App.tsx lê a preferência no arranque nas duas
@@ -386,8 +391,9 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                     </View>
                     <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
                   </View>
-                  <BandasDoEqualizador ganhos={padraoGanhos} aoMudarGanhos={(g) => setEqGanhos(g, true)} />
+                  <BandasDoEqualizador ganhos={padraoGanhos} aoMudarGanhos={(g) => setEqGanhos(g, true)} presets={presetsNaFila} />
                 </View>
+                <GestorDePresets ganhosIniciais={padraoGanhos} />
               </SettingsCard>}
 
               {aberta === 'aspeto' && <SettingsCard title="Appearance">

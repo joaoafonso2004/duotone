@@ -254,6 +254,49 @@ export function perfilDe(ganhos: readonly number[]): Perfil | null {
   return PERFIS.find((p) => normalizar(p.ganhos).every((g, i) => g === n[i])) ?? null;
 }
 
+// ----------------------------------------------------------- a onda ------
+
+/**
+ * A onda que o telemóvel desenha entre os pontos das bandas: devolve a altura
+ * (0 em cima, `altura` em baixo) em cada x de uma faixa com `largura` de
+ * largura, com as bandas a meio de dez colunas iguais -- a mesma grelha dos
+ * deslizadores.
+ *
+ * **Não é a resposta do filtro** (essa é a `respostaDb`). A ordem das bandas
+ * no ecrã não é a das frequências -- BASS vem antes de SUB --, e a curva real
+ * não passaria pelos pontos que o dedo arrasta. Isto é um Catmull-Rom: passa
+ * em todos os pontos e dobra suave entre eles, que é o que se lê como "a
+ * forma do som". Antes do primeiro ponto e depois do último fica direita.
+ *
+ * Presa dentro da caixa: entre dois vizinhos muito diferentes o Catmull-Rom
+ * passa um pouco do mais alto, e não pode sair por cima dos deslizadores.
+ */
+export function ondaDoEqualizador(
+  ganhos: readonly number[],
+  largura: number,
+  altura: number,
+): (x: number) => number {
+  const g = normalizar(ganhos);
+  const n = g.length;
+  const coluna = largura / n;
+  const ys = g.map((v) => (1 - (v + GANHO_MAXIMO) / (GANHO_MAXIMO * 2)) * altura);
+  return (x) => {
+    const pos = x / coluna - 0.5;
+    if (!(coluna > 0) || pos <= 0) return ys[0];
+    if (pos >= n - 1) return ys[n - 1];
+    const i = Math.floor(pos);
+    const t = pos - i;
+    const y0 = ys[Math.max(0, i - 1)], y1 = ys[i], y2 = ys[i + 1], y3 = ys[Math.min(n - 1, i + 2)];
+    const y = 0.5 * (
+      2 * y1
+      + (-y0 + y2) * t
+      + (2 * y0 - 5 * y1 + 4 * y2 - y3) * t * t
+      + (-y0 + 3 * y1 - 3 * y2 + y3) * t * t * t
+    );
+    return Math.max(0, Math.min(altura, y));
+  };
+}
+
 // ---------------------------------------------------------- por faixa ------
 
 /** O que se guarda de cada faixa. `null` num campo significa "não escolheste

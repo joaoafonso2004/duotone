@@ -15,6 +15,7 @@ import {
   MAX_FAIXAS,
   migrarCurvaAntiga,
   normalizar,
+  ondaDoEqualizador,
   padraoGuardado,
   perfilDe,
   perfilPorId,
@@ -279,6 +280,26 @@ check('o aparelho com a edicao mais recente ganha',
   padraoGuardado(fundirAjustes(memoriaComPadrao, doOutroAparelho))?.rate === 0.9);
 check('e uma edicao antiga nao ressuscita',
   padraoGuardado(fundirAjustes(doOutroAparelho, memoriaComPadrao))?.rate === 0.9);
+
+// A onda do telemovel: passa nos pontos que o dedo arrasta, e nao sai da caixa.
+{
+  const largura = 340, altura = 150, coluna = largura / BANDAS.length;
+  const ganhos = [4.5, 0, 6, 0, -20, 20, 0, 0, 0, 5.5];
+  const onda = ondaDoEqualizador(ganhos, largura, altura);
+  const noPonto = ganhos.every((g, i) =>
+    Math.abs(onda((i + 0.5) * coluna) - (1 - (g + GANHO_MAXIMO) / (GANHO_MAXIMO * 2)) * altura) < 1e-6);
+  check('a onda passa em todos os pontos das bandas', noPonto);
+  let dentro = true;
+  for (let x = -10; x <= largura + 10; x += 0.5) {
+    const y = onda(x);
+    if (!(y >= 0 && y <= altura)) dentro = false;
+  }
+  check('e nunca sai da caixa, mesmo entre -20 e +20', dentro);
+  check('antes da primeira banda fica direita', onda(0) === onda(coluna / 2));
+  const plana = ondaDoEqualizador(PLANO, largura, altura);
+  check('com o EQ plano e uma linha a meio', [0, 17, 170, 339].every((x) => plana(x) === altura / 2));
+  check('sem largura nao rebenta', Number.isFinite(ondaDoEqualizador(ganhos, 0, altura)(5)));
+}
 
 console.log(bad === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${bad} caso(s) a falhar.\n`);
 process.exit(bad === 0 ? 0 : 1);

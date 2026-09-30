@@ -52,6 +52,13 @@ export function intervaloDosPontos(pontos: number): 'baixo' | 'medio' | 'alto' {
  * - **Dentro de uma âncora, uma faixa por artista antes da segunda**, e em
  *   cada ronda o artista com mais pontos primeiro. Por pontos puros, o melhor
  *   artista dava as cinco sugestões seguintes.
+ * - **As do próprio artista âncora só no fim** (30/9). Eram as primeiras: o
+ *   artista que está a tocar tem sempre os pontos mais altos (é o primeiro do
+ *   catálogo e o mais ouvido), e por isso a sugestão era quase sempre uma
+ *   faixa DELE que a pessoa não tinha -- muitas vezes por não a querer. "Vai
+ *   buscar uma música random do artista que estavas a ouvir", nas palavras de
+ *   quem a ouviu. Os semelhantes, ordenados pelo gosto, são o que o Smart
+ *   Shuffle promete; as do próprio só entram se não houver mais nenhuma.
  *
  * Sem nenhuma de confiança devolve vazio, e o leitor não mete nada.
  */
@@ -60,10 +67,13 @@ export function ordenarParaInserir<T>(
   proveniencia: (t: T) => Proveniencia | undefined,
   ancorasDoContexto: readonly string[] = [],
 ): T[] {
-  const grupos = new Map<string, { t: T; p: Proveniencia; i: number }[]>();
+  type Entrada = { t: T; p: Proveniencia; i: number };
+  const semelhantes = new Map<string, Entrada[]>();
+  const proprias = new Map<string, Entrada[]>();
   candidatas.forEach((t, i) => {
     const p = proveniencia(t);
     if (!confiante(p)) return;
+    const grupos = p.propria ? proprias : semelhantes;
     const grupo = grupos.get(p.ancora);
     if (grupo) grupo.push({ t, p, i }); else grupos.set(p.ancora, [{ t, p, i }]);
   });
@@ -72,19 +82,21 @@ export function ordenarParaInserir<T>(
     const i = ancorasDoContexto.indexOf(ancora);
     return i < 0 ? ancorasDoContexto.length : i;
   };
-  const ordemDosGrupos = [...grupos.keys()]
-    .map((ancora, i) => ({ ancora, i }))
-    .sort((a, b) => lugar(a.ancora) - lugar(b.ancora) || a.i - b.i)
-    .map((g) => grupos.get(g.ancora)!
-      .sort((a, b) => a.p.ronda - b.p.ronda || b.p.pontos - a.p.pontos || a.i - b.i));
-
-  const saida: T[] = [];
-  for (let r = 0; ; r++) {
-    let houve = false;
-    for (const grupo of ordemDosGrupos) {
-      if (r < grupo.length) { saida.push(grupo[r].t); houve = true; }
+  const alternar = (grupos: Map<string, Entrada[]>): T[] => {
+    const ordemDosGrupos = [...grupos.keys()]
+      .map((ancora, i) => ({ ancora, i }))
+      .sort((a, b) => lugar(a.ancora) - lugar(b.ancora) || a.i - b.i)
+      .map((g) => grupos.get(g.ancora)!
+        .sort((a, b) => a.p.ronda - b.p.ronda || b.p.pontos - a.p.pontos || a.i - b.i));
+    const saida: T[] = [];
+    for (let r = 0; ; r++) {
+      let houve = false;
+      for (const grupo of ordemDosGrupos) {
+        if (r < grupo.length) { saida.push(grupo[r].t); houve = true; }
+      }
+      if (!houve) break;
     }
-    if (!houve) break;
-  }
-  return saida;
+    return saida;
+  };
+  return [...alternar(semelhantes), ...alternar(proprias)];
 }

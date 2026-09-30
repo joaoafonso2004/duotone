@@ -5,7 +5,7 @@ import { RecommendationPreferences } from '../components/RecommendationPreferenc
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { removeOwnProfileMedia } from '../lib/profileMedia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, {useEffect, useState, useRef } from 'react';
+import React, {useEffect, useMemo, useState, useRef } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -60,7 +60,10 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
 import { Equalizador, ReporEqualizador } from '../components/Equalizador';
-import { chaveDaFaixa, PLANO } from '../lib/equalizer';
+import { chaveDaFaixa, ePlano, PLANO } from '../lib/equalizer';
+import { presetsVisiveis, resumoDosPresets } from '../lib/presetsDoEqualizador';
+import { usePresets } from '../state/presets';
+import { PresetsSheet } from '../components/PresetsSheet';
 import { usePlayer } from '../state/player';
 import { getLibrary } from '../api/library';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade';
@@ -82,6 +85,9 @@ export function SettingsScreen({ navigation }: Props) {
   }, []);
   useEffect(() => { if (Platform.OS === 'ios') void loadCapaIOS(); }, []);
   const [recommendationsOpen,setRecommendationsOpen]=useState(false);
+  const [presetsOpen, setPresetsOpen] = useState(false);
+  const memoriaDosPresets = usePresets((s) => s.memoria);
+  const presetsNaFila = useMemo(() => presetsVisiveis(memoriaDosPresets), [memoriaDosPresets]);
   // O gosto lido do Spotify (api/spotifyConta.ts). Só no iPhone, e só com o
   // Client ID na build -- sem ele a linha nem aparece.
   const [gostoDoSpotify, setGostoDoSpotifyNoEcra] = useState<GostoDoSpotify | null>(null);
@@ -365,6 +371,7 @@ export function SettingsScreen({ navigation }: Props) {
   return (
     <Screen title="Settings" onBack={() => navigation.goBack()}>
       <RecommendationPreferences visible={recommendationsOpen} onClose={()=>setRecommendationsOpen(false)}/>
+      <PresetsSheet visible={presetsOpen} onClose={() => setPresetsOpen(false)} ganhosIniciais={padraoGanhos} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
@@ -468,13 +475,26 @@ export function SettingsScreen({ navigation }: Props) {
                 e não mexe na que está a tocar. */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }}>
               <Label>Equaliser</Label>
-              <ReporEqualizador aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
+              <ReporEqualizador
+                desativado={ePlano(padraoGanhos)}
+                aoRepor={() => setEqGanhos(PLANO.slice(), true)}
+              />
             </View>
+            {/* A fila de perfis desliza ate a borda do cartao (padding lg). */}
             <Equalizador
               ganhos={padraoGanhos}
               aoMudar={(novo) => setEqGanhos(novo, true)}
+              presets={presetsNaFila}
+              sangria={spacing.lg}
             />
             <Efeito texto={efeitos.equalizador} />
+
+            {/* Os presets: quais aparecem, os teus, e o do carro. Como o
+                "Manage recommendations": uma legenda e o botão que abre a folha. */}
+            <Text style={[type.caption, { marginTop: spacing.md }]}>{resumoDosPresets(memoriaDosPresets)}</Text>
+            <View style={styles.botoes}>
+              <PillButton label="Manage presets" variant="ghost" small onPress={() => setPresetsOpen(true)} />
+            </View>
           </Section>
 
           <Section title="Appearance">

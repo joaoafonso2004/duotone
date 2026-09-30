@@ -80,10 +80,11 @@ public class DuotoneAudioModule: Module {
   private var mantemTom = false
 
   /**
-   * A ÚLTIMA velocidade pedida para cada leitor (ver `aplicarVelocidade`).
-   * Escrita na thread do JS, lida na principal: daí o cadeado.
+   * Os leitores a quem `aplicarVelocidade` desligou a espera do buffer, com a
+   * observação que a volta a ligar (ver `semEsperar`). Escrito na thread do JS
+   * e lido no KVO, que corre noutra: daí o cadeado.
    */
-  private var velocidadePedida: [ObjectIdentifier: Float] = [:]
+  private var esperasSuspensas: [ObjectIdentifier: NSKeyValueObservation] = [:]
   private let cadeadoDaVelocidade = NSLock()
 
   /**
@@ -230,58 +231,56 @@ public class DuotoneAudioModule: Module {
      * Muda apenas a velocidade, no AVPlayer existente. Não reinstala o EQ,
      * não procura outra posição e não muda a sessão de áudio.
      *
-     * `rate = x` pode voltar a avaliar quanto buffer precisa para essa taxa.
-     * Durante reprodução contínua, playImmediately usa o áudio já disponível
-     * sem introduzir essa espera. Com falta real de dados mantém-se a política
-     * normal de buffering, e uma pausa nunca é convertida num play.
+     * O CORTE DE UM SEGUNDO (30/9). Um `rate = x` num leitor a tocar faz o
+     * AVPlayer voltar a avaliar se o buffer aguenta a taxa nova
+     * (`automaticallyWaitsToMinimizeStalling`), e enquanto avalia fica em
+     * `waitingToPlayAtSpecifiedRate`, calado. Aqui o item vem de um
+     * resource loader (`modules/duotone-stream`), cujo ritmo o AVPlayer não
+     * sabe medir, e por isso a avaliação demorava quase um segundo mesmo com o
+     * ficheiro todo no telemóvel. O `playImmediately` que devia evitar isso
+     * nunca chegava a correr: estava num bloco para a thread principal, e o
+     * setter do expo-video -- que o JS chama logo a seguir, e que corre JÁ, na
+     * thread do JS -- fazia primeiro o `rate = x` lento. Quando o bloco
+     * chegava, a taxa já era a pedida e ele não fazia nada.
+     *
+     * Por isso corre agora aqui, na thread do JS, antes de o JS olhar para o
+     * expo-video, e por esta ordem:
+     *
+     *  1. A espera do buffer desliga-se (`semEsperar`) até o leitor deixar de
+     *     tocar. Qualquer escrita da taxa pelo meio -- a do `defaultRate`, se
+     *     mexer na corrente, ou a que o expo-video faz dentro do KVO -- passa a
+     *     ser imediata também.
+     *  2. O `defaultRate` primeiro. A vigia do expo-video adota o `defaultRate`
+     *     a cada mudança da taxa (VideoPlayer.swift, `onRateChanged`); com ele
+     *     já certo, adota o valor NOVO, fica em sintonia sozinha, e o JS já não
+     *     tem de escrever no expo-video.
+     *  3. O `playImmediately`, que muda a taxa com o áudio que já lá está.
+     *
+     * Com falta real de dados mantém-se a política normal de buffering, e uma
+     * pausa nunca é convertida num play: em pausa só se guarda a escolha.
+     *
+     * Deixou de haver bloco na fila, e com ele o "fica um clique atrás" de
+     * 23/9, que vinha de dois blocos a correr fora de ordem.
      */
     Function("aplicarVelocidade") { (referencia: SharedRef<AVPlayer>, velocidade: Double) -> Bool in
       guard #available(iOS 16.0, tvOS 16.0, *) else { return false }
       guard velocidade.isFinite, velocidade >= 0.5, velocidade <= 2 else { return false }
       let p = referencia.ref
-      let chave = ObjectIdentifier(p)
-      // O bloco de baixo corre MAIS TARDE, na thread principal. Com dois
-      // toques seguidos (0,9 e logo 1,1) os dois blocos ficam na fila, e se
-      // cada um aplicasse o valor com que foi criado, quem corresse por
-      // último punha a velocidade a meio do caminho -- ou, com outra escrita
-      // da taxa pelo meio, a ANTERIOR: era o "fica um clique atrás" que
-      // sobreviveu à 3.7.6 (João, 23/9). Guarda-se o pedido já, e cada bloco
-      // aplica o ÚLTIMO; o segundo bloco encontra a taxa certa e não faz nada.
-      cadeadoDaVelocidade.lock()
-      velocidadePedida[chave] = Float(velocidade)
-      cadeadoDaVelocidade.unlock()
-      DispatchQueue.main.async {
-        self.cadeadoDaVelocidade.lock()
-        let pedida = self.velocidadePedida[chave]
-        self.cadeadoDaVelocidade.unlock()
-        guard let nova = pedida else { return }
-        // O estado REAL é lido aqui: uma pausa pode ter chegado desde o JS.
-        //
-        // A ORDEM IMPORTA, e estava ao contrário. O `defaultRate` vinha antes
-        // do `guard p.rate != nova`: se escrevê-lo mexer também na taxa
-        // corrente -- e a documentação não promete que não mexa -- o guard
-        // passava a ser verdadeiro, saía-se por ali, e o `playImmediately`
-        // aqui em baixo nunca chegava a correr. Ficava como código morto e a
-        // mudança acontecia pelo caminho lento, que é o que se ouve cortar.
-        //
-        // Agora é o contrário: com o leitor a tocar, quem manda é o
-        // `playImmediately`; o `defaultRate` escreve-se DEPOIS, e só serve
-        // para o próximo `play()` saber a que velocidade começar.
-        guard p.rate != 0 else {
-          // Em pausa não se toca no som -- só se guarda a escolha.
-          if p.defaultRate != nova { p.defaultRate = nova }
-          return
-        }
-        if abs(p.rate - nova) > 0.001 {
-          if p.timeControlStatus == .playing, let item = p.currentItem,
-             item.status == .readyToPlay, !item.isPlaybackBufferEmpty {
-            p.playImmediately(atRate: nova)
-          } else {
-            // Já estava a tentar tocar: alterar a taxa não força um buffer vazio.
-            p.rate = nova
-          }
-        }
+      let nova = Float(velocidade)
+      guard p.rate != 0 else {
         if p.defaultRate != nova { p.defaultRate = nova }
+        return true
+      }
+      if p.timeControlStatus == .playing, let item = p.currentItem,
+         item.status == .readyToPlay, !item.isPlaybackBufferEmpty {
+        self.semEsperar(p) {
+          if p.defaultRate != nova { p.defaultRate = nova }
+          if abs(p.rate - nova) > 0.001 { p.playImmediately(atRate: nova) }
+        }
+      } else {
+        // Já estava à espera de dados: aí esperar é o certo.
+        if p.defaultRate != nova { p.defaultRate = nova }
+        if abs(p.rate - nova) > 0.001 { p.rate = nova }
       }
       return true
     }
@@ -294,11 +293,10 @@ public class DuotoneAudioModule: Module {
      * por isso que se escolheu -- um time-stretch a 0,5x tem de inventar
      * metade do sinal, e ouvia-se.
      *
-     * O preço só apareceu agora: reamostrar muda a taxa de saída, e mudá-la a
-     * meio obriga o AVFoundation a voltar a preparar a cadeia de áudio. É esse
-     * o corte que se ouve ao mexer na velocidade -- e é também porque é que o
-     * equalizador NÃO corta: trocar coeficientes dentro do tap não mexe em
-     * formato nenhum.
+     * Chegou a achar-se que reamostrar obrigava o AVFoundation a voltar a
+     * preparar a cadeia de áudio, e que era esse o corte ao mexer na
+     * velocidade. O corte de um segundo era outro -- a espera do buffer, ver
+     * `aplicarVelocidade` -- e não depende do algoritmo do tom.
      *
      * `.spectral` preserva o tom, e por isso a taxa de saída não muda e não há
      * nada a voltar a preparar. Em troca, estica o tempo.
@@ -318,6 +316,10 @@ public class DuotoneAudioModule: Module {
       var texto = String(format: "rate=%.3f", p.rate)
       if #available(iOS 16.0, tvOS 16.0, *) { texto += String(format: " default=%.3f", p.defaultRate) }
       texto += " status=\(p.timeControlStatus.rawValue)"
+      // Porque é que está à espera, e se a espera do buffer está ligada: é o
+      // que confirma no aparelho que uma mudança já não passa pelo caminho lento.
+      if let razao = p.reasonForWaitingToPlay { texto += " waiting=\(razao.rawValue)" }
+      texto += " waits=\(p.automaticallyWaitsToMinimizeStalling ? 1 : 0)"
       return texto
     }
 
@@ -339,7 +341,57 @@ public class DuotoneAudioModule: Module {
         }
         self.motores.removeAll()
       }
+      self.cadeadoDaVelocidade.lock()
+      let vigias = Array(self.esperasSuspensas.values)
+      self.esperasSuspensas.removeAll()
+      self.cadeadoDaVelocidade.unlock()
+      vigias.forEach { $0.invalidate() }
     }
+  }
+
+  /**
+   * Faz `mudar` com a espera do buffer desligada, e deixa-a desligada até o
+   * leitor deixar de tocar -- pausa, faixa nova ou falta de dados.
+   *
+   * Até lá, e não só durante a mudança, porque voltar a ligá-la com a música
+   * a tocar pode fazer o AVPlayer reavaliar o buffer ali mesmo, e era o mesmo
+   * corte, só que mais tarde. Parado não custa nada: a espera volta antes do
+   * próximo play, e esse arranca com a política de sempre.
+   *
+   * O cadeado nunca está fechado enquanto se mexe no leitor: o KVO pode
+   * disparar lá dentro, na mesma thread, e ir ao `reporEspera`.
+   */
+  private func semEsperar(_ p: AVPlayer, _ mudar: () -> Void) {
+    let chave = ObjectIdentifier(p)
+    cadeadoDaVelocidade.lock()
+    let jaSuspensa = esperasSuspensas[chave] != nil
+    cadeadoDaVelocidade.unlock()
+    // Só se desliga o que estava ligado; quem a desligou por outra razão
+    // (as `bufferOptions` do expo-video) não a vê religada por nós.
+    let desligar = !jaSuspensa && p.automaticallyWaitsToMinimizeStalling
+    if desligar { p.automaticallyWaitsToMinimizeStalling = false }
+    mudar()
+    guard desligar else { return }
+    // A vigia só nasce DEPOIS da mudança: se o `playImmediately` passasse por
+    // um estado intermédio, ela religava a espera a meio e o corte voltava.
+    let vigia = p.observe(\.timeControlStatus, options: [.new]) { [weak self] jogador, _ in
+      guard jogador.timeControlStatus != .playing else { return }
+      self?.reporEspera(jogador)
+    }
+    cadeadoDaVelocidade.lock()
+    esperasSuspensas[chave] = vigia
+    cadeadoDaVelocidade.unlock()
+    // Pode ter parado entre a mudança e a vigia.
+    if p.timeControlStatus != .playing { reporEspera(p) }
+  }
+
+  private func reporEspera(_ p: AVPlayer) {
+    cadeadoDaVelocidade.lock()
+    let vigia = esperasSuspensas.removeValue(forKey: ObjectIdentifier(p))
+    cadeadoDaVelocidade.unlock()
+    guard let vigia else { return }
+    vigia.invalidate()
+    p.automaticallyWaitsToMinimizeStalling = true
   }
 
   /** Deita fora os motores cujo AVPlayer ja morreu -- o `weak` deixou-os a nil. */

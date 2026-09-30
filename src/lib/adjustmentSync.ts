@@ -1,20 +1,28 @@
-import {fundirAjustes,type AjusteDaFaixa,type MemoriaDeAjustes} from './equalizer';
-export type AdjustmentSnapshot={values:MemoriaDeAjustes;pending:MemoriaDeAjustes};
+import {fundirAjustes,type AjusteDaFaixa} from './equalizer';
+export type AdjustmentSnapshot<V extends {visto:number}=AjusteDaFaixa>={values:Record<string,V>;pending:Record<string,V>};
 export type AdjustmentStatus='loading'|'local'|'pending'|'syncing'|'saved'|'error';
-type Dependencies={readLocal:()=>Promise<AdjustmentSnapshot>;writeLocal:(s:AdjustmentSnapshot)=>Promise<void>;
-  readRemote:()=>Promise<MemoriaDeAjustes>;writeRemote:(key:string,value:AjusteDaFaixa)=>Promise<void>;
-  apply:(values:MemoriaDeAjustes)=>void;status:(status:AdjustmentStatus)=>void};
+type Dependencies<V extends {visto:number}>={readLocal:()=>Promise<AdjustmentSnapshot<V>>;writeLocal:(s:AdjustmentSnapshot<V>)=>Promise<void>;
+  readRemote:()=>Promise<Record<string,V>>;writeRemote:(key:string,value:V)=>Promise<void>;
+  apply:(values:Record<string,V>)=>void;status:(status:AdjustmentStatus)=>void;
+  /** Como juntar duas memórias. Por omissão a dos ajustes por faixa; os presets
+   * do equalizador (lib/presetsDoEqualizador.ts) trazem a sua -- a mesma regra,
+   * o mais recente ganha, sem o limite de faixas. */
+  fundir?:(local:Record<string,V>,remoto:Record<string,V>)=>Record<string,V>};
 
 /** Fila durável por conta. As respostas antigas nunca confirmam edições novas. */
-export class AdjustmentSync {
-  private values:MemoriaDeAjustes={};
-  private pending:MemoriaDeAjustes={};
+export class AdjustmentSync<V extends {visto:number}=AjusteDaFaixa> {
+  private values:Record<string,V>={};
+  private pending:Record<string,V>={};
   private stopped=false;
   private writing=Promise.resolve();
   private syncing:Promise<void>|null=null;
   private ready:Promise<void>;
   private confirmed=false;
-  constructor(private deps:Dependencies){this.ready=this.hydrate();}
+  private fundir:(local:Record<string,V>,remoto:Record<string,V>)=>Record<string,V>;
+  constructor(private deps:Dependencies<V>){
+    this.fundir=deps.fundir??(fundirAjustes as unknown as (a:Record<string,V>,b:Record<string,V>)=>Record<string,V>);
+    this.ready=this.hydrate();
+  }
   private async hydrate(){
     try{
       const local=await this.deps.readLocal();if(this.stopped)return;
@@ -25,22 +33,22 @@ export class AdjustmentSync {
           this.values[key]=this.pending[key];
         }
       }
-      this.values=fundirAjustes(local.values,this.values);
+      this.values=this.fundir(local.values,this.values);
       this.pending={...local.pending,...this.pending};
       this.publish();await this.persist();
     }catch{if(!this.stopped)this.deps.status('error');}
   }
   private publish(){if(!this.stopped){this.deps.apply(this.values);this.deps.status(Object.keys(this.pending).length?'pending':this.confirmed?'saved':'local');}}
   private persist(){
-    const snapshot={values:{...this.values},pending:{...this.pending}};
+    const snapshot:AdjustmentSnapshot<V>={values:{...this.values},pending:{...this.pending}};
     this.writing=this.writing.catch(()=>{}).then(()=>this.deps.writeLocal(snapshot));
     return this.writing;
   }
-  edit(key:string,value:AjusteDaFaixa){
+  edit(key:string,value:V){
     if(this.stopped)return;
     // Relógio monotónico local, inclusive ao arrastar várias vezes no mesmo ms.
     const next={...value,visto:Math.max(value.visto,(this.values[key]?.visto??0)+1)};
-    this.values=fundirAjustes(this.values,{[key]:next});this.pending[key]=next;this.publish();
+    this.values=this.fundir(this.values,{[key]:next});this.pending[key]=next;this.publish();
     void this.ready.then(()=>this.persist()).catch(()=>{if(!this.stopped)this.deps.status('error');});
   }
   async sync():Promise<void>{
@@ -52,7 +60,7 @@ export class AdjustmentSync {
     try{
       this.deps.status('syncing');
       const remote=await this.deps.readRemote();if(this.stopped)return;
-      this.values=fundirAjustes(this.values,remote);
+      this.values=this.fundir(this.values,remote);
       for(const [key,edit] of Object.entries(this.pending))if((remote[key]?.visto??0)>edit.visto)delete this.pending[key];
       this.deps.apply(this.values);await this.persist();
       // Edições feitas durante a escrita entram na passagem seguinte.
@@ -69,7 +77,7 @@ export class AdjustmentSync {
       }
       if(wrote){
         const confirmed=await this.deps.readRemote();if(this.stopped)return;
-        this.values=fundirAjustes(this.values,confirmed);
+        this.values=this.fundir(this.values,confirmed);
         this.deps.apply(this.values);await this.persist();
       }
       this.confirmed=true;

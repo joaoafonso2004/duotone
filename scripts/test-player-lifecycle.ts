@@ -78,6 +78,10 @@ calls.length = 0;
 const paused = requestPause(controls);
 check('pause atualiza o estado imediatamente', !paused.isPlaying && !paused.buffering);
 check('pause envia comando ao iframe', calls.join(',') === 'pause', calls.join(','));
+// A pausa com a faixa ainda a carregar: quem a arranca quando fica pronta lê o
+// `autoplayOnLoad`, e sem isto arrancava-a com o botão em pausa.
+check('pause cancela o arranque de uma faixa ainda a carregar', paused.autoplayOnLoad === false);
+check('pause antes do motor existir também fica registada', requestPause(null).autoplayOnLoad === false);
 
 const restored = restoredPlaybackState(42_000);
 check('sessão restaurada abre em pausa', !restored.isPlaying && !restored.autoplayOnLoad);

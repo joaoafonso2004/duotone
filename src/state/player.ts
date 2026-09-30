@@ -255,6 +255,14 @@ const getInitialVolume = () => {
 /** off = pára no fim · all = repete a fila · one = repete a música atual. */
 export type RepeatMode = 'off' | 'all' | 'one';
 
+/** O que vale no carro -- ver `carro` no estado. */
+export type CarroNoLeitor = { presetId: string; nome: string; base: Ganhos; ganhos: Ganhos };
+
+/** Os ganhos que se OUVEM: os do carro quando se está nele, os da faixa fora. */
+export function ganhosEmVigor(s: { carro: CarroNoLeitor | null; eqGanhos: Ganhos }): Ganhos {
+  return s.carro?.ganhos ?? s.eqGanhos;
+}
+
 interface PlayerState {
   current: Track | null;
   queue: Track[];
@@ -359,6 +367,16 @@ interface PlayerState {
   /** false quando o grafo do EQ nao pegou. A UI tem de o dizer em vez de
    * mostrar deslizadores que nao fazem nada. */
   eqAtivo: boolean;
+  /**
+   * No carro (30/9): o preset escolhido para o carro, por cima de TODAS as
+   * faixas -- também das que têm equalizador guardado, que era o bass boost de
+   * uma música a estourar as colunas. `ganhos` é o que se ouve: começa no
+   * preset (`base`) e muda se se mexer no equalizador durante a viagem, sem
+   * tocar no que cada faixa guardou. `null` fora do carro, ou sem preset.
+   * Quem o liga e desliga é o `hooks/useModoCarro.ts`.
+   */
+  carro: CarroNoLeitor | null;
+  _definirCarro: (preset: { id: string; nome: string; ganhos: Ganhos } | null) => void;
   /**
    * Sem `comoPadrao`: muda ESTA faixa e passa a lembrar-se dela.
    * Com `comoPadrao`: muda só o equalizador base das Definições, que vale para
@@ -951,6 +969,7 @@ export const usePlayer = create<PlayerState>()(
   sleepTimerEndsAt: null,
   playbackRate: RATE_NORMAL,
   eqGanhos: PLANO,
+  carro: null,
   ajustesPorFaixa: {},
   padraoRate: RATE_NORMAL,
   padraoGanhos: PLANO,
@@ -2044,9 +2063,35 @@ export const usePlayer = create<PlayerState>()(
       guardarOPadrao(get().padraoRate, ganhos);
       return;
     }
+    // No carro mexe-se na curva da viagem, e a faixa não aprende nada: o que
+    // se afina a pensar nas colunas do carro não é o que se quer ouvir nos
+    // auscultadores.
+    const carro = get().carro;
+    if (carro) {
+      set({ carro: { ...carro, ganhos } });
+      void aplicarEqNoMotor(ganhos);
+      return;
+    }
     set({ eqGanhos: ganhos });
     void aplicarEqNoMotor(ganhos);
     lembrarDaFaixa();
+  },
+
+  _definirCarro: (preset) => {
+    const antes = get().carro;
+    if (!preset) {
+      if (!antes) return;
+      set({ carro: null });
+      void aplicarEqNoMotor(get().eqGanhos);
+      return;
+    }
+    const base = normalizarGanhos(preset.ganhos);
+    // O mesmo preset com a mesma curva: continua a viagem, com o que se mexeu
+    // nela. Preset outro, ou a curva dele editada nas Definições: recomeça.
+    const mesmo = antes && antes.presetId === preset.id && antes.base.every((v, i) => v === base[i]);
+    const carro = mesmo ? { ...antes, nome: preset.nome } : { presetId: preset.id, nome: preset.nome, base, ganhos: base };
+    set({ carro });
+    if (!mesmo) void aplicarEqNoMotor(carro.ganhos);
   },
 
   /** Hidratação e atualizações remotas; aplica também à faixa já aberta. */
@@ -2232,7 +2277,10 @@ export const usePlayer = create<PlayerState>()(
     const { isPlaying, _yt } = get();
     if (isPlaying) {
       _yt?.pause();
-      set(passo(get().maquina, 'quer-parar'));
+      // O mesmo do `requestPause`: com a faixa ainda a carregar, sem isto o
+      // temporizador ou uns auscultadores tirados pausavam o ecrã e a música
+      // arrancava na mesma quando ficasse pronta.
+      set({ autoplayOnLoad: false, ...passo(get().maquina, 'quer-parar') });
     }
   },
     }),

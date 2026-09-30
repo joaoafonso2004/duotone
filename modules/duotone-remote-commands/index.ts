@@ -83,6 +83,34 @@ export function addAudioOutputRemovedListener(onRemovida: () => void): () => voi
   };
 }
 
+/**
+ * Por onde sai o som agora, ou `null` num binário que não o sabe dizer (ou
+ * fora do iOS). É o que diz se se está no carro: o CarPlay tem um tipo seu, e
+ * um Bluetooth vem com o nome do aparelho (lib/presetsDoEqualizador.ts).
+ */
+export function lerSaidaDeAudio(): SaidaDeAudio | null {
+  try {
+    return typeof native?.saidaDeAudio === 'function' ? lerSaida(native.saidaDeAudio()) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Cada mudança da saída: ligar ou desligar o CarPlay, um Bluetooth, uns
+ * auscultadores. Só informa -- não pausa nem retoma nada. Devolve o
+ * unsubscribe.
+ */
+export function addAudioOutputChangedListener(aoMudar: (saida: SaidaDeAudio | null) => void): () => void {
+  if (!native) return () => {};
+  const a = native.addListener('onAudioOutputChanged', (e: { saida?: unknown } | undefined) =>
+    aoMudar(lerSaida(e?.saida))
+  );
+  return () => {
+    a.remove();
+  };
+}
+
 /** Há módulo nativo para a capa? Sem ele deixamos o expo-video tratar dela. */
 export function temCapaNativa(): boolean {
   return !!native?.setArtwork;

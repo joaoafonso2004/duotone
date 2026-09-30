@@ -46,6 +46,8 @@ import { retireBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { registarAntesDeSair, useAuth } from './src/state/auth';
 import {chaveDaFaixa} from './src/lib/equalizer';
 import { startTrackAdjustmentSync } from './src/state/trackAdjustments';
+import { iniciarPresets } from './src/state/presets';
+import { iniciarModoCarro } from './src/state/carro';
 import { definirGuardarEscutaPorEnviar, definirPodeTocarSemRede, usePlayer } from './src/state/player';
 import { guardarEscutaPorEnviar, instalarEnvioDeEscutas } from './src/state/escutasPorEnviar';
 import { tocaSemRede } from './src/lib/descarregarFaixa';
@@ -127,6 +129,12 @@ export default function App() {
     if (adjustmentUserId) return iniciarArtistasFavoritos(adjustmentUserId);
     useArtistasFavoritos.getState().esquecer();
   }, [adjustmentUserId]);
+  // Os presets do equalizador: os teus, os da app mudados, e o do carro.
+  useEffect(() => {
+    if (adjustmentUserId) return iniciarPresets(adjustmentUserId);
+  }, [adjustmentUserId]);
+  // No carro (CarPlay ou o Bluetooth marcado), o preset do carro por cima.
+  useEffect(() => iniciarModoCarro(), []);
   const [preferencesReady,setPreferencesReady]=useState(false);
   useEffect(()=>{
     if(!preferencesReady)return;
