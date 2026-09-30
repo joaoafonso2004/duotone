@@ -1,6 +1,5 @@
 import { Image } from 'expo-image';
-import { capaDeRecurso, capaGrandeDaFaixa } from '../lib/capaGrande';
-import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { candidatasDaCapaGrande, capaDeRecurso } from '../lib/capaGrande';
 import { downloadsEmCurso, ouvirDownloads } from '../lib/youtubeCache';
 import type { Track } from '../types';
 
@@ -12,15 +11,19 @@ import type { Track } from '../types';
  * chegar (14/9). O prefetch e o leitor usam expo-image, com cache em memória
  * e disco. A capa grande, a de recurso e a mini vêm em paralelo com o áudio.
  *
- * E lembra-se de quem NÃO tem maxres: sem isto o leitor pedia-a, esperava pelo
- * erro e só depois ia à `hqdefault`, duas idas à rede em vez de uma. Vale para a
- * sessão -- a lista dos vídeos sem maxres não muda de um dia para o outro, mas
- * também não vale a pena guardá-la em disco.
+ * E lembra-se das imagens que NÃO existem (um vídeo sem maxres): sem isto o
+ * leitor pedia-a, esperava pelo erro e só depois ia à seguinte. Vale para a
+ * sessão -- não muda de um dia para o outro, mas também não vale a pena
+ * guardar em disco.
+ *
+ * Enquanto a grande não chega mostra-se a `mqdefault`, e nunca a `hqdefault`:
+ * essa é 4:3 e traz barras pretas em cima e em baixo (ver
+ * `candidatasDaCapaGrande`).
  */
 
 type FaixaComCapa = Pick<Track, 'source' | 'sourceId' | 'artworkUrl'>;
 
-const semMaxres = new Set<string>();
+const falhadas = new Set<string>();
 const prontas = new Set<string>();
 const pedidos = new Map<string, Promise<boolean>>();
 const ouvintes = new Set<() => void>();
@@ -32,19 +35,19 @@ export function ouvirCapasGrandes(ouvir: () => void): () => void {
 }
 
 export function capaGrande(t: FaixaComCapa): string | null {
-  const grande = capaGrandeDaFaixa(t, semMaxres);
-  const recurso = capaDeRecurso(t);
-  // Já pode mostrar a capa desta música enquanto a versão maior ainda vem.
-  if (grande && prontas.has(grande)) return grande;
-  if (recurso && prontas.has(recurso)) return recurso;
-  const mini = capaParaLista(recurso);
-  if (mini && prontas.has(mini)) return mini;
-  return grande;
+  // A melhor que já cá está, pela ordem: a maior primeiro.
+  for (const u of candidatasDaCapaGrande(t)) {
+    if (!falhadas.has(u) && prontas.has(u)) return u;
+  }
+  // Nenhuma pronta: a pequena, que as listas quase sempre já trouxeram para a
+  // cache. Troca-se pela grande assim que o pré-carregamento a tiver.
+  return capaDeRecurso(t);
 }
 
-export function marcarSemCapaGrande(sourceId: string): void {
-  if (semMaxres.has(sourceId)) return;
-  semMaxres.add(sourceId);
+/** Esta imagem não existe (ou não carregou): passa-se à seguinte da lista. */
+export function marcarCapaFalhada(url: string): void {
+  if (falhadas.has(url)) return;
+  falhadas.add(url);
   avisar();
 }
 
@@ -90,16 +93,31 @@ export function acompanharDownloads(): void {
   atualizar(); // inclui um download que começou antes da subscrição
 }
 
+/**
+ * A grande, e se não existir a seguinte. Pára antes da última: essa é a de
+ * recurso, pedida à parte pelo `preCarregarCapasGrandes`, e nunca se dá por
+ * perdida -- uma falha dela é quase sempre de rede.
+ */
+function carregarAGrande(faixa: FaixaComCapa): void {
+  const lista = candidatasDaCapaGrande(faixa);
+  const tentar = (i: number): void => {
+    if (i >= lista.length - 1) return;
+    const url = lista[i];
+    if (falhadas.has(url)) { tentar(i + 1); return; }
+    void carregar(url).then((ok) => {
+      if (ok) return;
+      marcarCapaFalhada(url);
+      tentar(i + 1);
+    });
+  };
+  tentar(0);
+}
+
 export function preCarregarCapasGrandes(faixas: readonly FaixaComCapa[]): void {
   for (const faixa of faixas) {
-    const url = capaGrandeDaFaixa(faixa, semMaxres);
+    // Não esperar pelo erro da grande para começar a de recurso.
     const recurso = capaDeRecurso(faixa);
-    const mini = capaParaLista(recurso);
-    // Não esperar pelo erro da grande para começar as imagens de recurso.
     if (recurso) void carregar(recurso);
-    if (mini) void carregar(mini);
-    if (url) void carregar(url).then((ok) => {
-      if (!ok && faixa.source === 'youtube' && url !== recurso) marcarSemCapaGrande(faixa.sourceId);
-    });
+    carregarAGrande(faixa);
   }
 }

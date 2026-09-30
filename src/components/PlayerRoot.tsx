@@ -4,8 +4,8 @@ import { CapaFlutuante3D } from './CapaFlutuante3D';
 import { CAPA_FLUTUANTE } from '../lib/capaFlutuante3D';
 import { useMontagemDaCapa, type MontagemDaCapa } from '../hooks/useMontagemDaCapa';
 import type { Track } from '../types';
-import { desfoqueLeve } from '../lib/capaGrande';
-import { capaGrande, marcarSemCapaGrande, ouvirCapasGrandes, preCarregarCapasGrandes } from '../state/capasGrandes';
+import { capaDeRecurso, desfoqueLeve } from '../lib/capaGrande';
+import { capaGrande, marcarCapaFalhada, ouvirCapasGrandes, preCarregarCapasGrandes } from '../state/capasGrandes';
 import { partilharRelatorioDoArranque } from '../lib/partilharRelatorioDoArranque';
 import { ModoCarro } from './ModoCarro';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
@@ -676,8 +676,8 @@ export function PlayerRoot() {
 
   // Capa em ALTA resolução: a YouTube Data API devolve thumbnails pequenas, mas
   // i.ytimg.com tem versões grandes por videoId. Começamos na maxresdefault
-  // (1280px) e, se não existir, caímos na hqdefault (existe sempre). Faz a
-  // capa ficar nítida como no Demus.
+  // (1280px), depois a hq720, e a mqdefault fica por baixo enquanto elas não
+  // chegam -- nunca a hqdefault, que é 4:3 e trazia barras pretas (30/9).
   // A escolha, e a memória de quem não tem maxres, vivem em state/capasGrandes:
   // é o mesmo sítio que as PRÉ-CARREGA para as próximas faixas, e por isso a
   // capa já está na cache quando se carrega em seguinte (14/9).
@@ -691,10 +691,8 @@ export function PlayerRoot() {
   const fundo = desfoqueLeve(artSource, 64);
 
   const onArtError = useCallback(() => {
-    const active = current;
-    if (active && active.source === 'youtube' && artSource?.includes('maxresdefault')) {
-      marcarSemCapaGrande(active.sourceId);
-    }
+    // Passa à seguinte sem moldura. A de recurso fica: é a última que há.
+    if (current && artSource && artSource !== capaDeRecurso(current)) marcarCapaFalhada(artSource);
   }, [current, artSource]);
 
   const onToggleShuffle = () => {

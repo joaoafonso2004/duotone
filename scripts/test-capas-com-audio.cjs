@@ -36,32 +36,38 @@ async function run() {
     const h = ambiente([{ videoId: 'primeira' }]);
     h.state.acompanharDownloads();
     await flush();
-    assert.deepEqual(h.requests.map(r => r.uri).sort(), ['hq', 'mq', 'maxres'].map(t => url('primeira', t)).sort(),
-      'subscrever já aquece downloads que estavam a decorrer, incluindo mini e recurso');
+    assert.deepEqual(h.requests.map(r => r.uri).sort(), ['mq', 'maxres'].map(t => url('primeira', t)).sort(),
+      'subscrever já aquece downloads que estavam a decorrer, incluindo o recurso');
+    assert.ok(h.requests.every(r => !/\/(hq|sd)default\.jpg$/.test(r.uri)), 'nunca uma miniatura 4:3, com barras pretas (30/9)');
     assert.ok(h.requests.every(r => r.policy === 'memory-disk'), 'a cache tem de ser a mesma do leitor');
     h.state.acompanharDownloads(); h.event(); await flush();
-    assert.equal(h.requests.length, 3, 'cada bocado não duplica os pedidos em curso');
+    assert.equal(h.requests.length, 2, 'cada bocado não duplica os pedidos em curso');
     h.downloads.push({ videoId: 'segunda' }); h.event(); await flush();
-    assert.equal(h.requests.length, 6, 'o download seguinte pede as suas capas sem esperar pelo fim do áudio');
+    assert.equal(h.requests.length, 4, 'o download seguinte pede as suas capas sem esperar pelo fim do áudio');
     let updates = 0;
     const stop = h.state.ouvirCapasGrandes(() => { updates++; });
-    h.requests.find(r => r.uri === url('segunda', 'hq')).resolve(true); await flush();
-    assert.equal(h.state.capaGrande(faixa('segunda')), url('segunda', 'hq'), 'mostra a capa pronta desta faixa enquanto a grande vem');
+    assert.equal(h.state.capaGrande(faixa('segunda')), url('segunda', 'mq'), 'antes de haver alguma pronta, a pequena -- e não a hqdefault com barras');
+    h.requests.find(r => r.uri === url('segunda', 'mq')).resolve(true); await flush();
+    assert.equal(h.state.capaGrande(faixa('segunda')), url('segunda', 'mq'), 'mostra a capa pronta desta faixa enquanto a grande vem');
     h.requests.find(r => r.uri === url('segunda', 'maxres')).resolve(true); await flush();
     assert.equal(h.state.capaGrande(faixa('segunda')), url('segunda', 'maxres'), 'a resolução maior substitui a mini quando chega');
     assert.ok(updates >= 2, 'o leitor é avisado quando a escolha da capa muda');
     stop();
     for (const r of h.requests) r.resolve(true); await flush();
-    h.event(); await flush(); assert.equal(h.requests.length, 6);
+    h.event(); await flush(); assert.equal(h.requests.length, 4);
     assert.equal(h.timers.size, 0, 'sucesso limpa todos os prazos');
   }
   {
     const h = ambiente();
     h.state.preCarregarCapasGrandes([faixa('semmaxres')]); await flush();
-    h.requests.find(r => r.uri === url('semmaxres', 'maxres')).resolve(false);
-    h.requests.find(r => r.uri === url('semmaxres', 'hq')).resolve(true); await flush();
-    assert.equal(h.state.capaGrande(faixa('semmaxres')), url('semmaxres', 'hq'), 'maxres inexistente usa recurso já pedido em paralelo');
-    h.requests.find(r => r.uri === url('semmaxres', 'mq')).resolve(true); await flush();
+    h.requests.find(r => r.uri === url('semmaxres', 'mq')).resolve(true);
+    h.requests.find(r => r.uri === url('semmaxres', 'maxres')).resolve(false); await flush();
+    assert.equal(h.state.capaGrande(faixa('semmaxres')), url('semmaxres', 'mq'), 'sem maxres, a pequena já pedida em paralelo');
+    const hq720 = `https://i.ytimg.com/vi/semmaxres/hq720.jpg`;
+    const pedidoHq720 = h.requests.find(r => r.uri === hq720);
+    assert.ok(pedidoHq720, 'e vai à hq720, a seguinte sem moldura');
+    pedidoHq720.resolve(true); await flush();
+    assert.equal(h.state.capaGrande(faixa('semmaxres')), hq720, 'que substitui a pequena quando chega');
     assert.equal(h.timers.size, 0);
   }
   {
@@ -69,11 +75,11 @@ async function run() {
     h.state.preCarregarCapasGrandes([faixa('semrede')]); await flush();
     for (const r of h.requests) r.resolve(false); await flush();
     h.state.preCarregarCapasGrandes([faixa('semrede')]); await flush();
-    assert.equal(h.requests.length, 5, 'uma falha temporária não bloqueia o recurso/mini durante toda a sessão');
+    assert.equal(h.requests.length, 4, 'uma falha temporária não bloqueia o recurso durante toda a sessão');
     for (const fn of [...h.timers.values()]) fn(); await flush();
     assert.equal(h.timers.size, 0, 'um prefetch pendurado tem prazo');
     h.state.preCarregarCapasGrandes([faixa('semrede')]); await flush();
-    assert.equal(h.requests.length, 7, 'um prefetch expirado também permite repetir');
+    assert.equal(h.requests.length, 5, 'um prefetch expirado também permite repetir');
     for (const r of h.requests) r.resolve(true); await flush();
     assert.equal(h.timers.size, 0);
   }
