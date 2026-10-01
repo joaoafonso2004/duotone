@@ -167,5 +167,19 @@ caso('há um interruptor geral e apanha as animações e as transições', () =>
   assert.ok(bloco.includes('transition: none !important'), 'as transições não são desligadas');
 });
 
+console.log('\nas prateleiras que chegam da rede andam para a direita (1/10)');
+
+caso('o carrossel liga-se quando a lista aparece, e não só no arranque', () => {
+  const ui = readFileSync('src/desktop/ui.web.tsx', 'utf8');
+  const i = ui.indexOf('function useCarrossel()');
+  const hook = ui.slice(i, ui.indexOf('function SetaDaPrateleira', i));
+  // A Daily mix, os Rare finds e as dos amigos montam vazias (a Shelf devolve
+  // null): lido no arranque, o elemento não existia e nada ficava ligado.
+  assert.ok(/const ligar = useCallback\(\(n: any\) => \{ ref\.current = n; setNo\(n\); \}, \[\]\);/.test(hook), 'o ref é de chamada');
+  assert.ok(/\}, \[no\]\);/.test(hook), 'o efeito volta a correr quando a lista aparece');
+  assert.ok(hook.includes('return { ref: ligar,'), 'quem usa recebe o ref de chamada');
+  assert.ok(/observador\?\.observe\(conteudo\)/.test(hook), 'mais cartões acendem a seta sem redimensionar');
+});
+
 console.log(falhas === 0 ? '\nTudo bem.\n' : `\n${falhas} falha(s).\n`);
 process.exit(falhas === 0 ? 0 : 1);
