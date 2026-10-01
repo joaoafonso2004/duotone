@@ -1,7 +1,7 @@
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Toque } from './Toque';
 import { DeslizarParaAFila } from './DeslizarParaAFila';
@@ -15,6 +15,7 @@ import { colors, radii, spacing, type, ESCALA_MAXIMA } from '../theme';
 import { useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
+import { contarLinhaMontada } from '../state/folego';
 import type { Track } from '../types';
 
 interface Props {
@@ -108,6 +109,9 @@ function TrackRowComponent({
     acompanharATocar && !!s.current && s.current.source === track.source && s.current.sourceId === track.sourceId,
   );
   const ativo = !!active || aTocar;
+  // Quantas linhas estão montadas, para o relatório (state/folego.ts): se o
+  // botão de pausa fica lento com o tempo, é uma das coisas que pode crescer.
+  useEffect(() => contarLinhaMontada(), []);
   /** A moldura da capa desta linha, para o player saber de onde a fazer voar. */
   const capa = useRef<View>(null);
   // Sem as barras pretas do 4:3 -- ver capaDoEcraBloqueado.ts. É também o que

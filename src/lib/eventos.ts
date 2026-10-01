@@ -69,7 +69,10 @@ export type NomeDeEvento =
   /** Um download acabou (bem, mal ou cancelado): tempo, bocados, tamanho. */
   | 'download_terminado'
   /** Carregou em seguinte (ou noutra música) antes de a faixa dar som. */
-  | 'saltou_antes_do_som';
+  | 'saltou_antes_do_som'
+  // O JavaScript preso meio segundo ou mais com a app à frente (1/10,
+  // state/folego.ts): o atraso do botão de pausa, com o que estava a crescer.
+  | 'js_lento';
 
 type Evento = { nome: NomeDeEvento; dados: Record<string, string | number | boolean>; em: string };
 
