@@ -219,7 +219,14 @@ export function iniciarSocial(userId: string): () => void {
     refreshMessages();
   };
   const aoMudarAmizades = () => { inboxInteiraPedida = true; refreshMessages(); };
-  const channel = supabase.channel(`social:${userId}`)
+  // O canal é largado com o iPhone em segundo plano (1/10): com o ecrã
+  // desligado, cada batimento de cada amigo online (de minuto a minuto) chegava
+  // por aqui, acordava a rede e a app, e ia para o `dirty` sem ninguém o ver.
+  // Ao voltar à frente liga-se outra vez e o `SUBSCRIBED` relê o que mudou. Fica
+  // ligado enquanto alguém ouve as presenças cruas (seguir um amigo), e no PC
+  // sempre: a barra de tarefas avisa das mensagens com a janela escondida.
+  let channel: ReturnType<typeof supabase.channel> | null = null;
+  const ligarCanal = () => supabase.channel(`social:${userId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'social_presence' }, (event) => {
       if (gen !== generation) return;
       const p = event.new as SocialPresence;
@@ -232,6 +239,24 @@ export function iniciarSocial(userId: string): () => void {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_items' }, aoMudarMensagens)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, ()=>{useSocial.setState(s=>({profileVersion:s.profileVersion+1}));refresh();})
     .subscribe((status) => { aoVivo = status === 'SUBSCRIBED'; if (aoVivo) refreshMessages(); });
+  channel = ligarCanal();
+  // A saída do canal ainda a meio: o `supabase.channel` devolve o canal que
+  // ainda lá está com o mesmo nome, e ligá-lo outra vez antes de ele sair dava
+  // ouvintes em dobro. Volta-se a ligar só depois.
+  let aSair: Promise<unknown> = Promise.resolve();
+  const pousarCanal = (estado: string) => {
+    if (Platform.OS === 'web' || gen !== generation) return;
+    if (estado === 'background' && channel && ouvintesDaPresenca.size === 0) {
+      const largado = channel;
+      channel = null;
+      aoVivo = false;
+      aSair = supabase.removeChannel(largado).catch(() => {});
+    } else if (estado === 'active' && !channel) {
+      void aSair.then(() => {
+        if (gen === generation && !channel && AppState.currentState === 'active') channel = ligarCanal();
+      });
+    }
+  };
   const tick = setInterval(() => {
     if(!appEstaVisivel())return;
     const now = Date.now() + clockOffset;
@@ -256,7 +281,8 @@ export function iniciarSocial(userId: string): () => void {
       void inboxRefresh();
     }
   }, TIQUE_DA_INBOX_MS);
-  const acordar=()=>{
+  const acordar=(estado?: unknown)=>{
+    if (typeof estado === 'string') pousarCanal(estado);
     if(!appEstaVisivel())return;
     const now=Date.now()+clockOffset;
     useSocial.setState({now,friends:friendsNow(now)});
@@ -270,7 +296,8 @@ export function iniciarSocial(userId: string): () => void {
     ++generation; clearTimeout(debounce); clearInterval(tick); clearInterval(recovery); clearInterval(inboxRecovery);
     app.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar);
     accountId='';refreshInbox=async()=>{};clearProfileMediaCache();
-    void supabase.removeChannel(channel);
+    if (channel) void supabase.removeChannel(channel);
+    channel = null;
     rawFriends = []; presences = {}; available = false; running = null; queued = false;
     useSocial.setState({ inboxSnapshot:null,inboxError:false,contacts:[],friends: [], groups: [], received: [], seen: {}, error: null, loading: true,conversation:null,drafts:{} });
   };

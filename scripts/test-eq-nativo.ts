@@ -195,5 +195,12 @@ check('o limite do Swift e o mesmo do GANHO_MAXIMO', Number(limiteNativo) === GA
 check('e e por ele que o Swift prende os ganhos',
   /max\(-ganhoMaximo, min\(ganhoMaximo,/.test(swift));
 
+// Com o EQ plano não há tap (1/10): um tap inerte acordava a app a cada bloco
+// de áudio, também com o ecrã desligado (o iPhone do João aquecia).
+const modulo = readFileSync(new URL('../modules/duotone-audio/ios/DuotoneAudioModule.swift', import.meta.url), 'utf8');
+const noItem = modulo.slice(modulo.indexOf('private func aplicarNoItem'));
+check('com o EQ plano o item fica sem tap',
+  /if DuotoneEq\.ePlano\(motor\.ganhos\) && motor\.margem >= 0\.999 \{ return \}[\s\S]*DuotoneEq\.mistura\(para: item/.test(noItem));
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

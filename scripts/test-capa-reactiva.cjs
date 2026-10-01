@@ -196,6 +196,7 @@ async function run() {
   assert.ok(corpoDoLeitor.length > 1000, 'o corpo do PlayerRoot foi encontrado');
   assert.doesNotMatch(corpoDoLeitor, /usePlayer\(\(s\) => s\.positionMs\)/, 'o leitor não redesenha a cada posição: só a barra a lê');
   assert.match(player, /function BarraDoLeitor[\s\S]*usePlayer\(\(s\) => s\.positionMs\)/, 'a barra lê-a ela própria');
+  assert.doesNotMatch(lyrics, /usePlayer\(s=>s\.positionMs\)/, 'as letras não redesenham a cada posição, só quando muda a linha (1/10)');
   assert.match(player, /pose3D=\{pose3D\}/, 'o cubo recebe a pose da capa 3D');
   assert.doesNotMatch(capa3D, /shadowOffset|shadowRadius/,
     'as sombras são difusas no fundo, e não um drop-shadow preso à capa');

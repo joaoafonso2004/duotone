@@ -62,6 +62,7 @@ test-*.mjs
 !scripts/test-presenca-com-fila-sql.mjs
 !scripts/test-jam-passa-o-anfitriao-sql.mjs
 !scripts/test-estado-das-migracoes-sql.mjs
+!scripts/test-gasto-em-segundo-plano.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

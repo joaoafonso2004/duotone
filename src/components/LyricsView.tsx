@@ -1,4 +1,4 @@
-import React,{memo,useEffect,useRef,useState} from 'react';
+import React,{memo,useCallback,useEffect,useRef,useState} from 'react';
 import {ActivityIndicator,Animated,Pressable,ScrollView,StyleSheet,Text,View} from 'react-native';
 import {usePlayer} from '../state/player';
 import {ensureLyrics,lyricsCacheKey,useLyrics} from '../state/lyrics';
@@ -14,15 +14,20 @@ const Line=memo(function Line({text,active,onPress,onLayout,reduced,visible}:{vi
   </Pressable>;
 });
 
+const SEM_LINHAS:never[]=[];
+
 /** O relógio é o da faixa, incluindo seek e speed; nunca um temporizador próprio. */
 export function LyricsView({track,visible}:{track:Track;visible:boolean}){
   const key=lyricsCacheKey(track),entry=useLyrics(s=>s.entries[key]);
-  const position=usePlayer(s=>s.positionMs),seek=usePlayer(s=>s.seekTo);
+  const seek=usePlayer(s=>s.seekTo);
   const reduced=useReducedMotion(),scroll=useRef<ScrollView>(null),offsets=useRef<Record<number,number>>({});
   const [height,setHeight]=useState(220),[revision,setRevision]=useState(0),[manual,setManual]=useState(false);
   const resume=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),previous=useRef(-1);
-  const data=entry?.data,lines=data?.parsedLines??[],synced=!!data?.timingAvailable;
-  const index=synced?activeLyricIndex(lines,position):-1;
+  const data=entry?.data,lines=data?.parsedLines??SEM_LINHAS,synced=!!data?.timingAvailable;
+  // A LINHA, não a posição (1/10): lida a posição, as letras redesenhavam-se a
+  // cada aviso do motor -- também com o leitor fechado e o ecrã desligado, que
+  // elas ficam montadas no verso da capa. Assim só quando a linha muda.
+  const index=usePlayer(useCallback((s:{positionMs:number})=>synced?activeLyricIndex(lines,s.positionMs):-1,[synced,lines]));
   useEffect(()=>{offsets.current={};previous.current=-1;setManual(false);void ensureLyrics(track);},[key]);
   useEffect(()=>()=>{if(resume.current)clearTimeout(resume.current);},[]);
   useEffect(()=>{

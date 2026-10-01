@@ -638,8 +638,8 @@ export function SearchScreen() {
             contentContainerStyle={{ paddingBottom: bottomPad }}
             showsVerticalScrollIndicator={false}
           >
-            {/* A cabeca de tudo, e so quando ha alguem: quem esta a ouvir
-                agora. Sem ninguem, o componente nao devolve nada e a pagina
+            {/* A cabeca de tudo, e so quando ha alguem: quem esta online
+                agora, e o que esta a ouvir. Sem ninguem, o componente nao devolve nada e a pagina
                 comeca onde sempre comecou -- e por isso que isto pode viver
                 no sitio mais caro do ecra sem custar nada nos dias em que
                 nao ha ninguem online. */}

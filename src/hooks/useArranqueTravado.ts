@@ -6,6 +6,13 @@ import { registarNaFila } from '../lib/playbackDiagnostics';
 
 /** De quanto em quanto tempo se olha para o relógio da faixa. */
 const OLHAR_MS = 1000;
+/**
+ * A partir daqui a faixa ARRANCOU e o vigia desliga-se (1/10). O empurrão só
+ * existe abaixo de 1 s (`precisaDeEmpurrao`), e olhar de segundo a segundo
+ * durante a música inteira era acordar o iPhone com o ecrã desligado por nada.
+ * Volta a ligar-se se a posição regressar ao princípio (repeat, seek ao 0).
+ */
+const ARRANCOU_MS = 3000;
 
 /**
  * A rede do arranque travado, para quem ouve sozinho e para quem ouve
@@ -41,8 +48,15 @@ export function useArranqueTravado(): void {
     // Os contadores vivem na volta do efeito e recomeçam a cada faixa: três
     // tentativas SÃO por faixa, e não três para toda a sessão de audição.
     let empurroes = 0, ultimaPosicao = -1, ultimaDoMotor: number | null = null, paradoDesde = Date.now();
+    let vigia: ReturnType<typeof setInterval> | null = null;
+    const desarmar = () => { if (vigia) { clearInterval(vigia); vigia = null; } };
+    const armar = () => {
+      if (vigia) return;
+      ultimaPosicao = -1; ultimaDoMotor = null; paradoDesde = Date.now();
+      vigia = setInterval(olhar, OLHAR_MS);
+    };
 
-    const vigia = setInterval(() => {
+    const olhar = () => {
       const p = usePlayer.getState();
       // A faixa mudou por baixo: o efeito seguinte trata dela, com contadores
       // limpos.
@@ -61,6 +75,7 @@ export function useArranqueTravado(): void {
       const mexeu = p.positionMs !== ultimaPosicao || (doMotor != null && doMotor !== ultimaDoMotor);
       ultimaPosicao = p.positionMs;
       ultimaDoMotor = doMotor;
+      if (p.positionMs >= ARRANCOU_MS && (doMotor == null || doMotor >= ARRANCOU_MS)) { desarmar(); return; }
       paradoDesde = paradoDesdeAgora({ pronta, mexeu, paradoDesde, agora: Date.now() });
       if (mexeu) return;
 
@@ -98,8 +113,12 @@ export function useArranqueTravado(): void {
         const s = useOuvirJuntos.getState().sessao;
         if (!s || s.aTocar) depois._forcarReproducao(true);
       }).catch(() => {});
-    }, OLHAR_MS);
+    };
 
-    return () => clearInterval(vigia);
+    armar();
+    const pararDeOuvir = usePlayer.subscribe((s) => {
+      if (!vigia && s.current?.sourceId === faixa && s.positionMs < 1000) armar();
+    });
+    return () => { desarmar(); pararDeOuvir(); };
   }, [faixa, fonte]);
 }

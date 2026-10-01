@@ -23,7 +23,6 @@
     "test:jam": "node --experimental-strip-types --import ./scripts/registar-duplos.mjs scripts/test-jam-store.ts && node scripts/test-ouvir-juntos.mjs"
   },
   "dependencies": {
-    "@bacons/apple-targets": "5.0.0",
     "@expo/metro-runtime": "~57.0.15",
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
