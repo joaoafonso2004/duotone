@@ -49,21 +49,27 @@ enum DuotoneCpuDoProcesso {
     if task_threads(mach_task_self_, &lista, &quantas) == KERN_SUCCESS, let lista {
       for i in 0..<Int(quantas) {
         let thread = lista[i]
-        var info = thread_extended_info()
+        var info = thread_basic_info()
         var tamanho = mach_msg_type_number_t(
-          MemoryLayout<thread_extended_info>.size / MemoryLayout<natural_t>.size
+          MemoryLayout<thread_basic_info>.size / MemoryLayout<natural_t>.size
         )
+        let capacidade = Int(tamanho)
         let estado = withUnsafeMutablePointer(to: &info) { ponteiro in
-          ponteiro.withMemoryRebound(to: integer_t.self, capacity: Int(tamanho)) {
-            thread_info(thread, thread_flavor_t(THREAD_EXTENDED_INFO), $0, &tamanho)
+          ponteiro.withMemoryRebound(to: integer_t.self, capacity: capacidade) {
+            thread_info(thread, thread_flavor_t(THREAD_BASIC_INFO), $0, &tamanho)
           }
         }
         if estado == KERN_SUCCESS {
-          let nome = withUnsafeBytes(of: info.pth_name) { bytes in
-            String(decoding: bytes.prefix(while: { $0 != 0 }), as: UTF8.self)
+          // O nome pelo pthread (publico); uma thread sem pthread fica sem nome.
+          var nome = ""
+          if let pthread = pthread_from_mach_thread_np(thread) {
+            var buffer = [CChar](repeating: 0, count: 64)
+            if pthread_getname_np(pthread, &buffer, buffer.count) == 0 {
+              nome = buffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
+            }
           }
-          // pth_user_time e pth_system_time vem em nanossegundos.
-          let ms = Double(info.pth_user_time + info.pth_system_time) / 1_000_000
+          let ms = Double(info.user_time.seconds + info.system_time.seconds) * 1000
+            + Double(info.user_time.microseconds + info.system_time.microseconds) / 1000
           threads.append(["nome": nome, "ms": ms])
         }
         mach_port_deallocate(mach_task_self_, thread)
