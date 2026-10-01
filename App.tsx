@@ -48,12 +48,11 @@ import {chaveDaFaixa} from './src/lib/equalizer';
 import { startTrackAdjustmentSync } from './src/state/trackAdjustments';
 import { iniciarPresets } from './src/state/presets';
 import { iniciarModoCarro } from './src/state/carro';
-import { definirGuardarEscutaPorEnviar, definirPodeTocarSemRede, usePlayer } from './src/state/player';
+import { definirEmSegundoPlano, definirGuardarEscutaPorEnviar, definirPodeTocarSemRede, usePlayer } from './src/state/player';
 import { guardarEscutaPorEnviar, instalarEnvioDeEscutas } from './src/state/escutasPorEnviar';
 import { tocaSemRede } from './src/lib/descarregarFaixa';
 import { useTheme } from './src/state/theme';
 import { useAcompanharCapa } from './src/hooks/useAcompanharCapa';
-import { useEstadoDoWidget } from './src/hooks/useEstadoDoWidget';
 import { useRecomendacoes } from './src/state/recomendacoes';
 import { useMisturaDoDia } from './src/state/misturaDoDia';
 import { usePlaylists } from './src/state/playlists';
@@ -77,6 +76,7 @@ import { ligarTempoAteAoSom } from './src/state/tempoAteAoSom';
 import { instalarEscolhaDoCodec } from './src/state/saudeDoOpus';
 import { vigiarOLeitor } from './src/state/vigiaDoLeitor';
 import { iniciarMedidorDoFolego } from './src/state/folego';
+import { iniciarEnergiaEmSegundoPlano } from './src/state/energiaEmSegundoPlano';
 import { BarreiraDeErros } from './src/components/BarreiraDeErros';
 
 // Antes de qualquer ecrã: o handler global dos erros, o que ficou da abertura
@@ -89,6 +89,9 @@ ligarTempoAteAoSom();
 // pausa ao fim de algum tempo de app aberta. Só no iPhone; o PC tem a secção
 // "resources" do relatório.
 if (Platform.OS !== 'web') iniciarMedidorDoFolego();
+// E o que a app gasta com o ecrã desligado (1/10): CPU por thread, bateria e
+// estado térmico entre ir para trás e voltar. Só nas duas mudanças de estado.
+if (Platform.OS !== 'web') iniciarEnergiaEmSegundoPlano();
 // Quem decide se o iPhone pede Opus ou AAC (lib/codecDeAudio.ts). Até ler o
 // disco, AAC.
 void instalarEscolhaDoCodec();
@@ -100,6 +103,8 @@ vigiarOLeitor();
 definirGuardarEscutaPorEnviar(guardarEscutaPorEnviar);
 instalarEnvioDeEscutas();
 if (Platform.OS === 'ios') definirPodeTocarSemRede(tocaSemRede);
+// A sessão do leitor grava-se no disco de 30 em 30 s em segundo plano (não de 3 em 3).
+definirEmSegundoPlano(() => AppState.currentState === 'background');
 // Sair da conta leva a música e a fila de quem sai (state/auth.ts), por todas as
 // portas: "Sign out" e "apagar conta", nas duas plataformas.
 registarAntesDeSair(() => usePlayer.getState().close());
@@ -108,8 +113,6 @@ export default function App() {
   // O acento segue a capa a tocar quando esse modo esta escolhido. Aqui em
   // cima porque a App e a raiz das duas plataformas -- um so sitio a ligar.
   useAcompanharCapa();
-  // E o widget do ecra inicial fica a par do que a app sabe (so no iOS).
-  useEstadoDoWidget();
   useLyricsPrefetch();
   useEffect(startConnectivity,[]);
   const offline=useConnectivity(s=>s.offline);

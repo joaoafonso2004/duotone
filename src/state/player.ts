@@ -540,6 +540,9 @@ export function definirGuardarEscutaPorEnviar(f: ((t: Track, em: Date, comecouEm
   guardarEscutaPorEnviar = f;
 }
 export function definirPodeTocarSemRede(f: ((t: Track) => boolean) | null): void { podeTocarSemRede = f; }
+/** A app está em segundo plano (o `App.tsx` liga-o; a store não importa o React Native). */
+let emSegundoPlano: () => boolean = () => false;
+export function definirEmSegundoPlano(f: () => boolean): void { emSegundoPlano = f; }
 function podeTocarAgora(t: Track): boolean {
   if (!podeTocarSemRede || !useConnectivity.getState().offline) return true;
   return podeTocarSemRede(t);
@@ -554,6 +557,13 @@ function podeTocarAgora(t: Track): boolean {
 //
 // E a fila vive noutra chave (lib/sessaoPartida.ts): a posição muda a cada
 // segundo, e a fila inteira ia atrás dela para o disco de três em três.
+//
+// Em segundo plano a janela é de 30 s (1/10): com o ecrã desligado ninguém
+// está a ver a posição, e eram escritas no disco de três em três segundos a
+// música inteira. O preço é a sessão restaurada depois de o iOS matar a app
+// poder voltar até 30 s atrás. Com a app à frente fica nos 3 s.
+const ESCRITA_A_FRENTE_MS = 3000;
+const ESCRITA_EM_SEGUNDO_PLANO_MS = 30_000;
 function deferredJsonStorage(): PersistStorage<any> {
   let pendingName: string | null = null;
   let pendingValue: StorageValue<any> | null = null;
@@ -586,7 +596,7 @@ function deferredJsonStorage(): PersistStorage<any> {
               : AsyncStorage.setItem(key + SUFIXO_DA_FILA, partes.fila).then(() => { filaNoDisco = partes.filaEscrita; });
             fila.then(() => AsyncStorage.setItem(key, partes.sessao)).catch(() => {});
           }
-        }, 3000);
+        }, emSegundoPlano() ? ESCRITA_EM_SEGUNDO_PLANO_MS : ESCRITA_A_FRENTE_MS);
       }
     },
     removeItem: (name: string) => {

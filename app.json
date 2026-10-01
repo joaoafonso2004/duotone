@@ -22,11 +22,6 @@
           "spotify"
         ],
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "entitlements": {
-        "com.apple.security.application-groups": [
-          "group.com.joao.duotone"
-        ]
       }
     },
     "android": {
@@ -72,8 +67,7 @@
       ],
       "expo-image",
       "expo-status-bar",
-      "expo-web-browser",
-      "@bacons/apple-targets"
+      "expo-web-browser"
     ]
   }
 }

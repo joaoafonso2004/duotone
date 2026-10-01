@@ -226,8 +226,8 @@ function Splash() {
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
-// Os links do widget entram pelo scheme da app e chegam directamente à
-// conversa escolhida. Sem esta configuração, o iOS abria o Duotone mas
+// Os links `duotone://` (eram do widget, que saiu a 1/10) entram pelo scheme
+// da app e chegam directamente à conversa escolhida. Sem esta configuração, o iOS abria o Duotone mas
 // deixava-o na página onde já estava.
 const linking: LinkingOptions<RootStackParamList> = {
   prefixes: ['duotone://'],

@@ -72,7 +72,10 @@ export type NomeDeEvento =
   | 'saltou_antes_do_som'
   // O JavaScript preso meio segundo ou mais com a app à frente (1/10,
   // state/folego.ts): o atraso do botão de pausa, com o que estava a crescer.
-  | 'js_lento';
+  | 'js_lento'
+  // Um período em segundo plano (1/10, state/energiaEmSegundoPlano.ts): o CPU,
+  // por grupo de threads, a bateria e o estado térmico. Só números.
+  | 'segundo_plano';
 
 type Evento = { nome: NomeDeEvento; dados: Record<string, string | number | boolean>; em: string };
 

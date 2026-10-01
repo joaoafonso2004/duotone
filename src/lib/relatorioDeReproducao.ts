@@ -8,6 +8,7 @@ import { textoDoTempoAteAoSom } from './tempoAteAoSom';
 import { textoDasMigracoes } from './migracoes';
 import { verificarMigracoes } from '../api/migracoes';
 import { textoDoFolegoAgora } from '../state/folego';
+import { textoDaEnergiaAgora } from '../state/energiaEmSegundoPlano';
 
 /**
  * O relatório de reprodução, pela folha de partilha do iPhone.
@@ -32,6 +33,8 @@ export async function partilharRelatorioDeReproducao(): Promise<void> {
   }) + `\n\n${textoDoTempoAteAoSom(arranquesMedidos())}\n`
     // O JavaScript preso, e o que estava a crescer (1/10, state/folego.ts).
     + `\n${textoDoFolegoAgora()}\n`
+    // O que se gastou com a app em segundo plano (1/10, ecrã desligado).
+    + `\n${textoDaEnergiaAgora()}\n`
     // Que SQL falta na base (29/9, lib/migracoes.ts): uma chamada, só aqui.
     + `\n${textoDasMigracoes(await verificarMigracoes())}\n`;
   await Share.share({ title: 'Duotone playback report', message: texto });

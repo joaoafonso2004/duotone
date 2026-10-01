@@ -34,6 +34,17 @@ export interface SessionSnapshot {
  * aqui" por falta de um ficheiro SQL era pior do que o 0:00.
  */
 let colunasNovas: boolean | null = null;
+
+/**
+ * A fila que já está na linha do servidor (1/10). O batimento de 90 s levava
+ * a fila inteira (~96 faixas, dezenas de KB) a cada vez, também com o ecrã
+ * desligado e a mesma música a tocar. Agora só vai quando muda (outra fila ou
+ * outra faixa), e de 10 em 10 min por segurança; o resto do batimento é a
+ * posição. O upsert só escreve as colunas que leva, por isso a fila que lá
+ * está fica.
+ */
+let filaNoServidor: { conta: string; fila: readonly Track[]; indice: number; em: number } | null = null;
+const FILA_DE_SEGURANCA_MS = 10 * 60_000;
 let leituraPeloServidor: boolean | null = null;
 /** Se existe a leitura leve (supabase/handoff-leve.sql). `null` = ainda não se perguntou. */
 let leituraLeve: boolean | null = null;
@@ -81,14 +92,15 @@ export async function writeSession(snapshot: SessionSnapshot): Promise<void> {
     const trimmed = trimQueueForSync(snapshot.queue, snapshot.queueIndex);
     const agora = Date.now();
 
+    const filaIgual = !!filaNoServidor && filaNoServidor.conta === uid && filaNoServidor.fila === snapshot.queue
+      && filaNoServidor.indice === snapshot.queueIndex && agora - filaNoServidor.em < FILA_DE_SEGURANCA_MS;
     const linha = {
       user_id: uid,
       device_id: deviceId,
       device_name: deviceName,
       device_kind: deviceKind(),
       track: snapshot.track,
-      queue: trimmed.queue,
-      queue_index: trimmed.queueIndex,
+      ...(filaIgual ? {} : { queue: trimmed.queue, queue_index: trimmed.queueIndex }),
       position_ms: Math.max(0, Math.round(snapshot.positionMs)),
       is_playing: snapshot.isPlaying,
       // O instante da AMOSTRA, não o da escrita, no relógio deste aparelho.
@@ -104,18 +116,23 @@ export async function writeSession(snapshot: SessionSnapshot): Promise<void> {
     if (colunasNovas !== false) {
       const { error } = await supabase.from('player_sessions')
         .upsert({ ...linha, ...novas }, { onConflict: 'user_id,device_id' });
-      if (!error) { colunasNovas = true; return; }
+      if (!error) { colunasNovas = true; if (!filaIgual) filaNoServidor = { conta: uid, fila: snapshot.queue, indice: snapshot.queueIndex, em: agora }; return; }
+      // Falhou: a seguinte leva a fila outra vez.
+      filaNoServidor = null;
       if (!naoExiste(error)) return;
       colunasNovas = false;
     }
-    await supabase.from('player_sessions').upsert(linha, { onConflict: 'user_id,device_id' });
+    const { error } = await supabase.from('player_sessions').upsert(linha, { onConflict: 'user_id,device_id' });
+    filaNoServidor = error ? null : filaIgual ? filaNoServidor : { conta: uid, fila: snapshot.queue, indice: snapshot.queueIndex, em: agora };
   } catch {
     // silently fail
+    filaNoServidor = null;
   }
 }
 
 /** Apaga a sessão deste dispositivo (terminar sessão / limpar o player). */
 export async function deleteOwnSession(): Promise<void> {
+  filaNoServidor = null;
   try {
     const uid = await idDaConta();
     if (!uid) return;

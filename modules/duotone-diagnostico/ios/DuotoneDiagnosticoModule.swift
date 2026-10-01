@@ -22,6 +22,77 @@ public class DuotoneDiagnosticoModule: Module {
     Function("lerEApagar") { () -> String in
       return DuotoneRecolhaDeDiagnosticos.shared.lerEApagar()
     }
+
+    /**
+     * O CPU que o processo gastou ate agora, no total e por thread viva, e o
+     * estado termico (1/10). O JS tira um retrato ao ir para segundo plano e
+     * outro ao voltar: a diferenca diz quanto custou a musica com o ecra
+     * desligado, e em que -- o JavaScript, o audio, a rede. So numeros e nomes
+     * de threads; nada do que se ouve.
+     */
+    Function("cpuDoProcesso") { () -> String in
+      return DuotoneCpuDoProcesso.retrato()
+    }
+  }
+}
+
+enum DuotoneCpuDoProcesso {
+  static func retrato() -> String {
+    var uso = rusage()
+    getrusage(RUSAGE_SELF, &uso)
+    let totalMs = Double(uso.ru_utime.tv_sec + uso.ru_stime.tv_sec) * 1000
+      + Double(uso.ru_utime.tv_usec + uso.ru_stime.tv_usec) / 1000
+
+    var threads: [[String: Any]] = []
+    var lista: thread_act_array_t?
+    var quantas: mach_msg_type_number_t = 0
+    if task_threads(mach_task_self_, &lista, &quantas) == KERN_SUCCESS, let lista {
+      for i in 0..<Int(quantas) {
+        let thread = lista[i]
+        var info = thread_extended_info()
+        var tamanho = mach_msg_type_number_t(
+          MemoryLayout<thread_extended_info>.size / MemoryLayout<natural_t>.size
+        )
+        let estado = withUnsafeMutablePointer(to: &info) { ponteiro in
+          ponteiro.withMemoryRebound(to: integer_t.self, capacity: Int(tamanho)) {
+            thread_info(thread, thread_flavor_t(THREAD_EXTENDED_INFO), $0, &tamanho)
+          }
+        }
+        if estado == KERN_SUCCESS {
+          let nome = withUnsafeBytes(of: info.pth_name) { bytes in
+            String(decoding: bytes.prefix(while: { $0 != 0 }), as: UTF8.self)
+          }
+          // pth_user_time e pth_system_time vem em nanossegundos.
+          let ms = Double(info.pth_user_time + info.pth_system_time) / 1_000_000
+          threads.append(["nome": nome, "ms": ms])
+        }
+        mach_port_deallocate(mach_task_self_, thread)
+      }
+      vm_deallocate(
+        mach_task_self_,
+        vm_address_t(UInt(bitPattern: lista)),
+        vm_size_t(Int(quantas) * MemoryLayout<thread_t>.stride)
+      )
+    }
+
+    let termico: String
+    switch ProcessInfo.processInfo.thermalState {
+    case .nominal: termico = "nominal"
+    case .fair: termico = "fair"
+    case .serious: termico = "serious"
+    case .critical: termico = "critical"
+    @unknown default: termico = "unknown"
+    }
+
+    let retrato: [String: Any] = [
+      "totalMs": totalMs,
+      "threads": threads,
+      "termico": termico,
+      "poupanca": ProcessInfo.processInfo.isLowPowerModeEnabled,
+    ]
+    guard let dados = try? JSONSerialization.data(withJSONObject: retrato, options: []),
+          let texto = String(data: dados, encoding: .utf8) else { return "{}" }
+    return texto
   }
 }
 
