@@ -76,6 +76,7 @@ import { ligarMedicoes } from './src/state/medicoes';
 import { ligarTempoAteAoSom } from './src/state/tempoAteAoSom';
 import { instalarEscolhaDoCodec } from './src/state/saudeDoOpus';
 import { vigiarOLeitor } from './src/state/vigiaDoLeitor';
+import { iniciarMedidorDoFolego } from './src/state/folego';
 import { BarreiraDeErros } from './src/components/BarreiraDeErros';
 
 // Antes de qualquer ecrã: o handler global dos erros, o que ficou da abertura
@@ -84,6 +85,10 @@ instalarSaudeDaApp();
 ligarMedicoes();
 // O tempo do pedido ao primeiro som, para o relatório (27/9).
 ligarTempoAteAoSom();
+// O JavaScript preso, e o que estava a crescer (1/10): o atraso do botão de
+// pausa ao fim de algum tempo de app aberta. Só no iPhone; o PC tem a secção
+// "resources" do relatório.
+if (Platform.OS !== 'web') iniciarMedidorDoFolego();
 // Quem decide se o iPhone pede Opus ou AAC (lib/codecDeAudio.ts). Até ler o
 // disco, AAC.
 void instalarEscolhaDoCodec();
