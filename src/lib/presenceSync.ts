@@ -1,7 +1,7 @@
 import { AppState, Platform } from 'react-native';
 import { appEstaVisivel } from './appVisibility';
 import { segundosSemInteracao } from './inatividadeDoSistema';
-import { contaComoAtivo } from './presencaAtiva';
+import { contaComoAtivo, estaAoComputador } from './presencaAtiva';
 import * as Crypto from 'expo-crypto';
 import { supabase } from './supabase';
 import { getDeviceId } from './deviceIdentity';
@@ -15,6 +15,12 @@ let terminarAtual: (() => Promise<void>) | null = null;
 // margem confortável para rede lenta e quase reduz a metade os batimentos que
 // antes saíam de 45 em 45 segundos.
 const PRESENCE_PUBLISH_MS=75_000;
+// No PC com a janela escondida e sem som há mais de 5 min, o Chromium só acorda
+// os temporizadores de minuto a minuto: um batimento de 75 s corria aos 120,
+// colado ao fim da validade do servidor, e o online piscava. A 50 s corre aos
+// 60. Custo: ~60-72 publicações por hora, só enquanto a pessoa mexe no PC com o
+// Duotone escondido e parado (ausente, não sai nenhuma).
+const BATIMENTO_ESCONDIDO_NO_PC_MS=50_000;
 export async function terminarPresenca(): Promise<void> { await terminarAtual?.(); }
 
 /** Onde vai a música agora, para quem te segue. Só projeta com ela a soar. */
@@ -46,18 +52,17 @@ export function iniciarPresenca(userId: string): () => void {
     // que a pessoa estava activa, sem sequer olhar para a janela. Bastava ter
     // o Duotone aberto e minimizado -- ou o portatil fechado -- para aparecer
     // "Online now" aos amigos durante horas, mesmo com o telemovel desligado.
-    // No PC, com musica a tocar, conta tambem quem esta a usar o computador
-    // noutra app (18/9): ver `lib/presencaAtiva.ts`.
+    // No PC conta tambem quem esta a usar o computador com a janela escondida,
+    // a tocar ou nao (18/9, 1/10): ver `lib/presencaAtiva.ts`.
     const visivel = appEstaVisivel();
-    const aTocar = !!s.current && s.isPlaying;
     fila = fila.catch(() => {}).then(async () => {
       const { data } = await supabase.auth.getSession();
       if (data.session?.user.id !== userId) return;
       const ativo = contaComoAtivo({
-        visivel, aTocar, computador: Platform.OS === 'web',
-        // So se pergunta quando pode mudar a resposta: com a janela a vista ou
-        // sem musica, a inatividade nao decide nada.
-        inativoS: !visivel && aTocar && Platform.OS === 'web' ? await segundosSemInteracao() : null,
+        visivel, computador: Platform.OS === 'web',
+        // So se pergunta quando pode mudar a resposta: com a janela a vista,
+        // ou no iPhone, a inatividade nao decide nada.
+        inativoS: !visivel && Platform.OS === 'web' ? await segundosSemInteracao() : null,
       });
       // A escuta privada decide-se na hora do ENVIO e não na da chamada: um
       // envio que estava na fila quando a pessoa a ligou já sai sem a faixa.
@@ -126,11 +131,19 @@ export function iniciarPresenca(userId: string): () => void {
     // essa janela agora so se estende com `p_active`.
     if (!terminado && (appEstaVisivel() || usePlayer.getState().isPlaying)) void publicar();
   }, PRESENCE_PUBLISH_MS);
+  // O batimento de cima nao corre no PC escondido e parado, e era ai que a
+  // pessoa desaparecia: minimizada, sem musica, sentada ao computador (1/10).
+  // Pergunta-se ao sistema (local, sem rede) e so se publica com ela la --
+  // ausente, deixa-se o online caducar sozinho em vez de bater a noite toda.
+  const vigiaDoPc = Platform.OS === 'web' ? setInterval(() => {
+    if (terminado || appEstaVisivel() || usePlayer.getState().isPlaying) return;
+    void segundosSemInteracao().then((s) => { if (!terminado && estaAoComputador(s)) void publicar(); });
+  }, BATIMENTO_ESCONDIDO_NO_PC_MS) : undefined;
   const voltar = () => { if (!terminado) void publicar(); };
   const terminar = async () => {
     if (terminado) return;
     terminado = true;
-    clearTimeout(timer); clearInterval(beat); unsubscribe(); pararPrivacidade(); app.remove();
+    clearTimeout(timer); clearInterval(beat); clearInterval(vigiaDoPc); unsubscribe(); pararPrivacidade(); app.remove();
     if (Platform.OS === 'web') { window.removeEventListener('online', voltar); window.removeEventListener('focus', voltar); window.removeEventListener('pagehide', sair); }
     await publicar(true);
   };
