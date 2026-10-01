@@ -40,12 +40,52 @@ export type FaixaDoAmigo = FaixaSimples & {
 export const ESPERA_SEM_FAIXA_MS = 12_000;
 /** E isto antes de deixar de o seguir (fechou a app, saiu). */
 export const DESISTIR_SEM_FAIXA_MS = 3 * 60_000;
-/** Um desvio maior do que isto corrige-se com um salto... */
-export const DESVIO_MAXIMO_MS = 4_000;
-/** ...mas não mais do que um a cada este tempo: saltar sem parar é pior do que ir 5 s atrás. */
-export const ENTRE_ACERTOS_MS = 15_000;
+/**
+ * Um desvio maior do que isto corrige-se com um salto (1/10).
+ *
+ * Eram 4 s, e o atraso ficava: o salto para onde ele ia demora a soar (no PC o
+ * leitor do YouTube carrega o sítio novo), ele anda entretanto, e o que sobrava
+ * -- uns 2 a 5 s -- estava abaixo da tolerância e nunca mais se corrigia. O
+ * Jam, com 0,6 s, não tinha isto. Aqui é 1 s: a posição dele vem da presença
+ * (publicada pelo telemóvel dele, com a rede pelo meio), e é menos certa do que
+ * a hora de arranque de um Jam.
+ */
+export const DESVIO_MAXIMO_MS = 1_000;
+/** Acima disto ele saltou (arrastou a barra) ou a música acabou de começar: segue-se sempre. */
+export const DESVIO_GRANDE_MS = 4_000;
+/**
+ * Depois de um salto, espera-se isto antes de medir outra vez: o tempo de o
+ * sítio novo soar. É o descanso do Jam (`DESCANSO_APOS_SALTO_MS`). O segundo
+ * salto é que acerta: cai perto de onde já se está, que o leitor já tem.
+ */
+export const ENTRE_ACERTOS_MS = 5_000;
+/**
+ * Afinações (desvios pequenos) por música, no máximo. Se a presença dele vier
+ * sempre um bocado atrasada, perseguir esse erro era saltar de 5 em 5 s a
+ * música inteira. Um desvio grande segue-se sempre.
+ */
+export const AFINACOES_POR_FAIXA = 3;
+/** Projetar uma posição para a frente nunca mais do que isto: um motor calado há mais tempo não está a tocar. */
+export const PROJECAO_MAXIMA_MS = 5_000;
 /** Quantas das próximas viajam na presença. */
 export const PROXIMAS_NA_PRESENCA = 5;
+
+/**
+ * Onde vai uma música AGORA, a partir da última posição que o motor deu (1/10).
+ *
+ * O motor só atualiza a posição de tempos a tempos; lida crua, ia até um
+ * segundo atrás. Projeta-se pelo tempo desde então e pela velocidade -- só a
+ * soar, e nunca mais do que `PROJECAO_MAXIMA_MS`.
+ */
+export function posicaoProjetada(
+  p: { positionMs: number; positionAt: number; aSoar: boolean; ritmo: number },
+  agora: number,
+): number {
+  const base = Math.max(0, p.positionMs || 0);
+  if (!p.aSoar || !Number.isFinite(p.positionAt)) return base;
+  const ritmo = Number.isFinite(p.ritmo) && p.ritmo >= 0.25 && p.ritmo <= 4 ? p.ritmo : 1;
+  return base + Math.min(PROJECAO_MAXIMA_MS, Math.max(0, agora - p.positionAt)) * ritmo;
+}
 
 export function chaveDaFaixa(f: { source: string; sourceId: string } | null | undefined): string | null {
   return f ? `${f.source}:${f.sourceId}` : null;
@@ -71,12 +111,14 @@ export type Olhar = {
   pausadoPorMim: boolean;
   /** Quando foi o último salto de acerto (relógio deste aparelho). */
   ultimoAcerto: number;
+  /** Quantas afinações (desvios pequenos) já se fizeram nesta música. */
+  afinacoes: number;
 };
 
 export type Acao =
   | { tipo: 'nada' }
   | { tipo: 'tocar'; faixa: FaixaDoAmigo }
-  | { tipo: 'acertar'; posicaoMs: number }
+  | { tipo: 'acertar'; posicaoMs: number; afinacao: boolean }
   | { tipo: 'pausar' }
   | { tipo: 'retomar' }
   | { tipo: 'sair' };
@@ -95,10 +137,11 @@ export function decidir(o: Olhar): Acao {
   if (chaveDaFaixa(o.dele) !== o.minha.chave) return { tipo: 'tocar', faixa: o.dele };
   if (!o.minha.aTocar) return { tipo: 'retomar' };
   if (!o.minha.pronta || o.ondeEle === null) return { tipo: 'nada' };
-  if (Math.abs(o.minha.posicaoMs - o.ondeEle) > DESVIO_MAXIMO_MS && o.agora - o.ultimoAcerto >= ENTRE_ACERTOS_MS) {
-    return { tipo: 'acertar', posicaoMs: Math.round(o.ondeEle) };
-  }
-  return { tipo: 'nada' };
+  const desvio = Math.abs(o.minha.posicaoMs - o.ondeEle);
+  if (desvio <= DESVIO_MAXIMO_MS || o.agora - o.ultimoAcerto < ENTRE_ACERTOS_MS) return { tipo: 'nada' };
+  const afinacao = desvio <= DESVIO_GRANDE_MS;
+  if (afinacao && o.afinacoes >= AFINACOES_POR_FAIXA) return { tipo: 'nada' };
+  return { tipo: 'acertar', posicaoMs: Math.round(o.ondeEle), afinacao };
 }
 
 /**

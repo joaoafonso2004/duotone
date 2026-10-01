@@ -8,7 +8,7 @@ import { getDeviceId } from './deviceIdentity';
 import { usePlayer } from '../state/player';
 import { garantirPrivacidade, usePrivacidade } from '../state/privacidade';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
-import { proximasParaAPresenca } from './seguirAmigo';
+import { proximasParaAPresenca, posicaoProjetada } from './seguirAmigo';
 
 let terminarAtual: (() => Promise<void>) | null = null;
 // O servidor mantém cada publicação válida por 120 s. Setenta e cinco deixa
@@ -16,6 +16,17 @@ let terminarAtual: (() => Promise<void>) | null = null;
 // antes saíam de 45 em 45 segundos.
 const PRESENCE_PUBLISH_MS=75_000;
 export async function terminarPresenca(): Promise<void> { await terminarAtual?.(); }
+
+/** Onde vai a música agora, para quem te segue. Só projeta com ela a soar. */
+function posicaoAgoraParaAPresenca(): number {
+  const s = usePlayer.getState();
+  return posicaoProjetada({
+    positionMs: s.positionMs,
+    positionAt: s.positionAt,
+    aSoar: s.isPlaying && s.playbackConfirmed && !s.buffering,
+    ritmo: s.playbackRate || 1,
+  }, Date.now());
+}
 
 /** Um publicador por sessão autenticada; não depende de ter o Social aberto. */
 export function iniciarPresenca(userId: string): () => void {
@@ -69,7 +80,10 @@ export function iniciarPresenca(userId: string): () => void {
           ...faixa,
           durationSeconds: faixa.durationSeconds
             ?? (usePlayer.getState().durationMs > 0 ? Math.round(usePlayer.getState().durationMs / 1000) : null),
-          positionMs: Math.max(0, Math.round(usePlayer.getState().positionMs || 0)),
+          // Projetada para AGORA (1/10): crua, a posição é a do último aviso do
+          // motor, até um segundo atrás -- e quem te segue ficava esse segundo
+          // atrás de ti. Ver `posicaoProjetada`.
+          positionMs: Math.round(posicaoAgoraParaAPresenca()),
           rate: usePlayer.getState().playbackRate || 1,
           // As próximas, para o Up next de quem te segue (27/9, "Listen along";
           // supabase/presenca-com-fila.sql). Num Jam, as da fila partilhada.
