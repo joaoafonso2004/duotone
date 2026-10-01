@@ -21,7 +21,7 @@ import {
   chavesRecentesDoSmartShuffle, deveSugerir, intervaloDaIntensidade, type IntensidadeDoSmartShuffle,
   escolherSugestao, foiSugeridaRecentemente, JANELA_SEM_REPETIR_MS,
   lerHistoricoDoSmartShuffle, modoDeShuffle, posicaoDaSugestao, proximoModo,
-  juntarHistoricos, registarNoHistoricoDoSmartShuffle, type SugestaoNoHistorico,
+  juntarHistoricos, registarNoHistoricoDoSmartShuffle, semAsSugestoesDaVolta, type SugestaoNoHistorico,
 } from '../lib/smartShuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
@@ -1075,8 +1075,12 @@ export const usePlayer = create<PlayerState>()(
       queue: q,
       queueIndex: index,
       origemDaFila: origemSeguinte,
-      // Numa lista nova, as marcas do rádio da anterior deixam de valer.
-      ...(listaNova ? { doRadio: [], escutasDaSessao: null } : {}),
+      // Numa lista nova, as marcas do rádio da anterior deixam de valer -- e
+      // as do Smart Shuffle (1/10): são das sugestões que entraram NAQUELA
+      // fila. Uma sugestão de que se gostou e que é agora das Liked Songs não
+      // pode sair desta fila por estar marcada (`semAsSugestoesDaVolta`). A
+      // memória de 30 dias continua a impedir que volte a ser sugerida.
+      ...(listaNova ? { doRadio: [], escutasDaSessao: null, sugeridas: [] } : {}),
       error: null,
       ...posicao(0),
       durationMs: (playableTrack.durationSeconds ?? 0) * 1000,
@@ -1271,6 +1275,8 @@ export const usePlayer = create<PlayerState>()(
       // A contagem recomeça: as sugestões contam-se a partir do início desta
       // audição, não do que ficou de uma sessão anterior.
       desdeASugestao: 0,
+      // E as marcas das sugestões são da fila anterior (1/10).
+      sugeridas: [],
     });
     persistShuffle(true).catch(() => {});
     persistShuffleInteligente(inteligente).catch(() => {});
@@ -1492,13 +1498,16 @@ export const usePlayer = create<PlayerState>()(
         return;
       }
       // Percurso esgotado: com repeat "all" baralha-se outra vez (como a
-      // Spotify) em vez de repetir a mesma ordem.
+      // Spotify) em vez de repetir a mesma ordem -- e sem as sugestões do
+      // Smart Shuffle da volta que acabou (1/10, `semAsSugestoesDaVolta`):
+      // voltavam a tocar as mesmas, volta após volta.
       if (repeatMode === 'all') {
-        const fresh = novaOrdemDoShuffle(queue, queueIndex);
-        set({ shuffleOrder: fresh });
-        const first = saltarAteTocavel(queue, queueIndex, (i) => stepIndex(fresh, queue, i, 1), podeTocarAgora);
+        const volta = semAsSugestoesDaVolta(queue, queueIndex, get().sugeridas, trackKey);
+        const fresh = novaOrdemDoShuffle(volta.fila, volta.indice);
+        set({ queue: volta.fila, queueIndex: volta.indice, shuffleOrder: fresh, desdeASugestao: 0 });
+        const first = saltarAteTocavel(volta.fila, volta.indice, (i) => stepIndex(fresh, volta.fila, i, 1), podeTocarAgora);
         if (first !== null) {
-          await playTrack(queue[first], queue, false, true);
+          await playTrack(volta.fila[first], volta.fila, false, true);
           return;
         }
       }
@@ -1728,10 +1737,18 @@ export const usePlayer = create<PlayerState>()(
   // desligar deita-o fora, para a próxima vez começar limpo.
   setShuffle: (v) => {
     if (!v) invalidarPedidosDoSmartShuffle();
-    set((s) => ({
-      shuffle: v,
-      shuffleOrder: v ? novaOrdemDoShuffle(s.queue, s.queueIndex) : [],
-    }));
+    set((s) => {
+      if (!v) return { shuffle: false, shuffleOrder: [] };
+      // Um percurso novo nasce sem as sugestões de antes (1/10): baralhá-las
+      // outra vez era ouvi-las outra vez. Ver `semAsSugestoesDaVolta`.
+      const volta = semAsSugestoesDaVolta(s.queue, s.queueIndex, s.sugeridas, trackKey);
+      return {
+        shuffle: true,
+        queue: volta.fila,
+        queueIndex: volta.indice,
+        shuffleOrder: novaOrdemDoShuffle(volta.fila, volta.indice),
+      };
+    });
   },
   /** O botão cicla off → normal → inteligente → off. */
   toggleShuffle: () => {

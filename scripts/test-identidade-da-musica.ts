@@ -6,6 +6,7 @@
  * Ver src/lib/identidadeDaMusica.ts.
  */
 import { chavesDaMusica, tituloDeIdentidade } from '../src/lib/identidadeDaMusica.ts';
+import { semAMesmaMusica } from '../src/lib/radio.ts';
 
 let mau = 0;
 const check = (rotulo: string, ok: boolean, extra = '') => {
@@ -73,6 +74,24 @@ check('uma música que se chama "Audio" continua a ter nome', tituloDeIdentidade
 check('"Video Games" não perde o "Video"', tituloDeIdentidade('Video Games') === 'video games');
 check('as chaves cabem na memória dos 30 dias',
   chavesDaMusica(faixa({ title: 'Drake, 21 Savage - Rich Flex (Audio)', artist: 'Drake - Topic' })).length <= 12);
+
+// 1/10: tocar uma música da Pesquisa enchia a fila com ela própria, postada por
+// pessoas diferentes. O rádio passa a tirar a mesma música noutro upload.
+{
+  const tocada = { ...faixa({ title: 'deaf note (ft. Playboi Carti)', artist: 'Ken Carson' }), album: null, artworkUrl: null, durationSeconds: 200 };
+  const c = (title: string, artist: string) => ({ ...faixa({ title, artist }), album: null, artworkUrl: null, durationSeconds: 200 });
+  const lote = [
+    c('Ken Carson - deaf note (Official Audio)', 'Lyrics Vault'),
+    c('deaf note - Ken Carson (Lyrics)', 'Rap Lyrics'),
+    c('Margiela', 'Ken Carson'),
+    c('Ken Carson - Margiela (Official Video)', 'Ken Carson'),
+    c('Toxic', 'Destroy Lonely'),
+  ];
+  const fora = semAMesmaMusica(lote, [tocada], chavesDaMusica).map((t) => t.title);
+  check('o rádio não repõe a música que está a tocar noutro upload', !fora.some((t) => /deaf note/i.test(t)), fora.join(' | '));
+  check('nem duas cópias da mesma música nova', fora.filter((t) => /margiela/i.test(t)).length === 1, fora.join(' | '));
+  check('e as outras ficam', fora.includes('Toxic'), fora.join(' | '));
+}
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);
