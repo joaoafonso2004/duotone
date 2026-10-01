@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 import type { Track } from '../types';
 import { posicaoDoAmigo } from '../lib/posicaoDoAmigo';
-import { chaveDaFaixa, decidir, type FaixaDoAmigo, type FaixaSimples } from '../lib/seguirAmigo';
+import { chaveDaFaixa, decidir, posicaoProjetada, type FaixaDoAmigo, type FaixaSimples } from '../lib/seguirAmigo';
+import { agoraNoServidor as agoraPeloRelogio, type Estimativa } from '../lib/relogioPartilhado';
+import { relogioActualizado } from '../api/ouvirJuntos';
 import { registarSeguirAmigo, usePlayer } from './player';
 import { agoraNoServidor, ouvirPresencas, presencaDe, relerPresencas } from './social';
 import { useOuvirJuntos } from './ouvirJuntos';
@@ -20,6 +22,9 @@ import { guardarEmSegundoPlano } from '../lib/descarregarFaixa';
  *   o rádio (`registarSeguirAmigo`, na store): quem manda na seguinte é ele.
  * - Anda-se à velocidade DELE (`ritmo`), senão desviava-se uns segundos por
  *   minuto de um slowed.
+ * - A hora do servidor é a do Jam (1/10): o relógio medido como o NTP, em vez
+ *   da hora que veio com a lista das presenças, que vinha atrasada a viagem de
+ *   volta. A posição dos dois lados projeta-se para o instante (`posicaoProjetada`).
  */
 
 type Seguido = { id: string; nome: string };
@@ -107,6 +112,25 @@ function ligar(id: string, nome: string): () => void {
   let aplicando = 0;
   let ultimaNoticia = Date.now();
   let adiantada: string | null = null;
+  let afinacoes = 0;
+  // O relógio do Jam: mede-se ao começar e volta-se a medir quando envelhece
+  // (`relogioActualizado` só vai à rede nessa altura). Sem ele, a hora das
+  // presenças, como antes.
+  let relogio: Estimativa | null = null;
+  // Uma medição de cada vez, e sem rede não se insiste a cada tique: são cinco
+  // pedidos por ronda.
+  let aMedir = false;
+  let falhouEm = 0;
+  const medirRelogio = () => {
+    if (aMedir || (!relogio && Date.now() - falhouEm < 30_000)) return;
+    aMedir = true;
+    void relogioActualizado(relogio)
+      .then((r) => { if (vivo) relogio = r; if (!r) falhouEm = Date.now(); })
+      .catch(() => { falhouEm = Date.now(); })
+      .finally(() => { aMedir = false; });
+  };
+  medirRelogio();
+  const horaDoServidor = () => (relogio ? agoraPeloRelogio(relogio, Date.now()) : agoraNoServidor());
 
   const aplicar = (fn: () => unknown) => {
     aplicando++;
@@ -142,7 +166,8 @@ function ligar(id: string, nome: string): () => void {
     }
 
     const s = usePlayer.getState();
-    const onde = dele ? posicaoDoAmigo(dele, agoraNoServidor()) : null;
+    const onde = dele ? posicaoDoAmigo(dele, horaDoServidor()) : null;
+    const pronta = s.playbackConfirmed && !s.buffering;
     const acao = decidir({
       dele,
       ondeEle: onde?.ms ?? null,
@@ -150,18 +175,21 @@ function ligar(id: string, nome: string): () => void {
       agora,
       minha: {
         chave: chaveDaFaixa(s.current),
-        posicaoMs: s.positionMs,
+        // Onde vai AGORA, e não onde ia no último aviso do motor.
+        posicaoMs: posicaoProjetada({ positionMs: s.positionMs, positionAt: s.positionAt, aSoar: s.isPlaying && pronta, ritmo }, agora),
         aTocar: s.isPlaying,
-        pronta: s.playbackConfirmed && !s.buffering,
+        pronta,
       },
       pausadoPorMim,
       ultimoAcerto,
+      afinacoes,
     });
 
     switch (acao.tipo) {
       case 'tocar': {
         // A seguinte acerta-se quando soar (o tique vê-a desviada e salta).
         ultimoAcerto = 0;
+        afinacoes = 0;
         const faixa = paraFaixa(acao.faixa);
         // `interno`: não abre o leitor, não passa pelo Jam, não conta como
         // escolha do utilizador para a origem da fila.
@@ -170,6 +198,7 @@ function ligar(id: string, nome: string): () => void {
       }
       case 'acertar':
         ultimoAcerto = agora;
+        if (acao.afinacao) afinacoes++;
         aplicar(() => usePlayer.getState().seekTo(acao.posicaoMs, true));
         break;
       case 'pausar':
@@ -205,6 +234,7 @@ function ligar(id: string, nome: string): () => void {
   });
 
   const tique = setInterval(() => {
+    medirRelogio();
     if (Date.now() - ultimaNoticia >= RELER_SEM_NOTICIAS_MS) {
       ultimaNoticia = Date.now();
       void relerPresencas().catch(() => {});
