@@ -1,6 +1,6 @@
 import {StateIcon} from '../components/StateIcon';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { ReactNode, useEffect, useRef, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '../theme';
 import type { Track } from '../types';
@@ -273,6 +273,14 @@ export function Artwork({ track, size = 44 }: { track: Track; size?: number }) {
  */
 function useCarrossel() {
   const ref = useRef<any>(null);
+  // A lista entra pelo `ref` de chamada, e nao por um `useRef` lido no
+  // arranque (1/10). As prateleiras que dependem da rede (Daily mix, Rare finds,
+  // as dos amigos, Listen again) montam VAZIAS -- a `Shelf` devolve `null` -- e
+  // o carrossel so aparece quando as musicas chegam. Lido no arranque, o
+  // elemento ainda nao existia, e nem as setas nem o arrasto ficavam ligados:
+  // nao havia maneira de andar para a direita.
+  const [no, setNo] = useState<any>(null);
+  const ligar = useCallback((n: any) => { ref.current = n; setNo(n); }, []);
   const [podeEsquerda, setPodeEsquerda] = useState(false);
   const [podeDireita, setPodeDireita] = useState(false);
   // Distingue um clique de um arrasto. Sem isto, arrastar a prateleira punha
@@ -280,8 +288,7 @@ function useCarrossel() {
   const arrastou = useRef(false);
 
   useEffect(() => {
-    const bruto = ref.current;
-    const el: HTMLElement | null = bruto?.getScrollableNode?.() ?? bruto ?? null;
+    const el: HTMLElement | null = no?.getScrollableNode?.() ?? no ?? null;
     if (!el || typeof el.addEventListener !== 'function') return;
 
     const medir = () => {
@@ -326,6 +333,10 @@ function useCarrossel() {
     el.addEventListener('click', clicou, true);
     const observador = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(medir) : null;
     observador?.observe(el);
+    // E o conteudo: chegarem mais cartoes alarga-o sem mudar a janela, e sem
+    // isto a seta da direita so acendia ao redimensionar.
+    const conteudo = el.firstElementChild;
+    if (conteudo) observador?.observe(conteudo);
 
     return () => {
       el.removeEventListener('scroll', medir);
@@ -335,7 +346,7 @@ function useCarrossel() {
       el.removeEventListener('click', clicou, true);
       observador?.disconnect();
     };
-  }, []);
+  }, [no]);
 
   const deslizar = (sentido: 1 | -1) => {
     const bruto = ref.current;
@@ -349,7 +360,7 @@ function useCarrossel() {
     el.scrollBy({ left: sentido * salto, behavior: suave ? 'smooth' : 'auto' });
   };
 
-  return { ref, podeEsquerda, podeDireita, deslizar, arrastou };
+  return { ref: ligar, podeEsquerda, podeDireita, deslizar, arrastou };
 }
 
 function SetaDaPrateleira({ sentido, activa, aoCarregar }: {
