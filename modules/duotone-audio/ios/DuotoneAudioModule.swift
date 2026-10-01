@@ -464,8 +464,22 @@ public class DuotoneAudioModule: Module {
     // ate este KVO chegar.
     item.audioTimePitchAlgorithm = mantemTom ? .spectral : .varispeed
 
-    // Instala uma vez por item, mesmo com EQ plano. Em repouso o tap é um
-    // bypass; assim ligar o efeito ou a primeira banda não reconstrói áudio.
+    // 2. COM O EQ PLANO NAO HA TAP (1/10).
+    //
+    // Instalava-se sempre, plano incluido, por causa da capa que reagia ao som
+    // (que lia o audio por aqui) -- e essa saiu. Um tap, mesmo inerte, obriga o
+    // AVFoundation a passar cada bloco de audio por este processo, tambem com o
+    // ecra desligado: e trabalho a acordar a app para nao mudar uma amostra
+    // (o iPhone do Joao aquecia com musica e o ecra apagado). Sem tap, o item
+    // toca pelo caminho normal do sistema.
+    //
+    // O preco: a primeira banda mexida a meio de uma faixa plana instala o tap
+    // nesse instante, e isso e o corte curto descrito no cabecalho do
+    // DuotoneEq. Uma vez por faixa, e so a quem mexe no EQ a meio dela -- o
+    // perfil de uma faixa chega antes de o item tocar (o `ajusteAoTocar`), e
+    // voltar ao plano com o tap ja montado fica pelo caminho curto.
+    if DuotoneEq.ePlano(motor.ganhos) && motor.margem >= 0.999 { return }
+
     if let montado = DuotoneEq.mistura(para: item, ganhos: motor.ganhos, margem: motor.margem) {
       item.audioMix = montado.mix
       motor.tapVivo = montado.estado

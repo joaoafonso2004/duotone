@@ -72,6 +72,9 @@ caso('a ligação: só no iPhone, no relatório, e cada linha conta-se', () => {
   assert.match(ler('src/lib/relatorioDeReproducao.ts'), /\$\{textoDoFolegoAgora\(\)\}/);
   assert.match(ler('src/components/TrackRow.tsx'), /useEffect\(\(\) => contarLinhaMontada\(\), \[\]\);/);
   assert.match(ler('src/state/folego.ts'), /const conta = !saltar && atraso <= 20_000;/, 'a app suspensa não conta');
+  // Com o ecrã desligado não acorda o iPhone (1/10): só se agenda à frente.
+  assert.match(ler('src/state/folego.ts'), /if \(AppState\.currentState !== 'background'\) agendar\(\);\r?\n  \};/, 'o passo pára em segundo plano');
+  assert.match(ler('src/state/folego.ts'), /clearTimeout\(timer\);\r?\n    if \(vivo && estado !== 'background'\) agendar\(\);/, 'e volta ao voltar');
 });
 
 if (falhas) { console.error(`\n${falhas} caso(s) falharam`); process.exit(1); }

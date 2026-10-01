@@ -11,7 +11,9 @@ import { usePlayer } from './player';
  * `lib/folegoDoJs.ts`; aqui mede-se, conta-se e escreve-se.
  *
  * Custa um temporizador a cada meio segundo, que não faz nada além de ver as
- * horas. Um travão que se sente (`TRAVAO_SENTIDO_MS`) com a app à frente vai
+ * horas -- e só com a app À FRENTE (1/10): em segundo plano, a tocar com o ecrã
+ * desligado, eram duas vezes por segundo a acordar o iPhone para medir travões
+ * que o resumo deita fora (só conta os de app à frente). Um travão que se sente (`TRAVAO_SENTIDO_MS`) com a app à frente vai
  * para o `app_events` como `js_lento`, no máximo um a cada dez minutos, com o
  * que estava a crescer -- é por aí que se vê, sem pedir o relatório a ninguém,
  * se o atraso do botão de pausa vem com o tempo de app aberta, com a fila, com
@@ -74,7 +76,15 @@ export function iniciarMedidorDoFolego(): () => void {
   // Uma mudança de estado da app (ir para segundo plano, voltar) não é um
   // travão: suspensa, a app não corre, e o temporizador acorda tarde ao voltar.
   let saltar = false;
-  const aMudar = AppState.addEventListener('change', () => { saltar = true; });
+  const agendar = () => {
+    esperado = Date.now() + PASSO_MS;
+    timer = setTimeout(passo, PASSO_MS);
+  };
+  const aMudar = AppState.addEventListener('change', (estado) => {
+    saltar = true;
+    clearTimeout(timer);
+    if (vivo && estado !== 'background') agendar();
+  });
   const passo = () => {
     if (!vivo) return;
     const agora = Date.now();
@@ -88,10 +98,11 @@ export function iniciarMedidorDoFolego(): () => void {
       ultimoEvento = agora;
       registar('js_lento', dadosDoEventoLento(atraso, contexto(true)));
     }
-    esperado = Date.now() + PASSO_MS;
-    timer = setTimeout(passo, PASSO_MS);
+    // Em segundo plano pára: quem o volta a ligar é o regresso à frente. O
+    // 'unknown' do arranque conta como à frente.
+    if (AppState.currentState !== 'background') agendar();
   };
-  timer = setTimeout(passo, PASSO_MS);
+  if (AppState.currentState !== 'background') agendar();
   return () => { vivo = false; ligado = false; clearTimeout(timer); aMudar.remove(); };
 }
 
