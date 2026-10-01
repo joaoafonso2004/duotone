@@ -6,6 +6,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
 import { sessoesDeAmigos } from '../api/ouvirJuntos';
+import { amigosNaLateral } from '../lib/amigosNaLateral';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
 import { ESCALA } from '../lib/movimento';
@@ -30,11 +31,16 @@ const ANEL = 2;
 const LARGURA = 112;
 
 /**
- * Quem dos teus amigos está a ouvir alguma coisa AGORA.
+ * Quem dos teus amigos está online AGORA, e o que está a ouvir.
+ *
+ * Até 1/10 só apareciam os que estavam a ouvir: um amigo online e parado não
+ * estava em lado nenhum da Pesquisa (João: "só aparece caso esteja a ouvir
+ * alguma música"). Agora são todos os online, pela ordem da lateral do PC
+ * (`amigosNaLateral`): primeiro quem está a ouvir, depois por nome.
  *
  * ## Aparece e desaparece, e é essa a regra toda
  *
- * Sem ninguém a ouvir, isto não existe -- nem título, nem espaço, nem uma
+ * Sem ninguém online, isto não existe -- nem título, nem espaço, nem uma
  * linha a dizer que não há ninguém. Uma fila de avatares apagados a dizer
  * "ninguém está online" ocupa o topo da página com uma ausência, e o topo da
  * página é o sítio mais caro que há.
@@ -57,24 +63,16 @@ export function AmigosAOuvir() {
   // nesta app e a versão não arrancava.
   const amigos = useSocial((s) => s.friends);
 
-  // O filtro é um type guard e não um `boolean`: quem sobrevive a ele TEM
-  // `currentlyPlaying`, e é isso que deixa a linha da faixa lá em baixo lê-lo
-  // sem um `!` a fingir que se sabe uma coisa que o compilador não sabe.
-  const aOuvir = React.useMemo(
-    () => amigos.filter(
-      (a): a is typeof a & { currentlyPlaying: NonNullable<typeof a.currentlyPlaying> } =>
-        a.status === 'accepted' && !!a.online && !!a.currentlyPlaying
-    ),
-    [amigos]
-  );
+  // Sem teto: é uma fila que rola de lado, não a lateral de oito linhas.
+  const online = React.useMemo(() => amigosNaLateral(amigos, Infinity).visiveis, [amigos]);
 
   /**
    * Que amigos tem sessao aberta -- para se entrar nela em vez de so tocar a
-   * mesma musica. Pergunta-se quando ha alguem a ouvir, e nao de contínuo: uma
-   * sessao abre-se raramente e a lista morre com a fila.
+   * mesma musica. Pergunta-se quando muda quem esta online, e nao de contínuo:
+   * uma sessao abre-se raramente e a lista morre com a fila.
    */
   const [sessoes, setSessoes] = React.useState<Map<string, string>>(new Map());
-  const quantos = aOuvir.length;
+  const quantos = online.length;
   React.useEffect(() => {
     if (!quantos) { setSessoes(new Map()); return; }
     let vivo = true;
@@ -94,15 +92,15 @@ export function AmigosAOuvir() {
    * deixar a app num estado meio-entrado.
    */
   const ouvirCom = React.useCallback(async (friendId: string) => {
-    const amigo = aOuvir.find((a) => a.friendId === friendId);
+    const amigo = online.find((a) => a.friendId === friendId);
     if (!amigo) return;
     hapticSelection();
     // A mesma porta do PC (state/ouvirComAmigo.ts): a sessão dele se houver,
     // senão a música dele -- na posição dele, quando a presença a traz.
     await ouvirComAmigo(amigo, sessoes.get(friendId));
-  }, [aOuvir, sessoes]);
+  }, [online, sessoes]);
 
-  if (aOuvir.length === 0) return null;
+  if (online.length === 0) return null;
 
   return (
     <ScrollView
@@ -111,14 +109,17 @@ export function AmigosAOuvir() {
       contentContainerStyle={styles.fila}
       style={styles.caixa}
     >
-      {aOuvir.map((amigo) => {
+      {online.map((amigo) => {
         const sessao = sessoes.get(amigo.friendId);
+        const faixa = amigo.currentlyPlaying;
         return (
         <Toque
           key={amigo.friendId}
           escala={ESCALA.cartao}
           onPress={() => navigation.navigate('FriendProfile', { userId: amigo.friendId })}
-          accessibilityLabel={`${amigo.name || amigo.username}, listening to ${amigo.currentlyPlaying?.title ?? 'music'}`}
+          accessibilityLabel={faixa
+            ? `${amigo.name || amigo.username}, listening to ${tituloDaFaixa(faixa)}`
+            : `${amigo.name || amigo.username}, online`}
           style={styles.pessoa}
         >
           <View style={styles.anel}>
@@ -129,8 +130,9 @@ export function AmigosAOuvir() {
             />
             {/* O botão vive EM CIMA da cara, e não ao lado: é o que o torna
                 óbvio sem uma legenda. Toque na cara continua a abrir o perfil;
-                toque aqui é ir ouvir com ele. */}
-            <Toque
+                toque aqui é ir ouvir com ele. Sem música nem Jam não há com
+                que ir ouvir, e o botão não aparece. */}
+            {(faixa || sessao) ? <Toque
               escala={ESCALA.icone}
               hitSlop={8}
               onPress={() => void ouvirCom(amigo.friendId)}
@@ -141,7 +143,7 @@ export function AmigosAOuvir() {
               style={styles.entrar}
             >
               <Ionicons name={sessao ? 'people' : 'play'} size={12} color={colors.bg} />
-            </Toque>
+            </Toque> : null}
           </View>
           {/* O nome corta-se a uma linha: nomes compridos alinhavam a fila
               toda ao mais comprido de todos e abriam buracos entre avatares. */}
@@ -157,7 +159,7 @@ export function AmigosAOuvir() {
               [Official Video] atrás, e aqui não há espaço para nenhum dos
               dois. */}
           <Text numberOfLines={1} style={styles.faixa}>
-            {`${displayArtist(amigo.currentlyPlaying)} — ${tituloDaFaixa(amigo.currentlyPlaying)}`}
+            {faixa ? `${displayArtist(faixa)} — ${tituloDaFaixa(faixa)}` : 'Online'}
           </Text>
         </Toque>
       );})}

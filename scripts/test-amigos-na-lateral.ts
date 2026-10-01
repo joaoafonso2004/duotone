@@ -1,5 +1,6 @@
 // Quem aparece na lateral do PC (lib/amigosNaLateral.ts).
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { amigosNaLateral } from '../src/lib/amigosNaLateral.ts';
 
 const a = (friendId: string, name: string, over: Record<string, unknown> = {}) =>
@@ -21,4 +22,12 @@ const muitos = amigosNaLateral(Array.from({ length: 11 }, (_, i) => a(String(i),
 assert.equal(muitos.visiveis.length, 8);
 assert.equal(muitos.resto, 3, 'o resto vai para "+N more online"');
 assert.deepEqual(amigosNaLateral([]).visiveis, []);
+assert.equal(amigosNaLateral(Array.from({ length: 11 }, (_, i) => a(String(i), `A${i}`)), Infinity).visiveis.length, 11,
+  'sem teto, para a fila do iPhone');
+
+// A fila da Pesquisa do iPhone mostra TODOS os online, não só quem está a
+// ouvir (1/10: um amigo online e parado não aparecia em lado nenhum).
+const fila = readFileSync(new URL('../src/components/AmigosAOuvir.tsx', import.meta.url), 'utf8');
+assert.match(fila, /amigosNaLateral\(amigos, Infinity\)/, 'a fila do iPhone usa a mesma escolha da lateral');
+assert.doesNotMatch(fila, /!!a\.online && !!a\.currentlyPlaying/, 'a fila não volta a pedir música para mostrar um amigo');
 console.log('Amigos na lateral: passou.');
