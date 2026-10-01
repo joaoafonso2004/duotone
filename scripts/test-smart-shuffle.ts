@@ -13,6 +13,7 @@ import {
   proximoModo,
   registarNoHistoricoDoSmartShuffle,
   rotuloDoModo,
+  semAsSugestoesDaVolta,
   type ModoDeShuffle,
 } from '../src/lib/smartShuffle.ts';
 import { stepIndex, trackKey } from '../src/lib/shuffle.ts';
@@ -144,6 +145,18 @@ check('cada modo tem rotulo proprio',
 check('nenhum rotulo e um identificador',
   modos.every((m) => !/^[a-z]+$/.test(rotuloDoModo(m))),
   modos.map(rotuloDoModo).join(' | '));
+
+// 1/10: as sugestões entravam na fila e voltavam a cada volta do shuffle.
+{
+  const id = (x: string) => x;
+  const volta = semAsSugestoesDaVolta(['a', 's1', 'b', 's2', 'c'], 2, ['s1', 's2', 'zz'], id);
+  check('a volta nova sai sem as sugestões', volta.fila.join() === 'a,b,c', volta.fila.join());
+  check('e a que toca continua a ser a que toca', volta.fila[volta.indice] === 'b', String(volta.indice));
+  const aTocarUma = semAsSugestoesDaVolta(['a', 's1', 'b'], 1, ['s1'], id);
+  check('uma sugestão a tocar fica (é ela que dá a volta)', aTocarUma.fila.join() === 'a,s1,b' && aTocarUma.indice === 1, aTocarUma.fila.join());
+  const semNada = semAsSugestoesDaVolta(['a', 'b'], 0, [], id);
+  check('sem sugestões, nada muda', semNada.fila.join() === 'a,b' && semNada.indice === 0);
+}
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

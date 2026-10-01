@@ -83,6 +83,35 @@ export function filterRadioCandidates(
 }
 
 /**
+ * Fora as que são a MESMA música do que já está na fila, noutro upload (1/10).
+ *
+ * O `filterRadioCandidates` compara pelo vídeo, e uma pesquisa pelo artista ou
+ * as músicas dele do catálogo trazem a mesma música noutros canais: a versão
+ * com letra, o "Official Audio", um re-upload. Tocar uma música da Pesquisa
+ * enchia a fila com ela própria, postada por pessoas diferentes. E dentro do
+ * lote também: duas cópias da mesma música nova contam uma vez.
+ *
+ * `chavesDe` são as chaves de identidade (`chavesDaMusica`, que inclui o
+ * upload): duas faixas são a mesma música quando partilham uma.
+ */
+export function semAMesmaMusica(
+  candidatas: readonly Track[],
+  fila: readonly Track[],
+  chavesDe: (t: Track) => readonly string[],
+): Track[] {
+  const vistas = new Set<string>();
+  for (const t of fila) for (const k of chavesDe(t)) vistas.add(k);
+  const fora: Track[] = [];
+  for (const t of candidatas) {
+    const chaves = chavesDe(t);
+    if (chaves.some((k) => vistas.has(k))) continue;
+    for (const k of chaves) vistas.add(k);
+    fora.push(t);
+  }
+  return fora;
+}
+
+/**
  * Fora o que não é música, menos o que ele guardou.
  *
  * O rádio também vai ao Flow e à pesquisa do YouTube, e a pesquisa devolve

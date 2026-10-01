@@ -212,3 +212,29 @@ export function rotuloDoModo(modo: ModoDeShuffle): string {
   if (modo === 'inteligente') return 'Smart shuffle — mixes in new tracks';
   return 'Shuffle off';
 }
+
+/**
+ * Uma volta nova do shuffle sem as sugestões da volta anterior (1/10).
+ *
+ * As sugestões entram NA FILA, e a fila guarda-se. Com repeat ligado, o fim do
+ * percurso baralhava a fila inteira outra vez -- sugestões incluídas --, e as
+ * mesmas três tocavam volta após volta, dia após dia: "as músicas do Smart
+ * Shuffle são sempre as mesmas" (João, 1/10). A memória de 30 dias impedia que
+ * fossem SUGERIDAS outra vez, mas não as tirava da fila. Agora saem, e a volta
+ * nova recebe outras. A que está a tocar fica: é ela que dá a volta.
+ */
+export function semAsSugestoesDaVolta<T>(
+  fila: readonly T[],
+  indice: number,
+  sugeridas: readonly string[],
+  chave: (t: T) => string,
+): { fila: T[]; indice: number } {
+  const marcadas = new Set(sugeridas);
+  const fora: T[] = [];
+  let novoIndice = 0;
+  fila.forEach((t, i) => {
+    if (i === indice) { novoIndice = fora.length; fora.push(t); return; }
+    if (!marcadas.has(chave(t))) fora.push(t);
+  });
+  return { fila: fora, indice: novoIndice };
+}

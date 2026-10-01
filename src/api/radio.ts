@@ -5,6 +5,7 @@ import { pareceMusica } from '../lib/musica';
 import {
   filterRadioCandidates,
   limitarMesmoArtista,
+  semAMesmaMusica,
   loteSemRepetir,
   onlyPlausibleMusic,
   RADIO_BATCH,
@@ -66,7 +67,9 @@ export async function fetchRadioTracks(
     // O mesmo artista é tempero: no máximo um quarto do lote. O resto vem de
     // artistas com um tom parecido (ver `limitarMesmoArtista`).
     const variadas=limitarMesmoArtista(musica,artists,displayArtist,chaveDeArtista,limit);
-    const candidatas=filterRadioCandidates(variadas,exclude,trackKey,Math.max(limit*4,limit));
+    // E fora a mesma música noutro upload, da fila e do próprio lote (1/10).
+    const candidatas=semAMesmaMusica(
+      filterRadioCandidates(variadas,exclude,trackKey,Math.max(limit*4,limit)),exclude,chavesDaMusica);
     const conhecidas=candidatas.filter((t)=>knownKeys.has(trackKey(t)));
     const novas=candidatas.filter((t)=>!knownKeys.has(trackKey(t)));
     return loteSemRepetir(conhecidas,novas,jaDescoberta,limit,comRepetidas,

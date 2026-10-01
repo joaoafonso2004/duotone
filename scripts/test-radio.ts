@@ -165,5 +165,17 @@ for (const [ficheiro, proibido] of Object.entries(ecrasDePesquisa)) {
   check('com o lote cheio não entra repetida nenhuma', !cheio.some(jaDescoberta), cheio.join());
 }
 
+{
+  // 1/10: a ligação das duas correções.
+  const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
+  const radio = ler('src/api/radio.ts');
+  const player = ler('src/state/player.ts');
+  check('o rádio tira a mesma música noutro upload',
+    radio.includes('const candidatas=semAMesmaMusica(') && radio.includes('),exclude,chavesDaMusica);'));
+  check('o fim do percurso com repeat tira as sugestões', /const volta = semAsSugestoesDaVolta\(queue, queueIndex, get\(\)\.sugeridas, trackKey\);/.test(player));
+  check('um percurso novo também', /const volta = semAsSugestoesDaVolta\(s\.queue, s\.queueIndex, s\.sugeridas, trackKey\);/.test(player));
+  check('uma lista nova larga as marcas da anterior', /\.\.\.\(listaNova \? \{ doRadio: \[\], escutasDaSessao: null, sugeridas: \[\] \} : \{\}\)/.test(player));
+}
+
 console.log(bad ? `\n  ${bad} falha(s)` : `\n  Todos os casos passaram.`);
 process.exit(bad ? 1 : 0);
