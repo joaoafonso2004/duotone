@@ -21,7 +21,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { Animated, StyleSheet, View, ActivityIndicator } from 'react-native';
+import { escalaDoFundo, raioDoFundo, veuDoFundo } from '../state/transicaoDoLeitor';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { PlayerRoot } from '../components/PlayerRoot';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
@@ -310,7 +311,12 @@ export function RootNavigator() {
     >
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         {session || offlineUserId ? (
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: '#000' }}>
+            {/* A app recua quando o leitor abre (2/10): encolhe, ganha os cantos
+                redondos e escurece, e volta para a frente com o gesto de o
+                fechar. O preto à volta é o que se vê entre ela e o ecrã. Ver
+                state/transicaoDoLeitor.ts. */}
+            <Animated.View style={{ flex: 1, overflow: 'hidden', borderRadius: raioDoFundo, transform: [{ scale: escalaDoFundo }] }}>
             {/* Imagem de fundo abstrata global (renderizada apenas uma vez na app inteira) */}
             {/* O desfoque vem na PRÓPRIA imagem, calculado uma vez quando ela
                 carrega. Era um BlurView de ecrã inteiro por cima dela: um
@@ -348,6 +354,8 @@ export function RootNavigator() {
               <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
               <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />
             </Stack.Navigator>
+            <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: veuDoFundo }]} />
+            </Animated.View>
             {/* O leitor contém o motor: se rebentar, volta a montar sozinho
                 (e a faixa retoma), sem aviso por cima da app. */}
             <BarreiraDeErros onde="leitor" discreta>

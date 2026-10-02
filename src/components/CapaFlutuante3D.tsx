@@ -17,6 +17,8 @@ const COSSENO = ondaSeno(16, 0.25);
 type Onda = { inputRange: number[]; outputRange: number[] };
 /** Um valor que anima: um `Animated.Value` ou o que sai de o somar e interpolar. */
 type Animado = Animated.Value | Animated.AnimatedInterpolation<number> | Animated.AnimatedAddition<number>;
+/** A pose: o valor dela, ou multiplicado pela força que o leitor lhe dá (ver `forcaDaPose`). */
+type ValorDaPose = Animated.Value | Animated.AnimatedMultiplication<number>;
 const vezes = (onda: Onda, fator: number, soma = 0) => ({
   inputRange: onda.inputRange,
   outputRange: onda.outputRange.map((v) => v * fator + soma),
@@ -32,7 +34,7 @@ const vezes = (onda: Onda, fator: number, soma = 0) => ({
  * a pose fica exatamente a do lib.
  */
 function criarPostura(
-  pose: Animated.Value, flutuar: Animated.Value, derivar: Animated.Value, size: number,
+  pose: ValorDaPose, flutuar: Animated.Value, derivar: Animated.Value, size: number,
   voo: Animated.Value, assentar: Animado,
   recuoX: Animated.Value, recuoZ: Animado,
 ) {
@@ -69,7 +71,7 @@ function criarPostura(
 export type PoseDaCapa3D = {
   postura: ReturnType<typeof criarPostura>;
   /** 0 = plana, 1 = em 3D: a opacidade das laterais. */
-  pose: Animated.Value;
+  pose: ValorDaPose;
   /** Em pontos. */
   espessura: number;
   /** A montagem com o download (null fora do leitor do iPhone). */
@@ -90,6 +92,12 @@ type Props = {
    * "Recuo subtil" (lib/transicaoDaCapa.ts); a primeira não, que é abrir o leitor.
    */
   transicao?: { chave: string; sentido: Sentido } | null;
+  /**
+   * Quanto da pose 3D se vê, de 0 a 1 (2/10, a transição do leitor): a capa
+   * ganha a pose ao abrir e perde-a ao ser arrastada para o mini-player, que é
+   * plano. Sem isto, a pose é sempre a inteira.
+   */
+  forcaDaPose?: Animated.AnimatedNode | null;
   children: (pose3D: PoseDaCapa3D | null) => React.ReactNode;
 };
 
@@ -104,13 +112,17 @@ type Props = {
  * Nada aqui fica à volta do cubo numa vista que roda: no iPhone isso achatava
  * as faces antes de rodar, e a caixa perdia a profundidade.
  */
-export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = null, children }: Props) {
+export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = null, forcaDaPose = null, children }: Props) {
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   // Fases de 0 a 1, uma volta por ciclo. O 0 é o repouso: a meio e sem inclinação.
   const flutuar = useRef(new Animated.Value(0)).current;
   const derivar = useRef(new Animated.Value(0)).current;
   const pose = useRef(new Animated.Value(enabled ? 1 : 0)).current;
+  const poseVista = useMemo<ValorDaPose>(
+    () => (forcaDaPose ? Animated.multiply(pose, forcaDaPose as Animated.Value) : pose),
+    [pose, forcaDaPose],
+  );
   // Sem montagem, a caixa está montada e flutua.
   const semMontagem = useRef({ um: new Animated.Value(1), zero: new Animated.Value(0) }).current;
   const voo = montagem?.voo ?? semMontagem.um;
@@ -206,14 +218,14 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
   // Estáveis entre renders: o leitor volta a desenhar a cada segundo da música,
   // e refazer as interpolações a cada vez era religar o grafo nativo por nada.
   const postura = useMemo(
-    () => criarPostura(pose, flutuar, derivar, size, voo, assentar, recuoX, recuoTotal),
-    [pose, flutuar, derivar, size, voo, assentar, recuoX, recuoTotal],
+    () => criarPostura(poseVista, flutuar, derivar, size, voo, assentar, recuoX, recuoTotal),
+    [poseVista, flutuar, derivar, size, voo, assentar, recuoX, recuoTotal],
   );
   const pose3D = useMemo<PoseDaCapa3D | null>(
     () => (enabled
-      ? { postura, pose, espessura: c.espessura * size, montagem }
+      ? { postura, pose: poseVista, espessura: c.espessura * size, montagem }
       : null),
-    [enabled, postura, pose, size, c.espessura, montagem],
+    [enabled, postura, poseVista, size, c.espessura, montagem],
   );
   const sombras = useMemo(() => {
     const a = c.sombraAmbiente, k = c.sombraDeContacto;
@@ -223,20 +235,20 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
       ambiente: {
         left: a.x * size, top: a.y * size, width: a.largura * size, height: a.altura * size,
         // As sombras escurecem com a montagem: o objeto aterra.
-        opacity: Animated.multiply(Animated.multiply(pose, aterrar), baixo.interpolate({ inputRange: [0, 1], outputRange: [a.opacidade * 0.85, a.opacidade] })),
+        opacity: Animated.multiply(Animated.multiply(poseVista, aterrar), baixo.interpolate({ inputRange: [0, 1], outputRange: [a.opacidade * 0.85, a.opacidade] })),
         transform: [{ scaleX: baixo.interpolate({ inputRange: [0, 1], outputRange: [1.04, 1] }) }],
       },
       // Mais clara e mais pequena quando a capa sobe: é isso que vende a altura.
       contacto: {
         left: k.x * size, top: k.y * size, width: k.largura * size, height: k.altura * size,
-        opacity: Animated.multiply(Animated.multiply(pose, aterrar), baixo.interpolate({ inputRange: [0, 1], outputRange: [k.opacidade * 0.55, k.opacidade] })),
+        opacity: Animated.multiply(Animated.multiply(poseVista, aterrar), baixo.interpolate({ inputRange: [0, 1], outputRange: [k.opacidade * 0.55, k.opacidade] })),
         transform: [
           { rotate: `${k.rotacao}deg` },
           { scale: baixo.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
         ],
       },
     };
-  }, [pose, flutuar, size, aterrar, c.sombraAmbiente, c.sombraDeContacto]);
+  }, [poseVista, flutuar, size, aterrar, c.sombraAmbiente, c.sombraDeContacto]);
 
   return (
     <View style={{ width: size, height: size, overflow: 'visible' }}>

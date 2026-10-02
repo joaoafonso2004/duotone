@@ -88,6 +88,14 @@ import { apresentarErro } from '../lib/erroDeReproducao';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { limparOrigem, origemValida, type RectanguloDaCapa } from '../state/origemDaCapa';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
+import {
+  abertura, arrasto, aterrar, cartaoEsc, cartaoX, cartaoY,
+  ESCADA, folhaEscala, folhaOpacidade, folhaRaio, forcaDaPose, miniEscala, miniOpacidade, miniSubir, reporGesto,
+} from '../state/transicaoDoLeitor';
+import {
+  cartaoDoArrasto, deLadoInverso, destinoNoMini, deveFechar, molaIOS, velocidadeDeAterragem, velocidadeDeVolta,
+  type Geometria,
+} from '../lib/transicaoDoLeitor';
 
 const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
@@ -179,10 +187,20 @@ export function PlayerRoot() {
   // mandar um delete ao arrancar a app sem nada a tocar.
   const hadTrackRef = useRef(false);
 
-  const anim = useRef(new Animated.Value(0)).current;
-  // Deslocamento vertical do gesto de "arrastar para baixo para fechar" o
-  // now-playing. Soma-se ao translateY do overlay (e da frame de vídeo).
-  const dragY = useRef(new Animated.Value(0)).current;
+  // A abertura vive em state/transicaoDoLeitor.ts (2/10): a app de trás recua
+  // com ela, e é o RootNavigator que a lê. O arrasto para fechar deixou de ser
+  // um `dragY` que só descia a página -- é o cartão do gesto, no mesmo sítio.
+  const anim = abertura;
+  /** O cartão está a aterrar no mini-player: nada se toca nem se agarra. */
+  const aterrandoRef = useRef(false);
+  const [aterrando, setAterrando] = useState(false);
+  /**
+   * Fui EU (a aterragem) que fechei: o efeito do `expanded` não mexe na
+   * abertura, que já está a 0. À parte do `aterrandoRef` de propósito: se outra
+   * coisa fechar o leitor a meio (uma notificação), o efeito corre como sempre,
+   * e nenhuma marca fica esquecida a saltar a abertura seguinte.
+   */
+  const fecheiAoAterrarRef = useRef(false);
   /**
    * O raio dos cantos, à parte -- mas no MESMO driver que o resto.
    *
@@ -539,17 +557,21 @@ export function PlayerRoot() {
   }, [buffering, pulse]);
 
   useEffect(() => {
-    // Repõe o gesto de arrasto apenas ao abrir ou mudar de faixa, mantendo o valor
-    // durante a animação de encerramento por arrasto para evitar teletransporte.
-    if (expanded) {
-      dragY.setValue(0);
+    // Fechado pelo gesto: a aterragem já deixou tudo no mini-player (a
+    // abertura a 0, o cartão em repouso). Molas aqui por cima eram um salto.
+    if (fecheiAoAterrarRef.current) {
+      fecheiAoAterrarRef.current = false;
+      return;
     }
+    if (expanded) reporGesto();
+    // Molas do iOS (2/10): abrir com um ressalto mínimo, fechar sem nenhum.
+    const mola = expanded ? molaIOS(0.5, 0.82) : molaIOS(0.42, 0.92);
     Animated.parallel([
-      Animated.spring(anim, { toValue: expanded ? 1 : 0, useNativeDriver: true, speed: 14, bounciness: 3 }),
-      Animated.spring(animRaio, { toValue: expanded ? 1 : 0, useNativeDriver: true, speed: 14, bounciness: 3 }),
+      Animated.spring(anim, { toValue: expanded ? 1 : 0, useNativeDriver: true, ...mola }),
+      Animated.spring(animRaio, { toValue: expanded ? 1 : 0, useNativeDriver: true, ...mola }),
     ]).start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, anim, dragY, current?.sourceId]);
+  }, [expanded, anim, current?.sourceId]);
 
   /**
    * A capa entra a voar da linha que foi tocada.
@@ -605,29 +627,136 @@ export function PlayerRoot() {
    * o `swipeClose` usa: sobre a página inteira há botões por todo o lado, e 6 px
    * de deriva ao carregar num deles não pode começar a fechar o ecrã.
    */
+  /**
+   * O gesto de fechar (2/10, docs/transicao-do-leitor.html): a página encolhe
+   * para um cartão que segue o dedo, e ao largar aterra no mini-player com a
+   * velocidade do dedo. Antes só descia, como uma página plana.
+   *
+   * O que precisa da geometria lê-a do `geometriaRef` (atualizado em cada
+   * desenho): o PanResponder é criado uma vez e não vê os valores novos.
+   */
+  const geometriaRef = useRef<{ H: number; geo: Geometria }>({
+    H: 800,
+    geo: { pivo: { x: 200, y: 320 }, capa: { x: 200, y: 300, lado: 380 }, mini: { x: 40, y: 760, lado: 48 } },
+  });
+  const gestoRef = useRef({ tx: 0, ty: 0, esc: 1, g: 0, baseDx: 0, baseDy: 0 });
+
+  const aterrarNoMini = (vx: number, vy: number) => {
+    const { geo } = geometriaRef.current, ge = gestoRef.current;
+    // A velocidade do dedo na direção do mini-player: o cartão continua com ela.
+    const vn = velocidadeDeAterragem(geo, ge, vx, vy);
+    const alvo = destinoNoMini(geo);
+    aterrandoRef.current = true;
+    setAterrando(true);
+    hapticSelection();
+    const mola = molaIOS(0.5, 0.86);
+    // Todas com a MESMA mola e a velocidade na mesma proporção do caminho: andam
+    // juntas, e a capa nunca descola do cartão.
+    const ir = (valor: Animated.Value, para: number, de: number, limiar: number) => Animated.spring(valor, {
+      toValue: para, velocity: vn * (para - de), useNativeDriver: true, ...mola,
+      restDisplacementThreshold: limiar, restSpeedThreshold: limiar,
+    });
+    Animated.parallel([
+      ir(cartaoX, alvo.tx, ge.tx, 0.25),
+      ir(cartaoY, alvo.ty, ge.ty, 0.25),
+      ir(cartaoEsc, alvo.esc, ge.esc, 0.0015),
+      ir(aterrar, 1, 0, 0.002),
+    ]).start(() => {
+      // Tudo no mini-player: a abertura a 0 e o cartão em repouso no mesmo
+      // instante -- o que se vê é o mesmo, e o efeito do `expanded` não mexe.
+      anim.setValue(0);
+      animRaio.setValue(0);
+      reporGesto();
+      ge.baseDx = 0; ge.baseDy = 0; ge.g = 0;
+      aterrandoRef.current = false;
+      setAterrando(false);
+      if (usePlayer.getState().expanded) {
+        fecheiAoAterrarRef.current = true;
+        setExpanded(false);
+      }
+    });
+  };
+
+  const voltarAoSitio = (vy: number) => {
+    const ge = gestoRef.current;
+    // u vai de 1 a 0; continuar o dedo é u a crescer primeiro.
+    const vu = velocidadeDeVolta(ge, vy);
+    const mola = molaIOS(0.42, 0.8);
+    const ir = (valor: Animated.Value, para: number, de: number, limiar: number) => Animated.spring(valor, {
+      toValue: para, velocity: (de - para) * vu, useNativeDriver: true, ...mola,
+      restDisplacementThreshold: limiar, restSpeedThreshold: limiar,
+    });
+    Animated.parallel([
+      ir(cartaoX, 0, ge.tx, 0.25),
+      ir(cartaoY, 0, ge.ty, 0.25),
+      ir(cartaoEsc, 1, ge.esc, 0.0015),
+      ir(arrasto, 0, ge.g, 0.002),
+    ]).start(({ finished }) => { if (finished) { ge.baseDx = 0; ge.baseDy = 0; ge.tx = 0; ge.ty = 0; ge.esc = 1; ge.g = 0; } });
+  };
+
+  // A página nasce um terço do ecrã abaixo e sobe; no gesto, vai com o cartão.
+  // O pivô do crescer é (50%, 40%) -- o mesmo da capa no `vooDaMoldura` --, mas
+  // feito com uma translação e não com `transformOrigin`: o RN escala à volta
+  // do centro (50%), e 0,1·H·(escala − 1) leva esse centro para os 40%.
+  const folhaSubir = useMemo(() => Animated.add(
+    Animated.add(
+      anim.interpolate({ inputRange: [0, 1], outputRange: [H * 0.314, 0], extrapolate: 'extend' }),
+      cartaoY,
+    ),
+    Animated.multiply(Animated.add(folhaEscala, -1), H * 0.1),
+  ), [anim, H]);
+
+  const fecharRef = useRef({ aterrarNoMini, voltarAoSitio });
+  fecharRef.current = { aterrarNoMini, voltarAoSitio };
+
+  /**
+   * Arrastar para baixo, de QUALQUER ponto da página, para fechar o
+   * now-playing. Estava só no cabeçalho, que é uma faixa estreita.
+   *
+   * O que impede isto de roubar os gestos de quem está por dentro é ser um
+   * responder da fase NORMAL e não de captura: a negociação começa no nó mais
+   * fundo tocado e sobe, por isso quem estiver lá dentro decide primeiro.
+   * Em concreto, e sem precisar de exceções escritas à mão:
+   *
+   *  - as letras vivem num `ScrollView`, que fica com os arrastos verticais;
+   *  - o cubo reclama em captura, mas só gestos horizontais (`acceptsCubeSwipe`);
+   *  - a fila e o equalizador são folhas irmãs desta vista, não descendentes,
+   *    portanto nunca chegam sequer a ver este gesto.
+   *
+   * O limiar subiu de 6 para 12 px, com a mesma dominância vertical de 1,5x que
+   * o `swipeClose` usa: sobre a página inteira há botões por todo o lado, e 6 px
+   * de deriva ao carregar num deles não pode começar a fechar o ecrã.
+   */
   const dismissPan = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_e, g) =>
-        g.dy > 12 && g.dy > Math.abs(g.dx) * 1.5,
+        !aterrandoRef.current && g.dy > 12 && g.dy > Math.abs(g.dx) * 1.5,
+      onPanResponderGrant: () => {
+        // Um cartão apanhado a meio da volta ao sítio continua de onde está.
+        const ge = gestoRef.current;
+        let tx = 0, ty = 0;
+        cartaoX.stopAnimation((v) => { tx = v; });
+        cartaoY.stopAnimation((v) => { ty = v; });
+        cartaoEsc.stopAnimation();
+        arrasto.stopAnimation();
+        ge.baseDx = deLadoInverso(tx);
+        ge.baseDy = ty > 0 ? ty / 0.62 : 0;
+      },
       onPanResponderMove: (_e, g) => {
-        dragY.setValue(Math.max(0, g.dy));
+        const ge = gestoRef.current;
+        const c = cartaoDoArrasto(ge.baseDx + g.dx, ge.baseDy + g.dy, geometriaRef.current.H);
+        ge.g = c.g; ge.esc = c.esc; ge.tx = c.tx; ge.ty = c.ty;
+        cartaoX.setValue(c.tx);
+        cartaoY.setValue(c.ty);
+        cartaoEsc.setValue(c.esc);
+        arrasto.setValue(c.g);
       },
       onPanResponderRelease: (_e, g) => {
-        // Longe o suficiente (ou com impulso) → fecha; senão volta ao sítio.
-        if (g.dy > 120 || g.vy > 0.6) {
-          setExpanded(false);
-          Animated.timing(dragY, {
-            toValue: 0,
-            duration: 220,
-            useNativeDriver: true,
-          }).start();
-        } else {
-          Animated.spring(dragY, { toValue: 0, useNativeDriver: true }).start();
-        }
+        const vx = g.vx * 1000, vy = g.vy * 1000; // pontos por segundo
+        if (deveFechar(gestoRef.current, vy)) fecharRef.current.aterrarNoMini(vx, vy);
+        else fecharRef.current.voltarAoSitio(vy);
       },
-      onPanResponderTerminate: () => {
-        Animated.spring(dragY, { toValue: 0, useNativeDriver: true }).start();
-      },
+      onPanResponderTerminate: () => fecharRef.current.voltarAoSitio(0),
     })
   ).current;
 
@@ -868,30 +997,55 @@ export function PlayerRoot() {
    * percurso -- e duas copias destas interpolacoes divergiam ao primeiro
    * acerto, com a sombra a descolar da capa a meio da animacao.
    */
+  // O pivô do cartão do gesto (e do crescer da página ao abrir): o mesmo
+  // `transformOrigin` do painel, 50% / 40%.
+  const pivo = { x: W / 2, y: H * 0.4 };
+  const kx = centroFull.x - pivo.x, ky = centroFull.y - pivo.y;
+  // O gesto lê a geometria daqui (ver `geometriaRef`).
+  geometriaRef.current = {
+    H,
+    geo: {
+      pivo,
+      capa: { x: centroFull.x, y: centroFull.y, lado: vidFull.w },
+      mini: { x: centroMini.x, y: centroMini.y, lado: vidMini.w },
+    },
+  };
+
+  // A capa faz um ARCO do mini-player até ao sítio (a variante C): o X
+  // adianta-se ao Y. Em amostras, porque o motor nativo só interpola por troços.
+  const AMOSTRAS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+  const arcoX = (t: number) => 1 - Math.pow(1 - t, 1.7);
+  const arcoY = (t: number) => Math.pow(t, 1.35);
+  const voo = (deOrigem: number, deMini: number, curva: (t: number) => number) => anim.interpolate({
+    inputRange: origemDaEntrada ? [-1, ...AMOSTRAS] : AMOSTRAS,
+    outputRange: [...(origemDaEntrada ? [deOrigem] : []), ...AMOSTRAS.map((t) => deMini * (1 - curva(t)))],
+  });
+
   const vooDaMoldura = [
     {
       translateX: Animated.add(
-        anim.interpolate({
-          inputRange: faixaDoVoo,
-          outputRange: saidaDoVoo(deslocacaoOrigem.x, deslocacaoMini.x, 0),
-        }),
-        expanded || reducedMotion ? 0 : Animated.add(dragX, (1 - closeGain) * W)
+        Animated.add(
+          voo(deslocacaoOrigem.x, deslocacaoMini.x, arcoX),
+          expanded || reducedMotion ? 0 : Animated.add(dragX, (1 - closeGain) * W)
+        ),
+        // O cartão do gesto: a capa vai com ele, à volta do mesmo pivô.
+        Animated.add(cartaoX, Animated.multiply(Animated.add(cartaoEsc, -1), kx)),
       ),
     },
     {
       translateY: Animated.add(
-        anim.interpolate({
-          inputRange: faixaDoVoo,
-          outputRange: saidaDoVoo(deslocacaoOrigem.y, deslocacaoMini.y, 0),
-        }),
-        dragY
+        voo(deslocacaoOrigem.y, deslocacaoMini.y, arcoY),
+        Animated.add(cartaoY, Animated.multiply(Animated.add(cartaoEsc, -1), ky)),
       ),
     },
     {
-      scale: anim.interpolate({
-        inputRange: faixaDoVoo,
-        outputRange: saidaDoVoo(escalaOrigem, escalaMini, 1),
-      }),
+      scale: Animated.multiply(
+        anim.interpolate({
+          inputRange: faixaDoVoo,
+          outputRange: saidaDoVoo(escalaOrigem, escalaMini, 1),
+        }),
+        cartaoEsc,
+      ),
     },
   ];
 
@@ -1061,20 +1215,22 @@ export function PlayerRoot() {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* ===================== OVERLAY EXPANDIDO ===================== */}
+      {/* A página nasce a crescer (0,86 -> 1) e a subir, e no gesto é o
+          cartão que encolhe com o dedo. Tudo à volta do mesmo pivô (50%, 40%),
+          que é o da capa no `vooDaMoldura`. Ver state/transicaoDoLeitor.ts. */}
       <Animated.View
-        pointerEvents={expanded ? 'auto' : 'none'}
+        pointerEvents={expanded && !aterrando ? 'auto' : 'none'}
         {...dismissPan.panHandlers}
         style={[
           styles.full,
           {
+            overflow: 'hidden',
+            opacity: folhaOpacidade,
+            borderRadius: folhaRaio,
             transform: [
-              {
-                translateY: anim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [H, 0],
-                }),
-              },
-              { translateY: dragY },
+              { translateX: cartaoX },
+              { translateY: folhaSubir },
+              { scale: folhaEscala },
             ],
           },
         ]}
@@ -1117,8 +1273,8 @@ export function PlayerRoot() {
         )}
 
         {/* cabeçalho — o arrasto para fechar agora é da página toda */}
-        <View
-          style={[styles.fullHeader, { marginTop: insets.top + 6 }]}
+        <Animated.View
+          style={[styles.fullHeader, { marginTop: insets.top + 6 }, { opacity: ESCADA[0].opacidade, transform: [{ translateY: ESCADA[0].subir }] }]}
         >
           <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel="Minimize player" onPress={() => setExpanded(false)} style={styles.headerBtn}>
             <Ionicons name="chevron-down" size={24} color={colors.text} />
@@ -1155,7 +1311,7 @@ export function PlayerRoot() {
           >
             <Ionicons name="close" size={24} color={colors.text} />
           </Toque>
-        </View>
+        </Animated.View>
 
 
         {/* O espaço reservado à capa (a moldura flutua por cima nesta
@@ -1168,7 +1324,7 @@ export function PlayerRoot() {
         {/* Dois pontos por baixo da capa: a pista mínima de que ali há outro
             lado. A capa fica limpa -- nada por cima dela, que era a condição.
             E tocar troca, para quem nunca descobrir o gesto de rodar. */}
-        <View style={styles.pontosDoCubo}>
+        <Animated.View style={[styles.pontosDoCubo, { opacity: ESCADA[1].opacidade, transform: [{ translateY: ESCADA[1].subir }] }]}>
           {[false, true].map((paraAsLetras) => (
             <Pressable
               key={String(paraAsLetras)}
@@ -1201,7 +1357,7 @@ export function PlayerRoot() {
               <Text style={styles.textoDoRelatorio}>Save report</Text>
             </Toque>
           ) : null}
-        </View>
+        </Animated.View>
 
         <ScrollView
           style={styles.bodyScroll}
@@ -1225,7 +1381,7 @@ export function PlayerRoot() {
               círculo e com o mesmo alvo -- é essa simetria que o deixa mesmo ao
               centro do ecrã. Uma linha só: o que não cabe desvanece, e tocar
               dá-lhe uma volta (TextoQueCabe). O toque longo continua a copiar. */}
-          <View style={styles.titleRow}>
+          <Animated.View style={[styles.titleRow, { opacity: ESCADA[2].opacidade, transform: [{ translateY: ESCADA[2].subir }] }]}>
             <Toque
               escala={ESCALA.icone}
               onPress={saveCurrentToLibrary}
@@ -1296,13 +1452,13 @@ export function PlayerRoot() {
                 <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
               </Toque>
             </View>
-          </View>
+          </Animated.View>
 
           <View style={[styles.folga, styles.folgaAntesDaBarra]} />
 
           {/* A barra vive com os controlos, a 20 pt da fila de botões: é do
               transporte que ela fala, e colada ao título deixava-o sem ar. */}
-          <View style={styles.controls}>
+          <Animated.View style={[styles.controls, { opacity: ESCADA[3].opacidade, transform: [{ translateY: ESCADA[3].subir }] }]}>
             <BarraDoLeitor onSeek={seekTo} onScrubbingChange={setScrubbing} />
               <PlayerControlRow>
               {/* Três estados: apagado, ligado, e inteligente — este último
@@ -1436,12 +1592,12 @@ export function PlayerRoot() {
                 ) : null}
               </Toque>
               </PlayerControlRow>
-          </View>
+          </Animated.View>
 
           <View style={styles.folga} />
 
           {/* Grupo de Rodapé: Botão Recuar & Botões Utilitários (Fila & Equalizador) */}
-          <View style={styles.bottomGroup}>
+          <Animated.View style={[styles.bottomGroup, { opacity: ESCADA[4].opacidade, transform: [{ translateY: ESCADA[4].subir }] }]}>
             {showRewindButton ? (
               <Toque
                 escala={ESCALA.icone}
@@ -1489,7 +1645,7 @@ export function PlayerRoot() {
               </Toque>
               <View />
             </PlayerControlRow>
-          </View>
+          </Animated.View>
         </ScrollView>
       </Animated.View>
 
@@ -1502,14 +1658,16 @@ export function PlayerRoot() {
           styles.mini,
           {
             bottom: miniBottom,
-            transform:[{translateX:reducedMotion?0:Animated.add(dragX,(1-closeGain)*W)}],
+            // Ao abrir sobe um pouco a crescer e some; no gesto de fechar volta
+            // a aparecer por baixo do cartão (state/transicaoDoLeitor.ts).
+            transform:[
+              {translateX:reducedMotion?0:Animated.add(dragX,(1-closeGain)*W)},
+              {translateY:miniSubir},
+              {scale:miniEscala},
+            ],
             opacity: Animated.multiply(
               Animated.multiply(visibilityAnim,miniFade),
-              anim.interpolate({
-                inputRange: [0, 0.35],
-                outputRange: [1, 0],
-                extrapolate: 'clamp',
-              })
+              miniOpacidade,
             ),
           },
         ]}
@@ -1905,7 +2063,7 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
   escurecerCapa: Animated.AnimatedInterpolation<number>;
 }) {
   return (
-    <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao}>
+    <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao} forcaDaPose={forcaDaPose}>
       {(pose3D) => (
         <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
           front={<>{artSource?<CapaComTransicao key={`${track.source}:${track.sourceId}`} uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />

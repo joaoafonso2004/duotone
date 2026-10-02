@@ -193,6 +193,7 @@ const TESTES = [
   `${TS} scripts/test-seguir-amigo.ts`,
   `${TS} scripts/test-folego-do-js.ts`,
   `${TS} scripts/test-energia-em-segundo-plano.ts`,
+  `${TS} scripts/test-transicao-do-leitor.ts`,
   'scripts/test-gasto-em-segundo-plano.mjs',
   'scripts/test-presenca-com-fila-sql.mjs',
   'scripts/test-jam-passa-o-anfitriao-sql.mjs',
