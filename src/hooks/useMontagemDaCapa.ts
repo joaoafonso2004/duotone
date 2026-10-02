@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, Easing } from 'react-native';
 import { arranqueAtual } from '../lib/arranqueDaFaixa';
+import { appEstaVisivel, intervaloComAppVisivel, ouvirVisibilidade } from '../lib/appVisibility';
 import {
   alvosDasPecas, estadoPreso, faseDoArranque,
   type FaseDoArranque, type LeituraDoDownload, type Preso,
@@ -109,7 +110,8 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
     let orbita: Animated.CompositeAnimation | null = null;
     let respiracao: Animated.CompositeAnimation | null = null;
     let terminado = false;
-    let relogio: ReturnType<typeof setInterval> | null = null;
+    let pararRelogio = () => {};
+    let pararVisibilidade = () => {};
     let pararOuvirDownloads = () => {};
     let pararOuvirLeitor = () => {};
 
@@ -141,7 +143,8 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
     };
     const pararTudo = () => {
       terminado = true;
-      if (relogio) clearInterval(relogio);
+      pararRelogio();
+      pararVisibilidade();
       pararOuvirDownloads();
       pararOuvirLeitor();
       emCurso.forEach((x) => x?.stop());
@@ -212,7 +215,7 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
     };
 
     const avaliar = () => {
-      if (terminado) return;
+      if (terminado || !appEstaVisivel()) return;
       const st = usePlayer.getState();
       if (st.current?.sourceId !== id) return;
       const d = estadoDoDownload(id);
@@ -300,7 +303,18 @@ export function useMontagemDaCapa(sourceId: string | null, animar: boolean): Mon
     pararOuvirLeitor = usePlayer.subscribe((s, p) => {
       if (s.activeBackend !== p.activeBackend || s.buffering !== p.buffering || s.current !== p.current) avaliar();
     });
-    relogio = setInterval(() => { if (AppState.currentState === 'active') avaliar(); }, 1000);
+    pararRelogio = intervaloComAppVisivel(avaliar, 1000);
+    pararVisibilidade = ouvirVisibilidade((visivel) => {
+      if (visivel) { avaliar(); return; }
+      // Não basta ignorar o tique: o temporizador e os ciclos nativos da luz
+      // também param. Os avisos do download serão lidos de uma vez ao voltar.
+      emCurso.forEach((x) => x?.stop());
+      orbitar(false); respirar(false);
+      Object.values(a).flat().forEach((valor) => valor.stopAnimation());
+      encaixadas.fill(false);
+      feito.forEach((x) => { x.passo = -1; x.limite = -1; });
+      faseAtual = null;
+    });
     avaliar();
     return pararTudo;
   }, [sourceId, animar, reduzido, a]);

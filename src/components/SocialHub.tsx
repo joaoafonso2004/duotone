@@ -1,6 +1,6 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import { ActivityIndicator,AppState,FlatList,Image,Platform,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
-import { appEstaVisivel } from '../lib/appVisibility';
+import { appEstaVisivel, intervaloComAppVisivel } from '../lib/appVisibility';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { acceptFriendRequest,acrescentarAoGrupo,criarGrupo,declineOrRemoveFriendship,getChatMessages,getGroupMessages,apagarConversa, sairDoGrupo,searchProfiles,sendFriendRequest,getReactions,getMensagensCitadas,setReaction,shareComGrupo,shareItem,type Reaction,type SharedItem } from '../api/social';
 import type { PublicProfile } from '../api/profiles';
@@ -162,6 +162,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
     let active=true,loading=false,firstLoad=true,reload=false;
     setMessages([]);setHasOlder(false);setChatLoading(true);
     const load=async()=>{
+      if(!active || !appEstaVisivel())return;
       if(loading){reload=true;return;}loading=true;reload=false;
       try{const rows=conversation.kind==='group'?await getGroupMessages(conversation.id):await getChatMessages(conversation.id);
         if(active){if(firstLoad){setHasOlder(rows.length===100);firstLoad=false;}setMessages(previous=>mergeMessages(previous,rows));const last=rows.filter(m=>m.sender.id!==myId).at(-1);if(last&&canRead())await useSocial.getState().markRead(key,last.createdAt);}}
@@ -179,13 +180,13 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
     const focus = () => { if (canRead()) void load(); };
     const app = AppState.addEventListener('change', focus);
     if (web) window.addEventListener('focus', focus);
-    void load();const timer=setInterval(()=>void load(),60000);
+    void load();const pararTimer=intervaloComAppVisivel(()=>void load(),60000);
     const channel=supabase.channel(`chat:${key}`)
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'shared_items'},()=>void load())
       // As reações chegam pelo seu próprio evento, sem esperar pelo polling.
       .on('postgres_changes',{event:'*',schema:'public',table:'item_reactions'},()=>void recarregarReacoesRef.current())
       .subscribe();
-    return()=>{active=false;app.remove();if(web)window.removeEventListener('focus',focus);inboxSubscription();clearInterval(timer);void supabase.removeChannel(channel);};
+    return()=>{active=false;app.remove();if(web)window.removeEventListener('focus',focus);inboxSubscription();pararTimer();void supabase.removeChannel(channel);};
   },[key,visible,conversation,myId]);
   const loadOlder=async()=>{
     if(!conversation||older||!messages.length)return;setOlder(true);

@@ -131,7 +131,12 @@ async function main() {
     '../lib/supabase':{supabase:{rpc:async()=>({data:null,error:null}),channel:()=>channel,removeChannel:async()=>{}}},
     '../lib/socialPresence':{estadoDaPresenca:()=>({})},'../lib/social':load('src/lib/social.ts'),
     '../lib/profileMedia':{clearProfileMediaCache(){}},'../api/profiles':{getSocialConversations:async()=>[]},
-    '../lib/appVisibility':{appEstaVisivel:()=>visible},'../lib/inAppNotifications':core,
+    '../lib/appVisibility':{
+      appEstaVisivel:()=>visible,
+      intervaloComAppVisivel:(cb,ms)=>{
+        intervals.set(ms,()=>{if(visible)cb();});return()=>intervals.delete(ms);
+      },
+    },'../lib/inAppNotifications':core,
     '../lib/recuperacaoDaInbox':load('src/lib/recuperacaoDaInbox.ts'),
   },{setInterval:(cb,ms)=>{intervals.set(ms,cb);return ms;},clearInterval:id=>intervals.delete(id),
     console:{warn(){}}});
@@ -143,7 +148,7 @@ async function main() {
   assert.equal(inboxCalls,2,'events during a fetch cause a follow-up read');
   assert.equal(socialModule.useSocial.getState().received[0].id,'2','metadata failure does not block inbox');
   visible=false;intervals.get(15000)();await flush();assert.equal(inboxCalls,2,'no recovery while backgrounded');
-  visible=true;tiques(2);await flush();assert.equal(inboxCalls,2,'not every 15 seconds');
+  visible=true;tiques(3);await flush();assert.equal(inboxCalls,2,'not every 15 seconds; hidden time does not tick');
   tiques(1);await flush();assert.equal(inboxCalls,3,'one-minute recovery without Realtime');
   // The first read is whole; a change that is not an INSERT asks for a whole
   // one too; after that only what arrived since the newest message is read.

@@ -385,10 +385,11 @@ export function PlayerRoot() {
     }
   }, [current, isPlaying, queueIndex]);
 
-  // Guardar o handoff ao mudar de estado; a presença é gerida globalmente.
+  // Guardar ao ir para segundo plano. inactive (Centro de Controlo) e voltar
+  // a active não precisam de reescrever uma sessão que já está publicada.
   useEffect(() => {
-    const sub = AppState.addEventListener('change', () => {
-      if (usePlayer.getState().current) publishSessionNow();
+    const sub = AppState.addEventListener('change', (estado) => {
+      if (estado === 'background' && usePlayer.getState().current) publishSessionNow();
     });
     return () => sub.remove();
   }, []);

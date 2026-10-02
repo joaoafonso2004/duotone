@@ -21,7 +21,7 @@ import {
 } from './handoff';
 
 import { usePlayer } from '../state/player';
-import { appEstaVisivel } from './appVisibility';
+import { appEstaVisivel, intervaloComAppVisivel } from './appVisibility';
 import { supabase } from './supabase';
 
 /**
@@ -204,7 +204,9 @@ export function useHandoffSession(): {
   const primeira = useRef<Promise<void> | null>(null);
   /** O canal dos avisos está `SUBSCRIBED`: as mudanças chegam por ele. */
   const aoVivo = useRef(false);
+  const ultimaLeituraEm = useRef(0);
   const refresh = useCallback(() => {
+    ultimaLeituraEm.current = Date.now();
     const leitura = (async () => {
       const rows = await fetchOtherSessionsLeves();
       if (mounted.current) setSessions(rows);
@@ -216,7 +218,8 @@ export function useHandoffSession(): {
   useEffect(() => {
     if(appEstaVisivel())void refresh();
     let voltas = 0;
-    const id = setInterval(() => {
+    let esteveEmSegundoPlano = !appEstaVisivel();
+    const pararRelogio = intervaloComAppVisivel(() => {
       // Em segundo plano não vale a pena gastar rede: ao voltar a "active"
       // o listener abaixo recarrega de imediato.
       if (!appEstaVisivel()) return;
@@ -226,10 +229,16 @@ export function useHandoffSession(): {
       if (aoVivo.current && ++voltas % 5 !== 0) return;
       void refresh();
     }, POLL_MS);
-    const acordar=()=>{if(appEstaVisivel())void refresh();};
+    const acordar=(estado?: unknown)=>{
+      if (estado === 'background' || (Platform.OS === 'web' && !appEstaVisivel())) esteveEmSegundoPlano = true;
+      if (appEstaVisivel() && (esteveEmSegundoPlano || !aoVivo.current || Date.now() - ultimaLeituraEm.current >= POLL_MS)) {
+        esteveEmSegundoPlano = false;
+        void refresh();
+      }
+    };
     const sub = AppState.addEventListener('change', acordar);
     if(Platform.OS==='web')document.addEventListener('visibilitychange',acordar);
-    return () => { clearInterval(id); sub.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar); };
+    return () => { pararRelogio(); sub.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar); };
   }, [refresh]);
 
   // O Realtime: cada escrita de OUTRO aparelho desta conta é um "relê agora".
@@ -292,8 +301,7 @@ export function useHandoffSession(): {
   // quando deixa de ser fresca.
   useEffect(() => {
     if (!visible) return;
-    const id = setInterval(() => {if(appEstaVisivel())setTick((t) => t + 1);}, 1000);
-    return () => clearInterval(id);
+    return intervaloComAppVisivel(() => setTick((t) => t + 1), 1000);
   }, [!!visible]);
 
   const dismiss = useCallback(() => {

@@ -7,7 +7,7 @@ import {
 import { esquecerSessoes, fetchOtherSessions, fetchOtherSessionsLeves } from '../api/playerSessions';
 import type { RemoteSession } from './handoff';
 import { usePlayer } from '../state/player';
-import { appEstaVisivel } from './appVisibility';
+import { appEstaVisivel, intervaloComAppVisivel } from './appVisibility';
 import { getDeviceId } from './deviceIdentity';
 import {
   VALIDADE_DO_PEDIDO_MS, aparelhosDisponiveis, devoExecutar, fantasmasDeSessoes,
@@ -116,14 +116,17 @@ export function useComandosDoAparelho(userId: string | null | undefined): void {
     if (!userId) return;
     let parado = false;
     let pararEscuta: () => void = () => {};
-    let intervalo: ReturnType<typeof setInterval> | null = null;
+    let pararIntervalo = () => {};
     let largarAoVoltar: () => void = () => {};
 
     void getDeviceId().then((meu) => {
       if (parado || !meu) return;
       let primeiro = true;
+      let ultimaLeituraEm = 0;
+      let esteveEmSegundoPlano = AppState.currentState === 'background';
       const varrer = () => {
         if (parado || !appEstaVisivel()) return;
+        ultimaLeituraEm = Date.now();
         const arranque = primeiro;
         primeiro = false;
         void pedidosParaMim(meu)
@@ -146,8 +149,14 @@ export function useComandosDoAparelho(userId: string | null | undefined): void {
       // Corria depois, e por isso nunca chegava a tempo de proteger o
       // arranque. Falhar não custa -- o varrimento vai na mesma.
       void limparPedidosVelhos().catch(() => {}).then(varrer);
-      intervalo = setInterval(() => { if (!aoVivo) varrer(); }, 20_000);
-      const aoVoltar = AppState.addEventListener('change', (estado) => { if (estado === 'active') varrer(); });
+      pararIntervalo = intervaloComAppVisivel(() => { if (!aoVivo) varrer(); }, 20_000);
+      const aoVoltar = AppState.addEventListener('change', (estado) => {
+        if (estado === 'background') esteveEmSegundoPlano = true;
+        if (estado === 'active' && (esteveEmSegundoPlano || !aoVivo || Date.now() - ultimaLeituraEm >= 60_000)) {
+          esteveEmSegundoPlano = false;
+          varrer();
+        }
+      });
       largarAoVoltar = () => aoVoltar.remove();
     });
 
@@ -155,7 +164,7 @@ export function useComandosDoAparelho(userId: string | null | undefined): void {
       parado = true;
       pararEscuta();
       largarAoVoltar();
-      if (intervalo) clearInterval(intervalo);
+      pararIntervalo();
     };
   }, [userId]);
 }
@@ -250,6 +259,7 @@ export function useAparelhos(activo: boolean): {
     if (!activo) return;
     let vivo = true;
     const ler = () => {
+      if (!appEstaVisivel()) return;
       setACarregar(true);
       // Sem as filas: a lista e o comando só mostram o que toca, e o
       // "Continue here" lê a fila ao adotar (takeOverSession).
@@ -272,8 +282,8 @@ export function useAparelhos(activo: boolean): {
         .finally(() => { if (vivo) setACarregar(false); });
     };
     ler();
-    const id = setInterval(() => { if (appEstaVisivel()) ler(); }, 10_000);
-    return () => { vivo = false; clearInterval(id); };
+    const pararIntervalo = intervaloComAppVisivel(ler, 10_000);
+    return () => { vivo = false; pararIntervalo(); };
   }, [activo, tique]);
 
   const sessaoDe = useCallback(

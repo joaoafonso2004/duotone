@@ -44,6 +44,7 @@ export function iniciarPresenca(userId: string): () => void {
   const sessao = Crypto.randomUUID();
   const dispositivo = getDeviceId();
   const publicar = (encerrar = false) => {
+    clearTimeout(timer);
     lastPublished=Date.now();
     const s = usePlayer.getState();
     const faixa = s.current && s.isPlaying && s.playbackConfirmed && !s.buffering && !s.error ? s.current : null;
@@ -124,12 +125,21 @@ export function iniciarPresenca(userId: string): () => void {
   const pararPrivacidade = usePrivacidade.subscribe((s, p) => {
     if (!terminado && s.privada !== p.privada) void publicar();
   });
-  const app = AppState.addEventListener('change', () => { if (!terminado) void publicar(); });
+  // O Centro de Controlo passa por inactive e volta a active: a app não foi
+  // para segundo plano. Só uma mudança de estado estável publica presença.
+  let estadoEstavel = AppState.currentState;
+  const app = AppState.addEventListener('change', (estado) => {
+    if (terminado || estado === 'inactive' || estado === estadoEstavel) return;
+    estadoEstavel = estado;
+    void publicar();
+  });
   const beat = setInterval(() => {
     // Continua a bater com musica a tocar: e o que mantem o "esta a ouvir"
     // verdadeiro. O que isso ja NAO faz e dizer que a pessoa esta online --
     // essa janela agora so se estende com `p_active`.
-    if (!terminado && (appEstaVisivel() || usePlayer.getState().isPlaying)) void publicar();
+    // O timeUpdate nativo já pode ter feito este batimento com o ecrã apagado.
+    if (!terminado && Date.now() - lastPublished >= PRESENCE_PUBLISH_MS
+      && (appEstaVisivel() || usePlayer.getState().isPlaying)) void publicar();
   }, PRESENCE_PUBLISH_MS);
   // O batimento de cima nao corre no PC escondido e parado, e era ai que a
   // pessoa desaparecia: minimizada, sem musica, sentada ao computador (1/10).

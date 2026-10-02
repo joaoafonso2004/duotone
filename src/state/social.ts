@@ -7,7 +7,7 @@ import { estadoDaPresenca, type SocialPresence } from '../lib/socialPresence';
 import { fundirRecebidas, fundirVistos, marcaDasNovas } from '../lib/social';
 import { clearProfileMediaCache } from '../lib/profileMedia';
 import { getSocialConversations,type PublicProfile } from '../api/profiles';
-import { appEstaVisivel } from '../lib/appVisibility';
+import { appEstaVisivel, intervaloComAppVisivel } from '../lib/appVisibility';
 import { serialRefresh, type InboxSnapshot } from '../lib/inAppNotifications';
 import { deveRelerAInbox, TIQUE_DA_INBOX_MS } from '../lib/recuperacaoDaInbox';
 
@@ -206,8 +206,16 @@ export function iniciarSocial(userId: string): () => void {
   const refreshMessages = () => {
     if (gen !== generation) return;
     if (!canReadInbox()) { dirty=true; return; }
-    void inboxRefresh();
-    refresh();
+    // refresh() já inclui a inbox, em paralelo com os metadados. Pedir também
+    // inboxRefresh() fazia duas leituras da mesma inbox por aviso/ligação.
+    if (appEstaVisivel()) {
+      dirty = false;
+      clearTimeout(debounce);
+      void useSocial.getState().refresh();
+    } else {
+      dirty = true;
+      void inboxRefresh();
+    }
   };
   /** O canal está `SUBSCRIBED`: as mensagens novas chegam por ele. */
   let aoVivo = false;
@@ -259,8 +267,7 @@ export function iniciarSocial(userId: string): () => void {
       });
     }
   };
-  const tick = setInterval(() => {
-    if(!appEstaVisivel())return;
+  const pararTick = intervaloComAppVisivel(() => {
     const now = Date.now() + clockOffset;
     useSocial.setState({ now, friends: friendsNow(now) });
   }, 30000);
@@ -269,20 +276,23 @@ export function iniciarSocial(userId: string): () => void {
   // (27/9: cada uma relê também a inbox inteira, e um PC com a janela à vista
   // fazia isto o dia todo).
   let voltasAoVivo = 0;
-  const recovery = setInterval(() => {
-    if (!appEstaVisivel()) return;
+  const pararRecovery = intervaloComAppVisivel(() => {
     if (aoVivo && ++voltasAoVivo % 5 !== 0) return;
     refresh();
   }, 120000);
   // Só a rede para quando o Realtime cai: de minuto a minuto sem ele, de cinco
   // em cinco com ele e a app à frente, e nunca com ele e a app escondida
   // (lib/recuperacaoDaInbox.ts). Era de 15 em 15 s, também no tabuleiro do PC.
-  const inboxRecovery = setInterval(() => {
+  const recuperarInbox = () => {
     tiquesDaInbox++;
     if (deveRelerAInbox({ aoVivo, visivel: appEstaVisivel(), podeLer: canReadInbox(), tiques: tiquesDaInbox })) {
       void inboxRefresh();
     }
-  }, TIQUE_DA_INBOX_MS);
+  };
+  // O PC precisa da inbox escondida para a barra de tarefas; o iPhone não.
+  const pararInboxRecovery = Platform.OS === 'web'
+    ? (() => { const t = setInterval(recuperarInbox, TIQUE_DA_INBOX_MS); return () => clearInterval(t); })()
+    : intervaloComAppVisivel(recuperarInbox, TIQUE_DA_INBOX_MS);
   // Voltar à app relê tudo (inbox, amigos, grupos, presença: ~6 pedidos), mas
   // com o Realtime ligado no máximo uma vez por minuto (2/10): no iPhone, puxar o
   // Centro de Controlo ou uma notificação é sair e voltar, e no PC cada restauro
@@ -296,14 +306,13 @@ export function iniciarSocial(userId: string): () => void {
     useSocial.setState({now,friends:friendsNow(now)});
     if (aoVivo && !dirty && Date.now() - releuAoVoltarEm < RELER_AO_VOLTAR_MS) return;
     releuAoVoltarEm = Date.now();
-    void inboxRefresh();
     if(dirty)refresh(); else void useSocial.getState().refresh();
   };
   const app=AppState.addEventListener('change',acordar);
   if(Platform.OS==='web')document.addEventListener('visibilitychange',acordar);
   void useSocial.getState().refresh();
   return () => {
-    ++generation; clearTimeout(debounce); clearInterval(tick); clearInterval(recovery); clearInterval(inboxRecovery);
+    ++generation; clearTimeout(debounce); pararTick(); pararRecovery(); pararInboxRecovery();
     app.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar);
     accountId='';refreshInbox=async()=>{};clearProfileMediaCache();
     if (channel) void supabase.removeChannel(channel);
