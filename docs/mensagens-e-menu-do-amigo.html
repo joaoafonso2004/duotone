@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mensagens e menu do amigo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fundo:#060608;--painel:#0C0C10;--elevado:#16161C;--hover:#1C1C24;
+  --linha:rgba(233,234,238,.10);--linhaSuave:rgba(233,234,238,.055);
+  --texto:#E9EAEE;--medio:#9DA0AA;--fraco:#84868F;--ok:#7FB069;--perigo:#E5484D;
+  --acento:#C9A86A;
+  --display:"Archivo",system-ui,sans-serif;--body:"Public Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--texto);font-family:var(--body)}
+.pagina{max-width:1120px;margin:0 auto;padding:40px 16px 100px}
+h1{font-family:var(--display);font-size:30px;letter-spacing:-.5px;margin:0 0 8px}
+.intro{color:var(--medio);font-size:15px;line-height:1.6;max-width:780px;margin:0 0 28px}
+h2{font-family:var(--display);font-size:21px;margin:56px 0 6px}
+h3{font-family:var(--display);font-size:15px;margin:0 0 10px;color:var(--texto)}
+.nota{color:var(--medio);font-size:14px;line-height:1.6;max-width:820px;margin:0 0 18px}
+.nota b{color:var(--texto);font-weight:600}
+.lado{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+.cartaoMaquete{background:var(--fundo);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px;position:relative;overflow:hidden}
+.etiqueta{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--fraco);text-transform:uppercase;margin-bottom:12px;display:flex;gap:8px;align-items:center}
+.etiqueta b{color:var(--texto);font-weight:500}
+.escolher{display:inline-flex;gap:6px;margin:0 0 16px;flex-wrap:wrap}
+.escolher button{font:600 13px var(--body);color:var(--medio);background:transparent;border:1px solid var(--linha);border-radius:999px;padding:7px 14px;cursor:pointer}
+.escolher button.on{color:#111;background:var(--texto);border-color:var(--texto)}
+.cores{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--medio);margin:-6px 0 18px}
+.cores span{width:18px;height:18px;border-radius:9px;cursor:pointer;border:2px solid transparent}
+.cores span.on{border-color:var(--texto)}
+
+/* ---------- lista de conversas ---------- */
+.conversas{display:flex;flex-direction:column;gap:2px}
+.conversa{display:flex;align-items:center;gap:14px;padding:10px 12px;border-radius:12px;position:relative;cursor:pointer}
+.conversa:hover{background:rgba(233,234,238,.04)}
+.cara{width:48px;height:48px;border-radius:50%;flex:none;position:relative;display:grid;place-items:center;font-weight:700;font-size:18px;color:#fff}
+.cara .ponto{position:absolute;right:0;bottom:0;width:13px;height:13px;border-radius:50%;background:var(--ok);border:2.5px solid var(--fundo)}
+.c1{background:linear-gradient(135deg,#8a6a2c,#3d2a10)}
+.c2{background:linear-gradient(135deg,#5b6170,#22252c)}
+.c3{background:linear-gradient(135deg,#7a3a5a,#2a1220)}
+.quem{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.estado{font-size:13px;color:var(--fraco);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meio{flex:1;min-width:0}
+.hora{font-family:var(--mono);font-size:11px;color:var(--fraco);margin-left:8px;flex:none}
+/* antes: o que se vê hoje */
+.antes .naoLida .quem{font-weight:800}
+.antes .naoLida .estado{color:var(--texto);font-weight:600}
+.badgeAntes{font:700 12px var(--body);color:var(--texto);background:var(--acento);padding:0 2px;line-height:16px}
+/* proposta */
+.prop .naoLida .quem{font-weight:700}
+.prop .naoLida .estado{color:var(--texto)}
+.prop .linhaTopo{display:flex;align-items:baseline;min-width:0}
+.prop .linhaTopo .quem{flex:1;min-width:0}
+.prop .naoLida .hora{color:var(--acento)}
+.contagem{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--acento);color:#0B0B0E;font:800 11.5px var(--body);display:grid;place-items:center;flex:none;margin-left:8px}
+.pontoLido{width:8px;height:8px;border-radius:4px;background:var(--acento);flex:none;margin-left:10px}
+.miniCapa{width:16px;height:16px;border-radius:3px;display:inline-block;vertical-align:-3px;margin-right:6px;background:linear-gradient(135deg,#d8d8d8,#6e6e6e)}
+.prop .linhaBaixo{display:flex;align-items:center;margin-top:3px;min-width:0}
+.prop .linhaBaixo .estado{margin-top:0;flex:1;min-width:0}
+.varB .contagem{display:none}
+.varA .pontoLido{display:none}
+.varB .naoLida::before{content:"";position:absolute;left:-2px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:3px;background:var(--acento)}
+
+/* ---------- o aviso de mensagem ---------- */
+.palco{position:relative;height:330px;border-radius:12px;background:
+  radial-gradient(600px 300px at 70% 0%,#1b1320 0%,transparent 60%),var(--fundo);overflow:hidden}
+.palco .fingeConteudo{position:absolute;inset:20px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;opacity:.35}
+.palco .fingeConteudo i{border-radius:8px;background:#16161c;aspect-ratio:1}
+.aviso{position:absolute;right:16px;top:16px;width:380px;background:#1C1C23;border:1px solid #36363F;border-radius:18px;box-shadow:0 12px 32px rgba(0,0,0,.45);
+  transform:translateY(-130%);opacity:0;transition:transform 420ms cubic-bezier(.2,.9,.25,1.05),opacity 200ms}
+.aviso.ver{transform:none;opacity:1}
+.aviso .topo{display:flex;gap:12px;padding:14px 14px 10px;align-items:flex-start}
+.aviso .cara{width:40px;height:40px;font-size:15px}
+.aviso .tx{flex:1;min-width:0}
+.aviso .nome{font-weight:700;font-size:14px;display:flex;gap:8px;align-items:baseline}
+.aviso .nome small{font:500 11px var(--mono);color:var(--fraco)}
+.aviso .msg{font-size:13.5px;color:#CDCDD4;line-height:1.4;margin-top:3px}
+.aviso .x{width:28px;height:28px;border-radius:14px;display:grid;place-items:center;color:#AAAAB4;cursor:pointer;flex:none}
+.aviso .musica{margin:0 14px 10px;display:flex;align-items:center;gap:10px;padding:8px;border-radius:12px;background:rgba(233,234,238,.05)}
+.aviso .musica .capinha{width:40px;height:40px;border-radius:6px;background:linear-gradient(135deg,#e3e3e3,#7c7c7c)}
+.aviso .musica .t{font-size:13px;font-weight:600}.aviso .musica .a{font-size:12px;color:var(--medio)}
+.aviso .musica .tocar{margin-left:auto;width:30px;height:30px;border-radius:15px;background:var(--texto);display:grid;place-items:center;cursor:pointer}
+.aviso .responder{display:flex;gap:8px;padding:0 14px 14px}
+.aviso .responder input{flex:1;min-width:0;background:rgba(233,234,238,.06);border:1px solid var(--linha);border-radius:12px;color:var(--texto);font:14px var(--body);padding:9px 12px;outline:none}
+.aviso .responder input:focus{border-color:rgba(233,234,238,.3)}
+.aviso .responder button{border:0;border-radius:12px;padding:0 14px;font:700 13px var(--body);background:var(--acento);color:#0B0B0E;cursor:pointer}
+.aviso .mais{font-size:12px;color:var(--fraco);padding:0 14px 12px;margin-top:-4px}
+.avisoAntes{position:absolute;right:16px;top:16px;width:380px;background:#1C1C23;border:1px solid #36363F;border-radius:20px;display:flex;align-items:center;gap:12px;padding:14px}
+.avisoAntes .marca{font:700 9px var(--body);letter-spacing:2px;color:#AAAAB4}
+.avisoAntes .nome{font-weight:700;font-size:14px}.avisoAntes .msg{font-size:13px;color:#CDCDD4}
+.avisoAntes .resp{color:var(--acento);font-weight:700;font-size:13px;padding:0 6px}
+.botao{font:600 13px var(--body);color:var(--texto);background:transparent;border:1px solid var(--linha);border-radius:10px;padding:8px 14px;cursor:pointer}
+.botao:hover{background:rgba(233,234,238,.05)}
+
+/* ---------- a lateral e o menu do amigo ---------- */
+.lateralDemo{width:260px;background:rgba(12,12,16,.9);border:1px solid var(--linhaSuave);border-radius:14px;padding:14px 10px}
+.secLat{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--fraco);padding:4px 8px 10px}
+.amigoLat{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;cursor:default;user-select:none}
+.amigoLat:hover,.amigoLat.aberto{background:rgba(233,234,238,.05)}
+.amigoLat .cara{width:32px;height:32px;font-size:13px}
+.amigoLat .cara .ponto{width:10px;height:10px;border-width:2px;border-color:#0C0C10}
+.amigoLat .n{font-size:13px;font-weight:600}
+.amigoLat .s{font-size:11.5px;color:var(--medio);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.amigoLat .fio{height:2px;border-radius:1px;background:rgba(233,234,238,.14);margin-top:5px;overflow:hidden}
+.amigoLat .fio i{display:block;height:100%;width:38%;background:var(--texto)}
+.amigoLat .ouvir{width:26px;height:26px;border-radius:13px;background:var(--texto);display:grid;place-items:center;flex:none;opacity:0;transition:opacity 120ms}
+.amigoLat:hover .ouvir{opacity:1}
+.dicaLat{font-size:11.5px;color:var(--fraco);padding:12px 8px 0;line-height:1.5}
+.menu{position:fixed;z-index:50;width:272px;background:#18181F;border:1px solid #33333C;border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.55);padding:6px;
+  transform-origin:top left;animation:abrir 150ms cubic-bezier(.2,.9,.3,1)}
+@keyframes abrir{from{opacity:0;transform:scale(.96) translateY(-4px)}to{opacity:1;transform:none}}
+.menu .cab{display:flex;gap:10px;align-items:center;padding:8px 8px 10px}
+.menu .cab .cara{width:36px;height:36px;font-size:14px}
+.menu .cab .n{font-weight:700;font-size:14px}
+.menu .cab .s{font-size:12px;color:var(--medio);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
+.menu .op{display:flex;align-items:center;gap:12px;padding:9px 10px;border-radius:9px;font-size:13.5px;color:var(--texto);cursor:pointer}
+.menu .op:hover{background:rgba(233,234,238,.07)}
+.menu .op svg{width:17px;height:17px;flex:none;color:var(--medio)}
+.menu .op small{margin-left:auto;font:11px var(--mono);color:var(--fraco)}
+.menu .op.perigo,.menu .op.perigo svg{color:var(--perigo)}
+.menu .div{height:1px;background:var(--linhaSuave);margin:5px 6px}
+.menu .grupo{font-family:var(--mono);font-size:9.5px;letter-spacing:1.4px;color:var(--fraco);padding:8px 10px 4px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#222229;border:1px solid #3a3a44;border-radius:12px;padding:10px 16px;font-size:13px;opacity:0;transition:opacity 180ms;pointer-events:none;z-index:60}
+.toast.ver{opacity:1}
+.confirmar{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;place-items:center;z-index:70}
+.confirmar.ver{display:grid}
+.confirmar .caixa{width:360px;background:#18181F;border:1px solid #33333C;border-radius:16px;padding:20px}
+.confirmar .caixa h4{margin:0 0 8px;font-family:var(--display);font-size:17px}
+.confirmar .caixa p{margin:0 0 18px;color:var(--medio);font-size:14px;line-height:1.5}
+.confirmar .acoesC{display:flex;justify-content:flex-end;gap:8px}
+.confirmar .perigoB{border:0;background:var(--perigo);color:#fff;border-radius:10px;padding:8px 14px;font:700 13px var(--body);cursor:pointer}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>Mensagens e o menu de um amigo</h1>
+  <p class="intro">Três coisas, no aspeto da app do PC. Escolhe uma variante em cada uma (ou diz-me o que mudar) e eu aplico. Nas propostas não há
+    nenhuma cor nova: o destaque é a cor da tua capa (o mesmo de hoje), e o texto por cima dele escolhe preto ou branco sozinho.</p>
+
+  <!-- ================= 1. LISTA DE CONVERSAS ================= -->
+  <h2>1. Uma conversa com mensagens por ler</h2>
+  <p class="nota">Hoje a contagem é um retângulo da cor da capa com o número em branco por cima: com uma capa clara o número
+    desaparece, e fica a <b>barrinha branca</b> da tua imagem. E a linha diz "Last seen just now" a negrito, que não é a mensagem.
+    Nas propostas a linha mostra <b>a última mensagem por ler</b> (ou a música que te mandaram) e há quanto tempo chegou.</p>
+  <div class="cores">Cor da capa:
+    <span data-cor="#C9A86A" class="on" style="background:#C9A86A"></span>
+    <span data-cor="#EDEDED" style="background:#EDEDED"></span>
+    <span data-cor="#7C5CFF" style="background:#7C5CFF"></span>
+    <span data-cor="#E35454" style="background:#E35454"></span>
+  </div>
+  <div class="escolher" id="escLista">
+    <button data-v="A" class="on">A · contagem à direita</button>
+    <button data-v="B">B · só um ponto</button>
+  </div>
+  <div class="lado">
+    <div class="cartaoMaquete antes">
+      <div class="etiqueta"><b>Hoje</b></div>
+      <div class="conversas">
+        <div class="conversa naoLida"><div class="cara c1">G<i class="ponto"></i></div>
+          <div class="meio"><div class="quem">ganzas</div><div class="estado">Last seen just now</div></div>
+          <span class="badgeAntes">2</span></div>
+        <div class="conversa"><div class="cara c2">C</div>
+          <div class="meio"><div class="quem">calito</div><div class="estado">Last seen 3 h ago</div></div></div>
+        <div class="conversa"><div class="cara c3">R<i class="ponto"></i></div>
+          <div class="meio"><div class="quem">raton</div><div class="estado" style="color:var(--acento)">♫ deaf note · Playboi Carti</div></div></div>
+      </div>
+    </div>
+    <div class="cartaoMaquete prop varA" id="listaProp">
+      <div class="etiqueta"><b>Proposta</b> <span id="nomeVar">A</span></div>
+      <div class="conversas">
+        <div class="conversa naoLida"><div class="cara c1">G<i class="ponto"></i></div>
+          <div class="meio">
+            <div class="linhaTopo"><div class="quem">ganzas</div><span class="hora">2m</span></div>
+            <div class="linhaBaixo"><div class="estado"><i class="miniCapa"></i>Sent you deaf note</div><span class="contagem">2</span><span class="pontoLido"></span></div>
+          </div></div>
+        <div class="conversa naoLida"><div class="cara c3">R<i class="ponto"></i></div>
+          <div class="meio">
+            <div class="linhaTopo"><div class="quem">raton</div><span class="hora">14m</span></div>
+            <div class="linhaBaixo"><div class="estado">bro ouve isto às 2:10 é demasiado</div><span class="contagem">1</span><span class="pontoLido"></span></div>
+          </div></div>
+        <div class="conversa"><div class="cara c2">C</div>
+          <div class="meio">
+            <div class="linhaTopo"><div class="quem">calito</div><span class="hora">3h</span></div>
+            <div class="linhaBaixo"><div class="estado">You: amanhã mando-te a playlist</div></div>
+          </div></div>
+      </div>
+    </div>
+  </div>
+  <p class="nota" style="margin-top:14px">Sem mensagens por ler, a linha volta a ser o que é hoje: o que a pessoa está a ouvir (na cor
+    da capa) ou "Online now" / "Last seen". A conversa com mensagens novas sobe para o topo, como já acontece.</p>
+
+  <!-- ================= 2. O AVISO ================= -->
+  <h2>2. Quando chega uma mensagem</h2>
+  <p class="nota">O aviso no canto já existe, mas diz só "DUOTONE · ganzas · Shared deaf note" e um "Reply" que abre a página das
+    mensagens. A proposta mostra a <b>mensagem a sério</b>; se for uma música, a <b>capa com o ▶</b> para a tocares dali; e
+    <b>responde-se no próprio aviso</b>, sem sair do que estás a ver. Várias mensagens da mesma pessoa juntam-se no mesmo aviso
+    ("+2 more").</p>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="botao" id="simTexto">Simular: mensagem de texto</button>
+    <button class="botao" id="simMusica">Simular: mandou uma música</button>
+    <button class="botao" id="simRajada">Simular: três seguidas</button>
+  </div>
+  <div class="lado">
+    <div class="cartaoMaquete"><div class="etiqueta"><b>Hoje</b></div>
+      <div class="palco"><div class="fingeConteudo"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="avisoAntes"><div class="cara c1" style="width:40px;height:40px;font-size:15px">G</div>
+          <div style="flex:1;min-width:0"><div class="marca">DUOTONE</div><div class="nome">ganzas</div><div class="msg">Shared deaf note</div></div>
+          <span class="resp">Reply</span><span style="color:#AAAAB4;padding:0 6px">✕</span></div>
+      </div></div>
+    <div class="cartaoMaquete"><div class="etiqueta"><b>Proposta</b></div>
+      <div class="palco" id="palco"><div class="fingeConteudo"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="aviso" id="aviso">
+          <div class="topo"><div class="cara c1">G</div>
+            <div class="tx"><div class="nome"><span id="avNome">ganzas</span><small id="avHora">now</small></div>
+              <div class="msg" id="avMsg">yo já ouviste o álbum novo?</div></div>
+            <div class="x" id="avFechar">✕</div></div>
+          <div class="musica" id="avMusica" style="display:none"><div class="capinha"></div>
+            <div><div class="t">deaf note</div><div class="a">Playboi Carti</div></div>
+            <div class="tocar"><svg width="11" height="12" viewBox="0 0 11 12"><path d="M1 1l9 5-9 5z" fill="#111"/></svg></div></div>
+          <div class="mais" id="avMais" style="display:none"></div>
+          <div class="responder"><input id="avResp" placeholder="Reply to ganzas…"><button id="avEnviar">Send</button></div>
+        </div>
+      </div></div>
+  </div>
+  <p class="nota" style="margin-top:14px">Com a janela escondida continua a ser o aviso do Windows, como hoje; isto é o de dentro da
+    app. Desaparece sozinho aos 8 s, mas não enquanto estás a escrever.</p>
+
+  <!-- ================= 3. MENU DO AMIGO ================= -->
+  <h2>3. Botão direito num amigo</h2>
+  <p class="nota">Hoje só há duas portas: o clique (abre a conversa) e o ▶ (ouvir com ele). A proposta: o botão direito abre
+    um menu <b>ali mesmo, onde está o rato</b>, com tudo o que se pode fazer com essa pessoa. As opções da música só aparecem se
+    ela estiver a ouvir alguma coisa. <b>Experimenta: botão direito nos dois amigos aqui em baixo.</b></p>
+  <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
+    <div class="lateralDemo">
+      <div class="secLat"><span>FRIENDS</span><span>2 ONLINE</span></div>
+      <div class="amigoLat" data-amigo="raton"><div class="cara c3">R<i class="ponto"></i></div>
+        <div class="meio"><div class="n">raton</div><div class="s">deaf note (ft. Playboi Carti) · …</div><div class="fio"><i></i></div></div>
+        <div class="ouvir"><svg width="10" height="11" viewBox="0 0 11 12"><path d="M1 1l9 5-9 5z" fill="#111"/></svg></div></div>
+      <div class="amigoLat" data-amigo="ganzas"><div class="cara c1">G<i class="ponto"></i></div>
+        <div class="meio"><div class="n">ganzas</div><div class="s" style="color:var(--fraco)">Online</div></div></div>
+      <div class="dicaLat">Botão direito numa linha. O clique continua a abrir a conversa.</div>
+    </div>
+    <div style="flex:1;min-width:280px">
+      <h3>O que o menu tem</h3>
+      <p class="nota" style="font-size:13.5px"><b>A música dele</b> (só a ouvir): ouvir com ele (ou entrar na Jam dele), tocar só
+        a música, pôr na fila, guardar nas Liked Songs.<br>
+        <b>Vocês os dois</b>: mandar mensagem, ver o perfil, tocar uma mistura das músicas dos dois, convidar para a tua Jam,
+        mandar-lhe o que estás a ouvir.<br>
+        <b>Por baixo</b>: fixar na lateral e, separado, remover amigo (pede confirmação).</p>
+      <p class="nota" style="font-size:13.5px">Tudo isto já existe na app noutros sítios: é juntar as portas num só sítio. A mistura
+        dos dois hoje só existe no iPhone e passava a existir no PC.</p>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="confirmar" id="confirmar"><div class="caixa"><h4>Remove raton?</h4>
+  <p>Deixam de ver o que o outro está a ouvir. As conversas ficam.</p>
+  <div class="acoesC"><button class="botao" id="cancelarRem">Cancel</button><button class="perigoB" id="confirmarRem">Remove</button></div></div></div>
+
+<script>
+// --- cor da capa (com o texto da contagem a escolher preto ou branco) ---
+function luminancia(hex){const n=parseInt(hex.slice(1),16);const c=[n>>16,(n>>8)&255,n&255].map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4)});return .2126*c[0]+.7152*c[1]+.0722*c[2];}
+document.querySelectorAll('.cores span').forEach(s=>s.addEventListener('click',()=>{
+  document.querySelectorAll('.cores span').forEach(x=>x.classList.remove('on'));s.classList.add('on');
+  const cor=s.dataset.cor;document.documentElement.style.setProperty('--acento',cor);
+  const texto=luminancia(cor)>.35?'#0B0B0E':'#FFFFFF';
+  document.querySelectorAll('.contagem').forEach(c=>c.style.color=texto);
+  document.querySelectorAll('.aviso .responder button').forEach(c=>c.style.color=texto);
+}));
+document.querySelectorAll('#escLista button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#escLista button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  const l=document.getElementById('listaProp');l.classList.remove('varA','varB');l.classList.add('var'+b.dataset.v);
+  document.getElementById('nomeVar').textContent=b.dataset.v;
+}));
+
+// --- o aviso ---
+const aviso=document.getElementById('aviso');let fecharEm=null;
+function mostrarAviso({msg,musica,mais}){
+  document.getElementById('avMsg').textContent=msg;
+  document.getElementById('avMusica').style.display=musica?'flex':'none';
+  const m=document.getElementById('avMais');m.style.display=mais?'block':'none';m.textContent=mais||'';
+  aviso.classList.remove('ver');void aviso.offsetWidth;aviso.classList.add('ver');
+  agendarFecho();
+}
+function agendarFecho(){clearTimeout(fecharEm);fecharEm=setTimeout(()=>{if(document.activeElement!==document.getElementById('avResp'))aviso.classList.remove('ver');else agendarFecho();},8000);}
+document.getElementById('simTexto').onclick=()=>mostrarAviso({msg:'yo já ouviste o álbum novo?'});
+document.getElementById('simMusica').onclick=()=>mostrarAviso({msg:'ouve isto às 2:10',musica:true});
+document.getElementById('simRajada').onclick=()=>mostrarAviso({msg:'é demasiado bom',musica:true,mais:'+2 more from ganzas'});
+document.getElementById('avFechar').onclick=()=>aviso.classList.remove('ver');
+document.getElementById('avEnviar').onclick=()=>{const i=document.getElementById('avResp');if(!i.value.trim())return;toast('Sent to ganzas: “'+i.value.trim()+'”');i.value='';aviso.classList.remove('ver');};
+document.getElementById('avResp').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('avEnviar').click();});
+document.querySelector('.aviso .tocar').onclick=()=>toast('A tocar deaf note');
+setTimeout(()=>mostrarAviso({msg:'ouve isto às 2:10',musica:true}),900);
+
+// --- o menu do amigo ---
+const icones={
+  ouvir:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 14v-2a9 9 0 0118 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg>',
+  play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l12 7-12 7z"/></svg>',
+  fila:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h12M4 12h12M4 18h7M17 15v6M14 18h6"/></svg>',
+  coracao:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20s-7-4.4-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.6-7 10-7 10z"/></svg>',
+  msg:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+  perfil:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>',
+  mistura:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/></svg>',
+  jam:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M2 20a6 6 0 0112 0M10 20a6 6 0 0112 0"/></svg>',
+  partilhar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12l16-8-6 16-3-6z"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3h6l-1 6 3 3H7l3-3zM12 15v6"/></svg>',
+  remover:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="8" r="4"/><path d="M3 21a7 7 0 0114 0M16 11h6"/></svg>',
+};
+const amigos={
+  raton:{nome:'raton',cara:'c3',letra:'R',estado:'Listening to deaf note · Playboi Carti',musica:'deaf note'},
+  ganzas:{nome:'ganzas',cara:'c1',letra:'G',estado:'Online',musica:null},
+};
+let menuAberto=null,linhaAberta=null;
+function op(ic,texto,acao,extra=''){return `<div class="op ${extra}" data-acao="${acao}">${icones[ic]}<span>${texto}</span></div>`;}
+function abrirMenu(amigo,x,y,linha){
+  fecharMenu();const a=amigos[amigo];
+  let h=`<div class="cab"><div class="cara ${a.cara}">${a.letra}<i class="ponto" style="width:11px;height:11px"></i></div><div><div class="n">${a.nome}</div><div class="s">${a.estado}</div></div></div>`;
+  if(a.musica){
+    h+=`<div class="grupo">${a.musica.toUpperCase()}</div>`+op('ouvir','Listen along with '+a.nome,'Listening along with '+a.nome)
+      +op('play','Play this song','A tocar '+a.musica)+op('fila','Add to queue',a.musica+' added to the queue')+op('coracao','Add to Liked Songs',a.musica+' added to Liked Songs')+'<div class="div"></div>';
+  }
+  h+=op('msg','Send message','Abre a conversa com '+a.nome)+op('perfil','View profile','Abre o perfil de '+a.nome)
+    +op('mistura','Play a mix of you two','A tocar a mistura tua e de '+a.nome)+op('jam','Invite to your Jam',a.nome+' invited to your Jam')
+    +op('partilhar','Send what you\'re playing','Sent “Red” to '+a.nome)+'<div class="div"></div>'
+    +op('pin','Pin to sidebar',a.nome+' pinned to the sidebar')+op('remover','Remove friend','remover','perigo');
+  const m=document.createElement('div');m.className='menu';m.innerHTML=h;document.body.appendChild(m);
+  // O tamanho sem a escala da animação de abrir.
+  const w=m.offsetWidth,hh=m.offsetHeight;
+  const px=Math.max(8,Math.min(x,innerWidth-w-8)),py=Math.max(8,Math.min(y,innerHeight-hh-8));
+  m.style.left=px+'px';m.style.top=py+'px';
+  if(py<y)m.style.transformOrigin='bottom left';
+  m.querySelectorAll('.op').forEach(o=>o.addEventListener('click',()=>{
+    const acao=o.dataset.acao;fecharMenu();
+    if(acao==='remover'){document.querySelector('#confirmar h4').textContent='Remove '+a.nome+'?';document.getElementById('confirmar').classList.add('ver');}
+    else toast(acao);
+  }));
+  menuAberto=m;linhaAberta=linha;linha.classList.add('aberto');
+}
+function fecharMenu(){if(menuAberto){menuAberto.remove();menuAberto=null;}if(linhaAberta){linhaAberta.classList.remove('aberto');linhaAberta=null;}}
+document.querySelectorAll('.amigoLat').forEach(l=>l.addEventListener('contextmenu',e=>{e.preventDefault();abrirMenu(l.dataset.amigo,e.clientX,e.clientY,l);}));
+document.addEventListener('mousedown',e=>{if(menuAberto&&!menuAberto.contains(e.target))fecharMenu();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharMenu();});
+addEventListener('scroll',fecharMenu,{passive:true});
+document.getElementById('cancelarRem').onclick=()=>document.getElementById('confirmar').classList.remove('ver');
+document.getElementById('confirmarRem').onclick=()=>{document.getElementById('confirmar').classList.remove('ver');toast('Friend removed');};
+let toastEm;function toast(t){const el=document.getElementById('toast');el.textContent=t;el.classList.add('ver');clearTimeout(toastEm);toastEm=setTimeout(()=>el.classList.remove('ver'),1800);}
+</script>
+</body>
+</html>

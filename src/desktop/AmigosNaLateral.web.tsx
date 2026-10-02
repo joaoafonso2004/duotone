@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { sessoesDeAmigos } from '../api/ouvirJuntos';
+import type { Friendship } from '../api/social';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { amigosNaLateral } from '../lib/amigosNaLateral';
@@ -11,6 +12,7 @@ import { agoraNoServidor, useSocial } from '../state/social';
 import type { Route } from './rotas';
 import { COR, ESP, FONT, TIPO } from './tokens.web';
 import { marcar } from './ui.web';
+import { ConfirmarRemoverAmigo, MenuDoAmigo } from './MenuDoAmigo.web';
 
 /**
  * Os amigos que estão na app, por baixo da tua conta (26/9, pedido do João:
@@ -23,8 +25,12 @@ import { marcar } from './ui.web';
  * `hovered` do RNW: é clicável dentro de uma linha clicável, e o hover do pai
  * cai quando o rato entra no filho (ver "O movimento do PC" no CLAUDE.md).
  */
-export function AmigosNaLateral({ navigate }: { navigate: (r: Route) => void }) {
+export function AmigosNaLateral({ navigate, notify }: { navigate: (r: Route) => void; notify: (texto: string) => void }) {
   const amigos = useSocial((s) => s.friends);
+  // O botão direito num amigo abre o menu dele onde está o rato (2/10).
+  const [menu, setMenu] = useState<{ amigoId: string; rato: { x: number; y: number } } | null>(null);
+  const [aRemover, setARemover] = useState<Friendship | null>(null);
+  const fecharMenu = useCallback(() => setMenu(null), []);
   const { visiveis, resto, online } = useMemo(() => amigosNaLateral(amigos), [amigos]);
   const aOuvir = visiveis.filter((a) => a.currentlyPlaying).length;
 
@@ -46,7 +52,19 @@ export function AmigosNaLateral({ navigate }: { navigate: (r: Route) => void }) 
     return () => clearInterval(id);
   }, [aOuvir]);
 
-  if (!visiveis.length) return null;
+  // O menu segue o amigo pela lista atual (a música dele pode mudar com ele aberto).
+  const amigoDoMenu = menu ? amigos.find((a) => a.friendId === menu.amigoId) ?? null : null;
+  const menus = (
+    <>
+      {menu && amigoDoMenu ? (
+        <MenuDoAmigo key={`${menu.amigoId}:${menu.rato.x}:${menu.rato.y}`} amigo={amigoDoMenu} sessaoDele={sessoes.get(amigoDoMenu.friendId) ?? null}
+          rato={menu.rato} aoFechar={fecharMenu} aoPedirRemover={setARemover} navigate={navigate} notify={notify} />
+      ) : null}
+      <ConfirmarRemoverAmigo amigo={aRemover} aoFechar={() => setARemover(null)} notify={notify} />
+    </>
+  );
+
+  if (!visiveis.length) return menus;
   const agora = agoraNoServidor();
 
   return (
@@ -67,6 +85,7 @@ export function AmigosNaLateral({ navigate }: { navigate: (r: Route) => void }) 
             // de outro é HTML inválido (o browser apanhou-o no ensaio de 26/9).
             accessibilityLabel={faixa ? `${nome}, listening to ${tituloDaFaixa(faixa)}. Open chat` : `${nome}, online. Open chat`}
             onPress={() => navigate({ name: 'social', friendId: a.friendId })}
+            onContextMenu={((e: any) => { e.preventDefault(); setMenu({ amigoId: a.friendId, rato: { x: e.clientX, y: e.clientY } }); }) as any}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7, paddingHorizontal: ESP.sm, borderRadius: 8 }}
           >
             <View style={{ width: 32, height: 32 }}>
@@ -109,6 +128,7 @@ export function AmigosNaLateral({ navigate }: { navigate: (r: Route) => void }) 
           <Text style={{ fontFamily: FONT.body, fontSize: 12, color: COR.textoFraco }}>{`+${resto} more online`}</Text>
         </Pressable>
       ) : null}
+      {menus}
     </View>
   );
 }

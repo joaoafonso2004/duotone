@@ -7,7 +7,10 @@ import type { PublicProfile } from '../api/profiles';
 import { useSocial } from '../state/social';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
-import { naoLidasPorAmigo } from '../lib/social';
+import { haQuantoTempo, naoLidasPorAmigo, ultimasPorLer } from '../lib/social';
+import { resumoDaMensagem } from '../lib/inAppNotifications';
+import { textoSobre } from '../lib/corDaCapa';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { ultimaAtividade } from '../lib/socialPresence';
 import { CONVERSAS_PARA_PESQUISAR, ordenarConversas } from '../lib/ordemDasConversas';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -56,6 +59,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const key=conversation?(conversation.kind==='group'?`group:${conversation.id}`:conversation.id):'';
   const draft=social.drafts[key] || '';
   const unread=naoLidasPorAmigo(social.received,social.seen);
+  const ultimas=ultimasPorLer(social.received,social.seen);
   const ordered=[...messages].reverse();
   // As mensagens só guardam o id da playlist. O nome e as capas vêm daqui, uma
   // vez por conjunto de ids: sem isto o chat só sabia dizer "Open playlist".
@@ -280,6 +284,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
           if(c.tipo==='grupo'){
             const g=c.grupo;
             const naoLidas=unread.get(`group:${g.id}`)??0;
+            const ultima=naoLidas?ultimas.get(`group:${g.id}`):undefined;
             return <Pressable key={`g:${g.id}`} accessibilityRole="button" accessibilityState={{selected:conversation?.kind==='group'&&conversation.id===g.id}}
               style={[s.conversa,conversation?.id===g.id&&{backgroundColor:colors.surface}]}
               onPress={()=>open('group',g.id)}>
@@ -289,14 +294,15 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
                   passou a ser a unica coisa que os distingue. */}
               <GroupAvatar group={g} size={46}/>
               <View style={{flex:1,minWidth:0,gap:2}}>
-                <Text numberOfLines={1} style={[s.text,{fontWeight:naoLidas?'800':'600'}]}>{g.name}</Text>
-                <Text numberOfLines={1} style={[s.muted,naoLidas>0&&{color:colors.text,fontWeight:'600'}]}>{g.membros.length} members · {g.membros.map(m=>m.id===myId?'You':m.name).join(', ')}</Text>
+                <NomeDaConversa nome={g.name} ultima={ultima} accent={accent} agora={social.now}/>
+                {ultima?<UltimaPorLer item={ultima} quantas={naoLidas} accent={accent} doGrupo/>
+                  :<Text numberOfLines={1} style={s.muted}>{g.membros.length} members · {g.membros.map(m=>m.id===myId?'You':m.name).join(', ')}</Text>}
               </View>
-              {naoLidas>0&&<Text style={[s.badge,{backgroundColor:accent}]}>{naoLidas}</Text>}
             </Pressable>;
           }
           const f=c.amigo;
           const naoLidas=unread.get(f.friendId)??0;
+          const ultima=naoLidas?ultimas.get(f.friendId):undefined;
           const activa=conversation?.kind==='friend'&&conversation.id===f.friendId;
           const aOuvir=f.currentlyPlaying;
           // As opcoes passam para o toque longo, como nas listas de musica.
@@ -311,7 +317,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
               <AvatarDeConversa avatarUrl={f.avatarUrl} nome={f.name} online={f.online}/>
             </Pressable>
             <View style={{flex:1,minWidth:0,gap:2}}>
-              <Text numberOfLines={1} style={[s.text,{fontWeight:naoLidas?'800':'600'}]}>{f.name}</Text>
+              <NomeDaConversa nome={f.name} ultima={ultima} accent={accent} agora={social.now}/>
               {/* UMA linha, sempre. O que esta a tocar ganha ao estado, porque
                   e a coisa que muda e que interessa; sem musica fica o estado.
                   Duas ou tres linhas conforme a pessoa era o que partia o
@@ -320,23 +326,20 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
                   E a tocar leva o ACENTO, com o artista. Estava no mesmo
                   cinzento do "Last seen 4 h ago" -- a coisa viva e a coisa
                   morta com o mesmo peso -- e era isso que fazia a pagina nao
-                  responder de relance a "quem esta a ouvir o que agora". */}
-              <Text numberOfLines={1} style={[
-                s.muted,
-                aOuvir&&{color:accent},
-                naoLidas>0&&!aOuvir&&{color:colors.text,fontWeight:'600'},
-              ]}>
+                  responder de relance a "quem esta a ouvir o que agora".
+                  Com mensagens por ler, a linha e a ultima delas (2/10). */}
+              {ultima?<UltimaPorLer item={ultima} quantas={naoLidas} accent={accent}/>:
+              <Text numberOfLines={1} style={[s.muted,aOuvir&&{color:accent}]}>
                 {aOuvir?`♫ ${tituloDaFaixa(aOuvir)} · ${displayArtist(aOuvir)}`
                   :f.online?'Online now':ultimaAtividade(f.lastSeenAt,social.now)}
-              </Text>
+              </Text>}
             </View>
-            {naoLidas>0&&<Text style={[s.badge,{backgroundColor:accent}]}>{naoLidas}</Text>}
           </Pressable>;
         })}
         {/* Conversas de quem ja nao e amigo. O historico fica de proposito -- uma
           mensagem nao desaparece porque deixaram de ser amigos -- mas tem de
           haver maneira de a arrumar, dai o caixote. */}
-        {social.contacts.filter(p=>!accepted.some(f=>f.friendId===p.id)).map(p=><Pressable key={p.id} onPress={()=>open('friend',p.id)} style={[s.listRow]}><FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={44}/><View style={{flex:1}}><Text style={s.text}>{p.name}</Text><Text style={s.muted}>Older messages</Text></View>{!!unread.get(p.id)&&<Text style={s.badge}>{unread.get(p.id)}</Text>}<Pressable accessibilityRole="button" accessibilityLabel={`Delete conversation with ${p.name}`} style={s.iconButton} onPress={()=>setConfirm({id:p.id,group:false,conversa:true})}><Ionicons name="trash-outline" size={18} color={colors.textSecondary}/></Pressable></Pressable>)}
+        {social.contacts.filter(p=>!accepted.some(f=>f.friendId===p.id)).map(p=><Pressable key={p.id} onPress={()=>open('friend',p.id)} style={[s.listRow]}><FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={44}/><View style={{flex:1}}><Text style={s.text}>{p.name}</Text><Text style={s.muted}>Older messages</Text></View>{!!unread.get(p.id)&&<ContagemPorLer n={unread.get(p.id)!} accent={accent}/>}<Pressable accessibilityRole="button" accessibilityLabel={`Delete conversation with ${p.name}`} style={s.iconButton} onPress={()=>setConfirm({id:p.id,group:false,conversa:true})}><Ionicons name="trash-outline" size={18} color={colors.textSecondary}/></Pressable></Pressable>)}
       </>
     </ScrollView>
   </View>;
@@ -511,4 +514,34 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
 function mergeMessages(previous:SharedItem[],incoming:SharedItem[]):SharedItem[]{
   const map=new Map(previous.map(m=>[m.id,m]));incoming.forEach(m=>map.set(m.id,m));
   return [...map.values()].sort((a,b)=>Date.parse(a.createdAt)-Date.parse(b.createdAt)||a.id.localeCompare(b.id));
+}
+
+/* Uma conversa com mensagens por ler (2/10, variante A da maquete
+   docs/mensagens-e-menu-do-amigo.html): o nome com a hora da ultima, e por
+   baixo a ultima que chegou e quantas sao. Sem nada por ler, a linha fica o
+   que era -- o que a pessoa esta a ouvir, ou o estado. */
+function NomeDaConversa({nome,ultima,accent,agora}:{nome:string;ultima?:SharedItem;accent:string;agora:number}){
+  return <View style={{flexDirection:'row',alignItems:'baseline',gap:8,minWidth:0}}>
+    <Text numberOfLines={1} style={[s.text,{flex:1,minWidth:0,fontWeight:ultima?'700':'600'}]}>{nome}</Text>
+    {ultima?<Text style={[s.muted,{fontSize:11,color:accent}]}>{haQuantoTempo(ultima.createdAt,agora)}</Text>:null}
+  </View>;
+}
+
+function UltimaPorLer({item,quantas,accent,doGrupo=false}:{item:SharedItem;quantas:number;accent:string;doGrupo?:boolean}){
+  const faixa=item.itemType==='track'?item.trackData:null;
+  const capa=faixa?capaParaLista(faixa.artworkUrl)??faixa.artworkUrl:null;
+  const texto=item.message?.trim()||(faixa?`Sent you ${tituloDaFaixa(faixa)}`:resumoDaMensagem(item));
+  return <View style={{flexDirection:'row',alignItems:'center',gap:6,minWidth:0}}>
+    {capa?<Image source={{uri:capa}} style={{width:16,height:16,borderRadius:3}}/>:null}
+    <Text numberOfLines={1} style={[s.muted,{flex:1,minWidth:0,color:colors.text}]}>{doGrupo?`${item.sender.name}: ${texto}`:texto}</Text>
+    <ContagemPorLer n={quantas} accent={accent}/>
+  </View>;
+}
+
+/* Uma pilula da cor do tema com o numero na cor que se le por cima dela: era
+   um retangulo com o numero branco, e numa capa clara nao se via. */
+function ContagemPorLer({n,accent}:{n:number;accent:string}){
+  return <View style={{minWidth:20,height:20,paddingHorizontal:6,borderRadius:10,backgroundColor:accent,alignItems:'center',justifyContent:'center',marginLeft:2}}>
+    <Text style={{fontSize:11.5,fontWeight:'800',color:textoSobre(accent)}}>{n>99?'99+':n}</Text>
+  </View>;
 }

@@ -51,6 +51,20 @@ async function main() {
   assert.equal(show(invite,{...context,openConversation:'group:band'}),false);
   let queue=enqueue([],first);
   queue=enqueue(queue,{...first,id:'2'});assert.deepEqual(ids(queue),['2']);
+  // The PC banner shows "+N more": a burst counts what it merged (2/10).
+  assert.equal(queue[0].quantas,2,'a burst counts the merged messages');
+  assert.equal(enqueue(queue,{...first,id:'3'})[0].quantas,3);
+  assert.equal(first.mensagem,'Hello','the typed text travels apart from the summary');
+  const {resumoDaMensagem:resumo}=core;
+  assert.equal(resumo({message:'  yo  ',itemType:'track',trackData:null}),'yo');
+  assert.equal(resumo({message:null,itemType:'track',trackData:{title:'deaf note'}}),'Sent you deaf note');
+  assert.equal(resumo({message:'',itemType:'playlist',trackData:null}),'Sent you a playlist');
+  assert.equal(resumo({message:null,itemType:'sessao',trackData:null}),'Invited you to listen together');
+  const song=consume(snap([msg('song',90,{message:null,trackData:{source:'youtube',sourceId:'abc',title:'deaf note'}})]))[0];
+  assert.equal(song.track.sourceId,'abc','a shared song travels so the banner can play it');
+  assert.equal(song.mensagem,null);
+  const broken=consume(snap([msg('broken',91,{trackData:{title:'no id'}})]))[0];
+  assert.equal(broken.track,null,'a song without an id is not playable from the banner');
   for(let i=0;i<8;i++)queue=enqueue(queue,{...first,id:String(i),conversationKey:String(i)});
   assert.equal(queue.length,4,'bounded queue');
   let calls=0,release;

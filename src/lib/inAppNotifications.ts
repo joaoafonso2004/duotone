@@ -1,10 +1,26 @@
 import type { Friendship, SharedItem } from '../api/social';
+import type { Track } from '../types';
 
 export type NotificationTarget = { friendId?: string; groupId?: string };
 export type InAppNotification = {
   id: string; conversationKey: string; title: string; body: string;
   target: NotificationTarget; kind: 'message' | 'request'; createdAt: string; avatarUrl?: string | null;
+  /** A música que mandaram, para o aviso a mostrar e tocar (2/10). */
+  track?: Track | null;
+  /** O texto que escreveram, sem o resumo do tipo. */
+  mensagem?: string | null;
+  /** Quantas da mesma conversa este aviso já juntou. */
+  quantas?: number;
 };
+
+/** O que uma mensagem diz numa linha: o texto, ou o que foi mandado. */
+export function resumoDaMensagem(item: Pick<SharedItem, 'message' | 'itemType' | 'trackData'>): string {
+  const texto = item.message?.trim();
+  if (texto) return texto;
+  if (item.itemType === 'sessao') return 'Invited you to listen together';
+  if (item.itemType === 'playlist') return 'Sent you a playlist';
+  return item.trackData?.title ? `Sent you ${item.trackData.title}` : 'Sent you a song';
+}
 export type InboxSnapshot = {
   accountId: string; received?: SharedItem[]; friends?: Friendship[];
 };
@@ -32,9 +48,8 @@ export function createNotificationJournal(userId: string) {
         const target = item.groupId ? {groupId:item.groupId} : {friendId:item.sender.id};
         result.push({id:item.id, conversationKey:conversationKey(target), target, kind:'message',
           createdAt:item.createdAt, title:item.sender.name || item.sender.username || 'Duotone', avatarUrl:item.sender.avatarUrl,
-          body:item.message || (item.itemType === 'sessao' ? 'Invited you to listen together'
-            : item.itemType === 'playlist' ? 'Shared a playlist with you'
-            : item.trackData?.title ? `Shared ${item.trackData.title}` : 'Shared a song with you')});
+          body:resumoDaMensagem(item), mensagem:item.message?.trim() || null,
+          track:item.itemType === 'track' && item.trackData?.sourceId ? item.trackData : null, quantas:1});
       }
       // A capped inbox can reveal older history when newer rows are archived.
       // Do not present that newly visible history as a new message.
@@ -78,7 +93,8 @@ export function shouldPresentNotification(item: InAppNotification, context: {
 /** Bursts update the same card; other conversations wait in a bounded queue. */
 export function enqueueNotification(queue: InAppNotification[], item: InAppNotification): InAppNotification[] {
   const index = queue.findIndex(n => n.conversationKey === item.conversationKey);
-  if (index >= 0) return queue.map((n,i) => i === index ? item : n);
+  // A mesma conversa: o aviso passa a ser a mais recente, e conta as que juntou.
+  if (index >= 0) return queue.map((n,i) => i === index ? {...item, quantas:(n.quantas ?? 1) + (item.quantas ?? 1)} : n);
   return [...queue, item].slice(-4);
 }
 

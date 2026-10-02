@@ -34,8 +34,10 @@ const LICENCAS = new Set([
   'src/desktop/SpotifyImportPage.web.tsx',
   // Aqui `item` é um álbum (uma playlist do YouTube).
   'src/screens/LibraryGroupScreen.tsx',
-  // Aqui `item` é uma notificação.
+  // Aqui `item` é uma notificação (o `title` é quem a mandou; a música do
+  // aviso do PC passa pelo tituloDaFaixa).
   'src/components/NotificationBanner.tsx',
+  'src/components/NotificationBanner.web.tsx',
 ]);
 
 function ficheiros(pasta) {

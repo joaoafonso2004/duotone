@@ -43,19 +43,56 @@ export function naoLidasPorAmigo(
 ): Map<string, number> {
   const contagem = new Map<string, number>();
   for (const p of recebidas) {
-    const de = p.groupId ? `group:${p.groupId}` : p.sender?.id;
-    if (!de) continue;
-
-    const visto = vistos[de];
-    if (visto) {
-      const quando = Date.parse(p.createdAt);
-      const desde = Date.parse(visto);
-      // Datas por perceber não podem esconder uma mensagem: na dúvida, conta.
-      if (Number.isFinite(quando) && Number.isFinite(desde) && quando <= desde) continue;
-    }
-    contagem.set(de, (contagem.get(de) ?? 0) + 1);
+    const de = porLerDe(p, vistos);
+    if (de) contagem.set(de, (contagem.get(de) ?? 0) + 1);
   }
   return contagem;
+}
+
+/** A conversa de uma partilha ainda por ler, ou `null` se já foi vista. */
+function porLerDe(p: PartilhaRecebida, vistos: ChatsVistos): string | null {
+  const de = p.groupId ? `group:${p.groupId}` : p.sender?.id;
+  if (!de) return null;
+  const visto = vistos[de];
+  if (visto) {
+    const quando = Date.parse(p.createdAt);
+    const desde = Date.parse(visto);
+    // Datas por perceber não podem esconder uma mensagem: na dúvida, conta.
+    if (Number.isFinite(quando) && Number.isFinite(desde) && quando <= desde) return null;
+  }
+  return de;
+}
+
+/**
+ * A mais recente por ler de cada conversa (2/10): é ela que a lista mostra,
+ * em vez do "Last seen" de quem a mandou. A mesma regra do `naoLidasPorAmigo`.
+ */
+export function ultimasPorLer<T extends PartilhaRecebida>(
+  recebidas: readonly T[],
+  vistos: ChatsVistos,
+): Map<string, T> {
+  const ultimas = new Map<string, T>();
+  for (const p of recebidas) {
+    const de = porLerDe(p, vistos);
+    if (!de) continue;
+    const antes = ultimas.get(de);
+    if (!antes || Date.parse(p.createdAt) > Date.parse(antes.createdAt)) ultimas.set(de, p);
+  }
+  return ultimas;
+}
+
+/** Há quanto tempo, curto, para o canto de uma conversa: "now", "2m", "3h", "4d", "12 Sep". */
+export function haQuantoTempo(iso: string, agora = Date.now()): string {
+  const quando = Date.parse(iso);
+  if (!Number.isFinite(quando)) return '';
+  const minutos = Math.floor(Math.max(0, agora - quando) / 60000);
+  if (minutos < 1) return 'now';
+  if (minutos < 60) return `${minutos}m`;
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `${horas}h`;
+  const dias = Math.floor(horas / 24);
+  if (dias < 7) return `${dias}d`;
+  return new Date(quando).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 /** O total, para a marca no separador. */

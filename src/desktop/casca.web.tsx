@@ -301,6 +301,16 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="dialogo"]{ animation: dt-dialogo var(--dt-normal) var(--dt-curva) both; }
     @keyframes dt-dialogo{ from{ opacity:0; transform: translateY(8px) scale(.97); } to{ opacity:1; transform:none; } }
 
+    /* O menu de um amigo (botão direito, 2/10): abre a partir do rato. */
+    [data-dt~="menu-amigo"]{ animation: dt-menu 150ms var(--dt-curva) both; }
+    @keyframes dt-menu{ from{ opacity:0; transform: scale(.96) translateY(-4px); } to{ opacity:1; transform:none; } }
+    [data-dt~="menu-linha"]{ transition: background-color var(--dt-rapido) var(--dt-curva); cursor: pointer; outline: none; }
+    [data-dt~="menu-linha"]:hover, [data-dt~="menu-linha"]:focus-visible{ background-color: rgba(233,234,238,.07); }
+
+    /* O aviso de uma mensagem nova desce do topo (2/10). */
+    [data-dt~="aviso-msg"]{ animation: dt-aviso-msg 380ms cubic-bezier(.2,.9,.25,1.05) both; }
+    @keyframes dt-aviso-msg{ from{ opacity:0; transform: translateY(-24px) scale(.98); } to{ opacity:1; transform:none; } }
+
     /* O aviso sobe do fundo. */
     [data-dt~="aviso"]{ animation: dt-subir var(--dt-lento) var(--dt-curva) both; }
     @keyframes dt-subir{ from{ opacity:0; transform: translateY(120%); } to{ opacity:1; transform:none; } }
@@ -373,7 +383,7 @@ export function TitleBar() {
   </View>;
 }
 
-export function Sidebar({ route, navigate }: { route: Route; navigate: (route: Route) => void }) {
+export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (route: Route) => void; notify: (texto: string) => void }) {
   const session = useAuth((s) => s.session);
   const tema = useTheme((s) => s.theme);
   // Uma mistura abre-se a partir da Pesquisa: e ai que o separador tem de
@@ -439,7 +449,7 @@ export function Sidebar({ route, navigate }: { route: Route; navigate: (route: R
       <Pressable accessibilityLabel="Settings" onPress={() => navigate({ name: 'settings' })} style={({ hovered }) => [styles.accountDefinicoes, (hovered || active === 'settings') && styles.navHover]}><Ionicons name="settings-outline" size={17} color={active === 'settings' ? desktop.text : desktop.muted} /></Pressable>
     </View>
     <ProgressoDaImportacao />
-    <AmigosNaLateral navigate={navigate} />
+    <AmigosNaLateral navigate={navigate} notify={notify} />
     {/* O espaço que sobrava por baixo: é do utilizador (26/9). */}
     <AtalhosNaLateral navigate={navigate} />
   </View>;

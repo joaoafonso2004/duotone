@@ -310,6 +310,18 @@ export function veuDaCapa(celulas: RGB[] | null | undefined, opacidade = 0.14): 
 // Transição
 // ---------------------------------------------------------------------------
 
+/**
+ * O texto que se lê por cima de uma cor (2/10): o quase-preto da app ou o
+ * branco, o que tiver mais contraste. A contagem das mensagens por ler era
+ * branca sobre a cor da capa, e com uma capa clara o número desaparecia.
+ */
+export function textoSobre(cor: string): string {
+  const fundo = deHex(cor);
+  const escuro = { r: 0x0b, g: 0x0b, b: 0x0e };
+  const claro = { r: 255, g: 255, b: 255 };
+  return contraste(fundo, escuro) >= contraste(fundo, claro) ? '#0B0B0E' : '#FFFFFF';
+}
+
 /** Lê "#RRGGBB" para uma cor. Devolve preto para o que não perceber. */
 export function deHex(texto: string): RGB {
   const m = /^#?([0-9a-f]{6})$/i.exec(texto.trim());

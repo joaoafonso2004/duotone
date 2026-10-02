@@ -1,5 +1,6 @@
 import {
-  FOLGA_DAS_NOVAS_MS, fundirRecebidas, fundirVistos, marcaDasNovas, naoLidasPorAmigo, totalNaoLidas,
+  FOLGA_DAS_NOVAS_MS, fundirRecebidas, fundirVistos, haQuantoTempo, marcaDasNovas, naoLidasPorAmigo, totalNaoLidas,
+  ultimasPorLer,
 } from '../src/lib/social.ts';
 
 let mau = 0;
@@ -95,6 +96,34 @@ check('fundir recebidas: não mexe nas listas que recebe', (() => {
   fundirRecebidas(antigas, [m('b', '2026-09-27T11:00:00Z')]);
   return antigas.length === 1;
 })());
+
+console.log('\na última por ler de cada conversa (a linha da lista, 2/10)');
+{
+  const ms = [
+    { id: 'a1', sender: { id: 'ana' }, createdAt: '2026-10-02T10:00:00Z' },
+    { id: 'a2', sender: { id: 'ana' }, createdAt: '2026-10-02T10:05:00Z' },
+    { id: 'b1', sender: { id: 'bea' }, createdAt: '2026-10-02T09:00:00Z' },
+    { id: 'g1', sender: { id: 'ana' }, groupId: 'g', createdAt: '2026-10-02T11:00:00Z' },
+  ];
+  const u = ultimasPorLer(ms, {});
+  eq('a mais recente de cada pessoa, seja qual for a ordem', u.get('ana')?.id, 'a2');
+  eq('um grupo é uma conversa à parte', u.get('group:g')?.id, 'g1');
+  eq('quem já viste não tem última por ler', ultimasPorLer(ms, { bea: '2026-10-02T09:30:00Z' }).has('bea'), false);
+  eq('vista a meio: a última continua a ser a nova', ultimasPorLer(ms, { ana: '2026-10-02T10:01:00Z' }).get('ana')?.id, 'a2');
+  eq('e a contagem bate com a mesma regra', naoLidasPorAmigo(ms, { ana: '2026-10-02T10:01:00Z' }).get('ana'), 1);
+  eq('as mesmas conversas nos dois', [...u.keys()].sort().join(), [...naoLidasPorAmigo(ms, {}).keys()].sort().join());
+}
+
+console.log('\nhá quanto tempo');
+{
+  const agora = Date.parse('2026-10-02T12:00:00Z');
+  eq('agora mesmo', haQuantoTempo('2026-10-02T11:59:40Z', agora), 'now');
+  eq('minutos', haQuantoTempo('2026-10-02T11:46:00Z', agora), '14m');
+  eq('horas', haQuantoTempo('2026-10-02T09:00:00Z', agora), '3h');
+  eq('dias', haQuantoTempo('2026-09-30T12:00:00Z', agora), '2d');
+  eq('do futuro (relógio adiantado) não fica negativo', haQuantoTempo('2026-10-02T12:03:00Z', agora), 'now');
+  eq('sem data não diz nada', haQuantoTempo('', agora), '');
+}
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);
