@@ -1,63 +1,38 @@
-import React, { useLayoutEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import React, { useState } from 'react';
 import { Image } from 'expo-image';
-import { capaDePartida, RECUO } from '../lib/transicaoDaCapa';
+import { StyleSheet } from 'react-native';
+import { RECUO } from '../lib/transicaoDaCapa';
 
 /**
- * A capa grande do leitor, a cruzar por cima da da música anterior.
+ * A capa grande do leitor, a cruzar da música anterior para a nova.
  *
- * O cubo capa/letras REMONTA a cada faixa (a `key` no PlayerRoot), e é assim que
- * o gesto das letras recomeça limpo. Por isso a capa anterior não pode viver
- * dentro dele: fica aqui, fora de qualquer instância, lembrada no instante em
- * que a anterior desmonta. Ver `capaDePartida` e lib/transicaoDaCapa.ts.
+ * UMA instância para todas as faixas (2/10), e não uma por faixa: era uma
+ * por faixa (a `key` no PlayerRoot), e a nova tinha de voltar a carregar a
+ * capa ANTERIOR numa vista nova para cruzar por cima dela. Entre o desmontar de
+ * uma e o desenhar da outra a face ficava vazia -- preta, durante 130 ms no
+ * vídeo do João --, a anterior reaparecia e só então entrava a nova: era o
+ * "encrava ao trocar de música".
  *
- * A ordem importa: a limpeza de um efeito de LAYOUT da instância que sai corre
- * antes do efeito de layout da que entra, no mesmo commit -- por isso a nova já
- * encontra a anterior lembrada, e decide antes do primeiro fotograma.
+ * Agora a fonte muda na MESMA imagem: o expo-image deixa a que está à vista
+ * até a nova estar pronta (só a limpa com um `recyclingKey` novo, que aqui não
+ * há) e cruza as duas no lado nativo (`transition`). Nunca há um fotograma sem
+ * capa, e quem destapa a nova é a própria imagem, quando a tem.
+ *
+ * A primeira capa (abrir o leitor) entra sem cruzamento: não há de onde partir,
+ * e a face vazia a desvanecer a meio da abertura lia-se como um atraso.
  */
-let capaQueSaiu: { uri: string; em: number } | null = null;
-
 export function CapaComTransicao({ uri, onError }: { uri: string; onError: () => void }) {
-  const nova = useRef(new Animated.Value(0)).current;
-  const [partida, setPartida] = useState<string | null>(null);
-  /** A que chegou mesmo a aparecer: é essa que se lembra ao sair. */
-  const mostrada = useRef<string | null>(null);
-  const cruzou = useRef(false);
-
-  const cruzar = () => {
-    if (cruzou.current) return;
-    cruzou.current = true;
-    Animated.timing(nova, {
-      toValue: 1, duration: RECUO.cruzarMs, easing: Easing.out(Easing.quad), useNativeDriver: true,
-    }).start(({ finished }) => { if (finished) setPartida(null); });
-  };
-
-  useLayoutEffect(() => {
-    const anterior = capaDePartida(capaQueSaiu, uri, Date.now());
-    if (anterior) setPartida(anterior);
-    else { cruzou.current = true; nova.setValue(1); }
-    return () => {
-      if (mostrada.current) capaQueSaiu = { uri: mostrada.current, em: Date.now() };
-    };
-    // Só na montagem: é por instância, e cada faixa é uma instância.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  const [mostrou, setMostrou] = useState(false);
   return (
-    <View style={StyleSheet.absoluteFill}>
-      {partida ? <Image source={{ uri: partida }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" /> : null}
-      <Animated.View style={[StyleSheet.absoluteFill, { opacity: nova }]}>
-        <Image
-          source={{ uri }}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          // Só destapar quando foi DESENHADA: o timeout de 700 ms revelava
-          // uma face vazia numa rede lenta, mesmo com a capa anterior pronta.
-          onDisplay={() => { mostrada.current = uri; cruzar(); }}
-          onError={onError}
-        />
-      </Animated.View>
-    </View>
+    <Image
+      source={{ uri }}
+      style={StyleSheet.absoluteFill}
+      contentFit="cover"
+      // A mesma cache do prefetch das capas grandes (state/capasGrandes.ts).
+      cachePolicy="memory-disk"
+      transition={mostrou ? { duration: RECUO.cruzarMs, effect: 'cross-dissolve' } : null}
+      onDisplay={() => { if (!mostrou) setMostrou(true); }}
+      onError={onError}
+    />
   );
 }

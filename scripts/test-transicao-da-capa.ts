@@ -1,4 +1,4 @@
-import { capaDePartida, recuoDaCapa, RECUO, sentidoDaTransicao } from '../src/lib/transicaoDaCapa.ts';
+import { curvaDoSkip, molaDoRN, naCurva, recuoDaCapa, RECUO, sentidoDaTransicao } from '../src/lib/transicaoDaCapa.ts';
 
 let mau = 0;
 const check = (rotulo: string, ok: boolean, extra = '') => {
@@ -30,13 +30,27 @@ check('é curto', RECUO.idaMs <= 200 && RECUO.cruzarMs <= 350);
 eq('com Reduzir movimento não há recuo', recuoDaCapa({ lado: 300, sentido: 1, capa3D: true, reduzirMovimento: true }), null);
 eq('na capa Simple não há recuo', recuoDaCapa({ lado: 300, sentido: 1, capa3D: false, reduzirMovimento: false }), null);
 
-console.log('\na capa de partida');
-eq('parte da capa que acabou de sair', capaDePartida({ uri: 'a', em: 1000 }, 'b', 1100), 'a');
-eq('a mesma capa não cruza consigo', capaDePartida({ uri: 'a', em: 1000 }, 'a', 1100), null);
-eq('abrir o leitor muito depois não cruza', capaDePartida({ uri: 'a', em: 0 }, 'b', RECUO.memoriaDaCapaMs + 1), null);
-eq('sem capa anterior não cruza', capaDePartida(null, 'b', 1), null);
-// A espera pela imagem e o cruzamento só após onDisplay são exercitados com
-// o componente real em test-capas-com-audio.cjs, incluindo uma imagem lenta.
+console.log('\no recuo numa só animação nativa (2/10)');
+// Eram duas em sequência, e quem arrancava a volta era o JavaScript, ocupado com
+// a faixa nova: a caixa ficava no fundo ~150 ms e depois saltava.
+{
+  const c = curvaDoSkip();
+  const em = (ms: number) => naCurva(c.inputRange, c.curva, ms / c.duracaoMs);
+  check('parte do sítio e acaba no sítio', c.curva[0] === 0 && c.curva[c.curva.length - 1] === 0);
+  check('o fundo é aos idaMs, e vale 1', Math.abs(em(RECUO.idaMs) - 1) < 1e-9);
+  check('a ida só desce (ease-out)', [0, 30, 60, 90, 120, 150].every((ms, i, a) => i === 0 || em(ms) > em(a[i - 1]!)));
+  check('a volta é a mola aprovada (speed 14, bounciness 5): quase sem ressalto', Math.min(...c.curva) > -0.05);
+  check('tudo em menos de um segundo', c.duracaoMs > 300 && c.duracaoMs < 1000);
+  check('o que sobrava do recuo anterior sai durante a ida',
+    c.largar[0] === 1 && naCurva(c.inputRange, c.largar, RECUO.idaMs / c.duracaoMs) === 0);
+  check('a entrada é crescente (o interpolate exige)', c.inputRange.every((t, i, a) => i === 0 || t > a[i - 1]!));
+  const k = molaDoRN(RECUO.mola.bounciness, RECUO.mola.speed);
+  check('a mola do RN, convertida como ele a converte', Math.abs(k.rigidez - 384.58) < 0.1 && Math.abs(k.amortecimento - 30.75) < 0.1);
+  const { readFileSync } = await import('node:fs');
+  const capa = readFileSync(new URL('../src/components/CapaFlutuante3D.tsx', import.meta.url), 'utf8');
+  check('o CapaFlutuante3D corre-a numa só animação, sem sequência', !/Animated\.sequence/.test(capa)
+    && /Animated\.timing\(fase, \{ toValue: 1, duration: c\.duracaoMs, easing: Easing\.linear, useNativeDriver: true \}\)/.test(capa));
+}
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

@@ -197,13 +197,19 @@ async function run() {
   assert.doesNotMatch(player, /<ArtworkLyricsCube key=/,
     'o cubo do iPhone não remonta por faixa -- remontar engasgava o Recuo subtil');
   // Dentro da `CapaDoLeitor` (27/9) a faixa chama-se `track`; a regra é a mesma.
-  assert.match(player, /<CapaComTransicao key=\{`\$\{(current|track)\.source\}:\$\{\1\.sourceId\}`\}/,
-    'a capa da frente continua a ser uma instância por faixa: é ao desmontar que lembra a anterior');
+  // 2/10: a capa da frente também já não remonta -- uma por faixa deixava a
+  // face preta entre a que saía e a que entrava (o "encrava" do João).
+  assert.doesNotMatch(player, /<CapaComTransicao key=/,
+    'a capa da frente é uma só para todas as faixas');
+  assert.match(player, /<CapaComTransicao uri=\{artSource\}/);
   assert.match(player, /const CapaDoLeitor = React\.memo\(/,
     'a capa do leitor é memorizada: os redesenhos do PlayerRoot num skip não reconciliam o cubo');
   assert.match(cubo, /const chaveDasLetras=`\$\{track\.source\}:\$\{track\.sourceId\}`;/);
-  assert.match(cubo, /<LyricsView key=\{chaveDasLetras\}/,
+  // E trocam de faixa depois do recuo (2/10), a não ser que estejam à vista.
+  assert.match(cubo, /<LyricsView key=\{letras\.chave\} track=\{letras\.track\}/,
     'as letras recomeçam por faixa dentro do cubo');
+  assert.match(cubo, /const letras=showLyrics\|\|moving\?\{chave:chaveDasLetras,track\}:letrasGuardadas;/,
+    'à vista (ou a rodar), as da faixa nova logo');
   assert.doesNotMatch(player + cubo, /blurRadius=\{(28|64)\}/,
     'os desfoques partem da miniatura pequena (desfoqueLeve), não da capa de 1280 px');
 

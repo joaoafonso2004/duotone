@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, AppState, Easing, Image, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { CAPA_FLUTUANTE, ondaSeno } from '../lib/capaFlutuante3D';
-import { RECUO, recuoDaCapa, type Sentido } from '../lib/transicaoDaCapa';
+import { curvaDoSkip, naCurva, recuoDaCapa, type Sentido } from '../lib/transicaoDaCapa';
 import { RECUO_DO_ENCAIXE, curvaDoRecuo } from '../lib/recuoDoEncaixe';
 import type { MontagemDaCapa } from '../hooks/useMontagemDaCapa';
 
@@ -17,6 +17,8 @@ const COSSENO = ondaSeno(16, 0.25);
 type Onda = { inputRange: number[]; outputRange: number[] };
 /** Um valor que anima: um `Animated.Value` ou o que sai de o somar e interpolar. */
 type Animado = Animated.Value | Animated.AnimatedInterpolation<number> | Animated.AnimatedAddition<number>;
+/** O recuo do skip num eixo: a curva vezes o tamanho, mais o que sobrou do anterior. */
+const CURVA_DO_SKIP = curvaDoSkip();
 /** A pose: o valor dela, ou multiplicado pela força que o leitor lhe dá (ver `forcaDaPose`). */
 type ValorDaPose = Animated.Value | Animated.AnimatedMultiplication<number>;
 const vezes = (onda: Onda, fator: number, soma = 0) => ({
@@ -36,7 +38,7 @@ const vezes = (onda: Onda, fator: number, soma = 0) => ({
 function criarPostura(
   pose: ValorDaPose, flutuar: Animated.Value, derivar: Animated.Value, size: number,
   voo: Animated.Value, assentar: Animado,
-  recuoX: Animated.Value, recuoZ: Animado,
+  recuoX: Animado, recuoZ: Animado,
 ) {
   const c = CAPA_FLUTUANTE;
   const ate = (fim: number) => pose.interpolate({ inputRange: [0, 1], outputRange: [0, fim] });
@@ -129,9 +131,24 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
   const assentar = montagem?.assentar ?? semMontagem.zero;
   const encaixe = montagem?.encaixe ?? semMontagem.um;
   const aterrar = montagem?.aterrar ?? semMontagem.um;
-  // O "Recuo subtil": em repouso valem zero, e a pose é exatamente a do lib.
-  const recuoX = useRef(new Animated.Value(0)).current;
-  const recuoZ = useRef(new Animated.Value(0)).current;
+  // O "Recuo subtil" (lib/transicaoDaCapa.ts): UMA fase de 0 a 1 que o motor
+  // nativo percorre de uma vez, e cada eixo é a curva vezes o seu tamanho. Em
+  // repouso a fase está no 1, onde a curva vale zero e a pose é a do lib.
+  const fase = useRef(new Animated.Value(1)).current;
+  const tamanhos = useRef({
+    z: new Animated.Value(0), x: new Animated.Value(0),
+    sobraZ: new Animated.Value(0), sobraX: new Animated.Value(0),
+  }).current;
+  const { recuoX, recuoZ } = useMemo(() => {
+    const c = CURVA_DO_SKIP;
+    const curva = fase.interpolate({ inputRange: c.inputRange, outputRange: c.curva });
+    const largar = fase.interpolate({ inputRange: c.inputRange, outputRange: c.largar });
+    const eixo = (tamanho: Animated.Value, sobra: Animated.Value) =>
+      Animated.add(Animated.multiply(curva, tamanho), Animated.multiply(largar, sobra));
+    return { recuoX: eixo(tamanhos.x, tamanhos.sobraX), recuoZ: eixo(tamanhos.z, tamanhos.sobraZ) };
+  }, [fase, tamanhos]);
+  /** O recuo a correr: quando começou e com que tamanhos (para o seguinte partir dali). */
+  const corrida = useRef<{ inicio: number; z: number; x: number; sobraZ: number; sobraX: number } | null>(null);
   // O recuo do encaixe (lib/recuoDoEncaixe.ts): a face bate e a caixa recua ao
   // longo do mesmo eixo do "Recuo subtil" -- os dois somam-se.
   const recuoTotal = useMemo(() => {
@@ -154,20 +171,32 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
       lado: size, sentido: transicao?.sentido ?? 0, capa3D: enabled, reduzirMovimento: reduced,
     });
     if (!recuo || !foreground) return;
-    const ida = { duration: RECUO.idaMs, easing: Easing.out(Easing.quad), useNativeDriver: true };
-    const volta = { toValue: 0, ...RECUO.mola, useNativeDriver: true };
-    const animacao = Animated.sequence([
-      Animated.parallel([
-        Animated.timing(recuoZ, { toValue: recuo.profundidade, ...ida }),
-        Animated.timing(recuoX, { toValue: recuo.desvio, ...ida }),
-      ]),
-      Animated.parallel([Animated.spring(recuoZ, volta), Animated.spring(recuoX, volta)]),
-    ]);
-    animacao.start();
-    // Skips seguidos: a próxima parte de onde esta ficou, sem saltar.
-    return () => animacao.stop();
+    // Skips seguidos: o que sobrava do anterior sai durante a ida deste, e a
+    // caixa parte de onde estava, sem saltar. A fase do anterior sabe-se pelo
+    // relógio (a animação é por tempo), sem perguntar ao motor nativo.
+    const c = CURVA_DO_SKIP, agora = Date.now(), antes = corrida.current;
+    let sobraZ = 0, sobraX = 0;
+    if (antes) {
+      const t = Math.min(1, (agora - antes.inicio) / c.duracaoMs);
+      const k = naCurva(c.inputRange, c.curva, t), l = naCurva(c.inputRange, c.largar, t);
+      sobraZ = k * antes.z + l * antes.sobraZ;
+      sobraX = k * antes.x + l * antes.sobraX;
+    }
+    fase.stopAnimation();
+    tamanhos.z.setValue(recuo.profundidade);
+    tamanhos.x.setValue(recuo.desvio);
+    tamanhos.sobraZ.setValue(sobraZ);
+    tamanhos.sobraX.setValue(sobraX);
+    fase.setValue(0);
+    const esta = { inicio: agora, z: recuo.profundidade, x: recuo.desvio, sobraZ, sobraX };
+    corrida.current = esta;
+    Animated.timing(fase, { toValue: 1, duration: c.duracaoMs, easing: Easing.linear, useNativeDriver: true })
+      .start(({ finished }) => { if (finished && corrida.current === esta) corrida.current = null; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transicao?.chave]);
+
+  // Ao desmontar, o recuo a meio pára com ela.
+  useEffect(() => () => { fase.stopAnimation(); }, [fase]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => setForeground(state === 'active'));

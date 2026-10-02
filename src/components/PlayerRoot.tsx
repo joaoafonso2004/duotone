@@ -99,6 +99,8 @@ import {
 
 const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
+/** O X fecha a música só depois de o leitor descer (a mola de fechar, 0,42 s). */
+const FECHAR_DEPOIS_DE_DESCER_MS = 380;
 const APP_NAME = 'Duotone';
 
 /**
@@ -591,9 +593,18 @@ export function PlayerRoot() {
     const mola = alvo ? molaIOS(0.5, 0.82) : molaIOS(0.42, 0.92);
     const ir = (valor: Animated.Value, para: number) =>
       Animated.spring(valor, { toValue: para, useNativeDriver: true, ...mola });
-    Animated.parallel([ir(anim, alvo), ir(animRaio, alvo)]).start(({ finished }) => {
+    // Cada uma por si, NUNCA num `Animated.parallel` (2/10). Fechar pelo X tira a
+    // faixa: a capa desmonta, o `animRaio` fica sem quem o use e o React
+    // Native PÁRA-lhe a animação (o `__detach` de um valor sem filhos) -- e um
+    // `parallel` pára as irmãs com ela. A abertura ficava presa no 1, e a app
+    // de trás recuada e escura.
+    ir(anim, alvo).start(({ finished }) => {
       if (finished) setOrigemDaEntrada((o) => (o ? null : o));
+      // Rede de segurança: sem faixa não há leitor por cima, e uma abertura que
+      // ficasse a meio deixava a app de trás escura e recuada.
+      else if (!usePlayer.getState().current) anim.setValue(0);
     });
+    ir(animRaio, alvo).start();
     // O cartão do gesto volta ao repouso (uma volta ou uma aterragem
     // interrompida a meio) -- à parte, para quem agarrar o cartão não parar a
     // abertura com ele. Nunca com o dedo lá.
@@ -603,7 +614,9 @@ export function PlayerRoot() {
       ge.baseDx = 0; ge.baseDy = 0; ge.tx = 0; ge.ty = 0; ge.esc = 1; ge.g = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, temFaixa, current?.sourceId]);
+  // Sem a faixa nas dependências (2/10): mudar de música com o leitor aberto
+  // não tem nada a animar aqui, e eram sete molas a arrancar no instante do skip.
+  }, [expanded, temFaixa]);
 
   /**
    * A capa entra a voar da linha que foi tocada.
@@ -1374,7 +1387,15 @@ export function PlayerRoot() {
             escala={ESCALA.icone}
             accessibilityRole="button"
             accessibilityLabel="Close player"
-            onPress={() => { hapticSelection(); void close(); }}
+            // Primeiro o leitor desce para o mini-player (o fecho de sempre), e
+            // só depois a música sai, com o mini a desvanecer com ela. Fechar
+            // logo tirava a página de um fotograma para o outro (2/10). Quem
+            // voltar a abrir a meio fica com a música.
+            onPress={() => {
+              hapticSelection();
+              setExpanded(false);
+              setTimeout(() => { if (!usePlayer.getState().expanded) void close(); }, FECHAR_DEPOIS_DE_DESCER_MS);
+            }}
             style={styles.headerBtn}
           >
             <Ionicons name="close" size={24} color={colors.text} />
@@ -1934,9 +1955,10 @@ export function PlayerRoot() {
           {/* O cubo NÃO remonta por faixa (24/9): remontava, e cada skip
               construía outra vez as quatro laterais, os mosaicos do grão das
               duas faces e o verso desfocado, e o iPhone rasterizava tudo de
-              novo -- no mesmo instante do "Recuo subtil", que engasgava. Só o
-              que é da faixa leva a `key`: a capa da frente (CapaComTransicao
-              lembra a anterior ao desmontar) e as letras (dentro do cubo). */}
+              novo -- no mesmo instante do "Recuo subtil", que engasgava. Só as
+              letras levam a `key` da faixa (dentro do cubo). A capa da frente
+              também já não (2/10): uma por faixa deixava a face preta entre
+              a que saía e a que entrava (ver CapaComTransicao). */}
           {aberto && (
             <CapaDoLeitor
               track={current} size={vidFull.w} capaFlutuante={capaFlutuante} montagem={montagem}
@@ -2115,7 +2137,7 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
     <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao} forcaDaPose={forcaDaPose}>
       {(pose3D) => (
         <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
-          front={<>{artSource?<CapaComTransicao key={`${track.source}:${track.sourceId}`} uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
+          front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
       )}
     </CapaFlutuante3D>
   );

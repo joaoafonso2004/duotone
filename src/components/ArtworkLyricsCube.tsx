@@ -64,7 +64,7 @@ const chegar=(m:MontagemDaCapa|null,i:number,distancia:number)=>m
  * fotograma da flutuação em vez de recorte, degradê e mosaicos. A transformação
  * 3D continua a animar por cima dele.
  */
-function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:number;pose3D:PoseDaCapa3D;
+const LateralDaCaixa=React.memo(function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:number;pose3D:PoseDaCapa3D;
   virar:Animated.AnimatedInterpolation<string>|string;artwork?:string|null}){
   const t=pose3D.espessura;
   const g=geometriaDaLateral(lado,size,t);
@@ -80,16 +80,21 @@ function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:numb
   // encaixar (João, 29/9). Aparecem no contacto, já no sítio, e a face tapa-as.
   const fechaACaixa=lado==='direita'||lado==='cima';
   const grupo=lado==='esquerda'?0:1;
-  return <Animated.View pointerEvents="none" shouldRasterizeIOS style={{position:'absolute',left:g.left,top:g.top,width:g.largura,height:g.altura,
-    overflow:'hidden',backfaceVisibility:'hidden',
+  // Guardado entre desenhos: a lateral redesenha-se a cada faixa (a capa muda),
+  // e um nó animado novo era religar o grafo nativo no instante do skip (2/10).
+  const estilo=useMemo(()=>({position:'absolute' as const,left:g.left,top:g.top,width:g.largura,height:g.altura,
+    overflow:'hidden' as const,backfaceVisibility:'hidden' as const,
     opacity:!m?pose3D.pose:fechaACaixa?Animated.multiply(pose3D.pose,m.fecho):Animated.multiply(pose3D.pose,m.opacidades[grupo]),
-    transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar,...(fechaACaixa?[]:chegar(m,grupo,0.26*size))]}}>
+    transform:[...pose3D.postura,...depth(-t/2),{rotateY:virar},...colocar,...(fechaACaixa?[]:chegar(m,grupo,0.26*size))]}),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lado,size,pose3D,virar,m,t]);
+  return <Animated.View pointerEvents="none" shouldRasterizeIOS style={estilo}>
     <View style={{width:g.largura,height:g.altura,overflow:'hidden',transform:[g.espelho==='x'?{scaleX:-1}:{scaleY:-1}]}}>
       {artwork?<ImagemDaCapa source={{uri:artwork}} cachePolicy="memory-disk" contentFit="cover" style={{position:'absolute',left:g.imagem.x,top:g.imagem.y,width:size,height:size}} />:null}
     </View>
     <LinearGradient colors={veu} start={g.degrade.start} end={g.degrade.end} style={StyleSheet.absoluteFill} />
   </Animated.View>;
-}
+});
 
 /** Duas faces do mesmo cubo. O motor de áudio vive fora destas transformações. */
 export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,aoRodar,raio=20,pose3D}:Props){
@@ -101,18 +106,22 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
   // sai para fora. Num efeito e nao nas chamadas ao `setMoving`, para o aviso
   // sair uma vez por MUDANCA e nao uma vez por chamada.
   const aoRodarRef=useRef(aoRodar);aoRodarRef.current=aoRodar;
-  // As letras montam-se um pouco DEPOIS da faixa (2/10): são dezenas de linhas,
-  // cada uma medida, e montadas no instante da faixa nova caíam a meio da
-  // abertura do leitor e do recuo do skip -- o "encrava a meio das animações".
-  // Quem as está a ver, ou começa a rodar a capa, tem-nas logo.
+  // As letras TROCAM de faixa um pouco depois da faixa (2/10): são dezenas de
+  // linhas, cada uma medida, e desmontar as da anterior e montar as da nova no
+  // instante do skip caía em cima da abertura do leitor e do recuo -- o "encrava
+  // ao trocar de música". Até lá ficam as da anterior, no verso, que não se vê.
+  // Quem as está a ver, ou começa a rodar a capa, tem as novas logo.
   const chaveDasLetras=`${track.source}:${track.sourceId}`;
-  const [letrasDe,setLetrasDe]=useState<string|null>(showLyrics?chaveDasLetras:null);
+  const [letrasGuardadas,setLetras]=useState<{chave:string;track:Track}|null>(showLyrics?{chave:chaveDasLetras,track}:null);
+  const letras=showLyrics||moving?{chave:chaveDasLetras,track}:letrasGuardadas;
+  const atrasadas=letrasGuardadas?.chave!==chaveDasLetras;
   useEffect(()=>{
-    if(letrasDe===chaveDasLetras)return;
-    const t=setTimeout(()=>setLetrasDe(chaveDasLetras),LETRAS_DEPOIS_MS);
+    if(!atrasadas)return;
+    if(showLyrics||moving){setLetras({chave:chaveDasLetras,track});return;}
+    const t=setTimeout(()=>setLetras({chave:chaveDasLetras,track}),LETRAS_DEPOIS_MS);
     return()=>clearTimeout(t);
-  },[chaveDasLetras,letrasDe]);
-  const montarLetras=letrasDe===chaveDasLetras||showLyrics||moving;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[chaveDasLetras,atrasadas,showLyrics,moving]);
   useEffect(()=>{aoRodarRef.current?.(moving);},[moving]);
   const cubeRef=useRef<any>(null);
   const latest=useRef({showLyrics,onChange,size,reduced});latest.current={showLyrics,onChange,size,reduced};
@@ -195,26 +204,42 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
     return()=>{element.removeEventListener('pointerdown',down,true);element.removeEventListener('pointermove',move,true);
       element.removeEventListener('pointerup',finish,true);element.removeEventListener('pointercancel',cancel,true);};
   },[progress,settle]);
-  const radius=size/2;
-  const rotation=progress.interpolate({inputRange:[0,1],outputRange:['0deg',`${-direction*90}deg`]});
-  const base=[{perspective:size*3},...depth(-radius),{rotateY:rotation}];
-  const frontStyle=reduced?{opacity:showLyrics?0:1}:{transform:[...base,...depth(radius)]};
-  const lyricsStyle=reduced?{opacity:showLyrics?1:0}:{transform:[...base,{rotateY:`${direction*90}deg`},...depth(radius)]};
-  // A caixa 3D VIRA inteira: 180° à volta do plano médio da espessura, com as
-  // letras no verso, e pousa na mesma pose. O pivô é o meio da espessura --
-  // senão a caixa avançava para quem vê a meio da volta.
-  const espessura=pose3D?.espessura??0;
-  const virar=progress.interpolate({inputRange:[0,1],outputRange:['0deg',`${-direction*180}deg`]});
-  const pivo=pose3D?[...pose3D.postura,...depth(-espessura/2),{rotateY:virar}]:[];
-  // A montagem com o download (useMontagemDaCapa): a face chega ao sítio ao longo
-  // da normal e só pousa com a faixa pronta. O verso não se monta: quem está a
-  // ler as letras não pode perdê-las a cada música.
+  // As transformações e véus das faces, guardados entre desenhos (2/10). Eram
+  // refeitos a cada desenho -- e o cubo redesenha-se a cada faixa nova --, e um
+  // nó animado novo é religar o grafo do motor nativo das seis faces no
+  // instante do skip, em cima do recuo.
   const m=pose3D?.montagem??null;
+  const nos=useMemo(()=>{
+    const radius=size/2;
+    const rotation=progress.interpolate({inputRange:[0,1],outputRange:['0deg',`${-direction*90}deg`]});
+    const base=[{perspective:size*3},...depth(-radius),{rotateY:rotation}];
+    const frontStyle=reduced?{opacity:showLyrics?0:1}:{transform:[...base,...depth(radius)]};
+    const lyricsStyle=reduced?{opacity:showLyrics?1:0}:{transform:[...base,{rotateY:`${direction*90}deg`},...depth(radius)]};
+    // A caixa 3D VIRA inteira: 180° à volta do plano médio da espessura, com as
+    // letras no verso, e pousa na mesma pose. O pivô é o meio da espessura --
+    // senão a caixa avançava para quem vê a meio da volta.
+    const espessura=pose3D?.espessura??0;
+    const virar=progress.interpolate({inputRange:[0,1],outputRange:['0deg',`${-direction*180}deg`]});
+    const pivo=pose3D?[...pose3D.postura,...depth(-espessura/2),{rotateY:virar}]:[];
+    // A montagem com o download (useMontagemDaCapa): a face chega ao sítio ao longo
+    // da normal e só pousa com a faixa pronta. O verso não se monta: quem está a
+    // ler as letras não pode perdê-las a cada música.
+    const transformDaFace=pose3D?(reduced?[...pose3D.postura]:[...pivo,...depth(espessura/2)]):[];
+    const frontStyle3D=pose3D?(reduced?{opacity:showLyrics?0:(m?m.opacidades[2]:1),transform:[...pose3D.postura]}:{opacity:m?m.opacidades[2]:1,transform:[...transformDaFace,...chegar(m,2,0.5*size)]}):null;
+    const lyricsStyle3D=pose3D?(reduced?{opacity:showLyrics?1:0,transform:[...pose3D.postura]}:{transform:[...pivo,...depth(-espessura/2),{rotateY:'180deg'}]}):null;
+    return {
+      frontStyle, lyricsStyle, virar, transformDaFace, frontStyle3D, lyricsStyle3D,
+      veuDaFrente:progress.interpolate({inputRange:[0,1],outputRange:[0,0.35]}),
+      veuDoVerso:progress.interpolate({inputRange:[0,1],outputRange:[0.4,0]}),
+      luz:m?[
+        {translateX:m.luz.fase.interpolate({inputRange:[0,0.25,0.5,0.75,1],outputRange:[0,size,size,0,0]})},
+        {translateY:m.luz.fase.interpolate({inputRange:[0,0.25,0.5,0.75,1],outputRange:[0,0,size,size,0]})},
+      ]:[],
+    };
+  },[progress,direction,size,reduced,showLyrics,pose3D,m]);
+  const {frontStyle,lyricsStyle,virar,transformDaFace,frontStyle3D,lyricsStyle3D}=nos;
   // O verso desfoca a miniatura pequena, não a capa grande (ver desfoqueLeve).
   const verso=desfoqueLeve(artwork,28);
-  const transformDaFace=pose3D?(reduced?[...pose3D.postura]:[...pivo,...depth(espessura/2)]):[];
-  const frontStyle3D=pose3D?(reduced?{opacity:showLyrics?0:(m?m.opacidades[2]:1),transform:[...pose3D.postura]}:{opacity:m?m.opacidades[2]:1,transform:[...transformDaFace,...chegar(m,2,0.5*size)]}):null;
-  const lyricsStyle3D=pose3D?(reduced?{opacity:showLyrics?1:0,transform:[...pose3D.postura]}:{transform:[...pivo,...depth(-espessura/2),{rotateY:'180deg'}]}):null;
   return <View ref={cubeRef} {...(Platform.OS==='web'?{}:responder.panHandlers)} testID="artwork-lyrics-cube"
     accessible={!showLyrics} accessibilityLabel={showLyrics?'Lyrics':'Album artwork'}
     role={Platform.OS==='web'?'group':undefined} accessibilityRole={Platform.OS==='web'?undefined:'adjustable'}
@@ -231,21 +256,18 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
         ainda não há download. Ver lib/montagemDaCapa.ts. */}
     {m?<Animated.View pointerEvents="none" style={[styles.fantasma,{borderRadius:raio,opacity:m.contorno,transform:transformDaFace}]} />:null}
     {m?<Animated.View pointerEvents="none" style={[styles.espera,{transform:transformDaFace}]}>
-      <Animated.View style={[styles.luz,{opacity:m.luz.opacidade,transform:[
-        {translateX:m.luz.fase.interpolate({inputRange:[0,0.25,0.5,0.75,1],outputRange:[0,size,size,0,0]})},
-        {translateY:m.luz.fase.interpolate({inputRange:[0,0.25,0.5,0.75,1],outputRange:[0,0,size,size,0]})},
-      ]}]} />
+      <Animated.View style={[styles.luz,{opacity:m.luz.opacidade,transform:nos.luz}]} />
     </Animated.View>:null}
     <Animated.View pointerEvents="none" aria-hidden={showLyrics} accessibilityElementsHidden={showLyrics} importantForAccessibility={showLyrics?'no-hide-descendants':'auto'} style={[styles.face,{borderRadius:raio},frontStyle3D??frontStyle]}>
       {front}
-      <Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0,0.35]})}]} />
+      <Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:nos.veuDaFrente}]} />
     </Animated.View>
     <Animated.View pointerEvents={showLyrics&&!moving?'auto':'none'} aria-hidden={!showLyrics} accessibilityElementsHidden={!showLyrics} importantForAccessibility={showLyrics?'auto':'no-hide-descendants'} style={[styles.face,{borderRadius:raio},lyricsStyle3D??lyricsStyle]}>
       {verso?<ImagemDaCapa source={{uri:verso.uri}} cachePolicy="memory-disk" contentFit="cover" blurRadius={verso.raio} style={[StyleSheet.absoluteFill,{opacity:0.6,transform:[{scale:1.12}]}]} />:null}
       <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(8,8,15,0.5)'}]} />
       {/* As letras recomeçam por faixa; o cubo à volta delas fica montado. */}
-      {montarLetras?<LyricsView key={chaveDasLetras} track={track} visible={showLyrics&&!moving} />:null}
-      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.4,0]})}]} />
+      {letras?<LyricsView key={letras.chave} track={letras.track} visible={showLyrics&&!moving} />:null}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:nos.veuDoVerso}]} />
     </Animated.View>
   </View>;
 }

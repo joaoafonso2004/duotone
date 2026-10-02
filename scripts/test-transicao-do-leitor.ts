@@ -101,7 +101,7 @@ caso('a aterragem e a abertura não se atropelam (os bugs da 4.1.6)', () => {
   assert.doesNotMatch(leitor, /fecheiAoAterrarRef/, 'o efeito do `expanded` nunca é saltado');
   // Aberto só com faixa: sem ela, a app de trás escurecia sem leitor à frente.
   assert.match(leitor, /const alvo = expanded && temFaixa \? 1 : 0;/);
-  assert.match(leitor, /\}, \[expanded, temFaixa, current\?\.sourceId\]\);/);
+  assert.match(leitor, /\}, \[expanded, temFaixa\]\);/);
   // A aterrar e fechado: ela acaba sozinha. Pedido para abrir: cancela-a.
   assert.match(leitor, /if \(aterrandoRef\.current\) \{\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*if \(!alvo\) return;[\s\S]{0,200}aterragemRef\.current\+\+;/);
   // O cartão volta ao sítio a animar, nunca por baixo do dedo.
@@ -120,9 +120,17 @@ caso('a aterragem e a abertura não se atropelam (os bugs da 4.1.6)', () => {
   const store = ler('src/state/player.ts');
   assert.doesNotMatch(store, /if \(shouldExpand && !get\(\)\.expanded\) set\(\{ expanded: true \}\);/);
   assert.match(store, /origemDaFila: origemSeguinte,\s*\.\.\.\(abrir \? \{ expanded: true \} : \{\}\),/);
+  // A abertura e o raio NUNCA num `Animated.parallel` (2/10): fechar pelo X
+  // desmonta a capa, o React Native pára o raio (fica sem quem o use) e o
+  // parallel parava a abertura com ele -- a app de trás ficava escura.
+  assert.doesNotMatch(leitor, /Animated\.parallel\(\[ir\(anim, alvo\), ir\(animRaio, alvo\)\]\)/);
+  assert.match(leitor, /ir\(anim, alvo\)\.start\(/);
+  assert.match(leitor, /else if \(!usePlayer\.getState\(\)\.current\) anim\.setValue\(0\);/, 'e sem faixa a abertura nunca fica a meio');
+  // O X desce primeiro e só depois fecha a música.
+  assert.match(leitor, /setExpanded\(false\);\s*setTimeout\(\(\) => \{ if \(!usePlayer\.getState\(\)\.expanded\) void close\(\); \}, FECHAR_DEPOIS_DE_DESCER_MS\);/);
   // As letras montam-se depois da faixa.
   const cubo = ler('src/components/ArtworkLyricsCube.tsx');
-  assert.match(cubo, /\{montarLetras\?<LyricsView key=\{chaveDasLetras\}/);
+  assert.match(cubo, /\{letras\?<LyricsView key=\{letras\.chave\}/);
 });
 
 if (falhas) { console.error(`\n${falhas} caso(s) falharam`); process.exit(1); }

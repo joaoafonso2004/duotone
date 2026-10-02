@@ -84,59 +84,43 @@ async function run() {
     assert.equal(h.timers.size, 0);
   }
 
-  // O componente verdadeiro: A foi desenhada; B demora mais do que os antigos
-  // 700 ms. A transição só pode descobrir B depois do evento onDisplay.
+  // O componente verdadeiro (2/10): UMA imagem para todas as faixas. A fonte
+  // muda na mesma imagem, e o expo-image mostra a anterior até a nova estar
+  // pronta e cruza as duas (`transition`). Uma instância por faixa deixava a
+  // face preta entre a que saía e a que entrava.
   {
-    const timers = new Map(); let next = 0, instance, slot = 0, fades = 0;
-    const ref = initial => { const i = slot++; return instance.slots[i] ??= { current: initial }; };
+    let instance, slot = 0;
     const state = initial => {
       const i = slot++; const owner = instance;
       if (!(i in owner.slots)) owner.slots[i] = initial;
       return [owner.slots[i], value => { owner.slots[i] = value; owner.dirty = true; }];
     };
-    const effect = (fn, deps) => {
-      const i = slot++, owner = instance, old = owner.effects[i];
-      if (old && deps?.every((d, k) => Object.is(d, old.deps[k]))) return;
-      owner.pending.push(() => { old?.cleanup?.(); owner.effects[i] = { deps, cleanup: fn() }; });
-    };
-    class Value { constructor(value) { this.value = value; } setValue(value) { this.value = value; } }
-    const react = { useRef: ref, useState: state, useLayoutEffect: effect, useEffect: effect,
+    const react = { useState: state,
       createElement: (type, props, ...children) => ({ type, props: props ?? {}, children: children.flat().filter(Boolean) }) };
-    const native = { StyleSheet: { absoluteFill: {} }, View: 'View', Image: 'RNImage', Easing: { out: x => x, quad: 'quad' },
-      Animated: { Value, View: 'AnimatedView', timing: (value, opts) => ({ start: callback => {
-        fades++; value.setValue(opts.toValue); callback?.({ finished: true });
-      } }) } };
+    const native = { StyleSheet: { absoluteFill: {} } };
+    const lib = load('src/lib/transicaoDaCapa.ts', {});
     const component = load('src/components/CapaComTransicao.tsx', {
-      react, 'react-native': native, 'expo-image': { Image: 'ExpoImage' },
-      '../lib/transicaoDaCapa': load('src/lib/transicaoDaCapa.ts', {}),
-    }, { setTimeout: fn => { const id = ++next; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id) });
-    function mount(uri) {
-      const owner = { slots: [], effects: [], pending: [], dirty: false };
-      const render = () => {
-        let tree;
-        do {
-          owner.dirty = false; instance = owner; slot = 0;
-          tree = component.CapaComTransicao({ uri, onError() {} });
-          for (const fn of owner.pending.splice(0)) fn();
-        } while (owner.dirty);
-        return tree;
-      };
-      return { render, unmount: () => owner.effects.forEach(e => e?.cleanup?.()) };
-    }
-    const images = node => [node, ...node.children.flatMap(images)].filter(n => n.type === 'ExpoImage' || n.type === 'RNImage');
-    const first = mount('a'); const a = images(first.render()).at(-1);
-    (a.props.onDisplay ?? a.props.onLoad)(); first.unmount();
-    const second = mount('b'); let tree = second.render();
-    assert.equal(images(tree)[0].props.source.uri, 'a', 'a capa anterior fica por baixo da que está a carregar');
-    for (const fn of [...timers.values()]) fn();
-    assert.equal(fades, 0, 'o relógio destapou B antes de haver uma imagem para mostrar');
-    const b = images(tree).at(-1);
-    assert.equal(b.type, 'ExpoImage', 'leitor e prefetch têm de partilhar cache');
-    assert.equal(b.props.cachePolicy, 'memory-disk');
-    assert.equal(typeof b.props.onDisplay, 'function'); b.props.onDisplay();
-    assert.equal(fades, 1);
-    tree = second.render(); assert.equal(images(tree).length, 1, 'só retira A depois de B desenhada e do cruzamento');
-    second.unmount();
+      react, 'react-native': native, 'expo-image': { Image: 'ExpoImage' }, '../lib/transicaoDaCapa': lib,
+    });
+    const owner = { slots: [], dirty: false };
+    const render = uri => { let tree; do { owner.dirty = false; instance = owner; slot = 0;
+      tree = component.CapaComTransicao({ uri, onError() {} }); } while (owner.dirty); return tree; };
+    const images = node => [node, ...(node.children ?? []).flatMap(images)].filter(n => n.type === 'ExpoImage');
+    let tree = render('a');
+    assert.equal(images(tree).length, 1, 'uma só imagem');
+    let img = images(tree)[0];
+    assert.equal(img.props.source.uri, 'a');
+    assert.equal(img.props.cachePolicy, 'memory-disk', 'leitor e prefetch têm de partilhar cache');
+    assert.equal(img.props.recyclingKey, undefined, 'um recyclingKey limpava a capa anterior antes de a nova chegar');
+    assert.equal(img.props.transition, null, 'a primeira capa (abrir o leitor) entra sem cruzar');
+    assert.equal(typeof img.props.onError, 'function');
+    img.props.onDisplay();
+    tree = render('b'); img = images(tree)[0];
+    assert.equal(images(tree).length, 1, 'trocar de faixa não monta outra imagem');
+    assert.equal(img.props.source.uri, 'b', 'a fonte muda na mesma imagem');
+    // Campo a campo: o objeto vem de outro contexto do vm.
+    assert.equal(img.props.transition?.duration, lib.RECUO.cruzarMs, 'e cruza no lado nativo, só quando a nova está pronta');
+    assert.equal(img.props.transition?.effect, 'cross-dissolve');
   }
   const player = fs.readFileSync(path.join(root, 'src/components/PlayerRoot.tsx'), 'utf8');
   assert.doesNotMatch(player, /setArtUri/, 'a capa da faixa nova não pode depender de um efeito pós-render');
