@@ -172,7 +172,7 @@
   <div>
     <h1>Transição do leitor</h1>
     <p class="sub">Toca no mini-player (ou arrasta-o para cima) para abrir. As variantes mudam a abertura.</p>
-    <p class="sub"><b style="color:#fff">Fechar a arrastar é igual nas três:</b> o leitor encolhe para um cartão que segue o teu dedo, também para os lados, perde a pose 3D, e a app de trás volta para a frente. Ao largar, continua com a tua velocidade e a capa aterra no mini-player. Se largares cedo, volta ao sítio.</p>
+    <p class="sub"><b style="color:#fff">Fechar a arrastar é igual nas três:</b> o leitor encolhe para um cartão que segue o teu dedo (para os lados só um pouco, com resistência), perde a pose 3D, e a app de trás volta para a frente. Ao largar, continua com a tua velocidade e a capa aterra no mini-player. Se largares cedo, volta ao sítio.</p>
   </div>
   <div class="variants" id="variants">
     <button class="variant" data-v="A"><b>A · Folha</b><span>Como no Apple Music: a folha sobe a partir do mini-player, a app de trás recua e escurece com os cantos redondos, a capa voa e roda para a pose 3D, e o resto entra em escada.</span></button>
@@ -381,9 +381,9 @@
   function cartao(z) {
     const e = 1 - Math.pow(1 - clamp(z.g), 1.6);
     const sc0 = 1 - 0.46 * e;
-    const tx0 = z.dx * 0.9;
+    const tx0 = z.dx;  // já com resistência (ver `deLado`)
     const ty0 = z.dy >= 0 ? z.dy * 0.62 : z.dy;
-    const th0 = clamp(z.dx / 22, -7, 7);
+    const th0 = 0;     // sem inclinação: mexe para os lados, mas não se solta
     // O destino: a capa do cartão exatamente em cima da capa do mini-player.
     const txT = CAPA_MINI.cx - O.x - (CAPA_FULL.cx - O.x) * ESC_MINI;
     const tyT = CAPA_MINI.cy - O.y - (CAPA_FULL.cy - O.y) * ESC_MINI;
@@ -589,6 +589,9 @@
   };
   const dentro = (pt, r) => pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h;
   const elastico = (x) => (1 - 1 / ((x * 0.55) / H + 1)) * H;
+  // Para os lados, com resistência: um terço do dedo no início, e cada vez
+  // menos -- nunca passa de ~120 pt, por mais que se puxe.
+  const deLado = (x) => Math.sign(x) * (1 - 1 / (Math.abs(x) / 360 + 1)) * 120;
 
   screen.addEventListener('pointerdown', (e) => {
     if (roteiro) return;
@@ -620,7 +623,7 @@
     if (toque.modo === 'fechar') {
       zoom ??= { g: 0, dx: 0, dy: 0, w: 0 };
       zoom.dy = dy > 0 ? dy : -elastico(-dy) * 0.6;
-      zoom.dx = dx * (dy > 0 ? 1 : 0.4);
+      zoom.dx = deLado(dx);
       zoom.g = clamp(dy / 560);
     } else {
       p = clamp(-dy / (variant === 'C' ? 520 : D), 0, 1);
@@ -659,7 +662,7 @@
       if (fase === 1) {
         // um polegar a puxar para baixo, a desviar-se um pouco para a esquerda
         const q = outCubic(t / 0.55);
-        zoom.dy = 250 * q; zoom.dx = -38 * q; zoom.g = clamp(zoom.dy / 560);
+        zoom.dy = 250 * q; zoom.dx = deLado(-60) * q; zoom.g = clamp(zoom.dy / 560);
         if (t >= 0.55) { fase = 2; largarParaFechar(-120, 900); }
       }
       if (fase === 2 && !anim) roteiro = null;
