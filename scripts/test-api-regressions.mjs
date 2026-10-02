@@ -55,6 +55,64 @@ function ambiente(fetch, substituicoes = {}) {
 }
 const resposta = (corpo) => ({ ok: true, json: async () => corpo });
 
+// A rádio não pode confundir o rapper Isak com o futebolista Alexander Isak.
+// Executa a cascata real e a escolha do canal, com respostas guardadas do
+// YouTube Music; a rede e o perfil são os únicos duplos.
+{
+  const fixture = (nome) => JSON.parse(fs.readFileSync(path.join(raiz, 'scripts/fixtures', nome), 'utf8'));
+  const faixa = (sourceId, title, artist = 'Isak - Topic', durationSeconds = 180) => ({
+    source: 'youtube', sourceId, title, artist, durationSeconds, album: null, artworkUrl: null,
+  });
+  const semente = faixa('k8u8sHjyVnE', 'Telescópio');
+  const futebol = faixa('futebol', 'Best of Alexander Isak (2025/2026)', 'Football videos', 255);
+  const vizinha = faixa('vizinha', 'Tema de outro artista', 'Holly Hood - Topic');
+  const longaGuardada = faixa('longa', 'Tema de vinte minutos', 'Outra Banda - Topic', 1200);
+  for (const semCanal of [false, true]) {
+    let offline = false, pesquisasGerais = 0, fluxos = 0;
+    const procuradas = [], canais = [];
+    const mundo = ambiente(() => { throw Error('Este teste não usa rede'); }, {
+      'src/state/connectivity.ts': { useConnectivity: { getState: () => ({ offline }) } },
+      'src/state/recommendationFeedback.ts': { feedbackReady: async () => {}, filterSuggestions: (faixas) => faixas },
+      'src/api/library.ts': { getLibrary: async () => [semente, longaGuardada] },
+      'src/lib/cacheDaBiblioteca.ts': { lerFaixas: (ler) => ler() },
+      'src/api/descoberta.ts': { candidatasParaDescoberta: async () => [] },
+      'src/api/perfilDeRecomendacoes.ts': { lerPerfilDeRecomendacoes: async () => null },
+      'src/api/plays.ts': { getFlowMix: async () => { fluxos++; return [futebol, vizinha, longaGuardada]; } },
+      'src/api/search.ts': { pesquisarFaixas: async () => { pesquisasGerais++; return [futebol]; } },
+      'src/api/ytMusic.ts': {
+        pesquisarCancoesCru: async (query) => { procuradas.push(query); return semCanal ? null : fixture('ytmusic-isak-telescopio.json'); },
+        lerNoYtMusic: async (id) => { canais.push(id); return id.startsWith('UC') ? fixture('ytmusic-artista-isak.json') : null; },
+      },
+    });
+    const nomes = mundo.carregar('src/lib/artistName.ts');
+    nomes.aprenderComABiblioteca([semente]);
+    assert.equal(nomes.displayArtist(futebol), 'Isak', 'o título explica a etiqueta errada: contém o artista aprendido');
+    const radio = mundo.carregar('src/api/radio.ts');
+    const lote = await radio.fetchRadioTracks([semente], [semente]);
+    assert.ok(!lote.some(t => t.sourceId === futebol.sourceId), 'o vídeo de futebol não entra, mesmo vindo do Flow');
+    assert.ok(!lote.some(t => t.sourceId === semente.sourceId), 'não repete a faixa atual');
+    assert.ok(lote.some(t => t.sourceId === vizinha.sourceId), 'mantém as músicas de artistas semelhantes');
+    assert.ok(lote.some(t => t.sourceId === longaGuardada.sourceId), 'mantém a música longa que foi guardada');
+    assert.equal(pesquisasGerais, 0, 'a rádio não pesquisa vídeos pelo nome de um artista');
+    assert.ok(procuradas.includes('Isak Telescópio'), 'a música da biblioteca é a prova para escolher o canal');
+    if (semCanal) {
+      assert.equal(canais.length, 0, 'sem provas não se abre um canal por palpite');
+      assert.equal(lote.length, 2, 'sem canal continua com as músicas válidas, sem recorrer a vídeos genéricos');
+    } else {
+      assert.ok(canais.includes('UCX24KmsuxFB4jacvMSd3G2Q'), 'consulta o canal do rapper confirmado pela música');
+      assert.ok(lote.some(t => t.artist === 'Isak'), 'aceita as músicas reais do canal');
+      const pedidos = procuradas.length + canais.length;
+      await radio.fetchRadioTracks([semente], [semente]);
+      assert.equal(procuradas.length + canais.length, pedidos, 'a página musical é partilhada em cache entre lotes');
+    }
+    offline = true;
+    const pedidos = procuradas.length + canais.length + fluxos;
+    assert.equal((await radio.fetchRadioTracks([semente], [semente])).length, 0);
+    assert.equal(procuradas.length + canais.length + fluxos, pedidos, 'offline não faz pedidos');
+  }
+  console.log('Rádio: canal musical confirmado, sem futebol, cache partilhada e alternativa segura quando o canal falha.');
+}
+
 let livres = 0, pagas = 0, falhar = false;
 const pesquisa = ambiente(async () => {}, {
   'src/api/ytSearchFree.ts': {

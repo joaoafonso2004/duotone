@@ -16,6 +16,10 @@ sim('sem duracao conhecida passa na mesma', { title: 'Alguma Musica', durationSe
 sim('um remix e musica', { title: 'Song (Slowed + Reverb) [Remix]', durationSeconds: 200 });
 sim('um mix de generos e musica', { title: 'angelcore mix', durationSeconds: 300 });
 sim('uma versao ao vivo e musica', { title: 'Artista - Tema (Live at Wembley)', durationSeconds: 320 });
+sim('Best of You e uma musica', { title: 'Foo Fighters - Best of You (Official Music Video)', durationSeconds: 255 });
+sim('Highlights pode ser o nome de uma musica', { title: 'Artista - Highlights', durationSeconds: 200 });
+sim('Goals sozinho pode ser um titulo', { title: 'Artista - Goals', durationSeconds: 200 });
+sim('um concerto num estadio continua a ser musica', { title: 'Artista - Tema (Live at the football stadium)', durationSeconds: 320 });
 sim('no limite de baixo', { title: 'Curta', durationSeconds: MINIMO_S });
 sim('no limite de cima', { title: 'Longa', durationSeconds: MAXIMO_S });
 
@@ -34,6 +38,15 @@ nao('titulo vazio', { title: '   ', durationSeconds: 200 });
 // O caso real de 14/9: estava na fila de um amigo do Joao, vindo da pesquisa.
 nao('um temporizador de 7 horas', { title: '6 Hour 30 minute Timer + 1 Hour Loud Alarm', durationSeconds: 27000 });
 nao('o mesmo temporizador sem duracao', { title: '6 Hour 30 minute Timer + 1 Hour Loud Alarm', durationSeconds: null });
+// O caso de 2/10: a pesquisa por Isak trouxe o futebolista para a rádio.
+nao('a montagem de Alexander Isak com duracao de musica', { title: 'Best of Alexander Isak (2025/2026)', durationSeconds: 255 });
+nao('a mesma montagem sem duracao', { title: 'Best of Alexander Isak (2025/2026)', durationSeconds: null });
+nao('uma epoca com o ano abreviado', { title: 'Player Highlights 2025/26', durationSeconds: 255 });
+nao('golos e assistencias sem epoca no titulo', { title: 'Alexander Isak - Goals & Assists', durationSeconds: 255 });
+nao('resumo de um jogo', { title: 'Liverpool vs Tottenham | Match Highlights', durationSeconds: 255 });
+nao('resumo de um jogo em portugues', { title: 'Resumo do jogo: Benfica - Porto', durationSeconds: 255 });
+nao('golos e dribles em portugues', { title: 'Golos e dribles de um jogador', durationSeconds: 255 });
+nao('melhores jogadas em portugues', { title: 'Melhores jogadas de um jogador', durationSeconds: 255 });
 
 console.log('\nos limites fazem sentido');
 check('o minimo corta clipes mas nao musicas curtas', MINIMO_S >= 45 && MINIMO_S <= 90, String(MINIMO_S));

@@ -17,7 +17,7 @@ import { trackKey } from '../lib/shuffle';
 import { getLibrary } from './library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { getFlowMix } from './plays';
-import { pesquisarFaixas } from './search';
+import { paginaDoArtista } from './albunsDoArtista';
 import type { Track } from '../types';
 import { misturarPorFamiliaridade } from '../lib/contextoDaDescoberta';
 import { candidatasParaDescoberta } from './descoberta';
@@ -28,7 +28,8 @@ import { lerPerfilDeRecomendacoes } from './perfilDeRecomendacoes';
  *
  * 1. A biblioteca, pelos mesmos artistas. 2. Os SEMELHANTES do catálogo (a
  * descoberta do Smart Shuffle, estrita: parte só do que está a tocar). 3. Uma
- * pesquisa pelo artista. 4. Só no fim, o Flow geral do perfil.
+ * página musical do artista, confirmado pelas músicas dele. 4. Só no fim, o
+ * Flow geral do perfil.
  *
  * **O Flow era a segunda fonte, e era ele que fazia a fila "nunca ser
  * parecida"** (João, 25/9: "se clico em Morad deve ser desse género"). O Flow
@@ -111,13 +112,18 @@ export async function fetchRadioTracks(
   }
   if (harvest().length >= limit) return harvest();
 
-  // 3. Uma pesquisa pelo artista que está a tocar. Uma só, pela livre
-  //    primeiro (a Data API só se ela falhar).
+  // 3. As músicas do canal confirmado no YouTube Music, com a cache da página
+  //    do artista. Pesquisar só "Isak" no YouTube trazia o futebolista Alexander
+  //    Isak: quatro minutos e o nome no título não provam que seja música.
   if (artists[0]) {
     try {
-      pool.push(...(await pesquisarFaixas(artists[0])));
+      const alvo = chaveDeArtista(artists[0]);
+      const dele = (t: Track) => chaveDeArtista(displayArtist(t)) === alvo;
+      const guardadas = library.filter(dele);
+      const pagina = await paginaDoArtista(artists[0], guardadas.length ? guardadas : seeds.filter(dele));
+      pool.push(...pagina.musicas);
     } catch {
-      // sem rede ou sem quota — segue
+      // Sem canal confirmado ou sem rede: segue para o Flow, sem adivinhar.
     }
   }
   if (harvest().length >= limit) return harvest();

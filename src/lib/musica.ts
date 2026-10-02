@@ -53,6 +53,21 @@ const NAO_E_MUSICA = [
 /** Marcas de que aquilo é uma sessão longa e não uma faixa. */
 const DURACAO_NO_TITULO = /\b(\d+\s*(hour|hora|hr)s?|1\s*h\b|\d+\s*min\s*mix)\b/i;
 
+/** Uma época e uma montagem: "Best of Alexander Isak (2025/2026)". */
+const EPOCA = /\b(?:19|20)\d{2}\s*[/–-]\s*(?:(?:19|20)\d{2}|\d{2})\b/;
+const MONTAGEM = /\b(?:best of|melhores momentos|highlights?|goals?|golos?|skills?|dribles?|saves?)\b/;
+/**
+ * Sinais conjuntos de desporto, não palavras soltas: "Goals", "Highlights"
+ * e "Best of You" também podem ser títulos de músicas. Não usam a duração:
+ * uma montagem de golos costuma durar os mesmos quatro minutos de uma faixa.
+ */
+const DESPORTO_NO_TITULO = [
+  /\b(?:match|football|soccer|basketball|nba|nfl)\s+highlights?\b/,
+  /\b(?:resumo|melhores momentos)\s+d[oa]\s+(?:jogo|partida)\b/,
+  /\bmelhores\s+(?:golos|dribles|jogadas)\b/,
+  /\b(?:goals?|golos?|skills?|dribles?)\s*(?:&|and|e|\+|\/)\s*(?:goals?|golos?|assists?|assistencias?|skills?|dribles?)\b/,
+];
+
 export type FaixaParaAvaliar = {
   title: string;
   durationSeconds?: number | null;
@@ -69,6 +84,9 @@ export function pareceMusica(t: FaixaParaAvaliar): boolean {
     if (d < MINIMO_S || d > MAXIMO_S) return false;
   }
 
+  const semAcentos = titulo.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if ((EPOCA.test(semAcentos) && MONTAGEM.test(semAcentos))
+    || DESPORTO_NO_TITULO.some((sinal) => sinal.test(semAcentos))) return false;
   if (DURACAO_NO_TITULO.test(titulo)) return false;
   for (const palavra of NAO_E_MUSICA) {
     if (titulo.includes(palavra)) return false;
