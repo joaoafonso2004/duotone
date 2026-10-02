@@ -28,7 +28,10 @@ export function FriendAvatar({ avatarUrl, name, size = 36 }: Props) {
   }
 
   if (avatar.kind === 'image') {
-    return <Image source={{ uri: avatar.url }} style={round} contentFit="cover" />;
+    // A cache da imagem pelo CAMINHO no Storage, e não pelo link assinado, que
+    // muda quando se renova: a mesma foto não se descarrega outra vez.
+    const cacheKey = avatarUrl?.startsWith('storage:') ? avatarUrl : undefined;
+    return <Image source={{ uri: avatar.url, cacheKey }} style={round} contentFit="cover" />;
   }
 
   return (

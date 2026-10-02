@@ -145,6 +145,8 @@ let tiquesDaInbox = 0;
 let inboxInteiraPedida = true;
 let ultimaInboxInteira = 0;
 const INBOX_INTEIRA_MS = 10 * 60 * 1000;
+/** Voltar à app com o Realtime ligado relê no máximo uma vez neste tempo. */
+const RELER_AO_VOLTAR_MS = 60 * 1000;
 
 /** Messages and requests must not wait for presence, groups or profile queries.
  * Both the Social UI and notifications observe this same successful snapshot. */
@@ -281,11 +283,19 @@ export function iniciarSocial(userId: string): () => void {
       void inboxRefresh();
     }
   }, TIQUE_DA_INBOX_MS);
+  // Voltar à app relê tudo (inbox, amigos, grupos, presença: ~6 pedidos), mas
+  // com o Realtime ligado no máximo uma vez por minuto (2/10): no iPhone, puxar o
+  // Centro de Controlo ou uma notificação é sair e voltar, e no PC cada restauro
+  // da janela -- e com o canal ligado nada se perdeu entretanto. Sem ele (o
+  // iPhone larga-o em segundo plano) relê sempre.
+  let releuAoVoltarEm = 0;
   const acordar=(estado?: unknown)=>{
     if (typeof estado === 'string') pousarCanal(estado);
     if(!appEstaVisivel())return;
     const now=Date.now()+clockOffset;
     useSocial.setState({now,friends:friendsNow(now)});
+    if (aoVivo && !dirty && Date.now() - releuAoVoltarEm < RELER_AO_VOLTAR_MS) return;
+    releuAoVoltarEm = Date.now();
     void inboxRefresh();
     if(dirty)refresh(); else void useSocial.getState().refresh();
   };
