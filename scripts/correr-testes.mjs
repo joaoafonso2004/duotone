@@ -30,6 +30,7 @@ const TESTES = [
   'scripts/test-mudanca-velocidade.cjs',
   'scripts/test-notifications.cjs',
   'scripts/test-poupanca-em-segundo-plano.cjs',
+  'scripts/test-play-aba-artista.cjs',
   'scripts/test-desktop-messages.cjs',
   'scripts/test-artist-favorites-sync.cjs',
   'scripts/test-queue-drop.cjs',

@@ -166,14 +166,14 @@ assert.equal(fotoDoCanal({ header: { musicImmersiveHeaderRenderer: { thumbnail: 
   { url: 'javascript:alert(1)', width: 900 }] } } } } } }), null, 'só https');
 assert.equal(fotoDoCanal(ler('ytmusic-canal-cabecalho.json')), null, 'um cabeçalho sem imagem não inventa uma');
 assert.equal(fotoDoCanal({}), null);
-// E as duas páginas usam-na quando o catálogo não tem foto, e tocam o artista todo.
+// E as duas páginas usam-na quando o catálogo não tem foto. O Play toca a aba.
 const pc = ler_('src/desktop/paginas/BibliotecaPages.web.tsx');
 const iphone = ler_('src/screens/LibraryGroupScreen.tsx');
 assert.match(pc, /const fotoDoCanal = foto \? null : pagina\?\.foto \?\? null;/);
 assert.match(iphone, /const capaDoArtista = foto\n\s+\?\? pagina\?\.foto/);
-assert.match(pc, /const todas = useMemo\(\(\) => \[\.\.\.tracks, \.\.\.outrasSemRepetir\]/, 'PC: guardadas e depois as outras');
-assert.match(pc, /tocarLista\(todas, ligado, inteligente, \{ tipo: 'artista', nome: name \}\)/);
-assert.match(iphone, /const todas = useMemo\(\(\) => \[\.\.\.tracks, \.\.\.otherTracks\]/, 'iPhone: guardadas e depois as outras');
-assert.match(iphone, /onPress=\{\(\) => void tocarLista\(todas, shuffleLigado, shuffleInteligente\)\}/);
+assert.match(pc, /const faixasDaAba = separador === 'library' \? tracks : separador === 'tracks' \? outrasSemRepetir : \[\];/,
+  'PC: o Play segue a aba e não toca a biblioteca em Albums');
+assert.match(pc, /tocarLista\(faixasDaAba, ligado, inteligente, \{ tipo: 'artista', nome: name \}\)/);
+assert.match(iphone, /tocarLista\(faixasDaAba, shuffleLigado, shuffleInteligente, \{ tipo: 'artista', nome: name \}\)/);
 
 console.log('Álbuns do artista: passou.');

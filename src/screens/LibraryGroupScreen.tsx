@@ -165,9 +165,12 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
    * era isso que fazia um "Play" desligar o shuffle para sempre.
    */
   const tocarLista = usePlayer((s) => s.tocarLista);
-  // O Play toca o artista, e não só o que se guardou dele (30/9): as guardadas
-  // primeiro, e depois as outras músicas que a página mostra.
-  const todas = useMemo(() => [...tracks, ...otherTracks], [tracks, otherTracks]);
+  // O Play usa a mesma lista que está à vista. Em Albums abre-se primeiro um
+  // álbum; não há uma lista de músicas para o Play do topo tocar.
+  const faixasDaAba = activeTab === 'library' ? tracks : activeTab === 'youtube_tracks' ? otherTracks : [];
+  // As músicas do canal chegam com os álbuns; a pesquisa pelo nome é o recurso.
+  const waiting = loading || (activeTab === 'youtube_tracks' && (loadingYtAlbums || (!doCanal && loadingYtTracks)))
+    || (activeTab === 'youtube_albums' && loadingYtAlbums);
   const shuffleLigado = usePlayer((s) => s.shuffle);
   const shuffleInteligente = usePlayer((s) => s.shuffleInteligente);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
@@ -184,12 +187,14 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   };
   const accoesDoArtista = (
     <>
-      {todas.length ? <>
+      {faixasDaAba.length ? <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${name}`}
-        style={styles.playButton}
-        onPress={() => void tocarLista(todas, shuffleLigado, shuffleInteligente)}
+        accessibilityState={{ disabled: waiting }}
+        disabled={waiting}
+        style={[styles.playButton, waiting && { opacity: 0.5 }]}
+        onPress={() => { if (!waiting) void tocarLista(faixasDaAba, shuffleLigado, shuffleInteligente, { tipo: 'artista', nome: name }); }}
       >
         <LinearGradient
           colors={theme.gradient}
@@ -204,11 +209,13 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityState={{ selected: shuffleLigado }}
+        accessibilityState={{ selected: shuffleLigado, disabled: waiting }}
+        disabled={waiting}
         accessibilityLabel={shuffleInteligente ? 'Smart shuffle on' : shuffleLigado ? 'Shuffle on' : 'Shuffle off'}
         onPress={() => { hapticSelection(); alternarShuffle(); }}
         style={[
           styles.shuffleButton,
+          waiting && { opacity: 0.5 },
           shuffleLigado && !shuffleInteligente && { borderColor: theme.color, backgroundColor: theme.soft },
         ]}
       >
@@ -247,12 +254,13 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     ?? tracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? ytTracks.find((t) => t.artworkUrl)?.artworkUrl
     ?? null;
-  const total = tracks.length && tracks.every(t => (t.durationSeconds ?? 0) > 0)
-    ? tracks.reduce((sum, t) => sum + t.durationSeconds!, 0) : null;
+  const faixasDoCabecalho = activeTab === 'youtube_albums' ? tracks : faixasDaAba;
+  const total = faixasDoCabecalho.length && faixasDoCabecalho.every(t => (t.durationSeconds ?? 0) > 0)
+    ? faixasDoCabecalho.reduce((sum, t) => sum + t.durationSeconds!, 0) : null;
   const header = <>
     {type === 'artist' ? <CabecalhoDaPlaylist artista nome={name} artworks={capaDoArtista ? [capaDoArtista] : []}
-      faixas={tracks.length} duracaoSegundos={total}
-      accoes={todas.length || pagina?.mix ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
+      faixas={faixasDoCabecalho.length} duracaoSegundos={total}
+      accoes={tracks.length || otherTracks.length || pagina?.mix ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
         <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true)} />
       </View> : null}
     {type === 'artist' && pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente}
@@ -266,9 +274,6 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
       </Pressable>)}
     </View>}
   </>;
-  // As músicas do canal chegam com os álbuns; a pesquisa pelo nome é o recurso.
-  const waiting = loading || (activeTab === 'youtube_tracks' && (loadingYtAlbums || (!doCanal && loadingYtTracks)))
-    || (activeTab === 'youtube_albums' && loadingYtAlbums);
   const rows = activeTab === 'youtube_albums' ? ytAlbums : activeTab === 'youtube_tracks' ? otherTracks : tracks;
   return (
     <Screen title={type === 'album' ? name : undefined}

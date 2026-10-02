@@ -629,13 +629,12 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     setAAbrirMix(false);
     if (!ok) props.notify('Could not load the mix.');
   };
-  // O Play do topo toca o artista, e não só o que se guardou dele (30/9): as
-  // guardadas primeiro, e depois as outras músicas que a página mostra. Tocava
-  // só as da biblioteca -- com uma guardada, era uma música e mais nada.
-  const todas = useMemo(() => [...tracks, ...outrasSemRepetir], [tracks, outrasSemRepetir]);
+  // O Play do topo usa a lista da aba aberta, como o clique numa música dela.
+  const faixasDaAba = separador === 'library' ? tracks : separador === 'tracks' ? outrasSemRepetir : [];
+  const podeTocarAba = faixasDaAba.length > 0 && !(separador === 'tracks' && aProcurarMusicas);
   const playAll = () => {
-    if (!todas.length) return;
-    void usePlayer.getState().tocarLista(todas, ligado, inteligente, { tipo: 'artista', nome: name });
+    if (!podeTocarAba) return;
+    void usePlayer.getState().tocarLista(faixasDaAba, ligado, inteligente, { tipo: 'artista', nome: name });
   };
   // A foto do catálogo; sem ela, a do canal dele no YouTube Music (30/9).
   const fotoDoCanal = foto ? null : pagina?.foto ?? null;
@@ -658,8 +657,8 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <Text numberOfLines={2} style={styles.detailHeroTitle}>{name}</Text>
             <Text style={styles.detailHeroMeta}>{tracks.length} saved {tracks.length === 1 ? 'track' : 'tracks'}</Text>
             <View style={styles.detailHeroActions}>
-              <Button icon="play" onPress={playAll} disabled={!todas.length}>Play</Button>
-              <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!todas.length}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
+              <Button icon="play" onPress={playAll} disabled={!podeTocarAba}>Play</Button>
+              <Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle} disabled={!podeTocarAba}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button>
               {pagina?.mix ? <Button secondary icon="radio-outline" onPress={() => void tocarMix()} disabled={aAbrirMix}>{aAbrirMix ? 'Loading…' : 'Mix'}</Button> : null}
               {/* O mesmo coração dos cartões da página Artists (29/9): só lá se
                   favoritava, e quem estava dentro do artista tinha de voltar atrás. */}
