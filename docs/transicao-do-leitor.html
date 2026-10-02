@@ -312,6 +312,7 @@
   const W = 440, H = 956;
   const D = 801;          // topo do mini-player: de onde a folha sobe (A e B)
   const DC = 300;         // C: a folha nasce perto, a crescer
+  let longeC = DC;        // C: para onde a folha vai ao fechar (mais longe se o dedo já a levou além)
   const MINI = { x: 10, y: 801, w: 420, h: 64 };
   const CAPA_MINI = { cx: 10 + 8 + 24, cy: 801 + 8 + 24, lado: 48, raio: 8 };
   const CAPA_FULL = { cx: 220, cy: 118 + 196, lado: 392, raio: 6 };
@@ -359,7 +360,7 @@
       m.v += a * h; m.x += m.v * h; resto -= h;
     }
     m.aplicar(m.x);
-    if (Math.abs(m.x - m.alvo) < 1e-4 && Math.abs(m.v) < 1e-3) {
+    if (Math.abs(m.x - m.alvo) < 5e-4 && Math.abs(m.v) < 5e-3) {
       m.aplicar(m.alvo);
       anim = null;
       m.fim && m.fim();
@@ -371,10 +372,14 @@
   // Fechar a partir de um arrasto: p e d andam juntos (p = f, d = d0·f), por isso
   // a folha continua exatamente onde o dedo a largou e com a velocidade dele.
   function fecharDoArrasto(v) {
-    const d0 = d, longe = variant === 'C' ? DC : D;
-    const vf = -clamp(v / Math.max(longe - d0, 140), 0, 9);
+    const d0 = d;
+    // Na C a folha continua a DESCER a partir de onde o dedo a largou: o
+    // destino fica sempre abaixo dela (antes podia ficar acima, e ela subia).
+    if (variant === 'C') longeC = Math.max(DC, d0 + 220);
+    const longe = variant === 'C' ? longeC : D;
+    const vf = -clamp(v / Math.max(longe - d0, 1), 0, 6);
     open = false;
-    animar(1, vf, 0, 0.42, 0.92, (f) => { p = f; d = d0 * f; }, () => { p = 0; d = 0; });
+    animar(1, vf, 0, 0.44, 0.92, (f) => { p = f; d = d0 * f; }, () => { p = 0; d = 0; longeC = DC; });
   }
   const voltarAoSitio = (v) => animar(d, v, 0, 0.38, 0.86, (x) => { d = x; p = 1; }, () => { d = 0; });
 
@@ -391,7 +396,7 @@
     // ---- a folha
     let sy, ss = 1, so = 1;
     if (v === 'C') {
-      sy = (1 - p) * DC + d;
+      sy = (1 - p) * longeC + d;
       ss = (0.86 + 0.14 * Math.min(p, 1.05)) * (1 - Math.min(dd / H, 0.55) * 0.32);
       so = sstep(0, 0.42, p);
     } else {
@@ -434,9 +439,10 @@
     let cx = lerp(CAPA_MINI.cx, CAPA_FULL.cx, ex);
     let cy = lerp(CAPA_MINI.cy, CAPA_FULL.cy, ey) + d;
     let lado = lerp(CAPA_MINI.lado, CAPA_FULL.lado, p);
-    if (v === 'C' && open) { // a capa encolhe com a página quando se arrasta
+    if (v === 'C' && dd > 0) { // a capa encolhe com a página enquanto há arrasto, e volta com ele
+      const sd = 1 - Math.min(dd / H, 0.55) * 0.32;
       const oy = 330 + sy;
-      cy = oy + (cy - oy) * ss; cx = 220 + (cx - 220) * ss; lado *= ss;
+      cy = oy + (cy - oy) * sd; cx = 220 + (cx - 220) * sd; lado *= sd;
     }
     const k3 = sstep(0.55, 1, p) * (1 - Math.min(dd / 340, 0.75));
     const tempo = t / 1000;
@@ -522,7 +528,13 @@
   const elastico = (x) => (1 - 1 / ((x * 0.55) / H + 1)) * H;
 
   screen.addEventListener('pointerdown', (e) => {
-    if (anim) return;
+    // Agarrar a meio da mola: perto do fim da abertura, a folha fica já aberta
+    // e o dedo pega nela -- um gesto não pode ser ignorado por causa de um
+    // resto de ressalto que nem se vê.
+    if (anim) {
+      if (anim.alvo === 1 && p > 0.85 && d === 0) { anim = null; p = 1; open = true; }
+      else return;
+    }
     const pt = local(e);
     let modo = null;
     if (open) modo = 'fechar';
