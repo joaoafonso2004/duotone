@@ -174,7 +174,7 @@ async function consultarVizinhanca(nome: string): Promise<Vizinhanca | null> {
 
   // v2 invalida os negativos antigos que também podiam significar «sem rede».
   const chaveCache = `deezer:vizinhanca:v2:${chaveDeCatalogo(limpo)}`;
-  const guardado = await cacheGet<Vizinhanca | { nao: true }>(chaveCache, VALIDADE);
+  const guardado = await cacheGet<Vizinhanca | { nao: true }>(chaveCache, VALIDADE, { memoria: true });
   if (guardado) return 'nao' in guardado ? null : guardado;
 
   const busca = await pedir<{ data?: any[] }>(
@@ -250,7 +250,7 @@ async function consultarConfirmada(nome: string, provas: readonly string[]): Pro
   const limpo = (nome ?? '').trim();
   if (!limpo) return null;
   const chaveCache = `deezer:confirmada:v1:${chaveDeCatalogo(limpo)}`;
-  const guardado = await cacheGet<Vizinhanca | { nao: true; em: number }>(chaveCache, VALIDADE);
+  const guardado = await cacheGet<Vizinhanca | { nao: true; em: number }>(chaveCache, VALIDADE, { memoria: true });
   if (guardado) {
     if (!('nao' in guardado)) return guardado;
     if (Date.now() - (guardado.em ?? 0) < VALIDADE_DA_NEGATIVA) return null;
@@ -312,7 +312,7 @@ export function artistaDaFaixa(titulo: string, nome: string): Promise<string | n
 }
 
 async function consultarArtistaDaFaixa(titulo: string, nome: string, chave: string): Promise<string | null> {
-  const guardado = await cacheGet<{ nome: string | null }>(chave, VALIDADE);
+  const guardado = await cacheGet<{ nome: string | null }>(chave, VALIDADE, { memoria: true });
   if (guardado) return guardado.nome;
   const busca = await pedir<{ data?: any[] }>(`/search/artist?q=${encodeURIComponent(nome)}&limit=3`);
   if (!busca || !Array.isArray(busca.data)) throw new Error('Catalogue unavailable.');
@@ -354,7 +354,7 @@ export type FaixaDoCatalogo = {
  */
 export async function topDoArtista(id: number, quantas = 5): Promise<FaixaDoCatalogo[]> {
   const chaveCache = `deezer:top:v1:${id}:${quantas}`;
-  const guardado = await cacheGet<FaixaDoCatalogo[]>(chaveCache, VALIDADE);
+  const guardado = await cacheGet<FaixaDoCatalogo[]>(chaveCache, VALIDADE, { memoria: true });
   if (guardado) return guardado;
 
   const r = await pedir<{ data?: any[] }>(`/artist/${id}/top?limit=${quantas}`);
@@ -433,7 +433,7 @@ export async function detalhesDoAlbum(
   if (!id || !Number.isFinite(id)) return vazio;
 
   const chaveCache = `deezer:album:v1:${id}`;
-  const guardado = await cacheGet<{ genero: string | null; ano: number | null }>(chaveCache, VALIDADE);
+  const guardado = await cacheGet<{ genero: string | null; ano: number | null }>(chaveCache, VALIDADE, { memoria: true });
   if (guardado) return guardado;
 
   const r = await pedir<{ genres?: { data?: { name?: string }[] }; release_date?: string }>(

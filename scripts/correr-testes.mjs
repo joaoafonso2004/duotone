@@ -19,6 +19,7 @@ const DUPLOS = `${TS} --import ./scripts/registar-duplos.mjs`;
 
 const TESTES = [
   'scripts/test-capas-com-audio.cjs',
+  'scripts/test-cache-em-memoria.cjs',
   'scripts/test-download-esperas.mjs',
   'scripts/test-transmitir-audio.mjs',
   'scripts/test-pot-esperas.mjs',
