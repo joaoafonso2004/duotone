@@ -85,6 +85,62 @@ await usePlayer.getState().next();
 eq('next avança para a faixa seguinte', atual(), 'b');
 eq('e o índice acompanha', usePlayer.getState().queueIndex, 1);
 
+// REGRESSÃO (2/10): o Mix tinha 50 músicas mas o Up next ficava vazio até ao
+// primeiro `next`. O `playTrack` instalava a fila e deixava o percurso do
+// shuffle da anterior; só o `next` o reconciliava. Inclui listas com músicas
+// em comum, para uma ordem antiga não esconder parte do Mix novo.
+{
+  const mix = Array.from({ length: 50 }, (_, i) => faixa(`mix-${i}`));
+  for (const sobrepostas of [false, true]) {
+    const anterior = sobrepostas ? [mix[1], mix[2], mix[0]] : fila('a', 'b', 'c');
+    preparar({
+      current: anterior[2], queue: anterior, queueIndex: 2,
+      shuffle: true, shuffleOrder: anterior.map(trackKey), autoplayRadio: false,
+    });
+    const observadas: number[] = [];
+    const deixarDeObservar = usePlayer.subscribe(s => {
+      if (s.queue.length === 50) observadas.push(s.upcomingQueue().length);
+    });
+    await usePlayer.getState().tocarLista(mix, false, false, { tipo: 'prateleira', nome: 'Playboi Carti Mix' });
+    deixarDeObservar();
+    const s = usePlayer.getState();
+    const caso = sobrepostas ? 'com músicas em comum' : 'sem músicas em comum';
+    eq(`Mix ${caso} começa na primeira música`, atual(), 'mix-0');
+    eq(`Mix ${caso} mostra logo as outras 49`, s.upcomingQueue().length, 49);
+    check(`Mix ${caso} publica a fila completa no mesmo instante`,
+      observadas.length > 0 && observadas.every(n => n === 49), observadas.join(','));
+    check(`o pré-carregamento ${caso} encontra uma próxima música`, !!s.peekNextTrack());
+    eq(`o pré-carregamento ${caso} conhece logo a próxima`,
+      s.peekNextTrack()?.sourceId, s.upcomingQueue()[0]?.track.sourceId);
+    const ordem = s.upcomingQueue().map(p => p.track.sourceId);
+    await s.next(false);
+    eq(`o primeiro avanço ${caso} segue a fila que estava visível`, atual(), ordem[0]);
+    eq(`o resto do Mix ${caso} mantém a ordem`,
+      usePlayer.getState().upcomingQueue().map(p => p.track.sourceId).join(','), ordem.slice(1).join(','));
+  }
+
+  preparar({ autoplayRadio: false });
+  await usePlayer.getState().tocarLista(mix, false, false, { tipo: 'prateleira', nome: 'Playboi Carti Mix' });
+  eq('sem shuffle, o Mix mantém a ordem do catálogo',
+    usePlayer.getState().upcomingQueue().map(p => p.track.sourceId).join(','), mix.slice(1).map(t => t.sourceId).join(','));
+
+  preparar({ autoplayRadio: false });
+  await usePlayer.getState().playShuffled(mix);
+  eq('Play com shuffle também apresenta todas as próximas no arranque', usePlayer.getState().upcomingQueue().length, 49);
+  const ordem = usePlayer.getState().shuffleOrder.join(',');
+  const alvo = usePlayer.getState().upcomingQueue()[3];
+  await usePlayer.getState().playTrack(alvo.track, usePlayer.getState().queue);
+  eq('tocar numa linha da mesma fila mantém o percurso', usePlayer.getState().shuffleOrder.join(','), ordem);
+
+  const proximas = usePlayer.getState().upcomingQueue().map(p => p.track.sourceId).join(',');
+  const alternativa = { ...alvo.track, sourceId: 'mix-copia-tocavel' };
+  controlo.alternativaPendente = Promise.resolve(alternativa);
+  await usePlayer.getState().playTrack(alvo.track, usePlayer.getState().queue);
+  eq('uma cópia aprendida toca no mesmo ponto do percurso', atual(), alternativa.sourceId);
+  eq('e conserva as próximas músicas que já estavam visíveis',
+    usePlayer.getState().upcomingQueue().map(p => p.track.sourceId).join(','), proximas);
+}
+
 // Aprender rejeições exige uma recomendação, som confirmado, gesto manual e
 // menos de 30 s. Falhas e fins automáticos passam pelo player sem virar gosto.
 {

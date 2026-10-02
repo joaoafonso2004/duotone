@@ -1088,10 +1088,17 @@ export const usePlayer = create<PlayerState>()(
       ?? replayMountedSource(get().current, playableTrack, get()._yt);
     const q = originalQueue.slice();
     if (q[index]) q[index] = playableTrack;
+    // A fila e o percurso têm de aparecer juntos: antes o Mix mantinha as
+    // chaves da lista anterior até ao primeiro `next`, deixando o Up next
+    // vazio. Uma lista nova começa na faixa escolhida; na mesma fila conserva
+    // o percurso, incluindo a troca por uma fonte alternativa já aprendida.
+    const ordemAnterior = listaNova ? [] : get().shuffleOrder.map(chave =>
+      chave === trackKey(track) ? trackKey(playableTrack) : chave);
     set({
       current: playableTrack,
       queue: q,
       queueIndex: index,
+      shuffleOrder: get().shuffle ? reconciliarOrdemDoShuffle(ordemAnterior, q, index) : [],
       origemDaFila: origemSeguinte,
       ...(abrir ? { expanded: true } : {}),
       // Numa lista nova, as marcas do rádio da anterior deixam de valer.
