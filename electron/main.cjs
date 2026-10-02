@@ -31,6 +31,14 @@ app.on('child-process-gone', (_event, detalhes) => saude.processoFilhoMorreu(det
 const isDev = !app.isPackaged;
 let mainWindow = null;
 let tray = null;
+
+// O ícone do Duotone no Windows (2/10): um .ico com cada tamanho feito à parte
+// a partir do logo_windows.png (scripts/gerar-icone-do-tabuleiro.py). O PNG de
+// 1254 px encolhido pelo próprio Windows ficava serrilhado e escuro no
+// tabuleiro, atrás dos outros ícones. Fora do Windows o .ico não serve.
+const ICONE = process.platform === 'win32'
+  ? path.join(__dirname, 'icone.ico')
+  : path.join(__dirname, '..', 'logo_windows.png');
 let isQuitting = false;
 let juncoesDoDiscordPendentes = [];
 
@@ -166,7 +174,7 @@ ipcMain.on('notification:message', (event, message) => {
   if (notificacoes.has(message.id)) return;
   const notification = new Notification({
     title: message.title.slice(0, 100), body: message.body.slice(0, 300),
-    icon: path.join(__dirname, '..', 'logo_windows.png'),
+    icon: ICONE,
   });
   notificacoes.set(message.id, notification);
   if (notificacoes.size > 100) {
@@ -711,7 +719,7 @@ function abrirMiniLeitor() {
     alwaysOnTop: true,
     skipTaskbar: true,
     show: false,
-    icon: path.join(__dirname, '..', 'logo_windows.png'),
+    icon: ICONE,
     webPreferences: {
       preload: path.join(__dirname, 'preloadMini.cjs'),
       contextIsolation: true,
@@ -887,8 +895,7 @@ ipcMain.on('mini:modo-limpo', (event, ligado) => {
 });
 
 function createTray() {
-  const iconPath = path.join(__dirname, '..', 'logo_windows.png');
-  tray = new Tray(iconPath);
+  tray = new Tray(ICONE);
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'Open Duotone',
@@ -936,7 +943,7 @@ function createWindow() {
     show: false,
     backgroundColor: '#09090d',
     autoHideMenuBar: true,
-    icon: path.join(__dirname, '..', 'logo_windows.png'),
+    icon: ICONE,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

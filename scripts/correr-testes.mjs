@@ -195,6 +195,7 @@ const TESTES = [
   `${TS} scripts/test-energia-em-segundo-plano.ts`,
   `${TS} scripts/test-transicao-do-leitor.ts`,
   'scripts/test-gasto-em-segundo-plano.mjs',
+  'scripts/test-icone-do-windows.mjs',
   'scripts/test-presenca-com-fila-sql.mjs',
   'scripts/test-jam-passa-o-anfitriao-sql.mjs',
   `${TS} scripts/test-migracoes.ts`,
