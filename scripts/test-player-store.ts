@@ -24,6 +24,7 @@ import { naConta } from './duplos/cache.ts';
 import { esquecerBiblioteca } from '../src/lib/cacheDaBiblioteca.ts';
 import { tituloDeIdentidade } from '../src/lib/identidadeDaMusica.ts';
 import { chaveDeArtista, displayArtist } from '../src/lib/artistName.ts';
+import { novaEscolha } from '../src/lib/ultimaEscolha.ts';
 import type { Track } from '../src/types.ts';
 
 let mau = 0;
@@ -877,6 +878,34 @@ console.log('\narrastar no Up next (o PC e o iPhone passam posições do que se 
   preparar({ current: faixa('a'), queueIndex: 0, shuffle: false, autoplayRadio: false });
   usePlayer.getState().reordenarProximas(0, 2);
   eq('sem shuffle mexe na própria fila', ids().join(), 'a,c,d,b');
+}
+
+console.log('\no último toque ganha (2/10, o Mix que chegava depois)');
+// ===========================================================================
+{
+  preparar({ autoplayRadio: false });
+  const doMix = novaEscolha();
+  await usePlayer.getState().playTrack(faixa('x'), fila('x', 'y'), false, false, undefined, null);
+  eq('tocar noutra música faz o Mix que esperava desistir', doMix(), false);
+  eq('e a escolhida continua a tocar', atual(), 'x');
+  const outro = novaEscolha();
+  await usePlayer.getState().next(false);
+  eq('o avanço sozinho da fila não é uma escolha', outro(), true);
+  await usePlayer.getState().next();
+  eq('o seguinte à mão é', outro(), false);
+  const antes = novaEscolha();
+  await usePlayer.getState().prev();
+  eq('o anterior também', antes(), false);
+  const primeiro = novaEscolha();
+  const segundo = novaEscolha();
+  eq('um Mix pedido depois de outro ganha-lhe', `${primeiro()},${segundo()}`, 'false,true');
+  const lista = novaEscolha();
+  await usePlayer.getState().playShuffled(fila('p', 'q', 'r'));
+  await assentar();
+  eq('o Play aleatório de uma lista conta', lista(), false);
+  const interno = novaEscolha();
+  await usePlayer.getState().playTrack(faixa('z'), undefined, false, true);
+  eq('uma troca interna (rádio, motor) não conta', interno(), true);
 }
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);

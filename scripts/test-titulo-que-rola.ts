@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import {
   DESVANECER_A_DIREITA, INTERVALO_DA_VOLTA, PONTOS_POR_SEGUNDO,
-  mascaraDoTitulo, naoCabe, voltaDoTitulo,
+  DESVANECER_NO_PC, FRACAO_EM_MOVIMENTO, mascaraDoTitulo, naoCabe, vaiEVolta, voltaDoTitulo,
 } from '../src/lib/tituloQueRola.ts';
 
 let falhas = 0;
@@ -77,6 +77,29 @@ caso('numa caixa estreita as posições continuam por ordem', () => {
     assert.ok(ordenadas(m.posicoes), `${estado}: ${m.posicoes.join(', ')}`);
     assert.equal(m.cores.length, m.posicoes.length);
   }
+});
+
+console.log('\no nome da música de um amigo no PC (hover, 2/10)');
+
+caso('o que cabe não anda', () => {
+  assert.equal(vaiEVolta(150, 160), null);
+  assert.equal(vaiEVolta(160.6, 160), null, 'só por arredondamento');
+  assert.equal(vaiEVolta(300, 0), null, 'caixa por medir');
+});
+
+caso('anda o que transborda, e o fim pára fora do desvanecer', () => {
+  const v = vaiEVolta(260, 160)!;
+  assert.equal(v.distancia, 100 + DESVANECER_NO_PC);
+});
+
+caso('ao mesmo ritmo do título do iPhone, com as paragens à parte', () => {
+  const v = vaiEVolta(560, 160)!;
+  const ida = v.duracaoMs * FRACAO_EM_MOVIMENTO;
+  assert.ok(Math.abs(v.distancia / (ida / 1000) - PONTOS_POR_SEGUNDO) < 0.5, `${v.distancia / (ida / 1000)} px/s`);
+});
+
+caso('um transbordo pequeno não é um tremer: há um mínimo', () => {
+  assert.ok(vaiEVolta(165, 160)!.duracaoMs >= 1600);
 });
 
 if (falhas) {

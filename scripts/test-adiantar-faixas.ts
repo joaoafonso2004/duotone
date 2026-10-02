@@ -5,7 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import {
-  ADIANTAR_EM_DADOS_MOVEIS, ADIANTAR_EM_WIFI, faixasParaAdiantar, quantasAdiantar,
+  ADIANTAR_EM_DADOS_MOVEIS, ADIANTAR_EM_WIFI, faixasParaAdiantar, podeDescarregarOpcionais, quantasAdiantar,
 } from '../src/lib/adiantarFaixas.ts';
 
 let falhas = 0;
@@ -24,6 +24,42 @@ caso('três em Wi-Fi, menos em dados móveis', () => {
   assert.equal(quantasAdiantar(true), ADIANTAR_EM_DADOS_MOVEIS);
   assert.ok(ADIANTAR_EM_DADOS_MOVEIS < ADIANTAR_EM_WIFI, 'dados móveis não pode adiantar mais do que Wi-Fi');
   assert.ok(ADIANTAR_EM_DADOS_MOVEIS >= 1, 'a seguinte tem de estar sempre pronta: o crossfade depende dela');
+});
+
+console.log('\nquente ou em modo de poupança (2/10)');
+
+const energia = (termico: string, poupanca = false) => ({ termico, poupanca }) as any;
+
+caso('sem saber nada do aparelho, fica tudo como sempre', () => {
+  assert.equal(quantasAdiantar(false, null), ADIANTAR_EM_WIFI);
+  assert.equal(quantasAdiantar(true), ADIANTAR_EM_DADOS_MOVEIS);
+  assert.equal(quantasAdiantar(false, energia('nominal')), ADIANTAR_EM_WIFI);
+  assert.equal(quantasAdiantar(false, energia('unknown')), ADIANTAR_EM_WIFI);
+  assert.equal(podeDescarregarOpcionais(null), true);
+  assert.equal(podeDescarregarOpcionais(energia('nominal')), true);
+});
+
+caso('morno (fair): uma a menos, e a Daily mix espera', () => {
+  assert.equal(quantasAdiantar(false, energia('fair')), ADIANTAR_EM_WIFI - 1);
+  assert.equal(quantasAdiantar(true, energia('fair')), ADIANTAR_EM_DADOS_MOVEIS - 1);
+  assert.equal(podeDescarregarOpcionais(energia('fair')), false);
+});
+
+caso('quente ou em poupança: só a seguinte, nunca nenhuma', () => {
+  for (const e of [energia('serious'), energia('critical'), energia('nominal', true), energia('fair', true)]) {
+    assert.equal(quantasAdiantar(false, e), 1, JSON.stringify(e));
+    assert.equal(quantasAdiantar(true, e), 1, JSON.stringify(e));
+    assert.equal(podeDescarregarOpcionais(e), false, JSON.stringify(e));
+  }
+});
+
+caso('nunca adianta mais do que o normal, e nunca menos de uma', () => {
+  for (const termico of ['nominal', 'fair', 'serious', 'critical', 'unknown'])
+    for (const poupanca of [false, true])
+      for (const dados of [false, true]) {
+        const n = quantasAdiantar(dados, energia(termico, poupanca));
+        assert.ok(n >= 1 && n <= quantasAdiantar(dados), `${termico} ${poupanca} ${dados}: ${n}`);
+      }
 });
 
 console.log('\nquais');

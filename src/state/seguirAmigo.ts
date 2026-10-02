@@ -162,7 +162,7 @@ function ligar(id: string, nome: string): () => void {
     const seguinte = proximas[0] ? chaveDaFaixa(proximas[0]) : null;
     if (seguinte && seguinte !== adiantada) {
       adiantada = seguinte;
-      void guardarEmSegundoPlano([paraFaixa(proximas[0])]).catch(() => 0);
+      void guardarEmSegundoPlano([paraFaixa(proximas[0])], { opcional: false }).catch(() => 0);
     }
 
     const s = usePlayer.getState();

@@ -33,10 +33,32 @@ public class DuotoneDiagnosticoModule: Module {
     Function("cpuDoProcesso") { () -> String in
       return DuotoneCpuDoProcesso.retrato()
     }
+
+    /**
+     * So o estado termico e o modo de poupanca (2/10), sem o retrato das
+     * threads: leve, para o Smart Cache decidir quantas musicas adianta (ver
+     * src/lib/adiantarFaixas.ts).
+     */
+    Function("estadoDeEnergia") { () -> [String: Any] in
+      return [
+        "termico": DuotoneCpuDoProcesso.termico(),
+        "poupanca": ProcessInfo.processInfo.isLowPowerModeEnabled,
+      ]
+    }
   }
 }
 
 enum DuotoneCpuDoProcesso {
+  static func termico() -> String {
+    switch ProcessInfo.processInfo.thermalState {
+    case .nominal: return "nominal"
+    case .fair: return "fair"
+    case .serious: return "serious"
+    case .critical: return "critical"
+    @unknown default: return "unknown"
+    }
+  }
+
   static func retrato() -> String {
     var uso = rusage()
     getrusage(RUSAGE_SELF, &uso)
@@ -81,19 +103,10 @@ enum DuotoneCpuDoProcesso {
       )
     }
 
-    let termico: String
-    switch ProcessInfo.processInfo.thermalState {
-    case .nominal: termico = "nominal"
-    case .fair: termico = "fair"
-    case .serious: termico = "serious"
-    case .critical: termico = "critical"
-    @unknown default: termico = "unknown"
-    }
-
     let retrato: [String: Any] = [
       "totalMs": totalMs,
       "threads": threads,
-      "termico": termico,
+      "termico": termico(),
       "poupanca": ProcessInfo.processInfo.isLowPowerModeEnabled,
     ]
     guard let dados = try? JSONSerialization.data(withJSONObject: retrato, options: []),

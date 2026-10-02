@@ -73,6 +73,7 @@ import {
   type DiscoveryContext,
 } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
+import { contarEscolha } from '../lib/ultimaEscolha';
 
 /** Controlo do player YouTube (registado pelo YouTubePlayerView). */
 export type YtControls = PlaybackControls;
@@ -993,6 +994,9 @@ export const usePlayer = create<PlayerState>()(
   activeBackend: 'resolving',
 
   playTrack: async (track, queue, shouldExpand, interno = false, discoveryContext, origem) => {
+    // O último toque ganha: um Mix que ainda espera pela rede desiste
+    // (lib/ultimaEscolha.ts).
+    if (!interno) contarEscolha();
     if (!interno && ouvirJuntos()) {
       contextosDaFila.clear();
       contextoAtual=null;
@@ -1213,6 +1217,7 @@ export const usePlayer = create<PlayerState>()(
 
   adoptSession: ({ track, queue, queueIndex, positionMs }) => {
     if (ouvirJuntos()) return; // O handoff pessoal não substitui a sessão partilhada.
+    contarEscolha();
     invalidarPedidosDoSmartShuffle();
     // A escuta recomeça no `_setProgress`, com o que já se ouviu no outro
     // dispositivo como ouvido: se lá passou do limiar, já contou lá. Mesmo que
@@ -1270,6 +1275,7 @@ export const usePlayer = create<PlayerState>()(
 
   playShuffled: async (tracks, inteligente = false, origem = null) => {
     if (tracks.length === 0) return;
+    contarEscolha();
     if (ouvirJuntos()) {
       await get().playTrack(tracks[Math.floor(Math.random() * tracks.length)], tracks, true);
       return;
@@ -1414,6 +1420,7 @@ export const usePlayer = create<PlayerState>()(
   },
 
   next: async (manual = true) => {
+    if (manual) contarEscolha();
     // O sentido da capa: seguinte vem da direita. Antes do jam, para lá valer também.
     set({ saltoDaFaixa: { direcao: 1, em: Date.now() } });
     if (ouvirJuntos()) { await comandarJam(s => s.avancar(false)); return; }
@@ -1533,6 +1540,7 @@ export const usePlayer = create<PlayerState>()(
   },
 
   prev: async () => {
+    contarEscolha();
     // O sentido da capa: anterior vem da esquerda. Um "anterior" que só recomeça
     // a faixa não muda a capa, e a marca caduca sozinha (`janelaDoSaltoMs`).
     set({ saltoDaFaixa: { direcao: -1, em: Date.now() } });
@@ -1583,6 +1591,7 @@ export const usePlayer = create<PlayerState>()(
 
   close: async () => {
     if (!await get().prepararFecho()) return;
+    contarEscolha();
     invalidarPedidosDoSmartShuffle();
     ++playRequestId; // Respostas de uma resolução antiga não reabrem o player.
     // Parar o áudio ANTES de desmontar o player (com staysActiveInBackground

@@ -31,7 +31,8 @@ import { anotarOpus, opusProvado } from '../state/saudeDoOpus';
 import { primeiraNota, type OrigemDoSom } from '../lib/tocarEnquantoDescarrega';
 import { anotarTransmissao, ligacaoParaTransmitir } from '../state/saudeDoStream';
 import { diagnosticoDoStream } from '../../modules/duotone-stream';
-import { quantasAdiantar } from '../lib/adiantarFaixas';
+import { quantasAdiantar, quantoPoupar } from '../lib/adiantarFaixas';
+import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
 import { preCarregarCapasGrandes } from '../state/capasGrandes';
 import type { Prioridade } from '../lib/filaDeDownloads';
 import { analisarFimDaFaixa, fimMusicalGuardado } from '../lib/caudaAnalisada';
@@ -85,6 +86,8 @@ const MANTER_VIVO_MS = 90_000;
  */
 type Adiantamento = { abandonado: boolean; pronto: Promise<void> };
 const aAdiantar = new Map<string, Adiantamento>();
+/** O último "quanto poupar" que foi para o relatório: só se escreve a mudança. */
+let pouparNoRelatorio: string = 'nada';
 
 /** Resolve e descarrega uma faixa por conta. Nunca rejeita: falhar aqui é só
  * não ganhar tempo, e a reprodução tenta por si quando chegar a vez dela. */
@@ -2108,11 +2111,25 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // Os dados móveis entram nas dependências (27/9, revisão do Codex): uma lista
   // começada em Wi-Fi continuava a adiantar três faixas depois de passar para
   // dados móveis.
+  // Com o iPhone quente ou em modo de poupança adianta-se menos, até só a
+  // seguinte (2/10, `quantoPoupar`). Lido a cada música: o iOS não avisa o
+  // JS quando aquece, e uma leitura por faixa chega para o plano seguinte.
   const emDadosMoveis = useConnectivity((st) => st.dadosMoveis);
   useEffect(() => {
+    const energia = estadoDeEnergia();
+    const quantas = quantasAdiantar(emDadosMoveis, energia);
+    // Para se medir no aparelho: o relatório diz quando passou a poupar e
+    // quando voltou ao normal (só a mudança, o anel é pequeno).
+    const poupar = quantoPoupar(energia);
+    if (poupar !== pouparNoRelatorio) {
+      pouparNoRelatorio = poupar;
+      registarNaFila(poupar === 'nada'
+        ? `smart cache back to normal (${quantas} ahead)`
+        : `smart cache saving: ${quantas} ahead, Daily mix paused (thermal ${energia?.termico}${energia?.poupanca ? ', low power mode' : ''})`);
+    }
     const lista = usePlayer
       .getState()
-      .proximasFaixas(quantasAdiantar(emDadosMoveis))
+      .proximasFaixas(quantas)
       .filter((faixa) => faixa.sourceId !== track.sourceId);
     // A tocar por HLS o motor é o nativo, mas o som vem da REDE e não de um
     // ficheiro: adiantar as seguintes competia com a própria faixa que toca

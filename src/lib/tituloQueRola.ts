@@ -74,3 +74,22 @@ export function mascaraDoTitulo(
     posicoes: [0, esquerda, 1 - direita, 1],
   };
 }
+
+/**
+ * No PC (2/10): o nome da música de um amigo na lateral, quando não cabe, anda
+ * com o rato em cima -- vai até ao fim, pára, e volta (`dt-rola`, no CSS da
+ * casca). Ao mesmo ritmo que o título do iPhone. Anda o que transborda MAIS a
+ * folga do desvanecer, para o fim do nome parar inteiro, fora da parte que
+ * desvanece. A ida é 76% do ciclo; o resto são as paragens nas pontas.
+ *
+ * `null` quando cabe: aí não há nada para andar.
+ */
+export const DESVANECER_NO_PC = 12;
+export const FRACAO_EM_MOVIMENTO = 0.76;
+
+export function vaiEVolta(larguraDoTexto: number, larguraDaCaixa: number): { distancia: number; duracaoMs: number } | null {
+  if (!naoCabe(larguraDoTexto, larguraDaCaixa)) return null;
+  const distancia = Math.ceil(larguraDoTexto - larguraDaCaixa) + DESVANECER_NO_PC;
+  const duracaoMs = Math.max(1600, Math.round((distancia / PONTOS_POR_SEGUNDO / FRACAO_EM_MOVIMENTO) * 1000));
+  return { distancia, duracaoMs };
+}

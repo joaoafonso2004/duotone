@@ -307,6 +307,18 @@ export function injectDesktopDocumentStyles() {
     [data-dt~="menu-linha"]{ transition: background-color var(--dt-rapido) var(--dt-curva); cursor: pointer; outline: none; }
     [data-dt~="menu-linha"]:hover, [data-dt~="menu-linha"]:focus-visible{ background-color: rgba(233,234,238,.07); }
 
+    /* O nome da musica de um amigo que nao cabe anda com o rato em cima, para
+       se ler todo (2/10): vai ate ao fim, para, e volta. A distancia e o tempo
+       vem medidos (TextoQueRola, vaiEVolta). Desvanece so a direita: e por ai
+       que o resto entra. */
+    [data-dt~="rola-caixa"]{ overflow: hidden; }
+    [data-dt~="amigo"]:hover [data-dt~="rola-caixa"]{
+      -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent);
+              mask-image: linear-gradient(90deg, #000 calc(100% - 12px), transparent); }
+    [data-dt~="amigo"]:hover [data-dt~="rola"]{ overflow: visible !important; text-overflow: clip !important;
+      animation: dt-rola var(--rola-duracao, 3s) ease-in-out 350ms infinite alternate; }
+    @keyframes dt-rola{ 0%, 12%{ transform: none; } 88%, 100%{ transform: translateX(var(--rola-distancia, 0px)); } }
+
     /* O aviso de uma mensagem nova desce do topo (2/10). */
     [data-dt~="aviso-msg"]{ animation: dt-aviso-msg 380ms cubic-bezier(.2,.9,.25,1.05) both; }
     @keyframes dt-aviso-msg{ from{ opacity:0; transform: translateY(-24px) scale(.98); } to{ opacity:1; transform:none; } }
@@ -352,12 +364,15 @@ export function injectDesktopDocumentStyles() {
        final e o mesmo: aqui so morre o caminho ate la. */
     @media (prefers-reduced-motion: reduce){
       [data-dt~="fila"], [data-dt~="dialogo"], [data-dt~="veu"], [data-dt~="aviso"], [data-dt~="coracao"],
+      [data-dt~="menu-amigo"], [data-dt~="aviso-msg"],
       [data-dt~="pagina"], [data-dt~="pagina"] [data-dt~="cartao"], [data-dt~="carregar"],
       [data-dt~="fila"] [data-dt~="barras"] [data-dt~="barra"]{ animation: none !important; }
       [data-dt~="premir"], [data-dt~="desliza"], [data-dt~="campo"], [data-dt~="fila"] [data-dt~="toca"],
       [data-dt~="fila"] [data-dt~="mais"], [data-dt~="fila"] [data-dt~="numero"],
       [data-dt~="cartao"], [data-dt~="coracaoDoCartao"], [data-dt~="a-sair"]{ transition: none !important; }
       [data-dt~="cartao"]:hover{ transform: none !important; }
+      [data-dt~="amigo"]:hover [data-dt~="rola"]{ animation: none !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+      [data-dt~="amigo"]:hover [data-dt~="rola-caixa"]{ -webkit-mask-image: none; mask-image: none; }
       [data-dt~="premir"]:active{ transform: none !important; }
     }
   `;

@@ -20,8 +20,43 @@
 export const ADIANTAR_EM_WIFI = 3;
 export const ADIANTAR_EM_DADOS_MOVEIS = 2;
 
-export function quantasAdiantar(dadosMoveis: boolean): number {
-  return dadosMoveis ? ADIANTAR_EM_DADOS_MOVEIS : ADIANTAR_EM_WIFI;
+/**
+ * O que o iOS diz do aparelho (`ProcessInfo`: `thermalState` e
+ * `isLowPowerModeEnabled`). `null` quando não se sabe -- PC, ou um binário
+ * anterior a 2/10 --, e aí tudo fica como sempre.
+ */
+export type EnergiaDoAparelho = {
+  termico: 'nominal' | 'fair' | 'serious' | 'critical' | 'unknown';
+  poupanca: boolean;
+} | null;
+
+/**
+ * Quanto poupar nos downloads que ninguém pediu (2/10). A Apple pede menos
+ * trabalho em segundo plano a partir de `fair`, e o mínimo em `serious` e
+ * `critical`; o modo de poupança é o próprio utilizador a pedir o mesmo.
+ *
+ * - `nada`: como sempre.
+ * - `algum` (quente, `fair`): adianta-se uma faixa a menos e a Daily mix não
+ *   descarrega.
+ * - `tudo` (`serious`, `critical` ou modo de poupança): só a SEGUINTE -- é a
+ *   que se ouve a seguir, e o crossfade depende dela.
+ */
+export function quantoPoupar(e: EnergiaDoAparelho): 'nada' | 'algum' | 'tudo' {
+  if (!e) return 'nada';
+  if (e.poupanca || e.termico === 'serious' || e.termico === 'critical') return 'tudo';
+  return e.termico === 'fair' ? 'algum' : 'nada';
+}
+
+export function quantasAdiantar(dadosMoveis: boolean, energia: EnergiaDoAparelho = null): number {
+  const normal = dadosMoveis ? ADIANTAR_EM_DADOS_MOVEIS : ADIANTAR_EM_WIFI;
+  const poupar = quantoPoupar(energia);
+  if (poupar === 'tudo') return 1;
+  return poupar === 'algum' ? Math.max(1, normal - 1) : normal;
+}
+
+/** Os downloads opcionais (a Daily mix) só correm sem nada a poupar. */
+export function podeDescarregarOpcionais(energia: EnergiaDoAparelho): boolean {
+  return quantoPoupar(energia) === 'nada';
 }
 
 type Faixa = { source: string; sourceId: string };

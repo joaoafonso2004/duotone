@@ -6,6 +6,8 @@ import { downloadNoMenu, situacaoDoDownload, type DownloadNoMenu, type SituacaoD
 import {
   esquecerPedido, esquecerTodos, marcarADescarregar, registarPedido, temPedido, useDownloadsFixados,
 } from './downloadsFixados';
+import { podeDescarregarOpcionais } from './adiantarFaixas';
+import { estadoDeEnergia } from '../../modules/duotone-diagnostico';
 import { faixasParaGuardar } from './misturaDoDia';
 import { getAudioQuality } from './prefs';
 import { resolverEDescarregar } from './resolverEDescarregar';
@@ -149,12 +151,19 @@ export async function limparTodosOsDownloads(): Promise<void> {
  * Não são downloads EXPLÍCITOS: não ficam fixados, e a limpeza da cache no
  * arranque leva-os como leva o resto. Devolve quantas ficaram em disco.
  */
-export async function guardarEmSegundoPlano(faixas: readonly Track[]): Promise<number> {
+export async function guardarEmSegundoPlano(
+  faixas: readonly Track[],
+  { opcional = true }: { opcional?: boolean } = {},
+): Promise<number> {
   ligarVigias();
+  // Opcionais (a Daily mix) param com o iPhone quente ou em modo de poupança
+  // (2/10, `podeDescarregarOpcionais`). A seguinte de um amigo que se segue
+  // não é opcional: é a música que vem a seguir.
   const deveParar = () => {
     const rede = useConnectivity.getState();
     const leitor = usePlayer.getState();
-    return rede.offline || rede.dadosMoveis || leitor.activeBackend === 'resolving' || leitor.buffering;
+    return rede.offline || rede.dadosMoveis || leitor.activeBackend === 'resolving' || leitor.buffering
+      || (opcional && !podeDescarregarOpcionais(estadoDeEnergia()));
   };
   let guardadas = 0;
   for (const track of faixasParaGuardar(faixas, isAudioCached, useConnectivity.getState())) {

@@ -17,4 +17,4 @@ export async function alternarDownload(_track: Track): Promise<void> {}
 export async function pedirDownload(_track: Track): Promise<void> {}
 export async function tirarDownload(_videoId: string): Promise<void> {}
 export async function limparTodosOsDownloads(): Promise<void> {}
-export async function guardarEmSegundoPlano(_faixas: readonly Track[]): Promise<number> { return 0; }
+export async function guardarEmSegundoPlano(_faixas: readonly Track[], _opcoes?: { opcional?: boolean }): Promise<number> { return 0; }

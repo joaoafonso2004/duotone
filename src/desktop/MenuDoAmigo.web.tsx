@@ -20,6 +20,7 @@ import type { Route } from './rotas';
 import { COR, FONT } from './tokens.web';
 import { Button, Dialog, marcar } from './ui.web';
 import { pausarAtalhosDaJanela } from './useAtalhosDaJanela.web';
+import { novaEscolha } from '../lib/ultimaEscolha';
 
 // Sem tipos instalados para o react-dom; só se usa o portal (como na lateral).
 const { createPortal } = require('react-dom') as { createPortal: (filho: React.ReactNode, onde: Element) => React.ReactElement };
@@ -125,7 +126,11 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
         case 'mistura': {
           const eu = useAuth.getState().session?.user?.id;
           if (!eu) break;
+          // O último toque ganha: escolher outra música enquanto se lê não
+          // deixa a mistura tomar-lhe o lugar (lib/ultimaEscolha.ts).
+          const aindaVale = novaEscolha();
           const mistura = await lerMisturaDosDois(eu, amigo.friendId);
+          if (!aindaVale()) break;
           if (!mistura.length) { notify(`Not enough listening yet for a mix with ${nome}.`); break; }
           await usePlayer.getState().playTrack(mistura[0], mistura, false, false, contextoDaPrateleira('amigos'), null);
           notify(`Playing a mix of you and ${nome}.`);

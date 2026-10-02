@@ -11,6 +11,7 @@ import { ouvirComAmigo } from '../state/ouvirComAmigo';
 import { agoraNoServidor, useSocial } from '../state/social';
 import type { Route } from './rotas';
 import { COR, ESP, FONT, TIPO } from './tokens.web';
+import { TextoQueRola } from './TextoQueRola.web';
 import { marcar } from './ui.web';
 import { ConfirmarRemoverAmigo, MenuDoAmigo } from './MenuDoAmigo.web';
 
@@ -94,9 +95,15 @@ export function AmigosNaLateral({ navigate, notify }: { navigate: (r: Route) => 
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 13, fontWeight: '600', color: COR.texto }}>{nome}</Text>
-              <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 11.5, marginTop: 1, color: faixa ? COR.textoMedio : COR.textoFraco }}>
-                {faixa ? `${tituloDaFaixa(faixa)} · ${displayArtist(faixa)}` : 'Online'}
-              </Text>
+              {/* Com o rato em cima, o nome que não cabe anda para se ler todo (2/10). */}
+              {faixa ? (
+                <TextoQueRola
+                  texto={`${tituloDaFaixa(faixa)} · ${displayArtist(faixa)}`}
+                  style={{ fontFamily: FONT.body, fontSize: 11.5, marginTop: 1, color: COR.textoMedio }}
+                />
+              ) : (
+                <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 11.5, marginTop: 1, color: COR.textoFraco }}>Online</Text>
+              )}
               {/* Só o fio (27/9: o João experimentou com os tempos e preferiu
                   sem eles). Anda por `scaleX` e não por `width` (28/9): com
                   uma posição nova por segundo a transição nunca pára, e a
