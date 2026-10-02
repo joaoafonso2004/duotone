@@ -39,6 +39,8 @@ type Props={track:Track;size:number;artwork?:string|null;front:React.ReactNode;s
    */
   pose3D?:PoseDaCapa3D|null};
 // Translação Z equivalente, também nos motores nativos que só expõem X e Y.
+/** Quanto as letras esperam pela faixa: o fim da abertura e do recuo do skip. */
+const LETRAS_DEPOIS_MS=900;
 const depth=(z:number)=>[{rotateY:'90deg'},{translateX:-z},{rotateY:'-90deg'}];
 
 /** Onde está uma peça da montagem (0 longe, 1 no sítio), com o recuo se for a que está presa. */
@@ -99,6 +101,18 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
   // sai para fora. Num efeito e nao nas chamadas ao `setMoving`, para o aviso
   // sair uma vez por MUDANCA e nao uma vez por chamada.
   const aoRodarRef=useRef(aoRodar);aoRodarRef.current=aoRodar;
+  // As letras montam-se um pouco DEPOIS da faixa (2/10): são dezenas de linhas,
+  // cada uma medida, e montadas no instante da faixa nova caíam a meio da
+  // abertura do leitor e do recuo do skip -- o "encrava a meio das animações".
+  // Quem as está a ver, ou começa a rodar a capa, tem-nas logo.
+  const chaveDasLetras=`${track.source}:${track.sourceId}`;
+  const [letrasDe,setLetrasDe]=useState<string|null>(showLyrics?chaveDasLetras:null);
+  useEffect(()=>{
+    if(letrasDe===chaveDasLetras)return;
+    const t=setTimeout(()=>setLetrasDe(chaveDasLetras),LETRAS_DEPOIS_MS);
+    return()=>clearTimeout(t);
+  },[chaveDasLetras,letrasDe]);
+  const montarLetras=letrasDe===chaveDasLetras||showLyrics||moving;
   useEffect(()=>{aoRodarRef.current?.(moving);},[moving]);
   const cubeRef=useRef<any>(null);
   const latest=useRef({showLyrics,onChange,size,reduced});latest.current={showLyrics,onChange,size,reduced};
@@ -230,7 +244,7 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       {verso?<ImagemDaCapa source={{uri:verso.uri}} cachePolicy="memory-disk" contentFit="cover" blurRadius={verso.raio} style={[StyleSheet.absoluteFill,{opacity:0.6,transform:[{scale:1.12}]}]} />:null}
       <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(8,8,15,0.5)'}]} />
       {/* As letras recomeçam por faixa; o cubo à volta delas fica montado. */}
-      <LyricsView key={`${track.source}:${track.sourceId}`} track={track} visible={showLyrics&&!moving} />
+      {montarLetras?<LyricsView key={chaveDasLetras} track={track} visible={showLyrics&&!moving} />:null}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.4,0]})}]} />
     </Animated.View>
   </View>;

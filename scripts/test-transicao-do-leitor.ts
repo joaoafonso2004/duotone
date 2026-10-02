@@ -85,15 +85,44 @@ caso('as ligações: 120 Hz, a app de trás, o gesto e a pose', () => {
   assert.match(leitor, /\{ scale: folhaEscala \}/, 'a página cresce ao abrir e encolhe no gesto');
   assert.match(leitor, /Animated\.add\(cartaoX, Animated\.multiply\(Animated\.add\(cartaoEsc, -1\), kx\)\)/, 'a capa vai com o cartão');
   assert.match(leitor, /forcaDaPose=\{forcaDaPose\}/, 'a capa perde a pose com o gesto');
-  // No fim da aterragem: a abertura a 0 e o cartão em repouso ANTES do setExpanded,
-  // e o efeito do `expanded` não mexe (senão havia um salto).
-  assert.match(leitor, /anim\.setValue\(0\);[\s\S]{0,80}reporGesto\(\);[\s\S]{0,300}fecheiAoAterrarRef\.current = true;\s*setExpanded\(false\);/);
-  assert.match(leitor, /if \(fecheiAoAterrarRef\.current\) \{\s*fecheiAoAterrarRef\.current = false;/);
-  // A marca só se põe se fui eu a fechar: fechado por outra coisa a meio, ficava
-  // esquecida e saltava a abertura seguinte (o leitor não aparecia).
-  assert.match(leitor, /if \(usePlayer\.getState\(\)\.expanded\) \{\s*fecheiAoAterrarRef\.current = true;/);
   const estado = ler('src/state/transicaoDoLeitor.ts');
   assert.doesNotMatch(estado, /useNativeDriver: false/);
+});
+
+caso('a aterragem e a abertura não se atropelam (os bugs da 4.1.6)', () => {
+  const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
+  const leitor = ler('src/components/PlayerRoot.tsx');
+  // O leitor fecha-se na store logo no largar: tocar numa música (ou no mini) a
+  // meio da aterragem é pedir para abrir, e isso tem de mudar alguma coisa.
+  assert.match(leitor, /const minha = \+\+aterragemRef\.current;[\s\S]{0,400}if \(usePlayer\.getState\(\)\.expanded\) setExpanded\(false\);/);
+  // Uma aterragem interrompida não acaba depois por cima da abertura (fechava o
+  // leitor e deixava a app de trás escurecida).
+  assert.match(leitor, /if \(aterragemRef\.current !== minha\) return;\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*anim\.setValue\(0\);/);
+  assert.doesNotMatch(leitor, /fecheiAoAterrarRef/, 'o efeito do `expanded` nunca é saltado');
+  // Aberto só com faixa: sem ela, a app de trás escurecia sem leitor à frente.
+  assert.match(leitor, /const alvo = expanded && temFaixa \? 1 : 0;/);
+  assert.match(leitor, /\}, \[expanded, temFaixa, current\?\.sourceId\]\);/);
+  // A aterrar e fechado: ela acaba sozinha. Pedido para abrir: cancela-a.
+  assert.match(leitor, /if \(aterrandoRef\.current\) \{\s*\/\/[^\n]*\n\s*\/\/[^\n]*\n\s*if \(!alvo\) return;[\s\S]{0,200}aterragemRef\.current\+\+;/);
+  // O cartão volta ao sítio a animar, nunca por baixo do dedo.
+  assert.match(leitor, /if \(alvo && !arrastandoRef\.current\) \{\s*Animated\.parallel\(\[ir\(cartaoX, 0\)/);
+  // Até ao fim da aterragem desenha-se o leitor aberto (a capa 3D não troca pela miniatura a meio).
+  assert.match(leitor, /const aberto = expanded \|\| aterrando;/);
+  assert.match(leitor, /\{aberto && \(\s*<CapaDoLeitor/);
+  // Os nós do voo e do mini-player não se refazem a cada desenho.
+  assert.match(leitor, /if \(nosRef\.current\?\.chave !== chaveDosNos\) nosRef\.current = \{ chave: chaveDosNos, nos: criarNos\(\) \};/);
+  assert.match(leitor, /transform: nos\.miniTransform,/);
+  assert.doesNotMatch(leitor, /speed: 14,\s*bounciness: 3/, 'o voo da linha usa a mola do iOS');
+  // O mini-player desce para o sítio dele no gesto (subia 12 pt e dava um salto no fim).
+  const estado = ler('src/state/transicaoDoLeitor.ts');
+  assert.match(estado, /const miniSobe = Animated\.multiply\(\s*Animated\.multiply\(suave\(abertura, 0, 0\.3\), suave\(arrasto, 0\.05, 0\.4, true\)\),\s*suave\(aterrar, 0, 0\.3, true\),\s*\);/);
+  // O leitor abre com a música nova, e não com a anterior antes das esperas.
+  const store = ler('src/state/player.ts');
+  assert.doesNotMatch(store, /if \(shouldExpand && !get\(\)\.expanded\) set\(\{ expanded: true \}\);/);
+  assert.match(store, /origemDaFila: origemSeguinte,\s*\.\.\.\(abrir \? \{ expanded: true \} : \{\}\),/);
+  // As letras montam-se depois da faixa.
+  const cubo = ler('src/components/ArtworkLyricsCube.tsx');
+  assert.match(cubo, /\{montarLetras\?<LyricsView key=\{chaveDasLetras\}/);
 });
 
 if (falhas) { console.error(`\n${falhas} caso(s) falharam`); process.exit(1); }

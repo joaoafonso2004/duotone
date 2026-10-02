@@ -148,7 +148,13 @@ export const ESCADA = [0, 1, 2, 3, 4].map((i) => {
 /** O mini-player: some ao abrir (e sobe um pouco a crescer), volta com o gesto. */
 export const miniOpacidade = Animated.add(suave(abertura, 0, 0.2, true), miniDoGesto)
   .interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' });
-const miniSobe = suave(abertura, 0, 0.3);
+// No gesto, o mini-player desce para o SEU sítio, que é onde a capa aterra.
+// Preso só à abertura (que fica a 1 até ao fim da aterragem), ficava 12 pt
+// acima e maior durante o gesto todo e dava um salto no fim (João, 2/10).
+const miniSobe = Animated.multiply(
+  Animated.multiply(suave(abertura, 0, 0.3), suave(arrasto, 0.05, 0.4, true)),
+  suave(aterrar, 0, 0.3, true),
+);
 export const miniSubir = miniSobe.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });
 export const miniEscala = miniSobe.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] });
 

@@ -142,7 +142,7 @@ async function run() {
   ];
   for (const file of iosGlitch) assert.equal(fs.existsSync(path.join(root, file)), false, `${file} foi removido`);
   assert.match(player, /<CapaFlutuante3D/);
-  assert.match(player, /opacity: capaFlutuante \? 0 :/,
+  assert.match(player, /(opacity|sombra): capaFlutuante \? 0 :/,
     'a sombra plana da capa desliga-se com a capa 3D, também do lado das letras');
   const cubo = fs.readFileSync(path.join(root, 'src/components/ArtworkLyricsCube.tsx'), 'utf8');
   assert.match(cubo, /-direction\*180/, 'no 3D a caixa vira 180° inteira, com as letras no verso');
@@ -201,7 +201,8 @@ async function run() {
     'a capa da frente continua a ser uma instância por faixa: é ao desmontar que lembra a anterior');
   assert.match(player, /const CapaDoLeitor = React\.memo\(/,
     'a capa do leitor é memorizada: os redesenhos do PlayerRoot num skip não reconciliam o cubo');
-  assert.match(cubo, /<LyricsView key=\{`\$\{track\.source\}:\$\{track\.sourceId\}`\}/,
+  assert.match(cubo, /const chaveDasLetras=`\$\{track\.source\}:\$\{track\.sourceId\}`;/);
+  assert.match(cubo, /<LyricsView key=\{chaveDasLetras\}/,
     'as letras recomeçam por faixa dentro do cubo');
   assert.doesNotMatch(player + cubo, /blurRadius=\{(28|64)\}/,
     'os desfoques partem da miniatura pequena (desfoqueLeve), não da capa de 1280 px');

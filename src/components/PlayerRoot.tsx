@@ -191,16 +191,22 @@ export function PlayerRoot() {
   // com ela, e é o RootNavigator que a lê. O arrasto para fechar deixou de ser
   // um `dragY` que só descia a página -- é o cartão do gesto, no mesmo sítio.
   const anim = abertura;
-  /** O cartão está a aterrar no mini-player: nada se toca nem se agarra. */
+  /**
+   * O cartão está a aterrar no mini-player. O leitor já está FECHADO na store
+   * (fecha-se no largar): tocar numa música ou no mini a meio é pedir para
+   * abrir, e isso tem de ser uma mudança que se veja. Até ao fim da aterragem,
+   * o que se desenha continua o do leitor aberto (`aberto`).
+   */
   const aterrandoRef = useRef(false);
   const [aterrando, setAterrando] = useState(false);
   /**
-   * Fui EU (a aterragem) que fechei: o efeito do `expanded` não mexe na
-   * abertura, que já está a 0. À parte do `aterrandoRef` de propósito: se outra
-   * coisa fechar o leitor a meio (uma notificação), o efeito corre como sempre,
-   * e nenhuma marca fica esquecida a saltar a abertura seguinte.
+   * A aterragem em curso, por número. Uma que foi interrompida (alguém reabriu
+   * a meio) não pode acabar depois por cima da abertura: o fim dela fechava o
+   * leitor e deixava a app de trás escurecida (4.1.6).
    */
-  const fecheiAoAterrarRef = useRef(false);
+  const aterragemRef = useRef(0);
+  /** O dedo está no cartão: nada o põe a mexer por baixo dele. */
+  const arrastandoRef = useRef(false);
   /**
    * O raio dos cantos, à parte -- mas no MESMO driver que o resto.
    *
@@ -232,7 +238,16 @@ export function PlayerRoot() {
     onPanResponderTerminate: () => {swiping.current=false;Animated.spring(dragX,{toValue:0,useNativeDriver:true}).start();},
   })).current;
   useEffect(()=>{dragX.setValue(0);},[current,dragX]);
-  const miniFade=Animated.multiply(closeGain,dragX.interpolate({inputRange:[0,W],outputRange:[1,0.2],extrapolate:'clamp'}));
+  const miniFade=useMemo(()=>Animated.multiply(closeGain,dragX.interpolate({inputRange:[0,W],outputRange:[1,0.2],extrapolate:'clamp'})),[closeGain,dragX,W]);
+  /**
+   * Os nós animados que dependem da geometria (o voo da capa, o mini-player),
+   * guardados entre desenhos (2/10). Eram refeitos a CADA desenho, e um nó novo
+   * num estilo é religar o grafo do motor nativo -- o leitor redesenha-se
+   * várias vezes ao tocar numa música (faixa, backend, a carregar), justamente
+   * a meio da animação. Num ref e não num `useMemo` porque se calculam depois
+   * do `if (!current)`, onde um hook não pode estar.
+   */
+  const nosRef = useRef<{ chave: string; nos: unknown } | null>(null);
 
   // Opacidade da capa: "respira" (fade in/out) enquanto a música carrega.
   const pulse = useRef(new Animated.Value(1)).current;
@@ -556,22 +571,39 @@ export function PlayerRoot() {
     Animated.timing(pulse, { toValue: 1, duration: 250, useNativeDriver: true }).start();
   }, [buffering, pulse]);
 
+  // Aberto só com faixa: o `playTrack` de uma lista pode abrir antes de a
+  // faixa chegar, e sem leitor por cima a app de trás ficava escurecida.
+  const temFaixa = !!current;
   useEffect(() => {
-    // Fechado pelo gesto: a aterragem já deixou tudo no mini-player (a
-    // abertura a 0, o cartão em repouso). Molas aqui por cima eram um salto.
-    if (fecheiAoAterrarRef.current) {
-      fecheiAoAterrarRef.current = false;
-      return;
+    const alvo = expanded && temFaixa ? 1 : 0;
+    if (aterrandoRef.current) {
+      // A aterrar: o leitor já está fechado, e ela acaba sozinha (com a
+      // abertura a 0). Uma faixa que muda a meio não a interrompe.
+      if (!alvo) return;
+      // Pediram para abrir a meio (uma música tocada, o mini): ela deixa de
+      // contar, e o cartão volta ao sítio com a mola de abrir.
+      aterragemRef.current++;
+      aterrandoRef.current = false;
+      setAterrando(false);
     }
-    if (expanded) reporGesto();
     // Molas do iOS (2/10): abrir com um ressalto mínimo, fechar sem nenhum.
-    const mola = expanded ? molaIOS(0.5, 0.82) : molaIOS(0.42, 0.92);
-    Animated.parallel([
-      Animated.spring(anim, { toValue: expanded ? 1 : 0, useNativeDriver: true, ...mola }),
-      Animated.spring(animRaio, { toValue: expanded ? 1 : 0, useNativeDriver: true, ...mola }),
-    ]).start();
+    // Corre sempre: com tudo já no sítio, as molas acabam logo.
+    const mola = alvo ? molaIOS(0.5, 0.82) : molaIOS(0.42, 0.92);
+    const ir = (valor: Animated.Value, para: number) =>
+      Animated.spring(valor, { toValue: para, useNativeDriver: true, ...mola });
+    Animated.parallel([ir(anim, alvo), ir(animRaio, alvo)]).start(({ finished }) => {
+      if (finished) setOrigemDaEntrada((o) => (o ? null : o));
+    });
+    // O cartão do gesto volta ao repouso (uma volta ou uma aterragem
+    // interrompida a meio) -- à parte, para quem agarrar o cartão não parar a
+    // abertura com ele. Nunca com o dedo lá.
+    if (alvo && !arrastandoRef.current) {
+      Animated.parallel([ir(cartaoX, 0), ir(cartaoY, 0), ir(cartaoEsc, 1), ir(arrasto, 0), ir(aterrar, 0)]).start();
+      const ge = gestoRef.current;
+      ge.baseDx = 0; ge.baseDy = 0; ge.tx = 0; ge.ty = 0; ge.esc = 1; ge.g = 0;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, anim, current?.sourceId]);
+  }, [expanded, temFaixa, current?.sourceId]);
 
   /**
    * A capa entra a voar da linha que foi tocada.
@@ -600,12 +632,11 @@ export function PlayerRoot() {
     setOrigemDaEntrada(origem);
     anim.setValue(-1);
     animRaio.setValue(0);
-    Animated.spring(anim, {
-      toValue: expanded ? 1 : 0,
-      useNativeDriver: true,
-      speed: 14,
-      bounciness: 3,
-    }).start(({ finished }) => { if (finished) setOrigemDaEntrada(null); });
+    // A mola do iOS, como o resto da transição (era a `speed`/`bounciness` do RN).
+    const mola = molaIOS(0.55, 0.86);
+    Animated.spring(animRaio, { toValue: expanded ? 1 : 0, useNativeDriver: true, ...mola }).start();
+    Animated.spring(anim, { toValue: expanded ? 1 : 0, useNativeDriver: true, ...mola })
+      .start(({ finished }) => { if (finished) setOrigemDaEntrada(null); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.sourceId]);
 
@@ -646,34 +677,39 @@ export function PlayerRoot() {
     // A velocidade do dedo na direção do mini-player: o cartão continua com ela.
     const vn = velocidadeDeAterragem(geo, ge, vx, vy);
     const alvo = destinoNoMini(geo);
+    const minha = ++aterragemRef.current;
     aterrandoRef.current = true;
     setAterrando(true);
+    // Fechado já, no largar (ver `aterrandoRef`). O efeito do `expanded` vê a
+    // aterragem e não mexe na abertura: é ela que a põe a 0 no fim.
+    if (usePlayer.getState().expanded) setExpanded(false);
     hapticSelection();
     const mola = molaIOS(0.5, 0.86);
     // Todas com a MESMA mola e a velocidade na mesma proporção do caminho: andam
-    // juntas, e a capa nunca descola do cartão.
-    const ir = (valor: Animated.Value, para: number, de: number, limiar: number) => Animated.spring(valor, {
+    // juntas, e a capa nunca descola do cartão. O repouso é o que se vê (meio
+    // ponto, 0,2% da escala): com limiares de velocidade minúsculos a cauda da
+    // mola durava mais meio segundo, com o mini-player ainda por tocar.
+    const ir = (valor: Animated.Value, para: number, de: number, perto: number, devagar: number) => Animated.spring(valor, {
       toValue: para, velocity: vn * (para - de), useNativeDriver: true, ...mola,
-      restDisplacementThreshold: limiar, restSpeedThreshold: limiar,
+      restDisplacementThreshold: perto, restSpeedThreshold: devagar,
     });
     Animated.parallel([
-      ir(cartaoX, alvo.tx, ge.tx, 0.25),
-      ir(cartaoY, alvo.ty, ge.ty, 0.25),
-      ir(cartaoEsc, alvo.esc, ge.esc, 0.0015),
-      ir(aterrar, 1, 0, 0.002),
+      ir(cartaoX, alvo.tx, ge.tx, 0.5, 8),
+      ir(cartaoY, alvo.ty, ge.ty, 0.5, 8),
+      ir(cartaoEsc, alvo.esc, ge.esc, 0.002, 0.02),
+      ir(aterrar, 1, 0, 0.004, 0.04),
     ]).start(() => {
+      // Interrompida (alguém reabriu a meio): quem reabriu já tratou de tudo.
+      if (aterragemRef.current !== minha) return;
       // Tudo no mini-player: a abertura a 0 e o cartão em repouso no mesmo
-      // instante -- o que se vê é o mesmo, e o efeito do `expanded` não mexe.
+      // instante -- o que se vê é o mesmo.
       anim.setValue(0);
       animRaio.setValue(0);
       reporGesto();
-      ge.baseDx = 0; ge.baseDy = 0; ge.g = 0;
+      ge.baseDx = 0; ge.baseDy = 0; ge.tx = 0; ge.ty = 0; ge.esc = 1; ge.g = 0;
       aterrandoRef.current = false;
       setAterrando(false);
-      if (usePlayer.getState().expanded) {
-        fecheiAoAterrarRef.current = true;
-        setExpanded(false);
-      }
+      setOrigemDaEntrada((o) => (o ? null : o));
     });
   };
 
@@ -733,6 +769,7 @@ export function PlayerRoot() {
         !aterrandoRef.current && g.dy > 12 && g.dy > Math.abs(g.dx) * 1.5,
       onPanResponderGrant: () => {
         // Um cartão apanhado a meio da volta ao sítio continua de onde está.
+        arrastandoRef.current = true;
         const ge = gestoRef.current;
         let tx = 0, ty = 0;
         cartaoX.stopAnimation((v) => { tx = v; });
@@ -752,11 +789,15 @@ export function PlayerRoot() {
         arrasto.setValue(c.g);
       },
       onPanResponderRelease: (_e, g) => {
+        arrastandoRef.current = false;
         const vx = g.vx * 1000, vy = g.vy * 1000; // pontos por segundo
         if (deveFechar(gestoRef.current, vy)) fecharRef.current.aterrarNoMini(vx, vy);
         else fecharRef.current.voltarAoSitio(vy);
       },
-      onPanResponderTerminate: () => fecharRef.current.voltarAoSitio(0),
+      onPanResponderTerminate: () => {
+        arrastandoRef.current = false;
+        fecharRef.current.voltarAoSitio(0);
+      },
     })
   ).current;
 
@@ -887,9 +928,12 @@ export function PlayerRoot() {
   // A capa 3D a montar-se com o download, e o botão do relatório quando o
   // arranque fica preso (lib/montagemDaCapa.ts). Antes do `if (!current)`: é um
   // hook. A deteção corre também no Simple; as animações só com a capa 3D à vista.
+  // O que se desenha: o leitor aberto continua até ao fim da aterragem, embora
+  // a store já o dê por fechado (ver `aterrandoRef`).
+  const aberto = expanded || aterrando;
   const montagem = useMontagemDaCapa(
     current?.sourceId ?? null,
-    Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'floating' && expanded,
+    Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'floating' && aberto,
   );
 
   // O "Recuo subtil" do skip (lib/transicaoDaCapa.ts). O sentido lê-se UMA vez
@@ -1013,41 +1057,65 @@ export function PlayerRoot() {
 
   // A capa faz um ARCO do mini-player até ao sítio (a variante C): o X
   // adianta-se ao Y. Em amostras, porque o motor nativo só interpola por troços.
-  const AMOSTRAS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
-  const arcoX = (t: number) => 1 - Math.pow(1 - t, 1.7);
-  const arcoY = (t: number) => Math.pow(t, 1.35);
-  const voo = (deOrigem: number, deMini: number, curva: (t: number) => number) => anim.interpolate({
-    inputRange: origemDaEntrada ? [-1, ...AMOSTRAS] : AMOSTRAS,
-    outputRange: [...(origemDaEntrada ? [deOrigem] : []), ...AMOSTRAS.map((t) => deMini * (1 - curva(t)))],
-  });
-
-  const vooDaMoldura = [
-    {
-      translateX: Animated.add(
-        Animated.add(
-          voo(deslocacaoOrigem.x, deslocacaoMini.x, arcoX),
-          expanded || reducedMotion ? 0 : Animated.add(dragX, (1 - closeGain) * W)
+  const criarNos = () => {
+    const AMOSTRAS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1];
+    const arcoX = (t: number) => 1 - Math.pow(1 - t, 1.7);
+    const arcoY = (t: number) => Math.pow(t, 1.35);
+    const voo = (deOrigem: number, deMini: number, curva: (t: number) => number) => anim.interpolate({
+      inputRange: origemDaEntrada ? [-1, ...AMOSTRAS] : AMOSTRAS,
+      outputRange: [...(origemDaEntrada ? [deOrigem] : []), ...AMOSTRAS.map((t) => deMini * (1 - curva(t)))],
+    });
+    const vooDaMoldura = [
+      {
+        translateX: Animated.add(
+          Animated.add(
+            voo(deslocacaoOrigem.x, deslocacaoMini.x, arcoX),
+            aberto || reducedMotion ? 0 : Animated.add(dragX, (1 - closeGain) * W)
+          ),
+          // O cartão do gesto: a capa vai com ele, à volta do mesmo pivô.
+          Animated.add(cartaoX, Animated.multiply(Animated.add(cartaoEsc, -1), kx)),
         ),
-        // O cartão do gesto: a capa vai com ele, à volta do mesmo pivô.
-        Animated.add(cartaoX, Animated.multiply(Animated.add(cartaoEsc, -1), kx)),
+      },
+      {
+        translateY: Animated.add(
+          voo(deslocacaoOrigem.y, deslocacaoMini.y, arcoY),
+          Animated.add(cartaoY, Animated.multiply(Animated.add(cartaoEsc, -1), ky)),
+        ),
+      },
+      {
+        scale: Animated.multiply(
+          anim.interpolate({
+            inputRange: faixaDoVoo,
+            outputRange: saidaDoVoo(escalaOrigem, escalaMini, 1),
+          }),
+          cartaoEsc,
+        ),
+      },
+    ];
+    return {
+      vooDaMoldura,
+      sombra: capaFlutuante ? 0 : Animated.multiply(
+        sombraAnim,
+        Animated.multiply(visibilityAnim, anim.interpolate({ inputRange: faixaDoVoo, outputRange: saidaDoVoo(0, 0, 1) })),
       ),
-    },
-    {
-      translateY: Animated.add(
-        voo(deslocacaoOrigem.y, deslocacaoMini.y, arcoY),
-        Animated.add(cartaoY, Animated.multiply(Animated.add(cartaoEsc, -1), ky)),
-      ),
-    },
-    {
-      scale: Animated.multiply(
-        anim.interpolate({
-          inputRange: faixaDoVoo,
-          outputRange: saidaDoVoo(escalaOrigem, escalaMini, 1),
-        }),
-        cartaoEsc,
-      ),
-    },
-  ];
+      molduraOpacidade: aberto ? visibilityAnim : Animated.multiply(visibilityAnim, miniFade),
+      moldura: { borderRadius: animRaio.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) },
+      miniTransform: [
+        { translateX: reducedMotion ? 0 : Animated.add(dragX, (1 - closeGain) * W) },
+        { translateY: miniSubir },
+        { scale: miniEscala },
+      ],
+      miniOpacidade: Animated.multiply(Animated.multiply(visibilityAnim, miniFade), miniOpacidade),
+    };
+  };
+  const chaveDosNos = [
+    origemDaEntrada ? `${origemDaEntrada.x},${origemDaEntrada.y},${origemDaEntrada.largura},${origemDaEntrada.altura}` : '-',
+    vidFull.x, vidFull.y, vidFull.w, vidMini.x, vidMini.y, W, H,
+    aberto, reducedMotion, closeGain, capaFlutuante,
+  ].join('|');
+  if (nosRef.current?.chave !== chaveDosNos) nosRef.current = { chave: chaveDosNos, nos: criarNos() };
+  const nos = nosRef.current.nos as ReturnType<typeof criarNos>;
+  const vooDaMoldura = nos.vooDaMoldura;
 
 
   /**
@@ -1660,15 +1728,8 @@ export function PlayerRoot() {
             bottom: miniBottom,
             // Ao abrir sobe um pouco a crescer e some; no gesto de fechar volta
             // a aparecer por baixo do cartão (state/transicaoDoLeitor.ts).
-            transform:[
-              {translateX:reducedMotion?0:Animated.add(dragX,(1-closeGain)*W)},
-              {translateY:miniSubir},
-              {scale:miniEscala},
-            ],
-            opacity: Animated.multiply(
-              Animated.multiply(visibilityAnim,miniFade),
-              miniOpacidade,
-            ),
+            transform: nos.miniTransform,
+            opacity: nos.miniOpacidade,
           },
         ]}
       >
@@ -1747,7 +1808,7 @@ export function PlayerRoot() {
           botão do Jam do leitor grande. Ficou só o que o Jam tem para DIZER --
           ver `soAvisos`. Sem faixa nenhuma a barra continua inteira, lá em
           cima, porque aí é a única porta para o Jam. */}
-      {!shouldHide && !expanded ? (
+      {!shouldHide && !aberto ? (
         <View
           pointerEvents="box-none"
           style={{
@@ -1797,16 +1858,7 @@ export function PlayerRoot() {
               // Com a capa 3D a sombra é dela (a fatia do fundo). Esta placa é
               // plana e não roda: por trás das letras via-se como um quadrado
               // escuro desfasado da capa inclinada.
-              opacity: capaFlutuante ? 0 : Animated.multiply(
-                sombraAnim,
-                Animated.multiply(
-                  visibilityAnim,
-                  anim.interpolate({
-                    inputRange: faixaDoVoo,
-                    outputRange: saidaDoVoo(0, 0, 1),
-                  }),
-                ),
-              ),
+              opacity: nos.sombra,
               transform: vooDaMoldura,
             },
           ]}
@@ -1816,11 +1868,11 @@ export function PlayerRoot() {
       {/* ============ FRAME DE VÍDEO YOUTUBE (flutuante, nunca desmonta) ============ */}
       {current ? (
         <Animated.View
-          {...(!expanded ? swipeClose.panHandlers : {})}
+          {...(!aberto ? swipeClose.panHandlers : {})}
           pointerEvents={shouldHide ? 'none' : 'auto'}
           style={{
             position: 'absolute',
-            opacity: expanded ? visibilityAnim : Animated.multiply(visibilityAnim,miniFade),
+            opacity: nos.molduraOpacidade,
             // A moldura fica SEMPRE com a geometria do player grande, e vai
             // ao mini por escala e deslocação. O left/top/width/height são
             // propriedades de layout: não correm no driver nativo, e cada
@@ -1834,27 +1886,24 @@ export function PlayerRoot() {
             top: vidFull.y,
             width: vidFull.w,
             height: vidFull.h,
-            borderRadius: animRaio.interpolate({
-              inputRange: [0, 1],
-              outputRange: [8, 20],
-            }),
+            borderRadius: nos.moldura.borderRadius,
             transform: vooDaMoldura,
-            overflow: expanded ? 'visible' : 'hidden',
-            backgroundColor: expanded ? 'transparent' : '#000',
+            overflow: aberto ? 'visible' : 'hidden',
+            backgroundColor: aberto ? 'transparent' : '#000',
           }}
         >
-          {isYt && <View style={[StyleSheet.absoluteFill,{overflow:'hidden',borderRadius:20,opacity:expanded?0:1}]}><YouTubePlayerView track={current} /></View>}
+          {isYt && <View style={[StyleSheet.absoluteFill,{overflow:'hidden',borderRadius:20,opacity:aberto?0:1}]}><YouTubePlayerView track={current} /></View>}
 
           {/* Fundo preto opaco para tapar quaisquer controlos, logos ou botões do YouTube (WebView)
               de brilharem por trás quando a capa de álbum diminui de opacidade ao pulsar. */}
-          {!expanded && (
+          {!aberto && (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} pointerEvents="none" />
           )}
 
           {/* Mostramos SEMPRE a thumbnail por cima — o áudio nativo continua a
               tocar por trás. (A app é só áudio; o vídeo é irrelevante.) A capa
               "respira" (opacidade a pulsar) enquanto a música carrega. */}
-          {!expanded && (origemDaEntrada?.uri || capaParaLista(artSource)) ? (
+          {!aberto && (origemDaEntrada?.uri || capaParaLista(artSource)) ? (
             <Animated.View style={[StyleSheet.absoluteFill, { opacity: pulse }]}>
               {/* A MESMA imagem que a lista mostrava, e no mesmo formato: a
                   mini usa a mqdefault como as listas, não a que o player grande
@@ -1888,7 +1937,7 @@ export function PlayerRoot() {
               novo -- no mesmo instante do "Recuo subtil", que engasgava. Só o
               que é da faixa leva a `key`: a capa da frente (CapaComTransicao
               lembra a anterior ao desmontar) e as letras (dentro do cubo). */}
-          {expanded && (
+          {aberto && (
             <CapaDoLeitor
               track={current} size={vidFull.w} capaFlutuante={capaFlutuante} montagem={montagem}
               transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
@@ -1898,7 +1947,7 @@ export function PlayerRoot() {
           )}
 
           {/* No modo mini, tocar no vídeo expande */}
-          {!expanded ? (
+          {!aberto ? (
             <Pressable
               style={StyleSheet.absoluteFill}
               onPress={() => {if(!swiping.current)setExpanded(true);}}

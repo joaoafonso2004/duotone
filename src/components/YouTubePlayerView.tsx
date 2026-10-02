@@ -2065,8 +2065,13 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   // Ligar/desligar a normalização nas Definições aplica-se já, sem esperar
   // pela faixa seguinte.
+  //
+  // Só com o motor a tocar ESTA faixa. Corre também quando a faixa muda, no
+  // mesmo instante em que a que sai fica a tocar calada (`mantidoVivoRef`) e
+  // com o `backend` ainda 'native' -- e devolvia-lhe o volume: a música
+  // anterior voltava a ouvir-se enquanto a nova descarregava (João, 2/10).
   useEffect(() => {
-    if (backend !== 'native') return;
+    if (backend !== 'native' || mantidoVivoRef.current || nativeTrackIdRef.current !== track.sourceId) return;
     const ceiling = applyCeiling();
     // Não mexer a meio de um fade nem de uma passagem: os dois acabam no
     // teto novo à mesma.
@@ -2090,7 +2095,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       player.volume=closingVolume.current*closeGain;
     } else if(closingVolume.current !== null){
       closingVolume.current=null;
-      player.volume=ceilingRef.current;
+      // Fecho cancelado por uma música nova: a que sai fica calada (ver acima).
+      if(!mantidoVivoRef.current) player.volume=ceilingRef.current;
     }
   },[closeGain,closing,backend,player]);
 

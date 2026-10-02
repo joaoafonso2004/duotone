@@ -132,6 +132,11 @@ verificar('na troca, a que sai fica a tocar calada até a nova estar pronta', ()
   assert.match(motor, /pause: \(\) => \{\s*wantsPlayRef\.current = false;\s*mantidoVivoRef\.current = null;/, 'uma pausa a sério acaba com ele');
   assert.match(motor, /if \(backend !== 'native'\) \{\s*try \{ motorActivo\(\)\.pause\(\);/, 'caído no embed, a calada pára');
   assert.match(motor, /const MANTER_VIVO_MS = 90_000;/, 'e tem prazo');
+  // 2/10: o efeito da normalização corria na troca (com o backend ainda
+  // 'native') e devolvia o volume à que saía -- ouvia-se durante o download.
+  assert.match(motor, /if \(backend !== 'native' \|\| mantidoVivoRef\.current \|\| nativeTrackIdRef\.current !== track\.sourceId\) return;\s*const ceiling = applyCeiling\(\);/,
+    'a normalização não devolve o volume à que sai');
+  assert.match(motor, /if\(!mantidoVivoRef\.current\) player\.volume=ceilingRef\.current;/, 'nem o fecho cancelado');
   const vida = readFileSync(new URL('../src/lib/playerLifecycle.ts', import.meta.url), 'utf8');
   assert.match(vida, /if \(controls\.silenciarParaTrocar\) controls\.silenciarParaTrocar\(\);\s*else controls\.pause\(\);/);
 });
