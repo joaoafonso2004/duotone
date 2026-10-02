@@ -5,9 +5,6 @@ O React Native não tem gradiente radial nem texturas geradas em tempo real, por
 isso o que a preview desenhava no browser sai daqui como PNG -- com os MESMOS
 números da preview de 13/9:
 
-  capa3d-grao@3x.png          grão de pedra, 180 px = 60 pt em mosaico (a mesma
-                              semente e o mesmo algoritmo da preview), já com
-                              a opacidade de 42%
   capa3d-sombra-ambiente.png  sombra larga, queda radial 0,9 -> 0,45 -> 0
   capa3d-sombra-contacto.png  sombra de contacto, 1 -> 0,6 -> 0, já com o
                               desfoque (a vista fica maior para ele caber)
@@ -16,6 +13,8 @@ números da preview de 13/9:
                               meio nível contra o banding num gradiente escuro
 
 Só numpy; o PNG é escrito à mão, como no gerar-fundo-limpo.py.
+
+O grão de pedra (capa3d-grao@3x.png) saiu a 2/10: o João achou-o feio.
 
 Correr: python scripts/gerar-materiais-da-capa.py
 """
@@ -26,11 +25,6 @@ from pathlib import Path
 import numpy as np
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
-
-# A opacidade do grão (CAPA_FLUTUANTE.grao.opacidade) vai DENTRO do PNG. Aplicada
-# por cima, era opacidade de grupo sobre dezenas de mosaicos, e o iPhone
-# desenhava-a à parte a cada fotograma da flutuação.
-OPACIDADE_DO_GRAO = 0.42
 
 
 def escrever_png(caminho: Path, rgba: np.ndarray) -> None:
@@ -47,37 +41,6 @@ def escrever_png(caminho: Path, rgba: np.ndarray) -> None:
         + bloco(b"IEND", b"")
     )
     print(f"escrito {caminho.relative_to(ASSETS.parent)} ({largura}x{altura}, {caminho.stat().st_size} bytes)")
-
-
-def grao(lado: int = 180, grelha: int = 34, semente: int = 20260913) -> np.ndarray:
-    """O grão da preview: fino claro/escuro, manchas quase nulas, um brilho raro."""
-    s = semente
-
-    def r() -> float:
-        nonlocal s
-        s = (s * 16807) % 2147483647
-        return s / 2147483647
-
-    valores = [r() for _ in range(grelha * grelha)]
-
-    def v(i: int, j: int) -> float:
-        return valores[((j + grelha) % grelha) * grelha + ((i + grelha) % grelha)]
-
-    img = np.zeros((lado, lado, 4), np.uint8)
-    for y in range(lado):
-        for x in range(lado):
-            gx, gy = x / lado * grelha, y / lado * grelha
-            x0, y0 = int(gx), int(gy)
-            fx, fy = gx - x0, gy - y0
-            sx, sy = fx * fx * (3 - 2 * fx), fy * fy * (3 - 2 * fy)
-            mancha = (v(x0, y0) * (1 - sx) + v(x0 + 1, y0) * sx) * (1 - sy) + (v(x0, y0 + 1) * (1 - sx) + v(x0 + 1, y0 + 1) * sx) * sy
-            d = (r() - 0.5) * 1.0 + (mancha - 0.5) * 0.06
-            alfa = min(1.0, abs(d) * 1.35) * 120
-            tom = 255 if d > 0 else 0
-            if r() < 0.003:
-                tom, alfa = 255, 150
-            img[y, x] = (tom, tom, tom, int(round(alfa * OPACIDADE_DO_GRAO)))
-    return img
 
 
 def perfil(distancia: np.ndarray, paragens) -> np.ndarray:
@@ -131,7 +94,6 @@ def vinheta(largura: int = 256, altura: int = 512, semente: int = 7) -> np.ndarr
 
 
 if __name__ == "__main__":
-    escrever_png(ASSETS / "capa3d-grao@3x.png", grao())
     escrever_png(ASSETS / "capa3d-sombra-ambiente.png", sombra_ambiente())
     escrever_png(ASSETS / "capa3d-sombra-contacto.png", sombra_contacto())
     escrever_png(ASSETS / "capa3d-vinheta.png", vinheta())

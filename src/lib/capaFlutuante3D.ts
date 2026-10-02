@@ -36,8 +36,9 @@
  * A cor do fundo é a da capa, porque o fundo do leitor já é a capa desfocada;
  * com a capa 3D, o véu dá lugar a uma vinheta centrada nela. As sombras vivem no
  * plano do fundo, não presas à capa: uma larga e ténue, e uma de contacto logo
- * abaixo da aresta. O grão de pedra é o material, igual para todas as capas.
- * Os PNGs saem de `scripts/gerar-materiais-da-capa.py`.
+ * abaixo da aresta. Sem textura por cima: o grão de pedra que havia saiu a 2/10
+ * (o João achou-o feio), e a capa fica como é. Os PNGs saem de
+ * `scripts/gerar-materiais-da-capa.py`.
  */
 
 export type EstiloDaCapaIOS = 'floating' | 'simple';
@@ -101,12 +102,6 @@ export const CAPA_FLUTUANTE = {
    * lateral escura que fica por trás dessa borda.
    */
   recuoDasLaterais: 0.75,
-  /**
-   * O grão de pedra: 60 pt por mosaico, por cima de todas as faces. A opacidade
-   * vai DENTRO do PNG (scripts/gerar-materiais-da-capa.py), e o teste confere
-   * que é esta.
-   */
-  grao: { opacidade: 0.42, ladoPt: 60 },
   /** Em lados da caixa da capa. Larga e ténue: a profundidade. */
   sombraAmbiente: { opacidade: 0.45, x: -0.1, y: 0.72, largura: 1.3, altura: 0.5 },
   /**
@@ -253,24 +248,6 @@ export function geometriaDaLateral(qual: Lateral, lado: number, espessura: numbe
     degrade,
     veu: { frente: veu.frente, tras: veu.tras },
   };
-}
-
-/**
- * Onde fica cada mosaico do grão para cobrir `largura` × `altura`, em pontos.
- *
- * O grão é repetido À MÃO, uma imagem por mosaico: o modo `repeat` da Image do
- * React Native não repetia no iPhone (2.9.2) e desenhava um mosaico só, no canto
- * de cima à esquerda da face. O que passa da borda corta-se pela vista de fora.
- */
-export function mosaicoDoGrao(largura: number, altura: number, lado: number = CAPA_FLUTUANTE.grao.ladoPt) {
-  const mosaicos: { x: number; y: number }[] = [];
-  if (!(largura > 0) || !(altura > 0) || !(lado > 0)) return mosaicos;
-  const colunas = Math.ceil(largura / lado);
-  const linhas = Math.ceil(altura / lado);
-  for (let j = 0; j < linhas; j++) {
-    for (let i = 0; i < colunas; i++) mosaicos.push({ x: i * lado, y: j * lado });
-  }
-  return mosaicos;
 }
 
 /**

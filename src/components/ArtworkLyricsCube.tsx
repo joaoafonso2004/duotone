@@ -1,12 +1,12 @@
 import {acceptsCubeSwipe,cubeDirection,cubeProgress,cubeDestination} from '../lib/lyricsCubeGesture';
 import React, {useCallback,useEffect,useMemo,useRef,useState} from 'react';
-import {Animated,Image,PanResponder,Platform,StyleSheet,View} from 'react-native';
+import {Animated,PanResponder,Platform,StyleSheet,View} from 'react-native';
 import { Image as ImagemDaCapa } from 'expo-image';
 import {useReducedMotion} from '../hooks/useReducedMotion';
 import type {Track} from '../types';
 import {LyricsView} from './LyricsView';
 import {LinearGradient} from 'expo-linear-gradient';
-import {CAPA_FLUTUANTE,geometriaDaLateral,LATERAIS,mosaicoDoGrao,type Lateral} from '../lib/capaFlutuante3D';
+import {CAPA_FLUTUANTE,geometriaDaLateral,LATERAIS,type Lateral} from '../lib/capaFlutuante3D';
 import type {PoseDaCapa3D} from './CapaFlutuante3D';
 import type {MontagemDaCapa} from '../hooks/useMontagemDaCapa';
 import {desfoqueLeve} from '../lib/capaGrande';
@@ -87,24 +87,6 @@ function LateralDaCaixa({lado,size,pose3D,virar,artwork}:{lado:Lateral;size:numb
     </View>
     <LinearGradient colors={veu} start={g.degrade.start} end={g.degrade.end} style={StyleSheet.absoluteFill} />
   </Animated.View>;
-}
-
-/**
- * O grão de pedra por cima de uma face, repetido À MÃO: uma imagem de 60 pt por
- * mosaico (`mosaicoDoGrao`). O modo `repeat` da Image não repetia no iPhone --
- * a 2.9.2 mostrava um mosaico só, no canto de cima à esquerda (13/9). Não apanha
- * toques: as letras continuam a deslizar.
- *
- * A opacidade (42%) já vem no PNG, e o conjunto é rasterizado: é estático, e a
- * GPU compõe UMA imagem por face em vez de dezenas de mosaicos com opacidade de
- * grupo -- que obrigava a desenhar à parte a cada fotograma da flutuação.
- */
-function GraoDaFace({pose3D,largura,altura}:{pose3D:PoseDaCapa3D;largura:number;altura:number}){
-  const lado=CAPA_FLUTUANTE.grao.ladoPt;
-  const mosaicos=useMemo(()=>mosaicoDoGrao(largura,altura,lado),[largura,altura,lado]);
-  return <View pointerEvents="none" shouldRasterizeIOS style={[StyleSheet.absoluteFill,{overflow:'hidden'}]}>
-    {mosaicos.map(({x,y})=><Image key={`${x}:${y}`} source={pose3D.grao.fonte} style={{position:'absolute',left:x,top:y,width:lado,height:lado}} />)}
-  </View>;
 }
 
 /** Duas faces do mesmo cubo. O motor de áudio vive fora destas transformações. */
@@ -242,7 +224,6 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
     </Animated.View>:null}
     <Animated.View pointerEvents="none" aria-hidden={showLyrics} accessibilityElementsHidden={showLyrics} importantForAccessibility={showLyrics?'no-hide-descendants':'auto'} style={[styles.face,{borderRadius:raio},frontStyle3D??frontStyle]}>
       {front}
-      {pose3D?<GraoDaFace pose3D={pose3D} largura={size} altura={size} />:null}
       <Animated.View style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0,0.35]})}]} />
     </Animated.View>
     <Animated.View pointerEvents={showLyrics&&!moving?'auto':'none'} aria-hidden={!showLyrics} accessibilityElementsHidden={!showLyrics} importantForAccessibility={showLyrics?'auto':'no-hide-descendants'} style={[styles.face,{borderRadius:raio},lyricsStyle3D??lyricsStyle]}>
@@ -250,7 +231,6 @@ export function ArtworkLyricsCube({track,size,artwork,front,showLyrics,onChange,
       <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(8,8,15,0.5)'}]} />
       {/* As letras recomeçam por faixa; o cubo à volta delas fica montado. */}
       <LyricsView key={`${track.source}:${track.sourceId}`} track={track} visible={showLyrics&&!moving} />
-      {pose3D?<GraoDaFace pose3D={pose3D} largura={size} altura={size} />:null}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill,{backgroundColor:'#000',opacity:progress.interpolate({inputRange:[0,1],outputRange:[0.4,0]})}]} />
     </Animated.View>
   </View>;

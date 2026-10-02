@@ -103,7 +103,7 @@ async function run() {
   assert.ok(veuDe('esquerda').frente < veuDe('baixo').frente, 'a esquerda apanha mais luz do que a de baixo');
   // Os materiais existem e têm o tamanho que o código assume.
   const tamanhoDoPng = (f) => { const b = fs.readFileSync(path.join(root, f)); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
-  assert.deepEqual(tamanhoDoPng('assets/capa3d-grao@3x.png'), [180, 180], 'o grão tem 60 pt a 3x');
+  assert.equal(fs.existsSync(path.join(root, 'assets/capa3d-grao@3x.png')), false, 'o grão de pedra saiu (2/10)');
   for (const f of ['assets/capa3d-sombra-ambiente.png', 'assets/capa3d-sombra-contacto.png', 'assets/capa3d-vinheta.png']) {
     assert.ok(fs.existsSync(path.join(root, f)), `${f} existe`);
   }
@@ -147,50 +147,21 @@ async function run() {
   const cubo = fs.readFileSync(path.join(root, 'src/components/ArtworkLyricsCube.tsx'), 'utf8');
   assert.match(cubo, /-direction\*180/, 'no 3D a caixa vira 180° inteira, com as letras no verso');
   assert.match(cubo, /LATERAIS\.map/, 'as laterais viram com a face');
-  assert.match(cubo, /GraoDaFace/, 'o grão de pedra está na face e no verso');
+  // Sem textura por cima da capa nem das letras (2/10: o João achou o grão de
+  // pedra feio). A capa fica como é.
+  assert.doesNotMatch(cubo, /GraoDaFace|mosaicoDoGrao|pose3D\.grao/, 'a capa 3D não leva grão');
   // A montagem com o download (14/9): as laterais e a face chegam ao sítio.
   assert.match(cubo, /chegar\(m,grupo,/, 'as laterais montam-se com o download');
   assert.match(cubo, /chegar\(m,2,/, 'a face também');
-  // As arestas não podem ficar esbranquiçadas (14/9): sem grão nas laterais (de
-  // lado lia-se como névoa clara), sem o fio claro da capa plana na caixa 3D, e
+  // As arestas não podem ficar esbranquiçadas (14/9): sem o fio claro da capa
+  // plana na caixa 3D, e
   // as laterais um pouco para dentro da face, para a emenda não mostrar o fundo.
   const lateral = cubo.match(/function LateralDaCaixa[\s\S]*?\r?\n\}\r?\n/);
   assert.ok(lateral, 'a lateral existe');
-  assert.doesNotMatch(lateral[0], /GraoDaFace/, 'as laterais não levam grão');
   assert.match(lateral[0], /recuoDasLaterais/, 'as laterais ficam para dentro da face');
   assert.ok(c.recuoDasLaterais > 0 && c.recuoDasLaterais <= 1.5, 'o recuo é de uma fração de ponto');
   assert.match(player, /\{!capaFlutuante && <View pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, styles\.arestaDaCapa\]\} \/>\}/,
     'o fio claro da capa só existe na capa plana');
-  // O modo repeat da Image não repetia no iPhone: a 2.9.2 mostrava um mosaico só,
-  // no canto de cima à esquerda. O grão é repetido à mão.
-  assert.doesNotMatch(cubo, /resizeMode=["']repeat/, 'o grão não depende do repeat da Image');
-  const mosaicosDaLateral = regra.mosaicoDoGrao(370, 29, 60);
-  assert.equal(mosaicosDaLateral.length, 7, 'uma lateral de 370 × 29 pt leva sete mosaicos');
-  assert.deepEqual(mosaicosDaLateral.at(-1), { x: 360, y: 0 }, 'o último mosaico chega ao fim da lateral');
-  assert.equal(regra.mosaicoDoGrao(370, 370, 60).length, 49, 'uma face de 370 pt fica coberta até ao canto de baixo à direita');
-  assert.deepEqual(regra.mosaicoDoGrao(0, 370, 60), [], 'sem tamanho, sem mosaicos');
-  // A opacidade do grão vem no PNG, e não como opacidade de grupo por cima de
-  // dezenas de mosaicos; o que é estático na caixa é rasterizado.
-  const alfaMaximoDoPng = (f) => {
-    const b = fs.readFileSync(path.join(root, f));
-    const largura = b.readUInt32BE(16), altura = b.readUInt32BE(20);
-    const idat = [];
-    for (let o = 8; o < b.length;) {
-      const n = b.readUInt32BE(o);
-      if (b.toString('ascii', o + 4, o + 8) === 'IDAT') idat.push(b.subarray(o + 8, o + 8 + n));
-      o += 12 + n;
-    }
-    const cru = require('node:zlib').inflateSync(Buffer.concat(idat));
-    let maximo = 0;
-    for (let y = 0; y < altura; y++) {
-      const linha = y * (largura * 4 + 1);
-      assert.equal(cru[linha], 0, 'o gerador escreve as linhas sem filtro');
-      for (let x = 0; x < largura; x++) maximo = Math.max(maximo, cru[linha + 1 + x * 4 + 3]);
-    }
-    return maximo;
-  };
-  assert.equal(alfaMaximoDoPng('assets/capa3d-grao@3x.png'), Math.round(150 * c.grao.opacidade), 'a opacidade do grão está no PNG');
-  assert.doesNotMatch(cubo, /opacity:pose3D\.grao/, 'e não se aplica outra vez por cima');
   assert.match(cubo, /shouldRasterizeIOS/, 'o que é estático na caixa é rasterizado');
   const corpoDoLeitor = player.slice(player.indexOf('export function PlayerRoot'), player.indexOf('function BarraDoLeitor'));
   assert.ok(corpoDoLeitor.length > 1000, 'o corpo do PlayerRoot foi encontrado');
@@ -222,7 +193,7 @@ async function run() {
   assert.match(lyrics, /if\(manual\|\|!synced\)return;/,
     'a face escondida continua sincronizada; visible só bloqueia interação');
 
-  // O skip não reconstrói a caixa (24/9): laterais, grão e verso ficam montados.
+  // O skip não reconstrói a caixa (24/9): laterais e verso ficam montados.
   assert.doesNotMatch(player, /<ArtworkLyricsCube key=/,
     'o cubo do iPhone não remonta por faixa -- remontar engasgava o Recuo subtil');
   // Dentro da `CapaDoLeitor` (27/9) a faixa chama-se `track`; a regra é a mesma.

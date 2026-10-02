@@ -7,7 +7,6 @@ import { RECUO_DO_ENCAIXE, curvaDoRecuo } from '../lib/recuoDoEncaixe';
 import type { MontagemDaCapa } from '../hooks/useMontagemDaCapa';
 
 // Os materiais saem de scripts/gerar-materiais-da-capa.py.
-const GRAO: ImageSourcePropType = require('../../assets/capa3d-grao.png');
 const SOMBRA_AMBIENTE: ImageSourcePropType = require('../../assets/capa3d-sombra-ambiente.png');
 const SOMBRA_DE_CONTACTO: ImageSourcePropType = require('../../assets/capa3d-sombra-contacto.png');
 
@@ -73,8 +72,6 @@ export type PoseDaCapa3D = {
   pose: Animated.Value;
   /** Em pontos. */
   espessura: number;
-  /** A opacidade já vem no PNG (scripts/gerar-materiais-da-capa.py). */
-  grao: { fonte: ImageSourcePropType };
   /** A montagem com o download (null fora do leitor do iPhone). */
   montagem: MontagemDaCapa | null;
 };
@@ -214,7 +211,7 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
   );
   const pose3D = useMemo<PoseDaCapa3D | null>(
     () => (enabled
-      ? { postura, pose, espessura: c.espessura * size, grao: { fonte: GRAO }, montagem }
+      ? { postura, pose, espessura: c.espessura * size, montagem }
       : null),
     [enabled, postura, pose, size, c.espessura, montagem],
   );
