@@ -8,7 +8,17 @@ const nativo = requireOptionalNativeModule<{
   lerEApagar(): string;
   cpuDoProcesso?(): string;
   estadoDeEnergia?(): { termico?: unknown; poupanca?: unknown };
+  definirFluidez?(alta: boolean): void;
 }>('DuotoneDiagnostico');
+
+/**
+ * Os 120 Hz das animações (3/10, ios/DuotoneFluidez.swift): ligados durante
+ * as transições e os gestos, desligados em repouso. Num binário sem a função
+ * (anterior a 3/10), não faz nada. Quem decide é `src/state/fluidez.ts`.
+ */
+export function definirFluidez(alta: boolean): void {
+  try { nativo?.definirFluidez?.(alta); } catch { /* sem 120 Hz, como antes */ }
+}
 
 /** Os resumos que o iOS entregou desde a última leitura. Ler apaga-os. */
 export function lerDiagnosticosDoSistema(): unknown[] {

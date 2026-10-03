@@ -51,6 +51,7 @@ const useSeguirAmigo = selector => selector(seguir);
 const useArrastarLista = carregar('src/hooks/useArrastarLista.ts', {
   react: React, 'react-native': native, '../lib/arrastarFila': arrastarFila,
   '../components/TrackRow': {TRACK_ROW_HEIGHT:68}, '../lib/haptics': {hapticSelection(){}},
+  '../state/fluidez': {segurarFluidez:()=>()=>{}},
 });
 const mocks = {
   react: React, 'react-native': native, './LinhaArrastavel': {LinhaArrastavel:'DragRow'},

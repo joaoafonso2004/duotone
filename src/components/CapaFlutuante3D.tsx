@@ -5,6 +5,7 @@ import { CAPA_FLUTUANTE, ondaSeno } from '../lib/capaFlutuante3D';
 import { curvaDoSkip, naCurva, recuoDaCapa, type Sentido } from '../lib/transicaoDaCapa';
 import { RECUO_DO_ENCAIXE, curvaDoRecuo } from '../lib/recuoDoEncaixe';
 import type { MontagemDaCapa } from '../hooks/useMontagemDaCapa';
+import { pedirFluidez } from '../state/fluidez';
 
 // Os materiais saem de scripts/gerar-materiais-da-capa.py.
 const SOMBRA_AMBIENTE: ImageSourcePropType = require('../../assets/capa3d-sombra-ambiente.png');
@@ -167,6 +168,7 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
     const chave = transicao?.chave ?? null;
     if (chave === chaveAnterior.current) return;
     chaveAnterior.current = chave;
+    pedirFluidez(900);
     const recuo = recuoDaCapa({
       lado: size, sentido: transicao?.sentido ?? 0, capa3D: enabled, reduzirMovimento: reduced,
     });

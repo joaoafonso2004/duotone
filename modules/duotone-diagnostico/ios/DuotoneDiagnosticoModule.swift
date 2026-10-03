@@ -16,6 +16,20 @@ public class DuotoneDiagnosticoModule: Module {
 
     OnCreate {
       DuotoneRecolhaDeDiagnosticos.shared.ligar()
+      // Os 120 Hz das animações (3/10, DuotoneFluidez.swift): antes da primeira.
+      DispatchQueue.main.async { DuotoneFluidez.instalar() }
+    }
+
+    /**
+     * Pede (ou larga) os 120 Hz para o relógio das animações do React Native.
+     * O JS chama-o no início e no fim das transições e dos gestos
+     * (src/state/fluidez.ts).
+     */
+    Function("definirFluidez") { (alta: Bool) in
+      DispatchQueue.main.async {
+        DuotoneFluidez.instalar()
+        DuotoneFluidez.definir(alta: alta)
+      }
     }
 
     /** Os resumos guardados, em JSON, e apaga-os. */

@@ -31,8 +31,14 @@ export function StateIcon({pulsar=false,rodar=false,...props}:Props){
   const reduced=useReducedMotion(),progress=useRef(new Animated.Value(1)).current;
   const salto=useRef(new Animated.Value(1)).current;
   const previous=useRef(props),[outgoing,setOutgoing]=useState<Props|null>(null);
+  // Só a mudança de ÍCONE dissolve (e salta). A cor muda sozinha e muitas
+  // vezes: o tema segue a capa em dez passos a cada música, e dissolver a cada
+  // passo punha o coração e o shuffle ativos a piscar (João, 3/10). A cor
+  // também NÃO está nas dependências do efeito: mudá-la corria a limpeza, que
+  // parava uma passagem a meio e deixava o ícone que saía meio transparente.
+  if(previous.current.name===props.name)previous.current=props;
   useEffect(()=>{
-    if(previous.current.name===props.name&&previous.current.color===props.color)return;
+    if(previous.current.name===props.name)return;
     const old=previous.current;previous.current=props;
     if(reduced){setOutgoing(null);progress.setValue(1);return;}
     setOutgoing(old);progress.setValue(0);
@@ -47,7 +53,8 @@ export function StateIcon({pulsar=false,rodar=false,...props}:Props){
       pulo.start();
     }
     return()=>{animation.stop();pulo?.stop();};
-  },[props.name,props.color,reduced,pulsar]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[props.name,reduced]);
 
   // O que entra vem de tras e o que sai continua para a frente: o MESMO sentido
   // de rotacao nos dois, para se ler como uma peca a virar e nao como duas a

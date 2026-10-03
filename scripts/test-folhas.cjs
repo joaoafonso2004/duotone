@@ -55,6 +55,8 @@ const sheet = load('src/components/BottomSheet.tsx', {
   },
   'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 34 }) },
   '../hooks/useNotificationOverlay': { useNotificationOverlay: () => () => {} },
+  // Os 120 Hz (3/10): aqui não há relógio para pedir.
+  '../state/fluidez': { pedirFluidez() {}, segurarFluidez: () => () => {} },
   '../theme': { colors: {}, spacing: {}, radii: {} },
 });
 const mount = runtime.instance();

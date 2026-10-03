@@ -15,6 +15,7 @@ import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { colors } from '../theme';
 import { useAlturaDosSeparadores, useDoca } from '../state/doca';
+import { pedirFluidez } from '../state/fluidez';
 
 
 /**
@@ -51,6 +52,7 @@ export function AvisoDeRemocao() {
       // piscava.
       const jaAVista = mostrado !== null;
       setMostrado(aviso);
+      pedirFluidez(700);
       if (aviso.tipo === 'erro') hapticNotification(Haptics.NotificationFeedbackType.Error);
       else hapticImpact();
       arrasto.setValue(0);

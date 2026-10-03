@@ -100,7 +100,11 @@ caso('a ligação: só no iPhone, nas mudanças de estado, e no relatório', () 
   assert.match(ler('App.tsx'), /if \(Platform\.OS !== 'web'\) iniciarEnergiaEmSegundoPlano\(\);/);
   assert.match(ler('src/lib/relatorioDeReproducao.ts'), /\$\{textoDaEnergiaAgora\(\)\}/);
   const estado = ler('src/state/energiaEmSegundoPlano.ts');
-  assert.doesNotMatch(estado, /setInterval|setTimeout/, 'o medidor não acorda o iPhone');
+  // Em segundo plano não acorda nada: o único relógio (a medição com a app à
+  // frente, 3/10) desliga-se ao sair de 'active'.
+  assert.doesNotMatch(estado, /setTimeout/, 'o medidor não acorda o iPhone');
+  assert.equal((estado.match(/setInterval\(/g) ?? []).length, 1);
+  assert.match(estado, /if \(estado === 'active'\) ligarRelogio\(\); else desligarRelogio\(\);/);
   assert.match(ler('modules/duotone-diagnostico/ios/DuotoneDiagnosticoModule.swift'), /Function\("cpuDoProcesso"\)/);
 });
 

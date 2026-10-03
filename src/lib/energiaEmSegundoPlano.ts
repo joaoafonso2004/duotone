@@ -140,11 +140,19 @@ export function guardarPeriodo(lista: readonly Periodo[], p: Periodo | null): re
 const pct = (ms: number, p: Periodo) => `${((ms / (p.minutos * 60_000)) * 100).toFixed(2)}%`;
 const bateria = (v: number | null) => (v == null ? '?' : `${Math.round(v * 100)}%`);
 
-/** A secção do relatório de reprodução. */
-export function textoDaEnergia(periodos: readonly Periodo[], agora: number): string {
-  const linhas = ['background energy (CPU of one core while the app was in the background):'];
+/**
+ * A secção do relatório de reprodução. `aFrente` (3/10): a mesma conta com a
+ * app aberta, de 5 em 5 minutos -- é por lá que se vê o que aquece o
+ * telemóvel com o ecrã ligado.
+ */
+export function textoDaEnergia(periodos: readonly Periodo[], agora: number, aFrente = false): string {
+  const linhas = [aFrente
+    ? 'foreground energy (CPU of one core with the app open, every 5 min):'
+    : 'background energy (CPU of one core while the app was in the background):'];
   if (!periodos.length) {
-    linhas.push('  no background period of 1 min or more since the app opened');
+    linhas.push(aFrente
+      ? '  no foreground period of 1 min or more yet'
+      : '  no background period of 1 min or more since the app opened');
     return linhas.join('\n');
   }
   for (const p of [...periodos].reverse()) {

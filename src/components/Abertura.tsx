@@ -7,6 +7,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { ABERTURA, PORTAL, escalaParaAbrir } from '../lib/abertura';
 import { useAbertura } from '../state/abertura';
 import { useAuth } from '../state/auth';
+import { pedirFluidez } from '../state/fluidez';
 
 /**
  * A abertura: um eclipse que se abre no logo, quando a app liga.
@@ -143,6 +144,7 @@ export function Abertura() {
   useEffect(() => {
     if (fase !== 'a-sair') return;
     const duracao = comPortal ? PORTAL.zoomMs : ABERTURA.saidaMs;
+    pedirFluidez(duracao + 200);
     if (NA_WEB) {
       const id = setTimeout(() => setFase('fim'), duracao);
       return () => clearTimeout(id);

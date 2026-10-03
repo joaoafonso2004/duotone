@@ -41,7 +41,6 @@ import { useSaved } from '../state/saved';
 import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { AmigosAOuvir } from '../components/AmigosAOuvir';
-import { EscolhasDoDia } from '../components/EscolhasDoDia';
 import { CartaoDaMisturaDoDia } from '../components/CartaoDaMisturaDoDia';
 import { EscolherArtistas } from '../components/EscolherArtistas';
 import { PillButton } from '../components/PillButton';
@@ -176,7 +175,9 @@ export function SearchScreen() {
   const savedKeys = useSaved((s) => s.keys);
 
   const [query, setQuery] = useState('');
-  const [vista, setVista] = useState<'discover' | 'daily'>('discover');
+  // Só a descoberta: as "Songs of the day" saíram da Home do iPhone (3/10, a
+  // pedido do João). No PC continuam a ter página própria.
+  const vista = 'discover' as const;
   /** A folha dos tres artistas, para uma conta nova ter por onde comecar. */
   const [escolherAberto, setEscolherAberto] = useState(false);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
@@ -552,33 +553,13 @@ export function SearchScreen() {
             value={query}
             onChangeText={setQuery}
             onClear={() => setQuery('')}
-            onFocus={() => { setVista('discover'); setIsFocused(true); }}
+            onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             autoCapitalize="none"
             autoCorrect={false}
             returnKeyType="search"
             onSubmitEditing={() => { pesquisarAgora(); Keyboard.dismiss(); }}
           />
-          {query.length === 0 && !isFocused ? (
-            <View style={styles.vistas} accessibilityRole="tablist">
-              <Pressable
-                accessibilityRole="tab"
-                accessibilityState={{ selected: vista === 'discover' }}
-                onPress={() => setVista('discover')}
-                style={[styles.vista, vista === 'discover' && styles.vistaActiva]}
-              >
-                <Text style={[styles.vistaTexto, vista === 'discover' && styles.vistaTextoActivo]}>Discover</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="tab"
-                accessibilityState={{ selected: vista === 'daily' }}
-                onPress={() => setVista('daily')}
-                style={[styles.vista, vista === 'daily' && styles.vistaActiva]}
-              >
-                <Text style={[styles.vistaTexto, vista === 'daily' && styles.vistaTextoActivo]}>Songs of the day</Text>
-              </Pressable>
-            </View>
-          ) : null}
           {query.trim().length >= 2 ? (
             <View style={styles.vistas} accessibilityRole="tablist">
               {([['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums'], ['playlists', 'Playlists']] as const).map(([id, nome]) => (
@@ -680,8 +661,6 @@ export function SearchScreen() {
               </Pressable>
             ))}
           </Animated.ScrollView>
-        ) : query.trim().length < 2 && !isFocused && vista === 'daily' ? (
-          <EscolhasDoDia bottomPadding={bottomPad} cabecalho={cab} />
         ) : query.trim().length < 2 && !isFocused ? (
           /* Default state - Show Recommendations */
           <Animated.ScrollView

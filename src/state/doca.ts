@@ -18,10 +18,20 @@ export const desvioDosIcones = new Animated.Value(0);
 
 type Separadores = Pick<MaterialTopTabBarProps, 'state' | 'navigation'>;
 
-export const useDoca = create<{ modo: ModoDaDoca; separadores: Separadores | null; alturaDosSeparadores: number }>(() => ({
+export const useDoca = create<{
+  modo: ModoDaDoca;
+  separadores: Separadores | null;
+  alturaDosSeparadores: number;
+  /**
+   * A música está a sair (o deslize do mini-player, 3/10): o vidro desce JÁ,
+   * ao mesmo tempo que a linha, e não depois de o fecho acabar.
+   */
+  aFechar: boolean;
+}>(() => ({
   modo: 'separadores',
   separadores: null,
   alturaDosSeparadores: ALTURA_DOS_SEPARADORES,
+  aFechar: false,
 }));
 
 /**

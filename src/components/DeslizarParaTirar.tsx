@@ -3,6 +3,7 @@ import React, { useMemo, useRef } from 'react';
 import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
 import { hapticNotification } from '../lib/haptics';
 import { colors } from '../theme';
+import { pedirFluidez } from '../state/fluidez';
 
 /** Quanto é preciso puxar para a esquerda para tirar a linha. */
 const LIMIAR = 96;
@@ -30,6 +31,7 @@ export function DeslizarParaTirar({ ativo, aoTirar, children }: {
       ativoRef.current && g.dx < -12 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
     onPanResponderMove: (_e, g) => dx.setValue(Math.min(0, g.dx)),
     onPanResponderRelease: (_e, g) => {
+      pedirFluidez(600);
       if (g.dx <= -LIMIAR) {
         hapticNotification();
         Animated.timing(dx, { toValue: -600, duration: 180, useNativeDriver: true }).start(() => {

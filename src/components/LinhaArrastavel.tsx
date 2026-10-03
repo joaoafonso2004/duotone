@@ -54,17 +54,19 @@ export function LinhaArrastavel({
   dy: Animated.Value;
   /** O arrasto abre aqui (a pega, ou o toque longo). */
   aoComecar: (index: number) => void;
-  /** O arrasto arrancou mesmo, com o dedo em `dedoY` (no ecrã). */
-  aoPegar: (dedoY: number) => void;
   /**
-   * A cada movimento: o deslocamento do gesto e a posição ABSOLUTA do dedo.
-   *
-   * A segunda é que permite o deslize nas bordas -- o `dy` diz quanto o dedo
-   * andou, e não onde ele está. Quem escreve no `dy` animado é o dono da lista
-   * e não esta linha: durante o deslize o valor tem de somar o que a lista
-   * correu, senão a linha fica para trás.
+   * O arrasto arrancou, com o dedo `yNaVista` pontos abaixo do topo de `vista`
+   * (a linha ou a pega). Quem é dono da lista mede onde a vista está nela.
+   * Nada de coordenadas do ecrã: numa folha nativa, as do React Native e as do
+   * UIKit não batem (ver `useArrastarLista`).
    */
-  aoMover: (dy: number, dedoY: number) => void;
+  aoPegar: (yNaVista: number, vista: View | null) => void;
+  /**
+   * A cada movimento, quanto o dedo andou. Quem escreve no `dy` animado é o
+   * dono da lista e não esta linha: durante o deslize o valor tem de somar o
+   * que a lista correu, senão a linha fica para trás.
+   */
+  aoMover: (dy: number) => void;
   aoLargar: (dyFinal: number) => void;
   /**
    * O sistema tirou-nos o dedo (uma chamada a entrar, por exemplo). Não é um
@@ -88,32 +90,39 @@ export function LinhaArrastavel({
   const cb = React.useRef({ aoComecar, aoPegar, aoMover, aoLargar, aoCancelar });
   cb.current = { aoComecar, aoPegar, aoMover, aoLargar, aoCancelar };
   const minha = () => pegadaRef.current === indexRef.current;
+  // As vistas dos dois gestos: o `y` de cada um é relativo à SUA vista.
+  const vistaDaLinha = React.useRef<View>(null);
+  const vistaDaPega = React.useRef<View>(null);
 
   // Os mesmos para a linha e para a pega: só muda o que os ativa.
   const aoMexer = React.useCallback((e: PanGestureHandlerGestureEvent) => {
-    if (minha()) cb.current.aoMover(e.nativeEvent.translationY, e.nativeEvent.absoluteY);
+    if (minha()) cb.current.aoMover(e.nativeEvent.translationY);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const aoMudar = React.useCallback((e: PanGestureHandlerStateChangeEvent) => {
-    const { state, oldState, translationY, absoluteY } = e.nativeEvent;
+  const criarAoMudar = (vista: React.RefObject<View | null>) => (e: PanGestureHandlerStateChangeEvent) => {
+    const { state, oldState, translationY, y } = e.nativeEvent;
     if (state === State.ACTIVE) {
       if (!podeRef.current) return;
       cb.current.aoComecar(indexRef.current);
-      cb.current.aoPegar(absoluteY);
+      // `y` é onde o dedo está agora; o arrasto conta a partir de onde pegou.
+      cb.current.aoPegar(y - translationY, vista.current);
       return;
     }
     if (oldState !== State.ACTIVE) return;
     if (state === State.END) cb.current.aoLargar(translationY);
     else cb.current.aoCancelar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const aoMudarNaLinha = React.useCallback(criarAoMudar(vistaDaLinha), []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const aoMudarNaPega = React.useCallback(criarAoMudar(vistaDaPega), []);
 
   const envolverPega = React.useCallback((pega: React.ReactElement) => (
-    <PanGestureHandler minDist={1} onGestureEvent={aoMexer} onHandlerStateChange={aoMudar}>
+    <PanGestureHandler minDist={1} onGestureEvent={aoMexer} onHandlerStateChange={aoMudarNaPega}>
       {/* Uma vista própria por baixo do gesto: o filho de um handler tem de ser nativo. */}
-      <View collapsable={false}>{pega}</View>
+      <View ref={vistaDaPega} collapsable={false}>{pega}</View>
     </PanGestureHandler>
-  ), [aoMexer, aoMudar]);
+  ), [aoMexer, aoMudarNaPega]);
 
   const estilo = React.useMemo(() => {
     if (activo) return { transform: [{ translateY: dy }, { scale: 1.03 }] };
@@ -140,9 +149,10 @@ export function LinhaArrastavel({
       enabled={podeArrastar}
       activateAfterLongPress={TOQUE_LONGO_PARA_ARRASTAR_MS}
       onGestureEvent={aoMexer}
-      onHandlerStateChange={aoMudar}
+      onHandlerStateChange={aoMudarNaLinha}
     >
       <Animated.View
+        ref={vistaDaLinha}
         // O `zIndex` é o que põe a linha pegada POR CIMA das vizinhas. Sem ele
         // ela passa por baixo assim que as alcança, e o que se vê é a música a
         // desaparecer debaixo da lista.

@@ -75,7 +75,9 @@ export type NomeDeEvento =
   | 'js_lento'
   // Um período em segundo plano (1/10, state/energiaEmSegundoPlano.ts): o CPU,
   // por grupo de threads, a bateria e o estado térmico. Só números.
-  | 'segundo_plano';
+  | 'segundo_plano'
+  // O mesmo com a app à frente (3/10), de 5 em 5 minutos.
+  | 'primeiro_plano';
 
 type Evento = { nome: NomeDeEvento; dados: Record<string, string | number | boolean>; em: string };
 

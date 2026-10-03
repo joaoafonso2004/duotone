@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radii, spacing } from '../theme';
+import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 
 interface Props {
   visible: boolean;
@@ -53,6 +54,8 @@ export function BottomSheet({ visible, onClose, children, gestureBlocked = false
   const bloqueioExterno = useRef(bloqueioRef); bloqueioExterno.current = bloqueioRef;
   const gestos = useRef({ offsets: new Map<object, number>(), controls: new Set<object>() }).current;
   const tecladoPrimeiro = useRef(false);
+  /** Os 120 Hz enquanto o dedo arrasta a folha (state/fluidez.ts). */
+  const largarFluidez = useRef<(() => void) | null>(null);
   const topoNoInicio = useRef(true);
   const podePuxar = (_e: unknown, g: { dx: number; dy: number }) =>
     !bloqueado.current && !bloqueioExterno.current?.current &&
@@ -61,6 +64,7 @@ export function BottomSheet({ visible, onClose, children, gestureBlocked = false
 
   useEffect(() => {
     if (visible) arrasto.setValue(0); // reabrir não pode herdar o arrasto antigo
+    pedirFluidez(800);
     Animated.spring(anim, {
       toValue: visible ? 1 : 0,
       useNativeDriver: true,
@@ -74,6 +78,8 @@ export function BottomSheet({ visible, onClose, children, gestureBlocked = false
       onMoveShouldSetPanResponder: podePuxar,
       onMoveShouldSetPanResponderCapture: Platform.OS === 'ios' ? podePuxar : undefined,
       onPanResponderGrant: () => {
+        largarFluidez.current?.();
+        largarFluidez.current = segurarFluidez();
         tecladoPrimeiro.current = Keyboard.isVisible();
         if (tecladoPrimeiro.current) Keyboard.dismiss();
       },
@@ -81,11 +87,15 @@ export function BottomSheet({ visible, onClose, children, gestureBlocked = false
         if (!tecladoPrimeiro.current && g.dy > 0) arrasto.setValue(g.dy);
       },
       onPanResponderRelease: (_e, g) => {
+        largarFluidez.current?.();
+        largarFluidez.current = null;
         // Longe o suficiente OU rápido o suficiente: um piparote curto conta.
         if (!tecladoPrimeiro.current && (g.dy > 90 || g.vy > 0.8)) fechar.current();
         else Animated.spring(arrasto, { toValue: 0, useNativeDriver: true, speed: 18, bounciness: 6 }).start();
       },
       onPanResponderTerminate: () => {
+        largarFluidez.current?.();
+        largarFluidez.current = null;
         Animated.spring(arrasto, { toValue: 0, useNativeDriver: true, speed: 18, bounciness: 6 }).start();
       },
     })

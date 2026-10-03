@@ -9,6 +9,7 @@ import { publicarSeparadores } from '../state/doca';
 import { useNotifications } from '../state/notifications';
 import { useTheme } from '../state/theme';
 import { colors, ESCALA_MAXIMA } from '../theme';
+import { pedirFluidez } from '../state/fluidez';
 
 const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
   Search: 'home',
@@ -148,6 +149,7 @@ export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabB
             accessibilityState={{ selected: escolhido }}
             accessibilityLabel={nome}
             onPress={() => {
+              pedirFluidez(500);
               // Dentro de uma pilha (um álbum aberto) não se emite: o
               // native-stack voltava à raiz com o `tabPress`.
               const pilha = route.state as { index?: number } | undefined;

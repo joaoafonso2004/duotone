@@ -8,6 +8,7 @@ import {
   BRILHO_DA_LINHA, ESCALA, OPACIDADE_SEM_MOVIMENTO, PREMIR, SOLTAR,
 } from '../lib/movimento';
 import { colors } from '../theme';
+import { pedirFluidez } from '../state/fluidez';
 
 /**
  * Um `Pressable` que responde ao dedo.
@@ -97,7 +98,7 @@ export function Toque({
       disabled={disabled}
       style={[style, animado]}
       onPressIn={(e) => {
-        if (!disabled) mover(1, PREMIR);
+        if (!disabled) { pedirFluidez(450); mover(1, PREMIR); }
         onPressIn?.(e);
       }}
       onPressOut={(e) => {

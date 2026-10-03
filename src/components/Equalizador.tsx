@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { PanGestureHandler, State, type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import {
   BANDAS, ETIQUETAS_BANDAS, GANHO_MAXIMO, normalizar, ondaDoEqualizador, PERFIS, PLANO,
 } from '../lib/equalizer';
@@ -91,18 +92,25 @@ function DeslizadorDeBanda({
     aoMudarRef.current(novo);
   };
 
-  const responder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    // Sem isto, um gesto vertical numa banda fugia para o scroll do painel —
-    // que é exatamente a direção em que se mexe um deslizador destes.
-    onPanResponderTerminationRequest: () => false,
-    onPanResponderGrant: (e) => {
-      inicioRef.current = e.nativeEvent.locationY;
+  /*
+   * Do Gesture Handler (3/10). Era um PanResponder que recusava largar o dedo,
+   * mas isso não trava o deslizar NATIVO de uma página: nas Definições, ajustar
+   * uma banda arrastava a página toda. O gesto do Gesture Handler entra na
+   * arbitragem do iOS e ativa ao primeiro ponto, antes de a página ter
+   * distância para começar a deslizar -- e aí a página já não pode.
+   */
+  const aoMudarDeEstado = useMemo(() => (e: PanGestureHandlerStateChangeEvent) => {
+    // Tocar sem arrastar também acerta a banda onde se tocou.
+    if (e.nativeEvent.state === State.BEGAN) {
+      inicioRef.current = e.nativeEvent.y;
       aplicar(inicioRef.current);
-    },
-    onPanResponderMove: (_e, gesto) => aplicar(inicioRef.current + gesto.dy),
-  }), []);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const aoArrastar = useMemo(() => (e: PanGestureHandlerGestureEvent) => {
+    aplicar(inicioRef.current + e.nativeEvent.translationY);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fraccao = 1 - (valor + GANHO_MAXIMO) / (GANHO_MAXIMO * 2);
   const nome = etiqueta.charAt(0) + etiqueta.slice(1).toLowerCase();
@@ -124,8 +132,8 @@ function DeslizadorDeBanda({
       >
         {formatarGanho(valor)}
       </Text>
+      <PanGestureHandler minDist={0} onHandlerStateChange={aoMudarDeEstado} onGestureEvent={aoArrastar}>
       <View
-        {...responder.panHandlers}
         onLayout={(e) => { alturaRef.current = e.nativeEvent.layout.height; }}
         collapsable={false}
         accessible
@@ -157,6 +165,7 @@ function DeslizadorDeBanda({
           shadowColor: '#000', shadowOpacity: 0.45, shadowRadius: 3, shadowOffset: { width: 0, height: 2 },
         }} />
       </View>
+      </PanGestureHandler>
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit

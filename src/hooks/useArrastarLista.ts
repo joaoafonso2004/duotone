@@ -3,6 +3,7 @@ import { Animated, type FlatList, type NativeScrollEvent, type NativeSyntheticEv
 import { destinoDoArrasto, offsetDoDeslize, velocidadeDoDeslize } from '../lib/arrastarFila';
 import { TRACK_ROW_HEIGHT } from '../components/TrackRow';
 import { hapticSelection } from '../lib/haptics';
+import { segurarFluidez } from '../state/fluidez';
 
 /**
  * O arrasto de uma lista de linhas (`LinhaArrastavel`): quem está pegada, o
@@ -37,6 +38,8 @@ export function useArrastarLista({ chaves, aoReordenar }: {
   // sem deslizar -- daí o `aoLevantar` a desfazer, e esta marca a distinguir
   // o dedo levantado do gesto que foi mesmo por diante.
   const pegou = React.useRef(false);
+  /** Os 120 Hz enquanto a linha está pegada (state/fluidez.ts). */
+  const largarFluidez = React.useRef<(() => void) | null>(null);
   // Tudo o que o deslize nas bordas precisa de saber, e nada disto pode ser
   // estado: muda a cada frame do dedo e um `setState` por frame punha a lista
   // inteira a redesenhar durante o gesto.
@@ -104,17 +107,29 @@ export function useArrastarLista({ chaves, aoReordenar }: {
     try { (listaRef.current as any)?.setNativeProps?.({ scrollEnabled: !travada }); } catch { /* sem isto vale a prop */ }
   };
 
+  /**
+   * As bordas da lista, NA PRÓPRIA LISTA (3/10): de 0 à altura dela. Eram
+   * medidas no ecrã (`measureInWindow`), e o dedo também -- mas a fila passou
+   * a uma folha nativa do iOS, e lá dentro o `measureInWindow` não conta com
+   * onde a folha está enquanto o dedo vem do UIKit, no ecrã a sério. A lista
+   * julgava o dedo fora dela e corria sozinha: as linhas abriam buracos. Agora
+   * só a ALTURA vem da medição, e o dedo é medido em relação à moldura.
+   */
   const medirLimites = () => {
     limites.current = { topo: Number.NaN, fundo: Number.NaN };
-    molduraRef.current?.measureInWindow((_x, y, _l, h) => {
+    molduraRef.current?.measure((_x, _y, _l, h) => {
       if (pegadaRef.current == null) return; // o arrasto ja acabou
       alturaVisivel.current = h;
-      limites.current = { topo: y, fundo: y + h };
+      limites.current = { topo: 0, fundo: h };
     });
   };
+  /** Onde estava o dedo DENTRO da moldura quando pegou na linha (`NaN` = por medir). */
+  const dedoAoPegar = React.useRef(Number.NaN);
 
   const comecarArrasto = (index: number) => {
     hapticSelection();
+    largarFluidez.current?.();
+    largarFluidez.current = segurarFluidez(500);
     pegadaRef.current = index;
     chaveDaPegada.current = chaves[index] ?? null;
     bloqueioRef.current = true;
@@ -128,6 +143,8 @@ export function useArrastarLista({ chaves, aoReordenar }: {
   };
 
   const terminarArrasto = () => {
+    largarFluidez.current?.();
+    largarFluidez.current = null;
     pegadaRef.current = null;
     chaveDaPegada.current = null;
     bloqueioRef.current = false;
@@ -180,13 +197,29 @@ export function useArrastarLista({ chaves, aoReordenar }: {
       altura,
       dy,
       aoComecar: comecarArrasto,
-      aoPegar: (dedoY: number) => {
+      /**
+       * O arrasto arrancou com o dedo `yNaVista` pontos abaixo do topo de
+       * `vista` (a linha, ou a pega). A posição da vista na moldura mede-se
+       * entre as duas (`measureLayout`): as duas estão na mesma folha, e não
+       * importa onde a folha está no ecrã.
+       */
+      aoPegar: (yNaVista: number, vista: View | null) => {
         pegou.current = true;
         offsetAoPegar.current = offset.current;
-        gesto.current = { dy: 0, dedoY };
+        dedoAoPegar.current = Number.NaN;
+        gesto.current = { dy: 0, dedoY: Number.NaN };
+        const moldura = molduraRef.current;
+        if (!vista || !moldura) return;
+        try {
+          vista.measureLayout(moldura as never, (_x, y) => {
+            if (pegadaRef.current == null) return;
+            dedoAoPegar.current = y + yNaVista;
+            gesto.current = { dy: gesto.current.dy, dedoY: dedoAoPegar.current + gesto.current.dy };
+          }, () => { /* sem medida não há deslize nas bordas, e mais nada muda */ });
+        } catch { /* idem */ }
       },
-      aoMover: (d: number, dedoY: number) => {
-        gesto.current = { dy: d, dedoY };
+      aoMover: (d: number) => {
+        gesto.current = { dy: d, dedoY: dedoAoPegar.current + d };
         escreverDy();
       },
       aoLargar: largar,

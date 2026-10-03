@@ -8,6 +8,7 @@ import { comAlfa, posicoesDaDoca, ZONA_DA_MUSICA } from '../lib/doca';
 import { molaIOS } from '../lib/transicaoDoLeitor';
 import { IconesDosSeparadores } from '../navigation/BarraDeSeparadores';
 import { definirAlturaDosSeparadores, desvioDaMusica, desvioDoVidro, desvioDosIcones, useAlturaDosSeparadores, useDoca } from '../state/doca';
+import { pedirFluidez } from '../state/fluidez';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 
@@ -33,7 +34,11 @@ export function Doca() {
   const insets = useSafeAreaInsets();
   const modo = useDoca((s) => s.modo);
   const separadores = useDoca((s) => s.separadores);
-  const temMusica = usePlayer((s) => !!s.current);
+  // Também a fechar (o som a desvanecer) já conta como sem música: o vidro
+  // desce com a linha a sair, e não 300 ms depois (3/10).
+  const comMusicaNaLoja = usePlayer((s) => !!s.current && !s.closing);
+  const aFechar = useDoca((s) => s.aFechar);
+  const temMusica = comMusicaNaLoja && !aFechar;
   const alturaDosSeparadores = useAlturaDosSeparadores();
   const reduzido = useReducedMotion();
   const primeira = useRef(true);
@@ -51,6 +56,7 @@ export function Doca() {
     // `parallel`, parava as outras com ela (ver "A abertura e o raio" no CLAUDE.md).
     const molas = pares.map(([valor, para]) =>
       Animated.spring(valor, { toValue: para, ...molaIOS(0.46, 0.9), useNativeDriver: true }));
+    pedirFluidez(800);
     molas.forEach((m) => m.start());
     return () => molas.forEach((m) => m.stop());
   }, [modo, temMusica, insets.bottom, alturaDosSeparadores, reduzido]);

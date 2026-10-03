@@ -32,6 +32,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
   Animated,
+  Easing,
   AppState,
   Platform,
   Pressable,
@@ -53,6 +54,7 @@ import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
 import { desvioDaMusica, useDoca } from '../state/doca';
+import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 import { posicoesDaDoca } from '../lib/doca';
 import { contextoParaAnalytics } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
@@ -183,7 +185,11 @@ export function PlayerRoot() {
   const next = usePlayer((s) => s.next);
   const prev = usePlayer((s) => s.prev);
   const close = closePlayerSmoothly;
-  const closeGain = usePlayer((s) => s.closeGain);
+  // O fecho: o SOM desvanece pelo `closeGain` (JavaScript, de 16 em 16 ms);
+  // a IMAGEM sai pelo motor nativo, sem ler o `closeGain` (3/10). Lido aqui,
+  // redesenhava o leitor inteiro 18 vezes em 300 ms e refazia os nós animados
+  // a cada uma -- era o "não está smooth a fechar o mini player".
+  const aFechar = usePlayer((s) => s.closing);
   const reducedMotion=useReducedMotion();
   const setExpanded = usePlayer((s) => s.setExpanded);
   const seekTo = usePlayer((s) => s.seekTo);
@@ -259,19 +265,52 @@ export function PlayerRoot() {
   );
   const aoMudarODeslizeDoMini = useCallback((e: PanGestureHandlerStateChangeEvent) => {
     const { state, oldState, translationX, translationY, velocityX } = e.nativeEvent;
-    if (state === State.ACTIVE) { swiping.current = true; dragX.stopAnimation(); return; }
+    if (state === State.ACTIVE) {
+      swiping.current = true; dragX.stopAnimation();
+      largarFluidezRef.current?.();
+      largarFluidezRef.current = segurarFluidez(700);
+      return;
+    }
     if (oldState !== State.ACTIVE) return;
+    largarFluidezRef.current?.();
+    largarFluidezRef.current = null;
     dragX.setValue(Math.max(0, translationX));
     dedoDoMini.setValue(0);
     const voltar = () => Animated.spring(dragX, { toValue: 0, useNativeDriver: true }).start();
     // O `confirmaSwipe` conta a velocidade em pt/ms (a do PanResponder).
     if (state === State.END && confirmaSwipe(translationX, translationY, velocityX / 1000, widthRef.current)) {
-      void closePlayerSmoothly().then(voltar);
+      // Sai JÁ, com a velocidade do dedo e no motor nativo, e o vidro da base
+      // desce ao mesmo tempo (state/doca.ts). O som desvanece à parte.
+      saidaPorDeslizeRef.current = true;
+      useDoca.setState({ aFechar: true });
+      pedirFluidez(900);
+      Animated.spring(dragX, {
+        toValue: widthRef.current, velocity: Math.max(0, velocityX), useNativeDriver: true, ...molaIOS(0.32, 1),
+      }).start();
+      void closePlayerSmoothly().then(() => {
+        saidaPorDeslizeRef.current = false;
+        useDoca.setState({ aFechar: false });
+        // Não fechou (uma Jam que não deixou sair): volta ao sítio.
+        if (usePlayer.getState().current) voltar();
+      });
     } else voltar();
     setTimeout(() => { swiping.current = false; }, 200);
   }, [dragX, dedoDoMini]);
   useEffect(()=>{dragX.setValue(0);dedoDoMini.setValue(0);},[current,dragX,dedoDoMini]);
-  const miniFade=useMemo(()=>Animated.multiply(closeGain,dragXVisto.interpolate({inputRange:[0,W],outputRange:[1,0.2],extrapolate:'clamp'})),[closeGain,dragXVisto,W]);
+  /** O fecho começou por um deslize: a saída já vai a caminho. */
+  const saidaPorDeslizeRef = useRef(false);
+  // Um fecho que NÃO veio do deslize (o "Close player" do VoiceOver, o fim de
+  // uma sessão): a linha sai na mesma, no motor nativo, enquanto o som desvanece.
+  useEffect(() => {
+    if (saidaPorDeslizeRef.current || reducedMotion) return;
+    if (aFechar && !usePlayer.getState().expanded) {
+      pedirFluidez(700);
+      Animated.timing(dragX, { toValue: widthRef.current, duration: 300, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start();
+    } else if (!aFechar && usePlayer.getState().current) {
+      Animated.spring(dragX, { toValue: 0, useNativeDriver: true }).start();
+    }
+  }, [aFechar, dragX, reducedMotion]);
+  const miniFade=useMemo(()=>dragXVisto.interpolate({inputRange:[0,W],outputRange:[1,0.2],extrapolate:'clamp'}),[dragXVisto,W]);
   /**
    * Os nós animados que dependem da geometria (o voo da capa, o mini-player),
    * guardados entre desenhos (2/10). Eram refeitos a CADA desenho, e um nó novo
@@ -329,7 +368,11 @@ export function PlayerRoot() {
    * baixa -- e a placa, que e um rectangulo parado, espreitava por cima e por
    * baixo dela como uma tira preta. Enquanto o cubo se mexe, a placa apaga-se.
    */
-  const [capaARodar, setCapaARodar] = useState(false);
+  const [capaARodar, setCapaARodarDeVez] = useState(false);
+  // A capa a rodar para as letras a 120 Hz (3/10). Estável: vai para a capa memorizada.
+  const setCapaARodar = useCallback((v: boolean) => { if (v) pedirFluidez(1000); setCapaARodarDeVez(v); }, []);
+  /** Quem larga os 120 Hz de um gesto em curso (state/fluidez.ts). */
+  const largarFluidezRef = useRef<(() => void) | null>(null);
   const sombraAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     // Depressa a sair e devagar a entrar: a sombra tem de desaparecer ANTES de
@@ -594,6 +637,8 @@ export function PlayerRoot() {
   const temFaixa = !!current;
   useEffect(() => {
     const alvo = expanded && temFaixa ? 1 : 0;
+    // Abrir e fechar a 120 Hz (3/10, state/fluidez.ts).
+    pedirFluidez(900);
     if (aterrandoRef.current) {
       // A aterrar: o leitor já está fechado, e ela acaba sozinha (com a
       // abertura a 0). Uma faixa que muda a meio não a interrompe.
@@ -659,6 +704,7 @@ export function PlayerRoot() {
     if (!origem || reducedMotion) return;
 
     setOrigemDaEntrada(origem);
+    pedirFluidez(900);
     anim.setValue(-1);
     animRaio.setValue(0);
     // A mola do iOS, como o resto da transição (era a `speed`/`bounciness` do RN).
@@ -810,6 +856,9 @@ export function PlayerRoot() {
     const { state, oldState, translationX, translationY, velocityX, velocityY } = e.nativeEvent;
     const ge = gestoRef.current;
     if (state === State.ACTIVE) {
+      // O dedo no cartão a 120 Hz, e a aterragem a seguir (state/fluidez.ts).
+      largarFluidezRef.current?.();
+      largarFluidezRef.current = segurarFluidez(900);
       // Um cartão apanhado a meio da volta ao sítio continua de onde está.
       arrastandoRef.current = true;
       let tx = 0, ty = 0;
@@ -823,6 +872,8 @@ export function PlayerRoot() {
     }
     if (oldState !== State.ACTIVE) return;
     arrastandoRef.current = false;
+    largarFluidezRef.current?.();
+    largarFluidezRef.current = null;
     // O dedo passa para os valores de sempre, e volta a 0, no mesmo fotograma.
     const c = cartaoDoArrasto(ge.baseDx + translationX, ge.baseDy + translationY, geometriaRef.current.H);
     ge.g = c.g; ge.esc = c.esc; ge.tx = c.tx; ge.ty = c.ty;
@@ -1109,7 +1160,7 @@ export function PlayerRoot() {
         translateX: Animated.add(
           Animated.add(
             voo(deslocacaoOrigem.x, deslocacaoMini.x, arcoX),
-            aberto || reducedMotion ? 0 : Animated.add(dragXVisto, (1 - closeGain) * W)
+            aberto || reducedMotion ? 0 : dragXVisto
           ),
           // O cartão do gesto: a capa vai com ele, à volta do mesmo pivô.
           Animated.add(cartaoXVisto, Animated.multiply(Animated.add(cartaoEscVisto, -1), kx)),
@@ -1144,7 +1195,7 @@ export function PlayerRoot() {
       molduraOpacidade: aberto ? visibilityAnim : Animated.multiply(visibilityAnim, miniFade),
       moldura: { borderRadius: animRaio.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) },
       miniTransform: [
-        { translateX: reducedMotion ? 0 : Animated.add(dragXVisto, (1 - closeGain) * W) },
+        { translateX: reducedMotion ? 0 : dragXVisto },
         { translateY: Animated.add(miniSubir, desvioDaMusica) },
         { scale: miniEscala },
       ],
@@ -1154,7 +1205,7 @@ export function PlayerRoot() {
   const chaveDosNos = [
     origemDaEntrada ? `${origemDaEntrada.x},${origemDaEntrada.y},${origemDaEntrada.largura},${origemDaEntrada.altura}` : '-',
     vidFull.x, vidFull.y, vidFull.w, vidMini.x, vidMini.y, W, H,
-    aberto, reducedMotion, closeGain, capaFlutuante,
+    aberto, reducedMotion, capaFlutuante,
   ].join('|');
   if (nosRef.current?.chave !== chaveDosNos) nosRef.current = { chave: chaveDosNos, nos: criarNos() };
   const nos = nosRef.current.nos as ReturnType<typeof criarNos>;

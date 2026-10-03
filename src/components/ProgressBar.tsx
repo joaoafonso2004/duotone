@@ -12,6 +12,7 @@ import {
   RITMOS, bateuNaPonta, comecarArrasto, eToque, fracaoNoArrasto, mudarDeRitmo, ritmoDoArrasto, type Arrasto,
 } from '../lib/arrastarBarra';
 import { hapticImpact, hapticSelection } from '../lib/haptics';
+import { segurarFluidez } from '../state/fluidez';
 
 /** O deslizar da barra até ao ponto tocado (um toque salta, mas vê-se ir). */
 const DESLIZAR_MS = 280;
@@ -151,6 +152,8 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
   const [ritmoVisto, setRitmoVisto] = useState(0);
   const [segundoArrastado, setSegundoArrastado] = useState<number | null>(null);
   const arrasto = useRef<Arrasto | null>(null);
+  /** Os 120 Hz enquanto o dedo está na barra (state/fluidez.ts). */
+  const largarFluidez = useRef<(() => void) | null>(null);
   const ultima = useRef(0);
   const inicio = useRef(0);
   const refDeFora = useRef(null);
@@ -174,6 +177,8 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
     fator.setValue(1);
     modo.setValue(1);
     hapticSelection();
+    largarFluidez.current?.();
+    largarFluidez.current = segurarFluidez(500);
     setAArrastar(true);
     setRitmoVisto(0);
     mostrarSegundo(arrasto.current.base);
@@ -183,6 +188,8 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
   const soltar = (fracaoFinal: number | null) => {
     if (!arrasto.current) return;
     arrasto.current = null;
+    largarFluidez.current?.();
+    largarFluidez.current = null;
     // Onde se largou passa a ser onde a música está: o valor da música vai
     // para lá NO MESMO instante em que deixa de se ver o dedo.
     if (fracaoFinal != null) {

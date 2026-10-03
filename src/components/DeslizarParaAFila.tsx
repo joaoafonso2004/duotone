@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, StyleSheet, View } from 'react-native';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { useTheme } from '../state/theme';
+import { pedirFluidez } from '../state/fluidez';
 
 /** Quanto é preciso puxar para a direita para pôr na fila. */
 export const LIMIAR_DA_FILA = 88;
@@ -50,6 +51,7 @@ export function DeslizarParaAFila({ ativo, aoPorNaFila, children }: {
       if (agora !== passou.current) { passou.current = agora; if (agora) hapticSelection(); }
     },
     onPanResponderRelease: (_e, g) => {
+      pedirFluidez(600);
       if (g.dx >= LIMIAR_DA_FILA) {
         hapticNotification();
         acaoRef.current();
