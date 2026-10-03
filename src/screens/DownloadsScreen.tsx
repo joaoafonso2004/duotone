@@ -2,12 +2,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { EmptyState } from '../components/EmptyState';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { avisarRemocao } from '../lib/avisoDeRemocao';
@@ -50,6 +50,8 @@ interface Linha {
  * dos fixados antigos (que guardavam só o id) vão buscar o título à biblioteca.
  */
 export function DownloadsScreen({ navigation }: Props) {
+  // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
+  const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
   const tema = useTheme((s) => s.theme);
   const offline = useOfflineMode();
@@ -213,8 +215,8 @@ export function DownloadsScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen title="Downloads" onBack={() => navigation.goBack()}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl }}>
+    <Screen encolhe={cab} title="Downloads" onBack={() => navigation.goBack()}>
+      <Animated.ScrollView onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl }}>
         {nada ? (
           <EmptyState
             icon="arrow-down-circle-outline"
@@ -340,7 +342,7 @@ export function DownloadsScreen({ navigation }: Props) {
             </Pressable>
           </>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
     </Screen>
   );
 }

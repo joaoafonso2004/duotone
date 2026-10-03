@@ -6,7 +6,7 @@ import { useOfflineMode } from '../hooks/useOfflineMode';
 import { removeOwnProfileMedia } from '../lib/profileMedia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, {useEffect, useMemo, useState, useRef } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { Alert, Animated, ScrollView, StyleSheet, Switch, Text, View, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -33,7 +33,7 @@ import { supabase } from '../lib/supabase';
 import { APP_VERSION } from '../lib/buildInfo';
 import { ConfirmSheet } from '../components/ConfirmSheet';
 import { PillButton } from '../components/PillButton';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SegmentedControl } from '../components/SegmentedControl';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import {
@@ -78,6 +78,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
 export function SettingsScreen({ navigation }: Props) {
   const offline=useOfflineMode();
+  // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
+  const cab = useCabecalhoQueEncolhe();
   const coverStyle = useCapaIOS(s => s.style);
   const [carroMantemEcra, setCarroMantemEcraState] = useState(true);
   useEffect(() => {
@@ -375,17 +377,21 @@ export function SettingsScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen title="Settings" onBack={() => navigation.goBack()}>
+    <Screen title="Settings" onBack={() => navigation.goBack()} encolhe={cab}>
       <RecommendationPreferences visible={recommendationsOpen} onClose={()=>setRecommendationsOpen(false)}/>
       <PresetsSheet visible={presetsOpen} onClose={() => setPresetsOpen(false)} ganhosIniciais={padraoGanhos} />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
-        <ScrollView
+        <Animated.ScrollView
           style={{ flex: 1 }}
+          onScroll={cab.onScroll}
+          scrollEventThrottle={cab.scrollEventThrottle}
+          scrollIndicatorInsets={{ top: cab.espaco }}
           contentContainerStyle={{
             paddingHorizontal: spacing.xl,
+            paddingTop: cab.espaco,
             paddingBottom: insets.bottom + 48,
             gap: spacing.xl,
           }}
@@ -679,7 +685,7 @@ export function SettingsScreen({ navigation }: Props) {
             />
             <Text style={[type.caption, { marginTop: spacing.xs }]}>If a song won't play, send this so it can be fixed.</Text>
           </Section>
-        </ScrollView>
+        </Animated.ScrollView>
       </KeyboardAvoidingView>
 
       <ConfirmSheet

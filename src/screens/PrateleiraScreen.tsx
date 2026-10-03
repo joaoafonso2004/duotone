@@ -1,12 +1,12 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, View } from 'react-native';
+import { Animated, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../components/EmptyState';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SkeletonDeFaixas } from '../components/Skeleton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
-import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
+import { TRACK_ROW_HEIGHT, TrackRow } from '../components/TrackRow';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useRecomendacoes } from '../state/recomendacoes';
 import { useMisturaDoDia } from '../state/misturaDoDia';
@@ -35,6 +35,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Prateleira'>;
  * prateleira ter aterrado, o que na prática é raro.
  */
 export function PrateleiraScreen({ route }: Props) {
+  // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
+  const cab = useCabecalhoQueEncolhe();
+  // As posições contam com o espaço do cabeçalho por cima da lista.
+  const posicaoDaLinha = React.useCallback((_: ArrayLike<Track> | null | undefined, index: number) => ({
+    length: TRACK_ROW_HEIGHT, offset: cab.espaco + TRACK_ROW_HEIGHT * index, index,
+  }), [cab.espaco]);
   const { fonte, titulo } = route.params;
   const insets = useSafeAreaInsets();
   // Duas origens, a mesma vista. O selector não constrói nada -- devolve o que
@@ -73,21 +79,24 @@ export function PrateleiraScreen({ route }: Props) {
   },[chegou,faixas,contextoDe]);
 
   return (
-    <Screen title={titulo} subtitle={chegou ? `${faixas.length} ${faixas.length === 1 ? 'song' : 'songs'}` : undefined}>
+    <Screen encolhe={cab} title={titulo} subtitle={chegou ? `${faixas.length} ${faixas.length === 1 ? 'song' : 'songs'}` : undefined}>
       {!chegou ? (
-        <SkeletonDeFaixas />
+        <View style={{ paddingTop: cab.espaco }}><SkeletonDeFaixas /></View>
       ) : faixas.length === 0 ? (
+        <View style={{ flex: 1, paddingTop: cab.espaco }}>
         <EmptyState
           icon="sparkles-outline"
           title="Nothing here right now"
           subtitle="Play and save more music, then refresh your recommendations."
         />
+        </View>
       ) : (
-        <FlatList
+        <Animated.FlatList
+          onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }}
           data={faixas}
           keyExtractor={(t) => `${t.source}:${t.sourceId}`}
-          getItemLayout={getTrackRowLayout}
-          contentContainerStyle={{ paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + 32 }}
+          getItemLayout={posicaoDaLinha}
+          contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + 32 }}
           renderItem={({ item }) => (
             <TrackRow
               track={item}

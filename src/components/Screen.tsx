@@ -1,8 +1,47 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React from 'react';
-import { Pressable, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { BlurView } from 'expo-blur';
+import React, { useMemo, useRef, useState } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FUNDO_APARECE_EM, geometriaDoTitulo } from '../lib/tituloQueEncolhe';
 import { colors, spacing, type } from '../theme';
+
+/**
+ * O título que encolhe ao rolar (3/10, variante B). O ecrã cria-o com
+ * `useCabecalhoQueEncolhe()`, passa-o ao `Screen` (`encolhe`) e liga a sua
+ * lista principal (`Animated.FlatList`/`Animated.ScrollView`):
+ * `onScroll={cab.onScroll} scrollEventThrottle={16}` e um espaço no topo de
+ * `cab.espaco` (o cabeçalho flutua por cima da lista). Ver lib/tituloQueEncolhe.ts.
+ */
+export type CabecalhoQueEncolhe = {
+  rolagem: Animated.Value;
+  onScroll: (...args: any[]) => void;
+  scrollEventThrottle: number;
+  /** A altura do cabeçalho aberto: o espaço no topo da lista. */
+  espaco: number;
+  definirEspaco: (altura: number) => void;
+  /** Volta ao cabeçalho aberto (uma lista trocada por outra que começa no topo). */
+  repor: () => void;
+};
+
+export function useCabecalhoQueEncolhe(): CabecalhoQueEncolhe {
+  const insets = useSafeAreaInsets();
+  const rolagem = useRef(new Animated.Value(0)).current;
+  // Uma estimativa até o cabeçalho se medir: a lista não salta no arranque.
+  const [espaco, setEspaco] = useState(insets.top + 96);
+  const onScroll = useMemo(
+    () => Animated.event([{ nativeEvent: { contentOffset: { y: rolagem } } }], { useNativeDriver: true }),
+    [rolagem],
+  );
+  return useMemo(() => ({
+    rolagem,
+    onScroll,
+    scrollEventThrottle: 16,
+    espaco,
+    definirEspaco: (a: number) => setEspaco((antes) => (Math.abs(antes - a) > 0.5 ? a : antes)),
+    repor: () => rolagem.setValue(0),
+  }), [rolagem, onScroll, espaco]);
+}
 
 interface Props {
   title?: string;
@@ -13,10 +52,19 @@ interface Props {
   onBack?: () => void;
   children: React.ReactNode;
   style?: ViewStyle;
+  /** O título encolhe ao rolar a lista (ver `useCabecalhoQueEncolhe`). */
+  encolhe?: CabecalhoQueEncolhe;
+  /** O que fica por baixo do título e sobe com ele (a pesquisa, os botões). Só com `encolhe`. */
+  fixo?: React.ReactNode;
 }
 
 /** Wrapper de ecrã: fundo, safe area e cabeçalho com título grande. */
-export function Screen({ title, subtitle, right, topLeft, onBack, children, style }: Props) {
+export function Screen(props: Props) {
+  return props.encolhe && props.title ? <ScreenQueEncolhe {...props} cab={props.encolhe} /> : <ScreenFixo {...props} />;
+}
+
+/** O de sempre: o título fica no topo e a lista começa por baixo dele. */
+function ScreenFixo({ title, subtitle, right, topLeft, onBack, children, style, fixo }: Props) {
   const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
@@ -39,7 +87,129 @@ export function Screen({ title, subtitle, right, topLeft, onBack, children, styl
             {right}
           </View>
         ) : null}
+        {fixo}
         <View style={[{ flex: 1 }, style]}>{children}</View>
+      </View>
+    </View>
+  );
+}
+
+type Caixa = { x: number; y: number; width: number; height: number };
+
+/**
+ * O cabeçalho flutua por cima da lista (que começa com um espaço da altura
+ * dele) e encolhe com o scroll, todo no lado nativo: o título encolhe e vai
+ * para o centro, o subtítulo desvanece, os botões e o `fixo` sobem, e o fundo
+ * desfocado aparece mal haja conteúdo por baixo.
+ */
+function ScreenQueEncolhe({ title, subtitle, right, topLeft, onBack, children, style, fixo, cab }: Props & { cab: CabecalhoQueEncolhe }) {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const [linha, setLinha] = useState<Caixa | null>(null);
+  const [coluna, setColuna] = useState<Caixa | null>(null);
+  const [titulo, setTitulo] = useState<Caixa | null>(null);
+  const [direita, setDireita] = useState<Caixa | null>(null);
+  const [voltar, setVoltar] = useState<Caixa | null>(null);
+  const tamanho = onBack ? (type.title.fontSize as number) : (type.largeTitle.fontSize as number);
+  const caixa = (definir: (c: Caixa) => void) => (e: { nativeEvent: { layout: Caixa } }) => {
+    const { x, y, width: w, height: h } = e.nativeEvent.layout;
+    definir({ x, y, width: w, height: h });
+  };
+
+  const g = useMemo(() => {
+    if (!linha || !coluna || !titulo) return null;
+    return geometriaDoTitulo({
+      larguraDoEcra: width,
+      topoSeguro: insets.top,
+      fundoDaLinha: linha.y + linha.height,
+      titulo: {
+        x: linha.x + coluna.x + titulo.x,
+        y: linha.y + coluna.y + titulo.y,
+        largura: titulo.width,
+        altura: titulo.height,
+        tamanho,
+      },
+      centroDaDireita: direita ? linha.y + direita.y + direita.height / 2 : undefined,
+      centroDoVoltar: voltar ? linha.y + voltar.y + voltar.height / 2 : undefined,
+    });
+  }, [linha, coluna, titulo, direita, voltar, width, insets.top, tamanho]);
+
+  const anim = useMemo(() => {
+    const r = cab.rolagem;
+    // Antes de medir não se mexe nada: o cabeçalho fica aberto, como sempre.
+    const d = Math.max(1, g?.distancia ?? 1);
+    const p = r.interpolate({ inputRange: [0, d], outputRange: [0, g ? 1 : 0], extrapolate: 'clamp' });
+    const escala = g
+      ? r.interpolate({ inputRange: [-120, 0, d], outputRange: [1.06, 1, g.escala], extrapolate: 'clamp' })
+      : 1;
+    return {
+      sobe: p.interpolate({ inputRange: [0, 1], outputRange: [0, -(g?.distancia ?? 0)] }),
+      dx: p.interpolate({ inputRange: [0, 1], outputRange: [0, g?.dx ?? 0] }),
+      dy: p.interpolate({ inputRange: [0, 1], outputRange: [0, g?.dy ?? 0] }),
+      escala,
+      direita: p.interpolate({ inputRange: [0, 1], outputRange: [0, g?.dyDaDireita ?? 0] }),
+      voltar: p.interpolate({ inputRange: [0, 1], outputRange: [0, g?.dyDoVoltar ?? 0] }),
+      subtitulo: r.interpolate({ inputRange: [0, d * 0.5], outputRange: [1, 0], extrapolate: 'clamp' }),
+      fundo: r.interpolate({ inputRange: [0, FUNDO_APARECE_EM], outputRange: [0, 1], extrapolate: 'clamp' }),
+      fio: p.interpolate({ inputRange: [0.85, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+    };
+  }, [cab.rolagem, g]);
+
+  return (
+    <View style={styles.root}>
+      <View style={[{ flex: 1 }, style]}>{children}</View>
+
+      <View pointerEvents="box-none" style={styles.sobre} onLayout={(e) => cab.definirEspaco(e.nativeEvent.layout.height)}>
+        {/* O fundo da barra: transparente parado no topo (como hoje), e desfocado
+            mal haja conteúdo por baixo. Sobe com o resto. */}
+        <Animated.View pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { opacity: anim.fundo, transform: [{ translateY: anim.sobe }] }]}>
+          <BlurView tint="dark" intensity={50} style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, styles.tinta]} />
+          <Animated.View style={[styles.fio, { opacity: anim.fio }]} />
+        </Animated.View>
+
+        <View pointerEvents="box-none" style={{ paddingTop: insets.top + spacing.sm }}>
+          {topLeft ? (
+            <Animated.View style={[styles.topLeftRow, { opacity: anim.subtitulo }]}>{topLeft}</Animated.View>
+          ) : null}
+          <View pointerEvents="box-none" style={styles.header} onLayout={caixa(setLinha)}>
+            {onBack ? (
+              <Animated.View onLayout={caixa(setVoltar)} style={{ transform: [{ translateY: anim.voltar }] }}>
+                <Pressable hitSlop={10} onPress={onBack} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}>
+                  <Ionicons name="chevron-back" size={26} color={colors.text} />
+                </Pressable>
+              </Animated.View>
+            ) : null}
+            <View pointerEvents="none" style={{ flex: 1 }} onLayout={caixa(setColuna)}>
+              <Animated.Text
+                numberOfLines={1}
+                accessibilityRole="header"
+                onLayout={caixa(setTitulo)}
+                style={[
+                  onBack ? type.title : type.largeTitle,
+                  styles.tituloQueEncolhe,
+                  { transform: [{ translateX: anim.dx }, { translateY: anim.dy }, { scale: anim.escala }] },
+                ]}
+              >
+                {title}
+              </Animated.Text>
+              {subtitle ? (
+                <Animated.Text style={[styles.subtitle, { opacity: anim.subtitulo, transform: [{ translateY: anim.dy }] }]}>
+                  {subtitle}
+                </Animated.Text>
+              ) : null}
+            </View>
+            {right ? (
+              <Animated.View onLayout={caixa(setDireita)} style={{ transform: [{ translateY: anim.direita }] }}>
+                {right}
+              </Animated.View>
+            ) : null}
+          </View>
+          {fixo ? (
+            <Animated.View pointerEvents="box-none" style={{ transform: [{ translateY: anim.sobe }] }}>{fixo}</Animated.View>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -69,4 +239,12 @@ const styles = StyleSheet.create({
     ...type.caption,
     marginTop: 2,
   },
+  sobre: { position: 'absolute', top: 0, left: 0, right: 0 },
+  tinta: { backgroundColor: 'rgba(10,10,15,0.72)' },
+  fio: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    height: StyleSheet.hairlineWidth, backgroundColor: colors.border,
+  },
+  // A largura do próprio texto (e não a da coluna): é ela que se centra.
+  tituloQueEncolhe: { alignSelf: 'flex-start', maxWidth: '100%', transformOrigin: 'left center' },
 });

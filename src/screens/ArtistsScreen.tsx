@@ -3,7 +3,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { faixasEmCache, lerFaixas, ouvirFaixas } from '../lib/cacheDaBiblioteca';
@@ -15,7 +15,7 @@ import { correspondeAPesquisa } from '../lib/searchText';
 import { getOrdemDosArtistas, setOrdemDosArtistas, type OrdemDosArtistas } from '../lib/prefs';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SkeletonDeArtistas } from '../components/Skeleton';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, spacing, type } from '../theme';
@@ -32,6 +32,7 @@ export function ArtistsScreen() {
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
   const topo = useRef<any>(null);
   useScrollToTop(topo);
+  const cab = useCabecalhoQueEncolhe();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -139,17 +140,18 @@ export function ArtistsScreen() {
       {!shelf && <Text style={type.caption}>{artist.count} {artist.count === 1 ? 'song' : 'songs'}</Text>}
     </Pressable>;
   };
-  return <Screen title="Artists" subtitle={`${artists.length} ${artists.length === 1 ? 'artist' : 'artists'}`}
+  // O título encolhe ao rolar (3/10): a pesquisa fica presa por baixo da barra.
+  return <Screen encolhe={cab} title="Artists" fixo={searchOpen ? <View style={styles.search}><Input icon="search" placeholder="Search artists" autoFocus
+      value={searchQuery} onChangeText={setSearchQuery} onClear={() => setSearchQuery('')} /></View> : undefined} subtitle={`${artists.length} ${artists.length === 1 ? 'artist' : 'artists'}`}
     right={artists.length ? <Pressable accessibilityRole="button" accessibilityLabel={searchOpen ? 'Close search' : 'Search artists'}
       style={styles.searchButton} onPress={() => { setSearchOpen(!searchOpen); if (searchOpen) setSearchQuery(''); }}>
       <Ionicons name={searchOpen ? 'close' : 'search-outline'} size={24} color={colors.text} /></Pressable> : undefined}>
-    {searchOpen && <View style={styles.search}><Input icon="search" placeholder="Search artists" autoFocus
-      value={searchQuery} onChangeText={setSearchQuery} onClear={() => setSearchQuery('')} /></View>}
-    {loading ? <SkeletonDeArtistas /> : !artists.length ? <EmptyState icon="people-outline" title="No artists yet"
-      subtitle="Save songs to your library and their artists show up here." /> :
-      <FlatList ref={topo} data={filtered} numColumns={3} keyExtractor={a => chaveDeArtista(a.name)}
+    {loading ? <View style={{ paddingTop: cab.espaco }}><SkeletonDeArtistas /></View> : !artists.length ? <View style={{ flex: 1, paddingTop: cab.espaco }}><EmptyState icon="people-outline" title="No artists yet"
+      subtitle="Save songs to your library and their artists show up here." /></View> :
+      <Animated.FlatList ref={topo} data={filtered} onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle}
+        scrollIndicatorInsets={{ top: cab.espaco }} numColumns={3} keyExtractor={a => chaveDeArtista(a.name)}
         keyboardShouldPersistTaps="handled" initialNumToRender={15} windowSize={7}
-        columnWrapperStyle={{ gap: 12 }} contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32 }}
+        columnWrapperStyle={{ gap: 12 }} contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: cab.espaco, paddingBottom: 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32 }}
         ListHeaderComponent={<>
           <ArtistFavoritesSyncStatus />
           {!searchQuery.trim() && repeated.length > 0 && <View style={styles.shelf}>

@@ -10,11 +10,12 @@ import {
   StyleSheet,
   Text,
   View,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fetchListeningStats, type StatsResult } from '../api/listeningStats';
 import { EmptyState } from '../components/EmptyState';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SegmentedControl } from '../components/SegmentedControl';
 import {
   formatListeningTime,
@@ -35,6 +36,8 @@ const PERIODS: StatsPeriod[] = ['30d', '6m', 'all'];
 const PERIOD_LABELS = ['30 days', '6 months', 'All time'];
 
 export function ListeningStatsScreen({ navigation, route }: Props) {
+  // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
+  const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
   const theme = useTheme((s) => s.theme);
   const playTrack = usePlayer((s) => s.playTrack);
@@ -78,9 +81,11 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
   };
 
   return (
-    <Screen title={route.params?.userId ? "Listening stats" : "Your listening"} onBack={() => navigation.goBack()}>
-      <ScrollView
+    <Screen encolhe={cab} title={route.params?.userId ? "Listening stats" : "Your listening"} onBack={() => navigation.goBack()}>
+      <Animated.ScrollView
+        onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }}
         contentContainerStyle={{
+          paddingTop: cab.espaco,
           paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl,
         }}
       >
@@ -230,7 +235,7 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
             )}
           </>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
     </Screen>
   );
 }

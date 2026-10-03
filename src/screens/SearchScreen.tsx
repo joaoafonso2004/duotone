@@ -27,7 +27,7 @@ type ItemEmCapa = { id: string; titulo: string; legenda: string; capa: string | 
 import { lembrarCanalDoArtista } from '../api/albunsDoArtista';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
-import { useWindowDimensions } from 'react-native';
+import { Animated, useWindowDimensions } from 'react-native';
 import { useNavigation, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MaterialTopTabNavigationProp } from '@react-navigation/material-top-tabs';
@@ -48,7 +48,7 @@ import { addTracksToPlaylist, createPlaylist } from '../api/playlists';
 import type { Playlist } from '../types';
 import type { Mistura } from '../lib/misturas';
 import { Input } from '../components/Input';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
@@ -83,6 +83,8 @@ export function SearchScreen() {
   const topoDosResultados = useRef<any>(null);
   useScrollToTop(topoDaPagina);
   useScrollToTop(topoDosResultados);
+  // O título encolhe ao rolar a lista que estiver à vista (3/10).
+  const cab = useCabecalhoQueEncolhe();
   /**
    * A página é mais estreita do que o ecrã, e a diferença é o ponto.
    *
@@ -498,23 +500,24 @@ export function SearchScreen() {
 
 
 
+  // A lista à vista muda (descoberta, resultados, histórico...): a nova começa
+  // no topo, por isso o cabeçalho volta a abrir (3/10).
+  const listaAVista = tipoAtivo !== 'musicas' ? `tipo:${tipoAtivo}`
+    : query.trim().length >= 2 ? 'resultados'
+    : isFocused ? 'historico' : vista;
+  const rolagem = cab.rolagem;
+  useEffect(() => { rolagem.setValue(0); }, [listaAVista, rolagem]);
+
   // O refrescar vive no cabecalho, como no PC -- um icone, nao uma linha de
   // texto encostada a direita por cima de tudo. E so aparece quando ha
   // recomendacoes: antes disso nao ha nada para refrescar, e o botao chegava
   // ao ecra antes daquilo que ele refresca.
   return (
     <Screen title="Search" subtitle="Find any song"
-      right={vista === 'discover' && temRecomendacoes(recs) ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Refresh recommendations"
-          hitSlop={12} disabled={loadingRecs} onPress={() => void recs.carregar(true)}
-          style={{ opacity: loadingRecs ? 0.4 : 1 }}>
-          <Ionicons name="refresh" size={22} color={colors.textSecondary} />
-        </Pressable>
-      ) : undefined}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
-      >
+      encolhe={cab}
+      // O campo de pesquisa vive no cabeçalho (3/10): fica preso por baixo da
+      // barra compacta e não perde o foco quando a lista por baixo muda.
+      fixo={
         <View style={styles.controls}>
           <Input
             icon="search"
@@ -561,15 +564,29 @@ export function SearchScreen() {
             </View>
           ) : null}
         </View>
-
+      }
+      right={vista === 'discover' && temRecomendacoes(recs) ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Refresh recommendations"
+          hitSlop={12} disabled={loadingRecs} onPress={() => void recs.carregar(true)}
+          style={{ opacity: loadingRecs ? 0.4 : 1 }}>
+          <Ionicons name="refresh" size={22} color={colors.textSecondary} />
+        </Pressable>
+      ) : undefined}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
         {tipoAtivo !== 'musicas' ? (
-          porTipo.loading ? <SkeletonDeFaixas /> : (
-            <FlatList<ArtistaEncontrado | ItemEmCapa>
-              data={tipoAtivo === 'artistas' ? porTipo.artistas
+          porTipo.loading ? <View style={{ paddingTop: cab.espaco }}><SkeletonDeFaixas /></View> : (
+            <Animated.FlatList
+              onScroll={cab.onScroll}
+              scrollEventThrottle={cab.scrollEventThrottle}
+              scrollIndicatorInsets={{ top: cab.espaco }}
+              data={(tipoAtivo === 'artistas' ? porTipo.artistas
                 : tipoAtivo === 'albuns' ? porTipo.albuns.map((a) => ({ id: a.id, titulo: a.titulo, legenda: legendaDoAlbumEncontrado(a), capa: a.capa }))
-                : porTipo.playlists}
+                : porTipo.playlists) as (ArtistaEncontrado | ItemEmCapa)[]}
               keyExtractor={(x) => ('canal' in x ? x.canal : x.id)}
-              contentContainerStyle={{ paddingBottom: bottomPad, flexGrow: 1 }}
+              contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad, flexGrow: 1 }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
               ListHeaderComponent={tipoAtivo === 'playlists' ? cartaoDoDestaque : null}
@@ -590,9 +607,9 @@ export function SearchScreen() {
             />
           )
         ) : loading ? (
-          <SkeletonDeFaixas />
+          <View style={{ paddingTop: cab.espaco }}><SkeletonDeFaixas /></View>
         ) : errorMsg ? (
-          <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
+          <Pressable style={{ flex: 1, paddingTop: cab.espaco }} onPress={Keyboard.dismiss}>
             <EmptyState
               icon="cloud-offline-outline"
               title="Something went wrong"
@@ -601,10 +618,13 @@ export function SearchScreen() {
           </Pressable>
         ) : query.trim().length < 2 && isFocused && history.length > 0 ? (
           /* Focused Search input - Show Search History */
-          <ScrollView
+          <Animated.ScrollView
+            onScroll={cab.onScroll}
+            scrollEventThrottle={cab.scrollEventThrottle}
+            scrollIndicatorInsets={{ top: cab.espaco }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: bottomPad }}
+            contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: cab.espaco, paddingBottom: bottomPad }}
           >
             <View style={styles.historyHeader}>
               <Text style={type.micro}>Recent searches</Text>
@@ -632,16 +652,19 @@ export function SearchScreen() {
                 </Text>
               </Pressable>
             ))}
-          </ScrollView>
+          </Animated.ScrollView>
         ) : query.trim().length < 2 && !isFocused && vista === 'daily' ? (
-          <EscolhasDoDia bottomPadding={bottomPad} />
+          <EscolhasDoDia bottomPadding={bottomPad} cabecalho={cab} />
         ) : query.trim().length < 2 && !isFocused ? (
           /* Default state - Show Recommendations */
-          <ScrollView
+          <Animated.ScrollView
             ref={topoDaPagina}
+            onScroll={cab.onScroll}
+            scrollEventThrottle={cab.scrollEventThrottle}
+            scrollIndicatorInsets={{ top: cab.espaco }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            contentContainerStyle={{ paddingBottom: bottomPad }}
+            contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
             showsVerticalScrollIndicator={false}
           >
             {/* A cabeca de tudo, e so quando ha alguem: quem esta online
@@ -786,9 +809,9 @@ export function SearchScreen() {
                 )}
               </View>
             )}
-          </ScrollView>
+          </Animated.ScrollView>
         ) : results.length === 0 && naBiblioteca.length === 0 ? (
-          <Pressable style={{ flex: 1 }} onPress={Keyboard.dismiss}>
+          <Pressable style={{ flex: 1, paddingTop: cab.espaco }} onPress={Keyboard.dismiss}>
             <EmptyState
               icon="logo-youtube"
               title={query.trim().length >= 2 ? 'No results' : 'Start typing to search'}
@@ -800,11 +823,14 @@ export function SearchScreen() {
             />
           </Pressable>
         ) : (
-          <FlatList
+          <Animated.FlatList
             ref={topoDosResultados}
+            onScroll={cab.onScroll}
+            scrollEventThrottle={cab.scrollEventThrottle}
+            scrollIndicatorInsets={{ top: cab.espaco }}
             data={results.filter((r) => versaoPassa(r.title, versao))}
             keyExtractor={(t) => `${t.source}:${t.sourceId}`}
-            contentContainerStyle={{ paddingBottom: bottomPad }}
+            contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             /* O que já é teu vem PRIMEIRO, e sem esperar pela rede. A procura

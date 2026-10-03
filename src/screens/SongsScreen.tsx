@@ -12,6 +12,7 @@ import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
   Pressable,
   StyleSheet,
@@ -25,10 +26,10 @@ import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PrimeiroPasso } from '../components/PrimeiroPasso';
 import { ordenarFaixas } from '../lib/ordenacao';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SkeletonDeFaixas } from '../components/Skeleton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
-import { getTrackRowLayout, TrackRow } from '../components/TrackRow';
+import { TRACK_ROW_HEIGHT, TrackRow } from '../components/TrackRow';
 import { Input } from '../components/Input';
 import { useSaved } from '../state/saved';
 import { hapticSelection } from '../lib/haptics';
@@ -181,7 +182,16 @@ export function SongsScreen() {
   }, [filteredTracks, sortBy]);
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + (selectMode ? 80 : 32);
-  const conteudoDaLista = useMemo(() => ({ paddingBottom: bottomPad }), [bottomPad]);
+  const cab = useCabecalhoQueEncolhe();
+  const conteudoDaLista = useMemo(() => ({ paddingBottom: bottomPad, paddingTop: cab.espaco }), [bottomPad, cab.espaco]);
+  // As posições das linhas contam com o espaço do cabeçalho e com o Play/Shuffle
+  // por cima delas: a virtualização mede a partir do topo do conteúdo.
+  const [alturaDoTopoDaLista, setAlturaDoTopoDaLista] = useState(0);
+  const posicaoDaLinha = useCallback((_: ArrayLike<Track> | null | undefined, index: number) => ({
+    length: TRACK_ROW_HEIGHT,
+    offset: cab.espaco + alturaDoTopoDaLista + TRACK_ROW_HEIGHT * index,
+    index,
+  }), [cab.espaco, alturaDoTopoDaLista]);
 
   // Estáveis (27/9): com o `React.memo` do TrackRow, uma linha só se redesenha
   // quando muda o que ela mostra. O `current` já não passa por aqui -- cada
@@ -202,72 +212,18 @@ export function SongsScreen() {
     />
   ), [selectMode, selectedIds, aoTocarNaLinha]);
 
-  return (
-    <Screen
-      title="Liked Songs"
-      subtitle={`${tracks.length} ${offline?'downloaded':'saved'} ${tracks.length === 1 ? 'song' : 'songs'}`}
-      right={
-        tracks.length > 0 ? (
-          <Pressable
-            hitSlop={10}
-            onPress={() => {
-              setSearchOpen(!searchOpen);
-              if (searchOpen) setSearchQuery('');
-            }}
-            style={{ padding: 4 }}
-          >
-            <Ionicons name={searchOpen ? "close" : "search-outline"} size={24} color={colors.text} />
-          </Pressable>
-        ) : undefined
-      }
-    >
+  // O título encolhe ao rolar (3/10, variante B): o cabeçalho flutua por cima
+  // da lista. A pesquisa fica presa por baixo da barra compacta; o Play/Shuffle
+  // e os filtros rolam com as músicas, como no resto do iOS.
+  const avisosDoTopo = (
+    <>
       {offline&&<OfflineNotice compact/>}
       {!!loadError&&<Text accessibilityRole="alert" style={{color:colors.textSecondary,paddingHorizontal:spacing.xl,paddingBottom:12}}>{loadError}</Text>}
-      {loading ? (
-        <SkeletonDeFaixas />
-      ) : tracks.length === 0 ? (
-        <EmptyState
-          icon="heart-outline"
-          title={offline ? "No downloaded liked songs" : "Nothing here yet"}
-          subtitle={offline
-            ? "Download your liked songs while online to listen here without internet."
-            : "Bring in a playlist you already have, or find something new."}
-        >
-          {/* Um ecrã vazio que não diz o que fazer a seguir é um beco. A
-              importação já existia, escondida numa página que só se
-              encontrava por acaso. */}
-          {!offline && (
-            <View style={{ gap: spacing.sm, marginTop: spacing.xl, alignSelf: "stretch", paddingHorizontal: spacing.xl }}>
-              <PrimeiroPasso
-                icon="logo-youtube"
-                label="Import a YouTube playlist"
-                onPress={() => navigation.navigate("ImportYouTube")}
-              />
-              <PrimeiroPasso
-                icon="search-outline"
-                label="Search for music"
-                onPress={() => navigation.navigate("Tabs", { screen: "Search" })}
-              />
-            </View>
-          )}
-        </EmptyState>
-      ) : (
-        <View style={{ flex: 1 }}>
-          {searchOpen && (
-            <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
-              <Input
-                icon="search"
-                placeholder="Search your Liked Songs"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                onClear={() => setSearchQuery('')}
-                // Abrir a pesquisa É querer escrever. Sem isto eram dois
-                // toques -- um na lupa e outro na caixa -- para uma coisa só.
-                autoFocus
-              />
-            </View>
-          )}
-
+    </>
+  );
+  const cabecalhoDaLista = (
+    <View onLayout={(e) => setAlturaDoTopoDaLista(e.nativeEvent.layout.height)}>
+      {avisosDoTopo}
           {!selectMode && sortedTracks.length > 0 && (
             <View style={styles.actionRow}>
               <Pressable
@@ -355,7 +311,80 @@ export function SongsScreen() {
             </Pressable>
           </View>
 
-          <FlatList
+    </View>
+  );
+
+  return (
+    <Screen
+      encolhe={cab}
+      fixo={searchOpen ? (
+            <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
+              <Input
+                icon="search"
+                placeholder="Search your Liked Songs"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                onClear={() => setSearchQuery('')}
+                // Abrir a pesquisa É querer escrever. Sem isto eram dois
+                // toques -- um na lupa e outro na caixa -- para uma coisa só.
+                autoFocus
+              />
+            </View>
+      ) : undefined}
+      title="Liked Songs"
+      subtitle={`${tracks.length} ${offline?'downloaded':'saved'} ${tracks.length === 1 ? 'song' : 'songs'}`}
+      right={
+        tracks.length > 0 ? (
+          <Pressable
+            hitSlop={10}
+            onPress={() => {
+              setSearchOpen(!searchOpen);
+              if (searchOpen) setSearchQuery('');
+            }}
+            style={{ padding: 4 }}
+          >
+            <Ionicons name={searchOpen ? "close" : "search-outline"} size={24} color={colors.text} />
+          </Pressable>
+        ) : undefined
+      }
+    >
+      {loading ? (
+        <View style={{ paddingTop: cab.espaco }}>
+          {avisosDoTopo}
+          <SkeletonDeFaixas />
+        </View>
+      ) : tracks.length === 0 ? (
+        <View style={{ flex: 1, paddingTop: cab.espaco }}>
+        {avisosDoTopo}
+        <EmptyState
+          icon="heart-outline"
+          title={offline ? "No downloaded liked songs" : "Nothing here yet"}
+          subtitle={offline
+            ? "Download your liked songs while online to listen here without internet."
+            : "Bring in a playlist you already have, or find something new."}
+        >
+          {/* Um ecrã vazio que não diz o que fazer a seguir é um beco. A
+              importação já existia, escondida numa página que só se
+              encontrava por acaso. */}
+          {!offline && (
+            <View style={{ gap: spacing.sm, marginTop: spacing.xl, alignSelf: "stretch", paddingHorizontal: spacing.xl }}>
+              <PrimeiroPasso
+                icon="logo-youtube"
+                label="Import a YouTube playlist"
+                onPress={() => navigation.navigate("ImportYouTube")}
+              />
+              <PrimeiroPasso
+                icon="search-outline"
+                label="Search for music"
+                onPress={() => navigation.navigate("Tabs", { screen: "Search" })}
+              />
+            </View>
+          )}
+        </EmptyState>
+        </View>
+      ) : (
+        <View style={{ flex: 1 }}>
+          <Animated.FlatList
             ref={topo}
             data={sortedTracks}
             keyExtractor={chaveDaLinha}
@@ -364,8 +393,12 @@ export function SongsScreen() {
             updateCellsBatchingPeriod={50}
             windowSize={7}
             removeClippedSubviews
-            getItemLayout={getTrackRowLayout}
+            getItemLayout={posicaoDaLinha}
+            ListHeaderComponent={cabecalhoDaLista}
             contentContainerStyle={conteudoDaLista}
+            onScroll={cab.onScroll}
+            scrollEventThrottle={cab.scrollEventThrottle}
+            scrollIndicatorInsets={{ top: cab.espaco }}
             renderItem={desenharLinha}
           />
         </View>

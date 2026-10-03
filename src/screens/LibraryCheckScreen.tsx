@@ -2,10 +2,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PillButton } from '../components/PillButton';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
@@ -35,6 +35,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'LibraryCheck'>;
  * `state/verificacaoDaBiblioteca.ts`; o PC desenha a mesma coisa.
  */
 export function LibraryCheckScreen({ navigation }: Props) {
+  // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
+  const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
   const offline = useOfflineMode();
   const v = useVerificacaoDaBiblioteca();
@@ -47,8 +49,8 @@ export function LibraryCheckScreen({ navigation }: Props) {
   };
 
   return (
-    <Screen title="Library check" onBack={() => navigation.goBack()}>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl }}>
+    <Screen encolhe={cab} title="Library check" onBack={() => navigation.goBack()}>
+      <Animated.ScrollView onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: insets.bottom + MINI_PLAYER_HEIGHT + spacing.xxl }}>
         <View style={styles.cabeca}>
           <Text style={[type.body, { color: colors.textSecondary, lineHeight: 21 }]}>
             Finds songs saved twice, videos that no longer play and covers that don&apos;t load.
@@ -156,7 +158,7 @@ export function LibraryCheckScreen({ navigation }: Props) {
             <Text style={[type.body, { fontWeight: '600' }]}>Your library is in good shape</Text>
           </View>
         ) : null}
-      </ScrollView>
+      </Animated.ScrollView>
     </Screen>
   );
 }

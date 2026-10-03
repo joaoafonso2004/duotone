@@ -5,6 +5,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
   Pressable,
   StyleSheet,
@@ -25,7 +26,7 @@ import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PrimeiroPasso } from '../components/PrimeiroPasso';
 import { PromptSheet } from '../components/PromptSheet';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SkeletonDePlaylists } from '../components/Skeleton';
 import { SocialButton } from '../components/socialUI';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -44,6 +45,7 @@ export function PlaylistsScreen() {
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
   const topo = useRef<any>(null);
   useScrollToTop(topo);
+  const cab = useCabecalhoQueEncolhe();
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
@@ -158,8 +160,13 @@ export function PlaylistsScreen() {
   // A Daily mix abre no ecrã das prateleiras, que é uma vista sobre a store --
   // ver `state/misturaDoDia.ts`.
 
+  const avisoDeErro = loadError
+    ? <View style={{paddingHorizontal:spacing.xl,paddingVertical:spacing.lg,gap:12}}><Text accessibilityRole="alert" style={type.caption}>{loadError}</Text><SocialButton onPress={()=>void load()}>Try again</SocialButton></View>
+    : null;
+
   return (
     <Screen
+      encolhe={cab}
       title="Playlists"
       subtitle={loading?'Loading…':loadError?undefined:`${playlists.length} ${playlists.length === 1 ? 'playlist' : 'playlists'}`}
       right={
@@ -173,7 +180,11 @@ export function PlaylistsScreen() {
       }
     >
 
-      {!!loadError&&<View style={{paddingHorizontal:spacing.xl,paddingVertical:spacing.lg,gap:12}}><Text accessibilityRole="alert" style={type.caption}>{loadError}</Text><SocialButton onPress={()=>void load()}>Try again</SocialButton></View>}
+      {/* O cabeçalho flutua por cima (3/10): tudo o que não é a lista começa
+          por baixo dele. */}
+      {(loading || playlists.length === 0) && <View style={{ height: cab.espaco }} />}
+      {/* Com a lista à vista, o erro vai no topo dela (não por baixo do cabeçalho). */}
+      {!!loadError&&(loading||playlists.length===0)&&avisoDeErro}
       {loading ? (
         <SkeletonDePlaylists lado={cardSize} />
       ) : playlists.length === 0 && loadError ? null : playlists.length === 0 ? (
@@ -199,16 +210,20 @@ export function PlaylistsScreen() {
         </EmptyState>
         </>
       ) : (
-        <FlatList
+        <Animated.FlatList
           ref={topo}
           data={playlists}
+          ListHeaderComponent={avisoDeErro}
+          onScroll={cab.onScroll}
+          scrollEventThrottle={cab.scrollEventThrottle}
+          scrollIndicatorInsets={{ top: cab.espaco }}
           keyExtractor={(p) => p.id}
           numColumns={2}
           columnWrapperStyle={{ gap: spacing.lg, paddingHorizontal: spacing.xl }}
           contentContainerStyle={{
             gap: spacing.lg,
             paddingBottom: bottomPad,
-            paddingTop: spacing.sm,
+            paddingTop: cab.espaco + spacing.sm,
           }}
           renderItem={({ item }) => (
             <Pressable

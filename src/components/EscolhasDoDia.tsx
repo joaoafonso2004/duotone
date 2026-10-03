@@ -1,7 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, StyleSheet, Text, View } from 'react-native';
+import type { CabecalhoQueEncolhe } from './Screen';
 import {
   lerEscolhasDoDia, lerHistoricoDasEscolhas, subscreverEscolhasDoDia,
   type DiaDeEscolhas, type EscolhaDoDia,
@@ -28,7 +29,11 @@ import { capaParaLista } from '../lib/capaDoEcraBloqueado';
  * escolha. Hoje vem sempre primeiro: o histórico serve para apanhar o que um
  * amigo pôs ontem, não para a página passar a ser um arquivo.
  */
-export function EscolhasDoDia({ bottomPadding = spacing.xxl }: { bottomPadding?: number }) {
+/**
+ * `cabecalho`: o título da Pesquisa encolhe ao rolar esta lista (3/10), e ela
+ * começa por baixo dele.
+ */
+export function EscolhasDoDia({ bottomPadding = spacing.xxl, cabecalho }: { bottomPadding?: number; cabecalho?: CabecalhoQueEncolhe }) {
   const tema = useTheme((s) => s.theme);
   const playTrack = usePlayer((s) => s.playTrack);
   const [escolhas, setEscolhas] = React.useState<EscolhaDoDia[]>([]);
@@ -54,9 +59,12 @@ export function EscolhasDoDia({ bottomPadding = spacing.xxl }: { bottomPadding?:
   const agora = Date.now();
 
   return (
-    <ScrollView
+    <Animated.ScrollView
+      onScroll={cabecalho?.onScroll}
+      scrollEventThrottle={cabecalho?.scrollEventThrottle}
+      scrollIndicatorInsets={{ top: cabecalho?.espaco ?? 0 }}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={[styles.conteudo, { paddingBottom: bottomPadding }]}
+      contentContainerStyle={[styles.conteudo, { paddingBottom: bottomPadding, paddingTop: cabecalho?.espaco ?? 0 }]}
     >
       <View style={styles.cabecalho}>
         <Text style={styles.titulo}>Songs of the day</Text>
@@ -108,7 +116,7 @@ export function EscolhasDoDia({ bottomPadding = spacing.xxl }: { bottomPadding?:
           ))}
         </View>
       ) : null}
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 

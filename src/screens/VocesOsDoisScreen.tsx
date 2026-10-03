@@ -3,12 +3,12 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { lerMisturaDosDois, lerVocesOsDois, valeAPena, type VocesOsDois } from '../api/vocesOsDois';
 import { EmptyState } from '../components/EmptyState';
 import { PillButton } from '../components/PillButton';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useTheme } from '../state/theme';
 import { useAuth } from '../state/auth';
@@ -43,6 +43,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'VocesOsDois'>;
  * "vocês não têm nada em comum".
  */
 export function VocesOsDoisScreen({ route, navigation }: Props) {
+  // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
+  const cab = useCabecalhoQueEncolhe();
   const { userId, nome } = route.params;
   const insets = useSafeAreaInsets();
   const tema = useTheme((s) => s.theme);
@@ -78,18 +80,22 @@ export function VocesOsDoisScreen({ route, navigation }: Props) {
   const primeiro = nome?.split(' ')[0] || nome || 'them';
 
   return (
-    <Screen title="You two" subtitle={nome ? `You and ${nome}` : undefined} onBack={() => navigation.goBack()}>
+    <Screen encolhe={cab} title="You two" subtitle={nome ? `You and ${nome}` : undefined} onBack={() => navigation.goBack()}>
       {aCarregar ? (
-        <ActivityIndicator color={tema.color} style={{ marginTop: spacing.xxl }} />
+        <ActivityIndicator color={tema.color} style={{ marginTop: cab.espaco + spacing.xxl }} />
       ) : !valeAPena(dados) ? (
+        <View style={{ flex: 1, paddingTop: cab.espaco }}>
         <EmptyState
           icon="sparkles-outline"
           title="Not enough yet"
           subtitle={`Once you and ${primeiro} have both listened for a while, this page fills up with what you share — and what you don't.`}
         />
+        </View>
       ) : (
-        <ScrollView
+        <Animated.ScrollView
+          onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }}
           contentContainerStyle={{
+            paddingTop: cab.espaco,
             paddingHorizontal: spacing.xl,
             paddingBottom: 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32,
             gap: spacing.lg,
@@ -175,7 +181,7 @@ export function VocesOsDoisScreen({ route, navigation }: Props) {
               <Metade numero={dados!.chegaste} texto={`${primeiro} did`} cor={colors.textSecondary} />
             </View>
           )}
-        </ScrollView>
+        </Animated.ScrollView>
       )}
     </Screen>
   );
