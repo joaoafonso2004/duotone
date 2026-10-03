@@ -19,6 +19,14 @@ const ids = (l: { sourceId: string }[]) => l.map((t) => t.sourceId);
 
 console.log('\nquantas');
 
+caso('com a app escondida, só a seguinte, e a Daily mix espera (3/10)', () => {
+  assert.equal(quantasAdiantar(false, null, false), 1);
+  assert.equal(quantasAdiantar(true, null, false), 1);
+  assert.equal(quantasAdiantar(false, null, true), ADIANTAR_EM_WIFI);
+  assert.equal(podeDescarregarOpcionais(null, false), false);
+  assert.equal(podeDescarregarOpcionais(null, true), true);
+});
+
 caso('três em Wi-Fi, menos em dados móveis', () => {
   assert.equal(quantasAdiantar(false), ADIANTAR_EM_WIFI);
   assert.equal(quantasAdiantar(true), ADIANTAR_EM_DADOS_MOVEIS);

@@ -15,6 +15,7 @@ import {
   clearDownloadedAudioCache, DOWNLOAD_ABORTED, isAudioCached,
   removeDownloadedAudio, useAudioCache, verificarCancelamentos,
 } from './youtubeCache';
+import { AppState } from 'react-native';
 
 /**
  * Os cancelamentos destes downloads dependem da rede e do leitor (ver os
@@ -163,7 +164,8 @@ export async function guardarEmSegundoPlano(
     const rede = useConnectivity.getState();
     const leitor = usePlayer.getState();
     return rede.offline || rede.dadosMoveis || leitor.activeBackend === 'resolving' || leitor.buffering
-      || (opcional && !podeDescarregarOpcionais(estadoDeEnergia()));
+      // Com a app escondida, a Daily mix espera (3/10): o download corre no JavaScript.
+      || (opcional && !podeDescarregarOpcionais(estadoDeEnergia(), AppState.currentState !== 'background'));
   };
   let guardadas = 0;
   for (const track of faixasParaGuardar(faixas, isAudioCached, useConnectivity.getState())) {

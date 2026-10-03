@@ -38,6 +38,8 @@ function leitor(atual, proximas, adiantadas) {
     // Quente ou em poupança (2/10): aqui o aparelho não se sabe, e nada muda.
     estadoDeEnergia: () => null, quantoPoupar: () => 'nada',
     pouparNoRelatorio: 'nada', registarNaFila: () => {},
+    // A app à frente (3/10): escondida, só a seguinte.
+    appAFrente: true, escondidaNoRelatorio: false,
     verificarCancelamentos: () => {
       for (const pedido of pedidos.values()) if (pedido.abandonado) pedido.controller.abort();
     },

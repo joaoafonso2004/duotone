@@ -88,6 +88,8 @@ type Adiantamento = { abandonado: boolean; pronto: Promise<void> };
 const aAdiantar = new Map<string, Adiantamento>();
 /** O último "quanto poupar" que foi para o relatório: só se escreve a mudança. */
 let pouparNoRelatorio: string = 'nada';
+/** O mesmo, para a app escondida (3/10): só a mudança vai para o relatório. */
+let escondidaNoRelatorio = false;
 
 /** Resolve e descarrega uma faixa por conta. Nunca rejeita: falhar aqui é só
  * não ganhar tempo, e a reprodução tenta por si quando chegar a vez dela. */
@@ -2115,9 +2117,21 @@ export function YouTubePlayerView({ track }: { track: Track }) {
   // seguinte (2/10, `quantoPoupar`). Lido a cada música: o iOS não avisa o
   // JS quando aquece, e uma leitura por faixa chega para o plano seguinte.
   const emDadosMoveis = useConnectivity((st) => st.dadosMoveis);
+  // Com a app escondida só a seguinte (3/10, `quantasAdiantar`). O "inactive"
+  // (o Centro de Controlo, uma chamada a entrar) não conta: cada puxão
+  // abandonava e recomeçava os downloads.
+  const [appAFrente, setAppAFrente] = useState(AppState.currentState !== 'background');
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (estado) => setAppAFrente(estado !== 'background'));
+    return () => sub.remove();
+  }, []);
   useEffect(() => {
     const energia = estadoDeEnergia();
-    const quantas = quantasAdiantar(emDadosMoveis, energia);
+    const quantas = quantasAdiantar(emDadosMoveis, energia, appAFrente);
+    if (!appAFrente !== escondidaNoRelatorio) {
+      escondidaNoRelatorio = !appAFrente;
+      registarNaFila(appAFrente ? `smart cache: app open again (${quantas} ahead)` : 'smart cache: app hidden, only the next track ahead');
+    }
     // Para se medir no aparelho: o relatório diz quando passou a poupar e
     // quando voltou ao normal (só a mudança, o anel é pequeno).
     const poupar = quantoPoupar(energia);
@@ -2183,7 +2197,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // O setup seguinte decide o que deixou de servir. Um abort() aqui não
       // pode ser desfeito ao repor abandonado=false na faixa que passou a tocar.
     };
-  }, [track.sourceId, backend, queue, queueIndex, shuffle, percursoDoShuffle, repeatMode, sessaoJam, filaJam, emDadosMoveis]);
+  }, [track.sourceId, backend, queue, queueIndex, shuffle, percursoDoShuffle, repeatMode, sessaoJam, filaJam, emDadosMoveis, appAFrente]);
 
   // Registar os controlos do backend ativo na store (play/pause/seek).
   useEffect(() => {
