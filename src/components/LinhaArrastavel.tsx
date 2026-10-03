@@ -1,44 +1,43 @@
 import React from 'react';
-import { Animated, PanResponder, StyleSheet, View, type GestureResponderHandlers } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
+import {
+  PanGestureHandler, State,
+  type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 import { limiarDaLinha } from '../lib/arrastarFila';
 import { colors } from '../theme';
+
+/** Quanto tempo de dedo parado numa linha abre o arrasto. */
+export const TOQUE_LONGO_PARA_ARRASTAR_MS = 500;
 
 /**
  * Uma linha que se pega e se muda de sítio.
  *
- * ## Porque é feita à mão
- *
- * O caminho habitual para isto é o `react-native-draggable-flatlist`, que
- * arrasta atrás de si o `reanimated` e o `gesture-handler`. São duas
- * dependências NATIVAS -- entram no binário, obrigam a uma build nova, e
- * passam a ter voz em qualquer actualização de Expo daqui para a frente.
- * Pagar isso para reordenar uma lista de músicas não se justifica.
- *
- * O `PanResponder` e o `Animated` já cá estão, já são o que a app usa em todo
- * o lado -- a folha inferior, a barra de progresso, o cubo das letras -- e
- * chegam perfeitamente para uma lista de linhas todas da mesma altura.
- *
  * ## Os dois gestos
  *
- * **A pega (≡) pega logo**, sem espera: é o gesto de reordenar que o iOS
- * ensinou, e o que a pega promete. Esteve só desenhada -- arrastá-la fazia a
- * lista deslizar, que é o contrário do que ela diz.
+ * **A pega (≡) pega logo**, ao primeiro movimento: é o gesto de reordenar que
+ * o iOS ensinou, e o que a pega promete.
  *
  * **Meio segundo de dedo parado em qualquer ponto da linha** também abre o
- * arrasto, para quem não der pela pega. Começou em mil, para não colidir com
- * o toque longo de 350 ms das outras listas -- o raciocínio estava certo e o
- * número errado: um segundo parece a app a não responder.
+ * arrasto, para quem não der pela pega. Mexer antes disso é deslizar a lista
+ * (o gesto falha e a lista fica com o dedo); um toque curto toca a música.
  *
- * Nos dois, a partir daí quem manda no dedo é esta linha e mais ninguém: o
- * `onPanResponderTerminationRequest` recusa entregá-lo. Sem isso a folha
- * inferior -- que fecha ao arrastar para baixo -- roubava o gesto a meio.
+ * ## Porque é do Gesture Handler (3/10)
+ *
+ * Era um `PanResponder`, e continuou a sê-lo enquanto a fila vivia numa folha
+ * feita à mão (que sabia não fechar com uma linha pegada). A fila passou a
+ * uma folha NATIVA do iOS, e aí o gesto da folha -- arrastar para baixo -- é
+ * um reconhecedor do UIKit, que passa à frente dos toques do React Native e os
+ * cancela: arrastar uma música para baixo arrastava a folha. Os gestos do
+ * Gesture Handler entram na mesma arbitragem do UIKit, e o primeiro a ativar
+ * fica com o dedo -- o toque longo (o dedo parado) e a pega (ao primeiro
+ * ponto) ativam antes de a folha ter distância para começar.
  *
  * ## Quem é a linha pegada, sem esperar pelo React
  *
  * O `pegadaRef` diz qual das linhas está pegada, e é escrito no próprio
  * gesto. Com uma prop, o primeiro movimento a seguir ao toque longo ainda
- * chegava antes do render que a marcava, e perdia-se para a lista ou para a
- * folha.
+ * chegava antes do render que a marcava.
  */
 export function LinhaArrastavel({
   index, arrastarIndex, pegadaRef, podeArrastar, altura, dy,
@@ -53,20 +52,17 @@ export function LinhaArrastavel({
   podeArrastar: boolean;
   altura: number;
   dy: Animated.Value;
-  /** A pega foi tocada: o arrasto abre aqui, como abre com o toque longo. */
+  /** O arrasto abre aqui (a pega, ou o toque longo). */
   aoComecar: (index: number) => void;
-  /** O dedo mexeu-se e o arrasto arrancou mesmo. */
+  /** O arrasto arrancou mesmo, com o dedo em `dedoY` (no ecrã). */
   aoPegar: (dedoY: number) => void;
   /**
    * A cada movimento: o deslocamento do gesto e a posição ABSOLUTA do dedo.
    *
    * A segunda é que permite o deslize nas bordas -- o `dy` diz quanto o dedo
-   * andou, e não onde ele está. Quem decide se a lista tem de correr precisa
-   * de saber se o dedo está encostado a uma borda, e isso o `dy` nunca diz.
-   *
-   * Quem escreve no `dy` é o dono da lista e não esta linha: durante o deslize
-   * o valor tem de somar o que a lista correu, senão a linha fica para trás
-   * enquanto o conteúdo passa por baixo dela.
+   * andou, e não onde ele está. Quem escreve no `dy` animado é o dono da lista
+   * e não esta linha: durante o deslize o valor tem de somar o que a lista
+   * correu, senão a linha fica para trás.
    */
   aoMover: (dy: number, dedoY: number) => void;
   aoLargar: (dyFinal: number) => void;
@@ -76,13 +72,15 @@ export function LinhaArrastavel({
    * tinha corrido, e a música mudava de sítio sem ninguém a ter largado.
    */
   aoCancelar: () => void;
-  /** Recebe os gestos da pega, para quem desenha a linha os pôr no ≡. */
-  children: (pega: GestureResponderHandlers | null) => React.ReactNode;
+  /**
+   * Recebe quem embrulha a pega (≡) com o gesto dela, ou `null` sem arrasto.
+   * A pega desenha-se como sempre e passa por `envolverPega(<View>≡</View>)`.
+   */
+  children: (envolverPega: ((pega: React.ReactElement) => React.ReactElement) | null) => React.ReactNode;
 }) {
   const activo = arrastarIndex === index;
-  // Os PanResponders fecham sobre o primeiro render. Tudo o que muda chega-lhes
-  // por referência -- incluindo o índice, que muda quando a fila se reordena
-  // e esta mesma linha passa a estar noutro sítio.
+  // Os gestos leem tudo por referência -- incluindo o índice, que muda quando
+  // a fila se reordena e esta mesma linha passa a estar noutro sítio.
   const indexRef = React.useRef(index);
   indexRef.current = index;
   const podeRef = React.useRef(podeArrastar);
@@ -91,44 +89,31 @@ export function LinhaArrastavel({
   cb.current = { aoComecar, aoPegar, aoMover, aoLargar, aoCancelar };
   const minha = () => pegadaRef.current === indexRef.current;
 
-  const pan = React.useMemo(
-    () =>
-      PanResponder.create({
-        // Só depois do toque longo. Antes disso o dedo é do toque simples, que
-        // toca a música.
-        onMoveShouldSetPanResponder: minha,
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: (e) => cb.current.aoPegar(e.nativeEvent.pageY),
-        onPanResponderMove: (_e, g) => {
-          if (minha()) cb.current.aoMover(g.dy, g.moveY);
-        },
-        onPanResponderRelease: (_e, g) => cb.current.aoLargar(g.dy),
-        onPanResponderTerminate: () => cb.current.aoCancelar(),
-      }),
-    // Sem dependências, de propósito: recriar isto a meio de um arrasto
-    // perdia o dedo.
+  // Os mesmos para a linha e para a pega: só muda o que os ativa.
+  const aoMexer = React.useCallback((e: PanGestureHandlerGestureEvent) => {
+    if (minha()) cb.current.aoMover(e.nativeEvent.translationY, e.nativeEvent.absoluteY);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  }, []);
+  const aoMudar = React.useCallback((e: PanGestureHandlerStateChangeEvent) => {
+    const { state, oldState, translationY, absoluteY } = e.nativeEvent;
+    if (state === State.ACTIVE) {
+      if (!podeRef.current) return;
+      cb.current.aoComecar(indexRef.current);
+      cb.current.aoPegar(absoluteY);
+      return;
+    }
+    if (oldState !== State.ACTIVE) return;
+    if (state === State.END) cb.current.aoLargar(translationY);
+    else cb.current.aoCancelar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const pega = React.useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => podeRef.current,
-        onPanResponderTerminationRequest: () => false,
-        onPanResponderGrant: (e) => {
-          cb.current.aoComecar(indexRef.current);
-          cb.current.aoPegar(e.nativeEvent.pageY);
-        },
-        onPanResponderMove: (_e, g) => {
-          if (minha()) cb.current.aoMover(g.dy, g.moveY);
-        },
-        onPanResponderRelease: (_e, g) => cb.current.aoLargar(g.dy),
-        onPanResponderTerminate: () => cb.current.aoCancelar(),
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  const envolverPega = React.useCallback((pega: React.ReactElement) => (
+    <PanGestureHandler minDist={1} onGestureEvent={aoMexer} onHandlerStateChange={aoMudar}>
+      {/* Uma vista própria por baixo do gesto: o filho de um handler tem de ser nativo. */}
+      <View collapsable={false}>{pega}</View>
+    </PanGestureHandler>
+  ), [aoMexer, aoMudar]);
 
   const estilo = React.useMemo(() => {
     if (activo) return { transform: [{ translateY: dy }, { scale: 1.03 }] };
@@ -151,17 +136,23 @@ export function LinhaArrastavel({
   }, [activo, arrastarIndex, altura, dy, index]);
 
   return (
-    <Animated.View
-      {...pan.panHandlers}
-      // O `zIndex` é o que põe a linha pegada POR CIMA das vizinhas. Sem ele
-      // ela passa por baixo assim que as alcança, e o que se vê é a música a
-      // desaparecer debaixo da lista.
-      style={[estilo, activo && styles.aPegar]}
+    <PanGestureHandler
+      enabled={podeArrastar}
+      activateAfterLongPress={TOQUE_LONGO_PARA_ARRASTAR_MS}
+      onGestureEvent={aoMexer}
+      onHandlerStateChange={aoMudar}
     >
-      <View style={activo ? styles.pegada : undefined}>
-        {children(podeArrastar ? pega.panHandlers : null)}
-      </View>
-    </Animated.View>
+      <Animated.View
+        // O `zIndex` é o que põe a linha pegada POR CIMA das vizinhas. Sem ele
+        // ela passa por baixo assim que as alcança, e o que se vê é a música a
+        // desaparecer debaixo da lista.
+        style={[estilo, activo && styles.aPegar]}
+      >
+        <View style={activo ? styles.pegada : undefined}>
+          {children(podeArrastar ? envolverPega : null)}
+        </View>
+      </Animated.View>
+    </PanGestureHandler>
   );
 }
 

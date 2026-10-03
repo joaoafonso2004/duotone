@@ -32,12 +32,20 @@ export const ECRAS_SEM_BASE: ReadonlySet<string> = new Set(['Settings', 'Library
 
 type EstadoDeNavegacao = { index?: number; routes: readonly { name: string; state?: EstadoDeNavegacao }[] };
 
-/** Os nomes das rotas em foco, da raiz para dentro. */
+/**
+ * As folhas nativas (3/10): ficam POR CIMA de um ecrã, que continua a ser o que
+ * manda na base -- a fila aberta sobre as secções não tira os separadores.
+ */
+export const FOLHAS: ReadonlySet<string> = new Set(['Fila']);
+
+/** Os nomes das rotas em foco, da raiz para dentro (uma folha conta o ecrã de trás). */
 export function rotasEmFoco(estado: EstadoDeNavegacao | undefined): string[] {
   const nomes: string[] = [];
   let atual = estado;
   while (atual && atual.routes.length) {
-    const rota = atual.routes[atual.index ?? atual.routes.length - 1];
+    let i = atual.index ?? atual.routes.length - 1;
+    while (i > 0 && FOLHAS.has(atual.routes[i]?.name ?? '')) i--;
+    const rota = atual.routes[i];
     if (!rota) break;
     nomes.push(rota.name);
     atual = rota.state;

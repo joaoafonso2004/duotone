@@ -714,7 +714,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
             renderItem={({ item, index }) => (
               <LinhaArrastavel {...arrasto.propsDaLinha(index)} podeArrastar>
-                {(pega) => (
+                {(envolverPega) => (
                   <DeslizarParaTirar
                     ativo={arrasto.arrastar === null}
                     aoTirar={() => {
@@ -727,21 +727,26 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                       onLayout={index === 0 ? (e) => arrasto.medirLinha(e.nativeEvent.layout.height) : undefined}
                     >
                       <View style={{ flex: 1 }}>
+                        {/* O toque longo que pega na linha é da própria
+                            LinhaArrastavel (Gesture Handler, 3/10). */}
                         <TrackRow
                           track={item}
                           onPress={semAcao}
-                          onLongPress={() => arrasto.comecarArrasto(index)}
-                          delayLongPress={500}
-                          onPressOut={() => arrasto.aoLevantar(index)}
+                          deslizarParaAFila={false}
                         />
                       </View>
-                      <View {...(pega ?? {})} accessibilityLabel={`Reorder ${tituloDaFaixa(item)}`} style={styles.pega}>
-                        <Ionicons
-                          name="reorder-three-outline"
-                          size={22}
-                          color={arrasto.arrastar === index ? colors.text : colors.textTertiary}
-                        />
-                      </View>
+                      {(() => {
+                        const pega = (
+                          <View accessibilityLabel={`Reorder ${tituloDaFaixa(item)}`} style={styles.pega}>
+                            <Ionicons
+                              name="reorder-three-outline"
+                              size={22}
+                              color={arrasto.arrastar === index ? colors.text : colors.textTertiary}
+                            />
+                          </View>
+                        );
+                        return envolverPega ? envolverPega(pega) : pega;
+                      })()}
                     </View>
                   </DeslizarParaTirar>
                 )}

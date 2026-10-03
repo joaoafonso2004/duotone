@@ -43,6 +43,7 @@ import { PlaylistsScreen } from '../screens/PlaylistsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { FilaScreen } from '../screens/FilaScreen';
 import { SongsScreen } from '../screens/SongsScreen';
 import { SocialScreen } from '../screens/SocialScreen';
 import { useAuth } from '../state/auth';
@@ -76,6 +77,8 @@ const OnlineVocesOsDois=withInternet(VocesOsDoisScreen,'Profile');
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabsParamList>;
   Settings: undefined;
+  /** A fila numa folha nativa do iOS (3/10, `screens/FilaScreen.tsx`). */
+  Fila: undefined;
   ListeningStats: {userId?:string} | undefined;
   Retrospetiva: {ano?:number;userId?:string} | undefined;
   Downloads: undefined;
@@ -345,6 +348,19 @@ export function RootNavigator() {
             <Stack.Navigator screenOptions={stackScreenOptions} screenLayout={envolverEcra}>
               <Stack.Screen name="Tabs" component={Tabs} />
               <Stack.Screen name="Settings" component={SettingsScreen} />
+              {/* A fila numa folha NATIVA (3/10): abre a meio e sobe toda; a
+                  app de trás recua com os cantos redondos quando sobe. */}
+              <Stack.Screen
+                name="Fila"
+                component={FilaScreen}
+                options={{
+                  presentation: 'formSheet',
+                  sheetAllowedDetents: [0.5, 1],
+                  sheetGrabberVisible: true,
+                  sheetExpandsWhenScrolledToEdge: true,
+                  contentStyle: { backgroundColor: colors.surfaceHigh },
+                }}
+              />
               <Stack.Screen name="ListeningStats" component={OnlineListeningStats} />
               <Stack.Screen name="Retrospetiva" component={OnlineRetrospetiva} />
               {/* Sem withInternet: ver o que está guardado é justamente o que

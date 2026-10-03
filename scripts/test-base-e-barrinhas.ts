@@ -45,6 +45,11 @@ caso('as rotas em foco seguem os navegadores por dentro', () => {
   assert.deepEqual(rotasEmFoco({ ...estado, index: 1 }), ['Settings']);
   assert.deepEqual(rotasEmFoco(undefined), []);
 });
+caso('uma folha nativa (a fila) conta o ecrã de trás', () => {
+  const sobreAsSeccoes = { index: 1, routes: [{ name: 'Tabs', state: { index: 0, routes: [{ name: 'Search' }] } }, { name: 'Fila' }] };
+  assert.deepEqual(rotasEmFoco(sobreAsSeccoes), ['Tabs', 'Search']);
+  assert.equal(modoDaDoca(rotasEmFoco(sobreAsSeccoes)), 'separadores');
+});
 
 console.log('\npara onde vai cada parte');
 const FUNDO = 34;

@@ -46,9 +46,15 @@ interface Props {
    * página do artista por trás dele.
    */
   onVerArtista?: (nome: string) => void;
+  /**
+   * Dentro da folha NATIVA do iOS (3/10, `screens/FilaScreen.tsx`): sem a
+   * folha feita à mão à volta, e a lista a encher a altura da folha (que
+   * muda entre meia e inteira).
+   */
+  nativa?: boolean;
 }
 
-export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Props) {
+export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nativa = false }: Props) {
   const offline = useOfflineMode();
   /**
    * A linha escolhida. `atual` separa a que está a TOCAR das outras: numa sessão
@@ -195,11 +201,10 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
     { label: 'Back to queue', icon: 'arrow-back', inicioDeGrupo: !(emSessao && onOpenSession), onPress: () => setSelection(null) },
   ] : [];
 
-  return (
+  const conteudo = (
     <>
-    <BottomSheet gestureBlocked={arrastar !== null} bloqueioRef={arrasto.bloqueioRef} visible={visible && panel === 'actions'} onClose={onClose}>
       {selection && <PlayerActionsContent title={tituloDaFaixa(selection.track)} actions={actions} />}
-      <View style={selection ? styles.hidden : undefined}>
+      <View style={selection ? styles.hidden : nativa ? styles.encher : undefined}>
       <View style={styles.header}>
         <Text style={type.title}>Play Queue</Text>
         <Text style={type.caption}>
@@ -269,15 +274,16 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
         <View
           ref={arrasto.molduraRef}
           // Os limites medem-se NO ECRÃ, porque é em coordenadas de ecrã que o
-          // `PanResponder` diz onde o dedo está -- e medem-se ao pegar numa
-          // linha, com a folha já assente. Ver `limites`.
+          // gesto diz onde o dedo está -- e medem-se ao pegar numa linha, com a
+          // folha já assente. Ver `limites`.
           collapsable={false}
+          style={nativa ? styles.encher : undefined}
         >
         <BottomSheetFlatList dismissScrollEnabled={!selection}
           ref={arrasto.listaRef}
           data={upNext}
           keyExtractor={(_entry, index) => chaves[index]}
-          style={styles.list}
+          style={nativa ? styles.encher : styles.list}
           // A lista não desliza ao dedo enquanto uma linha está pegada -- quem
           // a faz correr nessa altura é o deslize das bordas, e os dois a
           // disputar o mesmo dedo davam um empurra-empurra.
@@ -298,7 +304,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
                 {...arrasto.propsDaLinha(index)}
                 podeArrastar={canReorder}
               >
-              {(pega) => (
+              {(envolverPega) => (
               // Deslizar para a esquerda tira a música da fila (26/9). Num Jam
               // a fila é de todos, e com uma linha pegada o dedo é do arrasto.
               <DeslizarParaTirar
@@ -332,27 +338,30 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
                       if (foraDoTelemovel || seguido) return;
                       playTrack(item, queue);
                     }}
-                    onLongPress={canReorder ? () => arrasto.comecarArrasto(index) : undefined}
-                    delayLongPress={canReorder ? 500 : undefined}
-                    onPressOut={canReorder ? () => arrasto.aoLevantar(index) : undefined}
+                    // O toque longo que pega na linha é da própria
+                    // LinhaArrastavel (Gesture Handler, 3/10); e deslizar para
+                    // a direita aqui não põe na fila (já lá está).
+                    deslizarParaAFila={false}
                   />
                 </View>
                 <View style={styles.actionButtons}>
-                  {canReorder && (
+                  {canReorder && (() => {
                     // A pega pega LOGO, sem o toque longo -- e o que ela
                     // promete. Ver `LinhaArrastavel`.
-                    <View
-                      {...(pega ?? {})}
-                      accessibilityLabel={`Reorder ${tituloDaFaixa(item)}`}
-                      style={styles.pega}
-                    >
-                      <Ionicons
-                        name="reorder-three-outline"
-                        size={18}
-                        color={arrastar === index ? colors.text : colors.textTertiary}
-                      />
-                    </View>
-                  )}
+                    const pega = (
+                      <View
+                        accessibilityLabel={`Reorder ${tituloDaFaixa(item)}`}
+                        style={styles.pega}
+                      >
+                        <Ionicons
+                          name="reorder-three-outline"
+                          size={18}
+                          color={arrastar === index ? colors.text : colors.textTertiary}
+                        />
+                      </View>
+                    );
+                    return envolverPega ? envolverPega(pega) : pega;
+                  })()}
                   <Pressable
                     onPress={() => openActions(item, emSessao ? null : realIndex)}
                     accessibilityRole="button"
@@ -377,7 +386,19 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
         <Text style={styles.emptyText}>Queue is empty</Text>
       )}
       </View>
-    </BottomSheet>
+    </>
+  );
+
+  return (
+    <>
+    {nativa ? (
+      // A folha é do iOS: a pega, as alturas e o fechar a arrastar são dela.
+      <View style={[styles.folhaNativa, selection && { paddingTop: 0 }]}>{conteudo}</View>
+    ) : (
+      <BottomSheet gestureBlocked={arrastar !== null} bloqueioRef={arrasto.bloqueioRef} visible={visible && panel === 'actions'} onClose={onClose}>
+        {conteudo}
+      </BottomSheet>
+    )}
     <AddToPlaylistSheet visible={visible && panel === 'playlist'} track={selection?.track} onClose={() => setPanel('actions')} />
     <ShareFriendSheet visible={visible && panel === 'share'} itemType="track" item={selection?.track ?? null} onClose={() => setPanel('actions')} />
     <RecommendationPreferences visible={visible && panel === 'recomendacoes'} track={selection?.track ?? null} onClose={() => setPanel('actions')} />
@@ -404,6 +425,9 @@ const styles = StyleSheet.create({
   list: {
     maxHeight: 300,
   },
+  encher: { flex: 1 },
+  // Por baixo da pega do iOS (que fica por cima do conteúdo).
+  folhaNativa: { flex: 1, paddingTop: 22, paddingHorizontal: spacing.lg },
   tituloDaFila: {
     flexDirection: 'row',
     alignItems: 'center',

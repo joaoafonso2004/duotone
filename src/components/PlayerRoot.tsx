@@ -60,7 +60,7 @@ import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ProgressBar, TOQUE_DA_BARRA } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
 import {ArtworkLyricsCube} from './ArtworkLyricsCube';
-import { QueueSheet } from './QueueSheet';
+import { registarAccoesDaFila } from '../state/filaNativa';
 import { PlayerControlRow } from './PlayerControlRow';
 import { accoesDoMenu, PlayerActionsSheet, type PlayerAction } from './PlayerActionsSheet';
 import { mandarComando, useAparelhos } from '../lib/connectSync';
@@ -344,7 +344,17 @@ export function PlayerRoot() {
 
   const [bodyHeight, setBodyHeight] = useState(0);
   const [bodyContentHeight, setBodyContentHeight] = useState(0);
-  const [queueVisible, setQueueVisible] = useState(false);
+  // O que a folha nativa da fila (screens/FilaScreen.tsx) pede ao leitor.
+  useEffect(() => registarAccoesDaFila({
+    abrirSessao: () => setSessaoAberta(true),
+    // Como o nome do artista no leitor: baixa o leitor antes de navegar,
+    // senão a página abria por trás dele.
+    verArtista: (nome) => {
+      if (!navigationRef.isReady()) return;
+      setExpanded(false);
+      navigationRef.navigate('LibraryGroup', { type: 'artist', name: nome });
+    },
+  }), [setExpanded]);
   const [eqVisible, setEqVisible] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   // Montado aqui porque o PlayerRoot existe enquanto a app existe -- e uma
@@ -1726,7 +1736,8 @@ export function PlayerRoot() {
                 accessibilityLabel="Queue"
                 onPress={() => {
                   hapticSelection();
-                  setQueueVisible(true);
+                  // Uma folha nativa do iOS (3/10, screens/FilaScreen.tsx).
+                  if (navigationRef.isReady()) navigationRef.navigate('Fila');
                 }}
                 style={styles.utilityIconBtn}
               >
@@ -2104,20 +2115,9 @@ export function PlayerRoot() {
         onClose={() => setRecomendacoesAbertas(false)}
       />
 
-      {/* ===================== LISTA DA FILA (QUEUE) ===================== */}
-      <QueueSheet
-        visible={queueVisible}
-        onClose={() => setQueueVisible(false)}
-        onOpenSession={() => { setQueueVisible(false); setSessaoAberta(true); }}
-        // Como o nome do artista no leitor: baixa o leitor antes de navegar,
-        // senão a página abria por trás dele.
-        onVerArtista={(nome) => {
-          if (!navigationRef.isReady()) return;
-          setQueueVisible(false);
-          setExpanded(false);
-          navigationRef.navigate('LibraryGroup', { type: 'artist', name: nome });
-        }}
-      />
+      {/* A fila passou a uma folha nativa do iOS (3/10): é o ecrã `Fila` do
+          stack, e o que só o leitor sabe fazer chega-lhe pelo
+          `registarAccoesDaFila` (state/filaNativa.ts). */}
 
       {/* ===================== EQUALIZADOR E VELOCIDADE ===================== */}
       <EqualizadorSheet

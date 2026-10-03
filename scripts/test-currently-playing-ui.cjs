@@ -126,7 +126,8 @@ assert.ok(action(tree,'Add to playlist…').motivo,'sem rede fica apagada, a diz
 
 reset();let row=entry(render());find(row,'TrackRow').props.onPress();
 assert.equal(calls[0][0],'play');assert.equal(calls[0][1],b);
-find(row,'TrackRow').props.onLongPress();row=entry(render());
+// O toque longo que pega é da própria linha (Gesture Handler, 3/10): ela chama o aoComecar.
+find(row,'DragRow').props.aoComecar(0);row=entry(render());
 assert.equal(find(row,'DragRow').props.arrastarIndex,0);
 find(row,'DragRow').props.aoLargar(68);
 assert.deepEqual(calls.at(-1),['reorder',0,1],'O menu mantém o gesto de arrasto');
