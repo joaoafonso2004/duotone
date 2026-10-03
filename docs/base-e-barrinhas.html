@@ -75,6 +75,33 @@ h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
 .fio{height:2px;background:rgba(255,255,255,.1);border-radius:1px;overflow:hidden}
 .fio i{display:block;height:100%;width:38%;background:var(--text)}
 
+/* a base inteira vive numa camada do tamanho do ecrã, para poder descer e sair */
+.doca{position:absolute;inset:0;pointer-events:none;z-index:30}
+.doca>*{pointer-events:auto}
+.deslizar{touch-action:pan-y;cursor:grab}
+.deslizar:active{cursor:grabbing}
+@keyframes entraMini{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+.entra{animation:entraMini .34s cubic-bezier(.2,.8,.2,1)}
+.A .zona-mini{max-height:100px;overflow:hidden;transition:max-height .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes abreZona{from{max-height:0}to{max-height:100px}}
+.A .zona-mini.abre{animation:abreZona .34s cubic-bezier(.2,.8,.2,1)}
+/* ecrãs de exemplo: Definições e chat */
+.cab-ecra{padding:58px 16px 8px;display:flex;align-items:center;gap:8px}
+.cab-ecra .voltar{font-size:30px;line-height:1;color:var(--accent);width:22px}
+.cab-ecra b{font-size:28px;font-weight:700}
+.grupo{margin:14px 16px 0;border-radius:14px;background:var(--surface);overflow:hidden}
+.grupo div{display:flex;justify-content:space-between;align-items:center;height:50px;padding:0 16px;font-size:15px;border-bottom:.5px solid var(--border)}
+.grupo div:last-child{border-bottom:0}
+.grupo span{color:var(--sec);font-size:14px}
+.rotulo{font-size:12px;font-weight:600;color:var(--ter);letter-spacing:.04em;text-transform:uppercase;margin:22px 32px 0}
+.chat-cab{position:absolute;top:0;left:0;right:0;padding:56px 16px 12px;display:flex;align-items:center;gap:10px;background:var(--bg);border-bottom:.5px solid var(--border);z-index:5}
+.chat-cab .av{width:34px;height:34px;border-radius:17px;background:linear-gradient(135deg,#9db5d6,#2c3d5c)}
+.chat-cab b{font-size:16px}
+.bolhas{position:absolute;left:0;right:0;top:110px;bottom:96px;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:0 14px}
+.bolha{max-width:72%;padding:9px 13px;border-radius:18px;font-size:15px;line-height:1.35;background:var(--high)}
+.bolha.minha{align-self:flex-end;background:var(--accent);color:#0B0B0E}
+.campo{position:absolute;left:12px;right:12px;bottom:34px;height:42px;border-radius:21px;background:var(--high);border:.5px solid var(--borderStrong);display:flex;align-items:center;padding:0 16px;color:var(--ter);font-size:15px}
+
 /* hoje: duas peças */
 .hoje .mini{position:absolute;left:10px;right:10px;bottom:91px;height:64px;border-radius:16px;background:var(--high);border:.5px solid var(--borderStrong);
   box-shadow:0 8px 16px rgba(0,0,0,.4);padding:0 6px 0 8px;display:flex;align-items:center;z-index:32}
@@ -136,6 +163,9 @@ h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
       em cima de uma barra com desfoque (que, com 72% de tinta por cima, quase não se nota). Lê-se como "duas coisas coladas". As propostas
       usam <b>o mesmo vidro para as duas</b>, com o desfoque a ver-se a sério e um toque da cor da capa por cima, e o fio do progresso na
       cor da capa. Rola a lista para ver o conteúdo a passar por baixo.</p>
+    <p class="nota"><b>Arrastar para a direita continua a fechar</b>: na A só a linha da música anda com o dedo; ao largar, sai e a base
+      encolhe para ficar só com os separadores. Toca numa música da lista para ela voltar. <b>E há ecrãs sem mini-player</b>: troca o
+      ecrã em baixo para ver as Definições e o chat.</p>
     <div class="controlos">
       <button class="ctl" data-b="hoje" aria-pressed="false">Hoje</button>
       <button class="ctl" data-b="A" aria-pressed="true">A · uma peça <span class="recomendo">recomendo</span></button>
@@ -145,6 +175,12 @@ h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
       <button class="cor" data-cor="#6E8FC4" style="background:#6E8FC4" aria-pressed="false" title="Azul"></button>
       <button class="cor" data-cor="#C46E86" style="background:#C46E86" aria-pressed="false" title="Rosa"></button>
       <button class="cor" data-cor="#7FB57A" style="background:#7FB57A" aria-pressed="false" title="Verde"></button>
+    </div>
+    <div class="controlos">
+      <span style="font-size:13px;color:#8e8e98;margin-right:4px">Ecrã:</span>
+      <button class="ctl" data-ecra="lista" aria-pressed="true">Liked Songs</button>
+      <button class="ctl" data-ecra="definicoes" aria-pressed="false">Settings</button>
+      <button class="ctl" data-ecra="chat" aria-pressed="false">Chat</button>
     </div>
     <div class="telefones">
       <div class="coluna">
@@ -220,34 +256,138 @@ function miniHTML() {
   return `<div class="mini-l"><div class="capa capaA"></div><div class="t"><b>deaf note</b><span>Playboi Carti</span></div>
     <div class="bt" data-tocar>${svg(aTocar5 ? PAUSE : PLAY, '#F5F5F7', 22)}</div><div class="bt">${svg(NEXT, '#F5F5F7', 20)}</div></div>`;
 }
+let ecra = 'lista', fechado = false, entrar = false, docaEscondidaAntes = false;
+const fioHTML = () => `<div class="fio"><i style="width:${progresso * 100}%"></i></div>`;
+function conteudo5() {
+  if (ecra === 'definicoes') {
+    const g = (linhas) => `<div class="grupo">${linhas.map(([a, b]) => `<div>${a}<span>${b}</span></div>`).join('')}</div>`;
+    return `<div class="rolar"><div class="cab-ecra"><span class="voltar">‹</span><b>Settings</b></div>
+      <div class="rotulo">Playback</div>${g([['Audio quality', 'High'], ['Crossfade', '6 s'], ['Normalize volume', 'On'], ['Speed', '1×']])}
+      <div class="rotulo">Player</div>${g([['Artwork style', 'Floating 3D'], ['Sleep timer', 'Off'], ['Keep screen on', 'Off']])}
+      <div class="rotulo">Storage</div>${g([['Downloads', '1.2 GB'], ['Clear cache', '']])}
+      <div style="height:120px"></div></div>`;
+  }
+  if (ecra === 'chat') {
+    return `<div class="chat-cab"><span class="voltar" style="font-size:30px;color:var(--accent)">‹</span><div class="av"></div><b>Rui</b></div>
+      <div class="bolhas"><div class="bolha">ouviste o álbum novo?</div><div class="bolha minha">ainda não, é bom?</div>
+      <div class="bolha">o 3.º tema é absurdo</div><div class="bolha minha">vou pôr agora</div></div>
+      <div class="campo">Message…</div>`;
+  }
+  return `<div class="rolar"><div class="cab"><h3>Liked Songs</h3><p>412 saved songs</p></div>
+    <div class="botoes"><div style="background:${cor};color:#0B0B0E">${svg(PLAY, '#0B0B0E', 18)} Play</div><div style="background:rgba(255,255,255,.08)">Shuffle</div></div>
+    ${MUSICAS.map(([t, a, c]) => `<div class="linha" data-musica><div class="capa ${c}"></div><div class="m"><b>${t}</b><span>${a}</span></div><span class="mais">···</span></div>`).join('')}
+    <div style="height:200px"></div></div>`;
+}
+function doca5() {
+  // O chat é um ecrã inteiro por cima de tudo (já hoje): não há base.
+  if (ecra === 'chat') return '';
+  const nasDefinicoes = ecra === 'definicoes';
+  if (base === 'hoje') {
+    // Hoje, nas Definições, a barra dos separadores sai mas o mini-player fica onde estava.
+    const mini = fechado ? '' : `<div class="mini deslizar${entrar ? ' entra' : ''}">${miniHTML()}${fioHTML()}</div>`;
+    return `<div class="doca hoje">${mini}${nasDefinicoes ? '' : `<div class="barra">${separadoresHTML()}</div>`}</div>`;
+  }
+  if (base === 'A') {
+    const zona = fechado ? '' : `<div class="zona-mini${entrar ? ' abre' : ''}"><div class="deslizar">${miniHTML()}${fioHTML()}</div></div>`;
+    return `<div class="doca A"><div class="base">${zona}${separadoresHTML()}</div></div>`;
+  }
+  const mini = fechado ? '' : `<div class="capsula-mini vidro deslizar${entrar ? ' entra' : ''}">${miniHTML()}${fioHTML()}</div>`;
+  return `<div class="doca B">${mini}<div class="capsula-sep vidro">${separadoresHTML()}</div></div>`;
+}
+function dica5() {
+  if (ecra === 'chat') return 'O chat já hoje tapa o mini-player e a barra: é um ecrã inteiro por cima de tudo. Fica assim.';
+  if (ecra === 'definicoes') return base === 'hoje'
+    ? 'Hoje: nas Definições a barra dos separadores sai, mas o mini-player fica a flutuar no mesmo sítio, por cima de nada.'
+    : 'Proposta: nos ecrãs que abrem por cima (Definições, importar, Library check, editar perfil) a base inteira desce e sai. Volta ao voltar atrás.';
+  if (fechado) return base === 'A'
+    ? 'Música fechada: a base fica só com os separadores, com o mesmo vidro e os mesmos cantos. Toca numa música da lista para voltar.'
+    : 'Música fechada. Toca numa música da lista para voltar.';
+  return DICAS[base] + ' Arrasta a música para a direita para a fechar.';
+}
+function ligarDeslize(el, aoFechar) {
+  let x0 = null, y0 = 0, dx = 0, arrastou = false, ultimo = [0, 0], vel = 0;
+  el.addEventListener('pointerdown', (e) => { x0 = e.clientX; y0 = e.clientY; dx = 0; arrastou = false; vel = 0; ultimo = [e.clientX, performance.now()]; });
+  el.addEventListener('pointermove', (e) => {
+    if (x0 === null) return;
+    const ddx = (e.clientX - x0) / S, ddy = (e.clientY - y0) / S;
+    if (!arrastou) {
+      if (Math.abs(ddy) > 10) { x0 = null; return; }
+      if (ddx < 8) return;
+      arrastou = true;
+      el.setPointerCapture(e.pointerId);
+      el.style.transition = 'none';
+    }
+    const agora = performance.now();
+    vel = ((e.clientX - ultimo[0]) / S) / Math.max(1, agora - ultimo[1]);
+    ultimo = [e.clientX, agora];
+    dx = Math.max(0, ddx);
+    el.style.transform = `translateX(${dx}px)`;
+    el.style.opacity = String(1 - Math.min(1, dx / 390) * 0.75);
+  });
+  const fim = () => {
+    if (x0 === null) return;
+    x0 = null;
+    if (!arrastou) return;
+    el.style.transition = 'transform .26s cubic-bezier(.2,.8,.2,1), opacity .26s';
+    if (dx > 130 || (dx > 30 && vel > 0.5)) {
+      el.style.transform = 'translateX(420px)';
+      el.style.opacity = '0';
+      setTimeout(aoFechar, 230);
+    } else {
+      el.style.transform = '';
+      el.style.opacity = '';
+    }
+  };
+  el.addEventListener('pointerup', fim);
+  el.addEventListener('pointercancel', fim);
+  // Um arrasto não é um toque nos botões de baixo.
+  el.addEventListener('click', (e) => { if (arrastou) { e.stopPropagation(); arrastou = false; } }, true);
+}
+function fecharMusica() {
+  const zona = t5.querySelector('.zona-mini');
+  const acabar = () => { fechado = true; desenhar5(); };
+  if (zona) { zona.style.maxHeight = '0px'; setTimeout(acabar, 330); } else acabar();
+}
 function desenhar5() {
   const topo = t5.querySelector('.rolar')?.scrollTop ?? 0;
-  const lista = `<div class="rolar"><div class="cab"><h3>Liked Songs</h3><p>412 saved songs</p></div>
-    <div class="botoes"><div style="background:${cor};color:#0B0B0E">${svg(PLAY, '#0B0B0E', 18)} Play</div><div style="background:rgba(255,255,255,.08)">Shuffle</div></div>
-    ${MUSICAS.map(([t, a, c]) => `<div class="linha"><div class="capa ${c}"></div><div class="m"><b>${t}</b><span>${a}</span></div><span class="mais">···</span></div>`).join('')}
-    <div style="height:200px"></div></div>`;
-  let fundo = '';
-  if (base === 'hoje') {
-    fundo = `<div class="hoje"><div class="mini"><div class="mini-l" style="flex:1">${miniHTML().replace('<div class="mini-l">', '').replace(/<\/div>$/, '')}</div>
-      <div class="fio"><i style="width:${progresso * 100}%"></i></div></div><div class="barra">${separadoresHTML()}</div></div>`;
-  } else if (base === 'A') {
-    fundo = `<div class="A"><div class="base">${miniHTML()}<div class="fio"><i style="width:${progresso * 100}%"></i></div>${separadoresHTML()}</div></div>`;
-  } else {
-    fundo = `<div class="B"><div class="capsula-mini vidro">${miniHTML()}<div class="fio"><i style="width:${progresso * 100}%"></i></div></div>
-      <div class="capsula-sep vidro">${separadoresHTML()}</div></div>`;
-  }
-  t5.innerHTML = lista + fundo;
+  t5.innerHTML = conteudo5() + doca5();
+  entrar = false;
   t5.style.setProperty('--accent', cor);
   t5.style.setProperty('--tinta', misturar(cor, base === 'B' ? 0.20 : 0.24));
   comum(t5);
-  t5.querySelector('.rolar').scrollTop = topo;
+  const rolar = t5.querySelector('.rolar');
+  if (rolar) rolar.scrollTop = topo;
+  // Nas Definições (propostas A e B), a base inteira desce e sai -- animado ao trocar de ecrã.
+  const doca = t5.querySelector('.doca');
+  if (doca) {
+    const escondida = ecra === 'definicoes' && base !== 'hoje';
+    doca.style.transform = docaEscondidaAntes ? 'translateY(115%)' : '';
+    if (escondida !== docaEscondidaAntes) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        doca.style.transition = 'transform .4s cubic-bezier(.2,.8,.2,1)';
+        doca.style.transform = escondida ? 'translateY(115%)' : '';
+      }));
+    }
+    docaEscondidaAntes = escondida;
+  }
   t5.querySelectorAll('[data-sep]').forEach((el) => el.onclick = () => { separador = el.dataset.sep; desenhar5(); });
   t5.querySelectorAll('[data-tocar]').forEach((el) => el.onclick = () => { aTocar5 = !aTocar5; desenhar5(); });
-  document.getElementById('dica5').textContent = DICAS[base];
+  t5.querySelectorAll('[data-musica]').forEach((el) => el.onclick = () => {
+    if (!fechado) return;
+    fechado = false; entrar = true; aTocar5 = true; desenhar5();
+  });
+  const arrastavel = t5.querySelector('.deslizar');
+  if (arrastavel) ligarDeslize(arrastavel, fecharMusica);
+  document.getElementById('dica5').textContent = dica5();
 }
 document.querySelectorAll('#s5 [data-b]').forEach((b) => b.onclick = () => {
   base = b.dataset.b;
   document.querySelectorAll('#s5 [data-b]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  desenhar5();
+});
+document.querySelectorAll('#s5 [data-ecra]').forEach((b) => b.onclick = () => {
+  ecra = b.dataset.ecra;
+  document.querySelectorAll('#s5 [data-ecra]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   desenhar5();
 });
 document.querySelectorAll('#s5 [data-cor]').forEach((b) => b.onclick = () => {
