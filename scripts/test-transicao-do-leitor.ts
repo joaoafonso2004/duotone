@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  atravesDoCartao, cartaoDoArrasto, deLado, deLadoInverso, destinoNoMini, deveFechar, molaIOS,
+  amostrasDoDedo, atravesDoCartao, cartaoDoArrasto, deLado, deLadoInverso, destinoNoMini, deveFechar, molaIOS,
   velocidadeDeAterragem, velocidadeDeVolta, type Geometria,
 } from '../src/lib/transicaoDoLeitor.ts';
 
@@ -73,6 +73,50 @@ caso('largar: fecha com arrasto ou com velocidade, e a aterragem leva a velocida
   assert.ok(velocidadeDeVolta(cartaoDoArrasto(0, 60, H), 300) > 0, 'a voltar, continua primeiro o dedo');
 });
 
+caso('o dedo no motor nativo: as amostras acertam nas contas exatas (3/10)', () => {
+  const a = amostrasDoDedo();
+  const interp = (r: { inputRange: number[]; outputRange: number[] }, v: number) => {
+    const { inputRange: i, outputRange: o } = r;
+    if (v <= i[0]) return o[0];
+    for (let k = 1; k < i.length; k++) if (v <= i[k]) return o[k - 1] + ((v - i[k - 1]) / (i[k] - i[k - 1])) * (o[k] - o[k - 1]);
+    return o[o.length - 1];
+  };
+  for (const r of [a.x, a.yFracao, a.g, a.esc])
+    for (let k = 1; k < r.inputRange.length; k++) assert.ok(r.inputRange[k] > r.inputRange[k - 1], 'as entradas têm de subir');
+  const H = 844;
+  let piorX = 0, piorY = 0, piorEsc = 0, piorG = 0;
+  for (let dx = -900; dx <= 900; dx += 7) {
+    const exato = cartaoDoArrasto(dx, 0, H).tx;
+    piorX = Math.max(piorX, Math.abs(interp(a.x, dx) - exato));
+  }
+  for (let dy = -700; dy <= 900; dy += 5) {
+    const c = cartaoDoArrasto(0, dy, H);
+    const g = interp(a.g, dy / H);
+    piorY = Math.max(piorY, Math.abs(interp(a.yFracao, dy / H) * H - c.ty));
+    piorG = Math.max(piorG, Math.abs(g - c.g));
+    piorEsc = Math.max(piorEsc, Math.abs(interp(a.esc, g) - c.esc));
+  }
+  assert.ok(piorX < 3, `para o lado erra ${piorX.toFixed(2)} pt`);
+  assert.ok(piorY < 3, `na vertical erra ${piorY.toFixed(2)} pt`);
+  assert.ok(piorG < 0.001, `o arrasto erra ${piorG}`);
+  assert.ok(piorEsc < 0.01, `a escala erra ${piorEsc.toFixed(4)}`);
+});
+
+caso('o gesto de fechar é do Gesture Handler, com o dedo no motor nativo (3/10)', () => {
+  const leitor = readFileSync('src/components/PlayerRoot.tsx', 'utf8');
+  const estado = readFileSync('src/state/transicaoDoLeitor.ts', 'utf8');
+  assert.doesNotMatch(leitor, /dismissPan/, 'o PanResponder do fecho saiu');
+  assert.match(leitor, /<PanGestureHandler[\s\S]{0,200}onGestureEvent=\{eventoDoDedo\}/);
+  assert.match(leitor, /translationX: dedoX, translationY: dedoY[\s\S]{0,40}useNativeDriver: true/);
+  // No fim, o dedo passa para os valores de sempre e volta a 0, juntos.
+  assert.match(leitor, /arrasto\.setValue\(c\.g\);\s*dedoX\.setValue\(0\);\s*dedoY\.setValue\(0\);/);
+  for (const v of ['cartaoXVisto', 'cartaoYVisto', 'cartaoEscVisto', 'arrastoVisto'])
+    assert.match(estado, new RegExp(`export const ${v} =`), v);
+  // Os derivados leem o que se vê (com o dedo), não o valor cru.
+  assert.doesNotMatch(estado, /suave\(arrasto,/);
+  assert.match(readFileSync('App.tsx', 'utf8'), /<GestureHandlerRootView/);
+});
+
 caso('as ligações: 120 Hz, a app de trás, o gesto e a pose', () => {
   const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8');
   const app = JSON.parse(ler('app.json'));
@@ -83,7 +127,7 @@ caso('as ligações: 120 Hz, a app de trás, o gesto e a pose', () => {
   const leitor = ler('src/components/PlayerRoot.tsx');
   assert.doesNotMatch(leitor, /translateY: dragY|dragY\.setValue/, 'o arrasto já não é só descer a página');
   assert.match(leitor, /\{ scale: folhaEscala \}/, 'a página cresce ao abrir e encolhe no gesto');
-  assert.match(leitor, /Animated\.add\(cartaoX, Animated\.multiply\(Animated\.add\(cartaoEsc, -1\), kx\)\)/, 'a capa vai com o cartão');
+  assert.match(leitor, /Animated\.add\(cartaoXVisto, Animated\.multiply\(Animated\.add\(cartaoEscVisto, -1\), kx\)\)/, 'a capa vai com o cartão');
   assert.match(leitor, /forcaDaPose=\{forcaDaPose\}/, 'a capa perde a pose com o gesto');
   const estado = ler('src/state/transicaoDoLeitor.ts');
   assert.doesNotMatch(estado, /useNativeDriver: false/);
@@ -115,7 +159,7 @@ caso('a aterragem e a abertura não se atropelam (os bugs da 4.1.6)', () => {
   assert.doesNotMatch(leitor, /speed: 14,\s*bounciness: 3/, 'o voo da linha usa a mola do iOS');
   // O mini-player desce para o sítio dele no gesto (subia 12 pt e dava um salto no fim).
   const estado = ler('src/state/transicaoDoLeitor.ts');
-  assert.match(estado, /const miniSobe = Animated\.multiply\(\s*Animated\.multiply\(suave\(abertura, 0, 0\.3\), suave\(arrasto, 0\.05, 0\.4, true\)\),\s*suave\(aterrar, 0, 0\.3, true\),\s*\);/);
+  assert.match(estado, /const miniSobe = Animated\.multiply\(\s*Animated\.multiply\(suave\(abertura, 0, 0\.3\), suave\(arrastoVisto, 0\.05, 0\.4, true\)\),\s*suave\(aterrar, 0, 0\.3, true\),\s*\);/);
   // O leitor abre com a música nova, e não com a anterior antes das esperas.
   const store = ler('src/state/player.ts');
   assert.doesNotMatch(store, /if \(shouldExpand && !get\(\)\.expanded\) set\(\{ expanded: true \}\);/);

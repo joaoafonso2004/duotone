@@ -34,7 +34,6 @@ import {
   Alert,
   Animated,
   AppState,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -89,9 +88,11 @@ import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { limparOrigem, origemValida, type RectanguloDaCapa } from '../state/origemDaCapa';
 import { reafirmarComandosDeFaixa } from '../lib/comandosDeFaixa';
 import {
-  abertura, arrasto, aterrar, cartaoEsc, cartaoX, cartaoY,
+  abertura, arrasto, aterrar, cartaoEsc, cartaoEscVisto, cartaoX, cartaoXVisto, cartaoY, cartaoYVisto,
+  dedoX, dedoY, definirAlturaDoEcra,
   ESCADA, folhaEscala, folhaOpacidade, folhaRaio, forcaDaPose, miniEscala, miniOpacidade, miniSubir, reporGesto,
 } from '../state/transicaoDoLeitor';
+import { PanGestureHandler, State, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import {
   cartaoDoArrasto, deLadoInverso, destinoNoMini, deveFechar, molaIOS, velocidadeDeAterragem, velocidadeDeVolta,
   type Geometria,
@@ -144,6 +145,8 @@ export function PlayerRoot() {
   const offlineId=useAuth(s=>s.session?.user.id??s.offlineUserId);
   const insets = useSafeAreaInsets();
   const { width: W, height: H, fontScale } = useWindowDimensions();
+  // As contas do arrasto, que correm no motor nativo, são em frações da altura.
+  useEffect(() => { definirAlturaDoEcra(H); }, [H]);
   const theme = useTheme((s) => s.theme);
   const estiloDaCapa = useCapaIOS((s) => s.style);
   const estiloDaCapaCarregado = useCapaIOS((s) => s.loaded);
@@ -226,21 +229,44 @@ export function PlayerRoot() {
   const dragX = useRef(new Animated.Value(0)).current;
   const widthRef = useRef(W); widthRef.current = W;
   const swiping = useRef(false);
-  const swipeClose = useRef(PanResponder.create({
-    onMoveShouldSetPanResponder: (_e,g) => !usePlayer.getState().expanded && !usePlayer.getState().closing && g.dx>12 && g.dx>Math.abs(g.dy)*1.5,
-    onPanResponderGrant: () => { swiping.current=true; },
-    onPanResponderMove: (_e,g) => dragX.setValue(Math.max(0,g.dx)),
-    onPanResponderRelease: (_e,g) => {
-      if(confirmaSwipe(g.dx,g.dy,g.vx,widthRef.current)) void closePlayerSmoothly().then(() => {
-        Animated.spring(dragX,{toValue:0,useNativeDriver:true}).start();
-      });
-      else Animated.spring(dragX,{toValue:0,useNativeDriver:true}).start();
-      setTimeout(()=>{swiping.current=false;},200);
-    },
-    onPanResponderTerminate: () => {swiping.current=false;Animated.spring(dragX,{toValue:0,useNativeDriver:true}).start();},
-  })).current;
-  useEffect(()=>{dragX.setValue(0);},[current,dragX]);
-  const miniFade=useMemo(()=>Animated.multiply(closeGain,dragX.interpolate({inputRange:[0,W],outputRange:[1,0.2],extrapolate:'clamp'})),[closeGain,dragX,W]);
+  /*
+   * Deslizar o mini-player para a direita fecha o leitor (decisão do João,
+   * 3/10). Como o fecho do leitor aberto, o dedo é do Gesture Handler: escreve
+   * em `dedoDoMini` no motor nativo e o que se vê é `dragX` mais ele. O
+   * JavaScript só decide no fim se fecha. Duas vistas (o mini e a capa
+   * pequena), dois eventos: um `Animated.event` só se liga a uma.
+   */
+  const dedoDoMini = useRef(new Animated.Value(0)).current;
+  const eventoDoMini = useMemo(
+    () => Animated.event([{ nativeEvent: { translationX: dedoDoMini } }], { useNativeDriver: true }),
+    [dedoDoMini],
+  );
+  const eventoDaCapaNoMini = useMemo(
+    () => Animated.event([{ nativeEvent: { translationX: dedoDoMini } }], { useNativeDriver: true }),
+    [dedoDoMini],
+  );
+  // Só para a direita (era o `Math.max(0, dx)`).
+  const dragXVisto = useMemo(
+    () => Animated.add(dragX, dedoDoMini).interpolate({
+      inputRange: [0, 1], outputRange: [0, 1], extrapolateLeft: 'clamp', extrapolateRight: 'extend',
+    }),
+    [dragX, dedoDoMini],
+  );
+  const aoMudarODeslizeDoMini = useCallback((e: PanGestureHandlerStateChangeEvent) => {
+    const { state, oldState, translationX, translationY, velocityX } = e.nativeEvent;
+    if (state === State.ACTIVE) { swiping.current = true; dragX.stopAnimation(); return; }
+    if (oldState !== State.ACTIVE) return;
+    dragX.setValue(Math.max(0, translationX));
+    dedoDoMini.setValue(0);
+    const voltar = () => Animated.spring(dragX, { toValue: 0, useNativeDriver: true }).start();
+    // O `confirmaSwipe` conta a velocidade em pt/ms (a do PanResponder).
+    if (state === State.END && confirmaSwipe(translationX, translationY, velocityX / 1000, widthRef.current)) {
+      void closePlayerSmoothly().then(voltar);
+    } else voltar();
+    setTimeout(() => { swiping.current = false; }, 200);
+  }, [dragX, dedoDoMini]);
+  useEffect(()=>{dragX.setValue(0);dedoDoMini.setValue(0);},[current,dragX,dedoDoMini]);
+  const miniFade=useMemo(()=>Animated.multiply(closeGain,dragXVisto.interpolate({inputRange:[0,W],outputRange:[1,0.2],extrapolate:'clamp'})),[closeGain,dragXVisto,W]);
   /**
    * Os nós animados que dependem da geometria (o voo da capa, o mini-player),
    * guardados entre desenhos (2/10). Eram refeitos a CADA desenho, e um nó novo
@@ -751,7 +777,7 @@ export function PlayerRoot() {
   const folhaSubir = useMemo(() => Animated.add(
     Animated.add(
       anim.interpolate({ inputRange: [0, 1], outputRange: [H * 0.314, 0], extrapolate: 'extend' }),
-      cartaoY,
+      cartaoYVisto,
     ),
     Animated.multiply(Animated.add(folhaEscala, -1), H * 0.1),
   ), [anim, H]);
@@ -777,43 +803,50 @@ export function PlayerRoot() {
    * o `swipeClose` usa: sobre a página inteira há botões por todo o lado, e 6 px
    * de deriva ao carregar num deles não pode começar a fechar o ecrã.
    */
-  const dismissPan = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) =>
-        !aterrandoRef.current && g.dy > 12 && g.dy > Math.abs(g.dx) * 1.5,
-      onPanResponderGrant: () => {
-        // Um cartão apanhado a meio da volta ao sítio continua de onde está.
-        arrastandoRef.current = true;
-        const ge = gestoRef.current;
-        let tx = 0, ty = 0;
-        cartaoX.stopAnimation((v) => { tx = v; });
-        cartaoY.stopAnimation((v) => { ty = v; });
-        cartaoEsc.stopAnimation();
-        arrasto.stopAnimation();
-        ge.baseDx = deLadoInverso(tx);
-        ge.baseDy = ty > 0 ? ty / 0.62 : 0;
-      },
-      onPanResponderMove: (_e, g) => {
-        const ge = gestoRef.current;
-        const c = cartaoDoArrasto(ge.baseDx + g.dx, ge.baseDy + g.dy, geometriaRef.current.H);
-        ge.g = c.g; ge.esc = c.esc; ge.tx = c.tx; ge.ty = c.ty;
-        cartaoX.setValue(c.tx);
-        cartaoY.setValue(c.ty);
-        cartaoEsc.setValue(c.esc);
-        arrasto.setValue(c.g);
-      },
-      onPanResponderRelease: (_e, g) => {
-        arrastandoRef.current = false;
-        const vx = g.vx * 1000, vy = g.vy * 1000; // pontos por segundo
-        if (deveFechar(gestoRef.current, vy)) fecharRef.current.aterrarNoMini(vx, vy);
-        else fecharRef.current.voltarAoSitio(vy);
-      },
-      onPanResponderTerminate: () => {
-        arrastandoRef.current = false;
-        fecharRef.current.voltarAoSitio(0);
-      },
-    })
-  ).current;
+  /*
+   * Desde 3/10 o dedo é do Gesture Handler, na thread da interface: o cartão
+   * segue-o mesmo com o JavaScript ocupado (a música nova a montar-se, um
+   * download a acabar), que era o "encrava e dá snap". O dedo escreve-se
+   * direto em `dedoX`/`dedoY` (`Animated.event` nativo) e o que se desenha é
+   * o valor de sempre mais o dele (state/transicaoDoLeitor.ts). O JavaScript só
+   * entra no princípio (parar o que estava a andar) e no fim: junta o dedo nos
+   * valores de sempre, no mesmo fotograma, e lança as molas de antes.
+   * Ativa com 12 pt para baixo e falha com 16 pt para o lado (o cubo, a barra).
+   */
+  const eventoDoDedo = useMemo(
+    () => Animated.event([{ nativeEvent: { translationX: dedoX, translationY: dedoY } }], { useNativeDriver: true }),
+    [],
+  );
+  const aoMudarOGesto = useCallback((e: PanGestureHandlerStateChangeEvent) => {
+    const { state, oldState, translationX, translationY, velocityX, velocityY } = e.nativeEvent;
+    const ge = gestoRef.current;
+    if (state === State.ACTIVE) {
+      // Um cartão apanhado a meio da volta ao sítio continua de onde está.
+      arrastandoRef.current = true;
+      let tx = 0, ty = 0;
+      cartaoX.stopAnimation((v) => { tx = v; });
+      cartaoY.stopAnimation((v) => { ty = v; });
+      cartaoEsc.stopAnimation();
+      arrasto.stopAnimation();
+      ge.baseDx = deLadoInverso(tx);
+      ge.baseDy = ty > 0 ? ty / 0.62 : 0;
+      return;
+    }
+    if (oldState !== State.ACTIVE) return;
+    arrastandoRef.current = false;
+    // O dedo passa para os valores de sempre, e volta a 0, no mesmo fotograma.
+    const c = cartaoDoArrasto(ge.baseDx + translationX, ge.baseDy + translationY, geometriaRef.current.H);
+    ge.g = c.g; ge.esc = c.esc; ge.tx = c.tx; ge.ty = c.ty;
+    cartaoX.setValue(c.tx);
+    cartaoY.setValue(c.ty);
+    cartaoEsc.setValue(c.esc);
+    arrasto.setValue(c.g);
+    dedoX.setValue(0);
+    dedoY.setValue(0);
+    // A velocidade do Gesture Handler já vem em pontos por segundo.
+    if (state === State.END && deveFechar(ge, velocityY)) fecharRef.current.aterrarNoMini(velocityX, velocityY);
+    else fecharRef.current.voltarAoSitio(state === State.END ? velocityY : 0);
+  }, []);
 
   // Estado do botão "guardar" da faixa atual (reinicia a cada nova música).
   const [saved, setSaved] = useState(false);
@@ -1084,16 +1117,16 @@ export function PlayerRoot() {
         translateX: Animated.add(
           Animated.add(
             voo(deslocacaoOrigem.x, deslocacaoMini.x, arcoX),
-            aberto || reducedMotion ? 0 : Animated.add(dragX, (1 - closeGain) * W)
+            aberto || reducedMotion ? 0 : Animated.add(dragXVisto, (1 - closeGain) * W)
           ),
           // O cartão do gesto: a capa vai com ele, à volta do mesmo pivô.
-          Animated.add(cartaoX, Animated.multiply(Animated.add(cartaoEsc, -1), kx)),
+          Animated.add(cartaoXVisto, Animated.multiply(Animated.add(cartaoEscVisto, -1), kx)),
         ),
       },
       {
         translateY: Animated.add(
           voo(deslocacaoOrigem.y, deslocacaoMini.y, arcoY),
-          Animated.add(cartaoY, Animated.multiply(Animated.add(cartaoEsc, -1), ky)),
+          Animated.add(cartaoYVisto, Animated.multiply(Animated.add(cartaoEscVisto, -1), ky)),
         ),
       },
       {
@@ -1102,7 +1135,7 @@ export function PlayerRoot() {
             inputRange: faixaDoVoo,
             outputRange: saidaDoVoo(escalaOrigem, escalaMini, 1),
           }),
-          cartaoEsc,
+          cartaoEscVisto,
         ),
       },
     ];
@@ -1115,7 +1148,7 @@ export function PlayerRoot() {
       molduraOpacidade: aberto ? visibilityAnim : Animated.multiply(visibilityAnim, miniFade),
       moldura: { borderRadius: animRaio.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) },
       miniTransform: [
-        { translateX: reducedMotion ? 0 : Animated.add(dragX, (1 - closeGain) * W) },
+        { translateX: reducedMotion ? 0 : Animated.add(dragXVisto, (1 - closeGain) * W) },
         { translateY: miniSubir },
         { scale: miniEscala },
       ],
@@ -1300,9 +1333,15 @@ export function PlayerRoot() {
       {/* A página nasce a crescer (0,86 -> 1) e a subir, e no gesto é o
           cartão que encolhe com o dedo. Tudo à volta do mesmo pivô (50%, 40%),
           que é o da capa no `vooDaMoldura`. Ver state/transicaoDoLeitor.ts. */}
+      <PanGestureHandler
+        enabled={expanded && !aterrando}
+        activeOffsetY={12}
+        failOffsetX={[-16, 16]}
+        onGestureEvent={eventoDoDedo}
+        onHandlerStateChange={aoMudarOGesto}
+      >
       <Animated.View
         pointerEvents={expanded && !aterrando ? 'auto' : 'none'}
-        {...dismissPan.panHandlers}
         style={[
           styles.full,
           {
@@ -1310,7 +1349,7 @@ export function PlayerRoot() {
             opacity: folhaOpacidade,
             borderRadius: folhaRaio,
             transform: [
-              { translateX: cartaoX },
+              { translateX: cartaoXVisto },
               { translateY: folhaSubir },
               { scale: folhaEscala },
             ],
@@ -1731,9 +1770,16 @@ export function PlayerRoot() {
           </Animated.View>
         </ScrollView>
       </Animated.View>
+      </PanGestureHandler>
 
+      <PanGestureHandler
+        enabled={!expanded && !shouldHide}
+        activeOffsetX={12}
+        failOffsetY={[-12, 12]}
+        onGestureEvent={eventoDoMini}
+        onHandlerStateChange={aoMudarODeslizeDoMini}
+      >
       <Animated.View
-        {...swipeClose.panHandlers}
         accessibilityActions={[{name:'dismiss',label:'Close player'}]}
         onAccessibilityAction={()=>void closePlayerSmoothly()}
         pointerEvents={shouldHide || expanded ? 'none' : 'auto'}
@@ -1817,6 +1863,7 @@ export function PlayerRoot() {
             <PreenchimentoDoMini />
           </View>
         </Animated.View>
+      </PanGestureHandler>
 
       {/* Os avisos do Jam, por cima do leitor pequeno. A barra permanente que
           aqui vivia saiu (11/9/2026): quem está e o que vem a seguir vêem-se no
@@ -1882,8 +1929,14 @@ export function PlayerRoot() {
 
       {/* ============ FRAME DE VÍDEO YOUTUBE (flutuante, nunca desmonta) ============ */}
       {current ? (
+        <PanGestureHandler
+          enabled={!aberto && !shouldHide}
+          activeOffsetX={12}
+          failOffsetY={[-12, 12]}
+          onGestureEvent={eventoDaCapaNoMini}
+          onHandlerStateChange={aoMudarODeslizeDoMini}
+        >
         <Animated.View
-          {...(!aberto ? swipeClose.panHandlers : {})}
           pointerEvents={shouldHide ? 'none' : 'auto'}
           style={{
             position: 'absolute',
@@ -1970,6 +2023,7 @@ export function PlayerRoot() {
             />
           ) : null}
         </Animated.View>
+        </PanGestureHandler>
       ) : null}
 
       {/* ===================== TOAST DE ERRO ===================== */}

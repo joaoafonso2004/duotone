@@ -91,3 +91,33 @@ export function velocidadeDeVolta(c: Cartao, vy: number): number {
 export function deveFechar(c: Cartao, vy: number): boolean {
   return c.g > LARGAR_PARA_FECHAR.arrasto || vy > LARGAR_PARA_FECHAR.velocidade;
 }
+
+/**
+ * As contas do `cartaoDoArrasto` em amostras, para o motor nativo as
+ * interpolar por troços (3/10: o dedo passou para a thread da interface e lá
+ * não corre JavaScript). `test-transicao-do-leitor.ts` mede o erro contra as
+ * contas exatas.
+ *
+ * - `x`: dedo (pt) -> deslocação para o lado (pt);
+ * - `yFracao`: dedo/altura -> deslocação vertical/altura;
+ * - `g`: dedo/altura -> quanto se arrastou (0..1);
+ * - `esc`: quanto se arrastou -> escala do cartão.
+ */
+export function amostrasDoDedo() {
+  const xs = [0, 20, 45, 80, 130, 200, 300, 450, 700, 1100, 1800];
+  const negativos = xs.slice(1).reverse();
+  const acima = [1.5, 1, 0.6, 0.35, 0.2, 0.1, 0.04];
+  const gs = [0, 0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 0.9, 1];
+  return {
+    x: {
+      inputRange: [...negativos.map((x) => -x), ...xs],
+      outputRange: [...negativos.map((x) => -deLado(x)), ...xs.map(deLado)],
+    },
+    yFracao: {
+      inputRange: [...acima.map((u) => -u), 0, 2],
+      outputRange: [...acima.map((u) => -(1 - 1 / (u * 0.55 + 1)) * 0.6), 0, 1.24],
+    },
+    g: { inputRange: [0, ARRASTO_TOTAL], outputRange: [0, 1] },
+    esc: { inputRange: gs, outputRange: gs.map((g) => 1 - ENCOLHER * (1 - Math.pow(1 - g, 1.6))) },
+  };
+}

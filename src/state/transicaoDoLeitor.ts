@@ -1,5 +1,7 @@
 import { Animated } from 'react-native';
 
+import { amostrasDoDedo } from '../lib/transicaoDoLeitor';
+
 export { deLado, deLadoInverso, molaIOS } from '../lib/transicaoDoLeitor';
 
 /**
@@ -34,8 +36,43 @@ export const arrasto = new Animated.Value(0);
 /** Depois de largar: quanto o cartão já aterrou no mini-player, de 0 a 1. */
 export const aterrar = new Animated.Value(0);
 
+/**
+ * O dedo, em pontos desde o início do arrasto (3/10). Escrito pelo Gesture
+ * Handler na thread da interface (`Animated.event` nativo): o cartão segue o
+ * dedo mesmo com o JavaScript ocupado -- era o "encrava e dá snap". As contas
+ * do `cartaoDoArrasto` passam a interpolações por amostras, e o que se desenha
+ * é o valor de sempre MAIS o do dedo (os `*Visto`). Ao largar, o JavaScript
+ * junta os dois nos valores de sempre e põe o dedo a 0, no mesmo fotograma.
+ */
+export const dedoX = new Animated.Value(0);
+export const dedoY = new Animated.Value(0);
+/** A altura do ecrã (e o inverso): as contas do arrasto são em frações dela. */
+export const alturaDoEcra = new Animated.Value(844);
+const inversoDaAltura = new Animated.Value(1 / 844);
+export function definirAlturaDoEcra(H: number): void {
+  if (!(H > 0)) return;
+  alturaDoEcra.setValue(H);
+  inversoDaAltura.setValue(1 / H);
+}
+
+const amostras = amostrasDoDedo();
+const txDoDedo = dedoX.interpolate({ ...amostras.x, extrapolate: 'clamp' });
+const fracaoY = Animated.multiply(dedoY, inversoDaAltura);
+/** Para baixo, 0,62 do dedo; para cima estica com resistência (o `cartaoDoArrasto`). */
+const tyDoDedo = Animated.multiply(fracaoY.interpolate({ ...amostras.yFracao, extrapolate: 'clamp' }), alturaDoEcra);
+const gDoDedo = fracaoY.interpolate({ ...amostras.g, extrapolate: 'clamp' });
+const escDoDedo = gDoDedo.interpolate({ ...amostras.esc, extrapolate: 'clamp' });
+
+/** O que se desenha: os valores de sempre mais o dedo. */
+export const cartaoXVisto = Animated.add(cartaoX, txDoDedo);
+export const cartaoYVisto = Animated.add(cartaoY, tyDoDedo);
+export const cartaoEscVisto = Animated.multiply(cartaoEsc, escDoDedo);
+export const arrastoVisto = Animated.add(arrasto, gDoDedo);
+
 /** Volta tudo ao repouso do gesto (sem mexer na abertura). */
 export function reporGesto(): void {
+  dedoX.setValue(0);
+  dedoY.setValue(0);
   cartaoX.setValue(0);
   cartaoY.setValue(0);
   cartaoEsc.setValue(1);
@@ -68,7 +105,7 @@ const aberto01 = abertura.interpolate({ inputRange: [0, 1], outputRange: [0, 1],
 export const recuoDoFundo = Animated.multiply(
   Animated.multiply(
     aberto01,
-    arrasto.interpolate({
+    arrastoVisto.interpolate({
       inputRange: [0, 0.1875, 0.375, 0.5625, 0.75],
       outputRange: [1, 1 - 0.92 * 0.15625, 1 - 0.92 * 0.5, 1 - 0.92 * 0.84375, 1 - 0.92],
       extrapolate: 'clamp',
@@ -79,17 +116,17 @@ export const recuoDoFundo = Animated.multiply(
 
 /** A pose 3D da capa: chega no fim da abertura, sai com o gesto (o mini é plano). */
 export const forcaDaPose = Animated.multiply(
-  Animated.multiply(suave(abertura, 0.55, 1), suave(arrasto, 0, 0.55, true)),
+  Animated.multiply(suave(abertura, 0.55, 1), suave(arrastoVisto, 0, 0.55, true)),
   aterrar.interpolate({ inputRange: [0, 1 / 1.6], outputRange: [1, 0], extrapolate: 'clamp' }),
 );
 
 /** O que não é a capa nem o título sai primeiro do cartão; o título aguenta mais. */
-export const restoDoGesto = Animated.multiply(suave(arrasto, 0.02, 0.42, true), suave(aterrar, 0, 0.3, true));
-export const tituloDoGesto = Animated.multiply(suave(arrasto, 0.3, 0.85, true), suave(aterrar, 0, 0.32, true));
+export const restoDoGesto = Animated.multiply(suave(arrastoVisto, 0.02, 0.42, true), suave(aterrar, 0, 0.3, true));
+export const tituloDoGesto = Animated.multiply(suave(arrastoVisto, 0.3, 0.85, true), suave(aterrar, 0, 0.32, true));
 
 /** O mini-player aparece por baixo do cartão: primeiro uma promessa, depois a sério. */
 export const miniDoGesto = Animated.add(
-  arrasto.interpolate({
+  arrastoVisto.interpolate({
     inputRange: [0.15, 0.3625, 0.575, 0.7875, 1],
     outputRange: [0, 0.55 * 0.15625, 0.55 * 0.5, 0.55 * 0.84375, 0.55],
     extrapolate: 'clamp',
@@ -126,14 +163,14 @@ export const folhaOpacidade = Animated.multiply(suave(abertura, 0, 0.42), suave(
 export const folhaRaio = Animated.add(
   abertura.interpolate({ inputRange: [0, 0.9375, 1, 1.0625], outputRange: [48, 48, 0, 48], extrapolate: 'clamp' }),
   Animated.divide(
-    Animated.add(arrasto, aterrar).interpolate({ inputRange: [0, 0.1], outputRange: [0, 46], extrapolate: 'clamp' }),
-    cartaoEsc,
+    Animated.add(arrastoVisto, aterrar).interpolate({ inputRange: [0, 0.1], outputRange: [0, 46], extrapolate: 'clamp' }),
+    cartaoEscVisto,
   ),
 );
 /** A página nasce a 0,86 e cresce até 1; no gesto, encolhe com o cartão. */
 export const folhaEscala = Animated.multiply(
   abertura.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1], extrapolate: 'extend' }),
-  cartaoEsc,
+  cartaoEscVisto,
 );
 
 /**
@@ -152,7 +189,7 @@ export const miniOpacidade = Animated.add(suave(abertura, 0, 0.2, true), miniDoG
 // Preso só à abertura (que fica a 1 até ao fim da aterragem), ficava 12 pt
 // acima e maior durante o gesto todo e dava um salto no fim (João, 2/10).
 const miniSobe = Animated.multiply(
-  Animated.multiply(suave(abertura, 0, 0.3), suave(arrasto, 0.05, 0.4, true)),
+  Animated.multiply(suave(abertura, 0, 0.3), suave(arrastoVisto, 0.05, 0.4, true)),
   suave(aterrar, 0, 0.3, true),
 );
 export const miniSubir = miniSobe.interpolate({ inputRange: [0, 1], outputRange: [0, -12] });

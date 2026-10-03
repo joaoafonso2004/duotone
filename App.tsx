@@ -13,6 +13,7 @@ import { acompanharDownloads } from './src/state/capasGrandes';
 import { esquecerBiblioteca } from './src/lib/cacheDaBiblioteca';
 import { AppState, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { UpdateSheet } from './src/components/UpdateSheet';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
@@ -359,6 +360,9 @@ export default function App() {
   }, [sleepTimerEndsAt]);
 
   return (
+    // Os gestos do leitor correm na thread da interface (3/10, Gesture Handler):
+    // seguem o dedo mesmo com o JavaScript ocupado.
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaProvider>
       <StatusBar style="light" />
       {/* A última rede: cada ecrã tem a sua (ver os navegadores), esta apanha
@@ -376,5 +380,6 @@ export default function App() {
           arranca por baixo enquanto ele toca. Ver `components/Abertura.tsx`. */}
       <Abertura />
     </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
