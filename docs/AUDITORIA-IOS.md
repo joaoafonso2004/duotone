@@ -8,7 +8,7 @@
 
 | | Feito | Em parte | Por fazer | Decidido |
 |---|---|---|---|---|
-| Pontos (1.1 a 7.3) | 12 | 3 | 13 | 1 |
+| Pontos (1.1 a 7.3) | 15 | 4 | 9 | 1 |
 
 A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swift nativo. Por isso a "Implementação" de cada ponto está em RN/Expo, e em Swift onde o trabalho é nativo.
 
@@ -40,7 +40,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 1.2 A escala tipográfica está partida
 
-**Estado:** ◐ Em parte. Nada abaixo de 11 pt, preso pelo `test-letra-minima.ts` (com exceções nomeadas: gráficos, equalizador, emblemas). Falta a escala em si: os ecrãs ainda têm tamanhos soltos e os títulos de secção continuam nos 16 pt.
+**Estado:** ◐ Em parte. Nada abaixo de 11 pt, preso pelo `test-letra-minima.ts` (com exceções nomeadas: gráficos, equalizador, emblemas), e os títulos de secção da Home passaram a 22 pt. Falta a escala em si nos outros ecrãs (ainda há tamanhos soltos).
 
 **Problema:** há 18 tamanhos de letra soltos, de 8 a 34 pt. Os títulos de secção têm 16 pt (SearchScreen.tsx:1096) ao lado de um título de 32/800.
 
@@ -82,7 +82,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 1.7 A Pesquisa é a página principal
 
-**Estado:** ⬜ Por fazer (é o REDESIGN da Home, no fim).
+**Estado:** ✅ Feito (3/10, variante A). O separador passou a "Home" (com a casa), sem o subtítulo de enchimento; ver o REDESIGN no fim.
 
 **Problema:** o separador chama-se "Search", mas é lá que vivem os amigos, os atalhos, a Daily mix e as prateleiras. Os subtítulos ("Find any song", "Friends, music and conversations.") são enchimento.
 
@@ -126,7 +126,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 3.1 Todos os gestos correm na thread de JavaScript
 
-**Estado:** ◐ Em parte (3/10). Entrou o `react-native-gesture-handler` (sem Reanimated: o `PanGestureHandler` entrega um `Animated.event` nativo). **Já correm na thread da interface:** fechar o leitor a arrastar e deslizar o mini-player. **Faltam:** a barra de progresso, o cubo das letras, deslizar para a fila e as folhas.
+**Estado:** ◐ Em parte (3/10). Entrou o `react-native-gesture-handler` (sem Reanimated: o `PanGestureHandler` entrega um `Animated.event` nativo). **Já são do Gesture Handler:** fechar o leitor a arrastar, deslizar o mini-player, a barra de progresso (o dedo no motor nativo) e arrastar uma música na fila e na edição de playlists. **Faltam:** o cubo das letras, deslizar para a fila e as folhas feitas à mão.
 
 **Porque importa:** quando o JS está ocupado (troca de faixa, montagem do download, JSON), o dedo deixa de ser seguido. É a explicação mais provável do "trava a meio e dá snap".
 
@@ -134,7 +134,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 3.2 Folhas feitas à mão
 
-**Estado:** ⬜ Por fazer.
+**Estado:** ◐ Em parte (3/10). A fila abre numa folha nativa (meia e inteira, a app de trás recua). Para isso, arrastar uma música passou ao Gesture Handler: com o PanResponder, a folha do iOS roubava o arrasto. Faltam as outras 13; o equalizador (barras verticais) tem o mesmo problema de gestos.
 
 **Problema:** a BottomSheet.tsx é um Modal com PanResponder, e as molas usam speed/bounciness em vez das do movimento.ts. Há 14 folhas assim.
 
@@ -158,7 +158,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 3.5 Arrastar a barra de progresso
 
-**Estado:** ⬜ Por fazer (ainda salta para o ponto onde se pousa o dedo e faz `setState` a cada movimento).
+**Estado:** ✅ Feito (3/10, variante B). Agarrar não mexe na música; descer o dedo abranda (meia, um quarto, fino); um toque rápido salta a deslizar; vibra ao agarrar, ao mudar de ritmo e nas pontas; o tempo só muda com o segundo. O dedo é seguido no motor nativo.
 
 **Melhoria:** arrastar relativo; afastar o dedo na vertical abranda, como no Apple Music; vibração ao agarrar e nas pontas; o texto do tempo só muda quando muda o segundo.
 
@@ -216,7 +216,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 5.4 Não há "Jump back in"
 
-**Estado:** ⬜ Por fazer.
+**Estado:** ✅ Feito (3/10). Os últimos 12 sítios de onde se ouviu (playlist, Liked Songs, artista, álbum, misturas, Daily mix), mostrados 6 na Home; os ecrãs do iPhone passaram a dizer a origem da lista. Abre o sítio (não toca sozinho).
 
 **Implementação:** guardar as últimas 12 origens (os dados já existem em `origemDaFila`); prateleira de quadrados no topo da página principal; tocar retoma.
 
@@ -254,15 +254,15 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ## TOP 10 MELHORIAS
 
-- ◐ Gestos do leitor na thread de UI — 3.1 (fechar e mini feitos; barra, cubo, folhas por fazer)
+- ◐ Gestos do leitor na thread de UI — 3.1 (fechar, mini, barra e arrastar na fila feitos; cubo e folhas por fazer)
 - ◐ Tirar o processamento do áudio do JS — 4.1 (medição feita; falta decidir pelos números)
 - ✅ Cabeçalho que encolhe ao rolar — 1.1
 - ◐ Escala tipográfica a sério — 1.2 (mínimo de 11 pt feito)
 - ✅ Avisos com "Undo" em vez de alertas — 6.1
 - ✅ Mini-player e barra como uma base única — 2.1
-- ⬜ Folhas nativas — 3.2
+- ◐ Folhas nativas — 3.2 (a fila)
 - ✅ Corrigir anterior/seguinte — 5.1
-- ⬜ Página principal com "Jump back in" — 5.4 e REDESIGN
+- ✅ Página principal com "Jump back in" — 5.4 e REDESIGN
 - ⬜ Partir o PlayerRoot — 4.3
 
 ## QUICK WINS
@@ -285,23 +285,23 @@ Pela ordem de ataque:
 - ⬜ lazy com pré-carregamento dos separadores (4.2).
 - ⬜ Partir o PlayerRoot (4.3).
 - ✅ O desfoque da barra que quase não se via (2.1).
-- ⬜ O setState por movimento na barra de progresso (3.5).
+- ✅ O setState por movimento na barra de progresso (3.5).
 
 ## PREMIUM DETAILS
 
 - ✅ Curva contínua nos cantos.
 - ✅ Barrinhas a tocar sobre a capa da linha (com reticências em pausa).
-- ⬜ Arrastar a barra em modo relativo e fino, com vibração nas pontas.
+- ✅ Arrastar a barra em modo relativo e fino, com vibração nas pontas.
 - ✅ Mini-player tingido pela capa (com "seguir a cor da capa" ligado).
 - ⬜ Puxar para atualizar com a cor do tema.
 - ⬜ Tempo restante (−1:23) ao tocar no tempo total.
 - ⬜ Play/pause com cruzamento em vez de rodar.
-- ⬜ Títulos de secção de 22 pt com "See all ›".
+- ✅ Títulos de secção de 22 pt com "See all ›" (na Home).
 - ⬜ Cartões das prateleiras a 140-150 pt, com o terceiro a espreitar.
 
 ## REDESIGN
 
-- ⬜ **A página principal.** O separador "Search" passa a "Home": cabeçalho que encolhe, com a pesquisa como lupa ou campo no topo; "Jump back in" (contextos recentes, 2 linhas de quadrados); amigos a ouvir; Daily mix em destaque (capa grande); prateleiras com títulos de 22 pt. Os atalhos em grelha fundem-se com o "Jump back in".
+- ✅ **A página principal** (3/10, variante A: o campo de pesquisa por baixo do título). O separador "Search" passa a "Home": cabeçalho que encolhe, com a pesquisa como lupa ou campo no topo; "Jump back in" (contextos recentes, 2 linhas de quadrados); amigos a ouvir; Daily mix em destaque (capa grande); prateleiras com títulos de 22 pt. Os atalhos em grelha fundem-se com o "Jump back in".
 - ✅ **A base (mini-player + barra).** Superfície única de vidro, com a cor da capa a tingir. *Diferente do proposto:* deslizar para a direita continua a fechar (5.2), não muda de faixa.
 - ⬜ **As Definições.** Lista agrupada ao estilo iOS: linhas de 48 pt, ícones em quadrados arredondados e as frases de "efeito" como rodapés das secções.
 
@@ -309,7 +309,7 @@ Pela ordem de ataque:
 
 Por ordem:
 
-> **Atualizado a 3/10 (fim do dia):** o 4 (altura medida) e o 6 (alertas) estão feitos; o 3 (barra), o 5 (Home) e o 7 (folhas) têm preview em `docs/barra-home-folhas.html` à espera de escolha.
+> **Atualizado a 3/10 (fim do dia):** feitos também a altura medida (1.3), os alertas (6.1), a barra de progresso (3.5, variante B), a Home com o Jump back in (5.4, variante A) e a fila numa folha nativa (3.2). Nada disto foi visto no iPhone.
 
 1. **Build e uma volta no iPhone.** Tudo o que está ✅ desde 3/10 só foi visto em testes e no browser: os gestos fora do JS, a base de vidro, o título que encolhe, o aviso com "Undo", as barrinhas. É onde está o maior risco, e um erro aqui vê-se em todos os ecrãs.
 2. **Ler o relatório do processamento do áudio** depois de uns dias de uso (4.1). Se o pior caso no fim de um download passar de umas centenas de ms, o módulo Swift é o maior ganho que falta em fluidez; se não, fica de fora.
