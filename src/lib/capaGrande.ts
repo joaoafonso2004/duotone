@@ -34,6 +34,20 @@ export function candidatasDaCapaGrande(t: FaixaComCapa): string[] {
   return t.artworkUrl ? [t.artworkUrl] : [];
 }
 
+/**
+ * A falha de uma capa só é definitiva quando o servidor diz que ela NÃO EXISTE
+ * (3/10). Antes qualquer falha contava -- em 4G, um pedido lento ou cortado
+ * dava a `maxresdefault` como inexistente até a app fechar, e o leitor ficava
+ * com a de 320x180 esticada ("as imagens estão horríveis"). Uma falha de rede
+ * tenta-se outra vez (`ESPERAS_PARA_REPETIR_MS`).
+ */
+export function faltaConfirmada(status: number | null): boolean {
+  return status === 404 || status === 410;
+}
+
+/** Quanto esperar antes de voltar a pedir uma capa que falhou por rede. */
+export const ESPERAS_PARA_REPETIR_MS = [10_000, 30_000, 60_000] as const;
+
 /** A melhor que ainda pode existir: a primeira que não falhou nesta sessão. */
 export function capaGrandeDaFaixa(t: FaixaComCapa, falhadas: ReadonlySet<string>): string | null {
   const lista = candidatasDaCapaGrande(t);

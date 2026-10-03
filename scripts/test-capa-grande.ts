@@ -1,4 +1,4 @@
-import { candidatasDaCapaGrande, capaDeRecurso, capaGrandeDaFaixa, desfoqueLeve } from '../src/lib/capaGrande.ts';
+import { ESPERAS_PARA_REPETIR_MS, candidatasDaCapaGrande, capaDeRecurso, capaGrandeDaFaixa, desfoqueLeve, faltaConfirmada } from '../src/lib/capaGrande.ts';
 
 let mau = 0;
 const eq = (rotulo: string, veio: unknown, esperado: unknown) => {
@@ -19,6 +19,12 @@ const mq = 'https://i.ytimg.com/vi/abc123/mqdefault.jpg';
 eq('quem não tem maxres vai à hq720', capaGrandeDaFaixa(yt, new Set([maxres])), hq720);
 eq('sem nenhuma das grandes, a mqdefault', capaGrandeDaFaixa(yt, new Set([maxres, hq720])), mq);
 eq('a mqdefault nunca se perde, nem marcada', capaGrandeDaFaixa(yt, new Set([maxres, hq720, mq])), mq);
+// 3/10: em 4G um pedido lento dava a maxres como inexistente até a app fechar.
+eq('só um 404 (ou 410) dá uma capa como inexistente', [404, 410].every((s) => faltaConfirmada(s)), true);
+eq('uma falha de rede não', faltaConfirmada(null), false);
+eq('nem um erro do servidor', [500, 503, 403, 200].some((s) => faltaConfirmada(s)), false);
+eq('repete-se mais de uma vez, com esperas a crescer', ESPERAS_PARA_REPETIR_MS.length >= 2
+  && ESPERAS_PARA_REPETIR_MS.every((v, i, a) => i === 0 || v > a[i - 1]), true);
 eq('fora do YouTube fica a capa que a faixa traz',
   capaGrandeDaFaixa({ source: 'spotify', sourceId: 'x', artworkUrl: 'https://img/x.jpg' }, new Set()), 'https://img/x.jpg');
 eq('sem capa nenhuma não inventa', capaGrandeDaFaixa({ source: 'spotify', sourceId: 'x', artworkUrl: null }, new Set()), null);

@@ -28,7 +28,12 @@ function ambiente(downloads = []) {
     '../lib/capaGrande': capa,
     '../lib/capaDoEcraBloqueado': lista,
     '../lib/youtubeCache': { downloadsEmCurso: () => downloads, ouvirDownloads: fn => { ouvirDownload = fn; } },
-  }, { setTimeout: fn => { const id = ++next; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id) });
+  }, {
+    setTimeout: fn => { const id = ++next; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id),
+    // O HEAD que confirma se uma capa existe (3/10): 404 só para a maxres do
+    // vídeo que não a tem; o resto é uma rede que não responde.
+    fetch: async (u) => { if (u === url('semmaxres', 'maxres')) return { status: 404 }; throw new Error('sem rede'); },
+  });
   return { state, requests, timers, event: () => ouvirDownload(), downloads };
 }
 async function run() {
@@ -71,17 +76,22 @@ async function run() {
     assert.equal(h.timers.size, 0);
   }
   {
+    // 3/10: em 4G, uma falha de REDE dava a maxres como inexistente até a app
+    // fechar, e o leitor ficava com a de 320x180 esticada.
     const h = ambiente();
     h.state.preCarregarCapasGrandes([faixa('semrede')]); await flush();
     for (const r of h.requests) r.resolve(false); await flush();
-    h.state.preCarregarCapasGrandes([faixa('semrede')]); await flush();
-    assert.equal(h.requests.length, 4, 'uma falha temporária não bloqueia o recurso durante toda a sessão');
+    assert.ok(!h.requests.some(r => r.uri.includes('hq720')), 'uma falha de rede não dá a maxres como inexistente');
+    assert.equal(h.timers.size, 1, 'e marca outra tentativa');
     for (const fn of [...h.timers.values()]) fn(); await flush();
-    assert.equal(h.timers.size, 0, 'um prefetch pendurado tem prazo');
+    const grandes = h.requests.filter(r => r.uri === url('semrede', 'maxres'));
+    assert.equal(grandes.length, 2, 'a outra tentativa volta a pedir a grande');
+    grandes[1].resolve(true); await flush();
+    assert.equal(h.state.capaGrande(faixa('semrede')), url('semrede', 'maxres'), 'e quando a rede deixa, a grande aparece');
     h.state.preCarregarCapasGrandes([faixa('semrede')]); await flush();
-    assert.equal(h.requests.length, 5, 'um prefetch expirado também permite repetir');
+    assert.ok(h.requests.filter(r => r.uri === url('semrede', 'mq')).length >= 2, 'uma falha temporária não bloqueia o recurso');
     for (const r of h.requests) r.resolve(true); await flush();
-    assert.equal(h.timers.size, 0);
+    assert.equal(h.timers.size, 0, 'nada fica pendurado');
   }
 
   // O componente verdadeiro (2/10): UMA imagem para todas as faixas. A fonte

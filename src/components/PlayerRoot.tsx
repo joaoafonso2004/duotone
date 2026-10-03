@@ -949,7 +949,7 @@ export function PlayerRoot() {
 
   const onArtError = useCallback(() => {
     // Passa à seguinte sem moldura. A de recurso fica: é a última que há.
-    if (current && artSource && artSource !== capaDeRecurso(current)) marcarCapaFalhada(artSource);
+    if (current && artSource && artSource !== capaDeRecurso(current)) void marcarCapaFalhada(artSource);
   }, [current, artSource]);
 
   const onToggleShuffle = () => {

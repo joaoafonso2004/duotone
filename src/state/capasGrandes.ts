@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { candidatasDaCapaGrande, capaDeRecurso } from '../lib/capaGrande';
+import { ESPERAS_PARA_REPETIR_MS, candidatasDaCapaGrande, capaDeRecurso, faltaConfirmada } from '../lib/capaGrande';
 import { downloadsEmCurso, ouvirDownloads } from '../lib/youtubeCache';
 import type { Track } from '../types';
 
@@ -44,11 +44,44 @@ export function capaGrande(t: FaixaComCapa): string | null {
   return capaDeRecurso(t);
 }
 
-/** Esta imagem não existe (ou não carregou): passa-se à seguinte da lista. */
-export function marcarCapaFalhada(url: string): void {
-  if (falhadas.has(url)) return;
-  falhadas.add(url);
-  avisar();
+/** Quantas vezes já se repetiu cada capa que falhou por rede. */
+const repeticoes = new Map<string, number>();
+
+/**
+ * O servidor diz que a imagem não existe? Um HEAD: o YouTube responde 404 a
+ * uma `maxresdefault` que o vídeo não tem. Sem resposta (rede) não se sabe,
+ * e devolve `null`.
+ */
+async function estadoNoServidor(url: string): Promise<number | null> {
+  try {
+    const r = await fetch(url, { method: 'HEAD' });
+    return r.status;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Esta imagem falhou (no pré-carregamento ou ao mostrá-la). Só passa à seguinte
+ * da lista de vez se o servidor disser que não existe; uma falha de rede volta
+ * a tentar-se mais tarde (3/10, ver `faltaConfirmada`). Devolve se ficou dada
+ * como inexistente.
+ */
+export async function marcarCapaFalhada(url: string): Promise<boolean> {
+  if (falhadas.has(url)) return true;
+  if (prontas.delete(url)) avisar();
+  if (faltaConfirmada(await estadoNoServidor(url))) {
+    falhadas.add(url);
+    avisar();
+    return true;
+  }
+  const vezes = repeticoes.get(url) ?? 0;
+  const espera = ESPERAS_PARA_REPETIR_MS[vezes];
+  if (espera != null) {
+    repeticoes.set(url, vezes + 1);
+    const id = setTimeout(() => { clearTimeout(id); void carregar(url); }, espera);
+  }
+  return false;
 }
 
 function carregar(url: string): Promise<boolean> {
@@ -104,10 +137,11 @@ function carregarAGrande(faixa: FaixaComCapa): void {
     if (i >= lista.length - 1) return;
     const url = lista[i];
     if (falhadas.has(url)) { tentar(i + 1); return; }
-    void carregar(url).then((ok) => {
+    void carregar(url).then(async (ok) => {
       if (ok) return;
-      marcarCapaFalhada(url);
-      tentar(i + 1);
+      // Só se passa à seguinte se esta não existir; uma falha de rede tenta-se
+      // outra vez mais tarde (e entretanto mostra-se a pequena).
+      if (await marcarCapaFalhada(url)) tentar(i + 1);
     });
   };
   tentar(0);
