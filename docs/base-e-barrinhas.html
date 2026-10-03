@@ -134,13 +134,9 @@ h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
 .B .capsula-mini .fio i{background:var(--accent)}
 
 /* ================= 7. as barrinhas ================= */
-.barrinhas{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;gap:3px;padding-bottom:15px;background:rgba(0,0,0,.42)}
-.barrinhas i{width:4px;border-radius:2px;background:#fff;height:6px;animation:pular 1s ease-in-out infinite;transform-origin:bottom}
-.barrinhas i:nth-child(1){animation-duration:.82s}
-.barrinhas i:nth-child(2){animation-duration:1.06s;animation-delay:-.4s}
-.barrinhas i:nth-child(3){animation-duration:.92s;animation-delay:-.2s}
-@keyframes pular{0%,100%{height:5px}50%{height:20px}}
-.parado .barrinhas i{animation-play-state:paused}
+/* A (decidida a 3/10): a meio da capa; em pausa encolhem até serem reticências (JS em baixo). */
+.barrinhas{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:3px;background:rgba(0,0,0,.42)}
+.barrinhas i{width:4px;border-radius:2px;background:#fff;height:4px}
 .lado{display:flex;align-items:flex-end;gap:2.5px;height:16px;width:34px;justify-content:flex-end}
 .lado i{width:3px;border-radius:1.5px;background:var(--accent);height:4px;animation:pularL 1s ease-in-out infinite}
 .lado i:nth-child(1){animation-duration:.82s}
@@ -198,7 +194,7 @@ h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
       O fundo tingido sai: chega a cor do título. Toca noutra linha para mudar a música.</p>
     <div class="controlos">
       <button class="ctl" data-v="hoje" aria-pressed="false">Hoje</button>
-      <button class="ctl" data-v="A" aria-pressed="true">A · por cima da capa <span class="recomendo">recomendo</span></button>
+      <button class="ctl" data-v="A" aria-pressed="true">A · por cima da capa <span class="recomendo">escolhida</span></button>
       <button class="ctl" data-v="B" aria-pressed="false">B · à direita, no lugar da duração</button>
       <span class="sep"></span>
       <button class="ctl" id="tocar7" aria-pressed="true">A tocar</button>
@@ -206,7 +202,8 @@ h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
     <div class="telefones">
       <div class="coluna">
         <div class="moldura"><div class="tel" id="t7"></div></div>
-        <div class="dica">A capa escurece um pouco por baixo das barrinhas para elas se lerem em qualquer capa, clara ou escura.</div>
+        <div class="dica">A capa escurece um pouco por baixo das barrinhas para elas se lerem em qualquer capa, clara ou escura.
+          Em pausa (botão "A tocar"), as barras encolhem até serem reticências, e voltam a crescer ao tocar.</div>
       </div>
     </div>
   </section>
@@ -435,6 +432,27 @@ document.querySelectorAll('#s7 [data-v]').forEach((b) => b.onclick = () => {
 });
 document.getElementById('tocar7').onclick = () => { aTocar7 = !aTocar7; sincronizar7(); desenhar7(); };
 desenhar7();
+
+/* As barrinhas da A: as mesmas contas da app (src/lib/barrasDaFaixa.ts). */
+const BARRAS7 = [[820, 0], [1060, 0.38], [920, 0.22]];
+let tocando7 = 1, antes7 = performance.now();
+function altura7(i, ms) {
+  const [dur, desfase] = BARRAS7[i];
+  const t = ms / dur + desfase;
+  return 6 + 14 * (0.5 - 0.5 * Math.cos(2 * Math.PI * t));
+}
+function quadro7(agora) {
+  const dt = agora - antes7; antes7 = agora;
+  // Aproxima-se do alvo em ~260 ms, com saída suave.
+  const alvo = aTocar7 ? 1 : 0;
+  tocando7 += (alvo - tocando7) * (1 - Math.exp(-dt / 70));
+  if (Math.abs(alvo - tocando7) < 0.002) tocando7 = alvo;
+  document.querySelectorAll('#t7 .barrinhas i').forEach((el, i) => {
+    el.style.height = `${4 + (altura7(i % 3, agora) - 4) * tocando7}px`;
+  });
+  requestAnimationFrame(quadro7);
+}
+requestAnimationFrame(quadro7);
 </script>
 </body>
 </html>

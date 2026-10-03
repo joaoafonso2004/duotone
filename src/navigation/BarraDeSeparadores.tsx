@@ -1,12 +1,11 @@
 import type { MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { BlurView } from 'expo-blur';
 import React from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StateIcon } from '../components/StateIcon';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { ESTADO, SEPARADOR_ACTIVO } from '../lib/movimento';
+import { publicarSeparadores } from '../state/doca';
 import { useNotifications } from '../state/notifications';
 import { useTheme } from '../state/theme';
 import { colors, ESCALA_MAXIMA } from '../theme';
@@ -95,80 +94,80 @@ function SeparadorActivo({ activo, tamanho, children }: {
  * topo, como em todas as apps do iOS (o `tabPress` que o `useScrollToTop` dos
  * ecrãs ouve); dentro de um álbum ou de uma playlist, não faz nada, como
  * antes. Mudar de separador já não vibra: vibrar a cada navegação era ruído.
+ *
+ * ## Quem a desenha (3/10)
+ *
+ * A base de baixo passou a ser UMA peça de vidro com o mini-player
+ * (`components/Doca.tsx`, variante A de `docs/base-e-barrinhas.html`). O vidro
+ * fica por cima dos ecrãs e os botões por cima do vidro, por isso não podem
+ * viver aqui dentro, debaixo dos ecrãs: o navegador só publica o estado e a
+ * navegação, e a base desenha os `IconesDosSeparadores`.
  */
 export function BarraDeSeparadores({ state, navigation }: MaterialTopTabBarProps) {
-  const insets = useSafeAreaInsets();
+  React.useLayoutEffect(() => { publicarSeparadores({ state, navigation }); }, [state, navigation]);
+  React.useEffect(() => () => publicarSeparadores(null), []);
+  return null;
+}
+
+/** Os cinco botões, sem fundo: o vidro é da base. */
+export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabBarProps, 'state' | 'navigation'>) {
   const hasNotification = useNotifications((s) => s.hasNotification);
   // O destino e não a cor animada: a navegação inteira não precisa de
   // redesenhar a cada passo da animação do tema.
   const theme = useTheme((s) => s.destino);
 
   return (
-    <View style={[styles.barra, { paddingBottom: insets.bottom }]}>
-      <BlurView tint="dark" intensity={50} style={StyleSheet.absoluteFill} />
-      <View style={[StyleSheet.absoluteFill, styles.tinta]} />
-      <View style={styles.linha}>
-        {/* O Social e uma seccao mas NAO tem botao: chega-se la a arrastar
-            para la do Perfil, ou pelo botao das mensagens que ele ja tem.
-            Seis icones apertavam os cinco que ja aqui estao.
+    <View style={styles.linha}>
+      {/* O Social e uma seccao mas NAO tem botao: chega-se la a arrastar
+          para la do Perfil, ou pelo botao das mensagens que ele ja tem.
+          Seis icones apertavam os cinco que ja aqui estao.
 
-            O escolhido compara-se pela CHAVE e nao pelo indice: depois de
-            filtrar, o `i` desta lista deixa de bater certo com o
-            `state.index`, que conta as rotas todas. */}
-        {state.routes.filter((route) => route.name !== 'Social').map((route) => {
-          const escolhido = state.routes[state.index]?.key === route.key;
-          const cor = escolhido ? theme.color : colors.textTertiary;
-          // O mapa dos ícones vive aqui e não nas opções de cada ecrã: passá-lo
-          // por `options` obrigava a alargar os tipos do navegador ou a cinco
-          // `as any`, e a barra é o único sítio que precisa de o saber.
-          const icone = ICONES_DOS_SEPARADORES[route.name as keyof typeof ICONES_DOS_SEPARADORES] ?? 'ellipse';
-          return (
-            <Pressable
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityState={{ selected: escolhido }}
-              accessibilityLabel={route.name}
-              onPress={() => {
-                // Dentro de uma pilha (um álbum aberto) não se emite: o
-                // native-stack voltava à raiz com o `tabPress`.
-                const pilha = route.state as { index?: number } | undefined;
-                if (escolhido && (pilha?.index ?? 0) > 0) return;
-                const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                if (!escolhido && !evento.defaultPrevented) navigation.navigate(route.name);
-              }}
-              style={styles.separador}
-            >
-              {/* Sem `rodar`: cinco separadores a girar de cada vez que se
-                  muda de página seria uma feira. Basta o preenchido a
-                  dissolver por cima do contorno, e o levantar. */}
-              <SeparadorActivo activo={escolhido} tamanho={TAMANHO}>
-                <StateIcon
-                  name={(escolhido ? icone : `${icone}-outline`) as keyof typeof Ionicons.glyphMap}
-                  size={TAMANHO}
-                  color={cor}
-                />
-                {route.name === 'Profile' && hasNotification && <View style={styles.ponto} />}
-              </SeparadorActivo>
-              <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.fixa} style={[styles.nome, { color: cor }]}>{route.name}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+          O escolhido compara-se pela CHAVE e nao pelo indice: depois de
+          filtrar, o `i` desta lista deixa de bater certo com o
+          `state.index`, que conta as rotas todas. */}
+      {state.routes.filter((route) => route.name !== 'Social').map((route) => {
+        const escolhido = state.routes[state.index]?.key === route.key;
+        const cor = escolhido ? theme.color : colors.textTertiary;
+        // O mapa dos ícones vive aqui e não nas opções de cada ecrã: passá-lo
+        // por `options` obrigava a alargar os tipos do navegador ou a cinco
+        // `as any`, e a barra é o único sítio que precisa de o saber.
+        const icone = ICONES_DOS_SEPARADORES[route.name as keyof typeof ICONES_DOS_SEPARADORES] ?? 'ellipse';
+        return (
+          <Pressable
+            key={route.key}
+            accessibilityRole="button"
+            accessibilityState={{ selected: escolhido }}
+            accessibilityLabel={route.name}
+            onPress={() => {
+              // Dentro de uma pilha (um álbum aberto) não se emite: o
+              // native-stack voltava à raiz com o `tabPress`.
+              const pilha = route.state as { index?: number } | undefined;
+              if (escolhido && (pilha?.index ?? 0) > 0) return;
+              const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+              if (!escolhido && !evento.defaultPrevented) navigation.navigate(route.name);
+            }}
+            style={styles.separador}
+          >
+            {/* Sem `rodar`: cinco separadores a girar de cada vez que se
+                muda de página seria uma feira. Basta o preenchido a
+                dissolver por cima do contorno, e o levantar. */}
+            <SeparadorActivo activo={escolhido} tamanho={TAMANHO}>
+              <StateIcon
+                name={(escolhido ? icone : `${icone}-outline`) as keyof typeof Ionicons.glyphMap}
+                size={TAMANHO}
+                color={cor}
+              />
+              {route.name === 'Profile' && hasNotification && <View style={styles.ponto} />}
+            </SeparadorActivo>
+            <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.fixa} style={[styles.nome, { color: cor }]}>{route.name}</Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  barra: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    overflow: 'hidden',
-  },
-  tinta: { backgroundColor: 'rgba(10,10,15,0.72)' },
   linha: { flexDirection: 'row', paddingTop: 8, paddingBottom: 6 },
   separador: { flex: 1, alignItems: 'center', gap: 3 },
   // Em minúsculas, como no iOS (3/10): as maiúsculas espaçadas do `micro`

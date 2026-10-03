@@ -25,6 +25,8 @@ import { Animated, StyleSheet, View, ActivityIndicator } from 'react-native';
 import { escalaDoFundo, raioDoFundo, veuDoFundo } from '../state/transicaoDoLeitor';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { PlayerRoot } from '../components/PlayerRoot';
+import { Doca } from '../components/Doca';
+import { atualizarDoca } from '../state/doca';
 import { ArtistsScreen } from '../screens/ArtistsScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { ImportYouTubeScreen } from '../screens/ImportYouTubeScreen';
@@ -307,8 +309,8 @@ export function RootNavigator() {
       // NUNCA abre sozinha nos Downloads (João, 24/9): a 3.8.1 fazia-o com e sem
       // rede, porque o estado da rede chega depois da navegação. Os Downloads
       // estão onde sempre estiveram, e sem rede as Songs já só mostram o que toca.
-      onReady={() => anotarEcra(navigationRef.getCurrentRoute()?.name)}
-      onStateChange={() => anotarEcra(navigationRef.getCurrentRoute()?.name)}
+      onReady={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); atualizarDoca(navigationRef.getRootState()); }}
+      onStateChange={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); atualizarDoca(navigationRef.getRootState()); }}
     >
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
         {session || offlineUserId ? (
@@ -355,6 +357,9 @@ export function RootNavigator() {
               <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
               <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />
             </Stack.Navigator>
+            {/* A base de baixo: o vidro do mini-player e dos separadores (3/10).
+                Por cima dos ecrãs e dentro da app de trás: recua com ela. */}
+            <Doca />
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: veuDoFundo }]} />
             </Animated.View>
             {/* O leitor contém o motor: se rebentar, volta a montar sozinho

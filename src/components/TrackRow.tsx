@@ -5,6 +5,7 @@ import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Toque } from './Toque';
 import { DeslizarParaAFila } from './DeslizarParaAFila';
+import { BarrasDaFaixa } from './BarrasDaFaixa';
 import { ESCALA } from '../lib/movimento';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { guardarOrigem } from '../state/origemDaCapa';
@@ -159,7 +160,9 @@ function TrackRowComponent({
       }
       delayLongPress={delayLongPress ?? 350}
       onPressOut={onPressOut}
-      style={[styles.row, ativo && { backgroundColor: theme.soft }]}
+      // Sem o fundo tingido (3/10): a que toca diz-se pelas barrinhas na capa
+      // e pelo título na cor do tema.
+      style={styles.row}
     >
       {selectMode && (
         <View style={styles.checkboxContainer}>
@@ -190,6 +193,8 @@ function TrackRowComponent({
             />
           </View>
         )}
+        {/* Três barras a mexer; em pausa, reticências (3/10). */}
+        {ativo ? <BarrasDaFaixa /> : null}
       </View>
 
       <View style={styles.meta}>

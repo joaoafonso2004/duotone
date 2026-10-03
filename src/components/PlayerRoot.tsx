@@ -53,6 +53,8 @@ import { savedKey, useSaved } from '../state/saved';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
+import { desvioDaMusica, useDoca } from '../state/doca';
+import { posicoesDaDoca } from '../lib/doca';
 import { contextoParaAnalytics } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
@@ -342,7 +344,6 @@ export function PlayerRoot() {
   const [queueVisible, setQueueVisible] = useState(false);
   const [eqVisible, setEqVisible] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
-  const [currentRoute, setCurrentRoute] = useState<string | null>(null);
   // Montado aqui porque o PlayerRoot existe enquanto a app existe -- e uma
   // sessao de escuta nao pode depender de um ecra estar aberto.
   useSincroniaDaSessao();
@@ -385,7 +386,10 @@ export function PlayerRoot() {
   };
 
   const visibilityAnim = useRef(new Animated.Value(1)).current;
-  const shouldHide = (keyboardVisible && !expanded) || currentRoute === 'Settings';
+  // A base de baixo (3/10, state/doca.ts): nas Definições, no Library check e
+  // no Importar a música sai com ela.
+  const modoDaDoca = useDoca((s) => s.modo);
+  const shouldHide = (keyboardVisible && !expanded) || modoDaDoca === 'escondida';
 
   useEffect(() => {
     // Tem de ser nativa. Este valor entra na opacidade de vistas cuja
@@ -424,39 +428,11 @@ export function PlayerRoot() {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const hideSub = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
 
-    // Listen to navigation changes to hide player bar on specific screens (e.g. Settings)
-    const onNavStateChange = () => {
-      if (navigationRef.isReady()) {
-        const route = navigationRef.getCurrentRoute();
-        setCurrentRoute(route?.name ?? null);
-      }
-    };
-
-    let unsub: (() => void) | undefined;
-    if (navigationRef.isReady()) {
-      unsub = navigationRef.addListener('state', onNavStateChange);
-      onNavStateChange();
-    } else {
-      // Check again after a short delay if navigation is not ready yet
-      const timer = setInterval(() => {
-        if (navigationRef.isReady()) {
-          unsub = navigationRef.addListener('state', onNavStateChange);
-          onNavStateChange();
-          clearInterval(timer);
-        }
-      }, 200);
-      return () => {
-        clearInterval(timer);
-        showSub.remove();
-        hideSub.remove();
-        if (unsub) unsub();
-      };
-    }
-
+    // Em que ecrãs a música aparece já não se decide aqui: é a base que o sabe
+    // (state/doca.ts, alimentada pelo RootNavigator).
     return () => {
       showSub.remove();
       hideSub.remove();
-      if (unsub) unsub();
     };
   }, []);
 
@@ -1024,7 +1000,9 @@ export function PlayerRoot() {
     !autoplayRadio &&
     queueIndex >= queue.length - 1;
   const TAB_H = TAB_BAR_BASE + insets.bottom;
-  const miniBottom = TAB_H + 8;
+  // A linha da música está DENTRO da base de vidro (components/Doca.tsx): a
+  // faixa dela tem 72 pt por cima dos separadores, e a linha fica a meio.
+  const miniBottom = TAB_H + 4;
   const capaFlutuante = Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'floating';
 
   // Capa: mini (quadrado 48px, no mini-player) <-> expandido (quadrado GRANDE
@@ -1040,7 +1018,7 @@ export function PlayerRoot() {
   const ART_FULL = Math.min(W - MARGEM_DA_CAPA, H * 0.42,
     Math.max(96, H - insets.top - insets.bottom - HEADER_H - RESERVA_DOS_CONTROLOS * Math.min(fontScale, 1.4)));
   const vidMini = {
-    x: 10 + 8,
+    x: 16,
     y: keyboardVisible && !expanded
       ? H + 500
       : H - miniBottom - MINI_PLAYER_HEIGHT + (MINI_PLAYER_HEIGHT - 48) / 2,
@@ -1098,7 +1076,8 @@ export function PlayerRoot() {
     geo: {
       pivo,
       capa: { x: centroFull.x, y: centroFull.y, lado: vidFull.w },
-      mini: { x: centroMini.x, y: centroMini.y, lado: vidMini.w },
+      // Onde a música está AGORA: num ecrã sem separadores desceu com a base.
+      mini: { x: centroMini.x, y: centroMini.y + posicoesDaDoca(modoDaDoca, true, insets.bottom).musica, lado: vidMini.w },
     },
   };
 
@@ -1125,7 +1104,11 @@ export function PlayerRoot() {
       },
       {
         translateY: Animated.add(
-          voo(deslocacaoOrigem.y, deslocacaoMini.y, arcoY),
+          Animated.add(
+            voo(deslocacaoOrigem.y, deslocacaoMini.y, arcoY),
+            // No mini-player, a capa desce com a base (state/doca.ts); aberta, não.
+            Animated.multiply(desvioDaMusica, anim.interpolate({ inputRange: faixaDoVoo, outputRange: saidaDoVoo(0, 1, 0), extrapolate: 'clamp' })),
+          ),
           Animated.add(cartaoYVisto, Animated.multiply(Animated.add(cartaoEscVisto, -1), ky)),
         ),
       },
@@ -1149,7 +1132,7 @@ export function PlayerRoot() {
       moldura: { borderRadius: animRaio.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) },
       miniTransform: [
         { translateX: reducedMotion ? 0 : Animated.add(dragXVisto, (1 - closeGain) * W) },
-        { translateY: miniSubir },
+        { translateY: Animated.add(miniSubir, desvioDaMusica) },
         { scale: miniEscala },
       ],
       miniOpacidade: Animated.multiply(Animated.multiply(visibilityAnim, miniFade), miniOpacidade),
@@ -1871,21 +1854,23 @@ export function PlayerRoot() {
           ver `soAvisos`. Sem faixa nenhuma a barra continua inteira, lá em
           cima, porque aí é a única porta para o Jam. */}
       {!shouldHide && !aberto ? (
-        <View
+        <Animated.View
           pointerEvents="box-none"
           style={{
             position: 'absolute',
             left: spacing.xl,
             right: spacing.xl,
             // Solta, com folga: um aviso que passa não é uma peça do leitor.
-            bottom: miniBottom + (current ? MINI_PLAYER_HEIGHT : 0) + spacing.sm,
+            // Por cima do vidro da base, e desce com ela.
+            bottom: miniBottom + (current ? MINI_PLAYER_HEIGHT + 4 : 0) + spacing.sm,
             gap: 6,
+            transform: [{ translateY: desvioDaMusica }],
           }}
         >
           {/* "Listening along with X · Leave": seguir alguém é um modo, e vê-se. */}
           <BarraDeSeguir />
           <BarraDaSessao soAvisos aoAbrir={() => setSessaoAberta(true)} />
-        </View>
+        </Animated.View>
       ) : null}
       <FolhaDaSessao visivel={sessaoAberta} aoFechar={() => setSessaoAberta(false)} />
 
@@ -2197,7 +2182,9 @@ function PreenchimentoDoMini() {
   // segundo, e uma animação contínua mantinha o ecrã a redesenhar-se sempre
   // que há música -- que é o que o aquecimento de 13/9 ensinou a evitar.
   const fraction = usePlayer((s) => (s.durationMs > 0 ? Math.min(1, s.positionMs / s.durationMs) : 0));
-  return <View style={[styles.miniTrackFill, { width: `${fraction * 100}%` }]} />;
+  // Na cor do tema (3/10): a da capa com "seguir a cor da capa", o steel sem.
+  const cor = useTheme((s) => s.destino.color);
+  return <View style={[styles.miniTrackFill, { width: `${fraction * 100}%`, backgroundColor: cor }]} />;
 }
 
 const styles = StyleSheet.create({
@@ -2499,20 +2486,13 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
+  // Sem fundo nem moldura (3/10): o vidro é da base (components/Doca.tsx), e a
+  // linha está por cima dele. Era um cartão opaco pousado na barra.
   mini: {
     position: 'absolute',
-    left: 10,
-    right: 10,
+    left: 0,
+    right: 0,
     height: MINI_PLAYER_HEIGHT,
-    backgroundColor: colors.surfaceHigh,
-    borderRadius: radii.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.borderStrong,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 12,
     overflow: 'hidden',
   },
   miniInner: {
@@ -2520,8 +2500,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingLeft: 8,
-    paddingRight: 6,
+    paddingLeft: 16,
+    paddingRight: 10,
   },
   miniVideoSlot: {
     width: 48,
@@ -2544,8 +2524,8 @@ const styles = StyleSheet.create({
   },
   miniTrack: {
     position: 'absolute',
-    left: 12,
-    right: 12,
+    left: 16,
+    right: 16,
     bottom: 0,
     height: 2,
     borderRadius: 1,
