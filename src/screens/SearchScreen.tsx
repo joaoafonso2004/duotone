@@ -1,7 +1,7 @@
 import { useRecommendationFeedback } from '../state/recommendationFeedback';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FILTROS_DE_VERSAO, filtrosComResultados, versaoPassa, type FiltroDeVersao } from '../lib/filtroDeVersao';
 import {
   ActivityIndicator,
@@ -26,6 +26,10 @@ type ItemEmCapa = { id: string; titulo: string; legenda: string; capa: string | 
 import { lembrarCanalDoArtista } from '../api/albunsDoArtista';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
+import { useRecentes } from '../state/recentes';
+import { useMisturaDoDia } from '../state/misturaDoDia';
+import { capasDaFila, chaveDoRecente, recentesParaMostrar, type Recente } from '../lib/recentes';
+import { Toque } from '../components/Toque';
 import { Animated, useWindowDimensions } from 'react-native';
 import { useNavigation, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -203,6 +207,25 @@ export function SearchScreen() {
    * duas colunas, e um numero impar deixava um buraco na ultima linha.
    */
   const atalhos = React.useMemo(() => misturas.slice(0, 7), [misturas]);
+  // O "Jump back in" (3/10): os recentes primeiro, e os atalhos de sempre a
+  // encher o que falta (lib/recentes.ts).
+  const recentes = useRecentes((s) => s.lista);
+  const paraVoltar = React.useMemo(() => recentesParaMostrar(recentes, [
+    { chave: chaveDoRecente({ tipo: 'guardadas', nome: 'Liked Songs' }), tipo: 'guardadas', nome: 'Liked Songs', capas: [], quando: 0 },
+    ...atalhos.map((m): Recente => ({
+      chave: chaveDoRecente({ tipo: 'mistura', nome: m.nome, id: m.id }), tipo: 'mistura', nome: m.nome, id: m.id,
+      capas: capasDaFila(m.faixas), quando: 0,
+    })),
+  ]), [recentes, atalhos]);
+  const temMisturaDoDia = useMisturaDoDia((s) => !(s.estado === 'vazio' || (s.estado === 'pronto' && s.faixas.length === 0)));
+  const voltarA = useCallback((r: Recente) => {
+    if (r.tipo === 'guardadas') { separadores.navigate('Songs'); return; }
+    if (r.tipo === 'playlist' && r.id) { navigation.navigate('PlaylistDetail', { id: r.id, name: r.nome }); return; }
+    if (r.tipo === 'artista' || r.tipo === 'album') { navigation.navigate('LibraryGroup', { type: r.tipo === 'artista' ? 'artist' : 'album', name: r.nome }); return; }
+    if (r.tipo === 'mistura' && r.id) { navigation.navigate('Prateleira', { titulo: r.nome, fonte: { tipo: 'mistura', id: r.id } }); return; }
+    if (r.tipo === 'prateleira' && r.id === 'doDia') { navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' } }); return; }
+    if (r.tipo === 'prateleira' && r.id) navigation.navigate('Prateleira', { titulo: r.nome, fonte: { tipo: 'prateleira', nome: r.id as NomeDaPrateleira } });
+  }, [navigation, separadores]);
 
   const misturasDeEstilo = React.useMemo(
     () => misturas.filter((m) => m.id.startsWith('estilo:')),
@@ -517,7 +540,7 @@ export function SearchScreen() {
   // recomendacoes: antes disso nao ha nada para refrescar, e o botao chegava
   // ao ecra antes daquilo que ele refresca.
   return (
-    <Screen title="Search" subtitle="Find any song"
+    <Screen title="Home"
       encolhe={cab}
       // O campo de pesquisa vive no cabeçalho (3/10): fica preso por baixo da
       // barra compacta e não perde o foco quando a lista por baixo muda.
@@ -525,7 +548,7 @@ export function SearchScreen() {
         <View style={styles.controls}>
           <Input
             icon="search"
-            placeholder="Songs, artists…"
+            placeholder="Songs, artists, playlists…"
             value={query}
             onChangeText={setQuery}
             onClear={() => setQuery('')}
@@ -688,50 +711,66 @@ export function SearchScreen() {
                 So aparece com mixes: uma grelha com um quadrado sozinho nao e
                 uma grelha, e no primeiro dia de uma conta nova nao ha mixes
                 nenhuns. */}
-            {atalhos.length > 0 && (
-              <View style={styles.atalhos}>
-                <Pressable
-                  onPress={() => separadores.navigate('Songs')}
-                  style={({ pressed }) => [styles.atalho, pressed && { opacity: 0.75 }]}
-                >
-                  <View style={[styles.atalhoCapa, styles.atalhoCoracao]}>
-                    <Ionicons name="heart" size={20} color={colors.text} />
-                  </View>
-                  <Text numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.atalhoNome}>Liked Songs</Text>
-                </Pressable>
-                {atalhos.map((m) => (
-                  <Pressable
-                    key={m.id}
-                    onPress={() => navigation.navigate('Prateleira', {
-                      titulo: m.nome, fonte: { tipo: 'mistura', id: m.id },
-                    })}
-                    style={({ pressed }) => [styles.atalho, pressed && { opacity: 0.75 }]}
-                  >
-                    <View style={styles.atalhoCapa}>
-                      {m.faixas.slice(0, 4).map((t, i) => (
-                        t.artworkUrl ? (
-                          <Image
-                            key={i}
-                            source={{ uri: capaParaLista(t.artworkUrl)! }}
-                            style={{ width: '50%', height: '50%' }}
-                            contentFit="cover"
-                            transition={200}
-                          />
-                        ) : (
-                          <View key={i} style={{ width: '50%', height: '50%', backgroundColor: colors.surfaceHigh }} />
-                        )
-                      ))}
-                    </View>
-                    <Text numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.atalhoNome}>{m.nome}</Text>
-                  </Pressable>
-                ))}
+            {/* O "Jump back in" (3/10, variante A de docs/barra-home-folhas.html):
+                os últimos sítios de onde se ouviu, para voltar onde se estava
+                (lib/recentes.ts). Os atalhos de sempre -- Liked Songs e as
+                misturas -- só enchem o que falta: uma conta nova ainda não
+                ouviu nada. */}
+            {paraVoltar.length >= 2 && (
+              <View>
+                <View style={styles.sectionHeader}>
+                  <Text accessibilityRole="header" style={styles.sectionTitle}>Jump back in</Text>
+                </View>
+                <View style={[styles.atalhos, { marginTop: spacing.sm }]}>
+                  {paraVoltar.map((r) => (
+                    <Toque
+                      key={r.chave}
+                      acende
+                      accessibilityRole="button"
+                      accessibilityLabel={r.nome}
+                      onPress={() => voltarA(r)}
+                      style={styles.atalho}
+                    >
+                      {r.tipo === 'guardadas' ? (
+                        <View style={[styles.atalhoCapa, styles.atalhoCoracao]}>
+                          <Ionicons name="heart" size={20} color={colors.text} />
+                        </View>
+                      ) : r.tipo === 'artista' ? (
+                        <View style={[styles.atalhoCapa, styles.atalhoCoracao]}>
+                          {r.capas[0] ? (
+                            <Image source={{ uri: capaParaLista(r.capas[0])! }} style={styles.atalhoRedonda} contentFit="cover" transition={200} />
+                          ) : <Ionicons name="person" size={20} color={colors.textSecondary} />}
+                        </View>
+                      ) : (
+                        <View style={styles.atalhoCapa}>
+                          {(r.capas.length >= 4 ? r.capas.slice(0, 4) : r.capas.slice(0, 1)).map((c, i, todas) => (
+                            <Image
+                              key={i}
+                              source={{ uri: capaParaLista(c)! }}
+                              style={todas.length === 1 ? { width: '100%', height: '100%' } : { width: '50%', height: '50%' }}
+                              contentFit="cover"
+                              transition={200}
+                            />
+                          ))}
+                        </View>
+                      )}
+                      <Text numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.atalhoNome}>{r.nome}</Text>
+                    </Toque>
+                  ))}
+                </View>
               </View>
             )}
-            {/* A Daily mix, logo a seguir aos atalhos: é a lista que se toca
-                sem escolher nada, e morava escondida no fundo do separador das
-                Playlists. Some quando não há mix para mostrar. */}
-            <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.md }}>
+            {/* A Daily mix, logo a seguir: é a lista que se toca sem escolher
+                nada. Em destaque na Home (3/10): a capa grande e os artistas
+                dela. Some quando não há mix para mostrar. */}
+            {temMisturaDoDia && (
+              <View style={[styles.sectionHeader, { marginTop: spacing.lg }]}>
+                <Text accessibilityRole="header" style={styles.sectionTitle}>Daily mix</Text>
+              </View>
+            )}
+            <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.sm }}>
               <CartaoDaMisturaDoDia
+                destaque
                 aoAbrir={() => navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' } })}
               />
             </View>
@@ -1115,6 +1154,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  atalhoRedonda: { width: 40, height: 40, borderRadius: 20 },
   atalhoNome: {
     flex: 1,
     fontSize: 13,
@@ -1132,9 +1172,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.xl,
   },
+  // 22 pt (3/10, auditoria 1.2): a hierarquia saltava do título de 32 para
+  // 16, e as prateleiras liam-se como listas.
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 22,
     fontWeight: '700',
+    letterSpacing: -0.2,
     color: colors.text,
   },
   horizontalScroll: {

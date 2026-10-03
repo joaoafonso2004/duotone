@@ -11,12 +11,20 @@ import { useTheme } from '../state/theme';
 import { colors, ESCALA_MAXIMA } from '../theme';
 
 const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
-  Search: 'search',
+  Search: 'home',
   Songs: 'musical-notes',
   Artists: 'people',
   Playlists: 'albums',
   Profile: 'person',
 };
+
+/**
+ * O nome que se VÊ, quando não é o da rota (3/10, variante A de
+ * `docs/barra-home-folhas.html`): a "Search" já era a página principal (os
+ * amigos, o Jump back in, a Daily mix, as prateleiras), e passou a dizê-lo. A
+ * rota continua `Search` -- é por esse nome que a app inteira navega até lá.
+ */
+const NOMES_DOS_SEPARADORES: Record<string, string> = { Search: 'Home' };
 
 const TAMANHO = 24;
 
@@ -132,12 +140,13 @@ export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabB
         // por `options` obrigava a alargar os tipos do navegador ou a cinco
         // `as any`, e a barra é o único sítio que precisa de o saber.
         const icone = ICONES_DOS_SEPARADORES[route.name as keyof typeof ICONES_DOS_SEPARADORES] ?? 'ellipse';
+        const nome = NOMES_DOS_SEPARADORES[route.name] ?? route.name;
         return (
           <Pressable
             key={route.key}
             accessibilityRole="button"
             accessibilityState={{ selected: escolhido }}
-            accessibilityLabel={route.name}
+            accessibilityLabel={nome}
             onPress={() => {
               // Dentro de uma pilha (um álbum aberto) não se emite: o
               // native-stack voltava à raiz com o `tabPress`.
@@ -159,7 +168,7 @@ export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabB
               />
               {route.name === 'Profile' && hasNotification && <View style={styles.ponto} />}
             </SeparadorActivo>
-            <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.fixa} style={[styles.nome, { color: cor }]}>{route.name}</Text>
+            <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.fixa} style={[styles.nome, { color: cor }]}>{nome}</Text>
           </Pressable>
         );
       })}

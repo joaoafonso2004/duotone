@@ -78,6 +78,7 @@ import { instalarEscolhaDoCodec } from './src/state/saudeDoOpus';
 import { vigiarOLeitor } from './src/state/vigiaDoLeitor';
 import { iniciarMedidorDoFolego } from './src/state/folego';
 import { iniciarEnergiaEmSegundoPlano } from './src/state/energiaEmSegundoPlano';
+import { carregarRecentes, instalarRecentes } from './src/state/recentes';
 import { BarreiraDeErros } from './src/components/BarreiraDeErros';
 
 // Antes de qualquer ecrã: o handler global dos erros, o que ficou da abertura
@@ -104,6 +105,9 @@ vigiarOLeitor();
 definirGuardarEscutaPorEnviar(guardarEscutaPorEnviar);
 instalarEnvioDeEscutas();
 if (Platform.OS === 'ios') definirPodeTocarSemRede(tocaSemRede);
+// O "Jump back in" da Home do iPhone (3/10, lib/recentes.ts): cada lista nova
+// com origem entra à frente.
+if (Platform.OS === 'ios') instalarRecentes();
 // A sessão do leitor grava-se no disco de 30 em 30 s em segundo plano (não de 3 em 3).
 definirEmSegundoPlano(() => AppState.currentState === 'background');
 // Sair da conta leva a música e a fila de quem sai (state/auth.ts), por todas as
@@ -215,6 +219,9 @@ export default function App() {
    * quem entra vê o esqueleto -- que é a verdade -- em vez da biblioteca de
    * outra pessoa.
    */
+  // Os recentes da Home são da conta (no aparelho): trocar de conta troca-os.
+  useEffect(() => { if (Platform.OS === 'ios') void carregarRecentes(userId ?? null); }, [userId]);
+
   useEffect(() => {
     if (!userId) { usePlaylists.getState().limpar(); return; }
     return () => { usePlaylists.getState().limpar(); };

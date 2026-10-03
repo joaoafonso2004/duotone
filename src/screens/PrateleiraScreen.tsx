@@ -14,6 +14,7 @@ import { usePlayer } from '../state/player';
 import { useSaved } from '../state/saved';
 import { MINI_PLAYER_HEIGHT } from '../theme';
 import type { Track } from '../types';
+import type { OrigemDaFila } from '../lib/origemDaFila';
 import {
   contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics,
 } from '../lib/contextoDaDescoberta';
@@ -34,6 +35,16 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Prateleira'>;
  * não pede nada à rede. O esqueleto só aparece a quem entrou antes de a
  * prateleira ter aterrado, o que na prática é raro.
  */
+/**
+ * De onde vem a lista, para o "Jump back in" da Home voltar aqui (3/10,
+ * lib/recentes.ts). Uma prateleira guarda o NOME dela no id; a Daily mix é "doDia".
+ */
+function origemDaPrateleira(fonte: Props['route']['params']['fonte'], titulo: string): OrigemDaFila {
+  if (fonte.tipo === 'mistura') return { tipo: 'mistura', nome: titulo, id: fonte.id };
+  if (fonte.tipo === 'doDia') return { tipo: 'prateleira', nome: 'Daily mix', id: 'doDia' };
+  return { tipo: 'prateleira', nome: titulo, id: fonte.nome };
+}
+
 export function PrateleiraScreen({ route }: Props) {
   // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
   const cab = useCabecalhoQueEncolhe();
@@ -102,7 +113,7 @@ export function PrateleiraScreen({ route }: Props) {
               track={item}
               showSavedBadge
               contextLabel={contextoDe(item).reason}
-              onPress={() => playTrack(item, faixas, true, false, contextoDe(item))}
+              onPress={() => playTrack(item, faixas, true, false, contextoDe(item), origemDaPrateleira(fonte, titulo))}
               onAction={() => setAberta(item)}
             />
           )}

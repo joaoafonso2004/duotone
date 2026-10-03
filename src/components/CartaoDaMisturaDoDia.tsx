@@ -1,6 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useMemo } from 'react';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, Text, View } from 'react-native';
+import { displayArtist } from '../lib/artistName';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { contextoDaPrateleira } from '../lib/contextoDaDescoberta';
 import { useMisturaDoDia } from '../state/misturaDoDia';
 import { usePlayer } from '../state/player';
@@ -24,20 +28,82 @@ function capaDe(t: Track): string {
  * escolher nada: um toque e está a tocar. Some quando não há mix para mostrar,
  * em vez de ocupar o topo com um vazio. Ver `lib/misturaDoDia.ts`.
  */
-export function CartaoDaMisturaDoDia({ aoAbrir }: { aoAbrir: () => void }) {
+export function CartaoDaMisturaDoDia({ aoAbrir, destaque = false }: {
+  aoAbrir: () => void;
+  /**
+   * Na Home (3/10, variante A): a capa grande a encher o cartão, com o nome e
+   * os artistas da mistura por cima. Sem isto, a linha compacta de sempre.
+   */
+  destaque?: boolean;
+}) {
   const faixas = useMisturaDoDia((s) => s.faixas);
   const estado = useMisturaDoDia((s) => s.estado);
   const playTrack = usePlayer((s) => s.playTrack);
   const theme = useTheme((s) => s.theme);
   const capas = useMemo(() => faixas.map(capaDe).filter(Boolean).slice(0, 4), [faixas]);
+  // "Isak, Dillaz, Morad and more": os primeiros artistas, sem repetir.
+  const artistas = useMemo(() => {
+    const nomes: string[] = [];
+    for (const f of faixas) {
+      const n = displayArtist(f);
+      if (n && n !== 'Unknown artist' && !nomes.includes(n)) nomes.push(n);
+      if (nomes.length >= 3) break;
+    }
+    return nomes;
+  }, [faixas]);
 
   if (estado === 'vazio' || (estado === 'pronto' && faixas.length === 0)) return null;
   const aFazer = faixas.length === 0;
 
   const tocar = () => {
     if (!faixas.length) return;
-    playTrack(faixas[0], faixas, true, false, contextoDaPrateleira('flow'));
+    // A origem leva o "Jump back in" da Home de volta à Daily mix (lib/recentes.ts).
+    playTrack(faixas[0], faixas, true, false, contextoDaPrateleira('flow'), { tipo: 'prateleira', nome: 'Daily mix', id: 'doDia' });
   };
+
+  if (destaque) {
+    const capa = capas[0] ? capaParaLista(capas[0]) : null;
+    const legenda = aFazer
+      ? 'Making today’s mix…'
+      : `${artistas.length ? `${artistas.join(', ')} and more · ` : ''}${faixas.length} songs`;
+    return (
+      <Pressable
+        onPress={aFazer ? undefined : aoAbrir}
+        accessibilityRole="button"
+        accessibilityLabel="Daily mix"
+        style={({ pressed }) => ({
+          height: 180, borderRadius: radii.lg, borderCurve: 'continuous', overflow: 'hidden',
+          backgroundColor: colors.surfaceHigh, opacity: pressed ? 0.9 : 1,
+        })}
+      >
+        {capa ? <Image source={{ uri: capa }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" transition={250} /> : null}
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.72)']}
+          locations={[0.3, 1]}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        />
+        <View style={{ position: 'absolute', left: spacing.lg, right: 76, bottom: spacing.lg, gap: 2 }}>
+          <Text numberOfLines={1} style={{ fontSize: 22, fontWeight: '800', color: '#fff' }}>Your Daily mix</Text>
+          <Text numberOfLines={1} style={[type.caption, { color: 'rgba(255,255,255,0.78)' }]}>{legenda}</Text>
+        </View>
+        {!aFazer && (
+          <Pressable
+            onPress={tocar}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Play Daily mix"
+            style={({ pressed }) => ({
+              position: 'absolute', right: spacing.lg, bottom: spacing.lg,
+              width: 48, height: 48, borderRadius: 24, backgroundColor: '#fff',
+              alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.8 : 1,
+            })}
+          >
+            <Ionicons name="play" size={22} color="#000" style={{ marginLeft: 2 }} />
+          </Pressable>
+        )}
+      </Pressable>
+    );
+  }
 
   return (
     <Pressable

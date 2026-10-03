@@ -42,6 +42,9 @@ import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 const chaveDaLinha = (t: Track) => t.id ?? `${t.source}:${t.sourceId}`;
 
+/** De onde vem a lista (o "Jump back in" da Home, lib/recentes.ts). */
+const ORIGEM_GUARDADAS = { tipo: 'guardadas', nome: 'Liked Songs' } as const;
+
 export function SongsScreen() {
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
   const topo = useRef<any>(null);
@@ -202,7 +205,7 @@ export function SongsScreen() {
   // redesenhar a lista inteira.
   const aoTocarNaLinha = useCallback((item: Track) => {
     if (selectMode) toggleSelection(item.id ?? `${item.source}:${item.sourceId}`);
-    else playTrack(item, sortedTracks, true);
+    else playTrack(item, sortedTracks, true, false, undefined, ORIGEM_GUARDADAS);
   }, [selectMode, toggleSelection, playTrack, sortedTracks]);
   const desenharLinha = useCallback(({ item }: { item: Track }) => (
     <TrackRow
@@ -231,7 +234,7 @@ export function SongsScreen() {
             <View style={styles.actionRow}>
               <Pressable
                 style={styles.playButton}
-                onPress={() => void tocarLista(sortedTracks, ligado, inteligente)}
+                onPress={() => void tocarLista(sortedTracks, ligado, inteligente, ORIGEM_GUARDADAS)}
               >
                 <LinearGradient
                   colors={theme.gradient}

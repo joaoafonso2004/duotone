@@ -250,9 +250,11 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
   // Estável (27/9): a linha recebe a faixa, e o `React.memo` do TrackRow deixa
   // de se desfazer a cada render. Quem acende a que toca é a própria linha.
+  // De onde vem a lista: o "Jump back in" da Home volta aqui (lib/recentes.ts).
+  const origem = useMemo(() => ({ tipo: 'playlist' as const, nome: name, id }), [name, id]);
   const aoTocarNaLinha = useCallback((item: Track) => {
-    playTrack(item, visibleTracks, true);
-  }, [playTrack, visibleTracks]);
+    playTrack(item, visibleTracks, true, false, undefined, origem);
+  }, [playTrack, visibleTracks, origem]);
 
   /**
    * O "Remove from this playlist" do menu: tira logo, sem pergunta, e o aviso
@@ -479,7 +481,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           <View style={styles.actionRow}>
             <Pressable
               style={styles.playButton}
-              onPress={() => void tocarLista(visibleTracks, ligado, inteligente)}
+              onPress={() => void tocarLista(visibleTracks, ligado, inteligente, origem)}
             >
               <LinearGradient
                 colors={theme.gradient}

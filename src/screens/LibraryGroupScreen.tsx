@@ -161,6 +161,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const bottomPad = separadores + insets.bottom + MINI_PLAYER_HEIGHT + 32;
   const cab = useCabecalhoQueEncolhe();
   const [fimDoNome, setFimDoNome] = useState(260);
+  // De onde vem a lista: o "Jump back in" da Home volta aqui (lib/recentes.ts).
+  const origemDaPagina = useMemo(() => ({ tipo: type === 'artist' ? 'artista' : 'album', nome: name } as const), [type, name]);
   // Cada aba é uma lista nova, que começa no topo: o cabeçalho volta a abrir.
   const rolagem = cab.rolagem;
   useEffect(() => { rolagem.setValue(0); }, [activeTab, rolagem]);
@@ -270,7 +272,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     {type === 'artist' ? <CabecalhoDaPlaylist artista aoMedirNome={setFimDoNome} nome={name} artworks={capaDoArtista ? [capaDoArtista] : []}
       faixas={faixasDoCabecalho.length} duracaoSegundos={total}
       accoes={tracks.length || otherTracks.length || pagina?.mix ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
-        <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true)} />
+        <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true, false, undefined, origemDaPagina)} />
       </View> : null}
     {type === 'artist' && pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente}
       onPress={() => { const a = pagina.maisRecente!; setSelectedYtPlaylistId(a.id); setSelectedYtPlaylistTitle(a.title); setSelectedYtPlaylistArtwork(a.artworkUrl); }} /> : null}
@@ -312,7 +314,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
           <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
         </Pressable> : <TrackRow track={item} showSavedBadge={activeTab === 'youtube_tracks'}
           acompanharATocar
-          onPress={() => playTrack(item, activeTab === 'library' ? tracks : otherTracks, true)} onAction={() => setActionTrack(item)} />}
+          onPress={() => playTrack(item, activeTab === 'library' ? tracks : otherTracks, true, false, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
       />
 
       <TrackActionsSheet
