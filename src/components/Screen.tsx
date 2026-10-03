@@ -314,8 +314,11 @@ const styles = StyleSheet.create({
     height: StyleSheet.hairlineWidth, backgroundColor: colors.border,
   },
   // No meio da barra, entre os botões dela.
+  // Margens iguais dos dois lados (fica centrado) e largas que cheguem para
+  // dois botões à direita (a lupa e o ⋯ da playlist): um nome comprido corta
+  // com reticências em vez de passar por baixo deles.
   tituloCompacto: {
-    position: 'absolute', left: 72, right: 72, height: 22, lineHeight: 22,
+    position: 'absolute', left: 104, right: 104, height: 22, lineHeight: 22,
     textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.text,
   },
   // A largura do próprio texto (e não a da coluna): é ela que se centra.

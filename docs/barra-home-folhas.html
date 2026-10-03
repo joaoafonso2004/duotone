@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barra, Home e folhas</title>
+<style>
+:root{
+  --bg:#0A0A0F;--surface:#14141C;--high:#1D1D28;
+  --border:rgba(255,255,255,.08);--borderStrong:rgba(255,255,255,.14);
+  --text:#F5F5F7;--sec:rgba(245,245,247,.58);--ter:rgba(245,245,247,.48);
+  --accent:#C9A86A;--pagina:#060609;--chip:rgba(255,255,255,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--pagina);color:var(--text)}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.pagina{max-width:1180px;margin:0 auto;padding:40px 16px 120px}
+h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px}
+.intro{color:#9a9aa4;font-size:15px;line-height:1.6;max-width:780px}
+section{margin-top:64px}
+h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
+.nota{color:#9a9aa4;font-size:14px;line-height:1.6;max-width:840px;margin-bottom:14px}
+.nota b{color:var(--text);font-weight:600}
+.controlos{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px;align-items:center}
+.ctl{padding:9px 14px;border-radius:99px;background:var(--chip);font-size:13px;font-weight:600}
+.ctl[aria-pressed="true"]{background:#fff;color:#000}
+.recomendo{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:99px;background:var(--accent);color:#0B0B0E;margin-left:6px;vertical-align:2px}
+.telefones{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start}
+.coluna{display:flex;flex-direction:column;gap:12px;align-items:center}
+.dica{font-size:12.5px;color:#8e8e98;line-height:1.55;max-width:330px;text-align:center}
+
+/* ---------- o telemóvel (390x844, reduzido por --s) ---------- */
+.moldura{width:calc(390px*var(--s));height:calc(844px*var(--s));flex:none}
+.tel{width:390px;height:844px;transform:scale(var(--s));transform-origin:0 0;position:relative;border-radius:54px;overflow:hidden;background:#000;
+  box-shadow:0 0 0 10px #17171b,0 0 0 11px #2b2b31,0 40px 110px rgba(0,0,0,.65);isolation:isolate;user-select:none;-webkit-user-select:none}
+.ilha{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000;z-index:60}
+.estado{position:absolute;top:0;left:0;right:0;height:54px;display:flex;justify-content:space-between;align-items:center;padding:6px 34px 0 42px;font-size:16px;font-weight:600;z-index:55;pointer-events:none}
+.indicador{position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:rgba(255,255,255,.9);z-index:70;pointer-events:none}
+.app{position:absolute;inset:0;background:var(--bg);overflow:hidden}
+.rolar{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none}
+.rolar::-webkit-scrollbar{display:none}
+.capaA{background:linear-gradient(135deg,#efe0b2 0%,#b38d47 42%,#3a2a12 100%)}
+.capaB{background:linear-gradient(135deg,#9db5d6,#2c3d5c)}
+.capaC{background:linear-gradient(135deg,#d6889b,#4a1b2a)}
+.capaD{background:linear-gradient(135deg,#a3d1a0,#1f3d22)}
+.capaE{background:linear-gradient(135deg,#c9b3e8,#352552)}
+.capaF{background:linear-gradient(135deg,#e8b48a,#5c2e12)}
+.capaG{background:linear-gradient(135deg,#f0f0f0,#5a5a5a)}
+
+/* a base de vidro (como ficou na app) */
+.base{position:absolute;left:0;right:0;bottom:0;z-index:30;border-radius:24px 24px 0 0;overflow:hidden;border-top:.5px solid rgba(255,255,255,.14);
+  -webkit-backdrop-filter:blur(30px) saturate(160%);backdrop-filter:blur(30px) saturate(160%);
+  background:linear-gradient(180deg,rgba(201,168,106,.20) 0%,rgba(10,10,15,.70) 55%)}
+.mini{display:flex;align-items:center;gap:10px;padding:8px 12px 8px 16px}
+.mini .c{width:48px;height:48px;border-radius:8px}
+.mini .t{flex:1;min-width:0}
+.mini b{display:block;font-size:14px;font-weight:600}
+.mini span{font-size:12px;color:var(--sec)}
+.fio{height:2px;margin:0 16px;background:rgba(255,255,255,.1)}
+.fio i{display:block;height:100%;width:38%;background:var(--accent)}
+.seps{display:flex;padding:8px 0 30px}
+.sep{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--ter);font-size:11px;font-weight:600}
+.sep svg{width:24px;height:24px}
+.sep.on{color:var(--accent)}
+
+/* ================= 3. a barra de progresso ================= */
+.np{position:absolute;inset:0;background:radial-gradient(120% 70% at 50% 25%,#4a3a1c 0%,#1b150c 55%,#0b0a08 100%)}
+.np .capaG3{position:absolute;left:43px;top:110px;width:304px;height:304px;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.5)}
+.np .tit{position:absolute;left:28px;right:28px;top:450px;text-align:center}
+.np .tit b{font-size:22px;font-weight:700;display:block}
+.np .tit span{font-size:16px;color:var(--sec)}
+.barra3{position:absolute;left:28px;right:28px;top:540px;height:44px;touch-action:none;cursor:pointer}
+.trilho{position:absolute;left:0;right:0;top:20px;height:4px;border-radius:2px;background:rgba(255,255,255,.22);transition:height .18s cubic-bezier(.2,.8,.2,1),top .18s cubic-bezier(.2,.8,.2,1)}
+.trilho i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:#fff}
+.trilho.agarrado{height:10px;top:17px}
+.trilho.desliza i{transition:width .32s cubic-bezier(.2,.8,.2,1)}
+.tempos{position:absolute;left:28px;right:28px;top:584px;display:flex;justify-content:space-between;font-size:13px;color:var(--sec);font-variant-numeric:tabular-nums}
+.ritmo{position:absolute;left:0;right:0;top:508px;text-align:center;font-size:13px;font-weight:600;color:var(--sec);opacity:0;transition:opacity .15s}
+.ritmo.ver{opacity:1}
+.transporte{position:absolute;left:0;right:0;top:640px;display:flex;justify-content:center;align-items:center;gap:56px}
+.transporte svg{width:34px;height:34px}
+.vibra{position:absolute;top:516px;left:50%;margin-left:-38px;width:76px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.06em;color:#0B0B0E;background:var(--accent);border-radius:99px;padding:3px 0;opacity:0;transform:scale(.8);transition:opacity .12s,transform .12s;pointer-events:none}
+.vibra.ver{opacity:1;transform:none}
+.contador{font-size:12.5px;color:#8e8e98;text-align:center;max-width:330px;line-height:1.5;min-height:38px}
+
+/* ================= 5. a Home ================= */
+.cab5{padding:58px 20px 6px;display:flex;align-items:flex-end;justify-content:space-between}
+.cab5 h3{font-size:32px;font-weight:700;letter-spacing:-.01em}
+.cab5 p{font-size:13px;color:var(--sec);margin-top:2px}
+.lupa{width:40px;height:40px;border-radius:20px;background:rgba(255,255,255,.08);display:grid;place-items:center;margin-bottom:2px}
+.campo5{margin:8px 20px 6px;height:38px;border-radius:12px;background:rgba(255,255,255,.08);display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--ter);font-size:16px}
+.amigos{display:flex;gap:14px;padding:12px 20px 4px;overflow:hidden}
+.amigo{display:flex;flex-direction:column;align-items:center;gap:5px;width:62px;flex:none}
+.amigo .av{width:56px;height:56px;border-radius:28px;position:relative}
+.amigo .av::after{content:"";position:absolute;right:1px;bottom:1px;width:13px;height:13px;border-radius:7px;background:#3ccf6e;border:2.5px solid var(--bg)}
+.amigo b{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px}
+.amigo span{font-size:11px;color:var(--sec);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:62px;margin-top:-4px}
+.grelha{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 20px 4px}
+.tile{display:flex;align-items:center;gap:10px;height:52px;border-radius:8px;background:rgba(255,255,255,.07);overflow:hidden;padding-right:8px}
+.tile .c{width:52px;height:52px;flex:none}
+.tile .c.redonda{border-radius:26px;width:42px;height:42px;margin-left:5px}
+.tile b{font-size:13px;font-weight:600;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.titulo5{display:flex;justify-content:space-between;align-items:baseline;padding:22px 20px 10px}
+.titulo5 b{font-size:22px;font-weight:700;letter-spacing:-.01em}
+.titulo5 a{font-size:14px;color:var(--accent);font-weight:600}
+.titulo5.velho b{font-size:16px;font-weight:700}
+.diario{margin:6px 20px 0;border-radius:16px;overflow:hidden;position:relative;height:180px}
+.diario .c{position:absolute;inset:0}
+.diario .v{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 30%,rgba(0,0,0,.72) 100%)}
+.diario .tx{position:absolute;left:16px;bottom:14px;right:70px}
+.diario .tx b{font-size:22px;font-weight:800;display:block}
+.diario .tx span{font-size:13px;color:rgba(255,255,255,.75)}
+.diario .play{position:absolute;right:14px;bottom:14px;width:46px;height:46px;border-radius:23px;background:#fff;display:grid;place-items:center}
+.diario.pequeno{height:96px}
+.diario.pequeno .tx b{font-size:17px}
+.carrossel{display:flex;gap:12px;padding:0 20px;overflow:hidden}
+.cartao{width:146px;flex:none}
+.cartao .c{width:146px;height:146px;border-radius:10px}
+.cartao b{display:block;font-size:13px;font-weight:600;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cartao span{font-size:12px;color:var(--sec)}
+.duas{display:grid;grid-template-rows:repeat(2,124px);grid-auto-flow:column;grid-auto-columns:124px;gap:10px 12px;padding:0 20px;overflow:hidden}
+.quad{position:relative}
+.quad .c{width:124px;height:96px;border-radius:10px}
+.quad .c.redonda{width:96px;height:96px;border-radius:48px;margin:0 14px}
+.quad b{display:block;font-size:12px;font-weight:600;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.modo-pesquisa{position:absolute;inset:0;z-index:40;background:var(--bg);opacity:0;pointer-events:none;transition:opacity .2s}
+.modo-pesquisa.ver{opacity:1;pointer-events:auto}
+.modo-pesquisa .linha{display:flex;align-items:center;gap:10px;padding:58px 16px 10px}
+.modo-pesquisa .campo5{flex:1;margin:0;color:var(--text)}
+.modo-pesquisa .cancelar{color:var(--accent);font-size:16px}
+.recentes{padding:6px 20px}
+.recentes b{display:block;font-size:13px;color:var(--sec);margin:10px 0 6px;font-weight:600}
+.recentes div{height:44px;display:flex;align-items:center;gap:12px;font-size:16px;border-bottom:.5px solid var(--border)}
+
+/* ================= 7. as folhas ================= */
+.fundo7{position:absolute;inset:0;z-index:0;transform-origin:50% 0;transition:transform .5s cubic-bezier(.32,.72,0,1),border-radius .5s cubic-bezier(.32,.72,0,1),filter .5s;border-radius:0;overflow:hidden}
+.fundo7.recua{transform:translateY(54px) scale(.915);border-radius:16px;filter:brightness(.62)}
+.veu7{position:absolute;inset:0;background:#000;opacity:0;transition:opacity .35s;z-index:20;pointer-events:none}
+.folha{position:absolute;left:0;right:0;bottom:0;z-index:25;background:#1b1b22;transform:translateY(100%);will-change:transform}
+.folha.hoje{height:600px;border-radius:16px 16px 0 0;transition:transform .32s ease-out}
+.folha.nativa{top:0;border-radius:38px 38px 0 0;background:rgba(30,30,38,.96);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px)}
+.folha .pega{height:28px;display:grid;place-items:center;touch-action:none;cursor:grab}
+.folha .pega i{display:block;width:36px;height:5px;border-radius:3px;background:rgba(255,255,255,.3)}
+.folha .cabf{display:flex;justify-content:space-between;align-items:center;padding:2px 20px 10px;touch-action:none;cursor:grab}
+.folha .cabf b{font-size:20px;font-weight:700}
+.folha .cabf span{font-size:15px;color:var(--accent);font-weight:600}
+.folha .lista{position:absolute;left:0;right:0;bottom:0;overflow-y:auto;scrollbar-width:none}
+.folha .lista::-webkit-scrollbar{display:none}
+.folha .lf{display:flex;align-items:center;gap:12px;height:58px;padding:0 20px}
+.folha .lf .c{width:44px;height:44px;border-radius:6px;flex:none}
+.folha .lf .m{flex:1;min-width:0}
+.folha .lf b{display:block;font-size:15px;font-weight:600}
+.folha .lf span{font-size:13px;color:var(--sec)}
+.folha .lf .pegaf{color:var(--ter);font-size:18px;letter-spacing:-2px}
+.folha .rot{font-size:12px;font-weight:700;color:var(--ter);letter-spacing:.05em;text-transform:uppercase;padding:12px 20px 4px}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>Barra de progresso, Home e folhas</h1>
+  <p class="intro">As previews dos pontos 3, 5 e 7 da auditoria, no aspeto da app. Os iPhones são interativos: arrasta a barra, rola a Home,
+    abre e arrasta a folha.</p>
+
+  <!-- ===================== 3 ===================== -->
+  <section id="s3">
+    <h2>3 · A barra de progresso do leitor</h2>
+    <p class="nota">Hoje, pousar o dedo <b>salta logo para esse ponto</b> (querias agarrar a bolinha e a música salta), o número do tempo
+      redesenha-se a cada movimento e não há vibração. A proposta: <b>agarrar não mexe na música</b>, só o movimento do dedo conta; descer o
+      dedo para longe da barra <b>abranda</b> (meia velocidade, um quarto, ajuste fino), como no Apple Music; vibra ao agarrar e nas pontas;
+      e o tempo só muda quando muda o segundo. Tudo fora do JavaScript, como o fechar do leitor.</p>
+    <div class="controlos">
+      <button class="ctl" data-v3="hoje" aria-pressed="false">Hoje</button>
+      <button class="ctl" data-v3="A" aria-pressed="false">A · arrastar relativo</button>
+      <button class="ctl" data-v3="B" aria-pressed="true">B · relativo + tocar salta <span class="recomendo">recomendo</span></button>
+    </div>
+    <div class="telefones">
+      <div class="coluna">
+        <div class="moldura"><div class="tel" id="t3"></div></div>
+        <div class="dica" id="dica3"></div>
+        <div class="contador" id="contador3"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 5 ===================== -->
+  <section id="s5">
+    <h2>5 · A Home</h2>
+    <p class="nota">A app já tem uma página principal, só que se chama <b>Search</b>: é lá que estão os amigos, os atalhos, a Daily mix e as
+      prateleiras. A proposta é assumi-la: o separador passa a <b>Home</b> (com a casa), e a grelha de atalhos fixos dá lugar ao
+      <b>Jump back in</b>, os últimos sítios de onde ouviste (uma playlist, um artista, a Daily mix, as Liked Songs), para voltares onde estavas.
+      Os títulos das prateleiras passam a 22 pt com "See all". Pesquisar continua a um toque.</p>
+    <div class="controlos">
+      <button class="ctl" data-v5="hoje" aria-pressed="false">Hoje</button>
+      <button class="ctl" data-v5="A" aria-pressed="true">A · campo de pesquisa por baixo do título <span class="recomendo">recomendo</span></button>
+      <button class="ctl" data-v5="B" aria-pressed="false">B · lupa no cabeçalho</button>
+    </div>
+    <div class="telefones">
+      <div class="coluna">
+        <div class="moldura"><div class="tel" id="t5"></div></div>
+        <div class="dica" id="dica5"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 7 ===================== -->
+  <section id="s7">
+    <h2>7 · As folhas (aqui, a fila)</h2>
+    <p class="nota">Hoje as 14 folhas são feitas à mão: sobem até uma altura fixa, a app de trás fica parada e escurecida, e o arrastar corre
+      no JavaScript. As <b>folhas nativas do iOS</b> têm duas alturas (meia e inteira) entre as quais se arrasta, a app de trás <b>recua</b>
+      com os cantos redondos quando a folha sobe toda, e rolar a lista com a folha a meio leva-a ao topo. São as mesmas do Apple Music e
+      das Mensagens. Abre a folha e arrasta pela pega.</p>
+    <div class="controlos">
+      <button class="ctl" data-v7="hoje" aria-pressed="false">Hoje</button>
+      <button class="ctl" data-v7="nativa" aria-pressed="true">Nativa · meia e inteira <span class="recomendo">recomendo</span></button>
+      <span style="width:1px;height:22px;background:rgba(255,255,255,.12);margin:0 4px"></span>
+      <button class="ctl" id="abrir7">Abrir a fila</button>
+    </div>
+    <div class="telefones">
+      <div class="coluna">
+        <div class="moldura"><div class="tel" id="t7"></div></div>
+        <div class="dica" id="dica7"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const S = Math.min(0.72, (Math.min(window.innerWidth, 1180) - 40) / 390);
+document.querySelectorAll('.moldura,.tel').forEach((m) => m.style.setProperty('--s', S));
+const svg = (d, cor = 'currentColor', w = 24) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" style="color:${cor}">${d}</svg>`;
+const PLAY = '<path d="M8 5.5v13l11-6.5z" fill="currentColor"/>';
+const PAUSE = '<rect x="6.5" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1" fill="currentColor"/>';
+const NEXT = '<path d="M4 6l8 6-8 6zM12 6l8 6-8 6z" fill="currentColor"/>';
+const PREV = '<path d="M20 6l-8 6 8 6zM12 6l-8 6 8 6z" fill="currentColor"/>';
+const ICONES = {
+  Home: '<path d="M4 10.5L12 4l8 6.5V20h-5.5v-6h-5v6H4z" fill="currentColor"/>',
+  Search: '<circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  Songs: '<path d="M9 18V6l10-2v12" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="currentColor"/><circle cx="16.5" cy="16" r="2.5" fill="currentColor"/>',
+  Artists: '<circle cx="9" cy="8" r="3.2" fill="currentColor"/><path d="M3 19c.6-3.4 3-5 6-5s5.4 1.6 6 5z" fill="currentColor"/><circle cx="17" cy="9" r="2.5" fill="currentColor" opacity=".7"/>',
+  Playlists: '<rect x="4" y="7" width="13" height="13" rx="2.5" fill="currentColor"/><path d="M7 4.5h11.5a1.5 1.5 0 011.5 1.5v11.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  Profile: '<circle cx="12" cy="8" r="4" fill="currentColor"/><path d="M4 20.5c.8-4.3 4-6.5 8-6.5s7.2 2.2 8 6.5z" fill="currentColor"/>',
+};
+const comum = (tel) => tel.insertAdjacentHTML('beforeend', `<div class="ilha"></div><div class="estado"><span>12:34</span><span></span></div><div class="indicador"></div>`);
+const base = (primeiro, escolhido) => `<div class="base"><div class="mini"><div class="c capaA"></div><div class="t"><b>Pinga</b><span>Isak</span></div>${svg(PAUSE, '#fff', 22)}${svg(NEXT, '#fff', 20)}</div>
+  <div class="fio"><i></i></div><div class="seps">${[primeiro, 'Songs', 'Artists', 'Playlists', 'Profile'].map((n) =>
+    `<div class="sep${n === escolhido ? ' on' : ''}">${svg(ICONES[n])}<span>${n}</span></div>`).join('')}</div></div>`;
+const vibrar = () => { try { navigator.vibrate && navigator.vibrate(10); } catch (_) {} };
+
+/* ---------- 3 ---------- */
+const t3 = document.getElementById('t3');
+let v3 = 'B', tocar3 = true;
+const DUR = 213;
+let pos = 61;
+const DICAS3 = {
+  hoje: 'Pousa o dedo perto da bolinha: a música salta para onde o dedo tocou, antes de arrastares.',
+  A: 'Pousar não mexe na música: só o movimento conta. Arrasta e desce o dedo para abrandar. Tocar sem arrastar não faz nada (como no Apple Music).',
+  B: 'Como a A, mas um toque rápido sem arrastar continua a saltar para esse ponto, a deslizar. Agarrar para arrastar já não salta.',
+};
+const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+function desenhar3() {
+  t3.innerHTML = `<div class="app np"><div class="capaG3 capaA"></div>
+    <div class="tit"><b>Pinga</b><span>Isak</span></div>
+    <div class="ritmo" id="ritmo3"></div><div class="vibra" id="vibra3">VIBRA</div>
+    <div class="barra3" id="barra3"><div class="trilho" id="trilho3"><i id="enche3"></i></div></div>
+    <div class="tempos"><span id="ja3"></span><span id="falta3"></span></div>
+    <div class="transporte">${svg(PREV, '#fff', 34)}<span id="tp3" style="cursor:pointer">${svg(tocar3 ? PAUSE : PLAY, '#fff', 46)}</span>${svg(NEXT, '#fff', 34)}</div></div>`;
+  comum(t3);
+  document.getElementById('dica3').textContent = DICAS3[v3];
+  document.getElementById('tp3').onclick = () => { tocar3 = !tocar3; desenhar3(); };
+  pintar3(true);
+  ligar3();
+}
+let segundoMostrado = -1, mudancas = 0, arrastar = null;
+function pintar3(forcar) {
+  const enche = document.getElementById('enche3');
+  if (!enche) return;
+  enche.style.width = `${(pos / DUR) * 100}%`;
+  // Hoje: o texto muda a cada movimento (e redesenha); proposta: só quando muda o segundo.
+  const seg = Math.floor(pos);
+  if (forcar || v3 === 'hoje' || seg !== segundoMostrado) {
+    if (!forcar && arrastar) mudancas++;
+    segundoMostrado = seg;
+    document.getElementById('ja3').textContent = fmt(pos);
+    document.getElementById('falta3').textContent = `-${fmt(DUR - pos)}`;
+  }
+}
+function pulsoVibra() {
+  vibrar();
+  const v = document.getElementById('vibra3');
+  v.classList.add('ver');
+  clearTimeout(pulsoVibra.t);
+  pulsoVibra.t = setTimeout(() => v.classList.remove('ver'), 260);
+}
+const RITMOS = [[0, 1, 'Velocidade normal'], [50, 0.5, 'Meia velocidade'], [110, 0.25, 'Um quarto da velocidade'], [170, 0.1, 'Ajuste fino']];
+function ligar3() {
+  const barra = document.getElementById('barra3'), trilho = document.getElementById('trilho3'), ritmo = document.getElementById('ritmo3');
+  const largura = 334;
+  const fracaoEm = (x) => Math.min(1, Math.max(0, (x - barra.getBoundingClientRect().left) / (largura * S)));
+  barra.onpointerdown = (e) => {
+    barra.setPointerCapture(e.pointerId);
+    mudancas = 0;
+    trilho.classList.remove('desliza');
+    trilho.classList.add('agarrado');
+    arrastar = { x: e.clientX, y0: e.clientY, ultX: e.clientX, t: performance.now(), mexeu: 0 };
+    if (v3 === 'hoje') { pos = fracaoEm(e.clientX) * DUR; mudancas++; pintar3(); }
+    else pulsoVibra();
+  };
+  barra.onpointermove = (e) => {
+    if (!arrastar) return;
+    arrastar.mexeu = Math.max(arrastar.mexeu, Math.abs(e.clientX - arrastar.x) / S);
+    if (v3 === 'hoje') { pos = fracaoEm(e.clientX) * DUR; pintar3(); return; }
+    const desceu = Math.max(0, (e.clientY - arrastar.y0) / S);
+    const [, fator, nome] = RITMOS.filter(([d]) => desceu >= d).pop();
+    ritmo.textContent = nome;
+    ritmo.classList.toggle('ver', arrastar.mexeu > 4);
+    const antes = pos;
+    pos = Math.min(DUR, Math.max(0, pos + ((e.clientX - arrastar.ultX) / S / largura) * DUR * fator));
+    arrastar.ultX = e.clientX;
+    if ((pos === 0 || pos === DUR) && antes !== pos) pulsoVibra();
+    pintar3();
+  };
+  const largar = (e) => {
+    if (!arrastar) return;
+    const toque = arrastar.mexeu < 6 && performance.now() - arrastar.t < 280;
+    if (v3 === 'B' && toque) {
+      trilho.classList.add('desliza');
+      pos = fracaoEm(e.clientX) * DUR;
+      pintar3(true);
+    }
+    arrastar = null;
+    trilho.classList.remove('agarrado');
+    ritmo.classList.remove('ver');
+    document.getElementById('contador3').textContent = v3 === 'hoje'
+      ? `Neste arrasto, o tempo foi redesenhado ${mudancas} vezes.`
+      : `Neste arrasto, o tempo mudou ${mudancas} vezes (uma por segundo de música).`;
+  };
+  barra.onpointerup = largar;
+  barra.onpointercancel = largar;
+}
+setInterval(() => {
+  if (!tocar3 || arrastar) return;
+  pos = (pos + 0.25) % DUR;
+  pintar3();
+}, 250);
+document.querySelectorAll('[data-v3]').forEach((b) => b.onclick = () => {
+  v3 = b.dataset.v3;
+  document.querySelectorAll('[data-v3]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  document.getElementById('contador3').textContent = '';
+  desenhar3();
+});
+desenhar3();
+
+/* ---------- 5 ---------- */
+const t5 = document.getElementById('t5');
+let v5 = 'A';
+const LUPA = '<circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>';
+const AMIGOS = [['Rui', 'Pinga', 'capaB'], ['Inês', 'Sete Vidas', 'capaC'], ['Tiago', 'Online', 'capaD'], ['Marta', 'TOP', 'capaE'], ['Duarte', 'Batota', 'capaF']];
+const amigosHTML = () => `<div class="amigos">${AMIGOS.map(([n, m, c]) => `<div class="amigo"><div class="av ${c}"></div><b>${n}</b><span>${m}</span></div>`).join('')}</div>`;
+const RECENTES = [['mix_de_isak (Shared)', 'capaA'], ['Isak', 'capaG', true], ['Daily mix', 'capaF'], ['Liked Songs', 'capaE'], ['Morad Radio', 'capaC'], ['Rap PT', 'capaD']];
+const ATALHOS_HOJE = [['Liked Songs', 'capaE'], ['Isak Mix', 'capaA'], ['Rap PT Mix', 'capaD'], ['Chill Mix', 'capaB'], ['Drill Mix', 'capaC'], ['Morad Mix', 'capaF']];
+const tiles = (lista) => `<div class="grelha">${lista.map(([n, c, r]) => `<div class="tile"><div class="c ${c}${r ? ' redonda' : ''}"></div><b>${n}</b></div>`).join('')}</div>`;
+const cartoes = (nomes) => `<div class="carrossel">${nomes.map(([n, a, c]) => `<div class="cartao"><div class="c ${c}"></div><b>${n}</b><span>${a}</span></div>`).join('')}</div>`;
+const DESCOBRIR = [['Plutónio', 'Dillaz', 'capaC'], ['Robbery', 'Juice WRLD', 'capaB'], ['NEED', 'Playboi Carti', 'capaE'], ['Wake Up', 'Travis Scott', 'capaD']];
+const PLAYLISTS = [['Isak & parecidos', 'Mix', 'capaA'], ['Rap PT', 'Mix', 'capaD'], ['Noite', 'Mix', 'capaB'], ['Treino', 'Mix', 'capaF']];
+const DICAS5 = {
+  hoje: 'O que está hoje na app: chama-se Search, mas é a página principal. Os atalhos são sempre os mesmos e os títulos têm 16 pt.',
+  A: 'O separador passa a Home. O campo de pesquisa fica por baixo do título (encolhe com ele), o Jump back in são os últimos sítios onde ouviste, e a Daily mix ganha capa grande.',
+  B: 'Igual, mas sem o campo: a pesquisa é a lupa do cabeçalho e abre um ecrã de pesquisa (toca na lupa). Ganha-se altura, mas pesquisar passa a ser dois toques.',
+};
+function desenhar5() {
+  let corpo;
+  if (v5 === 'hoje') {
+    corpo = `<div class="cab5"><div><h3>Search</h3><p>Find any song</p></div></div>
+      <div class="campo5">${svg(LUPA, 'currentColor', 18)} Songs, artists…</div>
+      ${amigosHTML()}${tiles(ATALHOS_HOJE)}
+      <div class="diario pequeno"><div class="c capaF"></div><div class="v"></div><div class="tx"><b>Daily mix</b><span>50 songs · made for you today</span></div><div class="play">${svg(PLAY, '#000', 22)}</div></div>
+      <div class="titulo5 velho"><b>Discover weekly</b></div>${cartoes(DESCOBRIR)}
+      <div class="titulo5 velho"><b>Playlists</b></div>${cartoes(PLAYLISTS)}`;
+  } else {
+    const cab = v5 === 'A'
+      ? `<div class="cab5"><div><h3>Home</h3></div></div><div class="campo5">${svg(LUPA, 'currentColor', 18)} Songs, artists, playlists…</div>`
+      : `<div class="cab5"><div><h3>Home</h3></div><div class="lupa" id="lupa5">${svg(LUPA, '#fff', 20)}</div></div>`;
+    corpo = `${cab}${amigosHTML()}
+      <div class="titulo5"><b>Jump back in</b></div>${tiles(RECENTES)}
+      <div class="titulo5"><b>Daily mix</b></div>
+      <div class="diario"><div class="c capaF"></div><div class="v"></div><div class="tx"><b>Your Daily mix</b><span>Isak, Dillaz, Morad and more · 50 songs</span></div><div class="play">${svg(PLAY, '#000', 22)}</div></div>
+      <div class="titulo5"><b>Discover weekly</b><a>See all ›</a></div>${cartoes(DESCOBRIR)}
+      <div class="titulo5"><b>Playlists for you</b><a>See all ›</a></div>${cartoes(PLAYLISTS)}`;
+  }
+  t5.innerHTML = `<div class="app"><div class="rolar">${corpo}<div style="height:190px"></div></div>${base(v5 === 'hoje' ? 'Search' : 'Home', v5 === 'hoje' ? 'Search' : 'Home')}
+    <div class="modo-pesquisa" id="mp5"><div class="linha"><div class="campo5">${svg(LUPA, 'currentColor', 18)} <span style="color:var(--ter)">Songs, artists, playlists…</span></div><span class="cancelar" id="cancelar5">Cancel</span></div>
+    <div class="recentes"><b>Recent searches</b><div>isak</div><div>dillaz plutónio</div><div>morad</div></div></div></div>`;
+  comum(t5);
+  document.getElementById('dica5').textContent = DICAS5[v5];
+  const lupa = document.getElementById('lupa5');
+  if (lupa) lupa.onclick = () => document.getElementById('mp5').classList.add('ver');
+  document.getElementById('cancelar5').onclick = () => document.getElementById('mp5').classList.remove('ver');
+}
+document.querySelectorAll('[data-v5]').forEach((b) => b.onclick = () => {
+  v5 = b.dataset.v5;
+  document.querySelectorAll('[data-v5]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  desenhar5();
+});
+desenhar5();
+
+/* ---------- 7 ---------- */
+const t7 = document.getElementById('t7');
+let v7 = 'nativa', aberta7 = false;
+const H = 844, TOPO_GRANDE = 64, MEIA = H * 0.5;
+let paragem = 'meia';
+const FILA = [['Batota', 'bapcat', 'capaB'], ['TOP', 'Joint One', 'capaC'], ['Sete Vidas', 'Isak', 'capaG'], ['Max Win', 'Isak', 'capaD'],
+  ['Plutónio', 'Dillaz', 'capaE'], ['Robbery', 'Juice WRLD', 'capaF'], ['NEED', 'Playboi Carti', 'capaA'], ['Wake Up', 'Travis Scott', 'capaB'],
+  ['Nunca Mais', 'Bispo', 'capaC'], ['Magnolia', 'Playboi Carti', 'capaD'], ['Legends', 'Juice WRLD', 'capaE']];
+const DICAS7 = {
+  hoje: 'O que está hoje: sobe até uma altura fixa e a app de trás fica parada e escurecida. Arrastar para baixo fecha.',
+  nativa: 'Abre a meio. Puxa pela pega (ou rola a lista) para subir toda: a app de trás recua com os cantos redondos. Puxa para baixo para voltar a meio ou fechar.',
+};
+function desenhar7() {
+  const linhas = FILA.map(([t, a, c]) => `<div class="lf"><div class="c ${c}"></div><div class="m"><b>${t}</b><span>${a}</span></div><span class="pegaf">≡</span></div>`).join('');
+  t7.innerHTML = `<div class="fundo7" id="fundo7"><div class="app"><div class="rolar">
+      <div class="cab5"><div><h3>Liked Songs</h3><p>412 saved songs</p></div></div>
+      ${FILA.concat(FILA).map(([t, a, c]) => `<div class="lf" style="display:flex;align-items:center;gap:12px;height:64px;padding:0 20px"><div class="${c}" style="width:52px;height:52px;border-radius:8px"></div><div><b style="font-size:15px">${t}</b><div style="font-size:13px;color:var(--sec)">${a}</div></div></div>`).join('')}
+    </div>${base('Search', 'Songs')}</div></div>
+    <div class="veu7" id="veu7"></div>
+    <div class="folha ${v7}" id="folha7"><div class="pega" id="pega7"><i></i></div><div class="cabf" id="cabf7"><b>Up next</b><span>Clear</span></div>
+      <div class="rot">Now playing</div><div class="lf"><div class="c capaA"></div><div class="m"><b style="color:var(--accent)">Pinga</b><span>Isak</span></div></div>
+      <div class="rot">Next from mix_de_isak</div><div class="lista" id="lista7">${linhas}<div style="height:40px"></div></div></div>`;
+  comum(t7);
+  document.getElementById('dica7').textContent = DICAS7[v7];
+  ligar7();
+  colocar7(false);
+}
+function yDe(p) { return p === 'fechada' ? H : p === 'meia' ? H - MEIA : TOPO_GRANDE; }
+function colocar7(animar = true) {
+  const folha = document.getElementById('folha7'), fundo = document.getElementById('fundo7'), veu = document.getElementById('veu7'), lista = document.getElementById('lista7');
+  if (!folha) return;
+  if (v7 === 'hoje') {
+    folha.style.transform = aberta7 ? 'translateY(0)' : 'translateY(100%)';
+    veu.style.opacity = aberta7 ? '0.5' : '0';
+    veu.style.pointerEvents = aberta7 ? 'auto' : 'none';
+    lista.style.top = '194px';
+    lista.style.bottom = '0';
+    lista.style.height = 'auto';
+    lista.style.overflowY = 'auto';
+    return;
+  }
+  const p = aberta7 ? paragem : 'fechada';
+  folha.style.transition = animar ? 'transform .5s cubic-bezier(.32,.72,0,1)' : 'none';
+  folha.style.transform = `translateY(${yDe(p)}px)`;
+  fundo.classList.toggle('recua', p === 'grande');
+  veu.style.opacity = p === 'meia' ? '0.25' : '0';
+  veu.style.pointerEvents = aberta7 ? 'auto' : 'none';
+  // A lista só rola com a folha inteira; a meio, rolar para cima sobe a folha.
+  lista.style.top = '194px';
+  lista.style.bottom = 'auto';
+  lista.style.height = `${(p === 'grande' ? H - TOPO_GRANDE : MEIA) - 194}px`;
+  lista.style.overflowY = p === 'grande' ? 'auto' : 'hidden';
+}
+function ligar7() {
+  const folha = document.getElementById('folha7'), veu = document.getElementById('veu7');
+  veu.onclick = () => { aberta7 = false; colocar7(); };
+  const zonas = [document.getElementById('pega7'), document.getElementById('cabf7')];
+  if (v7 === 'hoje') {
+    let y0 = null;
+    zonas.forEach((z) => {
+      z.onpointerdown = (e) => { y0 = e.clientY; z.setPointerCapture(e.pointerId); folha.style.transition = 'none'; };
+      z.onpointermove = (e) => { if (y0 === null) return; folha.style.transform = `translateY(${Math.max(0, (e.clientY - y0) / S)}px)`; };
+      z.onpointerup = (e) => {
+        if (y0 === null) return;
+        const d = (e.clientY - y0) / S; y0 = null;
+        folha.style.transition = 'transform .32s ease-out';
+        if (d > 120) aberta7 = false;
+        colocar7();
+      };
+    });
+    return;
+  }
+  let arr = null;
+  zonas.forEach((z) => {
+    z.onpointerdown = (e) => { arr = { y0: e.clientY, base: yDe(paragem), ult: e.clientY, t: performance.now(), v: 0 }; z.setPointerCapture(e.pointerId); folha.style.transition = 'none'; };
+    z.onpointermove = (e) => {
+      if (!arr) return;
+      const agora = performance.now();
+      arr.v = ((e.clientY - arr.ult) / S) / Math.max(1, agora - arr.t); arr.ult = e.clientY; arr.t = agora;
+      let y = arr.base + (e.clientY - arr.y0) / S;
+      if (y < TOPO_GRANDE) y = TOPO_GRANDE - (TOPO_GRANDE - y) * 0.25; // resistência para cima
+      folha.style.transform = `translateY(${y}px)`;
+    };
+    z.onpointerup = (e) => {
+      if (!arr) return;
+      const y = arr.base + (e.clientY - arr.y0) / S + arr.v * 160; arr = null;
+      const opcoes = [['grande', TOPO_GRANDE], ['meia', H - MEIA], ['fechada', H]];
+      const [p] = opcoes.reduce((a, b) => (Math.abs(b[1] - y) < Math.abs(a[1] - y) ? b : a));
+      if (p === 'fechada') { aberta7 = false; paragem = 'meia'; } else paragem = p;
+      colocar7();
+    };
+  });
+  // Rolar a lista com a folha a meio sobe-a primeiro.
+  document.getElementById('lista7').addEventListener('wheel', (e) => {
+    if (paragem === 'meia' && e.deltaY > 0) { e.preventDefault(); paragem = 'grande'; colocar7(); }
+  }, { passive: false });
+  let yl = null;
+  document.getElementById('lista7').onpointerdown = (e) => { yl = e.clientY; };
+  document.getElementById('lista7').onpointerup = (e) => { if (yl !== null && paragem === 'meia' && yl - e.clientY > 20) { paragem = 'grande'; colocar7(); } yl = null; };
+}
+document.getElementById('abrir7').onclick = () => { aberta7 = true; paragem = 'meia'; colocar7(); };
+document.querySelectorAll('[data-v7]').forEach((b) => b.onclick = () => {
+  v7 = b.dataset.v7; aberta7 = false; paragem = 'meia';
+  document.querySelectorAll('[data-v7]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  desenhar7();
+});
+desenhar7();
+</script>
+</body>
+</html>
