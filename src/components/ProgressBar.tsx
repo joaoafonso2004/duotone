@@ -1,15 +1,29 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import {
+  PanGestureHandler, State,
+  type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { BARRA_A_ARRASTAR, BOTAO_DA_BARRA, ESTADO, SOLTAR } from '../lib/movimento';
 import { colors } from '../theme';
-import { proximoTrajeto, type Trajeto } from '../lib/barraSuave';
+import { ondeVai, proximoTrajeto, type Trajeto } from '../lib/barraSuave';
+import {
+  RITMOS, bateuNaPonta, comecarArrasto, eToque, fracaoNoArrasto, mudarDeRitmo, ritmoDoArrasto, type Arrasto,
+} from '../lib/arrastarBarra';
+import { hapticImpact, hapticSelection } from '../lib/haptics';
+
+/** O deslizar da barra até ao ponto tocado (um toque salta, mas vê-se ir). */
+const DESLIZAR_MS = 280;
 
 /**
  * A fração da música como um valor animado no lado NATIVO (27/9,
  * lib/barraSuave.ts): cada posição que chega lança uma animação linear até
  * onde a música vai estar daqui a um segundo, por isso a barra desliza em vez
  * de saltar de segundo em segundo. Com `fixa` (o dedo na barra) não mexe.
+ *
+ * `deslizarAte` (3/10): até esse instante, um salto na posição (um toque na
+ * barra) desliza em vez de aparecer lá de repente.
  */
 export function useFracaoSuave(
   positionMs: number,
@@ -17,7 +31,8 @@ export function useFracaoSuave(
   aTocar: boolean,
   ritmo: number,
   fixa: number | null = null,
-): Animated.Value {
+  deslizarAte?: React.MutableRefObject<number>,
+): { valor: Animated.Value; ondeEsta: () => number | null } {
   const valor = useRef(new Animated.Value(0)).current;
   const trajeto = useRef<Trajeto | null>(null);
   useEffect(() => {
@@ -32,6 +47,17 @@ export function useFracaoSuave(
     });
     trajeto.current = novo;
     valor.stopAnimation();
+    if (saltar && deslizarAte && Date.now() < deslizarAte.current) {
+      deslizarAte.current = 0;
+      const resto = Math.max(0, novo.duracao - DESLIZAR_MS);
+      Animated.timing(valor, { toValue: novo.de, duration: DESLIZAR_MS, easing: Easing.out(Easing.cubic), useNativeDriver: true })
+        .start(({ finished }) => {
+          if (finished && resto > 0) {
+            Animated.timing(valor, { toValue: novo.para, duration: resto, easing: Easing.linear, useNativeDriver: true }).start();
+          }
+        });
+      return;
+    }
     if (saltar) valor.setValue(novo.de);
     if (novo.duracao > 0) {
       Animated.timing(valor, {
@@ -39,7 +65,8 @@ export function useFracaoSuave(
       }).start();
     }
   }, [positionMs, durationMs, aTocar, ritmo, fixa, valor]);
-  return valor;
+  const ondeEsta = useCallback(() => ondeVai(trajeto.current, Date.now()), []);
+  return { valor, ondeEsta };
 }
 
 interface Props {
@@ -69,6 +96,24 @@ function fmt(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+/**
+ * A barra de progresso do leitor (3/10, variante B de `docs/barra-home-folhas.html`;
+ * contas em `lib/arrastarBarra.ts`).
+ *
+ * Agarrar não mexe na música: só o movimento conta. Descer o dedo abranda
+ * (meia velocidade, um quarto, ajuste fino). Um toque rápido salta para o ponto
+ * tocado, a deslizar. Vibra ao agarrar, ao mudar de ritmo e nas pontas.
+ *
+ * Dois gestos na MESMA área, em simultâneo:
+ *  - o de dentro escreve a translação do dedo num valor do motor nativo
+ *    (`Animated.event` nativo): a barra segue o dedo mesmo com o JavaScript
+ *    ocupado, como o fechar do leitor;
+ *  - o de fora chega ao JavaScript, que só intervém quando muda o ritmo (volta
+ *    a contar de onde a barra está, para não saltar), no tempo mostrado (só
+ *    quando muda o segundo), nas vibrações e ao largar.
+ * Um gesto com `Animated.event` nativo não entrega os movimentos ao JavaScript,
+ * e por isso são dois e não um.
+ */
 export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1, onSeek, onScrubbingChange }: Props) {
   const [width, setWidth] = useState(0);
   const reduzido = useReducedMotion();
@@ -83,66 +128,145 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
   const agarrado = useRef(new Animated.Value(0)).current;
   const onScrubbingRef = useRef(onScrubbingChange);
   onScrubbingRef.current = onScrubbingChange;
-  // Enquanto o utilizador arrasta, mostramos a posição do DEDO (suave, a
-  // seguir o toque) e só chamamos onSeek ao largar — a posição real do player
-  // só chega em saltos de 1s, o que fazia a barra andar aos pulos.
-  const [dragFraction, setDragFraction] = useState<number | null>(null);
-  const widthRef = useRef(0);
-  const durationRef = useRef(0);
-  widthRef.current = width;
+  const onSeekRef = useRef(onSeek);
+  onSeekRef.current = onSeek;
+  const durationRef = useRef(durationMs);
   durationRef.current = durationMs;
+  const positionRef = useRef(positionMs);
+  positionRef.current = positionMs;
+  const widthRef = useRef(0);
+  widthRef.current = width;
+  const deslizarAte = useRef(0);
+  const { valor: fracaoAnimada, ondeEsta } = useFracaoSuave(positionMs, durationMs, aTocar, ritmo, null, deslizarAte);
 
-  const fractionFromX = (x: number): number => {
-    if (widthRef.current === 0) return 0;
-    return Math.min(1, Math.max(0, x / widthRef.current));
+  // O dedo, no motor nativo. A barra a arrastar mostra
+  // base + (dedoX - origemX) × fator / largura -- a mesma conta do
+  // `fracaoNoArrasto`; o JavaScript só muda base/origem/fator.
+  const nos = useRef<ReturnType<typeof criarNos> | null>(null);
+  if (!nos.current) nos.current = criarNos();
+  const { dedoX, base, origemX, fator, inversoDaLargura, modo, doDedo } = nos.current;
+  useEffect(() => { inversoDaLargura.setValue(width > 0 ? 1 / width : 0); }, [width, inversoDaLargura]);
+
+  const [aArrastar, setAArrastar] = useState(false);
+  const [ritmoVisto, setRitmoVisto] = useState(0);
+  const [segundoArrastado, setSegundoArrastado] = useState<number | null>(null);
+  const arrasto = useRef<Arrasto | null>(null);
+  const ultima = useRef(0);
+  const inicio = useRef(0);
+  const refDeFora = useRef(null);
+  const refDeDentro = useRef(null);
+
+  const mostrarSegundo = (fracao: number) => {
+    const s = Math.floor((fracao * durationRef.current) / 1000);
+    setSegundoArrastado((antes) => (antes === s ? antes : s));
   };
 
-  const pan = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (e) => {
-        onScrubbingRef.current?.(true);
-        setDragFraction(fractionFromX(e.nativeEvent.locationX));
-      },
-      onPanResponderMove: (e) => {
-        setDragFraction(fractionFromX(e.nativeEvent.locationX));
-      },
-      onPanResponderRelease: (e) => {
-        const f = fractionFromX(e.nativeEvent.locationX);
-        setDragFraction(null);
-        onScrubbingRef.current?.(false);
-        if (durationRef.current > 0) onSeek?.(f * durationRef.current);
-      },
-      onPanResponderTerminate: () => {
-        setDragFraction(null);
-        onScrubbingRef.current?.(false);
-      },
-    })
-  ).current;
+  const agarrar = () => {
+    if (arrasto.current) return;
+    const durMs = durationRef.current;
+    const agora = ondeEsta() ?? (durMs > 0 ? positionRef.current / durMs : 0);
+    arrasto.current = comecarArrasto(agora);
+    ultima.current = arrasto.current.base;
+    inicio.current = Date.now();
+    dedoX.setValue(0);
+    base.setValue(arrasto.current.base);
+    origemX.setValue(0);
+    fator.setValue(1);
+    modo.setValue(1);
+    hapticSelection();
+    setAArrastar(true);
+    setRitmoVisto(0);
+    mostrarSegundo(arrasto.current.base);
+    onScrubbingRef.current?.(true);
+  };
 
-  const playFraction =
-    durationMs > 0 ? Math.min(1, Math.max(0, positionMs / durationMs)) : 0;
-  const fraction = dragFraction ?? playFraction;
-  const dragging = dragFraction !== null;
-  const shownMs = dragging ? fraction * durationMs : positionMs;
+  const soltar = (fracaoFinal: number | null) => {
+    if (!arrasto.current) return;
+    arrasto.current = null;
+    // Onde se largou passa a ser onde a música está: o valor da música vai
+    // para lá NO MESMO instante em que deixa de se ver o dedo.
+    if (fracaoFinal != null) {
+      fracaoAnimada.stopAnimation();
+      fracaoAnimada.setValue(fracaoFinal);
+    }
+    modo.setValue(0);
+    dedoX.setValue(0);
+    setAArrastar(false);
+    setRitmoVisto(0);
+    setSegundoArrastado(null);
+    onScrubbingRef.current?.(false);
+    if (fracaoFinal != null && durationRef.current > 0) onSeekRef.current?.(fracaoFinal * durationRef.current);
+  };
+
+  // O gesto de fora: o ritmo, o tempo e as vibrações (no JavaScript).
+  const aoMexer = (e: PanGestureHandlerGestureEvent) => {
+    const a = arrasto.current;
+    if (!a) return;
+    const { translationX, translationY } = e.nativeEvent;
+    const novoRitmo = ritmoDoArrasto(translationY);
+    if (novoRitmo !== a.ritmo) {
+      const rebase = mudarDeRitmo(a, translationX, widthRef.current, novoRitmo);
+      arrasto.current = rebase;
+      base.setValue(rebase.base);
+      origemX.setValue(rebase.origemX);
+      fator.setValue(RITMOS[novoRitmo].fator);
+      hapticSelection();
+      setRitmoVisto(novoRitmo);
+    }
+    const f = fracaoNoArrasto(arrasto.current!, translationX, widthRef.current);
+    if (bateuNaPonta(ultima.current, f)) hapticImpact();
+    ultima.current = f;
+    mostrarSegundo(f);
+  };
+
+  const aoMudarDeEstado = (e: PanGestureHandlerStateChangeEvent) => {
+    const { state, oldState, translationX, translationY, x } = e.nativeEvent;
+    if (state === State.BEGAN) { agarrar(); return; }
+    if (state === State.ACTIVE) return;
+    // Acabou: arrastou (larga onde está), foi um toque (salta para lá), ou
+    // outro gesto ficou com ele (fica tudo como estava).
+    if (oldState === State.ACTIVE && state === State.END && arrasto.current) {
+      soltar(fracaoNoArrasto(arrasto.current, translationX, widthRef.current));
+      return;
+    }
+    if (state !== State.CANCELLED && eToque(translationX, translationY, Date.now() - inicio.current) && widthRef.current > 0) {
+      const alvo = Math.min(1, Math.max(0, x / widthRef.current));
+      soltar(null);
+      deslizarAte.current = Date.now() + 600;
+      if (durationRef.current > 0) onSeekRef.current?.(alvo * durationRef.current);
+      return;
+    }
+    soltar(null);
+  };
+
+  // O gesto de dentro: só a translação, no motor nativo.
+  const eventoDoDedo = useMemo(
+    () => Animated.event([{ nativeEvent: { translationX: dedoX } }], { useNativeDriver: true }),
+    [dedoX],
+  );
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
-  const fracaoAnimada = useFracaoSuave(positionMs, durationMs, aTocar, ritmo, dragFraction);
+  // O que se vê: a música, ou o dedo enquanto se arrasta (`modo`).
+  const mostrada = useMemo(
+    () => Animated.add(Animated.multiply(fracaoAnimada, Animated.subtract(1, modo)), Animated.multiply(doDedo, modo)),
+    [fracaoAnimada, modo, doDedo],
+  );
   // Por transformação, que anima no lado nativo: a largura (`width: x%`) é
   // layout e só mudava quando a posição chegava.
-  const avancoDoPreenchimento = fracaoAnimada.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] });
-  const avancoDoBotao = fracaoAnimada.interpolate({ inputRange: [0, 1], outputRange: [0, width] });
+  const { avancoDoPreenchimento, avancoDoBotao } = useMemo(() => ({
+    avancoDoPreenchimento: mostrada.interpolate({ inputRange: [0, 1], outputRange: [-width, 0] }),
+    avancoDoBotao: mostrada.interpolate({ inputRange: [0, 1], outputRange: [0, width] }),
+  }), [mostrada, width]);
 
   useEffect(() => {
     // Agarrar e imediato; largar e que volta com mola. Mesma assimetria do
     // resto da app -- ver src/lib/movimento.ts.
     Animated.spring(agarrado, {
-      toValue: dragging ? 1 : 0,
-      ...(dragging ? ESTADO : SOLTAR),
+      toValue: aArrastar ? 1 : 0,
+      ...(aArrastar ? ESTADO : SOLTAR),
       useNativeDriver: true,
     }).start();
-  }, [dragging, agarrado]);
+  }, [aArrastar, agarrado]);
 
   const espessura = reduzido
     ? 1
@@ -152,41 +276,103 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
     outputRange: [BOTAO_DA_BARRA.repouso, 1],
   });
 
+  const shownMs = segundoArrastado != null ? segundoArrastado * 1000 : positionMs;
+  const nomeDoRitmo = RITMOS[ritmoVisto].nome;
+
   return (
     <View style={styles.wrap}>
-      {/* hitSlop maior em cima/baixo para ser fácil de agarrar */}
-      <View style={styles.hit} {...pan.panHandlers}>
-        {/* A pista e o botao sao IRMAOS e nao pai/filho: a pista engorda por
-            `scaleY`, e se o botao vivesse la dentro engordava com ela. */}
-        <View style={styles.pista} onLayout={onLayout}>
-          <Animated.View style={[styles.track, { transform: [{ scaleY: espessura }] }]}>
-            <Animated.View style={[styles.fill, { width, transform: [{ translateX: avancoDoPreenchimento }] }]} />
-          </Animated.View>
-          <Animated.View
-            style={[
-              styles.knob,
-              { transform: [{ translateX: avancoDoBotao }, { scale: tamanhoDoBotao }] },
-            ]}
-          />
-        </View>
-      </View>
+      <PanGestureHandler
+        ref={refDeFora}
+        simultaneousHandlers={refDeDentro}
+        activeOffsetX={[-4, 4]}
+        failOffsetY={[-10, 10]}
+        onGestureEvent={aoMexer}
+        onHandlerStateChange={aoMudarDeEstado}
+      >
+        <Animated.View
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel="Song position"
+          accessibilityValue={{ text: `${fmt(positionMs)} of ${fmt(durationMs)}` }}
+          accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+          onAccessibilityAction={(e) => {
+            const passo = e.nativeEvent.actionName === 'increment' ? 10_000 : -10_000;
+            onSeekRef.current?.(Math.min(durationMs, Math.max(0, positionMs + passo)));
+          }}
+        >
+          <PanGestureHandler
+            ref={refDeDentro}
+            simultaneousHandlers={refDeFora}
+            activeOffsetX={[-4, 4]}
+            failOffsetY={[-10, 10]}
+            onGestureEvent={eventoDoDedo}
+          >
+            {/* hitSlop maior em cima/baixo para ser fácil de agarrar */}
+            <Animated.View style={styles.hit}>
+              {/* A pista e o botao sao IRMAOS e nao pai/filho: a pista engorda por
+                  `scaleY`, e se o botao vivesse la dentro engordava com ela. */}
+              <View style={styles.pista} onLayout={onLayout}>
+                <Animated.View style={[styles.track, { transform: [{ scaleY: espessura }] }]}>
+                  <Animated.View style={[styles.fill, { width, transform: [{ translateX: avancoDoPreenchimento }] }]} />
+                </Animated.View>
+                <Animated.View
+                  style={[
+                    styles.knob,
+                    { transform: [{ translateX: avancoDoBotao }, { scale: tamanhoDoBotao }] },
+                  ]}
+                />
+              </View>
+            </Animated.View>
+          </PanGestureHandler>
+        </Animated.View>
+      </PanGestureHandler>
       <View style={styles.times}>
         {/* O tempo decorrido é o que se lê -- "onde vou" pergunta-se muito mais
             do que "quanto dura". Ficavam os dois no mesmo cinzento fraco, e
             nenhum se lia. A geometria não mudou: só o contraste. */}
-        <Text style={[styles.time, styles.decorrido, dragging && styles.aArrastar]}>
+        <Text style={[styles.time, styles.decorrido, aArrastar && styles.aArrastar]}>
           {fmt(shownMs)}
         </Text>
         <Text style={styles.time}>{fmt(durationMs)}</Text>
+        {/* O ritmo a que se arrasta, entre os dois tempos, só quando abranda. */}
+        <Text pointerEvents="none" style={[styles.ritmo, !nomeDoRitmo && styles.escondido]} accessibilityElementsHidden>
+          {nomeDoRitmo || ' '}
+        </Text>
       </View>
     </View>
   );
+}
+
+function criarNos() {
+  const dedoX = new Animated.Value(0);
+  const base = new Animated.Value(0);
+  const origemX = new Animated.Value(0);
+  const fator = new Animated.Value(1);
+  const inversoDaLargura = new Animated.Value(0);
+  const modo = new Animated.Value(0);
+  const doDedo = Animated.add(
+    base,
+    Animated.multiply(Animated.multiply(Animated.subtract(dedoX, origemX), fator), inversoDaLargura),
+  ).interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' });
+  return { dedoX, base, origemX, fator, inversoDaLargura, modo, doDedo };
 }
 
 const styles = StyleSheet.create({
   wrap: {
     gap: 6,
   },
+  // Fora do fluxo: aparecer não empurra nada (fica entre os dois tempos).
+  ritmo: {
+    position: 'absolute',
+    left: 48,
+    right: 48,
+    top: 0,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  escondido: { opacity: 0 },
   hit: {
     paddingVertical: TOQUE_DA_BARRA,
     justifyContent: 'center',
