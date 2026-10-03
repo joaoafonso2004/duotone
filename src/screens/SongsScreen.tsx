@@ -19,7 +19,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getLikedSongs, removeMultipleFromLibrary } from '../api/library';
+import { getLikedSongs, reporGuardadas, tirarDasGuardadas } from '../api/library';
+import { avisarRemocao, contarMusicas } from '../lib/avisoDeRemocao';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PrimeiroPasso } from '../components/PrimeiroPasso';
@@ -121,29 +122,16 @@ export function SongsScreen() {
     });
   }, []);
 
-  const confirmRemoveMultiple = () => {
-    if (selectedIds.size === 0) return;
-    Alert.alert(
-      'Remove from Library',
-      `Are you sure you want to remove the ${selectedIds.size} selected tracks?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: doRemoveMultiple },
-      ]
-    );
-  };
-
+  // Sem "Tens a certeza?" (3/10): tira logo, e o aviso deixa desfazer. As
+  // músicas voltam com a data de antes, ao mesmo sítio da lista.
   const doRemoveMultiple = async () => {
-    const ids = Array.from(selectedIds);
+    if (selectedIds.size === 0) return;
     try {
-      const dbIds = tracks
-        .filter((t) => t.id && (selectedIds.has(t.id) || (t.source && selectedIds.has(`${t.source}:${t.sourceId}`))))
-        .map((t) => t.id)
-        .filter(Boolean) as string[];
+      const escolhidas = tracks
+        .filter((t) => t.id && (selectedIds.has(t.id) || (t.source && selectedIds.has(`${t.source}:${t.sourceId}`))));
+      const dbIds = escolhidas.map((t) => t.id).filter(Boolean) as string[];
 
-      if (dbIds.length > 0) {
-        await removeMultipleFromLibrary(dbIds);
-      }
+      const tiradas = await tirarDasGuardadas(dbIds);
       setSelectMode(false);
       setSelectedIds(new Set());
       // O conjunto de "já guardadas" alimenta a marca nos resultados de
@@ -151,7 +139,15 @@ export function SongsScreen() {
       // separadores ficam montados).
       useSaved.getState().refresh();
       load();
-      Alert.alert('Removed', 'Selected songs removed from your Liked Songs.');
+      avisarRemocao({
+        texto: `Removed ${contarMusicas(tiradas.length)}`,
+        detalhe: 'from Liked Songs',
+        desfazer: async () => {
+          await reporGuardadas(tiradas, escolhidas);
+          useSaved.getState().refresh();
+          load();
+        },
+      });
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Could not remove tracks.');
     }
@@ -394,7 +390,7 @@ export function SongsScreen() {
           </Pressable>
           <Pressable
             style={styles.actionButton}
-            onPress={confirmRemoveMultiple}
+            onPress={() => { void doRemoveMultiple(); }}
             disabled={selectedIds.size === 0}
           >
             <Ionicons

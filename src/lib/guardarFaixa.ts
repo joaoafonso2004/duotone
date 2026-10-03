@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
-import { checkIsSaved, removeFromLibrary, saveToLibrary } from '../api/library';
+import { checkIsSaved, reporGuardadas, saveToLibrary, tirarDasGuardadas } from '../api/library';
+import { avisarRemocao } from './avisoDeRemocao';
+import { tituloDaFaixa } from './artistName';
 import { useSaved } from '../state/saved';
 import type { Track } from '../types';
 
@@ -17,8 +19,19 @@ export async function alternarGuardada(track: Track): Promise<boolean> {
   // não se consegue tirar, e aí guarda-se -- marcá-la como tirada deixava o
   // coração vazio numa música que acabou de ficar na biblioteca.
   const tirar = r.saved && !!r.trackId;
-  if (tirar) await removeFromLibrary(r.trackId!);
-  else await saveToLibrary(track);
+  if (tirar) {
+    const tiradas = await tirarDasGuardadas([r.trackId!]);
+    // Tirar mostra o aviso com "Undo" (3/10); guardar não mostra nada. O
+    // "Undo" repõe a data de antes: a música volta ao lugar dela na lista.
+    avisarRemocao({
+      texto: 'Removed from Liked Songs',
+      detalhe: tituloDaFaixa(track),
+      desfazer: async () => {
+        await reporGuardadas(tiradas, [{ ...track, id: r.trackId! }]);
+        useSaved.getState().markSaved(track, true);
+      },
+    });
+  } else await saveToLibrary(track);
   useSaved.getState().markSaved(track, !tirar);
   // No PC as páginas da biblioteca guardam a lista meia hora, e o coração da
   // barra do leitor tem estado próprio: os dois só releem com este evento, que

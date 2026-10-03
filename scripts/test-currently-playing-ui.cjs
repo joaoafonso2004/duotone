@@ -14,6 +14,8 @@ const store = {
   upcomingQueue() { return this.queue.slice(this.queueIndex + 1).map((track, i) => ({track, index: this.queueIndex + i + 1})); },
   playTrack(track, queue) { calls.push(['play', track, queue]); },
   removeFromQueue(index) { calls.push(['remove', index]); },
+  fotografiaDaFila() { return { queue: this.queue, queueIndex: this.queueIndex, shuffleOrder: [], atual: 'A' }; },
+  reporFila() { calls.push(['repor']); return true; },
   reordenarProximas(from, to) { calls.push(['reorder', from, to]); },
 };
 const usePlayer = selector => selector(store);
@@ -67,6 +69,8 @@ const mocks = {
   '../lib/descarregarFaixa':{alternarDownload(){},downloadNoMenuDe:()=>null,podeDescarregar:()=>false,tocaSemRede:()=>true,useRevisaoDosDownloads:()=>0},
   '../lib/guardarFaixa':{alternarGuardada:async()=>{},garantirGuardadas(){}},
   '../state/saved':{savedKey:t=>t.source+':'+t.sourceId,useSaved:sel=>sel({loaded:true,keys:new Set()})},
+  // O aviso com "Undo" (3/10) entra a sério: é puro.
+  '../lib/avisoDeRemocao': carregar('src/lib/avisoDeRemocao.ts'),
 };
 const code = ts.transpileModule(fs.readFileSync(root+'/src/components/QueueSheet.tsx','utf8'),
   {compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText;
@@ -97,6 +101,11 @@ assert.equal(find(tree,'Share').props.visible,true);
 
 reset();tree=openEntry();action(tree,'Remove from queue').onPress();
 assert.deepEqual(calls,[['remove',1]]);
+// Tirar da fila mostra o aviso, e o "Undo" repõe a fila (3/10).
+const avisoDaFila = mocks['../lib/avisoDeRemocao'].avisos.atual();
+assert.equal(avisoDaFila?.texto,'Removed from queue');
+void mocks['../lib/avisoDeRemocao'].avisos.desfazer(avisoDaFila.id); // o desfazer corre já, antes do primeiro await
+assert.deepEqual(calls,[['remove',1],['repor']]);
 
 reset();tree=openEntry();store.queue=[a,c,b];action(tree,'Remove from queue').onPress();
 assert.equal(calls.length,0,'Uma fila substituída não remove por índice antigo');

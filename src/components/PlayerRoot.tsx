@@ -354,7 +354,7 @@ export function PlayerRoot() {
     if (current?.title) {
       await Clipboard.setStringAsync(current.title);
       hapticSelection();
-      showToast('Copiado');
+      showToast('Copied');
     }
   };
 
@@ -1997,7 +1997,7 @@ export function PlayerRoot() {
                     style={({ pressed }) => [styles.accaoDoErro, pressed && { opacity: 0.6 }]}
                   >
                     <Text style={[type.caption, { color: theme.color, fontWeight: '700' }]}>
-                      {accao === 'repetir' ? 'Tentar outra vez' : 'Seguinte'}
+                      {accao === 'repetir' ? 'Try again' : 'Skip'}
                     </Text>
                   </Pressable>
                 ))}

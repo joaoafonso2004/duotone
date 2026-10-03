@@ -312,6 +312,34 @@ export async function removeTrackFromPlaylist(
   mudouUmaPlaylist();
 }
 
+/** O que saiu de uma playlist, para o "Undo" (3/10) a repor no mesmo lugar. */
+export type LinhaTiradaDaPlaylist = { playlistId: string; trackId: string; position: number; addedAt: string };
+
+/** Tira e devolve a linha que saiu, com a posição e a data de antes. */
+export async function tirarDaPlaylist(playlistId: string, trackId: string): Promise<LinhaTiradaDaPlaylist | null> {
+  const { data, error } = await supabase
+    .from('playlist_tracks')
+    .delete()
+    .match({ playlist_id: playlistId, track_id: trackId })
+    .select('position, added_at');
+  if (error) throw error;
+  mudouUmaPlaylist();
+  const r: any = data?.[0];
+  return r ? { playlistId, trackId, position: r.position, addedAt: r.added_at } : null;
+}
+
+/** O "Undo" do `tirarDaPlaylist`: a mesma linha, na mesma posição. */
+export async function reporNaPlaylist(linha: LinhaTiradaDaPlaylist): Promise<void> {
+  const { error } = await supabase
+    .from('playlist_tracks')
+    .upsert(
+      { playlist_id: linha.playlistId, track_id: linha.trackId, position: linha.position, added_at: linha.addedAt },
+      { onConflict: 'playlist_id,track_id', ignoreDuplicates: true }
+    );
+  if (error) throw error;
+  mudouUmaPlaylist();
+}
+
 /** Persiste uma nova ordem (lista completa de track ids, já ordenada). */
 export async function setPlaylistOrder(
   playlistId: string,

@@ -1,5 +1,6 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { avisarRemocao } from '../lib/avisoDeRemocao';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -30,6 +31,8 @@ import {
   listPlaylists,
   mergePlaylists,
   removeTrackFromPlaylist,
+  reporNaPlaylist,
+  tirarDaPlaylist as tirarLinhaDaPlaylist,
   renamePlaylist,
   setPlaylistOrder,
   copiasGuardadas,
@@ -103,7 +106,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [removeFor, setRemoveFor] = useState<PlaylistTrack | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareFriendOpen, setShareFriendOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -244,11 +246,32 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     playTrack(item, visibleTracks, true);
   }, [playTrack, visibleTracks]);
 
-  /** O "Remove from this playlist" do menu: pede a confirmação que já havia. */
+  /**
+   * O "Remove from this playlist" do menu: tira logo, sem pergunta, e o aviso
+   * deixa desfazer (3/10) -- a música volta à mesma posição e à mesma data.
+   */
   const tirarDaPlaylist = useCallback((track: Track) => {
-    const playlistTrack = tracks.find((t) => t.source === track.source && t.sourceId === track.sourceId);
-    if (playlistTrack) setRemoveFor(playlistTrack);
-  }, [tracks]);
+    const indice = tracks.findIndex((t) => t.source === track.source && t.sourceId === track.sourceId);
+    const linha = tracks[indice];
+    if (!linha) return;
+    setTracks((atual) => atual.filter((t) => t.id !== linha.id));
+    void tirarLinhaDaPlaylist(id, linha.id).then((tirada) => {
+      avisarRemocao({
+        texto: 'Removed from playlist',
+        detalhe: tituloDaFaixa(linha),
+        desfazer: tirada ? async () => {
+          await reporNaPlaylist(tirada);
+          setTracks((atual) => atual.some((t) => t.id === linha.id)
+            ? atual : [...atual.slice(0, indice), linha, ...atual.slice(indice)]);
+        } : undefined,
+      });
+    }).catch((e: any) => {
+      // Não saiu: volta à lista.
+      setTracks((atual) => atual.some((t) => t.id === linha.id)
+        ? atual : [...atual.slice(0, indice), linha, ...atual.slice(indice)]);
+      Alert.alert('Error', e?.message ?? 'Could not remove the track.');
+    });
+  }, [tracks, id]);
 
   const load = useCallback(async () => {
     const token=++detailRequest.current;
@@ -367,22 +390,10 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       await deletePlaylist(id);
       setDeleteOpen(false);
       navigation.goBack();
+      // Apagar não tem volta: já se confirmou, e o aviso só informa (3/10).
+      avisarRemocao({ texto: 'Playlist deleted', detalhe: name });
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Could not delete.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const doRemoveTrack = async () => {
-    if (!removeFor) return;
-    setBusy(true);
-    try {
-      await removeTrackFromPlaylist(id, removeFor.id);
-      setTracks(tracks.filter((t) => t.id !== removeFor.id));
-      setRemoveFor(null);
-    } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not remove the track.');
     } finally {
       setBusy(false);
     }
@@ -848,17 +859,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         loading={busy}
         onClose={() => setDeleteOpen(false)}
         onConfirm={doDelete}
-      />
-
-      <ConfirmSheet
-        visible={!!removeFor}
-        title="Remove track"
-        message={`Remove "${removeFor?.title ?? ''}" from this playlist?`}
-        confirmLabel="Remove"
-        destructive
-        loading={busy}
-        onClose={() => setRemoveFor(null)}
-        onConfirm={doRemoveTrack}
       />
 
       {/* Sort options bottom sheet */}

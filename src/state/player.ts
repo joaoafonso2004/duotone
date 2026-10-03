@@ -257,6 +257,9 @@ const getInitialVolume = () => {
 /** off = pára no fim · all = repete a fila · one = repete a música atual. */
 export type RepeatMode = 'off' | 'all' | 'one';
 
+/** A fila antes de uma remoção, para o "Undo" (3/10, `reporFila`). */
+export type FotografiaDaFila = { queue: Track[]; queueIndex: number; shuffleOrder: string[]; atual: string | null };
+
 /** O que vale no carro -- ver `carro` no estado. */
 export type CarroNoLeitor = { presetId: string; nome: string; base: Ganhos; ganhos: Ganhos };
 
@@ -487,6 +490,14 @@ interface PlayerState {
    * é o que acontece a qualquer fila que chega ao fim.
    */
   limparProximas: () => number;
+  /** Uma cópia da fila, tirada ANTES de uma remoção, para o "Undo" (3/10). */
+  fotografiaDaFila: () => FotografiaDaFila;
+  /**
+   * O "Undo" de tirar da fila: repõe a fotografia, mas só se a música que toca
+   * ainda for a mesma -- com outra lista a tocar, repor era trocar-lha. Devolve
+   * se repôs. Num Jam não faz nada (a fila é de todos).
+   */
+  reporFila: (foto: FotografiaDaFila) => boolean;
 
   seekTo: (ms: number, interno?: boolean) => Promise<void>;
 
@@ -2280,6 +2291,26 @@ export const usePlayer = create<PlayerState>()(
     // O percurso do shuffle guarda chaves; as que saíram deixam de ter faixa.
     if (shuffle) get()._ensureShuffleOrder();
     return proximas.length;
+  },
+
+  fotografiaDaFila: () => {
+    const s = get();
+    return { queue: s.queue, queueIndex: s.queueIndex, shuffleOrder: s.shuffleOrder, atual: s.current ? trackKey(s.current) : null };
+  },
+
+  reporFila: (foto) => {
+    if (ouvirJuntos()) return false;
+    const s = get();
+    const atual = s.current ? trackKey(s.current) : null;
+    if (!atual || atual !== foto.atual) return false;
+    // O índice da fotografia, se ainda aponta para ela (a mesma música pode
+    // estar duas vezes na fila); senão, onde ela estiver.
+    const i = foto.queue[foto.queueIndex] && trackKey(foto.queue[foto.queueIndex]) === atual
+      ? foto.queueIndex
+      : foto.queue.findIndex((t) => trackKey(t) === atual);
+    if (i < 0) return false;
+    set({ queue: foto.queue, queueIndex: i, shuffleOrder: foto.shuffleOrder });
+    return true;
   },
 
   removeFromQueue: (index) => {

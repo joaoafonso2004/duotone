@@ -33,6 +33,7 @@ import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
 import { usePlayer } from '../state/player';
 import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
+import { avisarRemocao } from '../lib/avisoDeRemocao';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { usePlaylists } from '../state/playlists';
@@ -141,7 +142,8 @@ export function PlaylistsScreen() {
     setBusy(true);
     try {
       await deletePlaylist(deleteFor.id);
-      hapticNotification();
+      // Apagar não tem volta: já se confirmou, e o aviso só informa (3/10).
+      avisarRemocao({ texto: 'Playlist deleted', detalhe: deleteFor.name });
       setDeleteFor(null);
       load();
     } catch (e: any) {

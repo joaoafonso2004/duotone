@@ -24,6 +24,7 @@ import { RecommendationPreferences } from './RecommendationPreferences';
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
 import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede } from '../lib/descarregarFaixa';
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
+import { avisarRemocao, contarMusicas } from '../lib/avisoDeRemocao';
 import { savedKey, useSaved } from '../state/saved';
 
 interface Props {
@@ -62,6 +63,16 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
   const playTrack = usePlayer((s) => s.playTrack);
   const reordenarProximas = usePlayer((s) => s.reordenarProximas);
   const removeFromQueue = usePlayer((s) => s.removeFromQueue);
+  // Tirar da fila mostra o aviso com "Undo" (3/10): a fila volta como estava.
+  const tirarComAviso = (indice: number, faixa: Track) => {
+    const foto = usePlayer.getState().fotografiaDaFila();
+    removeFromQueue(indice);
+    avisarRemocao({
+      texto: 'Removed from queue',
+      detalhe: tituloDaFaixa(faixa),
+      desfazer: () => { usePlayer.getState().reporFila(foto); },
+    });
+  };
   const shuffle = usePlayer((s) => s.shuffle);
   // Re-avaliar quando o percurso do shuffle muda.
   const shuffleOrder = usePlayer((s) => s.shuffleOrder);
@@ -154,7 +165,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
       case 'tocar-agora': setSelection(null); void playTrack(t, queue); return;
       case 'guardar':
         setSelection(null);
-        void alternarGuardada(t).then(() => hapticNotification())
+        void alternarGuardada(t).then((ficou) => { if (ficou) hapticNotification(); })
           .catch((e: any) => Alert.alert('Error', e?.message ?? 'Could not update your library.'));
         return;
       case 'por-em-playlist': setPanel('playlist'); return;
@@ -167,7 +178,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
         if (selection.index === null || useOuvirJuntos.getState().sessao ||
           latest.queue !== selection.queue || latest.queueIndex === selection.index ||
           latest.queue[selection.index] !== selection.track) return;
-        removeFromQueue(selection.index);
+        tirarComAviso(selection.index, selection.track);
         setSelection(null);
         return;
       }
@@ -231,26 +242,22 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
           </Pressable>
         )}
         {/* Tirar tudo o que vem a seguir. Num Jam a fila é de todos, e não se
-            limpa daqui. Pede confirmação: não há volta atrás. */}
+            limpa daqui. Sem pergunta (3/10): o aviso deixa desfazer. */}
         {!emSessao && upNext.length > 0 && (
           <Pressable
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel="Clear the queue"
-            onPress={() => Alert.alert(
-              'Clear the queue',
-              `Remove the ${upNext.length} ${upNext.length === 1 ? 'song' : 'songs'} coming up next? The current song keeps playing.`,
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Clear',
-                  style: 'destructive',
-                  onPress: () => {
-                    if (usePlayer.getState().limparProximas() > 0) hapticNotification();
-                  },
-                },
-              ],
-            )}
+            onPress={() => {
+              const st = usePlayer.getState();
+              const foto = st.fotografiaDaFila();
+              const n = st.limparProximas();
+              if (n > 0) avisarRemocao({
+                texto: `Cleared ${contarMusicas(n)}`,
+                detalhe: 'from Up next',
+                desfazer: () => { usePlayer.getState().reporFila(foto); },
+              });
+            }}
           >
             <Text style={styles.irParaSessao}>Clear</Text>
           </Pressable>
@@ -299,7 +306,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
                   const agora = usePlayer.getState();
                   if (useOuvirJuntos.getState().sessao || agora.queueIndex === realIndex
                     || agora.queue[realIndex] !== item) return;
-                  removeFromQueue(realIndex);
+                  tirarComAviso(realIndex, item);
                 }}
               >
               <View

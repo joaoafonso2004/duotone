@@ -97,7 +97,8 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
       case 'por-na-fila': player.addToQueue(t); return;
       case 'guardar':
         void alternarGuardada(t).then((ficou) => {
-          hapticNotification();
+          // Tirar já vibra com o aviso do "Undo" (3/10).
+          if (ficou) hapticNotification();
           if (ficou && discoveryContext) registar('recomendacao_guardada', contextoParaAnalytics(discoveryContext));
           aoMudarBiblioteca?.();
         }).catch((e: any) => Alert.alert('Error', e?.message ?? 'Could not update your library.'));

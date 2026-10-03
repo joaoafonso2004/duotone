@@ -10,6 +10,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Screen } from '../components/Screen';
 import { useOfflineMode } from '../hooks/useOfflineMode';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { avisarRemocao } from '../lib/avisoDeRemocao';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { limparTodosOsDownloads, pedirDownload, tirarDownload } from '../lib/descarregarFaixa';
 import {
@@ -133,6 +134,9 @@ export function DownloadsScreen({ navigation }: Props) {
     };
   }, [registo, aDescarregar, ficheiros, daBiblioteca]);
 
+  // Os que se tiraram e esperam pelo fim do aviso (o "Undo" ainda os traz).
+  const [aSair, setASair] = useState<ReadonlySet<string>>(() => new Set());
+  const visiveis = useMemo(() => linhas.filter((l) => !aSair.has(l.id)), [linhas, aSair]);
   const nada = linhas.length === 0 && cache.faixas === 0;
   const linhaDaGostada = (t: Track) => (
     <View key={t.sourceId} style={styles.linha}>
@@ -146,22 +150,17 @@ export function DownloadsScreen({ navigation }: Props) {
     </View>
   );
 
+  // Sem pergunta (3/10): sai já da lista, e o ficheiro só se apaga quando o
+  // aviso sai -- assim desfazer não precisa de rede nem de descarregar outra vez.
   const remover = (l: Linha) => {
-    Alert.alert(
-      'Remove download',
-      `"${tituloDaFaixa(l.faixa)}" will no longer play offline.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            void tirarDownload(l.id);
-            hapticNotification();
-          },
-        },
-      ],
-    );
+    setASair((s) => new Set(s).add(l.id));
+    const voltar = () => setASair((s) => { const n = new Set(s); n.delete(l.id); return n; });
+    avisarRemocao({
+      texto: 'Download removed',
+      detalhe: tituloDaFaixa(l.faixa),
+      desfazer: voltar,
+      aoAcabar: () => { void tirarDownload(l.id).finally(voltar); },
+    });
   };
 
   const limparTudo = () => {
@@ -175,7 +174,8 @@ export function DownloadsScreen({ navigation }: Props) {
           style: 'destructive',
           onPress: () => {
             void limparTodosOsDownloads();
-            hapticNotification();
+            // Já se confirmou e não tem volta: o aviso só informa (3/10).
+            avisarRemocao({ texto: 'All downloads removed' });
           },
         },
       ],
@@ -228,7 +228,7 @@ export function DownloadsScreen({ navigation }: Props) {
                 downloads (que nunca saem) com a cache, e um parágrafo em
                 maiúsculas. A explicação da cache passou para o fundo. */}
             <Text style={styles.resumo}>
-              {linhas.length} {linhas.length === 1 ? 'download' : 'downloads'}
+              {visiveis.length} {visiveis.length === 1 ? 'download' : 'downloads'}
               {bytesDosDownloads > 0 ? ` · ${formatCacheSize(bytesDosDownloads)}` : ''}
               {emFalta.length > 0 ? ` · ${emFalta.length} not downloaded` : ''}
             </Text>
@@ -260,13 +260,13 @@ export function DownloadsScreen({ navigation }: Props) {
               </Pressable>
             ) : null}
 
-            {linhas.length === 0 ? (
+            {visiveis.length === 0 ? (
               <Text style={[type.caption, styles.semDownloads]}>
                 No downloads yet. Tap Download in a track's menu.
               </Text>
             ) : null}
 
-            {linhas.map((l) => {
+            {visiveis.map((l) => {
               const capa = capaParaLista(l.faixa.artworkUrl)
                 ?? `https://i.ytimg.com/vi/${l.id}/mqdefault.jpg`;
               const detalhe = l.situacao === 'descarregada'

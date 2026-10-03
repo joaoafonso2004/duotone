@@ -100,6 +100,49 @@ export async function removeFromLibrary(trackId: string): Promise<void> {
   await changeCachedLikes(userId,old=>old.filter(t=>t.id!==trackId));
 }
 
+/** O que saiu das Liked Songs, para o "Undo" (3/10) a repor no MESMO sítio. */
+export type GuardadaTirada = { trackId: string; addedAt: string };
+
+/**
+ * Tira das Liked Songs e devolve as linhas que saíram, com a data em que
+ * tinham sido guardadas: o "Undo" repõe essa data e a música volta ao lugar
+ * dela na lista, e não ao topo.
+ */
+export async function tirarDasGuardadas(trackIds: string[]): Promise<GuardadaTirada[]> {
+  if (!trackIds.length) return [];
+  const userId = await currentUserId();
+  const { data, error } = await supabase
+    .from('library_tracks')
+    .delete()
+    .eq('user_id', userId)
+    .in('track_id', trackIds)
+    .select('track_id, added_at');
+  if (error) throw error;
+  // Uma só passa pelo `markSaved` de quem chama, que ajusta a lista guardada
+  // (ajustarGostada) sem a deitar fora -- é egress. Várias de uma vez não.
+  if (trackIds.length > 1) esquecerBiblioteca();
+  await changeCachedLikes(userId, old => old.filter(t => !t.id || !trackIds.includes(t.id)));
+  return (data ?? []).map((r: any) => ({ trackId: r.track_id, addedAt: r.added_at }));
+}
+
+/** O "Undo" do `tirarDasGuardadas`: as mesmas linhas, com a data de antes. */
+export async function reporGuardadas(tiradas: GuardadaTirada[], faixas: Track[] = []): Promise<void> {
+  if (!tiradas.length) return;
+  const userId = await currentUserId();
+  const { error } = await supabase
+    .from('library_tracks')
+    .upsert(
+      tiradas.map((t) => ({ user_id: userId, track_id: t.trackId, added_at: t.addedAt })),
+      { onConflict: 'user_id,track_id', ignoreDuplicates: true }
+    );
+  if (error) throw error;
+  if (tiradas.length > 1) esquecerBiblioteca();
+  // A cópia das gostadas volta a tê-las; a ordem certa chega com a próxima leitura.
+  const ids = new Set(tiradas.map((t) => t.trackId));
+  const voltam = faixas.filter((t) => t.id && ids.has(t.id));
+  if (voltam.length) await changeCachedLikes(userId, old => [...voltam, ...old.filter(t => !t.id || !ids.has(t.id))]);
+}
+
 export async function removeMultipleFromLibrary(trackIds: string[]): Promise<void> {
   const userId = await currentUserId();
   const { error } = await supabase
@@ -114,16 +157,21 @@ export async function removeMultipleFromLibrary(trackIds: string[]): Promise<voi
   await changeCachedLikes(userId,old=>old.filter(t=>!t.id||!trackIds.includes(t.id)));
 }
 
-/** Remove TODAS as faixas guardadas do utilizador atual (ação destrutiva). */
-export async function clearLibrary(): Promise<void> {
+/**
+ * Remove TODAS as faixas guardadas do utilizador atual (ação destrutiva).
+ * Devolve as linhas que saíram, para o "Undo" do aviso (3/10) as repor.
+ */
+export async function clearLibrary(): Promise<GuardadaTirada[]> {
   const userId = await currentUserId();
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('library_tracks')
     .delete()
-    .match({ user_id: userId });
+    .match({ user_id: userId })
+    .select('track_id, added_at');
   if (error) throw error;
   esquecerBiblioteca();
   await changeCachedLikes(userId,()=>[]);
+  return (data ?? []).map((r: any) => ({ trackId: r.track_id, addedAt: r.added_at }));
 }
 
 async function getLikedSongsForUser(userId: string): Promise<Track[]> {

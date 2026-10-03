@@ -12,7 +12,9 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, STEEL } from '../state/theme';
-import { clearLibrary } from '../api/library';
+import { clearLibrary, reporGuardadas } from '../api/library';
+import { avisarRemocao, contarMusicas } from '../lib/avisoDeRemocao';
+import { useSaved } from '../state/saved';
 import { clearPoTokenMemo } from '../api/potProvider';
 import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstream';
 import {
@@ -295,17 +297,21 @@ export function SettingsScreen({ navigation }: Props) {
     // Google o marcasse, limpar a cache nao resolvia nada ate ele expirar.
     clearVisitorData();
     setCacheBytes(getAudioCacheBytes());
-    hapticNotification();
-    Alert.alert('Cache cleared', 'Downloaded songs and saved links were cleared.');
+    // Um aviso que não interrompe (3/10): era um alerta com "OK".
+    avisarRemocao({ texto: 'Cache cleared', detalhe: 'Downloaded songs and saved links' });
   };
 
   const doClearLibrary = async () => {
     setClearingLibrary(true);
     try {
-      await clearLibrary();
+      const tiradas = await clearLibrary();
       setClearLibraryOpen(false);
-      hapticNotification();
-      Alert.alert('Cleared', 'Your library has been cleared.');
+      // Com "Undo" (3/10): as mesmas linhas voltam, com as datas de antes.
+      avisarRemocao({
+        texto: 'Liked Songs cleared',
+        detalhe: contarMusicas(tiradas.length),
+        desfazer: async () => { await reporGuardadas(tiradas); void useSaved.getState().refresh(); },
+      });
     } catch (e: any) {
       Alert.alert('Error', e?.message ?? 'Could not clear the library.');
     } finally {

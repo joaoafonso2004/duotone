@@ -880,6 +880,33 @@ console.log('\narrastar no Up next (o PC e o iPhone passam posições do que se 
   eq('sem shuffle mexe na própria fila', ids().join(), 'a,c,d,b');
 }
 
+console.log('\no "Undo" de tirar da fila (3/10)');
+// ===========================================================================
+{
+  preparar({ autoplayRadio: false });
+  const foto = usePlayer.getState().fotografiaDaFila();
+  usePlayer.getState().removeFromQueue(2);
+  eq('saiu a c', ids().join(), 'a,b,d');
+  eq('repõe', usePlayer.getState().reporFila(foto), true);
+  eq('a fila volta como estava', ids().join(), 'a,b,c,d');
+  eq('e a que toca continua a mesma', `${atual()}@${usePlayer.getState().queueIndex}`, 'a@0');
+
+  preparar({ current: faixa('b'), queueIndex: 1, autoplayRadio: false });
+  const antesDoClear = usePlayer.getState().fotografiaDaFila();
+  eq('o Clear tira as que faltam', usePlayer.getState().limparProximas(), 2);
+  await usePlayer.getState().next();
+  eq('com o fim da fila, "seguinte" não troca nada', atual(), 'b');
+  eq('o Undo do Clear repõe-nas', usePlayer.getState().reporFila(antesDoClear), true);
+  eq('todas outra vez, e a b a tocar', `${ids().join()}|${atual()}@${usePlayer.getState().queueIndex}`, 'a,b,c,d|b@1');
+
+  preparar({ autoplayRadio: false });
+  const velha = usePlayer.getState().fotografiaDaFila();
+  usePlayer.getState().removeFromQueue(3);
+  await usePlayer.getState().playTrack(faixa('x'), fila('x', 'y'));
+  eq('com outra música a tocar, não repõe nada', usePlayer.getState().reporFila(velha), false);
+  eq('e a lista nova fica', ids().join(), 'x,y');
+}
+
 console.log('\n"anterior" na primeira faixa recomeça-a (3/10)');
 // ===========================================================================
 {
