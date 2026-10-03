@@ -41,13 +41,15 @@ const usePlayer = Object.assign(selector => selector(player), { getState: () => 
 const mocks = {
   react: React,
   'react-native': { ActivityIndicator: 'Spinner', Alert: { alert: (...args) => calls.push(['alert', ...args]) },
-    FlatList: 'FlatList', Pressable: 'Pressable', Text: 'Text', View: 'View', StyleSheet: { create: x => x, hairlineWidth: 1 } },
+    FlatList: 'FlatList', Animated: { FlatList: 'FlatList' }, Pressable: 'Pressable', Text: 'Text', View: 'View', StyleSheet: { create: x => x, hairlineWidth: 1 } },
   '@react-navigation/native': { useFocusEffect: fn => React.useEffect(fn, [fn]) },
   'react-native-safe-area-context': { useSafeAreaInsets: () => ({ bottom: 34 }) },
   'expo-image': { Image: 'Image' }, 'expo-linear-gradient': { LinearGradient: 'Gradient' }, '@expo/vector-icons/Ionicons': 'Icon',
   '../components/CabecalhoDaPlaylist': { CabecalhoDaPlaylist: 'Header' },
   '../components/BrilhoDoEcra': { BrilhoDoEcra: 'Glow' }, '../components/EmptyState': { EmptyState: 'Empty' },
-  '../components/PillButton': { PillButton: 'Pill' }, '../components/Screen': { Screen: 'Screen' },
+  '../components/PillButton': { PillButton: 'Pill' }, '../components/Screen': { Screen: 'Screen', useCabecalhoQueEncolhe: () => ({
+    rolagem: { setValue() {} }, onScroll: undefined, scrollEventThrottle: 16, espaco: 0, definirEspaco() {}, repor() {},
+  }) },
   '../components/TrackActionsSheet': { TrackActionsSheet: 'Actions' }, '../components/TrackRow': { TrackRow: 'TrackRow' },
   '../components/YtPlaylistRecommendationSheet': { YtPlaylistRecommendationSheet: 'AlbumSheet' },
   '../state/catalogoDeFaixas': { comCatalogo: x => x }, '../api/library': { getLibrary: async () => library },

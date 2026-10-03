@@ -9,6 +9,7 @@ import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
   Modal,
   Pressable,
@@ -46,7 +47,7 @@ import { ConfirmSheet } from '../components/ConfirmSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
@@ -74,6 +75,10 @@ import {
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
 export function PlaylistDetailScreen({ route, navigation }: Props) {
+  // A barra de cima flutua sobre a capa e mostra o nome pequeno quando o
+  // grande passa por baixo dela (3/10, o modo herói do Screen).
+  const cab = useCabecalhoQueEncolhe();
+  const [fimDoNome, setFimDoNome] = useState(260);
   const { id } = route.params;
   const userId=useAuth(s=>s.session?.user.id);
   const [details,setDetails]=useState<{id:string;name:string;ownerId:string}|null>(null);
@@ -462,6 +467,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const cabecalhoDaLista = tracks.length > 0 && !editMode ? (
         <>
           <CabecalhoDaPlaylist
+            aoMedirNome={setFimDoNome}
             nome={name}
             artworks={capasDaPlaylist}
             faixas={tracks.length}
@@ -614,6 +620,21 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
   return (
     <Screen
+      encolhe={cab}
+      tituloCompacto={!editMode && tracks.length > 0 ? { texto: name, aparecerEm: fimDoNome } : undefined}
+      fundoSempre={editMode}
+      fixo={procurarAberto && !editMode && tracks.length > 0 ? (
+        <View style={styles.playlistSearchBox}>
+          <Input
+            icon="search"
+            placeholder="Search this playlist"
+            value={playlistSearchQuery}
+            onChangeText={setPlaylistSearchQuery}
+            onClear={() => setPlaylistSearchQuery('')}
+            autoFocus
+          />
+        </View>
+      ) : undefined}
       /* O nome saiu do cabecalho generico e passou para o `CabecalhoDaPlaylist`,
          que e onde ele pode ser grande e ter a capa por cima. Aqui em cima fica
          a moldura: voltar, a lupa e o ••• (28/9) -- e, a editar, Cancel e Save. */
@@ -668,21 +689,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       }
     >
 
-      {procurarAberto && !editMode && tracks.length > 0 ? (
-        <View style={styles.playlistSearchBox}>
-          <Input
-            icon="search"
-            placeholder="Search this playlist"
-            value={playlistSearchQuery}
-            onChangeText={setPlaylistSearchQuery}
-            onClear={() => setPlaylistSearchQuery('')}
-            autoFocus
-          />
-        </View>
-      ) : null}
-
-      {loadError ? <View style={{padding:24,gap:12}}><Text style={{color:colors.danger}}>{loadError}</Text><Pressable onPress={()=>void load()}><Text style={{color:theme.color}}>Try again</Text></Pressable></View> : loading ? (
-        <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
+      {loadError ? <View style={{padding:24,paddingTop:24+cab.espaco,gap:12}}><Text style={{color:colors.danger}}>{loadError}</Text><Pressable onPress={()=>void load()}><Text style={{color:theme.color}}>Try again</Text></Pressable></View> : loading ? (
+        <ActivityIndicator color={theme.color} style={{ marginTop: cab.espaco + 48 }} />
       ) : rascunho ? (
         // A edição (28/9): arrasta-se pela pega ou com meio segundo de dedo
         // parado, como na fila, e desliza-se para tirar. Nada vai ao servidor
@@ -698,7 +706,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             onScroll={arrasto.aoRolar}
             onContentSizeChange={arrasto.aoMudarTamanho}
             ListHeaderComponent={cabecalhoDaEdicao}
-            contentContainerStyle={{ paddingBottom: bottomPad }}
+            contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
             renderItem={({ item, index }) => (
               <LinhaArrastavel {...arrasto.propsDaLinha(index)} podeArrastar>
                 {(pega) => (
@@ -737,15 +745,22 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           />
         </View>
       ) : tracks.length === 0 ? (
+        <View style={{ flex: 1, paddingTop: cab.espaco }}>
         <EmptyState
           icon="musical-notes-outline"
           title="This playlist is empty"
           subtitle={canEdit?"Add tracks from Search or your Library using the ••• menu on any track.":"The owner has not added any tracks yet."}
         />
+        </View>
       ) : playlistSearchQuery.trim() && visibleTracks.length === 0 ? (
+        <View style={{ flex: 1, paddingTop: cab.espaco }}>
         <EmptyState icon="search-outline" title="No songs found" subtitle={`No track matches "${playlistSearchQuery}".`} />
+        </View>
       ) : (
-        <FlatList
+        <Animated.FlatList
+          onScroll={cab.onScroll}
+          scrollEventThrottle={cab.scrollEventThrottle}
+          scrollIndicatorInsets={{ top: cab.espaco }}
           data={visibleTracks}
           keyExtractor={(t) => t.id}
           initialNumToRender={12}
@@ -764,7 +779,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
            * espacos em branco a rolar depressa.
            */
           ListHeaderComponent={cabecalhoDaLista}
-          contentContainerStyle={{ paddingBottom: bottomPad }}
+          contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
           renderItem={({ item }) => (
             <TrackRow
               track={item}

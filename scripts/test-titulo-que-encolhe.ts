@@ -67,8 +67,17 @@ caso('sem medida, sobem o mesmo que a linha encolhe', () => {
 console.log('\nligado');
 caso('o Screen usa a geometria e os ecrãs principais encolhem', () => {
   assert.match(readFileSync('src/components/Screen.tsx', 'utf8'), /geometriaDoTitulo/);
-  for (const f of ['SongsScreen', 'ArtistsScreen', 'PlaylistsScreen', 'SearchScreen', 'SettingsScreen'])
+  for (const f of ['SongsScreen', 'ArtistsScreen', 'PlaylistsScreen', 'SearchScreen', 'SettingsScreen',
+    'PlaylistDetailScreen', 'LibraryGroupScreen', 'SocialScreen', 'ImportYouTubeScreen'])
     assert.match(readFileSync(`src/screens/${f}.tsx`, 'utf8'), /useCabecalhoQueEncolhe/, `${f} não liga o scroll`);
+});
+
+caso('as páginas com capa grande mostram o nome pequeno quando o grande sai', () => {
+  const screen = readFileSync('src/components/Screen.tsx', 'utf8');
+  assert.match(screen, /function ScreenHeroi/);
+  assert.match(readFileSync('src/screens/PlaylistDetailScreen.tsx', 'utf8'), /tituloCompacto=\{!editMode/);
+  assert.match(readFileSync('src/screens/LibraryGroupScreen.tsx', 'utf8'), /aoMedirNome=\{setFimDoNome\}/);
+  assert.match(readFileSync('src/components/CabecalhoDaPlaylist.tsx', 'utf8'), /aoMedirNome\(/);
 });
 
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }

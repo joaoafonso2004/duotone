@@ -12,8 +12,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  View,
-} from 'react-native';
+  View, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addTracksToPlaylist,
@@ -28,7 +27,7 @@ import { BottomSheet } from '../components/BottomSheet';
 import { EmptyState } from '../components/EmptyState';
 import { Input } from '../components/Input';
 import { PillButton } from '../components/PillButton';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { hapticNotification } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, radii, spacing, type, MINI_PLAYER_HEIGHT } from '../theme';
@@ -40,6 +39,7 @@ import type { Playlist, Track } from '../types';
 type Props = NativeStackScreenProps<RootStackParamList, 'ImportYouTube'>;
 
 export function ImportYouTubeScreen({ navigation }: Props) {
+  const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
   const theme = useTheme((s) => s.theme);
   const current = usePlayer((s) => s.current);
@@ -146,12 +146,9 @@ export function ImportYouTubeScreen({ navigation }: Props) {
       title="Import a playlist"
       subtitle="From YouTube or Spotify"
       onBack={() => navigation.goBack()}
-    >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-      >
+      // O título encolhe ao rolar (3/10); o campo do link fica preso por baixo.
+      encolhe={cab}
+      fixo={
       <View style={styles.inputRow}>
         <Input
           icon="link-outline"
@@ -173,17 +170,31 @@ export function ImportYouTubeScreen({ navigation }: Props) {
           disabled={!url.trim()}
         />
       </View>
+      }
+    >
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
 
       {loading ? (
-        <ActivityIndicator color={theme.color} style={{ marginTop: 48 }} />
+        <ActivityIndicator color={theme.color} style={{ marginTop: cab.espaco + 48 }} />
       ) : !data ? (
+        <View style={{ flex: 1, paddingTop: cab.espaco }}>
         <EmptyState
           icon="logo-youtube"
           title="Paste a playlist link"
           subtitle={'A YouTube link with "list=", or a public\nSpotify playlist (first 100 songs).'}
         />
+        </View>
       ) : (
         <>
+          <Animated.FlatList
+            onScroll={cab.onScroll}
+            scrollEventThrottle={cab.scrollEventThrottle}
+            scrollIndicatorInsets={{ top: cab.espaco }}
+            ListHeaderComponent={
           <View style={styles.listHeader}>
             <Text style={[type.headline, { flex: 1 }]} numberOfLines={1}>
               {data.title}
@@ -202,11 +213,10 @@ export function ImportYouTubeScreen({ navigation }: Props) {
               </Text>
             </Pressable>
           </View>
-
-          <FlatList
+            }
             data={data.items}
             keyExtractor={(i) => i.videoId}
-            contentContainerStyle={{ paddingBottom: 170 + insets.bottom }}
+            contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: 170 + insets.bottom }}
             renderItem={({ item }) => {
               const on = selected.has(item.videoId);
               return (

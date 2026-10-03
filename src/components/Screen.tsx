@@ -56,12 +56,80 @@ interface Props {
   encolhe?: CabecalhoQueEncolhe;
   /** O que fica por baixo do título e sobe com ele (a pesquisa, os botões). Só com `encolhe`. */
   fixo?: React.ReactNode;
+  /**
+   * Páginas com a capa grande e o nome DENTRO da lista (playlist, artista):
+   * sem `title`, com `encolhe`, a barra de cima (o `topLeft`) fica presa e
+   * transparente sobre a capa; quando o nome grande passa por baixo dela
+   * (`aparecerEm`, em pontos de scroll), ganha o desfoque e o nome pequeno ao
+   * centro (3/10).
+   */
+  tituloCompacto?: { texto: string; aparecerEm: number };
+  /** Modo herói: a barra fica sempre com fundo (a editar, por cima da lista). */
+  fundoSempre?: boolean;
 }
 
 /** Wrapper de ecrã: fundo, safe area e cabeçalho com título grande. */
 export function Screen(props: Props) {
-  return props.encolhe && props.title ? <ScreenQueEncolhe {...props} cab={props.encolhe} /> : <ScreenFixo {...props} />;
+  if (props.encolhe && props.title) return <ScreenQueEncolhe {...props} cab={props.encolhe} />;
+  if (props.encolhe) return <ScreenHeroi {...props} cab={props.encolhe} />;
+  return <ScreenFixo {...props} />;
 }
+
+/**
+ * A página com a capa grande (ver `tituloCompacto`): a barra de cima flutua
+ * por cima da lista, transparente; o fundo e o nome pequeno chegam quando o
+ * nome grande sai por baixo dela.
+ */
+function ScreenHeroi({ topLeft, children, style, fixo, cab, tituloCompacto, fundoSempre }: Props & { cab: CabecalhoQueEncolhe }) {
+  const insets = useSafeAreaInsets();
+  const [linha, setLinha] = useState<Caixa | null>(null);
+  const anim = useMemo(() => {
+    const r = cab.rolagem;
+    const em = Math.max(FUNDO_APARECE_EM, tituloCompacto?.aparecerEm ?? FUNDO_APARECE_EM);
+    return {
+      fundo: fundoSempre ? 1 : r.interpolate({ inputRange: [em - 24, em], outputRange: [0, 1], extrapolate: 'clamp' }),
+      titulo: r.interpolate({ inputRange: [em - 6, em + 10], outputRange: [0, 1], extrapolate: 'clamp' }),
+      subir: r.interpolate({ inputRange: [em - 6, em + 10], outputRange: [6, 0], extrapolate: 'clamp' }),
+    };
+  }, [cab.rolagem, tituloCompacto?.aparecerEm, fundoSempre]);
+  return (
+    <View style={styles.root}>
+      <View style={[{ flex: 1 }, style]}>{children}</View>
+      <View pointerEvents="box-none" style={styles.sobre} onLayout={(e) => cab.definirEspaco(e.nativeEvent.layout.height)}>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: anim.fundo }]}>
+          <BlurView tint="dark" intensity={50} style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, styles.tinta]} />
+          <View style={styles.fio} />
+        </Animated.View>
+        <View pointerEvents="box-none" style={{ paddingTop: insets.top + spacing.sm }}>
+          {topLeft ? (
+            <View pointerEvents="box-none" style={styles.topLeftRow} onLayout={caixaDe(setLinha)}>{topLeft}</View>
+          ) : null}
+          {tituloCompacto && linha ? (
+            <Animated.Text
+              numberOfLines={1}
+              pointerEvents="none"
+              accessibilityRole="header"
+              style={[styles.tituloCompacto, {
+                top: linha.y + linha.height / 2 - 11,
+                opacity: anim.titulo,
+                transform: [{ translateY: anim.subir }],
+              }]}
+            >
+              {tituloCompacto.texto}
+            </Animated.Text>
+          ) : null}
+          {fixo}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const caixaDe = (definir: (c: Caixa) => void) => (e: { nativeEvent: { layout: Caixa } }) => {
+  const { x, y, width: w, height: h } = e.nativeEvent.layout;
+  definir({ x, y, width: w, height: h });
+};
 
 /** O de sempre: o título fica no topo e a lista começa por baixo dele. */
 function ScreenFixo({ title, subtitle, right, topLeft, onBack, children, style, fixo }: Props) {
@@ -244,6 +312,11 @@ const styles = StyleSheet.create({
   fio: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     height: StyleSheet.hairlineWidth, backgroundColor: colors.border,
+  },
+  // No meio da barra, entre os botões dela.
+  tituloCompacto: {
+    position: 'absolute', left: 72, right: 72, height: 22, lineHeight: 22,
+    textAlign: 'center', fontSize: 17, fontWeight: '600', color: colors.text,
   },
   // A largura do próprio texto (e não a da coluna): é ela que se centra.
   tituloQueEncolhe: { alignSelf: 'flex-start', maxWidth: '100%', transformOrigin: 'left center' },

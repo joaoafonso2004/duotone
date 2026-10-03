@@ -48,7 +48,11 @@ export function CabecalhoDaPlaylist({
   duracaoSegundos,
   accoes,
   artista = false,
+  aoMedirNome,
 }: {
+  /** Onde acaba o nome (pt desde o topo do cabeçalho): a barra de cima mostra
+   *  o nome pequeno quando ele passa por baixo dela (3/10, `tituloCompacto`). */
+  aoMedirNome?: (fundo: number) => void;
   /** Uma imagem redonda em vez do mosaico. Ver o cabeçalho. */
   artista?: boolean;
   nome: string;
@@ -73,7 +77,8 @@ export function CabecalhoDaPlaylist({
       </View>
 
       {/* Duas linhas, e o nome é a maior coisa da página. */}
-      <Text numberOfLines={2} style={styles.nome}>{nome}</Text>
+      <Text numberOfLines={2} style={styles.nome}
+        onLayout={aoMedirNome ? (e) => aoMedirNome(e.nativeEvent.layout.y + e.nativeEvent.layout.height) : undefined}>{nome}</Text>
       <Text style={styles.meta}>{linhaDeMeta(faixas, duracaoSegundos)}</Text>
 
       {accoes ? <View style={styles.accoes}>{accoes}</View> : null}

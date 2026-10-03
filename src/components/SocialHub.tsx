@@ -1,5 +1,6 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import { ActivityIndicator,AppState,FlatList,Image,Platform,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
+import { ActivityIndicator,Animated,AppState,FlatList,Image,Platform,Pressable,ScrollView,Text,TextInput,View } from 'react-native';
+import type { CabecalhoQueEncolhe } from './Screen';
 import { appEstaVisivel, intervaloComAppVisivel } from '../lib/appVisibility';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { acceptFriendRequest,acrescentarAoGrupo,criarGrupo,declineOrRemoveFriendship,getChatMessages,getGroupMessages,apagarConversa, sairDoGrupo,searchProfiles,sendFriendRequest,getReactions,getMensagensCitadas,setReaction,shareComGrupo,shareItem,type Reaction,type SharedItem } from '../api/social';
@@ -32,7 +33,9 @@ import { SkeletonDeConversas } from './Skeleton';
 import { CabecalhoDoAmigo, FaixaPartilhada, FundoDaApp } from './ChatAmigo';
 import type { Playlist,Track } from '../types';
 
-export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string}) {
+export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup,cabecalho}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string;
+  /** No iPhone (3/10): o título do Social encolhe ao rolar a lista, e ela começa por baixo dele. */
+  cabecalho?:CabecalhoQueEncolhe}) {
   const web=Platform.OS==='web';
   const canRead = () => appEstaVisivel() && (!web || document.hasFocus());
   const [width,setWidth]=useState(0);
@@ -252,15 +255,20 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   );
   const procura=filtro.trim().toLowerCase();
   const visiveis=procura?conversas.filter(c=>c.nome.toLowerCase().includes(procura)):conversas;
+  const botaoNovo=<View style={[s.row,{paddingBottom:cabecalho?0:12,justifyContent:'flex-end'}]}>
+    <SocialIconButton label="Start a conversation" icon="add" onPress={()=>setComecar(true)}/>
+  </View>;
   const list=<View style={s.body}>
     {/* UM `+`, e nao dois icones mais uma pilula. Adicionar alguem e criar um
         grupo sao a mesma intencao -- comecar uma conversa nova -- e eram tres
         affordances para ela. O refrescar saiu: o `useSocial` tem Realtime, e um
         botao que repete o que ja acontece sozinho so ensina a desconfiar. */}
-    <View style={[s.row,{paddingBottom:12,justifyContent:'flex-end'}]}>
-      <SocialIconButton label="Start a conversation" icon="add" onPress={()=>setComecar(true)}/>
-    </View>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{gap:16,paddingBottom:bottomPadding}}>
+    {!cabecalho&&botaoNovo}
+    {/* Com o título que encolhe, o `+` rola com a lista (o cabeçalho flutua por cima dela). */}
+    <Animated.ScrollView onScroll={cabecalho?.onScroll} scrollEventThrottle={cabecalho?.scrollEventThrottle}
+      scrollIndicatorInsets={{top:cabecalho?.espaco??0}}
+      keyboardShouldPersistTaps="handled" contentContainerStyle={{gap:16,paddingTop:cabecalho?.espaco??0,paddingBottom:bottomPadding}}>
+      {cabecalho&&botaoNovo}
       {(error||social.error)&&<Text accessibilityRole="alert" style={s.error}>{error||social.error}</Text>}
       {/* Um esqueleto com a forma da lista, e nao uma roda: diz o que vem a
           seguir e quanto e, em vez de dizer so 'espera'. */}
@@ -341,7 +349,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
           haver maneira de a arrumar, dai o caixote. */}
         {social.contacts.filter(p=>!accepted.some(f=>f.friendId===p.id)).map(p=><Pressable key={p.id} onPress={()=>open('friend',p.id)} style={[s.listRow]}><FriendAvatar avatarUrl={p.avatar_url} name={p.name} size={44}/><View style={{flex:1}}><Text style={s.text}>{p.name}</Text><Text style={s.muted}>Older messages</Text></View>{!!unread.get(p.id)&&<ContagemPorLer n={unread.get(p.id)!} accent={accent}/>}<Pressable accessibilityRole="button" accessibilityLabel={`Delete conversation with ${p.name}`} style={s.iconButton} onPress={()=>setConfirm({id:p.id,group:false,conversa:true})}><Ionicons name="trash-outline" size={18} color={colors.textSecondary}/></Pressable></Pressable>)}
       </>
-    </ScrollView>
+    </Animated.ScrollView>
   </View>;
   const groupHeader=group?<GroupChatHeader group={group} split={split} onBack={closeChat} onDetails={()=>setGroupDetails(group.id)}/>:undefined;
   // O nome aparecia TRES vezes: na barra, na linha de perfil, e dentro de cada

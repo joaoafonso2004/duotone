@@ -3,7 +3,7 @@ import { useNavigation,useRoute,useIsFocused,type RouteProp } from '@react-navig
 import type { MaterialTopTabNavigationProp } from '@react-navigation/material-top-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabsParamList } from '../navigation/RootNavigator';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SocialHub } from '../components/SocialHub';
 
 export function SocialScreen() {
@@ -23,14 +23,16 @@ export function SocialScreen() {
    * corre a seguir, poe os dois a `undefined`, e o efeito de la volta a correr
    * sem nada para abrir. A conversa que ja abriu fica aberta.
    */
+  // O título encolhe ao rolar a lista das conversas (3/10).
+  const cab=useCabecalhoQueEncolhe();
   const {openChatWithFriendId,openGroupId}=route.params ?? {};
   useEffect(()=>{
     if(openChatWithFriendId||openGroupId)separadores.setParams({openChatWithFriendId:undefined,openGroupId:undefined});
   },[openChatWithFriendId,openGroupId,separadores]);
   // O "voltar" e para o Perfil, que e de onde se vem -- a arrastar ou pelo
   // botao das mensagens. Uma seccao nao tem pilha para onde regressar.
-  return <Screen title="Social" subtitle="Friends, music and conversations." onBack={()=>separadores.navigate('Profile')}>
-    <SocialHub visible={focused} initialFriend={openChatWithFriendId} initialGroup={openGroupId}
+  return <Screen title="Social" subtitle="Friends, music and conversations." onBack={()=>separadores.navigate('Profile')} encolhe={cab}>
+    <SocialHub cabecalho={cab} visible={focused} initialFriend={openChatWithFriendId} initialGroup={openGroupId}
       onProfile={id=>navigation.navigate('FriendProfile',{userId:id})}
       onArtist={name=>navigation.navigate('LibraryGroup',{type:'artist',name})}
       onPlaylist={id=>navigation.navigate('PlaylistDetail',{id,name:'Playlist partilhada'})}/>

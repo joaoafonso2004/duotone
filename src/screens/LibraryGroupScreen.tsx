@@ -6,7 +6,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View, Animated } from 'react-native';
 import { tocarMixDoArtista } from '../state/mixDoArtista';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
@@ -18,7 +18,7 @@ import { pesquisarFaixas } from '../api/search';
 import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { EmptyState } from '../components/EmptyState';
 import { PillButton } from '../components/PillButton';
-import { Screen } from '../components/Screen';
+import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
@@ -155,6 +155,11 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const favorito = favoritos.has(chaveDeArtista(name));
 
   const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
+  const cab = useCabecalhoQueEncolhe();
+  const [fimDoNome, setFimDoNome] = useState(260);
+  // Cada aba é uma lista nova, que começa no topo: o cabeçalho volta a abrir.
+  const rolagem = cab.rolagem;
+  useEffect(() => { rolagem.setValue(0); }, [activeTab, rolagem]);
 
   /**
    * A fila de acções do artista é a MESMA da playlist, e de propósito.
@@ -258,7 +263,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const total = faixasDoCabecalho.length && faixasDoCabecalho.every(t => (t.durationSeconds ?? 0) > 0)
     ? faixasDoCabecalho.reduce((sum, t) => sum + t.durationSeconds!, 0) : null;
   const header = <>
-    {type === 'artist' ? <CabecalhoDaPlaylist artista nome={name} artworks={capaDoArtista ? [capaDoArtista] : []}
+    {type === 'artist' ? <CabecalhoDaPlaylist artista aoMedirNome={setFimDoNome} nome={name} artworks={capaDoArtista ? [capaDoArtista] : []}
       faixas={faixasDoCabecalho.length} duracaoSegundos={total}
       accoes={tracks.length || otherTracks.length || pagina?.mix ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
         <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true)} />
@@ -276,15 +281,19 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   </>;
   const rows = activeTab === 'youtube_albums' ? ytAlbums : activeTab === 'youtube_tracks' ? otherTracks : tracks;
   return (
-    <Screen title={type === 'album' ? name : undefined}
+    // O título encolhe ao rolar (3/10): no álbum, o título do cabeçalho; no
+    // artista, o nome grande da capa dá lugar ao pequeno na barra de cima.
+    <Screen encolhe={cab} tituloCompacto={type === 'artist' ? { texto: name, aparecerEm: fimDoNome } : undefined}
+      title={type === 'album' ? name : undefined}
       subtitle={type === 'album' ? `Album · ${tracks.length} songs` : undefined}
       onBack={() => navigation.goBack()}
       topLeft={type === 'artist' ? <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => navigation.goBack()}
         style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginLeft: spacing.lg }}>
         <Ionicons name="chevron-back" size={26} color={colors.text} /></Pressable> : undefined}>
-      <FlatList key={activeTab} data={waiting ? [] : rows} keyExtractor={(item) => item.id ?? `${item.source}:${item.sourceId}`}
+      <Animated.FlatList key={activeTab} data={waiting ? [] : rows}
+        onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} keyExtractor={(item) => item.id ?? `${item.source}:${item.sourceId}`}
         ListHeaderComponent={header} initialNumToRender={12} windowSize={7}
-        contentContainerStyle={{ paddingBottom: bottomPad }}
+        contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
         ListEmptyComponent={waiting ? <ActivityIndicator color={theme.color} style={{ marginTop: 32 }} /> :
           <EmptyState icon={activeTab === 'youtube_albums' ? 'albums-outline' : 'musical-notes-outline'}
             title={activeTab === 'library' ? 'Nothing here' : activeTab === 'youtube_albums' ? 'No albums found' : 'No tracks found'}
