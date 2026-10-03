@@ -12,11 +12,21 @@
  * o aviso sair -- apagar o ficheiro de um download --, para desfazer não
  * precisar de rede.
  *
+ * Desde 3/10 (auditoria 6.1) é também por aqui que passam os ERROS e os
+ * sucessos que eram um `Alert` ("Error" com o texto do Supabase, "Playlists
+ * merged / OK"): o `tipo` muda o ícone, a vibração e quanto tempo fica. O
+ * `Alert` fica só para as confirmações sem volta. A frase de um erro vem do
+ * `mensagemDeErro`.
+ *
  * Sem imports: `scripts/test-aviso-de-remocao.ts`.
  */
 
+/** `feito` (o de sempre, com o visto), `erro` ou `info`. */
+export type TipoDeAviso = 'feito' | 'erro' | 'info';
+
 export type AvisoDeRemocao = {
   id: number;
+  tipo?: TipoDeAviso;
   texto: string;
   detalhe?: string;
   /** Repõe o que saiu. Sem isto, o aviso só informa (e dura menos). */
@@ -27,9 +37,12 @@ export type AvisoDeRemocao = {
 
 export const DURACAO_COM_DESFAZER_MS = 5000;
 export const DURACAO_SEM_DESFAZER_MS = 3000;
+/** Um erro lê-se com mais calma: diz o que falhou e o que fazer. */
+export const DURACAO_DO_ERRO_MS = 4500;
 
-export function duracaoDoAviso(a: Pick<AvisoDeRemocao, 'desfazer'>): number {
-  return a.desfazer ? DURACAO_COM_DESFAZER_MS : DURACAO_SEM_DESFAZER_MS;
+export function duracaoDoAviso(a: Pick<AvisoDeRemocao, 'desfazer' | 'tipo'>): number {
+  if (a.desfazer) return DURACAO_COM_DESFAZER_MS;
+  return a.tipo === 'erro' ? DURACAO_DO_ERRO_MS : DURACAO_SEM_DESFAZER_MS;
 }
 
 type Relogio = {
@@ -102,6 +115,21 @@ export const avisos = criarAvisos();
 
 export function avisarRemocao(aviso: Omit<AvisoDeRemocao, 'id'>): number {
   return avisos.mostrar(aviso);
+}
+
+/** Correu bem, e vale a pena dizê-lo (era um `Alert` com "OK"). */
+export function avisarFeito(texto: string, detalhe?: string): number {
+  return avisos.mostrar({ tipo: 'feito', texto, detalhe });
+}
+
+/** Falhou: a frase vem do `mensagemDeErro`, nunca o texto técnico. */
+export function avisarErro(texto: string, detalhe?: string): number {
+  return avisos.mostrar({ tipo: 'erro', texto, detalhe });
+}
+
+/** Não é erro nem feito: "You're offline", "Sending to iPhone…". */
+export function avisarInfo(texto: string, detalhe?: string): number {
+  return avisos.mostrar({ tipo: 'info', texto, detalhe });
 }
 
 /** "1 song" / "3 songs". */

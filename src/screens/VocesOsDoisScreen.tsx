@@ -16,6 +16,7 @@ import { usePlayer } from '../state/player';
 import { contextoDaPrateleira } from '../lib/contextoDaDescoberta';
 import type { Track } from '../types';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
+import { useAlturaDosSeparadores } from '../state/doca';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VocesOsDois'>;
 
@@ -47,6 +48,8 @@ export function VocesOsDoisScreen({ route, navigation }: Props) {
   const cab = useCabecalhoQueEncolhe();
   const { userId, nome } = route.params;
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
+  const separadores = useAlturaDosSeparadores();
   const tema = useTheme((s) => s.theme);
   const [dados, setDados] = useState<VocesOsDois | null>(null);
   const [aCarregar, setACarregar] = useState(true);
@@ -97,7 +100,7 @@ export function VocesOsDoisScreen({ route, navigation }: Props) {
           contentContainerStyle={{
             paddingTop: cab.espaco,
             paddingHorizontal: spacing.xl,
-            paddingBottom: 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32,
+            paddingBottom: separadores + insets.bottom + MINI_PLAYER_HEIGHT + 32,
             gap: spacing.lg,
           }}
         >

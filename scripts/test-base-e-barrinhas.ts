@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  ALTURA_DOS_SEPARADORES, ZONA_DA_MUSICA, comAlfa, modoDaDoca, posicoesDaDoca, rotasEmFoco,
+  ALTURA_DOS_SEPARADORES, ZONA_DA_MUSICA, comAlfa, medidaNova, modoDaDoca, posicoesDaDoca, rotasEmFoco,
 } from '../src/lib/doca.ts';
 import {
   ALTURA_MAXIMA, ALTURA_MINIMA, BARRAS, LARGURA, alturaNaFase, amostrasDaOnda, pecasDaCapsula,
@@ -74,6 +74,20 @@ caso('escondida, nada fica no ecrã', () => {
   }
   const semNada = posicoesDaDoca('semSeparadores', false, FUNDO);
   assert.ok(semNada.vidro >= ALTURA, 'sem música e sem separadores não sobra vidro');
+});
+caso('com o texto grande (separadores mais altos), a música continua dentro do vidro', () => {
+  for (const sep of [54, 58, 62]) {
+    const altura = ZONA_DA_MUSICA + sep + FUNDO;
+    const p = posicoesDaDoca('semSeparadores', true, FUNDO, sep);
+    const baseDaLinha = sep + FUNDO + 4 - p.musica;
+    assert.ok(baseDaLinha >= FUNDO && baseDaLinha + MINI <= altura - p.vidro, `com ${sep} pt`);
+    assert.ok(posicoesDaDoca('escondida', true, FUNDO, sep).vidro >= altura);
+  }
+});
+caso('a medida dos separadores só muda com meio ponto ou mais', () => {
+  assert.equal(medidaNova(54, 54.2), null);
+  assert.equal(medidaNova(54, 61.3), 61.5);
+  assert.equal(medidaNova(54, 0), null);
 });
 caso('a cor da capa com transparência', () => {
   assert.equal(comAlfa('#C9A86A', 0.26), 'rgba(201,168,106,0.26)');
@@ -144,6 +158,17 @@ caso('a base é uma peça: vidro e separadores na Doca, a linha transparente no 
 });
 caso('a cor da capa só com "seguir a cor da capa" ligado (João, 3/10)', () => {
   assert.match(ler('src/components/Doca.tsx'), /s\.mode === 'cover'/);
+});
+caso('a altura dos separadores é medida na base, e o 49 à mão não volta (auditoria 1.3)', () => {
+  assert.match(ler('src/components/Doca.tsx'), /onLayout=\{\(e\) => definirAlturaDosSeparadores\(/);
+  for (const f of ['src/components/PlayerRoot.tsx', 'src/components/HandoffBanner.tsx', 'src/components/AvisoDeRemocao.tsx',
+    'src/components/useSocialBottomPadding.ts', 'src/screens/ArtistsScreen.tsx', 'src/screens/ImportYouTubeScreen.tsx',
+    'src/screens/LibraryGroupScreen.tsx', 'src/screens/PlaylistDetailScreen.tsx', 'src/screens/PlaylistsScreen.tsx',
+    'src/screens/SearchScreen.tsx', 'src/screens/SongsScreen.tsx', 'src/screens/VocesOsDoisScreen.tsx']) {
+    const codigo = ler(f).replace(/\/\/.*$/gm, '');
+    assert.doesNotMatch(codigo, /\b49\s*\+|\?\s*49\s*:|TAB_BAR_BASE\s*=\s*49/, `${f} voltou a ter o 49`);
+    assert.match(codigo, /useAlturaDosSeparadores\(\)/, `${f} não lê a medida`);
+  }
 });
 caso('as molas da base não andam num Animated.parallel', () => {
   assert.doesNotMatch(ler('src/components/Doca.tsx'), /Animated\.parallel\(/);

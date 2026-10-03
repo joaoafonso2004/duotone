@@ -8,7 +8,7 @@
 
 | | Feito | Em parte | Por fazer | Decidido |
 |---|---|---|---|---|
-| Pontos (1.1 a 7.3) | 10 | 4 | 14 | 1 |
+| Pontos (1.1 a 7.3) | 12 | 3 | 13 | 1 |
 
 A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swift nativo. Por isso a "Implementação" de cada ponto está em RN/Expo, e em Swift onde o trabalho é nativo.
 
@@ -52,7 +52,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 1.3 A altura da barra de separadores está escrita à mão (49)
 
-**Estado:** ⬜ Por fazer, e ficou **mais importante**: a base nova (2.1) também conta com os 49 (`ALTURA_DOS_SEPARADORES` em `lib/doca.ts`, mais o `TAB_BAR_BASE` do PlayerRoot, HandoffBanner e AvisoDeRemocao). Com o texto grande, os separadores crescem e os números não.
+**Estado:** ✅ Feito (3/10). A base mede os separadores (`onLayout`) e o leitor, os avisos, o handoff e o fim das listas usam a medida (`useAlturaDosSeparadores`). O 49 estava em catorze sítios e a barra real tinha 54; um teste falha se ele voltar.
 
 **Melhoria:** medir a barra e partilhar a medida (`onLayout` → store, e um `useEspacoEmBaixo()` com barra + mini-player + safe area).
 
@@ -226,7 +226,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 6.1 Avisos por Alert
 
-**Estado:** ◐ Em parte (3/10). Feito: o aviso com "Undo" para o que se **tira ou apaga** (Liked Songs, fila, playlist, downloads), sem pergunta antes (`AvisoDeRemocao`). Falta: os ~42 `Alert.alert` que sobram (erros com o texto técnico do Supabase, sucessos como "Cleared"), um `mensagemDeErro(e)` comum, e juntar as superfícies flutuantes que ainda coexistem.
+**Estado:** ✅ Feito (3/10). O aviso com "Undo" para o que se **tira ou apaga**, e os erros e sucessos que eram um `Alert` (40 de 42) passaram ao mesmo aviso, com o tipo (feito, erro, info) no ícone e na vibração. A frase de um erro vem do `mensagemDeErro(e, recurso)`: nunca o texto técnico do Supabase. Ficam dois `Alert`: a confirmação do "Remove all" e o "conta apagada". *Fica por fazer* juntar as outras superfícies flutuantes (os dois toasts do leitor, o HandoffBanner, o AvisoDaReproducao).
 
 **Prioridade:** P1 · Impacto: Alto
 
@@ -258,7 +258,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 - ◐ Tirar o processamento do áudio do JS — 4.1 (medição feita; falta decidir pelos números)
 - ✅ Cabeçalho que encolhe ao rolar — 1.1
 - ◐ Escala tipográfica a sério — 1.2 (mínimo de 11 pt feito)
-- ◐ Avisos com "Undo" em vez de alertas — 6.1 (remoções feitas; erros e sucessos por fazer)
+- ✅ Avisos com "Undo" em vez de alertas — 6.1
 - ✅ Mini-player e barra como uma base única — 2.1
 - ⬜ Folhas nativas — 3.2
 - ✅ Corrigir anterior/seguinte — 5.1
@@ -308,6 +308,8 @@ Pela ordem de ataque:
 ## PRÓXIMOS PASSOS QUE VALEM A PENA
 
 Por ordem:
+
+> **Atualizado a 3/10 (fim do dia):** o 4 (altura medida) e o 6 (alertas) estão feitos; o 3 (barra), o 5 (Home) e o 7 (folhas) têm preview em `docs/barra-home-folhas.html` à espera de escolha.
 
 1. **Build e uma volta no iPhone.** Tudo o que está ✅ desde 3/10 só foi visto em testes e no browser: os gestos fora do JS, a base de vidro, o título que encolhe, o aviso com "Undo", as barrinhas. É onde está o maior risco, e um erro aqui vê-se em todos os ecrãs.
 2. **Ler o relatório do processamento do áudio** depois de uns dias de uso (4.1). Se o pior caso no fim de um download passar de umas centenas de ms, o módulo Swift é o maior ganho que falta em fluidez; se não, fica de fora.

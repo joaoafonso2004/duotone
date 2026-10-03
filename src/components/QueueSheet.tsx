@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinhaArrastavel } from './LinhaArrastavel';
 import { DeslizarParaTirar } from './DeslizarParaTirar';
 import { chavesEstaveis } from '../lib/arrastarFila';
@@ -24,8 +24,9 @@ import { RecommendationPreferences } from './RecommendationPreferences';
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
 import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede } from '../lib/descarregarFaixa';
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
-import { avisarRemocao, contarMusicas } from '../lib/avisoDeRemocao';
+import { avisarRemocao, contarMusicas, avisarErro } from '../lib/avisoDeRemocao';
 import { savedKey, useSaved } from '../state/saved';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 interface Props {
   visible: boolean;
@@ -166,7 +167,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista }: Pr
       case 'guardar':
         setSelection(null);
         void alternarGuardada(t).then((ficou) => { if (ficou) hapticNotification(); })
-          .catch((e: any) => Alert.alert('Error', e?.message ?? 'Could not update your library.'));
+          .catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not update your library.')));
         return;
       case 'por-em-playlist': setPanel('playlist'); return;
       case 'ver-artista': setSelection(null); onVerArtista?.(nomeDoArtista); return;

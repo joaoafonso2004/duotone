@@ -4,10 +4,10 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { ALTURA_DOS_SEPARADORES, comAlfa, posicoesDaDoca, ZONA_DA_MUSICA } from '../lib/doca';
+import { comAlfa, posicoesDaDoca, ZONA_DA_MUSICA } from '../lib/doca';
 import { molaIOS } from '../lib/transicaoDoLeitor';
 import { IconesDosSeparadores } from '../navigation/BarraDeSeparadores';
-import { desvioDaMusica, desvioDoVidro, desvioDosIcones, useDoca } from '../state/doca';
+import { definirAlturaDosSeparadores, desvioDaMusica, desvioDoVidro, desvioDosIcones, useAlturaDosSeparadores, useDoca } from '../state/doca';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 
@@ -34,11 +34,12 @@ export function Doca() {
   const modo = useDoca((s) => s.modo);
   const separadores = useDoca((s) => s.separadores);
   const temMusica = usePlayer((s) => !!s.current);
+  const alturaDosSeparadores = useAlturaDosSeparadores();
   const reduzido = useReducedMotion();
   const primeira = useRef(true);
 
   useEffect(() => {
-    const alvo = posicoesDaDoca(modo, temMusica, insets.bottom);
+    const alvo = posicoesDaDoca(modo, temMusica, insets.bottom, alturaDosSeparadores);
     const pares: [Animated.Value, number][] = [[desvioDoVidro, alvo.vidro], [desvioDaMusica, alvo.musica], [desvioDosIcones, alvo.icones]];
     if (primeira.current || reduzido) {
       primeira.current = false;
@@ -52,9 +53,9 @@ export function Doca() {
       Animated.spring(valor, { toValue: para, ...molaIOS(0.46, 0.9), useNativeDriver: true }));
     molas.forEach((m) => m.start());
     return () => molas.forEach((m) => m.stop());
-  }, [modo, temMusica, insets.bottom, reduzido]);
+  }, [modo, temMusica, insets.bottom, alturaDosSeparadores, reduzido]);
 
-  const altura = ZONA_DA_MUSICA + ALTURA_DOS_SEPARADORES + insets.bottom;
+  const altura = ZONA_DA_MUSICA + alturaDosSeparadores + insets.bottom;
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       {/* Sem `pointerEvents`: o vidro engole os toques que não acertam num botão,
@@ -67,7 +68,10 @@ export function Doca() {
         pointerEvents={modo === 'separadores' ? 'box-none' : 'none'}
         style={[styles.icones, { paddingBottom: insets.bottom, transform: [{ translateY: desvioDosIcones }] }]}
       >
-        {separadores ? <IconesDosSeparadores state={separadores.state} navigation={separadores.navigation} /> : null}
+        {/* Medidos aqui: é esta altura que o resto da app usa (auditoria 1.3). */}
+        <View onLayout={(e) => definirAlturaDosSeparadores(e.nativeEvent.layout.height)}>
+          {separadores ? <IconesDosSeparadores state={separadores.state} navigation={separadores.navigation} /> : null}
+        </View>
       </Animated.View>
     </View>
   );

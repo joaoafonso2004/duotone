@@ -5,7 +5,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FILTROS_DE_VERSAO, filtrosComResultados, versaoPassa, type FiltroDeVersao } from '../lib/filtroDeVersao';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Keyboard,
   Pressable,
@@ -60,6 +59,9 @@ import {
   contextoDaPrateleira, contextoParaAnalytics, notaDaPrateleira, type DiscoveryContext,
 } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
+import { useAlturaDosSeparadores } from '../state/doca';
+import { avisarErro } from '../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 /** Quantas linhas por página na primeira secção. */
 const LINHAS_NA_LISTA = 3;
@@ -136,7 +138,7 @@ export function SearchScreen() {
       hapticNotification();
       return { ...nova, trackCount: m.faixas.length };
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not save this playlist.');
+      avisarErro(mensagemDeErro(e, 'Could not save this playlist.'));
       return null;
     } finally {
       setAGuardarMistura(false);
@@ -163,6 +165,8 @@ export function SearchScreen() {
    */
   const separadores = useNavigation<MaterialTopTabNavigationProp<TabsParamList>>();
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
+  const alturaDosSeparadores = useAlturaDosSeparadores();
   const playTrack = usePlayer((s) => s.playTrack);
   const refreshSaved = useSaved((s) => s.refresh);
   const savedKeys = useSaved((s) => s.keys);
@@ -256,7 +260,7 @@ export function SearchScreen() {
     setAAbrirMix(true);
     const ok = await tocarMixDoArtista(a.nome, { canal: a.canal }).catch(() => false);
     setAAbrirMix(false);
-    if (!ok) Alert.alert('Mix', 'Could not load the mix. Check your connection and try again.');
+    if (!ok) avisarErro('Could not load the mix.', 'Check your connection and try again.');
   };
   const cartaoDoDestaque = destaque ? (
     <ArtistaEmDestaque artista={destaque} aoAbrir={() => abrirArtista(destaque)}
@@ -290,7 +294,7 @@ export function SearchScreen() {
     clearSearchHistory();
   };
 
-  const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
+  const bottomPad = alturaDosSeparadores + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
   /**
    * Uma prateleira de MISTURAS -- estilos, radios ou playlists.

@@ -2,7 +2,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -23,6 +22,8 @@ import { ArtworkCollage } from './ArtworkCollage';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { Input } from './Input';
 import { PillButton } from './PillButton';
+import { avisarErro } from '../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 interface Props {
   visible: boolean;
@@ -103,7 +104,7 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
         onDone?.();
         onClose();
       } catch (e: any) {
-        Alert.alert('Error', e?.message ?? 'Could not add to playlist.');
+        avisarErro(mensagemDeErro(e, 'Could not add to playlist.'));
       }
       return;
     }
@@ -135,7 +136,7 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
       onDone?.();
     } catch (e: any) {
       marcar(playlistId, isAdded);
-      Alert.alert('Error', e?.message ?? 'Could not update playlist.');
+      avisarErro(mensagemDeErro(e, 'Could not update playlist.'));
     } finally {
       aMudar.current.delete(playlistId);
     }
@@ -170,7 +171,7 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
         onClose();
       }
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not create the playlist.');
+      avisarErro(mensagemDeErro(e, 'Could not create the playlist.'));
     } finally {
       setCreating(false);
     }

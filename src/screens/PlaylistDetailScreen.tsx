@@ -1,6 +1,6 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
-import { avisarRemocao } from '../lib/avisoDeRemocao';
+import { avisarRemocao, avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -8,7 +8,6 @@ import { Image } from 'expo-image';
 import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   FlatList,
   Modal,
@@ -71,6 +70,8 @@ import {
   comecarRascunho, desfazerTirada, haAlgoParaGravar, moverNoRascunho, planoDeGravacao, tirarDoRascunho,
   type Rascunho,
 } from '../lib/edicaoDaPlaylist';
+import { useAlturaDosSeparadores } from '../state/doca';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
@@ -86,6 +87,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const [loadError,setLoadError]=useState('');
   const detailRequest=useRef(0);
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
+  const separadores = useAlturaDosSeparadores();
   const playTrack = usePlayer((s) => s.playTrack);
   const tocarLista = usePlayer((s) => s.tocarLista);
   const inteligente = usePlayer((s) => s.shuffleInteligente);
@@ -204,7 +207,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       load();
       setAddTracksOpen(false);
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not update playlist tracks.');
+      avisarErro(mensagemDeErro(e, 'Could not update playlist tracks.'));
     } finally {
       setBusy(false);
     }
@@ -274,7 +277,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       // Não saiu: volta à lista.
       setTracks((atual) => atual.some((t) => t.id === linha.id)
         ? atual : [...atual.slice(0, indice), linha, ...atual.slice(indice)]);
-      Alert.alert('Error', e?.message ?? 'Could not remove the track.');
+      avisarErro(mensagemDeErro(e, 'Could not remove the track.'));
     });
   }, [tracks, id]);
 
@@ -319,7 +322,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       void usePlaylists.getState().carregar(true);
       if(jaTinha)navigation.push('PlaylistDetail',{id:copia,name:`${name} (Shared)`});
       else hapticNotification();
-    }catch(e:any){Alert.alert('Could not save',mensagemDeFalhaAoGuardar(e));}
+    }catch(e:any){avisarErro(mensagemDeFalhaAoGuardar(e));}
     finally{setAGuardar(false);}
   };
 
@@ -372,7 +375,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       // A grelha das Playlists mostra o nome, a contagem e as capas.
       void usePlaylists.getState().carregar(true);
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not save the playlist.');
+      avisarErro(mensagemDeErro(e, 'Could not save the playlist.'));
       setRascunho(null);
       void load();
     } finally {
@@ -398,7 +401,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       // Apagar não tem volta: já se confirmou, e o aviso só informa (3/10).
       avisarRemocao({ texto: 'Playlist deleted', detalhe: name });
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not delete.');
+      avisarErro(mensagemDeErro(e, 'Could not delete.'));
     } finally {
       setBusy(false);
     }
@@ -408,7 +411,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     setOptionsOpen(false);
     setMergeOpen(true);
     try { setMergeItems((await listPlaylists()).filter((playlist) => playlist.id !== id)); }
-    catch (e: any) { setMergeOpen(false); Alert.alert('Error', e?.message ?? 'Could not load your playlists.'); }
+    catch (e: any) { setMergeOpen(false); avisarErro(mensagemDeErro(e, 'Could not load your playlists.')); }
   };
 
   const fazerMerge = async (source: Playlist) => {
@@ -418,13 +421,13 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       setMergeOpen(false);
       await load();
       hapticNotification();
-      Alert.alert('Playlists merged', `${resultado.adicionadas} added · ${resultado.repetidas} already existed.\n\n“${source.name}” was not changed.`);
+      avisarFeito('Playlists merged', `${resultado.adicionadas} added · ${resultado.repetidas} already there. “${source.name}” was not changed.`);
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not merge the playlists.');
+      avisarErro(mensagemDeErro(e, 'Could not merge the playlists.'));
     } finally { setBusy(false); }
   };
 
-  const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
+  const bottomPad = separadores + insets.bottom + MINI_PLAYER_HEIGHT + 32;
 
   /** As quatro primeiras capas, para o mosaico -- como na grelha. */
   const capasDaPlaylist = React.useMemo(
@@ -793,7 +796,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
       {/* O aviso de que há músicas para sair, e o Undo (28/9). Nada sai antes do Save. */}
       {rascunho && rascunho.tiradas.length > 0 ? (
-        <View style={[styles.desfazer, { bottom: 49 + insets.bottom + MINI_PLAYER_HEIGHT + 12 }]}>
+        <View style={[styles.desfazer, { bottom: separadores + insets.bottom + MINI_PLAYER_HEIGHT + 12 }]}>
           <Text style={[type.body, { flex: 1 }]}>
             {rascunho.tiradas.length === 1 ? '1 song will be removed' : `${rascunho.tiradas.length} songs will be removed`}
           </Text>

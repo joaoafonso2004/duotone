@@ -13,7 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, STEEL } from '../state/theme';
 import { clearLibrary, reporGuardadas } from '../api/library';
-import { avisarRemocao, contarMusicas } from '../lib/avisoDeRemocao';
+import { avisarRemocao, contarMusicas, avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
 import { useSaved } from '../state/saved';
 import { clearPoTokenMemo } from '../api/potProvider';
 import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstream';
@@ -72,6 +72,7 @@ import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade
 import { resumoDoVarrimento, varrerCatalogo } from '../state/catalogoDeFaixas';
 import { partilharRelatorioDeReproducao } from '../lib/relatorioDeReproducao';
 import { colors, radii, spacing, type } from '../theme';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
@@ -112,7 +113,7 @@ export function SettingsScreen({ navigation }: Props) {
       void useRecomendacoes.getState().carregar(true);
     } catch (e) {
       const texto = mensagemDoSpotify(e instanceof ErroDoSpotify ? e.tipo : 'rede');
-      if (texto) Alert.alert('Spotify', texto);
+      if (texto) avisarErro(texto);
     } finally {
       setALerSpotify(false);
     }
@@ -128,10 +129,8 @@ export function SettingsScreen({ navigation }: Props) {
     try {
       const err = await resetPassword();
       hapticNotification();
-      Alert.alert(
-        err ? 'Error' : 'Check your email',
-        err ?? 'We sent a password reset link to your email.'
-      );
+      if (err) avisarErro(mensagemDeErro(err, 'Could not send the reset email.'));
+      else avisarFeito('Check your email', 'We sent you a link to reset your password.');
     } finally {
       setResettingPw(false);
     }
@@ -315,7 +314,7 @@ export function SettingsScreen({ navigation }: Props) {
         desfazer: async () => { await reporGuardadas(tiradas); void useSaved.getState().refresh(); },
       });
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not clear the library.');
+      avisarErro(mensagemDeErro(e, 'Could not clear the library.'));
     } finally {
       setClearingLibrary(false);
     }
@@ -332,7 +331,7 @@ export function SettingsScreen({ navigation }: Props) {
       await signOut();
       Alert.alert('Deleted', 'Your account has been deleted.');
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not delete your account.');
+      avisarErro(mensagemDeErro(e, 'Could not delete your account.'));
     } finally {
       setDeletingAccount(false);
     }

@@ -31,7 +31,6 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import {
-  Alert,
   Animated,
   AppState,
   Platform,
@@ -99,8 +98,10 @@ import {
   cartaoDoArrasto, deLadoInverso, destinoNoMini, deveFechar, molaIOS, velocidadeDeAterragem, velocidadeDeVolta,
   type Geometria,
 } from '../lib/transicaoDoLeitor';
+import { useAlturaDosSeparadores } from '../state/doca';
+import { avisarErro, avisarInfo } from '../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
-const TAB_BAR_BASE = 49;
 const HEADER_H = 44;
 /** O X fecha a música só depois de o leitor descer (a mola de fechar, 0,42 s). */
 const FECHAR_DEPOIS_DE_DESCER_MS = 380;
@@ -146,6 +147,8 @@ export function PlayerRoot() {
   const offline=useOfflineMode();
   const offlineId=useAuth(s=>s.session?.user.id??s.offlineUserId);
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA na base (auditoria 1.3), não um 49 à mão.
+  const TAB_BAR_BASE = useAlturaDosSeparadores();
   const { width: W, height: H, fontScale } = useWindowDimensions();
   // As contas do arrasto, que correm no motor nativo, são em frações da altura.
   useEffect(() => { definirAlturaDoEcra(H); }, [H]);
@@ -901,7 +904,7 @@ export function PlayerRoot() {
   };
 
   const saveCurrentToLibrary = async () => {
-    if(offline){Alert.alert('Offline','Connect to the internet to change your liked songs.');return;}
+    if(offline){avisarInfo("You're offline", 'Connect to the internet to change your Liked Songs.');return;}
     if (!current) return;
     const wasSaved = saved;
     setSaved(!wasSaved); // otimista
@@ -930,7 +933,7 @@ export function PlayerRoot() {
     } catch (e: any) {
       setSaved(wasSaved);
       useSaved.getState().markSaved(current, wasSaved);
-      Alert.alert('Error', e?.message ?? 'Could not update library.');
+      avisarErro(mensagemDeErro(e, 'Could not update library.'));
     }
   };
 
@@ -1077,7 +1080,7 @@ export function PlayerRoot() {
       pivo,
       capa: { x: centroFull.x, y: centroFull.y, lado: vidFull.w },
       // Onde a música está AGORA: num ecrã sem separadores desceu com a base.
-      mini: { x: centroMini.x, y: centroMini.y + posicoesDaDoca(modoDaDoca, true, insets.bottom).musica, lado: vidMini.w },
+      mini: { x: centroMini.x, y: centroMini.y + posicoesDaDoca(modoDaDoca, true, insets.bottom, TAB_BAR_BASE).musica, lado: vidMini.w },
     },
   };
 
@@ -1258,7 +1261,7 @@ export function PlayerRoot() {
           fecharEEntao(() => {
             void mandarComando(alvo.deviceId, 'assumir').then((estado) => {
               if (estado === 'feito') { hapticNotification(); return; }
-              Alert.alert('Duotone Connect', avisoDoPedido(estado, alvo.nome, 'assumir'));
+              (estado === 'pendente' ? avisarInfo : avisarErro)(avisoDoPedido(estado, alvo.nome, 'assumir'));
             });
           });
         },
@@ -1294,7 +1297,7 @@ export function PlayerRoot() {
     const ordenar = (tipo: TipoDePedido) => {
       void mandarComando(alvo.deviceId, tipo).then((estado) => {
         if (estado === 'feito') { hapticSelection(); return; }
-        Alert.alert('Duotone Connect', avisoDoPedido(estado, alvo.nome, tipo));
+        (estado === 'pendente' ? avisarInfo : avisarErro)(avisoDoPedido(estado, alvo.nome, tipo));
       });
     };
     return [

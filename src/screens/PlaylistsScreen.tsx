@@ -4,7 +4,6 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   FlatList,
   Pressable,
@@ -34,12 +33,14 @@ import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { YtPlaylistShareSheet } from '../components/YtPlaylistShareSheet';
 import { usePlayer } from '../state/player';
 import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/haptics';
-import { avisarRemocao } from '../lib/avisoDeRemocao';
+import { avisarRemocao, avisarErro } from '../lib/avisoDeRemocao';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { usePlaylists } from '../state/playlists';
 import { useTheme } from '../state/theme';
 import type { Playlist } from '../types';
+import { useAlturaDosSeparadores } from '../state/doca';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 export function PlaylistsScreen() {
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
@@ -49,6 +50,8 @@ export function PlaylistsScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
+  const separadores = useAlturaDosSeparadores();
   const { width: W } = useWindowDimensions();
 
   // A lista vive na store e não neste ecrã. Era um `useState` local com um
@@ -80,7 +83,7 @@ export function PlaylistsScreen() {
       id = parts[parts.length - 1];
     }
     if (!id) {
-      Alert.alert('Error', 'Please enter a valid playlist ID or shared link.');
+      avisarErro("That isn't a playlist link.", 'Paste a playlist ID or a shared link.');
       return;
     }
     setBusy(true);
@@ -91,7 +94,7 @@ export function PlaylistsScreen() {
       load();
       navigation.navigate('PlaylistDetail', { id: newPlId, name: 'Shared Playlist' });
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not import the shared playlist.');
+      avisarErro(mensagemDeErro(e, 'Could not import the shared playlist.'));
     } finally {
       setBusy(false);
     }
@@ -116,7 +119,7 @@ export function PlaylistsScreen() {
       load();
       navigation.navigate('PlaylistDetail', { id: pl.id, name: pl.name });
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not create the playlist.');
+      avisarErro(mensagemDeErro(e, 'Could not create the playlist.'));
     } finally {
       setBusy(false);
     }
@@ -135,7 +138,7 @@ export function PlaylistsScreen() {
       if (modo === 'baralhar') await leitor.playShuffled(faixas, leitor.shuffleInteligente);
       else await leitor.tocarLista(faixas, leitor.shuffle, leitor.shuffleInteligente);
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not load the playlist.');
+      avisarErro(mensagemDeErro(e, 'Could not load the playlist.'));
     }
   };
 
@@ -149,14 +152,14 @@ export function PlaylistsScreen() {
       setDeleteFor(null);
       load();
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not delete the playlist.');
+      avisarErro(mensagemDeErro(e, 'Could not delete the playlist.'));
     } finally {
       setBusy(false);
     }
   };
 
   const cardSize = (W - spacing.xl * 2 - spacing.lg) / 2;
-  const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
+  const bottomPad = separadores + insets.bottom + MINI_PLAYER_HEIGHT + 32;
   // A Daily mix abre no ecrã das prateleiras, que é uma vista sobre a store --
   // ver `state/misturaDoDia.ts`.
 

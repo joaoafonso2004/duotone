@@ -47,6 +47,8 @@ const mocks = {
   'expo-image': { Image: 'Image' }, 'expo-linear-gradient': { LinearGradient: 'Gradient' }, '@expo/vector-icons/Ionicons': 'Icon',
   '../components/CabecalhoDaPlaylist': { CabecalhoDaPlaylist: 'Header' },
   '../components/BrilhoDoEcra': { BrilhoDoEcra: 'Glow' }, '../components/EmptyState': { EmptyState: 'Empty' },
+  '../state/doca': { useAlturaDosSeparadores: () => 54 },
+  '../lib/avisoDeRemocao': { avisarErro() {} },
   '../components/PillButton': { PillButton: 'Pill' }, '../components/Screen': { Screen: 'Screen', useCabecalhoQueEncolhe: () => ({
     rolagem: { setValue() {} }, onScroll: undefined, scrollEventThrottle: 16, espaco: 0, definirEspaco() {}, repor() {},
   }) },

@@ -4,7 +4,7 @@ import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { hapticImpact, hapticNotification } from '../lib/haptics';
 import { colors, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
@@ -21,6 +21,8 @@ import { ShareFriendSheet } from './ShareFriendSheet';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { ArtworkCollage } from './ArtworkCollage';
+import { avisarErro } from '../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 /** Uma linha de um menu que NÃO é de uma faixa -- as opções de uma playlist. */
 export interface SheetAction {
@@ -101,7 +103,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
           if (ficou) hapticNotification();
           if (ficou && discoveryContext) registar('recomendacao_guardada', contextoParaAnalytics(discoveryContext));
           aoMudarBiblioteca?.();
-        }).catch((e: any) => Alert.alert('Error', e?.message ?? 'Could not update your library.'));
+        }).catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not update your library.')));
         return;
       case 'por-em-playlist': setParaPlaylist(t); return;
       case 'ver-artista':

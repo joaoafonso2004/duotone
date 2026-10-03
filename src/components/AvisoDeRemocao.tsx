@@ -1,19 +1,21 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import * as Haptics from 'expo-haptics';
 import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { Alert, Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FullWindowOverlay } from 'react-native-screens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { avisos, duracaoDoAviso, type AvisoDeRemocao as Aviso } from '../lib/avisoDeRemocao';
 import { textoSobre } from '../lib/corDaCapa';
-import { hapticImpact } from '../lib/haptics';
+import { hapticImpact, hapticNotification } from '../lib/haptics';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { ZONA_DA_MUSICA } from '../lib/doca';
 import { ENTRADA, SOLTAR } from '../lib/movimento';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
-import { colors, MINI_PLAYER_HEIGHT } from '../theme';
+import { colors } from '../theme';
+import { useAlturaDosSeparadores, useDoca } from '../state/doca';
 
-/** A barra dos separadores sem a safe area (a mesma conta do HandoffBanner). */
-const TAB_BAR_BASE = 49;
 
 /**
  * O aviso do que se tirou, com "Undo" (3/10). A lógica vive em
@@ -21,11 +23,18 @@ const TAB_BAR_BASE = 49;
  * do polegar, e por cima das folhas (FullWindowOverlay) -- tirar uma música da
  * fila acontece dentro de uma. Entra a subir, sai a descer, e desliza-se para
  * baixo para o tirar antes do tempo.
+ *
+ * Os erros e os sucessos que eram um `Alert` também passam por aqui (6.1): o
+ * `tipo` muda o ícone (visto na cor do tema, ponto de exclamação a vermelho,
+ * "i" neutro) e a vibração.
  */
 export function AvisoDeRemocao() {
   const aviso = useSyncExternalStore(avisos.ouvir, avisos.atual);
   const [mostrado, setMostrado] = useState<Aviso | null>(null);
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA na base (auditoria 1.3), não um 49 à mão.
+  const TAB_BAR_BASE = useAlturaDosSeparadores();
+  const modoDaDoca = useDoca((s) => s.modo);
   const temFaixa = usePlayer((s) => !!s.current);
   const aberto = usePlayer((s) => s.expanded);
   const cor = useTheme((s) => s.destino.color);
@@ -42,7 +51,8 @@ export function AvisoDeRemocao() {
       // piscava.
       const jaAVista = mostrado !== null;
       setMostrado(aviso);
-      hapticImpact();
+      if (aviso.tipo === 'erro') hapticNotification(Haptics.NotificationFeedbackType.Error);
+      else hapticImpact();
       arrasto.setValue(0);
       if (jaAVista || reduzido) entrada.setValue(1);
       else {
@@ -75,21 +85,27 @@ export function AvisoDeRemocao() {
   const desfazer = async () => {
     try {
       await avisos.desfazer(mostrado.id);
-    } catch (e: any) {
-      Alert.alert("Couldn't undo", e?.message ? 'Check your connection and try again.' : undefined);
+    } catch (e) {
+      avisos.mostrar({ tipo: 'erro', texto: "Couldn't undo", detalhe: mensagemDeErro(e, 'Check your connection and try again.') });
     }
   };
 
   // Com o leitor aberto não há mini-player: fica acima dos controlos de baixo.
+  // Senão, por cima da base (components/Doca.tsx), que muda com o ecrã.
+  const separadores = modoDaDoca === 'separadores' ? TAB_BAR_BASE : 0;
+  const musica = modoDaDoca !== 'escondida' && temFaixa ? ZONA_DA_MUSICA : 0;
   const bottom = aberto
     ? insets.bottom + 90
-    : TAB_BAR_BASE + insets.bottom + 8 + (temFaixa ? MINI_PLAYER_HEIGHT + 8 : 0);
+    : separadores + insets.bottom + 8 + musica;
+  const tipo = mostrado.tipo ?? 'feito';
+  const fundoDoIcone = tipo === 'erro' ? colors.danger : tipo === 'info' ? 'rgba(255,255,255,0.14)' : cor;
+  const corDoIcone = tipo === 'feito' ? textoSobre(cor) : '#fff';
 
   const conteudo = (
     <View pointerEvents="box-none" style={[StyleSheet.absoluteFill]}>
       <Animated.View
         {...gesto.panHandlers}
-        accessibilityLiveRegion="polite"
+        accessibilityLiveRegion={tipo === 'erro' ? 'assertive' : 'polite'}
         style={[styles.cartao, {
           bottom,
           opacity: entrada,
@@ -98,12 +114,13 @@ export function AvisoDeRemocao() {
           ],
         }]}
       >
-        <View style={[styles.icone, { backgroundColor: cor }]}>
-          <Ionicons name="checkmark" size={17} color={textoSobre(cor)} />
+        <View style={[styles.icone, { backgroundColor: fundoDoIcone }]}>
+          <Ionicons name={tipo === 'erro' ? 'alert' : tipo === 'info' ? 'information' : 'checkmark'} size={17} color={corDoIcone} />
         </View>
         <View style={styles.textos}>
-          <Text numberOfLines={1} style={styles.texto}>{mostrado.texto}</Text>
-          {mostrado.detalhe ? <Text numberOfLines={1} style={styles.detalhe}>{mostrado.detalhe}</Text> : null}
+          {/* Um erro pode precisar de duas linhas para dizer o que fazer. */}
+          <Text numberOfLines={tipo === 'erro' ? 2 : 1} style={styles.texto}>{mostrado.texto}</Text>
+          {mostrado.detalhe ? <Text numberOfLines={2} style={styles.detalhe}>{mostrado.detalhe}</Text> : null}
         </View>
         {mostrado.desfazer ? (
           <Pressable accessibilityRole="button" accessibilityLabel="Undo" hitSlop={10} onPress={() => { void desfazer(); }}

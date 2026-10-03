@@ -71,6 +71,8 @@ const mocks = {
   '../state/saved':{savedKey:t=>t.source+':'+t.sourceId,useSaved:sel=>sel({loaded:true,keys:new Set()})},
   // O aviso com "Undo" (3/10) entra a sério: é puro.
   '../lib/avisoDeRemocao': carregar('src/lib/avisoDeRemocao.ts'),
+  // A frase de um erro (3/10, 6.1), também pura.
+  '../lib/mensagemDeErro': carregar('src/lib/mensagemDeErro.ts'),
 };
 const code = ts.transpileModule(fs.readFileSync(root+'/src/components/QueueSheet.tsx','utf8'),
   {compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React,esModuleInterop:true}}).outputText;

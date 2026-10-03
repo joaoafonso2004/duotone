@@ -11,7 +11,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   FlatList,
   Pressable,
@@ -21,7 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLikedSongs, reporGuardadas, tirarDasGuardadas } from '../api/library';
-import { avisarRemocao, contarMusicas } from '../lib/avisoDeRemocao';
+import { avisarRemocao, contarMusicas, avisarErro } from '../lib/avisoDeRemocao';
 import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PrimeiroPasso } from '../components/PrimeiroPasso';
@@ -38,6 +37,8 @@ import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
+import { useAlturaDosSeparadores } from '../state/doca';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 const chaveDaLinha = (t: Track) => t.id ?? `${t.source}:${t.sourceId}`;
 
@@ -46,6 +47,8 @@ export function SongsScreen() {
   const topo = useRef<any>(null);
   useScrollToTop(topo);
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
+  const separadores = useAlturaDosSeparadores();
   const navigation = useNavigation<any>();
   
   const playTrack = usePlayer((s) => s.playTrack);
@@ -150,7 +153,7 @@ export function SongsScreen() {
         },
       });
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not remove tracks.');
+      avisarErro(mensagemDeErro(e, 'Could not remove tracks.'));
     }
   };
 
@@ -181,7 +184,7 @@ export function SongsScreen() {
     return list; // default order from database (added_at desc)
   }, [filteredTracks, sortBy]);
 
-  const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + (selectMode ? 80 : 32);
+  const bottomPad = separadores + insets.bottom + MINI_PLAYER_HEIGHT + (selectMode ? 80 : 32);
   const cab = useCabecalhoQueEncolhe();
   const conteudoDaLista = useMemo(() => ({ paddingBottom: bottomPad, paddingTop: cab.espaco }), [bottomPad, cab.espaco]);
   // As posições das linhas contam com o espaço do cabeçalho e com o Play/Shuffle
@@ -406,7 +409,7 @@ export function SongsScreen() {
 
       {/* Floating Multi-select Action Bar */}
       {selectMode && (
-        <View style={[styles.actionBar, { bottom: 49 + insets.bottom + MINI_PLAYER_HEIGHT + 8 }]}>
+        <View style={[styles.actionBar, { bottom: separadores + insets.bottom + MINI_PLAYER_HEIGHT + 8 }]}>
           <Pressable
             style={styles.actionButton}
             onPress={() => setPlaylistMultipleOpen(true)}

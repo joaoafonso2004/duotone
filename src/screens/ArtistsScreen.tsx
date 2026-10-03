@@ -26,6 +26,7 @@ import { useAuth } from '../state/auth';
 import { useTheme } from '../state/theme';
 import type { Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { useAlturaDosSeparadores } from '../state/doca';
 
 interface ArtistGroup { name: string; chave: string; artworkUrl: string | null; count: number }
 export function ArtistsScreen() {
@@ -35,6 +36,8 @@ export function ArtistsScreen() {
   const cab = useCabecalhoQueEncolhe();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
+  const separadores = useAlturaDosSeparadores();
   const { width } = useWindowDimensions();
   const userId = useAuth(s => s.session?.user.id);
   // O que o arranque já aqueceu (`hooks/useAquecerSeccoes.ts`): com a biblioteca
@@ -151,7 +154,7 @@ export function ArtistsScreen() {
       <Animated.FlatList ref={topo} data={filtered} onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle}
         scrollIndicatorInsets={{ top: cab.espaco }} numColumns={3} keyExtractor={a => chaveDeArtista(a.name)}
         keyboardShouldPersistTaps="handled" initialNumToRender={15} windowSize={7}
-        columnWrapperStyle={{ gap: 12 }} contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: cab.espaco, paddingBottom: 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32 }}
+        columnWrapperStyle={{ gap: 12 }} contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingTop: cab.espaco, paddingBottom: separadores + insets.bottom + MINI_PLAYER_HEIGHT + 32 }}
         ListHeaderComponent={<>
           <ArtistFavoritesSyncStatus />
           {!searchQuery.trim() && repeated.length > 0 && <View style={styles.shelf}>

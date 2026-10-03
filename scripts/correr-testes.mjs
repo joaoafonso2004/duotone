@@ -152,6 +152,7 @@ const TESTES = [
   `${TS} scripts/test-aviso-de-remocao.ts`,
   `${TS} scripts/test-titulo-que-encolhe.ts`,
   `${TS} scripts/test-base-e-barrinhas.ts`,
+  `${TS} scripts/test-mensagem-de-erro.ts`,
   `${TS} scripts/test-downloads-explicitos.ts`,
   `${DUPLOS} scripts/test-downloads-acoes.ts`,
   `${RESOLVER} scripts/test-webm-opus.ts`,

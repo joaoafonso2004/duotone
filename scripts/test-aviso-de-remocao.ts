@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  DURACAO_COM_DESFAZER_MS, DURACAO_SEM_DESFAZER_MS, contarMusicas, criarAvisos, duracaoDoAviso,
+  DURACAO_COM_DESFAZER_MS, DURACAO_DO_ERRO_MS, DURACAO_SEM_DESFAZER_MS, contarMusicas, criarAvisos, duracaoDoAviso,
 } from '../src/lib/avisoDeRemocao.ts';
 
 let falhas = 0;
@@ -32,6 +32,9 @@ await caso('com "Undo" dura mais do que sem', () => {
   assert.equal(duracaoDoAviso({ desfazer: () => {} }), DURACAO_COM_DESFAZER_MS);
   assert.equal(duracaoDoAviso({}), DURACAO_SEM_DESFAZER_MS);
   assert.ok(DURACAO_COM_DESFAZER_MS > DURACAO_SEM_DESFAZER_MS);
+  // Um erro fica mais tempo do que um feito (lê-se com calma), menos do que um Undo.
+  assert.equal(duracaoDoAviso({ tipo: 'erro' }), DURACAO_DO_ERRO_MS);
+  assert.ok(DURACAO_DO_ERRO_MS > DURACAO_SEM_DESFAZER_MS && DURACAO_DO_ERRO_MS <= DURACAO_COM_DESFAZER_MS);
 });
 
 console.log('\no ciclo de um aviso');

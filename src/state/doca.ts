@@ -1,7 +1,7 @@
 import type { MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
 import { Animated } from 'react-native';
 import { create } from 'zustand';
-import { modoDaDoca, rotasEmFoco, type ModoDaDoca } from '../lib/doca';
+import { ALTURA_DOS_SEPARADORES, medidaNova, modoDaDoca, rotasEmFoco, type ModoDaDoca } from '../lib/doca';
 
 /**
  * A base de baixo do iPhone (3/10): o vidro e os separadores vivem no
@@ -18,10 +18,23 @@ export const desvioDosIcones = new Animated.Value(0);
 
 type Separadores = Pick<MaterialTopTabBarProps, 'state' | 'navigation'>;
 
-export const useDoca = create<{ modo: ModoDaDoca; separadores: Separadores | null }>(() => ({
+export const useDoca = create<{ modo: ModoDaDoca; separadores: Separadores | null; alturaDosSeparadores: number }>(() => ({
   modo: 'separadores',
   separadores: null,
+  alturaDosSeparadores: ALTURA_DOS_SEPARADORES,
 }));
+
+/**
+ * A altura dos separadores, MEDIDA na base (3/10, auditoria 1.3). Quem precisa
+ * do espaço de baixo (o leitor, os avisos, o fim das listas) lê-a daqui em vez
+ * de um 49 escrito à mão: com o texto grande, a barra cresce.
+ */
+export const useAlturaDosSeparadores = () => useDoca((s) => s.alturaDosSeparadores);
+
+export function definirAlturaDosSeparadores(altura: number): void {
+  const nova = medidaNova(useDoca.getState().alturaDosSeparadores, altura);
+  if (nova !== null) useDoca.setState({ alturaDosSeparadores: nova });
+}
 
 /** Chamado a cada mudança da navegação (RootNavigator). */
 export function atualizarDoca(estado: Parameters<typeof rotasEmFoco>[0]): void {

@@ -6,7 +6,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useCallback, useState, useEffect, useMemo } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View, Animated } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View, Animated } from 'react-native';
 import { tocarMixDoArtista } from '../state/mixDoArtista';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
@@ -32,6 +32,8 @@ import { agruparPorArtista, chaveDeArtista, displayArtist } from '../lib/artistN
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { useAlturaDosSeparadores } from '../state/doca';
+import { avisarErro } from '../lib/avisoDeRemocao';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LibraryGroup'>;
 
@@ -54,6 +56,8 @@ function UltimoLancamento({ album, onPress }: { album: AlbumDaPagina; onPress: (
 export function LibraryGroupScreen({ route, navigation }: Props) {
   const { type, name } = route.params;
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
+  const separadores = useAlturaDosSeparadores();
   const playTrack = usePlayer((s) => s.playTrack);
 
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -154,7 +158,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
   const favorito = favoritos.has(chaveDeArtista(name));
 
-  const bottomPad = 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32;
+  const bottomPad = separadores + insets.bottom + MINI_PLAYER_HEIGHT + 32;
   const cab = useCabecalhoQueEncolhe();
   const [fimDoNome, setFimDoNome] = useState(260);
   // Cada aba é uma lista nova, que começa no topo: o cabeçalho volta a abrir.
@@ -188,7 +192,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     setAAbrirMix(true);
     const ok = await tocarMixDoArtista(name, { mix: pagina.mix }).catch(() => false);
     setAAbrirMix(false);
-    if (!ok) Alert.alert('Mix', 'Could not load the mix. Check your connection and try again.');
+    if (!ok) avisarErro('Could not load the mix.', 'Check your connection and try again.');
   };
   const accoesDoArtista = (
     <>

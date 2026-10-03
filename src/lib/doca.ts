@@ -8,8 +8,13 @@
 
 /** A altura da faixa da música, por cima dos separadores (o mini-player + 8). */
 export const ZONA_DA_MUSICA = 72;
-/** A altura dos separadores, sem a área do indicador de casa. */
-export const ALTURA_DOS_SEPARADORES = 49;
+/**
+ * A altura dos separadores (sem a área do indicador de casa) ATÉ SER MEDIDA:
+ * 8 + ícone 24 + 3 + o nome (~13) + 6. Era um 49 escrito à mão em catorze
+ * sítios, e a barra real tinha 54 -- e cresce com o tamanho do texto (até 1,2x
+ * no nome). A medida a sério vem do `onLayout` da base (`state/doca.ts`).
+ */
+export const ALTURA_DOS_SEPARADORES = 54;
 
 /**
  * - `separadores`: música (se houver) e separadores, como nas secções.
@@ -63,13 +68,21 @@ export function comAlfa(cor: string, alfa: number): string {
  * e desce em vez de encolher: uma altura não anima no motor nativo, uma
  * deslocação sim. O que fica abaixo do ecrã não se vê.
  */
-export function posicoesDaDoca(modo: ModoDaDoca, temMusica: boolean, fundoSeguro: number) {
-  const fora = ZONA_DA_MUSICA + ALTURA_DOS_SEPARADORES + fundoSeguro + 24;
-  const icones = modo === 'separadores' ? 0 : ALTURA_DOS_SEPARADORES + fundoSeguro + 24;
-  const musica = modo === 'separadores' ? 0 : modo === 'semSeparadores' ? ALTURA_DOS_SEPARADORES : fora;
+export function posicoesDaDoca(
+  modo: ModoDaDoca, temMusica: boolean, fundoSeguro: number, separadores = ALTURA_DOS_SEPARADORES,
+) {
+  const fora = ZONA_DA_MUSICA + separadores + fundoSeguro + 24;
+  const icones = modo === 'separadores' ? 0 : separadores + fundoSeguro + 24;
+  const musica = modo === 'separadores' ? 0 : modo === 'semSeparadores' ? separadores : fora;
   let vidro: number;
   if (modo === 'escondida') vidro = fora;
   else if (modo === 'separadores') vidro = temMusica ? 0 : ZONA_DA_MUSICA;
-  else vidro = temMusica ? ALTURA_DOS_SEPARADORES : fora;
+  else vidro = temMusica ? separadores : fora;
   return { vidro, musica, icones };
+}
+
+/** Uma medida nova só conta se mudar meio ponto: o `onLayout` repete-se com décimas. */
+export function medidaNova(antes: number, agora: number): number | null {
+  if (!(agora > 0) || Math.abs(agora - antes) < 0.5) return null;
+  return Math.round(agora * 2) / 2;
 }

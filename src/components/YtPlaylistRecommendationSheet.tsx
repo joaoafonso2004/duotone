@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -26,6 +25,8 @@ import { TrackRow } from './TrackRow';
 import { hapticNotification } from '../lib/haptics';
 import { extractArtist } from '../lib/artistName';
 import type { Track } from '../types';
+import { avisarErro, avisarFeito, contarMusicas } from '../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 interface Props {
   visible: boolean;
@@ -100,7 +101,7 @@ export function YtPlaylistRecommendationSheet({
 
     load()
       .catch((err) => {
-        Alert.alert('Error', err?.message ?? 'Could not load playlist items.');
+        avisarErro(mensagemDeErro(err, 'Could not load playlist items.'));
         onClose();
       })
       .finally(() => setLoading(false));
@@ -125,14 +126,11 @@ export function YtPlaylistRecommendationSheet({
         await addTracksToPlaylist(pl.id, tracks);
       }
       hapticNotification();
-      Alert.alert(
-        'Success',
-        `Playlist "${name}" saved locally with ${tracks.length} tracks!`
-      );
+      avisarFeito(`Saved "${name}"`, contarMusicas(tracks.length));
       onImportDone?.();
       onClose();
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not save playlist.');
+      avisarErro(mensagemDeErro(e, 'Could not save playlist.'));
     } finally {
       setSaving(false);
     }

@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { procurarArtistas } from '../api/catalogo';
 import { ErroDoSpotify, importarGostoDoSpotify, spotifyDisponivel } from '../api/spotifyConta';
 import { mensagemDoSpotify } from '../lib/gostoDoSpotify';
@@ -13,6 +13,7 @@ import { colors, radii, spacing, type } from '../theme';
 import { BottomSheet } from './BottomSheet';
 import { Input } from './Input';
 import { PillButton } from './PillButton';
+import { avisarErro } from '../lib/avisoDeRemocao';
 
 const LADO = 84;
 
@@ -100,7 +101,7 @@ export function EscolherArtistas({
       aoFechar();
     } catch (e) {
       const texto = mensagemDoSpotify(e instanceof ErroDoSpotify ? e.tipo : 'rede');
-      if (texto) Alert.alert('Spotify', texto);
+      if (texto) avisarErro(texto);
     } finally {
       setALerSpotify(false);
     }

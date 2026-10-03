@@ -14,8 +14,8 @@ import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { useAlturaDosSeparadores } from '../state/doca';
 
-const TAB_BAR_BASE = 49;
 
 function fmt(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -51,6 +51,8 @@ function PontoAoVivo({ cor }: { cor: string }) {
  */
 export function HandoffBanner() {
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA na base (auditoria 1.3), não um 49 à mão.
+  const TAB_BAR_BASE = useAlturaDosSeparadores();
   const theme = useTheme((s) => s.theme);
   const current = usePlayer((s) => s.current);
   const aTocarAqui = usePlayer((s) => s.isPlaying && !!s.current);

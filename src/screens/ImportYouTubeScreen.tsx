@@ -4,7 +4,6 @@ import { Image } from 'expo-image';
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Keyboard,
   KeyboardAvoidingView,
@@ -35,15 +34,20 @@ import { useTheme } from '../state/theme';
 import { usePlayer } from '../state/player';
 import { usePlaylists } from '../state/playlists';
 import type { Playlist, Track } from '../types';
+import { useAlturaDosSeparadores } from '../state/doca';
+import { avisarErro, avisarFeito, contarMusicas } from '../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ImportYouTube'>;
 
 export function ImportYouTubeScreen({ navigation }: Props) {
   const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
+  // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
+  const separadores = useAlturaDosSeparadores();
   const theme = useTheme((s) => s.theme);
   const current = usePlayer((s) => s.current);
-  const footerBottom = 49 + insets.bottom + (current ? MINI_PLAYER_HEIGHT : 0);
+  const footerBottom = separadores + insets.bottom + (current ? MINI_PLAYER_HEIGHT : 0);
 
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -71,7 +75,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
       setData(result);
       setSelected(new Set(result.items.map((i) => i.videoId)));
     } catch (e: any) {
-      Alert.alert('Import', e?.message ?? 'Could not fetch the playlist.');
+      avisarErro(mensagemDeErro(e, 'Could not fetch the playlist.'));
     } finally {
       setLoading(false);
     }
@@ -103,13 +107,10 @@ export function ImportYouTubeScreen({ navigation }: Props) {
     try {
       await addTracksToPlaylist(playlistId, items);
       hapticNotification();
-      Alert.alert(
-        'Imported',
-        `${items.length} ${items.length === 1 ? 'track' : 'tracks'} added to "${playlistName}".`,
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      avisarFeito(`Added to "${playlistName}"`, contarMusicas(items.length));
+      navigation.goBack();
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Import failed.');
+      avisarErro(mensagemDeErro(e, 'Import failed.'));
     } finally {
       setImporting(false);
       setPickerOpen(false);
@@ -124,7 +125,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
       await doImport(pl.id, pl.name);
     } catch (e: any) {
       setImporting(false);
-      Alert.alert('Error', e?.message ?? 'Import failed.');
+      avisarErro(mensagemDeErro(e, 'Import failed.'));
     }
   };
 
@@ -135,7 +136,7 @@ export function ImportYouTubeScreen({ navigation }: Props) {
       setPlaylists(usePlaylists.getState().items);
       setPickerOpen(true);
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'Could not load playlists.');
+      avisarErro(mensagemDeErro(e, 'Could not load playlists.'));
     }
   };
 
