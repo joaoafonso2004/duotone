@@ -5,7 +5,7 @@ import { isAudioCached,useAudioCache } from '../lib/youtubeCache';
 import { readLikedSongsCache } from '../lib/likedSongsCache';
 import { faixasEmCache, lerFaixas, ouvirFaixas } from '../lib/cacheDaBiblioteca';
 import { displayArtist } from '../lib/artistName';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
@@ -40,6 +40,9 @@ import type { Track } from '../types';
 const chaveDaLinha = (t: Track) => t.id ?? `${t.source}:${t.sourceId}`;
 
 export function SongsScreen() {
+  // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
+  const topo = useRef<any>(null);
+  useScrollToTop(topo);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   
@@ -357,6 +360,7 @@ export function SongsScreen() {
           </View>
 
           <FlatList
+            ref={topo}
             data={sortedTracks}
             keyExtractor={chaveDaLinha}
             initialNumToRender={12}

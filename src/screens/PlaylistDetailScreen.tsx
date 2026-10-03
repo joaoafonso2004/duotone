@@ -1054,6 +1054,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
     marginHorizontal: spacing.xl,
     marginTop: spacing.xs,
     marginBottom: spacing.md,
@@ -1071,7 +1072,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   toolbarLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: colors.textSecondary,
     letterSpacing: 0.3,
@@ -1082,6 +1083,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: spacing.sm,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     marginVertical: 2,
   },
   modalContainer: {
@@ -1126,6 +1128,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
   playButton: {
@@ -1186,6 +1189,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
@@ -1231,6 +1235,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     backgroundColor: colors.surfaceHigh,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderStrong,
   },

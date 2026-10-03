@@ -390,6 +390,7 @@ const styles = StyleSheet.create({
   nowPlayingCard: {
     backgroundColor: colors.surfaceHigh,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     overflow: 'hidden',
   },
   list: {

@@ -416,14 +416,14 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
           {m.itemType==='sessao'&&m.sessionId?<ConviteDeSessao id={m.sessionId} mensagem={m.message}/>:null}
           {!!m.message&&m.itemType!=='sessao'&&<View style={{flexDirection:'row',alignItems:'flex-end',gap:8,flexWrap:'wrap'}}>
             <Text selectable style={[s.text,{flexShrink:1}]}>{m.message}</Text>
-            <Text style={[s.muted,{fontSize:10.5,marginBottom:1,opacity:0.7}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
+            <Text style={[s.muted,{fontSize:11,marginBottom:1,opacity:0.7}]}>{new Date(m.createdAt).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</Text>
           </View>}
           {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={m.sender.id===myId} onPress={()=>setTrack(m.trackData)}/>}
           {m.playlistId&&<SharedPlaylistCard playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
           {/* A hora so aparece a parte quando NAO ha texto para lhe dar boleia --
               uma faixa ou uma playlist sozinhas. Com texto, ela encosta ao fim
               da ultima linha e poupa uma linha inteira por mensagem. */}
-          {!m.message||m.itemType==='sessao'?<Text style={[s.muted,{fontSize:10.5,alignSelf:'flex-end',opacity:0.7}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>:null}
+          {!m.message||m.itemType==='sessao'?<Text style={[s.muted,{fontSize:11,alignSelf:'flex-end',opacity:0.7}]}>{new Date(m.createdAt).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</Text>:null}
           </MessageBubble>
           <ReactionRow reactions={reacoes.get(m.id)??[]} myId={myId} own={m.sender.id===myId}
             aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}

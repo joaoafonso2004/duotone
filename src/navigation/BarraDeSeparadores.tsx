@@ -9,8 +9,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { ESTADO, SEPARADOR_ACTIVO } from '../lib/movimento';
 import { useNotifications } from '../state/notifications';
 import { useTheme } from '../state/theme';
-import { colors, type, ESCALA_MAXIMA } from '../theme';
-import { hapticSelection } from '../lib/haptics';
+import { colors, ESCALA_MAXIMA } from '../theme';
 
 const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
   Search: 'search',
@@ -91,6 +90,11 @@ function SeparadorActivo({ activo, tamanho, children }: {
  * escolhido parece inofensivo e não é: nos separadores que têm uma pilha por
  * dentro -- Artists e Playlists -- volta à raiz, e quem estava a ver um álbum
  * perdia-o por ter carregado no separador onde já estava.
+ *
+ * Por isso, no separador onde já se está (3/10): na raiz, leva a lista ao
+ * topo, como em todas as apps do iOS (o `tabPress` que o `useScrollToTop` dos
+ * ecrãs ouve); dentro de um álbum ou de uma playlist, não faz nada, como
+ * antes. Mudar de separador já não vibra: vibrar a cada navegação era ruído.
  */
 export function BarraDeSeparadores({ state, navigation }: MaterialTopTabBarProps) {
   const insets = useSafeAreaInsets();
@@ -125,9 +129,12 @@ export function BarraDeSeparadores({ state, navigation }: MaterialTopTabBarProps
               accessibilityState={{ selected: escolhido }}
               accessibilityLabel={route.name}
               onPress={() => {
-                if (escolhido) return;
-                hapticSelection();
-                navigation.navigate(route.name);
+                // Dentro de uma pilha (um álbum aberto) não se emite: o
+                // native-stack voltava à raiz com o `tabPress`.
+                const pilha = route.state as { index?: number } | undefined;
+                if (escolhido && (pilha?.index ?? 0) > 0) return;
+                const evento = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+                if (!escolhido && !evento.defaultPrevented) navigation.navigate(route.name);
               }}
               style={styles.separador}
             >
@@ -164,7 +171,9 @@ const styles = StyleSheet.create({
   tinta: { backgroundColor: 'rgba(10,10,15,0.72)' },
   linha: { flexDirection: 'row', paddingTop: 8, paddingBottom: 6 },
   separador: { flex: 1, alignItems: 'center', gap: 3 },
-  nome: { ...type.micro },
+  // Em minúsculas, como no iOS (3/10): as maiúsculas espaçadas do `micro`
+  // liam-se como um painel de administração.
+  nome: { fontSize: 11, fontWeight: '600', letterSpacing: 0.1 },
   ponto: {
     position: 'absolute',
     top: -2,

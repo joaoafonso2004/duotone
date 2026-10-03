@@ -387,16 +387,18 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     paddingRight: spacing.md,
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
   ultimoCapa: {
     width: 56,
     height: 56,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
   ultimoRotulo: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.1,
     color: colors.textTertiary,
@@ -412,6 +414,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
   albumArtFallback: {

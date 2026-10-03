@@ -1577,10 +1577,16 @@ export const usePlayer = create<PlayerState>()(
           if (i >= 0 && podeTocarAgora(queue[i])) { await playTrack(queue[i], queue, false, true); return; }
         }
       }
+      // Sem anterior, recomeça (3/10): o botão não fica morto na primeira.
+      await seekTo(0);
       return;
     }
     const alvo = saltarAteTocavel(queue, queueIndex, passoLinear(queue.length, -1, repeatMode === 'all'), podeTocarAgora);
+    // Na primeira faixa não há para onde recuar: recomeça-a, como o Apple
+    // Music (3/10). O botão estava apagado e a primeira música nunca se
+    // recomeçava por ele, nem passados 3 s.
     if (alvo !== null) await playTrack(queue[alvo], queue, false, true);
+    else await seekTo(0);
   },
 
   prepararFecho: async () => {

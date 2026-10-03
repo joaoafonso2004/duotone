@@ -310,6 +310,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     gap: spacing.sm,
   },
   resumo: { fontSize: 20, fontWeight: '800', color: colors.text },
@@ -322,6 +323,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
   seccao: {
@@ -342,6 +344,7 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginBottom: spacing.sm,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
     overflow: 'hidden',
   },

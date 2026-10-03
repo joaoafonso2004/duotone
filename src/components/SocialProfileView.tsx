@@ -29,7 +29,9 @@ import {
   savePlaylistCopy, setPlaylistVisibility, unsavePlaylistCopy,
 } from '../api/playlists';
 
-export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDois,onSettings,onSocial,onPlaylist,onBack,active=true}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onVocesOsDois?:(nome?:string)=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void;onBack?:()=>void;active?:boolean}) {
+export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDois,onSettings,onSocial,onPlaylist,onBack,active=true,scrollRef}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onVocesOsDois?:(nome?:string)=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void;onBack?:()=>void;active?:boolean;
+  /** A lista do perfil, para o separador do iPhone a levar ao topo (3/10). */
+  scrollRef?:React.RefObject<any>}) {
   const web=Platform.OS==='web';
   const [width,setWidth]=useState(0);
   const wide=web&&width>=780;
@@ -278,7 +280,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
     {/* Sem puxar-para-recarregar: era a unica pagina da app que reagia ao
         gesto, e um gesto que so existe num sitio nao se aprende. Recarrega
         ao voltar a entrar, e no Windows pelo refrescar do cabecalho. */}
-    <ScrollView contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={scrollRef} contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled">
       <ProfileHero profile={profile} own={own} cover={cover} unread={unread}
         status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
         onEdit={()=>setEditing(true)} onSocial={onSocial} onSettings={onSettings} onBack={onBack}

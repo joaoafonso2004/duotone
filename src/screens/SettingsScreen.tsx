@@ -780,6 +780,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.lg,
@@ -820,7 +821,7 @@ const styles = StyleSheet.create({
   },
   themeLabel: {
     ...type.micro,
-    fontSize: 10,
+    fontSize: 11,
     marginTop: 6,
     textAlign: 'center',
     textTransform: 'none',

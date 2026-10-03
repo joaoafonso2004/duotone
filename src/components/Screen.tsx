@@ -26,7 +26,7 @@ export function Screen({ title, subtitle, right, topLeft, onBack, children, styl
         {title ? (
           <View style={styles.header}>
             {onBack ? (
-              <Pressable hitSlop={10} onPress={onBack} style={styles.back}>
+              <Pressable hitSlop={10} onPress={onBack} accessibilityRole="button" accessibilityLabel="Back" style={styles.back}>
                 <Ionicons name="chevron-back" size={26} color={colors.text} />
               </Pressable>
             ) : null}

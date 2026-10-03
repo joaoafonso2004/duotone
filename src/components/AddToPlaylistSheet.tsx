@@ -258,5 +258,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xs,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
   },
 });

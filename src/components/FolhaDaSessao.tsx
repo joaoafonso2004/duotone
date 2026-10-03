@@ -301,6 +301,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginTop: spacing.sm,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
   permissaoDesactivada: { opacity: 0.58 },
@@ -312,6 +313,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     paddingVertical: 12,
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
 });

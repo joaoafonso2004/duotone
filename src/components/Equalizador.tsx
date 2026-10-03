@@ -286,6 +286,7 @@ function PerfilAMao() {
         paddingHorizontal: 14,
         justifyContent: 'center',
         borderRadius: 24,
+        borderCurve: 'continuous',
         borderWidth: 1,
         borderStyle: 'dashed',
         borderColor: colors.borderStrong,
@@ -414,6 +415,7 @@ export function Equalizador({
         <View style={{
           backgroundColor: colors.surface,
           borderRadius: radii.lg,
+          borderCurve: 'continuous',
           borderWidth: 0.5,
           borderColor: colors.border,
           paddingTop: spacing.md,

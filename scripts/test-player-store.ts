@@ -880,6 +880,18 @@ console.log('\narrastar no Up next (o PC e o iPhone passam posições do que se 
   eq('sem shuffle mexe na própria fila', ids().join(), 'a,c,d,b');
 }
 
+console.log('\n"anterior" na primeira faixa recomeça-a (3/10)');
+// ===========================================================================
+{
+  preparar({ autoplayRadio: false, positionMs: 2000 });
+  await usePlayer.getState().prev();
+  eq('fica na mesma faixa', atual(), 'a');
+  eq('e volta ao início', usePlayer.getState().positionMs, 0);
+  preparar({ autoplayRadio: false, shuffle: true, shuffleOrder: fila('a', 'b', 'c', 'd').map(trackKey), positionMs: 2000 });
+  await usePlayer.getState().prev();
+  eq('com shuffle, no início do percurso, também', `${atual()}@${usePlayer.getState().positionMs}`, 'a@0');
+}
+
 console.log('\no último toque ganha (2/10, o Mix que chegava depois)');
 // ===========================================================================
 {

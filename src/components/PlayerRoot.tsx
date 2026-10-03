@@ -1593,11 +1593,9 @@ export function PlayerRoot() {
                 escala={ESCALA.icone}
                 accessibilityRole="button"
                 accessibilityLabel="Previous track"
+                // Nunca apagado (3/10): na primeira faixa recomeça-a.
                 onPress={prev}
-                disabled={repeatMode === 'off' && !shuffle && queueIndex === 0}
-                style={[styles.transportButton,
-                  repeatMode === 'off' && !shuffle && queueIndex === 0 && styles.dimmed
-                ]}
+                style={styles.transportButton}
               >
                 <Ionicons name="play-skip-back" size={28} color={colors.text} />
               </Toque>
@@ -1645,15 +1643,10 @@ export function PlayerRoot() {
                 accessibilityRole="button"
                 accessibilityLabel="Next track"
                 onPress={() => { void next(); }}
-                disabled={
-                  repeatMode === 'off' && !shuffle && queueIndex >= queue.length - 1
-                }
-                style={[styles.transportButton,
-                  repeatMode === 'off' &&
-                  !shuffle &&
-                  queueIndex >= queue.length - 1 &&
-                  styles.dimmed
-                ]}
+                // A mesma regra do mini-player (3/10): com o rádio ligado a
+                // fila nunca acaba, e o botão ficava apagado na última faixa.
+                disabled={atQueueEnd}
+                style={[styles.transportButton, atQueueEnd && styles.dimmed]}
               >
                 <Ionicons name="play-skip-forward" size={28} color={colors.text} />
               </Toque>
@@ -1741,7 +1734,7 @@ export function PlayerRoot() {
 
       <Animated.View
         {...swipeClose.panHandlers}
-        accessibilityActions={[{name:'dismiss',label:'Fechar leitor'}]}
+        accessibilityActions={[{name:'dismiss',label:'Close player'}]}
         onAccessibilityAction={()=>void closePlayerSmoothly()}
         pointerEvents={shouldHide || expanded ? 'none' : 'auto'}
         style={[
@@ -2431,6 +2424,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
     backgroundColor: colors.surface,
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: spacing.md,
@@ -2442,11 +2436,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 6,
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
   },
   upNextArt: {
     width: 36,
     height: 36,
     borderRadius: 6,
+    borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
   mini: {
@@ -2477,11 +2473,13 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 8,
+    borderCurve: 'continuous',
   },
   miniArt: {
     width: 48,
     height: 48,
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
   miniBtn: {
@@ -2508,6 +2506,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
   toast: {
@@ -2521,6 +2520,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderStrong,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     paddingVertical: 10,
     paddingHorizontal: 14,
   },

@@ -56,6 +56,7 @@ function Linha({ icone, cor, children, onPress, disabled, motivo }: {
         paddingVertical: 13,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
+        borderCurve: 'continuous',
         backgroundColor: !apagada && (pressed || hovered || focused) ? colors.surfacePressed : 'transparent',
       }]}
     >

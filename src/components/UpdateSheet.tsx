@@ -168,6 +168,7 @@ export function UpdateSheet() {
         <View style={{
           backgroundColor: colors.surfaceHigh,
           borderRadius: radii.md,
+          borderCurve: 'continuous',
           borderWidth: 1,
           borderColor: colors.border,
           padding: spacing.md,
@@ -177,7 +178,7 @@ export function UpdateSheet() {
           <Text style={[type.micro, { marginBottom: 2 }]}>HOW TO UPDATE</Text>
           {passos.map((passo, i) => (
             <Text key={i} style={[type.caption, { lineHeight: 19 }]}>
-              <Text style={{ color: colors.accent }}>{i + 1}. </Text>
+              <Text style={{ color: colors.textTertiary }}>{i + 1}. </Text>
               {passo}
             </Text>
           ))}
@@ -188,7 +189,7 @@ export function UpdateSheet() {
         <View style={{ gap: 4, marginBottom: spacing.sm }}>
           {lines.map((line, i) => (
             <Text key={i} style={[type.caption, { lineHeight: 19 }]}>
-              <Text style={{ color: colors.accent }}>— </Text>
+              <Text style={{ color: colors.textTertiary }}>— </Text>
               {line}
             </Text>
           ))}

@@ -178,6 +178,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     padding: 7,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   // Dentro de um balão com fundo de cor, o cartão precisa de contraste do

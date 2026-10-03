@@ -307,6 +307,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xs,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
   },
   rodape: {
     marginTop: spacing.md,
@@ -320,6 +321,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 13,
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
   },
   botaoQuieto: {
     flexDirection: 'row',
@@ -328,6 +330,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: 12,
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
   vazio: {

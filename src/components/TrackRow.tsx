@@ -8,7 +8,7 @@ import { DeslizarParaAFila } from './DeslizarParaAFila';
 import { ESCALA } from '../lib/movimento';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { guardarOrigem } from '../state/origemDaCapa';
-import { hapticImpact, hapticSelection } from '../lib/haptics';
+import { hapticSelection } from '../lib/haptics';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { useDescarregadaDeProposito } from '../lib/descarregarFaixa';
 import { colors, radii, spacing, type, ESCALA_MAXIMA } from '../theme';
@@ -137,7 +137,8 @@ function TrackRowComponent({
     <Toque
       acende
       onPress={() => {
-        hapticImpact();
+        // Sem vibrar (3/10): tocar numa música é navegar, e vibrar a cada
+        // toque gastava a vibração das confirmações (gostar, pôr na fila).
         // Onde é que a capa está NESTE instante, em coordenadas de ecrã. É
         // daqui que ela voa para o player. A medição é assíncrona e pode
         // chegar tarde ou nunca -- se não chegar, o player entra como sempre
@@ -225,10 +226,7 @@ function TrackRowComponent({
       {!selectMode && onAction ? (
         <Toque
           escala={ESCALA.icone}
-          onPress={() => {
-            hapticImpact();
-            onAction(track);
-          }}
+          onPress={() => onAction(track)}
           hitSlop={10}
           style={styles.actionBtn}
         >
@@ -250,9 +248,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     gap: spacing.md,
   },
-  active: {
-    backgroundColor: colors.accentSoft,
-  },
   checkboxContainer: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -260,12 +255,14 @@ const styles = StyleSheet.create({
   },
   artworkWrap: {
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
     overflow: 'hidden',
   },
   artwork: {
     width: 52,
     height: 52,
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
   artworkFallback: {
@@ -286,7 +283,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   contextDot: { ...type.caption, color: colors.textTertiary },
-  contextLabel: { ...type.caption, fontSize: 10, color: colors.textTertiary, flex: 1 },
+  contextLabel: { ...type.caption, fontSize: 11, color: colors.textTertiary, flex: 1 },
   actionBtn: {
     padding: 4,
   },

@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   textos: { flex: 1, minWidth: 0, gap: 3 },
-  marca: { color: colors.textSecondary, fontSize: 9, fontWeight: '700', letterSpacing: 2 },
+  marca: { color: colors.textSecondary, fontSize: 11, fontWeight: '700', letterSpacing: 2 },
   titulo: { color: colors.text, fontSize: 14, fontWeight: '700' },
   corpo: { color: colors.textSecondary, fontSize: 13, lineHeight: 18 },
   acao: { alignSelf: 'flex-start', marginTop: 6, minHeight: 28, justifyContent: 'center' },

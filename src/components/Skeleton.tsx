@@ -125,6 +125,7 @@ const styles = StyleSheet.create({
   barra: {
     backgroundColor: colors.surfaceHigh,
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
   },
   linha: {
     flexDirection: 'row',

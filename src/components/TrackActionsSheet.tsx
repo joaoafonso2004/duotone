@@ -235,6 +235,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
   artFallback: {
@@ -248,6 +249,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: spacing.sm,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
   },
   apagada: { opacity: 0.4 },
   motivo: { marginTop: 2, color: colors.textSecondary },

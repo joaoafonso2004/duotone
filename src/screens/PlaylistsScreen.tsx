@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -40,6 +40,9 @@ import { useTheme } from '../state/theme';
 import type { Playlist } from '../types';
 
 export function PlaylistsScreen() {
+  // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
+  const topo = useRef<any>(null);
+  useScrollToTop(topo);
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
@@ -195,6 +198,7 @@ export function PlaylistsScreen() {
         </>
       ) : (
         <FlatList
+          ref={topo}
           data={playlists}
           keyExtractor={(p) => p.id}
           numColumns={2}
@@ -394,6 +398,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     padding: spacing.md,
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
@@ -418,6 +423,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: spacing.sm,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     marginVertical: 2,
   },
 });

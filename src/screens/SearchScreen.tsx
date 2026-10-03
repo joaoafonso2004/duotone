@@ -28,7 +28,7 @@ import { lembrarCanalDoArtista } from '../api/albunsDoArtista';
 import { YtPlaylistRecommendationSheet } from '../components/YtPlaylistRecommendationSheet';
 import { ORDEM_DAS_PRATELEIRAS, temRecomendacoes, useRecomendacoes, type NomeDaPrateleira } from '../state/recomendacoes';
 import { useWindowDimensions } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MaterialTopTabNavigationProp } from '@react-navigation/material-top-tabs';
 import type { RootStackParamList, TabsParamList } from '../navigation/RootNavigator';
@@ -78,6 +78,11 @@ function paginasDe<T>(lista: readonly T[], n: number): T[][] {
 }
 
 export function SearchScreen() {
+  // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
+  const topoDaPagina = useRef<any>(null);
+  const topoDosResultados = useRef<any>(null);
+  useScrollToTop(topoDaPagina);
+  useScrollToTop(topoDosResultados);
   /**
    * A página é mais estreita do que o ecrã, e a diferença é o ponto.
    *
@@ -633,6 +638,7 @@ export function SearchScreen() {
         ) : query.trim().length < 2 && !isFocused ? (
           /* Default state - Show Recommendations */
           <ScrollView
+            ref={topoDaPagina}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             contentContainerStyle={{ paddingBottom: bottomPad }}
@@ -795,6 +801,7 @@ export function SearchScreen() {
           </Pressable>
         ) : (
           <FlatList
+            ref={topoDosResultados}
             data={results.filter((r) => versaoPassa(r.title, versao))}
             keyExtractor={(t) => `${t.source}:${t.sourceId}`}
             contentContainerStyle={{ paddingBottom: bottomPad }}
@@ -1039,6 +1046,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingVertical: 10,
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
   },
   /**
    * A grelha de atalhos: duas colunas de rectangulos baixos.
@@ -1062,6 +1070,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
     overflow: 'hidden',
   },
@@ -1110,6 +1119,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
   artFallback: {
@@ -1156,12 +1166,14 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: radii.sm,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
   mosaico: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     backgroundColor: colors.surface,
   },

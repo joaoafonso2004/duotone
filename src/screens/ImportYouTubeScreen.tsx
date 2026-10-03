@@ -325,6 +325,7 @@ const styles = StyleSheet.create({
     width: 71,
     height: 40,
     borderRadius: 6,
+    borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
   thumbFallback: {
@@ -350,5 +351,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xs,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
   },
 });

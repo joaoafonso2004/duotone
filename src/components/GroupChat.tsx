@@ -86,6 +86,8 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
   reactions?:Reaction[];myId?:string;aReagir?:boolean;
   onReagir?:(emoji:string|null)=>void;onAbrirReacoes?:()=>void;onFecharReacoes?:()=>void;
   onProfile:(id:string)=>void;onTrack:(track:Track)=>void;onPlaylist:(id:string)=>void}) {
+  // A mensagem realcada leva a cor da capa no iPhone (3/10): era o roxo antigo.
+  const corDoTema=useTheme(s=>s.destino.color);
   return <View style={{alignSelf:own?'flex-end':'flex-start',maxWidth:Platform.OS==='web'?'82%':'94%',minWidth:128,gap:6,marginTop:showSender?12:0}}>
     {showSender&&<Pressable accessibilityRole="button" accessibilityLabel={`View ${m.sender.name}'s profile`} onPress={()=>onProfile(m.sender.id)}
       style={({pressed})=>[s.row,{gap:7,alignSelf:own?'flex-end':'flex-start',maxWidth:'100%',minHeight:36,opacity:pressed?0.7:1}]}>
@@ -96,7 +98,7 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
     <MessageBubble own={own} aberto={aReagir} onAbrir={()=>onAbrirReacoes?.()} onResponder={onResponder}
       rotulo={`Message from ${m.sender.name}. Hold to react or reply`}
       style={{padding:12,gap:10,borderRadius:18,borderTopLeftRadius:!own&&showSender?6:18,borderTopRightRadius:own&&showSender?6:18,
-        backgroundColor:own?colors.surfaceHigh:colors.surface,borderWidth:1,borderColor:destacada?colors.accent:own?colors.borderStrong:colors.border}}>
+        backgroundColor:own?colors.surfaceHigh:colors.surface,borderWidth:1,borderColor:destacada?(Platform.OS==='web'?colors.accent:corDoTema):own?colors.borderStrong:colors.border}}>
       {citacao}
       {!!m.message&&<Text selectable style={[s.text,{lineHeight:22}]}>{m.message}</Text>}
       {m.trackData&&<Pressable accessibilityRole="button" accessibilityLabel={`Open ${m.trackData.title}`}
@@ -109,7 +111,7 @@ export function GroupMessage({message:m,own,showSender=true,playlist,reactions=[
         <Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>
       </Pressable>}
       {m.playlistId&&<SharedPlaylistCard playlist={playlist} onPress={()=>onPlaylist(m.playlistId!)}/>}
-      <Text style={[s.muted,{fontSize:10,lineHeight:13,alignSelf:'flex-end'}]}>{new Date(m.createdAt).toLocaleTimeString('pt-PT',{hour:'2-digit',minute:'2-digit'})}</Text>
+      <Text style={[s.muted,{fontSize:11,lineHeight:14,alignSelf:'flex-end'}]}>{new Date(m.createdAt).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</Text>
     </MessageBubble>
     <ReactionRow reactions={reactions} myId={myId} own={own} aberto={aReagir}
       onEscolher={emoji=>onReagir?.(emoji)} onFechar={()=>onFecharReacoes?.()} onResponder={onResponder}/>

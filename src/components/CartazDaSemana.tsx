@@ -175,6 +175,7 @@ function Linha({ icone, etiqueta, titulo, nota, capa, avatar, avatarNome, cor }:
 const styles = StyleSheet.create({
   cabeca: {
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
@@ -186,5 +187,5 @@ const styles = StyleSheet.create({
   linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   capa: { width: 40, height: 40, borderRadius: radii.sm, backgroundColor: colors.surfaceHigh },
   capaVazia: { alignItems: 'center', justifyContent: 'center' },
-  etiqueta: { ...type.caption, fontSize: 10, letterSpacing: 0.8, color: colors.textTertiary },
+  etiqueta: { ...type.caption, fontSize: 11, letterSpacing: 0.8, color: colors.textTertiary },
 });

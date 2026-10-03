@@ -32,6 +32,7 @@ export function PrimeiroPasso({
         minHeight: 56,
         paddingHorizontal: spacing.lg,
         borderRadius: radii.md,
+        borderCurve: 'continuous',
         borderWidth: 1,
         borderColor: colors.border,
         backgroundColor: pressed ? colors.surfacePressed : colors.surface,

@@ -223,6 +223,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
   },
   artFallback: {
@@ -247,6 +248,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     overflow: 'hidden',
   },
   btnGradient: {
@@ -260,6 +262,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 44,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     backgroundColor: colors.surface,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderStrong,

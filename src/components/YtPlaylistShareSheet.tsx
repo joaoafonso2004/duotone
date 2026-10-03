@@ -66,9 +66,9 @@ export function YtPlaylistShareSheet({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>
-              Partilhar Playlist
+              Share playlist
             </Text>
-            <Pressable onPress={onClose} style={styles.closeBtn}>
+            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" style={styles.closeBtn}>
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </Pressable>
           </View>
@@ -80,7 +80,7 @@ export function YtPlaylistShareSheet({
             </Text>
             
             <Text style={styles.instructions}>
-              Pede a um amigo para digitalizar este Código QR com a câmara do telemóvel para importar esta playlist.
+              Ask a friend to scan this QR code with their phone camera to import this playlist.
             </Text>
 
             {/* QR Code Container */}
@@ -94,14 +94,14 @@ export function YtPlaylistShareSheet({
 
             {/* Actions */}
             <PillButton
-              label="Partilhar Link"
+              label="Share link"
               variant="primary"
               onPress={handleShare}
               style={styles.actionBtn}
             />
 
             <PillButton
-              label="Fechar"
+              label="Close"
               variant="ghost"
               onPress={onClose}
               style={{ ...styles.actionBtn, marginTop: spacing.xs }}

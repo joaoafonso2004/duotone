@@ -335,6 +335,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#111116',
     borderRadius: 24,
+    borderCurve: 'continuous',
     borderWidth: 1,
     borderColor: '#242430',
     padding: 4,
@@ -344,6 +345,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
     borderRadius: 20,
+    borderCurve: 'continuous',
     backgroundColor: 'transparent',
   },
   tabButtonActive: {
@@ -369,6 +371,7 @@ const styles = StyleSheet.create({
   inputCustom: {
     backgroundColor: '#121217',
     borderRadius: 14,
+    borderCurve: 'continuous',
     borderColor: '#242430',
     borderWidth: 1,
     paddingHorizontal: spacing.md,
@@ -403,6 +406,7 @@ const styles = StyleSheet.create({
   submitBtn: {
     backgroundColor: '#E5E5EA',
     borderRadius: 27,
+    borderCurve: 'continuous',
     minHeight: 54,
     alignItems: 'center',
     justifyContent: 'center',

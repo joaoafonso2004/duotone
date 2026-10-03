@@ -52,6 +52,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     paddingHorizontal: spacing.md,

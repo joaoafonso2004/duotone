@@ -55,6 +55,7 @@ export function ArtworkCollage({
         width: size,
         height: size,
         borderRadius: radii.md,
+        borderCurve: 'continuous',
         overflow: 'hidden',
         flexDirection: 'row',
         flexWrap: 'wrap',

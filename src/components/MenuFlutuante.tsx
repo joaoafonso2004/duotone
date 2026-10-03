@@ -176,6 +176,7 @@ const styles = StyleSheet.create({
   menu: {
     position: 'absolute',
     borderRadius: radii.lg,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.borderStrong,

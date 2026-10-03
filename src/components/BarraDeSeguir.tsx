@@ -80,6 +80,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderWidth: 1,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
   },
   acabou: { backgroundColor: colors.surface, borderColor: colors.border },
   titulo: { ...type.micro, color: colors.text, fontWeight: '600' },

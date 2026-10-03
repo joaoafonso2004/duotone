@@ -391,5 +391,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.surface,
     borderRadius: radii.md,
+    borderCurve: 'continuous',
   },
 });

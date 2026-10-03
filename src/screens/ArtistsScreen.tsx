@@ -1,4 +1,4 @@
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -23,11 +23,15 @@ import { hapticSelection } from '../lib/haptics';
 import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { ArtistFavoritesSyncStatus } from '../components/ArtistFavoritesSyncStatus';
 import { useAuth } from '../state/auth';
+import { useTheme } from '../state/theme';
 import type { Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 
 interface ArtistGroup { name: string; chave: string; artworkUrl: string | null; count: number }
 export function ArtistsScreen() {
+  // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
+  const topo = useRef<any>(null);
+  useScrollToTop(topo);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -105,6 +109,8 @@ export function ArtistsScreen() {
     });
   }, [artists, searchQuery, order, favoritos]);
   const cardWidth = (width - spacing.xl * 2 - 24) / 3;
+  // A cor da capa, como o resto dos corações (3/10): era o roxo antigo.
+  const corDoTema = useTheme((s) => s.destino.color);
   const renderArtist = (artist: ArtistGroup, shelf = false) => {
     const side = shelf ? 86 : Math.min(120, cardWidth);
     return <Pressable accessibilityRole="button" accessibilityLabel={`${artist.name}, ${artist.count} songs`}
@@ -123,8 +129,10 @@ export function ArtistsScreen() {
           hitSlop={8}
           onPress={() => { hapticSelection(); alternarFavorito(artist.chave); }}
           style={[styles.estrela, { left: (cardWidth + side) / 2 - 30 }]}>
-          <Ionicons name={favoritos.has(artist.chave) ? 'star' : 'star-outline'} size={15}
-            color={favoritos.has(artist.chave) ? colors.accent : colors.textSecondary} />
+          {/* O MESMO coração das músicas (como no PC, 20/9): guardar é um
+              gesto só em toda a app. Era uma estrela roxa. */}
+          <Ionicons name={favoritos.has(artist.chave) ? 'heart' : 'heart-outline'} size={15}
+            color={favoritos.has(artist.chave) ? corDoTema : colors.textSecondary} />
         </Pressable>
       )}
       <Text numberOfLines={2} style={styles.name}>{artist.name}</Text>
@@ -139,7 +147,7 @@ export function ArtistsScreen() {
       value={searchQuery} onChangeText={setSearchQuery} onClear={() => setSearchQuery('')} /></View>}
     {loading ? <SkeletonDeArtistas /> : !artists.length ? <EmptyState icon="people-outline" title="No artists yet"
       subtitle="Save songs to your library and their artists show up here." /> :
-      <FlatList data={filtered} numColumns={3} keyExtractor={a => chaveDeArtista(a.name)}
+      <FlatList ref={topo} data={filtered} numColumns={3} keyExtractor={a => chaveDeArtista(a.name)}
         keyboardShouldPersistTaps="handled" initialNumToRender={15} windowSize={7}
         columnWrapperStyle={{ gap: 12 }} contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: 49 + insets.bottom + MINI_PLAYER_HEIGHT + 32 }}
         ListHeaderComponent={<>
