@@ -12,6 +12,7 @@ import { criarMp4AoVivo } from './mp4AoVivo';
 import { PREFIXO_OPUS } from './codecDeAudio';
 import { converterWebmParaMp4, pareceWebm } from './converterOpus';
 import { lerCorpoDoAudio } from './lerCorpoDoAudio';
+import { processamentoVazio, type Processamento } from './processamentoDoAudio';
 
 let File: any;
 let Paths: any;
@@ -556,7 +557,15 @@ export type EstadoDoDownload = {
   tentativas: number;
   ultimoHttp: number | null;
   urlRenovado: boolean;
+  /** Quanto o fim do download prendeu o JavaScript (3/10, lib/processamentoDoAudio.ts). */
+  processamento?: ProcessamentoMedido;
 };
+
+export type ProcessamentoMedido = Processamento & { formato: 'aac' | 'opus' };
+
+/** O relógio das medições: o de alta resolução quando existe. */
+const relogio = (): number =>
+  typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now();
 
 const downloads = new Map<string, EstadoDoDownload>();
 const ouvintesDosDownloads = new Set<() => void>();
@@ -594,6 +603,8 @@ export type FimDeDownload = {
   bocados: number;
   bytes: number;
   urlRenovado: boolean;
+  /** Só nos downloads para ficheiro que chegaram ao fim. */
+  processamento: ProcessamentoMedido | null;
 };
 
 const ouvintesDoFim = new Set<(fim: FimDeDownload) => void>();
@@ -620,6 +631,7 @@ function avisarFim(registo: EstadoDoDownload, resultado: FimDeDownload['resultad
     bocados: registo.bocados,
     bytes: registo.bytes,
     urlRenovado: registo.urlRenovado,
+    processamento: registo.processamento ?? null,
   };
   for (const ouvir of [...ouvintesDoFim]) {
     try { ouvir(fim); } catch { /* quem mede não parte o download */ }
@@ -821,9 +833,17 @@ async function descarregarAgora(
 ): Promise<string> {
   const total = await totalDoAudio(url, knownLength, opts, registo);
   const combined = new Uint8Array(total);
+  // Cada fase daqui para baixo é síncrona: o tempo dela é o tempo em que a
+  // app não respondeu a toques (3/10, lib/processamentoDoAudio.ts).
+  const proc = processamentoVazio();
+  let t = 0;
   // Escreve diretamente no buffer final — sem parts[] intermédio, que
   // duplicava o pico de RAM (2× o ficheiro; ~220MB num mix de 2h).
-  await pedirBocados(url, total, opts, registo, (part, offset) => combined.set(part, offset));
+  await pedirBocados(url, total, opts, registo, (part, offset) => {
+    const antes = relogio();
+    combined.set(part, offset);
+    proc.juntarMs += relogio() - antes;
+  });
   if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
 
   // Opus (o itag 251 vem em WebM, que o AVPlayer não abre): os mesmos pacotes
@@ -831,8 +851,11 @@ async function descarregarAgora(
   // NÃO passa pelo mp4Fixer. Um WebM que não se sabe converter atira
   // (`OPUS_INVALIDO`) e não se publica nada: quem pediu volta ao AAC.
   if (pareceWebm(combined)) {
+    t = relogio();
     const { mp4 } = converterWebmParaMp4(combined);
+    proc.converterMs = relogio() - t;
     const parcialOpus = new File(audioDir(), nomeDoParcial(videoId));
+    t = relogio();
     const uriOpus = publicarAudio({
       parcial: parcialOpus,
       destino: ficheiroOpus(videoId),
@@ -841,6 +864,8 @@ async function descarregarAgora(
       abortado: opts.shouldAbort,
       erroDeAborto: DOWNLOAD_ABORTED,
     });
+    proc.escreverMs = relogio() - t;
+    if (registo) registo.processamento = { ...proc, formato: 'opus' };
     cachedIdsIndex?.add(videoId);changed();
     return uriOpus;
   }
@@ -849,7 +874,9 @@ async function descarregarAgora(
   // os cabeçalhos do moov para o AVPlayer deixar de somar moov + fragmentos
   // (ver mp4Fixer.ts). Não precisa da duração real para isso, por isso corre
   // sempre — durationSeconds só é usada para o mehd, quando exista.
+  t = relogio();
   fixMp4Duration(combined, durationSeconds);
+  proc.corrigirMs = relogio() - t;
 
   // Escrever primeiro para .part e so promover depois de confirmar o tamanho.
   // Como estava, o create() publicava o nome final ANTES de a escrita acabar:
@@ -857,6 +884,7 @@ async function descarregarAgora(
   // `if (dest.exists)` la em cima devolvia-o para sempre -- a faixa nunca mais
   // tocava e nao havia mensagem nenhuma a dizer porque.
   const parcial = new File(audioDir(), `${PREFIX}${videoId}-${Date.now()}-${Math.random().toString(36).slice(2)}.part`);
+  t = relogio();
   const uri = publicarAudio({
     parcial,
     destino: ficheiroAac(videoId),
@@ -865,6 +893,8 @@ async function descarregarAgora(
     abortado: opts.shouldAbort,
     erroDeAborto: DOWNLOAD_ABORTED,
   });
+  proc.escreverMs = relogio() - t;
+  if (registo) registo.processamento = { ...proc, formato: 'aac' };
   cachedIdsIndex?.add(videoId);changed();
   return uri;
 }
