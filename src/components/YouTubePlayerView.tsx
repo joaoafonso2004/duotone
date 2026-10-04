@@ -28,7 +28,7 @@ import {
 import { evitarOpusPara } from '../lib/codecDeAudio';
 import { eConversaoDoOpus, resolverEDescarregar } from '../lib/resolverEDescarregar';
 import { anotarOpus, opusProvado } from '../state/saudeDoOpus';
-import { primeiraNota, type OrigemDoSom } from '../lib/tocarEnquantoDescarrega';
+import { inicioDoSom, primeiraNota, type OrigemDoSom } from '../lib/tocarEnquantoDescarrega';
 import { anotarTransmissao, ligacaoParaTransmitir } from '../state/saudeDoStream';
 import { diagnosticoDoStream } from '../../modules/duotone-stream';
 import { quantasAdiantar, quantoPoupar } from '../lib/adiantarFaixas';
@@ -50,7 +50,7 @@ import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { velocidadeNaSessao } from '../lib/jam';
 import { ritmoDeQuemSigo, useSeguirAmigo } from '../state/seguirAmigo';
 import { useArranqueTravado } from '../hooks/useArranqueTravado';
-import { entraSemFade, JANELA_DO_FIM_NATURAL_MS, type FimNatural } from '../lib/fadeDeEntrada';
+import { duracaoDoFade, entraSemFade, FADE_DE_RETOMA_MS, JANELA_DO_FIM_NATURAL_MS, type FimNatural } from '../lib/fadeDeEntrada';
 
 /**
  * Quanto se espera por uma resolucao antes de a dar por perdida.
@@ -616,15 +616,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     return ceilingRef.current;
   };
 
-  const fadeIn = () => {
+  const fadeIn = (duracaoMs: number = FADE_DE_RETOMA_MS) => {
     if(usePlayer.getState().closing)return;
     if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
     const ceiling = ceilingRef.current;
     player.volume = 0.0;
     let vol = 0.0;
-    // Dez passos até ao teto, seja ele qual for — o fade dura 1s tanto numa
-    // faixa normalizada como numa que fica em 1.0.
-    const step = ceiling / 10;
+    // Passos iguais até ao teto, seja ele qual for — o fade dura o mesmo
+    // numa faixa normalizada e numa que fica em 1.0. Dez de 100 ms a retomar
+    // a meio; cinco de 50 ms numa música escolhida à mão (lib/fadeDeEntrada.ts).
+    const passos = duracaoMs >= FADE_DE_RETOMA_MS ? 10 : 5;
+    const step = ceiling / passos;
     fadeIntervalRef.current = setInterval(() => {
       if(usePlayer.getState().closing){clearInterval(fadeIntervalRef.current);fadeIntervalRef.current=null;return;}
       vol += step;
@@ -634,7 +636,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
         fadeIntervalRef.current = null;
       }
       player.volume = vol;
-    }, 100);
+    }, duracaoMs / passos);
   };
 
   /**
@@ -1207,7 +1209,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
           if (fadeIntervalRef.current) { clearInterval(fadeIntervalRef.current); fadeIntervalRef.current = null; }
           motorActivo().volume = ceilingRef.current;
         } else {
-          fadeIn();
+          fadeIn(duracaoDoFade(resumeMs));
         }
       } else {
         // Garantia explícita de pausa: nada abaixo pode arrancar o playback
@@ -1793,7 +1795,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       const nota = primeiraNotaRef.current;
       if (nota?.origem && nota.run === runIdRef.current) {
         primeiraNotaRef.current = null;
-        const medida = primeiraNota(nota.pedidaEm, Date.now(), nota.origem);
+        // Quando começou a soar, e não quando se soube (lib/tocarEnquantoDescarrega.ts).
+        const agora = Date.now();
+        let ritmo = 1;
+        try { ritmo = player.playbackRate || 1; } catch { /* motor largado */ }
+        const soou = inicioDoSom(agora, currentTime, ritmo);
+        const medida = primeiraNota(nota.pedidaEm, soou >= nota.pedidaEm ? soou : agora, nota.origem);
         if (medida) {
           registarEvento('primeira_nota', medida);
           // O mesmo número, com as fases, no relatório do aparelho (27/9).

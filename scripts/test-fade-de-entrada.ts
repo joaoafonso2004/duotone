@@ -5,7 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { entraSemFade, JANELA_DO_FIM_NATURAL_MS } from '../src/lib/fadeDeEntrada.ts';
+import { duracaoDoFade, entraSemFade, FADE_DE_ARRANQUE_MS, FADE_DE_RETOMA_MS, JANELA_DO_FIM_NATURAL_MS } from '../src/lib/fadeDeEntrada.ts';
 
 const agora = 1_000_000;
 const fim = { de: 'a', em: agora - 800 };
@@ -30,3 +30,17 @@ assert.match(motor, /entraSemFade\(fimNaturalRef\.current/, 'o arranque pergunta
 assert.match(motor, /fimNaturalRef\.current = null;/, 'e consome o fim, para não decidir pela seguinte');
 
 console.log('Fade de entrada: passou.');
+
+// Quanto dura o fade quando fica (4/10): curto numa música escolhida à mão,
+// o segundo inteiro a retomar a meio.
+assert.equal(duracaoDoFade(null), FADE_DE_ARRANQUE_MS, 'um skip entra em 250 ms');
+assert.equal(duracaoDoFade(0), FADE_DE_ARRANQUE_MS);
+assert.equal(duracaoDoFade(1500), FADE_DE_ARRANQUE_MS, 'até 1,5 s ainda é o início');
+assert.equal(duracaoDoFade(90_000), FADE_DE_RETOMA_MS, 'a meio da música, o segundo inteiro');
+assert.ok(FADE_DE_ARRANQUE_MS <= 300, 'mais do que isto e o skip volta a parecer lento');
+{
+  const leitor = (await import('node:fs')).readFileSync('src/components/YouTubePlayerView.tsx', 'utf8');
+  assert.match(leitor, /fadeIn\(duracaoDoFade\(resumeMs\)\)/, 'o arranque usa a duração curta');
+}
+console.log('fade de entrada: a duração passou.');
+

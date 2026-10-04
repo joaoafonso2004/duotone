@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   DESLIGADO_POR_MS, FALHAS_PARA_DESLIGAR, PRIMEIRA_NOTA_MAX_MS, SAUDE_INICIAL,
-  LIGADO, depoisDeTransmitir, descreverSaude, lerSaude, podeTransmitir, primeiraNota,
+  LIGADO, depoisDeTransmitir, descreverSaude, inicioDoSom, lerSaude, podeTransmitir, primeiraNota,
 } from '../src/lib/tocarEnquantoDescarrega.ts';
 
 const agora = 1_800_000_000_000;
@@ -55,5 +55,11 @@ assert.deepEqual(primeiraNota(agora, agora, 'cache'), { origem: 'cache', ms: 0 }
 assert.equal(primeiraNota(agora, agora - 1, 'cache'), null, 'relógio que recuou');
 assert.equal(primeiraNota(agora, agora + PRIMEIRA_NOTA_MAX_MS + 1, 'ficheiro'), null, 'a app esteve suspensa');
 assert.equal(primeiraNota(Number.NaN, agora, 'hls'), null);
+// O som começou antes de se saber (4/10): a posição diz quanto já tocou.
+assert.equal(inicioDoSom(agora, 0.8, 1), agora - 800, 'leu 0,8 s: começou 800 ms antes');
+assert.equal(inicioDoSom(agora, 0.8, 2), agora - 400, 'ao dobro da velocidade, metade do tempo');
+assert.equal(inicioDoSom(agora, 0, 1), agora, 'sem posição, o agora');
+assert.equal(inicioDoSom(agora, 95, 1), agora, 'retomou a meio: não se recua');
+assert.equal(inicioDoSom(agora, 1, 0), agora - 1000, 'velocidade inválida conta como 1');
 
 console.log('Tocar enquanto descarrega: desliga-se depois de duas falhas do motor seguidas, volta ao fim de três dias, e mede a primeira nota.');

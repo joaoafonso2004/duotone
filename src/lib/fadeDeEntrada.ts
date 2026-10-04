@@ -32,6 +32,21 @@ export const JANELA_DO_FIM_NATURAL_MS = 30_000;
 /** Acima disto a faixa retoma a meio (o mesmo limite do `beginPlayback`). */
 const RETOMA_A_MEIO_MS = 1500;
 
+/**
+ * Quanto dura o fade quando ele fica (4/10). Era sempre 1 s, linear: os
+ * primeiros 300 ms de uma música escolhida à mão saíam abaixo de um terço do
+ * volume, e um skip parecia demorar -- o som estava lá, mas não se ouvia.
+ * Escolhida à mão, a partir do início, entra em 250 ms (o bastante para não
+ * estalar); a retomar a meio fica o segundo inteiro, onde entrar de repente
+ * soa a corte.
+ */
+export const FADE_DE_ARRANQUE_MS = 250;
+export const FADE_DE_RETOMA_MS = 1000;
+
+export function duracaoDoFade(retomaEmMs: number | null): number {
+  return retomaEmMs != null && retomaEmMs > RETOMA_A_MEIO_MS ? FADE_DE_RETOMA_MS : FADE_DE_ARRANQUE_MS;
+}
+
 export function entraSemFade(
   fim: FimNatural | null,
   faixa: string,

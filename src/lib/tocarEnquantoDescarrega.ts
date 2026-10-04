@@ -106,6 +106,23 @@ export type OrigemDoSom = 'cache' | 'stream' | 'ficheiro' | 'hls' | 'embed';
 export const PRIMEIRA_NOTA_MAX_MS = 120_000;
 
 /** O evento `primeira_nota`, ou nada se a medida não fizer sentido. */
+/**
+ * Quando o som começou, pela posição do motor na primeira leitura (4/10).
+ *
+ * O primeiro som media-se ao primeiro `timeUpdate` com a posição acima de 0, e
+ * esse evento chega de meio em meio segundo ou de segundo a segundo: numa faixa
+ * no telemóvel o relatório dizia 1,2 s quando o motor tinha arrancado no mesmo
+ * segundo do toque. A posição diz quanto já tocou; a música começou essa
+ * duração (à velocidade dela) antes de agora. Só a partir do início: com mais
+ * de `MAX_RECUO_S` a faixa retomou a meio, e aí fica o agora.
+ */
+const MAX_RECUO_S = 3;
+export function inicioDoSom(agora: number, posicaoSegundos: number, ritmo: number): number {
+  if (!(posicaoSegundos > 0) || posicaoSegundos > MAX_RECUO_S) return agora;
+  const r = Number.isFinite(ritmo) && ritmo > 0 ? ritmo : 1;
+  return agora - (posicaoSegundos / r) * 1000;
+}
+
 export function primeiraNota(
   pedidaEm: number,
   agora: number,

@@ -84,7 +84,7 @@ export function textoDoTempoAteAoSom(lista: readonly Arranque[]): string {
   // Medido no primeiro avanço da posição, que chega de segundo a segundo:
   // cada tempo pode passar do real até 1 s (revisão do Codex). Os que
   // falharam e as passagens do crossfade não entram.
-  const linhas = ['== time to first sound ==', '(measured at the first position update: each time can be up to 1 s high; failed starts and crossfades are not included)'];
+  const linhas = ['== time to first sound ==', '(from the engine position at its first update, so the time between updates does not count; failed starts and crossfades are not included)'];
   if (!lista.length) {
     linhas.push('no songs measured yet (play and skip a few songs, then save the report)');
     return linhas.join('\n');

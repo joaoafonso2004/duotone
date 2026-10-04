@@ -1,7 +1,7 @@
 import { AppState } from 'react-native';
 import {
-  dadosDoEventoLento, lerHermes, registarTravao, textoDoFolego, TRAVAO_SENTIDO_MS,
-  type Contexto, type Travao,
+  dadosDoEventoLento, ENTRE_AMOSTRAS_MS, juntarAmostra, lerAmostra, lerHermes, registarTravao, textoDoFolego,
+  TRAVAO_SENTIDO_MS, type AmostraDaMemoria, type Contexto, type Travao,
 } from '../lib/folegoDoJs';
 import { registar } from '../lib/eventos';
 import { usePlayer } from './player';
@@ -25,6 +25,16 @@ const ENTRE_EVENTOS_MS = 10 * 60_000;
 const abertaEm = Date.now();
 
 let travoes: readonly Travao[] = [];
+// A memória de minuto a minuto (4/10, `textoDaMemoria`): uma leitura das
+// estatísticas do Hermes por minuto, à boleia deste temporizador.
+let memoria: readonly AmostraDaMemoria[] = [];
+let ultimaAmostra = 0;
+function amostrar(visivel: boolean): void {
+  const a = lerAmostra((globalThis as any).HermesInternal?.getInstrumentedStats?.(), Date.now(), visivel);
+  if (!a) return;
+  memoria = juntarAmostra(memoria, a);
+  ultimaAmostra = a.em;
+}
 let linhasMontadas = 0;
 let ligado = false;
 let ultimoEvento = 0;
@@ -82,6 +92,8 @@ export function iniciarMedidorDoFolego(): () => void {
   };
   const aMudar = AppState.addEventListener('change', (estado) => {
     saltar = true;
+    // Um corte na memória: o par que atravessa o segundo plano não conta.
+    if (estado === 'background' || estado === 'active') amostrar(estado === 'active');
     clearTimeout(timer);
     if (vivo && estado !== 'background') agendar();
   });
@@ -94,6 +106,7 @@ export function iniciarMedidorDoFolego(): () => void {
     const conta = !saltar && atraso <= 20_000;
     saltar = false;
     if (conta) travoes = registarTravao(travoes, { em: agora, ms: atraso, visivel });
+    if (agora - ultimaAmostra >= ENTRE_AMOSTRAS_MS) amostrar(visivel);
     if (conta && visivel && atraso >= TRAVAO_SENTIDO_MS && agora - ultimoEvento >= ENTRE_EVENTOS_MS) {
       ultimoEvento = agora;
       registar('js_lento', dadosDoEventoLento(atraso, contexto(true)));
@@ -102,11 +115,12 @@ export function iniciarMedidorDoFolego(): () => void {
     // 'unknown' do arranque conta como à frente.
     if (AppState.currentState !== 'background') agendar();
   };
+  amostrar(AppState.currentState !== 'background');
   if (AppState.currentState !== 'background') agendar();
   return () => { vivo = false; ligado = false; clearTimeout(timer); aMudar.remove(); };
 }
 
 /** A secção para o relatório de reprodução. */
 export function textoDoFolegoAgora(): string {
-  return textoDoFolego(travoes, contexto(true), Date.now());
+  return textoDoFolego(travoes, contexto(true), Date.now(), memoria);
 }
