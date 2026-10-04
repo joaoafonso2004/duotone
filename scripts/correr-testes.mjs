@@ -150,6 +150,7 @@ const TESTES = [
   `${TS} scripts/test-menu-da-faixa.ts`,
   `${TS} scripts/test-menu-do-amigo.ts`,
   `${TS} scripts/test-letra-minima.ts`,
+  `${TS} scripts/test-separadores-a-montar.ts`,
   `${TS} scripts/test-processamento-do-audio.ts`,
   `${TS} scripts/test-aviso-de-remocao.ts`,
   `${TS} scripts/test-titulo-que-encolhe.ts`,

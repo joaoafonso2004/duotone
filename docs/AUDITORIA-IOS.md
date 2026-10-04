@@ -180,7 +180,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 4.2 Os seis separadores montam todos no arranque
 
-**Estado:** ⬜ Por fazer (`lazy: false` continua).
+**Estado:** ✅ Feito (4/10), por medir no iPhone. `lazy: true` com `lazyPreloadDistance: 1` (a escolhida e as vizinhas, para o deslize não mostrar um vazio), e as outras montam-se uma a uma depois de a abertura sair (`navigation.preload`, `lib/separadoresAMontar.ts`), quando não há interações a decorrer. O aquecimento dos dados fica. A paragem de 943 ms no arranque (relatório da 4.4.1) é o número a comparar.
 
 **Melhoria:** `lazy: true` com `lazyPreloadDistance: 1` e um esqueleto com a forma da página. O aquecimento dos dados (`useAquecerSeccoes`) fica.
 
@@ -282,7 +282,7 @@ Pela ordem de ataque:
 
 - ✅ Mover para nativo o processamento do áudio (4.1).
 - ◐ Gestos fora do JS (3.1).
-- ⬜ lazy com pré-carregamento dos separadores (4.2).
+- ✅ lazy com pré-carregamento dos separadores (4.2), por medir.
 - ⬜ Partir o PlayerRoot (4.3).
 - ✅ O desfoque da barra que quase não se via (2.1).
 - ✅ O setState por movimento na barra de progresso (3.5).

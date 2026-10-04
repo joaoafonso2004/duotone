@@ -1,7 +1,7 @@
 import type { MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, InteractionManager, Pressable, StyleSheet, Text, View } from 'react-native';
 import { StateIcon } from '../components/StateIcon';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { ESTADO, SEPARADOR_ACTIVO } from '../lib/movimento';
@@ -10,6 +10,8 @@ import { useNotifications } from '../state/notifications';
 import { useTheme } from '../state/theme';
 import { colors, ESCALA_MAXIMA } from '../theme';
 import { pedirFluidez } from '../state/fluidez';
+import { useAbertura } from '../state/abertura';
+import { COMECAR_DEPOIS_MS, ENTRE_SEPARADORES_MS, proximoAMontar } from '../lib/separadoresAMontar';
 
 const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
   Search: 'home',
@@ -115,7 +117,45 @@ function SeparadorActivo({ activo, tamanho, children }: {
 export function BarraDeSeparadores({ state, navigation }: MaterialTopTabBarProps) {
   React.useLayoutEffect(() => { publicarSeparadores({ state, navigation }); }, [state, navigation]);
   React.useEffect(() => () => publicarSeparadores(null), []);
+  useMontarDepoisDaAbertura(state, navigation);
   return null;
+}
+
+/**
+ * As secções que não estão à vista nem ao lado montam-se DEPOIS da abertura,
+ * uma de cada vez (auditoria 4.2, 4/10; `lib/separadoresAMontar.ts`). Antes
+ * montavam as cinco no arranque, com a abertura a correr.
+ *
+ * Começa outra vez se a abertura voltar à frente (não volta, mas o efeito não
+ * o assume), e cada passo espera que as interações acabem: um deslize a meio
+ * não leva uma página nova a montar por baixo do dedo.
+ */
+function useMontarDepoisDaAbertura(state: MaterialTopTabBarProps['state'], navigation: MaterialTopTabBarProps['navigation']) {
+  const naAbertura = useAbertura((s) => s.aFrente);
+  const estadoRef = React.useRef(state);
+  estadoRef.current = state;
+  const pedidos = React.useRef(new Set<string>());
+  React.useEffect(() => {
+    if (naAbertura) return;
+    let parado = false;
+    let espera: ReturnType<typeof setTimeout> | undefined;
+    let tarefa: { cancel(): void } | undefined;
+    const seguinte = (ms: number) => {
+      espera = setTimeout(() => {
+        tarefa = InteractionManager.runAfterInteractions(() => {
+          if (parado) return;
+          const st = estadoRef.current;
+          const nome = proximoAMontar(st.routes, st.index, pedidos.current);
+          if (!nome) return;
+          pedidos.current.add(nome);
+          navigation.preload(nome);
+          seguinte(ENTRE_SEPARADORES_MS);
+        });
+      }, ms);
+    };
+    seguinte(COMECAR_DEPOIS_MS);
+    return () => { parado = true; clearTimeout(espera); tarefa?.cancel(); };
+  }, [naAbertura, navigation]);
 }
 
 /** Os cinco botões, sem fundo: o vidro é da base. */

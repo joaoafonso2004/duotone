@@ -188,10 +188,12 @@ function ArtistsStack() {
  * continua em baixo e continua com o mesmo aspecto; está escrita à mão no
  * `BarraDeSeparadores`, que é o preço do gesto.
  *
- * O `lazy` fica desligado como estava: as páginas montam todas de uma vez.
- * Com deslize isso passou de preferência a necessidade -- a página do lado
- * entra no ecrã ENQUANTO o dedo se move, e uma que só começasse a montar
- * nesse instante mostrava um vazio a meio do gesto.
+ * Montam-se a escolhida e as vizinhas (`lazyPreloadDistance: 1`): com
+ * deslize, a página do lado entra no ecrã ENQUANTO o dedo se move, e uma que
+ * só começasse a montar nesse instante mostrava um vazio a meio do gesto. As
+ * outras montam-se uma a uma depois da abertura (`BarraDeSeparadores`,
+ * auditoria 4.2, 4/10). Até aí montavam as cinco no arranque, com a abertura
+ * a correr -- e o relatório tinha uma paragem de quase um segundo ali.
  */
 function Tabs() {
   const reducedMotion = useReducedMotion();
@@ -203,7 +205,8 @@ function Tabs() {
       tabBarPosition="bottom"
       tabBar={(props) => <BarraDeSeparadores {...props} />}
       screenOptions={{
-        lazy: false,
+        lazy: true,
+        lazyPreloadDistance: 1,
         // Quem pediu menos animação continua a poder tocar nos separadores; o
         // que se lhe tira é a página a correr por baixo do dedo.
         swipeEnabled: !reducedMotion,
