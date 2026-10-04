@@ -21,6 +21,7 @@ import { naoLidasPorAmigo } from '../lib/social';
 import { ArtworkCollage } from './ArtworkCollage';
 import { ProfileEditor } from './ProfileEditor';
 import { BotoesDoPerfil, ProfileHero } from './ProfileHero';
+import { faixaDaBarraDoNome } from '../lib/tituloQueEncolhe';
 import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { guardarPerfil, ouvirPerfis, perfilEmCache } from '../lib/cachePerfil';
 import { SkeletonDoPerfil } from './Skeleton';
@@ -374,7 +375,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
     {/* iPhone: a barra com o nome aparece quando o nome passa por baixo dela, e
         os botões ficam no sítio por cima de tudo. Antes o conteúdo passava por
         baixo da ilha sem fundo nenhum. */}
-    {!web&&<Animated.View pointerEvents="none" style={[estilos.barra,{height:safe.top+56,opacity:rolagem.interpolate({inputRange:[fimDoNome-40,fimDoNome-safe.top-20],outputRange:[0,1],extrapolate:'clamp'})}]}>
+    {!web&&<Animated.View pointerEvents="none" style={[estilos.barra,{height:safe.top+56,opacity:rolagem.interpolate({inputRange:faixaDaBarraDoNome(fimDoNome,safe.top+56),outputRange:[0,1],extrapolate:'clamp'})}]}>
       <BlurView tint="dark" intensity={60} style={StyleSheet.absoluteFill}/>
       <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(10,10,15,0.72)'}]}/>
       <Text numberOfLines={1} style={estilos.nomeNaBarra}>{nome}</Text>

@@ -1,7 +1,7 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
-import { Animated, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Animated, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Toque } from './Toque';
 import { hapticSelection } from '../lib/haptics';
@@ -62,21 +62,44 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
   const notificationDismiss = useNotificationOverlay(visivel && !!ancora,aoFechar);
   const reduzido = useReducedMotion();
   const entrada = React.useRef(new Animated.Value(0)).current;
+  const mostrar = visivel && !!ancora;
+  const mostrarRef = React.useRef(mostrar);
+  mostrarRef.current = mostrar;
+  // Os pais limpam a âncora e as ações ao fechar. Conservar a última escolha
+  // mantém o mesmo Modal visível até acabar a saída; sem isto, o onDismiss
+  // podia chegar antes de se registar a ação que abre o seletor de imagens.
+  const apresentacao = React.useRef({ ancora, accoes });
+  if (mostrar) apresentacao.current = { ancora, accoes };
   // O `Modal` só desmonta quando a saída acaba: fechá-lo no toque cortava a
   // animação a meio e o menu desaparecia de um fotograma para o outro.
-  const [montado, setMontado] = React.useState(visivel);
+  const [montado, setMontado] = React.useState(mostrar);
+  const aberto = React.useRef(mostrar);
 
   const fechadoRef = React.useRef(aoFechado);
   fechadoRef.current = aoFechado;
+  // O `aoFechado` só corre quando o iOS acabou de fechar a janela do menu (o
+  // `onDismiss` do Modal), e não no fim da animação (4/10). No fim da animação
+  // o Modal ainda está a sair, e o iOS recusa apresentar outra coisa nesse
+  // instante -- sem erro: o seletor de imagens do Edit profile não abria.
+  const fechoPendente = React.useRef(false);
+  const avisarFechado = React.useCallback(() => {
+    if (!fechoPendente.current || mostrarRef.current) return;
+    fechoPendente.current = false;
+    fechadoRef.current?.();
+  }, []);
 
   React.useEffect(() => {
-    if (visivel) {
+    if (mostrar) {
+      aberto.current = true;
+      fechoPendente.current = false;
       setMontado(true);
       if (reduzido) { entrada.setValue(1); return; }
       const mola = Animated.spring(entrada, { toValue: 1, ...ESTADO, useNativeDriver: true });
       mola.start();
       return () => mola.stop();
     }
+    if (!aberto.current) return;
+    let ativo = true;
     // Desmontar SEMPRE, tenha a animação acabado ou não.
     //
     // Antes o `setMontado(false)` estava dentro do `finished`, e uma animação
@@ -85,45 +108,64 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
     // decoração; desaparecer não é, e não pode depender de ela correr até ao
     // fim.
     const desmontar = () => {
+      // Parar uma saída ao reabrir ou desmontar também chama o callback da
+      // animação. Esse fecho antigo não pode apagar a nova apresentação.
+      if (!ativo || mostrarRef.current) return;
+      aberto.current = false;
+      fechoPendente.current = true;
       setMontado(false);
-      fechadoRef.current?.();
     };
     if (reduzido) { entrada.setValue(0); desmontar(); return; }
     const saida = Animated.timing(entrada, { toValue: 0, duration: 130, useNativeDriver: true });
     saida.start(desmontar);
-    return () => saida.stop();
+    return () => { ativo = false; saida.stop(); };
     // O `montado` NÃO entra aqui: mudá-lo dentro do efeito voltava a
     // dispará-lo, e a limpeza parava a animação que ele próprio tinha
     // começado.
-  }, [visivel, reduzido, entrada]);
+  }, [mostrar, reduzido, entrada]);
+
+  // Android e web não entregam onDismiss. A ação corre depois de o React
+  // aplicar visible=false, nunca no mesmo callback que pede o fecho.
+  React.useEffect(() => {
+    if (!montado && Platform.OS !== 'ios') avisarFechado();
+  }, [montado, avisarFechado]);
+  React.useEffect(() => () => { fechoPendente.current = false; }, []);
 
   // Keep the same Modal mounted until its native onDismiss is delivered.
-  if (!montado || !ancora) return <Modal visible={false} transparent animationType="none" onDismiss={notificationDismiss}/>;
+  const aoDispensar = () => {
+    if (mostrarRef.current) return;
+    notificationDismiss();
+    avisarFechado();
+  };
+  const ancoraVisivel = apresentacao.current.ancora;
+  const accoesVisiveis = apresentacao.current.accoes;
+  if (!montado || !ancoraVisivel) return <Modal visible={false} transparent animationType="none" onDismiss={aoDispensar}/>;
 
   // Uma linha com motivo leva mais uma linha de texto por baixo, e um grupo
   // novo leva o traço: sem contar isto, o menu achava que cabia em baixo e
   // saía pelo fundo do ecrã.
-  const alturaEstimada = accoes.length * 52
-    + accoes.filter((a) => a.motivo).length * 18
-    + accoes.filter((a) => a.inicioDeGrupo).length * spacing.xs
+  const alturaEstimada = accoesVisiveis.length * 52
+    + accoesVisiveis.filter((a) => a.motivo).length * 18
+    + accoesVisiveis.filter((a) => a.inicioDeGrupo).length * spacing.xs
     + spacing.sm * 2;
-  const cabeEmBaixo = ancora.y + ancora.height + MARGEM + alturaEstimada < height;
+  const cabeEmBaixo = ancoraVisivel.y + ancoraVisivel.height + MARGEM + alturaEstimada < height;
   const topo = cabeEmBaixo
-    ? ancora.y + ancora.height + MARGEM
-    : Math.max(MARGEM, ancora.y - alturaEstimada - MARGEM);
+    ? ancoraVisivel.y + ancoraVisivel.height + MARGEM
+    : Math.max(MARGEM, ancoraVisivel.y - alturaEstimada - MARGEM);
   const esquerda = Math.min(
-    Math.max(MARGEM, ancora.x + ancora.width - LARGURA),
+    Math.max(MARGEM, ancoraVisivel.x + ancoraVisivel.width - LARGURA),
     width - LARGURA - MARGEM
   );
 
   return (
-    <Modal onDismiss={notificationDismiss} transparent visible statusBarTranslucent animationType="none" onRequestClose={aoFechar}><DentroDeUmModal.Provider value>
+    <Modal onDismiss={aoDispensar} transparent visible statusBarTranslucent animationType="none" onRequestClose={aoFechar}><DentroDeUmModal.Provider value>
       {/* Tocar fora fecha. Ocupa o ecrã todo de propósito: um menu aberto tem
           de se poder dispensar sem se acertar em nada. */}
-      <Pressable style={StyleSheet.absoluteFill} onPress={aoFechar} accessibilityLabel="Close menu">
+      <Pressable disabled={!mostrar} style={StyleSheet.absoluteFill} onPress={aoFechar} accessibilityLabel="Close menu">
         <Animated.View style={[StyleSheet.absoluteFill, styles.veu, { opacity: entrada }]} />
       </Pressable>
       <Animated.View
+        pointerEvents={mostrar ? 'auto' : 'none'}
         style={[
           styles.menu,
           { top: topo, left: esquerda, width: LARGURA },
@@ -135,7 +177,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
       >
         <BlurView tint="dark" intensity={40} style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, styles.tinta]} />
-        {accoes.map((accao) => {
+        {accoesVisiveis.map((accao) => {
           // Indisponível fica à vista e diz porquê (lib/menuDaFaixa.ts).
           const apagada = !!accao.disabled || !!accao.motivo;
           return (
@@ -145,7 +187,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
               accessibilityRole="button"
               accessibilityLabel={accao.motivo ? `${accao.label}. ${accao.motivo}` : accao.label}
               accessibilityState={{ disabled: apagada, selected: accao.escolhida }}
-              disabled={apagada}
+              disabled={apagada || !mostrar}
               onPress={() => { hapticSelection(); accao.onPress(); }}
               style={[styles.linha, accao.inicioDeGrupo && styles.grupo]}
             >

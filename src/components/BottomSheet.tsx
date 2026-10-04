@@ -57,7 +57,9 @@ interface Props {
  * Interruptor das folhas nativas: `false` volta todas ao `Modal` de sempre
  * (a fila tem a sua rota e não depende dele).
  */
-export const FOLHAS_NATIVAS = true;
+// A apresentação formSheet passou a cortar o conteúdo dos menus no iPhone.
+// Usa a apresentação anterior até a medição nativa ser validada no dispositivo.
+export const FOLHAS_NATIVAS = false;
 
 export function BottomSheet(props: Props) {
   const dentroDeUmModal = useContext(DentroDeUmModal);

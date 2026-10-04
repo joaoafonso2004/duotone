@@ -5,7 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { ALTURA_DA_BARRA, TITULO_COMPACTO, geometriaDoTitulo } from '../src/lib/tituloQueEncolhe.ts';
+import { ALTURA_DA_BARRA, TITULO_COMPACTO, faixaDaBarraDoNome, geometriaDoTitulo } from '../src/lib/tituloQueEncolhe.ts';
 
 let falhas = 0;
 function caso(nome: string, fn: () => void): void {
@@ -65,6 +65,29 @@ caso('sem medida, sobem o mesmo que a linha encolhe', () => {
 });
 
 console.log('\nligado');
+caso('a barra do nome do perfil só acende quando o nome passa por baixo dela', () => {
+  // iPhone com ilha: barra de 59 + 56; o nome acaba a 312 pt da página.
+  const [de, ate] = faixaDaBarraDoNome(312, 115);
+  assert.ok(de < ate, 'o intervalo tem de subir (ao contrário, o motor nativo deixava-a opaca no topo)');
+  assert.deepEqual([de, ate], [167, 197]);
+  assert.ok(de > 0, 'no topo da página a barra não se vê: a capa fica à vista');
+  const [a2, b2] = faixaDaBarraDoNome(40, 115);
+  assert.ok(a2 >= 0 && b2 > a2, 'nunca negativo nem ao contrário');
+  assert.match(readFileSync('src/components/SocialProfileView.tsx', 'utf8'), /inputRange:faixaDaBarraDoNome\(/);
+});
+
+caso('a capa fica descoberta no topo em iPhones com e sem recorte', () => {
+  for (const topoSeguro of [0, 20, 44, 59, 62]) {
+    const alturaDaBarra = topoSeguro + 56;
+    const fimDoNome = 260 + topoSeguro * 0.4 - 62 + 112 + 8 + 10 + 34;
+    const [de, ate] = faixaDaBarraDoNome(fimDoNome, alturaDaBarra);
+    assert.ok(de > 0 && ate > de);
+    assert.ok(de > 20, 'puxar para atualizar ou rolar só um pouco não cobre a capa');
+    assert.equal(fimDoNome - ate, alturaDaBarra, 'só fica opaca quando o nome grande saiu');
+    assert.equal(fimDoNome - de, alturaDaBarra + 30, 'a transição começa ao aproximar-se da barra');
+  }
+});
+
 caso('o Screen usa a geometria e os ecrãs principais encolhem', () => {
   assert.match(readFileSync('src/components/Screen.tsx', 'utf8'), /geometriaDoTitulo/);
   for (const f of ['SongsScreen', 'ArtistsScreen', 'PlaylistsScreen', 'SearchScreen', 'SettingsScreen',

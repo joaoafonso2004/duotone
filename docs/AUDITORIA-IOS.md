@@ -1,14 +1,19 @@
 # Auditoria iOS do Duotone
 
-> **Estado a 4/10/2026.** Cópia anotada da auditoria (o original está em
+> **Estado revisto a 4/10/2026.** Cópia anotada da auditoria (o original está em
 > `Desktop\App IOS Musica\AUDITORIA-IOS.md`). Cada ponto tem uma linha **Estado**:
 > ✅ feito · ◐ em parte · ⬜ por fazer · ⏸ decidido não fazer. Tudo o que está
-> feito está no main mas **ainda não foi visto no iPhone** (só testes e ensaios no
-> browser). Os próximos passos estão no fim.
+> feito existe no código; isso **não garante validação no iPhone**. As capturas
+> recebidas entretanto mostram uma regressão das folhas nativas. A correção dos
+> menus, a do Jam e as da capa/seletor de fotos do perfil estão preparadas para a
+> versão 4.5.1, ainda por validar no aparelho.
+> Os próximos passos no fim foram filtrados pelo benefício real.
 
 | | Feito | Em parte | Por fazer | Decidido |
 |---|---|---|---|---|
-| Pontos (1.1 a 7.3) | 15 | 4 | 9 | 1 |
+| Pontos (1.1 a 7.3) | 21 | 4 | 2 | 2 |
+
+Validação da 4.5.1: `npm run typecheck` e `npm test` passaram (204 scripts na suite, incluindo o Jam, a apresentação dos menus e o seletor de imagens do perfil). A confirmação no iPhone continua pendente.
 
 A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swift nativo. Por isso a "Implementação" de cada ponto está em RN/Expo, e em Swift onde o trabalho é nativo.
 
@@ -126,7 +131,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 3.1 Todos os gestos correm na thread de JavaScript
 
-**Estado:** ◐ Em parte (3/10). Entrou o `react-native-gesture-handler` (sem Reanimated: o `PanGestureHandler` entrega um `Animated.event` nativo). **Já são do Gesture Handler:** fechar o leitor a arrastar, deslizar o mini-player, a barra de progresso (o dedo no motor nativo), arrastar uma música na fila e na edição de playlists, e as barras do equalizador (já não arrastam a página das Definições). **E as animações passaram a 120 Hz** durante as transições e os gestos (o relógio das animações do React Native ficava nos 60; `DuotoneFluidez.swift`). **Faltam:** o cubo das letras. (Deslizar para a fila e a barra da velocidade passaram a 4/10; as folhas são nativas.)
+**Estado:** ◐ Em parte (3/10). Entrou o `react-native-gesture-handler` (sem Reanimated: o `PanGestureHandler` entrega um `Animated.event` nativo). **Já são do Gesture Handler:** fechar o leitor a arrastar, deslizar o mini-player, a barra de progresso (o dedo no motor nativo), arrastar uma música na fila e na edição de playlists, e as barras do equalizador (já não arrastam a página das Definições). **E as animações passaram a 120 Hz** durante as transições e os gestos (o relógio das animações do React Native ficava nos 60; `DuotoneFluidez.swift`). **Falta no leitor:** o cubo das letras (`ArtworkLyricsCube.tsx` ainda atualiza o progresso no `onPanResponderMove`). Deslizar para a fila e a barra da velocidade passaram a 4/10. As folhas comuns voltaram ao Modal com PanResponder para corrigir o corte dos menus; ver 3.2.
 
 **Porque importa:** quando o JS está ocupado (troca de faixa, montagem do download, JSON), o dedo deixa de ser seguido. É a explicação mais provável do "trava a meio e dá snap".
 
@@ -134,7 +139,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 3.2 Folhas feitas à mão
 
-**Estado:** ✅ Feito (4/10). A fila desde 3/10; as outras 13 (e as 4 soltas nos ecrãs) desde 4/10, todas pelo mesmo `BottomSheet`, que no iPhone passou a empurrar uma rota `Folha` nativa (`fitToContents`) com o conteúdo de quem a abre. Dentro de um `Modal` do RN (o chat, o modo carro) continua o Modal de sempre, porque o react-native-screens fechava-o. A barra da velocidade e o deslizar para a fila passaram ao Gesture Handler para a folha não lhes roubar o dedo. Por ver no iPhone.
+**Estado:** ◐ Regressão corrigida no código, por validar no iPhone (4/10). A migração das folhas comuns para a rota nativa `Folha` (`fitToContents`) deixou as opções cortadas, com uma grande área cinzenta, nas capturas de músicas e playlists. `FOLHAS_NATIVAS = false` repõe a apresentação anterior em todos os componentes que usam `BottomSheet`, mantendo o desenho e as opções. Os testes cobrem a apresentação por omissão, os gestos, rolamento, teclado e proteção dos deslizadores. A fila conserva a sua rota nativa independente. Não voltar a ligar o interruptor apenas para dar este ponto como concluído: primeiro é preciso reproduzir e resolver a medição no aparelho.
 
 **Problema:** a BottomSheet.tsx é um Modal com PanResponder, e as molas usam speed/bounciness em vez das do movimento.ts. Há 14 folhas assim.
 
@@ -188,7 +193,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 4.3 O PlayerRoot é um monólito
 
-**Estado:** ⬜ Por fazer. Cresceu um pouco com os gestos e a base (~2600 linhas).
+**Estado:** ⬜ Por fazer (2573 linhas na revisão de 4/10). A capa já está isolada e memorizada em `CapaDoLeitor`, e a posição/tempo são lidos em componentes separados, fora do topo do leitor. Ainda há muitas subscrições no `PlayerRoot`, mas o tamanho do ficheiro não prova um problema de performance. Só dividir mais depois de medir os renders durante skip/abertura e identificar o bloco que custa tempo.
 
 **Melhoria:** partir em MiniLeitor e LeitorAberto (Cabecalho, Capa memo, Titulo, Transporte, Secundarios), cada um com a sua fatia da store por `useShallow`; os gestos passam para hooks.
 
@@ -226,7 +231,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 6.1 Avisos por Alert
 
-**Estado:** ✅ Feito (3/10). O aviso com "Undo" para o que se **tira ou apaga**, e os erros e sucessos que eram um `Alert` (40 de 42) passaram ao mesmo aviso, com o tipo (feito, erro, info) no ícone e na vibração. A frase de um erro vem do `mensagemDeErro(e, recurso)`: nunca o texto técnico do Supabase. Ficam dois `Alert`: a confirmação do "Remove all" e o "conta apagada". *Fica por fazer* juntar as outras superfícies flutuantes (os dois toasts do leitor, o HandoffBanner, o AvisoDaReproducao).
+**Estado:** ◐ O trabalho de maior impacto está feito (3/10): "Undo" para o que se **tira ou apaga**, erros legíveis e sucessos no aviso comum. Ficam dois `Alert`: a confirmação do "Remove all" e o "conta apagada". "Title copied" já usa o aviso comum; continua o aviso de erro do leitor com ações para repetir/saltar, além de `HandoffBanner`, `AvisoDaReproducao` e notificações. Unificar estas superfícies é opcional: têm funções diferentes. Só vale mexer se se sobrepuserem ou taparem controlos no iPhone, preservando as ações e avisos persistentes.
 
 **Prioridade:** P1 · Impacto: Alto
 
@@ -258,9 +263,9 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 - ✅ Tirar o processamento do áudio do JS — 4.1 (módulo Swift, por ver no iPhone)
 - ✅ Cabeçalho que encolhe ao rolar — 1.1
 - ◐ Escala tipográfica a sério — 1.2 (mínimo de 11 pt feito)
-- ✅ Avisos com "Undo" em vez de alertas — 6.1
+- ◐ Avisos com "Undo" e erros legíveis feitos; restantes superfícies separadas — 6.1
 - ✅ Mini-player e barra como uma base única — 2.1
-- ✅ Folhas nativas — 3.2
+- ◐ Folhas nativas — 3.2 (apresentação comum revertida devido ao corte dos menus)
 - ✅ Corrigir anterior/seguinte — 5.1
 - ✅ Página principal com "Jump back in" — 5.4 e REDESIGN
 - ⬜ Partir o PlayerRoot — 4.3
@@ -307,12 +312,11 @@ Pela ordem de ataque:
 
 ## PRÓXIMOS PASSOS QUE VALEM A PENA
 
-Por ordem (atualizado a 4/10):
+Por ordem, depois de conferir o código atual (4/10):
 
-1. **Build e uma volta no iPhone.** Quase tudo o que está ✅ desde 3/10 só foi visto em testes: os gestos fora do JS, a base de vidro, o título que encolhe, as folhas nativas, as Definições novas e o perfil novo. É onde está o maior risco.
-2. **Ver o download nativo no relatório** (4.1): cada download deve dizer `native`, e o "blocked" no fim de um download deve ficar nas dezenas de ms. Se aparecer um `HTTP` ou um erro de rede fora do costume, é o transporte novo (o caminho antigo volta tirando o `definirDescarregadorNativo` do `App.tsx`).
-3. **Comparar a paragem do arranque** (4.2) com os 943 ms do relatório da 4.4.1, agora que só montam a Home e a vizinha.
-4. **Partir o PlayerRoot** (4.3): é o ficheiro onde os bugs do leitor nascem, e cada skip ainda redesenha mais do que devia.
-5. **O cubo das letras no Gesture Handler** (o que falta do 3.1).
-6. **A escala tipográfica** (1.2) e **Toque em vez de Pressable** (7.3), ecrã a ecrã.
-7. **Juntar as superfícies flutuantes que sobram** (6.1): os toasts do leitor, o HandoffBanner e o AvisoDaReproducao.
+1. **Validar as correções da 4.5.1 em uso real.** No iPhone, abrir opções de músicas e playlists, listas longas, "Add to playlist", partilha e equalizador; confirmar todas as linhas, rolamento, teclado e fecho. A fila tem uma apresentação independente e deve ser verificada à parte. Num Jam, escolher músicas de Isak Zigarro e deixar a fila quase acabar: as sugestões devem vir das músicas atuais/recentes da sessão, sem usar artistas do histórico geral como âncoras. Os testes reproduzem a regressão de Bruno Mars com respostas controladas do catálogo, não o caso real dos amigos. As duas correções do perfil também estão incluídas: a barra deixa a capa descoberta no topo e o seletor espera pelo fecho nativo do menu. Confirmar escolher/cancelar/voltar a escolher para foto e capa, guardar e reabrir o perfil. Testes de hooks e UI simulada não substituem esta validação.
+2. **Medir arranque, skip e processamento no iPhone** (4.1 e 4.2). O módulo nativo já está ligado no `App.tsx`, e o navegador já usa `lazy: true` e pré-carregamento de uma vizinha. Usar o relatório existente: separar a primeira música sem cache dos skips com cache, verificar `native` e `blocked` por download, e comparar a paragem do arranque com os 943 ms da 4.4.1. Sem os novos números, não reativar streaming nem alterar o motor. O `fallback` para JavaScript pode ser legítimo se o binário não contiver o módulo; um erro HTTP, por si só, não identifica a causa.
+3. **Converter o gesto do cubo das letras se ainda atrasar sob carga** (3.1). É uma lacuna concreta no código: o dedo ainda passa por `onPanResponderMove`. Fazer apenas essa migração, conservando a geometria, as molas e "Menos movimento", se a validação mostrar atraso. Não juntar uma mudança das folhas nativas a este trabalho.
+4. **Isolar apenas o bloco do leitor que os números apontarem** (4.3). A capa já tem `memo` e o relógio não é lido no topo. Uma grande refatoração do `PlayerRoot` para reduzir linhas tem risco e benefício incerto; começar pelo custo real de renders durante skip/abrir o leitor.
+
+**Sem prioridade agora:** aplicar a escala tipográfica a todos os ecrãs, trocar todos os `Pressable` por `Toque` só para cumprir uma contagem, e juntar todos os avisos numa superfície. Corrigir pontualmente texto que não se lê, botões sem resposta ou avisos sobrepostos quando houver um exemplo real. O mínimo de 11 pt já tem teste. Mantêm-se as decisões sobre a abertura, deslizar para fechar o mini-player e o tamanho dos cartões.

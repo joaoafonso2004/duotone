@@ -138,8 +138,7 @@ let aEncher = false;
  */
 const MINIMO_NA_FILA = 3;
 const POR_ENCHIMENTO = 12;
-/** De quantos artistas da sala se puxa. Mais do que os 4 do smart shuffle:
- * uma sala tem mais gostos do que uma pessoa. */
+/** Até seis artistas das músicas que se ouviram realmente nesta sessão. */
 const ALVOS_DA_SALA = 6;
 let fecho: Promise<boolean> | null = null;
 
@@ -505,8 +504,10 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
    * fila ao mesmo tempo davam quatro vezes as mesmas musicas. E enche-se ANTES
    * de acabar (ver o `MINIMO_NA_FILA`), porque encher no silencio ja e tarde.
    *
-   * O que entra sai do RETRATO DA SALA -- a media do gosto de quem esta la
-   * dentro, e nao a fila pessoal de ninguem. Ver `supabase/retrato-da-sessao.sql`.
+   * As âncoras são a música actual e as últimas cinco ouvidas no Jam. O
+   * retrato da sala só ordena os semelhantes: transformar o histórico de
+   * toda a gente em faixas fictícias fazia entrar artistas sem relação com
+   * o que estavam a ouvir. Sem sugestões confirmadas, não se inventa uma fila.
    */
   definirAutoFila: (v) => {
     set({ autoFila: v });
@@ -519,36 +520,40 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (!get().autoFila) return;
     if (!s || !get().souAnfitriao() || aEncher) return;
     if (get().fila.length >= MINIMO_NA_FILA) return;
+    const actual = s.track;
+    if (!actual) return;
+    const contexto: Track[] = [actual, ...percurso.slice(-5).reverse()];
+    const minha = geracao;
+    const vigente = () => {
+      const agora = get();
+      return geracao === minha && agora.autoFila && agora.souAnfitriao()
+        && agora.sessao?.id === s.id && !!agora.sessao.track
+        && trackKey(agora.sessao.track) === trackKey(actual)
+        && agora.fila.length < MINIMO_NA_FILA;
+    };
     aEncher = true;
     try {
       const retrato = await retratoDaSessao(s.id);
-      if (!retrato.size || get().sessao?.id !== s.id) return;
+      if (!vigente()) return;
       // As chaves canonicas, que e o que o `escolherAlvos` espera.
       const escutas = new Map<string, number>();
       for (const [nome, peso] of retrato) {
         const k = chaveDeArtista(nome);
         if (k) escutas.set(k, Math.max(escutas.get(k) ?? 0, peso));
       }
-      // O contexto sao os NOMES da sala, montados como faixas: e assim que o
-      // `escolherAlvos` os le. A faixa a tocar entra tambem, para o que vem a
-      // seguir nao ignorar o que esta a soar agora.
-      const contexto: Track[] = [...retrato.keys()].slice(0, 12).map((nome) => ({
-        source: 'youtube' as const, sourceId: `retrato:${nome}`, title: nome,
-        artist: nome, album: null, artworkUrl: null, durationSeconds: null,
-      }));
-      const actual = get().sessao?.track;
-      if (actual) contexto.unshift(actual);
       const jaLa = new Set(get().fila.map((i) => trackKey(i.track)));
-      if (actual) jaLa.add(trackKey(actual));
+      for (const t of contexto) jaLa.add(trackKey(t));
       const novas = await candidatasParaDescoberta(
         contexto, jaLa, new Set<string>(), POR_ENCHIMENTO, ALVOS_DA_SALA, escutas,
-        undefined, undefined, true,
+        undefined, undefined, 'estrito',
       );
-      if (!novas.length || get().sessao?.id !== s.id) return;
-      const entraram = await juntarMuitasAFila(s.id, novas);
+      if (!novas.length || !vigente()) return;
+      const porJuntar = porSemear(novas, { fila: get().fila, track: actual }, trackKey);
+      if (!porJuntar.length) return;
+      const entraram = await juntarMuitasAFila(s.id, porJuntar);
       if (entraram > 0 && get().sessao?.id === s.id) await get().actualizar();
     } catch {
-      // Sem rede, sem migracao, ou sem historico: a fila seca como secava.
+      // Sem sugestões confirmadas, fica apenas o que as pessoas escolheram.
     } finally {
       aEncher = false;
     }

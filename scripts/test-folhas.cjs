@@ -14,12 +14,16 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
 const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
+const dependencies = path.resolve(process.argv[2] || root);
 function load(file, mocks = {}) {
-  const code = ts.transpileModule(fs.readFileSync(path.join(root, file), 'utf8'), { compilerOptions: {
+  const candidate = path.join(root, file);
+  const code = ts.transpileModule(fs.readFileSync(fs.existsSync(candidate) ? candidate : path.join(dependencies, file), 'utf8'), { compilerOptions: {
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React, esModuleInterop: true,
   } }).outputText;
   const module = { exports: {} };
-  vm.runInThisContext(`(function(require,module,exports){${code}\n})`, { filename: file })(name => {
+  // A apresentação nativa fica coberta mesmo com o interruptor desligado.
+  const internal = file === 'src/components/BottomSheet.tsx' ? '\nexports.folhaNativaParaTeste = FolhaNativa;' : '';
+  vm.runInThisContext(`(function(require,module,exports){${code}${internal}\n})`, { filename: file })(name => {
     if (!(name in mocks)) throw Error('Missing mock: ' + name); return mocks[name];
   }, module, module.exports);
   return module.exports;
@@ -88,6 +92,14 @@ const render = () => {
   return nodes(tree).find(n => n.type === 'AnimatedView').props;
 };
 let handlers = render();
+{
+  const defaults = runtime.instance();
+  const before = despachadas.length;
+  const tree = defaults(() => desenhar(sheet.BottomSheet({ visible: true, onClose() {}, children: 'Menu completo' })));
+  assert.ok(nodes(tree).some(n => n.type === 'Modal'), 'os menus iOS usam a apresentação anterior por omissão');
+  assert.ok(nodes(tree).some(n => n.type === 'AnimatedView'), 'o conteúdo fica na própria folha, sem a rota cinzenta');
+  assert.equal(despachadas.length, before, 'abrir opções não empurra a formSheet que corta as linhas');
+}
 const canDrag = (dx,dy) => handlers.onMoveShouldSetPanResponderCapture({}, { dx,dy });
 handlers.onTouchStart();
 assert.equal(canDrag(0,50),true); assert.equal(canDrag(50,10),false); assert.equal(canDrag(0,-50),false);
@@ -113,7 +125,7 @@ assert.equal(canDrag(0,80),false,'queue reorder is protected after a re-render')
   let fechou = 0;
   const nativa = runtime.instance();
   let p = { visible: true, onClose: () => fechou++, children: 'A' };
-  const desenha = () => nativa(() => desenhar(sheet.BottomSheet(p)));
+  const desenha = () => nativa(() => desenhar(sheet.folhaNativaParaTeste(p)));
   assert.equal(desenha(), null, 'no iPhone a folha nativa não desenha nada no sítio de quem a abre');
   assert.equal(despachadas.length, 1);
   assert.equal(despachadas[0].type, 'PUSH');
@@ -156,16 +168,17 @@ assert.equal(canDrag(0,80),false,'queue reorder is protected after a re-render')
   const semSessao = runtime.instance();
   raiz = { ...raiz, routeNames: ['Auth'] };
   const n = despachadas.length;
-  const t = semSessao(() => desenhar(sheet.BottomSheet({ visible: true, onClose() {}, children: null })));
+  const t = semSessao(() => desenhar(sheet.folhaNativaParaTeste({ visible: true, onClose() {}, children: null })));
   assert.equal(despachadas.length, n);
   assert.ok(nodes(t).some((x) => x.type === 'Modal'));
 }
 
 // Todo o `Modal` do iPhone diz que é um Modal: uma folha nativa aberta lá
 // dentro pedia ao react-native-screens que o fechasse (dentroDeUmModal.ts).
-for (const f of ['src/components', 'src/screens'].flatMap((d) => fs.readdirSync(path.join(root, d)).map((n) => `${d}/${n}`))) {
+for (const f of ['src/components', 'src/screens'].flatMap((d) => fs.readdirSync(path.join(dependencies, d)).map((n) => `${d}/${n}`))) {
   if (!/\.tsx$/.test(f) || /\.web\.tsx$/.test(f)) continue;
-  const texto = fs.readFileSync(path.join(root, f), 'utf8');
+  const candidate = path.join(root, f);
+  const texto = fs.readFileSync(fs.existsSync(candidate) ? candidate : path.join(dependencies, f), 'utf8');
   const modais = (texto.match(/<Modal\b[^/]*?>/g) ?? []).length;
   if (!modais) continue;
   const marcados = (texto.match(/<DentroDeUmModal\.Provider value>/g) ?? []).length;

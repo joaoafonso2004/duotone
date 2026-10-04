@@ -67,3 +67,15 @@ export function geometriaDoTitulo(m: MedidasDoCabecalho): GeometriaDoTitulo {
  * nos primeiros pontos de scroll. Parado no topo fica transparente, como hoje.
  */
 export const FUNDO_APARECE_EM = 10;
+
+/**
+ * Onde a barra com o nome aparece por cima de uma página com capa (o perfil do
+ * iPhone, 4/10): começa a acender quando o nome grande chega à borda de baixo
+ * dela e fica opaca quando ele passou por baixo. Devolve um intervalo de
+ * rolagem SEMPRE crescente -- o perfil tinha-o ao contrário, e o motor nativo
+ * não o recusa: a barra ficava opaca no topo, por cima de metade da capa.
+ */
+export function faixaDaBarraDoNome(fimDoNome: number, alturaDaBarra: number, transicao = 30): [number, number] {
+  const fim = Math.max(transicao, fimDoNome - alturaDaBarra);
+  return [fim - transicao, fim];
+}

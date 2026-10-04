@@ -166,10 +166,9 @@ export async function candidatasParaDescoberta(
   /**
    * Numa sessao de reproducao, so o contexto actual fornece ancoras. O perfil
    * global e as playlists continuam a ordenar os semelhantes do catalogo.
-   * `'estrito'` (o Smart Shuffle): se nenhum artista do que está a tocar servir
+   * `'estrito'` (Smart Shuffle, rádio e Jam): se nenhum artista do que está a tocar servir
    * de âncora, não há candidatas -- em vez de partir do perfil geral, que era
-   * de onde vinham as sugestões sem nada a ver com a música (25/9). O Jam
-   * continua com `true`: aí uma fila que seca é pior.
+   * de onde vinham as sugestões sem nada a ver com a música.
    */
   contextoDaSessao: boolean | 'estrito' = false,
   /**
