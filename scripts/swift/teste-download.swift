@@ -8,7 +8,7 @@ import Foundation
  * um crash da app: os casos ao acaso existem para o apanhar aqui.
  *
  * O Windows não compila Swift; corre no CI (`.github/workflows/swift-puro.yml`):
- *   swiftc -O -parse-as-library modules/duotone-download/ios/Puro/*.swift scripts/swift/teste-download.swift -o teste
+ *   swiftc -O -parse-as-library <os .swift de modules/duotone-download/ios/Puro> scripts/swift/teste-download.swift -o teste
  *   ./teste <pasta dos casos>
  */
 
