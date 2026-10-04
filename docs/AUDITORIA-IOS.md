@@ -1,6 +1,6 @@
 # Auditoria iOS do Duotone
 
-> **Estado a 3/10/2026.** Cópia anotada da auditoria (o original está em
+> **Estado a 4/10/2026.** Cópia anotada da auditoria (o original está em
 > `Desktop\App IOS Musica\AUDITORIA-IOS.md`). Cada ponto tem uma linha **Estado**:
 > ✅ feito · ◐ em parte · ⬜ por fazer · ⏸ decidido não fazer. Tudo o que está
 > feito está no main mas **ainda não foi visto no iPhone** (só testes e ensaios no
@@ -126,7 +126,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 3.1 Todos os gestos correm na thread de JavaScript
 
-**Estado:** ◐ Em parte (3/10). Entrou o `react-native-gesture-handler` (sem Reanimated: o `PanGestureHandler` entrega um `Animated.event` nativo). **Já são do Gesture Handler:** fechar o leitor a arrastar, deslizar o mini-player, a barra de progresso (o dedo no motor nativo) e arrastar uma música na fila e na edição de playlists. **Faltam:** o cubo das letras, deslizar para a fila e as folhas feitas à mão.
+**Estado:** ◐ Em parte (3/10). Entrou o `react-native-gesture-handler` (sem Reanimated: o `PanGestureHandler` entrega um `Animated.event` nativo). **Já são do Gesture Handler:** fechar o leitor a arrastar, deslizar o mini-player, a barra de progresso (o dedo no motor nativo), arrastar uma música na fila e na edição de playlists, e as barras do equalizador (já não arrastam a página das Definições). **E as animações passaram a 120 Hz** durante as transições e os gestos (o relógio das animações do React Native ficava nos 60; `DuotoneFluidez.swift`). **Faltam:** o cubo das letras, deslizar para a fila e as folhas feitas à mão.
 
 **Porque importa:** quando o JS está ocupado (troca de faixa, montagem do download, JSON), o dedo deixa de ser seguido. É a explicação mais provável do "trava a meio e dá snap".
 
@@ -174,7 +174,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 4.1 O áudio inteiro passa pela thread de JavaScript
 
-**Estado:** ◐ Em parte (3/10): **a medição está feita.** Cada fase síncrona (juntar, converter, corrigir, escrever) é medida em `descarregarAgora`, aparece no relatório do iPhone ("audio processing on the JavaScript thread") e vai para a analítica (`download_terminado` com `ms_js`). **Falta:** ler os números depois de uns dias de uso e, se o pior caso passar de umas centenas de ms, passar o processamento para um módulo Swift.
+**Estado:** ◐ Em parte (3/10): **a medição está feita.** Cada fase síncrona (juntar, converter, corrigir, escrever) é medida em `descarregarAgora`, aparece no relatório do iPhone ("audio processing on the JavaScript thread") e vai para a analítica (`download_terminado` com `ms_js`). **Também (3/10):** com a app escondida, o Smart Cache adianta só a seguinte e a Daily mix espera -- o relatório da 4.4.0 mostrou 19% de um núcleo a tocar com o ecrã desligado, metade no JavaScript, com três downloads nesse tempo. **Falta:** passar o download e o processamento para um módulo Swift (é o que tira o resto desse trabalho do JavaScript).
 
 **Prioridade:** P1 · Impacto: Alto
 
