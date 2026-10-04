@@ -1,4 +1,4 @@
-import React,{useEffect,useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import {Image,Platform,Pressable,StyleSheet,Text,useWindowDimensions,View} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {LinearGradient} from 'expo-linear-gradient';
@@ -11,15 +11,13 @@ import {lerCelulasDaCapa} from '../lib/celulasDaCapa';
 import {semOpacidade,veuDaCapa} from '../lib/corDaCapa';
 import {colors,SOCIAL_GUTTER} from './socialTokens';
 import {useTheme} from '../state/theme';
-
-/** Quem fez a app. O perfil dele leva uma marca que não se pode tirar. */
-const CRIADOR='joao';
+import type {Ancora} from './MenuFlutuante';
 
 /** A altura da capa no iPhone (4/10): a identidade começa por baixo dela. */
-export const ALTURA_DA_CAPA_NO_IPHONE=260;
+export const ALTURA_DA_CAPA_NO_IPHONE=220;
 /** O avatar sobe esta parte por cima da capa. */
-const SOBREPOSICAO=62;
-const AVATAR=112;
+const SOBREPOSICAO=44;
+const AVATAR=80;
 
 /** Uma imagem ainda por recortar, para o editor ver o cabeçalho a sério. */
 export type RecorteDaCapa={largura:number;altura:number;x:number;y:number;zoom?:number};
@@ -73,7 +71,7 @@ export function CapaDoPerfil({cover,recorte}:{cover:string|null;recorte?:Recorte
 /** Um botão redondo de vidro (as conversas, as definições, voltar). */
 export function BotaoDeVidro({label,icon,onPress,badge=0}:{label:string;icon:keyof typeof Ionicons.glyphMap;onPress:()=>void;badge?:number}) {
   return <Pressable accessibilityRole="button" accessibilityLabel={badge?`${label}, ${badge} unread`:label} onPress={onPress} hitSlop={6}
-    style={({pressed,hovered,focused}:any)=>({width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',
+    style={({pressed,hovered,focused}:any)=>({width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',
       backgroundColor:pressed||hovered||focused?colors.surfacePressed:'rgba(10,10,15,0.5)',borderWidth:StyleSheet.hairlineWidth,borderColor:'rgba(255,255,255,0.16)'})}>
     <Ionicons name={icon} size={19} color={colors.text}/>
     {badge>0&&<View style={{position:'absolute',right:-3,top:-3,minWidth:18,height:18,borderRadius:9,paddingHorizontal:4,backgroundColor:colors.danger,justifyContent:'center',borderWidth:2,borderColor:colors.bg}}>
@@ -82,21 +80,26 @@ export function BotaoDeVidro({label,icon,onPress,badge=0}:{label:string;icon:key
   </Pressable>;
 }
 
-type Contagens={plays:number;tracks:number;friends:number};
+/** O menu de ações nasce junto ao botão que o abriu. */
+function BotaoDeOpcoes({onPress}:{onPress:(ancora:Ancora)=>void}) {
+  const caixa=useRef<View>(null);
+  return <View ref={caixa} collapsable={false}>
+    <BotaoDeVidro label="Profile options" icon="ellipsis-horizontal" onPress={()=>{
+      caixa.current?.measureInWindow((x,y,width,height)=>onPress({x,y,width,height}));
+    }}/>
+  </View>;
+}
 
 type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:number;status?:string;
   /** Uma imagem por recortar (o editor do PC mostra o cabeçalho a sério). */
   recorte?:RecorteDaCapa;
-  /** As contagens debaixo do nome; sem elas (perfil fechado) não aparecem. */
-  contagens?:Contagens|null;
   /**
    * No iPhone os botões de cima vivem FORA do scroll (`SocialProfileView`):
    * ficam no sítio enquanto a página rola, por cima da barra com o nome.
    */
   botoesFora?:boolean;
   onEdit:()=>void;onMessage:()=>void;onBack?:()=>void;
-  onSocial?:()=>void;onSettings?:()=>void;onRefresh:()=>void;onAddFriend:()=>void;pending:boolean;
-  onStats?:()=>void;
+  onSocial?:()=>void;onOptions?:(ancora:Ancora)=>void;onRefresh:()=>void;onAddFriend:()=>void;pending:boolean;
   /** "You two", ao lado do Message, só com amizade aceite. */
   onVocesOsDois?:()=>void;
   /** Onde acaba o nome, para a barra de cima aparecer quando ele passa por baixo dela. */
@@ -104,36 +107,28 @@ type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:numb
 };
 
 /**
- * O cabeçalho do perfil (4/10, variante B de `docs/perfil-e-editar.html`): a
- * capa em cima, a pessoa ao centro por baixo dela -- o avatar sobreposto, o
- * nome com a marca de criador, @username, a bio, as contagens e os botões.
- * Saíram o título "Your profile" (o nome é o título) e o lápis no topo (é o
- * "Edit profile" por baixo do nome, onde se procura).
+ * Perfil Editorial (4/10): identidade centrada e compacta, com biografia
+ * opcional. As estatísticas abrem pelo menu do perfil, fora do cabeçalho.
  */
-export function ProfileHero({profile,own,cover,unread,status,recorte,contagens,botoesFora,onEdit,onMessage,onBack,onSocial,onSettings,onRefresh,onAddFriend,pending,onStats,onVocesOsDois,aoMedirNome}:Props) {
+export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,onEdit,onMessage,onBack,onSocial,onOptions,onRefresh,onAddFriend,pending,onVocesOsDois,aoMedirNome}:Props) {
   const web=Platform.OS==='web',safe=useSafeAreaInsets();
   const acento=useTheme(t=>t.theme.color);
   const {height:alturaDaJanela}=useWindowDimensions();
   const [largura,setLargura]=useState(0);
   // No PC a altura acompanha a largura, para a fração da fotografia que se vê
   // não depender do tamanho da janela (`alturaDoCabecalhoNoPc`).
-  const alturaDaCapa=web?Math.max(220,alturaDoCabecalhoNoPc(largura,alturaDaJanela)*0.62):ALTURA_DA_CAPA_NO_IPHONE+safe.top*0.4;
+  const alturaDaCapa=web?Math.max(220,alturaDoCabecalhoNoPc(largura,alturaDaJanela)*0.62):ALTURA_DA_CAPA_NO_IPHONE+safe.top*0.15;
+  const bio=profile?.appearance?.bio?.trim();
   const botoes=<View style={[s.row,{gap:10,position:'absolute',top:web?16:safe.top+8,left:SOCIAL_GUTTER,right:SOCIAL_GUTTER}]}>
     {onBack&&<BotaoDeVidro label="Back" icon="chevron-back" onPress={onBack}/>}
     <View style={{flex:1}}/>
     {own&&onSocial&&<BotaoDeVidro label="Friends and chats" icon="chatbubbles-outline" onPress={onSocial} badge={unread}/>}
-    {own&&onSettings&&<BotaoDeVidro label="Settings" icon="settings-outline" onPress={onSettings}/>}
+    {onOptions&&<BotaoDeOpcoes onPress={onOptions}/>}
     {web&&<BotaoDeVidro label="Refresh profile" icon="refresh-outline" onPress={onRefresh}/>}
   </View>;
-  const contagem=(valor:number,rotulo:string,onPress?:()=>void)=><Pressable key={rotulo} accessibilityRole={onPress?'button':'text'}
-    accessibilityLabel={`${valor} ${rotulo}`} disabled={!onPress} onPress={onPress}
-    style={({pressed}:any)=>({alignItems:'center',minWidth:64,opacity:pressed?0.6:1})}>
-    <Text style={{fontSize:18,fontWeight:'700',color:colors.text,fontVariant:['tabular-nums']}}>{valor.toLocaleString()}</Text>
-    <Text style={[s.muted,{fontSize:13,lineHeight:17}]}>{rotulo}</Text>
-  </Pressable>;
   const pilula=(rotulo:string,onPress:()=>void,{icone,branca=false,cor}:{icone?:keyof typeof Ionicons.glyphMap;branca?:boolean;cor?:string}={})=>
     <Pressable key={rotulo} accessibilityRole="button" accessibilityLabel={rotulo} onPress={onPress}
-      style={({pressed,hovered}:any)=>[estilos.pilula,{backgroundColor:branca?'#fff':pressed||hovered?colors.surfacePressed:'rgba(255,255,255,0.1)',opacity:pressed&&branca?0.85:1}]}>
+      style={({pressed,hovered}:any)=>[estilos.pilula,{backgroundColor:branca?'#fff':pressed||hovered?colors.surfacePressed:'transparent',borderColor:branca?'transparent':colors.borderStrong,opacity:pressed&&branca?0.85:1}]}>
       {icone&&<Ionicons name={icone} size={17} color={cor??(branca?colors.bg:colors.text)}/>}
       <Text numberOfLines={1} style={[estilos.pilulaTexto,{color:branca?colors.bg:colors.text}]}>{rotulo}</Text>
     </Pressable>;
@@ -149,30 +144,14 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,contagens,b
       </View>
       <View style={[s.row,{gap:8,marginTop:10,justifyContent:'center',maxWidth:'100%'}]}
         onLayout={aoMedirNome?(e=>aoMedirNome(alturaDaCapa-SOBREPOSICAO+AVATAR+8+10+e.nativeEvent.layout.height)):undefined}>
-        <Text numberOfLines={1} accessibilityRole="header" style={{fontSize:web?32:28,fontWeight:'800',letterSpacing:-0.3,color:colors.text,flexShrink:1}}>{profile.profile.name}</Text>
-        {/* A fita marca quem fez a app. Ao lado do nome, onde se percebe o que é
-            (estava sozinha num canto da capa). Era uma coroa dos
-            MaterialCommunityIcons: 1,3 MB em todas as builds por um emblema --
-            a troca foi decidida, não reverter. */}
-        {profile.profile.username===CRIADOR&&<View accessibilityLabel="Made Duotone" style={estilos.fita}>
-          <Ionicons name="ribbon" size={13} color="#F0C85A"/>
-        </View>}
+        <Text numberOfLines={1} accessibilityRole="header" style={{fontSize:32,lineHeight:38,fontWeight:'700',letterSpacing:-0.8,color:colors.text,flexShrink:1}}>{profile.profile.name}</Text>
       </View>
-      <Text style={[s.muted,{fontSize:15,marginTop:2}]}>@{profile.profile.username}</Text>
+      <Text style={[s.muted,{fontSize:13,lineHeight:18,marginTop:1}]}>@{profile.profile.username}</Text>
       {!!status&&<Text style={[s.muted,{color:status.startsWith('●')?colors.online:colors.textSecondary,fontWeight:'600',marginTop:4}]}>{status}</Text>}
-      {!!profile.appearance?.bio&&<Text style={[s.text,{textAlign:'center',marginTop:10,maxWidth:520}]}>{profile.appearance.bio}</Text>}
-      {contagens&&<View style={[s.row,{gap:22,marginTop:16,justifyContent:'center'}]}>
-        {contagem(contagens.plays,'plays',onStats)}
-        {contagem(contagens.tracks,'tracks',onStats)}
-        {contagem(contagens.friends,'friends',own?onSocial:undefined)}
-      </View>}
-      <View style={[s.row,{gap:10,marginTop:18,alignSelf:'stretch',maxWidth:web?420:undefined,width:web?'100%':undefined,marginHorizontal:'auto' as any}]}>
+      {!!bio&&<Text style={{textAlign:'center',fontSize:14,lineHeight:21,color:colors.text,marginTop:10,maxWidth:web?520:290,alignSelf:'center'}}>{bio}</Text>}
+      <View style={[s.row,{gap:10,marginTop:17,justifyContent:'center',flexWrap:'wrap',maxWidth:'100%'}]}>
         {own
-          ? <>{pilula('Edit profile',onEdit)}
-              {onStats&&<Pressable accessibilityRole="button" accessibilityLabel="Listening stats" onPress={onStats}
-                style={({pressed,hovered}:any)=>[estilos.pilula,{flex:0,width:42,paddingHorizontal:0,backgroundColor:pressed||hovered?colors.surfacePressed:'rgba(255,255,255,0.1)'}]}>
-                <Ionicons name="stats-chart" size={17} color={colors.text}/>
-              </Pressable>}</>
+          ? pilula('Edit profile',onEdit)
           : profile.canView
             ? <>{pilula('Message',onMessage,{icone:'chatbubble-outline',branca:true})}
                 {onVocesOsDois&&pilula('You two',onVocesOsDois,{icone:'sparkles-outline',cor:acento})}</>
@@ -183,18 +162,17 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,contagens,b
 }
 
 /** Os botões de cima, para quem os põe fora do scroll (o iPhone). */
-export function BotoesDoPerfil({own,unread,onBack,onSocial,onSettings}:{own:boolean;unread:number;onBack?:()=>void;onSocial?:()=>void;onSettings?:()=>void}) {
+export function BotoesDoPerfil({own,unread,onBack,onSocial,onOptions}:{own:boolean;unread:number;onBack?:()=>void;onSocial?:()=>void;onOptions?:(ancora:Ancora)=>void}) {
   const safe=useSafeAreaInsets();
   return <View pointerEvents="box-none" style={[s.row,{gap:10,position:'absolute',top:safe.top+8,left:SOCIAL_GUTTER,right:SOCIAL_GUTTER,zIndex:5}]}>
     {onBack&&<BotaoDeVidro label="Back" icon="chevron-back" onPress={onBack}/>}
     <View style={{flex:1}} pointerEvents="none"/>
     {own&&onSocial&&<BotaoDeVidro label="Friends and chats" icon="chatbubbles-outline" onPress={onSocial} badge={unread}/>}
-    {own&&onSettings&&<BotaoDeVidro label="Settings" icon="settings-outline" onPress={onSettings}/>}
+    {onOptions&&<BotaoDeOpcoes onPress={onOptions}/>}
   </View>;
 }
 
 const estilos=StyleSheet.create({
-  fita:{width:24,height:24,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(240,200,90,0.14)',borderWidth:1,borderColor:'rgba(240,200,90,0.45)'},
-  pilula:{flex:1,height:42,borderRadius:21,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:16},
-  pilulaTexto:{fontSize:15,fontWeight:'600'},
+  pilula:{minHeight:44,borderRadius:22,borderWidth:1,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:18,maxWidth:'100%'},
+  pilulaTexto:{fontSize:13,fontWeight:'600',flexShrink:1},
 });

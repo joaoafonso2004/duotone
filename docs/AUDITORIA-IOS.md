@@ -5,8 +5,10 @@
 > ✅ feito · ◐ em parte · ⬜ por fazer · ⏸ decidido não fazer. Tudo o que está
 > feito existe no código; isso **não garante validação no iPhone**. As capturas
 > recebidas entretanto mostram uma regressão das folhas nativas. A correção dos
-> menus, a do Jam e as da capa/seletor de fotos do perfil estão preparadas para a
-> versão 4.5.1, ainda por validar no aparelho.
+> menus, a do Jam e as da capa/seletor de fotos do perfil foram publicadas na
+> versão 4.5.1, ainda por validar no aparelho. A 4.5.2 acrescenta o perfil
+> Editorial escolhido: identidade centrada, biografia opcional, playlists em
+> lista e estatísticas fora do cabeçalho.
 > Os próximos passos no fim foram filtrados pelo benefício real.
 
 | | Feito | Em parte | Por fazer | Decidido |
@@ -14,6 +16,8 @@
 | Pontos (1.1 a 7.3) | 21 | 4 | 2 | 2 |
 
 Validação da 4.5.1: `npm run typecheck` e `npm test` passaram (204 scripts na suite, incluindo o Jam, a apresentação dos menus e o seletor de imagens do perfil). A confirmação no iPhone continua pendente.
+
+Validação local da 4.5.2: TypeScript e os mesmos 204 scripts passaram. Confirmar no iPhone a biografia vazia e preenchida, See all nas playlists e os acessos do menu do perfil.
 
 A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swift nativo. Por isso a "Implementação" de cada ponto está em RN/Expo, e em Swift onde o trabalho é nativo.
 
