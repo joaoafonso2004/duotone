@@ -69,8 +69,13 @@ function Linha({ icone, cor, children, onPress, disabled, motivo }: {
   );
 }
 
-export function SocialTrackActions({ track, onClose, onArtist }: {
+/** Uma ação só de quem abre o menu (o "Remove from profile" da música do momento). */
+export type AcaoExtra = { rotulo: string; icone: keyof typeof Ionicons.glyphMap; destrutiva?: boolean; aoCarregar: () => void };
+
+export function SocialTrackActions({ track, onClose, onArtist, extra }: {
   track: Track | null; onClose: () => void; onArtist: (name: string) => void;
+  /** No fim do menu, depois das ações de todos os menus de uma faixa. */
+  extra?: AcaoExtra[];
 }) {
   // O `useOfflineMode` só responde no iPhone (é o modo sem rede de lá); no PC,
   // onde este menu também corre, quem sabe é a ligação -- como no menu do PC.
@@ -172,6 +177,13 @@ export function SocialTrackActions({ track, onClose, onArtist }: {
             motivo={a.indisponivel}
             onPress={() => fazer(a.id)}
           >
+            {a.rotulo}
+          </Linha>
+        ))}
+
+        {extra?.map((a) => (
+          <Linha key={a.rotulo} icone={a.icone} cor={a.destrutiva ? colors.danger : undefined}
+            onPress={() => { onClose(); a.aoCarregar(); }}>
             {a.rotulo}
           </Linha>
         ))}

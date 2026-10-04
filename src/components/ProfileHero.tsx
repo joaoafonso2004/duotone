@@ -5,54 +5,37 @@ import {LinearGradient} from 'expo-linear-gradient';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
 import {FriendAvatar} from './FriendAvatar';
-import {SocialButton,socialStyles as s} from './socialUI';
+import {socialStyles as s} from './socialUI';
 import {alturaDoCabecalhoNoPc,degradeDaCapa,enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {lerCelulasDaCapa} from '../lib/celulasDaCapa';
 import {semOpacidade,veuDaCapa} from '../lib/corDaCapa';
-import {colors,SOCIAL_GUTTER,type} from './socialTokens';
-
-type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:number;status?:string;
-  /**
-   * Uma imagem escolhida mas ainda por recortar, para o editor mostrar o
-   * cabeçalho a sério em vez de uma moldura à parte. Sem isto o preview era
-   * outro componente, com outro enquadramento e sem vinheta -- e por isso
-   * nunca podia corresponder ao que ficava.
-   */
-  recorte?:{largura:number;altura:number;x:number;y:number;zoom?:number};
-  onEdit:()=>void;onMessage:()=>void;onBack?:()=>void;
-  onSocial?:()=>void;onSettings?:()=>void;onRefresh:()=>void;onAddFriend:()=>void;pending:boolean};
+import {colors,SOCIAL_GUTTER} from './socialTokens';
+import {useTheme} from '../state/theme';
 
 /** Quem fez a app. O perfil dele leva uma marca que não se pode tirar. */
 const CRIADOR='joao';
 
-/** Uma só zona de identidade, com ações utilitárias alinhadas no topo. */
-export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMessage,onBack,onSocial,onSettings,onRefresh,onAddFriend,pending}:Props) {
-  const web=Platform.OS==='web',safe=useSafeAreaInsets();
-  // A caixa da capa medida, para posicionar uma imagem por recortar. Só o
-  // editor precisa disto; com a capa já gravada o `cover` normal chega.
-  const [caixa,setCaixa]=useState({largura:0,altura:0});
-  /**
-   * Só no PC. Lá a altura era fixa e a largura crescia com a janela, e com o
-   * recorte a 3:2 isso significava ver cada vez MENOS fotografia: metade numa
-   * janela normal, um terço num ecrã largo, e uma faixa de 23% em ecrã grande.
-   * Com a altura a acompanhar a largura, a fração que se vê deixa de depender
-   * do tamanho da janela. Ver `alturaDoCabecalhoNoPc`.
-   */
-  const {height:alturaDaJanela}=useWindowDimensions();
-  const [larguraDoCabecalho,setLarguraDoCabecalho]=useState(0);
-  const alturaNoPc=web?alturaDoCabecalhoNoPc(larguraDoCabecalho,alturaDaJanela):0;
+/** A altura da capa no iPhone (4/10): a identidade começa por baixo dela. */
+export const ALTURA_DA_CAPA_NO_IPHONE=260;
+/** O avatar sobe esta parte por cima da capa. */
+const SOBREPOSICAO=62;
+const AVATAR=112;
 
-  /**
-   * O perfil tinge-se pela SUA capa, e não pela música a tocar.
-   *
-   * São duas coisas separadas de propósito: o acento da app segue o que está a
-   * tocar, mas um perfil é de uma pessoa e tem de ter sempre o mesmo ar --
-   * mudar de cor conforme a música de quem o visita não dizia nada sobre
-   * ninguém.
-   *
-   * É um véu, não uma pintura: a opacidade é baixa e o cabeçalho continua
-   * escuro. Sem capa, ou com uma capa sem cor, fica simplesmente sem véu.
-   */
+/** Uma imagem ainda por recortar, para o editor ver o cabeçalho a sério. */
+export type RecorteDaCapa={largura:number;altura:number;x:number;y:number;zoom?:number};
+
+/**
+ * A capa de um perfil: a fotografia a cobrir a caixa, alinhada ao topo, com as
+ * vinhetas e o véu da cor dela por cima. Partilhada pelo cabeçalho e pelo
+ * editor, para o que se vê ao escolher ser o que fica.
+ *
+ * O perfil tinge-se pela SUA capa, e não pela música a tocar: um perfil é de
+ * uma pessoa e tem de ter sempre o mesmo ar. É um véu, não uma pintura, e
+ * acaba onde a fotografia acaba -- um `View` sólido deixava um degrau de cor
+ * na aresta, que nenhum degradê escondia.
+ */
+export function CapaDoPerfil({cover,recorte}:{cover:string|null;recorte?:RecorteDaCapa}) {
+  const [caixa,setCaixa]=useState({largura:0,altura:0});
   const [veu,setVeu]=useState<string|null>(null);
   useEffect(()=>{
     let vivo=true;
@@ -60,120 +43,158 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,onEdit,onMe
     void lerCelulasDaCapa(cover).then(celulas=>{if(vivo)setVeu(veuDaCapa(celulas));});
     return ()=>{vivo=false;};
   },[cover]);
+  if(!cover)return null;
   const degrade=degradeDaCapa(colors.bg);
-  /**
-   * A capa a preencher o cabeçalho todo, encostada ao topo.
-   *
-   * Estava aqui uma caixa com o rácio do recorte no telemóvel e um
-   * `absoluteFill` no PC, e as duas divergiam em tudo o que se vê: no telemóvel
-   * a caixa é mais baixa do que o cabeçalho, por isso a foto acabava antes da
-   * biografia e as vinhetas caíam sobre fundo liso em vez de sobre a imagem; no
-   * PC a mesma capa era cortada ao centro, e mostrava outra parte da fotografia.
-   *
-   * Agora é um caminho só: a imagem é escalada até cobrir a caixa medida, sem
-   * deformar, e alinhada ao TOPO -- que é onde está o que a pessoa enquadrou no
-   * editor, e o que o resto do cabeçalho cobre por baixo.
-   */
-  const capa=()=>{
+  const imagem=()=>{
     if(!caixa.largura||!caixa.altura)return null;
-    // No editor a imagem ainda é a original, por recortar: quem manda no
-    // enquadramento é o gesto em curso.
+    // No editor a imagem ainda é a original: quem manda é o gesto em curso.
     if(recorte){
       const p=enquadrarPreVisualizacao(recorte.largura,recorte.altura,RACIO_DA_CAPA,recorte.x,recorte.y,caixa.largura,caixa.altura,recorte.zoom??1);
-      return <Image source={{uri:cover!}} resizeMode="stretch"
-        style={{position:'absolute',width:p.width,height:p.height,left:p.left,top:p.top,opacity:0.78}}/>;
+      return <Image source={{uri:cover}} resizeMode="stretch"
+        style={{position:'absolute',width:p.width,height:p.height,left:p.left,top:p.top,opacity:0.85}}/>;
     }
-    // Capa já gravada: vem no rácio do recorte, e só falta cobrir a caixa.
     const e=enquadrarCapa(caixa.largura,caixa.altura);
-    return <Image source={{uri:cover!}} resizeMode="cover"
-      style={{position:'absolute',width:e.largura,height:e.altura,left:e.left,top:e.top,opacity:0.78}}/>;
+    return <Image source={{uri:cover}} resizeMode="cover"
+      style={{position:'absolute',width:e.largura,height:e.altura,left:e.left,top:e.top,opacity:0.85}}/>;
   };
-  const action=(label:string,icon:keyof typeof Ionicons.glyphMap,onPress:()=>void,badge=0)=><Pressable key={label}
-    accessibilityRole="button" accessibilityLabel={badge?`${label}, ${badge} unread`:label} onPress={onPress}
-    style={({pressed,hovered,focused}:any)=>({width:44,height:44,borderRadius:22,alignItems:'center',justifyContent:'center',backgroundColor:pressed||hovered||focused?colors.surfacePressed:'rgba(10,10,15,0.46)',borderWidth:1,borderColor:colors.border})}>
-    <Ionicons name={icon} size={20} color={colors.text}/>
-    {badge>0&&<View style={{position:'absolute',right:0,top:0,minWidth:16,height:16,borderRadius:8,paddingHorizontal:3,backgroundColor:colors.danger,justifyContent:'center'}}><Text style={{fontSize:10,fontWeight:'700',color:'#fff',textAlign:'center'}}>{badge>99?'99+':badge}</Text></View>}
-  </Pressable>;
-  return <View
-    onLayout={web?(e=>setLarguraDoCabecalho(e.nativeEvent.layout.width)):undefined}
-    style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:web?20:safe.top+8,paddingBottom:24,gap:16,minHeight:web?alturaNoPc:360,overflow:'hidden',backgroundColor:colors.bg}}>
-    {!!cover&&<View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {/* Um cabeçalho não tem margens. O desfoque por baixo preenche o que a
-          capa não chegue a tapar em proporções extremas. */}
-      <Image source={{uri:cover}} resizeMode="cover" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
-      {/* Uma caixa só, medida, igual nas duas plataformas. */}
-      <View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})}
-        style={[StyleSheet.absoluteFill,{overflow:'hidden'}]}>
-        {capa()}
-      </View>
-      {/* A vinheta. Dois eixos, porque não há gradiente radial nativo -- o
-          vertical acaba a capa no fundo do cabeçalho e escurece o topo para o
-          título se ler; o horizontal fecha os lados. Parecia ter desaparecido
-          porque no telemóvel caía quase toda fora da foto, sobre o fundo liso
-          que sobrava por baixo da caixa antiga.
-          A curva do vertical está em `degradeDaCapa`, com o porquê de cada
-          paragem: é ela que faz o fim da capa deixar de se ver. */}
-      <LinearGradient colors={degrade.cores} locations={degrade.paragens} style={StyleSheet.absoluteFill}/>
-      <LinearGradient colors={['rgba(10,10,15,0.55)','transparent','transparent','rgba(10,10,15,0.55)']} locations={[0,0.22,0.78,1]} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
-      {/* Por cima das vinhetas e não por baixo: elas escurecem para o texto se
-          ler, e o véu é o que devolve ao cabeçalho o tom da capa depois disso.
-          Ficando por baixo, o cinzento delas comia-o.
-
-          Mas TEM de acabar onde a capa acaba. Era um `View` sólido sobre o
-          cabeçalho inteiro, e isso deixava a última linha do cabeçalho a
-          `#0A0A0F` TINGIDO enquanto a página logo abaixo era `#0A0A0F` puro:
-          um degrau de cor exactamente na aresta, que nenhum degradê por baixo
-          conseguia esconder. Era esta a linha que se via. Agora some no mesmo
-          sítio em que a fotografia some, e acaba no PRÓPRIO tom sem opacidade
-          -- até `transparent` passaria pelo preto e deixaria uma sombra. */}
-      {!!veu&&<LinearGradient colors={[veu,veu,semOpacidade(veu)]} locations={[0,0.76,0.95]} style={StyleSheet.absoluteFill}/>}
-    </View>}
-    {/* A coroa marca quem fez a app. Fica fora do bloco da capa de propósito:
-        assim continua lá com capa nova, com capa apagada, ou sem capa nenhuma.
-        `pointerEvents none` para não roubar toques ao que está por baixo. */}
-    {profile?.profile.username===CRIADOR&&<View pointerEvents="none" style={{position:'absolute',right:SOCIAL_GUTTER,bottom:16,
-      width:26,height:26,borderRadius:13,alignItems:'center',justifyContent:'center',
-      backgroundColor:'rgba(10,10,15,0.55)',borderWidth:1,borderColor:'rgba(240,200,90,0.45)'}}>
-      {/* Era uma coroa, dos MaterialCommunityIcons. A fita reutiliza a fonte que
-          a app já carrega; a coroa obrigava a empacotar uma família inteira, que
-          são 1,3 MB em TODAS as builds só por causa deste emblema.
-          A troca foi decidida e mantida de propósito -- não é para reverter. */}
-      <Ionicons name="ribbon" size={15} color="#F0C85A"/>
-    </View>}
-    <View style={[s.row,{gap:8}]}>
-      {onBack&&action('Back','chevron-back',onBack)}
-      {/* A mesma regra do `Screen`: a raiz de um separador leva `largeTitle`, uma
-          sub-pagina com seta para tras leva `title`. Estava aqui um tamanho
-          escrito a mao, e o perfil era a unica raiz com o titulo menor que as
-          outras. Os tokens resolvem-se por plataforma, logo isto serve os dois. */}
-      <Text numberOfLines={1} style={[onBack?s.title:type.largeTitle,{flex:1}]}>{own?'Your profile':'Profile'}</Text>
-      <View style={{flexDirection:'row',gap:8}}>
-        {own&&profile&&action('Edit profile','pencil-outline',onEdit)}
-        {own&&onSocial&&action('Friends and chats','chatbubbles-outline',onSocial,unread)}
-        {own&&onSettings&&action('Settings','settings-outline',onSettings)}
-        {web&&action('Refresh profile','refresh-outline',onRefresh)}
-      </View>
+  return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    {/* O desfoque por baixo preenche o que a capa não tape em proporções extremas. */}
+    <Image source={{uri:cover}} resizeMode="cover" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
+    <View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})}
+      style={[StyleSheet.absoluteFill,{overflow:'hidden'}]}>
+      {imagem()}
     </View>
-    <View style={{height:web?28:32}}/>
-    {profile&&<>
-      <View style={[s.row,{alignItems:'center',gap:16}]}>
-        <View style={{padding:3,borderRadius:64,backgroundColor:'rgba(10,10,15,0.7)',borderWidth:1,borderColor:colors.borderStrong}}>
-          <FriendAvatar avatarUrl={profile.profile.avatar_url} name={profile.profile.name} size={web?96:80}/>
-        </View>
-        <View style={{flex:1,minWidth:0,gap:4}}>
-          <Text style={[s.title,{fontSize:web?36:30}]}>{profile.profile.name}</Text>
-          <Text style={[s.muted,{color:'rgba(245,245,247,0.8)'}]}>@{profile.profile.username}</Text>
-          {!!status&&<Text style={s.muted}>{status}</Text>}
-        </View>
-      </View>
-      {!!profile.appearance?.bio&&<Text style={[s.text,{maxWidth:640}]}>{profile.appearance.bio}</Text>}
-      {/* O "Listening stats" esteve aqui e ficava órfão: um link solto entre a
-          bio e as playlists, longe dos números que ele abre. Passou para o
-          título do "Listening overview", que é o resumo de que ele é o
-          detalhe. Ver SocialProfileView. */}
-      {!own&&<View style={[s.row,{flexWrap:'wrap',gap:8}]}>
-        {profile.canView?<SocialButton icon="chatbubble-outline" onPress={onMessage}>Message</SocialButton>:<SocialButton disabled={pending} onPress={onAddFriend}>{pending?'Request pending':'Add friend'}</SocialButton>}
-      </View>}
-    </>}
+    <LinearGradient colors={degrade.cores} locations={degrade.paragens} style={StyleSheet.absoluteFill}/>
+    <LinearGradient colors={['rgba(10,10,15,0.45)','transparent','transparent','rgba(10,10,15,0.45)']} locations={[0,0.22,0.78,1]} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
+    {!!veu&&<LinearGradient colors={[veu,veu,semOpacidade(veu)]} locations={[0,0.76,0.95]} style={StyleSheet.absoluteFill}/>}
   </View>;
 }
+
+/** Um botão redondo de vidro (as conversas, as definições, voltar). */
+export function BotaoDeVidro({label,icon,onPress,badge=0}:{label:string;icon:keyof typeof Ionicons.glyphMap;onPress:()=>void;badge?:number}) {
+  return <Pressable accessibilityRole="button" accessibilityLabel={badge?`${label}, ${badge} unread`:label} onPress={onPress} hitSlop={6}
+    style={({pressed,hovered,focused}:any)=>({width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',
+      backgroundColor:pressed||hovered||focused?colors.surfacePressed:'rgba(10,10,15,0.5)',borderWidth:StyleSheet.hairlineWidth,borderColor:'rgba(255,255,255,0.16)'})}>
+    <Ionicons name={icon} size={19} color={colors.text}/>
+    {badge>0&&<View style={{position:'absolute',right:-3,top:-3,minWidth:18,height:18,borderRadius:9,paddingHorizontal:4,backgroundColor:colors.danger,justifyContent:'center',borderWidth:2,borderColor:colors.bg}}>
+      <Text style={{fontSize:10,fontWeight:'800',color:'#fff',textAlign:'center'}}>{badge>99?'99+':badge}</Text>
+    </View>}
+  </Pressable>;
+}
+
+type Contagens={plays:number;tracks:number;friends:number};
+
+type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:number;status?:string;
+  /** Uma imagem por recortar (o editor do PC mostra o cabeçalho a sério). */
+  recorte?:RecorteDaCapa;
+  /** As contagens debaixo do nome; sem elas (perfil fechado) não aparecem. */
+  contagens?:Contagens|null;
+  /**
+   * No iPhone os botões de cima vivem FORA do scroll (`SocialProfileView`):
+   * ficam no sítio enquanto a página rola, por cima da barra com o nome.
+   */
+  botoesFora?:boolean;
+  onEdit:()=>void;onMessage:()=>void;onBack?:()=>void;
+  onSocial?:()=>void;onSettings?:()=>void;onRefresh:()=>void;onAddFriend:()=>void;pending:boolean;
+  onStats?:()=>void;
+  /** "You two", ao lado do Message, só com amizade aceite. */
+  onVocesOsDois?:()=>void;
+  /** Onde acaba o nome, para a barra de cima aparecer quando ele passa por baixo dela. */
+  aoMedirNome?:(fimY:number)=>void;
+};
+
+/**
+ * O cabeçalho do perfil (4/10, variante B de `docs/perfil-e-editar.html`): a
+ * capa em cima, a pessoa ao centro por baixo dela -- o avatar sobreposto, o
+ * nome com a marca de criador, @username, a bio, as contagens e os botões.
+ * Saíram o título "Your profile" (o nome é o título) e o lápis no topo (é o
+ * "Edit profile" por baixo do nome, onde se procura).
+ */
+export function ProfileHero({profile,own,cover,unread,status,recorte,contagens,botoesFora,onEdit,onMessage,onBack,onSocial,onSettings,onRefresh,onAddFriend,pending,onStats,onVocesOsDois,aoMedirNome}:Props) {
+  const web=Platform.OS==='web',safe=useSafeAreaInsets();
+  const acento=useTheme(t=>t.theme.color);
+  const {height:alturaDaJanela}=useWindowDimensions();
+  const [largura,setLargura]=useState(0);
+  // No PC a altura acompanha a largura, para a fração da fotografia que se vê
+  // não depender do tamanho da janela (`alturaDoCabecalhoNoPc`).
+  const alturaDaCapa=web?Math.max(220,alturaDoCabecalhoNoPc(largura,alturaDaJanela)*0.62):ALTURA_DA_CAPA_NO_IPHONE+safe.top*0.4;
+  const botoes=<View style={[s.row,{gap:10,position:'absolute',top:web?16:safe.top+8,left:SOCIAL_GUTTER,right:SOCIAL_GUTTER}]}>
+    {onBack&&<BotaoDeVidro label="Back" icon="chevron-back" onPress={onBack}/>}
+    <View style={{flex:1}}/>
+    {own&&onSocial&&<BotaoDeVidro label="Friends and chats" icon="chatbubbles-outline" onPress={onSocial} badge={unread}/>}
+    {own&&onSettings&&<BotaoDeVidro label="Settings" icon="settings-outline" onPress={onSettings}/>}
+    {web&&<BotaoDeVidro label="Refresh profile" icon="refresh-outline" onPress={onRefresh}/>}
+  </View>;
+  const contagem=(valor:number,rotulo:string,onPress?:()=>void)=><Pressable key={rotulo} accessibilityRole={onPress?'button':'text'}
+    accessibilityLabel={`${valor} ${rotulo}`} disabled={!onPress} onPress={onPress}
+    style={({pressed}:any)=>({alignItems:'center',minWidth:64,opacity:pressed?0.6:1})}>
+    <Text style={{fontSize:18,fontWeight:'700',color:colors.text,fontVariant:['tabular-nums']}}>{valor.toLocaleString()}</Text>
+    <Text style={[s.muted,{fontSize:13,lineHeight:17}]}>{rotulo}</Text>
+  </Pressable>;
+  const pilula=(rotulo:string,onPress:()=>void,{icone,branca=false,cor}:{icone?:keyof typeof Ionicons.glyphMap;branca?:boolean;cor?:string}={})=>
+    <Pressable key={rotulo} accessibilityRole="button" accessibilityLabel={rotulo} onPress={onPress}
+      style={({pressed,hovered}:any)=>[estilos.pilula,{backgroundColor:branca?'#fff':pressed||hovered?colors.surfacePressed:'rgba(255,255,255,0.1)',opacity:pressed&&branca?0.85:1}]}>
+      {icone&&<Ionicons name={icone} size={17} color={cor??(branca?colors.bg:colors.text)}/>}
+      <Text numberOfLines={1} style={[estilos.pilulaTexto,{color:branca?colors.bg:colors.text}]}>{rotulo}</Text>
+    </Pressable>;
+
+  return <View onLayout={web?(e=>setLargura(e.nativeEvent.layout.width)):undefined} style={{backgroundColor:colors.bg}}>
+    <View style={{height:alturaDaCapa,overflow:'hidden'}}>
+      <CapaDoPerfil cover={cover} recorte={recorte}/>
+      {!botoesFora&&botoes}
+    </View>
+    {profile&&<View style={{alignItems:'center',paddingHorizontal:SOCIAL_GUTTER,marginTop:-SOBREPOSICAO}}>
+      <View style={{padding:4,borderRadius:(AVATAR+8)/2,backgroundColor:colors.bg}}>
+        <FriendAvatar avatarUrl={profile.profile.avatar_url} name={profile.profile.name} size={AVATAR}/>
+      </View>
+      <View style={[s.row,{gap:8,marginTop:10,justifyContent:'center',maxWidth:'100%'}]}
+        onLayout={aoMedirNome?(e=>aoMedirNome(alturaDaCapa-SOBREPOSICAO+AVATAR+8+10+e.nativeEvent.layout.height)):undefined}>
+        <Text numberOfLines={1} accessibilityRole="header" style={{fontSize:web?32:28,fontWeight:'800',letterSpacing:-0.3,color:colors.text,flexShrink:1}}>{profile.profile.name}</Text>
+        {/* A fita marca quem fez a app. Ao lado do nome, onde se percebe o que é
+            (estava sozinha num canto da capa). Era uma coroa dos
+            MaterialCommunityIcons: 1,3 MB em todas as builds por um emblema --
+            a troca foi decidida, não reverter. */}
+        {profile.profile.username===CRIADOR&&<View accessibilityLabel="Made Duotone" style={estilos.fita}>
+          <Ionicons name="ribbon" size={13} color="#F0C85A"/>
+        </View>}
+      </View>
+      <Text style={[s.muted,{fontSize:15,marginTop:2}]}>@{profile.profile.username}</Text>
+      {!!status&&<Text style={[s.muted,{color:status.startsWith('●')?colors.online:colors.textSecondary,fontWeight:'600',marginTop:4}]}>{status}</Text>}
+      {!!profile.appearance?.bio&&<Text style={[s.text,{textAlign:'center',marginTop:10,maxWidth:520}]}>{profile.appearance.bio}</Text>}
+      {contagens&&<View style={[s.row,{gap:22,marginTop:16,justifyContent:'center'}]}>
+        {contagem(contagens.plays,'plays',onStats)}
+        {contagem(contagens.tracks,'tracks',onStats)}
+        {contagem(contagens.friends,'friends',own?onSocial:undefined)}
+      </View>}
+      <View style={[s.row,{gap:10,marginTop:18,alignSelf:'stretch',maxWidth:web?420:undefined,width:web?'100%':undefined,marginHorizontal:'auto' as any}]}>
+        {own
+          ? <>{pilula('Edit profile',onEdit)}
+              {onStats&&<Pressable accessibilityRole="button" accessibilityLabel="Listening stats" onPress={onStats}
+                style={({pressed,hovered}:any)=>[estilos.pilula,{flex:0,width:42,paddingHorizontal:0,backgroundColor:pressed||hovered?colors.surfacePressed:'rgba(255,255,255,0.1)'}]}>
+                <Ionicons name="stats-chart" size={17} color={colors.text}/>
+              </Pressable>}</>
+          : profile.canView
+            ? <>{pilula('Message',onMessage,{icone:'chatbubble-outline',branca:true})}
+                {onVocesOsDois&&pilula('You two',onVocesOsDois,{icone:'sparkles-outline',cor:acento})}</>
+            : pilula(pending?'Request pending':'Add friend',pending?()=>{}:onAddFriend,{icone:pending?'time-outline':'person-add-outline',branca:!pending})}
+      </View>
+    </View>}
+  </View>;
+}
+
+/** Os botões de cima, para quem os põe fora do scroll (o iPhone). */
+export function BotoesDoPerfil({own,unread,onBack,onSocial,onSettings}:{own:boolean;unread:number;onBack?:()=>void;onSocial?:()=>void;onSettings?:()=>void}) {
+  const safe=useSafeAreaInsets();
+  return <View pointerEvents="box-none" style={[s.row,{gap:10,position:'absolute',top:safe.top+8,left:SOCIAL_GUTTER,right:SOCIAL_GUTTER,zIndex:5}]}>
+    {onBack&&<BotaoDeVidro label="Back" icon="chevron-back" onPress={onBack}/>}
+    <View style={{flex:1}} pointerEvents="none"/>
+    {own&&onSocial&&<BotaoDeVidro label="Friends and chats" icon="chatbubbles-outline" onPress={onSocial} badge={unread}/>}
+    {own&&onSettings&&<BotaoDeVidro label="Settings" icon="settings-outline" onPress={onSettings}/>}
+  </View>;
+}
+
+const estilos=StyleSheet.create({
+  fita:{width:24,height:24,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(240,200,90,0.14)',borderWidth:1,borderColor:'rgba(240,200,90,0.45)'},
+  pilula:{flex:1,height:42,borderRadius:21,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,paddingHorizontal:16},
+  pilulaTexto:{fontSize:15,fontWeight:'600'},
+});

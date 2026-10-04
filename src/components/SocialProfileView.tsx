@@ -1,5 +1,7 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
-import { ActivityIndicator,Image,Platform,Pressable,ScrollView,Text,View } from 'react-native';
+import { ActivityIndicator,Animated,Image,Platform,Pressable,ScrollView,StyleSheet,Text,View } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { appearanceOf,getSocialProfile,getSocialProfileTracks,saveProfileCustomization,type ProfileHighlights,type SocialProfile,type ProfileTrack } from '../api/profiles';
 import { loadProfileSections } from '../api/profileSections';
@@ -10,24 +12,23 @@ import { usePlayer } from '../state/player';
 import { useSocial } from '../state/social';
 import { useProfileMedia } from '../lib/profileMedia';
 import { ultimaAtividade } from '../lib/socialPresence';
-import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { chaveDeArtista, displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { colors, radii, SOCIAL_GUTTER } from './socialTokens';
 import { useTheme } from '../state/theme';
 import { useSocialBottomPadding } from './useSocialBottomPadding';
 import { naoLidasPorAmigo } from '../lib/social';
 import { ArtworkCollage } from './ArtworkCollage';
 import { ProfileEditor } from './ProfileEditor';
-import { ProfileHero } from './ProfileHero';
+import { BotoesDoPerfil, ProfileHero } from './ProfileHero';
+import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { guardarPerfil, ouvirPerfis, perfilEmCache } from '../lib/cachePerfil';
 import { SkeletonDoPerfil } from './Skeleton';
-import { ProfilePlaylistPicker } from './ProfilePlaylistPicker';
 import { SocialTrackActions } from './SocialTrackActions';
-import { SocialButton,SocialIconButton,socialStyles as s } from './socialUI';
+import { SocialIconButton,socialStyles as s } from './socialUI';
 import type { Track } from '../types';
 import type { Playlist } from '../types';
-import {
-  savePlaylistCopy, setPlaylistVisibility, unsavePlaylistCopy,
-} from '../api/playlists';
+import { savePlaylistCopy, unsavePlaylistCopy } from '../api/playlists';
 
 export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDois,onSettings,onSocial,onPlaylist,onBack,active=true,scrollRef}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onVocesOsDois?:(nome?:string)=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void;onBack?:()=>void;active?:boolean;
   /** A lista do perfil, para o separador do iPhone a levar ao topo (3/10). */
@@ -46,7 +47,9 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
   const [highlights,setHighlights]=useState<ProfileHighlights>({playlistIds:[],moment:null});
   const [highlightsLoaded,setHighlightsLoaded]=useState(false);
   const [playlists,setPlaylists]=useState<Playlist[]>([]);
-  const [choosingPlaylists,setChoosingPlaylists]=useState(false);
+  /** O ⋯ aberto é o da música do momento: no teu perfil leva o "Remove from profile". */
+  const [trackDoMomento,setTrackDoMomento]=useState(false);
+  const safe=useSafeAreaInsets();
   const [sectionErrors,setSectionErrors]=useState({most:'',recent:'',playlists:'',copies:''});
   const [playlistMutationError,setPlaylistMutationError]=useState('');
   // De que playlists dos outros ja tenho copia. Pergunta-se UMA vez em vez de
@@ -113,7 +116,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
   // outra conta e não pode ficar à vista. Uma mudança de amizade ou uma ação
   // não são motivo para apagar nada.
   useEffect(()=>{
-    setEditing(false);setChoosingPlaylists(false);setPlaylistMutationError('');
+    setEditing(false);setPlaylistMutationError('');
     setSectionErrors({most:'',recent:'',playlists:'',copies:''});
     setTudoMais(false);setTudoRecente(false);
     // Se ja se leu esta pessoa nesta sessao, o ecra pinta JA com o que se
@@ -197,181 +200,197 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
     finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(true); }
   };
 
-  /** Mostrar ou esconder uma playlist minha no perfil. */
-  const alternarVisibilidade=async(pl:Playlist)=>{
-    if(mutation.current || loading) return;
-    mutation.current=true;
-    const generation=request.current;
-    setOcupada(pl.id);setPlaylistMutationError('');
-    const passaA=!pl.visibleOnProfile;
-    let confirmed=false;
-    try {
-      await setPlaylistVisibility(pl.id,passaA);
-      confirmed=true;
-      if(generation!==request.current)return;
-      setPlaylists(l=>l.map(x=>x.id===pl.id?{...x,visibleOnProfile:passaA}:x));
-    } catch(e){ if(generation===request.current)setPlaylistMutationError(missingProfilePlaylistColumns(e)?PROFILE_SHARING_UNAVAILABLE:'Could not change this playlist. Please try again.'); }
-    finally { mutation.current=false;setOcupada(null);if(confirmed&&mounted.current&&view.current.active&&view.current.userId===userId&&view.current.myId===myId)void load(true); }
-  };
+  // Quem pede o perfil a seguir (puxar para atualizar, 4/10): só o iPhone.
+  const puxar=usePuxarParaAtualizar(()=>load(true),safe.top+8);
 
-  const row=(entry:ProfileTrack,index:number,recentes=false)=><View key={`${entry.source}:${entry.sourceId}`} style={s.listRow}>
-    {!recentes&&<Text style={[s.muted,{width:20}]}>{index+1}</Text>}
+  // A barra de cima com o nome: aparece quando o nome passa por baixo dela.
+  const rolagem=useRef(new Animated.Value(0)).current;
+  const aoRolar=useRef(Animated.event([{nativeEvent:{contentOffset:{y:rolagem}}}],{useNativeDriver:true})).current;
+  const [fimDoNome,setFimDoNome]=useState(330);
+
+  const row=(entry:ProfileTrack,index:number,recentes=false)=><View key={`${entry.source}:${entry.sourceId}`} style={[s.row,{gap:12,minHeight:58}]}>
+    {!recentes&&<Text style={[s.muted,{width:20,textAlign:'center',fontVariant:['tabular-nums']}]}>{index+1}</Text>}
     <Pressable accessibilityRole="button" accessibilityLabel={`Play ${entry.title}`} onPress={()=>void usePlayer.getState().playTrack(entry,recentes?recent:most)}
-      style={({pressed,hovered}:any)=>[s.row,{flex:1,minWidth:0,borderRadius:radii.md},(pressed||hovered)&&{backgroundColor:colors.surfacePressed}]}>
-      <View style={{width:44,height:44,borderRadius:radii.sm,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
-        {entry.artworkUrl?<Image source={{uri:entry.artworkUrl}} style={{width:44,height:44}}/>:<Ionicons name="musical-notes" color={colors.textSecondary} size={22}/>}
+      style={({pressed,hovered}:any)=>[s.row,{flex:1,minWidth:0,borderRadius:radii.md,gap:12},(pressed||hovered)&&{backgroundColor:colors.surfacePressed}]}>
+      <View style={{width:46,height:46,borderRadius:radii.sm,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
+        {entry.artworkUrl?<Image source={{uri:capaParaLista(entry.artworkUrl)!}} style={{width:46,height:46}}/>:<Ionicons name="musical-notes" color={colors.textSecondary} size={22}/>}
       </View>
-      <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.text}>{tituloDaFaixa(entry)}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(entry)}</Text></View>
-      {/* Nas mais tocadas o número é a contagem e diz alguma coisa. Nas
-          recentes mostrava-se a data, que numa lista do que se ouviu há pouco
-          não acrescenta nada e rouba a linha ao título. */}
-      {!recentes&&<Text style={s.muted}>{entry.count}</Text>}
+      <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={[s.text,{fontWeight:'500'}]}>{tituloDaFaixa(entry)}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(entry)}</Text></View>
+      {/* Nas mais tocadas o número é a contagem e diz alguma coisa; nas
+          recentes a data não acrescentava nada. */}
+      {!recentes&&<Text style={[s.muted,{fontVariant:['tabular-nums']}]}>{entry.count}</Text>}
     </Pressable><SocialIconButton label={`Options for ${entry.title}`} icon="ellipsis-horizontal" onPress={()=>setTrack(entry)}/>
   </View>;
   const visiblePlaylists=playlists.filter(p=>!own||p.visibleOnProfile);
   /**
-   * Uma secção que falha diz o que aconteceu e cala-se. O botão de repetir que
-   * estava aqui não valia a linha que ocupava -- e chegavam a aparecer dois,
-   * empilhados por baixo do mesmo título. Quem quer tentar outra vez já tem
-   * por onde: puxar a página para baixo no iPhone, ou o refrescar do cabeçalho
-   * no Windows.
+   * Uma secção que falha diz o que aconteceu e cala-se. Quem quer tentar outra
+   * vez puxa a página para baixo (iPhone) ou usa o refrescar (PC).
    */
   const sectionFailure=(message:string)=><Text accessibilityRole="alert" style={s.muted}>{message}</Text>;
+  /** O título de uma secção, com o link à direita ("See all", "Edit", "Stats"). */
+  const titulo=(texto:string,link?:{rotulo:string;onPress:()=>void},pequeno=false)=><View style={[s.row,{justifyContent:'space-between',alignItems:'baseline'}]}>
+    <Text accessibilityRole="header" style={pequeno?{fontSize:18,fontWeight:'700',color:colors.text}:[s.title,{fontSize:22}]}>{texto}</Text>
+    {link&&<Pressable accessibilityRole="button" onPress={link.onPress} hitSlop={10}><Text style={{fontSize:14,fontWeight:'600',color:accent}}>{link.rotulo}</Text></Pressable>}
+  </View>;
+  /** Cartões que deslizam no iPhone; no PC, uma grelha que dobra. */
+  const fila=(filhos:React.ReactNode,gap=12)=>web
+    ? <View style={{flexDirection:'row',flexWrap:'wrap',gap}}>{filhos}</View>
+    : <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginHorizontal:-SOCIAL_GUTTER}} contentContainerStyle={{paddingHorizontal:SOCIAL_GUTTER,gap}}>{filhos}</ScrollView>;
+
+  // As playlists em cartões (4/10). Escolher quais aparecem e quais vão à
+  // frente passou para o Edit profile: o ⊕ e os ⊖ desta lista saíram.
   const playlistsSection=<View style={{gap:12}}>
-    <View style={[s.row,{justifyContent:'space-between'}]}>
-      <Text style={s.title}>{own?'Your playlists':'Playlists'}</Text>
-      {own&&<SocialIconButton label="Choose which playlists to show" icon="add-circle-outline" onPress={()=>{setPlaylistMutationError('');setChoosingPlaylists(true);}}/>}
-    </View>
+    {titulo(own?'Your playlists':'Playlists',own&&profile?{rotulo:'Edit',onPress:()=>setEditing(true)}:undefined)}
     {!!sectionErrors.playlists&&sectionFailure(sectionErrors.playlists)}
     {!!sectionErrors.copies&&sectionFailure(sectionErrors.copies)}
-    {!!playlistMutationError&&!choosingPlaylists&&<Text accessibilityRole="alert" style={s.error}>{playlistMutationError}</Text>}
-    <View style={{flexDirection:wide?'row':'column',flexWrap:wide?'wrap':'nowrap',gap:12}}>
-      {[...visiblePlaylists].sort((a,b)=>{const rank=(id:string)=>{const i=highlights.playlistIds.indexOf(id);return i<0?3:i;};return rank(a.id)-rank(b.id);}).map(pl=>{
-        const marked=guardadas.has(pl.id),busy=ocupada===pl.id;
-        return <View key={pl.id} style={[s.linhaSimples,{width:wide?undefined:'100%',flexDirection:'row',alignItems:'center',flexBasis:wide?280:undefined,flexGrow:wide?1:0,minWidth:0}]}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Open ${pl.name}`} disabled={!onPlaylist} onPress={()=>onPlaylist?.(pl.id)}
-            style={({pressed,hovered}:any)=>[s.row,{flex:1,minWidth:0},(pressed||hovered)&&{opacity:0.75}]}>
-            <View style={{borderRadius:radii.md,overflow:'hidden'}}><ArtworkCollage artworks={pl.artworks} size={56}/></View>
-            <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={[s.text,{fontWeight:'600'}]}>{pl.name}</Text><Text style={s.muted}>{pl.trackCount} {pl.trackCount===1?'track':'tracks'}</Text></View>
-            {own&&<Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>}
-          </Pressable>
-          {/* Tirar do perfil aqui, e não só dentro do selector.
-              Era possível antes -- o mesmo selector que põe também tira -- mas
-              o caminho para lá é um ícone de "+", e quem pôs uma playlist e a
-              quer fora não pensa em carregar no mais outra vez. Uma coisa que
-              se põe tem de se poder tirar de onde ela está. */}
-          {own&&<Pressable accessibilityRole="button" accessibilityLabel={`Remove ${pl.name} from your profile`}
-            aria-busy={ocupada===pl.id} accessibilityState={{busy:ocupada===pl.id,disabled:!!ocupada||loading}}
-            disabled={!!ocupada||loading} onPress={()=>void alternarVisibilidade(pl)}
-            style={{minHeight:44,minWidth:44,alignItems:'center',justifyContent:'center'}}>
-            {ocupada===pl.id?<ActivityIndicator size="small" color={accent}/>:<Ionicons name="remove-circle-outline" size={22} color={colors.textSecondary}/>}
-          </Pressable>}
-          {!own&&<Pressable accessibilityRole="button" accessibilityLabel={marked?`Remove your copy of ${pl.name}`:`Save a copy of ${pl.name}`} aria-selected={marked} aria-busy={busy} aria-disabled={!!ocupada||loading||!!sectionErrors.copies} accessibilityState={{selected:marked,busy,disabled:!!ocupada||loading||!!sectionErrors.copies}}
-            disabled={!!ocupada||loading||!!sectionErrors.copies} onPress={()=>void alternarCopia(pl)} style={{minHeight:44,minWidth:56,alignItems:'center',justifyContent:'center',gap:3,opacity:sectionErrors.copies?0.4:1}}>
-            {busy?<ActivityIndicator size="small" color={accent}/>:<Ionicons name={marked?'checkmark-circle':'add-circle-outline'} size={24} color={marked?accent:colors.textSecondary}/>}
-            <Text style={s.muted}>{marked?'Saved':'Save'}</Text>
-          </Pressable>}
-        </View>;
-      })}
-    </View>
-    {!visiblePlaylists.length&&!sectionErrors.playlists&&(loading?<ActivityIndicator color={accent}/>:<Text style={s.muted}>No playlists shared yet</Text>)}
+    {!!playlistMutationError&&<Text accessibilityRole="alert" style={s.error}>{playlistMutationError}</Text>}
+    {visiblePlaylists.length>0&&fila([...visiblePlaylists].sort((a,b)=>{const rank=(id:string)=>{const i=highlights.playlistIds.indexOf(id);return i<0?3:i;};return rank(a.id)-rank(b.id);}).map(pl=>{
+      const marked=guardadas.has(pl.id),busy=ocupada===pl.id;
+      return <View key={pl.id} style={{width:150}}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Open ${pl.name}`} disabled={!onPlaylist} onPress={()=>onPlaylist?.(pl.id)}
+          style={({pressed,hovered}:any)=>[(pressed||hovered)&&{opacity:0.8}]}>
+          <View style={{borderRadius:radii.md,overflow:'hidden'}}><ArtworkCollage artworks={pl.artworks} size={150}/></View>
+          <Text numberOfLines={1} style={[s.text,{fontWeight:'600',marginTop:8,fontSize:14}]}>{pl.name}</Text>
+          <Text style={[s.muted,{fontSize:12.5}]}>{pl.trackCount} {pl.trackCount===1?'track':'tracks'}</Text>
+        </Pressable>
+        {/* Guardar uma cópia da playlist de um amigo: no canto da capa. */}
+        {!own&&<Pressable accessibilityRole="button" accessibilityLabel={marked?`Remove your copy of ${pl.name}`:`Save a copy of ${pl.name}`}
+          accessibilityState={{selected:marked,busy,disabled:!!ocupada||loading||!!sectionErrors.copies}}
+          disabled={!!ocupada||loading||!!sectionErrors.copies} onPress={()=>void alternarCopia(pl)}
+          style={{position:'absolute',top:8,right:8,width:34,height:34,borderRadius:17,alignItems:'center',justifyContent:'center',
+            backgroundColor:'rgba(10,10,15,0.62)',opacity:sectionErrors.copies?0.4:1}}>
+          {busy?<ActivityIndicator size="small" color={accent}/>:<Ionicons name={marked?'checkmark':'add'} size={20} color={marked?accent:colors.text}/>}
+        </Pressable>}
+      </View>;
+    }))}
+    {!visiblePlaylists.length&&!sectionErrors.playlists&&(loading?<ActivityIndicator color={accent}/>:<Text style={s.muted}>{own?'No playlists on your profile yet. Choose them in Edit profile.':'No playlists shared yet'}</Text>)}
   </View>;
+
+  /**
+   * Os artistas mais ouvidos, para os círculos (4/10, escuta C). Saem das
+   * músicas mais tocadas, que já vêm para o perfil de quem quer que seja: não
+   * há leitura nova nem função nova no servidor. Sem contagem por baixo -- é
+   * uma soma das 20 primeiras, não o total de escutas, e não se apresenta
+   * como se fosse.
+   */
+  const artistas=(()=>{
+    const porChave=new Map<string,{nome:string;soma:number;capa:string|null}>();
+    for(const e of most){
+      const nome=displayArtist(e);
+      if(!nome||nome==='Unknown artist')continue;
+      const k=chaveDeArtista(nome);
+      const a=porChave.get(k);
+      if(a)a.soma+=e.count||0;
+      else porChave.set(k,{nome,soma:e.count||0,capa:e.artworkUrl??null});
+    }
+    return [...porChave.values()].sort((a,b)=>b.soma-a.soma).slice(0,8);
+  })();
+
+  const vistaRecente=tudoRecente
+    ? recent.map((e,i)=>row(e,i,true))
+    : fila(recent.slice(0,20).map(e=><Pressable key={`${e.source}:${e.sourceId}`} accessibilityRole="button" accessibilityLabel={`Play ${e.title}`}
+        onPress={()=>void usePlayer.getState().playTrack(e,recent)} style={({pressed}:any)=>({opacity:pressed?0.7:1})}>
+        <View style={{width:76,height:76,borderRadius:radii.sm,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
+          {e.artworkUrl?<Image source={{uri:capaParaLista(e.artworkUrl)!}} style={{width:76,height:76}}/>:<Ionicons name="musical-notes" color={colors.textSecondary} size={22}/>}
+        </View>
+      </Pressable>),10);
+
+  const nome=profile?.profile.name||'';
   return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>
-    {/* Sem puxar-para-recarregar: era a unica pagina da app que reagia ao
-        gesto, e um gesto que so existe num sitio nao se aprende. Recarrega
-        ao voltar a entrar, e no Windows pelo refrescar do cabecalho. */}
-    <ScrollView ref={scrollRef} contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled">
-      <ProfileHero profile={profile} own={own} cover={cover} unread={unread}
+    <Animated.ScrollView ref={scrollRef} refreshControl={puxar} onScroll={web?undefined:aoRolar} scrollEventThrottle={16}
+      contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled">
+      <ProfileHero profile={profile} own={own} cover={cover} unread={unread} botoesFora={!web}
         status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
+        contagens={profile?.canView?{plays:profile.stats?.totalPlays??0,tracks:profile.stats?.uniqueTracks??0,friends:profile.friendCount??0}:null}
+        onStats={profile?.canView?onStats:undefined}
+        onVocesOsDois={onVocesOsDois&&profile?.canView&&friend?.status==='accepted'?()=>onVocesOsDois(profile.profile.name||profile.profile.username||undefined):undefined}
+        aoMedirNome={setFimDoNome}
         onEdit={()=>setEditing(true)} onSocial={onSocial} onSettings={onSettings} onBack={onBack}
         onMessage={()=>onMessage(userId)} onRefresh={()=>void load()} pending={friend?.status==='pending'}
         onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError('Could not send the friend request. Please try again.'));}}/>
-      <View style={{paddingHorizontal:SOCIAL_GUTTER,gap:28}}>
+      <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:28,gap:30}}>
       {loading&&!profile&&<SkeletonDoPerfil/>}
       {!!error&&sectionFailure(error)}
       {profile&&<>
         {friend?.currentlyPlaying&&profile.canView&&<Pressable accessibilityRole="button" accessibilityLabel={`Play ${friend.currentlyPlaying.title}`}
           onPress={()=>{const t=friend.currentlyPlaying;if(t)void usePlayer.getState().playTrack({...t,id:t.id??undefined,album:null});}}
-          style={({pressed}:any)=>[s.row,s.card,pressed&&{opacity:0.7}]}>
-          <Ionicons name="play-circle" size={28} color={accent}/><View style={{flex:1,minWidth:0}}><Text style={s.label}>Listening now</Text><Text numberOfLines={1} style={s.text}>{friend.currentlyPlaying.title}</Text></View>
+          style={({pressed}:any)=>[estilos.cartao,pressed&&{opacity:0.75}]}>
+          <Ionicons name="radio-outline" size={26} color={accent}/>
+          <View style={{flex:1,minWidth:0}}><Text style={estilos.rotulo}>Listening now</Text><Text numberOfLines={1} style={[s.text,{fontWeight:'600'}]}>{friend.currentlyPlaying.title}</Text></View>
+          <View style={estilos.play}><Ionicons name="play" size={20} color={colors.bg} style={{marginLeft:2}}/></View>
         </Pressable>}
         {!profile.canView?<Text style={s.muted}>Stats become available once you are friends.</Text>:<>
-          {/* Sem cartão à volta. Nesta app o cartão serve para separar objectos
-              uns dos outros; à volta de UM só, emoldura em vez de separar --
-              e uma faixa emoldurada lê-se como um anúncio dela própria. */}
-          {highlights.moment&&<View style={{gap:12}}>
-            <Text style={s.label}>Song of the moment</Text>
-            <View style={s.row}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Play ${highlights.moment.title}`} onPress={()=>void usePlayer.getState().playTrack(highlights.moment!,[highlights.moment!])} style={[s.row,{flex:1,minWidth:0}]}>
-                {highlights.moment.artworkUrl?<Image source={{uri:highlights.moment.artworkUrl}} style={{width:56,height:56,borderRadius:radii.sm}}/>:<Ionicons name="musical-notes" size={40} color={accent}/>}
-                <View style={{flex:1,minWidth:0}}><Text numberOfLines={2} style={s.text}>{tituloDaFaixa(highlights.moment)}</Text><Text numberOfLines={1} style={s.muted}>{displayArtist(highlights.moment)}</Text></View>
-                <Ionicons name="play-circle" size={32} color={accent}/>
-              </Pressable>
-              {own&&(aTirarMoment
-                ? <ActivityIndicator size="small" color={accent}/>
-                : <SocialIconButton label="Remove this song from your profile" icon="close" onPress={()=>void tirarMoment()}/>)}
-              <SocialIconButton label={`Options for ${highlights.moment.title}`} icon="ellipsis-horizontal" onPress={()=>setTrack(highlights.moment)}/>
-            </View>
-          </View>}
-          {/* VOCES OS DOIS. Fica ACIMA do resumo de escutas e nao dentro dele,
-              e de proposito: aquilo sao os numeros dele, isto e uma pagina
-              sobre voces os dois -- e e a unica coisa neste perfil que nao
-              existe em mais lado nenhum.
-
-              So aparece com o perfil visivel e com amizade aceite: sem uma das
-              duas, a funcao do lado da base recusa e o ecra abriria vazio. */}
-          {onVocesOsDois&&profile.canView&&friend?.status==='accepted'&&
-            <Pressable accessibilityRole="button" accessibilityLabel="You two"
-              onPress={()=>onVocesOsDois(profile.profile.name||profile.profile.username||undefined)}
-              style={({pressed,hovered}:any)=>[s.listRow,(pressed||hovered)&&{backgroundColor:colors.surfacePressed}]}>
-              <Ionicons name="sparkles-outline" size={24} color={accent}/>
-              <View style={{flex:1}}>
-                <Text style={s.label}>You two</Text>
-                <Text style={s.text}>What you share, and what you don’t</Text>
+          {/* A música do momento num cartão, com o play à direita (4/10). O ✕
+              saiu: tirá-la do perfil é no ⋯, como o resto das ações de uma
+              faixa. */}
+          {highlights.moment&&<View style={estilos.cartao}>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Play ${highlights.moment.title}`} onPress={()=>void usePlayer.getState().playTrack(highlights.moment!,[highlights.moment!])}
+              style={[s.row,{flex:1,minWidth:0,gap:14}]}>
+              {highlights.moment.artworkUrl
+                ? <Image source={{uri:capaParaLista(highlights.moment.artworkUrl)!}} style={{width:64,height:64,borderRadius:radii.sm}}/>
+                : <View style={{width:64,height:64,borderRadius:radii.sm,backgroundColor:colors.surfaceHigh,alignItems:'center',justifyContent:'center'}}><Ionicons name="musical-notes" size={26} color={accent}/></View>}
+              <View style={{flex:1,minWidth:0}}>
+                <Text style={estilos.rotulo}>Song of the moment</Text>
+                <Text numberOfLines={1} style={[s.text,{fontWeight:'600'}]}>{tituloDaFaixa(highlights.moment)}</Text>
+                <Text numberOfLines={1} style={s.muted}>{displayArtist(highlights.moment)}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>
-            </Pressable>}
+              <View style={estilos.play}>{aTirarMoment?<ActivityIndicator size="small" color={colors.bg}/>:<Ionicons name="play" size={20} color={colors.bg} style={{marginLeft:2}}/>}</View>
+            </Pressable>
+            <SocialIconButton label={`Options for ${highlights.moment.title}`} icon="ellipsis-horizontal" onPress={()=>{setTrackDoMomento(true);setTrack(highlights.moment);}}/>
+          </View>}
           {playlistsSection}
-          <View style={{gap:16}}>
-            {/* O título é o caminho para o detalhe: o resumo e a página
-                completa deixam de estar em pontas opostas do perfil. */}
-            {profile.canView
-              ? <Pressable accessibilityRole="button" accessibilityLabel="Listening stats" onPress={onStats}
-                  style={({pressed,hovered}:any)=>[s.row,{gap:8},(pressed||hovered)&&{opacity:0.7}]}>
-                  <Text style={[s.title,{flex:1}]}>Listening overview</Text>
-                  <Text style={s.muted}>Listening stats</Text>
-                  <Ionicons name="chevron-forward" color={colors.textSecondary} size={16}/>
-                </Pressable>
-              : <Text style={s.title}>Listening overview</Text>}
-            <View style={[s.row,{flexWrap:'wrap'}]}>{[[profile.stats?.totalPlays??0,'Plays'],[profile.stats?.uniqueTracks??0,'Tracks'],[profile.friendCount??0,'Friends']].map(([v,label])=><View key={label} style={[s.card,{flex:1,minWidth:85}]}><Text style={s.title}>{v}</Text><Text style={s.muted}>{label}</Text></View>)}</View>
-            {profile.stats?.topArtist&&<Pressable accessibilityRole="button" onPress={()=>onArtist(profile.stats!.topArtist!.name)}
-              style={({pressed,hovered}:any)=>[s.listRow,(pressed||hovered)&&{backgroundColor:colors.surfacePressed}]}>
-              <Ionicons name="mic-outline" size={24} color={colors.textSecondary}/><View style={{flex:1}}><Text style={s.label}>Most played artist</Text><Text style={s.text}>{profile.stats.topArtist.name}</Text></View><Text style={s.muted}>{profile.stats.topArtist.plays} plays</Text><Ionicons name="chevron-forward" size={16} color={colors.textSecondary}/>
-            </Pressable>}
+          {/* A escuta (4/10, opção C): os artistas primeiro, em círculos -- é o
+              que mais diz sobre o gosto de alguém --, as cinco mais tocadas com
+              a contagem, e as recentes numa fila de capas. Os três números
+              grandes subiram para o cabeçalho. */}
+          <View style={{gap:14}}>
+            {titulo(own?'Your listening':'Listening',{rotulo:'Stats',onPress:onStats})}
+            {artistas.length>1&&fila(artistas.map(a=><Pressable key={a.nome} accessibilityRole="button" accessibilityLabel={a.nome} onPress={()=>onArtist(a.nome)}
+              style={({pressed}:any)=>({width:92,alignItems:'center',opacity:pressed?0.7:1})}>
+              <View style={{width:92,height:92,borderRadius:46,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
+                {a.capa?<Image source={{uri:capaParaLista(a.capa)!}} style={{width:92,height:92}}/>:<Ionicons name="person" size={30} color={colors.textSecondary}/>}
+              </View>
+              <Text numberOfLines={1} style={[s.text,{fontSize:13.5,fontWeight:'600',marginTop:8,textAlign:'center'}]}>{a.nome}</Text>
+            </Pressable>),16)}
           </View>
-          <View style={{flexDirection:columns?'row':'column',gap:32}}>
-            <View style={{flex:columns?1:undefined,minWidth:0,gap:8}}>
-              <Text style={s.title}>Most played</Text>
-              {!!sectionErrors.most&&sectionFailure(sectionErrors.most)}
-              {most.length?(tudoMais?most:most.slice(0,5)).map((e,i)=>row(e,i)):loading?<ActivityIndicator color={accent}/>:!sectionErrors.most&&<Text style={s.muted}>Nothing played yet.</Text>}
-              {most.length>5&&!tudoMais&&<SocialButton quiet onPress={()=>setTudoMais(true)}>Show all {most.length}</SocialButton>}
-              {tudoMais&&most.length>0&&most.length%20===0&&<SocialButton quiet onPress={()=>{void getSocialProfileTracks(userId,false,most.length).then(m=>setMost([...most,...m])).catch(e=>setError(e.message));}}>Show more</SocialButton>}
-            </View>
-            <View style={{flex:columns?1:undefined,minWidth:0,gap:8}}>
-              <Text style={s.title}>Recently played</Text>
-              {!!sectionErrors.recent&&sectionFailure(sectionErrors.recent)}
-              {recent.length?(tudoRecente?recent:recent.slice(0,5)).map((e,i)=>row(e,i,true)):loading?<ActivityIndicator color={accent}/>:!sectionErrors.recent&&<Text style={s.muted}>Your listening history appears here.</Text>}
-              {recent.length>5&&!tudoRecente&&<SocialButton quiet onPress={()=>setTudoRecente(true)}>Show all {recent.length}</SocialButton>}
-              {tudoRecente&&recent.length>0&&recent.length%20===0&&<SocialButton quiet onPress={()=>{void getSocialProfileTracks(userId,true,recent.length).then(r=>setRecent([...recent,...r])).catch(e=>setError(e.message));}}>Show more</SocialButton>}
-            </View>
+          <View style={{gap:4}}>
+            {titulo('On repeat',most.length>5&&!tudoMais?{rotulo:'See all',onPress:()=>setTudoMais(true)}:undefined,true)}
+            {!!sectionErrors.most&&sectionFailure(sectionErrors.most)}
+            {most.length?(tudoMais?most:most.slice(0,5)).map((e,i)=>row(e,i)):loading?<ActivityIndicator color={accent}/>:!sectionErrors.most&&<Text style={s.muted}>Nothing played yet.</Text>}
+            {tudoMais&&most.length>0&&most.length%20===0&&<Pressable accessibilityRole="button" onPress={()=>{void getSocialProfileTracks(userId,false,most.length).then(m=>setMost([...most,...m])).catch(e=>setError(e.message));}} style={{paddingVertical:12,alignItems:'center'}}>
+              <Text style={{fontSize:14,fontWeight:'600',color:accent}}>Show more</Text></Pressable>}
+          </View>
+          <View style={{gap:tudoRecente?4:12}}>
+            {titulo('Recently played',recent.length>0?{rotulo:tudoRecente?'Show less':'See all',onPress:()=>setTudoRecente(!tudoRecente)}:undefined,true)}
+            {!!sectionErrors.recent&&sectionFailure(sectionErrors.recent)}
+            {recent.length?vistaRecente:loading?<ActivityIndicator color={accent}/>:!sectionErrors.recent&&<Text style={s.muted}>Your listening history appears here.</Text>}
+            {tudoRecente&&recent.length>0&&recent.length%20===0&&<Pressable accessibilityRole="button" onPress={()=>{void getSocialProfileTracks(userId,true,recent.length).then(r=>setRecent([...recent,...r])).catch(e=>setError(e.message));}} style={{paddingVertical:12,alignItems:'center'}}>
+              <Text style={{fontSize:14,fontWeight:'600',color:accent}}>Show more</Text></Pressable>}
           </View>
         </>}
       </>}
       </View>
-    </ScrollView>
+    </Animated.ScrollView>
+    {/* iPhone: a barra com o nome aparece quando o nome passa por baixo dela, e
+        os botões ficam no sítio por cima de tudo. Antes o conteúdo passava por
+        baixo da ilha sem fundo nenhum. */}
+    {!web&&<Animated.View pointerEvents="none" style={[estilos.barra,{height:safe.top+56,opacity:rolagem.interpolate({inputRange:[fimDoNome-40,fimDoNome-safe.top-20],outputRange:[0,1],extrapolate:'clamp'})}]}>
+      <BlurView tint="dark" intensity={60} style={StyleSheet.absoluteFill}/>
+      <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(10,10,15,0.72)'}]}/>
+      <Text numberOfLines={1} style={estilos.nomeNaBarra}>{nome}</Text>
+    </Animated.View>}
+    {!web&&<BotoesDoPerfil own={own} unread={unread} onBack={onBack} onSocial={onSocial} onSettings={onSettings}/>}
     {editing&&profile&&<ProfileEditor profile={profile} highlights={highlightsLoaded&&!sectionErrors.playlists?highlights:null} playlists={playlists} onClose={()=>setEditing(false)} onSaved={()=>{void load(true);void useSocial.getState().refresh();}}/>}
-    {choosingPlaylists&&own&&<ProfilePlaylistPicker playlists={playlists} loading={loading} busy={ocupada} error={playlistMutationError||sectionErrors.playlists}
-      onToggle={p=>void alternarVisibilidade(p)} onClose={()=>setChoosingPlaylists(false)} onRetry={()=>{setPlaylistMutationError('');void load();}}/>}
-    <SocialTrackActions track={track} onClose={()=>setTrack(null)} onArtist={onArtist}/>
+    <SocialTrackActions track={track} onClose={()=>{setTrack(null);setTrackDoMomento(false);}} onArtist={onArtist}
+      extra={own&&trackDoMomento?[{rotulo:'Remove from profile',icone:'close-circle-outline',destrutiva:true,aoCarregar:()=>void tirarMoment()}]:undefined}/>
   </View>;
 }
+
+const estilos=StyleSheet.create({
+  cartao:{flexDirection:'row',alignItems:'center',gap:12,padding:12,borderRadius:18,borderCurve:'continuous',backgroundColor:colors.surface},
+  rotulo:{fontSize:11,fontWeight:'700',letterSpacing:0.6,textTransform:'uppercase',color:colors.textTertiary,marginBottom:2},
+  play:{width:42,height:42,borderRadius:21,backgroundColor:'#fff',alignItems:'center',justifyContent:'center'},
+  barra:{position:'absolute',top:0,left:0,right:0,justifyContent:'flex-end',alignItems:'center',paddingBottom:16,overflow:'hidden',
+    borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},
+  nomeNaBarra:{fontSize:17,fontWeight:'600',color:colors.text,maxWidth:'60%'},
+});
