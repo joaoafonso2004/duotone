@@ -72,7 +72,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 1.6 Definições apertadas
 
-**Estado:** ⬜ Por fazer. Escolhida a variante B de `docs/definicoes-prateleiras-abertura.html` (4/10): o valor e um menu na própria linha, ícones neutros.
+**Estado:** ✅ Feito (4/10, variante B de `docs/definicoes-prateleiras-abertura.html`), por ver no iPhone. Lista agrupada (`components/ListaAgrupada.tsx`): linhas de 48 pt com o ícone num quadrado neutro, o valor e › nas escolhas, que abrem um menu junto ao dedo com o ✓ na escolhida (`MenuFlutuante`, `escolhida`); o que cada opção está a fazer agora passou a rodapé do grupo. O equalizador padrão saiu da página para uma folha (a linha diz o preset).
 
 **Problema:** as linhas têm paddingVertical: 4 (SettingsScreen.tsx:788), o que dá uns 36-39 pt sem separadores, dentro de cartões com padding de 16.
 
@@ -303,7 +303,7 @@ Pela ordem de ataque:
 
 - ✅ **A página principal** (3/10, variante A: o campo de pesquisa por baixo do título). O separador "Search" passa a "Home": cabeçalho que encolhe, com a pesquisa como lupa ou campo no topo; "Jump back in" (contextos recentes, 2 linhas de quadrados); amigos a ouvir; Daily mix em destaque (capa grande); prateleiras com títulos de 22 pt. Os atalhos em grelha fundem-se com o "Jump back in".
 - ✅ **A base (mini-player + barra).** Superfície única de vidro, com a cor da capa a tingir. *Diferente do proposto:* deslizar para a direita continua a fechar (5.2), não muda de faixa.
-- ⬜ **As Definições.** Lista agrupada ao estilo iOS: linhas de 48 pt, ícones em quadrados arredondados e as frases de "efeito" como rodapés das secções. Variante B escolhida (4/10).
+- ✅ **As Definições.** Lista agrupada ao estilo iOS: linhas de 48 pt, ícones em quadrados arredondados e as frases de "efeito" como rodapés das secções. Feito a 4/10 (variante B).
 
 ## PRÓXIMOS PASSOS QUE VALEM A PENA
 

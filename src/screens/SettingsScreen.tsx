@@ -6,10 +6,9 @@ import { useOfflineMode } from '../hooks/useOfflineMode';
 import { removeOwnProfileMedia } from '../lib/profileMedia';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, {useEffect, useMemo, useState, useRef } from 'react';
-import { Alert, Animated, ScrollView, StyleSheet, Switch, Text, View, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { Alert, Animated, StyleSheet, Text, View, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme, STEEL } from '../state/theme';
 import { clearLibrary, reporGuardadas } from '../api/library';
@@ -32,9 +31,7 @@ import { idsPedidos } from '../lib/downloadsFixados';
 import { supabase } from '../lib/supabase';
 import { APP_VERSION } from '../lib/buildInfo';
 import { ConfirmSheet } from '../components/ConfirmSheet';
-import { PillButton } from '../components/PillButton';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
-import { SegmentedControl } from '../components/SegmentedControl';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import {
   getAudioQuality,
@@ -62,8 +59,12 @@ import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAuth } from '../state/auth';
 import { BarraVelocidade } from '../components/BarraVelocidade';
 import { Equalizador, ReporEqualizador } from '../components/Equalizador';
+import { BottomSheet, BottomSheetGestureGuard } from '../components/BottomSheet';
+import { Grupo, Linha, LinhaAlta, LinhaInterruptor } from '../components/ListaAgrupada';
+import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
+import type { PlayerAction } from '../components/PlayerActionsSheet';
 import { chaveDaFaixa, ePlano, PLANO } from '../lib/equalizer';
-import { presetsVisiveis, resumoDosPresets } from '../lib/presetsDoEqualizador';
+import { presetDosGanhos, presetsVisiveis, resumoDosPresets } from '../lib/presetsDoEqualizador';
 import { usePresets } from '../state/presets';
 import { PresetsSheet } from '../components/PresetsSheet';
 import { usePlayer } from '../state/player';
@@ -71,7 +72,7 @@ import { getLibrary } from '../api/library';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../lib/crossfade';
 import { resumoDoVarrimento, varrerCatalogo } from '../state/catalogoDeFaixas';
 import { partilharRelatorioDeReproducao } from '../lib/relatorioDeReproducao';
-import { colors, radii, spacing, type } from '../theme';
+import { spacing, type } from '../theme';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 
@@ -375,317 +376,211 @@ export function SettingsScreen({ navigation }: Props) {
     }),
   };
 
+  // As escolhas abrem um menu junto ao dedo (variante B, 4/10): a linha mostra
+  // o valor, e o menu tem o ✓ na escolhida.
+  const indiceDoTemporizador = sleepTimerTimeLeft === 0 ? 0
+    : sleepTimerTimeLeft <= 15 * 60 ? 1
+    : sleepTimerTimeLeft <= 30 * 60 ? 2
+    : sleepTimerTimeLeft <= 45 * 60 ? 3 : 4;
+  const escolhas: Record<string, { opcoes: string[]; atual: number; escolher: (i: number) => void }> = {
+    smart: {
+      opcoes: ['Few', 'Some', 'Lots'],
+      atual: ['poucas', 'normal', 'muitas'].indexOf(intensidadeSmart),
+      escolher: (i) => {
+        const v = (['poucas', 'normal', 'muitas'] as const)[i] ?? 'normal';
+        usePlayer.setState({ intensidadeSmartShuffle: v });
+        void setIntensidadeDoSmartShuffle(v);
+      },
+    },
+    crossfade: {
+      opcoes: ['Off', '3 seconds', '6 seconds', '9 seconds'],
+      atual: DURACOES_DO_CROSSFADE.indexOf(crossfade),
+      escolher: changeCrossfade,
+    },
+    temporizador: {
+      opcoes: ['Off', '15 minutes', '30 minutes', '45 minutes', '1 hour'],
+      atual: indiceDoTemporizador,
+      escolher: (i) => setSleepTimer([0, 15, 30, 45, 60][i] ?? 0),
+    },
+    qualidade: { opcoes: ['High', 'Data saver'], atual: audioQuality === 'saver' ? 1 : 0, escolher: (i) => void changeAudioQuality(i) },
+    destaque: { opcoes: ['Steel', 'Cover'], atual: modo === 'cover' ? 1 : 0, escolher: (i) => void setMode(i === 1 ? 'cover' : 'steel') },
+    capa: {
+      opcoes: ['Floating 3D', 'Simple'],
+      atual: coverStyle === 'floating' ? 0 : 1,
+      escolher: (i) => useCapaIOS.getState().setStyle(i === 0 ? 'floating' : 'simple'),
+    },
+  };
+  const [menu, setMenu] = useState<{ chave: string; ancora: Ancora } | null>(null);
+  const abrirMenu = (chave: string) => (ancora: Ancora) => setMenu({ chave, ancora });
+  const valorDe = (chave: string) => escolhas[chave].opcoes[escolhas[chave].atual] ?? null;
+  const accoesDoMenu: PlayerAction[] = menu
+    ? escolhas[menu.chave].opcoes.map((nome, i) => ({
+      label: nome,
+      icon: 'checkmark',
+      escolhida: i === escolhas[menu.chave].atual,
+      onPress: () => { escolhas[menu.chave].escolher(i); setMenu(null); },
+    }))
+    : [];
+
+  // O equalizador padrão saiu da página para uma folha (4/10); a linha diz o
+  // preset que ele é, se for um.
+  const [eqAberto, setEqAberto] = useState(false);
+  const presetDoPadrao = presetDosGanhos(presetsNaFila, padraoGanhos);
+  const valorDoEq = presetDoPadrao?.nome ?? (ePlano(padraoGanhos) ? 'Flat' : 'Custom');
+  const amostraDoDestaque = modo === 'cover' ? temaActual : STEEL;
+
   return (
     <Screen title="Settings" onBack={() => navigation.goBack()} encolhe={cab}>
       <RecommendationPreferences visible={recommendationsOpen} onClose={()=>setRecommendationsOpen(false)}/>
       <PresetsSheet visible={presetsOpen} onClose={() => setPresetsOpen(false)} ganhosIniciais={padraoGanhos} />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <EqualizadorPadrao visivel={eqAberto} aoFechar={() => setEqAberto(false)} ganhos={padraoGanhos} presets={presetsNaFila} efeito={efeitos.equalizador} />
+      <MenuFlutuante visivel={!!menu} ancora={menu?.ancora ?? null} accoes={accoesDoMenu} aoFechar={() => setMenu(null)} />
+      <Animated.ScrollView
         style={{ flex: 1 }}
+        onScroll={cab.onScroll}
+        scrollEventThrottle={cab.scrollEventThrottle}
+        scrollIndicatorInsets={{ top: cab.espaco }}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          paddingTop: cab.espaco,
+          paddingBottom: insets.bottom + 48,
+          gap: spacing.xl,
+        }}
       >
-        <Animated.ScrollView
-          style={{ flex: 1 }}
-          onScroll={cab.onScroll}
-          scrollEventThrottle={cab.scrollEventThrottle}
-          scrollIndicatorInsets={{ top: cab.espaco }}
-          contentContainerStyle={{
-            paddingHorizontal: spacing.xl,
-            paddingTop: cab.espaco,
-            paddingBottom: insets.bottom + 48,
-            gap: spacing.xl,
-          }}
+        {/* Arrumadas a 26/9 (pedido do João): o que se usa, e mais nada.
+            A 4/10 passaram à lista agrupada dos Ajustes do iPhone (auditoria
+            1.6, variante B): o que cada opção está a fazer agora é o rodapé
+            do grupo, com as frases de sempre (lib/efeitoDasDefinicoes.ts). */}
+        <Grupo titulo="Playback" rodape={efeitos.smart}>
+          <Linha icone="sparkles" rotulo="Smart shuffle" valor={valorDe('smart')} chevron aoTocar={abrirMenu('smart')} />
+        </Grupo>
+        {/* Desligado de origem. A passagem só entra em mudanças automáticas
+            de faixa: num salto manual faria o botão parecer lento. */}
+        <Grupo rodape={efeitos.crossfade}>
+          <Linha icone="swap-horizontal" rotulo="Crossfade" valor={valorDe('crossfade')} chevron aoTocar={abrirMenu('crossfade')} />
+        </Grupo>
+        <Grupo rodape={efeitos.velocidade}>
+          <LinhaAlta icone="speedometer-outline" rotulo="Playback speed">
+            <BarraVelocidade valor={padraoRate} aoMudar={(v) => setPlaybackRate(v, true)} />
+          </LinhaAlta>
+        </Grupo>
+        <Grupo rodape={[efeitos.temporizador, efeitos.radio]}>
+          <Linha
+            icone="moon"
+            rotulo="Sleep timer"
+            valor={sleepTimerTimeLeft > 0 ? formatTimeLeft(sleepTimerTimeLeft) : 'Off'}
+            chevron
+            aoTocar={abrirMenu('temporizador')}
+          />
+          <LinhaInterruptor icone="radio-outline" rotulo="Autoplay similar music" valor={autoplayRadio} aoMudar={toggleAutoplayRadio} />
+        </Grupo>
+
+        <Grupo titulo="Sound" rodape={efeitos.qualidade}>
+          <Linha icone="pulse" rotulo="Audio quality" valor={valorDe('qualidade')} chevron aoTocar={abrirMenu('qualidade')} />
+        </Grupo>
+        <Grupo rodape={efeitos.normalizacao}>
+          <LinhaInterruptor icone="volume-medium" rotulo="Even out volume" valor={volumeNormalization} aoMudar={toggleVolumeNormalization} />
+        </Grupo>
+        {/* O equalizador base: vale para as faixas que não tenham o seu, e não
+            mexe na que está a tocar. Os presets: quais aparecem, os teus, e
+            o do carro. */}
+        <Grupo rodape={[efeitos.equalizador, resumoDosPresets(memoriaDosPresets)]}>
+          <Linha icone="options" rotulo="Equaliser" valor={valorDoEq} chevron aoTocar={() => setEqAberto(true)} />
+          <Linha icone="list" rotulo="Presets" valor={String(presetsNaFila.length)} chevron aoTocar={() => setPresetsOpen(true)} />
+        </Grupo>
+
+        <Grupo titulo="Appearance" rodape="Cover follows the artwork of whatever is playing.">
+          <Linha
+            icone="color-palette"
+            rotulo="Accent"
+            antesDoValor={
+              <LinearGradient colors={amostraDoDestaque.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.amostra} />
+            }
+            valor={valorDe('destaque')}
+            chevron
+            aoTocar={abrirMenu('destaque')}
+          />
+          {Platform.OS === 'ios' && (
+            <Linha icone="cube-outline" rotulo="Artwork style" valor={valorDe('capa')} chevron aoTocar={abrirMenu('capa')} />
+          )}
+        </Grupo>
+        <Grupo>
+          <LinhaInterruptor icone="time-outline" rotulo="Show song length in lists" valor={showDuration} aoMudar={toggleShowDuration} />
+          <LinhaInterruptor icone="play-back" rotulo="Show 15-second rewind" valor={showRewindButton} aoMudar={toggleShowRewind} />
+        </Grupo>
+
+        <Grupo titulo="General" rodape={efeitos.ecra}>
+          <LinhaInterruptor icone="notifications" rotulo="Message banners" valor={notificationsOn} aoMudar={toggleNotifications} />
+          <LinhaInterruptor icone="phone-portrait-outline" rotulo="Haptic feedback" valor={hapticsOn} aoMudar={toggleHaptics} />
+          <LinhaInterruptor icone="sunny" rotulo="Keep screen awake" valor={keepAwakeOn} aoMudar={toggleKeepAwake} />
+          <LinhaInterruptor
+            icone="car"
+            rotulo="Keep screen on in car mode"
+            valor={carroMantemEcra}
+            aoMudar={(v) => { setCarroMantemEcraState(v); void setCarroMantemEcra(v).catch(() => {}); }}
+          />
+        </Grupo>
+
+        <Grupo
+          titulo="Library"
+          rodape={offline
+            ? 'Connect to the internet to change your recommendations.'
+            : spotifyDisponivel() ? efeitos.spotify : 'Songs you hid and artists you want to hear less often.'}
         >
-          {/* Arrumadas a 26/9 (pedido do João): o que se usa, e mais nada.
-              Saíram o PO Token, o "Build", o estado do widget, a contagem de
-              falhas e a exportação em JSON -- coisas de quem mantém a app. O
-              relatório de reprodução fica, numa linha, no About: é o que se
-              manda quando uma música não toca. */}
-          <Section title="Playback">
-            <Label>Smart shuffle</Label>
-            <SegmentedControl
-              options={['Few', 'Some', 'Lots']}
-              value={['poucas', 'normal', 'muitas'].indexOf(intensidadeSmart)}
-              onChange={(i: number) => {
-                const v = (['poucas', 'normal', 'muitas'] as const)[i] ?? 'normal';
-                usePlayer.setState({ intensidadeSmartShuffle: v });
-                void setIntensidadeDoSmartShuffle(v);
-              }}
+          <Linha icone="heart" rotulo="Manage recommendations" chevron desativada={offline} aoTocar={() => setRecommendationsOpen(true)} />
+          {spotifyDisponivel() && (
+            <Linha
+              icone="musical-notes"
+              rotulo={aLerSpotify ? 'Reading Spotify…' : gostoDoSpotify ? 'Update from Spotify' : 'Import from Spotify'}
+              acao
+              aCarregar={aLerSpotify}
+              desativada={offline || aLerSpotify}
+              aoTocar={() => void importarDoSpotify()}
             />
-            <Efeito texto={efeitos.smart} />
+          )}
+        </Grupo>
+        <Grupo rodape={resumoDoCatalogo ?? 'Fix artist names, titles and covers with a music catalogue, or find duplicates and songs that no longer play.'}>
+          <Linha
+            icone="pricetag"
+            rotulo={aIdentificar ? 'Stop identifying' : 'Identify library'}
+            acao
+            valor={progresso ? `${progresso.feitas} of ${progresso.total}` : null}
+            aCarregar={aIdentificar && !progresso}
+            desativada={offline && !aIdentificar}
+            aoTocar={aIdentificar ? () => { pararIdentificacao.current = true; } : () => void identificarBiblioteca()}
+          />
+          <Linha icone="checkmark-done" rotulo="Library check" chevron aoTocar={() => navigation.navigate('LibraryCheck')} />
+        </Grupo>
 
-            {/* Desligado de origem. A passagem só entra em mudanças
-                automáticas de faixa: num salto manual faria o botão parecer
-                lento. */}
-            <Label style={{ marginTop: spacing.md }}>Crossfade</Label>
-            <SegmentedControl
-              options={['Off', '3s', '6s', '9s']}
-              value={DURACOES_DO_CROSSFADE.indexOf(crossfade)}
-              onChange={changeCrossfade}
-            />
-            <Efeito texto={efeitos.crossfade} />
+        {/* O "Clear cache" apaga TODO o áudio guardado, os downloads feitos de
+            propósito incluídos -- e o rodapé di-lo antes de se carregar. */}
+        <Grupo titulo="Storage" rodape={[efeitos.cache, 'Songs are kept on the phone so they play with the screen locked.']}>
+          <Linha icone="arrow-down-circle" rotulo="Downloads" valor={formatCacheSize(cacheBytes)} chevron aoTocar={() => navigation.navigate('Downloads')} />
+          <Linha icone="trash" rotulo="Clear cache" acao aoTocar={() => void doClearCache()} />
+        </Grupo>
 
-            <Label style={{ marginTop: spacing.md }}>Playback speed</Label>
-            <BarraVelocidade
-              valor={padraoRate}
-              aoMudar={(v) => setPlaybackRate(v, true)}
-            />
-            <Efeito texto={efeitos.velocidade} />
+        <Grupo titulo="Account" rodape={offline ? 'Offline · connect to manage your account.' : null}>
+          <Linha icone="mail" rotulo="Email" valor={session?.user?.email ?? '—'} />
+          <Linha icone="key" rotulo="Reset password" acao aCarregar={resettingPw} desativada={offline || resettingPw} aoTocar={() => void doResetPassword()} />
+          <Linha icone="log-out-outline" rotulo="Sign out" acao aoTocar={() => setSignOutOpen(true)} />
+        </Grupo>
+        <Grupo>
+          <Linha icone="heart-dislike" rotulo="Clear Liked Songs" perigo desativada={offline} aoTocar={() => setClearLibraryOpen(true)} />
+          <Linha icone="trash" rotulo="Delete account" perigo desativada={offline} aoTocar={() => setDeleteAccountOpen(true)} />
+        </Grupo>
 
-            <Label style={{ marginTop: spacing.md }}>
-              Sleep timer
-              {sleepTimerTimeLeft > 0 && ` — ${formatTimeLeft(sleepTimerTimeLeft)}`}
-            </Label>
-            <SegmentedControl
-              options={['Off', '15m', '30m', '45m', '60m']}
-              value={
-                sleepTimerTimeLeft === 0
-                  ? 0
-                  : sleepTimerTimeLeft <= 15 * 60
-                  ? 1
-                  : sleepTimerTimeLeft <= 30 * 60
-                  ? 2
-                  : sleepTimerTimeLeft <= 45 * 60
-                  ? 3
-                  : 4
-              }
-              onChange={(i) => {
-                hapticSelection();
-                const mins = [0, 15, 30, 45, 60][i];
-                setSleepTimer(mins);
-              }}
-            />
-            <Efeito texto={efeitos.temporizador} />
-
-            <ToggleRow
-              label="Autoplay similar music"
-              value={autoplayRadio}
-              onChange={toggleAutoplayRadio}
-              style={{ marginTop: spacing.md }}
-            />
-            <Efeito texto={efeitos.radio} />
-          </Section>
-
-          <Section title="Sound">
-            <Label>Audio quality</Label>
-            <SegmentedControl
-              options={['High', 'Data saver']}
-              value={audioQuality === 'saver' ? 1 : 0}
-              onChange={changeAudioQuality}
-            />
-            <Efeito texto={efeitos.qualidade} />
-
-            <ToggleRow
-              label="Even out volume"
-              value={volumeNormalization}
-              onChange={toggleVolumeNormalization}
-              style={{ marginTop: spacing.md }}
-            />
-            <Efeito texto={efeitos.normalizacao} />
-
-            {/* O equalizador base: vale para as faixas que não tenham o seu,
-                e não mexe na que está a tocar. */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.md }}>
-              <Label>Equaliser</Label>
-              <ReporEqualizador
-                desativado={ePlano(padraoGanhos)}
-                aoRepor={() => setEqGanhos(PLANO.slice(), true)}
-              />
-            </View>
-            {/* A fila de perfis desliza ate a borda do cartao (padding lg). */}
-            <Equalizador
-              ganhos={padraoGanhos}
-              aoMudar={(novo) => setEqGanhos(novo, true)}
-              presets={presetsNaFila}
-              sangria={spacing.lg}
-            />
-            <Efeito texto={efeitos.equalizador} />
-
-            {/* Os presets: quais aparecem, os teus, e o do carro. Como o
-                "Manage recommendations": uma legenda e o botão que abre a folha. */}
-            <Text style={[type.caption, { marginTop: spacing.md }]}>{resumoDosPresets(memoriaDosPresets)}</Text>
-            <View style={styles.botoes}>
-              <PillButton label="Manage presets" variant="ghost" small onPress={() => setPresetsOpen(true)} />
-            </View>
-          </Section>
-
-          <Section title="Appearance">
-            <Label>Accent</Label>
-            <View style={styles.themesGrid}>
-              {([
-                ['steel', 'Steel', STEEL],
-                ['cover', 'Cover', modo === 'cover' ? temaActual : STEEL],
-              ] as const).map(([nome, rotulo, amostra]) => {
-                const activo = modo === nome;
-                return (
-                  <Pressable
-                    key={nome}
-                    onPress={() => {
-                      hapticSelection();
-                      void setMode(nome);
-                    }}
-                    style={styles.themeCircleWrap}
-                  >
-                    <LinearGradient
-                      colors={amostra.gradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={[styles.themeCircle, activo && { borderWidth: 2, borderColor: '#fff' }]}
-                    >
-                      {activo && <Ionicons name="checkmark" size={16} color={amostra.textColorOnGradient} />}
-                    </LinearGradient>
-                    <Text style={styles.themeLabel}>{rotulo}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <Text style={type.caption}>Cover follows the artwork of whatever is playing.</Text>
-
-            {Platform.OS === 'ios' && <>
-              <Label style={{ marginTop: spacing.md }}>Artwork style</Label>
-              <SegmentedControl options={['Floating 3D', 'Simple']} value={coverStyle === 'floating' ? 0 : 1}
-                onChange={index => useCapaIOS.getState().setStyle(index === 0 ? 'floating' : 'simple')} />
-            </>}
-
-            <ToggleRow
-              label="Show song length in lists"
-              value={showDuration}
-              onChange={toggleShowDuration}
-              style={{ marginTop: spacing.md }}
-            />
-            <ToggleRow
-              label="Show 15-second rewind"
-              value={showRewindButton}
-              onChange={toggleShowRewind}
-              style={{ marginTop: spacing.sm }}
-            />
-          </Section>
-
-          <Section title="General">
-            <ToggleRow
-              label="Message banners"
-              value={notificationsOn}
-              onChange={toggleNotifications}
-            />
-            <ToggleRow
-              label="Haptic feedback"
-              value={hapticsOn}
-              onChange={toggleHaptics}
-              style={{ marginTop: spacing.sm }}
-            />
-            <ToggleRow
-              label="Keep screen awake"
-              value={keepAwakeOn}
-              onChange={toggleKeepAwake}
-              style={{ marginTop: spacing.sm }}
-            />
-            <Efeito texto={efeitos.ecra} />
-            <ToggleRow label="Keep screen on in car mode" value={carroMantemEcra}
-              onChange={(v) => { setCarroMantemEcraState(v); void setCarroMantemEcra(v).catch(() => {}); }}
-              style={{ marginTop: spacing.sm }} />
-          </Section>
-
-          <Section title="Library">
-            <Text style={type.caption}>{offline ? 'Connect to the internet to change your recommendations.' : 'Songs you hid and artists you want to hear less often.'}</Text>
-            <View style={styles.botoes}>
-              <PillButton label="Manage recommendations" variant="ghost" small disabled={offline}
-                onPress={() => setRecommendationsOpen(true)} />
-              {spotifyDisponivel() && (
-                <PillButton
-                  label={aLerSpotify ? 'Reading Spotify…' : gostoDoSpotify ? 'Update from Spotify' : 'Import from Spotify'}
-                  variant="ghost"
-                  small
-                  loading={aLerSpotify}
-                  disabled={offline || aLerSpotify}
-                  onPress={() => void importarDoSpotify()}
-                />
-              )}
-            </View>
-            {spotifyDisponivel() && <Efeito texto={efeitos.spotify} />}
-            <Text style={[type.caption, { marginTop: spacing.lg }]}>
-              {progresso
-                ? `Identifying ${progresso.feitas} of ${progresso.total}…`
-                : resumoDoCatalogo
-                  ?? 'Fix artist names, titles and covers with a music catalogue, or find duplicates and songs that no longer play.'}
-            </Text>
-            <View style={styles.botoes}>
-              <PillButton
-                label={aIdentificar ? 'Stop' : 'Identify library'}
-                disabled={offline}
-                variant="ghost"
-                small
-                loading={aIdentificar && !progresso}
-                onPress={aIdentificar ? () => { pararIdentificacao.current = true; } : identificarBiblioteca}
-              />
-              <PillButton label="Library check" variant="ghost" small onPress={() => navigation.navigate('LibraryCheck')} />
-            </View>
-          </Section>
-
-          <Section title="Storage">
-            <Text style={type.caption}>
-              Songs are kept on the phone so they play with the screen locked.
-            </Text>
-            <View style={styles.botoes}>
-              <PillButton label={`Downloads (${formatCacheSize(cacheBytes)})`} variant="ghost" small
-                onPress={() => navigation.navigate('Downloads')} />
-              <PillButton label="Clear cache" variant="ghost" small onPress={doClearCache} />
-            </View>
-            {/* Apaga TODO o áudio guardado, os downloads feitos de propósito
-                incluídos -- e isso tem de se ler antes de carregar. */}
-            <Efeito texto={efeitos.cache} />
-          </Section>
-
-          <Section title="Account">
-            {offline&&<Text style={type.caption}>Offline · connect to manage your account.</Text>}
-            <Row label="Email" value={session?.user?.email ?? '—'} />
-            <View style={styles.botoes}>
-              <PillButton
-                label="Reset password"
-                disabled={offline}
-                variant="ghost"
-                small
-                loading={resettingPw}
-                onPress={doResetPassword}
-              />
-              <PillButton
-                label="Sign out"
-                variant="ghost"
-                small
-                onPress={() => setSignOutOpen(true)}
-              />
-            </View>
-            <View style={styles.botoes}>
-              <PillButton
-                label="Clear Liked Songs"
-                disabled={offline}
-                variant="danger"
-                small
-                onPress={() => setClearLibraryOpen(true)}
-              />
-              <PillButton
-                label="Delete account"
-                disabled={offline}
-                variant="danger"
-                small
-                onPress={() => setDeleteAccountOpen(true)}
-              />
-            </View>
-          </Section>
-
-          <Section title="About">
-            <Row label="Version" value={APP_VERSION} />
-            {/* O relatório vai pela folha de partilha: quem precisa dele é quem
-                o vai mandar a alguém. */}
-            <PillButton
-              label="Send playback report"
-              variant="ghost"
-              small
-              onPress={() => { void partilharRelatorioDeReproducao().catch(() => {}); }}
-              style={{ alignSelf: 'flex-start', marginTop: spacing.sm }}
-            />
-            <Text style={[type.caption, { marginTop: spacing.xs }]}>If a song won't play, send this so it can be fixed.</Text>
-          </Section>
-        </Animated.ScrollView>
-      </KeyboardAvoidingView>
+        {/* O relatório vai pela folha de partilha: quem precisa dele é quem o
+            vai mandar a alguém. */}
+        <Grupo titulo="About" rodape="If a song won't play, send this so it can be fixed.">
+          <Linha icone="information-circle" rotulo="Version" valor={APP_VERSION} />
+          <Linha
+            icone="paper-plane"
+            rotulo="Send playback report"
+            acao
+            aoTocar={() => { void partilharRelatorioDeReproducao().catch(() => {}); }}
+          />
+        </Grupo>
+      </Animated.ScrollView>
 
       <ConfirmSheet
         visible={signOutOpen}
@@ -726,117 +621,40 @@ export function SettingsScreen({ navigation }: Props) {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View>
-      <Text style={[type.micro, { marginBottom: spacing.sm }]}>{title}</Text>
-      <View style={styles.card}>{children}</View>
-    </View>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={type.body}>{label}</Text>
-      <Text style={[type.caption, { color: colors.textSecondary }]}>{value}</Text>
-    </View>
-  );
-}
-
 /**
- * O que a opção de cima está a fazer agora (lib/efeitoDasDefinicoes.ts). Mais
- * clara do que a legenda que explica a opção: esta é sobre o momento, aquela é
- * sobre a regra.
+ * O equalizador padrão numa folha (4/10): vale para as faixas que não têm o
+ * seu, e não mexe na que está a tocar -- por isso escreve com `padrao`.
  */
-function Efeito({ texto }: { texto: string | null }) {
-  if (!texto) return null;
-  return (
-    <View style={styles.efeito} accessibilityRole="text">
-      <View style={styles.efeitoPonto} />
-      <Text style={[type.caption, { color: colors.text, flex: 1 }]}>{texto}</Text>
-    </View>
-  );
-}
-
-function Label({ children, style }: { children: React.ReactNode; style?: object }) {
-  return <Text style={[type.caption, { marginBottom: spacing.sm }, style]}>{children}</Text>;
-}
-
-function ToggleRow({
-  label,
-  value,
-  onChange,
-  style,
-}: {
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-  style?: object;
+function EqualizadorPadrao({ visivel, aoFechar, ganhos, presets, efeito }: {
+  visivel: boolean;
+  aoFechar: () => void;
+  ganhos: number[];
+  presets: ReturnType<typeof presetsVisiveis>;
+  efeito: string | null;
 }) {
+  const setEqGanhos = usePlayer((s) => s.setEqGanhos);
   return (
-    <View style={[styles.row, style]}>
-      <Text style={type.body}>{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        trackColor={{ false: colors.surfacePressed, true: colors.text }}
-        thumbColor="#fff"
-      />
-    </View>
+    <BottomSheet visible={visivel} onClose={aoFechar}>
+      <View style={{ gap: spacing.lg, paddingBottom: spacing.xs }}>
+        <View style={styles.cabecalhoDoEq}>
+          <View style={{ flex: 1 }}>
+            <Text accessibilityRole="header" style={type.title}>Equaliser</Text>
+            <Text style={[type.caption, { marginTop: 2 }]}>For every song that has no EQ of its own</Text>
+          </View>
+          <ReporEqualizador desativado={ePlano(ganhos)} aoRepor={() => setEqGanhos(PLANO.slice(), true)} />
+        </View>
+        <BottomSheetGestureGuard>
+          <Equalizador ganhos={ganhos} aoMudar={(novo) => setEqGanhos(novo, true)} presets={presets} moldura sangria={spacing.lg} />
+        </BottomSheetGestureGuard>
+        {efeito ? <Text style={type.caption}>{efeito}</Text> : null}
+      </View>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.lg,
-    borderCurve: 'continuous',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.xs,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  botoes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.sm },
-  efeito: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.xs },
-  efeitoPonto: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.text, opacity: 0.6 },
-  themesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-    justifyContent: 'space-between',
-  },
-  themeCircleWrap: {
-    alignItems: 'center',
-    width: '22%',
-    marginBottom: spacing.sm,
-  },
-  themeCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  themeLabel: {
-    ...type.micro,
-    fontSize: 11,
-    marginTop: 6,
-    textAlign: 'center',
-    textTransform: 'none',
-  },
+  amostra: { width: 16, height: 16, borderRadius: 8 },
+  cabecalhoDoEq: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
 });
 
 function formatTimeLeft(seconds: number): string {

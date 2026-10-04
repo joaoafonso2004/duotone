@@ -144,17 +144,23 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
               acende
               accessibilityRole="button"
               accessibilityLabel={accao.motivo ? `${accao.label}. ${accao.motivo}` : accao.label}
-              accessibilityState={{ disabled: apagada }}
+              accessibilityState={{ disabled: apagada, selected: accao.escolhida }}
               disabled={apagada}
               onPress={() => { hapticSelection(); accao.onPress(); }}
               style={[styles.linha, accao.inicioDeGrupo && styles.grupo]}
             >
-              <Ionicons
-                name={accao.icon}
-                size={19}
-                color={accao.destructive ? colors.danger : colors.text}
-                style={apagada && styles.apagada}
-              />
+              {accao.escolhida === undefined ? (
+                <Ionicons
+                  name={accao.icon}
+                  size={19}
+                  color={accao.destructive ? colors.danger : colors.text}
+                  style={apagada && styles.apagada}
+                />
+              ) : (
+                <View style={styles.marca}>
+                  {accao.escolhida && <Ionicons name="checkmark" size={18} color={colors.text} />}
+                </View>
+              )}
               <View style={styles.etiqueta}>
                 <Text
                   numberOfLines={2}
@@ -193,6 +199,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   etiqueta: { flex: 1 },
+  marca: { width: 19, alignItems: 'center' },
   apagada: { opacity: 0.4 },
   motivo: { marginTop: 1, color: colors.textSecondary },
   grupo: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong, marginTop: spacing.xs },

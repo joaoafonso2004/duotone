@@ -26,6 +26,11 @@ export type PlayerAction = {
    */
   nota?: string | null;
   inicioDeGrupo?: boolean;
+  /**
+   * Uma opção de uma escolha (o menu de uma linha das Definições): no lugar
+   * do ícone vai o ✓ na escolhida e nada nas outras. Só o `MenuFlutuante`.
+   */
+  escolhida?: boolean;
 };
 
 /** As linhas de um menu de faixa (lib/menuDaFaixa.ts), com o que cada uma faz. */

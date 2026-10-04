@@ -40,7 +40,8 @@ verificar('o signOut fecha o leitor ANTES de a sessão ir', () => {
 for (const [plataforma, ficheiro] of Object.entries(ECRAS)) {
   const ecra = ler(ficheiro);
   verificar(`${plataforma}: as Definições têm Sign out e Reset password`, () => {
-    assert.match(ecra, /label="Sign out"/);
+    // O iPhone passou à lista agrupada (4/10): a linha leva `rotulo`.
+    assert.match(ecra, /(?:label|rotulo)="Sign out"/);
     assert.match(ecra, /Reset password/);
     assert.match(ecra, /\.signOut\(\)|signOut\(\);/);
   });
