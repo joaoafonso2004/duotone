@@ -595,6 +595,17 @@ export async function setOrdemDosArtistas(value: OrdemDosArtistas): Promise<void
  * velocidades extremas. Um corte ou um artefacto: e por isso que e uma
  * preferencia e nao uma decisao escrita no codigo.
  */
+/**
+ * O tempo da direita na barra do leitor do iPhone: o total ("3:41") ou o que
+ * falta ("−1:23"). Muda-se tocando nele (auditoria, detalhes premium, 4/10).
+ */
+export async function getTempoRestante(): Promise<boolean> {
+  return await AsyncStorage.getItem('pref:tempoRestante') === '1';
+}
+export async function setTempoRestante(v: boolean): Promise<void> {
+  await AsyncStorage.setItem('pref:tempoRestante', v ? '1' : '0');
+}
+
 export async function getVelocidadeMantemTom(): Promise<boolean> {
   return await AsyncStorage.getItem('pref:velocidadeMantemTom') === '1';
 }

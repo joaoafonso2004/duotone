@@ -191,6 +191,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FF3B30',
+    // O vermelho da app (auditoria 2.4): era um #FF3B30 escrito à mão.
+    backgroundColor: colors.danger,
   },
 });

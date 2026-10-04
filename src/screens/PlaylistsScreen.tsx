@@ -36,6 +36,7 @@ import { hapticImpact, hapticNotification, ImpactFeedbackStyle } from '../lib/ha
 import { avisarRemocao, avisarErro } from '../lib/avisoDeRemocao';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
+import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
 import { usePlaylists } from '../state/playlists';
 import { useTheme } from '../state/theme';
 import type { Playlist } from '../types';
@@ -102,6 +103,7 @@ export function PlaylistsScreen() {
 
   /** Depois de mexer na lista, a versão do servidor é a que manda. */
   const load = useCallback(() => { void carregar(true); }, [carregar]);
+  const puxar = usePuxarParaAtualizar(() => carregar(true), cab.espaco);
 
   // No foco, revalida-se em silêncio -- e nem isso, se a lista for recente.
   // A cancelar já não há nada: quem trata de respostas fora de tempo é o
@@ -217,6 +219,7 @@ export function PlaylistsScreen() {
           ref={topo}
           data={playlists}
           ListHeaderComponent={avisoDeErro}
+          refreshControl={puxar}
           onScroll={cab.onScroll}
           scrollEventThrottle={cab.scrollEventThrottle}
           scrollIndicatorInsets={{ top: cab.espaco }}

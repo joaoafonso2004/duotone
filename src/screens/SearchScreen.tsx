@@ -65,6 +65,8 @@ import { registar } from '../lib/eventos';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { avisarErro } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
+import { useSocial } from '../state/social';
 
 /** Quantas linhas por página na primeira secção. */
 const LINHAS_NA_LISTA = 3;
@@ -535,6 +537,12 @@ export function SearchScreen() {
     : isFocused ? 'historico' : vista;
   const rolagem = cab.rolagem;
   useEffect(() => { rolagem.setValue(0); }, [listaAVista, rolagem]);
+  // Puxar a Home refaz as prateleiras (o mesmo que o botão de refrescar) e
+  // relê quem está online.
+  const puxar = usePuxarParaAtualizar(
+    () => Promise.all([recs.carregar(true), useSocial.getState().refresh()]),
+    cab.espaco,
+  );
 
   // O refrescar vive no cabecalho, como no PC -- um icone, nao uma linha de
   // texto encostada a direita por cima de tudo. E so aparece quando ha
@@ -665,6 +673,7 @@ export function SearchScreen() {
           /* Default state - Show Recommendations */
           <Animated.ScrollView
             ref={topoDaPagina}
+            refreshControl={puxar}
             onScroll={cab.onScroll}
             scrollEventThrottle={cab.scrollEventThrottle}
             scrollIndicatorInsets={{ top: cab.espaco }}

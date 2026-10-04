@@ -18,8 +18,8 @@ import type { Track } from '../types';
  * Daí uma tabela própria (`player_sessions`), uma linha por dispositivo.
  */
 
-/** Uma sessão só conta como viva se for recente — mesma defesa que o
- * `livePresence`: nada de estado preso a sobreviver a um processo morto. */
+/** Uma sessão só conta como viva se for recente: nada de estado preso a
+ * sobreviver a um processo morto. */
 export const SESSION_TTL_MS = 3 * 60 * 1000;
 
 /**

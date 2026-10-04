@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   PanGestureHandler, State,
   type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent,
@@ -7,6 +7,7 @@ import {
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { BARRA_A_ARRASTAR, BOTAO_DA_BARRA, ESTADO, SOLTAR } from '../lib/movimento';
 import { colors } from '../theme';
+import { getTempoRestante, setTempoRestante } from '../lib/prefs';
 import { ondeVai, proximoTrajeto, type Trajeto } from '../lib/barraSuave';
 import {
   RITMOS, bateuNaPonta, comecarArrasto, eToque, fracaoNoArrasto, mudarDeRitmo, ritmoDoArrasto, type Arrasto,
@@ -95,6 +96,44 @@ function fmt(ms: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * O que falta, com o sinal de menos tipográfico (U+2212), como o Apple Music.
+ * Arredonda para CIMA, ao contrário do decorrido: assim os dois somam sempre a
+ * duração ("1:00" + "−2:41" numa música de 3:41) em vez de ficarem um segundo
+ * aquém.
+ */
+function fmtRestante(posicaoMs: number, duracaoMs: number): string {
+  const resto = Math.max(0, Math.ceil((duracaoMs - posicaoMs) / 1000 - 1e-6));
+  return `−${fmt(resto * 1000)}`;
+}
+
+/**
+ * Total ou restante, partilhado entre leitores (só há um de cada vez) e lido
+ * do disco uma vez.
+ */
+let restanteGuardado: boolean | null = null;
+const ouvintesDoRestante = new Set<(v: boolean) => void>();
+function useTempoRestante(): [boolean, () => void] {
+  const [restante, setRestante] = useState(restanteGuardado ?? false);
+  useEffect(() => {
+    ouvintesDoRestante.add(setRestante);
+    if (restanteGuardado === null) {
+      void getTempoRestante().then((v) => {
+        restanteGuardado = v;
+        for (const f of ouvintesDoRestante) f(v);
+      }).catch(() => {});
+    }
+    return () => { ouvintesDoRestante.delete(setRestante); };
+  }, []);
+  const alternar = () => {
+    const v = !(restanteGuardado ?? false);
+    restanteGuardado = v;
+    for (const f of ouvintesDoRestante) f(v);
+    void setTempoRestante(v).catch(() => {});
+  };
+  return [restante, alternar];
 }
 
 /**
@@ -285,6 +324,7 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
 
   const shownMs = segundoArrastado != null ? segundoArrastado * 1000 : positionMs;
   const nomeDoRitmo = RITMOS[ritmoVisto].nome;
+  const [restante, alternarRestante] = useTempoRestante();
 
   return (
     <View style={styles.wrap}>
@@ -340,7 +380,15 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
         <Text style={[styles.time, styles.decorrido, aArrastar && styles.aArrastar]}>
           {fmt(shownMs)}
         </Text>
-        <Text style={styles.time}>{fmt(durationMs)}</Text>
+        {/* Tocar troca o total pelo que falta (e volta). Acompanha o arrasto. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={restante ? 'Show total time' : 'Show remaining time'}
+          hitSlop={{ top: 10, bottom: 10, left: 16, right: 10 }}
+          onPress={alternarRestante}
+        >
+          <Text style={styles.time}>{restante ? fmtRestante(shownMs, durationMs) : fmt(durationMs)}</Text>
+        </Pressable>
         {/* O ritmo a que se arrasta, entre os dois tempos, só quando abranda. */}
         <Text pointerEvents="none" style={[styles.ritmo, !nomeDoRitmo && styles.escondido]} accessibilityElementsHidden>
           {nomeDoRitmo || ' '}

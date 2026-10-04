@@ -30,6 +30,7 @@ import { getPlaylistPreviews } from '../api/playlists';
 import { GroupAvatar,GroupChatHeader,GroupComposer,GroupDetails,GroupEmptyState,GroupMessage } from './GroupChat';
 import { ConviteDeSessao } from './ConviteDeSessao';
 import { SkeletonDeConversas } from './Skeleton';
+import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { CabecalhoDoAmigo, FaixaPartilhada, FundoDaApp } from './ChatAmigo';
 import type { Playlist,Track } from '../types';
 
@@ -255,6 +256,9 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   );
   const procura=filtro.trim().toLowerCase();
   const visiveis=procura?conversas.filter(c=>c.nome.toLowerCase().includes(procura)):conversas;
+  // Puxar relê tudo (auditoria 1.8): sem botão, que o Realtime já faz isso
+  // sozinho, mas o gesto do iOS é o que se tenta quando parece parado.
+  const puxar=usePuxarParaAtualizar(()=>useSocial.getState().refresh(),cabecalho?.espaco??0);
   const botaoNovo=<View style={[s.row,{paddingBottom:cabecalho?0:12,justifyContent:'flex-end'}]}>
     <SocialIconButton label="Start a conversation" icon="add" onPress={()=>setComecar(true)}/>
   </View>;
@@ -265,7 +269,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         botao que repete o que ja acontece sozinho so ensina a desconfiar. */}
     {!cabecalho&&botaoNovo}
     {/* Com o título que encolhe, o `+` rola com a lista (o cabeçalho flutua por cima dela). */}
-    <Animated.ScrollView onScroll={cabecalho?.onScroll} scrollEventThrottle={cabecalho?.scrollEventThrottle}
+    <Animated.ScrollView refreshControl={puxar} onScroll={cabecalho?.onScroll} scrollEventThrottle={cabecalho?.scrollEventThrottle}
       scrollIndicatorInsets={{top:cabecalho?.espaco??0}}
       keyboardShouldPersistTaps="handled" contentContainerStyle={{gap:16,paddingTop:cabecalho?.espaco??0,paddingBottom:bottomPadding}}>
       {cabecalho&&botaoNovo}

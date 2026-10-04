@@ -101,7 +101,7 @@ import {
   type Geometria,
 } from '../lib/transicaoDoLeitor';
 import { useAlturaDosSeparadores } from '../state/doca';
-import { avisarErro, avisarInfo } from '../lib/avisoDeRemocao';
+import { avisarErro, avisarFeito, avisarInfo } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 const HEADER_H = 44;
@@ -408,36 +408,12 @@ export function PlayerRoot() {
   const filaDaSessao = useOuvirJuntos((s) => s.fila);
   const convidadosControlam = useOuvirJuntos((s) => s.sessao?.convidadosControlam);
 
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const toastOpacity = useRef(new Animated.Value(0)).current;
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    toastOpacity.setValue(0);
-    Animated.sequence([
-      Animated.timing(toastOpacity, {
-        toValue: 1,
-        duration: 220,
-        useNativeDriver: true,
-      }),
-      Animated.delay(1800),
-      Animated.timing(toastOpacity, {
-        toValue: 0,
-        duration: 220,
-        useNativeDriver: true,
-      }),
-    ]).start(({ finished }) => {
-      if (finished) {
-        setToastMessage(null);
-      }
-    });
-  };
-
   const handleTitleLongPress = async () => {
     if (current?.title) {
       await Clipboard.setStringAsync(current.title);
-      hapticSelection();
-      showToast('Copied');
+      // O aviso de sempre (vibra e leva a cor do tema): era um segundo toast
+      // só do leitor, com um verde escrito à mão (auditoria 2.4 e 6.1).
+      avisarFeito('Title copied');
     }
   };
 
@@ -1693,11 +1669,11 @@ export function PlayerRoot() {
                 onPress={togglePlay}
                 style={styles.playBtn}
               >
-                {/* `rodar` porque play e pause sao o mesmo botao visto dos
-                    dois lados -- rodar diz isso. Nao `pulsar`: quem carrega
-                    no play ja esta a olhar para ele, nao precisa de aviso. */}
+                {/* `trocar`: play e pause sao o mesmo botao, e cruzam-se no
+                    sitio. Nao `pulsar`: quem carrega no play ja esta a olhar
+                    para ele, nao precisa de aviso. */}
                 <StateIcon
-                  rodar
+                  trocar
                   name={isPlaying ? 'pause' : 'play'}
                   size={27}
                   color={colors.bg}
@@ -1798,7 +1774,7 @@ export function PlayerRoot() {
               {/* Quem vê o que está a tocar: amigos, ninguém, ou o Jam. */}
               <IndicadorDeVisibilidade
                 onAbrirJam={() => setSessaoAberta(true)}
-                onAviso={showToast}
+                onAviso={(msg) => { avisarInfo(msg); }}
               />
               <Toque
                 escala={ESCALA.icone}
@@ -1888,7 +1864,7 @@ export function PlayerRoot() {
             </Toque>
             <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel={isPlaying ? 'Pause' : 'Play'} hitSlop={8} onPress={togglePlay} style={styles.miniBtn}>
               <StateIcon
-                rodar
+                trocar
                 name={isPlaying ? 'pause' : 'play'}
                 size={22}
                 color={colors.text}
@@ -2111,29 +2087,6 @@ export function PlayerRoot() {
         </View>
       ) : null}
 
-      {/* ===================== TOAST CLEAN DE AVISO ===================== */}
-      {toastMessage ? (
-        <Animated.View
-          style={[
-            styles.toastClean,
-            {
-              bottom: expanded ? insets.bottom + 90 : miniBottom + MINI_PLAYER_HEIGHT + 10,
-              opacity: toastOpacity,
-              transform: [
-                {
-                  translateY: toastOpacity.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [12, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Ionicons name="checkmark-circle" size={16} color="#4ADE80" />
-          <Text style={styles.toastCleanText}>{toastMessage}</Text>
-        </Animated.View>
-      ) : null}
 
       {/* ===================== ADICIONAR A PLAYLIST ===================== */}
       <MenuFlutuante
@@ -2616,28 +2569,5 @@ const styles = StyleSheet.create({
     ...type.caption,
     color: colors.text,
     flex: 1,
-  },
-  toastClean: {
-    position: 'absolute',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(29, 29, 40, 0.95)',
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radii.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  toastCleanText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
   },
 });

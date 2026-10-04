@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {Animated,StyleSheet} from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {useReducedMotion} from '../hooks/useReducedMotion';
-import {ESTADO,GIRO_GRAUS,PULO} from '../lib/movimento';
+import {ESTADO,PULO,TROCA_ESCALA,TROCA_MS} from '../lib/movimento';
 
 type Props=React.ComponentProps<typeof Ionicons>&{
   /**
@@ -16,18 +16,16 @@ type Props=React.ComponentProps<typeof Ionicons>&{
    */
   pulsar?:boolean;
   /**
-   * O ícone que sai roda para um lado e o que entra vem do outro.
+   * O ícone que sai encolhe e o que entra cresce, no mesmo sítio e mais
+   * depressa do que a dissolução normal (`TROCA_MS`).
    *
-   * Só faz sentido quando os dois estados são DUAS CARAS DA MESMA COISA, e não
-   * dois itens de uma lista: play/pause é o caso exemplar -- é o mesmo botão
-   * visto dos dois lados, e rodar diz exactamente isso. Um coração a encher-se
-   * não roda, porque não tem dois lados; e um separador da barra de baixo muito
-   * menos, que ficava a andar à roda a cada mudança de página.
+   * Só para DUAS CARAS DA MESMA COISA: play/pause é o caso exemplar. Rodava
+   * (até 4/10), e o botão mais usado da app andava à roda a cada toque.
    */
-  rodar?:boolean;
+  trocar?:boolean;
 };
 /** Dissolver entre os estados sem mudar a dimensão ou o alvo do botão. */
-export function StateIcon({pulsar=false,rodar=false,...props}:Props){
+export function StateIcon({pulsar=false,trocar=false,...props}:Props){
   const reduced=useReducedMotion(),progress=useRef(new Animated.Value(1)).current;
   const salto=useRef(new Animated.Value(1)).current;
   const previous=useRef(props),[outgoing,setOutgoing]=useState<Props|null>(null);
@@ -42,7 +40,7 @@ export function StateIcon({pulsar=false,rodar=false,...props}:Props){
     const old=previous.current;previous.current=props;
     if(reduced){setOutgoing(null);progress.setValue(1);return;}
     setOutgoing(old);progress.setValue(0);
-    const animation=Animated.timing(progress,{toValue:1,duration:160,useNativeDriver:true});
+    const animation=Animated.timing(progress,{toValue:1,duration:trocar?TROCA_MS:160,useNativeDriver:true});
     animation.start(({finished})=>{if(finished)setOutgoing(null);});
     // O salto parte do tamanho cheio e volta com mola: o pico acontece no
     // instante em que o icone novo aparece, nao depois dele.
@@ -56,18 +54,18 @@ export function StateIcon({pulsar=false,rodar=false,...props}:Props){
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[props.name,reduced]);
 
-  // O que entra vem de tras e o que sai continua para a frente: o MESMO sentido
-  // de rotacao nos dois, para se ler como uma peca a virar e nao como duas a
-  // cruzarem-se. Sem `rodar` as listas ficam vazias e o transform nem se cria.
-  const giroEntra=rodar&&!reduced
-    ?[{rotate:progress.interpolate({inputRange:[0,1],outputRange:[`-${GIRO_GRAUS}deg`,'0deg']})}]
+  // Com `trocar`, o que entra cresce até ao tamanho e o que sai encolhe para
+  // onde o outro começou: os dois no mesmo sítio, a cruzarem-se. Sem ele as
+  // listas ficam vazias e o transform nem se cria.
+  const trocaEntra=trocar&&!reduced
+    ?[{scale:progress.interpolate({inputRange:[0,1],outputRange:[TROCA_ESCALA,1]})}]
     :[];
-  const giroSai=rodar&&!reduced
-    ?[{rotate:progress.interpolate({inputRange:[0,1],outputRange:['0deg',`${GIRO_GRAUS}deg`]})}]
+  const trocaSai=trocar&&!reduced
+    ?[{scale:progress.interpolate({inputRange:[0,1],outputRange:[1,TROCA_ESCALA]})}]
     :[];
 
   return <Animated.View style={{width:props.size??24,height:props.size??24,alignItems:'center',justifyContent:'center',transform:[{scale:salto}]}} pointerEvents="none">
-    {outgoing&&<Animated.View accessible={false} style={[StyleSheet.absoluteFill,{alignItems:'center',justifyContent:'center',opacity:progress.interpolate({inputRange:[0,1],outputRange:[1,0]}),transform:giroSai}]}><Ionicons {...outgoing} /></Animated.View>}
-    <Animated.View style={{opacity:progress,transform:giroEntra}}><Ionicons {...props} /></Animated.View>
+    {outgoing&&<Animated.View accessible={false} style={[StyleSheet.absoluteFill,{alignItems:'center',justifyContent:'center',opacity:progress.interpolate({inputRange:[0,1],outputRange:[1,0]}),transform:trocaSai}]}><Ionicons {...outgoing} /></Animated.View>}
+    <Animated.View style={{opacity:progress,transform:trocaEntra}}><Ionicons {...props} /></Animated.View>
   </Animated.View>;
 }

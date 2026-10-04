@@ -90,7 +90,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 1.8 Não há "puxar para atualizar"
 
-**Estado:** ⬜ Por fazer (zero `RefreshControl` no iPhone).
+**Estado:** ✅ Feito (4/10). Home (prateleiras e amigos), Playlists e Social, com a cor do tema; o spinner fica por baixo do cabeçalho que encolhe (`progressViewOffset`).
 
 **Implementação:** RefreshControl com tintColor do tema na Pesquisa, nas Playlists e no Social.
 
@@ -118,7 +118,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 2.4 Cores fora dos tokens
 
-**Estado:** ⬜ Por fazer. O `#FF3B30` do ponto da barra e o `#4ADE80` do PlayerRoot continuam.
+**Estado:** ✅ Feito (4/10). O ponto da barra usa o `colors.danger`; o toast verde do leitor ("Copied") passou ao aviso comum, com a cor do tema.
 
 **Prioridade:** P3 · Impacto: Baixo
 
@@ -144,7 +144,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 3.3 O play/pause roda
 
-**Estado:** ⬜ Por fazer (o `StateIcon rodar` continua no leitor e no mini).
+**Estado:** ✅ Feito (4/10). `StateIcon trocar`: o que entra cresce de 0,7 para 1 e o que sai encolhe, em 120 ms, no leitor e no mini.
 
 **Melhoria:** cruzamento com escala de 0,7 para 1 em ~120 ms.
 
@@ -240,7 +240,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 7.2 Ficheiros difíceis de rever e código morto
 
-**Estado:** ⬜ Por fazer (o `CapaDaFaixa.tsx` continua sem uso).
+**Estado:** ✅ Feito (4/10). Saíram o `CapaDaFaixa.tsx` e o `lib/presence.ts`, sem uso. O `BotGuardMinter.tsx` fica de propósito (desligado, para reativar).
 
 **Prioridade:** P3 · Impacto: Baixo
 
@@ -293,9 +293,9 @@ Pela ordem de ataque:
 - ✅ Barrinhas a tocar sobre a capa da linha (com reticências em pausa).
 - ✅ Arrastar a barra em modo relativo e fino, com vibração nas pontas.
 - ✅ Mini-player tingido pela capa (com "seguir a cor da capa" ligado).
-- ⬜ Puxar para atualizar com a cor do tema.
-- ⬜ Tempo restante (−1:23) ao tocar no tempo total.
-- ⬜ Play/pause com cruzamento em vez de rodar.
+- ✅ Puxar para atualizar com a cor do tema.
+- ✅ Tempo restante (−1:23) ao tocar no tempo total.
+- ✅ Play/pause com cruzamento em vez de rodar.
 - ✅ Títulos de secção de 22 pt com "See all ›" (na Home).
 - ⬜ Cartões das prateleiras a 140-150 pt, com o terceiro a espreitar.
 

@@ -89,13 +89,13 @@ export const BRILHO_DA_LINHA = 0.055;
 export const PULO = 1.28;
 
 /**
- * Quanto roda um ícone que troca pelo seu par (play/pause).
- *
- * Um quarto de volta é de mais: a esta velocidade o olho perde a forma a meio e
- * fica um borrão. O que se quer é a sugestão de uma peça a virar, e trinta
- * graus chegam para isso sem tirar a legibilidade a nenhum dos dois lados.
+ * Um ícone que troca pelo seu par (play/pause): o que entra cresce de
+ * `TROCA_ESCALA` para 1 e o que sai encolhe para lá, a dissolver, em
+ * `TROCA_MS` (auditoria 3.3, 4/10). Rodava 30 graus, e o botão mais usado da
+ * app parecia a andar à roda; o iOS cruza os dois no sítio.
  */
-export const GIRO_GRAUS = 30;
+export const TROCA_ESCALA = 0.7;
+export const TROCA_MS = 120;
 
 /**
  * A barra de progresso debaixo do dedo.

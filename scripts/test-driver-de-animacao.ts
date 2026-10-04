@@ -35,7 +35,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   BARRA_A_ARRASTAR, BOTAO_DA_BARRA, ESCALA, ENTRADA, ESTADO,
-  GIRO_GRAUS, PREMIR, PULO, SEPARADOR_ACTIVO, SOLTAR,
+  TROCA_ESCALA, TROCA_MS, PREMIR, PULO, SEPARADOR_ACTIVO, SOLTAR,
 } from '../src/lib/movimento.ts';
 
 let falhas = 0;
@@ -183,12 +183,9 @@ verificar('o pulo cresce em vez de encolher', () => {
   assert.ok(PULO < 1.6, `${PULO} é grande de mais -- um coração a saltar meio ecrã é uma piada, não um estado`);
 });
 
-verificar('o giro sugere sem borrar', () => {
-  assert.ok(GIRO_GRAUS > 0, 'sem graus não há giro');
-  assert.ok(
-    GIRO_GRAUS <= 45,
-    `${GIRO_GRAUS}° é de mais -- a esta velocidade o olho perde a forma a meio e fica um borrão`
-  );
+verificar('o play/pause cruza no sítio, depressa', () => {
+  assert.ok(TROCA_ESCALA >= 0.6 && TROCA_ESCALA < 1, `${TROCA_ESCALA}: o ícone que entra tem de vir de um pouco mais pequeno`);
+  assert.ok(TROCA_MS >= 80 && TROCA_MS <= 180, `${TROCA_MS} ms: o play/pause é o botão mais usado, a troca não pode arrastar`);
 });
 
 verificar('a barra e o separador crescem, sem exagero', () => {
