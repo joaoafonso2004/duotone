@@ -9,6 +9,7 @@ import { useTheme } from '../state/theme';
 import { hapticSelection } from '../lib/haptics';
 import { spacing } from '../theme';
 import { colors, radii, type, SOCIAL_GUTTER } from './socialTokens';
+import { DentroDeUmModal, useModalDoRNAberto } from './dentroDeUmModal';
 
 const web = Platform.OS === 'web';
 export const socialStyles = StyleSheet.create({
@@ -101,6 +102,7 @@ export function SocialTabs({ value, onChange }: { value: 'friends' | 'add'; onCh
 export function SocialModal({ visible, title, onClose, children, wide = false, fullScreen = false, header }: {
   visible: boolean; title: string; onClose: () => void; children: React.ReactNode; wide?: boolean; fullScreen?: boolean; header?: React.ReactNode;
 }) {
+  useModalDoRNAberto(visible);
   const safe = useSafeAreaInsets();
   const notificationDismiss = useNotificationOverlay(visible,onClose);
   const { height } = useWindowDimensions();
@@ -139,7 +141,7 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
     })
   ).current;
 
-  return <Modal onDismiss={notificationDismiss} visible={visible} transparent={!fullScreen} animationType={web ? 'fade' : 'slide'} onRequestClose={onClose}>
+  return <Modal onDismiss={notificationDismiss} visible={visible} transparent={!fullScreen} animationType={web ? 'fade' : 'slide'} onRequestClose={onClose}><DentroDeUmModal.Provider value>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1, backgroundColor: fullScreen ? colors.bg : colors.overlay, justifyContent: web ? 'center' : 'flex-end', alignItems: 'center', paddingTop: safe.top + (fullScreen ? 0 : 12), paddingBottom: web ? 12 : 0, paddingHorizontal: web ? 24 : 0 }}>
       {/* Tocar fora fecha. Só numa folha: em ecrã inteiro não há "fora", e
@@ -166,5 +168,5 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
           : children}
       </View>
     </KeyboardAvoidingView>
-  </Modal>;
+  </DentroDeUmModal.Provider></Modal>;
 }

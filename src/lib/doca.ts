@@ -36,7 +36,7 @@ type EstadoDeNavegacao = { index?: number; routes: readonly { name: string; stat
  * As folhas nativas (3/10): ficam POR CIMA de um ecrã, que continua a ser o que
  * manda na base -- a fila aberta sobre as secções não tira os separadores.
  */
-export const FOLHAS: ReadonlySet<string> = new Set(['Fila']);
+export const FOLHAS: ReadonlySet<string> = new Set(['Fila', 'Folha']);
 
 /** Os nomes das rotas em foco, da raiz para dentro (uma folha conta o ecrã de trás). */
 export function rotasEmFoco(estado: EstadoDeNavegacao | undefined): string[] {

@@ -11,6 +11,7 @@ import { getCarroMantemEcra } from '../lib/prefs';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { colors, radii, spacing, type } from '../theme';
+import { DentroDeUmModal, useModalDoRNAberto } from './dentroDeUmModal';
 
 /**
  * Modo carro: o leitor para se ver de relance e acertar sem olhar.
@@ -44,6 +45,7 @@ import { colors, radii, spacing, type } from '../theme';
  * exactamente ao estado em que ele estava.
  */
 export function ModoCarro({ visivel, aoFechar }: { visivel: boolean; aoFechar: () => void }) {
+  useModalDoRNAberto(visivel);
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const tema = useTheme((s) => s.theme);
@@ -86,7 +88,7 @@ export function ModoCarro({ visivel, aoFechar }: { visivel: boolean; aoFechar: (
   const grande = Math.min(96, width * 0.24);
 
   return (
-    <Modal visible={visivel} animationType="fade" onRequestClose={aoFechar} statusBarTranslucent>
+    <Modal visible={visivel} animationType="fade" onRequestClose={aoFechar} statusBarTranslucent><DentroDeUmModal.Provider value>
       <View style={[styles.fundo, { paddingTop: insets.top + spacing.md, paddingBottom: insets.bottom + spacing.lg }]}>
         {/* Sair fica em cima e pequeno de propósito: é o único botão daqui em
             que NÃO se quer carregar por engano. */}
@@ -141,7 +143,7 @@ export function ModoCarro({ visivel, aoFechar }: { visivel: boolean; aoFechar: (
           {seguinte ? `Next · ${tituloDaFaixa(seguinte)}` : ' '}
         </Text>
       </View>
-    </Modal>
+    </DentroDeUmModal.Provider></Modal>
   );
 }
 

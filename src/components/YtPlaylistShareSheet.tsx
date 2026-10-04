@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PillButton } from './PillButton';
 import { colors, radii, spacing, type } from '../theme';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
+import { DentroDeUmModal, useModalDoRNAberto } from './dentroDeUmModal';
 
 interface Props {
   visible: boolean;
@@ -28,6 +29,7 @@ export function YtPlaylistShareSheet({
   playlistId,
   playlistName,
 }: Props) {
+  useModalDoRNAberto(visible);
   const insets = useSafeAreaInsets();
   const notificationDismiss = useNotificationOverlay(visible,onClose);
   const shareLink = `duotone://playlist/import?id=${playlistId}`;
@@ -58,7 +60,7 @@ export function YtPlaylistShareSheet({
       transparent
       statusBarTranslucent
       onRequestClose={onClose}
-    >
+    ><DentroDeUmModal.Provider value>
       <View style={styles.overlay}>
         <Pressable style={styles.dismiss} onPress={onClose} />
         
@@ -109,7 +111,7 @@ export function YtPlaylistShareSheet({
           </View>
         </View>
       </View>
-    </Modal>
+    </DentroDeUmModal.Provider></Modal>
   );
 }
 

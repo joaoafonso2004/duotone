@@ -205,7 +205,8 @@ assert.equal(bridge({}).aplicarVelocidadeNativa(p,1),false);
 assert.equal(bridge({aplicarVelocidade(){throw Error('released');}}).aplicarVelocidadeNativa(p,1),false);
 assert.equal(bridge({aplicarVelocidade:()=>true}).aplicarVelocidadeNativa(p,1),true);
 
-// The real PanResponder handlers, including re-renders while dragging.
+// The real Gesture Handler callbacks, including re-renders while dragging.
+const G={UNDETERMINED:0,FAILED:1,BEGAN:2,CANCELLED:3,ACTIVE:4,END:5};
 function slider(initial=1){
  let slots=[],cursor=0,effects=[],props={valor:initial,aoMudar:v=>calls.push(v)},calls=[];
  const changed=(a,b)=>!a || a.length!==b.length || b.some((v,i)=>!Object.is(v,a[i]));
@@ -217,19 +218,23 @@ function slider(initial=1){
   useEffect:(fn,deps)=>{const i=slot(()=>null);if(changed(slots[i],deps)){slots[i]=deps;effects.push(fn);}},
  };
  const {BarraVelocidade}=load('src/components/BarraVelocidade.tsx',{
-  react,'react-native':{PanResponder:{create:handlers=>({panHandlers:handlers})},View:'View',Pressable:'Pressable',Text:'Text'},
+  react,'react-native':{View:'View',Pressable:'Pressable',Text:'Text'},
+  'react-native-gesture-handler':{PanGestureHandler:'PanGestureHandler',State:G},
   '../lib/playbackRate':rate,'../lib/haptics':{hapticSelection(){}},'../theme':{colors:{},radii:{},spacing:{},type:{}},
  });
  const nodes=node=>!node || typeof node!=='object'?[]:[node,...(node.props?.children??[]).flat(Infinity).flatMap(nodes)];
  const render=()=>{cursor=0;const tree=BarraVelocidade(props);for(const fn of effects.splice(0))fn();return tree;};
  let tree=render();let bar=()=>nodes(tree).find(n=>n.props.accessibilityRole==='adjustable').props;
+ let x0=0;const gesto=()=>nodes(tree).find(n=>n.type==='PanGestureHandler').props;
  bar().onLayout({nativeEvent:{layout:{width:300}}});tree=render();
  return {calls,bar:()=>bar(),render:()=>{tree=render();return tree;},
   update:v=>{props={...props,valor:v};tree=render();tree=render();},
   reset:()=>nodes(tree).find(n=>n.props.accessibilityLabel==='Reset playback speed to normal').props.onPress(),
-  grant:x=>bar().onPanResponderGrant({nativeEvent:{locationX:x}}),
-  move:dx=>bar().onPanResponderMove({}, {dx}),release:dx=>bar().onPanResponderRelease({}, {dx}),
-  cancel:()=>bar().onPanResponderTerminate(),
+  // The handler's `x` is relative to the bar for the whole gesture.
+  grant:x=>{x0=x;gesto().onHandlerStateChange({nativeEvent:{state:G.BEGAN,x}});gesto().onHandlerStateChange({nativeEvent:{state:G.ACTIVE,x}});},
+  move:dx=>gesto().onGestureEvent({nativeEvent:{x:x0+dx}}),
+  release:dx=>gesto().onHandlerStateChange({nativeEvent:{state:G.END,x:x0+dx}}),
+  cancel:()=>gesto().onHandlerStateChange({nativeEvent:{state:G.CANCELLED,x:x0}}),
  };
 }
 let s=slider();s.grant(100);

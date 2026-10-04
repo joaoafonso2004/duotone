@@ -1,5 +1,11 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useRef } from 'react';
+import { StackActions } from '@react-navigation/native';
+import { navigationRef } from '../navigation/RootNavigator';
+import {
+  abrirFolha, atualizarFolha, marcarFechadaPeloDono, novoIdDeFolha, type DetentesDaFolha,
+} from '../state/folhasNativas';
+import { DentroDeUmModal, haModalDoRNAberto, useModalDoRNAberto } from './dentroDeUmModal';
 import {
   Animated,
   Keyboard,
@@ -19,6 +25,7 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { colors, radii, spacing } from '../theme';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 
@@ -36,9 +43,102 @@ interface Props {
    * folha ficava com o gesto -- arrastava-se a fila inteira em vez da música.
    */
   bloqueioRef?: React.RefObject<boolean>;
+  /**
+   * No iPhone a folha é NATIVA (4/10, auditoria 3.2): `false` força o `Modal`
+   * de sempre. Dentro de um `Modal` do React Native é sempre o de sempre (ver
+   * `dentroDeUmModal.ts`).
+   */
+  nativa?: boolean;
+  /** As alturas da folha nativa: o conteúdo (por omissão) ou frações do ecrã. */
+  detentes?: DetentesDaFolha;
 }
 
-export function BottomSheet({ visible, onClose, children, gestureBlocked = false, bloqueioRef }: Props) {
+/**
+ * Interruptor das folhas nativas: `false` volta todas ao `Modal` de sempre
+ * (a fila tem a sua rota e não depende dele).
+ */
+export const FOLHAS_NATIVAS = true;
+
+export function BottomSheet(props: Props) {
+  const dentroDeUmModal = useContext(DentroDeUmModal);
+  if (Platform.OS === 'ios' && FOLHAS_NATIVAS && !dentroDeUmModal && props.nativa !== false) {
+    return <FolhaNativa {...props} />;
+  }
+  return <FolhaDoModal {...props} />;
+}
+
+/** O stack de raiz tem a rota `Folha`? (Sem sessão, ou antes de montar, não.) */
+function podeEmpurrarFolha(): boolean {
+  if (!navigationRef.isReady()) return false;
+  return navigationRef.getRootState()?.routeNames?.includes('Folha') ?? false;
+}
+
+function tirarRotaDaFolha(id: string): void {
+  if (!navigationRef.isReady()) return;
+  const raiz = navigationRef.getRootState();
+  const rota = raiz?.routes.find((r) => r.name === 'Folha' && (r.params as { id?: string } | undefined)?.id === id);
+  // `pop` com `source` tira ESTA rota e deixa as de cima (uma folha aberta a
+  // partir desta não fecha com ela).
+  if (raiz && rota) navigationRef.dispatch({ ...StackActions.pop(1), source: rota.key, target: raiz.key });
+}
+
+/**
+ * A folha nativa: não desenha nada aqui. O conteúdo vai para a loja e a rota
+ * `Folha` desenha-o (`state/folhasNativas.ts`, `screens/FolhaScreen.tsx`).
+ */
+function FolhaNativa(props: Props) {
+  const { visible, onClose, children, detentes } = props;
+  // Decide-se ao abrir, no próprio desenho (assim o `Modal` nunca aparece um
+  // fotograma antes de a folha nativa a substituir): sem rota onde empurrar
+  // (sem sessão) ou com um `Modal` do RN à vista, fica o `Modal` de sempre.
+  const decisao = useRef<'nativa' | 'modal' | null>(null);
+  const antes = useRef(false);
+  if (visible && !antes.current) {
+    decisao.current = !podeEmpurrarFolha() || haModalDoRNAberto() ? 'modal' : 'nativa';
+  }
+  antes.current = visible;
+  // Só a nativa se regista aqui: o `FolhaDoModal` regista-se a si próprio, e
+  // um registo a mais nunca era libertado (a notificação ficava à espera).
+  const notificationDismiss = useNotificationOverlay(visible && decisao.current === 'nativa', onClose);
+  const fechar = useRef(onClose);
+  fechar.current = onClose;
+  const conteudo = useRef(children);
+  conteudo.current = children;
+  const libertar = useRef(notificationDismiss);
+  libertar.current = notificationDismiss;
+  const idRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!visible || decisao.current !== 'nativa') return;
+    const id = novoIdDeFolha();
+    idRef.current = id;
+    abrirFolha({
+      id,
+      conteudo: conteudo.current,
+      aoFechar: () => fechar.current(),
+      aoSairDeVez: () => libertar.current(),
+    });
+    pedirFluidez(800);
+    navigationRef.dispatch(StackActions.push('Folha', { id, detentes }));
+    return () => {
+      idRef.current = null;
+      marcarFechadaPeloDono(id);
+      tirarRotaDaFolha(id);
+    };
+    // As alturas contam só ao abrir: mudá-las com a folha aberta não a refaz.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+
+  // Cada desenho de quem abriu leva o conteúdo novo à folha.
+  useLayoutEffect(() => {
+    if (idRef.current) atualizarFolha(idRef.current, children, () => fechar.current());
+  });
+
+  return decisao.current === 'modal' ? <FolhaDoModal {...props} /> : null;
+}
+
+function FolhaDoModal({ visible, onClose, children, gestureBlocked = false, bloqueioRef }: Props) {
+  useModalDoRNAberto(visible);
   const { height } = useWindowDimensions();
   const notificationDismiss = useNotificationOverlay(visible,onClose);
   const insets = useSafeAreaInsets();
@@ -108,7 +208,9 @@ export function BottomSheet({ visible, onClose, children, gestureBlocked = false
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={StyleSheet.absoluteFill}>
+      {/* Raiz do Gesture Handler: as barras do equalizador e as linhas que se
+          deslizam são dele, e um `Modal` é outra raiz. */}
+      <GestureHandlerRootView style={StyleSheet.absoluteFill}>
         <Pressable style={styles.backdrop} onPress={onClose} />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -139,10 +241,12 @@ export function BottomSheet({ visible, onClose, children, gestureBlocked = false
             <View {...(Platform.OS === 'ios' ? {} : puxar.panHandlers)} style={styles.zonaDaPega}>
               <View style={styles.handle} />
             </View>
-            <SheetGestures.Provider value={gestos}>{children}</SheetGestures.Provider>
+            <DentroDeUmModal.Provider value>
+              <SheetGestures.Provider value={gestos}>{children}</SheetGestures.Provider>
+            </DentroDeUmModal.Provider>
           </Animated.View>
         </KeyboardAvoidingView>
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

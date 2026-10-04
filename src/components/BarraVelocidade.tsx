@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
+import {
+  PanGestureHandler, State,
+  type PanGestureHandlerGestureEvent, type PanGestureHandlerStateChangeEvent,
+} from 'react-native-gesture-handler';
 import {
   arredondar, daFraccao, eNormal, formatar, paraFraccao, PASSO_GROSSO,
   RATE_MAXIMO, RATE_MINIMO,
@@ -26,8 +30,10 @@ const BOLA = 18;
  * O valor acompanha o dedo; o áudio recebe apenas o valor final ao largar.
  * Isto evita dezenas de reavaliações do AVPlayer num único gesto.
  *
- * Feito com `PanResponder`, que vem no React Native: a app não tem biblioteca
- * de gestos nem de slider, e não vale a pena trazer uma para isto.
+ * Do Gesture Handler (4/10), com `minDist` 0, como as barras do equalizador:
+ * é dono do dedo desde o toque. Com o PanResponder, a folha nativa do iOS (a
+ * do equalizador, onde esta barra vive) e a página das Definições roubavam o
+ * arrasto.
  */
 export function BarraVelocidade({
   valor,
@@ -63,11 +69,6 @@ export function BarraVelocidade({
   // Para o toque háptico disparar uma vez por degrau, e não a cada pixel.
   const ultimoRef = useRef(actual);
   ultimoRef.current = actual;
-  // Onde o dedo tocou, relativo à barra. O resto do gesto é isto mais o
-  // deslocamento acumulado — `locationX` durante o movimento vem relativo ao
-  // que estiver por baixo do dedo, e não à barra, por isso não serve.
-  const inicioRef = useRef(0);
-
   const aplicar = (x: number) => {
     const w = larguraRef.current;
     if (!w) return;
@@ -79,31 +80,32 @@ export function BarraVelocidade({
     setPrevia(novo);
   };
 
-  const responder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: () => true,
-    // Um gesto que comece aqui não pode virar scroll a meio: a barra é
-    // horizontal e a lista das Definições é vertical, e sem isto arrastar na
-    // diagonal fugia para a lista.
-    onPanResponderTerminationRequest: () => false,
-    onPanResponderGrant: (e) => {
-      previaRef.current=valorRef.current;
-      inicioRef.current = e.nativeEvent.locationX;
-      aplicar(inicioRef.current);
-    },
-    onPanResponderMove: (_e, gesto) => {
-      if (previaRef.current !== null) aplicar(inicioRef.current + gesto.dx);
-    },
-    onPanResponderRelease: (_e, gesto) => {
+  // O `x` do Gesture Handler é relativo à própria barra, em todo o gesto.
+  const aoMexer = useMemo(() => (e: PanGestureHandlerGestureEvent) => {
+    if (previaRef.current !== null) aplicar(e.nativeEvent.x);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const aoMudarDeEstado = useMemo(() => (e: PanGestureHandlerStateChangeEvent) => {
+    const { state, x } = e.nativeEvent;
+    if (state === State.BEGAN || state === State.ACTIVE) {
+      if (previaRef.current === null) {
+        previaRef.current = valorRef.current;
+        aplicar(x);
+      }
+      return;
+    }
+    if (state === State.END) {
       if (previaRef.current === null) return;
-      aplicar(inicioRef.current + gesto.dx);
-      const novo=previaRef.current;
-      previaRef.current=null;setPrevia(null);
+      aplicar(x);
+      const novo = previaRef.current;
+      previaRef.current = null; setPrevia(null);
       // Uma alteração no áudio e na persistência por gesto, não por degrau.
       if (novo !== valorRef.current) aoMudarRef.current(novo);
-    },
-    onPanResponderTerminate: () => { previaRef.current=null;setPrevia(null); },
-  }), []);
+      return;
+    }
+    if (state === State.CANCELLED || state === State.FAILED) { previaRef.current = null; setPrevia(null); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const normal = eNormal(actual);
   // A mesma pilula do Reset do equalizador (`ReporEqualizador`), que vive ao
@@ -114,8 +116,8 @@ export function BarraVelocidade({
   };
   const textoDoRepor = { fontSize: 12, fontWeight: '600' as const, color: colors.textSecondary };
   const barra = (
+    <PanGestureHandler minDist={0} onGestureEvent={aoMexer} onHandlerStateChange={aoMudarDeEstado}>
     <View
-      {...responder.panHandlers}
       onLayout={(e) => setLargura(e.nativeEvent.layout.width)}
       collapsable={false}
       accessible
@@ -159,6 +161,7 @@ export function BarraVelocidade({
         }}
       />
     </View>
+    </PanGestureHandler>
   );
 
   if (titulo) {

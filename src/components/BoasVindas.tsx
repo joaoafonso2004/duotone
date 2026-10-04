@@ -12,6 +12,7 @@ import { useTheme } from '../state/theme';
 import { colors } from '../theme';
 import { Input } from './Input';
 import { PillButton } from './PillButton';
+import { DentroDeUmModal, useModalDoRNAberto } from './dentroDeUmModal';
 
 /**
  * O questionário da primeira vez, no iPhone (26/9). A lógica é partilhada com
@@ -25,6 +26,7 @@ export function BoasVindas() {
 }
 
 function Conteudo({ aoFechar }: { aoFechar: () => void }) {
+  useModalDoRNAberto(true);
   const p = usePassosDasBoasVindas(aoFechar);
   const insets = useSafeAreaInsets();
   const acento = useTheme((s) => s.theme.color);
@@ -161,7 +163,7 @@ function Conteudo({ aoFechar }: { aoFechar: () => void }) {
     : null;
 
   return (
-    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={p.saltar}>
+    <Modal visible animationType="slide" presentationStyle="fullScreen" onRequestClose={p.saltar}><DentroDeUmModal.Provider value>
       <KeyboardAvoidingView behavior="padding" style={[styles.ecra, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12 }]}>
         {topo}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24, gap: 12 }} keyboardShouldPersistTaps="handled">
@@ -174,7 +176,7 @@ function Conteudo({ aoFechar }: { aoFechar: () => void }) {
           </View>
         ) : null}
       </KeyboardAvoidingView>
-    </Modal>
+    </DentroDeUmModal.Provider></Modal>
   );
 }
 

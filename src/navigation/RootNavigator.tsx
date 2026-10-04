@@ -44,6 +44,8 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { SearchScreen } from '../screens/SearchScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { FilaScreen } from '../screens/FilaScreen';
+import { FolhaScreen } from '../screens/FolhaScreen';
+import type { DetentesDaFolha } from '../state/folhasNativas';
 import { SongsScreen } from '../screens/SongsScreen';
 import { SocialScreen } from '../screens/SocialScreen';
 import { useAuth } from '../state/auth';
@@ -79,6 +81,11 @@ export type RootStackParamList = {
   Settings: undefined;
   /** A fila numa folha nativa do iOS (3/10, `screens/FilaScreen.tsx`). */
   Fila: undefined;
+  /**
+   * As outras folhas, nativas no iOS (4/10, `screens/FolhaScreen.tsx`): o
+   * conteúdo vive em `state/folhasNativas.ts`, pelo `id`.
+   */
+  Folha: { id: string; detentes?: DetentesDaFolha };
   ListeningStats: {userId?:string} | undefined;
   Retrospetiva: {ano?:number;userId?:string} | undefined;
   Downloads: undefined;
@@ -360,6 +367,19 @@ export function RootNavigator() {
                   sheetExpandsWhenScrolledToEdge: true,
                   contentStyle: { backgroundColor: colors.surfaceHigh },
                 }}
+              />
+              {/* As outras folhas (4/10): o `BottomSheet` empurra esta rota no
+                  iPhone. Cabem no conteúdo, a não ser que peçam alturas. */}
+              <Stack.Screen
+                name="Folha"
+                component={FolhaScreen}
+                options={({ route }) => ({
+                  presentation: 'formSheet',
+                  sheetAllowedDetents: route.params.detentes ?? 'fitToContents',
+                  sheetGrabberVisible: true,
+                  sheetExpandsWhenScrolledToEdge: route.params.detentes !== undefined && route.params.detentes !== 'fitToContents',
+                  contentStyle: { backgroundColor: colors.surfaceHigh },
+                })}
               />
               <Stack.Screen name="ListeningStats" component={OnlineListeningStats} />
               <Stack.Screen name="Retrospetiva" component={OnlineRetrospetiva} />

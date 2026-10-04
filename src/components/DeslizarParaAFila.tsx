@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
+import { PanGestureHandler, State, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { useTheme } from '../state/theme';
 import { pedirFluidez } from '../state/fluidez';
@@ -21,6 +22,11 @@ const LARGURA_DA_FAIXA = 640;
  * da linha inteira via-se através do texto. A linha não sai: volta ao sítio,
  * e o ícone passa a um visto com uma vibração -- no iPhone não há um aviso
  * global onde dizer "Added to queue". Sem `ativo`, não embrulha nada.
+ *
+ * Do Gesture Handler (4/10, auditoria 3.1): o dedo escreve num valor do motor
+ * nativo (a linha segue-o com o JavaScript ocupado), e o JavaScript só entra
+ * no limiar (a vibração, por um ouvinte do valor) e ao largar. Com o
+ * PanResponder, uma folha nativa do iOS roubava o gesto às linhas dela.
  */
 export function DeslizarParaAFila({ ativo, aoPorNaFila, children }: {
   ativo: boolean;
@@ -28,7 +34,6 @@ export function DeslizarParaAFila({ ativo, aoPorNaFila, children }: {
   children: React.ReactNode;
 }) {
   const theme = useTheme((s) => s.theme);
-  const dx = useRef(new Animated.Value(0)).current;
   const [feito, setFeito] = useState(false);
   const passou = useRef(false);
   const acaoRef = useRef(aoPorNaFila);
@@ -40,27 +45,46 @@ export function DeslizarParaAFila({ ativo, aoPorNaFila, children }: {
     return () => clearTimeout(t);
   }, [feito]);
 
-  const pan = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_e, g) => g.dx > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
-    onPanResponderGrant: () => { passou.current = false; },
-    onPanResponderMove: (_e, g) => {
-      // Resiste depois do limiar, como uma mola: diz que já chega.
-      const x = Math.max(0, g.dx);
-      dx.setValue(x <= LIMIAR_DA_FILA ? x : LIMIAR_DA_FILA + (x - LIMIAR_DA_FILA) * 0.35);
-      const agora = x >= LIMIAR_DA_FILA;
-      if (agora !== passou.current) { passou.current = agora; if (agora) hapticSelection(); }
-    },
-    onPanResponderRelease: (_e, g) => {
-      pedirFluidez(600);
-      if (g.dx >= LIMIAR_DA_FILA) {
-        hapticNotification();
-        acaoRef.current();
-        setFeito(true);
-      }
-      Animated.spring(dx, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
-    },
-    onPanResponderTerminate: () => Animated.spring(dx, { toValue: 0, useNativeDriver: true }).start(),
-  }), [dx]);
+  /** A translação do dedo, escrita no lado nativo. */
+  const dedo = useRef(new Animated.Value(0)).current;
+  // Resiste depois do limiar, como uma mola: diz que já chega. Para a esquerda
+  // não anda (é o tirar da fila).
+  const dx = useMemo(() => dedo.interpolate({
+    inputRange: [0, LIMIAR_DA_FILA, LIMIAR_DA_FILA + 1000],
+    outputRange: [0, LIMIAR_DA_FILA, LIMIAR_DA_FILA + 350],
+    extrapolateLeft: 'clamp',
+  }), [dedo]);
+  const aoMexer = useMemo(
+    () => Animated.event([{ nativeEvent: { translationX: dedo } }], { useNativeDriver: true }),
+    [dedo],
+  );
+  // A vibração no limiar: só se ouve o valor enquanto o dedo está pousado.
+  const ouvinte = useRef<string | null>(null);
+  const largarOuvinte = () => {
+    if (ouvinte.current !== null) { dedo.removeListener(ouvinte.current); ouvinte.current = null; }
+  };
+  useEffect(() => largarOuvinte, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const aoMudarDeEstado = (e: PanGestureHandlerStateChangeEvent) => {
+    const { state, translationX } = e.nativeEvent;
+    if (state === State.ACTIVE) {
+      passou.current = false;
+      largarOuvinte();
+      ouvinte.current = dedo.addListener(({ value }) => {
+        const agora = value >= LIMIAR_DA_FILA;
+        if (agora !== passou.current) { passou.current = agora; if (agora) hapticSelection(); }
+      });
+      return;
+    }
+    if (state !== State.END && state !== State.CANCELLED && state !== State.FAILED) return;
+    largarOuvinte();
+    pedirFluidez(600);
+    if (state === State.END && translationX >= LIMIAR_DA_FILA) {
+      hapticNotification();
+      acaoRef.current();
+      setFeito(true);
+    }
+    Animated.spring(dedo, { toValue: 0, useNativeDriver: true, bounciness: 4 }).start();
+  };
 
   if (!ativo) return <>{children}</>;
 
@@ -73,14 +97,22 @@ export function DeslizarParaAFila({ ativo, aoPorNaFila, children }: {
           <Ionicons name={feito ? 'checkmark-circle' : 'list'} size={20} color={theme.textColorOnGradient} />
         </Animated.View>
       </Animated.View>
-      <Animated.View
-        {...pan.panHandlers}
-        accessibilityActions={[{ name: 'addToQueue', label: 'Add to queue' }]}
-        onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === 'addToQueue') acaoRef.current(); }}
-        style={{ transform: [{ translateX: dx }] }}
+      {/* Só um gesto claramente horizontal e para a DIREITA: falha com 10 pt
+          na vertical (é o scroll da lista) e não arranca para a esquerda. */}
+      <PanGestureHandler
+        activeOffsetX={12}
+        failOffsetY={[-10, 10]}
+        onGestureEvent={aoMexer}
+        onHandlerStateChange={aoMudarDeEstado}
       >
-        {children}
-      </Animated.View>
+        <Animated.View
+          accessibilityActions={[{ name: 'addToQueue', label: 'Add to queue' }]}
+          onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === 'addToQueue') acaoRef.current(); }}
+          style={{ transform: [{ translateX: dx }] }}
+        >
+          {children}
+        </Animated.View>
+      </PanGestureHandler>
     </View>
   );
 }

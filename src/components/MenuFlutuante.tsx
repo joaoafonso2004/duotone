@@ -9,6 +9,7 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 import { ESTADO } from '../lib/movimento';
 import { colors, radii, spacing, type } from '../theme';
 import type { PlayerAction } from './PlayerActionsSheet';
+import { DentroDeUmModal } from './dentroDeUmModal';
 
 export type Ancora = { x: number; y: number; width: number; height: number };
 
@@ -116,7 +117,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
   );
 
   return (
-    <Modal onDismiss={notificationDismiss} transparent visible statusBarTranslucent animationType="none" onRequestClose={aoFechar}>
+    <Modal onDismiss={notificationDismiss} transparent visible statusBarTranslucent animationType="none" onRequestClose={aoFechar}><DentroDeUmModal.Provider value>
       {/* Tocar fora fecha. Ocupa o ecrã todo de propósito: um menu aberto tem
           de se poder dispensar sem se acertar em nada. */}
       <Pressable style={StyleSheet.absoluteFill} onPress={aoFechar} accessibilityLabel="Close menu">
@@ -167,7 +168,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
           );
         })}
       </Animated.View>
-    </Modal>
+    </DentroDeUmModal.Provider></Modal>
   );
 }
 

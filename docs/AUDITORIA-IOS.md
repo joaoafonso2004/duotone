@@ -126,7 +126,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 3.1 Todos os gestos correm na thread de JavaScript
 
-**Estado:** ◐ Em parte (3/10). Entrou o `react-native-gesture-handler` (sem Reanimated: o `PanGestureHandler` entrega um `Animated.event` nativo). **Já são do Gesture Handler:** fechar o leitor a arrastar, deslizar o mini-player, a barra de progresso (o dedo no motor nativo), arrastar uma música na fila e na edição de playlists, e as barras do equalizador (já não arrastam a página das Definições). **E as animações passaram a 120 Hz** durante as transições e os gestos (o relógio das animações do React Native ficava nos 60; `DuotoneFluidez.swift`). **Faltam:** o cubo das letras, deslizar para a fila e as folhas feitas à mão.
+**Estado:** ◐ Em parte (3/10). Entrou o `react-native-gesture-handler` (sem Reanimated: o `PanGestureHandler` entrega um `Animated.event` nativo). **Já são do Gesture Handler:** fechar o leitor a arrastar, deslizar o mini-player, a barra de progresso (o dedo no motor nativo), arrastar uma música na fila e na edição de playlists, e as barras do equalizador (já não arrastam a página das Definições). **E as animações passaram a 120 Hz** durante as transições e os gestos (o relógio das animações do React Native ficava nos 60; `DuotoneFluidez.swift`). **Faltam:** o cubo das letras. (Deslizar para a fila e a barra da velocidade passaram a 4/10; as folhas são nativas.)
 
 **Porque importa:** quando o JS está ocupado (troca de faixa, montagem do download, JSON), o dedo deixa de ser seguido. É a explicação mais provável do "trava a meio e dá snap".
 
@@ -134,7 +134,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 3.2 Folhas feitas à mão
 
-**Estado:** ◐ Em parte (3/10). A fila abre numa folha nativa (meia e inteira, a app de trás recua). Para isso, arrastar uma música passou ao Gesture Handler: com o PanResponder, a folha do iOS roubava o arrasto. Faltam as outras 13; o equalizador (barras verticais) tem o mesmo problema de gestos.
+**Estado:** ✅ Feito (4/10). A fila desde 3/10; as outras 13 (e as 4 soltas nos ecrãs) desde 4/10, todas pelo mesmo `BottomSheet`, que no iPhone passou a empurrar uma rota `Folha` nativa (`fitToContents`) com o conteúdo de quem a abre. Dentro de um `Modal` do RN (o chat, o modo carro) continua o Modal de sempre, porque o react-native-screens fechava-o. A barra da velocidade e o deslizar para a fila passaram ao Gesture Handler para a folha não lhes roubar o dedo. Por ver no iPhone.
 
 **Problema:** a BottomSheet.tsx é um Modal com PanResponder, e as molas usam speed/bounciness em vez das do movimento.ts. Há 14 folhas assim.
 

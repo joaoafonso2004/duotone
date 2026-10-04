@@ -72,6 +72,7 @@ import {
 } from '../lib/edicaoDaPlaylist';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { DentroDeUmModal, useModalDoRNAberto } from '../components/dentroDeUmModal';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PlaylistDetail'>;
 
@@ -122,6 +123,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
 
   // States for Add Tracks Modal
   const [addTracksOpen, setAddTracksOpen] = useState(false);
+  useModalDoRNAberto(addTracksOpen);
   const notificationDismiss = useNotificationOverlay(addTracksOpen,() => setAddTracksOpen(false));
   const [libraryTracks, setLibraryTracks] = useState<Track[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState(false);
@@ -948,7 +950,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       />
 
       {/* Add Tracks modal */}
-      <Modal onDismiss={notificationDismiss} visible={addTracksOpen} animationType="slide">
+      <Modal onDismiss={notificationDismiss} visible={addTracksOpen} animationType="slide"><DentroDeUmModal.Provider value>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={{ flex: 1, backgroundColor: colors.bg }}
@@ -1039,7 +1041,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             )}
           </View>
         </KeyboardAvoidingView>
-      </Modal>
+      </DentroDeUmModal.Provider></Modal>
     </Screen>
   );
 }

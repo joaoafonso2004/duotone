@@ -49,7 +49,8 @@ caso('o toque longo já não passa pelo TrackRow, e deslizar não põe na fila',
   }
 });
 caso('a base de baixo não muda por baixo da folha', () => {
-  assert.match(ler('src/lib/doca.ts'), /FOLHAS: ReadonlySet<string> = new Set\(\['Fila'\]\)/);
+  // A `Folha` é a rota das outras folhas nativas (4/10).
+  assert.match(ler('src/lib/doca.ts'), /FOLHAS: ReadonlySet<string> = new Set\(\['Fila', 'Folha'\]\)/);
 });
 
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }
