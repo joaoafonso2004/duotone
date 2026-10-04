@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Definições, prateleiras e abertura</title>
+<style>
+:root{
+  --bg:#0A0A0F;--surface:#14141C;--high:#1D1D28;--grupo:#17171F;
+  --border:rgba(255,255,255,.08);--borderStrong:rgba(255,255,255,.14);
+  --text:#F5F5F7;--sec:rgba(245,245,247,.58);--ter:rgba(245,245,247,.48);
+  --accent:#C9A86A;--pagina:#060609;--chip:rgba(255,255,255,.06);--danger:#FF453A;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--pagina);color:var(--text)}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.pagina{max-width:1180px;margin:0 auto;padding:40px 16px 120px}
+h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px}
+.intro{color:#9a9aa4;font-size:15px;line-height:1.6;max-width:780px}
+section{margin-top:64px}
+h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
+.nota{color:#9a9aa4;font-size:14px;line-height:1.6;max-width:840px;margin-bottom:14px}
+.nota b{color:var(--text);font-weight:600}
+.controlos{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;align-items:center}
+.controlos .rot{font-size:12px;color:#8e8e98;margin-right:4px;min-width:62px}
+.ctl{padding:9px 14px;border-radius:99px;background:var(--chip);font-size:13px;font-weight:600}
+.ctl[aria-pressed="true"]{background:#fff;color:#000}
+.recomendo{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:99px;background:var(--accent);color:#0B0B0E;margin-left:6px;vertical-align:2px}
+.telefones{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;margin-top:10px}
+.coluna{display:flex;flex-direction:column;gap:12px;align-items:center}
+.etiqueta{font-size:13px;font-weight:700;color:var(--text)}
+.dica{font-size:12.5px;color:#8e8e98;line-height:1.55;max-width:330px;text-align:center}
+
+/* ---------- o telemóvel (390x844, reduzido por --s) ---------- */
+.moldura{width:calc(390px*var(--s));height:calc(844px*var(--s));flex:none}
+.tel{width:390px;height:844px;transform:scale(var(--s));transform-origin:0 0;position:relative;border-radius:54px;overflow:hidden;background:#000;
+  box-shadow:0 0 0 10px #17171b,0 0 0 11px #2b2b31,0 40px 110px rgba(0,0,0,.65);isolation:isolate;user-select:none;-webkit-user-select:none}
+.ilha{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000;z-index:60}
+.estado{position:absolute;top:0;left:0;right:0;height:54px;display:flex;justify-content:space-between;align-items:center;padding:6px 34px 0 42px;font-size:16px;font-weight:600;z-index:55;pointer-events:none}
+.indicador{position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:rgba(255,255,255,.9);z-index:70;pointer-events:none}
+.app{position:absolute;inset:0;background:var(--bg);overflow:hidden}
+.rolar{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none}
+.rolar::-webkit-scrollbar{display:none}
+.capaA{background:linear-gradient(135deg,#efe0b2 0%,#b38d47 42%,#3a2a12 100%)}
+.capaB{background:linear-gradient(135deg,#9db5d6,#2c3d5c)}
+.capaC{background:linear-gradient(135deg,#d6889b,#4a1b2a)}
+.capaD{background:linear-gradient(135deg,#a3d1a0,#1f3d22)}
+.capaE{background:linear-gradient(135deg,#c9b3e8,#352552)}
+.capaF{background:linear-gradient(135deg,#e8b48a,#5c2e12)}
+.capaG{background:linear-gradient(135deg,#f0f0f0,#5a5a5a)}
+.capaH{background:linear-gradient(135deg,#7fd3d8,#123b40)}
+
+/* ================= 1. Definições ================= */
+.barraTopo{position:sticky;top:0;z-index:5;height:98px;padding:58px 16px 0;display:flex;align-items:center;gap:6px;background:linear-gradient(180deg,var(--bg) 75%,rgba(10,10,15,0))}
+.barraTopo svg{width:26px;height:26px}
+.tituloGrande{font-size:32px;font-weight:800;padding:0 20px 14px}
+/* hoje */
+.h-sec{padding:0 24px 24px}
+.h-sec>.micro{font-size:11px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--ter);margin-bottom:8px}
+.h-card{background:var(--surface);border:.5px solid var(--border);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:4px}
+.h-lab{font-size:13px;font-weight:500;color:var(--sec);margin-bottom:8px}
+.h-lab.mt{margin-top:12px}
+.seg{display:flex;background:rgba(255,255,255,.07);border-radius:10px;padding:2px;gap:2px}
+.seg span{flex:1;text-align:center;font-size:13px;font-weight:600;padding:7px 0;border-radius:8px;color:var(--sec);cursor:pointer}
+.seg span.on{background:rgba(255,255,255,.16);color:var(--text)}
+.h-ef{display:flex;align-items:center;gap:6px;margin-top:4px;font-size:13px;font-weight:500}
+.h-ef::before{content:"";width:5px;height:5px;border-radius:3px;background:var(--text);opacity:.6;flex:none}
+.h-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:15px}
+.pilulas{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.pilula{font-size:13px;font-weight:600;padding:7px 12px;border-radius:99px;border:1px solid var(--borderStrong)}
+.pilula.perigo{color:var(--danger);border-color:rgba(255,69,58,.4)}
+.h-cap{font-size:13px;color:var(--sec);line-height:1.4}
+.vel{position:relative;height:40px;flex:1}
+.vel .tr{position:absolute;left:0;right:0;top:18px;height:4px;border-radius:2px;background:var(--border);overflow:hidden}
+.vel .tr i{display:block;height:100%;width:33%;background:var(--text)}
+.vel .b{position:absolute;top:11px;left:33%;width:18px;height:18px;margin-left:-9px;border-radius:9px;background:var(--text)}
+.vel .m{position:absolute;top:15px;left:33.3%;width:1px;height:10px;background:var(--ter)}
+.sw{width:51px;height:31px;border-radius:16px;background:rgba(255,255,255,.16);position:relative;flex:none;cursor:pointer;transition:background .2s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:14px;background:#fff;transition:transform .2s cubic-bezier(.3,.7,.3,1);box-shadow:0 2px 4px rgba(0,0,0,.3)}
+.sw.on{background:var(--text)}
+.sw.on::after{transform:translateX(20px);background:#0A0A0F}
+/* proposta */
+.g-cab{font-size:13px;font-weight:600;color:var(--ter);text-transform:uppercase;letter-spacing:.3px;padding:0 36px 7px}
+.g{margin:0 16px;background:var(--grupo);border-radius:22px;overflow:hidden}
+.g+.g-pe{margin-top:0}
+.g-pe{font-size:13px;color:var(--sec);line-height:1.38;padding:7px 36px 0}
+.g-espaco{height:26px}
+.l{display:flex;align-items:center;gap:12px;min-height:48px;padding:0 16px;position:relative;cursor:default}
+.l.toca{cursor:pointer}
+.l.toca:active{background:rgba(255,255,255,.06)}
+.l+.l::before{content:"";position:absolute;top:0;right:0;left:56px;height:.5px;background:rgba(255,255,255,.1)}
+.l.semIcone+.l.semIcone::before,.l.semIcone+.l::before{left:16px}
+.ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none}
+.ic svg{width:17px;height:17px}
+.nome{flex:1;font-size:16.5px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.valor{font-size:16.5px;color:var(--sec);white-space:nowrap}
+.chev{width:9px;height:15px;color:rgba(245,245,247,.32);flex:none}
+.acao{color:var(--text);font-weight:500}
+.perigo .nome{color:var(--danger)}
+.l .seg{width:auto;flex:none}
+.l .seg span{padding:5px 9px;font-size:12.5px;flex:none}
+.l.alta{flex-direction:column;align-items:stretch;padding-top:8px;padding-bottom:6px;gap:0}
+.l.alta .cima{display:flex;align-items:center;gap:12px;min-height:34px}
+.l.alta .vel{margin-left:40px;flex:none}
+.menu{position:absolute;z-index:20;right:22px;width:210px;border-radius:14px;overflow:hidden;background:rgba(40,40,50,.96);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px);box-shadow:0 18px 50px rgba(0,0,0,.55);transform-origin:top right;animation:menu .22s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes menu{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:none}}
+.menu div{display:flex;align-items:center;gap:10px;height:44px;padding:0 14px;font-size:16px;cursor:pointer}
+.menu div+div{border-top:.5px solid rgba(255,255,255,.1)}
+.menu div:active{background:rgba(255,255,255,.08)}
+.menu .v{width:14px;color:var(--text);font-size:14px}
+
+/* ================= 2. Prateleiras ================= */
+.cab2{padding:58px 20px 6px}
+.cab2 h3{font-size:32px;font-weight:800}
+.campo{margin:10px 20px 4px;height:38px;border-radius:12px;background:rgba(255,255,255,.08);display:flex;align-items:center;gap:8px;padding:0 12px;color:var(--ter);font-size:16px}
+.tit2{display:flex;justify-content:space-between;align-items:baseline;padding:24px 20px 10px}
+.tit2 b{font-size:22px;font-weight:700;letter-spacing:-.01em}
+.tit2 a{font-size:14px;color:var(--accent);font-weight:600}
+.nota2{font-size:12px;color:var(--ter);margin:-6px 20px 10px}
+.carr{display:flex;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x mandatory}
+.carr::-webkit-scrollbar{display:none}
+.carr .cartao{flex:none;scroll-snap-align:start}
+.carr .cartao .c{border-radius:12px}
+.carr .cartao b{display:block;font-size:13px;font-weight:600;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.carr .cartao span{display:block;font-size:11px;color:var(--sec);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.regua{position:absolute;left:0;right:0;z-index:10;pointer-events:none}
+.medida{position:absolute;height:1px;background:rgba(201,168,106,.85)}
+.medida span{position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--accent);white-space:nowrap;background:rgba(10,10,15,.8);padding:0 4px;border-radius:4px}
+
+/* ================= 3. Abertura ================= */
+.casa{position:absolute;inset:0}
+.casa .tit2{padding-top:18px}
+.abertura{position:absolute;inset:0;z-index:40;background:#060608;display:grid;place-items:center;pointer-events:none;opacity:0}
+.abertura img{width:300px;height:300px;object-fit:contain}
+.abertura .estatico{position:absolute;width:200px;height:200px;object-fit:contain}
+.cronometro{font-size:12.5px;color:#8e8e98;min-height:20px;text-align:center;font-variant-numeric:tabular-nums}
+.escolhas{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;max-width:900px;margin-top:16px}
+.escolha{border:1px solid var(--borderStrong);border-radius:16px;padding:14px 16px;font-size:13.5px;color:#a9a9b3;line-height:1.5}
+.escolha b{display:block;color:var(--text);font-size:15px;margin-bottom:4px}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>Definições, prateleiras e abertura</h1>
+  <p class="intro">Três coisas da auditoria que pedem uma escolha tua antes de se fazerem: as Definições ao estilo do iOS (1.6), o
+    tamanho dos cartões das prateleiras e a abertura (3.6). Os iPhones são interativos.</p>
+
+  <!-- ===================== 1 ===================== -->
+  <section id="s1">
+    <h2>1 · As Definições ao estilo do iOS</h2>
+    <p class="nota">Hoje são cartões com rótulos pequenos por cima de cada controlo, linhas de ~38 pt e botões em pílula soltos (os
+      "Downloads", "Clear cache", "Sign out"...). A proposta é a lista agrupada dos Ajustes do iPhone: <b>linhas de 48 pt</b> com um
+      <b>ícone num quadrado</b>, o valor à direita, <b>›</b> no que abre outra coisa, e a frase do que a opção está a fazer agora
+      passa a <b>rodapé do grupo</b>. As frases continuam todas (são as mesmas de hoje).</p>
+    <p class="nota">Na <b>A</b> os controlos ficam na linha (escolhes com um toque). Na <b>B</b> cada linha mostra o valor e abre um
+      <b>menu</b> junto ao dedo, como nos Ajustes do iPhone (dois toques, mas uma página muito mais calma). O equalizador sai da página
+      e passa a uma linha que abre a folha dele.</p>
+    <div class="controlos"><span class="rot">Versão</span>
+      <button class="ctl" data-v1="hoje" aria-pressed="false">Hoje</button>
+      <button class="ctl" data-v1="A" aria-pressed="false">A · controlos na linha</button>
+      <button class="ctl" data-v1="B" aria-pressed="true">B · valor e menu <span class="recomendo">recomendo</span></button>
+    </div>
+    <div class="controlos"><span class="rot">Ícones</span>
+      <button class="ctl" data-ic="neutro" aria-pressed="true">Neutros <span class="recomendo">recomendo</span></button>
+      <button class="ctl" data-ic="capa" aria-pressed="false">Cor da capa</button>
+      <button class="ctl" data-ic="ios" aria-pressed="false">Cores do iOS</button>
+    </div>
+    <div class="telefones">
+      <div class="coluna">
+        <div class="moldura"><div class="tel" id="t1"></div></div>
+        <div class="dica" id="dica1"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 2 ===================== -->
+  <section id="s2">
+    <h2>2 · Os cartões das prateleiras da Home</h2>
+    <p class="nota">Hoje os cartões têm <b>120 pt</b> e o terceiro mostra <b>102 dos seus 120 pt</b>: parecem três capas pequenas cortadas
+      à justa na borda, e não se percebe que a fila continua. A proposta: <b>146 pt</b> com margens de 20, e o terceiro <b>espreita 54 pt</b>
+      (pouco mais de um terço da capa), que é o que diz "desliza". Cabem menos de uma vez, mas as capas leem-se. Rola as prateleiras para os
+      lados.</p>
+    <div class="telefones">
+      <div class="coluna"><div class="etiqueta">Hoje · 120 pt</div><div class="moldura"><div class="tel" id="t2a"></div></div></div>
+      <div class="coluna"><div class="etiqueta">Proposta · 146 pt <span class="recomendo">recomendo</span></div><div class="moldura"><div class="tel" id="t2b"></div></div></div>
+    </div>
+  </section>
+
+  <!-- ===================== 3 ===================== -->
+  <section id="s3">
+    <h2>3 · A abertura</h2>
+    <p class="nota">A abertura (o eclipse a abrir-se no logo e a app a aparecer pelo vazio dele) dura <b>~1,7 s</b> e acontece a cada
+      arranque a frio. A música nunca esperou por ela (a sessão é lida por baixo), mas é tempo em que não se vê a app nem se toca em nada
+      (um toque salta-a). A pergunta é quantas vezes a queres ver.</p>
+    <div class="controlos"><span class="rot">Abrir</span>
+      <button class="ctl" id="abrirInteira">Abrir com a animação inteira</button>
+      <button class="ctl" id="abrirCurta">Abrir com o cruzamento de 300 ms</button>
+    </div>
+    <div class="telefones">
+      <div class="coluna">
+        <div class="moldura"><div class="tel" id="t3"></div></div>
+        <div class="cronometro" id="crono3">Carrega num dos botões.</div>
+      </div>
+    </div>
+    <div class="escolhas">
+      <div class="escolha"><b>A · Sempre a inteira (hoje)</b>Cada arranque a frio mostra o eclipse completo. A identidade fica sempre à vista, e
+        ninguém se queixou; custa ~1,7 s de cada vez.</div>
+      <div class="escolha"><b>B · Inteira 1× por dia e depois de atualizar <span class="recomendo">recomendo</span></b>A primeira abertura do dia
+        e a primeira depois de uma versão nova mostram o eclipse; as outras abrem com o logo a dissolver-se na app em 300 ms. É a sugestão da
+        auditoria.</div>
+      <div class="escolha"><b>C · Só a curta</b>O eclipse só depois de uma atualização; de resto sempre os 300 ms. A app parece mais
+        rápida, mas a animação quase nunca se vê.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+const S = Math.min(0.72, (Math.min(window.innerWidth, 1180) - 40) / 390);
+document.querySelectorAll('.moldura,.tel').forEach((m) => m.style.setProperty('--s', S));
+const svg = (d, cor = 'currentColor', w = 24) => `<svg viewBox="0 0 24 24" width="${w}" height="${w}" style="color:${cor}">${d}</svg>`;
+const comum = (tel) => tel.insertAdjacentHTML('beforeend', `<div class="ilha"></div><div class="estado"><span>12:34</span><span></span></div><div class="indicador"></div>`);
+const CHEV = '<svg class="chev" viewBox="0 0 9 15"><path d="M1.5 1.5l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const VOLTAR = '<path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>';
+const G = {
+  shuffle: '<path d="M3 7h3.5c2.2 0 3.6 1 4.8 3l2.4 4c1.2 2 2.6 3 4.8 3H21M3 17h3.5c1.5 0 2.6-.5 3.5-1.4M14 8.4c.9-.9 2-1.4 3.5-1.4H21M18 4l3 3-3 3M18 14l3 3-3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  cross: '<path d="M3 17c4 0 5-10 9-10s5 10 9 10M3 7c4 0 5 10 9 10s5-10 9-10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  speed: '<path d="M4.5 17a8 8 0 1115 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 15l4-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  moon: '<path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" fill="currentColor"/>',
+  radio: '<circle cx="12" cy="12" r="2.4" fill="currentColor"/><path d="M7.5 7.5a6.4 6.4 0 000 9M16.5 7.5a6.4 6.4 0 010 9M4.6 4.6a10.5 10.5 0 000 14.8M19.4 4.6a10.5 10.5 0 010 14.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  wave: '<path d="M4 10v4M8 7v10M12 4v16M16 8v8M20 11v2" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  vol: '<path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 010 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  eq: '<path d="M6 4v16M12 4v16M18 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".45"/><rect x="3.5" y="12" width="5" height="3" rx="1.5" fill="currentColor"/><rect x="9.5" y="7" width="5" height="3" rx="1.5" fill="currentColor"/><rect x="15.5" y="14" width="5" height="3" rx="1.5" fill="currentColor"/>',
+  paint: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 010 17z" fill="currentColor"/>',
+  cube: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>',
+  list: '<path d="M8 6h12M8 12h12M8 18h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="4" cy="6" r="1.3" fill="currentColor"/><circle cx="4" cy="12" r="1.3" fill="currentColor"/><circle cx="4" cy="18" r="1.3" fill="currentColor"/>',
+  back15: '<path d="M5 12a7 7 0 107-7H9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M11 2L8 5l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  bell: '<path d="M6 16V11a6 6 0 0112 0v5l1.5 2h-15z" fill="currentColor"/><path d="M10 20.5a2 2 0 004 0" fill="currentColor"/>',
+  haptic: '<rect x="8" y="3.5" width="8" height="17" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4.5 9v6M19.5 9v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  sun: '<circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>',
+  car: '<path d="M5 15.5l1.6-5.2A2 2 0 018.5 9h7a2 2 0 011.9 1.3l1.6 5.2v3h-2.2v-1.5H7.2v1.5H5z" fill="currentColor"/><circle cx="8" cy="14.5" r="1.2" fill="#000"/><circle cx="16" cy="14.5" r="1.2" fill="#000"/>',
+  spark: '<path d="M12 3l1.8 5.4L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.6z" fill="currentColor"/><path d="M18.5 15.5l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z" fill="currentColor"/>',
+  spotify: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7.5 9.5c3-.9 6.5-.6 9 .8M8 12.4c2.6-.7 5.4-.4 7.5.7M8.6 15.1c2-.5 4.1-.3 5.8.6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  tag: '<path d="M3.5 12.5V4.5a1 1 0 011-1h8l8 8-9 9z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/>',
+  check: '<path d="M4 12.5l5 5L20 6.5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>',
+  down: '<path d="M12 4v11M7 10.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 19.5h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  trash: '<path d="M5 7h14M10 4h4M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  mail: '<rect x="3" y="5.5" width="18" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M4 7l8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>',
+  key: '<circle cx="8" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 12h9M18 12v3M21 12v2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  out: '<path d="M14 4H6.5a1.5 1.5 0 00-1.5 1.5v13A1.5 1.5 0 006.5 20H14M10 12h11M17.5 8.5L21 12l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  heart: '<path d="M12 20s-7.5-4.6-7.5-10A4.5 4.5 0 0112 7.1 4.5 4.5 0 0119.5 10c0 5.4-7.5 10-7.5 10z" fill="currentColor"/>',
+  info: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 11v6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.3" fill="currentColor"/>',
+  send: '<path d="M4 12l16-8-6 16-2.5-6.5z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/>',
+};
+const IOS = { shuffle:'#FF9F0A', cross:'#5E5CE6', speed:'#0A84FF', moon:'#5E5CE6', radio:'#FF375F', wave:'#30B0C7', vol:'#FF453A', eq:'#FF9F0A',
+  paint:'#BF5AF2', cube:'#0A84FF', list:'#8E8E93', back15:'#8E8E93', bell:'#FF453A', haptic:'#FF375F', sun:'#FFD60A', car:'#30D158', spark:'#BF5AF2',
+  spotify:'#30D158', tag:'#0A84FF', check:'#30D158', down:'#0A84FF', trash:'#8E8E93', mail:'#0A84FF', key:'#8E8E93', out:'#8E8E93', heart:'#FF453A',
+  info:'#8E8E93', send:'#0A84FF' };
+
+/* ---------- 1 ---------- */
+const t1 = document.getElementById('t1');
+let v1 = 'B', ic = 'neutro';
+const est = { smart: 1, cross: 0, sleep: 0, qual: 0, accent: 1, art: 0, radio: true, norm: true, len: true, rew: false, ban: true, hap: true, awake: false, carro: true };
+const OP = {
+  smart: ['Few', 'Some', 'Lots'], cross: ['Off', '3s', '6s', '9s'], sleep: ['Off', '15m', '30m', '45m', '60m'],
+  qual: ['High', 'Data saver'], accent: ['Steel', 'Cover'], art: ['Floating 3D', 'Simple'],
+};
+const MENU_NOMES = { smart: ['Few', 'Some', 'Lots'], cross: ['Off', '3 seconds', '6 seconds', '9 seconds'], sleep: ['Off', '15 minutes', '30 minutes', '45 minutes', '1 hour'],
+  qual: ['High', 'Data saver'], accent: ['Steel', 'Cover'], art: ['Floating 3D', 'Simple'] };
+const EF = {
+  smart: () => ['About 1 new song in every 6', 'About 1 new song in every 4', 'About 1 new song in every 2'][est.smart],
+  cross: () => est.cross ? `Only when a song ends on its own · not on songs shorter than ${[0, 3, 6, 9][est.cross] * 2} s` : 'Songs change without overlapping',
+  sleep: () => est.sleep ? `Stops at ${['', '12:49', '13:04', '13:19', '13:34'][est.sleep]}` : null,
+  qual: () => est.qual ? 'Picks the lowest bitrate to save mobile data' : 'Now playing: 141 kbps Opus',
+  radio: () => est.radio ? 'When the queue ends: your library first, then similar artists' : 'The queue stops at its last song',
+  norm: () => est.norm ? 'This song: −3.2 dB' : null,
+  awake: () => est.awake ? 'The screen stays on while Duotone is open' : null,
+};
+function icone(nome) {
+  const cor = ic === 'ios' ? IOS[nome] : ic === 'capa' ? 'rgba(201,168,106,.22)' : 'rgba(255,255,255,.10)';
+  const g = ic === 'capa' ? '#E6C88D' : '#fff';
+  return `<div class="ic" style="background:${cor}">${svg(G[nome], g, 17)}</div>`;
+}
+const sw = (k) => `<div class="sw${est[k] ? ' on' : ''}" data-sw="${k}"></div>`;
+const seg = (k) => `<div class="seg">${OP[k].map((o, i) => `<span class="${i === est[k] ? 'on' : ''}" data-seg="${k}" data-i="${i}">${o}</span>`).join('')}</div>`;
+const vel = '<div class="vel"><div class="tr"><i></i></div><div class="m"></div><div class="b"></div></div>';
+
+function hoje() {
+  const ef = (k) => { const t = EF[k](); return t ? `<div class="h-ef">${t}</div>` : ''; };
+  const tr = (rot, k, mt = true) => `<div class="h-row"${mt ? ' style="margin-top:8px"' : ''}><span>${rot}</span>${sw(k)}</div>`;
+  return `<div class="tituloGrande">Settings</div>
+  <div class="h-sec"><div class="micro">Playback</div><div class="h-card">
+    <div class="h-lab">Smart shuffle</div>${seg('smart')}${ef('smart')}
+    <div class="h-lab mt">Crossfade</div>${seg('cross')}${ef('cross')}
+    <div class="h-lab mt">Playback speed</div><div style="display:flex;align-items:center;gap:12px">${vel}<span style="width:58px;text-align:right;color:var(--sec)">1.00×</span></div>
+    <div class="h-ef">For every song that has no speed of its own</div>
+    <div class="h-lab mt">Sleep timer</div>${seg('sleep')}${ef('sleep')}
+    ${tr('Autoplay similar music', 'radio')}${ef('radio')}
+  </div></div>
+  <div class="h-sec"><div class="micro">Sound</div><div class="h-card">
+    <div class="h-lab">Audio quality</div>${seg('qual')}${ef('qual')}
+    ${tr('Even out volume', 'norm')}${ef('norm')}
+    <div class="h-row" style="margin-top:12px"><span class="h-lab" style="margin:0">Equaliser</span><span class="pilula">Reset</span></div>
+    <div style="height:150px;border-radius:12px;background:rgba(255,255,255,.04);margin:8px 0;display:flex;align-items:flex-end;justify-content:space-around;padding:14px">
+      ${[60, 70, 55, 50, 48, 52, 58, 64, 70, 66].map((h) => `<i style="display:block;width:4px;height:${h}%;border-radius:2px;background:rgba(255,255,255,.35)"></i>`).join('')}</div>
+    <div class="h-ef">For every song that has no EQ of its own</div>
+    <div class="h-cap" style="margin-top:12px">6 presets · 2 yours · car: Bass boost</div><div class="pilulas"><span class="pilula">Manage presets</span></div>
+  </div></div>
+  <div class="h-sec"><div class="micro">General</div><div class="h-card">
+    ${tr('Message banners', 'ban', false)}${tr('Haptic feedback', 'hap')}${tr('Keep screen awake', 'awake')}${ef('awake')}${tr('Keep screen on in car mode', 'carro')}
+  </div></div>
+  <div class="h-sec"><div class="micro">Storage</div><div class="h-card">
+    <div class="h-cap">Songs are kept on the phone so they play with the screen locked.</div>
+    <div class="pilulas"><span class="pilula">Downloads (2.4 GB)</span><span class="pilula">Clear cache</span></div>
+    <div class="h-ef">Frees 2.4 GB · also removes your 12 downloads</div>
+  </div></div>
+  <div class="h-sec"><div class="micro">Account</div><div class="h-card">
+    <div class="h-row"><span>Email</span><span style="font-size:13px;color:var(--sec)">joao@example.com</span></div>
+    <div class="pilulas"><span class="pilula">Reset password</span><span class="pilula">Sign out</span></div>
+    <div class="pilulas"><span class="pilula perigo">Clear Liked Songs</span><span class="pilula perigo">Delete account</span></div>
+  </div></div><div style="height:60px"></div>`;
+}
+
+function proposta() {
+  const A = v1 === 'A';
+  // uma linha com valor (B) ou com o controlo (A)
+  const escolha = (k, nomeIc, rot) => A
+    ? `<div class="l">${icone(nomeIc)}<div class="nome">${rot}</div>${seg(k)}</div>`
+    : `<div class="l toca" data-menu="${k}">${icone(nomeIc)}<div class="nome">${rot}</div><div class="valor">${MENU_NOMES[k][est[k]]}</div>${CHEV}</div>`;
+  const tog = (k, nomeIc, rot) => `<div class="l">${icone(nomeIc)}<div class="nome">${rot}</div>${sw(k)}</div>`;
+  const abre = (nomeIc, rot, valor = '') => `<div class="l toca">${icone(nomeIc)}<div class="nome">${rot}</div>${valor ? `<div class="valor">${valor}</div>` : ''}${CHEV}</div>`;
+  const acao = (nomeIc, rot, perigo = false) => `<div class="l toca${perigo ? ' perigo' : ''}">${icone(nomeIc)}<div class="nome${perigo ? '' : ' acao'}">${rot}</div></div>`;
+  const grupo = (cab, linhas, pe) => `${cab ? `<div class="g-cab">${cab}</div>` : ''}<div class="g">${linhas.join('')}</div>${pe ? `<div class="g-pe">${pe}</div>` : ''}<div class="g-espaco"></div>`;
+  return `<div class="tituloGrande">Settings</div>
+  ${grupo('Playback', [escolha('smart', 'spark', 'Smart shuffle')], EF.smart())}
+  ${grupo(null, [escolha('cross', 'cross', 'Crossfade')], EF.cross())}
+  ${grupo(null, [`<div class="l alta"><div class="cima">${icone('speed')}<div class="nome">Playback speed</div><div class="valor">1.00×</div></div>${vel}</div>`], 'For every song that has no speed of its own')}
+  ${grupo(null, [escolha('sleep', 'moon', 'Sleep timer'), tog('radio', 'radio', 'Autoplay similar music')], [EF.sleep(), EF.radio()].filter(Boolean).join('<br>'))}
+  ${grupo('Sound', [escolha('qual', 'wave', 'Audio quality')], EF.qual())}
+  ${grupo(null, [tog('norm', 'vol', 'Even out volume')], EF.norm())}
+  ${grupo(null, [abre('eq', 'Equaliser', 'Flat'), abre('list', 'Presets', '6')], 'For every song that has no EQ of its own · car: Bass boost')}
+  ${grupo('Appearance', [escolha('accent', 'paint', 'Accent'), escolha('art', 'cube', 'Artwork style')], 'Cover follows the artwork of whatever is playing.')}
+  ${grupo(null, [tog('len', 'list', 'Show song length in lists'), tog('rew', 'back15', 'Show 15-second rewind')])}
+  ${grupo('General', [tog('ban', 'bell', 'Message banners'), tog('hap', 'haptic', 'Haptic feedback'), tog('awake', 'sun', 'Keep screen awake'), tog('carro', 'car', 'Keep screen on in car mode')], EF.awake())}
+  ${grupo('Library', [abre('heart', 'Manage recommendations'), abre('spotify', 'Update from Spotify', '48 artists')], '48 artists from your Spotify · read 2 days ago')}
+  ${grupo(null, [acao('tag', 'Identify library'), abre('check', 'Library check')], 'Fix artist names, titles and covers, or find duplicates and songs that no longer play.')}
+  ${grupo('Storage', [abre('down', 'Downloads', '2.4 GB'), acao('trash', 'Clear cache')], 'Frees 2.4 GB · also removes your 12 downloads')}
+  ${grupo('Account', [`<div class="l">${icone('mail')}<div class="nome">Email</div><div class="valor">joao@example.com</div></div>`, acao('key', 'Reset password'), acao('out', 'Sign out')])}
+  ${grupo(null, [acao('heart', 'Clear Liked Songs', true), acao('trash', 'Delete account', true)])}
+  ${grupo('About', [`<div class="l">${icone('info')}<div class="nome">Version</div><div class="valor">4.4.1</div></div>`, abre('send', 'Send playback report')], "If a song won't play, send this so it can be fixed.")}
+  <div style="height:40px"></div>`;
+}
+
+const DICAS1 = {
+  hoje: 'O que está no iPhone hoje (as duas primeiras secções, a Geral, o Armazenamento e a Conta).',
+  A: 'Os controlos na própria linha: um toque muda, e a frase do rodapé muda com ele. Os segmentados ficam apertados no temporizador (5 opções).',
+  B: 'Toca numa linha com › para abrir o menu junto ao dedo. A página fica com a forma dos Ajustes do iPhone; mudar custa mais um toque.',
+};
+let rolagem1 = 0;
+function desenhar1() {
+  const r = t1.querySelector('.rolar'); if (r) rolagem1 = r.scrollTop;
+  t1.innerHTML = `<div class="app"><div class="rolar" id="r1"><div class="barraTopo">${svg(VOLTAR, '#fff', 26)}</div>${v1 === 'hoje' ? hoje() : proposta()}</div></div>`;
+  comum(t1);
+  t1.querySelector('.rolar').scrollTop = rolagem1;
+  document.getElementById('dica1').textContent = DICAS1[v1];
+}
+t1.addEventListener('click', (e) => {
+  const s = e.target.closest('[data-sw]');
+  if (s) { est[s.dataset.sw] = !est[s.dataset.sw]; desenhar1(); return; }
+  const g = e.target.closest('[data-seg]');
+  if (g) { est[g.dataset.seg] = +g.dataset.i; desenhar1(); return; }
+  const op = e.target.closest('[data-op]');
+  if (op) { est[op.dataset.k] = +op.dataset.op; desenhar1(); return; }
+  const m = e.target.closest('[data-menu]');
+  t1.querySelectorAll('.menu').forEach((x) => x.remove());
+  if (m) {
+    const k = m.dataset.menu;
+    const linha = m.getBoundingClientRect(), tel = t1.getBoundingClientRect();
+    const top = (linha.bottom - tel.top) / S + 4;
+    t1.querySelector('.app').insertAdjacentHTML('beforeend', `<div class="menu" style="top:${Math.min(top, 844 - 60 - MENU_NOMES[k].length * 44)}px">${MENU_NOMES[k].map((n, i) =>
+      `<div data-op="${i}" data-k="${k}"><span class="v">${i === est[k] ? '✓' : ''}</span>${n}</div>`).join('')}</div>`);
+  }
+});
+document.querySelectorAll('[data-v1]').forEach((b) => b.addEventListener('click', () => {
+  v1 = b.dataset.v1; document.querySelectorAll('[data-v1]').forEach((x) => x.setAttribute('aria-pressed', x === b)); desenhar1();
+}));
+document.querySelectorAll('[data-ic]').forEach((b) => b.addEventListener('click', () => {
+  ic = b.dataset.ic; document.querySelectorAll('[data-ic]').forEach((x) => x.setAttribute('aria-pressed', x === b)); desenhar1();
+}));
+desenhar1();
+
+/* ---------- 2 ---------- */
+const FAIXAS = [['Pinga', 'Isak', 'capaA'], ['Lento', 'Dillaz', 'capaB'], ['NEED', 'Playboi Carti', 'capaC'], ['Mariana', 'Bispo', 'capaD'],
+  ['Wokeuplikethis', 'Playboi Carti', 'capaE'], ['Tesla', 'Morad', 'capaF'], ['Ilusão', 'Plutónio', 'capaG'], ['Sky', 'Playboi Carti', 'capaH']];
+function prateleira(lado, margem, titulo, nota, desvio = 0, regua = false) {
+  const lista = FAIXAS.slice(desvio).concat(FAIXAS.slice(0, desvio));
+  const visivel3 = 390 - (margem + 2 * lado + 2 * 12);
+  return `<div class="tit2" style="padding-left:${margem}px;padding-right:${margem}px"><b>${titulo}</b><a>See all</a></div>${nota ? `<div class="nota2" style="margin-left:${margem}px">${nota}</div>` : ''}
+    ${regua ? `<div style="position:relative;height:16px"><div class="regua" style="top:12px"><div class="medida" style="left:${390 - visivel3}px;width:${visivel3}px"><span>${visivel3} pt à vista</span></div></div></div>` : ''}
+    <div class="carr" style="gap:12px;padding:0 ${margem}px;scroll-padding-left:${margem}px">${lista.map(([t, a, c]) =>
+      `<div class="cartao" style="width:${lado}px"><div class="c ${c}" style="width:${lado}px;height:${lado}px"></div><b>${t}</b><span>${a}</span></div>`).join('')}
+    <div style="flex:none;width:${Math.max(0, margem - 12)}px"></div></div>`;
+}
+function home2(id, lado, margem) {
+  const t = document.getElementById(id);
+  t.innerHTML = `<div class="app"><div class="rolar">
+    <div class="cab2"><h3>Home</h3></div><div class="campo">${svg('<circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>', 'currentColor', 18)}Songs, artists, playlists…</div>
+    ${prateleira(lado, margem, 'Discover new', 'Close to Isak and Dillaz', 0, true)}
+    ${prateleira(lado, margem, 'Heavy rotation', null, 3)}
+    ${prateleira(lado, margem, 'Listen again', null, 5)}
+    <div style="height:120px"></div></div></div>`;
+  comum(t);
+}
+home2('t2a', 120, 24);
+home2('t2b', 146, 20);
+
+/* ---------- 3 ---------- */
+const t3 = document.getElementById('t3');
+t3.innerHTML = `<div class="app"><div class="casa">
+    <div class="cab2"><h3>Home</h3></div><div class="campo">Songs, artists, playlists…</div>
+    ${prateleira(146, 20, 'Discover new', 'Close to Isak and Dillaz')}
+    ${prateleira(146, 20, 'Heavy rotation', null, 3)}</div>
+  <div class="abertura" id="ab"><img id="abImg" alt=""><img class="estatico" id="abLogo" src="../logo_windows.png" alt=""></div></div>`;
+comum(t3);
+const ab = document.getElementById('ab'), abImg = document.getElementById('abImg'), abLogo = document.getElementById('abLogo');
+const crono = document.getElementById('crono3');
+let corrida = 0;
+function abrir(inteira) {
+  const eu = ++corrida;
+  const t0 = performance.now();
+  ab.getAnimations?.().forEach((a) => a.cancel());
+  abImg.getAnimations?.().forEach((a) => a.cancel());
+  ab.style.opacity = 1;
+  if (inteira) {
+    abLogo.style.display = 'none'; abImg.style.display = 'block';
+    abImg.src = '../assets/abertura.webp?' + Date.now();
+    crono.textContent = 'A animação inteira…';
+    // ~1,3 s de animação; depois o logo vem para o ecrã e a app aparece pelo vazio dele (aqui aproximado por zoom).
+    setTimeout(() => {
+      if (eu !== corrida) return;
+      abImg.animate([{ transform: 'scale(1) rotate(0deg)' }, { transform: 'scale(14) rotate(16deg)' }], { duration: 420, easing: 'cubic-bezier(.6,0,.9,.4)', fill: 'forwards' });
+      ab.animate([{ opacity: 1 }, { opacity: 1, offset: .55 }, { opacity: 0 }], { duration: 420, fill: 'forwards' }).finished.then(() => {
+        if (eu !== corrida) return;
+        ab.style.opacity = 0; crono.textContent = `App à vista em ${((performance.now() - t0) / 1000).toFixed(1)} s`;
+      });
+    }, 1300);
+  } else {
+    abImg.style.display = 'none'; abLogo.style.display = 'block';
+    crono.textContent = 'O cruzamento…';
+    abLogo.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.06)' }], { duration: 300, easing: 'ease-out', fill: 'forwards' });
+    ab.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, easing: 'ease-out', fill: 'forwards' }).finished.then(() => {
+      if (eu !== corrida) return;
+      ab.style.opacity = 0; crono.textContent = `App à vista em ${((performance.now() - t0) / 1000).toFixed(1)} s`;
+    });
+  }
+}
+document.getElementById('abrirInteira').addEventListener('click', () => abrir(true));
+document.getElementById('abrirCurta').addEventListener('click', () => abrir(false));
+</script>
+</body>
+</html>
