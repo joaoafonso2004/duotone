@@ -10,8 +10,9 @@ import { escolherParaApagar, type FicheiroEmCache } from './limpezaDoCache';
 import { AUDIO_INCOMPLETO, publicarAudio } from './publicarDownload';
 import { criarMp4AoVivo } from './mp4AoVivo';
 import { PREFIXO_OPUS } from './codecDeAudio';
-import { converterWebmParaMp4, pareceWebm } from './converterOpus';
-import { lerCorpoDoAudio } from './lerCorpoDoAudio';
+import { converterWebmParaMp4, OPUS_INVALIDO, pareceWebm } from './converterOpus';
+import { corrigirMp4NoFicheiro } from './mp4NoFicheiro';
+import { lerCorpoDoAudio, PRAZO_SEM_BYTES_MS } from './lerCorpoDoAudio';
 import { processamentoVazio, type Processamento } from './processamentoDoAudio';
 
 let File: any;
@@ -404,7 +405,9 @@ export async function fetchChunkWithRetry(
   shouldAbort?: () => boolean,
   expectedTotal?: number,
   registo?: { tentativas: number; ultimoHttp: number | null; urlRenovado: boolean },
-): Promise<{ bytes: Uint8Array; url: string }> {
+  /** Com o módulo nativo: o bocado vai direto para este ficheiro, e `bytes` volta `null`. */
+  paraFicheiro?: string,
+): Promise<{ bytes: Uint8Array | null; escritos: number; url: string }> {
   let lastStatus = 0;
   let current = url;
   let renewed = false;
@@ -413,7 +416,26 @@ export async function fetchChunkWithRetry(
     if (attempt > 0) await esperarDownload(() => sleep(800 * 2 ** (attempt - 1)), shouldAbort); // 800ms, 1.6s, 3.2s
     if (registo) registo.tentativas = attempt + 1;
     try{
-      const resposta = await esperarDownload(async (signal) => {
+      const nativo = paraFicheiro ? descarregadorNativo : null;
+      const resposta = nativo && paraFicheiro ? await esperarDownload(async (signal) => {
+        // O mesmo pedido, pelo URLSession, com os mesmos prazos: sem resposta,
+        // sem bytes, e o do pedido inteiro. Cancelar a espera cancela o pedido.
+        if (expectedTotal === undefined) throw new Error('Total do audio em falta');
+        const id = `bocado-${++proximoBocado}`;
+        const largar = () => nativo.cancelar(id);
+        signal.addEventListener('abort', largar);
+        try {
+          const r = await nativo.bocado({
+            id, url: current, inicio: start, fim: end, total: expectedTotal, caminho: paraFicheiro,
+            prazoRespostaMs: PRAZO_DA_RESPOSTA_MS, prazoSemBytesMs: PRAZO_SEM_BYTES_MS, prazoTotalMs: REQUEST_TIMEOUT_MS,
+          });
+          if (signal.aborted) throw new Error(DOWNLOAD_ABORTED);
+          if (registo) registo.ultimoHttp = r.status;
+          return { status: r.status, bytes: null, escritos: r.status === 206 || r.status === 200 ? r.escritos : -1 };
+        } finally {
+          signal.removeEventListener('abort', largar);
+        }
+      }, shouldAbort) : await esperarDownload(async (signal) => {
         // Um controlador próprio, ligado ao da espera: se o servidor não
         // responder a tempo, este pedido é CANCELADO (não fica a descarregar
         // por baixo da tentativa seguinte).
@@ -443,14 +465,14 @@ export async function fetchChunkWithRetry(
                 return () => sub.remove();
               },
             });
-            return { status: res.status, bytes };
+            return { status: res.status, bytes, escritos: bytes.length };
           }
-          return { status: res.status, bytes: null };
+          return { status: res.status, bytes: null, escritos: -1 };
         } finally {
           signal.removeEventListener('abort', largar);
         }
       }, shouldAbort);
-      if (resposta.bytes) return { bytes: resposta.bytes, url: current };
+      if (resposta.escritos >= 0) return { bytes: resposta.bytes, escritos: resposta.escritos, url: current };
       lastStatus = resposta.status;
     }
     catch(e){
@@ -512,6 +534,33 @@ export interface DownloadOptions {
 }
 
 
+
+/** Um bocado pedido ao módulo nativo: escrito no `caminho`, a partir de `inicio`. */
+export type PedidoDeBocadoNativo = {
+  id: string; url: string; inicio: number; fim: number; total: number; caminho: string;
+  prazoRespostaMs: number; prazoSemBytesMs: number; prazoTotalMs: number;
+};
+
+/**
+ * O download sem passar pelo JavaScript (auditoria 4.1, 4/10;
+ * `modules/duotone-download`). O JS continua a decidir tudo o que já estava
+ * testado -- a fila, os retries, a renovação depois de um 403, o encolher dos
+ * bocados, o cancelamento --, e só o transporte muda: cada bocado vai do
+ * URLSession direto para o `.part`, e a conversão do Opus corre no Swift.
+ */
+export type DescarregadorNativo = {
+  bocado(pedido: PedidoDeBocadoNativo): Promise<{ status: number; escritos: number }>;
+  cancelar(id: string): void;
+  converterOpus(origem: string, destino: string): Promise<{ bytes: number; segundos: number; ms: number }>;
+};
+
+let descarregadorNativo: DescarregadorNativo | null = null;
+let proximoBocado = 0;
+
+/** Ligado no `App.tsx` (só no iPhone, e só se o binário traz o módulo). */
+export function definirDescarregadorNativo(d: DescarregadorNativo | null): void {
+  descarregadorNativo = d;
+}
 
 /** Erro lançado quando um download é abortado via shouldAbort — os callers
  * tratam-no como cancelamento silencioso, não como falha. */
@@ -767,8 +816,10 @@ async function pedirBocados(
   total: number,
   opts: DownloadOptions,
   registo: EstadoDoDownload | undefined,
-  receber: (bocado: Uint8Array, offset: number) => void,
+  receber: ((bocado: Uint8Array, offset: number) => void) | null,
   primeiroBocado: number = CHUNK_BYTES,
+  /** Com o módulo nativo: cada bocado vai direto para este ficheiro (`receber` não é chamado). */
+  paraFicheiro?: string,
 ): Promise<void> {
   let currentUrl = url;
   let chunkSize = CHUNK_BYTES;
@@ -784,10 +835,12 @@ async function pedirBocados(
     const pedido = first ? Math.min(chunkSize, primeiroBocado) : chunkSize;
     first = false;
     const end = Math.min(offset + pedido, total) - 1;
-    let part: Uint8Array;
+    let part: Uint8Array | null;
+    let escritos: number;
     try {
-      const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl, opts.shouldAbort, total, registo);
+      const got = await fetchChunkWithRetry(currentUrl, offset, end, opts.renewUrl, opts.shouldAbort, total, registo, paraFicheiro);
       part = got.bytes;
+      escritos = got.escritos;
       currentUrl = got.url; // se foi renovado, os chunks seguintes usam o novo
     } catch (e) {
       // Um 403 nem sempre quer dizer URL morto: sem PO Token o CDN também
@@ -805,10 +858,10 @@ async function pedirBocados(
       throw e;
     }
     const expected = end - offset + 1;
-    if (part.length !== expected) {
-      throw new Error(`Chunk incompleto (${part.length}/${expected} bytes) @${offset}`);
+    if (escritos !== expected) {
+      throw new Error(`Chunk incompleto (${escritos}/${expected} bytes) @${offset}`);
     }
-    receber(part, offset);
+    if (part && receber) receber(part, offset);
     offset = end + 1;
     opts.onProgress?.(Math.min(1, offset / total));
     if (registo) {
@@ -831,6 +884,9 @@ async function descarregarAgora(
   dest: any,
   registo?: EstadoDoDownload
 ): Promise<string> {
+  if (descarregadorNativo && Platform.OS !== 'web') {
+    return descarregarParaFicheiro(videoId, url, knownLength, durationSeconds, opts, descarregadorNativo, registo);
+  }
   const total = await totalDoAudio(url, knownLength, opts, registo);
   const combined = new Uint8Array(total);
   // Cada fase daqui para baixo é síncrona: o tempo dela é o tempo em que a
@@ -897,6 +953,109 @@ async function descarregarAgora(
   if (registo) registo.processamento = { ...proc, formato: 'aac' };
   cachedIdsIndex?.add(videoId);changed();
   return uri;
+}
+
+/**
+ * O download pelo módulo nativo (4/10): os bocados vão do URLSession direto
+ * para o `.part`, e o que o JavaScript faz no fim é pequeno -- ler os 4 bytes
+ * que dizem o formato e, num AAC, corrigir a duração no próprio ficheiro
+ * (`corrigirMp4NoFicheiro`, só a cabeça e os cabeçalhos das boxes). Um Opus
+ * vira MP4 no Swift. O resultado em disco é o mesmo do caminho de sempre: o
+ * da correção prova-o o `test-mp4-no-ficheiro.mjs`, e o da conversão o teste
+ * do Swift no CI, contra o JavaScript.
+ */
+async function descarregarParaFicheiro(
+  videoId: string,
+  url: string,
+  knownLength: number | null,
+  durationSeconds: number | null,
+  opts: DownloadOptions,
+  nativo: DescarregadorNativo,
+  registo?: EstadoDoDownload,
+): Promise<string> {
+  const total = await totalDoAudio(url, knownLength, opts, registo);
+  const proc = { ...processamentoVazio(), nativo: true, foraMs: 0 };
+  const parcial = new File(audioDir(), nomeDoParcial(videoId));
+  let convertido: any = null;
+  try {
+    parcial.create();
+    await pedirBocados(url, total, opts, registo, null, CHUNK_BYTES, parcial.uri);
+    if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+    if (parcial.size !== total) throw new Error(AUDIO_INCOMPLETO);
+
+    // O formato diz-se nos 4 primeiros bytes (a assinatura EBML de um WebM).
+    let t = relogio();
+    const h = parcial.open('rw');
+    let webm = false;
+    try {
+      h.offset = 0;
+      webm = pareceWebm(h.readBytes(4));
+      if (!webm) {
+        // Corrigir a duração no sítio. Quando não dá para garantir o mesmo
+        // resultado, o caminho de sempre: o fixer sobre o ficheiro inteiro.
+        const { exato } = corrigirMp4NoFicheiro({
+          ler: (pos, n) => { h.offset = pos; return h.readBytes(n); },
+          escrever: (pos, b) => { h.offset = pos; h.writeBytes(b); },
+        }, total, durationSeconds);
+        if (!exato) {
+          h.offset = 0;
+          const tudo = h.readBytes(total);
+          fixMp4Duration(tudo, durationSeconds);
+          h.offset = 0;
+          h.writeBytes(tudo);
+        }
+      }
+    } finally {
+      h.close();
+    }
+    if (!webm) proc.corrigirMs = relogio() - t;
+
+    if (webm) {
+      // Opus: o WebM vira MP4 no Swift, de ficheiro para ficheiro. Um WebM que
+      // não se sabe converter atira `OPUS_INVALIDO`, e quem pediu volta ao AAC.
+      convertido = new File(audioDir(), nomeDoParcial(videoId));
+      let r: { bytes: number; segundos: number; ms: number };
+      try {
+        r = await nativo.converterOpus(parcial.uri, convertido.uri);
+      } catch (erro: any) {
+        const msg = String(erro?.message ?? erro);
+        if (msg.includes(OPUS_INVALIDO)) throw new Error(`${OPUS_INVALIDO}: ${msg.slice(msg.indexOf(OPUS_INVALIDO) + OPUS_INVALIDO.length + 2)}`);
+        throw erro;
+      }
+      proc.foraMs = r.ms;
+      if (opts.shouldAbort?.()) throw new Error(DOWNLOAD_ABORTED);
+      if (convertido.size !== r.bytes) throw new Error(AUDIO_INCOMPLETO);
+      t = relogio();
+      const destinoOpus = ficheiroOpus(videoId);
+      if (!destinoOpus.exists) convertido.moveSync(destinoOpus);
+      proc.escreverMs = relogio() - t;
+      if (registo) registo.processamento = { ...proc, formato: 'opus' };
+      cachedIdsIndex?.add(videoId); changed();
+      return destinoOpus.uri;
+    }
+
+    t = relogio();
+    const destino = ficheiroAac(videoId);
+    if (!destino.exists) parcial.moveSync(destino);
+    proc.escreverMs = relogio() - t;
+    if (registo) registo.processamento = { ...proc, formato: 'aac' };
+    cachedIdsIndex?.add(videoId); changed();
+    return destino.uri;
+  } finally {
+    // Depois de um `moveSync` o objeto aponta para o DESTINO (a lição da
+    // v1.11.0, `publicarDownload.ts`): apaga-se o que NÃO ficou num caminho
+    // publicado -- o WebM depois de convertido, um temporário que perdeu para
+    // um ficheiro que já existia, ou tudo depois de uma falha.
+    for (const f of [parcial, convertido]) {
+      if (!f || publicadoEm(f, videoId)) continue;
+      try { if (f.exists) f.delete(); } catch { /* fica para a limpeza do arranque */ }
+    }
+  }
+}
+
+/** O ficheiro passou a ser um dos publicados (o `moveSync` mudou-lhe a `uri`)? */
+function publicadoEm(ficheiro: any, videoId: string): boolean {
+  return ficheiro.uri === ficheiroAac(videoId).uri || ficheiro.uri === ficheiroOpus(videoId).uri;
 }
 
 // ------------------------------------------------------------

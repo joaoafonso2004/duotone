@@ -64,6 +64,13 @@ caso('com a app escondida não entra no resumo (não há toques para atrasar)', 
   assert.match(textoDoProcessamento([medida({ aFrente: false })]), /All downloads finished with the app hidden/);
 });
 
+caso('o download nativo diz que foi nativo e quanto correu fora do JavaScript', () => {
+  const texto = textoDoProcessamento([medida({ formato: 'opus', converterMs: 0, escreverMs: 2, nativo: true, foraMs: 41 })]);
+  assert.match(texto, /, native\)/);
+  assert.match(texto, /native 41 ms off the JS thread/);
+  assert.match(texto, /blocked 2 ms/);
+});
+
 console.log('\nligado ao download e à analítica');
 caso('o youtubeCache mede as quatro fases', () => {
   const cache = readFileSync('src/lib/youtubeCache.ts', 'utf8');

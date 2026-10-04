@@ -42,6 +42,7 @@ import {
   pruneAudioCacheLRU,
   limparParciaisEsquecidos,
   listarDescarregados,
+  definirDescarregadorNativo,
 } from './src/lib/youtubeCache';
 import { retireBackgroundInboxCheck } from './src/lib/backgroundInbox';
 import { registarAntesDeSair, useAuth } from './src/state/auth';
@@ -52,6 +53,7 @@ import { iniciarModoCarro } from './src/state/carro';
 import { definirEmSegundoPlano, definirGuardarEscutaPorEnviar, definirPodeTocarSemRede, usePlayer } from './src/state/player';
 import { guardarEscutaPorEnviar, instalarEnvioDeEscutas } from './src/state/escutasPorEnviar';
 import { tocaSemRede } from './src/lib/descarregarFaixa';
+import { descarregadorNativo } from './modules/duotone-download';
 import { useTheme } from './src/state/theme';
 import { useAcompanharCapa } from './src/hooks/useAcompanharCapa';
 import { useRecomendacoes } from './src/state/recomendacoes';
@@ -105,6 +107,10 @@ vigiarOLeitor();
 definirGuardarEscutaPorEnviar(guardarEscutaPorEnviar);
 instalarEnvioDeEscutas();
 if (Platform.OS === 'ios') definirPodeTocarSemRede(tocaSemRede);
+// O download do áudio fora do JavaScript (4/10, auditoria 4.1): os bocados vão
+// do URLSession direto para o disco e o Opus converte-se no Swift. Sem o
+// módulo no binário (uma build anterior), o download continua pelo JS.
+if (Platform.OS === 'ios') definirDescarregadorNativo(descarregadorNativo);
 // O "Jump back in" da Home do iPhone (3/10, lib/recentes.ts): cada lista nova
 // com origem entra à frente.
 if (Platform.OS === 'ios') instalarRecentes();

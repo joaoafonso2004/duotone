@@ -1,0 +1,40 @@
+name: Swift puro (módulos nativos)
+
+# O código Swift dos módulos que não depende do iOS (modules/*/ios/Puro/),
+# compilado em Linux e comparado com o JavaScript que faz o mesmo. O Windows
+# não compila Swift, e a build do iOS só prova que compila -- não que dá o
+# mesmo resultado. Corre só quando um dos lados muda.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, Testing]
+    paths:
+      - 'modules/*/ios/Puro/**'
+      - 'scripts/swift/**'
+      - 'src/lib/webmOpus.ts'
+      - 'src/lib/opusMp4.ts'
+      - 'src/lib/converterOpus.ts'
+      - 'src/lib/audioRange.ts'
+      - '.github/workflows/swift-puro.yml'
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Swift
+        run: swift --version
+
+      - name: Casos tirados do JavaScript
+        run: node --experimental-strip-types --import ./scripts/registar-resolver.mjs scripts/swift/gerar-casos-download.ts "$RUNNER_TEMP/casos"
+
+      - name: Compilar
+        run: swiftc -O -parse-as-library modules/duotone-download/ios/Puro/*.swift scripts/swift/teste-download.swift -o "$RUNNER_TEMP/teste-download"
+
+      - name: Comparar com o JavaScript
+        run: '"$RUNNER_TEMP/teste-download" "$RUNNER_TEMP/casos"'

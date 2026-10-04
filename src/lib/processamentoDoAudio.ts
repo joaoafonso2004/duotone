@@ -25,6 +25,14 @@ export type Processamento = {
   corrigirMs: number;
   /** Criar, escrever e promover o ficheiro. */
   escreverMs: number;
+  /**
+   * Feito pelo módulo nativo (4/10, `modules/duotone-download`): os bytes não
+   * passaram pelo JavaScript, e a conversão do Opus correu no Swift. Os campos
+   * de cima continuam a ser só o tempo em que o JavaScript esteve preso.
+   */
+  nativo?: boolean;
+  /** O que correu fora do JavaScript (a conversão no Swift), em ms. */
+  foraMs?: number;
 };
 
 export function processamentoVazio(): Processamento {
@@ -80,8 +88,9 @@ export function textoDoProcessamento(lista: readonly MedidaDoProcessamento[]): s
       m.formato === 'opus' ? `convert ${ms(m.converterMs)}` : `fix ${ms(m.corrigirMs)}`,
       `write ${ms(m.escreverMs)}`,
       `join ${ms(m.juntarMs)}`,
+      ...(m.nativo ? [`native ${ms(m.foraMs ?? 0)} off the JS thread`] : []),
     ].join(' · ');
-    const onde = `${m.prioridade}${m.aFrente ? '' : ', app hidden'}`;
+    const onde = `${m.prioridade}${m.aFrente ? '' : ', app hidden'}${m.nativo ? ', native' : ''}`;
     return `[${hora(m.em)}] ${mb(m.bytes)} ${m.formato} (${onde}): ${fases} -> blocked ${ms(maiorBloqueio(m))}`;
   });
   const aFrente = lista.filter((m) => m.aFrente);

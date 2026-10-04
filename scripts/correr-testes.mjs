@@ -39,6 +39,8 @@ const TESTES = [
   'scripts/test-security-hardening.mjs',
   'scripts/test-mp4fixer.mjs',
   'scripts/test-mp4-ao-vivo.mjs',
+  'scripts/test-mp4-no-ficheiro.mjs',
+  'scripts/test-download-nativo.mjs',
   `${TS} scripts/test-audio-range.ts`,
   `${TS} scripts/test-publicar-download.ts`,
   `${TS} scripts/test-limpeza-cache.ts`,

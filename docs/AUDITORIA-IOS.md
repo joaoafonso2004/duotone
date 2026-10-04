@@ -72,7 +72,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 1.6 Definições apertadas
 
-**Estado:** ⬜ Por fazer.
+**Estado:** ⬜ Por fazer. Escolhida a variante B de `docs/definicoes-prateleiras-abertura.html` (4/10): o valor e um menu na própria linha, ícones neutros.
 
 **Problema:** as linhas têm paddingVertical: 4 (SettingsScreen.tsx:788), o que dá uns 36-39 pt sem separadores, dentro de cartões com padding de 16.
 
@@ -166,7 +166,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 3.6 A abertura atrasa a música
 
-**Estado:** ⬜ Por decidir (a decisão é tua): animação inteira só na primeira abertura do dia ou depois de uma atualização, e nas outras um cruzamento de 300 ms.
+**Estado:** ⏸ Decidido não mudar (João, 4/10): a animação inteira continua em cada arranque a frio.
 
 **Prioridade:** P2 · Impacto: Médio
 
@@ -174,7 +174,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ### 4.1 O áudio inteiro passa pela thread de JavaScript
 
-**Estado:** ◐ Em parte (3/10): **a medição está feita.** Cada fase síncrona (juntar, converter, corrigir, escrever) é medida em `descarregarAgora`, aparece no relatório do iPhone ("audio processing on the JavaScript thread") e vai para a analítica (`download_terminado` com `ms_js`). **Também (3/10):** com a app escondida, o Smart Cache adianta só a seguinte e a Daily mix espera -- o relatório da 4.4.0 mostrou 19% de um núcleo a tocar com o ecrã desligado, metade no JavaScript, com três downloads nesse tempo. **Falta:** passar o download e o processamento para um módulo Swift (é o que tira o resto desse trabalho do JavaScript).
+**Estado:** ✅ Feito (4/10), por ver no iPhone. Módulo `modules/duotone-download`: cada bocado vai do URLSession direto para o `.part` (os bytes deixam de passar pelo JavaScript), e o WebM do Opus vira MP4 no Swift. O JS continua a decidir a fila, as renovações depois de um 403, o encolher dos bocados e o cancelamento -- só o transporte mudou. Num AAC, a duração corrige-se no próprio ficheiro, lendo só a cabeça e os cabeçalhos das boxes (`lib/mp4NoFicheiro.ts`). O ficheiro final é o mesmo de antes byte a byte: o JS prova-o em `test-download-nativo.mjs` e `test-mp4-no-ficheiro.mjs`, e o Swift é comparado com o JS no CI (`swift-puro.yml`, com casos ao acaso para apanhar leituras fora do array). Sem o módulo no binário, tudo como antes. O relatório diz `native` em cada download e quanto correu fora do JavaScript. Antes disto (3/10): a medição, e com a app escondida o Smart Cache só adianta a seguinte.
 
 **Prioridade:** P1 · Impacto: Alto
 
@@ -254,13 +254,13 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 ## TOP 10 MELHORIAS
 
-- ◐ Gestos do leitor na thread de UI — 3.1 (fechar, mini, barra e arrastar na fila feitos; cubo e folhas por fazer)
-- ◐ Tirar o processamento do áudio do JS — 4.1 (medição feita; falta decidir pelos números)
+- ◐ Gestos do leitor na thread de UI — 3.1 (falta o cubo das letras)
+- ✅ Tirar o processamento do áudio do JS — 4.1 (módulo Swift, por ver no iPhone)
 - ✅ Cabeçalho que encolhe ao rolar — 1.1
 - ◐ Escala tipográfica a sério — 1.2 (mínimo de 11 pt feito)
 - ✅ Avisos com "Undo" em vez de alertas — 6.1
 - ✅ Mini-player e barra como uma base única — 2.1
-- ◐ Folhas nativas — 3.2 (a fila)
+- ✅ Folhas nativas — 3.2
 - ✅ Corrigir anterior/seguinte — 5.1
 - ✅ Página principal com "Jump back in" — 5.4 e REDESIGN
 - ⬜ Partir o PlayerRoot — 4.3
@@ -280,7 +280,7 @@ A app não é SwiftUI: é React Native com Expo, e só alguns módulos são Swif
 
 Pela ordem de ataque:
 
-- ◐ Medir e mover para nativo o processamento do áudio (4.1) — medido, falta decidir.
+- ✅ Mover para nativo o processamento do áudio (4.1).
 - ◐ Gestos fora do JS (3.1).
 - ⬜ lazy com pré-carregamento dos separadores (4.2).
 - ⬜ Partir o PlayerRoot (4.3).
@@ -297,13 +297,13 @@ Pela ordem de ataque:
 - ✅ Tempo restante (−1:23) ao tocar no tempo total.
 - ✅ Play/pause com cruzamento em vez de rodar.
 - ✅ Títulos de secção de 22 pt com "See all ›" (na Home).
-- ⬜ Cartões das prateleiras a 140-150 pt, com o terceiro a espreitar.
+- ⏸ Cartões das prateleiras a 140-150 pt: o João prefere como estão (4/10).
 
 ## REDESIGN
 
 - ✅ **A página principal** (3/10, variante A: o campo de pesquisa por baixo do título). O separador "Search" passa a "Home": cabeçalho que encolhe, com a pesquisa como lupa ou campo no topo; "Jump back in" (contextos recentes, 2 linhas de quadrados); amigos a ouvir; Daily mix em destaque (capa grande); prateleiras com títulos de 22 pt. Os atalhos em grelha fundem-se com o "Jump back in".
 - ✅ **A base (mini-player + barra).** Superfície única de vidro, com a cor da capa a tingir. *Diferente do proposto:* deslizar para a direita continua a fechar (5.2), não muda de faixa.
-- ⬜ **As Definições.** Lista agrupada ao estilo iOS: linhas de 48 pt, ícones em quadrados arredondados e as frases de "efeito" como rodapés das secções.
+- ⬜ **As Definições.** Lista agrupada ao estilo iOS: linhas de 48 pt, ícones em quadrados arredondados e as frases de "efeito" como rodapés das secções. Variante B escolhida (4/10).
 
 ## PRÓXIMOS PASSOS QUE VALEM A PENA
 
@@ -312,7 +312,7 @@ Por ordem:
 > **Atualizado a 3/10 (fim do dia):** feitos também a altura medida (1.3), os alertas (6.1), a barra de progresso (3.5, variante B), a Home com o Jump back in (5.4, variante A) e a fila numa folha nativa (3.2). Nada disto foi visto no iPhone.
 
 1. **Build e uma volta no iPhone.** Tudo o que está ✅ desde 3/10 só foi visto em testes e no browser: os gestos fora do JS, a base de vidro, o título que encolhe, o aviso com "Undo", as barrinhas. É onde está o maior risco, e um erro aqui vê-se em todos os ecrãs.
-2. **Ler o relatório do processamento do áudio** depois de uns dias de uso (4.1). Se o pior caso no fim de um download passar de umas centenas de ms, o módulo Swift é o maior ganho que falta em fluidez; se não, fica de fora.
+2. **Ver o download nativo no relatório** (4.1, feito a 4/10): cada download deve dizer `native`, e o "blocked" no fim de um download deve ficar nas dezenas de ms. Se aparecer `pot=`/`HTTP` diferente do costume, é o transporte novo.
 3. **A barra de progresso** (3.5 + o resto do 3.1): arrastar relativo, modo fino, vibração nas pontas, fora do JS. É o gesto mais usado depois do skip.
 4. **Medir a altura dos separadores** (1.3). Ficou mais urgente com a base nova: com o texto grande, o vidro e a música desalinham.
 5. **Home com "Jump back in"** (5.4 + REDESIGN). Maior impacto de produto do que resta, mas pede preview antes.
