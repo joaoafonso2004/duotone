@@ -307,16 +307,12 @@ Pela ordem de ataque:
 
 ## PRÓXIMOS PASSOS QUE VALEM A PENA
 
-Por ordem:
+Por ordem (atualizado a 4/10):
 
-> **Atualizado a 3/10 (fim do dia):** feitos também a altura medida (1.3), os alertas (6.1), a barra de progresso (3.5, variante B), a Home com o Jump back in (5.4, variante A) e a fila numa folha nativa (3.2). Nada disto foi visto no iPhone.
-
-1. **Build e uma volta no iPhone.** Tudo o que está ✅ desde 3/10 só foi visto em testes e no browser: os gestos fora do JS, a base de vidro, o título que encolhe, o aviso com "Undo", as barrinhas. É onde está o maior risco, e um erro aqui vê-se em todos os ecrãs.
-2. **Ver o download nativo no relatório** (4.1, feito a 4/10): cada download deve dizer `native`, e o "blocked" no fim de um download deve ficar nas dezenas de ms. Se aparecer `pot=`/`HTTP` diferente do costume, é o transporte novo.
-3. **A barra de progresso** (3.5 + o resto do 3.1): arrastar relativo, modo fino, vibração nas pontas, fora do JS. É o gesto mais usado depois do skip.
-4. **Medir a altura dos separadores** (1.3). Ficou mais urgente com a base nova: com o texto grande, o vidro e a música desalinham.
-5. **Home com "Jump back in"** (5.4 + REDESIGN). Maior impacto de produto do que resta, mas pede preview antes.
-6. **O resto dos avisos** (6.1): os erros e sucessos que ainda abrem um `Alert`, com uma frase legível em vez do texto do Supabase.
-7. **Folhas nativas** (3.2), a começar pela fila. Grande ganho, mas mexe em 14 folhas: uma de cada vez.
-
-Fica para quando se mexer na zona (não vale a pena sozinho): partir o PlayerRoot (4.3), `lazy` nos separadores (4.2, medir primeiro), Definições a 48 pt (1.6), puxar para atualizar (1.8), play/pause sem rodar (3.3), cores fora dos tokens (2.4), Toque em vez de Pressable (7.3) e o código morto (7.2). A abertura (3.6) espera pela tua decisão.
+1. **Build e uma volta no iPhone.** Quase tudo o que está ✅ desde 3/10 só foi visto em testes: os gestos fora do JS, a base de vidro, o título que encolhe, as folhas nativas, as Definições novas e o perfil novo. É onde está o maior risco.
+2. **Ver o download nativo no relatório** (4.1): cada download deve dizer `native`, e o "blocked" no fim de um download deve ficar nas dezenas de ms. Se aparecer um `HTTP` ou um erro de rede fora do costume, é o transporte novo (o caminho antigo volta tirando o `definirDescarregadorNativo` do `App.tsx`).
+3. **Comparar a paragem do arranque** (4.2) com os 943 ms do relatório da 4.4.1, agora que só montam a Home e a vizinha.
+4. **Partir o PlayerRoot** (4.3): é o ficheiro onde os bugs do leitor nascem, e cada skip ainda redesenha mais do que devia.
+5. **O cubo das letras no Gesture Handler** (o que falta do 3.1).
+6. **A escala tipográfica** (1.2) e **Toque em vez de Pressable** (7.3), ecrã a ecrã.
+7. **Juntar as superfícies flutuantes que sobram** (6.1): os toasts do leitor, o HandoffBanner e o AvisoDaReproducao.
