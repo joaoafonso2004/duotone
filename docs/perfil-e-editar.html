@@ -114,6 +114,31 @@ h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
 .faixa span{font-size:13px;color:var(--sec)}
 .faixa .q{font-size:13px;color:var(--ter);font-variant-numeric:tabular-nums}
 .sub{font-size:13px;color:var(--ter);margin:-6px 0 6px}
+.redondos{display:flex;gap:16px;overflow-x:auto;scrollbar-width:none;margin:0 -20px;padding:0 20px}
+.redondos::-webkit-scrollbar{display:none}
+.redondo{width:96px;flex:none;text-align:center}
+.redondo .c{width:96px;height:96px;border-radius:48px}
+.redondo b{display:block;font-size:13.5px;font-weight:600;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.redondo span{font-size:12px;color:var(--sec)}
+.tira{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;margin:0 -20px;padding:0 20px}
+.tira::-webkit-scrollbar{display:none}
+.tira .c{width:72px;height:72px;border-radius:8px;flex:none}
+.abas{display:flex;background:rgba(255,255,255,.07);border-radius:10px;padding:2px;gap:2px;margin-bottom:8px}
+.abas span{flex:1;text-align:center;font-size:13.5px;font-weight:600;padding:7px 0;border-radius:8px;color:var(--sec);cursor:pointer}
+.abas span.on{background:rgba(255,255,255,.16);color:var(--text)}
+.cartaoArt{position:relative;height:150px;border-radius:18px;overflow:hidden;margin-bottom:22px}
+.cartaoArt .v{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.65),rgba(0,0,0,.05))}
+.cartaoArt .tx{position:absolute;left:16px;bottom:14px}
+.cartaoArt small{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+.cartaoArt b{display:block;font-size:26px;font-weight:800;margin-top:2px}
+.cartaoArt span{font-size:13.5px;color:rgba(255,255,255,.8)}
+.capasNum{display:flex;gap:12px;overflow-x:auto;scrollbar-width:none;margin:0 -20px;padding:0 20px}
+.capasNum::-webkit-scrollbar{display:none}
+.capaNum{width:130px;flex:none;position:relative}
+.capaNum .c{width:130px;height:130px;border-radius:12px}
+.capaNum i{position:absolute;top:8px;left:8px;font-style:normal;font-size:12px;font-weight:800;padding:3px 8px;border-radius:99px;background:rgba(10,10,15,.65);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.capaNum b{display:block;font-size:13.5px;font-weight:600;margin-top:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.capaNum span{font-size:12px;color:var(--sec)}
 .chev{width:9px;height:15px;color:rgba(245,245,247,.32);flex:none}
 /* a base de vidro */
 .base{position:absolute;left:0;right:0;bottom:0;z-index:30;border-radius:24px 24px 0 0;overflow:hidden;border-top:.5px solid rgba(255,255,255,.14);
@@ -216,6 +241,13 @@ h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin-bottom:8px}
       <button class="ctl" data-quem="meu" aria-pressed="true">O teu</button>
       <button class="ctl" data-quem="amigo" aria-pressed="false">De um amigo</button>
     </div>
+    <div class="controlos"><span class="rot">Escuta</span>
+      <button class="ctl" data-escuta="A" aria-pressed="false">A · listas</button>
+      <button class="ctl" data-escuta="B" aria-pressed="false">B · separadores</button>
+      <button class="ctl" data-escuta="C" aria-pressed="true">C · artistas em círculo + listas <span class="recomendo">recomendo</span></button>
+      <button class="ctl" data-escuta="D" aria-pressed="false">D · cartões</button>
+    </div>
+    <p class="nota" id="notaEscuta"></p>
     <div class="telefones">
       <div class="coluna">
         <div class="moldura"><div class="tel" id="t1"></div></div>
@@ -294,7 +326,14 @@ document.addEventListener('click', (e) => {
 
 /* ================= 1. O perfil ================= */
 const t1 = document.getElementById('t1');
-let hero = 'centro', quem = 'meu';
+let hero = 'centro', quem = 'meu', escuta = 'C', aba = 'songs';
+const ARTISTAS = [['Playboi Carti', 547, 'capaH'], ['Juice WRLD', 402, 'capaB'], ['Yeat', 266, 'capaD'], ['Future', 190, 'capaC'], ['Isak', 121, 'capaA']];
+const NOTAS_ESCUTA = {
+  A: 'O que estava na proposta: o artista mais ouvido numa linha, e duas listas de cinco. Muito texto, e a parte mais pessoal (os artistas) é uma linha só.',
+  B: 'Uma secção com três separadores (Songs, Artists, Recent) e uma lista de cinco. É a mais curta, mas o que está nos outros separadores não se vê sem tocar.',
+  C: 'Os artistas primeiro, em círculos (é o que mais diz sobre o gosto de alguém), depois as cinco mais tocadas com a contagem, e as recentes numa fila de capas que desliza. Lê-se de relance e não repete a forma das playlists.',
+  D: 'O artista mais ouvido num cartão grande, as mais tocadas em capas com a posição, e as recentes em capas pequenas. A mais visual, mas são três filas a deslizar seguidas, com as playlists por cima.',
+};
 const MAIS = [['@ MEH', 'Playboi Carti', 297, 'capaH'], ['Fuera Del Planeta', 'Eloy ft. Randy', 148, 'capaG'], ['TESLA', 'NYVRA', 125, 'capaB'], ['Obsessed', 'Mariah Carey', 109, 'capaC'], ['On tha line', 'Yeat', 108, 'capaD']];
 const RECENTES = [['Boondocks (Extended)', 'Juice WRLD', 'capaB'], ['Cali Girl', 'Juice WRLD', 'capaE'], ['TOXIC', 'Playboi Carti', 'capaC'], ['Cmon', 'Yeat', 'capaF'], ['Pinga', 'Isak', 'capaA']];
 const PLS = [['Juice WRLD', 119, ['capaB', 'capaE', 'capaC', 'capaF']], ['bangers insanos', 21, ['capaE', 'capaD', 'capaA', 'capaH']], ['night drive', 48, ['capaH', 'capaB', 'capaG', 'capaC']], ['gym', 33, ['capaF', 'capaC', 'capaD', 'capaE']]];
@@ -322,13 +361,31 @@ function perfil() {
       <div class="playR">${svg(I.play, '#0A0A0F', 20)}</div><div class="mais" data-menu="momento">${svg(I.dots, 'currentColor', 20)}</div></div></div>`;
   const playlists = `<div class="sec"><div class="secTit"><b>Playlists</b>${meu ? '<a data-dica="Abre o Edit profile nas playlists">Edit</a>' : ''}</div>
       <div class="carr">${PLS.map(([n, q, cs]) => `<div class="pl"><div class="colagem">${cs.map((c) => `<i class="${c}"></i>`).join('')}</div><b>${n}</b><span>${q} tracks</span></div>`).join('')}</div></div>`;
-  const ouvir = `<div class="sec"><div class="secTit"><b>${meu ? 'Your listening' : 'Listening'}</b><a>Stats</a></div>
-      <div class="artista"><div class="c capaH"></div><div class="t"><small>Most played artist</small><b>Playboi Carti</b></div><span>547 plays</span>${CHEV}</div>
-      <div class="secTit" style="margin-top:14px"><b style="font-size:18px">Most played</b><a>See all</a></div>
-      ${MAIS.map(([t, a, n, c], i) => `<div class="faixa"><div class="n">${i + 1}</div><div class="c ${c}"></div><div class="t"><b>${t}</b><span>${a}</span></div><div class="q">${n}</div><div class="mais">${svg(I.dots, 'currentColor', 18)}</div></div>`).join('')}
-      <div class="secTit" style="margin-top:22px"><b style="font-size:18px">Recently played</b><a>See all</a></div>
-      ${RECENTES.map(([t, a, c]) => `<div class="faixa"><div class="c ${c}"></div><div class="t"><b>${t}</b><span>${a}</span></div><div class="mais">${svg(I.dots, 'currentColor', 18)}</div></div>`).join('')}
-      <div style="height:190px"></div></div>`;
+  const titulo = `<div class="secTit"><b>${meu ? 'Your listening' : 'Listening'}</b><a>Stats</a></div>`;
+  const linhaMais = ([t, a, n, c], i) => `<div class="faixa"><div class="n">${i + 1}</div><div class="c ${c}"></div><div class="t"><b>${t}</b><span>${a}</span></div><div class="q">${n}</div><div class="mais">${svg(I.dots, 'currentColor', 18)}</div></div>`;
+  const linhaRecente = ([t, a, c]) => `<div class="faixa"><div class="c ${c}"></div><div class="t"><b>${t}</b><span>${a}</span></div><div class="mais">${svg(I.dots, 'currentColor', 18)}</div></div>`;
+  const sub = (t) => `<div class="secTit" style="margin-top:22px"><b style="font-size:18px">${t}</b><a>See all</a></div>`;
+  const tira = `<div class="tira">${[...RECENTES, ...RECENTES].map(([, , c]) => `<div class="c ${c}"></div>`).join('')}</div>`;
+  let ouvirCorpo = '';
+  if (escuta === 'A') {
+    ouvirCorpo = `<div class="artista"><div class="c capaH"></div><div class="t"><small>Most played artist</small><b>Playboi Carti</b></div><span>547 plays</span>${CHEV}</div>
+      ${sub('Most played')}${MAIS.map(linhaMais).join('')}${sub('Recently played')}${RECENTES.map(linhaRecente).join('')}`;
+  } else if (escuta === 'B') {
+    const lista = aba === 'songs' ? MAIS.map(linhaMais).join('')
+      : aba === 'artists' ? ARTISTAS.map(([n, q, c], i) => `<div class="faixa"><div class="n">${i + 1}</div><div class="c ${c}" style="border-radius:23px"></div><div class="t"><b>${n}</b><span>${q} plays</span></div>${CHEV}</div>`).join('')
+      : RECENTES.map(linhaRecente).join('');
+    ouvirCorpo = `<div class="abas">${[['songs', 'Songs'], ['artists', 'Artists'], ['recent', 'Recent']].map(([k, n]) => `<span class="${aba === k ? 'on' : ''}" data-aba="${k}">${n}</span>`).join('')}</div>${lista}
+      <div style="text-align:center;padding:10px 0;font-size:14px;font-weight:600;color:var(--accent)">See all</div>`;
+  } else if (escuta === 'C') {
+    ouvirCorpo = `<div class="redondos">${ARTISTAS.map(([n, q, c]) => `<div class="redondo"><div class="c ${c}"></div><b>${n}</b><span>${q} plays</span></div>`).join('')}</div>
+      ${sub('On repeat')}${MAIS.map(linhaMais).join('')}${sub('Recently played')}${tira}`;
+  } else {
+    ouvirCorpo = `<div class="cartaoArt capaH"><div class="v"></div><div class="tx"><small>Most played artist</small><b>Playboi Carti</b><span>547 plays</span></div></div>
+      <div class="secTit"><b style="font-size:18px">On repeat</b><a>See all</a></div>
+      <div class="capasNum">${MAIS.map(([t, a, n, c], i) => `<div class="capaNum"><div class="c ${c}"></div><i>#${i + 1} · ${n}</i><b>${t}</b><span>${a}</span></div>`).join('')}</div>
+      ${sub('Recently played')}${tira}`;
+  }
+  const ouvir = `<div class="sec">${titulo}${ouvirCorpo}<div style="height:190px"></div></div>`;
   const topo = meu
     ? `<div class="topo"><div class="btnVidro" data-dica="Conversas (2 por ler)">${svg(I.chat, '#fff', 19)}<span class="pontoBadge">2</span></div><div class="btnVidro" data-dica="Definições">${svg(I.gear, '#fff', 19)}</div></div>`
     : `<div class="topo" style="justify-content:space-between"><div class="btnVidro">${svg('<path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>', '#fff', 19)}</div><div class="btnVidro" data-menu="amigo">${svg(I.dots, '#fff', 19)}</div></div>`;
@@ -352,14 +409,22 @@ t1.addEventListener('click', (e) => {
   if (m && m.dataset.menu === 'amigo') comMenu(t1, m, [['Send what you’re playing', null], ['Start a Jam', null], ['Remove friend', 'trash', true]]);
   const d = e.target.closest('[data-dica]');
   if (d) document.getElementById('dica1').textContent = d.dataset.dica;
+  const ab = e.target.closest('[data-aba]');
+  if (ab) { const y = document.getElementById('r1').scrollTop; aba = ab.dataset.aba; perfil(); document.getElementById('r1').scrollTop = y; }
   if (e.target.closest('#editar')) document.getElementById('t2').scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
 document.querySelectorAll('[data-hero]').forEach((b) => b.addEventListener('click', () => {
   hero = b.dataset.hero; document.querySelectorAll('[data-hero]').forEach((x) => x.setAttribute('aria-pressed', x === b)); perfil();
 }));
+document.querySelectorAll('[data-escuta]').forEach((b) => b.addEventListener('click', () => {
+  escuta = b.dataset.escuta; document.querySelectorAll('[data-escuta]').forEach((x) => x.setAttribute('aria-pressed', x === b));
+  document.getElementById('notaEscuta').textContent = NOTAS_ESCUTA[escuta];
+  perfil(); document.getElementById('r1').scrollTop = 560;
+}));
 document.querySelectorAll('[data-quem]').forEach((b) => b.addEventListener('click', () => {
   quem = b.dataset.quem; document.querySelectorAll('[data-quem]').forEach((x) => x.setAttribute('aria-pressed', x === b)); perfil();
 }));
+document.getElementById('notaEscuta').textContent = NOTAS_ESCUTA[escuta];
 perfil();
 
 /* ================= 2. Editar perfil ================= */
