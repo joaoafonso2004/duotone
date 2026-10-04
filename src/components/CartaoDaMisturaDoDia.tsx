@@ -76,15 +76,27 @@ export function CartaoDaMisturaDoDia({ aoAbrir, destaque = false }: {
           backgroundColor: colors.surfaceHigh, opacity: pressed ? 0.9 : 1,
         })}
       >
-        {capa ? <Image source={{ uri: capa }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" transition={250} /> : null}
+        {/* A miniatura do YouTube de uma música traz muitas vezes a capa
+            quadrada ao centro com faixas de cor dos lados: esticada pelo cartão
+            parecia uma fotografia emoldurada (screenshots de 4/10). O fundo é
+            ela desfocada, e a capa vai num quadrado à esquerda, recortada ao
+            centro -- que é onde a capa está. */}
+        {capa ? <Image source={{ uri: capa }} blurRadius={28} style={{ position: 'absolute', top: -20, left: -20, right: -20, bottom: -20 }} contentFit="cover" transition={250} /> : null}
         <LinearGradient
-          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.72)']}
-          locations={[0.3, 1]}
+          colors={['rgba(0,0,0,0.25)', 'rgba(0,0,0,0.62)']}
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
-        <View style={{ position: 'absolute', left: spacing.lg, right: 76, bottom: spacing.lg, gap: 2 }}>
-          <Text numberOfLines={1} style={{ fontSize: 22, fontWeight: '800', color: '#fff' }}>Your Daily mix</Text>
-          <Text numberOfLines={1} style={[type.caption, { color: 'rgba(255,255,255,0.78)' }]}>{legenda}</Text>
+        {capa ? (
+          <Image
+            source={{ uri: capa }}
+            style={{ position: 'absolute', left: spacing.lg, top: spacing.lg, width: 148, height: 148, borderRadius: radii.md }}
+            contentFit="cover"
+            transition={250}
+          />
+        ) : null}
+        <View style={{ position: 'absolute', left: capa ? spacing.lg + 148 + spacing.md : spacing.lg, right: spacing.lg, top: spacing.lg, bottom: 76, gap: 4 }}>
+          <Text numberOfLines={2} style={{ fontSize: 22, fontWeight: '800', color: '#fff' }}>Your Daily mix</Text>
+          <Text numberOfLines={3} style={[type.caption, { color: 'rgba(255,255,255,0.78)' }]}>{legenda}</Text>
         </View>
         {!aFazer && (
           <Pressable

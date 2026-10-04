@@ -247,6 +247,9 @@ function metadadosDoEcraBloqueado(track: Track) {
   };
 }
 
+
+/** Quanto tempo depois de arrancar uma paragem sozinha conta como arranque falhado (`arranqueRef`). */
+const ARRANQUE_A_VIGIAR_MS = 4000;
 export function YouTubePlayerView({ track }: { track: Track }) {
   // No carro, a curva do carro e não a da faixa (ver `carro` na store).
   const eqGanhos = usePlayer(ganhosEmVigor);
@@ -583,6 +586,15 @@ export function YouTubePlayerView({ track }: { track: Track }) {
 
   /** Quando se pediu a faixa e de onde veio o som: o evento `primeira_nota`. */
   const primeiraNotaRef = useRef<{ run: number; pedidaEm: number; origem: OrigemDoSom | null } | null>(null);
+  /**
+   * O arranque desta faixa, para a recuperação imediata (4/10): o relatório da
+   * 4.4.1 mostrou uma faixa já no telemóvel, depois de outra acabar sozinha, a
+   * tocar um instante e PARAR (velocidade 0, pronta, sem esperar por dados).
+   * Só o empurrão do arranque travado a punha a andar, 2 s depois (4,5 s até ao
+   * som). Uma paragem destas logo no arranque, sem pausa pedida, resolve-se já:
+   * volta ao 0 e toca. Uma vez por faixa; o empurrão continua por trás.
+   */
+  const arranqueRef = useRef<{ run: number; em: number; repetido: boolean } | null>(null);
 
   // [duration-debug] log único por faixa do player.duration (o valor que o
   // expo-video envia para o Lock Screen) — remover depois de validar.
@@ -1186,6 +1198,7 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       descarregarRef.current = { ativo: false, at: Date.now() };
       nativeTrackIdRef.current = track.sourceId;
       wantsPlayRef.current = autoplay;
+      arranqueRef.current = autoplay ? { run: runId, em: Date.now(), repetido: false } : null;
       if (autoplay) {
         registarNaVelocidade(`play at track start/crossfade (motorActivo()) | ${fotoDaVelocidade(motorActivo())}`);
         tocarNaVelocidade(motorActivo(),(ritmoDeQuemSigo() ?? velocidadeNaSessao(st.playbackRate,!!useOuvirJuntos.getState().sessao)),aplicarVelocidadeNativa);
@@ -1732,7 +1745,33 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     if (backend === 'native' && nativeTrackIdRef.current === track.sourceId) {
       onStateChange(isPlaying ? 'playing' : 'paused');
     }
+    if (!isPlaying) recuperarSeParouAoArrancar();
   });
+  /** Ver `arranqueRef`. A pausa de uma chamada ou de tirar os auscultadores
+   *  chega antes dos 400 ms e põe o `wantsPlayRef` a falso. */
+  const recuperarSeParouAoArrancar = () => {
+    const a = arranqueRef.current;
+    if (!a || a.repetido || a.run !== runIdRef.current || Date.now() - a.em > ARRANQUE_A_VIGIAR_MS) return;
+    setTimeout(() => {
+      const agora = arranqueRef.current;
+      if (agora !== a || a.repetido || a.run !== runIdRef.current) return;
+      if (!isMountedRef.current || !wantsPlayRef.current || !usePlayer.getState().isPlaying) return;
+      if (nativeTrackIdRef.current !== track.sourceId) return;
+      let m: ReturnType<typeof motorActivo>;
+      try { m = motorActivo(); } catch { return; }
+      try {
+        if (m.playing || m.status !== 'readyToPlay' || (m.currentTime || 0) > 1) return;
+      } catch { return; }
+      a.repetido = true;
+      registarNaFila(`${track.sourceId}: stopped right after starting, played again (engine ${(m.currentTime || 0).toFixed(1)}s)`);
+      try {
+        m.currentTime = 0;
+        tocarNaVelocidade(m, ritmoDeQuemSigo() ?? velocidadeNaSessao(usePlayer.getState().playbackRate, !!useOuvirJuntos.getState().sessao), aplicarVelocidadeNativa);
+      } catch {
+        // motor largado -- o empurrão do arranque travado continua por trás
+      }
+    }, 400);
+  };
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
     // Sleep timer verificado aqui porque este evento continua a disparar em
     // background (sessão de áudio ativa) — ao contrário dos setInterval JS,

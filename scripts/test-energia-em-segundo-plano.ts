@@ -29,6 +29,9 @@ caso('cada thread vai para o seu grupo', () => {
   assert.equal(grupoDaThread('com.facebook.react.JavaScript'), 'javascript');
   assert.equal(grupoDaThread('hermes-gc'), 'javascript');
   assert.equal(grupoDaThread('com.apple.coremedia.player.async.#'), 'audio');
+  // O relatório da 4.4.1: o tap do EQ e o recolhedor do Hermes caíam em "outros".
+  assert.equal(grupoDaThread('AQProcessingTapManager'), 'audio');
+  assert.equal(grupoDaThread('hades'), 'javascript');
   assert.equal(grupoDaThread('AQClient'), 'audio');
   assert.equal(grupoDaThread('caulk.messenger.shared:high'), 'audio');
   assert.equal(grupoDaThread('com.apple.NSURLConnectionLoader'), 'rede');

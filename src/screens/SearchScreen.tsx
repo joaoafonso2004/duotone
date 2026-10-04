@@ -751,12 +751,8 @@ export function SearchScreen() {
             {/* A Daily mix, logo a seguir: é a lista que se toca sem escolher
                 nada. Em destaque na Home (3/10): a capa grande e os artistas
                 dela. Some quando não há mix para mostrar. */}
-            {temMisturaDoDia && (
-              <View style={[styles.sectionHeader, { marginTop: spacing.lg }]}>
-                <Text accessibilityRole="header" style={styles.sectionTitle}>Daily mix</Text>
-              </View>
-            )}
-            <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.sm }}>
+            {/* Sem título por cima (4/10): o cartão já diz "Your Daily mix". */}
+            <View style={{ paddingHorizontal: spacing.xl, marginTop: temMisturaDoDia ? spacing.xl : 0 }}>
               <CartaoDaMisturaDoDia
                 destaque
                 aoAbrir={() => navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' } })}
@@ -1138,7 +1134,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     backgroundColor: colors.surfaceHigh,
   },
+  // Sem `wrap`: a capa partilha o `flexWrap` da colagem de quatro, e com ele
+  // o coração (e a foto do artista) encostava ao topo -- visto nas
+  // screenshots de 4/10.
   atalhoCoracao: {
+    flexWrap: 'nowrap',
     alignItems: 'center',
     justifyContent: 'center',
   },

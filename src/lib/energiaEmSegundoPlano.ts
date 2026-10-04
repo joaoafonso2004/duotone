@@ -57,8 +57,10 @@ export function normalizarNome(nome: string): string {
 
 export function grupoDaThread(nome: string): Grupo {
   if (!nome) return 'sem-nome';
-  if (/javascript|hermes|com\.facebook\.react\.runtime/i.test(nome)) return 'javascript';
-  if (/audio|coremedia|AQClient|AVAudio|avfoundation|caulk|com\.apple\.coreaudio|mediatoolbox|MTAudioProcessingTap/i.test(nome)) return 'audio';
+  // `hades` é o recolhedor de lixo do Hermes: trabalho do JavaScript.
+  if (/javascript|hermes|hades|com\.facebook\.react\.runtime/i.test(nome)) return 'javascript';
+  // AQProcessingTapManager é o tap do EQ: no relatório da 4.4.1 caía em "outros".
+  if (/audio|coremedia|AQClient|AQProcessingTap|AVAudio|avfoundation|caulk|com\.apple\.coreaudio|mediatoolbox|MTAudioProcessingTap/i.test(nome)) return 'audio';
   if (/NSURL|CFNetwork|network|nw[._]|tcp|websocket|SocketRocket|SRWebSocket|boringssl/i.test(nome)) return 'rede';
   if (/SDWebImage|ImageIO|image/i.test(nome)) return 'imagens';
   return 'outros';

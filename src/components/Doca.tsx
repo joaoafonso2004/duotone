@@ -67,7 +67,7 @@ export function Doca() {
       {/* Sem `pointerEvents`: o vidro engole os toques que não acertam num botão,
           para não irem parar à lista por baixo. */}
       <Animated.View style={[styles.vidro, { height: altura, transform: [{ translateY: desvioDoVidro }] }]}>
-        <BlurView tint="dark" intensity={60} style={StyleSheet.absoluteFill} />
+        <BlurView tint="dark" intensity={85} style={StyleSheet.absoluteFill} />
         <TintaDaDoca />
       </Animated.View>
       <Animated.View
@@ -118,9 +118,11 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255,255,255,0.14)',
     overflow: 'hidden',
   },
-  // A tinta escura de sempre (eram 72% na barra), um pouco mais leve: o
-  // desfoque passa a ver-se.
-  tinta: { backgroundColor: 'rgba(10,10,15,0.66)' },
+  // A tinta escura. Com 66% e o desfoque a 60, as screenshots de 4/10 liam o
+  // texto das listas por baixo dos nomes dos separadores ("you were good to
+  // me" entre "Songs" e "Artists"): mais desfoque e um pouco mais de tinta. A
+  // cor do que passa continua a ver-se; as letras não.
+  tinta: { backgroundColor: 'rgba(10,10,15,0.74)' },
   icones: {
     position: 'absolute',
     left: 0,
