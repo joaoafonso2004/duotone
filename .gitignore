@@ -66,6 +66,7 @@ test-*.mjs
 !scripts/test-estado-das-migracoes-sql.mjs
 !scripts/test-gasto-em-segundo-plano.mjs
 !scripts/test-icone-do-windows.mjs
+!scripts/test-sincronizacao-economica.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/
