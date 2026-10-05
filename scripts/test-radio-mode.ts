@@ -86,4 +86,49 @@ try{
   for(let position=1_000;position<=31_000;position+=1_000){time+=1_000;usePlayer.getState()._setProgress(position,60_000);}
   assert.deepEqual(usePlayer.getState().radioListeningSession?.tracks.map(t=>t.sourceId),['audible']);
 }finally{Date.now=now;}
+// O Radio não acaba (5/10): com as âncoras secas, tenta sem a memória de 30 dias.
+reset();
+assert.equal(await usePlayer.getState().startRadio(),true);
+controlo.radioPendentes.push(Promise.resolve([]));
+controlo.radio=[track('more','Holly Hood')];
+const chamadasAntes=controlo.chamadas.radio;
+assert.equal(await usePlayer.getState().extendQueueWithRadio(),true,'um lote vazio não acaba o Radio');
+assert.equal(controlo.chamadas.radio-chamadasAntes,2,'pediu outra vez');
+assert.equal(controlo.radioJaDescobertas?.size,0,'a segunda tentativa já não salta o que se descobriu há dias');
+assert.ok(usePlayer.getState().queue.some(t=>t.sourceId==='more'));
+assert.equal(usePlayer.getState().radioMode,'on');
+
+// Aprende com um salto cedo de uma faixa do Radio, com som (5/10).
+reset();
+assert.equal(await usePlayer.getState().startRadio(),true);
+await usePlayer.getState().next();
+assert.equal(usePlayer.getState().current?.sourceId,'radio1');
+usePlayer.getState()._onYtStateChange('playing');
+usePlayer.setState({positionMs:5_000});
+await usePlayer.getState().next();
+assert.deepEqual(usePlayer.getState().radioListeningSession?.skipped?.map(t=>t.sourceId),['radio1'],'o salto ficou na sessão do Radio');
+assert.deepEqual(usePlayer.getState().radioListeningSession?.tracks.map(t=>t.sourceId),['heard'],'e as escutas continuam');
+
+// Sobrevive a reabrir a app (5/10): fica ligado, com as mesmas âncoras.
+reset();
+assert.equal(await usePlayer.getState().startRadio(),true);
+const opcoes=(usePlayer as any).persist.getOptions();
+const guardado=opcoes.partialize(usePlayer.getState());
+assert.equal(guardado.radioMode,'on');
+assert.deepEqual(guardado.radioContext.map((t:Track)=>t.sourceId),['heard']);
+const reposto=opcoes.merge(JSON.parse(JSON.stringify(guardado)),{...initial});
+assert.equal(reposto.radioMode,'on','volta ligado');
+assert.equal(reposto.radioStopped,false,'e o autoplay não fica travado');
+usePlayer.getState().stopRadio();
+assert.equal(opcoes.merge(JSON.parse(JSON.stringify(opcoes.partialize(usePlayer.getState()))),{...initial}).radioMode,'off','desligado à mão, volta desligado');
+
+// Sem conta lida ainda (o arranque), espera em vez de desligar o Radio.
+reset();
+assert.equal(await usePlayer.getState().startRadio(),true);
+controlo.semConta=true;
+assert.equal(await usePlayer.getState().extendQueueWithRadio(),false);
+assert.equal(usePlayer.getState().radioMode,'on','não desligou');
+controlo.semConta=false;
+
 console.log('Radio session: listening context, strict discovery, uninterrupted audio, replenishment and cancellation races passed.');
+console.log('Radio que aprende: não acaba, aprende com um salto, sobrevive a reabrir e espera pela conta.');

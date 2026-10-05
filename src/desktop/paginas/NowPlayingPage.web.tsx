@@ -469,8 +469,9 @@ export function NowPlayingPage({
       <Text style={styles.npFilaContagem}>{upNext.length}</Text>
       <View style={{ flex: 1 }} />
       {/* O Radio ao lado do Clear: os dois mexem no que vem a seguir. Num Jam
-          ou a seguir um amigo a fila é de outro, e não aparece. */}
-      {!emJam && !seguido ? <RadioNaFila /> : null}
+          a fila é de todos, e não aparece; a seguir um amigo, ligar deixa de
+          o seguir. */}
+      {!emJam ? <RadioNaFila /> : null}
       {/* Num Jam a fila é de todos: não se limpa daqui. */}
       {!emJam && !seguido && upNext.length > 0 ? (
         <Pressable
@@ -490,7 +491,7 @@ export function NowPlayingPage({
         </Pressable>
       ) : null}
     </View>
-    {radioErro && !emJam && !seguido ? <Text accessibilityRole="alert" style={styles.npRadioErro}>{radioErro}</Text> : null}
+    {radioErro && !emJam ? <Text accessibilityRole="alert" style={styles.npRadioErro}>{radioErro}</Text> : null}
     </View>
   );
 

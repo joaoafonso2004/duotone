@@ -47,6 +47,7 @@ const arrastarFila = carregar('src/lib/arrastarFila.ts');
 const menuDaFaixa = carregar('src/lib/menuDaFaixa.ts');
 const seguir = { seguindo: null, aSeguir: [] };
 const useSeguirAmigo = selector => selector(seguir);
+useSeguirAmigo.getState = () => ({ ...seguir, parar() { seguir.seguindo = null; } });
 // O arrasto é o hook partilhado com a edição de uma playlist, e entra a sério.
 const useArrastarLista = carregar('src/hooks/useArrastarLista.ts', {
   react: React, 'react-native': native, '../lib/arrastarFila': arrastarFila,
@@ -149,6 +150,7 @@ async function testRadioControl(){
     '@expo/vector-icons/Ionicons':'Icon','../state/player':{usePlayer},
     '../state/connectivity':{useConnectivity},'../state/auth':{useAuth},
     '../theme':{colors:{},spacing:{},type:{},radii:{}},'../lib/artistName':{displayArtist:t=>t.artist},
+    '../state/seguirAmigo':{useSeguirAmigo},
   });
   const draw=()=>{cursor=0;return radio.RadioQueueControl({});};
   const original=[a,b,c],generated=[a,track('radio')];
@@ -186,6 +188,12 @@ async function testRadioControl(){
   assert.equal(ligada.props.accessibilityState.checked,true,'ligado diz-se ao VoiceOver');
   ligada.props.onPress();assert.equal(store.radioMode,'off');assert.equal(store.radioStopped,true);
   assert.ok(!nodes(draw()).some(n=>n.props?.accessibilityLabel==='Undo Radio and restore previous queue'),'desligar tira o Undo');
+
+  // A seguir um amigo (5/10): ligar o Radio deixa de o seguir e liga.
+  setup();seguir.seguindo={id:'amigo',nome:'Juj'};
+  find(draw(),'Pressable',p=>p.accessibilityLabel==='Radio').props.onPress();
+  assert.equal(seguir.seguindo,null,'deixou de seguir');
+  assert.equal(store.queue,generated,'e o Radio ligou');
   console.log('RadioQueueControl: pastilha liga e desliga, Undo sem alterar áudio, conta e edição concorrente passaram.');
 }
 testRadioControl().catch(error=>{console.error(error);process.exitCode=1;});

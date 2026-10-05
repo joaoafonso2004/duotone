@@ -23,9 +23,9 @@ import {
   lerHistoricoDoSmartShuffle, modoDeShuffle, posicaoDaSugestao, proximoModo,
   juntarHistoricos, registarNoHistoricoDoSmartShuffle, type SugestaoNoHistorico,
 } from '../lib/smartShuffle';
-import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
+import { espalharArtistas, radioSeeds, shouldExtendWithRadio, tentativasDoRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
-import { rememberRadioListen, radioSessionSeeds, type RadioListeningSession } from '../lib/radioSession';
+import { ancorasDoRadio, rememberRadioListen, rememberRadioSkip, radioSessionSeeds, type RadioListeningSession } from '../lib/radioSession';
 import { comecaListaNova, origemAoTocar, type OrigemDaFila } from '../lib/origemDaFila';
 import { candidatasParaDescoberta } from '../api/descoberta';
 import { lerPerfilDeRecomendacoes } from '../api/perfilDeRecomendacoes';
@@ -173,6 +173,11 @@ function registarSaltoDeRecomendacao(positionMs:number,track:Track|null,confirma
   // Uma falha antes do primeiro som não é gosto, e um skip isolado também não:
   // o estado de feedback só reduz após três músicas distintas deste artista.
   if(confirmada&&track&&positionMs<30_000)aprenderComSaltoDeRecomendacao(track);
+  // O Radio ligado aprende já, nesta sessão (`ancorasDoRadio`, 5/10); a
+  // aprendizagem de cima é lenta de propósito (três músicas em 30 dias).
+  const p=usePlayer.getState();
+  if(confirmada&&track&&positionMs<30_000&&p.radioMode==='on'&&contextoAtual.surface==='autoplay_radio')
+    usePlayer.setState({radioListeningSession:rememberRadioSkip(p.radioListeningSession,donoDoSmartShuffle(),track)});
 }
 
 /**
@@ -781,19 +786,8 @@ function contextoParaSmartShuffle(s: Pick<PlayerState, 'current' | 'escutasDaSes
   if (!s.current) return [];
   const ouvidas = s.escutasDaSessao?.dono === donoDoSmartShuffle() ? s.escutasDaSessao.faixas : [];
   const atual = trackKey(s.current);
-  // Uma recomendação não deve tornar-se a semente da recomendação seguinte:
-  // vizinhos de vizinhos afastavam-se progressivamente da escolha da pessoa.
-  // Um gesto explícito em playTrack limpa a origem automática e passa a contar.
-  return [s.current, ...ouvidas.filter(t => trackKey(t) !== atual)].filter(t => {
-    const surface = contextosDaFila.get(trackKey(t))?.surface;
-    return surface !== 'smart_shuffle' && surface !== 'autoplay_radio';
-  }).slice(0, 3);
-}
-
-function contextoDoSmartShuffleAindaAtual(contexto: readonly Track[]): boolean {
-  const live = contextoParaSmartShuffle(usePlayer.getState());
-  const anchors=(tracks:readonly Track[])=>[...new Set(tracks.map(t=>chaveDeArtista(displayArtist(t))))].join('\n');
-  return anchors(contexto) === anchors(live);
+  // Como na 4.1.4 (5/10, a pedido do João: "estava bom").
+  return [s.current, ...ouvidas.filter(t => trackKey(t) !== atual)].slice(0, 3);
 }
 
 /**
@@ -1676,7 +1670,8 @@ export const usePlayer = create<PlayerState>()(
       const discovered = await chavesDasDescobertasRecentes(owner);
       if (!valid()) return false;
       const heard = before.radioListeningSession?.owner === owner ? before.radioListeningSession.tracks : [];
-      const tracks = filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session'));
+      const tracks = espalharArtistas(filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session')),
+        (t) => chaveDeArtista(displayArtist(t)), [chaveDeArtista(displayArtist(current))]);
       if (!valid()) return false;
       if (!tracks.length) { set({ radioMode: 'off', radioError: 'No related music found for this session. Your queue is unchanged.' }); return false; }
       invalidarPedidosDoSmartShuffle();
@@ -1707,8 +1702,7 @@ export const usePlayer = create<PlayerState>()(
 
   extendQueueWithRadio: async () => {
     if (ouvirJuntos() || seguindoAmigo()) return false;
-    const { autoplayRadio, current, queue, queueIndex, repeatMode, radioMode, radioStopped, radioContext, radioOwner, shuffle, shuffleInteligente } = get();
-    const smart = shuffle && shuffleInteligente;
+    const { autoplayRadio, current, queue, queueIndex, repeatMode, radioMode, radioStopped, radioContext, radioOwner } = get();
     if (radioMode === 'preparing' || radioStopped) return false;
     if (
       radioMode === 'on' ? !current || repeatMode !== 'off' || get().upcomingQueue().length > 3
@@ -1724,14 +1718,44 @@ export const usePlayer = create<PlayerState>()(
       // A mesma memória de 30 dias do Smart Shuffle (28/9): sem ela o rádio
       // repunha sempre as mesmas novas no fim de cada lista.
       const dono = donoDoSmartShuffle();
+      // Ao abrir a app a conta ainda não foi lida: espera-se por ela em vez de
+      // desligar o Radio que vinha da sessão anterior.
+      if (radioMode === 'on' && !dono) return false;
       if (radioMode === 'on' && dono !== radioOwner) { get().stopRadio(); return false; }
       const request = radioRequest;
       const jaDescobertas = await chavesDasDescobertasRecentes(dono);
-      const seeds = radioMode === 'on' ? radioContext : smart ? contextoParaSmartShuffle(get()) : radioSeeds(queue, queueIndex);
+      // O Radio aprende com a sessão (5/10, `ancorasDoRadio`): as âncoras de
+      // quando se ligou são o núcleo, o que se ouve até ao fim pesa a favor e o
+      // que se salta cedo pesa contra. O autoplay do fim da fila é o de sempre
+      // (o da 4.1.4, também com o Smart Shuffle).
+      const ancoras = radioMode === 'on'
+        ? ancorasDoRadio(radioContext, get().radioListeningSession, dono, displayArtist, chaveDeArtista)
+        : { sementes: radioSeeds(queue, queueIndex), evitar: new Set<string>() };
+      const seeds = ancoras.sementes;
       if (!seeds.length) return false;
-      const tracks = filterSuggestions(await fetchRadioTracks(seeds, queue, radioMode === 'on' ? 12 : undefined, jaDescobertas, radioMode === 'on' || smart ? 'session' : 'automatic'));
+      // O Radio não acaba (5/10): com o lote vazio, tenta outras sementes em
+      // vez de deixar a fila parar (ver `tentativasDoRadio`). O autoplay do fim
+      // da fila tem o Flow como último recurso e fica com uma tentativa.
+      const tentativas = radioMode !== 'on' ? [{ sementes: seeds, semMemoria: false }] : tentativasDoRadio([
+        { sementes: seeds, semMemoria: false },
+        { sementes: seeds, semMemoria: true },
+        { sementes: radioSessionSeeds(get().radioListeningSession, dono, current!, displayArtist, chaveDeArtista), semMemoria: true },
+        { sementes: radioSeeds(queue, queueIndex), semMemoria: true },
+      ], trackKey);
+      const doArtistaEvitado = (t: Track) => ancoras.evitar.has(chaveDeArtista(displayArtist(t)));
+      let tracks: Track[] = [];
+      for (let i = 0; i < tentativas.length; i++) {
+        const t = tentativas[i];
+        tracks = filterSuggestions(await fetchRadioTracks([...t.sementes], queue, radioMode === 'on' ? 12 : undefined,
+          t.semMemoria ? new Set<string>() : jaDescobertas, radioMode === 'on' ? 'session' : 'automatic'))
+          .filter((x) => !doArtistaEvitado(x));
+        if (tracks.length && i > 0) registarNaFila(`radio: the usual seeds ran dry, kept going (try ${i + 1})`);
+        if (tracks.length || get().queue !== queue || request !== radioRequest) break;
+      }
+      // Sem o mesmo artista colado, também contra o fim da fila que já lá está.
+      tracks = espalharArtistas(tracks, (t) => chaveDeArtista(displayArtist(t)),
+        queue.slice(-3).map((t) => chaveDeArtista(displayArtist(t))));
       if(useConnectivity.getState().offline||get().queue!==queue||ouvirJuntos()||seguindoAmigo()||donoDoSmartShuffle()!==dono||request!==radioRequest
-        ||(smart && (!get().shuffle || !get().shuffleInteligente || !contextoDoSmartShuffleAindaAtual(seeds)))
         ||(radioMode === 'on' ? get().radioMode !== 'on' : !get().autoplayRadio || get().radioStopped || get().radioMode !== 'off'))return false;
       if (tracks.length === 0) return false;
 
@@ -1908,7 +1932,7 @@ export const usePlayer = create<PlayerState>()(
         chavesBloqueadasNoSmartShuffle(dono),
         lerPerfilDeRecomendacoes(),
       ]);
-      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido || !contextoDoSmartShuffleAindaAtual(contexto)) return 0;
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return 0;
       // A mesma música noutro upload também conta como já estando na fila.
       for (const t of queue) for (const chave of chavesDaFaixaSugerida(t)) bloqueadas.add(chave);
       const proveniencias = new Map<string, Proveniencia>();
@@ -1930,7 +1954,7 @@ export const usePlayer = create<PlayerState>()(
         POR_SUGESTAO, ALVOS_DA_SUGESTAO, perfil.escutas, undefined, perfil.externos, 'estrito',
         proveniencias,
       );
-      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido || !contextoDoSmartShuffleAindaAtual(contexto)) return 0;
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return 0;
       if (candidatas.length === 0) {
         // Sem rasto, um Smart Shuffle que não sugere nada parecia avariado (26/9).
         registarNaFila(`smart shuffle: nothing to suggest for ${contexto.map((t) => displayArtist(t)).join(', ')}`);
@@ -2020,7 +2044,7 @@ export const usePlayer = create<PlayerState>()(
         chavesBloqueadasNoSmartShuffle(dono),
         lerPerfilDeRecomendacoes(),
       ]);
-      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido || !contextoDoSmartShuffleAindaAtual(contexto)) return false;
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return false;
       for (const t of queue) for (const chave of chavesDaFaixaSugerida(t)) bloqueadas.add(chave);
       const proveniencias = new Map<string, Proveniencia>();
       const candidatas = await candidatasParaDescoberta(
@@ -2041,7 +2065,7 @@ export const usePlayer = create<PlayerState>()(
         POR_SUGESTAO, ALVOS_DA_SUGESTAO, perfil.escutas, undefined, perfil.externos, 'estrito',
         proveniencias,
       );
-      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido || !contextoDoSmartShuffleAindaAtual(contexto)) return false;
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return false;
       const escolhida = escolherSugestao(
         ordenarSugestoes(candidatas, proveniencias, contexto)
           .filter((t) => !foiSugeridaRecentemente(chavesDaFaixaSugerida(t), bloqueadas)),
@@ -2451,7 +2475,11 @@ export const usePlayer = create<PlayerState>()(
       // Persistimos apenas o necessário para "continuar a ouvir" após a app
       // ser morta: faixa atual, fila e posição. Repeat/shuffle já vivem nas
       // prefs; o resto é estado transitório.
-      partialize: s => ({...sessaoParaGuardar(s),radioStopped:s.radioStopped || s.radioMode !== 'off'}),
+      // O Radio sobrevive a reabrir a app (5/10): ficava parado (`radioStopped`)
+      // e a fila acabava sem ninguém o ter desligado. Uma preparação a meio não
+      // conta como ligado.
+      partialize: s => ({...sessaoParaGuardar(s),radioStopped:s.radioStopped,
+        ...(s.radioMode === 'on' ? { radioMode: 'on' as const, radioContext: s.radioContext, radioOwner: s.radioOwner } : {})}),
       // No restauro, a sessão volta PAUSADA: o player prepara o áudio
       // (autoplayOnLoad=false) e retoma na posição guardada quando o
       // utilizador carregar em play.
@@ -2463,7 +2491,10 @@ export const usePlayer = create<PlayerState>()(
           ...persisted,
           // Sem histórico confirmado deste arranque, a atual é a única semente.
           escutasDaSessao: null,
-          radioListeningSession:null,radioMode:'off',radioContext:[],radioOwner:null,radioError:null,radioActive:!!persisted.doRadio?.length,
+          radioListeningSession:null,radioError:null,radioActive:!!persisted.doRadio?.length,
+          ...(persisted.radioMode === 'on' && Array.isArray(persisted.radioContext) && persisted.radioContext.length && persisted.radioOwner
+            ? { radioMode:'on' as const, radioContext:persisted.radioContext, radioOwner:persisted.radioOwner }
+            : { radioMode:'off' as const, radioContext:[], radioOwner:null }),
           radioStopped:persisted.radioStopped===true,
           // Uma sessao gravada por uma versao anterior nao tem estes dois
           // campos. Sem o `??`, o `sugeridas` chegava `undefined` e a lista da

@@ -169,6 +169,61 @@ export function loteSemRepetir<T>(
   return [...lote, ...novas.filter(jaDescoberta).slice(0, limite - lote.length)];
 }
 
+/**
+ * Por onde o Radio continua quando um lote vem vazio (5/10, "deve ser
+ * infinito"). O Radio pedia sempre às MESMAS âncoras e saltava tudo o que a
+ * memória de 30 dias já tinha descoberto: ao fim de umas horas (ou de uns dias
+ * de Radio) o catálogo dessas âncoras secava e a fila acabava -- só desligar e
+ * ligar, que recalculava as âncoras, o fazia voltar. As tentativas vão por
+ * ordem e param na primeira que traz música: as âncoras de sempre; as mesmas
+ * sem a memória (uma descoberta de há uns dias pode voltar, nunca uma que está
+ * na fila); as do que se OUVIU nesta sessão; e as últimas que tocaram. Repetidas
+ * saem (a mesma lista de sementes com a mesma memória não se pede duas vezes).
+ */
+export type TentativaDoRadio<T> = { sementes: readonly T[]; semMemoria: boolean };
+export function tentativasDoRadio<T>(
+  tentativas: readonly TentativaDoRadio<T>[],
+  chave: (t: T) => string,
+): TentativaDoRadio<T>[] {
+  const vistas = new Set<string>();
+  return tentativas.filter((t) => {
+    if (t.sementes.length === 0) return false;
+    const k = `${t.semMemoria ? 1 : 0}|${t.sementes.map(chave).join(',')}`;
+    if (vistas.has(k)) return false;
+    vistas.add(k);
+    return true;
+  });
+}
+
+/**
+ * Sem o mesmo artista colado (5/10): reordena um lote para nenhum artista se
+ * repetir dentro de `distancia` faixas, contando com o fim da fila que já lá
+ * está (`antes`, as chaves dos artistas das últimas). Escolhe sempre a
+ * primeira que serve, por isso a ordem do lote mexe o mínimo; quando nenhuma
+ * serve, vai a primeira (um lote só de um artista não fica preso).
+ */
+export function espalharArtistas<T>(
+  lote: readonly T[], artistaDe: (t: T) => string, antes: readonly string[] = [], distancia = 3,
+): T[] {
+  const restantes = [...lote];
+  const recentes = [...antes].slice(-distancia);
+  const saida: T[] = [];
+  while (restantes.length) {
+    // A distância maior que der; sem nenhuma, a primeira (nunca fica preso).
+    let i = -1;
+    for (let d = distancia; d >= 1 && i < 0; d--) {
+      const perto = recentes.slice(-d);
+      i = restantes.findIndex((t) => !perto.includes(artistaDe(t)));
+    }
+    if (i < 0) i = 0;
+    const [t] = restantes.splice(i, 1);
+    saida.push(t);
+    recentes.push(artistaDe(t));
+    if (recentes.length > distancia) recentes.shift();
+  }
+  return saida;
+}
+
 export function shouldExtendWithRadio(
   enabled: boolean,
   hasCurrent: boolean,

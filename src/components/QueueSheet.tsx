@@ -250,8 +250,9 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
           </Pressable>
         )}
         {/* O Radio ao lado do Clear (5/10): os dois mexem no que vem a seguir.
-            Num Jam ou a seguir um amigo a fila é de outro, e não aparece. */}
-        {!emSessao && !seguido && current ? <RadioQueueControl/> : null}
+            Num Jam a fila é de todos, e não aparece; a seguir um amigo, ligar
+            deixa de o seguir. */}
+        {!emSessao && current ? <RadioQueueControl/> : null}
         {/* Tirar tudo o que vem a seguir. Num Jam a fila é de todos, e não se
             limpa daqui. Sem pergunta (3/10): o aviso deixa desfazer. */}
         {!emSessao && upNext.length > 0 && (
@@ -274,7 +275,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
           </Pressable>
         )}
       </View>
-      {!emSessao && !seguido ? <ErroDoRadio/> : null}
+      {!emSessao ? <ErroDoRadio/> : null}
 
       {upNext.length > 0 ? (
         <View

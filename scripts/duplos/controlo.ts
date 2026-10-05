@@ -45,6 +45,8 @@ export interface Controlo {
   biblioteca: Track[];
   /** Uma conta com sessão, ou null para a conta local sem rede do costume. */
   sessao: string | null;
+  /** Nem sessão nem conta local: o arranque, antes de a conta ser lida. */
+  semConta: boolean;
   /** Está sem rede? */
   offline: boolean;
   /** Chamadas feitas, para o teste poder afirmar que NÃO se foi à rede. */
@@ -75,6 +77,7 @@ export const controlo: Controlo = {
   recentes: [],
   biblioteca: [],
   sessao: null,
+  semConta: false,
   offline: false,
   chamadas: { candidatas: 0, radio: 0 },
   contagens: { plays: [], locais: [], inicios: [] },
@@ -97,6 +100,7 @@ export function reporControlo(): void {
   controlo.recentes = [];
   controlo.biblioteca = [];
   controlo.sessao = null;
+  controlo.semConta = false;
   controlo.offline = false;
   controlo.chamadas = { candidatas: 0, radio: 0 };
   controlo.contagens = { plays: [], locais: [], inicios: [] };

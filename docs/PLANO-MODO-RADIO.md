@@ -3,6 +3,13 @@
 Estado: modo na fila implementado no código iOS e Windows; 210 scripts de teste e TypeScript passaram. Falta validar o som e os gestos numa build instalada.
 Data: 5 de outubro de 2026.
 
+> **Mudou no mesmo dia, a pedido do João** ("o Radio deve ser infinito"):
+> as âncoras passaram a aprender com a sessão (núcleo + escutas − saltos,
+> `ancorasDoRadio`), o Radio tenta outras sementes quando um lote vem vazio em
+> vez de acabar, liga também durante o Listen along (e deixa de seguir), e
+> sobrevive a fechar a app. As linhas abaixo sobre âncoras fixas, Listen along
+> e persistência ficam como registo da primeira versão.
+
 ## Decisão de produto
 
 O Rádio é uma escolha visível na fila, baseada nas músicas realmente ouvidas nesta sessão antes da ativação. Ligar substitui as próximas músicas por sugestões relacionadas; a música atual, posição, pausa e motor de áudio permanecem intactos. Por decisão do utilizador em 5/10, o interruptor atua diretamente, sem confirmação. «Undo» permite recuperar a fila anterior enquanto a música atual e a fila não mudarem.

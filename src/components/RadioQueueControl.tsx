@@ -4,6 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePlayer } from '../state/player';
 import { useConnectivity } from '../state/connectivity';
 import { useAuth } from '../state/auth';
+import { useSeguirAmigo } from '../state/seguirAmigo';
 import { colors, spacing, type } from '../theme';
 
 /** Quanto tempo o "Undo" fica ao lado da pastilha depois de ligar o Radio. */
@@ -16,7 +17,8 @@ export const UNDO_DO_RADIO_MS = 8000;
  * ecrã. A lógica é a mesma nos dois lados; o PC desenha a sua com a letra
  * dele (`NowPlayingPage.web.tsx`), o iPhone usa a `RadioQueueControl`.
  *
- * Num Jam ou a seguir um amigo a pastilha não aparece: a fila é de outro.
+ * Num Jam a pastilha não aparece: a fila é de todos. A seguir um amigo
+ * aparece, e ligá-la deixa de o seguir (5/10).
  */
 export function useRadioDaFila() {
   const current=usePlayer(s=>s.current), queue=usePlayer(s=>s.queue);
@@ -44,6 +46,9 @@ export function useRadioDaFila() {
   const alternar=()=>{
     if(usePlayer.getState().radioMode!=='off'){setUndo(null);usePlayer.getState().stopRadio();return;}
     if(reason)return;
+    // A seguir um amigo (5/10): ligar o Radio e deixar de o seguir, a partir
+    // da musica dele -- como tocar noutra musica, que tambem deixa de seguir.
+    if(useSeguirAmigo.getState().seguindo)useSeguirAmigo.getState().parar(null);
     void start();
   };
   const desfazer=()=>{

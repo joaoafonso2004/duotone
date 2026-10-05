@@ -11,6 +11,7 @@ import { controlo } from './controlo.ts';
 export const useAuth = {
   getState: () => ({
     session: controlo.sessao ? { user: { id: controlo.sessao } } : null,
-    offlineUserId: 'utilizador-de-teste',
+    // `semConta`: o arranque, antes de a conta ser lida.
+    offlineUserId: controlo.semConta ? null : 'utilizador-de-teste',
   }),
 };
