@@ -1,5 +1,5 @@
-import React,{useEffect,useRef,useState} from 'react';
-import {Platform,Pressable,StyleSheet,Text,useWindowDimensions,View} from 'react-native';
+import React,{useRef,useState} from 'react';
+import {Animated,Platform,Pressable,StyleSheet,Text,useWindowDimensions,View} from 'react-native';
 import {Image} from 'expo-image';
 import {profileImageCacheKey} from '../lib/profileMedia';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -8,15 +8,11 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
 import {FriendAvatar} from './FriendAvatar';
 import {socialStyles as s} from './socialUI';
-import {alturaDoCabecalhoNoPc,degradeDaCapa,enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
-import {lerCelulasDaCapa} from '../lib/celulasDaCapa';
-import {semOpacidade,veuDaCapa} from '../lib/corDaCapa';
+import {alturaDaCapaNoTelemovel,alturaDoCabecalhoNoPc,degradeDaCapa,enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
 import {colors,SOCIAL_GUTTER} from './socialTokens';
 import {useTheme} from '../state/theme';
 import type {Ancora} from './MenuFlutuante';
 
-/** A altura da capa no iPhone (4/10): a identidade começa por baixo dela. */
-export const ALTURA_DA_CAPA_NO_IPHONE=220;
 /** O avatar sobe esta parte por cima da capa. */
 const SOBREPOSICAO=44;
 const AVATAR=80;
@@ -25,24 +21,19 @@ const AVATAR=80;
 export type RecorteDaCapa={largura:number;altura:number;x:number;y:number;zoom?:number};
 
 /**
- * A capa de um perfil: a fotografia a cobrir a caixa, alinhada ao topo, com as
- * vinhetas e o véu da cor dela por cima. Partilhada pelo cabeçalho e pelo
- * editor, para o que se vê ao escolher ser o que fica.
+ * A capa de um perfil: a fotografia a cobrir a caixa, alinhada ao topo, e o
+ * degradê que a acaba no fundo da página.
  *
- * O perfil tinge-se pela SUA capa, e não pela música a tocar: um perfil é de
- * uma pessoa e tem de ter sempre o mesmo ar. É um véu, não uma pintura, e
- * acaba onde a fotografia acaba -- um `View` sólido deixava um degrau de cor
- * na aresta, que nenhum degradê escondia.
+ * **A fotografia como ela é** (5/10, variante A de `docs/perfil-capa.html`):
+ * a 100%, sem as vinhetas dos lados nem o véu da cor dela por cima. Com a
+ * caixa a mostrar a fotografia inteira, eram só camadas a apagá-la.
+ *
+ * `rolagem` (o scroll da página, só no iPhone): a fotografia sobe a metade da
+ * velocidade do texto. Puxar para baixo no topo não a mexe.
  */
-export function CapaDoPerfil({cover,recorte}:{cover:string|null;recorte?:RecorteDaCapa}) {
+export function CapaDoPerfil({cover,recorte,rolagem}:{cover:string|null;recorte?:RecorteDaCapa;rolagem?:Animated.Value}) {
   const [caixa,setCaixa]=useState({largura:0,altura:0});
-  const [veu,setVeu]=useState<string|null>(null);
-  useEffect(()=>{
-    let vivo=true;
-    if(!cover){setVeu(null);return;}
-    void lerCelulasDaCapa(cover).then(celulas=>{if(vivo)setVeu(veuDaCapa(celulas));});
-    return ()=>{vivo=false;};
-  },[cover]);
+  const parallax=React.useMemo(()=>rolagem?[{translateY:rolagem.interpolate({inputRange:[0,1],outputRange:[0,0.5],extrapolateLeft:'clamp'})}]:undefined,[rolagem]);
   if(!cover)return null;
   const degrade=degradeDaCapa(colors.bg);
   const imagem=()=>{
@@ -51,22 +42,20 @@ export function CapaDoPerfil({cover,recorte}:{cover:string|null;recorte?:Recorte
     if(recorte){
       const p=enquadrarPreVisualizacao(recorte.largura,recorte.altura,RACIO_DA_CAPA,recorte.x,recorte.y,caixa.largura,caixa.altura,recorte.zoom??1);
       return <Image source={{uri:cover,cacheKey:profileImageCacheKey(cover)}} contentFit="fill" cachePolicy="memory-disk"
-        style={{position:'absolute',width:p.width,height:p.height,left:p.left,top:p.top,opacity:0.85}}/>;
+        style={{position:'absolute',width:p.width,height:p.height,left:p.left,top:p.top}}/>;
     }
     const e=enquadrarCapa(caixa.largura,caixa.altura);
     return <Image source={{uri:cover,cacheKey:profileImageCacheKey(cover)}} contentFit="cover" cachePolicy="memory-disk"
-      style={{position:'absolute',width:e.largura,height:e.altura,left:e.left,top:e.top,opacity:0.85}}/>;
+      style={{position:'absolute',width:e.largura,height:e.altura,left:e.left,top:e.top}}/>;
   };
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     {/* O desfoque por baixo preenche o que a capa não tape em proporções extremas. */}
     <Image source={{uri:cover,cacheKey:profileImageCacheKey(cover)}} contentFit="cover" cachePolicy="memory-disk" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
     <View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})}
       style={[StyleSheet.absoluteFill,{overflow:'hidden'}]}>
-      {imagem()}
+      <Animated.View style={[StyleSheet.absoluteFill,parallax&&{transform:parallax}]}>{imagem()}</Animated.View>
     </View>
     <LinearGradient colors={degrade.cores} locations={degrade.paragens} style={StyleSheet.absoluteFill}/>
-    <LinearGradient colors={['rgba(10,10,15,0.45)','transparent','transparent','rgba(10,10,15,0.45)']} locations={[0,0.22,0.78,1]} start={{x:0,y:0}} end={{x:1,y:0}} style={StyleSheet.absoluteFill}/>
-    {!!veu&&<LinearGradient colors={[veu,veu,semOpacidade(veu)]} locations={[0,0.76,0.95]} style={StyleSheet.absoluteFill}/>}
   </View>;
 }
 
@@ -106,20 +95,23 @@ type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:numb
   onVocesOsDois?:()=>void;
   /** Onde acaba o nome, para a barra de cima aparecer quando ele passa por baixo dela. */
   aoMedirNome?:(fimY:number)=>void;
+  /** O scroll da página (iPhone), para a fotografia da capa subir mais devagar. */
+  rolagem?:Animated.Value;
 };
 
 /**
  * Perfil Editorial (4/10): identidade centrada e compacta, com biografia
  * opcional. As estatísticas abrem pelo menu do perfil, fora do cabeçalho.
  */
-export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,onEdit,onMessage,onBack,onSocial,onOptions,onRefresh,onAddFriend,pending,onVocesOsDois,aoMedirNome}:Props) {
+export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,onEdit,onMessage,onBack,onSocial,onOptions,onRefresh,onAddFriend,pending,onVocesOsDois,aoMedirNome,rolagem}:Props) {
   const web=Platform.OS==='web',safe=useSafeAreaInsets();
   const acento=useTheme(t=>t.theme.color);
-  const {height:alturaDaJanela}=useWindowDimensions();
+  const {width:larguraDaJanela,height:alturaDaJanela}=useWindowDimensions();
   const [largura,setLargura]=useState(0);
   // No PC a altura acompanha a largura, para a fração da fotografia que se vê
   // não depender do tamanho da janela (`alturaDoCabecalhoNoPc`).
-  const alturaDaCapa=web?Math.max(220,alturaDoCabecalhoNoPc(largura,alturaDaJanela)*0.62):ALTURA_DA_CAPA_NO_IPHONE+safe.top*0.15;
+  // No iPhone a caixa tem a fotografia inteira (5/10, alturaDaCapaNoTelemovel).
+  const alturaDaCapa=web?Math.max(220,alturaDoCabecalhoNoPc(largura,alturaDaJanela)*0.62):alturaDaCapaNoTelemovel(larguraDaJanela);
   const bio=profile?.appearance?.bio?.trim();
   const botoes=<View style={[s.row,{gap:10,position:'absolute',top:web?16:safe.top+8,left:SOCIAL_GUTTER,right:SOCIAL_GUTTER}]}>
     {onBack&&<BotaoDeVidro label="Back" icon="chevron-back" onPress={onBack}/>}
@@ -137,7 +129,7 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,
 
   return <View onLayout={web?(e=>setLargura(e.nativeEvent.layout.width)):undefined} style={{backgroundColor:colors.bg}}>
     <View style={{height:alturaDaCapa,overflow:'hidden'}}>
-      <CapaDoPerfil cover={cover} recorte={recorte}/>
+      <CapaDoPerfil cover={cover} recorte={recorte} rolagem={rolagem}/>
       {!botoesFora&&botoes}
     </View>
     {profile&&<View style={{alignItems:'center',paddingHorizontal:SOCIAL_GUTTER,marginTop:-SOBREPOSICAO}}>

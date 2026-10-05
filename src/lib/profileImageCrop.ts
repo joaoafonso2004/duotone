@@ -176,6 +176,11 @@ export function enquadrarCapa(
  *
  * O primeiro par é o escurecimento do topo, para o título e os botões se lerem
  * por cima de uma capa clara.
+ *
+ * **A fotografia fica limpa até 58% da altura** (5/10, variante A de
+ * `docs/perfil-capa.html`): começava a escurecer aos 46%, e com a caixa baixa
+ * de então a fotografia sumia logo a seguir às horas -- "a capa acaba a meio".
+ * O escurecimento passou para o último terço.
  */
 export function degradeDaCapa(fundo: string): {
   cores: readonly [string, string, ...string[]];
@@ -183,9 +188,22 @@ export function degradeDaCapa(fundo: string): {
 } {
   const veu = (a: number) => `rgba(10,10,15,${a})`;
   return {
-    cores: [veu(0.34), veu(0.06), veu(0.2), veu(0.46), veu(0.76), veu(0.94), fundo, fundo],
-    paragens: [0, 0.28, 0.46, 0.62, 0.76, 0.87, 0.95, 1],
+    cores: [veu(0.42), veu(0), veu(0), veu(0.2), veu(0.5), veu(0.78), veu(0.9), fundo, fundo],
+    paragens: [0, 0.2, 0.58, 0.68, 0.77, 0.85, 0.9, 0.95, 1],
   };
+}
+
+/** O que a caixa da capa tem a mais do que a fotografia, no telemóvel: o fundo onde o degradê acaba. */
+export const FOLGA_DA_CAPA = 40;
+
+/**
+ * A altura da capa no telemóvel (5/10): a fotografia INTEIRA (a 3:2 que se
+ * escolhe no editor) mais a folga onde o degradê acaba. Era 220 pt fixos para
+ * uma fotografia de 260-293 pt, e o fundo dela ficava cortado.
+ */
+export function alturaDaCapaNoTelemovel(largura: number): number {
+  if (!(largura > 0)) return 0;
+  return Math.round(largura / RACIO_DA_CAPA + FOLGA_DA_CAPA);
 }
 
 /**

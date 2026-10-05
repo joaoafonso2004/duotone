@@ -337,7 +337,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
   return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>
     <Animated.ScrollView ref={scrollRef} refreshControl={puxar} onScroll={web?undefined:aoRolar} scrollEventThrottle={16}
       contentContainerStyle={{paddingBottom:bottomPadding}} keyboardShouldPersistTaps="handled">
-      <ProfileHero profile={profile} own={own} cover={cover} unread={unread} botoesFora={!web}
+      <ProfileHero profile={profile} own={own} cover={cover} unread={unread} botoesFora={!web} rolagem={web?undefined:rolagem}
         status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
         onVocesOsDois={onVocesOsDois&&profile?.canView&&friend?.status==='accepted'?()=>onVocesOsDois(profile.profile.name||profile.profile.username||undefined):undefined}
         aoMedirNome={setFimDoNome}

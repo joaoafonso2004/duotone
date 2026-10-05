@@ -183,3 +183,28 @@ for (const [w, h, r, saida] of [[0, 10, 1.5, 1600], [10, 0, 1.5, 1600], [10, 10,
 }
 
 console.log('Teto do zoom: sai da resolução de cada imagem, com mínimo de 1 e teto absoluto.');
+
+// --- A variante A (5/10, docs/perfil-capa.html): a fotografia inteira ---
+import { alturaDaCapaNoTelemovel, FOLGA_DA_CAPA } from '../src/lib/profileImageCrop.ts';
+
+// A caixa do telemóvel mostra a fotografia INTEIRA: era 220 pt para uma
+// fotografia de 260-293 pt, e o fundo dela ficava cortado.
+for (const largura of [375, 393, 402, 430, 440]) {
+  const h = alturaDaCapaNoTelemovel(largura);
+  assert.ok(h >= largura / RACIO_DA_CAPA, `${largura}: a caixa tem a fotografia toda (${h})`);
+  assert.equal(h, Math.round(largura / RACIO_DA_CAPA + FOLGA_DA_CAPA));
+  // A fotografia cobre a caixa sem a cortar em baixo; só uns pontos dos lados.
+  const e = enquadrarCapa(largura, h);
+  quaseIgual(e.altura, h, `${largura}: cobre a altura`);
+  // (+0,5 pt do arredondamento da altura.)
+  assert.ok(e.largura - largura <= (FOLGA_DA_CAPA + 0.5) * RACIO_DA_CAPA + 0.001, `${largura}: corta pouco dos lados`);
+}
+assert.equal(alturaDaCapaNoTelemovel(0), 0, 'sem largura medida, sem caixa');
+
+// A fotografia fica limpa até mais de metade: o escurecimento começava aos
+// 46% e a capa "acabava a meio".
+const limpaAte = d.paragens[d.cores.findIndex((c, i) => i > 1 && alfa(c) > 0) - 1]!;
+assert.ok(limpaAte >= 0.55, `limpa até ${limpaAte}`);
+assert.equal(alfa(d.cores[1]!), 0, 'o véu do topo (botões, horas) acaba cedo');
+
+console.log('Capa no telemóvel: a fotografia inteira, limpa até mais de metade.');
