@@ -1,13 +1,13 @@
 import {ArtworkLyricsCube} from '../../components/ArtworkLyricsCube';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import {
   getGlitchMode, type GlitchMode,
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
 } from '../../lib/prefs';
 import { usePlayer } from '../../state/player';
-import { RadioQueueControl } from '../../components/RadioQueueControl';
+import { ROTULO_DO_RADIO, useRadioDaFila } from '../../components/RadioQueueControl';
 import { useOuvirJuntos } from '../../state/ouvirJuntos';
 import { useSeguirAmigo } from '../../state/seguirAmigo';
 import { rotuloDaOrigem } from '../../lib/origemDaFila';
@@ -167,6 +167,48 @@ function PontosDaCapa({ letras, aoMudar }: { letras: boolean; aoMudar: (v: boole
 /** Linhas da fila montadas de cada vez. */
 const LINHAS_DA_FILA = 100;
 
+/**
+ * O Radio no cabeçalho do Up next (5/10, variante A de `docs/radio-na-fila.html`):
+ * uma pastilha transparente ao lado do "Clear". Era uma caixa opaca com um
+ * interruptor por cima da fila, sem o vidro do resto do ecrã. A lógica é a
+ * mesma do iPhone (`useRadioDaFila`).
+ */
+function RadioNaFila() {
+  const radio = useRadioDaFila();
+  const ligado = radio.mode === 'on', aPreparar = radio.mode === 'preparing';
+  const apagada = !!radio.reason && radio.mode === 'off';
+  return (
+    <>
+      {radio.podeDesfazer ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Undo Radio and restore previous queue" onPress={radio.desfazer}
+          style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: RADIO_HOVER }]}>
+          <Text style={[styles.npFilaLimparTexto, { textDecorationLine: 'underline', fontWeight: '400' as any }]}>Undo</Text>
+        </Pressable>
+      ) : null}
+      <Pressable
+        accessibilityRole="switch"
+        accessibilityLabel="Radio"
+        accessibilityHint={radio.reason ?? ROTULO_DO_RADIO.dica}
+        accessibilityState={{ checked: ligado, busy: aPreparar, disabled: apagada }}
+        onPress={radio.alternar}
+        style={({ hovered }: any) => [
+          styles.npRadio,
+          ligado && styles.npRadioLigado,
+          hovered && !apagada && { backgroundColor: ligado ? 'rgba(233,234,238,0.16)' : RADIO_HOVER },
+          apagada && { opacity: 0.45, cursor: 'default' as any },
+        ]}
+      >
+        {aPreparar ? <ActivityIndicator size={12} color={COR.texto} />
+          : <Ionicons name={ligado ? 'radio' : 'radio-outline'} size={15} color={ligado ? COR.texto : COR.textoMedio} />}
+        <Text style={[styles.npRadioTexto, (ligado || aPreparar) && { color: COR.texto }]}>
+          {aPreparar ? ROTULO_DO_RADIO.aPreparar : ligado ? ROTULO_DO_RADIO.ligado : ROTULO_DO_RADIO.desligado}
+        </Text>
+      </Pressable>
+    </>
+  );
+}
+const RADIO_HOVER = 'rgba(233,234,238,0.07)';
+
 export function NowPlayingPage({
   more, notify, currentIsSaved, toggleSaveCurrent, navigate, back, aoAdicionarAPlaylist, share, fundoNaJanela = false,
 }: CommonPageProps & {
@@ -208,6 +250,7 @@ export function NowPlayingPage({
   const filaDaSessao = useOuvirJuntos((s) => s.fila);
   // A seguir um amigo ("Listen along"): as próximas DELE, só para ler.
   const seguido = useSeguirAmigo((s) => s.seguindo);
+  const radioErro = usePlayer((s) => s.radioError);
   const proximasDele = useSeguirAmigo((s) => s.aSeguir);
   const [showLyrics,setShowLyrics]=useState(false);
   // Quantas linhas da fila estão montadas. A fila inteira podia ser a
@@ -421,11 +464,13 @@ export function NowPlayingPage({
 
   const cabecaDaFila = (
     <View>
-    <RadioQueueControl disabledReason={emJam?'Radio is unavailable during a Jam':seguido?'Your friend controls this queue':undefined}/>
     <View style={styles.npFilaCabeca}>
       <Text style={styles.npFilaHeading}>Up next</Text>
       <Text style={styles.npFilaContagem}>{upNext.length}</Text>
       <View style={{ flex: 1 }} />
+      {/* O Radio ao lado do Clear: os dois mexem no que vem a seguir. Num Jam
+          ou a seguir um amigo a fila é de outro, e não aparece. */}
+      {!emJam && !seguido ? <RadioNaFila /> : null}
       {/* Num Jam a fila é de todos: não se limpa daqui. */}
       {!emJam && !seguido && upNext.length > 0 ? (
         <Pressable
@@ -445,6 +490,7 @@ export function NowPlayingPage({
         </Pressable>
       ) : null}
     </View>
+    {radioErro && !emJam && !seguido ? <Text accessibilityRole="alert" style={styles.npRadioErro}>{radioErro}</Text> : null}
     </View>
   );
 

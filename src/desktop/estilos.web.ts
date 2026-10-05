@@ -263,6 +263,12 @@ export const styles = StyleSheet.create({
   npFilaContagem: { ...TIPO.numero, color: COR.textoFraco },
   npFilaLimpar: { paddingHorizontal: ESP.sm, paddingVertical: 4, borderRadius: 6 },
   npFilaLimparTexto: { ...TIPO.corpo, fontSize: 13, color: COR.textoMedio, fontWeight: '600' as any },
+  // A pastilha do Radio (5/10): transparente, sobre o fundo da capa como o resto.
+  npRadio: { flexDirection: 'row', alignItems: 'center', gap: 7, height: 28, paddingLeft: 9, paddingRight: 11, borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(233,234,238,0.16)', backgroundColor: 'transparent', alignSelf: 'center' },
+  npRadioLigado: { backgroundColor: COR.metalSuave, borderColor: 'rgba(233,234,238,0.24)' },
+  npRadioTexto: { ...TIPO.corpo, fontSize: 12.5, color: COR.textoMedio, fontWeight: '600' as any },
+  npRadioErro: { ...TIPO.legenda, color: COR.textoMedio, paddingHorizontal: ESP.sm, paddingBottom: ESP.sm },
   npFilaTitulo: { ...TIPO.corpo, color: COR.texto, fontWeight: '550' as any },
   npFilaDuracao: { ...TIPO.numero, color: COR.textoFraco, marginLeft: ESP.sm },
   npFilaFim: { ...TIPO.legenda, color: COR.textoFraco, marginTop: ESP.sm, marginHorizontal: ESP.sm, paddingTop: ESP.md, borderTopWidth: 1, borderTopColor: COR.linhaSuave },

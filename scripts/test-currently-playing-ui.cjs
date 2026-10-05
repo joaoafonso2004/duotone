@@ -67,7 +67,7 @@ const mocks = {
   './PlayerActionsSheet':{PlayerActionsContent:'Actions',accoesDoMenu:(menu,fazer)=>menu.map(a=>({label:a.rotulo,motivo:a.indisponivel,onPress:()=>fazer(a.id)}))},
   './AddToPlaylistSheet':{AddToPlaylistSheet:'Playlist'}, './ShareFriendSheet':{ShareFriendSheet:'Share'},
   './RecommendationPreferences':{RecommendationPreferences:'Recs'},
-  './RadioQueueControl':{RadioQueueControl:'RadioQueueControl'},
+  './RadioQueueControl':{RadioQueueControl:'RadioQueueControl',ErroDoRadio:'ErroDoRadio'},
   '../lib/descarregarFaixa':{alternarDownload(){},downloadNoMenuDe:()=>null,podeDescarregar:()=>false,tocaSemRede:()=>true,useRevisaoDosDownloads:()=>0},
   '../lib/guardarFaixa':{alternarGuardada:async()=>{},garantirGuardadas(){}},
   '../state/saved':{savedKey:t=>t.source+':'+t.sourceId,useSaved:sel=>sel({loaded:true,keys:new Set()})},
@@ -161,8 +161,9 @@ async function testRadioControl(){
     });
   }
   async function activate(){
-    find(draw(),'Switch').props.onValueChange(true);
-    assert.equal(store.queue,generated,'o interruptor ativa diretamente mesmo com músicas na fila');
+    // A pastilha do cabeçalho (5/10) liga com um toque, como o interruptor ligava.
+    find(draw(),'Pressable',p=>p.accessibilityLabel==='Radio').props.onPress();
+    assert.equal(store.queue,generated,'a pastilha ativa diretamente mesmo com músicas na fila');
     assert.ok(!nodes(draw()).some(n=>n.type==='Text'&&n.props.children.includes('Start Radio')),'não pede confirmação');
     await new Promise(resolve=>setImmediate(resolve));
     return find(draw(),'Pressable',p=>p.accessibilityLabel==='Undo Radio and restore previous queue');
@@ -177,6 +178,13 @@ async function testRadioControl(){
 
   setup();undo=await activate();const manual=[a,track('manual')];store.queue=manual;
   undo.props.onPress();assert.equal(store.queue,manual,'Undo não apaga uma edição posterior');
-  console.log('RadioQueueControl: ativação direta, Undo sem alterar áudio, conta e edição concorrente passaram.');
+
+  // Ligado, a mesma pastilha desliga; desligado não volta a pedir nada.
+  setup();await activate();
+  const ligada=find(draw(),'Pressable',p=>p.accessibilityLabel==='Radio');
+  assert.equal(ligada.props.accessibilityState.checked,true,'ligado diz-se ao VoiceOver');
+  ligada.props.onPress();assert.equal(store.radioMode,'off');assert.equal(store.radioStopped,true);
+  assert.ok(!nodes(draw()).some(n=>n.props?.accessibilityLabel==='Undo Radio and restore previous queue'),'desligar tira o Undo');
+  console.log('RadioQueueControl: pastilha liga e desliga, Undo sem alterar áudio, conta e edição concorrente passaram.');
 }
 testRadioControl().catch(error=>{console.error(error);process.exitCode=1;});

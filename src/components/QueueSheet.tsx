@@ -27,7 +27,7 @@ import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { avisarRemocao, contarMusicas, avisarErro } from '../lib/avisoDeRemocao';
 import { savedKey, useSaved } from '../state/saved';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
-import { RadioQueueControl } from './RadioQueueControl';
+import { ErroDoRadio, RadioQueueControl } from './RadioQueueControl';
 
 interface Props {
   visible: boolean;
@@ -238,7 +238,6 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
         <Text style={styles.emptyText}>Nothing playing</Text>
       )}
 
-      <RadioQueueControl disabledReason={emSessao ? 'Radio is unavailable during a Jam' : seguido ? 'Your friend controls this queue' : undefined}/>
       <View style={styles.tituloDaFila}>
         <Text style={[type.micro, styles.sectionTitle, { flex: 1, marginBottom: 0 }]}>
           UP NEXT ({upNext.length})
@@ -249,6 +248,9 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
             <Text style={styles.irParaSessao}>Manage</Text>
           </Pressable>
         )}
+        {/* O Radio ao lado do Clear (5/10): os dois mexem no que vem a seguir.
+            Num Jam ou a seguir um amigo a fila é de outro, e não aparece. */}
+        {!emSessao && !seguido && current ? <RadioQueueControl/> : null}
         {/* Tirar tudo o que vem a seguir. Num Jam a fila é de todos, e não se
             limpa daqui. Sem pergunta (3/10): o aviso deixa desfazer. */}
         {!emSessao && upNext.length > 0 && (
@@ -271,6 +273,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
           </Pressable>
         )}
       </View>
+      {!emSessao && !seguido ? <ErroDoRadio/> : null}
 
       {upNext.length > 0 ? (
         <View
