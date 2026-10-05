@@ -70,7 +70,7 @@ export function opcoesDoMenuDoAmigo(s: SituacaoDoAmigo): LinhaDoMenuDoAmigo[] {
   // A música dele só existe se ele estiver a ouvir alguma coisa.
   if (s.faixa) {
     linhas.push(
-      { id: 'ouvir', rotulo: s.temJam ? `Join ${s.nome}'s Jam` : `Listen along with ${s.nome}`, icone: s.temJam ? 'people-outline' : 'headset-outline' },
+      { id: 'ouvir', rotulo: s.temJam ? `Join ${s.nome}'s Jam` : `Listen along with ${s.nome}`, icone: 'headset-outline' },
       { id: 'tocar', rotulo: 'Play this song', icone: 'play-outline' },
       { id: 'fila', rotulo: 'Add to queue', icone: 'list-outline' },
       { id: 'gostar', rotulo: s.faixaGuardada ? 'Remove from Liked Songs' : 'Add to Liked Songs', icone: s.faixaGuardada ? 'heart' : 'heart-outline' },

@@ -235,7 +235,6 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
   const depoisDeFechar=(acao:()=>void)=>{depoisDoMenu.current=acao;setOpcoesDoPerfil(null);};
   const accoesDoPerfil:PlayerAction[]=[
     ...(profile?.canView?[{label:'Listening stats',icon:'stats-chart-outline' as const,onPress:()=>depoisDeFechar(onStats)}]:[]),
-    ...(own&&onSettings?[{label:'Settings',icon:'settings-outline' as const,onPress:()=>depoisDeFechar(onSettings)}]:[]),
   ];
   const abrirOpcoes=accoesDoPerfil.length?(ancora:Ancora)=>{depoisDoMenu.current=null;setOpcoesDoPerfil(ancora);}:undefined;
   /**
@@ -403,7 +402,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
       <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(10,10,15,0.72)'}]}/>
       <Text numberOfLines={1} style={estilos.nomeNaBarra}>{nome}</Text>
     </Animated.View>}
-    {!web&&<BotoesDoPerfil own={own} unread={unread} onBack={onBack} onSocial={onSocial} onOptions={abrirOpcoes}/>}
+    {!web&&<BotoesDoPerfil own={own} unread={unread} onBack={onBack} onSocial={onSocial} onSettings={onSettings} onOptions={abrirOpcoes}/>}
     {editing&&profile&&<ProfileEditor profile={profile} highlights={highlightsLoaded&&!sectionErrors.playlists?highlights:null} playlists={playlists} onClose={()=>setEditing(false)} onSaved={()=>{void load(true);void useSocial.getState().refresh();}}/>}
     <MenuFlutuante visivel={!!opcoesDoPerfil} ancora={opcoesDoPerfil} accoes={accoesDoPerfil}
       aoFechar={()=>{depoisDoMenu.current=null;setOpcoesDoPerfil(null);}}

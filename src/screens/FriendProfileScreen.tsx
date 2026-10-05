@@ -9,7 +9,7 @@ export function FriendProfileScreen({route,navigation}:NativeStackScreenProps<Ro
   const active=useIsFocused();
   return <View style={{flex:1}}><SocialProfileView userId={route.params.userId} active={active} onBack={()=>navigation.goBack()}
     onPlaylist={id=>navigation.navigate('PlaylistDetail',{id,name:'Playlist'})}
-    onMessage={id=>navigation.navigate('Tabs',{screen:'Social',params:{openChatWithFriendId:id}})}
+    onMessage={id=>navigation.navigate('Conversa',{kind:'friend',id})}
     onArtist={name=>navigation.navigate('LibraryGroup',{type:'artist',name})}
     onStats={()=>navigation.navigate('ListeningStats',{userId:route.params.userId})}
     onVocesOsDois={nome=>navigation.navigate('VocesOsDois',{userId:route.params.userId,nome})}/></View>;

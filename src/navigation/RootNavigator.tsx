@@ -279,10 +279,13 @@ async function openNotification(target: NotificationTarget) {
   if (!userId || useAuth.getState().session?.user.id !== userId) return;
   if (!navigationRef.isReady()) return;
   usePlayer.getState().setExpanded(false);
-  // Explicitly select on every tap, including a repeated link to the same chat.
-  useSocial.setState({conversation:target.groupId ? {kind:'group',id:target.groupId}
-    : target.friendId ? {kind:'friend',id:target.friendId} : null});
-  navigationRef.navigate('Tabs',{screen:'Social',params:{openChatWithFriendId:target.friendId,openGroupId:target.groupId}});
+  // A conversa é uma página (5/10): abre por cima de onde se está, e voltar
+  // regressa lá. Com uma conversa já aberta, o `navigate` troca-lhe os
+  // parâmetros em vez de empilhar outra.
+  const conversa = target.groupId ? {kind:'group' as const,id:target.groupId}
+    : target.friendId ? {kind:'friend' as const,id:target.friendId} : null;
+  if (conversa) navigationRef.navigate('Conversa', conversa);
+  else navigationRef.navigate('Tabs',{screen:'Social'});
 }
 
 export function RootNavigator() {

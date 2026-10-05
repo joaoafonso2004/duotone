@@ -22,7 +22,7 @@ import { extrapolatedPositionMs } from '../../lib/handoff';
 import { takeOverSession } from '../../lib/sessionSync';
 import { styles } from '../estilos.web';
 import { COR, ESP } from '../tokens.web';
-import { Artwork, Button, desktop, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
+import { BotaoVoltar, Artwork, Button, desktop, Dialog, Empty, IconButton, marcar, Page, ui } from '../ui.web';
 import { FundoDaCapa } from '../FundoDaCapa.web';
 import { preCarregarCapaGrande, useCapaGrande } from '../useCapaGrande.web';
 import { disposicaoDoLeitor, fimDaFila } from '../../lib/leitorDoPc';
@@ -348,7 +348,7 @@ export function NowPlayingPage({
   const seguinte = upNext[0]?.track;
   useEffect(() => { preCarregarCapaGrande(seguinte ? comCatalogo(seguinte) : null); }, [seguinte?.sourceId]);
   if (!track) {
-    return <Page title="Now Playing" action={<Button secondary icon="arrow-back" onPress={back}>Back</Button>}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
+    return <Page title="Now Playing" action={<BotaoVoltar onPress={back} />}><Empty icon="play-circle-outline" title="Silent" body="Start playing a track to see it here." /></Page>;
   }
   const { duasColunas, lado: ladoCapa } = disposicaoDoLeitor(area.largura || 1192, area.altura || 788);
   const notaDoFim = fimDaFila({ emJam: emJam || !!seguido, repeatMode, autoplayRadio, vazia: upNext.length === 0 });

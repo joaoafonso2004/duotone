@@ -1,4 +1,5 @@
 import React from 'react';
+import { ICONES } from '../lib/icones';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinhaArrastavel } from './LinhaArrastavel';
 import { DeslizarParaTirar } from './DeslizarParaTirar';
@@ -197,7 +198,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
     ...accoesDoMenu(menu, fazer),
     // O que é da FILA e não da faixa, num grupo à parte.
     ...(emSessao && onOpenSession
-      ? [{ label: 'Manage Jam queue', icon: 'people-outline' as const, inicioDeGrupo: true, onPress: onOpenSession }]
+      ? [{ label: 'Manage Jam queue', icon: `${ICONES.jam}-outline` as const, inicioDeGrupo: true, onPress: onOpenSession }]
       : []),
     { label: 'Back to queue', icon: 'arrow-back', inicioDeGrupo: !(emSessao && onOpenSession), onPress: () => setSelection(null) },
   ] : [];

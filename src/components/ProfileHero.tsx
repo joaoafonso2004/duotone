@@ -164,12 +164,14 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,
 }
 
 /** Os botões de cima, para quem os põe fora do scroll (o iPhone). */
-export function BotoesDoPerfil({own,unread,onBack,onSocial,onOptions}:{own:boolean;unread:number;onBack?:()=>void;onSocial?:()=>void;onOptions?:(ancora:Ancora)=>void}) {
+export function BotoesDoPerfil({own,unread,onBack,onSocial,onSettings,onOptions}:{own:boolean;unread:number;onBack?:()=>void;onSocial?:()=>void;onSettings?:()=>void;onOptions?:(ancora:Ancora)=>void}) {
   const safe=useSafeAreaInsets();
   return <View pointerEvents="box-none" style={[s.row,{gap:10,position:'absolute',top:safe.top+8,left:SOCIAL_GUTTER,right:SOCIAL_GUTTER,zIndex:5}]}>
     {onBack&&<BotaoDeVidro label="Back" icon="chevron-back" onPress={onBack}/>}
     <View style={{flex:1}} pointerEvents="none"/>
     {own&&onSocial&&<BotaoDeVidro label="Friends and chats" icon="chatbubbles-outline" onPress={onSocial} badge={unread}/>}
+    {/* À vista, como pede a HIG (5/10, auditoria N5): estava dentro do "⋯". */}
+    {own&&onSettings&&<BotaoDeVidro label="Settings" icon="settings-outline" onPress={onSettings}/>}
     {onOptions&&<BotaoDeOpcoes onPress={onOptions}/>}
   </View>;
 }

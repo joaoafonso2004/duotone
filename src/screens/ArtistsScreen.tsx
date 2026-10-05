@@ -150,7 +150,7 @@ export function ArtistsScreen() {
     right={artists.length ? <Pressable accessibilityRole="button" accessibilityLabel={searchOpen ? 'Close search' : 'Search artists'}
       style={styles.searchButton} onPress={() => { setSearchOpen(!searchOpen); if (searchOpen) setSearchQuery(''); }}>
       <Ionicons name={searchOpen ? 'close' : 'search-outline'} size={24} color={colors.text} /></Pressable> : undefined}>
-    {loading ? <View style={{ paddingTop: cab.espaco }}><SkeletonDeArtistas /></View> : !artists.length ? <View style={{ flex: 1, paddingTop: cab.espaco }}><EmptyState icon="people-outline" title="No artists yet"
+    {loading ? <View style={{ paddingTop: cab.espaco }}><SkeletonDeArtistas /></View> : !artists.length ? <View style={{ flex: 1, paddingTop: cab.espaco }}><EmptyState icon="mic-outline" title="No artists yet"
       subtitle="Save songs to your library and their artists show up here." /></View> :
       <Animated.FlatList ref={topo} data={filtered} onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle}
         scrollIndicatorInsets={{ top: cab.espaco }} numColumns={3} keyExtractor={a => chaveDeArtista(a.name)}

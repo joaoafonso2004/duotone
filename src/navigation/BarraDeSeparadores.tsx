@@ -1,4 +1,5 @@
 import type { MaterialTopTabBarProps } from '@react-navigation/material-top-tabs';
+import { ICONES } from '../lib/icones';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
 import { Animated, InteractionManager, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -16,9 +17,9 @@ import { COMECAR_DEPOIS_MS, ENTRE_SEPARADORES_MS, proximoAMontar } from '../lib/
 const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
   Search: 'home',
   Songs: 'musical-notes',
-  Artists: 'people',
-  Playlists: 'albums',
-  Profile: 'person',
+  Artists: ICONES.artistas,
+  Playlists: ICONES.playlists,
+  Profile: ICONES.perfil,
 };
 
 /**

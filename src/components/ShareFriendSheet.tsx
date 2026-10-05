@@ -8,8 +8,7 @@ import {
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { useTheme } from '../state/theme';
 import { colors, radii, spacing, type } from '../theme';
-import { BottomSheetScrollView } from './BottomSheet';
-import { ShareDialog } from './ShareDialog';
+import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { FriendAvatar } from './FriendAvatar';
 import { GroupAvatar } from './GroupChat';
 import { Input } from './Input';
@@ -31,8 +30,8 @@ interface ShareFriendSheetProps {
 /**
  * Mandar uma faixa ou uma playlist a alguém.
  *
- * No telemóvel usa o BottomSheet; no PC, o diálogo central da app, com
- * fecho por X, Escape e clique no exterior. As ações são as mesmas.
+ * Sobre o mesmo `BottomSheet` do "Add to playlist": no iPhone uma folha, no
+ * PC um diálogo com X, Escape e clique fora (`BottomSheet.web.tsx`).
  *
  * A linha inteira é o botão, como nas playlists. Antes havia um "Share"
  * pequeno à direita e o resto da linha não fazia nada.
@@ -152,7 +151,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   ];
 
   return (
-    <ShareDialog visible={visible} onClose={onClose} title={modoSessao ? 'Listen together' : `Share ${itemType === 'track' ? 'track' : 'playlist'}`}>
+    <BottomSheet visible={visible} onClose={onClose} titulo={modoSessao ? 'Listen together' : `Share ${itemType === 'track' ? 'track' : 'playlist'}`}>
 
       <View style={{ marginBottom: spacing.md }}>
         <Input
@@ -294,7 +293,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
           )}
         </View>
       ) : null}
-    </ShareDialog>
+    </BottomSheet>
   );
 }
 

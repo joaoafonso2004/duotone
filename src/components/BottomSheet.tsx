@@ -19,6 +19,7 @@ import {
   PanResponder,
   Pressable,
   StyleSheet,
+  Text,
   useWindowDimensions,
   View,
   KeyboardAvoidingView,
@@ -26,7 +27,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { colors, radii, spacing } from '../theme';
+import { colors, radii, spacing, type } from '../theme';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 
 interface Props {
@@ -51,6 +52,11 @@ interface Props {
   nativa?: boolean;
   /** As alturas da folha nativa: o conteúdo (por omissão) ou frações do ecrã. */
   detentes?: DetentesDaFolha;
+  /**
+   * O título da folha (5/10). No iPhone desenha-se por cima do conteúdo; no PC
+   * vai para a barra do diálogo, ao lado do X (`BottomSheet.web.tsx`).
+   */
+  titulo?: string;
 }
 
 /**
@@ -61,7 +67,10 @@ interface Props {
 // Usa a apresentação anterior até a medição nativa ser validada no dispositivo.
 export const FOLHAS_NATIVAS = false;
 
-export function BottomSheet(props: Props) {
+export function BottomSheet({ titulo, ...resto }: Props) {
+  const props: Props = titulo
+    ? { ...resto, children: <><Text style={[type.title, { marginBottom: spacing.md }]}>{titulo}</Text>{resto.children}</> }
+    : resto;
   const dentroDeUmModal = useContext(DentroDeUmModal);
   if (Platform.OS === 'ios' && FOLHAS_NATIVAS && !dentroDeUmModal && props.nativa !== false) {
     return <FolhaNativa {...props} />;

@@ -16,7 +16,7 @@ import {
 } from '../../state/verificacaoDaBiblioteca';
 import type { Track } from '../../types';
 import { COR, ESP, RAIO, TIPO } from '../tokens.web';
-import { Artwork, Button, ContentScroll, Page } from '../ui.web';
+import { BotaoVoltar, Artwork, Button, ContentScroll, Page } from '../ui.web';
 
 /**
  * O Library check no PC. A mesma verificação e as mesmas ações do iPhone
@@ -36,7 +36,7 @@ export function LibraryCheckPage({ back, play }: { back: () => void; play: (trac
     <Page
       title="Library check"
       subtitle="Songs saved twice, videos that no longer play and covers that don't load. Nothing changes until you click."
-      action={<Button secondary icon="arrow-back" onPress={back}>Settings</Button>}
+      action={<BotaoVoltar onPress={back} />}
     >
       <ContentScroll scrollKey="library-check">
         <View style={s.cabeca}>

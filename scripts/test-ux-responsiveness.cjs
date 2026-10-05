@@ -77,12 +77,13 @@ all(dialog).find(n=>n.type==='Pressable').props.onPress();assert.equal(closes,1)
 all(dialog).find(n=>n.type==='IconButton').props.onPress();assert.equal(closes,2);
 keydown({key:'Enter'});assert.equal(closes,2);keydown({key:'Escape'});assert.equal(closes,3);
 remove();assert.equal(keydown,null);
-const {ShareDialog}=load('src/components/ShareDialog.web.tsx',{
-  react:React,'react-native':{View:'View'},'react-dom':{createPortal:(child,container)=>({child,container})},
+// No PC, todas as folhas partilhadas (Share, Add to playlist...) são este Dialog (5/10).
+const {BottomSheet}=load('src/components/BottomSheet.web.tsx',{
+  react:React,'react-native':{View:'View',ScrollView:'ScrollView',FlatList:'FlatList'},'react-dom':{createPortal:(child,container)=>({child,container})},
   '../desktop/ui.web':{Dialog:'Dialog'},'../hooks/useNotificationOverlay':{useNotificationOverlay(){}},
 });
 // load runs without document by default: hidden or server rendered stays empty.
-assert.equal(ShareDialog({visible:false,title:'Share',onClose(){}}),null);
+assert.equal(BottomSheet({visible:false,titulo:'Share',onClose(){},children:null}),null);
 
 async function main(){
   const choice=load('src/lib/ultimaEscolha.ts',{});

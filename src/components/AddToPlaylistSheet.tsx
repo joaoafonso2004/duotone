@@ -178,10 +178,7 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
   };
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
-      <Text style={[type.title, { marginBottom: spacing.md }]}>
-        Add to playlist
-      </Text>
+    <BottomSheet visible={visible} onClose={onClose} titulo="Add to playlist">
 
       <View style={styles.newRow}>
         <Input

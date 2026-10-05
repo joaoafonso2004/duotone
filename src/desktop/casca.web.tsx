@@ -1,4 +1,5 @@
 import { closePlayerSmoothly, confirmaSwipe } from '../lib/closePlayer';
+import { ICONES } from '../lib/icones';
 import { FriendAvatar } from '../components/FriendAvatar';
 import { getPublicProfiles } from '../api/profiles';
 import { useSocial } from '../state/social';
@@ -454,7 +455,8 @@ export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (
     <ScrollView style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={styles.sidebarContent}>
       {realce?<View pointerEvents="none" {...marcar('desliza')}
         style={[styles.navRealce,{height:realce.altura,transform:[{translateY:realce.y}],backgroundColor:tema.soft}]}/>:null}
-      <Text style={styles.navLabel}>DISCOVER</Text>
+      {/* "LIBRARY" e não "DISCOVER" (5/10, auditoria N9): o que está por baixo é a biblioteca e os amigos. */}
+      <Text style={styles.navLabel}>LIBRARY</Text>
       {PRIMARY.map((item) => <NavItem key={item.id} active={active === item.id} semFundo={!!realce} medicao={medicao} aoMedir={medir(item.id)} {...item} badge={item.id === 'social' && (naoLidasPorAmigo(socialReceived,socialSeen).size>0 || socialFriends.some(f=>f.status==='pending'&&!f.isSender))} onPress={() => navigate({ name: item.id })} />)}
     </ScrollView>
     {/* O perfil é a linha com a tua cara (o item "Profile" repetia-a) e as
@@ -674,7 +676,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       <SeguirNaBarra />
       {/* Quem vê o que está a tocar, ao lado do botão que abre o Jam. */}
       <IndicadorDeVisibilidade discordLigado={discordLigado} onJam={onJam} onAviso={onAviso} />
-      <IconButton name={jam ? 'people' : 'people-outline'} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam} />
+      <IconButton name={jam ? ICONES.jam : `${ICONES.jam}-outline`} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam} />
       <V style={styles.volumeRow} {...marcar('calha')}><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={alternarSilencio} accessibilityRole="button" accessibilityLabel={p.volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${p.volume}%` }} /></P></V>
       <IconButton name="close" label="Close player" onPress={()=>void closePlayerSmoothly()} />
     </View>

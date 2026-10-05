@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { ICONES } from '../lib/icones';
 import type { Track } from '../types';
 import type { DiscoveryContext } from '../lib/contextoDaDescoberta';
 import type { OrigemDaFila } from '../lib/origemDaFila';
@@ -61,7 +62,7 @@ export const PRIMARY: {
 }[] = [
   { id: 'search', label: 'Search', icon: 'search-outline' },
   { id: 'songs', label: 'Liked Songs', icon: 'heart-outline' },
-  { id: 'artists', label: 'Artists', icon: 'mic-outline' },
-  { id: 'playlists', label: 'Playlists', icon: 'albums-outline' },
-  { id: 'social', label: 'Social', icon: 'people-outline' },
+  { id: 'artists', label: 'Artists', icon: `${ICONES.artistas}-outline` },
+  { id: 'playlists', label: 'Playlists', icon: `${ICONES.playlists}-outline` },
+  { id: 'social', label: 'Social', icon: `${ICONES.social}-outline` },
 ];

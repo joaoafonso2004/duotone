@@ -1,8 +1,10 @@
 import { TransicaoDePagina } from '../desktop/TransicaoDePagina.web';
+import { nomeDaRota } from '../lib/voltarPara';
+import { ShareFriendSheet } from '../components/ShareFriendSheet';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React, { ReactNode, useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { addTracksToPlaylist, removeTrackFromPlaylist } from '../api/playlists';
 import { removeFromLibrary, saveToLibrary, checkIsSaved } from '../api/library';
@@ -15,13 +17,10 @@ import { NotificationBanner } from '../components/NotificationBanner';
 import { HandoffBanner } from '../components/HandoffBanner';
 import { endSession, publishSession, publishSessionNow } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
-import { Artwork, Button, desktop, Dialog, Empty, Field, Loading, Toast } from '../desktop/ui.web';
+import { RotuloDoVoltar, Artwork, Button, desktop, Dialog, Empty, Field, Loading, Toast } from '../desktop/ui.web';
 import { COR } from '../desktop/tokens.web';
 import { styles } from '../desktop/estilos.web';
 import { SpotifyImportPage } from '../desktop/SpotifyImportPage.web';
-import {
-  getFriendships, shareComGrupo, getGrupos, type ChatGroup, shareItem, type Friendship,
-} from '../api/social';
 import { useAuth } from '../state/auth';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { usePresencaDoDiscord } from '../hooks/usePresencaDoDiscord';
@@ -192,18 +191,10 @@ function DesktopShell() {
   const [recommendationContext,setRecommendationContext]=useState<DiscoveryContext|null>(null);
   const [trackMenuContext,setTrackMenuContext]=useState<DiscoveryContext|null>(null);
   const [playlistDialog, setPlaylistDialog] = useState(false);
-  const [shareDialog, setShareDialog] = useState(false);
+  // Partilhar é a MESMA janela em toda a app (5/10, auditoria M2): a
+  // `ShareFriendSheet`, que no PC é um diálogo. Havia uma segunda aqui, com
+  // outro título e sem o "Listen together".
   const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
-  const [friends, setFriends] = useState<Friendship[]>([]);
-  // VARIOS destinatarios, nao um. Mandar a mesma musica a tres pessoas
-  // eram tres idas ao dialogo; o `shareItem` ja aceita uma lista e
-  // insere-as de uma vez.
-  const [shareGroups, setShareGroups] = useState<ChatGroup[]>([]);
-  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
-  const [shareMessage, setShareMessage] = useState('');
-  const [loadingFriends, setLoadingFriends] = useState(false);
-  const [sharing, setSharing] = useState(false);
   // `null` enquanto o servidor não responde: o menu diz "Checking your
   // library…" em vez de mostrar o estado da faixa aberta antes desta.
   const [isSaved, setIsSaved] = useState<boolean | null>(null);
@@ -653,50 +644,7 @@ function DesktopShell() {
     }
   };
 
-  const openShareDialog = async (target: ShareTarget) => {
-    setShareTarget(target);
-    setSelectedGroups([]);
-    setShareGroups([]);
-    setSelectedFriends([]);
-    setShareMessage('');
-    setShareDialog(true);
-    setLoadingFriends(true);
-    try {
-      const [list, groups] = await Promise.all([getFriendships(), getGrupos()]);
-      setFriends(list.filter(f => f.status === 'accepted'));
-      setShareGroups(groups);
-    } catch {
-      setFriends([]);
-    } finally {
-      setLoadingFriends(false);
-    }
-  };
-
-  const sendShare = async () => {
-    if (!shareTarget || sharing || selectedFriends.length + selectedGroups.length === 0) return;
-    setSharing(true);
-    try {
-      const envios = [
-        ...(selectedFriends.length ? [{ tipo: 'amigos', id: '', enviar: () => shareItem(selectedFriends, shareTarget.itemType, shareTarget.item, shareMessage) }] : []),
-        ...selectedGroups.map((id) => ({ tipo: 'grupo', id, enviar: () => shareComGrupo(id, shareTarget.itemType, shareTarget.item, shareMessage) })),
-      ];
-      const resultados = await Promise.allSettled(envios.map((e) => e.enviar()));
-      const falhas = envios.filter((_, i) => resultados[i].status === 'rejected');
-      // Só ficam selecionados os destinos falhados: repetir não duplica os envios feitos.
-      setSelectedFriends(falhas.some((e) => e.tipo === 'amigos') ? selectedFriends : []);
-      setSelectedGroups(falhas.filter((e) => e.tipo === 'grupo').map((e) => e.id));
-      if (falhas.length) {
-        notify('Some shares failed. Retry the selected recipients.');
-        return;
-      }
-      setShareDialog(false);
-      setShareTarget(null);
-      setShareMessage('');
-      notify(shareTarget.itemType === 'playlist' ? 'Playlist shared successfully.' : 'Song shared successfully.');
-    } finally {
-      setSharing(false);
-    }
-  };
+  const openShareDialog = (target: ShareTarget) => { setShareTarget(target); };
 
   // Com a cor na janela, o painel fica transparente para ela passar por baixo
   // da lateral e da barra de título; a página deixa de pintar a sua.
@@ -720,7 +668,10 @@ function DesktopShell() {
   // Definicoes. Era `rgba(18,18,24)` a martelo, fora de qualquer paleta.
   const bgStyle = { backgroundColor: `rgba(12, 12, 16, ${panelOpacity})` };
 
-  return <View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, corNaJanela ? { backgroundColor: 'transparent' } : bgStyle]}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} /></View><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  // O nome da página que está atrás (5/10, lib/voltarPara.ts). Com o Now
+  // Playing por cima, o voltar fecha-o e mostra a página de baixo.
+  const rotuloDoVoltar = nomeDaRota(nowPlayingOpen ? route : history.current[history.current.length - 1]);
+  return <RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, corNaJanela ? { backgroundColor: 'transparent' } : bgStyle]}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} /></View><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* CUSTOM ACTIONS DIALOG */}
@@ -765,71 +716,8 @@ function DesktopShell() {
       {playlists.length ? <View style={{ gap: 6 }}>{playlists.map((p) => <Pressable key={p.id} onPress={() => addTo(p.id)} style={({ hovered }) => [styles.destination, hovered && styles.settingHover]}><Ionicons name="albums-outline" size={18} color={theme.color} /><Text style={styles.destinationText}>{p.name}</Text></Pressable>)}</View> : <Empty icon="albums-outline" title="No playlists" body="Create a playlist first, then add this track." />}
     </Dialog>
 
-    {/* SHARE DIALOG */}
-    <Dialog open={shareDialog} title={shareTarget?.itemType === 'playlist' ? 'Share playlist' : 'Share song'} onClose={() => { if (!sharing) { setShareDialog(false); setSelectedFriends([]); setSelectedGroups([]); } }}>
-      {shareTarget && (
-        <View style={{ gap: 12 }}>
-          <Text numberOfLines={1} style={styles.dialogBody}>Sharing “{shareTarget.name}”</Text>
-          <Text style={styles.formLabel}>SELECT FRIENDS</Text>
-          {loadingFriends ? <Loading /> : friends.length ? (
-            <View style={{ gap: 6, maxHeight: 180, overflow: 'auto' as any }}>
-              {friends.map((f) => (
-                // Caixas e nao circulos: o circulo diz "escolhe UM", e agora
-                // escolhem-se quantos se quiser.
-                <Pressable
-                  key={f.friendId}
-                  disabled={sharing}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: selectedFriends.includes(f.friendId) }}
-                  onPress={() => setSelectedFriends((antes) => antes.includes(f.friendId)
-                    ? antes.filter((id) => id !== f.friendId)
-                    : [...antes, f.friendId])}
-                  style={[styles.destination, selectedFriends.includes(f.friendId) && { borderColor: theme.color, backgroundColor: theme.soft }]}
-                >
-                  <Ionicons
-                    name={selectedFriends.includes(f.friendId) ? 'checkbox' : 'square-outline'}
-                    color={selectedFriends.includes(f.friendId) ? theme.color : desktop.dim}
-                    size={18}
-                  />
-                  <Text style={styles.destinationText}>{f.name} (@{f.username})</Text>
-                </Pressable>
-              ))}
-            </View>
-          ) : <Text style={styles.dialogBody}>No friends found. Go to the Social page to add friends.</Text>}
-
-          {shareGroups.length > 0 && <>
-            <Text style={styles.formLabel}>SELECT GROUPS</Text>
-            <ScrollView style={{ maxHeight: 180 }} contentContainerStyle={{ gap: 6 }}>
-              {shareGroups.map((g) => <Pressable key={g.id} disabled={sharing}
-                accessibilityRole="checkbox" accessibilityState={{ checked: selectedGroups.includes(g.id) }}
-                onPress={() => setSelectedGroups((antes) => antes.includes(g.id) ? antes.filter((id) => id !== g.id) : [...antes, g.id])}
-                style={[styles.destination, selectedGroups.includes(g.id) && { borderColor: theme.color, backgroundColor: theme.soft }]}>
-                <Ionicons name={selectedGroups.includes(g.id) ? 'checkbox' : 'square-outline'} size={18} color={theme.color} />
-                <Text style={styles.destinationText}>{g.name} · {g.membros.length} members</Text>
-              </Pressable>)}
-            </ScrollView>
-          </>}
-          {friends.length + shareGroups.length > 0 && (
-            <>
-              <Text style={styles.formLabel}>MESSAGE (OPTIONAL)</Text>
-              <Field placeholder={`Add a note about this ${shareTarget.itemType}…`} value={shareMessage} onChangeText={setShareMessage} />
-              <View style={styles.dialogActions}>
-                <Button secondary disabled={sharing} onPress={() => setShareDialog(false)}>Cancel</Button>
-                <Button onPress={sendShare} disabled={selectedFriends.length + selectedGroups.length === 0 || sharing}>{
-                  sharing ? 'Sharing…'
-                    : selectedFriends.length + selectedGroups.length > 1
-                      // Diz quantos: quem escolheu cinco pessoas quer ver o cinco
-                      // antes de carregar, e nao depois no aviso.
-                      ? `Share with ${selectedFriends.length + selectedGroups.length}`
-                      : shareTarget.itemType === 'playlist' ? 'Share Playlist' : 'Share Song'
-                }</Button>
-              </View>
-            </>
-          )}
-        </View>
-      )}
-    </Dialog>
-  </View>;
+    <ShareFriendSheet visible={!!shareTarget} itemType={shareTarget?.itemType ?? 'track'} item={shareTarget?.item ?? null} onClose={() => setShareTarget(null)} />
+  </View></RotuloDoVoltar.Provider>;
 }
 
 export function RootNavigator() {

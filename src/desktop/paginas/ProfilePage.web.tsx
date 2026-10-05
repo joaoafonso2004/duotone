@@ -21,7 +21,7 @@ import { useTheme } from '../../state/theme';
 import type { Track } from '../../types';
 import type { Route } from '../rotas';
 import { styles } from '../estilos.web';
-import {
+import { BotaoVoltar,
   Button, ContentScroll, desktop, Empty, Loading, Page,
 } from '../ui.web';
 
@@ -57,7 +57,7 @@ export function StatsPage({ back, play, userId }: { userId?:string; back: () => 
       <Text style={[styles.smallSegmentText, period === value && { color: desktop.text }]}>{label}</Text>
     </P>))}</View>;
 
-  return <Page title={userId&&userId!==ownId?"Listening stats":"Your listening"} action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}<Button secondary icon="arrow-back" onPress={back}>Profile</Button></View>}>
+  return <Page title={userId&&userId!==ownId?"Listening stats":"Your listening"} action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}<BotaoVoltar onPress={back} /></View>}>
     <ContentScroll>
       {loading ? <View style={{ height: 320 }}><Loading /></View>
         : result?.unavailable ? <Empty icon="cloud-offline-outline" title="Stats unavailable" body="Your listening history couldn't be loaded. Try again later." />

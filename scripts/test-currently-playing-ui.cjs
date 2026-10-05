@@ -58,6 +58,7 @@ const mocks = {
   '../hooks/useArrastarLista': useArrastarLista,
   './DeslizarParaTirar': {DeslizarParaTirar:'Swipe'},
   '../lib/arrastarFila': arrastarFila, '../lib/menuDaFaixa': menuDaFaixa,
+  '../lib/icones': carregar('src/lib/icones.ts'),
   './TrackRow': {TrackRow:'TrackRow',TRACK_ROW_HEIGHT:68}, '@expo/vector-icons/Ionicons':'Icon',
   '../state/player': {usePlayer}, '../state/ouvirJuntos':{useOuvirJuntos}, '../state/seguirAmigo':{useSeguirAmigo},
   '../theme':{colors:{},spacing:{},type:{},radii:{}}, './BottomSheet':{BottomSheet:'BottomSheet',BottomSheetFlatList:'FlatList'},

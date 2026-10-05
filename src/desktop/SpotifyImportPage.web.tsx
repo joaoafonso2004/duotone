@@ -15,7 +15,7 @@ import {
 } from '../lib/spotifyImport';
 import type { Playlist, Track } from '../types';
 import { SpotifyReview } from './SpotifyReview.web';
-import { Button, ContentScroll, desktop, Field, Page } from './ui.web';
+import { BotaoVoltar, Button, ContentScroll, desktop, Field, Page } from './ui.web';
 
 /**
  * Importação de playlists do Spotify — só no desktop.
@@ -259,9 +259,7 @@ export function SpotifyImportPage({ back, notify }: { back: () => void; notify: 
       title="Import from Spotify"
       subtitle="Export your playlists with Exportify and bring them into Duotone."
       action={
-        <Button secondary icon="arrow-back" onPress={back}>
-          Playlists
-        </Button>
+        <BotaoVoltar onPress={back} />
       }
     >
       <ContentScroll>

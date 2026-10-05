@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { ICONES } from '../lib/icones';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { sessoesDeAmigos } from '../api/ouvirJuntos';
@@ -123,7 +124,7 @@ export function AmigosNaLateral({ navigate, notify }: { navigate: (r: Route) => 
                 onPress={(e: any) => { e?.stopPropagation?.(); void ouvirComAmigo(a, sessoes.get(a.friendId)); }}
                 style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: COR.texto, alignItems: 'center', justifyContent: 'center' }}
               >
-                <Ionicons name={sessoes.has(a.friendId) ? 'people' : 'play'} size={12} color={COR.fundo} />
+                <Ionicons name={sessoes.has(a.friendId) ? ICONES.jam : 'play'} size={12} color={COR.fundo} />
               </Pressable>
             ) : null}
           </Pressable>

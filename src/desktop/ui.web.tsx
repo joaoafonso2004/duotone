@@ -1,6 +1,6 @@
 import {StateIcon} from '../components/StateIcon';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import React, { ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '../theme';
 import type { Track } from '../types';
@@ -86,6 +86,18 @@ export function IconButton({ name, label, onPress, active = false, danger = fals
       <EstrelaInteligente tamanho={6} />
     </View> : null}
   </P>;
+}
+
+/**
+ * O nome da página que está atrás no histórico (5/10, `lib/voltarPara.ts`).
+ * A casca (`RootNavigator.web.tsx`) dá-o; as páginas só põem o `BotaoVoltar`.
+ */
+export const RotuloDoVoltar = createContext('Back');
+
+/** "← Search": o voltar de todas as páginas, com o nome do sítio para onde vai. */
+export function BotaoVoltar({ onPress }: { onPress: () => void }) {
+  const rotulo = useContext(RotuloDoVoltar);
+  return <Button secondary icon="arrow-back" onPress={onPress}>{rotulo}</Button>;
 }
 
 export function Button({ children, onPress, icon, iconNode, secondary = false, danger = false, disabled = false, brilho = false, marcado = false }: {

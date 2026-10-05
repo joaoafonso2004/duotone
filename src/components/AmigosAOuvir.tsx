@@ -1,4 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
+import { ICONES } from '../lib/icones';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
@@ -142,7 +143,7 @@ export function AmigosAOuvir() {
                 : `Listen along with ${amigo.name || amigo.username}`}
               style={styles.entrar}
             >
-              <Ionicons name={sessao ? 'people' : 'play'} size={12} color={colors.bg} />
+              <Ionicons name={sessao ? ICONES.jam : 'play'} size={12} color={colors.bg} />
             </Toque> : null}
           </View>
           {/* O nome corta-se a uma linha: nomes compridos alinhavam a fila

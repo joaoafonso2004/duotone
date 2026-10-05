@@ -35,7 +35,7 @@ import { useSaved } from '../../state/saved';
 import type { Track } from '../../types';
 import { crescer, faltaMostrar, PRIMEIRO_LOTE, quantosMostrar } from '../../lib/grelhaQueCresce';
 import { styles } from '../estilos.web';
-import {
+import { BotaoVoltar,
   Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, marcar, Page,
   PrateleiraDeMisturas, Separadores, Shelf, TrackTable, type ColunaOrdenavel,
 } from '../ui.web';
@@ -470,7 +470,7 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
         <Text numberOfLines={1} style={styles.playlistTitle}>{nome}</Text>
         <Text style={styles.playlistMeta}>{faixas.length} {faixas.length === 1 ? 'track' : 'tracks'}</Text>
       </Pressable>
-    ); })}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="people-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
+    ); })}</View> : query ? <Empty icon="search-outline" title="No artists found" body={`No artist matches "${query}".`} /> : <Empty icon="mic-outline" title="No artists yet" body="Artists are collected automatically from the tracks in your library." />}</ContentScroll>
   </Page>;
 }
 
@@ -520,7 +520,7 @@ export function MisturaPage({ id, titulo, back, ...props }: {
           {inteligente ? 'Smart shuffle' : 'Shuffle'}
         </Button>
       </> : null}
-      <Button secondary icon="arrow-back" onPress={back}>Back</Button>
+      <BotaoVoltar onPress={back} />
     </View>}>
     <ContentScroll scrollKey={`mistura:${id}`}>
       {!prontas && !mistura ? <View style={{ height: 320 }}><Loading /></View>
@@ -640,7 +640,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const fotoDoCanal = foto ? null : pagina?.foto ?? null;
 
   return <>
-    <Page title="Artist" action={<Button secondary icon="arrow-back" onPress={back}>Back to artists</Button>}>
+    <Page title="Artist" action={<BotaoVoltar onPress={back} />}>
       <ContentScroll scrollKey={`artist:${chaveDeArtista(name)}`}>{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <>
         <View style={styles.detailHero}>
           {/* A foto do catálogo (27/9, `fotoDoArtista`); sem ela, a do canal
