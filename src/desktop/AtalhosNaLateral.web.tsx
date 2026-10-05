@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { MenuDeContexto, pontoDoEvento, type PontoNoEcra } from './MenuDeContexto.web';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { getLibrary } from '../api/library';
@@ -38,6 +39,7 @@ export function AtalhosNaLateral({ navigate }: { navigate: (r: Route) => void })
   const amigos = useSocial((s) => s.friends);
   const [escolher, setEscolher] = useState(false);
   const [menu, setMenu] = useState<Atalho | null>(null);
+  const [ondeMenu, setOndeMenu] = useState<PontoNoEcra>({ x: 0, y: 0 });
   useEffect(() => { if (!carregados) void useAtalhosDaLateral.getState().carregar(); }, [carregados]);
 
   const online = useMemo(() => new Set(amigos.filter((a) => a.online).map((a) => a.friendId)), [amigos]);
@@ -75,7 +77,7 @@ export function AtalhosNaLateral({ navigate }: { navigate: (r: Route) => void })
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 2, paddingBottom: ESP.md }}>
           {lista.map((a) => (
             <Pressable key={chaveDoAtalho(a)} {...marcar('atalho')} onPress={() => abrir(a)}
-              onContextMenu={((e: any) => { e.preventDefault(); setMenu(a); }) as any}
+              onContextMenu={((e: any) => { e.preventDefault(); setOndeMenu(pontoDoEvento(e)); setMenu(a); }) as any}
               accessibilityLabel={`${nomeDoAtalho(a)}, ${subtituloDoAtalho(a, online)}`}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingHorizontal: ESP.sm, borderRadius: 8 }}>
               <Miniatura a={a} online={a.tipo === 'amigo' && online.has(a.id)} />
@@ -93,13 +95,23 @@ export function AtalhosNaLateral({ navigate }: { navigate: (r: Route) => void })
         </ScrollView>
       )}
 
-      <PorCimaDeTudo aberto={!!menu}><Dialog open={!!menu} title={menu ? nomeDoAtalho(menu) : ''} width={320} onClose={() => setMenu(null)}>
-        {menu ? <View style={{ paddingBottom: ESP.sm }}>
-          <LinhaDoMenu icone="arrow-up" texto="Move up" aoCarregar={() => { useAtalhosDaLateral.getState().mover(chaveDoAtalho(menu), -1); setMenu(null); }} />
-          <LinhaDoMenu icone="arrow-down" texto="Move down" aoCarregar={() => { useAtalhosDaLateral.getState().mover(chaveDoAtalho(menu), 1); setMenu(null); }} />
-          <LinhaDoMenu icone="close-circle-outline" texto="Unpin" aoCarregar={() => { useAtalhosDaLateral.getState().tirar(chaveDoAtalho(menu)); setMenu(null); }} />
-        </View> : null}
-      </Dialog></PorCimaDeTudo>
+      {/* O menu de contexto comum do PC, no cursor (5/10): era um diálogo ao centro. */}
+      {menu ? <MenuDeContexto
+        rato={ondeMenu}
+        rotulo={`Options for ${nomeDoAtalho(menu)}`}
+        linhas={[
+          { id: 'subir', rotulo: 'Move up', icone: 'arrow-up' },
+          { id: 'descer', rotulo: 'Move down', icone: 'arrow-down' },
+          { id: 'tirar', rotulo: 'Unpin from sidebar', icone: 'close-circle-outline', inicioDeGrupo: true },
+        ]}
+        aoEscolher={(id) => {
+          const chave = chaveDoAtalho(menu);
+          if (id === 'subir') useAtalhosDaLateral.getState().mover(chave, -1);
+          else if (id === 'descer') useAtalhosDaLateral.getState().mover(chave, 1);
+          else useAtalhosDaLateral.getState().tirar(chave);
+        }}
+        aoFechar={() => setMenu(null)}
+      /> : null}
       <PorCimaDeTudo aberto={escolher}><EscolherAtalho aberto={escolher} aoFechar={() => setEscolher(false)} /></PorCimaDeTudo>
     </View>
   );
@@ -173,13 +185,6 @@ function Miniatura({ a, online }: { a: Atalho; online: boolean }) {
       : <Image source={{ uri: capa }} style={{ width: 32, height: 32 }} />)
       : <Ionicons name={icone} size={14} color={COR.textoFraco} />}
   </View>;
-}
-
-function LinhaDoMenu({ icone, texto, aoCarregar }: { icone: keyof typeof Ionicons.glyphMap; texto: string; aoCarregar: () => void }) {
-  return <Pressable onPress={aoCarregar} style={({ hovered }: any) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, height: 42, paddingHorizontal: ESP.lg, backgroundColor: hovered ? COR.hover : 'transparent' })}>
-    <Ionicons name={icone} size={16} color={COR.textoMedio} />
-    <Text style={{ fontFamily: FONT.body, fontSize: 13.5, color: COR.texto }}>{texto}</Text>
-  </Pressable>;
 }
 
 type Filtro = 'tudo' | 'playlist' | 'faixa' | 'artista' | 'amigo';

@@ -51,6 +51,7 @@ import type { Playlist } from '../types';
 import type { Mistura } from '../lib/misturas';
 import { Input } from '../components/Input';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
+import { BotaoDasMensagens } from '../components/BotaoDasMensagens';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
 import { TrackRow } from '../components/TrackRow';
 import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../api/searchHistory';
@@ -581,13 +582,16 @@ export function SearchScreen() {
           ) : null}
         </View>
       }
-      right={vista === 'discover' && temRecomendacoes(recs) ? (
-        <Pressable accessibilityRole="button" accessibilityLabel="Refresh recommendations"
-          hitSlop={12} disabled={loadingRecs} onPress={() => void recs.carregar(true)}
-          style={{ opacity: loadingRecs ? 0.4 : 1 }}>
-          <Ionicons name="refresh" size={22} color={colors.textSecondary} />
-        </Pressable>
-      ) : undefined}>
+      right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
+        {vista === 'discover' && temRecomendacoes(recs) ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Refresh recommendations"
+            hitSlop={12} disabled={loadingRecs} onPress={() => void recs.carregar(true)}
+            style={{ opacity: loadingRecs ? 0.4 : 1 }}>
+            <Ionicons name="refresh" size={22} color={colors.textSecondary} />
+          </Pressable>
+        ) : null}
+        <BotaoDasMensagens onPress={() => separadores.navigate('Social')} />
+      </View>}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}

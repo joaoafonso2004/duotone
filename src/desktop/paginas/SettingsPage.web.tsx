@@ -1,4 +1,5 @@
 import { RecommendationPreferences } from '../../components/RecommendationPreferences';
+import { ROTULOS } from '../../lib/rotulosDasDefinicoes';
 import { removeOwnProfileMedia } from '../../lib/profileMedia';
 /**
  * Definições do desktop, e as linhas de que é feita.
@@ -360,22 +361,22 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
             <View style={styles.definicoesPainel}>
               {aberta === 'reproducao' && <SettingsCard title="Playback">
                 {/* Quantas músicas novas o Smart Shuffle mete (26/9). */}
-                <ChoiceLine label="Smart shuffle" description="How many new songs it adds to what you're playing."
+                <ChoiceLine label={ROTULOS.smartShuffle} description="How many new songs it adds to what you're playing."
                   value={intensidadeSmart} choices={[['poucas', 'Few'], ['normal', 'Some'], ['muitas', 'Lots']]}
                   onChange={(v) => { const i = v as 'poucas' | 'normal' | 'muitas'; usePlayer.setState({ intensidadeSmartShuffle: i }); void setIntensidadeDoSmartShuffle(i); }}
                   efeito={efeitos.smart} />
                 {/* O crossfade do PC (24/9): um segundo player do YouTube prepara a
                     seguinte, calado, e os volumes cruzam-se no fim -- ver o
                     YouTubePlayerView.web.tsx. Desligado de origem, como no iPhone. */}
-                <ChoiceLine label="Crossfade" description="Blend the end of a song into the next one."
+                <ChoiceLine label={ROTULOS.crossfade} description="Blend the end of a song into the next one."
                   value={String(crossfade)} choices={DURACOES_DO_CROSSFADE.map((d) => [String(d), d === 0 ? 'Off' : `${d} s`] as [string, string])}
                   onChange={(v) => { const d = Number(v) as DuracaoDoCrossfade; usePlayer.setState({ crossfadeSegundos: d }); void setCrossfadeSegundos(d); }}
                   efeito={efeitos.crossfade} />
-                <ToggleLine label="Autoplay similar music" description="When the queue ends, keep playing music like it instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} efeito={efeitos.radio} />
-                <ChoiceLine label="Sleep timer" value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} efeito={efeitos.temporizador} />
+                <ToggleLine label={ROTULOS.autoplay} description="When the queue ends, keep playing music like it instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} efeito={efeitos.radio} />
+                <ChoiceLine label={ROTULOS.temporizador} value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} efeito={efeitos.temporizador} />
                 <View style={[styles.settingLine, { flexDirection: 'column', alignItems: 'stretch', gap: ESP.md }]}>
                   <View>
-                    <Text style={styles.settingLabel}>Playback speed</Text>
+                    <Text style={styles.settingLabel}>{ROTULOS.velocidade}</Text>
                     <Text style={styles.settingDescription}>For songs you haven't set on their own. Pitch follows the speed, so slower sounds slowed.</Text>
                     <Efeito texto={efeitos.velocidade} />
                   </View>
@@ -389,7 +390,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 <View style={[styles.settingLine, { flexDirection: 'column', alignItems: 'stretch', gap: ESP.md }]}>
                   <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <View style={{ flex: 1, paddingRight: ESP.lg }}>
-                      <Text style={styles.settingLabel}>Equaliser</Text>
+                      <Text style={styles.settingLabel}>{ROTULOS.equalizador}</Text>
                       <Text style={styles.settingDescription}>For songs you haven't set on their own. The one playing changes on the next song.</Text>
                       <Efeito texto={efeitos.equalizador} />
                     </View>
@@ -407,14 +408,14 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 {glitch !== 'off' && <ChoiceLine label="Effect strength" value={effectIntensity} choices={[['subtle', 'Subtle'], ['normal', 'Normal'], ['strong', 'Strong']]} onChange={changeEffectIntensity} />}
                 {/* A cor da capa a encher a janela (26/9); a de origem. */}
                 <ChoiceLine label="Now Playing colour" description="Let the artwork's colour fill the whole window, or keep it inside the page." value={corDoLeitor} choices={[['janela', 'Whole window'], ['pagina', 'Page only']]} onChange={mudarCorDoLeitor} />
-                <ChoiceLine label="Accent" value={modo} choices={[['steel', 'Steel'], ['cover', 'Follow the cover']]} onChange={(v) => void setMode(v as any)} />
+                <ChoiceLine label={ROTULOS.acento} value={modo} choices={[['steel', 'Steel'], ['cover', 'Follow the cover']]} onChange={(v) => void setMode(v as any)} />
                 <ChoiceLine label="Window" value={opacity} choices={[['0.95', 'Solid'], ['0.72', 'Default'], ['0.55', 'Translucent'], ['0.35', 'Clear']]} onChange={changeOpacity} />
-                <ToggleLine label="Song length in lists" description="Show a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />
-                <ToggleLine label="15-second rewind" description="Show a rewind button in the player." value={rewind} onChange={(v) => { setRewindState(v); setShowRewindButton(v); usePlayer.getState().setShowRewindButton(v); }} />
+                <ToggleLine label={ROTULOS.duracao} description="Show a time column in track lists." value={duration} onChange={(v) => { setDurationState(v); setShowTrackDuration(v); setShowTrackDurationCache(v); }} />
+                <ToggleLine label={ROTULOS.recuo} description="Show a rewind button in the player." value={rewind} onChange={(v) => { setRewindState(v); setShowRewindButton(v); usePlayer.getState().setShowRewindButton(v); }} />
               </SettingsCard>}
 
               {aberta === 'windows' && <SettingsCard title="Windows">
-                <ToggleLine label="Message notifications" description="Show a Windows notification when a message arrives while you are away."
+                <ToggleLine label={ROTULOS.mensagens} description="Show a Windows notification when a message arrives while you are away."
                   value={notifications} onChange={(v) => { setNotifications(v); void setNotificationsEnabled(v); }} />
                 {window.duotoneDesktop?.setCloseToTray && <ToggleLine
                   label="Close to tray"
@@ -446,14 +447,14 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
               {aberta === 'biblioteca' && <SettingsCard title="Library">
                 <View style={styles.settingLine}>
                   <View style={{ flex: 1, paddingRight: ESP.lg }}>
-                    <Text style={styles.settingLabel}>Recommendations</Text>
+                    <Text style={styles.settingLabel}>{ROTULOS.recomendacoes}</Text>
                     <Text style={styles.settingDescription}>Songs you hid and artists you want to hear less often.</Text>
                   </View>
                   <Button secondary onPress={() => setRecommendationsOpen(true)}>Manage</Button>
                 </View>
                 <View style={styles.settingLine}>
                   <View style={{ flex: 1, paddingRight: ESP.lg }}>
-                    <Text style={styles.settingLabel}>Identify library</Text>
+                    <Text style={styles.settingLabel}>{ROTULOS.identificar}</Text>
                     <Text style={styles.settingDescription}>
                       {progresso
                         ? `Identifying ${progresso.feitas} of ${progresso.total}…`
@@ -468,7 +469,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                 </View>
                 <View style={styles.settingLine}>
                   <View style={{ flex: 1, paddingRight: ESP.lg }}>
-                    <Text style={styles.settingLabel}>Library check</Text>
+                    <Text style={styles.settingLabel}>{ROTULOS.libraryCheck}</Text>
                     <Text style={styles.settingDescription}>Find songs saved twice, videos that no longer play and covers that don't load.</Text>
                   </View>
                   <Button secondary onPress={() => navigate({ name: 'library-check' })}>Open</Button>
@@ -477,7 +478,7 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
 
               {aberta === 'sobre' && <SettingsCard title="About">
                 {/* Vem do buildInfo.ts, que a CI reescreve a cada build (build-windows.yml). */}
-                <SettingLine label="Version" value={APP_VERSION} />
+                <SettingLine label={ROTULOS.versao} value={APP_VERSION} />
                 {window.duotoneDesktop?.atualizacaoAutomatica ? <Text style={[styles.settingDescription, { paddingHorizontal: 17, paddingBottom: 10, marginTop: 0 }]}>Updates download by themselves and install the next time Duotone opens.</Text> : null}
                 <SettingAction
                   label={update ? `${instalaNaApp ? 'Update to' : 'Download'} Duotone ${update.version}` : checkingUpdate ? 'Checking for updates…' : 'Check for updates'}
@@ -490,10 +491,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   conta, que vivia no About. Sem rede, como lá, ficam apagadas. */}
               {aberta === 'conta' && <SettingsCard title="Account">
                 {offline ? <Text style={[styles.settingDescription, { paddingHorizontal: 17, paddingTop: 10, marginTop: 0 }]}>Offline · connect to manage your account.</Text> : null}
-                <SettingLine label="Email" value={email ?? '—'} />
-                <SettingAction label={aRepor ? 'Sending…' : 'Reset password'} description="We'll email you a link to choose a new one." disabled={offline || aRepor} onPress={() => void resetPassword()} />
-                <SettingAction label="Sign out" description="Stops the music and clears the queue on this computer." onPress={() => setSignOutConfirm(true)} />
-                <SettingAction danger label="Delete account" disabled={offline} onPress={() => setDeleteConfirm(true)} />
+                <SettingLine label={ROTULOS.email} value={email ?? '—'} />
+                <SettingAction label={aRepor ? 'Sending…' : ROTULOS.reporPassword} description="We'll email you a link to choose a new one." disabled={offline || aRepor} onPress={() => void resetPassword()} />
+                <SettingAction label={ROTULOS.sair} description="Stops the music and clears the queue on this computer." onPress={() => setSignOutConfirm(true)} />
+                <SettingAction danger label={ROTULOS.apagarConta} disabled={offline} onPress={() => setDeleteConfirm(true)} />
               </SettingsCard>}
             </View>
           </View>

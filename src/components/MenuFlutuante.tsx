@@ -42,8 +42,13 @@ const MARGEM = 12;
  * espaço em baixo, sobe. Sem isto nasceria sempre no mesmo sítio e a ligação
  * entre o que se tocou e o que abriu perdia-se.
  */
-export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: {
+export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, titulo }: {
   visivel: boolean;
+  /**
+   * De quem é o menu (5/10): o nome da música ou da playlist, numa linha
+   * pequena por cima das ações, como o título de um menu do iOS.
+   */
+  titulo?: string | null;
   ancora: Ancora | null;
   accoes: PlayerAction[];
   aoFechar: () => void;
@@ -68,8 +73,8 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
   // Os pais limpam a âncora e as ações ao fechar. Conservar a última escolha
   // mantém o mesmo Modal visível até acabar a saída; sem isto, o onDismiss
   // podia chegar antes de se registar a ação que abre o seletor de imagens.
-  const apresentacao = React.useRef({ ancora, accoes });
-  if (mostrar) apresentacao.current = { ancora, accoes };
+  const apresentacao = React.useRef({ ancora, accoes, titulo });
+  if (mostrar) apresentacao.current = { ancora, accoes, titulo };
   // O `Modal` só desmonta quando a saída acaba: fechá-lo no toque cortava a
   // animação a meio e o menu desaparecia de um fotograma para o outro.
   const [montado, setMontado] = React.useState(mostrar);
@@ -139,6 +144,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
   };
   const ancoraVisivel = apresentacao.current.ancora;
   const accoesVisiveis = apresentacao.current.accoes;
+  const tituloVisivel = apresentacao.current.titulo;
   if (!montado || !ancoraVisivel) return <Modal visible={false} transparent animationType="none" onDismiss={aoDispensar}/>;
 
   // Uma linha com motivo leva mais uma linha de texto por baixo, e um grupo
@@ -147,6 +153,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
   const alturaEstimada = accoesVisiveis.length * 52
     + accoesVisiveis.filter((a) => a.motivo).length * 18
     + accoesVisiveis.filter((a) => a.inicioDeGrupo).length * spacing.xs
+    + (tituloVisivel ? 34 : 0)
     + spacing.sm * 2;
   const cabeEmBaixo = ancoraVisivel.y + ancoraVisivel.height + MARGEM + alturaEstimada < height;
   const topo = cabeEmBaixo
@@ -177,6 +184,7 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado }: 
       >
         <BlurView tint="dark" intensity={40} style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, styles.tinta]} />
+        {tituloVisivel ? <Text numberOfLines={1} style={[type.caption, styles.titulo]}>{tituloVisivel}</Text> : null}
         {accoesVisiveis.map((accao) => {
           // Indisponível fica à vista e diz porquê (lib/menuDaFaixa.ts).
           const apagada = !!accao.disabled || !!accao.motivo;
@@ -244,5 +252,6 @@ const styles = StyleSheet.create({
   marca: { width: 19, alignItems: 'center' },
   apagada: { opacity: 0.4 },
   motivo: { marginTop: 1, color: colors.textSecondary },
+  titulo: { paddingHorizontal: spacing.lg, paddingTop: 4, paddingBottom: 8, color: colors.textSecondary, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong },
   grupo: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.borderStrong, marginTop: spacing.xs },
 });

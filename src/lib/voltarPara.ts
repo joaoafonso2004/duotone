@@ -14,7 +14,9 @@ export type RotaComNome =
   | { name: 'artist'; value: string }
   | { name: 'playlist'; id: string; title: string }
   | { name: 'mistura'; id: string; titulo: string }
-  | { name: 'stats'; userId?: string };
+  | { name: 'stats'; userId?: string }
+  | { name: 'voces-os-dois'; userId: string; nome?: string }
+  | { name: 'retrospetiva'; ano?: number; userId?: string };
 
 /** Os nomes das secções são os da barra lateral. */
 const NOMES: Record<string, string> = {
@@ -22,6 +24,7 @@ const NOMES: Record<string, string> = {
   social: 'Social', profile: 'Profile', settings: 'Settings', 'now-playing': 'Now Playing',
   import: 'Import', 'spotify-import': 'Spotify import', 'library-check': 'Library check',
   'friend-profile': 'Profile', stats: 'Listening stats',
+  'voces-os-dois': 'You two', retrospetiva: 'Year in review',
 };
 
 export const MAXIMO_DO_NOME = 28;

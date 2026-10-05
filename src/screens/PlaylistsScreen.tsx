@@ -1,4 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { menuDaPlaylist, type IdDaAcaoDaPlaylist } from '../lib/menuDaPlaylist';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import React, { useCallback, useRef, useState } from 'react';
@@ -42,6 +43,7 @@ import { useTheme } from '../state/theme';
 import type { Playlist } from '../types';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { useDownloadsFixados } from '../lib/downloadsFixados';
 
 export function PlaylistsScreen() {
   // Tocar no separador onde ja se esta volta ao topo (3/10, como no iOS).
@@ -67,6 +69,7 @@ export function PlaylistsScreen() {
   const loading = estado !== 'pronto' && playlists.length === 0;
   const [busy, setBusy] = useState(false);
   const theme = useTheme((s) => s.theme);
+  const quantosDescarregados = useDownloadsFixados((s) => Object.keys(s.registo.pedidos).length);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [optionsFor, setOptionsFor] = useState<Playlist | null>(null);
@@ -137,11 +140,24 @@ export function PlaylistsScreen() {
       if (faixas.length === 0) return;
       const leitor = usePlayer.getState();
       if (modo === 'fila') { leitor.addManyToQueue(faixas); hapticNotification(); return; }
-      if (modo === 'baralhar') await leitor.playShuffled(faixas, leitor.shuffleInteligente);
-      else await leitor.tocarLista(faixas, leitor.shuffle, leitor.shuffleInteligente);
+      // Com a origem: entra no "Jump back in" e no "From ...".
+      const origem = { tipo: 'playlist' as const, nome: p.name, id: p.id };
+      if (modo === 'baralhar') await leitor.playShuffled(faixas, leitor.shuffleInteligente, origem);
+      else await leitor.tocarLista(faixas, leitor.shuffle, leitor.shuffleInteligente, origem);
     } catch (e: any) {
       avisarErro(mensagemDeErro(e, 'Could not load the playlist.'));
     }
+  };
+
+  const fazerNaPlaylist = (id: IdDaAcaoDaPlaylist) => {
+    const p = optionsFor;
+    setOptionsFor(null);
+    if (!p) return;
+    if (id === 'tocar' || id === 'baralhar' || id === 'fila') void usarPlaylist(p, id);
+    else if (id === 'partilhar') setPartilharCom(p);
+    else if (id === 'partilhar-link') setQrDe(p);
+    else if (id === 'editar') navigation.navigate('PlaylistDetail', { id: p.id, name: p.name, editar: true });
+    else if (id === 'apagar') setDeleteFor(p);
   };
 
   const doDelete = async () => {
@@ -168,6 +184,28 @@ export function PlaylistsScreen() {
   const avisoDeErro = loadError
     ? <View style={{paddingHorizontal:spacing.xl,paddingVertical:spacing.lg,gap:12}}><Text accessibilityRole="alert" style={type.caption}>{loadError}</Text><SocialButton onPress={()=>void load()}>Try again</SocialButton></View>
     : null;
+  /**
+   * Os Downloads na biblioteca (5/10, auditoria de consistência A6), como o
+   * "Downloaded" do Apple Music. Estavam só em Perfil, "⋯", Settings, Storage:
+   * quatro toques para o que faz a app tocar sem rede. A linha das Definições fica.
+   */
+  const linhaDosDownloads = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Downloads, ${descricaoDosDownloads(quantosDescarregados)}`}
+      onPress={() => navigation.navigate('Downloads')}
+      style={({ pressed }) => [styles.downloads, pressed && { opacity: 0.7 }]}
+    >
+      <View style={[styles.downloadsIcone, { backgroundColor: theme.soft }]}>
+        <Ionicons name="arrow-down-circle" size={20} color={theme.color} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={type.headline}>Downloads</Text>
+        <Text numberOfLines={1} style={type.caption}>{descricaoDosDownloads(quantosDescarregados)}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+    </Pressable>
+  );
 
   return (
     <Screen
@@ -188,6 +226,7 @@ export function PlaylistsScreen() {
       {/* O cabeçalho flutua por cima (3/10): tudo o que não é a lista começa
           por baixo dele. */}
       {(loading || playlists.length === 0) && <View style={{ height: cab.espaco }} />}
+      {(loading || playlists.length === 0) && linhaDosDownloads}
       {/* Com a lista à vista, o erro vai no topo dela (não por baixo do cabeçalho). */}
       {!!loadError&&(loading||playlists.length===0)&&avisoDeErro}
       {loading ? (
@@ -218,7 +257,7 @@ export function PlaylistsScreen() {
         <Animated.FlatList
           ref={topo}
           data={playlists}
-          ListHeaderComponent={avisoDeErro}
+          ListHeaderComponent={<>{avisoDeErro}{linhaDosDownloads}</>}
           refreshControl={puxar}
           onScroll={cab.onScroll}
           scrollEventThrottle={cab.scrollEventThrottle}
@@ -285,34 +324,9 @@ export function PlaylistsScreen() {
           subtitulo: `${optionsFor.trackCount} ${optionsFor.trackCount === 1 ? 'song' : 'songs'}`,
           capas: optionsFor.artworks,
         } : null}
-        actions={[
-          ...(optionsFor && optionsFor.trackCount > 0 ? [
-            { icon: 'play-outline' as const, label: 'Play', onPress: () => { const p = optionsFor; setOptionsFor(null); if (p) void usarPlaylist(p, 'tocar'); } },
-            { icon: 'shuffle' as const, label: 'Shuffle', onPress: () => { const p = optionsFor; setOptionsFor(null); if (p) void usarPlaylist(p, 'baralhar'); } },
-            { icon: 'list-outline' as const, label: 'Add to queue', onPress: () => { const p = optionsFor; setOptionsFor(null); if (p) void usarPlaylist(p, 'fila'); } },
-          ] : []),
-          { icon: 'people-outline', label: 'Share with a friend…', onPress: () => { const p = optionsFor; setOptionsFor(null); setPartilharCom(p); } },
-          { icon: 'share-social-outline', label: 'QR code / Copy link', onPress: () => { const p = optionsFor; setOptionsFor(null); setQrDe(p); } },
-          {
-            icon: 'pencil-outline',
-            label: 'Edit playlist',
-            onPress: () => {
-              const p = optionsFor;
-              setOptionsFor(null);
-              if (p) navigation.navigate('PlaylistDetail', { id: p.id, name: p.name, editar: true });
-            },
-          },
-          {
-            icon: 'trash-outline',
-            label: 'Delete playlist',
-            destructive: true,
-            onPress: () => {
-              const p = optionsFor;
-              setOptionsFor(null);
-              setDeleteFor(p);
-            },
-          },
-        ]}
+        // As ações vêm do menu partilhado com o PC (5/10, lib/menuDaPlaylist.ts).
+        actions={optionsFor ? menuDaPlaylist({ plataforma: 'ios', onde: 'cartao', temFaixas: optionsFor.trackCount > 0, minha: true })
+          .map((a) => ({ icon: a.icone as any, label: a.rotulo, destructive: a.destrutiva, onPress: () => fazerNaPlaylist(a.id) })) : []}
       />
 
       <ShareFriendSheet
@@ -412,7 +426,21 @@ export function PlaylistsScreen() {
   );
 }
 
+/** "12 songs on this iPhone", ou o que a linha serve quando ainda não há nenhuma. */
+function descricaoDosDownloads(n: number): string {
+  if (n === 0) return 'Songs you download play without a connection';
+  return `${n} ${n === 1 ? 'song' : 'songs'} on this iPhone`;
+}
+
 const styles = StyleSheet.create({
+  downloads: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    marginHorizontal: spacing.xl, paddingVertical: spacing.sm, minHeight: 56,
+  },
+  downloadsIcone: {
+    width: 40, height: 40, borderRadius: radii.md, borderCurve: 'continuous',
+    alignItems: 'center', justifyContent: 'center',
+  },
   importRow: {
     flexDirection: 'row',
     alignItems: 'center',

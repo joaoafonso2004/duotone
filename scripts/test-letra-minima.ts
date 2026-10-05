@@ -19,6 +19,7 @@ const EXCECOES: Record<string, string> = {
   'src/components/BarraVelocidade.tsx': 'a régua por baixo da barra da velocidade',
   'src/components/Equalizador.tsx': 'os valores e os nomes das dez bandas, numa décima da largura',
   'src/components/PlayerRoot.tsx': 'o "1" dentro do ícone do repeat',
+  'src/components/BotaoDasMensagens.tsx': 'o número no emblema das mensagens',
   'src/components/ProfileHero.tsx': 'o número no emblema do perfil',
   'src/components/SourceBadge.tsx': 'o emblema da origem',
   'src/screens/ListeningStatsScreen.tsx': 'a escala do gráfico',

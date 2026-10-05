@@ -29,6 +29,7 @@ import { SkeletonDeConversas } from './Skeleton';
 import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { CabecalhoDoAmigo, FaixaPartilhada, FundoDaApp } from './ChatAmigo';
 import { SocialOverview } from './SocialOverview';
+import { OpcoesDoAmigo } from './OpcoesDoAmigo';
 import type { Playlist,Track } from '../types';
 
 export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup,cabecalho,novaConversa,conversationTarget,onConversation,onCloseConversation}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string;
@@ -57,6 +58,8 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const setComecar=novaConversa?.definir??setComecarLocal;
   const [groupEditor,setGroupEditor]=useState<string|null>(null),[groupName,setGroupName]=useState(''),[members,setMembers]=useState<string[]>([]);
   const [groupDetails,setGroupDetails]=useState<string|null>(null);
+  // O menu de um amigo no toque longo (iPhone, 5/10, OpcoesDoAmigo).
+  const [menuDoAmigo,setMenuDoAmigo]=useState<{id:string;ancora:{x:number;y:number;width:number;height:number}}|null>(null);
   // No iOS a rota é dona do chat, inclusive durante o gesto de voltar.
   // A lista por baixo não monta outro leitor de mensagens da mesma conversa.
   const conversation=conversationTarget ?? (web ? social.conversation : null);
@@ -261,6 +264,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         activity={social.activity} previews={social.conversationPreviews} unread={unread} now={social.now} myId={myId}
         loading={social.loading} requests={requests} onOpen={open} onProfile={onProfile} onTrack={setTrack}
         onRemoveFriend={id=>setConfirm({id,group:false})}
+        onFriendMenu={web?undefined:(id,ancora)=>setMenuDoAmigo({id,ancora})}
         onDeleteConversation={id=>setConfirm({id,group:false,conversa:true})} onStart={()=>setComecar(true)}/>
     </Animated.ScrollView>
   </View>;
@@ -403,6 +407,8 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         onLeave={()=>{setError('');setConfirm({id:detailedGroup.id,group:true});setGroupDetails(null);}}/>}
     </SocialModal>
 
+    {!web&&<OpcoesDoAmigo amigo={menuDoAmigo?social.friends.find(f=>f.friendId===menuDoAmigo.id)??null:null} ancora={menuDoAmigo?.ancora??null}
+      aoFechar={()=>setMenuDoAmigo(null)} aoMensagem={id=>open('friend',id)} aoPerfil={onProfile} aoPedirRemover={id=>setConfirm({id,group:false})}/>}
     <SocialModal visible={!!confirm} title={confirm?.conversa?'Delete conversation?':confirm?.group?'Leave group?':'Remove friend?'} onClose={()=>setConfirm(null)}><View style={{padding:20,gap:12}}><Text style={s.muted}>{confirm?.conversa?'The messages are deleted for good, on both sides. This cannot be undone.':'Earlier messages stay saved.'}</Text><SocialButton danger disabled={busy} onPress={()=>void run(async()=>{if(!confirm)return;if(confirm.conversa)await apagarConversa(confirm.id);else if(confirm.group)await sairDoGrupo(confirm.id);else await declineOrRemoveFriendship(confirm.id);setConfirm(null);closeChat();})}>{confirm?.conversa?'Delete':'Confirm'}</SocialButton><SocialButton quiet onPress={()=>setConfirm(null)}>Cancel</SocialButton></View></SocialModal>
     {/* O mesmo cartao com avatar, nome e @username que a lista de amigos usa.
         Estava aqui uma coluna de botoes centrados com um visto colado ao nome

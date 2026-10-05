@@ -1,4 +1,5 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
+import { menuDaPlaylist } from '../lib/menuDaPlaylist';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { avisarRemocao, avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -838,15 +839,16 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         track={null}
         cabecalho={cabecalhoDoMenu}
         onClose={() => setOptionsOpen(false)}
-        actions={[
-          { icon: 'people-outline', label: 'Share with a friend…', onPress: () => { setOptionsOpen(false); setShareFriendOpen(true); } },
-          { icon: 'share-social-outline', label: 'QR code / Copy link', onPress: () => { setOptionsOpen(false); setShareOpen(true); } },
-          ...(canEdit ? [
-            { icon: 'pencil-outline' as const, label: 'Edit playlist', onPress: () => { setOptionsOpen(false); abrirEdicao(); } },
-            { icon: 'git-merge-outline' as const, label: 'Merge another playlist…', onPress: () => { void abrirMerge(); } },
-            { icon: 'trash-outline' as const, label: 'Delete playlist', destructive: true, onPress: () => { setOptionsOpen(false); setDeleteOpen(true); } },
-          ] : []),
-        ]}
+        // O mesmo menu do PC e do cartão (5/10, lib/menuDaPlaylist.ts).
+        actions={menuDaPlaylist({ plataforma: 'ios', onde: 'pagina', temFaixas: tracks.length > 0, minha: canEdit })
+          .map((a) => ({ icon: a.icone as any, label: a.rotulo, destructive: a.destrutiva, onPress: () => {
+            if (a.id === 'juntar') { void abrirMerge(); return; }
+            setOptionsOpen(false);
+            if (a.id === 'partilhar') setShareFriendOpen(true);
+            else if (a.id === 'partilhar-link') setShareOpen(true);
+            else if (a.id === 'editar') abrirEdicao();
+            else if (a.id === 'apagar') setDeleteOpen(true);
+          } }))}
       />
 
       <BottomSheet visible={mergeOpen} onClose={() => !busy && setMergeOpen(false)}>

@@ -102,5 +102,55 @@ caso('a lateral do PC não chama "DISCOVER" à biblioteca', () => {
   assert.ok(!ler('src/desktop/casca.web.tsx').includes('>DISCOVER<'));
 });
 
+console.log('\nfase 2: menus no sítio do gesto (M1, M5, T6)');
+caso('no iPhone, o "…" das listas é o menu junto ao dedo, não uma folha', () => {
+  const lista = ler('src/components/TrackActionsSheet.tsx');
+  assert.match(lista, /<MenuFlutuante/);
+  assert.ok(!/<BottomSheet/.test(lista), 'voltou a folha de baixo');
+  assert.match(lista, /aoFechado=\{\(\) => \{ const f = pendente\.current/, 'a ação tem de esperar pelo fecho do menu');
+  assert.match(ler('src/navigation/RootNavigator.tsx'), /onStartShouldSetResponderCapture=\{\(e\) => \{ registarToque\(/);
+});
+caso('no PC, o clique direito abre no cursor: faixas, playlists, atalhos e amigos', () => {
+  const casca = ler('src/navigation/RootNavigator.web.tsx');
+  assert.ok(!casca.includes('title="Track Actions"'), 'o diálogo ao centro voltou');
+  for (const f of ['src/navigation/RootNavigator.web.tsx', 'src/desktop/paginas/PlaylistPages.web.tsx',
+    'src/desktop/AtalhosNaLateral.web.tsx', 'src/desktop/MenuDoAmigo.web.tsx']) {
+    assert.match(ler(f), /<MenuDeContexto/, f);
+  }
+});
+caso('no iPhone, o toque longo num amigo abre o menu dele (e não pede logo para o remover)', () => {
+  assert.match(ler('src/components/SocialHub.tsx'), /onFriendMenu=\{web\?undefined:/);
+  assert.match(ler('src/components/OpcoesDoAmigo.tsx'), /plataforma: 'ios'/);
+});
+
+console.log('\nfase 2: o que só existia num lado (A1, A2, A4, A6, N4)');
+caso('"You two" e "Year in review" têm página no PC', () => {
+  const casca = ler('src/navigation/RootNavigator.web.tsx');
+  assert.match(casca, /case 'voces-os-dois':/);
+  assert.match(casca, /case 'retrospetiva':/);
+  const perfil = ler('src/desktop/paginas/ProfilePage.web.tsx');
+  assert.match(perfil, /onVocesOsDois=\{nome=>navigate\(\{name:'voces-os-dois'/);
+  assert.match(perfil, /navigate\(\{ name: 'retrospetiva'/);
+});
+caso('o "Jump back in" também no PC', () => {
+  assert.ok(!/Platform\.OS === 'ios'\) instalarRecentes\(\)/.test(ler('App.tsx')));
+  assert.match(ler('src/desktop/paginas/BibliotecaPages.web.tsx'), /<VoltarAOuvir navigate=\{navigate\} \/>/);
+});
+caso('os Downloads estão na biblioteca do iPhone e as mensagens na Home', () => {
+  assert.match(ler('src/screens/PlaylistsScreen.tsx'), /navigation\.navigate\('Downloads'\)/);
+  assert.match(ler('src/screens/SearchScreen.tsx'), /<BotaoDasMensagens onPress=/);
+});
+
+console.log('\nfase 2: rótulos das Definições (P1)');
+caso('os dois ecrãs usam os mesmos nomes', () => {
+  for (const f of ['src/screens/SettingsScreen.tsx', 'src/desktop/paginas/SettingsPage.web.tsx']) {
+    const t = ler(f);
+    assert.match(t, /ROTULOS\.mensagens/, f);
+    for (const velho of ['Message banners', 'Show song length in lists', 'Show 15-second rewind', 'Manage recommendations']) {
+      assert.ok(!t.includes(`"${velho}"`), `${f}: "${velho}" voltou`);
+    }
+  }
+});
+
 if (falhas) { console.log(`\n${falhas} caso(s) falharam.`); process.exit(1); }
 console.log('\n  Todos os casos passaram.');

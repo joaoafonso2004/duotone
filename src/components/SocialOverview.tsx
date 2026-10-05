@@ -33,6 +33,8 @@ interface Props {
   onProfile: (id: string) => void;
   onTrack: (track: Track) => void;
   onRemoveFriend: (id: string) => void;
+  /** O menu de um amigo no toque longo (iPhone, 5/10); sem ele, o toque longo pede para o remover. */
+  onFriendMenu?: (id: string, ancora: { x: number; y: number; width: number; height: number }) => void;
   onDeleteConversation: (id: string) => void;
   onStart: () => void;
 }
@@ -102,7 +104,9 @@ export function SocialOverview(props: Props) {
               : <AvatarDeConversa avatarUrl={c.amigo.avatarUrl} nome={c.nome} tamanho={44} online={c.amigo.online}/>}
           </Pressable>
           <Pressable style={styles.personText} accessibilityRole="button" accessibilityLabel={`${c.nome}. ${text}${count ? `. ${count} unread` : ''}`}
-            onPress={open} onLongPress={() => !group && (oldContact ? props.onDeleteConversation(c.id) : props.onRemoveFriend(c.id))}>
+            onPress={open} onLongPress={(e) => !group && (oldContact ? props.onDeleteConversation(c.id)
+              : props.onFriendMenu ? props.onFriendMenu(c.id, { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY, width: 1, height: 1 })
+              : props.onRemoveFriend(c.id))}>
             <View style={styles.nameRow}><Text numberOfLines={1} style={[styles.personName, styles.flex, count > 0 && styles.unreadText]}>{c.nome}</Text>
               {preview && <Text style={styles.time}>{haQuantoTempo(preview.createdAt, props.now)}</Text>}</View>
             <Text numberOfLines={1} style={[styles.secondary, count > 0 && styles.unreadPreview]}>{text}</Text>

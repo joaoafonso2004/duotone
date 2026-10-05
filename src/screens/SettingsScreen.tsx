@@ -1,4 +1,5 @@
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
+import { ROTULOS } from '../lib/rotulosDasDefinicoes';
 import { getCarroMantemEcra, setCarroMantemEcra } from '../lib/prefs';
 import { useNotifications } from '../state/notifications';
 import { RecommendationPreferences } from '../components/RecommendationPreferences';
@@ -452,27 +453,27 @@ export function SettingsScreen({ navigation }: Props) {
             1.6, variante B): o que cada opção está a fazer agora é o rodapé
             do grupo, com as frases de sempre (lib/efeitoDasDefinicoes.ts). */}
         <Grupo titulo="Playback" rodape={efeitos.smart}>
-          <Linha icone="sparkles" rotulo="Smart shuffle" valor={valorDe('smart')} chevron aoTocar={abrirMenu('smart')} />
+          <Linha icone="sparkles" rotulo={ROTULOS.smartShuffle} valor={valorDe('smart')} chevron aoTocar={abrirMenu('smart')} />
         </Grupo>
         {/* Desligado de origem. A passagem só entra em mudanças automáticas
             de faixa: num salto manual faria o botão parecer lento. */}
         <Grupo rodape={efeitos.crossfade}>
-          <Linha icone="swap-horizontal" rotulo="Crossfade" valor={valorDe('crossfade')} chevron aoTocar={abrirMenu('crossfade')} />
+          <Linha icone="swap-horizontal" rotulo={ROTULOS.crossfade} valor={valorDe('crossfade')} chevron aoTocar={abrirMenu('crossfade')} />
         </Grupo>
         <Grupo rodape={efeitos.velocidade}>
-          <LinhaAlta icone="speedometer-outline" rotulo="Playback speed">
+          <LinhaAlta icone="speedometer-outline" rotulo={ROTULOS.velocidade}>
             <BarraVelocidade valor={padraoRate} aoMudar={(v) => setPlaybackRate(v, true)} />
           </LinhaAlta>
         </Grupo>
         <Grupo rodape={[efeitos.temporizador, efeitos.radio]}>
           <Linha
             icone="moon"
-            rotulo="Sleep timer"
+            rotulo={ROTULOS.temporizador}
             valor={sleepTimerTimeLeft > 0 ? formatTimeLeft(sleepTimerTimeLeft) : 'Off'}
             chevron
             aoTocar={abrirMenu('temporizador')}
           />
-          <LinhaInterruptor icone="radio-outline" rotulo="Autoplay similar music" valor={autoplayRadio} aoMudar={toggleAutoplayRadio} />
+          <LinhaInterruptor icone="radio-outline" rotulo={ROTULOS.autoplay} valor={autoplayRadio} aoMudar={toggleAutoplayRadio} />
         </Grupo>
 
         <Grupo titulo="Sound" rodape={efeitos.qualidade}>
@@ -485,14 +486,14 @@ export function SettingsScreen({ navigation }: Props) {
             mexe na que está a tocar. Os presets: quais aparecem, os teus, e
             o do carro. */}
         <Grupo rodape={[efeitos.equalizador, resumoDosPresets(memoriaDosPresets)]}>
-          <Linha icone="options" rotulo="Equaliser" valor={valorDoEq} chevron aoTocar={() => setEqAberto(true)} />
+          <Linha icone="options" rotulo={ROTULOS.equalizador} valor={valorDoEq} chevron aoTocar={() => setEqAberto(true)} />
           <Linha icone="list" rotulo="Presets" valor={String(presetsNaFila.length)} chevron aoTocar={() => setPresetsOpen(true)} />
         </Grupo>
 
         <Grupo titulo="Appearance" rodape="Cover follows the artwork of whatever is playing.">
           <Linha
             icone="color-palette"
-            rotulo="Accent"
+            rotulo={ROTULOS.acento}
             antesDoValor={
               <LinearGradient colors={amostraDoDestaque.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.amostra} />
             }
@@ -505,12 +506,12 @@ export function SettingsScreen({ navigation }: Props) {
           )}
         </Grupo>
         <Grupo>
-          <LinhaInterruptor icone="time-outline" rotulo="Show song length in lists" valor={showDuration} aoMudar={toggleShowDuration} />
-          <LinhaInterruptor icone="play-back" rotulo="Show 15-second rewind" valor={showRewindButton} aoMudar={toggleShowRewind} />
+          <LinhaInterruptor icone="time-outline" rotulo={ROTULOS.duracao} valor={showDuration} aoMudar={toggleShowDuration} />
+          <LinhaInterruptor icone="play-back" rotulo={ROTULOS.recuo} valor={showRewindButton} aoMudar={toggleShowRewind} />
         </Grupo>
 
         <Grupo titulo="General" rodape={efeitos.ecra}>
-          <LinhaInterruptor icone="notifications" rotulo="Message banners" valor={notificationsOn} aoMudar={toggleNotifications} />
+          <LinhaInterruptor icone="notifications" rotulo={ROTULOS.mensagens} valor={notificationsOn} aoMudar={toggleNotifications} />
           <LinhaInterruptor icone="phone-portrait-outline" rotulo="Haptic feedback" valor={hapticsOn} aoMudar={toggleHaptics} />
           <LinhaInterruptor icone="sunny" rotulo="Keep screen awake" valor={keepAwakeOn} aoMudar={toggleKeepAwake} />
           <LinhaInterruptor
@@ -527,7 +528,7 @@ export function SettingsScreen({ navigation }: Props) {
             ? 'Connect to the internet to change your recommendations.'
             : spotifyDisponivel() ? efeitos.spotify : 'Songs you hid and artists you want to hear less often.'}
         >
-          <Linha icone="heart" rotulo="Manage recommendations" chevron desativada={offline} aoTocar={() => setRecommendationsOpen(true)} />
+          <Linha icone="heart" rotulo={ROTULOS.recomendacoes} chevron desativada={offline} aoTocar={() => setRecommendationsOpen(true)} />
           {spotifyDisponivel() && (
             <Linha
               icone="musical-notes"
@@ -542,14 +543,14 @@ export function SettingsScreen({ navigation }: Props) {
         <Grupo rodape={resumoDoCatalogo ?? 'Fix artist names, titles and covers with a music catalogue, or find duplicates and songs that no longer play.'}>
           <Linha
             icone="pricetag"
-            rotulo={aIdentificar ? 'Stop identifying' : 'Identify library'}
+            rotulo={aIdentificar ? 'Stop identifying' : ROTULOS.identificar}
             acao
             valor={progresso ? `${progresso.feitas} of ${progresso.total}` : null}
             aCarregar={aIdentificar && !progresso}
             desativada={offline && !aIdentificar}
             aoTocar={aIdentificar ? () => { pararIdentificacao.current = true; } : () => void identificarBiblioteca()}
           />
-          <Linha icone="checkmark-done" rotulo="Library check" chevron aoTocar={() => navigation.navigate('LibraryCheck')} />
+          <Linha icone="checkmark-done" rotulo={ROTULOS.libraryCheck} chevron aoTocar={() => navigation.navigate('LibraryCheck')} />
         </Grupo>
 
         {/* O "Clear cache" apaga TODO o áudio guardado, os downloads feitos de
@@ -560,19 +561,19 @@ export function SettingsScreen({ navigation }: Props) {
         </Grupo>
 
         <Grupo titulo="Account" rodape={offline ? 'Offline · connect to manage your account.' : null}>
-          <Linha icone="mail" rotulo="Email" valor={session?.user?.email ?? '—'} />
-          <Linha icone="key" rotulo="Reset password" acao aCarregar={resettingPw} desativada={offline || resettingPw} aoTocar={() => void doResetPassword()} />
-          <Linha icone="log-out-outline" rotulo="Sign out" acao aoTocar={() => setSignOutOpen(true)} />
+          <Linha icone="mail" rotulo={ROTULOS.email} valor={session?.user?.email ?? '—'} />
+          <Linha icone="key" rotulo={ROTULOS.reporPassword} acao aCarregar={resettingPw} desativada={offline || resettingPw} aoTocar={() => void doResetPassword()} />
+          <Linha icone="log-out-outline" rotulo={ROTULOS.sair} acao aoTocar={() => setSignOutOpen(true)} />
         </Grupo>
         <Grupo>
           <Linha icone="heart-dislike" rotulo="Clear Liked Songs" perigo desativada={offline} aoTocar={() => setClearLibraryOpen(true)} />
-          <Linha icone="trash" rotulo="Delete account" perigo desativada={offline} aoTocar={() => setDeleteAccountOpen(true)} />
+          <Linha icone="trash" rotulo={ROTULOS.apagarConta} perigo desativada={offline} aoTocar={() => setDeleteAccountOpen(true)} />
         </Grupo>
 
         {/* O relatório vai pela folha de partilha: quem precisa dele é quem o
             vai mandar a alguém. */}
         <Grupo titulo="About" rodape="If a song won't play, send this so it can be fixed.">
-          <Linha icone="information-circle" rotulo="Version" valor={APP_VERSION} />
+          <Linha icone="information-circle" rotulo={ROTULOS.versao} valor={APP_VERSION} />
           <Linha
             icone="paper-plane"
             rotulo="Send playback report"

@@ -1,6 +1,5 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Text, View } from 'react-native';
 import { checkIsSaved, removeFromLibrary, saveToLibrary } from '../api/library';
 import { declineOrRemoveFriendship, shareItem, type Friendship } from '../api/social';
 import { lerMisturaDosDois } from '../api/vocesOsDois';
@@ -8,7 +7,8 @@ import { FriendAvatar } from '../components/FriendAvatar';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { estaFixado } from '../lib/atalhosDaLateral';
 import { contextoDaPrateleira } from '../lib/contextoDaDescoberta';
-import { faixaDoAmigo, opcoesDoMenuDoAmigo, posicaoDoMenu, type AcaoDoAmigo } from '../lib/menuDoAmigo';
+import { faixaDoAmigo, opcoesDoMenuDoAmigo, type AcaoDoAmigo } from '../lib/menuDoAmigo';
+import { MenuDeContexto } from './MenuDeContexto.web';
 import { useAtalhosDaLateral } from '../state/atalhosDaLateral';
 import { useAuth } from '../state/auth';
 import { ouvirComAmigo } from '../state/ouvirComAmigo';
@@ -18,8 +18,7 @@ import { useSaved } from '../state/saved';
 import { useSocial } from '../state/social';
 import type { Route } from './rotas';
 import { COR, FONT } from './tokens.web';
-import { Button, Dialog, marcar } from './ui.web';
-import { pausarAtalhosDaJanela } from './useAtalhosDaJanela.web';
+import { Button, Dialog } from './ui.web';
 import { novaEscolha } from '../lib/ultimaEscolha';
 
 // Sem tipos instalados para o react-dom; só se usa o portal (como na lateral).
@@ -55,40 +54,6 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
   const fixado = estaFixado(atalhos, `amigo:${amigo.friendId}`);
   const faixaGuardada = !!faixa && guardadas.has(`${faixa.source}:${faixa.sourceId}`);
   const linhas = opcoesDoMenuDoAmigo({ nome, faixa: faixa ? { titulo: faixa.title } : null, temJam: !!sessaoDele, faixaGuardada, estouNumJam, tenhoFaixa, fixado });
-
-  const caixa = useRef<any>(null);
-  const itens = useRef<any[]>([]);
-  const [onde, setOnde] = useState<{ x: number; y: number } | null>(null);
-
-  useEffect(() => {
-    pausarAtalhosDaJanela(true);
-    const fora = (e: MouseEvent) => { if (!caixa.current?.contains?.(e.target)) aoFechar(); };
-    const tecla = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.preventDefault(); aoFechar(); return; }
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
-      e.preventDefault();
-      const lista = itens.current.filter(Boolean);
-      if (!lista.length) return;
-      const agora = lista.indexOf(document.activeElement);
-      const proximo = e.key === 'Home' ? 0 : e.key === 'End' ? lista.length - 1
-        : e.key === 'ArrowDown' ? (agora + 1) % lista.length : (agora <= 0 ? lista.length - 1 : agora - 1);
-      lista[proximo]?.focus?.();
-    };
-    const fechar = () => aoFechar();
-    document.addEventListener('mousedown', fora, true);
-    window.addEventListener('keydown', tecla, true);
-    window.addEventListener('blur', fechar);
-    window.addEventListener('resize', fechar);
-    window.addEventListener('wheel', fechar, { passive: true });
-    return () => {
-      pausarAtalhosDaJanela(false);
-      document.removeEventListener('mousedown', fora, true);
-      window.removeEventListener('keydown', tecla, true);
-      window.removeEventListener('blur', fechar);
-      window.removeEventListener('resize', fechar);
-      window.removeEventListener('wheel', fechar);
-    };
-  }, [aoFechar]);
 
   const executar = async (id: AcaoDoAmigo) => {
     aoFechar();
@@ -171,51 +136,21 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
   };
 
   const estado = faixa ? `${tituloDaFaixa(faixa)} · ${displayArtist(faixa)}` : amigo.online ? 'Online' : 'Offline';
-  const virado = onde ? { x: onde.x < rato.x, y: onde.y < rato.y } : { x: false, y: false };
-
-  return createPortal(
-    <View
-      ref={caixa}
-      accessibilityRole={'menu' as any}
-      accessibilityLabel={`Options for ${nome}`}
-      onLayout={(e) => {
-        if (onde) return;
-        const { width, height } = e.nativeEvent.layout;
-        setOnde(posicaoDoMenu(rato, { largura: width, altura: height }, { largura: window.innerWidth, altura: window.innerHeight }));
-      }}
-      {...(onde ? marcar('menu-amigo') : {})}
-      style={{
-        position: 'fixed', zIndex: 300, width: LARGURA, left: onde?.x ?? rato.x, top: onde?.y ?? rato.y,
-        opacity: onde ? 1 : 0, padding: 6, borderRadius: 14, backgroundColor: '#18181F',
-        borderWidth: 1, borderColor: '#33333C', boxShadow: '0 16px 40px rgba(0,0,0,.55)',
-        transformOrigin: `${virado.y ? 'bottom' : 'top'} ${virado.x ? 'right' : 'left'}`,
-      } as any}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 8, paddingTop: 8, paddingBottom: 10 }}>
-        <FriendAvatar avatarUrl={amigo.avatarUrl} name={nome} size={36} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 14, fontWeight: '700', color: COR.texto }}>{nome}</Text>
-          <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 12, color: COR.textoMedio, marginTop: 1 }}>{estado}</Text>
-        </View>
+  // O menu de contexto comum do PC (5/10, MenuDeContexto.web.tsx).
+  return <MenuDeContexto
+    rato={rato}
+    rotulo={`Options for ${nome}`}
+    cabecalho={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <FriendAvatar avatarUrl={amigo.avatarUrl} name={nome} size={36} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 14, fontWeight: '700', color: COR.texto }}>{nome}</Text>
+        <Text numberOfLines={1} style={{ fontFamily: FONT.body, fontSize: 12, color: COR.textoMedio, marginTop: 1 }}>{estado}</Text>
       </View>
-      {linhas.map((l, i) => (
-        <React.Fragment key={l.id}>
-          {l.inicioDeGrupo ? <View style={{ height: 1, backgroundColor: COR.linhaSuave, marginVertical: 5, marginHorizontal: 6 }} /> : null}
-          <Pressable
-            ref={(n: any) => { itens.current[i] = n; }}
-            accessibilityRole={'menuitem' as any}
-            {...marcar('menu-linha')}
-            onPress={() => { void executar(l.id); }}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 9, paddingHorizontal: 10, borderRadius: 9 }}
-          >
-            <Ionicons name={l.icone as any} size={17} color={l.perigo ? COR.erro : COR.textoMedio} />
-            <Text numberOfLines={1} style={{ flex: 1, fontFamily: FONT.body, fontSize: 13.5, color: l.perigo ? COR.erro : COR.texto }}>{l.rotulo}</Text>
-          </Pressable>
-        </React.Fragment>
-      ))}
-    </View>,
-    document.body,
-  );
+    </View>}
+    linhas={linhas.map((l) => ({ id: l.id, rotulo: l.rotulo, icone: l.icone, perigo: l.perigo, inicioDeGrupo: l.inicioDeGrupo }))}
+    aoEscolher={(id) => { void executar(id as AcaoDoAmigo); }}
+    aoFechar={aoFechar}
+  />;
 }
 
 /** A confirmação de remover um amigo (o menu já fechou quando ela abre). */

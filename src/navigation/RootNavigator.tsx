@@ -1,4 +1,5 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
+import { registarToque } from '../lib/ultimoToque';
 import {useReducedMotion} from '../hooks/useReducedMotion';
 import { OfflineNotice,withInternet } from '../components/OfflineNotice';
 import { useConnectivity } from '../state/connectivity';
@@ -331,7 +332,10 @@ export function RootNavigator() {
       onReady={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); atualizarDoca(navigationRef.getRootState()); }}
       onStateChange={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); atualizarDoca(navigationRef.getRootState()); }}
     >
-      <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      {/* Onde foi o último toque, para os menus nascerem junto ao dedo
+          (5/10, lib/ultimoToque.ts). Na captura: antes de qualquer botão, e
+          sem nunca ficar com o toque. */}
+      <View style={{ flex: 1, backgroundColor: colors.bg }} onStartShouldSetResponderCapture={(e) => { registarToque(e.nativeEvent.pageX, e.nativeEvent.pageY); return false; }}>
         {session || offlineUserId ? (
           <View style={{ flex: 1, backgroundColor: '#000' }}>
             {/* A app recua quando o leitor abre (2/10): encolhe, ganha os cantos

@@ -1,5 +1,6 @@
 /**
- * O menu do botão direito num amigo (PC, 2/10, maquete
+ * O menu de um amigo: o botão direito na lateral do PC e, desde 5/10, o toque
+ * longo no Social do iPhone (PC, 2/10, maquete
  * `docs/mensagens-e-menu-do-amigo.html`): que ações há, por que ordem, com que
  * nome. O componente (`desktop/MenuDoAmigo.web.tsx`) só desenha e liga cada
  * `id` a uma função -- a regra dos menus das faixas (`lib/menuDaFaixa.ts`).
@@ -63,6 +64,11 @@ export type SituacaoDoAmigo = {
   tenhoFaixa: boolean;
   /** Ele já está fixado na lateral. */
   fixado: boolean;
+  /**
+   * No iPhone não há lateral para fixar (5/10: o mesmo menu passou ao toque
+   * longo de um amigo no Social do iPhone). Sem nada, PC.
+   */
+  plataforma?: 'ios' | 'pc';
 };
 
 export function opcoesDoMenuDoAmigo(s: SituacaoDoAmigo): LinhaDoMenuDoAmigo[] {
@@ -83,10 +89,8 @@ export function opcoesDoMenuDoAmigo(s: SituacaoDoAmigo): LinhaDoMenuDoAmigo[] {
     { id: 'jam', rotulo: s.estouNumJam ? 'Invite to your Jam' : `Start a Jam with ${s.nome}`, icone: 'people-circle-outline' },
   );
   if (s.tenhoFaixa) linhas.push({ id: 'partilhar', rotulo: "Send what you're playing", icone: 'paper-plane-outline' });
-  linhas.push(
-    { id: 'fixar', rotulo: s.fixado ? 'Unpin from sidebar' : 'Pin to sidebar', icone: s.fixado ? 'pin' : 'pin-outline', inicioDeGrupo: true },
-    { id: 'remover', rotulo: 'Remove friend', icone: 'person-remove-outline', perigo: true },
-  );
+  if (s.plataforma !== 'ios') linhas.push({ id: 'fixar', rotulo: s.fixado ? 'Unpin from sidebar' : 'Pin to sidebar', icone: s.fixado ? 'pin' : 'pin-outline', inicioDeGrupo: true });
+  linhas.push({ id: 'remover', rotulo: 'Remove friend', icone: 'person-remove-outline', perigo: true, inicioDeGrupo: s.plataforma === 'ios' });
   // O primeiro de todos não leva separador por cima.
   if (linhas[0]) linhas[0] = { ...linhas[0], inicioDeGrupo: false };
   return linhas;

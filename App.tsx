@@ -113,7 +113,8 @@ if (Platform.OS === 'ios') definirPodeTocarSemRede(tocaSemRede);
 if (Platform.OS === 'ios') definirDescarregadorNativo(descarregadorNativo);
 // O "Jump back in" da Home do iPhone (3/10, lib/recentes.ts): cada lista nova
 // com origem entra à frente.
-if (Platform.OS === 'ios') instalarRecentes();
+// Também no PC desde 5/10 (auditoria de consistência A4, `desktop/VoltarAOuvir.web.tsx`).
+instalarRecentes();
 // A sessão do leitor grava-se no disco de 30 em 30 s em segundo plano (não de 3 em 3).
 definirEmSegundoPlano(() => AppState.currentState === 'background');
 // Sair da conta leva a música e a fila de quem sai (state/auth.ts), por todas as
@@ -226,7 +227,7 @@ export default function App() {
    * outra pessoa.
    */
   // Os recentes da Home são da conta (no aparelho): trocar de conta troca-os.
-  useEffect(() => { if (Platform.OS === 'ios') void carregarRecentes(userId ?? null); }, [userId]);
+  useEffect(() => { void carregarRecentes(userId ?? null); }, [userId]);
 
   useEffect(() => {
     if (!userId) { usePlaylists.getState().limpar(); return; }

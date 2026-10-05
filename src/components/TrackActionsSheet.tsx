@@ -2,11 +2,9 @@ import { useOfflineMode } from '../hooks/useOfflineMode';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Image } from 'expo-image';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { hapticImpact, hapticNotification } from '../lib/haptics';
-import { colors, radii, spacing, type } from '../theme';
+import { useWindowDimensions } from 'react-native';
+import { hapticNotification } from '../lib/haptics';
 import type { Track } from '../types';
 import { contextoParaAnalytics, type DiscoveryContext } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
@@ -16,11 +14,11 @@ import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { savedKey, useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
 import { navigationRef } from '../navigation/RootNavigator';
-import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
+import { MenuFlutuante, type Ancora } from './MenuFlutuante';
+import type { PlayerAction } from './PlayerActionsSheet';
+import { ancoraDoUltimoToque } from '../lib/ultimoToque';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
-import { capaParaLista } from '../lib/capaDoEcraBloqueado';
-import { ArtworkCollage } from './ArtworkCollage';
 import { avisarErro } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 
@@ -57,6 +55,11 @@ interface Props {
 /**
  * O menu de uma faixa nas listas do iPhone (toque longo e "…").
  *
+ * Desde 5/10 é o MENU junto ao dedo (`MenuFlutuante`), como o "⋯" do leitor e
+ * as escolhas das Definições (auditoria de consistência M1): o mesmo gesto
+ * abria uma folha de baixo numa lista e um menu no leitor. As folhas ficam
+ * para as tarefas que vêm a seguir (Add to playlist, Share, Recommendations).
+ *
  * As linhas, a ordem e os nomes vêm de lib/menuDaFaixa.ts. Cada ecrã tinha a
  * sua lista -- a Pesquisa sem "Remove", as Songs sem "Save", a playlist sem
  * "Add to playlist" e com um "Remover da playlist" em português -- e agora
@@ -65,7 +68,7 @@ interface Props {
  */
 export function TrackActionsSheet({ visible, track, onClose, actions = [], cabecalho, discoveryContext, playlist, aoMudarBiblioteca }: Props) {
   const offline = useOfflineMode();
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [recommendationTrack, setRecommendationTrack] = React.useState<Track | null>(null);
   const [paraPartilhar, setParaPartilhar] = React.useState<Track | null>(null);
   const [paraPlaylist, setParaPlaylist] = React.useState<Track | null>(null);
@@ -117,71 +120,36 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
     }
   };
 
+  // A ação corre DEPOIS de o menu sair do ecrã (o `aoFechado` do
+  // MenuFlutuante): abrir uma folha enquanto a janela do menu ainda fecha
+  // deixava uma janela órfã a engolir os toques. A função guardada é a deste
+  // desenho, com a faixa de quando se escolheu -- o pai pode já a ter largado.
+  const pendente = React.useRef<(() => void) | null>(null);
+  const escolher = (f: () => void) => { pendente.current = f; onClose(); };
+  const accoes: PlayerAction[] = track
+    ? menu.map((a) => ({ label: a.rotulo, icon: a.icone as any, destructive: a.destrutiva, motivo: a.indisponivel, onPress: () => escolher(() => fazer(a.id)) }))
+    : actions.map((a) => ({ label: a.label, icon: a.icon, destructive: a.destructive, onPress: () => escolher(a.onPress) }));
+  const titulo = track
+    ? `${tituloDaFaixa(track)}${track.artist ? ` · ${nomeDoArtista}` : ''}`
+    : cabecalho ? `${cabecalho.titulo}${cabecalho.subtitulo ? ` · ${cabecalho.subtitulo}` : ''}` : null;
+  // Nasce junto ao dedo que o pediu (5/10, lib/ultimoToque.ts), como o "⋯" do leitor.
+  const ancora = React.useMemo<Ancora | null>(
+    () => (visible ? ancoraDoUltimoToque({ largura: width, altura: height }) : null),
+    // Só ao abrir: rodar o ecrã com o menu aberto não o muda de sítio.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visible],
+  );
+
   return (
     <>
-      <BottomSheet visible={visible} onClose={onClose}>
-        <BottomSheetScrollView style={{maxHeight:height*0.75}} keyboardShouldPersistTaps="handled">
-        {track ? (
-          <View style={styles.header}>
-            {track.artworkUrl ? (
-              <Image
-                source={{ uri: capaParaLista(track.artworkUrl)! }}
-                style={styles.art}
-                contentFit="cover"
-              />
-            ) : (
-              <View style={[styles.art, styles.artFallback]}>
-                <Ionicons
-                  name="musical-notes"
-                  size={16}
-                  color={colors.textTertiary}
-                />
-              </View>
-            )}
-            <View style={{ flex: 1, gap: 3 }}>
-              <Text numberOfLines={1} style={[type.headline]}>
-                {tituloDaFaixa(track)}
-              </Text>
-              {track.artist ? (
-                <Text numberOfLines={1} style={type.caption}>
-                  {nomeDoArtista}
-                </Text>
-              ) : null}
-            </View>
-          </View>
-        ) : cabecalho ? (
-          <View style={styles.header}>
-            <ArtworkCollage artworks={cabecalho.capas} size={44} />
-            <View style={{ flex: 1, gap: 3 }}>
-              <Text numberOfLines={1} style={[type.headline]}>{cabecalho.titulo}</Text>
-              {cabecalho.subtitulo ? <Text numberOfLines={1} style={type.caption}>{cabecalho.subtitulo}</Text> : null}
-            </View>
-          </View>
-        ) : null}
-
-        {track
-          ? menu.map((a) => (
-              <Linha
-                key={a.id}
-                icone={a.icone}
-                rotulo={a.rotulo}
-                motivo={a.indisponivel}
-                destrutiva={a.destrutiva}
-                onPress={() => fazer(a.id)}
-              />
-            ))
-          : actions.map((a) => (
-              <Linha
-                key={a.label}
-                icone={a.icon}
-                rotulo={a.label}
-                motivo={null}
-                destrutiva={!!a.destructive}
-                onPress={a.onPress}
-              />
-            ))}
-        </BottomSheetScrollView>
-      </BottomSheet>
+      <MenuFlutuante
+        visivel={visible}
+        ancora={ancora}
+        accoes={accoes}
+        titulo={titulo}
+        aoFechar={onClose}
+        aoFechado={() => { const f = pendente.current; pendente.current = null; f?.(); }}
+      />
 
       <RecommendationPreferences visible={!!recommendationTrack} track={recommendationTrack} reason={discoveryContext?.reason} onClose={()=>setRecommendationTrack(null)}/>
       <AddToPlaylistSheet visible={!!paraPlaylist} track={paraPlaylist} onClose={() => setParaPlaylist(null)} />
@@ -194,66 +162,3 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
     </>
   );
 }
-
-/** Uma linha: indisponível fica à vista, apagada, e diz porquê por baixo. */
-function Linha({ icone, rotulo, motivo, destrutiva, onPress }: {
-  icone: string;
-  rotulo: string;
-  motivo: string | null;
-  destrutiva: boolean;
-  onPress: () => void;
-}) {
-  const apagada = !!motivo;
-  const cor = destrutiva ? colors.danger : colors.text;
-  return (
-    <Pressable
-      disabled={apagada}
-      accessibilityRole="button"
-      accessibilityLabel={motivo ? `${rotulo}. ${motivo}` : rotulo}
-      accessibilityState={{ disabled: apagada }}
-      onPress={() => { hapticImpact(); onPress(); }}
-      style={({ pressed }) => [styles.action, pressed && !apagada && { backgroundColor: colors.surfacePressed }]}
-    >
-      <Ionicons name={icone as keyof typeof Ionicons.glyphMap} size={20} color={cor} style={apagada && styles.apagada} />
-      <View style={{ flex: 1 }}>
-        <Text style={[type.body, { fontWeight: '600', color: cor }, apagada && styles.apagada]}>{rotulo}</Text>
-        {motivo ? <Text style={[type.caption, styles.motivo]}>{motivo}</Text> : null}
-      </View>
-    </Pressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-    marginBottom: spacing.sm,
-  },
-  art: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.sm,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surface,
-  },
-  artFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  action: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.md,
-    borderCurve: 'continuous',
-  },
-  apagada: { opacity: 0.4 },
-  motivo: { marginTop: 2, color: colors.textSecondary },
-});

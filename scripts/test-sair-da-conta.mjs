@@ -41,8 +41,12 @@ for (const [plataforma, ficheiro] of Object.entries(ECRAS)) {
   const ecra = ler(ficheiro);
   verificar(`${plataforma}: as Definições têm Sign out e Reset password`, () => {
     // O iPhone passou à lista agrupada (4/10): a linha leva `rotulo`.
-    assert.match(ecra, /(?:label|rotulo)="Sign out"/);
-    assert.match(ecra, /Reset password/);
+    // Os nomes vivem em lib/rotulosDasDefinicoes.ts desde 5/10 (iguais nos dois lados).
+    assert.match(ecra, /(?:label|rotulo)=\{ROTULOS\.sair\}/);
+    assert.match(ecra, /ROTULOS\.reporPassword/);
+    const rotulos = fs.readFileSync(new URL('../src/lib/rotulosDasDefinicoes.ts', import.meta.url), 'utf8');
+    assert.match(rotulos, /sair: 'Sign out'/);
+    assert.match(rotulos, /reporPassword: 'Reset password'/);
     assert.match(ecra, /\.signOut\(\)|signOut\(\);/);
   });
   verificar(`${plataforma}: o ecrã não fecha o leitor por conta própria (é o signOut que o faz)`, () => {

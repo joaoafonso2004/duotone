@@ -30,7 +30,10 @@ export type Route =
   | { name: 'stats';userId?:string }
   | { name: 'spotify-import' }
   /** O Library check, que se abre das Definições. */
-  | { name: 'library-check' };
+  | { name: 'library-check' }
+  /** "You two" e o ano em revista (5/10): só existiam no iPhone. */
+  | { name: 'voces-os-dois'; userId: string; nome?: string }
+  | { name: 'retrospetiva'; ano?: number; userId?: string };
 
 /** O que se pode partilhar com um amigo. */
 export type ShareTarget =

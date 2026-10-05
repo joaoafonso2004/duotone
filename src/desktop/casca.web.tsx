@@ -407,6 +407,8 @@ export function Sidebar({ route, navigate, notify }: { route: Route; navigate: (
   const active = route.name === 'artist' ? 'artists'
     : route.name === 'mistura' ? 'search'
     : route.name === 'library-check' ? 'settings'
+    : route.name === 'stats' || route.name === 'retrospetiva' ? 'profile'
+    : route.name === 'voces-os-dois' ? 'social'
     : route.name === 'playlist' || route.name === 'import' ? 'playlists' : route.name;
 
   const [name,setName]=useState('Profile');
