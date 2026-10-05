@@ -971,5 +971,47 @@ console.log('\no último toque ganha (2/10, o Mix que chegava depois)');
   eq('uma troca interna (rádio, motor) não conta', interno(), true);
 }
 
+// Recommendations must never teach the next request a progressively different genre.
+{
+  preparar({autoplayRadio:false});
+  controlo.sessao='regression-context';
+  const original={...faixa('anchor'),artist:'Isak Zigarro'};
+  await usePlayer.getState().playTrack(original,[original]);
+  usePlayer.getState()._onYtStateChange('playing');
+  usePlayer.setState({shuffle:true,shuffleInteligente:true});
+  controlo.candidatas=[{...faixa('discovery-hop'),artist:'Neighbour'}];
+  eq('insere a sugestão para testar o avanço real',await usePlayer.getState().semearSugestoes(),1);
+  await usePlayer.getState().next(false);
+  usePlayer.getState()._onYtStateChange('playing');
+  controlo.candidatas=[];
+  await usePlayer.getState().intercalarSugestao();
+  eq('sugestões não substituem as âncoras escolhidas',controlo.contextosDaDescoberta.at(-1)?.map(t=>t.sourceId).join(','),'anchor');
+  usePlayer.setState({autoplayRadio:true});
+  await usePlayer.getState().extendQueueWithRadio();
+  eq('o fim da fila Smart usa o rádio estrito sem Flow',controlo.radioModos.at(-1),'session');
+  eq('a continuação usa a escolha original',controlo.radioContextos.at(-1)?.map(t=>t.sourceId).join(','),'anchor');
+  // Choosing a suggested song explicitly makes it a valid new anchor.
+  const current=usePlayer.getState().current!;
+  await usePlayer.getState().playTrack(current,[current]);
+  usePlayer.setState({shuffle:true,shuffleInteligente:true});
+  await usePlayer.getState().intercalarSugestao();
+  eq('uma escolha explícita ainda pode mudar o contexto',controlo.contextosDaDescoberta.at(-1)?.[0].sourceId,'discovery-hop');
+}
+for(const action of ['semearSugestoes','intercalarSugestao'] as const){
+  preparar({autoplayRadio:false});controlo.sessao='late-context-'+action;
+  const a={...faixa('a-context'),artist:'Isak Zigarro'},b={...faixa('b-context'),artist:'Bruno Mars'};
+  await usePlayer.getState().playTrack(a,[a,b]);
+  usePlayer.setState({shuffle:true,shuffleInteligente:true});
+  let resolve!:(tracks:Track[])=>void;
+  controlo.candidatasPendentes.push(new Promise(r=>{resolve=r;}));
+  const pending=usePlayer.getState()[action]();
+  await assentar();
+  // A native next can change genre without replacing the queue or generation.
+  usePlayer.setState({current:b,queueIndex:1});
+  resolve([faixa('late-unrelated')]);
+  eq(action+': mudança de ambiente rejeita o pedido antigo',!!await pending,false);
+  check(action+': nenhuma sugestão antiga ficou na fila',!ids().includes('late-unrelated'));
+}
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

@@ -36,6 +36,7 @@ export function SocialScreen() {
   return <Screen title="Social" right={<SocialIconButton label="Start a conversation" icon="person-add-outline" onPress={()=>setNovaConversa(true)}/>}
     onBack={()=>separadores.navigate('Profile')} encolhe={cab}>
     <SocialHub cabecalho={cab} novaConversa={{aberta:novaConversa,definir:setNovaConversa}} visible={focused} initialFriend={openChatWithFriendId} initialGroup={openGroupId}
+      onConversation={(kind,id)=>navigation.navigate('Conversa',{kind,id})}
       onProfile={id=>navigation.navigate('FriendProfile',{userId:id})}
       onArtist={name=>navigation.navigate('LibraryGroup',{type:'artist',name})}
       onPlaylist={id=>navigation.navigate('PlaylistDetail',{id,name:'Playlist partilhada'})}/>

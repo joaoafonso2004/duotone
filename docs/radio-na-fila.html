@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Radio na fila</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fundo:#060608;--hover:rgba(233,234,238,.07);
+  --linha:rgba(233,234,238,.10);--linhaSuave:rgba(233,234,238,.055);
+  --texto:#E9EAEE;--medio:#9DA0AA;--fraco:#84868F;--metalSuave:rgba(233,234,238,.12);
+  --display:"Archivo",system-ui,sans-serif;--body:"Public Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--texto);font-family:var(--body)}
+.pagina{max-width:1180px;margin:0 auto;padding:40px 16px 80px}
+h1{font-family:var(--display);font-size:30px;letter-spacing:-.5px;margin:0 0 8px}
+.intro{color:var(--medio);font-size:15px;line-height:1.6;max-width:760px;margin:0 0 28px}
+h2{font-family:var(--display);font-size:20px;margin:44px 0 6px;display:flex;align-items:center;gap:10px}
+h2 .rec{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:#0b0b0d;background:var(--texto);border-radius:4px;padding:3px 7px}
+.nota{color:var(--medio);font-size:14px;line-height:1.6;max-width:820px;margin:0 0 16px}
+.nota b{color:var(--texto);font-weight:600}
+.dica{font-family:var(--mono);font-size:11px;color:var(--fraco);margin:0 0 12px}
+.par{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+@media (max-width:860px){.par{grid-template-columns:1fr}}
+
+/* o fundo do Now Playing: a capa desfocada, como no ecrã do João */
+.palco{position:relative;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.08);
+  background:radial-gradient(700px 420px at 15% 20%,#3a2a1c 0%,transparent 70%),radial-gradient(600px 400px at 85% 90%,#22160f 0%,transparent 70%),#0d0b0a}
+.palco:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(6,6,8,.35));pointer-events:none}
+.pc{position:relative;z-index:1;display:grid;grid-template-columns:230px minmax(0,1fr);gap:40px;padding:28px 28px 22px;min-height:470px}
+@media (max-width:620px){.pc{grid-template-columns:1fr}.pc .lado{display:none}}
+.capaG{width:230px;height:230px;border-radius:12px;box-shadow:0 22px 60px rgba(0,0,0,.5);border:1px solid rgba(233,234,238,.12)}
+.nt{font-family:var(--display);font-size:22px;font-weight:700;margin-top:16px}
+.na{font-size:14px;color:var(--medio);margin-top:2px}
+.icones{display:flex;align-items:center;gap:4px;margin-top:14px}
+.ico{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;color:var(--medio);cursor:pointer;position:relative}
+.ico:hover{background:var(--hover);color:var(--texto)}
+.ico svg{width:19px;height:19px}
+.ico.on{color:var(--texto)}
+.ico.on:after{content:"";position:absolute;bottom:1px;width:4px;height:4px;border-radius:50%;background:var(--texto)}
+.fio{width:1px;height:18px;background:var(--linha);margin:0 6px}
+
+.cab{display:flex;align-items:center;gap:10px;padding:2px 8px 12px}
+.cab .h{font-family:var(--display);font-size:18px;font-weight:600}
+.cab .n{font-family:var(--mono);font-size:12px;color:var(--fraco)}
+.cab .esp{flex:1}
+.txt{font-size:13px;font-weight:600;color:var(--medio);cursor:pointer;padding:6px 8px;border-radius:7px;background:none;border:0;font-family:inherit}
+.txt:hover{background:var(--hover);color:var(--texto)}
+.linha{display:flex;align-items:center;gap:12px;height:50px;padding:0 8px;border-radius:8px}
+.linha:hover{background:var(--hover)}
+.linha .c{width:38px;height:38px;border-radius:5px;flex:none}
+.linha .tt{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.linha .aa{font-size:12px;color:var(--medio);margin-top:2px}
+.linha .d{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--fraco)}
+.lista{transition:opacity .25s}
+.lista.troca{opacity:.25}
+.rodape{font-size:12px;color:var(--fraco);padding:12px 8px 0;border-top:1px solid var(--linhaSuave);margin-top:6px}
+
+/* A: a pastilha no cabeçalho */
+.chip{display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 11px 0 9px;border-radius:999px;border:1px solid rgba(233,234,238,.16);
+  background:transparent;color:var(--medio);font:600 12.5px var(--body);cursor:pointer;transition:background .18s,color .18s,border-color .18s}
+.chip:hover{background:var(--hover);color:var(--texto)}
+.chip svg{width:15px;height:15px}
+.chip.on{background:rgba(233,234,238,.12);border-color:rgba(233,234,238,.22);color:var(--texto)}
+.chip.prep{color:var(--texto)}
+.ondas i{display:inline-block;width:2px;border-radius:1px;background:currentColor;margin:0 .5px;height:5px;vertical-align:middle;animation:onda 1s ease-in-out infinite}
+.ondas i:nth-child(2){animation-delay:.15s}.ondas i:nth-child(3){animation-delay:.3s}
+@keyframes onda{0%,100%{height:4px}50%{height:11px}}
+.gira{width:13px;height:13px;border-radius:50%;border:2px solid rgba(233,234,238,.25);border-top-color:var(--texto);animation:gira .8s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+.desfazer{font-size:12.5px;color:var(--medio);text-decoration:underline;cursor:pointer;background:none;border:0;font-family:inherit;padding:4px}
+
+/* B: no fim da fila */
+.fim{display:flex;align-items:center;gap:12px;padding:12px 8px 0;border-top:1px solid var(--linhaSuave);margin-top:6px}
+.fim .bola{width:38px;height:38px;border-radius:50%;border:1px solid rgba(233,234,238,.16);display:grid;place-items:center;color:var(--medio);flex:none}
+.fim .bola svg{width:18px;height:18px}
+.fim .t{font-size:14px;font-weight:600}
+.fim .s{font-size:12px;color:var(--medio);margin-top:2px}
+.fantasma{margin-left:auto;height:30px;padding:0 14px;border-radius:999px;border:1px solid rgba(233,234,238,.18);background:transparent;color:var(--texto);font:600 12.5px var(--body);cursor:pointer}
+.fantasma:hover{background:var(--hover)}
+.etiqueta{font-family:var(--mono);font-size:10px;letter-spacing:1.2px;color:var(--fraco);border:1px solid var(--linha);border-radius:4px;padding:2px 6px}
+
+/* iPhone: a folha da fila */
+.tel{width:300px;height:560px;border-radius:38px;border:1px solid rgba(255,255,255,.1);overflow:hidden;position:relative;
+  background:radial-gradient(260px 300px at 30% 10%,#3a2a1c,transparent 70%),#0d0b0a;justify-self:center}
+.folha{position:absolute;left:0;right:0;bottom:0;top:96px;border-radius:22px 22px 0 0;background:rgba(18,16,15,.78);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);padding:8px 16px 0}
+.pega{width:36px;height:4px;border-radius:2px;background:rgba(233,234,238,.25);margin:0 auto 12px}
+.agora{display:flex;align-items:center;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--linhaSuave)}
+.agora .c{width:44px;height:44px;border-radius:6px}
+.micro{font-family:var(--mono);font-size:10px;letter-spacing:1.4px;color:var(--fraco);text-transform:uppercase}
+.tel .cab{padding:14px 0 8px}
+.tel .linha{padding:0;height:48px}
+.tel .linha .d{display:none}
+.tel .chip{height:26px;font-size:12px}
+
+/* cores das capas */
+.k1{background:linear-gradient(135deg,#7a1d22,#1a0b0c)}.k2{background:linear-gradient(135deg,#2fa3c9,#0c2b3a)}
+.k3{background:linear-gradient(135deg,#3b3f45,#0c0d0f)}.k4{background:linear-gradient(135deg,#4f6b8f,#15161c)}
+.k5{background:linear-gradient(135deg,#b3202a,#200508)}.k6{background:linear-gradient(135deg,#e2c13a,#2a1d05)}
+.k7{background:linear-gradient(135deg,#8f8f8f,#252525)}.k8{background:linear-gradient(135deg,#25c3c9,#2a0d3a)}
+.kA{background:linear-gradient(135deg,#c08a4a,#2c1608)}
+.r1{background:linear-gradient(135deg,#6d3fa0,#140b22)}.r2{background:linear-gradient(135deg,#d0662b,#2a0f05)}
+.r3{background:linear-gradient(135deg,#2b8a5a,#071a10)}.r4{background:linear-gradient(135deg,#9a9a3a,#1d1d06)}
+.r5{background:linear-gradient(135deg,#3a6ad0,#060e24)}.r6{background:linear-gradient(135deg,#c03a8a,#25051a)}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>O Radio na fila</h1>
+  <p class="intro">Hoje é uma caixa opaca com um interruptor por cima do Up next: não tem o vidro do resto do ecrã e pesa mais do que a própria fila. Três sítios para ele. Em todos fica transparente, faz o mesmo (troca o Up next por música parecida com esta sessão, com Undo) e é igual no PC e no iPhone. <b>Carrega no Radio de cada uma</b> para ver ligar.</p>
+
+  <h2>A · Pastilha no cabeçalho do Up next <span class="rec">RECOMENDADA</span></h2>
+  <p class="nota">Vive ao lado do <b>Clear</b>, que também mexe na fila. Pequena e transparente; ligada fica acesa com umas ondas, e o Undo aparece ao lado durante uns segundos. Continua à vista sem roubar espaço à lista.</p>
+  <div class="par">
+    <div class="palco"><div class="pc" data-variante="A">
+      <div class="lado"><div class="capaG kA"></div><div class="nt">wokeuplikethis*</div><div class="na">Playboi Carti</div>
+        <div class="icones"><span class="ico">♥</span><span class="ico">＋</span><span class="ico">⇪</span><span class="fio"></span><span class="ico">▭</span><span class="ico">≡</span></div></div>
+      <div><div class="cab"><span class="h">Up next</span><span class="n" data-n>10</span><span class="esp"></span>
+        <span data-undo></span><button class="chip" data-radio></button><button class="txt">Clear</button></div>
+        <div class="lista" data-lista></div><div class="rodape" data-rodape></div></div>
+    </div></div>
+    <div class="tel"><div class="folha" data-variante="A" data-tel>
+      <div class="pega"></div>
+      <div class="agora"><div class="c kA"></div><div><div style="font-weight:600;font-size:14px">wokeuplikethis*</div><div style="font-size:12px;color:var(--medio)">Playboi Carti</div></div></div>
+      <div class="cab"><span class="micro" data-micro>Up next (10)</span><span class="esp"></span><button class="chip" data-radio></button><button class="txt" style="padding:6px 0 6px 8px">Clear</button></div>
+      <div class="lista" data-lista></div>
+    </div></div>
+  </div>
+
+  <h2>B · No fim da fila</h2>
+  <p class="nota">Onde hoje está o "Then: radio based on what you're playing". Faz sentido no momento em que a fila acaba, mas numa fila comprida fica fora de vista. Ligado, o cabeçalho ganha a etiqueta <b>RADIO</b> e a linha passa a dizer como parar.</p>
+  <div class="par">
+    <div class="palco"><div class="pc" data-variante="B">
+      <div class="lado"><div class="capaG kA"></div><div class="nt">wokeuplikethis*</div><div class="na">Playboi Carti</div>
+        <div class="icones"><span class="ico">♥</span><span class="ico">＋</span><span class="ico">⇪</span><span class="fio"></span><span class="ico">▭</span><span class="ico">≡</span></div></div>
+      <div><div class="cab"><span class="h">Up next</span><span class="n" data-n>10</span><span data-etiqueta></span><span class="esp"></span><span data-undo></span><button class="txt">Clear</button></div>
+        <div class="lista" data-lista></div><div data-fim></div></div>
+    </div></div>
+    <div class="tel"><div class="folha" data-variante="B" data-tel>
+      <div class="pega"></div>
+      <div class="agora"><div class="c kA"></div><div><div style="font-weight:600;font-size:14px">wokeuplikethis*</div><div style="font-size:12px;color:var(--medio)">Playboi Carti</div></div></div>
+      <div class="cab"><span class="micro" data-micro>Up next (10)</span><span class="esp"></span><span data-undo></span><button class="txt" style="padding:6px 0 6px 8px">Clear</button></div>
+      <div class="lista" data-lista data-curta></div><div data-fim></div>
+    </div></div>
+  </div>
+
+  <h2>C · Junto aos ícones da reprodução (só PC)</h2>
+  <p class="nota">Um ícone ao lado de "outro aparelho", mini leitor e EQ, com o ponto por baixo quando está ligado. O mais discreto, mas um ícone sozinho não diz o que faz até se passar o rato. No iPhone ficaria como a A.</p>
+  <div class="palco"><div class="pc" data-variante="C">
+    <div class="lado"><div class="capaG kA"></div><div class="nt">wokeuplikethis*</div><div class="na">Playboi Carti</div>
+      <div class="icones"><span class="ico">♥</span><span class="ico">＋</span><span class="ico">⇪</span><span class="fio"></span><span class="ico">▭</span><span class="ico">≡</span><span class="ico" data-radio title="Radio"></span></div>
+      <div class="dica" style="margin-top:10px" data-legenda>Radio: off</div></div>
+    <div><div class="cab"><span class="h">Up next</span><span class="n" data-n>10</span><span data-etiqueta></span><span class="esp"></span><span data-undo></span><button class="txt">Clear</button></div>
+      <div class="lista" data-lista></div><div class="rodape" data-rodape></div></div>
+  </div></div>
+</div>
+
+<script>
+const ICONE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M8.2 8.2a5.4 5.4 0 0 0 0 7.6M15.8 8.2a5.4 5.4 0 0 1 0 7.6M5.4 5.4a9.3 9.3 0 0 0 0 13.2M18.6 5.4a9.3 9.3 0 0 1 0 13.2"/></svg>';
+const ONDAS='<span class="ondas"><i></i><i></i><i></i></span>';
+const FILA=[['Never Recover','Lil Baby, Gunna, Drake','3:16','k1'],['DOLLAZ ON MY HEAD','Gunna','3:18','k2'],['made for this shit','Gunna','2:14','k3'],
+  ['DONNY DARKO','Lil Uzi Vert','1:57','k4'],['Red Moon','Moon','2:52','k5'],['Got The Guap','Young Thug','2:57','k6'],['Worst Behavior','Drake','4:38','k7'],['POP','Lil Uzi Vert','3:48','k8']];
+const RADIO=[['Sky','Playboi Carti','3:13','r1'],['Lean 4 Real','Destroy Lonely','2:41','r2'],['XO Tour Llif3','Lil Uzi Vert','3:02','r3'],
+  ['Location','Playboi Carti','2:50','r4'],['If Looks Could Kill','Destroy Lonely','3:22','r5'],['Opium','Ken Carson','2:36','r6'],['Long Time','Playboi Carti','3:33','r1'],['Moshpit','Kankan','2:19','r2']];
+const linha=([t,a,d,k])=>`<div class="linha"><div class="c ${k}"></div><div style="min-width:0"><div class="tt">${t}</div><div class="aa">${a}</div></div><div class="d">${d}</div></div>`;
+
+document.querySelectorAll('[data-variante]').forEach(raiz=>{
+  const v=raiz.dataset.variante, tel=raiz.hasAttribute('data-tel');
+  let estado='off', undoAte=0, t1, t2;
+  const q=s=>raiz.querySelector(s);
+  function desenhar(){
+    const on=estado==='on', prep=estado==='prep';
+    const fila=on?RADIO:FILA, n=on?12:10;
+    const lista=q('[data-lista]');
+    lista.innerHTML=fila.slice(0,lista.hasAttribute('data-curta')?5:(tel?6:8)).map(linha).join('');
+    const nn=q('[data-n]'); if(nn) nn.textContent=n;
+    const mic=q('[data-micro]'); if(mic) mic.textContent=`Up next (${n})${on&&v!=='A'?' · Radio':''}`;
+    const et=q('[data-etiqueta]'); if(et) et.innerHTML=on?'<span class="etiqueta">RADIO</span>':'';
+    const u=q('[data-undo]'); if(u) u.innerHTML=on&&Date.now()<undoAte?'<button class="desfazer">Undo</button>':'';
+    u&&u.querySelector('button')?.addEventListener('click',()=>{estado='off';undoAte=0;desenhar();});
+    const rod=q('[data-rodape]'); if(rod) rod.textContent=on?'Radio keeps adding music like this session.':"Then: radio based on what you're playing";
+    const r=q('[data-radio]');
+    if(r){
+      if(v==='C'){ r.innerHTML=prep?'<span class="gira"></span>':ICONE; r.classList.toggle('on',on); q('[data-legenda]').textContent=on?'Radio: on · Up next is music like this session':prep?'Radio: starting…':'Radio: off'; }
+      else { r.className='chip'+(on?' on':'')+(prep?' prep':''); r.innerHTML=prep?'<span class="gira"></span>Starting…':on?ONDAS+'Radio on':ICONE+'Radio'; r.title=on?'Stop Radio':'Swap Up next for music like this session'; }
+    }
+    const fim=q('[data-fim]');
+    if(fim) fim.innerHTML=`<div class="fim"><div class="bola">${prep?'<span class="gira"></span>':on?ONDAS:ICONE}</div><div style="min-width:0"><div class="t">${on?'Radio is on':'Radio'}</div><div class="s">${on?'Adding music like this session':prep?'Finding music like this session…':'Swap Up next for music like this session'}</div></div><button class="fantasma" data-radio-b>${on?'Stop':prep?'…':'Start'}</button></div>`;
+    fim&&fim.querySelector('[data-radio-b]').addEventListener('click',alternar);
+  }
+  function alternar(){
+    clearTimeout(t1);clearTimeout(t2);
+    if(estado!=='off'){estado='off';undoAte=0;desenhar();return;}
+    estado='prep';q('[data-lista]').classList.add('troca');desenhar();
+    t1=setTimeout(()=>{estado='on';undoAte=Date.now()+6000;q('[data-lista]').classList.remove('troca');desenhar();t2=setTimeout(desenhar,6100);},900);
+  }
+  q('[data-radio]')?.addEventListener('click',alternar);
+  desenhar();
+});
+</script>
+</body>
+</html>

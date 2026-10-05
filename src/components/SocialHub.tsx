@@ -31,7 +31,10 @@ import { CabecalhoDoAmigo, FaixaPartilhada, FundoDaApp } from './ChatAmigo';
 import { SocialOverview } from './SocialOverview';
 import type { Playlist,Track } from '../types';
 
-export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup,cabecalho,novaConversa}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string;
+export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup,cabecalho,novaConversa,conversationTarget,onConversation,onCloseConversation}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string;
+  conversationTarget?: {kind:'friend'|'group';id:string};
+  onConversation?: (kind:'friend'|'group',id:string)=>void;
+  onCloseConversation?: ()=>void;
   novaConversa?: { aberta: boolean; definir: (aberta: boolean) => void };
   /** No iPhone (3/10): o título do Social encolhe ao rolar a lista, e ela começa por baixo dele. */
   cabecalho?:CabecalhoQueEncolhe}) {
@@ -42,7 +45,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const bottomPadding=useSocialBottomPadding();
   const accent=useTheme(s=>s.theme.color);
   const tema=useTheme(s=>s.theme);
-  const closeChat=()=>useSocial.setState({conversation:null});
+  const closeChat=()=>onCloseConversation ? onCloseConversation() : useSocial.setState({conversation:null});
   const social=useSocial(),myId=useAuth(x=>x.session?.user.id);
   const [tab,setTab]=useState<'friends'|'add'>('friends'),[query,setQuery]=useState(''),[results,setResults]=useState<PublicProfile[]>([]);
   const [error,setError]=useState(''),[busy,setBusy]=useState(false),[messages,setMessages]=useState<SharedItem[]>([]),[chatLoading,setChatLoading]=useState(false);
@@ -54,7 +57,9 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   const setComecar=novaConversa?.definir??setComecarLocal;
   const [groupEditor,setGroupEditor]=useState<string|null>(null),[groupName,setGroupName]=useState(''),[members,setMembers]=useState<string[]>([]);
   const [groupDetails,setGroupDetails]=useState<string|null>(null);
-  const conversation=social.conversation;
+  // No iOS a rota é dona do chat, inclusive durante o gesto de voltar.
+  // A lista por baixo não monta outro leitor de mensagens da mesma conversa.
+  const conversation=conversationTarget ?? (web ? social.conversation : null);
   const contact=conversation?.kind==='friend'?social.contacts.find(c=>c.id===conversation.id):null;
   const friend=conversation?.kind==='friend'?social.friends.find(f=>f.friendId===conversation.id) || (contact?{friendId:contact.id,name:contact.name,avatarUrl:contact.avatar_url,online:false,lastSeenAt:null,currentlyPlaying:null}:null):null;
   const group=conversation?.kind==='group'?social.groups.find(g=>g.id===conversation.id):null;
@@ -153,7 +158,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   /** Mensagens seguidas da mesma pessoa, dentro de cinco minutos, ficam sem o cabeçalho repetido. */
   const seguida=(m:SharedItem,index:number)=>{const antes=ordered[index+1];return !!antes&&antes.sender.id===m.sender.id&&new Date(m.createdAt).getTime()-new Date(antes.createdAt).getTime()<300000;};
   const setDraft=(text:string)=>useSocial.setState(x=>({drafts:{...x.drafts,[key]:text}}));
-  const open=(kind:'friend'|'group',id:string)=>useSocial.setState({conversation:{kind,id}});
+  const open=(kind:'friend'|'group',id:string)=>{useSocial.setState({conversation:{kind,id}});onConversation?.(kind,id);};
   const run=async(action:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await action();await social.refresh();}catch(e:any){setError(e.message || 'That did not go through.');}finally{setBusy(false);}};
   useEffect(()=>{if(initialFriend)open('friend',initialFriend);else if(initialGroup)open('group',initialGroup);},[initialFriend,initialGroup]);
   useEffect(()=>{setGroupDetails(null);setAResponder(null);setDestacada(null);},[key]);
@@ -355,13 +360,15 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
       </View></View>;
 
   return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>
-    <View style={{flex:1,minHeight:0,flexDirection:split?'row':'column',paddingHorizontal:web?SOCIAL_GUTTER:24,gap:split?24:0,paddingBottom:web?24:0}}>
+    {conversationTarget ? <View style={{flex:1,minHeight:0}}>
+      {groupHeader??amigoHeader??<View style={s.row}><SocialIconButton label="Back to chats" icon="chevron-back" onPress={closeChat}/><Text style={s.title}>{title}</Text></View>}
+      {chat}
+    </View> : <View style={{flex:1,minHeight:0,flexDirection:split?'row':'column',paddingHorizontal:web?SOCIAL_GUTTER:24,gap:split?24:0,paddingBottom:web?24:0}}>
       {(!web||split||!conversation)&&<View style={{flex:split?undefined:1,width:split?300:undefined,minHeight:0}}>{list}</View>}
       {web&&(split||!!conversation)&&<View style={{flex:1,minWidth:0,minHeight:0,borderWidth:1,borderColor:colors.borderStrong,borderRadius:14,overflow:'hidden'}}>
         {conversation?chat:<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:24,gap:12}}><Ionicons name="chatbubbles-outline" size={36} color={colors.textSecondary}/><Text style={s.title}>Your conversations</Text><Text style={[s.muted,{textAlign:'center'}]}>Choose a friend or group to open a conversation.</Text></View>}
       </View>}
-    </View>
-    {!web&&<SocialModal fullScreen visible={!!conversation&&visible&&!track&&!groupEditor&&!confirm&&!detailedGroup} title={title} header={groupHeader??amigoHeader} onClose={closeChat}>{chat}</SocialModal>}
+    </View>}
 
     {/* Procurar gente deixou de ser um separador ao lado das conversas: e uma
         coisa que se faz de vez em quando, e agora vive atras do icone. */}
@@ -396,7 +403,7 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
         onLeave={()=>{setError('');setConfirm({id:detailedGroup.id,group:true});setGroupDetails(null);}}/>}
     </SocialModal>
 
-    <SocialModal visible={!!confirm} title={confirm?.conversa?'Delete conversation?':confirm?.group?'Leave group?':'Remove friend?'} onClose={()=>setConfirm(null)}><View style={{padding:20,gap:12}}><Text style={s.muted}>{confirm?.conversa?'The messages are deleted for good, on both sides. This cannot be undone.':'Earlier messages stay saved.'}</Text><SocialButton danger disabled={busy} onPress={()=>void run(async()=>{if(!confirm)return;if(confirm.conversa)await apagarConversa(confirm.id);else if(confirm.group)await sairDoGrupo(confirm.id);else await declineOrRemoveFriendship(confirm.id);setConfirm(null);useSocial.setState({conversation:null});})}>{confirm?.conversa?'Delete':'Confirm'}</SocialButton><SocialButton quiet onPress={()=>setConfirm(null)}>Cancel</SocialButton></View></SocialModal>
+    <SocialModal visible={!!confirm} title={confirm?.conversa?'Delete conversation?':confirm?.group?'Leave group?':'Remove friend?'} onClose={()=>setConfirm(null)}><View style={{padding:20,gap:12}}><Text style={s.muted}>{confirm?.conversa?'The messages are deleted for good, on both sides. This cannot be undone.':'Earlier messages stay saved.'}</Text><SocialButton danger disabled={busy} onPress={()=>void run(async()=>{if(!confirm)return;if(confirm.conversa)await apagarConversa(confirm.id);else if(confirm.group)await sairDoGrupo(confirm.id);else await declineOrRemoveFriendship(confirm.id);setConfirm(null);closeChat();})}>{confirm?.conversa?'Delete':'Confirm'}</SocialButton><SocialButton quiet onPress={()=>setConfirm(null)}>Cancel</SocialButton></View></SocialModal>
     {/* O mesmo cartao com avatar, nome e @username que a lista de amigos usa.
         Estava aqui uma coluna de botoes centrados com um visto colado ao nome
         -- que nao mostrava quem era a pessoa, nao dizia quantos iam escolhidos,

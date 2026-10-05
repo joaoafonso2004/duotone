@@ -2,7 +2,6 @@ import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import React from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { DeslizarParaVoltar } from './DeslizarParaVoltar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { FriendAvatar } from './FriendAvatar';
@@ -124,7 +123,7 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={{ flex: 1, backgroundColor: fullScreen ? colors.bg : colors.overlay, justifyContent: web ? 'center' : 'flex-end', alignItems: 'center', paddingTop: safe.top + (fullScreen ? 0 : 12), paddingBottom: web ? 12 : 0, paddingHorizontal: web ? 24 : 0 }}>
       {!fullScreen && <Pressable accessible={false} onPress={onClose} style={StyleSheet.absoluteFill} />}
-      {!web && fullScreen && visible ? <DeslizarParaVoltar aoVoltar={onClose}>{surface}</DeslizarParaVoltar> : surface}
+      {surface}
     </KeyboardAvoidingView>
     </Root>
   </DentroDeUmModal.Provider></Modal>;

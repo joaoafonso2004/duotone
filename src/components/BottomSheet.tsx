@@ -215,6 +215,7 @@ function FolhaDoModal({ visible, onClose, children, gestureBlocked = false, bloq
       <GestureHandlerRootView style={StyleSheet.absoluteFill}>
         <Pressable style={styles.backdrop} onPress={onClose} />
         <KeyboardAvoidingView
+          pointerEvents="box-none"
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.keyboardContainer}
         >

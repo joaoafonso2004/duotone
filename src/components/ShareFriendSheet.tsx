@@ -8,7 +8,8 @@ import {
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { useTheme } from '../state/theme';
 import { colors, radii, spacing, type } from '../theme';
-import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
+import { BottomSheetScrollView } from './BottomSheet';
+import { ShareDialog } from './ShareDialog';
 import { FriendAvatar } from './FriendAvatar';
 import { GroupAvatar } from './GroupChat';
 import { Input } from './Input';
@@ -30,10 +31,8 @@ interface ShareFriendSheetProps {
 /**
  * Mandar uma faixa ou uma playlist a alguém.
  *
- * Construída sobre o mesmo `BottomSheet` do "Adicionar a playlist", e não
- * sobre um modal próprio: eram duas folhas com o mesmo trabalho e desenhos
- * diferentes -- cantos, pega, título, tipos de letra, e até a forma de fechar.
- * Partilhadas as fundações, herda também o arrastar para baixo.
+ * No telemóvel usa o BottomSheet; no PC, o diálogo central da app, com
+ * fecho por X, Escape e clique no exterior. As ações são as mesmas.
  *
  * A linha inteira é o botão, como nas playlists. Antes havia um "Share"
  * pequeno à direita e o resto da linha não fazia nada.
@@ -53,6 +52,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   const [sendingStates, setSendingStates] = useState<Record<string, 'idle' | 'sending' | 'sent'>>({});
 
   useEffect(() => {
+    let active = true;
     if (visible) {
       setLoading(true);
       setComment('');
@@ -62,11 +62,13 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
       // abrir a conversa do grupo. Vão os dois, e um falhar não leva o outro.
       Promise.allSettled([getFriendships(), getGrupos()])
         .then(([a, g]) => {
+          if (!active) return;
           if (a.status === 'fulfilled') setFriends(a.value.filter((f) => f.status === 'accepted'));
           if (g.status === 'fulfilled') setGroups(g.value);
         })
-        .finally(() => setLoading(false));
+        .finally(() => { if (active) setLoading(false); });
     }
+    return () => { active = false; };
   }, [visible]);
 
   const chaveDe = (alvo: Destino) => (alvo.kind === 'group' ? `g:${alvo.id}` : alvo.id);
@@ -150,10 +152,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
   ];
 
   return (
-    <BottomSheet visible={visible} onClose={onClose}>
-      <Text style={[type.title, { marginBottom: spacing.md }]}>
-        {modoSessao ? 'Listen together' : `Share ${itemType === 'track' ? 'track' : 'playlist'}`}
-      </Text>
+    <ShareDialog visible={visible} onClose={onClose} title={modoSessao ? 'Listen together' : `Share ${itemType === 'track' ? 'track' : 'playlist'}`}>
 
       <View style={{ marginBottom: spacing.md }}>
         <Input
@@ -295,7 +294,7 @@ export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFrie
           )}
         </View>
       ) : null}
-    </BottomSheet>
+    </ShareDialog>
   );
 }
 

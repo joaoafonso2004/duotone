@@ -48,6 +48,7 @@ import { FolhaScreen } from '../screens/FolhaScreen';
 import type { DetentesDaFolha } from '../state/folhasNativas';
 import { SongsScreen } from '../screens/SongsScreen';
 import { SocialScreen } from '../screens/SocialScreen';
+import { ConversaScreen } from '../screens/ConversaScreen';
 import { useAuth } from '../state/auth';
 import { colors } from '../theme';
 import { useTheme } from '../state/theme';
@@ -92,6 +93,7 @@ export type RootStackParamList = {
   /** O Library check. Ver `screens/LibraryCheckScreen.tsx`. */
   LibraryCheck: undefined;
   FriendProfile: {userId:string};
+  Conversa: {kind:'friend'|'group';id:string};
   /** A pagina sobre ti e um amigo. Ver `screens/VocesOsDoisScreen.tsx`. */
   VocesOsDois: { userId: string; nome?: string };
   Playlists: undefined;
@@ -266,7 +268,8 @@ const linking: LinkingOptions<RootStackParamList> = {
 };
 
 function visibleConversation(): string | null {
-  if (!navigationRef.isReady() || navigationRef.getCurrentRoute()?.name !== 'Social' || usePlayer.getState().expanded) return null;
+  // A conversa é uma página própria (Conversa) desde 5/10; o Social é só a lista.
+  if (!navigationRef.isReady() || navigationRef.getCurrentRoute()?.name !== 'Conversa' || usePlayer.getState().expanded) return null;
   const c = useSocial.getState().conversation;
   return c ? c.kind === 'group' ? `group:${c.id}` : c.id : null;
 }
@@ -391,6 +394,7 @@ export function RootNavigator() {
               <Stack.Screen name="Downloads" component={DownloadsScreen} />
               <Stack.Screen name="LibraryCheck" component={LibraryCheckScreen} />
               <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
+              <Stack.Screen name="Conversa" component={ConversaScreen} options={{gestureEnabled:true,fullScreenGestureEnabled:true,gestureDirection:'horizontal'}} />
               <Stack.Screen name="VocesOsDois" component={OnlineVocesOsDois} />
               <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
               <Stack.Screen name="Prateleira" component={OnlinePrateleira} />

@@ -30,47 +30,59 @@ assert.equal(seeds[0].title,'saved-a','não altera a biblioteca original');
 
 const React={createElement:(type,props,...children)=>({type,props:{...props,children}}),
   useRef:current=>({current}),useMemo:fn=>fn(),useEffect:fn=>fn()};
-const animations=[];
-class Value {interpolate(config){return config;} stopAnimation(){} }
-const Animated={Value,View:'AnimatedView',event:(_events,opts)=>{assert.equal(opts.useNativeDriver,true);return ()=>{};},
-  timing:(_v,opts)=>({start:fn=>{animations.push(opts);fn?.({finished:true});}}),
-  spring:(_v,opts)=>({start:()=>animations.push(opts)}),
-};
-const states={END:5,CANCELLED:3,FAILED:1};
-const {DeslizarParaVoltar} = load('src/components/DeslizarParaVoltar.tsx',{
-  react:{...React,useEffect:()=>{}},'react-native':{Animated,StyleSheet:{create:x=>x},useWindowDimensions:()=>({width:390})},
-  'react-native-gesture-handler':{PanGestureHandler:'Pan',State:states},'../hooks/useReducedMotion':{useReducedMotion:()=>false},
-});
-let closes=0;
-function gesture(state,x,v=0){const tree=DeslizarParaVoltar({aoVoltar:()=>closes++,children:'chat'});
-  assert.equal(tree.props.activeOffsetX,16);assert.deepEqual(Array.from(tree.props.failOffsetY),[-12,12]);
-  assert.equal(tree.props.hitSlop.width,32,'só inicia na margem: não rouba o gesto de responder à mensagem');
-  tree.props.onHandlerStateChange({nativeEvent:{state,translationX:x,velocityX:v}});
-}
-gesture(states.END,40);assert.equal(closes,0,'arrasto curto volta ao sítio');
-gesture(states.CANCELLED,130);assert.equal(closes,0,'cancelar não sai do chat');
-gesture(states.END,80);assert.equal(closes,1,'arrasto completo sai');
-gesture(states.END,25,700);assert.equal(closes,2,'flick para a direita sai');
-gesture(states.END,-80,700);assert.equal(closes,2,'gesto para a esquerda não sai');
-assert.ok(animations.every(a=>a.useNativeDriver));
-
-const {SocialModal}=load('src/components/socialUI.tsx',{
-  react:React,'react-native':{Platform:{OS:'ios'},Modal:'Modal',View:'View',Text:'Text',Pressable:'Pressable',
-    KeyboardAvoidingView:'Keyboard',StyleSheet:{create:x=>x},useWindowDimensions:()=>({height:844})},
-  'react-native-gesture-handler':{GestureHandlerRootView:'GestureRoot'},'./DeslizarParaVoltar':{DeslizarParaVoltar:'SwipeBack'},
-  'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:59,bottom:34})},'@expo/vector-icons/Ionicons':'Icon',
-  './FriendAvatar':{FriendAvatar:'Avatar'},'expo-linear-gradient':{LinearGradient:'Gradient'},
-  '../state/theme':{useTheme:()=>({})},'../lib/haptics':{hapticSelection(){}},'../theme':{spacing:{}},
-  './socialTokens':{colors:{},radii:{},type:{},SOCIAL_GUTTER:20},
-  './dentroDeUmModal':{DentroDeUmModal:{Provider:'Provider'},useModalDoRNAberto(){}},
-  '../hooks/useNotificationOverlay':{useNotificationOverlay:()=>{}},
-});
 const all=node=>!node||typeof node!=='object'?[]:[node,...(node.props.children??[]).flat(Infinity).flatMap(all)];
-const chat=SocialModal({visible:true,title:'Chat',onClose(){},fullScreen:true,header:'chat-header',children:'messages'});
-assert.ok(all(chat).some(n=>n.type==='GestureRoot'),'o reconhecedor tem uma raiz dentro do modal nativo');
-const swipe=all(chat).find(n=>n.type==='SwipeBack');assert.ok(swipe);
-assert.ok(all(swipe).some(n=>n.props.children.includes('chat-header')),'o cabeçalho acompanha o gesto');
-assert.ok(!all(SocialModal({visible:true,title:'Sheet',onClose(){},children:'sheet'})).some(n=>n.type==='SwipeBack'),'as folhas mantêm o seu gesto próprio');
+let focused=true, cleanup, social={conversation:null}, backs=0;
+const navigation={goBack:()=>backs++,navigate(){}};
+const target={kind:'friend',id:'friend-a'};
+const {ConversaScreen}=load('src/screens/ConversaScreen.tsx',{
+  react:{...React,useCallback:fn=>fn},'react-native':{KeyboardAvoidingView:'Keyboard',Platform:{OS:'ios'}},
+  '@react-navigation/native':{useIsFocused:()=>focused,useFocusEffect:fn=>{cleanup=fn();}},
+  'react-native-safe-area-context':{useSafeAreaInsets:()=>({top:59,bottom:34})},
+  '../components/SocialHub':{SocialHub:'Hub'},'../components/socialTokens':{colors:{bg:'#000'}},
+  '../state/social':{useSocial:{getState:()=>social,setState:patch=>Object.assign(social,patch)}},
+});
+const screen=ConversaScreen({route:{params:target},navigation});
+const hub=all(screen).find(n=>n.type==='Hub');
+assert.equal(social.conversation,target);
+assert.equal(hub.props.conversationTarget,target);
+hub.props.onCloseConversation();assert.equal(backs,1,'back uses a single native pop');
+cleanup();assert.equal(social.conversation,null,'blur releases the notification context');
+assert.equal(hub.props.conversationTarget,target,'closing preserves the rendered chat during the transition');
+ConversaScreen({route:{params:target},navigation});
+social.conversation={kind:'group',id:'new'};cleanup();
+assert.equal(social.conversation.id,'new','an old screen cannot clear a newly opened conversation');
+const rootSource=fs.readFileSync(path.join(__dirname,'../src/navigation/RootNavigator.tsx'),'utf8');
+const root=ts.createSourceFile('root.tsx',rootSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+let options;
+function visit(n){if(ts.isJsxSelfClosingElement(n)&&n.attributes.properties.some(p=>p.name?.getText(root)==='name'&&p.initializer?.text==='Conversa')){
+  const attribute=n.attributes.properties.find(p=>p.name?.getText(root)==='options');
+  options=vm.runInNewContext('('+attribute.initializer.expression.getText(root)+')');
+}ts.forEachChild(n,visit);}
+visit(root);assert.equal(options.fullScreenGestureEnabled,true,'the gesture can start anywhere');
+assert.equal(options.gestureDirection,'horizontal');assert.notEqual(options.presentation,'modal','no second vertical modal animation');
+const doca=load('src/lib/doca.ts',{});
+assert.equal(doca.modoDaDoca(['Conversa']),'escondida','the dock cannot cover the chat composer');
+
+// Exercise the desktop dialog itself: outside, X and Escape all dismiss it.
+const uiSource=fs.readFileSync(path.join(__dirname,'../src/desktop/ui.web.tsx'),'utf8');
+const uiAst=ts.createSourceFile('ui.tsx',uiSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+const dialogNode=uiAst.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name?.text==='Dialog');
+const code=ts.transpileModule(dialogNode.getText(uiAst),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.React}}).outputText;
+let keydown, remove, closes=0;
+const scope={exports:{},React,useEffect:fn=>{remove=fn();},window:{addEventListener:(_k,fn)=>keydown=fn,removeEventListener:()=>keydown=null},
+  View:'View',P:'Pressable',Text:'Text',IconButton:'IconButton',StyleSheet:{absoluteFill:{}},ui:{},marcar:()=>({})};
+vm.runInNewContext(code,scope);
+const dialog=scope.exports.Dialog({open:true,title:'Share track',children:'recipients',onClose:()=>closes++});
+all(dialog).find(n=>n.type==='Pressable').props.onPress();assert.equal(closes,1);
+all(dialog).find(n=>n.type==='IconButton').props.onPress();assert.equal(closes,2);
+keydown({key:'Enter'});assert.equal(closes,2);keydown({key:'Escape'});assert.equal(closes,3);
+remove();assert.equal(keydown,null);
+const {ShareDialog}=load('src/components/ShareDialog.web.tsx',{
+  react:React,'react-native':{View:'View'},'react-dom':{createPortal:(child,container)=>({child,container})},
+  '../desktop/ui.web':{Dialog:'Dialog'},'../hooks/useNotificationOverlay':{useNotificationOverlay(){}},
+});
+// load runs without document by default: hidden or server rendered stays empty.
+assert.equal(ShareDialog({visible:false,title:'Share',onClose(){}}),null);
 
 async function main(){
   const choice=load('src/lib/ultimaEscolha.ts',{});
@@ -94,6 +106,6 @@ async function main(){
   const delayed=tocarMixDoArtista('Isak',{faixas:seeds});
   choice.novaEscolha();resolve(page);await delayed;
   assert.equal(calls.length,0,'uma escolha posterior impede o Mix atrasado de começar');
-  console.log('UX: cache do artista, Mix publicado/fallback/cancelamento, raiz do modal e gesto nativo passaram.');
+  console.log('UX: cache do artista, Mix publicado/fallback/cancelamento, rota de conversa, gesto de ecrã inteiro e fecho da partilha passaram.');
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

@@ -781,7 +781,19 @@ function contextoParaSmartShuffle(s: Pick<PlayerState, 'current' | 'escutasDaSes
   if (!s.current) return [];
   const ouvidas = s.escutasDaSessao?.dono === donoDoSmartShuffle() ? s.escutasDaSessao.faixas : [];
   const atual = trackKey(s.current);
-  return [s.current, ...ouvidas.filter(t => trackKey(t) !== atual)].slice(0, 3);
+  // Uma recomendação não deve tornar-se a semente da recomendação seguinte:
+  // vizinhos de vizinhos afastavam-se progressivamente da escolha da pessoa.
+  // Um gesto explícito em playTrack limpa a origem automática e passa a contar.
+  return [s.current, ...ouvidas.filter(t => trackKey(t) !== atual)].filter(t => {
+    const surface = contextosDaFila.get(trackKey(t))?.surface;
+    return surface !== 'smart_shuffle' && surface !== 'autoplay_radio';
+  }).slice(0, 3);
+}
+
+function contextoDoSmartShuffleAindaAtual(contexto: readonly Track[]): boolean {
+  const live = contextoParaSmartShuffle(usePlayer.getState());
+  const anchors=(tracks:readonly Track[])=>[...new Set(tracks.map(t=>chaveDeArtista(displayArtist(t))))].join('\n');
+  return anchors(contexto) === anchors(live);
 }
 
 /**
@@ -1695,7 +1707,8 @@ export const usePlayer = create<PlayerState>()(
 
   extendQueueWithRadio: async () => {
     if (ouvirJuntos() || seguindoAmigo()) return false;
-    const { autoplayRadio, current, queue, queueIndex, repeatMode, radioMode, radioStopped, radioContext, radioOwner } = get();
+    const { autoplayRadio, current, queue, queueIndex, repeatMode, radioMode, radioStopped, radioContext, radioOwner, shuffle, shuffleInteligente } = get();
+    const smart = shuffle && shuffleInteligente;
     if (radioMode === 'preparing' || radioStopped) return false;
     if (
       radioMode === 'on' ? !current || repeatMode !== 'off' || get().upcomingQueue().length > 3
@@ -1714,8 +1727,11 @@ export const usePlayer = create<PlayerState>()(
       if (radioMode === 'on' && dono !== radioOwner) { get().stopRadio(); return false; }
       const request = radioRequest;
       const jaDescobertas = await chavesDasDescobertasRecentes(dono);
-      const tracks = filterSuggestions(await fetchRadioTracks(radioMode === 'on' ? radioContext : radioSeeds(queue, queueIndex), queue, radioMode === 'on' ? 12 : undefined, jaDescobertas, radioMode === 'on' ? 'session' : 'automatic'));
+      const seeds = radioMode === 'on' ? radioContext : smart ? contextoParaSmartShuffle(get()) : radioSeeds(queue, queueIndex);
+      if (!seeds.length) return false;
+      const tracks = filterSuggestions(await fetchRadioTracks(seeds, queue, radioMode === 'on' ? 12 : undefined, jaDescobertas, radioMode === 'on' || smart ? 'session' : 'automatic'));
       if(useConnectivity.getState().offline||get().queue!==queue||ouvirJuntos()||seguindoAmigo()||donoDoSmartShuffle()!==dono||request!==radioRequest
+        ||(smart && (!get().shuffle || !get().shuffleInteligente || !contextoDoSmartShuffleAindaAtual(seeds)))
         ||(radioMode === 'on' ? get().radioMode !== 'on' : !get().autoplayRadio || get().radioStopped || get().radioMode !== 'off'))return false;
       if (tracks.length === 0) return false;
 
@@ -1892,7 +1908,7 @@ export const usePlayer = create<PlayerState>()(
         chavesBloqueadasNoSmartShuffle(dono),
         lerPerfilDeRecomendacoes(),
       ]);
-      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return 0;
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido || !contextoDoSmartShuffleAindaAtual(contexto)) return 0;
       // A mesma música noutro upload também conta como já estando na fila.
       for (const t of queue) for (const chave of chavesDaFaixaSugerida(t)) bloqueadas.add(chave);
       const proveniencias = new Map<string, Proveniencia>();
@@ -1914,7 +1930,7 @@ export const usePlayer = create<PlayerState>()(
         POR_SUGESTAO, ALVOS_DA_SUGESTAO, perfil.escutas, undefined, perfil.externos, 'estrito',
         proveniencias,
       );
-      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return 0;
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido || !contextoDoSmartShuffleAindaAtual(contexto)) return 0;
       if (candidatas.length === 0) {
         // Sem rasto, um Smart Shuffle que não sugere nada parecia avariado (26/9).
         registarNaFila(`smart shuffle: nothing to suggest for ${contexto.map((t) => displayArtist(t)).join(', ')}`);
@@ -2004,7 +2020,7 @@ export const usePlayer = create<PlayerState>()(
         chavesBloqueadasNoSmartShuffle(dono),
         lerPerfilDeRecomendacoes(),
       ]);
-      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return false;
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido || !contextoDoSmartShuffleAindaAtual(contexto)) return false;
       for (const t of queue) for (const chave of chavesDaFaixaSugerida(t)) bloqueadas.add(chave);
       const proveniencias = new Map<string, Proveniencia>();
       const candidatas = await candidatasParaDescoberta(
@@ -2025,7 +2041,7 @@ export const usePlayer = create<PlayerState>()(
         POR_SUGESTAO, ALVOS_DA_SUGESTAO, perfil.escutas, undefined, perfil.externos, 'estrito',
         proveniencias,
       );
-      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido) return false;
+      if (!sessaoDoSmartShuffleValida(pedido) || pedidoDoSmartShuffle !== pedido || !contextoDoSmartShuffleAindaAtual(contexto)) return false;
       const escolhida = escolherSugestao(
         ordenarSugestoes(candidatas, proveniencias, contexto)
           .filter((t) => !foiSugeridaRecentemente(chavesDaFaixaSugerida(t), bloqueadas)),

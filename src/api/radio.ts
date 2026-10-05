@@ -56,6 +56,7 @@ export async function fetchRadioTracks(
   // Da cache partilhada: cada lote do rádio relia a biblioteca inteira (30/9).
   try{library=await lerFaixas(getLibrary);}catch{/* O rádio ainda pode sair do histórico. */}
   const knownKeys=new Set(library.map(trackKey));
+  const excludedIdentities=new Set(exclude.flatMap(chavesDaMusica));
   const jaDescoberta=(t:Track)=>foiSugeridaRecentemente(chavesDaMusica(t),jaDescobertas);
   // `comRepetidas` só no fim: antes disso, faltarem novas é razão para ir à
   // fonte seguinte, e não para repetir.
@@ -68,7 +69,13 @@ export async function fetchRadioTracks(
     // O mesmo artista é tempero: no máximo um quarto do lote. O resto vem de
     // artistas com um tom parecido (ver `limitarMesmoArtista`).
     const variadas=limitarMesmoArtista(musica,artists,displayArtist,chaveDeArtista,limit);
-    const candidatas=filterRadioCandidates(variadas,exclude,trackKey,Math.max(limit*4,limit));
+    const seen=new Set(excludedIdentities);
+    const candidatas=filterRadioCandidates(variadas,exclude,trackKey,Math.max(limit*4,limit)).filter(t=>{
+      const keys=chavesDaMusica(t);
+      if(keys.some(k=>seen.has(k)))return false;
+      keys.forEach(k=>seen.add(k));
+      return true;
+    });
     const conhecidas=candidatas.filter((t)=>knownKeys.has(trackKey(t)));
     const novas=candidatas.filter((t)=>!knownKeys.has(trackKey(t)));
     return loteSemRepetir(conhecidas,novas,jaDescoberta,limit,comRepetidas,
@@ -131,7 +138,9 @@ export async function fetchRadioTracks(
 
   // O modo escolhido na fila mantém as âncoras da sessão. Não preencher
   // com o perfil geral quando o catálogo não confirma música relacionada.
-  if (context === 'session') return harvest(true);
+  // Um lote curto é preferível a voltar às mesmas sugestões. Inclui a
+  // continuação do Smart Shuffle: mantém o contexto e a memória de 30 dias.
+  if (context === 'session') return harvest();
 
   // 4. Último recurso: o Flow do perfil. É o gosto GERAL, e não o desta
   //    música -- mas uma fila que continua é melhor do que o silêncio.

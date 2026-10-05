@@ -66,11 +66,16 @@ tree.props.onLayout({ nativeEvent: { layout: { width: 294 } } }); tree = render(
 const firstCard = n.find(x => x.props.accessibilityLabel?.endsWith('Song options'));
 assert.ok(firstCard.props.style({ pressed: false })[1].width * 3 + 16 <= 294.1, 'three cards fit in one shelf');
 firstCard.props.onPress(); assert.equal(songs[0].sourceId, 'a');
-assert.equal(n.filter(x => x.type === 'ChatButton').length, 3, 'friends start compact');
-n.find(x => x.type === 'Pressable' && x.props.children.some(c => c?.type === 'Text' && text(c) === 'See all')).props.onPress();
-assert.equal(nodes(render()).filter(x => x.type === 'ChatButton').length, 7);
-nodes(render()).find(x => x.props.accessibilityRole === 'tab' && text(x.props.children[0]) === 'Chats').props.onPress();
+assert.equal(n.filter(x => x.type === 'ChatButton').length, 7, 'all friends appear without See all');
+assert.equal(n.filter(x => x.props.accessibilityRole === 'tab').length, 0, 'one unified view');
+props.activity = { f0: now - 6000, f6: now - 1000, f4: now - 3000 };
+props.friends[1].online = true;
 n = nodes(render());
+assert.deepEqual(n.filter(x => x.type === 'ChatButton').map(x => x.props.label),
+  ['Chat with Friend 6','Chat with Friend 4','Chat with Friend 0','Chat with Friend 1','Chat with Friend 2','Chat with Friend 3','Chat with Friend 5'],
+  'latest interaction wins over presence, and friends without messages remain visible');
+n.find(x => x.props.accessibilityLabel === 'View Friend 6').props.onPress();
+assert.equal(profiles.at(-1), 'f6');
 const chat = n.find(x => x.props.accessibilityLabel?.startsWith('Friend 0.'));
 assert.ok(chat, 'read messages still have previews'); chat.props.onPress(); assert.deepEqual(opened.at(-1), ['friend', 'f0']);
 assert.ok(n.some(x => x.type === 'Text' && text(x) === 'Song · Artist'), 'last message survives marking read');
@@ -115,6 +120,6 @@ async function main() {
     await db.exec(`reset role; delete from shared_items where id='${uid(101)}';`); await as(1);
     assert.equal((await db.query('select * from conversation_summaries() where is_group=false')).rows[0].sender_id, uid(2), 'deleted latest falls back to older message');
   } finally { await db.close(); }
-  console.log('Social compacto: presença válida, privacidade, títulos, três cartões, Friends/Chats, resumos nas duas direções e SQL/RLS passaram.');
+  console.log('Social compacto: presença válida, privacidade, títulos, três cartões, lista única por interação, resumos nas duas direções e SQL/RLS passaram.');
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

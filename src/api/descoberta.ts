@@ -4,7 +4,7 @@ import { artistasPreferidos, artistWeight,feedbackReady,filterSuggestions,trackI
 import { ESCUTAS_DE_UM_PREFERIDO } from '../lib/recommendationFeedback';
 import { getLibrary, getLibraryKeys } from './library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
-import { chavesDeTodas, chavesDoCatalogo } from '../lib/identidadeDaMusica';
+import { chavesDaMusica, chavesDeTodas, chavesDoCatalogo } from '../lib/identidadeDaMusica';
 import { artistasParaRecomendacoes, getEscutasRecentes, getHeavyRotation, type TopArtist } from './plays';
 import { lerPerfilDeRecomendacoes } from './perfilDeRecomendacoes';
 import { paresDeArtistaEPlaylist } from './afinidade';
@@ -241,15 +241,15 @@ async function resolverDesejadas(
       const t = achadas[n];
       if (!t||trackIsSuppressed(t)) continue;
       const k = trackKey(t);
-      if (!k || vistas.has(k)) continue;
-      if (jaNaFila.has(k) || jaSugeridas.has(k) || daBiblioteca.has(k)) continue;
+      const identidades = chavesDaMusica(t);
+      if (!k || identidades.some(id => vistas.has(id) || jaNaFila.has(id) || jaSugeridas.has(id) || daBiblioteca.has(id))) continue;
       // Rede de segurança: o `pickBest` já rejeita quase tudo o que não é a
       // faixa pedida, mas isto não custa nada e apanha o resto.
       if (!pareceMusica(t)) continue;
       // O lote corre em paralelo: a mesma âncora pode encher a meio dele.
       const ancora = lote[n].ancora;
       if (cheia(ancora)) continue;
-      vistas.add(k);
+      identidades.forEach(id => vistas.add(id));
       saida.push(t);
       porAncoraConta.set(ancora, (porAncoraConta.get(ancora) ?? 0) + 1);
       proveniencias?.set(k, lote[n].proveniencia);
