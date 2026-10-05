@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capa do perfil</title>
+<style>
+:root{
+  --bg:#0A0A0F;--surface:#14141C;--high:#1D1D28;
+  --border:rgba(255,255,255,.08);--borderStrong:rgba(255,255,255,.14);
+  --text:#F5F5F7;--sec:rgba(245,245,247,.58);--ter:rgba(245,245,247,.48);
+  --accent:#C9A86A;--pagina:#060609;--chip:rgba(255,255,255,.06);--danger:#FF453A;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--pagina);color:var(--text)}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.pagina{max-width:1180px;margin:0 auto;padding:40px 16px 120px}
+h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin-bottom:10px}
+.intro{color:#9a9aa4;font-size:15px;line-height:1.6;max-width:820px}
+.intro b{color:var(--text);font-weight:600}
+.controlos{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 14px;align-items:center}
+.controlos .rot{font-size:12px;color:#8e8e98;margin-right:4px;min-width:62px}
+.ctl{padding:9px 14px;border-radius:99px;background:var(--chip);font-size:13px;font-weight:600}
+.ctl[aria-pressed="true"]{background:#fff;color:#000}
+.recomendo{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:99px;background:var(--accent);color:#0B0B0E;margin-left:6px;vertical-align:2px}
+.ficheiro{font-size:13px;color:#9a9aa4}
+.ficheiro label{padding:9px 14px;border-radius:99px;background:var(--chip);font-weight:600;color:var(--text);cursor:pointer;display:inline-block}
+.ficheiro input{display:none}
+.nota{color:#9a9aa4;font-size:14px;line-height:1.6;max-width:860px;margin-bottom:18px;min-height:46px}
+.nota b{color:var(--text);font-weight:600}
+.telefones{display:flex;flex-wrap:wrap;gap:44px;align-items:flex-start}
+.coluna{display:flex;flex-direction:column;gap:12px;align-items:center}
+.etiqueta{font-size:13px;font-weight:700}
+.dica{font-size:12.5px;color:#8e8e98;line-height:1.55;max-width:330px;text-align:center}
+
+.moldura{--s:.9;width:calc(390px*var(--s));height:calc(844px*var(--s));flex:none}
+@media (max-width:480px){.moldura{--s:.78}}
+.tel{width:390px;height:844px;transform:scale(var(--s));transform-origin:0 0;position:relative;border-radius:54px;overflow:hidden;background:#000;
+  box-shadow:0 0 0 10px #17171b,0 0 0 11px #2b2b31,0 40px 110px rgba(0,0,0,.65);isolation:isolate}
+.ilha{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000;z-index:60}
+.estado{position:absolute;top:0;left:0;right:0;height:54px;display:flex;justify-content:space-between;align-items:center;padding:6px 34px 0 42px;font-size:16px;font-weight:600;z-index:55;pointer-events:none}
+.indicador{position:absolute;bottom:8px;left:50%;width:134px;height:5px;margin-left:-67px;border-radius:3px;background:rgba(255,255,255,.9);z-index:70;pointer-events:none}
+.app{position:absolute;inset:0;background:var(--bg);overflow:hidden}
+.rolar{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;overscroll-behavior:contain}
+.rolar::-webkit-scrollbar{display:none}
+
+/* a capa */
+.cabeca{position:relative}
+.capa{position:absolute;left:0;right:0;top:0;overflow:hidden}
+.capa .foto{position:absolute;left:0;top:0;width:100%;background-size:cover;background-position:center top;will-change:transform}
+.capa .veu{position:absolute;inset:0;pointer-events:none}
+/* O fundo desfocado APAGA-SE (máscara) em vez de escurecer até ao preto: o
+   desfoque transborda da caixa, e um véu por cima deixava uma aresta. */
+.ambienteCaixa{position:absolute;left:0;right:0;top:0;overflow:hidden;pointer-events:none;
+  -webkit-mask:linear-gradient(180deg,#000 45%,transparent 90%);mask:linear-gradient(180deg,#000 45%,transparent 90%)}
+.ambiente{position:absolute;left:-20%;right:-20%;top:0;background-size:cover;background-position:center;filter:blur(46px) saturate(1.25);transform:scale(1.15);pointer-events:none}
+.ambienteVeu{position:absolute;left:0;right:0;top:0;pointer-events:none}
+
+.topo{position:absolute;top:58px;left:16px;right:16px;display:flex;justify-content:flex-end;gap:10px;z-index:40}
+.btnVidro{width:44px;height:44px;border-radius:22px;display:grid;place-items:center;background:rgba(10,10,15,.5);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);border:.5px solid rgba(255,255,255,.16)}
+.btnVidro svg{width:19px;height:19px}
+.barraCompacta{position:absolute;top:0;left:0;right:0;height:110px;z-index:30;display:flex;align-items:flex-end;justify-content:center;padding-bottom:16px;
+  background:rgba(10,10,15,.72);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);border-bottom:.5px solid var(--border);opacity:0;pointer-events:none}
+.barraCompacta b{font-size:17px;font-weight:600}
+
+.identidade{position:relative;display:flex;flex-direction:column;align-items:center;padding:0 20px;z-index:2}
+.avatar{width:88px;height:88px;border-radius:50%;padding:4px;background:var(--bg)}
+.avatar i{display:block;width:80px;height:80px;border-radius:50%;background:radial-gradient(circle at 50% 38%,#d9b796 0 18%,#8a6248 19% 34%,#2a1c14 35% 100%)}
+.nome{font-size:32px;line-height:38px;font-weight:700;letter-spacing:-.8px;margin-top:10px}
+.user{font-size:13px;color:var(--sec);margin-top:1px}
+.bio{font-size:14px;line-height:21px;margin-top:10px;text-align:center;max-width:290px}
+.pilula{margin-top:17px;height:44px;border-radius:22px;border:1px solid var(--borderStrong);padding:0 18px;display:inline-flex;align-items:center;font-size:13px;font-weight:600}
+
+.corpo{position:relative;z-index:2;padding:26px 20px 190px;display:flex;flex-direction:column;gap:24px}
+.rotulo{font-size:12px;color:var(--sec);font-weight:500;margin-bottom:8px}
+.linhaM{display:flex;align-items:center;gap:14px}
+.linhaM .c{width:64px;height:64px;border-radius:10px;flex:none}
+.linhaM .t{flex:1;min-width:0}
+.linhaM .t b{display:block;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.linhaM .t span{font-size:12px;color:var(--sec)}
+.play{width:44px;height:44px;border-radius:22px;background:#fff;display:grid;place-items:center;flex:none}
+.play svg{width:18px;height:18px}
+.tres{width:30px;display:grid;place-items:center;color:var(--sec)}
+.secao{border-top:.5px solid var(--border);padding-top:18px}
+.secao h3{font-size:20px;font-weight:600;letter-spacing:-.5px;margin-bottom:8px}
+.pl{display:flex;align-items:center;gap:14px;min-height:76px}
+.pl .c{width:64px;height:64px;border-radius:12px;flex:none;display:grid;grid-template-columns:1fr 1fr;overflow:hidden}
+.pl .c i{display:block}
+.pl .t{flex:1}
+.pl .t b{display:block;font-size:15px;font-weight:600}
+.pl .t span{font-size:12px;color:var(--sec)}
+.pl svg{width:16px;height:16px;color:var(--ter)}
+.artistas{display:flex;gap:16px}
+.artistas div{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px}
+.artistas i{width:72px;height:72px;border-radius:50%;display:block}
+
+/* base de baixo (mini-player + separadores), como na captura */
+.base{position:absolute;left:0;right:0;bottom:0;height:148px;z-index:50;background:rgba(14,14,20,.82);-webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);border-top:.5px solid var(--border)}
+.mini{position:absolute;top:0;left:0;right:0;height:64px;display:flex;align-items:center;gap:12px;padding:0 18px}
+.mini .c{width:44px;height:44px;border-radius:7px;background:linear-gradient(135deg,#1b2a33,#06090c)}
+.mini .t{flex:1}
+.mini .t b{display:block;font-size:14px;font-weight:600}
+.mini .t span{font-size:12px;color:var(--sec)}
+.mini svg{width:20px;height:20px}
+.mini .fio{position:absolute;left:18px;right:18px;bottom:0;height:2px;background:rgba(255,255,255,.14)}
+.mini .fio i{display:block;width:18%;height:100%;background:#fff}
+.seps{position:absolute;top:70px;left:0;right:0;display:flex;justify-content:space-around;padding:0 6px}
+.seps div{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;color:var(--ter);width:66px}
+.seps div.on{color:#fff}
+.seps svg{width:24px;height:24px}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>Capa do perfil</h1>
+  <p class="intro">A capa parecia acabar a meio por duas razões, as duas no <b>ProfileHero</b>: a caixa tem <b>229 pt</b> de altura mas a
+    fotografia (3:2) tem <b>260–293 pt</b>, por isso o fundo dela é cortado; e o degradê começa a escurecer a <b>46%</b> da altura, de modo
+    que a fotografia some logo a seguir à barra de estado — exatamente no meio da cabeça do cão. O que se escolhe no editor (3:2 inteiro)
+    não é o que se vê. Abaixo: como está hoje e três maneiras de a fazer chegar ao fim. Rola dentro do telefone para ver o que acontece ao subir.</p>
+
+  <div class="controlos"><span class="rot">Versão</span>
+    <button class="ctl" data-v="hoje" aria-pressed="false">Hoje</button>
+    <button class="ctl" data-v="A" aria-pressed="false">A · Foto inteira</button>
+    <button class="ctl" data-v="B" aria-pressed="true">B · A capa continua <span class="recomendo">recomendo</span></button>
+    <button class="ctl" data-v="C" aria-pressed="false">C · Capa em cartão</button>
+  </div>
+  <div class="controlos ficheiro"><span class="rot">Capa</span>
+    <label>Usar uma fotografia minha<input type="file" accept="image/*" id="ficheiro"></label>
+    <span>fica só neste browser, não sai daqui</span>
+  </div>
+  <p class="nota" id="nota"></p>
+
+  <div class="telefones">
+    <div class="coluna">
+      <div class="etiqueta" id="etq1">Hoje</div>
+      <div class="moldura"><div class="tel" id="t1"></div></div>
+      <div class="dica">Para comparar: o ecrã de hoje.</div>
+    </div>
+    <div class="coluna">
+      <div class="etiqueta" id="etq2"></div>
+      <div class="moldura"><div class="tel" id="t2"></div></div>
+      <div class="dica" id="dica2"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Uma "fotografia" desenhada (um cão num sofá, como a capa da captura), para
+// não pôr fotografias tuas no repositório. O botão de cima usa a tua.
+const FOTO_PADRAO = 'data:image/svg+xml,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1067">
+  <defs>
+    <filter id="f"><feGaussianBlur stdDeviation="6"/></filter>
+    <filter id="g"><feGaussianBlur stdDeviation="22"/></filter>
+    <radialGradient id="sofa" cx="50%" cy="35%" r="80%"><stop offset="0" stop-color="#cfc6b8"/><stop offset=".6" stop-color="#9c9284"/><stop offset="1" stop-color="#5b5349"/></radialGradient>
+    <radialGradient id="pelo" cx="50%" cy="40%" r="60%"><stop offset="0" stop-color="#9a6a3e"/><stop offset=".7" stop-color="#6e4826"/><stop offset="1" stop-color="#3d2814"/></radialGradient>
+    <radialGradient id="foc" cx="50%" cy="30%" r="60%"><stop offset="0" stop-color="#b98c62"/><stop offset="1" stop-color="#7a5434"/></radialGradient>
+  </defs>
+  <rect width="1600" height="1067" fill="url(#sofa)"/>
+  <g filter="url(#g)" opacity=".55"><rect x="0" y="0" width="1600" height="220" fill="#e9e3d8"/><ellipse cx="1350" cy="700" rx="420" ry="260" fill="#7d7468"/></g>
+  <g filter="url(#f)">
+    <ellipse cx="800" cy="700" rx="560" ry="300" fill="url(#pelo)"/>
+    <ellipse cx="560" cy="300" rx="120" ry="210" fill="#4a3018" transform="rotate(-24 560 300)"/>
+    <ellipse cx="1040" cy="300" rx="120" ry="210" fill="#4a3018" transform="rotate(24 1040 300)"/>
+    <ellipse cx="800" cy="430" rx="300" ry="270" fill="url(#pelo)"/>
+    <ellipse cx="800" cy="560" rx="170" ry="140" fill="url(#foc)"/>
+    <ellipse cx="690" cy="400" rx="34" ry="30" fill="#1a0f08"/><ellipse cx="910" cy="400" rx="34" ry="30" fill="#1a0f08"/>
+    <circle cx="700" cy="392" r="8" fill="#fff" opacity=".7"/><circle cx="920" cy="392" r="8" fill="#fff" opacity=".7"/>
+    <ellipse cx="800" cy="545" rx="62" ry="44" fill="#1d120b"/>
+    <path d="M800 590 q-50 60 -110 40 M800 590 q50 60 110 40" stroke="#3a2412" stroke-width="10" fill="none"/>
+    <ellipse cx="560" cy="905" rx="150" ry="70" fill="#7a5232"/><ellipse cx="1040" cy="905" rx="150" ry="70" fill="#7a5232"/>
+  </g>
+</svg>`);
+let foto = FOTO_PADRAO;
+
+const I = {
+  chat:'<path d="M7 18.5 3.5 20.5l1.3-3.7A8 8 0 1 1 8.5 19.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+  mais:'<circle cx="6" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="18" cy="12" r="1.7" fill="currentColor"/>',
+  play:'<path d="M8 5.5v13l10.5-6.5z" fill="#0A0A0F"/>',
+  seta:'<path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  coracao:'<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" fill="#fff"/>',
+  pausa:'<rect x="6.5" y="5" width="3.6" height="14" rx="1" fill="#fff"/><rect x="13.9" y="5" width="3.6" height="14" rx="1" fill="#fff"/>',
+  seguinte:'<path d="M6 5.5v13l9-6.5zM16.5 5.5h2.4v13h-2.4z" fill="#fff"/>',
+  casa:'<path d="M4 11.5 12 5l8 6.5V20h-5.5v-5h-5v5H4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  nota:'<path d="M9 18V6l10-2v12" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="7" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="16" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  pessoas:'<circle cx="9" cy="9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="16.5" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M16 13c2.6.1 4.4 1.7 5 4.6" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  pilha:'<rect x="4" y="9" width="16" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.5 6h11M9 3.5h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  eu:'<circle cx="12" cy="8" r="4" fill="currentColor"/><path d="M4 21c.8-4.4 4-6.6 8-6.6s7.2 2.2 8 6.6z" fill="currentColor"/>',
+};
+const svg = (d, cor = 'currentColor', t = 24) => `<svg viewBox="0 0 24 24" width="${t}" height="${t}" style="color:${cor}">${d}</svg>`;
+
+const VERSOES = {
+  hoje: { nome: 'Hoje', dica: '',
+    nota: 'Caixa de 229 pt, a fotografia cortada em baixo, a 85% de opacidade, e o degradê a escurecer a partir de 46%. Por baixo do avatar fica uma faixa castanho-escura que não é fotografia nem fundo.' },
+  A: { nome: 'A · Foto inteira', dica: 'A caixa passa a ter a fotografia toda (3:2); o degradê só entra no último terço.',
+    nota: '<b>A caixa tem a fotografia inteira</b> (largura ÷ 1,5 + 40 pt), a 100%, e o degradê só começa a 62% e acaba devagar no fundo: o que se escolhe no editor é o que se vê. Em cima fica um véu leve, só para os botões e as horas se lerem. O avatar continua a entrar 44 pt na capa.' },
+  B: { nome: 'B · A capa continua', dica: 'Como A, e a cor da fotografia continua por trás do nome até à música do momento.',
+    nota: '<b>Como A, e a capa não acaba: dissolve-se.</b> Por trás do nome, da bio e do botão fica a mesma fotografia muito desfocada e escura, que se apaga até à "Song of the moment" — não há aresta nenhuma, como nas páginas de artista. Ao rolar, a fotografia sobe a metade da velocidade do texto (um parallax suave), e a barra com o nome aparece quando o nome passa por baixo dela. Puxar para baixo no topo esticava a capa (no iPhone; aqui não dá para mostrar).' },
+  C: { nome: 'C · Capa em cartão', dica: 'A fotografia num cartão de cantos redondos, inteira e sem degradê; o avatar sobre a aresta.',
+    nota: '<b>A capa assume que acaba.</b> Um cartão 3:2 com cantos contínuos, abaixo da barra de estado, sem degradê nem véu; o avatar centrado sobre a aresta de baixo. É o mais limpo, mas é o que mais muda o ar do perfil (deixa de ser editorial).' },
+};
+
+function conteudo(v) {
+  const W = 390, fotoH = Math.round(W / 1.5);
+  let cabeca = '', alturaCabeca = 0, topoIdent = 0;
+  if (v === 'hoje') {
+    alturaCabeca = 229; topoIdent = 229 - 44;
+    cabeca = `<div class="capa" style="height:229px"><div class="foto" data-par="0" style="height:${fotoH}px;background-image:url('${foto}');opacity:.85"></div>
+      <div class="veu" style="background:linear-gradient(180deg,rgba(10,10,15,.34) 0%,rgba(10,10,15,.06) 28%,rgba(10,10,15,.2) 46%,rgba(10,10,15,.46) 62%,rgba(10,10,15,.76) 76%,rgba(10,10,15,.94) 87%,var(--bg) 95%,var(--bg) 100%)"></div>
+      <div class="veu" style="background:linear-gradient(90deg,rgba(10,10,15,.45),transparent 22%,transparent 78%,rgba(10,10,15,.45))"></div>
+      <div class="veu" style="background:linear-gradient(180deg,rgba(150,110,70,.14) 0%,rgba(150,110,70,.14) 76%,rgba(150,110,70,0) 95%)"></div></div>`;
+  } else if (v === 'A') {
+    alturaCabeca = fotoH + 40; topoIdent = alturaCabeca - 44;
+    cabeca = `<div class="capa" style="height:${alturaCabeca}px"><div class="foto" data-par="0.5" style="height:${alturaCabeca + 1}px;background-image:url('${foto}')"></div>
+      <div class="veu" style="background:linear-gradient(180deg,rgba(10,10,15,.42) 0%,rgba(10,10,15,0) 20%,rgba(10,10,15,0) 62%,rgba(10,10,15,.22) 72%,rgba(10,10,15,.55) 82%,rgba(10,10,15,.84) 91%,var(--bg) 100%)"></div></div>`;
+  } else if (v === 'B') {
+    alturaCabeca = fotoH + 40; topoIdent = alturaCabeca - 44;
+    // Por trás de tudo: a mesma fotografia, muito desfocada, a apagar-se até à
+    // "Song of the moment". Por cima: a nítida, que se DISSOLVE nela (máscara),
+    // em vez de escurecer até ao preto.
+    const amb = alturaCabeca + 330;
+    cabeca = `<div class="ambienteCaixa" data-par="0.5" style="height:${amb}px">
+        <div class="ambiente" style="height:${amb}px;background-image:url('${foto}');opacity:.6"></div>
+        <div class="ambienteVeu" style="height:${amb}px;background:linear-gradient(180deg,rgba(10,10,15,.3) 0%,rgba(10,10,15,.55) ${Math.round(alturaCabeca / amb * 100)}%,rgba(10,10,15,.82) 75%,rgba(10,10,15,.92) 100%)"></div></div>
+      <div class="capa" style="height:${alturaCabeca}px">
+        <div class="foto" data-par="0.5" style="height:${alturaCabeca + 1}px;background-image:url('${foto}');-webkit-mask:linear-gradient(180deg,#000 56%,transparent 100%);mask:linear-gradient(180deg,#000 56%,transparent 100%)"></div>
+        <div class="veu" style="background:linear-gradient(180deg,rgba(10,10,15,.42) 0%,rgba(10,10,15,0) 20%)"></div></div>`;
+  } else {
+    const cw = W - 32, ch = Math.round(cw / 1.5);
+    alturaCabeca = 62 + ch; topoIdent = alturaCabeca - 44;
+    cabeca = `<div class="capa" style="top:62px;left:16px;right:16px;height:${ch}px;border-radius:26px">
+      <div class="foto" data-par="0" style="height:${ch}px;background-image:url('${foto}')"></div>
+      <div class="veu" style="background:linear-gradient(180deg,rgba(10,10,15,.28),transparent 30%)"></div></div>`;
+  }
+  const topo = v === 'C' ? 'top:72px;right:28px;left:28px' : '';
+  return `
+  <div class="app"><div class="rolar">
+    <div class="cabeca" style="height:${topoIdent}px">${cabeca}</div>
+    <div class="identidade">
+      <div class="avatar"><i></i></div>
+      <div class="nome">Joao</div><div class="user">@joao</div>
+      <div class="bio">Nigga</div>
+      <div class="pilula">Edit profile</div>
+    </div>
+    <div class="corpo">
+      <div><div class="rotulo">Song of the moment</div>
+        <div class="linhaM"><div class="c" style="background:linear-gradient(135deg,#e6e3dc,#5d7aa8)"></div>
+          <div class="t"><b>Boondocks (Extended) (Unreleased)</b><span>Juice WRLD</span></div>
+          <div class="play">${svg(I.play,'#0A0A0F',18)}</div><div class="tres">${svg(I.mais,'currentColor',18)}</div></div></div>
+      <div class="secao"><h3>Your playlists</h3>
+        <div class="pl"><div class="c"><i style="background:#7a3fb3"></i><i style="background:#d8a43c"></i><i style="background:#222"></i><i style="background:#5b8f4e"></i></div><div class="t"><b>bangers insanos</b><span>21 tracks</span></div>${svg(I.seta)}</div>
+        <div class="pl"><div class="c"><i style="background:#8a8a8a"></i><i style="background:#2c2c2c"></i><i style="background:#b02a2a"></i><i style="background:#ddd"></i></div><div class="t"><b>Isak Zigarro</b><span>50 tracks</span></div>${svg(I.seta)}</div>
+      </div>
+      <div class="secao"><h3>Your listening</h3>
+        <div class="artistas"><div><i style="background:linear-gradient(135deg,#6a4b9c,#1d1430)"></i>Juice WRLD</div><div><i style="background:linear-gradient(135deg,#b33,#311)"></i>Carti</div><div><i style="background:linear-gradient(135deg,#999,#222)"></i>Isak</div><div><i style="background:linear-gradient(135deg,#3a7,#123)"></i>Uzi</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="barraCompacta"><b>Joao</b></div>
+  <div class="topo" style="${topo}"><div class="btnVidro">${svg(I.chat,'#fff',19)}</div><div class="btnVidro">${svg(I.mais,'#fff',19)}</div></div>
+  <div class="base">
+    <div class="mini"><div class="c"></div><div class="t"><b>@ MEH</b><span>Playboi Carti</span></div>${svg(I.coracao)}${svg(I.pausa)}${svg(I.seguinte)}<div class="fio"><i></i></div></div>
+    <div class="seps"><div>${svg(I.casa)}Home</div><div>${svg(I.nota)}Songs</div><div>${svg(I.pessoas)}Artists</div><div>${svg(I.pilha)}Playlists</div><div class="on">${svg(I.eu)}Profile</div></div>
+  </div>
+  </div>
+  <div class="ilha"></div><div class="estado"><span>21:28</span><span>●●● 100</span></div><div class="indicador"></div>`;
+}
+
+function montar(id, v) {
+  const tel = document.getElementById(id);
+  tel.innerHTML = conteudo(v);
+  const rolar = tel.querySelector('.rolar');
+  const barra = tel.querySelector('.barraCompacta');
+  const fimDoNome = tel.querySelector('.nome');
+  const camadas = [...tel.querySelectorAll('[data-par]')];
+  const aRolar = () => {
+    const y = rolar.scrollTop;
+    // Parallax: a fotografia sobe mais devagar do que o texto (só A e B).
+    for (const c of camadas) c.style.transform = `translateY(${y * Number(c.dataset.par)}px)`;
+    const fim = fimDoNome.parentElement.offsetTop + fimDoNome.offsetTop + fimDoNome.offsetHeight;
+    barra.style.opacity = Math.max(0, Math.min(1, (y + 110 - (fim - 30)) / 30));
+  };
+  rolar.addEventListener('scroll', aRolar);
+  aRolar();
+}
+
+let atual = 'B';
+function mostrar() {
+  document.querySelectorAll('[data-v]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === atual)));
+  document.getElementById('nota').innerHTML = VERSOES[atual].nota;
+  document.getElementById('etq2').textContent = VERSOES[atual].nome;
+  document.getElementById('dica2').textContent = VERSOES[atual].dica;
+  montar('t1', 'hoje');
+  montar('t2', atual);
+}
+document.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => { atual = b.dataset.v; mostrar(); }));
+document.getElementById('ficheiro').addEventListener('change', e => {
+  const f = e.target.files?.[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { foto = r.result; mostrar(); };
+  r.readAsDataURL(f);
+});
+mostrar();
+</script>
+</body>
+</html>
