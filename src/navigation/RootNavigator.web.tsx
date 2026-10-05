@@ -66,6 +66,8 @@ import { useAtalhosDaJanela } from '../desktop/useAtalhosDaJanela.web';
 import { ModoLimpo } from '../desktop/ModoLimpo.web';
 import { BoasVindasPc } from '../desktop/BoasVindasPc.web';
 import { type Route, type ShareTarget } from '../desktop/rotas';
+import { rotaNoPc, type Destino } from '../lib/destinos';
+import { DestinosProvider } from './destinos';
 const V = View as any;
 
 function AuthDesktop() {
@@ -404,16 +406,13 @@ function DesktopShell() {
     return () => window.removeEventListener('duotone:panel-opacity', handleOpacity);
   }, []);
 
-  useEffect(() => {
-    // Pelo `navigate` e não pelo `setRoute`: abrir o Now Playing pela barra do
-    // player é navegar como qualquer outra coisa. A saltar o histórico, ficava
-    // um ecrã sem volta -- para regressar à playlist era abri-la de novo e
-    // percorrer tudo outra vez até onde se ia.
-    const handleNav = (e: any) => {
-      if (e.detail) navigate(e.detail);
-    };
-    window.addEventListener('duotone:navigate', handleNav);
-    return () => window.removeEventListener('duotone:navigate', handleNav);
+  // O `irPara` de toda a casca (5/10, lib/destinos.ts): os componentes
+  // partilhados e os que vivem fundo na árvore (a barra do leitor, a coluna do
+  // artista) navegam por ele. Substituiu o evento global `duotone:navigate`,
+  // que era um segundo caminho, sem tipos, para o mesmo `navigate`.
+  const irPara = useCallback((destino: Destino) => {
+    const rota = rotaNoPc(destino);
+    if (rota) navigate(rota as Route);
   }, [navigate]);
 
   // Guardar a sessão privada ao fechar; a presença tem validade no servidor.
@@ -662,13 +661,13 @@ function DesktopShell() {
     case 'search': page = <SearchPage navigate={navigate} {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} />; break;
     case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} back={back} share={openShareDialog} navigate={navigate} {...common} />; break;
     case 'mistura': page = <MisturaPage key={route.id} id={route.id} titulo={route.titulo} back={back} {...common} />; break;
-    case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} navigate={navigate} />; break;
+    case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;
     case 'retrospetiva': page = <RetrospetivaPage key={`${route.userId}:${route.ano}`} back={back} play={play} userId={route.userId} ano={route.ano} />; break;
     case 'voces-os-dois': page = <VocesOsDoisPage key={route.userId} userId={route.userId} nome={route.nome} back={back} play={play} />; break;
-    case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage navigate={navigate} notify={notify} />; break; case 'settings': page = <SettingsPage notify={notify} navigate={navigate} />; break;
+    case 'import': page = <ImportPage back={back} notify={notify} />; break; case 'spotify-import': page = <SpotifyImportPage back={back} notify={notify} />; break; case 'profile': page = <ProfilePage />; break; case 'settings': page = <SettingsPage notify={notify} navigate={navigate} />; break;
     case 'library-check': page = <LibraryCheckPage back={back} play={play} />; break;
-    case 'social': page = <SocialPage navigate={navigate} friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} notify={notify} play={play} more={more} />; break;
-    case 'friend-profile': page = <ProfilePage userId={route.userId} navigate={navigate} notify={notify} back={back} />; break;
+    case 'social': page = <SocialPage friendId={route.friendId} groupId={route.groupId} visible={!nowPlayingOpen && !jamOpen} />; break;
+    case 'friend-profile': page = <ProfilePage userId={route.userId} back={back} />; break;
     case 'now-playing': page = <NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} />; break;
   }
 
@@ -679,7 +678,7 @@ function DesktopShell() {
   // O nome da página que está atrás (5/10, lib/voltarPara.ts). Com o Now
   // Playing por cima, o voltar fecha-o e mostra a página de baixo.
   const rotuloDoVoltar = nomeDaRota(nowPlayingOpen ? route : history.current[history.current.length - 1]);
-  return <RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, corNaJanela ? { backgroundColor: 'transparent' } : bgStyle]}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} /></View><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
+  return <DestinosProvider value={irPara}><RotuloDoVoltar.Provider value={rotuloDoVoltar}><View style={[styles.root, { backgroundColor: 'transparent' }]}>{corNaJanela && <FundoDaCapa onde="janela" uri={currentTrack?.artworkUrl ?? null} />}<ThemeCssSync panelOpacity={panelOpacity}/><TitleBar /><V style={[styles.main, corNaJanela ? { backgroundColor: 'transparent' } : bgStyle]}><View style={styles.sidebar}><Sidebar route={rotaDaLateral} navigate={navigate} notify={notify} /></View><View style={styles.content}>{/* Com a cor na janela o painel do leitor é transparente: a página de baixo esconde-se (continua montada, com o scroll onde estava). */}<View style={[{ flex: 1, minHeight: 0 }, nowPlayingOpen && corNaJanela && ({ visibility: 'hidden' } as any)]}><TransicaoDePagina chave={JSON.stringify(route)} aSair={aMudarDePagina}><BarreiraDeErros onde={`pagina:${route.name}`} chave={JSON.stringify(route)}>{page}</BarreiraDeErros></TransicaoDePagina></View>{nowPlayingOpen&&<View style={[StyleSheet.absoluteFill,{zIndex:20,backgroundColor:corNaJanela?'transparent':COR.fundo}]}><BarreiraDeErros onde="pagina:now-playing-painel"><NowPlayingPage fundoNaJanela={corNaJanela} share={openShareDialog} play={play} notify={notify} more={more} currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} navigate={navigate} back={back} aoAdicionarAPlaylist={(t) => { setTrackMenu(t); void openPlaylistDialog(); }} /></BarreiraDeErros></View>}</View></V><PlayerBar currentIsSaved={currentIsSaved} toggleSaveCurrent={toggleSaveCurrent} onJam={() => void abrirJam()} discordLigado={discordLigado} onAviso={notify} /><HandoffBanner /><NotificationBanner onOpen={abrirSocial} /><ModoLimpo /><BoasVindasPc />{toast && <Toast message={toast} onDone={() => setToast('')} />}
     <JanelaDoJam open={jamOpen} onClose={fecharJam} notify={notify} />
     
     {/* O menu de uma faixa abre no cursor (5/10, auditoria M1): era um
@@ -707,7 +706,7 @@ function DesktopShell() {
     </Dialog>
 
     <ShareFriendSheet visible={!!shareTarget} itemType={shareTarget?.itemType ?? 'track'} item={shareTarget?.item ?? null} onClose={() => setShareTarget(null)} />
-  </View></RotuloDoVoltar.Provider>;
+  </View></RotuloDoVoltar.Provider></DestinosProvider>;
 }
 
 export function RootNavigator() {

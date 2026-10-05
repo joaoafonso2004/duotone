@@ -74,17 +74,17 @@ caso('Share e Add to playlist dão o título à folha', () => {
 
 console.log('\nperfil e conversas no iPhone (P3, N5)');
 caso('"Message" abre a conversa direto, sem passar pelo Social', () => {
-  for (const f of ['src/screens/ProfileScreen.tsx', 'src/screens/FriendProfileScreen.tsx']) {
-    assert.match(ler(f), /onMessage=\{id=>navigation\.navigate\('Conversa',\{kind:'friend',id\}\)\}/, f);
-  }
+  // Pelo irPara (fase 3): no iPhone a conversa é a página Conversa.
+  assert.match(ler('src/components/SocialProfileView.tsx'), /const onMessage=\(id:string\)=>irPara\(\{tipo:'conversa',kind:'friend',id\}\)/);
 });
 caso('o toque numa notificação também', () => {
-  assert.match(ler('src/navigation/RootNavigator.tsx'), /navigationRef\.navigate\('Conversa', conversa\)/);
+  assert.match(ler('src/navigation/RootNavigator.tsx'), /irParaNoIphone\(\{ tipo: 'conversa', kind: 'friend', id: target\.friendId \}\)/);
 });
 caso('as Definições estão à vista no perfil, e não no "⋯"', () => {
   const perfil = ler('src/components/SocialProfileView.tsx');
   assert.ok(!/label:'Settings'/.test(perfil), 'voltou para dentro do menu');
-  assert.match(perfil, /<BotoesDoPerfil [^>]*onSettings=\{onSettings\}/);
+  assert.match(perfil, /<CimaDoPerfil [^>]*onSettings=\{onSettings\}/);
+  assert.match(ler('src/components/CimaDoPerfil.tsx'), /<BotoesDoPerfil [^>]*onSettings=\{onSettings\}/);
   assert.match(ler('src/components/ProfileHero.tsx'), /own&&onSettings&&<BotaoDeVidro label="Settings" icon="settings-outline"/);
 });
 
@@ -128,13 +128,13 @@ caso('"You two" e "Year in review" têm página no PC', () => {
   const casca = ler('src/navigation/RootNavigator.web.tsx');
   assert.match(casca, /case 'voces-os-dois':/);
   assert.match(casca, /case 'retrospetiva':/);
-  const perfil = ler('src/desktop/paginas/ProfilePage.web.tsx');
-  assert.match(perfil, /onVocesOsDois=\{nome=>navigate\(\{name:'voces-os-dois'/);
-  assert.match(perfil, /navigate\(\{ name: 'retrospetiva'/);
+  // O perfil pede-os pelo irPara; o PC traduz (lib/destinos.ts, test-destinos.ts).
+  assert.match(ler('src/components/SocialProfileView.tsx'), /podeIrPara\('voces-os-dois'\)\?\(nome\?:string\)=>irPara\(\{tipo:'voces-os-dois'/);
+  assert.match(ler('src/desktop/paginas/ProfilePage.web.tsx'), /irPara\(\{ tipo: 'retrospetiva', userId \}\)/);
 });
 caso('o "Jump back in" também no PC', () => {
   assert.ok(!/Platform\.OS === 'ios'\) instalarRecentes\(\)/.test(ler('App.tsx')));
-  assert.match(ler('src/desktop/paginas/BibliotecaPages.web.tsx'), /<VoltarAOuvir navigate=\{navigate\} \/>/);
+  assert.match(ler('src/desktop/paginas/BibliotecaPages.web.tsx'), /<VoltarAOuvir \/>/);
 });
 caso('os Downloads estão na biblioteca do iPhone e as mensagens na Home', () => {
   assert.match(ler('src/screens/PlaylistsScreen.tsx'), /navigation\.navigate\('Downloads'\)/);

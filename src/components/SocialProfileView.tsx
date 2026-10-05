@@ -1,6 +1,5 @@
 import React,{useCallback,useEffect,useRef,useState} from 'react';
 import { ActivityIndicator,Animated,Image,Platform,Pressable,ScrollView,StyleSheet,Text,View } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { appearanceOf,getSocialProfile,getSocialProfileTracks,saveProfileCustomization,type ProfileHighlights,type SocialProfile,type ProfileTrack } from '../api/profiles';
@@ -20,8 +19,8 @@ import { useSocialBottomPadding } from './useSocialBottomPadding';
 import { naoLidasPorAmigo } from '../lib/social';
 import { ArtworkCollage } from './ArtworkCollage';
 import { ProfileEditor } from './ProfileEditor';
-import { BotoesDoPerfil, ProfileHero } from './ProfileHero';
-import { faixaDaBarraDoNome } from '../lib/tituloQueEncolhe';
+import { ProfileHero } from './ProfileHero';
+import { CimaDoPerfil } from './CimaDoPerfil';
 import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { guardarPerfil, ouvirPerfis, perfilEmCache } from '../lib/cachePerfil';
 import { SkeletonDoPerfil } from './Skeleton';
@@ -32,19 +31,34 @@ import { SocialIconButton,socialStyles as s } from './socialUI';
 import type { Track } from '../types';
 import type { Playlist } from '../types';
 import { savePlaylistCopy, unsavePlaylistCopy } from '../api/playlists';
+import { useDestinos } from '../navigation/destinos';
 
-export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDois,onSettings,onSocial,onPlaylist,onBack,active=true,scrollRef}:{userId:string;onMessage:(id:string)=>void;onArtist:(name:string)=>void;onStats:()=>void;onVocesOsDois?:(nome?:string)=>void;onSettings?:()=>void;onSocial?:()=>void;onPlaylist?:(id:string)=>void;onBack?:()=>void;active?:boolean;
+export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:string;onBack?:()=>void;active?:boolean;
   /** A lista do perfil, para o separador do iPhone a levar ao topo (3/10). */
   scrollRef?:React.RefObject<any>}) {
   const web=Platform.OS==='web';
   const [width,setWidth]=useState(0);
   const wide=web&&width>=780;
   const columns=web&&width>=1000;
-  const bottomPadding=useSocialBottomPadding(!!onSocial);
+  // No iPhone o perfil vive sempre numa pilha de um separador, com a barra por
+  // baixo (5/10, auditoria N8); o de um amigo também.
+  const bottomPadding=useSocialBottomPadding(true);
   const accent=useTheme(x=>x.theme.color);
   const received=useSocial(x=>x.received),seen=useSocial(x=>x.seen);
   const unread=[...naoLidasPorAmigo(received,seen).values()].reduce((n,v)=>n+v,0);
   const myId=useAuth(x=>x.session?.user.id),own=userId===myId;
+  // Para onde o perfil leva é o `irPara` da app (5/10, lib/destinos.ts). Cada
+  // ecrã ligava as funções de que se lembrava, e uma esquecida desaparecia sem
+  // erro. O que a plataforma não tem não aparece; o que a casca já mostra
+  // sempre não se repete (no PC a lateral tem o Social e as Definições).
+  const { irPara, podeIrPara, mostrarPorta }=useDestinos();
+  const onMessage=(id:string)=>irPara({tipo:'conversa',kind:'friend',id});
+  const onArtist=(nome:string)=>irPara({tipo:'artista',nome});
+  const onStats=()=>irPara({tipo:'estatisticas',userId:own?undefined:userId});
+  const onVocesOsDois=podeIrPara('voces-os-dois')?(nome?:string)=>irPara({tipo:'voces-os-dois',userId,nome}):undefined;
+  const onSettings=mostrarPorta('definicoes')?()=>irPara({tipo:'definicoes'}):undefined;
+  const onSocial=mostrarPorta('social')?()=>irPara({tipo:'social'}):undefined;
+  const onPlaylist=podeIrPara('playlist')?(id:string,nome:string)=>irPara({tipo:'playlist',id,nome}):undefined;
   const [profile,setProfile]=useState<SocialProfile|null>(null),[most,setMost]=useState<ProfileTrack[]>([]),[recent,setRecent]=useState<ProfileTrack[]>([]);
   const [error,setError]=useState(''),[loading,setLoading]=useState(true),[editing,setEditing]=useState(false),[track,setTrack]=useState<Track|null>(null);
   const [opcoesDoPerfil,setOpcoesDoPerfil]=useState<Ancora|null>(null),[todasPlaylists,setTodasPlaylists]=useState(false);
@@ -269,7 +283,7 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
     {visiblePlaylists.length>0&&<View style={{gap:12}}>{(todasPlaylists?playlistsOrdenadas:playlistsOrdenadas.slice(0,3)).map(pl=>{
       const marked=guardadas.has(pl.id),busy=ocupada===pl.id;
       return <View key={pl.id} style={[s.row,{gap:8,minWidth:0}]}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Open ${pl.name}`} disabled={!onPlaylist} onPress={()=>onPlaylist?.(pl.id)}
+        <Pressable accessibilityRole="button" accessibilityLabel={`Open ${pl.name}`} disabled={!onPlaylist} onPress={()=>onPlaylist?.(pl.id,pl.name)}
           style={({pressed,hovered}:any)=>[estilos.linhaPlaylist,(pressed||hovered)&&{opacity:0.8}]}>
           <ArtworkCollage artworks={pl.artworks} size={64}/>
           <View style={{flex:1,minWidth:0}}>
@@ -394,15 +408,9 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
       </>}
       </View>
     </Animated.ScrollView>
-    {/* iPhone: a barra com o nome aparece quando o nome passa por baixo dela, e
-        os botões ficam no sítio por cima de tudo. Antes o conteúdo passava por
-        baixo da ilha sem fundo nenhum. */}
-    {!web&&<Animated.View pointerEvents="none" style={[estilos.barra,{height:safe.top+56,opacity:rolagem.interpolate({inputRange:faixaDaBarraDoNome(fimDoNome,safe.top+56),outputRange:[0,1],extrapolate:'clamp'})}]}>
-      <BlurView tint="dark" intensity={60} style={StyleSheet.absoluteFill}/>
-      <View style={[StyleSheet.absoluteFill,{backgroundColor:'rgba(10,10,15,0.72)'}]}/>
-      <Text numberOfLines={1} style={estilos.nomeNaBarra}>{nome}</Text>
-    </Animated.View>}
-    {!web&&<BotoesDoPerfil own={own} unread={unread} onBack={onBack} onSocial={onSocial} onSettings={onSettings} onOptions={abrirOpcoes}/>}
+    {/* iPhone: a barra com o nome e os botões, por cima de tudo. No PC não há (CimaDoPerfil.web.tsx). */}
+    <CimaDoPerfil nome={nome} rolagem={rolagem} fimDoNome={fimDoNome} own={own} unread={unread}
+      onBack={onBack} onSocial={onSocial} onSettings={onSettings} onOptions={abrirOpcoes}/>
     {editing&&profile&&<ProfileEditor profile={profile} highlights={highlightsLoaded&&!sectionErrors.playlists?highlights:null} playlists={playlists} onClose={()=>setEditing(false)} onSaved={()=>{void load(true);void useSocial.getState().refresh();}}/>}
     <MenuFlutuante visivel={!!opcoesDoPerfil} ancora={opcoesDoPerfil} accoes={accoesDoPerfil}
       aoFechar={()=>{depoisDoMenu.current=null;setOpcoesDoPerfil(null);}}
@@ -420,7 +428,4 @@ const estilos=StyleSheet.create({
   cartao:{flexDirection:'row',alignItems:'center',gap:12,padding:12,borderRadius:18,borderCurve:'continuous',backgroundColor:colors.surface},
   rotulo:{fontSize:11,fontWeight:'700',letterSpacing:0.6,textTransform:'uppercase',color:colors.textTertiary,marginBottom:2},
   play:{width:44,height:44,borderRadius:22,backgroundColor:'#fff',alignItems:'center',justifyContent:'center'},
-  barra:{position:'absolute',top:0,left:0,right:0,justifyContent:'flex-end',alignItems:'center',paddingBottom:16,overflow:'hidden',
-    borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:colors.border},
-  nomeNaBarra:{fontSize:17,fontWeight:'600',color:colors.text,maxWidth:'60%'},
 });

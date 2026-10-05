@@ -18,8 +18,10 @@ export const ALTURA_DOS_SEPARADORES = 54;
 
 /**
  * - `separadores`: música (se houver) e separadores, como nas secções.
- * - `semSeparadores`: um ecrã aberto por cima das secções (uma playlist vinda da
- *   Pesquisa, os Downloads): os separadores saem e a música desce para o fundo.
+ * - `semSeparadores`: um ecrã da RAIZ por cima das secções: os separadores saem
+ *   e a música desce para o fundo. Desde 5/10 nenhum o pede -- os detalhes
+ *   (uma playlist vinda da Home, os Downloads) vivem nas pilhas dos separadores
+ *   (auditoria N8) e ficam com a barra. Fica para um ecrã novo na raiz.
  * - `escondida`: ecrãs onde o João não quer o mini-player.
  */
 export type ModoDaDoca = 'separadores' | 'semSeparadores' | 'escondida';

@@ -19,7 +19,7 @@ import { formatListeningTime, type StatsPeriod, type TimelineBucket } from '../.
 import { useAuth } from '../../state/auth';
 import { useTheme } from '../../state/theme';
 import type { Track } from '../../types';
-import type { Route } from '../rotas';
+import { useDestinos } from '../../navigation/destinos';
 import { styles } from '../estilos.web';
 import { BotaoVoltar,
   Button, ContentScroll, desktop, Empty, Loading, Page,
@@ -30,7 +30,8 @@ const V = View as any;
 
 export const STATS_PERIODS: [StatsPeriod, string][] = [['30d', 'Last 30 days'], ['6m', 'Last 6 months'], ['all', 'All time']];
 
-export function StatsPage({ back, play, userId, navigate }: { userId?:string; back: () => void; play: (t: Track, q?: Track[]) => void; navigate?: (r: Route) => void }) {
+export function StatsPage({ back, play, userId }: { userId?:string; back: () => void; play: (t: Track, q?: Track[]) => void }) {
+  const { irPara, podeIrPara } = useDestinos();
   const theme = useTheme((s) => s.theme);
   const ownId = useAuth(s => s.session?.user.id);
   const [period, setPeriod] = useState<StatsPeriod>('30d');
@@ -57,7 +58,7 @@ export function StatsPage({ back, play, userId, navigate }: { userId?:string; ba
       <Text style={[styles.smallSegmentText, period === value && { color: desktop.text }]}>{label}</Text>
     </P>))}</View>;
 
-  return <Page title={userId&&userId!==ownId?"Listening stats":"Your listening"} action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}{navigate ? <Button secondary icon="sparkles-outline" onPress={() => navigate({ name: 'retrospetiva', userId })}>Year in review</Button> : null}<BotaoVoltar onPress={back} /></View>}>
+  return <Page title={userId&&userId!==ownId?"Listening stats":"Your listening"} action={<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>{periodPicker}{podeIrPara('retrospetiva') ? <Button secondary icon="sparkles-outline" onPress={() => irPara({ tipo: 'retrospetiva', userId })}>Year in review</Button> : null}<BotaoVoltar onPress={back} /></View>}>
     <ContentScroll>
       {loading ? <View style={{ height: 320 }}><Loading /></View>
         : result?.unavailable ? <Empty icon="cloud-offline-outline" title="Stats unavailable" body="Your listening history couldn't be loaded. Try again later." />
@@ -127,12 +128,9 @@ export function StatsChart({ buckets, color }: { buckets: TimelineBucket[]; colo
     </View>))}</View>;
 }
 
-export function ProfilePage({navigate,userId,back}:{navigate:(r:Route)=>void;notify:(s:string)=>void;userId?:string;back?:()=>void}) {
+/** Para onde o perfil leva é o `irPara` da casca (5/10, lib/destinos.ts). */
+export function ProfilePage({userId,back}:{userId?:string;back?:()=>void}) {
   const ownId=useAuth(s=>s.session?.user.id);
   const target=userId || ownId;
-  return <View style={{flex:1,minHeight:0}}>{target&&<SocialProfileView key={target} userId={target} onBack={userId?back:undefined}
-    onMessage={friendId=>navigate({name:'social',friendId})}
-    onPlaylist={id=>navigate({name:'playlist',id,title:'Playlist'})}
-    onArtist={value=>navigate({name:'artist',value})} onStats={()=>navigate({name:'stats',userId:target})}
-    onVocesOsDois={nome=>navigate({name:'voces-os-dois',userId:target,nome})}/>}</View>;
+  return <View style={{flex:1,minHeight:0}}>{target&&<SocialProfileView key={target} userId={target} onBack={userId?back:undefined}/>}</View>;
 }

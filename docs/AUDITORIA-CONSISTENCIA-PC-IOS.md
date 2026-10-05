@@ -1,8 +1,9 @@
 # Auditoria de consistência PC ↔ iPhone
 
-> 5/10/2026. Feita sobre o código (sem aparelho). As fases 1 e 2 estão feitas; o
+> 5/10/2026. Feita sobre o código (sem aparelho). As fases 1, 2 e 3 estão feitas; o
 > iPhone está por confirmar no aparelho (perfil, conversas, os menus junto ao dedo,
-> o menu de um amigo, os Downloads na biblioteca e o botão das mensagens na Home). Cada linha cita o ficheiro onde
+> o menu de um amigo, os Downloads na biblioteca, o botão das mensagens na Home e
+> os detalhes dentro do separador onde se está). Cada linha cita o ficheiro onde
 > o comportamento vive. **Estado:** ⬜ por fazer · ✅ feito · ⏸ decisão antiga a
 > manter (não mexer sem o João). Prioridade: **P1** quebra o fluxo ou esconde
 > uma função · **P2** confunde · **P3** acabamento.
@@ -42,7 +43,7 @@ e **a porta**:
 | **N5 · Definições** ✅ P1 | Roda dentada sempre visível ao lado da conta (`casca.web.tsx`). | Escondidas no menu "⋯" do Perfil, ao lado de "Listening stats" (`SocialProfileView.tsx`, `accoesDoPerfil`). | Um clique no PC, três toques no iPhone, e sem nada à vista. A HIG espera uma roda dentada visível. | Botão de vidro com a roda dentada no topo do perfil próprio (`BotoesDoPerfil`), e sair do "⋯". |
 | **N6 · Jam** ✅ P2 | Botão "Start a Jam" na barra do leitor (ícone `people`) e o indicador de quem vê. | Não há botão. Começa pelo "Listen together" dentro da janela de partilha; o indicador só abre um Jam que já existe. | A mesma função tem porta própria num lado e está escondida no outro. O ícone do PC é o do Social. | iPhone: "Start a Jam" no grupo de baixo do "⋯" do leitor, ao lado de "Play on another device". PC: ícone de auscultadores, o mesmo do "Listen together". |
 | **N7 · Voltar** ✅ P1 | Botões de texto com o destino escrito à mão: "Back to artists", "Back to playlists", "Playlists", "Settings", "Profile". Todos chamam o `back()`, que volta ao **histórico** (`RootNavigator.web.tsx`). Um artista aberto pela Pesquisa diz "Back to artists" e volta à Pesquisa. O Now Playing usa só "←". | Chevron nativo e o gesto, sempre para o ecrã anterior. | O PC diz uma coisa e faz outra, e cada página escreve o voltar à sua maneira. | Um `BotaoVoltar` no `Page`: "←" mais o nome da página **anterior real**, lido do histórico. Igual em todas as páginas, como os botões laterais do rato. |
-| **N8 · Detalhe com ou sem barra** ⬜ P2 | Sempre com a lateral. | `PlaylistDetail` e `LibraryGroup` estão registados duas vezes, no stack do separador e no stack de raiz (`RootNavigator.tsx`). Vindos de Playlists ou Artists ficam com os separadores; vindos da Home ou de um perfil perdem-nos (a Doca passa a `semSeparadores`). | O mesmo ecrã aparece de duas maneiras conforme a porta. A HIG pede que o detalhe entre dentro do separador onde se está. | Um stack por separador com os ecrãs de detalhe (Home incluída), e tirar os duplicados da raiz. Código: `Search` passa a stack como `Playlists`/`Artists`. |
+| **N8 · Detalhe com ou sem barra** ✅ P2 | Sempre com a lateral. | `PlaylistDetail` e `LibraryGroup` estão registados duas vezes, no stack do separador e no stack de raiz (`RootNavigator.tsx`). Vindos de Playlists ou Artists ficam com os separadores; vindos da Home ou de um perfil perdem-nos (a Doca passa a `semSeparadores`). | O mesmo ecrã aparece de duas maneiras conforme a porta. A HIG pede que o detalhe entre dentro do separador onde se está. | Um stack por separador com os ecrãs de detalhe (Home incluída), e tirar os duplicados da raiz. Código: `Search` passa a stack como `Playlists`/`Artists`. |
 | **N9 · Rótulo da lateral** ✅ P3 | "DISCOVER" por cima de Search, Liked Songs, Artists, Playlists e Social. | Não se aplica. | Só uma destas entradas é descoberta; o resto é a biblioteca e os amigos. | "LIBRARY" (ou sem rótulo), com o Social a abrir o bloco dos amigos. |
 
 ## 2. Menus secundários e janelas
@@ -84,13 +85,13 @@ e **a porta**:
 
 | Componente/Fluxo | Comportamento na Web (PC) | Comportamento no iOS | Inconsistência Detetada | Solução Recomendada (UX + Código) |
 |---|---|---|---|---|
-| **T1 · Rotas** ⬜ P2 | União `Route` em `desktop/rotas.ts`, em kebab: `artist {value}`, `playlist {id,title}`, `mistura`, `stats`, `import`, `spotify-import`, `library-check`, `friend-profile`, `now-playing`. | React Navigation com nomes mistos PT/EN: `LibraryGroup {type,name}`, `PlaylistDetail {id,name}`, `Prateleira`, `ListeningStats`, `Retrospetiva`, `VocesOsDois`, `Conversa`, `Folha`, `Fila`, `ImportYouTube`. | Os mesmos destinos têm nomes e parâmetros diferentes. Não há onde ver que existe "estatísticas" nos dois lados. | Um `lib/destinos.ts` puro: uma união neutra (`{tipo:'artista',nome}`, `{tipo:'playlist',id,nome}`, …) e um adaptador por plataforma (`irPara`). As rotas reais ficam onde estão. |
-| **T2 · Callbacks nos componentes partilhados** ⬜ P1 | A `ProfilePage.web` liga 5 dos 9 callbacks do `SocialProfileView`. | `ProfileScreen` e `FriendProfileScreen` ligam outros subconjuntos. | Cada ecrã escolhe sem querer o que o perfil mostra. Uma função esquecida desaparece sem erro (A1). | O `SocialProfileView`, o `SocialHub` e as listas recebem um só `irPara` por contexto (`DestinosProvider`). A visibilidade sai de `podeIrPara(tipo)`, que cada plataforma declara uma vez. |
-| **T3 · Dois canais de navegação no PC** ⬜ P3 | A prop `navigate` passa de página em página **e** há um `window.dispatchEvent('duotone:navigate')` (`casca.web.tsx`, `ui.web.tsx`). | Um canal (`navigation`). | Dois caminhos para o mesmo efeito, um deles global e sem tipos. | Fica tudo no `irPara` do contexto; o evento global só como implementação dele, se for preciso. |
+| **T1 · Rotas** ✅ P2 | União `Route` em `desktop/rotas.ts`, em kebab: `artist {value}`, `playlist {id,title}`, `mistura`, `stats`, `import`, `spotify-import`, `library-check`, `friend-profile`, `now-playing`. | React Navigation com nomes mistos PT/EN: `LibraryGroup {type,name}`, `PlaylistDetail {id,name}`, `Prateleira`, `ListeningStats`, `Retrospetiva`, `VocesOsDois`, `Conversa`, `Folha`, `Fila`, `ImportYouTube`. | Os mesmos destinos têm nomes e parâmetros diferentes. Não há onde ver que existe "estatísticas" nos dois lados. | Um `lib/destinos.ts` puro: uma união neutra (`{tipo:'artista',nome}`, `{tipo:'playlist',id,nome}`, …) e um adaptador por plataforma (`irPara`). As rotas reais ficam onde estão. |
+| **T2 · Callbacks nos componentes partilhados** ✅ P1 | A `ProfilePage.web` liga 5 dos 9 callbacks do `SocialProfileView`. | `ProfileScreen` e `FriendProfileScreen` ligam outros subconjuntos. | Cada ecrã escolhe sem querer o que o perfil mostra. Uma função esquecida desaparece sem erro (A1). | O `SocialProfileView`, o `SocialHub` e as listas recebem um só `irPara` por contexto (`DestinosProvider`). A visibilidade sai de `podeIrPara(tipo)`, que cada plataforma declara uma vez. |
+| **T3 · Dois canais de navegação no PC** ✅ P3 | A prop `navigate` passa de página em página **e** há um `window.dispatchEvent('duotone:navigate')` (`casca.web.tsx`, `ui.web.tsx`). | Um canal (`navigation`). | Dois caminhos para o mesmo efeito, um deles global e sem tipos. | Fica tudo no `irPara` do contexto; o evento global só como implementação dele, se for preciso. |
 | **T4 · Folhas sem par web** ✅ P1 | O `BottomSheet.tsx` corre igual no PC: uma folha de baixo a toda a largura. | Folha (Modal + PanResponder). | Quebra a convenção de pares (`x.tsx` + `x.web.tsx`) que o resto da app segue. | `BottomSheet.web.tsx` com o `Dialog` (ver M3). O `ShareDialog` de hoje passa a ser só esse par. |
-| **T5 · Plataforma decidida por dentro** ⬜ P3 | Ramos `web&&` / `Platform.OS==='web'` dentro do `SocialHub`, do `SocialProfileView` e do `socialUI`. | Os mesmos ficheiros. | A apresentação de cada lado vive misturada no mesmo componente, e é aí que nascem diferenças acidentais. | O que é só apresentação vai para pares `.web`; os componentes partilhados ficam com os dados e a lógica. Fazer quando se mexer neles, não de uma vez. |
+| **T5 · Plataforma decidida por dentro** ✅ regra P3 | Ramos `web&&` / `Platform.OS==='web'` dentro do `SocialHub`, do `SocialProfileView` e do `socialUI`. | Os mesmos ficheiros. | A apresentação de cada lado vive misturada no mesmo componente, e é aí que nascem diferenças acidentais. | O que é só apresentação vai para pares `.web`; os componentes partilhados ficam com os dados e a lógica. Fazer quando se mexer neles, não de uma vez. |
 | **T6 · Apresentação dos menus** ✅ P2 | `Dialog`, `MenuDoAmigo`, `SocialModal` (web). | `BottomSheet`, `MenuFlutuante`, `SocialModal`, `formSheet` nativo. | Sete implementações; o conteúdo só é partilhado para faixas e amigos. | `MenuDeContexto.web` + `MenuFlutuante` como as duas únicas apresentações de menu; `menuDaPlaylist` puro (M4). |
-| **T7 · Rotas duplicadas no iOS** ⬜ P2 | — | `PlaylistDetail` e `LibraryGroup` no stack do separador e no de raiz. | Ver N8. | Ver N8. |
+| **T7 · Rotas duplicadas no iOS** ✅ P2 | — | `PlaylistDetail` e `LibraryGroup` no stack do separador e no de raiz. | Ver N8. | Ver N8. |
 | **T8 · Ícones** ✅ P3 | `people` = Social e Jam; `mic` = Artists. | `people` = Artists. | O mesmo ícone com significados diferentes. | `lib/icones.ts` com o mapa único (ver N3). |
 
 ## 6. Guias de cada plataforma
@@ -103,7 +104,7 @@ e **a porta**:
 - ✅ Os Downloads estão no topo da biblioteca (A6).
 - ✅ O "⋯" de uma lista abre o mesmo menu junto ao dedo do leitor (M1); as
   folhas ficaram para tarefas.
-- ⬜ Um detalhe esconde a barra de separadores conforme a porta (N8).
+- ✅ Um detalhe entra no separador onde se está, sempre com a barra (N8).
 - ⏸ Separadores que deslizam e um separador escondido (Social): fogem à HIG,
   mas foram decisão. A mitigação é a porta visível da N4.
 
@@ -136,10 +137,17 @@ e **a porta**:
 - A4: "Jump back in" no PC.
 - P1: rótulos das Definições partilhados.
 
-**Fase 3: arquitetura**
-- T1 + T2 + T3: `lib/destinos.ts` e o `irPara` por contexto.
-- N8 + T7: um stack por separador no iPhone.
-- T5: pares `.web` à medida que se mexe nos componentes sociais.
+**Fase 3: arquitetura** ✅ feita a 5/10 (`scripts/test-destinos.ts`)
+- T1 + T2 + T3: `lib/destinos.ts` (os destinos neutros e as duas tabelas,
+  `podeIrPara`, `mostrarPorta`) e o `irPara` por contexto
+  (`navigation/destinos.tsx`). O `SocialProfileView` e o `SocialHub` deixaram
+  de receber funções de navegação; o evento global `duotone:navigate` saiu. As
+  páginas do PC continuam a receber o `navigate` tipado da casca (é o mesmo).
+- N8 + T7: uma pilha por separador no iPhone (`pilhaDoSeparador`), com todos
+  os detalhes; na raiz ficam os separadores e as folhas. Um detalhe pedido de
+  uma folha (a fila) fecha-a e entra na pilha do separador.
+- T5: fica como REGRA (mexer, separar). Primeiro par: `CimaDoPerfil` (a barra
+  do nome e os botões do perfil, só iPhone) saiu do `SocialProfileView`.
 
 **Só com o OK do João:** A3 (mexe no leitor do iPhone), N1 (renomear a
 página principal do PC), N2 e A7.

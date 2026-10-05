@@ -1,4 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
+import { CommonActions } from '@react-navigation/native';
+import { rotaNoIphone, type Destino } from '../lib/destinos';
+import { DestinosProvider } from './destinos';
 import { registarToque } from '../lib/ultimoToque';
 import {useReducedMotion} from '../hooks/useReducedMotion';
 import { OfflineNotice,withInternet } from '../components/OfflineNotice';
@@ -78,16 +81,17 @@ const OnlineSocial=withInternet(SocialScreen,'Social');
 const OnlineFriendProfile=withInternet(FriendProfileScreen,'Profile');
 const OnlineVocesOsDois=withInternet(VocesOsDoisScreen,'Profile');
 
-export type RootStackParamList = {
-  Tabs: NavigatorScreenParams<TabsParamList>;
+/**
+ * Os ecrãs das pilhas dos separadores (5/10, auditoria N8): a raiz de cada uma
+ * (o mesmo nome do separador) e todos os detalhes. Na raiz da app ficam só os
+ * separadores e as folhas (`RootStackParamList`).
+ */
+export type PilhaParamList = {
+  Search: undefined;
+  Songs: undefined;
+  Profile: undefined;
+  Social: undefined;
   Settings: undefined;
-  /** A fila numa folha nativa do iOS (3/10, `screens/FilaScreen.tsx`). */
-  Fila: undefined;
-  /**
-   * As outras folhas, nativas no iOS (4/10, `screens/FolhaScreen.tsx`): o
-   * conteúdo vive em `state/folhasNativas.ts`, pelo `id`.
-   */
-  Folha: { id: string; detentes?: DetentesDaFolha };
   ListeningStats: {userId?:string} | undefined;
   Retrospetiva: {ano?:number;userId?:string} | undefined;
   Downloads: undefined;
@@ -120,15 +124,30 @@ export type RootStackParamList = {
   };
 };
 
-/** Os separadores de baixo. Exportado para quem precisa de saltar de um para
- *  outro -- o `RootStackParamList` nao os conhece, e o `navigate` tipado por
- *  ele recusa-os. */
+/**
+ * A raiz: os separadores e as folhas. Os ecrãs das pilhas também cabem no
+ * tipo, para os ecrãs tiparem a navegação com um nome só (o pedido sobe da
+ * pilha até quem o conhece).
+ */
+export type RootStackParamList = PilhaParamList & {
+  Tabs: NavigatorScreenParams<TabsParamList>;
+  /** A fila numa folha nativa do iOS (3/10, `screens/FilaScreen.tsx`). */
+  Fila: undefined;
+  /**
+   * As outras folhas, nativas no iOS (4/10, `screens/FolhaScreen.tsx`): o
+   * conteúdo vive em `state/folhasNativas.ts`, pelo `id`.
+   */
+  Folha: { id: string; detentes?: DetentesDaFolha };
+};
+
+/** Os separadores de baixo; cada um é uma pilha (5/10). Exportado para quem
+ *  precisa de saltar de um para outro. */
 export type TabsParamList = {
-  Search: undefined;
-  Songs: undefined;
-  Artists: undefined;
-  Playlists: undefined;
-  Profile: undefined;
+  Search: NavigatorScreenParams<PilhaParamList> | undefined;
+  Songs: NavigatorScreenParams<PilhaParamList> | undefined;
+  Artists: NavigatorScreenParams<PilhaParamList> | undefined;
+  Playlists: NavigatorScreenParams<PilhaParamList> | undefined;
+  Profile: NavigatorScreenParams<PilhaParamList> | undefined;
   /**
    * O Social e uma SECCAO, e nao um ecra empilhado -- mas nao aparece na
    * barra.
@@ -142,7 +161,7 @@ export type TabsParamList = {
    * Fora da barra porque seis icones apertavam os cinco que ja la estao. Quem
    * o filtra e a `BarraDeSeparadores`.
    */
-  Social: { openChatWithFriendId?: string; openGroupId?: string } | undefined;
+  Social: NavigatorScreenParams<PilhaParamList> | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -158,28 +177,66 @@ function envolverEcra({ route, children }: { route: { name: string }; children: 
   return <BarreiraDeErros onde={`ecra:${route.name}`}>{children}</BarreiraDeErros>;
 }
 
-// Cada tab com navegação para ecrãs de detalhe recebe o seu próprio stack
-// aninhado. Assim, ao abrir um álbum/artista/playlist a tab bar de baixo
-// continua visível (o React Navigation mantém-na renderizada à volta de
-// qualquer stack aninhado) — antes, estes ecrãs eram irmãos da própria Tabs
-// no stack raiz, o que escondia a barra por completo.
-function PlaylistsStack() {
+/**
+ * Os ecrãs que entram POR CIMA de uma secção. Vivem em TODAS as pilhas dos
+ * separadores (5/10, auditoria N8): o detalhe entra no separador onde se está,
+ * com a barra por baixo, venha de onde vier. Estavam duas vezes -- na pilha
+ * das Playlists/Artists e na raiz --, e a mesma playlist aparecia com ou sem
+ * separadores conforme a porta (da Home ou de um perfil, sem). A raiz ficou
+ * com os separadores e as folhas.
+ *
+ * As Definições, o Library check, o Importar e o chat continuam sem a base
+ * (`ECRAS_SEM_BASE`, lib/doca.ts); agora só porque o nome o diz, não por
+ * viverem noutro sítio.
+ */
+function ecrasDaPilha() {
   return (
-    <Stack.Navigator screenOptions={stackScreenOptions} screenLayout={envolverEcra}>
-      <Stack.Screen name="Playlists" component={OnlinePlaylists} />
+    <>
       <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />
+      <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
+      <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
+      <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
+      <Stack.Screen name="VocesOsDois" component={OnlineVocesOsDois} />
+      <Stack.Screen name="ListeningStats" component={OnlineListeningStats} />
+      <Stack.Screen name="Retrospetiva" component={OnlineRetrospetiva} />
+      {/* Sem withInternet: ver o que está guardado é justamente o que
+          tem de funcionar sem rede. */}
+      <Stack.Screen name="Downloads" component={DownloadsScreen} />
+      <Stack.Screen name="Conversa" component={ConversaScreen} options={{gestureEnabled:true,fullScreenGestureEnabled:true,gestureDirection:'horizontal'}} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="LibraryCheck" component={LibraryCheckScreen} />
       <Stack.Screen name="ImportYouTube" component={OnlineImportYouTube} />
-    </Stack.Navigator>
+    </>
   );
 }
 
-function ArtistsStack() {
-  return (
-    <Stack.Navigator screenOptions={stackScreenOptions} screenLayout={envolverEcra}>
-      <Stack.Screen name="Artists" component={OnlineArtists} />
-      <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
-    </Stack.Navigator>
-  );
+type RaizDaPilha = 'Search' | 'Songs' | 'Artists' | 'Playlists' | 'Profile' | 'Social';
+
+/** A pilha de um separador: a secção na raiz e todos os detalhes por cima. */
+function pilhaDoSeparador(raiz: RaizDaPilha, componente: React.ComponentType<any>) {
+  function Pilha() {
+    return (
+      <Stack.Navigator screenOptions={stackScreenOptions} screenLayout={envolverEcra}>
+        <Stack.Screen name={raiz} component={componente} />
+        {ecrasDaPilha()}
+      </Stack.Navigator>
+    );
+  }
+  Pilha.displayName = `Pilha(${raiz})`;
+  return Pilha;
+}
+
+const PilhaDaHome = pilhaDoSeparador('Search', OnlineSearch);
+const PilhaDasSongs = pilhaDoSeparador('Songs', SongsScreen);
+const PilhaDosArtists = pilhaDoSeparador('Artists', OnlineArtists);
+const PilhaDasPlaylists = pilhaDoSeparador('Playlists', OnlinePlaylists);
+const PilhaDoPerfil = pilhaDoSeparador('Profile', OnlineProfile);
+const PilhaDoSocial = pilhaDoSeparador('Social', OnlineSocial);
+
+/** O dedo só muda de separador com a pilha na raiz: dentro de um detalhe, o
+ *  arrasto lateral é o "voltar" da página. */
+function naRaiz(route: Parameters<typeof getFocusedRouteNameFromRoute>[0] & { name: string }) {
+  return (getFocusedRouteNameFromRoute(route) ?? route.name) === route.name;
 }
 
 
@@ -207,27 +264,23 @@ function Tabs() {
       initialRouteName={useConnectivity.getState().offline ? 'Songs' : 'Search'}
       tabBarPosition="bottom"
       tabBar={(props) => <BarraDeSeparadores {...props} />}
-      screenOptions={{
+      screenOptions={({ route }) => ({
         lazy: true,
         lazyPreloadDistance: 1,
         // Quem pediu menos animação continua a poder tocar nos separadores; o
         // que se lhe tira é a página a correr por baixo do dedo.
-        swipeEnabled: !reducedMotion,
+        swipeEnabled: !reducedMotion && naRaiz(route),
         animationEnabled: !reducedMotion,
-      }}
+      })}
     >
-      <Tab.Screen name="Search" component={OnlineSearch} />
-      <Tab.Screen name="Songs" component={SongsScreen} />
-      <Tab.Screen name="Artists" component={ArtistsStack} options={({ route }) => ({
-        swipeEnabled: !reducedMotion && (getFocusedRouteNameFromRoute(route) ?? 'Artists') === 'Artists',
-      })} />
-      <Tab.Screen name="Playlists" component={PlaylistsStack} options={({ route }) => ({
-        swipeEnabled: !reducedMotion && (getFocusedRouteNameFromRoute(route) ?? 'Playlists') === 'Playlists',
-      })} />
-      <Tab.Screen name="Profile" component={OnlineProfile} />
+      <Tab.Screen name="Search" component={PilhaDaHome} />
+      <Tab.Screen name="Songs" component={PilhaDasSongs} />
+      <Tab.Screen name="Artists" component={PilhaDosArtists} />
+      <Tab.Screen name="Playlists" component={PilhaDasPlaylists} />
+      <Tab.Screen name="Profile" component={PilhaDoPerfil} />
       {/* Depois do Perfil, e escondido da barra: e o destino do arrastar para
           la da ultima seccao. Ver o `TabsParamList`. */}
-      <Tab.Screen name="Social" component={OnlineSocial} />
+      <Tab.Screen name="Social" component={PilhaDoSocial} />
     </Tab.Navigator>
   );
 }
@@ -274,6 +327,37 @@ function visibleConversation(): string | null {
   const c = useSocial.getState().conversation;
   return c ? c.kind === 'group' ? `group:${c.id}` : c.id : null;
 }
+/**
+ * O `irPara` do iPhone (lib/destinos.ts). Um separador muda de secção (e fecha
+ * uma folha que esteja aberta); um detalhe entra na PILHA do separador onde se
+ * está -- dirigido a ela pela chave, e não pelo `navigate` solto, que a partir
+ * de uma folha da raiz (a fila) não encontrava o ecrã e não fazia nada. O foco
+ * que a navegação pede fecha a folha pelo caminho.
+ */
+export function irParaNoIphone(destino: Destino): boolean {
+  const alvo = rotaNoIphone(destino);
+  if (!alvo || !navigationRef.isReady()) return false;
+  if (alvo.onde === 'separador') {
+    navigationRef.dispatch(CommonActions.navigate({ name: 'Tabs', params: { screen: alvo.ecra, params: alvo.params }, pop: true }));
+    return true;
+  }
+  const raiz = navigationRef.getRootState();
+  const separadores = raiz?.routes.find((r) => r.name === 'Tabs')?.state;
+  const separador = separadores?.routes[separadores.index ?? 0];
+  const pilha = separador?.state;
+  if (pilha?.key) {
+    navigationRef.dispatch({ ...CommonActions.navigate(alvo.ecra, alvo.params), target: pilha.key });
+  } else {
+    // A pilha do separador ainda não montou (só no arranque): pelo caminho aninhado.
+    navigationRef.dispatch(CommonActions.navigate({
+      name: 'Tabs', pop: true,
+      params: { screen: separador?.name ?? 'Search', params: { screen: alvo.ecra, params: alvo.params } },
+    }));
+  }
+  return true;
+}
+const irPara = (d: Destino) => { irParaNoIphone(d); };
+
 async function openNotification(target: NotificationTarget) {
   const userId = useAuth.getState().session?.user.id;
   await closeNotificationOverlays();
@@ -283,10 +367,9 @@ async function openNotification(target: NotificationTarget) {
   // A conversa é uma página (5/10): abre por cima de onde se está, e voltar
   // regressa lá. Com uma conversa já aberta, o `navigate` troca-lhe os
   // parâmetros em vez de empilhar outra.
-  const conversa = target.groupId ? {kind:'group' as const,id:target.groupId}
-    : target.friendId ? {kind:'friend' as const,id:target.friendId} : null;
-  if (conversa) navigationRef.navigate('Conversa', conversa);
-  else navigationRef.navigate('Tabs',{screen:'Social'});
+  if (target.groupId) irParaNoIphone({ tipo: 'conversa', kind: 'group', id: target.groupId });
+  else if (target.friendId) irParaNoIphone({ tipo: 'conversa', kind: 'friend', id: target.friendId });
+  else irParaNoIphone({ tipo: 'social' });
 }
 
 export function RootNavigator() {
@@ -332,6 +415,8 @@ export function RootNavigator() {
       onReady={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); atualizarDoca(navigationRef.getRootState()); }}
       onStateChange={() => { anotarEcra(navigationRef.getCurrentRoute()?.name); atualizarDoca(navigationRef.getRootState()); }}
     >
+      {/* O `irPara` de toda a app (5/10, lib/destinos.ts). */}
+      <DestinosProvider value={irPara}>
       {/* Onde foi o último toque, para os menus nascerem junto ao dedo
           (5/10, lib/ultimoToque.ts). Na captura: antes de qualquer botão, e
           sem nunca ficar com o toque. */}
@@ -367,7 +452,6 @@ export function RootNavigator() {
 
             <Stack.Navigator screenOptions={stackScreenOptions} screenLayout={envolverEcra}>
               <Stack.Screen name="Tabs" component={Tabs} />
-              <Stack.Screen name="Settings" component={SettingsScreen} />
               {/* A fila numa folha NATIVA (3/10): abre a meio e sobe toda; a
                   app de trás recua com os cantos redondos quando sobe. */}
               <Stack.Screen
@@ -394,18 +478,6 @@ export function RootNavigator() {
                   contentStyle: { backgroundColor: colors.surfaceHigh },
                 })}
               />
-              <Stack.Screen name="ListeningStats" component={OnlineListeningStats} />
-              <Stack.Screen name="Retrospetiva" component={OnlineRetrospetiva} />
-              {/* Sem withInternet: ver o que está guardado é justamente o que
-                  tem de funcionar sem rede. */}
-              <Stack.Screen name="Downloads" component={DownloadsScreen} />
-              <Stack.Screen name="LibraryCheck" component={LibraryCheckScreen} />
-              <Stack.Screen name="FriendProfile" component={OnlineFriendProfile} />
-              <Stack.Screen name="Conversa" component={ConversaScreen} options={{gestureEnabled:true,fullScreenGestureEnabled:true,gestureDirection:'horizontal'}} />
-              <Stack.Screen name="VocesOsDois" component={OnlineVocesOsDois} />
-              <Stack.Screen name="LibraryGroup" component={OnlineLibraryGroup} />
-              <Stack.Screen name="Prateleira" component={OnlinePrateleira} />
-              <Stack.Screen name="PlaylistDetail" component={OnlinePlaylistDetail} />
             </Stack.Navigator>
             {/* A base de baixo: o vidro do mini-player e dos separadores (3/10).
                 Por cima dos ecrãs e dentro da app de trás: recua com ela. */}
@@ -449,6 +521,7 @@ export function RootNavigator() {
           <View style={{flex:1}}>{offline&&<OfflineNotice compact signIn/>}<AuthScreen /></View>
         )}
       </View>
+      </DestinosProvider>
     </NavigationContainer>
   );
 }

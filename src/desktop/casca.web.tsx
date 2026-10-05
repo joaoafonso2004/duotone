@@ -34,6 +34,7 @@ import { IndicadorDeVisibilidade } from './IndicadorDeVisibilidade.web';
 import { AmigosNaLateral } from './AmigosNaLateral.web';
 import { AtalhosNaLateral } from './AtalhosNaLateral.web';
 import { ProgressoDaImportacao } from './ProgressoDaImportacao.web';
+import { useDestinos } from '../navigation/destinos';
 
 const P = Pressable as any;
 const V = View as any;
@@ -573,6 +574,8 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
   discordLigado?: boolean;
   onAviso?: (mensagem: string) => void;
 }) {
+  // Abrir o Now Playing é navegar como outra coisa qualquer (fica no histórico).
+  const { irPara } = useDestinos();
   // Só o que a barra desenha, e NUNCA a posição: o `usePlayer()` sem seletor
   // redesenhava a barra inteira a cada `_setProgress` (auditoria de 17/9, §1.5).
   // A posição vive na `BarraDeProgresso`, que é a única que precisa dela.
@@ -631,7 +634,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
     <View style={styles.playerTrack} {...dragClose.panHandlers} onLayout={e=>{swipeWidth.current=e.nativeEvent.layout.width;}}>
       <Pressable
         style={styles.playerTrackLink}
-        onPress={() => {if(!swiping.current)window.dispatchEvent(new CustomEvent('duotone:navigate', { detail: { name: 'now-playing' } }));}}
+        onPress={() => {if(!swiping.current)irPara({ tipo: 'a-tocar' });}}
       >
         <Artwork track={p.current} size={52} />
         {/* O título limpo e o artista, como em todas as listas: aqui ia o

@@ -1,6 +1,4 @@
-import { useNavigation } from '@react-navigation/native';
 import { ICONES } from '../lib/icones';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -11,7 +9,7 @@ import { amigosNaLateral } from '../lib/amigosNaLateral';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
 import { ESCALA } from '../lib/movimento';
-import type { RootStackParamList } from '../navigation/RootNavigator';
+import { useDestinos } from '../navigation/destinos';
 import { ouvirComAmigo } from '../state/ouvirComAmigo';
 import { useSocial } from '../state/social';
 import { colors, spacing, type } from '../theme';
@@ -58,7 +56,7 @@ const LARGURA = 112;
  * queira dizer a mesma coisa em todo o lado.
  */
 export function AmigosAOuvir() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { irPara } = useDestinos();
   // O selector devolve o que está na store, sem construir nada: um array novo
   // a cada leitura punha o `useSyncExternalStore` num ciclo -- já aconteceu
   // nesta app e a versão não arrancava.
@@ -117,7 +115,7 @@ export function AmigosAOuvir() {
         <Toque
           key={amigo.friendId}
           escala={ESCALA.cartao}
-          onPress={() => navigation.navigate('FriendProfile', { userId: amigo.friendId })}
+          onPress={() => irPara({ tipo: 'perfil', userId: amigo.friendId })}
           accessibilityLabel={faixa
             ? `${amigo.name || amigo.username}, listening to ${tituloDaFaixa(faixa)}`
             : `${amigo.name || amigo.username}, online`}

@@ -26,10 +26,9 @@ export function ConversaScreen({route,navigation}:NativeStackScreenProps<RootSta
   return <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined} keyboardVerticalOffset={-safe.bottom}
     style={{flex:1,backgroundColor:colors.bg,paddingTop:safe.top}}>
     <View style={{flex:1,minHeight:0,paddingBottom:safe.bottom}}>
-      <SocialHub conversationTarget={target} visible={focused} onCloseConversation={()=>navigation.goBack()}
-        onProfile={userId=>navigation.navigate('FriendProfile',{userId})}
-        onArtist={name=>navigation.navigate('LibraryGroup',{type:'artist',name})}
-        onPlaylist={id=>navigation.navigate('PlaylistDetail',{id,name:'Playlist partilhada'})}/>
+      {/* Um perfil, um artista ou uma playlist abrem por cima, na mesma pilha:
+          voltar regressa à conversa (o `irPara` do SocialHub). */}
+      <SocialHub conversationTarget={target} visible={focused} onCloseConversation={()=>navigation.goBack()}/>
     </View>
   </KeyboardAvoidingView>;
 }

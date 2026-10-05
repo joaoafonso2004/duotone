@@ -98,9 +98,9 @@ function SeparadorActivo({ activo, tamanho, children }: {
  * ## Um detalhe que não é evidente
  *
  * O `navigate` só se chama quando o separador MUDA. Chamá-lo no que já está
- * escolhido parece inofensivo e não é: nos separadores que têm uma pilha por
- * dentro -- Artists e Playlists -- volta à raiz, e quem estava a ver um álbum
- * perdia-o por ter carregado no separador onde já estava.
+ * escolhido parece inofensivo e não é: num separador com uma pilha por dentro
+ * (desde 5/10, todos) volta à raiz, e quem estava a ver um álbum perdia-o por
+ * ter carregado no separador onde já estava.
  *
  * Por isso, no separador onde já se está (3/10): na raiz, leva a lista ao
  * topo, como em todas as apps do iOS (o `tabPress` que o `useScrollToTop` dos

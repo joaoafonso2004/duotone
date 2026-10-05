@@ -15,6 +15,7 @@ import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
 import { pertoDoFim } from '../lib/grelhaQueCresce';
+import { useDestinos } from '../navigation/destinos';
 
 /**
  * Largura da coluna de duracao, no cabecalho E na celula.
@@ -641,10 +642,11 @@ const linhasVisiveisPorLista = new Map<string, number>();
 function ArtistaDaLinha({ track }: { track: Track }) {
   const nome = displayArtist(track);
   const temArtista = !!nome && nome !== 'Unknown artist';
+  const { irPara } = useDestinos();
   return <View style={[ui.colunaDoArtista, { paddingHorizontal: ESP.sm }]}>
     {temArtista
       ? <P accessibilityRole="link" accessibilityLabel={`View ${nome}`} style={{ alignSelf: 'flex-start', maxWidth: '100%' } as any}
-          onPress={() => window.dispatchEvent(new CustomEvent('duotone:navigate', { detail: { name: 'artist', value: nome } }))}>
+          onPress={() => irPara({ tipo: 'artista', nome })}>
           <Text numberOfLines={1} style={ui.trackSource} {...marcar('artista')}>{nome}</Text>
         </P>
       : <Text numberOfLines={1} style={ui.trackSource}>{nome}</Text>}

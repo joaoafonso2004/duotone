@@ -187,7 +187,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       : vista === 'dia' ? <MusicasDoDia play={play} notify={notify} />
       : temRecomendacoes(recs) ? <>
           {/* Os sítios de onde se ouviu, como na Home do iPhone (5/10). */}
-          <VoltarAOuvir navigate={navigate} />
+          <VoltarAOuvir />
           <Shelf grelha titulo="Discover daily" nota={notaDaPrateleira('descobrir')} tracks={descobrir} onPlay={play} onMore={more} contexto={contextoPrateleira('descobrir')} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}

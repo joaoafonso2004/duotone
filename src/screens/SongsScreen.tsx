@@ -6,6 +6,7 @@ import { readLikedSongsCache } from '../lib/likedSongsCache';
 import { faixasEmCache, lerFaixas, ouvirFaixas } from '../lib/cacheDaBiblioteca';
 import { displayArtist } from '../lib/artistName';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
+import { useDestinos } from '../navigation/destinos';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
@@ -53,6 +54,7 @@ export function SongsScreen() {
   // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
   const separadores = useAlturaDosSeparadores();
   const navigation = useNavigation<any>();
+  const { irPara } = useDestinos();
   
   const playTrack = usePlayer((s) => s.playTrack);
   const tocarLista = usePlayer((s) => s.tocarLista);
@@ -382,7 +384,7 @@ export function SongsScreen() {
               <PrimeiroPasso
                 icon="search-outline"
                 label="Search for music"
-                onPress={() => navigation.navigate("Tabs", { screen: "Search" })}
+                onPress={() => irPara({ tipo: 'inicio' })}
               />
             </View>
           )}

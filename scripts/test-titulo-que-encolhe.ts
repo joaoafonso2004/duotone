@@ -73,7 +73,8 @@ caso('a barra do nome do perfil só acende quando o nome passa por baixo dela', 
   assert.ok(de > 0, 'no topo da página a barra não se vê: a capa fica à vista');
   const [a2, b2] = faixaDaBarraDoNome(40, 115);
   assert.ok(a2 >= 0 && b2 > a2, 'nunca negativo nem ao contrário');
-  assert.match(readFileSync('src/components/SocialProfileView.tsx', 'utf8'), /inputRange:faixaDaBarraDoNome\(/);
+  // A barra vive no CimaDoPerfil desde 5/10 (só iPhone).
+  assert.match(readFileSync('src/components/CimaDoPerfil.tsx', 'utf8'), /inputRange: faixaDaBarraDoNome\(/);
 });
 
 caso('a capa fica descoberta no topo em iPhones com e sem recorte', () => {

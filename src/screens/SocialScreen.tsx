@@ -1,44 +1,22 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigation,useRoute,useIsFocused,type RouteProp } from '@react-navigation/native';
-import type { MaterialTopTabNavigationProp } from '@react-navigation/material-top-tabs';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList, TabsParamList } from '../navigation/RootNavigator';
+import React, { useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SocialHub } from '../components/SocialHub';
 import { SocialIconButton } from '../components/socialUI';
+import { useDestinos } from '../navigation/destinos';
 
 export function SocialScreen() {
-  const navigation=useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const separadores=useNavigation<MaterialTopTabNavigationProp<TabsParamList>>();
-  const route=useRoute<RouteProp<TabsParamList,'Social'>>();
+  const { irPara } = useDestinos();
   const focused=useIsFocused();
   const [novaConversa,setNovaConversa]=useState(false);
-  /**
-   * A conversa pedida abre UMA vez, e depois o pedido apaga-se.
-   *
-   * Os parametros de uma seccao ficam la ate alguem os mudar -- ao contrario
-   * de um ecra empilhado, que morre ao sair. Sem isto, abrir uma conversa por
-   * notificacao deixava-a colada a seccao: uma semana depois, arrastar do
-   * Perfil para o Social reabria a mesma conversa sem ninguem a pedir.
-   *
-   * O `SocialHub` abre no seu efeito de `[initialFriend,initialGroup]`; este
-   * corre a seguir, poe os dois a `undefined`, e o efeito de la volta a correr
-   * sem nada para abrir. A conversa que ja abriu fica aberta.
-   */
   // O título encolhe ao rolar a lista das conversas (3/10).
   const cab=useCabecalhoQueEncolhe();
-  const {openChatWithFriendId,openGroupId}=route.params ?? {};
-  useEffect(()=>{
-    if(openChatWithFriendId||openGroupId)separadores.setParams({openChatWithFriendId:undefined,openGroupId:undefined});
-  },[openChatWithFriendId,openGroupId,separadores]);
   // O "voltar" e para o Perfil, que e de onde se vem -- a arrastar ou pelo
-  // botao das mensagens. Uma seccao nao tem pilha para onde regressar.
+  // botao das mensagens. Uma seccao nao tem pilha para onde regressar. Uma
+  // conversa, um perfil ou uma playlist abrem por cima, na pilha do Social
+  // (o `irPara` do SocialHub, lib/destinos.ts).
   return <Screen title="Social" right={<SocialIconButton label="Start a conversation" icon="person-add-outline" onPress={()=>setNovaConversa(true)}/>}
-    onBack={()=>separadores.navigate('Profile')} encolhe={cab}>
-    <SocialHub cabecalho={cab} novaConversa={{aberta:novaConversa,definir:setNovaConversa}} visible={focused} initialFriend={openChatWithFriendId} initialGroup={openGroupId}
-      onConversation={(kind,id)=>navigation.navigate('Conversa',{kind,id})}
-      onProfile={id=>navigation.navigate('FriendProfile',{userId:id})}
-      onArtist={name=>navigation.navigate('LibraryGroup',{type:'artist',name})}
-      onPlaylist={id=>navigation.navigate('PlaylistDetail',{id,name:'Playlist partilhada'})}/>
+    onBack={()=>irPara({tipo:'perfil'})} encolhe={cab}>
+    <SocialHub cabecalho={cab} novaConversa={{aberta:novaConversa,definir:setNovaConversa}} visible={focused}/>
   </Screen>;
 }

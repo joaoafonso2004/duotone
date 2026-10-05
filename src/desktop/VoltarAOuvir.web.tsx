@@ -2,19 +2,11 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { destinoDoRecente } from '../lib/destinos';
 import { NA_HOME, type Recente } from '../lib/recentes';
 import { useRecentes } from '../state/recentes';
-import type { NavegarFn, Route } from './rotas';
+import { useDestinos } from '../navigation/destinos';
 import { COR, ESP, RAIO, TIPO } from './tokens.web';
-
-/** O que o PC sabe reabrir: os álbuns e as prateleiras não têm página aqui. */
-function rotaDe(r: Recente): Route | null {
-  if (r.tipo === 'guardadas') return { name: 'songs' };
-  if (r.tipo === 'playlist' && r.id) return { name: 'playlist', id: r.id, title: r.nome };
-  if (r.tipo === 'artista') return { name: 'artist', value: r.nome };
-  if (r.tipo === 'mistura' && r.id) return { name: 'mistura', id: r.id, titulo: r.nome };
-  return null;
-}
 
 /**
  * O "Jump back in" no topo da página principal do PC (5/10, auditoria de
@@ -23,20 +15,24 @@ function rotaDe(r: Recente): Route | null {
  * da lateral continuam: esses escolhe-os a pessoa, estes vêm sozinhos.
  * Com menos de dois, não aparece (um quadrado sozinho não é uma grelha).
  */
-export function VoltarAOuvir({ navigate }: { navigate: NavegarFn }) {
+export function VoltarAOuvir() {
   const lista = useRecentes((s) => s.lista);
-  const visiveis = lista.map((r) => ({ r, rota: rotaDe(r) })).filter((x) => x.rota).slice(0, NA_HOME);
+  const { irPara, podeIrPara } = useDestinos();
+  // O mesmo `destinoDoRecente` da Home do iPhone; o que o PC não tem (os
+  // álbuns e as prateleiras, que aqui vivem dentro de outras páginas) fica de fora.
+  const visiveis = lista.map((r) => ({ r, destino: destinoDoRecente(r) }))
+    .filter((x) => x.destino && podeIrPara(x.destino.tipo)).slice(0, NA_HOME);
   if (visiveis.length < 2) return null;
   return (
     <View style={estilos.bloco}>
       <Text accessibilityRole="header" style={estilos.titulo}>Jump back in</Text>
       <View style={estilos.grelha}>
-        {visiveis.map(({ r, rota }) => (
+        {visiveis.map(({ r, destino }) => (
           <Pressable
             key={r.chave}
             accessibilityRole="button"
             accessibilityLabel={r.nome}
-            onPress={() => navigate(rota!)}
+            onPress={() => irPara(destino!)}
             style={({ hovered }: any) => [estilos.atalho, hovered && estilos.atalhoHover]}
           >
             <Capa r={r} />

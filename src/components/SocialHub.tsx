@@ -30,16 +30,25 @@ import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { CabecalhoDoAmigo, FaixaPartilhada, FundoDaApp } from './ChatAmigo';
 import { SocialOverview } from './SocialOverview';
 import { OpcoesDoAmigo } from './OpcoesDoAmigo';
+import { useDestinos } from '../navigation/destinos';
 import type { Playlist,Track } from '../types';
 
-export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFriend,initialGroup,cabecalho,novaConversa,conversationTarget,onConversation,onCloseConversation}:{onProfile:(id:string)=>void;onPlaylist:(id:string)=>void;onArtist:(name:string)=>void;visible?:boolean;initialFriend?:string;initialGroup?:string;
+/**
+ * A lista das conversas e a conversa. Para onde leva (um perfil, uma playlist,
+ * um artista, a conversa no iPhone) é o `irPara` da app (5/10, lib/destinos.ts):
+ * os ecrãs que o montam já não escolhem ligar uma função e esquecer outra.
+ */
+export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,novaConversa,conversationTarget,onCloseConversation}:{visible?:boolean;initialFriend?:string;initialGroup?:string;
   conversationTarget?: {kind:'friend'|'group';id:string};
-  onConversation?: (kind:'friend'|'group',id:string)=>void;
   onCloseConversation?: ()=>void;
   novaConversa?: { aberta: boolean; definir: (aberta: boolean) => void };
   /** No iPhone (3/10): o título do Social encolhe ao rolar a lista, e ela começa por baixo dele. */
   cabecalho?:CabecalhoQueEncolhe}) {
   const web=Platform.OS==='web';
+  const { irPara }=useDestinos();
+  const onProfile=(userId:string)=>irPara({tipo:'perfil',userId});
+  const onArtist=(nome:string)=>irPara({tipo:'artista',nome});
+  const onPlaylist=(id:string)=>irPara({tipo:'playlist',id,nome:'Shared playlist'});
   const canRead = () => appEstaVisivel() && (!web || document.hasFocus());
   const [width,setWidth]=useState(0);
   const split=web&&width>=850;
@@ -161,7 +170,9 @@ export function SocialHub({onProfile,onPlaylist,onArtist,visible=true,initialFri
   /** Mensagens seguidas da mesma pessoa, dentro de cinco minutos, ficam sem o cabeçalho repetido. */
   const seguida=(m:SharedItem,index:number)=>{const antes=ordered[index+1];return !!antes&&antes.sender.id===m.sender.id&&new Date(m.createdAt).getTime()-new Date(antes.createdAt).getTime()<300000;};
   const setDraft=(text:string)=>useSocial.setState(x=>({drafts:{...x.drafts,[key]:text}}));
-  const open=(kind:'friend'|'group',id:string)=>{useSocial.setState({conversation:{kind,id}});onConversation?.(kind,id);};
+  // No PC a conversa abre ao lado da lista; no iPhone a lista nunca a mostra
+  // (`conversation` acima) e ela é uma página da pilha.
+  const open=(kind:'friend'|'group',id:string)=>{useSocial.setState({conversation:{kind,id}});if(!web)irPara({tipo:'conversa',kind,id});};
   const run=async(action:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await action();await social.refresh();}catch(e:any){setError(e.message || 'That did not go through.');}finally{setBusy(false);}};
   useEffect(()=>{if(initialFriend)open('friend',initialFriend);else if(initialGroup)open('group',initialGroup);},[initialFriend,initialGroup]);
   useEffect(()=>{setGroupDetails(null);setAResponder(null);setDestacada(null);},[key]);

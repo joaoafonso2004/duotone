@@ -13,7 +13,7 @@ import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede, useRe
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { savedKey, useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
-import { navigationRef } from '../navigation/RootNavigator';
+import { irParaNoIphone } from '../navigation/RootNavigator';
 import { MenuFlutuante, type Ancora } from './MenuFlutuante';
 import type { PlayerAction } from './PlayerActionsSheet';
 import { ancoraDoUltimoToque } from '../lib/ultimoToque';
@@ -110,7 +110,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
         return;
       case 'por-em-playlist': setParaPlaylist(t); return;
       case 'ver-artista':
-        if (navigationRef.isReady()) navigationRef.navigate('LibraryGroup', { type: 'artist', name: nomeDoArtista });
+        irParaNoIphone({ tipo: 'artista', nome: nomeDoArtista });
         return;
       case 'partilhar': setParaPartilhar(t); return;
       case 'descarregar': void alternarDownload(t); return;

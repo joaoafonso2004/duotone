@@ -76,7 +76,7 @@ import { modoDeShuffle, rotuloDoModo } from '../lib/smartShuffle';
 import { EstrelaInteligente } from './BrilhoInteligente';
 import { EqualizadorSheet } from './EqualizadorSheet';
 import { ShareFriendSheet } from './ShareFriendSheet';
-import { navigationRef } from '../navigation/RootNavigator';
+import { irParaNoIphone, navigationRef } from '../navigation/RootNavigator';
 import { endSession, publishSession, publishSessionNow, takeOverSession } from '../lib/sessionSync';
 import { useAutoplayRadio } from '../lib/radioSync';
 import {
@@ -392,10 +392,12 @@ export function PlayerRoot() {
     abrirSessao: () => setSessaoAberta(true),
     // Como o nome do artista no leitor: baixa o leitor antes de navegar,
     // senão a página abria por trás dele.
+    // A fila é uma folha da raiz: o `irPara` fecha-a e abre o artista na
+    // pilha do separador onde se está.
     verArtista: (nome) => {
       if (!navigationRef.isReady()) return;
       setExpanded(false);
-      navigationRef.navigate('LibraryGroup', { type: 'artist', name: nome });
+      irParaNoIphone({ tipo: 'artista', nome });
     },
   }), [setExpanded]);
   const [eqVisible, setEqVisible] = useState(false);
@@ -1203,7 +1205,7 @@ export function PlayerRoot() {
     if (!temArtista || !navigationRef.isReady()) return;
     hapticSelection();
     setExpanded(false);
-    navigationRef.navigate('LibraryGroup', { type: 'artist', name: nomeDoArtista });
+    irParaNoIphone({ tipo: 'artista', nome: nomeDoArtista });
   };
 
   // upNext is now handled inside QueueSheet

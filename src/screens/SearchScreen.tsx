@@ -33,8 +33,9 @@ import { Toque } from '../components/Toque';
 import { Animated, useWindowDimensions } from 'react-native';
 import { useNavigation, useScrollToTop } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { MaterialTopTabNavigationProp } from '@react-navigation/material-top-tabs';
-import type { RootStackParamList, TabsParamList } from '../navigation/RootNavigator';
+import type { RootStackParamList } from '../navigation/RootNavigator';
+import { useDestinos } from '../navigation/destinos';
+import { destinoDoRecente } from '../lib/destinos';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { useSaved } from '../state/saved';
@@ -159,17 +160,10 @@ export function SearchScreen() {
     });
   };
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  /**
-   * O MESMO objecto de navegacao, visto como o navegador de separadores.
-   *
-   * A Pesquisa vive dentro dos separadores, por isso este `navigation` e o
-   * deles -- o `navigate('Prateleira')` la em baixo so funciona porque o React
-   * Navigation faz subir o que nao reconhece. Para ir ao Songs, que e um IRMAO
-   * e nao um ecra do stack de raiz, o tipo tem de ser o dos separadores; com o
-   * do stack, o TypeScript recusa o nome. E `getParent()` nao serve: esse e o
-   * stack de raiz, que tambem nao conhece o Songs.
-   */
-  const separadores = useNavigation<MaterialTopTabNavigationProp<TabsParamList>>();
+  // A Home é a raiz da pilha do seu separador (5/10): uma prateleira, uma
+  // playlist ou um artista entram por cima, com a barra por baixo. O que é
+  // de outro separador (as Liked Songs, o Social) vai pelo `irPara`.
+  const { irPara } = useDestinos();
   const insets = useSafeAreaInsets();
   // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
   const alturaDosSeparadores = useAlturaDosSeparadores();
@@ -222,14 +216,11 @@ export function SearchScreen() {
     })),
   ]), [recentes, atalhos]);
   const temMisturaDoDia = useMisturaDoDia((s) => !(s.estado === 'vazio' || (s.estado === 'pronto' && s.faixas.length === 0)));
+  // O mesmo `destinoDoRecente` do "Jump back in" do PC (lib/destinos.ts).
   const voltarA = useCallback((r: Recente) => {
-    if (r.tipo === 'guardadas') { separadores.navigate('Songs'); return; }
-    if (r.tipo === 'playlist' && r.id) { navigation.navigate('PlaylistDetail', { id: r.id, name: r.nome }); return; }
-    if (r.tipo === 'artista' || r.tipo === 'album') { navigation.navigate('LibraryGroup', { type: r.tipo === 'artista' ? 'artist' : 'album', name: r.nome }); return; }
-    if (r.tipo === 'mistura' && r.id) { navigation.navigate('Prateleira', { titulo: r.nome, fonte: { tipo: 'mistura', id: r.id } }); return; }
-    if (r.tipo === 'prateleira' && r.id === 'doDia') { navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' } }); return; }
-    if (r.tipo === 'prateleira' && r.id) navigation.navigate('Prateleira', { titulo: r.nome, fonte: { tipo: 'prateleira', nome: r.id as NomeDaPrateleira } });
-  }, [navigation, separadores]);
+    const destino = destinoDoRecente(r);
+    if (destino) irPara(destino);
+  }, [irPara]);
 
   const misturasDeEstilo = React.useMemo(
     () => misturas.filter((m) => m.id.startsWith('estilo:')),
@@ -590,7 +581,7 @@ export function SearchScreen() {
             <Ionicons name="refresh" size={22} color={colors.textSecondary} />
           </Pressable>
         ) : null}
-        <BotaoDasMensagens onPress={() => separadores.navigate('Social')} />
+        <BotaoDasMensagens onPress={() => irPara({ tipo: 'social' })} />
       </View>}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
