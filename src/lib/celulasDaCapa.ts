@@ -1,6 +1,7 @@
 import { Image } from 'expo-image';
 import { celulasDoBlurhash, type RGB } from './corDaCapa';
 import { amostrarCapaNativa } from '../../modules/duotone-remote-commands';
+import { coresEmCache } from './cacheDasCores';
 
 /**
  * Ler a cor de uma capa no telemóvel.
@@ -22,7 +23,10 @@ import { amostrarCapaNativa } from '../../modules/duotone-remote-commands';
  */
 export async function lerCelulasDaCapa(uri: string | null | undefined): Promise<RGB[] | null> {
   if (!uri) return null;
+  return coresEmCache(uri, () => amostrar(uri));
+}
 
+async function amostrar(uri: string): Promise<RGB[] | null> {
   try {
     const valores = await amostrarCapaNativa(uri, 4, 4);
     if (valores) {

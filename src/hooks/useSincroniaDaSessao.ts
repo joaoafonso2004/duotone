@@ -9,6 +9,8 @@ import { cachedAudioFile } from '../lib/youtubeCache';
 import { appEstaVisivel } from '../lib/appVisibility';
 import type { SessaoDeEscuta } from '../api/ouvirJuntos';
 import { registar } from '../lib/eventos';
+import { registarNaFila } from '../lib/playbackDiagnostics';
+import { posicaoProjetada } from '../lib/seguirAmigo';
 
 const AFINACAO_MS = 2000;
 const DESCANSO_APOS_SALTO_MS = 5000;
@@ -64,7 +66,7 @@ export function useSincroniaDaSessao(): void {
   const origemDaEntrada = useOuvirJuntos((s) => s.origemDaEntrada);
   useEffect(() => {
     if (!id || !faixa) return;
-    let saltouEm = 0, forasSeguidos = 0, saltosNestaFaixa = 0;
+    let saltouEm = 0, forasSeguidos = 0, saltosNestaFaixa = 0, prontaDesde: number | null = null;
     const relogio = setInterval(() => {
       const p = usePlayer.getState(), s = useOuvirJuntos.getState();
       if (s.sessao?.id !== id || s.sessao.track?.sourceId !== faixa) return;
@@ -72,13 +74,20 @@ export function useSincroniaDaSessao(): void {
       // Afinar com um relógio mal medido é saltar às cegas -- ver a constante.
       if (!s.relogio || s.relogio.incertezaMs > INCERTEZA_PARA_AFINAR_MS) return;
       const pronta = p.current?.sourceId === faixa && p.current.source === fonte &&
-        p.activeBackend !== 'resolving' && !p.buffering;
-      const decorrido = p.isPlaying ? Date.now() - p.positionAt : 0;
+        p.activeBackend !== 'resolving' && p.playbackConfirmed && !p.buffering;
+      if (!pronta) { prontaDesde = null; forasSeguidos = 0; return; }
+      prontaDesde ??= Date.now();
+      // O seek de arranque já ocorreu antes do som. Não o perseguir enquanto
+      // chegam as primeiras amostras da nova fonte.
+      if (Date.now() - prontaDesde < DESCANSO_APOS_SALTO_MS) return;
+      let motorMs: number | null = null;
+      try { motorMs = p._yt?.posicaoDoMotorMs?.() ?? null; } catch { /* web: usa a amostra */ }
+      const localMs = motorMs ?? posicaoProjetada({positionMs:p.positionMs,positionAt:p.positionAt,aSoar:p.isPlaying,ritmo:1},Date.now());
       const correcao = correccaoNecessaria({
         // Dentro da sessão o motor anda a 1x, aconteça o que acontecer à
         // preferência guardada. Usar `p.playbackRate` aqui media o tempo com
         // uma velocidade que o motor não está a praticar.
-        posicaoLocalMs: p.positionMs + decorrido,
+        posicaoLocalMs: localMs,
         posicaoDaSessaoMs: s.posicaoAgora(),
         aTocar: p.isPlaying && s.sessao.aTocar, pronta,
       });
@@ -87,6 +96,7 @@ export function useSincroniaDaSessao(): void {
       forasSeguidos = 0;
       saltosNestaFaixa++;
       saltouEm = Date.now();
+      registarNaFila(`${faixa}: Jam drift seek from ${(localMs/1000).toFixed(2)}s to ${(correcao.paraMs/1000).toFixed(2)}s (${saltosNestaFaixa}/${SALTOS_POR_FAIXA})`);
       void p.seekTo(correcao.paraMs, true);
     }, AFINACAO_MS);
     return () => clearInterval(relogio);

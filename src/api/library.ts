@@ -1,9 +1,13 @@
 import { cacheLikedSongs,changeCachedLikes,likedCacheRevision } from '../lib/likedSongsCache';
 import { supabase } from '../lib/supabase';
-import { esquecerBiblioteca, lerFaixas, tipoDaLista } from '../lib/cacheDaBiblioteca';
+import { esquecerBiblioteca, lerFaixas, tipoDaLista, validarLeitor } from '../lib/cacheDaBiblioteca';
 import { idDaConta } from '../lib/idDaConta';
 import { confirmarArtistasEmSegundoPlano } from './artistNames';
 import type { Track } from '../types';
+import { lerFaixasDasPlaylists } from './playlistSnapshot';
+import { medirTrabalho, cederParaInterface } from '../lib/trabalhoLocal';
+
+validarLeitor(getLibrary, () => lerFaixasDasPlaylists());
 
 function rowToTrack(row: any): Track {
   return {
@@ -196,18 +200,8 @@ export async function getLikedSongs(): Promise<Track[]> {
 }
 
 async function getPlaylistTracksForUser(userId: string): Promise<any[]> {
-  const rows: any[] = [];
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await supabase
-      .from('playlist_tracks')
-      .select('tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds), playlists!inner (owner_id)')
-      .eq('playlists.owner_id', userId)
-      .range(offset, offset + 999);
-    if (error) throw error;
-    rows.push(...(data ?? []));
-    if (!data || data.length < 1000) break;
-  }
-  return rows;
+  if (await currentUserId() !== userId) throw new Error('Session changed');
+  return lerFaixasDasPlaylists();
 }
 
 export async function getLibrary(): Promise<Track[]> {
@@ -232,7 +226,8 @@ export async function getLibrary(): Promise<Track[]> {
 
   // Add playlist tracks next (only if not already in map)
   if (plTracksData) {
-    for (const row of plTracksData) {
+    for (let start = 0; start < plTracksData.length; start += 200) {
+      medirTrabalho('library.merge', () => { for (const row of plTracksData.slice(start, start + 200)) {
       if (row.tracks) {
         const track = rowToTrack(row.tracks);
         const key = `${track.source}:${track.sourceId}`;
@@ -240,6 +235,8 @@ export async function getLibrary(): Promise<Track[]> {
           tracksMap.set(key, track);
         }
       }
+      } });
+      if (start + 200 < plTracksData.length) await cederParaInterface();
     }
   }
 

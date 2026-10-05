@@ -110,7 +110,7 @@ verificar('com o MOTOR parado de certeza, empurra-se ao fim de um segundo', () =
 
 verificar('depois de uma faixa acabar sozinha, a seguinte leva um seek antes do play', () => {
   const motor = readFileSync(new URL('../src/components/YouTubePlayerView.tsx', import.meta.url), 'utf8');
-  assert.match(motor, /if \(\(vemDeUmFim \|\| vinhaViva\) && !\(resumeMs && resumeMs > 1500\)\) \{\s*try \{\s*motorActivo\(\)\.currentTime = 0;/,
+  assert.match(motor, /if \(\(vemDeUmFim \|\| vinhaViva\) && !\(resumeMs != null && \(mesmaNaSala \|\| resumeMs > 1500\)\)\) \{\s*try \{\s*motorActivo\(\)\.currentTime = 0;/,
     'o remédio do encravamento aplica-se já, sem esperar pela rede');
   // E antes da ordem de tocar, que é o que o remédio à mão faz: seek, depois play.
   const seek = motor.indexOf('motorActivo().currentTime = 0;');

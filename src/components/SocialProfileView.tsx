@@ -235,7 +235,6 @@ export function SocialProfileView({userId,onMessage,onArtist,onStats,onVocesOsDo
   const depoisDeFechar=(acao:()=>void)=>{depoisDoMenu.current=acao;setOpcoesDoPerfil(null);};
   const accoesDoPerfil:PlayerAction[]=[
     ...(profile?.canView?[{label:'Listening stats',icon:'stats-chart-outline' as const,onPress:()=>depoisDeFechar(onStats)}]:[]),
-    ...(own&&onSocial?[{label:'Friends and chats',icon:'people-outline' as const,onPress:()=>depoisDeFechar(onSocial)}]:[]),
     ...(own&&onSettings?[{label:'Settings',icon:'settings-outline' as const,onPress:()=>depoisDeFechar(onSettings)}]:[]),
   ];
   const abrirOpcoes=accoesDoPerfil.length?(ancora:Ancora)=>{depoisDoMenu.current=null;setOpcoesDoPerfil(ancora);}:undefined;

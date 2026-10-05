@@ -34,6 +34,9 @@ export interface Controlo {
   }[];
   /** O que o rádio devolve no fim da fila. */
   radio: Track[];
+  radioContextos: Track[][];
+  radioModos: ('automatic' | 'session')[];
+  radioPendentes: Promise<Track[]>[];
   /** A memória das descobertas que o rádio recebeu na última chamada (28/9). */
   radioJaDescobertas: ReadonlySet<string> | null;
   /** O histórico remoto que existia antes desta versão. */
@@ -67,6 +70,7 @@ export const controlo: Controlo = {
   falharPerfil: false,
   perfisDaDescoberta: [],
   radio: [],
+  radioContextos: [], radioModos: [], radioPendentes: [],
   radioJaDescobertas: null,
   recentes: [],
   biblioteca: [],
@@ -88,6 +92,7 @@ export function reporControlo(): void {
   controlo.falharPerfil = false;
   controlo.perfisDaDescoberta = [];
   controlo.radio = [];
+  controlo.radioContextos = []; controlo.radioModos = []; controlo.radioPendentes = [];
   controlo.radioJaDescobertas = null;
   controlo.recentes = [];
   controlo.biblioteca = [];

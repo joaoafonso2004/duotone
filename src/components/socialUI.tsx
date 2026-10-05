@@ -1,6 +1,8 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import React from 'react';
-import { KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { DeslizarParaVoltar } from './DeslizarParaVoltar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { FriendAvatar } from './FriendAvatar';
@@ -107,66 +109,23 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
   const notificationDismiss = useNotificationOverlay(visible,onClose);
   const { height } = useWindowDimensions();
 
-  /**
-   * Arrastar da esquerda para a direita volta atrás, como no resto da app.
-   *
-   * O chat parece um ecrã mas não é: é uma troca de vista dentro do Social,
-   * por isso não herdava o gesto nativo da navegação. Quem lá estava dentro
-   * ficava sem a saída que usa em todo o lado.
-   *
-   * O responder vive numa faixa estreita da margem esquerda -- por cima da
-   * lista de mensagens roubava-lhe o dedo a cada scroll.
-   */
-  const fechar = React.useRef(onClose);
-  fechar.current = onClose;
-  const voltar = React.useRef(
-    PanResponder.create({
-      // CAPTURA, e não a fase normal.
-      //
-      // A fase normal pergunta de dentro para fora: a `FlatList` das mensagens
-      // é filha, responde primeiro, e uma ScrollView reclama o dedo mal ele se
-      // mexe. O pai nunca chegava a ser perguntado -- era por isso que o gesto
-      // continuava sem funcionar mesmo depois de eu o ter tirado da tira de 22
-      // píxeis e o ter posto a cobrir o ecrã todo.
-      //
-      // A captura pergunta de fora para dentro, antes de a lista poder decidir.
-      // Isso obriga o critério a ser ESTRITO, senão roubava-lhe o scroll: exige
-      // 12 píxeis para a direita e o dobro da componente vertical. Um arrasto a
-      // ler mensagens não passa nesse crivo; um gesto de voltar passa sempre.
-      onMoveShouldSetPanResponderCapture: (_e, g) =>
-        g.dx > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
-      onPanResponderRelease: (_e, g) => {
-        if (g.dx > 60 || g.vx > 0.5) fechar.current();
-      },
-    })
-  ).current;
-
-  return <Modal onDismiss={notificationDismiss} visible={visible} transparent={!fullScreen} animationType={web ? 'fade' : 'slide'} onRequestClose={onClose}><DentroDeUmModal.Provider value>
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1, backgroundColor: fullScreen ? colors.bg : colors.overlay, justifyContent: web ? 'center' : 'flex-end', alignItems: 'center', paddingTop: safe.top + (fullScreen ? 0 : 12), paddingBottom: web ? 12 : 0, paddingHorizontal: web ? 24 : 0 }}>
-      {/* Tocar fora fecha. Só numa folha: em ecrã inteiro não há "fora", e
-          fechar ao toque perdia a conversa a meio de a estar a ler.
-          `accessible={false}` porque o X já dá a saída aos leitores de ecrã --
-          um botão invisível do tamanho do ecrã só atrapalharia. */}
-      {!fullScreen && <Pressable accessible={false} onPress={onClose} style={StyleSheet.absoluteFill} />}
-      <View style={{ width: '100%', maxWidth: web ? (wide ? 940 : 680) : undefined, flex: fullScreen ? 1 : undefined, maxHeight: fullScreen ? undefined : web ? height - 24 : height - safe.top - 12, backgroundColor: web || fullScreen ? colors.bg : colors.surfaceHigh, borderColor: colors.borderStrong, borderWidth: web ? 1 : 0, borderRadius: fullScreen ? 0 : radii.xl, borderBottomLeftRadius: web ? radii.xl : 0, borderBottomRightRadius: web ? radii.xl : 0, paddingBottom: web ? 0 : safe.bottom, overflow: 'hidden' }}>
+  const surface = <View style={{ width: '100%', maxWidth: web ? (wide ? 940 : 680) : undefined, flex: fullScreen ? 1 : undefined, maxHeight: fullScreen ? undefined : web ? height - 24 : height - safe.top - 12, backgroundColor: web || fullScreen ? colors.bg : colors.surfaceHigh, borderColor: colors.borderStrong, borderWidth: web ? 1 : 0, borderRadius: fullScreen ? 0 : radii.xl, borderBottomLeftRadius: web ? radii.xl : 0, borderBottomRightRadius: web ? radii.xl : 0, paddingBottom: web ? 0 : safe.bottom, overflow: 'hidden' }}>
         {!web && !fullScreen && <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong, alignSelf: 'center', marginTop: 8 }}/>}
         {header ?? <View style={[socialStyles.row, { paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.border }]}>
           {fullScreen && <SocialIconButton label="Back to chats" icon="chevron-back" onPress={onClose}/>}
           <Text numberOfLines={1} style={[socialStyles.title, { flex: 1, fontSize: 19 }]}>{title}</Text>
           {!fullScreen && <SocialIconButton label="Close" icon="close" onPress={onClose}/>}
         </View>}
-        {/* O gesto vive no PAI do conteúdo, não numa tira por cima dele.
-            Numa tira de 22 px o dedo tinha de começar praticamente na moldura
-            do telemóvel, e quem começasse um milímetro para dentro não apanhava
-            nada -- parecia que o gesto não existia.
-            Aqui, como só se reclama no MOVIMENTO horizontal, a lista continua
-            a ganhar o dedo em qualquer arrasto vertical, e os toques e as
-            pressões longas nas mensagens passam intactos. */}
-        {!web && fullScreen
-          ? <View style={{ flex: 1, minHeight: 0 }} {...voltar.panHandlers}>{children}</View>
-          : children}
-      </View>
+        {children}
+      </View>;
+  const Root = web ? View : GestureHandlerRootView;
+  return <Modal onDismiss={notificationDismiss} visible={visible} transparent={!fullScreen} animationType={web ? 'fade' : 'slide'} onRequestClose={onClose}><DentroDeUmModal.Provider value>
+    <Root style={socialStyles.body}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={{ flex: 1, backgroundColor: fullScreen ? colors.bg : colors.overlay, justifyContent: web ? 'center' : 'flex-end', alignItems: 'center', paddingTop: safe.top + (fullScreen ? 0 : 12), paddingBottom: web ? 12 : 0, paddingHorizontal: web ? 24 : 0 }}>
+      {!fullScreen && <Pressable accessible={false} onPress={onClose} style={StyleSheet.absoluteFill} />}
+      {!web && fullScreen && visible ? <DeslizarParaVoltar aoVoltar={onClose}>{surface}</DeslizarParaVoltar> : surface}
     </KeyboardAvoidingView>
+    </Root>
   </DentroDeUmModal.Provider></Modal>;
 }

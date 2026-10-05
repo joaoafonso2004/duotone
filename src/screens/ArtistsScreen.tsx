@@ -7,8 +7,9 @@ import { Animated, FlatList, Pressable, StyleSheet, Text, View, useWindowDimensi
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getLibrary } from '../api/library';
 import { faixasEmCache, lerFaixas, ouvirFaixas } from '../lib/cacheDaBiblioteca';
-import { agruparPorArtista, chaveDeArtista } from '../lib/artistName';
-import { comCatalogo, garantirCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
+import { chaveDeArtista } from '../lib/artistName';
+import { gruposDaBiblioteca } from '../state/gruposDaBiblioteca';
+import { garantirCatalogo, useCatalogoDeFaixas } from '../state/catalogoDeFaixas';
 import { ordenarArtistas } from '../lib/ordenacao';
 import { getTopArtists } from '../api/plays';
 import { correspondeAPesquisa } from '../lib/searchText';
@@ -91,7 +92,7 @@ export function ArtistsScreen() {
   const artists = useMemo<ArtistGroup[]>(() => {
     // A versão invalida a projeção quando o catálogo confirma metadados.
     void catalogVersion;
-    return ordenarArtistas(agruparPorArtista(tracks.map(comCatalogo)), ranking, favoritos).map(g => ({
+    return ordenarArtistas(gruposDaBiblioteca(tracks), ranking, favoritos).map(g => ({
       name: g.nome, chave: g.chave,
       artworkUrl: g.faixas.find(t => t.artworkUrl)?.artworkUrl ?? null, count: g.faixas.length,
     }));

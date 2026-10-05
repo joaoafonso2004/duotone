@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from './supabase';
 import type { Track } from '../types';
+import { medirTrabalho, medirEspera, cederParaInterface } from './trabalhoLocal';
 
 /**
  * Contagens partilhadas entre dispositivos.
@@ -18,6 +19,10 @@ const MIGRATED_PREFIX = 'playCounts:migrated:v2:';
 const LAST_USER_KEY = 'playCounts:lastUser:v2';
 const DEVICE_KEY = 'playCounts:device:v3';
 const SEQUENCE_PREFIX = 'playCounts:sequence:v3:';
+const SNAPSHOT_PREFIX = 'playCounts:snapshot:v1:';
+let memoryMap: PlayCounts | null = null;
+let remoteSnapshot: { uid: string; revision: number; map: PlayCounts } | null = null;
+let changesAvailable = true;
 
 export interface PlayCountEntry {
   source: Track['source'];
@@ -38,18 +43,23 @@ function keyOf(track: Pick<Track, 'source' | 'sourceId'>): string {
 }
 
 async function readMap(storageKey = KEY): Promise<PlayCounts> {
+  if (storageKey === KEY && memoryMap) return memoryMap;
   const raw = await AsyncStorage.getItem(storageKey);
   if (!raw) return {};
   try {
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    const parsed = medirTrabalho('history.parse', () => JSON.parse(raw));
+    const value = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+    if (storageKey === KEY) memoryMap = value;
+    return value;
   } catch {
     return {};
   }
 }
 
 async function writeMap(value: PlayCounts, storageKey = KEY): Promise<void> {
-  await AsyncStorage.setItem(storageKey, JSON.stringify(value));
+  const raw = medirTrabalho('history.serialize', () => JSON.stringify(value));
+  await medirEspera('history.persist', () => AsyncStorage.setItem(storageKey, raw));
+  if (storageKey === KEY) memoryMap = value;
 }
 
 function rowToEntry(row: any): PlayCountEntry {
@@ -101,6 +111,57 @@ async function applyDeltas(entries: PendingDelta[]): Promise<boolean> {
 }
 
 async function pullRemote(uid: string): Promise<PlayCounts | null> {
+  if (changesAvailable) {
+    try {
+      if (remoteSnapshot?.uid !== uid) {
+        remoteSnapshot = { uid, revision: 0, map: {} };
+        const raw = await AsyncStorage.getItem(SNAPSHOT_PREFIX + uid);
+        if (raw && raw.length < 10_000_000) {
+          const saved = medirTrabalho('history.snapshot.parse', () => JSON.parse(raw));
+          if (Number.isSafeInteger(saved.revision) && saved.revision >= 0 && saved.map && typeof saved.map === 'object')
+            remoteSnapshot = { uid, revision: saved.revision, map: saved.map };
+        }
+      }
+      let revision = remoteSnapshot.revision;
+      const map: PlayCounts = { ...remoteSnapshot.map };
+      let changed = false;
+      for (;;) {
+        const { data, error } = await medirEspera('history.changes.request', () => supabase.rpc('get_play_count_changes', { p_after: revision, p_limit: 500 }));
+        if (error) {
+          if (['PGRST202', '42883'].includes(error.code)) { changesAvailable = false; break; }
+          return null;
+        }
+        if (!data || !Array.isArray(data.changes) || !Number.isSafeInteger(data.revision) || data.revision < 0) return null;
+        if (data.revision < revision) {
+          // Restauração da base: recomeçar sem conservar linhas do futuro.
+          revision = 0; for (const key of Object.keys(map)) delete map[key]; changed = true; continue;
+        }
+        if (data.more && data.revision <= revision) return null;
+        medirTrabalho('history.changes.merge', () => {
+          for (const row of data.changes) {
+            const key = `${row.source}:${row.source_id}`;
+            if (row.deleted) delete map[key];
+            else map[key] = rowToEntry(row);
+          }
+        });
+        changed ||= data.changes.length > 0;
+        revision = data.revision;
+        if (!data.more) break;
+        await cederParaInterface();
+      }
+      if (changesAvailable) {
+        if (await userId() !== uid) return null;
+        if (changed || remoteSnapshot.revision !== revision) {
+          const snapshot = { revision, map };
+          // Cursor e dados persistem juntos: uma escrita interrompida nunca
+          // guarda um cursor adiantado em relação às contagens guardadas.
+          await AsyncStorage.setItem(SNAPSHOT_PREFIX + uid, medirTrabalho('history.snapshot.serialize', () => JSON.stringify(snapshot)));
+        }
+        remoteSnapshot = { uid, revision, map };
+        return map;
+      }
+    } catch { return null; }
+  }
   const rows:any[]=[];
   for(let offset=0;;offset+=1000){
     const { data, error } = await supabase.from('user_play_counts')
@@ -156,7 +217,11 @@ function serialized<T>(operation: () => Promise<T>): Promise<T> {
   return result;
 }
 
-async function syncUnsafe(): Promise<PlayCounts> {
+const INTERVALO_DE_LEITURA_MS = 60_000;
+const INTERVALO_LEGACY_MS = 30 * 60_000;
+let ultimaLeitura: { uid: string; em: number } | null = null;
+
+async function syncUnsafe(forcarLeitura = false): Promise<PlayCounts> {
   let local = await readMap();
   const uid = await userId();
   if (!uid) return local;
@@ -167,6 +232,8 @@ async function syncUnsafe(): Promise<PlayCounts> {
     AsyncStorage.getItem(migratedKey),
     AsyncStorage.getItem(LAST_USER_KEY),
   ]);
+  const mudouConta = !!lastUser && lastUser !== uid;
+  if (mudouConta) { local = {}; await writeMap(local); ultimaLeitura = null; }
 
   if (migrated !== '1') {
     // Importa o histórico pré-sincronização deste dispositivo uma única vez.
@@ -180,19 +247,24 @@ async function syncUnsafe(): Promise<PlayCounts> {
     const pending:PendingDelta[]=[];
     if(canImportLegacyCache)for(const entry of Object.values(local))pending.push(await operation(uid,entry));
     await AsyncStorage.multiSet([[pendingKey,JSON.stringify(pending)],[`${LEGACY_PENDING_PREFIX}${uid}`,'{}'],[migratedKey,'1'],[LAST_USER_KEY,uid]]);
-    await flushPending(uid);
+    if (!await flushPending(uid)) return local;
   } else {
-    await flushPending(uid);
+    if (!await flushPending(uid)) return local;
   }
 
+  // O incremento é enviado imediatamente; não precisa de descarregar as
+  // centenas/milhares de contagens antigas a cada música. A cache local já
+  // inclui o delta. Uma sincronização explícita continua a ler o servidor.
+  if (!forcarLeitura && ultimaLeitura?.uid === uid && Date.now() - ultimaLeitura.em < (changesAvailable ? INTERVALO_DE_LEITURA_MS : INTERVALO_LEGACY_MS)) return local;
   const remote = await pullRemote(uid);
   if (!remote) return local;
   await Promise.all([writeMap(remote), AsyncStorage.setItem(LAST_USER_KEY, uid)]);
+  ultimaLeitura = { uid, em: Date.now() };
   return remote;
 }
 
 export async function synchronizePlayCounts(): Promise<void> {
-  await serialized(syncUnsafe);
+  await serialized(() => syncUnsafe(true));
 }
 
 export async function incrementPlayCount(track: Track): Promise<void> {
@@ -282,6 +354,9 @@ export async function clearPlayCounts(): Promise<void> {
         [`${LEGACY_PENDING_PREFIX}${uid}`, '{}'],
         [LAST_USER_KEY, uid],
       ]);
+      await AsyncStorage.removeItem(SNAPSHOT_PREFIX + uid);
+      remoteSnapshot = null;
+      ultimaLeitura = null;
     }
     await writeMap({});
   });

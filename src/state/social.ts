@@ -10,6 +10,10 @@ import { getSocialConversations,type PublicProfile } from '../api/profiles';
 import { appEstaVisivel, intervaloComAppVisivel } from '../lib/appVisibility';
 import { serialRefresh, type InboxSnapshot } from '../lib/inAppNotifications';
 import { deveRelerAInbox, TIQUE_DA_INBOX_MS } from '../lib/recuperacaoDaInbox';
+import { getConversationPreviews } from '../api/conversationPreviews';
+import { musicActivity, mergePreviews, previewOf, receivedPreviews, type MusicActivity, type ConversationPreview } from '../lib/socialActivity';
+
+export type SocialFriend = Friendship & { musicActivity?: MusicActivity | null };
 
 interface SocialState {
   inboxSnapshot: InboxSnapshot | null;
@@ -18,11 +22,13 @@ interface SocialState {
   contacts:PublicProfile[];
   conversation: {kind:'friend'|'group';id:string}|null;
   drafts: Record<string,string>;
-  friends: Friendship[];
+  friends: SocialFriend[];
   groups: ChatGroup[];
   received: SharedItem[];
   /** Última mensagem de cada conversa, nas duas direções, para a ordenar. */
   activity: Record<string, number>;
+  conversationPreviews: Record<string, ConversationPreview>;
+  rememberConversation: (key: string, messages: readonly SharedItem[]) => void;
   seen: Record<string, string>;
   loading: boolean;
   error: string | null;
@@ -76,27 +82,30 @@ let available = false;
 const friendsNow = (now: number) => rawFriends.map((friend) => {
   if (!available) return friend;
   const state = estadoDaPresenca(presences[friend.friendId], now);
-  return { ...friend, online: state.online, lastSeenAt: state.lastSeenAt ?? friend.lastSeenAt, currentlyPlaying: state.track };
+  return { ...friend, online: state.online, lastSeenAt: state.lastSeenAt ?? friend.lastSeenAt, currentlyPlaying: state.track,
+    musicActivity: musicActivity(presences[friend.friendId], now) };
 });
 
 export const useSocial = create<SocialState>((set, get) => ({
   inboxSnapshot:null,inboxError:false,contacts:[],profileVersion:0,conversation:null,drafts:{},
-  friends: [], groups: [], received: [], activity: {}, seen: {}, loading: true, error: null, now: Date.now(),
+  friends: [], groups: [], received: [], activity: {}, conversationPreviews: {}, seen: {}, loading: true, error: null, now: Date.now(),
+  rememberConversation: (key, messages) => {
+    const latest = messages.reduce<SharedItem | null>((last, item) =>
+      !last || Date.parse(item.createdAt) > Date.parse(last.createdAt) ? item : last, null);
+    if (!latest) return;
+    const preview = previewOf(latest);
+    set(s => ({ conversationPreviews: mergePreviews(s.conversationPreviews, { [key]: preview }),
+      activity: { ...s.activity, [key.replace(/^group:/, '')]: Math.max(s.activity[key.replace(/^group:/, '')] ?? 0, Date.parse(preview.createdAt)) } }));
+  },
   refresh: () => {
     if (running) { queued = true; return running; }
     const gen = generation;
+    const beganAt = agoraNoServidor();
     const job = async () => {
       try {
-        const [, groups, presence,contacts,activity] = await Promise.all([
+        const [, groups, presence,contacts,conversations] = await Promise.all([
           refreshInbox(), getGrupos(), supabase.rpc('get_social_presence'),getSocialConversations(),
-          // Uma instalação sem o SQL novo continua a abrir: fica sem ordem, não sem lista.
-          (async():Promise<Record<string,number>>=>{
-            try{
-              const r=await supabase.rpc('conversation_activity');
-              if(r.error||!r.data)return {};
-              return Object.fromEntries((r.data as {outro:string;ultima:string}[]).map(x=>[x.outro,Date.parse(x.ultima)]));
-            }catch{return {};}
-          })(),
+          getConversationPreviews().catch(() => ({ activity: get().activity, previews: {}, complete: false })),
         ]);
         if (gen !== generation) return;
         if (!presence.error && presence.data) {
@@ -105,7 +114,16 @@ export const useSocial = create<SocialState>((set, get) => ({
           for (const p of presence.data.items as SocialPresence[]) guardarPresenca(p);
         }
         const now = Date.now() + clockOffset;
-        set({ contacts,friends: friendsNow(now), groups, activity, now, loading: false,
+        const recent = Object.fromEntries(Object.entries(get().conversationPreviews)
+          .filter(([, p]) => !conversations.complete || Date.parse(p.createdAt) >= beganAt));
+        const previews = mergePreviews(conversations.previews,
+          mergePreviews(receivedPreviews(get().received), recent));
+        const activity = { ...conversations.activity };
+        for (const [key, p] of Object.entries(previews)) {
+          const id = key.replace(/^group:/, '');
+          activity[id] = Math.max(activity[id] ?? 0, Date.parse(p.createdAt));
+        }
+        set({ contacts,friends: friendsNow(now), groups, activity, conversationPreviews: previews, now, loading: false,
           error: get().inboxError ? INBOX_ERROR : presence.error ? 'Could not update presence. Try again.' : null });
       } catch (e) {
         if (gen === generation) set({ loading: false, error: 'Could not refresh Social. What you see may be out of date.' });
@@ -178,12 +196,13 @@ function createInboxRefresh(userId: string, gen: number) {
     const amizades = friendships.status === 'fulfilled' ? friendships.value : null;
     if (amizades) {
       snapshot.friends = amizades;
-      if (rawFriends.some(f => f.status === 'accepted' && !amizades.some(n => n.friendId === f.friendId && n.status === 'accepted'))) clearProfileMediaCache();
+      if (rawFriends.some(f => f.status === 'accepted' && !amizades.some(n => n.friendId === f.friendId && n.status === 'accepted'))) clearProfileMediaCache(true);
       rawFriends = amizades;
     }
     const inboxError = inbox.status === 'rejected' || friendships.status === 'rejected';
     useSocial.setState({inboxError, error:inboxError ? INBOX_ERROR : useSocial.getState().error === INBOX_ERROR ? null : useSocial.getState().error, seen, friends:friendsNow(Date.now()+clockOffset),
-      ...(snapshot.received ? {received:snapshot.received} : {}), inboxSnapshot:snapshot});
+      ...(snapshot.received ? {received:snapshot.received,
+        conversationPreviews: mergePreviews(useSocial.getState().conversationPreviews, receivedPreviews(snapshot.received))} : {}), inboxSnapshot:snapshot});
   });
 }
 
@@ -195,7 +214,7 @@ export function iniciarSocial(userId: string): () => void {
   refreshInbox=createInboxRefresh(userId,gen);
   const inboxRefresh=refreshInbox;
   rawFriends = []; presences = {}; available = false; clockOffset = 0; running = null; queued = false;
-  useSocial.setState({ inboxSnapshot:null,inboxError:false,contacts:[],friends: [], groups: [], received: [], activity: {}, seen: {}, loading: true, error: null,conversation:null,drafts:{} });
+  useSocial.setState({ inboxSnapshot:null,inboxError:false,contacts:[],friends: [], groups: [], received: [], activity: {}, conversationPreviews: {}, seen: {}, loading: true, error: null,conversation:null,drafts:{} });
   let debounce: ReturnType<typeof setTimeout>;
   let dirty=false;
   const refresh = () => {
@@ -211,7 +230,7 @@ export function iniciarSocial(userId: string): () => void {
     if (appEstaVisivel()) {
       dirty = false;
       clearTimeout(debounce);
-      void useSocial.getState().refresh();
+      debounce = setTimeout(() => { if (gen === generation) void useSocial.getState().refresh(); }, 100);
     } else {
       dirty = true;
       void inboxRefresh();
@@ -314,10 +333,10 @@ export function iniciarSocial(userId: string): () => void {
   return () => {
     ++generation; clearTimeout(debounce); pararTick(); pararRecovery(); pararInboxRecovery();
     app.remove();if(Platform.OS==='web')document.removeEventListener('visibilitychange',acordar);
-    accountId='';refreshInbox=async()=>{};clearProfileMediaCache();
+    accountId='';refreshInbox=async()=>{};clearProfileMediaCache(true);
     if (channel) void supabase.removeChannel(channel);
     channel = null;
     rawFriends = []; presences = {}; available = false; running = null; queued = false;
-    useSocial.setState({ inboxSnapshot:null,inboxError:false,contacts:[],friends: [], groups: [], received: [], seen: {}, error: null, loading: true,conversation:null,drafts:{} });
+    useSocial.setState({ inboxSnapshot:null,inboxError:false,contacts:[],friends: [], groups: [], received: [], activity: {}, conversationPreviews: {}, seen: {}, error: null, loading: true,conversation:null,drafts:{} });
   };
 }

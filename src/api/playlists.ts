@@ -7,6 +7,7 @@ import { planearMerge } from '../lib/playlistMerge';
 // Quem mexe nas playlists muda a co-ocorrência: a descoberta tem de a reler.
 import { esquecerAfinidade } from './afinidade';
 import { esquecerAlargada } from '../lib/cacheDaBiblioteca';
+import { playlistPropriaEmCache } from './playlistSnapshot';
 
 /**
  * Uma playlist ganhou ou perdeu músicas: a co-ocorrência e a biblioteca
@@ -246,8 +247,9 @@ export async function deletePlaylist(id: string): Promise<void> {
 export async function getPlaylistTracks(
   playlistId: string
 ): Promise<PlaylistTrack[]> {
-  const data:any[]=[];
-  for(let offset=0;;offset+=1000){
+  const reutilizadas = await playlistPropriaEmCache(playlistId);
+  const data:any[] = reutilizadas ?? [];
+  for(let offset=0; !reutilizadas; offset+=1000){
     const {data:page,error}=await supabase.from('playlist_tracks')
       .select('position, tracks (id, source, source_id, title, artist, album, artwork_url, duration_seconds)')
       .eq('playlist_id',playlistId).order('position',{ascending:true}).order('track_id',{ascending:true}).range(offset,offset+999);

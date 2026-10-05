@@ -37,7 +37,10 @@ const supabase = {
     upsert: async (linha) => { escritas++; linhas.set(linha.cache_key, linha); return { error: null }; },
   }),
 };
-const cache = load('src/api/cache.ts', { '../lib/supabase': { supabase } });
+const cache = load('src/api/cache.ts', { '../lib/supabase': { supabase },
+  '../lib/cacheExternaLocal': { lerCacheExternaLocal: async () => null, guardarCacheExternaLocal: async () => {} },
+  '../lib/trabalhoDeMetadados': { contarCache: () => {} },
+});
 const HORA = 60 * 60 * 1000;
 let falhas = 0;
 async function caso(nome, f) {

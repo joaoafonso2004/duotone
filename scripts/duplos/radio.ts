@@ -3,9 +3,10 @@ import { controlo } from './controlo.ts';
 import type { Track } from '../../src/types.ts';
 
 export function fetchRadioTracks(
-  _sementes?: Track[], _excluir?: Track[], _limite?: number, jaDescobertas?: ReadonlySet<string>,
+  sementes?: Track[], _excluir?: Track[], _limite?: number, jaDescobertas?: ReadonlySet<string>, modo: 'automatic' | 'session' = 'automatic',
 ): Promise<Track[]> {
   controlo.chamadas.radio++;
   controlo.radioJaDescobertas = jaDescobertas ?? null;
-  return Promise.resolve([...controlo.radio]);
+  controlo.radioContextos.push([...(sementes ?? [])]); controlo.radioModos.push(modo);
+  return controlo.radioPendentes.shift() ?? Promise.resolve([...controlo.radio]);
 }

@@ -160,7 +160,7 @@ export function textoDaEnergia(periodos: readonly Periodo[], agora: number, aFre
   for (const p of [...periodos].reverse()) {
     const haMin = Math.round((agora - p.desde) / 60_000);
     linhas.push(
-      `  ${haMin} min ago, ${p.minutos.toFixed(1)} min${p.aTocar ? ', playing' : ', not playing'}`
+      `  ${haMin} min ago, ${p.minutos.toFixed(1)} min${p.aTocar ? ', playing at interval start' : ', not playing at interval start'}`
       + `${p.aCarregar ? ', charging' : ''}: CPU ${p.cpuPct.toFixed(2)}%`
       + ` | battery ${bateria(p.bateriaInicio)} -> ${bateria(p.bateriaFim)}`
       + ` | thermal ${p.termicoInicio} -> ${p.termicoFim}`,

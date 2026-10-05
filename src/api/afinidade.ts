@@ -1,6 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { displayArtist, type FaixaParaAprender } from '../lib/artistName';
 import type { FaixaComArtista } from '../lib/afinidade';
+import { lerFaixasDasPlaylists, esquecerFaixasDasPlaylists, type LinhaDePlaylist } from './playlistSnapshot';
+import { medirTrabalho, cederParaInterface } from '../lib/trabalhoLocal';
 
 /**
  * Os pares artista-playlist do utilizador, que é o que dá a co-ocorrência.
@@ -34,7 +36,7 @@ export type DadosDeAfinidade = {
  * saber quem pedia: trocar de conta na mesma sessão dava, durante meia hora,
  * as playlists da conta anterior à descoberta da nova (auditoria de 16/9).
  */
-let cache: { conta: string; em: number; dados: DadosDeAfinidade } | null = null;
+let cache: { conta: string; em: number; linhas: LinhaDePlaylist[]; dados: DadosDeAfinidade } | null = null;
 /** Sobe a cada `esquecerAfinidade`: uma leitura que começou antes de uma
  * playlist mudar devolve-se a quem a pediu, mas não fica guardada. */
 let geracao = 0;
@@ -53,28 +55,14 @@ async function contaAtual(): Promise<string> {
 
 export async function paresDeArtistaEPlaylist(): Promise<DadosDeAfinidade> {
   const conta = await contaAtual();
-  if (cache && cache.conta === conta && Date.now() - cache.em < VALIDADE_MS) return cache.dados;
-
   const daMinha = geracao;
-  const linhas: any[] = [];
-  for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
-    const inicio = pagina * POR_PAGINA;
-    const { data, error } = await supabase
-      .from('playlist_tracks')
-      .select('playlist_id, tracks (title, artist, source), playlists!inner (owner_id)')
-      .eq('playlists.owner_id', conta)
-      // Ordem estável, senão as páginas repetem e saltam linhas.
-      .order('playlist_id', { ascending: true })
-      .order('track_id', { ascending: true })
-      .range(inicio, inicio + POR_PAGINA - 1);
-    if (error) throw error;
-    linhas.push(...(data ?? []));
-    if (!data || data.length < POR_PAGINA) break;
-  }
+  const linhas = await lerFaixasDasPlaylists();
+  if (cache?.conta === conta && cache.linhas === linhas && Date.now() - cache.em < VALIDADE_MS) return cache.dados;
 
   const pares: FaixaComArtista[] = [];
   const faixas: FaixaParaAprender[] = [];
-  for (const linha of linhas) {
+  for (let inicio = 0; inicio < Math.min(linhas.length, POR_PAGINA * MAX_PAGINAS); inicio += 200) {
+    medirTrabalho('affinity.derive', () => { for (const linha of linhas.slice(inicio, inicio + 200)) {
     const t = linha.tracks;
     if (!t) continue;
     const crua = { source: t.source, title: t.title ?? '', artist: t.artist ?? null };
@@ -82,10 +70,12 @@ export async function paresDeArtistaEPlaylist(): Promise<DadosDeAfinidade> {
     const artista = displayArtist(crua);
     if (!artista || artista === 'Unknown artist') continue;
     pares.push({ artista, playlistId: linha.playlist_id ?? null });
+    } });
+    if (inicio + 200 < linhas.length) await cederParaInterface();
   }
 
   const dados = { pares, faixas };
-  if (daMinha === geracao) cache = { conta, em: Date.now(), dados };
+  if (daMinha === geracao) cache = { conta, em: Date.now(), linhas, dados };
   return dados;
 }
 
@@ -94,4 +84,5 @@ export async function paresDeArtistaEPlaylist(): Promise<DadosDeAfinidade> {
 export function esquecerAfinidade(): void {
   cache = null;
   geracao++;
+  esquecerFaixasDasPlaylists();
 }

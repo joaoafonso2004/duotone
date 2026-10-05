@@ -81,6 +81,30 @@ function preparar(over: Record<string, unknown> = {}) {
 console.log('\no caminho normal');
 // ===========================================================================
 
+preparar({ autoplayRadio: false });
+{
+  const semear = usePlayer.getState().semearSugestoes;
+  let sementes = 0;
+  usePlayer.setState({semearSugestoes: async () => { sementes++; return 0; }});
+  const modos: string[] = [];
+  const deixar = usePlayer.subscribe(s => modos.push(`${s.shuffle}/${s.shuffleInteligente}`));
+  usePlayer.getState().toggleShuffle();
+  const ordem = usePlayer.getState().shuffleOrder;
+  eq('shuffle muda no próprio toque', usePlayer.getState().shuffle, true);
+  usePlayer.getState().toggleShuffle();
+  eq('smart conserva a ordem já escolhida', usePlayer.getState().shuffleOrder, ordem);
+  eq('o botão muda antes da descoberta', sementes, 0);
+  await assentar();
+  eq('a descoberta corre depois do primeiro estado visível', sementes, 1);
+  eq('smart mantém a preferência de shuffle ligada', guardadas.shuffle, true);
+  usePlayer.getState().toggleShuffle();
+  deixar();
+  await assentar();
+  usePlayer.setState({semearSugestoes: semear});
+  eq('um estado coerente por toque', modos.join(','), 'true/false,true/true,false/false');
+  eq('desligar guarda a preferência', guardadas.shuffle, false);
+}
+
 preparar();
 await usePlayer.getState().next();
 eq('next avança para a faixa seguinte', atual(), 'b');

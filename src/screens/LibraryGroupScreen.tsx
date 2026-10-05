@@ -1,11 +1,11 @@
 import { CabecalhoDaPlaylist } from '../components/CabecalhoDaPlaylist';
-import { comCatalogo } from '../state/catalogoDeFaixas';
+import { gruposDaBiblioteca } from '../state/gruposDaBiblioteca';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useCallback, useState, useEffect, useMemo } from 'react';
+import React, { useCallback, useState, useEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View, Animated } from 'react-native';
 import { tocarMixDoArtista } from '../state/mixDoArtista';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { pesquisarFaixas } from '../api/search';
 import { BrilhoDoEcra } from '../components/BrilhoDoEcra';
 import { EmptyState } from '../components/EmptyState';
+import { SkeletonDeFaixas } from '../components/Skeleton';
 import { PillButton } from '../components/PillButton';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -28,7 +29,7 @@ import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '../theme';
 import { useTheme } from '../state/theme';
 import { hapticSelection } from '../lib/haptics';
-import { agruparPorArtista, chaveDeArtista, displayArtist } from '../lib/artistName';
+import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
@@ -62,6 +63,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
+  const leitura = useRef(0);
   const theme = useTheme((s) => s.theme);
   const [actionTrack, setActionTrack] = useState<Track | null>(null);
 
@@ -79,12 +81,14 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const [selectedYtPlaylistArtwork, setSelectedYtPlaylistArtwork] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    const pedido = ++leitura.current;
     try {
       // Marca as faixas do YouTube deste artista que já estão na biblioteca.
       useSaved.getState().refresh();
       // Da cache partilhada: cada página de artista relia a biblioteca
       // inteira (30/9, egress).
       const all = await lerFaixas(getLibrary);
+      if (pedido !== leitura.current) return;
       if (type === 'album') {
         setTracks(all.filter((t) => t.album === name));
       } else {
@@ -92,18 +96,23 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         // agrupamento da página de Artistas, senão o cartão dizia cinco
         // faixas e esta página abria com duas.
         const alvo = chaveDeArtista(name);
-        setTracks(agruparPorArtista(all.map(comCatalogo)).find((g) => g.chave === alvo)?.faixas ?? []);
+        setTracks(gruposDaBiblioteca(all).find((g) => g.chave === alvo)?.faixas ?? []);
       }
     } catch {
       // ignorar
     } finally {
-      setLoading(false);
+      if (pedido === leitura.current) setLoading(false);
     }
   }, [type, name]);
 
   useFocusEffect(
     useCallback(() => {
-      load();
+      setLoading(true);
+      // A cache resolve numa microtask. Ceder um frame impede a biblioteca
+      // inteira de bloquear a primeira imagem da navegação.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const frame = requestAnimationFrame(() => { timer = setTimeout(() => void load(), 0); });
+      return () => { cancelAnimationFrame(frame); clearTimeout(timer); ++leitura.current; };
     }, [load])
   );
 
@@ -185,20 +194,20 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const shuffleLigado = usePlayer((s) => s.shuffle);
   const shuffleInteligente = usePlayer((s) => s.shuffleInteligente);
   const alternarShuffle = usePlayer((s) => s.toggleShuffle);
-  // O Mix do artista (29/9): a rádio do canal dele, 50 músicas dele e de
-  // parecidos. Só aparece quando o canal a tem (`pagina.mix`).
+  // O Mix é uma ação permanente. O canal e as músicas chegam ao carregar;
+  // artistas sem uma rádio publicada usam as suas músicas como contexto.
   const [aAbrirMix, setAAbrirMix] = useState(false);
   const tocarMix = async () => {
-    if (!pagina?.mix || aAbrirMix) return;
+    if (aAbrirMix) return;
     hapticSelection();
     setAAbrirMix(true);
-    const ok = await tocarMixDoArtista(name, { mix: pagina.mix }).catch(() => false);
+    const ok = await tocarMixDoArtista(name, { mix: pagina?.mix, faixas: tracks }).catch(() => false);
     setAAbrirMix(false);
     if (!ok) avisarErro('Could not load the mix.', 'Check your connection and try again.');
   };
   const accoesDoArtista = (
     <>
-      {faixasDaAba.length ? <>
+      {faixasDaAba.length || (activeTab !== 'youtube_albums' && waiting) ? <>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Play ${name}`}
@@ -234,17 +243,18 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         <Ionicons name="shuffle" size={20} color={shuffleLigado && !shuffleInteligente ? theme.color : colors.text} />
       </Pressable>
       </> : null}
-      {pagina?.mix ? (
+      {(
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`${name} Mix`}
           accessibilityState={{ busy: aAbrirMix }}
+          disabled={aAbrirMix}
           onPress={() => void tocarMix()}
           style={[styles.shuffleButton, aAbrirMix && { opacity: 0.5 }]}
         >
           {aAbrirMix ? <ActivityIndicator size="small" color={colors.text} /> : <Ionicons name="radio-outline" size={20} color={colors.text} />}
         </Pressable>
-      ) : null}
+      )}
       {/* Favoritar dentro da página (29/9): só se podia na lista dos artistas. */}
       <Pressable
         accessibilityRole="button"
@@ -271,7 +281,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const header = <>
     {type === 'artist' ? <CabecalhoDaPlaylist artista aoMedirNome={setFimDoNome} nome={name} artworks={capaDoArtista ? [capaDoArtista] : []}
       faixas={faixasDoCabecalho.length} duracaoSegundos={total}
-      accoes={tracks.length || otherTracks.length || pagina?.mix ? accoesDoArtista : undefined} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
+      accoes={accoesDoArtista} /> : tracks.length > 0 ? <View style={{ paddingHorizontal: spacing.xl, marginBottom: spacing.md }}>
         <PillButton label="Play all" small onPress={() => playTrack(tracks[0], tracks, true, false, undefined, origemDaPagina)} />
       </View> : null}
     {type === 'artist' && pagina?.maisRecente ? <UltimoLancamento album={pagina.maisRecente}
@@ -300,7 +310,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         onScroll={cab.onScroll} scrollEventThrottle={cab.scrollEventThrottle} scrollIndicatorInsets={{ top: cab.espaco }} keyExtractor={(item) => item.id ?? `${item.source}:${item.sourceId}`}
         ListHeaderComponent={header} initialNumToRender={12} windowSize={7}
         contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
-        ListEmptyComponent={waiting ? <ActivityIndicator color={theme.color} style={{ marginTop: 32 }} /> :
+        ListEmptyComponent={waiting ? <SkeletonDeFaixas linhas={6} /> :
           <EmptyState icon={activeTab === 'youtube_albums' ? 'albums-outline' : 'musical-notes-outline'}
             title={activeTab === 'library' ? 'Nothing here' : activeTab === 'youtube_albums' ? 'No albums found' : 'No tracks found'}
             subtitle={activeTab === 'library' ? 'These songs may have been removed from your library.' : 'No other songs found for this artist.'} />}

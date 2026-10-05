@@ -79,7 +79,7 @@ caso('o período: CPU por grupo, e o das threads que morreram vai para outros', 
     a_tocar: true, a_carregar: false, bateria_pp: 4, termico: 'fair',
   });
   const texto = textoDaEnergia([p], 600_000 + 120_000);
-  assert.match(texto, /2 min ago, 10\.0 min, playing: CPU 0\.40%/);
+  assert.match(texto, /2 min ago, 10\.0 min, playing at interval start: CPU 0\.40%/);
   assert.match(texto, /battery 90% -> 86%/);
   assert.match(texto, /javascript 0\.10%, audio 0\.20%, rede 0\.05%/);
 });

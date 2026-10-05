@@ -1,16 +1,18 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigation,useRoute,useIsFocused,type RouteProp } from '@react-navigation/native';
 import type { MaterialTopTabNavigationProp } from '@react-navigation/material-top-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList, TabsParamList } from '../navigation/RootNavigator';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SocialHub } from '../components/SocialHub';
+import { SocialIconButton } from '../components/socialUI';
 
 export function SocialScreen() {
   const navigation=useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const separadores=useNavigation<MaterialTopTabNavigationProp<TabsParamList>>();
   const route=useRoute<RouteProp<TabsParamList,'Social'>>();
   const focused=useIsFocused();
+  const [novaConversa,setNovaConversa]=useState(false);
   /**
    * A conversa pedida abre UMA vez, e depois o pedido apaga-se.
    *
@@ -31,8 +33,9 @@ export function SocialScreen() {
   },[openChatWithFriendId,openGroupId,separadores]);
   // O "voltar" e para o Perfil, que e de onde se vem -- a arrastar ou pelo
   // botao das mensagens. Uma seccao nao tem pilha para onde regressar.
-  return <Screen title="Social" subtitle="Friends, music and conversations." onBack={()=>separadores.navigate('Profile')} encolhe={cab}>
-    <SocialHub cabecalho={cab} visible={focused} initialFriend={openChatWithFriendId} initialGroup={openGroupId}
+  return <Screen title="Social" right={<SocialIconButton label="Start a conversation" icon="person-add-outline" onPress={()=>setNovaConversa(true)}/>}
+    onBack={()=>separadores.navigate('Profile')} encolhe={cab}>
+    <SocialHub cabecalho={cab} novaConversa={{aberta:novaConversa,definir:setNovaConversa}} visible={focused} initialFriend={openChatWithFriendId} initialGroup={openGroupId}
       onProfile={id=>navigation.navigate('FriendProfile',{userId:id})}
       onArtist={name=>navigation.navigate('LibraryGroup',{type:'artist',name})}
       onPlaylist={id=>navigation.navigate('PlaylistDetail',{id,name:'Playlist partilhada'})}/>

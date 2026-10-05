@@ -5,6 +5,7 @@ import { anteriorDaSessao, efeitoDaAutoFila, percursoDaSessao, proximaFaixa, dec
 import { readFileSync } from 'node:fs';
 import { closePlayerSmoothly, confirmaSwipe } from '../src/lib/closePlayer.ts';
 import { seguirSessao } from '../src/lib/seguirSessao.ts';
+import { posicaoDaSalaParaFaixa } from '../src/lib/arranqueDaSala.ts';
 import type { SessaoDeEscuta } from '../src/api/ouvirJuntos.ts';
 
 const faixa = (sourceId: string): Track => ({ source: 'youtube', sourceId,
@@ -124,6 +125,12 @@ assert.equal(confirmaSwipe(5, 200, 0, 350), false);
 // aplicação usado pelo hook. Pausas e seeks recebidos nunca geram anúncios.
 const confirmada: SessaoDeEscuta = { id: 'jam', hostId: 'host', track: escolhida,
   comecouEmServidor: Date.now(), aTocar: true, pausadaEmMs: 0, convidadosControlam: true, acabouEm: null };
+assert.equal(posicaoDaSalaParaFaixa(escolhida, confirmada, () => 900), 900, 'alinhar antes do som mesmo abaixo de 1,5 s');
+assert.equal(posicaoDaSalaParaFaixa(escolhida, confirmada, () => 6700), 6700, 'o tempo do download não se perde');
+assert.equal(posicaoDaSalaParaFaixa(escolhida, confirmada, () => null), null, 'sem relógio não se inventa uma posição');
+assert.equal(posicaoDaSalaParaFaixa(escolhida, confirmada, () => NaN), null);
+assert.equal(posicaoDaSalaParaFaixa(actual, confirmada, () => { throw Error('não consultar outra faixa'); }), null);
+assert.equal(posicaoDaSalaParaFaixa(escolhida, confirmada, () => 900000), 180000, 'respeita a duração');
 let vigente = true;
 const porta = { player: usePlayer.getState, vigente: () => vigente,
   posicaoAgora: () => 42000, guardarRetoma: (ms: number) => usePlayer.setState({ resumePositionMs: ms }) };
@@ -139,6 +146,17 @@ for (const anfitriao of [true, false]) {
   assert.equal(usePlayer.getState().resumePositionMs, 42000);
   assert.equal(pausas, 0); assert.deepEqual(saltos, []);
 }
+limpar();
+let ordensAntigas = 0;
+usePlayer.setState({ activeBackend: 'resolving', isPlaying: false, _yt: {
+  play: () => { ordensAntigas++; }, pause: () => {}, seek: () => { ordensAntigas++; },
+  setVolume: () => {}, setPlaybackRate: () => {},
+} });
+await seguirSessao(confirmada, null, porta);
+assert.equal(ordensAntigas, 0, 'a troca de faixa não manda play/seek ao motor anterior');
+await seguirSessao({ ...confirmada, aTocar: false, pausadaEmMs: 42000 }, confirmada, porta);
+assert.equal(ordensAntigas, 0, 'a pausa recebida durante o carregamento guarda a posição sem seek antigo');
+assert.equal(usePlayer.getState().resumePositionMs, 42000);
 limpar(); vigente = false;
 await seguirSessao(confirmada, null, porta);
 assert.equal(usePlayer.getState().current, actual, 'uma sessão abandonada não reabre o player');
@@ -269,12 +287,16 @@ assert.equal(usePlayer.getState().resumePositionMs, null, 'faixa nova a tocar ar
   const antes = plays;
   await seguirSessao(confirmada, { ...confirmada, track: actual }, porta);
 
-  // 4. o motor TEM de ter recebido a ordem. Era exactamente isto que faltava:
-  //    aTocar=true era igual a intencao que ja la estava, a guarda do
-  //    `_sincronizarPausa` fechava a porta, e so pausar e retomar curava.
+  // 4. A intenção prepara a nova fonte, sem arrancar o motor que acabou.
   assert.equal(usePlayer.getState().current?.sourceId, escolhida.sourceId);
+  assert.equal(plays, antes, 'o motor antigo não recebe outra ordem durante a troca');
+  assert.equal(usePlayer.getState().autoplayOnLoad, true, 'o arranque da nova fonte mantém o play');
+  // Já pronta, uma confirmação continua a curar um motor parado mesmo que a
+  // intenção concorde. Isto preserva o caso que só pausar/retomar resolvia.
+  usePlayer.setState({ activeBackend: 'native' });
+  await seguirSessao(confirmada, confirmada, porta);
   assert.ok(plays > antes,
-    'a confirmacao da faixa nova manda o motor tocar, mesmo com a intencao ja de acordo');
+    'a confirmação com a fonte pronta força o play mesmo com a intenção de acordo');
   usePlayer.setState({ _yt: null });
 }
 

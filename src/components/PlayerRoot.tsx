@@ -48,7 +48,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, removeFromLibrary, checkIsSaved } from '../api/library';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
-import { setRepeatMode as persistRepeatMode, setShuffle as persistShuffle } from '../lib/prefs';
+import { setRepeatMode as persistRepeatMode } from '../lib/prefs';
 import { savedKey, useSaved } from '../state/saved';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
@@ -931,7 +931,6 @@ export function PlayerRoot() {
   const onToggleShuffle = () => {
     toggleShuffle();
     hapticSelection();
-    persistShuffle(!shuffle);
   };
   const onCycleRepeat = () => {
     const next = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';

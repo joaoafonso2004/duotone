@@ -42,6 +42,7 @@ function ambiente(os = 'ios', estado = 'active') {
     estado: estado => { AppState.currentState = estado; for (const fn of [...ouvintes]) fn(estado); },
     janela: estado => { document.visibilityState = estado; for (const fn of [...web]) fn(); },
     bater: ms => { for (const [id, t] of [...intervalos]) if (t.ms === ms && intervalos.has(id)) t.fn(); },
+    vencer: ms => { for (const [id, t] of [...prazos]) if (t.ms === ms && prazos.has(id)) { prazos.delete(id); t.fn(); } },
   };
 }
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r)); };
@@ -160,9 +161,13 @@ async function main() {
       '../lib/profileMedia': { clearProfileMediaCache() {} }, '../api/profiles': { getSocialConversations: async () => [] },
       '../lib/appVisibility': a.visibilidade, '../lib/inAppNotifications': a.carregar('src/lib/inAppNotifications.ts'),
       '../lib/recuperacaoDaInbox': a.carregar('src/lib/recuperacaoDaInbox.ts'),
+      '../lib/socialActivity': a.carregar('src/lib/socialActivity.ts'),
+      '../api/conversationPreviews': { getConversationPreviews: async () => ({ activity: {}, previews: {}, complete: true }) },
     });
     const parar = social.iniciarSocial('me'); await flush(); assert.equal(inboxCalls, 1);
     handlers.get('shared_items')({ eventType: 'INSERT' }); await flush();
+    assert.equal(inboxCalls, 1, 'aviso aguarda o agrupamento de eventos');
+    a.vencer(100); await flush();
     assert.equal(inboxCalls, 2, 'aviso relê uma vez');
     a.estado('background'); await flush(); assert.equal(a.intervalos.size, 0);
     a.estado('active'); await flush(); assert.equal(inboxCalls, 3, 'retoma relê uma vez');

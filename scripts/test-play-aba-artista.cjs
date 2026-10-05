@@ -17,6 +17,7 @@ const React = {
     return [slots[i], next => { slots[i] = typeof next === 'function' ? next(slots[i]) : next; }]; },
   useMemo(fn, deps) { const i = slot(() => ({})); if (changed(slots[i].deps, deps)) slots[i] = { deps, value: fn() }; return slots[i].value; },
   useCallback(fn, deps) { return this.useMemo(() => fn, deps); },
+  useRef(initial) { const i = slot(() => ({current:initial})); return slots[i]; },
   useEffect(fn, deps) { const i = slot(() => ({})); if (changed(slots[i].deps, deps)) {
     slots[i].cleanup?.(); slots[i].deps = deps; effects.push(() => { slots[i].cleanup = fn(); });
   } },
@@ -47,6 +48,8 @@ const mocks = {
   'expo-image': { Image: 'Image' }, 'expo-linear-gradient': { LinearGradient: 'Gradient' }, '@expo/vector-icons/Ionicons': 'Icon',
   '../components/CabecalhoDaPlaylist': { CabecalhoDaPlaylist: 'Header' },
   '../components/BrilhoDoEcra': { BrilhoDoEcra: 'Glow' }, '../components/EmptyState': { EmptyState: 'Empty' },
+  '../components/Skeleton': { SkeletonDeFaixas: 'Skeleton' },
+  '../state/gruposDaBiblioteca': { gruposDaBiblioteca: tracks => [{chave:'isak',faixas:tracks}] },
   '../state/doca': { useAlturaDosSeparadores: () => 54 },
   '../lib/avisoDeRemocao': { avisarErro() {} },
   '../components/PillButton': { PillButton: 'Pill' }, '../components/Screen': { Screen: 'Screen', useCabecalhoQueEncolhe: () => ({
@@ -71,7 +74,8 @@ const code = ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions
   module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React, esModuleInterop: true,
 } }).outputText;
 const moduleUnderTest = { exports: {} };
-vm.runInNewContext(code, { module: moduleUnderTest, exports: moduleUnderTest.exports, require: id => {
+vm.runInNewContext(code, { setTimeout, clearTimeout, requestAnimationFrame: fn => setImmediate(fn), cancelAnimationFrame: clearImmediate,
+  module: moduleUnderTest, exports: moduleUnderTest.exports, require: id => {
   assert.ok(id in mocks, 'Import sem duplo: ' + id); return mocks[id];
 } });
 const Screen = moduleUnderTest.exports.LibraryGroupScreen;
@@ -86,11 +90,14 @@ const find = predicate => nodes(tree).find(predicate);
 const play = () => find(n => n.props?.accessibilityLabel === 'Play Isak');
 const list = () => find(n => n.type === 'FlatList');
 function tab(name) { const node = find(n => n.props?.accessibilityRole === 'tab' && text(n) === name); assert.ok(node, name); node.props.onPress(); render(); }
-const flush = async () => { for (let i = 0; i < 4; i++) { await new Promise(r => setImmediate(r)); render(); } };
+const flush = async () => { for (let i = 0; i < 4; i++) { await new Promise(r => setTimeout(r, 0)); render(); } };
 const ids = tracks => Array.from(tracks, t => t.sourceId);
 
 async function main() {
-  render(); await flush();
+  render();
+  assert.ok(find(n=>n.props?.accessibilityLabel==='Isak Mix'),'Mix está presente antes de qualquer resposta remota');
+  assert.equal(list().props.ListEmptyComponent.type,'Skeleton','a primeira imagem já contém o carregamento da lista');
+  await flush();
   play().props.onPress();
   assert.deepEqual(ids(calls.at(-1)[1]), ['saved-a', 'saved-b'], 'Library Play só toca a biblioteca');
   tab('More songs');

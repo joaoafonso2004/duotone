@@ -41,6 +41,7 @@ export function iniciarPresenca(userId: string): () => void {
   let fila = Promise.resolve();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let lastPublished=0;
+  let ultimoEnviado: { chave: string; em: number } | null = null;
   const sessao = Crypto.randomUUID();
   const dispositivo = getDeviceId();
   const publicar = (encerrar = false) => {
@@ -57,6 +58,9 @@ export function iniciarPresenca(userId: string): () => void {
     // a tocar ou nao (18/9, 1/10): ver `lib/presencaAtiva.ts`.
     const visivel = appEstaVisivel();
     fila = fila.catch(() => {}).then(async () => {
+      // Vários estados de loading/play em fila publicam apenas o mais novo.
+      // Um envio já em curso termina; não se acumulam as transições antigas.
+      if (seq < sequencia && !encerrar) return;
       const { data } = await supabase.auth.getSession();
       if (data.session?.user.id !== userId) return;
       const ativo = contaComoAtivo({
@@ -71,6 +75,14 @@ export function iniciarPresenca(userId: string): () => void {
       // depois deixava a faixa à vista dos amigos durante uns segundos.
       await garantirPrivacidade();
       const privada = usePrivacidade.getState().privada;
+      const agora = Date.now();
+      const aSeguir = proximasParaAPresenca(useOuvirJuntos.getState().sessao
+        ? useOuvirJuntos.getState().fila.map(i => i.track)
+        : usePlayer.getState().upcomingQueue().map(e => e.track));
+      const chave = JSON.stringify([ativo && !encerrar, encerrar, privada,
+        faixa?.source, faixa?.sourceId, s.playbackRate, Math.round(posicaoAgoraParaAPresenca()/1000),
+        faixa?.durationSeconds ?? usePlayer.getState().durationMs, aSeguir.map(t => `${t.source}:${t.sourceId}`)]);
+      if (!encerrar && ultimoEnviado?.chave === chave && agora - ultimoEnviado.em < 1500) return;
       const { error } = await supabase.rpc('publish_social_presence', {
         p_device_id: await dispositivo, p_session_id: sessao, p_sequence: seq,
         p_active: ativo && !encerrar, p_end: encerrar,
@@ -93,12 +105,11 @@ export function iniciarPresenca(userId: string): () => void {
           rate: usePlayer.getState().playbackRate || 1,
           // As próximas, para o Up next de quem te segue (27/9, "Listen along";
           // supabase/presenca-com-fila.sql). Num Jam, as da fila partilhada.
-          aSeguir: proximasParaAPresenca(useOuvirJuntos.getState().sessao
-            ? useOuvirJuntos.getState().fila.map((i) => i.track)
-            : usePlayer.getState().upcomingQueue().map((e) => e.track)),
+          aSeguir,
         },
       });
       if (error) console.warn('Não foi possível publicar a presença:', error.message);
+      else ultimoEnviado = { chave, em: agora };
     });
     return fila;
   };

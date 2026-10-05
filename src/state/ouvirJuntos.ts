@@ -5,7 +5,7 @@ import {
   continuoNaSessao, convidar, criarSessao, definirFaixa, entrar, retratoDaSessao,
   juntarAFila, juntarMuitasAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
   definirAux, fecharJamsAbandonadas, minhasSessoesAbertas, pausar, permitirControlo, relogioActualizado, retomar,
-  sair, sessaoDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
+  sair, sessaoDaLinha, itemDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
   type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta,
 } from '../api/ouvirJuntos';
 import { agoraNoServidor, type Estimativa } from '../lib/relogioPartilhado';
@@ -129,6 +129,7 @@ let geracao = 0;
 let leitura = 0;
 let avancando = false;
 let aEncher = false;
+let pararLeiturasDaSala: (() => void) | null = null;
 /**
  * Abaixo de quantas faixas se enche, e quantas se juntam de cada vez.
  *
@@ -226,6 +227,26 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (minha !== geracao) return;
     set({ sessao, membros, fila, relogio });
 
+    // Só um fallback por rajada; eventos completos já trazem a linha nova.
+    let versaoFila = 0, versaoMembros = 0;
+    let timerFila: ReturnType<typeof setTimeout> | null = null;
+    let timerMembros: ReturnType<typeof setTimeout> | null = null;
+    const recuperarFila = () => {
+      if (timerFila) return;
+      timerFila = setTimeout(() => {
+        timerFila = null; const v = versaoFila;
+        void lerFila(sessao.id).then(f => { if (minha === geracao && v === versaoFila) set({ fila: f }); }).catch(() => {});
+      }, 100);
+    };
+    const recuperarMembros = () => {
+      if (timerMembros) return;
+      timerMembros = setTimeout(() => {
+        timerMembros = null; const v = versaoMembros;
+        void lerMembros(sessao.id).then(m => { if (minha === geracao && v === versaoMembros) set({ membros: m }); }).catch(() => {});
+      }, 100);
+    };
+    pararLeiturasDaSala = () => { if (timerFila) clearTimeout(timerFila); if (timerMembros) clearTimeout(timerMembros); };
+
     canal = supabase
       .channel(`sessao:${sessao.id}`)
       .on(
@@ -244,17 +265,34 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listening_members', filter: `session_id=eq.${sessao.id}` },
-        () => {
+        evento => {
           if (minha !== geracao) return;
-          void lerMembros(sessao.id).then((m) => { if (minha === geracao) set({ membros: m }); });
+          versaoMembros++;
+          const row = evento.new as any;
+          if (row?.session_id === sessao.id && typeof row.user_id === 'string' && typeof row.ready === 'boolean') {
+            const novo = membroDaLinha(row);
+            set({ membros: [...get().membros.filter(m => m.userId !== novo.userId), novo] });
+          } else recuperarMembros();
         }
       )
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'listening_members' }, evento => {
+        if (minha !== geracao) return;
+        const old = evento.old as any;
+        if (old?.session_id !== sessao.id || typeof old.user_id !== 'string') return;
+        versaoMembros++;
+        set({ membros: get().membros.filter(m => m.userId !== old.user_id) });
+      })
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'listening_queue', filter: `session_id=eq.${sessao.id}` },
-        () => {
+        evento => {
           if (minha !== geracao) return;
-          void lerFila(sessao.id).then((f) => { if (minha === geracao) set({ fila: f }); });
+          versaoFila++;
+          const row = evento.new as any;
+          if (row?.session_id === sessao.id && typeof row.id === 'string' && row.track?.source && row.track?.sourceId) {
+            const novo = itemDaLinha(row);
+            set({ fila: [...get().fila.filter(i => i.id !== novo.id), novo].sort((a,b) => a.posicao-b.posicao || a.id.localeCompare(b.id)) });
+          } else recuperarFila();
         }
       )
       // As SAÍDAS da fila (28/9). Um DELETE não chega a uma subscrição com
@@ -268,10 +306,12 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
           if (minha !== geracao) return;
           const fila = get().fila;
           const sem = semOApagado(fila, (evento.old as { id?: unknown } | null)?.id);
-          if (sem !== fila) set({ fila: sem });
+          if (sem !== fila) { versaoFila++; set({ fila: sem }); }
         }
       )
-      .subscribe();
+      .subscribe(status => {
+        if (minha === geracao && status === 'SUBSCRIBED') { recuperarFila(); recuperarMembros(); }
+      });
 
     batimento = setInterval(() => {
       const s = get().sessao;
@@ -281,24 +321,38 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
 
     // Ao voltar ao primeiro plano, o relógio pode ter envelhecido e a sessão
     // pode ter mudado sem nós -- o realtime não entrega com a app suspensa.
-    subscricaoDeEstado = AppState.addEventListener('change', () => {
+    let esteveEmSegundoPlano = false;
+    let recuperouEm = Date.now();
+    subscricaoDeEstado = AppState.addEventListener('change', estado => {
+      if (estado === 'background') { esteveEmSegundoPlano = true; return; }
+      if (estado !== 'active') return;
       if (!appEstaVisivel() || minha !== geracao) return;
+      if (!esteveEmSegundoPlano && Date.now() - recuperouEm < 30_000) return;
+      esteveEmSegundoPlano = false; recuperouEm = Date.now();
       const s = get().sessao;
       if (!s) return;
+      const filaAntes = get().fila, membrosAntes = get().membros;
       void Promise.all([
         lerSessao(s.id), lerMembros(s.id), lerFila(s.id), relogioActualizado(get().relogio),
       ]).then(([nova, membros, fila, relogio]) => {
         if (minha !== geracao) return;
+        // Uma resposta começada antes de um evento realtime não repõe a
+        // pausa/faixa antiga por cima da confirmação que já chegou.
+        if (get().sessao !== s) return;
         // Acabou enquanto a app estava suspensa: o realtime não entrega aí, e
         // é ao voltar que se descobre.
         if (!nova || nova.acabouEm) { get().desligar(); set({ acabouSemAviso: true }); return; }
-        set({ sessao: nova, membros, fila, relogio });
-      });
+        set({ sessao: nova, relogio,
+          ...(get().fila === filaAntes ? { fila } : {}),
+          ...(get().membros === membrosAntes ? { membros } : {}),
+        });
+      }).catch(() => {});
     });
   },
 
   desligar: () => {
     geracao++;
+    pararLeiturasDaSala?.(); pararLeiturasDaSala = null;
     if (canal) { void supabase.removeChannel(canal); canal = null; }
     if (batimento) { clearInterval(batimento); batimento = null; }
     subscricaoDeEstado?.remove();
@@ -487,11 +541,13 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
   actualizar: async () => {
     const s = get().sessao;
     if (!s) return;
+    const filaAnterior = get().fila;
     const minha = geracao, pedido = ++leitura;
     const [nova, fila] = await Promise.all([lerSessao(s.id), lerFila(s.id)]);
     if (minha !== geracao || pedido !== leitura || get().sessao?.id !== s.id) return;
+    if (get().sessao !== s) return;
     if (nova?.acabouEm) { get().desligar(); set({ acabouSemAviso: true }); return; }
-    if (nova) set({ sessao: nova, fila });
+    if (nova) set({ sessao: nova, ...(get().fila === filaAnterior ? { fila } : {}) });
   },
 
   /**

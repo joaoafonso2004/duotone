@@ -34,7 +34,11 @@ export async function seguirSessao(
   if (p.current?.sourceId !== alvo.sourceId || p.current.source !== alvo.source) return;
   // Forçar, e não sincronizar: a confirmação é uma ordem, e quem a aplica não
   // sabe em que estado o motor ficou. Ver `_forcarReproducao`.
-  p._forcarReproducao(sessao.aTocar);
+  // Durante a troca os controlos ainda podem pertencer ao ficheiro anterior.
+  // A intenção/autoplay prepara a nova fonte; a ordem ao motor só é segura
+  // quando essa fonte está montada.
+  if (p.activeBackend === 'resolving') p._sincronizarPausa(sessao.aTocar);
+  else p._forcarReproducao(sessao.aTocar);
   // Retomar TAMBÉM é um comando de posição.
   //
   // O `retomar_sessao` mexe no `started_at` e deixa o `paused_position_ms`

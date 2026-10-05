@@ -24,6 +24,8 @@ export type Migracao = {
 };
 
 export const MIGRACOES: readonly Migracao[] = [
+  { ficheiro: 'social-conversation-summaries.sql', marca: 'fn:conversation_summaries', efeito: 'Compact latest messages in Social Chats' },
+  { ficheiro: 'sincronizacao-economica.sql', marca: 'fn:get_play_count_changes', efeito: 'Incremental playlist and listening-history sync' },
   { ficheiro: 'schema.sql', marca: 'tab:library_tracks', efeito: 'Base tables' },
   { ficheiro: 'funcoes-existentes.sql', marca: 'fn:get_flow_mix', efeito: 'Flow, Heavy Rotation and profile stats' },
   { ficheiro: 'security-hardening.sql', marca: 'rev:tracks:INSERT', efeito: 'Security hardening' },

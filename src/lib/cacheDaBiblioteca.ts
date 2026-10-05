@@ -36,6 +36,10 @@ const guardado = new Map<LeitorDeFaixas, { em: number; faixas: Track[] }>();
 /** Uma leitura em curso por leitor: duas páginas a abrir ao mesmo tempo (ou o
  *  aquecimento e uma página) não podem dar duas consultas. */
 const emCurso = new Map<LeitorDeFaixas, Promise<Track[]>>();
+const validadores = new Map<LeitorDeFaixas, () => Promise<unknown>>();
+export function validarLeitor(leitor: LeitorDeFaixas, validar: () => Promise<unknown>): void {
+  validadores.set(leitor, validar);
+}
 
 /**
  * Sobe a cada invalidação, e é o que impede uma lista VELHA de aterrar depois.
@@ -155,6 +159,7 @@ export async function lerFaixas(
   opcoes: { forcar?: boolean } = {},
 ): Promise<Track[]> {
   if (!opcoes.forcar) {
+    if (guardado.has(leitor)) await validadores.get(leitor)?.();
     const guardadas = faixasEmCache(leitor);
     if (guardadas) return guardadas;
   }

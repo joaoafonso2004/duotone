@@ -14,6 +14,8 @@ function ambiente(fetch, substituicoes = {}) {
   const cache = new Map();
   const modulos = new Map();
   const stubs = {
+    'src/api/playlistSnapshot.ts': { lerFaixasDasPlaylists: async () => [], esquecerFaixasDasPlaylists: () => {}, playlistPropriaEmCache: async () => null },
+    'src/lib/cacheExternaLocal.ts': { lerCacheExternaLocal: async () => null, guardarCacheExternaLocal: async () => {} },
     'src/api/cache.ts': {
       DIA_MS: 86400000,
       cacheGet: async (chave) => cache.get(chave) ?? null,
@@ -88,6 +90,10 @@ const resposta = (corpo) => ({ ok: true, json: async () => corpo });
     nomes.aprenderComABiblioteca([semente]);
     assert.equal(nomes.displayArtist(futebol), 'Isak', 'o título explica a etiqueta errada: contém o artista aprendido');
     const radio = mundo.carregar('src/api/radio.ts');
+    const estrito = await radio.fetchRadioTracks([semente], [semente], 12, undefined, 'session');
+    assert.equal(fluxos, 0, 'o modo de sessão nunca consulta o Flow global para completar a fila');
+    assert.ok(!estrito.some(t => t.sourceId === vizinha.sourceId || t.sourceId === longaGuardada.sourceId), 'não inclui as alternativas fora do contexto trazidas só pelo Flow');
+    if (semCanal) assert.equal(estrito.length, 0, 'sem provas de parentesco devolve vazio em vez de inventar um género');
     const lote = await radio.fetchRadioTracks([semente], [semente]);
     assert.ok(!lote.some(t => t.sourceId === futebol.sourceId), 'o vídeo de futebol não entra, mesmo vindo do Flow');
     assert.ok(!lote.some(t => t.sourceId === semente.sourceId), 'não repete a faixa atual');
@@ -592,19 +598,21 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
     removeItem:async key=>{disk.delete(key);},
     multiSet:async pairs=>{for(const [key,value] of pairs)disk.set(key,value);},
   };
-  const remote=new Map();const cursor=new Map();let loseReply=true;
+  const remote=new Map();const cursor=new Map();let loseReply=true, pulls=0;
   const row=(entry,count)=>({source:entry.source,source_id:entry.sourceId,title:entry.title,artist:entry.artist,
     artwork_url:entry.artworkUrl,duration_seconds:entry.durationSeconds,play_count:count,last_played:new Date(entry.lastPlayed).toISOString()});
   const supabase={
     auth:{getSession:async()=>({data:{session:{user:{id:'user-1'}}}})},
-    rpc:async(_name,{entries})=>{
+    rpc:async(_name,args)=>{
+      if (_name==='get_play_count_changes') return {error:{code:'PGRST202'}};
+      const {entries}=args;
       for(const entry of entries){const previous=cursor.get(entry.operationDevice)??0;if(entry.operationSequence<=previous)continue;
         cursor.set(entry.operationDevice,entry.operationSequence);const old=remote.get(`${entry.source}:${entry.sourceId}`);
         remote.set(`${entry.source}:${entry.sourceId}`,row(entry,(old?.play_count??0)+entry.count));}
       if(loseReply){loseReply=false;return {error:{message:'resposta perdida'}};}return {error:null};
     },
     from:()=>{const query={select:()=>query,eq:()=>query,order:()=>query,
-      range:async(start,end)=>({data:[...remote.values()].sort((a,b)=>`${a.source}:${a.source_id}`.localeCompare(`${b.source}:${b.source_id}`)).slice(start,end+1),error:null}),
+      range:async(start,end)=>{pulls++;return {data:[...remote.values()].sort((a,b)=>`${a.source}:${a.source_id}`.localeCompare(`${b.source}:${b.source_id}`)).slice(start,end+1),error:null};},
       delete:()=>query};return query;},
   };
   const counts=ambiente(async()=>{}, {
@@ -615,11 +623,17 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   await counts.incrementPlayCount(track);
   await counts.synchronizePlayCounts();
   assert.equal(remote.get('youtube:one').play_count,1,'repetir a mesma operação não volta a somar');
+  const antesDosIncrementos = pulls;
+  for (let i=0;i<10;i++) await counts.incrementPlayCount(track);
+  assert.equal(remote.get('youtube:one').play_count,11,'os incrementos continuam a chegar imediatamente');
+  assert.equal(pulls,antesDosIncrementos,'ouvir dez músicas não relê o histórico inteiro dez vezes');
+  assert.equal((await counts.getMostPlayed())[0].count,11,'a cache local inclui os novos incrementos');
   for(let i=0;i<1004;i++)remote.set(`youtube:bulk-${String(i).padStart(4,'0')}`,{
     source:'youtube',source_id:`bulk-${String(i).padStart(4,'0')}`,title:`Faixa ${i}`,artist:null,artwork_url:null,
     duration_seconds:null,play_count:1,last_played:new Date(0).toISOString(),
   });
-  assert.equal((await counts.getMostPlayed(2000)).length,1005,'a paginação traz todas as linhas');
+  await counts.synchronizePlayCounts();
+  assert.equal((await counts.getMostPlayed(2000)).length,1005,'uma sincronização explícita traz todas as páginas, incluindo outro aparelho');
   console.log('Contagens: retry idempotente e paginação acima de 1000 linhas passaram.');
 }
 
@@ -1180,6 +1194,8 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   }));
   let linhas = linhasDe('conta-A', 1);
   const mundo = ambiente(async () => {}, {
+    'src/api/playlistSnapshot.ts': null,
+    '@react-native-async-storage/async-storage': { default: { getItem: async () => null, setItem: async () => {}, removeItem: async () => {} } },
     'src/lib/supabase.ts': { supabase: {
       auth: {
         getSession: async () => ({ data: { session: { user: { id: conta } } } }),

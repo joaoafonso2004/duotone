@@ -152,13 +152,15 @@ async function main() {
       },
     },'../lib/inAppNotifications':core,
     '../lib/recuperacaoDaInbox':load('src/lib/recuperacaoDaInbox.ts'),
+    '../lib/socialActivity':load('src/lib/socialActivity.ts'),
+    '../api/conversationPreviews':{getConversationPreviews:async()=>({activity:{},previews:{},complete:true})},
   },{setInterval:(cb,ms)=>{intervals.set(ms,cb);return ms;},clearInterval:id=>intervals.delete(id),
     console:{warn(){}}});
   const stop=socialModule.iniciarSocial('me');await flush();
   // Without Realtime (this channel never reports SUBSCRIBED) the recovery reads
   // once a minute: four 15-second ticks (src/lib/recuperacaoDaInbox.ts).
   const tiques=n=>{for(let i=0;i<n;i++)intervals.get(15000)();};
-  handlers.get('shared_items')();resolveFirst([msg('initial')]);await flush();
+  handlers.get('shared_items')();await new Promise(r=>setTimeout(r,125));resolveFirst([msg('initial')]);await flush();
   assert.equal(inboxCalls,2,'events during a fetch cause a follow-up read');
   assert.equal(socialModule.useSocial.getState().received[0].id,'2','metadata failure does not block inbox');
   visible=false;intervals.get(15000)();await flush();assert.equal(inboxCalls,2,'no recovery while backgrounded');

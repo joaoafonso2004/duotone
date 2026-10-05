@@ -1,4 +1,5 @@
 import { atualizarVelocidadeDoMotor, corrigirVelocidadeQueFicouAtras, tocarNaVelocidade } from '../lib/velocidadeDoMotor';
+import { posicaoDaSalaParaFaixa } from '../lib/arranqueDaSala';
 import { useConnectivity } from '../state/connectivity';
 import { useEventListener } from 'expo';
 import { useVideoPlayer } from 'expo-video';
@@ -1156,7 +1157,12 @@ export function YouTubePlayerView({ track }: { track: Track }) {
     // até o utilizador carregar em play.
     const beginPlayback = (origem: OrigemDoSom) => {
       const st = usePlayer.getState();
-      const resumeMs = st.resumePositionMs;
+      const jam = useOuvirJuntos.getState();
+      const mesmaNaSala = jam.sessao?.track?.source === track.source && jam.sessao.track.sourceId === track.sourceId;
+      // Mede-se quando o ficheiro fica pronto, antes do primeiro som. Começar
+      // do zero e acertar aos 4 e 10 s cortava o início da faixa do convidado.
+      const posicaoNaSala = posicaoDaSalaParaFaixa(track, jam.sessao, jam.posicaoAgora);
+      const resumeMs = posicaoNaSala ?? st.resumePositionMs;
       // Consome-se aqui, seja qual for o caminho: um fim antigo não decide
       // pela faixa a seguir a esta.
       const semFade = entraSemFade(fimNaturalRef.current, track.sourceId, Date.now(), resumeMs);
@@ -1172,16 +1178,17 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       // lugar dela JÁ a tocar, sem som, e andou uns instantes. Volta ao 0.
       const vinhaViva = !!mantidoVivoRef.current;
       mantidoVivoRef.current = null;
-      if ((vemDeUmFim || vinhaViva) && !(resumeMs && resumeMs > 1500)) {
+      if ((vemDeUmFim || vinhaViva) && !(resumeMs != null && (mesmaNaSala || resumeMs > 1500))) {
         try {
           motorActivo().currentTime = 0;
         } catch {
           // motor sem fonte -- a rede do arranque travado continua lá
         }
       }
-      if (resumeMs && resumeMs > 1500) {
+      if (resumeMs != null && (mesmaNaSala || resumeMs > 1500)) {
         try {
           motorActivo().currentTime = resumeMs / 1000;
+          if (mesmaNaSala) registarNaFila(`${track.sourceId}: Jam aligned before sound at ${(resumeMs / 1000).toFixed(2)}s`);
         } catch {
           // seek falhou — recomeça do início
         }
@@ -1767,7 +1774,8 @@ export function YouTubePlayerView({ track }: { track: Track }) {
       a.repetido = true;
       registarNaFila(`${track.sourceId}: stopped right after starting, played again (engine ${(m.currentTime || 0).toFixed(1)}s)`);
       try {
-        m.currentTime = 0;
+        const sala = useOuvirJuntos.getState();
+        m.currentTime = (posicaoDaSalaParaFaixa(track, sala.sessao, sala.posicaoAgora) ?? 0) / 1000;
         tocarNaVelocidade(m, ritmoDeQuemSigo() ?? velocidadeNaSessao(usePlayer.getState().playbackRate, !!useOuvirJuntos.getState().sessao), aplicarVelocidadeNativa);
       } catch {
         // motor largado -- o empurrão do arranque travado continua por trás

@@ -46,6 +46,7 @@ export async function fetchRadioTracks(
   exclude: Track[],
   limit: number = RADIO_BATCH,
   jaDescobertas: ReadonlySet<string> = new Set(),
+  context: 'automatic' | 'session' = 'automatic',
 ): Promise<Track[]> {
   if(useConnectivity.getState().offline)return [];
   await feedbackReady();
@@ -127,6 +128,10 @@ export async function fetchRadioTracks(
     }
   }
   if (harvest().length >= limit) return harvest();
+
+  // O modo escolhido na fila mantém as âncoras da sessão. Não preencher
+  // com o perfil geral quando o catálogo não confirma música relacionada.
+  if (context === 'session') return harvest(true);
 
   // 4. Último recurso: o Flow do perfil. É o gosto GERAL, e não o desta
   //    música -- mas uma fila que continua é melhor do que o silêncio.

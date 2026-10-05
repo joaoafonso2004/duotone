@@ -1,5 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {Image,Platform,Pressable,StyleSheet,Text,useWindowDimensions,View} from 'react-native';
+import {Platform,Pressable,StyleSheet,Text,useWindowDimensions,View} from 'react-native';
+import {Image} from 'expo-image';
+import {profileImageCacheKey} from '../lib/profileMedia';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {LinearGradient} from 'expo-linear-gradient';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
@@ -48,16 +50,16 @@ export function CapaDoPerfil({cover,recorte}:{cover:string|null;recorte?:Recorte
     // No editor a imagem ainda é a original: quem manda é o gesto em curso.
     if(recorte){
       const p=enquadrarPreVisualizacao(recorte.largura,recorte.altura,RACIO_DA_CAPA,recorte.x,recorte.y,caixa.largura,caixa.altura,recorte.zoom??1);
-      return <Image source={{uri:cover}} resizeMode="stretch"
+      return <Image source={{uri:cover,cacheKey:profileImageCacheKey(cover)}} contentFit="fill" cachePolicy="memory-disk"
         style={{position:'absolute',width:p.width,height:p.height,left:p.left,top:p.top,opacity:0.85}}/>;
     }
     const e=enquadrarCapa(caixa.largura,caixa.altura);
-    return <Image source={{uri:cover}} resizeMode="cover"
+    return <Image source={{uri:cover,cacheKey:profileImageCacheKey(cover)}} contentFit="cover" cachePolicy="memory-disk"
       style={{position:'absolute',width:e.largura,height:e.altura,left:e.left,top:e.top,opacity:0.85}}/>;
   };
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
     {/* O desfoque por baixo preenche o que a capa não tape em proporções extremas. */}
-    <Image source={{uri:cover}} resizeMode="cover" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
+    <Image source={{uri:cover,cacheKey:profileImageCacheKey(cover)}} contentFit="cover" cachePolicy="memory-disk" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
     <View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})}
       style={[StyleSheet.absoluteFill,{overflow:'hidden'}]}>
       {imagem()}

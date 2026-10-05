@@ -18,8 +18,13 @@ const RESOLVER = `${TS} --import ./scripts/registar-resolver.mjs`;
 const DUPLOS = `${TS} --import ./scripts/registar-duplos.mjs`;
 
 const TESTES = [
+  'scripts/test-social-overview.cjs',
   'scripts/test-capas-com-audio.cjs',
   'scripts/test-cache-em-memoria.cjs',
+  'scripts/test-consumo-supabase.cjs',
+  'scripts/test-jam-leituras.cjs',
+  'scripts/test-sincronizacao-economica.mjs',
+  'scripts/test-snapshot-e-historico.cjs',
   'scripts/test-download-esperas.mjs',
   'scripts/test-transmitir-audio.mjs',
   'scripts/test-pot-esperas.mjs',
@@ -32,6 +37,7 @@ const TESTES = [
   'scripts/test-notifications.cjs',
   'scripts/test-poupanca-em-segundo-plano.cjs',
   'scripts/test-play-aba-artista.cjs',
+  'scripts/test-ux-responsiveness.cjs',
   'scripts/test-desktop-messages.cjs',
   'scripts/test-artist-favorites-sync.cjs',
   'scripts/test-queue-drop.cjs',
@@ -89,6 +95,7 @@ const TESTES = [
   `${DUPLOS} scripts/test-player-store.ts`,
   `${TS} scripts/test-shuffle.ts`,
   `${TS} scripts/test-radio.ts`,
+  `${DUPLOS} scripts/test-radio-mode.ts`,
   `${TS} scripts/test-origem-da-fila.ts`,
   `${TS} scripts/test-loudness.ts`,
   `${TS} scripts/test-listening-stats.ts`,

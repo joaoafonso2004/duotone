@@ -25,6 +25,7 @@ import {
 } from '../lib/smartShuffle';
 import { radioSeeds, shouldExtendWithRadio } from '../lib/radio';
 import { fetchRadioTracks } from '../api/radio';
+import { rememberRadioListen, radioSessionSeeds, type RadioListeningSession } from '../lib/radioSession';
 import { comecaListaNova, origemAoTocar, type OrigemDaFila } from '../lib/origemDaFila';
 import { candidatasParaDescoberta } from '../api/descoberta';
 import { lerPerfilDeRecomendacoes } from '../api/perfilDeRecomendacoes';
@@ -216,6 +217,7 @@ function medirEscuta(
   });
   escuta = r.escuta;
   if (r.contar && faixaDaEscuta) {
+    usePlayer.setState({ radioListeningSession: rememberRadioListen(usePlayer.getState().radioListeningSession, donoDoSmartShuffle(), faixaDaEscuta) });
     // Local; alimenta o "Most played" e o perfil.
     incrementPlayCount(faixaDaEscuta).catch(() => {});
     // No Supabase, para as recomendações e para "A tua escuta". Sem rede,
@@ -320,6 +322,14 @@ interface PlayerState {
   autoplayRadio: boolean;
   /** true enquanto a cauda da fila veio do rádio — só para a UI o dizer. */
   radioActive: boolean;
+  radioMode: 'off' | 'preparing' | 'on';
+  radioContext: Track[];
+  radioOwner: string | null;
+  radioStopped: boolean;
+  radioError: string | null;
+  radioListeningSession: RadioListeningSession | null;
+  startRadio: () => Promise<boolean>;
+  stopRadio: () => void;
   /** Normalizar o volume entre faixas (iOS). O YouTube não masteriza nada e
    * o salto de volume entre uploads é o defeito mais audível da fonte.
    * Ver lib/loudness.ts. */
@@ -704,6 +714,7 @@ function guardarOPadrao(rate: number, ganhos: readonly number[]): void {
 
 /** Guarda contra duas idas à rede do rádio em simultâneo. */
 let radioInFlight = false;
+let radioRequest = 0;
 /** Impede que uma resolucao lenta de uma faixa antiga substitua um clique mais recente. */
 let playRequestId = 0;
 
@@ -730,6 +741,7 @@ const escritasDoSmartShuffle = new Map<string, Promise<void>>();
 let historicoSemConta: SugestaoNoHistorico[] = [];
 type SessaoDoSmartShuffle = { geracao: number; dono: string | null };
 let geracaoDoSmartShuffle = 0;
+let mudancasDoShuffle = 0;
 let pedidoDoSmartShuffle: SessaoDoSmartShuffle | null = null;
 
 /** Uma lista nova abandona as respostas antigas e pode procurar de imediato.
@@ -979,6 +991,8 @@ export const usePlayer = create<PlayerState>()(
   saltoDaFaixa: null,
   autoplayRadio: true,
   radioActive: false,
+  radioMode: 'off', radioContext: [], radioOwner: null, radioStopped: false, radioError: null,
+  radioListeningSession: null,
   volumeNormalization: true,
   crossfadeSegundos: 0,
   intensidadeSmartShuffle: 'normal',
@@ -1036,7 +1050,7 @@ export const usePlayer = create<PlayerState>()(
     const chamada={interno,mesmaFila:!!queue&&queue===get().queue};
     const origemSeguinte=origemAoTocar(get().origemDaFila,origem,chamada);
     const listaNova=comecaListaNova(origem,chamada);
-    if (listaNova) invalidarPedidosDoSmartShuffle();
+    if (listaNova) { invalidarPedidosDoSmartShuffle(); radioRequest++; set({ radioMode: 'off', radioContext: [], radioOwner: null, radioStopped: false, radioError: null, radioActive: false }); }
     // `applyPlaybackAlternative` e o download podem demorar. O backend da
     // faixa anterior tem de se calar no proprio gesto, antes desses awaits;
     // esperar pelo efeito do componente deixava a capa nova com o som velho.
@@ -1229,6 +1243,7 @@ export const usePlayer = create<PlayerState>()(
   adoptSession: ({ track, queue, queueIndex, positionMs }) => {
     if (ouvirJuntos()) return; // O handoff pessoal não substitui a sessão partilhada.
     contarEscolha();
+    radioRequest++;
     invalidarPedidosDoSmartShuffle();
     // A escuta recomeça no `_setProgress`, com o que já se ouviu no outro
     // dispositivo como ouvido: se lá passou do limiar, já contou lá. Mesmo que
@@ -1257,6 +1272,8 @@ export const usePlayer = create<PlayerState>()(
       origemDaFila: null,
       doRadio: [],
       escutasDaSessao: null,
+      radioMode: 'off', radioContext: [], radioOwner: null, radioStopped: false,
+      radioActive: false, radioError: null, radioListeningSession: null,
     });
   },
 
@@ -1373,10 +1390,10 @@ export const usePlayer = create<PlayerState>()(
 
   _sincronizarPausa: (aTocar) => {
     set({ autoplayOnLoad: aTocar });
-    const { isPlaying, _yt } = get();
+    const { isPlaying, _yt, activeBackend } = get();
     if (isPlaying === aTocar) return;
     set(aTocar
-      ? { ...requestPlay(_yt), ...passo(get().maquina, 'quer-tocar') }
+      ? { ...requestPlay(activeBackend === 'resolving' ? null : _yt), ...passo(get().maquina, 'quer-tocar') }
       : { ...requestPause(_yt), ...passo(get().maquina, 'quer-parar') });
   },
 
@@ -1611,6 +1628,7 @@ export const usePlayer = create<PlayerState>()(
     contarEscolha();
     invalidarPedidosDoSmartShuffle();
     ++playRequestId; // Respostas de uma resolução antiga não reabrem o player.
+    radioRequest++;
     // Parar o áudio ANTES de desmontar o player (com staysActiveInBackground
     // a media podia continuar a tocar mesmo depois de fechar o ecrã).
     get()._yt?.pause();
@@ -1620,6 +1638,7 @@ export const usePlayer = create<PlayerState>()(
       queue: [],
       queueIndex: 0,
       escutasDaSessao: null,
+      radioListeningSession: null, radioMode: 'off', radioContext: [], radioOwner: null, radioStopped: false, radioError: null, radioActive: false,
       ...passo(get().maquina, 'parou-tudo'),
       expanded: false,
       ...posicao(0),
@@ -1633,13 +1652,54 @@ export const usePlayer = create<PlayerState>()(
 
   setAutoplayRadio: (v) => set({ autoplayRadio: v }),
 
+  startRadio: async () => {
+    const before = get(), current = before.current;
+    if (!current || before.radioMode === 'preparing' || ouvirJuntos() || seguindoAmigo() || useConnectivity.getState().offline) return false;
+    const request = ++radioRequest, owner = donoDoSmartShuffle(), playbackRequest = playRequestId;
+    const context = radioSessionSeeds(before.radioListeningSession, owner, current, displayArtist, chaveDeArtista);
+    set({ radioMode: 'preparing', radioError: null });
+    const valid = () => request === radioRequest && playbackRequest === playRequestId && get().current === current && get().queue === before.queue
+      && get().radioMode === 'preparing' && donoDoSmartShuffle() === owner && !ouvirJuntos() && !seguindoAmigo() && !useConnectivity.getState().offline;
+    try {
+      const discovered = await chavesDasDescobertasRecentes(owner);
+      if (!valid()) return false;
+      const heard = before.radioListeningSession?.owner === owner ? before.radioListeningSession.tracks : [];
+      const tracks = filterSuggestions(await fetchRadioTracks(context, [...before.queue, ...heard], 12, discovered, 'session'));
+      if (!valid()) return false;
+      if (!tracks.length) { set({ radioMode: 'off', radioError: 'No related music found for this session. Your queue is unchanged.' }); return false; }
+      invalidarPedidosDoSmartShuffle();
+      // Preservar o percurso passado e a faixa atual; substituir só Up next.
+      const past = before.shuffle && before.shuffleOrder.length
+        ? before.shuffleOrder.slice(0, Math.max(0,before.shuffleOrder.indexOf(trackKey(current))))
+          .map(key => before.queue.find(t=>trackKey(t)===key)).filter((t): t is Track => !!t)
+        : before.queue.slice(0,before.queueIndex);
+      const queue = [...past, current, ...tracks];
+      const discovery = contextoDoRadioAutomatico();
+      for (const track of tracks) contextosDaFila.set(trackKey(track),discovery);
+      set({ queue, queueIndex: past.length, radioMode: 'on', radioContext: context, radioOwner: owner,
+        radioStopped: false, radioActive: true, radioError: null, doRadio: tracks.map(trackKey),
+        shuffle: false, shuffleInteligente: false, shuffleOrder: [], repeatMode: 'off', sugeridas: [] });
+      void chavesDaBiblioteca().then(known=>registarSugestoesGuardadas(owner,tracks.filter(t=>!chavesDaFaixaSugerida(t).some(k=>known.has(k))))).catch(()=>{});
+      return true;
+    } catch {
+      if (valid()) set({ radioMode: 'off', radioError: 'Could not start Radio. Your queue is unchanged. Try again.' });
+      return false;
+    } finally {
+      if (request === radioRequest && get().radioMode === 'preparing') set({ radioMode: 'off' });
+    }
+  },
+
+  stopRadio: () => { radioRequest++; set({ radioMode: 'off', radioStopped: true, radioError: null }); },
+
   setVolumeNormalization: (v) => set({ volumeNormalization: v }),
 
   extendQueueWithRadio: async () => {
     if (ouvirJuntos() || seguindoAmigo()) return false;
-    const { autoplayRadio, current, queue, queueIndex, repeatMode } = get();
+    const { autoplayRadio, current, queue, queueIndex, repeatMode, radioMode, radioStopped, radioContext, radioOwner } = get();
+    if (radioMode === 'preparing' || radioStopped) return false;
     if (
-      !shouldExtendWithRadio(autoplayRadio, !!current, get().upcomingQueue().length, repeatMode)
+      radioMode === 'on' ? !current || repeatMode !== 'off' || get().upcomingQueue().length > 3
+        : !shouldExtendWithRadio(autoplayRadio, !!current, get().upcomingQueue().length, repeatMode)
     ) {
       return false;
     }
@@ -1651,9 +1711,12 @@ export const usePlayer = create<PlayerState>()(
       // A mesma memória de 30 dias do Smart Shuffle (28/9): sem ela o rádio
       // repunha sempre as mesmas novas no fim de cada lista.
       const dono = donoDoSmartShuffle();
+      if (radioMode === 'on' && dono !== radioOwner) { get().stopRadio(); return false; }
+      const request = radioRequest;
       const jaDescobertas = await chavesDasDescobertasRecentes(dono);
-      const tracks = filterSuggestions(await fetchRadioTracks(radioSeeds(queue, queueIndex), queue, undefined, jaDescobertas));
-      if(useConnectivity.getState().offline||get().queue!==queue||!get().autoplayRadio)return false;
+      const tracks = filterSuggestions(await fetchRadioTracks(radioMode === 'on' ? radioContext : radioSeeds(queue, queueIndex), queue, radioMode === 'on' ? 12 : undefined, jaDescobertas, radioMode === 'on' ? 'session' : 'automatic'));
+      if(useConnectivity.getState().offline||get().queue!==queue||ouvirJuntos()||seguindoAmigo()||donoDoSmartShuffle()!==dono||request!==radioRequest
+        ||(radioMode === 'on' ? get().radioMode !== 'on' : !get().autoplayRadio || get().radioStopped || get().radioMode !== 'off'))return false;
       if (tracks.length === 0) return false;
 
       // A fila pode ter mudado enquanto isto foi à rede — reler o estado,
@@ -1756,11 +1819,13 @@ export const usePlayer = create<PlayerState>()(
       await comandarJam(async s => { if (decisaoDeControlo(s) === 'anunciar') await s.procurar(ms); });
       return;
     }
-    const { current, _yt, durationMs } = get();
+    const { current, _yt, durationMs, activeBackend } = get();
     if (!current) return;
     const clamped = Math.max(0, Math.min(ms, durationMs));
     set(posicao(clamped));
-    _yt?.seek(clamped);
+    // Numa confirmação Jam recebida durante a troca, estes controlos ainda
+    // podem ser da faixa anterior. A retoma guardada alinha a nova ao carregar.
+    if (!(interno && activeBackend === 'resolving')) _yt?.seek(clamped);
   },
 
   setExpanded: (v) => set({ expanded: v }),
@@ -1772,6 +1837,7 @@ export const usePlayer = create<PlayerState>()(
   // Ligar o shuffle gera o percurso de raiz (com a faixa atual à cabeça);
   // desligar deita-o fora, para a próxima vez começar limpo.
   setShuffle: (v) => {
+    ++mudancasDoShuffle;
     if (!v) invalidarPedidosDoSmartShuffle();
     set((s) => ({
       shuffle: v,
@@ -1780,15 +1846,28 @@ export const usePlayer = create<PlayerState>()(
   },
   /** O botão cicla off → normal → inteligente → off. */
   toggleShuffle: () => {
-    const seguinte = proximoModo(modoDeShuffle(get().shuffle, get().shuffleInteligente));
-    set({ shuffleInteligente: seguinte === 'inteligente' });
-    persistShuffleInteligente(seguinte === 'inteligente').catch(() => {});
-    get().setShuffle(seguinte !== 'off');
-    // LIGAR O MODO TEM DE SE VER. Sem isto a primeira sugestao so entrava ao
-    // fim de quatro faixas: carregava-se no botao, olhava-se para o "Up next"
-    // e estava tudo igual -- que foi exatamente a queixa. Agora semeiam-se
-    // algumas de imediato, e a partir dai o ritmo normal toma conta.
-    if (seguinte === 'inteligente') void get().semearSugestoes();
+    const mudanca = ++mudancasDoShuffle;
+    const atual = get();
+    const seguinte = proximoModo(modoDeShuffle(atual.shuffle, atual.shuffleInteligente));
+    const ligado = seguinte !== 'off', inteligente = seguinte === 'inteligente';
+    if (!ligado) invalidarPedidosDoSmartShuffle();
+    // Normal → inteligente conserva o percurso; o botão publica os dois
+    // estados juntos antes de guardar preferências ou procurar sugestões.
+    set({ shuffle: ligado, shuffleInteligente: inteligente,
+      shuffleOrder: !ligado ? [] : atual.shuffle && atual.shuffleOrder.length
+        ? atual.shuffleOrder : novaOrdemDoShuffle(atual.queue, atual.queueIndex) });
+    const sessao = sessaoDoSmartShuffle();
+    const depoisDePintar = () => {
+      if (mudanca !== mudancasDoShuffle || sessao.dono !== donoDoSmartShuffle()
+        || get().shuffle !== ligado || get().shuffleInteligente !== inteligente) return;
+      persistShuffle(ligado).catch(() => {});
+      persistShuffleInteligente(inteligente).catch(() => {});
+      if (inteligente && sessaoDoSmartShuffleValida(sessao)) void get().semearSugestoes();
+    };
+    // Caches e sugestões podem resolver numa cadeia de microtasks. Dar um
+    // frame ao botão antes desse trabalho torna o toque visível primeiro.
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => setTimeout(depoisDePintar, 0));
+    else setTimeout(depoisDePintar, 0);
   },
 
   /**
@@ -2325,7 +2404,8 @@ export const usePlayer = create<PlayerState>()(
     if (index === queueIndex) {
       if (newQueue.length === 0) {
         invalidarPedidosDoSmartShuffle();
-        set({ current: null, queue: [], queueIndex: 0, escutasDaSessao: null, ...passo(get().maquina, 'parou-tudo') });
+        radioRequest++;
+        set({ current: null, queue: [], queueIndex: 0, escutasDaSessao: null, radioMode:'off',radioContext:[],radioOwner:null,radioStopped:false,radioActive:false,radioError:null,radioListeningSession:null, ...passo(get().maquina, 'parou-tudo') });
         return;
       }
       newIndex = Math.min(queueIndex, newQueue.length - 1);
@@ -2355,7 +2435,7 @@ export const usePlayer = create<PlayerState>()(
       // Persistimos apenas o necessário para "continuar a ouvir" após a app
       // ser morta: faixa atual, fila e posição. Repeat/shuffle já vivem nas
       // prefs; o resto é estado transitório.
-      partialize: sessaoParaGuardar,
+      partialize: s => ({...sessaoParaGuardar(s),radioStopped:s.radioStopped || s.radioMode !== 'off'}),
       // No restauro, a sessão volta PAUSADA: o player prepara o áudio
       // (autoplayOnLoad=false) e retoma na posição guardada quando o
       // utilizador carregar em play.
@@ -2367,6 +2447,8 @@ export const usePlayer = create<PlayerState>()(
           ...persisted,
           // Sem histórico confirmado deste arranque, a atual é a única semente.
           escutasDaSessao: null,
+          radioListeningSession:null,radioMode:'off',radioContext:[],radioOwner:null,radioError:null,radioActive:!!persisted.doRadio?.length,
+          radioStopped:persisted.radioStopped===true,
           // Uma sessao gravada por uma versao anterior nao tem estes dois
           // campos. Sem o `??`, o `sugeridas` chegava `undefined` e a lista da
           // fila rebentava no primeiro `includes` -- a app parte ao ABRIR, na

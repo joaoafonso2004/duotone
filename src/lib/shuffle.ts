@@ -47,9 +47,7 @@ export function shuffleKeys(
 ): string[] {
   if (queue.length === 0) return [];
   const currentKey = queue[currentIndex] ? trackKey(queue[currentIndex]) : null;
-  const rest = queue
-    .map(trackKey)
-    .filter((k, i, arr) => arr.indexOf(k) === i && k !== currentKey);
+  const rest = [...new Set(queue.map(trackKey))].filter(k => k !== currentKey);
   const order = shuffled(rest, rng);
   return currentKey ? [currentKey, ...order] : order;
 }
@@ -84,7 +82,7 @@ export function reconcileOrder(
   // Nada em comum com a ordem anterior: fila nova, baralhar de raiz.
   if (kept.length === 0) return shuffleKeys(queue, currentIndex, rng);
 
-  const missing = queueKeys.filter((k, i, arr) => arr.indexOf(k) === i && !seen.has(k));
+  const missing = [...present].filter(k => !seen.has(k));
   return missing.length === 0 ? kept : [...kept, ...shuffled(missing, rng)];
 }
 

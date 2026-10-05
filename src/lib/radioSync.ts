@@ -14,8 +14,9 @@ export function useAutoplayRadio(): void {
   const queueIndex = usePlayer((s) => s.queueIndex);
   const queueLength = usePlayer((s) => s.queue.length);
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
+  const radioMode = usePlayer((s) => s.radioMode);
 
   useEffect(() => {
     void usePlayer.getState().extendQueueWithRadio();
-  }, [currentId, queueIndex, queueLength, autoplayRadio]);
+  }, [currentId, queueIndex, queueLength, autoplayRadio, radioMode]);
 }

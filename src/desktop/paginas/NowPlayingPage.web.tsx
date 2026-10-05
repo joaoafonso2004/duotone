@@ -7,6 +7,7 @@ import {
   getEffectIntensity, setEffectIntensity, type EffectIntensity,
 } from '../../lib/prefs';
 import { usePlayer } from '../../state/player';
+import { RadioQueueControl } from '../../components/RadioQueueControl';
 import { useOuvirJuntos } from '../../state/ouvirJuntos';
 import { useSeguirAmigo } from '../../state/seguirAmigo';
 import { rotuloDaOrigem } from '../../lib/origemDaFila';
@@ -419,6 +420,8 @@ export function NowPlayingPage({
   );
 
   const cabecaDaFila = (
+    <View>
+    <RadioQueueControl disabledReason={emJam?'Radio is unavailable during a Jam':seguido?'Your friend controls this queue':undefined}/>
     <View style={styles.npFilaCabeca}>
       <Text style={styles.npFilaHeading}>Up next</Text>
       <Text style={styles.npFilaContagem}>{upNext.length}</Text>
@@ -441,6 +444,7 @@ export function NowPlayingPage({
           </Text>
         </Pressable>
       ) : null}
+    </View>
     </View>
   );
 

@@ -10,6 +10,8 @@ import { verificarMigracoes } from '../api/migracoes';
 import { textoDoFolegoAgora } from '../state/folego';
 import { textoDaEnergiaAgora } from '../state/energiaEmSegundoPlano';
 import { textoDoProcessamentoAgora } from '../state/processamentoDoAudio';
+import { textoDoTrabalhoDeMetadados } from './trabalhoDeMetadados';
+import { textoDoTrabalhoLocal } from './trabalhoLocal';
 
 /**
  * O relatório de reprodução, pela folha de partilha do iPhone.
@@ -37,6 +39,8 @@ export async function partilharRelatorioDeReproducao(): Promise<void> {
     // Quanto cada download prendeu o JavaScript no fim (3/10), para comparar
     // pela hora com os travões de cima.
     + `\n${textoDoProcessamentoAgora()}\n`
+    + `\n${textoDoTrabalhoDeMetadados()}\n`
+    + `\n${textoDoTrabalhoLocal()}\n`
     // O que se gastou com a app em segundo plano (1/10, ecrã desligado).
     + `\n${textoDaEnergiaAgora()}\n`
     // Que SQL falta na base (29/9, lib/migracoes.ts): uma chamada, só aqui.

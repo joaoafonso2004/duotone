@@ -27,6 +27,7 @@ import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
 import { avisarRemocao, contarMusicas, avisarErro } from '../lib/avisoDeRemocao';
 import { savedKey, useSaved } from '../state/saved';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { RadioQueueControl } from './RadioQueueControl';
 
 interface Props {
   visible: boolean;
@@ -237,6 +238,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
         <Text style={styles.emptyText}>Nothing playing</Text>
       )}
 
+      <RadioQueueControl disabledReason={emSessao ? 'Radio is unavailable during a Jam' : seguido ? 'Your friend controls this queue' : undefined}/>
       <View style={styles.tituloDaFila}>
         <Text style={[type.micro, styles.sectionTitle, { flex: 1, marginBottom: 0 }]}>
           UP NEXT ({upNext.length})

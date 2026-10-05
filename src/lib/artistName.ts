@@ -247,6 +247,11 @@ function eGrafiaDeNome(nome: string): boolean {
  * falharam e corrige a grafia dos que não falharam.
  */
 export function aprenderVocabulario(faixas: readonly FaixaParaAprender[]): Vocabulario {
+  const passos = construirVocabulario(faixas);
+  for (;;) { const passo = passos.next(); if (passo.done) return passo.value; }
+}
+
+function* construirVocabulario(faixas: readonly FaixaParaAprender[]): Generator<void, Vocabulario> {
   // chave → grafia → quantas vezes; e, à parte, a grafia fiável se houver.
   const contagens = new Map<string, Map<string, number>>();
   const fiaveis = new Map<string, string>();
@@ -264,7 +269,9 @@ export function aprenderVocabulario(faixas: readonly FaixaParaAprender[]): Vocab
   // A semente entra como fiável: são nomes escritos à mão, e bem.
   for (const nome of KNOWN_ARTISTS) registar(nome, true);
 
+  let lote = 0;
   for (const faixa of faixas) {
+    if (++lote % 100 === 0) yield;
     if (faixa.source && faixa.source !== 'youtube') {
       // No Spotify o artista já vem fiável da API.
       registar(artistaPrincipal(clean(faixa.artist ?? '')) || null, true);
@@ -518,6 +525,20 @@ let vocabularioDaBiblioteca: Vocabulario = VOCABULARIO_VAZIO;
 export function aprenderComABiblioteca(faixas: readonly FaixaParaAprender[]): void {
   if (faixas.length === 0) return;
   vocabularioDaBiblioteca = aprenderVocabulario(faixas);
+}
+
+/** Mesmas regras e resultado, com o vocabulário publicado só no fim. */
+export async function aprenderComABibliotecaEmBlocos(
+  faixas: readonly FaixaParaAprender[], ceder: () => Promise<void>,
+  medir: <T>(fn: () => T) => T = fn => fn(),
+): Promise<void> {
+  if (!faixas.length) return;
+  const passos = construirVocabulario(faixas);
+  for (;;) {
+    const passo = medir(() => passos.next());
+    if (passo.done) { vocabularioDaBiblioteca = passo.value; return; }
+    await ceder();
+  }
 }
 
 /** O que se aprendeu ate agora. Vazio ate a biblioteca ser lida. */

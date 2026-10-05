@@ -94,7 +94,8 @@ caso('a ligação: a store não avança nem chama o rádio a seguir alguém', ()
   tem('src/state/ouvirComAmigo.ts', 'useSeguirAmigo.getState().iniciar(', 'sem Jam aberto, segue-se');
   tem('src/components/YouTubePlayerView.tsx', 'ritmoDeQuemSigo() ?? velocidadeNaSessao(', 'anda-se à velocidade dele');
   tem('src/components/YouTubePlayerView.web.tsx', 'ritmoDeQuemSigo() ?? velocidadeNaSessao(', 'anda-se à velocidade dele');
-  tem('src/lib/presenceSync.ts', 'aSeguir: proximasParaAPresenca(', 'quem ouve publica as próximas');
+  tem('src/lib/presenceSync.ts', 'const aSeguir = proximasParaAPresenca(', 'as próximas são preparadas uma vez para publicação e deduplicação');
+  tem('src/lib/presenceSync.ts', '          aSeguir,', 'quem ouve continua a publicar as próximas');
   tem('src/components/QueueSheet.tsx', 'if (foraDoTelemovel || seguido) return;', 'o Up next dele é só para ler');
 });
 

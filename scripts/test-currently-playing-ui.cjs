@@ -67,6 +67,7 @@ const mocks = {
   './PlayerActionsSheet':{PlayerActionsContent:'Actions',accoesDoMenu:(menu,fazer)=>menu.map(a=>({label:a.rotulo,motivo:a.indisponivel,onPress:()=>fazer(a.id)}))},
   './AddToPlaylistSheet':{AddToPlaylistSheet:'Playlist'}, './ShareFriendSheet':{ShareFriendSheet:'Share'},
   './RecommendationPreferences':{RecommendationPreferences:'Recs'},
+  './RadioQueueControl':{RadioQueueControl:'RadioQueueControl'},
   '../lib/descarregarFaixa':{alternarDownload(){},downloadNoMenuDe:()=>null,podeDescarregar:()=>false,tocaSemRede:()=>true,useRevisaoDosDownloads:()=>0},
   '../lib/guardarFaixa':{alternarGuardada:async()=>{},garantirGuardadas(){}},
   '../state/saved':{savedKey:t=>t.source+':'+t.sourceId,useSaved:sel=>sel({loaded:true,keys:new Set()})},
@@ -133,3 +134,49 @@ assert.equal(find(row,'DragRow').props.arrastarIndex,0);
 find(row,'DragRow').props.aoLargar(68);
 assert.deepEqual(calls.at(-1),['reorder',0,1],'O menu mantém o gesto de arrasto');
 console.log('QueueSheet: opções, seleção, playlist/partilha, offline, remoção concorrente, Jam e arrasto passaram.');
+
+// Executa também os handlers reais do Rádio. Uma troca de conta ou edição
+// entre render e toque não pode restaurar uma fotografia antiga da fila.
+async function testRadioControl(){
+  const auth={session:{user:{id:'owner-a'}},offlineUserId:null};
+  const useAuth=selector=>selector(auth);useAuth.getState=()=>auth;
+  const useConnectivity=selector=>selector({offline:false});
+  usePlayer.getState=()=>({...store}); // Zustand devolve um snapshot que a atualização seguinte não modifica.
+  usePlayer.setState=patch=>Object.assign(store,patch);
+  const radio=carregar('src/components/RadioQueueControl.tsx',{
+    react:React,'react-native':{...native,Switch:'Switch',ActivityIndicator:'Spinner'},
+    '@expo/vector-icons/Ionicons':'Icon','../state/player':{usePlayer},
+    '../state/connectivity':{useConnectivity},'../state/auth':{useAuth},
+    '../theme':{colors:{},spacing:{},type:{},radii:{}},'../lib/artistName':{displayArtist:t=>t.artist},
+  });
+  const draw=()=>{cursor=0;return radio.RadioQueueControl({});};
+  const original=[a,b,c],generated=[a,track('radio')];
+  function setup(){
+    state.length=0;auth.session={user:{id:'owner-a'}};
+    Object.assign(store,{current:a,queue:original,queueIndex:0,positionMs:84_000,
+      radioMode:'off',radioContext:[],radioOwner:null,radioStopped:false,
+      radioActive:false,doRadio:[],radioError:null,shuffle:true,repeatMode:'all',
+      startRadio:async()=>{store.queue=generated;store.radioMode='on';return true;},
+      stopRadio:()=>{store.radioMode='off';store.radioStopped=true;},
+    });
+  }
+  async function activate(){
+    find(draw(),'Switch').props.onValueChange(true);
+    assert.equal(store.queue,generated,'o interruptor ativa diretamente mesmo com músicas na fila');
+    assert.ok(!nodes(draw()).some(n=>n.type==='Text'&&n.props.children.includes('Start Radio')),'não pede confirmação');
+    await new Promise(resolve=>setImmediate(resolve));
+    return find(draw(),'Pressable',p=>p.accessibilityLabel==='Undo Radio and restore previous queue');
+  }
+  setup();let undo=await activate();assert.ok(undo);
+  undo.props.onPress();assert.equal(store.queue,original);
+  assert.equal(store.current,a);assert.equal(store.positionMs,84_000);
+  assert.equal(store.shuffle,true);assert.equal(store.repeatMode,'all');
+
+  setup();undo=await activate();auth.session={user:{id:'owner-b'}};
+  undo.props.onPress();assert.equal(store.queue,generated,'Undo não restaura a fila de outra conta, mesmo antes do render seguinte');
+
+  setup();undo=await activate();const manual=[a,track('manual')];store.queue=manual;
+  undo.props.onPress();assert.equal(store.queue,manual,'Undo não apaga uma edição posterior');
+  console.log('RadioQueueControl: ativação direta, Undo sem alterar áudio, conta e edição concorrente passaram.');
+}
+testRadioControl().catch(error=>{console.error(error);process.exitCode=1;});

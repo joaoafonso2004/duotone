@@ -7,7 +7,8 @@ if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
   throw new Error(`Invalid package version: ${version || '(empty)'}`);
 }
 
-const output = `// Gerado automaticamente antes da build desktop a partir do package.json.\n// Em CI, o identificador e a versão também são alinhados com a tag da release.\nexport const BUILD_ID = 'dev';\nexport const APP_VERSION = '${version}';\n`;
+const buildId = /^[0-9a-f]{40}$/i.test(process.env.GITHUB_SHA ?? '') ? process.env.GITHUB_SHA.slice(0, 7) : 'dev';
+const output = `// Gerado automaticamente antes da build desktop a partir do package.json.\n// Em CI, o identificador e a versão também são alinhados com a tag da release.\nexport const BUILD_ID = '${buildId}';\nexport const APP_VERSION = '${version}';\n`;
 
 await writeFile(new URL('../src/lib/buildInfo.ts', import.meta.url), output, 'utf8');
 console.log(`Desktop build version: ${version}`);
