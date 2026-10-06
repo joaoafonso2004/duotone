@@ -4,7 +4,6 @@ import { Image } from 'expo-image';
 import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Toque } from './Toque';
-import { DeslizarParaAFila } from './DeslizarParaAFila';
 import { BarrasDaFaixa } from './BarrasDaFaixa';
 import { ESCALA } from '../lib/movimento';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
@@ -64,12 +63,6 @@ interface Props {
   mostrarDuracao?: boolean;
   /** Explicação curta para uma faixa recomendada. */
   contextLabel?: string;
-  /**
-   * Deslizar para a direita põe na fila (29/9, `DeslizarParaAFila`). Ligado por
-   * omissão; desligado onde o gesto já é outro -- a fila e a edição de uma
-   * playlist (toque longo para arrastar) e o modo de seleção.
-   */
-  deslizarParaAFila?: boolean;
 }
 
 /** 52 px de capa + 8 px de padding em cima e em baixo. */
@@ -102,9 +95,7 @@ function TrackRowComponent({
   onPressOut,
   mostrarDuracao = true,
   contextLabel,
-  deslizarParaAFila,
 }: Props) {
-  const podeDeslizar = deslizarParaAFila ?? (!selectMode && !onLongPress);
   const theme = useTheme((s) => s.theme);
   const aTocar = usePlayer((s) =>
     acompanharATocar && !!s.current && s.current.source === track.source && s.current.sourceId === track.sourceId,
@@ -128,13 +119,13 @@ function TrackRowComponent({
   // em disco, e não é por isso que foi descarregada (lib/downloadsExplicitos.ts).
   const descarregada = useDescarregadaDeProposito(track);
 
+  // Sem gesto lateral na linha (6/10): o deslizar para a direita que punha na
+  // fila (29/9) roubava o arrastar entre secções, que é o gesto que o João usa,
+  // e nem chegava a pôr na fila. "Add to queue" está no "…" (lib/menuDaFaixa.ts).
   return (
-    // Deslizar para a direita põe na fila (29/9). Na fila partilhada de uma
-    // Jam, o `addToQueue` da store já a sugere lá.
-    <DeslizarParaAFila ativo={podeDeslizar} aoPorNaFila={() => usePlayer.getState().addToQueue(track)}>
-    {/* `acende` e nao escala: uma linha de lista inteira a encolher le-se
+    /* `acende` e nao escala: uma linha de lista inteira a encolher le-se
         como a lista a saltar, nao como uma resposta ao dedo. O que uma linha
-        faz e iluminar-se, sem deslocar nada. */}
+        faz e iluminar-se, sem deslocar nada. */
     <Toque
       acende
       onPress={() => {
@@ -239,7 +230,6 @@ function TrackRowComponent({
         </Toque>
       ) : null}
     </Toque>
-    </DeslizarParaAFila>
   );
 }
 

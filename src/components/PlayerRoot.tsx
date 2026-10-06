@@ -2146,7 +2146,10 @@ function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'on
   // Desliza só com o leitor ABERTO e a app à frente: fechado, ninguém a vê, e
   // uma animação a correr mantinha o ecrã a redesenhar-se (lib/barraSuave.ts).
   const aVista = usePlayer((s) => s.isPlaying && s.expanded) && AppState.currentState === 'active';
-  return <ProgressBar positionMs={positionMs} durationMs={durationMs} aTocar={aVista} ritmo={ritmo} {...props} />;
+  // Fechar o leitor ou mudar de faixa larga um arrasto preso (6/10).
+  const aberto = usePlayer((s) => s.expanded);
+  const faixa = usePlayer((s) => s.current?.sourceId ?? null);
+  return <ProgressBar positionMs={positionMs} durationMs={durationMs} aTocar={aVista} ritmo={ritmo} faixa={faixa} aVista={aberto} {...props} />;
 }
 
 /**

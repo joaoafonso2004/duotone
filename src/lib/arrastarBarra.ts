@@ -61,6 +61,28 @@ export function eToque(dx: number, dy: number, ms: number): boolean {
   return Math.hypot(dx, dy) < 8 && ms < 300;
 }
 
+/**
+ * **O arrasto nunca pode ficar preso** (6/10). No iPhone do João a barra do
+ * leitor ficou no estado "a arrastar" -- o botão grande, a barra grossa, o
+ * tempo parado no segundo arrastado -- com a música a andar, e cada arrasto
+ * novo fazia o seek e voltava a prender. A captura tinha as medidas do
+ * arrasto (16 pt e 6 pt), por isso não era a posição a não chegar: era o
+ * começo de um gesto a chegar DEPOIS do fim dele (ou o fim a perder-se), e o
+ * `agarrar` ficava sem `soltar`.
+ */
+/** Um BEGAN que chega tão perto do fim de um gesto é desse gesto, atrasado. */
+export const BEGAN_ATRASADO_MS = 120;
+/** Sem eventos do gesto este tempo, o arrasto larga-se sozinho (sem seek). */
+export const ARRASTO_SEM_EVENTOS_MS = 4000;
+
+export function beganAtrasado(agora: number, ultimoFim: number): boolean {
+  return ultimoFim > 0 && agora - ultimoFim >= 0 && agora - ultimoFim < BEGAN_ATRASADO_MS;
+}
+
+export function arrastoAbandonado(agora: number, ultimoEvento: number): boolean {
+  return agora - ultimoEvento > ARRASTO_SEM_EVENTOS_MS;
+}
+
 /** Chegou a uma ponta vindo de dentro: vibra. */
 export function bateuNaPonta(antes: number, agora: number): boolean {
   return (agora <= 0 && antes > 0) || (agora >= 1 && antes < 1);

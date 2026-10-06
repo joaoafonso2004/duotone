@@ -346,9 +346,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
                       playTrack(item, queue);
                     }}
                     // O toque longo que pega na linha é da própria
-                    // LinhaArrastavel (Gesture Handler, 3/10); e deslizar para
-                    // a direita aqui não põe na fila (já lá está).
-                    deslizarParaAFila={false}
+                    // LinhaArrastavel (Gesture Handler, 3/10).
                   />
                 </View>
                 <View style={styles.actionButtons}>

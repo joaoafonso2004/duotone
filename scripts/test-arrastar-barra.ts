@@ -7,7 +7,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  RITMOS, bateuNaPonta, comecarArrasto, eToque, fracaoNoArrasto, mudarDeRitmo, ritmoDoArrasto,
+  ARRASTO_SEM_EVENTOS_MS, BEGAN_ATRASADO_MS, RITMOS, arrastoAbandonado, bateuNaPonta, beganAtrasado,
+  comecarArrasto, eToque, fracaoNoArrasto, mudarDeRitmo, ritmoDoArrasto,
 } from '../src/lib/arrastarBarra.ts';
 
 let falhas = 0;
@@ -75,6 +76,26 @@ caso('a barra usa o Gesture Handler com o dedo no motor nativo, e já não o Pan
   assert.doesNotMatch(b, /PanResponder/);
   assert.doesNotMatch(b, /setDragFraction/, 'nada de setState a cada movimento');
   assert.match(b, /mudarDeRitmo\(/);
+});
+
+// --- O arrasto nunca fica preso (6/10: a barra do leitor parada no "a arrastar") ---
+caso('um BEGAN colado ao fim de um gesto é desse gesto, e não começa outro', () => {
+  assert.equal(beganAtrasado(1000 + BEGAN_ATRASADO_MS - 1, 1000), true);
+  assert.equal(beganAtrasado(1000 + BEGAN_ATRASADO_MS, 1000), false, 'um toque novo a seguir conta');
+  assert.equal(beganAtrasado(5000, 0), false, 'sem gesto anterior, nunca');
+});
+caso('sem eventos do gesto durante uns segundos, o arrasto larga-se', () => {
+  assert.equal(arrastoAbandonado(10_000 + ARRASTO_SEM_EVENTOS_MS + 1, 10_000), true);
+  assert.equal(arrastoAbandonado(10_000 + ARRASTO_SEM_EVENTOS_MS, 10_000), false);
+  assert.ok(ARRASTO_SEM_EVENTOS_MS >= 3000, 'parar o dedo um momento a ler o tempo não larga');
+});
+caso('a barra liga as redes de segurança', () => {
+  const b = readFileSync('src/components/ProgressBar.tsx', 'utf8');
+  assert.match(b, /beganAtrasado\(agora, ultimoFim\.current\)/);
+  assert.match(b, /if \(state === State\.ACTIVE\) \{ if \(!arrasto\.current\) agarrar\(translationX\)/);
+  assert.match(b, /arrastoAbandonado\(Date\.now\(\), ultimoEvento\.current\)\) soltar\(null\)/);
+  assert.match(b, /\}, \[faixa, aVista\]\);/);
+  assert.match(readFileSync('src/components/PlayerRoot.tsx', 'utf8'), /faixa=\{faixa\} aVista=\{aberto\}/);
 });
 
 if (falhas) { console.error(`\n  ${falhas} caso(s) falharam.\n`); process.exit(1); }

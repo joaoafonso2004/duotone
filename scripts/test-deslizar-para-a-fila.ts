@@ -1,30 +1,22 @@
-// Deslizar uma música para a direita põe-na na fila (29/9, iPhone,
-// components/DeslizarParaAFila.tsx). Os componentes importam o React Native e
-// não abrem em Node puro, por isso lê-se o código como texto.
+// O deslizar uma música para a direita para a pôr na fila SAIU (6/10).
+//
+// Existiu de 29/9 a 6/10 (`DeslizarParaAFila`, em todas as linhas de música do
+// iPhone). Um gesto lateral numa linha compete sempre com o arrastar entre as
+// secções da app -- que é o gesto que o João usa a toda a hora --, e no
+// telemóvel dele nem chegava a pôr a música na fila. Este teste prende a saída:
+// nenhuma linha volta a ter gesto lateral, e o "Add to queue" continua no menu.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const ler = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
-const gesto = ler('src/components/DeslizarParaAFila.tsx');
 const linha = ler('src/components/TrackRow.tsx');
 
-assert.match(gesto, /activeOffsetX=\{12\}\s*failOffsetY=\{\[-10, 10\]\}/,
-  'só um gesto claramente horizontal e para a DIREITA (a esquerda é o tirar da fila; o vertical é o scroll)');
-assert.match(gesto, /Animated\.event\(\[\{ nativeEvent: \{ translationX: dedo \} \}\], \{ useNativeDriver: true \}\)/,
-  'o dedo é seguido no motor nativo (auditoria 3.1): uma folha nativa não lhe rouba o gesto');
-assert.match(gesto, /if \(state === State\.END && translationX >= LIMIAR_DA_FILA\) \{\s*hapticNotification\(\);\s*acaoRef\.current\(\);/,
-  'passado o limiar, põe na fila e vibra');
-assert.match(gesto, /Animated\.spring\(dedo, \{ toValue: 0/, 'a linha volta sempre ao sítio');
-assert.doesNotMatch(gesto, /PanResponder.create/, 'nada de PanResponder: corre no JavaScript');
-assert.match(gesto, /translateX: Animated\.subtract\(dx, LARGURA_DA_FAIXA\)/,
-  'a cor só existe na faixa que a linha destapa: a linha é transparente');
-assert.match(gesto, /if \(!ativo\) return <>\{children\}<\/>;/, 'desligado, não embrulha nada');
-assert.match(gesto, /accessibilityActions=\{\[\{ name: 'addToQueue', label: 'Add to queue' \}\]\}/,
-  'o VoiceOver tem o mesmo gesto como ação');
+assert.ok(!existsSync(new URL('../src/components/DeslizarParaAFila.tsx', import.meta.url)), 'o componente do gesto saiu');
+assert.doesNotMatch(linha, /DeslizarParaAFila|PanGestureHandler|PanResponder/,
+  'a linha de uma música não tem gesto lateral: o arrastar entre secções é da página');
+assert.doesNotMatch(linha, /deslizarParaAFila/, 'nem a opção');
 
-assert.match(linha, /const podeDeslizar = deslizarParaAFila \?\? \(!selectMode && !onLongPress\);/,
-  'ligado por omissão, desligado na seleção e onde o toque longo arrasta (fila, edição de playlist)');
-assert.match(linha, /<DeslizarParaAFila ativo=\{podeDeslizar\} aoPorNaFila=\{\(\) => usePlayer\.getState\(\)\.addToQueue\(track\)\}>/,
-  'o mesmo addToQueue do menu (numa Jam, sugere na fila partilhada)');
+const menu = ler('src/lib/menuDaFaixa.ts');
+assert.match(menu, /case 'por-na-fila': return acao\('Add to queue'/, 'pôr na fila continua no "…" de cada música');
 
-console.log('Deslizar para a fila: passou.');
+console.log('Deslizar para a fila: saiu, e a linha deixa o arrastar entre secções em paz.');

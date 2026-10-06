@@ -44,7 +44,8 @@ caso('o toque longo já não passa pelo TrackRow, e deslizar não põe na fila',
   for (const f of ['src/components/QueueSheet.tsx', 'src/screens/PlaylistDetailScreen.tsx']) {
     const c = ler(f);
     assert.doesNotMatch(c, /onLongPress=\{[^}]*comecarArrasto/, `${f} ainda pega pelo toque longo do TrackRow`);
-    assert.match(c, /deslizarParaAFila=\{false\}/, `${f}: sem o onLongPress, deslizar voltava a pôr na fila`);
+    // Desde 6/10 nenhuma linha tem o deslizar para a fila (test-deslizar-para-a-fila.ts).
+    assert.doesNotMatch(c, /deslizarParaAFila/, `${f}: o gesto saiu de todas as linhas`);
     assert.match(c, /envolverPega \? envolverPega\(pega\) : pega/);
   }
 });

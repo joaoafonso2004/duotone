@@ -735,7 +735,6 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
                         <TrackRow
                           track={item}
                           onPress={semAcao}
-                          deslizarParaAFila={false}
                         />
                       </View>
                       {(() => {

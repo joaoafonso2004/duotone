@@ -10,7 +10,8 @@ import { colors } from '../theme';
 import { getTempoRestante, setTempoRestante } from '../lib/prefs';
 import { ondeVai, proximoTrajeto, type Trajeto } from '../lib/barraSuave';
 import {
-  RITMOS, bateuNaPonta, comecarArrasto, eToque, fracaoNoArrasto, mudarDeRitmo, ritmoDoArrasto, type Arrasto,
+  RITMOS, arrastoAbandonado, bateuNaPonta, beganAtrasado, comecarArrasto, eToque, fracaoNoArrasto, mudarDeRitmo,
+  ritmoDoArrasto, type Arrasto,
 } from '../lib/arrastarBarra';
 import { hapticImpact, hapticSelection } from '../lib/haptics';
 import { segurarFluidez } from '../state/fluidez';
@@ -82,6 +83,12 @@ interface Props {
   /** Avisa quando o utilizador começa/pára de arrastar (para desativar o
    *  scroll da página por baixo, que ficava a competir com o gesto). */
   onScrubbingChange?: (scrubbing: boolean) => void;
+  /**
+   * O que se está a ouvir e se a barra está à vista (6/10). Mudar de faixa ou
+   * fechar o leitor larga um arrasto que tenha ficado preso.
+   */
+  faixa?: string | null;
+  aVista?: boolean;
 }
 
 /**
@@ -154,7 +161,7 @@ function useTempoRestante(): [boolean, () => void] {
  * Um gesto com `Animated.event` nativo não entrega os movimentos ao JavaScript,
  * e por isso são dois e não um.
  */
-export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1, onSeek, onScrubbingChange }: Props) {
+export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1, onSeek, onScrubbingChange, faixa = null, aVista = true }: Props) {
   const [width, setWidth] = useState(0);
   const reduzido = useReducedMotion();
   /**
@@ -195,6 +202,9 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
   const largarFluidez = useRef<(() => void) | null>(null);
   const ultima = useRef(0);
   const inicio = useRef(0);
+  /** O último evento do gesto, e o último FIM de um gesto (lib/arrastarBarra.ts). */
+  const ultimoEvento = useRef(0);
+  const ultimoFim = useRef(0);
   const refDeFora = useRef(null);
   const refDeDentro = useRef(null);
 
@@ -203,16 +213,17 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
     setSegundoArrastado((antes) => (antes === s ? antes : s));
   };
 
-  const agarrar = () => {
+  /** `tx`: a translação que o dedo já tem (quando o arrasto começa no ACTIVE). */
+  const agarrar = (tx = 0) => {
     if (arrasto.current) return;
     const durMs = durationRef.current;
     const agora = ondeEsta() ?? (durMs > 0 ? positionRef.current / durMs : 0);
-    arrasto.current = comecarArrasto(agora);
+    arrasto.current = { ...comecarArrasto(agora), origemX: tx };
     ultima.current = arrasto.current.base;
-    inicio.current = Date.now();
-    dedoX.setValue(0);
+    ultimoEvento.current = Date.now();
+    dedoX.setValue(tx);
     base.setValue(arrasto.current.base);
-    origemX.setValue(0);
+    origemX.setValue(tx);
     fator.setValue(1);
     modo.setValue(1);
     hapticSelection();
@@ -246,6 +257,7 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
 
   // O gesto de fora: o ritmo, o tempo e as vibrações (no JavaScript).
   const aoMexer = (e: PanGestureHandlerGestureEvent) => {
+    ultimoEvento.current = Date.now();
     const a = arrasto.current;
     if (!a) return;
     const { translationX, translationY } = e.nativeEvent;
@@ -267,8 +279,19 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
 
   const aoMudarDeEstado = (e: PanGestureHandlerStateChangeEvent) => {
     const { state, oldState, translationX, translationY, x } = e.nativeEvent;
-    if (state === State.BEGAN) { agarrar(); return; }
-    if (state === State.ACTIVE) return;
+    const agora = Date.now();
+    ultimoEvento.current = agora;
+    if (state === State.BEGAN) {
+      // Um BEGAN colado ao fim de um gesto é desse gesto, chegado depois: era o
+      // que prendia a barra (agarrava sem nada que a largasse).
+      if (beganAtrasado(agora, ultimoFim.current)) return;
+      inicio.current = agora;
+      agarrar();
+      return;
+    }
+    // Sem BEGAN (atrasado ou perdido), o arrasto começa aqui, de onde o dedo já vai.
+    if (state === State.ACTIVE) { if (!arrasto.current) agarrar(translationX); return; }
+    ultimoFim.current = agora;
     // Acabou: arrastou (larga onde está), foi um toque (salta para lá), ou
     // outro gesto ficou com ele (fica tudo como estava).
     if (oldState === State.ACTIVE && state === State.END && arrasto.current) {
@@ -284,6 +307,19 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
     }
     soltar(null);
   };
+
+  // Rede de segurança: um arrasto sem eventos do gesto há 4 s larga-se (sem
+  // seek). E fechar o leitor ou mudar de faixa também o larga.
+  useEffect(() => {
+    if (!aArrastar) return;
+    const vigia = setInterval(() => {
+      if (arrasto.current && arrastoAbandonado(Date.now(), ultimoEvento.current)) soltar(null);
+    }, 500);
+    return () => clearInterval(vigia);
+  }, [aArrastar]);
+  useEffect(() => {
+    if (arrasto.current) soltar(null);
+  }, [faixa, aVista]);
 
   // O gesto de dentro: só a translação, no motor nativo.
   const eventoDoDedo = useMemo(
