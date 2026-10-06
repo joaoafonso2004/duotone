@@ -49,7 +49,7 @@ export function AtalhosNaLateral({ navigate }: { navigate: (r: Route) => void })
       case 'playlist': navigate({ name: 'playlist', id: a.id, title: a.nome }); break;
       case 'artista': navigate({ name: 'artist', value: a.nome }); break;
       case 'amigo': navigate({ name: 'social', friendId: a.id }); break;
-      case 'faixa': void usePlayer.getState().playTrack(a.faixa as Track, [a.faixa as Track], false, false, undefined, null); break;
+      case 'faixa': void usePlayer.getState().tocarMusica(a.faixa as Track, [a.faixa as Track], false, undefined, null); break;
       case 'mistura-do-dia': void tocarMisturaDoDia(); break;
     }
   };

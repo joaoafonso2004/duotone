@@ -140,6 +140,10 @@ console.log('QueueSheet: opções, seleção, playlist/partilha, offline, remoç
 // Executa também os handlers reais do Rádio. Uma troca de conta ou edição
 // entre render e toque não pode restaurar uma fotografia antiga da fila.
 async function testRadioControl(){
+  // Fora de um Jam (a maior parte deste teste) e, no fim, dentro de um.
+  const sala={sessao:null,manda:false,ligacoes:[]};
+  const estadoDaSala=()=>({sessao:sala.sessao,possoControlar:()=>sala.manda,ligarRadio:async v=>{sala.ligacoes.push(v);}});
+  const jamDoRadio=selector=>selector(estadoDaSala());jamDoRadio.getState=estadoDaSala;
   const auth={session:{user:{id:'owner-a'}},offlineUserId:null};
   const useAuth=selector=>selector(auth);useAuth.getState=()=>auth;
   const useConnectivity=selector=>selector({offline:false});
@@ -151,6 +155,7 @@ async function testRadioControl(){
     '../state/connectivity':{useConnectivity},'../state/auth':{useAuth},
     '../theme':{colors:{},spacing:{},type:{},radii:{}},'../lib/artistName':{displayArtist:t=>t.artist},
     '../state/seguirAmigo':{useSeguirAmigo},
+    '../state/ouvirJuntos':{useOuvirJuntos:jamDoRadio},
   });
   const draw=()=>{cursor=0;return radio.RadioQueueControl({});};
   const original=[a,b,c],generated=[a,track('radio')];
@@ -194,6 +199,25 @@ async function testRadioControl(){
   find(draw(),'Pressable',p=>p.accessibilityLabel==='Radio').props.onPress();
   assert.equal(seguir.seguindo,null,'deixou de seguir');
   assert.equal(store.queue,generated,'e o Radio ligou');
-  console.log('RadioQueueControl: pastilha liga e desliga, Undo sem alterar áudio, conta e edição concorrente passaram.');
+
+  // Num Jam (6/10): o Radio da SALA. Quem manda liga-o; quem não manda vê-o
+  // sem lhe mexer; sem a migração não há pastilha.
+  setup();sala.sessao={radio:false};sala.manda=true;sala.ligacoes=[];
+  const pastilha=()=>find(draw(),'Pressable',p=>p.accessibilityLabel==='Radio');
+  assert.match(pastilha().props.accessibilityHint,/Keeps the Jam going/,'a dica diz o que faz num Jam');
+  pastilha().props.onPress();
+  assert.deepEqual(sala.ligacoes,[true],'liga o Radio da sala, não o pessoal');
+  assert.equal(store.queue,original,'a fila pessoal não muda');
+  setup();sala.sessao={radio:true};sala.manda=true;sala.ligacoes=[];
+  pastilha().props.onPress();
+  assert.deepEqual(sala.ligacoes,[false],'ligado, o mesmo toque desliga');
+  setup();sala.sessao={radio:false};sala.manda=false;sala.ligacoes=[];
+  pastilha().props.onPress();
+  assert.deepEqual(sala.ligacoes,[],'sem controlo não mexe');
+  assert.match(pastilha().props.accessibilityHint,/Only the host/);
+  setup();sala.sessao={radio:null};sala.manda=true;
+  assert.equal(draw(),null,'sem a migração, não há Radio no Jam');
+  sala.sessao=null;
+  console.log('RadioQueueControl: pastilha liga e desliga, Undo sem alterar áudio, conta, edição concorrente e o Radio do Jam passaram.');
 }
 testRadioControl().catch(error=>{console.error(error);process.exitCode=1;});

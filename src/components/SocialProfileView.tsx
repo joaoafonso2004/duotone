@@ -230,7 +230,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
 
   const row=(entry:ProfileTrack,index:number,recentes=false)=><View key={`${entry.source}:${entry.sourceId}`} style={[s.row,{gap:12,minHeight:58}]}>
     {!recentes&&<Text style={[s.muted,{width:20,textAlign:'center',fontVariant:['tabular-nums']}]}>{index+1}</Text>}
-    <Pressable accessibilityRole="button" accessibilityLabel={`Play ${entry.title}`} onPress={()=>void usePlayer.getState().playTrack(entry,recentes?recent:most)}
+    <Pressable accessibilityRole="button" accessibilityLabel={`Play ${entry.title}`} onPress={()=>void usePlayer.getState().tocarMusica(entry,recentes?recent:most)}
       style={({pressed,hovered}:any)=>[s.row,{flex:1,minWidth:0,borderRadius:radii.md,gap:12},(pressed||hovered)&&{backgroundColor:colors.surfacePressed}]}>
       <View style={{width:46,height:46,borderRadius:radii.sm,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
         {entry.artworkUrl?<Image source={{uri:capaParaLista(entry.artworkUrl)!}} style={{width:46,height:46}}/>:<Ionicons name="musical-notes" color={colors.textSecondary} size={22}/>}
@@ -327,7 +327,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
   const vistaRecente=tudoRecente
     ? recent.map((e,i)=>row(e,i,true))
     : fila(recent.slice(0,20).map(e=><Pressable key={`${e.source}:${e.sourceId}`} accessibilityRole="button" accessibilityLabel={`Play ${e.title}`}
-        onPress={()=>void usePlayer.getState().playTrack(e,recent)} style={({pressed}:any)=>({opacity:pressed?0.7:1})}>
+        onPress={()=>void usePlayer.getState().tocarMusica(e,recent)} style={({pressed}:any)=>({opacity:pressed?0.7:1})}>
         <View style={{width:76,height:76,borderRadius:radii.sm,overflow:'hidden',backgroundColor:colors.surface,alignItems:'center',justifyContent:'center'}}>
           {e.artworkUrl?<Image source={{uri:capaParaLista(e.artworkUrl)!}} style={{width:76,height:76}}/>:<Ionicons name="musical-notes" color={colors.textSecondary} size={22}/>}
         </View>
@@ -361,7 +361,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
           {highlights.moment&&<View style={{gap:11}}>
             <Text style={estilos.rotuloEditorial}>Song of the moment</Text>
             <View style={[s.row,{gap:8}]}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Play ${highlights.moment.title}`} onPress={()=>void usePlayer.getState().playTrack(highlights.moment!,[highlights.moment!])}
+            <Pressable accessibilityRole="button" accessibilityLabel={`Play ${highlights.moment.title}`} onPress={()=>void usePlayer.getState().tocarMusica(highlights.moment!,[highlights.moment!])}
               style={[s.row,{flex:1,minWidth:0,gap:12}]}>
               {highlights.moment.artworkUrl
                 ? <Image source={{uri:capaParaLista(highlights.moment.artworkUrl)!}} style={{width:64,height:64,borderRadius:radii.sm}}/>

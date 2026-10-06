@@ -64,7 +64,7 @@ export function OpcoesDoAmigo({ amigo, ancora, aoFechar, aoMensagem, aoPerfil, a
     try {
       switch (id) {
         case 'ouvir': await ouvirComAmigo(a, sessaoDele); break;
-        case 'tocar': if (faixa) await usePlayer.getState().playTrack(faixa, [faixa], true, false, undefined, null); break;
+        case 'tocar': if (faixa) await usePlayer.getState().tocarMusica(faixa, [faixa], true, undefined, null); break;
         case 'fila': if (faixa) { usePlayer.getState().addToQueue(faixa); avisarFeito('Added to queue', tituloDaFaixa(faixa)); } break;
         // Tirar já mostra o aviso com "Undo"; guardar não mostra nada (3/10).
         case 'gostar': if (faixa) await alternarGuardada(faixa); break;

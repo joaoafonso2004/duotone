@@ -47,6 +47,12 @@ export type ShareTarget =
 export interface CommonPageProps {
   /** `origem`: de onde vem a lista, para o Now Playing dizer "From ...". Ver lib/origemDaFila.ts. */
   play: (track: Track, queue?: Track[], discoveryContext?: DiscoveryContext, origem?: OrigemDaFila) => void;
+  /**
+   * Tocar numa MÚSICA (a linha de uma tabela, um cartão): com "Start Radio
+   * from a song" é o Radio a partir dela (`tocarMusica` na store). O Play de
+   * uma lista usa o `play`.
+   */
+  tocarMusica: (track: Track, queue?: Track[], discoveryContext?: DiscoveryContext, origem?: OrigemDaFila) => void;
   notify: (message: string) => void;
   /**
    * O menu da faixa (lib/menuDaFaixa.ts). Com `origem.fila`, abriu numa linha

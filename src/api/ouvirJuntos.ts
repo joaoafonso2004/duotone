@@ -31,6 +31,12 @@ export type SessaoDeEscuta = {
    * o controlo a quem tem a vez deixava a sala refem de um telemovel no bolso.
    */
   auxDe: string | null;
+  /**
+   * O Radio da sala está ligado (6/10, `supabase/radio-no-jam.sql`). `null`
+   * quando a coluna não existe -- a migração por correr --, e aí o Radio não
+   * aparece num Jam.
+   */
+  radio: boolean | null;
   acabouEm: number | null;
 };
 
@@ -54,6 +60,7 @@ export function sessaoDaLinha(r: any): SessaoDeEscuta {
     pausadaEmMs: Number(r.paused_position_ms) || 0,
     convidadosControlam: !!r.guests_can_control,
     auxDe: typeof r.aux_de === 'string' ? r.aux_de : null,
+    radio: typeof r.radio === 'boolean' ? r.radio : null,
     acabouEm: instante(r.ended_at),
   };
 }
@@ -181,6 +188,12 @@ export async function retomar(sessao: string): Promise<void> {
 }
 
 /** Liga e desliga a roda do aux. So o anfitriao. */
+/** Liga ou desliga o Radio da sala. Quem pode mandar nela (`exigir_controlo`). */
+export async function definirRadioDoJam(sessao: string, ligado: boolean): Promise<void> {
+  const { error } = await supabase.rpc('definir_radio_do_jam', { p_session: sessao, p_ligado: ligado });
+  if (error) throw error;
+}
+
 export async function definirAux(sessao: string, ligado: boolean): Promise<void> {
   const { error } = await supabase.rpc('definir_aux', { p_session: sessao, p_ligado: ligado });
   if (error) throw error;

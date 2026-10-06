@@ -133,7 +133,7 @@ export function SocialTrackActions({ track, onClose, onArtist, extra }: {
     const player = usePlayer.getState();
     const eFechar = (accao: () => void) => { accao(); onClose(); };
     switch (id) {
-      case 'tocar-agora': eFechar(() => void player.playTrack(track)); return;
+      case 'tocar-agora': eFechar(() => void player.tocarMusica(track)); return;
       case 'tocar-a-seguir': eFechar(() => player.playNext(track)); return;
       case 'por-na-fila': eFechar(() => player.addToQueue(track)); return;
       case 'guardar': void guardar(); return;

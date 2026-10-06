@@ -56,6 +56,8 @@ export function DownloadsScreen({ navigation }: Props) {
   const tema = useTheme((s) => s.theme);
   const offline = useOfflineMode();
   const playTrack = usePlayer((s) => s.playTrack);
+  // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
+  const tocarMusica = usePlayer((s) => s.tocarMusica);
   const playShuffled = usePlayer((s) => s.playShuffled);
   const userId = useAuth((s) => s.session?.user.id ?? s.offlineUserId);
   const registo = useDownloadsFixados((s) => s.registo);
@@ -205,7 +207,7 @@ export function DownloadsScreen({ navigation }: Props) {
   const tocar = (faixa: Track) => {
     const dentro = tocaveis.some((t) => t.sourceId === faixa.sourceId);
     if (!dentro && offline) return;
-    void playTrack(faixa, dentro ? tocaveis : [faixa], true);
+    void tocarMusica(faixa, dentro ? tocaveis : [faixa], true);
   };
   const tocarTudo = (baralhar: boolean) => {
     if (!tocaveis.length) return;

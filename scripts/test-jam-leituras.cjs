@@ -10,6 +10,7 @@ const mocks = {
   '../api/ouvirJuntos': { lerSessao: () => new Promise(r => { entregar = r; }), lerFila: async () => [] },
   '../lib/relogioPartilhado': {}, '../lib/sincronizacao': {}, '../lib/appVisibility': {},
   '../lib/supabase': {}, '../api/descoberta': {}, '../lib/artistName': {},
+  '../api/radio': {}, '../lib/radio': {},
   '../lib/jam': { passouParaMim: () => false, percursoDaSessao: p => p },
   '../lib/prefs': { getJamAutoFila: async () => false }, '../lib/shuffle': {}, '../lib/eventos': {},
 };

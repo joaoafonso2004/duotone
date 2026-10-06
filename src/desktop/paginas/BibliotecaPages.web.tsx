@@ -49,7 +49,7 @@ import { useLibraryData } from './comum.web';
 import { contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics, notaDaPrateleira } from '../../lib/contextoDaDescoberta';
 import { registar } from '../../lib/eventos';
 
-export function SearchPage({ play, notify, more, navigate }: CommonPageProps & { navigate: NavegarFn }) {
+export function SearchPage({ play, tocarMusica, notify, more, navigate }: CommonPageProps & { navigate: NavegarFn }) {
   const [query, setQuery] = useState(''); const [history, setHistory] = useState<string[]>([]); const input = useRef<any>(null);
   // As Músicas do dia, que no PC não existiam. Uma vista da Pesquisa, como no
   // telemóvel, e não mais uma entrada na barra lateral: é sobre descobrir o
@@ -123,7 +123,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
   // "drake playlist" abre as Playlists sozinho; "drake album", os Albums.
   useEffect(() => { const pedido = separadorPedidoPelaPergunta(query); if (pedido) setTipo(pedido); }, [query]);
   const porTipo = usePesquisaPorTipo(query, tipoAtivo);
-  const { abrirAlbum, dialogoDoAlbum } = useDialogoDoAlbum({ play, notify, more });
+  const { abrirAlbum, dialogoDoAlbum } = useDialogoDoAlbum({ play, tocarMusica, notify, more });
   // O artista abre pelo CANAL escolhido, sem adivinhar pelo nome (homónimos).
   const abrirArtista = (a: ArtistaEncontrado) => { lembrarCanalDoArtista(a.nome, a.canal); navigate({ name: 'artist', value: a.nome }); };
   // O artista em destaque (29/9): "drake" ou "drake playlist" põem o Drake no
@@ -164,7 +164,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       naBiblioteca.length || (results.length && !loading) ? <>
         {naBiblioteca.length ? <>
           <Text style={styles.sectionTitle}>In your library</Text>
-          <TrackTable tracks={naBiblioteca} onPlay={(t) => play(t, naBiblioteca, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
+          <TrackTable tracks={naBiblioteca} onPlay={(t) => tocarMusica(t, naBiblioteca, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
         </> : null}
         {loading ? <View style={{ height: 200 }}><Loading /></View>
           : results.length ? <>
@@ -178,7 +178,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
                 casou com o texto, não uma lista de ninguém. Procurar "6:30" e
                 ter o shuffle ligado dava um temporizador de 7 h a seguir (14/9).
                 O rádio continua a partir desta, pelo gosto de quem ouve. */}
-            <TrackTable tracks={resultadosVisiveis} showSavedBadge onPlay={(t) => play(t, undefined, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
+            <TrackTable tracks={resultadosVisiveis} showSavedBadge onPlay={(t) => tocarMusica(t, undefined, undefined, { tipo: 'pesquisa', nome: query })} onMore={more} />
           </> : null}
       </>
       : loading ? <View style={{ height: 320 }}><Loading /></View>
@@ -188,7 +188,7 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
       : temRecomendacoes(recs) ? <>
           {/* Os sítios de onde se ouviu, como na Home do iPhone (5/10). */}
           <VoltarAOuvir />
-          <Shelf grelha titulo="Discover daily" nota={notaDaPrateleira('descobrir')} tracks={descobrir} onPlay={play} onMore={more} contexto={contextoPrateleira('descobrir')} />
+          <Shelf grelha titulo="Discover daily" nota={notaDaPrateleira('descobrir')} tracks={descobrir} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('descobrir')} />
           {/* Ao lado do Discover, e a dizer o contrário: esse vai buscar aos
               vizinhos o que saiu, esta vai buscar aos teus o que nunca saiu. */}
           {/* A Daily mix: a MESMA lista o dia inteiro, e a mesma no iPhone
@@ -196,8 +196,8 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
               "Daily flow", que era quase a mesma coisa refeita a cada
               arranque e só existia aqui -- duas listas "do dia" lado a lado
               era uma a mais. */}
-          <Shelf titulo="Daily mix" nota="new every day, from what you listen to" tracks={misturaDoDiaFaixas} onPlay={play} onMore={more} contexto={contextoPrateleira('flow')} />
-          <Shelf titulo="Rare finds" nota={notaDaPrateleira('nuncaLancado')} selo="New to you" tracks={nuncaLancado} onPlay={play} onMore={more} contexto={contextoPrateleira('nuncaLancado')} />
+          <Shelf titulo="Daily mix" nota="new every day, from what you listen to" tracks={misturaDoDiaFaixas} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('flow')} />
+          <Shelf titulo="Rare finds" nota={notaDaPrateleira('nuncaLancado')} selo="New to you" tracks={nuncaLancado} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('nuncaLancado')} />
           {/* AS MISTURAS QUE A APP MONTA. Quatro familias, e a diferenca esta
               toda no titulo -- que e o que elas tem de diferente:
                 Your styles -> artistas teus que partilham vizinhos
@@ -213,10 +213,10 @@ export function SearchPage({ play, notify, more, navigate }: CommonPageProps & {
           <PrateleiraDeMisturas titulo="Playlists" misturas={playlists} aoAbrir={abrirMistura} />
           {/* A unica prateleira desta pagina que nao sai do teu proprio
               historico. Fica entre a descoberta e o que ja e teu. */}
-          <Shelf titulo="Your friends' favourites" nota={notaDaPrateleira('amigos')} tracks={amigos} onPlay={play} onMore={more} contexto={contextoPrateleira('amigos')} />
-          <Shelf titulo="Listen again" nota={notaDaPrateleira('ouvirDeNovo')} tracks={ouvirDeNovo} onPlay={play} onMore={more} contexto={contextoPrateleira('ouvirDeNovo')} />
-          <Shelf titulo="Heavy rotation" nota={notaDaPrateleira('maisTocadas')} tracks={maisTocadas} onPlay={play} onMore={more} contexto={contextoPrateleira('maisTocadas')} />
-          <Shelf titulo="Forgotten favourites" nota={notaDaPrateleira('esquecidas')} tracks={esquecidas} onPlay={play} onMore={more} contexto={contextoPrateleira('esquecidas')} />
+          <Shelf titulo="Your friends' favourites" nota={notaDaPrateleira('amigos')} tracks={amigos} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('amigos')} />
+          <Shelf titulo="Listen again" nota={notaDaPrateleira('ouvirDeNovo')} tracks={ouvirDeNovo} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('ouvirDeNovo')} />
+          <Shelf titulo="Heavy rotation" nota={notaDaPrateleira('maisTocadas')} tracks={maisTocadas} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('maisTocadas')} />
+          <Shelf titulo="Forgotten favourites" nota={notaDaPrateleira('esquecidas')} tracks={esquecidas} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('esquecidas')} />
         </>
       : <Empty icon={recsCarregadas ? 'search-outline' : 'sparkles-outline'}
           title={recsCarregadas ? 'Nothing to recommend yet' : 'Preparing recommendations…'}
@@ -360,7 +360,7 @@ export function SongsPage(props: CommonPageProps) {
       <Text style={styles.songsResultCount}>{query ? `${filteredTracks.length} of ` : ''}{data.tracks.length} {data.tracks.length === 1 ? 'song' : 'songs'}</Text>
       <IconButton name="refresh" label="Refresh library" onPress={data.refresh} />
     </View>
-    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable plain listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.play(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
+    <ContentScroll scrollKey="songs">{data.loading ? <View style={{ height: 350 }}><Loading /></View> : <TrackTable plain listKey={`songs:${ordem ?? 'recent'}`} ordenacao={{ modo: ordem, aoMudar: setOrdem }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'guardadas', nome: 'Liked Songs' })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No liked songs match "${query}"`} /> : <Empty icon="heart-outline" title="No liked songs yet" body="Tap the heart on a track and it will appear here." />} />}</ContentScroll>
   </Page></>;
 }
 
@@ -530,7 +530,7 @@ export function MisturaPage({ id, titulo, back, ...props }: {
         : !mistura ? <Empty icon="sparkles-outline" title="This mix is gone"
             body="Mixes are rebuilt as you listen. Go back to Search and pick one of the current ones." />
         : <TrackTable listKey={`mistura:${id}`} tracks={faixas} contexto={contexto}
-            onPlay={(t,c) => props.play(t, faixas, c, { tipo: 'mistura', nome: mistura.nome, id })} onMore={props.more} />}
+            onPlay={(t,c) => props.tocarMusica(t, faixas, c, { tipo: 'mistura', nome: mistura.nome, id })} onMore={props.more} />}
     </ContentScroll>
   </Page>;
 }
@@ -687,11 +687,11 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
           </Pressable>)}
         </View>
 
-        {separador === 'library' && <TrackTable plain colunaDoArtista={false} tracks={tracks} onPlay={(t) => props.play(t, tracks, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
+        {separador === 'library' && <TrackTable plain colunaDoArtista={false} tracks={tracks} onPlay={(t) => props.tocarMusica(t, tracks, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
           empty={<Empty icon="heart-outline" title="Nothing saved" body="Save a track by this artist and it will appear here." />} />}
 
         {separador === 'tracks' && (aProcurarMusicas ? <View style={{ height: 280 }}><Loading /></View> :
-          <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasSemRepetir} onPlay={(t) => props.play(t, outrasSemRepetir, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
+          <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasSemRepetir} onPlay={(t) => props.tocarMusica(t, outrasSemRepetir, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
             empty={<Empty icon="search-outline" title="No other tracks found" body="No other songs by this artist were found." />} />)}
 
         {separador === 'albums' && (aProcurarAlbuns ? <View style={{ height: 280 }}><Loading /></View> : albuns.length ?
@@ -782,7 +782,7 @@ function useDialogoDoAlbum(props: CommonPageProps) {
           <Text style={artistStyles.albumDialogMeta}>{faixasDoAlbum.length} {faixasDoAlbum.length === 1 ? 'track' : 'tracks'}</Text>
         </View>
         <ScrollView style={artistStyles.albumDialogList}>
-          <TrackTable plain colunaDoArtista={false} tracks={faixasDoAlbum} onPlay={(t) => props.play(t, faixasDoAlbum, undefined, { tipo: 'album', nome: albumAberto?.title ?? '' })} onMore={props.more} />
+          <TrackTable plain colunaDoArtista={false} tracks={faixasDoAlbum} onPlay={(t) => props.tocarMusica(t, faixasDoAlbum, undefined, { tipo: 'album', nome: albumAberto?.title ?? '' })} onMore={props.more} />
         </ScrollView>
       </>}
     </Dialog>

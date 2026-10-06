@@ -18,6 +18,7 @@ import { UpdateSheet } from './src/components/UpdateSheet';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import {
   getAutoplayRadio,
+  getRadioAoTocar,
   getKeepAwake,
   getRepeatMode,
   getShowRewindButton,
@@ -298,13 +299,14 @@ export default function App() {
       getShuffleInteligente(),
       getShowRewindButton(),
       getAutoplayRadio(),
+      getRadioAoTocar(),
       getVolumeNormalization(),
       getPlaybackRate(),
       getEqGanhos(),
       getEqPadrao(),
       getCrossfadeSegundos(),
       getIntensidadeDoSmartShuffle(),
-    ]).then(([repeatMode, shuffle, shuffleInteligente, showRewindButton, autoplayRadio, volumeNormalization, playbackRate, eqGanhos, eqPadrao, crossfadeSegundos, intensidadeSmartShuffle]) => {
+    ]).then(([repeatMode, shuffle, shuffleInteligente, showRewindButton, autoplayRadio, radioAoTocar, volumeNormalization, playbackRate, eqGanhos, eqPadrao, crossfadeSegundos, intensidadeSmartShuffle]) => {
       const player = usePlayer.getState();
       player.setRepeatMode(repeatMode);
       player.setShuffle(shuffle);
@@ -312,6 +314,8 @@ export default function App() {
       usePlayer.setState({ shuffleInteligente: shuffle && shuffleInteligente });
       player.setShowRewindButton(showRewindButton);
       player.setAutoplayRadio(autoplayRadio);
+      // Sem escrever: veio das preferências.
+      usePlayer.setState({ radioAoTocar });
       player.setVolumeNormalization(volumeNormalization);
       // A memoria por faixa e os ganhos entram JUNTOS e sem reaplicar nada: o
       // grafo do EQ so existe quando ha um video, e isso e tratado no

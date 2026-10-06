@@ -177,6 +177,7 @@ function RadioNaFila() {
   const radio = useRadioDaFila();
   const ligado = radio.mode === 'on', aPreparar = radio.mode === 'preparing';
   const apagada = !!radio.reason && radio.mode === 'off';
+  if (!radio.visivel) return null;
   return (
     <>
       {radio.podeDesfazer ? (
@@ -188,7 +189,7 @@ function RadioNaFila() {
       <Pressable
         accessibilityRole="switch"
         accessibilityLabel="Radio"
-        accessibilityHint={radio.reason ?? ROTULO_DO_RADIO.dica}
+        accessibilityHint={radio.reason ?? radio.dica}
         accessibilityState={{ checked: ligado, busy: aPreparar, disabled: apagada }}
         onPress={radio.alternar}
         style={({ hovered }: any) => [
@@ -469,9 +470,8 @@ export function NowPlayingPage({
       <Text style={styles.npFilaContagem}>{upNext.length}</Text>
       <View style={{ flex: 1 }} />
       {/* O Radio ao lado do Clear: os dois mexem no que vem a seguir. Num Jam
-          a fila é de todos, e não aparece; a seguir um amigo, ligar deixa de
-          o seguir. */}
-      {!emJam ? <RadioNaFila /> : null}
+          é o Radio da sala (6/10); a seguir um amigo, ligar deixa de o seguir. */}
+      <RadioNaFila />
       {/* Num Jam a fila é de todos: não se limpa daqui. */}
       {!emJam && !seguido && upNext.length > 0 ? (
         <Pressable

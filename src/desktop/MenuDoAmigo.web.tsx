@@ -63,7 +63,7 @@ export function MenuDoAmigo({ amigo, sessaoDele, rato, aoFechar, aoPedirRemover,
           await ouvirComAmigo(amigo, sessaoDele);
           break;
         case 'tocar':
-          if (faixa) await usePlayer.getState().playTrack(faixa, [faixa], false, false, undefined, null);
+          if (faixa) await usePlayer.getState().tocarMusica(faixa, [faixa], false, undefined, null);
           break;
         case 'fila':
           if (faixa) { usePlayer.getState().addToQueue(faixa); notify(`${tituloDaFaixa(faixa)} added to the queue.`); }

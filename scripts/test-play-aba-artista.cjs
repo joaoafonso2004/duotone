@@ -36,6 +36,8 @@ const player = {
   shuffle: false, shuffleInteligente: false,
   tocarLista: async (...args) => calls.push(['list', ...args]),
   playTrack: (...args) => calls.push(['track', ...args]),
+  // Tocar numa linha (6/10): a mesma fila, pela ação que sabe do "Start Radio from a song".
+  tocarMusica: (...args) => calls.push(['track', ...args]),
   toggleShuffle: () => {},
 };
 const usePlayer = Object.assign(selector => selector(player), { getState: () => player });

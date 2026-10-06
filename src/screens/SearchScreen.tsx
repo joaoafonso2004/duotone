@@ -167,7 +167,8 @@ export function SearchScreen() {
   const insets = useSafeAreaInsets();
   // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
   const alturaDosSeparadores = useAlturaDosSeparadores();
-  const playTrack = usePlayer((s) => s.playTrack);
+  // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
+  const tocarMusica = usePlayer((s) => s.tocarMusica);
   const refreshSaved = useSaved((s) => s.refresh);
   const savedKeys = useSaved((s) => s.keys);
 
@@ -427,7 +428,7 @@ export function SearchScreen() {
                     key={`${track.source}:${track.sourceId}`}
                     track={track}
                     mostrarDuracao={false}
-                    onPress={() => playTrack(track, data, true, false, contextoDe(track))}
+                    onPress={() => tocarMusica(track, data, true, contextoDe(track))}
                     onAction={() => abrirAcoes(track)}
                   />
                 ))}
@@ -449,7 +450,7 @@ export function SearchScreen() {
             {data.map((track) => (
               <Pressable
                 key={`${track.source}:${track.sourceId}`}
-                onPress={() => playTrack(track, data, true, false, contextoDe(track))}
+                onPress={() => tocarMusica(track, data, true, contextoDe(track))}
                 onLongPress={() => { hapticSelection(); abrirAcoes(track); }}
                 delayLongPress={350}
                 style={({ pressed }) => [styles.cartaoLargo, pressed && { opacity: 0.8 }]}
@@ -477,7 +478,7 @@ export function SearchScreen() {
           {data.map((track) => (
             <Pressable
               key={`${track.source}:${track.sourceId}`}
-              onPress={() => playTrack(track, data, true, false, contextoDe(track))}
+              onPress={() => tocarMusica(track, data, true, contextoDe(track))}
               onLongPress={() => {
                 hapticSelection();
                 abrirAcoes(track);
@@ -872,7 +873,7 @@ export function SearchScreen() {
                     acompanharATocar
                     onPress={() => {
                       Keyboard.dismiss();
-                      playTrack(t, naBiblioteca, true);
+                      tocarMusica(t, naBiblioteca, true);
                     }}
                     onAction={() => setActionTrack(t)}
                   />
@@ -914,7 +915,7 @@ export function SearchScreen() {
                   Keyboard.dismiss();
                   // Só a faixa escolhida, nunca os resultados: ver o mesmo
                   // sítio no BibliotecaPages.web.tsx. O rádio continua daqui.
-                  playTrack(item, undefined, true);
+                  tocarMusica(item, undefined, true);
                 }}
                 onAction={() => setActionTrack(item)}
                 actionIcon="add-circle-outline"

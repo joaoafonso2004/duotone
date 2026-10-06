@@ -14,6 +14,7 @@ export const ROTULOS = {
   velocidade: 'Playback speed',
   temporizador: 'Sleep timer',
   autoplay: 'Autoplay similar music',
+  radioAoTocar: 'Start Radio from a song',
   equalizador: 'Equaliser',
   acento: 'Accent',
   duracao: 'Song length in lists',

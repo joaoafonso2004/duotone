@@ -40,7 +40,8 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
   const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
   const theme = useTheme((s) => s.theme);
-  const playTrack = usePlayer((s) => s.playTrack);
+  // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
+  const tocarMusica = usePlayer((s) => s.tocarMusica);
 
   const [periodIndex, setPeriodIndex] = useState(0);
   const [result, setResult] = useState<StatsResult | null>(null);
@@ -77,7 +78,7 @@ export function ListeningStatsScreen({ navigation, route }: Props) {
       artworkUrl: t.artworkUrl,
       durationSeconds: null,
     };
-    playTrack(track, [track], true);
+    tocarMusica(track, [track], true);
   };
 
   return (

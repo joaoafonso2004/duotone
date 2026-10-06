@@ -72,7 +72,8 @@ export function PrateleiraScreen({ route }: Props) {
     : fonte.tipo === 'prateleira'
     ? prateleiras.prontas.includes(fonte.nome)
     : prateleiras.misturasProntas;
-  const playTrack = usePlayer((s) => s.playTrack);
+  // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
+  const tocarMusica = usePlayer((s) => s.tocarMusica);
   const savedKeys=useSaved((s)=>s.keys);
   const [aberta, setAberta] = useState<Track | null>(null);
   // A Daily mix conta como o flow: é o mesmo `flowDoDia`, guardado por dia.
@@ -113,7 +114,7 @@ export function PrateleiraScreen({ route }: Props) {
               track={item}
               showSavedBadge
               contextLabel={contextoDe(item).reason}
-              onPress={() => playTrack(item, faixas, true, false, contextoDe(item), origemDaPrateleira(fonte, titulo))}
+              onPress={() => tocarMusica(item, faixas, true, contextoDe(item), origemDaPrateleira(fonte, titulo))}
               onAction={() => setAberta(item)}
             />
           )}

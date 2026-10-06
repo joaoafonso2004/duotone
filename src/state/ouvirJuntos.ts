@@ -4,7 +4,7 @@ import { AppState } from 'react-native';
 import {
   continuoNaSessao, convidar, criarSessao, definirFaixa, entrar, retratoDaSessao,
   juntarAFila, juntarMuitasAFila, lerFila, lerMembros, lerSessao, marcarPronto, membroDaLinha,
-  definirAux, fecharJamsAbandonadas, minhasSessoesAbertas, pausar, permitirControlo, relogioActualizado, retomar,
+  definirAux, definirRadioDoJam, fecharJamsAbandonadas, minhasSessoesAbertas, pausar, permitirControlo, relogioActualizado, retomar,
   sair, sessaoDaLinha, itemDaLinha, tirarDaFila, avancarFila, procurarNaSessao,
   type ItemDaFila, type MembroDaSessao, type SessaoDeEscuta,
 } from '../api/ouvirJuntos';
@@ -13,7 +13,9 @@ import { posicaoDaSessao } from '../lib/sincronizacao';
 import { appEstaVisivel } from '../lib/appVisibility';
 import { supabase } from '../lib/supabase';
 import { candidatasParaDescoberta } from '../api/descoberta';
-import { chaveDeArtista } from '../lib/artistName';
+import { chaveDeArtista, displayArtist } from '../lib/artistName';
+import { fetchRadioTracks } from '../api/radio';
+import { espalharArtistas } from '../lib/radio';
 import { anteriorDaSessao, escolherSessao, passouParaMim, percursoDaSessao, porSemear, semOApagado } from '../lib/jam';
 import { getJamAutoFila, setJamAutoFila } from '../lib/prefs';
 import { trackKey } from '../lib/shuffle';
@@ -92,6 +94,12 @@ type Estado = {
   rodarAux: (ligado: boolean) => Promise<void>;
   /** E a minha vez de escolher? Sempre `true` com o aux parado. */
   minhaVez: () => boolean;
+  /**
+   * Liga ou desliga o Radio da sala (6/10, `supabase/radio-no-jam.sql`).
+   * Quem pode mandar na sessão. Ligado, o anfitrião enche a fila partilhada
+   * pelo Radio quando ela está a acabar -- depois do que as pessoas puseram.
+   */
+  ligarRadio: (ligado: boolean) => Promise<void>;
   anunciarProntidao: (pronta: boolean, percentagem?: number) => Promise<void>;
 
   /** `aSeguir` poe no topo da fila partilhada em vez do fundo. */
@@ -106,7 +114,7 @@ type Estado = {
    * um fallback para repeat, rádio ou fila pessoal durante a sessão.
    */
   avancarPelaFila: () => Promise<boolean>;
-  /** Enche a fila partilhada quando ela esta a acabar. So o anfitriao. */
+  /** Enche a fila partilhada quando ela esta a acabar. So o anfitriao. Com o Radio da sala ligado, pelo Radio. */
   encherSeSecar: () => Promise<void>;
   /**
    * A app põe músicas na fila partilhada sem ninguém pedir?
@@ -259,7 +267,10 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
           // sair. Sai-se sozinho, mas DIZ-SE: uma barra que desaparece sem
           // explicação lê-se como a app ter estoirado.
           if (nova.acabouEm) { get().desligar(); set({ acabouSemAviso: true }); return; }
+          const radioAntes = get().sessao?.radio === true;
           set({ sessao: nova });
+          // Alguém ligou o Radio da sala: quem enche (o anfitrião) enche já.
+          if (nova.radio === true && !radioAntes) void get().encherSeSecar();
         }
       )
       .on(
@@ -460,6 +471,19 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     if (get().sessao?.id === s.id) await get().actualizar();
   },
 
+  ligarRadio: async (ligado) => {
+    const s = get().sessao;
+    if (!s || s.radio === null || !get().possoControlar()) return;
+    try {
+      await definirRadioDoJam(s.id, ligado);
+    } catch {
+      set({ aviso: ligado ? 'Could not start the Jam Radio. Try again.' : 'Could not stop the Jam Radio. Try again.' });
+      return;
+    }
+    if (get().sessao?.id === s.id) await get().actualizar();
+    if (ligado) void get().encherSeSecar();
+  },
+
   /**
    * E a MINHA vez de escolher?
    *
@@ -572,8 +596,10 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
 
   encherSeSecar: async () => {
     const s = get().sessao;
-    // Desligado o interruptor, a fila só tem o que alguém lá pos.
-    if (!get().autoFila) return;
+    // Com o Radio da sala ligado enche-se sempre (6/10); sem ele, desligado o
+    // interruptor, a fila só tem o que alguém lá pôs.
+    const comRadio = s?.radio === true;
+    if (!comRadio && !get().autoFila) return;
     if (!s || !get().souAnfitriao() || aEncher) return;
     if (get().fila.length >= MINIMO_NA_FILA) return;
     const actual = s.track;
@@ -582,13 +608,30 @@ export const useOuvirJuntos = create<Estado>((set, get) => ({
     const minha = geracao;
     const vigente = () => {
       const agora = get();
-      return geracao === minha && agora.autoFila && agora.souAnfitriao()
+      return geracao === minha && (agora.sessao?.radio === true ? comRadio : !comRadio && agora.autoFila) && agora.souAnfitriao()
         && agora.sessao?.id === s.id && !!agora.sessao.track
         && trackKey(agora.sessao.track) === trackKey(actual)
         && agora.fila.length < MINIMO_NA_FILA;
     };
     aEncher = true;
     try {
+      if (comRadio) {
+        // O Radio de sempre (api/radio.ts), a partir do que a SALA está a
+        // ouvir -- a de agora e as últimas cinco --, sem repetir o que já está
+        // na fila nem o mesmo artista colado.
+        const jaLa = [...get().fila.map((i) => i.track), ...contexto];
+        const doRadio = espalharArtistas(
+          await fetchRadioTracks(contexto, jaLa, POR_ENCHIMENTO, new Set<string>(), 'session'),
+          (t) => chaveDeArtista(displayArtist(t)),
+          [...get().fila.slice(-3).map((i) => i.track), actual].map((t) => chaveDeArtista(displayArtist(t))),
+        );
+        if (!doRadio.length || !vigente()) return;
+        const porJuntar = porSemear(doRadio, { fila: get().fila, track: actual }, trackKey);
+        if (!porJuntar.length) return;
+        const entraram = await juntarMuitasAFila(s.id, porJuntar);
+        if (entraram > 0 && get().sessao?.id === s.id) await get().actualizar();
+        return;
+      }
       const retrato = await retratoDaSessao(s.id);
       if (!vigente()) return;
       // As chaves canonicas, que e o que o `escolherAlvos` espera.
@@ -677,6 +720,7 @@ registarOuvirJuntos(() => {
     anfitriao: s.souAnfitriao(), convidadosControlam: s.sessao.convidadosControlam,
     temFaixa: !!s.sessao.track,
     semearAoTocar: s.autoFila,
+    radio: s.sessao.radio === null ? null : { ligado: s.sessao.radio, ligar: () => useOuvirJuntos.getState().ligarRadio(true) },
     sugerir: s.sugerir, semearFila: s.semearFila, anunciarFaixa: s.anunciarFaixa,
     alternarPausa: async () => {
       if (!aindaAqui()) return;

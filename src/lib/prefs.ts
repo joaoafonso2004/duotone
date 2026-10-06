@@ -20,6 +20,7 @@ const KEY_SEARCH_HISTORY = 'pref:searchHistory';
 const MAX_SEARCH_HISTORY = 10;
 const KEY_POT_SERVER_URL = 'pref:potServerUrl';
 const KEY_AUTOPLAY_RADIO = 'pref:autoplayRadio';
+const KEY_RADIO_AO_TOCAR = 'pref:radioAoTocar';
 const KEY_JAM_AUTO_FILA = 'pref:jamAutoFila';
 const KEY_VOLUME_NORMALIZATION = 'pref:volumeNormalization';
 const KEY_SOUND_PRESET = 'pref:soundPreset';
@@ -120,6 +121,18 @@ export async function getAutoplayRadio(): Promise<boolean> {
 }
 export async function setAutoplayRadio(v: boolean): Promise<void> {
   await setBool(KEY_AUTOPLAY_RADIO, v);
+}
+
+/**
+ * Tocar numa música liga o Radio a partir dela (6/10, pedido do João): o Up
+ * next deixa de ser o resto da lista e passa a ser música como aquela. O Play
+ * e o Shuffle de uma lista continuam a tocar a lista. Desligado de origem.
+ */
+export async function getRadioAoTocar(): Promise<boolean> {
+  return getBool(KEY_RADIO_AO_TOCAR, false);
+}
+export async function setRadioAoTocar(v: boolean): Promise<void> {
+  await setBool(KEY_RADIO_AO_TOCAR, v);
 }
 
 /** Normalização de volume entre faixas. Ligada por omissão — sem ela o salto

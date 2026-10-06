@@ -56,7 +56,8 @@ export function SongsScreen() {
   const navigation = useNavigation<any>();
   const { irPara } = useDestinos();
   
-  const playTrack = usePlayer((s) => s.playTrack);
+  // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
+  const tocarMusica = usePlayer((s) => s.tocarMusica);
   const tocarLista = usePlayer((s) => s.tocarLista);
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const ligado = usePlayer((s) => s.shuffle);
@@ -207,8 +208,8 @@ export function SongsScreen() {
   // redesenhar a lista inteira.
   const aoTocarNaLinha = useCallback((item: Track) => {
     if (selectMode) toggleSelection(item.id ?? `${item.source}:${item.sourceId}`);
-    else playTrack(item, sortedTracks, true, false, undefined, ORIGEM_GUARDADAS);
-  }, [selectMode, toggleSelection, playTrack, sortedTracks]);
+    else tocarMusica(item, sortedTracks, true, undefined, ORIGEM_GUARDADAS);
+  }, [selectMode, toggleSelection, tocarMusica, sortedTracks]);
   const desenharLinha = useCallback(({ item }: { item: Track }) => (
     <TrackRow
       track={item}

@@ -97,7 +97,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
     onClose();
     const player = usePlayer.getState();
     switch (id) {
-      case 'tocar-agora': void player.playTrack(t, [t], true, false, discoveryContext ?? undefined); return;
+      case 'tocar-agora': void player.tocarMusica(t, [t], true, discoveryContext ?? undefined); return;
       case 'tocar-a-seguir': player.playNext(t); return;
       case 'por-na-fila': player.addToQueue(t); return;
       case 'guardar':

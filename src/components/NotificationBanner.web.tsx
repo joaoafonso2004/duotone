@@ -57,7 +57,7 @@ function Aviso({ item, onOpen }: { item: InAppNotification; onOpen: (target: Not
   const abrir = () => { fechar(); onOpen(item.target); };
   const tocar = () => {
     if (!item.track) return;
-    void usePlayer.getState().playTrack(item.track, [item.track], false, false, undefined, null);
+    void usePlayer.getState().tocarMusica(item.track, [item.track], false, undefined, null);
     fechar();
   };
   const enviar = async () => {

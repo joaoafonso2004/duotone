@@ -60,6 +60,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
   const separadores = useAlturaDosSeparadores();
   const playTrack = usePlayer((s) => s.playTrack);
+  // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
+  const tocarMusica = usePlayer((s) => s.tocarMusica);
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
@@ -324,7 +326,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
           <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
         </Pressable> : <TrackRow track={item} showSavedBadge={activeTab === 'youtube_tracks'}
           acompanharATocar
-          onPress={() => playTrack(item, activeTab === 'library' ? tracks : otherTracks, true, false, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
+          onPress={() => tocarMusica(item, activeTab === 'library' ? tracks : otherTracks, true, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
       />
 
       <TrackActionsSheet

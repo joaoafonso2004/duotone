@@ -40,6 +40,7 @@ import {
 import {
   setShuffle as persistShuffle, setShuffleInteligente as persistShuffleInteligente,
   setPlaybackRate as persistPlaybackRate, setEqPadrao as persistEqPadrao,
+  setRadioAoTocar as persistRadioAoTocar,
 } from '../lib/prefs';
 import { queueTrackAdjustment } from './trackAdjustments';
 import { registarNaFila, registarNaVelocidade } from '../lib/playbackDiagnostics';
@@ -335,6 +336,17 @@ interface PlayerState {
   radioListeningSession: RadioListeningSession | null;
   startRadio: () => Promise<boolean>;
   stopRadio: () => void;
+  /** "Start Radio from a song" (Definições): ver `tocarMusica`. */
+  radioAoTocar: boolean;
+  setRadioAoTocar: (v: boolean) => void;
+  /**
+   * Tocar numa MÚSICA de uma lista (a linha, o cartão, o "Play now" de um
+   * menu). Com o `radioAoTocar` toca essa e o Up next passa a ser o Radio a
+   * partir dela; num Jam, toca essa e liga o Radio da sala. Desligado, é o
+   * `playTrack` de sempre. O Play e o Shuffle de uma lista não passam por
+   * aqui: continuam a tocar a lista.
+   */
+  tocarMusica: (track: Track, lista?: Track[], shouldExpand?: boolean, discoveryContext?: DiscoveryContext, origem?: OrigemDaFila | null) => Promise<void>;
   /** Normalizar o volume entre faixas (iOS). O YouTube não masteriza nada e
    * o salto de volume entre uploads é o defeito mais audível da fonte.
    * Ver lib/loudness.ts. */
@@ -999,6 +1011,7 @@ export const usePlayer = create<PlayerState>()(
   radioActive: false,
   radioMode: 'off', radioContext: [], radioOwner: null, radioStopped: false, radioError: null,
   radioListeningSession: null,
+  radioAoTocar: false,
   volumeNormalization: true,
   crossfadeSegundos: 0,
   intensidadeSmartShuffle: 'normal',
@@ -1697,6 +1710,27 @@ export const usePlayer = create<PlayerState>()(
   },
 
   stopRadio: () => { radioRequest++; set({ radioMode: 'off', radioStopped: true, radioError: null }); },
+
+  setRadioAoTocar: (v) => { set({ radioAoTocar: v }); void persistRadioAoTocar(v); },
+
+  tocarMusica: async (track, lista, shouldExpand, discoveryContext, origem) => {
+    // Sem rede o Radio não arranca; a seguir um amigo, tocar noutra música
+    // deixa de o seguir e é o caminho de sempre que trata disso.
+    if (!get().radioAoTocar || useConnectivity.getState().offline || seguindoAmigo()) {
+      return get().playTrack(track, lista, shouldExpand, false, discoveryContext, origem);
+    }
+    // Só esta música: o resto da lista não vai atrás (nem para a fila do Jam).
+    await get().playTrack(track, [track], shouldExpand, false, discoveryContext, origem);
+    const jam = ouvirJuntos();
+    if (jam) {
+      // Num Jam, o Radio é da sala, e liga-o quem pode mandar nela.
+      if (jam.radio && !jam.radio.ligado && decisaoDeControlo(jam) === 'anunciar') await jam.radio.ligar().catch(() => {});
+      return;
+    }
+    // O `startRadio` confirma ele próprio que a música ainda é esta (outro
+    // toque entretanto muda o pedido e ele desiste).
+    if (get().radioMode === 'off') await get().startRadio();
+  },
 
   setVolumeNormalization: (v) => set({ volumeNormalization: v }),
 

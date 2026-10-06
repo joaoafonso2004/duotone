@@ -50,6 +50,8 @@ export function YtPlaylistRecommendationSheet({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const playTrack = usePlayer((s) => s.playTrack);
+  // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
+  const tocarMusica = usePlayer((s) => s.tocarMusica);
   const theme = useTheme((s) => s.theme);
 
   // shared_items.playlist_id tanto pode ser um ID de playlist do YOUTUBE
@@ -200,7 +202,7 @@ export function YtPlaylistRecommendationSheet({
             renderItem={({ item }) => (
               <TrackRow
                 track={item}
-                onPress={() => playTrack(item, tracks, true)}
+                onPress={() => tocarMusica(item, tracks, true)}
               />
             )}
           />

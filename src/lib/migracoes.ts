@@ -87,6 +87,7 @@ export const MIGRACOES: readonly Migracao[] = [
   { ficheiro: 'entrar-na-sessao-do-amigo.sql', marca: 'fn:sessoes_dos_amigos', efeito: "Join a friend's Jam" },
   { ficheiro: 'jam-passa-o-anfitriao.sql', marca: 'fn:passar_ou_fechar_sessao', efeito: 'Jam continues when the host leaves' },
   { ficheiro: 'fechar-jams-abandonadas.sql', marca: 'fn:fechar_jams_abandonadas', efeito: 'Abandoned Jams close on their own' },
+  { ficheiro: 'radio-no-jam.sql', marca: 'col:listening_sessions.radio', efeito: 'Radio in a Jam' },
 
   { ficheiro: 'estado-das-migracoes.sql', marca: 'fn:marcas_em_falta', efeito: 'This check' },
 ];

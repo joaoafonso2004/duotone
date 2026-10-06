@@ -119,6 +119,16 @@ export function efeitoDaNormalizacao(e: {
   return `This song: −${e.loudnessDb.toFixed(1)} dB`;
 }
 
+/**
+ * "Start Radio from a song" (6/10): o que tocar numa música faz agora. O
+ * Play de uma lista não muda, e a frase diz isso.
+ */
+export function efeitoDoRadioAoTocar(ligado: boolean): string {
+  return ligado
+    ? 'Tapping a song plays Radio after it · Play on a list still plays the list'
+    : 'Tapping a song plays the rest of its list after it';
+}
+
 /** O rádio, e de onde vêm as músicas -- a cascata de api/radio.ts, por ordem. */
 export function efeitoDoRadio(e: { ligado: boolean; aTocarRadio: boolean }): string {
   if (!e.ligado) return 'The queue stops at its last song';

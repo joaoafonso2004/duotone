@@ -33,7 +33,8 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
   const cab = useCabecalhoQueEncolhe();
   const insets = useSafeAreaInsets();
   const tema = useTheme((s) => s.theme);
-  const playTrack = usePlayer((s) => s.playTrack);
+  // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
+  const tocarMusica = usePlayer((s) => s.tocarMusica);
 
   const [ano, setAno] = useState<number | undefined>(route.params?.ano);
   const [resultado, setResultado] = useState<ResultadoRetrospetiva | null>(null);
@@ -64,7 +65,7 @@ export function RetrospetivaScreen({ navigation, route }: Props) {
       artworkUrl: t.artworkUrl,
       durationSeconds: null,
     };
-    playTrack(faixa, [faixa], true);
+    tocarMusica(faixa, [faixa], true);
   };
 
   const faixaDoAno = r?.base.topTracks[0] ?? null;

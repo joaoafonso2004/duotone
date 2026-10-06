@@ -91,7 +91,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   // A barra dos separadores MEDIDA (auditoria 1.3), não um 49 à mão.
   const separadores = useAlturaDosSeparadores();
-  const playTrack = usePlayer((s) => s.playTrack);
+  // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
+  const tocarMusica = usePlayer((s) => s.tocarMusica);
   const tocarLista = usePlayer((s) => s.tocarLista);
   const inteligente = usePlayer((s) => s.shuffleInteligente);
   const ligado = usePlayer((s) => s.shuffle);
@@ -256,8 +257,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   // De onde vem a lista: o "Jump back in" da Home volta aqui (lib/recentes.ts).
   const origem = useMemo(() => ({ tipo: 'playlist' as const, nome: name, id }), [name, id]);
   const aoTocarNaLinha = useCallback((item: Track) => {
-    playTrack(item, visibleTracks, true, false, undefined, origem);
-  }, [playTrack, visibleTracks, origem]);
+    tocarMusica(item, visibleTracks, true, undefined, origem);
+  }, [tocarMusica, visibleTracks, origem]);
 
   /**
    * O "Remove from this playlist" do menu: tira logo, sem pergunta, e o aviso

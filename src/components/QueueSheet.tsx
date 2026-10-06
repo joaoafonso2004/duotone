@@ -250,9 +250,9 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
           </Pressable>
         )}
         {/* O Radio ao lado do Clear (5/10): os dois mexem no que vem a seguir.
-            Num Jam a fila é de todos, e não aparece; a seguir um amigo, ligar
-            deixa de o seguir. */}
-        {!emSessao && current ? <RadioQueueControl/> : null}
+            Num Jam é o Radio da sala (6/10); a seguir um amigo, ligar deixa de
+            o seguir. A pastilha sabe quando não aparece. */}
+        <RadioQueueControl/>
         {/* Tirar tudo o que vem a seguir. Num Jam a fila é de todos, e não se
             limpa daqui. Sem pergunta (3/10): o aviso deixa desfazer. */}
         {!emSessao && upNext.length > 0 && (
