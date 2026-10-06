@@ -266,12 +266,20 @@ export async function fecharJamsAbandonadas(): Promise<void> {
 export async function minhasSessoesAbertas(userId: string): Promise<{ id: string; sessao: SessaoDeEscuta; entrouEm: number }[]> {
   const { data } = await supabase
     .from('listening_members').select('session_id, joined_at').eq('user_id', userId);
-  const abertas: { id: string; sessao: SessaoDeEscuta; entrouEm: number }[] = [];
-  for (const linha of (data ?? []) as { session_id: string; joined_at: string | null }[]) {
-    const s = await lerSessao(linha.session_id);
-    if (s && !s.acabouEm) abertas.push({ id: s.id, sessao: s, entrouEm: instante(linha.joined_at) ?? 0 });
-  }
-  return abertas;
+  const linhas = (data ?? []) as { session_id: string; joined_at: string | null }[];
+  if (!linhas.length) return [];
+  // As abertas numa consulta só (6/10). Era um pedido por cada Jam em que se
+  // esteve -- as que acabam (abandonadas, ou o anfitrião a sair sozinho) não
+  // tiram os membros --, a cada abertura da app: 722 listening_sessions num dia.
+  const { data: sessoes, error } = await supabase
+    .from('listening_sessions').select('*')
+    .in('id', [...new Set(linhas.map((l) => l.session_id))])
+    .is('ended_at', null);
+  if (error || !sessoes) return [];
+  const entrouEm = new Map(linhas.map((l) => [l.session_id, instante(l.joined_at) ?? 0]));
+  return sessoes.map(sessaoDaLinha)
+    .filter((s) => !s.acabouEm)
+    .map((s) => ({ id: s.id, sessao: s, entrouEm: entrouEm.get(s.id) ?? 0 }));
 }
 
 // ---------------------------------------------------------------------------

@@ -20,8 +20,11 @@
 export const TIQUE_DA_INBOX_MS = 15_000;
 /** Sem Realtime: uma leitura por minuto. */
 export const TIQUES_SEM_REALTIME = 4;
-/** Com Realtime e a app à frente: uma a cada cinco minutos. */
-export const TIQUES_COM_REALTIME = 20;
+/**
+ * Com Realtime e a app à frente: uma a cada quinze minutos (eram cinco; 6/10,
+ * os logs do Supabase -- um PC com a janela à vista lia o dia inteiro).
+ */
+export const TIQUES_COM_REALTIME = 60;
 
 export interface MomentoDaInbox {
   /** O canal do Realtime está `SUBSCRIBED`. */

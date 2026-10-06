@@ -20,11 +20,11 @@ assert.equal(deveRelerAInbox({ ...base, tiques: TIQUES_SEM_REALTIME }), true, 's
 // sem Realtime, é a única maneira de lá chegar uma mensagem.
 assert.equal(deveRelerAInbox({ ...base, visivel: false, tiques: TIQUES_SEM_REALTIME }), true);
 
-// Com Realtime: cinco minutos com a app à frente, nunca escondida.
-assert.equal(TIQUE_DA_INBOX_MS * TIQUES_COM_REALTIME, 5 * 60_000);
+// Com Realtime: quinze minutos com a app à frente, nunca escondida.
+assert.equal(TIQUE_DA_INBOX_MS * TIQUES_COM_REALTIME, 15 * 60_000);
 const aoVivo = { ...base, aoVivo: true };
 assert.equal(deveRelerAInbox({ ...aoVivo, tiques: TIQUES_COM_REALTIME - 1 }), false, 'com Realtime não se lê a cada minuto');
-assert.equal(deveRelerAInbox({ ...aoVivo, tiques: TIQUES_COM_REALTIME }), true, 'com Realtime, a rede de cinco minutos');
+assert.equal(deveRelerAInbox({ ...aoVivo, tiques: TIQUES_COM_REALTIME }), true, 'com Realtime, a rede de quinze minutos');
 assert.equal(deveRelerAInbox({ ...aoVivo, visivel: false, tiques: 10_000 }), false,
   'escondida e com Realtime, quem avisa é ele: o tabuleiro do PC não lê o dia todo');
 

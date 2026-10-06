@@ -7,7 +7,7 @@ import {daPersistencia,type AjusteDaFaixa,type MemoriaDeAjustes} from '../lib/eq
 import {lerAjustesRemotos,guardarAjusteRemoto} from '../api/ajustes';
 import {useConnectivity} from './connectivity';
 import {useAuth} from './auth';
-import {appEstaVisivel} from '../lib/appVisibility';
+import {appEstaVisivel,intervaloComAppVisivel} from '../lib/appVisibility';
 
 export const useAdjustmentSync=create<{status:AdjustmentStatus}>(()=>({status:'loading'}));
 let active:{userId:string;engine:AdjustmentSync;flush:()=>void}|null=null;
@@ -59,7 +59,8 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
   // Há Realtime e cada edição já agenda um flush. Este intervalo é apenas uma
   // recuperação; 15 s repetia leituras sem alterações e mantinha a app/janela
   // escondida ocupada sem benefício.
-  const interval=setInterval(()=>recuperar(10*60_000),120000);
+  // Só com a app à vista (6/10): no tabuleiro do PC relia o dia todo.
+  const pararIntervalo=intervaloComAppVisivel(()=>recuperar(10*60_000),120000);
   const channel=supabase.channel(`track-adjustments:${userId}`).on('postgres_changes',
     {event:'*',schema:'public',table:'user_track_adjustments',filter:`user_id=eq.${userId}`},(payload)=>{
       // O eco da própria escrita não relê nada; o que veio de outro aparelho, sim.
@@ -77,6 +78,6 @@ export function startTrackAdjustmentSync(userId:string,apply:(values:MemoriaDeAj
   if(Platform.OS==='web'){window.addEventListener('online',flush);window.addEventListener('focus',aoFocar);document.addEventListener('visibilitychange',aoFocar);}
   flush();
   return()=>{stopped=true;engine.stop();if(active?.engine===engine)active=null;if(timer)clearTimeout(timer);
-    clearInterval(interval);reconnect();focus.remove();void supabase.removeChannel(channel);
+    pararIntervalo();reconnect();focus.remove();void supabase.removeChannel(channel);
     if(Platform.OS==='web'){window.removeEventListener('online',flush);window.removeEventListener('focus',aoFocar);document.removeEventListener('visibilitychange',aoFocar);}};
 }

@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { idDaConta } from '../lib/idDaConta';
-import { upsertTrack } from './library';
+import { upsertTrack, upsertTracks } from './library';
 import type { Track } from '../types';
 
 import { artistasParaRecomendar, HISTORICO_QUE_CHEGA } from '../lib/artistasSemente';
@@ -90,6 +90,19 @@ export async function enviarEscutasAtrasadas(
 let avisouDoInicio = false;
 
 /**
+ * Os inícios esperam e vão JUNTOS (6/10): eram dois pedidos por música
+ * começada (o catálogo e o `faixas_comecadas`), e cada skip é uma música
+ * começada -- 641 num dia, nos logs do Supabase. Só o Rare Finds os lê, e não
+ * tem pressa. Saem ao fim de 5 min ou com 20 à espera, num pedido ao catálogo
+ * (o que ainda lá não está) e outro ao `faixas_comecadas`.
+ */
+export const INICIOS_ESPERAM_MS = 5 * 60_000;
+export const INICIOS_POR_LOTE = 20;
+type Inicio = { track: Track; conta: string; em: string };
+const iniciosPorEnviar = new Map<string, Inicio>();
+let envioDosInicios: ReturnType<typeof setTimeout> | null = null;
+
+/**
  * Uma faixa COMEÇADA, tenha ou não chegado a contar.
  *
  * Existe porque o `plays` deixou de receber o clique: sem isto, uma sugestão
@@ -98,22 +111,69 @@ let avisouDoInicio = false;
  * vez. Ver `supabase/contar-so-o-ouvido.sql`.
  */
 export async function registarInicioDaFaixa(track: Track): Promise<void> {
+  // A conta de AGORA: sair dela antes do envio não pode pôr o início noutra.
+  const conta = await idDaConta();
+  if (!conta) return;
+  const chave = `${track.source}:${track.sourceId}`;
+  iniciosPorEnviar.delete(chave);
+  iniciosPorEnviar.set(chave, { track, conta, em: new Date().toISOString() });
+  if (iniciosPorEnviar.size >= INICIOS_POR_LOTE) return enviarInicios();
+  envioDosInicios ??= setTimeout(() => { void enviarInicios(); }, INICIOS_ESPERAM_MS);
+}
+
+/** Manda os inícios que estão à espera. Uma falha da rede volta a pô-los na fila. */
+export async function enviarInicios(): Promise<void> {
+  if (envioDosInicios) { clearTimeout(envioDosInicios); envioDosInicios = null; }
+  if (!iniciosPorEnviar.size) return;
+  const lote = [...iniciosPorEnviar.values()];
+  iniciosPorEnviar.clear();
+  const conta = await idDaConta();
+  // Os de outra conta (saiu-se entretanto) não vão para esta.
+  const desta = lote.filter((i) => i.conta === conta);
+  if (!conta || !desta.length) return;
   try {
-    const trackId = await idNoCatalogo(track);
-    const userId = await currentUserId();
-    const { error } = await supabase.from('faixas_comecadas').upsert(
-      { user_id: userId, track_id: trackId, comecada_em: new Date().toISOString() },
-      { onConflict: 'user_id,track_id' },
-    );
+    const ids = await idsNoCatalogoEmLote(desta.map((i) => i.track));
+    const linhas = desta.flatMap((i) => {
+      const id = ids.get(`${i.track.source}:${i.track.sourceId}`);
+      return id ? [{ user_id: conta, track_id: id, comecada_em: i.em }] : [];
+    });
+    if (!linhas.length) return;
+    const { error } = await supabase.from('faixas_comecadas').upsert(linhas, { onConflict: 'user_id,track_id' });
     // Sem a migração corrida a tabela não existe. Diz-se uma vez e não a cada
-    // música: o Rare Finds fica só com as ouvidas, que era o que tinha.
+    // lote: o Rare Finds fica só com as ouvidas, que era o que tinha.
     if (error && !avisouDoInicio) {
       avisouDoInicio = true;
       console.warn('Não foi possível registar o início da faixa:', error.message);
     }
   } catch {
-    // Sem sessão ou sem rede: é um "já a vi", não vale um erro.
+    // Sem rede: voltam para a fila (a não ser que já lá esteja um mais novo),
+    // até um teto, e vão no próximo envio. É um "já a vi", não vale um erro.
+    for (const i of desta) {
+      const chave = `${i.track.source}:${i.track.sourceId}`;
+      if (!iniciosPorEnviar.has(chave) && iniciosPorEnviar.size < 200) iniciosPorEnviar.set(chave, i);
+    }
+    if (iniciosPorEnviar.size) envioDosInicios ??= setTimeout(() => { void enviarInicios(); }, INICIOS_ESPERAM_MS);
   }
+}
+
+/** O `id` no catálogo de várias faixas: as que já se sabem e um pedido para as outras. */
+async function idsNoCatalogoEmLote(tracks: readonly Track[]): Promise<Map<string, string>> {
+  const ids = new Map<string, string>();
+  const faltam: Track[] = [];
+  for (const t of tracks) {
+    const chave = `${t.source}:${t.sourceId}`;
+    const sabido = idsNoCatalogo.get(chave);
+    if (sabido) ids.set(chave, await sabido);
+    else faltam.push(t);
+  }
+  if (faltam.length) {
+    for (const [chave, id] of await upsertTracks(faltam)) {
+      ids.set(chave, id);
+      idsNoCatalogo.set(chave, Promise.resolve(id));
+      if (idsNoCatalogo.size > 200) idsNoCatalogo.delete(idsNoCatalogo.keys().next().value!);
+    }
+  }
+  return ids;
 }
 
 /** As faixas começadas há menos tempo, da mais recente para a mais antiga. */

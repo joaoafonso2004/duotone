@@ -23,6 +23,7 @@ const TESTES = [
   'scripts/test-capas-com-audio.cjs',
   'scripts/test-cache-em-memoria.cjs',
   'scripts/test-consumo-supabase.cjs',
+  'scripts/test-pedidos-ao-supabase.cjs',
   'scripts/test-jam-leituras.cjs',
   'scripts/test-sincronizacao-economica.mjs',
   'scripts/test-snapshot-e-historico.cjs',

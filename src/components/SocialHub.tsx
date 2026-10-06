@@ -184,11 +184,13 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   },[query]);
   useEffect(()=>{
     if(!conversation || !visible)return;
-    let active=true,loading=false,firstLoad=true,reload=false;
+    let active=true,loading=false,firstLoad=true,reload=false,aoVivo=false,jaLigou=false,ultimaCarga=0,esteveAtras=false,perdida=false;
     setMessages([]);setHasOlder(false);setChatLoading(true);
     const load=async()=>{
-      if(!active || !appEstaVisivel())return;
-      if(loading){reload=true;return;}loading=true;reload=false;
+      if(!active)return;
+      // Escondida não lê, mas fica a dever: o próximo foco relê.
+      if(!appEstaVisivel()){perdida=true;return;}
+      if(loading){reload=true;return;}loading=true;reload=false;perdida=false;ultimaCarga=Date.now();
       try{const rows=conversation.kind==='group'?await getGroupMessages(conversation.id):await getChatMessages(conversation.id);
         if(active){if(firstLoad){setHasOlder(rows.length===100);firstLoad=false;}setMessages(previous=>mergeMessages(previous,rows));useSocial.getState().rememberConversation(key,rows);const last=rows.filter(m=>m.sender.id!==myId).at(-1);if(last&&canRead())await useSocial.getState().markRead(key,last.createdAt);}}
       catch(e:any){if(active)setError(e.message || 'Could not refresh this conversation.');}
@@ -196,21 +198,37 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
     };
     // Realtime entrega mensagens novas imediatamente. Esta consulta é apenas
     // recuperação para uma ligação silenciosamente caída; seis segundos
-    // mantinham o chat a pedir a mesma página dez vezes por minuto.
+    // mantinham o chat a pedir a mesma página dez vezes por minuto. Com o canal
+    // ligado, de cinco em cinco minutos (6/10, logs do Supabase).
     const inboxIds = (rows: SharedItem[]) => rows.filter(m => conversation.kind === 'group'
       ? m.groupId === conversation.id : !m.groupId && m.sender.id === conversation.id).map(m => m.id).join(',');
+    // As dos outros chegam pela inbox (é ela que as lê, uma vez para a app toda).
     const inboxSubscription = useSocial.subscribe((next, previous) => {
       if (next.received !== previous.received && inboxIds(next.received) !== inboxIds(previous.received)) void load();
     });
-    const focus = () => { if (canRead()) void load(); };
+    // Voltar à janela relia a conversa a cada foco (no Windows, cada alt-tab):
+    // com o canal ligado, só passado um minuto, ou depois de o iPhone a ter
+    // tido em segundo plano (aí o Realtime não entrega).
+    const focus = (estado?: unknown) => {
+      if (estado === 'background') { esteveAtras = true; return; }
+      if (!canRead()) return;
+      if (aoVivo && !esteveAtras && !perdida && Date.now() - ultimaCarga < 60_000) return;
+      esteveAtras = false;
+      void load();
+    };
     const app = AppState.addEventListener('change', focus);
     if (web) window.addEventListener('focus', focus);
-    void load();const pararTimer=intervaloComAppVisivel(()=>void load(),60000);
+    let voltas = 0;
+    void load();const pararTimer=intervaloComAppVisivel(()=>{if(!aoVivo||++voltas%5===0)void load();},60000);
+    // Só as MINHAS desta conversa (mandadas noutro aparelho): qualquer mensagem
+    // que eu pudesse ver, de qualquer conversa, relia esta.
+    const minhaDaqui=(r:{sender_id?:string;recipient_id?:string|null;group_id?:string|null}|null|undefined)=>!!r&&r.sender_id===myId
+      &&(conversation.kind==='group'?r.group_id===conversation.id:!r.group_id&&r.recipient_id===conversation.id);
     const channel=supabase.channel(`chat:${key}`)
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'shared_items'},()=>void load())
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'shared_items'},(evento)=>{if(minhaDaqui(evento.new as any))void load();})
       // As reações chegam pelo seu próprio evento, sem esperar pelo polling.
       .on('postgres_changes',{event:'*',schema:'public',table:'item_reactions'},()=>void recarregarReacoesRef.current())
-      .subscribe();
+      .subscribe((estado)=>{const antes=aoVivo;aoVivo=estado==='SUBSCRIBED';if(aoVivo&&!antes&&jaLigou)void load();if(aoVivo)jaLigou=true;});
     return()=>{active=false;app.remove();if(web)window.removeEventListener('focus',focus);inboxSubscription();pararTimer();void supabase.removeChannel(channel);};
   },[key,visible,conversation,myId]);
   const loadOlder=async()=>{

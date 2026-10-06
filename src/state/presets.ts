@@ -7,7 +7,7 @@ import {
   daPersistenciaDePresets, fundirPresets, type LinhaDosPresets, type MemoriaDePresets,
 } from '../lib/presetsDoEqualizador';
 import { guardarPresetRemoto, lerPresetsRemotos } from '../api/presets';
-import { appEstaVisivel } from '../lib/appVisibility';
+import { appEstaVisivel, intervaloComAppVisivel } from '../lib/appVisibility';
 import { useAuth } from './auth';
 import { useConnectivity } from './connectivity';
 
@@ -109,8 +109,10 @@ export function iniciarPresets(userId: string): () => void {
     if (estado !== 'active') return;
     if (Platform.OS === 'web') aoFocar(); else flush();
   });
-  // Rede de segurança; quem avisa na hora é o Realtime.
-  const intervalo = setInterval(() => recuperar(10 * 60_000), 120000);
+  // Rede de segurança; quem avisa na hora é o Realtime. Só com a app à vista
+  // (6/10): no tabuleiro do PC relia de dez em dez minutos o dia todo, e ao
+  // voltar o foco já relê o que passou de cinco.
+  const pararIntervalo = intervaloComAppVisivel(() => recuperar(10 * 60_000), 120000);
   const canal = supabase.channel(`eq-presets:${userId}`).on('postgres_changes',
     { event: '*', schema: 'public', table: 'user_eq_presets', filter: `user_id=eq.${userId}` }, (payload) => {
       // O eco da própria escrita não relê nada.
@@ -136,7 +138,7 @@ export function iniciarPresets(userId: string): () => void {
     engine.stop();
     if (ativo?.engine === engine) ativo = null;
     if (timer) clearTimeout(timer);
-    clearInterval(intervalo);
+    pararIntervalo();
     aoVoltarARede();
     aoAbrir.remove();
     void supabase.removeChannel(canal);
