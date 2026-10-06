@@ -13,7 +13,9 @@ import {
   ladosPorConfirmar,
   registarNomeDoCatalogo,
   nomesDeConfianca,
+  procurarNoTexto,
   VOCABULARIO_VAZIO,
+  type Vocabulario,
 } from '../src/lib/artistName.ts';
 
 let mau = 0;
@@ -273,6 +275,73 @@ eq('um título que é só parênteses fica como estava',
 // As listas não mudam: é lá que se distingue a versão.
 eq('as listas continuam com a versão',
   tituloDaFaixa(yt('TESLA (Slowed electro mix)')), 'TESLA (Slowed electro mix)');
+
+// ------------------------------------------------ o aquecimento (6/10) ----
+console.log('\na procura no texto pelas palavras dá o mesmo que percorrer o vocabulário');
+{
+  // O algoritmo de antes, tal e qual: é a referência.
+  const antes = (texto: string, v: Vocabulario): string | null => {
+    const chaveDoTexto = ` ${chaveDeArtista(texto)} `;
+    let melhor: string | null = null, melhorTamanho = 0;
+    for (const [chave, nome] of v.fiaveis) {
+      if (chave.length < 3) continue;
+      if (chave.length > melhorTamanho && chaveDoTexto.includes(` ${chave} `)) { melhor = nome; melhorTamanho = chave.length; }
+    }
+    return melhor;
+  };
+  let semente = 11;
+  const aleatorio = () => { semente = (semente * 1103515245 + 12345) & 0x7fffffff; return semente / 0x7fffffff; };
+  const palavras = ['juice', 'wrld', 'lil', 'uzi', 'vert', 'carti', 'ab', 'x', 'the', 'kid', 'cudi', 'mac', 'miller', '21', 'savage', 'a', 'rocky', 'sza', 'go'];
+  const frase = (n: number) => Array.from({ length: n }, () => palavras[Math.floor(aleatorio() * palavras.length)]).join(' ');
+  let iguais = 0, total = 0;
+  for (let ronda = 0; ronda < 60; ronda++) {
+    const fiaveis = new Map<string, string>();
+    for (let i = 0; i < 40; i++) {
+      const nome = frase(1 + Math.floor(aleatorio() * 3));
+      const chave = chaveDeArtista(nome);
+      // Grafias diferentes para chaves do mesmo tamanho: o empate decide-se pela ordem.
+      if (!fiaveis.has(chave)) fiaveis.set(chave, `${nome.toUpperCase()}#${i}`);
+    }
+    const v: Vocabulario = { ...VOCABULARIO_VAZIO, fiaveis };
+    for (let i = 0; i < 40; i++) {
+      const texto = `${frase(1 + Math.floor(aleatorio() * 7))} (Official Video)`;
+      total++;
+      if (procurarNoTexto(texto, v) === antes(texto, v)) iguais++;
+    }
+  }
+  check(`o mesmo resultado em ${total} textos ao acaso`, iguais === total, `${total - iguais} diferentes`);
+  const v: Vocabulario = { ...VOCABULARIO_VAZIO, fiaveis: new Map([['juice', 'Juice'], ['juice wrld', 'Juice WRLD'], ['go', 'Go']]) };
+  eq('fica com o nome mais longo', procurarNoTexto('Juice Wrld Lucid Dreams', v), 'Juice WRLD');
+  eq('nomes com menos de três letras não contam', procurarNoTexto('go go go', v), null);
+  eq('texto vazio', procurarNoTexto('', v), null);
+}
+
+console.log('\na memória do nome e do título é por vocabulário');
+{
+  const t = { source: 'youtube', title: 'Meus planos - BrazzaOg', artist: 'Canal Qualquer' };
+  const sem = displayArtist(t, VOCABULARIO_VAZIO);
+  const comBrazza = aprenderVocabulario([{ title: 'x', artist: 'BrazzaOg - Topic' }]);
+  eq('sem vocabulário, o lado esquerdo', sem, 'Meus planos');
+  eq('com outro vocabulário a resposta muda (não fica a antiga)', displayArtist(t, comBrazza), 'BrazzaOg');
+  eq('e a primeira continua certa', displayArtist(t, VOCABULARIO_VAZIO), 'Meus planos');
+  eq('o título também', tituloDaFaixa(t, comBrazza), 'Meus planos');
+  eq('repetir dá o mesmo', displayArtist(t, comBrazza), 'BrazzaOg');
+}
+
+console.log('\na confiança guardada só vale para o mesmo conteúdo e o mesmo catálogo');
+{
+  const tres = (artista: string) => ['Um', 'Dois', 'Tres'].map((m) => ({ title: `${artista} - ${m}`, artist: 'uploads' }));
+  const lista = [...tres('Artista Guardado')];
+  const k = chaveDeArtista('Artista Guardado');
+  check('três faixas: de confiança', nomesDeConfianca(lista).has(k));
+  const devolvida = nomesDeConfianca(lista);
+  devolvida.clear();
+  check('mexer no que se devolveu não estraga a guardada', nomesDeConfianca(lista).has(k));
+  check('com uma faixa a menos o resultado é outro', !nomesDeConfianca(lista.slice(0, 2)).has(k));
+  // O catálogo diz que o nome não é artista: tem de contar, mesmo com o conteúdo igual.
+  registarNomeDoCatalogo('Artista Guardado', null);
+  check('uma resposta nova do catálogo refaz a conta', !nomesDeConfianca(lista).has(k));
+}
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

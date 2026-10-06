@@ -2,7 +2,7 @@ import { AppState } from 'react-native';
 import * as Battery from 'expo-battery';
 import { cpuDoProcesso } from '../../modules/duotone-diagnostico';
 import {
-  compararRetratos, dadosDoEvento, guardarPeriodo, lerRetrato, textoDaEnergia,
+  compararRetratos, dadosDoEvento, guardarPeriodo, lerRetrato, MINUTOS_MINIMOS_A_FRENTE, textoDaEnergia,
   type Periodo, type Retrato,
 } from '../lib/energiaEmSegundoPlano';
 import { registar } from '../lib/eventos';
@@ -31,7 +31,7 @@ function fecharPeriodoAFrente(r: Retrato | null): void {
   ultimoAFrente = r;
   if (!antes) return;
   const p = compararRetratos(antes, r);
-  const novos = guardarPeriodo(periodosAFrente, p);
+  const novos = guardarPeriodo(periodosAFrente, p, MINUTOS_MINIMOS_A_FRENTE);
   if (novos === periodosAFrente || !p) return;
   periodosAFrente = novos;
   registar('primeiro_plano', dadosDoEvento(p));

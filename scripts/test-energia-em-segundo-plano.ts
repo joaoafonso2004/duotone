@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   compararRetratos, dadosDoEvento, grupoDaThread, guardarPeriodo, lerRetrato,
-  normalizarNome, textoDaEnergia, MINUTOS_MINIMOS, PERIODOS_GUARDADOS,
+  normalizarNome, textoDaEnergia, MINUTOS_MINIMOS, MINUTOS_MINIMOS_A_FRENTE, PERIODOS_GUARDADOS,
 } from '../src/lib/energiaEmSegundoPlano.ts';
 
 let falhas = 0;
@@ -88,6 +88,10 @@ caso('períodos curtos não contam, e guardam-se só os últimos', () => {
   const a = lerRetrato({ totalMs: 0 }, extra(0))!;
   const curto = compararRetratos(a, lerRetrato({ totalMs: 10 }, extra(MINUTOS_MINIMOS * 60_000 - 1))!);
   assert.equal(guardarPeriodo([], curto).length, 0);
+  // À frente conta a partir de 15 s (6/10): o minuto que aqueceu teve 59 s.
+  const minutoCurto = compararRetratos(a, lerRetrato({ totalMs: 10 }, extra(59_000))!);
+  assert.equal(guardarPeriodo([], minutoCurto, MINUTOS_MINIMOS_A_FRENTE).length, 1, 'à frente, 59 s contam');
+  assert.equal(guardarPeriodo([], minutoCurto).length, 0, 'em segundo plano, não');
   assert.equal(compararRetratos(a, a), null, 'sem tempo não há período');
   let lista = guardarPeriodo([], null);
   for (let i = 1; i <= PERIODOS_GUARDADOS + 2; i++) {

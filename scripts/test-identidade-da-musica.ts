@@ -74,5 +74,14 @@ check('"Video Games" não perde o "Video"', tituloDeIdentidade('Video Games') ==
 check('as chaves cabem na memória dos 30 dias',
   chavesDaMusica(faixa({ title: 'Drake, 21 Savage - Rich Flex (Audio)', artist: 'Drake - Topic' })).length <= 12);
 
+console.log('\na memória das chaves (6/10, o aquecimento)');
+{
+  const f = faixa({ title: 'Drake - Rich Flex (Audio)', artist: 'Some Uploads' });
+  const a = chavesDaMusica(f), b = chavesDaMusica({ ...f });
+  check('a mesma faixa noutro objeto dá as mesmas chaves', JSON.stringify(a) === JSON.stringify(b));
+  check('as chaves guardadas não se podem estragar', Object.isFrozen(a));
+  check('outro upload da mesma música tem outra chave de upload', chavesDaMusica({ ...f, sourceId: 'outro' })[0] !== a[0]);
+}
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

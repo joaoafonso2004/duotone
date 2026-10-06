@@ -205,10 +205,13 @@ export type FaixaParaAprender = { source?: string; title: string; artist: string
 
 /** Respostas do catálogo, preenchidas ao ler a biblioteca, nunca no desenho. */
 const nomesDoCatalogo = new Map<string, string | null>();
+/** Sobe a cada resposta registada: o `nomesDeConfianca` depende delas. */
+let versaoDoCatalogo = 0;
 
 export function registarNomeDoCatalogo(procurado: string, confirmado: string | null): void {
   nomesDoCatalogo.set(chaveDeArtista(procurado), confirmado);
   if (confirmado) nomesDoCatalogo.set(chaveDeArtista(confirmado), confirmado);
+  versaoDoCatalogo++;
 }
 
 /** Só consulta títulos ambíguos; um canal oficial ou um lado conhecido já resolve. */
@@ -488,17 +491,59 @@ function extrairBruto(
  * MAIS LONGO que casar, senão "Juice" ganhava a "Juice WRLD".
  *
  * `porChave` não pode ser usado aqui: inclui canais de upload aprendidos como
- * fallback e fazia esses canais transformarem-se em artistas definitivos. */
-function procurarNoTexto(texto: string, vocabulario: Vocabulario): string | null {
-  const chaveDoTexto = ` ${chaveDeArtista(texto)} `;
-  let melhor: string | null = null;
-  let melhorTamanho = 0;
-  for (const [chave, nome] of vocabulario.fiaveis) {
+ * fallback e fazia esses canais transformarem-se em artistas definitivos.
+ *
+ * **Procura pelas PALAVRAS do texto, não pelo vocabulário inteiro** (6/10, o
+ * aquecimento). Percorria todos os nomes fiáveis -- que incluem os confirmados
+ * pelo catálogo, ~1500 numa biblioteca de 2500 faixas -- e criava uma string
+ * por cada um, para cada título sem " - " e outra vez para o canal. Medido em
+ * Node: 47 ms por passagem pela biblioteca; no Hermes do iPhone, sem JIT,
+ * segundos, e o rádio, o Smart Shuffle e a descoberta fazem várias. Uma chave
+ * casa quando é uma sequência de palavras seguidas do texto (as duas vêm do
+ * `chaveDeArtista`, palavras separadas por um espaço), por isso basta procurar
+ * cada sequência no índice. O resultado é o mesmo: a mais longa, e no empate a
+ * que entrou primeiro no vocabulário (`test-artist-name.ts`). */
+type IndiceDosFiaveis = { porChave: Map<string, { nome: string; ordem: number }>; maxPalavras: number };
+const indicesDosFiaveis = new WeakMap<ReadonlyMap<string, string>, IndiceDosFiaveis>();
+
+function indiceDosFiaveis(fiaveis: ReadonlyMap<string, string>): IndiceDosFiaveis {
+  let indice = indicesDosFiaveis.get(fiaveis);
+  if (indice) return indice;
+  const porChave = new Map<string, { nome: string; ordem: number }>();
+  let maxPalavras = 0;
+  let ordem = 0;
+  for (const [chave, nome] of fiaveis) {
+    ordem++;
     // Nomes curtíssimos dariam falsos positivos dentro de palavras comuns.
     if (chave.length < 3) continue;
-    if (chave.length > melhorTamanho && chaveDoTexto.includes(` ${chave} `)) {
-      melhor = nome;
-      melhorTamanho = chave.length;
+    porChave.set(chave, { nome, ordem });
+    maxPalavras = Math.max(maxPalavras, chave.split(' ').length);
+  }
+  indice = { porChave, maxPalavras };
+  indicesDosFiaveis.set(fiaveis, indice);
+  return indice;
+}
+
+export function procurarNoTexto(texto: string, vocabulario: Vocabulario): string | null {
+  const chaveDoTexto = chaveDeArtista(texto);
+  if (!chaveDoTexto) return null;
+  const { porChave, maxPalavras } = indiceDosFiaveis(vocabulario.fiaveis);
+  if (!porChave.size) return null;
+  const palavras = chaveDoTexto.split(' ');
+  let melhor: string | null = null;
+  let melhorTamanho = 0;
+  let melhorOrdem = Infinity;
+  for (let i = 0; i < palavras.length; i++) {
+    let candidata = '';
+    for (let j = i; j < palavras.length && j - i < maxPalavras; j++) {
+      candidata = j === i ? palavras[i]! : `${candidata} ${palavras[j]}`;
+      const achada = porChave.get(candidata);
+      if (!achada) continue;
+      if (candidata.length > melhorTamanho || (candidata.length === melhorTamanho && achada.ordem < melhorOrdem)) {
+        melhor = achada.nome;
+        melhorTamanho = candidata.length;
+        melhorOrdem = achada.ordem;
+      }
     }
   }
   return melhor;
@@ -546,9 +591,53 @@ export function vocabularioAprendido(): Vocabulario {
   return vocabularioDaBiblioteca;
 }
 
+/**
+ * **A memória do `displayArtist` e do `tituloDaFaixa`, por vocabulário** (6/10,
+ * o aquecimento). Os dois correm sobre a biblioteca inteira várias vezes por
+ * música -- o rádio, o Smart Shuffle, a descoberta, a identidade de cada faixa
+ * da fila (`chavesDaMusica` chama-os quatro vezes) -- e nada guardava o
+ * resultado. Um vocabulário nunca muda depois de feito (aprender outra vez faz
+ * um novo), por isso a mesma faixa com o mesmo vocabulário dá sempre o mesmo
+ * nome; o WeakMap larga a memória de um vocabulário que já não se usa.
+ */
+const MAXIMO_NA_MEMORIA = 20_000;
+type MemoriaDoVocabulario = { artista: Map<string, string>; titulo: Map<string, string> };
+const memoriasPorVocabulario = new WeakMap<Vocabulario, MemoriaDoVocabulario>();
+
+function memoriaDe(vocabulario: Vocabulario): MemoriaDoVocabulario {
+  let m = memoriasPorVocabulario.get(vocabulario);
+  if (!m) {
+    m = { artista: new Map(), titulo: new Map() };
+    memoriasPorVocabulario.set(vocabulario, m);
+  }
+  return m;
+}
+
+function chaveDaFaixa(t: { source?: string; title: string; artist: string | null }): string {
+  return `${t.source ?? ''}\u0000${t.artist ?? ''}\u0000${t.title ?? ''}`;
+}
+
+function lembrar(memoria: Map<string, string>, chave: string, valor: string): string {
+  // Uma biblioteca, as playlists e as sugestões cabem; acima disto recomeça.
+  if (memoria.size >= MAXIMO_NA_MEMORIA) memoria.clear();
+  memoria.set(chave, valor);
+  return valor;
+}
+
 export function displayArtist(
   t: { source?: string; title: string; artist: string | null },
   vocabulario: Vocabulario = vocabularioAprendido(),
+): string {
+  const memoria = memoriaDe(vocabulario).artista;
+  const chave = chaveDaFaixa(t);
+  const sabido = memoria.get(chave);
+  if (sabido !== undefined) return sabido;
+  return lembrar(memoria, chave, calcularArtista(t, vocabulario));
+}
+
+function calcularArtista(
+  t: { source?: string; title: string; artist: string | null },
+  vocabulario: Vocabulario,
 ): string {
   if (t.source && t.source !== 'youtube') {
     const nome = artistaPrincipal(clean(t.artist ?? ''));
@@ -577,7 +666,19 @@ export function tituloDaFaixa(
   const bruto = (t.title ?? '').trim();
   // Fora do YouTube o título vem da API da fonte e já é só o título.
   if (!bruto || (t.source && t.source !== 'youtube')) return bruto;
+  // Pela mesma memória do `displayArtist`: depende da faixa e do vocabulário.
+  const memoria = memoriaDe(vocabulario).titulo;
+  const chave = chaveDaFaixa(t);
+  const sabido = memoria.get(chave);
+  if (sabido !== undefined) return sabido;
+  return lembrar(memoria, chave, calcularTitulo(t, bruto, vocabulario));
+}
 
+function calcularTitulo(
+  t: { source?: string; title: string; artist: string | null },
+  bruto: string,
+  vocabulario: Vocabulario,
+): string {
   let texto = limparPrefixoDeUpload(bruto).replace(NUMERO_DE_FAIXA_RE, '').trim();
 
   const artista = displayArtist(t, vocabulario);
@@ -718,7 +819,49 @@ export const FAIXAS_PARA_CONFIAR = 3;
  * Devolve chaves canónicas (`chaveDeArtista`), que é a moeda com que o resto
  * da afinidade trabalha.
  */
+/**
+ * **A última resposta fica guardada** (6/10, o aquecimento). A descoberta
+ * (`escolherAlvos`) chama isto a cada sugestão do Smart Shuffle e a cada lote
+ * do rádio, com ~5000 faixas (biblioteca + playlists) num array NOVO de cada
+ * vez -- e por isso refazia o vocabulário e a contagem: 118 ms em Node antes
+ * das outras correções, 20 ms depois, e várias vezes isso no iPhone. A
+ * impressão é do conteúdo, por ordem (a ordem decide empates no vocabulário),
+ * e a versão do catálogo entra porque as respostas dele também contam.
+ */
+let ultimaConfianca: { impressao: string; versao: number; resultado: Set<string> } | null = null;
+
+function impressaoDasFaixas(faixas: readonly FaixaParaAprender[]): string {
+  // Duas FNV-1a de 32 bits com constantes diferentes: 64 bits, e o número de faixas.
+  let a = 0x811c9dc5, b = 0x9747b28c;
+  const passar = (texto: string | null | undefined) => {
+    // `null` e '' contam diferente: o `displayArtist` também os distingue.
+    if (texto == null) { a = Math.imul(a ^ 1, 16777619); b = Math.imul(b ^ 1, 2246822519); return; }
+    for (let i = 0; i < texto.length; i++) {
+      const c = texto.charCodeAt(i);
+      a = Math.imul(a ^ c, 16777619);
+      b = Math.imul(b ^ c, 2246822519);
+    }
+    a = Math.imul(a ^ 0xffff, 16777619);
+    b = Math.imul(b ^ 0xffff, 2246822519);
+  };
+  for (const f of faixas) { passar(f.source); passar(f.title); passar(f.artist); }
+  return `${faixas.length}:${(a >>> 0).toString(36)}:${(b >>> 0).toString(36)}`;
+}
+
 export function nomesDeConfianca(
+  faixas: readonly FaixaParaAprender[],
+): Set<string> {
+  const impressao = impressaoDasFaixas(faixas);
+  if (ultimaConfianca && ultimaConfianca.impressao === impressao && ultimaConfianca.versao === versaoDoCatalogo) {
+    return new Set(ultimaConfianca.resultado);
+  }
+  const versao = versaoDoCatalogo;
+  const resultado = calcularConfianca(faixas);
+  ultimaConfianca = { impressao, versao, resultado: new Set(resultado) };
+  return resultado;
+}
+
+function calcularConfianca(
   faixas: readonly FaixaParaAprender[],
 ): Set<string> {
   // O vocabulário serve aqui só para dar nomes melhores ao contar — corrige a

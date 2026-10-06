@@ -48,6 +48,12 @@ export type Periodo = {
 
 /** Abaixo disto não é um período: é o desbloquear e voltar. */
 export const MINUTOS_MINIMOS = 1;
+/**
+ * Com a app À FRENTE conta a partir de 15 s (6/10): o minuto que aqueceu o
+ * iPhone do João (abrir a app, tocar uma música, bloquear) teve 59 s e ficou
+ * de fora do relatório.
+ */
+export const MINUTOS_MINIMOS_A_FRENTE = 0.25;
 export const PERIODOS_GUARDADOS = 5;
 
 /** Os números e endereços dos nomes saem: `queue.0x1c2` e `queue.0x3f4` são a mesma coisa. */
@@ -134,8 +140,8 @@ export function compararRetratos(a: Retrato, b: Retrato): Periodo | null {
 }
 
 /** Junta um período à lista (os mais recentes no fim), se durou o suficiente. */
-export function guardarPeriodo(lista: readonly Periodo[], p: Periodo | null): readonly Periodo[] {
-  if (!p || p.minutos < MINUTOS_MINIMOS) return lista;
+export function guardarPeriodo(lista: readonly Periodo[], p: Periodo | null, minimo = MINUTOS_MINIMOS): readonly Periodo[] {
+  if (!p || p.minutos < minimo) return lista;
   return [...lista, p].slice(-PERIODOS_GUARDADOS);
 }
 
@@ -153,7 +159,7 @@ export function textoDaEnergia(periodos: readonly Periodo[], agora: number, aFre
     : 'background energy (CPU of one core while the app was in the background):'];
   if (!periodos.length) {
     linhas.push(aFrente
-      ? '  no foreground period of 1 min or more yet'
+      ? '  no foreground period of 15 s or more yet'
       : '  no background period of 1 min or more since the app opened');
     return linhas.join('\n');
   }
