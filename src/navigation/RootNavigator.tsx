@@ -1,3 +1,4 @@
+import { useAtalhosDoIcone } from '../hooks/useAtalhosDoIcone';
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import { CommonActions } from '@react-navigation/native';
 import { rotaNoIphone, type Destino } from '../lib/destinos';
@@ -389,6 +390,8 @@ export function RootNavigator() {
   },[socialReceived,socialSeen,socialFriends]);
 
   useInAppNotifications(visibleConversation);
+  // Os atalhos do ícone (7/10): Resume, Daily mix, Shuffle Liked Songs.
+  useAtalhosDoIcone(session?.user.id ?? null);
 
   if (!initialized) return <Splash />;
 

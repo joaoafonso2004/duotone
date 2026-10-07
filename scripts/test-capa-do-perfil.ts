@@ -33,38 +33,47 @@ for (const [w, h] of [[0, 0], [-1, 10], [10, 0]]) {
 
 console.log('Capa do perfil: cobre a caixa, mantém o rácio, ancora ao topo nas duas plataformas.');
 
-// --- O degradê que esconde o fim da capa ---
-import { degradeDaCapa } from '../src/lib/profileImageCrop.ts';
+// --- A capa dissolve-se no ambiente (7/10, variante B) ---
+import { veuDoAmbiente, veuDoTopo, DISSOLVE_DESDE, EXTENSAO_DO_AMBIENTE } from '../src/lib/profileImageCrop.ts';
 
 const FUNDO = '#0A0A0F';
-const d = degradeDaCapa(FUNDO);
-
-assert.equal(d.cores.length, d.paragens.length, 'uma paragem por cor');
-assert.equal(d.paragens[0], 0, 'começa no topo');
-assert.equal(d.paragens[d.paragens.length - 1], 1, 'acaba no fundo');
-
-for (let i = 1; i < d.paragens.length; i++) {
-  assert.ok(d.paragens[i]! > d.paragens[i - 1]!, `paragens sempre a subir (${i})`);
-}
-
-// A opacidade do véu, depois da zona limpa do topo, nunca pode descer: uma
-// descida a meio devolvia a fotografia e criava uma segunda aresta.
 const alfa = (c: string) => (c.startsWith('#') ? 1 : Number(/([\d.]+)\)$/.exec(c)![1]));
-for (let i = 2; i < d.cores.length; i++) {
-  assert.ok(alfa(d.cores[i]!) >= alfa(d.cores[i - 1]!), `opacidade sem recuos (${i})`);
+for (const alturaDaCapa of [100, 300, 333, 1200]) {
+  const d = veuDoAmbiente(alturaDaCapa, FUNDO);
+  assert.equal(d.cores.length, d.paragens.length, 'uma paragem por cor');
+  assert.equal(d.paragens[0], 0, 'começa no topo');
+  assert.equal(d.paragens[d.paragens.length - 1], 1, 'acaba no fundo');
+  for (let i = 1; i < d.paragens.length; i++) {
+    assert.ok(d.paragens[i]! > d.paragens[i - 1]!, `paragens sempre a subir (${alturaDaCapa}, ${i})`);
+  }
+  // O ambiente escurece sempre para baixo, nunca devolve a fotografia.
+  for (let i = 1; i < d.cores.length; i++) {
+    assert.ok(alfa(d.cores[i]!) >= alfa(d.cores[i - 1]!), `véu sem recuos (${alturaDaCapa}, ${i})`);
+  }
+  // Opaco ANTES do fim da caixa: o desfoque transborda, e o corte cai sobre cor lisa.
+  const primeiroOpaco = d.cores.findIndex((c) => alfa(c) === 1);
+  assert.ok(primeiroOpaco > 0 && d.paragens[primeiroOpaco]! < 1, 'chega ao fundo antes do fim');
+  assert.equal(d.cores[d.cores.length - 1], FUNDO, 'a última cor é o fundo da página');
+  // Por trás da capa o ambiente é leve: é ele que se vê quando a nítida se dissolve.
+  assert.ok(alfa(d.cores[0]!) <= 0.35, 'leve no topo');
+}
+assert.ok(DISSOLVE_DESDE >= 0.5 && DISSOLVE_DESDE <= 0.7, 'a nítida fica inteira até mais de metade');
+assert.ok(EXTENSAO_DO_AMBIENTE >= 250, 'o ambiente chega à secção seguinte (era o espaço preto)');
+const topo = veuDoTopo();
+assert.equal(alfa(topo.cores[topo.cores.length - 1]!), 0, 'o véu do topo (horas, botões) acaba transparente');
+assert.ok(topo.paragens[topo.paragens.length - 1]! <= 0.25, 'e acaba cedo');
+
+// A capa já não escurece até ao preto: é uma máscara (dissolve) por cima do ambiente.
+const heroi = (await import('node:fs')).readFileSync(new URL('../src/components/ProfileHero.tsx', import.meta.url), 'utf8');
+assert.match(heroi, /<DissolverEmBaixo desde=\{DISSOLVE_DESDE\}>/, 'a capa nítida dissolve-se');
+assert.match(heroi, /<AmbienteDaCapa fonte=\{cover\}/, 'e o ambiente está por trás do cabeçalho');
+assert.match(heroi, /blurRadius=\{40\}/, 'o desfoque é da imagem, não ao vivo');
+assert.doesNotMatch(heroi, /BlurView/, 'nada de desfoque ao vivo no perfil');
+for (const f of ['src/components/DissolverEmBaixo.tsx', 'src/components/DissolverEmBaixo.web.tsx']) {
+  assert.ok((await import('node:fs')).existsSync(new URL(`../${f}`, import.meta.url)), `${f} existe (par de plataforma)`);
 }
 
-// Opaco ANTES da aresta: é isto que impede o corte de se ver.
-const primeiroOpaco = d.cores.findIndex((c) => alfa(c) === 1);
-assert.ok(primeiroOpaco > 0, 'chega a opaco');
-assert.ok(d.paragens[primeiroOpaco]! <= 0.95, 'chega a opaco antes do fim');
-assert.equal(d.cores[d.cores.length - 1], FUNDO, 'a última cor é o fundo da página');
-
-// A chegada tem de ser mansa: um último salto grande volta a marcar a linha.
-assert.ok(alfa(d.cores[primeiroOpaco]!) - alfa(d.cores[primeiroOpaco - 1]!) <= 0.15,
-  'o último passo até ao opaco é pequeno');
-
-console.log('Degradê da capa: monótono, opaco antes da aresta e com chegada suave.');
+console.log('Capa do perfil: dissolve-se num ambiente desfocado que acaba no fundo, sem espaço preto.');
 
 // --- A altura do cabeçalho no PC ---
 import { alturaDoCabecalhoNoPc, ALTURA_MINIMA_DO_CABECALHO, FRACAO_MAXIMA_DA_JANELA } from '../src/lib/profileImageCrop.ts';
@@ -201,10 +210,8 @@ for (const largura of [375, 393, 402, 430, 440]) {
 }
 assert.equal(alturaDaCapaNoTelemovel(0), 0, 'sem largura medida, sem caixa');
 
-// A fotografia fica limpa até mais de metade: o escurecimento começava aos
-// 46% e a capa "acabava a meio".
-const limpaAte = d.paragens[d.cores.findIndex((c, i) => i > 1 && alfa(c) > 0) - 1]!;
-assert.ok(limpaAte >= 0.55, `limpa até ${limpaAte}`);
-assert.equal(alfa(d.cores[1]!), 0, 'o véu do topo (botões, horas) acaba cedo');
+// A fotografia fica nítida até mais de metade (era o "acaba a meio"): agora é a
+// máscara que manda, e só começa em DISSOLVE_DESDE.
+assert.ok(DISSOLVE_DESDE >= 0.55, `nítida até ${DISSOLVE_DESDE}`);
 
-console.log('Capa no telemóvel: a fotografia inteira, limpa até mais de metade.');
+console.log('Capa no telemóvel: a fotografia inteira, nítida até mais de metade.');

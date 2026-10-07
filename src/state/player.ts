@@ -40,7 +40,6 @@ import {
 import {
   setShuffle as persistShuffle, setShuffleInteligente as persistShuffleInteligente,
   setPlaybackRate as persistPlaybackRate, setEqPadrao as persistEqPadrao,
-  setRadioAoTocar as persistRadioAoTocar,
 } from '../lib/prefs';
 import { queueTrackAdjustment } from './trackAdjustments';
 import { registarNaFila, registarNaVelocidade } from '../lib/playbackDiagnostics';
@@ -334,17 +333,19 @@ interface PlayerState {
   radioStopped: boolean;
   radioError: string | null;
   radioListeningSession: RadioListeningSession | null;
-  startRadio: () => Promise<boolean>;
+  /**
+   * `daMusica`: o Radio parte só da música que toca, e não do que se ouviu na
+   * sessão -- é o de tocar numa música com o Radio ligado (`tocarMusica`).
+   */
+  startRadio: (daMusica?: boolean) => Promise<boolean>;
   stopRadio: () => void;
-  /** "Start Radio from a song" (Definições): ver `tocarMusica`. */
-  radioAoTocar: boolean;
-  setRadioAoTocar: (v: boolean) => void;
   /**
    * Tocar numa MÚSICA de uma lista (a linha, o cartão, o "Play now" de um
-   * menu). Com o `radioAoTocar` toca essa e o Up next passa a ser o Radio a
-   * partir dela; num Jam, toca essa e liga o Radio da sala. Desligado, é o
-   * `playTrack` de sempre. O Play e o Shuffle de uma lista não passam por
-   * aqui: continuam a tocar a lista.
+   * menu). **Com o Radio ligado, ele fica ligado** (7/10): toca essa e o Up
+   * next recomeça o Radio a partir dela; num Jam com o Radio da sala, toca
+   * essa sem a lista atrás. Sem Radio, é o `playTrack` de sempre. O Play e o
+   * Shuffle de uma lista não passam por aqui: tocam a lista e desligam o Radio
+   * (foi a lista que se pediu).
    */
   tocarMusica: (track: Track, lista?: Track[], shouldExpand?: boolean, discoveryContext?: DiscoveryContext, origem?: OrigemDaFila | null) => Promise<void>;
   /** Normalizar o volume entre faixas (iOS). O YouTube não masteriza nada e
@@ -1011,7 +1012,6 @@ export const usePlayer = create<PlayerState>()(
   radioActive: false,
   radioMode: 'off', radioContext: [], radioOwner: null, radioStopped: false, radioError: null,
   radioListeningSession: null,
-  radioAoTocar: false,
   volumeNormalization: true,
   crossfadeSegundos: 0,
   intensidadeSmartShuffle: 'normal',
@@ -1671,11 +1671,11 @@ export const usePlayer = create<PlayerState>()(
 
   setAutoplayRadio: (v) => set({ autoplayRadio: v }),
 
-  startRadio: async () => {
+  startRadio: async (daMusica = false) => {
     const before = get(), current = before.current;
     if (!current || before.radioMode === 'preparing' || ouvirJuntos() || seguindoAmigo() || useConnectivity.getState().offline) return false;
     const request = ++radioRequest, owner = donoDoSmartShuffle(), playbackRequest = playRequestId;
-    const context = radioSessionSeeds(before.radioListeningSession, owner, current, displayArtist, chaveDeArtista);
+    const context = daMusica ? [current] : radioSessionSeeds(before.radioListeningSession, owner, current, displayArtist, chaveDeArtista);
     set({ radioMode: 'preparing', radioError: null });
     const valid = () => request === radioRequest && playbackRequest === playRequestId && get().current === current && get().queue === before.queue
       && get().radioMode === 'preparing' && donoDoSmartShuffle() === owner && !ouvirJuntos() && !seguindoAmigo() && !useConnectivity.getState().offline;
@@ -1711,25 +1711,25 @@ export const usePlayer = create<PlayerState>()(
 
   stopRadio: () => { radioRequest++; set({ radioMode: 'off', radioStopped: true, radioError: null }); },
 
-  setRadioAoTocar: (v) => { set({ radioAoTocar: v }); void persistRadioAoTocar(v); },
-
   tocarMusica: async (track, lista, shouldExpand, discoveryContext, origem) => {
+    // O Radio ligado é um MODO e fica ligado (7/10, pedido do João: "algo
+    // toggleable no player" em vez de uma opção nas Definições): é a pastilha
+    // do Up next. Num Jam conta o Radio da sala.
+    const jam = ouvirJuntos();
+    const comRadio = jam ? jam.radio?.ligado === true : get().radioMode !== 'off';
     // Sem rede o Radio não arranca; a seguir um amigo, tocar noutra música
     // deixa de o seguir e é o caminho de sempre que trata disso.
-    if (!get().radioAoTocar || useConnectivity.getState().offline || seguindoAmigo()) {
+    if (!comRadio || useConnectivity.getState().offline || seguindoAmigo()) {
       return get().playTrack(track, lista, shouldExpand, false, discoveryContext, origem);
     }
-    // Só esta música: o resto da lista não vai atrás (nem para a fila do Jam).
+    // Só esta música: o resto da lista não vai atrás (nem para a fila do Jam,
+    // que o Radio da sala continua a encher).
     await get().playTrack(track, [track], shouldExpand, false, discoveryContext, origem);
-    const jam = ouvirJuntos();
-    if (jam) {
-      // Num Jam, o Radio é da sala, e liga-o quem pode mandar nela.
-      if (jam.radio && !jam.radio.ligado && decisaoDeControlo(jam) === 'anunciar') await jam.radio.ligar().catch(() => {});
-      return;
-    }
-    // O `startRadio` confirma ele próprio que a música ainda é esta (outro
-    // toque entretanto muda o pedido e ele desiste).
-    if (get().radioMode === 'off') await get().startRadio();
+    if (jam) return;
+    // O `playTrack` de uma lista nova desligou-o; volta a partir desta. O
+    // `startRadio` confirma ele próprio que a música ainda é esta (outro toque
+    // entretanto muda o pedido e ele desiste).
+    if (get().radioMode === 'off') await get().startRadio(true);
   },
 
   setVolumeNormalization: (v) => set({ volumeNormalization: v }),

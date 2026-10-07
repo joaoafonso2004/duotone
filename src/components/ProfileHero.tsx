@@ -1,4 +1,4 @@
-import React,{useRef,useState} from 'react';
+import React,{useState} from 'react';
 import {Animated,Platform,Pressable,StyleSheet,Text,useWindowDimensions,View} from 'react-native';
 import {Image} from 'expo-image';
 import {profileImageCacheKey} from '../lib/profileMedia';
@@ -8,10 +8,10 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {SocialProfile} from '../api/profiles';
 import {FriendAvatar} from './FriendAvatar';
 import {socialStyles as s} from './socialUI';
-import {alturaDaCapaNoTelemovel,alturaDoCabecalhoNoPc,degradeDaCapa,enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA} from '../lib/profileImageCrop';
+import {alturaDaCapaNoTelemovel,alturaDoCabecalhoNoPc,DISSOLVE_DESDE,EXTENSAO_DO_AMBIENTE,enquadrarCapa,enquadrarPreVisualizacao,RACIO_DA_CAPA,veuDoAmbiente,veuDoTopo} from '../lib/profileImageCrop';
+import {DissolverEmBaixo} from './DissolverEmBaixo';
 import {colors,SOCIAL_GUTTER} from './socialTokens';
 import {useTheme} from '../state/theme';
-import type {Ancora} from './MenuFlutuante';
 
 /** O avatar sobe esta parte por cima da capa. */
 const SOBREPOSICAO=44;
@@ -21,12 +21,15 @@ const AVATAR=80;
 export type RecorteDaCapa={largura:number;altura:number;x:number;y:number;zoom?:number};
 
 /**
- * A capa de um perfil: a fotografia a cobrir a caixa, alinhada ao topo, e o
- * degradê que a acaba no fundo da página.
+ * A capa de um perfil: a fotografia a cobrir a caixa, alinhada ao topo.
  *
  * **A fotografia como ela é** (5/10, variante A de `docs/perfil-capa.html`):
- * a 100%, sem as vinhetas dos lados nem o véu da cor dela por cima. Com a
- * caixa a mostrar a fotografia inteira, eram só camadas a apagá-la.
+ * a 100%, sem as vinhetas dos lados nem o véu da cor dela por cima.
+ *
+ * **E não acaba: dissolve-se** (7/10, variante B): em vez de escurecer até ao
+ * preto, a partir de `DISSOLVE_DESDE` fica transparente e deixa ver o
+ * `AmbienteDaCapa` -- a mesma fotografia, desfocada --, que continua por trás
+ * do nome. Ver `veuDoAmbiente` em lib/profileImageCrop.ts.
  *
  * `rolagem` (o scroll da página, só no iPhone): a fotografia sobe a metade da
  * velocidade do texto. Puxar para baixo no topo não a mexe.
@@ -35,7 +38,7 @@ export function CapaDoPerfil({cover,recorte,rolagem}:{cover:string|null;recorte?
   const [caixa,setCaixa]=useState({largura:0,altura:0});
   const parallax=React.useMemo(()=>rolagem?[{translateY:rolagem.interpolate({inputRange:[0,1],outputRange:[0,0.5],extrapolateLeft:'clamp'})}]:undefined,[rolagem]);
   if(!cover)return null;
-  const degrade=degradeDaCapa(colors.bg);
+  const topo=veuDoTopo();
   const imagem=()=>{
     if(!caixa.largura||!caixa.altura)return null;
     // No editor a imagem ainda é a original: quem manda é o gesto em curso.
@@ -49,13 +52,34 @@ export function CapaDoPerfil({cover,recorte,rolagem}:{cover:string|null;recorte?
       style={{position:'absolute',width:e.largura,height:e.altura,left:e.left,top:e.top}}/>;
   };
   return <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-    {/* O desfoque por baixo preenche o que a capa não tape em proporções extremas. */}
-    <Image source={{uri:cover,cacheKey:profileImageCacheKey(cover)}} contentFit="cover" cachePolicy="memory-disk" blurRadius={32} style={[StyleSheet.absoluteFill,{opacity:0.1}]}/>
-    <View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})}
-      style={[StyleSheet.absoluteFill,{overflow:'hidden'}]}>
-      <Animated.View style={[StyleSheet.absoluteFill,parallax&&{transform:parallax}]}>{imagem()}</Animated.View>
-    </View>
-    <LinearGradient colors={degrade.cores} locations={degrade.paragens} style={StyleSheet.absoluteFill}/>
+    <DissolverEmBaixo desde={DISSOLVE_DESDE}>
+      <View onLayout={e=>setCaixa({largura:e.nativeEvent.layout.width,altura:e.nativeEvent.layout.height})}
+        style={[StyleSheet.absoluteFill,{overflow:'hidden'}]}>
+        <Animated.View style={[StyleSheet.absoluteFill,parallax&&{transform:parallax}]}>{imagem()}</Animated.View>
+      </View>
+    </DissolverEmBaixo>
+    <LinearGradient colors={topo.cores} locations={topo.paragens} style={StyleSheet.absoluteFill}/>
+  </View>;
+}
+
+/**
+ * Por trás de tudo, da capa até à "Song of the moment": a mesma fotografia,
+ * muito desfocada e escura, a apagar-se no fundo da página (7/10, variante B).
+ * Era um espaço preto à volta do nome. Sobe com a capa (o mesmo parallax). O
+ * desfoque é da imagem (`blurRadius`, calculado uma vez), nunca um desfoque ao
+ * vivo -- ver "Aquecimento e bateria" no CLAUDE.md.
+ */
+function AmbienteDaCapa({fonte,alturaDaCapa,rolagem}:{fonte:string|null;alturaDaCapa:number;rolagem?:Animated.Value}) {
+  const parallax=React.useMemo(()=>rolagem?[{translateY:rolagem.interpolate({inputRange:[0,1],outputRange:[0,0.5],extrapolateLeft:'clamp'})}]:undefined,[rolagem]);
+  if(!fonte||!(alturaDaCapa>0))return null;
+  const altura=alturaDaCapa+EXTENSAO_DO_AMBIENTE;
+  const veu=veuDoAmbiente(alturaDaCapa,colors.bg);
+  return <View pointerEvents="none" style={{position:'absolute',left:0,right:0,top:0,height:altura,overflow:'hidden'}}>
+    <Animated.View style={[{position:'absolute',left:'-20%',right:'-20%',top:0,height:altura},parallax&&{transform:parallax}]}>
+      <Image source={{uri:fonte,cacheKey:profileImageCacheKey(fonte)}} contentFit="cover" cachePolicy="memory-disk" blurRadius={40}
+        style={{width:'100%',height:'100%',opacity:0.6,transform:[{scale:1.15}]}}/>
+    </Animated.View>
+    <LinearGradient colors={veu.cores} locations={veu.paragens} style={StyleSheet.absoluteFill}/>
   </View>;
 }
 
@@ -71,14 +95,12 @@ export function BotaoDeVidro({label,icon,onPress,badge=0}:{label:string;icon:key
   </Pressable>;
 }
 
-/** O menu de ações nasce junto ao botão que o abriu. */
-function BotaoDeOpcoes({onPress}:{onPress:(ancora:Ancora)=>void}) {
-  const caixa=useRef<View>(null);
-  return <View ref={caixa} collapsable={false}>
-    <BotaoDeVidro label="Profile options" icon="ellipsis-horizontal" onPress={()=>{
-      caixa.current?.measureInWindow((x,y,width,height)=>onPress({x,y,width,height}));
-    }}/>
-  </View>;
+/**
+ * As estatísticas, à vista (7/10): eram a única opção de um "⋯", e um menu com
+ * uma linha só é um toque a mais.
+ */
+function BotaoDasEstatisticas({onPress}:{onPress:()=>void}) {
+  return <BotaoDeVidro label="Listening stats" icon="stats-chart-outline" onPress={onPress}/>;
 }
 
 type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:number;status?:string;
@@ -90,7 +112,7 @@ type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:numb
    */
   botoesFora?:boolean;
   onEdit:()=>void;onMessage:()=>void;onBack?:()=>void;
-  onSocial?:()=>void;onOptions?:(ancora:Ancora)=>void;onRefresh:()=>void;onAddFriend:()=>void;pending:boolean;
+  onSocial?:()=>void;onStats?:()=>void;onRefresh:()=>void;onAddFriend:()=>void;pending:boolean;
   /** "You two", ao lado do Message, só com amizade aceite. */
   onVocesOsDois?:()=>void;
   /** Onde acaba o nome, para a barra de cima aparecer quando ele passa por baixo dela. */
@@ -103,7 +125,7 @@ type Props={profile:SocialProfile|null;own:boolean;cover:string|null;unread:numb
  * Perfil Editorial (4/10): identidade centrada e compacta, com biografia
  * opcional. As estatísticas abrem pelo menu do perfil, fora do cabeçalho.
  */
-export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,onEdit,onMessage,onBack,onSocial,onOptions,onRefresh,onAddFriend,pending,onVocesOsDois,aoMedirNome,rolagem}:Props) {
+export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,onEdit,onMessage,onBack,onSocial,onStats,onRefresh,onAddFriend,pending,onVocesOsDois,aoMedirNome,rolagem}:Props) {
   const web=Platform.OS==='web',safe=useSafeAreaInsets();
   const acento=useTheme(t=>t.theme.color);
   const {width:larguraDaJanela,height:alturaDaJanela}=useWindowDimensions();
@@ -117,7 +139,7 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,
     {onBack&&<BotaoDeVidro label="Back" icon="chevron-back" onPress={onBack}/>}
     <View style={{flex:1}}/>
     {own&&onSocial&&<BotaoDeVidro label="Friends and chats" icon="chatbubbles-outline" onPress={onSocial} badge={unread}/>}
-    {onOptions&&<BotaoDeOpcoes onPress={onOptions}/>}
+    {onStats&&<BotaoDasEstatisticas onPress={onStats}/>}
     {web&&<BotaoDeVidro label="Refresh profile" icon="refresh-outline" onPress={onRefresh}/>}
   </View>;
   const pilula=(rotulo:string,onPress:()=>void,{icone,branca=false,cor}:{icone?:keyof typeof Ionicons.glyphMap;branca?:boolean;cor?:string}={})=>
@@ -128,6 +150,8 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,
     </Pressable>;
 
   return <View onLayout={web?(e=>setLargura(e.nativeEvent.layout.width)):undefined} style={{backgroundColor:colors.bg}}>
+    {/* Primeiro, para ficar por baixo da capa e do nome; transborda para a secção seguinte e apaga-se lá. */}
+    <AmbienteDaCapa fonte={cover} alturaDaCapa={alturaDaCapa} rolagem={rolagem}/>
     <View style={{height:alturaDaCapa,overflow:'hidden'}}>
       <CapaDoPerfil cover={cover} recorte={recorte} rolagem={rolagem}/>
       {!botoesFora&&botoes}
@@ -156,7 +180,7 @@ export function ProfileHero({profile,own,cover,unread,status,recorte,botoesFora,
 }
 
 /** Os botões de cima, para quem os põe fora do scroll (o iPhone). */
-export function BotoesDoPerfil({own,unread,onBack,onSocial,onSettings,onOptions}:{own:boolean;unread:number;onBack?:()=>void;onSocial?:()=>void;onSettings?:()=>void;onOptions?:(ancora:Ancora)=>void}) {
+export function BotoesDoPerfil({own,unread,onBack,onSocial,onSettings,onStats}:{own:boolean;unread:number;onBack?:()=>void;onSocial?:()=>void;onSettings?:()=>void;onStats?:()=>void}) {
   const safe=useSafeAreaInsets();
   return <View pointerEvents="box-none" style={[s.row,{gap:10,position:'absolute',top:safe.top+8,left:SOCIAL_GUTTER,right:SOCIAL_GUTTER,zIndex:5}]}>
     {onBack&&<BotaoDeVidro label="Back" icon="chevron-back" onPress={onBack}/>}
@@ -164,7 +188,7 @@ export function BotoesDoPerfil({own,unread,onBack,onSocial,onSettings,onOptions}
     {own&&onSocial&&<BotaoDeVidro label="Friends and chats" icon="chatbubbles-outline" onPress={onSocial} badge={unread}/>}
     {/* À vista, como pede a HIG (5/10, auditoria N5): estava dentro do "⋯". */}
     {own&&onSettings&&<BotaoDeVidro label="Settings" icon="settings-outline" onPress={onSettings}/>}
-    {onOptions&&<BotaoDeOpcoes onPress={onOptions}/>}
+    {onStats&&<BotaoDasEstatisticas onPress={onStats}/>}
   </View>;
 }
 

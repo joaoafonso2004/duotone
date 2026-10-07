@@ -1,6 +1,7 @@
 import ExpoModulesCore
 import Foundation
 import MetricKit
+import UIKit
 
 /**
  * Os crashes e bloqueios que o proprio iOS regista (MetricKit).
@@ -16,6 +17,9 @@ public class DuotoneDiagnosticoModule: Module {
 
     OnCreate {
       DuotoneRecolhaDeDiagnosticos.shared.ligar()
+      // Quanto tempo o ecra esteve bloqueado (7/10), para o relatorio separar
+      // "telemovel no bolso" de "outra app aberta".
+      DuotoneEcraBloqueado.shared.ligar()
       // Os 120 Hz das animações (3/10, DuotoneFluidez.swift): antes da primeira.
       DispatchQueue.main.async { DuotoneFluidez.instalar() }
     }
@@ -122,10 +126,64 @@ enum DuotoneCpuDoProcesso {
       "threads": threads,
       "termico": termico(),
       "poupanca": ProcessInfo.processInfo.isLowPowerModeEnabled,
+      "bloqueadoMs": DuotoneEcraBloqueado.shared.bloqueadoMs(),
     ]
     guard let dados = try? JSONSerialization.data(withJSONObject: retrato, options: []),
           let texto = String(data: dados, encoding: .utf8) else { return "{}" }
     return texto
+  }
+}
+
+/**
+ * O tempo com o ecra BLOQUEADO, acumulado desde que a app abriu (7/10).
+ *
+ * Com a app em segundo plano, o relatorio de energia nao sabia se o telemovel
+ * estava no bolso ou com outra app aberta -- e o calor de 6/10 era a segunda
+ * (o Duotone gastava 4% de um nucleo). Os avisos de dados protegidos dizem
+ * quando o iPhone bloqueia e desbloqueia (uns segundos depois de apagar o
+ * ecra). Sem codigo no aparelho nunca chegam, e o tempo fica a zero: o JS
+ * di-lo assim.
+ */
+final class DuotoneEcraBloqueado {
+  static let shared = DuotoneEcraBloqueado()
+  private let fila = DispatchQueue(label: "duotone.ecra-bloqueado")
+  private var acumuladoMs: Double = 0
+  private var desde: Date?
+  private var ligado = false
+
+  func ligar() {
+    DispatchQueue.main.async {
+      if self.ligado { return }
+      self.ligado = true
+      let centro = NotificationCenter.default
+      centro.addObserver(forName: UIApplication.protectedDataWillBecomeUnavailableNotification, object: nil, queue: nil) { [weak self] _ in
+        self?.bloqueou()
+      }
+      centro.addObserver(forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: nil) { [weak self] _ in
+        self?.desbloqueou()
+      }
+      if !UIApplication.shared.isProtectedDataAvailable { self.bloqueou() }
+    }
+  }
+
+  private func bloqueou() {
+    fila.sync { if desde == nil { desde = Date() } }
+  }
+
+  private func desbloqueou() {
+    fila.sync {
+      if let inicio = desde {
+        acumuladoMs += Date().timeIntervalSince(inicio) * 1000
+        desde = nil
+      }
+    }
+  }
+
+  /** O total ate agora, a contar o bloqueio em curso. */
+  func bloqueadoMs() -> Double {
+    return fila.sync {
+      acumuladoMs + (desde.map { Date().timeIntervalSince($0) * 1000 } ?? 0)
+    }
   }
 }
 

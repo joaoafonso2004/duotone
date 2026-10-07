@@ -158,6 +158,26 @@ caso('uma faixa que só TOCOU não diz "Remove download"', () => {
   assert.equal(achar('descarregar', { tocaSemRede: true, download: 'nenhum' }).rotulo, 'Download');
 });
 
+// --- "Not interested" (7/10): só no que a app sugeriu, e também no leitor ---
+caso('Not interested aparece nas sugestões, em todos os sítios', () => {
+  for (const onde of ['lista', 'leitor', 'fila'] as const) {
+    const fila = onde === 'fila' ? { emJam: false, mudou: false } : null;
+    assert.ok(ids({ onde, fila, sugestao: true }).includes('nao-interessa'), `${onde}: com sugestão`);
+    assert.ok(!ids({ onde, fila }).includes('nao-interessa'), `${onde}: sem sugestão não aparece`);
+  }
+  const a = achar('nao-interessa', { sugestao: true });
+  assert.equal(a.rotulo, 'Not interested');
+  assert.equal(a.indisponivel, null);
+  assert.equal(achar('nao-interessa', { sugestao: true, semRede: true }).indisponivel, MOTIVOS.semRede, 'sem rede diz porquê');
+});
+caso('Not interested vem antes do Recommendations…, nas listas', () => {
+  const l = ids({ sugestao: true });
+  assert.ok(l.indexOf('nao-interessa') < l.indexOf('recomendacoes'));
+});
+caso('No leitor, uma sugestão continua com o menu curto mais o Not interested', () => {
+  assert.deepEqual(ids({ onde: 'leitor', sugestao: true }), ['guardar', 'por-em-playlist', 'partilhar', 'nao-interessa']);
+});
+
 if (falhas) {
   console.error(`\n  ${falhas} caso(s) falharam.\n`);
   process.exit(1);

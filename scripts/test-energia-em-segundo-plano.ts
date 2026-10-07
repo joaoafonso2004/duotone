@@ -115,5 +115,30 @@ caso('a ligação: só no iPhone, nas mudanças de estado, e no relatório', () 
   assert.match(ler('modules/duotone-diagnostico/ios/DuotoneDiagnosticoModule.swift'), /Function\("cpuDoProcesso"\)/);
 });
 
+caso('ecrã bloqueado ou outra app à frente (7/10)', () => {
+  const a = lerRetrato({ totalMs: 0, bloqueadoMs: 60_000 }, extra(0))!;
+  const b = lerRetrato({ totalMs: 1000, bloqueadoMs: 60_000 + 8 * 60_000 }, extra(10 * 60_000))!;
+  const p = compararRetratos(a, b)!;
+  assert.equal(p.bloqueadoMin, 8);
+  assert.match(textoDaEnergia([p], 10 * 60_000), /screen locked 8\.0 of 10\.0 min · another app on screen 2\.0 min/);
+  assert.equal(dadosDoEvento(p).bloqueado_pct, 80);
+  // Nunca bloqueou: outra app à frente (ou sem código no iPhone).
+  const nunca = compararRetratos(a, lerRetrato({ totalMs: 1000, bloqueadoMs: 60_000 }, extra(10 * 60_000))!)!;
+  assert.match(textoDaEnergia([nunca], 10 * 60_000), /screen never locked: another app was on screen/);
+  // Sem o contador no binário: não se diz nada, e o evento fica como era.
+  const semContador = compararRetratos(lerRetrato({ totalMs: 0 }, extra(0))!, lerRetrato({ totalMs: 10 }, extra(60_000))!)!;
+  assert.equal(semContador.bloqueadoMin, null);
+  assert.doesNotMatch(textoDaEnergia([semContador], 60_000), /screen/);
+  assert.equal('bloqueado_pct' in dadosDoEvento(semContador), false);
+  // Um contador que anda para trás (a app reabriu) não dá minutos negativos, nem mais do que o período.
+  assert.equal(compararRetratos(b, lerRetrato({ totalMs: 2000, bloqueadoMs: 0 }, extra(20 * 60_000))!)!.bloqueadoMin, 0);
+  assert.equal(compararRetratos(a, lerRetrato({ totalMs: 1, bloqueadoMs: 10 ** 9 }, extra(60_000))!)!.bloqueadoMin, 1);
+  // Com a app à frente não se escreve a linha.
+  assert.doesNotMatch(textoDaEnergia([p], 10 * 60_000, true), /screen/);
+  const swift = readFileSync(new URL('../modules/duotone-diagnostico/ios/DuotoneDiagnosticoModule.swift', import.meta.url), 'utf8');
+  assert.match(swift, /protectedDataWillBecomeUnavailableNotification/);
+  assert.match(swift, /"bloqueadoMs": DuotoneEcraBloqueado\.shared\.bloqueadoMs\(\)/);
+});
+
 if (falhas) { console.error(`\n${falhas} caso(s) falharam`); process.exit(1); }
 console.log('\nEnergia em segundo plano: todos os casos passaram.');

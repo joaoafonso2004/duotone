@@ -27,10 +27,6 @@ export function setEqPadrao(ganhos: readonly number[]): Promise<void> {
   return Promise.resolve();
 }
 
-export function setRadioAoTocar(v: boolean): Promise<void> {
-  guardadas.radioAoTocar = v;
-  return Promise.resolve();
-}
 
 /** Lido pelo `api/potProvider.ts` (o servidor externo): em Node não há nenhum. */
 export function getPoTokenServerUrl(): Promise<string> {

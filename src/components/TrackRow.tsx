@@ -11,6 +11,7 @@ import { guardarOrigem } from '../state/origemDaCapa';
 import { hapticSelection } from '../lib/haptics';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { useDescarregadaDeProposito } from '../lib/descarregarFaixa';
+import { aquecerAoTocar, ESPERA_AO_POUSAR_MS } from '../lib/aquecerAoTocar';
 import { colors, radii, spacing, type, ESCALA_MAXIMA } from '../theme';
 import { useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
@@ -118,6 +119,11 @@ function TrackRowComponent({
   // Só o que foi descarregado DE PROPÓSITO: uma música que tocou também está
   // em disco, e não é por isso que foi descarregada (lib/downloadsExplicitos.ts).
   const descarregada = useDescarregadaDeProposito(track);
+  // O dedo pousou e ficou: começa já a resolver a música (lib/aquecerAoTocar.ts).
+  // Um scroll larga o toque antes de `ESPERA_AO_POUSAR_MS`, e não aquece nada.
+  const aquecer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const largarAquecer = () => { if (aquecer.current) clearTimeout(aquecer.current); aquecer.current = null; };
+  useEffect(() => largarAquecer, []);
 
   // Sem gesto lateral na linha (6/10): o deslizar para a direita que punha na
   // fila (29/9) roubava o arrastar entre secções, que é o gesto que o João usa,
@@ -150,7 +156,11 @@ function TrackRowComponent({
           : undefined)
       }
       delayLongPress={delayLongPress ?? 350}
-      onPressOut={onPressOut}
+      onPressIn={selectMode ? undefined : () => {
+        largarAquecer();
+        aquecer.current = setTimeout(() => { aquecer.current = null; aquecerAoTocar(track); }, ESPERA_AO_POUSAR_MS);
+      }}
+      onPressOut={() => { largarAquecer(); onPressOut?.(); }}
       // Sem o fundo tingido (3/10): a que toca diz-se pelas barrinhas na capa
       // e pelo título na cor do tema.
       style={styles.row}

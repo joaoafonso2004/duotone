@@ -47,7 +47,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { saveToLibrary, removeFromLibrary, checkIsSaved } from '../api/library';
-import { hapticNotification, hapticSelection } from '../lib/haptics';
+import { hapticImpact, hapticNotification, hapticSelection } from '../lib/haptics';
 import { setRepeatMode as persistRepeatMode } from '../lib/prefs';
 import { savedKey, useSaved } from '../state/saved';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
@@ -62,6 +62,8 @@ import { AddToPlaylistSheet } from './AddToPlaylistSheet';
 import { ProgressBar, TOQUE_DA_BARRA } from './ProgressBar';
 import { YouTubePlayerView } from './YouTubePlayerView';
 import {ArtworkLyricsCube} from './ArtworkLyricsCube';
+import { DuploToqueParaGostar } from './DuploToqueParaGostar';
+import { deveGuardar } from '../lib/duploToque';
 import { registarAccoesDaFila } from '../state/filaNativa';
 import { PlayerControlRow } from './PlayerControlRow';
 import { accoesDoMenu, PlayerActionsSheet, type PlayerAction } from './PlayerActionsSheet';
@@ -102,6 +104,7 @@ import {
 } from '../lib/transicaoDoLeitor';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { avisarErro, avisarFeito, avisarInfo } from '../lib/avisoDeRemocao';
+import { AVISO_DO_NAO_INTERESSA, eSugestao, naoInteressa } from '../state/naoInteressa';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 const HEADER_H = 44;
@@ -941,6 +944,12 @@ export function PlayerRoot() {
     persistRepeatMode(next);
   };
 
+  // Dois toques na capa gostam (7/10): só gostam, nunca tiram (`deveGuardar`).
+  // Por um ref, para a capa memorizada receber sempre a mesma função.
+  const gostarPelaCapa = useRef<() => void>(() => {});
+  gostarPelaCapa.current = () => { if (deveGuardar(saved)) void saveCurrentToLibrary(); else hapticImpact(); };
+  const aoGostarPelaCapa = useCallback(() => gostarPelaCapa.current(), []);
+
   const saveCurrentToLibrary = async () => {
     if(offline){avisarInfo("You're offline", 'Connect to the internet to change your Liked Songs.');return;}
     if (!current) return;
@@ -1240,6 +1249,7 @@ export function PlayerRoot() {
     podeDescarregar: podeDescarregar(current),
     download: downloadNoMenuDe(current),
     temArtista,
+    sugestao: eSugestao(current),
   });
   const fazerNaFaixa = (id: IdDaAcao) => {
     const faixa = current;
@@ -1250,6 +1260,11 @@ export function PlayerRoot() {
       case 'partilhar': fecharEEntao(() => setPartilhaAberta(true)); return;
       case 'descarregar': fecharMenu(); void alternarDownload(faixa); return;
       case 'recomendacoes': fecharEEntao(() => setRecomendacoesAbertas(true)); return;
+      case 'nao-interessa':
+        fecharMenu();
+        if (faixa) void naoInteressa(faixa).then(() => avisarFeito(AVISO_DO_NAO_INTERESSA))
+          .catch((e) => avisarErro(mensagemDeErro(e, 'Could not save this preference.')));
+        return;
       default: return;
     }
   };
@@ -2038,7 +2053,7 @@ export function PlayerRoot() {
               track={current} size={vidFull.w} capaFlutuante={capaFlutuante} montagem={montagem}
               transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
               setShowLyrics={setShowLyrics} setCapaARodar={setCapaARodar} onArtError={onArtError}
-              escurecerCapa={escurecerCapa}
+              escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa}
             />
           )}
 
@@ -2163,7 +2178,7 @@ function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'on
  */
 const CapaDoLeitor = React.memo(function CapaDoLeitor({
   track, size, capaFlutuante, montagem, transicao, artSource, showLyrics, setShowLyrics, setCapaARodar,
-  onArtError, escurecerCapa,
+  onArtError, escurecerCapa, aoGostar,
 }: {
   track: Track;
   size: number;
@@ -2176,12 +2191,14 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
   setCapaARodar: (v: boolean) => void;
   onArtError: () => void;
   escurecerCapa: Animated.AnimatedInterpolation<number>;
+  /** Dois toques na capa (`DuploToqueParaGostar`). Estável: a capa é memorizada. */
+  aoGostar: () => void;
 }) {
   return (
     <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao} forcaDaPose={forcaDaPose}>
       {(pose3D) => (
         <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
-          front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}</>} pose3D={pose3D} />
+          front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}<DuploToqueParaGostar aoGostar={aoGostar} /></>} pose3D={pose3D} />
       )}
     </CapaFlutuante3D>
   );

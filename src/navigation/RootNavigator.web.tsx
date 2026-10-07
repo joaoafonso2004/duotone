@@ -68,6 +68,7 @@ import { BoasVindasPc } from '../desktop/BoasVindasPc.web';
 import { type Route, type ShareTarget } from '../desktop/rotas';
 import { rotaNoPc, type Destino } from '../lib/destinos';
 import { DestinosProvider } from './destinos';
+import { AVISO_DO_NAO_INTERESSA, eSugestao, naoInteressa } from '../state/naoInteressa';
 const V = View as any;
 
 function AuthDesktop() {
@@ -587,6 +588,7 @@ function DesktopShell() {
     temArtista: !!nomeDoArtistaDoMenu && nomeDoArtistaDoMenu !== 'Unknown artist',
     playlist: route.name === 'playlist' && !nowPlayingOpen && trackMenuFila === null ? { podeEditar: true } : null,
     fila: trackMenuFila !== null ? { emJam, mudou: filaMudou } : null,
+    sugestao: !!trackMenuContext || eSugestao(trackMenu),
   }) : [];
   const fazerNoMenu = (id: IdDaAcao) => {
     const t = trackMenu;
@@ -608,6 +610,10 @@ function DesktopShell() {
       case 'ver-artista': setTrackMenuOpen(false); navigate({ name: 'artist', value: nomeDoArtistaDoMenu }); return;
       case 'partilhar': setTrackMenuOpen(false); void openShareDialog({ itemType: 'track', item: t, name: t.title }); return;
       case 'recomendacoes': setTrackMenuOpen(false); setRecommendationTrack(t); setRecommendationContext(trackMenuContext); return;
+      case 'nao-interessa':
+        setTrackMenuOpen(false);
+        void naoInteressa(t).then(() => notify(AVISO_DO_NAO_INTERESSA)).catch((e: any) => notify(e?.message || 'Could not save this preference.'));
+        return;
       case 'tirar-da-playlist': void removeFromCurrentPlaylist(); return;
       case 'tirar-da-fila': {
         setTrackMenuOpen(false);

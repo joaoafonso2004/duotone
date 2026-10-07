@@ -720,7 +720,7 @@ registarOuvirJuntos(() => {
     anfitriao: s.souAnfitriao(), convidadosControlam: s.sessao.convidadosControlam,
     temFaixa: !!s.sessao.track,
     semearAoTocar: s.autoFila,
-    radio: s.sessao.radio === null ? null : { ligado: s.sessao.radio, ligar: () => useOuvirJuntos.getState().ligarRadio(true) },
+    radio: s.sessao.radio === null ? null : { ligado: s.sessao.radio },
     sugerir: s.sugerir, semearFila: s.semearFila, anunciarFaixa: s.anunciarFaixa,
     alternarPausa: async () => {
       if (!aindaAqui()) return;

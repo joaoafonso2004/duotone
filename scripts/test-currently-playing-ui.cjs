@@ -62,6 +62,8 @@ const mocks = {
   '../lib/icones': carregar('src/lib/icones.ts'),
   './TrackRow': {TrackRow:'TrackRow',TRACK_ROW_HEIGHT:68}, '@expo/vector-icons/Ionicons':'Icon',
   '../state/player': {usePlayer}, '../state/ouvirJuntos':{useOuvirJuntos}, '../state/seguirAmigo':{useSeguirAmigo},
+  // "Not interested" (7/10): só nas sugestões; aqui nenhuma linha o é.
+  '../state/naoInteressa':{eSugestao:()=>false,naoInteressa:async()=>{},AVISO_DO_NAO_INTERESSA:''},
   '../theme':{colors:{},spacing:{},type:{},radii:{}}, './BottomSheet':{BottomSheet:'BottomSheet',BottomSheetFlatList:'FlatList'},
   './BrilhoInteligente':{EstrelaInteligente:'Star'}, '../lib/shuffle':{trackKey:t=>t.sourceId},
   '../lib/haptics':{hapticSelection(){},hapticNotification(){}}, '../lib/artistName':{tituloDaFaixa:t=>t.title,displayArtist:t=>t.artist},

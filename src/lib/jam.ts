@@ -201,9 +201,10 @@ export type PonteJam = {
   semearAoTocar: boolean;
   /**
    * O Radio da sala (6/10). `null`/ausente sem a migração
-   * (`supabase/radio-no-jam.sql`): aí não há Radio num Jam.
+   * (`supabase/radio-no-jam.sql`): aí não há Radio num Jam. Ligado, tocar
+   * numa música põe essa sem a lista atrás (`tocarMusica`).
    */
-  radio?: { ligado: boolean; ligar: () => Promise<void> } | null;
+  radio?: { ligado: boolean } | null;
   /** `aSeguir` poe no topo da fila partilhada em vez do fundo. */
   sugerir: (track: Track, aSeguir?: boolean) => Promise<void>;
   semearFila: (tracks: readonly Track[]) => Promise<void>;

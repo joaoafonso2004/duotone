@@ -45,7 +45,7 @@ import { usePresets } from '../../state/presets';
 import { chaveDaFaixa, PLANO } from '../../lib/equalizer';
 import { getCorNaJanela, getDiscordRichPresence, setCorNaJanela, setCrossfadeSegundos, setDiscordRichPresence, setIntensidadeDoSmartShuffle, type CorDoLeitor } from '../../lib/prefs';
 import { DURACOES_DO_CROSSFADE, type DuracaoDoCrossfade } from '../../lib/crossfade';
-import { efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoRadioAoTocar, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
+import { efeitoDoCrossfade, efeitoDoDiscord, efeitoDoPadrao, efeitoDoRadio, efeitoDoSmartShuffle, efeitoDoTemporizador } from '../../lib/efeitoDasDefinicoes';
 import { useEstadoDoDiscord } from '../../hooks/usePresencaDoDiscord';
 import { usePrivacidade } from '../../state/privacidade';
 import { getLibrary } from '../../api/library';
@@ -160,7 +160,6 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
   // Vem já carregado da store (App.tsx lê a preferência no arranque nas duas
   // plataformas), por isso não precisa de entrar no Promise.all acima.
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
-  const radioAoTocar = usePlayer((s) => s.radioAoTocar);
   // A store e o ticker de 1s do App.tsx ja corriam no desktop; faltava so a UI.
   const sleepLeft = usePlayer((s) => s.sleepTimerTimeLeft);
   const sleepChoice = sleepLeft === 0 ? '0'
@@ -185,7 +184,6 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
     smart: efeitoDoSmartShuffle({ intensidade: intensidadeSmart, ligado: smartLigado }),
     discord: efeitoDoDiscord({ ligado: discordOn, privada, estado: estadoDoDiscord }),
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
-    radioAoTocar: efeitoDoRadioAoTocar(radioAoTocar),
     temporizador: efeitoDoTemporizador({ restanteS: sleepLeft, agora: new Date() }),
     crossfade: efeitoDoCrossfade({ segundos: crossfade, repeatUma }),
     velocidade: efeitoDoPadrao({
@@ -375,7 +373,6 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   onChange={(v) => { const d = Number(v) as DuracaoDoCrossfade; usePlayer.setState({ crossfadeSegundos: d }); void setCrossfadeSegundos(d); }}
                   efeito={efeitos.crossfade} />
                 <ToggleLine label={ROTULOS.autoplay} description="When the queue ends, keep playing music like it instead of stopping." value={autoplayRadio} onChange={(v) => { usePlayer.getState().setAutoplayRadio(v); persistAutoplayRadio(v); }} efeito={efeitos.radio} />
-                <ToggleLine label={ROTULOS.radioAoTocar} description="Tapping a song starts Radio from it instead of playing the rest of the list. In a Jam, it starts the Jam Radio." value={radioAoTocar} onChange={(v) => usePlayer.getState().setRadioAoTocar(v)} efeito={efeitos.radioAoTocar} />
                 <ChoiceLine label={ROTULOS.temporizador} value={sleepChoice} choices={[['0', 'Off'], ['15', '15 min'], ['30', '30 min'], ['45', '45 min'], ['60', '60 min']]} onChange={(v) => usePlayer.getState().setSleepTimer(Number(v))} efeito={efeitos.temporizador} />
                 <View style={[styles.settingLine, { flexDirection: 'column', alignItems: 'stretch', gap: ESP.md }]}>
                   <View>

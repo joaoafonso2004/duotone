@@ -19,7 +19,7 @@ import { clearPoTokenMemo } from '../api/potProvider';
 import { clearStreamMemo, clearVisitorData, streamEmMemoria } from '../api/ytstream';
 import {
   efeitoDaNormalizacao, efeitoDaQualidade, efeitoDeLimparACache, efeitoDeManterOEcra,
-  efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoRadio, efeitoDoRadioAoTocar,
+  efeitoDoCrossfade, efeitoDoSmartShuffle, efeitoDoGostoDoSpotify, efeitoDoPadrao, efeitoDoRadio,
   efeitoDoTemporizador,
 } from '../lib/efeitoDasDefinicoes';
 import { ErroDoSpotify, importarGostoDoSpotify, spotifyDisponivel } from '../api/spotifyConta';
@@ -141,7 +141,6 @@ export function SettingsScreen({ navigation }: Props) {
   const showRewindButton = usePlayer((s) => s.showRewindButton);
   const autoplayRadio = usePlayer((s) => s.autoplayRadio);
   const setAutoplayRadio = usePlayer((s) => s.setAutoplayRadio);
-  const radioAoTocar = usePlayer((s) => s.radioAoTocar);
   const volumeNormalization = usePlayer((s) => s.volumeNormalization);
   const setVolumeNormalization = usePlayer((s) => s.setVolumeNormalization);
   const setShowRewindButton = usePlayer((s) => s.setShowRewindButton);
@@ -371,7 +370,6 @@ export function SettingsScreen({ navigation }: Props) {
       loudnessDb: doYouTube ? getLoudnessDb(atual!.sourceId) : null,
     }),
     radio: efeitoDoRadio({ ligado: autoplayRadio, aTocarRadio: radioActivo }),
-    radioAoTocar: efeitoDoRadioAoTocar(radioAoTocar),
     ecra: efeitoDeManterOEcra(keepAwakeOn),
     cache: efeitoDeLimparACache({ bytes: cacheBytes, downloads: idsPedidos().filter(isAudioCached).length }),
     spotify: efeitoDoGostoDoSpotify({
@@ -467,7 +465,7 @@ export function SettingsScreen({ navigation }: Props) {
             <BarraVelocidade valor={padraoRate} aoMudar={(v) => setPlaybackRate(v, true)} />
           </LinhaAlta>
         </Grupo>
-        <Grupo rodape={[efeitos.temporizador, efeitos.radio, efeitos.radioAoTocar]}>
+        <Grupo rodape={[efeitos.temporizador, efeitos.radio]}>
           <Linha
             icone="moon"
             rotulo={ROTULOS.temporizador}
@@ -476,8 +474,6 @@ export function SettingsScreen({ navigation }: Props) {
             aoTocar={abrirMenu('temporizador')}
           />
           <LinhaInterruptor icone="radio-outline" rotulo={ROTULOS.autoplay} valor={autoplayRadio} aoMudar={toggleAutoplayRadio} />
-          <LinhaInterruptor icone="radio" rotulo={ROTULOS.radioAoTocar} valor={radioAoTocar}
-            aoMudar={(v) => { hapticSelection(); usePlayer.getState().setRadioAoTocar(v); }} />
         </Grupo>
 
         <Grupo titulo="Sound" rodape={efeitos.qualidade}>

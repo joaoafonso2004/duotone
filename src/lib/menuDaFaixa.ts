@@ -38,6 +38,7 @@ export type IdDaAcao =
   | 'ver-artista'
   | 'partilhar'
   | 'descarregar'
+  | 'nao-interessa'
   | 'recomendacoes'
   | 'tirar-da-playlist'
   | 'tirar-da-fila';
@@ -52,6 +53,7 @@ export const ORDEM: readonly IdDaAcao[] = [
   'ver-artista',
   'partilhar',
   'descarregar',
+  'nao-interessa',
   'recomendacoes',
   'tirar-da-playlist',
   'tirar-da-fila',
@@ -71,6 +73,7 @@ export type IconeDoMenu =
   | 'checkmark-circle'
   | 'close-circle-outline'
   | 'options-outline'
+  | 'remove-circle-outline'
   | 'trash-outline';
 
 /** Porque é que uma ação não se pode fazer agora. Curto: cabe numa linha por baixo do rótulo. */
@@ -111,6 +114,11 @@ export interface ContextoDoMenu {
   playlist?: { podeEditar: boolean } | null;
   /** Presente quando o menu abriu numa linha da fila (que não a que toca). */
   fila?: { emJam: boolean; mudou: boolean } | null;
+  /**
+   * A música foi a app que a sugeriu (Radio, Smart Shuffle, uma prateleira de
+   * descoberta): ganha o "Not interested" (7/10), também no leitor.
+   */
+  sugestao?: boolean;
 }
 
 export interface AcaoDoMenu {
@@ -139,6 +147,7 @@ function aplicaSe(id: IdDaAcao, c: ContextoDoMenu): boolean {
     case 'por-na-fila': return c.onde === 'lista';
     case 'ver-artista':
     case 'recomendacoes': return c.onde !== 'leitor';
+    case 'nao-interessa': return !!c.sugestao;
     case 'descarregar': return c.plataforma === 'ios' && c.podeDescarregar && c.onde !== 'leitor';
     case 'tirar-da-playlist': return c.onde === 'lista' && !!c.playlist;
     case 'tirar-da-fila': return c.onde === 'fila' && !!c.fila;
@@ -170,6 +179,7 @@ function descrever(id: IdDaAcao, c: ContextoDoMenu): AcaoDoMenu {
       if (c.download === 'descarregada') return acao('Remove download', 'checkmark-circle', null);
       if (c.download === 'a-descarregar') return acao('Cancel download', 'close-circle-outline', null);
       return acao('Download', 'arrow-down-circle-outline', c.tocaSemRede ? null : semRede);
+    case 'nao-interessa': return acao('Not interested', 'remove-circle-outline', semRede);
     case 'recomendacoes': return acao('Recommendations…', 'options-outline', semRede);
     case 'tirar-da-playlist': return acao('Remove from this playlist', 'trash-outline',
       c.playlist && !c.playlist.podeEditar ? MOTIVOS.soODono : semRede, true);

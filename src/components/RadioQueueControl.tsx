@@ -90,7 +90,7 @@ export function useRadioDaFila() {
 
 export const ROTULO_DO_RADIO = {
   desligado: 'Radio', aPreparar: 'Starting…', ligado: 'Radio on',
-  dica: 'Swaps Up next for music like the songs heard in this session. Your current song keeps playing.',
+  dica: 'Swaps Up next for music like the songs heard in this session, and stays on: a song you tap starts Radio from it.',
   dicaNoJam: 'Keeps the Jam going with music like what everyone is hearing, after the songs people picked.',
 };
 

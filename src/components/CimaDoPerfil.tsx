@@ -4,19 +4,18 @@ import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { faixaDaBarraDoNome } from '../lib/tituloQueEncolhe';
 import { BotoesDoPerfil } from './ProfileHero';
-import type { Ancora } from './MenuFlutuante';
 import { colors } from './socialTokens';
 
 /**
  * O que fica por cima do perfil no iPhone, fora do scroll: a barra com o nome,
  * que aparece quando o nome grande passa por baixo dela, e os botões (voltar,
- * mensagens, Definições, ⋯). No PC não existe (`CimaDoPerfil.web.tsx`): os
+ * mensagens, Definições, estatísticas). No PC não existe (`CimaDoPerfil.web.tsx`): os
  * botões vivem dentro do cabeçalho. Saiu de dentro do `SocialProfileView`
  * (5/10, auditoria T5), onde eram dois `!web&&`.
  */
-export function CimaDoPerfil({ nome, rolagem, fimDoNome, own, unread, onBack, onSocial, onSettings, onOptions }: {
+export function CimaDoPerfil({ nome, rolagem, fimDoNome, own, unread, onBack, onSocial, onSettings, onStats }: {
   nome: string; rolagem: Animated.Value; fimDoNome: number; own: boolean; unread: number;
-  onBack?: () => void; onSocial?: () => void; onSettings?: () => void; onOptions?: (ancora: Ancora) => void;
+  onBack?: () => void; onSocial?: () => void; onSettings?: () => void; onStats?: () => void;
 }) {
   const safe = useSafeAreaInsets();
   const altura = safe.top + 56;
@@ -30,7 +29,7 @@ export function CimaDoPerfil({ nome, rolagem, fimDoNome, own, unread, onBack, on
       <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(10,10,15,0.72)' }]} />
       <Text numberOfLines={1} style={estilos.nomeNaBarra}>{nome}</Text>
     </Animated.View>
-    <BotoesDoPerfil own={own} unread={unread} onBack={onBack} onSocial={onSocial} onSettings={onSettings} onOptions={onOptions} />
+    <BotoesDoPerfil own={own} unread={unread} onBack={onBack} onSocial={onSocial} onSettings={onSettings} onStats={onStats} />
   </>;
 }
 

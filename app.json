@@ -22,7 +22,24 @@
           "spotify"
         ],
         "ITSAppUsesNonExemptEncryption": false,
-        "CADisableMinimumFrameDurationOnPhone": true
+        "CADisableMinimumFrameDurationOnPhone": true,
+        "UIApplicationShortcutItems": [
+          {
+            "UIApplicationShortcutItemType": "com.joao.duotone.continuar",
+            "UIApplicationShortcutItemTitle": "Resume",
+            "UIApplicationShortcutItemIconSymbolName": "play.fill"
+          },
+          {
+            "UIApplicationShortcutItemType": "com.joao.duotone.mistura-do-dia",
+            "UIApplicationShortcutItemTitle": "Daily mix",
+            "UIApplicationShortcutItemIconSymbolName": "sparkles"
+          },
+          {
+            "UIApplicationShortcutItemType": "com.joao.duotone.baralhar-gostadas",
+            "UIApplicationShortcutItemTitle": "Shuffle Liked Songs",
+            "UIApplicationShortcutItemIconSymbolName": "shuffle"
+          }
+        ]
       }
     },
     "android": {

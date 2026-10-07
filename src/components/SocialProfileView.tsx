@@ -25,8 +25,6 @@ import { usePuxarParaAtualizar } from './PuxarParaAtualizar';
 import { guardarPerfil, ouvirPerfis, perfilEmCache } from '../lib/cachePerfil';
 import { SkeletonDoPerfil } from './Skeleton';
 import { SocialTrackActions } from './SocialTrackActions';
-import type { PlayerAction } from './PlayerActionsSheet';
-import { MenuFlutuante,type Ancora } from './MenuFlutuante';
 import { SocialIconButton,socialStyles as s } from './socialUI';
 import type { Track } from '../types';
 import type { Playlist } from '../types';
@@ -61,8 +59,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
   const onPlaylist=podeIrPara('playlist')?(id:string,nome:string)=>irPara({tipo:'playlist',id,nome}):undefined;
   const [profile,setProfile]=useState<SocialProfile|null>(null),[most,setMost]=useState<ProfileTrack[]>([]),[recent,setRecent]=useState<ProfileTrack[]>([]);
   const [error,setError]=useState(''),[loading,setLoading]=useState(true),[editing,setEditing]=useState(false),[track,setTrack]=useState<Track|null>(null);
-  const [opcoesDoPerfil,setOpcoesDoPerfil]=useState<Ancora|null>(null),[todasPlaylists,setTodasPlaylists]=useState(false);
-  const depoisDoMenu=useRef<(()=>void)|null>(null);
+  const [todasPlaylists,setTodasPlaylists]=useState(false);
   const [highlights,setHighlights]=useState<ProfileHighlights>({playlistIds:[],moment:null});
   const [highlightsLoaded,setHighlightsLoaded]=useState(false);
   const [playlists,setPlaylists]=useState<Playlist[]>([]);
@@ -135,7 +132,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
   // outra conta e não pode ficar à vista. Uma mudança de amizade ou uma ação
   // não são motivo para apagar nada.
   useEffect(()=>{
-    setEditing(false);setOpcoesDoPerfil(null);depoisDoMenu.current=null;setTodasPlaylists(false);setPlaylistMutationError('');
+    setEditing(false);setTodasPlaylists(false);setPlaylistMutationError('');
     setSectionErrors({most:'',recent:'',playlists:'',copies:''});
     setTudoMais(false);setTudoRecente(false);
     // Se ja se leu esta pessoa nesta sessao, o ecra pinta JA com o que se
@@ -153,7 +150,6 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
     setProfile(null);setHighlights({playlistIds:[],moment:null});
     setMost([]);setRecent([]);setPlaylists([]);setGuardadas(new Set());
   },[userId]);
-  useEffect(()=>{if(!active){setOpcoesDoPerfil(null);depoisDoMenu.current=null;}},[active]);
   // O que o aquecimento traz com o ecra ja montado (ver `ouvirPerfis`). So se
   // pinta se nao houver perfil nenhum a vista: o que ja la esta e mais novo.
   const perfilNoEcra=useRef(false);
@@ -246,11 +242,8 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
     const rank=(id:string)=>{const i=highlights.playlistIds.indexOf(id);return i<0?3:i;};
     return rank(a.id)-rank(b.id);
   });
-  const depoisDeFechar=(acao:()=>void)=>{depoisDoMenu.current=acao;setOpcoesDoPerfil(null);};
-  const accoesDoPerfil:PlayerAction[]=[
-    ...(profile?.canView?[{label:'Listening stats',icon:'stats-chart-outline' as const,onPress:()=>depoisDeFechar(onStats)}]:[]),
-  ];
-  const abrirOpcoes=accoesDoPerfil.length?(ancora:Ancora)=>{depoisDoMenu.current=null;setOpcoesDoPerfil(ancora);}:undefined;
+  // As estatísticas à vista (7/10): eram a única linha de um "⋯".
+  const abrirEstatisticas=profile?.canView?onStats:undefined;
   /**
    * Uma secção que falha diz o que aconteceu e cala-se. Quem quer tentar outra
    * vez puxa a página para baixo (iPhone) ou usa o refrescar (PC).
@@ -341,7 +334,7 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
         status={!own&&profile?.canView?(friend?.online?'● Online now':ultimaAtividade(friend?.lastSeenAt,now)):undefined}
         onVocesOsDois={onVocesOsDois&&profile?.canView&&friend?.status==='accepted'?()=>onVocesOsDois(profile.profile.name||profile.profile.username||undefined):undefined}
         aoMedirNome={setFimDoNome}
-        onEdit={()=>setEditing(true)} onSocial={onSocial} onOptions={abrirOpcoes} onBack={onBack}
+        onEdit={()=>setEditing(true)} onSocial={onSocial} onStats={abrirEstatisticas} onBack={onBack}
         onMessage={()=>onMessage(userId)} onRefresh={()=>void load()} pending={friend?.status==='pending'}
         onAddFriend={()=>{void sendFriendRequest(userId).then(()=>useSocial.getState().refresh()).catch(()=>setError('Could not send the friend request. Please try again.'));}}/>
       <View style={{paddingHorizontal:SOCIAL_GUTTER,paddingTop:26,gap:24}}>
@@ -410,11 +403,8 @@ export function SocialProfileView({userId,onBack,active=true,scrollRef}:{userId:
     </Animated.ScrollView>
     {/* iPhone: a barra com o nome e os botões, por cima de tudo. No PC não há (CimaDoPerfil.web.tsx). */}
     <CimaDoPerfil nome={nome} rolagem={rolagem} fimDoNome={fimDoNome} own={own} unread={unread}
-      onBack={onBack} onSocial={onSocial} onSettings={onSettings} onOptions={abrirOpcoes}/>
+      onBack={onBack} onSocial={onSocial} onSettings={onSettings} onStats={abrirEstatisticas}/>
     {editing&&profile&&<ProfileEditor profile={profile} highlights={highlightsLoaded&&!sectionErrors.playlists?highlights:null} playlists={playlists} onClose={()=>setEditing(false)} onSaved={()=>{void load(true);void useSocial.getState().refresh();}}/>}
-    <MenuFlutuante visivel={!!opcoesDoPerfil} ancora={opcoesDoPerfil} accoes={accoesDoPerfil}
-      aoFechar={()=>{depoisDoMenu.current=null;setOpcoesDoPerfil(null);}}
-      aoFechado={()=>{const acao=depoisDoMenu.current;depoisDoMenu.current=null;acao?.();}}/>
     <SocialTrackActions track={track} onClose={()=>{setTrack(null);setTrackDoMomento(false);}} onArtist={onArtist}
       extra={own&&trackDoMomento?[{rotulo:'Remove from profile',icone:'close-circle-outline',destrutiva:true,aoCarregar:()=>void tirarMoment()}]:undefined}/>
   </View>;

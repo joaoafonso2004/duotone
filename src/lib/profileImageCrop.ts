@@ -161,39 +161,48 @@ export function enquadrarCapa(
 }
 
 /**
- * As paragens do degradê que acaba a capa no fundo do cabeçalho.
+ * **A capa não acaba: dissolve-se** (7/10, variante B de `docs/perfil-capa.html`).
+ * Com a variante A a fotografia escurecia até ao preto e ficava um espaço preto
+ * por baixo dela, à volta do nome ("continuo a não gostar do espaço preto",
+ * João). Agora são três camadas:
  *
- * O fim via-se como uma linha. Duas razões, e as duas estão aqui:
+ *  1. Por trás de tudo, o AMBIENTE: a mesma fotografia muito desfocada e
+ *     escura, que vai da capa até `EXTENSAO_DO_AMBIENTE` abaixo dela (a
+ *     "Song of the moment") e acaba no fundo da página (`veuDoAmbiente`).
+ *  2. A fotografia nítida, que a partir de `DISSOLVE_DESDE` da altura fica
+ *     transparente (uma máscara, `DissolverEmBaixo`) e deixa ver o ambiente --
+ *     a mesma fotografia, desfocada: não há aresta, a nitidez é que se perde.
+ *  3. Um véu leve no topo (`veuDoTopo`), só para as horas e os botões se lerem.
  *
- *  1. A subida era curta e reta -- de 0,68 para opaco nos últimos 18%. Uma
- *     rampa linear contra uma fotografia deixa o olho apanhar o ponto onde ela
- *     CHEGA ao opaco, e é isso que lê como aresta. Agora a curva é suave nas
- *     duas pontas: sobe devagar, acelera a meio e volta a abrandar no fim.
- *  2. Chegava ao opaco exatamente na aresta onde o `overflow:'hidden'` corta.
- *     Qualquer diferença de meio tom entre o cabeçalho e a página aparecia ali.
- *     Agora fica opaco ANTES do fim, e os últimos por cento já são só fundo --
- *     o corte cai sobre cor lisa e não tem nada para revelar.
- *
- * O primeiro par é o escurecimento do topo, para o título e os botões se lerem
- * por cima de uma capa clara.
- *
- * **A fotografia fica limpa até 58% da altura** (5/10, variante A de
- * `docs/perfil-capa.html`): começava a escurecer aos 46%, e com a caixa baixa
- * de então a fotografia sumia logo a seguir às horas -- "a capa acaba a meio".
- * O escurecimento passou para o último terço.
+ * O ambiente acaba em fundo OPACO antes do fim da caixa dele: o desfoque
+ * transborda da imagem, e o corte do `overflow:'hidden'` cai sobre cor lisa.
  */
-export function degradeDaCapa(fundo: string): {
-  cores: readonly [string, string, ...string[]];
-  paragens: readonly [number, number, ...number[]];
-} {
-  const veu = (a: number) => `rgba(10,10,15,${a})`;
+export const DISSOLVE_DESDE = 0.56;
+export const EXTENSAO_DO_AMBIENTE = 330;
+
+type Degrade = { cores: readonly [string, string, ...string[]]; paragens: readonly [number, number, ...number[]] };
+const veu = (a: number) => `rgba(10,10,15,${a})`;
+
+/** O escurecimento do topo da capa, para as horas e os botões. */
+export function veuDoTopo(): Degrade {
+  return { cores: [veu(0.42), veu(0)], paragens: [0, 0.2] };
+}
+
+/**
+ * O véu do ambiente, numa caixa com a capa (`alturaDaCapa`) mais a extensão.
+ * Leve por trás da capa, mais escuro por trás do nome, e o fundo da página
+ * antes do fim.
+ */
+export function veuDoAmbiente(alturaDaCapa: number, fundo: string): Degrade {
+  const total = Math.max(1, alturaDaCapa + EXTENSAO_DO_AMBIENTE);
+  const capa = Math.min(0.9, Math.max(0.1, alturaDaCapa / total));
   return {
-    cores: [veu(0.42), veu(0), veu(0), veu(0.2), veu(0.5), veu(0.78), veu(0.9), fundo, fundo],
-    paragens: [0, 0.2, 0.58, 0.68, 0.77, 0.85, 0.9, 0.95, 1],
+    cores: [veu(0.3), veu(0.55), veu(0.8), veu(0.93), fundo, fundo],
+    paragens: [0, capa, capa + (1 - capa) * 0.45, capa + (1 - capa) * 0.75, capa + (1 - capa) * 0.92, 1],
   };
 }
 
-/** O que a caixa da capa tem a mais do que a fotografia, no telemóvel: o fundo onde o degradê acaba. */
+/** O que a caixa da capa tem a mais do que a fotografia, no telemóvel: onde ela se dissolve no ambiente. */
 export const FOLGA_DA_CAPA = 40;
 
 /**

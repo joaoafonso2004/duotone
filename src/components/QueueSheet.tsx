@@ -25,7 +25,8 @@ import { RecommendationPreferences } from './RecommendationPreferences';
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
 import { alternarDownload, downloadNoMenuDe, podeDescarregar, tocaSemRede } from '../lib/descarregarFaixa';
 import { alternarGuardada, garantirGuardadas } from '../lib/guardarFaixa';
-import { avisarRemocao, contarMusicas, avisarErro } from '../lib/avisoDeRemocao';
+import { avisarRemocao, contarMusicas, avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
+import { AVISO_DO_NAO_INTERESSA, eSugestao, naoInteressa } from '../state/naoInteressa';
 import { savedKey, useSaved } from '../state/saved';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { ErroDoRadio, RadioQueueControl } from './RadioQueueControl';
@@ -166,6 +167,7 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
     download: downloadNoMenuDe(selection.track),
     temArtista: !!nomeDoArtista && nomeDoArtista !== 'Unknown artist',
     fila: { emJam: emSessao, mudou: !emSessao && !canRemove },
+    sugestao: eSugestao(selection.track),
   }) : [];
   const fazer = (id: IdDaAcao) => {
     if (!selection) return;
@@ -182,6 +184,11 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
       case 'partilhar': setPanel('share'); return;
       case 'descarregar': setSelection(null); void alternarDownload(t); return;
       case 'recomendacoes': setPanel('recomendacoes'); return;
+      case 'nao-interessa':
+        setSelection(null);
+        void naoInteressa(t).then(() => avisarFeito(AVISO_DO_NAO_INTERESSA))
+          .catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not save this preference.')));
+        return;
       case 'tirar-da-fila': {
         const latest = usePlayer.getState();
         if (selection.index === null || useOuvirJuntos.getState().sessao ||

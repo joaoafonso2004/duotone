@@ -19,7 +19,8 @@ import type { PlayerAction } from './PlayerActionsSheet';
 import { ancoraDoUltimoToque } from '../lib/ultimoToque';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
-import { avisarErro } from '../lib/avisoDeRemocao';
+import { avisarErro, avisarFeito } from '../lib/avisoDeRemocao';
+import { AVISO_DO_NAO_INTERESSA, eSugestao, naoInteressa } from '../state/naoInteressa';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 /** Uma linha de um menu que NÃO é de uma faixa -- as opções de uma playlist. */
@@ -89,6 +90,7 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
     download: downloadNoMenuDe(track),
     temArtista: !!nomeDoArtista && nomeDoArtista !== 'Unknown artist',
     playlist: playlist ? { podeEditar: playlist.podeEditar } : null,
+    sugestao: !!discoveryContext || eSugestao(track),
   }) : [];
 
   const fazer = (id: IdDaAcao) => {
@@ -115,6 +117,10 @@ export function TrackActionsSheet({ visible, track, onClose, actions = [], cabec
       case 'partilhar': setParaPartilhar(t); return;
       case 'descarregar': void alternarDownload(t); return;
       case 'recomendacoes': setRecommendationTrack(t); return;
+      case 'nao-interessa':
+        void naoInteressa(t).then(() => avisarFeito(AVISO_DO_NAO_INTERESSA))
+          .catch((e: any) => avisarErro(mensagemDeErro(e, 'Could not save this preference.')));
+        return;
       case 'tirar-da-playlist': playlist?.aoTirar(t); return;
       case 'tirar-da-fila': return;
     }

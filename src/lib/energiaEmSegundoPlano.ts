@@ -24,6 +24,11 @@ export type Retrato = {
   bateria: number | null;
   aCarregar: boolean | null;
   aTocar: boolean;
+  /**
+   * O tempo com o ecrã bloqueado desde que a app abriu (7/10, o
+   * `DuotoneEcraBloqueado` do módulo nativo). `null` num binário sem ele.
+   */
+  bloqueadoMs: number | null;
 };
 
 export type Grupo = 'javascript' | 'audio' | 'rede' | 'imagens' | 'sem-nome' | 'outros';
@@ -44,6 +49,11 @@ export type Periodo = {
   bateriaFim: number | null;
   aCarregar: boolean;
   aTocar: boolean;
+  /**
+   * Quantos dos `minutos` foram com o ecrã bloqueado (o resto, com a app
+   * escondida, era outra app à frente). `null` quando não se sabe.
+   */
+  bloqueadoMin: number | null;
 };
 
 /** Abaixo disto não é um período: é o desbloquear e voltar. */
@@ -75,7 +85,7 @@ export function grupoDaThread(nome: string): Grupo {
 /** Lê o que o módulo nativo devolveu. `null` se não presta. */
 export function lerRetrato(cru: unknown, extra: { em: number; bateria: number | null; aCarregar: boolean | null; aTocar: boolean }): Retrato | null {
   if (!cru || typeof cru !== 'object') return null;
-  const o = cru as { totalMs?: unknown; threads?: unknown; termico?: unknown; poupanca?: unknown };
+  const o = cru as { totalMs?: unknown; threads?: unknown; termico?: unknown; poupanca?: unknown; bloqueadoMs?: unknown };
   const totalMs = Number(o.totalMs);
   if (!Number.isFinite(totalMs) || totalMs < 0) return null;
   const threads: Record<string, number> = {};
@@ -98,6 +108,7 @@ export function lerRetrato(cru: unknown, extra: { em: number; bateria: number | 
     bateria,
     aCarregar: extra.aCarregar,
     aTocar: extra.aTocar,
+    bloqueadoMs: typeof o.bloqueadoMs === 'number' && Number.isFinite(o.bloqueadoMs) && o.bloqueadoMs >= 0 ? o.bloqueadoMs : null,
   };
 }
 
@@ -136,6 +147,8 @@ export function compararRetratos(a: Retrato, b: Retrato): Periodo | null {
     bateriaFim: b.bateria,
     aCarregar: a.aCarregar === true || b.aCarregar === true,
     aTocar: a.aTocar,
+    bloqueadoMin: a.bloqueadoMs !== null && b.bloqueadoMs !== null
+      ? Math.min(minutos, Math.max(0, (b.bloqueadoMs - a.bloqueadoMs) / 60_000)) : null,
   };
 }
 
@@ -172,9 +185,22 @@ export function textoDaEnergia(periodos: readonly Periodo[], agora: number, aFre
       + ` | thermal ${p.termicoInicio} -> ${p.termicoFim}`,
     );
     linhas.push('    ' + GRUPOS.filter((g) => p.porGrupo[g] > 0).map((g) => `${g} ${pct(p.porGrupo[g], p)}`).join(', '));
+    if (!aFrente && p.bloqueadoMin !== null) linhas.push('    ' + textoDoEcra(p));
     for (const t of p.topo) linhas.push(`    ${pct(t.ms, p)}  ${t.nome}`);
   }
   return linhas.join('\n');
+}
+
+/**
+ * Com a app escondida: o telemóvel no bolso, ou outra app à frente? (7/10)
+ * O calor de 6/10 era a segunda, e o relatório não o sabia dizer.
+ */
+export function textoDoEcra(p: Periodo): string {
+  const bloqueado = p.bloqueadoMin ?? 0;
+  if (bloqueado <= 0.05) return 'screen never locked: another app was on screen (or this iPhone has no passcode)';
+  const outra = Math.max(0, p.minutos - bloqueado);
+  return `screen locked ${bloqueado.toFixed(1)} of ${p.minutos.toFixed(1)} min`
+    + (outra >= 0.1 ? ` · another app on screen ${outra.toFixed(1)} min` : '');
 }
 
 /** Para o `app_events`: só números (e o estado térmico, que é uma palavra do iOS). */
@@ -191,5 +217,6 @@ export function dadosDoEvento(p: Periodo): Record<string, number | string | bool
     a_carregar: p.aCarregar,
     bateria_pp: p.bateriaInicio != null && p.bateriaFim != null ? Math.round((p.bateriaInicio - p.bateriaFim) * 100) : -1,
     termico: p.termicoFim,
+    ...(p.bloqueadoMin !== null ? { bloqueado_pct: Math.round((p.bloqueadoMin / p.minutos) * 100) } : {}),
   };
 }
