@@ -104,7 +104,7 @@ export type PilhaParamList = {
   VocesOsDois: { userId: string; nome?: string };
   Playlists: undefined;
   /** `editar`: abre já na edição (o "Edit playlist" do toque longo, 28/9). */
-  PlaylistDetail: { id: string; name: string; editar?: boolean };
+  PlaylistDetail: { id: string; name: string; editar?: boolean; pessoas?: boolean };
   ImportYouTube: undefined;
   Artists: undefined;
   LibraryGroup: { type: 'album' | 'artist'; name: string };

@@ -6,7 +6,8 @@ export async function loadProfileSections(userId:string,own:boolean,canView:bool
   const [most,recent,playlists,copies,highlights]=await Promise.allSettled([
     canView?getSocialProfileTracks(userId):Promise.resolve([]),
     canView?getSocialProfileTracks(userId,true):Promise.resolve([]),
-    own?listPlaylists():canView?listProfilePlaylists(userId):Promise.resolve([]),
+    // No perfil só as de que se é DONO: a visibilidade é dele (7/10).
+    own?listPlaylists().then(l=>l.filter(p=>!p.souColaborador)):canView?listProfilePlaylists(userId):Promise.resolve([]),
     !own&&canView?copiasGuardadas():Promise.resolve(new Set<string>()),
     canView?getProfileHighlights(userId):Promise.resolve({playlistIds:[],moment:null}),
   ]);

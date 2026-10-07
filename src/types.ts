@@ -26,6 +26,12 @@ export interface Playlist {
   visibleOnProfile?: boolean;
   /** De que playlist é cópia, quando foi guardada de outra pessoa. */
   copiedFrom?: string | null;
+  /** Quem é o dono (7/10): nas Playlists também aparecem as de quem me convidou. */
+  ownerId?: string;
+  /** Colaboro nela, mas é de outra pessoa. */
+  souColaborador?: boolean;
+  /** Tem colaboradores (minha ou não). */
+  colaborativa?: boolean;
 }
 
 export interface PlaylistTrack extends Track {

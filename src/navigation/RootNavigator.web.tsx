@@ -668,7 +668,7 @@ function DesktopShell() {
   let page: ReactNode;
   switch (route.name) {
     case 'search': page = <SearchPage navigate={navigate} {...common} />; break; case 'songs': page = <SongsPage {...common} />; break; case 'artists': page = <ArtistsPage navigate={navigate} />; break;
-    case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} back={back} share={openShareDialog} navigate={navigate} {...common} />; break;
+    case 'artist': page = <ArtistPage name={route.value} back={back} {...common} />; break; case 'playlists': page = <PlaylistsPage navigate={navigate} notify={notify} share={openShareDialog} />; break; case 'playlist': page = <PlaylistPage id={route.id} title={route.title} abrirPessoas={!!route.pessoas} back={back} share={openShareDialog} navigate={navigate} {...common} />; break;
     case 'mistura': page = <MisturaPage key={route.id} id={route.id} titulo={route.titulo} back={back} {...common} />; break;
     case 'stats': page = <StatsPage key={route.userId} back={back} play={play} userId={route.userId} />; break;
     case 'retrospetiva': page = <RetrospetivaPage key={`${route.userId}:${route.ano}`} back={back} play={play} userId={route.userId} ano={route.ano} />; break;

@@ -11,8 +11,13 @@ import { menuDaPlaylist, type IdDaAcaoDaPlaylist } from '../../lib/menuDaPlaylis
 import { Image, Pressable, Text, View as NativeView } from 'react-native';
 import {
   copiasGuardadas, createPlaylist, deletePlaylist, getPlaylistTracks, getPlaylistDetails, listPlaylists, mergePlaylists,
-  renamePlaylist, savePlaylistCopy,
+  renamePlaylist, savePlaylistCopy, lerPessoasDaPlaylist, quemPosNaPlaylist, sairDaPlaylist,
 } from '../../api/playlists';
+import {
+  eColaborativa, metaDaPlaylist, nomeDaPessoa, papelNaPlaylist, podeMexerNasFaixas, quemPos, type PessoaDaPlaylist,
+} from '../../lib/playlistColaborativa';
+import { CarasDaPlaylist, PessoasDaPlaylist } from '../../components/PessoasDaPlaylist';
+import { FriendAvatar } from '../../components/FriendAvatar';
 import { estadoDoGuardar, mensagemDeFalhaAoGuardar } from '../../lib/guardarPlaylist';
 import { correspondeAPesquisa } from '../../lib/searchText';
 import { usePlayer } from '../../state/player';
@@ -40,7 +45,7 @@ type Ordenacao = 'default' | 'title' | 'artist' | 'recent' | 'duration';
 const NOMES_DA_ORDENACAO: Record<Ordenacao, string> = {
   default: 'Playlist order', title: 'Title', artist: 'Artist', recent: 'Recently added', duration: 'Duration',
 };
-const cacheDePlaylist = new Map<string, { tracks: PlaylistTrack[]; ownerId: string; name: string }>();
+const cacheDePlaylist = new Map<string, { tracks: PlaylistTrack[]; ownerId: string; name: string; pessoas?: PessoaDaPlaylist[] }>();
 export const invalidarCacheDaPlaylist = (id: string) => { cacheDePlaylist.delete(id); };
 
 /** Tocar, baralhar ou pôr na fila sem abrir a playlist (o mesmo do toque longo no iPhone). */
@@ -70,6 +75,15 @@ export function PlaylistsPage({ navigate, notify, share }: { navigate: (route: R
     else if (id === 'fixar') useAtalhosDaLateral.getState().alternar({ tipo: 'playlist', id: alvo.id, nome: alvo.name, capa: alvo.artworks?.[0] ?? null });
     else if (id === 'editar') { setNomeNovo(alvo.name); setRenomear(alvo); }
     else if (id === 'apagar') setApagar(alvo);
+    else if (id === 'colaboradores') navigate({ name: 'playlist', id: alvo.id, title: alvo.name, pessoas: true });
+    else if (id === 'sair') setSair(alvo);
+  };
+  // Sair de uma playlist onde se colabora (7/10).
+  const [sair, setSair] = useState<Playlist | null>(null);
+  const confirmarSair = async () => {
+    if (!sair) return;
+    try { await sairDaPlaylist(sair.id); usePlaylists.getState().aplicar((l) => l.filter((x) => x.id !== sair.id)); setSair(null); void refresh(); }
+    catch (e: any) { notify(e?.message || 'Could not leave the playlist.'); }
   };
   const atalhosFixados = useAtalhosDaLateral((st) => st.lista);
   const [renomear, setRenomear] = useState<Playlist | null>(null);
@@ -102,13 +116,13 @@ export function PlaylistsPage({ navigate, notify, share }: { navigate: (route: R
   };
 
   const create = async () => { if (!name.trim()) return; try { const item = await createPlaylist(name.trim()); setCreateOpen(false); setName(''); navigate({ name: 'playlist', id: item.id, title: item.name }); } catch (e: any) { notify(e?.message || 'Could not create playlist.'); } };
-  return <><Page title="Playlists" action={<View style={{ flexDirection: 'row', gap: 10 }}><Button secondary icon="logo-youtube" onPress={() => navigate({ name: 'import' })}>YouTube</Button><Button secondary iconNode={<Image source={require('../../../assets/spotify.png')} style={{ width: 16, height: 16 }} />} onPress={() => navigate({ name: 'spotify-import' })}>Spotify</Button><Button icon="add" onPress={() => setCreateOpen(true)}>New playlist</Button></View>}><ContentScroll scrollKey="playlists">{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <View style={{ height: 350 }}><Loading /></View> : items.length ? <View style={styles.playlistGrid}>{items.map((item) => <Pressable key={item.id} onPress={() => navigate({ name: 'playlist', id: item.id, title: item.name })} onContextMenu={((e: any) => { e.preventDefault(); setOndeMenu(pontoDoEvento(e)); setMenuAlvo(item); }) as any} {...marcar('cartao')} style={styles.playlistCard}><PlaylistArtwork artworks={item.artworks} /><Text numberOfLines={1} style={styles.playlistTitle}>{item.name}</Text><Text style={styles.playlistMeta}>{item.trackCount} {item.trackCount === 1 ? 'track' : 'tracks'}</Text></Pressable>)}</View> : loadError?null:<Empty icon="albums-outline" title="Nothing here yet" body="Bring a playlist over from YouTube or Spotify, or start an empty one and fill it as you go." action={<View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}><Button icon="logo-youtube" secondary onPress={() => navigate({ name: 'import' })}>Import from YouTube</Button><Button icon="musical-notes-outline" secondary onPress={() => navigate({ name: 'spotify-import' })}>Import from Spotify</Button><Button onPress={() => setCreateOpen(true)}>New playlist</Button></View>} />}</ContentScroll></Page>{menuAlvo ? <MenuDeContexto rato={ondeMenu} rotulo={`Options for ${menuAlvo.name}`}
-  linhas={menuDaPlaylist({ plataforma: 'pc', onde: 'cartao', temFaixas: menuAlvo.trackCount > 0, minha: true, fixada: estaFixado(atalhosFixados, `playlist:${menuAlvo.id}`) })
+  return <><Page title="Playlists" action={<View style={{ flexDirection: 'row', gap: 10 }}><Button secondary icon="logo-youtube" onPress={() => navigate({ name: 'import' })}>YouTube</Button><Button secondary iconNode={<Image source={require('../../../assets/spotify.png')} style={{ width: 16, height: 16 }} />} onPress={() => navigate({ name: 'spotify-import' })}>Spotify</Button><Button icon="add" onPress={() => setCreateOpen(true)}>New playlist</Button></View>}><ContentScroll scrollKey="playlists">{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <View style={{ height: 350 }}><Loading /></View> : items.length ? <View style={styles.playlistGrid}>{items.map((item) => <Pressable key={item.id} onPress={() => navigate({ name: 'playlist', id: item.id, title: item.name })} onContextMenu={((e: any) => { e.preventDefault(); setOndeMenu(pontoDoEvento(e)); setMenuAlvo(item); }) as any} {...marcar('cartao')} style={styles.playlistCard}><PlaylistArtwork artworks={item.artworks} /><Text numberOfLines={1} style={styles.playlistTitle}>{item.name}</Text><Text numberOfLines={1} style={styles.playlistMeta}>{metaDaPlaylist(item)}</Text></Pressable>)}</View> : loadError?null:<Empty icon="albums-outline" title="Nothing here yet" body="Bring a playlist over from YouTube or Spotify, or start an empty one and fill it as you go." action={<View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}><Button icon="logo-youtube" secondary onPress={() => navigate({ name: 'import' })}>Import from YouTube</Button><Button icon="musical-notes-outline" secondary onPress={() => navigate({ name: 'spotify-import' })}>Import from Spotify</Button><Button onPress={() => setCreateOpen(true)}>New playlist</Button></View>} />}</ContentScroll></Page>{menuAlvo ? <MenuDeContexto rato={ondeMenu} rotulo={`Options for ${menuAlvo.name}`}
+  linhas={menuDaPlaylist({ plataforma: 'pc', onde: 'cartao', temFaixas: menuAlvo.trackCount > 0, minha: !menuAlvo.souColaborador, colaboro: !!menuAlvo.souColaborador, fixada: estaFixado(atalhosFixados, `playlist:${menuAlvo.id}`) })
     .map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: a.destrutiva, inicioDeGrupo: a.inicioDeGrupo }))}
-  aoEscolher={(id) => fazerNoCartao(menuAlvo, id as IdDaAcaoDaPlaylist)} aoFechar={() => setMenuAlvo(null)} /> : null}<Dialog open={!!renomear} title="Rename playlist" onClose={() => setRenomear(null)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={nomeNovo} onChangeText={setNomeNovo} onSubmitEditing={confirmarNome} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenomear(null)}>Cancel</Button><Button onPress={confirmarNome} disabled={!nomeNovo.trim()}>Save</Button></View></Dialog><Dialog open={!!apagar} title="Delete playlist?" onClose={() => setApagar(null)}><Text style={styles.dialogBody}>“{apagar?.name}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setApagar(null)}>Cancel</Button><Button danger onPress={confirmarApagar}>Delete</Button></View></Dialog><Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="New playlist"><Field autoFocus placeholder="Playlist name" value={name} onChangeText={setName} onSubmitEditing={create} /><View style={styles.dialogActions}><Button secondary onPress={() => setCreateOpen(false)}>Cancel</Button><Button onPress={create}>Create</Button></View></Dialog></>;
+  aoEscolher={(id) => fazerNoCartao(menuAlvo, id as IdDaAcaoDaPlaylist)} aoFechar={() => setMenuAlvo(null)} /> : null}<Dialog open={!!renomear} title="Rename playlist" onClose={() => setRenomear(null)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={nomeNovo} onChangeText={setNomeNovo} onSubmitEditing={confirmarNome} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenomear(null)}>Cancel</Button><Button onPress={confirmarNome} disabled={!nomeNovo.trim()}>Save</Button></View></Dialog><Dialog open={!!sair} title="Leave playlist?" onClose={() => setSair(null)}><Text style={styles.dialogBody}>You will stop seeing “{sair?.name}”. The owner can add you again.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setSair(null)}>Cancel</Button><Button danger onPress={confirmarSair}>Leave</Button></View></Dialog><Dialog open={!!apagar} title="Delete playlist?" onClose={() => setApagar(null)}><Text style={styles.dialogBody}>“{apagar?.name}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setApagar(null)}>Cancel</Button><Button danger onPress={confirmarApagar}>Delete</Button></View></Dialog><Dialog open={createOpen} onClose={() => setCreateOpen(false)} title="New playlist"><Field autoFocus placeholder="Playlist name" value={name} onChangeText={setName} onSubmitEditing={create} /><View style={styles.dialogActions}><Button secondary onPress={() => setCreateOpen(false)}>Cancel</Button><Button onPress={create}>Create</Button></View></Dialog></>;
 }
 
-export function PlaylistPage({ id, title, back, share, navigate, ...props }: { id: string; title: string; back: () => void; share: (target: ShareTarget) => void; navigate: (route: Route) => void } & CommonPageProps) {
+export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = false, ...props }: { id: string; title: string; back: () => void; share: (target: ShareTarget) => void; navigate: (route: Route) => void; abrirPessoas?: boolean } & CommonPageProps) {
   const inicial = cacheDePlaylist.get(id);
   const [tracks, setTracks] = useState<PlaylistTrack[]>(inicial?.tracks ?? []); const [loading, setLoading] = useState(!inicial); const [confirm, setConfirm] = useState(false);
   const [playlistTitle, setPlaylistTitle] = useState(title);
@@ -140,7 +154,45 @@ export function PlaylistPage({ id, title, back, share, navigate, ...props }: { i
   const userId=useAuth(s=>s.session?.user.id);
   const [ownerId,setOwnerId]=useState<string|null>(inicial?.ownerId ?? null);
   const [loadError,setLoadError]=useState('');
-  const canEdit=ownerId===userId;
+  // Playlists colaborativas (7/10): quem lá está, e quem pôs cada música.
+  const [pessoas,setPessoas]=useState<PessoaDaPlaylist[]>(inicial?.pessoas ?? []);
+  const [quemPosMapa,setQuemPosMapa]=useState<Map<string,string>>(()=>new Map());
+  const [pessoasAbertas,setPessoasAbertas]=useState(abrirPessoas);
+  const [sairAberto,setSairAberto]=useState(false);
+  const papel=papelNaPlaylist({donoId:ownerId,eu:userId,pessoas});
+  // Pôr, tirar e reordenar: o dono e quem colabora. O nome e apagar só o dono.
+  const canEdit=podeMexerNasFaixas(papel);
+  const souDono=papel==='dono';
+  useEffect(()=>{
+    if(!eColaborativa(pessoas)){setQuemPosMapa(new Map());return;}
+    let vivo=true;
+    void quemPosNaPlaylist(id).then(m=>{if(vivo)setQuemPosMapa(m);});
+    return()=>{vivo=false;};
+  },[id,pessoas]);
+  const recarregarPessoas=useCallback(()=>{
+    void lerPessoasDaPlaylist(id).then((quem)=>{
+      setPessoas(quem);
+      const guardada=cacheDePlaylist.get(id);
+      if(guardada)cacheDePlaylist.set(id,{...guardada,pessoas:quem});
+      window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
+    }).catch(()=>{});
+  },[id]);
+  const depoisDeSair=useCallback(()=>{
+    cacheDePlaylist.delete(id);
+    usePlaylists.getState().aplicar((l)=>l.filter((x)=>x.id!==id));
+    window.dispatchEvent(new CustomEvent('duotone:refresh-playlists'));
+    props.notify('You left the playlist.');
+    back();
+  },[id,back,props]);
+  const sair=async()=>{
+    try{await sairDaPlaylist(id);setSairAberto(false);depoisDeSair();}
+    catch(e:any){props.notify(e?.message||'Could not leave the playlist.');}
+  };
+  /** A cara de quem pôs cada música; o objeto vem da lista das pessoas. */
+  const caraDaLinha=useMemo(()=>eColaborativa(pessoas)?(t:Track)=>{
+    const quem=quemPos(quemPosMapa.get((t as PlaylistTrack).id),pessoas);
+    return quem?<View accessibilityLabel={`Added by ${nomeDaPessoa(quem)}`}><FriendAvatar avatarUrl={quem.avatarUrl} name={nomeDaPessoa(quem)} size={20} /></View>:null;
+  }:undefined,[pessoas,quemPosMapa]);
   /**
    * Guardar a playlist de outra pessoa (a que chegou pelo chat, 14/9): fica uma
    * cópia tua. Ver lib/guardarPlaylist.ts. As cópias só se pedem quando a
@@ -154,7 +206,8 @@ export function PlaylistPage({ id, title, back, share, navigate, ...props }: { i
     void copiasGuardadas().then(c=>{if(vivo)setCopias(c);}).catch(()=>{if(vivo)setCopias(new Set());});
     return()=>{vivo=false;};
   },[id,ownerId,userId]);
-  const estadoGuardar=estadoDoGuardar({id,donoId:ownerId,eu:userId,copias});
+  // Quem colabora já a tem nas Playlists: guardar uma cópia não faz sentido.
+  const estadoGuardar=papel==='colaborador'?'escondido':estadoDoGuardar({id,donoId:ownerId,eu:userId,copias});
   const guardar=async()=>{
     if(aGuardar)return;
     setAGuardar(true);
@@ -180,7 +233,7 @@ export function PlaylistPage({ id, title, back, share, navigate, ...props }: { i
   const refresh = useCallback(async () => {
     const token=++detailRequest.current;
     setLoading(true);setOwnerId(null);setLoadError('');
-    try {const [info,rows]=await Promise.all([getPlaylistDetails(id),getPlaylistTracks(id)]);if(token!==detailRequest.current)return;cacheDePlaylist.set(id,{tracks:rows,ownerId:info.ownerId,name:info.name});setOwnerId(info.ownerId);setPlaylistTitle(info.name);setRenameVal(info.name);setTracks(rows);}
+    try {const [info,rows,quem]=await Promise.all([getPlaylistDetails(id),getPlaylistTracks(id),lerPessoasDaPlaylist(id).catch(()=>[] as PessoaDaPlaylist[])]);if(token!==detailRequest.current)return;cacheDePlaylist.set(id,{tracks:rows,ownerId:info.ownerId,name:info.name,pessoas:quem});setOwnerId(info.ownerId);setPessoas(quem);setPlaylistTitle(info.name);setRenameVal(info.name);setTracks(rows);}
     catch(e:any){if(token!==detailRequest.current)return;setTracks([]);setLoadError(e?.message || 'Could not load playlist.');}
     finally{if(token===detailRequest.current)setLoading(false);}
   }, [id]);
@@ -254,8 +307,8 @@ export function PlaylistPage({ id, title, back, share, navigate, ...props }: { i
     void usePlayer.getState().tocarLista(filteredTracks, ligado, inteligente, { tipo: 'playlist', nome: playlistTitle, id });
   };
   const artworks = tracks.map((track) => track.artworkUrl).filter((uri): uri is string => !!uri);
-  return <><Page title="Playlist" action={<BotaoVoltar onPress={back} />}><ContentScroll scrollKey={`playlist:${id}`}>{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <View style={{ height: 350 }}><Loading /></View> : loadError ? <Empty icon="alert-circle-outline" title="Playlist unavailable" body={loadError} action={<Button onPress={refresh}>Try again</Button>}/> : <><View style={styles.detailHero}><PlaylistArtwork artworks={artworks} lado={176} /><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>PLAYLIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{playlistTitle}</Text><Text style={styles.detailHeroMeta}>{linhaDeMeta(tracks.length, duracaoTotal)}</Text><View style={styles.detailHeroActions}><Button icon="play" onPress={playAll}>Play</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><BotaoDeFixar atalho={{ tipo: 'playlist', id, nome: playlistTitle, capa: artworks[0] ?? null }} />{canEdit ? <IconButton name="ellipsis-horizontal" label="More playlist actions" onPress={() => { setOndeMenuDaPagina(ultimoClique()); setMenuOpen(true); }} /> : <>{estadoGuardar !== 'escondido' && <Button secondary icon={estadoGuardar === 'abrir-copia' ? 'checkmark' : 'add'} disabled={aGuardar} onPress={() => void guardar()}>{estadoGuardar === 'abrir-copia' ? 'Open your copy' : aGuardar ? 'Saving…' : 'Save'}</Button>}<Button secondary icon="share-social-outline" onPress={partilhar}>Share</Button></>}</View></View></View><View style={styles.detailToolbar}><View style={[styles.detailSearch, { marginBottom: 0 }]}><Field icon="search" placeholder="Search this playlist" value={query} onChangeText={setQuery} /></View><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{NOMES_DA_ORDENACAO[sortMode]}</Button></View><TrackTable plain listKey={`playlist:${id}:${query}:${sortMode}`} ordenacao={{ modo: colunaAtiva, aoMudar: (m) => setSortMode(m ?? 'default') }} tracks={filteredTracks} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'playlist', nome: playlistTitle, id })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} /></>}</ContentScroll></Page>{menuOpen ? <MenuDeContexto rato={ondeMenuDaPagina} rotulo={`Options for ${playlistTitle}`}
-  linhas={menuDaPlaylist({ plataforma: 'pc', onde: 'pagina', temFaixas: tracks.length > 0, minha: canEdit, fixada: estaFixado(atalhosDaPagina, `playlist:${id}`) })
+  return <><Page title="Playlist" action={<BotaoVoltar onPress={back} />}><ContentScroll scrollKey={`playlist:${id}`}>{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <View style={{ height: 350 }}><Loading /></View> : loadError ? <Empty icon="alert-circle-outline" title="Playlist unavailable" body={loadError} action={<Button onPress={refresh}>Try again</Button>}/> : <><View style={styles.detailHero}><PlaylistArtwork artworks={artworks} lado={176} /><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>PLAYLIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{playlistTitle}</Text><Text style={styles.detailHeroMeta}>{linhaDeMeta(tracks.length, duracaoTotal)}</Text>{eColaborativa(pessoas) ? <View style={{ marginTop: 6 }}><CarasDaPlaylist pessoas={pessoas} onPress={() => setPessoasAbertas(true)} /></View> : null}<View style={styles.detailHeroActions}><Button icon="play" onPress={playAll}>Play</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><BotaoDeFixar atalho={{ tipo: 'playlist', id, nome: playlistTitle, capa: artworks[0] ?? null }} />{canEdit ? <IconButton name="ellipsis-horizontal" label="More playlist actions" onPress={() => { setOndeMenuDaPagina(ultimoClique()); setMenuOpen(true); }} /> : <>{estadoGuardar !== 'escondido' && <Button secondary icon={estadoGuardar === 'abrir-copia' ? 'checkmark' : 'add'} disabled={aGuardar} onPress={() => void guardar()}>{estadoGuardar === 'abrir-copia' ? 'Open your copy' : aGuardar ? 'Saving…' : 'Save'}</Button>}<Button secondary icon="share-social-outline" onPress={partilhar}>Share</Button></>}</View></View></View><View style={styles.detailToolbar}><View style={[styles.detailSearch, { marginBottom: 0 }]}><Field icon="search" placeholder="Search this playlist" value={query} onChangeText={setQuery} /></View><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{NOMES_DA_ORDENACAO[sortMode]}</Button></View><TrackTable plain listKey={`playlist:${id}:${query}:${sortMode}`} ordenacao={{ modo: colunaAtiva, aoMudar: (m) => setSortMode(m ?? 'default') }} tracks={filteredTracks} caraDaLinha={caraDaLinha} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'playlist', nome: playlistTitle, id })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} /></>}</ContentScroll></Page>{menuOpen ? <MenuDeContexto rato={ondeMenuDaPagina} rotulo={`Options for ${playlistTitle}`}
+  linhas={menuDaPlaylist({ plataforma: 'pc', onde: 'pagina', temFaixas: tracks.length > 0, minha: souDono, colaboro: papel === 'colaborador', fixada: estaFixado(atalhosDaPagina, `playlist:${id}`) })
     .map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: a.destrutiva, inicioDeGrupo: a.inicioDeGrupo }))}
   aoEscolher={(acao) => {
     if (acao === 'partilhar') partilhar();
@@ -263,5 +316,7 @@ export function PlaylistPage({ id, title, back, share, navigate, ...props }: { i
     else if (acao === 'juntar') void abrirMerge();
     else if (acao === 'editar') { setRenameVal(playlistTitle); setRenameOpen(true); }
     else if (acao === 'apagar') setConfirm(true);
-  }} aoFechar={() => setMenuOpen(false)} /> : null}<Dialog open={sortOpen} title="Sort tracks" onClose={() => setSortOpen(false)}><View style={{ gap: 8 }}>{(Object.keys(NOMES_DA_ORDENACAO) as Ordenacao[]).map((modo) => <Button key={modo} secondary={sortMode !== modo} onPress={() => { setSortMode(modo); setSortOpen(false); }}>{NOMES_DA_ORDENACAO[modo]}</Button>)}</View></Dialog><Dialog open={mergeOpen} title={`Merge into ${playlistTitle}`} onClose={() => !merging && setMergeOpen(false)}><Text style={styles.dialogBody}>Only missing tracks are copied. The source playlist stays unchanged.</Text><View style={{ gap: 8, maxHeight: 420, overflowY: 'auto' as any }}>{mergeItems.length ? mergeItems.map((playlist) => <Button key={playlist.id} secondary disabled={merging} onPress={() => void fazerMerge(playlist)}>{playlist.name} · {playlist.trackCount} tracks</Button>) : <Text style={styles.dialogBody}>You need another playlist to merge.</Text>}</View></Dialog><Dialog open={confirm} title="Delete playlist?" onClose={() => setConfirm(false)}><Text style={styles.dialogBody}>“{playlistTitle}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setConfirm(false)}>Cancel</Button><Button danger onPress={remove}>Delete</Button></View></Dialog><Dialog open={renameOpen} title="Rename playlist" onClose={() => setRenameOpen(false)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={renameVal} onChangeText={setRenameVal} onSubmitEditing={doRename} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenameOpen(false)}>Cancel</Button><Button onPress={doRename} disabled={!renameVal.trim()}>Save</Button></View></Dialog></>;
+    else if (acao === 'colaboradores') setPessoasAbertas(true);
+    else if (acao === 'sair') setSairAberto(true);
+  }} aoFechar={() => setMenuOpen(false)} /> : null}<PessoasDaPlaylist visible={pessoasAbertas && !!ownerId} onClose={() => setPessoasAbertas(false)} playlistId={id} papel={papel} pessoas={pessoas} aoMudar={recarregarPessoas} aoSair={depoisDeSair} /><Dialog open={sairAberto} title="Leave playlist?" onClose={() => setSairAberto(false)}><Text style={styles.dialogBody}>You will stop seeing “{playlistTitle}”. The owner can add you again.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setSairAberto(false)}>Cancel</Button><Button danger onPress={() => void sair()}>Leave</Button></View></Dialog><Dialog open={sortOpen} title="Sort tracks" onClose={() => setSortOpen(false)}><View style={{ gap: 8 }}>{(Object.keys(NOMES_DA_ORDENACAO) as Ordenacao[]).map((modo) => <Button key={modo} secondary={sortMode !== modo} onPress={() => { setSortMode(modo); setSortOpen(false); }}>{NOMES_DA_ORDENACAO[modo]}</Button>)}</View></Dialog><Dialog open={mergeOpen} title={`Merge into ${playlistTitle}`} onClose={() => !merging && setMergeOpen(false)}><Text style={styles.dialogBody}>Only missing tracks are copied. The source playlist stays unchanged.</Text><View style={{ gap: 8, maxHeight: 420, overflowY: 'auto' as any }}>{mergeItems.length ? mergeItems.map((playlist) => <Button key={playlist.id} secondary disabled={merging} onPress={() => void fazerMerge(playlist)}>{playlist.name} · {playlist.trackCount} tracks</Button>) : <Text style={styles.dialogBody}>You need another playlist to merge.</Text>}</View></Dialog><Dialog open={confirm} title="Delete playlist?" onClose={() => setConfirm(false)}><Text style={styles.dialogBody}>“{playlistTitle}” will be deleted. Tracks in your library will not be affected.</Text><View style={styles.dialogActions}><Button secondary onPress={() => setConfirm(false)}>Cancel</Button><Button danger onPress={remove}>Delete</Button></View></Dialog><Dialog open={renameOpen} title="Rename playlist" onClose={() => setRenameOpen(false)}><View style={{ paddingBottom: 16 }}><Field autoFocus placeholder="Playlist name" value={renameVal} onChangeText={setRenameVal} onSubmitEditing={doRename} /></View><View style={styles.dialogActions}><Button secondary onPress={() => setRenameOpen(false)}>Cancel</Button><Button onPress={doRename} disabled={!renameVal.trim()}>Save</Button></View></Dialog></>;
 }

@@ -38,7 +38,12 @@ import {
   setPlaylistOrder,
   copiasGuardadas,
   savePlaylistCopy,
+  lerPessoasDaPlaylist,
+  quemPosNaPlaylist,
+  sairDaPlaylist,
 } from '../api/playlists';
+import { eColaborativa, papelNaPlaylist, podeMexerNasFaixas, quemPos, type PessoaDaPlaylist } from '../lib/playlistColaborativa';
+import { CarasDaPlaylist, PessoasDaPlaylist } from '../components/PessoasDaPlaylist';
 import { usePlaylists } from '../state/playlists';
 import { estadoDoGuardar, mensagemDeFalhaAoGuardar } from '../lib/guardarPlaylist';
 import { BottomSheet } from '../components/BottomSheet';
@@ -85,7 +90,15 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   const { id } = route.params;
   const userId=useAuth(s=>s.session?.user.id);
   const [details,setDetails]=useState<{id:string;name:string;ownerId:string}|null>(null);
-  const canEdit=details?.id===id&&details.ownerId===userId;
+  // Playlists colaborativas (7/10): quem lá está, e quem pôs cada música.
+  const [pessoas,setPessoas]=useState<PessoaDaPlaylist[]>([]);
+  const [quemPosMapa,setQuemPosMapa]=useState<Map<string,string>>(()=>new Map());
+  const [pessoasAbertas,setPessoasAbertas]=useState(!!route.params.pessoas);
+  const [sairAberto,setSairAberto]=useState(false);
+  const papel=details?.id===id?papelNaPlaylist({donoId:details.ownerId,eu:userId,pessoas}):'leitor';
+  // Pôr, tirar e reordenar: o dono e quem colabora. O nome e apagar só o dono.
+  const canEdit=podeMexerNasFaixas(papel);
+  const souDono=papel==='dono';
   const [loadError,setLoadError]=useState('');
   const detailRequest=useRef(0);
   const insets = useSafeAreaInsets();
@@ -291,9 +304,12 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     const token=++detailRequest.current;
     setLoading(true);setLoadError('');
     try {
-      const [info,rows]=await Promise.all([getPlaylistDetails(id),getPlaylistTracks(id)]);
+      const [info,rows,quem]=await Promise.all([getPlaylistDetails(id),getPlaylistTracks(id),lerPessoasDaPlaylist(id).catch(()=>[] as PessoaDaPlaylist[])]);
       if(token!==detailRequest.current)return;
-      setDetails(info);setName(info.name);setTracks(rows);
+      setDetails(info);setName(info.name);setTracks(rows);setPessoas(quem);
+      // As caras de quem pôs só numa playlist com colaboradores: uma ida a mais, e só aí.
+      if(eColaborativa(quem))void quemPosNaPlaylist(id).then(m=>{if(token===detailRequest.current)setQuemPosMapa(m);});
+      else setQuemPosMapa(new Map());
     } catch(e:any) {
       if(token!==detailRequest.current)return;
       setDetails(null);setTracks([]);setLoadError(e?.message || 'Could not load playlist.');
@@ -315,7 +331,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     void copiasGuardadas().then(c=>{if(vivo)setCopias(c);}).catch(()=>{if(vivo)setCopias(new Set());});
     return()=>{vivo=false;};
   },[id,donoCarregado,userId]);
-  const estadoGuardar=estadoDoGuardar({id,donoId:donoCarregado,eu:userId,copias});
+  // Quem colabora já a tem nas Playlists: guardar uma cópia não faz sentido.
+  const estadoGuardar=papel==='colaborador'?'escondido':estadoDoGuardar({id,donoId:donoCarregado,eu:userId,copias});
   const guardar=async()=>{
     if(aGuardar)return;
     setAGuardar(true);
@@ -361,6 +378,27 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   }, [loading, details, id, canEdit]);
 
   const cancelarEdicao = () => { hapticSelection(); setRascunho(null); };
+
+  const recarregarPessoas = useCallback(() => {
+    void lerPessoasDaPlaylist(id).then((quem) => {
+      setPessoas(quem);
+      void usePlaylists.getState().carregar(true);
+      if (eColaborativa(quem)) void quemPosNaPlaylist(id).then(setQuemPosMapa);
+    }).catch(() => {});
+  }, [id]);
+  /** Saí: a playlist deixa de ser minha de ver. */
+  const depoisDeSair = useCallback(() => {
+    usePlaylists.getState().aplicar((items) => items.filter((p) => p.id !== id));
+    void usePlaylists.getState().carregar(true);
+    navigation.goBack();
+    avisarFeito('You left the playlist', name);
+  }, [id, name, navigation]);
+  const sair = async () => {
+    setBusy(true);
+    try { await sairDaPlaylist(id); setSairAberto(false); depoisDeSair(); }
+    catch (e: any) { avisarErro(mensagemDeErro(e, 'Could not leave this playlist.')); }
+    finally { setBusy(false); }
+  };
 
   const planoDaEdicao = rascunho ? planoDeGravacao(rascunho, name, tracks, (t) => t.id) : null;
   const podeGravar = !!planoDaEdicao && haAlgoParaGravar(planoDaEdicao) && !busy;
@@ -482,6 +520,11 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             faixas={tracks.length}
             duracaoSegundos={duracaoTotal}
           />
+          {eColaborativa(pessoas) ? (
+            <View style={{ alignItems: 'center', marginTop: -spacing.sm, marginBottom: spacing.sm }}>
+              <CarasDaPlaylist pessoas={pessoas} onPress={() => setPessoasAbertas(true)} />
+            </View>
+          ) : null}
           <View style={styles.actionRow}>
             <Pressable
               style={styles.playButton}
@@ -614,6 +657,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           <Text style={styles.rotuloDoNome}>NAME</Text>
           <TextInput
             value={rascunho.nome}
+            // O nome é do dono; quem colabora mexe na ordem e no que sai.
+            editable={souDono}
             onChangeText={(nome) => setRascunho((r) => (r ? { ...r, nome } : r))}
             placeholder="Playlist name"
             placeholderTextColor={colors.textTertiary}
@@ -799,6 +844,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               acompanharATocar
               onPress={aoTocarNaLinha}
               onAction={setActionTrack}
+              quemPos={quemPos(quemPosMapa.get(item.id), pessoas)}
             />
           )}
         />
@@ -840,7 +886,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         cabecalho={cabecalhoDoMenu}
         onClose={() => setOptionsOpen(false)}
         // O mesmo menu do PC e do cartão (5/10, lib/menuDaPlaylist.ts).
-        actions={menuDaPlaylist({ plataforma: 'ios', onde: 'pagina', temFaixas: tracks.length > 0, minha: canEdit })
+        actions={menuDaPlaylist({ plataforma: 'ios', onde: 'pagina', temFaixas: tracks.length > 0, minha: souDono, colaboro: papel === 'colaborador' })
           .map((a) => ({ icon: a.icone as any, label: a.rotulo, destructive: a.destrutiva, onPress: () => {
             if (a.id === 'juntar') { void abrirMerge(); return; }
             setOptionsOpen(false);
@@ -848,7 +894,30 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             else if (a.id === 'partilhar-link') setShareOpen(true);
             else if (a.id === 'editar') abrirEdicao();
             else if (a.id === 'apagar') setDeleteOpen(true);
+            else if (a.id === 'colaboradores') setPessoasAbertas(true);
+            else if (a.id === 'sair') setSairAberto(true);
           } }))}
+      />
+
+      <PessoasDaPlaylist
+        visible={pessoasAbertas && details?.id === id}
+        onClose={() => setPessoasAbertas(false)}
+        playlistId={id}
+        papel={papel}
+        pessoas={pessoas}
+        aoMudar={recarregarPessoas}
+        aoSair={depoisDeSair}
+      />
+
+      <ConfirmSheet
+        visible={sairAberto}
+        title="Leave playlist"
+        message={`You will stop seeing "${name}". The owner can add you again.`}
+        confirmLabel="Leave playlist"
+        destructive
+        loading={busy}
+        onClose={() => setSairAberto(false)}
+        onConfirm={sair}
       />
 
       <BottomSheet visible={mergeOpen} onClose={() => !busy && setMergeOpen(false)}>

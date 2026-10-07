@@ -13,7 +13,8 @@
 export type IdDaAcaoDaPlaylist =
   | 'tocar' | 'baralhar' | 'fila'
   | 'partilhar' | 'partilhar-link' | 'fixar'
-  | 'editar' | 'juntar' | 'apagar';
+  | 'editar' | 'juntar' | 'apagar'
+  | 'colaboradores' | 'sair';
 
 export type AcaoDaPlaylist = {
   id: IdDaAcaoDaPlaylist;
@@ -32,6 +33,11 @@ export type SituacaoDaPlaylist = {
   temFaixas: boolean;
   /** É de quem abre o menu: pode editar, juntar e apagar. */
   minha: boolean;
+  /**
+   * Quem abre o menu colabora nela (7/10, playlists colaborativas): mexe nas
+   * músicas e pode sair, mas não muda o nome nem apaga.
+   */
+  colaboro?: boolean;
   /** Só no PC: está nos atalhos da lateral. */
   fixada?: boolean;
 };
@@ -51,11 +57,20 @@ export function menuDaPlaylist(s: SituacaoDaPlaylist): AcaoDaPlaylist[] {
   if (s.plataforma === 'ios') acoes.push({ id: 'partilhar-link', rotulo: 'QR code / Copy link', icone: 'share-social-outline' });
   // Os atalhos da lateral só existem no PC.
   if (s.plataforma === 'pc') acoes.push({ id: 'fixar', rotulo: s.fixada ? 'Unpin from sidebar' : 'Pin to sidebar', icone: 'pin-outline' });
-  if (s.minha) {
-    // No iPhone o Edit muda o nome E a ordem; no PC só o nome.
-    acoes.push({ id: 'editar', rotulo: s.plataforma === 'ios' ? 'Edit playlist' : 'Rename…', icone: 'pencil-outline', inicioDeGrupo: true });
-    if (s.onde === 'pagina') acoes.push({ id: 'juntar', rotulo: 'Merge another playlist…', icone: 'git-merge-outline' });
-    acoes.push({ id: 'apagar', rotulo: 'Delete playlist', icone: 'trash-outline', destrutiva: true });
+  const colaboro = !s.minha && !!s.colaboro;
+  if (s.minha || colaboro) {
+    const grupo: AcaoDaPlaylist[] = [];
+    // No iPhone o Edit muda o nome E a ordem; no PC só o nome. Quem colabora
+    // edita a ordem e o que sai (só no iPhone), o nome é do dono.
+    if (s.minha || s.plataforma === 'ios') {
+      grupo.push({ id: 'editar', rotulo: s.plataforma === 'ios' ? 'Edit playlist' : 'Rename…', icone: 'pencil-outline' });
+    }
+    if (s.onde === 'pagina') grupo.push({ id: 'juntar', rotulo: 'Merge another playlist…', icone: 'git-merge-outline' });
+    grupo.push({ id: 'colaboradores', rotulo: s.minha ? 'Collaborators…' : 'People in this playlist', icone: 'person-add-outline' });
+    if (s.minha) grupo.push({ id: 'apagar', rotulo: 'Delete playlist', icone: 'trash-outline', destrutiva: true });
+    else grupo.push({ id: 'sair', rotulo: 'Leave playlist', icone: 'exit-outline', destrutiva: true });
+    grupo[0] = { ...grupo[0], inicioDeGrupo: true };
+    acoes.push(...grupo);
   }
   return acoes;
 }

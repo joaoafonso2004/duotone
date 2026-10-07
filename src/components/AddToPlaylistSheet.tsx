@@ -24,6 +24,7 @@ import { Input } from './Input';
 import { PillButton } from './PillButton';
 import { avisarErro } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { metaDaPlaylist } from '../lib/playlistColaborativa';
 
 interface Props {
   visible: boolean;
@@ -219,8 +220,8 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
                   <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
                     {pl.name}
                   </Text>
-                  <Text style={type.caption}>
-                    {pl.trackCount} {pl.trackCount === 1 ? 'track' : 'tracks'}
+                  <Text numberOfLines={1} style={type.caption}>
+                    {metaDaPlaylist(pl)}
                   </Text>
                 </View>
                 <Ionicons

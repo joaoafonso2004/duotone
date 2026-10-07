@@ -5,6 +5,7 @@ import React, { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Toque } from './Toque';
 import { BarrasDaFaixa } from './BarrasDaFaixa';
+import { FriendAvatar } from './FriendAvatar';
 import { ESCALA } from '../lib/movimento';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { guardarOrigem } from '../state/origemDaCapa';
@@ -64,6 +65,12 @@ interface Props {
   mostrarDuracao?: boolean;
   /** Explicação curta para uma faixa recomendada. */
   contextLabel?: string;
+  /**
+   * Quem pôs a música, numa playlist colaborativa (7/10): uma cara pequena
+   * antes do artista. Tem de ser um objeto estável (o da lista das pessoas),
+   * senão desfaz o memo.
+   */
+  quemPos?: { avatarUrl: string | null; nome: string } | null;
 }
 
 /** 52 px de capa + 8 px de padding em cima e em baixo. */
@@ -96,6 +103,7 @@ function TrackRowComponent({
   onPressOut,
   mostrarDuracao = true,
   contextLabel,
+  quemPos,
 }: Props) {
   const theme = useTheme((s) => s.theme);
   const aTocar = usePlayer((s) =>
@@ -207,6 +215,11 @@ function TrackRowComponent({
           {tituloDaFaixa(track)}
         </Text>
         <View style={styles.metaRow}>
+          {quemPos ? (
+            <View accessibilityLabel={`Added by ${quemPos.nome}`}>
+              <FriendAvatar avatarUrl={quemPos.avatarUrl} name={quemPos.nome} size={15} />
+            </View>
+          ) : null}
           {descarregada ? (
             // Descarregada de propósito (e já em disco)
             <Ionicons name="arrow-down-circle" size={12} color={colors.textSecondary} />

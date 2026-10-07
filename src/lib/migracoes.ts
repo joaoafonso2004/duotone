@@ -90,6 +90,7 @@ export const MIGRACOES: readonly Migracao[] = [
   { ficheiro: 'fechar-jams-abandonadas.sql', marca: 'fn:fechar_jams_abandonadas', efeito: 'Abandoned Jams close on their own' },
   { ficheiro: 'radio-no-jam.sql', marca: 'col:listening_sessions.radio', efeito: 'Radio in a Jam' },
   { ficheiro: 'painel-de-saude.sql', marca: 'fn:painel_de_saude', efeito: 'App health panel' },
+  { ficheiro: 'playlists-colaborativas.sql', marca: 'fn:pessoas_da_playlist', efeito: 'Collaborative playlists' },
 
   { ficheiro: 'estado-das-migracoes.sql', marca: 'fn:marcas_em_falta', efeito: 'This check' },
 ];

@@ -22,7 +22,7 @@ export type Route =
   | { name:'social';friendId?:string;groupId?:string }
   | { name:'friend-profile';userId:string }
   | { name: 'artist'; value: string }
-  | { name: 'playlist'; id: string; title: string }
+  | { name: 'playlist'; id: string; title: string; pessoas?: boolean }
   /** Uma mistura que a app montou -- estilo, radio, decada ou playlist. Vive na
    *  store das recomendacoes e nao na base de dados, por isso viaja por id. */
   | { name: 'mistura'; id: string; titulo: string }

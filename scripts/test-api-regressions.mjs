@@ -321,7 +321,8 @@ let playlistError={code:'42703',message:'column playlists.visible_on_profile doe
 let playlistReads=[];
 const profileEnv=ambiente(async()=>{}, {
   'src/api/library.ts':{},
-  'src/lib/supabase.ts':{supabase:{auth:{getUser:async()=>({data:{user:{id:'owner'}}}), getSession: async () => ({ data: { session: { user: { id: 'owner' } } } })},from:()=>{
+  'src/lib/supabase.ts':{supabase:{auth:{getUser:async()=>({data:{user:{id:'owner'}}}), getSession: async () => ({ data: { session: { user: { id: 'owner' } } } })},from:(tabela)=>{
+    if(tabela==='playlist_colaboradores'){const vazia={select:()=>vazia,limit:()=>vazia,then:fn=>Promise.resolve(fn({data:[],error:null}))};return vazia;}
     let fields='';const query={select:s=>{fields=s;return query;},eq:(key,value)=>{assert.equal(key,'owner_id');assert.equal(value,'owner');return query;},order:()=>query,limit:()=>query,
       then:fn=>{playlistReads.push(fields);return Promise.resolve(fn(fields.includes('visible_on_profile')&&playlistError?{error:playlistError}:{data:[{id:'original',name:'A minha playlist',playlist_tracks:[{position:0,tracks:{artwork_url:'cover'}}],visible_on_profile:true,copied_from:null}]}));}};
     return query;
@@ -372,6 +373,7 @@ assert.equal(grande.trackCount,2000);assert.equal(pedidosDeContagem,1);
   const leveEnv=ambiente(async()=>{}, {
     'src/api/library.ts':{},
     'src/lib/supabase.ts':{supabase:{auth:{getSession:async()=>({data:{session:{user:{id:'eu'}}}})},from:(table)=>{
+      if(table==='playlist_colaboradores'){const vazia={select:()=>vazia,limit:()=>vazia,then:fn=>Promise.resolve(fn({data:[],error:null}))};return vazia;}
       let fields='',head=false;const limites=[],ordens=[];
       const query={
         select:(f,o)=>{fields=f;head=!!o?.head;return query;},
@@ -414,6 +416,52 @@ assert.equal(grande.trackCount,2000);assert.equal(pedidosDeContagem,1);
     assert.equal(lidas.length,1,'sem rede ou sem permissão não se repete o pedido');
   }
   console.log('Playlists: a lista pede a contagem e oito capas, e só cai na antiga se a forma for recusada.');
+}
+
+// 7/10, playlists colaborativas: as de quem me convidou entram na lista, e a
+// leitura dos colaboradores nunca esconde as minhas -- nem a falhar, nem sem a
+// migração (aí não se volta a perguntar).
+{
+  let colaboradores={data:[{playlist_id:'deles',user_id:'eu'},{playlist_id:'minha',user_id:'amigo'}],error:null};
+  let leiturasDosColaboradores=0;const pedidas=[];
+  const env=ambiente(async()=>{}, {
+    'src/api/library.ts':{},
+    'src/lib/supabase.ts':{supabase:{auth:{getSession:async()=>({data:{session:{user:{id:'eu'}}}})},from:(table)=>{
+      if(table==='playlist_colaboradores'){
+        const q={select:()=>q,limit:()=>q,then:fn=>{leiturasDosColaboradores++;return Promise.resolve(fn(colaboradores));}};
+        return q;
+      }
+      let filtro=null;
+      const q={select:()=>q,order:()=>q,limit:()=>q,
+        eq:(c,v)=>{filtro=['eq',c,v];return q;},in:(c,v)=>{filtro=['in',c,v];return q;},
+        then:fn=>{
+          pedidas.push(filtro);
+          const linhas=filtro?.[0]==='in'
+            ?[{id:'deles',name:'Do grupo',created_at:'2026-10-02',owner_id:'outro',visible_on_profile:false,copied_from:null,total:[{count:3}],capas:[]}]
+            :[{id:'minha',name:'Minha',created_at:'2026-10-01',owner_id:'eu',visible_on_profile:true,copied_from:null,total:[{count:1}],capas:[]}];
+          return Promise.resolve(fn({data:linhas,error:null}));
+        }};
+      return q;
+    }}},
+  });
+  const api=env.carregar('src/api/playlists.ts');
+  const lista=await api.listPlaylists();
+  assert.deepEqual(Array.from(lista,(p)=>p.id),['deles','minha'],'as de fora entram, pela data');
+  assert.equal(lista[0].souColaborador,true);assert.equal(lista[0].ownerId,'outro');
+  assert.equal(lista[1].souColaborador,false);
+  assert.equal(lista[1].colaborativa,true,'a minha com um amigo lá dentro é colaborativa');
+  assert.equal(JSON.stringify(pedidas.find((f)=>f[0]==='in')),JSON.stringify(['in','id',['deles']]),'só pede as de fora que me pertencem por colaboração');
+
+  colaboradores={data:null,error:{code:'503',message:'offline'}};pedidas.length=0;
+  assert.deepEqual(Array.from(await api.listPlaylists(),(p)=>p.id),['minha'],'a falhar, ficam as minhas');
+  assert.equal(pedidas.length,1);
+
+  colaboradores={data:null,error:{code:'42P01',message:'relation "public.playlist_colaboradores" does not exist'}};
+  await api.listPlaylists();
+  const antes=leiturasDosColaboradores;
+  assert.deepEqual(Array.from(await api.listPlaylists(),(p)=>p.id),['minha']);
+  assert.equal(leiturasDosColaboradores,antes,'sem a migração não se volta a perguntar');
+  console.log('Playlists colaborativas: entram na lista, e a leitura delas nunca esconde as minhas.');
 }
 
 let reads=0,failedSection='highlights';

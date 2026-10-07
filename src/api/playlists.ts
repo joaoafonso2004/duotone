@@ -8,6 +8,7 @@ import { planearMerge } from '../lib/playlistMerge';
 import { esquecerAfinidade } from './afinidade';
 import { esquecerAlargada } from '../lib/cacheDaBiblioteca';
 import { playlistPropriaEmCache } from './playlistSnapshot';
+import type { PessoaDaPlaylist } from '../lib/playlistColaborativa';
 
 /**
  * Uma playlist ganhou ou perdeu músicas: a co-ocorrência e a biblioteca
@@ -80,26 +81,130 @@ function cortadas(playlists: Playlist[], linhas: any[]): Playlist[] {
   return playlists.filter((_, i) => !Array.isArray(linhas[i]?.total));
 }
 
-export async function listPlaylists(): Promise<Playlist[]> {
-  const userId = await currentUserId();
-  const filtrar = (q: any) => q.eq('owner_id', userId).order('created_at', { ascending: false });
-  let lida = await lerComResumo('id, name, created_at, visible_on_profile, copied_from', filtrar);
+/**
+ * A tabela dos colaboradores não existe nesta base (falta correr
+ * supabase/playlists-colaborativas.sql): não se volta a perguntar até a app
+ * reabrir.
+ */
+let semColaboradores = false;
+function faltaAColaboracao(e: any): boolean {
+  const m = String(e?.message ?? '');
+  return e?.code === '42P01' || e?.code === 'PGRST205' || e?.code === 'PGRST202'
+    || (/playlist_colaboradores|pessoas_da_playlist/.test(m) && /does not exist|schema cache|Could not find/i.test(m));
+}
+
+/**
+ * Onde colaboro, e que playlists (minhas ou não) têm colaboradores (7/10).
+ * A RLS só devolve as linhas das playlists de que sou dono ou onde colaboro,
+ * por isso uma leitura sem filtro chega. Falhar é "nenhuma": a lista do dono
+ * nunca depende disto.
+ */
+async function lerColaboracoes(eu: string): Promise<{ colaboro: Set<string>; comColaboradores: Set<string> }> {
+  const r = { colaboro: new Set<string>(), comColaboradores: new Set<string>() };
+  if (semColaboradores) return r;
+  const { data, error } = await supabase.from('playlist_colaboradores').select('playlist_id, user_id').limit(2000);
+  if (error) { if (faltaAColaboracao(error)) semColaboradores = true; return r; }
+  for (const linha of (data ?? []) as any[]) {
+    r.comColaboradores.add(linha.playlist_id);
+    if (linha.user_id === eu) r.colaboro.add(linha.playlist_id);
+  }
+  return r;
+}
+
+async function lerPlaylistsDe(filtrar: (q: any) => any): Promise<{ lida: { data: any[] | null; error: any }; legacy: boolean }> {
+  let lida = await lerComResumo('id, name, created_at, owner_id, visible_on_profile, copied_from', filtrar);
   // A biblioteca já existia antes da partilha de perfis. Uma migração em falta
   // não pode fazê-la desaparecer; a leitura continua limitada ao próprio dono.
-  const legacy = missingProfilePlaylistColumns(lida.error);
-  if (legacy) lida = await lerComResumo('id, name, created_at', filtrar);
-  if (lida.error) throw lida.error;
+  const legacy = !!missingProfilePlaylistColumns(lida.error);
+  if (legacy) lida = await lerComResumo('id, name, created_at, owner_id', filtrar);
+  return { lida, legacy };
+}
 
-  const playlists = (lida.data ?? []).map((row: any) => ({
+export async function listPlaylists(): Promise<Playlist[]> {
+  const userId = await currentUserId();
+  const ordenar = (q: any) => q.order('created_at', { ascending: false });
+  // As minhas e as colaborações em paralelo: quem não colabora em nada não
+  // espera por uma segunda ida.
+  const [minhas, colab] = await Promise.all([
+    lerPlaylistsDe((q) => ordenar(q.eq('owner_id', userId))),
+    lerColaboracoes(userId),
+  ]);
+  if (minhas.lida.error) throw minhas.lida.error;
+  const deFora = [...colab.colaboro];
+  const outras = deFora.length ? await lerPlaylistsDe((q) => ordenar(q.in('id', deFora))) : null;
+  // Uma falha nas de fora não esconde as minhas.
+  const linhas = [...(minhas.lida.data ?? []), ...(outras && !outras.lida.error ? outras.lida.data ?? [] : [])];
+  const vistas = new Set<string>();
+  const unicas = linhas.filter((row: any) => !vistas.has(row.id) && !!vistas.add(row.id));
+  unicas.sort((a: any, b: any) => String(b.created_at).localeCompare(String(a.created_at)));
+
+  const playlists = unicas.map((row: any) => ({
     id: row.id,
     name: row.name,
     createdAt: row.created_at,
     ...resumoDaPlaylist(row),
-    visibleOnProfile: legacy ? undefined : !!row.visible_on_profile,
+    visibleOnProfile: minhas.legacy ? undefined : !!row.visible_on_profile,
     copiedFrom: row.copied_from ?? null,
+    ownerId: row.owner_id ?? userId,
+    souColaborador: !!row.owner_id && row.owner_id !== userId,
+    colaborativa: colab.comColaboradores.has(row.id),
   }));
-  await corrigirContagensLimitadas(cortadas(playlists, lida.data ?? []));
+  await corrigirContagensLimitadas(cortadas(playlists, unicas));
   return playlists;
+}
+
+/** Dono e colaboradores, com nome e cara. Sem a migração, ninguém (só o dono decide). */
+export async function lerPessoasDaPlaylist(id: string): Promise<PessoaDaPlaylist[]> {
+  if (semColaboradores) return [];
+  const { data, error } = await supabase.rpc('pessoas_da_playlist', { p_playlist: id });
+  if (error) {
+    if (faltaAColaboracao(error)) { semColaboradores = true; return []; }
+    throw error;
+  }
+  return ((data ?? []) as any[]).map((r) => ({
+    id: r.user_id,
+    papel: r.papel === 'dono' ? 'dono' : 'colaborador',
+    nome: r.nome ?? '',
+    username: r.username ?? '',
+    avatarUrl: r.avatar_url ?? null,
+  }));
+}
+
+/**
+ * Quem pôs cada música (track id -> conta), para as caras numa playlist com
+ * colaboradores. Fica fora do `getPlaylistTracks` de propósito: as playlists
+ * próprias vêm da cópia local, que não guarda isto, e uma coluna em falta não
+ * pode partir a leitura das músicas.
+ */
+export async function quemPosNaPlaylist(id: string): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>();
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase.from('playlist_tracks')
+      .select('track_id, added_by').eq('playlist_id', id).not('added_by', 'is', null)
+      .order('track_id').range(offset, offset + 999);
+    if (error) return mapa;
+    for (const r of (data ?? []) as any[]) mapa.set(r.track_id, r.added_by);
+    if (!data || data.length < 1000) break;
+  }
+  return mapa;
+}
+
+/** Junta amigos à playlist (só o dono; a função confere). Devolve quantos entraram. */
+export async function convidarParaPlaylist(id: string, amigos: string[]): Promise<number> {
+  const { data, error } = await supabase.rpc('convidar_para_playlist', { p_playlist: id, p_amigos: amigos });
+  if (error) throw error;
+  return Number(data) || 0;
+}
+
+export async function tirarColaborador(id: string, user: string): Promise<void> {
+  const { error } = await supabase.rpc('tirar_colaborador', { p_playlist: id, p_user: user });
+  if (error) throw error;
+}
+
+/** Sair de uma playlist onde se colabora: deixa de a ver. */
+export async function sairDaPlaylist(id: string): Promise<void> {
+  const { error } = await supabase.rpc('sair_da_playlist', { p_playlist: id });
+  if (error) throw error;
 }
 
 /** O PostgREST corta relações embutidas em 1000 linhas. Só fazemos o pedido

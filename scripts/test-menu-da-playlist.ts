@@ -49,6 +49,27 @@ caso('os nomes são os mesmos nos dois lados, menos o editar', () => {
     if (b && a.id !== 'editar') assert.equal(a.rotulo, b.rotulo, a.id);
   }
 });
+caso('colaborativa: o dono gere quem colabora, antes de apagar', () => {
+  const r = ids({ ...base, onde: 'pagina' });
+  assert.deepEqual(r.slice(-3), ['juntar', 'colaboradores', 'apagar']);
+  assert.equal(menuDaPlaylist({ ...base, onde: 'pagina' }).find((a) => a.id === 'colaboradores')?.rotulo, 'Collaborators…');
+});
+caso('colaborativa: quem colabora edita e junta, sai, e não apaga nem renomeia', () => {
+  const ios = ids({ ...base, minha: false, colaboro: true, onde: 'pagina' });
+  assert.deepEqual(ios, ['partilhar', 'partilhar-link', 'editar', 'juntar', 'colaboradores', 'sair']);
+  const pc = ids({ ...base, minha: false, colaboro: true, onde: 'pagina', plataforma: 'pc' });
+  assert.ok(!pc.includes('editar'), 'no PC o editar é o nome, e o nome é do dono');
+  assert.ok(!pc.includes('apagar'));
+  assert.equal(pc.at(-1), 'sair');
+  const sair = menuDaPlaylist({ ...base, minha: false, colaboro: true }).find((a) => a.id === 'sair');
+  assert.equal(sair?.destrutiva, true);
+  assert.equal(sair?.rotulo, 'Leave playlist');
+});
+caso('colaborativa: o grupo começa com um fio, e o colaborar não pesa no dono', () => {
+  const r = menuDaPlaylist({ ...base, minha: false, colaboro: true, onde: 'pagina', plataforma: 'pc' });
+  assert.equal(r.find((a) => a.id === 'juntar')?.inicioDeGrupo, true);
+  assert.deepEqual(ids({ ...base, colaboro: true }), ids(base), 'o dono não é colaborador');
+});
 caso('os quatro menus usam esta decisão (nenhum escreve rótulos à mão)', () => {
   for (const f of ['src/screens/PlaylistsScreen.tsx', 'src/screens/PlaylistDetailScreen.tsx', 'src/desktop/paginas/PlaylistPages.web.tsx']) {
     const texto = readFileSync(f, 'utf8');

@@ -19,7 +19,9 @@ import {
   deletePlaylist,
   getPlaylistTracks,
   importSharedPlaylist,
+  sairDaPlaylist,
 } from '../api/playlists';
+import { metaDaPlaylist } from '../lib/playlistColaborativa';
 import { ArtworkCollage } from '../components/ArtworkCollage';
 import { BottomSheet } from '../components/BottomSheet';
 import { ConfirmSheet } from '../components/ConfirmSheet';
@@ -158,6 +160,25 @@ export function PlaylistsScreen() {
     else if (id === 'partilhar-link') setQrDe(p);
     else if (id === 'editar') navigation.navigate('PlaylistDetail', { id: p.id, name: p.name, editar: true });
     else if (id === 'apagar') setDeleteFor(p);
+    else if (id === 'colaboradores') navigation.navigate('PlaylistDetail', { id: p.id, name: p.name, pessoas: true });
+    else if (id === 'sair') setSairDe(p);
+  };
+
+  // Sair de uma playlist onde se colabora (7/10).
+  const [sairDe, setSairDe] = useState<Playlist | null>(null);
+  const doSair = async () => {
+    if (!sairDe) return;
+    setBusy(true);
+    try {
+      await sairDaPlaylist(sairDe.id);
+      usePlaylists.getState().aplicar((items) => items.filter((x) => x.id !== sairDe.id));
+      setSairDe(null);
+      load();
+    } catch (e: any) {
+      avisarErro(mensagemDeErro(e, 'Could not leave this playlist.'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const doDelete = async () => {
@@ -304,8 +325,8 @@ export function PlaylistsScreen() {
                   />
                 </Pressable>
               </View>
-              <Text style={type.caption}>
-                {item.trackCount} {item.trackCount === 1 ? 'track' : 'tracks'}
+              <Text numberOfLines={1} style={type.caption}>
+                {metaDaPlaylist(item)}
               </Text>
             </Pressable>
           )}
@@ -325,7 +346,7 @@ export function PlaylistsScreen() {
           capas: optionsFor.artworks,
         } : null}
         // As ações vêm do menu partilhado com o PC (5/10, lib/menuDaPlaylist.ts).
-        actions={optionsFor ? menuDaPlaylist({ plataforma: 'ios', onde: 'cartao', temFaixas: optionsFor.trackCount > 0, minha: true })
+        actions={optionsFor ? menuDaPlaylist({ plataforma: 'ios', onde: 'cartao', temFaixas: optionsFor.trackCount > 0, minha: !optionsFor.souColaborador, colaboro: !!optionsFor.souColaborador })
           .map((a) => ({ icon: a.icone as any, label: a.rotulo, destructive: a.destrutiva, onPress: () => fazerNaPlaylist(a.id) })) : []}
       />
 
@@ -373,6 +394,17 @@ export function PlaylistsScreen() {
         loading={busy}
         onClose={() => setDeleteFor(null)}
         onConfirm={doDelete}
+      />
+
+      <ConfirmSheet
+        visible={!!sairDe}
+        title="Leave playlist"
+        message={`You will stop seeing "${sairDe?.name ?? ''}". The owner can add you again.`}
+        confirmLabel="Leave playlist"
+        destructive
+        loading={busy}
+        onClose={() => setSairDe(null)}
+        onConfirm={doSair}
       />
 
       <BottomSheet visible={addMenuOpen} onClose={() => setAddMenuOpen(false)}>
