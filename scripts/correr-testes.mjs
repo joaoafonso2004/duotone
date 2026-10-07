@@ -164,7 +164,6 @@ const TESTES = [
   `${TS} scripts/test-decadas.ts`,
   `${TS} scripts/test-preferencias.ts`,
   `${TS} scripts/test-generos.ts`,
-  `${TS} scripts/test-escolhas-do-dia.ts`,
   `${RESOLVER} scripts/test-resumo-do-mes.ts`,
   `${TS} scripts/test-rascunho.ts`,
   `${TS} scripts/test-menu-da-faixa.ts`,

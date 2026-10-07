@@ -40,7 +40,6 @@ import { BotaoVoltar,
   Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, marcar, Page,
   PrateleiraDeMisturas, Separadores, Shelf, TrackTable, type ColunaOrdenavel,
 } from '../ui.web';
-import { MusicasDoDia } from '../MusicasDoDia.web';
 import { useMisturaDoDia } from '../../state/misturaDoDia';
 import { BotaoDeFixar } from '../AtalhosNaLateral.web';
 import type { CommonPageProps, NavegarFn, Route } from '../rotas';
@@ -51,10 +50,8 @@ import { registar } from '../../lib/eventos';
 
 export function SearchPage({ play, tocarMusica, notify, more, navigate }: CommonPageProps & { navigate: NavegarFn }) {
   const [query, setQuery] = useState(''); const [history, setHistory] = useState<string[]>([]); const input = useRef<any>(null);
-  // As Músicas do dia, que no PC não existiam. Uma vista da Pesquisa, como no
-  // telemóvel, e não mais uma entrada na barra lateral: é sobre descobrir o
-  // que os amigos puseram, e a Pesquisa é a página de descobrir.
-  const [vista, setVista] = useState<'descobrir' | 'dia'>('descobrir');
+  // As músicas do dia saíram (7/10): já não existiam no iPhone (3/10), e a
+  // Pesquisa sem texto é só a descoberta.
   // **As recomendacoes vivem fora desta pagina** (`state/recomendacoes.ts`).
   // Estavam num `useState` daqui, e esta pagina desmonta ao mudar de
   // separador: ir aos Artists e voltar recomecava o "Preparing
@@ -87,7 +84,6 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
     contextoDaPrateleira(nome,savedKeys.has(`${track.source}:${track.sourceId}`)),[savedKeys]);
   const vistos=useRef(new Set<string>());
   useEffect(()=>{
-    if(vista!=='descobrir')return;
     for(const nome of ORDEM_DAS_PRATELEIRAS){
       const tracks=recs[nome];
       if(!recs.prontas.includes(nome)||!tracks.length)continue;
@@ -99,7 +95,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
       vistos.current.add(chave);
       registar('recomendacao_mostrada',{...contextoParaAnalytics(contexto),quantidade:tracks.length});
     }
-  },[vista,recs,contextoPrateleira,recs.carregadoEm,recs.prontas,recs.descobrir,recs.nuncaLancado,recs.amigos,recs.ouvirDeNovo,recs.flow,recs.maisTocadas,recs.esquecidas,savedKeys]);
+  },[recs,contextoPrateleira,recs.carregadoEm,recs.prontas,recs.descobrir,recs.nuncaLancado,recs.amigos,recs.ouvirDeNovo,recs.flow,recs.maisTocadas,recs.esquecidas,savedKeys]);
   // Nao repete o trabalho: se ja estao carregadas ou a carregar, isto e um
   // no-op. Existe para o caso de a app nao as ter comecado no arranque.
   useEffect(() => { void recs.carregar(); }, []);
@@ -138,12 +134,10 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
     if (!ok) notify('Could not load the mix.');
   };
   return <><Page title="Search"
-    action={vista === 'descobrir' ? <IconButton name="refresh" label="Refresh recommendations"
-      onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} /> : undefined}>
+    action={<IconButton name="refresh" label="Refresh recommendations"
+      onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} />}>
     <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
     {query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
-    {semPesquisa && !loading ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['descobrir', 'Discover'], ['dia', 'Songs of the day']] as const}
-      valor={vista} aoMudar={setVista} /></View> : null}
     {!semPesquisa ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums'], ['playlists', 'Playlists']] as const}
       valor={tipo} aoMudar={setTipo} /></View> : null}
     <ContentScroll>
@@ -184,7 +178,6 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
       : loading ? <View style={{ height: 320 }}><Loading /></View>
       : errorMsg ? <Empty icon="cloud-offline-outline" title="Search failed" body={errorMsg} />
       : query.trim().length >= 2 ? <Empty icon="search-outline" title="No results" body="Try a different search term." />
-      : vista === 'dia' ? <MusicasDoDia play={play} notify={notify} />
       : temRecomendacoes(recs) ? <>
           {/* Os sítios de onde se ouviu, como na Home do iPhone (5/10). */}
           <VoltarAOuvir />

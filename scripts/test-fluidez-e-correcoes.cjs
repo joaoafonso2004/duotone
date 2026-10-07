@@ -106,6 +106,9 @@ caso('o equalizador é do Gesture Handler (a página das Definições já não d
 caso('as "Songs of the day" saíram da Home do iPhone', () => {
   assert.doesNotMatch(ler('src/screens/SearchScreen.tsx'), />Songs of the day<|EscolhasDoDia|'daily'/);
   assert.ok(!fs.existsSync(root + '/src/components/EscolhasDoDia.tsx'));
+  // E no PC também (7/10): o separador "Songs of the day" da Pesquisa saiu.
+  assert.doesNotMatch(ler('src/desktop/paginas/BibliotecaPages.web.tsx'), /Songs of the day|MusicasDoDia/);
+  assert.ok(!fs.existsSync(root + '/src/desktop/MusicasDoDia.web.tsx'));
 });
 
 (async () => {
