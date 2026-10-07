@@ -44,6 +44,7 @@ import {
   sairDaPlaylist,
 } from '../api/playlists';
 import { usePlaylistAoVivo } from '../hooks/usePlaylistAoVivo';
+import { usePessoasComCaras } from '../hooks/usePessoasComCaras';
 import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
 import { eColaborativa, papelNaPlaylist, podeMexerNasFaixas, quemPos, type PessoaDaPlaylist } from '../lib/playlistColaborativa';
 import { CarasDaPlaylist, PessoasDaPlaylist } from '../components/PessoasDaPlaylist';
@@ -102,6 +103,8 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   // Pôr, tirar e reordenar: o dono e quem colabora. O nome e apagar só o dono.
   const canEdit=podeMexerNasFaixas(papel);
   const souDono=papel==='dono';
+  // O que se MOSTRA: as fotografias atuais (o servidor dá a coluna antiga).
+  const pessoasVistas=usePessoasComCaras(pessoas);
   const [loadError,setLoadError]=useState('');
   const detailRequest=useRef(0);
   const insets = useSafeAreaInsets();
@@ -548,7 +551,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
           />
           {eColaborativa(pessoas) ? (
             <View style={{ alignItems: 'center', paddingHorizontal: spacing.lg, marginTop: -spacing.sm, marginBottom: spacing.sm }}>
-              <CarasDaPlaylist pessoas={pessoas} onPress={() => setPessoasAbertas(true)} />
+              <CarasDaPlaylist pessoas={pessoasVistas} onPress={() => setPessoasAbertas(true)} />
             </View>
           ) : null}
           <View style={styles.actionRow}>
@@ -871,7 +874,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
               acompanharATocar
               onPress={aoTocarNaLinha}
               onAction={setActionTrack}
-              quemPos={quemPos(quemPosMapa.get(item.id), pessoas)}
+              quemPos={quemPos(quemPosMapa.get(item.id), pessoasVistas)}
             />
           )}
         />
@@ -931,7 +934,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
         onClose={() => setPessoasAbertas(false)}
         playlistId={id}
         papel={papel}
-        pessoas={pessoas}
+        pessoas={pessoasVistas}
         aoMudar={recarregarPessoas}
         aoSair={depoisDeSair}
       />

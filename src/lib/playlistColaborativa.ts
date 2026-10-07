@@ -97,5 +97,26 @@ export function metaDaPlaylist(p: { trackCount: number; colaborativa?: boolean }
   return p.colaborativa ? `Collaborative · ${faixas}` : faixas;
 }
 
+/**
+ * Põe a fotografia e o nome ATUAIS por cima do que o servidor deu (7/10). O
+ * `pessoas_da_playlist` lê a coluna antiga do avatar; os perfis
+ * públicos têm a de hoje. Quem ainda não está nos perfis fica como veio, e
+ * quem não mudou nada continua a ser o MESMO objeto (as linhas não redesenham).
+ */
+export function comCarasAtuais(
+  pessoas: readonly PessoaDaPlaylist[],
+  perfis: Readonly<Record<string, { name?: string | null; username?: string | null; avatar_url?: string | null } | undefined>>,
+): PessoaDaPlaylist[] {
+  return pessoas.map((p) => {
+    const perfil = perfis[p.id];
+    if (!perfil) return p;
+    const avatarUrl = perfil.avatar_url ?? p.avatarUrl;
+    const nome = perfil.name?.trim() || p.nome;
+    const username = perfil.username || p.username;
+    if (avatarUrl === p.avatarUrl && nome === p.nome && username === p.username) return p;
+    return { ...p, avatarUrl, nome, username };
+  });
+}
+
 /** A mensagem que vai no chat a quem acabou de entrar. */
 export const MENSAGEM_DO_CONVITE = 'Added you to this playlist. You can add songs too.';

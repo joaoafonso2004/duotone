@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  amigosParaConvidar, eColaborativa, MAXIMO_DE_COLABORADORES, metaDaPlaylist, nomeDaPessoa, papelNaPlaylist,
+  amigosParaConvidar, comCarasAtuais, eColaborativa, MAXIMO_DE_COLABORADORES, metaDaPlaylist, nomeDaPessoa, papelNaPlaylist,
   podeGerir, podeMexerNasFaixas, quemPos, resumoDasPessoas, vagasParaColaboradores, type PessoaDaPlaylist,
 } from '../src/lib/playlistColaborativa.ts';
 
@@ -92,6 +92,25 @@ caso('as caras centram-se por baixo do título no iPhone', () => {
   const estilo = comp.slice(comp.indexOf('  caras: {'), comp.indexOf('\n', comp.indexOf('  caras: {')));
   assert.ok(estilo.length > 0 && !estilo.includes('alignSelf'), 'o alinhamento não vem preso no estilo');
   assert.ok(readFileSync('src/desktop/paginas/PlaylistPages.web.tsx', 'utf8').includes('CarasDaPlaylist alinhar="flex-start"'));
+});
+
+caso('as caras são as ATUAIS, dos perfis públicos (o servidor dá a coluna antiga)', () => {
+  const antes = [dono, rui, eva];
+  const perfis = {
+    ana: { name: 'Ana', username: 'ana', avatar_url: 'storage:ana/nova.jpg' },
+    rui: { name: 'Rui', username: 'rui', avatar_url: 'emoji:🎧:2' },
+  };
+  const depois = comCarasAtuais(antes, perfis);
+  assert.equal(depois[0].avatarUrl, 'storage:ana/nova.jpg', 'a fotografia de hoje do dono');
+  assert.equal(depois[1].avatarUrl, 'emoji:🎧:2', 'e a do amigo, que vinha sem nada');
+  assert.equal(depois[2], eva, 'quem não está nos perfis fica como veio, o mesmo objeto');
+  assert.equal(comCarasAtuais([dono], { ana: { name: 'Ana', username: 'ana', avatar_url: null } })[0], dono, 'sem mudança, o mesmo objeto');
+  for (const f of ['src/screens/PlaylistDetailScreen.tsx', 'src/desktop/paginas/PlaylistPages.web.tsx']) {
+    const texto = readFileSync(f, 'utf8');
+    assert.ok(texto.includes('usePessoasComCaras(pessoas)'), f);
+    assert.ok(!/<CarasDaPlaylist[^>]*pessoas=\{pessoas\}/.test(texto), f + ': as caras desenham-se com as atuais');
+    assert.ok(!/<PessoasDaPlaylist[\s\S]{0,200}pessoas=\{pessoas\}/.test(texto), f + ': a folha também');
+  }
 });
 
 if (falhas) { console.log(`\n${falhas} caso(s) falharam.`); process.exit(1); }
