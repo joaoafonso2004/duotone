@@ -91,6 +91,7 @@ export const MIGRACOES: readonly Migracao[] = [
   { ficheiro: 'radio-no-jam.sql', marca: 'col:listening_sessions.radio', efeito: 'Radio in a Jam' },
   { ficheiro: 'painel-de-saude.sql', marca: 'fn:painel_de_saude', efeito: 'App health panel' },
   { ficheiro: 'playlists-colaborativas.sql', marca: 'fn:pessoas_da_playlist', efeito: 'Collaborative playlists' },
+  { ficheiro: 'playlists-ao-vivo.sql', marca: 'pub:playlist_mudancas', efeito: 'Collaborative playlists update live' },
 
   { ficheiro: 'estado-das-migracoes.sql', marca: 'fn:marcas_em_falta', efeito: 'This check' },
 ];

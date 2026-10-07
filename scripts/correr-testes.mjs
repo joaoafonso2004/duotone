@@ -240,6 +240,7 @@ const TESTES = [
   'scripts/test-painel-de-saude-sql.mjs',
   'scripts/test-presenca-mais-longa-sql.mjs',
   'scripts/test-playlists-colaborativas-sql.mjs',
+  'scripts/test-playlists-ao-vivo-sql.mjs',
   'scripts/test-versao-coerente.mjs',
   `${TS} scripts/test-migracoes.ts`,
   `${TS} scripts/test-deslizar-para-a-fila.ts`,

@@ -263,7 +263,12 @@ export function PessoasDaPlaylist({ visible, onClose, playlistId, papel, pessoas
  * por cima das outras, e "Ana and 2 others". Tocar abre a folha das pessoas.
  * Sem colaboradores não desenha nada.
  */
-export function CarasDaPlaylist({ pessoas, onPress }: { pessoas: readonly PessoaDaPlaylist[]; onPress: () => void }) {
+export function CarasDaPlaylist({ pessoas, onPress, alinhar = 'center' }: {
+  pessoas: readonly PessoaDaPlaylist[];
+  onPress: () => void;
+  /** Centradas por baixo do título no iPhone; encostadas ao texto no PC. */
+  alinhar?: 'center' | 'flex-start';
+}) {
   const resumo = resumoDasPessoas(pessoas);
   if (!resumo) return null;
   return (
@@ -272,7 +277,7 @@ export function CarasDaPlaylist({ pessoas, onPress }: { pessoas: readonly Pessoa
       hitSlop={6}
       accessibilityRole="button"
       accessibilityLabel={`Collaborative playlist with ${resumo.texto}`}
-      style={({ pressed }) => [styles.caras, pressed && { opacity: 0.7 }]}
+      style={({ pressed }) => [styles.caras, { alignSelf: alinhar }, pressed && { opacity: 0.7 }]}
     >
       <View style={{ flexDirection: 'row' }}>
         {resumo.caras.map((p, i) => (
@@ -288,7 +293,9 @@ export function CarasDaPlaylist({ pessoas, onPress }: { pessoas: readonly Pessoa
 }
 
 const styles = StyleSheet.create({
-  caras: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, alignSelf: 'flex-start', paddingVertical: 4 },
+  // O alinhamento vem de quem a põe: estava preso à esquerda, e no iPhone
+  // ficava colada à borda por baixo de um título centrado (7/10).
+  caras: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 4, maxWidth: '100%' },
   cara: { borderRadius: 13, borderWidth: 2, borderColor: colors.bg },
   linha: {
     flexDirection: 'row',

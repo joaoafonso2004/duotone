@@ -11,8 +11,9 @@ import { menuDaPlaylist, type IdDaAcaoDaPlaylist } from '../../lib/menuDaPlaylis
 import { Image, Pressable, Text, View as NativeView } from 'react-native';
 import {
   copiasGuardadas, createPlaylist, deletePlaylist, getPlaylistTracks, getPlaylistDetails, listPlaylists, mergePlaylists,
-  renamePlaylist, savePlaylistCopy, lerPessoasDaPlaylist, quemPosNaPlaylist, sairDaPlaylist,
+  renamePlaylist, savePlaylistCopy, lerPessoasDaPlaylist, quemPosNaPlaylist, relerPlaylist, sairDaPlaylist,
 } from '../../api/playlists';
+import { usePlaylistAoVivo } from '../../hooks/usePlaylistAoVivo';
 import {
   eColaborativa, metaDaPlaylist, nomeDaPessoa, papelNaPlaylist, podeMexerNasFaixas, quemPos, type PessoaDaPlaylist,
 } from '../../lib/playlistColaborativa';
@@ -45,7 +46,14 @@ type Ordenacao = 'default' | 'title' | 'artist' | 'recent' | 'duration';
 const NOMES_DA_ORDENACAO: Record<Ordenacao, string> = {
   default: 'Playlist order', title: 'Title', artist: 'Artist', recent: 'Recently added', duration: 'Duration',
 };
-const cacheDePlaylist = new Map<string, { tracks: PlaylistTrack[]; ownerId: string; name: string; pessoas?: PessoaDaPlaylist[] }>();
+type PlaylistGuardada = { tracks: PlaylistTrack[]; ownerId: string; name: string; pessoas?: PessoaDaPlaylist[]; em?: number };
+const cacheDePlaylist = new Map<string, PlaylistGuardada>();
+/** Uma cópia guardada mais nova do que isto mostra-se sem confirmar. */
+const CONFIRMAR_DEPOIS_MS = 30_000;
+function precisaDeConfirmar(g: PlaylistGuardada, eu: string | null | undefined): boolean {
+  if (Date.now() - (g.em ?? 0) < CONFIRMAR_DEPOIS_MS) return false;
+  return g.ownerId !== eu || eColaborativa(g.pessoas ?? []);
+}
 export const invalidarCacheDaPlaylist = (id: string) => { cacheDePlaylist.delete(id); };
 
 /** Tocar, baralhar ou pôr na fila sem abrir a playlist (o mesmo do toque longo no iPhone). */
@@ -189,6 +197,8 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
     catch(e:any){props.notify(e?.message||'Could not leave the playlist.');}
   };
   /** A cara de quem pôs cada música; o objeto vem da lista das pessoas. */
+  // Alguém mexeu numa playlist colaborativa aberta: relê-se por baixo.
+  usePlaylistAoVivo(id,eColaborativa(pessoas),userId,()=>{void refresh({silencioso:true});});
   const caraDaLinha=useMemo(()=>eColaborativa(pessoas)?(t:Track)=>{
     const quem=quemPos(quemPosMapa.get((t as PlaylistTrack).id),pessoas);
     return quem?<View accessibilityLabel={`Added by ${nomeDaPessoa(quem)}`}><FriendAvatar avatarUrl={quem.avatarUrl} name={nomeDaPessoa(quem)} size={20} /></View>:null;
@@ -230,18 +240,32 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
     setRenameVal(title);
   }, [title]);
 
-  const refresh = useCallback(async () => {
+  // `silencioso` (7/10): reler por baixo do que está à vista (abrir com a
+  // cópia guardada, um aviso de que alguém mexeu, o botão de refrescar). Sem o
+  // "Loading", e uma falha deixa a lista onde estava.
+  const [aReler,setAReler]=useState(false);
+  const refresh = useCallback(async (opcoes?: { silencioso?: boolean }) => {
+    const silencioso=!!opcoes?.silencioso;
     const token=++detailRequest.current;
-    setLoading(true);setOwnerId(null);setLoadError('');
-    try {const [info,rows,quem]=await Promise.all([getPlaylistDetails(id),getPlaylistTracks(id),lerPessoasDaPlaylist(id).catch(()=>[] as PessoaDaPlaylist[])]);if(token!==detailRequest.current)return;cacheDePlaylist.set(id,{tracks:rows,ownerId:info.ownerId,name:info.name,pessoas:quem});setOwnerId(info.ownerId);setPessoas(quem);setPlaylistTitle(info.name);setRenameVal(info.name);setTracks(rows);}
-    catch(e:any){if(token!==detailRequest.current)return;setTracks([]);setLoadError(e?.message || 'Could not load playlist.');}
-    finally{if(token===detailRequest.current)setLoading(false);}
+    if(silencioso)setAReler(true);
+    else{setLoading(true);setOwnerId(null);setLoadError('');}
+    try {const [info,rows,quem]=await Promise.all([getPlaylistDetails(id),silencioso?relerPlaylist(id):getPlaylistTracks(id),lerPessoasDaPlaylist(id).catch(()=>[] as PessoaDaPlaylist[])]);if(token!==detailRequest.current)return;cacheDePlaylist.set(id,{tracks:rows,ownerId:info.ownerId,name:info.name,pessoas:quem,em:Date.now()});setOwnerId(info.ownerId);setPessoas(quem);setPlaylistTitle(info.name);setRenameVal(info.name);setTracks(rows);}
+    catch(e:any){if(token!==detailRequest.current)return;if(silencioso){props.notify(e?.message || 'Could not refresh the playlist.');return;}setTracks([]);setLoadError(e?.message || 'Could not load playlist.');}
+    finally{if(token===detailRequest.current){setLoading(false);setAReler(false);}}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
   useEffect(() => {
-    if (!cacheDePlaylist.has(id)) void refresh();
+    // Com cópia guardada mostra-a já (7/10). Antes não confirmava NUNCA, e o
+    // que um colaborador pôs só aparecia depois de algo apagar a cópia. Agora
+    // confirma por baixo, mas só quando outra pessoa a pode ter mudado (é de
+    // outra pessoa, ou tem colaboradores) e a cópia tem mais de 30 s: cada
+    // confirmação são uns quatro pedidos, e os pedidos são os logs.
+    const guardada = cacheDePlaylist.get(id);
+    if (!guardada) void refresh();
+    else if (precisaDeConfirmar(guardada, userId)) void refresh({ silencioso: true });
     const atualizar = (event: Event) => {
       const alvo = (event as CustomEvent<{ id?: string }>).detail?.id;
-      if (!alvo || alvo === id) { cacheDePlaylist.delete(id); void refresh(); }
+      if (!alvo || alvo === id) { cacheDePlaylist.delete(id); void refresh({ silencioso: true }); }
     };
     window.addEventListener('duotone:refresh-playlist', atualizar);
     return()=>{detailRequest.current++;window.removeEventListener('duotone:refresh-playlist', atualizar);};
@@ -307,7 +331,7 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
     void usePlayer.getState().tocarLista(filteredTracks, ligado, inteligente, { tipo: 'playlist', nome: playlistTitle, id });
   };
   const artworks = tracks.map((track) => track.artworkUrl).filter((uri): uri is string => !!uri);
-  return <><Page title="Playlist" action={<BotaoVoltar onPress={back} />}><ContentScroll scrollKey={`playlist:${id}`}>{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <View style={{ height: 350 }}><Loading /></View> : loadError ? <Empty icon="alert-circle-outline" title="Playlist unavailable" body={loadError} action={<Button onPress={refresh}>Try again</Button>}/> : <><View style={styles.detailHero}><PlaylistArtwork artworks={artworks} lado={176} /><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>PLAYLIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{playlistTitle}</Text><Text style={styles.detailHeroMeta}>{linhaDeMeta(tracks.length, duracaoTotal)}</Text>{eColaborativa(pessoas) ? <View style={{ marginTop: 6 }}><CarasDaPlaylist pessoas={pessoas} onPress={() => setPessoasAbertas(true)} /></View> : null}<View style={styles.detailHeroActions}><Button icon="play" onPress={playAll}>Play</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><BotaoDeFixar atalho={{ tipo: 'playlist', id, nome: playlistTitle, capa: artworks[0] ?? null }} />{canEdit ? <IconButton name="ellipsis-horizontal" label="More playlist actions" onPress={() => { setOndeMenuDaPagina(ultimoClique()); setMenuOpen(true); }} /> : <>{estadoGuardar !== 'escondido' && <Button secondary icon={estadoGuardar === 'abrir-copia' ? 'checkmark' : 'add'} disabled={aGuardar} onPress={() => void guardar()}>{estadoGuardar === 'abrir-copia' ? 'Open your copy' : aGuardar ? 'Saving…' : 'Save'}</Button>}<Button secondary icon="share-social-outline" onPress={partilhar}>Share</Button></>}</View></View></View><View style={styles.detailToolbar}><View style={[styles.detailSearch, { marginBottom: 0 }]}><Field icon="search" placeholder="Search this playlist" value={query} onChangeText={setQuery} /></View><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{NOMES_DA_ORDENACAO[sortMode]}</Button></View><TrackTable plain listKey={`playlist:${id}:${query}:${sortMode}`} ordenacao={{ modo: colunaAtiva, aoMudar: (m) => setSortMode(m ?? 'default') }} tracks={filteredTracks} caraDaLinha={caraDaLinha} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'playlist', nome: playlistTitle, id })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} /></>}</ContentScroll></Page>{menuOpen ? <MenuDeContexto rato={ondeMenuDaPagina} rotulo={`Options for ${playlistTitle}`}
+  return <><Page title="Playlist" action={<BotaoVoltar onPress={back} />}><ContentScroll scrollKey={`playlist:${id}`}>{!!loadError&&<Empty icon="alert-circle-outline" title="Playlists unavailable" body={loadError} action={<Button secondary onPress={refresh}>Try again</Button>}/>}{loading ? <View style={{ height: 350 }}><Loading /></View> : loadError ? <Empty icon="alert-circle-outline" title="Playlist unavailable" body={loadError} action={<Button onPress={refresh}>Try again</Button>}/> : <><View style={styles.detailHero}><PlaylistArtwork artworks={artworks} lado={176} /><View style={styles.detailHeroBody}><Text style={styles.detailHeroEyebrow}>PLAYLIST</Text><Text numberOfLines={2} style={styles.detailHeroTitle}>{playlistTitle}</Text><Text style={styles.detailHeroMeta}>{linhaDeMeta(tracks.length, duracaoTotal)}</Text>{eColaborativa(pessoas) ? <View style={{ marginTop: 6 }}><CarasDaPlaylist alinhar="flex-start" pessoas={pessoas} onPress={() => setPessoasAbertas(true)} /></View> : null}<View style={styles.detailHeroActions}><Button icon="play" onPress={playAll}>Play</Button><Button secondary marcado={ligado} brilho={inteligente} icon="shuffle" onPress={alternarShuffle}>{inteligente ? 'Smart shuffle' : 'Shuffle'}</Button><BotaoDeFixar atalho={{ tipo: 'playlist', id, nome: playlistTitle, capa: artworks[0] ?? null }} />{canEdit ? <IconButton name="ellipsis-horizontal" label="More playlist actions" onPress={() => { setOndeMenuDaPagina(ultimoClique()); setMenuOpen(true); }} /> : <>{estadoGuardar !== 'escondido' && <Button secondary icon={estadoGuardar === 'abrir-copia' ? 'checkmark' : 'add'} disabled={aGuardar} onPress={() => void guardar()}>{estadoGuardar === 'abrir-copia' ? 'Open your copy' : aGuardar ? 'Saving…' : 'Save'}</Button>}<Button secondary icon="share-social-outline" onPress={partilhar}>Share</Button></>}</View></View></View><View style={styles.detailToolbar}><View style={[styles.detailSearch, { marginBottom: 0 }]}><Field icon="search" placeholder="Search this playlist" value={query} onChangeText={setQuery} /></View><Button secondary icon="swap-vertical" onPress={() => setSortOpen(true)}>{NOMES_DA_ORDENACAO[sortMode]}</Button><IconButton name="refresh" label="Refresh playlist" active={aReler} onPress={() => void refresh({ silencioso: true })} /></View><TrackTable plain listKey={`playlist:${id}:${query}:${sortMode}`} ordenacao={{ modo: colunaAtiva, aoMudar: (m) => setSortMode(m ?? 'default') }} tracks={filteredTracks} caraDaLinha={caraDaLinha} onPlay={(t) => props.tocarMusica(t, filteredTracks, undefined, { tipo: 'playlist', nome: playlistTitle, id })} onMore={props.more} empty={query ? <Empty icon="search-outline" title="No results found" body={`No playlist tracks match "${query}"`} /> : <Empty icon="add-circle-outline" title="This playlist is empty" body="Use track actions from Search or Liked Songs to add music here." />} /></>}</ContentScroll></Page>{menuOpen ? <MenuDeContexto rato={ondeMenuDaPagina} rotulo={`Options for ${playlistTitle}`}
   linhas={menuDaPlaylist({ plataforma: 'pc', onde: 'pagina', temFaixas: tracks.length > 0, minha: souDono, colaboro: papel === 'colaborador', fixada: estaFixado(atalhosDaPagina, `playlist:${id}`) })
     .map((a) => ({ id: a.id, rotulo: a.rotulo, icone: a.icone, perigo: a.destrutiva, inicioDeGrupo: a.inicioDeGrupo }))}
   aoEscolher={(acao) => {

@@ -40,8 +40,11 @@ import {
   savePlaylistCopy,
   lerPessoasDaPlaylist,
   quemPosNaPlaylist,
+  relerPlaylist,
   sairDaPlaylist,
 } from '../api/playlists';
+import { usePlaylistAoVivo } from '../hooks/usePlaylistAoVivo';
+import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
 import { eColaborativa, papelNaPlaylist, podeMexerNasFaixas, quemPos, type PessoaDaPlaylist } from '../lib/playlistColaborativa';
 import { CarasDaPlaylist, PessoasDaPlaylist } from '../components/PessoasDaPlaylist';
 import { usePlaylists } from '../state/playlists';
@@ -300,23 +303,36 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     });
   }, [tracks, id]);
 
-  const load = useCallback(async () => {
+  // `silencioso` (7/10): reler por baixo do que está à vista -- um aviso de
+  // que alguém mexeu, ou o puxar para atualizar. Sem esqueleto, e uma falha
+  // deixa a lista onde estava.
+  const load = useCallback(async (opcoes?: { silencioso?: boolean }) => {
+    const silencioso=!!opcoes?.silencioso;
     const token=++detailRequest.current;
-    setLoading(true);setLoadError('');
+    if(!silencioso){setLoading(true);setLoadError('');}
     try {
-      const [info,rows,quem]=await Promise.all([getPlaylistDetails(id),getPlaylistTracks(id),lerPessoasDaPlaylist(id).catch(()=>[] as PessoaDaPlaylist[])]);
+      const [info,rows,quem]=await Promise.all([getPlaylistDetails(id),silencioso?relerPlaylist(id):getPlaylistTracks(id),lerPessoasDaPlaylist(id).catch(()=>[] as PessoaDaPlaylist[])]);
       if(token!==detailRequest.current)return;
       setDetails(info);setName(info.name);setTracks(rows);setPessoas(quem);
       // As caras de quem pôs só numa playlist com colaboradores: uma ida a mais, e só aí.
       if(eColaborativa(quem))void quemPosNaPlaylist(id).then(m=>{if(token===detailRequest.current)setQuemPosMapa(m);});
       else setQuemPosMapa(new Map());
     } catch(e:any) {
-      if(token!==detailRequest.current)return;
+      if(token!==detailRequest.current||silencioso)return;
       setDetails(null);setTracks([]);setLoadError(e?.message || 'Could not load playlist.');
     } finally {
-      if(token===detailRequest.current)setLoading(false);
+      if(token===detailRequest.current&&!silencioso)setLoading(false);
     }
   }, [id]);
+
+  // Alguém mexeu (7/10): relê-se por baixo. A editar não -- o rascunho é teu, e
+  // o Save ou o Cancel releem a seguir.
+  const aEditar=useRef(false);
+  const releituraPendente=useRef(false);
+  usePlaylistAoVivo(id,eColaborativa(pessoas),userId,()=>{
+    if(aEditar.current){releituraPendente.current=true;return;}
+    void load({silencioso:true});
+  });
 
   /**
    * Guardar a playlist de outra pessoa (a que chegou pelo chat, 14/9): fica uma
@@ -377,7 +393,13 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, details, id, canEdit]);
 
-  const cancelarEdicao = () => { hapticSelection(); setRascunho(null); };
+  aEditar.current = rascunho !== null;
+  const depoisDeEditar = () => {
+    if (!releituraPendente.current) return;
+    releituraPendente.current = false;
+    void load({ silencioso: true });
+  };
+  const cancelarEdicao = () => { hapticSelection(); setRascunho(null); depoisDeEditar(); };
 
   const recarregarPessoas = useCallback(() => {
     void lerPessoasDaPlaylist(id).then((quem) => {
@@ -416,6 +438,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
       hapticNotification();
       setTracks(rascunho.faixas);
       setRascunho(null);
+      depoisDeEditar();
       // A grelha das Playlists mostra o nome, a contagem e as capas.
       void usePlaylists.getState().carregar(true);
     } catch (e: any) {
@@ -472,6 +495,9 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
   };
 
   const bottomPad = separadores + insets.bottom + MINI_PLAYER_HEIGHT + 32;
+  // Puxar para atualizar (7/10): numa playlist colaborativa o que os outros
+  // puseram vem já, sem sair e voltar.
+  const puxar = usePuxarParaAtualizar(() => load({ silencioso: true }), cab.espaco);
 
   /** As quatro primeiras capas, para o mosaico -- como na grelha. */
   const capasDaPlaylist = React.useMemo(
@@ -521,7 +547,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
             duracaoSegundos={duracaoTotal}
           />
           {eColaborativa(pessoas) ? (
-            <View style={{ alignItems: 'center', marginTop: -spacing.sm, marginBottom: spacing.sm }}>
+            <View style={{ alignItems: 'center', paddingHorizontal: spacing.lg, marginTop: -spacing.sm, marginBottom: spacing.sm }}>
               <CarasDaPlaylist pessoas={pessoas} onPress={() => setPessoasAbertas(true)} />
             </View>
           ) : null}
@@ -837,6 +863,7 @@ export function PlaylistDetailScreen({ route, navigation }: Props) {
            * espacos em branco a rolar depressa.
            */
           ListHeaderComponent={cabecalhoDaLista}
+          refreshControl={puxar}
           contentContainerStyle={{ paddingTop: cab.espaco, paddingBottom: bottomPad }}
           renderItem={({ item }) => (
             <TrackRow

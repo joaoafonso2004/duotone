@@ -7,7 +7,7 @@ import { planearMerge } from '../lib/playlistMerge';
 // Quem mexe nas playlists muda a co-ocorrência: a descoberta tem de a reler.
 import { esquecerAfinidade } from './afinidade';
 import { esquecerAlargada } from '../lib/cacheDaBiblioteca';
-import { playlistPropriaEmCache } from './playlistSnapshot';
+import { esquecerFaixasDasPlaylists, playlistPropriaEmCache } from './playlistSnapshot';
 import type { PessoaDaPlaylist } from '../lib/playlistColaborativa';
 
 /**
@@ -199,6 +199,54 @@ export async function convidarParaPlaylist(id: string, amigos: string[]): Promis
 export async function tirarColaborador(id: string, user: string): Promise<void> {
   const { error } = await supabase.rpc('tirar_colaborador', { p_playlist: id, p_user: user });
   if (error) throw error;
+}
+
+/**
+ * Os avisos ao vivo (supabase/playlists-ao-vivo.sql) existem nesta base? Uma
+ * pergunta por arranque: subscrever uma tabela que não está no Realtime deixava
+ * o canal em erro, a tentar entrar outra vez. Uma falha da pergunta não fica
+ * guardada.
+ */
+let avisosAoVivo: Promise<boolean> | null = null;
+function haAvisosAoVivo(): Promise<boolean> {
+  avisosAoVivo ??= Promise.resolve(supabase.rpc('marcas_em_falta', { p_marcas: ['pub:playlist_mudancas'] }))
+    .then(({ data, error }) => {
+      if (error) { avisosAoVivo = null; return false; }
+      return Array.isArray(data) && data.length === 0;
+    })
+    .catch(() => { avisosAoVivo = null; return false; });
+  return avisosAoVivo;
+}
+
+/**
+ * Ouve os avisos de uma playlist colaborativa (7/10). `aoMudar` quando alguém
+ * mexe nela (músicas ou pessoas), com quem mexeu, `aoReligar` quando o canal volta depois de
+ * cair. Devolve quem pára.
+ */
+export function ouvirMudancasDaPlaylist(id: string, aoMudar: (por: string | null) => void, aoReligar: () => void): () => void {
+  let parado = false;
+  let canal: ReturnType<typeof supabase.channel> | null = null;
+  let jaLigou = false;
+  void haAvisosAoVivo().then((ha) => {
+    if (parado || !ha) return;
+    canal = supabase.channel(`playlist-mudancas:${id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'playlist_mudancas', filter: `playlist_id=eq.${id}` }, (m: any) => aoMudar(m?.new?.por ?? null))
+      .subscribe((estado) => {
+        if (estado !== 'SUBSCRIBED') return;
+        if (jaLigou) aoReligar();
+        jaLigou = true;
+      });
+  });
+  return () => { parado = true; if (canal) void supabase.removeChannel(canal); };
+}
+
+/**
+ * Reler uma playlist que pode ter mudado noutro sítio. As próprias vêm da cópia
+ * local, que só confirma a revisão de 15 em 15 s: assim confirma já.
+ */
+export async function relerPlaylist(id: string): Promise<PlaylistTrack[]> {
+  esquecerFaixasDasPlaylists();
+  return getPlaylistTracks(id);
 }
 
 /** Sair de uma playlist onde se colabora: deixa de a ver. */

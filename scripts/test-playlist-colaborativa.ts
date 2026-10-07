@@ -72,5 +72,27 @@ caso('a linha da lista diz que é colaborativa', () => {
   assert.equal(metaDaPlaylist({ trackCount: 3, colaborativa: true }), 'Collaborative · 3 tracks');
 });
 
+caso('ao vivo: as duas páginas ouvem os avisos, sem se relerem com as próprias mudanças', () => {
+  const ios = readFileSync('src/screens/PlaylistDetailScreen.tsx', 'utf8');
+  const pc = readFileSync('src/desktop/paginas/PlaylistPages.web.tsx', 'utf8');
+  for (const [nome, f] of [['iPhone', ios], ['PC', pc]] as const) {
+    assert.ok(f.includes('usePlaylistAoVivo(id,eColaborativa(pessoas),userId,'), nome + ': só com colaboradores, e sabendo quem sou');
+  }
+  const gancho = readFileSync('src/hooks/usePlaylistAoVivo.ts', 'utf8');
+  assert.ok(gancho.includes('por !== eu'), 'as minhas mudanças não releem nada (logs)');
+  assert.ok(pc.includes('label="Refresh playlist"'), 'o PC tem botão de refrescar');
+  assert.ok(ios.includes('refreshControl={puxar}'), 'o iPhone puxa para atualizar');
+  // O PC reabria a cópia guardada sem confirmar nunca; confirma, mas só quando
+  // outra pessoa a pode ter mudado, e não a cada visita.
+  assert.ok(pc.includes('precisaDeConfirmar(guardada, userId)'));
+  assert.ok(pc.includes('CONFIRMAR_DEPOIS_MS = 30_000'));
+});
+caso('as caras centram-se por baixo do título no iPhone', () => {
+  const comp = readFileSync('src/components/PessoasDaPlaylist.tsx', 'utf8');
+  const estilo = comp.slice(comp.indexOf('  caras: {'), comp.indexOf('\n', comp.indexOf('  caras: {')));
+  assert.ok(estilo.length > 0 && !estilo.includes('alignSelf'), 'o alinhamento não vem preso no estilo');
+  assert.ok(readFileSync('src/desktop/paginas/PlaylistPages.web.tsx', 'utf8').includes('CarasDaPlaylist alinhar="flex-start"'));
+});
+
 if (falhas) { console.log(`\n${falhas} caso(s) falharam.`); process.exit(1); }
 console.log('\n  Todos os casos passaram.');

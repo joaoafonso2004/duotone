@@ -67,6 +67,7 @@ test-*.mjs
 !scripts/test-painel-de-saude-sql.mjs
 !scripts/test-presenca-mais-longa-sql.mjs
 !scripts/test-playlists-colaborativas-sql.mjs
+!scripts/test-playlists-ao-vivo-sql.mjs
 !scripts/test-versao-coerente.mjs
 !scripts/test-estado-das-migracoes-sql.mjs
 !scripts/test-gasto-em-segundo-plano.mjs
