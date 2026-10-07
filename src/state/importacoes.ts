@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { dependenciasReais } from '../api/playlistPorLink';
-import { ErroDaImportacao, importarPorLink, type Progresso, type Resultado } from '../lib/importacaoPorLink';
+import { ErroDaImportacao, importarLinhas, importarPorLink, type Progresso, type Resultado } from '../lib/importacaoPorLink';
+import type { LinhaDaPlaylist } from '../lib/linkDePlaylist';
+import { useSaved } from './saved';
 import { lerLink } from '../lib/linkDePlaylist';
 import { usePlaylists } from './playlists';
 
@@ -21,12 +23,19 @@ export interface Importacao {
   total: number;
   resultado?: Resultado;
   erro?: string;
+  /**
+   * Uma lista da CONTA do Spotify (7/10), já lida: as linhas vêm prontas e o
+   * destino diz para onde vão (as Liked Songs vão para as Liked Songs).
+   */
+  conta?: { linhas: LinhaDaPlaylist[]; cortada: boolean; destino: 'playlist' | 'gostadas' };
 }
 
 interface Estado {
   lista: Importacao[];
   /** Devolve `false` se o texto não é um link de playlist que se saiba ler. */
   importar: (texto: string) => boolean;
+  /** Listas já lidas da conta do Spotify, uma importação cada, pela ordem. */
+  importarDaConta: (listas: { nome: string; linhas: LinhaDaPlaylist[]; cortada: boolean; destino: 'playlist' | 'gostadas' }[]) => void;
   dispensar: (id: string) => void;
 }
 
@@ -44,6 +53,18 @@ export const useImportacoes = create<Estado>((set, get) => {
       for (;;) {
         const proxima = get().lista.find((i) => i.estado === 'na-fila');
         if (!proxima) break;
+        if (proxima.conta) {
+          try {
+            const resultado = await importarLinhas({ nome: proxima.nome ?? 'Spotify playlist', ...proxima.conta },
+              dependenciasReais, (p) => mudar(proxima.id, { estado: p.fase, feitas: p.feitas, total: p.total }));
+            mudar(proxima.id, { estado: 'feita', resultado });
+            if (proxima.conta.destino === 'gostadas') void useSaved.getState().refresh();
+            else void usePlaylists.getState().carregar(true);
+          } catch (e: any) {
+            mudar(proxima.id, { estado: 'falhou', erro: e instanceof ErroDaImportacao ? e.message : "Couldn't import that list. Try again later." });
+          }
+          continue;
+        }
         const link = lerLink(proxima.texto)!;
         try {
           const resultado = await importarPorLink(link, {
@@ -82,6 +103,15 @@ export const useImportacoes = create<Estado>((set, get) => {
       set({ lista: [...get().lista, nova] });
       void correr();
       return true;
+    },
+    importarDaConta: (listas) => {
+      const novas = listas.map((l) => ({
+        id: `imp-${++contador}`, tipo: 'spotify' as const, texto: '', nome: l.nome, estado: 'na-fila' as const, feitas: 0, total: l.linhas.length,
+        conta: { linhas: l.linhas, cortada: l.cortada, destino: l.destino },
+      }));
+      if (!novas.length) return;
+      set({ lista: [...get().lista, ...novas] });
+      void correr();
     },
     dispensar: (id) => set({ lista: get().lista.filter((i) => i.id !== id) }),
   };

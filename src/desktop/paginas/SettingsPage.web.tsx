@@ -1,3 +1,5 @@
+import { PainelDeSaude } from '../../components/PainelDeSaude';
+import { souAdministrador } from '../../api/painelDeSaude';
 import { RecommendationPreferences } from '../../components/RecommendationPreferences';
 import { ROTULOS } from '../../lib/rotulosDasDefinicoes';
 import { removeOwnProfileMedia } from '../../lib/profileMedia';
@@ -54,6 +56,11 @@ import { useConnectivity } from '../../state/connectivity';
 import type { NavegarFn } from '../rotas';
 
 export function SettingsPage({ notify, navigate }: { notify: (s: string) => void; navigate: NavegarFn }) {
+  // O painel de saúde (7/10): a entrada só aparece na conta de quem gere a app.
+  const contaDoPainel = useAuth((s) => s.session?.user.id ?? null);
+  const [administrador, setAdministrador] = useState(false);
+  const [painelAberto, setPainelAberto] = useState(false);
+  useEffect(() => { let vivo = true; void souAdministrador(contaDoPainel).then((v) => { if (vivo) setAdministrador(v); }); return () => { vivo = false; }; }, [contaDoPainel]);
   const [recommendationsOpen,setRecommendationsOpen]=useState(false);
   // Identificar a biblioteca contra um catálogo a sério, como no iPhone. Só
   // corre quando se pede: são uma ou duas chamadas de rede por faixa.
@@ -485,7 +492,10 @@ export function SettingsPage({ notify, navigate }: { notify: (s: string) => void
                   onPress={() => { if (!checkingUpdate) void checkForUpdates(); }}
                 />
                 <SettingAction label="Save playback report" description="If a song won't play, or Duotone feels heavy, send this so it can be fixed." onPress={() => { notify('Preparing the report…'); void exportarRelatorio(); }} />
+                {/* Só na conta do João (7/10, supabase/painel-de-saude.sql). */}
+                {administrador ? <SettingAction label="App health" description="Who is on which version, failed songs, crashes and time to first sound, from everyone's app." onPress={() => setPainelAberto(true)} /> : null}
               </SettingsCard>}
+              <PainelDeSaude visivel={painelAberto} aoFechar={() => setPainelAberto(false)} />
 
               {/* As mesmas três coisas da secção Account do iPhone, e o apagar a
                   conta, que vivia no About. Sem rede, como lá, ficam apagadas. */}

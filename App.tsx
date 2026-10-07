@@ -64,7 +64,7 @@ import { useOuvirJuntos } from './src/state/ouvirJuntos';
 import { useSeguirAmigo } from './src/state/seguirAmigo';
 import { aquecerPerfilProprio, limparCachePerfil } from './src/lib/cachePerfil';
 import { sincronizarPreferencias } from './src/lib/prefsSync';
-import { CartazDaSemana } from './src/components/CartazDaSemana';
+import { ResumoDoMes } from './src/components/ResumoDoMes';
 import { Abertura } from './src/components/Abertura';
 import { iniciarEventos } from './src/lib/eventos';
 import { iniciarSocial } from './src/state/social';
@@ -384,11 +384,12 @@ export default function App() {
       <BarreiraDeErros onde="app">
         <RootNavigator />
       </BarreiraDeErros>
-      {/* O cartaz de sexta-feira. Vive AQUI, ao lado do `UpdateSheet`, porque
-          e a outra coisa nesta app que se poe a frente de alguem sem lhe ser
-          pedida -- e as duas tem de sobreviver a mudanca de separador. Ele
-          decide sozinho se aparece; ver `components/CartazDaSemana.tsx`. */}
-      <CartazDaSemana />
+      {/* "O teu mês" (7/10, substituiu o cartaz de sexta-feira). Vive AQUI, ao
+          lado do `UpdateSheet`, porque é a outra coisa nesta app que se põe à
+          frente de alguém sem lhe ser pedida -- e as duas têm de sobreviver à
+          mudança de separador. Decide sozinho se aparece; ver
+          `components/ResumoDoMes.tsx`. */}
+      <ResumoDoMes />
       <UpdateSheet />
       {/* O eclipse do arranque, por cima de tudo e por isso em último. A app
           arranca por baixo enquanto ele toca. Ver `components/Abertura.tsx`. */}

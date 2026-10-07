@@ -94,6 +94,36 @@ export async function saveToLibrary(track: Track): Promise<string> {
   return trackId;
 }
 
+/**
+ * Muitas de uma vez nas Liked Songs (7/10, a importação das Liked Songs do
+ * Spotify): a ordem é a da lista -- a primeira fica a mais recente, como lá --,
+ * e as que já lá estão não mudam de data. Em lotes de 500.
+ */
+export async function guardarMuitasNasGostadas(tracks: Track[]): Promise<number> {
+  if (!tracks.length) return 0;
+  const ids = await upsertTracks(tracks);
+  const userId = await currentUserId();
+  const agora = Date.now();
+  const linhas = tracks.flatMap((t, i) => {
+    const id = ids.get(trackKey(t));
+    return id ? [{ user_id: userId, track_id: id, added_at: new Date(agora - i * 1000).toISOString() }] : [];
+  });
+  for (let i = 0; i < linhas.length; i += 500) {
+    const { error } = await supabase.from('library_tracks')
+      .upsert(linhas.slice(i, i + 500), { onConflict: 'user_id,track_id', ignoreDuplicates: true });
+    if (error) throw error;
+  }
+  // Muitas de uma vez: a lista guardada deita-se fora em vez de se ajustar (ver
+  // `ajustarGostada`), e as páginas releem.
+  esquecerBiblioteca();
+  await changeCachedLikes(userId, (antigas) => {
+    const novas = tracks.flatMap((t) => { const id = ids.get(trackKey(t)); return id ? [{ ...t, id }] : []; });
+    const ja = new Set(novas.map((t) => t.id));
+    return [...novas, ...antigas.filter((t) => !ja.has(t.id ?? ''))];
+  });
+  return linhas.length;
+}
+
 export async function removeFromLibrary(trackId: string): Promise<void> {
   const userId = await currentUserId();
   const { error } = await supabase

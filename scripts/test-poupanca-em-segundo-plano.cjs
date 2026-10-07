@@ -92,7 +92,8 @@ async function main() {
       './presencaAtiva': a.carregar('src/lib/presencaAtiva.ts'),
       'expo-crypto': { randomUUID: () => 'session' }, './deviceIdentity': { getDeviceId: async () => 'phone' },
       './supabase': { supabase: { auth: { getSession: async () => ({ data: { session: { user: { id: 'me' } } } }) },
-        rpc: async (_, dados) => { publicados.push(dados); return {}; } } },
+        // A pergunta pela validade longa (marcas_em_falta) não é uma publicação.
+        rpc: async (nome, dados) => { if (nome === 'publish_social_presence') publicados.push(dados); return {}; } } },
       '../state/player': { usePlayer: player },
       '../state/privacidade': { garantirPrivacidade: async () => {}, usePrivacidade: store({ privada: false }) },
       '../state/ouvirJuntos': { useOuvirJuntos: store({ sessao: null }) },

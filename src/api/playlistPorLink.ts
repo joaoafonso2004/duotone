@@ -1,6 +1,7 @@
 import { fetchYouTubePlaylistById } from './youtube';
 import { searchYouTubeFreeWithChannel } from './ytSearchFree';
 import { addTracksToPlaylist, createPlaylist } from './playlists';
+import { guardarMuitasNasGostadas } from './library';
 import { importSpotifyCsv } from '../lib/spotifyImport';
 import { lerEmbedDoSpotify, urlDoEmbed } from '../lib/linkDePlaylist';
 import type { Dependencias } from '../lib/importacaoPorLink';
@@ -35,4 +36,5 @@ export const dependenciasReais: Dependencias = {
   },
   criarPlaylist: (nome) => createPlaylist(nome),
   adicionar: (id, faixas) => addTracksToPlaylist(id, faixas),
+  guardarNasGostadas: (faixas) => guardarMuitasNasGostadas(faixas as any),
 };

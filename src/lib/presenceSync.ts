@@ -21,6 +21,22 @@ const PRESENCE_PUBLISH_MS=75_000;
 // 60. Custo: ~60-72 publicações por hora, só enquanto a pessoa mexe no PC com o
 // Duotone escondido e parado (ausente, não sai nenhuma).
 const BATIMENTO_ESCONDIDO_NO_PC_MS=50_000;
+/**
+ * Com a validade de 300 s no servidor (supabase/presenca-mais-longa.sql, 7/10)
+ * publica-se de 200 em 200 s: menos pedidos à API, que são os logs que enchem o
+ * plano grátis. Só depois de ver a migração aplicada -- antes dela a validade é
+ * 120 s, e publicar menos vezes apagava a pessoa entre batimentos.
+ */
+const BATIMENTO_COM_VALIDADE_LONGA_MS=200_000;
+const MARCA_DA_VALIDADE_LONGA='txt:publish_social_presence~300 seconds';
+let validadeLonga: Promise<boolean> | null = null;
+/** A migração da validade longa já correu? Uma pergunta por arranque. */
+function servidorComValidadeLonga(): Promise<boolean> {
+  validadeLonga ??= Promise.resolve(supabase.rpc('marcas_em_falta', { p_marcas: [MARCA_DA_VALIDADE_LONGA] }))
+    .then(({ data, error }) => !error && Array.isArray(data) && data.length === 0)
+    .catch(() => false);
+  return validadeLonga;
+}
 export async function terminarPresenca(): Promise<void> { await terminarAtual?.(); }
 
 /** Onde vai a música agora, para quem te segue. Só projeta com ela a soar. */
@@ -41,6 +57,8 @@ export function iniciarPresenca(userId: string): () => void {
   let fila = Promise.resolve();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let lastPublished=0;
+  /** De quanto em quanto tempo se bate: 75 s até se saber que o servidor dá 300 s de validade. */
+  let batimentoMs=PRESENCE_PUBLISH_MS;
   let ultimoEnviado: { chave: string; em: number } | null = null;
   const sessao = Crypto.randomUUID();
   const dispositivo = getDeviceId();
@@ -129,7 +147,7 @@ export function iniciarPresenca(userId: string): () => void {
     // Uma ida na barra ou outra velocidade publicam já: sem isso o progresso
     // dos amigos mostrava um sítio que já não existia até ao batimento seguinte.
     else if(!terminado&&s.isPlaying&&(s.playbackRate!==p.playbackRate||Math.abs((s.positionMs-p.positionMs)-(s.positionAt-p.positionAt)*(s.playbackRate||1))>4000))changed();
-    else if(!terminado&&s.positionMs!==p.positionMs&&s.isPlaying&&Date.now()-lastPublished>=PRESENCE_PUBLISH_MS)void publicar();
+    else if(!terminado&&s.positionMs!==p.positionMs&&s.isPlaying&&Date.now()-lastPublished>=batimentoMs)void publicar();
   });
   // Ligar a privada tem de tirar a faixa JÁ, e não no próximo batimento: são
   // até 75 segundos a mostrar precisamente aquilo que se quis esconder.
@@ -144,20 +162,29 @@ export function iniciarPresenca(userId: string): () => void {
     estadoEstavel = estado;
     void publicar();
   });
-  const beat = setInterval(() => {
+  const baterSeDevido = () => {
     // Continua a bater com musica a tocar: e o que mantem o "esta a ouvir"
     // verdadeiro. O que isso ja NAO faz e dizer que a pessoa esta online --
     // essa janela agora so se estende com `p_active`.
     // O timeUpdate nativo já pode ter feito este batimento com o ecrã apagado.
-    if (!terminado && Date.now() - lastPublished >= PRESENCE_PUBLISH_MS
+    if (!terminado && Date.now() - lastPublished >= batimentoMs
       && (appEstaVisivel() || usePlayer.getState().isPlaying)) void publicar();
-  }, PRESENCE_PUBLISH_MS);
+  };
+  let beat = setInterval(baterSeDevido, batimentoMs);
+  void servidorComValidadeLonga().then((longa) => {
+    if (terminado || !longa) return;
+    batimentoMs = BATIMENTO_COM_VALIDADE_LONGA_MS;
+    clearInterval(beat);
+    beat = setInterval(baterSeDevido, batimentoMs);
+  });
   // O batimento de cima nao corre no PC escondido e parado, e era ai que a
   // pessoa desaparecia: minimizada, sem musica, sentada ao computador (1/10).
   // Pergunta-se ao sistema (local, sem rede) e so se publica com ela la --
   // ausente, deixa-se o online caducar sozinho em vez de bater a noite toda.
   const vigiaDoPc = Platform.OS === 'web' ? setInterval(() => {
     if (terminado || appEstaVisivel() || usePlayer.getState().isPlaying) return;
+    // Com a validade longa, só quando o batimento está quase a fazer falta.
+    if (Date.now() - lastPublished < batimentoMs - BATIMENTO_ESCONDIDO_NO_PC_MS) return;
     void segundosSemInteracao().then((s) => { if (!terminado && estaAoComputador(s)) void publicar(); });
   }, BATIMENTO_ESCONDIDO_NO_PC_MS) : undefined;
   const voltar = () => { if (!terminado) void publicar(); };

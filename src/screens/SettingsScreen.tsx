@@ -1,3 +1,5 @@
+import { PainelDeSaude } from '../components/PainelDeSaude';
+import { souAdministrador } from '../api/painelDeSaude';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
 import { ROTULOS } from '../lib/rotulosDasDefinicoes';
 import { getCarroMantemEcra, setCarroMantemEcra } from '../lib/prefs';
@@ -80,6 +82,11 @@ import { mensagemDeErro } from '../lib/mensagemDeErro';
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
 export function SettingsScreen({ navigation }: Props) {
+  // O painel de saúde (7/10): a entrada só aparece na conta de quem gere a app.
+  const contaDoPainel = useAuth((s) => s.session?.user.id ?? null);
+  const [administrador, setAdministrador] = useState(false);
+  const [painelAberto, setPainelAberto] = useState(false);
+  useEffect(() => { let vivo = true; void souAdministrador(contaDoPainel).then((v) => { if (vivo) setAdministrador(v); }); return () => { vivo = false; }; }, [contaDoPainel]);
   const offline=useOfflineMode();
   // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
   const cab = useCabecalhoQueEncolhe();
@@ -580,7 +587,10 @@ export function SettingsScreen({ navigation }: Props) {
             acao
             aoTocar={() => { void partilharRelatorioDeReproducao().catch(() => {}); }}
           />
+          {/* Só na conta do João (7/10, supabase/painel-de-saude.sql). */}
+          {administrador ? <Linha icone="pulse" rotulo="App health" chevron aoTocar={() => setPainelAberto(true)} /> : null}
         </Grupo>
+        <PainelDeSaude visivel={painelAberto} aoFechar={() => setPainelAberto(false)} />
       </Animated.ScrollView>
 
       <ConfirmSheet

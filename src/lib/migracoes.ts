@@ -66,6 +66,7 @@ export const MIGRACOES: readonly Migracao[] = [
   { ficheiro: 'presenca-online-so-em-primeiro-plano.sql', marca: 'col:social_presence_sessions.active_until', efeito: 'Online only while the app is open' },
   { ficheiro: 'presenca-com-posicao.sql', marca: 'txt:publish_social_presence~positionMs', efeito: "Friends' progress bars" },
   { ficheiro: 'presenca-com-fila.sql', marca: 'txt:publish_social_presence~aSeguir', efeito: "Listen along shows the friend's Up next" },
+  { ficheiro: 'presenca-mais-longa.sql', marca: 'txt:publish_social_presence~300 seconds', efeito: 'Fewer presence updates' },
   { ficheiro: 'inbox-archive.sql', marca: 'col:shared_items.archived_at', efeito: 'Archive inbox items' },
   { ficheiro: 'message-notifications.sql', marca: 'pub:shared_items', efeito: 'Messages arrive live' },
   { ficheiro: 'chat-reads.sql', marca: 'tab:chat_reads', efeito: 'Read receipts' },
@@ -88,6 +89,7 @@ export const MIGRACOES: readonly Migracao[] = [
   { ficheiro: 'jam-passa-o-anfitriao.sql', marca: 'fn:passar_ou_fechar_sessao', efeito: 'Jam continues when the host leaves' },
   { ficheiro: 'fechar-jams-abandonadas.sql', marca: 'fn:fechar_jams_abandonadas', efeito: 'Abandoned Jams close on their own' },
   { ficheiro: 'radio-no-jam.sql', marca: 'col:listening_sessions.radio', efeito: 'Radio in a Jam' },
+  { ficheiro: 'painel-de-saude.sql', marca: 'fn:painel_de_saude', efeito: 'App health panel' },
 
   { ficheiro: 'estado-das-migracoes.sql', marca: 'fn:marcas_em_falta', efeito: 'This check' },
 ];

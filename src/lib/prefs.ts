@@ -615,17 +615,15 @@ export async function setVelocidadeMantemTom(v: boolean): Promise<void> {
 }
 
 /**
- * A chave da ultima semana em que o cartaz de sexta-feira foi mostrado.
- *
- * Nao e uma data nem um booleano: e a chave que o `lib/sextaFeira.ts` devolve
- * -- a data da ultima sexta. E ela que faz duas aberturas da mesma janela
- * darem o mesmo resultado sem se ter de contar dias a mao.
+ * O último mês cujo resumo ("O teu mês", 7/10) já se mostrou: a chave
+ * `AAAA-MM` do `lib/resumoDoMes.ts`. Viaja pela conta (`pref:`): visto no
+ * iPhone, o PC não o mostra outra vez.
  */
-export async function getSemanaVistaEm(): Promise<string | null> {
-  return AsyncStorage.getItem('pref:semanaVistaEm');
+export async function getResumoVistoEm(): Promise<string | null> {
+  return AsyncStorage.getItem('pref:resumoVistoEm');
 }
-export async function setSemanaVistaEm(chave: string): Promise<void> {
-  await AsyncStorage.setItem('pref:semanaVistaEm', chave);
+export async function setResumoVistoEm(chave: string): Promise<void> {
+  await AsyncStorage.setItem('pref:resumoVistoEm', chave);
 }
 
 /**

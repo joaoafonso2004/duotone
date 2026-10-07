@@ -42,7 +42,9 @@ export const SESSION_DEBOUNCE_MS = 2500;
  * `setInterval`: no iOS com o ecrã bloqueado os temporizadores de JS são
  * suspensos, e era precisamente aí que o batimento fazia falta. Mesma lição
  * que o crossfade aprendeu em src/lib/crossfade.ts. */
-export const SESSION_HEARTBEAT_MS = 90 * 1000;
+// 140 s (era 90; 7/10, logs do Supabase): abaixo dos 3 min do TTL com 40 s de
+// folga, e é esse TTL que as versões antigas usam para dar a sessão por morta.
+export const SESSION_HEARTBEAT_MS = 140 * 1000;
 
 /** Quantas faixas da fila viajam. A fila inteira podia ter milhares (import
  * de playlist) e isto vai numa coluna jsonb — o que interessa para continuar

@@ -37,6 +37,7 @@ import type { Playlist, Track } from '../types';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { avisarErro, avisarFeito, contarMusicas } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { ImportarDaContaDoSpotify } from '../components/ImportarDaContaDoSpotify';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ImportYouTube'>;
 
@@ -188,6 +189,8 @@ export function ImportYouTubeScreen({ navigation }: Props) {
           title="Paste a playlist link"
           subtitle={'A YouTube link with "list=", or a public\nSpotify playlist (first 100 songs).'}
         />
+        {/* Ou tudo, pela conta do Spotify (7/10): Liked Songs e playlists inteiras. */}
+        <ImportarDaContaDoSpotify aoComecar={() => navigation.goBack()} />
         </View>
       ) : (
         <>

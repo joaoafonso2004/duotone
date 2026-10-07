@@ -41,6 +41,8 @@ export interface Dependencias {
   ) => Promise<{ track: FaixaImportada | null; confident: boolean }[]>;
   criarPlaylist: (nome: string) => Promise<{ id: string }>;
   adicionar: (playlistId: string, faixas: FaixaImportada[]) => Promise<unknown>;
+  /** As Liked Songs do Spotify vão para as Liked Songs (7/10), pela ordem (a mais recente primeiro). */
+  guardarNasGostadas?: (faixas: FaixaImportada[]) => Promise<unknown>;
 }
 
 export interface Progresso { fase: 'a-ler' | 'a-procurar' | 'a-guardar'; feitas: number; total: number }
@@ -89,10 +91,25 @@ export async function importarPorLink(
 
   const p = await deps.lerSpotify(link.id);
   if (!p) throw new ErroDaImportacao('privada-ou-mudou', "Couldn't read that playlist. Make sure it's public.");
-  if (!p.faixas.length) throw new ErroDaImportacao('vazia', 'That playlist is empty.');
-  const total = p.faixas.length;
+  return importarLinhas({ nome: p.nome, linhas: p.faixas, cortada: p.faixas.length >= MAXIMO_DO_EMBED, destino: 'playlist' },
+    deps, aoProgresso, sinal);
+}
+
+/**
+ * Linhas do Spotify JÁ LIDAS (do embed, ou da conta -- lib/bibliotecaDoSpotify.ts)
+ * pelo comparador, e o que se encontrou com confiança para o destino: uma
+ * playlist nova com o nome, ou as Liked Songs.
+ */
+export async function importarLinhas(
+  o: { nome: string; linhas: LinhaDaPlaylist[]; cortada: boolean; destino: 'playlist' | 'gostadas' },
+  deps: Pick<Dependencias, 'resolver' | 'criarPlaylist' | 'adicionar' | 'guardarNasGostadas'>,
+  aoProgresso: (p: Progresso) => void,
+  sinal?: AbortSignal,
+): Promise<Resultado> {
+  if (!o.linhas.length) throw new ErroDaImportacao('vazia', 'That playlist is empty.');
+  const total = o.linhas.length;
   aoProgresso({ fase: 'a-procurar', feitas: 0, total });
-  const resultados = await deps.resolver(p.faixas, (feitas) => aoProgresso({ fase: 'a-procurar', feitas: Math.min(feitas, total), total }), sinal);
+  const resultados = await deps.resolver(o.linhas, (feitas) => aoProgresso({ fase: 'a-procurar', feitas: Math.min(feitas, total), total }), sinal);
   const vistas = new Set<string>();
   const boas: FaixaImportada[] = [];
   for (const r of resultados) {
@@ -102,7 +119,12 @@ export async function importarPorLink(
   }
   if (!boas.length) throw new ErroDaImportacao('nada-encontrado', "Couldn't find any of those songs.");
   aoProgresso({ fase: 'a-guardar', feitas: total, total });
-  const { id } = await deps.criarPlaylist(p.nome);
+  if (o.destino === 'gostadas') {
+    if (!deps.guardarNasGostadas) throw new ErroDaImportacao('nada-encontrado', "Couldn't save to your Liked Songs.");
+    await deps.guardarNasGostadas(boas);
+    return { nome: o.nome, playlistId: '', adicionadas: boas.length, deFora: total - boas.length, cortada: o.cortada };
+  }
+  const { id } = await deps.criarPlaylist(o.nome);
   await deps.adicionar(id, boas);
-  return { nome: p.nome, playlistId: id, adicionadas: boas.length, deFora: total - boas.length, cortada: total >= MAXIMO_DO_EMBED };
+  return { nome: o.nome, playlistId: id, adicionadas: boas.length, deFora: total - boas.length, cortada: o.cortada };
 }
