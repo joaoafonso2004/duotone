@@ -25,15 +25,24 @@ import type { Track } from '../types';
  * o que a linha do meio fazia e passa a caber aqui.
  */
 export function CabecalhoDoAmigo({
-  nome, avatarUrl, estado, online, aOuvir, onVoltar, onPerfil,
+  nome, avatarUrl, estado, online, aOuvir, cor, onVoltar, onPerfil, onOuvir, onOuvirJuntos,
 }: {
   nome: string;
   avatarUrl: string | null;
   estado: string;
   online?: boolean;
-  aOuvir?: string | null;
+  /** O que ele está a ouvir. Era o título cru, em maiúsculas espaçadas
+   * ("DDG - ELON MUSK FT. GUNNA (OFFICIAL AUDIO)"): agora o título limpo e o
+   * artista, em letra normal (9/10). */
+  aOuvir?: Track | null;
+  /** A cor do tema: o anel e a linha do que ele ouve. */
+  cor: string;
   onVoltar: () => void;
   onPerfil: () => void;
+  /** Tocar no que ele ouve: a folha do amigo. */
+  onOuvir?: () => void;
+  /** Os auscultadores à direita: ouvir juntos. */
+  onOuvirJuntos?: () => void;
 }) {
   return (
     <View style={styles.cabecalho}>
@@ -46,18 +55,28 @@ export function CabecalhoDoAmigo({
       >
         {/* A bolinha no canto do avatar, e nao uma palavra na linha de baixo:
             e onde toda a gente a procura, e deixa a linha livre para o que ele
-            esta a ouvir. */}
-        <View>
+            esta a ouvir. O anel na cor do tema quando está a ouvir. */}
+        <View style={[styles.anel, aOuvir && { borderColor: cor }]}>
           <FriendAvatar avatarUrl={avatarUrl} name={nome} size={34} />
           {online ? <View style={styles.online} /> : null}
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={styles.nome}>{nome}</Text>
-          <Text numberOfLines={1} style={styles.estado}>
-            {aOuvir ? `♫ ${aOuvir}` : estado}
-          </Text>
+          {aOuvir ? (
+            <Toque escala={ESCALA.cartao} onPress={onOuvir} disabled={!onOuvir} hitSlop={6}
+              accessibilityRole="button" accessibilityLabel={`${nome} is listening to ${tituloDaFaixa(aOuvir)}. Open`}>
+              <Text numberOfLines={1} style={[styles.aOuvir, { color: cor }]}>
+                ♪ Listening to {tituloDaFaixa(aOuvir)} · {displayArtist(aOuvir)}
+              </Text>
+            </Toque>
+          ) : (
+            <Text numberOfLines={1} style={styles.estado}>{estado}</Text>
+          )}
         </View>
       </Toque>
+      {onOuvirJuntos ? (
+        <SocialIconButton label={`Listen together with ${nome}`} icon="headset-outline" onPress={onOuvirJuntos} />
+      ) : null}
     </View>
   );
 }
@@ -102,8 +121,12 @@ export function FundoDaApp() {
  * conforme o sítio da app onde aparece.
  */
 export function FaixaPartilhada({
-  faixa, minha, onPress,
-}: { faixa: Track; minha: boolean; onPress: () => void }) {
+  faixa, minha, onPress, onTocar,
+}: {
+  faixa: Track; minha: boolean; onPress: () => void;
+  /** O ▶ toca a música sem sair da conversa (9/10); sem isto, é só um ícone. */
+  onTocar?: () => void;
+}) {
   const capa = faixa.artworkUrl ? capaParaLista(faixa.artworkUrl) : null;
   return (
     <Toque
@@ -125,9 +148,16 @@ export function FaixaPartilhada({
       </View>
       {/* Guardar sem sair da conversa: tocar e reagir já se faziam aqui. */}
       <BotaoGuardar track={faixa} tamanho={17} />
-      <View style={styles.tocar}>
-        <Ionicons name="play" size={11} color={colors.text} style={{ marginLeft: 1 }} />
-      </View>
+      {onTocar ? (
+        <Toque escala={ESCALA.icone} hitSlop={6} onPress={onTocar} accessibilityRole="button"
+          accessibilityLabel={`Play ${tituloDaFaixa(faixa)}`} style={styles.tocarCheio}>
+          <Ionicons name="play" size={14} color={colors.bg} style={{ marginLeft: 2 }} />
+        </Toque>
+      ) : (
+        <View style={styles.tocar}>
+          <Ionicons name="play" size={11} color={colors.text} style={{ marginLeft: 1 }} />
+        </View>
+      )}
     </Toque>
   );
 }
@@ -164,7 +194,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.bg,
   },
-  estado: { ...type.micro, color: colors.textSecondary },
+  estado: { fontSize: 12.5, color: colors.textSecondary, marginTop: 1 },
+  aOuvir: { fontSize: 12.5, fontWeight: '600', marginTop: 1 },
+  anel: { borderRadius: 20, borderWidth: 2, borderColor: 'transparent', padding: 1 },
 
   marca: {
     position: 'absolute',
@@ -172,26 +204,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // O cartão é o próprio balão (9/10): sem fundo nem caixa dentro de caixa.
   faixa: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    padding: 7,
-    borderRadius: radii.md,
-    borderCurve: 'continuous',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    gap: spacing.md,
+    minWidth: 230,
   },
-  // Dentro de um balão com fundo de cor, o cartão precisa de contraste do
-  // outro lado: escurece em vez de clarear.
-  faixaMinha: { backgroundColor: 'rgba(0,0,0,0.18)' },
-  capa: { width: 42, height: 42, borderRadius: radii.sm },
+  faixaMinha: {},
+  capa: { width: 52, height: 52, borderRadius: 9, borderCurve: 'continuous' },
   semCapa: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceHigh,
   },
-  faixaTitulo: { ...type.caption, color: colors.text, fontWeight: '600' },
-  faixaArtista: { ...type.micro, color: colors.textSecondary },
+  faixaTitulo: { fontSize: 15, color: colors.text, fontWeight: '700' },
+  faixaArtista: { fontSize: 13, color: colors.textSecondary, marginTop: 2 },
+  tocarCheio: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.text,
+  },
   tocar: {
     width: 26,
     height: 26,

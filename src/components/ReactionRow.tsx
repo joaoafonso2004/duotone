@@ -3,6 +3,7 @@ import {Animated,PanResponder,Platform,Pressable,Text,TextInput,View} from 'reac
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type {Reaction} from '../api/social';
 import {hapticSelection} from '../lib/haptics';
+import {duploToque} from '../lib/duploToque';
 import {colors,radii} from './socialTokens';
 import {socialStyles as s} from './socialUI';
 
@@ -34,9 +35,13 @@ const ARRASTO_MAXIMO=72;
  * espalhar os `panHandlers` no próprio Pressable substituía os dele e matava o
  * toque longo.
  */
-export function MessageBubble({own,aberto,onAbrir,onResponder,style,children,rotulo}:{
-  own:boolean; aberto:boolean; onAbrir:()=>void; onResponder?:()=>void; style:any; rotulo:string; children:React.ReactNode;
+export function MessageBubble({own,aberto,onAbrir,onResponder,onDuploToque,style,children,rotulo}:{
+  own:boolean; aberto:boolean; onAbrir:()=>void; onResponder?:()=>void;
+  /** Dois toques põem ❤️ (9/10), como na capa do leitor. */
+  onDuploToque?:()=>void;
+  style:any; rotulo:string; children:React.ReactNode;
 }) {
+  const ultimoToque=useRef(0);
   const [sobre,setSobre]=useState(false);
   const web=Platform.OS==='web';
   const arrasto=useRef(new Animated.Value(0)).current;
@@ -65,6 +70,7 @@ export function MessageBubble({own,aberto,onAbrir,onResponder,style,children,rot
       <Ionicons name="arrow-undo" size={18} color={colors.textSecondary}/>
     </Animated.View>:null}
     <Pressable delayLongPress={280} onLongPress={onAbrir}
+      onPress={onDuploToque?()=>{const agora=Date.now();if(duploToque(ultimoToque.current,agora)){ultimoToque.current=0;hapticSelection();onDuploToque();}else ultimoToque.current=agora;}:undefined}
       onHoverIn={()=>setSobre(true)} onHoverOut={()=>setSobre(false)}
       accessibilityLabel={rotulo}
       accessibilityActions={onResponder?[{name:'reply',label:'Reply'}]:undefined}

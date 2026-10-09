@@ -4,6 +4,8 @@
 
 **O objetivo:** a página do Social tem de ficar ao nível do leitor e da Home. Hoje é uma lista crua. O chat também melhora, mas fica para depois.
 
+**Estado (9/10):** fases 1 e 2 feitas, por ver no iPhone. As decisões ficaram as da proposta (aprovadas com a maquete): a linha inteira abre a conversa, "Listening now" só com quem ouve, as reações vão para a conversa. A fase 3 não foi feita.
+
 ## 1. O que está mal hoje
 
 ### A página (`components/SocialOverview.tsx`)

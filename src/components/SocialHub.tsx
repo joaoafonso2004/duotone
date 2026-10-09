@@ -8,6 +8,14 @@ import type { PublicProfile } from '../api/profiles';
 import { useSocial } from '../state/social';
 import { useAuth } from '../state/auth';
 import { usePlayer } from '../state/player';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { abrirFolhaDoAmigo } from '../state/folhaDoAmigo';
+import { mesmoGrupo, separadorPorCima } from '../lib/gruposDeMensagens';
+import { MENSAGEM_DO_CONVITE } from '../lib/playlistColaborativa';
+import { avisarErro, avisarFeito, avisarInfo } from '../lib/avisoDeRemocao';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { textoSobre } from '../lib/corDaCapa';
+import { EnviarMusica } from './EnviarMusica';
 import { naoLidasPorAmigo } from '../lib/social';
 import { ultimaAtividade } from '../lib/socialPresence';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
@@ -87,6 +95,9 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   const [playlistsDoChat,setPlaylistsDoChat]=useState<Map<string,Playlist>>(new Map());
   const [reacoes,setReacoes]=useState<Map<string,Reaction[]>>(new Map());
   const [aReagir,setAReagir]=useState<string|null>(null);
+  /** A folha do "＋" do compositor (9/10): mandar música sem sair da conversa. */
+  const [enviarMusica,setEnviarMusica]=useState(false);
+  const aTocar=usePlayer(x=>x.current);
   /**
    * A mensagem a que se está a responder. Por conversa: mudar de conversa larga
    * a resposta, senão ela ia citar uma mensagem de outra pessoa.
@@ -268,6 +279,29 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       if(current?.id===conversation.id&&current.kind===conversation.kind){setMessages(previous=>mergeMessages(previous,rows));useSocial.getState().rememberConversation(key,rows);const last=rows.filter(m=>m.sender.id!==myId).at(-1);if(last)await social.markRead(key,last.createdAt);}
     });
   };
+  /** Mandar uma música ou uma playlist a esta conversa (a folha do "＋" e o ♪). */
+  const enviarItem=async(tipo:'track'|'playlist',item:any)=>{
+    if(!conversation)return;
+    setEnviarMusica(false);
+    await run(async()=>{
+      if(conversation.kind==='group')await shareComGrupo(conversation.id,tipo,item);else await shareItem(conversation.id,tipo,item);
+      const rows=conversation.kind==='group'?await getGroupMessages(conversation.id):await getChatMessages(conversation.id);
+      const current=useSocial.getState().conversation;
+      if(current?.id===conversation.id&&current.kind===conversation.kind){setMessages(previous=>mergeMessages(previous,rows));useSocial.getState().rememberConversation(key,rows);}
+    });
+  };
+  /**
+   * Os auscultadores do cabeçalho: se ele está a ouvir, a folha dele (Listen
+   * along); senão, convida-o para uma Jam com o que estás a tocar.
+   */
+  const ouvirJuntosCom=(amigo:{friendId:string;name:string;musicActivity?:{listening:boolean}|null})=>{
+    if(!web&&amigo.musicActivity?.listening){abrirFolhaDoAmigo(amigo.friendId);return;}
+    const atual=usePlayer.getState().current;
+    if(!atual){avisarInfo('Play a song first',`Then ${amigo.name} can listen along with you`);return;}
+    void useOuvirJuntos.getState().abrir(atual,[amigo.friendId])
+      .then(()=>avisarFeito(`Invited ${amigo.name} to listen`,tituloDaFaixa(atual)))
+      .catch(e=>avisarErro(mensagemDeErro(e,'Couldn’t start listening together')));
+  };
   // Uma lista de conversas ordena-se por quem falou por último, não pela ordem
   // em que a amizade foi aceite. Quem ainda nunca trocou nada fica por baixo,
   // por nome, para a secção não parecer baralhada ao acaso.
@@ -304,13 +338,87 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
   // O nome aparecia TRES vezes: na barra, na linha de perfil, e dentro de cada
   // mensagem recebida. Numa conversa a dois so ha duas pessoas -- e o lado do
   // balao ja diz quem falou. Fica uma vez, com a cara e o estado.
+  const estiloDoSeparador={alignSelf:'center' as const,fontSize:12,fontWeight:'600' as const,color:colors.textTertiary,marginBottom:8,marginTop:4};
+  const estiloDeSistema={fontSize:12.5,fontWeight:'600' as const,color:colors.textTertiary,textAlign:'center' as const};
   const amigoHeader=friend?<CabecalhoDoAmigo
     nome={friend.name} avatarUrl={friend.avatarUrl}
     estado={friend.online?'Online now':ultimaAtividade(friend.lastSeenAt,social.now)}
     online={friend.online}
-    aOuvir={friend.currentlyPlaying?.title??null}
+    aOuvir={(friend.currentlyPlaying as Track|null|undefined)??null} cor={accent}
     onVoltar={closeChat} onPerfil={()=>onProfile(friend.friendId)}
+    onOuvir={web?undefined:()=>abrirFolhaDoAmigo(friend.friendId)}
+    onOuvirJuntos={()=>ouvirJuntosCom(friend)}
   />:undefined;
+  /**
+   * Uma mensagem da conversa (9/10, docs/PLANO-SOCIAL-IOS.md, fase 2). A hora saiu
+   * dos balões para separadores ao centro (lib/gruposDeMensagens.ts); as seguidas
+   * da mesma pessoa juntam-se num grupo e só a última leva a ponta e a cara; o
+   * balão já não tem borda (só a mensagem destacada); o convite para a Jam e o
+   * convite para uma playlist são cartões e linhas de sistema, fora do balão.
+   */
+  const horaCurta=(d:Date)=>d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+  const desenharMensagem=(m:SharedItem,index:number)=>{
+    // `ordered` vai da mais nova para a mais antiga (a lista é invertida).
+    const antiga=ordered[index+1],nova=ordered[index-1];
+    const separador=separadorPorCima(m,antiga,social.now,horaCurta);
+    const comAAntiga=!separador&&mesmoGrupo(antiga,m);
+    const fimDoGrupo=!(nova&&mesmoGrupo(m,nova)&&!separadorPorCima(nova,m,social.now,horaCurta));
+    const minha=m.sender.id===myId;
+    const nomeDaPlaylist=m.playlistId?playlistsDoChat.get(m.playlistId)?.name??'a playlist':'a playlist';
+    let corpo:React.ReactNode;
+    if(group){
+      corpo=<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} citacao={citacao(m)} onResponder={()=>responderA(m)} destacada={destacada===m.id} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
+          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>;
+    }else if(m.itemType==='sessao'&&m.sessionId){
+      corpo=<ConviteDeSessao id={m.sessionId} mensagem={m.message} minha={minha} quem={m.sender.name}/>;
+    }else if(m.playlistId&&m.message?.trim()===MENSAGEM_DO_CONVITE){
+      corpo=<View style={{alignSelf:'stretch',alignItems:'center',gap:8,paddingVertical:4}}>
+        <Text style={estiloDeSistema}>{minha?`You added ${title} to ${nomeDaPlaylist}`:`${m.sender.name} added you to ${nomeDaPlaylist}`}</Text>
+        <View style={{backgroundColor:colors.surface,borderRadius:20,padding:10,maxWidth:'86%'}}>
+          <SharedPlaylistCard semFundo playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>
+        </View>
+      </View>;
+    }else{
+      corpo=<View style={{flexDirection:'row',alignItems:'flex-end',gap:6,alignSelf:minha?'flex-end':'flex-start',maxWidth:'92%'}}>
+        {/* A cara de quem falou, ao lado do balão: só do lado dele, e só na
+            última de um grupo -- nas outras fica o espaço, para alinharem. */}
+        {!minha?(fimDoGrupo?<Pressable onPress={()=>onProfile(m.sender.id)} accessibilityLabel={`View ${m.sender.name}`} style={{marginBottom:2}}>
+          <FriendAvatar avatarUrl={m.sender.avatarUrl} name={m.sender.name} size={26}/>
+        </Pressable>:<View style={{width:26}}/>):null}
+        <View style={{flexShrink:1,gap:5}}>
+        <MessageBubble own={minha} aberto={aReagir===m.id} onAbrir={()=>setAReagir(a=>a===m.id?null:m.id)}
+          onResponder={()=>responderA(m)} onDuploToque={()=>void reagir(m.id,'❤️')}
+          rotulo={`Message from ${m.sender.name}. Double-tap to like, hold to react or reply`}
+          style={{
+            // `theme.soft` e nao `accent` puro: o accent pode ser CLARO (o do
+            // Joao e branco), e texto branco num balao branco nao se le.
+            backgroundColor:minha?tema.soft:colors.surface,
+            // Sem borda (9/10): era o balão com uma moldura e o cartão com outra.
+            borderWidth:destacada===m.id?1:0,
+            borderColor:accent,
+            paddingHorizontal:m.trackData||m.playlistId?10:13,paddingVertical:m.trackData||m.playlistId?10:9,borderRadius:20,gap:8,
+            // O canto cortado do lado de quem fala, só na última do grupo.
+            ...(fimDoGrupo?{[minha?'borderBottomRightRadius':'borderBottomLeftRadius']:6}:{}),
+          }}>
+        {citacao(m)}
+        {!!m.message&&<Text selectable style={[s.text,{flexShrink:1,paddingHorizontal:m.trackData||m.playlistId?3:0}]}>{m.message}</Text>}
+        {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={minha} onPress={()=>setTrack(m.trackData)}
+          onTocar={()=>void usePlayer.getState().tocarMusica(m.trackData!,undefined,true)}/>}
+        {m.playlistId&&<SharedPlaylistCard semFundo playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
+        </MessageBubble>
+        <ReactionRow reactions={reacoes.get(m.id)??[]} myId={myId} own={minha}
+          aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}
+          onResponder={()=>responderA(m)}/>
+        {/* A hora exata, com o toque longo (saiu dos balões). */}
+        {aReagir===m.id?<Text style={[s.muted,{fontSize:11,alignSelf:minha?'flex-end':'flex-start'}]}>{horaCurta(new Date(m.createdAt))}</Text>:null}
+        </View>
+      </View>;
+    }
+    return <View style={{paddingTop:comAAntiga?2:(group?6:12)}}>
+      {separador?<Text style={estiloDoSeparador}>{separador}</Text>:null}
+      {corpo}
+    </View>;
+  };
   const chat=<View style={{flex:1,minHeight:0}}>
       {web&&groupHeader}
       <View style={{flex:1,minHeight:0,padding:web?24:16,gap:12}}>
@@ -342,57 +450,18 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
           // aproxima-se pela altura média e tenta-se outra vez.
           lista.current?.scrollToOffset({offset:info.averageItemLength*info.index,animated:true});
           setTimeout(()=>lista.current?.scrollToIndex({index:info.index,animated:true,viewPosition:0.5}),250);
-        }} ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{gap:group?6:12,paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>group?<GroupMessage message={m} own={m.sender.id===myId} showSender={!seguida(m,index)} citacao={citacao(m)} onResponder={()=>responderA(m)} destacada={destacada===m.id} playlist={m.playlistId?playlistsDoChat.get(m.playlistId):undefined}
-          reactions={reacoes.get(m.id)??[]} myId={myId} aReagir={aReagir===m.id} onReagir={emoji=>void reagir(m.id,emoji)} onAbrirReacoes={()=>setAReagir(a=>a===m.id?null:m.id)} onFecharReacoes={()=>setAReagir(null)} onProfile={onProfile} onTrack={setTrack} onPlaylist={onPlaylist}/>:<View style={{flexDirection:'row',alignItems:'flex-end',gap:6,alignSelf:m.sender.id===myId?'flex-end':'flex-start',maxWidth:'92%'}}>
-          {/* A cara de quem falou, ao lado do balao. So do lado dele: a nossa
-              propria cara ao lado de cada coisa que escrevemos nao diz nada a
-              ninguem, e rouba largura ao texto. */}
-          {m.sender.id!==myId?<Pressable onPress={()=>onProfile(m.sender.id)} accessibilityLabel={`View ${m.sender.name}`} style={{marginBottom:2}}>
-            <FriendAvatar avatarUrl={m.sender.avatarUrl} name={m.sender.name} size={26}/>
-          </Pressable>:null}
-          <View style={{flexShrink:1,gap:5}}>
-          <MessageBubble own={m.sender.id===myId} aberto={aReagir===m.id} onAbrir={()=>setAReagir(a=>a===m.id?null:m.id)}
-            onResponder={()=>responderA(m)}
-            rotulo={`Message from ${m.sender.name}. Hold to react or reply`}
-            style={{
-              // `theme.soft` e nao `accent` puro. O accent e escolhido pelo
-              // utilizador e pode ser CLARO -- o do Joao e branco -- e um balao
-              // branco com texto branco por cima nao se le. `soft` e o mesmo
-              // accent a baixa opacidade, que e o que o resto da app usa para
-              // superficies (ver os botoes Queue e EQ no leitor): fica sempre
-              // escuro, tinge na cor certa, e o texto continua a ser o normal.
-              backgroundColor:m.sender.id===myId?tema.soft:colors.surface,
-              borderWidth:m.sender.id===myId||destacada===m.id?1:0,
-              borderColor:accent,
-              paddingHorizontal:12,paddingVertical:9,borderRadius:18,gap:7,
-              // O canto cortado do lado de quem fala: e a pista que se le sem
-              // pensar, mesmo com um balao a ocupar quase a largura toda.
-              [m.sender.id===myId?'borderBottomRightRadius':'borderBottomLeftRadius']:6,
-            }}>
-          {citacao(m)}
-          {m.itemType==='sessao'&&m.sessionId?<ConviteDeSessao id={m.sessionId} mensagem={m.message}/>:null}
-          {!!m.message&&m.itemType!=='sessao'&&<View style={{flexDirection:'row',alignItems:'flex-end',gap:8,flexWrap:'wrap'}}>
-            <Text selectable style={[s.text,{flexShrink:1}]}>{m.message}</Text>
-            <Text style={[s.muted,{fontSize:11,marginBottom:1,opacity:0.7}]}>{new Date(m.createdAt).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</Text>
-          </View>}
-          {m.trackData&&<FaixaPartilhada faixa={m.trackData} minha={m.sender.id===myId} onPress={()=>setTrack(m.trackData)}/>}
-          {m.playlistId&&<SharedPlaylistCard playlist={playlistsDoChat.get(m.playlistId)} onPress={()=>onPlaylist(m.playlistId!)}/>}
-          {/* A hora so aparece a parte quando NAO ha texto para lhe dar boleia --
-              uma faixa ou uma playlist sozinhas. Com texto, ela encosta ao fim
-              da ultima linha e poupa uma linha inteira por mensagem. */}
-          {!m.message||m.itemType==='sessao'?<Text style={[s.muted,{fontSize:11,alignSelf:'flex-end',opacity:0.7}]}>{new Date(m.createdAt).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</Text>:null}
-          </MessageBubble>
-          <ReactionRow reactions={reacoes.get(m.id)??[]} myId={myId} own={m.sender.id===myId}
-            aberto={aReagir===m.id} onEscolher={emoji=>void reagir(m.id,emoji)} onFechar={()=>setAReagir(null)}
-            onResponder={()=>responderA(m)}/>
-          </View>
-        </View>}/>}
+        }} ListFooterComponent={hasOlder?<SocialButton disabled={older} onPress={()=>void loadOlder()}>{older?'Loading…':'Older messages'}</SocialButton>:null} data={ordered} keyExtractor={m=>m.id} contentContainerStyle={{paddingVertical:10,paddingHorizontal:web?10:0}} style={{flex:1}} keyboardShouldPersistTaps="handled" renderItem={({item:m,index})=>desenharMensagem(m,index)}/>}
         {aResponder&&<BarraDeResposta accent={accent} excerto={excerto(aResponder)}
           titulo={aResponder.sender.id===myId?'Replying to yourself':`Replying to ${aResponder.sender.name}`}
           onCancelar={()=>setAResponder(null)}/>}
         {group?<GroupComposer campoRef={campo} value={draft} onChange={setDraft} busy={busy} onSend={()=>void send()}/>:
-          <View style={s.row}><TextInput ref={campo} accessibilityLabel="Message" placeholder="Write a message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}
-            {...({onKeyPress:(e:any)=>{const evento=e?.nativeEvent??e;if(!web||evento?.key!=='Enter'||evento?.shiftKey||evento?.isComposing)return;e.preventDefault?.();evento.preventDefault?.();if(!busy&&draft.trim())void send();}} as any)}/><SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton></View>}
+          <View style={[s.row,{alignItems:'flex-end'}]}><Pressable accessibilityRole="button" accessibilityLabel="Send music" onPress={()=>setEnviarMusica(true)}
+            style={({pressed}:any)=>[{width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,0.08)'},pressed&&{opacity:0.7}]}>
+            <Ionicons name="add" size={22} color={colors.text}/></Pressable><TextInput ref={campo} accessibilityLabel="Message" placeholder="Message…" placeholderTextColor={colors.textSecondary} value={draft} onChangeText={setDraft} multiline maxLength={4000} style={[s.input,{flex:1,maxHeight:90}]} editable={!busy}
+            {...({onKeyPress:(e:any)=>{const evento=e?.nativeEvent??e;if(!web||evento?.key!=='Enter'||evento?.shiftKey||evento?.isComposing)return;e.preventDefault?.();evento.preventDefault?.();if(!busy&&draft.trim())void send();}} as any)}/>{draft.trim()||!aTocar?<SocialButton primary disabled={busy||!draft.trim()} onPress={()=>void send()}>Send</SocialButton>
+            :<Pressable accessibilityRole="button" accessibilityLabel={`Send what you're playing: ${tituloDaFaixa(aTocar)}`} disabled={busy} onPress={()=>void enviarItem('track',aTocar)}
+              style={({pressed}:any)=>[{width:40,height:40,borderRadius:20,alignItems:'center',justifyContent:'center',backgroundColor:accent},pressed&&{opacity:0.75}]}>
+              <Ionicons name="musical-note" size={18} color={textoSobre(accent)}/></Pressable>}</View>}
       </View></View>;
 
   return <View style={s.body} onLayout={e=>setWidth(e.nativeEvent.layout.width)}>
@@ -469,6 +538,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       </ScrollView>
     </SocialModal>
     <SocialTrackActions track={track} onClose={()=>setTrack(null)} onArtist={onArtist}/>
+    <EnviarMusica visible={enviarMusica&&!!conversation} onClose={()=>setEnviarMusica(false)} onEnviar={(tipo,item)=>void enviarItem(tipo,item)}/>
   </View>;
 }
 

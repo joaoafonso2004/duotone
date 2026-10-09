@@ -13,10 +13,12 @@ import {socialStyles as s} from './socialUI';
  * Sem `playlist` (ainda a carregar, ou já não partilhada) fica só o texto —
  * nunca um cartão vazio a fingir que há alguma coisa.
  */
-export function SharedPlaylistCard({playlist,onPress}:{playlist?:Playlist;onPress:()=>void}) {
+export function SharedPlaylistCard({playlist,onPress,semFundo=false}:{playlist?:Playlist;onPress:()=>void;
+  /** Dentro de um balão (9/10): o balão já é o cartão, sem caixa dentro de caixa. */
+  semFundo?:boolean}) {
   return <Pressable accessibilityRole="button"
     accessibilityLabel={playlist?`Open playlist ${playlist.name}, ${playlist.trackCount} ${playlist.trackCount===1?'track':'tracks'}`:'Open playlist'}
-    onPress={onPress} style={({pressed})=>[s.row,{padding:10,gap:10,minWidth:190,borderRadius:12,backgroundColor:colors.bg,opacity:pressed?0.7:1}]}>
+    onPress={onPress} style={({pressed})=>[s.row,{padding:semFundo?0:10,gap:10,minWidth:semFundo?230:190,borderRadius:12,backgroundColor:semFundo?'transparent':colors.bg,opacity:pressed?0.7:1}]}>
     {playlist?.artworks?.length
       ? <View style={{borderRadius:radii.sm,overflow:'hidden'}}><ArtworkCollage artworks={playlist.artworks} size={48}/></View>
       : <View style={{width:48,height:48,borderRadius:radii.sm,backgroundColor:colors.surfaceHigh,alignItems:'center',justifyContent:'center'}}>

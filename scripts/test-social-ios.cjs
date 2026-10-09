@@ -91,4 +91,17 @@ assert.match(fila, /useTheme/, 'o anel segue a cor do tema (que só segue a da c
 assert.match(ler('src/components/AmigosAOuvir.tsx'), /amigo\.musicActivity\s*\?\s*abrirFolhaDoAmigo\(amigo\.friendId\)/,
   'na Home, um amigo a ouvir abre a mesma folha');
 assert.match(ler('src/navigation/RootNavigator.tsx'), /<FolhaDoAmigo \/>/, 'a folha está montada uma vez no iPhone');
-console.log('Social do iPhone: lista nova, frases certas, anel, pedidos, pesquisa e a folha do amigo passaram.');
+// A conversa (fase 2).
+const hub = ler('src/components/SocialHub.tsx');
+assert.doesNotMatch(hub, /aOuvir=\{friend\.currentlyPlaying\?\.title/, 'o cabeçalho já não recebe o título cru');
+assert.match(hub, /borderWidth:destacada===m\.id\?1:0/, 'o balão só tem borda quando está destacado');
+assert.match(hub, /separadorPorCima\(m,antiga/, 'a hora vai para separadores ao centro');
+assert.doesNotMatch(hub, /fontSize:11,marginBottom:1,opacity:0\.7/, 'a hora já não vai dentro de cada balão');
+assert.match(hub, /accessibilityLabel="Send music"/, 'o ＋ do compositor manda música');
+assert.match(hub, /onDuploToque=\{\(\)=>void reagir\(m\.id,'❤️'\)\}/, 'dois toques põem ❤️');
+const convite = ler('src/components/ConviteDeSessao.tsx');
+assert.doesNotMatch(convite, /LISTEN TOGETHER/, 'o convite diz quem convidou e que música, sem a etiqueta em maiúsculas');
+assert.match(convite, /Jam ended/, 'um convite que acabou é uma linha ao centro');
+const cabecalho = ler('src/components/ChatAmigo.tsx');
+assert.match(cabecalho, /Listening to \{tituloDaFaixa\(aOuvir\)\} · \{displayArtist\(aOuvir\)\}/, 'o que ele ouve, limpo');
+console.log('Social do iPhone: lista nova, frases certas, anel, pedidos, pesquisa, a folha do amigo e a conversa passaram.');

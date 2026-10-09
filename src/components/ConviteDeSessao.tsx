@@ -8,6 +8,7 @@ import { useTheme } from '../state/theme';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { tituloDaFaixa, displayArtist } from '../lib/artistName';
 import { hapticNotification } from '../lib/haptics';
+import { textoSobre } from '../lib/corDaCapa';
 import { Toque } from './Toque';
 import { ESCALA } from '../lib/movimento';
 import { colors, radii, spacing, type } from '../theme';
@@ -35,7 +36,13 @@ import { colors, radii, spacing, type } from '../theme';
  * mesmo se a sessão acabou. A leitura serve só para enfeitar o cartão com a
  * capa e o título. Se falhar, perde-se o enfeite -- não o botão.
  */
-export function ConviteDeSessao({ id, mensagem }: { id: string; mensagem: string | null }) {
+export function ConviteDeSessao({ id, mensagem, minha = false, quem }: {
+  id: string; mensagem: string | null;
+  /** Fora de um balão (9/10): o convite é o próprio cartão, do lado de quem o mandou. */
+  minha?: boolean;
+  /** Quem convidou: "nuno invited you to listen". */
+  quem?: string;
+}) {
   const tema = useTheme((s) => s.theme);
   const [sessao, setSessao] = useState<SessaoDeEscuta | null>(null);
   const [aEntrar, setAEntrar] = useState(false);
@@ -78,13 +85,18 @@ export function ConviteDeSessao({ id, mensagem }: { id: string; mensagem: string
     }
   };
 
-  return (
-    <View style={[styles.cartao, { borderColor: tema.color }]}>
-      <View style={styles.linha}>
-        <Ionicons name="headset" size={13} color={tema.color} />
-        <Text style={[styles.etiqueta, { color: tema.color }]}>LISTEN TOGETHER</Text>
+  // Acabou: uma linha ao centro, e não um cartão do tamanho de um ativo.
+  if (acabou && !jaLaEstou) {
+    return (
+      <View style={styles.sistema}>
+        <Ionicons name="headset-outline" size={13} color={colors.textTertiary} />
+        <Text style={styles.sistemaTexto}>Jam ended</Text>
       </View>
+    );
+  }
 
+  return (
+    <View style={[styles.cartao, { alignSelf: minha ? 'flex-end' : 'flex-start', backgroundColor: minha ? tema.soft : colors.surface }]}>
       {!!mensagem && <Text style={type.body}>{mensagem}</Text>}
 
       {faixa ? (
@@ -98,10 +110,17 @@ export function ConviteDeSessao({ id, mensagem }: { id: string; mensagem: string
           )}
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text numberOfLines={1} style={styles.titulo}>{tituloDaFaixa(faixa)}</Text>
-            <Text numberOfLines={1} style={type.caption}>{displayArtist(faixa)}</Text>
+            <Text numberOfLines={1} style={type.caption}>
+              {minha ? 'You invited them to listen' : quem ? `${quem} invited you to listen` : displayArtist(faixa)}
+            </Text>
           </View>
         </View>
-      ) : null}
+      ) : (
+        <View style={styles.linha}>
+          <Ionicons name="headset" size={16} color={tema.color} />
+          <Text style={type.body}>{minha ? 'You started a Jam' : quem ? `${quem} invited you to listen` : 'Listen together'}</Text>
+        </View>
+      )}
 
       {jaLaEstou ? (
         <View style={styles.dentro}>
@@ -117,12 +136,12 @@ export function ConviteDeSessao({ id, mensagem }: { id: string; mensagem: string
             onPress={entrar}
             disabled={aEntrar}
             accessibilityLabel="Join session"
-            style={[styles.botao, { backgroundColor: tema.soft, borderColor: tema.color }]}
+            style={[styles.botao, { backgroundColor: tema.color, borderColor: tema.color }]}
           >
             {aEntrar ? (
-              <ActivityIndicator size="small" color={tema.color} />
+              <ActivityIndicator size="small" color={textoSobre(tema.color)} />
             ) : (
-              <Text style={[type.body, { color: colors.text, fontWeight: '700' }]}>Join</Text>
+              <Text style={[type.body, { color: textoSobre(tema.color), fontWeight: '700' }]}>Join</Text>
             )}
           </Toque>
           {!!recusa && (
@@ -138,14 +157,16 @@ const styles = StyleSheet.create({
   cartao: {
     gap: spacing.sm,
     padding: spacing.md,
-    borderRadius: radii.lg,
+    borderRadius: 20,
     borderCurve: 'continuous',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
+    width: 280,
+    maxWidth: '86%',
   },
+  sistema: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6 },
+  sistemaTexto: { fontSize: 12.5, fontWeight: '600', color: colors.textTertiary },
   linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   etiqueta: { ...type.micro, letterSpacing: 1.2, fontWeight: '700' },
-  capa: { width: 38, height: 38, borderRadius: radii.sm },
+  capa: { width: 52, height: 52, borderRadius: 9 },
   semCapa: { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceHigh },
   titulo: { ...type.body, fontWeight: '600' },
   botao: {
