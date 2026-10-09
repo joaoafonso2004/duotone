@@ -343,5 +343,26 @@ console.log('\na confiança guardada só vale para o mesmo conteúdo e o mesmo c
   check('uma resposta nova do catálogo refaz a conta', !nomesDeConfianca(lista).has(k));
 }
 
+// 9/10: "às vezes há artistas no nome do título e o título no sítio do artista".
+console.log('\no artista e o título no sítio certo');
+{
+  const v = VOCABULARIO_VAZIO;
+  const wshh = { source: 'youtube', title: 'Rich The Kid "Plug" Feat. Kodak Black (WSHH Exclusive - Official Music Video)', artist: 'WORLDSTARHIPHOP' };
+  eq('um traço dentro de parênteses não separa artista e título', displayArtist(wshh, v), 'Rich The Kid');
+  eq('e o título é o que está entre aspas, com o feat.', tituloDaFaixa(wshh, v), 'Plug Feat. Kodak Black');
+  eq('Artista "Título" com uma marca de upload', displayArtist({ source: 'youtube', title: 'Lil Tecca "Ransom" (Official Music Video)', artist: 'Lyrical Lemonade' }, v), 'Lil Tecca');
+  eq('sem sinal nenhum, as aspas não inventam um artista', displayArtist({ source: 'youtube', title: 'Say "Hello"', artist: 'Um Canal' }, v), 'Um Canal');
+  eq('o traço fora dos parênteses continua a separar', displayArtist({ source: 'youtube', title: 'DDG - Elon Musk ft. Gunna (Official Audio)', artist: 'DDG' }, v), 'DDG');
+  eq('e o título também', tituloDaFaixa({ source: 'youtube', title: 'DDG - Elon Musk ft. Gunna (Official Audio)', artist: 'DDG' }, v), 'Elon Musk ft. Gunna');
+
+  const aoContrario = { source: 'youtube', title: 'Max Win - Isak', artist: 'Isak' };
+  eq('título ao contrário no canal do artista: troca-se', displayArtist(aoContrario, v), 'Isak');
+  eq('e o título fica a música', tituloDaFaixa(aoContrario, v), 'Max Win');
+  eq('canal com sufixo (Official) também confirma', displayArtist({ source: 'youtube', title: 'Max Win - Isak', artist: 'IsakOfficial' }, v), 'Isak');
+  eq('o canal do lado esquerdo continua a mandar', displayArtist({ source: 'youtube', title: 'Isak - Max Win', artist: 'Isak' }, v), 'Isak');
+  eq('um título curto que é o começo do canal não vira artista', displayArtist({ source: 'youtube', title: 'Rapper Novo - Music', artist: 'Music Lab' }, v), 'Rapper Novo');
+  eq('um canal qualquer não troca nada', displayArtist({ source: 'youtube', title: 'Juice WRLD - Lucid Dreams', artist: 'Lyrical Lemonade' }, v), 'Juice WRLD');
+}
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);

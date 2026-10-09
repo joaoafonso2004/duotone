@@ -93,6 +93,75 @@ function pareceTitulo(nome: string): boolean {
   return abre !== fecha;
 }
 
+/**
+ * O "Artista - Título": o primeiro traço com espaços FORA de parênteses.
+ *
+ * Era uma regex que apanhava o primeiro traço onde quer que estivesse, e em
+ * `Rich The Kid "Plug" Feat. Kodak Black (WSHH Exclusive - Official Music Video)`
+ * o artista saía `Rich The Kid "Plug"` e o título `Official Music Video)` (9/10).
+ * O lado esquerdo tem 2 a 60 caracteres, como na regex de antes.
+ */
+function separarNoTraco(texto: string): [string, string] | null {
+  let fundo = 0;
+  for (let i = 0; i < texto.length; i++) {
+    const c = texto[i];
+    if (c === '(' || c === '[') fundo++;
+    else if ((c === ')' || c === ']') && fundo > 0) fundo--;
+    else if (fundo === 0 && (c === '-' || c === '–' || c === '—')
+      && /\s/.test(texto[i - 1] ?? '') && /\s/.test(texto[i + 1] ?? '')) {
+      const esquerda = texto.slice(0, i).trim();
+      const direita = texto.slice(i + 1).trim();
+      if (esquerda.length > 60) return null;
+      if (esquerda.length >= 2 && direita) return [esquerda, direita];
+    }
+  }
+  // Um parêntese que nunca fecha é um título cortado a meio (`That Go! (feat. T
+  // - alguem`): aí o traço "lá dentro" é o separador, como era antes.
+  if (fundo > 0) {
+    const m = texto.match(/^(.{2,60}?)\s+[-–—]\s+(.+)$/);
+    if (m) return [m[1]!, m[2]!];
+  }
+  return null;
+}
+
+/**
+ * O formato `Artista "Título" Feat. X (Official Video)` dos canais de uploads
+ * (WorldStarHipHop, Lyrical Lemonade): sem traço, com o título entre aspas.
+ * Só conta com um sinal de que é mesmo esse formato -- o nome é conhecido ou é
+ * o do canal, ou depois das aspas vem um `feat.` ou uma marca de upload. Sem
+ * isso, `Say "Hello"` dava um artista chamado "Say".
+ */
+function artistaAntesDasAspas(
+  texto: string,
+  channel: string | null,
+  vocabulario: Vocabulario,
+): { artista: string; titulo: string; resto: string } | null {
+  const m = texto.match(/^(.{2,60}?)\s+["“]([^"”]{1,80})["”]\s*(.*)$/);
+  if (!m) return null;
+  const artista = artistaPrincipal(clean(m[1]!));
+  if (artista.length < 2 || pareceTitulo(artista) || artista.split(/\s+/).length > 6) return null;
+  const resto = m[3]!.trim();
+  const temSinal = conhecidoComSeguranca(artista, vocabulario)
+    || canalConfirma(artista, channel)
+    || /^(?:feat\.?|ft\.?|featuring)\s/i.test(resto)
+    || MARCA_DE_TITULO_RE.test(resto);
+  return temSinal ? { artista, titulo: m[2]!.trim(), resto } : null;
+}
+
+/**
+ * O canal diz que é este artista: `Isak`, `IsakOfficial`, `Isak Music`,
+ * `Isak TV`, `Isak999`. Só o nome inteiro mais um sufixo de canal conhecido:
+ * com um `startsWith` solto, o título `Music` no canal `Music Lab` passava a
+ * artista.
+ */
+const SUFIXO_DE_CANAL_RE = /^(?:official|oficial|officiel|music|musica|musique|tv|channel|hq|\d+)?$/;
+function canalConfirma(nome: string, channel: string | null): boolean {
+  const lado = chaveCompacta(nome);
+  const canal = chaveCompacta(channel);
+  if (lado.length < 3 || !canal || !canal.startsWith(lado)) return false;
+  return SUFIXO_DE_CANAL_RE.test(canal.slice(lado.length));
+}
+
 /** Tira os sufixos de versao do fim, quantos houver. */
 function semSufixoDeVersao(s: string): string {
   let saida = s.trim();
@@ -217,9 +286,9 @@ export function registarNomeDoCatalogo(procurado: string, confirmado: string | n
 /** Só consulta títulos ambíguos; um canal oficial ou um lado conhecido já resolve. */
 export function ladosPorConfirmar(faixa: FaixaParaAprender, vocabulario: Vocabulario): string[] {
   if ((faixa.source && faixa.source !== 'youtube') || nomeDeFonteFiavel(faixa.artist)) return [];
-  const m = limparPrefixoDeUpload(faixa.title).match(/^(.{2,60}?)\s+[-–—]\s+(.+)$/);
+  const m = separarNoTraco(limparPrefixoDeUpload(faixa.title));
   if (!m) return [];
-  const lados = [m[1], m[2]].map((s) => artistaPrincipal(clean(semSufixoDeVersao(s))));
+  const lados = [m[0], m[1]].map((s) => artistaPrincipal(clean(semSufixoDeVersao(s))));
   if (lados.some((s) => conhecidoComSeguranca(s, vocabulario))) return [];
   return lados.filter((s) => s.length >= 2 && s.length <= 60);
 }
@@ -424,7 +493,8 @@ function extrairBruto(
   // O número de faixa sai antes de tudo: é numeração de um rip, não nome.
   const limpo = title ? limparPrefixoDeUpload(title).replace(NUMERO_DE_FAIXA_RE, '') : null;
   if (limpo) {
-    const m = limpo.match(/^(.{2,60}?)\s+[-–—]\s+(.+)$/);
+    const lados = separarNoTraco(limpo);
+    const m = lados ? [limpo, lados[0], lados[1]] as const : null;
     if (m) {
       const esquerda = artistaPrincipal(clean(m[1]));
       const direita = artistaPrincipal(clean(m[2]));
@@ -444,6 +514,13 @@ function extrairBruto(
         && !conhecidoComSeguranca(esquerdaNua, vocabulario)) {
         return direitaNua;
       }
+      // O canal é o lado direito (`Max Win - Isak` no canal `Isak`), e não o
+      // esquerdo: o título está ao contrário (9/10, "o título no sítio do
+      // artista"). É o canal a dizê-lo, não um palpite.
+      if (canalConfirma(direitaNua, channel) && !canalConfirma(esquerdaNua, channel)
+        && !conhecidoComSeguranca(esquerdaNua, vocabulario) && !pareceTitulo(direitaNua)) {
+        return direitaNua;
+      }
       // Um lado que parece TÍTULO não pode ser o artista. Quando é o
       // esquerdo e o direito não tem esse ar, o título está ao contrário --
       // e isto apanha os casos que o vocabulário ainda não conhece.
@@ -454,6 +531,13 @@ function extrairBruto(
       // deixa-se seguir para as regras do canal, que ao menos é uma fonte.
       if (esquerdaServe && !pareceTitulo(esquerda)) return esquerda;
     }
+  }
+
+  // 2b) `Artista "Título" Feat. X (Official Video)`, sem traço. Antes do 3:
+  // senão o `feat.` conhecido ganhava ao artista principal.
+  if (limpo) {
+    const aspas = artistaAntesDasAspas(limpo, channel, vocabulario);
+    if (aspas) return aspas.artista;
   }
 
   // 3) O título contém um artista CONFIRMADO, mesmo que o separador não
@@ -683,12 +767,18 @@ function calcularTitulo(
 
   const artista = displayArtist(t, vocabulario);
   const chaveDoArtista = artista && artista !== 'Unknown artist' ? chaveDeArtista(artista) : '';
-  const m = texto.match(/^(.{2,60}?)\s+[-–—]\s+(.+)$/);
+  const m = separarNoTraco(texto);
   if (m && chaveDoArtista) {
-    const esquerda = chaveDeArtista(artistaPrincipal(clean(m[1]!)));
-    const direita = chaveDeArtista(artistaPrincipal(clean(semSufixoDeVersao(m[2]!))));
-    if (esquerda === chaveDoArtista) texto = m[2]!.trim();
-    else if (direita === chaveDoArtista) texto = m[1]!.trim();
+    const esquerda = chaveDeArtista(artistaPrincipal(clean(m[0])));
+    const direita = chaveDeArtista(artistaPrincipal(clean(semSufixoDeVersao(m[1]))));
+    if (esquerda === chaveDoArtista) texto = m[1].trim();
+    else if (direita === chaveDoArtista) texto = m[0].trim();
+  } else if (!m && chaveDoArtista) {
+    // `Artista "Título" Feat. X`: fica `Título Feat. X`.
+    const aspas = artistaAntesDasAspas(texto, t.artist, vocabulario);
+    if (aspas && chaveDeArtista(aspas.artista) === chaveDoArtista) {
+      texto = aspas.resto ? `${aspas.titulo} ${aspas.resto}` : aspas.titulo;
+    }
   }
 
   // Um parêntese que É só a marca, e nada mais: `(Audio)`, `(Official Visual)`.
