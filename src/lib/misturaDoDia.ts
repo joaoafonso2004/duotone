@@ -78,6 +78,60 @@ export function faixasParaGuardar<T extends { source: string; sourceId: string }
 //   que a lista está errada (a mesma regra do Smart Shuffle).
 // ---------------------------------------------------------------------------
 
+/**
+ * A mix de um dia não repete a dos dias anteriores (9/10). O João: "dá-me
+ * sempre as mesmas músicas, e se não são as mesmas estão na mesma ordem". Era
+ * tudo determinístico: as âncoras pelo peso, as novas pelo top do catálogo (sem
+ * memória nenhuma) e as conhecidas pelas mais ouvidas da semana -- com o mesmo
+ * gosto, a mesma mix todos os dias.
+ *
+ * - As NOVAS de uma mix não voltam durante `DIAS_SEM_REPETIR_NA_MISTURA` dias;
+ *   se não chegarem, alarga-se (`TENTATIVAS_DA_MISTURA`, a última não exclui
+ *   nada), como o "Discover daily" (`lib/descobertasMostradas.ts`).
+ * - As CONHECIDAS rodam: o peso de cada uma vezes um sorteio fixo do dia
+ *   (`rodarParaODia`), e as que estiveram nas últimas `DIAS_DAS_RECENTES` mixes
+ *   vão para trás. As mais ouvidas continuam a aparecer mais, não sempre.
+ */
+export const DIAS_SEM_REPETIR_NA_MISTURA = 7;
+export const TENTATIVAS_DA_MISTURA = [DIAS_SEM_REPETIR_NA_MISTURA, 0] as const;
+export const DIAS_DAS_RECENTES = 2;
+/** Quanto pesa uma conhecida que já esteve numa mix há pouco. */
+export const PESO_DA_REPETIDA = 0.2;
+
+/** Um número em [0, 1) fixo para o dia e o texto (FNV-1a): o mesmo o dia
+ * inteiro, outro no dia seguinte. */
+export function sorteioDoDia(dia: number, texto: string): number {
+  let h = 0x811c9dc5;
+  const s = `${dia}:${texto}`;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  // Uma volta extra de mistura: o FNV sozinho deixa textos parecidos perto.
+  h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12;
+  return (h >>> 0) / 4294967296;
+}
+
+/**
+ * Reordena para o dia: `peso` (as mais ouvidas pesam mais) vezes um sorteio
+ * do dia, e as `vistasHaPouco` com `PESO_DA_REPETIDA`. A mesma ordem o dia
+ * todo; outra amanhã.
+ */
+export function rodarParaODia<T>(
+  itens: readonly T[],
+  chave: (t: T) => string,
+  peso: (t: T, i: number) => number,
+  dia: number,
+  vistasHaPouco: ReadonlySet<string> = new Set(),
+): T[] {
+  return itens
+    .map((t, i) => {
+      const k = chave(t);
+      const p = Math.max(0, peso(t, i)) * (0.35 + 0.65 * sorteioDoDia(dia, k))
+        * (vistasHaPouco.has(k) ? PESO_DA_REPETIDA : 1);
+      return { t, p, i };
+    })
+    .sort((a, b) => b.p - a.p || a.i - b.i)
+    .map((x) => x.t);
+}
+
 export const ANCORAS_DO_DIA = 5;
 export const TETO_DE_UMA_ANCORA = 0.4;
 export const FRACAO_DE_NOVAS = 0.6;

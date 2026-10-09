@@ -31,7 +31,10 @@ import { trackKey } from '../lib/shuffle';
 import {
   aEvitar, chegam, lerHistorico, registarDia, TENTATIVAS_SEM_REPETIR,
 } from '../lib/descobertasMostradas';
-import { ancorasDoDia, comporMistura, diaDe, misturaGuardada } from '../lib/misturaDoDia';
+import {
+  ancorasDoDia, comporMistura, diaDe, DIAS_DAS_RECENTES, FRACAO_DE_NOVAS, misturaGuardada,
+  rodarParaODia, TENTATIVAS_DA_MISTURA,
+} from '../lib/misturaDoDia';
 import type { Track } from '../types';
 
 /**
@@ -580,11 +583,23 @@ export async function descobrirNovas(
  * vir do servidor, que é quem sabe o histórico; a parte da descoberta passa a
  * sair da afinidade, que é a mesma que serve o shuffle inteligente.
  */
-export async function flowDoDia(limite: number, biblioteca: readonly Track[]): Promise<Track[]> {
+export async function flowDoDia(
+  limite: number,
+  biblioteca: readonly Track[],
+  /** Só a Daily mix (9/10): as favoritas rodam pelo dia, e as novas dos dias
+   * anteriores (`evitar`) ficam de fora. Sem isto eram as mesmas todos os dias. */
+  doDia?: { dia: number; evitar: ReadonlySet<string>; vistasHaPouco: ReadonlySet<string> },
+): Promise<Track[]> {
   const quantosFavoritos = Math.max(1, Math.round(limite * 0.7));
-  const favoritos = await getHeavyRotation(quantosFavoritos).catch(() => [] as Track[]);
+  const favoritos = doDia
+    ? rodarParaODia(
+      await getHeavyRotation(quantosFavoritos * 2).catch(() => [] as Track[]),
+      trackKey, (_t, i) => 1 / Math.sqrt(i + 1), doDia.dia, doDia.vistasHaPouco,
+    ).slice(0, quantosFavoritos)
+    : await getHeavyRotation(quantosFavoritos).catch(() => [] as Track[]);
 
   const jaLa = new Set(favoritos.map((t) => trackKey(t)));
+  for (const k of doDia?.evitar ?? []) jaLa.add(k);
   // Pelo `descobrirNovas`, e não direto ao `candidatasParaDescoberta`: é ele que
   // leva o gosto do Spotify e as sementes. Direto, uma conta nova (sem
   // histórico nem biblioteca) recebia um flow vazio -- justamente quem vive de
@@ -615,8 +630,19 @@ export async function flowDoDia(limite: number, biblioteca: readonly Track[]): P
  * Sem escutas nem perfil, ou com tão pouco que a mix ficaria a meio, é o
  * `flowDoDia` de antes: uma conta nova continua a ter mix.
  */
-async function misturaPeloQueSeOuve(limite: number, biblioteca: readonly Track[]): Promise<Track[]> {
+async function misturaPeloQueSeOuve(
+  limite: number,
+  biblioteca: readonly Track[],
+  historico: ReturnType<typeof lerHistorico>,
+  /** Refrescar no mesmo dia: as de hoje também ficam de fora. */
+  evitarHoje: ReadonlySet<string>,
+): Promise<Track[]> {
   const agora = Date.now();
+  const dia = diaDe(agora);
+  const vistasHaPouco = new Set([...evitarHoje, ...aEvitar(historico, dia, DIAS_DAS_RECENTES)]);
+  const comoFlow = () => flowDoDia(limite, biblioteca, {
+    dia, vistasHaPouco, evitar: new Set([...evitarHoje, ...aEvitar(historico, dia, TENTATIVAS_DA_MISTURA[0])]),
+  });
   const [recentes, perfil, favoritas] = await Promise.all([
     getEscutasRecentes(7).catch(() => [] as { track: Track; em: number }[]),
     artistasParaRecomendacoes(20).catch(() => [] as TopArtist[]),
@@ -628,22 +654,30 @@ async function misturaPeloQueSeOuve(limite: number, biblioteca: readonly Track[]
     perfil.map((a) => ({ chave: chaveDeArtista(a.name), nome: a.name, escutas: a.plays })),
     agora,
   );
-  if (ancoras.length === 0) return flowDoDia(limite, biblioteca);
+  if (ancoras.length === 0) return comoFlow();
 
-  const { vizinhas, ancoras: confirmadas } = await descobertasPorAncora(
-    biblioteca, ancoras.map((a) => a.nome), ancoras.length,
-  );
+  // As novas dos dias anteriores ficam de fora; se não chegarem, alarga-se.
+  const precisas = Math.round(limite * FRACAO_DE_NOVAS);
+  let vizinhas = new Map<string, Track[]>();
+  let confirmadas: string[] = [];
+  for (const dias of TENTATIVAS_DA_MISTURA) {
+    const evitar = new Set([...evitarHoje, ...aEvitar(historico, dia, dias)]);
+    ({ vizinhas, ancoras: confirmadas } = await descobertasPorAncora(
+      biblioteca, ancoras.map((a) => a.nome), ancoras.length, evitar,
+    ));
+    const total = [...vizinhas.values()].reduce((s, l) => s + l.length, 0);
+    if (confirmadas.length === 0 || chegam(total, precisas)) break;
+  }
   // Só fica quem o catálogo confirmou; o peso volta a somar 1 entre elas.
   const aceites = new Set(confirmadas.map(chaveDeArtista));
   const ficam = ancoras.filter((a) => aceites.has(a.chave));
-  if (ficam.length === 0) return flowDoDia(limite, biblioteca);
+  if (ficam.length === 0) return comoFlow();
   const soma = ficam.reduce((s, a) => s + a.peso, 0);
   const finais = ficam.map((a) => ({ ...a, peso: a.peso / soma }));
 
-  // As conhecidas de cada âncora: primeiro o que se ouviu dela esta semana
-  // (as mais repetidas à frente), depois a biblioteca, que muda de ordem a
-  // cada dia para a mix não abrir sempre com as mesmas.
-  const dia = diaDe(agora);
+  // As conhecidas de cada âncora: o que se ouviu dela esta semana (as mais
+  // repetidas pesam mais, mas rodam pelo dia), depois a biblioteca, que muda
+  // de ordem a cada dia. As que estiveram nas últimas mixes vão para trás.
   const conhecidas = new Map<string, Track[]>();
   const juntar = (t: Track) => {
     const k = chaveDaFaixaArtista(t);
@@ -658,13 +692,13 @@ async function misturaPeloQueSeOuve(limite: number, biblioteca: readonly Track[]
     const v = vezes.get(k);
     if (v) v.n++; else vezes.set(k, { t: e.track, n: 1 });
   }
-  [...vezes.values()].sort((a, b) => b.n - a.n).forEach((v) => juntar(v.t));
-  const embaralhar = (t: Track) => hashDoDia(`${dia}:${t.sourceId}`);
-  [...biblioteca].sort((a, b) => embaralhar(a) - embaralhar(b)).forEach(juntar);
+  rodarParaODia([...vezes.values()], (v) => trackKey(v.t), (v) => v.n, dia, vistasHaPouco)
+    .forEach((v) => juntar(v.t));
+  rodarParaODia(biblioteca, trackKey, () => 1, dia, vistasHaPouco).forEach(juntar);
   favoritas.forEach(juntar);
 
   const mix = comporMistura(finais, vizinhas, conhecidas, limite, trackKey);
-  if (mix.length < limite / 2) return flowDoDia(limite, biblioteca);
+  if (mix.length < limite / 2) return comoFlow();
   // O que faltar vem das favoritas de sempre.
   const jaLa = new Set(mix.map(trackKey));
   for (const t of favoritas) {
@@ -674,16 +708,11 @@ async function misturaPeloQueSeOuve(limite: number, biblioteca: readonly Track[]
   return filterSuggestions(mix);
 }
 
-/** Um número estável por texto (FNV-1a), para baralhar igual o dia inteiro. */
-function hashDoDia(texto: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < texto.length; i++) { h ^= texto.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-  return h >>> 0;
-}
-
-/** Uma chave só, reescrita todos os dias, como a da semana. A v2 (26/9) é a
- * mix pelo que se ouve: a de hoje refaz-se em vez de ficar a antiga até amanhã. */
-const CHAVE_DA_MISTURA_DO_DIA = 'mistura-do-dia:v2';
+/** Uma chave só, reescrita todos os dias, como a da semana. A v3 (9/10) é a
+ * mix que não repete os dias anteriores: a de hoje refaz-se já. */
+const CHAVE_DA_MISTURA_DO_DIA = 'mistura-do-dia:v3';
+/** O que as mixes dos últimos dias levaram (`lib/descobertasMostradas.ts`). */
+const CHAVE_DAS_MIXES_MOSTRADAS = 'mistura-do-dia:mostradas:v1';
 
 /**
  * A Daily mix: o `flowDoDia`, mas a MESMA durante o dia inteiro -- ver
@@ -700,9 +729,20 @@ export async function misturaDoDia(
     const guardada = misturaGuardada<Track>(await cacheGet<unknown>(CHAVE_DA_MISTURA_DO_DIA, 2 * DIA_MS), dia);
     if (guardada) return guardada;
   }
-  const faixas = await misturaPeloQueSeOuve(limite, biblioteca).catch(() => flowDoDia(limite, biblioteca));
+  const historico = lerHistorico(await cacheGet<unknown>(CHAVE_DAS_MIXES_MOSTRADAS, 30 * DIA_MS));
+  // Refrescar no mesmo dia dá outra mix: as de hoje também ficam de fora.
+  const evitarHoje = new Set(forcar ? historico.find((d) => d.dia === dia)?.chaves ?? [] : []);
+  const faixas = await misturaPeloQueSeOuve(limite, biblioteca, historico, evitarHoje)
+    .catch(() => flowDoDia(limite, biblioteca));
   // Vazia não se guarda: seria fixar o silêncio o dia inteiro.
-  if (faixas.length > 0) await cacheSet(CHAVE_DA_MISTURA_DO_DIA, { dia, faixas });
+  if (faixas.length > 0) {
+    await cacheSet(CHAVE_DA_MISTURA_DO_DIA, { dia, faixas });
+    // Com as chaves da MÚSICA, como o "Discover daily": é por elas que os dias
+    // seguintes as saltam antes de pesquisar.
+    await cacheSet(CHAVE_DAS_MIXES_MOSTRADAS, registarDia(
+      historico, dia, faixas.flatMap((t) => [trackKey(t), ...chavesDoCatalogo({ titulo: t.title, artista: t.artist ?? '' })]),
+    ));
+  }
   return faixas;
 }
 
@@ -946,6 +986,9 @@ export async function descobertasPorAncora(
   biblioteca: readonly Track[],
   pedidos: readonly string[],
   quantasAncoras = ANCORAS_DAS_MISTURAS,
+  /** O que não se quer outra vez (a Daily mix dos dias anteriores): salta-se
+   * antes de pesquisar, e o top do artista desce. */
+  evitar: ReadonlySet<string> = new Set(),
 ): Promise<DescobertasPorAncora> {
   const vazio: DescobertasPorAncora = { vizinhas: new Map(), ancoras: [] };
   if (useConnectivity.getState().offline || pedidos.length === 0) return vazio;
@@ -967,10 +1010,10 @@ export async function descobertasPorAncora(
       // segue sem este filtro, como a descoberta
     }
     const desejadas = await faixasParaProcurar(
-      alvos, afinidade, ARTISTAS_POR_ANCORA, aSaltar(toda, new Set()),
+      alvos, afinidade, ARTISTAS_POR_ANCORA, aSaltar(toda, evitar),
     );
     await resolverDesejadas(
-      desejadas, new Set(), new Set(), daBiblioteca,
+      desejadas, new Set(), evitar, daBiblioteca,
       alvos.length * VIZINHAS_QUE_CHEGAM, porAncora, VIZINHAS_QUE_CHEGAM,
     );
   } catch {

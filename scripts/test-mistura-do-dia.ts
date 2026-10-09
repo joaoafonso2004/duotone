@@ -5,8 +5,8 @@
  */
 import assert from 'node:assert/strict';
 import {
-  GUARDAR_EM_WIFI, MUSICAS_DA_MISTURA, TETO_DE_UMA_ANCORA, ancorasDoDia, comporMistura, diaDe, faixasParaGuardar,
-  lugaresPorAncora, misturaGuardada, pesoDaIdade, tetoNasFatias,
+  GUARDAR_EM_WIFI, MUSICAS_DA_MISTURA, TETO_DE_UMA_ANCORA, TENTATIVAS_DA_MISTURA, ancorasDoDia, comporMistura, diaDe,
+  faixasParaGuardar, lugaresPorAncora, misturaGuardada, pesoDaIdade, rodarParaODia, sorteioDoDia, tetoNasFatias,
 } from '../src/lib/misturaDoDia.ts';
 
 let falhas = 0;
@@ -145,6 +145,54 @@ caso('um lado sem novas é tapado pelas conhecidas dele e pelos outros', () => {
   const mix = comporMistura<F>(ANC, pobres, conhecidas, 30, (f) => f.id);
   assert.equal(mix.length, 30);
   assert.ok(mix.some((f) => f.lado === 'rap'), 'o lado do rap continua, com as conhecidas');
+});
+
+// 9/10: "dá-me sempre as mesmas músicas, e se não são as mesmas estão na
+// mesma ordem". As conhecidas eram as mais ouvidas da semana pela mesma ordem
+// todos os dias.
+console.log('\nnão repetir os dias anteriores');
+
+const ouvidas = Array.from({ length: 20 }, (_, i) => ({ id: `k${i}`, n: 20 - i }));
+
+caso('o sorteio do dia é o mesmo o dia inteiro e outro no dia seguinte', () => {
+  assert.equal(sorteioDoDia(100, 'x'), sorteioDoDia(100, 'x'));
+  assert.notEqual(sorteioDoDia(100, 'x'), sorteioDoDia(101, 'x'));
+  const v = sorteioDoDia(7, 'abc');
+  assert.ok(v >= 0 && v < 1);
+});
+
+caso('a mesma ordem durante o dia', () => {
+  const a = rodarParaODia(ouvidas, (o) => o.id, (o) => o.n, 100).map((o) => o.id).join();
+  const b = rodarParaODia(ouvidas, (o) => o.id, (o) => o.n, 100).map((o) => o.id).join();
+  assert.equal(a, b);
+});
+
+caso('outra ordem, e outras à frente, de um dia para o outro', () => {
+  const abertura = (dia: number) => rodarParaODia(ouvidas, (o) => o.id, (o) => o.n, dia).slice(0, 5).map((o) => o.id).join();
+  const dias = new Set(Array.from({ length: 7 }, (_, d) => abertura(200 + d)));
+  assert.ok(dias.size >= 5, `${dias.size} aberturas diferentes em 7 dias`);
+});
+
+caso('as mais ouvidas continuam a aparecer mais à frente', () => {
+  let topo = 0;
+  for (let d = 0; d < 60; d++) {
+    const primeiras = rodarParaODia(ouvidas, (o) => o.id, (o) => o.n, 300 + d).slice(0, 5);
+    topo += primeiras.filter((o) => o.n > 10).length;
+  }
+  assert.ok(topo / (60 * 5) > 0.7, `${Math.round((topo / 300) * 100)}% das primeiras são da metade mais ouvida`);
+});
+
+caso('as que estiveram nas últimas mixes vão para trás', () => {
+  const vistas = new Set(['k0', 'k1', 'k2']);
+  for (let d = 0; d < 30; d++) {
+    const primeiras = rodarParaODia(ouvidas, (o) => o.id, (o) => o.n, 400 + d, vistas).slice(0, 3).map((o) => o.id);
+    assert.ok(!primeiras.every((id) => vistas.has(id)), `dia ${d}: abriu com as três de ontem`);
+  }
+});
+
+caso('as novas alargam a janela se não chegarem, e a última tentativa não exclui nada', () => {
+  assert.ok(TENTATIVAS_DA_MISTURA.length >= 2);
+  assert.equal(TENTATIVAS_DA_MISTURA[TENTATIVAS_DA_MISTURA.length - 1], 0);
 });
 
 if (falhas) {

@@ -46,11 +46,18 @@ export type EstadoDaFila = {
  * diferença entre o primeiro toque parecer não fazer nada e o segundo deixar
  * uma cópia perdida mais abaixo. Com shuffle, inserir só no array também não
  * chegava: quem manda no próximo salto é `shuffleOrder`.
+ *
+ * `depoisDe` é o "Add to queue" (9/10): as chaves das que já foram postas à
+ * mão, e a nova entra depois da última delas que ainda está por tocar -- a
+ * primeira que se pôs toca primeiro, como no Spotify. Ia para o FIM da fila:
+ * numa playlist de 500, a música pedida tocava 500 faixas depois. Sem
+ * `depoisDe` (o "Play next") entra logo a seguir à atual.
  */
 export function colocarASeguir(
   estado: Pick<EstadoDaFila, 'queue' | 'queueIndex' | 'shuffle' | 'shuffleOrder'>,
   faixa: Track,
   chave: (t: Track) => string,
+  depoisDe?: ReadonlySet<string>,
 ): Pick<EstadoDaFila, 'queue' | 'queueIndex' | 'shuffleOrder'> {
   if (estado.queue.length === 0) {
     return { queue: [faixa], queueIndex: 0, shuffleOrder: estado.shuffle ? [chave(faixa)] : [] };
@@ -72,19 +79,81 @@ export function colocarASeguir(
     queue.splice(existente, 1);
     if (existente < queueIndex) queueIndex--;
   }
-  queue.splice(queueIndex + 1, 0, faixa);
+  queue.splice(depoisDaUltimaAMao(queue.map(chave), queueIndex + 1, depoisDe), 0, faixa);
 
   if (!estado.shuffle) return { queue, queueIndex, shuffleOrder: [] };
 
   // A ordem chega já materializada pela store. Retira a posição antiga da
-  // escolhida e enfia-a exactamente depois da actual.
+  // escolhida e enfia-a depois da actual (e das postas à mão, com `depoisDe`).
   const semEscolhida = estado.shuffleOrder.filter((k) => k !== escolhida);
   const ondeEstaActual = semEscolhida.indexOf(actual);
-  const posicao = ondeEstaActual >= 0 ? ondeEstaActual + 1 : 0;
+  const posicao = depoisDaUltimaAMao(semEscolhida, ondeEstaActual >= 0 ? ondeEstaActual + 1 : 0, depoisDe);
   const shuffleOrder = [
     ...semEscolhida.slice(0, posicao), escolhida, ...semEscolhida.slice(posicao),
   ];
   return { queue, queueIndex, shuffleOrder };
+}
+
+/** Onde entra o que se põe à mão: depois da última posta à mão a partir de
+ * `de`, ou em `de` se não houver nenhuma. */
+function depoisDaUltimaAMao(chaves: readonly string[], de: number, aMao?: ReadonlySet<string>): number {
+  if (!aMao || aMao.size === 0) return de;
+  let ultima = -1;
+  for (let i = de; i < chaves.length; i++) if (aMao.has(chaves[i]!)) ultima = i;
+  return ultima >= 0 ? ultima + 1 : de;
+}
+
+/**
+ * O "Add to queue" de várias de uma vez (uma playlist inteira): o mesmo sítio
+ * do de uma só, pela ordem, num passo só. Não tira cópias: era assim no fim
+ * da fila, e no shuffle só entram no percurso as chaves que ainda lá não estão.
+ */
+export function porVariasNaFila(
+  estado: Pick<EstadoDaFila, 'queue' | 'queueIndex' | 'shuffle' | 'shuffleOrder'>,
+  faixas: readonly Track[],
+  chave: (t: Track) => string,
+  depoisDe: ReadonlySet<string>,
+): Pick<EstadoDaFila, 'queue' | 'queueIndex' | 'shuffleOrder'> {
+  const queueIndex = Math.max(0, Math.min(estado.queueIndex, estado.queue.length - 1));
+  const queue = estado.queue.slice();
+  queue.splice(depoisDaUltimaAMao(queue.map(chave), queueIndex + 1, depoisDe), 0, ...faixas);
+  if (!estado.shuffle) return { queue, queueIndex, shuffleOrder: [] };
+
+  const ordem = estado.shuffleOrder;
+  const jaLa = new Set(ordem);
+  const novas: string[] = [];
+  for (const t of faixas) {
+    const k = chave(t);
+    if (!jaLa.has(k)) { jaLa.add(k); novas.push(k); }
+  }
+  const actual = estado.queue[queueIndex] ? chave(estado.queue[queueIndex]!) : null;
+  const ondeEstaActual = actual ? ordem.indexOf(actual) : -1;
+  const posicao = depoisDaUltimaAMao(ordem, ondeEstaActual >= 0 ? ondeEstaActual + 1 : 0, depoisDe);
+  return { queue, queueIndex, shuffleOrder: [...ordem.slice(0, posicao), ...novas, ...ordem.slice(posicao)] };
+}
+
+/**
+ * As postas à mão que ainda estão por tocar, mais as `novas` no fim. As que já
+ * tocaram (ou saíram da fila) deixam de contar: senão o "Add to queue"
+ * seguinte ia parar depois de uma que já passou.
+ */
+export function postasAMao(
+  estado: Pick<EstadoDaFila, 'queue' | 'queueIndex' | 'shuffle' | 'shuffleOrder'>,
+  antes: readonly string[],
+  novas: readonly string[],
+  chave: (t: Track) => string,
+): string[] {
+  const { queue, queueIndex, shuffle, shuffleOrder } = estado;
+  let porTocar: string[];
+  if (shuffle && shuffleOrder.length > 0) {
+    const actual = queue[queueIndex] ? chave(queue[queueIndex]!) : null;
+    porTocar = shuffleOrder.slice((actual ? shuffleOrder.indexOf(actual) : -1) + 1);
+  } else {
+    porTocar = queue.slice(queueIndex + 1).map(chave);
+  }
+  const ficam = new Set(porTocar);
+  const sairam = new Set(novas);
+  return [...antes.filter((k) => ficam.has(k) && !sairam.has(k)), ...novas];
 }
 
 // ------------------------------------------------------- copia alternativa --

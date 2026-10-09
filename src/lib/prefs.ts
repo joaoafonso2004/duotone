@@ -410,13 +410,17 @@ export async function setCrossfadeSegundos(v: DuracaoDoCrossfade): Promise<void>
  *
  * É uma só para todas as playlists e não uma por playlist -- quem gosta de ver
  * por título gosta de ver por título, e não faixa a faixa por lista.
+ *
+ * O PC passou a usá-la a 9/10 (voltava sempre a "Playlist order"). É do
+ * APARELHO (`prefs:`, fora do prefsSync): cada um tem as suas ordens -- o PC
+ * tem a do artista, o iPhone as das escutas.
  */
 export type OrdemDaPlaylist =
-  'default' | 'title' | 'recent' | 'played_recent' | 'played_most' | 'duration';
+  'default' | 'title' | 'artist' | 'recent' | 'played_recent' | 'played_most' | 'duration';
 
 const KEY_ORDEM_PLAYLIST = 'prefs:ordemDaPlaylist';
 const ORDENS: readonly OrdemDaPlaylist[] =
-  ['default', 'title', 'recent', 'played_recent', 'played_most', 'duration'];
+  ['default', 'title', 'artist', 'recent', 'played_recent', 'played_most', 'duration'];
 
 export async function getOrdemDaPlaylist(): Promise<OrdemDaPlaylist> {
   const v = await AsyncStorage.getItem(KEY_ORDEM_PLAYLIST);
@@ -427,6 +431,25 @@ export async function getOrdemDaPlaylist(): Promise<OrdemDaPlaylist> {
 
 export async function setOrdemDaPlaylist(v: OrdemDaPlaylist): Promise<void> {
   await AsyncStorage.setItem(KEY_ORDEM_PLAYLIST, v);
+}
+
+/**
+ * Como as Liked Songs são ordenadas (9/10), pela mesma razão: voltavam sempre
+ * às mais recentes. O iPhone só tem "Recent" e "A–Z" (`title`); o PC ordena
+ * também pelo artista e pela duração, nas colunas.
+ */
+export type OrdemDasGostadas = 'recent' | 'title' | 'artist' | 'duration';
+
+const KEY_ORDEM_GOSTADAS = 'prefs:ordemDasGostadas';
+const ORDENS_DAS_GOSTADAS: readonly OrdemDasGostadas[] = ['recent', 'title', 'artist', 'duration'];
+
+export async function getOrdemDasGostadas(): Promise<OrdemDasGostadas> {
+  const v = await AsyncStorage.getItem(KEY_ORDEM_GOSTADAS);
+  return ORDENS_DAS_GOSTADAS.includes(v as OrdemDasGostadas) ? (v as OrdemDasGostadas) : 'recent';
+}
+
+export async function setOrdemDasGostadas(v: OrdemDasGostadas): Promise<void> {
+  await AsyncStorage.setItem(KEY_ORDEM_GOSTADAS, v);
 }
 
 /**

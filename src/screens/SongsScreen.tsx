@@ -26,6 +26,7 @@ import { AddToPlaylistSheet } from '../components/AddToPlaylistSheet';
 import { EmptyState } from '../components/EmptyState';
 import { PrimeiroPasso } from '../components/PrimeiroPasso';
 import { ordenarFaixas } from '../lib/ordenacao';
+import { getOrdemDasGostadas, setOrdemDasGostadas } from '../lib/prefs';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SkeletonDeFaixas } from '../components/Skeleton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
@@ -83,8 +84,15 @@ export function SongsScreen() {
   const [searchOpen, setSearchOpen] = useState(false);
   const theme = useTheme((s) => s.theme);
 
-  // Sorting state
-  const [sortBy, setSortBy] = useState<'recent' | 'az'>('recent');
+  // Sorting state -- fica guardada (9/10): voltava sempre a "Recent". A
+  // preferência é a mesma do PC, que tem mais ordens; aqui só "A–Z" é outra.
+  const [sortBy, setSortByLocal] = useState<'recent' | 'az'>('recent');
+  useEffect(() => {
+    let vivo = true;
+    void getOrdemDasGostadas().then((v) => { if (vivo) setSortByLocal(v === 'title' ? 'az' : 'recent'); });
+    return () => { vivo = false; };
+  }, []);
+  const setSortBy = (v: 'recent' | 'az') => { setSortByLocal(v); void setOrdemDasGostadas(v === 'az' ? 'title' : 'recent'); };
 
   const load = useCallback(async () => {
     const run=++generation.current;

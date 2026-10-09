@@ -32,6 +32,7 @@ import { BotaoVoltar,
   Button, ContentScroll, Dialog, Empty, Field, IconButton, Loading, marcar, Page, TrackTable, type ColunaOrdenavel,
 } from '../ui.web';
 import { ordenarFaixas } from '../../lib/ordenacao';
+import { getOrdemDaPlaylist, setOrdemDaPlaylist } from '../../lib/prefs';
 import { displayArtist, tituloDaFaixa } from '../../lib/artistName';
 import type { CommonPageProps, Route, ShareTarget } from '../rotas';
 import { PlaylistArtwork } from './comum.web';
@@ -152,7 +153,15 @@ export function PlaylistPage({ id, title, back, share, navigate, abrirPessoas = 
   }, [tracks]);
   const [renameVal, setRenameVal] = useState(title);
   const [query, setQuery] = useState('');
-  const [sortMode, setSortMode] = useState<Ordenacao>('default');
+  // A ordem fica guardada (9/10): voltava sempre a "Playlist order". É a mesma
+  // preferência do iPhone (uma para todas as playlists), aqui no localStorage.
+  const [sortMode, setSortModeLocal] = useState<Ordenacao>('default');
+  useEffect(() => {
+    let vivo = true;
+    void getOrdemDaPlaylist().then((v) => { if (vivo && v in NOMES_DA_ORDENACAO) setSortModeLocal(v as Ordenacao); });
+    return () => { vivo = false; };
+  }, []);
+  const setSortMode = (v: Ordenacao) => { setSortModeLocal(v); void setOrdemDaPlaylist(v); };
   const [sortOpen, setSortOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [ondeMenuDaPagina, setOndeMenuDaPagina] = useState<PontoNoEcra>({ x: 0, y: 0 });

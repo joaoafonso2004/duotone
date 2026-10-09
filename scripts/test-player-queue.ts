@@ -2,6 +2,8 @@ import {
   prazoDoTemporizador,
   restanteDoTemporizador,
   colocarASeguir,
+  porVariasNaFila,
+  postasAMao,
   saltoAposFalha,
   sessaoParaGuardar,
   substituicaoDe,
@@ -39,6 +41,25 @@ const comShuffle = colocarASeguir(base({ shuffle: true, shuffleOrder: ['youtube:
 check('no shuffle tambem passa a ser a proxima do percurso', comShuffle.shuffleOrder.join() === 'youtube:a,youtube:x,youtube:b,youtube:c');
 const shuffleMovido = colocarASeguir(base({ shuffle: true, shuffleOrder: ['youtube:a', 'youtube:b', 'youtube:c'] }), fila3[2], chave);
 check('no shuffle uma existente muda de lugar sem se repetir', shuffleMovido.shuffleOrder.join() === 'youtube:a,youtube:c,youtube:b');
+
+console.log('\nadd to queue (depois das postas a mao)');
+const aMao = new Set(['youtube:x']);
+const comX = { ...base(), queue: [fila3[0], yt('x'), fila3[1], fila3[2]] };
+const depoisDoX = colocarASeguir(comX, yt('y'), chave, aMao);
+check('entra depois da ultima posta a mao', depoisDoX.queue.map(chave).join() === 'youtube:a,youtube:x,youtube:y,youtube:b,youtube:c');
+const semNenhuma = colocarASeguir(base(), yt('y'), chave, new Set());
+check('sem nenhuma posta a mao, logo a seguir a actual', semNenhuma.queue.map(chave).join() === 'youtube:a,youtube:y,youtube:b,youtube:c');
+const ordemComX = ['youtube:a', 'youtube:x', 'youtube:b', 'youtube:c'];
+const shuffleDepoisDoX = colocarASeguir({ ...comX, shuffle: true, shuffleOrder: ordemComX }, yt('y'), chave, aMao);
+check('no shuffle tambem depois da ultima posta a mao', shuffleDepoisDoX.shuffleOrder.join() === 'youtube:a,youtube:x,youtube:y,youtube:b,youtube:c');
+const varias = porVariasNaFila(comX, [yt('p'), yt('q')], chave, aMao);
+check('varias de uma vez, pela ordem, depois das postas a mao', varias.queue.map(chave).join() === 'youtube:a,youtube:x,youtube:p,youtube:q,youtube:b,youtube:c');
+const variasShuffle = porVariasNaFila({ ...comX, shuffle: true, shuffleOrder: ordemComX }, [yt('p'), yt('b')], chave, aMao);
+check('no shuffle so entram no percurso as que la nao estavam', variasShuffle.shuffleOrder.join() === 'youtube:a,youtube:x,youtube:p,youtube:b,youtube:c');
+const jaTocou = postasAMao({ ...comX, queueIndex: 1 }, ['youtube:x'], ['youtube:y'], chave);
+check('a que ja esta a tocar deixa de contar', jaTocou.join() === 'youtube:y');
+const continua = postasAMao(comX, ['youtube:x'], ['youtube:y'], chave);
+check('as que faltam tocar ficam, e a nova entra no fim', continua.join() === 'youtube:x,youtube:y');
 
 console.log('\nsubstituir por uma copia que toca');
 const sub = substituicaoDe(

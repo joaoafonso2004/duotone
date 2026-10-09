@@ -57,7 +57,7 @@ import {
 } from '../lib/playerLifecycle';
 import {
   prazoDoTemporizador, restanteDoTemporizador, saltoAposFalha,
-  colocarASeguir, sessaoParaGuardar, substituicaoDe,
+  colocarASeguir, porVariasNaFila, postasAMao, sessaoParaGuardar, substituicaoDe,
 } from '../lib/playerQueue';
 import {
   derivados, INICIAL as MAQUINA_INICIAL, transicao,
@@ -319,6 +319,10 @@ interface PlayerState {
   origemDaFila: OrigemDaFila | null;
   /** Chaves das faixas que o rádio acrescentou: essas não vieram da origem. */
   doRadio: string[];
+  /** Chaves das postas na fila à mão ("Play next", "Add to queue") e ainda
+   * por tocar: o "Add to queue" seguinte entra depois delas (lib/playerQueue.ts).
+   * Não se persiste: depois de reabrir a app entra logo a seguir à atual. */
+  postasAMao: string[];
   /** O último next/prev, para o "Recuo subtil" da capa saber o sentido
    * (lib/transicaoDaCapa.ts). Não se persiste: é sobre o instante. */
   saltoDaFaixa: { direcao: 1 | -1; em: number } | null;
@@ -1007,6 +1011,7 @@ export const usePlayer = create<PlayerState>()(
   sugeridas: [],
   origemDaFila: null,
   doRadio: [],
+  postasAMao: [],
   saltoDaFaixa: null,
   autoplayRadio: true,
   radioActive: false,
@@ -1143,7 +1148,7 @@ export const usePlayer = create<PlayerState>()(
       origemDaFila: origemSeguinte,
       ...(abrir ? { expanded: true } : {}),
       // Numa lista nova, as marcas do rádio da anterior deixam de valer.
-      ...(listaNova ? { doRadio: [], escutasDaSessao: null } : {}),
+      ...(listaNova ? { doRadio: [], postasAMao: [], escutasDaSessao: null } : {}),
       error: null,
       ...posicao(0),
       durationMs: (playableTrack.durationSeconds ?? 0) * 1000,
@@ -1290,6 +1295,7 @@ export const usePlayer = create<PlayerState>()(
       // A sessão de outro aparelho não traz de onde veio a fila.
       origemDaFila: null,
       doRadio: [],
+      postasAMao: [],
       escutasDaSessao: null,
       radioMode: 'off', radioContext: [], radioOwner: null, radioStopped: false,
       radioActive: false, radioError: null, radioListeningSession: null,
@@ -1374,26 +1380,32 @@ export const usePlayer = create<PlayerState>()(
     }
     const estado = get();
     const shuffleOrder = estado.shuffle ? estado._ensureShuffleOrder() : [];
-    set(colocarASeguir({ ...estado, shuffleOrder }, track, trackKey));
+    const novo = colocarASeguir({ ...estado, shuffleOrder }, track, trackKey);
+    set({ ...novo, postasAMao: postasAMao({ ...novo, shuffle: estado.shuffle }, estado.postasAMao, [trackKey(track)], trackKey) });
   },
 
   addToQueue: (track) => {
     if (ouvirJuntos()) { void comandarJam(s => s.sugerir(track)); return; }
     const { queue } = get();
-    if (queue.length === 0) {
-      invalidarPedidosDoSmartShuffle();
-      set({
-        current: track,
-        queue: [track],
-        queueIndex: 0,
-        escutasDaSessao: null,
-        ...passo(get().maquina, 'faixa-escolhida'),
-        ...posicao(0),
-        durationMs: (track.durationSeconds ?? 0) * 1000,
-      });
+    if (queue.length > 0) {
+      // Depois das que já se puseram à mão, e não no fim da fila (9/10).
+      const estado = get();
+      const shuffleOrder = estado.shuffle ? estado._ensureShuffleOrder() : [];
+      const novo = colocarASeguir({ ...estado, shuffleOrder }, track, trackKey, new Set(estado.postasAMao));
+      set({ ...novo, postasAMao: postasAMao({ ...novo, shuffle: estado.shuffle }, estado.postasAMao, [trackKey(track)], trackKey) });
       return;
     }
-    set({ queue: [...queue, track] });
+    invalidarPedidosDoSmartShuffle();
+    set({
+      current: track,
+      queue: [track],
+      queueIndex: 0,
+      escutasDaSessao: null,
+      postasAMao: [],
+      ...passo(get().maquina, 'faixa-escolhida'),
+      ...posicao(0),
+      durationMs: (track.durationSeconds ?? 0) * 1000,
+    });
   },
 
   addManyToQueue: (tracks) => {
@@ -1404,7 +1416,12 @@ export const usePlayer = create<PlayerState>()(
     // tocar); as outras juntam-se num `set` só -- uma a uma eram N escritas.
     let aJuntar = tracks;
     if (get().queue.length === 0) { get().addToQueue(tracks[0]); aJuntar = tracks.slice(1); }
-    if (aJuntar.length > 0) set({ queue: [...get().queue, ...aJuntar] });
+    if (aJuntar.length === 0) return;
+    // Como o "Add to queue" de uma só: depois das postas à mão, pela ordem.
+    const estado = get();
+    const shuffleOrder = estado.shuffle ? estado._ensureShuffleOrder() : [];
+    const novo = porVariasNaFila({ ...estado, shuffleOrder }, aJuntar, trackKey, new Set(estado.postasAMao));
+    set({ ...novo, postasAMao: postasAMao({ ...novo, shuffle: estado.shuffle }, estado.postasAMao, aJuntar.map(trackKey), trackKey) });
   },
 
   _sincronizarPausa: (aTocar) => {
@@ -2430,7 +2447,10 @@ export const usePlayer = create<PlayerState>()(
       newIndex = queueIndex + 1;
     }
 
-    set({ queue: newQueue, queueIndex: newIndex });
+    // Arrastada à mão para outro sítio, deixa de ser a referência do "Add to
+    // queue": levada para o fundo, a seguinte ia lá parar com ela.
+    const movida = trackKey(movedItem);
+    set({ queue: newQueue, queueIndex: newIndex, postasAMao: get().postasAMao.filter((k) => k !== movida) });
   },
 
   limparProximas: () => {
@@ -2440,7 +2460,7 @@ export const usePlayer = create<PlayerState>()(
     const sai = new Set(proximas.map((p) => p.index));
     const { queue, queueIndex, shuffle } = get();
     const antes = [...sai].filter((i) => i < queueIndex).length;
-    set({ queue: queue.filter((_, i) => !sai.has(i)), queueIndex: queueIndex - antes });
+    set({ queue: queue.filter((_, i) => !sai.has(i)), queueIndex: queueIndex - antes, postasAMao: [] });
     // O percurso do shuffle guarda chaves; as que saíram deixam de ter faixa.
     if (shuffle) get()._ensureShuffleOrder();
     return proximas.length;

@@ -19,7 +19,7 @@ import { tocarMixDoArtista } from '../../state/mixDoArtista';
 import { pesquisarFaixas } from '../../api/search';
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
-import { addSearchHistoryEntry, clearSearchHistory, getSearchHistory } from '../../lib/prefs';
+import { addSearchHistoryEntry, clearSearchHistory, getOrdemDasGostadas, getSearchHistory, setOrdemDasGostadas } from '../../lib/prefs';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist, tituloDaFaixa } from '../../lib/artistName';
 import { useArtistasFavoritos } from '../../state/artistasFavoritos';
 import { ArtistFavoritesSyncStatus } from '../../components/ArtistFavoritesSyncStatus';
@@ -322,7 +322,14 @@ export function SongsPage(props: CommonPageProps) {
   const [query, setQuery] = useState('');
   // Sem coluna escolhida, a ordem é a das gostadas (as mais recentes primeiro).
   // Ordena-se no cabeçalho da tabela; o botão "Sort" e o diálogo dele saíram.
-  const [ordem, setOrdem] = useState<ColunaOrdenavel | null>(null);
+  // Fica guardada (9/10), como no iPhone: voltava sempre às mais recentes.
+  const [ordem, setOrdemLocal] = useState<ColunaOrdenavel | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    void getOrdemDasGostadas().then((v) => { if (vivo) setOrdemLocal(v === 'recent' ? null : v); });
+    return () => { vivo = false; };
+  }, []);
+  const setOrdem = (v: ColunaOrdenavel | null) => { setOrdemLocal(v); void setOrdemDasGostadas(v ?? 'recent'); };
 
   const filteredTracks = useMemo(() => {
     const filtradas = data.tracks.filter(t => correspondeAPesquisa(query, t.title, t.artist));

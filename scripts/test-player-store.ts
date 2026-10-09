@@ -69,7 +69,7 @@ function preparar(over: Record<string, unknown> = {}) {
   usePlayer.setState({
     current: q[0], queue: q, queueIndex: 0,
     shuffle: false, shuffleInteligente: false, shuffleOrder: [],
-    repeatMode: 'off', desdeASugestao: 0, sugeridas: [],
+    repeatMode: 'off', desdeASugestao: 0, sugeridas: [], postasAMao: [],
     escutasDaSessao: null,
     autoplayRadio: true, radioActive: false,
     positionMs: 0, durationMs: 180_000, error: null,
@@ -728,11 +728,53 @@ eq('e toca antes dele', atual(), 'x');
     JSON.stringify([...(controlo.radioJaDescobertas ?? [])].slice(0, 4)));
 }
 
-// O "Add to queue" de uma playlist inteira (28/9): de uma vez, no fim.
+// O "Add to queue" (9/10): logo a seguir à atual, depois das que já se puseram
+// à mão -- ia para o FIM, e numa playlist de 500 a pedida tocava 500 depois.
 preparar();
+usePlayer.getState().addToQueue(faixa('x'));
+eq('add to queue: entra logo a seguir à atual', ids().join(), 'a,x,b,c,d');
+usePlayer.getState().addToQueue(faixa('y'));
+eq('a segunda fica depois da primeira, não à frente dela', ids().join(), 'a,x,y,b,c,d');
+usePlayer.getState().playNext(faixa('z'));
+eq('o play next continua a passar à frente de todas', ids().join(), 'a,z,x,y,b,c,d');
+usePlayer.getState().addToQueue(faixa('w'));
+eq('e o add to queue seguinte vai para o fim das postas à mão', ids().join(), 'a,z,x,y,w,b,c,d');
+await usePlayer.getState().next();
+eq('tocam pela ordem: primeiro a do play next', atual(), 'z');
+usePlayer.getState().addToQueue(faixa('v'));
+eq('a que já tocou deixa de contar, as outras não', ids().join(), 'a,z,x,y,w,v,b,c,d');
+
+preparar();
+usePlayer.getState().addToQueue(faixa('x'));
+usePlayer.getState().addToQueue(faixa('y'));
+usePlayer.getState().moveQueueItem(1, 4);
+usePlayer.getState().addToQueue(faixa('w'));
+eq('arrastada para o fundo, deixa de puxar as seguintes atrás dela', ids().join(), 'a,y,w,b,c,x,d');
+
+preparar({ queueIndex: 3, current: faixa('d') });
+controlo.radio = fila('r1', 'r2');
+await usePlayer.getState().extendQueueWithRadio();
+usePlayer.getState().addToQueue(faixa('x'));
+eq('com o rádio já na fila, a posta à mão passa-lhe à frente', ids().join(), 'a,b,c,d,x,r1,r2');
+
+preparar({ shuffle: true });
+usePlayer.getState()._ensureShuffleOrder();
+usePlayer.getState().addToQueue(faixa('x'));
+usePlayer.getState().addToQueue(faixa('y'));
+eq('shuffle: a primeira posta à mão é a próxima do percurso', aSeguir(), 'x');
+await usePlayer.getState().next();
+eq('shuffle: toca a primeira', atual(), 'x');
+await usePlayer.getState().next();
+eq('shuffle: e depois a segunda', atual(), 'y');
+
+// O de uma playlist inteira: o mesmo sítio, pela ordem, de uma vez.
+preparar();
+usePlayer.getState().addToQueue(faixa('p'));
 usePlayer.getState().addManyToQueue(fila('x', 'y'));
-eq('uma playlist inteira entra no fim da fila, pela ordem', ids().join(), 'a,b,c,d,x,y');
+eq('uma playlist inteira entra depois das postas à mão, pela ordem', ids().join(), 'a,p,x,y,b,c,d');
 eq('e o que toca não muda', atual(), 'a');
+usePlayer.getState().addToQueue(faixa('w'));
+eq('e conta como posta à mão para a seguinte', ids().join(), 'a,p,x,y,w,b,c,d');
 preparar({ current: null, queue: [], queueIndex: 0 });
 usePlayer.getState().addManyToQueue(fila('x', 'y'));
 eq('com a fila vazia fica pronta na primeira, e as outras atrás', `${atual()}|${ids().join()}`, 'x|x,y');
