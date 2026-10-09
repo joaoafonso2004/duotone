@@ -36,12 +36,15 @@ export interface ConversationPreview {
   message: string | null;
   trackTitle: string | null;
   trackArtist: string | null;
+  /** Só nas que se leram da conversa (o resumo do servidor não a traz). */
+  trackArtwork?: string | null;
 }
 
 export function previewOf(item: SharedItem): ConversationPreview {
   return { createdAt: item.createdAt, senderId: item.sender.id, itemType: item.itemType,
     message: item.message?.trim().slice(0, 360) || null,
-    trackTitle: item.trackData?.title ?? null, trackArtist: item.trackData?.artist ?? null };
+    trackTitle: item.trackData?.title ?? null, trackArtist: item.trackData?.artist ?? null,
+    trackArtwork: item.trackData?.artworkUrl ?? null };
 }
 
 export function mergePreviews(base: Readonly<Record<string, ConversationPreview>>,

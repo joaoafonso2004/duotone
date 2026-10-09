@@ -20,6 +20,7 @@ const DUPLOS = `${TS} --import ./scripts/registar-duplos.mjs`;
 const TESTES = [
   'scripts/test-smart-radio-relevance.cjs',
   'scripts/test-social-overview.cjs',
+  'scripts/test-social-ios.cjs',
   'scripts/test-capas-com-audio.cjs',
   'scripts/test-cache-em-memoria.cjs',
   'scripts/test-consumo-supabase.cjs',
@@ -157,6 +158,8 @@ const TESTES = [
   `${TS} scripts/test-gosto-do-spotify.ts`,
   `${TS} scripts/test-descobertas-mostradas.ts`,
   `${TS} scripts/test-mistura-do-dia.ts`,
+  `${TS} scripts/test-previa-da-conversa.ts`,
+  `${TS} scripts/test-grupos-de-mensagens.ts`,
   `${TS} scripts/test-atalhos-da-lateral.ts`,
   `${TS} scripts/test-recursos-da-app.ts`,
   `${TS} scripts/test-tempo-ate-ao-som.ts`,

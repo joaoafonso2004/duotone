@@ -38,7 +38,9 @@ assert.equal(core.receivedPreviews([{ ...message('group', 0), groupId: 'room' }]
 let hook = 0; const state = [];
 const React = { createElement: (type, props, ...children) => ({ type, props: { ...props, children } }),
   useMemo: fn => fn(), useState: initial => { const i = hook++; if (!(i in state)) state[i] = initial; return [state[i], v => { state[i] = typeof v === 'function' ? v(state[i]) : v; }]; } };
-const { SocialOverview } = load('src/components/SocialOverview.tsx', {
+// O PC (9/10): o iPhone tem a sua, testada em test-social-ios.cjs.
+const { SocialOverview } = load('src/components/SocialOverview.web.tsx', {
+  '../lib/previaDaConversa': load('src/lib/previaDaConversa.ts'),
   react: React, 'react-native': { Pressable: 'Pressable', ScrollView: 'ScrollView', Text: 'Text', TextInput: 'TextInput', View: 'View', StyleSheet: { create: x => x } },
   'expo-image': { Image: 'Image' }, '@expo/vector-icons/Ionicons': 'Icon', '../lib/socialActivity': core,
   '../lib/socialPresence': { ultimaAtividade: () => 'Last seen' }, '../lib/social': { haQuantoTempo: () => 'now' },

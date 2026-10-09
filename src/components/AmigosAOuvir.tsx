@@ -4,13 +4,14 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FriendAvatar } from './FriendAvatar';
 import { Toque } from './Toque';
-import { sessoesDeAmigos } from '../api/ouvirJuntos';
 import { amigosNaLateral } from '../lib/amigosNaLateral';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { hapticSelection } from '../lib/haptics';
 import { ESCALA } from '../lib/movimento';
 import { useDestinos } from '../navigation/destinos';
 import { ouvirComAmigo } from '../state/ouvirComAmigo';
+import { abrirFolhaDoAmigo } from '../state/folhaDoAmigo';
+import { jamsDosAmigos } from '../state/jamsDosAmigos';
 import { useSocial } from '../state/social';
 import { colors, spacing, type } from '../theme';
 
@@ -75,7 +76,7 @@ export function AmigosAOuvir() {
   React.useEffect(() => {
     if (!quantos) { setSessoes(new Map()); return; }
     let vivo = true;
-    void sessoesDeAmigos().then((m) => { if (vivo) setSessoes(m); });
+    void jamsDosAmigos().then((m) => { if (vivo) setSessoes(m); });
     return () => { vivo = false; };
   }, [quantos]);
 
@@ -115,7 +116,11 @@ export function AmigosAOuvir() {
         <Toque
           key={amigo.friendId}
           escala={ESCALA.cartao}
-          onPress={() => irPara({ tipo: 'perfil', userId: amigo.friendId })}
+          // A ouvir: a folha com o que ele está a ouvir (9/10, a mesma do
+          // Social). Sem música, o perfil, como antes.
+          onPress={() => (amigo.musicActivity
+            ? abrirFolhaDoAmigo(amigo.friendId)
+            : irPara({ tipo: 'perfil', userId: amigo.friendId }))}
           accessibilityLabel={faixa
             ? `${amigo.name || amigo.username}, listening to ${tituloDaFaixa(faixa)}`
             : `${amigo.name || amigo.username}, online`}

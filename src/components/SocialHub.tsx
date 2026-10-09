@@ -38,7 +38,9 @@ import type { Playlist,Track } from '../types';
  * um artista, a conversa no iPhone) é o `irPara` da app (5/10, lib/destinos.ts):
  * os ecrãs que o montam já não escolhem ligar uma função e esquecer outra.
  */
-export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,novaConversa,conversationTarget,onCloseConversation}:{visible?:boolean;initialFriend?:string;initialGroup?:string;
+export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,novaConversa,procurar,conversationTarget,onCloseConversation}:{visible?:boolean;initialFriend?:string;initialGroup?:string;
+  /** A lupa do cabeçalho do Social no iPhone (9/10). */
+  procurar?: boolean;
   conversationTarget?: {kind:'friend'|'group';id:string};
   onCloseConversation?: ()=>void;
   novaConversa?: { aberta: boolean; definir: (aberta: boolean) => void };
@@ -292,6 +294,7 @@ export function SocialHub({visible=true,initialFriend,initialGroup,cabecalho,nov
       <SocialOverview key={myId??'signed-out'} friends={accepted} groups={social.groups} contacts={social.contacts}
         activity={social.activity} previews={social.conversationPreviews} unread={unread} now={social.now} myId={myId}
         loading={social.loading} requests={requests} onOpen={open} onProfile={onProfile} onTrack={setTrack}
+        pedidos={pending.filter(f=>!f.isSender).length} procurar={web?undefined:procurar} gutter={web?SOCIAL_GUTTER:24}
         onRemoveFriend={id=>setConfirm({id,group:false})}
         onFriendMenu={web?undefined:(id,ancora)=>setMenuDoAmigo({id,ancora})}
         onDeleteConversation={id=>setConfirm({id,group:false,conversa:true})} onStart={()=>setComecar(true)}/>

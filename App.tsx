@@ -11,6 +11,7 @@ import { useAquecerSeccoes } from './src/hooks/useAquecerSeccoes';
 import { useAquecerResolvedor } from './src/hooks/useAquecerResolvedor';
 import { acompanharDownloads } from './src/state/capasGrandes';
 import { esquecerBiblioteca } from './src/lib/cacheDaBiblioteca';
+import { esquecerJamsDosAmigos } from './src/state/jamsDosAmigos';
 import { AppState, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -202,7 +203,7 @@ export default function App() {
   // não pode deitá-la fora -- é quando ela mais serve.
   // Os artistas favoritos vão atrás: são as chaves da biblioteca de quem sai.
   useEffect(() => () => {
-    limparVerificacao(); esquecerBiblioteca();
+    limparVerificacao(); esquecerBiblioteca(); esquecerJamsDosAmigos();
     // E os corações "já guardada", que também decidem o questionário da
     // primeira vez (state/saved.ts).
     useSaved.getState().limpar();

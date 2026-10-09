@@ -61,6 +61,7 @@ import { useNotifications } from '../state/notifications';
 import { useInAppNotifications } from '../hooks/useInAppNotifications';
 import { NotificationBanner } from '../components/NotificationBanner';
 import { AvisoDeRemocao } from '../components/AvisoDeRemocao';
+import { FolhaDoAmigo } from '../components/FolhaDoAmigo';
 import { AvisoDaReproducao } from '../components/AvisoDaReproducao';
 import { ProgressoDaImportacao } from '../components/ProgressoDaImportacao';
 import { BoasVindas } from '../components/BoasVindas';
@@ -494,6 +495,8 @@ export function RootNavigator() {
             </BarreiraDeErros>
             {/* "A tocar no PC — continuar aqui". Fica por cima do mini-player. */}
             <HandoffBanner />
+            {/* O que um amigo está a ouvir (9/10): aberta do Social e da Home. */}
+            <FolhaDoAmigo />
             {/* O que se tirou, com "Undo" (3/10, lib/avisoDeRemocao.ts). */}
             <AvisoDeRemocao />
             <NotificationBanner onOpen={openNotification} />
