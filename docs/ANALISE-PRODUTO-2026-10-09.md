@@ -4,6 +4,8 @@
 
 **Nota** = impacto na experiência, de 0 a 10. **Onde** = iPhone, PC ou Ambos.
 
+**Verificado no código a 9/10.** ◐ = já existe uma parte, e o ponto é só o que falta. Retirados por já existirem: a fonte AltStore/SideStore (gerada pelo Portfolio, `portfolio-sync-releases.mjs`). O tempo até ao som também já está no Painel de saúde (K1 passou a ◐).
+
 ---
 
 ## 1. O que se está a trabalhar agora
@@ -27,13 +29,13 @@
 | 1 | "Add to queue" logo a seguir à atual, com a secção "Next in queue" (A1) | Ambos | 9 |
 | 2 | Descarregar uma playlist inteira e as Liked Songs (E1) | iPhone | 9 |
 | 3 | Aviso de que a assinatura vai expirar (J1) | iPhone | 9 |
-| 4 | SideStore + uma "source" para os amigos (J2) | iPhone | 9 |
-| 5 | Quadro "Duotone vs Spotify" com números (K1) | Ambos | 9 |
-| 6 | Saltar as partes que não são música (A2) | Ambos | 8 |
-| 7 | Novos lançamentos dos teus artistas (C1) | Ambos | 8 |
-| 8 | Seleção múltipla e arrastar no PC (F1) | PC | 8 |
-| 9 | "Playing from …" no topo do leitor (G1) | iPhone | 8 |
-| 10 | Partir o CLAUDE.md (L1) | Dev | 8 |
+| 4 | Saltar as partes que não são música (A2) | Ambos | 8 |
+| 5 | Novos lançamentos dos teus artistas (C1) | Ambos | 8 |
+| 6 | Seleção múltipla e arrastar no PC (F1) | PC | 8 |
+| 7 | "Playing from …" no topo do leitor (G1) | iPhone | 8 |
+| 8 | Partir o CLAUDE.md (L1) | Dev | 8 |
+| 9 | Temporizador com "End of track" (A3) | Ambos | 7 |
+| 10 | Segunda fonte de letras (B1) | Ambos | 7 |
 
 ---
 
@@ -43,7 +45,7 @@
 |---|---|---|---|---|
 | A1 | "Add to queue" entra logo a seguir à atual (depois das outras que puseste), com "Next in queue" separado de "Next from <lista>" | Ambos | Hoje vai para o **fim** da fila (`state/player.ts:1380`): numa playlist de 500, a música que puseste toca daqui a 500 faixas. | 9 |
 | A2 | Saltar as partes que não são música (SponsorBlock, categoria `music_offtopic`), ligado por omissão | Ambos | Muitos uploads são videoclipes com intros e skits. A base é comunitária, grátis e sem chave, e o SimpMusic já a usa. | 8 |
-| A3 | Temporizador com "End of track", 90 e 120 min, e um fade de 20 s antes de parar, à mão no "…" do leitor | Ambos | Hoje são 15 a 60 min e só nas Definições; adormecer a meio de uma música é o caso mais comum. **(precisa do teu OK)** | 7 |
+| A3 | ◐ Temporizador com "End of track", 90 e 120 min, e um fade de 20 s antes de parar, à mão no "…" do leitor | Ambos | Hoje são 15 a 60 min e só nas Definições; adormecer a meio de uma música é o caso mais comum. **(precisa do teu OK)** | 7 |
 | A4 | EQ por aparelho: muda sozinho ao ligar os AirPods, o carro ou uma coluna, com perfis do AutoEq | iPhone | A app já lê o nome da saída de áudio (`lib/interrupcaoDeAudio.ts`). O AutoEq (16k ★, MIT) tem curvas medidas para milhares de auscultadores, e o Spotify não faz nada disto. | 7 |
 
 ## B. Letras
@@ -60,7 +62,7 @@
 | # | Ideia | Onde | Porquê | Nota |
 |---|---|---|---|---|
 | C1 | "New releases": uma prateleira e um ponto nos artistas com lançamento novo | Ambos | É das maiores razões para abrir o Spotify (Release Radar, os feeds de 2025). A app já lê o canal e o "Latest release" de cada artista (`lib/albunsDoArtista.ts`). Verificar os favoritos uma vez por dia, sem usar o Supabase. | 8 |
-| C2 | "Don't play this artist" e "Hide song" numa playlist | Ambos | O "Not interested" só existe nas sugestões; numa playlist colaborativa, a música que detestas toca na mesma. O Spotify tem as duas. | 7 |
+| C2 | ◐ "Hide song" numa playlist e "Don't play this artist" que valha também nas playlists e no shuffle | Ambos | Já há "Do not suggest this song again" e "Suggest less of this artist", mas só mexem nas sugestões; numa playlist colaborativa, a música que detestas toca na mesma. | 6 |
 | C3 | Mistura que muda com a hora do dia, feita do que ouves a essa hora | Ambos | O histórico já está no aparelho (sincronização incremental), por isso não custa pedidos. É o daylist do Spotify, sem IA. | 6 |
 | C4 | "Don't use for recommendations" numa playlist | Ambos | O Spotify lançou-o em 2025: uma playlist de festa ou de dormir estraga o Discover. | 5 |
 | C5 | Esconder e reordenar as prateleiras da Home | Ambos | Não é redesenhar a Home (isso já recusaste): cada um tira o que não usa. | 4 |
@@ -79,7 +81,7 @@
 
 | # | Ideia | Onde | Porquê | Nota |
 |---|---|---|---|---|
-| E1 | "Download" numa playlist e nas Liked Songs, que mantém tudo descarregado (também as novas), só em Wi-Fi | iPhone | Hoje é música a música, e este é o gesto principal do offline no Spotify. A fila de downloads e a proteção já existem (`lib/downloadsExplicitos.ts`). | 9 |
+| E1 | ◐ "Download" numa playlist e nas Liked Songs, que mantém tudo descarregado (também as novas), só em Wi-Fi | iPhone | Hoje é música a música, e este é o gesto principal do offline no Spotify. A fila de downloads e a proteção já existem (`lib/downloadsExplicitos.ts`). | 9 |
 | E2 | Espaço ocupado e livre nos Downloads, com "remover as que não ouves há 60 dias" | iPhone | Sem esse número, não se sabe quando parar de descarregar. | 5 |
 
 ## F. PC
@@ -115,7 +117,7 @@
 
 | # | Ideia | Onde | Porquê | Nota |
 |---|---|---|---|---|
-| I1 | Blend a sério: a mistura dos dois como playlist que se atualiza todos os dias, com a % de gosto em comum | Ambos | Hoje é uma fila tocada uma vez (`lib/misturaDosDois.ts`). Guardada e renovada todos os dias, dá um motivo para voltar. | 6 |
+| I1 | ◐ Blend a sério: a mistura dos dois como playlist que se atualiza todos os dias, com a % de gosto em comum | Ambos | Hoje é uma fila tocada uma vez (`lib/misturaDosDois.ts`). Guardada e renovada todos os dias, dá um motivo para voltar. | 6 |
 | I2 | Adicionar um amigo por link ou QR (`duotone://add/<username>`), na folha de nova conversa (não no perfil) | Ambos | Hoje só pela pesquisa do username, e é pelos amigos que a app cresce. | 5 |
 | I3 | Reagir com um emoji à música que um amigo está a ouvir (vai para o chat) | Ambos | Os cartões de quem está a ouvir e o chat já existem; ligá-los cria conversa sem escrever. | 5 |
 
@@ -124,13 +126,12 @@
 | # | Ideia | Onde | Porquê | Nota |
 |---|---|---|---|---|
 | J1 | Aviso dentro da app quando faltam 2 dias para deixar de abrir | iPhone | A assinatura grátis expira aos 7 dias, e o `embedded.mobileprovision` dentro da app tem a data (`ExpirationDate`): um módulo Swift pequeno lê-a. Hoje só se descobre quando a app já não abre. | 9 |
-| J2 | SideStore, mais uma "source" (um JSON no formato do AltStore) que o CI gera a cada release | iPhone | Os amigos renovam no próprio iPhone, sem cabo, e veem as atualizações sozinhos. Basta um JSON nos releases do GitHub. | 9 |
 
 ## K. Medir para provar que é melhor
 
 | # | Ideia | Onde | Porquê | Nota |
 |---|---|---|---|---|
-| K1 | Quadro "Duotone vs Spotify" no Painel de saúde: tempo até ao som (p50/p95, com e sem cache), % de saltos antes do som, % que cai no embed ou no HLS, sessões sem crash | Ambos | Os dados já vão para o `app_events`. O Spotify publicou 265 ms de mediana, 515 ms no p75 e 1047 ms no p90: são alvos concretos. | 9 |
+| K1 | ◐ No "Time to first sound" do Painel de saúde: separar com e sem cache, e pôr o alvo do Spotify ao lado | Ambos | A mediana e o p90 já lá estão. O Spotify publicou 265 ms de mediana e 1047 ms no p90, e é o "sem cache" que diz se a app compete. | 6 |
 | K2 | Uma pergunta na app, ao fim de 2 semanas: "Comparado com o Spotify, o Duotone é…" (1 a 5 e uma frase) | Ambos | "Os amigos sentem que é" passa a ser um número, numa só linha do `app_events`. | 7 |
 | K3 | Voltar ao "tocar enquanto descarrega" só se o K1 mostrar que o download é o lento | iPhone | Está desligado por decisão tua ("nunca encrava"), mas, se o p95 sem cache for o download, é o maior ganho que falta. | 6 |
 
