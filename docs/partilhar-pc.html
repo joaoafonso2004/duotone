@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Partilhar no PC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono&family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fundo:#060608;--painel:#0C0C10;--elevado:#14141A;--hover:#1C1C24;
+  --linha:rgba(233,234,238,.10);--linhaSuave:rgba(233,234,238,.055);
+  --texto:#E9EAEE;--medio:#9DA0AA;--fraco:#84868F;--ok:#7FB069;
+  --acento:#C9A86A;
+  --display:"Archivo",system-ui,sans-serif;--body:"Public Sans",system-ui,sans-serif;--mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--texto);font-family:var(--body)}
+.pagina{max-width:1180px;margin:0 auto;padding:40px 16px 100px}
+h1{font-family:var(--display);font-size:30px;letter-spacing:-.5px;margin:0 0 8px}
+.intro{color:var(--medio);font-size:15px;line-height:1.6;max-width:820px;margin:0 0 28px}
+h2{font-family:var(--display);font-size:21px;margin:48px 0 6px}
+.nota{color:var(--medio);font-size:14px;line-height:1.6;max-width:860px;margin:0 0 18px}
+.nota b{color:var(--texto);font-weight:600}
+.lado{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:20px;align-items:start}
+.etiqueta{font-family:var(--mono);font-size:10px;letter-spacing:1.5px;color:var(--fraco);text-transform:uppercase;margin-bottom:10px}
+.etiqueta b{color:var(--texto);font-weight:500}
+.escolher{display:inline-flex;gap:6px;margin:0 0 16px;flex-wrap:wrap}
+.escolher button{font:600 13px var(--body);color:var(--medio);background:transparent;border:1px solid var(--linha);border-radius:999px;padding:7px 14px;cursor:pointer}
+.escolher button.on{color:#111;background:var(--texto);border-color:var(--texto)}
+
+/* o palco: um pedaço da app por trás, escurecido */
+.palco{position:relative;min-height:600px;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.08);
+  background:radial-gradient(700px 360px at 30% 0%,#1d1626 0%,transparent 60%),var(--fundo);display:grid;place-items:center;padding:24px 16px}
+.palco .finge{position:absolute;inset:0;padding:22px;display:grid;grid-template-columns:repeat(5,1fr);gap:14px;opacity:.22;pointer-events:none}
+.palco .finge i{border-radius:8px;background:#1a1a22;aspect-ratio:1}
+.palco::after{content:"";position:absolute;inset:0;background:rgba(0,0,0,.55);pointer-events:none}
+.palco > .dlg{position:relative;z-index:1}
+
+/* o diálogo do PC (ui.web.tsx) */
+.dlg{width:100%;max-width:460px;background:var(--elevado);border:1px solid var(--linha);border-radius:14px;box-shadow:0 24px 64px rgba(0,0,0,.55);overflow:hidden}
+.dlgTopo{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 6px}
+.dlgTopo h3{font:700 16px var(--display);margin:0}
+.x{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--medio);cursor:pointer;font-size:18px}
+.x:hover{background:var(--hover);color:var(--texto)}
+.dlgCorpo{padding:8px 18px 18px}
+
+.cara{width:40px;height:40px;border-radius:50%;flex:none;display:grid;place-items:center;font:700 15px var(--body);color:#fff;position:relative}
+.cara.grupo{border-radius:12px}
+.cara .ponto{position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:50%;background:var(--ok);border:2px solid var(--elevado)}
+.g1{background:linear-gradient(135deg,#8a6a2c,#3d2a10)} .g2{background:linear-gradient(135deg,#5b6170,#22252c)}
+.g3{background:linear-gradient(135deg,#7a3a5a,#2a1220)} .g4{background:linear-gradient(135deg,#2f6a5a,#0f2a24)}
+.g5{background:linear-gradient(135deg,#4a4aa0,#1a1a3a)} .g6{background:linear-gradient(135deg,#a05a3a,#3a1a10)}
+.nome{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub{font-size:12.5px;color:var(--fraco);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ------------- HOJE (ShareFriendSheet dentro do diálogo) ------------- */
+.hoje .campo{display:flex;align-items:center;gap:10px;height:46px;border-radius:12px;background:#1E1E26;padding:0 14px;color:var(--fraco);font-size:15px;margin-bottom:12px}
+.hoje .lista{max-height:320px;overflow:auto}
+.hoje .linha{display:flex;align-items:center;gap:12px;padding:8px 4px;border-radius:10px;cursor:pointer}
+.hoje .linha .cara{width:44px;height:44px}
+.hoje .linha:active{background:#2A2A33}
+.hoje .aviao{color:var(--fraco);font-size:15px}
+.hoje .rodape{margin-top:12px;padding-top:12px;border-top:1px solid var(--linha)}
+.hoje .quieto{height:44px;border-radius:14px;background:#1E1E26;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--acento);font-weight:600;font-size:15px}
+.marcas{margin:12px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+.marcas li{font-size:13px;color:var(--medio);line-height:1.5;padding-left:22px;position:relative}
+.marcas.bom li::before{background:var(--ok)}
+.marcas li[data-n="–"]::before{background:#555}
+.marcas li::before{content:attr(data-n);position:absolute;left:0;top:0;width:16px;height:16px;border-radius:50%;background:#E5484D;color:#fff;font:700 10px/16px var(--body);text-align:center}
+
+/* ------------- o cabeçalho com o que se manda ------------- */
+.oQue{display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;background:var(--painel);border:1px solid var(--linhaSuave);margin-bottom:12px}
+.capa{width:48px;height:48px;border-radius:6px;flex:none;background:linear-gradient(135deg,#b9d3a0,#4d7a5a 45%,#2b2d4a);position:relative;overflow:hidden}
+.capa::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 70% 30%,rgba(255,220,120,.6),transparent 40%)}
+.capa.pl{display:grid;grid-template-columns:1fr 1fr;background:none}
+.capa.pl i{display:block}
+.oQue .tipo{font-family:var(--mono);font-size:10px;letter-spacing:1.2px;color:var(--fraco);text-transform:uppercase}
+.oQue .t{font:700 15px var(--display);margin-top:2px}
+.oQue .a{font-size:13px;color:var(--medio);margin-top:1px}
+
+.procura{display:flex;align-items:center;gap:8px;height:36px;border-radius:8px;background:var(--painel);border:1px solid var(--linha);padding:0 10px;margin-bottom:6px}
+.procura input{flex:1;background:none;border:0;outline:0;color:var(--texto);font:500 13.5px var(--body)}
+.procura input::placeholder{color:var(--fraco)}
+.procura:focus-within{border-color:rgba(233,234,238,.28)}
+.seccao{font-family:var(--mono);font-size:10px;letter-spacing:1.3px;color:var(--fraco);text-transform:uppercase;margin:12px 4px 4px}
+.listaA{max-height:300px;overflow:auto;margin:0 -6px;padding:0 6px}
+.linhaA{display:flex;align-items:center;gap:12px;padding:7px 8px;border-radius:8px;cursor:pointer;user-select:none}
+.linhaA:hover{background:var(--hover)}
+.linhaA .meio{flex:1;min-width:0}
+.marca{width:20px;height:20px;border-radius:50%;border:1.5px solid rgba(233,234,238,.28);flex:none;display:grid;place-items:center;transition:all 120ms}
+.linhaA.sel .marca{background:var(--acento);border-color:var(--acento)}
+.linhaA.sel .marca::after{content:"";width:9px;height:5px;border-left:2px solid #0B0B0E;border-bottom:2px solid #0B0B0E;transform:rotate(-45deg) translate(1px,-1px)}
+.vazioA{color:var(--fraco);font-size:13px;padding:18px 6px;text-align:center}
+
+.escolhidos{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;min-height:0}
+.chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 4px 0 4px;border-radius:999px;background:var(--hover);font-size:12.5px;font-weight:600}
+.chip .mini{width:18px;height:18px;border-radius:50%}
+.chip b{font-weight:400;color:var(--fraco);cursor:pointer;padding:0 6px 0 2px}
+
+.baixo{display:flex;gap:8px;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--linhaSuave)}
+.msg{flex:1;height:38px;border-radius:8px;background:var(--painel);border:1px solid var(--linha);padding:0 12px;color:var(--texto);font:500 13.5px var(--body);outline:0}
+.msg::placeholder{color:var(--fraco)}
+.msg:focus{border-color:rgba(233,234,238,.28)}
+.enviar{height:38px;padding:0 16px;border-radius:8px;border:0;background:var(--texto);color:#0B0B0E;font:700 13.5px var(--body);cursor:pointer;white-space:nowrap}
+.enviar:disabled{opacity:.35;cursor:default}
+.secundario{display:flex;gap:6px;margin-top:10px}
+.botaoS{flex:1;height:34px;border-radius:8px;border:1px solid var(--linha);background:transparent;color:var(--medio);font:600 12.5px var(--body);display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}
+.botaoS:hover{background:var(--hover);color:var(--texto)}
+.feito{display:none;flex-direction:column;align-items:center;gap:10px;padding:28px 0 18px;text-align:center}
+.feito .visto{width:44px;height:44px;border-radius:50%;background:rgba(127,176,105,.15);display:grid;place-items:center;color:var(--ok);font-size:22px}
+.feito .t{font:700 15px var(--display)}
+.feito .s{font-size:13px;color:var(--medio)}
+.dlg.enviado .feito{display:flex}
+.dlg.enviado .formulario{display:none}
+
+/* ------------- B: menu rápido junto ao clique ------------- */
+.palcoB{place-items:start start;padding:0;min-height:680px}
+.palcoB::after{display:none}
+.palcoB .finge{opacity:.3}
+.palcoB .gatilho{position:absolute;left:16px;right:16px;top:110px;z-index:1;display:flex;align-items:center;gap:12px;padding:8px 12px;border-radius:8px;background:rgba(233,234,238,.06)}
+.palcoB .gatilho .capa{width:40px;height:40px}
+.pop{position:absolute;z-index:2;right:24px;top:166px;width:min(330px,calc(100% - 48px));background:var(--elevado);border:1px solid var(--linha);border-radius:12px;box-shadow:0 18px 48px rgba(0,0,0,.6);padding:12px}
+.recentes{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:2px 0 8px}
+.recente{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 2px;border-radius:8px;cursor:pointer;position:relative}
+.recente:hover{background:var(--hover)}
+.recente .cara{width:44px;height:44px}
+.recente .n{font-size:11.5px;color:var(--medio);max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recente.sel .cara{box-shadow:0 0 0 2px var(--elevado),0 0 0 4px var(--acento)}
+.recente.sel .n{color:var(--texto);font-weight:600}
+.recente .ok{position:absolute;top:4px;right:12px;width:18px;height:18px;border-radius:50%;background:var(--acento);display:none;place-items:center}
+.recente.sel .ok{display:grid}
+.recente .ok::after{content:"";width:8px;height:4px;border-left:2px solid #0B0B0E;border-bottom:2px solid #0B0B0E;transform:rotate(-45deg) translate(1px,-1px)}
+.maisPessoas{font-size:12.5px;color:var(--medio);cursor:pointer;padding:6px 8px;border-radius:6px;display:inline-block}
+.maisPessoas:hover{background:var(--hover);color:var(--texto)}
+.pop .listaA{max-height:180px}
+.pop .baixo{margin-top:8px;padding-top:10px}
+.pop .menuExtra{border-top:1px solid var(--linhaSuave);margin-top:10px;padding-top:6px}
+.itemMenu{display:flex;align-items:center;gap:10px;height:34px;padding:0 8px;border-radius:6px;color:var(--medio);font-size:13px;cursor:pointer}
+.itemMenu:hover{background:var(--hover);color:var(--texto)}
+.ic{width:16px;text-align:center;font-size:14px}
+.pop.enviado .formulario{display:none}
+.pop.enviado .feito{display:flex;padding:22px 0 12px}
+.pop .feito{display:none}
+
+.decisao{margin-top:36px;background:var(--fundo);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:18px 20px}
+.decisao h3{font:700 15px var(--display);margin:0 0 10px}
+.decisao ul{margin:0;padding-left:18px;color:var(--medio);font-size:14px;line-height:1.7}
+.decisao b{color:var(--texto)}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>Mandar músicas e playlists a amigos (PC)</h1>
+  <p class="intro">O diálogo de hoje é a folha do iPhone (<code>ShareFriendSheet</code>) metida num diálogo de PC: campo, tamanhos e cores do telemóvel, nada a dizer o que se está a mandar, e um clique numa pessoa já envia. Abaixo, o de hoje e duas propostas. Nas propostas dá para escolher pessoas, escrever e enviar.</p>
+
+  <div class="escolher" id="tipo">
+    <button class="on" data-tipo="musica">Mandar uma música</button>
+    <button data-tipo="playlist">Mandar uma playlist</button>
+  </div>
+
+  <h2>Hoje</h2>
+  <p class="nota">Reconstruído a partir do código (<code>ShareFriendSheet.tsx</code> + <code>BottomSheet.web.tsx</code>). Os números são o que está mal.</p>
+  <div class="lado">
+    <div class="palco"><div class="finge"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="dlg hoje" style="max-width:520px">
+        <div class="dlgTopo"><h3 class="tituloHoje">Share track</h3><div class="x">✕</div></div>
+        <div class="dlgCorpo">
+          <div class="campo">💬 <span>Say something about it…</span></div>
+          <div class="lista">
+            <div class="linha"><div class="cara grupo g4">R</div><div style="flex:1;min-width:0"><div class="nome">Rap PT 🔥</div><div class="sub">4 members</div></div><span class="aviao">➤</span></div>
+            <div class="linha"><div class="cara g1">B</div><div style="flex:1;min-width:0"><div class="nome">Beatriz</div><div class="sub">@bia</div></div><span class="aviao">➤</span></div>
+            <div class="linha"><div class="cara g2">C</div><div style="flex:1;min-width:0"><div class="nome">Calito</div><div class="sub">@calito</div></div><span class="aviao">➤</span></div>
+            <div class="linha"><div class="cara g3">M</div><div style="flex:1;min-width:0"><div class="nome">Miguel</div><div class="sub">@miguel.s</div></div><span class="aviao">➤</span></div>
+            <div class="linha"><div class="cara g5">R</div><div style="flex:1;min-width:0"><div class="nome">Rita</div><div class="sub">@rita</div></div><span class="aviao">➤</span></div>
+            <div class="linha"><div class="cara g6">T</div><div style="flex:1;min-width:0"><div class="nome">Tiago</div><div class="sub">@tiagoo</div></div><span class="aviao">➤</span></div>
+          </div>
+          <div class="rodape hojeRodape"><div class="quieto">🎧 Listen together</div></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <ul class="marcas">
+        <li data-n="1"><b>Não diz o que se está a mandar.</b> O título é "Share track" e mais nada: nem capa, nem nome, nem artista.</li>
+        <li data-n="2"><b>Um clique numa pessoa já envia.</b> Não há como escolher três pessoas e mandar de uma vez, nem como desfazer um clique errado.</li>
+        <li data-n="3"><b>A mensagem vem antes das pessoas</b>, e é preciso escrevê-la antes de clicar. Escrita depois de mandar a um, já não vai com esse.</li>
+        <li data-n="4"><b>Não há pesquisa.</b> Com 20 amigos é rolar uma lista de 320 px à procura do nome.</li>
+        <li data-n="5"><b>A ordem é grupos e depois amigos pela ordem da base de dados</b>, não por com quem falaste há pouco.</li>
+        <li data-n="6"><b>É o desenho do telemóvel:</b> campo de 46 px com fundo cinzento, avatares de 44, o avião de papel minúsculo e um botão grande "Listen together" no fundo. Não tem o aspeto do resto do PC (campos de 36 px com borda, linhas com hover).</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>A · Diálogo com o que se manda, pesquisa e escolher várias</h2>
+  <p class="nota">O mesmo sítio (ao centro), feito para o PC. Em cima, <b>o que vai</b>. Depois a pesquisa (já com o cursor lá), <b>Recent</b> (com quem falaste por último) e o resto. Clicar <b>marca</b>, não envia; os escolhidos ficam em pastilhas. Em baixo a mensagem e <b>Send</b>: Enter também envia. "Listen together" fica como botão secundário.</p>
+  <div class="lado">
+    <div class="palco"><div class="finge"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="dlg" id="dlgA">
+        <div class="dlgTopo"><h3 class="tituloA">Send to friends</h3><div class="x" onclick="repor('A')">✕</div></div>
+        <div class="dlgCorpo">
+          <div class="formulario">
+            <div class="oQue"><div class="capa capaA"></div><div style="min-width:0"><div class="tipo tipoA">Song</div><div class="t tA">Anos Luz</div><div class="a aA">Matuê</div></div></div>
+            <div class="procura">🔍<input id="procA" placeholder="Search friends and groups" autocomplete="off"></div>
+            <div class="listaA" id="listaA"></div>
+            <div class="escolhidos" id="chipsA"></div>
+            <div class="baixo">
+              <input class="msg" id="msgA" placeholder="Add a message (optional)">
+              <button class="enviar" id="envA" disabled>Send</button>
+            </div>
+            <div class="secundario soMusica">
+              <button class="botaoS">🎧 Listen together</button>
+            </div>
+          </div>
+          <div class="feito"><div class="visto">✓</div><div class="t" id="feitoA">Sent</div><div class="s">It's in their chats.</div></div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <ul class="marcas bom">
+        <li data-n="✓"><b>Vê-se o que vai</b>: capa, nome e artista (ou a playlist e quantas músicas).</li>
+        <li data-n="✓"><b>Escrever o nome encontra a pessoa</b>; o cursor começa na pesquisa.</li>
+        <li data-n="✓"><b>Várias pessoas de uma vez</b>, e um clique errado desfaz-se no próprio clique.</li>
+        <li data-n="✓"><b>A mensagem vai para todos</b>, e só se envia no fim.</li>
+        <li data-n="✓"><b>Recent primeiro</b>: as conversas mais recentes (a ordem já existe no Social).</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>B · Menu rápido junto ao clique</h2>
+  <p class="nota">Abre colado ao "…" ou ao clique direito (como os outros menus do PC), sem escurecer a app. Em cima, <b>as cinco pessoas com quem falaste por último</b> em círculos: um clique marca. "More people" abre a pesquisa. Mensagem e Send em baixo. Por baixo, o resto: Listen together.</p>
+  <div class="lado">
+    <div class="palco palcoB">
+      <div class="finge"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="gatilho"><div class="capa capaA"></div><div style="flex:1;min-width:0"><div class="nome tA">Anos Luz</div><div class="sub aA">Matuê</div></div><span style="color:var(--medio)">⋯</span></div>
+      <div class="pop" id="dlgB">
+        <div class="formulario">
+          <div class="seccao" style="margin-top:2px">Send to</div>
+          <div class="recentes" id="recB"></div>
+          <div id="maisB"><span class="maisPessoas" id="abrirMaisB">More people…</span></div>
+          <div id="procuraB" style="display:none">
+            <div class="procura">🔍<input id="procB" placeholder="Search friends and groups" autocomplete="off"></div>
+            <div class="listaA" id="listaB"></div>
+          </div>
+          <div class="baixo">
+            <input class="msg" id="msgB" placeholder="Add a message">
+            <button class="enviar" id="envB" disabled>Send</button>
+          </div>
+          <div class="menuExtra soMusica">
+            <div class="itemMenu"><span class="ic">🎧</span>Listen together…</div>
+          </div>
+        </div>
+        <div class="feito"><div class="visto">✓</div><div class="t" id="feitoB">Sent</div><div class="s" style="cursor:pointer;text-decoration:underline" onclick="repor('B')">Send to someone else</div></div>
+      </div>
+    </div>
+    <div>
+      <ul class="marcas bom">
+        <li data-n="✓"><b>Mais rápido para o caso comum</b>: mandar à pessoa do costume são dois cliques e Enter.</li>
+        <li data-n="✓"><b>Abre onde está o rato</b>, como os menus da app (regra "um menu abre onde está o gesto").</li>
+        <li data-n="–"><b>Com muitas pessoas</b> é preciso abrir "More people"; o A mostra a lista toda logo.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="decisao">
+    <h3>O que muda no código (qualquer das duas)</h3>
+    <ul>
+      <li>Um <b><code>ShareFriendSheet.web.tsx</code></b> só para o PC, com os tokens do PC (<code>tokens.web.ts</code>); o do iPhone não muda.</li>
+      <li>Enviar a vários é o mesmo <code>shareItem</code>/<code>shareComGrupo</code> de hoje, um por pessoa, com a mesma mensagem. Sem SQL novo.</li>
+      <li>"Recent" sai da ordem das conversas que o Social já calcula (<code>ordenarConversas</code>), sem pedidos novos ao Supabase.</li>
+      <li>Depois de enviar: o aviso "Sent to Rita and Calito" e o diálogo fecha (ou, no B, "Send to someone else").</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+const pessoas = [
+  {id:'calito',nome:'Calito',sub:'@calito',g:'g2',recente:1,on:true},
+  {id:'rap',nome:'Rap PT 🔥',sub:'4 members',g:'g4',grupo:true,recente:2},
+  {id:'rita',nome:'Rita',sub:'@rita',g:'g5',recente:3,on:true},
+  {id:'bia',nome:'Beatriz',sub:'@bia',g:'g1',recente:4},
+  {id:'tiago',nome:'Tiago',sub:'@tiagoo',g:'g6',recente:5},
+  {id:'miguel',nome:'Miguel',sub:'@miguel.s',g:'g3'},
+  {id:'ines',nome:'Inês',sub:'@ines.m',g:'g2'},
+  {id:'joao',nome:'João Pedro',sub:'@jp',g:'g5'},
+  {id:'sofia',nome:'Sofia',sub:'@sofs',g:'g1'},
+  {id:'treino',nome:'Treino 🏋️',sub:'3 members',g:'g6',grupo:true},
+];
+const escolhidos = {A:new Set(),B:new Set()};
+const cara = (p,extra='') => `<div class="cara ${p.grupo?'grupo ':''}${p.g}" ${extra}>${p.nome[0]}${p.on?'<span class="ponto"></span>':''}</div>`;
+const linha = (p,q) => `<div class="linhaA ${escolhidos[q].has(p.id)?'sel':''}" data-id="${p.id}" data-q="${q}">${cara(p)}<div class="meio"><div class="nome">${p.nome}</div><div class="sub">${p.sub}</div></div><div class="marca"></div></div>`;
+
+function desenharA(){
+  const f = document.getElementById('procA').value.trim().toLowerCase();
+  const filtradas = pessoas.filter(p => !f || p.nome.toLowerCase().includes(f) || p.sub.toLowerCase().includes(f));
+  let html = '';
+  if (!f) {
+    const rec = filtradas.filter(p => p.recente).sort((a,b)=>a.recente-b.recente);
+    const resto = filtradas.filter(p => !p.recente).sort((a,b)=>a.nome.localeCompare(b.nome));
+    html += `<div class="seccao">Recent</div>` + rec.map(p=>linha(p,'A')).join('');
+    html += `<div class="seccao">Everyone</div>` + resto.map(p=>linha(p,'A')).join('');
+  } else {
+    html = filtradas.length ? filtradas.map(p=>linha(p,'A')).join('') : `<div class="vazioA">No friends or groups called “${f}”.</div>`;
+  }
+  document.getElementById('listaA').innerHTML = html;
+  const chips = [...escolhidos.A].map(id => { const p = pessoas.find(x=>x.id===id); return `<span class="chip"><span class="mini ${p.g}"></span>${p.nome}<b data-tira="${id}">✕</b></span>`; }).join('');
+  document.getElementById('chipsA').innerHTML = chips;
+  const n = escolhidos.A.size;
+  const env = document.getElementById('envA');
+  env.disabled = n === 0; env.textContent = n > 1 ? `Send to ${n}` : 'Send';
+}
+function desenharB(){
+  const rec = pessoas.filter(p => p.recente).sort((a,b)=>a.recente-b.recente);
+  document.getElementById('recB').innerHTML = rec.map(p => `<div class="recente ${escolhidos.B.has(p.id)?'sel':''}" data-id="${p.id}" data-q="B">${cara(p)}<span class="ok"></span><span class="n">${p.nome.split(' ')[0]}</span></div>`).join('');
+  const f = document.getElementById('procB').value.trim().toLowerCase();
+  const outras = pessoas.filter(p => !p.recente && (!f || p.nome.toLowerCase().includes(f)));
+  document.getElementById('listaB').innerHTML = outras.length ? outras.map(p=>linha(p,'B')).join('') : `<div class="vazioA">No one called “${f}”.</div>`;
+  const n = escolhidos.B.size;
+  const env = document.getElementById('envB');
+  env.disabled = n === 0; env.textContent = n > 1 ? `Send to ${n}` : 'Send';
+}
+const nomesDe = (q) => { const n = [...escolhidos[q]].map(id => pessoas.find(p=>p.id===id).nome); return n.length <= 2 ? n.join(' and ') : `${n.slice(0,2).join(', ')} and ${n.length-2} more`; };
+function enviar(q){
+  if (!escolhidos[q].size) return;
+  document.getElementById('feito'+q).textContent = 'Sent to ' + nomesDe(q);
+  document.getElementById('dlg'+q).classList.add('enviado');
+}
+function repor(q){
+  escolhidos[q].clear();
+  document.getElementById('dlg'+q).classList.remove('enviado');
+  document.getElementById('msg'+q).value = '';
+  if (q === 'A') { document.getElementById('procA').value=''; desenharA(); } else desenharB();
+}
+document.addEventListener('click', (e) => {
+  const tira = e.target.closest('[data-tira]');
+  if (tira) { escolhidos.A.delete(tira.dataset.tira); desenharA(); return; }
+  const l = e.target.closest('[data-id]');
+  if (l) { const s = escolhidos[l.dataset.q]; s.has(l.dataset.id) ? s.delete(l.dataset.id) : s.add(l.dataset.id); l.dataset.q === 'A' ? desenharA() : desenharB(); }
+});
+document.getElementById('procA').addEventListener('input', desenharA);
+document.getElementById('procB').addEventListener('input', desenharB);
+document.getElementById('envA').addEventListener('click', () => enviar('A'));
+document.getElementById('envB').addEventListener('click', () => enviar('B'));
+document.getElementById('msgA').addEventListener('keydown', (e) => { if (e.key === 'Enter') enviar('A'); });
+document.getElementById('msgB').addEventListener('keydown', (e) => { if (e.key === 'Enter') enviar('B'); });
+document.getElementById('abrirMaisB').addEventListener('click', () => { document.getElementById('maisB').style.display='none'; document.getElementById('procuraB').style.display='block'; document.getElementById('procB').focus(); });
+
+document.querySelectorAll('#tipo button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('#tipo button').forEach(x => x.classList.toggle('on', x === b));
+  const pl = b.dataset.tipo === 'playlist';
+  document.querySelectorAll('.tA').forEach(x => x.textContent = pl ? 'tue é um demónio' : 'Anos Luz');
+  document.querySelectorAll('.aA').forEach(x => x.textContent = pl ? 'Playlist · 5 songs' : 'Matuê');
+  document.querySelectorAll('.tipoA').forEach(x => x.textContent = pl ? 'Playlist' : 'Song');
+  document.querySelectorAll('.capaA').forEach(x => { x.classList.toggle('pl', pl); x.innerHTML = pl ? '<i class="g2"></i><i class="g3"></i><i class="g1"></i><i class="g4"></i>' : ''; });
+  document.querySelectorAll('.soMusica').forEach(x => x.style.display = pl ? 'none' : '');
+  document.querySelector('.tituloHoje').textContent = pl ? 'Share playlist' : 'Share track';
+  document.querySelector('.hojeRodape').style.display = pl ? 'none' : '';
+}));
+desenharA(); desenharB();
+</script>
+</body>
+</html>
