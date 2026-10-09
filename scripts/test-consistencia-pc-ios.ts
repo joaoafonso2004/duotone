@@ -71,6 +71,16 @@ caso('Share e Add to playlist dão o título à folha', () => {
   assert.match(ler('src/components/ShareFriendSheet.tsx'), /<BottomSheet visible=\{visible\} onClose=\{onClose\} titulo=/);
   assert.match(ler('src/components/AddToPlaylistSheet.tsx'), /titulo="Add to playlist"/);
 });
+// 9/10, variante A de docs/partilhar-pc.html: o PC tem o seu diálogo.
+caso('a partilha do PC diz o que vai, pesquisa e escolhe várias antes de enviar', () => {
+  const pc = ler('src/components/ShareFriendSheet.web.tsx');
+  assert.match(pc, /<BottomSheet visible=\{visible\} onClose=\{onClose\} titulo=/);
+  assert.match(pc, /<OQueVai /, 'o que se manda tem de estar à vista');
+  assert.match(pc, /placeholder="Search friends and groups"/);
+  assert.match(pc, /accessibilityRole="checkbox"/, 'clicar numa pessoa marca, não envia');
+  assert.match(pc, /shareItem\(paraAmigos,/, 'os amigos vão numa só inserção');
+  assert.ok(!/onPress=\{\(\) => (handleShare|enviar)\(d\)\}/.test(pc), 'uma linha não pode enviar sozinha');
+});
 
 console.log('\nperfil e conversas no iPhone (P3, N5)');
 caso('"Message" abre a conversa direto, sem passar pelo Social', () => {
