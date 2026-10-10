@@ -1,9 +1,13 @@
 import {parseLrc,type LyricLine} from '../lib/lyricsParser';
 import {cleanTrackTitle,cleanArtistName,rankLyrics} from '../lib/lyricsMatch';
+import {letraDoYtMusic} from './ytMusic';
+import type {LetraDoYtMusic} from '../lib/letrasDoYtMusic';
 export {cleanTrackTitle,cleanArtistName};
 export interface LyricsData {
   id:number;trackName:string;artistName:string;albumName?:string;duration?:number;instrumental:boolean;
   plainLyrics?:string;syncedLyrics?:string;parsedLines:LyricLine[];timingAvailable:boolean;
+  /** De onde veio (10/10): o lrclib, ou o YouTube Music quando o lrclib não tinha tempos. */
+  fonte?:'lrclib'|'ytmusic';
 }
 let cooldownUntil=0;
 let requests=Promise.resolve();
@@ -33,9 +37,31 @@ function mapped(data:any,duration?:number):LyricsData {
   // Um vídeo com introdução ou uma edição slowed não tem necessariamente o
   // mesmo relógio da gravação. Mostrar o texto sem inventar sincronização.
   const timingAvailable=parsed.length>0&&(!duration||!data.duration||Math.abs(duration-data.duration)<=5);
-  return {...data,parsedLines:parsed,timingAvailable,plainLyrics:data.plainLyrics||parsed.map(x=>x.text).join('\n')};
+  return {...data,parsedLines:parsed,timingAvailable,plainLyrics:data.plainLyrics||parsed.map(x=>x.text).join('\n'),fonte:'lrclib'};
 }
-export async function fetchLyrics(trackName:string,artistName:string,durationSeconds?:number):Promise<LyricsData|null>{
+/**
+ * A letra: o lrclib primeiro; quando ele não a tem com tempos (ou não responde),
+ * o YouTube Music desse vídeo (10/10, `lib/letrasDoYtMusic.ts`). Os tempos de lá
+ * são os DESTE áudio -- num videoclipe ele manda o texto sem tempos --, e uma
+ * letra sincronizada ganha a uma sem tempos. Sem `videoId`, só o lrclib.
+ */
+export async function fetchLyrics(trackName:string,artistName:string,durationSeconds?:number,videoId?:string):Promise<LyricsData|null>{
+  let doLrclib:LyricsData|null=null,erro:unknown=null;
+  try{doLrclib=await lerDoLrclib(trackName,artistName,durationSeconds);}catch(e){erro=e;}
+  if(!videoId||doLrclib?.timingAvailable||doLrclib?.instrumental){if(erro)throw erro;return doLrclib;}
+  let doYt:LetraDoYtMusic|null=null;
+  try{doYt=await letraDoYtMusic(videoId);}catch{/* sem rede: fica o que o lrclib deu */}
+  if(doYt?.sincronizada)return doYoutube(doYt,trackName,artistName,durationSeconds);
+  if(doLrclib)return doLrclib;
+  if(doYt)return doYoutube(doYt,trackName,artistName,durationSeconds);
+  if(erro)throw erro;
+  return null;
+}
+function doYoutube(l:LetraDoYtMusic,trackName:string,artistName:string,duration?:number):LyricsData{
+  return {id:0,trackName:cleanTrackTitle(trackName),artistName:cleanArtistName(artistName),duration,instrumental:false,
+    plainLyrics:l.texto,parsedLines:l.linhas,timingAvailable:l.sincronizada,fonte:'ytmusic'};
+}
+async function lerDoLrclib(trackName:string,artistName:string,durationSeconds?:number):Promise<LyricsData|null>{
   const title=cleanTrackTitle(trackName),artist=cleanArtistName(artistName);
   if(!title||!artist)return null;
   const url=new URL('https://lrclib.net/api/get');url.searchParams.set('track_name',title);url.searchParams.set('artist_name',artist);

@@ -3,6 +3,7 @@ import {
   FORMA_DA_CONTINUACAO, FORMA_DA_LISTA, FORMA_DO_CANAL, lerPaginaDaPlaylist, lerRadioDoYtMusic, type MixDoArtista,
 } from '../lib/albunsDoArtista';
 import type { Track, YtPlaylistItem } from '../types';
+import { lerLetra, separadorDaLetra, VERSAO_DO_ANDROID_MUSIC, type LetraDoYtMusic } from '../lib/letrasDoYtMusic';
 import { FILTROS_DA_PESQUISA, type TipoDePesquisa } from '../lib/pesquisaPorTipo';
 
 /**
@@ -149,6 +150,32 @@ export async function lerRadioPeloYtMusic(mix: MixDoArtista): Promise<Track[]> {
     artworkUrl: `https://i.ytimg.com/vi/${c.videoId}/hqdefault.jpg`,
     durationSeconds: c.duracaoSec,
   }));
+}
+
+/**
+ * A letra de um vídeo no YouTube Music (10/10, `lib/letrasDoYtMusic.ts`): o
+ * `next` diz o separador da letra e o `browse` dele traz-a, primeiro pelo
+ * cliente que traz os tempos e, se ele falhar, pelo da web (só o texto). No PC
+ * pelo processo principal (`ytmusic:letra`). `null` quando não há letra; sem
+ * rede, atira (não é o mesmo que "não há").
+ */
+export async function letraDoYtMusic(videoId: string): Promise<LetraDoYtMusic | null> {
+  if (!/^[\w-]{11}$/.test(videoId)) return null;
+  const ponte = typeof window !== 'undefined' ? window.duotoneDesktop?.lerLetraDoYtMusic : undefined;
+  const pedir = (tipo: 'next' | 'letra', id: string, cliente: 'web' | 'android'): Promise<unknown | null> => ponte
+    ? ponte({ tipo, id, cliente, clientVersion: VERSAO_DO_CLIENTE, versaoDoAndroid: VERSAO_DO_ANDROID_MUSIC })
+    : pedirAoYtMusic(tipo === 'next' ? 'next' : 'browse', {
+      context: {
+        client: cliente === 'android'
+          ? { clientName: 'ANDROID_MUSIC', clientVersion: VERSAO_DO_ANDROID_MUSIC, androidSdkVersion: 34, hl: 'en', gl: 'US' }
+          : { clientName: 'WEB_REMIX', clientVersion: VERSAO_DO_CLIENTE, hl: 'en', gl: 'US' },
+      },
+      ...(tipo === 'next' ? { videoId: id } : { browseId: id }),
+    });
+  const separador = separadorDaLetra(await pedir('next', videoId, 'web'));
+  if (!separador) return null;
+  const comTempos = lerLetra(await pedir('letra', separador, 'android').catch(() => null));
+  return comTempos ?? lerLetra(await pedir('letra', separador, 'web'));
 }
 
 async function pedirAoYtMusic(caminho: 'search' | 'browse' | 'next', corpo: unknown, sinal?: AbortSignal): Promise<unknown | null> {

@@ -6,7 +6,8 @@ import {useConnectivity} from './connectivity';
 import type {Track} from '../types';
 type Entry={status:'loading'|'ready'|'missing'|'error';data:LyricsData|null;message?:string};
 type Cached={at:number;data:LyricsData|null};
-const KEY='lyrics:v3',cache=new Map<string,Cached>(),pending=new Map<string,Promise<void>>();
+// v4 (10/10): as que só tinham texto voltam a ser pedidas, agora também ao YouTube Music.
+const KEY='lyrics:v4',cache=new Map<string,Cached>(),pending=new Map<string,Promise<void>>();
 let hydration:Promise<void>|null=null,writes=Promise.resolve();
 export const useLyrics=create<{entries:Record<string,Entry>}>(()=>({entries:{}}));
 export function lyricsCacheKey(track:Track){const id=lyricsIdentity(track);return JSON.stringify([track.source,track.sourceId,id.title,id.artist,Math.round(track.durationSeconds??0)]);}
@@ -25,7 +26,7 @@ export function ensureLyrics(track:Track,force=false):Promise<void>{
     if(cached&&!force&&(useConnectivity.getState().offline||Date.now()-cached.at<(cached.data?30*86400000:3600000))){publish(key,{status:cached.data?'ready':'missing',data:cached.data});return;}
     if(useConnectivity.getState().offline){publish(key,{status:'error',data:null,message:'Connect to the internet to load these lyrics.'});return;}
     publish(key,{status:'loading',data:null});
-    try{const identity=lyricsIdentity(track),data=await fetchLyrics(identity.title,identity.artist,track.durationSeconds??undefined);
+    try{const identity=lyricsIdentity(track),data=await fetchLyrics(identity.title,identity.artist,track.durationSeconds??undefined,track.source==='youtube'?track.sourceId:undefined);
       cache.set(key,{at:Date.now(),data});persist();publish(key,{status:data?'ready':'missing',data});
     }catch(e:any){publish(key,{status:'error',data:null,message:e?.name==='AbortError'?'Lyrics took too long to load. Try again.':e?.message||'Could not load lyrics. Try again.'});}
   })().finally(()=>pending.delete(key));pending.set(key,task);return task;

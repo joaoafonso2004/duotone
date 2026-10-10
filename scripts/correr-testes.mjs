@@ -253,6 +253,7 @@ const TESTES = [
   'scripts/test-barra-de-tarefas.mjs',
   `${TS} scripts/test-roda-do-rato.ts`,
   `${TS} scripts/test-novos-lancamentos.ts`,
+  `${TS} scripts/test-letras-do-yt-music.ts`,
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

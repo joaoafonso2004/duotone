@@ -574,6 +574,32 @@ console.log('Perfil: biblioteca anterior à migração, falhas independentes e e
   console.log('Letras: identificação, seleção, tempos, erros, pré-carregamento e cache offline passaram.');
 }
 
+// A segunda fonte (10/10): o YouTube Music quando o lrclib não tem tempos.
+{
+  const sincronizada={sincronizada:true,texto:'Linha um. Linha dois',linhas:[{timeMs:1000,text:'Linha um'},{timeMs:4000,text:'Linha dois'}]};
+  const soTexto={sincronizada:false,texto:'Só texto',linhas:[]};
+  const comLrclib=(lrclib,yt)=>{const pedidos=[];const m=ambiente(async raw=>{const u=new URL(raw);if(u.pathname.endsWith('/get'))return lrclib==='erro'?{ok:false,status:429,headers:{get:()=>'30'}}:lrclib?resposta(lrclib):{ok:false,status:404};return resposta([]);},
+    {'src/api/ytMusic.ts':{letraDoYtMusic:async id=>{pedidos.push(id);if(yt==='erro')throw Error('Sem rede');return yt;}}}).carregar('src/api/lyrics.ts');return {m,pedidos};};
+  const lrcSinc={id:7,trackName:'Song',artistName:'Artist',duration:100,syncedLyrics:'[00:01]Do lrclib'};
+  const lrcTexto={id:8,trackName:'Song',artistName:'Artist',duration:100,syncedLyrics:null,plainLyrics:'Texto do lrclib'};
+  let {m,pedidos}=comLrclib(lrcSinc,sincronizada);
+  let r=await m.fetchLyrics('Song','Artist',100,'abcdefghijk');
+  assert.equal(r.fonte,'lrclib');assert.equal(pedidos.length,0,'com tempos no lrclib não se pergunta ao YouTube Music');
+  ({m,pedidos}=comLrclib(lrcTexto,sincronizada));r=await m.fetchLyrics('Song','Artist',100,'abcdefghijk');
+  assert.equal(r.fonte,'ytmusic');assert.equal(r.timingAvailable,true);assert.deepEqual(Array.from(r.parsedLines,l=>l.timeMs),[1000,4000],'a sincronizada ganha ao texto do lrclib');
+  ({m}=comLrclib(lrcTexto,soTexto));r=await m.fetchLyrics('Song','Artist',100,'abcdefghijk');
+  assert.equal(r.plainLyrics,'Texto do lrclib','texto contra texto, fica o do lrclib');
+  ({m}=comLrclib(null,soTexto));r=await m.fetchLyrics('Song','Artist',100,'abcdefghijk');
+  assert.equal(r.fonte,'ytmusic');assert.equal(r.timingAvailable,false);assert.equal(r.plainLyrics,'Só texto','sem nada no lrclib, o texto do YouTube Music');
+  ({m}=comLrclib(null,null));assert.equal(await m.fetchLyrics('Song','Artist',100,'abcdefghijk'),null);
+  ({m}=comLrclib('erro',sincronizada));r=await m.fetchLyrics('Song','Artist',100,'abcdefghijk');
+  assert.equal(r.fonte,'ytmusic','o lrclib ocupado não deixa sem letra');
+  ({m}=comLrclib('erro',null));await assert.rejects(m.fetchLyrics('Song','Artist',100,'abcdefghijk'),/busy/,'sem nenhuma, o erro continua a ser erro (não fica como "não há")');
+  ({m}=comLrclib(lrcTexto,'erro'));r=await m.fetchLyrics('Song','Artist',100,'abcdefghijk');assert.equal(r.fonte,'lrclib','o YouTube Music sem rede não estraga o que havia');
+  ({m,pedidos}=comLrclib(null,sincronizada));assert.equal(await m.fetchLyrics('Song','Artist',100),null);assert.equal(pedidos.length,0,'sem vídeo, só o lrclib');
+  console.log('Letras: o YouTube Music como segunda fonte, sincronizada primeiro, sem esconder erros.');
+}
+
 // Sincronização: dois aparelhos, reset explícito, outbox e respostas atrasadas.
 {
   const {AdjustmentSync}=ambiente(async()=>{}).carregar('src/lib/adjustmentSync.ts');

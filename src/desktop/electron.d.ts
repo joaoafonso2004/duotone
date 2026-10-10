@@ -66,6 +66,8 @@ declare global {
       lerArtistaDoYtMusic?: (pedido: { browseId?: string; continuation?: string; clientVersion: string }) => Promise<any>;
       /** O Mix de um artista (`RDEM...`), pelo `next` do YouTube Music (29/9). */
       lerRadioDoYtMusic?: (pedido: { playlistId: string; videoId: string; params: string | null; clientVersion: string }) => Promise<any>;
+      /** A letra de um vídeo no YouTube Music (10/10, lib/letrasDoYtMusic.ts). */
+      lerLetraDoYtMusic?: (pedido: { tipo: 'next' | 'letra'; id: string; cliente: 'web' | 'android'; clientVersion: string; versaoDoAndroid: string }) => Promise<any>;
       /** Um GET ao catálogo pelo processo principal, que não tem CORS. Leva só
        * o caminho (`/artist/123/related?limit=25`); o endereço e as formas que
        * passam vivem no `electron/main.cjs`. Devolve `null` num HTTP mau, que é

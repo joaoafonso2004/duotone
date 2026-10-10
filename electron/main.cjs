@@ -1332,6 +1332,38 @@ ipcMain.handle('ytmusic:radio', async (event, pedido) => {
   }
 });
 
+// A letra de um vídeo no YouTube Music (10/10, src/lib/letrasDoYtMusic.ts): o
+// `next` do vídeo (o separador da letra) ou o `browse` desse separador. Só um
+// id de vídeo ou um `MPLY...`, e só os dois clientes que a app usa.
+ipcMain.handle('ytmusic:letra', async (event, pedido) => {
+  if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
+  const tipo = pedido && pedido.tipo;
+  const id = pedido && typeof pedido.id === 'string' ? pedido.id : '';
+  const cliente = pedido && pedido.cliente;
+  if (!((tipo === 'next' && /^[\w-]{11}$/.test(id)) || (tipo === 'letra' && /^MPLY[\w-]{3,60}$/.test(id))) || !['web', 'android'].includes(cliente)) {
+    throw new Error('Letra invalida.');
+  }
+  const versaoWeb = typeof pedido.clientVersion === 'string' && /^[\w.]{1,32}$/.test(pedido.clientVersion) ? pedido.clientVersion : '1.20260914.01.00';
+  const versaoAndroid = typeof pedido.versaoDoAndroid === 'string' && /^[\d.]{1,16}$/.test(pedido.versaoDoAndroid) ? pedido.versaoDoAndroid : '7.27.52';
+  const client = cliente === 'android'
+    ? { clientName: 'ANDROID_MUSIC', clientVersion: versaoAndroid, androidSdkVersion: 34, hl: 'en', gl: 'US' }
+    : { clientName: 'WEB_REMIX', clientVersion: versaoWeb, hl: 'en', gl: 'US' };
+  const controlador = new AbortController();
+  const relogio = setTimeout(() => controlador.abort(), 15000);
+  try {
+    const res = await net.fetch(`https://music.youtube.com/youtubei/v1/${tipo === 'next' ? 'next' : 'browse'}?prettyPrint=false`, {
+      method: 'POST',
+      signal: controlador.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context: { client }, ...(tipo === 'next' ? { videoId: id } : { browseId: id }) }),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } finally {
+    clearTimeout(relogio);
+  }
+});
+
 ipcMain.handle('yt:mix', async (event, pedido) => {
   if (!daJanelaPrincipal(event)) throw new Error('Pedido invalido.');
   const playlistId = pedido && typeof pedido.playlistId === 'string' ? pedido.playlistId : '';
