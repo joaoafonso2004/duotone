@@ -455,6 +455,29 @@ export async function addTrackToPlaylist(
   return trackId;
 }
 
+/**
+ * Em que playlists está esta música: as marcas ✓ da folha "Add to playlist"
+ * (10/10, `lib/marcasDasPlaylists.ts`). Atira se a leitura falhar -- quem chama
+ * fica sem marcas, nunca com as de outra música. Uma música repetida no
+ * catálogo (duas linhas para o mesmo vídeo) não parte a leitura: o
+ * `maybeSingle` de antes dava erro e a folha ficava com as marcas anteriores.
+ */
+export async function playlistsComAFaixa(track: Track): Promise<{ ids: Set<string>; idDaFaixa: string | null }> {
+  const { data: linhas, error } = await supabase
+    .from('tracks')
+    .select('id')
+    .match({ source: track.source, source_id: track.sourceId });
+  if (error) throw error;
+  const idsDaFaixa = (linhas ?? []).map((l: { id: string }) => l.id);
+  if (!idsDaFaixa.length) return { ids: new Set(), idDaFaixa: null };
+  const { data, error: erroDasLinhas } = await supabase
+    .from('playlist_tracks')
+    .select('playlist_id')
+    .in('track_id', idsDaFaixa);
+  if (erroDasLinhas) throw erroDasLinhas;
+  return { ids: new Set((data ?? []).map((r: { playlist_id: string }) => r.playlist_id)), idDaFaixa: idsDaFaixa[0] };
+}
+
 export async function removeTrackFromPlaylist(
   playlistId: string,
   trackId: string

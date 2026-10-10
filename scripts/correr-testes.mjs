@@ -255,6 +255,7 @@ const TESTES = [
   `${TS} scripts/test-novos-lancamentos.ts`,
   `${TS} scripts/test-letras-do-yt-music.ts`,
   `${TS} scripts/test-mix-do-artista.ts`,
+  `${TS} scripts/test-marcas-das-playlists.ts`,
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

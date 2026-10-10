@@ -11,8 +11,10 @@ import {
   addTrackToPlaylist,
   addTracksToPlaylist,
   createPlaylist,
+  playlistsComAFaixa,
   removeTrackFromPlaylist,
 } from '../api/playlists';
+import { criarMarcasDasPlaylists } from '../lib/marcasDasPlaylists';
 import { supabase } from '../lib/supabase';
 import { usePlaylists } from '../state/playlists';
 import { hapticNotification } from '../lib/haptics';
@@ -50,49 +52,35 @@ export function AddToPlaylistSheet({ visible, track, tracks, onClose, onDone }: 
     return next;
   });
 
+  // As marcas ✓ (10/10, lib/marcasDasPlaylists.ts): cada abertura começa sem
+  // marcas, e só conta a resposta da abertura mais recente. A folha fica
+  // montada entre aberturas, e mostrava os ✓ da música anterior.
+  const marcas = useRef(criarMarcasDasPlaylists<Track>(playlistsComAFaixa, (ids, idDaFaixa) => {
+    setActivePlaylistIds(ids);
+    trackIdRef.current = idDaFaixa;
+  })).current;
+
   const load = useCallback(async () => {
     setLoading(true);
+    const aMarcar = marcas.abrir(track ?? null);
     try {
       // Pela store, e não por uma chamada só desta folha. Abrir isto de dentro
       // do ecrã de Playlists pedia a MESMA lista uma segunda vez, com a
       // primeira ainda quente. A store devolve o que tem e só vai à rede se
       // estiver velha -- ver `state/playlists.ts`.
       await usePlaylists.getState().carregar();
-      const allPl = usePlaylists.getState().items;
-      setPlaylists(allPl);
-
-      // If we have a single track, check which playlists it belongs to
-      trackIdRef.current = null;
-      if (track) {
-        const { data: trackData } = await supabase
-          .from('tracks')
-          .select('id')
-          .match({ source: track.source, source_id: track.sourceId })
-          .maybeSingle();
-
-        if (trackData) {
-          trackIdRef.current = trackData.id;
-          const { data: ptData } = await supabase
-            .from('playlist_tracks')
-            .select('playlist_id')
-            .eq('track_id', trackData.id);
-
-          const activeIds = new Set((ptData ?? []).map((r) => r.playlist_id));
-          setActivePlaylistIds(activeIds);
-        }
-      } else {
-        setActivePlaylistIds(new Set());
-      }
+      setPlaylists(usePlaylists.getState().items);
     } catch {
       // silencioso
-    } finally {
-      setLoading(false);
     }
-  }, [track]);
+    await aMarcar;
+    setLoading(false);
+  }, [track, marcas]);
 
   useEffect(() => {
-    if (visible) load();
-  }, [visible, load]);
+    if (visible) void load();
+    else marcas.esquecer();
+  }, [visible, load, marcas]);
 
   const togglePlaylistAssociation = async (playlistId: string) => {
     if (!track && (!tracks || tracks.length === 0)) return;
