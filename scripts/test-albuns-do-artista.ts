@@ -148,8 +148,8 @@ assert.match(main, /ipcMain\.handle\('ytmusic:radio'[\s\S]{0,200}daJanelaPrincip
 assert.match(main, /music\.youtube\.com\/youtubei\/v1\/next/);
 assert.match(ler_('electron/preload.cjs'), /lerRadioDoYtMusic: \(pedido\) => ipcRenderer\.invoke\('ytmusic:radio', pedido\)/);
 // E há botão nas duas páginas de artista.
-assert.match(ler_('src/desktop/paginas/BibliotecaPages.web.tsx'), /tocarMixDoArtista\(name, \{ mix: pagina\.mix \}\)/);
-assert.match(ler_('src/screens/LibraryGroupScreen.tsx'), /tocarMixDoArtista\(name, \{ mix: pagina\?\.mix, faixas: tracks \}\)/);
+assert.match(ler_('src/desktop/paginas/BibliotecaPages.web.tsx'), /tocarMixDoArtista\(name, \{ mix: pagina\.mix, musicas: pagina\.musicas \}\)/);
+assert.match(ler_('src/screens/LibraryGroupScreen.tsx'), /tocarMixDoArtista\(name, \{ mix: pagina\?\.mix, faixas: tracks, musicas: pagina\?\.musicas \}\)/);
 
 // ---- a foto do canal (30/9): a do Dave Blunts faltava, com o catálogo sem
 // foto. A redonda de primeiro plano primeiro; o fundo largo, pedido quadrado.

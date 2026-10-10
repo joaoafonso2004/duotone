@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Playing from no leitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0A0A0F;--text:#F5F5F7;--t2:rgba(245,245,247,.62);--t3:rgba(245,245,247,.48);
+  --tema:#C9A86A;
+  --sys:-apple-system,"SF Pro Text","Inter",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:#101014;color:var(--text);font-family:"Inter",system-ui,sans-serif}
+.pagina{max-width:1760px;margin:0 auto;padding:36px 16px 80px}
+h1{font-family:"Archivo",system-ui;font-size:30px;margin:0 0 8px;letter-spacing:-.4px}
+.intro{color:var(--t2);font-size:15px;line-height:1.6;max-width:900px;margin:0 0 28px}
+.ecras{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+.coluna{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:390px}
+.etq{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:1.5px;color:var(--t2);text-transform:uppercase}
+.nota{font-size:13px;color:var(--t2);line-height:1.5;text-align:center;max-width:340px;min-height:58px}
+.nota b{color:var(--text)}
+
+/* o telemóvel */
+.tel{width:390px;height:844px;border-radius:52px;position:relative;overflow:hidden;background:var(--bg);
+  box-shadow:0 0 0 10px #1b1b20,0 0 0 11px #2a2a31,0 30px 80px rgba(0,0,0,.6);font-family:var(--sys)}
+/* o fundo: a capa desfocada, com o véu do leitor */
+.fundo{position:absolute;inset:-40px;background:
+  radial-gradient(420px 360px at 30% 30%,#8a3b2a,transparent 70%),
+  radial-gradient(380px 380px at 75% 55%,#2f4f6b,transparent 70%),
+  linear-gradient(160deg,#5a2a1f,#1a2633);filter:blur(30px);opacity:.9}
+.veu{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,10,15,.30) 0%,rgba(10,10,15,.72) 55%,var(--bg) 100%)}
+.estado{height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 30px 0 36px;font-weight:600;font-size:16px;position:relative;z-index:3}
+.ilha{position:absolute;left:50%;top:11px;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000}
+.icones{font-size:13px;letter-spacing:2px}
+.conteudo{position:absolute;inset:54px 0 0 0;z-index:2;display:flex;flex-direction:column}
+
+/* o cabeçalho do leitor: 44 pt, os botões nos cantos */
+.cab{height:44px;margin-top:6px;display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+.btn{width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:var(--text)}
+.btn svg{width:24px;height:24px}
+.centro{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+
+/* hoje: símbolo em cima, DUOTONE por baixo */
+.hoje img{width:22px;height:22px}
+.hoje span{font-size:11px;font-weight:600;letter-spacing:2.6px;margin-top:1px;padding-left:2.6px}
+
+/* A: o símbolo à esquerda de PLAYING FROM, o nome por baixo */
+.origem{display:flex;flex-direction:column;align-items:center;max-width:250px;cursor:pointer}
+/* O texto é que fica ao centro: o símbolo pendura-se à esquerda dele, fora
+   da conta (senão "PLAYING FROM" ia 10 px para a direita do nome). O
+   espaçamento das letras também sobra no fim; o padding à esquerda acerta-o. */
+.linha1{position:relative;display:flex;align-items:center}
+.linha1 img{position:absolute;right:100%;margin-right:6px;width:14px;height:14px;opacity:.85}
+.olho{font-size:11px;font-weight:600;letter-spacing:1.2px;padding-left:1.2px;text-transform:uppercase;color:var(--t2)}
+.nome{font-size:14px;font-weight:600;color:var(--text);margin-top:1px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.so-simbolo img{width:22px;height:22px}
+
+/* a capa 3D, simplificada */
+.capa-area{flex:1;display:flex;align-items:center;justify-content:center;perspective:900px}
+.capa{width:300px;height:300px;border-radius:4px;transform:rotateY(14deg) rotateX(6deg) rotateZ(-1deg);
+  background:
+    radial-gradient(120px 120px at 30% 35%,rgba(255,220,180,.55),transparent 70%),
+    linear-gradient(135deg,#a8452f 0%,#5b2a3e 45%,#1f3b57 100%);
+  box-shadow:-14px 18px 0 -2px rgba(90,40,30,.85),0 50px 70px rgba(0,0,0,.55)}
+.capa::after{content:"ISALTINO";position:absolute;left:22px;bottom:20px;font-family:"Archivo";font-weight:700;font-size:30px;letter-spacing:2px;color:rgba(255,255,255,.88)}
+.capa{position:relative}
+.pontos{display:flex;gap:8px;justify-content:center;margin:6px 0 4px}
+.pontos i{width:6px;height:6px;border-radius:3px;background:var(--text);opacity:.35}
+.pontos i:first-child{opacity:1;background:var(--tema)}
+
+/* título, barra, controlos */
+.titulo{display:flex;align-items:center;justify-content:space-between;padding:22px 24px 0}
+.titulo .lado{width:44px;height:44px;display:flex;align-items:center;justify-content:center}
+.titulo .lado svg{width:24px;height:24px}
+.titulo .meio{text-align:center;flex:1}
+.titulo .m1{font-size:22px;font-weight:700;letter-spacing:-.2px}
+.titulo .m2{font-size:16px;color:var(--t2);margin-top:2px}
+.barra{padding:24px 28px 0}
+.trilho{height:4px;border-radius:2px;background:rgba(255,255,255,.18);position:relative}
+.trilho b{position:absolute;left:0;top:0;bottom:0;width:38%;border-radius:2px;background:var(--tema)}
+.tempos{display:flex;justify-content:space-between;font-size:12px;color:var(--t2);margin-top:8px;font-variant-numeric:tabular-nums}
+.controlos{display:flex;align-items:center;justify-content:space-between;padding:18px 36px 0}
+.controlos svg{width:26px;height:26px}
+.controlos .play{width:72px;height:72px;border-radius:36px;background:var(--text);display:flex;align-items:center;justify-content:center;color:#0A0A0F}
+.controlos .play svg{width:30px;height:30px}
+.rodape{display:flex;justify-content:space-between;padding:26px 40px 0;color:var(--t2)}
+.rodape svg{width:22px;height:22px}
+
+/* o realce do toque, para se ver onde se carrega */
+.origem:hover .nome{text-decoration:underline;text-decoration-color:rgba(255,255,255,.35)}
+</style>
+</head>
+<body>
+<div class="pagina">
+  <h1>"Playing from" no topo do leitor (G1)</h1>
+  <p class="intro">O topo do leitor do iPhone deixa de mostrar a marca e passa a dizer de onde vem a música. Tocar no nome abre essa lista (como o "From …" do PC). Na proposta, o símbolo fica pequeno à esquerda de "PLAYING FROM"; quando a música não vem de lista nenhuma, fica o símbolo sozinho, como hoje mas sem a palavra.</p>
+
+  <div class="ecras" id="ecras"></div>
+</div>
+
+<template id="tel">
+  <div class="tel">
+    <div class="fundo"></div><div class="veu"></div>
+    <div class="estado"><span>9:41</span><div class="ilha"></div><span class="icones">▮▮▮ ◉ ▬</span></div>
+    <div class="conteudo">
+      <div class="cab">
+        <div class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        <div class="centro"></div>
+        <div class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></div>
+      </div>
+      <div class="capa-area"><div class="capa"></div></div>
+      <div class="pontos"><i></i><i></i></div>
+      <div class="titulo">
+        <div class="lado"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20s-7-4.4-9.2-8.6C1.2 8.2 3 4.8 6.4 4.8c2 0 3.6 1.2 4.4 2.6.8-1.4 2.4-2.6 4.4-2.6 3.4 0 5.2 3.4 3.6 6.6C19 15.6 12 20 12 20z"/></svg></div>
+        <div class="meio"><div class="m1">Isaltino</div><div class="m2">Plutónio</div></div>
+        <div class="lado"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></div>
+      </div>
+      <div class="barra"><div class="trilho"><b></b></div><div class="tempos"><span>1:25</span><span>3:43</span></div></div>
+      <div class="controlos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.6"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>
+        <div class="play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></div>
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.6"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3"/></svg>
+      </div>
+      <div class="rodape">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script>
+const LOGO = 'data:image/png;base64,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';
+const ESTADOS = [
+  { etq: 'Hoje', nota: 'A marca: o símbolo e <b>DUOTONE</b> por baixo.',
+    centro: `<div class="hoje" style="display:flex;flex-direction:column;align-items:center"><img src="${LOGO}" alt=""><span>DUOTONE</span></div>` },
+  { etq: 'Proposta · de uma lista', nota: 'O símbolo pequeno à esquerda de <b>PLAYING FROM</b>, e o nome da lista por baixo. Tocar abre as Liked Songs.',
+    centro: origem('Playing from', 'Liked Songs') },
+  { etq: 'Proposta · de uma playlist', nota: 'Um nome comprido acaba em reticências, sem empurrar os botões dos cantos.',
+    centro: origem('Playing from', 'Rap tuga para a noite toda') },
+  { etq: 'Proposta · Smart Shuffle', nota: 'Uma sugestão diz que é sugestão, como no PC (<b>Smart shuffle pick for</b>).',
+    centro: origem('Smart shuffle pick for', 'Liked Songs') },
+  { etq: 'Proposta · sem origem', nota: 'Uma música que não veio de lista nenhuma: fica <b>só o símbolo</b>, sem a palavra.',
+    centro: `<div class="so-simbolo"><img src="${LOGO}" alt="Duotone"></div>` },
+];
+function origem(antes, nome) {
+  return `<div class="origem" title="Abre ${nome}"><div class="linha1"><img src="${LOGO}" alt=""><span class="olho">${antes}</span></div><div class="nome">${nome}</div></div>`;
+}
+const ecras = document.getElementById('ecras');
+const modelo = document.getElementById('tel');
+for (const e of ESTADOS) {
+  const col = document.createElement('div');
+  col.className = 'coluna';
+  col.innerHTML = `<div class="etq">${e.etq}</div>`;
+  const tel = modelo.content.firstElementChild.cloneNode(true);
+  tel.querySelector('.centro').innerHTML = e.centro;
+  col.appendChild(tel);
+  const nota = document.createElement('div');
+  nota.className = 'nota';
+  nota.innerHTML = e.nota;
+  col.appendChild(nota);
+  ecras.appendChild(col);
+}
+</script>
+</body>
+</html>

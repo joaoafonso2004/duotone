@@ -89,7 +89,8 @@ async function main(){
   const choice=load('src/lib/ultimaEscolha.ts',{});
   const calls=[];let page={mix:null,musicas:seeds},pending=null;
   const {tocarMixDoArtista}=load('src/state/mixDoArtista.ts',{
-    '../api/albunsDoArtista':{mixDoArtista:async()=>page.mix,paginaDoArtista:async()=>pending??page},
+    '../api/albunsDoArtista':{mixDoArtista:async()=>page.mix,paginaDoArtista:async()=>pending??page,lembrarCanalDoArtista(){}},
+    '../lib/identidadeDaMusica':{chavesDaMusica:t=>[t.sourceId]},'../lib/montarMixDoArtista':load('src/lib/montarMixDoArtista.ts',{}),
     '../api/ytMusic':{lerRadioPeloYtMusic:async()=>generated},
     '../api/radio':{fetchRadioTracks:async(...args)=>{calls.push(['radio',...args]);return generated;}},
     '../api/library':{getLibrary:async()=>seeds},'../lib/cacheDaBiblioteca':{lerFaixas:fn=>fn()},

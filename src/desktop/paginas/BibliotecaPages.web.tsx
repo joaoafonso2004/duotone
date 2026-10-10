@@ -641,7 +641,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const tocarMix = async () => {
     if (!pagina?.mix || aAbrirMix) return;
     setAAbrirMix(true);
-    const ok = await tocarMixDoArtista(name, { mix: pagina.mix }).catch(() => false);
+    const ok = await tocarMixDoArtista(name, { mix: pagina.mix, musicas: pagina.musicas }).catch(() => false);
     setAAbrirMix(false);
     if (!ok) props.notify('Could not load the mix.');
   };

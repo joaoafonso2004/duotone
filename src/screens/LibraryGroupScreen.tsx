@@ -206,7 +206,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
     if (aAbrirMix) return;
     hapticSelection();
     setAAbrirMix(true);
-    const ok = await tocarMixDoArtista(name, { mix: pagina?.mix, faixas: tracks }).catch(() => false);
+    const ok = await tocarMixDoArtista(name, { mix: pagina?.mix, faixas: tracks, musicas: pagina?.musicas }).catch(() => false);
     setAAbrirMix(false);
     if (!ok) avisarErro('Could not load the mix.', 'Check your connection and try again.');
   };
