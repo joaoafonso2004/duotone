@@ -58,4 +58,11 @@ for (const f of ficheiros) {
   }
 }
 assert.deepEqual(achadas, [], `a interface voltou a dizer que usa o YouTube:\n${achadas.join('\n')}`);
+// O LOGO também diz (10/10): a pesquisa mostrava-o no ecrã vazio e por cima
+// de "More results". Fica só onde se importa uma playlist do YouTube.
+for (const f of ['screens/SearchScreen.tsx', 'desktop/paginas/BibliotecaPages.web.tsx']) {
+  assert.ok(!readFileSync(path.join(raiz, f), 'utf8').includes('logo-youtube'), `${f}: o logo do YouTube voltou à pesquisa`);
+}
+assert.ok(!readFileSync(path.join(raiz, 'desktop/paginas/BibliotecaPages.web.tsx'), 'utf8').includes('or videos'),
+  'a pesquisa do PC não fala de vídeos');
 console.log('Sem YouTube na interface: nenhuma das frases voltou.');

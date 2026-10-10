@@ -63,6 +63,7 @@ import { NowPlayingPage } from '../desktop/paginas/NowPlayingPage.web';
 import { injectDesktopDocumentStyles, PlayerBar, Sidebar, TitleBar } from '../desktop/casca.web';
 import { usePonteDoLeitor } from '../desktop/usePonteDoLeitor.web';
 import { useAtalhosDaJanela } from '../desktop/useAtalhosDaJanela.web';
+import { useBarraDeTarefas } from '../desktop/useBarraDeTarefas.web';
 import { ModoLimpo } from '../desktop/ModoLimpo.web';
 import { BoasVindasPc } from '../desktop/BoasVindasPc.web';
 import { type Route, type ShareTarget } from '../desktop/rotas';
@@ -436,6 +437,8 @@ function DesktopShell() {
 
   // Atalhos globais e mini leitor (desktop/usePonteDoLeitor.web.ts).
   usePonteDoLeitor({ guardarAtual: () => void toggleSaveCurrent(), abrirPesquisa: () => navigate({ name: 'search' }) });
+  // A barra de tarefas do Windows: botões na miniatura e lista de saltos (10/10).
+  useBarraDeTarefas(notify);
   // Os atalhos DENTRO da janela (Espaço, Ctrl+F, Ctrl+L, setas), que não são
   // os globais: ver lib/atalhosDaJanela.ts. A pesquisa ganha o foco depois de
   // montar -- é ela que ouve o `duotone:focus-search`.

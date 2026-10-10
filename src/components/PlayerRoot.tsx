@@ -1500,7 +1500,7 @@ export function PlayerRoot() {
               onPress={() => setShowLyrics(paraAsLetras)}
               disabled={!!montagem.preso}
               style={montagem.preso ? styles.pontoEscondido : undefined}
-              accessibilityLabel={paraAsLetras ? 'Ver as letras' : 'Ver a capa'}
+              accessibilityLabel={paraAsLetras ? 'Show lyrics' : 'Show artwork'}
             >
               <View
                 style={[
@@ -1555,7 +1555,7 @@ export function PlayerRoot() {
               onPress={saveCurrentToLibrary}
               style={styles.ladoDoTitulo}
               accessibilityRole="button"
-              accessibilityLabel={saved ? 'Remove from Library' : 'Save to Library'}
+              accessibilityLabel={saved ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
             >
               <StateIcon
                 pulsar={saved}
@@ -1868,7 +1868,7 @@ export function PlayerRoot() {
               escala={ESCALA.icone}
               hitSlop={8}
               onPress={saveCurrentToLibrary}
-              accessibilityLabel={saved ? 'Remove from Library' : 'Save to Library'}
+              accessibilityLabel={saved ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
               style={styles.miniBtn}
             >
               <StateIcon

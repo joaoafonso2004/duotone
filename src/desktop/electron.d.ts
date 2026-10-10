@@ -129,6 +129,10 @@ declare global {
       ) => Promise<{ ok: boolean; erro?: string; outra?: string; accelerator?: string; atalhos?: Record<string, string>; presos?: string[]; aviso?: string | null }>;
       aGravarAtalho?: (sim: boolean) => Promise<boolean>;
       onAtalho?: (listener: (acao: string) => void) => () => void;
+      /** A barra de tarefas do Windows (electron/barraDeTarefas.cjs, 10/10). */
+      estadoDaBarra?: (estado: { aTocar: boolean; temFaixa: boolean }) => void;
+      tirarAcaoDaBarra?: () => Promise<string | null>;
+      onAcaoDaBarra?: (listener: () => void) => () => void;
       /** Mini leitor (electron/miniLeitor.cjs). */
       alternarMiniLeitor?: () => void;
       miniLeitorAberto?: () => Promise<boolean>;

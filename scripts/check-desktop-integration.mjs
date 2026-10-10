@@ -66,6 +66,7 @@ const electron = {
   shell: { openExternal: (url) => externos.push(url) },
   session: { defaultSession: {} },
   Menu: { buildFromTemplate: () => ({ popup() {} }) },
+  nativeTheme: Object.assign(new EventEmitter(), { shouldUseDarkColors: true }),
   ipcMain: { handle: (event, fn) => handlers.set(event, fn), on: (event, fn) => handlers.set(event, fn) },
 };
 const contexto = vm.createContext({
@@ -76,7 +77,7 @@ const contexto = vm.createContext({
   // Os módulos da atualização, dos atalhos, do mini leitor e do arranque com o
   // Windows são puros (sem
   // `electron`): entram os verdadeiros.
-  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './discord.cjs' ? {
+  require: (id) => id === './messageBadge.cjs' ? require('../electron/messageBadge.cjs') : id === './saude.cjs' ? { criarSaude: (o) => { captura.saude = o; return saudeDupla; } } : id === './atualizacao.cjs' ? require('../electron/atualizacao.cjs') : id === './atalhos.cjs' ? require('../electron/atalhos.cjs') : id === './miniLeitor.cjs' ? require('../electron/miniLeitor.cjs') : id === './barraDeTarefas.cjs' ? require('../electron/barraDeTarefas.cjs') : id === './arranqueComWindows.cjs' ? require('../electron/arranqueComWindows.cjs') : id === './discord.cjs' ? {
     DISCORD_APP_ID: '1547625164328538133',
     definirPresenca: () => Promise.resolve(false),
     prepararDiscord: () => { preparacoesDiscord++; return Promise.resolve(true); },

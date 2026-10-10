@@ -23,6 +23,7 @@ import { useAuth } from '../state/auth';
 import { useOuvirJuntos } from '../state/ouvirJuntos';
 import { useSeguirAmigo } from '../state/seguirAmigo';
 import { usePlayer } from '../state/player';
+import { criarRoda, volumeComARoda } from '../lib/rodaDoRato';
 import { useShallow } from 'zustand/react/shallow';
 import { displayArtist, tituloDaFaixa } from '../lib/artistName';
 import { useTheme } from '../state/theme';
@@ -524,13 +525,13 @@ function BolinhaDeAviso() {
 function BarraDeProgresso() {
   const positionMs = usePlayer((s) => s.positionMs);
   const durationMs = usePlayer((s) => s.durationMs);
-  const { arrasto, comecar } = useProcurarAoLargar();
+  const { arrasto, comecar, rodar } = useProcurarAoLargar();
   const ratio = arrasto ?? (durationMs ? Math.min(1, positionMs / durationMs) : 0);
-  return <View style={styles.progressRow}>
+  return <V style={styles.progressRow} onWheel={rodar}>
     <Text style={styles.timeText}>{formatTime(arrasto !== null ? (arrasto * durationMs) / 1000 : positionMs / 1000)}</Text>
     <P onMouseDown={comecar} onTouchStart={comecar} style={styles.progressHit} {...marcar('calha')}><V style={styles.progressTrack}><V style={[styles.progressFill, { width: `${ratio * 100}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${ratio * 100}%` }} /></P>
     <Text style={styles.timeText}>{formatTime(durationMs / 1000)}</Text>
-  </View>;
+  </V>;
 }
 
 /**
@@ -600,6 +601,12 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
   })).current;
   const volumeAudivel = useRef(80);
   if (p.volume > 0) volumeAudivel.current = p.volume;
+  // A roda do rato no volume (10/10): 5 por dente, para cima é mais.
+  const rodaDoVolume = useRef(criarRoda()).current;
+  const rodarVolume = (e: any) => {
+    const dentes = rodaDoVolume(e.deltaY ?? e.nativeEvent?.deltaY, e.deltaMode ?? e.nativeEvent?.deltaMode);
+    if (dentes) usePlayer.getState().setVolume(volumeComARoda(usePlayer.getState().volume, dentes));
+  };
   const alternarSilencio = () => {
     p.setVolume(p.volume > 0 ? 0 : volumeAudivel.current || 80);
   };
@@ -682,7 +689,7 @@ export function PlayerBar({ currentIsSaved, toggleSaveCurrent, onJam, discordLig
       {/* Quem vê o que está a tocar, ao lado do botão que abre o Jam. */}
       <IndicadorDeVisibilidade discordLigado={discordLigado} onJam={onJam} onAviso={onAviso} />
       <IconButton name={jam ? ICONES.jam : `${ICONES.jam}-outline`} label={jam ? 'Manage Jam' : 'Start a Jam'} active={!!jam} onPress={onJam} />
-      <V style={styles.volumeRow} {...marcar('calha')}><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={alternarSilencio} accessibilityRole="button" accessibilityLabel={p.volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${p.volume}%` }} /></P></V>
+      <V style={styles.volumeRow} onWheel={rodarVolume} {...marcar('calha')}><Ionicons name={p.volume === 0 ? 'volume-mute-outline' : p.volume < 35 ? 'volume-low-outline' : p.volume < 70 ? 'volume-medium-outline' : 'volume-high-outline'} size={18} color={desktop.muted} onPress={alternarSilencio} accessibilityRole="button" accessibilityLabel={p.volume === 0 ? 'Unmute' : 'Mute'} style={{ cursor: 'pointer', transition: 'color 0.2s' } as any} /><P onMouseDown={startDragVolume} onTouchStart={startDragVolume} style={styles.volumeHit}><V style={styles.volumeTrack}><V style={[styles.volumeFill, { width: `${p.volume}%` }]} {...marcar('cheio')} /></V><V {...marcar('pega')} style={{ left: `${p.volume}%` }} /></P></V>
       <IconButton name="close" label="Close player" onPress={()=>void closePlayerSmoothly()} />
     </View>
   </V>;

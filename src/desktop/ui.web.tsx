@@ -15,6 +15,7 @@ import { COR, ESP, FONT, LINHA_LISTA, RAIO, TIPO } from './tokens.web';
 import { isShowTrackDurationSync } from '../lib/prefs';
 import { capaComBarras, molduraSemBarras } from '../lib/modoLimpo';
 import { pertoDoFim } from '../lib/grelhaQueCresce';
+import { criarRoda, PROCURAR_DEPOIS_MS, proporcaoComARoda } from '../lib/rodaDoRato';
 import { useDestinos } from '../navigation/destinos';
 
 /**
@@ -518,6 +519,53 @@ export function Shelf({ titulo, nota, tracks, onPlay, onMore, selo, contexto, gr
 }
 
 /**
+ * "New releases" (10/10, `state/novosLancamentos.ts`): o mesmo carrossel da
+ * `Shelf`, com capas de álbuns. O clique abre a pré-visualização do álbum (a
+ * mesma da página do artista); os novos levam "New".
+ */
+export function ShelfDeLancamentos({ titulo, nota, itens, onOpen }: {
+  titulo: string; nota?: string;
+  itens: { id: string; titulo: string; legenda: string; capa: string | null; novo: boolean }[];
+  onOpen: (id: string) => void;
+}) {
+  const { ref, podeEsquerda, podeDireita, deslizar, arrastou } = useCarrossel();
+  if (!itens.length) return null;
+  const rola = podeEsquerda || podeDireita;
+  return <View style={{ marginBottom: ESP.xxl }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: ESP.md, marginBottom: ESP.md }}>
+      <Text style={ui.shelfTitle}>{titulo}</Text>
+      {nota ? <Text style={ui.shelfNota}>{nota}</Text> : null}
+      <View style={{ flex: 1 }} />
+      {rola ? (
+        <View style={{ flexDirection: 'row', gap: ESP.sm }}>
+          <SetaDaPrateleira sentido={-1} activa={podeEsquerda} aoCarregar={() => deslizar(-1)} />
+          <SetaDaPrateleira sentido={1} activa={podeDireita} aoCarregar={() => deslizar(1)} />
+        </View>
+      ) : null}
+    </View>
+    <ScrollView ref={ref} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: ESP.lg, paddingRight: ESP.xxxl }}>
+      {itens.map((it) => (
+        <P key={it.id}
+          {...marcar('cartao')}
+          accessibilityRole="button"
+          accessibilityLabel={`${it.novo ? 'New. ' : ''}${it.titulo}, ${it.legenda}`}
+          onPress={() => { if (!arrastou.current) onOpen(it.id); }}
+          style={({ hovered, pressed }: any) => [ui.shelfCard, hovered && ui.shelfCardHover, pressed && ui.pressed]}>
+          <View>
+            {it.capa
+              ? <Image source={{ uri: it.capa }} style={{ width: 148, height: 148, borderRadius: RAIO.cartao, backgroundColor: COR.metalSuave }} />
+              : <View style={{ width: 148, height: 148, borderRadius: RAIO.cartao, backgroundColor: COR.metalSuave, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="disc-outline" size={34} color={COR.textoFraco} /></View>}
+            {it.novo ? <View style={ui.shelfSelo} pointerEvents="none"><Text style={ui.shelfSeloTexto}>New</Text></View> : null}
+          </View>
+          <Text numberOfLines={1} style={ui.shelfCardTitle}>{it.titulo}</Text>
+          <Text numberOfLines={1} style={ui.shelfCardArtista}>{it.legenda}</Text>
+        </P>
+      ))}
+    </ScrollView>
+  </View>;
+}
+
+/**
  * Uma prateleira de MISTURAS -- estilos, radios, decadas, playlists.
  *
  * O mesmo carrossel da `Shelf` aqui em cima, com as mesmas setas e o mesmo
@@ -586,8 +634,30 @@ export function PrateleiraDeMisturas({ titulo, nota, misturas, aoAbrir }: {
  * diz a proporção debaixo do rato, para a barra e o tempo mostrarem onde vai
  * ficar; ao largar há um seek e um só. Serve a barra do leitor e o modo limpo.
  */
-export function useProcurarAoLargar(): { arrasto: number | null; comecar: (evento: any) => void } {
+export function useProcurarAoLargar(): { arrasto: number | null; comecar: (evento: any) => void; rodar: (evento: any) => void } {
   const [arrasto, setArrasto] = useState<number | null>(null);
+  // A roda do rato (10/10, lib/rodaDoRato.ts): 5 s por dente. Mostra onde vai
+  // ficar enquanto roda e procura UMA vez, quando a roda pára -- num Jam cada
+  // seek é um pedido ao servidor, como no arrasto.
+  const roda = useRef(criarRoda()).current;
+  const daRoda = useRef<{ proporcao: number; relogio: ReturnType<typeof setTimeout> | null }>({ proporcao: 0, relogio: null });
+  useEffect(() => () => { if (daRoda.current.relogio) clearTimeout(daRoda.current.relogio); }, []);
+  const rodar = (evento: any) => {
+    const dentes = roda(evento.deltaY ?? evento.nativeEvent?.deltaY, evento.deltaMode ?? evento.nativeEvent?.deltaMode);
+    const { durationMs, positionMs } = usePlayer.getState();
+    if (!dentes || !(durationMs > 0)) return;
+    const r = daRoda.current;
+    const partida = r.relogio ? r.proporcao : Math.min(1, positionMs / durationMs);
+    r.proporcao = proporcaoComARoda(partida, dentes, durationMs);
+    setArrasto(r.proporcao);
+    if (r.relogio) clearTimeout(r.relogio);
+    r.relogio = setTimeout(() => {
+      r.relogio = null;
+      const { durationMs: d, seekTo } = usePlayer.getState();
+      void seekTo(r.proporcao * d);
+      setArrasto(null);
+    }, PROCURAR_DEPOIS_MS);
+  };
   const comecar = (evento: any) => {
     evento.preventDefault?.();
     const alvo = evento.currentTarget;
@@ -620,7 +690,7 @@ export function useProcurarAoLargar(): { arrasto: number | null; comecar: (event
     window.addEventListener('touchmove', mover);
     window.addEventListener('touchend', largar);
   };
-  return { arrasto, comecar };
+  return { arrasto, comecar, rodar };
 }
 
 /**

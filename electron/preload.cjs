@@ -126,6 +126,15 @@ contextBridge.exposeInMainWorld('duotoneDesktop', Object.freeze({
     ipcRenderer.on('atalho', handler);
     return () => ipcRenderer.removeListener('atalho', handler);
   },
+  /** A barra de tarefas (electron/barraDeTarefas.cjs): o estado dos botões da miniatura. */
+  estadoDaBarra: (estado) => ipcRenderer.send('barra:estado', estado),
+  /** A ação da lista de saltos à espera (Resume, Daily mix, Shuffle Liked Songs), ou null. */
+  tirarAcaoDaBarra: () => ipcRenderer.invoke('barra:acao-pendente'),
+  onAcaoDaBarra: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on('barra:acao', handler);
+    return () => ipcRenderer.removeListener('barra:acao', handler);
+  },
   /** Mini leitor (electron/miniLeitor.cjs): esta janela publica o resumo e recebe os comandos. */
   alternarMiniLeitor: () => ipcRenderer.send('mini:alternar'),
   miniLeitorAberto: () => ipcRenderer.invoke('mini:esta-aberto'),

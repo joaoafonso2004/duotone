@@ -28,6 +28,7 @@ import { useSaved } from '../state/saved';
 import { usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '../theme';
 import { useTheme } from '../state/theme';
+import { marcarArtistaAberto } from '../state/novosLancamentos';
 import { hapticSelection } from '../lib/haptics';
 import { chaveDeArtista, displayArtist } from '../lib/artistName';
 import { useAuth } from '../state/auth';
@@ -168,6 +169,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
   useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
   const favorito = favoritos.has(chaveDeArtista(name));
+  // Abrir o artista tira-lhe o ponto de "lançamento novo" nos Artists (10/10).
+  useEffect(() => { if (type === 'artist') marcarArtistaAberto(chaveDeArtista(name)); }, [type, name]);
 
   const bottomPad = separadores + insets.bottom + MINI_PLAYER_HEIGHT + 32;
   const cab = useCabecalhoQueEncolhe();

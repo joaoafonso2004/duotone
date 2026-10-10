@@ -25,6 +25,7 @@ import { useArtistasFavoritos } from '../state/artistasFavoritos';
 import { ArtistFavoritesSyncStatus } from '../components/ArtistFavoritesSyncStatus';
 import { useAuth } from '../state/auth';
 import { useTheme } from '../state/theme';
+import { useNovosLancamentos } from '../state/novosLancamentos';
 import type { Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { useAlturaDosSeparadores } from '../state/doca';
@@ -116,14 +117,18 @@ export function ArtistsScreen() {
   const cardWidth = (width - spacing.xl * 2 - 24) / 3;
   // A cor da capa, como o resto dos corações (3/10): era o roxo antigo.
   const corDoTema = useTheme((s) => s.destino.color);
+  // Um lançamento novo que ainda não se foi ver (10/10, state/novosLancamentos.ts).
+  const comNovidade = useNovosLancamentos((s) => s.comNovidade);
   const renderArtist = (artist: ArtistGroup, shelf = false) => {
     const side = shelf ? 86 : Math.min(120, cardWidth);
-    return <Pressable accessibilityRole="button" accessibilityLabel={`${artist.name}, ${artist.count} songs`}
+    const novidade = comNovidade.has(artist.chave);
+    return <Pressable accessibilityRole="button" accessibilityLabel={`${artist.name}, ${artist.count} songs${novidade ? ', new release' : ''}`}
       onPress={() => navigation.navigate('LibraryGroup', { type: 'artist', name: artist.name })}
       style={({ pressed }) => [styles.card, { width: shelf ? 94 : cardWidth, opacity: pressed ? 0.6 : 1 }]}>
       {artist.artworkUrl ? <Image source={{ uri: capaParaLista(artist.artworkUrl)! }} contentFit="cover"
         style={{ width: side, height: side, borderRadius: side / 2, backgroundColor: colors.surfaceHigh }} />
         : <View style={[styles.fallback, { width: side, height: side, borderRadius: side / 2 }]}><Ionicons name="person" size={30} color={colors.textTertiary} /></View>}
+      {novidade && <View pointerEvents="none" style={[styles.pontoNovo, { backgroundColor: corDoTema, left: ((shelf ? 94 : cardWidth) - side) / 2 + side * 0.08 }]} />}
       {/* Na prateleira de cima não: são círculos de 86 e já dizem quem se
           ouve mais. A estrela vive na grelha, que é a lista toda. */}
       {!shelf && (
@@ -179,6 +184,9 @@ const styles = StyleSheet.create({
   card: { alignItems: 'center', gap: 5, marginBottom: 20 },
   /** A estrela encostada à direita do círculo do artista; o `left` é
    * calculado na linha, porque o lado do cartão muda com a largura do ecrã. */
+  pontoNovo: {
+    position: 'absolute', top: 2, width: 14, height: 14, borderRadius: 7, borderWidth: 2, borderColor: colors.bg,
+  },
   estrela: {
     position: 'absolute', top: -2, width: 28, height: 28, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceHigh,

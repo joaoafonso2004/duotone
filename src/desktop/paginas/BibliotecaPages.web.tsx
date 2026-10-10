@@ -38,9 +38,11 @@ import { crescer, faltaMostrar, PRIMEIRO_LOTE, quantosMostrar } from '../../lib/
 import { styles } from '../estilos.web';
 import { BotaoVoltar,
   Artwork, Button, ContentScroll, desktop, Dialog, Empty, Field, IconButton, Loading, marcar, Page,
-  PrateleiraDeMisturas, Separadores, Shelf, TrackTable, type ColunaOrdenavel,
+  PrateleiraDeMisturas, Separadores, Shelf, ShelfDeLancamentos, TrackTable, type ColunaOrdenavel,
 } from '../ui.web';
 import { useMisturaDoDia } from '../../state/misturaDoDia';
+import { marcarArtistaAberto, useNovosLancamentos } from '../../state/novosLancamentos';
+import { legendaDoLancamento } from '../../lib/novosLancamentos';
 import { BotaoDeFixar } from '../AtalhosNaLateral.web';
 import type { CommonPageProps, NavegarFn, Route } from '../rotas';
 import { COR, ESP, FONT, RAIO, TIPO } from '../tokens.web';
@@ -120,6 +122,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
   useEffect(() => { const pedido = separadorPedidoPelaPergunta(query); if (pedido) setTipo(pedido); }, [query]);
   const porTipo = usePesquisaPorTipo(query, tipoAtivo);
   const { abrirAlbum, dialogoDoAlbum } = useDialogoDoAlbum({ play, tocarMusica, notify, more });
+  const lancamentos = useNovosLancamentos((s) => s.itens);
   // O artista abre pelo CANAL escolhido, sem adivinhar pelo nome (homónimos).
   const abrirArtista = (a: ArtistaEncontrado) => { lembrarCanalDoArtista(a.nome, a.canal); navigate({ name: 'artist', value: a.nome }); };
   // O artista em destaque (29/9): "drake" ou "drake playlist" põem o Drake no
@@ -136,7 +139,7 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
   return <><Page title="Search"
     action={<IconButton name="refresh" label="Refresh recommendations"
       onPress={() => { void recs.carregar(true); }} active={recs.estado === 'a-carregar'} />}>
-    <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, or videos" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
+    <View style={styles.searchBar}><Field ref={input} icon="search" placeholder="Search songs, artists, playlists" value={query} onChangeText={setQuery} onSubmitEditing={() => run()} /><Button onPress={() => run()}>Search</Button></View>
     {query.trim().length < 2 && !loading && history.length > 0 && <View style={styles.history}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent searches</Text><Pressable onPress={async () => { await clearSearchHistory(); setHistory([]); }}><Text style={styles.textAction}>Clear</Text></Pressable></View><View style={styles.chips}>{history.map((item) => <Pressable key={item} onPress={() => run(item)} style={({ hovered }) => [styles.chip, hovered && styles.chipHover]}><Ionicons name="time-outline" size={14} color={desktop.dim} /><Text style={styles.chipText}>{item}</Text></Pressable>)}</View></View>}
     {!semPesquisa ? <View style={styles.vistasDaPesquisa}><Separadores opcoes={[['musicas', 'Songs'], ['artistas', 'Artists'], ['albuns', 'Albums'], ['playlists', 'Playlists']] as const}
       valor={tipo} aoMudar={setTipo} /></View> : null}
@@ -190,6 +193,11 @@ export function SearchPage({ play, tocarMusica, notify, more, navigate }: Common
               arranque e só existia aqui -- duas listas "do dia" lado a lado
               era uma a mais. */}
           <Shelf titulo="Daily mix" nota="new every day, from what you listen to" tracks={misturaDoDiaFaixas} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('flow')} />
+          {/* Os novos lançamentos dos teus artistas (10/10, state/novosLancamentos.ts):
+              abrem a pré-visualização do álbum, como na página do artista. */}
+          <ShelfDeLancamentos titulo="New releases" nota="from the artists you listen to"
+            itens={lancamentos.map(({ lancamento: l, novo }) => ({ id: l.id, titulo: l.titulo, legenda: legendaDoLancamento(l), capa: l.capa, novo }))}
+            onOpen={(id) => { const l = lancamentos.find((x) => x.lancamento.id === id)?.lancamento; if (l) void abrirAlbum({ id: l.id, title: l.titulo, artworkUrl: l.capa, channelTitle: legendaDoLancamento(l) }); }} />
           <Shelf titulo="Rare finds" nota={notaDaPrateleira('nuncaLancado')} selo="New to you" tracks={nuncaLancado} onPlay={tocarMusica} onMore={more} contexto={contextoPrateleira('nuncaLancado')} />
           {/* AS MISTURAS QUE A APP MONTA. Quatro familias, e a diferenca esta
               toda no titulo -- que e o que elas tem de diferente:
@@ -410,6 +418,7 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
   const favoritos = useArtistasFavoritos((s) => s.chaves);
   const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
   useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
+  const comNovidade = useNovosLancamentos((s) => s.comNovidade);
   const artists = useMemo(
     () => ordenarArtistas(gruposDaBiblioteca(data.tracks, versaoDoCatalogo), ranking, favoritos),
     [data.tracks, ranking, versaoDoCatalogo, favoritos],
@@ -447,6 +456,8 @@ export function ArtistsPage({ navigate }: { navigate: (route: Route) => void }) 
         {...marcar('cartao')} style={styles.playlistCard}>
         <View style={styles.playlistArt}>
           <Artwork track={faixas[0]} size={200} />
+          {/* Um lançamento novo que ainda não se foi ver (10/10). */}
+          {comNovidade.has(chave) ? <View accessibilityLabel="New release" style={styles.pontoNovo} /> : null}
           {/* É o MESMO coração das músicas, e não uma estrela: guardar é o
               mesmo gesto em toda a app.
 
@@ -545,6 +556,8 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
   const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
   useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
   const chaveDoArtista = chaveDeArtista(name);
+  // Abrir o artista tira-lhe o ponto de "lançamento novo" nos Artists (10/10).
+  useEffect(() => { marcarArtistaAberto(chaveDoArtista); }, [chaveDoArtista]);
   const favorito = favoritos.has(chaveDoArtista);
   const [aDescobrir, setADescobrir] = useState(true);
   const { abrirAlbum, fecharAlbum, dialogoDoAlbum } = useDialogoDoAlbum(props);

@@ -80,19 +80,42 @@ function canalEscolhido(alvo: string): string | null {
   return e && Date.now() - e.em < VALIDADE_DA_ESCOLHA_MS ? e.canal : null;
 }
 
-async function procurar(nome: string, alvo: string, provas: Prova[], escolhido: string | null): Promise<PaginaDoArtista> {
-  let canal: string | null = escolhido;
-  if (canal) {
-    // Escolhido na pesquisa: não há nada a adivinhar.
-  } else if (provas.length) {
+/** O canal do artista: o escolhido, ou o que assina as músicas dele (as provas). */
+async function canalPara(nome: string, alvo: string, provas: Prova[], escolhido: string | null): Promise<string | null> {
+  if (escolhido) return escolhido;
+  if (provas.length) {
     const respostas = await Promise.all(provas.map(async (prova) => ({
       prova,
       cancoes: lerCancoesComArtistas(await pesquisarCancoesCru(`${nome} ${prova.titulo}`)),
     })));
-    canal = canalPelasProvas(respostas, alvo, chaveDeArtista);
-  } else {
-    canal = canalSemProvas(lerCancoesComArtistas(await pesquisarCancoesCru(nome)), alvo, chaveDeArtista);
+    return canalPelasProvas(respostas, alvo, chaveDeArtista);
   }
+  return canalSemProvas(lerCancoesComArtistas(await pesquisarCancoesCru(nome)), alvo, chaveDeArtista);
+}
+
+/**
+ * Os lançamentos de um artista, para os novos lançamentos (10/10,
+ * `state/novosLancamentos.ts`): só a página do canal, sem a lista das músicas.
+ * Com o canal de ontem é UM pedido; sem ele, as pesquisas das provas primeiro.
+ * `null` quando não se conseguiu ler (sem rede): não é o mesmo que "nada".
+ */
+export async function lancamentosDoArtista(
+  nome: string, faixas: readonly Track[], canalConhecido: string | null,
+): Promise<{ canal: string; albuns: AlbumDoArtista[] } | null> {
+  const alvo = chaveDeArtista(nome);
+  if (!alvo) return null;
+  const provas: Prova[] = faixas.filter((t) => t.source === 'youtube').slice(0, PROVAS)
+    .map((t) => ({ videoId: t.sourceId, titulo: tituloNoLeitor(t) }));
+  const canal = canalConhecido && FORMA_DO_CANAL.test(canalConhecido)
+    ? canalConhecido : await canalPara(nome, alvo, provas, null);
+  if (!canal) return null;
+  const pagina = await lerNoYtMusic(canal);
+  if (!pagina) return null;
+  return { canal, albuns: lerAlbunsDoCanal(pagina) };
+}
+
+async function procurar(nome: string, alvo: string, provas: Prova[], escolhido: string | null): Promise<PaginaDoArtista> {
+  const canal = await canalPara(nome, alvo, provas, escolhido);
   if (!canal) return VAZIA;
 
   const paginaDoCanal = await lerNoYtMusic(canal);

@@ -248,6 +248,8 @@ function TrackRowComponent({
           onPress={() => onAction(track)}
           hitSlop={10}
           style={styles.actionBtn}
+          accessibilityRole="button"
+          accessibilityLabel="More options"
         >
           <Ionicons name={actionIcon} size={18} color={colors.textSecondary} />
         </Toque>

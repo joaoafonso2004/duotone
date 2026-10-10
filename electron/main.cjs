@@ -1,4 +1,4 @@
-const { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, screen, session, shell, Tray, globalShortcut, Notification } = require('electron');
+const { app, BrowserWindow, crashReporter, dialog, ipcMain, Menu, nativeImage, nativeTheme, net, powerMonitor, protocol, screen, session, shell, Tray, globalShortcut, Notification } = require('electron');
 const { setMessageAttention } = require('./messageBadge.cjs');
 const {
   DISCORD_APP_ID, definirPresenca, prepararDiscord, ouvirJuncao, fecharDiscord,
@@ -75,6 +75,7 @@ ouvirJuncao(entregarJuncaoDoDiscord);
 if (!app.requestSingleInstanceLock()) app.quit();
 app.on('second-instance', (_event, argv) => {
   mostrarJanelaPrincipal();
+  pedirAcaoDaBarra(barra.acaoDosArgumentos(argv));
   // O protocolo não transporta o segredo: abre a aplicação e, depois de ela
   // subscrever ACTIVITY_JOIN, o próprio Discord entrega-o pelo pipe local.
   if (veioDoDiscord(argv)) void prepararDiscord(DISCORD_APP_ID);
@@ -91,6 +92,7 @@ const { spawn } = require('node:child_process');
 const atualizacao = require('./atualizacao.cjs');
 const atalhos = require('./atalhos.cjs');
 const mini = require('./miniLeitor.cjs');
+const barra = require('./barraDeTarefas.cjs');
 const { arranqueAoAbrir, escolhaDaPessoa, MODO_DE_ORIGEM } = require('./arranqueComWindows.cjs');
 
 const STARTUP_ARGS = ['--duotone-auto-start'];
@@ -894,6 +896,64 @@ ipcMain.on('mini:modo-limpo', (event, ligado) => {
   if (ligado) miniJanela.hide(); else miniJanela.showInactive();
 });
 
+// ---------------------------------------------------------------------------
+// A barra de tarefas (10/10, electron/barraDeTarefas.cjs): anterior, tocar e
+// seguinte na miniatura da janela, e a lista de saltos do ícone.
+let estadoDaBarra = { aTocar: false, temFaixa: false };
+// Aberta pela lista de saltos: a página tira-a quando estiver pronta (com conta).
+let acaoDaBarraPendente = barra.acaoDosArgumentos(process.argv);
+const iconesDaBarra = new Map();
+function iconeDaBarra(nome, escura) {
+  const chave = nome + (escura ? ':escura' : ':clara');
+  if (!iconesDaBarra.has(chave)) {
+    const cor = barra.corDosIcones(escura);
+    const img = nativeImage.createFromBitmap(barra.desenharIcone(nome, 16, cor), { width: 16, height: 16 });
+    img.addRepresentation({ scaleFactor: 2, width: 32, height: 32, buffer: barra.desenharIcone(nome, 32, cor) });
+    iconesDaBarra.set(chave, img);
+  }
+  return iconesDaBarra.get(chave);
+}
+function porBotoesNaMiniatura() {
+  if (process.platform !== 'win32' || !mainWindow || mainWindow.isDestroyed()) return;
+  // A barra segue o tema do SISTEMA, que pode não ser o das apps.
+  const escura = nativeTheme.shouldUseDarkColorsForSystemIntegratedUI ?? nativeTheme.shouldUseDarkColors;
+  try {
+    mainWindow.setThumbarButtons(barra.botoesDaMiniatura(estadoDaBarra).map((b) => ({
+      tooltip: b.dica, icon: iconeDaBarra(b.icone, escura), flags: b.flags, click: () => executarAtalho(b.atalho),
+    })));
+  } catch { /* uma janela ainda por mostrar recusa; o 'show' volta a pôr */ }
+}
+function pedirAcaoDaBarra(acao) {
+  if (!acao) return;
+  acaoDaBarraPendente = acao;
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('barra:acao');
+}
+ipcMain.on('barra:estado', (event, estado) => {
+  if (!daJanelaPrincipal(event)) return;
+  const e = barra.estadoValido(estado);
+  if (!e || (e.aTocar === estadoDaBarra.aTocar && e.temFaixa === estadoDaBarra.temFaixa)) return;
+  estadoDaBarra = e;
+  porBotoesNaMiniatura();
+});
+ipcMain.handle('barra:acao-pendente', (event) => {
+  if (!daJanelaPrincipal(event)) return null;
+  const acao = acaoDaBarraPendente;
+  acaoDaBarraPendente = null;
+  return acao;
+});
+nativeTheme.on('updated', () => porBotoesNaMiniatura());
+function porListaDeSaltos() {
+  // Só na app instalada: em desenvolvimento o execPath é o electron.exe, que
+  // abria sem a app.
+  if (process.platform !== 'win32' || !app.isPackaged) return;
+  try {
+    app.setUserTasks(barra.TAREFAS.map((t) => ({
+      program: process.execPath, arguments: barra.ARGUMENTO + t.acao,
+      iconPath: process.execPath, iconIndex: 0, title: t.titulo, description: t.descricao,
+    })));
+  } catch { /* sem lista de saltos, nada se perde */ }
+}
+
 function createTray() {
   tray = new Tray(ICONE);
   const contextMenu = Menu.buildFromTemplate([
@@ -957,6 +1017,8 @@ function createWindow() {
   win.once('ready-to-show', () => {
     if (!process.argv.includes('--duotone-auto-start') || startupMode() === 'window') win.show();
   });
+  // O Windows esquece os botões da miniatura quando a janela se esconde.
+  win.on('show', () => porBotoesNaMiniatura());
   win.webContents.once('did-finish-load', entregarJuncoesPendentes);
   win.on('maximize', () => sendWindowState(win));
   win.on('focus', () => win.flashFrame(false));
@@ -1640,6 +1702,7 @@ app.whenReady().then(async () => {
 
   createWindow();
   createTray();
+  porListaDeSaltos();
   if (veioDoDiscord(process.argv)) void prepararDiscord(DISCORD_APP_ID);
 
   try {

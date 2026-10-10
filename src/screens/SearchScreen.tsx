@@ -43,6 +43,8 @@ import { EmptyState } from '../components/EmptyState';
 import { SkeletonDeFaixas, SkeletonDePrateleira } from '../components/Skeleton';
 import { AmigosAOuvir } from '../components/AmigosAOuvir';
 import { CartaoDaMisturaDoDia } from '../components/CartaoDaMisturaDoDia';
+import { NovosLancamentos } from '../components/NovosLancamentos';
+import { legendaDoLancamento } from '../lib/novosLancamentos';
 import { EscolherArtistas } from '../components/EscolherArtistas';
 import { PillButton } from '../components/PillButton';
 import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
@@ -754,6 +756,10 @@ export function SearchScreen() {
                 aoAbrir={() => navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' } })}
               />
             </View>
+            {/* Os novos lançamentos dos teus artistas (10/10): logo a seguir à
+                Daily mix, porque mudam todos os dias. Um álbum abre a mesma
+                folha dos álbuns da página do artista. */}
+            <NovosLancamentos aoAbrir={(l) => setAlbumAberto({ id: l.id, titulo: l.titulo, legenda: legendaDoLancamento(l), capa: l.capa })} />
             {/* Sem porteiro global: cada prateleira mostra o SEU esqueleto e
                 entra quando chega. O que estava aqui escondia as tres rapidas
                 -- consultas diretas a base de dados -- atras da descoberta,
@@ -836,7 +842,7 @@ export function SearchScreen() {
         ) : results.length === 0 && naBiblioteca.length === 0 ? (
           <Pressable style={{ flex: 1, paddingTop: cab.espaco }} onPress={Keyboard.dismiss}>
             <EmptyState
-              icon="logo-youtube"
+              icon="search-outline"
               title={query.trim().length >= 2 ? 'No results' : 'Start typing to search'}
               subtitle={
                 query.trim().length >= 2
@@ -880,7 +886,7 @@ export function SearchScreen() {
                 ))}
                 {results.length > 0 && (
                   <View style={[styles.sectionHeader, { marginTop: spacing.lg, marginBottom: spacing.sm }]}>
-                    <Ionicons name="logo-youtube" size={18} color={colors.text} />
+                    <Ionicons name="musical-notes-outline" size={18} color={colors.text} />
                     <Text style={styles.sectionTitle}>More results</Text>
                   </View>
                 )}

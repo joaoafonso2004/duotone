@@ -435,7 +435,7 @@ export function SongsScreen() {
               color={selectedIds.size === 0 ? colors.textTertiary : colors.text}
             />
             <Text style={[styles.actionLabel, selectedIds.size === 0 && { color: colors.textTertiary }]}>
-              Add to Playlist
+              Add to playlist
             </Text>
           </Pressable>
           <Pressable
@@ -454,7 +454,7 @@ export function SongsScreen() {
                 { color: selectedIds.size === 0 ? colors.textTertiary : colors.danger },
               ]}
             >
-              Delete
+              Remove
             </Text>
           </Pressable>
         </View>

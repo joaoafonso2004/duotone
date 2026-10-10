@@ -72,6 +72,7 @@ import { iniciarSocial } from './src/state/social';
 import { garantirPrivacidade } from './src/state/privacidade';
 import { limparPerfisPublicos } from './src/state/perfisPublicos';
 import { iniciarArtistasFavoritos, useArtistasFavoritos } from './src/state/artistasFavoritos';
+import { iniciarNovosLancamentos } from './src/state/novosLancamentos';
 import { limparVerificacao } from './src/state/verificacaoDaBiblioteca';
 import { useSaved } from './src/state/saved';
 import { instalarSaudeDaApp } from './src/state/saudeDaApp';
@@ -149,6 +150,10 @@ export default function App() {
   useEffect(() => {
     if (adjustmentUserId) return iniciarArtistasFavoritos(adjustmentUserId);
     useArtistasFavoritos.getState().esquecer();
+  }, [adjustmentUserId]);
+  // Os novos lançamentos dos teus artistas (10/10): uma vez por dia, no aparelho.
+  useEffect(() => {
+    if (adjustmentUserId) return iniciarNovosLancamentos(adjustmentUserId);
   }, [adjustmentUserId]);
   // Os presets do equalizador: os teus, os da app mudados, e o do carro.
   useEffect(() => {

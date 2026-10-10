@@ -250,6 +250,9 @@ const TESTES = [
   `${TS} scripts/test-pesquisa-por-tipo.ts`,
   `${TS} scripts/test-leitor-fecha-com-a-pagina.ts`,
   'scripts/test-estado-das-migracoes-sql.mjs',
+  'scripts/test-barra-de-tarefas.mjs',
+  `${TS} scripts/test-roda-do-rato.ts`,
+  `${TS} scripts/test-novos-lancamentos.ts`,
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

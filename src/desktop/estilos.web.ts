@@ -63,6 +63,8 @@ export const styles = StyleSheet.create({
   // ela pousa em cima da capa, que pode ser clara.
   coracaoDoArtista: { position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(6,6,8,0.66)' } as any,
   coracaoDoArtistaHover: { backgroundColor: 'rgba(6,6,8,0.88)' },
+  // Um lançamento novo que ainda não se foi ver (10/10, state/novosLancamentos.ts).
+  pontoNovo: { position: 'absolute', top: 10, left: 10, width: 12, height: 12, borderRadius: 6, backgroundColor: desktop.accent, borderWidth: 2, borderColor: 'rgba(6,6,8,0.8)' },
   playlistArtRow: { flex: 1, width: '100%', flexDirection: 'row' },
   playlistArtCell: { flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: COR.elevado },
   playlistTitle: { fontFamily: FONT.display, color: desktop.text, fontSize: 14, fontWeight: '650' as any, marginTop: ESP.md },
