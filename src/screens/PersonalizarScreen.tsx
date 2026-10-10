@@ -11,13 +11,15 @@ import { MenuFlutuante, type Ancora } from '../components/MenuFlutuante';
 import type { PlayerAction } from '../components/PlayerActionsSheet';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import {
-  BOTOES_DO_LEITOR, MAXIMO_DE_BOTOES, NOMES_DOS_BOTOES, TEMAS, veuDoLeitor,
-  type Aparencia, type BotaoDoLeitor,
+  BOTOES_DO_LEITOR, ESTILOS_DA_CAPA, fonteDosTitulos, MAXIMO_DE_BOTOES, NOMES_DAS_SECOES, NOMES_DOS_BOTOES, TEMAS, veuDoLeitor,
+  type Aparencia, type BotaoDoLeitor, type EstiloDaCapa, type SecaoDaHome,
 } from '../lib/aparencia';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { FundoEmGradiente } from '../components/FundoEmGradiente';
 import { hapticSelection } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useAparencia, useTemaDaAparencia } from '../state/aparencia';
+import { useCapaIOS } from '../state/capaIOS';
 import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { colors, radii, spacing } from '../theme';
@@ -28,12 +30,17 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Personalizar'>;
 const ESCOLHAS = {
   fundoApp: { rotulo: 'Background', icone: 'contrast-outline', nomes: ['Dark', 'OLED black'], valores: ['dark', 'oled'] },
   listas: { rotulo: 'Lists', icone: 'list-outline', nomes: ['Comfortable', 'Compact'], valores: ['comfortable', 'compact'] },
+  titulos: { rotulo: 'Titles', icone: 'text-outline', nomes: ['Default', 'Serif', 'Mono'], valores: ['padrao', 'serif', 'mono'] },
   topo: { rotulo: 'Top', icone: 'albums-outline', nomes: ['Duotone', 'Playing from'], valores: ['marca', 'origem'] },
-  titulo: { rotulo: 'Title', icone: 'text-outline', nomes: ['Centred', 'Left'], valores: ['centro', 'esquerda'] },
+  titulo: { rotulo: 'Title', icone: 'reorder-three-outline', nomes: ['Centred', 'Left'], valores: ['centro', 'esquerda'] },
   barra: { rotulo: 'Progress bar', icone: 'remove-outline', nomes: ['Thin', 'Thick'], valores: ['fina', 'grossa'] },
   play: { rotulo: 'Play button', icone: 'play-circle-outline', nomes: ['Filled', 'Ring', 'Icon'], valores: ['cheio', 'anel', 'icone'] },
-  fundoLeitor: { rotulo: 'Background', icone: 'image-outline', nomes: ['Blurred artwork', 'Artwork colour', 'Black'], valores: ['capa', 'cor', 'preto'] },
+  fundoLeitor: {
+    rotulo: 'Background', icone: 'image-outline',
+    nomes: ['Blurred artwork', 'Artwork colour', 'Gradient', 'Black'], valores: ['capa', 'cor', 'gradiente', 'preto'],
+  },
   brilho: { rotulo: 'Background brightness', icone: 'sunny-outline', nomes: ['Darker', 'Dark', 'Default', 'Light', 'Lighter'], valores: [10, 30, 50, 70, 90] },
+  tamanhoDasLetras: { rotulo: 'Text size', icone: 'text-outline', nomes: ['Small', 'Medium', 'Large'], valores: ['p', 'm', 'g'] },
 } as const;
 type ChaveDeEscolha = keyof typeof ESCOLHAS;
 
@@ -43,10 +50,11 @@ const ICONES_DOS_BOTOES: Record<BotaoDoLeitor, keyof typeof Ionicons.glyphMap> =
 };
 
 /**
- * "Customise" (10/10, docs/PLANO-PERSONALIZACAO-IOS.md, fase 1): os temas
+ * "Customise" (10/10, docs/PLANO-PERSONALIZACAO-IOS.md, fases 1 e 2): os temas
  * prontos e cada opção à mão, com o leitor em pequeno no topo a mudar com
- * elas. As escolhas são da store (`state/aparencia.ts`); o destaque e o estilo
- * da capa continuam nas Definições, logo por cima da linha que abre isto.
+ * elas. As escolhas são da store (`state/aparencia.ts`); o estilo da capa é o
+ * das Definições (`state/capaIOS.ts`), e está nos dois sítios. O destaque
+ * continua só nas Definições.
  */
 export function PersonalizarScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -54,11 +62,16 @@ export function PersonalizarScreen({ navigation }: Props) {
   const ap = useAparencia(useShallow((s) => ({
     fundoApp: s.fundoApp, listas: s.listas, rotulos: s.rotulos, topo: s.topo, titulo: s.titulo, barra: s.barra,
     play: s.play, botoes: s.botoes, flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
+    titulos: s.titulos, tamanhoDasLetras: s.tamanhoDasLetras, abrirNasLetras: s.abrirNasLetras,
+    secoesDaHome: s.secoesDaHome, escondidasDaHome: s.escondidasDaHome,
   })));
+  const capa = useCapaIOS((s) => s.style);
   const tema = useTemaDaAparencia();
-  const { mudar, escolherTema, alternarBotao } = useAparencia.getState();
+  const { mudar, escolherTema, alternarBotao, alternarSecao, moverSecao } = useAparencia.getState();
 
   const [menu, setMenu] = useState<{ chave: ChaveDeEscolha; ancora: Ancora } | null>(null);
+  const [menuDaCapa, setMenuDaCapa] = useState<Ancora | null>(null);
+  const [menuDaSecao, setMenuDaSecao] = useState<{ secao: SecaoDaHome; ancora: Ancora } | null>(null);
   const abrir = (chave: ChaveDeEscolha) => (ancora: Ancora) => setMenu({ chave, ancora });
   const indiceDe = (chave: ChaveDeEscolha) => {
     const valores = ESCOLHAS[chave].valores as readonly (string | number)[];
@@ -84,6 +97,31 @@ export function PersonalizarScreen({ navigation }: Props) {
       },
     }))
     : [];
+  const accoesDaCapa: PlayerAction[] = ESTILOS_DA_CAPA.map((e) => ({
+    label: e.nome,
+    icon: 'checkmark',
+    escolhida: e.valor === capa,
+    onPress: () => {
+      useCapaIOS.getState().setStyle(e.valor);
+      setMenuDaCapa(null);
+    },
+  }));
+  // Uma secção da Home: mostrar ou esconder, e mudar de lugar. Sem arrastar:
+  // as linhas competem com o deslizar da página (a regra das listas).
+  const accoesDaSecao: PlayerAction[] = (() => {
+    if (!menuDaSecao) return [];
+    const { secao } = menuDaSecao;
+    const i = ap.secoesDaHome.indexOf(secao);
+    const escondida = ap.escondidasDaHome.includes(secao);
+    const fazer = (f: () => void) => () => { hapticSelection(); f(); setMenuDaSecao(null); };
+    return [
+      { label: escondida ? 'Show on Home' : 'Hide from Home', icon: escondida ? 'eye-outline' : 'eye-off-outline', onPress: fazer(() => alternarSecao(secao)) },
+      { label: 'Move to top', icon: 'arrow-up-circle-outline', disabled: i <= 0, onPress: fazer(() => moverSecao(secao, 'topo')), inicioDeGrupo: true },
+      { label: 'Move up', icon: 'arrow-up', disabled: i <= 0, onPress: fazer(() => moverSecao(secao, 'cima')) },
+      { label: 'Move down', icon: 'arrow-down', disabled: i >= ap.secoesDaHome.length - 1, onPress: fazer(() => moverSecao(secao, 'baixo')) },
+    ];
+  })();
+  const nomeDaCapa = ESTILOS_DA_CAPA.find((e) => e.valor === capa)?.nome ?? null;
   const linha = (chave: ChaveDeEscolha) => (
     <Linha icone={ESCOLHAS[chave].icone} rotulo={ESCOLHAS[chave].rotulo} valor={valorDe(chave)} chevron aoTocar={abrir(chave)} />
   );
@@ -92,6 +130,8 @@ export function PersonalizarScreen({ navigation }: Props) {
   return (
     <Screen title="Customise" onBack={() => navigation.goBack()} encolhe={cab}>
       <MenuFlutuante visivel={!!menu} ancora={menu?.ancora ?? null} accoes={accoes} aoFechar={() => setMenu(null)} />
+      <MenuFlutuante visivel={!!menuDaCapa} ancora={menuDaCapa} accoes={accoesDaCapa} aoFechar={() => setMenuDaCapa(null)} />
+      <MenuFlutuante visivel={!!menuDaSecao} ancora={menuDaSecao?.ancora ?? null} accoes={accoesDaSecao} aoFechar={() => setMenuDaSecao(null)} />
       <Animated.ScrollView
         style={{ flex: 1 }}
         onScroll={cab.onScroll}
@@ -99,7 +139,7 @@ export function PersonalizarScreen({ navigation }: Props) {
         scrollIndicatorInsets={{ top: cab.espaco }}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingTop: cab.espaco, paddingBottom: insets.bottom + 48, gap: spacing.xl }}
       >
-        <PreviaDoLeitor ap={ap} />
+        <PreviaDoLeitor ap={ap} capa={capa} />
 
         <View style={{ gap: spacing.sm }}>
           <Text accessibilityRole="header" style={styles.tituloDosTemas}>THEMES</Text>
@@ -122,20 +162,29 @@ export function PersonalizarScreen({ navigation }: Props) {
           </ScrollView>
         </View>
 
-        <Grupo titulo="App" rodape="Accent colour and artwork style are in Settings → Appearance.">
+        <Grupo titulo="App" rodape="The accent colour is in Settings → Appearance.">
           {linha('fundoApp')}
           {linha('listas')}
+          {linha('titulos')}
           <LinhaInterruptor icone="pricetag-outline" rotulo="Tab bar labels" valor={ap.rotulos} aoMudar={(v) => mudar('rotulos', v)} />
         </Grupo>
 
-        <Grupo titulo="Now Playing" rodape={ap.flutuar ? null : 'The 3D artwork stays still.'}>
+        <Grupo titulo="Now Playing" rodape={capa === 'floating' && !ap.flutuar ? 'The 3D artwork stays still.' : null}>
+          <Linha icone="square-outline" rotulo="Artwork" valor={nomeDaCapa} chevron aoTocar={setMenuDaCapa} />
           {linha('topo')}
           {linha('titulo')}
           {linha('barra')}
           {linha('play')}
-          <LinhaInterruptor icone="cube-outline" rotulo="Float" valor={ap.flutuar} aoMudar={(v) => mudar('flutuar', v)} />
+          {capa === 'floating' ? (
+            <LinhaInterruptor icone="cube-outline" rotulo="Float" valor={ap.flutuar} aoMudar={(v) => mudar('flutuar', v)} />
+          ) : null}
           {linha('fundoLeitor')}
           {ap.fundoLeitor !== 'preto' ? linha('brilho') : null}
+        </Grupo>
+
+        <Grupo titulo="Lyrics" rodape={ap.abrirNasLetras ? 'Now Playing opens on the lyrics when the song has them.' : null}>
+          {linha('tamanhoDasLetras')}
+          <LinhaInterruptor icone="chatbox-ellipses-outline" rotulo="Open on lyrics" valor={ap.abrirNasLetras} aoMudar={(v) => mudar('abrirNasLetras', v)} />
         </Grupo>
 
         <Grupo titulo="Buttons below" rodape={`Up to ${MAXIMO_DE_BOTOES}, in the order you turn them on.`}>
@@ -151,6 +200,22 @@ export function PersonalizarScreen({ navigation }: Props) {
           ))}
         </Grupo>
 
+        <Grupo titulo="Home" rodape="Tap a section to hide it or move it.">
+          {ap.secoesDaHome.map((secao) => {
+            const escondida = ap.escondidasDaHome.includes(secao);
+            return (
+              <Linha
+                key={secao}
+                icone={escondida ? 'eye-off-outline' : 'eye-outline'}
+                rotulo={NOMES_DAS_SECOES[secao]}
+                valor={escondida ? 'Hidden' : null}
+                chevron
+                aoTocar={(ancora) => setMenuDaSecao({ secao, ancora })}
+              />
+            );
+          })}
+        </Grupo>
+
         <Text style={styles.nota}>Saved on this iPhone.</Text>
       </Animated.ScrollView>
     </Screen>
@@ -162,16 +227,19 @@ export function PersonalizarScreen({ navigation }: Props) {
  * a barra, o botão play e os botões de baixo. Com a música que está a tocar, ou
  * um quadrado da cor do destaque.
  */
-function PreviaDoLeitor({ ap }: { ap: Omit<Aparencia, never> }) {
-  const capa = usePlayer((s) => s.current?.artworkUrl ?? null);
+function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
+  const arte = usePlayer((s) => s.current?.artworkUrl ?? null);
   const titulo = usePlayer((s) => s.current?.title ?? null);
   const corDoTema = useTheme((s) => s.theme.color);
   const veu = veuDoLeitor(ap.brilho);
-  const uri = capa ? capaParaLista(capa) : null;
+  const uri = arte ? capaParaLista(arte) : null;
   const aoCentro = ap.titulo === 'centro';
+  const estiloDaCapa = capa === 'full' ? styles.previaCapaInteira
+    : capa === 'floating' && ap.flutuar ? { transform: [{ perspective: 400 }, { rotateY: '12deg' }] } : null;
   return (
     <View style={styles.previa} accessibilityLabel="Preview of Now Playing" accessible>
-      {ap.fundoLeitor === 'preto' || !uri ? <View style={[StyleSheet.absoluteFill, { backgroundColor: ap.fundoLeitor === 'preto' ? '#000' : '#1a1a22' }]} />
+      {ap.fundoLeitor === 'gradiente' ? <FundoEmGradiente uri={uri} animar />
+        : ap.fundoLeitor === 'preto' || !uri ? <View style={[StyleSheet.absoluteFill, { backgroundColor: ap.fundoLeitor === 'preto' ? '#000' : '#1a1a22' }]} />
         : <Image source={{ uri }} style={StyleSheet.absoluteFill} blurRadius={ap.fundoLeitor === 'cor' ? 60 : 18} contentFit="cover" />}
       {ap.fundoLeitor !== 'preto' ? (
         <LinearGradient colors={['rgba(10,10,15,0.30)', 'rgba(10,10,15,0.72)', 'rgba(10,10,15,0.95)']} style={[StyleSheet.absoluteFill, { opacity: veu.opacidadeDoVeu }]} />
@@ -187,11 +255,11 @@ function PreviaDoLeitor({ ap }: { ap: Omit<Aparencia, never> }) {
         ) : <Text style={styles.previaMarca}>DUOTONE</Text>}
       </View>
       <View style={styles.previaCapaArea}>
-        {uri ? <Image source={{ uri }} style={[styles.previaCapa, ap.flutuar && { transform: [{ perspective: 400 }, { rotateY: '12deg' }] }]} contentFit="cover" />
-          : <View style={[styles.previaCapa, { backgroundColor: corDoTema }]} />}
+        {uri ? <Image source={{ uri }} style={[styles.previaCapa, estiloDaCapa]} contentFit="cover" />
+          : <View style={[styles.previaCapa, estiloDaCapa, { backgroundColor: corDoTema }]} />}
       </View>
       <View style={[styles.previaTitulo, !aoCentro && { alignItems: 'flex-start' }]}>
-        <Text numberOfLines={1} style={styles.previaNome}>{titulo ?? 'Song title'}</Text>
+        <Text numberOfLines={1} style={[styles.previaNome, fonteDosTitulos(ap.titulos)]}>{titulo ?? 'Song title'}</Text>
       </View>
       <View style={[styles.previaBarra, ap.barra === 'grossa' && { height: 6, borderRadius: 3 }]}>
         <View style={[styles.previaFeito, { backgroundColor: corDoTema }]} />
@@ -230,6 +298,8 @@ const styles = StyleSheet.create({
   previaOrigem: { fontSize: 11, fontWeight: '700', color: colors.text },
   previaCapaArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   previaCapa: { width: 130, height: 130, borderRadius: 4 },
+  // A pré-visualização tem 18 de margem de cada lado: a capa inteira come-as.
+  previaCapaInteira: { width: 200, height: 160, borderRadius: 0, marginHorizontal: -18 },
   previaTitulo: { alignItems: 'center', marginBottom: 10 },
   previaNome: { fontSize: 14, fontWeight: '700', color: colors.text },
   previaBarra: { height: 3, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)', overflow: 'hidden' },

@@ -306,6 +306,37 @@ export function veuDaCapa(celulas: RGB[] | null | undefined, opacidade = 0.14): 
   return `rgba(${cor.r},${cor.g},${cor.b},${opacidade})`;
 }
 
+/** Abaixo disto (em RGB), duas células são a mesma cor para o gradiente. */
+const DISTANCIA_MINIMA = 48;
+/** Quanto as cores do gradiente vão para o fundo da app (em espaço linear). */
+const ESCURECER_O_GRADIENTE = 0.5;
+const distancia = (a: RGB, b: RGB) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+
+/**
+ * As duas cores do fundo em gradiente do leitor (10/10, personalização).
+ *
+ * A primeira é a característica (a mesma do destaque pela capa); a segunda é a
+ * célula que mais se afasta dela, com a saturação a pesar, para o gradiente ter
+ * DUAS cores da capa e não duas versões de uma. Uma capa de uma cor só leva a
+ * mesma mais funda. As duas descem para o fundo da app: o texto branco do
+ * leitor assenta nelas. Uma capa cinzenta dá cinzentos, sem inventar cor.
+ */
+export function coresDoGradiente(celulas: RGB[] | null | undefined): [string, string] | null {
+  if (!celulas || !celulas.length) return null;
+  const primeira = corCaracteristica(celulas) ?? celulas.reduce((a, b) => (luminancia(b) > luminancia(a) ? b : a));
+  let segunda: RGB | null = null;
+  let maior = 0;
+  for (const c of celulas) {
+    const nota = distancia(c, primeira) * (0.5 + saturacao(c));
+    if (nota > maior) {
+      maior = nota;
+      segunda = c;
+    }
+  }
+  if (!segunda || distancia(segunda, primeira) < DISTANCIA_MINIMA) segunda = misturar(primeira, FUNDO, 0.55);
+  return [hex(misturar(primeira, FUNDO, ESCURECER_O_GRADIENTE)), hex(misturar(segunda, FUNDO, ESCURECER_O_GRADIENTE))];
+}
+
 // ---------------------------------------------------------------------------
 // Transição
 // ---------------------------------------------------------------------------

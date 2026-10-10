@@ -5,6 +5,8 @@ import { Animated, Pressable, StyleSheet, Text, View, ViewStyle, useWindowDimens
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FUNDO_APARECE_EM, geometriaDoTitulo } from '../lib/tituloQueEncolhe';
 import { colors, spacing, type } from '../theme';
+import { fonteDosTitulos } from '../lib/aparencia';
+import { useAparencia } from '../state/aparencia';
 
 /**
  * O título que encolhe ao rolar (3/10, variante B). O ecrã cria-o com
@@ -134,6 +136,8 @@ const caixaDe = (definir: (c: Caixa) => void) => (e: { nativeEvent: { layout: Ca
 /** O de sempre: o título fica no topo e a lista começa por baixo dele. */
 function ScreenFixo({ title, subtitle, right, topLeft, onBack, children, style, fixo }: Props) {
   const insets = useSafeAreaInsets();
+  // A letra dos títulos (10/10, personalização): a de sempre, serifada ou mono.
+  const fonte = fonteDosTitulos(useAparencia((s) => s.titulos));
   return (
     <View style={styles.root}>
       {/* Conteúdo do ecrã com margem segura notch */}
@@ -147,7 +151,7 @@ function ScreenFixo({ title, subtitle, right, topLeft, onBack, children, style, 
               </Pressable>
             ) : null}
             <View style={{ flex: 1 }}>
-              <Text numberOfLines={1} style={onBack ? type.title : type.largeTitle}>
+              <Text numberOfLines={1} style={[onBack ? type.title : type.largeTitle, fonte]}>
                 {title}
               </Text>
               {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -172,6 +176,7 @@ type Caixa = { x: number; y: number; width: number; height: number };
  */
 function ScreenQueEncolhe({ title, subtitle, right, topLeft, onBack, children, style, fixo, cab }: Props & { cab: CabecalhoQueEncolhe }) {
   const insets = useSafeAreaInsets();
+  const fonte = fonteDosTitulos(useAparencia((s) => s.titulos));
   const { width } = useWindowDimensions();
   const [linha, setLinha] = useState<Caixa | null>(null);
   const [coluna, setColuna] = useState<Caixa | null>(null);
@@ -256,6 +261,7 @@ function ScreenQueEncolhe({ title, subtitle, right, topLeft, onBack, children, s
                 onLayout={caixa(setTitulo)}
                 style={[
                   onBack ? type.title : type.largeTitle,
+                  fonte,
                   styles.tituloQueEncolhe,
                   { transform: [{ translateX: anim.dx }, { translateY: anim.dy }, { scale: anim.escala }] },
                 ]}

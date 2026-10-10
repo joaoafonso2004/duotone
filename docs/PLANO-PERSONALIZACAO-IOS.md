@@ -57,7 +57,7 @@ Um toque muda várias opções de uma vez. Depois, cada opção ainda se pode mu
 | Fase | O quê | Build nativa? |
 |---|---|---|
 | 1 | A página "Customise" com a pré-visualização; temas; cor de destaque, fundo, listas, rótulos; no leitor: topo, título, barra, botão play, botões de baixo, flutuar, fundo (Blur/Colour/Black) e intensidade | Não |
-| 2 | Capa Full, fundo Gradient, títulos Serif/Mono, letras, secções da Home | Não |
+| 2 | Capa Full, fundo Gradient, títulos Serif/Mono, letras, secções da Home (**feita a 11/10**) | Não |
 | 3 | Ícones da app | Sim |
 
 **Por confirmar no iPhone**: o gradiente a 120 Hz sem aquecer, e a pré-visualização sem pesar na página das Definições.
@@ -65,4 +65,5 @@ Um toque muda várias opções de uma vez. Depois, cada opção ainda se pode mu
 ## 6. Decidido
 
 - **10/10:** a fase 1 está feita (sem a paleta). O vinil sai. A cor de destaque fica só o steel e a cor da capa.
+- **11/10:** a fase 2 está feita. Os temas passam a levar o estilo da capa (Duotone 3D, Minimal e OLED Simple, Glow Full) e já não mexem nos botões de baixo, nas letras nem na Home. O estilo da capa está nas Definições e no Customise.
 - Ainda por decidir: se a personalização deve viajar para o PC (proponho que não).

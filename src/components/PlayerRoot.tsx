@@ -55,7 +55,11 @@ import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
 import { useShallow } from 'zustand/react/shallow';
 import { useAparencia } from '../state/aparencia';
-import { destinoDaOrigem, NOMES_DOS_BOTOES, olhoDaOrigem, veuDoLeitor, type BotaoDoLeitor } from '../lib/aparencia';
+import {
+  abrirJaNasLetras, destinoDaOrigem, fonteDosTitulos, NOMES_DOS_BOTOES, olhoDaOrigem, veuDoLeitor, type BotaoDoLeitor,
+} from '../lib/aparencia';
+import { FundoEmGradiente } from './FundoEmGradiente';
+import { lyricsCacheKey, useLyrics } from '../state/lyrics';
 import { rotuloDaOrigem } from '../lib/origemDaFila';
 import { trackKey as chaveDaFaixaNaFila } from '../lib/shuffle';
 import { desvioDaMusica, useDoca } from '../state/doca';
@@ -139,6 +143,13 @@ const VINHETA_DA_CAPA_3D = require('../../assets/capa3d-vinheta.png');
  * grande volta a faltar espaço.
  */
 const RESERVA_DOS_CONTROLOS = 360;
+/**
+ * A mesma conta com a capa "Full" (10/10). Os 360 têm folga: o corpo reparte o
+ * que sobra por três espaçadores (~45 pt cada, medido a 13/9). A capa inteira
+ * fica com 20 de cada um, e eles continuam acima do mínimo (`styles.folga`).
+ * Num 6,1" a capa passa de 345 para 393 pt.
+ */
+const RESERVA_COM_A_CAPA_INTEIRA = 300;
 
 /**
  * Quanto e que a placa da sombra encolhe em relacao a capa.
@@ -191,7 +202,7 @@ export function PlayerRoot() {
   // botão play, os botões de baixo, o flutuar e o fundo.
   const ap = useAparencia(useShallow((s) => ({
     topo: s.topo, titulo: s.titulo, barra: s.barra, play: s.play, botoes: s.botoes,
-    flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
+    flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho, titulos: s.titulos, abrirNasLetras: s.abrirNasLetras,
   })));
   // De onde vem a música, para o "Playing from" (o G1). As que a app meteu
   // (rádio, Smart Shuffle) dizem-no, como no PC (`rotuloDaOrigem`).
@@ -941,6 +952,14 @@ export function PlayerRoot() {
   useEffect(() => {
     setShowLyrics(false);
   }, [current?.sourceId]);
+  // "Open on lyrics" (10/10, personalização): vira-se para as letras quando o
+  // leitor abre, ou quando elas chegam com ele aberto. Voltar à capa à mão fica:
+  // nada disto muda até abrir de novo ou mudar a música.
+  const letrasDaMusica = useLyrics((s) => (current ? s.entries[lyricsCacheKey(current)] : undefined));
+  const virarParaAsLetras = abrirJaNasLetras(ap.abrirNasLetras, expanded, letrasDaMusica);
+  useEffect(() => {
+    if (virarParaAsLetras) setShowLyrics(true);
+  }, [virarParaAsLetras, current?.sourceId]);
 
   // Capa em ALTA resolução: a YouTube Data API devolve thumbnails pequenas, mas
   // i.ytimg.com tem versões grandes por videoId. Começamos na maxresdefault
@@ -1084,6 +1103,8 @@ export function PlayerRoot() {
   // faixa dela tem 72 pt por cima dos separadores, e a linha fica a meio.
   const miniBottom = TAB_H + 4;
   const capaFlutuante = Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'floating';
+  // "Full" (10/10, personalização): a capa de uma borda à outra, sem cantos nem sombra.
+  const capaInteira = Platform.OS === 'ios' && estiloDaCapaCarregado && estiloDaCapa === 'full';
 
   // Capa: mini (quadrado 48px, no mini-player) <-> expandido (quadrado GRANDE
   // centrado). Antes era 16:9 (herança do vídeo) — agora que é só áudio, a
@@ -1095,8 +1116,14 @@ export function PlayerRoot() {
   // era, na prática, o tamanho da capa. 48 dá-lhe mais dezasseis pontos e
   // aproxima o enquadramento do que se vê nas outras apps de música.
   const MARGEM_DA_CAPA = 48;
-  const ART_FULL = Math.min(W - MARGEM_DA_CAPA, H * 0.42,
-    Math.max(96, H - insets.top - insets.bottom - HEADER_H - RESERVA_DOS_CONTROLOS * Math.min(fontScale, 1.4)));
+  const ART_FULL = capaInteira
+    // A toda a largura: os 48 pt da margem e o teto de 42% da altura saem, e a
+    // reserva dos controlos encolhe o que os três espaçadores do corpo davam a
+    // mais (ver RESERVA_COM_A_CAPA_INTEIRA). Num ecrã baixo, ou com o texto
+    // aumentado, encolhe como as outras.
+    ? Math.min(W, Math.max(96, H - insets.top - insets.bottom - HEADER_H - RESERVA_COM_A_CAPA_INTEIRA * Math.min(fontScale, 1.4)))
+    : Math.min(W - MARGEM_DA_CAPA, H * 0.42,
+      Math.max(96, H - insets.top - insets.bottom - HEADER_H - RESERVA_DOS_CONTROLOS * Math.min(fontScale, 1.4)));
   const vidMini = {
     x: 16,
     y: keyboardVisible && !expanded
@@ -1204,12 +1231,12 @@ export function PlayerRoot() {
     ];
     return {
       vooDaMoldura,
-      sombra: capaFlutuante ? 0 : Animated.multiply(
+      sombra: capaFlutuante ? 0 : capaInteira ? 0 : Animated.multiply(
         sombraAnim,
         Animated.multiply(visibilityAnim, anim.interpolate({ inputRange: faixaDoVoo, outputRange: saidaDoVoo(0, 0, 1) })),
       ),
       molduraOpacidade: aberto ? visibilityAnim : Animated.multiply(visibilityAnim, miniFade),
-      moldura: { borderRadius: animRaio.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }) },
+      moldura: { borderRadius: animRaio.interpolate({ inputRange: [0, 1], outputRange: [8, capaInteira ? 0 : 20] }) },
       miniTransform: [
         { translateX: reducedMotion ? 0 : dragXVisto },
         { translateY: Animated.add(miniSubir, desvioDaMusica) },
@@ -1221,7 +1248,7 @@ export function PlayerRoot() {
   const chaveDosNos = [
     origemDaEntrada ? `${origemDaEntrada.x},${origemDaEntrada.y},${origemDaEntrada.largura},${origemDaEntrada.altura}` : '-',
     vidFull.x, vidFull.y, vidFull.w, vidMini.x, vidMini.y, W, H,
-    aberto, reducedMotion, capaFlutuante,
+    aberto, reducedMotion, capaFlutuante, capaInteira,
   ].join('|');
   if (nosRef.current?.chave !== chaveDosNos) nosRef.current = { chave: chaveDosNos, nos: criarNos() };
   const nos = nosRef.current.nos as ReturnType<typeof criarNos>;
@@ -1518,8 +1545,9 @@ export function PlayerRoot() {
       >
         {/* O fundo do leitor (10/10, personalização): a capa desfocada (o de
             sempre), a cor dela (a mesma imagem tão desfocada que fica só a
-            cor), ou preto. */}
-        {ap.fundoLeitor === 'preto' ? <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} /> : fundo ? (
+            cor), duas cores dela a mexer devagar (FundoEmGradiente), ou preto. */}
+        {ap.fundoLeitor === 'preto' ? <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} />
+          : ap.fundoLeitor === 'gradiente' ? <FundoEmGradiente uri={fundo?.uri ?? null} animar={aberto} /> : fundo ? (
           // Desfocado a partir da miniatura pequena (desfoqueLeve): o mesmo
           // fundo, sem desfocar 1280 px no instante do skip. Sem onError: a
           // falha da maxres é a capa da frente que a diz.
@@ -1712,7 +1740,7 @@ export function PlayerRoot() {
               <TextoQueCabe
                 rola
                 texto={tituloNoLeitor(current)}
-                style={styles.trackTitle}
+                style={[styles.trackTitle, fonteDosTitulos(ap.titulos)]}
                 larguraDisponivel={larguraDoTitulo}
                 onLongPress={handleTitleLongPress}
               />
@@ -2156,7 +2184,7 @@ export function PlayerRoot() {
               a que saía e a que entrava (ver CapaComTransicao). */}
           {aberto && (
             <CapaDoLeitor
-              track={current} size={vidFull.w} capaFlutuante={capaFlutuante} montagem={montagem}
+              track={current} size={vidFull.w} capaFlutuante={capaFlutuante} capaInteira={capaInteira} montagem={montagem}
               transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
               setShowLyrics={setShowLyrics} setCapaARodar={setCapaARodar} onArtError={onArtError}
               escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa} aFlutuar={ap.flutuar}
@@ -2283,12 +2311,14 @@ function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'on
  * que ela mostra: as props têm de ficar ESTÁVEIS (`useCallback`, `useMemo`).
  */
 const CapaDoLeitor = React.memo(function CapaDoLeitor({
-  track, size, capaFlutuante, montagem, transicao, artSource, showLyrics, setShowLyrics, setCapaARodar,
+  track, size, capaFlutuante, capaInteira, montagem, transicao, artSource, showLyrics, setShowLyrics, setCapaARodar,
   onArtError, escurecerCapa, aoGostar, aFlutuar,
 }: {
   track: Track;
   size: number;
   capaFlutuante: boolean;
+  /** A capa "Full": sem cantos e sem o fio claro (10/10). */
+  capaInteira: boolean;
   montagem: MontagemDaCapa;
   transicao: { chave: string; sentido: Sentido } | null;
   artSource: string | null;
@@ -2305,8 +2335,8 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
   return (
     <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao} forcaDaPose={forcaDaPose} aFlutuar={aFlutuar}>
       {(pose3D) => (
-        <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
-          front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}<DuploToqueParaGostar aoGostar={aoGostar} /></>} pose3D={pose3D} />
+        <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : capaInteira ? 0 : 20}
+          front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && !capaInteira && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}<DuploToqueParaGostar aoGostar={aoGostar} /></>} pose3D={pose3D} />
       )}
     </CapaFlutuante3D>
   );

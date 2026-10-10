@@ -71,6 +71,9 @@ import { avisarErro } from '../lib/avisoDeRemocao';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
 import { usePuxarParaAtualizar } from '../components/PuxarParaAtualizar';
 import { useSocial } from '../state/social';
+import { useShallow } from 'zustand/react/shallow';
+import { secoesVisiveis, type SecaoDaHome } from '../lib/aparencia';
+import { useAparencia } from '../state/aparencia';
 
 /** Quantas linhas por página na primeira secção. */
 const LINHAS_NA_LISTA = 3;
@@ -218,6 +221,7 @@ export function SearchScreen() {
       capas: capasDaFila(m.faixas), quando: 0,
     })),
   ]), [recentes, atalhos]);
+  const secoesDaHome = useAparencia(useShallow((s) => secoesVisiveis(s)));
   const temMisturaDoDia = useMisturaDoDia((s) => !(s.estado === 'vazio' || (s.estado === 'pronto' && s.faixas.length === 0)));
   // O mesmo `destinoDoRecente` do "Jump back in" do PC (lib/destinos.ts).
   const voltarA = useCallback((r: Recente) => {
@@ -539,6 +543,111 @@ export function SearchScreen() {
     cab.espaco,
   );
 
+  // A Home por secções (10/10, personalização): a ordem e as escondidas vêm da
+  // store (`secoesVisiveis`), e cada secção desenha-se aqui pelo nome. Sem
+  // porteiro global: cada prateleira mostra o SEU esqueleto e entra quando
+  // chega. O que havia escondia as três rápidas -- consultas diretas à base de
+  // dados -- atrás da descoberta, que fala com o YouTube faixa a faixa.
+  const blocoDaHome = (secao: SecaoDaHome): React.ReactNode => {
+    switch (secao) {
+      // O "Jump back in" (3/10, variante A de docs/barra-home-folhas.html): os
+      // últimos sítios de onde se ouviu, para voltar onde se estava
+      // (lib/recentes.ts). Os atalhos de sempre -- Liked Songs e as misturas --
+      // só enchem o que falta: uma conta nova ainda não ouviu nada.
+      case 'voltar': return paraVoltar.length >= 2 && (
+        <View>
+          <View style={styles.sectionHeader}>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>Jump back in</Text>
+          </View>
+          <View style={[styles.atalhos, { marginTop: spacing.sm }]}>
+            {paraVoltar.map((r) => (
+              <Toque
+                key={r.chave}
+                acende
+                accessibilityRole="button"
+                accessibilityLabel={r.nome}
+                onPress={() => voltarA(r)}
+                style={styles.atalho}
+              >
+                {r.tipo === 'guardadas' ? (
+                  <View style={[styles.atalhoCapa, styles.atalhoCoracao]}>
+                    <Ionicons name="heart" size={20} color={colors.text} />
+                  </View>
+                ) : r.tipo === 'artista' ? (
+                  <View style={[styles.atalhoCapa, styles.atalhoCoracao]}>
+                    {r.capas[0] ? (
+                      <Image source={{ uri: capaParaLista(r.capas[0])! }} style={styles.atalhoRedonda} contentFit="cover" transition={200} />
+                    ) : <Ionicons name="person" size={20} color={colors.textSecondary} />}
+                  </View>
+                ) : (
+                  <View style={styles.atalhoCapa}>
+                    {(r.capas.length >= 4 ? r.capas.slice(0, 4) : r.capas.slice(0, 1)).map((c, i, todas) => (
+                      <Image
+                        key={i}
+                        source={{ uri: capaParaLista(c)! }}
+                        style={todas.length === 1 ? { width: '100%', height: '100%' } : { width: '50%', height: '50%' }}
+                        contentFit="cover"
+                        transition={200}
+                      />
+                    ))}
+                  </View>
+                )}
+                <Text numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.atalhoNome}>{r.nome}</Text>
+              </Toque>
+            ))}
+          </View>
+        </View>
+      );
+      // A Daily mix: a lista que se toca sem escolher nada. Em destaque (3/10):
+      // a capa grande e os artistas dela. Some quando não há mix. Sem título
+      // por cima (4/10): o cartão já diz "Your Daily mix".
+      case 'misturaDoDia': return (
+        <View style={{ paddingHorizontal: spacing.xl, marginTop: temMisturaDoDia ? spacing.xl : 0 }}>
+          <CartaoDaMisturaDoDia
+            destaque
+            aoAbrir={() => navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' } })}
+          />
+        </View>
+      );
+      // Os novos lançamentos dos teus artistas (10/10): mudam todos os dias. Um
+      // álbum abre a mesma folha dos álbuns da página do artista.
+      case 'lancamentos': return <NovosLancamentos aoAbrir={(l) => setAlbumAberto({ id: l.id, titulo: l.titulo, legenda: legendaDoLancamento(l), capa: l.capa })} />;
+      // Só descoberta: música que ele não tem, escolhida pelo que ele ouve. Muda
+      // TODOS OS DIAS (`descobertasDoDia`); o que se viu nos últimos 28 dias não volta.
+      case 'descobrir': return renderRecommendationSection('descobrir', 'Discover daily', descobrir, jaChegou('descobrir'), { lista: true });
+      // O "Discover daily" vai para FORA (artistas vizinhos, só música que
+      // saiu); esta vai para dentro: o que os artistas dele nunca lançaram (ver
+      // api/naoLancado.ts). "New to you" é uma promessa que ele cumpre: nada
+      // guardado, ouvido há pouco ou ocultado, em versão nenhuma.
+      case 'raros': return renderRecommendationSection('nuncaLancado', 'Rare finds', nuncaLancado, jaChegou('nuncaLancado'), { largura: 150, selo: 'New to you' });
+      // As playlists que a app monta: três prateleiras da MESMA forma, e a
+      // diferença está toda no título (Your styles: artistas teus que partilham
+      // vizinhos; Radio: três faixas novas por cada tua; Playlists: a tua
+      // biblioteca com descobertas pelo meio). Ver `lib/estilos.ts` e `radiosDeArtista`.
+      case 'estilos': return renderPrateleiraDeMisturas('Your styles', misturasDeEstilo);
+      case 'radios': return renderPrateleiraDeMisturas('Radio', radios);
+      // Géneros e décadas arrumam a biblioteca por uma gaveta que não é o
+      // artista, sem perguntar nada a catálogo nenhum (`lib/generos.ts`, `lib/decadas.ts`).
+      case 'generos': return renderPrateleiraDeMisturas('Your genres', generos);
+      case 'decadas': return renderPrateleiraDeMisturas('Decades', decadas);
+      case 'playlists': return (!misturasProntas || misturasDeArtista.length > 0) && (misturasProntas
+        ? renderPrateleiraDeMisturas('Playlists', misturasDeArtista)
+        : (
+          <View style={styles.recsSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { flex: 1 }]}>Playlists</Text>
+            </View>
+            <SkeletonDePrateleira largura={CAIXA_DA_MISTURA} cartoes={2} />
+          </View>
+        ));
+      // Os amigos: a única prateleira daqui que não sai do teu próprio histórico.
+      case 'amigos': return renderRecommendationSection('amigos', "Your friends' favourites", dosAmigos, jaChegou('amigos'), { largas: true });
+      case 'ouvirDeNovo': return renderRecommendationSection('ouvirDeNovo', 'Listen again', listenAgain, jaChegou('ouvirDeNovo'), { largas: true });
+      case 'maisTocadas': return renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, jaChegou('maisTocadas'), { largas: true });
+      case 'esquecidas': return renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, jaChegou('esquecidas'), { largas: true });
+    }
+  };
+
   // O refrescar vive no cabecalho, como no PC -- um icone, nao uma linha de
   // texto encostada a direita por cima de tudo. E so aparece quando ha
   // recomendacoes: antes disso nao ha nada para refrescar, e o botao chegava
@@ -697,144 +806,23 @@ export function SearchScreen() {
                 So aparece com mixes: uma grelha com um quadrado sozinho nao e
                 uma grelha, e no primeiro dia de uma conta nova nao ha mixes
                 nenhuns. */}
-            {/* O "Jump back in" (3/10, variante A de docs/barra-home-folhas.html):
-                os últimos sítios de onde se ouviu, para voltar onde se estava
-                (lib/recentes.ts). Os atalhos de sempre -- Liked Songs e as
-                misturas -- só enchem o que falta: uma conta nova ainda não
-                ouviu nada. */}
-            {paraVoltar.length >= 2 && (
-              <View>
-                <View style={styles.sectionHeader}>
-                  <Text accessibilityRole="header" style={styles.sectionTitle}>Jump back in</Text>
-                </View>
-                <View style={[styles.atalhos, { marginTop: spacing.sm }]}>
-                  {paraVoltar.map((r) => (
-                    <Toque
-                      key={r.chave}
-                      acende
-                      accessibilityRole="button"
-                      accessibilityLabel={r.nome}
-                      onPress={() => voltarA(r)}
-                      style={styles.atalho}
-                    >
-                      {r.tipo === 'guardadas' ? (
-                        <View style={[styles.atalhoCapa, styles.atalhoCoracao]}>
-                          <Ionicons name="heart" size={20} color={colors.text} />
-                        </View>
-                      ) : r.tipo === 'artista' ? (
-                        <View style={[styles.atalhoCapa, styles.atalhoCoracao]}>
-                          {r.capas[0] ? (
-                            <Image source={{ uri: capaParaLista(r.capas[0])! }} style={styles.atalhoRedonda} contentFit="cover" transition={200} />
-                          ) : <Ionicons name="person" size={20} color={colors.textSecondary} />}
-                        </View>
-                      ) : (
-                        <View style={styles.atalhoCapa}>
-                          {(r.capas.length >= 4 ? r.capas.slice(0, 4) : r.capas.slice(0, 1)).map((c, i, todas) => (
-                            <Image
-                              key={i}
-                              source={{ uri: capaParaLista(c)! }}
-                              style={todas.length === 1 ? { width: '100%', height: '100%' } : { width: '50%', height: '50%' }}
-                              contentFit="cover"
-                              transition={200}
-                            />
-                          ))}
-                        </View>
-                      )}
-                      <Text numberOfLines={2} maxFontSizeMultiplier={ESCALA_MAXIMA.lista} style={styles.atalhoNome}>{r.nome}</Text>
-                    </Toque>
-                  ))}
-                </View>
-              </View>
-            )}
-            {/* A Daily mix, logo a seguir: é a lista que se toca sem escolher
-                nada. Em destaque na Home (3/10): a capa grande e os artistas
-                dela. Some quando não há mix para mostrar. */}
-            {/* Sem título por cima (4/10): o cartão já diz "Your Daily mix". */}
-            <View style={{ paddingHorizontal: spacing.xl, marginTop: temMisturaDoDia ? spacing.xl : 0 }}>
-              <CartaoDaMisturaDoDia
-                destaque
-                aoAbrir={() => navigation.navigate('Prateleira', { titulo: 'Daily mix', fonte: { tipo: 'doDia' } })}
-              />
-            </View>
-            {/* Os novos lançamentos dos teus artistas (10/10): logo a seguir à
-                Daily mix, porque mudam todos os dias. Um álbum abre a mesma
-                folha dos álbuns da página do artista. */}
-            <NovosLancamentos aoAbrir={(l) => setAlbumAberto({ id: l.id, titulo: l.titulo, legenda: legendaDoLancamento(l), capa: l.capa })} />
-            {/* Sem porteiro global: cada prateleira mostra o SEU esqueleto e
-                entra quando chega. O que estava aqui escondia as tres rapidas
-                -- consultas diretas a base de dados -- atras da descoberta,
-                que fala com o YouTube faixa a faixa. Era esperar pela mais
-                lenta com as outras ja prontas em memoria, que e precisamente
-                o que o carregamento por partes existe para evitar. */}
-            {(
-              <View>
-                {/* A PRIMEIRA prateleira e so descoberta: musica que ele nao
-                    tem, escolhida pelo que ele ouve. Muda TODOS OS DIAS, e nao
-                    uma vez por semana como ate 20/9 -- ver `descobertasDoDia`.
-                    O que se viu nos ultimos 28 dias nao volta. */}
-                {renderRecommendationSection('descobrir', 'Discover daily', descobrir, jaChegou('descobrir'), { lista: true })}
-                {/* Logo a seguir, e de propósito. O "Discover daily" vai para
-                    FORA -- artistas vizinhos, e só música que saiu. Esta vai
-                    para dentro: o que os artistas dele nunca lançaram, que não
-                    existe em catálogo nenhum. Ver api/naoLancado.ts. */}
-                {/* "New to you" é uma promessa que o `api/naoLancado.ts`
-                    cumpre: nada guardado, ouvido há pouco ou ocultado, em
-                    versão nenhuma. */}
-                {renderRecommendationSection('nuncaLancado', 'Rare finds', nuncaLancado, jaChegou('nuncaLancado'), { largura: 150, selo: 'New to you' })}
-                {/* As playlists que a app monta. Entre a descoberta e o que
-                    já se ouviu: é onde deixa de ser "música nova" e começa a
-                    ser "música tua, arrumada". */}
-                {/* Tres prateleiras da MESMA forma, e a diferenca esta toda
-                    no titulo -- que e o que elas tem de diferente:
-                      Your styles  -> artistas teus que partilham vizinhos
-                      Radio        -> tres faixas novas por cada tua
-                      Playlists    -> a tua biblioteca com descobertas pelo meio
-                    Ver `lib/estilos.ts` e `radiosDeArtista`. */}
-                {renderPrateleiraDeMisturas('Your styles', misturasDeEstilo)}
-                {renderPrateleiraDeMisturas('Radio', radios)}
-                {/* Generos e decadas arrumam a biblioteca por uma gaveta que
-                    nao e o artista, e nenhuma das duas pergunta seja o que for
-                    a catalogo nenhum -- saem da linha que ja la esta. Ver
-                    `lib/generos.ts` e `lib/decadas.ts`. */}
-                {renderPrateleiraDeMisturas('Your genres', generos)}
-                {renderPrateleiraDeMisturas('Decades', decadas)}
-                {(!misturasProntas || misturasDeArtista.length > 0) &&
-                  (misturasProntas
-                    ? renderPrateleiraDeMisturas('Playlists', misturasDeArtista)
-                    : (
-                      <View style={styles.recsSection}>
-                        <View style={styles.sectionHeader}>
-                          <Text style={[styles.sectionTitle, { flex: 1 }]}>Playlists</Text>
-                        </View>
-                        <SkeletonDePrateleira largura={CAIXA_DA_MISTURA} cartoes={2} />
-                      </View>
-                    ))}
-                {/* Os amigos, e a unica prateleira desta pagina que nao sai
-                    do teu proprio historico. Fica entre a descoberta e o que
-                    ja e teu, que e onde ela pertence. */}
-                {renderRecommendationSection('amigos', "Your friends' favourites", dosAmigos, jaChegou('amigos'), { largas: true })}
-                {renderRecommendationSection('ouvirDeNovo', 'Listen again', listenAgain, jaChegou('ouvirDeNovo'), { largas: true })}
-                {renderRecommendationSection('maisTocadas', 'Heavy rotation', heavyRotation, jaChegou('maisTocadas'), { largas: true })}
-                {renderRecommendationSection('esquecidas', 'Forgotten favourites', forgottenFavorites, jaChegou('esquecidas'), { largas: true })}
-                
-                {/* O vazio deixa de ser so uma frase.
-                    ------------------------------------------------------------
-                    Dizia "comeca a ouvir musica" a quem acabou de instalar a
-                    app -- verdade, e inutil: a pagina que devia mostrar musica
-                    estava a mandar a pessoa ir descobri-la sozinha. Escolher
-                    tres artistas da a esta pagina por onde comecar, e o botao
-                    desaparece assim que houver recomendacoes. */}
-                {!loadingRecs && !temRecomendacoes(recs) && (
-                  <View style={{ alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: spacing.xl }}>
-                    <Text style={styles.emptyRecsText}>
-                      {hasFeedback
-                        ? 'No suggestions match your current preferences. You can review them in Settings → Recommendations, or search for music above.'
-                        : 'Nothing to go on yet. Tell the app three artists you like and it starts from there.'}
-                    </Text>
-                    {!hasFeedback && (
-                      <PillButton label="Pick 3 artists" onPress={() => setEscolherAberto(true)} />
-                    )}
-                  </View>
+            {secoesDaHome.map((secao) => <React.Fragment key={secao}>{blocoDaHome(secao)}</React.Fragment>)}
+            {/* O vazio deixa de ser so uma frase.
+                ------------------------------------------------------------
+                Dizia "comeca a ouvir musica" a quem acabou de instalar a
+                app -- verdade, e inutil: a pagina que devia mostrar musica
+                estava a mandar a pessoa ir descobri-la sozinha. Escolher
+                tres artistas da a esta pagina por onde comecar, e o botao
+                desaparece assim que houver recomendacoes. */}
+            {!loadingRecs && !temRecomendacoes(recs) && (
+              <View style={{ alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.xl, paddingTop: spacing.xl }}>
+                <Text style={styles.emptyRecsText}>
+                  {hasFeedback
+                    ? 'No suggestions match your current preferences. You can review them in Settings → Recommendations, or search for music above.'
+                    : 'Nothing to go on yet. Tell the app three artists you like and it starts from there.'}
+                </Text>
+                {!hasFeedback && (
+                  <PillButton label="Pick 3 artists" onPress={() => setEscolherAberto(true)} />
                 )}
               </View>
             )}

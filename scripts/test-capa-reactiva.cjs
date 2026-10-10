@@ -160,8 +160,9 @@ async function run() {
   assert.ok(lateral, 'a lateral existe');
   assert.match(lateral[0], /recuoDasLaterais/, 'as laterais ficam para dentro da face');
   assert.ok(c.recuoDasLaterais > 0 && c.recuoDasLaterais <= 1.5, 'o recuo é de uma fração de ponto');
-  assert.match(player, /\{!capaFlutuante && <View pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, styles\.arestaDaCapa\]\} \/>\}/,
-    'o fio claro da capa só existe na capa plana');
+  assert.match(player, /\{!capaFlutuante && !capaInteira && <View pointerEvents="none" style=\{\[StyleSheet\.absoluteFill, styles\.arestaDaCapa\]\} \/>\}/,
+    'o fio claro da capa só existe na capa plana com cantos (a "Full" não os tem, 10/10)');
+  assert.equal(regra.interpretarEstiloDaCapa('full', 'off'), 'full', 'a capa a toda a largura guarda-se');
   assert.match(cubo, /shouldRasterizeIOS/, 'o que é estático na caixa é rasterizado');
   const corpoDoLeitor = player.slice(player.indexOf('export function PlayerRoot'), player.indexOf('function BarraDoLeitor'));
   assert.ok(corpoDoLeitor.length > 1000, 'o corpo do PlayerRoot foi encontrado');

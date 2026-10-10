@@ -1,6 +1,7 @@
 import { PainelDeSaude } from '../components/PainelDeSaude';
 import { souAdministrador } from '../api/painelDeSaude';
 import { loadCapaIOS, useCapaIOS } from '../state/capaIOS';
+import { ESTILOS_DA_CAPA } from '../lib/aparencia';
 import { ROTULOS } from '../lib/rotulosDasDefinicoes';
 import { getCarroMantemEcra, setCarroMantemEcra } from '../lib/prefs';
 import { useNotifications } from '../state/notifications';
@@ -417,9 +418,9 @@ export function SettingsScreen({ navigation }: Props) {
     qualidade: { opcoes: ['High', 'Data saver'], atual: audioQuality === 'saver' ? 1 : 0, escolher: (i) => void changeAudioQuality(i) },
     destaque: { opcoes: ['Steel', 'Cover'], atual: modo === 'cover' ? 1 : 0, escolher: (i) => void setMode(i === 1 ? 'cover' : 'steel') },
     capa: {
-      opcoes: ['Floating 3D', 'Simple'],
-      atual: coverStyle === 'floating' ? 0 : 1,
-      escolher: (i) => useCapaIOS.getState().setStyle(i === 0 ? 'floating' : 'simple'),
+      opcoes: ESTILOS_DA_CAPA.map((e) => e.nome),
+      atual: Math.max(0, ESTILOS_DA_CAPA.findIndex((e) => e.valor === coverStyle)),
+      escolher: (i) => useCapaIOS.getState().setStyle(ESTILOS_DA_CAPA[i]?.valor ?? 'floating'),
     },
   };
   const [menu, setMenu] = useState<{ chave: string; ancora: Ancora } | null>(null);
