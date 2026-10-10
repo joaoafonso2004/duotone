@@ -73,6 +73,7 @@ test-*.mjs
 !scripts/test-gasto-em-segundo-plano.mjs
 !scripts/test-icone-do-windows.mjs
 !scripts/test-sincronizacao-economica.mjs
+!scripts/test-segunda-instancia.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/

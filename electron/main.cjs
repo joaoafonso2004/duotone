@@ -72,7 +72,13 @@ function entregarJuncoesPendentes() {
 ouvirJuncao(entregarJuncaoDoDiscord);
 
 // Um arranque automático não pode criar um segundo leitor em paralelo.
-if (!app.requestSingleInstanceLock()) app.quit();
+// A segunda sai JÁ, com `app.exit` (11/10). Era `app.quit()`, que antes do
+// `ready` não trava o `whenReady`: ela seguia, tentava abrir o servidor na
+// porta que a primeira já tem e mostrava "A porta 18081 esta a ser usada por
+// outro programa" a quem só tinha clicado no ícone com a app aberta. A
+// primeira recebe o `second-instance` e mostra a janela.
+const eAPrimeira = app.requestSingleInstanceLock();
+if (!eAPrimeira) app.exit(0);
 app.on('second-instance', (_event, argv) => {
   mostrarJanelaPrincipal();
   pedirAcaoDaBarra(barra.acaoDosArgumentos(argv));
@@ -1698,6 +1704,8 @@ app.on('will-quit', () => {
 });
 
 app.whenReady().then(async () => {
+  // A segunda instância não arranca nada (ver `eAPrimeira`), nem que o `ready` chegue.
+  if (!eAPrimeira) return;
   app.setAppUserModelId('com.joao.duotone.desktop');
   // Equivalente ao Discord_Register do SDK legado. Permite ao Discord abrir a
   // Duotone quando o convidado aceita um Jam e a aplicação estava fechada.
