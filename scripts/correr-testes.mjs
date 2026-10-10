@@ -262,6 +262,22 @@ const TESTES = [
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));
+
+// Antes de correr: cada teste da lista tem de estar no git. O `test-*.mjs` do
+// .gitignore engole em silêncio um teste novo, que passa aqui e parte o CI
+// (a 4.9.0 morreu assim a 11/10, com o test-barra-de-tarefas.mjs). Sem git à
+// mão, segue.
+const ficheiros = TESTES.map((t) => t.split(' ').at(-1));
+const noGit = spawnSync('git', ['ls-files', '--', ...ficheiros], { cwd: raiz, encoding: 'utf8' });
+if (noGit.status === 0) {
+  const seguidos = new Set(noGit.stdout.split(/\r?\n/).filter(Boolean));
+  const fora = ficheiros.filter((f) => !seguidos.has(f));
+  if (fora.length) {
+    console.error(`✗ Fora do git (o CI não os vai ter; o .gitignore ignora test-*.mjs, acrescenta-os às exceções):\n  ${fora.join('\n  ')}`);
+    process.exit(1);
+  }
+}
+
 const inicio = Date.now();
 for (const [i, teste] of TESTES.entries()) {
   const r = spawnSync(process.execPath, teste.split(' '), { cwd: raiz, stdio: 'inherit' });

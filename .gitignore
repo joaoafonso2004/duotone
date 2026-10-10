@@ -74,6 +74,7 @@ test-*.mjs
 !scripts/test-icone-do-windows.mjs
 !scripts/test-sincronizacao-economica.mjs
 !scripts/test-segunda-instancia.mjs
+!scripts/test-barra-de-tarefas.mjs
 
 # Cache das ferramentas de diagnostico em scripts/ (respostas da YouTube API)
 .cache/
