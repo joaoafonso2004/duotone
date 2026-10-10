@@ -30,7 +30,10 @@ import { colors, MINI_PLAYER_HEIGHT, spacing, radii, type as typography } from '
 import { useTheme } from '../state/theme';
 import { marcarArtistaAberto } from '../state/novosLancamentos';
 import { hapticSelection } from '../lib/haptics';
-import { chaveDeArtista, displayArtist } from '../lib/artistName';
+import { chaveDeArtista, displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { detalheDaLinha, infoDe, ordenarMusicasDoArtista } from '../lib/ordemDoArtista';
+import { chaveDoTitulo } from '../lib/albunsDoArtista';
+import { getOrdemDoArtista, setOrdemDoArtista, type OrdemDoArtista } from '../lib/prefs';
 import { useAuth } from '../state/auth';
 import type { Track } from '../types';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
@@ -161,10 +164,19 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   }, [type, name]);
   // As do canal primeiro; sem canal (ou sem lista), a pesquisa pelo nome.
   const doCanal = pagina?.musicas.length ? pagina.musicas : null;
+  // "Most played" ou "Newest" (10/10, lib/ordemDoArtista.ts): as reproduções e
+  // o ano vêm da página do canal, sem pedidos a mais. Nas duas abas de músicas.
+  const [ordem, setOrdem] = useState<OrdemDoArtista>('ouvidas');
+  useEffect(() => { void getOrdemDoArtista().then(setOrdem).catch(() => {}); }, []);
+  const escolherOrdem = (o: OrdemDoArtista) => { hapticSelection(); setOrdem(o); void setOrdemDoArtista(o).catch(() => {}); };
+  const infoDaFaixa = useCallback((t: Track) => (pagina ? infoDe(pagina.info, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null), [pagina]);
+  const ordenar = useCallback((lista: Track[]) => (type === 'artist' ? ordenarMusicasDoArtista(lista, ordem, infoDaFaixa) : lista),
+    [type, ordem, infoDaFaixa]);
   const otherTracks = useMemo(() => {
     const ids = new Set(tracks.map(t => `${t.source}:${t.sourceId}`));
-    return (doCanal ?? ytTracks).filter(t => !ids.has(`${t.source}:${t.sourceId}`));
-  }, [doCanal, ytTracks, tracks]);
+    return ordenar((doCanal ?? ytTracks).filter(t => !ids.has(`${t.source}:${t.sourceId}`)));
+  }, [doCanal, ytTracks, tracks, ordenar]);
+  const tracksDaAba = useMemo(() => ordenar(tracks), [tracks, ordenar]);
   const favoritos = useArtistasFavoritos((s) => s.chaves);
   const alternarFavorito = useArtistasFavoritos((s) => s.alternar);
   useEffect(() => { void useArtistasFavoritos.getState().carregar(); }, []);
@@ -192,7 +204,7 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
   const tocarLista = usePlayer((s) => s.tocarLista);
   // O Play usa a mesma lista que está à vista. Em Albums abre-se primeiro um
   // álbum; não há uma lista de músicas para o Play do topo tocar.
-  const faixasDaAba = activeTab === 'library' ? tracks : activeTab === 'youtube_tracks' ? otherTracks : [];
+  const faixasDaAba = activeTab === 'library' ? tracksDaAba : activeTab === 'youtube_tracks' ? otherTracks : [];
   // As músicas do canal chegam com os álbuns; a pesquisa pelo nome é o recurso.
   const waiting = loading || (activeTab === 'youtube_tracks' && (loadingYtAlbums || (!doCanal && loadingYtTracks)))
     || (activeTab === 'youtube_albums' && loadingYtAlbums);
@@ -299,8 +311,15 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
         <Text style={[styles.tabLabel, activeTab === tab && { color: colors.text }]}>{label}</Text>
       </Pressable>)}
     </View>}
+    {type === 'artist' && activeTab !== 'youtube_albums' && <View style={styles.ordem} accessibilityRole="radiogroup">
+      {([['ouvidas', 'Most played'], ['recentes', 'Newest']] as const).map(([o, rotulo]) => <Pressable key={o}
+        accessibilityRole="radio" accessibilityState={{ selected: ordem === o }} hitSlop={6}
+        style={[styles.ordemOpcao, ordem === o && styles.ordemOpcaoAtiva]} onPress={() => escolherOrdem(o)}>
+        <Text style={[styles.ordemTexto, ordem === o && { color: colors.text }]}>{rotulo}</Text>
+      </Pressable>)}
+    </View>}
   </>;
-  const rows = activeTab === 'youtube_albums' ? ytAlbums : activeTab === 'youtube_tracks' ? otherTracks : tracks;
+  const rows = activeTab === 'youtube_albums' ? ytAlbums : activeTab === 'youtube_tracks' ? otherTracks : tracksDaAba;
   return (
     // O título encolhe ao rolar (3/10): no álbum, o título do cabeçalho; no
     // artista, o nome grande da capa dá lugar ao pequeno na barra de cima.
@@ -329,7 +348,8 @@ export function LibraryGroupScreen({ route, navigation }: Props) {
           <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
         </Pressable> : <TrackRow track={item} showSavedBadge={activeTab === 'youtube_tracks'}
           acompanharATocar
-          onPress={() => tocarMusica(item, activeTab === 'library' ? tracks : otherTracks, true, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
+          contextLabel={type === 'artist' ? detalheDaLinha(ordem, infoDaFaixa(item)) ?? undefined : undefined}
+          onPress={() => tocarMusica(item, activeTab === 'library' ? tracksDaAba : otherTracks, true, undefined, origemDaPagina)} onAction={() => setActionTrack(item)} />}
       />
 
       <TrackActionsSheet
@@ -408,6 +428,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textSecondary,
   },
+  // "Most played" / "Newest" (10/10): mais pequeno do que os separadores, à direita.
+  ordem: {
+    flexDirection: 'row',
+    alignSelf: 'flex-end',
+    gap: 2,
+    padding: 2,
+    marginRight: spacing.xl,
+    marginBottom: spacing.sm,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
+  },
+  ordemOpcao: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radii.pill },
+  ordemOpcaoAtiva: { backgroundColor: colors.surfacePressed },
+  ordemTexto: { fontSize: 12, fontWeight: '600', color: colors.textSecondary },
   ultimo: {
     flexDirection: 'row',
     alignItems: 'center',

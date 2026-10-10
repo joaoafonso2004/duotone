@@ -25,6 +25,10 @@ export type CancaoComArtistas = {
   videoId: string; titulo: string; artistas: ArtistaDaCancao[];
   /** Nas listas de um artista vem a duração; na pesquisa às vezes não. */
   duracaoSec: number | null;
+  /** Nas listas do canal (10/10): "2.4B plays" tal como vem (`lerReproducoes`, em lib/ordemDoArtista.ts). */
+  reproducoes?: string | null;
+  /** E o álbum (o link `MPREb_...`): é por ele que se sabe o ano da música. */
+  album?: string | null;
 };
 export type Prova = { videoId: string | null; titulo: string };
 
@@ -180,7 +184,17 @@ export function lerCancoesComArtistas(resposta: unknown): CancaoComArtistas[] {
       }
     }
     const tempo = texto(it.fixedColumns?.[0]?.musicResponsiveListItemFixedColumnRenderer?.text).trim();
-    fora.push({ videoId, titulo, artistas, duracaoSec: segundos(tempo) });
+    // Das outras colunas: as reproduções ("2.4B plays") e o álbum (o link MPREb_).
+    let reproducoes: string | null = null;
+    let album: string | null = null;
+    for (const coluna of colunas.slice(2)) {
+      const t = coluna?.musicResponsiveListItemFlexColumnRenderer?.text;
+      const escrito = texto(t).trim();
+      if (!reproducoes && /^[\d.,]+\s*[KMB]?\s+(?:plays|views)$/i.test(escrito)) reproducoes = escrito;
+      const doAlbum = (Array.isArray(t?.runs) ? t.runs : []).find((r: any) => /^MPREb_/.test(r?.navigationEndpoint?.browseEndpoint?.browseId ?? ''));
+      if (!album && typeof doAlbum?.text === 'string') album = doAlbum.text;
+    }
+    fora.push({ videoId, titulo, artistas, duracaoSec: segundos(tempo), reproducoes, album });
   }
   return fora;
 }

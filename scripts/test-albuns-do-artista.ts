@@ -171,7 +171,7 @@ const pc = ler_('src/desktop/paginas/BibliotecaPages.web.tsx');
 const iphone = ler_('src/screens/LibraryGroupScreen.tsx');
 assert.match(pc, /const fotoDoCanal = foto \? null : pagina\?\.foto \?\? null;/);
 assert.match(iphone, /const capaDoArtista = foto\n\s+\?\? pagina\?\.foto/);
-assert.match(pc, /const faixasDaAba = separador === 'library' \? tracks : separador === 'tracks' \? outrasSemRepetir : \[\];/,
+assert.match(pc, /const faixasDaAba = separador === 'library' \? guardadasPorOrdem : separador === 'tracks' \? outrasPorOrdem : \[\];/,
   'PC: o Play segue a aba e não toca a biblioteca em Albums');
 assert.match(pc, /tocarLista\(faixasDaAba, ligado, inteligente, \{ tipo: 'artista', nome: name \}\)/);
 assert.match(iphone, /tocarLista\(faixasDaAba, shuffleLigado, shuffleInteligente, \{ tipo: 'artista', nome: name \}\)/);

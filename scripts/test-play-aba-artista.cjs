@@ -64,11 +64,15 @@ const mocks = {
   '../api/albunsDoArtista': { paginaDoArtista: () => paginaPromise }, '../api/search': { pesquisarFaixas: async () => more },
   '../state/artistasFavoritos': { useArtistasFavoritos: Object.assign(selector => selector({ chaves: new Set(), alternar() {} }), { getState: () => ({ carregar: async () => {} }) }) },
   '../state/novosLancamentos': { marcarArtistaAberto() {} },
+  // A ordem tem o seu teste (test-ordem-do-artista.ts): aqui fica a da lista.
+  '../lib/ordemDoArtista': { detalheDaLinha: () => null, infoDe: () => null, ordenarMusicasDoArtista: lista => lista },
+  '../lib/albunsDoArtista': { chaveDoTitulo: x => x },
+  '../lib/prefs': { getOrdemDoArtista: async () => 'ouvidas', setOrdemDoArtista: async () => {} },
   '../state/saved': { useSaved: { getState: () => ({ refresh() {} }) } }, '../state/player': { usePlayer },
   '../state/mixDoArtista': { tocarMixDoArtista: async (...args) => { calls.push(['mix', ...args]); return true; } },
   '../state/theme': { useTheme: selector => selector({ theme: { gradient: ['#000', '#333'], color: '#fff' } }) },
   '../theme': { colors: {}, spacing: {}, radii: {}, type: {}, MINI_PLAYER_HEIGHT: 64 }, '../lib/haptics': { hapticSelection() {} },
-  '../lib/artistName': { chaveDeArtista: name => name.toLowerCase(), displayArtist: t => t.artist,
+  '../lib/artistName': { chaveDeArtista: name => name.toLowerCase(), displayArtist: t => t.artist, tituloDaFaixa: t => t.title,
     agruparPorArtista: tracks => [{ chave: 'isak', faixas: tracks }] },
   '../lib/capaDoEcraBloqueado': { capaParaLista: x => x },
 };

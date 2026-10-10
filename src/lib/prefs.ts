@@ -453,6 +453,21 @@ export async function setOrdemDasGostadas(v: OrdemDasGostadas): Promise<void> {
 }
 
 /**
+ * A ordem das músicas na página de um artista (10/10, lib/ordemDoArtista.ts):
+ * "Most played" (as reproduções no YouTube Music) ou "Newest" (o ano do
+ * álbum). Do aparelho, como as outras ordens.
+ */
+const KEY_ORDEM_DO_ARTISTA = 'prefs:ordemDoArtista';
+export type OrdemDoArtista = 'ouvidas' | 'recentes';
+export async function getOrdemDoArtista(): Promise<OrdemDoArtista> {
+  const v = await AsyncStorage.getItem(KEY_ORDEM_DO_ARTISTA);
+  return v === 'recentes' ? 'recentes' : 'ouvidas';
+}
+export async function setOrdemDoArtista(v: OrdemDoArtista): Promise<void> {
+  await AsyncStorage.setItem(KEY_ORDEM_DO_ARTISTA, v);
+}
+
+/**
  * A presença do Discord: mostrar no perfil o que está a tocar.
  *
  * **Desligada de origem, e de propósito.** Isto publica o que estás a ouvir

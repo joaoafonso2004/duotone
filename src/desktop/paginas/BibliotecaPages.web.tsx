@@ -19,7 +19,9 @@ import { tocarMixDoArtista } from '../../state/mixDoArtista';
 import { pesquisarFaixas } from '../../api/search';
 import { addTracksToPlaylist, createPlaylist } from '../../api/playlists';
 import { getTopArtists } from '../../api/plays';
-import { addSearchHistoryEntry, clearSearchHistory, getOrdemDasGostadas, getSearchHistory, setOrdemDasGostadas } from '../../lib/prefs';
+import { addSearchHistoryEntry, clearSearchHistory, getOrdemDasGostadas, getOrdemDoArtista, getSearchHistory, setOrdemDasGostadas, setOrdemDoArtista, type OrdemDoArtista } from '../../lib/prefs';
+import { detalheDaLinha, infoDe, ordenarMusicasDoArtista } from '../../lib/ordemDoArtista';
+import { chaveDoTitulo } from '../../lib/albunsDoArtista';
 import { agruparPorArtista, chaveDeArtista, displayArtist, extractArtist, tituloDaFaixa } from '../../lib/artistName';
 import { useArtistasFavoritos } from '../../state/artistasFavoritos';
 import { ArtistFavoritesSyncStatus } from '../../components/ArtistFavoritesSyncStatus';
@@ -630,6 +632,18 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     [doCanal, outras, chavesDaBiblioteca],
   );
   const aProcurarMusicas = aProcurarAlbuns || (!doCanal && aDescobrir);
+  // "Most played" ou "Newest" (10/10, lib/ordemDoArtista.ts): as reproduções e
+  // o ano vêm da página do canal, sem pedidos a mais. Nas duas abas de músicas.
+  const [ordem, setOrdem] = useState<OrdemDoArtista>('ouvidas');
+  useEffect(() => { void getOrdemDoArtista().then(setOrdem).catch(() => {}); }, []);
+  const escolherOrdem = (o: OrdemDoArtista) => { setOrdem(o); void setOrdemDoArtista(o).catch(() => {}); };
+  const infoDaFaixa = useCallback((t: Track) => (pagina ? infoDe(pagina.info, t.sourceId, tituloDaFaixa(t), chaveDoTitulo) : null), [pagina]);
+  const guardadasPorOrdem = useMemo(() => ordenarMusicasDoArtista(tracks, ordem, infoDaFaixa), [tracks, ordem, infoDaFaixa]);
+  const outrasPorOrdem = useMemo(() => ordenarMusicasDoArtista(outrasSemRepetir, ordem, infoDaFaixa), [outrasSemRepetir, ordem, infoDaFaixa]);
+  const detalheDaFaixa = useCallback((t: Track) => {
+    const d = detalheDaLinha(ordem, infoDaFaixa(t));
+    return d ? <Text numberOfLines={1} style={artistStyles.detalhe}>{d}</Text> : null;
+  }, [ordem, infoDaFaixa]);
 
 
 
@@ -646,7 +660,7 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
     if (!ok) props.notify('Could not load the mix.');
   };
   // O Play do topo usa a lista da aba aberta, como o clique numa música dela.
-  const faixasDaAba = separador === 'library' ? tracks : separador === 'tracks' ? outrasSemRepetir : [];
+  const faixasDaAba = separador === 'library' ? guardadasPorOrdem : separador === 'tracks' ? outrasPorOrdem : [];
   const podeTocarAba = faixasDaAba.length > 0 && !(separador === 'tracks' && aProcurarMusicas);
   const playAll = () => {
     if (!podeTocarAba) return;
@@ -698,13 +712,20 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
             <Ionicons name={icon} size={15} color={separador === id ? desktop.text : desktop.dim} />
             <Text style={[artistStyles.tabText, separador === id && artistStyles.tabTextActive]}>{label}</Text>
           </Pressable>)}
+          {separador !== 'albums' && <View style={artistStyles.ordem} accessibilityRole={'radiogroup' as any}>
+            {([['ouvidas', 'Most played'], ['recentes', 'Newest']] as const).map(([o, rotulo]) => <Pressable key={o}
+              accessibilityRole={'radio' as any} accessibilityState={{ checked: ordem === o }} onPress={() => escolherOrdem(o)}
+              style={({ hovered }: any) => [artistStyles.ordemOpcao, ordem === o && artistStyles.ordemOpcaoAtiva, hovered && ordem !== o && artistStyles.tabHover]}>
+              <Text style={[artistStyles.ordemTexto, ordem === o && artistStyles.tabTextActive]}>{rotulo}</Text>
+            </Pressable>)}
+          </View>}
         </View>
 
-        {separador === 'library' && <TrackTable plain colunaDoArtista={false} tracks={tracks} onPlay={(t) => props.tocarMusica(t, tracks, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
+        {separador === 'library' && <TrackTable plain colunaDoArtista={false} tracks={guardadasPorOrdem} caraDaLinha={detalheDaFaixa} onPlay={(t) => props.tocarMusica(t, guardadasPorOrdem, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
           empty={<Empty icon="heart-outline" title="Nothing saved" body="Save a track by this artist and it will appear here." />} />}
 
         {separador === 'tracks' && (aProcurarMusicas ? <View style={{ height: 280 }}><Loading /></View> :
-          <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasSemRepetir} onPlay={(t) => props.tocarMusica(t, outrasSemRepetir, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
+          <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasPorOrdem} caraDaLinha={detalheDaFaixa} onPlay={(t) => props.tocarMusica(t, outrasPorOrdem, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
             empty={<Empty icon="search-outline" title="No other tracks found" body="No other songs by this artist were found." />} />)}
 
         {separador === 'albums' && (aProcurarAlbuns ? <View style={{ height: 280 }}><Loading /></View> : albuns.length ?
@@ -850,6 +871,12 @@ const artistStyles = StyleSheet.create({
   tabHover: { backgroundColor: COR.hover },
   tabText: { ...TIPO.corpo, color: COR.textoFraco, fontWeight: '600' as any },
   tabTextActive: { color: COR.texto },
+  // "Most played" / "Newest" (10/10), à direita dos separadores.
+  ordem: { flexDirection: 'row', marginLeft: 'auto', gap: 2, padding: 2, borderRadius: 999, borderWidth: 1, borderColor: COR.linhaSuave } as any,
+  ordemOpcao: { paddingHorizontal: ESP.md, paddingVertical: 5, borderRadius: 999 },
+  ordemOpcaoAtiva: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  ordemTexto: { ...TIPO.legenda, color: COR.textoFraco, fontWeight: '600' as any },
+  detalhe: { ...TIPO.legenda, color: COR.textoFraco, marginRight: ESP.md, fontVariant: ['tabular-nums'] as any },
   albumGrid: { flexDirection: 'row', flexWrap: 'wrap', columnGap: ESP.xxl, rowGap: ESP.xxl },
   albumCard: { width: 190 },
   artistaCard: { width: 170, alignItems: 'center' },

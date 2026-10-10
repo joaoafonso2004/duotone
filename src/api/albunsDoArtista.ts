@@ -1,9 +1,10 @@
 import { chaveDeArtista, tituloNoLeitor } from '../lib/artistName';
 import {
-  canalPelasProvas, canalSemProvas, FORMA_DO_CANAL, fotoDoCanal, legendaDoAlbum, lerAlbunsDoCanal, lerCancoesComArtistas, lerMusicasDoCanal,
+  canalPelasProvas, canalSemProvas, chaveDoTitulo, FORMA_DO_CANAL, fotoDoCanal, legendaDoAlbum, lerAlbunsDoCanal, lerCancoesComArtistas, lerMusicasDoCanal,
   maisRecente, mixDoCanal, type AlbumDoArtista, type CancaoComArtistas, type MixDoArtista, type Prova,
 } from '../lib/albunsDoArtista';
 import type { Track } from '../types';
+import { INFO_VAZIA, infoDasMusicas, lerReproducoes, type InfoDasMusicas } from '../lib/ordemDoArtista';
 import type { YtRecommendedPlaylist } from './youtube';
 import { lerNoYtMusic, pesquisarCancoesCru } from './ytMusic';
 
@@ -23,9 +24,11 @@ export type PaginaDoArtista = {
   mix: MixDoArtista | null;
   /** A foto do canal (30/9, `fotoDoCanal`): quando o catálogo não tem a dele. */
   foto: string | null;
+  /** As reproduções e o ano de cada música (10/10, lib/ordemDoArtista.ts): "Most played" e "Newest". */
+  info: InfoDasMusicas;
 };
 
-const VAZIA: PaginaDoArtista = { albuns: [], maisRecente: null, musicas: [], mix: null, foto: null };
+const VAZIA: PaginaDoArtista = { albuns: [], maisRecente: null, musicas: [], mix: null, foto: null, info: INFO_VAZIA };
 /** Em memória, por sessão: não vale uma escrita no Supabase por página aberta. */
 const memoria = new Map<string, Promise<PaginaDoArtista>>();
 
@@ -125,10 +128,15 @@ async function procurar(nome: string, alvo: string, provas: Prova[], escolhido: 
   const daLista = todas ? lerCancoesComArtistas(await lerNoYtMusic(todas)) : [];
   const albuns = lidos.map(paraLista);
   const recente = maisRecente(lidos);
+  const cancoes = daLista.length ? daLista : topo;
   return {
     albuns,
     maisRecente: recente ? albuns.find((a) => a.id === recente.id) ?? null : null,
-    musicas: (daLista.length ? daLista : topo).map((c) => paraFaixa(c, nome)),
+    musicas: cancoes.map((c) => paraFaixa(c, nome)),
+    info: infoDasMusicas(
+      cancoes.map((c) => ({ videoId: c.videoId, titulo: c.titulo, reproducoes: lerReproducoes(c.reproducoes), album: c.album })),
+      lidos, chaveDoTitulo,
+    ),
     mix: mixDoCanal(paginaDoCanal),
     foto: fotoDoCanal(paginaDoCanal),
   };
