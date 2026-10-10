@@ -119,6 +119,46 @@ const resposta = (corpo) => ({ ok: true, json: async () => corpo });
   console.log('Rádio: canal musical confirmado, sem futebol, cache partilhada e alternativa segura quando o canal falha.');
 }
 
+// O Radio de "Eloy Ft.Randy - Fuera Del Planeta" não arrancava (10/10): o
+// catálogo não conhece o artista e o canal não se confirma. Fica o rádio da
+// PRÓPRIA música no YouTube Music, que é música parecida com esta.
+{
+  const faixa = (sourceId, title, artist, durationSeconds = 220) => ({
+    source: 'youtube', sourceId, title, artist, durationSeconds, album: null, artworkUrl: null,
+  });
+  const semente = faixa('sOevdW_9DHk', 'Fuera Del Planeta', 'Eloy Ft.Randy');
+  const parecidas = ['Fantasma', 'Shorty', 'Bajaera', 'Vamonos', 'Alocate', 'Sola', 'Ella Me Levanto', 'Mayor Que Yo', 'Rakata', 'Gasolina', 'Noche De Sexo', 'Pa Que La Pases Bien', 'Dale Don Dale']
+    .map((t, i) => faixa(`reggaeton${String(i).padStart(2, '0')}`, t, `Artista ${i}`));
+  const futebol = faixa('futebolxxxx', 'Best of Alexander Isak (2025/2026)', 'Football videos', 255);
+  let fluxos = 0;
+  const radios = [];
+  const mundo = ambiente(() => { throw Error('Este teste não usa rede'); }, {
+    'src/state/connectivity.ts': { useConnectivity: { getState: () => ({ offline: false }) } },
+    'src/state/recommendationFeedback.ts': { feedbackReady: async () => {}, filterSuggestions: (faixas) => faixas },
+    'src/api/library.ts': { getLibrary: async () => [semente] },
+    'src/lib/cacheDaBiblioteca.ts': { lerFaixas: (ler) => ler() },
+    'src/api/descoberta.ts': { candidatasParaDescoberta: async () => [] },
+    'src/api/perfilDeRecomendacoes.ts': { lerPerfilDeRecomendacoes: async () => null },
+    'src/api/plays.ts': { getFlowMix: async () => { fluxos++; return []; } },
+    'src/api/search.ts': { pesquisarFaixas: async () => [] },
+    'src/api/ytMusic.ts': {
+      pesquisarCancoesCru: async () => null,
+      lerNoYtMusic: async () => null,
+      lerRadioPeloYtMusic: async (mix) => { radios.push(mix); return [semente, futebol, ...parecidas]; },
+    },
+  });
+  const nomes = mundo.carregar('src/lib/artistName.ts');
+  assert.equal(nomes.displayArtist(semente), 'Eloy', 'o "Ft." colado também se corta');
+  const radio = mundo.carregar('src/api/radio.ts');
+  const lote = await radio.fetchRadioTracks([semente], [semente], 12, undefined, 'session');
+  assert.equal(JSON.stringify(radios[0]), JSON.stringify({ playlistId: 'RDAMVMsOevdW_9DHk', videoId: 'sOevdW_9DHk', params: null }), 'o rádio da própria música');
+  assert.equal(lote.length, 12, 'o Radio arranca com um lote inteiro');
+  assert.ok(!lote.some(t => t.sourceId === semente.sourceId), 'sem a música que já toca');
+  assert.ok(!lote.some(t => t.sourceId === futebol.sourceId), 'e o que não é música continua de fora');
+  assert.equal(fluxos, 0, 'a sessão continua sem o Flow geral');
+  console.log('Rádio: sem catálogo nem canal, arranca pelo rádio da própria música.');
+}
+
 let livres = 0, pagas = 0, falhar = false;
 const pesquisa = ambiente(async () => {}, {
   'src/api/ytSearchFree.ts': {

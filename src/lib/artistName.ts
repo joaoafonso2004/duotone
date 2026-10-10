@@ -36,11 +36,14 @@
  * Funções puras (testáveis em Node puro — ver scripts/test-artist-name.ts).
  */
 
-const FEAT_RE = /\s+(?:feat\.?|ft\.?|featuring)\s+.*$/i;
+// `Eloy Ft.Randy`: com o ponto, o nome pode vir colado (10/10). Sem isso o
+// artista era "Eloy Ft.Randy", que nenhum catálogo conhece, e o Radio dessa
+// música não arrancava.
+const FEAT_RE = /\s+(?:(?:feat|ft)\.\s*(?=\S)|(?:feat\.?|ft\.?|featuring)\s+).*$/i;
 
 /** Separadores de colaboração. Repara que a VÍRGULA não está aqui: há nomes
  * que a levam no meio ("Tyler, The Creator"), e cortar por ela partia-os. */
-const COLABORACAO_RE = /\s+(?:&|\+|x|X|vs\.?|with|feat\.?|ft\.?|featuring)\s+.*$/;
+const COLABORACAO_RE = /\s+(?:(?:&|\+|x|X|vs\.?|with|feat\.?|ft\.?|featuring)\s+|(?:[Ff]eat|[Ff]t|FEAT|FT)\.(?=\S)).*$/;
 
 /** Prefixos que os canais de uploads põem à frente do título. */
 const PREFIXO_DE_UPLOAD_RE =

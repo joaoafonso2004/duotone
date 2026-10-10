@@ -12,7 +12,7 @@ function load(file,mocks={}){
 }
 const t=(id,title,artist='Isak Zigarro')=>({source:'youtube',sourceId:id,title,artist,durationSeconds:180,artworkUrl:null,album:null});
 const identity=load('src/lib/identidadeDaMusica.ts');
-let library=[],discovered=[],page=[],flowCalls=0;
+let library=[],discovered=[],page=[],songRadio=[],flowCalls=0;const radioCalls=[];
 const {fetchRadioTracks}=load('src/api/radio.ts',{
   '../state/connectivity':{useConnectivity:{getState:()=>({offline:false})}},
   '../state/recommendationFeedback':{feedbackReady:async()=>{},filterSuggestions:ts=>ts},
@@ -21,6 +21,7 @@ const {fetchRadioTracks}=load('src/api/radio.ts',{
   './albunsDoArtista':{paginaDoArtista:async()=>({musicas:page})},
   './perfilDeRecomendacoes':{lerPerfilDeRecomendacoes:async()=>({escutas:new Map(),externos:new Map()})},
   './descoberta':{candidatasParaDescoberta:async()=>discovered},
+  './ytMusic':{lerRadioPeloYtMusic:async(mix)=>{radioCalls.push(mix.playlistId);return songRadio;}},
 });
 (async()=>{
   const current=t('current','Anchor'),heard=t('old-upload','Repeated song','Related artist');
@@ -39,5 +40,12 @@ const {fetchRadioTracks}=load('src/api/radio.ts',{
   discovered=[];page=[];
   assert.deepEqual(await fetchRadioTracks([current],[current],10,new Set(),'session'),[]);
   assert.equal(flowCalls,0,'missing related music stays empty instead of switching to Bruno Mars');
+  // With a real video id, the song's own YouTube Music radio fills what the catalog could not (10/10).
+  const video=t('sOevdW_9DHk','Fuera Del Planeta','Eloy Ft.Randy');
+  songRadio=[video,t('zion-fantas','Fantasma','Zion'),t('jowell-shor','Shorty','Jowell & Randy')];
+  result=await fetchRadioTracks([video],[video],10,new Set(),'session');
+  assert.equal(radioCalls.at(-1),'RDAMVMsOevdW_9DHk','asks for the radio of that exact song');
+  assert.deepEqual(result.map(t=>t.sourceId).sort(),['jowell-shor','zion-fantas'],'related songs, never the one playing');
+  assert.equal(flowCalls,0,'still no global taste fallback');
   console.log('Smart continuation: strict context, no repeated uploads, short batches and no global fallback passed.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -18,6 +18,7 @@ import { getLibrary } from './library';
 import { lerFaixas } from '../lib/cacheDaBiblioteca';
 import { getFlowMix } from './plays';
 import { paginaDoArtista } from './albunsDoArtista';
+import { lerRadioPeloYtMusic } from './ytMusic';
 import type { Track } from '../types';
 import { misturarPorFamiliaridade } from '../lib/contextoDaDescoberta';
 import { candidatasParaDescoberta } from './descoberta';
@@ -28,8 +29,8 @@ import { lerPerfilDeRecomendacoes } from './perfilDeRecomendacoes';
  *
  * 1. A biblioteca, pelos mesmos artistas. 2. Os SEMELHANTES do catálogo (a
  * descoberta do Smart Shuffle, estrita: parte só do que está a tocar). 3. Uma
- * página musical do artista, confirmado pelas músicas dele. 4. Só no fim, o
- * Flow geral do perfil.
+ * página musical do artista, confirmado pelas músicas dele. 4. O rádio da
+ * própria música no YouTube Music. 5. Só no fim, o Flow geral do perfil.
  *
  * **O Flow era a segunda fonte, e era ele que fazia a fila "nunca ser
  * parecida"** (João, 25/9: "se clico em Morad deve ser desse género"). O Flow
@@ -136,13 +137,29 @@ export async function fetchRadioTracks(
   }
   if (harvest().length >= limit) return harvest();
 
+  // 4. O rádio da PRÓPRIA música no YouTube Music (`RDAMVM<id>`, 10/10): o
+  //    "Start radio" de lá, pelo mesmo `next` do Mix do artista. Quando o
+  //    catálogo não conhece o artista (um nome mal lido, reggaeton de 2008, um
+  //    canal de uploads) era aqui que o Radio acabava vazio: "No related music
+  //    found". É música parecida com ESTA, por isso serve também à sessão.
+  //    Um pedido ao YouTube Music, e só quando o resto não chegou.
+  const daMusica = seeds.find((t) => t.source === 'youtube' && /^[\w-]{11}$/.test(t.sourceId));
+  if (daMusica) {
+    try {
+      pool.push(...await lerRadioPeloYtMusic({ playlistId: `RDAMVM${daMusica.sourceId}`, videoId: daMusica.sourceId, params: null }));
+    } catch {
+      // Sem rede ou o YouTube Music mudou a resposta: segue sem ele.
+    }
+  }
+  if (harvest().length >= limit) return harvest();
+
   // O modo escolhido na fila mantém as âncoras da sessão. Não preencher
   // com o perfil geral quando o catálogo não confirma música relacionada.
   // Um lote curto é preferível a voltar às mesmas sugestões. Inclui a
   // continuação do Smart Shuffle: mantém o contexto e a memória de 30 dias.
   if (context === 'session') return harvest();
 
-  // 4. Último recurso: o Flow do perfil. É o gosto GERAL, e não o desta
+  // 5. Último recurso: o Flow do perfil. É o gosto GERAL, e não o desta
   //    música -- mas uma fila que continua é melhor do que o silêncio.
   try {
     pool.push(...shuffleCandidates(await getFlowMix(limit * 3)));

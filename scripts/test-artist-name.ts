@@ -364,5 +364,14 @@ console.log('\no artista e o título no sítio certo');
   eq('um canal qualquer não troca nada', displayArtist({ source: 'youtube', title: 'Juice WRLD - Lucid Dreams', artist: 'Lyrical Lemonade' }, v), 'Juice WRLD');
 }
 
+// "Ft." colado ao nome (10/10): o Radio de "Eloy Ft.Randy" não arrancava.
+{
+  eq('Ft. colado no canal', displayArtist({ source: 'youtube', title: 'Fuera Del Planeta', artist: 'Eloy Ft.Randy' }), 'Eloy');
+  eq('Ft. colado no título', displayArtist({ source: 'youtube', title: 'Eloy Ft.Randy - Fuera Del Planeta', artist: 'Uploads' }), 'Eloy');
+  eq('feat. colado', artistaPrincipal('Drake feat.Future'), 'Drake');
+  eq('um nome com "ft" lá dentro fica', artistaPrincipal('Daft Punk'), 'Daft Punk');
+  eq('um ponto sem nada a seguir fica', artistaPrincipal('Lil Ft.'), 'Lil Ft.');
+}
+
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);
 process.exit(mau === 0 ? 0 : 1);
