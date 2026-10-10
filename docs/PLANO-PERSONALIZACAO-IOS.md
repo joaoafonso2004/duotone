@@ -14,7 +14,6 @@ Um toque muda várias opções de uma vez. Depois, cada opção ainda se pode mu
 |---|---|
 | **Duotone** (o de hoje) | Capa 3D, fundo desfocado, marca no topo, barra fina |
 | **Minimal** | Capa Simple, fundo preto, título à esquerda, barra fina, sem flutuar |
-| **Vinyl** | Capa em disco a rodar, fundo com a cor da capa, botão play em anel |
 | **Glow** | Capa a toda a largura, fundo desfocado mais forte, destaque pela capa |
 | **OLED** | Tudo em preto puro (gasta menos bateria no ecrã do iPhone) |
 
@@ -22,7 +21,7 @@ Um toque muda várias opções de uma vez. Depois, cada opção ainda se pode mu
 
 | Opção | Escolhas | Nota |
 |---|---|---|
-| Cor de destaque | Steel, a cor da capa (já existem) + Gold, Rose, Coral, Mint, Ocean, Ice, Mono | Sem roxo, como foi decidido a 3/10 |
+| Cor de destaque | Steel e a cor da capa (as que já existem) | Sem paleta: decidido a 10/10, como a 4/9 |
 | Fundo | Dark (o de hoje), OLED (preto puro), Tinted (um toque da cor de destaque) | O Tinted segue a capa se o destaque a seguir |
 | Listas | Comfortable (linhas de 64 pt, as de hoje), Compact (52 pt, cabem mais músicas) | |
 | Títulos | Default, Serif, Mono | Só os títulos grandes das páginas e o do leitor; o resto fica igual |
@@ -34,12 +33,12 @@ Um toque muda várias opções de uma vez. Depois, cada opção ainda se pode mu
 
 | Opção | Escolhas | Nota |
 |---|---|---|
-| Capa | Floating 3D, Simple (já existem) + **Vinyl** (disco a rodar com a capa ao centro) + **Full** (a toda a largura, sem margens) | O Vinyl pára com a música em pausa e em segundo plano |
+| Capa | Floating 3D, Simple (já existem) + **Full** (a toda a largura, sem margens) | O vinil saiu (10/10) |
 | Fundo | Blur (o de hoje), Colour (a cor da capa, lisa), Gradient (duas cores da capa, a mexer devagar), Black | |
 | Intensidade do fundo | Mais claro … mais escuro | |
 | Topo | A marca (hoje) ou "Playing from" (o G1) | O G1 passa a ser uma opção |
 | Título | Ao centro (hoje) ou à esquerda (como no Apple Music) | |
-| Barra de progresso | Thin, Thick, Wave | |
+| Barra de progresso | Thin, Thick | A onda saiu: precisava de SVG, que é uma dependência nativa nova |
 | Botão play | Filled (hoje), Ring, Icon | |
 | Botões de baixo | Escolher até 4: Queue, EQ, Lyrics, Speed, Devices, Timer, Share, Jam | Hoje são o EQ e a fila |
 | Flutuar | Ligado / desligado | Só para a capa 3D |
@@ -58,14 +57,12 @@ Um toque muda várias opções de uma vez. Depois, cada opção ainda se pode mu
 | Fase | O quê | Build nativa? |
 |---|---|---|
 | 1 | A página "Customise" com a pré-visualização; temas; cor de destaque, fundo, listas, rótulos; no leitor: topo, título, barra, botão play, botões de baixo, flutuar, fundo (Blur/Colour/Black) e intensidade | Não |
-| 2 | Capa Vinyl e Full, fundo Gradient, títulos Serif/Mono, letras, secções da Home | Não |
+| 2 | Capa Full, fundo Gradient, títulos Serif/Mono, letras, secções da Home | Não |
 | 3 | Ícones da app | Sim |
 
-**Por confirmar no iPhone**: o disco e o gradiente a 120 Hz sem aquecer, e a pré-visualização sem pesar na página das Definições.
+**Por confirmar no iPhone**: o gradiente a 120 Hz sem aquecer, e a pré-visualização sem pesar na página das Definições.
 
-## 6. Decisões que são tuas
+## 6. Decidido
 
-1. Os temas que fazem sentido (e os nomes).
-2. As cores da paleta.
-3. Que botões de baixo vêm por omissão.
-4. Se a personalização deve viajar para o PC (hoje proponho que não).
+- **10/10:** a fase 1 está feita (sem a paleta). O vinil sai. A cor de destaque fica só o steel e a cor da capa.
+- Ainda por decidir: se a personalização deve viajar para o PC (proponho que não).
