@@ -53,6 +53,11 @@ import { savedKey, useSaved } from '../state/saved';
 import { contextoDaRecomendacaoAtual, usePlayer } from '../state/player';
 import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import { useTheme } from '../state/theme';
+import { useShallow } from 'zustand/react/shallow';
+import { useAparencia } from '../state/aparencia';
+import { destinoDaOrigem, NOMES_DOS_BOTOES, olhoDaOrigem, veuDoLeitor, type BotaoDoLeitor } from '../lib/aparencia';
+import { rotuloDaOrigem } from '../lib/origemDaFila';
+import { trackKey as chaveDaFaixaNaFila } from '../lib/shuffle';
 import { desvioDaMusica, useDoca } from '../state/doca';
 import { pedirFluidez, segurarFluidez } from '../state/fluidez';
 import { posicoesDaDoca } from '../lib/doca';
@@ -182,6 +187,17 @@ export function PlayerRoot() {
   const maquina = usePlayer((s) => s.maquina);
   // A seguir um amigo ("Listen along"): o topo do leitor aberto di-lo, no lugar da marca.
   const seguindoAlguem = useSeguirAmigo((s) => !!s.seguindo);
+  // A personalização (10/10, state/aparencia.ts): o topo, o título, a barra, o
+  // botão play, os botões de baixo, o flutuar e o fundo.
+  const ap = useAparencia(useShallow((s) => ({
+    topo: s.topo, titulo: s.titulo, barra: s.barra, play: s.play, botoes: s.botoes,
+    flutuar: s.flutuar, fundoLeitor: s.fundoLeitor, brilho: s.brilho,
+  })));
+  // De onde vem a música, para o "Playing from" (o G1). As que a app meteu
+  // (rádio, Smart Shuffle) dizem-no, como no PC (`rotuloDaOrigem`).
+  const origemDaFila = usePlayer((s) => s.origemDaFila);
+  const sugeridaAgora = usePlayer((s) => !!s.current && s.sugeridas.includes(chaveDaFaixaNaFila(s.current)));
+  const doRadioAgora = usePlayer((s) => !!s.current && s.doRadio.includes(chaveDaFaixaNaFila(s.current)));
 
   const playTrack = usePlayer((s) => s.playTrack);
   const togglePlay = usePlayer((s) => s.togglePlay);
@@ -360,6 +376,17 @@ export function PlayerRoot() {
     });
   };
   const [partilhaAberta, setPartilhaAberta] = useState(false);
+  // O botão "Devices" de baixo (10/10, personalização): a página dos aparelhos
+  // do mesmo menu, aberta junto a ele.
+  const ancoraDosAparelhos = useRef<View>(null);
+  const abrirAparelhos = () => {
+    hapticSelection();
+    setPaginaDoMenu('aparelhos');
+    ancoraDosAparelhos.current?.measureInWindow((x, y, width, height) => {
+      setAncora({ x, y, width, height });
+      setOptionsVisible(true);
+    });
+  };
   const [recomendacoesAbertas, setRecomendacoesAbertas] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
   /**
@@ -410,6 +437,9 @@ export function PlayerRoot() {
   useSincroniaDaSessao();
   const [sessaoAberta, setSessaoAberta] = useState(false);
   const temSessao = useOuvirJuntos((s) => !!s.sessao);
+  // Num Jam manda a fila partilhada: não há "de onde vem" (como no PC).
+  const origemNoTopo = temSessao ? null : rotuloDaOrigem(origemDaFila, { sugerida: sugeridaAgora, doRadio: doRadioAgora });
+  const destinoDoTopo = destinoDaOrigem(origemNoTopo?.alvo ?? null);
   const filaDaSessao = useOuvirJuntos((s) => s.fila);
   const convidadosControlam = useOuvirJuntos((s) => s.sessao?.convidadosControlam);
 
@@ -1366,6 +1396,97 @@ export function PlayerRoot() {
     ];
   })();
 
+  // A personalização do título e do fundo (10/10, lib/aparencia.ts).
+  const tituloAoCentro = ap.titulo === 'centro';
+  const coracaoDoTitulo = (
+    <Toque
+      escala={ESCALA.icone}
+      onPress={saveCurrentToLibrary}
+      style={styles.ladoDoTitulo}
+      accessibilityRole="button"
+      accessibilityLabel={saved ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
+    >
+      <StateIcon
+        pulsar={saved}
+        name={saved ? 'heart' : 'heart-outline'}
+        size={22}
+        color={saved ? theme.color : colors.text}
+      />
+    </Toque>
+  );
+  const veu = veuDoLeitor(ap.brilho);
+  /** Os botões de baixo, os escolhidos e pela ordem escolhida. */
+  const botaoDeBaixo = (b: BotaoDoLeitor) => {
+    switch (b) {
+      case 'fila': return (
+        <Toque
+          key={b}
+          escala={ESCALA.icone}
+          accessibilityRole="button"
+          accessibilityLabel="Queue"
+          onPress={() => {
+            hapticSelection();
+            // Uma folha nativa do iOS (3/10, screens/FilaScreen.tsx).
+            if (navigationRef.isReady()) navigationRef.navigate('Fila');
+          }}
+          style={styles.utilityIconBtn}
+        >
+          <Ionicons name="list-outline" size={23} color={colors.text} />
+          <Text style={styles.utilityIconLabel}>Queue</Text>
+        </Toque>
+      );
+      // Quem vê o que está a tocar: amigos, ninguém, ou o Jam.
+      case 'visibilidade': return (
+        <IndicadorDeVisibilidade
+          key={b}
+          onAbrirJam={() => setSessaoAberta(true)}
+          onAviso={(msg) => { avisarInfo(msg); }}
+        />
+      );
+      case 'eq': return (
+        <Toque
+          key={b}
+          escala={ESCALA.icone}
+          accessibilityRole="button"
+          accessibilityLabel="EQ"
+          onPress={() => {
+            hapticSelection();
+            setEqVisible(true);
+          }}
+          style={styles.utilityIconBtn}
+        >
+          <EqualizerIcon />
+          <Text style={styles.utilityIconLabel}>EQ</Text>
+        </Toque>
+      );
+      case 'aparelhos': return (
+        <View key={b} ref={ancoraDosAparelhos} collapsable={false}>
+          <Toque escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel="Play on another device"
+            onPress={abrirAparelhos} style={styles.utilityIconBtn}>
+            <Ionicons name="desktop-outline" size={22} color={colors.text} />
+            <Text style={styles.utilityIconLabel}>{NOMES_DOS_BOTOES.aparelhos}</Text>
+          </Toque>
+        </View>
+      );
+      case 'partilhar': return (
+        <Toque key={b} escala={ESCALA.icone} accessibilityRole="button" accessibilityLabel="Share"
+          onPress={() => { hapticSelection(); setPartilhaAberta(true); }} style={styles.utilityIconBtn}>
+          <Ionicons name="share-outline" size={22} color={colors.text} />
+          <Text style={styles.utilityIconLabel}>{NOMES_DOS_BOTOES.partilhar}</Text>
+        </Toque>
+      );
+      case 'letras': return (
+        <Toque key={b} escala={ESCALA.icone} accessibilityRole="button"
+          accessibilityLabel={showLyrics ? 'Show artwork' : 'Show lyrics'}
+          onPress={() => { hapticSelection(); setShowLyrics(!showLyrics); }} style={styles.utilityIconBtn}>
+          <Ionicons name={showLyrics ? 'chatbox-ellipses' : 'chatbox-ellipses-outline'} size={22}
+            color={showLyrics ? theme.color : colors.text} />
+          <Text style={styles.utilityIconLabel}>{NOMES_DOS_BOTOES.letras}</Text>
+        </Toque>
+      );
+    }
+  };
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {/* ===================== OVERLAY EXPANDIDO ===================== */}
@@ -1395,7 +1516,10 @@ export function PlayerRoot() {
           },
         ]}
       >
-        {fundo ? (
+        {/* O fundo do leitor (10/10, personalização): a capa desfocada (o de
+            sempre), a cor dela (a mesma imagem tão desfocada que fica só a
+            cor), ou preto. */}
+        {ap.fundoLeitor === 'preto' ? <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]} /> : fundo ? (
           // Desfocado a partir da miniatura pequena (desfoqueLeve): o mesmo
           // fundo, sem desfocar 1280 px no instante do skip. Sem onError: a
           // falha da maxres é a capa da frente que a diz.
@@ -1403,10 +1527,11 @@ export function PlayerRoot() {
             source={{ uri: fundo.uri }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            blurRadius={fundo.raio}
+            blurRadius={ap.fundoLeitor === 'cor' ? fundo.raio * 4 : fundo.raio}
             transition={450}
           />
         ) : null}
+        {ap.fundoLeitor === 'preto' ? null : <View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: veu.opacidadeDoVeu }]}>
         {capaFlutuante ? (
           // Com a capa 3D, o véu de cima para baixo dá lugar a uma vinheta
           // centrada na capa: mais leve atrás dela, para a cor da capa se ver no
@@ -1431,6 +1556,10 @@ export function PlayerRoot() {
             pointerEvents="none"
           />
         )}
+        </View>}
+        {ap.fundoLeitor !== 'preto' && veu.escurecer > 0 ? (
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: veu.escurecer }]} />
+        ) : null}
 
         {/* cabeçalho — o arrasto para fechar agora é da página toda */}
         <Animated.View
@@ -1444,16 +1573,34 @@ export function PlayerRoot() {
               da largura), por isso a caixa também é quadrada -- numa caixa
               larga o `contain` encolhia-a até não se ver. */}
           <View style={styles.headerCenter}>
-            {seguindoAlguem ? <BarraDeSeguir compacta /> : (
+            {seguindoAlguem ? <BarraDeSeguir compacta /> : ap.topo === 'origem' && origemNoTopo ? (
+              // "Playing from" (o G1, 10/10): o TEXTO ao centro, e o símbolo
+              // pendurado à esquerda dele, fora da conta do centro.
+              <Toque
+                escala={ESCALA.cartao}
+                disabled={!destinoDoTopo}
+                onPress={() => { if (destinoDoTopo) { setExpanded(false); irParaNoIphone(destinoDoTopo); } }}
+                accessibilityRole={destinoDoTopo ? 'link' : undefined}
+                accessibilityLabel={`${olhoDaOrigem(origemNoTopo.antes)} ${origemNoTopo.nome}`}
+                style={styles.origemDoTopo}
+              >
+                <View style={styles.olhoDoTopo}>
+                  <Image source={require('../../assets/auth-logo.png')} style={styles.simboloDoOlho} contentFit="contain" />
+                  <Text numberOfLines={1} style={styles.textoDoOlho}>{olhoDaOrigem(origemNoTopo.antes)}</Text>
+                </View>
+                <Text numberOfLines={1} style={styles.nomeDaOrigem}>{origemNoTopo.nome}</Text>
+              </Toque>
+            ) : (
               <>
                 <Image
                   source={require('../../assets/auth-logo.png')}
                   style={{ width: 22, height: 22 }}
                   contentFit="contain"
                 />
-                <Text style={styles.brandName}>
+                {/* Com o "Playing from" e uma música sem origem: só o símbolo. */}
+                {ap.topo === 'marca' ? <Text style={styles.brandName}>
                   {APP_NAME.toUpperCase()}
-                </Text>
+                </Text> : null}
               </>
             )}
           </View>
@@ -1550,22 +1697,11 @@ export function PlayerRoot() {
               centro do ecrã. Uma linha só: o que não cabe desvanece, e tocar
               dá-lhe uma volta (TextoQueCabe). O toque longo continua a copiar. */}
           <Animated.View style={[styles.titleRow, { opacity: ESCADA[2].opacidade, transform: [{ translateY: ESCADA[2].subir }] }]}>
-            <Toque
-              escala={ESCALA.icone}
-              onPress={saveCurrentToLibrary}
-              style={styles.ladoDoTitulo}
-              accessibilityRole="button"
-              accessibilityLabel={saved ? 'Remove from Liked Songs' : 'Add to Liked Songs'}
-            >
-              <StateIcon
-                pulsar={saved}
-                name={saved ? 'heart' : 'heart-outline'}
-                size={22}
-                color={saved ? theme.color : colors.text}
-              />
-            </Toque>
+            {/* Ao centro (o de sempre), o coração à esquerda; à esquerda (10/10,
+                personalização), o título primeiro e o coração ao pé das reticências. */}
+            {tituloAoCentro ? coracaoDoTitulo : null}
             <View
-              style={styles.textosDoTitulo}
+              style={[styles.textosDoTitulo, !tituloAoCentro && styles.textosAEsquerda]}
               onLayout={(e) => {
                 const w = e.nativeEvent.layout.width;
                 setLarguraDoTitulo((antes) => (Math.abs(antes - w) > 0.5 ? w : antes));
@@ -1597,7 +1733,7 @@ export function PlayerRoot() {
                 hitSlop={8}
                 accessibilityRole={temArtista ? 'link' : undefined}
                 accessibilityLabel={temArtista ? `View ${nomeDoArtista}` : undefined}
-                style={styles.artistaDoTitulo}
+                style={[styles.artistaDoTitulo, !tituloAoCentro && { alignSelf: 'flex-start' }]}
               >
                 <TextoQueCabe
                   texto={nomeDoArtista}
@@ -1609,6 +1745,7 @@ export function PlayerRoot() {
             {/* As reticências vivem aqui e não no cabeçalho: no canto de cima
                 estavam no ponto mais longe do polegar, e longe daquilo sobre que
                 agem. */}
+            {tituloAoCentro ? null : coracaoDoTitulo}
             <View ref={ancoraDasOpcoes} collapsable={false}>
               <Toque
                 escala={ESCALA.icone}
@@ -1627,7 +1764,7 @@ export function PlayerRoot() {
           {/* A barra vive com os controlos, a 20 pt da fila de botões: é do
               transporte que ela fala, e colada ao título deixava-o sem ar. */}
           <Animated.View style={[styles.controls, { opacity: ESCADA[3].opacidade, transform: [{ translateY: ESCADA[3].subir }] }]}>
-            <BarraDoLeitor onSeek={seekTo} onScrubbingChange={setScrubbing} />
+            <BarraDoLeitor onSeek={seekTo} onScrubbingChange={setScrubbing} grossa={ap.barra === 'grossa'} />
               <PlayerControlRow>
               {/* Três estados: apagado, ligado, e inteligente — este último
                   com uma estrelinha ao canto, que é como o Spotify o mostra e
@@ -1683,7 +1820,7 @@ export function PlayerRoot() {
                 accessibilityRole="button"
                 accessibilityLabel={isPlaying ? 'Pause' : 'Play'}
                 onPress={togglePlay}
-                style={styles.playBtn}
+                style={[styles.playBtn, ap.play === 'anel' && [styles.playAnel, { borderColor: theme.color }], ap.play === 'icone' && styles.playIcone]}
               >
                 {/* `trocar`: play e pause sao o mesmo botao, e cruzam-se no
                     sitio. Nao `pulsar`: quem carrega no play ja esta a olhar
@@ -1691,8 +1828,8 @@ export function PlayerRoot() {
                 <StateIcon
                   trocar
                   name={isPlaying ? 'pause' : 'play'}
-                  size={27}
-                  color={colors.bg}
+                  size={ap.play === 'icone' ? 44 : 27}
+                  color={ap.play === 'cheio' ? colors.bg : colors.text}
                   /**
                    * O acerto optico do triangulo, e porque era uma MARGEM que
                    * nao chegava a acontecer.
@@ -1712,7 +1849,7 @@ export function PlayerRoot() {
                    * 202, contra os 256 do centro da caixa. Sao 10,4% do tamanho
                    * a menos, e e isso que se devolve.
                    */
-                  style={!isPlaying ? { transform: [{ translateX: 27 * 0.104 }] } : undefined}
+                  style={!isPlaying ? { transform: [{ translateX: (ap.play === 'icone' ? 44 : 27) * 0.104 }] } : undefined}
                 />
               </Toque>
 
@@ -1773,38 +1910,7 @@ export function PlayerRoot() {
 
             <PlayerControlRow>
               <View />
-              <Toque
-                escala={ESCALA.icone}
-                accessibilityRole="button"
-                accessibilityLabel="Queue"
-                onPress={() => {
-                  hapticSelection();
-                  // Uma folha nativa do iOS (3/10, screens/FilaScreen.tsx).
-                  if (navigationRef.isReady()) navigationRef.navigate('Fila');
-                }}
-                style={styles.utilityIconBtn}
-              >
-                <Ionicons name="list-outline" size={23} color={colors.text} />
-                <Text style={styles.utilityIconLabel}>Queue</Text>
-              </Toque>
-              {/* Quem vê o que está a tocar: amigos, ninguém, ou o Jam. */}
-              <IndicadorDeVisibilidade
-                onAbrirJam={() => setSessaoAberta(true)}
-                onAviso={(msg) => { avisarInfo(msg); }}
-              />
-              <Toque
-                escala={ESCALA.icone}
-                accessibilityRole="button"
-                accessibilityLabel="EQ"
-                onPress={() => {
-                  hapticSelection();
-                  setEqVisible(true);
-                }}
-                style={styles.utilityIconBtn}
-              >
-                <EqualizerIcon />
-                <Text style={styles.utilityIconLabel}>EQ</Text>
-              </Toque>
+              {ap.botoes.map(botaoDeBaixo)}
               <View />
             </PlayerControlRow>
           </Animated.View>
@@ -2053,7 +2159,7 @@ export function PlayerRoot() {
               track={current} size={vidFull.w} capaFlutuante={capaFlutuante} montagem={montagem}
               transicao={transicaoDaCapa.current} artSource={artSource} showLyrics={showLyrics}
               setShowLyrics={setShowLyrics} setCapaARodar={setCapaARodar} onArtError={onArtError}
-              escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa}
+              escurecerCapa={escurecerCapa} aoGostar={aoGostarPelaCapa} aFlutuar={ap.flutuar}
             />
           )}
 
@@ -2154,7 +2260,7 @@ export function PlayerRoot() {
  * leitor inteiro -- capa 3D, letras, controlos --, também com o leitor fechado
  * e com o ecrã bloqueado.
  */
-function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'onSeek' | 'onScrubbingChange'>) {
+function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'onSeek' | 'onScrubbingChange' | 'grossa'>) {
   const positionMs = usePlayer((s) => s.positionMs);
   const durationMs = usePlayer((s) => s.durationMs);
   const ritmo = usePlayer((s) => s.playbackRate);
@@ -2178,7 +2284,7 @@ function BarraDoLeitor(props: Pick<React.ComponentProps<typeof ProgressBar>, 'on
  */
 const CapaDoLeitor = React.memo(function CapaDoLeitor({
   track, size, capaFlutuante, montagem, transicao, artSource, showLyrics, setShowLyrics, setCapaARodar,
-  onArtError, escurecerCapa, aoGostar,
+  onArtError, escurecerCapa, aoGostar, aFlutuar,
 }: {
   track: Track;
   size: number;
@@ -2193,9 +2299,11 @@ const CapaDoLeitor = React.memo(function CapaDoLeitor({
   escurecerCapa: Animated.AnimatedInterpolation<number>;
   /** Dois toques na capa (`DuploToqueParaGostar`). Estável: a capa é memorizada. */
   aoGostar: () => void;
+  /** A capa 3D a flutuar (10/10, personalização). */
+  aFlutuar: boolean;
 }) {
   return (
-    <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao} forcaDaPose={forcaDaPose}>
+    <CapaFlutuante3D size={size} enabled={capaFlutuante} montagem={montagem} transicao={transicao} forcaDaPose={forcaDaPose} aFlutuar={aFlutuar}>
       {(pose3D) => (
         <ArtworkLyricsCube track={track} size={size} artwork={artSource} showLyrics={showLyrics} onChange={setShowLyrics} aoRodar={setCapaARodar} raio={capaFlutuante ? CAPA_FLUTUANTE.raio : 20}
           front={<>{artSource?<CapaComTransicao uri={artSource} onError={onArtError} />:<View style={StyleSheet.absoluteFill} />}<Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: escurecerCapa }]} />{!capaFlutuante && <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.arestaDaCapa]} />}<DuploToqueParaGostar aoGostar={aoGostar} /></>} pose3D={pose3D} />
@@ -2479,6 +2587,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // O botão play em anel ou só o ícone (10/10, personalização).
+  playAnel: { backgroundColor: 'transparent', borderWidth: 2 },
+  playIcone: { backgroundColor: 'transparent' },
+  // "Playing from" no topo (o G1): o texto ao centro, o símbolo à esquerda dele.
+  origemDoTopo: { alignItems: 'center', maxWidth: 240 },
+  olhoDoTopo: { flexDirection: 'row', alignItems: 'center' },
+  simboloDoOlho: { position: 'absolute', right: '100%', marginRight: 6, width: 14, height: 14 },
+  textoDoOlho: { fontSize: 11, fontWeight: '600', letterSpacing: 1.2, paddingLeft: 1.2, textTransform: 'uppercase', color: colors.textSecondary },
+  nomeDaOrigem: { fontSize: 14, fontWeight: '600', color: colors.text, marginTop: 1, maxWidth: 240 },
+  textosAEsquerda: { alignItems: 'flex-start' },
   dimmed: {
     opacity: 0.3,
   },

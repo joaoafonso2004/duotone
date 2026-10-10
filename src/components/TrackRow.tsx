@@ -19,6 +19,7 @@ import { usePlayer } from '../state/player';
 import { useTheme } from '../state/theme';
 import { contarLinhaMontada } from '../state/folego';
 import type { Track } from '../types';
+import { useAparencia } from '../state/aparencia';
 
 interface Props {
   track: Track;
@@ -73,7 +74,7 @@ interface Props {
   quemPos?: { avatarUrl: string | null; nome: string } | null;
 }
 
-/** 52 px de capa + 8 px de padding em cima e em baixo. */
+/** 52 px de capa + 8 px de padding em cima e em baixo (compacta: 40 + 8 + 8, `alturaDaLinha`). */
 export const TRACK_ROW_HEIGHT = 68;
 export const getTrackRowLayout = (_: ArrayLike<Track> | null | undefined, index: number) => ({
   length: TRACK_ROW_HEIGHT,
@@ -115,6 +116,8 @@ function TrackRowComponent({
   useEffect(() => contarLinhaMontada(), []);
   /** A moldura da capa desta linha, para o player saber de onde a fazer voar. */
   const capa = useRef<View>(null);
+  // Listas compactas (10/10, personalização): capa de 40 em vez de 52.
+  const compacta = useAparencia((s) => s.listas === 'compact');
   // Sem as barras pretas do 4:3 -- ver capaDoEcraBloqueado.ts. É também o que
   // faz a capa aterrar no mini player sem mudar de enquadramento.
   const capaUri = capaParaLista(track.artworkUrl);
@@ -186,7 +189,7 @@ function TrackRowComponent({
         {capaUri ? (
           <Image
             source={{ uri: capaUri }}
-            style={styles.artwork}
+            style={[styles.artwork, compacta && styles.artworkCompacta]}
             contentFit="cover"
             // Em listas longas, animar cada imagem que entra na janela de
             // virtualização mantém a GPU ocupada durante todo o scroll.
@@ -194,7 +197,7 @@ function TrackRowComponent({
             cachePolicy="memory-disk"
           />
         ) : (
-          <View style={[styles.artwork, styles.artworkFallback]}>
+          <View style={[styles.artwork, compacta && styles.artworkCompacta, styles.artworkFallback]}>
             <Ionicons
               name="musical-notes"
               size={18}
@@ -285,6 +288,7 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: colors.surfaceHigh,
   },
+  artworkCompacta: { width: 40, height: 40 },
   artworkFallback: {
     alignItems: 'center',
     justifyContent: 'center',

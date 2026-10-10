@@ -1,4 +1,5 @@
 import { useAtalhosDoIcone } from '../hooks/useAtalhosDoIcone';
+import { useAparencia } from '../state/aparencia';
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import { CommonActions } from '@react-navigation/native';
 import { rotaNoIphone, type Destino } from '../lib/destinos';
@@ -68,6 +69,7 @@ import { BoasVindas } from '../components/BoasVindas';
 import { usePlayer } from '../state/player';
 import { closeNotificationOverlays } from '../lib/notificationOverlays';
 import type { NotificationTarget } from '../lib/inAppNotifications';
+import { PersonalizarScreen } from '../screens/PersonalizarScreen';
 
 const OnlineArtists=withInternet(ArtistsScreen,'Artists');
 const OnlineImportYouTube=withInternet(ImportYouTubeScreen,'ImportYouTube');
@@ -94,6 +96,8 @@ export type PilhaParamList = {
   Profile: undefined;
   Social: undefined;
   Settings: undefined;
+  /** A personalização (10/10): o fundo, as listas e o leitor. */
+  Personalizar: undefined;
   ListeningStats: {userId?:string} | undefined;
   Retrospetiva: {ano?:number;userId?:string} | undefined;
   Downloads: undefined;
@@ -206,6 +210,7 @@ function ecrasDaPilha() {
       <Stack.Screen name="Downloads" component={DownloadsScreen} />
       <Stack.Screen name="Conversa" component={ConversaScreen} options={{gestureEnabled:true,fullScreenGestureEnabled:true,gestureDirection:'horizontal'}} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="Personalizar" component={PersonalizarScreen} />
       <Stack.Screen name="LibraryCheck" component={LibraryCheckScreen} />
       <Stack.Screen name="ImportYouTube" component={OnlineImportYouTube} />
     </>
@@ -377,6 +382,7 @@ async function openNotification(target: NotificationTarget) {
 export function RootNavigator() {
   const session = useAuth((s) => s.session);
   const offlineUserId=useAuth(s=>s.offlineUserId);
+  const fundoApp = useAparencia((s) => s.fundoApp);
   const offline=useConnectivity(s=>s.offline);
   const initialized = useAuth((s) => s.initialized);
   const theme = useTheme((s) => s.destino);
@@ -438,19 +444,20 @@ export function RootNavigator() {
                 desfoque ao vivo que o iPhone recalculava sempre que alguma
                 coisa mexia no ecrã (a capa a flutuar, as listas a deslizar), e
                 que quase não se via -- está tapado a 88% pela camada preta. */}
-            <Image
+            {/* Com o fundo OLED (10/10, personalização) não há imagem: preto puro. */}
+            {fundoApp === 'dark' ? <Image
               source={require('../../assets/login_bg.png')}
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={300}
               blurRadius={12}
-            />
+            /> : null}
 
             {/* Camada preta semi-transparente para alto contraste e legibilidade */}
             <View
               style={[
                 StyleSheet.absoluteFill,
-                { backgroundColor: 'rgba(10, 10, 15, 0.88)' }
+                { backgroundColor: fundoApp === 'oled' ? '#000' : 'rgba(10, 10, 15, 0.88)' }
               ]}
             />
 

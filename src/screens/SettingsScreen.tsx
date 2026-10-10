@@ -77,6 +77,8 @@ import { resumoDoVarrimento, varrerCatalogo } from '../state/catalogoDeFaixas';
 import { partilharRelatorioDeReproducao } from '../lib/relatorioDeReproducao';
 import { spacing, type } from '../theme';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { useTemaDaAparencia } from '../state/aparencia';
+import { TEMAS } from '../lib/aparencia';
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
@@ -91,6 +93,8 @@ export function SettingsScreen({ navigation }: Props) {
   // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
   const cab = useCabecalhoQueEncolhe();
   const coverStyle = useCapaIOS(s => s.style);
+  const temaDaAparencia = useTemaDaAparencia();
+  const nomeDoTema = TEMAS.find((t) => t.id === temaDaAparencia)?.nome ?? 'Custom';
   const [carroMantemEcra, setCarroMantemEcraState] = useState(true);
   useEffect(() => {
     let vivo = true;
@@ -510,6 +514,10 @@ export function SettingsScreen({ navigation }: Props) {
           />
           {Platform.OS === 'ios' && (
             <Linha icone="cube-outline" rotulo="Artwork style" valor={valorDe('capa')} chevron aoTocar={abrirMenu('capa')} />
+          )}
+          {/* A personalização (10/10): temas, o fundo, as listas e o leitor. */}
+          {Platform.OS === 'ios' && (
+            <Linha icone="color-wand-outline" rotulo="Customise" valor={nomeDoTema} chevron aoTocar={() => navigation.navigate('Personalizar')} />
           )}
         </Grupo>
         <Grupo>

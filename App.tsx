@@ -73,6 +73,7 @@ import { garantirPrivacidade } from './src/state/privacidade';
 import { limparPerfisPublicos } from './src/state/perfisPublicos';
 import { iniciarArtistasFavoritos, useArtistasFavoritos } from './src/state/artistasFavoritos';
 import { iniciarNovosLancamentos } from './src/state/novosLancamentos';
+import { useAparencia } from './src/state/aparencia';
 import { limparVerificacao } from './src/state/verificacaoDaBiblioteca';
 import { useSaved } from './src/state/saved';
 import { instalarSaudeDaApp } from './src/state/saudeDaApp';
@@ -292,6 +293,8 @@ export default function App() {
       else usePlayer.persist.onFinishHydration(()=>{if(!useConnectivity.getState().offline)prune();});
     });
     useTheme.getState().loadTheme();
+    // A personalização (10/10, state/aparencia.ts): o fundo, as listas e o leitor.
+    void useAparencia.getState().carregar();
     // A escuta privada tem de estar lida antes de alguém publicar: a presença
     // espera por ela, e o indicador do leitor mostra-a desde o primeiro ecrã.
     void garantirPrivacidade();

@@ -6,7 +6,7 @@ import { EmptyState } from '../components/EmptyState';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SkeletonDeFaixas } from '../components/Skeleton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
-import { TRACK_ROW_HEIGHT, TrackRow } from '../components/TrackRow';
+import { TrackRow } from '../components/TrackRow';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useRecomendacoes } from '../state/recomendacoes';
 import { useMisturaDoDia } from '../state/misturaDoDia';
@@ -19,6 +19,8 @@ import {
   contextoDaMistura, contextoDaPrateleira, contextoParaAnalytics,
 } from '../lib/contextoDaDescoberta';
 import { registar } from '../lib/eventos';
+import { useAparencia } from '../state/aparencia';
+import { alturaDaLinha } from '../lib/aparencia';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Prateleira'>;
 
@@ -49,9 +51,11 @@ export function PrateleiraScreen({ route }: Props) {
   // O título encolhe ao rolar (3/10, lib/tituloQueEncolhe.ts).
   const cab = useCabecalhoQueEncolhe();
   // As posições contam com o espaço do cabeçalho por cima da lista.
+  // A altura das linhas segue as listas compactas (10/10, personalização).
+  const alturaDaFila = alturaDaLinha(useAparencia((s) => s.listas));
   const posicaoDaLinha = React.useCallback((_: ArrayLike<Track> | null | undefined, index: number) => ({
-    length: TRACK_ROW_HEIGHT, offset: cab.espaco + TRACK_ROW_HEIGHT * index, index,
-  }), [cab.espaco]);
+    length: alturaDaFila, offset: cab.espaco + alturaDaFila * index, index,
+  }), [cab.espaco, alturaDaFila]);
   const { fonte, titulo } = route.params;
   const insets = useSafeAreaInsets();
   // Duas origens, a mesma vista. O selector não constrói nada -- devolve o que

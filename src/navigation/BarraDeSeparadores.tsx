@@ -13,6 +13,7 @@ import { colors, ESCALA_MAXIMA } from '../theme';
 import { pedirFluidez } from '../state/fluidez';
 import { useAbertura } from '../state/abertura';
 import { COMECAR_DEPOIS_MS, ENTRE_SEPARADORES_MS, proximoAMontar } from '../lib/separadoresAMontar';
+import { useAparencia } from '../state/aparencia';
 
 const ICONES_DOS_SEPARADORES: Record<string, keyof typeof Ionicons.glyphMap> = {
   Search: 'home',
@@ -161,6 +162,7 @@ function useMontarDepoisDaAbertura(state: MaterialTopTabBarProps['state'], navig
 
 /** Os cinco botões, sem fundo: o vidro é da base. */
 export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabBarProps, 'state' | 'navigation'>) {
+  const rotulos = useAparencia((s) => s.rotulos);
   const hasNotification = useNotifications((s) => s.hasNotification);
   // O destino e não a cor animada: a navegação inteira não precisa de
   // redesenhar a cada passo da animação do tema.
@@ -211,7 +213,8 @@ export function IconesDosSeparadores({ state, navigation }: Pick<MaterialTopTabB
               />
               {route.name === 'Profile' && hasNotification && <View style={styles.ponto} />}
             </SeparadorActivo>
-            <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.fixa} style={[styles.nome, { color: cor }]}>{nome}</Text>
+            {/* Sem rótulos (10/10, personalização): só os ícones; o nome fica no VoiceOver. */}
+            {rotulos ? <Text numberOfLines={1} maxFontSizeMultiplier={ESCALA_MAXIMA.fixa} style={[styles.nome, { color: cor }]}>{nome}</Text> : null}
           </Pressable>
         );
       })}

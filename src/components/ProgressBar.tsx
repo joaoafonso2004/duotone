@@ -89,6 +89,8 @@ interface Props {
    */
   faixa?: string | null;
   aVista?: boolean;
+  /** A pista com o dobro da espessura (10/10, personalização: "Thick"). */
+  grossa?: boolean;
 }
 
 /**
@@ -161,7 +163,7 @@ function useTempoRestante(): [boolean, () => void] {
  * Um gesto com `Animated.event` nativo não entrega os movimentos ao JavaScript,
  * e por isso são dois e não um.
  */
-export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1, onSeek, onScrubbingChange, faixa = null, aVista = true }: Props) {
+export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1, onSeek, onScrubbingChange, faixa = null, aVista = true, grossa = false }: Props) {
   const [width, setWidth] = useState(0);
   const reduzido = useReducedMotion();
   /**
@@ -395,8 +397,8 @@ export function ProgressBar({ positionMs, durationMs, aTocar = false, ritmo = 1,
               {/* A pista e o botao sao IRMAOS e nao pai/filho: a pista engorda por
                   `scaleY`, e se o botao vivesse la dentro engordava com ela. */}
               <View style={styles.pista} onLayout={onLayout}>
-                <Animated.View style={[styles.track, { transform: [{ scaleY: espessura }] }]}>
-                  <Animated.View style={[styles.fill, { width, transform: [{ translateX: avancoDoPreenchimento }] }]} />
+                <Animated.View style={[styles.track, grossa && styles.trackGrossa, { transform: [{ scaleY: espessura }] }]}>
+                  <Animated.View style={[styles.fill, grossa && styles.fillGrossa, { width, transform: [{ translateX: avancoDoPreenchimento }] }]} />
                 </Animated.View>
                 <Animated.View
                   style={[
@@ -481,6 +483,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.14)',
     justifyContent: 'center',
   },
+  trackGrossa: { height: 8, borderRadius: 4 },
+  fillGrossa: { borderRadius: 4 },
   fill: {
     position: 'absolute',
     left: 0,

@@ -30,7 +30,7 @@ import { getOrdemDasGostadas, setOrdemDasGostadas } from '../lib/prefs';
 import { Screen, useCabecalhoQueEncolhe } from '../components/Screen';
 import { SkeletonDeFaixas } from '../components/Skeleton';
 import { TrackActionsSheet } from '../components/TrackActionsSheet';
-import { TRACK_ROW_HEIGHT, TrackRow } from '../components/TrackRow';
+import { TrackRow } from '../components/TrackRow';
 import { Input } from '../components/Input';
 import { useSaved } from '../state/saved';
 import { hapticSelection } from '../lib/haptics';
@@ -41,6 +41,8 @@ import { colors, MINI_PLAYER_HEIGHT, radii, spacing, type } from '../theme';
 import type { Track } from '../types';
 import { useAlturaDosSeparadores } from '../state/doca';
 import { mensagemDeErro } from '../lib/mensagemDeErro';
+import { useAparencia } from '../state/aparencia';
+import { alturaDaLinha } from '../lib/aparencia';
 
 const chaveDaLinha = (t: Track) => t.id ?? `${t.source}:${t.sourceId}`;
 
@@ -204,11 +206,13 @@ export function SongsScreen() {
   // As posições das linhas contam com o espaço do cabeçalho e com o Play/Shuffle
   // por cima delas: a virtualização mede a partir do topo do conteúdo.
   const [alturaDoTopoDaLista, setAlturaDoTopoDaLista] = useState(0);
+  // A altura das linhas segue as listas compactas (10/10, personalização).
+  const alturaDaFila = alturaDaLinha(useAparencia((s) => s.listas));
   const posicaoDaLinha = useCallback((_: ArrayLike<Track> | null | undefined, index: number) => ({
-    length: TRACK_ROW_HEIGHT,
-    offset: cab.espaco + alturaDoTopoDaLista + TRACK_ROW_HEIGHT * index,
+    length: alturaDaFila,
+    offset: cab.espaco + alturaDoTopoDaLista + alturaDaFila * index,
     index,
-  }), [cab.espaco, alturaDoTopoDaLista]);
+  }), [cab.espaco, alturaDoTopoDaLista, alturaDaFila]);
 
   // Estáveis (27/9): com o `React.memo` do TrackRow, uma linha só se redesenha
   // quando muda o que ela mostra. O `current` já não passa por aqui -- cada

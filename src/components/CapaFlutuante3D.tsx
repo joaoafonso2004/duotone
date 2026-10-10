@@ -84,6 +84,8 @@ export type PoseDaCapa3D = {
 type Props = {
   size: number;
   enabled: boolean;
+  /** A flutuação e a deriva (10/10): desligáveis na personalização. */
+  aFlutuar?: boolean;
   /**
    * O cubo capa/letras. Recebe a pose quando o 3D está ligado, e desenha-se
    * então como caixa (ver `ArtworkLyricsCube`); sem ela, é o cubo de sempre.
@@ -115,7 +117,7 @@ type Props = {
  * Nada aqui fica à volta do cubo numa vista que roda: no iPhone isso achatava
  * as faces antes de rodar, e a caixa perdia a profundidade.
  */
-export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = null, forcaDaPose = null, children }: Props) {
+export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = null, forcaDaPose = null, aFlutuar = true, children }: Props) {
   const reduced = useReducedMotion();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
   // Fases de 0 a 1, uma volta por ciclo. O 0 é o repouso: a meio e sem inclinação.
@@ -230,7 +232,8 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
     derivar.stopAnimation();
     flutuar.setValue(0);
     derivar.setValue(0);
-    if (!enabled || reduced || !foreground) return;
+    // Parada também por escolha (10/10, personalização: "Float").
+    if (!enabled || reduced || !foreground || !aFlutuar) return;
     const flutuacao = Animated.loop(
       Animated.timing(flutuar, { toValue: 1, duration: CAPA_FLUTUANTE.cicloMs, easing: Easing.linear, useNativeDriver: true }),
     );
@@ -243,7 +246,7 @@ export function CapaFlutuante3D({ size, enabled, montagem = null, transicao = nu
       flutuacao.stop();
       deriva.stop();
     };
-  }, [enabled, foreground, flutuar, derivar, reduced]);
+  }, [enabled, foreground, flutuar, derivar, reduced, aFlutuar]);
 
   const c = CAPA_FLUTUANTE;
   // Estáveis entre renders: o leitor volta a desenhar a cada segundo da música,

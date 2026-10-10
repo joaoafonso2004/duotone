@@ -30,7 +30,7 @@ export type ModoDaDoca = 'separadores' | 'semSeparadores' | 'escondida';
  * Onde a base sai toda. O chat é uma página da pilha; editar perfil continua
  * numa janela que já tapa a base.
  */
-export const ECRAS_SEM_BASE: ReadonlySet<string> = new Set(['Settings', 'LibraryCheck', 'ImportYouTube', 'Conversa']);
+export const ECRAS_SEM_BASE: ReadonlySet<string> = new Set(['Settings', 'Personalizar', 'LibraryCheck', 'ImportYouTube', 'Conversa']);
 
 type EstadoDeNavegacao = { index?: number; routes: readonly { name: string; state?: EstadoDeNavegacao }[] };
 
