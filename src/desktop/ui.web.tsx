@@ -788,7 +788,7 @@ function CarregarAoChegar({ aoChegar }: { aoChegar: () => void }) {
   return <View ref={ref} style={{ height: 1 }} />;
 }
 
-export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha }: {
+export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = false, plain = false, listKey, contexto, ordenacao, colunaDoArtista = true, caraDaLinha, larguraDaCara = 34 }: {
   tracks: Track[]; onPlay: (track: Track, discoveryContext?: DiscoveryContext) => void; onMore?: (track: Track, discoveryContext?: DiscoveryContext) => void; empty?: ReactNode;
   /** Marcar as que já estão na biblioteca. Só em listas que misturam
    * guardadas e não guardadas (pesquisa) — na tabela de Songs seria um
@@ -809,6 +809,8 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
   colunaDoArtista?: boolean;
   /** Numa playlist colaborativa (7/10): a cara de quem pôs cada música, antes da duração. */
   caraDaLinha?: (track: Track) => ReactNode;
+  /** A largura da coluna do `caraDaLinha`: 34 para as caras das colaborativas; mais para um texto (as reproduções, 11/10). */
+  larguraDaCara?: number;
 }) {
   // A coluna do artista só existe com largura para ela; numa janela estreita
   // o artista volta a ir por baixo do título.
@@ -851,7 +853,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
       <Text numberOfLines={1} style={[ui.colHead, { width: 40, textAlign: 'center' }]}>#</Text>
       <CabecaDeColuna rotulo="Title" estilo={[ui.colunaDoTitulo, { paddingLeft: ESP.sm }]} ativa={ordenacao?.modo === 'title'} aoOrdenar={ordenarPor('title')} />
       {comArtista && <CabecaDeColuna rotulo="Artist" estilo={[ui.colunaDoArtista, { paddingHorizontal: ESP.sm }]} ativa={ordenacao?.modo === 'artist'} aoOrdenar={ordenarPor('artist')} />}
-      {caraDaLinha && <View style={{ width: 34 }} />}
+      {caraDaLinha && <View style={{ width: larguraDaCara }} />}
       {showTime && <CabecaDeColuna rotulo="Duration" estilo={{ width: LARGURA_DURACAO, paddingHorizontal: ESP.sm }} alinhar="right" ativa={ordenacao?.modo === 'duration'} aoOrdenar={ordenarPor('duration')} />}
       <View style={{ width: 42 }} />
     </View>
@@ -886,7 +888,7 @@ export function TrackTable({ tracks, onPlay, onMore, empty, showSavedBadge = fal
         </View>
       </View>
       {comArtista && <ArtistaDaLinha track={track} />}
-      {caraDaLinha && <View style={{ width: 34, alignItems: 'center' }}>{caraDaLinha(track)}</View>}
+      {caraDaLinha && <View style={{ width: larguraDaCara, alignItems: larguraDaCara > 34 ? 'flex-end' : 'center' }}>{caraDaLinha(track)}</View>}
       {showTime && <Text numberOfLines={1} style={[ui.trackMeta, { width: LARGURA_DURACAO, textAlign: 'right' }]}>{formatTime(track.durationSeconds)}</Text>}
       <View {...marcar('mais')}>
         <IconButton name="ellipsis-horizontal" label={`Actions for ${track.title}`} onPress={() => onMore?.(track,contexto?.(track))} />

@@ -5,6 +5,7 @@ import { ROTULO_DO_RADIO, useRadioDaFila } from '../components/RadioQueueControl
 import { FilaArrastavel } from './FilaArrastavel.web';
 import { useFilaDoLeitor } from './useFilaDoLeitor.web';
 import { styles } from './estilos.web';
+import { Button, Dialog, Field } from './ui.web';
 import { COR, ESP } from './tokens.web';
 import type { CommonPageProps } from './rotas';
 
@@ -43,6 +44,10 @@ export function CabecaDaFila({ fila, compacta = false }: { fila: Fila; compacta?
       <Text style={styles.npFilaContagem}>{fila.upNext.length}</Text>
       <View style={{ flex: 1 }} />
       <RadioNaFila />
+      {fila.current || fila.upNext.length ? <Pressable accessibilityRole="button" accessibilityLabel="Save queue as playlist"
+        onPress={fila.pedirNome} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: COR.hover }]}>
+        <Text style={styles.npFilaLimparTexto}>Save</Text>
+      </Pressable> : null}
       {fila.podeEditar && fila.upNext.length > 0 ? <Pressable accessibilityRole="button"
         accessibilityLabel={fila.aConfirmarLimpar ? `Confirm: clear ${fila.upNext.length} tracks from the queue` : 'Clear the queue'}
         onPress={fila.limpar} style={({ hovered }: any) => [styles.npFilaLimpar, hovered && { backgroundColor: COR.hover }]}>
@@ -52,6 +57,19 @@ export function CabecaDaFila({ fila, compacta = false }: { fila: Fila; compacta?
       </Pressable> : null}
     </View>
     {fila.radioErro && !fila.emJam ? <Text accessibilityRole="alert" style={styles.npRadioErro}>{fila.radioErro}</Text> : null}
+    <Dialog open={!!fila.aGuardar} title="Save queue as playlist" onClose={() => { if (!fila.aGravar) fila.setAGuardar(null); }}>
+      <View style={{ paddingBottom: 16 }}>
+        <Field autoFocus placeholder="Playlist name" value={fila.aGuardar?.nome ?? ''}
+          onChangeText={(nome) => fila.setAGuardar({ nome })}
+          onSubmitEditing={() => void fila.guardar(fila.aGuardar?.nome ?? '')} />
+      </View>
+      <View style={styles.dialogActions}>
+        <Button secondary onPress={() => fila.setAGuardar(null)} disabled={fila.aGravar}>Cancel</Button>
+        <Button onPress={() => void fila.guardar(fila.aGuardar?.nome ?? '')} disabled={fila.aGravar || !fila.aGuardar?.nome.trim()}>
+          {fila.aGravar ? 'Saving…' : 'Save'}
+        </Button>
+      </View>
+    </Dialog>
   </View>;
 }
 

@@ -6,6 +6,9 @@ import { fimDaFila } from '../lib/leitorDoPc';
 import { pertoDoFim } from '../lib/grelhaQueCresce';
 import type { CommonPageProps } from './rotas';
 import type { Track } from '../types';
+import { addTracksToPlaylist, createPlaylist } from '../api/playlists';
+import { faixasDaFila, nomeParaAFila } from '../lib/guardarFila';
+import { mensagemDeErro } from '../lib/mensagemDeErro';
 
 const LINHAS_DA_FILA = 100;
 
@@ -49,6 +52,26 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
     const sairam = usePlayer.getState().limparProximas();
     if (sairam > 0) notify(`Cleared ${sairam} ${sairam === 1 ? 'track' : 'tracks'} from the queue.`);
   };
+  // Guardar a fila como playlist (11/10), como no iPhone: a que toca e as
+  // próximas, sem repetidas, com o nome sugerido pela origem.
+  const [aGuardar, setAGuardar] = useState<{ nome: string } | null>(null);
+  const [aGravar, setAGravar] = useState(false);
+  const pedirNome = () => setAGuardar({ nome: nomeParaAFila(usePlayer.getState().origemDaFila, new Date()) });
+  const guardar = async (nome: string) => {
+    const faixas = faixasDaFila(current, upNext.map((u) => u.track));
+    if (!nome.trim() || !faixas.length || aGravar) return;
+    setAGravar(true);
+    try {
+      const nova = await createPlaylist(nome.trim());
+      await addTracksToPlaylist(nova.id, faixas);
+      notify(`Saved “${nome.trim()}” · ${faixas.length} ${faixas.length === 1 ? 'song' : 'songs'}`);
+      setAGuardar(null);
+    } catch (e) {
+      notify(mensagemDeErro(e, 'Could not save the queue.'));
+    } finally {
+      setAGravar(false);
+    }
+  };
   const aoRolar = (e: any) => {
     const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
     if (upNext.length > linhasDaFila && pertoDoFim(contentOffset.y, layoutMeasurement.height, contentSize.height)) {
@@ -58,6 +81,7 @@ export function useFilaDoLeitor({ more, notify }: Pick<CommonPageProps, 'more' |
   return {
     current, upNext, emJam, seguido, podeEditar, radioErro,
     linhasDaFila, aConfirmarLimpar, limpar, aoRolar,
+    aGuardar, setAGuardar, pedirNome, guardar, aGravar,
     notaDoFim: fimDaFila({ emJam: emJam || !!seguido, repeatMode, autoplayRadio, vazia: !upNext.length }),
     aoTocar: (t: Track) => { if (!seguido) void playTrack(t, queue); },
     aoMenu: (t: Track, indiceReal: number) => emJam || seguido ? more(t) : more(t, undefined, { fila: indiceReal }),

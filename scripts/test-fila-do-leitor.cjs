@@ -42,6 +42,13 @@ const { useFilaDoLeitor } = carregar('src/desktop/useFilaDoLeitor.web.ts', {
   '../state/seguirAmigo': { useSeguirAmigo: (select) => select(amigo) },
   '../lib/leitorDoPc': carregar('src/lib/leitorDoPc.ts'),
   '../lib/grelhaQueCresce': carregar('src/lib/grelhaQueCresce.ts'),
+  // Guardar a fila como playlist (11/10): a API é um duplo; o nome e as faixas são puros.
+  '../api/playlists': {
+    createPlaylist: async (nome) => { calls.push(['create', nome]); return { id: 'nova' }; },
+    addTracksToPlaylist: async (id, faixas) => { calls.push(['add', id, faixas.map((t) => t.sourceId)]); },
+  },
+  '../lib/guardarFila': carregar('src/lib/guardarFila.ts'),
+  '../lib/mensagemDeErro': carregar('src/lib/mensagemDeErro.ts'),
 });
 const render = () => { cursor = 0; return useFilaDoLeitor({ more: (...args) => calls.push(['menu', ...args]), notify: (text) => calls.push(['notice', text]) }); };
 let fila = render();
@@ -90,4 +97,31 @@ fila.aoRolar({ nativeEvent: { contentOffset: { y: 0 }, layoutMeasurement: { heig
 assert.equal(render().linhasDaFila, 100, 'não monta toda a biblioteca ao abrir');
 fila.aoRolar({ nativeEvent: { contentOffset: { y: 5100 }, layoutMeasurement: { height: 600 }, contentSize: { height: 5600 } } });
 assert.equal(render().linhasDaFila, 200, 'acrescenta um lote ao chegar perto do fim');
-console.log('Fila do leitor no PC: shuffle, índices, Clear, Jam, amigos e carregamento por lotes passaram.');
+
+// A seta abria e fechava aos solavancos (11/10): animava-se a LARGURA da calha,
+// e a página toda voltava a ser arrumada a cada fotograma. Só o transform anima.
+const casca = fs.readFileSync(require('node:path').join(__dirname, '../src/desktop/casca.web.tsx'), 'utf8');
+assert.match(casca, /\[data-dt~="painel-do-leitor"\] \{ transition: transform 240ms/);
+assert.doesNotMatch(casca, /painel-do-leitor"\] \{ transition: width/);
+const painel = fs.readFileSync(require('node:path').join(__dirname, '../src/desktop/PainelDoLeitor.web.tsx'), 'utf8');
+assert.match(painel, /transform: `translateX\(\$\{noSitio \? 0 : 100\}%\)`/, 'o painel desliza nos dois modos');
+// A seta ficava no canto do conteúdo, por cima dos botões das páginas (11/10):
+// vive na barra de título, à esquerda do minimizar.
+assert.match(casca, /<View style=\{styles\.dragRegion as any\} \/>\s*<SetaDoPainel \/>/, 'a seta na barra de título');
+assert.doesNotMatch(painel, /position: 'absolute', right: 16, top: 12/, 'a seta já não flutua por cima das páginas');
+
+// Guardar a fila (11/10): a que toca e as próximas, sem repetidas, com o nome escolhido.
+(async () => {
+  player.upcomingQueue = () => [{ track: c, index: 2 }, { track: a, index: 0 }, { track: b, index: 1 }];
+  state = [];
+  fila = render();
+  fila.pedirNome();
+  fila = render();
+  assert.match(fila.aGuardar.nome, /^Queue · /, 'sem origem, "Queue · dia"');
+  await fila.guardar('  Noite  ');
+  assert.deepEqual(calls.find((x) => x[0] === 'create'), ['create', 'Noite']);
+  // Por JSON: o array nasce no `vm`, outro reino.
+  assert.equal(JSON.stringify(calls.find((x) => x[0] === 'add')), JSON.stringify(['add', 'nova', ['a', 'c', 'b']]), 'a que toca primeiro, sem repetidas');
+  assert.match(calls.at(-1)[1], /Saved “Noite” · 3 songs/);
+  console.log('Fila do leitor no PC: shuffle, índices, Clear, Jam, amigos, carregamento por lotes e Save passaram.');
+})().catch((e) => { console.error(e); process.exit(1); });

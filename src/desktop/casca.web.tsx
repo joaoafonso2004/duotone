@@ -36,6 +36,7 @@ import { AmigosNaLateral } from './AmigosNaLateral.web';
 import { AtalhosNaLateral } from './AtalhosNaLateral.web';
 import { ProgressoDaImportacao } from './ProgressoDaImportacao.web';
 import { useDestinos } from '../navigation/destinos';
+import { SetaDoPainel } from './PainelDoLeitor.web';
 
 const P = Pressable as any;
 const V = View as any;
@@ -173,7 +174,7 @@ export function injectDesktopDocumentStyles() {
     .np-fila-mais { background: none; border: 0; padding: 6px; border-radius: 6px; cursor: pointer; }
     .np-fila-mais:hover { background: ${COR.hover}; }
     .np-fila-mais:focus-visible { opacity: 1; outline: 2px solid ${COR.texto}; }
-    [data-dt~="painel-do-leitor"] { transition: width 240ms cubic-bezier(.22,1,.36,1), transform 240ms cubic-bezier(.22,1,.36,1); }
+    [data-dt~="painel-do-leitor"] { transition: transform 240ms cubic-bezier(.22,1,.36,1); will-change: transform; }
     /* O fundo do Now Playing: a capa nova entra por cima da anterior. */
     [data-dt~="np-fundo"]{ animation: dt-np-fundo 700ms ease both; }
     /* A cor da capa a encher a janela ao abrir o Now Playing (26/9). */
@@ -395,6 +396,7 @@ export function TitleBar() {
   return <View style={styles.titleBar as any} onDoubleClick={() => window.duotoneDesktop?.toggleMaximize()}>
     <View style={styles.titleBrand}><Image source={require('../../assets/auth-logo.png')} style={{ width: 22, height: 22 }} resizeMode="contain" /><Text style={styles.titleText}>Duotone</Text></View>
     <View style={styles.dragRegion as any} />
+    <SetaDoPainel />
     <View style={styles.windowButtons as any}>
       <Pressable accessibilityLabel="Minimize" onPress={() => window.duotoneDesktop?.minimize()} style={({ hovered }) => [styles.windowButton, hovered && styles.windowButtonHover]}><Ionicons name="remove-outline" size={17} color={desktop.muted} /></Pressable>
       <Pressable accessibilityLabel={maximized ? 'Restore' : 'Maximize'} onPress={() => window.duotoneDesktop?.toggleMaximize()} style={({ hovered }) => [styles.windowButton, hovered && styles.windowButtonHover]}><Ionicons name={maximized ? 'copy-outline' : 'square-outline'} size={13} color={desktop.muted} /></Pressable>

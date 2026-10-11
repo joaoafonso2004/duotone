@@ -11,16 +11,26 @@ import { FilaDoLeitor } from './FilaDoLeitor.web';
 import { Artwork, Empty } from './ui.web';
 import { COR, ESP, FONT } from './tokens.web';
 import type { CommonPageProps } from './rotas';
+import { usePainelDoLeitor, type AbaDoPainel as Aba } from './estadoDoPainel.web';
 
-type Aba = 'fila' | 'letras';
-const PREFERENCIA = 'duotone:painel-do-leitor';
 const DURACAO_DA_RECOLHA = 240;
+/** O id da seta na barra de título: o foco volta para ela ao fechar. */
+const ID_DA_SETA = 'seta-do-painel-do-leitor';
 
-function lerPreferencia(): { aberto: boolean; aba: Aba } {
-  try {
-    const guardada = JSON.parse(window.localStorage.getItem(PREFERENCIA) ?? 'null');
-    return { aberto: guardada?.aberto === true, aba: guardada?.aba === 'letras' ? 'letras' : 'fila' };
-  } catch { return { aberto: false, aba: 'fila' }; }
+/**
+ * A seta que abre o painel (11/10): na barra de título, à esquerda do
+ * minimizar. Vivia no canto do conteúdo e ficava por cima dos botões das
+ * páginas ("Play all", "Shuffle"); na barra de título não tapa nada.
+ */
+export function SetaDoPainel() {
+  const aberto = usePainelDoLeitor((s) => s.aberto);
+  const abrir = usePainelDoLeitor((s) => s.abrir);
+  if (aberto) return null;
+  return <Pressable nativeID={ID_DA_SETA} accessibilityRole="button" accessibilityLabel="Open queue and lyrics panel"
+    {...({ 'aria-expanded': false, 'aria-controls': 'painel-do-leitor' } as any)}
+    onPress={abrir} style={({ hovered, focused }: any) => [s.setaDaBarra, (hovered || focused) && { backgroundColor: COR.hover }]}>
+    <Ionicons name="chevron-back" size={18} color={COR.textoMedio} />
+  </Pressable>;
 }
 
 function ConteudoDoPainel({ aba, more, notify }: Pick<CommonPageProps, 'more' | 'notify'> & { aba: Aba }) {
@@ -49,29 +59,42 @@ function ConteudoDoPainel({ aba, more, notify }: Pick<CommonPageProps, 'more' | 
 
 /** A seta vive no canto do conteúdo, também por cima do Now Playing grande. */
 export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps, 'more' | 'notify'> & { children: React.ReactNode }) {
-  const [estado, setEstado] = useState(lerPreferencia);
+  const aberto = usePainelDoLeitor((st) => st.aberto);
+  const abaAtual = usePainelDoLeitor((st) => st.aba);
+  const estado = { aberto, aba: abaAtual };
+  const setEstado = (f: (antes: { aberto: boolean; aba: Aba }) => { aberto: boolean; aba: Aba }) =>
+    usePainelDoLeitor.setState((st) => f({ aberto: st.aberto, aba: st.aba }));
   const [conteudoMontado, setConteudoMontado] = useState(estado.aberto);
+  // O painel no sítio (ou a deslizar para fora). Separado do `aberto`: ao
+  // abrir, monta-se fora do ecrã e só no fotograma seguinte desliza para dentro.
+  const [noSitio, setNoSitio] = useState(estado.aberto);
   const menosMovimento = useReducedMotion();
   const { width } = useWindowDimensions();
   const porCima = width < 1100;
-  const abrirRef = useRef<any>(null);
   const fecharRef = useRef<any>(null);
   const abasRef = useRef<Array<any>>([]);
   const fechar = useCallback(() => {
-    setEstado((antes) => ({ ...antes, aberto: false }));
-    // Espera o botão voltar ao DOM antes de devolver o foco.
-    requestAnimationFrame(() => abrirRef.current?.focus());
+    usePainelDoLeitor.getState().fechar();
+    // Espera a seta voltar à barra de título antes de lhe devolver o foco.
+    requestAnimationFrame(() => (document.getElementById(ID_DA_SETA) as HTMLElement | null)?.focus());
   }, []);
+  // Só se anima o `transform` (11/10). Animava-se a LARGURA da calha (0 <-> 340):
+  // a cada fotograma a página toda (a grelha, a fila) voltava a ser arrumada, e
+  // via-se a abrir e a fechar aos solavancos. Agora a página muda de largura UMA
+  // vez (ao abrir, logo; ao fechar, no fim) e o painel desliza por cima disso.
   useEffect(() => {
-    if (estado.aberto) { setConteudoMontado(true); return; }
-    // O conteúdo fica até a calha acabar de recolher. Desmontá-lo no clique
-    // cortava a passagem e deixava a página saltar para a largura final.
+    if (estado.aberto) {
+      setConteudoMontado(true);
+      if (menosMovimento) { setNoSitio(true); return; }
+      let r2 = 0;
+      const r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => setNoSitio(true)); });
+      return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); };
+    }
+    setNoSitio(false);
+    // O conteúdo fica até o painel acabar de sair; só depois a página alarga.
     const t = setTimeout(() => setConteudoMontado(false), menosMovimento ? 0 : DURACAO_DA_RECOLHA);
     return () => clearTimeout(t);
   }, [estado.aberto, menosMovimento]);
-  useEffect(() => {
-    try { window.localStorage.setItem(PREFERENCIA, JSON.stringify(estado)); } catch { /* Sem armazenamento, continua utilizável. */ }
-  }, [estado]);
   useEffect(() => {
     if (!estado.aberto) return;
     const aoEscape = (e: KeyboardEvent) => {
@@ -83,10 +106,12 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
     window.addEventListener('keydown', aoEscape);
     return () => window.removeEventListener('keydown', aoEscape);
   }, [estado.aberto, fechar]);
-  const abrir = () => {
-    setEstado((antes) => ({ ...antes, aberto: true }));
-    requestAnimationFrame(() => fecharRef.current?.focus());
-  };
+  // Ao abrir (pela seta da barra de título), o foco vai para o fechar do painel.
+  useEffect(() => {
+    if (!estado.aberto) return;
+    const r = requestAnimationFrame(() => fecharRef.current?.focus());
+    return () => cancelAnimationFrame(r);
+  }, [estado.aberto]);
   return <View style={s.area}>
     <View style={{ flex: 1, minWidth: 0, minHeight: 0 }}>{children}</View>
     {/* A calha anima a largura; lá dentro, as linhas mantêm os 340 px e não
@@ -96,8 +121,8 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
       display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: 0, overflow: 'hidden', zIndex: 30,
       position: porCima ? 'absolute' : 'relative', right: porCima ? 0 : undefined,
       top: porCima ? 0 : undefined, bottom: porCima ? 0 : undefined,
-      width: porCima || estado.aberto ? 340 : 0, maxWidth: '100%',
-      transform: porCima ? `translateX(${estado.aberto ? 0 : 100}%)` : undefined,
+      width: porCima || estado.aberto || conteudoMontado ? 340 : 0, maxWidth: '100%',
+      transform: `translateX(${noSitio ? 0 : 100}%)`,
       pointerEvents: estado.aberto ? 'auto' : 'none',
       boxShadow: porCima && estado.aberto ? '-16px 0 44px rgba(0,0,0,0.3)' : undefined,
     }}>
@@ -133,12 +158,6 @@ export function PainelDoLeitor({ children, more, notify }: Pick<CommonPageProps,
       </View>
     </View>}
     </div>
-    {!estado.aberto && <Pressable ref={abrirRef} accessibilityRole="button" accessibilityLabel="Open queue and lyrics panel"
-      {...({ 'aria-expanded': false, 'aria-controls': 'painel-do-leitor' } as any)}
-      onPress={abrir} style={({ hovered, focused }: any) => [s.seta, s.abrir,
-        conteudoMontado && !menosMovimento && { opacity: 0 }, (hovered || focused) && { backgroundColor: COR.hover }]}>
-      <Ionicons name="chevron-back" size={21} color={COR.textoMedio} />
-    </Pressable>}
   </View>;
 }
 
@@ -151,7 +170,7 @@ const s = StyleSheet.create({
   aba: { borderRadius: 999, paddingHorizontal: ESP.md, paddingVertical: ESP.sm },
   abaTexto: { fontFamily: FONT.body, color: COR.textoMedio, fontSize: 13, fontWeight: '600' },
   seta: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
-  abrir: { position: 'absolute', right: 16, top: 12, zIndex: 30 },
+  setaDaBarra: { width: 46, height: 37, alignItems: 'center', justifyContent: 'center', WebkitAppRegion: 'no-drag' } as any,
   atual: { paddingHorizontal: ESP.md, paddingBottom: ESP.md },
   rotulo: { fontFamily: FONT.body, color: COR.textoFraco, fontSize: 11, marginVertical: ESP.sm },
   faixaAtual: { flexDirection: 'row', gap: ESP.sm, alignItems: 'center', padding: ESP.sm, borderRadius: 8, backgroundColor: COR.elevado },

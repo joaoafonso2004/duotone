@@ -721,11 +721,11 @@ export function ArtistPage({ name, back, ...props }: { name: string; back: () =>
           </View>}
         </View>
 
-        {separador === 'library' && <TrackTable plain colunaDoArtista={false} tracks={guardadasPorOrdem} caraDaLinha={detalheDaFaixa} onPlay={(t) => props.tocarMusica(t, guardadasPorOrdem, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
+        {separador === 'library' && <TrackTable plain colunaDoArtista={false} tracks={guardadasPorOrdem} caraDaLinha={detalheDaFaixa} larguraDaCara={96} onPlay={(t) => props.tocarMusica(t, guardadasPorOrdem, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
           empty={<Empty icon="heart-outline" title="Nothing saved" body="Save a track by this artist and it will appear here." />} />}
 
         {separador === 'tracks' && (aProcurarMusicas ? <View style={{ height: 280 }}><Loading /></View> :
-          <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasPorOrdem} caraDaLinha={detalheDaFaixa} onPlay={(t) => props.tocarMusica(t, outrasPorOrdem, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
+          <TrackTable plain colunaDoArtista={false} showSavedBadge tracks={outrasPorOrdem} caraDaLinha={detalheDaFaixa} larguraDaCara={96} onPlay={(t) => props.tocarMusica(t, outrasPorOrdem, undefined, { tipo: 'artista', nome: name })} onMore={props.more}
             empty={<Empty icon="search-outline" title="No other tracks found" body="No other songs by this artist were found." />} />)}
 
         {separador === 'albums' && (aProcurarAlbuns ? <View style={{ height: 280 }}><Loading /></View> : albuns.length ?
