@@ -70,6 +70,9 @@ const mocks = {
   '../hooks/useOfflineMode':{useOfflineMode:()=>offline},
   './PlayerActionsSheet':{PlayerActionsContent:'Actions',accoesDoMenu:(menu,fazer)=>menu.map(a=>({label:a.rotulo,motivo:a.indisponivel,onPress:()=>fazer(a.id)}))},
   './AddToPlaylistSheet':{AddToPlaylistSheet:'Playlist'}, './ShareFriendSheet':{ShareFriendSheet:'Share'},
+  // Guardar a fila como playlist (11/10): o pedido do nome, a API e o nome sugerido (puro).
+  './PromptSheet':{PromptSheet:'Prompt'}, '../api/playlists':{createPlaylist:async()=>({id:'p'}),addTracksToPlaylist:async()=>{}},
+  '../lib/guardarFila': carregar('src/lib/guardarFila.ts'),
   './RecommendationPreferences':{RecommendationPreferences:'Recs'},
   './RadioQueueControl':{RadioQueueControl:'RadioQueueControl',ErroDoRadio:'ErroDoRadio'},
   '../lib/descarregarFaixa':{alternarDownload(){},downloadNoMenuDe:()=>null,podeDescarregar:()=>false,tocaSemRede:()=>true,useRevisaoDosDownloads:()=>0},

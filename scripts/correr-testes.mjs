@@ -259,6 +259,7 @@ const TESTES = [
   `${TS} scripts/test-marcas-das-playlists.ts`,
   `${TS} scripts/test-ordem-do-artista.ts`,
   `${TS} scripts/test-aparencia.ts`,
+  `${TS} scripts/test-guardar-fila.ts`,
 ];
 
 const raiz = fileURLToPath(new URL('..', import.meta.url));

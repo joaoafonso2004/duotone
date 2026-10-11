@@ -20,6 +20,9 @@ import { useOfflineMode } from '../hooks/useOfflineMode';
 import type { Track } from '../types';
 import { accoesDoMenu, PlayerActionsContent, type PlayerAction } from './PlayerActionsSheet';
 import { AddToPlaylistSheet } from './AddToPlaylistSheet';
+import { PromptSheet } from './PromptSheet';
+import { addTracksToPlaylist, createPlaylist } from '../api/playlists';
+import { faixasDaFila, nomeParaAFila } from '../lib/guardarFila';
 import { ShareFriendSheet } from './ShareFriendSheet';
 import { RecommendationPreferences } from './RecommendationPreferences';
 import { menuDaFaixa, type IdDaAcao } from '../lib/menuDaFaixa';
@@ -65,7 +68,8 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
    * nem "Remove from queue").
    */
   const [selection, setSelection] = React.useState<{ track: Track; index: number | null; queue: Track[]; atual: boolean } | null>(null);
-  const [panel, setPanel] = React.useState<'actions' | 'playlist' | 'share' | 'recomendacoes'>('actions');
+  const [panel, setPanel] = React.useState<'actions' | 'playlist' | 'share' | 'recomendacoes' | 'guardar'>('actions');
+  const [aGuardarFila, setAGuardarFila] = React.useState(false);
   React.useEffect(() => { if (!visible) { setSelection(null); setPanel('actions'); } }, [visible]);
   const current = usePlayer((s) => s.current);
   const queue = usePlayer((s) => s.queue);
@@ -214,13 +218,30 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
     <>
       {selection && <PlayerActionsContent title={tituloDaFaixa(selection.track)} actions={actions} />}
       <View style={selection ? styles.hidden : nativa ? styles.encher : undefined}>
-      <View style={styles.header}>
-        <Text style={type.title}>Play Queue</Text>
-        <Text style={type.caption}>
-          {emSessao
-            ? `${upNext.length} shared ${upNext.length === 1 ? 'song' : 'songs'}`
-            : `${queue.length} ${queue.length === 1 ? 'song' : 'songs'} in queue`}
-        </Text>
+      <View style={[styles.header, styles.headerComBotao]}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={type.title}>Play Queue</Text>
+          <Text style={type.caption}>
+            {emSessao
+              ? `${upNext.length} shared ${upNext.length === 1 ? 'song' : 'songs'}`
+              : `${queue.length} ${queue.length === 1 ? 'song' : 'songs'} in queue`}
+          </Text>
+        </View>
+        {/* Guardar a fila como playlist (11/10): a que toca e as próximas. Ao
+            lado do título, porque age sobre a fila inteira; o "…" de cada
+            linha continua a ser só dessa música. */}
+        {current || upNext.length ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Save queue as playlist"
+            hitSlop={8}
+            onPress={() => { hapticSelection(); setPanel('guardar'); }}
+            style={({ pressed }) => [styles.guardarFila, pressed && { opacity: 0.7 }]}
+          >
+            <Ionicons name="add" size={16} color={colors.text} />
+            <Text style={styles.guardarFilaTexto}>Save</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <Text style={[type.micro, styles.sectionTitle]}>NOW PLAYING</Text>
@@ -412,6 +433,31 @@ export function QueueSheet({ visible, onClose, onOpenSession, onVerArtista, nati
       </BottomSheet>
     )}
     <AddToPlaylistSheet visible={visible && panel === 'playlist'} track={selection?.track} onClose={() => setPanel('actions')} />
+    <PromptSheet
+      visible={visible && panel === 'guardar'}
+      title="Save queue as playlist"
+      placeholder="Playlist name"
+      initialValue={nomeParaAFila(usePlayer.getState().origemDaFila, new Date())}
+      submitLabel="Save"
+      loading={aGuardarFila}
+      onClose={() => setPanel('actions')}
+      onSubmit={async (nome) => {
+        const faixas = faixasDaFila(current, upNext.map((u) => u.track));
+        if (!nome.trim() || !faixas.length || aGuardarFila) return;
+        setAGuardarFila(true);
+        try {
+          const nova = await createPlaylist(nome);
+          await addTracksToPlaylist(nova.id, faixas);
+          hapticNotification();
+          avisarFeito(`Saved “${nome.trim()}” · ${contarMusicas(faixas.length)}`);
+          setPanel('actions');
+        } catch (e) {
+          avisarErro(mensagemDeErro(e, 'Could not save the queue.'));
+        } finally {
+          setAGuardarFila(false);
+        }
+      }}
+    />
     <ShareFriendSheet visible={visible && panel === 'share'} itemType="track" item={selection?.track ?? null} onClose={() => setPanel('actions')} />
     <RecommendationPreferences visible={visible && panel === 'recomendacoes'} track={selection?.track ?? null} onClose={() => setPanel('actions')} />
     </>
@@ -428,6 +474,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.xs,
   },
+  headerComBotao: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  guardarFila: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, height: 32, paddingHorizontal: 12,
+    borderRadius: radii.pill, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong,
+  },
+  guardarFilaTexto: { fontSize: 13, fontWeight: '600', color: colors.text },
   nowPlayingCard: {
     // Translúcido (11/10): a folha pode ser grafite, preta ou a capa desfocada.
     backgroundColor: 'rgba(255,255,255,0.06)',
