@@ -5,6 +5,7 @@ import {
 import type { Track, YtPlaylistItem } from '../types';
 import { lerLetra, separadorDaLetra, VERSAO_DO_ANDROID_MUSIC, type LetraDoYtMusic } from '../lib/letrasDoYtMusic';
 import { FILTROS_DA_PESQUISA, type TipoDePesquisa } from '../lib/pesquisaPorTipo';
+import { registarArtistasDoVideo } from '../lib/artistName';
 
 /**
  * Uma pesquisa de CANÇÕES no YouTube Music, com a marca de explícita (27/9).
@@ -141,15 +142,20 @@ export async function lerRadioPeloYtMusic(mix: MixDoArtista): Promise<Track[]> {
   } catch {
     return [];
   }
-  return lerRadioDoYtMusic(resposta).map((c) => ({
-    source: 'youtube' as const,
-    sourceId: c.videoId,
-    title: c.titulo,
-    artist: c.artistas.map((a) => a.nome).join(' & '),
-    album: null,
-    artworkUrl: `https://i.ytimg.com/vi/${c.videoId}/hqdefault.jpg`,
-    durationSeconds: c.duracaoSec,
-  }));
+  return lerRadioDoYtMusic(resposta).map((c) => {
+    const nomes = c.artistas.map((a) => a.nome);
+    // De graça: ensina os artistas de cada vídeo ao `displayArtist` (11/10).
+    registarArtistasDoVideo(c.videoId, nomes);
+    return {
+      source: 'youtube' as const,
+      sourceId: c.videoId,
+      title: c.titulo,
+      artist: nomes.join(' & '),
+      album: null,
+      artworkUrl: `https://i.ytimg.com/vi/${c.videoId}/hqdefault.jpg`,
+      durationSeconds: c.duracaoSec,
+    };
+  });
 }
 
 /**

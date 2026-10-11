@@ -711,10 +711,61 @@ function lembrar(memoria: Map<string, string>, chave: string, valor: string): st
   return valor;
 }
 
+/**
+ * Os artistas de cada vídeo, como o YouTube Music os dá, o principal primeiro
+ * (11/10). Aprendem-se de graça, das respostas que a app já lê (a página de um
+ * artista, o rádio), e guardam-se no aparelho (`state/artistasDosVideos.ts`).
+ *
+ * Para quê: até 11/10 as músicas da página de um artista ficavam com o artista
+ * DA PÁGINA, e uma música em que ele só entra ("wokeuplikethis*", do Playboi
+ * Carti com o Lil Uzi Vert) ficava "Lil Uzi Vert". Guardada, foi assim para o
+ * catálogo partilhado (`tracks`), que não se reescreve (`on conflict do
+ * nothing`): voltar a guardar não a corrigia. Isto corrige-a ao mostrar.
+ */
+const artistasDosVideos = new Map<string, string>();
+const MAXIMO_DE_VIDEOS = 5000;
+
+/** Regista os artistas de um vídeo. Devolve se mudou alguma coisa. */
+export function registarArtistasDoVideo(videoId: string, artistas: readonly string[]): boolean {
+  const nomes = artistas.map((a) => a.trim()).filter(Boolean);
+  if (!videoId || !nomes.length) return false;
+  const junto = nomes.join(' & ');
+  if (artistasDosVideos.get(videoId) === junto) return false;
+  if (artistasDosVideos.size >= MAXIMO_DE_VIDEOS) artistasDosVideos.delete(artistasDosVideos.keys().next().value!);
+  artistasDosVideos.set(videoId, junto);
+  aoAprender?.();
+  return true;
+}
+let aoAprender: (() => void) | null = null;
+/** Quem guarda no aparelho (`state/artistasDosVideos.ts`) ouve aqui. */
+export function ouvirArtistasDosVideos(fn: (() => void) | null): void {
+  aoAprender = fn;
+}
+export function artistasDosVideosConhecidos(): ReadonlyMap<string, string> {
+  return artistasDosVideos;
+}
+
+/**
+ * A faixa com o artista corrigido, quando o que está guardado é UM dos artistas
+ * do vídeo mas não o principal (o caso da página do artista). Fora disso fica
+ * como está: isto não passa por cima do que se adivinha do título.
+ */
+function comArtistasDoVideo<T extends { source?: string; title: string; artist: string | null }>(t: T): T {
+  const id = (t as { sourceId?: string }).sourceId;
+  if (!id || (t.source && t.source !== 'youtube') || !t.artist) return t;
+  const conhecidos = artistasDosVideos.get(id);
+  if (!conhecidos) return t;
+  const partes = conhecidos.split(' & ').map(chaveDeArtista);
+  const guardado = chaveDeArtista(t.artist);
+  if (partes[0] === guardado || !partes.includes(guardado)) return t;
+  return { ...t, artist: conhecidos };
+}
+
 export function displayArtist(
   t: { source?: string; title: string; artist: string | null },
   vocabulario: Vocabulario = vocabularioAprendido(),
 ): string {
+  t = comArtistasDoVideo(t);
   const memoria = memoriaDe(vocabulario).artista;
   const chave = chaveDaFaixa(t);
   const sabido = memoria.get(chave);
@@ -750,6 +801,7 @@ export function tituloDaFaixa(
   t: { source?: string; title: string; artist: string | null },
   vocabulario: Vocabulario = vocabularioAprendido(),
 ): string {
+  t = comArtistasDoVideo(t);
   const bruto = (t.title ?? '').trim();
   // Fora do YouTube o título vem da API da fonte e já é só o título.
   if (!bruto || (t.source && t.source !== 'youtube')) return bruto;

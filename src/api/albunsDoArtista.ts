@@ -1,4 +1,4 @@
-import { chaveDeArtista, tituloNoLeitor } from '../lib/artistName';
+import { chaveDeArtista, tituloNoLeitor, registarArtistasDoVideo } from '../lib/artistName';
 import {
   canalPelasProvas, canalSemProvas, chaveDoTitulo, FORMA_DO_CANAL, fotoDoCanal, legendaDoAlbum, lerAlbunsDoCanal, lerCancoesComArtistas, lerMusicasDoCanal,
   maisRecente, mixDoCanal, type AlbumDoArtista, type CancaoComArtistas, type MixDoArtista, type Prova,
@@ -159,15 +159,23 @@ function paraLista(a: AlbumDoArtista): AlbumDaPagina {
   return { id: a.id, title: a.titulo, artworkUrl: a.capa, channelTitle: legendaDoAlbum(a), tipo: a.tipo, ano: a.ano };
 }
 
-/** Uma música do canal como faixa da app. O artista é o desta página. */
+/**
+ * Uma música do canal como faixa da app, com TODOS os artistas dela pela ordem
+ * do YouTube Music (o principal primeiro), como o rádio (`api/ytMusic.ts`).
+ *
+ * Era o artista desta página (11/10): numa página do Lil Uzi Vert, o
+ * "wokeuplikethis*" do Playboi Carti ficava "Lil Uzi Vert", e guardado ia assim
+ * para o catálogo. O `displayArtist` mostra o principal, e o Mix do artista
+ * continua a contá-la como dele (`state/mixDoArtista.ts` lê as partes do " & ").
+ */
 function paraFaixa(c: CancaoComArtistas, nome: string): Track {
-  const alvo = chaveDeArtista(nome);
-  const deste = c.artistas.find((a) => chaveDeArtista(a.nome) === alvo) ?? c.artistas[0];
+  const nomes = c.artistas.map((a) => a.nome).filter(Boolean);
+  registarArtistasDoVideo(c.videoId, nomes);
   return {
     source: 'youtube',
     sourceId: c.videoId,
     title: c.titulo,
-    artist: deste?.nome ?? nome,
+    artist: nomes.length ? nomes.join(' & ') : nome,
     album: null,
     artworkUrl: `https://i.ytimg.com/vi/${c.videoId}/hqdefault.jpg`,
     durationSeconds: c.duracaoSec,

@@ -14,6 +14,7 @@ import {
   registarNomeDoCatalogo,
   nomesDeConfianca,
   procurarNoTexto,
+  registarArtistasDoVideo,
   VOCABULARIO_VAZIO,
   type Vocabulario,
 } from '../src/lib/artistName.ts';
@@ -371,6 +372,22 @@ console.log('\no artista e o título no sítio certo');
   eq('feat. colado', artistaPrincipal('Drake feat.Future'), 'Drake');
   eq('um nome com "ft" lá dentro fica', artistaPrincipal('Daft Punk'), 'Daft Punk');
   eq('um ponto sem nada a seguir fica', artistaPrincipal('Lil Ft.'), 'Lil Ft.');
+}
+
+// 11/10: a página do Lil Uzi Vert dava às músicas o artista da página, e o
+// "wokeuplikethis*" (do Playboi Carti, com ele) ficou "Lil Uzi Vert" no catálogo.
+{
+  console.log('\nos artistas de cada vídeo (a página do artista, 11/10)');
+  const voc = aprenderVocabulario([]);
+  registarArtistasDoVideo('wokeup', ['Playboi Carti', 'Lil Uzi Vert']);
+  const guardada = { source: 'youtube', sourceId: 'wokeup', title: 'wokeuplikethis*', artist: 'Lil Uzi Vert' };
+  eq('a guardada com o convidado mostra o principal', displayArtist(guardada, voc), 'Playboi Carti');
+  eq('e o título fica', tituloDaFaixa(guardada, voc), 'wokeuplikethis*');
+  eq('a guardada com o principal fica', displayArtist({ ...guardada, artist: 'Playboi Carti' }, voc), 'Playboi Carti');
+  eq('um artista que não é do vídeo não se troca', displayArtist({ ...guardada, artist: 'Carti Fan Uploads' }, voc), 'Carti Fan Uploads');
+  eq('sem o vídeo conhecido fica como estava', displayArtist({ ...guardada, sourceId: 'outro' }, voc), 'Lil Uzi Vert');
+  eq('a faixa nova da página (todos, o principal primeiro)', displayArtist({ ...guardada, artist: 'Playboi Carti & Lil Uzi Vert' }, voc), 'Playboi Carti');
+  eq('registar o mesmo outra vez não muda nada', registarArtistasDoVideo('wokeup', ['Playboi Carti', 'Lil Uzi Vert']), false);
 }
 
 console.log(mau === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${mau} caso(s) a falhar.\n`);

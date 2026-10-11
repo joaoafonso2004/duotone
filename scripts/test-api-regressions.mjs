@@ -106,7 +106,8 @@ const resposta = (corpo) => ({ ok: true, json: async () => corpo });
       assert.equal(lote.length, 2, 'sem canal continua com as músicas válidas, sem recorrer a vídeos genéricos');
     } else {
       assert.ok(canais.includes('UCX24KmsuxFB4jacvMSd3G2Q'), 'consulta o canal do rapper confirmado pela música');
-      assert.ok(lote.some(t => t.artist === 'Isak'), 'aceita as músicas reais do canal');
+      // Com TODOS os artistas, o principal primeiro (11/10): "Isak & Zigarro & Armando Teles".
+      assert.ok(lote.some(t => (t.artist ?? '').split(' & ')[0] === 'Isak'), 'aceita as músicas reais do canal');
       const pedidos = procuradas.length + canais.length;
       await radio.fetchRadioTracks([semente], [semente]);
       assert.equal(procuradas.length + canais.length, pedidos, 'a página musical é partilhada em cache entre lotes');
