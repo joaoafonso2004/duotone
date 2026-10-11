@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import {
   addAudioOutputChangedListener, lerSaidaDeAudio, type SaidaDeAudio,
 } from '../../modules/duotone-remote-commands';
-import { estaNoCarro, presetDoCarro } from '../lib/presetsDoEqualizador';
+import { presetDaSaida } from '../lib/presetsDoEqualizador';
 import { usePlayer } from './player';
 import { usePresets } from './presets';
 
@@ -27,7 +27,11 @@ export function iniciarModoCarro(): () => void {
   const aplicar = () => {
     const { saida } = useSaidaDeAudio.getState();
     const { memoria } = usePresets.getState();
-    usePlayer.getState()._definirCarro(estaNoCarro(saida, memoria) ? presetDoCarro(memoria) : null);
+    // O carro primeiro; senão o preset do auscultador ou da coluna (11/10).
+    const p = presetDaSaida(saida, memoria);
+    usePlayer.getState()._definirCarro(p ? {
+      ...p.preset, onde: p.onde, aparelho: p.onde === 'aparelho' ? p.aparelho : undefined,
+    } : null);
   };
 
   ler();

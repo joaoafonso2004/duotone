@@ -268,7 +268,17 @@ export type RepeatMode = 'off' | 'all' | 'one';
 export type FotografiaDaFila = { queue: Track[]; queueIndex: number; shuffleOrder: string[]; atual: string | null };
 
 /** O que vale no carro -- ver `carro` no estado. */
-export type CarroNoLeitor = { presetId: string; nome: string; base: Ganhos; ganhos: Ganhos };
+/**
+ * O preset que vale pela SAÍDA, por cima do de cada faixa: o do carro (30/9)
+ * ou o de um auscultador ou coluna (11/10). O nome ficou o do carro, que foi o
+ * primeiro.
+ */
+export type CarroNoLeitor = {
+  presetId: string; nome: string; base: Ganhos; ganhos: Ganhos;
+  /** De onde vem: o carro, ou um aparelho (com o nome dele). */
+  onde?: 'carro' | 'aparelho';
+  aparelho?: string;
+};
 
 /** Os ganhos que se OUVEM: os do carro quando se está nele, os da faixa fora. */
 export function ganhosEmVigor(s: { carro: CarroNoLeitor | null; eqGanhos: Ganhos }): Ganhos {
@@ -413,7 +423,7 @@ interface PlayerState {
    * Quem o liga e desliga é o `state/carro.ts`.
    */
   carro: CarroNoLeitor | null;
-  _definirCarro: (preset: { id: string; nome: string; ganhos: Ganhos } | null) => void;
+  _definirCarro: (preset: { id: string; nome: string; ganhos: Ganhos; onde?: 'carro' | 'aparelho'; aparelho?: string } | null) => void;
   /**
    * Sem `comoPadrao`: muda ESTA faixa e passa a lembrar-se dela.
    * Com `comoPadrao`: muda só o equalizador base das Definições, que vale para
@@ -2303,8 +2313,11 @@ export const usePlayer = create<PlayerState>()(
     const base = normalizarGanhos(preset.ganhos);
     // O mesmo preset com a mesma curva: continua a viagem, com o que se mexeu
     // nela. Preset outro, ou a curva dele editada nas Definições: recomeça.
-    const mesmo = antes && antes.presetId === preset.id && antes.base.every((v, i) => v === base[i]);
-    const carro = mesmo ? { ...antes, nome: preset.nome } : { presetId: preset.id, nome: preset.nome, base, ganhos: base };
+    const mesmo = antes && antes.presetId === preset.id && antes.base.every((v, i) => v === base[i])
+      && antes.onde === preset.onde && antes.aparelho === preset.aparelho;
+    const carro = mesmo
+      ? { ...antes, nome: preset.nome }
+      : { presetId: preset.id, nome: preset.nome, base, ganhos: base, onde: preset.onde, aparelho: preset.aparelho };
     set({ carro });
     if (!mesmo) void aplicarEqNoMotor(carro.ganhos);
   },

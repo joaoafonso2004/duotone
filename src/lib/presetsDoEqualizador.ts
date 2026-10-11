@@ -1,6 +1,6 @@
 /**
- * Os presets do equalizador: os da app, os teus, quais aparecem, e qual vale
- * no carro (30/9).
+ * Os presets do equalizador: os da app, os teus, quais aparecem, qual vale
+ * no carro (30/9) e qual vale em cada auscultador ou coluna (11/10).
  *
  * **Uma memória só, por linhas, e o mais recente ganha.** É a mesma regra dos
  * ajustes por faixa (`fundirAjustes` no lib/equalizer.ts), e pela mesma razão:
@@ -45,7 +45,19 @@ export type LinhaDoCarro = {
   visto: number;
 };
 
-export type LinhaDosPresets = LinhaDePreset | LinhaDoCarro;
+/**
+ * Um auscultador ou uma coluna e o preset dele (11/10): entra sozinho quando
+ * ele se liga e sai quando se desliga, como o do carro. A chave é
+ * `aparelho:<nome que o iOS lhe dá>` ("AirPods Pro de João").
+ */
+export type LinhaDoAparelho = {
+  tipo: 'aparelho';
+  /** O preset que vale nele; `null` é desligado (cada faixa com o seu EQ). */
+  preset: string | null;
+  visto: number;
+};
+
+export type LinhaDosPresets = LinhaDePreset | LinhaDoCarro | LinhaDoAparelho;
 export type MemoriaDePresets = Record<string, LinhaDosPresets>;
 
 /** A linha da escolha do carro. Não colide com preset nenhum: os teus
@@ -202,7 +214,14 @@ export function apagarPreset(m: MemoriaDePresets, id: string, agora: number): Me
     [id]: { ...l, nome: null, ganhos: null, apagado: true, visto: vistoDe(m, id, agora) },
   };
   const carro = linhaDoCarro(m);
-  return carro.preset === id ? definirPresetDoCarro(saida, null, agora) : saida;
+  let fora = carro.preset === id ? definirPresetDoCarro(saida, null, agora) : saida;
+  // Os aparelhos que o usavam também ficam sem preset.
+  for (const [chave, linha] of Object.entries(saida)) {
+    if (linha.tipo === 'aparelho' && linha.preset === id) {
+      fora = { ...fora, [chave]: { ...linha, preset: null, visto: vistoDe(saida, chave, agora) } };
+    }
+  }
+  return fora;
 }
 
 export function mostrarPreset(
@@ -268,6 +287,71 @@ export function estaNoCarro(saida: Saida | null, m: MemoriaDePresets): boolean {
   return eBluetooth(saida) && linhaDoCarro(m).bluetooth.includes(saida.nome.trim());
 }
 
+// ----------------------------------------------------- os aparelhos ----
+
+export const PREFIXO_DO_APARELHO = 'aparelho:';
+/** O altifalante e o auscultador do próprio iPhone não são "um aparelho". */
+const PORTAS_DO_IPHONE = new Set(['Speaker', 'Receiver']);
+
+/** No servidor, `preset_id` tem até 64 caracteres (supabase/eq-presets.sql): o nome fica nos 55. */
+const NOME_DO_APARELHO_MAXIMO = 55;
+
+export function chaveDoAparelho(nome: string): string {
+  return `${PREFIXO_DO_APARELHO}${nome.trim().slice(0, NOME_DO_APARELHO_MAXIMO)}`;
+}
+
+/**
+ * A saída é um aparelho a que se pode dar um preset? Auscultadores com fio,
+ * Bluetooth, AirPlay, USB... Não: o próprio iPhone, e o carro (esse tem o seu).
+ */
+export function eAparelhoComPreset(saida: Saida | null, m: MemoriaDePresets): boolean {
+  return !!saida && !!saida.nome.trim() && !PORTAS_DO_IPHONE.has(saida.tipo) && !estaNoCarro(saida, m);
+}
+
+/** O preset de um aparelho, já resolvido; `null` sem preset ou se ele deixou de existir. */
+export function presetDoAparelho(m: MemoriaDePresets, nome: string): Preset | null {
+  const l = m[chaveDoAparelho(nome)];
+  const id = l && l.tipo === 'aparelho' ? l.preset : null;
+  return id ? resolverPresets(m).find((p) => p.id === id) ?? null : null;
+}
+
+export function definirPresetDoAparelho(
+  m: MemoriaDePresets, nome: string, id: string | null, agora: number,
+): MemoriaDePresets {
+  if (!nome.trim()) return m;
+  const chave = chaveDoAparelho(nome);
+  return { ...m, [chave]: { tipo: 'aparelho', preset: id, visto: vistoDe(m, chave, agora) } };
+}
+
+/** Os aparelhos com preset, para as Definições. */
+export function aparelhosComPreset(m: MemoriaDePresets): { nome: string; preset: Preset }[] {
+  return Object.keys(m)
+    .filter((k) => k.startsWith(PREFIXO_DO_APARELHO))
+    .map((k) => {
+      const nome = k.slice(PREFIXO_DO_APARELHO.length);
+      const preset = presetDoAparelho(m, nome);
+      return preset ? { nome, preset } : null;
+    })
+    .filter((x): x is { nome: string; preset: Preset } => !!x)
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+}
+
+/**
+ * O que vale agora pela saída: o carro primeiro (CarPlay ou o Bluetooth
+ * marcado), depois o preset do aparelho. `null` deixa cada faixa com o seu EQ.
+ */
+export function presetDaSaida(saida: Saida | null, m: MemoriaDePresets):
+  | { preset: Preset; onde: 'carro' } | { preset: Preset; onde: 'aparelho'; aparelho: string } | null {
+  if (!saida) return null;
+  if (estaNoCarro(saida, m)) {
+    const p = presetDoCarro(m);
+    return p ? { preset: p, onde: 'carro' } : null;
+  }
+  if (!eAparelhoComPreset(saida, m)) return null;
+  const p = presetDoAparelho(m, saida.nome);
+  return p ? { preset: p, onde: 'aparelho', aparelho: saida.nome.trim() } : null;
+}
+
 // ------------------------------------------------------- sincronização ----
 
 /** A mais recente de cada linha. A mesma regra do `fundirAjustes`. */
@@ -284,6 +368,9 @@ export function fundirPresets(local: MemoriaDePresets, remoto: MemoriaDePresets)
 export function lerLinha(chave: string, cru: unknown, visto: number): LinhaDosPresets | null {
   if (!Number.isFinite(visto) || !cru || typeof cru !== 'object') return null;
   const d = cru as Record<string, unknown>;
+  if (chave.startsWith(PREFIXO_DO_APARELHO)) {
+    return { tipo: 'aparelho', preset: typeof d.preset === 'string' ? d.preset : null, visto };
+  }
   if (chave === CHAVE_DO_CARRO) {
     const bluetooth = Array.isArray(d.bluetooth)
       ? d.bluetooth.filter((n): n is string => typeof n === 'string' && !!n.trim()).slice(-10)

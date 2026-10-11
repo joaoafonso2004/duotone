@@ -10,6 +10,7 @@ import {
   editarPreset, estaNoCarro, fundirPresets, lerLinha, limparNome, marcarBluetoothDoCarro, mostrarPreset,
   novoIdDePreset, podeGuardarComoPreset, presetDoCarro, presetDosGanhos, presetsVisiveis, reporPreset,
   resolverPresets, resumoDosPresets, type MemoriaDePresets,
+  aparelhosComPreset, chaveDoAparelho, definirPresetDoAparelho, eAparelhoComPreset, presetDaSaida, presetDoAparelho,
 } from '../src/lib/presetsDoEqualizador.ts';
 
 let falhas = 0;
@@ -173,6 +174,53 @@ verificar('o resumo das Definições', () => {
   assert.equal(resumoDosPresets(m), '5 of 6 shown');
   m = definirPresetDoCarro(m, 'flat', 2000);
   assert.equal(resumoDosPresets(m), '5 of 6 shown · Flat in the car');
+});
+
+// 11/10: um preset por auscultador ou coluna, como o do carro.
+verificar('o preset de um aparelho entra com ele, e o carro continua a ganhar', () => {
+  const AIRPODS = { tipo: 'BluetoothA2DPOutput', nome: 'AirPods Pro de João' };
+  const COLUNA = { tipo: 'AirPlay', nome: 'Sala' };
+  const IPHONE = { tipo: 'Speaker', nome: 'Speaker' };
+  let m: MemoriaDePresets = {};
+  assert.equal(presetDaSaida(AIRPODS, m), null, 'sem preset, cada faixa com o seu EQ');
+  m = definirPresetDoAparelho(m, 'AirPods Pro de João', 'bass', 1000);
+  const p = presetDaSaida(AIRPODS, m);
+  assert.ok(p && p.onde === 'aparelho' && p.preset.id === 'bass' && p.aparelho === 'AirPods Pro de João');
+  assert.equal(presetDaSaida(COLUNA, m), null, 'outro aparelho não herda');
+  assert.equal(presetDaSaida(IPHONE, m), null);
+  assert.equal(eAparelhoComPreset(IPHONE, m), false, 'o altifalante do iPhone não é um aparelho');
+  assert.equal(eAparelhoComPreset(AIRPODS, m), true);
+  // O mesmo Bluetooth marcado como carro: é o carro que vale.
+  m = marcarBluetoothDoCarro(definirPresetDoCarro(m, 'flat', 1100), 'AirPods Pro de João', true, 1100);
+  const noCarro = presetDaSaida(AIRPODS, m);
+  assert.ok(noCarro && noCarro.onde === 'carro' && noCarro.preset.id === 'flat');
+  assert.equal(eAparelhoComPreset(AIRPODS, m), false, 'o carro não aparece como aparelho');
+});
+verificar('desligar, apagar o preset e sincronizar', () => {
+  const nome = 'Sony WH-1000XM5';
+  let m = criarPreset({}, 'u-meu', 'Meu', CARRO, 1000);
+  m = definirPresetDoAparelho(m, nome, 'u-meu', 1100);
+  assert.equal(presetDoAparelho(m, nome)?.nome, 'Meu');
+  assert.deepEqual(aparelhosComPreset(m).map((a) => [a.nome, a.preset.id]), [[nome, 'u-meu']]);
+  assert.equal(resolverPresets(m).some((x) => x.id === chaveDoAparelho(nome)), false, 'um aparelho não é um preset');
+  m = apagarPreset(m, 'u-meu', 1200);
+  assert.equal(presetDoAparelho(m, nome), null, 'apagado o preset, o aparelho fica sem preset');
+  m = definirPresetDoAparelho(m, nome, 'bass', 1300);
+  m = definirPresetDoAparelho(m, nome, null, 1400);
+  assert.equal(presetDoAparelho(m, nome), null, 'Off');
+  // Pelo servidor: a linha vai e volta igual, e o mais recente ganha.
+  const chave = chaveDoAparelho(nome);
+  const linha = m[chave];
+  assert.deepEqual(lerLinha(chave, dadosDaLinha(linha), linha.visto), linha);
+  const remoto = definirPresetDoAparelho({}, nome, 'bass', 1500);
+  assert.equal(presetDoAparelho(fundirPresets(m, remoto), nome)?.id, 'bass');
+});
+verificar('a chave cabe no servidor (preset_id até 64)', () => {
+  const comprido = 'X'.repeat(200);
+  assert.ok(chaveDoAparelho(comprido).length <= 64);
+  const m = definirPresetDoAparelho({}, comprido, 'bass', 1);
+  assert.equal(presetDoAparelho(m, comprido)?.id, 'bass', 'o mesmo nome comprido encontra-se');
+  assert.equal(definirPresetDoAparelho({}, '   ', 'bass', 1)['aparelho:'], undefined, 'sem nome, nada');
 });
 
 console.log(falhas === 0 ? '\n  Todos os casos passaram.\n' : `\n  ${falhas} falha(s).\n`);
