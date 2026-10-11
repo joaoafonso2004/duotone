@@ -326,7 +326,11 @@ export function PlayerRoot() {
     } else voltar();
     setTimeout(() => { swiping.current = false; }, 200);
   }, [dragX, dedoDoMini]);
-  useEffect(()=>{dragX.setValue(0);dedoDoMini.setValue(0);},[current,dragX,dedoDoMini]);
+  // O arrasto volta a 0 quando CHEGA uma música, e não quando ela sai (11/10).
+  // Repor ao sair piscava: o motor nativo aplica o 0 antes de o iPhone tirar as
+  // vistas do mini do ecrã, e durante um fotograma o mini que acabou de ser
+  // deslizado para fora voltava inteiro ao sítio.
+  useEffect(()=>{if(!current)return;dragX.setValue(0);dedoDoMini.setValue(0);},[current,dragX,dedoDoMini]);
   /** O fecho começou por um deslize: a saída já vai a caminho. */
   const saidaPorDeslizeRef = useRef(false);
   // Um fecho que NÃO veio do deslize (o "Close player" do VoiceOver, o fim de

@@ -90,6 +90,8 @@ caso('o mini-player sai pelo motor nativo, não pelo closeGain', () => {
   assert.doesNotMatch(leitor, /usePlayer\(\(s\) => s\.closeGain\)/);
   assert.doesNotMatch(leitor, /1 - closeGain/);
   assert.match(leitor, /useDoca\.setState\(\{ aFechar: true \}\)/, 'o vidro desce com a linha');
+  // 11/10: repor o arrasto quando a música SAI piscava o mini no sítio durante um fotograma.
+  assert.match(leitor, /useEffect\(\(\)=>\{if\(!current\)return;dragX\.setValue\(0\);dedoDoMini\.setValue\(0\);\}/, 'o arrasto só volta a 0 com uma música nova');
   assert.match(ler('src/components/Doca.tsx'), /!!s\.current && !s\.closing/);
 });
 caso('o arrasto da fila mede dentro da lista (numa folha nativa o ecrã não bate)', () => {
