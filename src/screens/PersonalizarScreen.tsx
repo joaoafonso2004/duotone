@@ -15,6 +15,7 @@ import {
   type Aparencia, type BotaoDoLeitor, type EstiloDaCapa, type SecaoDaHome,
 } from '../lib/aparencia';
 import { capaParaLista } from '../lib/capaDoEcraBloqueado';
+import { tituloNoLeitor } from '../lib/artistName';
 import { FundoEmGradiente } from '../components/FundoEmGradiente';
 import { hapticSelection } from '../lib/haptics';
 import type { RootStackParamList } from '../navigation/RootNavigator';
@@ -229,13 +230,20 @@ export function PersonalizarScreen({ navigation }: Props) {
  */
 function PreviaDoLeitor({ ap, capa }: { ap: Aparencia; capa: EstiloDaCapa }) {
   const arte = usePlayer((s) => s.current?.artworkUrl ?? null);
-  const titulo = usePlayer((s) => s.current?.title ?? null);
+  // O título limpo, como o leitor o mostra (o cru é o do vídeo: "Artista - Música ...").
+  // Lê a faixa e não calcula no seletor, que corria a cada aviso de posição.
+  const faixa = usePlayer((s) => s.current);
+  const titulo = faixa ? tituloNoLeitor(faixa) : null;
   const corDoTema = useTheme((s) => s.theme.color);
   const veu = veuDoLeitor(ap.brilho);
   const uri = arte ? capaParaLista(arte) : null;
   const aoCentro = ap.titulo === 'centro';
+  // A capa 3D em pequeno é uma inclinação 2D, e não uma rotação 3D a sério (11/10):
+  // no iPhone a metade que roda para trás ficava atrás do fundo desfocado, que
+  // é irmão dela, e via-se só meia pré-visualização. Uma transformação afim não
+  // tem profundidade, e não há plano que a corte.
   const estiloDaCapa = capa === 'full' ? styles.previaCapaInteira
-    : capa === 'floating' && ap.flutuar ? { transform: [{ perspective: 400 }, { rotateY: '12deg' }] } : null;
+    : capa === 'floating' ? styles.previaCapaFlutuante : null;
   return (
     <View style={styles.previa} accessibilityLabel="Preview of Now Playing" accessible>
       {ap.fundoLeitor === 'gradiente' ? <FundoEmGradiente uri={uri} animar />
@@ -298,6 +306,7 @@ const styles = StyleSheet.create({
   previaOrigem: { fontSize: 11, fontWeight: '700', color: colors.text },
   previaCapaArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   previaCapa: { width: 130, height: 130, borderRadius: 4 },
+  previaCapaFlutuante: { borderRadius: 2, transform: [{ skewY: '-5deg' }, { scaleX: 0.94 }] },
   // A pré-visualização tem 18 de margem de cada lado: a capa inteira come-as.
   previaCapaInteira: { width: 200, height: 160, borderRadius: 0, marginHorizontal: -18 },
   previaTitulo: { alignItems: 'center', marginBottom: 10 },

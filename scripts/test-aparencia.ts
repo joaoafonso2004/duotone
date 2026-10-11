@@ -188,6 +188,9 @@ assert.match(home, /useAparencia\(useShallow\(\(s\) => secoesVisiveis\(s\)\)\)/,
 assert.match(home, /secoesDaHome\.map\(\(secao\) => <React\.Fragment key=\{secao\}>\{blocoDaHome\(secao\)\}<\/React\.Fragment>\)/);
 for (const x of SECOES_DA_HOME) assert.match(home, new RegExp(`case '${x}': return`), `a Home desenha "${x}"`);
 assert.match(ler('src/screens/SettingsScreen.tsx'), /opcoes: ESTILOS_DA_CAPA\.map/, 'o Full também nas Definições');
+const personalizar = ler('src/screens/PersonalizarScreen.tsx');
+assert.doesNotMatch(personalizar, /perspective|rotateY|rotateX/, 'a pré-visualização sem 3D a sério: no iPhone a metade de trás ficava escondida (11/10)');
+assert.match(personalizar, /tituloNoLeitor\(faixa\)/, 'a pré-visualização mostra o título limpo, como o leitor');
 const gradiente = ler('src/components/FundoEmGradiente.tsx');
 assert.match(gradiente, /if \(!animar \|\| !aFrente \|\| reduzido\) return;/, 'o gradiente pára quando não se vê');
 assert.match(gradiente, /pedirFluidez\(PASSAGEM_MS \+ 100\)/, 'os 120 Hz só na passagem das cores');
