@@ -2,7 +2,7 @@ import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import React from 'react';
 import { Animated, Modal, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { FundoDaFolha } from './FundoDaFolha';
 import { Toque } from './Toque';
 import { hapticSelection } from '../lib/haptics';
 import { useReducedMotion } from '../hooks/useReducedMotion';
@@ -182,8 +182,9 @@ export function MenuFlutuante({ visivel, ancora, accoes, aoFechar, aoFechado, ti
           },
         ]}
       >
-        <BlurView tint="dark" intensity={40} style={StyleSheet.absoluteFill} />
-        <View style={[StyleSheet.absoluteFill, styles.tinta]} />
+        {/* O fundo das folhas (11/10): o grafite, o preto do OLED ou a capa
+            desfocada. Era um vidro cinzento-azulado fixo, fora do tema. */}
+        <FundoDaFolha semLinha />
         {tituloVisivel ? <Text numberOfLines={1} style={[type.caption, styles.titulo]}>{tituloVisivel}</Text> : null}
         {accoesVisiveis.map((accao) => {
           // Indisponível fica à vista e diz porquê (lib/menuDaFaixa.ts).
@@ -239,7 +240,6 @@ const styles = StyleSheet.create({
     borderColor: colors.borderStrong,
     paddingVertical: spacing.sm,
   },
-  tinta: { backgroundColor: 'rgba(29,29,40,0.82)' },
   linha: {
     minHeight: 44,
     flexDirection: 'row',

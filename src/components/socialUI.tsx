@@ -1,6 +1,8 @@
 import { useNotificationOverlay } from '../hooks/useNotificationOverlay';
-import React from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { FundoDaFolha } from './FundoDaFolha';
+import { pedirFluidez } from '../state/fluidez';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -107,16 +109,39 @@ export function SocialModal({ visible, title, onClose, children, wide = false, f
   const safe = useSafeAreaInsets();
   const notificationDismiss = useNotificationOverlay(visible,onClose);
   const { height } = useWindowDimensions();
+  // Uma folha do iPhone (11/10): o fundo das outras folhas (`FundoDaFolha`: o
+  // grafite, o preto do OLED ou a capa desfocada) e arrastar a pega ou o
+  // cabeçalho para baixo fecha, como no `BottomSheet`. Era um cinzento-azulado
+  // fixo, com uma pega desenhada que não fazia nada.
+  const folha = !web && !fullScreen;
+  const arrasto = useRef(new Animated.Value(0)).current;
+  const fecharRef = useRef(onClose);
+  fecharRef.current = onClose;
+  useEffect(() => { if (visible) arrasto.setValue(0); }, [visible, arrasto]);
+  const puxar = useRef(PanResponder.create({
+    onMoveShouldSetPanResponder: (_e, g) => g.dy > 6 && Math.abs(g.dy) > Math.abs(g.dx),
+    onPanResponderMove: (_e, g) => arrasto.setValue(Math.max(0, g.dy)),
+    onPanResponderRelease: (_e, g) => {
+      pedirFluidez(600);
+      if (g.dy > 90 || g.vy > 0.8) fecharRef.current();
+      else Animated.spring(arrasto, { toValue: 0, useNativeDriver: true, speed: 18, bounciness: 6 }).start();
+    },
+    onPanResponderTerminate: () => Animated.spring(arrasto, { toValue: 0, useNativeDriver: true, speed: 18, bounciness: 6 }).start(),
+  })).current;
 
-  const surface = <View style={{ width: '100%', maxWidth: web ? (wide ? 940 : 680) : undefined, flex: fullScreen ? 1 : undefined, maxHeight: fullScreen ? undefined : web ? height - 24 : height - safe.top - 12, backgroundColor: web || fullScreen ? colors.bg : colors.surfaceHigh, borderColor: colors.borderStrong, borderWidth: web ? 1 : 0, borderRadius: fullScreen ? 0 : radii.xl, borderBottomLeftRadius: web ? radii.xl : 0, borderBottomRightRadius: web ? radii.xl : 0, paddingBottom: web ? 0 : safe.bottom, overflow: 'hidden' }}>
-        {!web && !fullScreen && <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong, alignSelf: 'center', marginTop: 8 }}/>}
-        {header ?? <View style={[socialStyles.row, { paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.border }]}>
-          {fullScreen && <SocialIconButton label="Back to chats" icon="chevron-back" onPress={onClose}/>}
-          <Text numberOfLines={1} style={[socialStyles.title, { flex: 1, fontSize: 19 }]}>{title}</Text>
-          {!fullScreen && <SocialIconButton label="Close" icon="close" onPress={onClose}/>}
-        </View>}
+  const cabeca = <>
+    {folha && <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.borderStrong, alignSelf: 'center', marginTop: 8 }}/>}
+    {header ?? <View style={[socialStyles.row, { paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: 1, borderColor: colors.border }]}>
+      {fullScreen && <SocialIconButton label="Back to chats" icon="chevron-back" onPress={onClose}/>}
+      <Text numberOfLines={1} style={[socialStyles.title, { flex: 1, fontSize: 19 }]}>{title}</Text>
+      {!fullScreen && <SocialIconButton label="Close" icon="close" onPress={onClose}/>}
+    </View>}
+  </>;
+  const surface = <Animated.View style={{ width: '100%', maxWidth: web ? (wide ? 940 : 680) : undefined, flex: fullScreen ? 1 : undefined, maxHeight: fullScreen ? undefined : web ? height - 24 : height - safe.top - 12, backgroundColor: web || fullScreen ? colors.bg : 'transparent', borderColor: colors.borderStrong, borderWidth: web ? 1 : 0, borderRadius: fullScreen ? 0 : radii.xl, borderBottomLeftRadius: web ? radii.xl : 0, borderBottomRightRadius: web ? radii.xl : 0, paddingBottom: web ? 0 : safe.bottom, overflow: 'hidden', transform: folha ? [{ translateY: arrasto }] : undefined }}>
+        {folha && <FundoDaFolha raio={radii.xl} />}
+        {folha ? <View {...puxar.panHandlers}>{cabeca}</View> : cabeca}
         {children}
-      </View>;
+      </Animated.View>;
   const Root = web ? View : GestureHandlerRootView;
   return <Modal onDismiss={notificationDismiss} visible={visible} transparent={!fullScreen} animationType={web ? 'fade' : 'slide'} onRequestClose={onClose}><DentroDeUmModal.Provider value>
     <Root style={socialStyles.body}>

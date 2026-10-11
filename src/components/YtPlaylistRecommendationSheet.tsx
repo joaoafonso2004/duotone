@@ -4,6 +4,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -53,6 +54,8 @@ export function YtPlaylistRecommendationSheet({
   // Tocar numa música: com "Start Radio from a song" é o Radio (ver `tocarMusica`).
   const tocarMusica = usePlayer((s) => s.tocarMusica);
   const theme = useTheme((s) => s.theme);
+  // A lista ocupa ~metade do ecrã (11/10): com 220 pt viam-se três músicas de um álbum.
+  const { height } = useWindowDimensions();
 
   // shared_items.playlist_id tanto pode ser um ID de playlist do YOUTUBE
   // (partilha via pesquisa) como o UUID de uma playlist INTERNA do Duotone
@@ -153,7 +156,7 @@ export function YtPlaylistRecommendationSheet({
             {loadedTitle ?? playlistTitle ?? 'Playlist'}
           </Text>
           <Text style={type.caption}>
-            {isInternalPlaylist ? 'Playlist partilhada' : 'Recommendation'}
+            {isInternalPlaylist ? 'Shared playlist' : 'Recommendation'}
           </Text>
         </View>
       </View>
@@ -197,7 +200,7 @@ export function YtPlaylistRecommendationSheet({
           <BottomSheetFlatList
             data={tracks}
             keyExtractor={(item, index) => `${item.sourceId}-${index}`}
-            style={styles.list}
+            style={{ maxHeight: Math.max(220, Math.round(height * 0.52)) }}
             contentContainerStyle={{ paddingBottom: 40 }}
             renderItem={({ item }) => (
               <TrackRow
@@ -285,8 +288,5 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginBottom: spacing.xs,
     letterSpacing: 0.5,
-  },
-  list: {
-    maxHeight: 220,
   },
 });

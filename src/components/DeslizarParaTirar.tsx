@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, StyleSheet, Text, View } from 'react-native';
 import { hapticNotification } from '../lib/haptics';
 import { colors } from '../theme';
@@ -14,6 +14,11 @@ const LIMIAR = 96;
  * música, o toque longo e a pega continuam a pegar para mudar de sítio, e o
  * deslize vertical continua a ser da lista. Largar antes do limiar volta ao
  * sítio. Desligado (`ativo=false`) num Jam e enquanto outra linha está pegada.
+ *
+ * **A linha não tem fundo** (11/10): as folhas seguem o tema e podem ser a capa
+ * desfocada, e um fundo opaco por linha via-se como tiras escuras. O vermelho
+ * do "Remove" já não fica por baixo da linha inteira à espera de ser tapado:
+ * entra pela direita, do tamanho do que a linha destapa.
  */
 export function DeslizarParaTirar({ ativo, aoTirar, children }: {
   ativo: boolean;
@@ -21,6 +26,7 @@ export function DeslizarParaTirar({ ativo, aoTirar, children }: {
   children: React.ReactNode;
 }) {
   const dx = useRef(new Animated.Value(0)).current;
+  const [largura, setLargura] = useState(0);
   const ativoRef = useRef(ativo);
   ativoRef.current = ativo;
   const aoTirarRef = useRef(aoTirar);
@@ -48,12 +54,15 @@ export function DeslizarParaTirar({ ativo, aoTirar, children }: {
   const fundo = dx.interpolate({ inputRange: [-LIMIAR, -24, 0], outputRange: [1, 0.4, 0], extrapolate: 'clamp' });
 
   return (
-    <View>
-      <Animated.View pointerEvents="none" style={[styles.fundo, { opacity: fundo }]}>
+    <View style={{ overflow: 'hidden' }} onLayout={(e) => setLargura(e.nativeEvent.layout.width)}>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.fundo, { width: largura, opacity: fundo, transform: [{ translateX: Animated.add(dx, largura) }] }]}
+      >
         <Ionicons name="trash-outline" size={18} color="#fff" />
         <Text style={styles.texto}>Remove</Text>
       </Animated.View>
-      <Animated.View {...pan.panHandlers} style={{ transform: [{ translateX: dx }], backgroundColor: colors.surfaceHigh }}>
+      <Animated.View {...pan.panHandlers} style={{ transform: [{ translateX: dx }] }}>
         {children}
       </Animated.View>
     </View>
@@ -62,8 +71,8 @@ export function DeslizarParaTirar({ ativo, aoTirar, children }: {
 
 const styles = StyleSheet.create({
   fundo: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.danger, flexDirection: 'row',
-    alignItems: 'center', justifyContent: 'flex-end', gap: 6, paddingRight: 18, borderRadius: 10,
+    position: 'absolute', top: 0, left: 0, bottom: 0, backgroundColor: colors.danger, flexDirection: 'row',
+    alignItems: 'center', justifyContent: 'flex-start', gap: 6, paddingLeft: 18, borderRadius: 10,
   },
   texto: { color: '#fff', fontSize: 13, fontWeight: '700' },
 });

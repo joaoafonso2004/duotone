@@ -19,7 +19,11 @@ import { useTheme } from '../state/theme';
  * que algo mexe por cima (ver energia-ios). Lê só a capa da música, e não a
  * posição: redesenha ao mudar de faixa, não a cada segundo.
  */
-export function FundoDaFolha({ raio = 0 }: { raio?: number }) {
+export function FundoDaFolha({ raio = 0, semLinha = false }: {
+  raio?: number;
+  /** Sem a linha de cima do OLED: quem já tem borda (o menu flutuante). */
+  semLinha?: boolean;
+}) {
   const fundoApp = useAparencia((s) => s.fundoApp);
   const destaque = useTheme((s) => s.mode);
   const f = fundoDasFolhas(fundoApp, destaque);
@@ -28,7 +32,7 @@ export function FundoDaFolha({ raio = 0 }: { raio?: number }) {
   return (
     <View
       pointerEvents="none"
-      style={[StyleSheet.absoluteFill, { backgroundColor: f.cor, borderTopLeftRadius: raio, borderTopRightRadius: raio, overflow: 'hidden' }, f.linhaEmCima && styles.linha]}
+      style={[StyleSheet.absoluteFill, { backgroundColor: f.cor, borderTopLeftRadius: raio, borderTopRightRadius: raio, overflow: 'hidden' }, f.linhaEmCima && !semLinha && styles.linha]}
     >
       {uri ? (
         <>

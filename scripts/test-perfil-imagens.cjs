@@ -109,7 +109,7 @@ const native = {
 };
 const { MenuFlutuante } = load('src/components/MenuFlutuante.tsx', {
   react: runtime.react, 'react-native': native, '@expo/vector-icons/Ionicons': 'Icon',
-  'expo-blur': { BlurView: 'BlurView' }, './Toque': { Toque: 'Toque' },
+  './FundoDaFolha': { FundoDaFolha: 'FundoDaFolha' }, './Toque': { Toque: 'Toque' },
   '../lib/haptics': { hapticSelection() {} },
   '../hooks/useReducedMotion': { useReducedMotion: () => reduced },
   '../hooks/useNotificationOverlay': { useNotificationOverlay: () => () => {} },

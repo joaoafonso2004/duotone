@@ -15,6 +15,7 @@ import { PillButton } from './PillButton';
 import { colors, radii, spacing, type } from '../theme';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
 import { DentroDeUmModal, useModalDoRNAberto } from './dentroDeUmModal';
+import { FundoDaFolha } from './FundoDaFolha';
 
 interface Props {
   visible: boolean;
@@ -65,6 +66,8 @@ export function YtPlaylistShareSheet({
         <Pressable style={styles.dismiss} onPress={onClose} />
         
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+          {/* O fundo das folhas (11/10), como as outras. */}
+          <FundoDaFolha raio={radii.xl} />
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title} numberOfLines={1}>
@@ -125,7 +128,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    backgroundColor: colors.bg,
+    overflow: 'hidden',
     borderTopLeftRadius: radii.xl,
     borderTopRightRadius: radii.xl,
     borderWidth: 1,
