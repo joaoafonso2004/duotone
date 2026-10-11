@@ -33,32 +33,43 @@ for (const [w, h] of [[0, 0], [-1, 10], [10, 0]]) {
 
 console.log('Capa do perfil: cobre a caixa, mantém o rácio, ancora ao topo nas duas plataformas.');
 
-// --- A capa dissolve-se no ambiente (7/10, variante B) ---
-import { veuDoAmbiente, veuDoTopo, DISSOLVE_DESDE, EXTENSAO_DO_AMBIENTE } from '../src/lib/profileImageCrop.ts';
+// --- A capa dissolve-se na cor dela, que desce pela página (11/10, variante A de docs/perfil-topo.html) ---
+import { degradeDaCorDaCapa, veuDoTopo, DISSOLVE_DESDE, EXTENSAO_DO_AMBIENTE } from '../src/lib/profileImageCrop.ts';
+import { contraste, corDoAmbiente, deHex } from '../src/lib/corDaCapa.ts';
 
-const FUNDO = '#0A0A0F';
 const alfa = (c: string) => (c.startsWith('#') ? 1 : Number(/([\d.]+)\)$/.exec(c)![1]));
 for (const alturaDaCapa of [100, 300, 333, 1200]) {
-  const d = veuDoAmbiente(alturaDaCapa, FUNDO);
+  const d = degradeDaCorDaCapa(alturaDaCapa, '#5A4A3C');
   assert.equal(d.cores.length, d.paragens.length, 'uma paragem por cor');
   assert.equal(d.paragens[0], 0, 'começa no topo');
   assert.equal(d.paragens[d.paragens.length - 1], 1, 'acaba no fundo');
   for (let i = 1; i < d.paragens.length; i++) {
     assert.ok(d.paragens[i]! > d.paragens[i - 1]!, `paragens sempre a subir (${alturaDaCapa}, ${i})`);
   }
-  // O ambiente escurece sempre para baixo, nunca devolve a fotografia.
+  // A cor só se apaga para baixo, sem recuos: não há aresta nenhuma.
   for (let i = 1; i < d.cores.length; i++) {
-    assert.ok(alfa(d.cores[i]!) >= alfa(d.cores[i - 1]!), `véu sem recuos (${alturaDaCapa}, ${i})`);
+    assert.ok(alfa(d.cores[i]!) <= alfa(d.cores[i - 1]!), `sem recuos (${alturaDaCapa}, ${i})`);
   }
-  // Opaco ANTES do fim da caixa: o desfoque transborda, e o corte cai sobre cor lisa.
-  const primeiroOpaco = d.cores.findIndex((c) => alfa(c) === 1);
-  assert.ok(primeiroOpaco > 0 && d.paragens[primeiroOpaco]! < 1, 'chega ao fundo antes do fim');
-  assert.equal(d.cores[d.cores.length - 1], FUNDO, 'a última cor é o fundo da página');
-  // Por trás da capa o ambiente é leve: é ele que se vê quando a nítida se dissolve.
-  assert.ok(alfa(d.cores[0]!) <= 0.35, 'leve no topo');
+  assert.equal(alfa(d.cores[0]!), 1, 'cheia por trás da capa (é ela que se vê quando a fotografia se dissolve)');
+  assert.ok(alfa(d.cores[1]!) >= 0.85, 'ainda cheia no fim da capa');
+  assert.equal(alfa(d.cores[d.cores.length - 1]!), 0, 'acaba transparente sobre o fundo da página, sem corte');
+  assert.ok(d.cores.every((c) => c.startsWith('rgba(90,74,60,')), 'a cor é a da capa');
 }
 assert.ok(DISSOLVE_DESDE >= 0.5 && DISSOLVE_DESDE <= 0.7, 'a nítida fica inteira até mais de metade');
-assert.ok(EXTENSAO_DO_AMBIENTE >= 250, 'o ambiente chega à secção seguinte (era o espaço preto)');
+assert.ok(EXTENSAO_DO_AMBIENTE >= 400, 'a cor desce devagar até bem abaixo da capa (era o espaço preto)');
+
+// A cor: a da fotografia, escura o bastante para o texto branco (contraste de 4,5).
+const BRANCO = { r: 255, g: 255, b: 255 };
+const cao = [...Array(10).fill({ r: 130, g: 90, b: 55 }), ...Array(6).fill({ r: 200, g: 195, b: 188 })];
+for (const celulas of [cao, Array(16).fill({ r: 240, g: 235, b: 225 }), Array(16).fill({ r: 30, g: 120, b: 210 })]) {
+  const c = corDoAmbiente(celulas)!;
+  assert.match(c, /^#[0-9A-F]{6}$/);
+  assert.ok(contraste(deHex(c), BRANCO) >= 4.5, `o branco lê-se sobre ${c}`);
+}
+const doCao = deHex(corDoAmbiente(cao)!);
+assert.ok(doCao.r > doCao.b, 'a do cão é quente (a característica, não a média cinzenta)');
+assert.equal(corDoAmbiente(null), null);
+assert.equal(corDoAmbiente([]), null);
 const topo = veuDoTopo();
 assert.equal(alfa(topo.cores[topo.cores.length - 1]!), 0, 'o véu do topo (horas, botões) acaba transparente');
 assert.ok(topo.paragens[topo.paragens.length - 1]! <= 0.25, 'e acaba cedo');
@@ -66,8 +77,10 @@ assert.ok(topo.paragens[topo.paragens.length - 1]! <= 0.25, 'e acaba cedo');
 // A capa já não escurece até ao preto: é uma máscara (dissolve) por cima do ambiente.
 const heroi = (await import('node:fs')).readFileSync(new URL('../src/components/ProfileHero.tsx', import.meta.url), 'utf8');
 assert.match(heroi, /<DissolverEmBaixo desde=\{DISSOLVE_DESDE\}>/, 'a capa nítida dissolve-se');
-assert.match(heroi, /<AmbienteDaCapa fonte=\{cover\}/, 'e o ambiente está por trás do cabeçalho');
-assert.match(heroi, /blurRadius=\{40\}/, 'o desfoque é da imagem, não ao vivo');
+assert.match(heroi, /<CorDaCapaDoPerfil cover=\{cover\} alturaDaCapa=\{alturaDaCapa\}\/>/, 'e a cor dela está por trás do cabeçalho');
+assert.doesNotMatch(heroi, /AmbienteDaCapa|blurRadius/, 'a fotografia desfocada por trás saiu (11/10)');
+assert.match(heroi, /alignItems:'flex-start',paddingHorizontal:SOCIAL_GUTTER,marginTop:-sobreposicao/, 'a identidade à esquerda, por cima da capa');
+assert.match(heroi, /const AVATAR=76;/, 'a cara grande');
 assert.doesNotMatch(heroi, /BlurView/, 'nada de desfoque ao vivo no perfil');
 for (const f of ['src/components/DissolverEmBaixo.tsx', 'src/components/DissolverEmBaixo.web.tsx']) {
   assert.ok((await import('node:fs')).existsSync(new URL(`../${f}`, import.meta.url)), `${f} existe (par de plataforma)`);

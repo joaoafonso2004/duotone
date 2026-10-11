@@ -337,6 +337,30 @@ export function coresDoGradiente(celulas: RGB[] | null | undefined): [string, st
   return [hex(misturar(primeira, FUNDO, ESCURECER_O_GRADIENTE)), hex(misturar(segunda, FUNDO, ESCURECER_O_GRADIENTE))];
 }
 
+/**
+ * A cor que desce da capa de um perfil pela página (11/10, variante A de
+ * `docs/perfil-topo.html`): a característica da fotografia (numa sem cor, a
+ * média), puxada para o fundo da app até o texto branco por cima dela se ler
+ * (contraste de 4,5). Era um preto à volta do nome, e a capa "não pertencia".
+ */
+export function corDoAmbiente(celulas: RGB[] | null | undefined): string | null {
+  if (!celulas || !celulas.length) return null;
+  const media: RGB = {
+    r: celulas.reduce((s, c) => s + c.r, 0) / celulas.length,
+    g: celulas.reduce((s, c) => s + c.g, 0) / celulas.length,
+    b: celulas.reduce((s, c) => s + c.b, 0) / celulas.length,
+  };
+  const base = corCaracteristica(celulas) ?? media;
+  const branco = { r: 255, g: 255, b: 255 };
+  let t = 0.45;
+  let cor = misturar(base, FUNDO, t);
+  while (contraste(cor, branco) < 4.5 && t < 0.95) {
+    t += 0.05;
+    cor = misturar(base, FUNDO, t);
+  }
+  return hex(cor);
+}
+
 // ---------------------------------------------------------------------------
 // Transição
 // ---------------------------------------------------------------------------

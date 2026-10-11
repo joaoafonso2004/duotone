@@ -168,7 +168,7 @@ export function enquadrarCapa(
  *
  *  1. Por trás de tudo, o AMBIENTE: a mesma fotografia muito desfocada e
  *     escura, que vai da capa até `EXTENSAO_DO_AMBIENTE` abaixo dela (a
- *     "Song of the moment") e acaba no fundo da página (`veuDoAmbiente`).
+ *     "Song of the moment") e acaba no fundo da página (`degradeDaCorDaCapa`).
  *  2. A fotografia nítida, que a partir de `DISSOLVE_DESDE` da altura fica
  *     transparente (uma máscara, `DissolverEmBaixo`) e deixa ver o ambiente --
  *     a mesma fotografia, desfocada: não há aresta, a nitidez é que se perde.
@@ -178,7 +178,8 @@ export function enquadrarCapa(
  * transborda da imagem, e o corte do `overflow:'hidden'` cai sobre cor lisa.
  */
 export const DISSOLVE_DESDE = 0.56;
-export const EXTENSAO_DO_AMBIENTE = 330;
+/** Até onde a cor da capa desce, abaixo dela (11/10: era o ambiente desfocado, 330). */
+export const EXTENSAO_DO_AMBIENTE = 520;
 
 type Degrade = { cores: readonly [string, string, ...string[]]; paragens: readonly [number, number, ...number[]] };
 const veu = (a: number) => `rgba(10,10,15,${a})`;
@@ -189,16 +190,22 @@ export function veuDoTopo(): Degrade {
 }
 
 /**
- * O véu do ambiente, numa caixa com a capa (`alturaDaCapa`) mais a extensão.
- * Leve por trás da capa, mais escuro por trás do nome, e o fundo da página
- * antes do fim.
+ * A cor da capa a descer pela página (11/10, variante A de
+ * `docs/perfil-topo.html`), numa caixa com a capa (`alturaDaCapa`) mais a
+ * extensão: cheia por trás da capa (é ela que se vê quando a fotografia se
+ * dissolve), e a apagar-se devagar até ficar transparente sobre o fundo da
+ * app. Sem aresta: nem com a fotografia, nem com a página.
  */
-export function veuDoAmbiente(alturaDaCapa: number, fundo: string): Degrade {
+export function degradeDaCorDaCapa(alturaDaCapa: number, corHex: string): Degrade {
   const total = Math.max(1, alturaDaCapa + EXTENSAO_DO_AMBIENTE);
   const capa = Math.min(0.9, Math.max(0.1, alturaDaCapa / total));
+  const m = /^#?([0-9a-f]{6})$/i.exec(corHex.trim());
+  const v = m ? parseInt(m[1]!, 16) : 0x0a0a0f;
+  const cor = (a: number) => `rgba(${(v >> 16) & 255},${(v >> 8) & 255},${v & 255},${a})`;
+  const depois = (f: number) => capa + (1 - capa) * f;
   return {
-    cores: [veu(0.3), veu(0.55), veu(0.8), veu(0.93), fundo, fundo],
-    paragens: [0, capa, capa + (1 - capa) * 0.45, capa + (1 - capa) * 0.75, capa + (1 - capa) * 0.92, 1],
+    cores: [cor(1), cor(0.92), cor(0.6), cor(0.32), cor(0.12), cor(0)],
+    paragens: [0, capa, depois(0.3), depois(0.55), depois(0.8), 1],
   };
 }
 
