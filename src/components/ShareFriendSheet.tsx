@@ -1,24 +1,31 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useShallow } from 'zustand/react/shallow';
 import {
   getFriendships, getGrupos, shareComGrupo, shareItem,
   type ChatGroup, type Friendship,
 } from '../api/social';
+import { displayArtist, tituloDaFaixa } from '../lib/artistName';
+import { capaParaLista } from '../lib/capaDoEcraBloqueado';
 import { hapticNotification, hapticSelection } from '../lib/haptics';
-import { useTheme } from '../state/theme';
+import { ESCALA } from '../lib/movimento';
+import { ordenarConversas } from '../lib/ordemDasConversas';
+import { correspondeAPesquisa } from '../lib/searchText';
+import { useOuvirJuntos } from '../state/ouvirJuntos';
+import { usePlaylists } from '../state/playlists';
+import { useSocial } from '../state/social';
 import { colors, radii, spacing, type } from '../theme';
 import { BottomSheet, BottomSheetScrollView } from './BottomSheet';
 import { FriendAvatar } from './FriendAvatar';
 import { GroupAvatar } from './GroupChat';
 import { Input } from './Input';
 import { Toque } from './Toque';
-import { ESCALA } from '../lib/movimento';
-import { useOuvirJuntos } from '../state/ouvirJuntos';
 
 type Destino =
-  | { kind: 'group'; id: string; nome: string; sub: string; grupo: ChatGroup }
-  | { kind: 'friend'; id: string; nome: string; sub: string; amigo: Friendship };
+  | { kind: 'group'; id: string; nome: string; sub: string; grupo: ChatGroup; quando: number }
+  | { kind: 'friend'; id: string; nome: string; sub: string; amigo: Friendship; quando: number };
 
 interface ShareFriendSheetProps {
   visible: boolean;
@@ -27,314 +34,376 @@ interface ShareFriendSheetProps {
   onClose: () => void;
 }
 
+/** Quantas conversas entram em "Recent". */
+const RECENTES = 5;
+
+const chaveDe = (d: Destino) => (d.kind === 'group' ? `g:${d.id}` : d.id);
+
 /**
- * Mandar uma faixa ou uma playlist a alguém.
+ * Mandar uma música ou uma playlist a amigos, no iPhone (11/10): o mesmo que o
+ * diálogo do PC (`ShareFriendSheet.web.tsx`, variante A de
+ * `docs/partilhar-pc.html`), numa folha. A de antes mandava logo a quem se
+ * tocava, não dizia o que ia, não tinha pesquisa e a mensagem tinha de vir
+ * antes de escolher.
  *
- * Sobre o mesmo `BottomSheet` do "Add to playlist": no iPhone uma folha, no
- * PC um diálogo com X, Escape e clique fora (`BottomSheet.web.tsx`).
- *
- * A linha inteira é o botão, como nas playlists. Antes havia um "Share"
- * pequeno à direita e o resto da linha não fazia nada.
+ * Aqui: o que vai em cima, a pesquisa, as conversas recentes primeiro, tocar
+ * MARCA (várias de uma vez), e a mensagem com o "Send to N" no fim. Os amigos e
+ * os grupos vêm da store do Social; só se pedem à rede se ela estiver vazia.
+ * "Listen together" usa as pessoas marcadas (só amigos: um grupo não entra numa
+ * Jam); já numa Jam, junta a música à fila dela.
  */
 export function ShareFriendSheet({ visible, itemType, item, onClose }: ShareFriendSheetProps) {
-  const tema = useTheme((s) => s.theme);
+  const social = useSocial(useShallow((s) => ({ friends: s.friends, groups: s.groups, activity: s.activity })));
+  const playlists = usePlaylists((s) => s.items);
   const abrirSessao = useOuvirJuntos((s) => s.abrir);
   const sessaoActual = useOuvirJuntos((s) => s.sessao);
   const sugerir = useOuvirJuntos((s) => s.sugerir);
-  const [sugerida, setSugerida] = useState(false);
+
+  const [deFora, setDeFora] = useState<{ friends: Friendship[]; groups: ChatGroup[] } | null>(null);
+  const [aCarregar, setACarregar] = useState(false);
+  const [procura, setProcura] = useState('');
+  const [mensagem, setMensagem] = useState('');
   const [escolhidos, setEscolhidos] = useState<string[]>([]);
+  const [estado, setEstado] = useState<'escolher' | 'a-enviar' | 'enviado'>('escolher');
+  const [feito, setFeito] = useState('');
+  const [erro, setErro] = useState('');
+  const [sugerida, setSugerida] = useState(false);
   const [aAbrir, setAAbrir] = useState(false);
-  const [friends, setFriends] = useState<Friendship[]>([]);
-  const [groups, setGroups] = useState<ChatGroup[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [comment, setComment] = useState('');
-  const [sendingStates, setSendingStates] = useState<Record<string, 'idle' | 'sending' | 'sent'>>({});
+  const fecharDepois = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // A store do Social já tem tudo quando a app arrancou com conta. Se ainda
+  // estiver vazia (abriu-se a partilha antes de ela carregar), pede-se uma vez.
+  const vazia = social.friends.length === 0 && social.groups.length === 0;
   useEffect(() => {
-    let active = true;
-    if (visible) {
-      setLoading(true);
-      setComment('');
-      setSendingStates({});
-      // Os grupos faltavam aqui: dava para os criar e falar neles, mas não
-      // para lhes mandar uma música ou uma playlist -- o único caminho era
-      // abrir a conversa do grupo. Vão os dois, e um falhar não leva o outro.
-      Promise.allSettled([getFriendships(), getGrupos()])
-        .then(([a, g]) => {
-          if (!active) return;
-          if (a.status === 'fulfilled') setFriends(a.value.filter((f) => f.status === 'accepted'));
-          if (g.status === 'fulfilled') setGroups(g.value);
-        })
-        .finally(() => { if (active) setLoading(false); });
+    if (!visible) return;
+    setProcura(''); setMensagem(''); setEscolhidos([]); setEstado('escolher'); setErro(''); setSugerida(false);
+    let vivo = true;
+    if (vazia && !deFora) {
+      setACarregar(true);
+      // Vão os dois, e um falhar não leva o outro.
+      Promise.allSettled([getFriendships(), getGrupos()]).then(([a, g]) => {
+        if (!vivo) return;
+        setDeFora({
+          friends: a.status === 'fulfilled' ? a.value : [],
+          groups: g.status === 'fulfilled' ? g.value : [],
+        });
+      }).finally(() => { if (vivo) setACarregar(false); });
     }
-    return () => { active = false; };
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
+  useEffect(() => () => { if (fecharDepois.current) clearTimeout(fecharDepois.current); }, []);
 
-  const chaveDe = (alvo: Destino) => (alvo.kind === 'group' ? `g:${alvo.id}` : alvo.id);
+  const amigos = (vazia && deFora ? deFora.friends : social.friends).filter((f) => f.status === 'accepted');
+  const grupos = vazia && deFora ? deFora.groups : social.groups;
 
-  /**
-   * A folha faz duas coisas, e a segunda só existe para faixas.
-   *
-   * Partilhar é mandar e acabou; ouvir juntos é escolher COM QUEM e depois
-   * abrir. Por isso o modo entra quando se toca no botão de baixo: as linhas
-   * passam de "enviar a cada um" para "marcar quem vem", que é uma pergunta
-   * diferente e não podia ficar com o mesmo gesto.
-   */
-  const [modoSessao, setModoSessao] = useState(false);
+  const destinos: Destino[] = useMemo(() => ordenarConversas<ChatGroup, Friendship>(
+    grupos.map((g) => ({ id: g.id, nome: g.name, grupo: g })),
+    amigos.map((a) => ({ id: a.friendId, nome: a.name || a.username, amigo: a })),
+    social.activity,
+  ).map((c) => c.tipo === 'grupo'
+    ? { kind: 'group' as const, id: c.id, nome: c.nome, quando: c.quando, grupo: c.grupo,
+      sub: `${c.grupo.membros.length} ${c.grupo.membros.length === 1 ? 'member' : 'members'}` }
+    : { kind: 'friend' as const, id: c.id, nome: c.nome, quando: c.quando, amigo: c.amigo, sub: `@${c.amigo.username}` }),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  [amigos.length, grupos.length, social.activity, social.friends, social.groups, deFora]);
+
+  const filtrados = procura.trim()
+    ? destinos.filter((d) => correspondeAPesquisa(procura, d.nome, d.sub))
+    : destinos;
+  const recentes = procura.trim() ? [] : filtrados.filter((d) => d.quando > 0).slice(0, RECENTES);
+  const chavesRecentes = new Set(recentes.map(chaveDe));
+  const resto = filtrados.filter((d) => !chavesRecentes.has(chaveDe(d)))
+    .sort((a, b) => (procura.trim() ? 0 : a.nome.localeCompare(b.nome)));
+
+  const porChave = new Map(destinos.map((d) => [chaveDe(d), d]));
+  const escolhidosDestinos = escolhidos.map((k) => porChave.get(k)).filter((d): d is Destino => !!d);
+  const alternar = (d: Destino) => {
+    hapticSelection();
+    const k = chaveDe(d);
+    setEscolhidos((e) => (e.includes(k) ? e.filter((x) => x !== k) : [...e, k]));
+    setErro('');
+  };
+
+  const nomes = (lista: readonly Destino[]) => {
+    const n = lista.map((d) => d.nome);
+    return n.length <= 2 ? n.join(' and ') : `${n.slice(0, 2).join(', ')} and ${n.length - 2} more`;
+  };
+
+  const enviar = async () => {
+    if (!escolhidosDestinos.length || estado !== 'escolher') return;
+    setEstado('a-enviar'); setErro('');
+    const texto = mensagem.trim() || undefined;
+    const paraAmigos = escolhidosDestinos.filter((d) => d.kind === 'friend').map((d) => d.id);
+    const paraGrupos = escolhidosDestinos.filter((d) => d.kind === 'group');
+    // Os amigos numa só inserção (o `shareItem` aceita a lista); cada grupo à parte.
+    const resultados = await Promise.allSettled([
+      paraAmigos.length ? shareItem(paraAmigos, itemType, item, texto) : Promise.resolve(),
+      ...paraGrupos.map((g) => shareComGrupo(g.id, itemType, item, texto)),
+    ]);
+    const falharam: Destino[] = [];
+    if (resultados[0].status === 'rejected') falharam.push(...escolhidosDestinos.filter((d) => d.kind === 'friend'));
+    paraGrupos.forEach((g, i) => { if (resultados[i + 1].status === 'rejected') falharam.push(g); });
+    if (falharam.length === 0) {
+      hapticNotification();
+      setFeito(`Sent to ${nomes(escolhidosDestinos)}`);
+      setEstado('enviado');
+      fecharDepois.current = setTimeout(onClose, 1400);
+      return;
+    }
+    // Fica só quem falhou marcado, para tentar outra vez.
+    setEscolhidos(falharam.map(chaveDe));
+    setErro(`Couldn't send to ${nomes(falharam)}. Try again.`);
+    setEstado('escolher');
+  };
+
   const podeOuvirJuntos = itemType === 'track' && !!item?.sourceId;
-
-  const comecarSessao = async () => {
-    if (!escolhidos.length || aAbrir) return;
+  const amigosEscolhidos = escolhidosDestinos.filter((d) => d.kind === 'friend').map((d) => d.id);
+  const ouvirJuntos = async () => {
+    if (sessaoActual) {
+      if (sugerida) return;
+      try { hapticSelection(); await sugerir(item); setSugerida(true); hapticNotification(); } catch { /* fica; tentar outra vez */ }
+      return;
+    }
+    if (!amigosEscolhidos.length || aAbrir) return;
     setAAbrir(true);
     try {
       hapticSelection();
-      await abrirSessao(item, escolhidos, comment.trim() || undefined);
+      await abrirSessao(item, amigosEscolhidos, mensagem.trim() || undefined);
       hapticNotification();
       onClose();
     } catch {
-      // Falhou: fica-se na folha, com as escolhas de pé, para tentar outra vez.
+      setErro('Couldn’t start listening together. Try again.');
     } finally {
       setAAbrir(false);
     }
   };
 
-  useEffect(() => {
-    if (!visible) { setModoSessao(false); setEscolhidos([]); setSugerida(false); }
-  }, [visible]);
-
-  /**
-   * Já numa sessão, o botão muda de trabalho: em vez de abrir outra, junta
-   * esta música à fila de quem já está a ouvir contigo.
-   *
-   * Não precisa de permissão nenhuma -- sugerir não interrompe ninguém, e é
-   * essa a diferença entre ouvir COM alguém e assistir a alguém.
-   */
-  const juntarAFilaDaSessao = async () => {
-    if (!sessaoActual || sugerida) return;
-    try {
-      hapticSelection();
-      await sugerir(item);
-      setSugerida(true);
-      hapticNotification();
-    } catch {
-      // Fica como estava; tocar outra vez tenta de novo.
-    }
+  const titulo = itemType === 'track' ? 'Send to friends' : 'Send playlist to friends';
+  const linha = (d: Destino) => {
+    const marcado = escolhidos.includes(chaveDe(d));
+    return (
+      <Pressable
+        key={chaveDe(d)}
+        onPress={() => alternar(d)}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: marcado }}
+        accessibilityLabel={`${d.nome}, ${d.sub}`}
+        style={({ pressed }) => [styles.linha, pressed && { backgroundColor: colors.surfacePressed }]}
+      >
+        <View>
+          {d.kind === 'group'
+            ? <GroupAvatar group={d.grupo} size={44} />
+            : <FriendAvatar avatarUrl={d.amigo.avatarUrl} name={d.nome} size={44} />}
+          {d.kind === 'friend' && d.amigo.online ? <View style={styles.online} /> : null}
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>{d.nome}</Text>
+          <Text numberOfLines={1} style={type.caption}>{d.sub}</Text>
+        </View>
+        <View style={[styles.marca, marcado && styles.marcaOn]}>
+          {marcado ? <Ionicons name="checkmark" size={15} color={colors.bg} /> : null}
+        </View>
+      </Pressable>
+    );
   };
-
-  const handleShare = async (alvo: Destino) => {
-    const chave = chaveDe(alvo);
-    if (sendingStates[chave] === 'sending' || sendingStates[chave] === 'sent') return;
-
-    hapticSelection();
-    setSendingStates((prev) => ({ ...prev, [chave]: 'sending' }));
-
-    try {
-      if (alvo.kind === 'group') await shareComGrupo(alvo.id, itemType, item, comment);
-      else await shareItem(alvo.id, itemType, item, comment);
-      hapticNotification();
-      setSendingStates((prev) => ({ ...prev, [chave]: 'sent' }));
-    } catch {
-      setSendingStates((prev) => ({ ...prev, [chave]: 'idle' }));
-    }
-  };
-
-  // Grupos primeiro: são menos, e é para eles que se partilha quando se quer
-  // que mais do que uma pessoa oiça.
-  const destinos: Destino[] = [
-    ...groups.map((g) => ({
-      kind: 'group' as const, id: g.id, nome: g.name,
-      sub: `${g.membros.length} ${g.membros.length === 1 ? 'member' : 'members'}`, grupo: g,
-    })),
-    ...friends.map((f) => ({
-      kind: 'friend' as const, id: f.friendId, nome: f.name, sub: `@${f.username}`, amigo: f,
-    })),
-  ];
 
   return (
-    <BottomSheet visible={visible} onClose={onClose} titulo={modoSessao ? 'Listen together' : `Share ${itemType === 'track' ? 'track' : 'playlist'}`}>
-
-      <View style={{ marginBottom: spacing.md }}>
-        <Input
-          icon="chatbubble-outline"
-          placeholder="Say something about it…"
-          value={comment}
-          onChangeText={setComment}
-          onClear={() => setComment('')}
-          autoCorrect={false}
-          returnKeyType="done"
-        />
-      </View>
-
-      {loading ? (
-        <ActivityIndicator color={colors.text} style={{ marginVertical: 24 }} />
-      ) : destinos.length === 0 ? (
-        <View style={styles.vazio}>
-          <Ionicons name="people-outline" size={24} color={colors.textTertiary} />
-          <Text style={[type.caption, { textAlign: 'center' }]}>
-            You need a friend or a group before you can share music.
-          </Text>
+    <BottomSheet visible={visible} onClose={onClose} titulo={titulo}>
+      {estado === 'enviado' ? (
+        <View style={styles.feito}>
+          <View style={styles.visto}><Ionicons name="checkmark" size={24} color={colors.online} /></View>
+          <Text style={[type.headline, { textAlign: 'center' }]}>{feito}</Text>
+          <Text style={type.caption}>It’s in their chats.</Text>
         </View>
       ) : (
-        <BottomSheetScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
-          {destinos.map((alvo) => {
-            const estado = sendingStates[chaveDe(alvo)] ?? 'idle';
-            const enviado = estado === 'sent';
-            return (
-              <Pressable
-                key={`${alvo.kind}:${alvo.id}`}
-                onPress={() =>
-                  modoSessao
-                    ? setEscolhidos((e) =>
-                        e.includes(alvo.id) ? e.filter((x) => x !== alvo.id) : [...e, alvo.id]
-                      )
-                    : handleShare(alvo)
-                }
-                disabled={modoSessao ? alvo.kind === 'group' : estado !== 'idle'}
-                style={({ pressed }) => [
-                  styles.row,
-                  pressed && { backgroundColor: colors.surfacePressed },
-                ]}
-              >
-                {alvo.kind === 'group' ? (
-                  <GroupAvatar group={alvo.grupo} size={44} />
-                ) : (
-                  <FriendAvatar avatarUrl={alvo.amigo.avatarUrl} name={alvo.nome} size={44} />
-                )}
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text numberOfLines={1} style={[type.body, { fontWeight: '600' }]}>
-                    {alvo.nome}
-                  </Text>
-                  <Text numberOfLines={1} style={type.caption}>{alvo.sub}</Text>
-                </View>
-                {/* O mesmo vocabulário da folha das playlists: um visto quando
-                    está feito, uma seta quando ainda há alguma coisa a fazer. */}
-                {modoSessao ? (
-                  <Ionicons
-                    name={escolhidos.includes(alvo.id) ? 'checkmark-circle' : 'ellipse-outline'}
-                    size={22}
-                    color={escolhidos.includes(alvo.id) ? tema.color : colors.textTertiary}
-                  />
-                ) : estado === 'sending' ? (
-                  <ActivityIndicator size="small" color={tema.color} />
-                ) : (
-                  <Ionicons
-                    name={enviado ? 'checkmark-circle' : 'paper-plane-outline'}
-                    size={enviado ? 20 : 16}
-                    color={enviado ? colors.text : colors.textTertiary}
-                  />
-                )}
-              </Pressable>
-            );
-          })}
-        </BottomSheetScrollView>
-      )}
+        <View>
+          <OQueVai itemType={itemType} item={item} playlists={playlists} />
 
-      {/* Não é um ícone a mais na linha de acções do leitor -- essa já tem três
-          e não devia crescer. Vive aqui porque esta folha já sabe quem são os
-          amigos, e escolher com quem ouvir é a mesma pergunta que escolher a
-          quem mandar. */}
-      {podeOuvirJuntos && destinos.length > 0 && !loading ? (
-        <View style={styles.rodape}>
-          {modoSessao ? (
-            <>
-              <Toque
-                escala={ESCALA.botao}
-                onPress={comecarSessao}
-                disabled={!escolhidos.length || aAbrir}
-                accessibilityLabel="Start listening together"
-                style={[
-                  styles.botaoSessao,
-                  { backgroundColor: tema.color },
-                  (!escolhidos.length || aAbrir) && { opacity: 0.45 },
-                ]}
-              >
-                {aAbrir ? (
-                  <ActivityIndicator size="small" color={colors.bg} />
-                ) : (
-                  <Text style={[type.body, { color: colors.bg, fontWeight: '700' }]}>
-                    {escolhidos.length
-                      ? `Listen together · ${escolhidos.length}`
-                      : 'Choose who comes'}
-                  </Text>
-                )}
-              </Toque>
-              <Toque
-                escala={ESCALA.botao}
-                onPress={() => { setModoSessao(false); setEscolhidos([]); }}
-                style={styles.botaoQuieto}
-              >
-                <Text style={type.caption}>Cancel</Text>
-              </Toque>
-            </>
+          <Input
+            icon="search"
+            placeholder="Search friends and groups"
+            value={procura}
+            onChangeText={setProcura}
+            onClear={() => setProcura('')}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+
+          {aCarregar ? (
+            <ActivityIndicator color={colors.text} style={{ marginVertical: spacing.xl }} />
+          ) : destinos.length === 0 ? (
+            <View style={styles.vazio}>
+              <Ionicons name="people-outline" size={24} color={colors.textTertiary} />
+              <Text style={[type.caption, { textAlign: 'center' }]}>Add a friend or create a group to send them music.</Text>
+            </View>
           ) : (
+            // A altura sai do total e não do que a pesquisa deixa: escrever não
+            // pode fazer a folha saltar.
+            <BottomSheetScrollView
+              style={{ height: Math.min(300, destinos.length * 60 + 70), marginTop: spacing.sm }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {recentes.length ? <Text style={styles.seccao}>RECENT</Text> : null}
+              {recentes.map(linha)}
+              {resto.length && recentes.length ? <Text style={styles.seccao}>EVERYONE</Text> : null}
+              {resto.map(linha)}
+              {!filtrados.length ? <Text style={[type.caption, styles.semNinguem]}>No friends or groups called “{procura.trim()}”.</Text> : null}
+            </BottomSheetScrollView>
+          )}
+
+          {erro ? <Text style={styles.erro}>{erro}</Text> : null}
+
+          <View style={styles.baixo}>
+            <TextInput
+              value={mensagem}
+              onChangeText={setMensagem}
+              placeholder="Add a message (optional)"
+              placeholderTextColor={colors.textTertiary}
+              selectionColor={colors.text}
+              maxLength={4000}
+              returnKeyType="send"
+              onSubmitEditing={() => void enviar()}
+              style={styles.mensagem}
+              accessibilityLabel="Message"
+            />
             <Toque
               escala={ESCALA.botao}
-              onPress={() => {
-                if (sessaoActual) void juntarAFilaDaSessao();
-                else { hapticSelection(); setModoSessao(true); }
-              }}
-              disabled={sugerida}
-              accessibilityLabel={sessaoActual ? 'Add to the session queue' : 'Listen together'}
-              style={[styles.botaoQuieto, sugerida && { opacity: 0.6 }]}
+              onPress={() => void enviar()}
+              disabled={!escolhidosDestinos.length || estado !== 'escolher'}
+              accessibilityRole="button"
+              accessibilityLabel={escolhidosDestinos.length ? `Send to ${nomes(escolhidosDestinos)}` : 'Send'}
+              style={[styles.enviar, !escolhidosDestinos.length && { opacity: 0.35 }]}
             >
-              <Ionicons
-                name={sugerida ? 'checkmark-circle' : sessaoActual ? 'add-circle-outline' : 'headset-outline'}
-                size={17}
-                color={tema.color}
-              />
-              <Text style={[type.body, { color: tema.color, fontWeight: '600' }]}>
-                {sugerida
-                  ? 'Added to the queue'
-                  : sessaoActual
-                    ? 'Add to the session queue'
-                    : 'Listen together'}
-              </Text>
+              {estado === 'a-enviar'
+                ? <ActivityIndicator size="small" color={colors.bg} />
+                : <Text style={styles.enviarTexto}>{escolhidosDestinos.length > 1 ? `Send to ${escolhidosDestinos.length}` : 'Send'}</Text>}
             </Toque>
-          )}
+          </View>
+
+          {podeOuvirJuntos && destinos.length > 0 ? (
+            <Toque
+              escala={ESCALA.botao}
+              onPress={() => void ouvirJuntos()}
+              disabled={sessaoActual ? sugerida : (!amigosEscolhidos.length || aAbrir)}
+              accessibilityRole="button"
+              style={[styles.secundario, (!sessaoActual && !amigosEscolhidos.length) && { opacity: 0.5 }]}
+            >
+              {aAbrir ? <ActivityIndicator size="small" color={colors.text} /> : (
+                <>
+                  <Ionicons name={sugerida ? 'checkmark-circle' : sessaoActual ? 'add-circle-outline' : 'headset-outline'} size={17} color={colors.textSecondary} />
+                  <Text style={styles.secundarioTexto}>
+                    {sessaoActual
+                      ? (sugerida ? 'Added to the Jam queue' : 'Add to the Jam queue')
+                      : amigosEscolhidos.length
+                        ? `Listen together with ${amigosEscolhidos.length === 1 ? escolhidosDestinos.find((d) => d.kind === 'friend')!.nome : `${amigosEscolhidos.length} friends`}`
+                        : 'Listen together (choose friends above)'}
+                  </Text>
+                </>
+              )}
+            </Toque>
+          ) : null}
         </View>
-      ) : null}
+      )}
     </BottomSheet>
   );
 }
 
+/** O que se vai mandar: a capa, o nome e o artista (ou a playlist). */
+function OQueVai({ itemType, item, playlists }: {
+  itemType: 'playlist' | 'track';
+  item: any;
+  playlists: readonly { id: string; artworks: string[]; trackCount: number }[];
+}) {
+  if (!item) return null;
+  if (itemType === 'track') {
+    const capa = capaParaLista(item.artworkUrl) ?? item.artworkUrl ?? null;
+    return (
+      <View style={styles.oQue}>
+        {capa ? <Image source={{ uri: capa }} style={styles.capa} contentFit="cover" />
+          : <View style={[styles.capa, styles.semCapa]}><Ionicons name="musical-notes" size={18} color={colors.textTertiary} /></View>}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.tipo}>SONG</Text>
+          <Text numberOfLines={1} style={styles.oQueTitulo}>{tituloDaFaixa(item)}</Text>
+          <Text numberOfLines={1} style={type.caption}>{displayArtist(item)}</Text>
+        </View>
+      </View>
+    );
+  }
+  const pl = playlists.find((p) => p.id === item.id);
+  const capas = (pl?.artworks ?? item.artworks ?? []).filter(Boolean).slice(0, 4) as string[];
+  return (
+    <View style={styles.oQue}>
+      {capas.length >= 4 ? (
+        <View style={[styles.capa, styles.mosaico]}>
+          {capas.map((c, i) => <Image key={i} source={{ uri: capaParaLista(c) ?? c }} style={{ width: '50%', height: '50%' }} contentFit="cover" />)}
+        </View>
+      ) : capas.length ? <Image source={{ uri: capaParaLista(capas[0]) ?? capas[0] }} style={styles.capa} contentFit="cover" />
+        : <View style={[styles.capa, styles.semCapa]}><Ionicons name="albums-outline" size={18} color={colors.textTertiary} /></View>}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.tipo}>PLAYLIST</Text>
+        <Text numberOfLines={1} style={styles.oQueTitulo}>{item.name}</Text>
+        {pl ? <Text numberOfLines={1} style={type.caption}>{pl.trackCount} {pl.trackCount === 1 ? 'song' : 'songs'}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xs,
-    borderRadius: radii.md,
-    borderCurve: 'continuous',
+  oQue: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: 10, marginBottom: spacing.md,
+    borderRadius: radii.lg, borderCurve: 'continuous', backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
   },
-  rodape: {
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.sm,
+  capa: { width: 52, height: 52, borderRadius: 6, backgroundColor: colors.surfacePressed, overflow: 'hidden' },
+  mosaico: { flexDirection: 'row', flexWrap: 'wrap' },
+  semCapa: { alignItems: 'center', justifyContent: 'center' },
+  tipo: { fontSize: 11, fontWeight: '700', letterSpacing: 1.2, color: colors.textTertiary },
+  oQueTitulo: { fontSize: 16, fontWeight: '700', color: colors.text, marginTop: 2 },
+  seccao: {
+    fontSize: 11, fontWeight: '700', letterSpacing: 1.2, color: colors.textTertiary,
+    marginTop: spacing.md, marginBottom: spacing.xs, marginHorizontal: spacing.xs,
   },
-  botaoSessao: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 13,
-    borderRadius: radii.lg,
-    borderCurve: 'continuous',
+  linha: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    paddingVertical: 8, paddingHorizontal: spacing.xs, borderRadius: radii.md, borderCurve: 'continuous',
   },
-  botaoQuieto: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    paddingVertical: 12,
-    borderRadius: radii.lg,
-    borderCurve: 'continuous',
-    backgroundColor: colors.surface,
+  online: {
+    position: 'absolute', right: -1, bottom: -1, width: 13, height: 13, borderRadius: 7,
+    backgroundColor: colors.online, borderWidth: 2, borderColor: colors.surfaceHigh,
   },
-  vazio: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: 32,
-    paddingHorizontal: spacing.lg,
+  marca: {
+    width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: 'rgba(245,245,247,0.3)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  marcaOn: { backgroundColor: colors.text, borderColor: colors.text },
+  vazio: { alignItems: 'center', gap: spacing.sm, paddingVertical: 32, paddingHorizontal: spacing.lg },
+  semNinguem: { textAlign: 'center', paddingVertical: spacing.lg },
+  erro: { fontSize: 13, color: colors.danger, marginTop: spacing.sm },
+  baixo: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.md, paddingTop: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth, borderColor: colors.border,
+  },
+  mensagem: {
+    flex: 1, height: 44, borderRadius: radii.md, borderCurve: 'continuous', backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong,
+    paddingHorizontal: spacing.md, color: colors.text, fontSize: 15,
+  },
+  enviar: {
+    height: 44, minWidth: 80, paddingHorizontal: spacing.lg, borderRadius: radii.md, borderCurve: 'continuous',
+    backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center',
+  },
+  enviarTexto: { fontSize: 15, fontWeight: '700', color: colors.bg },
+  secundario: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
+    height: 44, marginTop: spacing.sm, borderRadius: radii.md, borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong,
+  },
+  secundarioTexto: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
+  feito: { alignItems: 'center', gap: 10, paddingTop: spacing.xl, paddingBottom: spacing.xxl },
+  visto: {
+    width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(126,221,183,0.15)',
+    alignItems: 'center', justifyContent: 'center',
   },
 });

@@ -81,6 +81,16 @@ caso('a partilha do PC diz o que vai, pesquisa e escolhe várias antes de enviar
   assert.match(pc, /shareItem\(paraAmigos,/, 'os amigos vão numa só inserção');
   assert.ok(!/onPress=\{\(\) => (handleShare|enviar)\(d\)\}/.test(pc), 'uma linha não pode enviar sozinha');
 });
+// 11/10: o iPhone ficou com a folha antiga (mandava a quem se tocava). Agora é o mesmo fluxo.
+caso('a partilha do iPhone também diz o que vai, pesquisa e escolhe várias antes de enviar', () => {
+  const ios = ler('src/components/ShareFriendSheet.tsx');
+  assert.match(ios, /<OQueVai /, 'o que se manda tem de estar à vista');
+  assert.match(ios, /placeholder="Search friends and groups"/);
+  assert.match(ios, /accessibilityRole="checkbox"/, 'tocar numa pessoa marca, não envia');
+  assert.match(ios, /shareItem\(paraAmigos,/, 'os amigos vão numa só inserção');
+  assert.match(ios, /`Send to \$\{escolhidosDestinos\.length\}`/, 'um botão manda a todas no fim');
+  assert.ok(!/handleShare|Say something about it/.test(ios), 'a folha antiga voltou');
+});
 
 console.log('\nperfil e conversas no iPhone (P3, N5)');
 caso('"Message" abre a conversa direto, sem passar pelo Social', () => {
